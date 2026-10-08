@@ -16,7 +16,7 @@ allocations and freed space. Do not double-count tagged backing on top of the ar
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See
-[IMPLEMENTATION_PLAN.md](../../IMPLEMENTATION_PLAN.md#7-memory-feasibility-and-budgets).
+[IMPLEMENTATION_PLAN.md](../../docs/IMPLEMENTATION_PLAN.md#7-memory-feasibility-and-budgets).
 
 ## Quake II reference
 

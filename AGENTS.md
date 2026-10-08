@@ -8,9 +8,9 @@ is being ported to the PS2 with the free ps2dev SDK. The source split is:
 - **`src/ps2/`**: the console backend, all new C++20 (no exceptions, no RTTI,
   strict `-Werror`). The mechanical M0 move is committed separately from portability edits.
 
-[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) describes the proposed milestones and
+[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) describes the proposed milestones and
 source changes. [README.md](README.md) records current project status; expand it as the
-port develops. [CVARS.md](CVARS.md) lists implemented backend cvars; add each one with
+port develops. [CVARS.md](docs/CVARS.md) lists implemented backend cvars; add each one with
 its debug/release defaults and flags when it exists in code. The files in
 [.claude/rules/](.claude/rules/) include Quake II PS2 reference notes. Their Quake source
 paths, test results and runtime behavior are not yet Doom 3 implementation facts.
@@ -22,10 +22,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
   SDK's C sources, for checking what a library really does, are under
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
-- Planned VU/tool dependencies from the reference are `src/tools/vclpp` (and its nested
-  `external/parse-utils`), `src/tools/vu-checker`, and possibly `src/tools/miniz`.
-  None is imported or pinned in this repository yet. When VU code is added, build the
-  pinned vclpp into `build/tools/vclpp` instead of relying on a copy on `PATH`.
+- Imported third-party dependencies live in `src/ps2/external/`, currently `dlmalloc`.
+  Planned VU/tool dependencies from the reference are `src/ps2/external/vclpp` (and its
+  nested `external/parse-utils`), `src/ps2/external/vu-checker`, and possibly
+  `src/ps2/external/miniz`.
+  These VU/tool dependencies are not imported or pinned yet. When VU code is added,
+  build the pinned vclpp into `build/tools/vclpp` instead of relying on a copy on `PATH`.
 
 ## Build and verify
 
@@ -88,4 +90,4 @@ reference observations until reproduced on this port.
 | [performance.md](.claude/rules/performance.md) | `ps2`, frame-log scripts | EE codegen facts, what PCSX2 can measure, capture/A-B/asm-test recipes |
 | [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md) | id's C++ | editing rules, engine quirks and bugs |
 | [memory-budget.md](.claude/rules/memory-budget.md) | heap, VRAM, assets, MapCycle | the 32 MB picture, map-transition peak, measured budgets |
-| [vclpp-submodule.md](.claude/rules/vclpp-submodule.md) | `tools/vclpp` | vclpp/parse-utils conventions, verification recipes, CI, MASP mode, tyra |
+| [vclpp-submodule.md](.claude/rules/vclpp-submodule.md) | `ps2/external/vclpp` | vclpp/parse-utils conventions, verification recipes, CI, MASP mode, tyra |

@@ -8,8 +8,8 @@ checkout at build time.
 | --- | --- | --- |
 | `docs/reference/quake2.Makefile` | Verbatim reference retained when the Doom Makefile was introduced; excluded from the build | Original reference notice retained |
 | `src/tools/scripts/symbolize.py` | Standalone Quake symbolization helper with Doom defaults | Original GPL v2 notice and `GPL-2.0.txt` retained |
-| `src/ps2/system/dlmalloc/malloc.c`, `malloc.h` | Doug Lea malloc 2.7.2, including the reference's PS2 configuration; normalize line endings/trailing whitespace, reject calloc multiplication overflow and correct the prefixed `dlmallinfo` header declaration | Original public-domain notices retained |
-| `src/ps2/system/dlmalloc/dlmalloc.c` | PS2/newlib integration wrapper; adds a checked `size_t` to `ptrdiff_t` boundary | User authorized reuse of their own code under GPL v3 in this implementation session |
+| `src/ps2/external/dlmalloc/malloc.c`, `malloc.h` | Doug Lea malloc 2.7.2, including the reference's PS2 configuration; normalize line endings/trailing whitespace, reject calloc multiplication overflow and correct the prefixed `dlmallinfo` header declaration | Original public-domain notices retained |
+| `src/ps2/external/dlmalloc/dlmalloc.c` | PS2/newlib integration wrapper; adds a checked `size_t` to `ptrdiff_t` boundary | User authorized reuse of their own code under GPL v3 in this implementation session |
 
 New Doom backend code uses `GPL-3.0-or-later`. The authorization above applies to
 user-owned reference code; it does not change third-party notices or the standalone

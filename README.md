@@ -7,9 +7,10 @@ input and saves are later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
 under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
-changes carry `// [PS2_D3BFG]` annotations. [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+changes carry `// [PS2_D3BFG]` annotations. [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)
 contains the campaign milestones; [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md)
-records the explicit source dispositions and deferred replacements.
+records the explicit source dispositions and deferred replacements. Third-party
+dependencies imported for the port live under `src/ps2/external/`.
 
 ## Build
 
@@ -66,7 +67,7 @@ without terminating use the engine's `LEXFL_NOERRORS` flag.
 The initial job manager creates no workers. Dependencies complete before their dependent
 list executes, and the original scalar executor handles synchronization points and
 completion bookkeeping. Explicit parallelism requests still run on the caller.
-[CVARS.md](CVARS.md) documents `jobs_numThreads` and later backend controls.
+[CVARS.md](docs/CVARS.md) documents `jobs_numThreads` and later backend controls.
 
 Scalar compilation retains intentional double arithmetic in `Parser`, `Timer`, `Token`,
 `bv/Sphere`, `geometry/RenderMatrix`, `math/MatX`, `math/Matrix`, `math/Ode` and

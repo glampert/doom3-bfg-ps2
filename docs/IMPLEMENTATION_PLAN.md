@@ -20,7 +20,7 @@ Scope decisions for this plan:
 
 The initial M0–M2 foundation is implemented. Current acceptance results, memory
 measurements and the next campaign compile blocker are recorded in
-[docs/PORT_STATUS.md](docs/PORT_STATUS.md). The inspection below predates implementation;
+[PORT_STATUS.md](PORT_STATUS.md). The inspection below predates implementation;
 its `neo/` paths now live under `src/neo/`, and the reference Makefile is preserved at
 `docs/reference/quake2.Makefile`.
 
@@ -100,19 +100,17 @@ Mirror the reference project's root Makefile, `src/ps2`, `src/tools`, data direc
 Makefile
 _clang-format
 README.md
-CVARS.md
 AGENTS.md
 CLAUDE.md
 D3BFG_README.txt
 LICENSE.txt
-IMPLEMENTATION_PLAN.md
 base/                           # keep tracked source content; generated/retail files ignored
 gamedata/                       # Doom 3 BFG and RoE game data; stays local, never committed
 src/
-  external/                     # Third-party libraries and dependencies
   neo/                          # existing neo/ moved intact
     idlib/ framework/ d3xp/ cm/ aas/ ui/ swf/ renderer/ sound/ sys/
   ps2/
+    external/                   # third-party dependencies: dlmalloc now; pinned VU tools later
     common.h                    # controlled bridge to Doom's public interfaces
     system/                     # entry, sys, IOP/storage, heap, threading
     debug/                      # logs, assertions, exceptions, frame metrics
@@ -122,7 +120,6 @@ src/
   tools/
     host/                       # converters, validators
     scripts/                    # build metadata, smoke runner, comparisons
-    vclpp/ vu-checker/          # pinned dependencies when VU work begins
   tests/
     unittests/                  # small, redistributable inputs; no retail assets, host unit tests and small PS2 tests
     smoketests/                 # larger integration tests designed to run on the PS2 - target boot/math/render/game scenarios
@@ -130,13 +127,17 @@ build/
   debug/ release/ tools/ tests/
   test-results/<run-id>/
 docs/                           # asset format, budgets, port status, reuse inventory
+  IMPLEMENTATION_PLAN.md
+  CVARS.md
 .claude/rules                   # agent's documentation, skills and knowledge about the project and PS2 hardware/SDK
 ```
 
 The engine now lives under `src/neo/`. Commit `4e5f082` moved the original blobs intact,
 without source edits. File tables below retain the original `neo/...` inspection paths;
 their implementation destinations are `src/neo/...`. The backend and test scaffolding
-is being implemented for M0–M2; later subsystem entries remain proposals.
+implements M0–M2; later subsystem entries remain proposals. Third-party dependencies
+imported for this port live in `src/ps2/external/`, including future vclpp/vu-checker
+tool dependencies.
 
 Perform the `neo` move as a mechanical commit. Audit project-relative paths, includes outside `neo`, debugger configuration, and data lookup immediately afterward. Keep runtime paths independent of the source tree. Leave `doomclassic/` in place and excluded until its separate deletion gate.
 
@@ -152,7 +153,7 @@ Copy narrowly selected components into this repository with source commit and ad
 | --- | --- | --- |
 | Root `Makefile`, `_clang-format`, build scripts | Target/compiler discovery, strict warnings, debug/release split, stripped/unstripped artifacts, compile database | Replace explicit manifests, names, config defines and data paths; track flag changes in dependencies |
 | `src/ps2/system/main.cpp`, `iop_boot.*` | IOP bring-up and host/HDD/USB selection | Call Doom bootstrap; detect Doom fixture/package paths; start with host storage, add physical storage after boot |
-| `system/heap.*`, `system/dlmalloc/` | One heap, tagged accounting and peak windows | Map Doom tags and allocation APIs; audit allocation-before-main and unsized-delete accounting |
+| `system/heap.*`, `system/dlmalloc/` | One heap, tagged accounting and peak windows | Keep the Doom heap adapter in `system/` and import the allocator into `src/ps2/external/dlmalloc/`; map Doom tags and audit allocation-before-main and unsized-delete accounting |
 | `debug/exception_handler.*`, `log_file.*`, `scr_print.*` | Fatal/crash diagnostics, persistent logs, emergency screen | Doom prefixes, matching ELF symbols, heap-independent early/fatal logging |
 | `input/pad.*`, `input/keyboard.*` | Hardware polling and controller initialization | Convert events into Doom key/usercmd semantics; preserve menu and PDA navigation |
 | `renderer/gs.*`, `vram.*`, `gif_writer.h` and packet/VU support | GS setup, local-memory allocator, packet safety, synchronization patterns | Doom materials, coordinate conventions, per-texture CLUTs, draw submission and lifetime rules |

@@ -69,7 +69,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/system/heap.cpp \
 	ps2/system/core.cpp \
 	ps2/system/sys.cpp
-CORE_C_SRC = ps2/system/dlmalloc/dlmalloc.c
+CORE_C_SRC = ps2/external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
 	tests/smoketests/core_boot.cpp \
 	tests/smoketests/idlib_tests.cpp \
