@@ -472,11 +472,14 @@ struct emptyCommand_t {
 	renderCommand_t *	next;
 };
 
+// [PS2_D3BFG]: Only the desktop backend submits OpenGL draw-buffer commands.
+#if defined( ID_OPENGL )
 struct setBufferCommand_t {
 	renderCommand_t		commandId;
 	renderCommand_t *	next;
 	GLenum	buffer;
 };
+#endif
 
 struct drawSurfsCommand_t {
 	renderCommand_t		commandId;
@@ -985,20 +988,7 @@ IMPLEMENTATION SPECIFIC FUNCTIONS
 ====================================================================
 */
 
-struct vidMode_t {
-    int width;
-	int height;
-	int displayHz;
-
-	bool operator==( const vidMode_t & a ) {
-		return a.width == width && a.height == height && a.displayHz == displayHz;
-	}
-};
-
-// the number of displays can be found by itterating this until it returns false
-// displayNum is the 0 based value passed to EnumDisplayDevices(), you must add
-// 1 to this to get an r_fullScreen value.
-bool R_GetModeListForDisplay( const int displayNum, idList<vidMode_t> & modeList );
+// [PS2_D3BFG]: vidMode_t and display enumeration live in public RenderSystem.h.
 
 struct glimpParms_t {
 	int			x;				// ignored in fullscreen

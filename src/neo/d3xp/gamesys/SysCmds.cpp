@@ -32,7 +32,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "../Game_local.h"
 
-#include "TypeInfo.h"
+// [PS2_D3BFG]: No command here uses the absent generated TypeInfo.h diagnostics.
 
 /*
 ==================

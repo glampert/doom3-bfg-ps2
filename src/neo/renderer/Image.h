@@ -150,7 +150,12 @@ public:
 
 	void		SetTexParameters();	// update aniso and trilinear
 
+	// [PS2_D3BFG]: Texture residency is owned by the selected backend.
+#if defined( ID_OPENGL )
 	bool		IsLoaded() const { return texnum != TEXTURE_NOT_LOADED; }
+#else
+	bool		IsLoaded() const;
+#endif
 
 	static void			GetGeneratedName( idStr &_name, const textureUsage_t &_usage, const cubeFiles_t &_cube );
 
@@ -179,6 +184,8 @@ private:
 
 	int					refCount;				// overall ref count
 
+	// [PS2_D3BFG]: Keep GPU handles and format enums out of portable image metadata.
+#if defined( ID_OPENGL )
 	static const GLuint TEXTURE_NOT_LOADED = 0xFFFFFFFF;
 
 	GLuint				texnum;				// gl texture binding
@@ -187,15 +194,24 @@ private:
 	GLuint				internalFormat;
 	GLuint				dataFormat;
 	GLuint				dataType;
+#else
+	struct backendState_t;
+	backendState_t *		backendState;
+#endif
 
 
 };
 
 ID_INLINE idImage::idImage( const char * name ) : imgName( name ) {
+	// [PS2_D3BFG]: A newly declared image has no backend resource.
+#if defined( ID_OPENGL )
 	texnum = TEXTURE_NOT_LOADED;
 	internalFormat = 0;
 	dataFormat = 0;
 	dataType = 0;
+#else
+	backendState = NULL;
+#endif
 	generatorFunction = NULL;
 	filter = TF_DEFAULT;
 	repeat = TR_REPEAT;

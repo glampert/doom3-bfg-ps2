@@ -47,7 +47,12 @@ visible. A host runtime test does not replace the EE compile/link check.
 
 Debug/release core runs and the expected missing-fixture failure pass in PCSX2.
 [docs/PORT_STATUS.md](docs/PORT_STATUS.md) records the checks, archived run identities,
-ELF/startup memory measurements and the separate campaign compile blocker.
+ELF/startup memory measurements and the remaining campaign compile failures.
+
+M2b is in progress: the campaign headers now separate OpenGL state from shared
+renderer/menu contracts, and initial C++20/source portability fixes are in place.
+The campaign compile still fails on exception/RTTI use and desktop service dependencies;
+the default executable remains the tested headless core.
 
 ## Core boundary
 

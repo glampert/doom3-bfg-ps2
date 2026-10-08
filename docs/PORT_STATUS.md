@@ -1,4 +1,4 @@
-# Initial EE foundation acceptance
+# Port status and EE foundation acceptance
 
 M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. This is the
 scalar Doom foundation: real idlib, command/CVar/file services, synchronous jobs and
@@ -49,14 +49,55 @@ from the arena. These figures exclude kernel reservation and stack usage, and es
 no campaign or map-transition budget. PCSX2 does not prove hardware cache correctness
 or throughput.
 
-## Next gate: M2b
+## M2b in progress: campaign headers and source portability
 
-The explicit campaign list contains 274 retained source units. `make compile-game`
-currently fails at its first unit, `aas/AASFile.cpp`: the full precompiled header reaches
-`renderer/OpenGL/qgl.h:36`, which requires unavailable `gl/gl.h`. Separate portable
-renderer/sound/frontend contracts before continuing that gate; do not use the reduced
-core header to disguise campaign dependencies. Campaign exceptions/RTTI, offline
-session services and subsystem replacements remain work for M2b and subsequent gates.
+The first M2b pass on 2026-10-08 removes the campaign precompiled header's mandatory
+OpenGL SDK dependency. Menu declarations use public display-mode contracts; texture
+and shader headers retain common metadata while keeping GL handles/uniform state
+behind `ID_OPENGL`. Portable backend state is opaque, and its implementation remains
+required for the resident link. Portal debug drawing uses the render-world line API
+on portable builds. These changes do not implement a renderer or fake successful
+resource loads.
+
+Initial source fixes rename C++20's reserved `requires` identifiers without changing
+the map key or save layout, use the existing portable force-inline macro, fix a Windows
+include separator, and restrict missing generated `TypeInfo.h` includes to their
+optional memory diagnostics. The engine's `idClass`/`idTypeInfo` hierarchy is retained.
+
+| Gate | Result |
+| --- | --- |
+| Debug campaign, all 274 units attempted | 190 compiled, 84 failed; Make exited 2 |
+| Release campaign, all 274 units attempted | 194 compiled, 80 failed; Make exited 2 |
+| Debug and release headless core | Compile/link and PCSX2 smoke passed |
+| Debug missing-fixture scenario | Expected failure accepted; remaining checks and shutdown passed |
+| Source inventory | Unchanged: all 274 campaign units remain selected |
+
+The four extra release successes are model files with RTTI casts inside debug assertions.
+They still need checked type queries. AAS, collision, declarations, substantial renderer
+frontend code and many campaign support units now compile with the full header boundary.
+Successful objects do not establish a game link or runtime acceptance.
+
+Full pass logs are local at `build/{debug,release}/campaign-compile.log`. Reproduce
+with `make -B -k -j4 compile-game` and `make -B -k -j4 BUILD=release compile-game`;
+`-k` collects failures across the manifest and still returns failure. Keep the normal
+`make compile-game` gate failing until every selected unit compiles.
+
+| Remaining compile boundary | Current failures / required work |
+| --- | --- |
+| Game/script errors | Exception-based class factories, entity spawning and script compilation; convert error propagation and validate class allocation alignment/overflow |
+| Checked types | RTTI casts in HUD/PDA menus, GUI variables/windows, resource files and models |
+| Platform services | Windows APIs in filesystem/ZIP, key translation and common diagnostics |
+| Classic dependencies | `Common.cpp` and `common_frame.cpp` still import Classic headers; remove those paths instead of restoring Classic linkage |
+| Logical sound | Four retained sound units import `snd_local.h` and its XAudio SDK types |
+| SWF image failures | Exception-based image error reporting remains |
+| Resident link | Supply declared renderer/audio/offline-session/platform replacements; audit registrations and memory before game-fixture boot |
+
+The next source slice is explicit game allocation/error handling. M2b is incomplete;
+M3 game-fixture initialization has not begun. The executable still uses the M2 core
+bootstrap. Its new regression runs are debug `20261008T102332Z_smoke_22a44eba3d404921`
+and release `20261008T102441Z_smoke_daf97f5405f540e1`; measured ELF residency and core
+heap totals remain at the foundation baseline above. The expected missing-fixture run
+is `20261008T102618Z_smoke_eab26c2bbe0849c4`.
 
 There is no map loader boot, GS/VU renderer, audible output, controller input, save
 support, physical storage bring-up or custom EE exception handler in this slice.

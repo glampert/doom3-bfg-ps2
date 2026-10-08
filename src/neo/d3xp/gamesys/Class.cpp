@@ -38,7 +38,10 @@ instancing of objects.
 
 #include "../Game_local.h"
 
+// [PS2_D3BFG]: Generated variable introspection is used only by this optional diagnostic.
+#ifdef ID_DEBUG_UNINITIALIZED_MEMORY
 #include "TypeInfo.h"
+#endif
 
 
 /***********************************************************************

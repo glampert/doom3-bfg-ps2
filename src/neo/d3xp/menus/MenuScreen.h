@@ -28,7 +28,10 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __MENUSCREEN_H__
 #define __MENUSCREEN_H__
 
+// [PS2_D3BFG]: Menu declarations use public renderer/SWF contracts, not renderer internals.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 #include "../../renderer/tr_local.h"
+#endif
 
 enum mainMenuTransition_t {
 	MENU_TRANSITION_INVALID = -1,

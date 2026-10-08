@@ -118,10 +118,13 @@ enum renderParm_t {
 };
 
 
+// [PS2_D3BFG]: GLSL locations belong to the OpenGL implementation.
+#if defined( ID_OPENGL )
 struct glslUniformLocation_t {
 	int		parmIndex;
 	GLint	uniformIndex;
 };
+#endif
 
 
 
@@ -183,10 +186,16 @@ public:
 	void	BindShader_BinkGUI() { BindShader_Builtin( BUILTIN_BINK_GUI ); }
 	void	BindShader_MotionBlur() { BindShader_Builtin( BUILTIN_MOTION_BLUR); }
 
+	// [PS2_D3BFG]: Portable queries are implemented by the selected backend, without GLSL state.
+#if defined( ID_OPENGL )
 	// the joints buffer should only be bound for vertex programs that use joints
 	bool	ShaderUsesJoints() const { return vertexShaders[currentVertexShader].usesJoints; }
 	// the rpEnableSkinning render parm should only be set for vertex programs that use it
 	bool	ShaderHasOptionalSkinning() const { return vertexShaders[currentVertexShader].optionalSkinning; }
+#else
+	bool	ShaderUsesJoints() const;
+	bool	ShaderHasOptionalSkinning() const;
+#endif
 
 	// unbind the currently bound render program
 	void	Unbind();
@@ -197,7 +206,10 @@ public:
 
 	static const int	MAX_GLSL_USER_PARMS = 8;
 	const char*	GetGLSLParmName( int rp ) const;
+	// [PS2_D3BFG]: Only OpenGL callers may inspect the current GLSL program.
+#if defined( ID_OPENGL )
 	int			GetGLSLCurrentProgram() const { return currentRenderProgram; }
+#endif
 	void		SetUniformValue( const renderParm_t rp, const float * value );
 	void		CommitUniforms();
 	int			FindGLSLProgram( const char* name, int vIndex, int fIndex );
@@ -250,6 +262,8 @@ protected:
 	int builtinShaders[MAX_BUILTINS];
 	void BindShader_Builtin( int i ) { BindShader( builtinShaders[i], builtinShaders[i] ); }
 
+	// [PS2_D3BFG]: Shader objects and uniform storage are backend-private.
+#if defined( ID_OPENGL )
 	GLuint	LoadShader( GLenum target, const char * name, const char * startToken );
 	bool	CompileGLSL( GLenum target, const char * name );
 	GLuint	LoadGLSLShader( GLenum target, const char * name, idList<int> & uniforms );
@@ -295,6 +309,10 @@ protected:
 	int				currentFragmentShader;
 	idList<vertexShader_t, TAG_RENDER> vertexShaders;
 	idList<fragmentShader_t, TAG_RENDER> fragmentShaders;
+#else
+	struct backendState_t;
+	backendState_t *	backendState;
+#endif
 };
 
 extern idRenderProgManager renderProgManager;

@@ -414,7 +414,8 @@ public:
 	void					UnregisterEntity( idEntity *ent );
 	const idDict &			GetSpawnArgs() const { return spawnArgs; }
 
-	bool					RequirementMet( idEntity *activator, const idStr &requires, int removeItem );
+	// [PS2_D3BFG]: Avoid the C++20 requires keyword; serialized keys and order are unchanged.
+	bool					RequirementMet( idEntity *activator, const idStr &requiredItem, int removeItem );
 
 	void					AlertAI( idEntity *ent );
 	idActor *				GetAlertEntity();

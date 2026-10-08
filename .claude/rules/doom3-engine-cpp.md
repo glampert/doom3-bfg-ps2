@@ -41,3 +41,22 @@ math path; PS2-specific math replacement headers are a later milestone.
   end, unlike stdio's signed offset. Preserve this existing API in memory-file tests.
   Cvar direct commands enforce ROM/INIT flags; `set` and programmatic setters explicitly
   force writes. Test both paths instead of treating the forced setter as a restriction.
+
+## Campaign portability findings
+
+- `Game_local.h` includes `MenuScreen.h`, which previously pulled in `tr_local.h`
+  and all its OpenGL state. Display mode declarations belong in public `RenderSystem.h`.
+  The campaign target uses the full precompiled header; the reduced core header is
+  not a substitute for resolving these dependencies.
+- Texture/shader metadata headers now hide GL handles behind `ID_OPENGL`. The portable
+  backend state and residency/shader query implementations still need to be supplied
+  before a campaign link; no successful resource-load behavior is implied by the headers.
+- C++20 reserves `requires`. Door/trigger members and requirement parameters use
+  `requiredItem`, while the map key remains `"requires"` and save-field order is unchanged.
+- Missing generated `gamesys/TypeInfo.h` is variable/state-dump introspection, separate
+  from the retained `idClass`/`idTypeInfo` hierarchy. Include it only for the corresponding
+  `ID_DEBUG_MEMORY` / `ID_DEBUG_UNINITIALIZED_MEMORY` features, which are not enabled
+  or supplied by this port.
+- Before game-fixture boot, fix `idClass::operator new`'s four-byte size prefix: returning
+  `p + 1` loses the alignment provided by `Mem_Alloc`. Allocation size/counter overflow
+  and factory failure behavior need testing with that change.

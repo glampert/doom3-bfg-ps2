@@ -281,7 +281,8 @@ void idTrigger_Multi::Save( idSaveGame *savefile ) const {
 	savefile->WriteFloat( delay );
 	savefile->WriteFloat( random_delay );
 	savefile->WriteInt( nextTriggerTime );
-	savefile->WriteString( requires );
+	// [PS2_D3BFG]: Avoid the C++20 requires keyword; serialized keys and order are unchanged.
+	savefile->WriteString( requiredItem );
 	savefile->WriteInt( removeItem );
 	savefile->WriteBool( touchClient );
 	savefile->WriteBool( touchOther );
@@ -300,7 +301,8 @@ void idTrigger_Multi::Restore( idRestoreGame *savefile ) {
 	savefile->ReadFloat( delay );
 	savefile->ReadFloat( random_delay );
 	savefile->ReadInt( nextTriggerTime );
-	savefile->ReadString( requires );
+	// [PS2_D3BFG]: Avoid the C++20 requires keyword; serialized keys and order are unchanged.
+	savefile->ReadString( requiredItem );
 	savefile->ReadInt( removeItem );
 	savefile->ReadBool( touchClient );
 	savefile->ReadBool( touchOther );
@@ -336,7 +338,8 @@ void idTrigger_Multi::Spawn() {
 		gameLocal.Warning( "idTrigger_Multi '%s' at (%s) has random_delay >= delay", name.c_str(), GetPhysics()->GetOrigin().ToString(0) );
 	}
 
-	spawnArgs.GetString( "requires", "", requires );
+	// [PS2_D3BFG]: Avoid the C++20 requires keyword; serialized keys and order are unchanged.
+	spawnArgs.GetString( "requires", "", requiredItem );
 	spawnArgs.GetInt( "removeItem", "0", removeItem );
 	spawnArgs.GetBool( "triggerFirst", "0", triggerFirst );
 	spawnArgs.GetBool( "triggerWithSelf", "0", triggerWithSelf );
@@ -432,7 +435,8 @@ void idTrigger_Multi::Event_Trigger( idEntity *activator ) {
 	}
 
 	// see if this trigger requires an item
-	if ( !gameLocal.RequirementMet( activator, requires, removeItem ) ) {
+	// [PS2_D3BFG]: Avoid the C++20 requires keyword; serialized keys and order are unchanged.
+	if ( !gameLocal.RequirementMet( activator, requiredItem, removeItem ) ) {
 		return;
 	}
 
@@ -489,7 +493,8 @@ void idTrigger_Multi::Event_Touch( idEntity *other, trace_t *trace ) {
 	}
 
 	// see if this trigger requires an item
-	if ( !gameLocal.RequirementMet( other, requires, removeItem ) ) {
+	// [PS2_D3BFG]: Avoid the C++20 requires keyword; serialized keys and order are unchanged.
+	if ( !gameLocal.RequirementMet( other, requiredItem, removeItem ) ) {
 		return;
 	}
 

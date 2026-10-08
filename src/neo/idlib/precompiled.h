@@ -87,7 +87,10 @@ const int MAX_EXPRESSION_OPS = 4096;
 const int MAX_EXPRESSION_REGISTERS = 4096;
 
 // renderer
+// [PS2_D3BFG]: Public renderer contracts must not import the desktop graphics SDK.
+#if defined( ID_OPENGL )
 #include "../renderer/OpenGL/qgl.h"
+#endif
 #include "../renderer/Cinematic.h"
 #include "../renderer/Material.h"
 #include "../renderer/BufferObject.h"

@@ -80,6 +80,20 @@ enum graphicsVendor_t {
 	VENDOR_INTEL
 };
 
+// [PS2_D3BFG]: Display modes are a public menu/platform contract, independent of the graphics API.
+struct vidMode_t {
+	int width;
+	int height;
+	int displayHz;
+
+	bool operator==( const vidMode_t & a ) {
+		return a.width == width && a.height == height && a.displayHz == displayHz;
+	}
+};
+
+// Enumerate displays until false; fullscreen display numbers are one-based.
+bool R_GetModeListForDisplay( const int displayNum, idList<vidMode_t> & modeList );
+
 // Contains variables specific to the OpenGL configuration being run right now.
 // These are constant once the OpenGL subsystem is initialized.
 struct glconfig_t {
@@ -143,7 +157,10 @@ struct glconfig_t {
 
 	float				pixelAspect;
 
+	// [PS2_D3BFG]: A VAO is OpenGL backend state, not part of the portable renderer configuration.
+#if defined( ID_OPENGL )
 	GLuint				global_vao;
+#endif
 };
 
 

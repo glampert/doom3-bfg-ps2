@@ -410,7 +410,8 @@ private:
 	int						nextSndTriggerTime;
 	idVec3					localTriggerOrigin;
 	idMat3					localTriggerAxis;
-	idStr					requires;
+	// [PS2_D3BFG]: Avoid the C++20 requires keyword; serialized keys and order are unchanged.
+	idStr					requiredItem;
 	int						removeItem;
 	idStr					syncLock;
 	int						normalAxisIndex;		// door faces X or Y for spectator teleports

@@ -32,7 +32,10 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "../Game_local.h"
 
+// [PS2_D3BFG]: Generated state-dump introspection is only needed with memory diagnostics.
+#ifdef ID_DEBUG_MEMORY
 #include "TypeInfo.h"
+#endif
 
 /*
 Save game related helper classes.

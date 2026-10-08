@@ -422,15 +422,16 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 ## 13. Open inputs and decision points
 
-- **Approval:** implementation of the initial M0–M2 slice is authorized by the user's instruction to begin.
+- **Approval:** M0–M2 passed; the user has asked to continue the plan. M2b campaign portability is now in progress.
 - **Retail data:** the user supplied BFG assets in `gamedata/d3_bfg/` and separate RoE reference assets in `gamedata/d3_roe/`. Inventory the BFG resource containers and resolve logical runtime paths before a campaign initialization claim. Core and synthetic tests remain independent of them.
 - **Reuse notices:** the user authorizes GPL v3 reuse of reference code they own. Preserve third-party notices and record each import in `docs/REUSE.md`.
 - **Hardware:** establish access and the preferred transfer/storage method before requiring physical-console acceptance. PCSX2 can support the initial milestones.
 - **Campaign scope assumption:** original Doom 3 campaign first; the BFG expansion code may remain where shared, but expansion content is not the first completion target.
 - **Feasibility gate:** after M2/M3 memory measurements and a representative asset inventory, revise the quantitative budgets and streaming plan. If core game state cannot fit, report that evidence and the concrete fidelity/content trade-offs before expanding the implementation.
 
-The user approved beginning implementation. The immediate scope is M0–M2 (core
-compilation and headless boot), including the header/error/type changes required by
-their explicit source set. M2b and the full campaign port remain later objectives.
+The initial M0–M2 scope (core compilation and headless boot) is complete. The current
+implementation work is M2b, beginning with the full campaign header boundary and
+continuing through explicit error/type handling and subsystem replacements. Progress
+and remaining compile failures are recorded in [PORT_STATUS.md](PORT_STATUS.md).
 The current core uses a foundation bootstrap rather than the complete
 `idCommonLocal::Init`; acceptance evidence must identify that boundary explicitly.

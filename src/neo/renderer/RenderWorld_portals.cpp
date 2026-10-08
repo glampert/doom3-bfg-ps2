@@ -1037,6 +1037,8 @@ void idRenderWorldLocal::ShowPortals() {
 				continue;
 			}
 
+			// [PS2_D3BFG]: Keep desktop immediate-mode drawing in its backend.
+#if defined( ID_OPENGL )
 			if ( portalAreas[ p->intoArea ].viewCount != tr.viewCount ) {
 				// red = can't see
 				GL_Color( 1, 0, 0 );
@@ -1050,6 +1052,12 @@ void idRenderWorldLocal::ShowPortals() {
 				qglVertex3fv( (*w)[j].ToFloatPtr() );
 			}
 			qglEnd();
+#else
+			const idVec4 &color = portalAreas[ p->intoArea ].viewCount != tr.viewCount ? colorRed : colorGreen;
+			for ( j = 0; j < w->GetNumPoints(); j++ ) {
+				DebugLine( color, (*w)[j].ToVec3(), (*w)[(j + 1) % w->GetNumPoints()].ToVec3() );
+			}
+#endif
 		}
 	}
 }
