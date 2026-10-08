@@ -15,31 +15,34 @@ include $(PS2SDK)/samples/Makefile.pref
 include config/sources.mk
 
 ifneq ($(filter release,$(MAKECMDGOALS)),)
-BUILD := release
+	BUILD := release
 else
-BUILD ?= debug
+	BUILD ?= debug
 endif
+
 ifeq ($(filter $(BUILD),debug release),)
-$(error BUILD must be debug or release)
+	$(error BUILD must be debug or release)
 endif
 
 # Keep the SDK-only probe and Doom foundation explicit in both builds and reports.
 ifneq ($(filter platform-probe smoke-platform,$(MAKECMDGOALS)),)
-ifneq ($(filter headless-core smoke smoke-negative,$(MAKECMDGOALS)),)
-$(error platform-probe and headless-core must run separately)
-endif
-CORE_BOOT := 0
+	ifneq ($(filter headless-core smoke smoke-negative,$(MAKECMDGOALS)),)
+		$(error platform-probe and headless-core must run separately)
+	endif
+	CORE_BOOT := 0
 else ifneq ($(filter headless-core smoke smoke-negative,$(MAKECMDGOALS)),)
-CORE_BOOT := 1
+	CORE_BOOT := 1
 else
-CORE_BOOT ?= 1
+	CORE_BOOT ?= 1
 endif
+
 ifeq ($(filter $(CORE_BOOT),0 1),)
-$(error CORE_BOOT must be 0 or 1)
+	$(error CORE_BOOT must be 0 or 1)
 endif
+
 STRIP_ELF ?= 1
 ifeq ($(filter $(STRIP_ELF),0 1),)
-$(error STRIP_ELF must be 0 or 1)
+	$(error STRIP_ELF must be 0 or 1)
 endif
 
 OUTPUT_DIR = build/$(BUILD)
@@ -49,13 +52,13 @@ CORE_ARCHIVE = $(OUTPUT_DIR)/libd3bfg_core.a
 SCRIPTS = src/tools/scripts
 
 ifeq ($(BUILD),release)
-OPTFLAGS = -O3
-DBGFLAGS =
-CONFIG_DEFS = -DPS2_D3BFG_DEBUG=0 -DPS2_D3BFG_ASSERTS=0 -DPS2_D3BFG_PROFILE=0 -DNDEBUG
+	OPTFLAGS = -O3
+	DBGFLAGS =
+	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=0 -DPS2_D3BFG_ASSERTS=0 -DPS2_D3BFG_PROFILE=0 -DNDEBUG
 else
-OPTFLAGS = -O2
-DBGFLAGS = -gdwarf-2 -gz
-CONFIG_DEFS = -DPS2_D3BFG_DEBUG=1 -DPS2_D3BFG_ASSERTS=1 -DPS2_D3BFG_PROFILE=1 -D_DEBUG=1
+	OPTFLAGS = -O2
+	DBGFLAGS = -gdwarf-2 -gz
+	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=1 -DPS2_D3BFG_ASSERTS=1 -DPS2_D3BFG_PROFILE=1 -D_DEBUG=1
 endif
 
 COMMON_DEFS = -DPS2_D3BFG $(CONFIG_DEFS)
@@ -74,6 +77,7 @@ EE_CXX_WARNFLAGS = -Wall -Wextra -Werror \
 	-Wcast-align -Wwrite-strings -Wredundant-decls -Wnull-dereference \
 	-Wnon-virtual-dtor -Woverloaded-virtual -Wvla \
 	-Wlogical-op -Wduplicated-cond -Wduplicated-branches
+
 PS2_CXXFLAGS = $(COMMON_CXXFLAGS) $(EE_CXX_WARNFLAGS) -DID_PS2_CORE=1 -DPS2_D3BFG_CORE_TESTS=$(CORE_BOOT)
 
 # Legacy code keeps visible warnings and all language restrictions. Any
@@ -96,18 +100,19 @@ CORE_BACKEND_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BACKEND_CXX_SRC:.cpp=.
 CORE_C_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_C_SRC:.c=.o))
 CAMPAIGN_OBJS = $(addprefix $(OUTPUT_DIR)/campaign/src/,$(CAMPAIGN_CXX_SRC:.cpp=.o))
 SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(SIZE_OPT_CXX_SRC:.cpp=.o))
+
 ifeq ($(CORE_BOOT),1)
-BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
-LINK_OBJS = $(PS2_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS)
-LINK_SOURCES = $(PS2_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC)
-MILESTONE = headless-core
-REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.link-flags.json
+	BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
+	LINK_OBJS = $(PS2_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS)
+	LINK_SOURCES = $(PS2_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC)
+	MILESTONE = headless-core
+	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.link-flags.json
 else
-BOOT_OBJS =
-LINK_OBJS = $(PS2_OBJS)
-LINK_SOURCES = $(PS2_CXX_SRC)
-MILESTONE = platform-probe
-REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.link-flags.json
+	BOOT_OBJS =
+	LINK_OBJS = $(PS2_OBJS)
+	LINK_SOURCES = $(PS2_CXX_SRC)
+	MILESTONE = platform-probe
+	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.link-flags.json
 endif
 
 # Do not garbage-collect registration objects to manufacture a smaller link.
@@ -138,6 +143,7 @@ $(OUTPUT_DIR)/.campaign-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile 
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CAMPAIGN_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --sources $(CAMPAIGN_CXX_SRC)
 
 VENDOR_CFLAGS = -D_EE -G0 $(OPTFLAGS) $(DBGFLAGS) -std=gnu11 -fno-strict-aliasing -Wall -Wextra $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
+
 $(OUTPUT_DIR)/.vendor-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CC) $(VENDOR_CFLAGS) --sources $(CORE_C_SRC)
 
@@ -225,12 +231,15 @@ smoke-platform: all
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(GAME_ELF) --scenario platform
 
 HOST_CXX ?= clang++
+
 HOST_WARNFLAGS = -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wconversion -Wsign-conversion \
 	-Wformat=2 -Wno-format-nonliteral -Wundef -Wpointer-arith -Wcast-align -Wwrite-strings \
 	-Wredundant-decls -Wnull-dereference -Wnon-virtual-dtor -Woverloaded-virtual -Wvla
+
 HOST_TEST_FLAGS = -std=c++20 -O1 -g -fno-exceptions -fno-rtti -fno-threadsafe-statics \
 	-fno-strict-aliasing -fsized-deallocation -fsanitize=address,undefined -fno-omit-frame-pointer \
 	$(HOST_WARNFLAGS) -Isrc
+
 HOST_HEAP_SOURCES = src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/ps2/system/heap.cpp
 
 build/tests/.heap-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
