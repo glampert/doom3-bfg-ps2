@@ -12,10 +12,10 @@
 namespace
 {
 
-constexpr size_t kFixtureLimit = 65536;
-constexpr size_t kPrintCapacity = 2048;
+static constexpr size_t kFixtureLimit = 65536;
+static constexpr size_t kPrintCapacity = 2048;
 
-constexpr const char * kTagNames[] = {
+static constexpr const char * kTagNames[] = {
 #define MEM_TAG(x) #x,
 #include <idlib/sys/sys_alloc_tags.h>
 };
@@ -252,7 +252,7 @@ private:
     bool m_initialized = false;
 };
 
-CoreFileSystem s_fileSystem;
+static CoreFileSystem s_fileSystem;
 
 class CoreCommon final : public idCommon
 {
@@ -476,7 +476,7 @@ private:
     void (*m_redirectFlush)(const char *) = nullptr;
 };
 
-CoreCommon s_common;
+static CoreCommon s_common;
 
 #undef CORE_UNSUPPORTED
 

@@ -18,8 +18,8 @@
 namespace
 {
 
-constexpr size_t kTestIdCapacity = 64;
-constexpr size_t kFixturePathCapacity = 192;
+static constexpr size_t kTestIdCapacity = 64;
+static constexpr size_t kFixturePathCapacity = 192;
 
 struct BootManifest
 {

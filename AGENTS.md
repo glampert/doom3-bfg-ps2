@@ -8,6 +8,9 @@ is being ported to the PS2 with the free ps2dev SDK. The source split is:
 - **`src/ps2/`**: the console backend, all new C++20 (no exceptions, no RTTI,
   strict `-Werror`). The mechanical M0 move is committed separately from portability edits.
 
+File-scoped backend variables and constants with internal linkage always use an explicit
+`static`, including inside anonymous namespaces (e.g. `static constexpr` for constants).
+
 [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) describes the proposed milestones and
 source changes. [README.md](README.md) records current project status; expand it as the
 port develops. [CVARS.md](docs/CVARS.md) lists implemented backend cvars; add each one with

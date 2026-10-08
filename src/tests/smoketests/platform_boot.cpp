@@ -17,7 +17,7 @@ namespace
 {
 
 // Own complete cache lines: no neighbouring state can share a future DMA destination.
-alignas(64) u8 s_dmaBuffer[128] = {};
+alignas(64) static u8 s_dmaBuffer[128] = {};
 
 bool Check(const char * name, bool passed)
 {

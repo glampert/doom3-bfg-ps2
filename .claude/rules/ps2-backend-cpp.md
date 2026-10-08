@@ -19,6 +19,8 @@ below still need verification when imported; the current foundation is in
   PascalCase (`ps2::gs::Init`, `QwordCount`).
 - Variables: camelCase. Private members: `m_`. Public struct members: no prefix.
 - File/local statics: `s_` (`s_frame`). Exported globals: `g_`.
+- File-scoped variables and constants with internal linkage always spell out `static`,
+  even inside an anonymous namespace. File-scoped `constexpr` constants use `static constexpr`.
 - Namespaces stay lowercase (`ps2::gs`, `ps2::rs`, `ps2::tex`).
 - Constants are `k`-prefixed, enum class members take no prefix and use CamelCase.
 

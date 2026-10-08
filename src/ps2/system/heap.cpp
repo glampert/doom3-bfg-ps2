@@ -21,7 +21,7 @@ namespace ps2::heap
 namespace
 {
 
-constexpr std::uint32_t kAllocationMagic = 0xD3BF6A11;
+static constexpr std::uint32_t kAllocationMagic = 0xD3BF6A11;
 
 struct Header
 {
@@ -33,8 +33,8 @@ struct Header
 };
 
 // Zero initialization is complete before any engine registration constructors run.
-Stats s_tags[kTagCount] = {};
-Stats s_total = {};
+static Stats s_tags[kTagCount] = {};
+static Stats s_total = {};
 
 void Add(Stats & stats, size_t requested, size_t backing)
 {

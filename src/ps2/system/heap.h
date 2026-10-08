@@ -12,8 +12,8 @@
 namespace ps2::heap
 {
 
-constexpr std::uint16_t kTagCount = 256;
-constexpr std::uint16_t kNewTag = 3; // Doom's TAG_NEW; verified by the engine adapter.
+static constexpr std::uint16_t kTagCount = 256;
+static constexpr std::uint16_t kNewTag = 3; // Doom's TAG_NEW; verified by the engine adapter.
 
 struct Stats
 {

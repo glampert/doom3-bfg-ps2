@@ -17,8 +17,8 @@ namespace ps2::smoketests
 namespace
 {
 
-int s_commandCount = 0;
-int s_commandValue = 0;
+static int s_commandCount = 0;
+static int s_commandValue = 0;
 
 void TestCommand(const idCmdArgs & arguments)
 {

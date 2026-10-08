@@ -26,16 +26,16 @@
 namespace
 {
 
-constexpr size_t kEventCapacity = 64;
-constexpr std::uint64_t kMicrosecondsPerSecond = 1000000;
+static constexpr size_t kEventCapacity = 64;
+static constexpr std::uint64_t kMicrosecondsPerSecond = 1000000;
 #if !defined(ID_HOST_TEST)
-constexpr unsigned int kBusTicksPerSecond = 147456000;
+static constexpr unsigned int kBusTicksPerSecond = 147456000;
 #endif
-sysEvent_t s_events[kEventCapacity] = {};
-size_t s_eventHead = 0;
-size_t s_eventCount = 0;
-std::uint64_t s_startTicks = 0;
-bool s_initialized = false;
+static sysEvent_t s_events[kEventCapacity] = {};
+static size_t s_eventHead = 0;
+static size_t s_eventCount = 0;
+static std::uint64_t s_startTicks = 0;
+static bool s_initialized = false;
 
 [[noreturn]] void Halt()
 {
@@ -133,7 +133,7 @@ public:
     void StartProcess(const char *, bool) override { Sys_Error("Starting processes is unavailable in the core"); }
 };
 
-CoreSys s_sys;
+static CoreSys s_sys;
 
 } // namespace
 

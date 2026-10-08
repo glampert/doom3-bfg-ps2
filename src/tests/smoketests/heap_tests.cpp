@@ -21,8 +21,8 @@ namespace
 {
 
 // Models engine registration allocation before main; the heap ledger must already exist.
-constexpr std::uint16_t kEarlyTag = 201;
-void * s_earlyAllocation = ps2::heap::TryAlloc(23, kEarlyTag, 64);
+static constexpr std::uint16_t kEarlyTag = 201;
+static void * s_earlyAllocation = ps2::heap::TryAlloc(23, kEarlyTag, 64);
 
 bool Check(bool condition, const char * name)
 {
