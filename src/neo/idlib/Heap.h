@@ -52,12 +52,20 @@ static const int MAX_TAGS = 256;
 void *		Mem_Alloc16( const int size, const memTag_t tag );
 void		Mem_Free16( void *ptr );
 
+// [PS2_D3BFG]: C++20 tagged allocation must honor size_t bounds and over-aligned types.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include <new>
+void *		Mem_AllocAligned( size_t size, size_t alignment, memTag_t tag );
+#endif
+
 ID_INLINE void *	Mem_Alloc( const int size, const memTag_t tag ) { return Mem_Alloc16( size, tag ); }
 ID_INLINE void		Mem_Free( void *ptr ) { Mem_Free16( ptr ); }
 
 void *		Mem_ClearedAlloc( const int size, const memTag_t tag );
 char *		Mem_CopyString( const char *in );
 
+// [PS2_D3BFG]: the backend supplies all standard, sized and over-aligned new/delete forms.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 ID_INLINE void *operator new( size_t s ) {
 	return Mem_Alloc( s, TAG_NEW );
 }
@@ -70,18 +78,45 @@ ID_INLINE void *operator new[]( size_t s ) {
 ID_INLINE void operator delete[]( void *p ) {
 	Mem_Free( p );
 }
+#endif
 ID_INLINE void *operator new( size_t s, memTag_t tag ) {
-	return Mem_Alloc( s, tag );
+	// [PS2_D3BFG]: prevent size_t truncation into the engine's signed allocation API.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return Mem_AllocAligned( s, 16, tag );
+#else
+	return Mem_Alloc( static_cast<int>( s ), tag );
+#endif
 }
 ID_INLINE void operator delete( void *p, memTag_t tag ) {
 	Mem_Free( p );
 }
 ID_INLINE void *operator new[]( size_t s, memTag_t tag ) {
-	return Mem_Alloc( s, tag );
+	// [PS2_D3BFG]: array allocations need the same range check as tagged scalar new.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return Mem_AllocAligned( s, 16, tag );
+#else
+	return Mem_Alloc( static_cast<int>( s ), tag );
+#endif
 }
 ID_INLINE void operator delete[]( void *p, memTag_t tag ) {
 	Mem_Free( p );
 }
+
+// [PS2_D3BFG]: Without these overloads tagged new silently falls back to 16-byte alignment.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+ID_INLINE void *operator new( size_t s, std::align_val_t alignment, memTag_t tag ) {
+	return Mem_AllocAligned( s, static_cast<size_t>( alignment ), tag );
+}
+ID_INLINE void *operator new[]( size_t s, std::align_val_t alignment, memTag_t tag ) {
+	return Mem_AllocAligned( s, static_cast<size_t>( alignment ), tag );
+}
+ID_INLINE void operator delete( void *p, std::align_val_t, memTag_t ) noexcept {
+	Mem_Free( p );
+}
+ID_INLINE void operator delete[]( void *p, std::align_val_t, memTag_t ) noexcept {
+	Mem_Free( p );
+}
+#endif
 
 // Define replacements for the PS3 library's aligned new operator.
 // Without these, allocations of objects with 32 byte or greater alignment

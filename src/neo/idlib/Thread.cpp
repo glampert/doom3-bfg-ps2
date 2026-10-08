@@ -187,7 +187,10 @@ idSysThread::ThreadProc
 int idSysThread::ThreadProc( idSysThread * thread ) {
 	int retVal = 0;
 
+// [PS2_D3BFG]: Core fatal errors halt through the platform seam instead of throwing.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	try {
+#endif
 		if ( thread->isWorker ) {
 			for( ; ; ) {
 				thread->signalMutex.Lock();
@@ -212,11 +215,13 @@ int idSysThread::ThreadProc( idSysThread * thread ) {
 		} else {
 			retVal = thread->Run();
 		}
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	} catch ( idException & ex ) {
 		idLib::Warning( "Fatal error in thread %s: %s", thread->GetName(), ex.GetError() );
 		// We don't handle threads terminating unexpectedly very well, so just terminate the whole process
 		_exit( 0 );
 	}
+#endif
 
 	thread->isRunning = false;
 

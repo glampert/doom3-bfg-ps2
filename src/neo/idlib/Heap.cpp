@@ -29,6 +29,22 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "../idlib/precompiled.h"
 
+// [PS2_D3BFG]: route engine allocations through the backend's tagged, aligned ledger.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/system/heap.h"
+static_assert( TAG_NEW == ps2::heap::kNewTag && TAG_NUM_TAGS <= ps2::heap::kTagCount );
+#endif
+
+// [PS2_D3BFG]: Tagged C++ new has non-null zero-size behavior and preserves its type's alignment.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+void * Mem_AllocAligned( size_t size, size_t alignment, memTag_t tag ) {
+	if ( size > static_cast<size_t>( INT_MAX ) || tag < 0 || tag >= TAG_NUM_TAGS ) {
+		ps2::heap::Fail( "invalid aligned Doom allocation" );
+	}
+	return ps2::heap::Alloc( size, static_cast<uint16_t>( tag ), alignment );
+}
+#endif
+
 //===============================================================
 //
 //	memory allocation all in one place
@@ -46,8 +62,16 @@ void * Mem_Alloc16( const int size, const memTag_t tag ) {
 	if ( !size ) {
 		return NULL;
 	}
+	// [PS2_D3BFG]: reject signed overflow/invalid tags before converting to size_t.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( size < 0 || tag < 0 || tag >= TAG_NUM_TAGS ) {
+		ps2::heap::Fail( "invalid Doom allocation" );
+	}
+	return ps2::heap::Alloc( static_cast<size_t>( size ), static_cast<uint16_t>( tag ), 16 );
+#else
 	const int paddedSize = ( size + 15 ) & ~15;
 	return _aligned_malloc( paddedSize, 16 );
+#endif
 }
 
 /*
@@ -59,7 +83,12 @@ void Mem_Free16( void *ptr ) {
 	if ( ptr == NULL ) {
 		return;
 	}
+	// [PS2_D3BFG]: metadata records the requested size even for unsized deletes.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::heap::Free( ptr );
+#else
 	_aligned_free( ptr );
+#endif
 }
 
 /*
@@ -69,7 +98,10 @@ Mem_ClearedAlloc
 */
 void * Mem_ClearedAlloc( const int size, const memTag_t tag ) {
 	void * mem = Mem_Alloc( size, tag );
-	SIMDProcessor->Memset( mem, 0, size );
+	// [PS2_D3BFG]: permit zero-size allocations and allocation before SIMD startup.
+	if ( mem != NULL ) {
+		memset( mem, 0, size );
+	}
 	return mem;
 }
 
@@ -79,8 +111,12 @@ Mem_CopyString
 ==================
 */
 char *Mem_CopyString( const char *in ) {
-	char * out = (char *)Mem_Alloc( strlen(in) + 1, TAG_STRING );
+	// [PS2_D3BFG]: bound the size before converting it to the engine's signed API.
+	const size_t length = strlen( in );
+	if ( length >= static_cast<size_t>( INT_MAX ) ) {
+		idLib::FatalError( "Mem_CopyString exceeds engine allocation range" );
+	}
+	char * out = (char *)Mem_Alloc( static_cast<int>( length + 1 ), TAG_STRING );
 	strcpy( out, in );
 	return out;
 }
-

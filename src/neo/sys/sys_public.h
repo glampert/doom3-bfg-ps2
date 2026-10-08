@@ -394,6 +394,10 @@ typedef unsigned long address_t;
 
 void			Sys_Init();
 void			Sys_Shutdown();
+// [PS2_D3BFG]: fatal target errors terminate, allowing checked adapters to prove control flow.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+NO_RETURN
+#endif
 void			Sys_Error( const char *error, ...);
 const char *	Sys_GetCmdLine();
 void			Sys_ReLaunch( void * launchData, unsigned int launchDataSize );
@@ -497,6 +501,11 @@ void			Sys_DLL_Unload( int dllHandle );
 
 // event generation
 void			Sys_GenerateEvents();
+
+// [PS2_D3BFG]: Queue owns payloads until dequeue, or frees an evicted payload on overflow.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+void			Sys_QueEvent( sysEventType_t type, int value, int value2, int ptrLength, void *ptr, int inputDeviceNum );
+#endif
 sysEvent_t		Sys_GetEvent();
 void			Sys_ClearEvents();
 
@@ -531,7 +540,12 @@ void			Sys_ShowConsole( int visLevel, bool quitOnClose );
 
 // This really isn't the right place to have this, but since this is the 'top level' include
 // and has a function signature with 'FILE' in it, it kinda needs to be here =/
+// [PS2_D3BFG]: stdio handles on the portable core; Win32 handles stay platform-local.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+typedef FILE * idFileHandle;
+#else
 typedef HANDLE idFileHandle;
+#endif
 
 
 ID_TIME_T		Sys_FileTimeStamp( idFileHandle fp );
@@ -683,6 +697,10 @@ public:
 
 class idSys {
 public:
+	// [PS2_D3BFG]: The portable adapter is polymorphic; destruction through its interface is safe.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	virtual ~idSys() {}
+#endif
 	virtual void			DebugPrintf( VERIFY_FORMAT_STRING const char *fmt, ... ) = 0;
 	virtual void			DebugVPrintf( const char *fmt, va_list arg ) = 0;
 

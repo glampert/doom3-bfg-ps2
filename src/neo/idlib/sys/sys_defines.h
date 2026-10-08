@@ -45,7 +45,16 @@ If you have questions concerning this license or the applicable additional terms
 #undef ID_WIN32
 #undef ID_LITTLE_ENDIAN
 
-#if defined(_WIN32)
+// [PS2_D3BFG]: Keep the EE and scalar host test builds explicit platform choices.
+#if defined( PS2_D3BFG )
+	#define ID_PS2
+	#define ID_CONSOLE
+	#define ID_LITTLE_ENDIAN
+	#define ID_GS
+#elif defined( ID_HOST_TEST )
+	#define ID_PC
+	#define ID_LITTLE_ENDIAN
+#elif defined(_WIN32)
 	// _WIN32 always defined
 	// _WIN64 also defined for x64 target
 /*
@@ -78,7 +87,10 @@ If you have questions concerning this license or the applicable additional terms
 #error Unknown Platform
 #endif
 
+// [PS2_D3BFG]: The EE uses GS and the core host tests have no rendering backend.
+#if defined( ID_PC_WIN )
 #define ID_OPENGL
+#endif
 
 /*
 ================================================================================================
@@ -122,6 +134,33 @@ If you have questions concerning this license or the applicable additional terms
 	#define WIN32
 #endif
 
+#endif
+
+// [PS2_D3BFG]: Modern C++ platform definitions shared by the EE and scalar host tests.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#ifdef ID_PS2
+#define CPUSTRING                       "r5900"
+#define BUILD_STRING                    "ps2-" CPUSTRING
+#define BUILD_OS_ID                     3
+#else
+#define CPUSTRING                       "scalar-host"
+#define BUILD_STRING                    "host-test-" CPUSTRING
+#define BUILD_OS_ID                     4
+#endif
+#define ALIGN16( x )                    alignas(16) x
+#define ALIGNTYPE16                     alignas(16)
+#define ALIGNTYPE128                    alignas(128)
+#define FORMAT_PRINTF( x )
+#define VERIFY_FORMAT_STRING
+#define PATHSEPARATOR_STR               "/"
+#define PATHSEPARATOR_CHAR              '/'
+#define NEWLINE                         "\n"
+#define ID_INLINE                       inline
+#define ID_FORCE_INLINE                 inline __attribute__((always_inline))
+#define ID_INLINE_EXTERN                inline
+#define ID_FORCE_INLINE_EXTERN          inline __attribute__((always_inline))
+#define NO_RETURN                       __attribute__((noreturn))
+#define _alloca                         __builtin_alloca
 #endif
 
 /*

@@ -26,3 +26,7 @@ compile_commands.json
 
 # Clangd source code parsing caches.
 .cache
+
+# Python tool caches:
+__pycache__/
+*.pyc

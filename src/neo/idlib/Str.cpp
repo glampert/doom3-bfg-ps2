@@ -1847,7 +1847,17 @@ int idStr::vsnPrintf( char *dest, int size, const char *fmt, va_list argptr ) {
 	int ret;
 
 #undef _vsnprintf
+// [PS2_D3BFG]: newlib and host tests implement C99 vsnprintf, not the MSVC alias.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#undef vsnprintf
+	if ( size <= 0 ) {
+		return -1;
+	}
+	ret = vsnprintf( dest, size, fmt, argptr );
+#define vsnprintf use_idStr_vsnPrintf
+#else
 	ret = _vsnprintf( dest, size-1, fmt, argptr );
+#endif
 #define _vsnprintf	use_idStr_vsnPrintf
 	dest[size-1] = '\0';
 	if ( ret < 0 || ret >= size ) {

@@ -57,7 +57,12 @@ public:
 ===============================================================================
 */
 
+// [PS2_D3BFG]: __fastcall is only a Windows ABI convention.
+#ifdef ID_PC_WIN
 #define VPCALL __fastcall
+#else
+#define VPCALL
+#endif
 
 class idVec2;
 class idVec3;
@@ -80,6 +85,10 @@ struct dominantTri_t;
 class idSIMDProcessor {
 public:
 									idSIMDProcessor() { cpuid = CPUID_NONE; }
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	// [PS2_D3BFG]: Generic processors are destroyed through their abstract base pointer.
+	virtual ~idSIMDProcessor() {}
+#endif
 
 	cpuid_t							cpuid;
 

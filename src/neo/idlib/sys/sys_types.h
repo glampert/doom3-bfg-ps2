@@ -102,9 +102,11 @@ struct idNullPtr {
 //#define NULL					0
 //#endif
 
-// C99 Standard
+// [PS2_D3BFG]: nullptr is a language keyword in the C++20 port.
+#if __cplusplus < 201103L
 #ifndef nullptr
-		#define nullptr	idNullPtr()		
+	#define nullptr idNullPtr()
+#endif
 #endif
 
 #ifndef BIT
@@ -144,6 +146,9 @@ ID_INLINE void WriteIndexPair( triIndex_t * dest, const triIndex_t a, const triI
 
 #if defined(_DEBUG) || defined(_lint)
 #define NODEFAULT	default: assert( 0 )
+#elif defined( ID_PS2 ) || defined( ID_HOST_TEST )
+// [PS2_D3BFG]: GCC's equivalent of the Windows unreachable hint.
+#define NODEFAULT default: __builtin_unreachable()
 #else
 #define NODEFAULT	default: __assume( 0 )
 #endif

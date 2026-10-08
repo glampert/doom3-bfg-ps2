@@ -29,7 +29,10 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 #pragma hdrstop
 
+// [PS2_D3BFG]: initial core reads loose fixtures; ZIP containers are not linked yet.
+#if !defined( ID_PS2_CORE ) || !ID_PS2_CORE
 #include "Unzip.h"
+#endif
 
 /*
 =================
@@ -37,8 +40,9 @@ FS_WriteFloatString
 =================
 */
 int FS_WriteFloatString( char *buf, const char *fmt, va_list argPtr ) {
-	long i;
-	unsigned long u;
+	// [PS2_D3BFG]: %d/%c and %u consume promoted int, not long (different on LP64 hosts).
+	int i;
+	unsigned int u;
 	double f;
 	char *str;
 	int index;
@@ -76,27 +80,27 @@ int FS_WriteFloatString( char *buf, const char *fmt, va_list argPtr ) {
 						break;
 					case 'd':
 					case 'i':
-						i = va_arg( argPtr, long );
+						i = va_arg( argPtr, int );
 						index += sprintf( buf+index, format.c_str(), i );
 						break;
 					case 'u':
-						u = va_arg( argPtr, unsigned long );
+						u = va_arg( argPtr, unsigned int );
 						index += sprintf( buf+index, format.c_str(), u );
 						break;
 					case 'o':
-						u = va_arg( argPtr, unsigned long );
+						u = va_arg( argPtr, unsigned int );
 						index += sprintf( buf+index, format.c_str(), u );
 						break;
 					case 'x':
-						u = va_arg( argPtr, unsigned long );
+						u = va_arg( argPtr, unsigned int );
 						index += sprintf( buf+index, format.c_str(), u );
 						break;
 					case 'X':
-						u = va_arg( argPtr, unsigned long );
+						u = va_arg( argPtr, unsigned int );
 						index += sprintf( buf+index, format.c_str(), u );
 						break;
 					case 'c':
-						i = va_arg( argPtr, long );
+						i = va_arg( argPtr, int );
 						index += sprintf( buf+index, format.c_str(), (char) i );
 						break;
 					case 's':
@@ -744,8 +748,14 @@ idHashTableT< int, int > histogram;
 CONSOLE_COMMAND( outputHistogram, "", 0 ) {
 	for ( int i = 0; i < histogram.Num(); i++ ) {
 		int key;
-		histogram.GetIndexKey( i, key );
+		// [PS2_D3BFG]: Validate both indexed lookups before reading the key/value.
+		if ( !histogram.GetIndexKey( i, key ) ) {
+			idLib::Error( "outputHistogram: invalid key index" );
+		}
 		int * value = histogram.GetIndex( i );
+		if ( value == NULL ) {
+			idLib::Error( "outputHistogram: invalid value index" );
+		}
 
 		idLib::Printf( "%d\t%d\n", key, *value );
 	}
@@ -1164,7 +1174,12 @@ idFile_Permanent::~idFile_Permanent
 */
 idFile_Permanent::~idFile_Permanent() {
 	if ( o ) {
+		// [PS2_D3BFG]: portable files own a stdio handle.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		fclose( o );
+#else
 		CloseHandle( o );
+#endif
 	}
 }
 
@@ -1176,6 +1191,20 @@ Properly handles partial reads
 =================
 */
 int idFile_Permanent::Read( void *buffer, int len ) {
+	// [PS2_D3BFG]: stdio handles short reads/EOF; reject invalid signed lengths.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !( mode & ( 1 << FS_READ ) ) || len < 0 ) {
+		common->FatalError( "idFile_Permanent::Read: invalid mode or length for %s", name.c_str() );
+	}
+	if ( o == NULL || len == 0 ) {
+		return 0;
+	}
+	const size_t read = fread( buffer, 1, static_cast<size_t>( len ), o );
+	if ( ferror( o ) ) {
+		idLib::Warning( "idFile_Permanent::Read: I/O error for %s", name.c_str() );
+	}
+	return static_cast<int>( read );
+#else
 	int		block, remaining;
 	int		read;
 	byte *	buf;
@@ -1220,6 +1249,7 @@ int idFile_Permanent::Read( void *buffer, int len ) {
 		buf += read;
 	}
 	return len;
+#endif
 }
 
 /*
@@ -1230,6 +1260,24 @@ Properly handles partial writes
 =================
 */
 int idFile_Permanent::Write( const void *buffer, int len ) {
+	// [PS2_D3BFG]: preserve partial-write counts and measure size by position, not cumulative writes.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !( mode & ( 1 << FS_WRITE ) ) || len < 0 ) {
+		common->FatalError( "idFile_Permanent::Write: invalid mode or length for %s", name.c_str() );
+	}
+	if ( o == NULL || len == 0 ) {
+		return 0;
+	}
+	const size_t written = fwrite( buffer, 1, static_cast<size_t>( len ), o );
+	const long position = ftell( o );
+	if ( position > fileSize && position <= INT_MAX ) {
+		fileSize = static_cast<int>( position );
+	}
+	if ( handleSync ) {
+		Flush();
+	}
+	return static_cast<int>( written );
+#else
 	int		block, remaining;
 	int		written;
 	byte *	buf;
@@ -1276,6 +1324,7 @@ int idFile_Permanent::Write( const void *buffer, int len ) {
 		Flush();
 	}
 	return len;
+#endif
 }
 
 /*
@@ -1284,7 +1333,14 @@ idFile_Permanent::ForceFlush
 =================
 */
 void idFile_Permanent::ForceFlush() {
+	// [PS2_D3BFG]: fflush reports persistence failures; device-specific syncing comes later.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( o != NULL && fflush( o ) != 0 ) {
+		idLib::Warning( "idFile_Permanent::Flush: I/O error for %s", name.c_str() );
+	}
+#else
 	FlushFileBuffers( o );
+#endif
 }
 
 /*
@@ -1293,7 +1349,14 @@ idFile_Permanent::Flush
 =================
 */
 void idFile_Permanent::Flush() {
+	// [PS2_D3BFG]: fflush reports persistence failures; device-specific syncing comes later.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( o != NULL && fflush( o ) != 0 ) {
+		idLib::Warning( "idFile_Permanent::Flush: I/O error for %s", name.c_str() );
+	}
+#else
 	FlushFileBuffers( o );
+#endif
 }
 
 /*
@@ -1302,7 +1365,13 @@ idFile_Permanent::Tell
 =================
 */
 int idFile_Permanent::Tell() const {
+	// [PS2_D3BFG]: prevent narrowing positions beyond the engine file API's int range.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	const long position = o == NULL ? -1 : ftell( o );
+	return position < 0 || position > INT_MAX ? -1 : static_cast<int>( position );
+#else
 	return SetFilePointer( o, 0, NULL, FILE_CURRENT );
+#endif
 }
 
 /*
@@ -1332,6 +1401,20 @@ idFile_Permanent::Seek
 =================
 */
 int idFile_Permanent::Seek( long offset, fsOrigin_t origin ) {
+	// [PS2_D3BFG]: map engine origins explicitly; a failed seek returns -1.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( o == NULL ) {
+		return -1;
+	}
+	int stdOrigin;
+	switch ( origin ) {
+		case FS_SEEK_CUR: stdOrigin = SEEK_CUR; break;
+		case FS_SEEK_END: stdOrigin = SEEK_END; break;
+		case FS_SEEK_SET: stdOrigin = SEEK_SET; break;
+		default: return -1;
+	}
+	return fseek( o, offset, stdOrigin ) == 0 ? 0 : -1;
+#else
 	int retVal = INVALID_SET_FILE_POINTER;
 	switch( origin ) {
 		case FS_SEEK_CUR: retVal = SetFilePointer( o, offset, NULL, FILE_CURRENT ); break;
@@ -1339,6 +1422,7 @@ int idFile_Permanent::Seek( long offset, fsOrigin_t origin ) {
 		case FS_SEEK_SET: retVal = SetFilePointer( o, offset, NULL, FILE_BEGIN ); break;
 	}
 	return ( retVal == INVALID_SET_FILE_POINTER ) ? -1 : 0;
+#endif
 }
 
 #if 1
@@ -1456,6 +1540,8 @@ idFile_InZip
 idFile_InZip::idFile_InZip
 =================
 */
+// [PS2_D3BFG]: ZIP implementations are excluded only from the loose-file core milestone.
+#if !defined( ID_PS2_CORE ) || !ID_PS2_CORE
 idFile_InZip::idFile_InZip() {
 	name = "invalid";
 	zipFilePos = 0;
@@ -1583,6 +1669,8 @@ int idFile_InZip::Seek( long offset, fsOrigin_t origin ) {
 	}
 	return -1;
 }
+
+#endif // loose-file core
 
 #if 1
 
@@ -1735,7 +1823,7 @@ struct testEndianNess_t {
 			i[index] = 0x37;
 		}
 	}
-	bool operator==( testEndianNess_t & test ) const {
+	bool operator==( const testEndianNess_t & test ) const { // [PS2_D3BFG]: Unambiguous C++20 equality candidates.
 		return a == test.a &&
 			b == test.b &&
 			c == test.c &&
@@ -1804,5 +1892,3 @@ CONSOLE_COMMAND( testEndianNessRead, "Tests the read/write compatibility between
 CONSOLE_COMMAND( testEndianNessReset, "Tests the read/write compatibility between platforms", 0 ) {
 	fileSystem->RemoveFile( testEndianNessFilename );
 }
-
-

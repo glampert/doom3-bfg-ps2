@@ -18,6 +18,12 @@ Scope decisions for this plan:
 
 ## 2. Evidence from this checkout and machine
 
+The initial M0–M2 foundation is implemented. Current acceptance results, memory
+measurements and the next campaign compile blocker are recorded in
+[docs/PORT_STATUS.md](docs/PORT_STATUS.md). The inspection below predates implementation;
+its `neo/` paths now live under `src/neo/`, and the reference Makefile is preserved at
+`docs/reference/quake2.Makefile`.
+
 Inspection baseline:
 
 | Item | Observed state |
@@ -127,10 +133,10 @@ docs/                           # asset format, budgets, port status, reuse inve
 .claude/rules                   # agent's documentation, skills and knowledge about the project and PS2 hardware/SDK
 ```
 
-The root `neo/` tree is current; `src/neo/` is an empty placeholder until the M0 move.
-`src/ps2/`, `src/external/`, the test directories and most tool directories are also
-placeholders. File tables below use current `neo/...` paths for inspection; their
-implementation destinations will be `src/neo/...`. New files listed below are proposals.
+The engine now lives under `src/neo/`. Commit `4e5f082` moved the original blobs intact,
+without source edits. File tables below retain the original `neo/...` inspection paths;
+their implementation destinations are `src/neo/...`. The backend and test scaffolding
+is being implemented for M0–M2; later subsystem entries remain proposals.
 
 Perform the `neo` move as a mechanical commit. Audit project-relative paths, includes outside `neo`, debugger configuration, and data lookup immediately afterward. Keep runtime paths independent of the source tree. Leave `doomclassic/` in place and excluded until its separate deletion gate.
 
@@ -385,7 +391,7 @@ PCSX2 results validate functional rendering and regressions under a recorded con
 
 ## 12. Milestones, acceptance gates and commits
 
-Work in small commits; each implementation commit states its behavior change and validation. Do not push without express authorization. Do not create implementation commits during this planning pass. Inspect the current branch/worktree before implementing and preserve unrelated user work.
+Work in small commits; each implementation commit states its behavior change and validation. Do not push without express authorization. Implementation is now authorized. Inspect the current branch/worktree before implementing and preserve unrelated user work.
 
 | Milestone | Work and likely commit boundaries | Acceptance gate |
 | --- | --- | --- |
@@ -415,11 +421,15 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 ## 13. Open inputs and decision points
 
-- **Approval:** this document is the proposed implementation approach. Implementation remains paused until the user approves it.
+- **Approval:** implementation of the initial M0–M2 slice is authorized by the user's instruction to begin.
 - **Retail data:** the user supplied BFG assets in `gamedata/d3_bfg/` and separate RoE reference assets in `gamedata/d3_roe/`. Inventory the BFG resource containers and resolve logical runtime paths before a campaign initialization claim. Core and synthetic tests remain independent of them.
-- **Reuse notices:** resolve the selected Quake components' permissions before copying them; preserve provenance and third-party notices.
+- **Reuse notices:** the user authorizes GPL v3 reuse of reference code they own. Preserve third-party notices and record each import in `docs/REUSE.md`.
 - **Hardware:** establish access and the preferred transfer/storage method before requiring physical-console acceptance. PCSX2 can support the initial milestones.
 - **Campaign scope assumption:** original Doom 3 campaign first; the BFG expansion code may remain where shared, but expansion content is not the first completion target.
 - **Feasibility gate:** after M2/M3 memory measurements and a representative asset inventory, revise the quantitative budgets and streaming plan. If core game state cannot fit, report that evidence and the concrete fidelity/content trade-offs before expanding the implementation.
 
-The immediate implementation scope proposed for approval is M0–M2 (core compilation and headless boot), including whatever header/error/type changes are required by their explicit source set, while retaining M2b and the full campaign port as the later objective. This establishes a useful, testable foundation before committing to expensive renderer and asset work.
+The user approved beginning implementation. The immediate scope is M0–M2 (core
+compilation and headless boot), including the header/error/type changes required by
+their explicit source set. M2b and the full campaign port remain later objectives.
+The current core uses a foundation bootstrap rather than the complete
+`idCommonLocal::Init`; acceptance evidence must identify that boundary explicitly.

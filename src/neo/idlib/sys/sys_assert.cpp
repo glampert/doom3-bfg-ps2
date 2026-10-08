@@ -75,9 +75,14 @@ bool AssertFailed( const char * file, int line, const char * expression ) {
 
 	idLib::Warning( "ASSERTION FAILED! %s(%d): '%s'", file, line, expression );
 
+// [PS2_D3BFG]: A failed target assertion is a fatal diagnostic; no Windows debugger exists.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	idLib::FatalError( "ASSERTION FAILED! %s(%d): '%s'", file, line, expression );
+#else
 	if ( IsDebuggerPresent() || com_assertOutOfDebugger.GetBool() ) {
 			__debugbreak();
 	}
+#endif
 
 	if ( skipThisAssertion ) {
 		skippedAssertion_t * skipped = skippedAssertions.Alloc();

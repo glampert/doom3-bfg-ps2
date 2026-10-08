@@ -1,12 +1,12 @@
 # Doom 3 BFG Edition for the PlayStation 2
 
 id's Doom 3 BFG (forked from https://github.com/id-Software/DOOM-3-BFG)
-is being ported to the PS2 with the free ps2dev SDK. The intended source split is:
+is being ported to the PS2 with the free ps2dev SDK. The source split is:
 
-- **`neo/`**: id's original C++ code, kept as close to unmodified as possible.
+- **`src/neo/`**: id's original C++ code, kept as close to unmodified as possible.
   Every change is tagged `// [PS2_D3BFG]: <why>`.
-- **`src/ps2/`**: the future console backend, all new C++20 (no exceptions, no RTTI,
-  strict `-Werror`). The planned M0 move will put `neo/` under `src/neo/`.
+- **`src/ps2/`**: the console backend, all new C++20 (no exceptions, no RTTI,
+  strict `-Werror`). The mechanical M0 move is committed separately from portability edits.
 
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) describes the proposed milestones and
 source changes. [README.md](README.md) records current project status; expand it as the
@@ -29,20 +29,24 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 
 ## Build and verify
 
-- The root `Makefile` is still the **verbatim Quake II reference**. It names Quake sources,
-  data and `quake2.elf`. It is not a Doom 3 compile or run target yet. Do not use it as a
-  validation gate until M0 ports its source lists, flags and outputs.
-- Once the Doom build exists, `make` must compile/link the debug ELF with the real EE
-  compiler and strict warnings for new code. Host harnesses cover runtime logic but cannot
-  replace the EE compile check. Check `make`'s exit status, including VU tool failures.
-- Planned outputs are `build/debug/d3bfg.elf`, `build/release/d3bfg.elf`, with an
-  accompanying `d3bfg_unstripped.elf` for each configuration. No such ELF exists yet.
-- Define `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS` and `PS2_D3BFG_PROFILE` to 0 or 1 in the
-  future build and test them with `#if`, never `#ifdef` (`-Wundef` is on).
-- Use explicit source lists and regenerate the compilation database after adding files.
-  Track build-flag changes, or clean only the affected configuration when they change.
-- PCSX2 recipes in [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md)
-  describe the Quake reference until equivalent Doom tests exist.
+- `make` compiles and links the current debug milestone with the real EE compiler.
+  `make release` selects release; the artifacts are `build/<config>/d3bfg.elf` and
+  matching `d3bfg_unstripped.elf`, map and build report. The verbatim reference Makefile
+  is preserved in `docs/reference/quake2.Makefile`.
+- `make compile-core` checks the explicit scalar idlib/framework source set.
+  `make headless-core` links its real foundation bootstrap and tests. `make compile-game`
+  is the separate M2b campaign gate and exposes remaining portability blockers.
+- New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
+  documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests
+  cannot replace target compilation. Check Make's exit status, including VU tool failures.
+- `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS` and `PS2_D3BFG_PROFILE` are always 0 or 1.
+  Test them with `#if`, never `#ifdef` (`-Wundef` is on).
+- Source lists in `config/sources.mk` are explicit and audited. Register new backend
+  files in `PS2_CXX_SRC` or the relevant core group; cold sources also go in
+  `SIZE_OPT_CXX_SRC`. Run `make compiledb` after changing source lists. Flag stamps
+  invalidate affected object groups automatically.
+- Doom smoke procedures and the separately labeled Quake reference are in
+  [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md).
 
 ## Git workflow
 

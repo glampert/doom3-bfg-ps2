@@ -30,7 +30,10 @@ If you have questions concerning this license or the applicable additional terms
 #include "../precompiled.h"
 
 #include "Simd_Generic.h"
+// [PS2_D3BFG]: The EE and host core targets select the generic implementation.
+#ifdef ID_PC_WIN
 #include "Simd_SSE.h"
+#endif
 
 idSIMDProcessor	*	processor = NULL;			// pointer to SIMD processor
 idSIMDProcessor *	generic = NULL;				// pointer to generic SIMD implementation
@@ -66,11 +69,16 @@ void idSIMD::InitProcessor( const char *module, bool forceGeneric ) {
 	} else {
 
 		if ( processor == NULL ) {
+// [PS2_D3BFG]: x86 processor selection is excluded from scalar platforms.
+#ifdef ID_PC_WIN
 			if ( ( cpuid & CPUID_MMX ) && ( cpuid & CPUID_SSE ) ) {
 				processor = new (TAG_MATH) idSIMD_SSE;
 			} else {
 				processor = generic;
 			}
+#else
+			processor = generic;
+#endif
 			processor->cpuid = cpuid;
 		}
 
@@ -130,6 +138,11 @@ long baseClocks = 0;
 
 #pragma warning(disable : 4731)     // frame pointer register 'ebx' modified by inline assembly code
 
+// [PS2_D3BFG]: Use the platform clock when the benchmark has no x86 cycle counter.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#define StartRecordTime( start ) start = (int)idLib::sys->GetClockTicks()
+#define StopRecordTime( end ) end = (int)idLib::sys->GetClockTicks()
+#else
 long saved_ebx = 0;
 
 #define StartRecordTime( start )			\
@@ -150,6 +163,8 @@ long saved_ebx = 0;
 	__asm xor eax, eax						\
 	__asm cpuid
 
+
+#endif // ID_PS2 || ID_HOST_TEST
 
 #define GetBest( start, end, best )			\
 	if ( !best || end - start < best ) {	\
@@ -1215,11 +1230,16 @@ idSIMD::Test_f
 */
 void idSIMD::Test_f( const idCmdArgs &args ) {
 
+// [PS2_D3BFG]: Windows owns its benchmark priority and x86 processor selection.
+#ifdef ID_PC_WIN
 	SetThreadPriority( GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL );
-
 	p_simd = processor;
+#else
+	p_simd = generic;
+#endif
 	p_generic = generic;
 
+#ifdef ID_PC_WIN
 	if ( idStr::Length( args.Argv( 1 ) ) != 0 ) {
 		cpuid_t cpuid = idLib::sys->GetProcessorId();
 		idStr argString = args.Args();
@@ -1237,6 +1257,13 @@ void idSIMD::Test_f( const idCmdArgs &args ) {
 			return;
 		}
 	}
+
+#else
+	if ( args.Argc() > 1 && idStr::Icmp( args.Argv( 1 ), "generic" ) != 0 ) {
+		idLib::common->Printf( "only the generic processor is available on this platform\n" );
+		return;
+	}
+#endif
 
 	idLib::common->SetRefreshOnPrint( true );
 
@@ -1262,11 +1289,15 @@ void idSIMD::Test_f( const idCmdArgs &args ) {
 
 	idLib::common->SetRefreshOnPrint( false );
 
+#ifdef ID_PC_WIN
 	if ( p_simd != processor ) {
 		delete p_simd;
 	}
+#endif
 	p_simd = NULL;
 	p_generic = NULL;
 
+#ifdef ID_PC_WIN
 	SetThreadPriority( GetCurrentThread(), THREAD_PRIORITY_NORMAL );
+#endif
 }

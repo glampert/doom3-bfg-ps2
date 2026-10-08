@@ -1,28 +1,138 @@
 # Doom 3 BFG Edition for the PlayStation 2
 
-This repository is the starting point for a PlayStation 2 port of
-[id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG) using the free ps2dev
-SDK. The first target is an EE build and a reproducible headless engine boot. The port is
-not yet buildable or playable on PS2.
+A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
+using the free ps2dev SDK. The initial implementation builds a scalar EE core and an
+asset-free smoke executable. Campaign initialization, map loading, rendering, audio,
+input and saves are later milestones; the port is not playable yet.
 
-The original engine remains in `neo/`. `src/ps2/`, `src/tools/` and `src/tests/` are
-scaffolding for the console backend, host tools and tests. The planned first structural
-change will move `neo/` to `src/neo/`; see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
-for the milestones and acceptance checks.
+The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
+under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
+changes carry `// [PS2_D3BFG]` annotations. [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+contains the campaign milestones; [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md)
+records the explicit source dispositions and deferred replacements.
 
-The root `Makefile` is currently an unchanged copy of the Quake II PS2 build for reference.
-Its targets still name Quake sources and data. The Doom 3 build and emulator tests will be
-added in later commits.
+## Build
 
-Local retail data lives under `gamedata/`: `d3_bfg/` contains the BFG installation and
-`d3_roe/` is reference data from Resurrection of Evil. Both are ignored by Git. The
-tracked `base/` directory contains source-release configuration and render programs.
-The future run/package target will stage an appropriate `base/` view beside the ELF
-without replacing the tracked directory or committing retail data.
+Install ps2dev with `mips64r5900el-ps2-elf-g++` and ps2sdk. The defaults are
+`PS2DEV=$HOME/ps2dev` and `PS2SDK=$PS2DEV/ps2sdk`. This checkout was tested with GCC 15.2.
+The Doom Makefile uses explicit source lists in `config/sources.mk`; the unchanged
+Quake II reference is retained in `docs/reference/quake2.Makefile`.
 
-[AGENTS.md](AGENTS.md) describes repository conventions. [CVARS.md](CVARS.md) will track
-backend cvars as they are implemented. The notes in `.claude/rules/` include measured
-Quake II PS2 behavior; they are reference material until reproduced here.
+```sh
+make                         # current debug milestone
+make release                 # release configuration
+make platform-probe          # SDK/timer/alignment probe
+make headless-core           # scalar Doom foundation and integration tests
+make compile-core            # all 52 scalar idlib units and 3 framework units
+make compile-game            # separate campaign portability gate; still incomplete
+make test-host               # shared heap tests with ASan/UBSan, runner tests
+make smoke                   # core smoke run in PCSX2
+make release smoke           # release core smoke run
+make smoke-negative          # expected missing-fixture failure
+make compiledb               # compile_commands.json from real Make rules
+```
 
-`src/tools/scripts/symbolize.py` was adapted from the Quake II PS2 port and retains its
-GPL v2 notice and accompanying license. It is a standalone host helper, not engine code.
+Each configuration produces `build/<config>/d3bfg.elf`, matching
+`d3bfg_unstripped.elf`, `d3bfg.map`, and `build-report.{json,txt}`. Reports distinguish
+fixed ELF load-segment residency from runtime allocation. Flag/compiler/source-list
+stamps invalidate affected objects automatically. Debug uses `-O2` with asserts;
+release uses `-O3` without debug-only checks. Explicit cold backend code uses `-Os`.
+
+All target C++ uses C++20 without exceptions, RTTI or thread-safe local statics. New
+backend/tests pass the full strict GCC warning set with `-Werror`. Legacy style warning
+suppressions and the narrow system-header treatment of upstream contracts are listed
+in the build inventory. Format, array bounds and uninitialized-value warnings remain
+visible. A host runtime test does not replace the EE compile/link check.
+
+Debug/release core runs and the expected missing-fixture failure pass in PCSX2.
+[docs/PORT_STATUS.md](docs/PORT_STATUS.md) records the checks, archived run identities,
+ELF/startup memory measurements and the separate campaign compile blocker.
+
+## Core boundary
+
+The foundation links every scalar idlib object directly, plus the real
+`CmdSystem.cpp`, `CVarSystem.cpp` and `File.cpp`. It uses a small offline common-service
+adapter and loose-file filesystem backend, rather than running the complete
+`idCommonLocal::Init`. It does not link desktop GPU/audio APIs or Classic Doom, and
+it does not claim game/script compilation or map loading.
+
+The filesystem adapter reads loose synthetic files up to 64 KiB and rejects parent,
+absolute and other-device paths. Enumeration, writes and resource loading are explicit
+unsupported operations. Unimplemented game/UI/network calls also terminate with a
+diagnostic. Core `Error` is fatal; lexer fixtures that need to reject malformed input
+without terminating use the engine's `LEXFL_NOERRORS` flag.
+
+`idLib::Init` initializes strings, dictionaries, math and the generic SIMD processor.
+The initial job manager creates no workers. Dependencies complete before their dependent
+list executes, and the original scalar executor handles synchronization points and
+completion bookkeeping. Explicit parallelism requests still run on the caller.
+[CVARS.md](CVARS.md) documents `jobs_numThreads` and later backend controls.
+
+Scalar compilation retains intentional double arithmetic in `Parser`, `Timer`, `Token`,
+`bv/Sphere`, `geometry/RenderMatrix`, `math/MatX`, `math/Matrix`, `math/Ode` and
+`math/Plane`. Those operations use software helpers on the EE. Target precision and
+performance tests must precede replacing them with single-precision implementations.
+
+## Heap and memory
+
+Doug Lea's allocator supplies the EE's sole C/newlib arena; standard C allocation entry
+points and their reentrant variants route to it. Doom's aligned/tagged APIs and all
+standard, sized, nothrow and over-aligned C++ allocation forms use `ps2::heap` metadata.
+The zero-initialized ledger supports registration allocations before `main`.
+
+Each allocation stores its requested size, backing size, tag and original base pointer.
+An unsized free subtracts exactly that allocation's sizes. Invalid alignment, size
+arithmetic overflow and invalid tags are rejected; required allocations terminate on
+failure. Alignment is at least 16 bytes, with larger powers of two supported for DMA.
+The current implementation is for a single calling thread.
+
+The shutdown test requires current requested/backing bytes and allocation count to
+return to the baseline taken before core initialization. A process-lifetime hash table
+created before `main` remains in that baseline (1,024 requested bytes); test/core
+allocations must not remain after shutdown.
+
+Per-tag and total reports track current and peak requested/backing bytes. On the EE,
+backing size is the allocator's usable chunk size; host tests report the reserved request.
+`GetArenaStats` includes untagged C/newlib allocations and allocator overhead on the EE.
+The ELF report, arena commitment, stack usage and later GS VRAM usage are separate parts
+of the memory budget. Stripping symbols does not reduce loaded code/data/BSS.
+
+## Smoke tests and diagnostics
+
+The runner stages a unique manifest, authored fixture and matching ELF/symbols under
+`build/test-results/<run-id>/`. It uses the installed PCSX2 configuration, requires
+HostFs and IOP/file logging to be enabled already, and refuses to launch while another
+PCSX2 session is running. It selects a separate log with `-logfile` and stops only the
+process it started. It does not edit emulator settings.
+
+```sh
+python3 src/tools/scripts/run_pcsx2_test.py --scenario platform
+python3 src/tools/scripts/run_pcsx2_test.py --scenario core
+python3 src/tools/scripts/run_pcsx2_test.py --scenario core-missing-fixture
+```
+
+Build the corresponding probe or core ELF first. A pass requires the fresh run identity,
+platform/core stage markers and a closed structured result; process exit alone cannot
+pass. A watchdog or crash diagnostic fails the run. The negative scenario requires the
+core to reject a missing fixture. Tests cover heap alignment/accounting, scalar matrix
+and vertex formats, lexer/string behavior and synchronous job ordering. Core services
+also exercise command/cvar registration and fixture I/O.
+
+This milestone preserves the loader's IOP/`host:` filesystem and initializes SIF RPC.
+Physical USB/HDD bring-up, the GS/VU1 path, SPU2 audio, controller input, save games and
+a custom EE exception handler are not implemented. For an emulator-reported PC, use the
+archived `d3bfg_unstripped.elf` with `mips64r5900el-ps2-elf-addr2line`. The standalone
+symbolization helper is in `src/tools/scripts/`.
+
+## Local data and reference knowledge
+
+Retail data under `gamedata/d3_bfg/` and `gamedata/d3_roe/` remains local and ignored.
+The root `base/` retains tracked source-release configuration/render programs; new
+retail files there are ignored. Synthetic tests use authored data and do not depend on
+either game installation.
+
+[AGENTS.md](AGENTS.md) describes working conventions. [docs/REUSE.md](docs/REUSE.md)
+records source provenance and licensing. The imported allocator retains its original
+public-domain notices. The standalone `symbolize.py` retains GPL v2; new backend code
+uses GPL v3 or later. Quake II measurements in `.claude/rules/` remain reference evidence
+until independently reproduced with this port.

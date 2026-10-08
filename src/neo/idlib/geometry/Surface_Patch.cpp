@@ -223,6 +223,7 @@ idSurface_Patch::LerpVert
 ============
 */
 void idSurface_Patch::LerpVert( const idDrawVert &a, const idDrawVert &b, idDrawVert &out ) const {
+	out.Clear(); // [PS2_D3BFG]: Full-vertex copies must not read uninitialized tangent/color bytes.
 	out.xyz[0] = 0.5f * ( a.xyz[0] + b.xyz[0] );
 	out.xyz[1] = 0.5f * ( a.xyz[1] + b.xyz[1] );
 	out.xyz[2] = 0.5f * ( a.xyz[2] + b.xyz[2] );

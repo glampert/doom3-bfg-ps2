@@ -765,6 +765,12 @@ idCmdSystemLocal::ArgCompletion_DeclName
 ============
 */
 void idCmdSystemLocal::ArgCompletion_DeclName( const idCmdArgs &args, void(*callback)( const char *s ), int type ) {
+	// [PS2_D3BFG]: the foundation core has no declaration manager yet.
+#if defined( ID_PS2_CORE ) && ID_PS2_CORE
+	(void)args;
+	(void)callback;
+	(void)type;
+#else
 	int i, num;
 
 	if ( declManager == NULL ) {
@@ -774,6 +780,7 @@ void idCmdSystemLocal::ArgCompletion_DeclName( const idCmdArgs &args, void(*call
 	for ( i = 0; i < num; i++ ) {
 		callback( idStr( args.Argv( 0 ) ) + " " + declManager->DeclByIndex( (declType_t)type, i , false )->GetName() );
 	}
+#endif
 }
 
 /*

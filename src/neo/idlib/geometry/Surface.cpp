@@ -811,14 +811,14 @@ bool idSurface::RayIntersection( const idVec3 &start, const idVec3 &dir, float &
 
 		if ( s0 & s1 & s2 ) {
 			plane.FromPoints( verts[indexes[i+0]].xyz, verts[indexes[i+1]].xyz, verts[indexes[i+2]].xyz );
-			plane.RayIntersection( start, dir, s );
-			if ( idMath::Fabs( s ) < idMath::Fabs( scale ) ) {
+			// [PS2_D3BFG]: A parallel ray leaves s untouched; use it only after an intersection.
+			if ( plane.RayIntersection( start, dir, s ) && idMath::Fabs( s ) < idMath::Fabs( scale ) ) {
 				scale = s;
 			}
 		} else if ( !backFaceCull && !(s0 | s1 | s2) ) {
 			plane.FromPoints( verts[indexes[i+0]].xyz, verts[indexes[i+1]].xyz, verts[indexes[i+2]].xyz );
-			plane.RayIntersection( start, dir, s );
-			if ( idMath::Fabs( s ) < idMath::Fabs( scale ) ) {
+			// [PS2_D3BFG]: A parallel ray leaves s untouched; use it only after an intersection.
+			if ( plane.RayIntersection( start, dir, s ) && idMath::Fabs( s ) < idMath::Fabs( scale ) ) {
 				scale = s;
 			}
 		}

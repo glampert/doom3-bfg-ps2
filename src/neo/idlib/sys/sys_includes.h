@@ -39,6 +39,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 
+// [PS2_D3BFG]: Desktop API headers and intrinsics are confined to Windows.
+#ifdef ID_PC_WIN
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS	// prevent auto literal to string conversion
 
 #ifndef _D3SDK
@@ -70,6 +72,7 @@ If you have questions concerning this license or the applicable additional terms
 #include <malloc.h>							// no malloc.h on mac or unix
 #include <windows.h>						// for qgl.h
 #undef FindText								// fix namespace pollution
+#endif // ID_PC_WIN
 
 /*
 ================================================================================================
@@ -96,6 +99,13 @@ If you have questions concerning this license or the applicable additional terms
 #include <math.h>
 #include <limits.h>
 #include <memory>
+
+// [PS2_D3BFG]: Preserve pointer width for stack and alignment arithmetic.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include <stdint.h>
+#include <stddef.h>
+typedef uintptr_t UINT_PTR;
+#endif
 
 //-----------------------------------------------------
 

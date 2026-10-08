@@ -113,7 +113,12 @@ typedef enum {
 class idCVar {
 public:
 							// Never use the default constructor.
+							// [PS2_D3BFG]: idInternalCVar uses this constructor; the pointer/value RTTI check is always true.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+							idCVar() {}
+#else
 							idCVar() { assert( typeid( this ) != typeid( idCVar ) ); }
+#endif
 
 							// Always use one of the following constructors.
 							idCVar( const char *name, const char *value, int flags, const char *description,

@@ -39,9 +39,14 @@ If you have questions concerning this license or the applicable additional terms
 uint32 globalDmaTag;
 
 bool SpursEmulationAssertFailed( const char *filename, int line, const char *expression ) {
+// [PS2_D3BFG]: Route job assertions through the same fatal platform diagnostic.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return AssertFailed( filename, line, expression );
+#else
 	static bool halt = true;
 	if ( halt ) {
 		__debugbreak();
 	}
 	return true;
+#endif
 }

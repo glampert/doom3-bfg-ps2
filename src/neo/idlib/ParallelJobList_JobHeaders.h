@@ -44,10 +44,16 @@ If you have questions concerning this license or the applicable additional terms
 #include <math.h>
 #include <string.h>
 
+// [PS2_D3BFG]: Job math headers need pointer-width types without Windows intrinsics.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include <stdint.h>
+typedef uintptr_t UINT_PTR;
+#else
 #include <basetsd.h>				// for UINT_PTR
 #include <intrin.h>
 #pragma warning( disable : 4100 )	// unreferenced formal parameter
 #pragma warning( disable : 4127 )	// conditional expression is constant
+#endif
 
 
 

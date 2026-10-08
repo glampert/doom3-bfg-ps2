@@ -374,6 +374,12 @@ idParallelJobList_Threads::Submit
 ========================
 */
 void idParallelJobList_Threads::Submit( idParallelJobList_Threads * waitForJobList, int parallelism ) {
+// [PS2_D3BFG]: A predecessor completes before its dependent runs on the sole thread.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( waitForJobList != NULL ) {
+		waitForJobList->Wait();
+	}
+#endif
 	assert( done );
 	assert( numSyncs <= maxSyncs );
 	assert( (unsigned int) jobList.Num() <= maxJobs + numSyncs * 2 );
@@ -1092,7 +1098,12 @@ extern void Sys_CPUCount( int & logicalNum, int & coreNum, int & packageNum );
 
 // DOOM3: We don't have that many jobs, so just set this fairly low so we don't spin up a ton of idle threads
 #define MAX_JOB_THREADS		2
+// [PS2_D3BFG]: The initial core scheduler executes jobs on the caller's thread.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#define NUM_JOB_THREADS "0"
+#else
 #define NUM_JOB_THREADS		"2"
+#endif
 #define JOB_THREAD_CORES	{	CORE_ANY, CORE_ANY, CORE_ANY, CORE_ANY,	\
 								CORE_ANY, CORE_ANY, CORE_ANY, CORE_ANY,	\
 								CORE_ANY, CORE_ANY, CORE_ANY, CORE_ANY,	\
@@ -1103,7 +1114,12 @@ extern void Sys_CPUCount( int & logicalNum, int & coreNum, int & packageNum );
 								CORE_ANY, CORE_ANY, CORE_ANY, CORE_ANY }
 
 
+// [PS2_D3BFG]: Worker creation stays disabled until real threading is brought up.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+idCVar jobs_numThreads( "jobs_numThreads", NUM_JOB_THREADS, CVAR_INTEGER | CVAR_NOCHEAT | CVAR_INIT, "core jobs execute synchronously on the calling thread", 0.0f, 0.0f );
+#else
 idCVar jobs_numThreads( "jobs_numThreads", NUM_JOB_THREADS, CVAR_INTEGER | CVAR_NOCHEAT, "number of threads used to crunch through jobs", 0, MAX_JOB_THREADS );
+#endif
 
 class idParallelJobManagerLocal : public idParallelJobManager {
 public:
@@ -1152,6 +1168,11 @@ idParallelJobManagerLocal::Init
 ========================
 */
 void idParallelJobManagerLocal::Init() {
+// [PS2_D3BFG]: Do not create OS workers for the synchronous core.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	maxThreads = 0;
+	Sys_CPUCount( numPhysicalCpuCores, numLogicalCpuCores, numCpuPackages );
+#else
 	// on consoles this will have specific cores for the threads, but on PC they will all be CORE_ANY
 	core_t cores[] = JOB_THREAD_CORES;
 	assert( sizeof( cores ) / sizeof( cores[0] ) >= MAX_JOB_THREADS );
@@ -1162,6 +1183,7 @@ void idParallelJobManagerLocal::Init() {
 	maxThreads = jobs_numThreads.GetInteger();
 
 	Sys_CPUCount( numPhysicalCpuCores, numLogicalCpuCores, numCpuPackages );
+#endif
 }
 
 /*
@@ -1205,6 +1227,10 @@ void idParallelJobManagerLocal::FreeJobList( idParallelJobList * jobList ) {
 		threads[i].WaitForThread();
 	}
 	int index = jobLists.FindIndex( jobList );
+	// [PS2_D3BFG]: Reject foreign lists in release builds before indexing with -1.
+	if ( index < 0 ) {
+		idLib::Error( "FreeJobList: list was not allocated by this manager" );
+	}
 	assert( index >= 0 && jobLists[index] == jobList );
 	jobLists[index]->Wait();
 	delete jobLists[index];
@@ -1265,6 +1291,11 @@ idParallelJobManagerLocal::Submit
 ========================
 */
 void idParallelJobManagerLocal::Submit( idParallelJobList_Threads * jobList, int parallelism ) {
+// [PS2_D3BFG]: Preserve job/sync bookkeeping through the existing scalar executor.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	threadJobListState_t state( jobList->GetVersion() );
+	jobList->RunJobs( 0, state, false );
+#else
 	if ( jobs_numThreads.IsModified() ) {
 		maxThreads = idMath::ClampInt( 0, MAX_JOB_THREADS, jobs_numThreads.GetInteger() );
 		jobs_numThreads.ClearModified();
@@ -1294,4 +1325,5 @@ void idParallelJobManagerLocal::Submit( idParallelJobList_Threads * jobList, int
 		threads[i].AddJobList( jobList );
 		threads[i].SignalWork();
 	}
+#endif
 }

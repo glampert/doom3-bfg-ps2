@@ -29,6 +29,9 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __FILESYSTEM_H__
 #define __FILESYSTEM_H__
 
+// [PS2_D3BFG]: the core header does not include the resource-container implementation.
+class idResourceCacheEntry;
+
 /*
 ===============================================================================
 

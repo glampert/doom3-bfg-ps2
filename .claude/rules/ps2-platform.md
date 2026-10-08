@@ -1,8 +1,22 @@
-# PS2 platform and ps2sdk facts from the Quake II reference
+# PS2 platform: Doom foundation and Quake II reference
+
+## Verified Doom foundation
+
+The Doom core boots in PCSX2 with `src/ps2/system/main.cpp`: it preserves the loader's
+IOP/HostFs, initializes SIF RPC and uses SDK bus-clock reads. Target fixtures verify
+timer conversion/progress, 64-byte buffers and finite EE divide-by-zero behavior.
+The dlmalloc wrapper pins 4 KiB pages and checks the `size_t`/`ptrdiff_t` sbrk boundary.
+There is no storage-driver bring-up or custom EE exception handler yet. Recorded
+results and limits are in [PORT_STATUS.md](../../docs/PORT_STATUS.md).
+
+GCC can eliminate a direct `calloc`/`free` test pair, including an `errno` observation.
+The overflow regression calls through a volatile function pointer; check the generated
+EE assembly when testing allocation side effects.
+
+## Quake II reference
 
 SDK and EE hardware findings below are useful, but named source files, boot flows,
-diagnostics and measurements describe `quake2-ps2`. This repository has not imported
-that backend or verified a Doom boot. Recheck its SDK calls and limits during the port.
+diagnostics and measurements describe `quake2-ps2`. Recheck them for each Doom subsystem.
 
 ## Don't trust ps2sdk on sight
 

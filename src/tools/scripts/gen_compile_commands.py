@@ -1,57 +1,78 @@
 #!/usr/bin/env python3
-"""Generate compile_commands.json for IntelliSense / clangd from the Makefile.
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Generate a compile database from a successful EE Makefile dry run.
 
-Usage (once the Doom Makefile has a `compiledb` target):
-    make -Bnk | python3 src/tools/scripts/gen_compile_commands.py
+    make compiledb
+    make -Bnk all compile-core compile-game | python3 src/tools/scripts/gen_compile_commands.py --stdin
 
-Reads a `make --dry-run` transcript on stdin, extracts every EE compiler
-invocation that compiles a single source (`... -c <src> -o <obj>`), and writes a
-compile database to compile_commands.json in the current directory. This keeps
-editor tooling in exact sync with the real per-file C/C++ flags (standards,
--isystem, warning set) without needing `bear` or `compiledb` installed.
+The subprocess mode checks Make's exit status and preserves an existing database
+on failure. Entries use argument arrays so paths and quoting remain exact.
 """
 
+import argparse
 import json
 import os
+from pathlib import Path
 import shlex
+import subprocess
 import sys
 
 
-def main() -> int:
-    root = os.getcwd()
+def extract_commands(transcript: str, root: Path) -> list[dict]:
     entries = []
     seen = set()
-
-    for line in sys.stdin:
-        line = line.strip()
+    for line in transcript.splitlines():
         if " -c " not in line or "mips64r5900el-ps2-elf-g" not in line:
             continue
         try:
-            tokens = shlex.split(line)
-        except ValueError:
+            tokens = shlex.split(line.strip())
+        except ValueError as error:
+            raise ValueError(f"Malformed compiler command: {error}") from error
+        if "-c" not in tokens or "-o" not in tokens:
+            raise ValueError("Compiler command lacks a source or object output")
+        source = tokens[tokens.index("-c") + 1]
+        output = tokens[tokens.index("-o") + 1]
+        if not source.endswith((".c", ".cpp", ".cc")):
             continue
-
-        src = None
-        for i, tok in enumerate(tokens):
-            if tok == "-c" and i + 1 < len(tokens):
-                src = tokens[i + 1]
-                break
-        if not src or not src.endswith((".c", ".cpp", ".cc")):
+        if source in seen:
             continue
-        if src in seen:
-            continue
-        seen.add(src)
+        seen.add(source)
+        entries.append({"directory": str(root), "arguments": tokens,
+                        "file": str((root / source).resolve()),
+                        "output": str((root / output).resolve())})
+    if not entries:
+        raise ValueError("No EE compiler commands were found; existing database preserved")
+    return entries
 
-        entries.append({
-            "directory": root,
-            "command": line,
-            "file": os.path.join(root, src),
-        })
 
-    with open("compile_commands.json", "w", encoding="utf-8") as out:
-        json.dump(entries, out, indent=2)
-        out.write("\n")
-
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--make", default="make")
+    parser.add_argument("--build", choices=("debug", "release"), default="debug")
+    parser.add_argument("--stdin", action="store_true")
+    parser.add_argument("--output", type=Path, default=Path("compile_commands.json"))
+    args = parser.parse_args()
+    root = Path.cwd()
+    try:
+        if args.stdin:
+            transcript = sys.stdin.read()
+        else:
+            result = subprocess.run([args.make, "--no-print-directory", "-Bnk",
+                                     f"BUILD={args.build}", "all", "compile-core", "compile-game"],
+                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            if result.returncode:
+                sys.stderr.write(result.stderr)
+                raise ValueError(f"Make dry run failed with status {result.returncode}; existing database preserved")
+            transcript = result.stdout
+        entries = extract_commands(transcript, root)
+        content = json.dumps(entries, indent=2) + "\n"
+        if not args.output.exists() or args.output.read_text(encoding="utf-8") != content:
+            temporary = args.output.with_suffix(args.output.suffix + ".tmp")
+            temporary.write_text(content, encoding="utf-8")
+            os.replace(temporary, args.output)
+    except (OSError, ValueError, IndexError) as error:
+        print(f"gen_compile_commands: {error}", file=sys.stderr)
+        return 1
     print(f"gen_compile_commands: wrote {len(entries)} entries", file=sys.stderr)
     return 0
 

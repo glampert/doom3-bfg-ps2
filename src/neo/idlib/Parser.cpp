@@ -2138,7 +2138,7 @@ int idParser::Directive_eval() {
 	token.whiteSpaceEnd_p = NULL;
 	token.linesCrossed = 0;
 	token.flags = 0;
-	sprintf(buf, "%d", abs(value));
+	sprintf(buf, "%ld", labs(value)); // [PS2_D3BFG]: Preserve the evaluator's long width on LP64 hosts.
 	token = buf;
 	token.type = TT_NUMBER;
 	token.subtype = TT_INTEGER|TT_LONG|TT_DECIMAL;
@@ -2277,7 +2277,7 @@ int idParser::DollarDirective_evalint() {
 	token.whiteSpaceEnd_p = NULL;
 	token.linesCrossed = 0;
 	token.flags = 0;
-	sprintf( buf, "%d", abs( value ) );
+	sprintf( buf, "%ld", labs( value ) ); // [PS2_D3BFG]: Preserve the evaluator's long width on LP64 hosts.
 	token = buf;
 	token.type = TT_NUMBER;
 	token.subtype = TT_INTEGER | TT_LONG | TT_DECIMAL | TT_VALUESVALID;

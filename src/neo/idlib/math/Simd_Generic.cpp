@@ -43,6 +43,9 @@ If you have questions concerning this license or the applicable additional terms
 
 #ifdef _DEBUG
 #define NODEFAULT	default: assert( 0 )
+#elif defined( ID_PS2 ) || defined( ID_HOST_TEST )
+// [PS2_D3BFG]: Preserve the unreachable hint on GCC.
+#define NODEFAULT default: __builtin_unreachable()
 #else
 #define NODEFAULT	default: __assume( 0 )
 #endif

@@ -41,6 +41,11 @@ If you have questions concerning this license or the applicable additional terms
 class idPolynomial {
 public:
 					idPolynomial();
+	// [PS2_D3BFG]: Coefficients are owned; deep copies and destruction prevent leaked/aliased buffers.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+					idPolynomial( const idPolynomial &p );
+					~idPolynomial();
+#endif
 					explicit idPolynomial( int d );
 					explicit idPolynomial( float a, float b );
 					explicit idPolynomial( float a, float b, float c );
@@ -106,6 +111,20 @@ ID_INLINE idPolynomial::idPolynomial() {
 	allocated = 0;
 	coefficient = NULL;
 }
+
+// [PS2_D3BFG]: Complete ownership for the portable polynomial value type.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+ID_INLINE idPolynomial::idPolynomial( const idPolynomial &p ) {
+	degree = -1;
+	allocated = 0;
+	coefficient = NULL;
+	*this = p;
+}
+
+ID_INLINE idPolynomial::~idPolynomial() {
+	Mem_Free16( coefficient );
+}
+#endif
 
 ID_INLINE idPolynomial::idPolynomial( int d ) {
 	degree = -1;

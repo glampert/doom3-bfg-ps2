@@ -56,6 +56,12 @@ If you have questions concerning this license or the applicable additional terms
 #include "../framework/CVarSystem.h"
 #include "../framework/Common.h"
 #include "../framework/File.h"
+
+// [PS2_D3BFG]: Core targets compile idlib without desktop renderer, sound or session headers.
+#if defined( ID_PS2_CORE ) && ID_PS2_CORE
+#include "../framework/FileSystem.h"
+#include "../framework/Serializer.h"
+#else
 #include "../framework/File_Manifest.h"
 #include "../framework/File_SaveGame.h"
 #include "../framework/File_Resource.h"
@@ -151,6 +157,8 @@ const int MAX_EXPRESSION_REGISTERS = 4096;
 #endif /* !GAME_DLL */
 
 #endif /* !_D3SDK */
+
+#endif // ID_PS2_CORE
 
 //-----------------------------------------------------
 

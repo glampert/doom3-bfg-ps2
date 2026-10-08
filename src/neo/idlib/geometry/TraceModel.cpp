@@ -1170,6 +1170,10 @@ int idTraceModel::GetOrderedSilhouetteEdges( const int edgeIsSilEdge[MAX_TRACEMO
 		}
 	}
 
+	// [PS2_D3BFG]: An interior projection or empty model can have no silhouette edges.
+	if ( numSilEdges == 0 ) {
+		return 0;
+	}
 	silEdges[0] = unsortedSilEdges[0];
 	unsortedSilEdges[0] = -1;
 	nextSilVert = edges[silEdges[0]].v[0];
@@ -1191,6 +1195,7 @@ int idTraceModel::GetOrderedSilhouetteEdges( const int edgeIsSilEdge[MAX_TRACEMO
 		}
 		if ( j >= numSilEdges ) {
 			silEdges[i] = 1;	// shouldn't happen
+			continue; // [PS2_D3BFG]: There is no matching edge slot to mark consumed.
 		}
 		unsortedSilEdges[j] = -1;
 	}

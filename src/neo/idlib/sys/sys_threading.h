@@ -38,6 +38,26 @@ If you have questions concerning this license or the applicable additional terms
 ================================================================================================
 */
 
+// [PS2_D3BFG]: Initial core scheduling runs synchronously on one thread.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	typedef int mutexHandle_t;
+	struct signalHandle_t {
+		bool signaled;
+		bool manualReset;
+	};
+	typedef int interlockedInt_t;
+	#define SYS_MEMORYBARRIER __asm__ volatile( "" ::: "memory" )
+
+	class idSysThreadLocalStorage {
+	public:
+		idSysThreadLocalStorage() : value( 0 ) {}
+		idSysThreadLocalStorage( const ptrdiff_t &val ) : value( val ) {}
+		operator ptrdiff_t() { return value; }
+		const ptrdiff_t & operator = ( const ptrdiff_t &val ) { value = val; return val; }
+	private:
+		ptrdiff_t value;
+	};
+#else
 	typedef CRITICAL_SECTION		mutexHandle_t;
 	typedef HANDLE					signalHandle_t;
 	typedef LONG					interlockedInt_t;
@@ -83,6 +103,8 @@ If you have questions concerning this license or the applicable additional terms
 		}	
 		DWORD	tlsIndex;
 	};
+
+#endif // ID_PS2 || ID_HOST_TEST
 
 #define ID_TLS idSysThreadLocalStorage
 
