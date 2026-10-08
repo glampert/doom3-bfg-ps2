@@ -58,6 +58,7 @@ foundation. Its upstream list contains 52 idlib units: all 55 from `idlib.vcxpro
 `Simd_SSE.cpp`, `win_thread.cpp`, and the precompiled-header placeholder. The root build
 also declares the three framework units and their new heap/platform support separately.
 `build/<config>/libd3bfg_core.a` is a compilation artifact, not a boot proof.
+It also includes the shared logger, which both the core adapters and SDK-only probe use.
 
 `make headless-core` explicitly selects the same core bootstrap/test sources and links
 all core objects directly, without garbage collection. Debug/release core and expected

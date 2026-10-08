@@ -1,8 +1,10 @@
 // ================================================================================================
 // File: platform_boot.cpp
 // Brief: Verify timer progress, DMA-buffer alignment and scalar EE math at platform startup.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
+
+#include "ps2/system/log.h"
 
 #include "tests/smoketests/platform_boot.h"
 
@@ -21,7 +23,7 @@ alignas(64) static u8 s_dmaBuffer[128] = {};
 
 bool Check(const char * name, bool passed)
 {
-    printf("[D3BFG] CHECK platform/%s %s\n", name, passed ? "PASS" : "FAIL");
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK platform/%s %s\n", name, passed ? "PASS" : "FAIL");
     return passed;
 }
 
@@ -41,7 +43,7 @@ bool CheckTimer()
         }
         previous = current;
     }
-    printf("[D3BFG] TIMER bus_ticks=%llu reads=%u\n", previous - first, kReadLimit);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] TIMER bus_ticks=%llu reads=%u\n", previous - first, kReadLimit);
     return Check("timer-progress", monotonic && previous > first);
 }
 

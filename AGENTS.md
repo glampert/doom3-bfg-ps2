@@ -10,6 +10,11 @@ is being ported to the PS2 with the free ps2dev SDK. The source split is:
 
 File-scoped backend variables and constants with internal linkage always use an explicit
 `static`, including inside anonymous namespaces (e.g. `static constexpr` for constants).
+Backend diagnostics go through `ps2::Log` / `LogV`; fatal failures use `FatalError` /
+`FatalErrorV`. `src/ps2/common.h` provides `PS2_Assert` / `PS2_AssertMsg` for new
+preconditions, `ArrayLength`, and portable format/cold function macros. Preserve runtime
+validation in release builds. Reused Quake II backend code is attributed in README.md;
+new file banners use `This source code is released under the GNU GPL-3.0-or-later license.`
 
 [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) describes the proposed milestones and
 source changes. [README.md](README.md) records current project status; expand it as the

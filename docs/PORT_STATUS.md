@@ -103,3 +103,34 @@ There is no map loader boot, GS/VU renderer, audible output, controller input, s
 support, physical storage bring-up or custom EE exception handler in this slice.
 Classic Doom is excluded but its tree has not been deleted. Imported third-party
 notices remain intact; see [REUSE.md](REUSE.md).
+
+## Shared diagnostics and assertion helpers
+
+Backend and target smoke diagnostics now use the synchronous `ps2::Log` / `LogV`
+stdout sink. Info output preserves console fragments; warning, error and fatal levels
+add a prefix and newline. Required system/core/heap failures share `FatalError` /
+`FatalErrorV`. The fatal path has a TODO for an emergency on-screen display.
+The result JSON remains an explicit data-file write.
+
+`common.h` supplies the adapted Quake II `PS2_Assert` / `PS2_AssertMsg` helpers,
+`ArrayLength`, and portable printf/cold attributes. Assertions are available for
+future preconditions; existing runtime validation is retained. New source banners
+use the license sentence, with reference attribution in README.md.
+
+| Gate | Result |
+| --- | --- |
+| Debug/release EE core | Strict compile/link passed; fixed residency 1,560,928 / 1,617,888 bytes |
+| `make compile-core` | Passed; archive now includes the shared logger alongside the four previous support units |
+| `make compiledb` | 284 entries generated |
+| `make test-host` | Shared heap ASan/UBSan tests and 32 Python regressions passed, including five new diagnostics/helper checks |
+| Debug core smoke | Passed: `20261008T124025Z_smoke_5b18ec5cfb904157` |
+| Release core smoke | Passed: `20261008T124133Z_smoke_9e5ffcf0ea9a416a` |
+| SDK-only platform smoke | Passed: `20261008T124209Z_smoke_3b2548edb388408d` |
+| Debug missing-fixture scenario | Expected failure accepted: `20261008T124251Z_smoke_4777f12ded474419` |
+
+The host checks exercise untruncated 4 KiB output and variadic forwarding, enabled
+assertion evaluation exactly once, disabled condition/message side effects, assertion
+source locations, and fatal/heap-failure output flushed to stdout before termination.
+Initialized, peak and shutdown tagged heap totals match the foundation baseline.
+Measured arena commitment after tests is now 44,704 / 45,088 bytes (debug/release).
+Campaign compile/link status remains the M2b progress reported above.

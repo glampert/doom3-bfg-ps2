@@ -1,8 +1,10 @@
 // ================================================================================================
 // File: core_boot.cpp
 // Brief: Exercise genuine commands, CVars and fixture reads alongside shared heap/idlib regressions.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
+
+#include "ps2/system/log.h"
 
 #include "tests/smoketests/core_boot.h"
 #include "tests/smoketests/heap_tests.h"
@@ -28,7 +30,7 @@ void TestCommand(const idCmdArgs & arguments)
 
 bool Check(const char * name, bool passed)
 {
-    printf("[D3BFG] CHECK core/%s %s\n", name, passed ? "PASS" : "FAIL");
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK core/%s %s\n", name, passed ? "PASS" : "FAIL");
     return passed;
 }
 

@@ -24,6 +24,10 @@
   memory measurements and the precise foundation boundary are recorded in
   [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 27 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
+- Shared diagnostics checks add five host regressions for channel/variadic forwarding,
+  long output, assertion evaluation/disable behavior, source-location diagnostics and
+  fatal/heap-failure stdout flushing. `make test-host` builds both assertion settings
+  under the strict warning set and ASan/UBSan, alongside the shared heap checks.
 
 ## Quake II reference procedures
 

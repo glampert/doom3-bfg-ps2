@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# This source code is released under the GNU GPL-3.0-or-later license.
 """Check the explicit EE manifests against every shipped BFG source unit."""
 
 import argparse

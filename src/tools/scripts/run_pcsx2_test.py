@@ -2,7 +2,7 @@
 # ================================================================================================
 # File: run_pcsx2_test.py
 # Brief: Run a bounded PS2 smoke scenario and keep the matching ELF, results and diagnostics together.
-# SPDX-License-Identifier: GPL-3.0-or-later
+# This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
 """PCSX2 smoke runner. It neither changes emulator settings nor stops another session."""

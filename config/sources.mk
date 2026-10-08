@@ -3,6 +3,7 @@
 
 PS2_CXX_SRC = \
 	ps2/system/main.cpp \
+	ps2/system/log.cpp \
 	tests/smoketests/platform_boot.cpp
 
 SIZE_OPT_CXX_SRC = $(PS2_CXX_SRC) ps2/system/core.cpp $(CORE_BOOT_CXX_SRC)

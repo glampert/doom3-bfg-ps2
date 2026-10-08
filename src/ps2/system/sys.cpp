@@ -1,10 +1,11 @@
 // ================================================================================================
 // File: sys.cpp
 // Brief: Give the initial synchronous Doom core real EE time, diagnostics and owned event storage.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/system/heap.h"
+#include "ps2/system/log.h"
 
 #include <bit>
 #include <cstdint>
@@ -36,17 +37,6 @@ static size_t s_eventHead = 0;
 static size_t s_eventCount = 0;
 static std::uint64_t s_startTicks = 0;
 static bool s_initialized = false;
-
-[[noreturn]] void Halt()
-{
-    std::fflush(stdout);
-    std::fflush(stderr);
-#if defined(ID_HOST_TEST)
-    std::abort();
-#else
-    Exit(1);
-#endif
-}
 
 std::uint64_t ReadTicks()
 {
@@ -160,15 +150,13 @@ void Sys_Printf(const char * format, ...)
 {
     va_list args;
     va_start(args, format);
-    std::vfprintf(stdout, format, args);
+    ps2::LogV(ps2::LogLevel::Info, format, args);
     va_end(args);
-    std::fflush(stdout);
 }
 
 void Sys_DebugVPrintf(const char * format, va_list args)
 {
-    std::vfprintf(stdout, format, args);
-    std::fflush(stdout);
+    ps2::LogV(ps2::LogLevel::Info, format, args);
 }
 
 void Sys_DebugPrintf(const char * format, ...)
@@ -181,13 +169,9 @@ void Sys_DebugPrintf(const char * format, ...)
 
 void Sys_Error(const char * format, ...)
 {
-    std::fputs("[D3BFG] FATAL sys: ", stderr);
     va_list args;
     va_start(args, format);
-    std::vfprintf(stderr, format, args);
-    va_end(args);
-    std::fputc('\n', stderr);
-    Halt();
+    ps2::FatalErrorV(format, args);
 }
 
 uint64 Sys_Microseconds()

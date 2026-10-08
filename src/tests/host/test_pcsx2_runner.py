@@ -2,7 +2,7 @@
 # ================================================================================================
 # File: test_pcsx2_runner.py
 # Brief: Exercise smoke-runner failure classification and watchdog ownership with a fake emulator.
-# SPDX-License-Identifier: GPL-3.0-or-later
+# This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
 from __future__ import annotations

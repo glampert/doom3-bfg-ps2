@@ -1,8 +1,10 @@
 // ================================================================================================
 // File: main.cpp
 // Brief: Stage platform/core smoke boot and persist its result before the runner stops the emulator.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
+
+#include "ps2/system/log.h"
 
 #include "tests/smoketests/platform_boot.h"
 
@@ -47,7 +49,7 @@ bool ReadManifest(BootManifest & manifest)
     FILE * file = fopen("host:smoke.manifest", "rb");
     if (file == nullptr)
     {
-        printf("[D3BFG] MANIFEST absent; using manual smoke fixture\n");
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] MANIFEST absent; using manual smoke fixture\n");
         return true;
     }
     char magic[32] = {};
@@ -109,35 +111,34 @@ int main()
 {
     // Preserve the loader's IOP/host filesystem. Console device bring-up is a later stage.
     SifInitRpc(0);
-    printf("[D3BFG] STAGE platform BEGIN\n");
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE platform BEGIN\n");
     BootManifest manifest;
     const bool manifestPassed = ReadManifest(manifest);
     if (!manifestPassed)
     {
         // Result metadata must remain valid JSON even when an untrusted manifest is malformed.
         manifest = BootManifest{};
-        printf("[D3BFG] CHECK manifest FAIL\n");
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK manifest FAIL\n");
     }
     const bool platformPassed = ps2::smoketests::RunPlatformTests() && manifestPassed;
-    printf("[D3BFG] STAGE platform %s\n", platformPassed ? "PASS" : "FAIL");
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE platform %s\n", platformPassed ? "PASS" : "FAIL");
 
     const char * coreStatus = "SKIP";
 #if PS2_D3BFG_CORE_TESTS
     if (platformPassed)
     {
-        printf("[D3BFG] STAGE core BEGIN\n");
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE core BEGIN\n");
         coreStatus = ps2::smoketests::RunCoreTests(manifest.fixturePath) ? "PASS" : "FAIL";
     }
 #endif
-    printf("[D3BFG] STAGE core %s\n", coreStatus);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE core %s\n", coreStatus);
     const bool resultWritten = WriteResult(manifest, manifestPassed, platformPassed, coreStatus);
     const bool passed = platformPassed && strcmp(coreStatus, "FAIL") != 0 && resultWritten;
-    printf("[D3BFG] RESULT %s %s\n", manifest.testId, passed ? "PASS" : "FAIL");
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] RESULT %s %s\n", manifest.testId, passed ? "PASS" : "FAIL");
     if (!resultWritten)
     {
-        printf("[D3BFG] CHECK result-file FAIL\n");
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK result-file FAIL\n");
     }
-    fflush(stdout);
 
     // Keep the completed test available for log/result capture. The watchdog owns termination.
     while (true)

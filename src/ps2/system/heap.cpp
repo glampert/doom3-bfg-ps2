@@ -1,12 +1,11 @@
 // ================================================================================================
 // File: heap.cpp
 // Brief: Store allocation metadata outside Doom objects; preserve accounting across all delete forms.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/system/heap.h"
 
-#include <cstdio>
 #include <cstdlib>
 #include <limits>
 #include <new>
@@ -68,9 +67,7 @@ void Remove(Stats & stats, const Header & header)
 [[noreturn]] void Fail(const char * reason)
 {
     // Uses no C++ allocation, including when invoked before main or during OOM.
-    std::fprintf(stderr, "[D3BFG] FATAL heap: %s\n", reason);
-    std::fflush(stderr);
-    std::abort();
+    ps2::FatalError("heap: %s", reason);
 }
 
 void * TryAlloc(size_t size, std::uint16_t tag, size_t alignment)

@@ -10,6 +10,7 @@ checkout at build time.
 | `src/tools/scripts/symbolize.py` | Standalone Quake symbolization helper with Doom defaults | Original GPL v2 notice and `GPL-2.0.txt` retained |
 | `src/external/dlmalloc/malloc.c`, `malloc.h` | Doug Lea malloc 2.7.2, including the reference's PS2 configuration; normalize line endings/trailing whitespace, reject calloc multiplication overflow and correct the prefixed `dlmallinfo` header declaration | Original public-domain notices retained |
 | `src/external/dlmalloc/dlmalloc.c` | PS2/newlib integration wrapper; adds a checked `size_t` to `ptrdiff_t` boundary | User authorized reuse of their own code under GPL v3 in this implementation session |
+| `src/ps2/common.h` | Quake II backend assertion macros and `ArrayLength`; removes engine dependencies and uses the shared Doom fatal handler | User-owned reference code reused under GPL v3 or later; attribution in README.md |
 
 New Doom backend code uses `GPL-3.0-or-later`. The authorization above applies to
 user-owned reference code; it does not change third-party notices or the standalone

@@ -1,11 +1,12 @@
 // ================================================================================================
 // File: core.cpp
 // Brief: Real Doom command/CVar/idlib startup with a bounded host fixture filesystem and console.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/system/core.h"
 #include "ps2/system/heap.h"
+#include "ps2/system/log.h"
 
 #include <idlib/precompiled.h>
 
@@ -19,12 +20,11 @@ static constexpr const char * kTagNames[] = {
 #define MEM_TAG(x) #x,
 #include <idlib/sys/sys_alloc_tags.h>
 };
-static_assert(sizeof(kTagNames) / sizeof(kTagNames[0]) == TAG_NUM_TAGS);
+static_assert(ps2::ArrayLength(kTagNames) == TAG_NUM_TAGS);
 
 [[noreturn]] void Unsupported(const char * operation)
 {
-    printf("[D3BFG] FATAL unsupported headless core operation: %s\n", operation);
-    ps2::heap::Fail("unsupported headless core operation");
+    ps2::FatalError("unsupported headless core operation: %s", operation);
 }
 
 // Keep unsupported interfaces visible at the ABI boundary. A core compile/link is not a game boot.
@@ -309,7 +309,7 @@ public:
     {
         if (m_redirectBuffer == nullptr)
         {
-            vprintf(format, arguments);
+            ps2::LogV(ps2::LogLevel::Info, format, arguments);
             return;
         }
         char message[kPrintCapacity] = {};
@@ -363,12 +363,10 @@ public:
     void Warning(const char * format, ...) override
     {
         ++m_warningCount;
-        printf("[D3BFG] WARNING ");
         va_list arguments;
         va_start(arguments, format);
-        VPrintf(format, arguments);
+        VWarning(format, arguments);
         va_end(arguments);
-        printf("\n");
     }
 
     void DWarning(const char * format, ...) override
@@ -379,11 +377,11 @@ public:
         }
         va_list arguments;
         va_start(arguments, format);
-        VPrintf(format, arguments);
+        VWarning(format, arguments);
         va_end(arguments);
     }
 
-    void PrintWarnings() override { printf("[D3BFG] WARNINGS count=%u\n", m_warningCount); }
+    void PrintWarnings() override { ps2::Log(ps2::LogLevel::Info, "[D3BFG] WARNINGS count=%u\n", m_warningCount); }
     void ClearWarnings(const char *) override { m_warningCount = 0; }
     void SetRefreshOnPrint(bool refresh) override { if (refresh) { Unsupported("refresh console display"); } }
     void StartupVariable(const char *) override { /* This fixture bootstrap has no command-line arguments. */ }
@@ -392,14 +390,14 @@ public:
     {
         va_list arguments;
         va_start(arguments, format);
-        Fatal(format, arguments);
+        ps2::FatalErrorV(format, arguments);
     }
 
     [[noreturn]] void FatalError(const char * format, ...) override
     {
         va_list arguments;
         va_start(arguments, format);
-        Fatal(format, arguments);
+        ps2::FatalErrorV(format, arguments);
     }
 
     bool IsMultiplayer() override { return false; }
@@ -451,12 +449,16 @@ public:
     CORE_UNSUPPORTED(void, SwitchToGame, (currentGame_t))
 
 private:
-    [[noreturn]] void Fatal(const char * format, va_list arguments)
+    void VWarning(const char * format, va_list arguments)
     {
-        char message[kPrintCapacity] = {};
-        idStr::vsnPrintf(message, static_cast<int>(sizeof(message)), format, arguments);
-        printf("[D3BFG] FATAL %s\n", message);
-        ps2::heap::Fail(message);
+        if (m_redirectBuffer == nullptr)
+        {
+            ps2::LogV(ps2::LogLevel::Warning, format, arguments);
+            return;
+        }
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] WARNING ");
+        VPrintf(format, arguments);
+        ps2::Log(ps2::LogLevel::Info, "\n");
     }
 
     void FlushRedirect()
@@ -495,10 +497,10 @@ void PrintMemory(const char * stage)
 {
     const heap::Stats totals = heap::GetTotalStats();
     const heap::ArenaStats arena = heap::GetArenaStats();
-    printf("[D3BFG] MEMORY %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu peak_backing=%zu\n",
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] MEMORY %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu peak_backing=%zu\n",
         stage, totals.requestedBytes, totals.backingBytes, totals.allocationCount,
         totals.peakRequestedBytes, totals.peakBackingBytes);
-    printf("[D3BFG] ARENA %s available=%d committed=%zu used=%zu free=%zu peak_committed=%zu\n",
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] ARENA %s available=%d committed=%zu used=%zu free=%zu peak_committed=%zu\n",
         stage, arena.available ? 1 : 0, arena.committedBytes, arena.usedBytes, arena.freeBytes,
         arena.peakCommittedBytes);
     for (std::uint16_t tag = 0; tag < static_cast<std::uint16_t>(TAG_NUM_TAGS); ++tag)
@@ -506,7 +508,7 @@ void PrintMemory(const char * stage)
         const heap::Stats stats = heap::GetStats(tag);
         if (stats.allocationCount != 0 || stats.peakRequestedBytes != 0)
         {
-            printf("[D3BFG] TAG %s %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu\n",
+            ps2::Log(ps2::LogLevel::Info, "[D3BFG] TAG %s %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu\n",
                 stage, kTagNames[tag], stats.requestedBytes, stats.backingBytes,
                 stats.allocationCount, stats.peakRequestedBytes);
         }

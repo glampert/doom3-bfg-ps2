@@ -62,6 +62,12 @@ adapter and loose-file filesystem backend, rather than running the complete
 `idCommonLocal::Init`. It does not link desktop GPU/audio APIs or Classic Doom, and
 it does not claim game/script compilation or map loading.
 
+Backend and smoke-test diagnostics use the shared `ps2::Log` / `LogV` sink with info,
+warning, error and fatal levels. It currently writes synchronously to stdout. System,
+core, heap and assertion failures terminate through `FatalError` / `FatalErrorV`;
+on-screen fatal reporting remains a TODO. `src/ps2/common.h` provides `PS2_Assert`,
+`PS2_AssertMsg`, `ArrayLength` and portable format/cold attributes for new backend code.
+
 The filesystem adapter reads loose synthetic files up to 64 KiB and rejects parent,
 absolute and other-device paths. Enumeration, writes and resource loading are explicit
 unsupported operations. Unimplemented game/UI/network calls also terminate with a
@@ -142,3 +148,11 @@ records source provenance and licensing. The imported allocator retains its orig
 public-domain notices. The standalone `symbolize.py` retains GPL v2; new backend code
 uses GPL v3 or later. Quake II measurements in `.claude/rules/` remain reference evidence
 until independently reproduced with this port.
+
+## Attributions
+
+The PS2 backend draws on Guilherme Lampert's [quake2-ps2](https://github.com/glampert/quake2-ps2).
+The shared `src/ps2/common.h` assertion macros and `ArrayLength` helper are adapted
+from that project. The author authorizes reuse of their code under this project's
+GPL v3 or later terms. Third-party notices retain their original terms; the import
+inventory is recorded in [docs/REUSE.md](docs/REUSE.md).

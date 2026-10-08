@@ -1,10 +1,12 @@
 // ================================================================================================
 // File: heap.h
 // Brief: One tagged allocation boundary with exact requested-size accounting on unsized frees.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #pragma once
+
+#include "ps2/common.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -42,6 +44,6 @@ Stats GetTotalStats();
 // Includes untagged C/newlib allocations and allocator overhead on the EE.
 ArenaStats GetArenaStats();
 void ResetPeaks();
-[[noreturn]] void Fail(const char * reason);
+[[noreturn]] PS2_COLD_FUNC void Fail(const char * reason);
 
 } // namespace ps2::heap

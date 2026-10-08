@@ -198,7 +198,8 @@ $(OUTPUT_DIR)/.source-identity.json: FORCE $(LINK_OBJS) $(SCRIPTS)/build_metadat
 $(OUTPUT_DIR)/build-report.json: $(EE_BIN) $(GAME_ELF) $(REPORT_FLAGS) $(OUTPUT_DIR)/.source-identity.json $(SCRIPTS)/build_metadata.py
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py report --elf $(EE_BIN) --runnable-elf $(GAME_ELF) --identity $(OUTPUT_DIR)/.source-identity.json --output $(OUTPUT_DIR)/build-report --compiler $(EE_CXX) --configuration $(BUILD) --milestone $(MILESTONE) --flags $(REPORT_FLAGS) --sources $(addprefix src/,$(LINK_SOURCES))
 
-$(CORE_ARCHIVE): $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS)
+# The shared logger is used by both the SDK-only probe and the core adapters.
+$(CORE_ARCHIVE): $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS) $(OUTPUT_DIR)/src/ps2/system/log.o
 	@rm -f $@.tmp
 	$(EE_AR) rcs $@.tmp $^
 	mv -f $@.tmp $@
@@ -238,18 +239,28 @@ HOST_WARNFLAGS = -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wconversion 
 
 HOST_TEST_FLAGS = -std=c++20 -O1 -g -fno-exceptions -fno-rtti -fno-threadsafe-statics \
 	-fno-strict-aliasing -fsized-deallocation -fsanitize=address,undefined -fno-omit-frame-pointer \
-	$(HOST_WARNFLAGS) -Isrc
+	$(HOST_WARNFLAGS) -Isrc -DPS2_D3BFG_ASSERTS=1
 
-HOST_HEAP_SOURCES = src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/ps2/system/heap.cpp
+HOST_HEAP_SOURCES = src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 
 build/tests/.heap-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_HEAP_SOURCES)
 
-build/tests/heap_tests: $(HOST_HEAP_SOURCES) src/tests/smoketests/heap_tests.h src/ps2/system/heap.h build/tests/.heap-flags.json
+build/tests/heap_tests: $(HOST_HEAP_SOURCES) src/tests/smoketests/heap_tests.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h build/tests/.heap-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) $(HOST_HEAP_SOURCES) -o $@
 
-test-host: build/tests/heap_tests
+HOST_COMMON_SOURCES = src/tests/host/common_tests.cpp src/ps2/system/log.cpp src/ps2/system/heap.cpp
+HOST_COMMON_HEADERS = src/ps2/common.h src/ps2/system/log.h src/ps2/system/heap.h
+
+build/tests/.common-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_COMMON_SOURCES)
+
+build/tests/common_tests_%: $(HOST_COMMON_SOURCES) $(HOST_COMMON_HEADERS) build/tests/.common-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_COMMON_SOURCES) -o $@
+
+test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0
 	./build/tests/heap_tests
 	$(PYTHON) -m unittest discover -s src/tests/host -p 'test_*.py'
 

@@ -1,7 +1,7 @@
 // ================================================================================================
 // File: heap_tests.cpp
 // Brief: Run the same allocation regression tests on the host and the EE.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "tests/smoketests/heap_tests.h"

@@ -1,8 +1,10 @@
 // ================================================================================================
 // File: heap_tests.cpp
 // Brief: Check alignment, overflow and exact ledger recovery across the standard allocation APIs.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
+
+#include "ps2/system/log.h"
 
 #include "tests/smoketests/heap_tests.h"
 #include "ps2/system/heap.h"
@@ -26,7 +28,7 @@ static void * s_earlyAllocation = ps2::heap::TryAlloc(23, kEarlyTag, 64);
 
 bool Check(bool condition, const char * name)
 {
-    std::printf("[D3BFG] CHECK %s %s\n", name, condition ? "PASS" : "FAIL");
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK %s %s\n", name, condition ? "PASS" : "FAIL");
     return condition;
 }
 

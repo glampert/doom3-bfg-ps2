@@ -12,6 +12,14 @@ below still need verification when imported; the current foundation is in
 - Allocation goes through `ps2::heap` with Doom's `memTag_t` (stored as a checked 16-bit tag).
   Required allocation failure is fatal; `TryAlloc` returns null for checked callers.
 - `alignas(N)` is the alignment idiom, not `__attribute__((aligned))`.
+- Backend/stdout diagnostics use `ps2::Log` / `LogV` from `system/log.h`, with info,
+  warning, error and fatal levels. Required failures use `ps2::FatalError` / `FatalErrorV`;
+  `heap::Fail` delegates there. The sink currently uses synchronous stdout; on-screen
+  fatal reporting remains a TODO. Data-file writes are separate from diagnostics.
+- `common.h` provides `ArrayLength`, portable `PS2_PRINTF_FUNC` / `PS2_COLD_FUNC`, and
+  `PS2_Assert` / `PS2_AssertMsg` for future preconditions. Assertions follow
+  `PS2_D3BFG_ASSERTS`; disabled assertions do not evaluate conditions or messages.
+  Runtime input validation and required failures must still work in release builds.
 
 ## Naming
 
@@ -27,7 +35,8 @@ below still need verification when imported; the current foundation is in
 ## File style
 
 - Every file opens with the banner block (`File:`, `Brief:` explaining what and *why*, the GPL
-  v3 line). Copy it from a neighbour such as `system/heap.h`. Group code under
+  license sentence: `This source code is released under the GNU GPL-3.0-or-later license.`).
+  Copy it from a neighbour such as `system/heap.h`. Group code under
   `// ----...` section headers like the existing files.
 - Comments explain decisions and hardware reasons, the way the existing code does.
   Keep header comments brief (1-2 lines). Avoid adding history to comments.
