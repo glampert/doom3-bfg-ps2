@@ -160,7 +160,9 @@ TestGameAPI
 ============
 */
 void TestGameAPI() {
-	gameImport_t testImport;
+	// [PS2_D3BFG]: GetGameAPI reads version before installing the imported services.
+	gameImport_t testImport = {};
+	testImport.version = GAME_API_VERSION;
 	gameExport_t testExport;
 
 	testImport.sys						= ::sys;
@@ -3242,6 +3244,19 @@ idEntity *idGameLocal::SpawnEntityType( const idTypeInfo &classdef, const idDict
 		Error( "Attempted to spawn non-entity class '%s'", classdef.classname );
 	}
 
+	// [PS2_D3BFG]: Required allocation/spawn errors terminate; normal return still clears spawn args.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( args ) {
+		spawnArgs = *args;
+	} else {
+		spawnArgs.Clear();
+	}
+	obj = classdef.CreateInstance();
+	if ( obj == NULL ) {
+		Sys_Error( "Failed to construct entity class '%s'", classdef.classname );
+	}
+	obj->CallSpawn();
+#else
 	try {
 		if ( args ) {
 			spawnArgs = *args;
@@ -3255,6 +3270,7 @@ idEntity *idGameLocal::SpawnEntityType( const idTypeInfo &classdef, const idDict
 	catch( idAllocError & ) {
 		obj = NULL;
 	}
+#endif
 	spawnArgs.Clear();
 
 	return static_cast<idEntity *>(obj);

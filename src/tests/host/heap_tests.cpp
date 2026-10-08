@@ -5,8 +5,11 @@
 // ================================================================================================
 
 #include "tests/smoketests/heap_tests.h"
+#include "tests/smoketests/class_alloc_tests.h"
 
 int main()
 {
-    return ps2::smoketests::RunHeapTests() ? 0 : 1;
+    const bool heapPassed = ps2::smoketests::RunHeapTests();
+    const bool classPassed = ps2::smoketests::RunClassAllocTests();
+    return heapPassed && classPassed ? 0 : 1;
 }

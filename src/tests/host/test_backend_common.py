@@ -60,6 +60,15 @@ class BackendCommonTests(unittest.TestCase):
                 self.assertEqual(result.stdout, f"[D3BFG] FATAL {output}\n")
                 self.assertNotIn("returned", result.stdout)
 
+    def test_class_allocation_failures_are_fatal_with_assertions_disabled(self):
+        for mode, output in (("class-fail", "idClass allocation failed: size="),
+                             ("class-underflow", "idClass allocation counters underflow")):
+            with self.subTest(mode=mode):
+                result = self.run_mode(0, mode)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"[D3BFG] FATAL {output}", result.stdout)
+                self.assertNotIn("returned", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -38,6 +38,11 @@ instancing of objects.
 
 #include "../Game_local.h"
 
+// [PS2_D3BFG]: Optional class diagnostics read allocation size from the shared heap.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/system/heap.h"
+#endif
+
 // [PS2_D3BFG]: Generated variable introspection is used only by this optional diagnostic.
 #ifdef ID_DEBUG_UNINITIALIZED_MEMORY
 #include "TypeInfo.h"
@@ -289,8 +294,14 @@ idClass::FindUninitializedMemory
 */
 void idClass::FindUninitializedMemory() {
 #ifdef ID_DEBUG_UNINITIALIZED_MEMORY
+	// [PS2_D3BFG]: Portable objects have no size prefix; scan only the object's own bytes.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	unsigned int *ptr = reinterpret_cast<unsigned int *>( this );
+	int size = static_cast<int>( ps2::heap::GetRequestedSize( this ) );
+#else
 	unsigned long *ptr = ( ( unsigned long * )this ) - 1;
 	int size = *ptr;
+#endif
 	assert( ( size & 3 ) == 0 );
 	size >>= 2;
 	for ( int i = 0; i < size; i++ ) {
@@ -445,6 +456,10 @@ idClass::new
 ================
 */
 void * idClass::operator new( size_t s ) {
+	// [PS2_D3BFG]: Use the heap's own metadata; a four-byte prefix destroys object alignment.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return ps2::game::AllocClass( s, 16, TAG_IDCLASS, memused, numobjects );
+#else
 	int *p;
 
 	s += sizeof( int );
@@ -454,6 +469,7 @@ void * idClass::operator new( size_t s ) {
 	numobjects++;
 
 	return p + 1;
+#endif
 }
 
 /*
@@ -462,6 +478,10 @@ idClass::delete
 ================
 */
 void idClass::operator delete( void *ptr ) {
+	// [PS2_D3BFG]: Exact requested bytes and the original aligned pointer survive unsized delete.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::game::FreeClass( ptr, memused, numobjects );
+#else
 	int *p;
 
 	if ( ptr ) {
@@ -470,7 +490,19 @@ void idClass::operator delete( void *ptr ) {
 		numobjects--;
         Mem_Free( p );
 	}
+#endif
 }
+
+// [PS2_D3BFG]: Preserve alignas(N) on derived game types and pair their aligned delete.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+void *idClass::operator new( size_t s, std::align_val_t alignment ) {
+	return ps2::game::AllocClass( s, static_cast<size_t>( alignment ), TAG_IDCLASS, memused, numobjects );
+}
+
+void idClass::operator delete( void *ptr, std::align_val_t ) {
+	ps2::game::FreeClass( ptr, memused, numobjects );
+}
+#endif
 
 /*
 ================

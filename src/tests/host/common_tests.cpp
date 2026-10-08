@@ -5,10 +5,12 @@
 // ================================================================================================
 
 #include "ps2/common.h"
+#include "ps2/game/class_alloc.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
 #include <cstring>
+#include <limits>
 
 namespace
 {
@@ -64,6 +66,19 @@ int main(int argc, char ** argv)
     else if (std::strcmp(mode, "heap-fail") == 0)
     {
         ps2::heap::Fail("allocation 100%");
+    }
+    else if (std::strcmp(mode, "class-fail") == 0)
+    {
+        int bytes = 0;
+        int objects = 0;
+        ps2::game::AllocClass(std::numeric_limits<size_t>::max(), 16, 202, bytes, objects);
+    }
+    else if (std::strcmp(mode, "class-underflow") == 0)
+    {
+        int bytes = 0;
+        int objects = 0;
+        void * pointer = ps2::heap::Alloc(8, 202);
+        ps2::game::FreeClass(pointer, bytes, objects);
     }
     else { return 2; }
     ps2::Log(ps2::LogLevel::Info, "returned\n");

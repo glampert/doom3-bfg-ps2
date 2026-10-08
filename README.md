@@ -53,6 +53,9 @@ M2b is in progress: the campaign headers now separate OpenGL state from shared
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
 The campaign compile still fails on exception/RTTI use and desktop service dependencies;
 the default executable remains the tested headless core.
+Game class allocation now preserves heap alignment and checks signed memory counters;
+factories use explicit fatal allocation without exception handling. Shared host/EE tests
+cover this allocation boundary, while actual game initialization remains a later gate.
 
 ## Core boundary
 

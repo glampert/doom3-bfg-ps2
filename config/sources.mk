@@ -67,11 +67,13 @@ CORE_FRAMEWORK_CXX_SRC = \
 	neo/framework/CVarSystem.cpp \
 	neo/framework/File.cpp
 CORE_BACKEND_CXX_SRC = \
+	ps2/game/class_alloc.cpp \
 	ps2/system/heap.cpp \
 	ps2/system/core.cpp \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
+	tests/smoketests/class_alloc_tests.cpp \
 	tests/smoketests/core_boot.cpp \
 	tests/smoketests/idlib_tests.cpp \
 	tests/smoketests/heap_tests.cpp

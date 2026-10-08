@@ -84,7 +84,7 @@ with `make -B -k -j4 compile-game` and `make -B -k -j4 BUILD=release compile-gam
 
 | Remaining compile boundary | Current failures / required work |
 | --- | --- |
-| Game/script errors | Exception-based class factories, entity spawning and script compilation; convert error propagation and validate class allocation alignment/overflow |
+| Game/script errors | Script compiler/program exceptions remain; class allocation and factories are now converted and tested as described below |
 | Checked types | RTTI casts in HUD/PDA menus, GUI variables/windows, resource files and models |
 | Platform services | Windows APIs in filesystem/ZIP, key translation and common diagnostics |
 | Classic dependencies | `Common.cpp` and `common_frame.cpp` still import Classic headers; remove those paths instead of restoring Classic linkage |
@@ -92,11 +92,11 @@ with `make -B -k -j4 compile-game` and `make -B -k -j4 BUILD=release compile-gam
 | SWF image failures | Exception-based image error reporting remains |
 | Resident link | Supply declared renderer/audio/offline-session/platform replacements; audit registrations and memory before game-fixture boot |
 
-The next source slice is explicit game allocation/error handling. M2b is incomplete;
-M3 game-fixture initialization has not begun. The executable still uses the M2 core
-bootstrap. Its new regression runs are debug `20261008T102332Z_smoke_22a44eba3d404921`
-and release `20261008T102441Z_smoke_daf97f5405f540e1`; measured ELF residency and core
-heap totals remain at the foundation baseline above. The expected missing-fixture run
+M2b is incomplete; M3 game-fixture initialization has not begun. The executable still
+uses the M2 core bootstrap. The header pass regression runs were debug
+`20261008T102332Z_smoke_22a44eba3d404921` and release
+`20261008T102441Z_smoke_daf97f5405f540e1`; measured ELF residency and core heap totals
+then matched the foundation baseline above. The expected missing-fixture run
 is `20261008T102618Z_smoke_eab26c2bbe0849c4`.
 
 There is no map loader boot, GS/VU renderer, audible output, controller input, save
@@ -133,4 +133,50 @@ assertion evaluation exactly once, disabled condition/message side effects, asse
 source locations, and fatal/heap-failure output flushed to stdout before termination.
 Initialized, peak and shutdown tagged heap totals match the foundation baseline.
 Measured arena commitment after tests is now 44,704 / 45,088 bytes (debug/release).
-Campaign compile/link status remains the M2b progress reported above.
+Campaign compile/link status at this point remained the initial M2b progress reported above.
+
+## Game class allocation and factories
+
+The next M2b slice, completed on 2026-10-09, removes the four-byte size prefix from
+portable `idClass` allocations. Objects retain the shared heap's alignment, including
+explicit aligned new/delete for over-aligned derived types. Unsized delete reads the
+requested size from the heap metadata. `memused` now counts object bytes, while heap
+metadata/backing remains separately accounted; signed byte/object counters cannot
+overflow or underflow silently.
+
+Portable factories construct through required allocation, then call the existing
+uninitialized-memory diagnostic hook. Allocation failure terminates with a useful
+diagnostic. `SpawnEntityType` no longer catches allocation exceptions on the target
+and still clears spawn arguments on normal return. Recoverable game-load failures
+remain later work. Desktop exception branches are preserved. `TestGameAPI` also
+initializes its import structure and sets the API version before validation.
+
+| Gate | Result |
+| --- | --- |
+| Debug campaign, all 274 units attempted | 232 compiled, 42 failed; Make exited 2 |
+| Release campaign, all 274 units attempted | 236 compiled, 38 failed; Make exited 2 |
+| Debug/release EE core | Strict compile/link passed; fixed residency 1,564,000 / 1,620,768 bytes |
+| `make compile-core` | Passed, including the new class allocation adapter |
+| `make compiledb` | 286 entries generated |
+| `make test-host` | Shared heap/class ASan/UBSan tests and 33 Python regressions passed |
+| Debug core smoke | Passed: `20261008T131034Z_smoke_c39338dc7fe74181` |
+| Release core smoke | Passed: `20261008T131817Z_smoke_09eee545a23d494e` |
+| Debug missing-fixture scenario | Expected failure accepted: `20261008T131842Z_smoke_4abe5797d21f437d` |
+
+All 274 campaign sources remain selected. The class and entity-spawn changes allow
+42 more units to compile in each configuration. Remaining failures are script/SWF
+exceptions, RTTI casts, Windows services, Classic references and XAudio dependencies;
+the resident game link remains pending. Full pass logs retain the paths and reproduction
+commands given above. The next source slice is explicit script error handling with
+source-location diagnostics and cleanup.
+
+The shared host/EE tests check 16/64/256-byte alignment, exact unsized/out-of-order
+accounting, signed counter boundaries, rejected requests without mutation, zero-size
+allocation, and factory construction/diagnostic/virtual-delete ordering. Host fatal
+subprocess tests also pass with assertions disabled. These are real allocation-adapter
+tests with small probe classes, not a linked game initialization or entity-spawn test.
+
+Debug/release initialized, peak and shutdown tagged heap totals match the foundation
+baseline. Arena commitment after tests is 45,728 / 46,304 bytes, and ELF BSS is
+392,288 / 392,352 bytes. The added test state is part of this core measurement; no
+campaign-memory claim follows from it.

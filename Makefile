@@ -241,17 +241,17 @@ HOST_TEST_FLAGS = -std=c++20 -O1 -g -fno-exceptions -fno-rtti -fno-threadsafe-st
 	-fno-strict-aliasing -fsized-deallocation -fsanitize=address,undefined -fno-omit-frame-pointer \
 	$(HOST_WARNFLAGS) -Isrc -DPS2_D3BFG_ASSERTS=1
 
-HOST_HEAP_SOURCES = src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
+HOST_HEAP_SOURCES = src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/tests/smoketests/class_alloc_tests.cpp src/ps2/game/class_alloc.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 
 build/tests/.heap-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_HEAP_SOURCES)
 
-build/tests/heap_tests: $(HOST_HEAP_SOURCES) src/tests/smoketests/heap_tests.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h build/tests/.heap-flags.json
+build/tests/heap_tests: $(HOST_HEAP_SOURCES) src/tests/smoketests/heap_tests.h src/tests/smoketests/class_alloc_tests.h src/ps2/game/class_alloc.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h build/tests/.heap-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) $(HOST_HEAP_SOURCES) -o $@
 
-HOST_COMMON_SOURCES = src/tests/host/common_tests.cpp src/ps2/system/log.cpp src/ps2/system/heap.cpp
-HOST_COMMON_HEADERS = src/ps2/common.h src/ps2/system/log.h src/ps2/system/heap.h
+HOST_COMMON_SOURCES = src/tests/host/common_tests.cpp src/ps2/system/log.cpp src/ps2/system/heap.cpp src/ps2/game/class_alloc.cpp
+HOST_COMMON_HEADERS = src/ps2/common.h src/ps2/system/log.h src/ps2/system/heap.h src/ps2/game/class_alloc.h
 
 build/tests/.common-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_COMMON_SOURCES)

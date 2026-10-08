@@ -57,6 +57,14 @@ math path; PS2-specific math replacement headers are a later milestone.
   from the retained `idClass`/`idTypeInfo` hierarchy. Include it only for the corresponding
   `ID_DEBUG_MEMORY` / `ID_DEBUG_UNINITIALIZED_MEMORY` features, which are not enabled
   or supplied by this port.
-- Before game-fixture boot, fix `idClass::operator new`'s four-byte size prefix: returning
-  `p + 1` loses the alignment provided by `Mem_Alloc`. Allocation size/counter overflow
-  and factory failure behavior need testing with that change.
+- `idClass::operator new`'s four-byte size prefix lost the heap's 16-byte alignment.
+  Portable class allocation now returns the shared heap pointer directly and reads its
+  requested size for unsized delete. `memused` counts object bytes; backing/metadata
+  remains in the heap ledger. Both signed class counters are checked before allocation.
+  Explicit aligned new/delete overloads preserve over-aligned derived game classes.
+- Portable class factories use required/fatal allocation and run `FindUninitializedMemory`
+  after construction. `SpawnEntityType` preserves normal-return spawn-argument cleanup;
+  allocation/spawn errors terminate at this stage. Script errors/recoverable game loading
+  are still pending. Desktop factory exception handling remains in its own branch.
+- `TestGameAPI` now zero-initializes its imports and sets `GAME_API_VERSION` before
+  `GetGameAPI` checks it. Compilation alone does not validate game initialization.

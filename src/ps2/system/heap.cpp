@@ -35,6 +35,17 @@ struct Header
 static Stats s_tags[kTagCount] = {};
 static Stats s_total = {};
 
+Header * GetHeader(const void * pointer)
+{
+    const auto address = reinterpret_cast<std::uintptr_t>(pointer);
+    auto * header = static_cast<Header *>(reinterpret_cast<void *>(address - sizeof(Header)));
+    if (header->magic != kAllocationMagic || header->tag >= kTagCount)
+    {
+        Fail("invalid allocation header");
+    }
+    return header;
+}
+
 void Add(Stats & stats, size_t requested, size_t backing)
 {
     stats.requestedBytes += requested;
@@ -126,12 +137,7 @@ void Free(void * pointer)
     {
         return;
     }
-    const auto address = reinterpret_cast<std::uintptr_t>(pointer);
-    auto * header = static_cast<Header *>(reinterpret_cast<void *>(address - sizeof(Header)));
-    if (header->magic != kAllocationMagic || header->tag >= kTagCount)
-    {
-        Fail("invalid allocation header");
-    }
+    Header * header = GetHeader(pointer);
     Remove(s_tags[header->tag], *header);
     Remove(s_total, *header);
     void * base = header->base;
@@ -141,6 +147,11 @@ void Free(void * pointer)
 #else
     std::free(base);
 #endif
+}
+
+size_t GetRequestedSize(const void * pointer)
+{
+    return pointer == nullptr ? 0 : GetHeader(pointer)->requested;
 }
 
 Stats GetStats(std::uint16_t tag)

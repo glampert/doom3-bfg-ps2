@@ -39,6 +39,8 @@ struct ArenaStats
 void * TryAlloc(size_t size, std::uint16_t tag, size_t alignment = 16);
 void * Alloc(size_t size, std::uint16_t tag, size_t alignment = 16);
 void Free(void * pointer);
+// Like Free, requires a live allocation from this heap (or nullptr, which reports zero).
+size_t GetRequestedSize(const void * pointer);
 Stats GetStats(std::uint16_t tag);
 Stats GetTotalStats();
 // Includes untagged C/newlib allocations and allocator overhead on the EE.

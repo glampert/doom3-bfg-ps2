@@ -28,6 +28,11 @@
   long output, assertion evaluation/disable behavior, source-location diagnostics and
   fatal/heap-failure stdout flushing. `make test-host` builds both assertion settings
   under the strict warning set and ASan/UBSan, alongside the shared heap checks.
+- Shared host/EE class-allocation checks cover ordinary/over-aligned objects, exact
+  accounting and out-of-order free, signed counter limits, rejected requests without
+  mutation, and factory constructor/diagnostic/virtual-delete ordering. Host subprocess
+  checks require allocation rejection and counter underflow to remain fatal with
+  assertions disabled. These test the adapter, not a linked `idGameLocal` fixture.
 
 ## Quake II reference procedures
 

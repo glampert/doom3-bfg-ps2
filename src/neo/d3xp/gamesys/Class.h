@@ -35,6 +35,11 @@ instancing of objects.
 #ifndef __SYS_CLASS_H__
 #define __SYS_CLASS_H__
 
+// [PS2_D3BFG]: The portable factory uses fatal allocation and retains constructor diagnostics.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/game/class_alloc.h"
+#endif
+
 class idClass;
 class idTypeInfo;
 
@@ -107,19 +112,13 @@ proper superclass is indicated or the run-time type information will be
 incorrect.  Use this on concrete classes only.
 ================
 */
+// [PS2_D3BFG]: Centralize platform-specific factory failure behavior.
 #define CLASS_DECLARATION( nameofsuperclass, nameofclass )											\
 	idTypeInfo nameofclass::Type( #nameofclass, #nameofsuperclass,									\
 		( idEventFunc<idClass> * )nameofclass::eventCallbacks,	nameofclass::CreateInstance, ( void ( idClass::* )() )&nameofclass::Spawn,	\
 		( void ( idClass::* )( idSaveGame * ) const )&nameofclass::Save, ( void ( idClass::* )( idRestoreGame * ) )&nameofclass::Restore );	\
 	idClass *nameofclass::CreateInstance() {														\
-		try {																						\
-			nameofclass *ptr = new nameofclass;														\
-			ptr->FindUninitializedMemory();															\
-			return ptr;																				\
-		}																							\
-		catch( idAllocError & ) {																	\
-			return NULL;																			\
-		}																							\
+		return idClass::CreateInstanceOf<nameofclass>();										\
 	}																								\
 	idTypeInfo *nameofclass::GetType() const {														\
 		return &( nameofclass::Type );																\
@@ -178,6 +177,12 @@ public:
 	void *						operator new( size_t );
 	void						operator delete( void * );
 
+	// [PS2_D3BFG]: C++20 over-aligned derived classes must not fall back to unaligned class new.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	void *						operator new( size_t, std::align_val_t );
+	void						operator delete( void *, std::align_val_t );
+#endif
+
 	virtual						~idClass();
 
 	void						Spawn();
@@ -186,6 +191,21 @@ public:
 	const char *				GetClassname() const;
 	const char *				GetSuperclass() const;
 	void						FindUninitializedMemory();
+
+	// [PS2_D3BFG]: Portable allocation is fatal; desktop factories retain their recoverable catch.
+	template< class Type > static idClass *CreateInstanceOf() {
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		return ps2::game::CreateClass<Type>();
+#else
+		try {
+			Type *ptr = new Type;
+			ptr->FindUninitializedMemory();
+			return ptr;
+		} catch( idAllocError & ) {
+			return NULL;
+		}
+#endif
+	}
 
 	void						Save( idSaveGame *savefile ) const {};
 	void						Restore( idRestoreGame *savefile ) {};

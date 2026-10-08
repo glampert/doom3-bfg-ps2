@@ -7,6 +7,7 @@
 #include "ps2/system/log.h"
 
 #include "tests/smoketests/core_boot.h"
+#include "tests/smoketests/class_alloc_tests.h"
 #include "tests/smoketests/heap_tests.h"
 #include "tests/smoketests/idlib_tests.h"
 #include "ps2/system/core.h"
@@ -134,6 +135,7 @@ bool RunCoreTests(const char * fixturePath)
 {
     core::PrintMemory("before-core");
     bool passed = RunHeapTests();
+    passed = RunClassAllocTests() && passed;
     const heap::Stats baseline = heap::GetTotalStats();
     core::Init();
     core::PrintMemory("initialized-core");

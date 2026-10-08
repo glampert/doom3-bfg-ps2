@@ -7,12 +7,16 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
-Final debug/release fixed ELF residency is 1,560,800 / 1,617,760 bytes, including
-392,288 bytes of BSS. Core initialization requests 13,231 bytes (17,716 backing);
+After the class-allocation slice on 2026-10-09, debug/release fixed ELF residency is
+1,564,000 / 1,620,768 bytes, including 392,288 / 392,352 bytes of BSS. Core
+initialization requests 13,231 bytes (17,716 backing);
 the synthetic test peak is 22,597 bytes (27,544 backing). Both shut down to the exact
 process-lifetime baseline of 1,024 requested / 1,068 backing bytes in one allocation.
-dlmalloc's commitment after tests is 44,832 / 45,216 bytes, including untagged C/newlib
+dlmalloc's commitment after tests is 45,728 / 46,304 bytes, including untagged C/newlib
 allocations and freed space. Do not double-count tagged backing on top of the arena.
+Class `memused` counts object bytes without another size prefix; shared heap metadata
+supplies exact unsized-delete accounting while preserving object alignment. The
+allocation tests use small probe classes and do not measure resident campaign state.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See
