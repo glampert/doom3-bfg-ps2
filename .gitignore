@@ -1,0 +1,28 @@
+# Local game assets:
+/base/
+/gamedata/
+
+# Build artifacts not submitted:
+*.elf
+*.o
+*.a
+*.d
+
+# VU microprogram intermediates:
+*.pp.vcl
+*.vsm
+
+# Everything under build/ is generated - the per-config object trees and ELFs,
+# the host tool binaries, the bin2c IRX intermediates. dummy.txt is only there
+# to keep the directory in the repo.
+build/*
+!build/dummy.txt
+
+# Generated per-machine editor tooling:
+compile_commands.json
+
+# MacOS stuff:
+.DS_Store
+
+# Clangd source code parsing caches.
+.cache

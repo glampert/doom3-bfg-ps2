@@ -1,0 +1,87 @@
+# Doom 3 BFG Edition for the PlayStation 2
+
+id's Doom 3 BFG (forked from https://github.com/id-Software/DOOM-3-BFG)
+is being ported to the PS2 with the free ps2dev SDK. The intended source split is:
+
+- **`neo/`**: id's original C++ code, kept as close to unmodified as possible.
+  Every change is tagged `// [PS2_D3BFG]: <why>`.
+- **`src/ps2/`**: the future console backend, all new C++20 (no exceptions, no RTTI,
+  strict `-Werror`). The planned M0 move will put `neo/` under `src/neo/`.
+
+[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) describes the proposed milestones and
+source changes. [README.md](README.md) records current project status; expand it as the
+port develops. [CVARS.md](CVARS.md) lists implemented backend cvars; add each one with
+its debug/release defaults and flags when it exists in code. The files in
+[.claude/rules/](.claude/rules/) include Quake II PS2 reference notes. Their Quake source
+paths, test results and runtime behavior are not yet Doom 3 implementation facts.
+
+## Toolchain
+
+- EE compiler: `mips64r5900el-ps2-elf-gcc`/`g++` (GCC 15). There is no `ee-gcc`/`ee-g++`, so
+  don't go looking for them. VU tools: `openvcl`, `dvp-as`. Also `bin2c`.
+- `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
+  SDK's C sources, for checking what a library really does, are under
+  `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
+- Planned VU/tool dependencies from the reference are `src/tools/vclpp` (and its nested
+  `external/parse-utils`), `src/tools/vu-checker`, and possibly `src/tools/miniz`.
+  None is imported or pinned in this repository yet. When VU code is added, build the
+  pinned vclpp into `build/tools/vclpp` instead of relying on a copy on `PATH`.
+
+## Build and verify
+
+- The root `Makefile` is still the **verbatim Quake II reference**. It names Quake sources,
+  data and `quake2.elf`. It is not a Doom 3 compile or run target yet. Do not use it as a
+  validation gate until M0 ports its source lists, flags and outputs.
+- Once the Doom build exists, `make` must compile/link the debug ELF with the real EE
+  compiler and strict warnings for new code. Host harnesses cover runtime logic but cannot
+  replace the EE compile check. Check `make`'s exit status, including VU tool failures.
+- Planned outputs are `build/debug/d3bfg.elf`, `build/release/d3bfg.elf`, with an
+  accompanying `d3bfg_unstripped.elf` for each configuration. No such ELF exists yet.
+- Define `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS` and `PS2_D3BFG_PROFILE` to 0 or 1 in the
+  future build and test them with `#if`, never `#ifdef` (`-Wundef` is on).
+- Use explicit source lists and regenerate the compilation database after adding files.
+  Track build-flag changes, or clean only the affected configuration when they change.
+- PCSX2 recipes in [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md)
+  describe the Quake reference until equivalent Doom tests exist.
+
+## Git workflow
+
+- One branch: commit directly on `main`. Don't create feature branches unless asked. Push
+  only when asked.
+- `git fetch` first. The user sometimes commits on GitHub directly; check for divergence
+  before committing and fast-forward only when the working tree can be preserved safely.
+- If the planned vclpp submodules are imported and changed, publish nested submodule
+  commits before a parent gitlink. This repository has no such gitlinks yet.
+- Commit subjects are one sentence ending in a period, often prefixed with the area:
+  `Sound: stream the soundtrack from loose SPU2 ADPCM files.`,
+  `vclpp: back to C++17, so GCC 9 builds it; CI on GitHub.`
+
+## Things that bite (details in the rules)
+
+- The EE FPU has no Inf/NaN (1/0 = FLT_MAX), and double is soft-float. Host and target
+  silently disagree on degenerate math.
+- ps2sdk stubs some libc calls to fail (`sysconf` → -1), and some of its register macros
+  don't parenthesize their arguments. Verify before trusting either.
+- SIF DMA target buffers need `alignas(64)`.
+- The VU toolchain miscompiles silently. Only `check_vu_code.py` and the screen tell you.
+- GS alpha 1.0 is `0x80`. Normalized ST spans the power-of-two TEX0 extent, not the image.
+- PCSX2 models neither the EE cache nor GS-internal cost. A capture only gates regressions
+  for those.
+
+## Rules index (`.claude/rules/`)
+
+When a finding is durable (a hardware fact, a toolchain trap, a measured Doom baseline, a
+test recipe), record it in the matching rule file below. Preserve Quake measurements as
+reference observations until reproduced on this port.
+
+| File | Loaded for | Covers |
+| --- | --- | --- |
+| [testing-pcsx2.md](.claude/rules/testing-pcsx2.md) | always | PCSX2 setup and logs, scripted sessions, built-in tests, crash triage, the known TLB flake, host harnesses |
+| [ps2-backend-cpp.md](.claude/rules/ps2-backend-cpp.md) | `ps2`, host tools | naming, types, file style, passing the strict `-Werror` set |
+| [ps2-platform.md](.claude/rules/ps2-platform.md) | `ps2` | ps2sdk traps, EE FPU, SIF DMA, IOP modules, ROM FILEIO, memory card |
+| [gs-renderer.md](.claude/rules/gs-renderer.md) | `ps2/renderer` | GS/libdraw facts, frame model, CLUTs, VRAM blocks, mipmaps, ST scaling |
+| [vu-microprograms.md](.claude/rules/vu-microprograms.md) | VU sources, vu-checker | openvcl/dvp-as/vclpp traps, VU0 inline asm, VCL comment style, runtime probes |
+| [performance.md](.claude/rules/performance.md) | `ps2`, frame-log scripts | EE codegen facts, what PCSX2 can measure, capture/A-B/asm-test recipes |
+| [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md) | id's C++ | editing rules, engine quirks and bugs |
+| [memory-budget.md](.claude/rules/memory-budget.md) | heap, VRAM, assets, MapCycle | the 32 MB picture, map-transition peak, measured budgets |
+| [vclpp-submodule.md](.claude/rules/vclpp-submodule.md) | `tools/vclpp` | vclpp/parse-utils conventions, verification recipes, CI, MASP mode, tyra |
