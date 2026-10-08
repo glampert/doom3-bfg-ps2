@@ -22,10 +22,10 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
   SDK's C sources, for checking what a library really does, are under
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
-- Imported third-party dependencies live in `src/ps2/external/`, currently `dlmalloc`.
-  Planned VU/tool dependencies from the reference are `src/ps2/external/vclpp` (and its
-  nested `external/parse-utils`), `src/ps2/external/vu-checker`, and possibly
-  `src/ps2/external/miniz`.
+- Imported third-party dependencies live in `src/external/`, currently `dlmalloc`.
+  Planned VU/tool dependencies from the reference are `src/external/vclpp` (and its
+  nested `external/parse-utils`), `src/external/vu-checker`, and possibly
+  `src/external/miniz`.
   These VU/tool dependencies are not imported or pinned yet. When VU code is added,
   build the pinned vclpp into `build/tools/vclpp` instead of relying on a copy on `PATH`.
 
@@ -90,4 +90,4 @@ reference observations until reproduced on this port.
 | [performance.md](.claude/rules/performance.md) | `ps2`, frame-log scripts | EE codegen facts, what PCSX2 can measure, capture/A-B/asm-test recipes |
 | [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md) | id's C++ | editing rules, engine quirks and bugs |
 | [memory-budget.md](.claude/rules/memory-budget.md) | heap, VRAM, assets, MapCycle | the 32 MB picture, map-transition peak, measured budgets |
-| [vclpp-submodule.md](.claude/rules/vclpp-submodule.md) | `ps2/external/vclpp` | vclpp/parse-utils conventions, verification recipes, CI, MASP mode, tyra |
+| [vclpp-submodule.md](.claude/rules/vclpp-submodule.md) | `external/vclpp` | vclpp/parse-utils conventions, verification recipes, CI, MASP mode, tyra |

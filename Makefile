@@ -62,7 +62,7 @@ COMMON_DEFS = -DPS2_D3BFG $(CONFIG_DEFS)
 LANGFLAGS = -std=gnu++20 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing
 SDK_INCS = -isystem $(PS2SDK)/ee/include -isystem $(PS2SDK)/common/include
 PROJECT_INCS = -Isrc -Isrc/neo
-HEAP_VENDOR_INCS = -isystem src/ps2/external
+HEAP_VENDOR_INCS = -isystem src/external
 ENGINE_BRIDGE_INCS = -isystem src/neo
 COMMON_CXXFLAGS = -D_EE -G0 $(OPTFLAGS) $(DBGFLAGS) $(LANGFLAGS) $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
 

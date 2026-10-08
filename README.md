@@ -10,7 +10,7 @@ under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstr
 changes carry `// [PS2_D3BFG]` annotations. [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)
 contains the campaign milestones; [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md)
 records the explicit source dispositions and deferred replacements. Third-party
-dependencies imported for the port live under `src/ps2/external/`.
+dependencies imported for the port live under `src/external/`.
 
 ## Build
 

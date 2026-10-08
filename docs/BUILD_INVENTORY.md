@@ -23,8 +23,8 @@ The Windows project spells `renderer/OpenGL/gl_Image.cpp` as `gl_image.cpp`; the
 matches project paths without case and records the actual on-disk filename so the
 inventory works on hosts with either filesystem behavior.
 
-Third-party dependencies imported for the port live under `src/ps2/external/`.
-The current core uses `src/ps2/external/dlmalloc/`; its source is explicitly listed
+Third-party dependencies imported for the port live under `src/external/`.
+The current core uses `src/external/dlmalloc/`; its source is explicitly listed
 in `CORE_C_SRC`, and the heap bridge imports its header through a system include path.
 
 ## Source dispositions

@@ -2,7 +2,7 @@
 
 The submodules, gitlinks and VU build below belong to `quake2-ps2`; none is imported
 here yet. Apply these notes if the Doom port later adopts that toolchain. Doom's
-dependency location will be `src/ps2/external/vclpp/`, with parse-utils nested beneath
+dependency location will be `src/external/vclpp/`, with parse-utils nested beneath
 it; the `src/tools/vclpp` paths below describe the reference checkout.
 
 vclpp (`src/tools/vclpp`, github.com/glampert/vclpp) preprocesses the VU programs. vclpp 2
