@@ -29,7 +29,12 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "Game_local.h"
+// [PS2_D3BFG]: Retain campaign achievement logic without importing Classic types.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/system/log.h"
+#else
 #include "..\..\doomclassic\doom\doomdef.h"
+#endif
 
 idCVar achievements_Verbose( "achievements_Verbose", "1", CVAR_BOOL, "debug spam" );
 idCVar g_demoMode( "g_demoMode", "0", CVAR_INTEGER, "this is a demo" );
@@ -324,6 +329,10 @@ Processed when the player finishes a level.
 ========================
 */
 void idAchievementManager::CheckDoomClassicsAchievements( int killcount, int itemcount, int secretcount, int skill, int mission, int map, int episode, int totalkills, int totalitems, int totalsecret ) {
+	// [PS2_D3BFG]: The excluded Classic runtime must never evaluate achievements.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::FatalError( "Classic achievement evaluation is unavailable" );
+#else
 
 	const skill_t difficulty = (skill_t)skill;
 	const currentGame_t currentGame = common->GetCurrentGame();
@@ -436,7 +445,9 @@ void idAchievementManager::CheckDoomClassicsAchievements( int killcount, int ite
 		}
 
 	}
+#endif
 }
+
 
 /*
 =================

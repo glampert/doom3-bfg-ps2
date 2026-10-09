@@ -2,10 +2,10 @@
 
 M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. The current
 foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core and
-offline services. The M2b campaign gate compiles all 280 retained units in debug and
+offline services. The M2b campaign gate compiles all 281 retained units in debug and
 release; logical sound now uses a portable sample/voice/device boundary. Resident game
 linking and M3 game initialization remain pending. The sections below preserve each
-slice's historical measurements; the latest sound-boundary evidence is at the end.
+slice's historical measurements; the latest resident-link evidence is at the end.
 
 ## Initial M2 build and runtime evidence
 
@@ -509,3 +509,78 @@ They establish no campaign audio or transition budget.
 The remaining M2b work is the explicit resident campaign link: supply/audit renderer,
 resource, UI, filesystem/vendor and platform services without discarding registrations.
 Then implement meaningful logical rendering/audio queries for the authored M3 fixture.
+
+
+## M2b resident link: reproducible gate and first dependency providers
+
+The new `make link-game` uses all retained campaign objects directly, with strict
+resident support and the required backend adapters. It has no GC, no foundation
+filesystem/Common substitute, and no unresolved-symbol suppression. Reports under
+`build/<config>/resident/` preserve raw logs, a map, source/object/dependency hashes,
+compiler flags, real exit status, and unique symbols with categories and requestors.
+A failed attempt removes stale resident images. Success also requires registration
+roots and every input in the map, then a MIPS executable with load segments. The
+resident entry deliberately rejects execution until M3 startup exists.
+
+The first exploratory 280-unit link found 216 unresolved symbols. OS/time/language
+providers, explicit source-model import rejection, shared Common offline/query/reset/
+deferred providers, and retained native campaign achievements now reduce this to 171
+in both configurations. Every originally selected campaign unit remains selected.
+Achievements moves from deferred into runtime, giving 281 campaign units and 297
+direct link objects; all compile in debug and release with strict new-code warnings.
+Classic achievement evaluation fails explicitly without importing Classic headers.
+Native achievement execution and Common populated-snapshot reset remain untested
+until the real game fixture.
+
+| Remaining resident symbol group | Debug | Release |
+| --- | ---: | ---: |
+| Renderer/image/vertex/cinematic/demo services and cvars | 87 | 87 |
+| Deferred shell/multiplayer/leaderboard/save services and cvars | 61 | 61 |
+| JPEG/zlib codecs | 17 | 17 |
+| Input/usercmd providers and controls | 4 | 4 |
+| Deferred sound-window UI | 2 | 2 |
+| Total unresolved / duplicate definitions | 171 / 0 | 171 / 0 |
+
+The actual linker exits 1; Make exits 2. Neither configuration emits a resident ELF.
+This keeps M2b incomplete. These link maps are failed-attempt evidence, not resident
+size measurements. The next closure groups are renderer contracts, explicit deferred
+game/UI services, input/usercmd and audited codec dependencies. M3 game startup/ticks,
+logical rendering/audio behavior and authored map/reload acceptance still follow.
+
+`sys_services.cpp` supplies six language identifiers, bounded nonnegative duration
+formatting and UTC formatting of supplied timestamps. It does not validate a clock or
+storage timestamps. OS capabilities fail with their method names. Source-model import
+rejects ASE/LWO/Maya formats with a host-conversion diagnostic. No vendor or retail
+data is imported. Common's inactive-demo and offline query checks recover the ledger.
+The compile database now has 311 entries. Six new host gate regressions bring the
+suite to 61, alongside the shared sanitizer fixtures.
+
+| Resident-link regression | Result |
+| --- | --- |
+| Debug/release core and all 281 campaign units | Strict core compile/link and campaign compilation passed |
+| Debug/release `make link-game` | Failed as required: 171 unresolved symbols, 0 duplicates, 297 inputs retained |
+| Source audit / compilation database | 458 shipped units classified, 88 Classic units excluded; 311 entries |
+| `make test-host` | Shared ASan/UBSan fixtures and all 61 Python regressions passed |
+| Debug core smoke | Passed: `20261009T115156Z_smoke_129dc91bbac4469d` |
+| Release core smoke | Passed: `20261009T115235Z_smoke_07574528ae824bfc` |
+| Debug startup/deferred probes | All 22 passed; first `20261009T115411Z_smoke_cddffa2b2070409c`, last `20261009T115456Z_smoke_3d1be72de733413b` |
+| Release startup/deferred probes | All 22 passed; first `20261009T115609Z_smoke_8982619674e84488`, last `20261009T115651Z_smoke_8f67b474d3f840a8` |
+| Debug missing-fixture scenario | Expected failure and cleanup passed: `20261009T115811Z_smoke_c657465e7f7344ca` |
+| Release missing-fixture scenario | Expected failure and cleanup passed: `20261009T120107Z_smoke_cc6ab812c1a24df7` |
+| Debug script regressions | Include passed: `20261009T120131Z_script_e3358fea192e486f`; syntax failure/cleanup passed: `20261009T120204Z_script_8207dbc40d204674` |
+| Release script regressions | Include passed: `20261009T120230Z_script_f0061bd22c324dec`; syntax failure/cleanup passed: `20261009T120255Z_script_056a3a4d4fbb4f22` |
+
+
+| Resident-service core memory | Debug | Release |
+| --- | ---: | ---: |
+| Fixed ELF residency (`PT_LOAD`) | 1,719,920 bytes | 1,776,880 bytes |
+| ELF BSS (included above) | 454,512 bytes | 454,512 bytes |
+| Initialized requested / backing / count | 19,837 / 26,896 bytes / 172 | 19,837 / 26,896 bytes / 172 |
+| Smoke peak requested / backing | 45,715 / 53,500 bytes | 45,715 / 53,500 bytes |
+| Arena commitment after tests | 70,032 bytes | 70,416 bytes |
+| After shutdown requested / backing / count | 1,024 / 1,068 bytes / 1 | 1,024 / 1,068 bytes / 1 |
+
+New retained language/frame cvars change startup/peak ledgers; shutdown still recovers
+exactly. The three source importers and OS failures are exercised in fresh processes
+with assertions on and off. These numbers cover the foundation, not a resident game,
+real model/sample payloads, snapshot queues populated by simulation, or map transitions.

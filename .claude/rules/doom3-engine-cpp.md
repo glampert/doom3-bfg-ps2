@@ -145,3 +145,17 @@ math path; PS2-specific math replacement headers are a later milestone.
   to make gameplay proceed. The initial backend terminates unavailable queries with
   the method name. Meaningful timing, completion, amplitude and voice state remain
   required before a game fixture; hardware output is a later boundary.
+
+
+## Resident link findings
+
+- Campaign code embeds `idAchievementManager`; it is not solely an online service.
+  Retain native `d3xp/Achievements.cpp` and gate only Classic header/evaluation on
+  portable builds. Compilation does not establish player achievement execution.
+- Whole-object campaign linking exposes excluded shell/multiplayer/save, renderer-demo
+  and source-import calls even before game initialization. Keep the source manifest
+  intact and report requestors; do not use GC or generic linker-symbol shims to hide them.
+- Common's offline query providers are shared between foundation and campaign. Its
+  private reset must clear native queued snapshots, interpolation values and usercmd
+  storage despite having no network peers. Populated-state runtime acceptance remains
+  an M3 check. Inactive demo cleanup can return safely; active demos fail explicitly.

@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 PROJECTS = ("idlib.vcxproj", "doomexe.vcxproj", "game-d3xp.vcxproj", "external.vcxproj")
 SOURCE_SUFFIXES = {".c", ".cpp", ".cc"}
 EE_LISTS = ("PS2_CXX_SRC", "CORE_CXX_SRC", "CORE_FRAMEWORK_CXX_SRC", "CORE_BACKEND_CXX_SRC", "CORE_C_SRC", "CORE_BOOT_CXX_SRC",
-            "CAMPAIGN_CXX_SRC", "VENDOR_C_SRC", "VENDOR_CXX_SRC", "SCRIPT_CXX_SRC", "SCRIPT_BOOT_CXX_SRC", "GAME_BACKEND_CXX_SRC", "JPEG_TEST_CXX_SRC")
+            "CAMPAIGN_CXX_SRC", "VENDOR_C_SRC", "VENDOR_CXX_SRC", "SCRIPT_CXX_SRC", "SCRIPT_BOOT_CXX_SRC", "GAME_BACKEND_CXX_SRC", "RESIDENT_SUPPORT_CXX_SRC", "JPEG_TEST_CXX_SRC")
 
 
 def read_make_lists(path: Path) -> dict[str, list[str]]:

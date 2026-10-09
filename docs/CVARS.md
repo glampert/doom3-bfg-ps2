@@ -8,6 +8,9 @@ command and cvar system. The following engine cvars have PS2-specific policies:
 | --- | --- | --- | --- | --- |
 | `jobs_numThreads` | `0` | `0` | `CVAR_INTEGER`, `CVAR_NOCHEAT`, `CVAR_INIT` | Initial synchronous scheduler; worker creation is disabled and explicit parallelism requests still execute on the caller. Registered in `src/neo/idlib/ParallelJobList.cpp`. |
 | `com_smp` | `0` | `0` | `CVAR_BOOL`, `CVAR_SYSTEM`, `CVAR_NOCHEAT`, `CVAR_ROM` | Synchronous game/draw dispatch; portable startup creates no game worker. Registered in `src/neo/framework/Common.cpp`, including the foundation. Game execution is still deferred. |
+| `sys_lang` | `english` | `english` | `CVAR_SYSTEM`, `CVAR_INIT` | Resource language identifier; six engine language names are exposed. Restart policy follows `CVAR_INIT`. Registered in `src/ps2/system/sys_services.cpp`. |
+| `net_clientMaxPrediction` | `5000` | `5000` | `CVAR_SYSTEM`, `CVAR_INTEGER`, `CVAR_NOCHEAT` | Retained frame metadata in milliseconds; no online service is enabled. Registered in `src/ps2/system/common_campaign.cpp`. |
+| `net_ucmdRate` | `40` | `40` | `CVAR_SYSTEM`, `CVAR_INTEGER` | Retained usercmd interval metadata in milliseconds; network entry points fail explicitly. Registered in `src/ps2/system/common_campaign.cpp`. |
 
 `jobs_numThreads` is not archived. Its init flag rejects direct cvar console commands;
 even a forced internal change cannot enable workers in this milestone. `com_smp` is

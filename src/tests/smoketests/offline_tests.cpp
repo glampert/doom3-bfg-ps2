@@ -16,6 +16,9 @@
 
 // Common_local.h relies on the complete engine precompiled header.
 #include <framework/Common_local.h>
+#include <renderer/Model_ase.h>
+#include <renderer/Model_lwo.h>
+#include <renderer/Model_ma.h>
 
 namespace ps2::smoketests
 {
@@ -43,6 +46,19 @@ idMatchParameters CampaignParameters()
 
 bool RunOfflineTests()
 {
+    const heap::Stats resetBaseline = heap::GetTotalStats();
+    bool resetPassed = true;
+    for (int cycle = 0; cycle < 3; ++cycle)
+    {
+        commonLocal.StopPlayingRenderDemo();
+        commonLocal.StopRecordingRenderDemo();
+        const heap::Stats after = heap::GetTotalStats();
+        resetPassed = resetPassed && !common->IsMultiplayer() && !common->IsServer() && !common->IsClient() &&
+            after.requestedBytes == resetBaseline.requestedBytes && after.backingBytes == resetBaseline.backingBytes &&
+            after.allocationCount == resetBaseline.allocationCount;
+    }
+    const bool resetChecked = Check("common-idle-demo-ledger", resetPassed);
+
     const idCVar * smp = cvarSystem->Find("com_smp");
     bool passed = Check("real-common", common == &commonLocal && common->IsInitialized() &&
                                        lifecycle::CompletedStage() == lifecycle::Stage::Session && common->Session() == session &&
@@ -149,7 +165,7 @@ bool RunOfflineTests()
                                                    !(user->GetLocalUserHandle() == originalHandle) && session->GetState() == idSession::IDLE &&
                                                    !user->GetProfile()->GetAchievement(127) && user->GetStatInt(3) == 0) &&
              passed;
-    return passed;
+    return passed && resetChecked;
 }
 
 bool IsCommonProbe(const char * path) { return idStr::Cmpn(path, "host:probe-", 11) == 0; }
@@ -219,6 +235,29 @@ bool RunCommonProbe(const char * path)
     else if (idStr::Cmp(name, "bad-device") == 0)
     {
         session->GetSignInManager().RegisterLocalUser(1);
+    }
+    else if (idStr::Cmp(name, "platform-launch") == 0)
+    {
+        idCmdArgs arguments;
+        Sys_Launch("ignored", arguments, nullptr, 0);
+    }
+    else if (idStr::Cmp(name, "platform-negative-duration") == 0)
+    {
+        (void)Sys_SecToStr(-1);
+    }
+    else if (idStr::Cmp(name, "model-ase") == 0)
+    {
+        (void)ASE_Load("fixture/source.ase");
+    }
+    else if (idStr::Cmp(name, "model-lwo") == 0)
+    {
+        unsigned int failId = 0;
+        int failPosition = 0;
+        (void)lwGetObject("fixture/source.lwo", &failId, &failPosition);
+    }
+    else if (idStr::Cmp(name, "model-ma") == 0)
+    {
+        (void)MA_Load("fixture/source.ma");
     }
     else if (!RunAudioFailureProbe(name))
     {

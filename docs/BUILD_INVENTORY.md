@@ -31,9 +31,9 @@ in `CORE_C_SRC`, and the heap bridge imports its header through a system include
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 280 | Debug/release compile gates pass; resident linking and runtime adaptation remain required |
+| Campaign runtime | 281 | Debug/release compile gates pass; resident linking and runtime adaptation remain required |
 | PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
-| Deferred runtime | 34 | BFG shell, multiplayer, online services and demo paths; callers still need explicit adapters |
+| Deferred runtime | 33 | BFG shell, multiplayer, online services and demo paths; callers still need explicit adapters |
 | Optional vendor | 56 | zlib/JPEG; include only when a format, license and target configuration are audited |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
 | PCH excluded | 3 | Visual Studio precompiled-header translation units |
@@ -72,7 +72,7 @@ campaign's `idClass` hierarchy and `idGameLocal` are not yet part of that execut
 all core objects directly, without garbage collection. Debug/release core and expected
 missing-fixture runs have passed in PCSX2; see [PORT_STATUS.md](PORT_STATUS.md).
 
-`make compile-game` independently compiles all 280 intended runtime units with the
+`make compile-game` independently compiles all 281 intended runtime units with the
 campaign header boundary. Both configurations pass. It does not select the reduced
 core precompiled header or establish a resident game link; replacement services and
 registrations still need that separate gate.
@@ -139,14 +139,14 @@ declarations with `ID_PS2_CORE` undefined while linking only inline hierarchy qu
 and real foundation file objects. It does not link a menu/model runtime or discard
 selected core objects. These test sources remain explicit in `CORE_BOOT_CXX_SRC`.
 
-The campaign manifest retains 280 units; all compile in both configurations.
+The campaign manifest retains 281 units; all compile in both configurations.
 [PORT_STATUS.md](PORT_STATUS.md) records the sound boundary and resident-link work.
 
 ## Campaign diagnostics and JPEG adapter
 
 `GAME_BACKEND_CXX_SRC` lists required campaign backend objects. `compile-game`
 compiles them with strict backend warnings and their own flag stamp, alongside the
-280-unit campaign manifest. The adapters supply bounded SWF JPEG decoding, lifecycle
+281-unit campaign manifest. The adapters supply bounded SWF JPEG decoding, lifecycle
 tracking, offline session services and the portable audio boundary. Lifecycle, offline
 session and audio support also link into the foundation; the JPEG decoder remains
 campaign-only and has host runtime acceptance so far.
@@ -197,7 +197,7 @@ class omits Classic material/framebuffer storage and creates no game worker. Its
 no game object or game initialization stage. Full container filesystem, render/sound,
 UI/dialog and save services still need their resident-link implementations.
 
-`make test-common` runs seven partial-startup cleanup probes and ten expected-fatal
+`make test-common` runs seven partial-startup cleanup probes and fifteen expected-fatal
 capability/precondition probes, each in a fresh process. `BUILD=release` selects the
 assertions-disabled matrix. The regular core smoke also checks copied match parameters,
 explicit loading completion, transient stats/achievement bits, user-handle invalidation
@@ -225,3 +225,40 @@ Core smoke requires the sample metadata/ledger marker. The three new expected-fa
 probes cover resource loading, duration queries and device initialization in fresh
 processes with assertions enabled and disabled. See the latest acceptance evidence in
 [PORT_STATUS.md](PORT_STATUS.md).
+
+
+## Resident campaign link gate
+
+`make link-game` / `make BUILD=release link-game` attempt the actual EE link with
+all 281 campaign objects, seven campaign backend objects, eight strict resident support
+objects and dlmalloc: 297 direct inputs, without GC or archives hiding undefined
+references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
+stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
+substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
+
+`link_resident.py` records the compiler/link command, flags, source/dependency/object
+hashes, actual linker status, unique demangled symbols and requesting objects in
+`build/<config>/resident/report.{json,txt}`, beside the raw log, response file and map.
+The current gate fails with 171 symbols in both configurations; no resident ELF is
+emitted. Compiler nonzero exits stay failures even without a recognized diagnostic.
+Successful links also require a MIPS executable/load segment, every input in the map,
+static game interfaces, three native class registration roots and the static CVar
+registry. Stale ELF/report files are cleared before attempts. The resident entry is
+explicitly unavailable until M3 startup; a future linked probe is not game boot.
+
+Native `d3xp/Achievements.cpp` moves from deferred to campaign runtime. Its campaign
+logic and cvars remain intact; portable builds gate the Classic header and terminate
+Classic evaluation. Every original campaign unit stays selected. Achievement-manager
+runtime execution remains pending the resident link and actual player fixture.
+
+The shared `common_campaign.cpp` supplies offline Common queries, native snapshot/
+interpolation/usercmd state reset, inactive-demo cleanup, and explicit failures for
+network/demo/menu capabilities. State reset is compile-accepted; populated snapshot
+cleanup still requires the game fixture. Foundation tests cover inactive demos and
+offline query/ledger stability. New `sys_services.cpp` supplies language identifiers,
+nonnegative duration formatting and UTC formatting of supplied timestamps; it does not
+validate a wall clock or storage timestamps. Unavailable OS services fail by method.
+`model_import.cpp` rejects the three host source formats instead of enabling their
+conversion parsers or pretending resources loaded. Those source dispositions stay
+unchanged. All three backend units compile strictly and cold in core and campaign
+object trees. No vendor/data import is added.

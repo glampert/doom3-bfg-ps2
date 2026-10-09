@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 55 Python regressions, including real JPEG
+  The complete host suite currently has 61 Python regressions, including real JPEG
   and filesystem sanitizer fixtures.
 
 - Core smoke now also requires six filesystem-service markers. The runner stages
@@ -58,23 +58,33 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 17 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 22 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Ten negative probes require matching run/begin identities and
+  uses a fresh process. Fifteen negative probes require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
   matchmaking, Classic switching, absent save manager, unsupported input device, audio
-  resource loading, audio duration queries and audio device initialization.
+  resource loading, audio duration queries, audio device initialization, process launch,
+  negative duration input and ASE/LWO/Maya source-model import.
   A watchdog, TLB/bus error, unexpected return or unrelated fatal fails.
-- Regular core smoke requires eight `offline/` markers covering the real Common
+- Regular core smoke requires nine `offline/` markers covering the real Common
   identity and `com_smp=0`/ROM policy, local user/profile/achievement state, unavailable
   persistence, copied match parameters, explicit loading completion, stable reload
   accounting and sign-out/routing/stale handles. Profile save failure must preserve
   transient stats/bits. These checks do not execute game ticks or load a map. Core smoke
   also requires `audio/sample-metadata-ledger`: native string ownership and unloaded
   sample flags
-  must recover the exact requested/backing/count ledger after each scope.
+  must recover the exact requested/backing/count ledger after each scope. The added
+  `offline/common-idle-demo-ledger` covers repeated inactive-demo cleanup and offline
+  queries; `core/platform-language-duration-utc` checks language bounds, maximum signed
+  durations, leap days and the 2038 boundary. It establishes formatting, not clock accuracy.
+
+- `make link-game` is a failing compile/link gate until resident services exist. Do not
+  launch a failed link map or reuse an older resident ELF. Its reports preserve actual
+  linker errors and all inputs; the default runnable ELF remains the validated core.
+  Six host regressions reject stale images, nonzero links, missing registrations/map
+  inputs, non-executables and ignored undefined diagnostics.
 
 ## Quake II reference procedures
 

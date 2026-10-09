@@ -6,7 +6,7 @@ PS2_CXX_SRC = \
 	ps2/system/log.cpp \
 	tests/smoketests/platform_boot.cpp
 
-SIZE_OPT_CXX_SRC = ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/system/resident_boot.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -74,6 +74,9 @@ CORE_FRAMEWORK_CXX_SRC = \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp
 CORE_BACKEND_CXX_SRC = \
+	ps2/system/common_campaign.cpp \
+	ps2/renderer/model_import.cpp \
+	ps2/system/sys_services.cpp \
 	ps2/audio/sound_backend.cpp \
 	ps2/game/script_error.cpp \
 	ps2/game/class_alloc.cpp \
@@ -112,6 +115,7 @@ CAMPAIGN_CXX_SRC = \
 	neo/cm/CollisionModel_translate.cpp \
 	neo/d3xp/AF.cpp \
 	neo/d3xp/AFEntity.cpp \
+	neo/d3xp/Achievements.cpp \
 	neo/d3xp/Actor.cpp \
 	neo/d3xp/AimAssist.cpp \
 	neo/d3xp/BrittleFracture.cpp \
@@ -393,7 +397,18 @@ SCRIPT_BOOT_CXX_SRC = \
 	tests/smoketests/script_boot.cpp
 
 # Required portable campaign support; compiled strictly without claiming a resident link.
-GAME_BACKEND_CXX_SRC = ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp
+GAME_BACKEND_CXX_SRC = ps2/system/common_campaign.cpp ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
+
+# Resident-only entry and shared providers. No core filesystem or Common replacement is linked.
+RESIDENT_SUPPORT_CXX_SRC = \
+	ps2/system/resident_boot.cpp \
+	ps2/system/log.cpp \
+	ps2/system/heap.cpp \
+	ps2/system/filesystem.cpp \
+	ps2/system/sys_filesystem.cpp \
+	ps2/system/sys.cpp \
+	ps2/game/class_alloc.cpp \
+	ps2/game/script_error.cpp
 
 # Existing upstream JPEG sources, used only by the host decoder harness at this stage.
 JPEG_TEST_CXX_SRC = \

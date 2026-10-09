@@ -80,6 +80,24 @@ bool CheckCVars()
     return Check("cvar-registration-command", changed && staticRegistered && constraints && forced && cvarSystem->IsInitialized());
 }
 
+bool CheckPlatformServices()
+{
+    const bool languages = Sys_NumLangs() == 6 && idStr::Cmp(Sys_Lang(0), ID_LANG_ENGLISH) == 0 &&
+        idStr::Cmp(Sys_Lang(5), ID_LANG_JAPANESE) == 0 && Sys_Lang(-1)[0] == '\0' && Sys_Lang(6)[0] == '\0' &&
+        idStr::Cmp(Sys_DefaultLanguage(), ID_LANG_ENGLISH) == 0 &&
+        idStr::Cmp(cvarSystem->GetCVarString("sys_lang"), ID_LANG_ENGLISH) == 0 &&
+        (cvarSystem->Find("sys_lang")->GetFlags() & CVAR_INIT) != 0;
+    const bool durations = idStr::Cmp(Sys_SecToStr(0), "0:00:00") == 0 &&
+        idStr::Cmp(Sys_SecToStr(3661), "1:01:01") == 0 &&
+        idStr::Cmp(Sys_SecToStr(90061), "1d, 1:01:01") == 0 &&
+        idStr::Cmp(Sys_SecToStr(2147483647), "3550w, 5d, 3:14:07") == 0;
+    const bool timestamps = idStr::Cmp(Sys_TimeStampToStr(-1), "timestamp unavailable") == 0 &&
+        idStr::Cmp(Sys_TimeStampToStr(0), "1970-01-01 00:00 UTC") == 0 &&
+        idStr::Cmp(Sys_TimeStampToStr(951782400), "2000-02-29 00:00 UTC") == 0 &&
+        idStr::Cmp(Sys_TimeStampToStr(2147483647), "2038-01-19 03:14 UTC") == 0;
+    return Check("platform-language-duration-utc", languages && durations && timestamps);
+}
+
 bool CheckParser()
 {
     constexpr char kSource[] = "#define SMOKE 42\nSMOKE\n";
@@ -255,6 +273,7 @@ bool RunCoreTests(const char * fixturePath)
     passed = RunAudioTests() && passed;
     passed = CheckCommands() && passed;
     passed = CheckCVars() && passed;
+    passed = CheckPlatformServices() && passed;
     passed = CheckParser() && passed;
     passed = CheckFixture(fixturePath) && passed;
     passed = CheckMissingAndEscapingPaths() && passed;

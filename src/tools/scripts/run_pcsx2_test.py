@@ -41,6 +41,11 @@ NEGATIVE_PROBES = {
     "audio-resource": "audio capability unavailable: idSoundSample::LoadResource",
     "audio-duration": "audio capability unavailable: idSoundSample::LengthInMsec",
     "audio-device": "audio capability unavailable: idSoundHardware::Init",
+    "platform-launch": "platform capability unavailable: Sys_Launch",
+    "platform-negative-duration": "Sys_SecToStr requires a nonnegative duration",
+    "model-ase": "source-model import unavailable: ASE_Load",
+    "model-lwo": "source-model import unavailable: lwGetObject",
+    "model-ma": "source-model import unavailable: MA_Load",
 }
 SCENARIOS = ("platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -50,6 +55,8 @@ VERSION_RE = re.compile(
     r"(?:[ \t]+\([A-Za-z0-9 ._:/+-]+\))?[ \t]*$", re.MULTILINE)
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_CORE_CHECKS = frozenset({
+    "offline/common-idle-demo-ledger",
+    "core/platform-language-duration-utc",
     "audio/sample-metadata-ledger",
     "offline/real-common", "offline/local-user", "offline/registration-idempotent",
     "offline/transient-profile-achievements", "offline/persistence-unavailable",

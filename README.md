@@ -25,12 +25,13 @@ make release                 # release configuration
 make platform-probe          # SDK/timer/alignment probe
 make headless-core           # scalar Doom foundation and integration tests
 make compile-core            # 52 scalar idlib units and 10 framework/session support units
-make compile-game            # all 280 retained campaign units; compile gate only
+make compile-game            # all 281 retained campaign units; compile gate only
+make link-game               # resident link gate; reports the remaining unresolved symbols
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make release smoke           # release core smoke run
 make smoke-negative          # expected missing-fixture failure
-make test-common             # seven partial-startup and ten expected-fatal probes
+make test-common             # seven partial-startup and fifteen expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 
@@ -52,10 +53,12 @@ ELF/startup memory measurements and the remaining resident-link work.
 
 M2b is in progress: the campaign headers now separate OpenGL state from shared
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
-All 280 retained campaign units now compile in both configurations. The four logical-
+All 281 retained campaign units now compile in both configurations. The four logical-
 sound units use a portable sample/voice/device boundary without DirectX SDK headers;
 the default executable remains the headless core. Six native profile, user and
-snapshot/compression support units have been retained for the real Common layout and offline services.
+snapshot/compression support units have been retained for the real Common layout and
+offline services. Campaign achievements are retained too; their Classic evaluation
+entry is explicitly unavailable.
 Game class allocation now preserves heap alignment and checks signed memory counters;
 factories use explicit fatal allocation without exception handling. Shared host/EE tests
 cover this allocation boundary, while actual game initialization remains a later gate.
@@ -71,6 +74,14 @@ tested on the EE; full campaign filesystem initialization and ZIP runtime linkin
 Retained menu, GUI-variable, file and model casts use checked portable hierarchy queries.
 Shared host/EE tests cover null/sibling rejection, inherited/const types and separate-unit
 identity; actual file objects and engine hierarchy declarations are checked on the EE.
+
+`make link-game` attempts a real whole-object campaign link under
+`build/<config>/resident/`, with its own strict support objects and no core filesystem
+substitute. It currently fails on 171 unresolved symbols: renderer services, deferred
+shell/network/save/UI, input and codecs. JSON/text reports retain object/source hashes,
+flags, requestors and the real linker exit status. Failed attempts remove stale resident
+ELFs. A successful gate must retain game/class/cvar registration roots and every input
+object in its map. Its eventual entry still requires M3 game-fixture startup.
 
 ## Core boundary
 
@@ -171,13 +182,16 @@ pass. A watchdog or crash diagnostic fails the run. The negative scenario requir
 core to reject a missing fixture. Tests cover heap alignment/accounting, scalar matrix
 and vertex formats, lexer/string behavior and synchronous job ordering. Core services
 also exercise command/cvar registration and fixture I/O.
-Eight offline checks cover Common identity, local users, transient profiles/achievements,
+Nine offline checks cover Common identity, local users, transient profiles/achievements,
 unavailable persistence, match transitions, copied parameters, reload accounting and
-sign-out/input routing. Common probes launch a fresh process for each of seven deliberate
-startup stops and ten invalid or unsupported requests; each must match its own run
+sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh process
+for each of seven deliberate startup stops and fifteen invalid or unsupported requests;
+each must match its own run
 identity and expected cleanup or fatal diagnostic. The three audio failures cover resource
 loading, duration queries and device initialization; core smoke also checks sample
-metadata ownership and exact heap recovery.
+metadata ownership and exact heap recovery. Additional probes reject process launching,
+negative durations and ASE/LWO/Maya source-model imports. Language and UTC/duration
+formatting are checked on the EE.
 
 This milestone preserves the loader's IOP/`host:` filesystem and initializes SIF RPC.
 Physical USB/HDD bring-up, the GS/VU1 path, SPU2 audio, controller input, save games and

@@ -41,6 +41,13 @@ GCC can eliminate a direct `calloc`/`free` test pair, including an `errno` obser
 The overflow regression calls through a volatile function pointer; check the generated
 EE assembly when testing allocation side effects.
 
+The shared OS-service bridge formats nonnegative durations and supplied epoch values
+in UTC. It exposes six engine language identifiers with an English default; that is
+metadata, not acceptance of translated content. Process launch/quit, clipboard, mouse
+capture, rumble, desktop physical-working-set control and drive-capacity queries are
+explicitly unavailable. Never return fabricated free space or treat desktop memory
+controls as EE allocation budgets.
+
 ## Quake II reference
 
 SDK and EE hardware findings below are useful, but named source files, boot flows,

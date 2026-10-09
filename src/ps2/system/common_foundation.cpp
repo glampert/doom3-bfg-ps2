@@ -148,10 +148,6 @@ CORE_UNSUPPORTED(const char *, KeysFromBinding, (const char *))
 CORE_UNSUPPORTED(const char *, BindingFromKey, (const char *))
 CORE_UNSUPPORTED(int, ButtonState, (int))
 CORE_UNSUPPORTED(int, KeyState, (int))
-CORE_UNSUPPORTED(int, GetSnapRate, ())
-CORE_UNSUPPORTED(void, NetReceiveReliable, (int, int, idBitMsg &))
-CORE_UNSUPPORTED(void, NetReceiveSnapshot, (idSnapShot &))
-CORE_UNSUPPORTED(void, NetReceiveUsercmds, (int, idBitMsg &))
 CORE_UNSUPPORTED(bool, ProcessEvent, (const sysEvent_t *))
 CORE_UNSUPPORTED(bool, LoadGame, (const char *))
 CORE_UNSUPPORTED(bool, SaveGame, (const char *))
@@ -161,9 +157,7 @@ CORE_UNSUPPORTED(void, OnLoadFilesCompleted, (idSaveLoadParms &))
 CORE_UNSUPPORTED(void, OnEnumerationCompleted, (idSaveLoadParms &))
 CORE_UNSUPPORTED(void, OnDeleteCompleted, (idSaveLoadParms &))
 CORE_UNSUPPORTED(void, TriggerScreenWipe, (const char *, bool))
-CORE_UNSUPPORTED(void, OnStartHosting, (idMatchParameters &))
 CORE_UNSUPPORTED(void, LaunchExternalTitle, (int, int, const lobbyConnectInfo_t * const))
-CORE_UNSUPPORTED(void, InitializeMPMapsModes, ())
 
 #undef CORE_UNSUPPORTED
 
@@ -196,6 +190,3 @@ void idCommonLocal::SetRefreshOnPrint(bool refresh)
 }
 void idCommonLocal::StartupVariable(const char *) {}
 void idCommonLocal::WriteConfigToFile(const char *) { Unsupported("config file persistence"); }
-bool idCommonLocal::IsMultiplayer() { return false; }
-bool idCommonLocal::IsServer() { return false; }
-bool idCommonLocal::IsClient() { return false; }

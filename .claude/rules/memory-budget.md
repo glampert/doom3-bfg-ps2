@@ -7,12 +7,12 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
-After the sound-boundary slice on 2026-10-09, debug/release fixed core ELF residency is
-1,707,056 / 1,763,632 bytes, including 454,192 bytes of BSS. Core
-initialization requests 18,945 bytes (25,708 backing);
-the synthetic test peak is 44,887 bytes (52,376 backing). Both shut down to the exact
+After the resident-link services slice on 2026-10-09, debug/release fixed core ELF residency is
+1,719,920 / 1,776,880 bytes, including 454,512 bytes of BSS. Core
+initialization requests 19,837 bytes (26,896 backing);
+the synthetic test peak is 45,715 bytes (53,500 backing). Both shut down to the exact
 process-lifetime baseline of 1,024 requested / 1,068 backing bytes in one allocation.
-dlmalloc's commitment after tests is 70,608 / 71,376 bytes, including untagged C/newlib
+dlmalloc's commitment after tests is 70,032 / 70,416 bytes, including untagged C/newlib
 allocations and freed space. Do not double-count tagged backing on top of the arena.
 The real portable `commonLocal` occupies 54,792 bytes; its desktop-only 2,304,000-byte
 Classic framebuffer is absent. This prevents Classic residency when importing Common;
@@ -21,8 +21,9 @@ warm native dictionary string pools once, then require exact ledger stability ov
 reloads and exact full-shutdown recovery. Snapshot/compression support is retained to
 link Common's embedded value types; no online snapshots or game state are initialized.
 The audio boundary adds unloaded sample metadata and ownership tests, without any
-voice pool, sample payload or device. Tagged startup/peak/shutdown totals are unchanged;
-the audio test must release its native string allocation after every scope. Fixed ELF
+voice pool, sample payload or device. New language/frame cvars change startup/peak
+totals; full shutdown still recovers exactly. The audio test must release its native
+string allocation after every scope. Fixed ELF
 and arena changes do not measure a full sound-world or SPU2 budget.
 Class `memused` counts object bytes without another size prefix; shared heap metadata
 supplies exact unsized-delete accounting while preserving object alignment. The

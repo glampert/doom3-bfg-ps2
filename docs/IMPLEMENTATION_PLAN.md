@@ -438,9 +438,13 @@ tracking for system, idlib, commands, cvars, fixture filesystem, synchronous job
 one offline user/session. Game/presentation/save stages are deliberately deferred.
 Classic framebuffer residency and portable startup/frame references are removed; the
 static game API import path compiles but is not exercised until the resident game link.
-The campaign gate now compiles all 280 retained units in debug and release. The logical
-sound header uses `ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
+The campaign gate now compiles all 281 retained units in debug and release, including
+campaign achievements with Classic evaluation gated. The logical sound header uses
+`ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
 Only unloaded sample bookkeeping is implemented; resource, timing/amplitude and device
 operations fail explicitly. Meaningful sound semantics remain required before M3.
-Resident linking is the remaining M2b gate. Acceptance evidence must retain these
-boundaries: no game ticks, interpreter execution or map loading yet.
+`make link-game` now measures the remaining M2b link gate: 171 unresolved symbols
+remain with all 297 inputs retained. Common/OS metadata and rejected source-model import
+boundaries are supplied; renderer, deferred shell/network/save/UI, input and codec
+providers remain. Acceptance evidence must retain these boundaries: no game ticks,
+interpreter execution or map loading yet.

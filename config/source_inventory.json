@@ -25,6 +25,7 @@
         "neo/cm/CollisionModel_translate.cpp",
         "neo/d3xp/AF.cpp",
         "neo/d3xp/AFEntity.cpp",
+        "neo/d3xp/Achievements.cpp",
         "neo/d3xp/Actor.cpp",
         "neo/d3xp/AimAssist.cpp",
         "neo/d3xp/BrittleFracture.cpp",
@@ -296,7 +297,6 @@
     "deferred_runtime": {
       "reason": "Multiplayer, online achievements/leaderboards, BFG shell, demos or expansion launcher screens; shared callers require explicit adapters.",
       "sources": [
-        "neo/d3xp/Achievements.cpp",
         "neo/d3xp/Leaderboards.cpp",
         "neo/d3xp/MultiplayerGame.cpp",
         "neo/d3xp/menus/MenuHandler_Scoreboard.cpp",

@@ -47,8 +47,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make headless-core` links real `idCommonLocal` staged foundation startup and tests.
   `make test-common` checks partial shutdown and offline capability failures in fresh
   emulator processes; Common startup is one-shot after static CVar registration.
-  `make compile-game`
-  is the separate M2b campaign gate and exposes remaining portability blockers.
+  `make compile-game` is the separate M2b campaign compile gate. `make link-game`
+  attempts the retained-object resident link and preserves failure evidence under
+  `build/<config>/resident/`; it must fail until all required services are supplied.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests
   cannot replace target compilation. Check Make's exit status, including VU tool failures.
@@ -59,7 +60,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `SIZE_OPT_CXX_SRC`. Run `make compiledb` after changing source lists. Flag stamps
   invalidate affected object groups automatically.
 - `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly by
-  `compile-game` before the resident link exists. Host-only vendor fixture lists do
+  `compile-game`; `RESIDENT_SUPPORT_CXX_SRC` supplies the strict resident entry/shared
+  providers separately from core substitutes. Host-only vendor fixture lists do
   not enable those vendor sources in an EE runtime target.
 - Doom smoke procedures and the separately labeled Quake reference are in
   [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md).
