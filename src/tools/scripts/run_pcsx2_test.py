@@ -46,6 +46,14 @@ NEGATIVE_PROBES = {
     "model-ase": "source-model import unavailable: ASE_Load",
     "model-lwo": "source-model import unavailable: lwGetObject",
     "model-ma": "source-model import unavailable: MA_Load",
+    "renderer-init": "renderer capability unavailable: idRenderSystemLocal::Init",
+    "renderer-width": "renderer capability unavailable: idRenderSystemLocal::GetWidth",
+    "renderer-draw": "renderer capability unavailable: idRenderSystemLocal::DrawStretchPic",
+    "renderer-image": "renderer capability unavailable: idImageManager::ImageFromFile",
+    "renderer-vertices": "renderer capability unavailable: idVertexCache::ActuallyAlloc",
+    "renderer-shader": "renderer capability unavailable: idRenderProgManager::FindGLSLProgram",
+    "renderer-cinematic": "renderer capability unavailable: idCinematic::Alloc",
+    "renderer-demo": "renderer capability unavailable: idRenderSystemLocal::WriteDemoPics",
 }
 SCENARIOS = ("platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -55,6 +63,7 @@ VERSION_RE = re.compile(
     r"(?:[ \t]+\([A-Za-z0-9 ._:/+-]+\))?[ \t]*$", re.MULTILINE)
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_CORE_CHECKS = frozenset({
+    "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/disabled-resolution-cvars",
     "offline/common-idle-demo-ledger",
     "core/platform-language-duration-utc",
     "audio/sample-metadata-ledger",

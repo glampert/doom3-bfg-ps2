@@ -19,6 +19,7 @@
 #include <renderer/Model_ase.h>
 #include <renderer/Model_lwo.h>
 #include <renderer/Model_ma.h>
+#include "tests/smoketests/renderer_tests.h"
 
 namespace ps2::smoketests
 {
@@ -259,7 +260,7 @@ bool RunCommonProbe(const char * path)
     {
         (void)MA_Load("fixture/source.ma");
     }
-    else if (!RunAudioFailureProbe(name))
+    else if (!RunRendererFailureProbe(name) && !RunAudioFailureProbe(name))
     {
         FatalError("invalid Common negative probe");
     }

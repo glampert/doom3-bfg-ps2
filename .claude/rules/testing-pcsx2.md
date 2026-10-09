@@ -58,15 +58,16 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 22 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 30 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Fifteen negative probes require matching run/begin identities and
+  uses a fresh process. Twenty-three negative probes require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
   matchmaking, Classic switching, absent save manager, unsupported input device, audio
   resource loading, audio duration queries, audio device initialization, process launch,
-  negative duration input and ASE/LWO/Maya source-model import.
+  negative duration input, ASE/LWO/Maya source-model import, renderer initialization,
+  dimensions, draw submission, image/vertex/shader loading, cinematics and render demos.
   A watchdog, TLB/bus error, unexpected return or unrelated fatal fails.
 - Regular core smoke requires nine `offline/` markers covering the real Common
   identity and `com_smp=0`/ROM policy, local user/profile/achievement state, unavailable
@@ -79,6 +80,12 @@
   `offline/common-idle-demo-ledger` covers repeated inactive-demo cleanup and offline
   queries; `core/platform-language-duration-utc` checks language bounds, maximum signed
   durations, leap days and the 2038 boundary. It establishes formatting, not clock accuracy.
+
+- Three required `renderer/` markers check inactive native interface identity, unloaded
+  image/buffer construction and exact scoped ledger recovery, and disabled resolution
+  policy/cvar registration. No world is allocated or rendered. Dimensions, loading and
+  submission fail by method name; the eight renderer probes verify those failures in
+  fresh processes with assertions enabled and disabled.
 
 - `make link-game` is a failing compile/link gate until resident services exist. Do not
   launch a failed link map or reuse an older resident ELF. Its reports preserve actual

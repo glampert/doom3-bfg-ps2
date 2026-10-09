@@ -31,7 +31,7 @@ make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make release smoke           # release core smoke run
 make smoke-negative          # expected missing-fixture failure
-make test-common             # seven partial-startup and fifteen expected-fatal probes
+make test-common             # seven partial-startup and twenty-three expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 
@@ -77,11 +77,18 @@ identity; actual file objects and engine hierarchy declarations are checked on t
 
 `make link-game` attempts a real whole-object campaign link under
 `build/<config>/resident/`, with its own strict support objects and no core filesystem
-substitute. It currently fails on 171 unresolved symbols: renderer services, deferred
-shell/network/save/UI, input and codecs. JSON/text reports retain object/source hashes,
+substitute. It currently fails on 82 unresolved symbols: deferred shell/network/save,
+input and codecs. JSON/text reports retain object/source hashes,
 flags, requestors and the real linker exit status. Failed attempts remove stale resident
 ELFs. A successful gate must retain game/class/cvar registration roots and every input
 object in its map. Its eventual entry still requires M3 game-fixture startup.
+
+Typed renderer providers now bind the native screen, image, shader, cinematic and
+vertex-buffer interfaces, resolving the renderer link group. They expose inactive
+state and empty metadata cleanup. Initialization, display dimensions, resource loading,
+draw submission and active demos fail with the method name. The 42 frontend cvars retain
+native defaults and flags. No frame arenas, texture/vertex payloads or GS device are
+created; meaningful world/material/model queries remain required before M3.
 
 ## Core boundary
 
@@ -185,13 +192,16 @@ also exercise command/cvar registration and fixture I/O.
 Nine offline checks cover Common identity, local users, transient profiles/achievements,
 unavailable persistence, match transitions, copied parameters, reload accounting and
 sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh process
-for each of seven deliberate startup stops and fifteen invalid or unsupported requests;
+for each of seven deliberate startup stops and twenty-three invalid or unsupported requests;
 each must match its own run
 identity and expected cleanup or fatal diagnostic. The three audio failures cover resource
 loading, duration queries and device initialization; core smoke also checks sample
 metadata ownership and exact heap recovery. Additional probes reject process launching,
 negative durations and ASE/LWO/Maya source-model imports. Language and UTC/duration
 formatting are checked on the EE.
+Three renderer checks cover native interface identity, empty metadata/ledger recovery,
+and disabled resolution policy/cvars. Eight renderer probes reject initialization,
+dimensions, drawing, image/vertex/shader loading, cinematics and demos.
 
 This milestone preserves the loader's IOP/`host:` filesystem and initializes SIF RPC.
 Physical USB/HDD bring-up, the GS/VU1 path, SPU2 audio, controller input, save games and

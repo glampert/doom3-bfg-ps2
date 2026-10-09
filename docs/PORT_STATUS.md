@@ -584,3 +584,69 @@ New retained language/frame cvars change startup/peak ledgers; shutdown still re
 exactly. The three source importers and OS failures are exercised in fresh processes
 with assertions on and off. These numbers cover the foundation, not a resident game,
 real model/sample payloads, snapshot queues populated by simulation, or map transitions.
+
+## M2b renderer interface stubs
+
+Four new backend units bind the native render-system vtable and frontend globals,
+image/shader/resolution interfaces, cinematics (including the sound-window GUI), and
+vertex/index/joint buffers. All 87 renderer symbols and two sound-window symbols from
+the previous link are resolved. `renderSystem` points to native `tr`; no upstream
+renderer layouts or source dispositions change. The 42 referenced renderer cvars
+retain native defaults, declared flags, bounds and completions in both configurations.
+
+This is a typed interface boundary. Inactive device/stereo/background-swap queries,
+unloaded image metadata, empty buffer/cache cleanup and a disabled resolution policy
+are supported. Initialization, live dimensions, resource loading/allocation, shader
+queries and draw submission fail with the method name. World demo writes may return
+when no recorder exists; active demos fail. No desktop frame/vertex pools, texture
+payloads, logical world or GS device are created. Meaningful material/model/world
+contracts remain required for M3.
+
+| Remaining resident symbol group | Debug | Release |
+| --- | ---: | ---: |
+| Deferred shell/multiplayer/leaderboard/save services and cvars | 61 | 61 |
+| JPEG/zlib codecs | 17 | 17 |
+| Input/usercmd providers and controls | 4 | 4 |
+| Total unresolved / duplicate definitions | 82 / 0 | 82 / 0 |
+
+Both configurations retain all 301 direct link inputs without GC. The linker exits 1,
+Make exits 2, and neither emits a resident ELF. M2b remains incomplete; the next link
+closure groups are deferred game/UI services, input/usercmd and audited codecs. The
+failed maps establish no resident memory or game-boot acceptance.
+
+| Renderer-interface regression | Result |
+| --- | --- |
+| Debug/release core and all 281 campaign units | Strict core compile/link and campaign compilation passed |
+| Debug/release `make link-game` | Failed as required: 82 unresolved symbols, 0 duplicates, all 301 inputs retained |
+| Source audit / compilation database | 458 shipped units classified, 88 Classic units excluded; 316 entries |
+| `make test-host` | Shared ASan/UBSan fixtures and all 61 Python regressions passed |
+| Debug core smoke | Passed: `20261009T122354Z_smoke_a93d770c16554a0f` |
+| Release core smoke | Passed: `20261009T122516Z_smoke_81d69c82c10443ba` |
+| Debug startup/deferred probes | All 30 passed; first `20261009T122554Z_smoke_b868529526aa4e4b`, last `20261009T122652Z_smoke_e303676aea714d35` |
+| Release startup/deferred probes | All 30 passed; first `20261009T122804Z_smoke_59cb86c41cdf4522`, last `20261009T122905Z_smoke_0b3bfa749ec34374` |
+| Debug missing-fixture scenario | Expected failure and cleanup passed: `20261009T123025Z_smoke_3aef1eb4d3e843cd` |
+| Release missing-fixture scenario | Expected failure and cleanup passed: `20261009T123132Z_smoke_de424f39cbcb4f6a` |
+| Debug/release isolated script probe builds | Strict compilation and link passed; their separate GC boundary remains unchanged |
+| Debug script regressions | Include passed: `20261009T123200Z_script_b55a8f6e361148c5`; syntax failure/cleanup passed: `20261009T123205Z_script_88b374a8b6a9447c` |
+| Release script regressions | Include passed: `20261009T123210Z_script_eae539db43e2440d`; syntax failure/cleanup passed: `20261009T123214Z_script_73be471c21174caa` |
+
+The three new required core markers verify interface identity/inactive state, repeated
+native image/string/buffer scope cleanup with exact heap recovery, and disabled
+resolution/cvar metadata. Eight negative probes exercise renderer initialization,
+width, draw submission, image/vertex/shader loading, cinematic allocation and demo
+output. Each requires its own run identity and the method's fatal diagnostic, with
+assertions enabled and disabled; unexpected returns or emulator faults cannot pass.
+World demo guards have compile acceptance; actual render-world mutation awaits M3.
+
+| Renderer-interface core memory | Debug | Release |
+| --- | ---: | ---: |
+| Fixed ELF residency (`PT_LOAD`) | 1,745,136 bytes | 1,801,840 bytes |
+| ELF BSS (included above) | 459,632 bytes | 459,632 bytes |
+| Initialized requested / backing / count | 30,597 / 41,624 bytes / 266 | 30,597 / 41,624 bytes / 266 |
+| Smoke peak requested / backing | 56,475 / 68,228 bytes | 56,475 / 68,228 bytes |
+| Arena commitment after tests | 85,776 bytes | 86,416 bytes |
+| After shutdown requested / backing / count | 1,024 / 1,068 bytes / 1 | 1,024 / 1,068 bytes / 1 |
+
+The extra native globals and cvars raise foundation residency and registration costs.
+These measurements include only the foundation and metadata tests, without render
+worlds, geometry/image payloads, frame arenas or game/map-transition state.

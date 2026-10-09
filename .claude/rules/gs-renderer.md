@@ -1,8 +1,19 @@
 # GS renderer facts from the Quake II PS2 reference
 
-The frame flow, source paths, cvars, capacities and measured results below describe
+The Quake sections' frame flow, source paths, cvars, capacities and measured results describe
 `quake2-ps2`. Reuse the GS hardware findings, then verify each design against Doom's
 renderer before treating it as a rule for this port.
+
+## Doom renderer interface boundary
+
+The current `src/ps2/renderer/` stubs bind native `tr` / `renderSystem`, image, shader,
+cinematic and vertex-cache interfaces. Construction creates empty metadata, with zero
+device capabilities and no frame/vertex arenas, texture payloads or GS setup. Only
+inactive queries, empty cleanup and a disabled resolution policy are implemented.
+Initialization, display dimensions, loading and draw submission fail by method name.
+Retained frontend cvars preserve native defaults/flags and cannot enable rendering.
+These typed providers close the renderer link group; logical world/material/model
+contracts and GS/VU implementation remain separate, unimplemented gates.
 
 ## Frame model: 2D and 3D interleave
 
