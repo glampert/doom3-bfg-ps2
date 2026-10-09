@@ -126,7 +126,11 @@ bool CheckMissingAndEscapingPaths()
     const bool parentRejected = fileSystem->ReadFile("../fixture.txt", nullptr, nullptr) == -1;
     const bool absoluteRejected = fileSystem->ReadFile("host:/fixture.txt", nullptr, nullptr) == -1;
     const bool otherDeviceRejected = fileSystem->ReadFile("mass:fixture.txt", nullptr, nullptr) == -1;
-    return Check("filesystem-missing-path-jail", missing && parentRejected && absoluteRejected && otherDeviceRejected);
+    const bool pathMapping = idStr::Cmp(fileSystem->OSPathToRelativePath("host:script/fixture.script"), "script/fixture.script") == 0 &&
+        idStr::Cmp(fileSystem->RelativePathToOSPath("script/fixture.script"), "host:script/fixture.script") == 0 &&
+        fileSystem->OSPathToRelativePath("../fixture.script")[0] == '\0' &&
+        fileSystem->OSPathToRelativePath("mass:fixture.script")[0] == '\0';
+    return Check("filesystem-missing-path-jail", missing && parentRejected && absoluteRejected && otherDeviceRejected && pathMapping);
 }
 
 } // namespace

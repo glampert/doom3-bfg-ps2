@@ -320,10 +320,11 @@ void idParser::Error( const char *str, ... ) const {
 	va_list ap;
 
 	va_start(ap, str);
-	vsprintf(text, str, ap);
+	// [PS2_D3BFG]: Bound source-derived diagnostics and pass them as data.
+	idStr::vsnPrintf(text, sizeof(text), str, ap);
 	va_end(ap);
 	if ( idParser::scriptstack ) {
-		idParser::scriptstack->Error( text );
+		idParser::scriptstack->Error( "%s", text );
 	}
 }
 
@@ -337,10 +338,11 @@ void idParser::Warning( const char *str, ... ) const {
 	va_list ap;
 
 	va_start(ap, str);
-	vsprintf(text, str, ap);
+	// [PS2_D3BFG]: Bound source-derived diagnostics and pass them as data.
+	idStr::vsnPrintf(text, sizeof(text), str, ap);
 	va_end(ap);
 	if ( idParser::scriptstack ) {
-		idParser::scriptstack->Warning( text );
+		idParser::scriptstack->Warning( "%s", text );
 	}
 }
 

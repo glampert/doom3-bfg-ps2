@@ -196,6 +196,10 @@ enum {
 
 class idCompiler {
 private:
+	// [PS2_D3BFG]: Compile into the supplied program, allowing isolated real compiler tests.
+	idProgram &program;
+	const idEventDef *(*findEvent)( const char * );
+	bool (*threadResponds)( const idEventDef & );
 	static bool		punctuationValid[ 256 ];
 	static char		*punctuation[];
 
@@ -271,8 +275,8 @@ private:
 public :
 	static opcode_t	opcodes[];
 
-					idCompiler();
-	void			CompileFile( const char *text, const char *filename, bool console );
+					idCompiler( idProgram &program, const idEventDef *(*findEvent)( const char * ), bool (*threadResponds)( const idEventDef & ) );
+	void			CompileFile( const char *text, const char *filename, bool console, bool defaultDefines = true );
 };
 
 #endif /* !__SCRIPT_COMPILER_H__ */

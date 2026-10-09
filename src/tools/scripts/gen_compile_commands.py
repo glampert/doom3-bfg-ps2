@@ -57,13 +57,15 @@ def main() -> int:
         if args.stdin:
             transcript = sys.stdin.read()
         else:
-            result = subprocess.run([args.make, "--no-print-directory", "-Bnk",
-                                     f"BUILD={args.build}", "all", "compile-core", "compile-game"],
-                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-            if result.returncode:
-                sys.stderr.write(result.stderr)
-                raise ValueError(f"Make dry run failed with status {result.returncode}; existing database preserved")
-            transcript = result.stdout
+            transcripts = []
+            for goals in (["all", "compile-core", "compile-game"], ["SCRIPT_PROBE=1", "all"]):
+                result = subprocess.run([args.make, "--no-print-directory", "-Bnk", f"BUILD={args.build}", *goals],
+                                        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                if result.returncode:
+                    sys.stderr.write(result.stderr)
+                    raise ValueError(f"Make dry run failed with status {result.returncode}; existing database preserved")
+                transcripts.append(result.stdout)
+            transcript = "\n".join(transcripts)
         entries = extract_commands(transcript, root)
         content = json.dumps(entries, indent=2) + "\n"
         if not args.output.exists() or args.output.read_text(encoding="utf-8") != content:

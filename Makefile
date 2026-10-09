@@ -45,7 +45,21 @@ ifeq ($(filter $(STRIP_ELF),0 1),)
 	$(error STRIP_ELF must be 0 or 1)
 endif
 
-OUTPUT_DIR = build/$(BUILD)
+SCRIPT_PROBE ?= 0
+ifeq ($(filter $(SCRIPT_PROBE),0 1),)
+	$(error SCRIPT_PROBE must be 0 or 1)
+endif
+ifeq ($(SCRIPT_PROBE),1)
+	ifneq ($(CORE_BOOT),1)
+		$(error SCRIPT_PROBE requires CORE_BOOT=1)
+	endif
+endif
+OUTPUT_DIR = build/$(BUILD)$(if $(filter 1,$(SCRIPT_PROBE)),-script,)
+ifeq ($(SCRIPT_PROBE),1)
+	PS2_CXX_SRC = $(SCRIPT_BOOT_CXX_SRC)
+	CORE_BOOT_CXX_SRC =
+endif
+
 EE_BIN = $(OUTPUT_DIR)/d3bfg_unstripped.elf
 GAME_ELF = $(OUTPUT_DIR)/d3bfg.elf
 CORE_ARCHIVE = $(OUTPUT_DIR)/libd3bfg_core.a
@@ -115,13 +129,33 @@ else
 	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.link-flags.json
 endif
 
+ifeq ($(SCRIPT_PROBE),1)
+	SCRIPT_OBJS = $(addprefix $(OUTPUT_DIR)/script/src/,$(SCRIPT_CXX_SRC:.cpp=.o))
+	LINK_OBJS += $(SCRIPT_OBJS)
+	LINK_SOURCES += $(SCRIPT_CXX_SRC)
+	MILESTONE = script-compiler-probe
+	REPORT_FLAGS += $(OUTPUT_DIR)/.script-flags.json
+endif
+
 # Do not garbage-collect registration objects to manufacture a smaller link.
 # The loaded PT_LOAD sizes are recorded independently of ELF stripping.
 EE_LINKFILE ?= $(PS2SDK)/ee/startup/linkfile
 EE_LDFLAGS = -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib -Wl,-zmax-page-size=128 -Wl,-Map,$(OUTPUT_DIR)/d3bfg.map
 EE_LIBS = -lkernel -lm
+# Isolated compiler fixture only: discard game-object/save/interpreter methods whose services
+# are deliberately absent. Never use this gate as evidence of a resident game link.
+ifeq ($(SCRIPT_PROBE),1)
+	EE_LDFLAGS += -Wl,--gc-sections
+	SCRIPT_CXXFLAGS = $(CAMPAIGN_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS) -ffunction-sections -fdata-sections
+$(OUTPUT_DIR)/.script-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(SCRIPT_CXXFLAGS) --sources $(SCRIPT_CXX_SRC)
+$(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-flags.json
+	@mkdir -p $(dir $@)
+	$(EE_CXX) $(SCRIPT_CXXFLAGS) -c $< -o $@
+$(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
+endif
 
-.PHONY: all release platform-probe headless-core compile-core compile-game inventory compiledb tools run test-host smoke smoke-negative smoke-platform clean FORCE
+.PHONY: all release platform-probe headless-core compile-core compile-game inventory compiledb tools run script-probe test-script test-host smoke smoke-negative smoke-platform clean FORCE
 
 all: inventory $(GAME_ELF) $(OUTPUT_DIR)/build-report.json
 release: all
@@ -216,6 +250,12 @@ compile-game: inventory $(CAMPAIGN_OBJS)
 compiledb:
 	@$(PYTHON) $(SCRIPTS)/gen_compile_commands.py --make $(MAKE) --build $(BUILD)
 
+script-probe:
+	$(MAKE) --no-print-directory BUILD=$(BUILD) SCRIPT_PROBE=1 all
+
+test-script: script-probe
+	$(PYTHON) $(SCRIPTS)/run_script_tests.py --elf build/$(BUILD)-script/d3bfg.elf
+
 tools: inventory
 	@echo "Build metadata and source audit tools are Python scripts under $(SCRIPTS)/."
 
@@ -250,8 +290,8 @@ build/tests/heap_tests: $(HOST_HEAP_SOURCES) src/tests/smoketests/heap_tests.h s
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) $(HOST_HEAP_SOURCES) -o $@
 
-HOST_COMMON_SOURCES = src/tests/host/common_tests.cpp src/ps2/system/log.cpp src/ps2/system/heap.cpp src/ps2/game/class_alloc.cpp
-HOST_COMMON_HEADERS = src/ps2/common.h src/ps2/system/log.h src/ps2/system/heap.h src/ps2/game/class_alloc.h
+HOST_COMMON_SOURCES = src/tests/host/common_tests.cpp src/ps2/system/log.cpp src/ps2/system/heap.cpp src/ps2/game/class_alloc.cpp src/ps2/game/script_error.cpp
+HOST_COMMON_HEADERS = src/ps2/game/script_error.h src/ps2/common.h src/ps2/system/log.h src/ps2/system/heap.h src/ps2/game/class_alloc.h
 
 build/tests/.common-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_COMMON_SOURCES)

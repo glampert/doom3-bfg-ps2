@@ -107,3 +107,19 @@ The verbatim Quake II Makefile remains at
 [`docs/reference/quake2.Makefile`](reference/quake2.Makefile) for inspection. The active
 Makefile borrows its compiler/configuration and warning policies, but has independent
 Doom source lists and no dependency on another checkout.
+
+
+## Isolated script compiler probe
+
+`make script-probe` builds the real `Script_Compiler.cpp` and `Script_Program.cpp`
+against foundation services, into `build/<config>-script/`. `make test-script` runs
+its positive/expected-fatal PCSX2 matrix; select release with `BUILD=release`.
+The probe provides an explicitly empty native-event registry and can omit the retail
+script-defines include while exercising authored include files. It does not run the
+interpreter or `idGameLocal`. Only this isolated probe uses function/data sections and
+linker garbage collection to exclude unrelated game/save methods. The resident campaign
+link must still supply those services and retain all required registrations.
+
+Probe/test and compiler source groups remain explicit and audited. Build reports include
+its compiler flags and source identity; the compile database adds the probe dry run while
+preserving the ordinary core/campaign flags for sources shared with those targets.

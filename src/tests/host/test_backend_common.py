@@ -69,6 +69,21 @@ class BackendCommonTests(unittest.TestCase):
                 self.assertIn(f"[D3BFG] FATAL {output}", result.stdout)
                 self.assertNotIn("returned", result.stdout)
 
+    def test_script_cleanup_precedes_fatal_with_location(self):
+        result = self.run_mode(0, "script-cleanup")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "parser\nprogram\n[D3BFG] FATAL script fixture%name.script:17: unexpected 100% token\n")
+
+    def test_script_diagnostics_are_bounded(self):
+        result = self.run_mode(0, "script-long")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "[D3BFG] FATAL script long.script:3: " + "x" * 1023 + "\n")
+
+    def test_script_normal_scope_does_not_run_fatal_cleanup(self):
+        result = self.run_mode(1, "script-normal")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "returned\n")
+
 
 if __name__ == "__main__":
     unittest.main()

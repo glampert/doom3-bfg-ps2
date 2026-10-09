@@ -27,6 +27,10 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "precompiled.h"
+// [PS2_D3BFG]: Script parser failures share compilation cleanup and bounded diagnostics.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/game/script_error.h"
+#endif
 #pragma hdrstop
 
 #define PUNCTABLE
@@ -223,12 +227,19 @@ void idLexer::Error( const char *str, ... ) {
 	}
 
 	va_start(ap, str);
-	vsprintf(text, str, ap);
+	// [PS2_D3BFG]: Tokens cannot overflow a diagnostic buffer.
+	idStr::vsnPrintf(text, sizeof(text), str, ap);
 	va_end(ap);
 
 	if ( idLexer::flags & LEXFL_NOFATALERRORS ) {
 		idLib::common->Warning( "file %s, line %d: %s", idLexer::filename.c_str(), idLexer::line, text );
 	} else {
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		if ( ps2::script::ErrorScope::IsActive() ) {
+			ps2::script::ErrorScope::SetLocation( idLexer::filename.c_str(), idLexer::line );
+			ps2::script::Fail( "%s", text );
+		}
+#endif
 		idLib::common->Error( "file %s, line %d: %s", idLexer::filename.c_str(), idLexer::line, text );
 	}
 }

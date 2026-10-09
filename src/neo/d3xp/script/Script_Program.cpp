@@ -32,6 +32,11 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "../Game_local.h"
 
+// [PS2_D3BFG]: Required compilation failures release owned state before fatal termination.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/game/script_error.h"
+#endif
+
 // simple types.  function types are dynamically allocated
 idTypeDef	type_void( ev_void, &def_void, "void", 0, NULL );
 idTypeDef	type_scriptevent( ev_scriptevent, &def_scriptevent, "scriptevent", sizeof( void * ), NULL );
@@ -293,7 +298,12 @@ Adds a new parameter for a function type.
 */
 void idTypeDef::AddFunctionParm( idTypeDef *parmtype, const char *name ) {
 	if ( type != ev_function ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::AddFunctionParm : tried to add parameter on non-function type" );
+#else
 		throw idCompileError( "idTypeDef::AddFunctionParm : tried to add parameter on non-function type" );
+#endif
 	}
 
 	parmTypes.Append( parmtype );
@@ -310,7 +320,12 @@ Adds a new field to an object type.
 */
 void idTypeDef::AddField( idTypeDef *fieldtype, const char *name ) {
 	if ( type != ev_object ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::AddField : tried to add field to non-object type" );
+#else
 		throw idCompileError( "idTypeDef::AddField : tried to add field to non-object type" );
+#endif
 	}
 
 	parmTypes.Append( fieldtype );
@@ -369,7 +384,12 @@ If type is an object, then returns the object's superclass
 */
 idTypeDef *idTypeDef::SuperClass() const {
 	if ( type != ev_object ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::SuperClass : tried to get superclass of a non-object type" );
+#else
 		throw idCompileError( "idTypeDef::SuperClass : tried to get superclass of a non-object type" );
+#endif
 	}
 
 	return auxType;
@@ -384,7 +404,12 @@ If type is a function, then returns the function's return type
 */
 idTypeDef *idTypeDef::ReturnType() const {
 	if ( type != ev_function ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::ReturnType: tried to get return type on non-function type" );
+#else
 		throw idCompileError( "idTypeDef::ReturnType: tried to get return type on non-function type" );
+#endif
 	}
 
 	return auxType;
@@ -399,7 +424,12 @@ If type is a function, then sets the function's return type
 */
 void idTypeDef::SetReturnType( idTypeDef *returntype ) {
 	if ( type != ev_function ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::SetReturnType: tried to set return type on non-function type" );
+#else
 		throw idCompileError( "idTypeDef::SetReturnType: tried to set return type on non-function type" );
+#endif
 	}
 
 	auxType = returntype;
@@ -414,7 +444,12 @@ If type is a field, then returns it's type
 */
 idTypeDef *idTypeDef::FieldType() const {
 	if ( type != ev_field ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::FieldType: tried to get field type on non-field type" );
+#else
 		throw idCompileError( "idTypeDef::FieldType: tried to get field type on non-field type" );
+#endif
 	}
 
 	return auxType;
@@ -429,7 +464,12 @@ If type is a field, then sets the function's return type
 */
 void idTypeDef::SetFieldType( idTypeDef *fieldtype ) {
 	if ( type != ev_field ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::SetFieldType: tried to set return type on non-function type" );
+#else
 		throw idCompileError( "idTypeDef::SetFieldType: tried to set return type on non-function type" );
+#endif
 	}
 
 	auxType = fieldtype;
@@ -444,7 +484,12 @@ If type is a pointer, then returns the type it points to
 */
 idTypeDef *idTypeDef::PointerType() const {
 	if ( type != ev_pointer ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::PointerType: tried to get pointer type on non-pointer" );
+#else
 		throw idCompileError( "idTypeDef::PointerType: tried to get pointer type on non-pointer" );
+#endif
 	}
 
 	return auxType;
@@ -459,7 +504,12 @@ If type is a pointer, then sets the pointer's type
 */
 void idTypeDef::SetPointerType( idTypeDef *pointertype ) {
 	if ( type != ev_pointer ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", "idTypeDef::SetPointerType: tried to set type on non-pointer" );
+#else
 		throw idCompileError( "idTypeDef::SetPointerType: tried to set type on non-pointer" );
+#endif
 	}
 
 	auxType = pointertype;
@@ -709,7 +759,12 @@ void idVarDef::SetValue( const eval_t &_value, bool constant ) {
 		break;
 
 	default :
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", va( "weird type on '%s'", Name() ) );
+#else
 		throw idCompileError( va( "weird type on '%s'", Name() ) );
+#endif
 		break;
 	}
 }
@@ -1307,11 +1362,17 @@ idVarDef *idProgram::AllocDef( idTypeDef *type, const char *name, idVarDef *scop
 		//
 		// global variable
 		//
-		def->value.bytePtr = &variables[ numVariables ];
-		numVariables += def->TypeDef()->Size();
-		if ( numVariables > sizeof( variables ) ) {
-			throw idCompileError( va( "Exceeded global memory size (%d bytes)", sizeof( variables ) ) );
+		// [PS2_D3BFG]: Validate the range before pointer arithmetic or signed counter mutation.
+		const int bytes = def->TypeDef()->Size();
+		if ( bytes < 0 || bytes > static_cast<int>( sizeof( variables ) ) - numVariables ) {
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+			ps2::script::Fail( "Exceeded global memory size (%d bytes)", MAX_GLOBALS );
+#else
+			throw idCompileError( va( "Exceeded global memory size (%d bytes)", MAX_GLOBALS ) );
+#endif
 		}
+		def->value.bytePtr = &variables[ numVariables ];
+		numVariables += bytes;
 
 		memset( def->value.bytePtr, 0, def->TypeDef()->Size() );
 	}
@@ -1356,7 +1417,12 @@ idVarDef *idProgram::GetDef( const idTypeDef *type, const char *name, const idVa
 
 	// see if the name is already in use for another type
 	if ( bestDef && type && ( bestDef->TypeDef() != type ) ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", va( "Type mismatch on redeclaration of %s", name ) );
+#else
 		throw idCompileError( va( "Type mismatch on redeclaration of %s", name ) );
+#endif
 	}
 
 	return bestDef;
@@ -1516,7 +1582,12 @@ idProgram::AllocFunction
 */
 function_t &idProgram::AllocFunction( idVarDef *def ) {
 	if ( functions.Num() >= functions.Max() ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", va( "Exceeded maximum allowed number of functions (%d)", functions.Max() ) );
+#else
 		throw idCompileError( va( "Exceeded maximum allowed number of functions (%d)", functions.Max() ) );
+#endif
 	}
 
 	// fill in the dfunction
@@ -1566,7 +1637,12 @@ idProgram::AllocStatement
 */
 statement_t *idProgram::AllocStatement() {
 	if ( statements.Num() >= statements.Max() ) {
+		// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::script::Fail( "%s", va( "Exceeded maximum allowed number of statements (%d)", statements.Max() ) );
+#else
 		throw idCompileError( va( "Exceeded maximum allowed number of statements (%d)", statements.Max() ) );
+#endif
 	}
 	return statements.Alloc();
 }
@@ -1579,11 +1655,21 @@ called before compiling a batch of files, clears the pr struct
 ==============
 */
 void idProgram::BeginCompilation() {
+	// [PS2_D3BFG]: Failed compilation is fatal, including console snippets; discard partial state.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::ErrorScope cleanup( []( void *data ) {
+		static_cast<idProgram *>( data )->FreeData();
+	}, this );
+#endif
 	statement_t	*statement;
 
 	FreeData();
 
-	try {
+	// [PS2_D3BFG]: Desktop keeps recoverable exceptions; target errors use explicit fatal cleanup.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
+	try
+#endif
+	{
 		// make the first statement a return for a "NULL" function
 		statement = AllocStatement();
 		statement->linenumber	= 0;
@@ -1606,9 +1692,11 @@ void idProgram::BeginCompilation() {
 		sysDef = AllocDef( &type_void, "sys", &def_namespace, true );
 	}
 
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	catch( idCompileError &err ) {
 		gameLocal.Error( "%s", err.GetError() );
 	}
+#endif
 }
 
 /*
@@ -1705,6 +1793,7 @@ idProgram::CompileStats
 called after all files are compiled to report memory usage.
 ==============
 */
+// [PS2_D3BFG]: Compile reporting needs only Common, not a resident game instance.
 void idProgram::CompileStats() {
 	int	memused;
 	int	memallocated;
@@ -1713,12 +1802,12 @@ void idProgram::CompileStats() {
 	int funcMem;
 	int	i;
 
-	gameLocal.Printf( "---------- Compile stats ----------\n" );
-	gameLocal.DPrintf( "Files loaded:\n" );
+	common->Printf( "---------- Compile stats ----------\n" );
+	common->DPrintf( "Files loaded:\n" );
 
 	stringspace = 0;
 	for( i = 0; i < fileList.Num(); i++ ) {
-		gameLocal.DPrintf( "   %s\n", fileList[ i ].c_str() );
+		common->DPrintf( "   %s\n", fileList[ i ].c_str() );
 		stringspace += fileList[ i ].Allocated();
 	}
 	stringspace += fileList.Size();
@@ -1743,15 +1832,15 @@ void idProgram::CompileStats() {
 	memused += functions.MemoryUsed();	// name and filename of functions are shared, so no need to include them
 	memused += sizeof( variables );
 
-	gameLocal.Printf( "\nMemory usage:\n" );
-	gameLocal.Printf( "     Strings: %d, %d bytes\n", fileList.Num(), stringspace );
-	gameLocal.Printf( "  Statements: %d, %d bytes\n", statements.Num(), statements.MemoryUsed() );
-	gameLocal.Printf( "   Functions: %d, %d bytes\n", functions.Num(), funcMem );
-	gameLocal.Printf( "   Variables: %d bytes\n", numVariables );
-	gameLocal.Printf( "    Mem used: %d bytes\n", memused );
-	gameLocal.Printf( " Static data: %d bytes\n", sizeof( idProgram ) );
-	gameLocal.Printf( "   Allocated: %d bytes\n", memallocated );
-	gameLocal.Printf( " Thread size: %d bytes\n\n", sizeof( idThread ) );
+	common->Printf( "\nMemory usage:\n" );
+	common->Printf( "     Strings: %d, %d bytes\n", fileList.Num(), stringspace );
+	common->Printf( "  Statements: %d, %d bytes\n", statements.Num(), statements.MemoryUsed() );
+	common->Printf( "   Functions: %d, %d bytes\n", functions.Num(), funcMem );
+	common->Printf( "   Variables: %d bytes\n", numVariables );
+	common->Printf( "    Mem used: %d bytes\n", memused );
+	common->Printf( " Static data: %d bytes\n", sizeof( idProgram ) );
+	common->Printf( "   Allocated: %d bytes\n", memallocated );
+	common->Printf( " Thread size: %d bytes\n\n", sizeof( idThread ) );
 }
 
 /*
@@ -1760,7 +1849,15 @@ idProgram::CompileText
 ================
 */
 bool idProgram::CompileText( const char *source, const char *text, bool console ) {
-	idCompiler	compiler;
+	// [PS2_D3BFG]: Failed compilation is fatal, including console snippets; discard partial state.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::ErrorScope cleanup( []( void *data ) {
+		static_cast<idProgram *>( data )->FreeData();
+	}, this );
+#endif
+	// [PS2_D3BFG]: The compiler depends on event queries, not the whole game singleton.
+	idCompiler compiler( *this, idEventDef::FindEvent,
+		[]( const idEventDef &event ) { return idThread::Type.RespondsTo( event ); } );
 	int			i;
 	idVarDef	*def;
 	idStr		ospath;
@@ -1769,20 +1866,31 @@ bool idProgram::CompileText( const char *source, const char *text, bool console 
 	ospath = fileSystem->RelativePathToOSPath( source );
 	filenum = GetFilenum( ospath );
 
-	try {
-		compiler.CompileFile( text, filename, console );
+	// [PS2_D3BFG]: Desktop keeps recoverable exceptions; target errors use explicit fatal cleanup.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
+	try
+#endif
+	{
+		// [PS2_D3BFG]: The source argument identifies this input; filename can be empty/stale.
+		compiler.CompileFile( text, source, console );
 
 		// check to make sure all functions prototyped have code
 		for( i = 0; i < varDefs.Num(); i++ ) {
 			def = varDefs[ i ];
 			if ( ( def->Type() == ev_function ) && ( ( def->scope->Type() == ev_namespace ) || def->scope->TypeDef()->Inherits( &type_object ) ) ) {
 				if ( !def->value.functionPtr->eventdef && !def->value.functionPtr->firstStatement ) {
+					// [PS2_D3BFG]: No exception unwinding on the target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+					ps2::script::Fail( "%s", va( "function %s was not defined\n", def->GlobalName() ) );
+#else
 					throw idCompileError( va( "function %s was not defined\n", def->GlobalName() ) );
+#endif
 				}
 			}
 		}
 	}
 	
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	catch( idCompileError &err ) {
 		if ( console ) {
 			gameLocal.Printf( "%s\n", err.GetError() );
@@ -1791,6 +1899,7 @@ bool idProgram::CompileText( const char *source, const char *text, bool console 
 			gameLocal.Error( "%s\n", err.GetError() );
 		}
 	};
+#endif
 
 	if ( !console ) {
 		CompileStats();
@@ -1833,6 +1942,10 @@ void idProgram::CompileFile( const char *filename ) {
 		gameLocal.Error( "Couldn't load %s\n", filename );
 	}
 
+	// [PS2_D3BFG]: File ownership must be released even when compilation terminates.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::ErrorScope sourceCleanup( []( void *data ) { fileSystem->FreeFile( data ); }, src );
+#endif
 	result = CompileText( filename, src, false );
 
 	fileSystem->FreeFile( src );

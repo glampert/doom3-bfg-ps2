@@ -212,8 +212,26 @@ public:
     CORE_UNSUPPORTED(idFileList *, ListFiles, (const char *, const char *, bool, bool, const char *))
     CORE_UNSUPPORTED(idFileList *, ListFilesTree, (const char *, const char *, bool, const char *))
     CORE_UNSUPPORTED(void, FreeFileList, (idFileList *))
-    CORE_UNSUPPORTED(const char *, OSPathToRelativePath, (const char *))
-    CORE_UNSUPPORTED(const char *, RelativePathToOSPath, (const char *, const char *))
+    // The foundation has one host fixture root. Preserve the same path jail for script diagnostics.
+    const char * OSPathToRelativePath(const char * path) override
+    {
+        char normalized[MAX_OSPATH];
+        if (!FixturePath(path, normalized, sizeof(normalized)))
+        {
+            return "";
+        }
+        return idStr::Cmpn(path, "host:", 5) == 0 ? path + 5 : path;
+    }
+
+    const char * RelativePathToOSPath(const char * path, const char *) override
+    {
+        if (!FixturePath(path, m_path, sizeof(m_path)))
+        {
+            Unsupported("script source path outside fixture root");
+        }
+        return m_path;
+    }
+
     CORE_UNSUPPORTED(const char *, BuildOSPath, (const char *, const char *, const char *))
     CORE_UNSUPPORTED(const char *, BuildOSPath, (const char *, const char *))
     CORE_UNSUPPORTED(void, CreateOSPath, (const char *))
@@ -249,6 +267,7 @@ public:
     CORE_UNSUPPORTED(void, AddCollisionPreload, (const char *))
 
 private:
+    char m_path[MAX_OSPATH] = {};
     bool m_initialized = false;
 };
 

@@ -32,6 +32,11 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "../Game_local.h"
 
+// [PS2_D3BFG]: Explicit fatal compilation cleanup replaces exception unwinding.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/game/script_error.h"
+#endif
+
 #define FUNCTION_PRIORITY	2
 #define INT_PRIORITY		2
 #define NOT_PRIORITY		5
@@ -207,7 +212,8 @@ opcode_t idCompiler::opcodes[] = {
 idCompiler::idCompiler()
 ================
 */
-idCompiler::idCompiler() {
+idCompiler::idCompiler( idProgram &targetProgram, const idEventDef *(*eventLookup)( const char * ), bool (*threadQuery)( const idEventDef & ) )
+	: program( targetProgram ), findEvent( eventLookup ), threadResponds( threadQuery ) {
 	char	**ptr;
 	int		id;
 
@@ -250,10 +256,16 @@ void idCompiler::Error( const char *message, ... ) const {
 	char	string[ 1024 ];
 
 	va_start( argptr, message );
-	vsprintf( string, message, argptr );
+	// [PS2_D3BFG]: Source tokens must not overflow diagnostic buffers.
+	idStr::vsnPrintf( string, sizeof( string ), message, argptr );
 	va_end( argptr );
 
+	// [PS2_D3BFG]: Compiler errors terminate after releasing registered compilation resources.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::Fail( "%s", string );
+#else
 	throw idCompileError( string );
+#endif
 }
 
 /*
@@ -268,7 +280,8 @@ void idCompiler::Warning( const char *message, ... ) const {
 	char	string[ 1024 ];
 
 	va_start( argptr, message );
-	vsprintf( string, message, argptr );
+	// [PS2_D3BFG]: Source tokens must not overflow diagnostic buffers.
+	idStr::vsnPrintf( string, sizeof( string ), message, argptr );
 	va_end( argptr );
 
 	parserPtr->Warning( "%s", string );
@@ -342,7 +355,7 @@ Creates a def for a relative jump from current code location
 ============
 */
 ID_INLINE idVarDef *idCompiler::JumpTo( int jumpto ) {
-	return JumpDef( gameLocal.program.NumStatements(), jumpto );
+	return JumpDef( program.NumStatements(), jumpto );
 }
 
 /*
@@ -353,7 +366,7 @@ Creates a def for a relative jump from code location to current code location
 ============
 */
 ID_INLINE idVarDef *idCompiler::JumpFrom( int jumpfrom ) {
-	return JumpDef( jumpfrom, gameLocal.program.NumStatements() );
+	return JumpDef( jumpfrom, program.NumStatements() );
 }
 
 /*
@@ -383,7 +396,7 @@ idVarDef *idCompiler::FindImmediate( const idTypeDef *type, const eval_t *eval, 
 	etype = type->Type();
 
 	// check for a constant with the same value
-	for( def = gameLocal.program.GetDefList( "<IMMEDIATE>" ); def != NULL; def = def->Next() ) {
+	for( def = program.GetDefList( "<IMMEDIATE>" ); def != NULL; def = def->Next() ) {
 		if ( def->TypeDef() != type ) {
 			continue;
 		}
@@ -464,7 +477,7 @@ idVarDef *idCompiler::GetImmediate( idTypeDef *type, const eval_t *eval, const c
 		def->numUsers++;
 	} else {
 		// allocate a new def
-		def = gameLocal.program.AllocDef( type, "<IMMEDIATE>", &def_namespace, true );
+		def = program.AllocDef( type, "<IMMEDIATE>", &def_namespace, true );
 		if ( type->Type() == ev_string ) {
 			def->SetString( string, true );
 		} else {
@@ -496,6 +509,7 @@ idVarDef *idCompiler::OptimizeOpcode( const opcode_t *op, idVarDef *var_a, idVar
 	idVec3 &vec_c = *reinterpret_cast<idVec3 *>( &c.vector[ 0 ] );
 
 	memset( &c, 0, sizeof( c ) );
+	// [PS2_D3BFG]: Diagnose zero integer divisors before constant folding.
 	switch( op - opcodes ) {
 		case OP_ADD_F:		c._float = *var_a->value.floatPtr + *var_b->value.floatPtr; type = &type_float; break;
 		case OP_ADD_V:		vec_c = *var_a->value.vectorPtr + *var_b->value.vectorPtr; type = &type_vector; break;
@@ -506,7 +520,9 @@ idVarDef *idCompiler::OptimizeOpcode( const opcode_t *op, idVarDef *var_a, idVar
 		case OP_MUL_FV:		vec_c = *var_b->value.vectorPtr * *var_a->value.floatPtr; type = &type_vector; break;
 		case OP_MUL_VF:		vec_c = *var_a->value.vectorPtr * *var_b->value.floatPtr; type = &type_vector; break;
 		case OP_DIV_F:		c._float = Divide( *var_a->value.floatPtr, *var_b->value.floatPtr ); type = &type_float; break;
-		case OP_MOD_F:		c._float = (int)*var_a->value.floatPtr % (int)*var_b->value.floatPtr; type = &type_float; break;
+		case OP_MOD_F:
+						if ( (int)*var_b->value.floatPtr == 0 ) { Error( "Remainder by zero" ); }
+						c._float = (int)*var_a->value.floatPtr % (int)*var_b->value.floatPtr; type = &type_float; break;
 		case OP_BITAND:		c._float = ( int )*var_a->value.floatPtr & ( int )*var_b->value.floatPtr; type = &type_float; break;
 		case OP_BITOR:		c._float = ( int )*var_a->value.floatPtr | ( int )*var_b->value.floatPtr; type = &type_float; break;
 		case OP_GE:			c._float = *var_a->value.floatPtr >= *var_b->value.floatPtr; type = &type_float; break;
@@ -531,7 +547,9 @@ idVarDef *idCompiler::OptimizeOpcode( const opcode_t *op, idVarDef *var_a, idVar
 		case OP_USUB_F:		c._float = *var_b->value.floatPtr - *var_a->value.floatPtr; type = &type_float; break;
 		case OP_UMUL_F:		c._float = *var_b->value.floatPtr * *var_a->value.floatPtr; type = &type_float; break;
 		case OP_UDIV_F:		c._float = Divide( *var_b->value.floatPtr, *var_a->value.floatPtr ); type = &type_float; break;
-		case OP_UMOD_F:		c._float = ( int ) *var_b->value.floatPtr % ( int )*var_a->value.floatPtr; type = &type_float; break;
+		case OP_UMOD_F:
+						if ( (int)*var_a->value.floatPtr == 0 ) { Error( "Remainder by zero" ); }
+						c._float = ( int ) *var_b->value.floatPtr % ( int )*var_a->value.floatPtr; type = &type_float; break;
 		case OP_UOR_F:		c._float = ( int )*var_b->value.floatPtr | ( int )*var_a->value.floatPtr; type = &type_float; break;
 		case OP_UAND_F: 	c._float = ( int )*var_b->value.floatPtr & ( int )*var_a->value.floatPtr; type = &type_float; break;
 		case OP_UINC_F:		c._float = *var_a->value.floatPtr + 1; type = &type_float; break;
@@ -547,13 +565,13 @@ idVarDef *idCompiler::OptimizeOpcode( const opcode_t *op, idVarDef *var_a, idVar
 	if ( var_a ) {
 		var_a->numUsers--;
 		if ( var_a->numUsers <= 0 ) {
-			gameLocal.program.FreeDef( var_a, NULL );
+			program.FreeDef( var_a, NULL );
 		}
 	}
 	if ( var_b ) {
 		var_b->numUsers--;
 		if ( var_b->numUsers <= 0 ) {
-			gameLocal.program.FreeDef( var_b, NULL );
+			program.FreeDef( var_b, NULL );
 		}
 	}
 
@@ -583,7 +601,11 @@ idVarDef *idCompiler::EmitOpcode( const opcode_t *op, idVarDef *var_a, idVarDef 
 		var_b->numUsers++;
 	}
 	
-	statement = gameLocal.program.AllocStatement();
+	// [PS2_D3BFG]: Reject truncation of the unsigned-short bytecode source locations.
+	if ( currentLineNumber < 0 || currentLineNumber > USHRT_MAX || currentFileNumber < 0 || currentFileNumber > USHRT_MAX ) {
+		Error( "Script source location exceeds bytecode limits" );
+	}
+	statement = program.AllocStatement();
 	statement->linenumber	= currentLineNumber;
 	statement->file 		= currentFileNumber;
 	
@@ -593,7 +615,7 @@ idVarDef *idCompiler::EmitOpcode( const opcode_t *op, idVarDef *var_a, idVarDef 
 	} else {
 		// allocate result space
 		// try to reuse result defs as much as possible
-		var_c = gameLocal.program.FindFreeResultDef( op->type_c->TypeDef(), RESULT_STRING, scope, var_a, var_b );
+		var_c = program.FindFreeResultDef( op->type_c->TypeDef(), RESULT_STRING, scope, var_a, var_b );
 		// set user count back to 1, a result def needs to be used twice before it can be reused
 		var_c->numUsers = 1;
 	}
@@ -670,14 +692,22 @@ void idCompiler::NextToken() {
 	// Save the token's line number and filename since when we emit opcodes the current 
 	// token is always the next one to be read 
 	currentLineNumber = token.line;
-	currentFileNumber = gameLocal.program.GetFilenum( parserPtr->GetFileName() );
+	currentFileNumber = program.GetFilenum( parserPtr->GetFileName() );
+	// [PS2_D3BFG]: Preserve location before parser/program storage can be freed on failure.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::ErrorScope::SetLocation( parserPtr->GetFileName(), currentLineNumber );
+#endif
 
 	if ( !parserPtr->ReadToken( &token ) ) {
+		// [PS2_D3BFG]: EOF inside a block is a syntax error, not successful compilation.
+		if ( braceDepth != 0 ) {
+			Error( "Unexpected end of file; missing closing braces" );
+		}
 		eof = true;
 		return;
 	}
 
-	if ( currentFileNumber != gameLocal.program.GetFilenum( parserPtr->GetFileName() ) ) {
+	if ( currentFileNumber != program.GetFilenum( parserPtr->GetFileName() ) ) {
 		if ( ( braceDepth > 0 ) && ( token != "}" ) ) {
 			// missing a closing brace.  try to give as much info as possible.
 			if ( scope->Type() == ev_function ) {
@@ -870,7 +900,7 @@ idTypeDef *idCompiler::CheckType() {
 	} else if ( token == "scriptEvent" ) {
 		type = &type_scriptevent;
 	} else {
-		type = gameLocal.program.FindType( token.c_str() );
+		type = program.FindType( token.c_str() );
 		if ( type != NULL && !type->Inherits( &type_object ) ) {
 			type = NULL;
 		}
@@ -981,7 +1011,7 @@ idVarDef *idCompiler::EmitFunctionParms( int op, idVarDef *func, int startarg, i
 		EmitOpcode( op, object, VirtualFunctionConstant( func ) );
 
 		// need arg size seperate since script object may be NULL
-		statement_t &statement = gameLocal.program.GetStatement( gameLocal.program.NumStatements() - 1 );
+		statement_t &statement = program.GetStatement( program.NumStatements() - 1 );
 		statement.c = SizeConstant( func->value.functionPtr->parmTotal );
 	} else {
 		EmitOpcode( op, func, SizeConstant( size ) );
@@ -991,10 +1021,10 @@ idVarDef *idCompiler::EmitFunctionParms( int op, idVarDef *func, int startarg, i
 	returnType = type->ReturnType();
 	if ( returnType->Type() == ev_string ) {
 		resultOp = OP_STORE_S;
-		returnDef = gameLocal.program.returnStringDef;
+		returnDef = program.returnStringDef;
 	} else {
-		gameLocal.program.returnDef->SetTypeDef( returnType );
-		returnDef = gameLocal.program.returnDef;
+		program.returnDef->SetTypeDef( returnType );
+		returnDef = program.returnDef;
 
 		switch( returnType->Type() ) {
 		case ev_void :
@@ -1035,8 +1065,8 @@ idVarDef *idCompiler::EmitFunctionParms( int op, idVarDef *func, int startarg, i
 
 	// allocate result space
 	// try to reuse result defs as much as possible
-	statement_t &statement = gameLocal.program.GetStatement( gameLocal.program.NumStatements() - 1 );
-	idVarDef *resultDef = gameLocal.program.FindFreeResultDef( returnType, RESULT_STRING, scope, statement.a, statement.b );
+	statement_t &statement = program.GetStatement( program.NumStatements() - 1 );
+	idVarDef *resultDef = program.FindFreeResultDef( returnType, RESULT_STRING, scope, statement.a, statement.b );
 	// set user count back to 0, a result def needs to be used twice before it can be reused
 	resultDef->numUsers = 0;
 
@@ -1072,7 +1102,7 @@ idVarDef *idCompiler::ParseFunctionCall( idVarDef *funcDef ) {
 		if ( ( funcDef->initialized != idVarDef::uninitialized ) && funcDef->value.functionPtr->eventdef ) {
 			if ( ( scope->Type() != ev_namespace ) && ( scope->scope->Type() == ev_object ) ) {
 				// get the local object pointer
-				idVarDef *thisdef = gameLocal.program.GetDef( scope->scope->TypeDef(), "self", scope );
+				idVarDef *thisdef = program.GetDef( scope->scope->TypeDef(), "self", scope );
 				if ( !thisdef ) {
 					Error( "No 'self' within scope" );
 				}
@@ -1148,7 +1178,7 @@ idVarDef *idCompiler::ParseSysObjectCall( idVarDef *funcDef ) {
 	}
 
 	assert( funcDef->value.functionPtr->eventdef != NULL ); // to remove stupid analyze warning
-	if ( !idThread::Type.RespondsTo( *funcDef->value.functionPtr->eventdef ) ) {
+	if ( !threadResponds( *funcDef->value.functionPtr->eventdef ) ) {
 		Error( "\"%s\" is not callable as a 'sys' function", funcDef->Name() );
 	}
 
@@ -1173,19 +1203,19 @@ idVarDef *idCompiler::LookupDef( const char *name, const idVarDef *baseobj ) {
 
 		def = NULL;
 		for( tdef = baseobj; tdef != &def_object; tdef = tdef->TypeDef()->SuperClass()->def ) {
-			def = gameLocal.program.GetDef( NULL, name, tdef );
+			def = program.GetDef( NULL, name, tdef );
 			if ( def ) {
 				break;
 			}
 		}
 	} else {
 		// first look through the defs in our scope
-		def = gameLocal.program.GetDef( NULL, name, scope );
+		def = program.GetDef( NULL, name, scope );
 		if ( !def ) {
 			// if we're in a member function, check types local to the object
 			if ( ( scope->Type() != ev_namespace ) && ( scope->scope->Type() == ev_object ) ) {
 				// get the local object pointer
-				idVarDef *thisdef = gameLocal.program.GetDef( scope->scope->TypeDef(), "self", scope );
+				idVarDef *thisdef = program.GetDef( scope->scope->TypeDef(), "self", scope );
 
 				field = LookupDef( name, scope->scope->TypeDef()->def );
 				if ( !field ) {
@@ -1259,9 +1289,9 @@ idVarDef *idCompiler::ParseValue() {
 	if ( immediateType == &type_entity ) {
 		// if an immediate entity ($-prefaced name) then create or lookup a def for it.
 		// when entities are spawned, they'll lookup the def and point it to them.
-		def = gameLocal.program.GetDef( &type_entity, "$" + token, &def_namespace );
+		def = program.GetDef( &type_entity, "$" + token, &def_namespace );
 		if ( !def ) {
-			def = gameLocal.program.AllocDef( &type_entity, "$" + token, &def_namespace, true );
+			def = program.AllocDef( &type_entity, "$" + token, &def_namespace, true );
 		}
 		NextToken();
 		return def;
@@ -1284,7 +1314,7 @@ idVarDef *idCompiler::ParseValue() {
 			ExpectToken( "::" );
 			ParseName( name );
 			namespaceDef = def;
-			def = gameLocal.program.GetDef( NULL, name, namespaceDef );
+			def = program.GetDef( NULL, name, namespaceDef );
 			if ( def == NULL ) {
 				if ( namespaceDef != NULL ) {
 					Error( "Unknown value \"%s::%s\"", namespaceDef->GlobalName(), name.c_str() );
@@ -1306,6 +1336,10 @@ idCompiler::GetTerm
 ============
 */
 idVarDef *idCompiler::GetTerm() {
+	// [PS2_D3BFG]: Bound recursive descent before exhausting the EE stack.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::NestingScope nesting;
+#endif
 	idVarDef	*e;
 	int 		op;
 	
@@ -1418,8 +1452,8 @@ idVarDef *idCompiler::GetTerm() {
 		}
 
 		// threads return the thread number
-		gameLocal.program.returnDef->SetTypeDef( &type_float );
-		return gameLocal.program.returnDef;
+		program.returnDef->SetTypeDef( &type_float );
+		return program.returnDef;
 	}
 	
 	if ( !immediateType && CheckToken( "(" ) ) {
@@ -1459,6 +1493,10 @@ idCompiler::GetExpression
 ==============
 */
 idVarDef *idCompiler::GetExpression( int priority ) {
+	// [PS2_D3BFG]: Bound recursive descent before exhausting the EE stack.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::NestingScope nesting;
+#endif
 	opcode_t		*op;
 	opcode_t		*oldop;
 	idVarDef		*e;
@@ -1516,8 +1554,8 @@ idVarDef *idCompiler::GetExpression( int priority ) {
 
 		if ( op->rightAssociative ) {
 			// if last statement is an indirect, change it to an address of
-			if ( gameLocal.program.NumStatements() > 0 ) {
-				statement_t &statement = gameLocal.program.GetStatement( gameLocal.program.NumStatements() - 1 );
+			if ( program.NumStatements() > 0 ) {
+				statement_t &statement = program.GetStatement( program.NumStatements() - 1 );
 				if ( ( statement.op >= OP_INDIRECT_F ) && ( statement.op < OP_ADDRESS ) ) {
 					statement.op = OP_ADDRESS;
 					type_pointer.SetPointerType( e->TypeDef() );
@@ -1628,7 +1666,7 @@ idVarDef *idCompiler::GetExpression( int priority ) {
 				// statement.b points to type_pointer, which is just a temporary that gets its type reassigned, so we store the real type in statement.c
 				// so that we can do a type check during run time since we don't know what type the script object is at compile time because it
 				// comes from an entity
-				statement_t &statement = gameLocal.program.GetStatement( gameLocal.program.NumStatements() - 1 );
+				statement_t &statement = program.GetStatement( program.NumStatements() - 1 );
 				statement.c = type_pointer.PointerType()->def;
 			}
 
@@ -1652,8 +1690,8 @@ void idCompiler::PatchLoop( int start, int continuePos ) {
 	int			i;
 	statement_t	*pos;
 
-	pos = &gameLocal.program.GetStatement( start );
-	for( i = start; i < gameLocal.program.NumStatements(); i++, pos++ ) {
+	pos = &program.GetStatement( start );
+	for( i = start; i < program.NumStatements(); i++, pos++ ) {
 		if ( pos->op == OP_BREAK ) {
 			pos->op = OP_GOTO;
 			pos->a = JumpFrom( i );
@@ -1712,10 +1750,10 @@ void idCompiler::ParseReturnStatement() {
 
 	idTypeDef *returnType = scope->TypeDef()->ReturnType();
 	if ( returnType->Type() == ev_string ) {
-		EmitOpcode( op, e, gameLocal.program.returnStringDef );
+		EmitOpcode( op, e, program.returnStringDef );
 	} else {
-		gameLocal.program.returnDef->SetTypeDef( returnType );
-		EmitOpcode( op, e, gameLocal.program.returnDef );
+		program.returnDef->SetTypeDef( returnType );
+		EmitOpcode( op, e, program.returnDef );
 	}
 	EmitOpcode( OP_RETURN, 0, 0 );
 }
@@ -1734,7 +1772,7 @@ void idCompiler::ParseWhileStatement() {
 
 	ExpectToken( "(" );
 	
-	patch2 = gameLocal.program.NumStatements();
+	patch2 = program.NumStatements();
 	e = GetExpression( TOP_PRIORITY );
 	ExpectToken( ")" );
 
@@ -1743,11 +1781,11 @@ void idCompiler::ParseWhileStatement() {
 		ParseStatement();
 		EmitOpcode( OP_GOTO, JumpTo( patch2 ), 0 );
 	} else {
-		patch1 = gameLocal.program.NumStatements();
+		patch1 = program.NumStatements();
         EmitOpcode( OP_IFNOT, e, 0 );
 		ParseStatement();
 		EmitOpcode( OP_GOTO, JumpTo( patch2 ), 0 );
-		gameLocal.program.GetStatement( patch1 ).b = JumpFrom( patch1 );
+		program.GetStatement( patch1 ).b = JumpFrom( patch1 );
 	}
 
 	// fixup breaks and continues
@@ -1805,7 +1843,7 @@ void idCompiler::ParseForStatement() {
 
 	loopDepth++;
 
-	start = gameLocal.program.NumStatements();
+	start = program.NumStatements();
 
 	ExpectToken( "(" );
 	
@@ -1819,22 +1857,22 @@ void idCompiler::ParseForStatement() {
 	}
 
 	// condition
-	patch2 = gameLocal.program.NumStatements();
+	patch2 = program.NumStatements();
 
 	e = GetExpression( TOP_PRIORITY );
 	ExpectToken( ";" );
 
 	//FIXME: add check for constant expression
-	patch1 = gameLocal.program.NumStatements();
+	patch1 = program.NumStatements();
 	EmitOpcode( OP_IFNOT, e, 0 );
 
 	// counter
 	if ( !CheckToken( ")" ) ) {
-		patch3 = gameLocal.program.NumStatements();
+		patch3 = program.NumStatements();
 		EmitOpcode( OP_IF, e, 0 );
 
 		patch4 = patch2;
-		patch2 = gameLocal.program.NumStatements();
+		patch2 = program.NumStatements();
 		do {
 			GetExpression( TOP_PRIORITY );
 		} while( CheckToken( "," ) );
@@ -1845,7 +1883,7 @@ void idCompiler::ParseForStatement() {
 		EmitOpcode( OP_GOTO, JumpTo( patch4 ), 0 );
 
 		// fixup patch3
-		gameLocal.program.GetStatement( patch3 ).b = JumpFrom( patch3 );
+		program.GetStatement( patch3 ).b = JumpFrom( patch3 );
 	}
 
 	ParseStatement();
@@ -1854,7 +1892,7 @@ void idCompiler::ParseForStatement() {
 	EmitOpcode( OP_GOTO, JumpTo( patch2 ), 0 );
 
 	// fixup patch1
-	gameLocal.program.GetStatement( patch1 ).b = JumpFrom( patch1 );
+	program.GetStatement( patch1 ).b = JumpFrom( patch1 );
 
 	// fixup breaks and continues
 	PatchLoop( start, patch2 );
@@ -1873,7 +1911,7 @@ void idCompiler::ParseDoWhileStatement() {
 
 	loopDepth++;
 
-	patch1 = gameLocal.program.NumStatements();
+	patch1 = program.NumStatements();
 	ParseStatement();
 	ExpectToken( "while" );
 	ExpectToken( "(" );
@@ -1904,19 +1942,19 @@ void idCompiler::ParseIfStatement() {
 	ExpectToken( ")" );
 
 	//FIXME: add check for constant expression
-	patch1 = gameLocal.program.NumStatements();
+	patch1 = program.NumStatements();
 	EmitOpcode( OP_IFNOT, e, 0 );
 
 	ParseStatement();
 	
 	if ( CheckToken( "else" ) ) {
-		patch2 = gameLocal.program.NumStatements();
+		patch2 = program.NumStatements();
 		EmitOpcode( OP_GOTO, 0, 0 );
-		gameLocal.program.GetStatement( patch1 ).b = JumpFrom( patch1 );
+		program.GetStatement( patch1 ).b = JumpFrom( patch1 );
 		ParseStatement();
-		gameLocal.program.GetStatement( patch2 ).a = JumpFrom( patch2 );
+		program.GetStatement( patch2 ).a = JumpFrom( patch2 );
 	} else {
-		gameLocal.program.GetStatement( patch1 ).b = JumpFrom( patch1 );
+		program.GetStatement( patch1 ).b = JumpFrom( patch1 );
 	}
 }
 
@@ -1926,6 +1964,10 @@ idCompiler::ParseStatement
 ============
 */
 void idCompiler::ParseStatement() {
+	// [PS2_D3BFG]: Bound recursive descent before exhausting the EE stack.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::NestingScope nesting;
+#endif
 	if ( CheckToken( ";" ) ) {
 		// skip semicolons, which are harmless and ok syntax
 		return;
@@ -2014,7 +2056,7 @@ void idCompiler::ParseObjectDef( const char *objname ) {
 	}
 
 	// make sure it doesn't exist before we create it
-	if ( gameLocal.program.FindType( objname ) != NULL ) {
+	if ( program.FindType( objname ) != NULL ) {
 		Error( "'%s' : redefinition; different basic types", objname );
 	}
 
@@ -2028,8 +2070,8 @@ void idCompiler::ParseObjectDef( const char *objname ) {
 		}
 	}
 	
-	objtype = gameLocal.program.AllocType( ev_object, NULL, objname, parentType == &type_object ? 0 : parentType->Size(), parentType );
-	objtype->def = gameLocal.program.AllocDef( objtype, objname, scope, true );
+	objtype = program.AllocType( ev_object, NULL, objname, parentType == &type_object ? 0 : parentType->Size(), parentType );
+	objtype->def = program.AllocDef( objtype, objname, scope, true );
 	scope = objtype->def;
 
 	// inherit all the functions
@@ -2059,9 +2101,9 @@ void idCompiler::ParseObjectDef( const char *objname ) {
 		if ( CheckToken( "(" ) ) {
 			ParseFunctionDef( newtype.FieldType(), name );
 		} else {
-			type = gameLocal.program.GetType( newtype, true );
+			type = program.GetType( newtype, true );
 			assert( !type->def );
-			gameLocal.program.AllocDef( type, name, scope, true );
+			program.AllocDef( type, name, scope, true );
 			objtype->AddField( type, name );
 			ExpectToken( ";" );
 		}
@@ -2099,7 +2141,7 @@ idTypeDef *idCompiler::ParseFunction( idTypeDef *returnType, const char *name ) 
 		ExpectToken( ")" );
 	}
 
-	return gameLocal.program.GetType( newtype, true );
+	return program.GetType( newtype, true );
 }
 
 /*
@@ -2123,12 +2165,12 @@ void idCompiler::ParseFunctionDef( idTypeDef *returnType, const char *name ) {
 	}
 
 	type = ParseFunction( returnType, name );
-	def = gameLocal.program.GetDef( type, name, scope );
+	def = program.GetDef( type, name, scope );
 	if ( !def ) {
-		def = gameLocal.program.AllocDef( type, name, scope, true );
+		def = program.AllocDef( type, name, scope, true );
 		type->def = def;
 
-		func = &gameLocal.program.AllocFunction( def );
+		func = &program.AllocFunction( def );
 		if ( scope->TypeDef()->Inherits( &type_object ) ) {
 			scope->TypeDef()->AddFunction( func );
 		}
@@ -2162,16 +2204,16 @@ void idCompiler::ParseFunctionDef( idTypeDef *returnType, const char *name ) {
 
 	// define the parms
 	for( i = 0; i < numParms; i++ ) {
-		if ( gameLocal.program.GetDef( type->GetParmType( i ), type->GetParmName( i ), def ) ) {
+		if ( program.GetDef( type->GetParmType( i ), type->GetParmName( i ), def ) ) {
 			Error( "'%s' defined more than once in function parameters", type->GetParmName( i ) );
 		}
-		parm = gameLocal.program.AllocDef( type->GetParmType( i ), type->GetParmName( i ), def, false );
+		parm = program.AllocDef( type->GetParmType( i ), type->GetParmName( i ), def, false );
 	}
 
 	oldscope = scope;
 	scope = def;
 
-	func->firstStatement = gameLocal.program.NumStatements();
+	func->firstStatement = program.NumStatements();
 
 	// check if we should call the super class constructor
 	if ( oldscope->TypeDef()->Inherits( &type_object ) && !idStr::Icmp( name, "init" ) ) {
@@ -2180,7 +2222,7 @@ void idCompiler::ParseFunctionDef( idTypeDef *returnType, const char *name ) {
 
 		// find the superclass constructor
 		for( superClass = oldscope->TypeDef()->SuperClass(); superClass != &type_object; superClass = superClass->SuperClass() ) {
-			constructorFunc = gameLocal.program.FindFunction( va( "%s::init", superClass->Name() ) );
+			constructorFunc = program.FindFunction( va( "%s::init", superClass->Name() ) );
 			if ( constructorFunc ) {
 				break;
 			}
@@ -2188,7 +2230,7 @@ void idCompiler::ParseFunctionDef( idTypeDef *returnType, const char *name ) {
 
 		// emit the call to the constructor
 		if ( constructorFunc ) {
-			idVarDef *selfDef = gameLocal.program.GetDef( type->GetParmType( 0 ), type->GetParmName( 0 ), def );
+			idVarDef *selfDef = program.GetDef( type->GetParmType( 0 ), type->GetParmName( 0 ), def );
 			assert( selfDef );
 			EmitPush( selfDef, selfDef->TypeDef() );
 			EmitOpcode( &opcodes[ OP_CALL ], constructorFunc->def, 0 );
@@ -2207,26 +2249,26 @@ void idCompiler::ParseFunctionDef( idTypeDef *returnType, const char *name ) {
 
 		// find the superclass destructor
 		for( superClass = oldscope->TypeDef()->SuperClass(); superClass != &type_object; superClass = superClass->SuperClass() ) {
-			destructorFunc = gameLocal.program.FindFunction( va( "%s::destroy", superClass->Name() ) );
+			destructorFunc = program.FindFunction( va( "%s::destroy", superClass->Name() ) );
 			if ( destructorFunc ) {
 				break;
 			}
 		}
 
 		if ( destructorFunc ) {
-			if ( func->firstStatement < gameLocal.program.NumStatements() ) {
+			if ( func->firstStatement < program.NumStatements() ) {
 				// change all returns to point to the call to the destructor
-				pos = &gameLocal.program.GetStatement( func->firstStatement );
-				for( i = func->firstStatement; i < gameLocal.program.NumStatements(); i++, pos++ ) {
+				pos = &program.GetStatement( func->firstStatement );
+				for( i = func->firstStatement; i < program.NumStatements(); i++, pos++ ) {
 					if ( pos->op == OP_RETURN ) {
 						pos->op = OP_GOTO;
-						pos->a = JumpDef( i, gameLocal.program.NumStatements() );
+						pos->a = JumpDef( i, program.NumStatements() );
 					}
 				}
 			}
 
 			// emit the call to the destructor
-			idVarDef *selfDef = gameLocal.program.GetDef( type->GetParmType( 0 ), type->GetParmName( 0 ), def );
+			idVarDef *selfDef = program.GetDef( type->GetParmType( 0 ), type->GetParmName( 0 ), def );
 			assert( selfDef );
 			EmitPush( selfDef, selfDef->TypeDef() );
 			EmitOpcode( &opcodes[ OP_CALL ], destructorFunc->def, 0 );
@@ -2236,7 +2278,7 @@ void idCompiler::ParseFunctionDef( idTypeDef *returnType, const char *name ) {
 // Disabled code since it caused a function to fall through to the next function when last statement is in the form "if ( x ) { return; }"
 #if 0
 	// don't bother adding a return opcode if the "return" statement was used.
-	if ( ( func->firstStatement == gameLocal.program.NumStatements() ) || ( gameLocal.program.GetStatement( gameLocal.program.NumStatements() - 1 ).op != OP_RETURN ) ) {
+	if ( ( func->firstStatement == program.NumStatements() ) || ( program.GetStatement( program.NumStatements() - 1 ).op != OP_RETURN ) ) {
 		// emit an end of statements opcode
 		EmitOpcode( OP_RETURN, 0, 0 );
 	}
@@ -2246,7 +2288,7 @@ void idCompiler::ParseFunctionDef( idTypeDef *returnType, const char *name ) {
 #endif
 
 	// record the number of statements in the function
-	func->numStatements = gameLocal.program.NumStatements() - func->firstStatement;
+	func->numStatements = program.NumStatements() - func->firstStatement;
 
 	scope = oldscope;
 }
@@ -2260,12 +2302,12 @@ void idCompiler::ParseVariableDef( idTypeDef *type, const char *name ) {
 	idVarDef	*def, *def2;
 	bool		negate;
 
-	def = gameLocal.program.GetDef( type, name, scope );
+	def = program.GetDef( type, name, scope );
 	if ( def ) {
 		Error( "%s redeclared", name );
 	}
 	
-	def = gameLocal.program.AllocDef( type, name, scope, false );
+	def = program.AllocDef( type, name, scope, false );
 
 	// check for an initialization
 	if ( CheckToken( "=" ) ) {
@@ -2401,7 +2443,7 @@ void idCompiler::ParseEventDef( idTypeDef *returnType, const char *name ) {
 	const idEventDef *ev;
 	idStr			parmName;
 
-	ev = idEventDef::FindEvent( name );
+	ev = findEvent( name );
 	if ( ev == NULL ) {
 		Error( "Unknown event '%s'", name );
 		return;
@@ -2451,16 +2493,16 @@ void idCompiler::ParseEventDef( idTypeDef *returnType, const char *name ) {
 	}
 	ExpectToken( ";" );
 
-	type = gameLocal.program.FindType( name );
+	type = program.FindType( name );
 	if ( type ) {
 		if ( !newtype.MatchesType( *type ) || ( type->def->value.functionPtr->eventdef != ev ) ) {
 			Error( "Type mismatch on redefinition of '%s'", name );
 		}
 	} else {
-		type = gameLocal.program.AllocType( newtype );
-		type->def = gameLocal.program.AllocDef( type, name, &def_namespace, true );
+		type = program.AllocType( newtype );
+		type->def = program.AllocDef( type, name, &def_namespace, true );
 
-		function_t &func	= gameLocal.program.AllocFunction( type->def );
+		function_t &func	= program.AllocFunction( type->def );
 		func.eventdef		= ev;
 		func.parmSize.SetNum( num );
 		for( i = 0; i < num; i++ ) {
@@ -2503,13 +2545,13 @@ void idCompiler::ParseDefs() {
 	ParseName( name );
 
 	if ( type == &type_namespace ) {
-		def = gameLocal.program.GetDef( type, name, scope );
+		def = program.GetDef( type, name, scope );
 		if ( !def ) {
-			def = gameLocal.program.AllocDef( type, name, scope, true );
+			def = program.AllocDef( type, name, scope, true );
 		}
 		ParseNamespace( def );
 	} else if ( CheckToken( "::" ) ) {
-		def = gameLocal.program.GetDef( NULL, name, scope );
+		def = program.GetDef( NULL, name, scope );
 		if ( !def ) {
 			Error( "Unknown object name '%s'", name.c_str() );
 		}
@@ -2542,6 +2584,10 @@ Parses anything within a namespace definition
 ================
 */
 void idCompiler::ParseNamespace( idVarDef *newScope ) {
+	// [PS2_D3BFG]: Bound recursive descent before exhausting the EE stack.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::NestingScope nesting;
+#endif
 	idVarDef *oldscope;
 
 	oldscope = scope;
@@ -2570,10 +2616,17 @@ idCompiler::CompileFile
 compiles the 0 terminated text, adding definitions to the program structure
 ============
 */
-void idCompiler::CompileFile( const char *text, const char *filename, bool toConsole ) {
+void idCompiler::CompileFile( const char *text, const char *filename, bool toConsole, bool defaultDefines ) {
 	idTimer compile_time;
 	bool error;
 
+	// [PS2_D3BFG]: Fatal syntax/type/storage errors release the parser before the program.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::script::ErrorScope cleanup( []( void *data ) {
+		static_cast<idParser *>( data )->FreeSource();
+	}, &parser );
+	ps2::script::ErrorScope::SetLocation( filename, 1 );
+#endif
 	compile_time.Start();
 
 	scope				= &def_namespace;
@@ -2589,33 +2642,44 @@ void idCompiler::CompileFile( const char *text, const char *filename, bool toCon
 	memset( &immediate, 0, sizeof( immediate ) );
 
 	parser.SetFlags( LEXFL_ALLOWMULTICHARLITERALS );
-	parser.LoadMemory( text, strlen( text ), filename );
+	// [PS2_D3BFG]: The parser length and statement locations have finite integer fields.
+	const size_t textLength = strlen( text );
+	if ( textLength > static_cast<size_t>( INT_MAX ) ) {
+		Error( "Script input exceeds the parser length limit" );
+	}
+	parser.LoadMemory( text, static_cast<int>( textLength ), filename );
 	parserPtr = &parser;
 
-	// unread tokens to include script defines
-	token = SCRIPT_DEFAULTDEFS;
-	token.type = TT_STRING;
-	token.subtype = token.Length();
-	token.line = token.linesCrossed = 0;
-	parser.UnreadToken( &token );
+	// [PS2_D3BFG]: Isolated compiler fixtures can supply declarations directly.
+	if ( defaultDefines ) {
+		// unread tokens to include script defines
+		token = SCRIPT_DEFAULTDEFS;
+		token.type = TT_STRING;
+		token.subtype = token.Length();
+		token.line = token.linesCrossed = 0;
+		parser.UnreadToken( &token );
 
-	token = "include";
-	token.type = TT_NAME;
-	token.subtype = token.Length();
-	token.line = token.linesCrossed = 0;
-	parser.UnreadToken( &token );
+		token = "include";
+		token.type = TT_NAME;
+		token.subtype = token.Length();
+		token.line = token.linesCrossed = 0;
+		parser.UnreadToken( &token );
 
-	token = "#";
-	token.type = TT_PUNCTUATION;
-	token.subtype = P_PRECOMP;
-	token.line = token.linesCrossed = 0;
-	parser.UnreadToken( &token );
-
+		token = "#";
+		token.type = TT_PUNCTUATION;
+		token.subtype = P_PRECOMP;
+		token.line = token.linesCrossed = 0;
+		parser.UnreadToken( &token );
+	}
 	// init the current token line to be the first line so that currentLineNumber is set correctly in NextToken
 	token.line = 1;
 
 	error = false;
-	try {
+	// [PS2_D3BFG]: Fatal target errors never return into a partially parsed expression.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
+	try
+#endif
+	{
 		// read first token
 		NextToken();
 		while( !eof && !error ) {
@@ -2624,6 +2688,7 @@ void idCompiler::CompileFile( const char *text, const char *filename, bool toCon
 		}
 	}
 		
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	catch( idCompileError &err ) {
 		idStr error;
 
@@ -2631,18 +2696,19 @@ void idCompiler::CompileFile( const char *text, const char *filename, bool toCon
 			// don't print line number of an error if were calling script from the console using the "script" command
 			sprintf( error, "Error: %s\n", err.GetError() );
 		} else {
-			sprintf( error, "Error: file %s, line %d: %s\n", gameLocal.program.GetFilename( currentFileNumber ), currentLineNumber, err.GetError() );
+			sprintf( error, "Error: file %s, line %d: %s\n", program.GetFilename( currentFileNumber ), currentLineNumber, err.GetError() );
 		}
 
 		parser.FreeSource();
 
 		throw idCompileError( error );
 	}
+#endif
 
 	parser.FreeSource();
 
 	compile_time.Stop();
 	if ( !toConsole ) {
-		gameLocal.Printf( "Compiled '%s': %.1f ms\n", filename, compile_time.Milliseconds() );
+		common->Printf( "Compiled '%s': %.1f ms\n", filename, compile_time.Milliseconds() );
 	}
 }

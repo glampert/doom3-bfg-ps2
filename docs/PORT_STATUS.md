@@ -180,3 +180,52 @@ Debug/release initialized, peak and shutdown tagged heap totals match the founda
 baseline. Arena commitment after tests is 45,728 / 46,304 bytes, and ELF BSS is
 392,288 / 392,352 bytes. The added test state is part of this core measurement; no
 campaign-memory claim follows from it.
+
+
+## Script compilation without exceptions
+
+The script compiler/program now compile on the EE with exceptions disabled. Required
+syntax/type/storage errors terminate through a shared script diagnostic, including
+console snippets. A source location is copied before cleanup releases parser sources,
+partial program definitions and any owned input file. This is the plan's initial fatal
+policy; recoverable console/script loading still needs transactional rollback before
+normal gameplay/save loading. No C++ stack unwinding is implied by these callbacks.
+
+The compiler now takes an explicit program and event-query services. An isolated EE
+probe runs the real compiler and program with an empty event registry and authored
+script text. It verifies repeated valid compilation/reset and exact tagged-heap recovery,
+include loading, missing includes, syntax/lexer/vector/type/event errors, divide/remainder
+by zero, nesting and global/function/statement limits. Failure cases require a matching
+run identity, program cleanup before the expected source-located fatal diagnostic, and
+no emulator crash or watchdog. Global capacity is checked before pointer arithmetic or
+counter mutation. Recursive descent is limited to 64 guarded calls; bytecode source
+locations cannot silently truncate their unsigned-short fields.
+
+`make script-probe` builds `build/<config>-script/d3bfg.elf`; `make test-script` runs the
+matrix, and `make BUILD=release test-script` selects assertions-disabled validation.
+The probe deliberately discards unreferenced game/save/interpreter methods with linker
+GC. It is separate from the regular core and campaign builds, which still retain all
+selected objects. Native events, interpreter execution and game initialization are
+outside this probe. Full campaign passes attempted every source: 234/274 debug and
+238/274 release compiled; Make exited 2 for the remaining 40/36 failures.
+
+Host cleanup/diagnostic and runner checks passed under the strict warning policy and
+ASan/UBSan: 39 Python regressions plus the shared heap/class tests. `make compiledb`
+now includes the probe's new source and generates 288 entries from checked Make dry
+runs. The core host-root path conversion used for script filenames follows the existing
+fixture path jail; traversal, absolute and other-device paths remain rejected.
+
+
+| Script-slice regression | Result |
+| --- | --- |
+| Debug isolated compiler | 15 cases passed; first `20261009T000945Z_script_67af50b2c8e848cf`, last `20261009T001011Z_script_90f58539c51243e8` |
+| Release isolated compiler | 15 cases passed; first `20261009T000850Z_script_49a1e1910df545e6`, last `20261009T000916Z_script_15a7691ba2894750` |
+| Debug core smoke | Passed: `20261009T001047Z_smoke_eeb2a0d766a8443f` |
+| Release core smoke | Passed: `20261009T001124Z_smoke_4b359a2dd290470b` |
+| Debug missing-fixture scenario | Expected failure accepted: `20261009T001215Z_smoke_819e4462265e4587` |
+| Fixed core ELF residency | 1,566,112 / 1,622,688 bytes (debug/release), including 392,864 bytes BSS |
+| Core initialized/peak/shutdown tagged heap | Matches the foundation baseline |
+| Arena commitment after core tests | 43,616 / 44,384 bytes (debug/release) |
+
+The next M2b slice is checked type queries for the retained menu/GUI/file/model
+hierarchies. The complete resident game link and game-fixture boot remain pending.

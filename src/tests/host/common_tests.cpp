@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/common.h"
+#include "ps2/game/script_error.h"
 #include "ps2/game/class_alloc.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
@@ -66,6 +67,33 @@ int main(int argc, char ** argv)
     else if (std::strcmp(mode, "heap-fail") == 0)
     {
         ps2::heap::Fail("allocation 100%");
+    }
+    else if (std::strcmp(mode, "script-cleanup") == 0)
+    {
+        auto cleanup = [](void * data) { ps2::Log(ps2::LogLevel::Info, "%s\n", static_cast<const char *>(data)); };
+        char first[] = "program";
+        char second[] = "parser";
+        ps2::script::ErrorScope outer(cleanup, first);
+        ps2::script::ErrorScope inner(cleanup, second);
+        ps2::script::ErrorScope::SetLocation("fixture%name.script", 17);
+        ps2::script::Fail("unexpected %s", "100% token");
+    }
+    else if (std::strcmp(mode, "script-long") == 0)
+    {
+        char longText[4096];
+        std::memset(longText, 'x', sizeof(longText) - 1);
+        longText[sizeof(longText) - 1] = '\0';
+        ps2::script::ErrorScope cleanup([](void *) {}, nullptr);
+        ps2::script::ErrorScope::SetLocation("long.script", 3);
+        ps2::script::Fail("%s", longText);
+    }
+    else if (std::strcmp(mode, "script-normal") == 0)
+    {
+        {
+            ps2::script::ErrorScope cleanup([](void *) { ps2::FatalError("unexpected cleanup"); }, nullptr);
+            ps2::script::NestingScope depth;
+        }
+        if (ps2::script::ErrorScope::IsActive()) { return 3; }
     }
     else if (std::strcmp(mode, "class-fail") == 0)
     {

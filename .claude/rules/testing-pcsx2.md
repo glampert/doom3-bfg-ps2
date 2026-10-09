@@ -34,6 +34,16 @@
   checks require allocation rejection and counter underflow to remain fatal with
   assertions disabled. These test the adapter, not a linked `idGameLocal` fixture.
 
+- `make script-probe` / `make test-script` select the isolated real script compiler and
+  program, with an empty native-event registry. `make BUILD=release test-script` verifies
+  the same matrix with assertions disabled. This target has its own `-script` artifact
+  directory and linker-GC boundary; it is not a resident game-link gate.
+- Script runs archive authored inputs, matched images/symbols/map, flags and config.
+  Positive cases require the run's completion identity; negative cases require program
+  cleanup before the expected fatal diagnostic with the correct source filename.
+  A watchdog, TLB error, missing cleanup or unrelated fatal cannot pass. Host classifier
+  regressions verify these distinctions.
+
 ## Quake II reference procedures
 
 All commands, file paths, test counts, performance numbers and emulator results below

@@ -68,3 +68,17 @@ math path; PS2-specific math replacement headers are a later milestone.
   are still pending. Desktop factory exception handling remains in its own branch.
 - `TestGameAPI` now zero-initializes its imports and sets `GAME_API_VERSION` before
   `GetGameAPI` checks it. Compilation alone does not validate game initialization.
+
+- Portable script compilation uses the initial fatal-error policy, including console
+  snippets. Error scopes explicitly release parser sources, partial program state and
+  owned source files before termination; they do not unwind other C++ locals or return
+  a recovered program. Transactional rollback remains required before gameplay/save use.
+- `idCompiler` now receives its program and native-event queries explicitly. The isolated
+  EE compiler fixture uses an empty event registry; it proves compilation/storage/reset,
+  not native event execution, bytecode interpretation or game initialization.
+- Reject global-storage overflow before pointer/counter mutation and bytecode source
+  location truncation. Recursive descent currently permits 64 guarded calls; calibrate
+  this bound against campaign scripts before treating it as a campaign acceptance limit.
+- EOF inside an unfinished block and constant integer remainder by zero must report
+  script errors. Parser-to-lexer diagnostics pass formatted strings via `"%s"`, with
+  bounded buffers, so token percent signs cannot be interpreted a second time.

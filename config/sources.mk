@@ -6,7 +6,7 @@ PS2_CXX_SRC = \
 	ps2/system/log.cpp \
 	tests/smoketests/platform_boot.cpp
 
-SIZE_OPT_CXX_SRC = $(PS2_CXX_SRC) ps2/system/core.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp $(CORE_BOOT_CXX_SRC)
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -67,6 +67,7 @@ CORE_FRAMEWORK_CXX_SRC = \
 	neo/framework/CVarSystem.cpp \
 	neo/framework/File.cpp
 CORE_BACKEND_CXX_SRC = \
+	ps2/game/script_error.cpp \
 	ps2/game/class_alloc.cpp \
 	ps2/system/heap.cpp \
 	ps2/system/core.cpp \
@@ -357,3 +358,12 @@ CAMPAIGN_CXX_SRC = \
 # No external C dependency is required by the initial core compile gate.
 VENDOR_C_SRC =
 VENDOR_CXX_SRC =
+
+# Isolated compiler probe; these remain required in the campaign manifest as well.
+SCRIPT_CXX_SRC = \
+	neo/d3xp/script/Script_Compiler.cpp \
+	neo/d3xp/script/Script_Program.cpp
+
+SCRIPT_BOOT_CXX_SRC = \
+	ps2/system/log.cpp \
+	tests/smoketests/script_boot.cpp
