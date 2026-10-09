@@ -28,6 +28,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #pragma hdrstop
 #include "../idlib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 
 #include "Window.h"
 #include "Winvar.h"
@@ -41,10 +43,10 @@ Script_Set
 */
 void Script_Set(idWindow *window, idList<idGSWinVar, TAG_OLD_UI> *src) {
 	idStr key, val;
-	idWinStr *dest = dynamic_cast<idWinStr*>((*src)[0].var);
+	idWinStr *dest = ps2::CheckedCast<idWinStr*>((*src)[0].var);
 	if (dest) {
 		if (idStr::Icmp(*dest, "cmd") == 0) {
-			dest = dynamic_cast<idWinStr*>((*src)[1].var);
+			dest = ps2::CheckedCast<idWinStr*>((*src)[1].var);
 			int parmCount = src->Num();
 			if (parmCount > 2) {
 				val = dest->c_str();
@@ -72,7 +74,7 @@ Script_SetFocus
 =========================
 */
 void Script_SetFocus(idWindow *window, idList<idGSWinVar, TAG_OLD_UI> *src) {
-	idWinStr *parm = dynamic_cast<idWinStr*>((*src)[0].var);
+	idWinStr *parm = ps2::CheckedCast<idWinStr*>((*src)[0].var);
 	if (parm) {
 		drawWin_t *win = window->GetGui()->GetDesktop()->FindChildByName(*parm);
 		if ( win != NULL && win->win != NULL ) {
@@ -87,7 +89,7 @@ Script_ShowCursor
 =========================
 */
 void Script_ShowCursor(idWindow *window, idList<idGSWinVar, TAG_OLD_UI> *src) {
-	idWinStr *parm = dynamic_cast<idWinStr*>((*src)[0].var);
+	idWinStr *parm = ps2::CheckedCast<idWinStr*>((*src)[0].var);
 	if ( parm ) {
 		if ( atoi( *parm ) ) {
 			window->GetGui()->GetDesktop()->ClearFlag( WIN_NOCURSOR );
@@ -105,7 +107,7 @@ Script_RunScript
 =========================
 */
 void Script_RunScript(idWindow *window, idList<idGSWinVar, TAG_OLD_UI> *src) {
-	idWinStr *parm = dynamic_cast<idWinStr*>((*src)[0].var);
+	idWinStr *parm = ps2::CheckedCast<idWinStr*>((*src)[0].var);
 	if (parm) {
 		idStr str = window->cmd;
 		str += " ; runScript ";
@@ -120,7 +122,7 @@ Script_LocalSound
 =========================
 */
 void Script_LocalSound(idWindow *window, idList<idGSWinVar, TAG_OLD_UI> *src) {
-	idWinStr *parm = dynamic_cast<idWinStr*>((*src)[0].var);
+	idWinStr *parm = ps2::CheckedCast<idWinStr*>((*src)[0].var);
 	if (parm) {
 		common->SW()->PlayShaderDirectly(*parm);
 	}
@@ -150,11 +152,11 @@ Script_ResetTime
 =========================
 */
 void Script_ResetTime(idWindow *window, idList<idGSWinVar, TAG_OLD_UI> *src) {
-	idWinStr *parm = dynamic_cast<idWinStr*>((*src)[0].var);
+	idWinStr *parm = ps2::CheckedCast<idWinStr*>((*src)[0].var);
 	drawWin_t *win = NULL;
 	if (parm != NULL && src->Num() > 1) {
 		win = window->GetGui()->GetDesktop()->FindChildByName(*parm);
-		parm = dynamic_cast<idWinStr*>((*src)[1].var);
+		parm = ps2::CheckedCast<idWinStr*>((*src)[1].var);
 	}
 	if ( parm == NULL ) {
 		return;
@@ -187,23 +189,23 @@ void Script_Transition(idWindow *window, idList<idGSWinVar, TAG_OLD_UI> *src) {
 	// transitions always affect rect or vec4 vars
 	if (src->Num() >= 4) {
 		idWinRectangle *rect = NULL;
-		idWinVec4 *vec4 = dynamic_cast<idWinVec4*>((*src)[0].var);
+		idWinVec4 *vec4 = ps2::CheckedCast<idWinVec4*>((*src)[0].var);
 		// 
 		//  added float variable
 		idWinFloat* val = NULL;
 		// 
 		if (vec4 == NULL) {
-			rect = dynamic_cast<idWinRectangle*>((*src)[0].var);
+			rect = ps2::CheckedCast<idWinRectangle*>((*src)[0].var);
 			// 
 			//  added float variable					
 			if ( NULL == rect ) {
-				val = dynamic_cast<idWinFloat*>((*src)[0].var);
+				val = ps2::CheckedCast<idWinFloat*>((*src)[0].var);
 			}
 			// 
 		}
-		idWinVec4 *from = dynamic_cast<idWinVec4*>((*src)[1].var);
-		idWinVec4 *to = dynamic_cast<idWinVec4*>((*src)[2].var);
-		idWinStr *timeStr = dynamic_cast<idWinStr*>((*src)[3].var);
+		idWinVec4 *from = ps2::CheckedCast<idWinVec4*>((*src)[1].var);
+		idWinVec4 *to = ps2::CheckedCast<idWinVec4*>((*src)[2].var);
+		idWinStr *timeStr = ps2::CheckedCast<idWinStr*>((*src)[3].var);
 		// 
 		//  added float variable					
 		if (!((vec4 || rect || val) && from && to && timeStr)) {
@@ -215,8 +217,8 @@ void Script_Transition(idWindow *window, idList<idGSWinVar, TAG_OLD_UI> *src) {
 		float ac = 0.0f;
 		float dc = 0.0f;
 		if (src->Num() > 4) {
-			idWinStr *acv = dynamic_cast<idWinStr*>((*src)[4].var);
-			idWinStr *dcv = dynamic_cast<idWinStr*>((*src)[5].var);
+			idWinStr *acv = ps2::CheckedCast<idWinStr*>((*src)[4].var);
+			idWinStr *dcv = ps2::CheckedCast<idWinStr*>((*src)[5].var);
 			assert(acv && dcv);
 			ac = atof(*acv);
 			dc = atof(*dcv);
@@ -439,7 +441,7 @@ void idGuiScript::FixupParms(idWindow *win) {
 	if (handler == &Script_Set) {
 		bool precacheBackground = false;
 		bool precacheSounds = false;
-		idWinStr *str = dynamic_cast<idWinStr*>(parms[0].var);
+		idWinStr *str = ps2::CheckedCast<idWinStr*>(parms[0].var);
 		assert(str);
 		idWinVar *dest = win->GetWinVarByName(*str, true);
 		if (dest) {
@@ -447,7 +449,7 @@ void idGuiScript::FixupParms(idWindow *win) {
 			parms[0].var = dest;
 			parms[0].own = false;
 
-			if ( dynamic_cast<idWinBackground *>(dest) != NULL ) {
+			if ( ps2::CheckedCast<idWinBackground *>(dest) != NULL ) {
 				precacheBackground = true;
 			}
 		} else if ( idStr::Icmp( str->c_str(), "cmd" ) == 0 ) {
@@ -455,7 +457,7 @@ void idGuiScript::FixupParms(idWindow *win) {
 		}
 		int parmCount = parms.Num();
 		for (int i = 1; i < parmCount; i++) {
-			idWinStr *str = dynamic_cast<idWinStr*>(parms[i].var);		
+			idWinStr *str = ps2::CheckedCast<idWinStr*>(parms[i].var);
 			if (idStr::Icmpn(*str, "gui::", 5) == 0) {
 
 				//  always use a string here, no point using a float if it is one
@@ -509,7 +511,7 @@ void idGuiScript::FixupParms(idWindow *win) {
 		if (parms.Num() < 4) {
 			common->Warning("Window %s in gui %s has a bad transition definition", win->GetName(), win->GetGui()->GetSourceFile()); 
 		}
-		idWinStr *str = dynamic_cast<idWinStr*>(parms[0].var);
+		idWinStr *str = ps2::CheckedCast<idWinStr*>(parms[0].var);
 		assert(str);
 
 		// 
@@ -529,7 +531,7 @@ void idGuiScript::FixupParms(idWindow *win) {
 		//  support variables as parameters		
 		int c;
 		for ( c = 1; c < 3; c ++ ) {
-			str = dynamic_cast<idWinStr*>(parms[c].var);
+			str = ps2::CheckedCast<idWinStr*>(parms[c].var);
 
 			idWinVec4 *v4 = new (TAG_OLD_UI) idWinVec4;
 			parms[c].var = v4;
@@ -555,7 +557,7 @@ void idGuiScript::FixupParms(idWindow *win) {
 						(dest == (owner->simp?owner->simp->GetWinVarByName ( "rect" ):owner->win->GetWinVarByName ( "rect" ) ) ) )
 					{
 						idRectangle rect;
-						rect = *(dynamic_cast<idWinRectangle*>(dest));
+						rect = *(ps2::CheckedCast<idWinRectangle*>(dest));
 						ownerparent->ClientToScreen ( &rect );
 						destparent->ScreenToClient ( &rect );
 						*v4 = rect.ToVec4 ( );
@@ -573,7 +575,7 @@ void idGuiScript::FixupParms(idWindow *win) {
 		}		
 		// 
 	} else if (handler == &Script_LocalSound) {
-		idWinStr * str = dynamic_cast<idWinStr*>(parms[0].var);
+		idWinStr * str = ps2::CheckedCast<idWinStr*>(parms[0].var);
 		if ( str ) {
 			declManager->FindSound( str->c_str() );
 		}

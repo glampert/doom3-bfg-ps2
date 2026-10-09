@@ -28,6 +28,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #pragma hdrstop
 #include "../idlib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 
 #include "tr_local.h"
 #include "Model_local.h"
@@ -1213,7 +1215,11 @@ idRenderModel *idRenderModelMD5::InstantiateDynamicModel( const struct renderEnt
 
 	idRenderModelStatic * staticModel;
 	if ( cachedModel != NULL ) {
-		assert( dynamic_cast<idRenderModelStatic *>(cachedModel) != NULL );
+		// [PS2_D3BFG]: A rejected cached model must not be dereferenced in release.
+		if ( ps2::CheckedCast<idRenderModelStatic *>( cachedModel ) == NULL ) {
+			common->Error( "Cached model '%s' is not a static model", cachedModel->Name() );
+			return NULL;
+		}
 		assert( idStr::Icmp( cachedModel->Name(), MD5_SnapshotName ) == 0 );
 		staticModel = static_cast<idRenderModelStatic *>(cachedModel);
 	} else {

@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 static const int MAX_PDA_ITEMS = 15;
@@ -48,7 +50,7 @@ void idMenuHandler_PDA::Update() {
 		if ( nextScreen == PDA_AREA_INVALID ) {
 			menuScreens[ activeScreen ]->HideScreen( static_cast<mainMenuTransition_t>(transition) );
 			
-			idMenuWidget_CommandBar * cmdBar = dynamic_cast< idMenuWidget_CommandBar * >( GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
+			idMenuWidget_CommandBar * cmdBar = ps2::CheckedCast< idMenuWidget_CommandBar * >( GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
 			if ( cmdBar != NULL ) {
 				cmdBar->ClearAllButtons();
 				cmdBar->Update();
@@ -133,7 +135,7 @@ void idMenuHandler_PDA::ActivateMenu( bool show ) {
 			names.Append( pda->GetPdaName() );	
 			pdaNames.Append( names );
 		}	
-		idMenuWidget_DynamicList * pdaList = dynamic_cast< idMenuWidget_DynamicList * >( GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+		idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * >( GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 		if ( pdaList != NULL ) {
 			pdaList->SetListData( pdaNames );
 		}
@@ -143,14 +145,14 @@ void idMenuHandler_PDA::ActivateMenu( bool show ) {
 		navOptions.Append( idLocalization::GetString( "#str_01442" ) );
 		navOptions.Append( idLocalization::GetString( "#str_01440" ) );
 		navOptions.Append( idLocalization::GetString( "#str_01414" ) );
-		idMenuWidget_NavBar * navBar = dynamic_cast< idMenuWidget_NavBar * >( GetChildFromIndex( PDA_WIDGET_NAV_BAR ) );
+		idMenuWidget_NavBar * navBar = ps2::CheckedCast< idMenuWidget_NavBar * >( GetChildFromIndex( PDA_WIDGET_NAV_BAR ) );
 		if ( navBar != NULL ) {
 			navBar->SetListHeadings( navOptions );
 			navBar->SetFocusIndex( 0 );			
 			navBar->Update();
 		}
 
-		idMenuWidget_CommandBar * cmdBar = dynamic_cast< idMenuWidget_CommandBar * >( GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
+		idMenuWidget_CommandBar * cmdBar = ps2::CheckedCast< idMenuWidget_CommandBar * >( GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
 		if ( cmdBar != NULL ) {
 			cmdBar->ClearAllButtons();
 			cmdBar->Update();
@@ -204,7 +206,7 @@ void idMenuHandler_PDA::Initialize( const char * swfFile, idSoundWorld * sw ) {
 		buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_PDA_SELECT_USER, pdaList.GetChildren().Num() );
 		buttonWidget->Initialize( this );
 		if ( menuScreens[ PDA_AREA_USER_DATA ] != NULL ) {
-			idMenuScreen_PDA_UserData * userDataScreen = dynamic_cast< idMenuScreen_PDA_UserData * >( menuScreens[ PDA_AREA_USER_DATA ] );
+			idMenuScreen_PDA_UserData * userDataScreen = ps2::CheckedCast< idMenuScreen_PDA_UserData * >( menuScreens[ PDA_AREA_USER_DATA ] );
 			if ( userDataScreen != NULL ) {
 				buttonWidget->RegisterEventObserver( userDataScreen->GetUserData() );
 				buttonWidget->RegisterEventObserver( userDataScreen->GetObjective() );
@@ -212,7 +214,7 @@ void idMenuHandler_PDA::Initialize( const char * swfFile, idSoundWorld * sw ) {
 			}
 		}
 		if ( menuScreens[ PDA_AREA_USER_EMAIL ] != NULL ) {
-			idMenuScreen_PDA_UserEmails * userEmailScreen = dynamic_cast< idMenuScreen_PDA_UserEmails * >( menuScreens[ PDA_AREA_USER_EMAIL ] );
+			idMenuScreen_PDA_UserEmails * userEmailScreen = ps2::CheckedCast< idMenuScreen_PDA_UserEmails * >( menuScreens[ PDA_AREA_USER_EMAIL ] );
 			if ( userEmailScreen != NULL ) {
 				buttonWidget->RegisterEventObserver( &userEmailScreen->GetInbox() );
 				buttonWidget->RegisterEventObserver( userEmailScreen );
@@ -370,7 +372,7 @@ bool idMenuHandler_PDA::HandleAction( idWidgetAction & action, const idWidgetEve
 	switch ( actionType ) {
 		case WIDGET_ACTION_PDA_SELECT_USER: {
 			int index = parms[0].ToInteger();
-			idMenuWidget_DynamicList * pdaList = dynamic_cast< idMenuWidget_DynamicList * >( GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+			idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * >( GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 			if ( pdaList != NULL ) {
 				pdaList->SetViewIndex( pdaList->GetViewOffset() + index );
 				pdaList->SetFocusIndex( index );
@@ -383,7 +385,7 @@ bool idMenuHandler_PDA::HandleAction( idWidgetAction & action, const idWidgetEve
 				return true;
 			}
 			int delta = parms[0].ToInteger();
-			idMenuWidget_NavBar * navBar = dynamic_cast< idMenuWidget_NavBar * >( GetChildFromIndex( PDA_WIDGET_NAV_BAR ) );
+			idMenuWidget_NavBar * navBar = ps2::CheckedCast< idMenuWidget_NavBar * >( GetChildFromIndex( PDA_WIDGET_NAV_BAR ) );
 			if ( navBar != NULL ) {
 				int focused = navBar->GetFocusIndex();
 				focused += delta;
@@ -417,7 +419,7 @@ bool idMenuHandler_PDA::HandleAction( idWidgetAction & action, const idWidgetEve
 			int index = parms[0].ToInteger();
 			
 			if ( index == -1 && activeScreen == PDA_AREA_USER_EMAIL ) {
-				idMenuScreen_PDA_UserEmails * screen = dynamic_cast< idMenuScreen_PDA_UserEmails * const >( menuScreens[ PDA_AREA_USER_EMAIL ] );
+				idMenuScreen_PDA_UserEmails * screen = ps2::CheckedCast< idMenuScreen_PDA_UserEmails * const >( menuScreens[ PDA_AREA_USER_EMAIL ] );
 				if ( screen ) {
 					screen->ShowEmail( false );
 				}
@@ -429,7 +431,7 @@ bool idMenuHandler_PDA::HandleAction( idWidgetAction & action, const idWidgetEve
 				return true;
 			}
 
-			idMenuWidget_NavBar * navBar = dynamic_cast< idMenuWidget_NavBar * >( GetChildFromIndex( PDA_WIDGET_NAV_BAR ) );
+			idMenuWidget_NavBar * navBar = ps2::CheckedCast< idMenuWidget_NavBar * >( GetChildFromIndex( PDA_WIDGET_NAV_BAR ) );
 			if ( navBar != NULL ) {
 				navBar->SetViewIndex( navBar->GetViewOffset() + index );
 				navBar->SetFocusIndex( index, true );
@@ -448,7 +450,7 @@ bool idMenuHandler_PDA::HandleAction( idWidgetAction & action, const idWidgetEve
 		case WIDGET_ACTION_SELECT_PDA_AUDIO: {
 			if ( activeScreen == PDA_AREA_USER_DATA ) {
 				int index = parms[0].ToInteger();
-				idMenuWidget_DynamicList * pdaList = dynamic_cast< idMenuWidget_DynamicList * >( GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+				idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * >( GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 				
 				bool change = false;
 				if ( pdaList != NULL ) {
@@ -458,7 +460,7 @@ bool idMenuHandler_PDA::HandleAction( idWidgetAction & action, const idWidgetEve
 
 				if ( change ) {
 					if ( widget->GetParent() != NULL ) {
-						idMenuWidget_DynamicList * audioList = dynamic_cast< idMenuWidget_DynamicList * >( widget->GetParent() );
+						idMenuWidget_DynamicList * audioList = ps2::CheckedCast< idMenuWidget_DynamicList * >( widget->GetParent() );
 						int index = parms[0].ToInteger();
 						if ( audioList != NULL ) {
 							audioList->SetFocusIndex( index );
@@ -473,7 +475,7 @@ bool idMenuHandler_PDA::HandleAction( idWidgetAction & action, const idWidgetEve
 			if ( activeScreen == PDA_AREA_VIDEO_DISKS ) {
 				int index = parms[0].ToInteger();
 				if ( menuScreens[ PDA_AREA_VIDEO_DISKS ] != NULL ) {
-					idMenuScreen_PDA_VideoDisks * screen = dynamic_cast< idMenuScreen_PDA_VideoDisks * const >( menuScreens[ PDA_AREA_VIDEO_DISKS ] );
+					idMenuScreen_PDA_VideoDisks * screen = ps2::CheckedCast< idMenuScreen_PDA_VideoDisks * const >( menuScreens[ PDA_AREA_VIDEO_DISKS ] );
 					if ( screen != NULL ) {
 						screen->SelectedVideoToPlay( index );
 					}
@@ -558,7 +560,7 @@ void idMenuHandler_PDA::UdpateVideoPlaying( bool playing ) {
 				player->EndVideoDisk();
 			}
 
-			idMenuScreen_PDA_VideoDisks * screen = dynamic_cast< idMenuScreen_PDA_VideoDisks * const >( menuScreens[ PDA_AREA_VIDEO_DISKS ] );
+			idMenuScreen_PDA_VideoDisks * screen = ps2::CheckedCast< idMenuScreen_PDA_VideoDisks * const >( menuScreens[ PDA_AREA_VIDEO_DISKS ] );
 			if ( screen != NULL ) {
 				if ( !playing ) {
 					screen->ClearActiveVideo();

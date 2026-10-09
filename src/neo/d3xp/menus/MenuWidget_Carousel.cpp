@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 void idMenuWidget_Carousel::Initialize( idMenuHandler * data ) {
@@ -108,7 +110,7 @@ void idMenuWidget_Carousel::Update() {
 			if ( listIndex < 0 || listIndex >= GetTotalNumberOfOptions() ) {
 				child.SetState( WIDGET_STATE_HIDDEN );
 			} else {
-				idMenuWidget_Button * const button = dynamic_cast< idMenuWidget_Button * >( &child );
+				idMenuWidget_Button * const button = ps2::CheckedCast< idMenuWidget_Button * >( &child );
 				button->SetImg( imgList[ listIndex ] );
 				child.Update();
 				if ( optionIndex == focusIndex ) {

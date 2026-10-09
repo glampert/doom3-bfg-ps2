@@ -152,6 +152,8 @@ idMenuScreen
 */
 class idMenuScreen : public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen, idMenuWidget )
 
 	idMenuScreen();
 	virtual ~idMenuScreen();
@@ -180,6 +182,8 @@ idMenuScreen_PDA_UserData
 */
 class idMenuScreen_PDA_UserData : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_PDA_UserData, idMenuScreen )
 
 	idMenuScreen_PDA_UserData() {}
 
@@ -206,6 +210,8 @@ idMenuScreen_PDA_UserEmails
 */
 class idMenuScreen_PDA_UserEmails : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_PDA_UserEmails, idMenuScreen )
 	idMenuScreen_PDA_UserEmails() : 
 		readingEmails( false ),
 		scrollEmailInfo( false ) {
@@ -240,6 +246,8 @@ idMenuScreen_PDA_UserData
 */
 class idMenuScreen_PDA_VideoDisks : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_PDA_VideoDisks, idMenuScreen )
 	idMenuScreen_PDA_VideoDisks() :
 		activeVideo( NULL ) {
 	}
@@ -273,6 +281,8 @@ idMenuScreen_PDA_UserData
 */
 class idMenuScreen_PDA_Inventory : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_PDA_Inventory, idMenuScreen )
 	idMenuScreen_PDA_Inventory() {
 	}
 	virtual void				Initialize( idMenuHandler * data );
@@ -297,6 +307,8 @@ private:
 //*/
 class idMenuScreen_Shell_Root : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Root, idMenuScreen )
 	idMenuScreen_Shell_Root() : 
 		options( NULL ),
 		helpWidget( NULL ) {
@@ -324,6 +336,8 @@ private:
 //*/
 class idMenuScreen_Shell_Pause : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Pause, idMenuScreen )
 	idMenuScreen_Shell_Pause() : 
 		options( NULL ),
 		isMpPause( false ) {
@@ -349,6 +363,8 @@ private:
 //*/
 class idMenuScreen_Shell_PressStart : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_PressStart, idMenuScreen )
 	idMenuScreen_Shell_PressStart() : 
 		startButton( NULL ),
 		options( NULL ),
@@ -378,6 +394,8 @@ private:
 //*/
 class idMenuScreen_Shell_GameSelect : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_GameSelect, idMenuScreen )
 	idMenuScreen_Shell_GameSelect() : 
 		startButton( NULL ),
 		options( NULL ),
@@ -407,6 +425,8 @@ private:
 //*/
 class idMenuScreen_Shell_Singleplayer : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Singleplayer, idMenuScreen )
 	idMenuScreen_Shell_Singleplayer() : 
 		options( NULL ),
 		btnBack( NULL ),
@@ -433,6 +453,8 @@ private:
 //*/
 class idMenuScreen_Shell_Settings : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Settings, idMenuScreen )
 	idMenuScreen_Shell_Settings() : 
 		options( NULL ),
 		btnBack( NULL ) {
@@ -470,6 +492,8 @@ struct creditInfo_t {
 //*/
 class idMenuScreen_Shell_Credits : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Credits, idMenuScreen )
 	idMenuScreen_Shell_Credits() : 
 		btnBack( NULL ),
 		creditIndex( 0 ) {
@@ -496,6 +520,8 @@ private:
 //*/
 class idMenuScreen_Shell_Resolution : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Resolution, idMenuScreen )
 	idMenuScreen_Shell_Resolution() :
 		options( NULL ),
 		btnBack( NULL ) {
@@ -546,6 +572,8 @@ private:
 //*/
 class idMenuScreen_Shell_Difficulty : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Difficulty, idMenuScreen )
 	idMenuScreen_Shell_Difficulty() : 
 		options( NULL ),
 		btnBack( NULL ),
@@ -569,6 +597,8 @@ private:
 //*/
 class idMenuScreen_Shell_Playstation : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Playstation, idMenuScreen )
 	idMenuScreen_Shell_Playstation() : 
 		options( NULL ),
 		btnBack( NULL ) {
@@ -590,6 +620,8 @@ private:
 //*/
 class idMenuScreen_Shell_ModeSelect : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_ModeSelect, idMenuScreen )
 	idMenuScreen_Shell_ModeSelect() : 
 		options( NULL ),
 		btnBack( NULL ) {
@@ -611,6 +643,8 @@ private:
 //*/
 class idMenuScreen_Shell_GameBrowser : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_GameBrowser, idMenuScreen )
 	idMenuScreen_Shell_GameBrowser() :
 		listWidget( NULL ),
 		btnBack( NULL ) {
@@ -637,6 +671,8 @@ private:
 //*/
 class idMenuScreen_Shell_Leaderboards : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Leaderboards, idMenuScreen )
 	idMenuScreen_Shell_Leaderboards() : 
 		options( NULL ),
 		btnBack( NULL ),
@@ -696,6 +732,8 @@ protected:
 //*/
 class idMenuScreen_Shell_Bindings : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Bindings, idMenuScreen )
 	idMenuScreen_Shell_Bindings() : 
 		options( NULL ),
 		btnBack( NULL ),
@@ -733,6 +771,8 @@ protected:
 //*/
 class idMenuScreen_Shell_Dev : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Dev, idMenuScreen )
 
 	struct devOption_t {
 		devOption_t() {
@@ -774,6 +814,8 @@ private:
 //*/
 class idMenuScreen_Shell_NewGame : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_NewGame, idMenuScreen )
 	idMenuScreen_Shell_NewGame() : 
 		options( NULL ),
 		btnBack( NULL ) {
@@ -795,6 +837,8 @@ private:
 //*/
 class idMenuScreen_Shell_Load : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Load, idMenuScreen )
 	idMenuScreen_Shell_Load() : 
 		options( NULL ),
 		btnBack( NULL ),
@@ -828,6 +872,8 @@ private:
 //*/
 class idMenuScreen_Shell_Save : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Save, idMenuScreen )
 	idMenuScreen_Shell_Save() : 
 		options( NULL ),
 		btnBack( NULL ),
@@ -860,6 +906,8 @@ private:
 //*/
 class idMenuScreen_Shell_GameOptions : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_GameOptions, idMenuScreen )
 
 	/*
 	================================================
@@ -922,6 +970,8 @@ private:
 //*/
 class idMenuScreen_Shell_MatchSettings : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_MatchSettings, idMenuScreen )
 
 	/*
 	================================================
@@ -989,6 +1039,8 @@ private:
 //*/
 class idMenuScreen_Shell_Controls : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Controls, idMenuScreen )
 
 	/*
 	================================================
@@ -1047,6 +1099,8 @@ private:
 //*/
 class idMenuScreen_Shell_Gamepad : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Gamepad, idMenuScreen )
 
 	/*
 	================================================
@@ -1109,6 +1163,8 @@ private:
 //*/
 class idMenuScreen_Shell_ControllerLayout : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_ControllerLayout, idMenuScreen )
 
 	/*
 	================================================
@@ -1168,6 +1224,8 @@ private:
 //*/
 class idMenuScreen_Shell_SystemOptions : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_SystemOptions, idMenuScreen )
 
 	/*
 	================================================
@@ -1242,6 +1300,8 @@ private:
 //*/
 class idMenuScreen_Shell_Stereoscopics : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_Stereoscopics, idMenuScreen )
 
 	/*
 	================================================
@@ -1306,6 +1366,8 @@ private:
 //*/
 class idMenuScreen_Shell_PartyLobby : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_PartyLobby, idMenuScreen )
 	idMenuScreen_Shell_PartyLobby() : 
 		options( NULL ),
 		lobby( NULL ),
@@ -1344,6 +1406,8 @@ private:
 //*/
 class idMenuScreen_Shell_GameLobby : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Shell_GameLobby, idMenuScreen )
 	idMenuScreen_Shell_GameLobby() : 
 		options( NULL ),
 		lobby( NULL ),
@@ -1387,6 +1451,8 @@ private:
 //*/
 class idMenuScreen_HUD : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_HUD, idMenuScreen )
 
 	idMenuScreen_HUD() : 
 		weaponInfo( NULL ),
@@ -1582,6 +1648,8 @@ private:
 //*/
 class idMenuScreen_Scoreboard : public idMenuScreen {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Scoreboard, idMenuScreen )
 
 	idMenuScreen_Scoreboard() : 
 		playerList( NULL ) {
@@ -1611,6 +1679,8 @@ protected:
 //*/
 class idMenuScreen_Scoreboard_CTF : public idMenuScreen_Scoreboard {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Scoreboard_CTF, idMenuScreen_Scoreboard )
 	virtual void				Initialize( idMenuHandler * data );	
 };
 
@@ -1621,6 +1691,8 @@ public:
 //*/
 class idMenuScreen_Scoreboard_Team : public idMenuScreen_Scoreboard {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuScreen_Scoreboard_Team, idMenuScreen_Scoreboard )
 	virtual void				Initialize( idMenuHandler * data );
 };
 

@@ -72,8 +72,8 @@ optional memory diagnostics. The engine's `idClass`/`idTypeInfo` hierarchy is re
 | Debug missing-fixture scenario | Expected failure accepted; remaining checks and shutdown passed |
 | Source inventory | Unchanged: all 274 campaign units remain selected |
 
-The four extra release successes are model files with RTTI casts inside debug assertions.
-They still need checked type queries. AAS, collision, declarations, substantial renderer
+The four extra release successes at this stage were model files with RTTI casts inside
+debug assertions; the checked-query slice below resolves them. AAS, collision, declarations, substantial renderer
 frontend code and many campaign support units now compile with the full header boundary.
 Successful objects do not establish a game link or runtime acceptance.
 
@@ -84,9 +84,8 @@ with `make -B -k -j4 compile-game` and `make -B -k -j4 BUILD=release compile-gam
 
 | Remaining compile boundary | Current failures / required work |
 | --- | --- |
-| Game/script errors | Script compiler/program exceptions remain; class allocation and factories are now converted and tested as described below |
-| Checked types | RTTI casts in HUD/PDA menus, GUI variables/windows, resource files and models |
 | Platform services | Windows APIs in filesystem/ZIP, key translation and common diagnostics |
+| Common errors | Exception-based error handling in `Common_printf.cpp` |
 | Classic dependencies | `Common.cpp` and `common_frame.cpp` still import Classic headers; remove those paths instead of restoring Classic linkage |
 | Logical sound | Four retained sound units import `snd_local.h` and its XAudio SDK types |
 | SWF image failures | Exception-based image error reporting remains |
@@ -227,5 +226,49 @@ fixture path jail; traversal, absolute and other-device paths remain rejected.
 | Core initialized/peak/shutdown tagged heap | Matches the foundation baseline |
 | Arena commitment after core tests | 43,616 / 44,384 bytes (debug/release) |
 
-The next M2b slice is checked type queries for the retained menu/GUI/file/model
-hierarchies. The complete resident game link and game-fixture boot remain pending.
+The subsequent M2b slice implements checked type queries, as described below.
+The complete resident game link and game-fixture boot remain pending.
+
+## Checked hierarchy queries without RTTI
+
+The 104 casts in the retained campaign sources now use `ps2::CheckedCast`. Portable
+menu, GUI-variable, file and model declarations provide virtual type queries that
+recognize their own type and public single-inheritance ancestors. One zero-initialized
+token per type supplies identity across translation units without allocation or guarded
+static initialization. Null input and incompatible dynamic types return null; const
+qualification is preserved. Unregistered target types, const removal and sibling/cross
+casts are rejected at compile time. Desktop builds retain the original RTTI behavior.
+The existing `idClass`/`idTypeInfo` hierarchy is unchanged.
+
+Cached beam/sprite/particle/MD5 models now validate the static-model type in release
+before downcasting. Resource-file packaging closes an opened file if its memory-file
+query is rejected. Deferred source bodies retain their desktop casts; no executable
+`dynamic_cast` or `typeid` remains in the 274 selected campaign units.
+
+Shared host/EE probes exercise inherited/const casts, null and wrong-type rejection,
+and cross-translation-unit token/virtual-dispatch identity. EE checks also construct real
+`idFile`/`idFile_Memory` objects and inspect the actual menu/GUI/model inheritance hooks.
+The latter are declaration checks, not instantiated menu/model runtime acceptance.
+Four host compiler tests cover the unsafe-query rejection contracts and desktop fallback.
+
+| Type-query slice regression | Result |
+| --- | --- |
+| Debug campaign, all 274 units selected | 263 compiled, 11 failed; Make exited 2 |
+| Release campaign, all 274 units selected | 263 compiled, 11 failed; Make exited 2 |
+| Debug/release EE core | Strict compile/link passed |
+| `make compile-core` | Passed; all 55 scalar idlib/framework units retained |
+| `make compiledb` | 291 entries generated |
+| `make test-host` | Shared heap/class/type ASan/UBSan checks and 43 Python regressions passed |
+| Debug core smoke | Passed: `20261009T002551Z_smoke_2bb136000a614bff` |
+| Release core smoke | Passed: `20261009T002606Z_smoke_41c364c696154f42` |
+| Debug missing-fixture scenario | Expected failure accepted: `20261009T002623Z_smoke_f8bd1db25f654d60` |
+| Rebuilt debug/release compiler probes | Valid compile/reset passed: `20261009T002457Z_script_97cc39f212ef4dc7` / `20261009T002519Z_script_f9cea71739e34839` |
+| Fixed core ELF residency | 1,567,920 / 1,624,368 bytes (debug/release), including 392,880 bytes BSS |
+| Core initialized/peak/shutdown tagged heap | Matches the foundation baseline |
+| Arena commitment after core tests | 45,904 / 46,800 bytes (debug/release) |
+
+The remaining compile failures are `Common.cpp`, `Common_printf.cpp`, `common_frame.cpp`,
+`FileSystem.cpp`, `KeyInput.cpp`, `Zip.cpp`, four logical-sound units and `SWF_Image.cpp`.
+The next M2b work is explicit common/SWF error control flow and portable platform,
+offline-session and sound boundaries, followed by the resident link. All 274 sources
+remain selected, and the compile gate still correctly fails while these blockers remain.

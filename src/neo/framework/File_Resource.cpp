@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "../idlib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #pragma hdrstop
 
 /*
@@ -442,8 +444,10 @@ void idResourceContainer::WriteResourceFile( const char *manifestName, const idS
 			ent.offset = 0;
 
 			idFile *file = fileSystem->OpenFileReadMemory( ent.filename, false );
-			idFile_Memory *fm = dynamic_cast< idFile_Memory* >( file );
+			idFile_Memory *fm = ps2::CheckedCast< idFile_Memory* >( file );
 			if ( fm == NULL ) {
+				// [PS2_D3BFG]: A rejected memory-file query must release the opened file.
+				if ( file != NULL ) { fileSystem->CloseFile( file ); }
 				continue;
 			}
 			// if the entry is uncompressed, align the file pointer to a 16 byte boundary

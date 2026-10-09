@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 static const int MAX_VIDEO_ITEMS = 5;
@@ -94,7 +96,7 @@ void idMenuScreen_PDA_VideoDisks::Update() {
 	idPlayer * player = gameLocal.GetLocalPlayer();
 	
 	if ( menuData != NULL ) {
-		idMenuWidget_CommandBar * cmdBar = dynamic_cast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
+		idMenuWidget_CommandBar * cmdBar = ps2::CheckedCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
 		if ( cmdBar != NULL ) {
 			cmdBar->ClearAllButtons();
 			idMenuWidget_CommandBar::buttonInfo_t * buttonInfo;
@@ -238,7 +240,7 @@ void idMenuScreen_PDA_VideoDisks::SelectedVideoToPlay( int index ) {
 
 	player->EndVideoDisk();		
 	if ( menuData != NULL ) {
-		idMenuHandler_PDA * pdaHandler = dynamic_cast< idMenuHandler_PDA * const >( menuData );
+		idMenuHandler_PDA * pdaHandler = ps2::CheckedCast< idMenuHandler_PDA * const >( menuData );
 		pdaHandler->ClearVideoPlaying();
 	}
 

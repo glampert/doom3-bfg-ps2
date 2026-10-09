@@ -64,8 +64,9 @@ math path; PS2-specific math replacement headers are a later milestone.
   Explicit aligned new/delete overloads preserve over-aligned derived game classes.
 - Portable class factories use required/fatal allocation and run `FindUninitializedMemory`
   after construction. `SpawnEntityType` preserves normal-return spawn-argument cleanup;
-  allocation/spawn errors terminate at this stage. Script errors/recoverable game loading
-  are still pending. Desktop factory exception handling remains in its own branch.
+  allocation/spawn errors terminate at this stage. Script errors also use explicit fatal
+  cleanup; recoverable game loading remains pending. Desktop factory exception handling
+  remains in its own branch.
 - `TestGameAPI` now zero-initializes its imports and sets `GAME_API_VERSION` before
   `GetGameAPI` checks it. Compilation alone does not validate game initialization.
 
@@ -82,3 +83,12 @@ math path; PS2-specific math replacement headers are a later milestone.
 - EOF inside an unfinished block and constant integer remainder by zero must report
   script errors. Parser-to-lexer diagnostics pass formatted strings via `"%s"`, with
   bounded buffers, so token percent signs cannot be interpreted a second time.
+- Retained menu/GUI/file/model casts use `ps2::CheckedCast` on public single-inheritance
+  interfaces. Register each queried derived type with its own `PS2_TYPE_DERIVED` hook;
+  inheriting a parent's alias is intentionally insufficient. Null/rejected queries remain
+  null, and const removal/cross casts are compile errors. Writable zero-initialized type
+  tokens have one address across translation units without a static-init guard. Desktop
+  builds keep `dynamic_cast`; the existing game `idTypeInfo` system is separate.
+- Cached model type checks run in release before downcasts. A failed memory-file query
+  in resource packaging closes the opened file before skipping it. Static hierarchy tests
+  do not establish menu/model execution or renderer acceptance.

@@ -43,6 +43,11 @@
   cleanup before the expected fatal diagnostic with the correct source filename.
   A watchdog, TLB error, missing cleanup or unrelated fatal cannot pass. Host classifier
   regressions verify these distinctions.
+- Core smoke completion requires all seven `types/` markers: inherited/const queries,
+  null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
+  and real file objects. Shared query tests also run with host ASan/UBSan. Four host
+  compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
+  The complete host suite currently has 43 Python regressions.
 
 ## Quake II reference procedures
 

@@ -29,6 +29,9 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __FILE_H__
 #define __FILE_H__
 
+// [PS2_D3BFG]: Portable checked casts retain null failure and const-qualified pointers.
+#include "ps2/type_query.h"
+
 /*
 ==============================================================
 
@@ -49,6 +52,8 @@ class idFileSystemLocal;
 
 class idFile {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_ROOT( idFile )
 	virtual					~idFile() {};
 							// Get the name of the file.
 	virtual const char *	GetName() const;
@@ -147,6 +152,8 @@ class idFile_Memory : public idFile {
 	friend class			idFileSystemLocal;
 
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idFile_Memory, idFile )
 							idFile_Memory();	// file for writing without name
 							idFile_Memory( const char *name );	// file for writing
 							idFile_Memory( const char *name, char *data, int length );	// file for writing
@@ -209,6 +216,8 @@ class idFile_BitMsg : public idFile {
 	friend class			idFileSystemLocal;
 
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idFile_BitMsg, idFile )
 							idFile_BitMsg( idBitMsg &msg );
 							idFile_BitMsg( const idBitMsg &msg );
 	virtual					~idFile_BitMsg();
@@ -235,6 +244,8 @@ class idFile_Permanent : public idFile {
 	friend class			idFileSystemLocal;
 
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idFile_Permanent, idFile )
 							idFile_Permanent();
 	virtual					~idFile_Permanent();
 
@@ -264,6 +275,8 @@ private:
 class idFile_Cached : public idFile_Permanent {
 	friend class			idFileSystemLocal;
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idFile_Cached, idFile_Permanent )
 	idFile_Cached();
 	virtual					~idFile_Cached();
 
@@ -286,6 +299,8 @@ class idFile_InZip : public idFile {
 	friend class			idFileSystemLocal;
 
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idFile_InZip, idFile )
 							idFile_InZip();
 	virtual					~idFile_InZip();
 
@@ -313,6 +328,8 @@ class idFile_InnerResource : public idFile {
 	friend class			idFileSystemLocal;
 
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idFile_InnerResource, idFile )
 							idFile_InnerResource( const char *_name, idFile *rezFile, int _offset, int _len );
 	virtual					~idFile_InnerResource();
 

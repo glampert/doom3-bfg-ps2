@@ -28,6 +28,9 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __MENU_WIDGET_H__
 #define __MENU_WIDGET_H__
 
+// [PS2_D3BFG]: Portable checked casts retain null failure and const-qualified pointers.
+#include "ps2/type_query.h"
+
 class idMenuHandler;
 class idMenuWidget;
 
@@ -359,6 +362,8 @@ other part of the view is the SWF itself.
 */
 class idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_ROOT( idMenuWidget )
 
 	/*
 	================================================
@@ -519,6 +524,8 @@ with standard button behavior.
 */
 class idMenuWidget_Button : public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_Button, idMenuWidget )
 
 	enum animState_t {
 		ANIM_STATE_UP,			// standard
@@ -576,6 +583,8 @@ idMenuWidget_LobbyButton
 */
 class idMenuWidget_LobbyButton : public idMenuWidget_Button {
 public:	
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_LobbyButton, idMenuWidget_Button )
 	idMenuWidget_LobbyButton() :
 		voiceState( VOICECHAT_DISPLAY_NONE ) {
 	}
@@ -596,6 +605,8 @@ idMenuWidget_ScoreboardButton
 */
 class idMenuWidget_ScoreboardButton : public idMenuWidget_Button {
 public:	
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_ScoreboardButton, idMenuWidget_Button )
 	idMenuWidget_ScoreboardButton() :
 		voiceState( VOICECHAT_DISPLAY_NONE ),
 		index( -1 ) {
@@ -616,6 +627,8 @@ idMenuWidget_ControlButton
 */
 class idMenuWidget_ControlButton : public idMenuWidget_Button {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_ControlButton, idMenuWidget_Button )
 	idMenuWidget_ControlButton() : 
 		optionType( OPTION_BUTTON_TEXT ),
 		disabled( false ) {
@@ -639,6 +652,8 @@ idMenuWidget_ServerButton
 */
 class idMenuWidget_ServerButton : public idMenuWidget_Button {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_ServerButton, idMenuWidget_Button )
 
 	idMenuWidget_ServerButton() :
 		players( 0 ),
@@ -671,6 +686,8 @@ idMenuWidget_NavButton
 */
 class idMenuWidget_NavButton : public idMenuWidget_Button {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_NavButton, idMenuWidget_Button )
 
 	enum navWidgetState_t {
 		NAV_WIDGET_LEFT,		// option on left side
@@ -704,6 +721,8 @@ idMenuWidget_NavButton
 */
 class idMenuWidget_MenuButton : public idMenuWidget_Button {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_MenuButton, idMenuWidget_Button )
 
 	idMenuWidget_MenuButton() : 
 		xPos( 0 ) {
@@ -727,6 +746,8 @@ Stores a list of widgets but displays only a segment of them at a time.
 */
 class idMenuWidget_List : public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_List, idMenuWidget )
 	idMenuWidget_List() :
 		numVisibleOptions( 0 ),
 		viewOffset( 0 ),
@@ -784,6 +805,8 @@ idMenuWidget_GameBrowserList
 */
 class idMenuWidget_GameBrowserList : public idMenuWidget_List {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_GameBrowserList, idMenuWidget_List )
 	virtual void				Update();
 	virtual bool				PrepareListElement( idMenuWidget & widget, const int childIndex );
 	virtual int					GetTotalNumberOfOptions() const;
@@ -802,6 +825,8 @@ Displays a list of items in a looping carousel pattern
 */
 class idMenuWidget_Carousel : public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_Carousel, idMenuWidget )
 
 	idMenuWidget_Carousel() :
 		numVisibleOptions( 0 ),
@@ -854,6 +879,8 @@ Knows how to display help tooltips by observing events from other widgets
 */
 class idMenuWidget_Help : public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_Help, idMenuWidget )
 	virtual void Update();
 	virtual void ObserveEvent( const idMenuWidget & widget, const idWidgetEvent & event );
 
@@ -870,6 +897,8 @@ idMenuWidget_CommandBar
 */
 class idMenuWidget_CommandBar : public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_CommandBar, idMenuWidget )
 	enum button_t {
 		BUTTON_JOY1,
 		BUTTON_JOY2,
@@ -917,6 +946,8 @@ private:
 */
 class idMenuWidget_LobbyList : public idMenuWidget_List {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_LobbyList, idMenuWidget_List )
 	idMenuWidget_LobbyList() :
 		numEntries( 0 ) {
 	}
@@ -941,6 +972,8 @@ idMenuWidget_DynamicList
 */
 class idMenuWidget_DynamicList : public idMenuWidget_List {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_DynamicList, idMenuWidget_List )
 
 	idMenuWidget_DynamicList() : 
 		controlList( false ),
@@ -971,6 +1004,8 @@ idMenuWidget_ScoreboardList
 */
 class idMenuWidget_ScoreboardList : public idMenuWidget_DynamicList {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_ScoreboardList, idMenuWidget_DynamicList )
 	  virtual void				Update();
 	  virtual int				GetTotalNumberOfOptions() const;
 };
@@ -984,6 +1019,8 @@ The nav bar is set up with the main option being at the safe frame line.
 */
 class idMenuWidget_NavBar : public idMenuWidget_DynamicList {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_NavBar, idMenuWidget_DynamicList )
 
 			idMenuWidget_NavBar() : 
 				initialPos( 0.0f ),
@@ -1021,6 +1058,8 @@ The nav bar is set up with the main option being at the safe frame line.
 */
 class idMenuWidget_MenuBar : public idMenuWidget_DynamicList {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_MenuBar, idMenuWidget_DynamicList )
 
 	idMenuWidget_MenuBar() :
 		totalWidth( 0.0f ),
@@ -1051,6 +1090,8 @@ idMenuWidget_PDA_UserData
 */
 class idMenuWidget_PDA_UserData : public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_PDA_UserData, idMenuWidget )
 					idMenuWidget_PDA_UserData() : 
 						pdaIndex( 0 ) {
 					}
@@ -1069,6 +1110,8 @@ idMenuWidget_DynamicList
 */
 class idMenuWidget_ScrollBar : public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_ScrollBar, idMenuWidget )
 	idMenuWidget_ScrollBar() : 
 		yTop( 0.0f ),
 		yBot( 0.0f ),
@@ -1095,6 +1138,8 @@ idMenuWidget_InfoBox
 */
 class idMenuWidget_InfoBox: public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_InfoBox, idMenuWidget )
 	idMenuWidget_InfoBox() :
 		scrollbar( NULL ) {
 	}
@@ -1124,6 +1169,8 @@ idMenuWidget_PDA_Objective
 */
 class idMenuWidget_PDA_Objective: public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_PDA_Objective, idMenuWidget )
 	idMenuWidget_PDA_Objective() :
 		pdaIndex( 0 ) {
 		}
@@ -1140,6 +1187,8 @@ idMenuWidget_Shell_SaveInfo
 */
 class idMenuWidget_Shell_SaveInfo: public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_Shell_SaveInfo, idMenuWidget )
 	idMenuWidget_Shell_SaveInfo() :
 		loadIndex( 0 ),
 		forSaveScreen( false ) {
@@ -1160,6 +1209,8 @@ idMenuWidget_PDA_AudioFiles
 */
 class idMenuWidget_PDA_AudioFiles: public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_PDA_AudioFiles, idMenuWidget )
 	idMenuWidget_PDA_AudioFiles() :
 		pdaIndex( 0 ) {
 		}
@@ -1179,6 +1230,8 @@ idMenuWidget_PDA_AudioFiles
 */
 class idMenuWidget_PDA_EmailInbox: public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_PDA_EmailInbox, idMenuWidget )
 	idMenuWidget_PDA_EmailInbox() :
 		pdaIndex( 0 ),
 		emailList( NULL ),
@@ -1204,6 +1257,8 @@ private:
 */
 class idMenuWidget_ItemAssignment: public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_ItemAssignment, idMenuWidget )
 	idMenuWidget_ItemAssignment() : 
 		slotIndex( 0 ) {
 	}
@@ -1227,6 +1282,8 @@ idMenuWidget_PDA_AudioFiles
 */
 class idMenuWidget_PDA_VideoInfo: public idMenuWidget {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuWidget_PDA_VideoInfo, idMenuWidget )
 	virtual void	Update();
 	virtual void	ObserveEvent( const idMenuWidget & widget, const idWidgetEvent & event );
 private:

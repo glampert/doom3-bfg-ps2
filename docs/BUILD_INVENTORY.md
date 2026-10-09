@@ -123,3 +123,15 @@ link must still supply those services and retain all required registrations.
 Probe/test and compiler source groups remain explicit and audited. Build reports include
 its compiler flags and source identity; the compile database adds the probe dry run while
 preserving the ordinary core/campaign flags for sources shared with those targets.
+
+## Checked type-query tests
+
+The regular core directly links three additional test units for portable type queries.
+Shared probes build on host and EE; a separate strict EE unit includes full campaign
+declarations with `ID_PS2_CORE` undefined while linking only inline hierarchy queries
+and real foundation file objects. It does not link a menu/model runtime or discard
+selected core objects. These test sources remain explicit in `CORE_BOOT_CXX_SRC`.
+
+The campaign manifest retains all 274 units; both configurations now compile 263.
+The eleven remaining common/platform/Classic/sound/SWF failures are recorded in
+[PORT_STATUS.md](PORT_STATUS.md), and the campaign gate remains unsuccessful.

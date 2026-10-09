@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 static const int TIP_DISPLAY_TIME = 5000;
@@ -149,7 +151,7 @@ idMenuHandler_HUD::GetHud
 ========================
 */
 idMenuScreen_HUD * idMenuHandler_HUD::GetHud() {
-	idMenuScreen_HUD * screen = dynamic_cast< idMenuScreen_HUD * >( menuScreens[ HUD_AREA_PLAYING ] );
+	idMenuScreen_HUD * screen = ps2::CheckedCast< idMenuScreen_HUD * >( menuScreens[ HUD_AREA_PLAYING ] );
 	return screen;
 }
 

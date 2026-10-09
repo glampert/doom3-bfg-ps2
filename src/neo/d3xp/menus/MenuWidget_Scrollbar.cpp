@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 void idMenuWidget_ScrollBar::Initialize( idMenuHandler * data ) {
@@ -64,7 +66,7 @@ void idMenuWidget_ScrollBar::Update() {
 		node->Set( "onDrag", new ( TAG_SWF ) WrapWidgetSWFEvent( this, WIDGET_EVENT_DRAG_START, 0 ) );
 		node->Set( "onRelease", new ( TAG_SWF ) WrapWidgetSWFEvent( this, WIDGET_EVENT_DRAG_STOP, 0 ) );
 	
-		const idMenuWidget_DynamicList * const list = dynamic_cast< const idMenuWidget_DynamicList * const >( GetParent() );
+		const idMenuWidget_DynamicList * const list = ps2::CheckedCast< const idMenuWidget_DynamicList * const >( GetParent() );
 		if ( list != NULL ) {
 			float percent = 0.0f;
 			if ( ( list->GetTotalNumberOfOptions() - list->GetNumVisibleOptions() ) > 0 ) {
@@ -78,7 +80,7 @@ void idMenuWidget_ScrollBar::Update() {
 			}
 		}
 
-		idMenuWidget_InfoBox * const infoBox = dynamic_cast< idMenuWidget_InfoBox * const >( GetParent() );
+		idMenuWidget_InfoBox * const infoBox = ps2::CheckedCast< idMenuWidget_InfoBox * const >( GetParent() );
 		if ( infoBox != NULL ) {
 			float percent = 0.0f;
 			if ( infoBox->GetMaxScroll() == 0 ) {
@@ -153,7 +155,7 @@ void idMenuWidget_ScrollBar::CalculatePosition( float x, float y ) {
 			node->SetYPos( percent * range );
 		}
 
-		idMenuWidget_DynamicList * const list = dynamic_cast< idMenuWidget_DynamicList * const >( GetParent() );
+		idMenuWidget_DynamicList * const list = ps2::CheckedCast< idMenuWidget_DynamicList * const >( GetParent() );
 		if ( list != NULL ) {
 			float maxScroll = list->GetTotalNumberOfOptions() - list->GetNumVisibleOptions();
 			int offset = list->GetViewOffset();
@@ -188,7 +190,7 @@ void idMenuWidget_ScrollBar::CalculatePosition( float x, float y ) {
 			}
 		}
 
-		idMenuWidget_InfoBox * const infoBox = dynamic_cast< idMenuWidget_InfoBox * const >( GetParent() );
+		idMenuWidget_InfoBox * const infoBox = ps2::CheckedCast< idMenuWidget_InfoBox * const >( GetParent() );
 		if ( infoBox != NULL ) {
 			float maxScroll = infoBox->GetMaxScroll();
 			int scroll = infoBox->GetScroll();

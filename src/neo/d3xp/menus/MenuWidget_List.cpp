@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 /*
@@ -336,7 +338,7 @@ bool idMenuWidget_GameBrowserList::PrepareListElement( idMenuWidget & widget, co
 		return false;
 	}
 
-	idMenuWidget_ServerButton * const button = dynamic_cast< idMenuWidget_ServerButton * >( &widget );
+	idMenuWidget_ServerButton * const button = ps2::CheckedCast< idMenuWidget_ServerButton * >( &widget );
 	if ( button == NULL ) {
 		return false;
 	}

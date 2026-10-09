@@ -28,6 +28,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #pragma hdrstop
 #include "../idlib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 
 #include "RegExp.h"
 #include "DeviceContext.h"
@@ -116,7 +118,7 @@ void idRegister::GetFromRegs( float *registers ) {
 	
 	switch( type ) {
 		case VEC4: {
-			*dynamic_cast<idWinVec4*>(var) = v;
+			*ps2::CheckedCast<idWinVec4*>(var) = v;
 			break;
 		}
 		case RECTANGLE: {

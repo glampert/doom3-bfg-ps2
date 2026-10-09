@@ -28,6 +28,9 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __MENUDATA_H__
 #define __MENUDATA_H__
 
+// [PS2_D3BFG]: Portable checked casts retain null failure and const-qualified pointers.
+#include "ps2/type_query.h"
+
 enum shellAreas_t {
 	SHELL_AREA_INVALID = -1,
 	SHELL_AREA_START,
@@ -222,6 +225,8 @@ idMenuHandler
 */
 class idMenuHandler {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_ROOT( idMenuHandler )
 							idMenuHandler();
 	virtual					~idMenuHandler();
 	virtual void			Initialize( const char * swfFile, idSoundWorld * sw );
@@ -293,6 +298,8 @@ idMenuHandler_Shell
 */
 class idMenuHandler_Shell : public idMenuHandler {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuHandler_Shell, idMenuHandler )
 	idMenuHandler_Shell() : 
 		state( SHELL_STATE_INVALID ),
 		nextState( SHELL_STATE_INVALID ),
@@ -400,6 +407,8 @@ idMenuHandler_PDA
 */
 class idMenuHandler_PDA : public idMenuHandler {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuHandler_PDA, idMenuHandler )
 	idMenuHandler_PDA() : 
 		audioLogPlaying( false ),
 		videoPlaying( false ),
@@ -440,6 +449,8 @@ idMenuHandler_PDA
 */
 class idMenuHandler_HUD : public idMenuHandler {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuHandler_HUD, idMenuHandler )
 
 	idMenuHandler_HUD() :
 		autoHideTip( true ),
@@ -474,6 +485,8 @@ idMenuHandler_Scoreboard
 */
 class idMenuHandler_Scoreboard : public idMenuHandler {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idMenuHandler_Scoreboard, idMenuHandler )
 
 	idMenuHandler_Scoreboard() :
 		redScore( 0 ),

@@ -6,10 +6,12 @@
 
 #include "tests/smoketests/heap_tests.h"
 #include "tests/smoketests/class_alloc_tests.h"
+#include "tests/smoketests/type_query_tests.h"
 
 int main()
 {
     const bool heapPassed = ps2::smoketests::RunHeapTests();
     const bool classPassed = ps2::smoketests::RunClassAllocTests();
-    return heapPassed && classPassed ? 0 : 1;
+    const bool typesPassed = ps2::smoketests::RunTypeQueryTests();
+    return heapPassed && classPassed && typesPassed ? 0 : 1;
 }

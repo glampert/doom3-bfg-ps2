@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 static const int MAX_AUDIO_ITEMS = 3;
@@ -102,7 +104,7 @@ void idMenuWidget_PDA_AudioFiles::Update() {
 			txtOwner->SetText( ownerText.c_str() );
 		}
 
-		idMenuWidget_DynamicList * const audioList = dynamic_cast< idMenuWidget_DynamicList * >( &GetChildByIndex( 0 ) );
+		idMenuWidget_DynamicList * const audioList = ps2::CheckedCast< idMenuWidget_DynamicList * >( &GetChildByIndex( 0 ) );
 		if ( audioList != NULL ) {
 			audioFileNames.Clear();
 			if ( pda->GetNumAudios() == 0 ) {
@@ -141,7 +143,7 @@ idMenuWidget_PDA_AudioFiles::ObserveEvent
 ========================
 */
 void idMenuWidget_PDA_AudioFiles::ObserveEvent( const idMenuWidget & widget, const idWidgetEvent & event ) {
-	const idMenuWidget_Button * const button = dynamic_cast< const idMenuWidget_Button * >( &widget );
+	const idMenuWidget_Button * const button = ps2::CheckedCast< const idMenuWidget_Button * >( &widget );
 	if ( button == NULL ) {
 		return;
 	}
@@ -154,7 +156,7 @@ void idMenuWidget_PDA_AudioFiles::ObserveEvent( const idMenuWidget & widget, con
 
 	switch ( event.type ) {
 		case WIDGET_EVENT_FOCUS_ON: {
-			const idMenuWidget_DynamicList * const list = dynamic_cast< const idMenuWidget_DynamicList * const >( listWidget );
+			const idMenuWidget_DynamicList * const list = ps2::CheckedCast< const idMenuWidget_DynamicList * const >( listWidget );
 			if ( GetSprite() != NULL ) {
 				if ( list->GetViewIndex() == 0 ) {
 					GetSprite()->PlayFrame( "rollOff" );
@@ -168,7 +170,7 @@ void idMenuWidget_PDA_AudioFiles::ObserveEvent( const idMenuWidget & widget, con
 			} else {
 				Update();
 			}
-			idMenuWidget_DynamicList * const audioList = dynamic_cast< idMenuWidget_DynamicList * >( &GetChildByIndex( 0 ) );
+			idMenuWidget_DynamicList * const audioList = ps2::CheckedCast< idMenuWidget_DynamicList * >( &GetChildByIndex( 0 ) );
 			if ( audioList != NULL ) {
 				audioList->SetFocusIndex( 0 );
 				audioList->SetViewIndex( 0 );
@@ -176,7 +178,7 @@ void idMenuWidget_PDA_AudioFiles::ObserveEvent( const idMenuWidget & widget, con
 			break;
 		}
 		case WIDGET_EVENT_FOCUS_OFF: {
-			idMenuWidget_DynamicList * const audioList = dynamic_cast< idMenuWidget_DynamicList * >( &GetChildByIndex( 0 ) );
+			idMenuWidget_DynamicList * const audioList = ps2::CheckedCast< idMenuWidget_DynamicList * >( &GetChildByIndex( 0 ) );
 			if ( audioList != NULL ) {
 				audioList->SetFocusIndex( 0 );
 				audioList->SetViewIndex( 0 );

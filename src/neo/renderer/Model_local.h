@@ -42,6 +42,8 @@ struct deformInfo_t;
 
 class idRenderModelStatic : public idRenderModel {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelStatic, idRenderModel )
 	// the inherited public interface
 	static idRenderModel *		Alloc();
 
@@ -181,6 +183,8 @@ private:
 
 class idRenderModelMD5 : public idRenderModelStatic {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelMD5, idRenderModelStatic )
 	virtual void				InitFromFile( const char *fileName );
 	virtual bool				LoadBinaryModel( idFile * file, const ID_TIME_T sourceTimeStamp );
 	virtual void				WriteBinaryModel( idFile * file, ID_TIME_T *_timeStamp = NULL ) const;
@@ -225,6 +229,8 @@ struct md3Surface_s;
 
 class idRenderModelMD3 : public idRenderModelStatic {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelMD3, idRenderModelStatic )
 	virtual void				InitFromFile( const char *fileName );
 	virtual bool				SupportsBinaryModel() { return false; }
 	virtual dynamicModel_t		IsDynamicModel() const;
@@ -250,6 +256,8 @@ private:
 
 class idRenderModelLiquid : public idRenderModelStatic {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelLiquid, idRenderModelStatic )
 								idRenderModelLiquid();
 
 	virtual void				InitFromFile( const char *fileName );
@@ -306,6 +314,8 @@ private:
 
 class idRenderModelPrt : public idRenderModelStatic {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelPrt, idRenderModelStatic )
 								idRenderModelPrt();
 
 	virtual void				InitFromFile( const char *fileName );
@@ -337,6 +347,8 @@ private:
 
 class idRenderModelBeam : public idRenderModelStatic {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelBeam, idRenderModelStatic )
 	virtual dynamicModel_t		IsDynamicModel() const;
 	virtual bool				SupportsBinaryModel() { return false; }
 	virtual bool				IsLoaded() const;
@@ -373,6 +385,8 @@ class idRenderModelTrail : public idRenderModelStatic {
 	idBounds					trailBounds;
 
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelTrail, idRenderModelStatic )
 								idRenderModelTrail();
 
 	virtual dynamicModel_t		IsDynamicModel() const;
@@ -402,6 +416,8 @@ public:
 
 class idRenderModelLightning : public idRenderModelStatic {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelLightning, idRenderModelStatic )
 	virtual dynamicModel_t		IsDynamicModel() const;
 	virtual bool				SupportsBinaryModel() { return false; }
 	virtual bool				IsLoaded() const;
@@ -424,6 +440,8 @@ public:
 */
 class idRenderModelSprite : public idRenderModelStatic {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idRenderModelSprite, idRenderModelStatic )
 	virtual	dynamicModel_t		IsDynamicModel() const;
 	virtual bool				SupportsBinaryModel() { return false; }
 	virtual	bool				IsLoaded() const;

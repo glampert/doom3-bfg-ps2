@@ -29,6 +29,9 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __WINVAR_H__
 #define __WINVAR_H__
 
+// [PS2_D3BFG]: Portable checked casts retain null failure and const-qualified pointers.
+#include "ps2/type_query.h"
+
 #include "Rectangle.h"
 
 static const char *VAR_GUIPREFIX = "gui::";
@@ -37,6 +40,8 @@ static const int VAR_GUIPREFIX_LEN = strlen(VAR_GUIPREFIX);
 class idWindow;
 class idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_ROOT( idWinVar )
 	idWinVar();
 	virtual ~idWinVar();
 
@@ -94,6 +99,8 @@ protected:
 
 class idWinBool : public idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinBool, idWinVar )
 	idWinBool() : idWinVar() {};
 	~idWinBool() {};
 	virtual void Init(const char *_name, idWindow *win) { idWinVar::Init(_name, win);
@@ -151,6 +158,8 @@ protected:
 
 class idWinStr : public idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinStr, idWinVar )
 	idWinStr() : idWinVar() {};
 	~idWinStr() {};
 	virtual void Init(const char *_name, idWindow *win) {
@@ -259,6 +268,8 @@ protected:
 
 class idWinInt : public idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinInt, idWinVar )
 	idWinInt() : idWinVar() {};
 	~idWinInt() {};
 	virtual void Init(const char *_name, idWindow *win) {
@@ -318,6 +329,8 @@ protected:
 
 class idWinFloat : public idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinFloat, idWinVar )
 	idWinFloat() : idWinVar() {};
 	~idWinFloat() {};
 	virtual void Init(const char *_name, idWindow *win) {
@@ -373,6 +386,8 @@ protected:
 
 class idWinRectangle : public idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinRectangle, idWinVar )
 	idWinRectangle() : idWinVar() {};
 	~idWinRectangle() {};
 	virtual void Init(const char *_name, idWindow *win) {
@@ -480,6 +495,8 @@ protected:
 
 class idWinVec2 : public idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinVec2, idWinVar )
 	idWinVec2() : idWinVar() {};
 	~idWinVec2() {};
 	virtual void Init(const char *_name, idWindow *win) {
@@ -551,6 +568,8 @@ protected:
 
 class idWinVec4 : public idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinVec4, idWinVar )
 	idWinVec4() : idWinVar() {};
 	~idWinVec4() {};
 	virtual void Init(const char *_name, idWindow *win) {
@@ -639,6 +658,8 @@ protected:
 
 class idWinVec3 : public idWinVar {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinVec3, idWinVar )
 	idWinVec3() : idWinVar() {};
 	~idWinVec3() {};
 	virtual void Init(const char *_name, idWindow *win) {
@@ -716,6 +737,8 @@ protected:
 
 class idWinBackground : public idWinStr {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_DERIVED( idWinBackground, idWinStr )
 	idWinBackground() : idWinStr() {
 		mat = NULL;
 	};

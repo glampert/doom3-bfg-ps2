@@ -28,6 +28,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #pragma hdrstop
 #include "../idlib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 
 #include "Model_local.h"
 #include "tr_local.h"	// just for R_FreeWorldInteractions and R_CreateWorldInteractions
@@ -398,7 +400,7 @@ void idRenderModelManagerLocal::FreeModel( idRenderModel *model ) {
 	if ( !model ) {
 		return;
 	}
-	if ( !dynamic_cast<idRenderModelStatic *>( model ) ) {
+	if ( !ps2::CheckedCast<idRenderModelStatic *>( model ) ) {
 		common->Error( "idRenderModelManager::FreeModel: model '%s' is not a static model", model->Name() );
 		return;
 	}

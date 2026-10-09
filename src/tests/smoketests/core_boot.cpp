@@ -7,6 +7,7 @@
 #include "ps2/system/log.h"
 
 #include "tests/smoketests/core_boot.h"
+#include "tests/smoketests/type_query_tests.h"
 #include "tests/smoketests/class_alloc_tests.h"
 #include "tests/smoketests/heap_tests.h"
 #include "tests/smoketests/idlib_tests.h"
@@ -150,6 +151,8 @@ bool RunCoreTests(const char * fixturePath)
     passed = CheckFixture(fixturePath) && passed;
     passed = CheckMissingAndEscapingPaths() && passed;
     passed = RunIdlibTests() && passed;
+    passed = RunTypeQueryTests() && passed;
+    passed = RunEngineTypeQueryTests() && passed;
     core::PrintMemory("tested-core");
     core::Shutdown();
     const heap::Stats afterShutdown = heap::GetTotalStats();

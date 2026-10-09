@@ -29,6 +29,9 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __MODEL_H__
 #define __MODEL_H__
 
+// [PS2_D3BFG]: Portable checked casts retain null failure and const-qualified pointers.
+#include "ps2/type_query.h"
+
 /*
 ===============================================================================
 
@@ -152,6 +155,8 @@ public:
 
 class idRenderModel {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_ROOT( idRenderModel )
 	virtual						~idRenderModel() {};
 
 	// Loads static models only, dynamic models must be loaded by the modelManager

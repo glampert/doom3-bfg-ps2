@@ -74,6 +74,9 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
+	tests/smoketests/type_query_tests.cpp \
+	tests/smoketests/type_query_bridge.cpp \
+	tests/smoketests/type_query_engine_tests.cpp \
 	tests/smoketests/class_alloc_tests.cpp \
 	tests/smoketests/core_boot.cpp \
 	tests/smoketests/idlib_tests.cpp \
