@@ -47,7 +47,16 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 43 Python regressions.
+  The complete host suite currently has 47 Python regressions, including real JPEG
+  and filesystem sanitizer fixtures.
+
+- Core smoke now also requires six filesystem-service markers. The runner stages
+  authored directory/text/70 KiB binary fixtures and archives their hashes even in
+  the missing-main-fixture scenario. Checks exercise real permanent streams, memory
+  bounds and cursor/EOF, directory/extension filters, device/path rejection, write/
+  append/short reads, parent directories and native driver errors, and ZIP timestamps.
+  Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
+  the test verifies error propagation and side effects, not successful driver removal.
 
 ## Quake II reference procedures
 

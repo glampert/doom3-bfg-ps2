@@ -348,6 +348,8 @@ idKeyInput::LocalizedKeyName
 ========================
 */
 const char * idKeyInput::LocalizedKeyName( keyNum_t keynum ) {
+	// [PS2_D3BFG]: Console bindings use the existing engine label table; input-driver layout mapping is later work.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	if ( keynum < K_JOY1 ) {
 		// On the PC, we want to turn the scan code in to a key label that matches the currently selected keyboard layout
 		unsigned char keystate[256] = { 0 };
@@ -366,6 +368,7 @@ const char * idKeyInput::LocalizedKeyName( keyNum_t keynum ) {
 			return bindStr;
 		}
 	}
+#endif
 
 	// check for a key string
 	for ( keyname_t * kn = keynames; kn->name; kn++ ) {

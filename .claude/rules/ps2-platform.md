@@ -9,6 +9,34 @@ The dlmalloc wrapper pins 4 KiB pages and checks the `size_t`/`ptrdiff_t` sbrk b
 There is no storage-driver bring-up or custom EE exception handler yet. Recorded
 results and limits are in [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
+The filesystem slice verifies streaming reads (including an authored 70 KiB file),
+directory enumeration/stat, mkdir/rmdir and write/append on the preserved HostFs.
+`sbv_patch_fileio()` runs once after SIF initialization, without an IOP reset. Its
+FILEIO 1.01 fix covers remove fallthrough and getstat/dread interrupt protection;
+removal fails with `ENOSYS` before/without that patch. ps2sdk's default fio path-ops
+table has no rename callback, so libc rename returns `ENOSYS`. Keep that failure
+instead of substituting non-atomic copy/delete.
+
+PCSX2 2.6.3 removal of an authored file returned `-1`/`ENODEV` even though the file
+was removed and no same-named directory remained. Keep the real result observable;
+this is not successful removal acceptance on hardware. Inference: its
+[remove HLE](https://github.com/PCSX2/pcsx2/blob/v2.6.3/pcsx2/IopBios.cpp#L767)
+returns 0 after handling a host path, unlike mkdir/rmdir, consistent with a later IOP
+fallback overriding the result. The regression requires this exact error plus absence
+of both file and directory. Do not generalize this behavior to other drivers.
+
+Portable paths are bounded to 256 bytes, retain forward slashes and recognize device
+prefixes. Logical paths reject absolute/device names and dot components; they do not
+perform case-folded OS lookups or resolve symlink targets. Directory lists exclude
+symlinks. Host ZIP dates encode stat time as UTC at two-second resolution, clamped to
+1980..2107. EE ZIP dates are explicitly fixed to 1980-01-01 until driver timestamps
+are validated; absent stat still fails. SDK `io_to_posix_time` expects a two-byte full
+year and does not initialize all `tm` fields; PCSX2's
+[host stat conversion](https://github.com/PCSX2/pcsx2/blob/v2.6.3/pcsx2/IopBios.cpp#L183)
+writes `tm_year` into one byte. Do not infer wall-clock accuracy from successful stat
+or the current `Sys_FileTimeStamp` bridge. Validate the storage/time policy before
+using timestamps for cache invalidation or save metadata.
+
 GCC can eliminate a direct `calloc`/`free` test pair, including an `errno` observation.
 The overflow regression calls through a volatile function pointer; check the generated
 EE assembly when testing allocation side effects.

@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/system/core.h"
+#include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
@@ -39,33 +40,7 @@ bool FixturePath(const char * input, char * output, size_t capacity)
     }
     const char * relative = idStr::Cmpn(input, "host:", 5) == 0 ? input + 5 : input;
     const size_t length = strlen(relative);
-    if (length == 0 || length >= MAX_OSPATH - 5 || relative[0] == '/')
-    {
-        return false;
-    }
-    const char * component = relative;
-    for (const char * cursor = relative;; ++cursor)
-    {
-        const char letter = *cursor;
-        if (letter == '/' || letter == '\0')
-        {
-            const size_t componentLength = static_cast<size_t>(cursor - component);
-            if (componentLength == 0 || (componentLength == 1 && component[0] == '.') ||
-                (componentLength == 2 && component[0] == '.' && component[1] == '.'))
-            {
-                return false;
-            }
-            if (letter == '\0')
-            {
-                break;
-            }
-            component = cursor + 1;
-        }
-        else if (letter < ' ' || letter > '~' || letter == ':' || letter == '\\')
-        {
-            return false;
-        }
-    }
+    if (length >= MAX_OSPATH - 5 || !ps2::filesystem::IsRelativePath(relative)) { return false; }
 #if defined(ID_HOST_TEST)
     const int written = idStr::snPrintf(output, static_cast<int>(capacity), "%s", relative);
 #else
@@ -116,18 +91,13 @@ public:
         {
             return -1;
         }
-        FILE * file = fopen(normalized, "rb");
+        FILE * file = ps2::filesystem::Open(normalized, ps2::filesystem::OpenMode::Read);
         if (file == nullptr)
         {
             return -1;
         }
-        if (fseek(file, 0, SEEK_END) != 0)
-        {
-            fclose(file);
-            return -1;
-        }
-        const long length = ftell(file);
-        if (length < 0 || static_cast<size_t>(length) > kFixtureLimit || fseek(file, 0, SEEK_SET) != 0)
+        const int length = ps2::filesystem::FileLength(file);
+        if (length < 0 || (buffer != nullptr && static_cast<size_t>(length) > kFixtureLimit))
         {
             fclose(file);
             return -1;
@@ -142,8 +112,7 @@ public:
                 fclose(file);
                 return -1;
             }
-            const size_t read = fread(data, 1, static_cast<size_t>(length), file);
-            if (read != static_cast<size_t>(length) || ferror(file) != 0)
+            if (!ps2::filesystem::ReadExact(file, data, static_cast<size_t>(length)))
             {
                 ps2::heap::Free(data);
                 fclose(file);
@@ -173,6 +142,13 @@ public:
 
     idFile * OpenFileRead(const char * path, bool, const char *) override
     {
+        char normalized[MAX_OSPATH] = {};
+        if (!m_initialized || !FixturePath(path, normalized, sizeof(normalized))) { return nullptr; }
+        return idFile_Permanent::OpenPortableRead(path, normalized);
+    }
+
+    idFile * OpenFileReadMemory(const char * path, bool, const char *) override
+    {
         void * data = nullptr;
         ID_TIME_T timestamp = FILE_NOT_FOUND_TIMESTAMP;
         const int length = ReadFile(path, &data, &timestamp);
@@ -181,11 +157,6 @@ public:
             return nullptr;
         }
         return new CoreReadFile(path, data, length, timestamp);
-    }
-
-    idFile * OpenFileReadMemory(const char * path, bool allowCopyFiles, const char * gameDir) override
-    {
-        return OpenFileRead(path, allowCopyFiles, gameDir);
     }
 
     idFile * OpenExplicitFileRead(const char * path) override
@@ -284,6 +255,7 @@ public:
         }
         m_everInitialized = true;
         Sys_Init();
+        ps2::filesystem::Init();
         idLib::sys = sys;
         idLib::common = this;
         idLib::cvarSystem = cvarSystem;

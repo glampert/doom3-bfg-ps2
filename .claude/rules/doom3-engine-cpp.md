@@ -39,6 +39,10 @@ math path; PS2-specific math replacement headers are a later milestone.
   and ledger recovery after scope exit.
 - `idFile_Memory::Seek(distance, FS_SEEK_END)` subtracts a positive distance from the
   end, unlike stdio's signed offset. Preserve this existing API in memory-file tests.
+  The foundation's ordinary opens now return permanent streams; explicitly request
+  `OpenFileReadMemory` for memory-file semantics. Metadata/stream opens do not inherit
+  the fixture bulk-read size limit. Campaign bulk reads reject negative/overflow lengths
+  and short reads before publishing ownership or incrementing their load ledger.
   Cvar direct commands enforce ROM/INIT flags; `set` and programmatic setters explicitly
   force writes. Test both paths instead of treating the forced setter as a restriction.
 

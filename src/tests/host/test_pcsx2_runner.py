@@ -48,6 +48,11 @@ class ClassifierTests(unittest.TestCase):
         self.assertTrue(runner.classify_run("run1", "core", complete_result(core="PASS"),
                                            complete_log(core="PASS"), None, False)[0])
 
+    def test_missing_filesystem_service_check_rejected(self):
+        log = complete_log(core="PASS").replace("[D3BFG] CHECK core/filesystem-directory-filters PASS\n", "")
+        self.assertEqual(runner.classify_run("run1", "core", complete_result(core="PASS"), log, None, False),
+                         (False, "missing core checks"))
+
     def test_expected_missing_fixture_failure(self):
         self.assertEqual(runner.classify_run("run1", "core-missing-fixture", complete_result(core="FAIL"),
                                             complete_log(core="FAIL", status="FAIL"), None, False),
@@ -200,6 +205,13 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual((output / "smoke.cfg").read_text(), "set ps2_smoke_config 37\nps2_smoke_command 77\n")
         self.assertEqual(json.loads((output / "run.json").read_text())["smoke_config_sha256"], runner.sha256(output / "smoke.cfg"))
         self.assertEqual(json.loads((output / "summary.json").read_text())["reason"], "expected failure observed")
+        metadata = json.loads((output / "run.json").read_text())
+        self.assertEqual((output / "fs-fixtures/large.bin").read_bytes(), b"Z" * 71680)
+        self.assertTrue((output / "fs-fixtures/child").is_dir())
+        self.assertEqual(metadata["filesystem_fixture_sha256"], {
+            name: runner.sha256(output / name)
+            for name in ("fs-fixtures/large.bin", "fs-fixtures/mixed.TxT")
+        })
 
     def test_disabled_hostfs_rejected_without_edit(self):
         self.config.write_text("[EmuCore]\nHostFs = false\n")

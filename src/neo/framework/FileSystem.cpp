@@ -29,6 +29,14 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 #pragma hdrstop
 
+// [PS2_D3BFG]: Share bounded paths and synchronous libc services with the target probes.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/system/filesystem.h"
+#include <errno.h>
+#endif
+// [PS2_D3BFG]: Length validation also protects len+1 on desktop builds.
+#include <limits.h>
+
 #include "Unzip.h"
 #include "Zip.h"
 
@@ -414,6 +422,13 @@ idFileSystemLocal::OpenOSFile
 ================
 */
 idFileHandle idFileSystemLocal::OpenOSFile( const char *fileName, fsMode_t mode ) {
+	// [PS2_D3BFG]: Portable handles are stdio streams, with actual open/append errors.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( mode == FS_READ ) { return ps2::filesystem::Open( fileName, ps2::filesystem::OpenMode::Read ); }
+	if ( mode == FS_WRITE ) { return ps2::filesystem::Open( fileName, ps2::filesystem::OpenMode::Write ); }
+	if ( mode == FS_APPEND ) { return ps2::filesystem::Open( fileName, ps2::filesystem::OpenMode::Append ); }
+	return NULL;
+#else
 	idFileHandle fp;
 
 
@@ -444,6 +459,7 @@ idFileHandle idFileSystemLocal::OpenOSFile( const char *fileName, fsMode_t mode 
 		return NULL;
 				}
 	return fp;
+#endif
 }
 
 /*
@@ -452,7 +468,12 @@ idFileSystemLocal::CloseOSFile
 ================
 */
 void idFileSystemLocal::CloseOSFile( idFileHandle o ) {
+	// [PS2_D3BFG]: Preserve close failures in diagnostics; callers cannot recover through this void ABI.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( o != NULL && fclose( o ) != 0 ) { common->Warning( "CloseOSFile failed: %d", errno ); }
+#else
 	::CloseHandle( o );
+#endif
 }
 
 /*
@@ -461,7 +482,12 @@ idFileSystemLocal::DirectFileLength
 ================
 */
 int idFileSystemLocal::DirectFileLength( idFileHandle o ) {
+	// [PS2_D3BFG]: Reject oversized files and preserve the stream cursor.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return ps2::filesystem::FileLength( o );
+#else
 	return GetFileSize( o, NULL );
+#endif
 }
 
 /*
@@ -472,6 +498,12 @@ Creates any directories needed to store the given filename
 ============
 */
 void idFileSystemLocal::CreateOSPath( const char *OSPath ) {
+	// [PS2_D3BFG]: Forward-slash device paths need bounded parent creation, not Windows conversion.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::CreateParents( OSPath ) ) {
+		common->Warning( "CreateOSPath(%s) failed: %d", OSPath != NULL ? OSPath : "(null)", errno );
+	}
+#else
 	char	*ofs;
 	
 	// make absolutely sure that it can't back up the path
@@ -493,6 +525,7 @@ void idFileSystemLocal::CreateOSPath( const char *OSPath ) {
 			*ofs = PATHSEPARATOR_CHAR;
 		}
 	}
+#endif
 }
 
 /*
@@ -1393,6 +1426,10 @@ IsOSPath
 ========================
 */
 static bool IsOSPath( const char * path ) {
+	// [PS2_D3BFG]: Recognize console device prefixes, including host:.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return ps2::filesystem::IsOSPath( path );
+#else
 	assert( path );
 
 	if ( idStr::Icmpn( path, "mtp:", 4 ) == 0 ) {
@@ -1413,6 +1450,7 @@ static bool IsOSPath( const char * path ) {
 		}
 	}
 	return false;
+#endif
 }
 
 /*
@@ -1421,10 +1459,13 @@ idFileSystemLocal::BuildOSPath
 ========================
 */
 const char * idFileSystemLocal::BuildOSPath( const char * base, const char * relativePath ) {
+	// [PS2_D3BFG]: Validate explicit paths in the same bounded overload.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	// handle case of this already being an OS path
 	if ( IsOSPath( relativePath ) ) {
 		return relativePath;
 	}
+#endif
 
 	return BuildOSPath( base, gameFolder, relativePath );
 }
@@ -1435,6 +1476,17 @@ idFileSystemLocal::BuildOSPath
 ===================
 */
 const char *idFileSystemLocal::BuildOSPath( const char *base, const char *game, const char *relativePath ) {
+	// [PS2_D3BFG]: Never publish a truncated path, or let a logical component escape its root.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	static char OSPath[MAX_OSPATH];
+	if ( IsOSPath( relativePath ) ) {
+		if ( ps2::filesystem::IsValidPath( relativePath ) ) { return relativePath; }
+	} else if ( ps2::filesystem::BuildPath( OSPath, sizeof( OSPath ), base, game, relativePath ) ) {
+		return OSPath;
+	}
+	common->FatalError( "BuildOSPath: invalid or oversized path" );
+	return "";
+#else
 	static char OSPath[MAX_STRING_CHARS];
 	idStr newPath;
 
@@ -1450,6 +1502,7 @@ const char *idFileSystemLocal::BuildOSPath( const char *base, const char *game, 
 	ReplaceSeparators( newPath );
 	idStr::Copynz( OSPath, newPath, sizeof( OSPath ) );
 	return OSPath;
+#endif
 }
 
 /*
@@ -1465,6 +1518,10 @@ search paths.
 ================
 */
 const char *idFileSystemLocal::OSPathToRelativePath( const char *OSPath ) {
+	// [PS2_D3BFG]: Bound the legacy component scan and reject traversal before conversion.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::IsValidPath( OSPath ) ) { return ""; }
+#endif
 	if ( ( OSPath[0] != '/' ) && ( OSPath[0] != '\\' ) && ( idStr::FindChar( OSPath, ':' ) < 0 ) ) {
 		// No colon and it doesn't start with a slash... it must already be a relative path
 		return OSPath;
@@ -1546,15 +1603,29 @@ idFileSystemLocal::RemoveFile
 =================
 */
 void idFileSystemLocal::RemoveFile( const char *relativePath ) {
+	// [PS2_D3BFG]: Mutating logical paths cannot select a device or an absolute path.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return; }
+#endif
 	idStr OSPath;
 
 	if ( fs_basepath.GetString()[0] ) {
 		OSPath = BuildOSPath( fs_basepath.GetString(), gameFolder, relativePath );
+		// [PS2_D3BFG]: Report the current driver's checked removal capability.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		if ( !ps2::filesystem::Remove( OSPath ) ) { common->Warning( "RemoveFile(%s) failed: %d", OSPath.c_str(), errno ); }
+#else
 		::DeleteFile( OSPath );
+#endif
 	}
 
 	OSPath = BuildOSPath( fs_savepath.GetString(), gameFolder, relativePath );
+	// [PS2_D3BFG]: ROM FILEIO removal fails explicitly if its patch was unavailable.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::Remove( OSPath ) ) { common->Warning( "RemoveFile(%s) failed: %d", OSPath.c_str(), errno ); }
+#else
 	::DeleteFile( OSPath );
+#endif
 }
 
 /*
@@ -1563,6 +1634,10 @@ idFileSystemLocal::RemoveDir
 ========================
 */
 bool idFileSystemLocal::RemoveDir( const char * relativePath ) {
+	// [PS2_D3BFG]: Keep removal inside the configured logical root.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return false; }
+#endif
 	bool success = true;
 	if ( fs_savepath.GetString()[0] ) {
 		success &= Sys_Rmdir( BuildOSPath( fs_savepath.GetString(), relativePath ) );
@@ -1619,30 +1694,32 @@ int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIM
 
 	// if this is a .cfg file and we are playing back a journal, read
 	// it from the journal file
-	if ( strstr( relativePath, ".cfg" ) == relativePath + strlen( relativePath ) - 4 ) {
+	// [PS2_D3BFG]: Short filenames must not form a pointer before the string.
+	if ( strlen( relativePath ) >= 4 && strcmp( relativePath + strlen( relativePath ) - 4, ".cfg" ) == 0 ) {
 		isConfig = true;
 		if ( eventLoop && eventLoop->JournalLevel() == 2 ) {
 			int		r;
 
-			loadCount++;
-			loadStack++;
-
 			common->DPrintf( "Loading %s from journal file.\n", relativePath );
 			len = 0;
 			r = eventLoop->com_journalDataFile->Read( &len, sizeof( len ) );
-			if ( r != sizeof( len ) ) {
-				*buffer = NULL;
+			// [PS2_D3BFG]: Reject corrupt lengths before allocation; metadata-only reads still consume the record.
+			if ( r != sizeof( len ) || len < 0 || len == INT_MAX ) {
 				return -1;
 			}
 			buf = (byte *)Mem_ClearedAlloc(len+1, TAG_IDFILE);
-			*buffer = buf;
 			r = eventLoop->com_journalDataFile->Read( buf, len );
 			if ( r != len ) {
+				// [PS2_D3BFG]: Never publish a partial buffer or leak it through a fatal journal diagnostic.
+				Mem_Free( buf );
 				common->FatalError( "Read from journalDataFile failed" );
 			}
 
 			// guarantee that it will have a trailing 0 for string operations
 			buf[len] = 0;
+			// [PS2_D3BFG]: Count only buffers handed to a caller that can FreeFile them.
+			if ( buffer != NULL ) { *buffer = buf; loadCount++; loadStack++; }
+			else { Mem_Free( buf ); }
 
 			return len;
 		}
@@ -1659,6 +1736,8 @@ int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIM
 		return -1;
 	}
 	len = f->Length();
+	// [PS2_D3BFG]: Signed lengths and len+1 must be representable before allocation.
+	if ( len < 0 || len == INT_MAX ) { CloseFile( f ); return -1; }
 
 	if ( timestamp ) {
 		*timestamp = f->Timestamp();
@@ -1669,17 +1748,22 @@ int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIM
 		return len;
 	}
 
-	loadCount++;
-	loadStack++;
-
 	buf = (byte *)Mem_ClearedAlloc(len+1, TAG_IDFILE);
-	*buffer = buf;
-
-	f->Read( buf, len );
+	// [PS2_D3BFG]: A truncated read is failure, not zero-filled successful data.
+	if ( f->Read( buf, len ) != len ) {
+		Mem_Free( buf );
+		CloseFile( f );
+		if ( timestamp ) { *timestamp = FILE_NOT_FOUND_TIMESTAMP; }
+		return -1;
+	}
 
 	// guarantee that it will have a trailing 0 for string operations
 	buf[len] = 0;
 	CloseFile( f );
+	// [PS2_D3BFG]: Publish ownership and update the ledger only after the complete read.
+	*buffer = buf;
+	loadCount++;
+	loadStack++;
 
 	// if we are journalling and it is a config file, write it to the journal file
 	if ( isConfig && eventLoop && eventLoop->JournalLevel() == 1 ) {
@@ -1746,6 +1830,10 @@ idFileSystemLocal::RenameFile
 ========================
 */
 bool idFileSystemLocal::RenameFile( const char * relativePath, const char * newName, const char * basePath ) {
+	// [PS2_D3BFG]: Rename uses logical paths; driver ENOSYS is a failure, never a copy/delete fallback.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::IsRelativePath( relativePath ) || !ps2::filesystem::IsRelativePath( newName ) ) { return false; }
+#endif
 	const char * path = cvarSystem->GetCVarString( basePath );
 	if ( !path[0] ) {
 		path = fs_savepath.GetString();
@@ -1757,10 +1845,19 @@ bool idFileSystemLocal::RenameFile( const char * relativePath, const char * newN
 	// this gives atomic-delete-on-rename, like POSIX rename()
 	// There is a MoveFileTransacted() on vista and above, not sure if that means there
 	// is a race condition inside MoveFileEx...
+	// [PS2_D3BFG]: Preserve the native atomic rename result where the driver supports it.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	const bool success = ps2::filesystem::Rename( oldOSPath.c_str(), newOSPath.c_str() );
+	const int err = errno;
+#else
 	const bool success = ( MoveFileEx( oldOSPath.c_str(), newOSPath.c_str(), MOVEFILE_REPLACE_EXISTING ) != 0 );
+#endif
 
 	if ( !success ) {
+		// [PS2_D3BFG]: errno was captured before any logging on the portable path.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 		const int err = GetLastError();
+#endif
 		idLib::Warning( "RenameFile( %s, %s ) error %i", newOSPath.c_str(), oldOSPath.c_str(), err );
 	}
 	return success;
@@ -1827,6 +1924,10 @@ int idFileSystemLocal::GetFileList( const char *relativePath, const idStrList &e
 	if ( !relativePath ) {
 		return 0;
 	}
+	// [PS2_D3BFG]: Empty means the root; directory traversal/device paths are invalid logical listings.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::IsRelativePath( relativePath, true ) ) { return 0; }
+#endif
 
 	int pathLength = strlen( relativePath );
 	if ( pathLength ) {
@@ -2266,12 +2367,18 @@ Generates a CRC checksum file for each .resources file.
 void idFileSystemLocal::GenerateResourceCRCs_f( const idCmdArgs &args ) {
 	idLib::Printf( "Generating CRCs for resource files...\n" );
 
-	std::auto_ptr<idFileList> baseResourceFileList( fileSystem->ListFiles( ".", ".resources" ) );
+	// [PS2_D3BFG]: Use C++20 ownership and an empty logical root, rather than a dot component.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	std::unique_ptr<idFileList> baseResourceFileList( fileSystem->ListFiles( "", ".resources" ) );
+#else
+	std::unique_ptr<idFileList> baseResourceFileList( fileSystem->ListFiles( ".", ".resources" ) );
+#endif
 	if ( baseResourceFileList.get() != NULL ) {
 		CreateCRCsForResourceFileList ( *baseResourceFileList );
 	}
 
-	std::auto_ptr<idFileList> mapResourceFileList( fileSystem->ListFilesTree( "maps", ".resources" ) );
+	// [PS2_D3BFG]: std::auto_ptr was removed from the selected C++20 language.
+	std::unique_ptr<idFileList> mapResourceFileList( fileSystem->ListFilesTree( "maps", ".resources" ) );
 	if ( mapResourceFileList.get() != NULL ) {
 		CreateCRCsForResourceFileList ( *mapResourceFileList );
 	}
@@ -2288,7 +2395,8 @@ void idFileSystemLocal::CreateCRCsForResourceFileList( const idFileList & list )
 	for ( int fileIndex = 0; fileIndex < list.GetNumFiles(); ++fileIndex ) {
 		idLib::Printf( " Processing %s.\n", list.GetFile( fileIndex ) );
 
-		std::auto_ptr<idFile_Memory> currentFile( static_cast<idFile_Memory *>( fileSystem->OpenFileReadMemory( list.GetFile( fileIndex ) ) ) );
+		// [PS2_D3BFG]: Keep scope-owned files with the C++20 owner type.
+		std::unique_ptr<idFile_Memory> currentFile( static_cast<idFile_Memory *>( fileSystem->OpenFileReadMemory( list.GetFile( fileIndex ) ) ) );
 
 		if ( currentFile.get() == NULL ) {
 			idLib::Printf( " Error reading %s.\n", list.GetFile( fileIndex ) );
@@ -2336,7 +2444,8 @@ void idFileSystemLocal::CreateCRCsForResourceFileList( const idFileList & list )
 		// Write the .crc file corresponding to the .resources file.
 		idStr crcFilename = list.GetFile( fileIndex );
 		crcFilename.SetFileExtension( ".crc" );
-		std::auto_ptr<idFile> crcOutputFile( fileSystem->OpenFileWrite( crcFilename, "fs_basepath" ) );
+		// [PS2_D3BFG]: Preserve automatic file closure with the C++20 owner type.
+		std::unique_ptr<idFile> crcOutputFile( fileSystem->OpenFileWrite( crcFilename, "fs_basepath" ) );
 		if ( crcOutputFile.get() == NULL ) {
 			idLib::Printf( "Error writing CRC file %s.\n", crcFilename );
 			continue;
@@ -2789,6 +2898,10 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 		return NULL;
 	}
 
+	// [PS2_D3BFG]: Reject absolute/device/dot-component paths rather than stripping their prefix.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
+#else
 	// qpaths are not supposed to have a leading slash
 	if ( relativePath[0] == '/' || relativePath[0] == '\\' ) {
 		relativePath++;
@@ -2800,6 +2913,7 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 	if ( strstr( relativePath, ".." ) || strstr( relativePath, "::" ) ) {
 		return NULL;
 	}
+#endif
 	
 	// edge case
 	if ( relativePath[0] == '\0' ) {
@@ -2840,6 +2954,8 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 			file->fullPath = netpath;
 			file->mode = ( 1 << FS_READ );
 			file->fileSize = DirectFileLength( file->o );
+			// [PS2_D3BFG]: Close an unmeasurable or oversized stream before publishing it.
+			if ( file->fileSize < 0 ) { delete file; continue; }
 			if ( fs_debug.GetInteger() ) {
 				common->Printf( "idFileSystem::OpenFileRead: %s (found in '%s/%s')\n", relativePath, searchPaths[sp].path.c_str(), searchPaths[sp].gamedir.c_str() );
 			}
@@ -2913,9 +3029,13 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 			if ( searchFlags & FSFLAG_RETURN_FILE_MEM ) {
 				idFile_Memory * memFile = new (TAG_IDFILE) idFile_Memory( file->name );
 				memFile->SetLength( file->fileSize );
-				file->Read( (void *)memFile->GetDataPtr(), file->fileSize );
+				// [PS2_D3BFG]: A memory file cannot expose partially loaded contents.
+				const bool complete = file->Read( (void *)memFile->GetDataPtr(), file->fileSize ) == file->fileSize;
 				delete file;
+				if ( !complete ) { delete memFile; return NULL; }
 				memFile->TakeDataOwnership();
+				// [PS2_D3BFG]: Empty memory files must also expose the read interface.
+				memFile->MakeReadOnly();
 				return memFile;
 			}
 
@@ -2961,6 +3081,10 @@ idFileSystemLocal::OpenFileWrite
 ===========
 */
 idFile *idFileSystemLocal::OpenFileWrite( const char *relativePath, const char *basePath ) {
+	// [PS2_D3BFG]: Writes must remain under the configured logical root.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
+#endif
 
 	const char *path;
 	idStr OSpath;
@@ -3028,6 +3152,8 @@ idFile *idFileSystemLocal::OpenExplicitFileRead( const char *OSPath ) {
 	f->mode = ( 1 << FS_READ );
 	f->handleSync = false;
 	f->fileSize = DirectFileLength( f->o );
+	// [PS2_D3BFG]: A failed length query cannot become a valid open file.
+	if ( f->fileSize < 0 ) { delete f; return NULL; }
 
 	return f;
 }
@@ -3061,6 +3187,8 @@ idFile_Cached *idFileSystemLocal::OpenExplicitPakFile( const char *OSPath ) {
 	f->mode = ( 1 << FS_READ );
 	f->handleSync = false;
 	f->fileSize = DirectFileLength( f->o );
+	// [PS2_D3BFG]: Reject invalid lengths before cache allocation.
+	if ( f->fileSize < 0 ) { delete f; return NULL; }
 
 	return f;
 }
@@ -3105,6 +3233,10 @@ idFileSystemLocal::OpenFileAppend
 ===========
 */
 idFile *idFileSystemLocal::OpenFileAppend( const char *relativePath, bool sync, const char *basePath ) {
+	// [PS2_D3BFG]: Appends obey the same logical path boundary as writes.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
+#endif
 
 	const char *path;
 	idStr OSpath;
@@ -3137,6 +3269,8 @@ idFile *idFileSystemLocal::OpenFileAppend( const char *relativePath, bool sync, 
 	f->mode = ( 1 << FS_WRITE ) + ( 1 << FS_APPEND );
 	f->handleSync = sync;
 	f->fileSize = DirectFileLength( f->o );
+	// [PS2_D3BFG]: Do not publish a failed append-length query.
+	if ( f->fileSize < 0 ) { delete f; return NULL; }
 
 	return f;
 }

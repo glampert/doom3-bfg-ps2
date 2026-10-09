@@ -41,6 +41,8 @@ REQUIRED_CORE_CHECKS = frozenset({
     "calloc-overflow",
     "core/initialized", "core/command-buffer-wait", "core/cvar-registration-command", "core/exec-config",
     "core/filesystem-lexer-fixture", "core/filesystem-missing-path-jail", "core/parser-macro-error", "core/shutdown",
+    "core/filesystem-streaming-length", "core/filesystem-directory-filters", "core/filesystem-device-path-bounds",
+    "core/filesystem-write-append-short-read", "core/filesystem-parents-driver-errors", "core/filesystem-zip-timestamp",
     "idlib/drawvert-half-layout", "idlib/matrix-compose", "idlib/empty-trace-silhouette",
     "idlib/polynomial-copy-lifetime",
     "idlib/tagged-overaligned-new",
@@ -226,6 +228,10 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
     smoke_config = output / "smoke.cfg"
     if args.scenario != "platform":
         smoke_config.write_text("set ps2_smoke_config 37\nps2_smoke_command 77\n", encoding="ascii")
+        fs_fixtures = output / "fs-fixtures"
+        (fs_fixtures / "child").mkdir(parents=True)
+        (fs_fixtures / "mixed.TxT").write_bytes(b"authored directory fixture\n")
+        (fs_fixtures / "large.bin").write_bytes(b"Z" * 71680)
     (output / "smoke.manifest").write_text(f"D3BFG_SMOKE 1\n{test_id}\nhost:fixture.txt\n", encoding="ascii")
     emulator_log = output / "emulog.txt"
     stdout_log = output / "stdout.txt"
@@ -237,6 +243,10 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         "elf_sha256": sha256(staged_elf), "symbols_sha256": sha256(output / "d3bfg_unstripped.elf"),
         "fixture_sha256": sha256(fixture) if fixture.exists() else None,
         "smoke_config_sha256": sha256(smoke_config) if smoke_config.exists() else None,
+        "filesystem_fixture_sha256": {
+            str(path.relative_to(output)): sha256(path)
+            for path in sorted((output / "fs-fixtures").rglob("*")) if path.is_file()
+        },
         "build_artifact_sha256": build_artifacts,
         "config_sha256": sha256(args.config), "emulator": str(emulator),
         "emulator_version": version, "command": command,

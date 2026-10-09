@@ -10,6 +10,7 @@
 
 #if PS2_D3BFG_CORE_TESTS
 #include "tests/smoketests/core_boot.h"
+#include "ps2/system/filesystem.h"
 #endif
 
 #include <kernel.h>
@@ -111,6 +112,9 @@ int main()
 {
     // Preserve the loader's IOP/host filesystem. Console device bring-up is a later stage.
     SifInitRpc(0);
+#if PS2_D3BFG_CORE_TESTS
+    ps2::filesystem::Init();
+#endif
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE platform BEGIN\n");
     BootManifest manifest;
     const bool manifestPassed = ReadManifest(manifest);

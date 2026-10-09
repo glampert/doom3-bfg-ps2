@@ -132,8 +132,8 @@ declarations with `ID_PS2_CORE` undefined while linking only inline hierarchy qu
 and real foundation file objects. It does not link a menu/model runtime or discard
 selected core objects. These test sources remain explicit in `CORE_BOOT_CXX_SRC`.
 
-The campaign manifest retains all 274 units; both configurations now compile 263.
-The eleven remaining common/platform/Classic/sound/SWF failures are recorded in
+The campaign manifest retains all 274 units; both configurations now compile 268.
+The six remaining common/Classic/sound failures are recorded in
 [PORT_STATUS.md](PORT_STATUS.md), and the campaign gate remains unsuccessful.
 
 ## Campaign diagnostics and JPEG adapter
@@ -154,3 +154,21 @@ The codec's target dependency still needs selection/import under `src/external/`
 target decode/runtime acceptance before a resident game link. A tagged fix bounds the
 shipped encoder's Huffman-value copy; the authored fixture generator exposed its
 256-byte read from 12/162-byte standard tables under ASan.
+
+## Portable filesystem services
+
+`CORE_BACKEND_CXX_SRC` includes strict shared `filesystem.cpp` and the engine-facing
+`sys_filesystem.cpp`; both cold units use `-Os`. The foundation opens real permanent
+streams, while explicit whole-file fixture reads keep their 64 KiB limit. The full
+campaign `FileSystem.cpp` remains a separately compiled unit, not an initialized or
+linked filesystem claim. It uses checked stdio handles, paths and directory services;
+`Zip.cpp` uses a documented timestamp policy and `KeyInput.cpp` keeps the engine label table.
+Removed `std::auto_ptr` owners use `std::unique_ptr`.
+
+Core links ps2sdk's `libpatches` for one-time ROM FILEIO repair; the platform-only
+probe does not. No IOP reset or storage-driver import is added. Failed patching disables
+removal; native rename errors remain visible. The host filesystem harness uses real
+isolated files and directories under strict warnings and ASan/UBSan. It tests signed
+length overflow using a sparse file, cursor preservation, short reads, suffix filters,
+symlink exclusion, path bounds and error returns. Source-list audit and the compile
+database include the new EE units; host fixtures are not campaign runtime acceptance.

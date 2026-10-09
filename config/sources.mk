@@ -6,7 +6,7 @@ PS2_CXX_SRC = \
 	ps2/system/log.cpp \
 	tests/smoketests/platform_boot.cpp
 
-SIZE_OPT_CXX_SRC = ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -71,6 +71,8 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/game/class_alloc.cpp \
 	ps2/system/heap.cpp \
 	ps2/system/core.cpp \
+	ps2/system/filesystem.cpp \
+	ps2/system/sys_filesystem.cpp \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \

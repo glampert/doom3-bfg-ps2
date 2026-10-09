@@ -84,12 +84,12 @@ with `make -B -k -j4 compile-game` and `make -B -k -j4 BUILD=release compile-gam
 
 | Remaining compile boundary | Current failures / required work |
 | --- | --- |
-| Platform services | Windows APIs in filesystem/ZIP, key translation and common diagnostics |
-| Common errors | Exception-based error handling in `Common_printf.cpp` |
 | Classic dependencies | `Common.cpp` and `common_frame.cpp` still import Classic headers; remove those paths instead of restoring Classic linkage |
 | Logical sound | Four retained sound units import `snd_local.h` and its XAudio SDK types |
-| SWF image failures | Exception-based image error reporting remains |
 | Resident link | Supply declared renderer/audio/offline-session/platform replacements; audit registrations and memory before game-fixture boot |
+
+This remaining-boundary table reflects the later common/SWF and filesystem slices.
+Their portability and validation evidence follows below.
 
 M2b is incomplete; M3 game-fixture initialization has not begun. The executable still
 uses the M2 core bootstrap. The header pass regression runs were debug
@@ -301,3 +301,63 @@ Make still exits 2. Default debug/release foundation builds pass; the adapter is
 separately rather than linked into that foundation. Target codec import and JPEG runtime
 acceptance remain part of the resident-link work. All 45 host regressions pass, and
 `make compiledb` produces 292 entries. No retail assets or new vendor imports are used.
+
+## Filesystem, ZIP and key translation
+
+The next M2b slice replaces campaign filesystem Win32 handles, size queries, directory
+creation, removal and rename calls with bounded shared services. Paths keep console
+device prefixes and forward slashes; logical paths reject traversal, absolute/device
+names and truncated joins. Stream lengths preserve the cursor and reject values outside
+the engine's signed range. Whole-file reads publish buffers and ownership counts only
+after complete input, including journal paths; failed/partial memory loads are closed
+and freed. CRC tools use `std::unique_ptr` in place of removed `std::auto_ptr`.
+
+`Sys_ListFiles` supplies regular-file and directory filters, skips dot entries/symlinks,
+matches extensions without case sensitivity and clears results on errors. Sys directory
+and existing-file writability queries use actual stat results. This does not add case-
+folded OS lookup or symlink resolution. Host ZIP dates use stat time encoded as UTC,
+at two-second resolution, clamped to 1980..2107. The EE explicitly uses 1980-01-01
+until driver timestamps are validated; missing stat fails on both platforms. The SDK
+and PCSX2 disagree on fio year encoding, so target metadata availability does not
+prove date accuracy. Key bindings retain the engine's existing localized label table without
+calling Windows keyboard-layout APIs. Keyboard/controller drivers are still pending.
+
+The foundation now opens real `idFile_Permanent` streams instead of buffering every
+open. An authored 70 KiB fixture verifies this, while explicit bulk/memory fixture reads
+keep the 64 KiB limit. Memory-file end seeks retain their original positive backward
+distance; permanent streams use stdio's signed end offset. The campaign filesystem is
+compiled separately; its initialization, resource/container loading, ZIP compression
+linking and full game lifecycle remain untested. Foundation-level filesystem listing,
+write and resource APIs remain explicit unsupported operations.
+
+The one-time ps2sdk ROM FILEIO patch runs after SIF initialization, without resetting
+the loader's IOP. It fixes removal fallthrough and getstat/dread interrupt protection;
+failed patching disables removal. The default fio driver has no native rename and
+returns `ENOSYS`. PCSX2 2.6.3 deletes a file but reports `ENODEV`; the wrapper preserves
+that failure. The regression checks the exact error and absence of both file and an
+unwanted same-named directory. This is error/side-effect acceptance, not successful
+removal acceptance on hardware. Source evidence and limits are in
+[ps2-platform.md](../.claude/rules/ps2-platform.md).
+
+| Filesystem-slice regression | Result |
+| --- | --- |
+| Debug/release campaign, all 274 units selected | 268 compiled, six failed; Make exited 2 |
+| Debug/release EE core | Strict compile/link passed |
+| `make compile-core` | Passed; all 55 scalar idlib/framework units retained |
+| `make compiledb` | 294 entries generated |
+| `make test-host` | Shared heap/class/type/JPEG checks and 47 Python regressions passed under ASan/UBSan |
+| Debug core smoke | Passed: `20261009T041229Z_smoke_7adb7a1edf5b4e47` |
+| Release core smoke | Passed: `20261009T041258Z_smoke_ceacd45e4e7a4445` |
+| Debug missing-fixture scenario | Expected failure accepted: `20261009T041325Z_smoke_f394343797c449f6` |
+| Debug compiler regression | 15 cases passed; first `20261009T040616Z_script_18f7b83c04e84a55`, last `20261009T040640Z_script_644fc2b734fd4972` |
+| Release compiler regression | 15 cases passed; first `20261009T040711Z_script_34252bfbe4d7456c`, last `20261009T040736Z_script_7090edc20fe3434b` |
+| Fixed core ELF residency | 1,581,744 / 1,638,512 bytes (debug/release) |
+| Core BSS | 394,160 / 394,224 bytes (included in residency) |
+| Core initialized/peak/shutdown tagged heap | Matches the foundation baseline |
+| Arena commitment after core tests | 44,368 / 44,944 bytes (debug/release) |
+
+The six remaining campaign failures are `Common.cpp`, `common_frame.cpp`,
+`snd_emitter.cpp`, `snd_shader.cpp`, `snd_system.cpp` and `snd_world.cpp`. The full
+manifest stays selected and the gate still fails. Next come staged common startup,
+Classic removal and offline-session services, then the logical-sound/backend boundary
+and resident game link. M3 game-fixture initialization has not begun.

@@ -143,6 +143,9 @@ endif
 EE_LINKFILE ?= $(PS2SDK)/ee/startup/linkfile
 EE_LDFLAGS = -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib -Wl,-zmax-page-size=128 -Wl,-Map,$(OUTPUT_DIR)/d3bfg.map
 EE_LIBS = -lkernel -lm
+ifeq ($(CORE_BOOT),1)
+	EE_LIBS += -lpatches
+endif
 # Isolated compiler fixture only: discard game-object/save/interpreter methods whose services
 # are deliberately absent. Never use this gate as evidence of a resident game link.
 ifeq ($(SCRIPT_PROBE),1)
@@ -204,7 +207,7 @@ $(OUTPUT_DIR)/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.
-$(OUTPUT_DIR)/src/ps2/system/core.o $(OUTPUT_DIR)/src/ps2/system/sys.o $(BOOT_OBJS): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
+$(OUTPUT_DIR)/src/ps2/system/core.o $(OUTPUT_DIR)/src/ps2/system/sys.o $(OUTPUT_DIR)/src/ps2/system/sys_filesystem.o $(BOOT_OBJS): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # These checks inspect real campaign type declarations but link only inline queries/file objects.
 $(OUTPUT_DIR)/src/tests/smoketests/type_query_engine_tests.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
@@ -326,7 +329,16 @@ build/tests/jpeg_decoder_tests: $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) s
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -DID_PS2_CORE=1 -isystem src/neo $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) -o $@
 
-test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests
+HOST_FILESYSTEM_SOURCES = src/tests/host/filesystem_tests.cpp src/ps2/system/filesystem.cpp src/ps2/system/log.cpp
+
+build/tests/.filesystem-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_FILESYSTEM_SOURCES)
+
+build/tests/filesystem_tests: $(HOST_FILESYSTEM_SOURCES) src/ps2/system/filesystem.h src/ps2/system/log.h src/ps2/common.h build/tests/.filesystem-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) $(HOST_FILESYSTEM_SOURCES) -o $@
+
+test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests
 	./build/tests/heap_tests
 	$(PYTHON) -m unittest discover -s src/tests/host -p 'test_*.py'
 

@@ -248,6 +248,10 @@ public:
 	PS2_TYPE_DERIVED( idFile_Permanent, idFile )
 							idFile_Permanent();
 	virtual					~idFile_Permanent();
+	// [PS2_D3BFG]: Let the isolated core use the real streaming file implementation.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	static idFile_Permanent * OpenPortableRead( const char * name, const char * path );
+#endif
 
 	virtual const char *	GetName() const { return name.c_str(); }
 	virtual const char *	GetFullPath() const { return fullPath.c_str(); }

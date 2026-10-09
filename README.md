@@ -51,8 +51,8 @@ ELF/startup memory measurements and the remaining campaign compile failures.
 
 M2b is in progress: the campaign headers now separate OpenGL state from shared
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
-The campaign compile now passes 265 of 274 units in both configurations and still fails
-on common/SWF exceptions and desktop service dependencies;
+The campaign compile now passes 268 of 274 units in both configurations and still fails
+on Classic-dependent common startup/frame code and logical-sound desktop dependencies;
 the default executable remains the tested headless core.
 Game class allocation now preserves heap alignment and checks signed memory counters;
 factories use explicit fatal allocation without exception handling. Shared host/EE tests
@@ -63,6 +63,9 @@ Recoverable script loading and actual interpreter/game execution remain later ga
 Portable common errors now terminate through the shared logging sink without desktop
 dialogs or renderer/session calls. SWF JPEG errors explicitly release decoder/output
 state; bounded input, dimensions and repeated/table-based decoding have sanitizer tests.
+Filesystem/ZIP/key units now compile with bounded device paths, stdio handles, an explicit
+ZIP timestamp policy and the engine's fixed key-label table. Shared directory and file services are
+tested on the EE; full campaign filesystem initialization and ZIP runtime linking remain pending.
 Retained menu, GUI-variable, file and model casts use checked portable hierarchy queries.
 Shared host/EE tests cover null/sibling rejection, inherited/const types and separate-unit
 identity; actual file objects and engine hierarchy declarations are checked on the EE.
@@ -81,9 +84,14 @@ core, heap and assertion failures terminate through `FatalError` / `FatalErrorV`
 on-screen fatal reporting remains a TODO. `src/ps2/common.h` provides `PS2_Assert`,
 `PS2_AssertMsg`, `ArrayLength` and portable format/cold attributes for new backend code.
 
-The filesystem adapter reads loose synthetic files up to 64 KiB and rejects parent,
-absolute and other-device paths. Enumeration, writes and resource loading are explicit
-unsupported operations. Unimplemented game/UI/network calls also terminate with a
+The fixture adapter streams loose files through real `idFile_Permanent` objects;
+explicit bulk/memory reads stay bounded to 64 KiB. It rejects parent, absolute and
+other-device paths. Shared system services supply directory filters, parent creation,
+write/append and ZIP timestamp packing. The one-time ROM FILEIO patch protects
+getstat/dread DMA and removal fallthrough without resetting the loader's IOP. Native
+rename reports `ENOSYS`; PCSX2 removal reports `ENODEV` despite deleting the file,
+and the wrapper preserves that error. Foundation-level listing/write/resource APIs
+remain unsupported until the campaign filesystem is linked. Unimplemented game/UI/network calls also terminate with a
 diagnostic. Core `Error` is fatal; lexer fixtures that need to reject malformed input
 without terminating use the engine's `LEXFL_NOERRORS` flag.
 

@@ -29,6 +29,11 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 #pragma hdrstop
 
+// [PS2_D3BFG]: Pack stat timestamps without Windows FILETIME or locale state.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/system/filesystem.h"
+#endif
+
 /*
 ================================================================================================
 Contains external code for building ZipFiles.
@@ -1269,6 +1274,14 @@ idZipBuilder::GetFileTime
 ========================
 */
 bool idZipBuilder::GetFileTime( const idStr &filename, unsigned long *dostime ) const {
+	// [PS2_D3BFG]: Missing files fail; use the backend's documented timestamp policy.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( dostime == NULL ) { return false; }
+	std::uint32_t packed = 0;
+	if ( !ps2::filesystem::ZipTime( filename.c_str(), packed ) ) { return false; }
+	*dostime = packed;
+	return true;
+#else
 	{
 		FILETIME filetime;
 		WIN32_FIND_DATA fileData;
@@ -1282,6 +1295,7 @@ bool idZipBuilder::GetFileTime( const idStr &filename, unsigned long *dostime ) 
 		FindClose( findHandle );
 	}
 	return false;
+#endif
 }
 
 /*
