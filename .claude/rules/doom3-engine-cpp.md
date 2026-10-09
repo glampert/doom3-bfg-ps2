@@ -132,3 +132,16 @@ math path; PS2-specific math replacement headers are a later milestone.
   stability on each reload and exact pre-init baseline recovery at full shutdown.
   The offline session must stay LOADING until explicit `LoadingFinished`, never infer
   map completion from Pump/Frame. Native game achievement manager execution is deferred.
+
+
+## Portable logical sound
+
+- `snd_local.h` must gate both the SDK includes and `bufferContext_t`'s concrete XA2
+  pointer types. Portable logical sound uses `ps2/audio/sound_backend.h`; desktop
+  declarations remain in their original branch. The optional video-device query
+  `GetIXAudio2` returns null on portable builds without importing an XAudio type.
+- Unloaded samples can retain names, reference/purge flags and last-played metadata;
+  that does not establish resource loading. Do not invent zero durations or amplitudes
+  to make gameplay proceed. The initial backend terminates unavailable queries with
+  the method name. Meaningful timing, completion, amplitude and voice state remain
+  required before a game fixture; hardware output is a later boundary.

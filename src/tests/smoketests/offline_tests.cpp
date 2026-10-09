@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "tests/smoketests/offline_tests.h"
+#include "tests/smoketests/audio_tests.h"
 #include "ps2/system/core.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/lifecycle.h"
@@ -219,7 +220,7 @@ bool RunCommonProbe(const char * path)
     {
         session->GetSignInManager().RegisterLocalUser(1);
     }
-    else
+    else if (!RunAudioFailureProbe(name))
     {
         FatalError("invalid Common negative probe");
     }

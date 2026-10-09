@@ -348,7 +348,12 @@ idSoundSystemLocal::GetIXAudio2
 ========================
 */
 void * idSoundSystemLocal::GetIXAudio2() const {
+	// [PS2_D3BFG]: This optional desktop video-device query has no console counterpart.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return NULL;
+#else
 	return (void *)hardware.GetIXAudio2();
+#endif
 }
 
 /*

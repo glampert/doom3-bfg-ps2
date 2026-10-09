@@ -31,7 +31,7 @@ in `CORE_C_SRC`, and the heap bridge imports its header through a system include
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 280 | Intended retained units; compilation and adaptation remain required |
+| Campaign runtime | 280 | Debug/release compile gates pass; resident linking and runtime adaptation remain required |
 | PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
 | Deferred runtime | 34 | BFG shell, multiplayer, online services and demo paths; callers still need explicit adapters |
 | Optional vendor | 56 | zlib/JPEG; include only when a format, license and target configuration are audited |
@@ -73,9 +73,9 @@ all core objects directly, without garbage collection. Debug/release core and ex
 missing-fixture runs have passed in PCSX2; see [PORT_STATUS.md](PORT_STATUS.md).
 
 `make compile-game` independently compiles all 280 intended runtime units with the
-campaign header boundary. It intentionally exposes remaining M2b portability failures;
-it does not select the reduced core precompiled header or claim that replacement
-implementations have been supplied.
+campaign header boundary. Both configurations pass. It does not select the reduced
+core precompiled header or establish a resident game link; replacement services and
+registrations still need that separate gate.
 
 Each successful ELF link writes:
 
@@ -89,7 +89,8 @@ The load-segment total measures fixed ELF residency. Runtime heap allocations an
 thread stacks need separate measurements before drawing a total EE memory budget.
 
 Debug uses `-O2` and symbols; release uses `-O3` and no debug symbols. Explicit cold
-backend sources use `-Os`. Both use C++20 with exceptions, RTTI and thread-safe local
+backend sources use `-Os` in both ordinary core and campaign-adapter object trees.
+Both use C++20 with exceptions, RTTI and thread-safe local
 static initialization disabled. New sources use the full GCC warning set and `-Werror`;
 upstream sources keep `-Wall -Wextra` visible and use single-precision literals to avoid
 EE software-double helpers. Explicit upstream object groups suppress the observed
@@ -138,17 +139,17 @@ declarations with `ID_PS2_CORE` undefined while linking only inline hierarchy qu
 and real foundation file objects. It does not link a menu/model runtime or discard
 selected core objects. These test sources remain explicit in `CORE_BOOT_CXX_SRC`.
 
-The campaign manifest retains 280 units; both configurations now compile 276.
-The four remaining logical-sound failures are recorded in
-[PORT_STATUS.md](PORT_STATUS.md), and the campaign gate remains unsuccessful.
+The campaign manifest retains 280 units; all compile in both configurations.
+[PORT_STATUS.md](PORT_STATUS.md) records the sound boundary and resident-link work.
 
 ## Campaign diagnostics and JPEG adapter
 
 `GAME_BACKEND_CXX_SRC` lists required campaign backend objects. `compile-game`
 compiles them with strict backend warnings and their own flag stamp, alongside the
 280-unit campaign manifest. The adapters supply bounded SWF JPEG decoding, lifecycle
-tracking and offline session services. The latter two also run in the foundation;
-the JPEG decoder remains campaign-only and has host runtime acceptance so far.
+tracking, offline session services and the portable audio boundary. Lifecycle, offline
+session and audio support also link into the foundation; the JPEG decoder remains
+campaign-only and has host runtime acceptance so far.
 
 `JPEG_TEST_CXX_SRC` is an explicit host-only list of the shipped legacy JPEG sources.
 It does not change their runtime dispositions or import a new dependency. Host codec
@@ -196,8 +197,31 @@ class omits Classic material/framebuffer storage and creates no game worker. Its
 no game object or game initialization stage. Full container filesystem, render/sound,
 UI/dialog and save services still need their resident-link implementations.
 
-`make test-common` runs seven partial-startup cleanup probes and seven expected-fatal
+`make test-common` runs seven partial-startup cleanup probes and ten expected-fatal
 capability/precondition probes, each in a fresh process. `BUILD=release` selects the
 assertions-disabled matrix. The regular core smoke also checks copied match parameters,
 explicit loading completion, transient stats/achievement bits, user-handle invalidation
 and stable accounting over three reloads after warming native string-pool capacity.
+
+
+## Logical sound boundary
+
+The retained `snd_emitter.cpp`, `snd_shader.cpp`, `snd_system.cpp` and `snd_world.cpp`
+compile through `ps2/audio/sound_backend.h`, selected by `snd_local.h` on portable
+builds. Stream buffer ownership uses the portable sample/voice types too. The desktop
+branch keeps its original SDK headers and XA2 classes; the optional `GetIXAudio2`
+query returns null on portable builds. Native logical sound bodies remain selected.
+
+`ps2/audio/sound_backend.cpp` is in both core and campaign backend lists, uses full
+campaign headers and strict warnings, and is cold (`-Os`). It supplies unloaded sample
+metadata and explicit method-named fatal failures for unavailable resource, timing,
+amplitude and device operations. It never reports a fake loaded sample or successful
+playback. The foundation directly links this boundary and its sample-ownership checks;
+it does not link or initialize native sound worlds. Native `SoundVoice.cpp`, wave-file
+loading and XA2 implementations remain replacement sources, pending real sample/voice
+semantics before the M3 fixture. No vendor disposition changes or audio cvars are added.
+
+Core smoke requires the sample metadata/ledger marker. The three new expected-fatal
+probes cover resource loading, duration queries and device initialization in fresh
+processes with assertions enabled and disabled. See the latest acceptance evidence in
+[PORT_STATUS.md](PORT_STATUS.md).

@@ -25,12 +25,12 @@ make release                 # release configuration
 make platform-probe          # SDK/timer/alignment probe
 make headless-core           # scalar Doom foundation and integration tests
 make compile-core            # 52 scalar idlib units and 10 framework/session support units
-make compile-game            # separate campaign portability gate; still incomplete
+make compile-game            # all 280 retained campaign units; compile gate only
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make release smoke           # release core smoke run
 make smoke-negative          # expected missing-fixture failure
-make test-common             # seven partial-startup and seven expected-fatal probes
+make test-common             # seven partial-startup and ten expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 
@@ -48,14 +48,14 @@ visible. A host runtime test does not replace the EE compile/link check.
 
 Debug/release core runs and the expected missing-fixture failure pass in PCSX2.
 [docs/PORT_STATUS.md](docs/PORT_STATUS.md) records the checks, archived run identities,
-ELF/startup memory measurements and the remaining campaign compile failures.
+ELF/startup memory measurements and the remaining resident-link work.
 
 M2b is in progress: the campaign headers now separate OpenGL state from shared
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
-The campaign compile now passes 276 of 280 units in both configurations. Four logical-
-sound units still require the XAudio header split; the default executable remains the
-tested headless core. Six native profile, user and snapshot/compression support units
-have been retained for the real Common layout and offline services.
+All 280 retained campaign units now compile in both configurations. The four logical-
+sound units use a portable sample/voice/device boundary without DirectX SDK headers;
+the default executable remains the headless core. Six native profile, user and
+snapshot/compression support units have been retained for the real Common layout and offline services.
 Game class allocation now preserves heap alignment and checks signed memory counters;
 factories use explicit fatal allocation without exception handling. Shared host/EE tests
 cover this allocation boundary, while actual game initialization remains a later gate.
@@ -90,6 +90,12 @@ are rejected, and loading completes only on `LoadingFinished`. Online requests a
 unsupported; profile persistence reports failure without discarding transient data.
 The static versioned `GetGameAPI` import path now compiles, but is not invoked by the
 foundation. Resident game linking, interpreter execution and map loading remain pending.
+
+The portable audio boundary preserves sample names, reference/purge flags and last-played
+bookkeeping. Samples remain unloaded; resource loading, duration/amplitude queries and
+device operations fail explicitly with the method name. No voices or audio device are
+created. Meaningful sample timing and playback state are required before the M3 game
+fixture; audsrv/SPU2 output remains later work.
 
 Backend and smoke-test diagnostics use the shared `ps2::Log` / `LogV` sink with info,
 warning, error and fatal levels. It currently writes synchronously to stdout. System,
@@ -168,8 +174,10 @@ also exercise command/cvar registration and fixture I/O.
 Eight offline checks cover Common identity, local users, transient profiles/achievements,
 unavailable persistence, match transitions, copied parameters, reload accounting and
 sign-out/input routing. Common probes launch a fresh process for each of seven deliberate
-startup stops and seven invalid or unsupported requests; each must match its own run
-identity and expected cleanup or fatal diagnostic.
+startup stops and ten invalid or unsupported requests; each must match its own run
+identity and expected cleanup or fatal diagnostic. The three audio failures cover resource
+loading, duration queries and device initialization; core smoke also checks sample
+metadata ownership and exact heap recovery.
 
 This milestone preserves the loader's IOP/`host:` filesystem and initializes SIF RPC.
 Physical USB/HDD bring-up, the GS/VU1 path, SPU2 audio, controller input, save games and

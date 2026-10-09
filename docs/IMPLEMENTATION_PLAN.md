@@ -432,12 +432,15 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 The initial M0–M2 scope (core compilation and headless boot) is complete. The current
 implementation work is M2b, beginning with the full campaign header boundary and
 continuing through explicit error/type handling and subsystem replacements. Progress
-and remaining compile failures are recorded in [PORT_STATUS.md](PORT_STATUS.md).
+and remaining resident-link work are recorded in [PORT_STATUS.md](PORT_STATUS.md).
 The current core runs real `idCommonLocal::Init` / `Shutdown` through completed-stage
 tracking for system, idlib, commands, cvars, fixture filesystem, synchronous jobs and
 one offline user/session. Game/presentation/save stages are deliberately deferred.
 Classic framebuffer residency and portable startup/frame references are removed; the
 static game API import path compiles but is not exercised until the resident game link.
-The campaign gate currently compiles 276 of 280 retained units; the remaining four
-logical-sound units need their XAudio dependency split. Acceptance evidence must retain
-these boundaries: no game ticks, interpreter execution or map loading yet.
+The campaign gate now compiles all 280 retained units in debug and release. The logical
+sound header uses `ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
+Only unloaded sample bookkeeping is implemented; resource, timing/amplitude and device
+operations fail explicitly. Meaningful sound semantics remain required before M3.
+Resident linking is the remaining M2b gate. Acceptance evidence must retain these
+boundaries: no game ticks, interpreter execution or map loading yet.

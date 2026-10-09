@@ -7,6 +7,7 @@
 #include "ps2/system/log.h"
 
 #include "tests/smoketests/core_boot.h"
+#include "tests/smoketests/audio_tests.h"
 #include "tests/smoketests/offline_tests.h"
 #include "tests/smoketests/type_query_tests.h"
 #include "tests/smoketests/class_alloc_tests.h"
@@ -251,6 +252,7 @@ bool RunCoreTests(const char * fixturePath)
     core::PrintMemory("initialized-core");
     passed = Check("initialized", common->IsInitialized() && fileSystem->IsInitialized()) && passed;
     passed = RunOfflineTests() && passed;
+    passed = RunAudioTests() && passed;
     passed = CheckCommands() && passed;
     passed = CheckCVars() && passed;
     passed = CheckParser() && passed;

@@ -38,6 +38,9 @@ NEGATIVE_PROBES = {
     "classic": "Classic title switching",
     "save-manager": "save game manager capability is unavailable",
     "bad-device": "only input device zero is supported",
+    "audio-resource": "audio capability unavailable: idSoundSample::LoadResource",
+    "audio-duration": "audio capability unavailable: idSoundSample::LengthInMsec",
+    "audio-device": "audio capability unavailable: idSoundHardware::Init",
 }
 SCENARIOS = ("platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -47,6 +50,7 @@ VERSION_RE = re.compile(
     r"(?:[ \t]+\([A-Za-z0-9 ._:/+-]+\))?[ \t]*$", re.MULTILINE)
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_CORE_CHECKS = frozenset({
+    "audio/sample-metadata-ledger",
     "offline/real-common", "offline/local-user", "offline/registration-idempotent",
     "offline/transient-profile-achievements", "offline/persistence-unavailable",
     "offline/campaign-transitions-copy", "offline/match-reload-ledger", "offline/signout-routing-stale-handle",

@@ -2,10 +2,10 @@
 
 M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. The current
 foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core and
-offline services. The M2b campaign gate compiles 276 of 280 retained units; four
-logical-sound units still import XAudio headers. Resident game linking and M3 game
-initialization remain pending. The sections below preserve each slice's historical
-measurements; the latest Common/offline acceptance is recorded at the end.
+offline services. The M2b campaign gate compiles all 280 retained units in debug and
+release; logical sound now uses a portable sample/voice/device boundary. Resident game
+linking and M3 game initialization remain pending. The sections below preserve each
+slice's historical measurements; the latest sound-boundary evidence is at the end.
 
 ## Initial M2 build and runtime evidence
 
@@ -88,10 +88,10 @@ with `make -B -k -j4 compile-game` and `make -B -k -j4 BUILD=release compile-gam
 | Remaining compile boundary | Current failures / required work |
 | --- | --- |
 | Classic dependencies | Resolved by the Common/offline slice below; portable startup/frame code excludes Classic |
-| Logical sound | Four retained sound units import `snd_local.h` and its XAudio SDK types |
-| Resident link | Supply declared renderer/audio/offline-session/platform replacements; audit registrations and memory before game-fixture boot |
+| Logical sound | SDK-free compile boundary supplied; meaningful resource/timing/voice behavior remains required before M3 |
+| Resident link | Supply/audit required renderer, audio, resource, UI, filesystem/vendor and platform services; retain registrations and measure memory before game-fixture boot |
 
-This remaining-boundary table reflects the latest Common/offline slice.
+This remaining-boundary table reflects the latest sound-boundary slice.
 Their portability and validation evidence follows below.
 
 M2b is incomplete; M3 game-fixture initialization has not begun. At the header-pass stage the executable still
@@ -428,7 +428,7 @@ unrelated failures, unexpected returns, stale identities, watchdogs and TLB/bus 
 Eight regular core markers cover Common/cvar identity, users/profiles/achievements,
 unavailable persistence, match transitions/copying, reload accounting and sign-out.
 
-| Current core memory | Debug | Release |
+| Common/offline core memory | Debug | Release |
 | --- | ---: | ---: |
 | Fixed ELF residency (`PT_LOAD`) | 1,705,136 bytes | 1,761,712 bytes |
 | ELF BSS (included above) | 454,192 bytes | 454,192 bytes |
@@ -444,6 +444,68 @@ against that adapter. These figures include the synthetic offline tests and reta
 support, not campaign/map state. Kernel/stacks, real hardware cache behavior and game
 transition peaks remain unmeasured. No retail assets are used.
 
-Next are the four logical-sound/XAudio header splits and declared resident-link adapters,
-then the authored M3 game fixture. The campaign compile gate remains unsuccessful until
-all selected units compile; Common/offline acceptance does not substitute for that gate.
+At this slice, next were the logical-sound/XAudio header split and resident-link adapters,
+then the authored M3 game fixture. The following slice completes the compile boundary;
+Common/offline acceptance alone did not establish that gate.
+
+
+## M2b logical sound: portable sample/voice/device boundary
+
+The four retained logical sound units now compile without DirectX/XAudio SDK headers.
+`snd_local.h` selects `ps2/audio/sound_backend.*` and portable stream-context types;
+the desktop branch is preserved. `GetIXAudio2` returns null for its optional desktop
+video-device query. Emitter, shader, world and system logic remain selected and their
+playback bodies are unchanged. No sound-disable cvar or source exclusion bypasses
+the campaign gate. All 280 retained units compile in both configurations.
+
+The initial boundary owns only unloaded sample metadata: native strings, reference and
+purge flags, and last-played time. Resource loading, default generation, duration/rate/
+channel/encoding/amplitude queries and device/voice operations terminate with the method
+name. No sample is reported loaded, no voice is created and no device is initialized.
+This is compile acceptance; real timing/completion/voice behavior remains required
+before M3, and audsrv/SPU2 output remains later work. Native sound worlds are not part
+of the foundation runtime.
+
+New backend code compiles strictly with full campaign headers in core and campaign
+object trees. Cold-source optimization now applies to both trees. The foundation still
+links all selected objects directly without GC. Source dispositions stay unchanged;
+no vendor, retail-data or backend-cvar dependency is added. The compile database has
+306 entries.
+
+| Sound-boundary gate | Result |
+| --- | --- |
+| Debug/release core and all 280 campaign units | Compile/link and compile-only gates passed; Make exited 0 |
+| `make compile-core` | 52 scalar idlib + 10 framework/session support units passed |
+| SDK dependency audit | No DirectX/XAudio header in the four logical sound or backend dependency files |
+| `make test-host` | Shared ASan/UBSan fixtures and all 55 Python regressions passed |
+| Debug core smoke | Passed: `20261009T071044Z_smoke_52b4d68ab89c461c` |
+| Release core smoke | Passed: `20261009T071102Z_smoke_8e4c1da14d8e4fba` |
+| Debug Common/audio probes | All 17 passed; first `20261009T071130Z_smoke_70d54275e3404be3`, last `20261009T071202Z_smoke_e28341232621491a` |
+| Release Common/audio probes | All 17 passed; first `20261009T071221Z_smoke_f539b59c90ab4f51`, last `20261009T071253Z_smoke_7616cb5f14164575` |
+| Debug missing-fixture regression | Expected failure accepted: `20261009T071311Z_smoke_b80d519648e24922` |
+| Release missing-fixture regression | Expected failure accepted: `20261009T071336Z_smoke_e3d51e68d59d406f` |
+| Debug/release isolated script probe | Compile/link passed with the shared audio boundary; interpreter remains unexecuted |
+
+The added core check requires sample strings and flags to preserve exact heap ownership
+over three scopes. Three new expected-fatal probes exercise resource loading, duration
+queries and device initialization; the matrix includes the seven existing partial
+startup stops and seven offline/precondition failures. Its runner rejects unexpected
+returns, stale identities, unrelated fatal diagnostics and emulator faults.
+
+| Sound-boundary core memory | Debug | Release |
+| --- | ---: | ---: |
+| Fixed ELF residency (`PT_LOAD`) | 1,707,056 bytes | 1,763,632 bytes |
+| ELF BSS (included above) | 454,192 bytes | 454,192 bytes |
+| Initialized requested / backing / count | 18,945 / 25,708 bytes / 165 | 18,945 / 25,708 bytes / 165 |
+| Smoke peak requested / backing | 44,887 / 52,376 bytes | 44,887 / 52,376 bytes |
+| Arena commitment after tests | 70,608 bytes | 71,376 bytes |
+| After shutdown requested / backing / count | 1,024 / 1,068 bytes / 1 | 1,024 / 1,068 bytes / 1 |
+
+Tagged startup, peak and final ledgers match the preceding slice. The audio check
+releases its native string storage each time. The fixed ELF and arena totals include
+this synthetic test boundary, without voice pools, sample payloads or a sound device.
+They establish no campaign audio or transition budget.
+
+The remaining M2b work is the explicit resident campaign link: supply/audit renderer,
+resource, UI, filesystem/vendor and platform services without discarding registrations.
+Then implement meaningful logical rendering/audio queries for the authored M3 fixture.

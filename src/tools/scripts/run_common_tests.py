@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: run_common_tests.py
-# Brief: Run isolated Common startup/shutdown and offline capability failure probes in PCSX2.
+# Brief: Run isolated Common startup/shutdown and deferred capability failure probes in PCSX2.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 

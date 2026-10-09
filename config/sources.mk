@@ -6,7 +6,7 @@ PS2_CXX_SRC = \
 	ps2/system/log.cpp \
 	tests/smoketests/platform_boot.cpp
 
-SIZE_OPT_CXX_SRC = ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -74,6 +74,7 @@ CORE_FRAMEWORK_CXX_SRC = \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp
 CORE_BACKEND_CXX_SRC = \
+	ps2/audio/sound_backend.cpp \
 	ps2/game/script_error.cpp \
 	ps2/game/class_alloc.cpp \
 	ps2/system/heap.cpp \
@@ -86,6 +87,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
+	tests/smoketests/audio_tests.cpp \
 	tests/smoketests/offline_tests.cpp \
 	tests/smoketests/type_query_tests.cpp \
 	tests/smoketests/type_query_bridge.cpp \
@@ -391,7 +393,7 @@ SCRIPT_BOOT_CXX_SRC = \
 	tests/smoketests/script_boot.cpp
 
 # Required portable campaign support; compiled strictly without claiming a resident link.
-GAME_BACKEND_CXX_SRC = ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp
+GAME_BACKEND_CXX_SRC = ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp
 
 # Existing upstream JPEG sources, used only by the host decoder harness at this stage.
 JPEG_TEST_CXX_SRC = \

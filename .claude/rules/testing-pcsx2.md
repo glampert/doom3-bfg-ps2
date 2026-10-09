@@ -20,7 +20,7 @@
   `20261008T070310Z_smoke_88ff01f3485548c6` checks timer progress/conversion,
   64-byte static/stack buffer alignment, scalar vector math and the EE FPU's finite
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
-- Final debug/release core and missing-fixture runs passed on 2026-10-08. Run identities,
+- Latest debug/release core and missing-fixture runs passed on 2026-10-09. Run identities,
   memory measurements and the precise foundation boundary are recorded in
   [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 27 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
@@ -58,19 +58,23 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 14 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 17 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Seven negative probes require matching run/begin identities and
+  uses a fresh process. Ten negative probes require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
-  matchmaking, Classic switching, absent save manager and unsupported input device.
+  matchmaking, Classic switching, absent save manager, unsupported input device, audio
+  resource loading, audio duration queries and audio device initialization.
   A watchdog, TLB/bus error, unexpected return or unrelated fatal fails.
 - Regular core smoke requires eight `offline/` markers covering the real Common
   identity and `com_smp=0`/ROM policy, local user/profile/achievement state, unavailable
   persistence, copied match parameters, explicit loading completion, stable reload
   accounting and sign-out/routing/stale handles. Profile save failure must preserve
-  transient stats/bits. These checks do not execute game ticks or load a map.
+  transient stats/bits. These checks do not execute game ticks or load a map. Core smoke
+  also requires `audio/sample-metadata-ledger`: native string ownership and unloaded
+  sample flags
+  must recover the exact requested/backing/count ledger after each scope.
 
 ## Quake II reference procedures
 

@@ -79,6 +79,10 @@ typedef enum {
 
 #include "SoundVoice.h"
 
+// [PS2_D3BFG]: Logical sound uses a portable sample/voice/device boundary, never DirectX types.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/audio/sound_backend.h"
+#else
 
 #define OPERATION_SET 1
 
@@ -91,6 +95,7 @@ typedef enum {
 #include "XAudio2/XA2_SoundSample.h"
 #include "XAudio2/XA2_SoundVoice.h"
 #include "XAudio2/XA2_SoundHardware.h"
+#endif
 
 
 
@@ -436,8 +441,14 @@ public:
 			sample( NULL ),
 			bufferNumber( 0 )
 		{ }
+		// [PS2_D3BFG]: Portable stream ownership must not name desktop callback types.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		idSoundVoice *		voice;
+		idSoundSample *		sample;
+#else
 		idSoundVoice_XAudio2 *	voice;
 		idSoundSample_XAudio2 * sample;
+#endif
 		int bufferNumber;
 	};
 
