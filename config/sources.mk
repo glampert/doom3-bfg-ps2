@@ -370,3 +370,55 @@ SCRIPT_CXX_SRC = \
 SCRIPT_BOOT_CXX_SRC = \
 	ps2/system/log.cpp \
 	tests/smoketests/script_boot.cpp
+
+# Required portable campaign support; compiled strictly without claiming a resident link.
+GAME_BACKEND_CXX_SRC = ps2/ui/jpeg_decoder.cpp
+
+# Existing upstream JPEG sources, used only by the host decoder harness at this stage.
+JPEG_TEST_CXX_SRC = \
+	neo/renderer/jpeg-6/jcapimin.cpp \
+	neo/renderer/jpeg-6/jcapistd.cpp \
+	neo/renderer/jpeg-6/jccoefct.cpp \
+	neo/renderer/jpeg-6/jccolor.cpp \
+	neo/renderer/jpeg-6/jcdctmgr.cpp \
+	neo/renderer/jpeg-6/jchuff.cpp \
+	neo/renderer/jpeg-6/jcinit.cpp \
+	neo/renderer/jpeg-6/jcmainct.cpp \
+	neo/renderer/jpeg-6/jcmarker.cpp \
+	neo/renderer/jpeg-6/jcmaster.cpp \
+	neo/renderer/jpeg-6/jcomapi.cpp \
+	neo/renderer/jpeg-6/jcparam.cpp \
+	neo/renderer/jpeg-6/jcphuff.cpp \
+	neo/renderer/jpeg-6/jcprepct.cpp \
+	neo/renderer/jpeg-6/jcsample.cpp \
+	neo/renderer/jpeg-6/jctrans.cpp \
+	neo/renderer/jpeg-6/jdapimin.cpp \
+	neo/renderer/jpeg-6/jdapistd.cpp \
+	neo/renderer/jpeg-6/jdatadst.cpp \
+	neo/renderer/jpeg-6/jdatasrc.cpp \
+	neo/renderer/jpeg-6/jdcoefct.cpp \
+	neo/renderer/jpeg-6/jdcolor.cpp \
+	neo/renderer/jpeg-6/jddctmgr.cpp \
+	neo/renderer/jpeg-6/jdhuff.cpp \
+	neo/renderer/jpeg-6/jdinput.cpp \
+	neo/renderer/jpeg-6/jdmainct.cpp \
+	neo/renderer/jpeg-6/jdmarker.cpp \
+	neo/renderer/jpeg-6/jdmaster.cpp \
+	neo/renderer/jpeg-6/jdmerge.cpp \
+	neo/renderer/jpeg-6/jdphuff.cpp \
+	neo/renderer/jpeg-6/jdpostct.cpp \
+	neo/renderer/jpeg-6/jdsample.cpp \
+	neo/renderer/jpeg-6/jdtrans.cpp \
+	neo/renderer/jpeg-6/jerror.cpp \
+	neo/renderer/jpeg-6/jfdctflt.cpp \
+	neo/renderer/jpeg-6/jfdctfst.cpp \
+	neo/renderer/jpeg-6/jfdctint.cpp \
+	neo/renderer/jpeg-6/jidctflt.cpp \
+	neo/renderer/jpeg-6/jidctfst.cpp \
+	neo/renderer/jpeg-6/jidctint.cpp \
+	neo/renderer/jpeg-6/jidctred.cpp \
+	neo/renderer/jpeg-6/jmemmgr.cpp \
+	neo/renderer/jpeg-6/jmemnobs.cpp \
+	neo/renderer/jpeg-6/jquant1.cpp \
+	neo/renderer/jpeg-6/jquant2.cpp \
+	neo/renderer/jpeg-6/jutils.cpp

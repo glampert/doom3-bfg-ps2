@@ -135,3 +135,22 @@ selected core objects. These test sources remain explicit in `CORE_BOOT_CXX_SRC`
 The campaign manifest retains all 274 units; both configurations now compile 263.
 The eleven remaining common/platform/Classic/sound/SWF failures are recorded in
 [PORT_STATUS.md](PORT_STATUS.md), and the campaign gate remains unsuccessful.
+
+## Campaign diagnostics and JPEG adapter
+
+`GAME_BACKEND_CXX_SRC` lists required campaign-only backend objects. `compile-game`
+compiles them with strict backend warnings and their own flag stamp, alongside the
+unchanged 274-unit campaign manifest. They are not linked into the foundation to
+manufacture runtime acceptance. The first adapter supplies bounded SWF JPEG decoding.
+
+`JPEG_TEST_CXX_SRC` is an explicit host-only list of the shipped legacy JPEG sources.
+It does not change their runtime dispositions or import a new dependency. Host codec
+objects retain visible legacy warnings without `-Werror`; Clang's removed `register`
+and writable-string diagnostics are suppressed only there. The new decoder/test units
+retain strict warnings and ASan/UBSan. The source audit allows this host fixture list
+without allowing excluded vendor/editor code into target groups.
+
+The codec's target dependency still needs selection/import under `src/external/` and
+target decode/runtime acceptance before a resident game link. A tagged fix bounds the
+shipped encoder's Huffman-value copy; the authored fixture generator exposed its
+256-byte read from 12/162-byte standard tables under ASan.

@@ -92,3 +92,11 @@ math path; PS2-specific math replacement headers are a later milestone.
 - Cached model type checks run in release before downcasts. A failed memory-file query
   in resource packaging closes the opened file before skipping it. Static hierarchy tests
   do not establish menu/model execution or renderer acceptance.
+- Portable `idCommonLocal::Error`/`FatalError` use the primitive terminating log sink,
+  including before CVar initialization. They do not run desktop dialogs, `Stop`,
+  renderer/session shutdown or exception recovery. Recoverable loading remains pending.
+- The shipped JPEG source has four-byte RGB rows and supports only the float DCT
+  configuration. Its encoder copied 256 Huffman values from shorter standard arrays;
+  copy the symbol count instead. Portable SWF decoding preserves tables across tags,
+  rejects source exhaustion/oversized images, and frees owned output and codec state
+  before a fatal diagnostic. Host codec tests do not establish target JPEG execution.

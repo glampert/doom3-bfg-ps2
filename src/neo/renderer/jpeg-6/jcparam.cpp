@@ -161,7 +161,12 @@ add_huff_table( j_compress_ptr cinfo,
     }
 
     MEMCOPY( ( *htblptr )->bits, bits, SIZEOF( ( *htblptr )->bits ) );
-    MEMCOPY( ( *htblptr )->huffval, val, SIZEOF( ( *htblptr )->huffval ) );
+    // [PS2_D3BFG]: Standard Huffman value arrays contain 12/162 entries, not 256.
+    int count = 0;
+    for ( int i = 1; i <= 16; ++i ) { count += bits[i]; }
+    if ( count < 1 || count > 256 ) { ERREXIT( cinfo, JERR_HUFF_CLEN_OVERFLOW ); }
+    MEMZERO( ( *htblptr )->huffval, SIZEOF( ( *htblptr )->huffval ) );
+    MEMCOPY( ( *htblptr )->huffval, val, count * SIZEOF( UINT8 ) );
 
     /* Initialize sent_table FALSE so table will be written to JPEG file. */
     ( *htblptr )->sent_table = FALSE;

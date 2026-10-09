@@ -30,6 +30,10 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "Common_local.h"
+// [PS2_D3BFG]: Early failures use the shared sink without renderer/session dependencies.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/system/log.h"
+#endif
 
 idCVar com_logFile( "logFile", "0", CVAR_SYSTEM | CVAR_NOCHEAT, "1 = buffer log, 2 = flush after each print", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
 idCVar com_logFileName( "logFileName", "qconsole.log", CVAR_SYSTEM | CVAR_NOCHEAT, "name of log file, if empty, qconsole.log will be used" );
@@ -104,6 +108,10 @@ void idCommonLocal::VPrintf( const char *fmt, va_list args ) {
 
 	// if the cvar system is not initialized
 	if ( !cvarSystem->IsInitialized() ) {
+		// [PS2_D3BFG]: Startup output must reach the shared sink before CVar registration.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		ps2::LogV( ps2::LogLevel::Info, fmt, args );
+#endif
 		return;
 	}
 	// optionally put a timestamp at the beginning of each print,
@@ -155,7 +163,12 @@ void idCommonLocal::VPrintf( const char *fmt, va_list args ) {
 	}
 #endif
 	if ( !idLib::IsMainThread() ) {
+		// [PS2_D3BFG]: Non-main-thread output also follows the platform logging sink.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		Sys_DebugPrintf( "%s", msg );
+#else
 		OutputDebugString( msg );
+#endif
 		return;
 	}
 
@@ -394,7 +407,7 @@ void idCommonLocal::DumpWarnings() {
 
 		fileSystem->CloseFile( warningFile );
 
-#ifndef ID_DEBUG
+#if !defined( ID_DEBUG ) && defined( WIN32 ) // [PS2_D3BFG]: Launching a desktop editor is Windows-only.
 		idStr	osPath;
 		osPath = fileSystem->RelativePathToOSPath( "warnings.txt", "fs_savepath" );
 		WinExec( va( "Notepad.exe %s", osPath.c_str() ), SW_SHOW );
@@ -408,6 +421,14 @@ idCommonLocal::Error
 ==================
 */
 void idCommonLocal::Error( const char *fmt, ... ) {
+	// [PS2_D3BFG]: Initial portable errors terminate explicitly; recoverable loading is later work.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	com_refreshOnPrint = false;
+	com_errorEntered = ERP_FATAL;
+	va_list arguments;
+	va_start( arguments, fmt );
+	ps2::FatalErrorV( fmt, arguments );
+#else
 	va_list		argptr;
 	static int	lastErrorTime;
 	static int	errorCount;
@@ -490,6 +511,7 @@ void idCommonLocal::Error( const char *fmt, ... ) {
 
 	Sys_Error( "%s", errorMessage );
 
+#endif // [PS2_D3BFG]: Preserve desktop recovery and dialogs.
 }
 
 /*
@@ -500,6 +522,14 @@ Dump out of the game to a system dialog
 ==================
 */
 void idCommonLocal::FatalError( const char *fmt, ... ) {
+	// [PS2_D3BFG]: Initial portable errors terminate explicitly; recoverable loading is later work.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	com_refreshOnPrint = false;
+	com_errorEntered = ERP_FATAL;
+	va_list arguments;
+	va_start( arguments, fmt );
+	ps2::FatalErrorV( fmt, arguments );
+#else
 	va_list		argptr;
 
 	if ( com_productionMode.GetInteger() == 3 ) {
@@ -540,4 +570,5 @@ void idCommonLocal::FatalError( const char *fmt, ... ) {
 
 	Sys_Error( "%s", errorMessage );
 
+#endif // [PS2_D3BFG]: Preserve desktop recovery and dialogs.
 }

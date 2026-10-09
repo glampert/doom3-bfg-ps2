@@ -272,3 +272,32 @@ The remaining compile failures are `Common.cpp`, `Common_printf.cpp`, `common_fr
 The next M2b work is explicit common/SWF error control flow and portable platform,
 offline-session and sound boundaries, followed by the resident link. All 274 sources
 remain selected, and the compile gate still correctly fails while these blockers remain.
+
+## Common and SWF error control flow
+
+Portable common errors now terminate through the shared fatal sink, without consulting
+renderer/session state, copying to a clipboard or opening a desktop dialog. Early
+printing before CVar initialization and non-main-thread diagnostics use that sink too.
+The Init/Frame blocks preserve ordinary scope while reserving exception recovery for
+desktop builds. They still need the planned startup, Classic and session work before
+they compile or run; no Common lifecycle acceptance follows from this slice.
+
+SWF JPEG decoding uses a bounded, stateful backend adapter. It preserves JPEG tables
+between tags, returns RGBA data with opaque alpha, and rejects exhausted input, markers
+outside the supplied buffer, invalid dimensions and output larger than 4 MiB. The
+initial policy limits either dimension to 1024 and terminates malformed loads after
+freeing owned output and codec state. This is not recoverable image-loading rollback.
+
+The host harness uses the real shipped codec with authored encoded pixels. ASan/UBSan
+check repeated decoding, separated tables, pixel/alpha output and exact ledger recovery,
+plus five fatal cases including a failure after output allocation. A test fatal sink
+inspects cleanup; the production logger's termination has separate existing regressions.
+The generator exposed an upstream encoder over-read from short standard Huffman tables;
+a tagged fix copies only their symbol count. The codec retains its shipped float DCT.
+
+Debug/release compile the two newly portable campaign units and the strict backend
+adapter. The campaign is now 265/274 in each configuration, with nine failures remaining;
+Make still exits 2. Default debug/release foundation builds pass; the adapter is compiled
+separately rather than linked into that foundation. Target codec import and JPEG runtime
+acceptance remain part of the resident-link work. All 45 host regressions pass, and
+`make compiledb` produces 292 entries. No retail assets or new vendor imports are used.

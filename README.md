@@ -51,7 +51,7 @@ ELF/startup memory measurements and the remaining campaign compile failures.
 
 M2b is in progress: the campaign headers now separate OpenGL state from shared
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
-The campaign compile now passes 263 of 274 units in both configurations and still fails
+The campaign compile now passes 265 of 274 units in both configurations and still fails
 on common/SWF exceptions and desktop service dependencies;
 the default executable remains the tested headless core.
 Game class allocation now preserves heap alignment and checks signed memory counters;
@@ -60,6 +60,9 @@ cover this allocation boundary, while actual game initialization remains a later
 The script compiler/program also compile without exceptions; an isolated EE probe tests
 compilation, limits and explicit cleanup before fatal errors. `make test-script` runs it.
 Recoverable script loading and actual interpreter/game execution remain later gates.
+Portable common errors now terminate through the shared logging sink without desktop
+dialogs or renderer/session calls. SWF JPEG errors explicitly release decoder/output
+state; bounded input, dimensions and repeated/table-based decoding have sanitizer tests.
 Retained menu, GUI-variable, file and model casts use checked portable hierarchy queries.
 Shared host/EE tests cover null/sibling rejection, inherited/const types and separate-unit
 identity; actual file objects and engine hierarchy declarations are checked on the EE.

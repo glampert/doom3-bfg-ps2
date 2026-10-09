@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 PROJECTS = ("idlib.vcxproj", "doomexe.vcxproj", "game-d3xp.vcxproj", "external.vcxproj")
 SOURCE_SUFFIXES = {".c", ".cpp", ".cc"}
 EE_LISTS = ("PS2_CXX_SRC", "CORE_CXX_SRC", "CORE_FRAMEWORK_CXX_SRC", "CORE_BACKEND_CXX_SRC", "CORE_C_SRC", "CORE_BOOT_CXX_SRC",
-            "CAMPAIGN_CXX_SRC", "VENDOR_C_SRC", "VENDOR_CXX_SRC", "SCRIPT_CXX_SRC", "SCRIPT_BOOT_CXX_SRC")
+            "CAMPAIGN_CXX_SRC", "VENDOR_C_SRC", "VENDOR_CXX_SRC", "SCRIPT_CXX_SRC", "SCRIPT_BOOT_CXX_SRC", "GAME_BACKEND_CXX_SRC", "JPEG_TEST_CXX_SRC")
 
 
 def read_make_lists(path: Path) -> dict[str, list[str]]:
@@ -78,7 +78,9 @@ def audit(root: Path) -> tuple[dict, list[str]]:
                 errors.append(f"Classic Doom source present in {name}: {source}")
             if not (root / "src" / source).is_file():
                 errors.append(f"{name} source missing: {source}")
-            if source.startswith("neo/") and dispositions.get(source) != "campaign_runtime":
+            if source.startswith("neo/") and dispositions.get(source) != "campaign_runtime" and not (
+                    name == "JPEG_TEST_CXX_SRC" and source.startswith("neo/renderer/jpeg-6/") and
+                    dispositions.get(source) in ("vendor_optional", "source_only_excluded")):
                 errors.append(f"{name} enables an excluded/replaced source: {source}")
     intended = set(inventory["categories"]["campaign_runtime"]["sources"])
     if set(lists["CAMPAIGN_CXX_SRC"]) != intended:

@@ -55,6 +55,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   files in `PS2_CXX_SRC` or the relevant core group; cold sources also go in
   `SIZE_OPT_CXX_SRC`. Run `make compiledb` after changing source lists. Flag stamps
   invalidate affected object groups automatically.
+- `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly by
+  `compile-game` before the resident link exists. Host-only vendor fixture lists do
+  not enable those vendor sources in an EE runtime target.
 - Doom smoke procedures and the separately labeled Quake reference are in
   [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md).
 

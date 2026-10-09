@@ -365,7 +365,12 @@ idCommonLocal::Frame
 =================
 */
 void idCommonLocal::Frame() {
+	// [PS2_D3BFG]: Portable failures are explicit/fatal; normal-return block scope remains intact.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	{
+#else
 	try {
+#endif
 		SCOPED_PROFILE_EVENT( "Common::Frame" );
 
 		// This is the only place this is incremented
@@ -696,9 +701,13 @@ void idCommonLocal::Frame() {
 		mainFrameTiming = frameTiming;
 
 		session->GetSaveGameManager().Pump();
-	} catch( idException & ) {
+	}
+// [PS2_D3BFG]: Desktop recovery remains separate from the initial portable fatal policy.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
+	catch( idException & ) {
 		return;			// an ERP_DROP was thrown
 	}
+#endif
 }
 
 /*

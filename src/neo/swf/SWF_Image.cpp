@@ -31,6 +31,16 @@ If you have questions concerning this license or the applicable additional terms
 //#include "../../renderer/ImageTools/ImageProcess.h"
 #include "../renderer/jpeg-6/jpeglib.h"
 
+// [PS2_D3BFG]: Bounded JPEG input and explicit owned-state cleanup replace exception recovery.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/ui/jpeg_decoder.h"
+
+idSWF::idDecompressJPEG::idDecompressJPEG() : vinfo( ps2::jpeg::Create() ) {}
+idSWF::idDecompressJPEG::~idDecompressJPEG() { ps2::jpeg::Destroy( vinfo ); }
+byte * idSWF::idDecompressJPEG::Load( const byte * input, int inputSize, int & width, int & height ) {
+	return ps2::jpeg::Decode( vinfo, input, inputSize, width, height );
+}
+#else
 /*
 ========================
 idSWF::idDecompressJPEG
@@ -154,6 +164,8 @@ byte * idSWF::idDecompressJPEG::Load( const byte * input, int inputSize, int & w
 	}
 }
 
+
+#endif // [PS2_D3BFG]: Desktop decoder retains its existing exception policy.
 
 /*
 ========================

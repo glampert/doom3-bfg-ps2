@@ -113,6 +113,7 @@ CORE_OBJS = $(addprefix $(OUTPUT_DIR)/core/src/,$(CORE_CXX_SRC:.cpp=.o) $(CORE_F
 CORE_BACKEND_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BACKEND_CXX_SRC:.cpp=.o))
 CORE_C_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_C_SRC:.c=.o))
 CAMPAIGN_OBJS = $(addprefix $(OUTPUT_DIR)/campaign/src/,$(CAMPAIGN_CXX_SRC:.cpp=.o))
+GAME_BACKEND_OBJS = $(addprefix $(OUTPUT_DIR)/game-backend/src/,$(GAME_BACKEND_CXX_SRC:.cpp=.o))
 SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(SIZE_OPT_CXX_SRC:.cpp=.o))
 
 ifeq ($(CORE_BOOT),1)
@@ -216,6 +217,13 @@ $(CAMPAIGN_OBJS): $(OUTPUT_DIR)/campaign/src/%.o: src/%.cpp $(OUTPUT_DIR)/.campa
 	@mkdir -p $(dir $@)
 	$(EE_CXX) $(CAMPAIGN_CXXFLAGS) $(NEO_WARNFLAGS_FOR) -c $< -o $@
 
+$(OUTPUT_DIR)/.game-backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) --sources $(GAME_BACKEND_CXX_SRC)
+
+$(GAME_BACKEND_OBJS): $(OUTPUT_DIR)/game-backend/src/%.o: src/%.cpp $(OUTPUT_DIR)/.game-backend-flags.json
+	@mkdir -p $(dir $@)
+	$(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -c $< -o $@
+
 $(CORE_OBJS) $(CAMPAIGN_OBJS): NEO_WARNFLAGS_FOR = $(LEGACY_SHARED_WARNFLAGS)
 
 $(EE_BIN): $(LINK_OBJS) $(OUTPUT_DIR)/.link-flags.json
@@ -247,7 +255,7 @@ compile-core: inventory $(CORE_ARCHIVE)
 
 # This is deliberately separate from compile-core: it uses the real campaign
 # header boundary and reports the remaining M2b portability blockers.
-compile-game: inventory $(CAMPAIGN_OBJS)
+compile-game: inventory $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS)
 	@echo "Campaign compile gate: $(words $(CAMPAIGN_OBJS)) retained EE units; replacements remain listed in the inventory."
 
 compiledb:
@@ -303,9 +311,26 @@ build/tests/common_tests_%: $(HOST_COMMON_SOURCES) $(HOST_COMMON_HEADERS) build/
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_COMMON_SOURCES) -o $@
 
-test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0
+HOST_JPEG_FLAGS = $(filter-out -Werror,$(HOST_TEST_FLAGS)) -Wno-register -Wno-writable-strings -Isrc/neo
+HOST_JPEG_OBJS = $(addprefix build/tests/jpeg/,$(JPEG_TEST_CXX_SRC:.cpp=.o))
+HOST_JPEG_PROJECT_SOURCES = src/tests/host/jpeg_decoder_tests.cpp src/ps2/ui/jpeg_decoder.cpp src/ps2/system/heap.cpp
+
+build/tests/.jpeg-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_JPEG_FLAGS) $(HOST_TEST_FLAGS) --sources $(JPEG_TEST_CXX_SRC) $(HOST_JPEG_PROJECT_SOURCES)
+
+$(HOST_JPEG_OBJS): build/tests/jpeg/%.o: src/%.cpp build/tests/.jpeg-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_JPEG_FLAGS) -MMD -MP -c $< -o $@
+
+build/tests/jpeg_decoder_tests: $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) src/ps2/ui/jpeg_decoder.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/neo/renderer/jpeg-6/jpeglib.h src/neo/idlib/sys/sys_alloc_tags.h build/tests/.jpeg-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -DID_PS2_CORE=1 -isystem src/neo $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) -o $@
+
+test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests
 	./build/tests/heap_tests
 	$(PYTHON) -m unittest discover -s src/tests/host -p 'test_*.py'
+
+-include $(HOST_JPEG_OBJS:.o=.d) $(GAME_BACKEND_OBJS:.o=.d)
 
 clean:
 	rm -rf build/debug build/release build/tests

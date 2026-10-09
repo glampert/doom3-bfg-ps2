@@ -934,7 +934,12 @@ idCommonLocal::Init
 =================
 */
 void idCommonLocal::Init( int argc, const char * const * argv, const char *cmdline ) {
+	// [PS2_D3BFG]: Portable failures are explicit/fatal; normal-return block scope remains intact.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	{
+#else
 	try {
+#endif
 		// set interface pointers used by idLib
 		idLib::sys			= sys;
 		idLib::common		= common;
@@ -1212,9 +1217,13 @@ void idCommonLocal::Init( int argc, const char * const * argv, const char *cmdli
 		Printf( "--- Common Initialization Complete ---\n" );
 
 		idLib::Printf( "QA Timing IIS: %06dms\n", Sys_Milliseconds() );
-	} catch( idException & ) {
+	}
+// [PS2_D3BFG]: Desktop recovery remains separate from the initial portable fatal policy.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
+	catch( idException & ) {
 		Sys_Error( "Error during initialization" );
 	}
+#endif
 }
 
 /*
