@@ -129,6 +129,14 @@ class CommonProbeClassifierTests(unittest.TestCase):
             with self.subTest(probe=probe):
                 self.assertTrue(runner.classify_run("run1", probe, None, self.fatal_log(probe), None, False)[0])
 
+    def test_input_method_prefix_and_later_message_cannot_pass(self):
+        expected = runner.NEGATIVE_PROBES["input-init"]
+        wrong_method = self.fatal_log("input-init").replace(expected, runner.NEGATIVE_PROBES["input-map"])
+        later_message = self.fatal_log("input-init").replace(expected, "unrelated input failure\n" + expected)
+        for log in (wrong_method, later_message):
+            with self.subTest(log=log):
+                self.assertFalse(runner.classify_run("run1", "input-init", None, log, None, False)[0])
+
     def test_wrong_fatal_watchdog_and_tlb_fail(self):
         for log, timeout in [(self.fatal_log("network") + "TLB Miss", False),
                              (self.fatal_log("network"), True),

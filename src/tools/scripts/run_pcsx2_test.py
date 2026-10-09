@@ -31,6 +31,17 @@ DEFAULT_CONFIG = Path.home() / "Library/Application Support/PCSX2/inis/PCSX2.ini
 RESULT_LIMIT = 4096
 LIFECYCLE_STAGES = ("system", "idlib", "commands", "cvars", "filesystem", "jobs", "session")
 NEGATIVE_PROBES = {
+    "input-init": "input capability unavailable: idUsercmdGen::Init",
+    "input-map": "input capability unavailable: idUsercmdGen::InitForNewMap",
+    "input-build": "input capability unavailable: idUsercmdGen::BuildCurrentUsercmd",
+    "input-current": "input capability unavailable: idUsercmdGen::GetCurrentUsercmd",
+    "input-inhibit": "input capability unavailable: idUsercmdGen::InhibitUsercmd",
+    "input-mouse": "input capability unavailable: idUsercmdGen::MouseState",
+    "input-button": "input capability unavailable: idUsercmdGen::ButtonState",
+    "input-key": "input capability unavailable: idUsercmdGen::KeyState",
+    "input-null-command": "input command string must not be null",
+    "input-forced-enable": "input capability unavailable: idUsercmdGen::BuildCurrentUsercmd",
+    "input-rumble": "platform capability unavailable: Sys_SetRumble",
     "multiplayer-run": "multiplayer capability unavailable: idMultiplayerGame::Run",
     "multiplayer-chat": "multiplayer capability unavailable: idMultiplayerGame::AddChatLine",
     "multiplayer-snapshot": "multiplayer capability unavailable: idMultiplayerGame::WriteToSnapshot",
@@ -69,6 +80,7 @@ VERSION_RE = re.compile(
     r"(?:[ \t]+\([A-Za-z0-9 ._:/+-]+\))?[ \t]*$", re.MULTILINE)
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_CORE_CHECKS = frozenset({
+    "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
     "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/disabled-resolution-cvars",
     "offline/common-idle-demo-ledger",
@@ -138,7 +150,11 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
         begin = f"[D3BFG] PROBE {scenario} BEGIN"
         fatal = log.find("[D3BFG] FATAL", log.find(begin)) if begin in log else -1
         expected = NEGATIVE_PROBES[scenario]
-        if f"[D3BFG] RUN {test_id} BEGIN" not in log or "[D3BFG] CHECK probe/ready PASS" not in log or fatal < 0 or expected not in log[fatal:]:
+        # Check the first fatal line, with a name boundary: Init must not accept InitForNewMap,
+        # and a later expected message must not hide an unrelated initial failure.
+        diagnostic = log[fatal:].splitlines()[0] if fatal >= 0 else ""
+        matches = re.search(re.escape(expected) + r"(?![A-Za-z0-9_])", diagnostic) is not None
+        if f"[D3BFG] RUN {test_id} BEGIN" not in log or "[D3BFG] CHECK probe/ready PASS" not in log or not matches:
             return False, "missing expected probe fatal"
         return True, "expected fatal observed"
     if CRASH_RE.search(log):

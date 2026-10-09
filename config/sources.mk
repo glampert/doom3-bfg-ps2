@@ -12,7 +12,7 @@ RENDER_STUB_CXX_SRC = \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp
 
-SIZE_OPT_CXX_SRC = ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/system/resident_boot.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/system/resident_boot.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -80,6 +80,7 @@ CORE_FRAMEWORK_CXX_SRC = \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp
 CORE_BACKEND_CXX_SRC = \
+	ps2/input/usercmd_stub.cpp \
 	ps2/game/multiplayer_stub.cpp \
 	ps2/system/save_metadata.cpp \
 	ps2/renderer/null_render.cpp \
@@ -102,6 +103,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
+	tests/smoketests/input_tests.cpp \
 	tests/smoketests/deferred_tests.cpp \
 	tests/smoketests/renderer_tests.cpp \
 	tests/smoketests/audio_tests.cpp \
@@ -411,7 +413,7 @@ SCRIPT_BOOT_CXX_SRC = \
 	tests/smoketests/script_boot.cpp
 
 # Required portable campaign support; compiled strictly without claiming a resident link.
-GAME_BACKEND_CXX_SRC = ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
+GAME_BACKEND_CXX_SRC = ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
 
 # Resident-only entry and shared providers. No core filesystem or Common replacement is linked.
 RESIDENT_SUPPORT_CXX_SRC = \

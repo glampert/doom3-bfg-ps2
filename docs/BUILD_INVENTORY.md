@@ -197,7 +197,7 @@ class omits Classic material/framebuffer storage and creates no game worker. Its
 no game object or game initialization stage. Full container filesystem, render/sound,
 UI/dialog and save services still need their resident-link implementations.
 
-`make test-common` runs seven partial-startup cleanup probes and twenty-nine expected-fatal
+`make test-common` runs seven partial-startup cleanup probes and forty expected-fatal
 capability/precondition probes, each in a fresh process. `BUILD=release` selects the
 assertions-disabled matrix. The regular core smoke also checks copied match parameters,
 explicit loading completion, transient stats/achievement bits, user-handle invalidation
@@ -230,8 +230,8 @@ processes with assertions enabled and disabled. See the latest acceptance eviden
 ## Resident campaign link gate
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
-all 281 campaign objects, fourteen campaign backend objects, eight strict resident support
-objects and dlmalloc: 304 direct inputs, without GC or archives hiding undefined
+all 281 campaign objects, fifteen campaign backend objects, eight strict resident support
+objects and dlmalloc: 305 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
@@ -239,7 +239,7 @@ substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
 `link_resident.py` records the compiler/link command, flags, source/dependency/object
 hashes, actual linker status, unique demangled symbols and requesting objects in
 `build/<config>/resident/report.{json,txt}`, beside the raw log, response file and map.
-The current gate fails with 21 symbols in both configurations; no resident ELF is
+The current gate fails with 17 codec symbols in both configurations; no resident ELF is
 emitted. Compiler nonzero exits stay failures even without a recognized diagnostic.
 Successful links also require a MIPS executable/load segment, every input in the map,
 static game interfaces, three native class registration roots and the static CVar
@@ -307,10 +307,44 @@ screen enumeration calls. Empty shell cleanup releases list metadata; active res
 presentation, continuation, save enumeration and leaderboard callbacks fail explicitly.
 Shell and retry-dialog paths have compile/link acceptance, pending resident runtime tests.
 
-The core now contains 20 backend and eleven smoke units. Three required `deferred/`
-markers cover inactive multiplayer lifecycle/ledger recovery, independently copied save
+The deferred game/UI slice brought the core to 20 backend and eleven smoke units.
+Three required `deferred/` markers cover inactive multiplayer lifecycle/ledger recovery, independently copied save
 descriptions and repeated cleanup after warming native string pools, and read-only save
 policy. Six fresh-process probes cover match ticks, variadic chat, snapshot writes,
 scoreboard activation, mode enumeration and forced save enablement, with assertions on
-and off. All 304 resident inputs remain; only input (4) and codecs (17) are unresolved.
-No upstream source dispositions change and no game initialization is claimed.
+and off. That slice retained 304 resident inputs and left input (4) and codecs (17)
+unresolved. No upstream source dispositions changed or game initialization was claimed.
+
+
+## Input/usercmd interface provider
+
+Shared, cold `ps2/input/usercmd_stub.cpp` compiles strictly with the native headers in
+core and campaign object trees. It binds `usercmdGen` to a typed, allocation-free
+implementation and preserves the exported native `userCmdStrings` table: 47 commands
+and a final sentinel, with exactly `UB_MAX_BUTTONS` entries for SWF's indexed traversal.
+Case-insensitive lookup returns the native enum for exact names or `UB_NONE` for an
+unrecognized command. Null command strings fail explicitly in both configurations.
+
+Clear, ClearAngles and Shutdown operate on an empty provider; invalid ButtonState and
+KeyState indices retain the native minus-one result. Valid live queries, initialization,
+map preparation, inhibition, mouse state and command building/access fail by method name.
+No neutral commands or connected device are fabricated. `in_useJoystick` and
+`in_joystickRumble` retain native archive flags, add ROM and default to zero in both
+builds. Forced controller writes cannot enable sampling; forced rumble writes still
+encounter the existing unavailable `Sys_SetRumble` provider. No SDK input module, event
+poller, device buffer or additional upstream unit is enabled. Physical controls and
+explicit synthetic command injection remain required for their later runtime gates.
+
+The core now contains 21 backend and twelve smoke units. Three required `input/`
+markers verify native table order/extent and independent command names/prefix handling,
+repeated empty cleanup and invalid indices with exact ledger recovery, and disabled
+controller cvar policy. Eleven fresh-process probes cover every unavailable input method,
+null command validation and forced controller/rumble values with asserts enabled and
+disabled. All 305 resident inputs remain retained; only 17 codec symbols are unresolved.
+Source dispositions stay unchanged; source audit and the compile database cover the new
+strict full-header units. The input link group is closed; physical input acceptance remains a later gate.
+
+The negative-probe classifier matches only the first fatal line and requires a name
+boundary after the expected text. A new host regression rejects InitForNewMap under
+an Init probe and a later matching message after an unrelated failure. The current
+host suite contains 62 Python regressions plus the shared ASan/UBSan fixtures.

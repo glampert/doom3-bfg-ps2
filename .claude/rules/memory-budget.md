@@ -7,12 +7,12 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
-After the deferred game/UI slice on 2026-10-10, debug/release fixed core ELF residency is
-1,752,496 / 1,809,072 bytes, including 459,696 bytes of BSS. Core
-initialization requests 30,873 bytes (41,984 backing);
-the synthetic test peak is 56,751 bytes (68,588 backing). Both shut down to the exact
+After the input-interface slice on 2026-10-10, debug/release fixed core ELF residency is
+1,757,104 / 1,813,680 bytes, including 459,824 bytes of BSS. Core
+initialization requests 31,425 bytes (42,704 backing);
+the synthetic test peak is 57,367 bytes (69,372 backing). Both shut down to the exact
 process-lifetime baseline of 1,024 requested / 1,068 backing bytes in one allocation.
-dlmalloc's commitment after tests is 86,608 / 87,376 bytes, including untagged C/newlib
+dlmalloc's commitment after tests is 86,096 / 86,864 bytes, including untagged C/newlib
 allocations and freed space. Do not double-count tagged backing on top of the arena.
 The real portable `commonLocal` occupies 54,792 bytes; its desktop-only 2,304,000-byte
 Classic framebuffer is absent. This prevents Classic residency when importing Common;
@@ -30,7 +30,9 @@ vertex-cache or texture payload pools. Its metadata scopes recover the exact led
 The deferred slice adds only native empty multiplayer and save-description tests plus
 one disabled save cvar. Save-description tests warm native dictionary pools before
 requiring exact repeated ledger recovery; full shutdown still returns to baseline.
-Shell resources, save pipelines and multiplayer matches are not initialized.
+Shell resources, save pipelines and multiplayer matches are not initialized. The input
+provider adds two disabled archived cvars and native action metadata, without device
+handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
 The still-failing resident link provides no resident game memory measurement.
 Class `memused` counts object bytes without another size prefix; shared heap metadata
 supplies exact unsized-delete accounting while preserving object alignment. The

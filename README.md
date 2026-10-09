@@ -31,7 +31,7 @@ make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make release smoke           # release core smoke run
 make smoke-negative          # expected missing-fixture failure
-make test-common             # seven partial-startup and twenty-nine expected-fatal probes
+make test-common             # seven partial-startup and forty expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 
@@ -77,9 +77,8 @@ identity; actual file objects and engine hierarchy declarations are checked on t
 
 `make link-game` attempts a real whole-object campaign link under
 `build/<config>/resident/`, with its own strict support objects and no core filesystem
-substitute. It currently fails on 21 unresolved symbols: four input/usercmd symbols and
-seventeen JPEG/zlib symbols. JSON/text reports retain object/source hashes,
-flags, requestors and the real linker exit status. Failed attempts remove stale resident
+substitute. It currently fails on 17 unresolved JPEG/zlib symbols. JSON/text reports
+retain object/source hashes, flags, requestors and the real linker exit status. Failed attempts remove stale resident
 ELFs. A successful gate must retain game/class/cvar registration roots and every input
 object in its map. Its eventual entry still requires M3 game-fixture startup.
 
@@ -97,6 +96,14 @@ creates no online definitions. Native save descriptions retain copy/clear owners
 while `saveGame_enable=0` is read-only and forced writes cannot enable the save manager.
 Shell presentation, enumeration and retry dialogs remain unavailable. Shell providers
 have compile/link acceptance; their runtime checks await the resident fixture.
+
+The input provider now supplies the native `idUsercmdGen` interface, all 47 action
+strings plus their terminator, and case-insensitive command lookup. Empty cleanup and
+native invalid-index results are usable. Initialization, map preparation, inhibition,
+mouse/button/key sampling and command generation fail explicitly. Controller and rumble
+preferences are archived in both builds with zero defaults and ROM flags; forced writes
+cannot enable their unavailable services. No physical input source or player commands
+are created. Synthetic game-fixture commands and real controller mapping remain later work.
 
 ## Core boundary
 
@@ -200,7 +207,7 @@ also exercise command/cvar registration and fixture I/O.
 Nine offline checks cover Common identity, local users, transient profiles/achievements,
 unavailable persistence, match transitions, copied parameters, reload accounting and
 sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh process
-for each of seven deliberate startup stops and twenty-nine invalid or unsupported requests;
+for each of seven deliberate startup stops and forty invalid or unsupported requests;
 each must match its own run
 identity and expected cleanup or fatal diagnostic. The three audio failures cover resource
 loading, duration queries and device initialization; core smoke also checks sample
@@ -212,7 +219,10 @@ and disabled resolution policy/cvars. Eight renderer probes reject initializatio
 dimensions, drawing, image/vertex/shader loading, cinematics and demos. Three deferred
 checks cover inactive multiplayer lifecycle, copied save descriptions and disabled save
 policy. Six probes reject multiplayer ticks/chat/snapshots/scoreboards/mode enumeration
-and forced-save manager access.
+and forced-save manager access. Three input checks cover native action lookup, empty
+cleanup/invalid-index behavior and disabled controller preferences. Eleven probes cover
+input initialization, map preparation, sampling/generation/inhibition, null command
+strings and forced controller/rumble settings.
 
 This milestone preserves the loader's IOP/`host:` filesystem and initializes SIF RPC.
 Physical USB/HDD bring-up, the GS/VU1 path, SPU2 audio, controller input, save games and
@@ -234,6 +244,9 @@ uses GPL v3 or later. Quake II measurements in `.claude/rules/` remain reference
 until independently reproduced with this port.
 
 ## Attributions
+
+The input action table preserves id Software's native `framework/UsercmdGen.cpp` names,
+order and terminator; the portable provider is new backend code.
 
 The PS2 backend draws on Guilherme Lampert's [quake2-ps2](https://github.com/glampert/quake2-ps2).
 The shared `src/ps2/common.h` assertion macros and `ArrayLength` helper are adapted

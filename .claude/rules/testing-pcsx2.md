@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-09. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 27 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 28 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 61 Python regressions, including real JPEG
+  The complete host suite currently has 62 Python regressions, including real JPEG
   and filesystem sanitizer fixtures.
 
 - Core smoke now also requires six filesystem-service markers. The runner stages
@@ -58,19 +58,23 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 36 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 47 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Twenty-nine negative probes require matching run/begin identities and
+  uses a fresh process. Forty negative probes require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
   matchmaking, Classic switching, absent save manager, unsupported input device, audio
   resource loading, audio duration queries, audio device initialization, process launch,
   negative duration input, ASE/LWO/Maya source-model import, renderer initialization,
   dimensions, draw submission, image/vertex/shader loading, cinematics and render demos,
   multiplayer ticks/chat/snapshot output/scoreboard activation/mode enumeration and
-  save-manager access after forcing the disabled save cvar on.
-  A watchdog, TLB/bus error, unexpected return or unrelated fatal fails.
+  save-manager access after forcing the disabled save cvar on; input initialization/map
+  preparation, command building/access, inhibition, mouse/button/key sampling, null
+  command strings and forced controller/rumble values.
+  The first fatal line must match the expected diagnostic with a name boundary;
+  InitForNewMap cannot satisfy an Init probe, and later messages cannot hide a wrong
+  initial fatal. A watchdog, TLB/bus error, unexpected return or unrelated fatal fails.
 - Regular core smoke requires nine `offline/` markers covering the real Common
   identity and `com_smp=0`/ROM policy, local user/profile/achievement state, unavailable
   persistence, copied match parameters, explicit loading completion, stable reload
@@ -93,6 +97,13 @@
   recovery, save-description copy/clear ownership with warmed native dictionary pools,
   and the read-only disabled save cvar. These do not execute a game, shell or save
   pipeline. Shell vtable and retry-dialog providers currently have compile/link acceptance.
+
+- Three required `input/` markers check the full native action table and exact lookup
+  (including case and impulse-prefix collisions), repeated empty cleanup and native
+  invalid-index results, and read-only controller/rumble preferences. The input provider
+  acquires no devices or sampling buffers and publishes no player commands. Eleven
+  input probes verify unavailable methods, null-string validation and forced preferences;
+  changing an archived cvar cannot turn the boundary into an input source.
 
 - `make link-game` is a failing compile/link gate until resident services exist. Do not
   launch a failed link map or reuse an older resident ELF. Its reports preserve actual

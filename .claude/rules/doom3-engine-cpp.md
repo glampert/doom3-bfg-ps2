@@ -114,8 +114,9 @@ math path; PS2-specific math replacement headers are a later milestone.
   deliberately partial boot tests use separate processes.
 - `PS2_D3BFG_FOUNDATION` selects Common method providers, never a different class
   layout. Full-header bridge units must include `idlib/precompiled.h` before
-  `Common_local.h`. All portable objects omit the Classic framebuffer/material; the
-  physical Classic tree remains excluded, pending its separate deletion gate.
+  `Common_local.h` or `UsercmdGen.h`. Use a separate commented include group so
+  clang-format cannot move the dependent native header ahead of the precompiled header.
+  All portable objects omit the Classic framebuffer/material; the physical Classic tree remains excluded, pending its separate deletion gate.
 - Portable `com_smp` defaults to zero with ROM flags. Init creates no game worker and
   `RunGameAndDraw` calls `Run` synchronously regardless of forced cvar writes. The
   foundation frame currently pumps commands and offline users only. Static game API

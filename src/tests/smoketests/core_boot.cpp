@@ -10,6 +10,7 @@
 #include "tests/smoketests/audio_tests.h"
 #include "tests/smoketests/renderer_tests.h"
 #include "tests/smoketests/deferred_tests.h"
+#include "tests/smoketests/input_tests.h"
 #include "tests/smoketests/offline_tests.h"
 #include "tests/smoketests/type_query_tests.h"
 #include "tests/smoketests/class_alloc_tests.h"
@@ -275,6 +276,7 @@ bool RunCoreTests(const char * fixturePath)
     passed = RunAudioTests() && passed;
     passed = RunRendererTests() && passed;
     passed = RunDeferredTests() && passed;
+    passed = RunInputTests() && passed;
     passed = CheckCommands() && passed;
     passed = CheckCVars() && passed;
     passed = CheckPlatformServices() && passed;

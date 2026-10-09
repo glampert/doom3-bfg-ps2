@@ -11,13 +11,17 @@ command and cvar system. The following engine cvars have PS2-specific policies:
 | `sys_lang` | `english` | `english` | `CVAR_SYSTEM`, `CVAR_INIT` | Resource language identifier; six engine language names are exposed. Restart policy follows `CVAR_INIT`. Registered in `src/ps2/system/sys_services.cpp`. |
 | `net_clientMaxPrediction` | `5000` | `5000` | `CVAR_SYSTEM`, `CVAR_INTEGER`, `CVAR_NOCHEAT` | Retained frame metadata in milliseconds; no online service is enabled. Registered in `src/ps2/system/common_campaign.cpp`. |
 | `saveGame_enable` | `0` | `0` | `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled save policy in both core and campaign builds; neither live nor restart changes enable storage. Forced internal writes still encounter the unavailable session save manager. Registered in `src/ps2/system/save_metadata.cpp`. |
+| `in_useJoystick` | `0` | `0` | `CVAR_ARCHIVE`, `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled controller preference in both configurations. Neither live nor restart changes create an input source; forced internal writes still fail at sampling. Registered in `src/ps2/input/usercmd_stub.cpp`. |
+| `in_joystickRumble` | `0` | `0` | `CVAR_SYSTEM`, `CVAR_ARCHIVE`, `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled rumble preference; forced writes cannot enable `Sys_SetRumble`. Registered in `src/ps2/input/usercmd_stub.cpp`. |
 | `net_ucmdRate` | `40` | `40` | `CVAR_SYSTEM`, `CVAR_INTEGER` | Retained usercmd interval metadata in milliseconds; network entry points fail explicitly. Registered in `src/ps2/system/common_campaign.cpp`. |
 
 `jobs_numThreads` is not archived. Its init flag rejects direct cvar console commands;
 even a forced internal change cannot enable workers in this milestone. `com_smp` is
 not archived, and forced writes cannot change the portable synchronous dispatch path.
-Other imported engine cvars retain their upstream defaults. The test bootstrap may register temporary
-fixture cvars; those are test inputs rather than user-facing backend controls.
+The input preferences retain their native archive flags and add ROM while unavailable;
+rumble changes its native default from one to zero. Forced values may be archived but
+do not enable a service. Other imported engine cvars retain their upstream defaults.
+The test bootstrap may register temporary fixture cvars; those are test inputs rather than user-facing backend controls.
 
 When a cvar is added to `src/ps2/`, record its name, debug and release defaults, flags,
 whether it changes live or needs a restart, and the source that registers it. Keep

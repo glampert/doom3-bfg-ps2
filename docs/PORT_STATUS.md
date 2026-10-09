@@ -727,3 +727,83 @@ These figures exclude kernel/stacks and do not establish a resident campaign bud
 | Debug/release isolated script probe builds | Strict compilation/link passed; separate GC boundary unchanged |
 | Debug script regressions | Include passed: `20261009T233136Z_script_117bf90e3537435c`; syntax failure/cleanup passed: `20261009T233140Z_script_2686cbe3847742d7` |
 | Release script regressions | Include passed: `20261009T233143Z_script_2b8f7c7596824e7c`; syntax failure/cleanup passed: `20261009T233147Z_script_7f46bc8fb85b4748` |
+
+
+## M2b in progress: input/usercmd interface
+
+The 2026-10-10 slice adds shared, cold `ps2/input/usercmd_stub.cpp`, compiled with
+strict warnings against the native contracts in both core and campaign object trees.
+It binds `usercmdGen` to an allocation-free typed provider and preserves all four input
+symbols from the preceding resident link. No native source disposition or layout changes.
+
+The native action table keeps all 47 names, their enum mapping/order and final null
+sentinel. Its exact `UB_MAX_BUTTONS` extent is checked at compile time because retained
+SWF code indexes the table backwards. Case-insensitive command lookup supports exact
+native names, including all impulses; unknown commands return `UB_NONE`, while null
+strings fail explicitly in debug and release. Clear/ClearAngles/Shutdown are usable on
+the empty provider, and invalid button/key indices retain the native minus-one result.
+
+Initialization, map preparation, inhibition, mouse/key/button sampling and current
+command building/access fail with the native interface method. No input state,
+neutral player command, connected controller, SDK module or polling buffer is fabricated.
+`in_useJoystick` and `in_joystickRumble` default to zero, preserve their archive flags and
+add ROM in both builds. Direct cvar commands reject changes; forced programmatic writes
+cannot enable sampling or the existing unavailable `Sys_SetRumble`. Real device input
+and explicit synthetic fixture commands remain later runtime work.
+
+| Remaining resident symbol group | Debug | Release |
+| --- | ---: | ---: |
+| JPEG/zlib codecs | 17 | 17 |
+| Total unresolved / duplicate definitions | 17 / 0 | 17 / 0 |
+
+Both configurations retain all 305 direct inputs: 281 campaign, fifteen campaign
+backend, eight strict resident support and dlmalloc. The linker exits 1, Make exits 2,
+and no resident ELF is emitted. Neither archives nor GC hide dependencies. M2b remains
+incomplete until audited codec integration and resident registration/map acceptance;
+meaningful logical services and actual game initialization still follow in M3.
+
+Three new required core markers verify table extent/order, independent command names,
+case and impulse-prefix handling; repeated empty cleanup and invalid indices with exact
+ledger recovery; and disabled controller policy. Eleven fresh-process probes cover the
+eight unavailable interface methods, null command validation and forced controller/
+rumble preferences. Their acceptance requires the matching run/begin identity and fatal
+message; emulator faults, watchdogs or unexpected returns fail.
+
+| Input-interface core memory | Debug | Release |
+| --- | ---: | ---: |
+| Fixed ELF residency (`PT_LOAD`) | 1,757,104 bytes | 1,813,680 bytes |
+| ELF BSS (included above) | 459,824 bytes | 459,824 bytes |
+| Initialized requested / backing / count | 31,425 / 42,704 bytes / 272 | 31,425 / 42,704 bytes / 272 |
+| Smoke peak requested / backing | 57,367 / 69,372 bytes | 57,367 / 69,372 bytes |
+| Arena commitment after tests | 86,096 bytes | 86,864 bytes |
+| After shutdown requested / backing / count | 1,024 / 1,068 bytes / 1 | 1,024 / 1,068 bytes / 1 |
+
+The extra cvars and native action metadata change foundation residency/registration and
+synthetic command-buffer peaks only. Full shutdown still recovers the exact process-
+lifetime hash allocation. No device or command-generation buffers are acquired. Arena
+commitment includes C/newlib allocation, freed capacity and fragmentation; changes do
+not measure a controller/game budget. Kernel, stacks and resident campaign state remain
+unmeasured; failed resident maps are not memory acceptance.
+
+
+| Input-interface regression | Result |
+| --- | --- |
+| Debug/release core and all 281 campaign units | Strict core compile/link and campaign compilation passed |
+| Debug/release `make link-game` | Failed as required: 17 codec symbols, 0 duplicates, all 305 inputs retained |
+| Source audit / compilation database | 458 shipped units classified, 88 Classic units excluded; 322 entries |
+| `make test-host` | Shared ASan/UBSan fixtures and all 62 Python regressions passed |
+| Debug core smoke | Passed: `20261009T233851Z_smoke_747c22b0d9ec4a6a` |
+| Release core smoke | Passed: `20261009T233933Z_smoke_205b2602957d459c` |
+| Debug startup/deferred/input probes | All 47 passed; first `20261009T234024Z_smoke_ad44531f44c64483`, last `20261009T234154Z_smoke_fe7bfa083d214e55` |
+| Release startup/deferred/input probes | All 47 passed; first `20261009T234247Z_smoke_0c3bcfa3f4274cc3`, last `20261009T234416Z_smoke_472321d529ab447a` |
+| Debug missing-fixture scenario | Expected failure and cleanup passed: `20261009T234447Z_smoke_a707ad752a3e4865` |
+| Release missing-fixture scenario | Expected failure and cleanup passed: `20261009T234451Z_smoke_6120795604a64e81` |
+| Debug/release isolated script probe builds | Strict compilation/link passed; separate GC boundary unchanged |
+| Debug script regressions | Include passed: `20261009T234455Z_script_8d6e8c87b601413e`; syntax failure/cleanup passed: `20261009T234458Z_script_0cebbf6202544eff` |
+| Release script regressions | Include passed: `20261009T234502Z_script_e2a6e21856d64ec1`; syntax failure/cleanup passed: `20261009T234505Z_script_4a9c5e3e30504adf` |
+
+The negative-probe classifier now restricts acceptance to the first fatal line and a
+name boundary after the expected diagnostic. An InitForNewMap failure cannot satisfy
+an Init probe, and a later matching message cannot hide an unrelated initial fatal.
+The added host regression tests both rejection cases. All debug negative artifacts were
+also checked under this stricter classifier; the release matrix ran it directly.
