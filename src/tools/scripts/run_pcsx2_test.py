@@ -31,6 +31,12 @@ DEFAULT_CONFIG = Path.home() / "Library/Application Support/PCSX2/inis/PCSX2.ini
 RESULT_LIMIT = 4096
 LIFECYCLE_STAGES = ("system", "idlib", "commands", "cvars", "filesystem", "jobs", "session")
 NEGATIVE_PROBES = {
+    "multiplayer-run": "multiplayer capability unavailable: idMultiplayerGame::Run",
+    "multiplayer-chat": "multiplayer capability unavailable: idMultiplayerGame::AddChatLine",
+    "multiplayer-snapshot": "multiplayer capability unavailable: idMultiplayerGame::WriteToSnapshot",
+    "multiplayer-scoreboard": "multiplayer capability unavailable: idMultiplayerGame::SetScoreboardActive",
+    "multiplayer-modes": "multiplayer capability unavailable: idMultiplayerGame::GetGameModes",
+    "save-forced-enable": "save game manager capability is unavailable",
     "online-flags": "online/stats/party match flags",
     "no-user": "match requires local user",
     "bad-load-order": "loading completion state",
@@ -63,6 +69,7 @@ VERSION_RE = re.compile(
     r"(?:[ \t]+\([A-Za-z0-9 ._:/+-]+\))?[ \t]*$", re.MULTILINE)
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_CORE_CHECKS = frozenset({
+    "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
     "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/disabled-resolution-cvars",
     "offline/common-idle-demo-ledger",
     "core/platform-language-duration-utc",

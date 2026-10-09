@@ -650,3 +650,80 @@ World demo guards have compile acceptance; actual render-world mutation awaits M
 The extra native globals and cvars raise foundation residency and registration costs.
 These measurements include only the foundation and metadata tests, without render
 worlds, geometry/image payloads, frame arenas or game/map-transition state.
+
+
+## M2b in progress: deferred game and UI providers
+
+The 2026-10-10 slice adds three strict, cold campaign providers: shared
+`multiplayer_stub.cpp` and `save_metadata.cpp`, plus campaign-only `shell_stub.cpp`.
+They resolve all 61 deferred symbols from the preceding resident link without removing
+any campaign object, changing native layouts or enabling an excluded upstream unit.
+
+The native multiplayer constructor initializes all fields without consulting other
+globals before main. Offline Reset/Precache preserve the unconditional single-player
+map-startup calls; inactive queries and empty scoreboard shutdown are usable. Match
+execution, snapshots, chat, team/flag services, scoreboard activation and game-mode
+enumeration terminate with the native method name. Offline leaderboard lifecycle
+registers zero online definitions and makes no map/mode/title-storage requests.
+
+Native save descriptions retain their dictionary/string ownership and copy assignment.
+Clear restores empty fields, an undamaged flag and zero date. `saveGame_enable=0` uses
+BOOL/ROM flags in both builds; forced internal writes still cannot obtain the session
+save manager. No save pipeline or physical storage is created. The native retry-dialog
+entry terminates explicitly. Shell providers supply the native vtable and required
+save/load-screen enumeration calls; empty cleanup clears list metadata, while active
+resources and presentation/enumeration/leaderboard operations fail explicitly. Shell
+and retry-dialog runtime execution still require the resident fixture.
+
+| Remaining resident symbol group | Debug | Release |
+| --- | ---: | ---: |
+| JPEG/zlib codecs | 17 | 17 |
+| Input/usercmd providers and controls | 4 | 4 |
+| Total unresolved / duplicate definitions | 21 / 0 | 21 / 0 |
+
+Both configurations retain 304 direct inputs: 281 campaign, fourteen campaign backend,
+eight strict resident support and dlmalloc. Neither uses GC or emits a resident ELF;
+the linker exits 1 and Make exits 2. M2b remains incomplete. Input/usercmd and audited
+codecs are the next closure groups; meaningful logical render/sound and M3 game startup
+still follow. Failed maps establish no resident memory or game-boot acceptance.
+
+Three new required core markers exercise native multiplayer reset/precache and repeated
+empty cleanup with exact heap recovery, independently copied save descriptions and
+repeated destruction after warming dictionary string pools, and read-only save policy.
+Six new fresh-process probes cover match ticks, variadic chat, snapshot writes,
+scoreboard activation, mode enumeration and forced save enablement. Expected-fatal
+acceptance requires its own run/begin identity and diagnostic; emulator faults,
+watchdogs and unexpected returns fail. Assertions are enabled and disabled in the
+debug/release matrices.
+
+| Deferred-interface core memory | Debug | Release |
+| --- | ---: | ---: |
+| Fixed ELF residency (`PT_LOAD`) | 1,752,496 bytes | 1,809,072 bytes |
+| ELF BSS (included above) | 459,696 bytes | 459,696 bytes |
+| Initialized requested / backing / count | 30,873 / 41,984 bytes / 268 | 30,873 / 41,984 bytes / 268 |
+| Smoke peak requested / backing | 56,751 / 68,588 bytes | 56,751 / 68,588 bytes |
+| Arena commitment after tests | 86,608 bytes | 87,376 bytes |
+| After shutdown requested / backing / count | 1,024 / 1,068 bytes / 1 | 1,024 / 1,068 bytes / 1 |
+
+The shared metadata tests and disabled save cvar change foundation totals only. No
+shell screens, multiplayer match, save manager or pipeline is initialized. Dictionary
+pools retain reusable capacity until native idlib shutdown; repeated metadata scopes
+stabilize after warming and full shutdown recovers the exact process-lifetime baseline.
+These figures exclude kernel/stacks and do not establish a resident campaign budget.
+
+
+| Deferred-interface regression | Result |
+| --- | --- |
+| Debug/release core and all 281 campaign units | Strict core compile/link and campaign compilation passed |
+| Debug/release `make link-game` | Failed as required: 21 unresolved symbols, 0 duplicates, all 304 inputs retained |
+| Source audit / compilation database | 458 shipped units classified, 88 Classic units excluded; 320 entries |
+| `make test-host` | Shared ASan/UBSan fixtures and all 61 Python regressions passed |
+| Debug core smoke | Passed: `20261009T232708Z_smoke_2ef4365b0b91442d` |
+| Release core smoke | Passed: `20261009T232739Z_smoke_2255ae32ea664cd5` |
+| Debug startup/deferred probes | All 36 passed; first `20261009T232830Z_smoke_3a4f3f4801264fbc`, last `20261009T232939Z_smoke_dfc9269081c74c07` |
+| Release startup/deferred probes | All 36 passed; first `20261009T232953Z_smoke_205112a106ef421a`, last `20261009T233100Z_smoke_88e2202ade8e45bd` |
+| Debug missing-fixture scenario | Expected failure and cleanup passed: `20261009T233129Z_smoke_6c2c6bff97964704` |
+| Release missing-fixture scenario | Expected failure and cleanup passed: `20261009T233133Z_smoke_2f47e02291fb45d9` |
+| Debug/release isolated script probe builds | Strict compilation/link passed; separate GC boundary unchanged |
+| Debug script regressions | Include passed: `20261009T233136Z_script_117bf90e3537435c`; syntax failure/cleanup passed: `20261009T233140Z_script_2686cbe3847742d7` |
+| Release script regressions | Include passed: `20261009T233143Z_script_2b8f7c7596824e7c`; syntax failure/cleanup passed: `20261009T233147Z_script_7f46bc8fb85b4748` |

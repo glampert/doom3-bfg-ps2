@@ -6,6 +6,7 @@
 
 #include "tests/smoketests/offline_tests.h"
 #include "tests/smoketests/audio_tests.h"
+#include "tests/smoketests/deferred_tests.h"
 #include "ps2/system/core.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/lifecycle.h"
@@ -260,7 +261,7 @@ bool RunCommonProbe(const char * path)
     {
         (void)MA_Load("fixture/source.ma");
     }
-    else if (!RunRendererFailureProbe(name) && !RunAudioFailureProbe(name))
+    else if (!RunRendererFailureProbe(name) && !RunAudioFailureProbe(name) && !RunDeferredFailureProbe(name))
     {
         FatalError("invalid Common negative probe");
     }

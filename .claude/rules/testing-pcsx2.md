@@ -58,16 +58,18 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 30 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 36 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Twenty-three negative probes require matching run/begin identities and
+  uses a fresh process. Twenty-nine negative probes require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
   matchmaking, Classic switching, absent save manager, unsupported input device, audio
   resource loading, audio duration queries, audio device initialization, process launch,
   negative duration input, ASE/LWO/Maya source-model import, renderer initialization,
-  dimensions, draw submission, image/vertex/shader loading, cinematics and render demos.
+  dimensions, draw submission, image/vertex/shader loading, cinematics and render demos,
+  multiplayer ticks/chat/snapshot output/scoreboard activation/mode enumeration and
+  save-manager access after forcing the disabled save cvar on.
   A watchdog, TLB/bus error, unexpected return or unrelated fatal fails.
 - Regular core smoke requires nine `offline/` markers covering the real Common
   identity and `com_smp=0`/ROM policy, local user/profile/achievement state, unavailable
@@ -86,6 +88,11 @@
   policy/cvar registration. No world is allocated or rendered. Dimensions, loading and
   submission fail by method name; the eight renderer probes verify those failures in
   fresh processes with assertions enabled and disabled.
+
+- Three required `deferred/` markers check empty native multiplayer lifecycle and ledger
+  recovery, save-description copy/clear ownership with warmed native dictionary pools,
+  and the read-only disabled save cvar. These do not execute a game, shell or save
+  pipeline. Shell vtable and retry-dialog providers currently have compile/link acceptance.
 
 - `make link-game` is a failing compile/link gate until resident services exist. Do not
   launch a failed link map or reuse an older resident ELF. Its reports preserve actual

@@ -443,10 +443,11 @@ campaign achievements with Classic evaluation gated. The logical sound header us
 `ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
 Only unloaded sample bookkeeping is implemented; resource, timing/amplitude and device
 operations fail explicitly. Meaningful sound semantics remain required before M3.
-`make link-game` now measures the remaining M2b link gate: 82 unresolved symbols
-remain with all 301 inputs retained. Common/OS metadata, rejected source-model import
-and typed renderer interface stubs are supplied; deferred shell/network/save, input
+`make link-game` now measures the remaining M2b link gate: 21 unresolved symbols
+remain with all 304 inputs retained. Common/OS metadata, rejected source-model import,
+typed renderer interface stubs and deferred game/UI providers are supplied; input
 and codec providers remain. Renderer initialization, resource loading, queries requiring
-live state and drawing fail explicitly. Meaningful logical render contracts still follow
-the resident link. Acceptance evidence must retain these boundaries: no game ticks,
-interpreter execution or map loading yet.
+live state and drawing fail explicitly. Offline multiplayer lifecycle and native save
+description ownership are tested; shell, multiplayer and physical saves remain unavailable.
+Meaningful logical render contracts still follow the resident link. Acceptance evidence
+must retain these boundaries: no game ticks, interpreter execution or map loading yet.

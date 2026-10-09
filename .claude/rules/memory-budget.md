@@ -7,12 +7,12 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
-After the renderer-interface slice on 2026-10-09, debug/release fixed core ELF residency is
-1,745,136 / 1,801,840 bytes, including 459,632 bytes of BSS. Core
-initialization requests 30,597 bytes (41,624 backing);
-the synthetic test peak is 56,475 bytes (68,228 backing). Both shut down to the exact
+After the deferred game/UI slice on 2026-10-10, debug/release fixed core ELF residency is
+1,752,496 / 1,809,072 bytes, including 459,696 bytes of BSS. Core
+initialization requests 30,873 bytes (41,984 backing);
+the synthetic test peak is 56,751 bytes (68,588 backing). Both shut down to the exact
 process-lifetime baseline of 1,024 requested / 1,068 backing bytes in one allocation.
-dlmalloc's commitment after tests is 85,776 / 86,416 bytes, including untagged C/newlib
+dlmalloc's commitment after tests is 86,608 / 87,376 bytes, including untagged C/newlib
 allocations and freed space. Do not double-count tagged backing on top of the arena.
 The real portable `commonLocal` occupies 54,792 bytes; its desktop-only 2,304,000-byte
 Classic framebuffer is absent. This prevents Classic residency when importing Common;
@@ -27,6 +27,10 @@ string allocation after every scope. Fixed ELF
 and arena changes do not measure a full sound-world or SPU2 budget.
 Renderer globals contain empty native metadata; the stub slice allocates no frame,
 vertex-cache or texture payload pools. Its metadata scopes recover the exact ledger.
+The deferred slice adds only native empty multiplayer and save-description tests plus
+one disabled save cvar. Save-description tests warm native dictionary pools before
+requiring exact repeated ledger recovery; full shutdown still returns to baseline.
+Shell resources, save pipelines and multiplayer matches are not initialized.
 The still-failing resident link provides no resident game memory measurement.
 Class `memused` counts object bytes without another size prefix; shared heap metadata
 supplies exact unsized-delete accounting while preserving object alignment. The

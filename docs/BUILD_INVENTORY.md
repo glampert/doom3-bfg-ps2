@@ -197,7 +197,7 @@ class omits Classic material/framebuffer storage and creates no game worker. Its
 no game object or game initialization stage. Full container filesystem, render/sound,
 UI/dialog and save services still need their resident-link implementations.
 
-`make test-common` runs seven partial-startup cleanup probes and twenty-three expected-fatal
+`make test-common` runs seven partial-startup cleanup probes and twenty-nine expected-fatal
 capability/precondition probes, each in a fresh process. `BUILD=release` selects the
 assertions-disabled matrix. The regular core smoke also checks copied match parameters,
 explicit loading completion, transient stats/achievement bits, user-handle invalidation
@@ -230,8 +230,8 @@ processes with assertions enabled and disabled. See the latest acceptance eviden
 ## Resident campaign link gate
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
-all 281 campaign objects, eleven campaign backend objects, eight strict resident support
-objects and dlmalloc: 301 direct inputs, without GC or archives hiding undefined
+all 281 campaign objects, fourteen campaign backend objects, eight strict resident support
+objects and dlmalloc: 304 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
@@ -239,7 +239,7 @@ substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
 `link_resident.py` records the compiler/link command, flags, source/dependency/object
 hashes, actual linker status, unique demangled symbols and requesting objects in
 `build/<config>/resident/report.{json,txt}`, beside the raw log, response file and map.
-The current gate fails with 82 symbols in both configurations; no resident ELF is
+The current gate fails with 21 symbols in both configurations; no resident ELF is
 emitted. Compiler nonzero exits stay failures even without a recognized diagnostic.
 Successful links also require a MIPS executable/load segment, every input in the map,
 static game interfaces, three native class registration roots and the static CVar
@@ -282,8 +282,35 @@ all 87 renderer symbols and two cinematic sound-window symbols from the precedin
 They do not implement the meaningful logical renderer required by M3, allocate stock
 frame/vertex arenas, or start a graphics device.
 
-The core now has 18 backend units and ten smoke units. Three required renderer markers
-verify native binding/inactive state, metadata scope cleanup and ledger recovery, and
+The renderer slice brought the core to 18 backend units and ten smoke units. Three
+required renderer markers verify native binding/inactive state, metadata scope cleanup
+and ledger recovery, and
 resolution/cvar policy. Eight new expected-fatal probes run with assertions on and off.
-All 301 resident inputs remain retained; the 82 unresolved symbols belong to deferred
-shell/network/save (61), codecs (17), and input (4). Source dispositions stay unchanged.
+That slice retained 301 resident inputs and left 82 unresolved symbols in deferred
+shell/network/save (61), codecs (17), and input (4). Source dispositions stayed unchanged.
+
+## Deferred game and shell boundary
+
+Three cold, strict campaign providers close the 61-symbol deferred group. Shared
+`multiplayer_stub.cpp` uses the native class layout, initializes every state field
+without accessing other globals before main, and permits offline reset/precache, empty
+scoreboard cleanup and inactive queries. Match ticks, snapshots, chat, team/flag
+operations, scoreboard activation and mode enumeration fail by native method name.
+Offline leaderboard init/shutdown create no online definitions or requests.
+
+Shared `save_metadata.cpp` implements native description construction/clear; normal
+copy assignment remains upstream. `saveGame_enable` defaults to zero with BOOL/ROM
+flags. A forced internal write cannot enable the session save manager. Retry dialogs
+fail explicitly; no save manager, file pipeline, storage or enumeration is constructed.
+Campaign-only `shell_stub.cpp` supplies the native shell vtable and required save/load
+screen enumeration calls. Empty shell cleanup releases list metadata; active resources,
+presentation, continuation, save enumeration and leaderboard callbacks fail explicitly.
+Shell and retry-dialog paths have compile/link acceptance, pending resident runtime tests.
+
+The core now contains 20 backend and eleven smoke units. Three required `deferred/`
+markers cover inactive multiplayer lifecycle/ledger recovery, independently copied save
+descriptions and repeated cleanup after warming native string pools, and read-only save
+policy. Six fresh-process probes cover match ticks, variadic chat, snapshot writes,
+scoreboard activation, mode enumeration and forced save enablement, with assertions on
+and off. All 304 resident inputs remain; only input (4) and codecs (17) are unresolved.
+No upstream source dispositions change and no game initialization is claimed.
