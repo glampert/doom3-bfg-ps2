@@ -61,7 +61,15 @@ idPlayerProfile * CreatePlayerProfile
 ========================
 */
 idPlayerProfile * idPlayerProfile::CreatePlayerProfile( int deviceIndex ) {
+	// [PS2_D3BFG]: Device indices are input; check them with assertions disabled too.
+	if ( deviceIndex < 0 || deviceIndex >= MAX_INPUT_DEVICES ) { return NULL; }
 	playerProfiles[deviceIndex].SetDefaults();
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	// [PS2_D3BFG]: Re-registration starts a new transient profile lifetime.
+	playerProfiles[deviceIndex].state = IDLE;
+	playerProfiles[deviceIndex].requestedState = IDLE;
+	playerProfiles[deviceIndex].dirty = false;
+#endif
 	playerProfiles[deviceIndex].deviceNum = deviceIndex;
 	return &playerProfiles[deviceIndex];
 }
@@ -116,6 +124,11 @@ idPlayerProfile::Serialize
 ========================
 */
 bool idPlayerProfile::Serialize( idSerializer & ser ) {
+	// [PS2_D3BFG]: Profile persistence is not a foundation capability.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	(void)ser;
+	return false;
+#else
 	// NOTE:
 	// See comments at top of file on versioning rules
 
@@ -201,6 +214,7 @@ bool idPlayerProfile::Serialize( idSerializer & ser ) {
 	}
 
 	return true;
+#endif
 }
 
 /*
@@ -209,6 +223,10 @@ idPlayerProfile::StatSetInt
 ========================
 */
 void idPlayerProfile::StatSetInt( int s, int v ) {
+	// [PS2_D3BFG]: Profile stat indices remain checked without debug assertions.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( s < 0 || s >= MAX_PLAYER_PROFILE_STATS ) { Sys_Error( "profile stat index out of range" ); }
+#endif
 	stats[s].i = v;
 	MarkDirty( true );
 }
@@ -219,6 +237,10 @@ idPlayerProfile::StatSetFloat
 ========================
 */
 void idPlayerProfile::StatSetFloat( int s, float v ) {
+	// [PS2_D3BFG]: Profile stat indices remain checked without debug assertions.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( s < 0 || s >= MAX_PLAYER_PROFILE_STATS ) { Sys_Error( "profile stat index out of range" ); }
+#endif
 	stats[s].f = v;
 	MarkDirty( true );
 }
@@ -229,6 +251,10 @@ idPlayerProfile::StatGetInt
 ========================
 */
 int	idPlayerProfile::StatGetInt( int s ) const { 
+	// [PS2_D3BFG]: Profile stat indices remain checked without debug assertions.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( s < 0 || s >= MAX_PLAYER_PROFILE_STATS ) { Sys_Error( "profile stat index out of range" ); }
+#endif
 	return stats[s].i;
 }
 
@@ -238,6 +264,10 @@ idPlayerProfile::StatGetFloat
 ========================
 */
 float idPlayerProfile::StatGetFloat( int s ) const {
+	// [PS2_D3BFG]: Profile stat indices remain checked without debug assertions.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( s < 0 || s >= MAX_PLAYER_PROFILE_STATS ) { Sys_Error( "profile stat index out of range" ); }
+#endif
 	return stats[s].f;
 }
 
@@ -276,7 +306,8 @@ idPlayerProfile::SetAchievement
 ========================
 */
 void idPlayerProfile::SetAchievement( const int id ) {
-	if ( id >= idAchievementSystem::MAX_ACHIEVEMENTS ) {
+	// [PS2_D3BFG]: Validate both ends before shifting the unsigned achievement mask.
+	if ( id < 0 || id >= idAchievementSystem::MAX_ACHIEVEMENTS ) {
 		assert( false );		// FIXME: add another set of achievement bit flags
 		return;
 	}
@@ -284,11 +315,11 @@ void idPlayerProfile::SetAchievement( const int id ) {
 	uint64 mask = 0;
 	if ( id < 64 ) {
 		mask = achievementBits;
-		achievementBits |= (int64)1 << id;
+		achievementBits |= uint64( 1 ) << id;
 		mask = ~mask & achievementBits;
 	} else {
 		mask = achievementBits2;
-		achievementBits2 |= (int64)1 << ( id - 64 );
+		achievementBits2 |= uint64( 1 ) << ( id - 64 );
 		mask = ~mask & achievementBits2;
 	}
 
@@ -304,15 +335,16 @@ idPlayerProfile::ClearAchievement
 ========================
 */
 void idPlayerProfile::ClearAchievement( const int id ) {
-	if ( id >= idAchievementSystem::MAX_ACHIEVEMENTS ) {
+	// [PS2_D3BFG]: Validate both ends before shifting the unsigned achievement mask.
+	if ( id < 0 || id >= idAchievementSystem::MAX_ACHIEVEMENTS ) {
 		assert( false );		// FIXME: add another set of achievement bit flags
 		return;
 	}
 
 	if ( id < 64 ) {
-		achievementBits &= ~( (int64)1 << id );
+		achievementBits &= ~( uint64( 1 ) << id );
 	} else {
-		achievementBits2 &= ~( (int64)1 << ( id - 64 ) );
+		achievementBits2 &= ~( uint64( 1 ) << ( id - 64 ) );
 	}
 
 	MarkDirty( true );
@@ -324,15 +356,16 @@ idPlayerProfile::GetAchievement
 ========================
 */
 bool idPlayerProfile::GetAchievement( const int id ) const {
-	if ( id >= idAchievementSystem::MAX_ACHIEVEMENTS ) {
+	// [PS2_D3BFG]: Validate both ends before shifting the unsigned achievement mask.
+	if ( id < 0 || id >= idAchievementSystem::MAX_ACHIEVEMENTS ) {
 		assert( false );		// FIXME: add another set of achievement bit flags
 		return false;
 	}
 
 	if ( id < 64 ) {
-		return ( achievementBits & (int64)1 << id ) != 0;
+		return ( achievementBits & uint64( 1 ) << id ) != 0;
 	} else {
-		return ( achievementBits2 & (int64)1 << ( id - 64 ) ) != 0;
+		return ( achievementBits2 & uint64( 1 ) << ( id - 64 ) ) != 0;
 	}
 }
 

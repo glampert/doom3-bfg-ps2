@@ -6,7 +6,7 @@ PS2_CXX_SRC = \
 	ps2/system/log.cpp \
 	tests/smoketests/platform_boot.cpp
 
-SIZE_OPT_CXX_SRC = ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -65,17 +65,28 @@ CORE_CXX_SRC = \
 CORE_FRAMEWORK_CXX_SRC = \
 	neo/framework/CmdSystem.cpp \
 	neo/framework/CVarSystem.cpp \
-	neo/framework/File.cpp
+	neo/framework/File.cpp \
+	neo/framework/Common.cpp \
+	neo/framework/PlayerProfile.cpp \
+	neo/sys/Snapshot.cpp \
+	neo/sys/LightweightCompression.cpp \
+	neo/sys/Snapshot_Jobs.cpp \
+	neo/sys/sys_localuser.cpp \
+	neo/sys/sys_signin.cpp
 CORE_BACKEND_CXX_SRC = \
 	ps2/game/script_error.cpp \
 	ps2/game/class_alloc.cpp \
 	ps2/system/heap.cpp \
 	ps2/system/core.cpp \
+	ps2/system/lifecycle.cpp \
+	ps2/system/common_foundation.cpp \
+	ps2/system/offline_session.cpp \
 	ps2/system/filesystem.cpp \
 	ps2/system/sys_filesystem.cpp \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
+	tests/smoketests/offline_tests.cpp \
 	tests/smoketests/type_query_tests.cpp \
 	tests/smoketests/type_query_bridge.cpp \
 	tests/smoketests/type_query_engine_tests.cpp \
@@ -222,6 +233,7 @@ CAMPAIGN_CXX_SRC = \
 	neo/framework/File_Resource.cpp \
 	neo/framework/File_SaveGame.cpp \
 	neo/framework/KeyInput.cpp \
+	neo/framework/PlayerProfile.cpp \
 	neo/framework/TokenParser.cpp \
 	neo/framework/Unzip.cpp \
 	neo/framework/Zip.cpp \
@@ -341,6 +353,11 @@ CAMPAIGN_CXX_SRC = \
 	neo/swf/SWF_Text.cpp \
 	neo/swf/SWF_TextInstance.cpp \
 	neo/swf/SWF_Zlib.cpp \
+	neo/sys/LightweightCompression.cpp \
+	neo/sys/Snapshot.cpp \
+	neo/sys/Snapshot_Jobs.cpp \
+	neo/sys/sys_localuser.cpp \
+	neo/sys/sys_signin.cpp \
 	neo/ui/BindWindow.cpp \
 	neo/ui/ChoiceWindow.cpp \
 	neo/ui/DeviceContext.cpp \
@@ -374,7 +391,7 @@ SCRIPT_BOOT_CXX_SRC = \
 	tests/smoketests/script_boot.cpp
 
 # Required portable campaign support; compiled strictly without claiming a resident link.
-GAME_BACKEND_CXX_SRC = ps2/ui/jpeg_decoder.cpp
+GAME_BACKEND_CXX_SRC = ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp
 
 # Existing upstream JPEG sources, used only by the host decoder harness at this stage.
 JPEG_TEST_CXX_SRC = \

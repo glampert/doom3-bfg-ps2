@@ -1,10 +1,13 @@
 # Port status and EE foundation acceptance
 
-M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. This is the
-scalar Doom foundation: real idlib, command/CVar/file services, synchronous jobs and
-PS2 system/heap adapters. It does not run `idCommonLocal::Init` or initialize the game.
+M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. The current
+foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core and
+offline services. The M2b campaign gate compiles 276 of 280 retained units; four
+logical-sound units still import XAudio headers. Resident game linking and M3 game
+initialization remain pending. The sections below preserve each slice's historical
+measurements; the latest Common/offline acceptance is recorded at the end.
 
-## Build and runtime evidence
+## Initial M2 build and runtime evidence
 
 | Gate | Result |
 | --- | --- |
@@ -30,7 +33,7 @@ single-thread primitives and job dependencies/synchronization. Allocator checks 
 pre-main allocation, alignment, tagged over-aligned `new`, all global allocation/delete
 forms, overflow and exact accounting on unsized free.
 
-## Measured memory
+## Initial M2 measured memory
 
 | Measurement | Debug | Release |
 | --- | ---: | ---: |
@@ -84,15 +87,15 @@ with `make -B -k -j4 compile-game` and `make -B -k -j4 BUILD=release compile-gam
 
 | Remaining compile boundary | Current failures / required work |
 | --- | --- |
-| Classic dependencies | `Common.cpp` and `common_frame.cpp` still import Classic headers; remove those paths instead of restoring Classic linkage |
+| Classic dependencies | Resolved by the Common/offline slice below; portable startup/frame code excludes Classic |
 | Logical sound | Four retained sound units import `snd_local.h` and its XAudio SDK types |
 | Resident link | Supply declared renderer/audio/offline-session/platform replacements; audit registrations and memory before game-fixture boot |
 
-This remaining-boundary table reflects the later common/SWF and filesystem slices.
+This remaining-boundary table reflects the latest Common/offline slice.
 Their portability and validation evidence follows below.
 
-M2b is incomplete; M3 game-fixture initialization has not begun. The executable still
-uses the M2 core bootstrap. The header pass regression runs were debug
+M2b is incomplete; M3 game-fixture initialization has not begun. At the header-pass stage the executable still
+used the M2 core adapter. The header pass regression runs were debug
 `20261008T102332Z_smoke_22a44eba3d404921` and release
 `20261008T102441Z_smoke_daf97f5405f540e1`; measured ELF residency and core heap totals
 then matched the foundation baseline above. The expected missing-fixture run
@@ -361,3 +364,86 @@ The six remaining campaign failures are `Common.cpp`, `common_frame.cpp`,
 manifest stays selected and the gate still fails. Next come staged common startup,
 Classic removal and offline-session services, then the logical-sound/backend boundary
 and resident game link. M3 game-fixture initialization has not begun.
+
+## Real Common lifecycle and offline sessions
+
+The foundation now instantiates the real `idCommonLocal`, using its constructor,
+`Init`, `Shutdown` and initialization state from `Common.cpp`. The former `CoreCommon`
+subclass is removed. Portable startup tracks completed system, idlib, command, cvar,
+fixture-filesystem, synchronous-job and offline-session stages. Shutdown unwinds those
+stages in reverse order and is idempotent, including deliberately stopped startup.
+Static CVar registration is one-shot; each partial-startup probe launches a new process.
+Game, presentation, dialogs and save capabilities remain explicitly deferred.
+
+Portable Common startup/frame paths exclude Classic imports, events, title switching,
+ticks and drawing; its layout omits the 2,304,000-byte Classic framebuffer and material.
+The physical Classic tree remains unchanged and excluded from all targets. `com_smp`
+is registered as zero/ROM, game workers are not created and game/draw dispatch is
+synchronous regardless of forced cvar writes. The static `GetGameAPI` import now compiles
+with matching C linkage and version/interface checks. It is not called by this
+foundation, and neither game execution nor resident game linking is accepted yet.
+
+The offline session owns one local user on device zero and real native profile stats
+and 128 achievement bits. Registration is idempotent; sign-out releases lobbies, changes
+input routing and invalidates handles. New registration starts a fresh transient profile.
+Default-profile lookup shares the active profile without resetting its data. Match
+parameters are copied into local lobbies; StartMatch enters LOADING and only explicit
+LoadingFinished enters INGAME. Frame/Pump never pretends a map has loaded. Three reloads
+after warming native string-pool capacity retain the exact heap ledger.
+
+Profile persistence reports ERR and preserves current stats/bits. There are no save
+processors, multi-megabyte save buffers, network peers, online presence, renderer or
+sound device behind these services. Unsupported operations fail explicitly, including
+attempting to dereference an absent save manager. Native game achievement-manager
+execution, player input and persistent saves remain later work.
+
+Six native units move from PS2 replacement into retained runtime: profile, local user,
+sign-in, snapshots, lightweight compression and snapshot jobs. The snapshot dependencies
+link Common's embedded values without dropping object bodies; they do not enable online
+services. Every formerly selected campaign unit remains selected, giving 280 units.
+The ordinary core still links all selected objects directly without garbage collection.
+
+| Common/offline regression | Result |
+| --- | --- |
+| Debug/release EE core | Strict compile/link passed |
+| `make compile-core` | 52 scalar idlib + 10 framework/session support units passed |
+| Debug/release campaign, all 280 units selected | 276 compiled; only four logical-sound units failed on `dxsdkver.h`; Make exited 2 |
+| Campaign backend adapters | Lifecycle/offline/JPEG objects compiled with full headers and strict warnings |
+| `make inventory` / `make compiledb` | 458 units classified, 88 Classic units excluded; 304 compile database entries |
+| `make test-host` | Shared ASan/UBSan fixtures and all 55 Python regressions passed |
+| Final debug core smoke | Passed: `20261009T054623Z_smoke_ec14c8d265424898` |
+| Final release core smoke | Passed: `20261009T054659Z_smoke_1d84ce6ef0ba47cb` |
+| Debug missing-fixture regression | Expected failure accepted: `20261009T054355Z_smoke_e05a652ddddd4f03` |
+| Release missing-fixture regression | Expected failure accepted: `20261009T054726Z_smoke_20b73ae157c14b73` |
+| Debug Common probes | All 14 passed; first `20261009T054107Z_smoke_96b7e89f61da4f08`, last `20261009T054135Z_smoke_8fa443596c3b43fa` |
+| Release Common probes | All 14 passed; first `20261009T054149Z_smoke_0805fd26f6f043c5`, last `20261009T054214Z_smoke_8418d4fdc67b418b` |
+| Debug script regressions | All 15 passed; first `20261009T054416Z_script_db39ac2b85044ffa`, last `20261009T054441Z_script_8c305a287c254fa8` |
+| Release script regressions | All 15 passed; first `20261009T054521Z_script_5372b11cf0ef49d1`, last `20261009T054546Z_script_abd9ce34721241df` |
+
+Seven Common probes verify each partial-startup stop, exact reverse cleanup and full
+ledger recovery. Seven require the expected fatal after their own fresh run identity:
+online flags, missing user, invalid loading order, network matchmaking, Classic title
+switching, unavailable save manager and nonzero input device. The runner rejects
+unrelated failures, unexpected returns, stale identities, watchdogs and TLB/bus errors.
+Eight regular core markers cover Common/cvar identity, users/profiles/achievements,
+unavailable persistence, match transitions/copying, reload accounting and sign-out.
+
+| Current core memory | Debug | Release |
+| --- | ---: | ---: |
+| Fixed ELF residency (`PT_LOAD`) | 1,705,136 bytes | 1,761,712 bytes |
+| ELF BSS (included above) | 454,192 bytes | 454,192 bytes |
+| Real portable `commonLocal` (included in BSS) | 54,792 bytes | 54,792 bytes |
+| Initialized requested / backing / count | 18,945 / 25,708 bytes / 165 | 18,945 / 25,708 bytes / 165 |
+| Smoke peak requested / backing | 44,887 / 52,376 bytes | 44,887 / 52,376 bytes |
+| Arena commitment after tests | 68,432 bytes | 69,200 bytes |
+| After shutdown requested / backing / count | 1,024 / 1,068 bytes / 1 | 1,024 / 1,068 bytes / 1 |
+
+The previous small Common adapter never contained the Classic framebuffer; excluding
+it from real Common prevents new residency rather than claiming a measured saving
+against that adapter. These figures include the synthetic offline tests and retained
+support, not campaign/map state. Kernel/stacks, real hardware cache behavior and game
+transition peaks remain unmeasured. No retail assets are used.
+
+Next are the four logical-sound/XAudio header splits and declared resident-link adapters,
+then the authored M3 game fixture. The campaign compile gate remains unsuccessful until
+all selected units compile; Common/offline acceptance does not substitute for that gate.

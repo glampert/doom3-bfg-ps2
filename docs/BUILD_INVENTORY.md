@@ -31,8 +31,8 @@ in `CORE_C_SRC`, and the heap bridge imports its header through a system include
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 274 | Intended retained units; compilation and adaptation remain required |
-| PS2 replacement | 68 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
+| Campaign runtime | 280 | Intended retained units; compilation and adaptation remain required |
+| PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
 | Deferred runtime | 34 | BFG shell, multiplayer, online services and demo paths; callers still need explicit adapters |
 | Optional vendor | 56 | zlib/JPEG; include only when a format, license and target configuration are audited |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
@@ -56,7 +56,13 @@ Doom's retained foundation services; it does not initialize the campaign game.
 `make compile-core` compiles the scalar idlib subset and the initial command/CVar/file
 foundation. Its upstream list contains 52 idlib units: all 55 from `idlib.vcxproj` except
 `Simd_SSE.cpp`, `win_thread.cpp`, and the precompiled-header placeholder. The root build
-also declares the three framework units and their new heap/platform support separately.
+also declares ten framework/session support units and their heap/platform support separately.
+`Common.cpp` now provides the real Common constructor and staged Init/Shutdown. Native
+`PlayerProfile.cpp`, `sys_localuser.cpp` and `sys_signin.cpp` supply transient offline
+profiles and lookup helpers. Common embeds snapshot values, so `Snapshot.cpp`,
+`LightweightCompression.cpp` and `Snapshot_Jobs.cpp` retain their constructors and whole-
+object link dependencies. This does not enable networking. These six support units moved
+from PS2 replacement to campaign runtime; no previously selected runtime unit was removed.
 `build/<config>/libd3bfg_core.a` is a compilation artifact, not a boot proof.
 It also includes the shared logger, which both the core adapters and SDK-only probe use.
 The game class allocator is linked into the core for focused adapter tests; the
@@ -66,7 +72,7 @@ campaign's `idClass` hierarchy and `idGameLocal` are not yet part of that execut
 all core objects directly, without garbage collection. Debug/release core and expected
 missing-fixture runs have passed in PCSX2; see [PORT_STATUS.md](PORT_STATUS.md).
 
-`make compile-game` independently compiles all 274 intended runtime units with the
+`make compile-game` independently compiles all 280 intended runtime units with the
 campaign header boundary. It intentionally exposes remaining M2b portability failures;
 it does not select the reduced core precompiled header or claim that replacement
 implementations have been supplied.
@@ -132,16 +138,17 @@ declarations with `ID_PS2_CORE` undefined while linking only inline hierarchy qu
 and real foundation file objects. It does not link a menu/model runtime or discard
 selected core objects. These test sources remain explicit in `CORE_BOOT_CXX_SRC`.
 
-The campaign manifest retains all 274 units; both configurations now compile 268.
-The six remaining common/Classic/sound failures are recorded in
+The campaign manifest retains 280 units; both configurations now compile 276.
+The four remaining logical-sound failures are recorded in
 [PORT_STATUS.md](PORT_STATUS.md), and the campaign gate remains unsuccessful.
 
 ## Campaign diagnostics and JPEG adapter
 
-`GAME_BACKEND_CXX_SRC` lists required campaign-only backend objects. `compile-game`
+`GAME_BACKEND_CXX_SRC` lists required campaign backend objects. `compile-game`
 compiles them with strict backend warnings and their own flag stamp, alongside the
-unchanged 274-unit campaign manifest. They are not linked into the foundation to
-manufacture runtime acceptance. The first adapter supplies bounded SWF JPEG decoding.
+280-unit campaign manifest. The adapters supply bounded SWF JPEG decoding, lifecycle
+tracking and offline session services. The latter two also run in the foundation;
+the JPEG decoder remains campaign-only and has host runtime acceptance so far.
 
 `JPEG_TEST_CXX_SRC` is an explicit host-only list of the shipped legacy JPEG sources.
 It does not change their runtime dispositions or import a new dependency. Host codec
@@ -172,3 +179,25 @@ isolated files and directories under strict warnings and ASan/UBSan. It tests si
 length overflow using a sparse file, cursor preservation, short reads, suffix filters,
 symlink exclusion, path bounds and error returns. Source-list audit and the compile
 database include the new EE units; host fixtures are not campaign runtime acceptance.
+
+## Staged Common and offline services
+
+`Common.cpp` uses the full campaign header with `PS2_D3BFG_FOUNDATION=1` in the core.
+That define selects foundation method providers, without changing the portable Common
+layout. `common_foundation.cpp` supplies diagnostics and explicit unavailable methods
+on the real class. `offline_session.cpp`, native profile/user/snapshot support and the
+offline smoke unit also compile against full headers with `ID_PS2_CORE` undefined.
+New backend objects retain strict warnings; upstream units retain the documented legacy
+policy. Header choices are recorded in flag stamps and the real compilation database.
+
+The ordinary foundation links every selected object without GC. The portable Common
+class omits Classic material/framebuffer storage and creates no game worker. Its static
+`GetGameAPI` import compiles separately in the campaign object, but the foundation has
+no game object or game initialization stage. Full container filesystem, render/sound,
+UI/dialog and save services still need their resident-link implementations.
+
+`make test-common` runs seven partial-startup cleanup probes and seven expected-fatal
+capability/precondition probes, each in a fresh process. `BUILD=release` selects the
+assertions-disabled matrix. The regular core smoke also checks copied match parameters,
+explicit loading completion, transient stats/achievement bits, user-handle invalidation
+and stable accounting over three reloads after warming native string-pool capacity.

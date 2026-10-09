@@ -66,7 +66,12 @@ idLocalUser::IsStorageDeviceAvailable
 ========================
 */
 bool idLocalUser::IsStorageDeviceAvailable() const {
+	// [PS2_D3BFG]: Profile/save storage is deferred even when desktop defaults enable it.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return false;
+#else
 	return saveGame_enable.GetBool();
+#endif
 }
 
 /*
@@ -83,6 +88,11 @@ idLocalUser::StorageSizeAvailable
 ========================
 */
 bool idLocalUser::StorageSizeAvailable( uint64 minSizeInBytes, int64 & neededBytes ) {
+	// [PS2_D3BFG]: No validated save device exists yet.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	neededBytes = minSizeInBytes > uint64( INT64_MAX ) ? INT64_MAX : int64( minSizeInBytes );
+	return false;
+#else
 	int64 size = Sys_GetDriveFreeSpaceInBytes( fs_savepath.GetString() );
 
 	neededBytes = minSizeInBytes - size;
@@ -91,6 +101,7 @@ bool idLocalUser::StorageSizeAvailable( uint64 minSizeInBytes, int64 & neededByt
 	}
 
 	return neededBytes == 0;
+#endif
 }
 
 /*

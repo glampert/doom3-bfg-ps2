@@ -29,13 +29,27 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_EMULATOR = Path("/Applications/PCSX2.app/Contents/MacOS/PCSX2")
 DEFAULT_CONFIG = Path.home() / "Library/Application Support/PCSX2/inis/PCSX2.ini"
 RESULT_LIMIT = 4096
-SCENARIOS = ("platform", "core", "core-missing-fixture")
+LIFECYCLE_STAGES = ("system", "idlib", "commands", "cvars", "filesystem", "jobs", "session")
+NEGATIVE_PROBES = {
+    "online-flags": "online/stats/party match flags",
+    "no-user": "match requires local user",
+    "bad-load-order": "loading completion state",
+    "network": "FindOrCreateMatch",
+    "classic": "Classic title switching",
+    "save-manager": "save game manager capability is unavailable",
+    "bad-device": "only input device zero is supported",
+}
+SCENARIOS = ("platform", "core", "core-missing-fixture") + tuple(
+    "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
 CRASH_RE = re.compile(r"TLB Miss|\[D3BFG\] FATAL|Assertion failed|Bus error", re.IGNORECASE)
 VERSION_RE = re.compile(
     r"^PCSX2 v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9][A-Za-z0-9._-]*)?"
     r"(?:[ \t]+\([A-Za-z0-9 ._:/+-]+\))?[ \t]*$", re.MULTILINE)
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_CORE_CHECKS = frozenset({
+    "offline/real-common", "offline/local-user", "offline/registration-idempotent",
+    "offline/transient-profile-achievements", "offline/persistence-unavailable",
+    "offline/campaign-transitions-copy", "offline/match-reload-ledger", "offline/signout-routing-stale-handle",
     "allocation-before-main", "alignment", "tag-accounting", "unsized-free", "invalid-requests",
     "zero-size", "global-new-forms", "global-delete-forms", "ledger-restored",
     "calloc-overflow",
@@ -85,6 +99,21 @@ def read_result(path: Path) -> dict | None:
 def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                  returncode: int | None, timed_out: bool) -> tuple[bool, str]:
     """A process exiting successfully is insufficient: target identity, stages and result must agree."""
+    if scenario in NEGATIVE_PROBES:
+        if timed_out:
+            return False, "watchdog timeout"
+        if re.search(r"TLB Miss|Bus error", log, re.IGNORECASE):
+            return False, "crash diagnostic"
+        if result is not None or "returned unexpectedly" in log:
+            return False, "negative probe returned"
+        if returncode not in (None, 0):
+            return False, f"emulator exited with status {returncode}"
+        begin = f"[D3BFG] PROBE {scenario} BEGIN"
+        fatal = log.find("[D3BFG] FATAL", log.find(begin)) if begin in log else -1
+        expected = NEGATIVE_PROBES[scenario]
+        if f"[D3BFG] RUN {test_id} BEGIN" not in log or "[D3BFG] CHECK probe/ready PASS" not in log or fatal < 0 or expected not in log[fatal:]:
+            return False, "missing expected probe fatal"
+        return True, "expected fatal observed"
     if CRASH_RE.search(log):
         return False, "crash diagnostic"
     if timed_out:
@@ -94,7 +123,7 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
             return False, "invalid or stale result identity"
         if result.get("manifest") != "PASS" or result.get("platform") != "PASS":
             return False, "manifest or platform failed"
-        expected_core = {"platform": "SKIP", "core": "PASS", "core-missing-fixture": "FAIL"}[scenario]
+        expected_core = "SKIP" if scenario == "platform" else "FAIL" if scenario == "core-missing-fixture" else "PASS"
         if result.get("core") != expected_core:
             return False, "unexpected core result"
         expected_status = "FAIL" if scenario == "core-missing-fixture" else "PASS"
@@ -105,7 +134,18 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
         )
         if not all(marker in log for marker in expected_markers):
             return False, "missing stage or completion marker"
-        if scenario != "platform":
+        if scenario.startswith("lifecycle-"):
+            stage = scenario.removeprefix("lifecycle-")
+            completed = LIFECYCLE_STAGES[:LIFECYCLE_STAGES.index(stage) + 1]
+            ready = re.findall(r"\[D3BFG\] COMMON stage=(\w+) ready", log)
+            shutdown = re.findall(r"\[D3BFG\] COMMON stage=(\w+) shutdown", log)
+            # stdout and emulator logs can both contain the same complete sequence.
+            valid_ready = tuple(ready) in (completed, completed + completed)
+            reverse = tuple(reversed(completed))
+            valid_shutdown = tuple(shutdown) in (reverse, reverse + reverse)
+            if not valid_ready or not valid_shutdown or "[D3BFG] CHECK probe/partial-shutdown PASS" not in log:
+                return False, "invalid partial startup/shutdown sequence"
+        elif scenario != "platform":
             checks = CHECK_RE.findall(log)
             names = {name for name, _ in checks}
             failures = {name for name, status in checks if status == "FAIL"}
@@ -232,7 +272,9 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         (fs_fixtures / "child").mkdir(parents=True)
         (fs_fixtures / "mixed.TxT").write_bytes(b"authored directory fixture\n")
         (fs_fixtures / "large.bin").write_bytes(b"Z" * 71680)
-    (output / "smoke.manifest").write_text(f"D3BFG_SMOKE 1\n{test_id}\nhost:fixture.txt\n", encoding="ascii")
+    probe = args.scenario in NEGATIVE_PROBES or args.scenario.startswith("lifecycle-")
+    fixture_path = "host:probe-" + args.scenario if probe else "host:fixture.txt"
+    (output / "smoke.manifest").write_text(f"D3BFG_SMOKE 1\n{test_id}\n{fixture_path}\n", encoding="ascii")
     emulator_log = output / "emulog.txt"
     stdout_log = output / "stdout.txt"
     # -logfile is supported by the installed emulator and avoids overwriting the user's emulog.txt.
@@ -241,6 +283,8 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         "schema": 1, "test_id": test_id, "scenario": args.scenario,
         "started_utc": datetime.now(timezone.utc).isoformat(), "timeout_seconds": args.timeout,
         "elf_sha256": sha256(staged_elf), "symbols_sha256": sha256(output / "d3bfg_unstripped.elf"),
+        "manifest_sha256": sha256(output / "smoke.manifest"),
+        "fixture_path": fixture_path,
         "fixture_sha256": sha256(fixture) if fixture.exists() else None,
         "smoke_config_sha256": sha256(smoke_config) if smoke_config.exists() else None,
         "filesystem_fixture_sha256": {
@@ -265,6 +309,8 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 returncode = process.poll()
                 # Wait for both a closed result and a final marker, which stdout can lag behind.
                 has_completion = f"[D3BFG] RESULT {test_id} " in log
+                if args.scenario in NEGATIVE_PROBES and classify_run(test_id, args.scenario, result, log, returncode, False)[0]:
+                    break
                 if (result is not None and has_completion) or returncode is not None or CRASH_RE.search(log):
                     break
                 if time.monotonic() - started >= args.timeout:

@@ -7,6 +7,7 @@
 #include "ps2/system/log.h"
 
 #include "tests/smoketests/core_boot.h"
+#include "tests/smoketests/offline_tests.h"
 #include "tests/smoketests/type_query_tests.h"
 #include "tests/smoketests/class_alloc_tests.h"
 #include "tests/smoketests/heap_tests.h"
@@ -241,6 +242,7 @@ bool CheckMissingAndEscapingPaths()
 
 bool RunCoreTests(const char * fixturePath)
 {
+    if (IsCommonProbe(fixturePath)) { return RunCommonProbe(fixturePath); }
     core::PrintMemory("before-core");
     bool passed = RunHeapTests();
     passed = RunClassAllocTests() && passed;
@@ -248,6 +250,7 @@ bool RunCoreTests(const char * fixturePath)
     core::Init();
     core::PrintMemory("initialized-core");
     passed = Check("initialized", common->IsInitialized() && fileSystem->IsInitialized()) && passed;
+    passed = RunOfflineTests() && passed;
     passed = CheckCommands() && passed;
     passed = CheckCVars() && passed;
     passed = CheckParser() && passed;

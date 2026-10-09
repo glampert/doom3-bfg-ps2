@@ -104,3 +104,31 @@ math path; PS2-specific math replacement headers are a later milestone.
   copy the symbol count instead. Portable SWF decoding preserves tables across tags,
   rejects source exhaustion/oversized images, and frees owned output and codec state
   before a fatal diagnostic. Host codec tests do not establish target JPEG execution.
+
+## Staged Common and offline profiles
+
+- The foundation instantiates real `idCommonLocal`. Portable Init/Shutdown track
+  system, idlib, commands, cvars, fixture filesystem, jobs and offline session, and
+  unwind only completed stages in reverse order. Filesystem initialization depends on
+  registered commands/cvars. Static CVar registration cannot be rerun after shutdown;
+  deliberately partial boot tests use separate processes.
+- `PS2_D3BFG_FOUNDATION` selects Common method providers, never a different class
+  layout. Full-header bridge units must include `idlib/precompiled.h` before
+  `Common_local.h`. All portable objects omit the Classic framebuffer/material; the
+  physical Classic tree remains excluded, pending its separate deletion gate.
+- Portable `com_smp` defaults to zero with ROM flags. Init creates no game worker and
+  `RunGameAndDraw` calls `Run` synchronously regardless of forced cvar writes. The
+  foundation frame currently pumps commands and offline users only. Static game API
+  import uses C linkage and validates `GAME_API_VERSION`/both exported interfaces, but
+  has compile acceptance only until resident game initialization exists.
+- Offline profiles use native engine stats/128 achievement bits with no save processors
+  or persistence. Default profile lookup shares the active profile without resetting it.
+  Re-registration resets the transient lifetime; storage queries fail,
+  profile serialization returns false and requested saves become ERR while preserving
+  current data. Validate stat indices and both achievement bounds; use unsigned 64-bit
+  shifts so IDs 63 and 127 do not invoke signed-shift undefined behavior.
+- Native dictionary string pools retain capacity until idLib shutdown. Warm them before
+  comparing repeated-match heap ledgers; then require exact requested/backing/count
+  stability on each reload and exact pre-init baseline recovery at full shutdown.
+  The offline session must stay LOADING until explicit `LoadingFinished`, never infer
+  map completion from Pump/Frame. Native game achievement manager execution is deferred.

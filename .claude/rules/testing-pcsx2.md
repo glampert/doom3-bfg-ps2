@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 47 Python regressions, including real JPEG
+  The complete host suite currently has 55 Python regressions, including real JPEG
   and filesystem sanitizer fixtures.
 
 - Core smoke now also requires six filesystem-service markers. The runner stages
@@ -57,6 +57,20 @@
   append/short reads, parent directories and native driver errors, and ZIP timestamps.
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
+
+- `make test-common` / `make BUILD=release test-common` run 14 isolated probes. Seven
+  stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
+  acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
+  and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
+  uses a fresh process. Seven negative probes require matching run/begin identities and
+  the expected fatal diagnostic: online flags, absent user, loading out of order, network
+  matchmaking, Classic switching, absent save manager and unsupported input device.
+  A watchdog, TLB/bus error, unexpected return or unrelated fatal fails.
+- Regular core smoke requires eight `offline/` markers covering the real Common
+  identity and `com_smp=0`/ROM policy, local user/profile/achievement state, unavailable
+  persistence, copied match parameters, explicit loading completion, stable reload
+  accounting and sign-out/routing/stale handles. Profile save failure must preserve
+  transient stats/bits. These checks do not execute game ticks or load a map.
 
 ## Quake II reference procedures
 

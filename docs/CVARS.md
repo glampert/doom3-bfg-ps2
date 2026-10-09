@@ -2,15 +2,17 @@
 # PS2 backend cvars
 
 No `ps2_*` backend controls are registered yet. The foundation uses Doom's existing
-command and cvar system. The following engine cvar has a PS2-specific policy:
+command and cvar system. The following engine cvars have PS2-specific policies:
 
 | Name | Debug default | Release default | Flags | Behavior and registration |
 | --- | --- | --- | --- | --- |
 | `jobs_numThreads` | `0` | `0` | `CVAR_INTEGER`, `CVAR_NOCHEAT`, `CVAR_INIT` | Initial synchronous scheduler; worker creation is disabled and explicit parallelism requests still execute on the caller. Registered in `src/neo/idlib/ParallelJobList.cpp`. |
+| `com_smp` | `0` | `0` | `CVAR_BOOL`, `CVAR_SYSTEM`, `CVAR_NOCHEAT`, `CVAR_ROM` | Synchronous game/draw dispatch; portable startup creates no game worker. Registered in `src/neo/framework/Common.cpp`, including the foundation. Game execution is still deferred. |
 
 `jobs_numThreads` is not archived. Its init flag rejects direct cvar console commands;
-even a forced internal change cannot enable workers in this milestone. Other imported
-engine cvars retain their upstream defaults. The test bootstrap may register temporary
+even a forced internal change cannot enable workers in this milestone. `com_smp` is
+not archived, and forced writes cannot change the portable synchronous dispatch path.
+Other imported engine cvars retain their upstream defaults. The test bootstrap may register temporary
 fixture cvars; those are test inputs rather than user-facing backend controls.
 
 When a cvar is added to `src/ps2/`, record its name, debug and release defaults, flags,

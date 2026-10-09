@@ -36,9 +36,18 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "../sound/sound.h"
 
+// [PS2_D3BFG]: Classic and desktop startup are excluded from the portable target.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 #include "../../doomclassic/doom/doomlib.h"
 #include "../../doomclassic/doom/d_event.h"
 #include "../../doomclassic/doom/d_main.h"
+#endif
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/system/lifecycle.h"
+#include "ps2/system/log.h"
+// [PS2_D3BFG]: Match the static game export's C linkage.
+extern "C" gameExport_t * GetGameAPI( gameImport_t * import );
+#endif
 
 
 
@@ -56,6 +65,12 @@ struct version_s {
 } version;
 
 idCVar com_version( "si_version", version.string, CVAR_SYSTEM|CVAR_ROM|CVAR_SERVERINFO, "engine version" );
+// [PS2_D3BFG]: Both worker creation and dispatch are synchronous on the console.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+idCVar com_smp( "com_smp", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT|CVAR_ROM, "synchronous game and draw execution" );
+#else
+idCVar com_smp( "com_smp", "1", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "run the game and draw code in a separate thread" );
+#endif
 idCVar com_forceGenericSIMD( "com_forceGenericSIMD", "0", CVAR_BOOL | CVAR_SYSTEM | CVAR_NOCHEAT, "force generic platform independent SIMD" );
 
 #ifdef ID_RETAIL
@@ -85,9 +100,13 @@ float com_engineHz_latched = 60.0f; // Latched version of cvar, updated between 
 int64 com_engineHz_numerator = 100LL * 1000LL;
 int64 com_engineHz_denominator = 100LL * 60LL;
 
+// [PS2_D3BFG]: Window handles have no portable counterpart.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 HWND com_hwndMsg = NULL;
+#endif
 
-#ifdef __DOOM_DLL__
+// [PS2_D3BFG]: The foundation has no linked game object.
+#if defined( __DOOM_DLL__ ) || defined( PS2_D3BFG_FOUNDATION )
 idGame *		game = NULL;
 idGameEdit *	gameEdit = NULL;
 #endif
@@ -117,8 +136,11 @@ idCommonLocal::idCommonLocal() :
 	lastPacifierDialogState( false ),
 	showShellRequested( false ),
 	currentGame( DOOM3_BFG ),
-	idealCurrentGame( DOOM3_BFG ),
-	doomClassicMaterial( NULL )
+	idealCurrentGame( DOOM3_BFG )
+// [PS2_D3BFG]: No Classic image or material residency on the console.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
+	, doomClassicMaterial( NULL )
+#endif
 	{
 
 	snapCurrent.localTime = -1;
@@ -130,6 +152,10 @@ idCommonLocal::idCommonLocal() :
 	totalBufferedTime	= 0;
 	totalRecvTime		= 0;
 
+	// [PS2_D3BFG]: Foundation console state is valid before any service starts.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	consoleUsed = true;
+#endif
 	com_fullyInitialized = false;
 	com_refreshOnPrint = false;
 	com_errorEntered = ERP_NONE;
@@ -191,6 +217,8 @@ idCommonLocal::idCommonLocal() :
 idCommonLocal::Quit
 ==================
 */
+// [PS2_D3BFG]: Foundation-only interfaces are defined in the console backend.
+#if !defined( PS2_D3BFG_FOUNDATION )
 void idCommonLocal::Quit() {
 
 	// don't try to shutdown if we are in a recursive error
@@ -236,7 +264,12 @@ void idCommonLocal::ParseCommandLine( int argc, const char * const * argv ) {
 	for ( i = 0; i < argc; i++ ) {
 		if ( idStr::Icmp( argv[ i ], "+connect_lobby" ) == 0 ) {
 			// Handle Steam bootable invites.
+			// [PS2_D3BFG]: Online boot invitations are unsupported, without desktop integer conversion.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+			ps2::FatalError( "bootable online invitations are unsupported" );
+#else
 			session->HandleBootableInvite( _atoi64( argv[ i + 1 ] ) );
+#endif
 		} else if ( argv[ i ][ 0 ] == '+' ) {
 			com_numConsoleLines++;
 			com_consoleLines[ com_numConsoleLines-1 ].AppendArg( argv[ i ] + 1 );
@@ -817,7 +850,23 @@ idCommonLocal::LoadGameDLL
 =================
 */
 void idCommonLocal::LoadGameDLL() {
-#ifdef __DOOM_DLL__
+	// [PS2_D3BFG]: Import the statically linked campaign through the real versioned ABI.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	gameImport_t gameImport = {};
+	gameImport.version = GAME_API_VERSION;
+	gameImport.sys = ::sys; gameImport.common = ::common;
+	gameImport.cmdSystem = ::cmdSystem; gameImport.cvarSystem = ::cvarSystem;
+	gameImport.fileSystem = ::fileSystem; gameImport.renderSystem = ::renderSystem;
+	gameImport.soundSystem = ::soundSystem; gameImport.renderModelManager = ::renderModelManager;
+	gameImport.uiManager = ::uiManager; gameImport.declManager = ::declManager;
+	gameImport.AASFileManager = ::AASFileManager;
+	gameImport.collisionModelManager = ::collisionModelManager;
+	const gameExport_t * exports = GetGameAPI( &gameImport );
+	if ( exports == NULL || exports->version != GAME_API_VERSION || exports->game == NULL || exports->gameEdit == NULL ) {
+		ps2::FatalError( "invalid static game API" );
+	}
+	game = exports->game; gameEdit = exports->gameEdit;
+#elif defined( __DOOM_DLL__ )
 	char			dllPath[ MAX_OSPATH ];
 
 	gameImport_t	gameImport;
@@ -920,6 +969,7 @@ void idCommonLocal::UnloadGameDLL() {
 idCommonLocal::IsInitialized
 =================
 */
+#endif // PS2_D3BFG_FOUNDATION
 bool idCommonLocal::IsInitialized() const {
 	return com_fullyInitialized;
 }
@@ -934,12 +984,24 @@ idCommonLocal::Init
 =================
 */
 void idCommonLocal::Init( int argc, const char * const * argv, const char *cmdline ) {
-	// [PS2_D3BFG]: Portable failures are explicit/fatal; normal-return block scope remains intact.
+	// [PS2_D3BFG]: Stop deliberately after core/offline services; presentation and game boot are later stages.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	{
+	if ( argc != 0 || ( cmdline != NULL && cmdline[0] != '\0' ) ) {
+		ps2::FatalError( "argument-driven Common startup is not implemented" );
+	}
+	(void)argv;
+	com_shuttingDown = false;
+	const ps2::lifecycle::InitResult result = ps2::lifecycle::Init( *this );
+	com_fullyInitialized = result == ps2::lifecycle::InitResult::Ready;
+	if ( !com_fullyInitialized ) {
+		Shutdown();
+		if ( result == ps2::lifecycle::InitResult::Failed ) {
+			ps2::FatalError( "Common service initialization failed" );
+		}
+	}
+	return;
 #else
 	try {
-#endif
 		// set interface pointers used by idLib
 		idLib::sys			= sys;
 		idLib::common		= common;
@@ -1218,12 +1280,10 @@ void idCommonLocal::Init( int argc, const char * const * argv, const char *cmdli
 
 		idLib::Printf( "QA Timing IIS: %06dms\n", Sys_Milliseconds() );
 	}
-// [PS2_D3BFG]: Desktop recovery remains separate from the initial portable fatal policy.
-#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	catch( idException & ) {
 		Sys_Error( "Error during initialization" );
 	}
-#endif
+#endif // portable startup
 }
 
 /*
@@ -1232,6 +1292,14 @@ idCommonLocal::Shutdown
 =================
 */
 void idCommonLocal::Shutdown() {
+	// [PS2_D3BFG]: Unwind only completed stages, including deliberately stopped startup.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( com_shuttingDown ) { return; }
+	com_shuttingDown = true;
+	ps2::lifecycle::Shutdown();
+	com_fullyInitialized = false;
+	return;
+#else
 
 	if ( com_shuttingDown ) {
 		return;
@@ -1364,8 +1432,11 @@ void idCommonLocal::Shutdown() {
 	// shutdown idLib
 	printf( "idLib::ShutDown();\n" );
 	idLib::ShutDown();
+#endif // portable shutdown
 }
 
+// [PS2_D3BFG]: The foundation supplies explicit failures for unavailable game/UI interfaces.
+#if !defined( PS2_D3BFG_FOUNDATION )
 /*
 ========================
 idCommonLocal::CreateMainMenu
@@ -1531,6 +1602,8 @@ bool idCommonLocal::ProcessEvent( const sysEvent_t *event ) {
 		return true;
 	}
 
+	// [PS2_D3BFG]: Classic receives no portable input events.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	// Let Doom classic run events.
 	if ( IsPlayingDoomClassic() ) {
 		// Translate the event to Doom classic format.
@@ -1558,6 +1631,7 @@ bool idCommonLocal::ProcessEvent( const sysEvent_t *event ) {
 		return true;
 	}
 
+	#endif // Classic input
 	// menus / etc
 	if ( MenuEvent( event ) ) {
 		return true;
@@ -1593,6 +1667,10 @@ idCommonLocal::SwitchToGame
 ========================
 */
 void idCommonLocal::SwitchToGame( currentGame_t newGame ) {
+	// [PS2_D3BFG]: The console supports only Doom 3.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( newGame != DOOM3_BFG ) { ps2::FatalError( "Classic title switching is unsupported" ); }
+#endif
 	idealCurrentGame = newGame;
 }
 
@@ -1602,6 +1680,10 @@ idCommonLocal::PerformGameSwitch
 ========================
 */
 void idCommonLocal::PerformGameSwitch() {
+	// [PS2_D3BFG]: No embedded Classic title or launcher on the portable target.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	currentGame = idealCurrentGame = DOOM3_BFG;
+#else
 	// If the session state is past the menu, we should be in Doom 3.
 	// This will happen if, for example, we accept an invite while playing
 	// Doom or Doom 2.
@@ -1657,6 +1739,7 @@ void idCommonLocal::PerformGameSwitch() {
 	}
 
 	currentGame = idealCurrentGame;
+#endif
 }
 
 /*
@@ -1716,3 +1799,5 @@ CONSOLE_COMMAND( listDictValues, "lists all values used by dictionaries", NULL )
 CONSOLE_COMMAND( testSIMD, "test SIMD code", NULL ) {
 	idSIMD::Test_f( args );
 }
+
+#endif // PS2_D3BFG_FOUNDATION

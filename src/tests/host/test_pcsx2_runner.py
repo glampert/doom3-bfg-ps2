@@ -95,6 +95,55 @@ class ClassifierTests(unittest.TestCase):
                          (False, "watchdog timeout"))
 
 
+class CommonProbeClassifierTests(unittest.TestCase):
+    def partial_log(self, stage="cvars"):
+        completed = runner.LIFECYCLE_STAGES[:runner.LIFECYCLE_STAGES.index(stage) + 1]
+        log = "".join(f"[D3BFG] COMMON stage={name} ready\n" for name in completed)
+        log += "".join(f"[D3BFG] COMMON stage={name} shutdown\n" for name in reversed(completed))
+        return log + "[D3BFG] CHECK probe/partial-shutdown PASS\n" + complete_log(core="PASS")
+
+    def test_every_partial_stage(self):
+        for stage in runner.LIFECYCLE_STAGES:
+            with self.subTest(stage=stage):
+                self.assertTrue(runner.classify_run("run1", "lifecycle-" + stage,
+                    complete_result(core="PASS"), self.partial_log(stage), None, False)[0])
+
+    def test_reverse_order_is_required(self):
+        log = self.partial_log().replace("stage=cvars shutdown", "stage=commands shutdown", 1)
+        self.assertFalse(runner.classify_run("run1", "lifecycle-cvars", complete_result(core="PASS"), log, None, False)[0])
+
+    def test_unstarted_stage_shutdown_is_rejected(self):
+        log = self.partial_log() + "[D3BFG] COMMON stage=session shutdown\n"
+        self.assertFalse(runner.classify_run("run1", "lifecycle-cvars", complete_result(core="PASS"), log, None, False)[0])
+
+    def test_partial_heap_failure_cannot_pass(self):
+        log = self.partial_log().replace("probe/partial-shutdown PASS", "probe/partial-shutdown FAIL")
+        self.assertFalse(runner.classify_run("run1", "lifecycle-cvars", complete_result(core="PASS"), log, None, False)[0])
+
+    def fatal_log(self, probe):
+        return (f"[D3BFG] RUN run1 BEGIN\n[D3BFG] CHECK probe/ready PASS\n"
+                f"[D3BFG] PROBE {probe} BEGIN\n[D3BFG] FATAL {runner.NEGATIVE_PROBES[probe]}\n")
+
+    def test_expected_fatals(self):
+        for probe in runner.NEGATIVE_PROBES:
+            with self.subTest(probe=probe):
+                self.assertTrue(runner.classify_run("run1", probe, None, self.fatal_log(probe), None, False)[0])
+
+    def test_wrong_fatal_watchdog_and_tlb_fail(self):
+        for log, timeout in [(self.fatal_log("network") + "TLB Miss", False),
+                             (self.fatal_log("network"), True),
+                             (self.fatal_log("network").replace("FindOrCreateMatch", "another failure"), False)]:
+            self.assertFalse(runner.classify_run("run1", "network", None, log, None, timeout)[0])
+
+    def test_stale_fatal_identity_and_return_are_rejected(self):
+        self.assertFalse(runner.classify_run("old", "network", None, self.fatal_log("network"), None, False)[0])
+        self.assertFalse(runner.classify_run("run1", "network", complete_result(), self.fatal_log("network"), None, False)[0])
+
+    def test_missing_offline_check_cannot_pass(self):
+        log = complete_log(core="PASS").replace("[D3BFG] CHECK offline/match-reload-ledger PASS\n", "")
+        self.assertFalse(runner.classify_run("run1", "core", complete_result(core="PASS"), log, None, False)[0])
+
+
 class ProcessTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

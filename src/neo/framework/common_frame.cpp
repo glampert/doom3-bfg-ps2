@@ -32,8 +32,14 @@ If you have questions concerning this license or the applicable additional terms
 #include "Common_local.h"
 #include "../renderer/Image.h"
 #include "../renderer/ImageOpts.h"
+// [PS2_D3BFG]: Classic rendering and ticks are absent on the portable target.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 #include "../../doomclassic/doom/doomlib.h"
 #include "../../doomclassic/doom/globaldata.h"
+#endif
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#include "ps2/system/lifecycle.h"
+#endif
 
 /*
 
@@ -58,7 +64,8 @@ idCVar com_deltaTimeClamp( "com_deltaTimeClamp", "50", CVAR_INTEGER, "don't proc
 
 idCVar com_fixedTic( "com_fixedTic", DEFAULT_FIXED_TIC, CVAR_BOOL, "run a single game frame per render frame" );
 idCVar com_noSleep( "com_noSleep", DEFAULT_NO_SLEEP, CVAR_BOOL, "don't sleep if the game is running too fast" );
-idCVar com_smp( "com_smp", "1", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "run the game and draw code in a separate thread" );
+// [PS2_D3BFG]: com_smp is registered by Common.cpp, including the foundation boot.
+extern idCVar com_smp;
 idCVar com_aviDemoSamples( "com_aviDemoSamples", "16", CVAR_SYSTEM, "" );
 idCVar com_aviDemoWidth( "com_aviDemoWidth", "256", CVAR_SYSTEM, "" );
 idCVar com_aviDemoHeight( "com_aviDemoHeight", "256", CVAR_SYSTEM, "" );
@@ -167,6 +174,10 @@ gameReturn_t idGameThread::RunGameAndDraw( int numGameFrames_, idUserCmdMgr & us
 	numGameFrames = numGameFrames_;
 
 	// start the thread going
+	// [PS2_D3BFG]: Synchronous dispatch cannot depend on an editable cvar.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	Run();
+#else
 	if ( com_smp.GetBool() == false ) {
 		// run it in the main thread so PIX profiling catches everything
 		Run();
@@ -174,6 +185,7 @@ gameReturn_t idGameThread::RunGameAndDraw( int numGameFrames_, idUserCmdMgr & us
 		this->SignalWork();
 	}
 
+	#endif
 	// return the latched result while the thread runs in the background
 	return latchedRet;
 }
@@ -216,6 +228,8 @@ void idCommonLocal::Draw() {
 
 	if ( loadGUI != NULL ) {
 		loadGUI->Render( renderSystem, Sys_Milliseconds() );
+	// [PS2_D3BFG]: No Classic material or framebuffer is resident.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	} else if ( currentGame == DOOM_CLASSIC || currentGame == DOOM2_CLASSIC ) {
 		const float sysWidth = renderSystem->GetWidth() * renderSystem->GetPixelAspect();
 		const float sysHeight = renderSystem->GetHeight();
@@ -236,6 +250,7 @@ void idCommonLocal::Draw() {
 		}
 		renderSystem->SetColor4( 1, 1, 1, 1 );
 		renderSystem->DrawStretchPic( barWidth, barHeight, SCREEN_WIDTH - barWidth * 2.0f, SCREEN_HEIGHT - barHeight * 2.0f, 0, 0, 1, 1, doomClassicMaterial );
+	#endif
 	} else if ( game && game->Shell_IsActive() ) {
 		bool gameDraw = game->Draw( game->GetLocalClientNum() );
 		if ( !gameDraw ) {
@@ -365,6 +380,11 @@ idCommonLocal::Frame
 =================
 */
 void idCommonLocal::Frame() {
+	// [PS2_D3BFG]: The current capability boundary pumps only foundation services.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	ps2::lifecycle::Frame();
+	return;
+#endif
 	// [PS2_D3BFG]: Portable failures are explicit/fatal; normal-return block scope remains intact.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 	{
@@ -619,12 +639,15 @@ void idCommonLocal::Frame() {
 			userCmdMgr.PutUserCmdForPlayer( game->GetLocalClientNum(), newCmd );
 		}
 
+		// [PS2_D3BFG]: Classic ticks are excluded.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 		// If we're in Doom or Doom 2, run tics and upload the new texture.
 		if ( ( GetCurrentGame() == DOOM_CLASSIC || GetCurrentGame() == DOOM2_CLASSIC ) && !( Dialog().IsDialogPausing() || session->IsSystemUIShowing() ) ) {
 			RunDoomClassicFrame();
 		}
 		
 		// start the game / draw command generation thread going in the background
+		#endif
 		gameReturn_t ret = gameThread.RunGameAndDraw( numGameFrames, userCmdMgr, IsClient(), gameFrame - numGameFrames );
 
 		if ( !com_smp.GetBool() ) {
@@ -715,6 +738,8 @@ void idCommonLocal::Frame() {
 idCommonLocal::RunDoomClassicFrame
 =================
 */
+// [PS2_D3BFG]: Keep Classic implementation only for existing desktop builds.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 void idCommonLocal::RunDoomClassicFrame() {
 	static int doomTics = 0;
 
@@ -755,3 +780,5 @@ void idCommonLocal::RunDoomClassicFrame() {
 	renderSystem->UploadImage( "_doomClassic", doomClassicImageData.Ptr(), DOOMCLASSIC_RENDERWIDTH, DOOMCLASSIC_RENDERHEIGHT );
 	doomTics++;
 }
+
+#endif // Classic frame

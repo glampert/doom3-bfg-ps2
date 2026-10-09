@@ -124,6 +124,7 @@ int main()
         manifest = BootManifest{};
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK manifest FAIL\n");
     }
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] RUN %s BEGIN\n", manifest.testId);
     const bool platformPassed = ps2::smoketests::RunPlatformTests() && manifestPassed;
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE platform %s\n", platformPassed ? "PASS" : "FAIL");
 

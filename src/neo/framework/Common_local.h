@@ -173,7 +173,13 @@ public:
 	virtual idSoundWorld *		SW() { return soundWorld; }
 	virtual idSoundWorld *		MenuSW() { return menuSoundWorld; }
 	virtual idSession *			Session() { return session; }
-	virtual idCommonDialog &	Dialog() { return commonDialog; }
+	virtual idCommonDialog &	Dialog() {
+		// [PS2_D3BFG]: A foundation boot does not create a dialog renderer.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		Sys_Error( "Common dialog capability is unavailable" );
+#endif
+		return commonDialog;
+	}
 
 	virtual void				OnSaveCompleted( idSaveLoadParms & parms );
 	virtual void				OnLoadCompleted( idSaveLoadParms & parms );
@@ -245,6 +251,16 @@ public:	// These are public because they are called directly by static functions
 	idUserCmdMgr & GetUCmdMgr() { return userCmdMgr; }
 
 private:
+    // [PS2_D3BFG]: Bounded foundation console state; no UI or file logger dependency.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+    void VWarning(const char * format, va_list arguments);
+    void FlushRedirect();
+    unsigned int m_warningCount = 0;
+    char * m_redirectBuffer = nullptr;
+    size_t m_redirectCapacity = 0;
+    size_t m_redirectLength = 0;
+    void (*m_redirectFlush)(const char *) = nullptr;
+#endif
 	bool						com_fullyInitialized;
 	bool						com_refreshOnPrint;		// update the screen every print for dmap
 	errorParm_t					com_errorEntered;
@@ -416,6 +432,8 @@ private:
 
 	currentGame_t		currentGame;
 	currentGame_t		idealCurrentGame;		// Defer game switching so that bad things don't happen in the middle of the frame.
+	// [PS2_D3BFG]: Remove the 2,304,000-byte Classic framebuffer from portable residency.
+#if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	const idMaterial *	doomClassicMaterial;
 
 	static const int			DOOMCLASSIC_RENDERWIDTH = 320 * 3;
@@ -424,6 +442,7 @@ private:
 	static const int			DOOMCLASSIC_IMAGE_SIZE_IN_BYTES = DOOMCLASSIC_RENDERWIDTH * DOOMCLASSIC_RENDERHEIGHT * DOOMCLASSIC_BYTES_PER_PIXEL;
 	
 	idArray< byte, DOOMCLASSIC_IMAGE_SIZE_IN_BYTES >	doomClassicImageData;
+#endif
 
 private:
 	void	InitCommands();

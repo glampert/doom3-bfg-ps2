@@ -44,7 +44,10 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   matching `d3bfg_unstripped.elf`, map and build report. The verbatim reference Makefile
   is preserved in `docs/reference/quake2.Makefile`.
 - `make compile-core` checks the explicit scalar idlib/framework source set.
-  `make headless-core` links its real foundation bootstrap and tests. `make compile-game`
+  `make headless-core` links real `idCommonLocal` staged foundation startup and tests.
+  `make test-common` checks partial shutdown and offline capability failures in fresh
+  emulator processes; Common startup is one-shot after static CVar registration.
+  `make compile-game`
   is the separate M2b campaign gate and exposes remaining portability blockers.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests

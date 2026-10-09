@@ -24,12 +24,13 @@ make                         # current debug milestone
 make release                 # release configuration
 make platform-probe          # SDK/timer/alignment probe
 make headless-core           # scalar Doom foundation and integration tests
-make compile-core            # all 52 scalar idlib units and 3 framework units
+make compile-core            # 52 scalar idlib units and 10 framework/session support units
 make compile-game            # separate campaign portability gate; still incomplete
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make release smoke           # release core smoke run
 make smoke-negative          # expected missing-fixture failure
+make test-common             # seven partial-startup and seven expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 
@@ -51,9 +52,10 @@ ELF/startup memory measurements and the remaining campaign compile failures.
 
 M2b is in progress: the campaign headers now separate OpenGL state from shared
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
-The campaign compile now passes 268 of 274 units in both configurations and still fails
-on Classic-dependent common startup/frame code and logical-sound desktop dependencies;
-the default executable remains the tested headless core.
+The campaign compile now passes 276 of 280 units in both configurations. Four logical-
+sound units still require the XAudio header split; the default executable remains the
+tested headless core. Six native profile, user and snapshot/compression support units
+have been retained for the real Common layout and offline services.
 Game class allocation now preserves heap alignment and checks signed memory counters;
 factories use explicit fatal allocation without exception handling. Shared host/EE tests
 cover this allocation boundary, while actual game initialization remains a later gate.
@@ -72,11 +74,22 @@ identity; actual file objects and engine hierarchy declarations are checked on t
 
 ## Core boundary
 
-The foundation links every scalar idlib object directly, plus the real
-`CmdSystem.cpp`, `CVarSystem.cpp` and `File.cpp`. It uses a small offline common-service
-adapter and loose-file filesystem backend, rather than running the complete
-`idCommonLocal::Init`. It does not link desktop GPU/audio APIs or Classic Doom, and
-it does not claim game/script compilation or map loading.
+The foundation links every selected scalar idlib object directly and runs the real
+`idCommonLocal::Init` / `Shutdown` from `Common.cpp`. Startup completes system, idlib,
+command, cvar, filesystem, synchronous-job and offline-session stages; shutdown unwinds
+only completed stages in reverse order. Startup is one-shot because Doom's static cvar
+registration cannot be repeated after shutdown. Game, presentation, dialogs and saves
+remain deferred capabilities with explicit failures. The filesystem still uses the
+bounded loose-file fixture adapter; full campaign container initialization is pending.
+The portable Common layout excludes the 2,304,000-byte Classic framebuffer. No Classic
+source or desktop GPU/audio implementation is linked.
+
+The offline session owns one local user on input device zero, with the native transient
+profile's stats and achievement bits. Match parameters are copied, stale user handles
+are rejected, and loading completes only on `LoadingFinished`. Online requests are
+unsupported; profile persistence reports failure without discarding transient data.
+The static versioned `GetGameAPI` import path now compiles, but is not invoked by the
+foundation. Resident game linking, interpreter execution and map loading remain pending.
 
 Backend and smoke-test diagnostics use the shared `ps2::Log` / `LogV` sink with info,
 warning, error and fatal levels. It currently writes synchronously to stdout. System,
@@ -99,7 +112,7 @@ without terminating use the engine's `LEXFL_NOERRORS` flag.
 The initial job manager creates no workers. Dependencies complete before their dependent
 list executes, and the original scalar executor handles synchronization points and
 completion bookkeeping. Explicit parallelism requests still run on the caller.
-[CVARS.md](docs/CVARS.md) documents `jobs_numThreads` and later backend controls.
+[CVARS.md](docs/CVARS.md) documents `jobs_numThreads`, `com_smp` and later backend controls.
 
 Scalar compilation retains intentional double arithmetic in `Parser`, `Timer`, `Token`,
 `bv/Sphere`, `geometry/RenderMatrix`, `math/MatX`, `math/Matrix`, `math/Ode` and
@@ -142,6 +155,8 @@ process it started. It does not edit emulator settings.
 python3 src/tools/scripts/run_pcsx2_test.py --scenario platform
 python3 src/tools/scripts/run_pcsx2_test.py --scenario core
 python3 src/tools/scripts/run_pcsx2_test.py --scenario core-missing-fixture
+make test-common
+make BUILD=release test-common
 ```
 
 Build the corresponding probe or core ELF first. A pass requires the fresh run identity,
@@ -150,6 +165,11 @@ pass. A watchdog or crash diagnostic fails the run. The negative scenario requir
 core to reject a missing fixture. Tests cover heap alignment/accounting, scalar matrix
 and vertex formats, lexer/string behavior and synchronous job ordering. Core services
 also exercise command/cvar registration and fixture I/O.
+Eight offline checks cover Common identity, local users, transient profiles/achievements,
+unavailable persistence, match transitions, copied parameters, reload accounting and
+sign-out/input routing. Common probes launch a fresh process for each of seven deliberate
+startup stops and seven invalid or unsupported requests; each must match its own run
+identity and expected cleanup or fatal diagnostic.
 
 This milestone preserves the loader's IOP/`host:` filesystem and initializes SIF RPC.
 Physical USB/HDD bring-up, the GS/VU1 path, SPU2 audio, controller input, save games and

@@ -60,6 +60,11 @@ idSignInManagerBase::GetDefaultProfile
 ========================
 */
 idPlayerProfile * idSignInManagerBase::GetDefaultProfile() {
+	// [PS2_D3BFG]: Device zero is shared with the active user; never reset its transient data.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	idLocalUser * master = GetMasterLocalUser();
+	if ( master != NULL ) { return master->GetProfile(); }
+#endif
 	if ( defaultProfile == NULL ) {
 		// Create a new profile
 		defaultProfile = idPlayerProfile::CreatePlayerProfile( 0 );
@@ -198,6 +203,10 @@ idSignInManagerBase::RequirePersistentMaster
 ========================
 */
 bool idSignInManagerBase::RequirePersistentMaster() {
+	// [PS2_D3BFG]: Campaign startup accepts a registered transient offline profile.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	return GetMasterLocalUser() != NULL;
+#else
 #ifdef ID_RETAIL
 	return true;		// ALWAYS require persistent master on retail builds
 #else
@@ -210,6 +219,8 @@ bool idSignInManagerBase::RequirePersistentMaster() {
 	}
 
 	return com_requireNonProductionSignIn.GetBool();
+#endif
+
 #endif
 }
 

@@ -279,6 +279,10 @@ idLobbyBase
 */
 class idLobbyBase {
 public:
+	// [PS2_D3BFG]: The portable lobby implementation has a polymorphic lifetime.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	virtual ~idLobbyBase() = default;
+#endif
 	// General lobby functionality
 	virtual bool						IsHost() const = 0;
 	virtual bool						IsPeer() const = 0;
@@ -565,7 +569,13 @@ public:
 	virtual void				UpdateSignInManager() = 0;
 
 	idSignInManagerBase &		GetSignInManager() { return *signInManager; }
-	idSaveGameManager &			GetSaveGameManager() { return *saveGameManager; }
+	idSaveGameManager &			GetSaveGameManager() {
+		// [PS2_D3BFG]: Missing save capability is an explicit failure, never a null dereference.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		if ( saveGameManager == NULL ) { Sys_Error( "save game manager capability is unavailable" ); }
+#endif
+		return *saveGameManager;
+	}
 	idAchievementSystem &		GetAchievementSystem() { return *achievementSystem; }
 
 	bool						HasSignInManager() const { return ( signInManager != NULL ); }

@@ -7,13 +7,19 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
-After the checked-query slice on 2026-10-09, debug/release fixed core ELF residency is
-1,567,920 / 1,624,368 bytes, including 392,880 bytes of BSS. Core
-initialization requests 13,231 bytes (17,716 backing);
-the synthetic test peak is 22,597 bytes (27,544 backing). Both shut down to the exact
+After the Common/offline slice on 2026-10-09, debug/release fixed core ELF residency is
+1,705,136 / 1,761,712 bytes, including 454,192 bytes of BSS. Core
+initialization requests 18,945 bytes (25,708 backing);
+the synthetic test peak is 44,887 bytes (52,376 backing). Both shut down to the exact
 process-lifetime baseline of 1,024 requested / 1,068 backing bytes in one allocation.
-dlmalloc's commitment after tests is 45,904 / 46,800 bytes, including untagged C/newlib
+dlmalloc's commitment after tests is 68,432 / 69,200 bytes, including untagged C/newlib
 allocations and freed space. Do not double-count tagged backing on top of the arena.
+The real portable `commonLocal` occupies 54,792 bytes; its desktop-only 2,304,000-byte
+Classic framebuffer is absent. This prevents Classic residency when importing Common;
+the previous small Common adapter did not contain that framebuffer either. Match tests
+warm native dictionary string pools once, then require exact ledger stability over three
+reloads and exact full-shutdown recovery. Snapshot/compression support is retained to
+link Common's embedded value types; no online snapshots or game state are initialized.
 Class `memused` counts object bytes without another size prefix; shared heap metadata
 supplies exact unsized-delete accounting while preserving object alignment. The
 allocation tests use small probe classes and do not measure resident campaign state.
