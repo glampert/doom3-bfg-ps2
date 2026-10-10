@@ -15,6 +15,8 @@ It now also spawns a restricted native `idPlayer`, delivers injected commands th
 the native player pipeline and ticks its movement, linked conditions and actor script.
 Native player jump/crouch commands, crouch speed/view interpolation and authored
 idle/air/crouch state transitions now pass over 195 frames per reload.
+The next 80 frames add low-ceiling crouch passage and blocked standing restoration,
+bringing each reload to 275 native frames with the same player.
 Bounded logical PCM samples and deterministic headless voices are usable as
 standalone services. Full campaign player/AAS/PVS startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
@@ -1755,3 +1757,95 @@ pre-boot baseline. Arena commitment includes backing and untagged libc allocatio
 it is separate from fixed ELF residency. Kernel/stacks and campaign transitions remain
 unmeasured. The next candidate is bounded low-ceiling crouch passage and blocked
 standing restoration before stairs/slopes and broader campaign player behavior.
+
+## M3 small step: low-ceiling passage and blocked standing
+
+The authored world now contains exactly three axial brushes: the original floor/wall
+and a roof from (-24,24,44) to (-16,56,52). The new lane is separate from the earlier
+jump tests and preserves world bounds. The geometry gate still validates every plane,
+side/material and brush count before native conversion; a roof moved down one unit
+is a new expected-fatal scenario. No general geometry or retail map loading is enabled.
+
+After frame 195, the completed probe collision bodies are disabled, and the same
+native player is placed at (-48,40,0.25). This is explicit fixture setup, not campaign
+spawn/teleport behavior. Frames 196–275 continue native command delivery, movement,
+linked conditions and script execution. Standing forward movement stops at x≈-40.25
+before the roof. Crouch on frames 212–231 permits passage, then releasing the button
+underneath leaves height 38, crouch speed 80 and the authored crouch state active.
+Neutral commands stop at x≈-20.812 on frame 239. Released forward input on 240–264
+continues at crouch speed until the full shape leaves the roof. Post-move headroom
+clears on 264; native CheckDuck restores height 74 on 265. Release friction stops the
+player at x≈5.618 by 273. Eye height follows physical posture, remaining near 32
+under the roof and interpolating toward 68 after standing. By 275 the actor has nine
+state entries, 187 script ticks and one constructor; jump/landing counters stay unchanged.
+
+Native standing/crouch swept-box traces prove the roof blocks only the taller shape,
+and roof/gap contents are checked. The 36-unit upward headroom sweep is blocked at
+fraction (44−0.25−38−0.25)/36≈0.15278 while the crouched shape overlaps the roof.
+Every command cursor/time, position/velocity, height/eye value, floor identity,
+AI/script state and native actor function name is checked across conversion, text-cache
+and binary-cache loading. Health stays 100, and presentation/AAS/PVS stay absent.
+
+The initial diagnostic run (`20261010T110003Z_smoke_a87313ab316c4a25`) passed the new
+geometry/movement/release checks but failed its linked-condition expectation:
+native `UpdateConditions` clears `AI_FORWARD` below speed 5 even when forward remains
+held against the roof. The check now preserves that distinction. No native engine
+physics or condition code was changed.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` | Strict EE compile and retained-object link passed |
+| Resident link | Unchanged 344 inputs, 11 registration roots; no GC, unresolved symbols or duplicates |
+| Native registries | Unchanged 535 events, 160 classes and 496,480 bytes of event callbacks |
+| Debug/release `make test-game` | All ten fresh-process scenarios passed in each configuration |
+| Positive classifier | Forty-three required checks, all earlier traces, three headroom-world traces and 240 ceiling-lane traces across three 275-frame reloads |
+| Host sanitizer fixtures and classifiers | All 86 Python regressions passed; missing/duplicate/reordered roof/lane traces and every input/physics/view/state field are rejected |
+| Scope and source inventory | No native source or source-list changes; 458-unit inventory and 363-entry compile database remain valid; core/Common emulator matrices not rerun |
+
+Matched run identities (debug / release):
+
+- Game: `20261010T110257Z_smoke_7d4512610cd24cd8` /
+  `20261010T110410Z_smoke_cfc8e4be92f54bb3`.
+- Missing map: `20261010T110301Z_smoke_ea410cf999b34ee4` /
+  `20261010T110414Z_smoke_001ce5d02eb0405d`.
+- Script error: `20261010T110304Z_smoke_a53c235c05304b12` /
+  `20261010T110417Z_smoke_bfc23e8e53c14dd1`.
+- Floor geometry: `20261010T110306Z_smoke_41e1614a693c4641` /
+  `20261010T110419Z_smoke_f602e13ddcbd4c74`.
+- Material: `20261010T110309Z_smoke_1c4fea42b37b4a22` /
+  `20261010T110422Z_smoke_287cfdd4fb6044db`.
+- Player arguments: `20261010T110311Z_smoke_b37a2594d6ef4e14` /
+  `20261010T110424Z_smoke_e22918dd875c44fa`.
+- Player script linkage: `20261010T110314Z_smoke_2d8e93d206bc4c05` /
+  `20261010T110427Z_smoke_7476a1e6339e4c82`.
+- Player command: `20261010T110317Z_smoke_39463e3bbe8c45e7` /
+  `20261010T110429Z_smoke_9ff847d56b8342af`.
+- Player actor state: `20261010T110320Z_smoke_bd51b58229ba4248` /
+  `20261010T110432Z_smoke_5fa50d9d9cb94e4f`.
+- Roof geometry: `20261010T110322Z_smoke_6ce452b8be7c4a42` /
+  `20261010T110435Z_smoke_3c5bff40949241c8`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,909,030 bytes | 11,328,614 bytes |
+| Resident BSS (included above) | 5,238,118 bytes | 5,238,118 bytes |
+| After native game Init: requested / backing / count | 1,401,332 / 1,499,096 / 2,386 | 1,401,332 / 1,499,096 / 2,386 |
+| After 275 ticks, conversion: requested / backing / count | 1,799,972 / 1,906,528 / 2,600 | 1,799,972 / 1,906,528 / 2,600 |
+| After 275 ticks, text cache: requested / backing / count | 1,799,988 / 1,905,880 / 2,582 | 1,799,988 / 1,905,880 / 2,582 |
+| After 275 ticks, binary cache: requested / backing / count | 1,797,796 / 1,903,676 / 2,581 | 1,797,796 / 1,903,676 / 2,581 |
+| Peak requested / backing | 2,065,148 / 2,167,856 bytes | 2,065,148 / 2,167,856 bytes |
+| Arena commitment after three cycles | 2,349,722 bytes | 2,347,930 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The added roof and shape sweeps increase collision/cache allocations; native Init
+and script storage remain unchanged. Conversion scratch still determines the peak.
+Every map releases collision/clip ownership and trace-model cache entries, warm
+shutdown ledgers match, and full shutdown returns exactly to the pre-boot baseline.
+Fixed ELF residency and arena commitment are separate; tagged backing is already
+inside the arena. Kernel/stacks and campaign transitions remain unmeasured. The next
+candidate is native step-up coverage with a traversable step and an obstacle above
+the configured step height, before slopes and broader campaign loading.

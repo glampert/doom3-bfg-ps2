@@ -327,6 +327,7 @@ test-game: headless-game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-player-script
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-player-command
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-player-state
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-ceiling-geometry
 
 compiledb:
 	@$(PYTHON) $(SCRIPTS)/gen_compile_commands.py --make $(MAKE) --build $(BUILD)

@@ -394,6 +394,140 @@ bool NativePlayerPostureTests(idPlayer & player, idUserCmdMgr & commands, int cy
     return passed;
 }
 
+bool NativePlayerHeadroomTests(idPlayer & player, idUserCmdMgr & commands, int cycle)
+{
+    PS2_Assert(gameLocal.GetFrameNum() == 195 && !commands.HasUserCmdForPlayer(0));
+    auto & physics = *static_cast<idPhysics_Player *>(player.GetPlayerPhysics());
+    // The completed probes retain collision models after thinking stops. Isolate
+    // this lane from their bodies, then place the same player in authored test space.
+    for (const char * name : { "logic_probe", "fall_probe", "slide_probe", "player_physics_probe" })
+    {
+        idEntity * probe = gameLocal.FindEntity(name);
+        if (probe == nullptr || probe->GetPhysics()->GetClipModel() == nullptr)
+        {
+            ps2::FatalError("missing completed headroom fixture probe: %s", name);
+        }
+        probe->GetPhysics()->GetClipModel()->Disable();
+    }
+    const idVec3 start(-48.0f, 40.0f, CM_CLIP_EPSILON), end(-8.0f, 40.0f, CM_CLIP_EPSILON);
+    const idBounds standing(idVec3(-16.0f, -16.0f, 0.0f), idVec3(16.0f, 16.0f, 74.0f));
+    const idBounds crouching(idVec3(-16.0f, -16.0f, 0.0f), idVec3(16.0f, 16.0f, 38.0f));
+    trace_t standingTrace{}, crouchTrace{};
+    const bool standingHit = gameLocal.clip.TraceBounds(standingTrace, start, end, standing, CONTENTS_SOLID, &player);
+    const bool crouchHit = gameLocal.clip.TraceBounds(crouchTrace, start, end, crouching, CONTENTS_SOLID, &player);
+    const int roof = gameLocal.clip.Contents(idVec3(-20.0f, 40.0f, 48.0f), nullptr, mat3_identity, CONTENTS_SOLID, &player);
+    const int gap = gameLocal.clip.Contents(idVec3(-20.0f, 40.0f, 40.0f), nullptr, mat3_identity, CONTENTS_SOLID, &player);
+    bool passed = Check("native-player-headroom-world", standingHit && standingTrace.c.entityNum == ENTITYNUM_WORLD &&
+                                                        standingTrace.c.normal == idVec3(-1.0f, 0.0f, 0.0f) &&
+                                                        Near(standingTrace.endpos.x, -40.25f) && Near(standingTrace.fraction, 7.75f / 40.0f) &&
+                                                        !crouchHit && crouchTrace.fraction == 1.0f && roof == CONTENTS_SOLID && gap == 0);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_HEADROOM_WORLD cycle=%d standing=%.5f standing_x=%.3f crouch=%.5f roof=%d gap=%d\n",
+             cycle, static_cast<double>(standingTrace.fraction), static_cast<double>(standingTrace.endpos.x),
+             static_cast<double>(crouchTrace.fraction), roof, gap);
+    player.SetOrigin(start);
+    physics.SetLinearVelocity(vec3_zero);
+    const idEventDef * getState = idEventDef::FindEvent("getState");
+    if (getState == nullptr || !player.RespondsTo(*getState))
+    {
+        ps2::FatalError("native player actor state query is unavailable");
+    }
+    bool queuePassed = true, standingPassed = true, crouchPassed = true, releasePassed = true, scriptPassed = true;
+    float previousX = start.x, expectedX = -40.25f, expectedVx = 0.0f, expectedEye = player.EyeHeight();
+    for (int frame = 196; frame <= 275; ++frame)
+    {
+        const bool moving = frame <= 231 || (frame >= 240 && frame <= 264);
+        const bool crouchButton = frame >= 212 && frame <= 231;
+        const bool expectedCrouch = frame >= 212 && frame <= 264;
+        usercmd_t input;
+        input.buttons = crouchButton ? BUTTON_CROUCH : 0;
+        input.forwardmove = moving ? 127 : 0;
+        input.clientGameMilliseconds = input.serverGameMilliseconds = FRAME_TO_MSEC(frame);
+        commands.PutUserCmdForPlayer(0, input);
+        gameReturn_t result{};
+        ::game->RunFrame(commands, result);
+        const auto & position = physics.GetOrigin();
+        const auto & velocity = physics.GetLinearVelocity();
+        const bool floor = FloorContacts(physics), crouched = physics.IsCrouching();
+        const int tick = frame - 88;
+        queuePassed = player.usercmd.buttons == input.buttons && player.usercmd.forwardmove == input.forwardmove &&
+                      player.usercmd.clientGameMilliseconds == FRAME_TO_MSEC(frame) &&
+                      player.usercmd.serverGameMilliseconds == FRAME_TO_MSEC(frame) && player.usercmd.pos == position &&
+                      gameLocal.GetLastClientUsercmdMilliseconds(0) == FRAME_TO_MSEC(frame) &&
+                      commands.readFrame[0] == tick - 1 && commands.writeFrame[0] == tick &&
+                      !commands.HasUserCmdForPlayer(0) && queuePassed;
+        trace_t headroom{};
+        gameLocal.clip.TraceBounds(headroom, position, position + idVec3(0.0f, 0.0f, 36.0f),
+                                   crouching, CONTENTS_SOLID, &player);
+        if (frame < 212)
+        {
+            standingPassed = !crouched && position.x >= previousX - 0.01f && position.x <= -40.2f &&
+                             (frame < 210 || (Near(position.x, -40.25f) && idMath::Fabs(velocity.x) < 1.0f)) && standingPassed;
+        }
+        else
+        {
+            const float dt = static_cast<float>(gameLocal.time - gameLocal.previousTime) * 0.001f;
+            expectedVx = Max(0.0f, expectedVx - Max(100.0f, expectedVx) * 6.0f * dt);
+            if (moving)
+            {
+                expectedVx = Min(80.0f, expectedVx + 80.0f * 10.0f * dt);
+            }
+            expectedX += expectedVx * dt;
+            crouchPassed = Near(position.x, expectedX) && Near(velocity.x, expectedVx) &&
+                           (frame != 231 || position.x > -26.0f) && crouchPassed;
+            if (frame >= 232 && frame <= 263)
+            {
+                releasePassed = input.buttons == 0 && crouched && headroom.fraction < 1.0f &&
+                                headroom.c.entityNum == ENTITYNUM_WORLD && headroom.c.normal == idVec3(0.0f, 0.0f, -1.0f) &&
+                                Near(headroom.fraction, 5.5f / 36.0f) && releasePassed;
+            }
+            if (frame >= 265)
+            {
+                releasePassed = !crouched && headroom.fraction == 1.0f && position.x > 0.25f &&
+                                (frame < 273 || velocity == vec3_zero) && releasePassed;
+            }
+        }
+        expectedEye = expectedEye * pm_crouchrate.GetFloat() +
+                      (expectedCrouch ? pm_crouchviewheight.GetFloat() : pm_normalviewheight.GetFloat()) * (1.0f - pm_crouchrate.GetFloat());
+        const char * stateName = expectedCrouch ? "FixtureCrouch" : "FixtureIdle";
+        const function_t * stateFunction = player.scriptObject.GetFunction(stateName);
+        const bool nativeState = player.ProcessEvent(getState);
+        scriptPassed = crouched == expectedCrouch && player.AI_CROUCH == expectedCrouch && player.AI_ONGROUND &&
+                       !player.AI_JUMP && !player.AI_SOFTLANDING && !player.AI_HARDLANDING && !player.AI_DEAD &&
+                       player.AI_FORWARD == (moving && velocity.x > 5.0f) && floor && !physics.HasJumped() &&
+                       Near(position.y, start.y) && Near(position.z, start.z) && velocity.y == 0.0f && velocity.z == 0.0f &&
+                       Near(physics.GetBounds()[1].z, expectedCrouch ? 38.0f : 74.0f) && Near(player.EyeHeight(), expectedEye) &&
+                       nativeState && stateFunction != nullptr &&
+                       idStr::Cmp(gameLocal.program.returnStringDef->value.stringPtr, stateFunction->Name()) == 0 &&
+                       ScriptFloat("nativePlayerState") == (expectedCrouch ? 3.0f : 1.0f) &&
+                       ScriptFloat("nativePlayerTransitions") == (frame < 212 ? 7.0f : frame < 265 ? 8.0f
+                                                                                                   : 9.0f) &&
+                       ScriptFloat("nativePlayerTicks") == static_cast<float>(tick) && ScriptFloat("nativePlayerConstructs") == 1.0f &&
+                       ScriptFloat("nativePlayerJumpStarts") == 2.0f && ScriptFloat("nativePlayerLandings") == 2.0f &&
+                       ScriptFloat("nativePlayerSoftLandingTicks") == 4.0f && ScriptFloat("fixtureTicks") == 8.0f &&
+                       player.health == 100 && player.inventory.weapons == 0 && player.weapon.GetEntity() == nullptr &&
+                       gameRenderWorld == nullptr && gameSoundWorld == nullptr && gameLocal.GetFrameNum() == frame &&
+                       gameLocal.time == FRAME_TO_MSEC(frame) && result.sessionCommand[0] == '\0' &&
+                       result.vibrationLow == 0 && result.vibrationHigh == 0 && scriptPassed;
+        previousX = position.x;
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_HEADROOM cycle=%d frame=%d buttons=%d cmd=%d time=%d read=%d written=%d pending=%d x=%.3f y=%.3f z=%.3f vx=%.3f height=%.3f eye=%.3f floor=%d crouched=%d forward=%d health=%d headroom=%.5f script=%.0f state=%.0f transitions=%.0f native=%s\n",
+                 cycle, frame, static_cast<int>(player.usercmd.buttons), static_cast<int>(player.usercmd.forwardmove),
+                 player.usercmd.clientGameMilliseconds, commands.readFrame[0], commands.writeFrame[0],
+                 static_cast<int>(commands.HasUserCmdForPlayer(0)), static_cast<double>(position.x), static_cast<double>(position.y),
+                 static_cast<double>(position.z), static_cast<double>(velocity.x), static_cast<double>(physics.GetBounds()[1].z),
+                 static_cast<double>(player.EyeHeight()), static_cast<int>(floor), static_cast<int>(crouched),
+                 static_cast<int>(player.AI_FORWARD), player.health,
+                 static_cast<double>(headroom.fraction), static_cast<double>(ScriptFloat("nativePlayerTicks")),
+                 static_cast<double>(ScriptFloat("nativePlayerState")), static_cast<double>(ScriptFloat("nativePlayerTransitions")),
+                 gameLocal.program.returnStringDef->value.stringPtr);
+    }
+    passed = Check("native-player-headroom-command-path", queuePassed) && passed;
+    passed = Check("native-player-ceiling-standing-block", standingPassed) && passed;
+    passed = Check("native-player-ceiling-crouch-pass", crouchPassed) && passed;
+    passed = Check("native-player-ceiling-release-restore", releasePassed) && passed;
+    passed = Check("native-player-ceiling-script-view", scriptPassed) && passed;
+    return passed;
+}
+
 bool PlayerPostureTests(PlayerPhysicsProbe & player, idUserCmdMgr & commands, idVarDef * scriptTicks, int cycle)
 {
     // Continue the same native simulation after the initial movement/event checks.
@@ -772,6 +906,7 @@ bool RunGameTests(const char * mode)
         idEntityPtr<idPlayer> nativePlayer;
         passed = NativePlayerTests(*commands, cycle, nativePlayer) && passed;
         passed = NativePlayerPostureTests(*nativePlayer.GetEntity(), *commands, cycle) && passed;
+        passed = NativePlayerHeadroomTests(*nativePlayer.GetEntity(), *commands, cycle) && passed;
         Memory("ticked");
         ::game->MapShutdown();
         passed = Check("map-shutdown", gameLocal.GameState() == GAMESTATE_NOMAP && gameLocal.world == nullptr &&

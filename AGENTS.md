@@ -54,11 +54,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make test-game` checks native startup, entity/script ticks, bounded native `idPlayer`
   startup/commands and reloads, plus missing-map, script-error, restricted geometry/material
   and player spawn/script/command/state failures in fresh emulator processes.
-  Fixed floor/wall collision and native physics wall-stop, gravity, floor-rest and
+  Fixed floor/wall/low-roof collision and native physics wall-stop, gravity, floor-rest and
   grounded-sliding probes are covered, along with native player physics driven by
   explicitly injected user commands, including jumping/landing, jump release and
   crouch/standing collision shapes. The native `idPlayer` also covers jump/crouch
-  commands, crouch speed/view interpolation and authored actor-state transitions;
+  commands, crouch speed/view interpolation, authored actor-state transitions,
+  low-ceiling passage and blocked standing restoration;
   full campaign player/AAS/PVS
   startup and general campaign maps remain later gates. Prioritize
   headless simulation; sound and rendering integration follow at a later stage.

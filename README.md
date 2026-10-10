@@ -29,7 +29,7 @@ make compile-core            # 52 scalar idlib units and 10 framework/session su
 make compile-game            # all 281 retained campaign units; compile gate only
 make link-game               # retained campaign link and registration/map gate
 make headless-game           # resident native game fixture ELF
-make test-game               # boot/player/ticks/reloads and eight expected failures in PCSX2
+make test-game               # boot/player/ticks/reloads and nine expected failures in PCSX2
 make BUILD=release test-game  # same game checks with assertions disabled
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
@@ -91,14 +91,17 @@ linker exit status, and verify the game/class/cvar registration roots and every 
 the map. Failed attempts remove stale resident ELFs. The resident entry requires the
 runner's explicit game manifest before selecting the authored fixture.
 
-`make test-game` boots native `idGameLocal`, parses a fixed floor/wall worldspawn `.map` through
+`make test-game` boots native `idGameLocal`, parses a fixed floor/wall/low-roof worldspawn `.map` through
 the native loose-file filesystem, and spawns a logic entity through the real class
-factory. Each of three map reloads runs 195 native `RunFrame` calls. The first eight
+factory. Each of three map reloads runs 275 native `RunFrame` calls. The first eight
 check logic-entity Think and script increments scheduled through `sys.waitFrame`;
 frames 9–88 exercise native player-physics posture changes, then frames 89–99 tick a
 real `idPlayer` in client slot zero through the native command/Think pipeline.
 Frames 100–195 add two jumps, held-jump suppression/rearming, crouch walking and
 eye-height interpolation, with authored idle/air/crouch actor-state transitions.
+Frames 196–275 place the same player in a separate ceiling lane, then use native
+movement to test a standing block, crouched passage, blocked crouch release and
+standing restoration after the full clip shape clears the roof.
 The script activates a native `idTarget_SessionCommand` on frame four. A queued 90 ms
 activation fires on frame six (100 ms). Each command is returned and cleared in the
 same frame. Script removal on frame seven (116 ms) invalidates the cached `idEntityPtr`
@@ -131,7 +134,8 @@ at map shutdown.
 Warm reload ledgers stay exact; full shutdown returns to the pre-boot ledger. Missing
 maps, script errors, unsupported brush planes/materials, extra player spawn keys,
 missing player script fields, unsupported commands and missing actor states must fail
-with the expected diagnostic in debug and release.
+with the expected diagnostic in debug and release. A changed roof plane also fails
+the exact three-brush geometry gate before collision loading.
 This is partial M3 game acceptance. The fixture omits AAS/PVS,
 sound and render worlds and uses separate bounded map/player setup methods; regular
 `InitFromNewMap` and retail content remain pending. Headless gameplay work takes
@@ -284,11 +288,12 @@ sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh
 for each of seven deliberate startup stops and fifty-nine invalid or unsupported requests;
 each must match its own run
 identity and expected cleanup or fatal diagnostic. The separate game matrix requires
-all thirty-seven `game/` checks, three event-posting and collision traces, all 24 frame/entity/script,
+all forty-three `game/` checks, three event-posting and collision traces, all 24 frame/entity/script,
 command, entity-lifetime, wall-stop, falling, grounded-sliding and player-input/physics traces,
 240 player-physics posture traces, 33 native-player startup/walk traces and 288 native-player
-posture/state traces. Eight expected failures cover missing maps, malformed scripts,
-restricted geometry/materials and player spawn/script/command/state errors. Resident images, map, flags and authored
+posture/state traces, plus three headroom-world traces and 240 ceiling-lane traces.
+Nine expected failures cover missing maps, malformed scripts, restricted floor/roof
+geometry/materials and player spawn/script/command/state errors. Resident images, map, flags and authored
 game files are hashed in each archive; generated collision caches are hashed after completion. Seventeen audio failures cover missing
 files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget
 and device initialization, plus invalid clocks, voice inputs, sample lifetimes and pool

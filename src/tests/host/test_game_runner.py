@@ -45,6 +45,29 @@ def complete():
     crouch_vx = (12.800, 16.200, 19.600, 22.800, 12.600, 2.400, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     crouch_eye = (63.320, 59.248, 55.706, 52.624, 49.943, 47.611, 45.581, 43.816,
                   42.280, 45.623, 48.532, 51.063, 53.265, 55.180, 56.847)
+    # Rounded native EE x/velocity/eye samples, independent of classifier formulas.
+    headroom_motion = (
+        (-47.642, 22.400, 58.297), (-47.030, 36.000, 59.558), (-46.186, 49.600, 60.656), (-45.188, 62.400, 61.610),
+        (-43.896, 76.000, 62.441), (-42.373, 89.600, 63.164), (-40.734, 102.400, 63.792), (-40.251, -0.116, 64.339),
+        (-40.250, -0.024, 64.815), (-40.250, -0.022, 65.229), (-40.250, -0.024, 65.589), (-40.250, -0.024, 65.903),
+        (-40.250, -0.022, 66.175), (-40.250, -0.024, 66.413), (-40.250, -0.024, 66.619), (-40.250, -0.022, 66.799),
+        (-40.019, 13.600, 62.275), (-39.730, 17.000, 58.339), (-39.407, 20.200, 54.915), (-39.006, 23.600, 51.936),
+        (-38.547, 27.000, 49.344), (-38.064, 30.200, 47.090), (-37.492, 33.600, 45.128), (-36.863, 37.000, 43.421),
+        (-36.220, 40.200, 41.937), (-35.479, 43.600, 40.645), (-34.680, 47.000, 39.521), (-33.877, 50.200, 38.543),
+        (-32.966, 53.600, 37.693), (-31.997, 57.000, 36.953), (-31.033, 60.200, 36.309), (-29.952, 63.600, 35.749),
+        (-28.813, 67.000, 35.261), (-27.690, 70.200, 34.837), (-26.439, 73.600, 34.468), (-25.130, 77.000, 34.148),
+        (-24.051, 67.400, 33.868), (-23.079, 57.200, 33.625), (-22.280, 47.000, 33.414), (-21.682, 37.400, 33.230),
+        (-21.219, 27.200, 33.070), (-20.930, 17.000, 32.931), (-20.812, 7.400, 32.810), (-20.812, 0.000, 32.705),
+        (-20.581, 13.600, 32.613), (-20.312, 16.800, 32.533), (-19.968, 20.200, 32.464), (-19.567, 23.600, 32.404),
+        (-19.138, 26.800, 32.351), (-18.625, 30.200, 32.306), (-18.054, 33.600, 32.266), (-17.465, 36.800, 32.231),
+        (-16.782, 40.200, 32.201), (-16.040, 43.600, 32.175), (-15.292, 46.800, 32.152), (-14.438, 50.200, 32.133),
+        (-13.527, 53.600, 32.115), (-12.618, 56.800, 32.100), (-11.595, 60.200, 32.087), (-10.514, 63.600, 32.076),
+        (-9.445, 66.800, 32.066), (-8.251, 70.200, 32.057), (-7.000, 73.600, 32.050), (-5.771, 76.800, 32.043),
+        (-4.411, 80.000, 32.038), (-3.051, 80.000, 32.033), (-1.771, 80.000, 32.029), (-0.411, 80.000, 32.025),
+        (0.949, 80.000, 32.022), (2.075, 70.400, 36.699), (3.098, 60.200, 40.768), (3.948, 50.000, 44.308),
+        (4.595, 40.400, 47.388), (5.108, 30.200, 50.068), (5.448, 20.000, 52.399), (5.615, 10.400, 54.427),
+        (5.618, 0.200, 56.191), (5.618, 0.000, 57.727), (5.618, 0.000, 59.062), (5.618, 0.000, 60.224),
+    )
     # Rounded native EE traces: the two jumps start at different 60 Hz millisecond phases.
     jump_z = (
         (2.352, 4.195, 6.010, 7.677, 9.110, 10.490, 11.722, 12.746, 13.690, 14.486,
@@ -141,6 +164,21 @@ def complete():
                     f"state={2 if airborne else 3 if crouched else 1} transitions={transitions} "
                     f"starts={1 if frame < 142 else 2} landings={0 if frame < 135 else 1 if frame < 177 else 2} "
                     f"soft_ticks={soft_ticks} constructs=1 native=fixture_player::{state}\n")
+        log += (f"[D3BFG] GAME_HEADROOM_WORLD cycle={cycle} standing=0.19375 standing_x=-40.250 "
+                "crouch=1.00000 roof=1 gap=0\n")
+        for frame in range(196, 276):
+            x, vx, eye = headroom_motion[frame - 196]
+            tick = frame - 88
+            crouched = 212 <= frame <= 264
+            moving = frame <= 231 or 240 <= frame <= 264
+            state = "FixtureCrouch" if crouched else "FixtureIdle"
+            log += (f"[D3BFG] GAME_HEADROOM cycle={cycle} frame={frame} buttons={64 if 212 <= frame <= 231 else 0} "
+                    f"cmd={127 if moving else 0} time={frame * 1000 // 60} read={tick - 1} written={tick} pending=0 "
+                    f"x={x:.3f} y=40.000 z=0.250 vx={vx:.3f} height={38 if crouched else 74:.3f} eye={eye:.3f} "
+                    f"floor=1 crouched={int(crouched)} forward={int(moving and vx > 5)} health=100 "
+                    f"headroom={0.15278 if 213 <= frame <= 263 else 1:.5f} script={tick} "
+                    f"state={3 if crouched else 1} transitions={7 if frame < 212 else 8 if frame < 265 else 9} "
+                    f"native=fixture_player::{state}\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -355,6 +393,43 @@ class GameRunnerTests(unittest.TestCase):
             with self.subTest(case=index):
                 self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
 
+    def test_game_requires_ceiling_traces_blocked_release_passage_and_standing_restore(self):
+        result, log = complete()
+        world = next(line for line in log.splitlines() if "GAME_HEADROOM_WORLD cycle=1" in line)
+        traces = [line for line in log.splitlines() if "GAME_HEADROOM cycle=1" in line]
+        bad_logs = [log.replace(world + "\n", ""), log + world + "\n",
+                    log.replace(traces[0] + "\n", ""), log + traces[0] + "\n",
+                    log.replace(traces[0] + "\n" + traces[1], traces[1] + "\n" + traces[0])]
+        for old, new in (("standing=0.19375", "standing=1.00000"), ("standing_x=-40.250", "standing_x=-24.250"),
+                         ("crouch=1.00000", "crouch=0.19375"), ("roof=1", "roof=0"), ("gap=0", "gap=1")):
+            bad_logs.append(log.replace(world, world.replace(old, new)))
+        changes = {
+            196: (("frame=196", "frame=197"), ("buttons=0", "buttons=64"), ("cmd=127", "cmd=0"),
+                  ("time=3266", "time=3265"), ("read=107", "read=106"), ("written=108", "written=109"),
+                  ("pending=0", "pending=1"), ("x=-47.642", "x=-48.000"), ("y=40.000", "y=0.000"),
+                  ("z=0.250", "z=0.000"), ("vx=22.400", "vx=0.000"), ("height=74.000", "height=38.000"),
+                  ("eye=58.297", "eye=68.000"), ("floor=1", "floor=0"), ("crouched=0", "crouched=1"),
+                  ("forward=1", "forward=0"), ("health=100", "health=99"), ("headroom=1.00000", "headroom=0.15278"),
+                  ("script=108", "script=107"), ("state=1", "state=3"), ("transitions=7", "transitions=8"),
+                  ("FixtureIdle", "FixtureCrouch")),
+            203: (("x=-40.251", "x=-39.000"), ("vx=-0.116", "vx=115.755"), ("forward=0", "forward=1")),
+            212: (("buttons=64", "buttons=0"), ("height=38.000", "height=74.000"), ("transitions=8", "transitions=7")),
+            232: (("buttons=0", "buttons=64"), ("crouched=1", "crouched=0"), ("headroom=0.15278", "headroom=1.00000")),
+            239: (("vx=0.000", "vx=7.400"), ("FixtureCrouch", "FixtureIdle")),
+            240: (("cmd=127", "cmd=0"), ("vx=13.600", "vx=23.800")),
+            264: (("crouched=1", "crouched=0"), ("headroom=1.00000", "headroom=0.15278")),
+            265: (("height=74.000", "height=38.000"), ("eye=36.699", "eye=68.000"), ("transitions=9", "transitions=8")),
+            275: (("x=5.618", "x=0.949"), ("script=187", "script=186")),
+        }
+        for frame, replacements in changes.items():
+            trace = next(line for line in traces if f"frame={frame} " in line)
+            for old, new in replacements:
+                self.assertIn(old, trace)
+                bad_logs.append(log.replace(trace, trace.replace(old, new)))
+        for index, bad in enumerate(bad_logs):
+            with self.subTest(case=index):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
+
     def test_negative_game_requires_native_init_and_first_fatal_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -365,6 +440,10 @@ class GameRunnerTests(unittest.TestCase):
             self.assertIn('setState("FixtureAir")', script)
             self.assertNotIn("void FixtureAir();", script)
             self.assertNotIn("void fixture_player::FixtureAir()", script)
+            runner.stage_game_fixtures(directory, "game-ceiling-geometry")
+            self.assertIn('( 0 0 -1 43 )', (directory / "maps/logic.map").read_text())
+            runner.stage_game_fixtures(directory, "game")
+            self.assertIn('( 0 0 -1 44 )', (directory / "maps/logic.map").read_text())
         for mode, message in runner.GAME_FAILURES.items():
             begin = "[D3BFG] RUN run1 BEGIN\n[D3BFG] STAGE game BEGIN\n[D3BFG] CHECK game/native-init PASS\n"
             log = begin + f"[D3BFG] FATAL {message}1: invalid input\n"

@@ -388,3 +388,14 @@ math path; PS2-specific math replacement headers are a later milestone.
   as well as authored counters. A missing function must fail at `Event_SetState`;
   missing AI storage must fail at `LinkScriptVariables`, so that negative script
   deliberately avoids referencing the omitted field during compilation.
+- The fixed roof box (-24,24,44)→(-16,56,52) is in a separate lane. At y=40 a
+  standing 32×32×74 shape stops near x=-40.25, while height 38 passes beneath it.
+  `CheckDuck` runs before movement: the upward crouched-shape sweep is blocked at
+  fraction (44−0.25−38−0.25)/36≈0.15278 while the shape overlaps the roof. Releasing
+  crouch keeps physics/AI/script crouch state and speed 80 until headroom clears.
+  The post-move trace clears on frame 264; standing restores on frame 265. Eye
+  interpolation follows physics posture rather than the crouch button alone.
+- Native `UpdateConditions` clears `AI_FORWARD` when `xyspeed <= MIN_BOB_SPEED` (5),
+  even with forward held against a collision. Headless checks must distinguish input
+  from linked movement conditions. Completed probes still own linked collision bodies
+  after Think stops; disable those bodies explicitly when isolating the ceiling lane.

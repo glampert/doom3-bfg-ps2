@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 53 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 54 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 85 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 86 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -142,20 +142,21 @@
 
 - `make headless-game` builds `build/<config>/resident/d3bfg.elf`. `make test-game`
   runs `game`, `game-missing-map`, `game-syntax`, `game-geometry`, `game-material`,
-  `game-player-args`, `game-player-script`, `game-player-command` and `game-player-state`
+  `game-player-args`, `game-player-script`, `game-player-command`, `game-player-state`
+  and `game-ceiling-geometry`
   sequentially in fresh processes;
   `make BUILD=release test-game` selects assertions-disabled validation. To run one
   scenario directly, pass the resident ELF with `--elf` to `run_pcsx2_test.py`.
   Core scenarios still require the separate core ELF.
 - Game runs stage `game.manifest`, minimal declarations, default script/defines and
-  a worldspawn floor/wall map/script and stage-free collision materials under `game-fixture/`. The native filesystem needs
+  a worldspawn floor/wall/low-roof map/script and stage-free collision materials under `game-fixture/`. The native filesystem needs
   both `fs_game` and its search-path gamedir set to that root for relative script paths.
   No core filesystem substitute or retail containers are used. Resident report/image/map
   hashes and flags must match before launch; authored file hashes are archived too.
   Generated text/binary collision caches remain in the archive and are hashed in
   `summary.json` after process cleanup.
-- A game pass requires the matching closed JSON, begin/final markers, all thirty-seven `game/`
-  checks and exactly three cycles of 195 native frames. Each cycle starts with eight
+- A game pass requires the matching closed JSON, begin/final markers, all forty-three `game/`
+  checks and exactly three cycles of 275 native frames. Each cycle starts with eight
   frame/entity/script, command, lifetime, wall-stop, falling, grounded-sliding and
   player-input/physics traces at native 60 Hz.
   Checks cover native initialization, logic world, ticks/script events, map shutdown,
@@ -198,7 +199,7 @@
   restores standing height on frames 85–88. The completed monster probes are inactive
   during this phase. Missing, duplicated, reordered or incorrect posture traces fail
   despite PASS markers. Standing restoration is tested only with unobstructed headroom;
-  low ceilings and stairs/slopes remain pending.
+  stairs/slopes remain pending; the native player ceiling phase below adds blocked restoration.
   `GAME_NATIVE_PLAYER` covers frames 89–99 with one native player in slot zero. The
   earlier physics probe is inactive, and its command cursors reset before player
   spawn. Forward commands on frames 89–92 accelerate using native walk speed 140;
@@ -219,6 +220,17 @@
   names and authored counters: seven state entries, two jumps/landings, four soft-flag
   ticks, one constructor and 107 script ticks. Exact queue/time/conditions/health
   and numeric movement/clip/view traces are required alongside five new checks.
+  `GAME_HEADROOM_WORLD` adds standing/crouch swept-box traces and roof/gap contents.
+  `GAME_HEADROOM` adds 80 traces per cycle, frames 196–275. The same native player
+  is placed at (-48,40,0.25), and completed probe bodies are disabled. Standing
+  forward input blocks around x=-40.25; crouch on 212–231 permits passage. Release
+  on 232 stays crouched, including a stationary tick on 239. Released forward input
+  on 240–264 uses crouch speed while native headroom remains blocked. Post-move
+  headroom becomes clear on 264, and native CheckDuck restores height 74 on 265.
+  Require exact queue/time/health/AI/state fields, movement/eye interpolation and the
+  upward sweep fraction 0.15278 on 213–263, then 1.0. The actor has nine state entries
+  and 187 ticks by frame 275, while jump/landing counters stay unchanged. Six new
+  markers and every numeric trace are required; duplicated/reordered/missing rows fail.
   `core SKIP` means the core test suite was not run, although staged Common foundation
   startup executes.
   The entry's platform marker covers manifest/host I/O, not the SDK-only platform suite.
@@ -227,9 +239,10 @@
   error, or the geometry/material restriction diagnostic before collision loading;
   extra player spawn keys before factory construction, missing `AI_ONGROUND` script
   storage during native linkage, attack input before movement/script execution,
-  and a missing `FixtureAir` function during native actor `setState`.
+  a missing `FixtureAir` function during native actor `setState`, and a changed roof
+  plane before collision loading.
   A result file, wrong source, unrelated first fatal, bus/TLB error, watchdog
-  or nonzero emulator status fails. Twelve host regressions verify these classifications
+  or nonzero emulator status fails. Thirteen host regressions verify these classifications
   and resident archive identity; target debug/release runs are required too.
 - This is bounded logic-map/player acceptance: native entity thinking, script `waitFrame`
   scheduling, monster/player physics, restricted native player ticks with injected commands and map teardown run,

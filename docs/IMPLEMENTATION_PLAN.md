@@ -464,7 +464,7 @@ JPEG/zlib dependencies are under `src/external/`, explicitly selected with separ
 vendor flags and strict tagged allocator hooks. Their bounded SWF JPEG and streaming
 zlib fixtures run on the EE. The linked entry requires an explicit authored game manifest.
 Native declarations, class/event registries, script compilation/interpreter execution,
-worldspawn map parsing and 195 native frames over three reloads pass in debug/release.
+worldspawn map parsing and 275 native frames over three reloads pass in debug/release.
 The first eight frames run the authored logic script; later frames retain its completed state.
 Script-driven native target activation returns a command on frame four; a queued 90 ms
 activation returns another on frame six (100 ms). Script removal on frame seven
@@ -492,6 +492,12 @@ release/rearming, crouch walking and eye-height interpolation. Authored actor st
 follow linked airborne/crouched conditions; native `getState` confirms seven state
 entries, two landings and one script increment per tick. A missing airborne state
 fails at the native actor transition in both configurations.
+Frames 196–275 place that same player in a separate authored low-ceiling lane, after
+disabling the completed probe bodies. Native movement proves standing collision,
+crouch passage, continued crouch/script/view state after button release under the
+roof, and standing restoration on the tick after the full shape clears it. The
+geometry gate accepts exactly the floor, wall and roof boxes; a changed roof plane
+is an expected fatal before native collision loading.
 Render/sound worlds stay null, with a bounded startup path separate from regular
 `InitFromNewMap`; full campaign player/AAS/PVS and retail
 map startup remain pending.
@@ -505,6 +511,6 @@ physical saves remain unavailable.
 Meaningful logical render contracts and native sound-world integration are deferred while
 the headless simulation fixture grows. Native entity activation is now exercised by the
 authored script. The fixture also covers timed activation and removal/cancellation.
-The next candidate is a bounded low-ceiling fixture for crouch passage and blocked
-standing restoration, extending the authored geometry gate before stairs/slopes. The current
+The next candidate is bounded native step-up coverage, with a traversable step and
+an obstacle above the configured step height, before slopes and broader maps. The current
 fixture does not establish general campaign loading, full player/AI behavior or M3 completion.

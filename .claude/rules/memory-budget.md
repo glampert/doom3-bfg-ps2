@@ -40,7 +40,7 @@ Shell resources, save pipelines and multiplayer matches are not initialized. The
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
 The passing whole-object resident link with bounded collision/physics has
-10,898,406 / 11,318,374 bytes of fixed PT_LOAD residency, including 5,238,118 bytes of
+10,909,030 / 11,328,614 bytes of fixed PT_LOAD residency, including 5,238,118 bytes of
 BSS in both configurations. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
 All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
@@ -144,6 +144,16 @@ conversion, 1,797,984 / 1,903,280 / 2,568 for text loading and 1,795,736 / 1,901
 (debug/release), including unchanged BSS of 5,238,118. Final arena commitment is
 2,347,034 / 2,344,730 bytes. Clip/collision/cache teardown, warm reload and full
 7,424 / 7,600 / 4 recovery remain exact; no presentation/AAS/PVS resources were added.
+
+Adding the fixed roof and native blocked-standing lane extends each map to 275 frames.
+Native Init stays 1,401,332 / 1,499,096 / 2,386. Live requested/backing/count is now
+1,799,972 / 1,906,528 / 2,600 for conversion, 1,799,988 / 1,905,880 / 2,582 for text
+loading and 1,797,796 / 1,903,676 / 2,581 for binary loading in both configurations.
+Conversion scratch still determines the peak at 2,065,148 / 2,167,856 bytes. Fixed
+resident PT_LOAD is 10,909,030 / 11,328,614 bytes (debug/release), with unchanged
+BSS. Final arena commitment is 2,349,722 / 2,347,930 bytes. Disabling completed probe
+bodies retains their ownership until map shutdown; every collision/clip/cache scope
+is still released, warm ledgers match and full recovery remains 7,424 / 7,600 / 4.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See
