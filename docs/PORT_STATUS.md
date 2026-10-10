@@ -5,8 +5,9 @@ foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core 
 offline services. The M2b campaign gate compiles all 281 retained units in debug and
 release; audited JPEG/zlib integration now closes the retained resident link in both
 configurations. M2b compile/link acceptance is complete. The first partial M3 game
-fixture now runs native initialization, playerless entity/script ticks and stable map
-reloads. Bounded logical PCM samples and deterministic headless voices are usable as
+fixture now runs native initialization, playerless entity/script ticks, script-driven
+native target activation and stable map reloads. Bounded logical PCM samples and
+deterministic headless voices are usable as
 standalone services. Collision/player startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
 The sections below preserve each slice's
@@ -1184,3 +1185,54 @@ each executable must recover its own pre-init ledger. Native script reporting co
 Arena commitment includes tagged backing, untagged libc allocations and freed capacity;
 do not add backing again. These figures exclude kernel/stacks and establish only
 logic-fixture residency, without player/collision, retail assets or transition peaks.
+
+## M3 small step: script-driven native target activation
+
+The authored script now activates a native `idTarget_SessionCommand` on frame four
+through `EV_Activate`. The target spawns through the real native class factory with
+only a name, command and `noclipmodel` key; no presentation or collision resources
+are acquired. Both target and logic-probe script references bind through native
+`idEntity::SetName` after map script compilation. The logic probe supplies the required
+non-null activator. Worldspawn was named before its map script compiled, so a newly
+declared `$logic_world` reference would remain null; the first EE run caught this and
+correctly failed the command/tick/cleanup checks.
+
+Native activation copies `fixture-activated` into the game session-command string.
+Native `BuildReturnValue` returns it and clears that string in the same frame. All
+three reload cycles require that token only on frame four, empty returns on every
+other frame and no pending command after each return. Map shutdown must remove the
+target, its script binding and the map's script function. Warm reload and full shutdown
+ledgers recover exactly. The test inspects the returned token without passing it to
+Common; this does not request a real map transition.
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `make test-game` | All three scenarios passed in each build: native ticks/activation/reloads, missing map and script error |
+| Retained resident link | 344 inputs and all 11 registration roots; no GC, unresolved symbols or duplicates |
+| Positive game classifier | Seven required checks, all 24 tick traces and all 24 command traces passed |
+| Host ASan/UBSan and classifiers | All 78 Python regressions passed; the added runner check rejects missing, early/late, repeated and unconsumed commands |
+| Core and source inventory | Core code/source lists unchanged; 458 shipped units classified, existing 363-entry compile database remains valid; core emulator matrix not rerun |
+
+Matched run identities:
+
+- Game debug/release: `20261010T022506Z_smoke_8ee277e1f5364bfc` /
+  `20261010T022541Z_smoke_e8a8389360fd4f64`.
+- Missing map debug/release: `20261010T022508Z_smoke_4cb0edcda1294b5e` /
+  `20261010T022543Z_smoke_ead5ef8d4a7c494c`.
+- Script error debug/release: `20261010T022511Z_smoke_1cff43212a27445a` /
+  `20261010T022546Z_smoke_ebde26265f4e4597`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,876,518 bytes | 11,296,742 bytes |
+| Resident BSS (included above) | 5,237,990 bytes | 5,237,990 bytes |
+| After native game Init: requested / backing / count | 1,387,484 / 1,479,328 / 2,248 | 1,387,484 / 1,479,328 / 2,248 |
+| After eight ticks: requested / backing / count | 1,479,724 / 1,574,004 / 2,307 | 1,479,724 / 1,574,004 / 2,307 |
+| Peak requested / backing | 1,481,836 / 1,576,512 bytes | 1,481,836 / 1,576,512 bytes |
+| Full shutdown requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+These measurements cover only the logic fixture, not player/collision, media, retail
+assets or real map transitions. Sound and rendering remain deferred. Next candidates
+are delayed entity-event/lifetime checks and a bounded collision fixture.

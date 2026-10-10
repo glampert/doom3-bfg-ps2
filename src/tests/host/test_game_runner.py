@@ -28,6 +28,9 @@ def complete():
             time = frame * 1000 // 60
             log += (f"[D3BFG] GAME_TICK cycle={cycle} frame={frame} time={time} "
                     f"expected={time} think={frame} script={frame}\n")
+            command = "fixture-activated" if frame == 4 else "none"
+            log += (f"[D3BFG] GAME_COMMAND cycle={cycle} frame={frame} command={command} "
+                    f"expected={command} pending=0\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -44,6 +47,19 @@ class GameRunnerTests(unittest.TestCase):
         missing = "\n".join(line for line in log.splitlines() if "cycle=2 frame=8" not in line)
         self.assertFalse(runner.classify_run("run1", "game", result, missing, None, False)[0])
         self.assertFalse(runner.classify_run("run1", "game", result, log.replace("script=8", "script=7"), None, False)[0])
+
+    def test_game_rejects_missing_wrong_frame_repeated_and_unconsumed_commands(self):
+        result, log = complete()
+        for bad in (
+            "\n".join(line for line in log.splitlines() if "GAME_COMMAND cycle=1 frame=4" not in line),
+            log.replace("frame=4 command=fixture-activated", "frame=3 command=fixture-activated"),
+            log.replace("frame=4 command=fixture-activated", "frame=5 command=fixture-activated"),
+            log.replace("command=fixture-activated", "command=none"),
+            log.replace("frame=5 command=none", "frame=5 command=fixture-activated"),
+            log.replace("pending=0", "pending=1"),
+        ):
+            with self.subTest(output=bad):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
 
     def test_game_cannot_pass_stale_partial_crashed_or_timed_out(self):
         result, log = complete()

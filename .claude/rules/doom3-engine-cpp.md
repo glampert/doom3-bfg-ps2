@@ -239,3 +239,15 @@ math path; PS2-specific math replacement headers are a later milestone.
   Three logic-map reloads recover the same warm ledger; full game/decl/Common shutdown
   recovers the pre-boot baseline. Sound/render worlds, collision/PVS and players remain
   uninitialized. Extend headless simulation before sound/render integration.
+- `$name` script references bind when native `idEntity::SetName` calls `program.SetEntity`.
+  If the reference is compiled after the entity was named, it stays null until rebound.
+  In this fixture, worldspawn compiles the map script after its own base Spawn named it;
+  the logic probe and native command target spawn afterward and bind their references.
+  Use the probe as the `activate` argument: native `EV_Activate` requires a non-null
+  entity (`e`), and the interpreter terminates the thread if that argument is missing.
+- Native `idTarget_SessionCommand::Event_Activate` copies the `command` spawn key into
+  `gameLocal.sessionCommand`. `BuildReturnValue` copies it into the frame return and
+  clears the pending string in the same frame. The fixture requires one return on
+  frame four and empty returns on all surrounding frames, then checks target/binding
+  removal and reload accounting. It does not dispatch that token through Common or
+  load a new campaign map.

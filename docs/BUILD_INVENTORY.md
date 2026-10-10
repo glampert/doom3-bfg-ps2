@@ -407,8 +407,11 @@ engine edits select the isolated loose-file root and permit playerless `RunFrame
 calls without a render world. The explicit startup method accepts only the bounded
 worldspawn logic map; regular `InitFromNewMap` remains separate. The real class factory,
 entity Think loop, interpreter and `waitFrame` event scheduling execute over three
-reloads. Collision/PVS, players, render/sound worlds, shell resources and retail data
-are not initialized. Native sound/render integration follows later headless gameplay work.
+reloads. The script also dispatches native `activate` to `idTarget_SessionCommand` on
+frame four; the native return path consumes the command once. Map shutdown removes
+the target and its script binding. Collision/PVS, players, render/sound worlds, shell
+resources and retail data are not initialized. Native sound/render integration follows
+later headless gameplay work.
 
 Resident reports include matched runnable/unstripped ELF and map hashes. The runner
 checks them and the flag stamps before archiving the image, symbols, map, reports,

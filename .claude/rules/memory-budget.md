@@ -39,8 +39,8 @@ requiring exact repeated ledger recovery; full shutdown still returns to baselin
 Shell resources, save pipelines and multiplayer matches are not initialized. The input
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
-The passing whole-object resident link with the initial game fixture has
-10,875,622 / 11,296,102 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
+The passing whole-object resident link with script-driven target activation has
+10,876,518 / 11,296,742 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
 BSS in both configurations. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
 All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
@@ -60,9 +60,16 @@ Each warm map shutdown recovers the same requested/backing/count ledger. Full sh
 returns exactly to the resident pre-boot baseline of 7,424 / 7,600 bytes / 4 allocations,
 which differs from the core baseline because more native globals are linked.
 The native user-command manager is heap allocated to avoid its large stack footprint;
-no players or commands execute. No sound world, voice pool, collision/PVS, frame arena
+no players or player commands execute. No sound world, voice pool, collision/PVS, frame arena
 or texture payload is initialized by this fixture. These measurements establish
 logic-fixture residency only, not a full campaign or transition budget.
+
+Adding the native command target and script `activate` declaration raises game Init to
+1,387,484 requested / 1,479,328 backing bytes in 2,248 allocations. The three-cycle
+activation fixture peaks at 1,481,836 / 1,576,512 bytes; arena commitment after tests
+is 1,595,802 / 1,593,370 bytes (debug/release). Both still recover the exact 7,424 /
+7,600 / 4 pre-boot ledger. The returned command is inspected without executing a
+Common map transition, so no transition peak is established.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See

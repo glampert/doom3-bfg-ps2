@@ -95,6 +95,9 @@ runner's explicit game manifest before selecting the authored fixture.
 the native loose-file filesystem, and spawns a logic entity through the real class
 factory. It requires eight native `RunFrame` calls, eight entity `Think` calls and
 eight script increments scheduled through `sys.waitFrame`, over three map reloads.
+The script activates a native `idTarget_SessionCommand` on frame four. The command
+must appear once in that frame's return value and be cleared in the same frame;
+map shutdown removes the target and its script binding.
 Warm reload ledgers stay exact; full shutdown returns to the pre-boot ledger. Missing
 maps and script errors must fail with the expected diagnostic in debug and release.
 This is the first partial M3 game acceptance. The fixture has no players, collision/PVS,
@@ -248,8 +251,8 @@ sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh
 for each of seven deliberate startup stops and fifty-nine invalid or unsupported requests;
 each must match its own run
 identity and expected cleanup or fatal diagnostic. The separate game matrix requires
-all six `game/` checks and all 24 frame/entity/script traces, plus source-specific
-missing-map and malformed-script failures. Resident images, map, flags and authored
+all seven `game/` checks and all 24 frame/entity/script and command traces, plus
+source-specific missing-map and malformed-script failures. Resident images, map, flags and authored
 game files are hashed in each archive. Seventeen audio failures cover missing
 files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget
 and device initialization, plus invalid clocks, voice inputs, sample lifetimes and pool
