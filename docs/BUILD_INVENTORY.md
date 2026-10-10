@@ -221,24 +221,30 @@ campaign headers and strict warnings, and is cold (`-Os`). It now owns real logi
 fixture PCM with loaded/default/timestamp state, frame counts, exact rate-based duration
 and peak amplitude. `ps2/audio/pcm_wave.cpp` validates RIFF headers through a bounded
 stream callback and supplies shared host/EE timing math. It has the regular optimization
-flags because amplitude queries are used during gameplay. Both sources are explicit in
-core and campaign backend groups. The foundation directly tests sample ownership but
+flags because amplitude queries are used during gameplay. The shared `voice_timeline.cpp`
+also uses regular optimization flags in both backend groups. It advances bounded playback
+phase with an explicit monotonic clock, fractional pitch and lead-in/loop transitions.
+The native adapter owns a 48-slot pool and pins each allocated voice's samples through
+stop/completion until free or shutdown. The foundation tests these services directly but
 does not initialize native sound worlds. Native `SoundVoice.cpp`, `WaveFile.cpp` and
-XA2 implementations remain replacement sources. Voice/device operations and unloaded
-sample queries fail explicitly. No vendor disposition changes or audio cvars are added.
+XA2 implementations remain replacement sources. The base voice constructor is supplied
+with native defaults; surround calculation and unconfigured physical device initialization
+fail explicitly. No `s_subFraction` or other audio cvars or vendor disposition changes are added.
 
-Core smoke requires three audio markers for metadata, PCM timing/amplitude and generated
-default/reload ownership. Seven expected-fatal probes cover missing files, unloaded
+Core smoke requires seven audio markers for metadata, PCM timing/amplitude, generated
+defaults, shared timeline behavior, voice playback/loop envelopes and pool reuse.
+Seventeen expected-fatal probes cover missing files, unloaded
 duration, unsupported format, truncation, chunk bounds, payload budget and device
-initialization in fresh processes with assertions enabled and disabled. See acceptance in
+initialization, plus invalid clocks/voice inputs, pinned-sample mutation and pool ownership,
+in fresh processes with assertions enabled and disabled. See acceptance in
 [PORT_STATUS.md](PORT_STATUS.md).
 
 
 ## Resident campaign link gate
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
-all 281 campaign objects, seventeen campaign backend objects, eight strict resident support
-objects, dlmalloc and 34 codec objects: 341 direct inputs, without GC or archives hiding undefined
+all 281 campaign objects, eighteen campaign backend objects, eight strict resident support
+objects, dlmalloc and 34 codec objects: 342 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
@@ -377,7 +383,8 @@ The source inventory moves 34 bundled sources from optional vendor to vendor run
 No campaign units were dropped. Original codec paths are remapped for reference-project
 coverage, and host regressions reject lost relocations or excluded codec additions.
 Codec integration recorded 358 compile-database entries, 23 foundation backend units
-and 13 smoke units. The first M3 PCM slice adds one shared backend unit: current counts
-are 359 entries and 24 foundation backend units. `compile-game` also builds the 34
+and 13 smoke units. The first M3 PCM slice recorded 359 entries and 24 foundation backend
+units. The voice slice adds shared timeline and smoke units: current counts are 361 entries,
+25 foundation backend units and 14 smoke units. `compile-game` also builds the 34
 audited codec units. The default ELF runs core/codec/audio fixtures, while the resident
 entry rejects execution pending M3 startup.

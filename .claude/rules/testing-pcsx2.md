@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 71 Python regressions, including shared PCM, codec, source
+  The complete host suite currently has 73 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -59,15 +59,17 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 56 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 66 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Forty-nine negative probes require matching run/begin identities and
+  uses a fresh process. Fifty-nine negative probes require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
   matchmaking, Classic switching, absent save manager, unsupported input device, audio
   missing WAVs, unloaded duration queries, audio device initialization, invalid WAV
-  formats/truncation/chunk bounds/payload budgets, process launch,
+  formats/truncation/chunk bounds/payload budgets; absent/backward voice clocks, unloaded
+  voice samples, negative seeks, invalid pitch, pinned sample mutation, double/foreign
+  free, channel mismatch and unknown sound flags; process launch,
   negative duration input, ASE/LWO/Maya source-model import, renderer initialization,
   dimensions, draw submission, image/vertex/shader loading, cinematics and render demos,
   multiplayer ticks/chat/snapshot output/scoreboard activation/mode enumeration and
@@ -82,8 +84,11 @@
   persistence, copied match parameters, explicit loading completion, stable reload
   accounting and sign-out/routing/stale handles. Profile save failure must preserve
   transient stats/bits. These checks do not execute game ticks or load a map. Core smoke
-  also requires three `audio/` checks: native string/unloaded metadata ownership, real
-  mono/stereo PCM timing/amplitude and generated-default/reload ownership. All scopes
+  also requires seven `audio/` checks: native string/unloaded metadata ownership, real
+  mono/stereo PCM timing/amplitude, generated-default/reload ownership, shared timeline
+  behavior, voice playback/loop envelopes and pool reuse. Tests select `InitHeadless`
+  with a manually advanced monotonic clock; no physical device or native sound world
+  is initialized. All scopes
   recover exact requested/backing/count ledgers. The runner stages and hashes authored
   WAVs separately from the filesystem directory fixtures. A stereo fixture exceeds the
   core's 64 KiB memory-file limit and must load through a permanent stream. Host ASan/UBSan
@@ -91,7 +96,12 @@
   chunk padding/reordering and 8,192 deterministic corruptions. Duration uses actual
   frame count/rate; 11,025 Hz must yield 1,000 ms for 11,025 frames rather than the native
   helper's rounded-rate result. Samples shorter than 1 ms fail before game looping can
-  divide by a zero duration. The added
+  divide by a zero duration. Shared host/EE voice tests exercise fractional-frame completion,
+  lead-in/loop boundaries, seeking, pause/resume, pitch changes/freezing, maximum clock
+  jumps and update-cadence independence. Host sanitizer tests require fatal runtime
+  validation with assertions enabled and disabled. Native pool checks fill/exhaust/reuse
+  all 48 slots, reset controls, retain samples until free and recover the exact ledger on
+  repeated shutdown/restart and destruction. The added
   `offline/common-idle-demo-ledger` covers repeated inactive-demo cleanup and offline
   queries; `core/platform-language-duration-utc` checks language bounds, maximum signed
   durations, leap days and the 2038 boundary. It establishes formatting, not clock accuracy.
@@ -122,7 +132,7 @@
   with the expected fatal on the EE. Host sanitizer checks also verify full decoder/output
   cleanup before fatal. Codec memory uses the same heap through native JPG/ZIP tags.
 
-- `make link-game` passes the retained compile/link gate in debug/release: all 341 inputs,
+- `make link-game` passes the retained compile/link gate in debug/release: all 342 inputs,
   every required game/class/cvar registration root and map input are retained without
   unresolved symbols, duplicates, Classic imports or GC. Its resident entry still fails
   explicitly until M3 startup. Do not reuse an older resident ELF after a failed attempt.

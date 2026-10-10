@@ -4,9 +4,10 @@ M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. The current
 foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core and
 offline services. The M2b campaign gate compiles all 281 retained units in debug and
 release; audited JPEG/zlib integration now closes the retained resident link in both
-configurations. M2b compile/link acceptance is complete. The first M3 service slice
-supplies bounded logical PCM sample timing/amplitude; render contracts, voice timing
-and game initialization remain pending. The sections below preserve each slice's
+configurations. M2b compile/link acceptance is complete. M3 prerequisites now supply
+bounded logical PCM samples and deterministic headless voice timing/pool ownership;
+native sound-world integration, render contracts and game initialization remain pending.
+The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
 
 ## Initial M2 build and runtime evidence
@@ -1000,3 +1001,97 @@ that phase. AUDIO returns to zero after every loaded/default scope. Arena figure
 untagged newlib allocations and freed capacity; do not add tagged backing again. Resident
 sizes describe a static image whose entry rejects game startup. They do not measure
 initialized game/sound worlds, voice pools, retail content or map-transition peaks.
+
+## M3 prerequisite: deterministic logical voices
+
+The next sound slice supplies playback state through the native `idSoundVoice` and
+`idSoundHardware` interfaces, selected explicitly with `InitHeadless` and a monotonic
+microsecond clock. Unconfigured hardware `Init` still rejects physical device startup.
+Tests advance a fixture clock directly; they neither sleep to infer completion nor
+initialize a native sound world.
+
+The shared timeline preserves fractional playback phase in Q16 microseconds and
+quantizes pitch to Q16 in [0, 8], including zero to freeze playback. Segment lengths
+derive from actual frame counts/rates rather than integer-millisecond durations.
+Start/seek subtracts the lead-in before wrapping a loop, supports different sample
+rates across segments and completes an exhausted one-shot immediately. Pause/resume
+preserves phase; stop returns to idle; neither resume nor pause resurrects completion.
+Pitch changes charge elapsed time to the old rate before selecting the new rate.
+Backward clocks fail in release too, and bounded modular arithmetic handles maximum
+64-bit clock jumps without overflow or dependence on update frequency.
+
+The adapter allocates all 48 logical voice slots in one 7,296-byte AUDIO block on the
+EE. Exhaustion returns null; free scans pool addresses before dereferencing a caller's
+pointer and rejects double/foreign frees. Reused slots restore native control defaults.
+Allocated voices pin both samples, including self-loops, through idle, stop and
+completion until explicit free or hardware shutdown. Sample purge, reload, rename and
+destruction reject outstanding pins. Synchronous shutdown releases all references and
+the pool, is idempotent and permits reinitialization with the selected clock.
+
+Amplitude queries follow the active sample's 60 Hz pre-gain peak envelope. Paused,
+stopped and complete voices return zero; active `SSF_NO_FLICKER` returns one. Gain and
+spatial controls remain native metadata; this slice supplies neither mixed output RMS
+nor a surround matrix. The base voice constructor is supplied with native defaults,
+while surround operations remain explicit failures. Native `SoundVoice.cpp` and its
+`s_subFraction` cvar remain excluded.
+
+These are direct logical-service fixtures. Native sound-system/world/channel startup,
+shader/emitter integration, retail `.idwav`/ADPCM data, aggregate cache budgets and
+audsrv/SPU2 output remain pending. M3 game initialization, interpreter execution and map
+loading are not accepted by this slice.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-core`, `compile-game`, `link-game` | Passed; strict backend warnings remain errors |
+| Campaign/resident manifest | All 281 campaign units retained; 342 direct resident inputs, 11 registration roots, no GC/unresolved/duplicate symbols |
+| Inventory / compile database | 458 shipped units remain classified; 361 target entries; 25 core and 18 campaign backend units, 14 smoke units |
+| Host ASan/UBSan | Shared heap checks and all 73 Python regressions passed; shared timeline tests run with assertions enabled and disabled |
+| Debug/release core smoke | Passed; all seven required audio markers and exact shutdown ledger recovery |
+| Debug/release Common matrix | All 66 fresh-process scenarios passed in each configuration: seven partial shutdowns and 59 expected fatal probes |
+| Debug/release missing-fixture scenarios | Expected failure and cleanup passed |
+
+The shared timeline checks one-shot completion at a fractional-millisecond frame
+boundary, lead-in/loop transitions at different rates, seek offsets, pause/resume/stop,
+fractional pitch and freeze, maximum clocks/seeks and update-cadence independence.
+Native fixtures check real PCM envelopes, `SSF_NO_FLICKER`, sample lifetime pinning,
+48-slot exhaustion, free/reuse defaults, repeated shutdown/restart and destruction with
+live voices. Ten added fatal probes reject an absent/backward clock, unloaded voice
+samples, negative seek, invalid pitch, pinned sample purge, double/foreign free, channel
+mismatch and unknown flags. Existing physical-device rejection remains required.
+
+Matched run identities:
+
+- Core debug/release: `20261010T005457Z_smoke_4e4a41c49b6d4e40` /
+  `20261010T005933Z_smoke_ea882f743f50456a`.
+- Debug 66-probe span: `20261010T005605Z_smoke_4d1fecba8508427f` through
+  `20261010T005812Z_smoke_ae4b217567874ae4`.
+- Release 66-probe span: `20261010T005952Z_smoke_56b9e1a02180489a` through
+  `20261010T010203Z_smoke_a8872f943e8c447f`.
+- Missing fixture debug/release: `20261010T010230Z_smoke_1f90751eea474a78` /
+  `20261010T010256Z_smoke_0cb30a8007b74f29`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Core fixed `PT_LOAD` residency | 1,881,264 bytes | 1,954,480 bytes |
+| Core BSS (included above) | 459,824 bytes | 459,824 bytes |
+| Initialized requested / backing / allocations | 31,425 / 42,704 / 272 | 31,425 / 42,704 / 272 |
+| Whole smoke peak requested / backing | 315,905 / 327,668 bytes | 315,905 / 327,668 bytes |
+| Logical voice pool requested | 7,296 bytes / 48 slots | 7,296 bytes / 48 slots |
+| Maximum AUDIO request across tests | 88,200 bytes | 88,200 bytes |
+| dlmalloc commitment after tests | 346,960 bytes | 347,472 bytes |
+| Final requested / backing / allocations | 1,024 / 1,068 / 1 | 1,024 / 1,068 / 1 |
+| Resident fixed `PT_LOAD` residency | 10,856,358 bytes | 11,276,966 bytes |
+| Resident BSS (included above) | 5,237,798 bytes | 5,237,798 bytes |
+
+The whole-smoke peak remains codec dominated. Sample payload and pool phases do not
+overlap that peak, and AUDIO returns to zero after the audio tests. Repeated pool
+fill/exhaust/free/reuse/shutdown/restart scopes recover the exact requested/backing/count
+ledger. Arena figures include untagged newlib allocations and freed capacity; tagged
+backing is already contained within them. The 48-slot pool is a logical-state limit,
+not a physical SPU2 voice budget. Resident sizes still describe a static image whose
+entry rejects game startup; full sound worlds, retail caches and transition peaks remain
+unmeasured.

@@ -144,8 +144,9 @@ math path; PS2-specific math replacement headers are a later milestone.
 - Unloaded samples can retain names, reference/purge flags and last-played metadata;
   that does not establish resource loading. Do not invent zero durations or amplitudes
   to make gameplay proceed. Unloaded queries terminate with the method name. The
-  first M3 slice supplies actual PCM fixture data/timing/amplitude; logical voice and
-  completion state remain required before a game fixture, with hardware output later.
+  M3 prerequisites supply actual PCM fixture data/timing/amplitude and explicitly
+  selected headless voices. Native sound-world/channel integration and hardware output
+  remain later work; direct adapter tests do not establish native game sound behavior.
 - `snd_local.h::SamplesToMsec` divides the rate by 100 before converting: 11,025 frames
   at 11,025 Hz yield 1,002 ms. The backend derives duration from 64-bit `frames * 1000 / rate`
   instead. `NumSamples` is frames per channel, not interleaved scalar sample count.
@@ -156,6 +157,25 @@ math path; PS2-specific math replacement headers are a later milestone.
   `ReadFile`. Keep stream destruction outside the fatal call path and free any acquired
   payload before reporting a read/allocation failure: fatal logging does not unwind C++
   objects. No `.idwav`, ADPCM decoder or retail sample-cache budget is established yet.
+- `InitHeadless` requires an explicit monotonic microsecond clock. Unconfigured native
+  hardware `Init` still fails rather than selecting silence implicitly. Shutdown releases
+  the pool synchronously without querying the clock; the selected clock persists for
+  a later `Init`, which resets its monotonic epoch. Its context must remain valid while
+  voices are used. No asynchronous DMA/zombie interval exists in this logical mode.
+- Voice phase is bounded within its active segment in Q16 microseconds, with Q16 pitch
+  in [0, 8]. Reduce large clock deltas before multiplying to avoid 64-bit overflow.
+  Segment durations derive from frames/rate, not truncated integer milliseconds. Seek
+  subtracts the lead-in before loop modulo; desktop `RestartAt` does not do this.
+  Derived `SetPitch` charges the old rate up to the change instant; native callers use
+  `idSoundVoice*`, avoiding the base class's inline metadata-only setter.
+- Allocated voices retain their lead-in and loop samples, including while idle, stopped
+  or complete, until `FreeVoice` or hardware shutdown. Purge/reload/rename/destruction
+  rejects pinned samples. Native `StopVoicesWithSample` must free voices before sample
+  mutation; completion alone does not release the slot or prevent a later restart.
+  `GetAmplitude` supplies the active sample's pre-gain peak, zero while paused/stopped/
+  complete and one for active `SSF_NO_FLICKER`; native callers apply gain separately.
+  Surround output remains unavailable and native `SoundVoice.cpp`/`s_subFraction` are
+  not imported by this slice.
 
 
 ## Resident link findings

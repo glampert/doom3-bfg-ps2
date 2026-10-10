@@ -424,7 +424,16 @@ build/tests/pcm_wave_tests: $(HOST_PCM_SOURCES) src/ps2/audio/pcm_wave.h src/ps2
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) $(HOST_PCM_SOURCES) -o $@
 
-test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests
+HOST_VOICE_SOURCES = src/tests/host/voice_timeline_tests.cpp src/tests/smoketests/voice_tests.cpp src/ps2/audio/voice_timeline.cpp src/ps2/system/log.cpp
+
+build/tests/.voice-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_VOICE_SOURCES)
+
+build/tests/voice_timeline_tests_%: $(HOST_VOICE_SOURCES) src/tests/smoketests/voice_tests.h src/ps2/audio/voice_timeline.h src/ps2/audio/pcm_wave.h src/ps2/common.h src/ps2/system/log.h build/tests/.voice-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_VOICE_SOURCES) -o $@
+
+test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
 	./build/tests/heap_tests
 	$(PYTHON) -m unittest discover -s src/tests/host -p 'test_*.py'
 

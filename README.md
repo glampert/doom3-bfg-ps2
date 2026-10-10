@@ -1,9 +1,9 @@
 # Doom 3 BFG Edition for the PlayStation 2
 
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
-using the free ps2dev SDK. The initial implementation builds a scalar EE core and an
+using the free ps2dev SDK. The initial implementation builds a scalar EE core and a
 smoke executable using authored fixtures. Campaign initialization, map loading,
-rendering, audio playback, input and saves are later milestones; the port is not playable yet.
+rendering, SPU2 audio output, input and saves are later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
 under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
@@ -80,7 +80,7 @@ identity; actual file objects and engine hierarchy declarations are checked on t
 
 `make link-game` attempts a real whole-object campaign link under
 `build/<config>/resident/`, with its own strict support objects and no core filesystem
-substitute. Debug and release now link all 341 inputs without unresolved symbols or
+substitute. Debug and release now link all 342 inputs without unresolved symbols or
 duplicate definitions. JSON/text reports retain object/source hashes, flags and the real
 linker exit status, and verify the game/class/cvar registration roots and every input in
 the map. Failed attempts remove stale resident ELFs. The resident entry deliberately
@@ -92,8 +92,14 @@ real frame counts, integer millisecond duration and 60 Hz peak amplitude queries
 Generated defaults own real PCM too. Streams close before load failures are reported;
 reload, purge, rename and destruction recover exact tagged heap ledgers. Missing,
 malformed, compressed or oversized input fails explicitly. The initial 256 KiB payload
-limit is for authored fixtures; retail `.idwav`/ADPCM conversion, voice timing, native
-sound-world initialization and SPU2 playback remain pending.
+limit is for authored fixtures; retail `.idwav`/ADPCM conversion, native sound-world
+initialization and SPU2 playback remain pending.
+
+Explicit headless initialization selects a monotonic fixture clock and a bounded pool
+of 48 logical voices. Playback supports lead-in/loop transitions, seeking, fractional
+pitch, pause/resume, stop and completion. Allocated voices pin their samples until
+freed, and pool reuse/shutdown recover exact heap ledgers. Amplitude follows the active
+sample's pre-gain peak envelope; no output mixer or physical device is initialized.
 
 Typed renderer providers now bind the native screen, image, shader, cinematic and
 vertex-buffer interfaces, resolving the renderer link group. They expose inactive
@@ -140,8 +146,9 @@ loading remain pending.
 
 The portable audio boundary preserves sample names, reference/purge flags and last-played
 bookkeeping while owning loaded fixture PCM. Resource reload and generated defaults use
-the same timing/amplitude queries. No voices or audio device are created; logical
-playback state and audsrv/SPU2 output remain later work.
+the same timing/amplitude queries. Logical voices require the explicit headless clock;
+unconfigured device initialization still fails. Native sound-world integration and
+audsrv/SPU2 output remain later work.
 
 Backend and smoke-test diagnostics use the shared `ps2::Log` / `LogV` sink with info,
 warning, error and fatal levels. It currently writes synchronously to stdout. System,
@@ -220,12 +227,14 @@ also exercise command/cvar registration and fixture I/O.
 Nine offline checks cover Common identity, local users, transient profiles/achievements,
 unavailable persistence, match transitions, copied parameters, reload accounting and
 sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh process
-for each of seven deliberate startup stops and forty-nine invalid or unsupported requests;
+for each of seven deliberate startup stops and fifty-nine invalid or unsupported requests;
 each must match its own run
-identity and expected cleanup or fatal diagnostic. Seven audio failures cover missing
+identity and expected cleanup or fatal diagnostic. Seventeen audio failures cover missing
 files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget
-and device initialization. Three audio checks cover metadata, PCM timing/amplitude and
-generated-default ownership with exact heap recovery. Additional probes reject process launching,
+and device initialization, plus invalid clocks, voice inputs, sample lifetimes and pool
+ownership. Seven audio checks cover metadata, PCM timing/amplitude, generated defaults,
+deterministic playback, looping and pool reuse with exact heap recovery. Additional probes
+reject process launching,
 negative durations and ASE/LWO/Maya source-model imports. Language and UTC/duration
 formatting are checked on the EE.
 Three renderer checks cover native interface identity, empty metadata/ledger recovery,

@@ -431,9 +431,9 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 The initial M0–M2 scope (core compilation and headless boot) is complete. The completed
 M2b slice supplies campaign portability, explicit error/type handling, typed subsystem
-replacements and audited codecs. M3 logical sound samples are now supplied; remaining
-logical services and game-fixture startup follow. Progress
-and remaining resident-link work are recorded in [PORT_STATUS.md](PORT_STATUS.md).
+replacements and audited codecs. M3 logical sound samples and explicit headless voices
+are now supplied; remaining logical services and game-fixture startup follow. Progress
+and acceptance evidence are recorded in [PORT_STATUS.md](PORT_STATUS.md).
 The current core runs real `idCommonLocal::Init` / `Shutdown` through completed-stage
 tracking for system, idlib, commands, cvars, fixture filesystem, synchronous jobs and
 one offline user/session. Game/presentation/save stages are deliberately deferred.
@@ -444,10 +444,13 @@ campaign achievements with Classic evaluation gated. The logical sound header us
 `ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
 The first M3 service slice implements bounded loose PCM WAV sample loading, duration,
 60 Hz peak amplitude, generated default data and exact reload/purge ownership. This
-is an authored-fixture prerequisite; native sound worlds, voice start/loop/completion
-timing, compressed retail samples and physical audio remain pending.
+is an authored-fixture prerequisite. The next slice supplies deterministic voice
+start/seek/pause/loop/completion timing with fractional pitch, pre-gain peak queries and
+a bounded 48-slot pool that pins sample lifetimes. It requires an explicit monotonic
+headless clock; native sound-world/channel integration, compressed retail samples and
+physical audio remain pending.
 `make link-game` now passes the M2b retained-object gate in both configurations: all
-341 inputs, 11 game/class/cvar registration roots and map inputs are present, without
+342 inputs, 11 game/class/cvar registration roots and map inputs are present, without
 unresolved symbols, duplicates, Classic/desktop imports or garbage collection. Bundled
 JPEG/zlib dependencies are under `src/external/`, explicitly selected with separate
 vendor flags and strict tagged allocator hooks. Their bounded SWF JPEG and streaming
