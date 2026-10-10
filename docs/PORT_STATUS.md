@@ -8,6 +8,8 @@ configurations. M2b compile/link acceptance is complete. The first partial M3 ga
 fixture now runs native initialization, playerless entity/script ticks, native target
 activation, timed events, removal/cancellation, fixed-world collision, native physics
 wall stops, gravity, floor contacts/rest, grounded sliding and stable map reloads.
+Native player physics also consumes injected commands for acceleration, wall collision,
+reverse movement and stopping after input release.
 Bounded logical PCM samples and deterministic headless voices are usable as
 standalone services. Player/AAS/PVS startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
@@ -1438,3 +1440,71 @@ figures cover the fixed playerless fixture and exclude kernel/stacks, retail ass
 and real map transitions. Sound/render integration remains deferred. The next candidate
 is a bounded native player-physics probe driven by synthetic user commands, before
 full player spawning.
+
+## M3 small step: native player physics and synthetic commands
+
+A second native fixture class now owns `idPhysics_Player`, spawns through the real
+class factory and runs through `idEntity::RunPhysics`. It explicitly enables TH_PHYSICS;
+player physics inherits the empty base `Activate`. The fixture still has zero clients
+and null render/sound worlds. Native `idPlayer` spawning, presentation and device input
+remain pending. No engine implementation, backend provider or source list changed.
+
+The probe uses PM_NORMAL, speed 128, gravity 512, zero step height, a 4-unit box
+footprint and the native standing height. One timestamped command enters native
+`idUserCmdMgr` per frame and is consumed inside Think before `SetPlayerInput`.
+Frames one through four request full forward movement; x velocity rises through
+20.48/32.04/43.60 before the wall clips it on frame four around x=21.749. Frame five
+requests reverse movement. Frames six through eight release input, and native ground
+friction slows the probe to a complete stop around x=21.151.
+
+Each frame requires the correct command, timestamps, read/write cursors and empty
+pending queue. Floor checks require native world identity and an upward solid contact,
+stable y/z, linked collision ownership and no unintended jump, crouch, step, ladder or
+water state. The command buffer resets after each map shutdown, all probe entities
+and clip allocations disappear, and warm/full-shutdown ledgers recover exactly.
+All existing monster physics, script, activation and removal checks remain active.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` | Strict EE compile and retained-object link passed |
+| Resident link | 344 inputs, 11 registration roots, no GC, unresolved symbols or duplicates |
+| Native registries | 535 event definitions, 160 classes, 496,480 bytes of event callbacks |
+| Debug/release `make test-game` | All five fresh-process scenarios passed in each configuration |
+| Positive game classifier | Twenty-two required checks; 24 player-input/physics traces in addition to the existing complete event/collision/tick/command/lifetime/monster traces |
+| Host sanitizer fixtures and classifiers | All 82 Python regressions passed; the new regression rejects missing/incorrect commands, timestamps, cursors, pending state, acceleration, wall hits, reverse movement, release friction and floor support |
+| Core and source inventory | Core/source lists unchanged; existing 458-unit inventory and 363-entry compile database remain valid; core/Common emulator matrices not rerun |
+
+Matched run identities:
+
+- Game debug/release: `20261010T092642Z_smoke_90149322372f403d` /
+  `20261010T092730Z_smoke_4ee760c35f224525`.
+- Missing map debug/release: `20261010T092645Z_smoke_406428ecaabc42c6` /
+  `20261010T092733Z_smoke_129c00d6b1864024`.
+- Script error debug/release: `20261010T092648Z_smoke_40b714bcc1ae4b48` /
+  `20261010T092735Z_smoke_24b4c8a1fdb44c64`.
+- Geometry debug/release: `20261010T092650Z_smoke_442c9d2296e143ee` /
+  `20261010T092737Z_smoke_f7c8308f28a7453b`.
+- Material debug/release: `20261010T092653Z_smoke_c50c122d8dc64ffa` /
+  `20261010T092740Z_smoke_9312320d03884f1e`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,889,446 bytes | 11,309,670 bytes |
+| Resident BSS (included above) | 5,238,118 bytes | 5,238,118 bytes |
+| After native game Init: requested / backing / count | 1,396,272 / 1,488,684 / 2,261 | 1,396,272 / 1,488,684 / 2,261 |
+| After eight ticks, conversion: requested / backing / count | 1,747,464 / 1,846,840 / 2,430 | 1,747,464 / 1,846,840 / 2,430 |
+| After eight ticks, text cache: requested / backing / count | 1,747,480 / 1,846,452 / 2,419 | 1,747,480 / 1,846,452 / 2,419 |
+| After eight ticks, binary cache: requested / backing / count | 1,745,232 / 1,844,184 / 2,418 | 1,745,232 / 1,844,184 / 2,418 |
+| Peak requested / backing | 2,057,436 / 2,153,928 bytes | 2,057,436 / 2,153,928 bytes |
+| Arena commitment after three cycles | 2,332,442 bytes | 2,334,106 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Conversion scratch still determines the peak; synthetic input reuses the existing
+native command-manager buffer. The new class adds 128 BSS bytes and 8 requested bytes
+at native Init. No full player entity, retail assets, device input or sound/render world
+is initialized. Kernel/stacks and real map-transition peaks remain unmeasured.
+Next candidates are native jump/crouch checks, then headless player entity startup.

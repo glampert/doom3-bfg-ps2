@@ -223,7 +223,8 @@ math path; PS2-specific math replacement headers are a later milestone.
   requested. `SCRIPT_DEFAULT` implicitly includes `SCRIPT_DEFAULTDEFS`; authored
   fixtures must provide both `script/doom_main.script` and `script/doom_defs.script`.
   Unlike the isolated compiler probe, game initialization installs the real event and
-  class registries (535 event definitions and 159 classes, including the logic probe).
+  class registries (535 event definitions and 160 classes, including the logic and
+  player-physics probes).
 - `InitHeadlessFixture` accepts only the bounded worldspawn map with two fixed axial
   collision brushes, validates every plane/material before collision conversion,
   rejects resource/physics keys and runs native `InitScriptForMap`/`SpawnMapEntities`.
@@ -307,3 +308,23 @@ math path; PS2-specific math replacement headers are a later milestone.
   adding about 0.607 extra y units at the first wall contact; the fixture bounds this
   behavior rather than assuming displacement equals tangent speed times total time.
   This covers flat-floor sliding, not stairs, slopes or player/AI simulation.
+
+## Native player-physics fixture
+
+- A native fixture entity can own `idPhysics_Player` and call `SetPlayerInput` then
+  `idEntity::RunPhysics` without spawning an `idPlayer`. Enable TH_PHYSICS explicitly:
+  player physics inherits the empty base `Activate`, unlike monster physics. The
+  fixture retains zero clients and null sound/render worlds, so normal player frame
+  synchronization and presentation remain outside this acceptance.
+- `idUserCmdMgr::GetUserCmdForPlayer` increments its read cursor only when an unread
+  command exists, otherwise returning the previous command. Before any command was
+  written its index is -1; guard `HasUserCmdForPlayer` before reading. The fixture
+  queues one timestamped command per native frame, verifies exact cursors/consumption,
+  then calls `ResetPlayer` between maps. This is explicit injection, not input sampling.
+- The PM_NORMAL fixture uses speed 128, gravity 512, zero step height, a 4-unit box
+  footprint and the native standing height. Forward input accelerates x velocity to
+  20.48/32.04/43.60 on the first three frames. Frame four hits the wall around x=21.749,
+  with overclip leaving about -0.054 x velocity. Reverse input gives -21.76 on frame
+  five; neutral input then slows to -11.56/-1.96/0 through native ground friction.
+  An upward solid world contact persists at z=0.25. No jump, crouch, stairs, full
+  player entity or controller-input acceptance follows from this probe.

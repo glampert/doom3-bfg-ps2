@@ -24,6 +24,8 @@ def complete():
     fall_z = (4.000, 3.861, 3.574, 3.164, 2.589, 2.251, 2.251, 2.251)
     fall_vz = (-8.192, -16.896, -25.600, -33.792, -42.496, -8.662, 0.000, 0.000)
     slide_y = (33.024, 34.112, 35.807, 36.832, 37.921, 39.010, 40.035, 41.124)
+    player_x = (20.328, 20.872, 21.614, 21.749, 21.379, 21.183, 21.151, 21.151)
+    player_vx = (20.480, 32.040, 43.600, -0.054, -21.760, -11.560, -1.960, 0.000)
     for name in sorted(runner.REQUIRED_GAME_CHECKS):
         log += f"[D3BFG] CHECK {name} PASS\n"
     for cycle in range(3):
@@ -51,6 +53,10 @@ def complete():
             log += (f"[D3BFG] GAME_SLIDE cycle={cycle} frame={frame} x={x:.3f} "
                     f"y={slide_y[frame - 1]:.3f} z=2.250 vx={vx:.3f} vy=64.000 "
                     f"ground=1 floor=1 blocked={int(frame >= 3)} move={int(frame >= 3)}\n")
+            cmd = 127 if frame <= 4 else -127 if frame == 5 else 0
+            log += (f"[D3BFG] GAME_PLAYER cycle={cycle} frame={frame} cmd={cmd} time={time} "
+                    f"read={frame - 1} written={frame} pending=0 x={player_x[frame - 1]:.3f} "
+                    f"y=-16.000 z=0.250 vx={player_vx[frame - 1]:.3f} floor=1\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -149,6 +155,29 @@ class GameRunnerTests(unittest.TestCase):
             log.replace("ground=1 floor=1 blocked=1", "ground=0 floor=1 blocked=1"),
             log.replace("blocked=1", "blocked=0"),
             log.replace("move=1", "move=0"),
+        ):
+            with self.subTest(output=bad):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
+
+    def test_game_requires_queued_player_input_acceleration_wall_reverse_and_friction(self):
+        result, log = complete()
+        for bad in (
+            "\n".join(line for line in log.splitlines() if "GAME_PLAYER cycle=1 frame=4" not in line),
+            log.replace("frame=5 cmd=-127", "frame=5 cmd=127"),
+            log.replace("frame=6 cmd=0", "frame=6 cmd=-127"),
+            log.replace("cmd=127 time=33", "cmd=127 time=16"),
+            log.replace("read=3 written=4", "read=2 written=4"),
+            log.replace("written=8", "written=9"),
+            log.replace("pending=0 x=", "pending=1 x="),
+            log.replace("x=20.328", "x=20.000"),
+            log.replace("vx=32.040", "vx=20.480"),
+            log.replace("x=21.749", "x=22.000"),
+            log.replace("vx=-21.760", "vx=0.000"),
+            log.replace("vx=-11.560", "vx=-21.760"),
+            log.replace("z=0.250 vx=0.000", "z=0.250 vx=-1.960"),
+            log.replace("y=-16.000", "y=-15.000"),
+            log.replace("z=0.250 vx=", "z=-0.250 vx="),
+            log.replace("vx=-1.960 floor=1", "vx=-1.960 floor=0"),
         ):
             with self.subTest(output=bad):
                 self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])

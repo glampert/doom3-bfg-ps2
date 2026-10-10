@@ -105,7 +105,10 @@ filtering and clip-model disable/enable. The probe runs native `idPhysics_Monste
 through `RunPhysics` during its Think calls, moving toward the wall and stopping
 before penetration. Two additional native probes verify gravity-driven falling,
 floor contacts and rest, and grounded diagonal sliding along the wall with stepping
-disabled. Three reloads cover brush conversion, text `.cm` loading and
+disabled. A fixture entity owns native `idPhysics_Player`, consumes synthetic commands
+from `idUserCmdMgr`, accelerates into the wall, reverses and stops through native
+friction after input release. Floor support and exact command consumption are checked
+each frame. Three reloads cover brush conversion, text `.cm` loading and
 generated binary collision-cache loading. Clip/collision ownership returns to zero
 at map shutdown.
 Warm reload ledgers stay exact; full shutdown returns to the pre-boot ledger. Missing
@@ -150,8 +153,9 @@ strings plus their terminator, and case-insensitive command lookup. Empty cleanu
 native invalid-index results are usable. Initialization, map preparation, inhibition,
 mouse/button/key sampling and command generation fail explicitly. Controller and rumble
 preferences are archived in both builds with zero defaults and ROM flags; forced writes
-cannot enable their unavailable services. No physical input source or player commands
-are created. Synthetic game-fixture commands and real controller mapping remain later work.
+cannot enable their unavailable services. Physical device polling and controller mapping
+remain later work. The game fixture explicitly injects synthetic commands into the
+native command manager and player-physics probe.
 
 ## Core boundary
 
@@ -261,8 +265,8 @@ sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh
 for each of seven deliberate startup stops and fifty-nine invalid or unsupported requests;
 each must match its own run
 identity and expected cleanup or fatal diagnostic. The separate game matrix requires
-all eighteen `game/` checks, three event-posting and collision traces, and all 24 frame/entity/script,
-command, entity-lifetime, wall-stop, falling and grounded-sliding traces, plus
+all twenty-two `game/` checks, three event-posting and collision traces, and all 24 frame/entity/script,
+command, entity-lifetime, wall-stop, falling, grounded-sliding and player-input/physics traces, plus
 source-specific missing-map, malformed-script and restricted geometry/material failures. Resident images, map, flags and authored
 game files are hashed in each archive; generated collision caches are hashed after completion. Seventeen audio failures cover missing
 files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget

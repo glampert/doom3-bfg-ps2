@@ -89,6 +89,57 @@ class LogicProbe final : public idEntity
 CLASS_DECLARATION(idEntity, LogicProbe)
 END_CLASS
 
+class PlayerPhysicsProbe final : public idEntity
+{
+    CLASS_PROTOTYPE(PlayerPhysicsProbe);
+
+  public:
+    void Spawn()
+    {
+        m_physics.SetSelf(this);
+        m_physics.SetGravity(idVec3(0.0f, 0.0f, -kFixtureGravity));
+        m_physics.SetSpeed(128.0f, 64.0f);
+        m_physics.SetMaxStepHeight(0.0f);
+        m_physics.SetMaxJumpHeight(16.0f);
+        m_physics.SetMovementType(PM_NORMAL);
+        // Keep the native standing height and a small footprint within the authored world.
+        const idBounds bounds(idVec3(-2.0f, -2.0f, 0.0f), idVec3(2.0f, 2.0f, pm_normalheight.GetFloat()));
+        auto * model = new (TAG_PHYSICS_CLIP) idClipModel(idTraceModel(bounds));
+        model->SetContents(CONTENTS_BODY);
+        m_physics.SetClipModel(model, 1.0f);
+        m_physics.SetClipMask(CONTENTS_SOLID);
+        m_physics.SetOrigin(idVec3(20.0f, -16.0f, CM_CLIP_EPSILON));
+        SetPhysics(&m_physics);
+        BecomeActive(TH_THINK | TH_PHYSICS);
+    }
+    void BindCommands(idUserCmdMgr & commands)
+    {
+        PS2_Assert(ticks == 0 && m_commands == nullptr);
+        m_commands = &commands;
+    }
+    void Think() override
+    {
+        if (m_commands == nullptr || !m_commands->HasUserCmdForPlayer(0))
+        {
+            ps2::FatalError("native player-physics probe requires a queued user command");
+        }
+        m_command = m_commands->GetUserCmdForPlayer(0);
+        m_physics.SetPlayerInput(m_command, idVec3(1.0f, 0.0f, 0.0f));
+        ++ticks;
+        RunPhysics();
+    }
+    const idPhysics_Player & GetMotionPhysics() const { return m_physics; }
+    const usercmd_t & GetCommand() const { return m_command; }
+    int ticks = 0;
+
+  private:
+    idPhysics_Player m_physics;
+    idUserCmdMgr * m_commands = nullptr;
+    usercmd_t m_command;
+};
+CLASS_DECLARATION(idEntity, PlayerPhysicsProbe)
+END_CLASS
+
 bool Check(const char * name, bool passed)
 {
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK game/%s %s\n", name, passed ? "PASS" : "FAIL");
@@ -100,7 +151,7 @@ bool Same(const ps2::heap::Stats & a, const ps2::heap::Stats & b)
 }
 bool Near(float actual, float expected) { return idMath::Fabs(actual - expected) < 0.05f; }
 
-bool FloorContacts(const idPhysics_Monster & physics)
+bool FloorContacts(const idPhysics_Actor & physics)
 {
     if (!physics.HasGroundContacts() || physics.GetNumContacts() == 0 || physics.GetGroundEntity() != gameLocal.world)
     {
@@ -217,6 +268,16 @@ bool RunGameTests(const char * mode)
         PS2_Assert(falling != nullptr && sliding != nullptr);
         falling->SetMotion(Motion::Falling);
         sliding->SetMotion(Motion::Sliding);
+        commands->ResetPlayer(0);
+        args.Set("name", "player_physics_probe");
+        args.Set("noclipmodel", "1");
+        auto * player = static_cast<PlayerPhysicsProbe *>(gameLocal.SpawnEntityType(PlayerPhysicsProbe::Type, &args));
+        args.Clear();
+        PS2_Assert(player != nullptr);
+        player->BindCommands(*commands);
+        bool playerQueuePassed = !commands->HasUserCmdForPlayer(0) && commands->readFrame[0] == -1 && commands->writeFrame[0] == 0;
+        bool playerWalkPassed = true, playerReleasePassed = true, playerFloorPassed = true;
+        float previousPlayerX = 20.0f, previousPlayerVelocity = 0.0f;
         bool gravityPassed = true, floorPassed = true, slidingPassed = true;
         float fallZ = 4.0f, fallVelocity = 0.0f, previousSlideY = 32.0f;
         // Native SetName binds the script's $logic_target reference before the first frame.
@@ -236,6 +297,13 @@ bool RunGameTests(const char * mode)
         passed = value != nullptr && *value->value.floatPtr == 0.0f && passed;
         for (int frame = 1; frame <= 8; ++frame)
         {
+            usercmd_t input;
+            input.forwardmove = frame <= 4 ? 127 : frame == 5 ? -127
+                                                              : 0;
+            input.clientGameMilliseconds = input.serverGameMilliseconds = FRAME_TO_MSEC(frame);
+            commands->PutUserCmdForPlayer(0, input);
+            playerQueuePassed = commands->HasUserCmdForPlayer(0) &&
+                                commands->GetNextUserCmdClientTime(0) == input.clientGameMilliseconds && playerQueuePassed;
             gameReturn_t result{};
             ::game->RunFrame(*commands, result);
             const auto & position = probe->GetPhysics()->GetOrigin();
@@ -279,6 +347,50 @@ bool RunGameTests(const char * mode)
                      static_cast<double>(slide.GetOrigin().z), static_cast<double>(slide.GetLinearVelocity().x),
                      static_cast<double>(slide.GetLinearVelocity().y), static_cast<int>(slide.OnGround()),
                      static_cast<int>(slideFloor), static_cast<int>(blocked), static_cast<int>(slide.GetMoveResult()));
+            const auto & playerPhysics = player->GetMotionPhysics();
+            const auto & playerPosition = playerPhysics.GetOrigin();
+            const auto & playerVelocity = playerPhysics.GetLinearVelocity();
+            const auto & consumed = player->GetCommand();
+            const bool pending = commands->HasUserCmdForPlayer(0);
+            playerQueuePassed = player->ticks == frame && consumed.forwardmove == input.forwardmove &&
+                                consumed.rightmove == 0 && consumed.buttons == 0 &&
+                                consumed.clientGameMilliseconds == input.clientGameMilliseconds &&
+                                consumed.serverGameMilliseconds == input.serverGameMilliseconds && !pending &&
+                                commands->readFrame[0] == frame - 1 && commands->writeFrame[0] == frame && playerQueuePassed;
+            const bool playerFloor = FloorContacts(playerPhysics);
+            playerFloorPassed = playerFloor && Near(playerPosition.y, -16.0f) && Near(playerPosition.z, CM_CLIP_EPSILON) &&
+                                Near(playerVelocity.y, 0.0f) && Near(playerVelocity.z, 0.0f) &&
+                                playerPosition.x <= 21.75f && playerPosition.z >= 0.0f && playerPhysics.GetClipModel()->IsLinked() &&
+                                !playerPhysics.HasJumped() && !playerPhysics.HasSteppedUp() && !playerPhysics.IsCrouching() &&
+                                !playerPhysics.OnLadder() && playerPhysics.GetWaterLevel() == WATERLEVEL_NONE && playerFloorPassed;
+            if (frame < 4)
+            {
+                playerWalkPassed = playerPosition.x > previousPlayerX && playerVelocity.x > previousPlayerVelocity && playerWalkPassed;
+            }
+            else if (frame == 4)
+            {
+                playerWalkPassed = Near(playerPosition.x, 21.75f) && idMath::Fabs(playerVelocity.x) < 1.0f && playerWalkPassed;
+            }
+            else if (frame == 5)
+            {
+                playerReleasePassed = playerPosition.x < previousPlayerX && playerVelocity.x < -1.0f && playerReleasePassed;
+            }
+            else if (frame < 8)
+            {
+                playerReleasePassed = playerPosition.x < previousPlayerX && playerVelocity.x < 0.0f &&
+                                      idMath::Fabs(playerVelocity.x) < idMath::Fabs(previousPlayerVelocity) && playerReleasePassed;
+            }
+            else
+            {
+                playerReleasePassed = Near(playerPosition.x, previousPlayerX) && playerVelocity == vec3_zero && playerReleasePassed;
+            }
+            previousPlayerX = playerPosition.x;
+            previousPlayerVelocity = playerVelocity.x;
+            ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_PLAYER cycle=%d frame=%d cmd=%d time=%d read=%d written=%d pending=%d x=%.3f y=%.3f z=%.3f vx=%.3f floor=%d\n",
+                     cycle, frame, static_cast<int>(consumed.forwardmove), consumed.clientGameMilliseconds,
+                     commands->readFrame[0], commands->writeFrame[0], static_cast<int>(pending),
+                     static_cast<double>(playerPosition.x), static_cast<double>(playerPosition.y),
+                     static_cast<double>(playerPosition.z), static_cast<double>(playerVelocity.x), static_cast<int>(playerFloor));
             const char * expectedCommand = frame == kActivationFrame || frame == kDelayedActivationFrame ? kFixtureCommand : "";
             commandPassed = idStr::Cmp(result.sessionCommand, expectedCommand) == 0 &&
                             gameLocal.sessionCommand.Length() == 0 && commandPassed;
@@ -306,6 +418,9 @@ bool RunGameTests(const char * mode)
         passed = Check("physics-gravity", gravityPassed) && passed;
         passed = Check("physics-floor-rest", floorPassed) && passed;
         passed = Check("physics-ground-slide", slidingPassed) && passed;
+        passed = Check("player-physics-walk-wall", playerWalkPassed) && passed;
+        passed = Check("player-physics-release-stop", playerReleasePassed) && passed;
+        passed = Check("player-physics-floor", playerFloorPassed) && passed;
         passed = Check("script-target-command", commandPassed) && passed;
         passed = Check("entity-removal-cancellation", lifetimePassed && commandPassed && gameLocal.time >= kCanceledActivationMs) && passed;
         Memory("ticked");
@@ -313,9 +428,14 @@ bool RunGameTests(const char * mode)
         passed = Check("map-shutdown", gameLocal.GameState() == GAMESTATE_NOMAP && gameLocal.world == nullptr &&
                                        gameLocal.FindEntity("logic_probe") == nullptr && gameLocal.FindEntity("logic_target") == nullptr &&
                                        gameLocal.FindEntity("fall_probe") == nullptr && gameLocal.FindEntity("slide_probe") == nullptr &&
+                                       gameLocal.FindEntity("player_physics_probe") == nullptr &&
                                        !targetRef.IsValid() && targetRef.GetEntity() == nullptr &&
                                        gameLocal.program.GetDef(&type_entity, "$logic_target", &def_namespace) == nullptr &&
                                        gameLocal.sessionCommand.Length() == 0 && gameLocal.program.FindFunction("main") == nullptr) &&
+                 passed;
+        commands->ResetPlayer(0);
+        passed = Check("player-command-queue", playerQueuePassed && !commands->HasUserCmdForPlayer(0) &&
+                                               commands->readFrame[0] == -1 && commands->writeFrame[0] == 0) &&
                  passed;
         passed = Check("collision-shutdown", ps2::heap::GetStats(TAG_COLLISION).allocationCount == 0 &&
                                              ps2::heap::GetStats(TAG_PHYSICS_CLIP).allocationCount == 0 &&

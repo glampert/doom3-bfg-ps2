@@ -347,8 +347,9 @@ No neutral commands or connected device are fabricated. `in_useJoystick` and
 `in_joystickRumble` retain native archive flags, add ROM and default to zero in both
 builds. Forced controller writes cannot enable sampling; forced rumble writes still
 encounter the existing unavailable `Sys_SetRumble` provider. No SDK input module, event
-poller, device buffer or additional upstream unit is enabled. Physical controls and
-explicit synthetic command injection remain required for their later runtime gates.
+poller, device buffer or additional upstream unit is enabled. The resident game fixture
+now injects synthetic commands directly into native `idUserCmdMgr` for its player-physics
+probe; physical controls remain a later runtime gate.
 
 At the input-interface slice, the core contained 21 backend and twelve smoke units. Three required `input/`
 markers verify native table order/extent and independent command names/prefix handling,
@@ -417,7 +418,11 @@ entity filtering are checked; native monster physics runs through the probe's
 `RunPhysics` calls and stops at the wall. Raw, text-cache and binary-cache reloads
 also verify gravity, floor contacts/rest and grounded diagonal wall sliding through
 two additional instances of the same native probe class. Stepping is disabled for
-the sliding case. All map shutdowns recover exact ledgers. Tagged engine fixes reset
+the sliding case. A second native fixture class owns `idPhysics_Player`, consumes
+explicitly injected commands through `idUserCmdMgr` and runs native acceleration,
+wall collision, reverse movement and release friction through `RunPhysics`. Its
+floor support, command cursor/timing and teardown are checked. Full player spawning
+remains pending. All map shutdowns recover exact ledgers. Tagged engine fixes reset
 binary-cache trace visitation and
 preserve loaded statistics; portable Common shutdown frees retained diagnostics before
 idlib teardown. Map shutdown removes script bindings and all collision/clip allocations.

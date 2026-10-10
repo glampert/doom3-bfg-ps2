@@ -103,6 +103,8 @@ REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/
                                   "game/collision-world", "game/collision-world-traces", "game/collision-contents-mask",
                                   "game/collision-entity-filter", "game/physics-wall-stop", "game/collision-shutdown",
                                   "game/physics-gravity", "game/physics-floor-rest", "game/physics-ground-slide",
+                                  "game/player-command-queue", "game/player-physics-walk-wall",
+                                  "game/player-physics-release-stop", "game/player-physics-floor",
                                   "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
 SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -260,6 +262,20 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     return False
                 previous_y = actual[3]
             return True
+        players = [(int(cycle), int(frame), int(cmd), int(time), int(read), int(written), int(pending),
+                    float(x), float(y), float(z), float(vx), int(floor))
+                   for cycle, frame, cmd, time, read, written, pending, x, y, z, vx, floor in re.findall(
+                       r"GAME_PLAYER cycle=(\d+) frame=(\d+) cmd=(-?\d+) time=(\d+) read=(-?\d+) written=(\d+) pending=(\d+) x=(-?\d+\.\d+) y=(-?\d+\.\d+) z=(-?\d+\.\d+) vx=(-?\d+\.\d+) floor=(\d+)(?:\s|$)", log)]
+        # Ground acceleration, a wall hit, reverse input, then native release friction.
+        player_x = (20.32768, 20.87236, 21.61356, 21.749, 21.379, 21.183, 21.151, 21.151)
+        player_vx = (20.48, 32.04, 43.6, -0.054, -21.76, -11.56, -1.96, 0.0)
+        def matches_players(expected: list) -> bool:
+            return len(players) == len(expected) and all(
+                actual[:7] == (cycle, frame, 127 if frame <= 4 else -127 if frame == 5 else 0,
+                               frame * 1000 // 60, frame - 1, frame, 0) and actual[11] == 1 and
+                all(abs(value - target) < 0.05 for value, target in zip(
+                    actual[7:11], (player_x[frame - 1], -16, 0.25, player_vx[frame - 1])))
+                for actual, (cycle, frame) in zip(players, expected))
         accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
                     result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
                     all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
@@ -276,7 +292,8 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     (matches_collisions(expected_collisions) or matches_collisions(expected_collisions + expected_collisions)) and
                     (matches_physics(expected_physics) or matches_physics(expected_physics + expected_physics)) and
                     (matches_falls(expected_frames) or matches_falls(expected_frames + expected_frames)) and
-                    (matches_slides(expected_frames) or matches_slides(expected_frames + expected_frames)))
+                    (matches_slides(expected_frames) or matches_slides(expected_frames + expected_frames)) and
+                    (matches_players(expected_frames) or matches_players(expected_frames + expected_frames)))
         return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:

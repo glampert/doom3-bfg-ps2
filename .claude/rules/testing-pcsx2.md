@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 49 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 50 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 81 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 82 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -153,9 +153,9 @@
   hashes and flags must match before launch; authored file hashes are archived too.
   Generated text/binary collision caches remain in the archive and are hashed in
   `summary.json` after process cleanup.
-- A game pass requires the matching closed JSON, begin/final markers, all eighteen `game/`
+- A game pass requires the matching closed JSON, begin/final markers, all twenty-two `game/`
   checks and exactly three cycles of eight frame/entity/script, command, lifetime,
-  wall-stop, falling and grounded-sliding traces at
+  wall-stop, falling, grounded-sliding and player-input/physics traces at
   native 60 Hz.
   Checks cover native initialization, logic world, ticks/script events, map shutdown,
   native script target activation, successful delayed-event posting, removal/cancellation,
@@ -181,6 +181,12 @@
   seven/eight. `GAME_SLIDE` requires ground/floor support throughout, wall blocking
   and native `MM_SLIDING` from frame three, clipped inward velocity and continued
   bounded tangential motion. Missing/incorrect traces fail despite PASS markers.
+  `GAME_PLAYER` requires forward input 127 on frames one through four, reverse -127
+  on frame five and neutral input afterward. Native command cursors, timestamps and
+  empty pending state must match each frame. Player physics accelerates into the wall
+  on frame four, moves away on frame five and stops through release friction on frame
+  eight, with native floor support throughout. Position/velocity traces are checked
+  numerically; the command buffer resets after every map shutdown.
   `core SKIP` means the core test suite was not run, although staged Common foundation
   startup executes.
   The entry's platform marker covers manifest/host I/O, not the SDK-only platform suite.
@@ -188,10 +194,11 @@
   game startup: the missing-map diagnostic or a source-located `maps/logic.script`
   error, or the geometry/material restriction diagnostic before collision loading.
   A result file, wrong source, unrelated first fatal, bus/TLB error, watchdog
-  or nonzero emulator status fails. Eight host regressions verify these classifications
+  or nonzero emulator status fails. Nine host regressions verify these classifications
   and resident archive identity; target debug/release runs are required too.
 - This is playerless logic-map acceptance: native entity thinking, script `waitFrame`
-  scheduling, bounded collision/physics and map teardown run, while AAS/PVS, player commands, sound/
+  scheduling, bounded monster/player physics with injected commands and map teardown run,
+  while AAS/PVS, full player entities, device input, sound/
   render worlds and regular campaign map loading remain pending. Sound and rendering
   integration are deferred while the headless gameplay fixture grows.
 
