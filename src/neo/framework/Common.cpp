@@ -1296,6 +1296,10 @@ void idCommonLocal::Shutdown() {
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 	if ( com_shuttingDown ) { return; }
 	com_shuttingDown = true;
+	// [PS2_D3BFG]: Release retained diagnostics before lifecycle shutdown tears down idlib.
+	warningList.Clear();
+	warningCaption.Clear();
+	errorList.Clear();
 	ps2::lifecycle::Shutdown();
 	com_fullyInitialized = false;
 	return;

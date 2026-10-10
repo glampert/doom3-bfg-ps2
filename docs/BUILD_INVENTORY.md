@@ -411,8 +411,14 @@ reloads. The script also dispatches native `activate` to `idTarget_SessionComman
 frame four; a queued 90 ms activation fires on frame six. The native return path
 consumes both commands in their frames. Script removal on frame seven invalidates
 the cached `idEntityPtr` and cancels a queued 120 ms activation, checked after its
-deadline on frame eight. Map shutdown removes script bindings. Collision/PVS, players,
-render/sound worlds, shell resources and retail data are not initialized. Native sound/render integration follows
+deadline on frame eight. The fixture validates two fixed axial brushes before native
+collision conversion and clip initialization. Point/box traces, contents/masks and
+entity filtering are checked; native monster physics runs through the probe's
+`RunPhysics` calls and stops at the wall. Raw, text-cache and binary-cache reloads
+recover exact ledgers. Tagged engine fixes reset binary-cache trace visitation and
+preserve loaded statistics; portable Common shutdown frees retained diagnostics before
+idlib teardown. Map shutdown removes script bindings and all collision/clip allocations.
+AAS/PVS, players, render/sound worlds, shell resources and retail data are not initialized. Native sound/render integration follows
 later headless gameplay work.
 
 Resident reports include matched runnable/unstripped ELF and map hashes. The runner

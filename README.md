@@ -2,8 +2,8 @@
 
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
 using the free ps2dev SDK. The port builds a scalar EE core and an authored headless
-game fixture that runs native initialization, entity thinking and script events.
-Player/collision startup, retail maps, rendering, SPU2 output, input and saves remain
+game fixture that runs native initialization, entity thinking, script events and bounded collision/physics.
+Player/AAS/PVS startup, retail maps, rendering, SPU2 output, input and saves remain
 later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
@@ -91,7 +91,7 @@ linker exit status, and verify the game/class/cvar registration roots and every 
 the map. Failed attempts remove stale resident ELFs. The resident entry requires the
 runner's explicit game manifest before selecting the authored fixture.
 
-`make test-game` boots native `idGameLocal`, parses a tiny worldspawn `.map` through
+`make test-game` boots native `idGameLocal`, parses a fixed floor/wall worldspawn `.map` through
 the native loose-file filesystem, and spawns a logic entity through the real class
 factory. It requires eight native `RunFrame` calls, eight entity `Think` calls and
 eight script increments scheduled through `sys.waitFrame`, over three map reloads.
@@ -100,9 +100,15 @@ activation fires on frame six (100 ms). Each command is returned and cleared in 
 same frame. Script removal on frame seven (116 ms) invalidates the cached `idEntityPtr`
 and cancels another activation queued for 120 ms; frame eight returns no command.
 Map shutdown removes the map's script bindings.
+Native collision tests cover point/swept-box traces, contents and masks, entity
+filtering and clip-model disable/enable. The probe runs native `idPhysics_Monster`
+through `RunPhysics` during its Think calls, moving toward the wall and stopping
+before penetration. Three reloads cover brush conversion, text `.cm` loading and
+generated binary collision-cache loading. Clip/collision ownership returns to zero
+at map shutdown.
 Warm reload ledgers stay exact; full shutdown returns to the pre-boot ledger. Missing
-maps and script errors must fail with the expected diagnostic in debug and release.
-This is the first partial M3 game acceptance. The fixture has no players, collision/PVS,
+maps, script errors and unsupported brush planes/materials must fail with the expected diagnostic in debug and release.
+This is partial M3 game acceptance. The fixture has no players or AAS/PVS,
 sound world or render world and uses a separate bounded startup method; regular
 `InitFromNewMap` and retail content remain pending. Headless gameplay work takes
 priority, with sound and rendering integration deferred.
@@ -253,10 +259,10 @@ sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh
 for each of seven deliberate startup stops and fifty-nine invalid or unsupported requests;
 each must match its own run
 identity and expected cleanup or fatal diagnostic. The separate game matrix requires
-all nine `game/` checks, three event-posting traces and all 24 frame/entity/script,
-command and entity-lifetime traces, plus
-source-specific missing-map and malformed-script failures. Resident images, map, flags and authored
-game files are hashed in each archive. Seventeen audio failures cover missing
+all fifteen `game/` checks, three event-posting and collision traces, and all 24 frame/entity/script,
+command, entity-lifetime and physics traces, plus
+source-specific missing-map, malformed-script and restricted geometry/material failures. Resident images, map, flags and authored
+game files are hashed in each archive; generated collision caches are hashed after completion. Seventeen audio failures cover missing
 files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget
 and device initialization, plus invalid clocks, voice inputs, sample lifetimes and pool
 ownership. Seven audio checks cover metadata, PCM timing/amplitude, generated defaults,

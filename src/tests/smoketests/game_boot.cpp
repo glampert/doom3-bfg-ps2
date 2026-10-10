@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: game_boot.cpp
-// Brief: Prove native ticks, timed events, entity removal and stable logic-map reloads on the EE.
+// Brief: Prove native collision/physics, ticks, events and stable fixture-map reloads on the EE.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -27,9 +27,29 @@ class LogicProbe final : public idEntity
     CLASS_PROTOTYPE(LogicProbe);
 
   public:
-    void Spawn() { BecomeActive(TH_THINK); }
-    void Think() override { ++ticks; }
+    void Spawn()
+    {
+        m_physics.SetSelf(this);
+        m_physics.SetGravity(vec3_zero);
+        m_physics.UseFlyMove(true);
+        auto * model = new (TAG_PHYSICS_CLIP) idClipModel(idTraceModel(idBounds(vec3_origin).Expand(2.0f)));
+        model->SetContents(CONTENTS_BODY);
+        m_physics.SetClipModel(model, 1.0f);
+        m_physics.SetClipMask(CONTENTS_SOLID);
+        m_physics.SetOrigin(idVec3(0.0f, 0.0f, 16.0f));
+        SetPhysics(&m_physics);
+        BecomeActive(TH_THINK);
+    }
+    void Think() override
+    {
+        ++ticks;
+        m_physics.SetLinearVelocity(idVec3(512.0f, 0.0f, 0.0f));
+        RunPhysics();
+    }
     int ticks = 0;
+
+  private:
+    idPhysics_Monster m_physics;
 };
 CLASS_DECLARATION(idEntity, LogicProbe)
 END_CLASS
@@ -42,6 +62,50 @@ bool Check(const char * name, bool passed)
 bool Same(const ps2::heap::Stats & a, const ps2::heap::Stats & b)
 {
     return a.requestedBytes == b.requestedBytes && a.backingBytes == b.backingBytes && a.allocationCount == b.allocationCount;
+}
+bool Near(float actual, float expected) { return idMath::Fabs(actual - expected) < 0.05f; }
+
+bool CollisionTests(LogicProbe & probe, int cycle)
+{
+    const auto & bounds = gameLocal.clip.GetWorldBounds();
+    bool passed = Check("collision-world", bounds[0].Compare(idVec3(-64.0f, -64.0f, -8.0f), 0.001f) &&
+                                           bounds[1].Compare(idVec3(64.0f, 64.0f, 64.0f), 0.001f));
+    trace_t point{}, box{}, miss{};
+    const idVec3 start(-16.0f, 16.0f, 16.0f), end(-16.0f, 16.0f, -16.0f);
+    const bool pointHit = gameLocal.clip.TracePoint(point, start, end, CONTENTS_SOLID, nullptr);
+    const bool boxHit = gameLocal.clip.TraceBounds(box, start, end, idBounds(vec3_origin).Expand(2.0f), CONTENTS_SOLID, nullptr);
+    const bool missed = !gameLocal.clip.TracePoint(miss, start, idVec3(16.0f, 16.0f, 16.0f), CONTENTS_SOLID, nullptr);
+    passed = Check("collision-world-traces", pointHit && boxHit && missed && miss.fraction == 1.0f &&
+                                             Near(point.endpos.z, CM_CLIP_EPSILON) && Near(box.endpos.z, 2.0f + CM_CLIP_EPSILON) &&
+                                             Near(point.fraction, (16.0f - CM_CLIP_EPSILON) / 32.0f) &&
+                                             Near(box.fraction, (14.0f - CM_CLIP_EPSILON) / 32.0f) &&
+                                             point.c.entityNum == ENTITYNUM_WORLD && box.c.entityNum == ENTITYNUM_WORLD &&
+                                             point.c.normal == idVec3(0.0f, 0.0f, 1.0f) && (point.c.contents & static_cast<int>(CONTENTS_SOLID)) != 0) &&
+             passed;
+    const int inside = gameLocal.clip.Contents(idVec3(-16.0f, 16.0f, -4.0f), nullptr, mat3_identity, CONTENTS_SOLID, nullptr);
+    const int outside = gameLocal.clip.Contents(start, nullptr, mat3_identity, CONTENTS_SOLID, nullptr);
+    // Native point contents queries return all brush bits; a volume query applies the mask.
+    const int filtered = gameLocal.clip.Contents(idVec3(-16.0f, 16.0f, -4.0f), probe.GetPhysics()->GetClipModel(),
+                                                 mat3_identity, CONTENTS_BODY, &probe);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_COLLISION cycle=%d point=%.5f point_z=%.3f box=%.5f box_z=%.3f inside=%d outside=%d filtered=%d\n",
+             cycle, static_cast<double>(point.fraction), static_cast<double>(point.endpos.z),
+             static_cast<double>(box.fraction), static_cast<double>(box.endpos.z), inside, outside, filtered);
+    passed = Check("collision-contents-mask", inside == CONTENTS_SOLID && outside == 0 && filtered == 0) && passed;
+    const idVec3 entityStart(-8.0f, 0.0f, 16.0f), entityEnd(8.0f, 0.0f, 16.0f);
+    trace_t entity{}, ignored{}, disabled{}, enabled{};
+    const bool entityHit = gameLocal.clip.TracePoint(entity, entityStart, entityEnd, CONTENTS_BODY, nullptr);
+    const bool entityIgnored = !gameLocal.clip.TracePoint(ignored, entityStart, entityEnd, CONTENTS_BODY, &probe);
+    idClipModel * model = probe.GetPhysics()->GetClipModel();
+    PS2_Assert(model != nullptr && model->IsLinked());
+    model->Disable();
+    const bool entityDisabled = !gameLocal.clip.TracePoint(disabled, entityStart, entityEnd, CONTENTS_BODY, nullptr);
+    model->Enable();
+    const bool entityEnabled = gameLocal.clip.TracePoint(enabled, entityStart, entityEnd, CONTENTS_BODY, nullptr);
+    passed = Check("collision-entity-filter", entityHit && entityEnabled && entityIgnored && entityDisabled &&
+                                              entity.c.entityNum == probe.entityNumber && enabled.c.entityNum == probe.entityNumber &&
+                                              ignored.fraction == 1.0f && disabled.fraction == 1.0f && Near(entity.endpos.x, -2.25f)) &&
+             passed;
+    return passed;
 }
 void Memory(const char * stage)
 {
@@ -89,6 +153,8 @@ bool RunGameTests(const char * mode)
         {
             FatalError("native command target did not spawn with its activation event");
         }
+        passed = CollisionTests(*probe, cycle) && passed;
+        bool physicsPassed = true;
         // Native SetName binds the script's $logic_target reference before the first frame.
         bool commandPassed = gameLocal.FindEntity("logic_target") == target && gameLocal.sessionCommand.Length() == 0;
         idEntityPtr<idEntity> targetRef;
@@ -108,6 +174,14 @@ bool RunGameTests(const char * mode)
         {
             gameReturn_t result{};
             ::game->RunFrame(*commands, result);
+            const auto & position = probe->GetPhysics()->GetOrigin();
+            const float expectedX = frame < 3 ? 512.0f * static_cast<float>(gameLocal.time) * 0.001f : 21.75f;
+            const bool stopped = frame >= 3 && idMath::Fabs(probe->GetPhysics()->GetLinearVelocity().x) < 1.0f;
+            physicsPassed = Near(position.x, expectedX) && Near(position.y, 0.0f) && Near(position.z, 16.0f) &&
+                            stopped == (frame >= 3) && probe->GetPhysics()->GetClipModel()->IsLinked() && physicsPassed;
+            ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_PHYSICS cycle=%d frame=%d x=%.3f y=%.3f z=%.3f stopped=%d\n",
+                     cycle, gameLocal.GetFrameNum(), static_cast<double>(position.x), static_cast<double>(position.y),
+                     static_cast<double>(position.z), static_cast<int>(stopped));
             const char * expectedCommand = frame == kActivationFrame || frame == kDelayedActivationFrame ? kFixtureCommand : "";
             commandPassed = idStr::Cmp(result.sessionCommand, expectedCommand) == 0 &&
                             gameLocal.sessionCommand.Length() == 0 && commandPassed;
@@ -131,6 +205,7 @@ bool RunGameTests(const char * mode)
                      result.vibrationLow == 0 && result.vibrationHigh == 0 && passed;
         }
         passed = Check("native-ticks-script-events", passed) && passed;
+        passed = Check("physics-wall-stop", physicsPassed) && passed;
         passed = Check("script-target-command", commandPassed) && passed;
         passed = Check("entity-removal-cancellation", lifetimePassed && commandPassed && gameLocal.time >= kCanceledActivationMs) && passed;
         Memory("ticked");
@@ -140,6 +215,10 @@ bool RunGameTests(const char * mode)
                                        !targetRef.IsValid() && targetRef.GetEntity() == nullptr &&
                                        gameLocal.program.GetDef(&type_entity, "$logic_target", &def_namespace) == nullptr &&
                                        gameLocal.sessionCommand.Length() == 0 && gameLocal.program.FindFunction("main") == nullptr) &&
+                 passed;
+        passed = Check("collision-shutdown", ps2::heap::GetStats(TAG_COLLISION).allocationCount == 0 &&
+                                             ps2::heap::GetStats(TAG_PHYSICS_CLIP).allocationCount == 0 &&
+                                             idClipModel::TraceModelCacheSize() == 0) &&
                  passed;
         const auto stats = ps2::heap::GetTotalStats();
         if (cycle == 0)

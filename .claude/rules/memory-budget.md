@@ -7,8 +7,8 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
-After the M3 logical voice slice on 2026-10-10, debug/release fixed core ELF residency is
-1,881,264 / 1,954,480 bytes, including 459,824 bytes of BSS. Core initialization
+After the M3 collision slice on 2026-10-10, debug/release fixed core ELF residency is
+1,881,520 / 1,954,864 bytes, including 459,824 bytes of BSS. Core initialization
 requests 31,425 bytes (42,704 backing). The codec/compression synthetic peak is
 315,905 requested / 327,668 backing bytes. Both shut down to the exact process-lifetime
 baseline of 1,024 requested / 1,068 backing bytes in one allocation. dlmalloc commitment
@@ -39,8 +39,8 @@ requiring exact repeated ledger recovery; full shutdown still returns to baselin
 Shell resources, save pipelines and multiplayer matches are not initialized. The input
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
-The passing whole-object resident link with timed activation/removal has
-10,877,286 / 11,297,510 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
+The passing whole-object resident link with bounded collision/physics has
+10,881,894 / 11,303,142 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
 BSS in both configurations. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
 All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
@@ -79,6 +79,19 @@ removal the ledger is 1,494,580 / 1,588,900 / 2,307; the three-cycle peak is 1,4
 exact, and full game/decl/Common shutdown recovers 7,424 / 7,600 / 4. Arena commitment
 after tests is 1,615,514 / 1,617,178 bytes (debug/release). Entity removal does not imply
 that every native allocator returns its warmed backing immediately.
+
+The fixed floor/wall collision fixture raises game Init to 1,396,264 requested /
+1,488,684 backing bytes in 2,261 allocations. After eight ticks, requested/backing/count
+is 1,735,756 / 1,834,088 / 2,406 for brush conversion, 1,735,772 / 1,833,700 / 2,395
+for text-cache loading and 1,733,524 / 1,831,432 / 2,394 for binary-cache loading.
+Conversion scratch raises the three-cycle peak to 2,057,428 / 2,153,928 bytes;
+arena commitment after tests is 2,335,898 / 2,332,442 bytes (debug/release).
+All COLLISION/PHYSICS_CLIP allocations and the trace-model cache are released at each
+map shutdown, whose warm ledger remains exact across the different cache paths.
+The native missing-`.proc` warning retains 608 requested bytes until Common shutdown;
+portable shutdown now clears diagnostic lists before idlib teardown. Full game/decl/Common
+shutdown still recovers exactly 7,424 / 7,600 / 4. No players, AAS/PVS or sound/render
+worlds are initialized; these figures cover only the fixed collision/physics fixture.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See

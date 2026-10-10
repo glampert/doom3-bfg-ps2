@@ -3003,6 +3003,14 @@ cm_model_t * idCollisionModelManagerLocal::LoadBinaryModelFromFile( idFile *file
 	file->ReadBig( model->numSharpEdges );
 	file->ReadBig( model->numRemovedPolys );
 	file->ReadBig( model->numMergedPolys );
+	// [PS2_D3BFG]: Allocation helpers increment counters already restored from the cache.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	const int numPolygons = model->numPolygons;
+	const int numBrushes = model->numBrushes;
+	const int numNodes = model->numNodes;
+	const int numBrushRefs = model->numBrushRefs;
+	const int numPolygonRefs = model->numPolygonRefs;
+#endif
 
 	model->maxVertices = model->numVertices;
 	model->vertices = (cm_vertex_t *) Mem_ClearedAlloc( model->maxVertices * sizeof(cm_vertex_t), TAG_COLLISION );
@@ -3011,6 +3019,10 @@ cm_model_t * idCollisionModelManagerLocal::LoadBinaryModelFromFile( idFile *file
 		file->ReadBig( model->vertices[i].checkcount );
 		file->ReadBig( model->vertices[i].side );
 		file->ReadBig( model->vertices[i].sideSet );
+		// [PS2_D3BFG]: Serialized trace visitation/sidedness belongs to a previous query epoch.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		model->vertices[i].checkcount = model->vertices[i].side = model->vertices[i].sideSet = 0;
+#endif
 	}
 
 	model->maxEdges = model->numEdges;
@@ -3024,14 +3036,26 @@ cm_model_t * idCollisionModelManagerLocal::LoadBinaryModelFromFile( idFile *file
 		file->ReadBig( model->edges[i].vertexNum[0] );
 		file->ReadBig( model->edges[i].vertexNum[1] );
 		file->ReadBig( model->edges[i].normal );
+		// [PS2_D3BFG]: Recompute runtime edge tests after binary model reload.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		model->edges[i].checkcount = model->edges[i].side = model->edges[i].sideSet = 0;
+#endif
 	}
 
 	file->ReadBig( model->polygonMemory );
+	// [PS2_D3BFG]: Preserve serialized byte counts while allocations rebuild the model.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	const int polygonMemory = model->polygonMemory;
+#endif
 	model->polygonBlock = (cm_polygonBlock_t *) Mem_ClearedAlloc( sizeof( cm_polygonBlock_t ) + model->polygonMemory, TAG_COLLISION );
 	model->polygonBlock->bytesRemaining = model->polygonMemory;
 	model->polygonBlock->next = ( (byte *) model->polygonBlock ) + sizeof( cm_polygonBlock_t );
 
 	file->ReadBig( model->brushMemory );
+	// [PS2_D3BFG]: Brush allocations also update the restored memory counter.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	const int brushMemory = model->brushMemory;
+#endif
 	model->brushBlock = (cm_brushBlock_t *) Mem_ClearedAlloc( sizeof( cm_brushBlock_t ) + model->brushMemory, TAG_COLLISION );
 	model->brushBlock->bytesRemaining = model->brushMemory;
 	model->brushBlock->next = ( (byte *) model->brushBlock ) + sizeof( cm_brushBlock_t );
@@ -3067,6 +3091,10 @@ cm_model_t * idCollisionModelManagerLocal::LoadBinaryModelFromFile( idFile *file
 		file->ReadBig( polys[i]->contents );
 		file->ReadBig( polys[i]->plane );
 		file->ReadBigArray( polys[i]->edges, polys[i]->numEdges );
+		// [PS2_D3BFG]: A fresh manager must not skip polygons marked visited in the cache.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		polys[i]->checkcount = 0;
+#endif
 	}
 	for ( int i = 0; i < brushes.Num(); i++ ) {
 		int materialIndex = 0;
@@ -3081,6 +3109,10 @@ cm_model_t * idCollisionModelManagerLocal::LoadBinaryModelFromFile( idFile *file
 		file->ReadBig( brushes[i]->contents );
 		file->ReadBig( brushes[i]->primitiveNum );
 		file->ReadBigArray( brushes[i]->planes, brushes[i]->numPlanes );
+		// [PS2_D3BFG]: Reset brush visitation with the new manager's trace epoch.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		brushes[i]->checkcount = 0;
+#endif
 	}
 	struct local {
 		static void ReadNodeTree( idFile * file, cm_model_t * model, cm_node_t * node, idList< cm_polygon_t * > & polys, idList< cm_brush_t * > & brushes ) {
@@ -3118,6 +3150,16 @@ cm_model_t * idCollisionModelManagerLocal::LoadBinaryModelFromFile( idFile *file
 	assert( model->polygonRefBlocks == NULL || ( model->polygonRefBlocks->next == NULL && model->polygonRefBlocks->nextRef == NULL ) );
 	assert( model->polygonBlock->bytesRemaining == 0 );
 	assert( model->brushBlock->bytesRemaining == 0 );
+	// [PS2_D3BFG]: Restore actual counts instead of reporting serialized + allocated counts twice.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	model->numPolygons = numPolygons;
+	model->numBrushes = numBrushes;
+	model->numNodes = numNodes;
+	model->numBrushRefs = numBrushRefs;
+	model->numPolygonRefs = numPolygonRefs;
+	model->polygonMemory = polygonMemory;
+	model->brushMemory = brushMemory;
+#endif
 
 	model->usedMemory = model->numVertices * sizeof(cm_vertex_t) +
 		model->numEdges * sizeof(cm_edge_t) +

@@ -95,9 +95,13 @@ NEGATIVE_PROBES = {
 GAME_FAILURES = {
     "game-missing-map": "headless game fixture map is missing or oversized",
     "game-syntax": "script maps/logic.script:",
+    "game-geometry": "headless game fixture brush planes are unsupported",
+    "game-material": "headless game fixture brush material is unsupported",
 }
 REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/native-ticks-script-events",
                                   "game/script-target-command", "game/delayed-events-posted", "game/entity-removal-cancellation",
+                                  "game/collision-world", "game/collision-world-traces", "game/collision-contents-mask",
+                                  "game/collision-entity-filter", "game/physics-wall-stop", "game/collision-shutdown",
                                   "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
 SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -197,6 +201,26 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
             r"GAME_LIFETIME cycle=(\d+) frame=(\d+) valid=(\d+) resolved=(\d+) named=(\d+)(?:\s|$)", log)]
         expected_lifetimes = [(cycle, frame, int(frame < 7), int(frame < 7), int(frame < 7))
                               for cycle in range(3) for frame in range(1, 9)]
+        collisions = [(int(cycle), float(point), float(point_z), float(box), float(box_z),
+                       int(inside), int(outside), int(filtered))
+                      for cycle, point, point_z, box, box_z, inside, outside, filtered in re.findall(
+                          r"GAME_COLLISION cycle=(\d+) point=(\d+\.\d+) point_z=(-?\d+\.\d+) box=(\d+\.\d+) box_z=(-?\d+\.\d+) inside=(\d+) outside=(\d+) filtered=(\d+)(?:\s|$)", log)]
+        expected_collisions = [(cycle, 0.4921875, 0.25, 0.4296875, 2.25, 1, 0, 0) for cycle in range(3)]
+        def matches_collisions(expected: list) -> bool:
+            return len(collisions) == len(expected) and all(
+                actual[0] == wanted[0] and actual[5:] == wanted[5:] and
+                all(abs(actual[index] - wanted[index]) < 0.0001 for index in (1, 2, 3, 4))
+                for actual, wanted in zip(collisions, expected))
+        physics = [(int(cycle), int(frame), float(x), float(y), float(z), int(stopped))
+                   for cycle, frame, x, y, z, stopped in re.findall(
+                       r"GAME_PHYSICS cycle=(\d+) frame=(\d+) x=(-?\d+\.\d+) y=(-?\d+\.\d+) z=(-?\d+\.\d+) stopped=(\d+)(?:\s|$)", log)]
+        expected_physics = [(cycle, frame, 512 * (frame * 1000 // 60) / 1000 if frame < 3 else 21.75,
+                             0, 16, int(frame >= 3)) for cycle in range(3) for frame in range(1, 9)]
+        def matches_physics(expected: list) -> bool:
+            return len(physics) == len(expected) and all(
+                actual[:2] == wanted[:2] and actual[5] == wanted[5] and
+                all(abs(actual[index] - wanted[index]) < 0.05 for index in (2, 3, 4))
+                for actual, wanted in zip(physics, expected))
         accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
                     result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
                     all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
@@ -209,7 +233,9 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     ticks in (expected_ticks, expected_ticks + expected_ticks) and
                     commands in (expected_commands, expected_commands + expected_commands) and
                     events in (expected_events, expected_events + expected_events) and
-                    lifetimes in (expected_lifetimes, expected_lifetimes + expected_lifetimes))
+                    lifetimes in (expected_lifetimes, expected_lifetimes + expected_lifetimes) and
+                    (matches_collisions(expected_collisions) or matches_collisions(expected_collisions + expected_collisions)) and
+                    (matches_physics(expected_physics) or matches_physics(expected_physics + expected_physics)))
         return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:
@@ -385,9 +411,24 @@ def stage_game_fixtures(directory: Path, scenario: str) -> None:
         'scriptEvent void waitFrame();\nscriptEvent void activate(entity activator);\nscriptEvent void remove();\n')
     (directory / "script/doom_main.script").write_text(
         'float fixtureTicks = 0;\nvoid doom_main() {}\n')
+    (directory / "materials/fixture.mtr").write_text(
+        '_tracemodel { solid }\ntextures/fixture/solid { solid }\n')
+    def brush(bounds: tuple, material: str) -> str:
+        sides = []
+        for axis in range(3):
+            for positive in (True, False):
+                normal = [0, 0, 0]
+                normal[axis] = 1 if positive else -1
+                distance = -bounds[1][axis] if positive else bounds[0][axis]
+                sides.append(f'( {normal[0]} {normal[1]} {normal[2]} {distance} ) '
+                             f'( ( 1 0 0 ) ( 0 1 0 ) ) "{material}" 0 0 0\n')
+        return '{\nbrushDef3\n{\n' + ''.join(sides) + '}\n}\n'
     if scenario != "game-missing-map":
+        floor = ((-64, -64, -8), (2048 if scenario == "game-geometry" else 64, 64, 0))
+        material = "textures/fixture/unsafe" if scenario == "game-material" else "textures/fixture/solid"
         (directory / "maps/logic.map").write_text(
-            'Version 2\n{\n"classname" "worldspawn"\n"name" "logic_world"\n}\n')
+            'Version 2\n{\n"classname" "worldspawn"\n"name" "worldMap"\n' +
+            brush(floor, material) + brush(((24, -64, 0), (32, 64, 64)), "textures/fixture/solid") + '}\n')
     (directory / "maps/logic.script").write_text(
         'void main() { fixtureTicks = absent; }\n' if scenario == "game-syntax" else
         'void main() { while (fixtureTicks < 8) { fixtureTicks++; '
@@ -530,6 +571,13 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         "returncode_before_cleanup": returncode, "returncode_after_cleanup": process.returncode,
         "timed_out": timed_out,
     }
+    if game_scenario:
+        # Native collision startup creates the text cache, then binary cache on reload.
+        summary["generated_game_fixture_sha256"] = {
+            str(path.relative_to(output)): sha256(path)
+            for path in sorted((output / "game-fixture").rglob("*"))
+            if path.is_file() and str(path.relative_to(output)) not in metadata["game_fixture_sha256"]
+        }
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(f"{'PASS' if passed else 'FAIL'}: {reason}\nArtifacts: {output}")
     return passed, output

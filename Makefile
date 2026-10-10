@@ -321,6 +321,8 @@ test-game: headless-game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-missing-map
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-syntax
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-geometry
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-material
 
 compiledb:
 	@$(PYTHON) $(SCRIPTS)/gen_compile_commands.py --make $(MAKE) --build $(BUILD)

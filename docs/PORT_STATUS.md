@@ -6,9 +6,10 @@ offline services. The M2b campaign gate compiles all 281 retained units in debug
 release; audited JPEG/zlib integration now closes the retained resident link in both
 configurations. M2b compile/link acceptance is complete. The first partial M3 game
 fixture now runs native initialization, playerless entity/script ticks, native target
-activation, timed events, removal/cancellation and stable map reloads. Bounded logical
+activation, timed events, removal/cancellation, fixed-world collision, native physics
+wall stops and stable map reloads. Bounded logical
 PCM samples and deterministic headless voices are usable as
-standalone services. Collision/player startup, broader map loading and native sound/
+standalone services. Player/AAS/PVS startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
@@ -1287,3 +1288,86 @@ stay exact across reloads and full shutdown recovers the original pre-boot basel
 These measurements still cover only the playerless logic fixture. The next candidate
 is bounded collision/physics initialization and traces, before player simulation.
 Sound and rendering integration remain deferred.
+
+## M3 small step: bounded native collision and physics
+
+The authored map now contains exactly two six-sided axial brushes: a floor and wall,
+with stage-free solid materials. The fixture validates every plane, material and map
+key before calling native collision conversion and `idClip::Init`. Unsupported brush
+planes/materials fail in both configurations. The worldspawn uses the native collision
+model name `worldMap`; no render or sound world is initialized.
+
+Point and swept-box traces hit the floor at the native 0.25-unit clip margin. Tests
+also require inside/outside contents, volume-mask rejection, entity identity and
+pass-entity filtering, plus clip-model disable/enable. The logic probe owns a native
+`idPhysics_Monster` and moves through `idEntity::RunPhysics` each Think. With zero
+gravity and fly movement, it reaches x=8.192/16.896 on frames one/two, then stops
+around x=21.741 before the wall. Native event/script/removal checks remain active.
+
+Three cycles exercise brush conversion, text `.cm` loading and generated binary
+collision-cache loading. The binary reload exposed stale serialized trace visitation:
+its first point trace skipped the floor. Tagged portable loader fixes reset runtime
+query fields and preserve the loaded counts/byte totals that allocation helpers had
+double-counted. Missing `.proc` still emits its native optimization warning; portable
+Common shutdown now releases its retained diagnostic lists before idlib teardown.
+
+Every map shutdown must release all COLLISION/PHYSICS_CLIP allocations and empty the
+trace-model cache. Warm reload ledgers and full game/decl/Common recovery remain exact.
+This remains partial M3 acceptance. Gravity, floor contact and sliding are the next
+bounded checks, before synthetic player commands and broader authored-map startup.
+Player/AAS/PVS, retail content and sound/render integration remain pending.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` and `headless-core` | EE compile and link passed; backend/tests retain strict `-Werror` |
+| Retained resident link | 344 direct inputs, 11 registration roots, no GC, unresolved symbols or duplicates |
+| Debug/release `make test-game` | All five fresh-process scenarios passed: collision/physics/events/reloads, missing map, script error, restricted geometry and material |
+| Positive game classifier | Fifteen required checks, three event/collision traces and 24 each of tick, command, lifetime and physics traces passed |
+| Host sanitizer fixtures and classifiers | All 80 Python regressions passed; the added check rejects incomplete traces, wrong collision results, movement, wall stops and physics frame coverage |
+| Debug/release core and missing-fixture regressions | Passed with exact cleanup after the shared Common shutdown change |
+| Source inventory / compile database | Source lists unchanged; existing 458-unit inventory and 363-entry database remain valid |
+
+Each archive retains matching resident/core reports and image/map hashes. Generated
+text/binary collision caches are hashed in `summary.json` after process cleanup.
+The separate 66-process Common matrix was not rerun in this slice.
+
+Matched run identities:
+
+- Game debug/release: `20261010T084012Z_smoke_0ed7ec619587485f` /
+  `20261010T084112Z_smoke_9a86e7970fab4a49`.
+- Missing map debug/release: `20261010T084015Z_smoke_893421e6a00e4dd7` /
+  `20261010T084115Z_smoke_a6bcb38e23d24b7b`.
+- Script error debug/release: `20261010T084018Z_smoke_3580d4d1a7b14a02` /
+  `20261010T084118Z_smoke_8d99e62b62a44e27`.
+- Geometry debug/release: `20261010T084020Z_smoke_2cd931d9674348a7` /
+  `20261010T084120Z_smoke_55cc6c533bc94c58`.
+- Material debug/release: `20261010T084023Z_smoke_b8c54f2f33dc42cd` /
+  `20261010T084123Z_smoke_0e84eafd564148bc`.
+- Core debug/release: `20261010T084149Z_smoke_58acea26448a4c6c` /
+  `20261010T084256Z_smoke_b2814fb4d0cc40f1`.
+- Missing core fixture debug/release: `20261010T084647Z_smoke_9ebd381f6b53473e` /
+  `20261010T084715Z_smoke_a4e24b2d4f934eee`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,881,894 bytes | 11,303,142 bytes |
+| Resident BSS (included above) | 5,237,990 bytes | 5,237,990 bytes |
+| Core fixed `PT_LOAD` residency | 1,881,520 bytes | 1,954,864 bytes |
+| After native game Init: requested / backing / count | 1,396,264 / 1,488,684 / 2,261 | 1,396,264 / 1,488,684 / 2,261 |
+| After eight ticks, conversion: requested / backing / count | 1,735,756 / 1,834,088 / 2,406 | 1,735,756 / 1,834,088 / 2,406 |
+| After eight ticks, text cache: requested / backing / count | 1,735,772 / 1,833,700 / 2,395 | 1,735,772 / 1,833,700 / 2,395 |
+| After eight ticks, binary cache: requested / backing / count | 1,733,524 / 1,831,432 / 2,394 | 1,733,524 / 1,831,432 / 2,394 |
+| Peak requested / backing | 2,057,428 / 2,153,928 bytes | 2,057,428 / 2,153,928 bytes |
+| Arena commitment after three cycles | 2,335,898 bytes | 2,332,442 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Cache paths have different live allocation layouts, while each map shutdown returns
+to the same warm ledger. Core initialization, peak and final tagged ledgers remain
+31,425 / 42,704, 315,905 / 327,668 and 1,024 / 1,068 / 1 respectively.
+Script inline storage remains included in BSS; arena commitment already contains
+tagged backing and freed capacity. These figures exclude kernel/stacks, players,
+retail assets and real map transitions.

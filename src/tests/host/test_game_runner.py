@@ -24,6 +24,8 @@ def complete():
     for name in sorted(runner.REQUIRED_GAME_CHECKS):
         log += f"[D3BFG] CHECK {name} PASS\n"
     for cycle in range(3):
+        log += (f"[D3BFG] GAME_COLLISION cycle={cycle} point=0.49219 point_z=0.250 "
+                "box=0.42969 box_z=2.250 inside=1 outside=0 filtered=0\n")
         log += f"[D3BFG] GAME_EVENTS cycle={cycle} activation_ms=90 canceled_ms=120 posted=2\n"
         for frame in range(1, 9):
             time = frame * 1000 // 60
@@ -35,6 +37,9 @@ def complete():
             alive = int(frame < 7)
             log += (f"[D3BFG] GAME_LIFETIME cycle={cycle} frame={frame} valid={alive} "
                     f"resolved={alive} named={alive}\n")
+            x = 512 * time / 1000 if frame < 3 else 21.75
+            log += (f"[D3BFG] GAME_PHYSICS cycle={cycle} frame={frame} x={x:.3f} "
+                    f"y=0.000 z=16.000 stopped={int(frame >= 3)}\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -94,6 +99,24 @@ class GameRunnerTests(unittest.TestCase):
             (result, log.replace("[D3BFG] STAGE game BEGIN\n", ""), None, False),
         ):
             self.assertFalse(runner.classify_run("run1", "game", document, output, code, timeout)[0])
+
+    def test_game_requires_native_traces_movement_wall_stop_and_all_physics_ticks(self):
+        result, log = complete()
+        for bad in (
+            "\n".join(line for line in log.splitlines() if "GAME_COLLISION cycle=1" not in line),
+            log.replace("point=0.49219", "point=1.00000"),
+            log.replace("box_z=2.250", "box_z=0.250"),
+            log.replace("filtered=0", "filtered=1"),
+            "\n".join(line for line in log.splitlines() if "GAME_PHYSICS cycle=1 frame=3" not in line),
+            log.replace("x=8.192", "x=0.000"),
+            log.replace("x=21.750", "x=24.000"),
+            log.replace("y=0.000", "y=1.000"),
+            log.replace("z=16.000", "z=0.000"),
+            log.replace("stopped=1", "stopped=0"),
+            log.replace("stopped=0", "stopped=1"),
+        ):
+            with self.subTest(output=bad):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
 
     def test_negative_game_requires_native_init_and_first_fatal_source(self):
         for mode, message in runner.GAME_FAILURES.items():

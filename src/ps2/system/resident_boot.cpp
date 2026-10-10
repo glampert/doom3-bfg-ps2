@@ -35,7 +35,8 @@ void Manifest()
             ps2::FatalError("invalid game fixture run identity");
         }
     }
-    if (strcmp(s_mode, "game") != 0 && strcmp(s_mode, "game-missing-map") != 0 && strcmp(s_mode, "game-syntax") != 0)
+    if (strcmp(s_mode, "game") != 0 && strcmp(s_mode, "game-missing-map") != 0 && strcmp(s_mode, "game-syntax") != 0 &&
+        strcmp(s_mode, "game-geometry") != 0 && strcmp(s_mode, "game-material") != 0)
     {
         ps2::FatalError("invalid game fixture mode");
     }

@@ -224,9 +224,10 @@ math path; PS2-specific math replacement headers are a later milestone.
   fixtures must provide both `script/doom_main.script` and `script/doom_defs.script`.
   Unlike the isolated compiler probe, game initialization installs the real event and
   class registries (535 event definitions and 159 classes, including the logic probe).
-- `InitHeadlessFixture` accepts only the bounded worldspawn-only map, rejects geometry
-  and resource/physics keys, and runs native `InitScriptForMap`/`SpawnMapEntities`.
-  It does not call regular `InitFromNewMap`, whose collision/PVS/player/resource setup
+- `InitHeadlessFixture` accepts only the bounded worldspawn map with two fixed axial
+  collision brushes, validates every plane/material before collision conversion,
+  rejects resource/physics keys and runs native `InitScriptForMap`/`SpawnMapEntities`.
+  It does not call regular `InitFromNewMap`, whose AAS/PVS/player/resource setup
   remains pending. Only explicit fixture mode permits native `RunFrame` with a null
   render world and no clients, suppressing player synchronization/debug drawing while
   retaining native clocks, entity Think, interpreter and event service loops.
@@ -237,7 +238,7 @@ math path; PS2-specific math replacement headers are a later milestone.
   game frames, not wall-clock sleeps.
 - Native `MapShutdown` cancels pending script/event work and resets map definitions.
   Three logic-map reloads recover the same warm ledger; full game/decl/Common shutdown
-  recovers the pre-boot baseline. Sound/render worlds, collision/PVS and players remain
+  recovers the pre-boot baseline. Sound/render worlds, AAS/PVS and players remain
   uninitialized. Extend headless simulation before sound/render integration.
 - `$name` script references bind when native `idEntity::SetName` calls `program.SetEntity`.
   If the reference is compiled after the entity was named, it stays null until rebound.
@@ -264,3 +265,32 @@ math path; PS2-specific math replacement headers are a later milestone.
   script `$name` definition is a numeric entity slot, not an `idEntityPtr`; map program
   reset removes that definition. Do not infer generation safety for script references
   from the cached native handle check.
+
+## Native collision fixture
+
+- Native `idClip::Init` loads the model named `worldMap`. Collision conversion takes
+  an entity's `model` or `name` before falling back to that name; the authored
+  worldspawn uses `worldMap` to avoid an unintended model-loading fallback.
+  `_tracemodel` must be explicitly declared. Both it and the fixed brush material
+  use a stage-free `solid` definition, preserving collision bits without images.
+- Native point `Contents` takes the fast point path and returns unmasked brush bits.
+  A nonempty trace-model volume applies `contentMask`. Use volume queries to test
+  contents filtering; retain the upstream distinction instead of assuming identical
+  point/volume semantics.
+- Three reloads exercise brush conversion and `.cm` writing, text `.cm` parsing and
+  generated `.bcm` writing, then binary loading. The binary loader used to retain
+  serialized visitation/sidedness from another trace epoch: the first point trace
+  on the third load missed the floor. Portable loading now resets vertex/edge,
+  polygon and brush runtime query state. Allocation helpers also increment already
+  restored counters; preserve the serialized counts/byte totals for correct statistics.
+- Missing `.proc` is a native collision-optimization warning; brush conversion still
+  succeeds without render-world topology. Portable Common shutdown must clear native
+  warning/error lists before idlib teardown. The first fixture run exposed 608 requested
+  bytes retained by its warning list/string; shutdown now recovers the exact baseline
+  while preserving the diagnostic.
+- Native `CM_CLIP_EPSILON` is 0.25 units. Downward point/2-unit box traces stop at
+  z=0.25/2.25. The 2-unit physics probe runs `idEntity::RunPhysics` with native
+  `idPhysics_Monster`, zero gravity and fly movement. It reaches x=8.192/16.896 on
+  frames one/two and stops around x=21.741 before the wall at x=24. The small offset
+  below 21.75 comes from native overclip; this establishes neither grounded movement
+  nor AI/player simulation.

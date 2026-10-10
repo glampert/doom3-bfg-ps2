@@ -52,8 +52,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   validates the retained-object resident link, registrations and map coverage under
   `build/<config>/resident/`. `make headless-game` selects that resident fixture ELF;
   `make test-game` checks native startup, playerless entity/script ticks and reloads,
-  plus missing-map and script-error failures in fresh emulator processes.
-  Collision/player startup and general campaign maps remain later gates. Prioritize
+  plus missing-map, script-error and restricted geometry/material failures in fresh emulator processes.
+  Fixed floor/wall collision and a native physics probe are covered; player/AAS/PVS
+  startup and general campaign maps remain later gates. Prioritize
   headless simulation; sound and rendering integration follow at a later stage.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests

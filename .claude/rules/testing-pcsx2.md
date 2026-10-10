@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 47 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 48 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 79 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 80 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -141,17 +141,20 @@
   inputs, non-executables and ignored undefined diagnostics.
 
 - `make headless-game` builds `build/<config>/resident/d3bfg.elf`. `make test-game`
-  runs `game`, `game-missing-map` and `game-syntax` sequentially in fresh processes;
+  runs `game`, `game-missing-map`, `game-syntax`, `game-geometry` and `game-material`
+  sequentially in fresh processes;
   `make BUILD=release test-game` selects assertions-disabled validation. To run one
   scenario directly, pass the resident ELF with `--elf` to `run_pcsx2_test.py`.
   Core scenarios still require the separate core ELF.
 - Game runs stage `game.manifest`, minimal declarations, default script/defines and
-  a worldspawn logic map/script under `game-fixture/`. The native filesystem needs
+  a worldspawn floor/wall map/script and stage-free collision materials under `game-fixture/`. The native filesystem needs
   both `fs_game` and its search-path gamedir set to that root for relative script paths.
   No core filesystem substitute or retail containers are used. Resident report/image/map
   hashes and flags must match before launch; authored file hashes are archived too.
-- A game pass requires the matching closed JSON, begin/final markers, all nine `game/`
-  checks and exactly three cycles of eight frame/entity/script, command and lifetime traces at
+  Generated text/binary collision caches remain in the archive and are hashed in
+  `summary.json` after process cleanup.
+- A game pass requires the matching closed JSON, begin/final markers, all fifteen `game/`
+  checks and exactly three cycles of eight frame/entity/script, command, lifetime and physics traces at
   native 60 Hz.
   Checks cover native initialization, logic world, ticks/script events, map shutdown,
   native script target activation, successful delayed-event posting, removal/cancellation,
@@ -165,16 +168,24 @@
   through frame six and invalid/absent on frames seven and eight. The empty return at
   133 ms verifies cancellation of the 120 ms event. Early/late,
   missing, repeated or unconsumed commands fail even with PASS check markers.
+  Three `GAME_COLLISION` traces require matching point/box fractions and z endpoints,
+  inside/outside contents and volume-mask rejection. Four collision checks also require
+  fixed world bounds, entity identity/pass-entity filtering and clip disable/enable.
+  `GAME_PHYSICS` must move x to 8.192/16.896 on the first two frames and stay within
+  0.05 of 21.75 from frame three, with y=0/z=16 and wall-clipped velocity. These
+  checks must pass on conversion, text-cache and binary-cache loads. Map shutdown
+  requires zero COLLISION/PHYSICS_CLIP allocations and an empty trace-model cache.
   `core SKIP` means the core test suite was not run, although staged Common foundation
   startup executes.
   The entry's platform marker covers manifest/host I/O, not the SDK-only platform suite.
 - Game negatives must observe native initialization and the correct first fatal after
   game startup: the missing-map diagnostic or a source-located `maps/logic.script`
-  error. A result file, wrong source, unrelated first fatal, bus/TLB error, watchdog
-  or nonzero emulator status fails. Six host regressions verify these classifications
+  error, or the geometry/material restriction diagnostic before collision loading.
+  A result file, wrong source, unrelated first fatal, bus/TLB error, watchdog
+  or nonzero emulator status fails. Seven host regressions verify these classifications
   and resident archive identity; target debug/release runs are required too.
 - This is playerless logic-map acceptance: native entity thinking, script `waitFrame`
-  scheduling and map teardown run, while collision/AAS/PVS, player commands, sound/
+  scheduling, bounded collision/physics and map teardown run, while AAS/PVS, player commands, sound/
   render worlds and regular campaign map loading remain pending. Sound and rendering
   integration are deferred while the headless gameplay fixture grows.
 
