@@ -121,7 +121,8 @@ math path; PS2-specific math replacement headers are a later milestone.
   `RunGameAndDraw` calls `Run` synchronously regardless of forced cvar writes. The
   foundation frame currently pumps commands and offline users only. Static game API
   import uses C linkage and validates `GAME_API_VERSION`/both exported interfaces, but
-  has compile acceptance only until resident game initialization exists.
+  is exercised by native `idGameLocal::Init` in the resident logic fixture. The
+  foundation still does not initialize the game.
 - Offline profiles use native engine stats/128 achievement bits with no save processors
   or persistence. Default profile lookup shares the active profile without resetting it.
   Re-registration resets the transient lifetime; storage queries fail,
@@ -210,3 +211,31 @@ math path; PS2-specific math replacement headers are a later milestone.
   valid query, while live dimensions, allocation and submission fail until implemented.
   Preserve referenced frontend cvar defaults/flags/bounds. Unloaded image metadata and
   empty buffer cleanup must not claim a loaded resource or mutate the heap ledger.
+
+## Initial native game fixture
+
+- Explicitly select `ps2::gamefixture::Enable` before Common startup. Native filesystem
+  Init then selects only `host:game-fixture`, with matching `fs_game`/search gamedir.
+  This preserves native listing/permanent streams and correct relative script paths,
+  without desktop default.cfg or retail container initialization. It is separate from
+  the core fixture filesystem and from ordinary campaign startup.
+- Native game Init needs an `aas_types` declaration even when no AAS instances are
+  requested. `SCRIPT_DEFAULT` implicitly includes `SCRIPT_DEFAULTDEFS`; authored
+  fixtures must provide both `script/doom_main.script` and `script/doom_defs.script`.
+  Unlike the isolated compiler probe, game initialization installs the real event and
+  class registries (535 event definitions and 159 classes, including the logic probe).
+- `InitHeadlessFixture` accepts only the bounded worldspawn-only map, rejects geometry
+  and resource/physics keys, and runs native `InitScriptForMap`/`SpawnMapEntities`.
+  It does not call regular `InitFromNewMap`, whose collision/PVS/player/resource setup
+  remains pending. Only explicit fixture mode permits native `RunFrame` with a null
+  render world and no clients, suppressing player synchronization/debug drawing while
+  retaining native clocks, entity Think, interpreter and event service loops.
+- Worldspawn's thread `DelayedStart(0)` at game time zero schedules execution for at
+  least 1 ms, so map `main` starts on the first native frame. A script that increments
+  before `sys.waitFrame` advances once per frame; placing the increment after the wait
+  shifts its first effect to the second frame. Native wait events resume on later
+  game frames, not wall-clock sleeps.
+- Native `MapShutdown` cancels pending script/event work and resets map definitions.
+  Three logic-map reloads recover the same warm ledger; full game/decl/Common shutdown
+  recovers the pre-boot baseline. Sound/render worlds, collision/PVS and players remain
+  uninitialized. Extend headless simulation before sound/render integration.

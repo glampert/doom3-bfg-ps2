@@ -92,7 +92,13 @@ NEGATIVE_PROBES = {
     "renderer-cinematic": "renderer capability unavailable: idCinematic::Alloc",
     "renderer-demo": "renderer capability unavailable: idRenderSystemLocal::WriteDemoPics",
 }
-SCENARIOS = ("platform", "core", "core-missing-fixture") + tuple(
+GAME_FAILURES = {
+    "game-missing-map": "headless game fixture map is missing or oversized",
+    "game-syntax": "script maps/logic.script:",
+}
+REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/native-ticks-script-events",
+                                  "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
+SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
 CRASH_RE = re.compile(r"TLB Miss|\[D3BFG\] FATAL|Assertion failed|Bus error", re.IGNORECASE)
 VERSION_RE = re.compile(
@@ -162,6 +168,33 @@ def read_result(path: Path) -> dict | None:
 def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                  returncode: int | None, timed_out: bool) -> tuple[bool, str]:
     """A process exiting successfully is insufficient: target identity, stages and result must agree."""
+    if scenario in GAME_FAILURES:
+        begin = log.find("[D3BFG] STAGE game BEGIN")
+        fatal = log.find("[D3BFG] FATAL", begin) if begin >= 0 else -1
+        diagnostic = log[fatal:].splitlines()[0] if fatal >= 0 else ""
+        accepted = (not timed_out and returncode in (None, 0) and result is None and
+                    not re.search(r"TLB Miss|Bus error|returned unexpectedly", log, re.IGNORECASE) and
+                    f"[D3BFG] RUN {test_id} BEGIN" in log and
+                    "[D3BFG] CHECK game/native-init PASS" in log and
+                    GAME_FAILURES[scenario] in diagnostic)
+        return accepted, "expected game fatal observed" if accepted else "missing expected game fatal"
+    if scenario == "game":
+        checks = CHECK_RE.findall(log)
+        ticks = [tuple(map(int, match)) for match in re.findall(
+            r"GAME_TICK cycle=(\d+) frame=(\d+) time=(\d+) expected=(\d+) think=(\d+) script=(\d+)(?:\s|$)", log)]
+        expected_ticks = [(cycle, frame, frame * 1000 // 60, frame * 1000 // 60, frame, frame)
+                          for cycle in range(3) for frame in range(1, 9)]
+        accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
+                    result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
+                    all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
+                    result.get("core") == "SKIP" and
+                    f"[D3BFG] RUN {test_id} BEGIN" in log and "[D3BFG] STAGE game BEGIN" in log and
+                    "[D3BFG] STAGE game PASS" in log and
+                    f"[D3BFG] RESULT {test_id} PASS" in log and
+                    REQUIRED_GAME_CHECKS.issubset({name for name, status in checks if status == "PASS"}) and
+                    not any(status == "FAIL" for name, status in checks) and
+                    ticks in (expected_ticks, expected_ticks + expected_ticks))
+        return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:
             return False, "watchdog timeout"
@@ -303,6 +336,46 @@ def archive_build_artifacts(elf: Path, staged_elf: Path, staged_symbols: Path, o
     return hashes
 
 
+def archive_resident_artifacts(elf: Path, staged_elf: Path, symbols: Path, output: Path) -> dict:
+    source = elf.parent
+    report = json.loads((source / "report.json").read_text())
+    if (report.get("passed") is not True or report.get("garbage_collection") is not False or
+            not report.get("registrations") or not all(report["registrations"].values()) or
+            report.get("object_count", 0) <= 0 or report.get("unresolved") != [] or
+            report.get("duplicate_definitions") != [] or report.get("missing_map_objects") != [] or
+            report.get("elf_sha256") != sha256(symbols) or
+            report.get("runnable_elf_sha256") != sha256(staged_elf) or
+            report.get("link_map_sha256") != sha256(source / "d3bfg.map")):
+        raise ValueError("resident report does not match the staged game images and map")
+    hashes = {}
+    for name in ("report.json", "report.txt", "d3bfg.map", "objects.rsp"):
+        shutil.copy2(source / name, output / name)
+        hashes[name] = sha256(output / name)
+    for path, expected in report["flag_stamps"].items():
+        stamp = REPO_ROOT / path
+        if json.loads(stamp.read_text()) != expected:
+            raise ValueError("resident build flags changed; rebuild before running")
+        shutil.copy2(stamp, output / stamp.name)
+        hashes[stamp.name] = sha256(stamp)
+    return hashes
+
+
+def stage_game_fixtures(directory: Path, scenario: str) -> None:
+    for folder in ("def", "maps", "script", "materials", "fx", "particles", "af", "newpdas"):
+        (directory / folder).mkdir(parents=True, exist_ok=True)
+    (directory / "def/fixture.def").write_text(
+        'entityDef aas_types {}\nentityDef worldspawn { "spawnclass" "idWorldspawn" "noclipmodel" "1" }\n')
+    (directory / "script/doom_defs.script").write_text('scriptEvent void waitFrame();\n')
+    (directory / "script/doom_main.script").write_text(
+        'float fixtureTicks = 0;\nvoid doom_main() {}\n')
+    if scenario != "game-missing-map":
+        (directory / "maps/logic.map").write_text(
+            'Version 2\n{\n"classname" "worldspawn"\n"name" "logic_world"\n}\n')
+    (directory / "maps/logic.script").write_text(
+        'void main() { fixtureTicks = absent; }\n' if scenario == "game-syntax" else
+        'void main() { while (fixtureTicks < 8) { fixtureTicks++; sys.waitFrame(); } }\n')
+
+
 def stage_audio_fixtures(directory: Path) -> None:
     """Authored PCM only; never copy retail assets into smoke archives."""
     directory.mkdir(parents=True)
@@ -352,7 +425,12 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
     shutil.copy2(elf, staged_elf)
     shutil.copy2(symbols, output / "d3bfg_unstripped.elf")
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
-    build_artifacts = archive_build_artifacts(elf, staged_elf, output / "d3bfg_unstripped.elf", output)
+    game_scenario = args.scenario == "game" or args.scenario in GAME_FAILURES
+    archive = archive_resident_artifacts if game_scenario else archive_build_artifacts
+    build_artifacts = archive(elf, staged_elf, output / "d3bfg_unstripped.elf", output)
+    if game_scenario:
+        stage_game_fixtures(output / "game-fixture", args.scenario)
+        (output / "game.manifest").write_text(f"D3BFG_GAME_1\n{test_id}\n{args.scenario}\n")
 
     fixture = output / "fixture.txt"
     if args.scenario != "core-missing-fixture":
@@ -361,7 +439,7 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         else:
             fixture.write_text("D3BFG core fixture\n", encoding="ascii")
     smoke_config = output / "smoke.cfg"
-    if args.scenario != "platform":
+    if args.scenario != "platform" and not game_scenario:
         smoke_config.write_text("set ps2_smoke_config 37\nps2_smoke_command 77\n", encoding="ascii")
         fs_fixtures = output / "fs-fixtures"
         (fs_fixtures / "child").mkdir(parents=True)
@@ -391,6 +469,11 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
             str(path.relative_to(output)): sha256(path)
             for path in sorted((output / "audio-fixtures").glob("*.wav"))
         },
+        "game_fixture_sha256": {
+            str(path.relative_to(output)): sha256(path)
+            for path in sorted((output / "game-fixture").rglob("*")) if path.is_file()
+        },
+        "game_manifest_sha256": sha256(output / "game.manifest") if game_scenario else None,
         "build_artifact_sha256": build_artifacts,
         "config_sha256": sha256(args.config), "emulator": str(emulator),
         "emulator_version": version, "command": command,
@@ -409,7 +492,7 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 returncode = process.poll()
                 # Wait for both a closed result and a final marker, which stdout can lag behind.
                 has_completion = f"[D3BFG] RESULT {test_id} " in log
-                if args.scenario in NEGATIVE_PROBES and classify_run(test_id, args.scenario, result, log, returncode, False)[0]:
+                if (args.scenario in NEGATIVE_PROBES or args.scenario in GAME_FAILURES) and classify_run(test_id, args.scenario, result, log, returncode, False)[0]:
                     break
                 if (result is not None and has_completion) or returncode is not None or CRASH_RE.search(log):
                     break

@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 29 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 33 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 73 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 77 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -132,13 +132,39 @@
   with the expected fatal on the EE. Host sanitizer checks also verify full decoder/output
   cleanup before fatal. Codec memory uses the same heap through native JPG/ZIP tags.
 
-- `make link-game` passes the retained compile/link gate in debug/release: all 342 inputs,
+- `make link-game` passes the retained compile/link gate in debug/release: all 344 inputs,
   every required game/class/cvar registration root and map input are retained without
-  unresolved symbols, duplicates, Classic imports or GC. Its resident entry still fails
-  explicitly until M3 startup. Do not reuse an older resident ELF after a failed attempt.
+  unresolved symbols, duplicates, Classic imports or GC. Its resident entry requires
+  an explicit authored fixture manifest. Do not reuse an older resident ELF after a failed attempt.
   The default runnable ELF remains the validated core/codec/audio fixture.
   Six host regressions reject stale images, nonzero links, missing registrations/map
   inputs, non-executables and ignored undefined diagnostics.
+
+- `make headless-game` builds `build/<config>/resident/d3bfg.elf`. `make test-game`
+  runs `game`, `game-missing-map` and `game-syntax` sequentially in fresh processes;
+  `make BUILD=release test-game` selects assertions-disabled validation. To run one
+  scenario directly, pass the resident ELF with `--elf` to `run_pcsx2_test.py`.
+  Core scenarios still require the separate core ELF.
+- Game runs stage `game.manifest`, minimal declarations, default script/defines and
+  a worldspawn logic map/script under `game-fixture/`. The native filesystem needs
+  both `fs_game` and its search-path gamedir set to that root for relative script paths.
+  No core filesystem substitute or retail containers are used. Resident report/image/map
+  hashes and flags must match before launch; authored file hashes are archived too.
+- A game pass requires the matching closed JSON, begin/final markers, all six `game/`
+  checks and exactly three cycles of eight frame/entity/script traces at native 60 Hz.
+  Checks cover native initialization, logic world, ticks/script events, map shutdown,
+  stable warm reload accounting and full pre-boot ledger recovery. `core SKIP` means
+  the core test suite was not run, although staged Common foundation startup executes.
+  The entry's platform marker covers manifest/host I/O, not the SDK-only platform suite.
+- Game negatives must observe native initialization and the correct first fatal after
+  game startup: the missing-map diagnostic or a source-located `maps/logic.script`
+  error. A result file, wrong source, unrelated first fatal, bus/TLB error, watchdog
+  or nonzero emulator status fails. Four host regressions verify these classifications
+  and resident archive identity; target debug/release runs are required too.
+- This is playerless logic-map acceptance: native entity thinking, script `waitFrame`
+  scheduling and map teardown run, while collision/AAS/PVS, player commands, sound/
+  render worlds and regular campaign map loading remain pending. Sound and rendering
+  integration are deferred while the headless gameplay fixture grows.
 
 ## Quake II reference procedures
 

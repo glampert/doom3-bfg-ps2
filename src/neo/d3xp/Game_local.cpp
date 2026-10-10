@@ -30,6 +30,10 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "Game_local.h"
+// [PS2_D3BFG]: Allow explicitly selected playerless fixtures to tick without presentation.
+#if defined( ID_PS2 )
+#include "ps2/game/headless_fixture.h"
+#endif
 
 #ifdef GAME_DLL
 
@@ -2277,18 +2281,28 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 	}
 #endif
 
-	if ( gameRenderWorld == NULL ) {
-		return;
+	// [PS2_D3BFG]: Logic fixtures use the real frame/event loop without a render world or players.
+#if defined( ID_PS2 )
+	if ( ps2::gamefixture::IsEnabled() ) {
+		if ( gamestate != GAMESTATE_ACTIVE || gameRenderWorld != NULL || numClients != 0 ) {
+			Error( "invalid headless fixture frame state" );
+		}
+	} else
+#endif
+	{
+		if ( gameRenderWorld == NULL ) {
+			return;
+		}
+		SyncPlayersWithLobbyUsers( false );
 	}
-
-	SyncPlayersWithLobbyUsers( false );
 	ServerSendNetworkSyncCvars();
 
 	player = GetLocalPlayer();
 
 	if ( !common->IsMultiplayer() && g_stopTime.GetBool() ) {
 		// clear any debug lines from a previous frame
-		gameRenderWorld->DebugClearLines( time + 1 );
+		// [PS2_D3BFG]: A logic fixture has no debug drawing world.
+		if ( gameRenderWorld != NULL ) { gameRenderWorld->DebugClearLines( time + 1 ); }
 
 		// set the user commands for this frame
 		if ( player ) {
@@ -2332,10 +2346,12 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 		}
 
 		// clear any debug lines from a previous frame
-		gameRenderWorld->DebugClearLines( time );
+		// [PS2_D3BFG]: A logic fixture has no debug drawing world.
+		if ( gameRenderWorld != NULL ) { gameRenderWorld->DebugClearLines( time ); }
 
 		// clear any debug polygons from a previous frame
-		gameRenderWorld->DebugClearPolygons( time );
+		// [PS2_D3BFG]: A logic fixture has no debug drawing world.
+		if ( gameRenderWorld != NULL ) { gameRenderWorld->DebugClearPolygons( time ); }
 
 		// free old smoke particles
 		smokeParticles->FreeSmokes();
@@ -2456,8 +2472,11 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 	}
 
 	// show any debug info for this frame
-	RunDebugInfo();
-	D_DrawDebugLines();
+	// [PS2_D3BFG]: Presentation diagnostics require a render world.
+	if ( gameRenderWorld != NULL ) {
+		RunDebugInfo();
+		D_DrawDebugLines();
+	}
 
 	if ( g_recordTrace.GetBool() ) {
 		EndTraceRecording();

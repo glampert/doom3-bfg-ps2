@@ -19,7 +19,7 @@ Scope decisions for this plan:
 ## 2. Evidence from this checkout and machine
 
 The initial M0–M2 foundation is implemented. Current acceptance results, memory
-measurements and the next campaign compile blocker are recorded in
+measurements and the remaining game-fixture work are recorded in
 [PORT_STATUS.md](PORT_STATUS.md). The inspection below predates implementation;
 its `neo/` paths now live under `src/neo/`, and the reference Makefile is preserved at
 `docs/reference/quake2.Makefile`.
@@ -400,7 +400,7 @@ Work in small commits; each implementation commit states its behavior change and
 | **M1: core EE portability and compilation** | Header/platform split; scalar idlib; heap/error/RTTI changes required by core; platform services; explicit campaign compile manifest | Core EE objects compile with required language restrictions; new code passes strict warnings; linkable platform probe plus explicit remaining game blockers; this is partial engine compilation |
 | **M2: platform and core headless boot** | Runtime entry/IOP/logging; timer/heap tests; synchronous jobs; staged Common init; test runner and fixture root | PCSX2 emits distinct platform/core PASS results; real Doom command/CVar/filesystem services exercised; bounded run and useful negative-test failures; recorded image/startup memory |
 | **M2b: campaign source compile and resident link** | Complete no-exception/no-RTTI conversion for the intended runtime manifest, including game/script and required UI interfaces; supply declared subsystem replacements | `make compile-game` passes for every intended runtime unit; link the game-fixture ELF with no unresolved symbols or desktop/classic dependencies; verify class/CVar registrations and retained code in its map; explicitly list replacements and deferred source-import/editor features |
-| **M3: headless game fixture** | Decl/script/error propagation; logical render/sound contracts; offline session; collision/AAS/game registration; tiny authored map and scripts | `idGameLocal` initializes and advances deterministic game ticks; entity/script/collision assertions pass; malformed input fails usefully; memory stabilizes on reload |
+| **M3: headless game fixture** | Native decl/script/event/game startup first; playerless authored logic map, then collision/AAS and gameplay; render/sound integration deferred | Initial boot/entity/script ticks and stable reloads now pass; full M3 still requires collision/gameplay assertions and broader authored map startup |
 | **M4: GS primitives and capture** | Reused GS/VRAM/packet layer; CPU triangle path; image readback and host comparison | Captured color grid, textured/depth-tested geometry, clipping/alpha/CLUT fixtures pass; readback failure restores state; captures are visually inspected |
 | **M5: inventory/converter and one campaign map** | Asset inventory, first versioned formats, bounded resource loader; first real map headless, then static textured world | Conversion report and hashes reproducible; map scripts/collision/portals load within budget; captured fixed-camera views have correct geometry/material placement |
 | **M6: gameplay rendering and presentation** | MD5 animation/skinning, simplified lighting/flashlight, input, essential HUD/PDA/world GUI, sound | Playable scripted section with enemy/weapon/door/light/UI interactions; deterministic captures and state checks; no missing essential UI or silent timing breakage |
@@ -408,6 +408,13 @@ Work in small commits; each implementation commit states its behavior change and
 | **M8: saves, campaign sweep and release work** | Bounded saves/card devices; campaign regression matrix; physical storage; packaging and docs | Save/load and progression tests pass; debug/release and hardware validation recorded; classic tree deleted once uncoupled; reproducible local release package |
 
 M2b is required before M3. M4 and the host asset inventory can proceed independently after M2 while M2b/M3 mature. The first retail-map trial requires both game initialization and compatible converted content. Optimization should not conceal unresolved loading/gameplay failures.
+
+The user's current priority is a simple headless game boot and tick. Extend the authored
+simulation fixture before bringing sound or rendering online. The initial fixture may
+explicitly omit players, collision and presentation; it must exercise native game
+startup, frame/entity logic and script scheduling, and record those limits. Add collision,
+event-driven gameplay and synthetic commands in subsequent slices. Full M3 acceptance
+still requires the applicable simulation contracts; device output is a later milestone.
 
 Suggested first implementation commits after approval:
 
@@ -422,7 +429,7 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 ## 13. Open inputs and decision points
 
-- **Approval:** M0–M2 passed; the user has asked to continue the plan. M2b campaign compile/link acceptance is complete; M3 logical services and game-fixture startup are next.
+- **Approval:** M0–M2 and M2b compile/link passed. The user prioritizes headless game simulation before sound/rendering integration. Initial M3 playerless boot/ticks/reloads now pass; collision/gameplay and broader map startup follow.
 - **Retail data:** the user supplied BFG assets in `gamedata/d3_bfg/` and separate RoE reference assets in `gamedata/d3_roe/`. Inventory the BFG resource containers and resolve logical runtime paths before a campaign initialization claim. Core and synthetic tests remain independent of them.
 - **Reuse notices:** the user authorizes GPL v3 reuse of reference code they own. Preserve third-party notices and record each import in `docs/REUSE.md`.
 - **Hardware:** establish access and the preferred transfer/storage method before requiring physical-console acceptance. PCSX2 can support the initial milestones.
@@ -432,13 +439,14 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 The initial M0–M2 scope (core compilation and headless boot) is complete. The completed
 M2b slice supplies campaign portability, explicit error/type handling, typed subsystem
 replacements and audited codecs. M3 logical sound samples and explicit headless voices
-are now supplied; remaining logical services and game-fixture startup follow. Progress
+are supplied as standalone services; the first playerless game fixture now boots and
+ticks native entities/scripts with exact reload/shutdown accounting. Progress
 and acceptance evidence are recorded in [PORT_STATUS.md](PORT_STATUS.md).
 The current core runs real `idCommonLocal::Init` / `Shutdown` through completed-stage
 tracking for system, idlib, commands, cvars, fixture filesystem, synchronous jobs and
 one offline user/session. Game/presentation/save stages are deliberately deferred.
 Classic framebuffer residency and portable startup/frame references are removed; the
-static game API import path compiles but is not exercised until the resident game link.
+static game API import path is exercised by the resident fixture during native game initialization.
 The campaign gate now compiles all 281 retained units in debug and release, including
 campaign achievements with Classic evaluation gated. The logical sound header uses
 `ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
@@ -450,17 +458,24 @@ a bounded 48-slot pool that pins sample lifetimes. It requires an explicit monot
 headless clock; native sound-world/channel integration, compressed retail samples and
 physical audio remain pending.
 `make link-game` now passes the M2b retained-object gate in both configurations: all
-342 inputs, 11 game/class/cvar registration roots and map inputs are present, without
+344 inputs, 11 game/class/cvar registration roots and map inputs are present, without
 unresolved symbols, duplicates, Classic/desktop imports or garbage collection. Bundled
 JPEG/zlib dependencies are under `src/external/`, explicitly selected with separate
 vendor flags and strict tagged allocator hooks. Their bounded SWF JPEG and streaming
-zlib fixtures run on the EE. The linked entry still explicitly rejects execution until
-M3 startup; no resident game runtime is accepted. Common/OS metadata, rejected source
+zlib fixtures run on the EE. The linked entry requires an explicit authored game manifest.
+Native declarations, class/event registries, script compilation/interpreter execution,
+worldspawn map parsing and eight native frames over three reloads pass in debug/release.
+The fixture keeps render/sound worlds null and uses a bounded startup path separate from
+regular `InitFromNewMap`; player, collision/AAS/PVS and retail map startup remain pending.
+Common/OS metadata, rejected source
 imports, typed renderer/input interfaces and deferred game/UI providers are supplied.
 Renderer initialization, resource loading, queries requiring
 live state and drawing fail explicitly. Offline multiplayer lifecycle and native save
 description ownership are tested. Native input action metadata is supplied, but sampling
 and player-command generation fail explicitly. Shell, multiplayer, physical input and
 physical saves remain unavailable.
-Meaningful logical render contracts still follow the resident link. Acceptance evidence
-must retain these boundaries: no game ticks, interpreter execution or map loading yet.
+Meaningful logical render contracts and native sound-world integration are deferred while
+the headless simulation fixture grows. Next candidates are native event-driven entity
+behavior and a bounded collision fixture, followed by synthetic player commands when
+their simulation dependencies exist. The current logic map does not establish general
+campaign loading, player/AI behavior or full M3 completion.

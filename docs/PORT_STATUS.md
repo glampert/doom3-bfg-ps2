@@ -1,12 +1,14 @@
-# Port status and EE foundation acceptance
+# Port status and headless acceptance
 
 M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. The current
 foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core and
 offline services. The M2b campaign gate compiles all 281 retained units in debug and
 release; audited JPEG/zlib integration now closes the retained resident link in both
-configurations. M2b compile/link acceptance is complete. M3 prerequisites now supply
-bounded logical PCM samples and deterministic headless voice timing/pool ownership;
-native sound-world integration, render contracts and game initialization remain pending.
+configurations. M2b compile/link acceptance is complete. The first partial M3 game
+fixture now runs native initialization, playerless entity/script ticks and stable map
+reloads. Bounded logical PCM samples and deterministic headless voices are usable as
+standalone services. Collision/player startup, broader map loading and native sound/
+render integration remain pending; headless gameplay work takes priority.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
 
@@ -1095,3 +1097,90 @@ backing is already contained within them. The 48-slot pool is a logical-state li
 not a physical SPU2 voice budget. Resident sizes still describe a static image whose
 entry rejects game startup; full sound worlds, retail caches and transition peaks remain
 unmeasured.
+
+## M3 initial game fixture: native boot and playerless ticks
+
+The user prioritized getting a simple headless game boot/tick before sound or rendering
+integration. The retained resident ELF now has an explicit manifest-selected logic
+fixture entry. It runs staged native Common foundation startup, the real loose-file
+filesystem and declaration manager, versioned `GetGameAPI` imports, and native
+`idGameLocal::Init`. Native event/class registration reports 535 event definitions,
+159 classes (including the logic probe), and 496,480 bytes of event callbacks.
+
+The runner authors minimal declarations, both mandatory default script files, and a
+worldspawn-only `.map`/script. The fixture's startup method bounds the map to 64 KiB,
+rejects primitives and unsupported keys, parses it with `idMapFile`, and runs native
+`InitScriptForMap` and `SpawnMapEntities`. A test entity is created through the real
+class factory and spawn chain. Every cycle must advance eight native `RunFrame` calls,
+eight entity `Think` calls and eight script increments through native `sys.waitFrame`
+events. Native 60 Hz time advances to 133 ms by frame eight. Worldspawn's delayed script
+starts on the first frame; work after a `waitFrame` resumes on a later native frame.
+
+Three cycles perform native map shutdown and reload. Pending thread/events are canceled,
+map script definitions reset and each warm reload recovers the same tagged ledger.
+Game, declaration and Common shutdown then return exactly to the pre-boot baseline.
+Missing maps and a source-located error in `maps/logic.script` fail usefully in both
+configurations. Retail files are neither read nor staged.
+
+This is the first **partial M3 acceptance**. The bounded startup method is separate from
+regular `InitFromNewMap`; players, collision/AAS/PVS setup, physical input, sound/render
+worlds, shell presentation and saves remain pending. No PCM payload/voice pool or GS/
+frame/texture buffers are initialized. An empty native `idUserCmdMgr` is heap allocated
+for the frame interface, without injecting player commands. The fixture's `platform`
+marker covers entry/manifest/host I/O; `core SKIP` means the core test suite is separate,
+although Common foundation startup runs. This does not establish full campaign startup.
+
+Next candidates are native event-driven entity behavior and bounded collision/physics
+checks, followed by synthetic player commands as their dependencies become available.
+Sound and rendering integration are deferred while headless simulation grows.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` | Strict compile and retained-object link passed |
+| Campaign/resident manifest | All 281 native campaign units retained; 344 direct inputs, 11 registration roots, no GC/unresolved/duplicate symbols |
+| Inventory / compile database | 458 shipped units classified; 363 target entries; 19 campaign backend and 9 resident support units |
+| Host ASan/UBSan and classifiers | Shared checks and all 77 Python regressions passed; four game-runner regressions cover incomplete/stale results, tick traces, wrong fatalities and artifact identity |
+| Debug/release positive game fixture | All six required game checks and all 24 frame/entity/script traces passed |
+| Debug/release missing-map and script-error probes | Expected first fatal and source identity accepted; no crash/watchdog/result file |
+| Debug/release core regression | Passed; existing core residency and exact shutdown baseline unchanged |
+
+Resident reports now include matched runnable/unstripped ELF and map hashes. The runner
+validates these and the flags before archiving reports, map, response file, settings,
+manifest and authored file hashes. Its classifier requires the matching closed result,
+all native checks and every tick trace; process exit alone cannot pass. The existing
+66-process Common matrix remains separate and was not rerun in this slice.
+
+Matched run identities:
+
+- Game debug/release: `20261010T015305Z_smoke_c83e5988bc694d78` /
+  `20261010T015444Z_smoke_d51eea27a8634979`.
+- Missing map debug/release: `20261010T015345Z_smoke_22f482aa20ff4356` /
+  `20261010T015844Z_smoke_05cce4b8be354a35`.
+- Script error debug/release: `20261010T015405Z_smoke_a9c2ef96a4c345b1` /
+  `20261010T015906Z_smoke_149c44a655ae45b6`.
+- Core debug/release: `20261010T015943Z_smoke_75209349e43a4cad` /
+  `20261010T020128Z_smoke_9b451a2d01bf47cf`.
+
+The positive archives also pass the final strengthened classifier requiring all 24
+tick traces and the begin marker, checked after the emulator runs.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,875,622 bytes | 11,296,102 bytes |
+| Resident BSS (included above) | 5,237,990 bytes | 5,237,990 bytes |
+| After native game Init: requested / backing / count | 1,387,268 / 1,478,856 / 2,242 | 1,387,268 / 1,478,856 / 2,242 |
+| After eight ticks: requested / backing / count | 1,477,476 / 1,570,932 / 2,287 | 1,477,476 / 1,570,932 / 2,287 |
+| Peak requested / backing | 1,479,588 / 1,573,440 bytes | 1,479,588 / 1,573,440 bytes |
+| dlmalloc commitment after three cycles | 1,592,602 bytes | 1,594,010 bytes |
+| Full shutdown requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The resident baseline includes more native globals than the core's 1,024-byte allocation;
+each executable must recover its own pre-init ledger. Native script reporting counts
+3,515,932 bytes of inline static storage already contained in the ELF measurement.
+Arena commitment includes tagged backing, untagged libc allocations and freed capacity;
+do not add backing again. These figures exclude kernel/stacks and establish only
+logic-fixture residency, without player/collision, retail assets or transition peaks.

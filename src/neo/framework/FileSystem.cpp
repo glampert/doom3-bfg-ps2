@@ -32,6 +32,10 @@ If you have questions concerning this license or the applicable additional terms
 // [PS2_D3BFG]: Share bounded paths and synchronous libc services with the target probes.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #include "ps2/system/filesystem.h"
+// [PS2_D3BFG]: The authored game fixture uses native loose-file reads in one isolated root.
+#if defined( ID_PS2 )
+#include "ps2/game/headless_fixture.h"
+#endif
 #include <errno.h>
 #endif
 // [PS2_D3BFG]: Length validation also protects len+1 on desktop builds.
@@ -2701,6 +2705,20 @@ is resetting due to a game change
 ================
 */
 void idFileSystemLocal::Init() {
+	// [PS2_D3BFG]: Explicit fixture startup avoids retail containers and desktop default configuration.
+#if defined( ID_PS2 )
+	if ( ps2::gamefixture::IsEnabled() ) {
+		fs_basepath.SetString( "host:" );
+		fs_savepath.SetString( "host:" );
+		fs_game.SetString( "game-fixture" );
+		gameFolder = "game-fixture";
+		searchpath_t & search = searchPaths.Alloc();
+		search.path = "host:";
+		search.gamedir = gameFolder;
+		return;
+	}
+#endif
+
 	// allow command line parms to override our defaults
 	// we have to specially handle this, because normal command
 	// line variable sets don't happen until after the filesystem

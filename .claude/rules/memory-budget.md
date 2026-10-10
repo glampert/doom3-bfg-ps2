@@ -39,15 +39,30 @@ requiring exact repeated ledger recovery; full shutdown still returns to baselin
 Shell resources, save pipelines and multiplayer matches are not initialized. The input
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
-The passing whole-object resident link has 10,856,358 / 11,276,966 bytes of fixed PT_LOAD
-residency, including 5,237,798 bytes of BSS in both configurations. These are static image sizes;
-its entry still rejects execution pending M3. Codec fixture memory measures compression
+The passing whole-object resident link with the initial game fixture has
+10,875,622 / 11,296,102 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
+BSS in both configurations. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
 All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
 buffers, and no codec temporary-file backing store is enabled.
 Class `memused` counts object bytes without another size prefix; shared heap metadata
 supplies exact unsized-delete accounting while preserving object alignment. The
 allocation tests use small probe classes and do not measure resident campaign state.
+
+The initial playerless native game fixture on 2026-10-10 requests 1,387,268 bytes
+(1,478,856 backing / 2,242 allocations) after game Init, and peaks at 1,479,588
+requested / 1,573,440 backing bytes during world/entity/script startup and ticks.
+Native class event callbacks account for 496,480 requested bytes. The script program
+reports 3,515,932 bytes of inline static storage already included in ELF residency;
+do not add it again to dynamic memory. dlmalloc commitment after three cycles is
+1,592,602 / 1,594,010 bytes (debug/release), including untagged libc and freed capacity.
+Each warm map shutdown recovers the same requested/backing/count ledger. Full shutdown
+returns exactly to the resident pre-boot baseline of 7,424 / 7,600 bytes / 4 allocations,
+which differs from the core baseline because more native globals are linked.
+The native user-command manager is heap allocated to avoid its large stack footprint;
+no players or commands execute. No sound world, voice pool, collision/PVS, frame arena
+or texture payload is initialized by this fixture. These measurements establish
+logic-fixture residency only, not a full campaign or transition budget.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See

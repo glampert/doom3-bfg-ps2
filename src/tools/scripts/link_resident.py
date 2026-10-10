@@ -137,6 +137,9 @@ def run(args: argparse.Namespace) -> int:
             if data["passed"]:
                 subprocess.run([prefix + "strip", "--strip-all", "-o", str(runnable), str(candidate)], check=True)
                 candidate.replace(elf)
+                data["elf_sha256"] = hashlib.sha256(elf.read_bytes()).hexdigest()
+                data["runnable_elf_sha256"] = hashlib.sha256(runnable.read_bytes()).hexdigest()
+                data["link_map_sha256"] = hashlib.sha256(link_map.read_bytes()).hexdigest()
         except (OSError, ValueError, subprocess.SubprocessError, struct.error) as error:
             data["passed"] = False
             data["verification_error"] = str(error)

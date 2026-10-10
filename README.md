@@ -1,9 +1,10 @@
 # Doom 3 BFG Edition for the PlayStation 2
 
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
-using the free ps2dev SDK. The initial implementation builds a scalar EE core and a
-smoke executable using authored fixtures. Campaign initialization, map loading,
-rendering, SPU2 audio output, input and saves are later milestones; the port is not playable yet.
+using the free ps2dev SDK. The port builds a scalar EE core and an authored headless
+game fixture that runs native initialization, entity thinking and script events.
+Player/collision startup, retail maps, rendering, SPU2 output, input and saves remain
+later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
 under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
@@ -27,11 +28,14 @@ make headless-core           # scalar Doom foundation and integration tests
 make compile-core            # 52 scalar idlib units and 10 framework/session support units
 make compile-game            # all 281 retained campaign units; compile gate only
 make link-game               # retained campaign link and registration/map gate
+make headless-game           # resident native game fixture ELF
+make test-game               # boot/ticks/reloads, missing map and script error in PCSX2
+make BUILD=release test-game  # same game checks with assertions disabled
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make release smoke           # release core smoke run
 make smoke-negative          # expected missing-fixture failure
-make test-common             # seven partial-startup and forty-five expected-fatal probes
+make test-common             # seven partial-startup and fifty-nine expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 
@@ -61,10 +65,11 @@ offline services. Campaign achievements are retained too; their Classic evaluati
 entry is explicitly unavailable.
 Game class allocation now preserves heap alignment and checks signed memory counters;
 factories use explicit fatal allocation without exception handling. Shared host/EE tests
-cover this allocation boundary, while actual game initialization remains a later gate.
+cover this allocation boundary; the resident game fixture now tests native class startup and spawning.
 The script compiler/program also compile without exceptions; an isolated EE probe tests
 compilation, limits and explicit cleanup before fatal errors. `make test-script` runs it.
-Recoverable script loading and actual interpreter/game execution remain later gates.
+The resident fixture now runs the native interpreter and event registry; recoverable
+script loading remains a later gate.
 Portable common errors now terminate through the shared logging sink without desktop
 dialogs or renderer/session calls. SWF JPEG errors explicitly release decoder/output
 state; bounded input, dimensions and repeated/table-based decoding pass host sanitizer
@@ -80,11 +85,22 @@ identity; actual file objects and engine hierarchy declarations are checked on t
 
 `make link-game` attempts a real whole-object campaign link under
 `build/<config>/resident/`, with its own strict support objects and no core filesystem
-substitute. Debug and release now link all 342 inputs without unresolved symbols or
+substitute. Debug and release now link all 344 inputs without unresolved symbols or
 duplicate definitions. JSON/text reports retain object/source hashes, flags and the real
 linker exit status, and verify the game/class/cvar registration roots and every input in
-the map. Failed attempts remove stale resident ELFs. The resident entry deliberately
-fails until M3 game-fixture startup exists; a successful link is not game boot.
+the map. Failed attempts remove stale resident ELFs. The resident entry requires the
+runner's explicit game manifest before selecting the authored fixture.
+
+`make test-game` boots native `idGameLocal`, parses a tiny worldspawn `.map` through
+the native loose-file filesystem, and spawns a logic entity through the real class
+factory. It requires eight native `RunFrame` calls, eight entity `Think` calls and
+eight script increments scheduled through `sys.waitFrame`, over three map reloads.
+Warm reload ledgers stay exact; full shutdown returns to the pre-boot ledger. Missing
+maps and script errors must fail with the expected diagnostic in debug and release.
+This is the first partial M3 game acceptance. The fixture has no players, collision/PVS,
+sound world or render world and uses a separate bounded startup method; regular
+`InitFromNewMap` and retail content remain pending. Headless gameplay work takes
+priority, with sound and rendering integration deferred.
 
 The first M3 service slice supplies logical sound samples from bounded, extensionless
 fixture paths backed by loose 16-bit PCM WAVs. Mono/stereo data at 8–48 kHz provides
@@ -106,7 +122,7 @@ vertex-buffer interfaces, resolving the renderer link group. They expose inactiv
 state and empty metadata cleanup. Initialization, display dimensions, resource loading,
 draw submission and active demos fail with the method name. The 42 frontend cvars retain
 native defaults and flags. No frame arenas, texture/vertex payloads or GS device are
-created; meaningful world/material/model queries remain required for M3 acceptance.
+created; meaningful world/material/model queries remain required for general map loading.
 
 The deferred game/UI providers now close the multiplayer, leaderboard, shell and save
 metadata link group. Single-player multiplayer reset/precache and empty scoreboard
@@ -141,8 +157,8 @@ profile's stats and achievement bits. Match parameters are copied, stale user ha
 are rejected, and loading completes only on `LoadingFinished`. Online requests are
 unsupported; profile persistence reports failure without discarding transient data.
 The static versioned `GetGameAPI` import path now compiles, but is not invoked by the
-foundation. Resident linking passes; game initialization, interpreter execution and map
-loading remain pending.
+foundation. The resident fixture invokes it during native game initialization and
+executes authored scripts and a logic-only map; general campaign map loading remains pending.
 
 The portable audio boundary preserves sample names, reference/purge flags and last-played
 bookkeeping while owning loaded fixture PCM. Resource reload and generated defaults use
@@ -191,10 +207,10 @@ arithmetic overflow and invalid tags are rejected; required allocations terminat
 failure. Alignment is at least 16 bytes, with larger powers of two supported for DMA.
 The current implementation is for a single calling thread.
 
-The shutdown test requires current requested/backing bytes and allocation count to
-return to the baseline taken before core initialization. A process-lifetime hash table
-created before `main` remains in that baseline (1,024 requested bytes); test/core
-allocations must not remain after shutdown.
+The shutdown tests require current requested/backing bytes and allocation count to
+return to the baseline taken before initialization. The core's process-lifetime
+baseline is 1,024 requested bytes in one allocation; the whole resident fixture starts
+with 7,424 bytes in four allocations. Both must recover their own exact baseline.
 
 Per-tag and total reports track current and peak requested/backing bytes. On the EE,
 backing size is the allocator's usable chunk size; host tests report the reserved request.
@@ -216,10 +232,12 @@ python3 src/tools/scripts/run_pcsx2_test.py --scenario core
 python3 src/tools/scripts/run_pcsx2_test.py --scenario core-missing-fixture
 make test-common
 make BUILD=release test-common
+make test-game
+make BUILD=release test-game
 ```
 
-Build the corresponding probe or core ELF first. A pass requires the fresh run identity,
-platform/core stage markers and a closed structured result; process exit alone cannot
+Build the corresponding probe, core or resident ELF first. A pass requires the fresh run identity,
+scenario-specific stage markers and a closed structured result; process exit alone cannot
 pass. A watchdog or crash diagnostic fails the run. The negative scenario requires the
 core to reject a missing fixture. Tests cover heap alignment/accounting, scalar matrix
 and vertex formats, lexer/string behavior and synchronous job ordering. Core services
@@ -229,7 +247,10 @@ unavailable persistence, match transitions, copied parameters, reload accounting
 sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh process
 for each of seven deliberate startup stops and fifty-nine invalid or unsupported requests;
 each must match its own run
-identity and expected cleanup or fatal diagnostic. Seventeen audio failures cover missing
+identity and expected cleanup or fatal diagnostic. The separate game matrix requires
+all six `game/` checks and all 24 frame/entity/script traces, plus source-specific
+missing-map and malformed-script failures. Resident images, map, flags and authored
+game files are hashed in each archive. Seventeen audio failures cover missing
 files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget
 and device initialization, plus invalid clocks, voice inputs, sample lifetimes and pool
 ownership. Seven audio checks cover metadata, PCM timing/amplitude, generated defaults,

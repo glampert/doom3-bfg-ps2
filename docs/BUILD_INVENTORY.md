@@ -172,8 +172,9 @@ shipped encoder's Huffman-value copy; the authored fixture generator exposed its
 `CORE_BACKEND_CXX_SRC` includes strict shared `filesystem.cpp` and the engine-facing
 `sys_filesystem.cpp`; both cold units use `-Os`. The foundation opens real permanent
 streams, while explicit whole-file fixture reads keep their 64 KiB limit. The full
-campaign `FileSystem.cpp` remains a separately compiled unit, not an initialized or
-linked filesystem claim. It uses checked stdio handles, paths and directory services;
+campaign `FileSystem.cpp` is retained in the resident link and now initializes an
+explicit native loose-file search root for the authored game fixture. Retail container
+startup remains pending. It uses checked stdio handles, paths and directory services;
 `Zip.cpp` uses a documented timestamp policy and `KeyInput.cpp` keeps the engine label table.
 Removed `std::auto_ptr` owners use `std::unique_ptr`.
 
@@ -198,10 +199,11 @@ policy. Header choices are recorded in flag stamps and the real compilation data
 The ordinary foundation links every selected object without GC. The portable Common
 class omits Classic material/framebuffer storage and creates no game worker. Its static
 `GetGameAPI` import compiles separately in the campaign object, but the foundation has
-no game object or game initialization stage. Full container filesystem, render/sound,
-UI/dialog and save services still need their resident-link implementations.
+no game object or game initialization stage. The resident link supplies typed subsystem
+boundaries; full container filesystem, active render/sound, UI/dialog and save behavior
+remain pending.
 
-`make test-common` runs seven partial-startup cleanup probes and forty expected-fatal
+`make test-common` runs seven partial-startup cleanup probes and fifty-nine expected-fatal
 capability/precondition probes, each in a fresh process. `BUILD=release` selects the
 assertions-disabled matrix. The regular core smoke also checks copied match parameters,
 explicit loading completion, transient stats/achievement bits, user-handle invalidation
@@ -243,8 +245,8 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 ## Resident campaign link gate
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
-all 281 campaign objects, eighteen campaign backend objects, eight strict resident support
-objects, dlmalloc and 34 codec objects: 342 direct inputs, without GC or archives hiding undefined
+all 281 campaign objects, nineteen campaign backend objects, nine strict resident support
+objects, dlmalloc and 34 codec objects: 344 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
@@ -256,8 +258,8 @@ The current gate passes in both configurations without unresolved symbols or dup
 definitions; each emits matched stripped/unstripped resident ELFs. Compiler nonzero exits stay failures even without a recognized diagnostic.
 Successful links also require a MIPS executable/load segment, every input in the map,
 static game interfaces, three native class registration roots and the static CVar
-registry. Stale ELF/report files are cleared before attempts. The resident entry is
-explicitly unavailable until M3 startup; a future linked probe is not game boot.
+registry. Stale ELF/report files are cleared before attempts. The resident entry now
+boots an explicitly selected authored logic fixture; the runtime gate is `make test-game`.
 
 Native `d3xp/Achievements.cpp` moves from deferred to campaign runtime. Its campaign
 logic and cvars remain intact; portable builds gate the Classic header and terminate
@@ -292,7 +294,7 @@ full-resolution policy are supported. Display dimensions, initialization, loadin
 allocation, shader/timing queries and draw submission fail explicitly. Demo writes
 can return when no recorder exists; active demo operations fail. These providers close
 all 87 renderer symbols and two cinematic sound-window symbols from the preceding link.
-They do not implement the meaningful logical renderer required by M3, allocate stock
+They do not implement a logical world renderer for broader map startup, allocate stock
 frame/vertex arenas, or start a graphics device.
 
 The renderer slice brought the core to 18 backend units and ten smoke units. Three
@@ -384,7 +386,32 @@ No campaign units were dropped. Original codec paths are remapped for reference-
 coverage, and host regressions reject lost relocations or excluded codec additions.
 Codec integration recorded 358 compile-database entries, 23 foundation backend units
 and 13 smoke units. The first M3 PCM slice recorded 359 entries and 24 foundation backend
-units. The voice slice adds shared timeline and smoke units: current counts are 361 entries,
-25 foundation backend units and 14 smoke units. `compile-game` also builds the 34
-audited codec units. The default ELF runs core/codec/audio fixtures, while the resident
-entry rejects execution pending M3 startup.
+units. The voice slice added shared timeline and smoke units: 361 entries,
+25 foundation backend units and 14 core smoke units. The initial game fixture adds
+two resident-only units, bringing the compile database to 363 entries. `compile-game`
+also builds the 34 audited codec units. The default ELF runs core/codec/audio fixtures;
+the separate resident ELF runs the authored game fixture.
+
+## Initial headless game fixture
+
+`make headless-game` selects the whole-object resident link above. `make test-game`
+runs positive native startup/ticks/reloads, missing-map and malformed-script scenarios
+in fresh PCSX2 processes; `BUILD=release` verifies the same behavior without asserts.
+The strict, cold `ps2/game/headless_fixture.cpp` is a campaign backend unit;
+`tests/smoketests/game_boot.cpp` is strict, cold resident support. Neither changes the
+281-unit native campaign manifest or enables additional vendor code.
+
+The resident entry uses real staged Common services, native declaration management,
+native game/class/event/script startup and native filesystem streams/listing. Tagged
+engine edits select the isolated loose-file root and permit playerless `RunFrame`
+calls without a render world. The explicit startup method accepts only the bounded
+worldspawn logic map; regular `InitFromNewMap` remains separate. The real class factory,
+entity Think loop, interpreter and `waitFrame` event scheduling execute over three
+reloads. Collision/PVS, players, render/sound worlds, shell resources and retail data
+are not initialized. Native sound/render integration follows later headless gameplay work.
+
+Resident reports include matched runnable/unstripped ELF and map hashes. The runner
+checks them and the flag stamps before archiving the image, symbols, map, reports,
+response file, settings and authored fixture hashes. Host regressions reject stale
+images/flags, incomplete link evidence, partial tick traces and unrelated fatal errors;
+only the target runs establish native game execution.

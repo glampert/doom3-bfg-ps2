@@ -50,8 +50,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   emulator processes; Common startup is one-shot after static CVar registration.
   `make compile-game` is the separate M2b campaign compile gate. `make link-game`
   validates the retained-object resident link, registrations and map coverage under
-  `build/<config>/resident/`. Both configurations pass; its entry still rejects execution
-  until M3 game-fixture startup exists.
+  `build/<config>/resident/`. `make headless-game` selects that resident fixture ELF;
+  `make test-game` checks native startup, playerless entity/script ticks and reloads,
+  plus missing-map and script-error failures in fresh emulator processes.
+  Collision/player startup and general campaign maps remain later gates. Prioritize
+  headless simulation; sound and rendering integration follow at a later stage.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests
   cannot replace target compilation. Check Make's exit status, including VU tool failures.
