@@ -143,9 +143,19 @@ math path; PS2-specific math replacement headers are a later milestone.
   `GetIXAudio2` returns null on portable builds without importing an XAudio type.
 - Unloaded samples can retain names, reference/purge flags and last-played metadata;
   that does not establish resource loading. Do not invent zero durations or amplitudes
-  to make gameplay proceed. The initial backend terminates unavailable queries with
-  the method name. Meaningful timing, completion, amplitude and voice state remain
-  required before a game fixture; hardware output is a later boundary.
+  to make gameplay proceed. Unloaded queries terminate with the method name. The
+  first M3 slice supplies actual PCM fixture data/timing/amplitude; logical voice and
+  completion state remain required before a game fixture, with hardware output later.
+- `snd_local.h::SamplesToMsec` divides the rate by 100 before converting: 11,025 frames
+  at 11,025 Hz yield 1,002 ms. The backend derives duration from 64-bit `frames * 1000 / rate`
+  instead. `NumSamples` is frames per channel, not interleaved scalar sample count.
+  Native emitter looping takes modulo sample duration, so fixture WAVs shorter than
+  1 ms must be rejected rather than exposing a zero divisor. Peak amplitude scans each
+  60 Hz PCM window over all channels and handles -32768 without signed overflow.
+- The fixture loader uses `OpenFileRead` and bounded header/payload reads, not whole-file
+  `ReadFile`. Keep stream destruction outside the fatal call path and free any acquired
+  payload before reporting a read/allocation failure: fatal logging does not unwind C++
+  objects. No `.idwav`, ADPCM decoder or retail sample-cache budget is established yet.
 
 
 ## Resident link findings

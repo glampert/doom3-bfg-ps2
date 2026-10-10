@@ -6,21 +6,27 @@
 
 #pragma once
 
+#include "ps2/audio/pcm_wave.h"
+
 // Included after Doom's common headers and SoundVoice.h by sound/snd_local.h.
-// Resource loading and playback are deferred capabilities; their implementations fail explicitly.
+// Logical fixture samples own PCM; device/voice playback remains an explicit deferred capability.
 class idSoundSample final
 {
   public:
+    idSoundSample() = default;
+    ~idSoundSample();
+    idSoundSample(const idSoundSample &) = delete;
+    idSoundSample & operator=(const idSoundSample &) = delete;
+
     void LoadResource();
     void MakeDefault();
     void FreeData();
 
-    void SetName(const char * name) { m_name = name; }
+    void SetName(const char * name);
     const char * GetName() const { return m_name.c_str(); }
-    // No loader can succeed yet; an unloaded sample is neither loaded nor a generated default.
-    ID_TIME_T GetTimestamp() const { return FILE_NOT_FOUND_TIMESTAMP; }
-    bool IsDefault() const { return false; }
-    bool IsLoaded() const { return false; }
+    ID_TIME_T GetTimestamp() const { return m_timestamp; }
+    bool IsDefault() const { return m_isDefault; }
+    bool IsLoaded() const { return m_pcm != nullptr; }
 
     int LengthInMsec() const;
     int SampleRate() const;
@@ -39,7 +45,12 @@ class idSoundSample final
     void SetLastPlayedTime(int time) { m_lastPlayedTime = time; }
 
   private:
+    void RequireLoaded(const char * operation) const;
     idStr m_name;
+    ps2::audio::PcmWave m_wave;
+    unsigned char * m_pcm = nullptr;
+    ID_TIME_T m_timestamp = FILE_NOT_FOUND_TIMESTAMP;
+    bool m_isDefault = false;
     bool m_neverPurge = false;
     bool m_levelLoadReferenced = false;
     int m_lastPlayedTime = 0;

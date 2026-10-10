@@ -19,6 +19,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import struct
 import subprocess
 import sys
 import time
@@ -60,8 +61,12 @@ NEGATIVE_PROBES = {
     "classic": "Classic title switching",
     "save-manager": "save game manager capability is unavailable",
     "bad-device": "only input device zero is supported",
-    "audio-resource": "audio capability unavailable: idSoundSample::LoadResource",
-    "audio-duration": "audio capability unavailable: idSoundSample::LengthInMsec",
+    "audio-resource": "sound sample load failed: audio-fixtures/missing (WAV file not found)",
+    "audio-duration": "sound sample query requires loaded data: idSoundSample::LengthInMsec",
+    "audio-wave-format": "sound sample load failed: audio-fixtures/unsupported (unsupported PCM format)",
+    "audio-wave-truncated": "sound sample load failed: audio-fixtures/truncated (RIFF length mismatch)",
+    "audio-wave-chunk": "sound sample load failed: audio-fixtures/chunk (chunk exceeds RIFF)",
+    "audio-wave-budget": "sound sample load failed: audio-fixtures/budget (PCM data exceeds fixture budget)",
     "audio-device": "audio capability unavailable: idSoundHardware::Init",
     "platform-launch": "platform capability unavailable: Sys_Launch",
     "platform-negative-duration": "Sys_SecToStr requires a nonnegative duration",
@@ -93,6 +98,7 @@ REQUIRED_CORE_CHECKS = frozenset({
     "offline/common-idle-demo-ledger",
     "core/platform-language-duration-utc",
     "audio/sample-metadata-ledger",
+    "audio/pcm-timing-amplitude-ledger", "audio/default-reload-ledger",
     "offline/real-common", "offline/local-user", "offline/registration-idempotent",
     "offline/transient-profile-achievements", "offline/persistence-unavailable",
     "offline/campaign-transitions-copy", "offline/match-reload-ledger", "offline/signout-routing-stale-handle",
@@ -286,6 +292,34 @@ def archive_build_artifacts(elf: Path, staged_elf: Path, staged_symbols: Path, o
     return hashes
 
 
+def stage_audio_fixtures(directory: Path) -> None:
+    """Authored PCM only; never copy retail assets into smoke archives."""
+    directory.mkdir(parents=True)
+
+    def wave(rate: int, channels: int, pcm: bytes, junk: bool = False) -> bytes:
+        fmt = struct.pack("<HHIIHH", 1, channels, rate, rate * channels * 2, channels * 2, 16)
+        chunks = b"fmt " + struct.pack("<I", len(fmt)) + fmt
+        if junk:
+            chunks += b"JUNK\x03\x00\x00\x00abc\x00"
+        chunks += b"data" + struct.pack("<I", len(pcm)) + pcm
+        return b"RIFF" + struct.pack("<I", len(chunks) + 4) + b"WAVE" + chunks
+
+    mono = [(-32768 if i < 11025 // 60 else 8192 if i < 2 * 11025 // 60 else 0)
+            for i in range(11025)]
+    mono[-1] = 16384
+    (directory / "mono.wav").write_bytes(wave(11025, 1, struct.pack("<11025h", *mono), junk=True))
+    stereo = wave(44100, 2, struct.pack("<hh", 0, -16384) * 22050)
+    (directory / "stereo.wav").write_bytes(stereo)
+    unsupported = bytearray(stereo)
+    struct.pack_into("<H", unsupported, 20, 2)  # ADPCM format tag.
+    (directory / "unsupported.wav").write_bytes(unsupported)
+    (directory / "truncated.wav").write_bytes(stereo[:-1])
+    bad_chunk = bytearray(stereo)
+    struct.pack_into("<I", bad_chunk, 40, 0xffffffff)
+    (directory / "chunk.wav").write_bytes(bad_chunk)
+    (directory / "budget.wav").write_bytes(wave(8000, 1, b"\x00" * (256 * 1024 + 2)))
+
+
 def run(args: argparse.Namespace) -> tuple[bool, Path]:
     emulator = args.emulator.resolve()
     elf = args.elf.resolve()
@@ -322,6 +356,7 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         (fs_fixtures / "child").mkdir(parents=True)
         (fs_fixtures / "mixed.TxT").write_bytes(b"authored directory fixture\n")
         (fs_fixtures / "large.bin").write_bytes(b"Z" * 71680)
+        stage_audio_fixtures(output / "audio-fixtures")
     probe = args.scenario in NEGATIVE_PROBES or args.scenario.startswith("lifecycle-")
     fixture_path = "host:probe-" + args.scenario if probe else "host:fixture.txt"
     (output / "smoke.manifest").write_text(f"D3BFG_SMOKE 1\n{test_id}\n{fixture_path}\n", encoding="ascii")
@@ -340,6 +375,10 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         "filesystem_fixture_sha256": {
             str(path.relative_to(output)): sha256(path)
             for path in sorted((output / "fs-fixtures").rglob("*")) if path.is_file()
+        },
+        "audio_fixture_sha256": {
+            str(path.relative_to(output)): sha256(path)
+            for path in sorted((output / "audio-fixtures").glob("*.wav"))
         },
         "build_artifact_sha256": build_artifacts,
         "config_sha256": sha256(args.config), "emulator": str(emulator),

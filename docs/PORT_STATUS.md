@@ -4,9 +4,10 @@ M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. The current
 foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core and
 offline services. The M2b campaign gate compiles all 281 retained units in debug and
 release; audited JPEG/zlib integration now closes the retained resident link in both
-configurations. M2b compile/link acceptance is complete; meaningful logical render/sound
-services and M3 game initialization remain pending. The sections below preserve each
-slice's historical measurements; the latest resident-link evidence is at the end.
+configurations. M2b compile/link acceptance is complete. The first M3 service slice
+supplies bounded logical PCM sample timing/amplitude; render contracts, voice timing
+and game initialization remain pending. The sections below preserve each slice's
+historical measurements; current acceptance evidence is at the end.
 
 ## Initial M2 build and runtime evidence
 
@@ -909,3 +910,93 @@ Next is meaningful logical render/sound behavior and authored headless game-fixt
 startup: actual class/decl/game initialization, deterministic synthetic commands,
 entity/script/collision checks and measured reloads. Game ticks, interpreter execution,
 map loading, physical input, GS presentation and SPU2 output are not accepted yet.
+
+## M3 prerequisite: bounded logical PCM samples
+
+On 2026-10-10 the portable sample provider gained real authored-fixture WAV loading,
+timing and amplitude. `idSoundSample` owns one tagged AUDIO payload, records the stream
+timestamp, reports frames per channel and distinguishes loaded/generated/unloaded data.
+The shared `ps2/audio/pcm_wave.*` parser reads headers through a bounded callback;
+the adapter then reads only PCM into its final allocation through `OpenFileRead`.
+It does not duplicate an entire file in the core's 64 KiB memory-file buffer.
+
+The accepted fixture format is ordinary RIFF PCM, signed little-endian 16-bit,
+mono/stereo, 8–48 kHz. Limits are 256 KiB PCM per sample, another 64 KiB for container
+metadata and at most 256 chunks. RIFF/chunk sizes, odd padding, duplicate/missing
+format/data, frame alignment, rate/byte-rate and format fields are checked before
+allocation. Samples shorter than 1 ms are rejected because native emitter looping
+uses modulo duration. Unsupported compression/extensible formats remain explicit
+failures. These are fixture bounds, not a measured aggregate retail sound-cache budget.
+
+Duration uses exact 64-bit frame/rate arithmetic: 11,025 frames at 11,025 Hz give
+1,000 ms instead of the native rounded-rate helper's 1,002 ms. Amplitude is the peak
+absolute PCM value over the containing 60 Hz window, across all channels, normalized
+by 32,768. Negative/out-of-range times return zero without integer overflow.
+Generated defaults contain 256 real mono frames at 8 kHz, lasting 32 ms; they use
+the same query path as loaded data.
+
+Rename, reload, explicit purge and destruction release prior payloads while retaining
+the native reference/never-purge/last-played metadata. Owning samples cannot be copied.
+The stream closes and any temporary payload is freed before reporting a fatal load
+failure; fatal logging does not unwind stack objects. Missing/malformed inputs cannot
+silently become generated defaults. `_default` names or explicit `MakeDefault` create
+the real default sample. Unloaded queries and physical device/voice calls still fail.
+No sound cvars, vendor changes or native campaign-source edits were needed.
+
+The core directly exercises standalone sample objects. Native sound-world/shader/emitter
+initialization, voice start/pause/loop/completion state, retail `.idwav`/ADPCM loading,
+SPU2 playback, renderer logic and `idGameLocal` startup are not accepted by this slice.
+M3 game initialization, interpreter execution, authored map ticks and reload acceptance
+remain pending.
+
+### Build and runtime evidence
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-core compile-game link-game` | All passed; new backend/test sources compile with strict `-Werror` |
+| Campaign/resident manifest | All 281 campaign units retained; 341 direct resident inputs, 11 registration roots, no GC/unresolved/duplicate symbols |
+| Inventory / compile database | 458 shipped units remain classified; 359 target entries; 24 core and 17 campaign backend units |
+| Host ASan/UBSan | Shared heap checks and all 71 Python regressions passed |
+| Debug/release core smoke | Three required audio markers passed, with exact per-scope ledgers |
+| Debug/release Common matrix | All 56 fresh-process scenarios passed in each configuration: seven partial shutdowns and 49 expected fatal probes |
+| Debug/release missing fixture | Expected fixture failure accepted; audio checks and final shutdown still passed |
+
+Positive audio checks repeat mono/stereo loading, same-name reloads, purge, name changes,
+generated defaults and destruction over three cycles. The 88,200-byte stereo payload
+exceeds the memory-file limit and must load through a stream. Independent host parser
+fixtures cover valid chunk reordering/odd padding, every truncated prefix, format/layout
+errors, read failures and 8,192 deterministic corruptions. The runner stages six authored
+WAVs and archives their hashes. Seven audio failure probes cover missing input, unloaded
+duration, unsupported format, truncation, chunk overflow, payload budget and device Init;
+release observes the same failures with assertions disabled.
+
+Current matched run identities:
+
+- Core debug/release: `20261010T002629Z_smoke_0f5e346848134dfd` /
+  `20261010T002850Z_smoke_7c6d31a7084d48a7`.
+- Debug 56-probe span: `20261010T002639Z_smoke_ade764ec2df94723` through
+  `20261010T002837Z_smoke_0625710d2290408b`.
+- Release 56-probe span: `20261010T002910Z_smoke_42eda1ae284d4f89` through
+  `20261010T003106Z_smoke_19fd1ff9491c4ed4`.
+- Missing fixture debug/release: `20261010T003120Z_smoke_5c3dee26c4fd4e0e` /
+  `20261010T003145Z_smoke_f46a7e8a165240fb`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Core fixed `PT_LOAD` residency | 1,869,232 bytes | 1,941,552 bytes |
+| Core BSS (included above) | 459,824 bytes | 459,824 bytes |
+| Initialized requested / backing / allocations | 31,425 / 42,704 / 272 | 31,425 / 42,704 / 272 |
+| Whole smoke peak requested / backing | 315,905 / 327,668 bytes | 315,905 / 327,668 bytes |
+| Maximum AUDIO payload requested | 88,200 bytes | 88,200 bytes |
+| dlmalloc commitment after tests | 346,704 bytes | 344,016 bytes |
+| Final requested / backing / allocations | 1,024 / 1,068 / 1 | 1,024 / 1,068 / 1 |
+| Resident fixed `PT_LOAD` residency | 10,850,790 bytes | 11,270,310 bytes |
+| Resident BSS (included above) | 5,237,734 bytes | 5,237,798 bytes |
+
+The whole-smoke peak remains dominated by the codec fixtures; samples do not overlap
+that phase. AUDIO returns to zero after every loaded/default scope. Arena figures include
+untagged newlib allocations and freed capacity; do not add tagged backing again. Resident
+sizes describe a static image whose entry rejects game startup. They do not measure
+initialized game/sound worlds, voice pools, retail content or map-transition peaks.

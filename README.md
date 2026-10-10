@@ -2,8 +2,8 @@
 
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
 using the free ps2dev SDK. The initial implementation builds a scalar EE core and an
-asset-free smoke executable. Campaign initialization, map loading, rendering, audio,
-input and saves are later milestones; the port is not playable yet.
+smoke executable using authored fixtures. Campaign initialization, map loading,
+rendering, audio playback, input and saves are later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
 under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
@@ -80,18 +80,27 @@ identity; actual file objects and engine hierarchy declarations are checked on t
 
 `make link-game` attempts a real whole-object campaign link under
 `build/<config>/resident/`, with its own strict support objects and no core filesystem
-substitute. Debug and release now link all 340 inputs without unresolved symbols or
+substitute. Debug and release now link all 341 inputs without unresolved symbols or
 duplicate definitions. JSON/text reports retain object/source hashes, flags and the real
 linker exit status, and verify the game/class/cvar registration roots and every input in
 the map. Failed attempts remove stale resident ELFs. The resident entry deliberately
 fails until M3 game-fixture startup exists; a successful link is not game boot.
+
+The first M3 service slice supplies logical sound samples from bounded, extensionless
+fixture paths backed by loose 16-bit PCM WAVs. Mono/stereo data at 8–48 kHz provides
+real frame counts, integer millisecond duration and 60 Hz peak amplitude queries.
+Generated defaults own real PCM too. Streams close before load failures are reported;
+reload, purge, rename and destruction recover exact tagged heap ledgers. Missing,
+malformed, compressed or oversized input fails explicitly. The initial 256 KiB payload
+limit is for authored fixtures; retail `.idwav`/ADPCM conversion, voice timing, native
+sound-world initialization and SPU2 playback remain pending.
 
 Typed renderer providers now bind the native screen, image, shader, cinematic and
 vertex-buffer interfaces, resolving the renderer link group. They expose inactive
 state and empty metadata cleanup. Initialization, display dimensions, resource loading,
 draw submission and active demos fail with the method name. The 42 frontend cvars retain
 native defaults and flags. No frame arenas, texture/vertex payloads or GS device are
-created; meaningful world/material/model queries remain required before M3.
+created; meaningful world/material/model queries remain required for M3 acceptance.
 
 The deferred game/UI providers now close the multiplayer, leaderboard, shell and save
 metadata link group. Single-player multiplayer reset/precache and empty scoreboard
@@ -130,10 +139,9 @@ foundation. Resident linking passes; game initialization, interpreter execution 
 loading remain pending.
 
 The portable audio boundary preserves sample names, reference/purge flags and last-played
-bookkeeping. Samples remain unloaded; resource loading, duration/amplitude queries and
-device operations fail explicitly with the method name. No voices or audio device are
-created. Meaningful sample timing and playback state are required before the M3 game
-fixture; audsrv/SPU2 output remains later work.
+bookkeeping while owning loaded fixture PCM. Resource reload and generated defaults use
+the same timing/amplitude queries. No voices or audio device are created; logical
+playback state and audsrv/SPU2 output remain later work.
 
 Backend and smoke-test diagnostics use the shared `ps2::Log` / `LogV` sink with info,
 warning, error and fatal levels. It currently writes synchronously to stdout. System,
@@ -212,11 +220,12 @@ also exercise command/cvar registration and fixture I/O.
 Nine offline checks cover Common identity, local users, transient profiles/achievements,
 unavailable persistence, match transitions, copied parameters, reload accounting and
 sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh process
-for each of seven deliberate startup stops and forty invalid or unsupported requests;
+for each of seven deliberate startup stops and forty-nine invalid or unsupported requests;
 each must match its own run
-identity and expected cleanup or fatal diagnostic. The three audio failures cover resource
-loading, duration queries and device initialization; core smoke also checks sample
-metadata ownership and exact heap recovery. Additional probes reject process launching,
+identity and expected cleanup or fatal diagnostic. Seven audio failures cover missing
+files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget
+and device initialization. Three audio checks cover metadata, PCM timing/amplitude and
+generated-default ownership with exact heap recovery. Additional probes reject process launching,
 negative durations and ASE/LWO/Maya source-model imports. Language and UTC/duration
 formatting are checked on the EE.
 Three renderer checks cover native interface identity, empty metadata/ledger recovery,

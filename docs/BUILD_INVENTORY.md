@@ -217,25 +217,28 @@ branch keeps its original SDK headers and XA2 classes; the optional `GetIXAudio2
 query returns null on portable builds. Native logical sound bodies remain selected.
 
 `ps2/audio/sound_backend.cpp` is in both core and campaign backend lists, uses full
-campaign headers and strict warnings, and is cold (`-Os`). It supplies unloaded sample
-metadata and explicit method-named fatal failures for unavailable resource, timing,
-amplitude and device operations. It never reports a fake loaded sample or successful
-playback. The foundation directly links this boundary and its sample-ownership checks;
-it does not link or initialize native sound worlds. Native `SoundVoice.cpp`, wave-file
-loading and XA2 implementations remain replacement sources, pending real sample/voice
-semantics before the M3 fixture. No vendor disposition changes or audio cvars are added.
+campaign headers and strict warnings, and is cold (`-Os`). It now owns real logical
+fixture PCM with loaded/default/timestamp state, frame counts, exact rate-based duration
+and peak amplitude. `ps2/audio/pcm_wave.cpp` validates RIFF headers through a bounded
+stream callback and supplies shared host/EE timing math. It has the regular optimization
+flags because amplitude queries are used during gameplay. Both sources are explicit in
+core and campaign backend groups. The foundation directly tests sample ownership but
+does not initialize native sound worlds. Native `SoundVoice.cpp`, `WaveFile.cpp` and
+XA2 implementations remain replacement sources. Voice/device operations and unloaded
+sample queries fail explicitly. No vendor disposition changes or audio cvars are added.
 
-Core smoke requires the sample metadata/ledger marker. The three new expected-fatal
-probes cover resource loading, duration queries and device initialization in fresh
-processes with assertions enabled and disabled. See the latest acceptance evidence in
+Core smoke requires three audio markers for metadata, PCM timing/amplitude and generated
+default/reload ownership. Seven expected-fatal probes cover missing files, unloaded
+duration, unsupported format, truncation, chunk bounds, payload budget and device
+initialization in fresh processes with assertions enabled and disabled. See acceptance in
 [PORT_STATUS.md](PORT_STATUS.md).
 
 
 ## Resident campaign link gate
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
-all 281 campaign objects, sixteen campaign backend objects, eight strict resident support
-objects, dlmalloc and 34 codec objects: 340 direct inputs, without GC or archives hiding undefined
+all 281 campaign objects, seventeen campaign backend objects, eight strict resident support
+objects, dlmalloc and 34 codec objects: 341 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
@@ -373,6 +376,8 @@ is linked on the EE. Portable `LoadJPG` fails explicitly; bounded SWF decoding i
 The source inventory moves 34 bundled sources from optional vendor to vendor runtime.
 No campaign units were dropped. Original codec paths are remapped for reference-project
 coverage, and host regressions reject lost relocations or excluded codec additions.
-`make compiledb` records 358 target entries. The foundation has 23 backend and 13 smoke
-units; `compile-game` also builds the 34 audited codec units. The default ELF continues
-to run core/codec fixtures, while the resident entry rejects execution pending M3.
+Codec integration recorded 358 compile-database entries, 23 foundation backend units
+and 13 smoke units. The first M3 PCM slice adds one shared backend unit: current counts
+are 359 entries and 24 foundation backend units. `compile-game` also builds the 34
+audited codec units. The default ELF runs core/codec/audio fixtures, while the resident
+entry rejects execution pending M3 startup.

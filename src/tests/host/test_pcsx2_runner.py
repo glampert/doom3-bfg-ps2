@@ -53,6 +53,13 @@ class ClassifierTests(unittest.TestCase):
         self.assertEqual(runner.classify_run("run1", "core", complete_result(core="PASS"), log, None, False),
                          (False, "missing core checks"))
 
+    def test_missing_pcm_timing_or_default_check_rejected(self):
+        for name in ("audio/pcm-timing-amplitude-ledger", "audio/default-reload-ledger"):
+            with self.subTest(name=name):
+                log = complete_log(core="PASS").replace(f"[D3BFG] CHECK {name} PASS\n", "")
+                self.assertEqual(runner.classify_run("run1", "core", complete_result(core="PASS"),
+                                                    log, None, False), (False, "missing core checks"))
+
     def test_expected_missing_fixture_failure(self):
         self.assertEqual(runner.classify_run("run1", "core-missing-fixture", complete_result(core="FAIL"),
                                             complete_log(core="FAIL", status="FAIL"), None, False),
@@ -268,6 +275,10 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(metadata["filesystem_fixture_sha256"], {
             name: runner.sha256(output / name)
             for name in ("fs-fixtures/large.bin", "fs-fixtures/mixed.TxT")
+        })
+        self.assertEqual(metadata["audio_fixture_sha256"], {
+            f"audio-fixtures/{name}.wav": runner.sha256(output / f"audio-fixtures/{name}.wav")
+            for name in ("mono", "stereo", "unsupported", "truncated", "chunk", "budget")
         })
 
     def test_disabled_hostfs_rejected_without_edit(self):

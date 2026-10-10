@@ -7,12 +7,12 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
-After codec integration on 2026-10-10, debug/release fixed core ELF residency is
-1,862,320 / 1,934,512 bytes, including 459,824 bytes of BSS. Core initialization
+After the initial M3 PCM sample slice on 2026-10-10, debug/release fixed core ELF residency is
+1,869,232 / 1,941,552 bytes, including 459,824 bytes of BSS. Core initialization
 requests 31,425 bytes (42,704 backing). The codec/compression synthetic peak is
 315,905 requested / 327,668 backing bytes. Both shut down to the exact process-lifetime
 baseline of 1,024 requested / 1,068 backing bytes in one allocation. dlmalloc commitment
-after tests is 345,424 / 346,960 bytes, including untagged C/newlib allocations and
+after tests is 346,704 / 344,016 bytes, including untagged C/newlib allocations and
 freed space. Do not double-count tagged backing on top of the arena.
 The real portable `commonLocal` occupies 54,792 bytes; its desktop-only 2,304,000-byte
 Classic framebuffer is absent. This prevents Classic residency when importing Common;
@@ -20,10 +20,13 @@ the previous small Common adapter did not contain that framebuffer either. Match
 warm native dictionary string pools once, then require exact ledger stability over three
 reloads and exact full-shutdown recovery. Snapshot/compression support is retained to
 link Common's embedded value types; no online snapshots or game state are initialized.
-The audio boundary adds unloaded sample metadata and ownership tests, without any
-voice pool, sample payload or device. Language/frame and 42 renderer cvars change startup/peak
+The audio boundary now owns fixture PCM payloads, without a voice pool or device.
+The maximum observed AUDIO request is 88,200 bytes; samples are read directly from
+streams without a second whole-file buffer. The 256 KiB per-sample cap is an initial
+fixture limit, not an aggregate sound-cache budget. Repeated loaded/default scopes
+recover exact ledgers and AUDIO returns to zero. Language/frame and 42 renderer cvars change startup/peak
 totals; full shutdown still recovers exactly. The audio test must release its native
-string allocation after every scope. Fixed ELF
+string and payload allocations after every scope. Fixed ELF
 and arena changes do not measure a full sound-world or SPU2 budget.
 Renderer globals contain empty native metadata; the stub slice allocates no frame,
 vertex-cache or texture payload pools. Its metadata scopes recover the exact ledger.
@@ -33,7 +36,7 @@ requiring exact repeated ledger recovery; full shutdown still returns to baselin
 Shell resources, save pipelines and multiplayer matches are not initialized. The input
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
-The passing whole-object resident link has 10,846,310 / 11,265,830 bytes of fixed PT_LOAD
+The passing whole-object resident link has 10,850,790 / 11,270,310 bytes of fixed PT_LOAD
 residency, including 5,237,734 / 5,237,798 bytes of BSS. These are static image sizes;
 its entry still rejects execution pending M3. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.

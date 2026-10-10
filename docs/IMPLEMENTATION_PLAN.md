@@ -431,7 +431,8 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 The initial M0–M2 scope (core compilation and headless boot) is complete. The completed
 M2b slice supplies campaign portability, explicit error/type handling, typed subsystem
-replacements and audited codecs. M3 logical services and game-fixture startup follow. Progress
+replacements and audited codecs. M3 logical sound samples are now supplied; remaining
+logical services and game-fixture startup follow. Progress
 and remaining resident-link work are recorded in [PORT_STATUS.md](PORT_STATUS.md).
 The current core runs real `idCommonLocal::Init` / `Shutdown` through completed-stage
 tracking for system, idlib, commands, cvars, fixture filesystem, synchronous jobs and
@@ -441,10 +442,12 @@ static game API import path compiles but is not exercised until the resident gam
 The campaign gate now compiles all 281 retained units in debug and release, including
 campaign achievements with Classic evaluation gated. The logical sound header uses
 `ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
-Only unloaded sample bookkeeping is implemented; resource, timing/amplitude and device
-operations fail explicitly. Meaningful sound semantics remain required before M3.
+The first M3 service slice implements bounded loose PCM WAV sample loading, duration,
+60 Hz peak amplitude, generated default data and exact reload/purge ownership. This
+is an authored-fixture prerequisite; native sound worlds, voice start/loop/completion
+timing, compressed retail samples and physical audio remain pending.
 `make link-game` now passes the M2b retained-object gate in both configurations: all
-340 inputs, 11 game/class/cvar registration roots and map inputs are present, without
+341 inputs, 11 game/class/cvar registration roots and map inputs are present, without
 unresolved symbols, duplicates, Classic/desktop imports or garbage collection. Bundled
 JPEG/zlib dependencies are under `src/external/`, explicitly selected with separate
 vendor flags and strict tagged allocator hooks. Their bounded SWF JPEG and streaming
