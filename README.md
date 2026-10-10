@@ -93,8 +93,9 @@ runner's explicit game manifest before selecting the authored fixture.
 
 `make test-game` boots native `idGameLocal`, parses a fixed floor/wall worldspawn `.map` through
 the native loose-file filesystem, and spawns a logic entity through the real class
-factory. It requires eight native `RunFrame` calls, eight entity `Think` calls and
-eight script increments scheduled through `sys.waitFrame`, over three map reloads.
+factory. Each of three map reloads runs 88 native `RunFrame` calls. The first eight
+check logic-entity Think and script increments scheduled through `sys.waitFrame`;
+the remaining frames exercise native player-physics posture changes.
 The script activates a native `idTarget_SessionCommand` on frame four. A queued 90 ms
 activation fires on frame six (100 ms). Each command is returned and cleared in the
 same frame. Script removal on frame seven (116 ms) invalidates the cached `idEntityPtr`
@@ -108,7 +109,12 @@ floor contacts and rest, and grounded diagonal sliding along the wall with stepp
 disabled. A fixture entity owns native `idPhysics_Player`, consumes synthetic commands
 from `idUserCmdMgr`, accelerates into the wall, reverses and stops through native
 friction after input release. Floor support and exact command consumption are checked
-each frame. Three reloads cover brush conversion, text `.cm` loading and
+each frame. The same probe jumps and lands, stays grounded while jump remains held,
+then jumps again after release. Crouch shrinks the native clip height from 74 to 38
+units, prevents takeoff with jump also pressed, and restores standing height when
+released in open space. The completed script stays at eight increments and the
+monster probes become inactive during these additional player frames.
+Three reloads cover brush conversion, text `.cm` loading and
 generated binary collision-cache loading. Clip/collision ownership returns to zero
 at map shutdown.
 Warm reload ledgers stay exact; full shutdown returns to the pre-boot ledger. Missing
@@ -265,8 +271,9 @@ sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh
 for each of seven deliberate startup stops and fifty-nine invalid or unsupported requests;
 each must match its own run
 identity and expected cleanup or fatal diagnostic. The separate game matrix requires
-all twenty-two `game/` checks, three event-posting and collision traces, and all 24 frame/entity/script,
-command, entity-lifetime, wall-stop, falling, grounded-sliding and player-input/physics traces, plus
+all twenty-seven `game/` checks, three event-posting and collision traces, all 24 frame/entity/script,
+command, entity-lifetime, wall-stop, falling, grounded-sliding and player-input/physics traces,
+and 240 player jump/crouch traces, plus
 source-specific missing-map, malformed-script and restricted geometry/material failures. Resident images, map, flags and authored
 game files are hashed in each archive; generated collision caches are hashed after completion. Seventeen audio failures cover missing
 files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget

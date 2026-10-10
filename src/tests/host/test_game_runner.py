@@ -26,6 +26,23 @@ def complete():
     slide_y = (33.024, 34.112, 35.807, 36.832, 37.921, 39.010, 40.035, 41.124)
     player_x = (20.328, 20.872, 21.614, 21.749, 21.379, 21.183, 21.151, 21.151)
     player_vx = (20.480, 32.040, 43.600, -0.054, -21.760, -11.560, -1.960, 0.000)
+    # Rounded native EE traces: the two jumps start at different 60 Hz millisecond phases.
+    jump_z = (
+        (2.352, 4.195, 6.010, 7.677, 9.110, 10.490, 11.722, 12.746, 13.690, 14.486,
+         15.101, 15.610, 15.971, 16.176, 16.250, 16.176, 15.971, 15.610, 15.101,
+         14.486, 13.690, 12.746, 11.722, 10.490, 9.110, 7.677, 6.010, 4.195, 2.352),
+        (2.352, 4.306, 6.010, 7.677, 9.196, 10.490, 11.722, 12.805, 13.690, 14.486,
+         15.135, 15.610, 15.971, 16.184, 16.250, 16.176, 15.954, 15.610, 15.101,
+         14.444, 13.690, 12.746, 11.653, 10.490, 9.110, 7.583, 6.010, 4.195, 2.232))
+    jump_vz = (
+        (119.296, 111.104, 102.400, 93.696, 85.504, 76.800, 68.096, 59.904, 51.200,
+         42.496, 34.304, 25.600, 16.896, 8.704, 0.000, -8.704, -16.896, -25.600,
+         -34.304, -42.496, -51.200, -59.904, -68.096, -76.800, -85.504, -93.696,
+         -102.400, -111.104, -119.296),
+        (119.296, 110.592, 102.400, 93.696, 84.992, 76.800, 68.096, 59.392, 51.200,
+         42.496, 33.792, 25.600, 16.896, 8.192, 0.000, -8.704, -17.408, -25.600,
+         -34.304, -43.008, -51.200, -59.904, -68.608, -76.800, -85.504, -94.208,
+         -102.400, -111.104, -119.808))
     for name in sorted(runner.REQUIRED_GAME_CHECKS):
         log += f"[D3BFG] CHECK {name} PASS\n"
     for cycle in range(3):
@@ -57,6 +74,20 @@ def complete():
             log += (f"[D3BFG] GAME_PLAYER cycle={cycle} frame={frame} cmd={cmd} time={time} "
                     f"read={frame - 1} written={frame} pending=0 x={player_x[frame - 1]:.3f} "
                     f"y=-16.000 z=0.250 vx={player_vx[frame - 1]:.3f} floor=1\n")
+        for frame in range(9, 89):
+            flight = 0 if frame < 44 else 1
+            offset = frame - (9 if flight == 0 else 44)
+            airborne = offset < 29
+            z = jump_z[flight][offset] if airborne else 0.250
+            vz = jump_vz[flight][offset] if airborne else 0.000
+            crouched = int(76 <= frame <= 84)
+            buttons = 96 if crouched else 32 if frame <= 42 or frame == 44 else 0
+            height = 38 if crouched else 74
+            log += (f"[D3BFG] GAME_POSTURE cycle={cycle} frame={frame} buttons={buttons} "
+                    f"time={frame * 1000 // 60} read={frame - 1} written={frame} pending=0 "
+                    f"x=21.151 y=-16.000 z={z:.3f} vz={vz:.3f} height={height:.3f} "
+                    f"floor={int(not airborne)} jumped={int(frame in (9, 44))} "
+                    f"crouched={crouched} script=8\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -178,6 +209,37 @@ class GameRunnerTests(unittest.TestCase):
             log.replace("y=-16.000", "y=-15.000"),
             log.replace("z=0.250 vx=", "z=-0.250 vx="),
             log.replace("vx=-1.960 floor=1", "vx=-1.960 floor=0"),
+        ):
+            with self.subTest(output=bad):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
+
+    def test_game_requires_jump_landing_release_crouch_and_standing_traces(self):
+        result, log = complete()
+        for bad in (
+            "\n".join(line for line in log.splitlines() if "GAME_POSTURE cycle=1 frame=23" not in line),
+            log + next(line for line in log.splitlines() if "GAME_POSTURE cycle=1 frame=23" in line) + "\n",
+            log.replace("frame=9 buttons=32", "frame=9 buttons=0"),
+            log.replace("frame=42 buttons=32", "frame=42 buttons=0"),
+            log.replace("frame=43 buttons=0", "frame=43 buttons=32"),
+            log.replace("frame=44 buttons=32", "frame=44 buttons=0"),
+            log.replace("frame=76 buttons=96", "frame=76 buttons=64"),
+            log.replace("frame=85 buttons=0", "frame=85 buttons=96"),
+            log.replace("time=150 read=8", "time=149 read=8"),
+            log.replace("read=43 written=44", "read=42 written=44"),
+            log.replace("read=87 written=88 pending=0", "read=87 written=88 pending=1"),
+            log.replace("z=2.352 vz=119.296", "z=0.250 vz=0.000"),
+            log.replace("z=16.250", "z=17.000"),
+            log.replace("vz=-119.296", "vz=119.296"),
+            log.replace("z=0.250 vz=0.000 height=74.000 floor=1", "z=0.000 vz=-8.000 height=74.000 floor=1"),
+            log.replace("height=74.000 floor=1", "height=74.000 floor=0"),
+            log.replace("floor=1 jumped=0 crouched=0", "floor=1 jumped=1 crouched=0"),
+            log.replace("floor=0 jumped=1", "floor=0 jumped=0"),
+            log.replace("height=38.000", "height=74.000"),
+            log.replace("height=74.000 floor=1 jumped=0 crouched=0", "height=38.000 floor=1 jumped=0 crouched=1"),
+            log.replace("floor=1 jumped=0 crouched=1", "floor=1 jumped=1 crouched=1"),
+            log.replace("crouched=1", "crouched=0"),
+            log.replace("crouched=0 script=8", "crouched=0 script=9"),
+            log.replace("x=21.151 y=-16.000 z=2.352", "x=22.000 y=-16.000 z=2.352"),
         ):
             with self.subTest(output=bad):
                 self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])

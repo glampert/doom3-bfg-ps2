@@ -421,7 +421,10 @@ two additional instances of the same native probe class. Stepping is disabled fo
 the sliding case. A second native fixture class owns `idPhysics_Player`, consumes
 explicitly injected commands through `idUserCmdMgr` and runs native acceleration,
 wall collision, reverse movement and release friction through `RunPhysics`. Its
-floor support, command cursor/timing and teardown are checked. Full player spawning
+floor support, command cursor/timing and teardown are checked. Additional native frames
+verify two jumps/landings, held-jump suppression/release, crouch collision resizing and
+unobstructed standing restoration; no new source units or providers are enabled.
+Full player spawning
 remains pending. All map shutdowns recover exact ledgers. Tagged engine fixes reset
 binary-cache trace visitation and
 preserve loaded statistics; portable Common shutdown frees retained diagnostics before

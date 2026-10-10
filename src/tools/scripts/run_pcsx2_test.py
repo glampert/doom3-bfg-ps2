@@ -105,6 +105,9 @@ REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/
                                   "game/physics-gravity", "game/physics-floor-rest", "game/physics-ground-slide",
                                   "game/player-command-queue", "game/player-physics-walk-wall",
                                   "game/player-physics-release-stop", "game/player-physics-floor",
+                                  "game/player-posture-command-queue", "game/player-jump-land",
+                                  "game/player-jump-held-release", "game/player-crouch-shape-jump",
+                                  "game/player-stand-restore",
                                   "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
 SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -276,6 +279,28 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                 all(abs(value - target) < 0.05 for value, target in zip(
                     actual[7:11], (player_x[frame - 1], -16, 0.25, player_vx[frame - 1])))
                 for actual, (cycle, frame) in zip(players, expected))
+        postures = [tuple(int(value) if index < 7 or index >= 12 else float(value)
+                          for index, value in enumerate(match)) for match in re.findall(
+            r"GAME_POSTURE cycle=(\d+) frame=(\d+) buttons=(\d+) time=(\d+) read=(-?\d+) written=(\d+) pending=(\d+) x=(-?\d+\.\d+) y=(-?\d+\.\d+) z=(-?\d+\.\d+) vz=(-?\d+\.\d+) height=(-?\d+\.\d+) floor=(\d+) jumped=(\d+) crouched=(\d+) script=(\d+)(?:\s|$)", log)]
+        expected_postures = [(cycle, frame) for cycle in range(3) for frame in range(9, 89)]
+        def matches_postures(expected: list) -> bool:
+            if len(postures) != len(expected):
+                return False
+            for actual, (cycle, frame) in zip(postures, expected):
+                crouched = 76 <= frame <= 84
+                buttons = 96 if crouched else 32 if frame <= 42 or frame == 44 else 0
+                launch = 9 if frame < 44 else 44
+                elapsed = (frame * 1000 // 60 - (launch - 1) * 1000 // 60) / 1000
+                airborne = frame < (38 if launch == 9 else 73)
+                # Native averaged-velocity integration follows this bounded parabola.
+                z = 0.25 + 128 * elapsed - 256 * elapsed * elapsed if airborne else 0.25
+                vz = 128 - 512 * elapsed if airborne else 0
+                if (actual[:7] != (cycle, frame, buttons, frame * 1000 // 60, frame - 1, frame, 0) or
+                    actual[12:] != (int(not airborne), int(frame in (9, 44)), int(crouched), 8) or
+                    any(abs(value - target) >= 0.05 for value, target in zip(
+                        actual[7:12], (21.151, -16, z, vz, 38 if crouched else 74)))):
+                    return False
+            return True
         accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
                     result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
                     all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
@@ -293,7 +318,8 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     (matches_physics(expected_physics) or matches_physics(expected_physics + expected_physics)) and
                     (matches_falls(expected_frames) or matches_falls(expected_frames + expected_frames)) and
                     (matches_slides(expected_frames) or matches_slides(expected_frames + expected_frames)) and
-                    (matches_players(expected_frames) or matches_players(expected_frames + expected_frames)))
+                    (matches_players(expected_frames) or matches_players(expected_frames + expected_frames)) and
+                    (matches_postures(expected_postures) or matches_postures(expected_postures + expected_postures)))
         return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:

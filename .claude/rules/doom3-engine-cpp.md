@@ -326,5 +326,18 @@ math path; PS2-specific math replacement headers are a later milestone.
   20.48/32.04/43.60 on the first three frames. Frame four hits the wall around x=21.749,
   with overclip leaving about -0.054 x velocity. Reverse input gives -21.76 on frame
   five; neutral input then slows to -11.56/-1.96/0 through native ground friction.
-  An upward solid world contact persists at z=0.25. No jump, crouch, stairs, full
-  player entity or controller-input acceptance follows from this probe.
+  An upward solid world contact persists at z=0.25. Those initial movement checks
+  do not establish stairs, full player entity or controller-input acceptance.
+- The extended fixture runs 88 native frames per reload. `CheckJump` launches at
+  sqrt(2 * 16 * 512) = 128 units/s; player `SlideMove` integrates the average old/new
+  vertical velocity, unlike the monster probe's old-velocity integration. The apex is
+  16 units above the floor and landing takes 500 ms. Compare the fixture's airborne
+  deadline in integer milliseconds before converting to float; the boundary must not
+  depend on rounding `elapsedMs * 0.001f` around 0.5.
+- `PMF_JUMP_HELD` prevents another takeoff until a command releases jump, including
+  after landing. `CheckDuck` runs before `WalkMove`/`CheckJump`; simultaneous crouch
+  and jump therefore shrink the clip shape and reject takeoff. Native default heights
+  are 74 standing / 38 crouched. Releasing crouch traces available headroom before
+  restoring standing height. The fixture proves only the unobstructed restoration
+  case and leaves movement cvars unchanged. Its script stops after eight increments;
+  later frames verify that completed state, rather than inventing further script work.

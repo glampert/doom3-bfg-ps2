@@ -169,6 +169,92 @@ bool FloorContacts(const idPhysics_Actor & physics)
     return false;
 }
 
+bool PlayerPostureTests(PlayerPhysicsProbe & player, idUserCmdMgr & commands, idVarDef * scriptTicks, int cycle)
+{
+    // Continue the same native simulation after the initial movement/event checks.
+    // Hold jump through landing, release/rearm it, then try jumping while crouched.
+    const idVec3 start = player.GetMotionPhysics().GetOrigin();
+    bool queuePassed = true, jumpPassed = true, heldPassed = true, crouchPassed = true, standPassed = true;
+    float peakZ = start.z;
+    for (int frame = 9; frame <= 88; ++frame)
+    {
+        usercmd_t input;
+        if (frame <= 42 || frame == 44)
+        {
+            input.buttons = BUTTON_JUMP;
+        }
+        else if (frame >= 76 && frame <= 84)
+        {
+            input.buttons = BUTTON_CROUCH | BUTTON_JUMP;
+        }
+        input.clientGameMilliseconds = input.serverGameMilliseconds = FRAME_TO_MSEC(frame);
+        commands.PutUserCmdForPlayer(0, input);
+        queuePassed = commands.HasUserCmdForPlayer(0) &&
+                      commands.GetNextUserCmdClientTime(0) == input.clientGameMilliseconds && queuePassed;
+        gameReturn_t result{};
+        ::game->RunFrame(commands, result);
+        const auto & physics = player.GetMotionPhysics();
+        const auto & position = physics.GetOrigin();
+        const auto & velocity = physics.GetLinearVelocity();
+        const auto & consumed = player.GetCommand();
+        const bool floor = FloorContacts(physics), jumped = physics.HasJumped(), crouched = physics.IsCrouching();
+        const float height = physics.GetClipModel()->GetBounds()[1].z;
+        const bool pending = commands.HasUserCmdForPlayer(0);
+        queuePassed = player.ticks == frame && consumed.buttons == input.buttons && consumed.forwardmove == 0 &&
+                      consumed.rightmove == 0 && consumed.clientGameMilliseconds == FRAME_TO_MSEC(frame) &&
+                      consumed.serverGameMilliseconds == FRAME_TO_MSEC(frame) && !pending &&
+                      commands.readFrame[0] == frame - 1 && commands.writeFrame[0] == frame && queuePassed;
+        // Native SlideMove uses averaged vertical velocity, giving a 128 units/s launch
+        // and a 16-unit ballistic apex at gravity 512. Landing clips velocity at the floor.
+        const int launch = frame < 44 ? 9 : 44;
+        const int elapsedMs = FRAME_TO_MSEC(frame) - FRAME_TO_MSEC(launch - 1);
+        const float elapsed = static_cast<float>(elapsedMs) * 0.001f;
+        const float ballisticZ = start.z + 128.0f * elapsed - 0.5f * kFixtureGravity * elapsed * elapsed;
+        const bool airborne = elapsedMs < 500;
+        jumpPassed = jumped == (frame == 9 || frame == 44) && position.z >= CM_CLIP_EPSILON - 0.01f &&
+                     position.z <= start.z + 16.05f && Near(position.x, start.x) && Near(position.y, start.y) &&
+                     Near(velocity.x, 0.0f) && Near(velocity.y, 0.0f) && !physics.OnLadder() &&
+                     physics.GetWaterLevel() == WATERLEVEL_NONE && physics.GetClipModel()->IsLinked() &&
+                     (frame >= 76 || (Near(position.z, airborne ? ballisticZ : start.z) &&
+                                      (airborne ? Near(velocity.z, 128.0f - kFixtureGravity * elapsed) : idMath::Fabs(velocity.z) < 1.0f) &&
+                                      floor == !airborne)) &&
+                     jumpPassed;
+        if (frame <= 42 && position.z > peakZ)
+        {
+            peakZ = position.z;
+        }
+        if (frame >= 40 && frame <= 43)
+        {
+            heldPassed = floor && !jumped && Near(position.z, start.z) && velocity.LengthSqr() < 0.01f && heldPassed;
+        }
+        const bool expectCrouch = frame >= 76 && frame <= 84;
+        crouchPassed = crouched == expectCrouch && Near(height, expectCrouch ? pm_crouchheight.GetFloat() : pm_normalheight.GetFloat()) &&
+                       (frame < 76 || (floor && !jumped && Near(position.z, start.z) && velocity == vec3_zero)) && crouchPassed;
+        if (frame >= 85)
+        {
+            standPassed = !crouched && floor && Near(height, pm_normalheight.GetFloat()) && standPassed;
+        }
+        const bool simulation = gameLocal.GetFrameNum() == frame && gameLocal.time == FRAME_TO_MSEC(frame) &&
+                                scriptTicks != nullptr && *scriptTicks->value.floatPtr == 8.0f &&
+                                gameLocal.FindEntity("logic_target") == nullptr && result.sessionCommand[0] == '\0' &&
+                                gameLocal.sessionCommand.Length() == 0 && result.vibrationLow == 0 && result.vibrationHigh == 0;
+        queuePassed = simulation && queuePassed;
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_POSTURE cycle=%d frame=%d buttons=%d time=%d read=%d written=%d pending=%d x=%.3f y=%.3f z=%.3f vz=%.3f height=%.3f floor=%d jumped=%d crouched=%d script=%.0f\n",
+                 cycle, frame, static_cast<int>(consumed.buttons), consumed.clientGameMilliseconds,
+                 commands.readFrame[0], commands.writeFrame[0], static_cast<int>(pending),
+                 static_cast<double>(position.x), static_cast<double>(position.y), static_cast<double>(position.z),
+                 static_cast<double>(velocity.z), static_cast<double>(height), static_cast<int>(floor),
+                 static_cast<int>(jumped), static_cast<int>(crouched),
+                 static_cast<double>(scriptTicks != nullptr ? *scriptTicks->value.floatPtr : -1.0f));
+    }
+    bool passed = Check("player-posture-command-queue", queuePassed);
+    passed = Check("player-jump-land", jumpPassed && Near(peakZ, start.z + 16.0f)) && passed;
+    passed = Check("player-jump-held-release", heldPassed && jumpPassed) && passed;
+    passed = Check("player-crouch-shape-jump", crouchPassed) && passed;
+    passed = Check("player-stand-restore", standPassed && crouchPassed) && passed;
+    return passed;
+}
+
 bool CollisionTests(LogicProbe & probe, int cycle)
 {
     const auto & bounds = gameLocal.clip.GetWorldBounds();
@@ -423,6 +509,12 @@ bool RunGameTests(const char * mode)
         passed = Check("player-physics-floor", playerFloorPassed) && passed;
         passed = Check("script-target-command", commandPassed) && passed;
         passed = Check("entity-removal-cancellation", lifetimePassed && commandPassed && gameLocal.time >= kCanceledActivationMs) && passed;
+        // The monster probes have completed their checks; prevent continued sliding
+        // from leaving the bounded floor while the player finishes its posture checks.
+        probe->BecomeInactive(TH_THINK | TH_PHYSICS);
+        falling->BecomeInactive(TH_THINK | TH_PHYSICS);
+        sliding->BecomeInactive(TH_THINK | TH_PHYSICS);
+        passed = PlayerPostureTests(*player, *commands, value, cycle) && passed;
         Memory("ticked");
         ::game->MapShutdown();
         passed = Check("map-shutdown", gameLocal.GameState() == GAMESTATE_NOMAP && gameLocal.world == nullptr &&

@@ -9,7 +9,8 @@ fixture now runs native initialization, playerless entity/script ticks, native t
 activation, timed events, removal/cancellation, fixed-world collision, native physics
 wall stops, gravity, floor contacts/rest, grounded sliding and stable map reloads.
 Native player physics also consumes injected commands for acceleration, wall collision,
-reverse movement and stopping after input release.
+reverse movement and stopping after input release, followed by jumping/landing,
+held-jump suppression/rearming and crouch/standing collision shapes.
 Bounded logical PCM samples and deterministic headless voices are usable as
 standalone services. Player/AAS/PVS startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
@@ -1508,3 +1509,73 @@ native command-manager buffer. The new class adds 128 BSS bytes and 8 requested 
 at native Init. No full player entity, retail assets, device input or sound/render world
 is initialized. Kernel/stacks and real map-transition peaks remain unmeasured.
 Next candidates are native jump/crouch checks, then headless player entity startup.
+
+## M3 small step: native player jumping and crouching
+
+The existing native player-physics probe now continues through 88 `RunFrame` calls
+per map. The initial eight movement/script/event checks remain unchanged. Afterward,
+the monster probes become inactive so their sliding motion stays inside the bounded
+world. Native player physics continues through entity Think, queued user commands and
+`RunPhysics`; the authored script remains complete at eight increments, the removed
+target stays absent, and frame returns contain no session command or vibration.
+No engine/backend implementation, source list, movement cvar or declaration changed.
+
+Jump input stays held on frames nine through 42. Native physics launches at 128
+units/s, reaches the 16-unit apex on frame 23 and lands on frame 38. Holding jump
+through landing prevents another takeoff. Releasing on frame 43 permits the second
+jump on frame 44, which lands on frame 73. Position/vertical velocity follow native
+averaged-velocity gravity integration, with fixed x/y and native floor identity on
+landing. The fixture compares its airborne deadline in integer milliseconds to avoid
+rounding the 500 ms boundary through float conversion.
+
+Combined crouch/jump input on frames 76–84 changes native clip height from 74 to 38
+units and cannot launch while crouched. Releasing both buttons restores standing
+height on frames 85–88. This checks open headroom only. Low-ceiling rejection, crouch
+speed, stairs/slopes, full `idPlayer` startup and device input remain pending. All three
+raw/text/binary collision-cache reloads require identical behavior and exact teardown.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` | Strict EE compile and retained-object link passed |
+| Resident link | 344 inputs, 11 registration roots, no GC, unresolved symbols or duplicates |
+| Native registries | Unchanged: 535 events, 160 classes, 496,480 bytes of event callbacks |
+| Debug/release `make test-game` | All five fresh-process scenarios passed in each configuration |
+| Positive game classifier | Twenty-seven required checks, all existing 24-row trace sequences and 240 additional posture traces |
+| Host sanitizer fixtures and classifiers | All 83 Python regressions passed; the new regression rejects missing/duplicated traces, incorrect buttons/timing/cursors, jump/landing/held state, crouch height, standing restoration and completed script state |
+| Core and source inventory | Core/source lists unchanged; existing 458-unit inventory and 363-entry compile database remain valid; core/Common emulator matrices not rerun |
+
+Matched run identities:
+
+- Game debug/release: `20261010T093805Z_smoke_96d8a96d73464c5a` /
+  `20261010T093848Z_smoke_373417e50bbd4d76`.
+- Missing map debug/release: `20261010T093809Z_smoke_7335dfebdc8d46e7` /
+  `20261010T093851Z_smoke_c00758913ce44aad`.
+- Script error debug/release: `20261010T093812Z_smoke_245a60bfa4414305` /
+  `20261010T093854Z_smoke_d99739b13dea4130`.
+- Geometry debug/release: `20261010T093815Z_smoke_94cb5947690a49ab` /
+  `20261010T093856Z_smoke_562b3d8ea1f84450`.
+- Material debug/release: `20261010T093817Z_smoke_6fae80a77f774034` /
+  `20261010T093859Z_smoke_72a498aa77c14013`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,892,518 bytes | 11,312,486 bytes |
+| Resident BSS (included above) | 5,238,118 bytes | 5,238,118 bytes |
+| After native game Init: requested / backing / count | 1,396,272 / 1,488,684 / 2,261 | 1,396,272 / 1,488,684 / 2,261 |
+| After 88 ticks, conversion: requested / backing / count | 1,747,756 / 1,848,712 / 2,466 | 1,747,756 / 1,848,712 / 2,466 |
+| After 88 ticks, text cache: requested / backing / count | 1,747,772 / 1,848,324 / 2,455 | 1,747,772 / 1,848,324 / 2,455 |
+| After 88 ticks, binary cache: requested / backing / count | 1,745,524 / 1,846,056 / 2,454 | 1,745,524 / 1,846,056 / 2,454 |
+| Peak requested / backing | 2,057,436 / 2,153,928 bytes | 2,057,436 / 2,153,928 bytes |
+| Arena commitment after three cycles | 2,333,466 bytes | 2,335,386 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Conversion scratch still determines the peak. Both standing/crouching trace-model
+shapes are exercised; map shutdown releases all collision/clip allocations and cache
+entries, warm reload ledgers match, and full shutdown recovers the pre-boot baseline.
+The fixture keeps zero clients and null sound/render worlds. Kernel/stacks and real
+campaign transitions remain unmeasured. The next candidate is bounded headless
+`idPlayer` entity startup.
