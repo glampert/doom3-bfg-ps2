@@ -97,7 +97,8 @@ GAME_FAILURES = {
     "game-syntax": "script maps/logic.script:",
 }
 REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/native-ticks-script-events",
-                                  "game/script-target-command", "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
+                                  "game/script-target-command", "game/delayed-events-posted", "game/entity-removal-cancellation",
+                                  "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
 SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
 CRASH_RE = re.compile(r"TLB Miss|\[D3BFG\] FATAL|Assertion failed|Bus error", re.IGNORECASE)
@@ -188,7 +189,14 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
             r"GAME_COMMAND cycle=(\d+) frame=(\d+) command=(\S+) expected=(\S+) pending=(\d+)(?:\s|$)", log)
         expected_commands = [(str(cycle), str(frame), command, command, "0")
                              for cycle in range(3) for frame in range(1, 9)
-                             for command in ("fixture-activated" if frame == 4 else "none",)]
+                             for command in ("fixture-activated" if frame in (4, 6) else "none",)]
+        events = [tuple(map(int, match)) for match in re.findall(
+            r"GAME_EVENTS cycle=(\d+) activation_ms=(\d+) canceled_ms=(\d+) posted=(\d+)(?:\s|$)", log)]
+        expected_events = [(cycle, 90, 120, 2) for cycle in range(3)]
+        lifetimes = [tuple(map(int, match)) for match in re.findall(
+            r"GAME_LIFETIME cycle=(\d+) frame=(\d+) valid=(\d+) resolved=(\d+) named=(\d+)(?:\s|$)", log)]
+        expected_lifetimes = [(cycle, frame, int(frame < 7), int(frame < 7), int(frame < 7))
+                              for cycle in range(3) for frame in range(1, 9)]
         accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
                     result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
                     all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
@@ -199,7 +207,9 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     REQUIRED_GAME_CHECKS.issubset({name for name, status in checks if status == "PASS"}) and
                     not any(status == "FAIL" for name, status in checks) and
                     ticks in (expected_ticks, expected_ticks + expected_ticks) and
-                    commands in (expected_commands, expected_commands + expected_commands))
+                    commands in (expected_commands, expected_commands + expected_commands) and
+                    events in (expected_events, expected_events + expected_events) and
+                    lifetimes in (expected_lifetimes, expected_lifetimes + expected_lifetimes))
         return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:
@@ -372,7 +382,7 @@ def stage_game_fixtures(directory: Path, scenario: str) -> None:
     (directory / "def/fixture.def").write_text(
         'entityDef aas_types {}\nentityDef worldspawn { "spawnclass" "idWorldspawn" "noclipmodel" "1" }\n')
     (directory / "script/doom_defs.script").write_text(
-        'scriptEvent void waitFrame();\nscriptEvent void activate(entity activator);\n')
+        'scriptEvent void waitFrame();\nscriptEvent void activate(entity activator);\nscriptEvent void remove();\n')
     (directory / "script/doom_main.script").write_text(
         'float fixtureTicks = 0;\nvoid doom_main() {}\n')
     if scenario != "game-missing-map":
@@ -381,7 +391,8 @@ def stage_game_fixtures(directory: Path, scenario: str) -> None:
     (directory / "maps/logic.script").write_text(
         'void main() { fixtureTicks = absent; }\n' if scenario == "game-syntax" else
         'void main() { while (fixtureTicks < 8) { fixtureTicks++; '
-        'if (fixtureTicks == 4) { $logic_target.activate($logic_probe); } sys.waitFrame(); } }\n')
+        'if (fixtureTicks == 4) { $logic_target.activate($logic_probe); } '
+        'if (fixtureTicks == 7) { $logic_target.remove(); } sys.waitFrame(); } }\n')
 
 
 def stage_audio_fixtures(directory: Path) -> None:

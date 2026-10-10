@@ -5,9 +5,9 @@ foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core 
 offline services. The M2b campaign gate compiles all 281 retained units in debug and
 release; audited JPEG/zlib integration now closes the retained resident link in both
 configurations. M2b compile/link acceptance is complete. The first partial M3 game
-fixture now runs native initialization, playerless entity/script ticks, script-driven
-native target activation and stable map reloads. Bounded logical PCM samples and
-deterministic headless voices are usable as
+fixture now runs native initialization, playerless entity/script ticks, native target
+activation, timed events, removal/cancellation and stable map reloads. Bounded logical
+PCM samples and deterministic headless voices are usable as
 standalone services. Collision/player startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
 The sections below preserve each slice's
@@ -1235,4 +1235,55 @@ Matched run identities:
 
 These measurements cover only the logic fixture, not player/collision, media, retail
 assets or real map transitions. Sound and rendering remain deferred. Next candidates
-are delayed entity-event/lifetime checks and a bounded collision fixture.
+were delayed entity-event/lifetime checks and a bounded collision fixture.
+
+## M3 small step: timed entity events and script removal
+
+The resident fixture now posts two native `EV_Activate` events at game time zero.
+The 90 ms activation must wait until frame six (100 ms), with no command on frame
+five (83 ms). The existing script activation still returns its command on frame
+four. Each native return consumes the command in the same frame.
+
+On frame seven (116 ms), the authored script calls the target's native `remove()`
+event. `EV_SafeRemove` queues zero-delay deletion; the native destructor invalidates
+the spawn generation, removes the entity name and cancels its remaining events.
+The cached `idEntityPtr` must stop validating/resolving on that frame. Frame eight
+(133 ms) must return no command, proving that the queued 120 ms activation was
+canceled. The probe continues thinking and the script continues incrementing through
+all eight frames. No freed target pointer is dereferenced by the fixture.
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `make test-game` | All three scenarios passed in each configuration: timed activation/removal/reloads, missing map and script error |
+| Retained resident link | 344 inputs and 11 registration roots, no GC, unresolved symbols or duplicates; strict fixture compilation passed |
+| Positive game classifier | Nine required checks; three event-posting traces and 24 each of tick, command and lifetime traces passed |
+| Host sanitizer fixtures and classifiers | All 79 Python regressions passed; classifiers reject wrong deadlines, absent posts, early removal, stale handles and canceled-event commands |
+| Core and source inventory | Core/source lists unchanged; existing 458-unit inventory and 363-entry compile database remain valid; core emulator matrix not rerun |
+
+Matched run identities:
+
+- Game debug/release: `20261010T080638Z_smoke_73a32da401664f40` /
+  `20261010T080718Z_smoke_a8d781ff3c2e44c8`.
+- Missing map debug/release: `20261010T080641Z_smoke_bb1907b129af405f` /
+  `20261010T080721Z_smoke_cb53a2b0ba3c4acc`.
+- Script error debug/release: `20261010T080644Z_smoke_95e024c459e34f3c` /
+  `20261010T080723Z_smoke_bbb002312ec84aae`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,877,286 bytes | 11,297,510 bytes |
+| Resident BSS (included above) | 5,237,990 bytes | 5,237,990 bytes |
+| After native game Init: requested / backing / count | 1,387,660 / 1,479,636 / 2,251 | 1,387,660 / 1,479,636 / 2,251 |
+| After eight ticks and target removal: requested / backing / count | 1,494,580 / 1,588,900 / 2,307 | 1,494,580 / 1,588,900 / 2,307 |
+| Peak requested / backing | 1,498,492 / 1,593,476 bytes | 1,498,492 / 1,593,476 bytes |
+| Arena commitment after three cycles | 1,615,514 bytes | 1,617,178 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Native queued event arguments warm a 16 KiB block allocator; deleting the target
+does not immediately release that allocator's backing. Warm map-shutdown ledgers
+stay exact across reloads and full shutdown recovers the original pre-boot baseline.
+These measurements still cover only the playerless logic fixture. The next candidate
+is bounded collision/physics initialization and traces, before player simulation.
+Sound and rendering integration remain deferred.

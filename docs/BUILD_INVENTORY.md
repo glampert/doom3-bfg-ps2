@@ -408,9 +408,11 @@ calls without a render world. The explicit startup method accepts only the bound
 worldspawn logic map; regular `InitFromNewMap` remains separate. The real class factory,
 entity Think loop, interpreter and `waitFrame` event scheduling execute over three
 reloads. The script also dispatches native `activate` to `idTarget_SessionCommand` on
-frame four; the native return path consumes the command once. Map shutdown removes
-the target and its script binding. Collision/PVS, players, render/sound worlds, shell
-resources and retail data are not initialized. Native sound/render integration follows
+frame four; a queued 90 ms activation fires on frame six. The native return path
+consumes both commands in their frames. Script removal on frame seven invalidates
+the cached `idEntityPtr` and cancels a queued 120 ms activation, checked after its
+deadline on frame eight. Map shutdown removes script bindings. Collision/PVS, players,
+render/sound worlds, shell resources and retail data are not initialized. Native sound/render integration follows
 later headless gameplay work.
 
 Resident reports include matched runnable/unstripped ELF and map hashes. The runner

@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: game_boot.cpp
-// Brief: Prove native ticks, script/entity activation and stable logic-map reloads on the EE.
+// Brief: Prove native ticks, timed events, entity removal and stable logic-map reloads on the EE.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -16,6 +16,10 @@
 namespace
 {
 static constexpr int kActivationFrame = 4;
+static constexpr int kDelayedActivationMs = 90;
+static constexpr int kCanceledActivationMs = 120;
+static constexpr int kDelayedActivationFrame = 6;
+static constexpr int kRemovalFrame = 7;
 static constexpr char kFixtureCommand[] = "fixture-activated";
 
 class LogicProbe final : public idEntity
@@ -81,24 +85,44 @@ bool RunGameTests(const char * mode)
         args.Set("command", kFixtureCommand);
         idEntity * target = gameLocal.SpawnEntityType(idTarget_SessionCommand::Type, &args);
         args.Clear();
-        if (target == nullptr || !target->IsType(idTarget_SessionCommand::Type) || !target->RespondsTo(EV_Activate))
+        if (probe == nullptr || target == nullptr || !target->IsType(idTarget_SessionCommand::Type) || !target->RespondsTo(EV_Activate))
         {
             FatalError("native command target did not spawn with its activation event");
         }
         // Native SetName binds the script's $logic_target reference before the first frame.
         bool commandPassed = gameLocal.FindEntity("logic_target") == target && gameLocal.sessionCommand.Length() == 0;
+        idEntityPtr<idEntity> targetRef;
+        targetRef = target;
+        bool lifetimePassed = targetRef.IsValid() && targetRef.GetEntity() == target;
+        // Deadlines fall between 60 Hz frames: 90 ms is serviced at 100 ms, while script
+        // removal at 116 ms must cancel the second activation before its 120 ms deadline.
+        const bool activationPosted = target->PostEventMS(&EV_Activate, kDelayedActivationMs, probe);
+        const bool canceledPosted = target->PostEventMS(&EV_Activate, kCanceledActivationMs, probe);
+        passed = Check("delayed-events-posted", activationPosted && canceledPosted) && passed;
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_EVENTS cycle=%d activation_ms=%d canceled_ms=%d posted=%d\n",
+                 cycle, kDelayedActivationMs, kCanceledActivationMs,
+                 static_cast<int>(activationPosted) + static_cast<int>(canceledPosted));
         idVarDef * value = gameLocal.program.GetDef(&type_float, "fixtureTicks", &def_namespace);
         passed = value != nullptr && *value->value.floatPtr == 0.0f && passed;
         for (int frame = 1; frame <= 8; ++frame)
         {
             gameReturn_t result{};
             ::game->RunFrame(*commands, result);
-            const char * expectedCommand = frame == kActivationFrame ? kFixtureCommand : "";
+            const char * expectedCommand = frame == kActivationFrame || frame == kDelayedActivationFrame ? kFixtureCommand : "";
             commandPassed = idStr::Cmp(result.sessionCommand, expectedCommand) == 0 &&
                             gameLocal.sessionCommand.Length() == 0 && commandPassed;
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_COMMAND cycle=%d frame=%d command=%s expected=%s pending=%d\n",
                      cycle, gameLocal.GetFrameNum(), result.sessionCommand[0] != '\0' ? result.sessionCommand : "none",
                      expectedCommand[0] != '\0' ? expectedCommand : "none", gameLocal.sessionCommand.Length());
+            // Resolve only the generation-checked handle after RunFrame: script removal may
+            // have deleted the original target while native events were being serviced.
+            const bool valid = targetRef.IsValid();
+            const bool resolved = targetRef.GetEntity() != nullptr;
+            const bool named = gameLocal.FindEntity("logic_target") != nullptr;
+            const bool expectedAlive = frame < kRemovalFrame;
+            lifetimePassed = valid == expectedAlive && resolved == expectedAlive && named == expectedAlive && lifetimePassed;
+            ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_LIFETIME cycle=%d frame=%d valid=%d resolved=%d named=%d\n",
+                     cycle, gameLocal.GetFrameNum(), static_cast<int>(valid), static_cast<int>(resolved), static_cast<int>(named));
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_TICK cycle=%d frame=%d time=%d expected=%d think=%d script=%.0f\n",
                      cycle, gameLocal.GetFrameNum(), gameLocal.time, FRAME_TO_MSEC(frame), probe->ticks,
                      static_cast<double>(value != nullptr ? *value->value.floatPtr : -1.0f));
@@ -108,10 +132,12 @@ bool RunGameTests(const char * mode)
         }
         passed = Check("native-ticks-script-events", passed) && passed;
         passed = Check("script-target-command", commandPassed) && passed;
+        passed = Check("entity-removal-cancellation", lifetimePassed && commandPassed && gameLocal.time >= kCanceledActivationMs) && passed;
         Memory("ticked");
         ::game->MapShutdown();
         passed = Check("map-shutdown", gameLocal.GameState() == GAMESTATE_NOMAP && gameLocal.world == nullptr &&
                                        gameLocal.FindEntity("logic_probe") == nullptr && gameLocal.FindEntity("logic_target") == nullptr &&
+                                       !targetRef.IsValid() && targetRef.GetEntity() == nullptr &&
                                        gameLocal.program.GetDef(&type_entity, "$logic_target", &def_namespace) == nullptr &&
                                        gameLocal.sessionCommand.Length() == 0 && gameLocal.program.FindFunction("main") == nullptr) &&
                  passed;

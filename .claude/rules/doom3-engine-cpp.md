@@ -247,7 +247,20 @@ math path; PS2-specific math replacement headers are a later milestone.
   entity (`e`), and the interpreter terminates the thread if that argument is missing.
 - Native `idTarget_SessionCommand::Event_Activate` copies the `command` spawn key into
   `gameLocal.sessionCommand`. `BuildReturnValue` copies it into the frame return and
-  clears the pending string in the same frame. The fixture requires one return on
-  frame four and empty returns on all surrounding frames, then checks target/binding
+  clears the pending string in the same frame. The fixture requires returns on frame
+  four (script activation) and six (queued activation), then checks target/map-binding
   removal and reload accounting. It does not dispatch that token through Common or
   load a new campaign map.
+- Native `PostEventMS` schedules relative to the entity's time group. In the fixture,
+  both clocks advance at 60 Hz: a 90 ms deadline is serviced on frame six at 100 ms,
+  never frame five at 83 ms. `ServiceEvents` dispatches events whose deadline is at
+  or before the current game time.
+- Script `remove()` dispatches `EV_SafeRemove`, which queues `EV_Remove` at zero delay.
+  The service loop removes the current event before invoking it, allowing deletion
+  without double-free; `idClass` destruction cancels its remaining queued events.
+  Frame-seven removal (116 ms) invalidates the cached generation-checked `idEntityPtr`
+  and cancels the target's 120 ms activation, proven by the empty frame-eight return.
+  Native entity teardown removes the name hash and invalidates the spawn slot. The
+  script `$name` definition is a numeric entity slot, not an `idEntityPtr`; map program
+  reset removes that definition. Do not infer generation safety for script references
+  from the cached native handle check.

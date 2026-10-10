@@ -465,8 +465,10 @@ vendor flags and strict tagged allocator hooks. Their bounded SWF JPEG and strea
 zlib fixtures run on the EE. The linked entry requires an explicit authored game manifest.
 Native declarations, class/event registries, script compilation/interpreter execution,
 worldspawn map parsing and eight native frames over three reloads pass in debug/release.
-Script-driven native target activation now returns a command exactly once on frame four,
-with target/binding teardown and exact warm reload/shutdown ledgers.
+Script-driven native target activation returns a command on frame four; a queued 90 ms
+activation returns another on frame six (100 ms). Script removal on frame seven
+invalidates `idEntityPtr` and cancels a queued 120 ms activation. Target/map-binding
+teardown and warm reload/full shutdown recover exact ledgers.
 The fixture keeps render/sound worlds null and uses a bounded startup path separate from
 regular `InitFromNewMap`; player, collision/AAS/PVS and retail map startup remain pending.
 Common/OS metadata, rejected source
@@ -478,7 +480,7 @@ and player-command generation fail explicitly. Shell, multiplayer, physical inpu
 physical saves remain unavailable.
 Meaningful logical render contracts and native sound-world integration are deferred while
 the headless simulation fixture grows. Native entity activation is now exercised by the
-authored script. Next candidates are delayed entity-event/lifetime checks and a bounded
-collision fixture, followed by synthetic player commands when
+authored script. The fixture also covers timed activation and removal/cancellation.
+The next candidate is a bounded collision fixture, followed by synthetic player commands when
 their simulation dependencies exist. The current logic map does not establish general
 campaign loading, player/AI behavior or full M3 completion.

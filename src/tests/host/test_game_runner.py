@@ -24,13 +24,17 @@ def complete():
     for name in sorted(runner.REQUIRED_GAME_CHECKS):
         log += f"[D3BFG] CHECK {name} PASS\n"
     for cycle in range(3):
+        log += f"[D3BFG] GAME_EVENTS cycle={cycle} activation_ms=90 canceled_ms=120 posted=2\n"
         for frame in range(1, 9):
             time = frame * 1000 // 60
             log += (f"[D3BFG] GAME_TICK cycle={cycle} frame={frame} time={time} "
                     f"expected={time} think={frame} script={frame}\n")
-            command = "fixture-activated" if frame == 4 else "none"
+            command = "fixture-activated" if frame in (4, 6) else "none"
             log += (f"[D3BFG] GAME_COMMAND cycle={cycle} frame={frame} command={command} "
                     f"expected={command} pending=0\n")
+            alive = int(frame < 7)
+            log += (f"[D3BFG] GAME_LIFETIME cycle={cycle} frame={frame} valid={alive} "
+                    f"resolved={alive} named={alive}\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -56,7 +60,26 @@ class GameRunnerTests(unittest.TestCase):
             log.replace("frame=4 command=fixture-activated", "frame=5 command=fixture-activated"),
             log.replace("command=fixture-activated", "command=none"),
             log.replace("frame=5 command=none", "frame=5 command=fixture-activated"),
+            log.replace("frame=6 command=fixture-activated", "frame=5 command=fixture-activated"),
+            log.replace("frame=6 command=fixture-activated", "frame=7 command=fixture-activated"),
+            log.replace("frame=8 command=none", "frame=8 command=fixture-activated"),
             log.replace("pending=0", "pending=1"),
+        ):
+            with self.subTest(output=bad):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
+
+    def test_game_requires_posted_deadlines_removal_and_invalidated_entity_handle(self):
+        result, log = complete()
+        for bad in (
+            "\n".join(line for line in log.splitlines() if "GAME_EVENTS cycle=1" not in line),
+            "\n".join(line for line in log.splitlines() if "GAME_LIFETIME cycle=1 frame=7" not in line),
+            log.replace("activation_ms=90", "activation_ms=100"),
+            log.replace("canceled_ms=120", "canceled_ms=140"),
+            log.replace("posted=2", "posted=1"),
+            log.replace("frame=6 valid=1 resolved=1 named=1", "frame=6 valid=0 resolved=0 named=0"),
+            log.replace("frame=7 valid=0", "frame=7 valid=1"),
+            log.replace("frame=8 valid=0 resolved=0", "frame=8 valid=0 resolved=1"),
+            log.replace("frame=8 valid=0 resolved=0 named=0", "frame=8 valid=0 resolved=0 named=1"),
         ):
             with self.subTest(output=bad):
                 self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])

@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 34 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 47 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 78 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 79 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -150,14 +150,20 @@
   both `fs_game` and its search-path gamedir set to that root for relative script paths.
   No core filesystem substitute or retail containers are used. Resident report/image/map
   hashes and flags must match before launch; authored file hashes are archived too.
-- A game pass requires the matching closed JSON, begin/final markers, all seven `game/`
-  checks and exactly three cycles of eight frame/entity/script and command traces at
+- A game pass requires the matching closed JSON, begin/final markers, all nine `game/`
+  checks and exactly three cycles of eight frame/entity/script, command and lifetime traces at
   native 60 Hz.
   Checks cover native initialization, logic world, ticks/script events, map shutdown,
-  native script target activation, stable warm reload accounting and full pre-boot
+  native script target activation, successful delayed-event posting, removal/cancellation,
+  stable warm reload accounting and full pre-boot
   ledger recovery.
-  `GAME_COMMAND` must return `fixture-activated` only on frame four, empty on every
-  other frame, and report no pending native command after each return. Early/late,
+  Each `GAME_EVENTS` trace must confirm two posted events with 90/120 ms deadlines.
+  `GAME_COMMAND` must return `fixture-activated` only on frames four and six, empty on every
+  other frame, and report no pending native command after each return. The 90 ms event
+  first becomes due on frame six (100 ms). Script `remove` runs on frame seven (116 ms);
+  `GAME_LIFETIME` must show the cached native handle, resolution and name lookup present
+  through frame six and invalid/absent on frames seven and eight. The empty return at
+  133 ms verifies cancellation of the 120 ms event. Early/late,
   missing, repeated or unconsumed commands fail even with PASS check markers.
   `core SKIP` means the core test suite was not run, although staged Common foundation
   startup executes.
@@ -165,7 +171,7 @@
 - Game negatives must observe native initialization and the correct first fatal after
   game startup: the missing-map diagnostic or a source-located `maps/logic.script`
   error. A result file, wrong source, unrelated first fatal, bus/TLB error, watchdog
-  or nonzero emulator status fails. Five host regressions verify these classifications
+  or nonzero emulator status fails. Six host regressions verify these classifications
   and resident archive identity; target debug/release runs are required too.
 - This is playerless logic-map acceptance: native entity thinking, script `waitFrame`
   scheduling and map teardown run, while collision/AAS/PVS, player commands, sound/

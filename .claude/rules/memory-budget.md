@@ -39,8 +39,8 @@ requiring exact repeated ledger recovery; full shutdown still returns to baselin
 Shell resources, save pipelines and multiplayer matches are not initialized. The input
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
-The passing whole-object resident link with script-driven target activation has
-10,876,518 / 11,296,742 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
+The passing whole-object resident link with timed activation/removal has
+10,877,286 / 11,297,510 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
 BSS in both configurations. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
 All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
@@ -70,6 +70,15 @@ activation fixture peaks at 1,481,836 / 1,576,512 bytes; arena commitment after 
 is 1,595,802 / 1,593,370 bytes (debug/release). Both still recover the exact 7,424 /
 7,600 / 4 pre-boot ledger. The returned command is inspected without executing a
 Common map transition, so no transition peak is established.
+
+Adding queued entity-argument events and script removal raises game Init to 1,387,660
+requested / 1,479,636 backing bytes in 2,251 allocations. After eight ticks and target
+removal the ledger is 1,494,580 / 1,588,900 / 2,307; the three-cycle peak is 1,498,492 /
+1,593,476 bytes. Event argument storage uses native
+`idDynamicBlockAlloc<byte, 16 * 1024, 256>`, with base blocks retained until event shutdown. Warm map-shutdown ledgers remain
+exact, and full game/decl/Common shutdown recovers 7,424 / 7,600 / 4. Arena commitment
+after tests is 1,615,514 / 1,617,178 bytes (debug/release). Entity removal does not imply
+that every native allocator returns its warmed backing immediately.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See
