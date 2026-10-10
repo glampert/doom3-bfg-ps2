@@ -103,7 +103,9 @@ Map shutdown removes the map's script bindings.
 Native collision tests cover point/swept-box traces, contents and masks, entity
 filtering and clip-model disable/enable. The probe runs native `idPhysics_Monster`
 through `RunPhysics` during its Think calls, moving toward the wall and stopping
-before penetration. Three reloads cover brush conversion, text `.cm` loading and
+before penetration. Two additional native probes verify gravity-driven falling,
+floor contacts and rest, and grounded diagonal sliding along the wall with stepping
+disabled. Three reloads cover brush conversion, text `.cm` loading and
 generated binary collision-cache loading. Clip/collision ownership returns to zero
 at map shutdown.
 Warm reload ledgers stay exact; full shutdown returns to the pre-boot ledger. Missing
@@ -259,8 +261,8 @@ sign-out/input routing, plus inactive-demo cleanup. Common probes launch a fresh
 for each of seven deliberate startup stops and fifty-nine invalid or unsupported requests;
 each must match its own run
 identity and expected cleanup or fatal diagnostic. The separate game matrix requires
-all fifteen `game/` checks, three event-posting and collision traces, and all 24 frame/entity/script,
-command, entity-lifetime and physics traces, plus
+all eighteen `game/` checks, three event-posting and collision traces, and all 24 frame/entity/script,
+command, entity-lifetime, wall-stop, falling and grounded-sliding traces, plus
 source-specific missing-map, malformed-script and restricted geometry/material failures. Resident images, map, flags and authored
 game files are hashed in each archive; generated collision caches are hashed after completion. Seventeen audio failures cover missing
 files, unloaded duration, unsupported formats, truncation, chunk bounds, payload budget

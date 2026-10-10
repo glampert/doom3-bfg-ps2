@@ -21,6 +21,9 @@ def complete():
     result = {"schema": 1, "test_id": "run1", "manifest": "PASS", "platform": "PASS",
               "core": "SKIP", "game": "PASS"}
     log = "[D3BFG] RUN run1 BEGIN\n[D3BFG] STAGE game BEGIN\n"
+    fall_z = (4.000, 3.861, 3.574, 3.164, 2.589, 2.251, 2.251, 2.251)
+    fall_vz = (-8.192, -16.896, -25.600, -33.792, -42.496, -8.662, 0.000, 0.000)
+    slide_y = (33.024, 34.112, 35.807, 36.832, 37.921, 39.010, 40.035, 41.124)
     for name in sorted(runner.REQUIRED_GAME_CHECKS):
         log += f"[D3BFG] CHECK {name} PASS\n"
     for cycle in range(3):
@@ -40,6 +43,14 @@ def complete():
             x = 512 * time / 1000 if frame < 3 else 21.75
             log += (f"[D3BFG] GAME_PHYSICS cycle={cycle} frame={frame} x={x:.3f} "
                     f"y=0.000 z=16.000 stopped={int(frame >= 3)}\n")
+            grounded = int(frame >= 7)
+            log += (f"[D3BFG] GAME_FALL cycle={cycle} frame={frame} x=-32.000 y=-32.000 "
+                    f"z={fall_z[frame - 1]:.3f} vz={fall_vz[frame - 1]:.3f} "
+                    f"ground={grounded} rest={grounded} floor={grounded}\n")
+            vx = 512.000 if frame < 3 else -0.512
+            log += (f"[D3BFG] GAME_SLIDE cycle={cycle} frame={frame} x={x:.3f} "
+                    f"y={slide_y[frame - 1]:.3f} z=2.250 vx={vx:.3f} vy=64.000 "
+                    f"ground=1 floor=1 blocked={int(frame >= 3)} move={int(frame >= 3)}\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -114,6 +125,30 @@ class GameRunnerTests(unittest.TestCase):
             log.replace("z=16.000", "z=0.000"),
             log.replace("stopped=1", "stopped=0"),
             log.replace("stopped=0", "stopped=1"),
+        ):
+            with self.subTest(output=bad):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
+
+    def test_game_requires_gravity_floor_rest_and_grounded_wall_sliding(self):
+        result, log = complete()
+        for bad in (
+            "\n".join(line for line in log.splitlines() if "GAME_FALL cycle=1 frame=6" not in line),
+            log.replace("z=3.861 vz=-16.896", "z=4.000 vz=0.000"),
+            log.replace("vz=-42.496", "vz=-25.600"),
+            log.replace("z=2.251", "z=1.900"),
+            log.replace("ground=0 rest=0", "ground=1 rest=1"),
+            log.replace("rest=1", "rest=0"),
+            log.replace("vz=0.000 ground=1", "vz=-8.000 ground=1"),
+            log.replace("floor=1", "floor=0"),
+            "\n".join(line for line in log.splitlines() if "GAME_SLIDE cycle=2 frame=8" not in line),
+            log.replace("y=41.124", "y=40.035"),
+            log.replace("y=35.807", "y=45.000"),
+            log.replace("z=2.250 vx=", "z=1.900 vx="),
+            log.replace("vx=-0.512", "vx=512.000"),
+            log.replace("vy=64.000", "vy=0.000"),
+            log.replace("ground=1 floor=1 blocked=1", "ground=0 floor=1 blocked=1"),
+            log.replace("blocked=1", "blocked=0"),
+            log.replace("move=1", "move=0"),
         ):
             with self.subTest(output=bad):
                 self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])

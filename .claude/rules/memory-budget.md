@@ -40,7 +40,7 @@ Shell resources, save pipelines and multiplayer matches are not initialized. The
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
 The passing whole-object resident link with bounded collision/physics has
-10,881,894 / 11,303,142 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
+10,885,350 / 11,306,086 bytes of fixed PT_LOAD residency, including 5,237,990 bytes of
 BSS in both configurations. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
 All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
@@ -92,6 +92,15 @@ The native missing-`.proc` warning retains 608 requested bytes until Common shut
 portable shutdown now clears diagnostic lists before idlib teardown. Full game/decl/Common
 shutdown still recovers exactly 7,424 / 7,600 / 4. No players, AAS/PVS or sound/render
 worlds are initialized; these figures cover only the fixed collision/physics fixture.
+
+Adding falling and grounded-sliding probes leaves game Init and the conversion peak
+unchanged. Live requested/backing/count after eight ticks is now 1,741,392 / 1,840,352 /
+2,420 for conversion, 1,741,408 / 1,839,964 / 2,409 for text loading and 1,739,160 /
+1,837,696 / 2,408 for binary loading in both configurations. Final arena commitment
+is 2,332,442 / 2,333,594 bytes (debug/release); full shutdown remains exactly 7,424 /
+7,600 / 4.
+The extra native entities/physics/contact storage is transient and every map shutdown
+still releases all COLLISION/PHYSICS_CLIP allocations and trace-model cache entries.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See

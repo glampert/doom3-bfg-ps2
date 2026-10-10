@@ -415,7 +415,10 @@ deadline on frame eight. The fixture validates two fixed axial brushes before na
 collision conversion and clip initialization. Point/box traces, contents/masks and
 entity filtering are checked; native monster physics runs through the probe's
 `RunPhysics` calls and stops at the wall. Raw, text-cache and binary-cache reloads
-recover exact ledgers. Tagged engine fixes reset binary-cache trace visitation and
+also verify gravity, floor contacts/rest and grounded diagonal wall sliding through
+two additional instances of the same native probe class. Stepping is disabled for
+the sliding case. All map shutdowns recover exact ledgers. Tagged engine fixes reset
+binary-cache trace visitation and
 preserve loaded statistics; portable Common shutdown frees retained diagnostics before
 idlib teardown. Map shutdown removes script bindings and all collision/clip allocations.
 AAS/PVS, players, render/sound worlds, shell resources and retail data are not initialized. Native sound/render integration follows

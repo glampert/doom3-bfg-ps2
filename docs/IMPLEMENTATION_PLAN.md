@@ -400,7 +400,7 @@ Work in small commits; each implementation commit states its behavior change and
 | **M1: core EE portability and compilation** | Header/platform split; scalar idlib; heap/error/RTTI changes required by core; platform services; explicit campaign compile manifest | Core EE objects compile with required language restrictions; new code passes strict warnings; linkable platform probe plus explicit remaining game blockers; this is partial engine compilation |
 | **M2: platform and core headless boot** | Runtime entry/IOP/logging; timer/heap tests; synchronous jobs; staged Common init; test runner and fixture root | PCSX2 emits distinct platform/core PASS results; real Doom command/CVar/filesystem services exercised; bounded run and useful negative-test failures; recorded image/startup memory |
 | **M2b: campaign source compile and resident link** | Complete no-exception/no-RTTI conversion for the intended runtime manifest, including game/script and required UI interfaces; supply declared subsystem replacements | `make compile-game` passes for every intended runtime unit; link the game-fixture ELF with no unresolved symbols or desktop/classic dependencies; verify class/CVar registrations and retained code in its map; explicitly list replacements and deferred source-import/editor features |
-| **M3: headless game fixture** | Native decl/script/event/game startup first; playerless authored map, then collision/AAS and gameplay; render/sound integration deferred | Boot/entity/script events, fixed world collision, native physics wall-stop and stable reloads pass; full M3 still requires player/AAS/PVS/gameplay and broader authored map startup |
+| **M3: headless game fixture** | Native decl/script/event/game startup first; playerless authored map, then collision/AAS and gameplay; render/sound integration deferred | Boot/entity/script events, fixed world collision, native physics wall-stop/gravity/floor-rest/sliding and stable reloads pass; full M3 still requires player/AAS/PVS/gameplay and broader authored map startup |
 | **M4: GS primitives and capture** | Reused GS/VRAM/packet layer; CPU triangle path; image readback and host comparison | Captured color grid, textured/depth-tested geometry, clipping/alpha/CLUT fixtures pass; readback failure restores state; captures are visually inspected |
 | **M5: inventory/converter and one campaign map** | Asset inventory, first versioned formats, bounded resource loader; first real map headless, then static textured world | Conversion report and hashes reproducible; map scripts/collision/portals load within budget; captured fixed-camera views have correct geometry/material placement |
 | **M6: gameplay rendering and presentation** | MD5 animation/skinning, simplified lighting/flashlight, input, essential HUD/PDA/world GUI, sound | Playable scripted section with enemy/weapon/door/light/UI interactions; deterministic captures and state checks; no missing essential UI or silent timing breakage |
@@ -472,8 +472,10 @@ teardown and warm reload/full shutdown recover exact ledgers.
 The fixture builds native collision data for a fixed floor and wall, initializes clip
 sectors and runs a small native monster-physics probe toward the wall. Point/box traces,
 contents/mask and entity-filter checks pass through raw/text/binary-cache reloads;
-map teardown releases clip/collision ownership. Render/sound worlds stay null, with a
-bounded startup path separate from regular `InitFromNewMap`; player/AAS/PVS and retail
+additional native probes verify falling under gravity, floor contacts/rest and grounded
+wall sliding with stepping disabled. Map teardown releases clip/collision ownership.
+Render/sound worlds stay null, with a bounded startup path separate from regular
+`InitFromNewMap`; player/AAS/PVS and retail
 map startup remain pending.
 Common/OS metadata, rejected source
 imports, typed renderer/input interfaces and deferred game/UI providers are supplied.
@@ -485,6 +487,6 @@ physical saves remain unavailable.
 Meaningful logical render contracts and native sound-world integration are deferred while
 the headless simulation fixture grows. Native entity activation is now exercised by the
 authored script. The fixture also covers timed activation and removal/cancellation.
-The next candidates are gravity, floor-contact and sliding checks, followed by synthetic
-player commands when their simulation dependencies exist. The current fixture does not establish general
+The next candidate is a bounded native player-physics probe driven by synthetic user
+commands, before full player spawning. The current fixture does not establish general
 campaign loading, player/AI behavior or full M3 completion.

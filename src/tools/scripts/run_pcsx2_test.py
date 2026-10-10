@@ -102,6 +102,7 @@ REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/
                                   "game/script-target-command", "game/delayed-events-posted", "game/entity-removal-cancellation",
                                   "game/collision-world", "game/collision-world-traces", "game/collision-contents-mask",
                                   "game/collision-entity-filter", "game/physics-wall-stop", "game/collision-shutdown",
+                                  "game/physics-gravity", "game/physics-floor-rest", "game/physics-ground-slide",
                                   "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
 SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -221,6 +222,44 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                 actual[:2] == wanted[:2] and actual[5] == wanted[5] and
                 all(abs(actual[index] - wanted[index]) < 0.05 for index in (2, 3, 4))
                 for actual, wanted in zip(physics, expected))
+        falls = [(int(cycle), int(frame), float(x), float(y), float(z), float(vz),
+                  int(ground), int(rest), int(floor))
+                 for cycle, frame, x, y, z, vz, ground, rest, floor in re.findall(
+                     r"GAME_FALL cycle=(\d+) frame=(\d+) x=(-?\d+\.\d+) y=(-?\d+\.\d+) z=(-?\d+\.\d+) vz=(-?\d+\.\d+) ground=(\d+) rest=(\d+) floor=(\d+)(?:\s|$)", log)]
+        # Native integration moves with the old velocity, then applies 512 units/s^2.
+        fall_z = (4.0, 3.860736, 3.573504, 3.163904, 2.58944, 2.25, 2.25, 2.25)
+        fall_vz = (-8.192, -16.896, -25.6, -33.792, -42.496, -8.662, 0.0, 0.0)
+        expected_frames = [(cycle, frame) for cycle in range(3) for frame in range(1, 9)]
+        def matches_falls(expected: list) -> bool:
+            return len(falls) == len(expected) and all(
+                actual[:2] == wanted and actual[6:] == (int(wanted[1] >= 7),) * 3 and
+                all(abs(value - target) < 0.05 for value, target in zip(
+                    actual[2:6], (-32, -32, fall_z[wanted[1] - 1], fall_vz[wanted[1] - 1])))
+                for actual, wanted in zip(falls, expected))
+        slides = [(int(cycle), int(frame), float(x), float(y), float(z), float(vx), float(vy),
+                   int(ground), int(floor), int(blocked), int(move))
+                  for cycle, frame, x, y, z, vx, vy, ground, floor, blocked, move in re.findall(
+                      r"GAME_SLIDE cycle=(\d+) frame=(\d+) x=(-?\d+\.\d+) y=(-?\d+\.\d+) z=(-?\d+\.\d+) vx=(-?\d+\.\d+) vy=(-?\d+\.\d+) ground=(\d+) floor=(\d+) blocked=(\d+) move=(\d+)(?:\s|$)", log)]
+        def matches_slides(expected: list) -> bool:
+            if len(slides) != len(expected):
+                return False
+            previous_y = 32.0
+            for actual, wanted in zip(slides, expected):
+                cycle, frame = wanted
+                if frame == 1:
+                    previous_y = 32.0
+                time = frame * 1000 // 60 / 1000
+                x = 512 * time if frame < 3 else 21.75
+                vx = 512 if frame < 3 else -0.512
+                minimum_y = 32 + 64 * time
+                blocked = int(frame >= 3)
+                if not (actual[:2] == (cycle, frame) and actual[7:] == (1, 1, blocked, blocked) and
+                        abs(actual[2] - x) < 0.05 and abs(actual[4] - 2.25) < 0.05 and
+                        abs(actual[5] - vx) < 0.05 and abs(actual[6] - 64) < 0.05 and
+                        actual[3] > previous_y and minimum_y - 0.05 <= actual[3] < minimum_y + 0.75):
+                    return False
+                previous_y = actual[3]
+            return True
         accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
                     result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
                     all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
@@ -235,7 +274,9 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     events in (expected_events, expected_events + expected_events) and
                     lifetimes in (expected_lifetimes, expected_lifetimes + expected_lifetimes) and
                     (matches_collisions(expected_collisions) or matches_collisions(expected_collisions + expected_collisions)) and
-                    (matches_physics(expected_physics) or matches_physics(expected_physics + expected_physics)))
+                    (matches_physics(expected_physics) or matches_physics(expected_physics + expected_physics)) and
+                    (matches_falls(expected_frames) or matches_falls(expected_frames + expected_frames)) and
+                    (matches_slides(expected_frames) or matches_slides(expected_frames + expected_frames)))
         return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:

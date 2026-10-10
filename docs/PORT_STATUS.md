@@ -7,8 +7,8 @@ release; audited JPEG/zlib integration now closes the retained resident link in 
 configurations. M2b compile/link acceptance is complete. The first partial M3 game
 fixture now runs native initialization, playerless entity/script ticks, native target
 activation, timed events, removal/cancellation, fixed-world collision, native physics
-wall stops and stable map reloads. Bounded logical
-PCM samples and deterministic headless voices are usable as
+wall stops, gravity, floor contacts/rest, grounded sliding and stable map reloads.
+Bounded logical PCM samples and deterministic headless voices are usable as
 standalone services. Player/AAS/PVS startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
 The sections below preserve each slice's
@@ -1371,3 +1371,70 @@ to the same warm ledger. Core initialization, peak and final tagged ledgers rema
 Script inline storage remains included in BSS; arena commitment already contains
 tagged backing and freed capacity. These figures exclude kernel/stacks, players,
 retail assets and real map transitions.
+
+## M3 small step: gravity, floor rest and grounded sliding
+
+Two additional instances of the native logic-probe class now run through the same
+class factory, spawn chain and `idEntity::RunPhysics` as the wall-stop probe. Event,
+script and removal checks remain active during all eight frames of each reload.
+No engine implementation or source lists changed in this slice.
+
+The falling probe starts at (-32,-32,4) with zero velocity and a fixture gravity of
+512 units/s². It must reproduce native old-velocity integration through frame five,
+land around z=2.251 on frame six and report ground/rest/zero velocity on frames seven
+and eight. Contact checks require the native world floor and an upward solid contact.
+Continued Think calls do not reactivate its resting physics.
+
+The sliding probe starts on the floor at (0,32,2.25), with velocity movement and a
+zero maximum step height. Its (512,64,0) input hits the wall on frame three, clipping
+the inward velocity while preserving tangent speed and ground support. Every later
+frame must report the world blocker and native `MM_SLIDING`, with bounded increasing
+y and no floor/wall penetration. Native full-delta projection after partial collision
+adds about 0.607 y units at first contact; this behavior is recorded in the engine rules.
+Stairs, slopes and player/AI simulation remain later work.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` | EE compile/link passed; new test code passes strict `-Werror` |
+| Retained resident link | 344 inputs, 11 registration roots, no GC, unresolved symbols or duplicates |
+| Debug/release `make test-game` | All five scenarios passed in each configuration; assertions-disabled checks remain active |
+| Positive game classifier | Eighteen required checks; three event/collision traces and 24 each of tick, command, lifetime, wall-stop, falling and sliding traces |
+| Host sanitizer fixtures and classifiers | All 81 Python regressions passed; the added regression rejects missing/incorrect falling, contacts, rest, tangent motion and blocker/movement states |
+| Cleanup | All COLLISION/PHYSICS_CLIP allocations and trace-cache entries released at every map shutdown; warm reload and full pre-boot ledgers recover exactly |
+| Core and source inventory | Core/source lists unchanged; existing 458-unit inventory and 363-entry compile database remain valid; core/Common emulator matrices not rerun |
+
+Matched run identities:
+
+- Game debug/release: `20261010T085720Z_smoke_1c420aeb364d413f` /
+  `20261010T085758Z_smoke_dc2a46f8e6a443fe`.
+- Missing map debug/release: `20261010T085723Z_smoke_e709633059484b61` /
+  `20261010T085801Z_smoke_30367e322adc4f5f`.
+- Script error debug/release: `20261010T085725Z_smoke_8ded7a04dd324a4b` /
+  `20261010T085803Z_smoke_f9159322cb0d471a`.
+- Geometry debug/release: `20261010T085728Z_smoke_3bcd9906301b4034` /
+  `20261010T085805Z_smoke_7507adc3e3d140e8`.
+- Material debug/release: `20261010T085730Z_smoke_42a209a3f9564d95` /
+  `20261010T085808Z_smoke_9b0763dd73574c81`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,885,350 bytes | 11,306,086 bytes |
+| Resident BSS (included above) | 5,237,990 bytes | 5,237,990 bytes |
+| After native game Init: requested / backing / count | 1,396,264 / 1,488,684 / 2,261 | 1,396,264 / 1,488,684 / 2,261 |
+| After eight ticks, conversion: requested / backing / count | 1,741,392 / 1,840,352 / 2,420 | 1,741,392 / 1,840,352 / 2,420 |
+| After eight ticks, text cache: requested / backing / count | 1,741,408 / 1,839,964 / 2,409 | 1,741,408 / 1,839,964 / 2,409 |
+| After eight ticks, binary cache: requested / backing / count | 1,739,160 / 1,837,696 / 2,408 | 1,739,160 / 1,837,696 / 2,408 |
+| Peak requested / backing | 2,057,428 / 2,153,928 bytes | 2,057,428 / 2,153,928 bytes |
+| Arena commitment after three cycles | 2,332,442 bytes | 2,333,594 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The extra entities/physics/contact storage raises live map memory while conversion
+scratch still determines the peak. BSS and full shutdown remain unchanged. These
+figures cover the fixed playerless fixture and exclude kernel/stacks, retail assets
+and real map transitions. Sound/render integration remains deferred. The next candidate
+is a bounded native player-physics probe driven by synthetic user commands, before
+full player spawning.

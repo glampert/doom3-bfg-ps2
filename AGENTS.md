@@ -53,7 +53,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `build/<config>/resident/`. `make headless-game` selects that resident fixture ELF;
   `make test-game` checks native startup, playerless entity/script ticks and reloads,
   plus missing-map, script-error and restricted geometry/material failures in fresh emulator processes.
-  Fixed floor/wall collision and a native physics probe are covered; player/AAS/PVS
+  Fixed floor/wall collision and native physics wall-stop, gravity, floor-rest and
+  grounded-sliding probes are covered; player/AAS/PVS
   startup and general campaign maps remain later gates. Prioritize
   headless simulation; sound and rendering integration follow at a later stage.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is

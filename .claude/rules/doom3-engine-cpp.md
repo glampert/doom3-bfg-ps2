@@ -294,3 +294,16 @@ math path; PS2-specific math replacement headers are a later milestone.
   frames one/two and stops around x=21.741 before the wall at x=24. The small offset
   below 21.75 comes from native overclip; this establishes neither grounded movement
   nor AI/player simulation.
+- The additional falling probe uses native monster gravity of 512 units/s², starting
+  at z=4 with zero velocity. Airborne evaluation moves with the old velocity before
+  adding gravity. It lands around z=2.251 on frame six; `CheckGround` runs before
+  movement, so ground/rest begin on frame seven. `Rest` clears velocity and TH_PHYSICS,
+  while the fixture's TH_THINK remains active. Frames seven/eight require native
+  world floor identity, an upward solid contact and zero velocity.
+- Grounded diagonal sliding uses velocity movement, zero maximum step height and
+  velocity (512,64,0). Ground contacts persist, the world blocks from frame three,
+  and `MM_SLIDING` preserves tangent velocity 64 while overclip leaves x velocity
+  about -0.512. Native `SlideMove` projects the full delta after a partial collision,
+  adding about 0.607 extra y units at the first wall contact; the fixture bounds this
+  behavior rather than assuming displacement equals tangent speed times total time.
+  This covers flat-floor sliding, not stairs, slopes or player/AI simulation.
