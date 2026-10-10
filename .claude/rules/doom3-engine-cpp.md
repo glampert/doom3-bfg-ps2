@@ -150,6 +150,20 @@ math path; PS2-specific math replacement headers are a later milestone.
 
 ## Resident link findings
 
+- Bundled JPEG 6/zlib 1.2.3 live in `src/external/`; the inventory remaps original
+  Windows reference-project paths without editing those manifests. Target vendor lists
+  are explicit and audited separately from campaign sources. JPEG's RGBA layout and
+  C++ ABI are engine modifications; a stock libjpeg is not a drop-in replacement.
+- JPEG's `jdatasrc.cpp` has no encoded length and blindly refills 4096 bytes. Exclude
+  that source on the EE and fail portable source `LoadJPG` explicitly. The bounded SWF
+  adapter supplies its own complete-memory source, limits dimensions/output, and keeps
+  table-only/abbreviated images within a decoder lifetime. `jmemsys.h` requires the
+  private declarations established by `jpeglib.h`; preserve their include order.
+- `MY_ZCALLOC` excludes zutil.c's unchecked malloc/free product. Supply typed C-linkage
+  defaults through the tagged heap and preserve caller-provided stream allocators.
+  `deflate.c` references `compressBound`, so `compress.c` is required even without
+  application calls to the one-shot compress API. Gzip stdio is not a dependency.
+
 - Campaign code embeds `idAchievementManager`; it is not solely an online service.
   Retain native `d3xp/Achievements.cpp` and gate only Classic header/evaluation on
   portable builds. Compilation does not establish player achievement execution.

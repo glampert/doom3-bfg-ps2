@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <renderer/jpeg-6/jpeglib.h>
+#include <jpeg-6/jpeglib.h>
 
 namespace
 {
@@ -130,25 +130,19 @@ void Log(LogLevel level, const char * format, ...)
 }
 } // namespace ps2
 
-void jpg_Error(const char * format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    ps2::FatalErrorV(format, args);
-}
-void jpg_Printf(const char * format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    ps2::LogV(ps2::LogLevel::Warning, format, args);
-    va_end(args);
-}
-
 int main(int argc, char ** argv)
 {
-    if (argc != 2) { return 4; }
+    if (argc != 2 && argc != 3) { return 4; }
     unsigned char data[2048] = {};
     const size_t size = MakeFixture(data, sizeof(data));
+    if (argc == 3 && std::strcmp(argv[1], "--write-fixture") == 0)
+    {
+        FILE * file = std::fopen(argv[2], "wb");
+        if (file == nullptr) { return 4; }
+        const bool written = std::fwrite(data, 1, size, file) == size;
+        const bool closed = std::fclose(file) == 0;
+        return written && closed ? 0 : 4;
+    }
     s_baseline = ps2::heap::GetTotalStats();
     void * decoder = ps2::jpeg::Create();
     int width = -1;

@@ -3,8 +3,9 @@
 M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. The current
 foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core and
 offline services. The M2b campaign gate compiles all 281 retained units in debug and
-release; logical sound now uses a portable sample/voice/device boundary. Resident game
-linking and M3 game initialization remain pending. The sections below preserve each
+release; audited JPEG/zlib integration now closes the retained resident link in both
+configurations. M2b compile/link acceptance is complete; meaningful logical render/sound
+services and M3 game initialization remain pending. The sections below preserve each
 slice's historical measurements; the latest resident-link evidence is at the end.
 
 ## Initial M2 build and runtime evidence
@@ -807,3 +808,104 @@ name boundary after the expected diagnostic. An InitForNewMap failure cannot sat
 an Init probe, and a later matching message cannot hide an unrelated initial fatal.
 The added host regression tests both rejection cases. All debug negative artifacts were
 also checked under this stricter classifier; the release matrix ran it directly.
+
+
+## M2b accepted: audited codecs and retained resident link
+
+The codec slice completed on 2026-10-10 moves the bundled engine-modified JPEG 6
+and zlib 1.2.3 under `src/external/`. All 96 existing package files are byte-for-byte
+relocations, preserving notices and the prior tagged JPEG encoder Huffman-copy fix.
+`README.ijg` restores the original IJG distribution terms from the archived 6a README;
+the codec itself is not upgraded. Original reference-project paths are remapped by the
+source inventory, with all 458 shipped units and original project counts still audited.
+Thirty-four vendor sources move from optional to the reviewed runtime disposition.
+
+The target explicitly builds nine streaming/CRC zlib C units and 25 JPEG decompression
+C++ units with separate vendor flag/compiler/source stamps. The strict
+`ps2/system/codec_memory.cpp` supplies checked C-linkage zlib allocation defaults,
+JPEG no-backing-store heap hooks and shared diagnostic forwarding. All default codec
+allocations use native ZIP/JPG tags; caller-provided stream callbacks retain priority.
+No gzip file I/O, JPEG encoder or temporary-file memory manager is linked on the EE.
+`compress.c` is needed by deflate's internal `compressBound` reference.
+
+JPEG keeps the engine's four-byte RGBA output and float DCT. The bounded SWF adapter
+now has target runtime acceptance for complete images, table-only/abbreviated reuse,
+pixel ranges and opaque alpha. It enforces encoded-input boundaries, a 1024-pixel
+limit per dimension and a 4 MiB output cap. The legacy `jdatasrc.cpp` reader blindly
+refills without a length; it is excluded, and portable source `LoadJPG` now fails
+explicitly rather than using it. Converted texture/source-image loading remains later
+work. This is codec acceptance, not SWF presentation or renderer resource loading.
+
+| Resident link gate | Debug | Release |
+| --- | ---: | ---: |
+| Retained direct inputs | 340 | 340 |
+| Unresolved symbols / duplicates | 0 / 0 | 0 / 0 |
+| Required registration roots present | 11 / 11 | 11 / 11 |
+| Missing map inputs | 0 | 0 |
+| Linker / Make exit | 0 / 0 | 0 / 0 |
+| Fixed PT_LOAD bytes | 10,846,310 | 11,265,830 |
+| Included BSS bytes | 5,237,734 | 5,237,798 |
+
+The inputs are all 281 native campaign, sixteen strict campaign backend, eight strict
+resident support, dlmalloc and 34 codec objects. No archives or garbage collection hide
+dependencies. Both configurations produce matched resident stripped/unstripped ELFs,
+with retained game/class/CVar registration roots and every object verified in the map.
+Reports and hashes are under `build/<config>/resident/`. The resident entry still
+rejects execution pending M3 startup; it has not been used as a game boot test.
+M2b compile/link acceptance is complete. Static image sizes do not measure kernel,
+stacks, constructor/startup allocations, initialized game state or transition peaks.
+
+Four required `codecs/` smoke markers cover a known CRC vector; independently authored
+wrapped/raw zlib streams with small input/output chunks and compression round trips;
+checksum/truncation errors, every partial deflate allocation and lazy inflate-window
+allocation failure; and repeated JPEG/full/table/abbreviated decoding. Each scope
+recovers the exact requested/backing/count ledger. Five fresh-process JPEG probes reject
+null/empty input, overlong markers, truncation, signatures and oversized dimensions
+with asserts enabled and disabled. The host fatal probes also require full codec/output
+cleanup before the fatal sink, now including the tagged JPEG allocator state.
+
+| Core/codec memory | Debug | Release |
+| --- | ---: | ---: |
+| Fixed PT_LOAD bytes | 1,862,320 | 1,934,512 |
+| Included BSS bytes | 459,824 | 459,824 |
+| Initialized requested / backing bytes | 31,425 / 42,704 | 31,425 / 42,704 |
+| Initialized allocations | 272 | 272 |
+| Synthetic peak requested / backing bytes | 315,905 / 327,668 | 315,905 / 327,668 |
+| dlmalloc commitment after tests | 345,424 | 346,960 |
+| After-shutdown requested / backing bytes | 1,024 / 1,068 | 1,024 / 1,068 |
+| After-shutdown allocations | 1 | 1 |
+
+The larger fixture peak measures compression windows and tiny authored images, not
+retail assets or a running campaign. Tagged backing is inside the dlmalloc arena and
+must not be added again. Whole-game feasibility and map reload peaks remain M3 work.
+
+| Validation | Result |
+| --- | --- |
+| Debug/release core and campaign builds | Passed with the real EE compiler; new backend/tests retain strict `-Werror`, vendor warnings stay visible |
+| Debug/release resident link | Passed; all 340 objects retained and registrations/map/executable checked |
+| Host ASan/UBSan and Python suite | Passed: 66 regressions, including shared codec and three relocation/exclusion audit cases |
+| Debug/release core smoke and missing fixture | Passed |
+| Debug/release Common/failure matrices | Passed: 52 each, seven partial stages and 45 expected fatals |
+| Debug/release script probe builds | Passed |
+| Script include and syntax cases in each configuration | Passed; the complete script matrix was not repeated in this slice |
+| Source audit / compile database | Passed: 458 shipped units, 88 Classic units excluded, 358 target entries |
+
+Archived final core runs:
+
+- Debug: `20261010T000147Z_smoke_d25c2c48c39c450c`.
+- Release: `20261010T000507Z_smoke_f613ee5449bf4cad`.
+- Debug 52-probe span: `20261010T000215Z_smoke_d41a90fbe7354024` through
+  `20261010T000359Z_smoke_20a53ffbfa9e4bf9`.
+- Release 52-probe span: `20261010T000517Z_smoke_0096d0aac71049a7` through
+  `20261010T000657Z_smoke_a59297ff113a4fdd`.
+- Missing fixture debug/release: `20261010T000714Z_smoke_259f47faa21b4b1f` /
+  `20261010T000720Z_smoke_bfafe72445f74b22`.
+- Script include/syntax debug: `20261010T000716Z_script_558cafb6d7a44df3` /
+  `20261010T000718Z_script_1885970c7ab84c13`.
+- Script include/syntax release: `20261010T000722Z_script_b55a5b8e64d247db` /
+  `20261010T000725Z_script_2182f4a5de40423e`.
+
+Next is meaningful logical render/sound behavior and authored headless game-fixture
+startup: actual class/decl/game initialization, deterministic synthetic commands,
+entity/script/collision checks and measured reloads. Game ticks, interpreter execution,
+map loading, physical input, GS presentation and SPU2 output are not accepted yet.

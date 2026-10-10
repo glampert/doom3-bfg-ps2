@@ -30,7 +30,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
   SDK's C sources, for checking what a library really does, are under
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
-- Imported third-party dependencies live in `src/external/`, currently `dlmalloc`.
+- Imported third-party dependencies live in `src/external/`, currently `dlmalloc`, the bundled engine-modified JPEG 6, and zlib 1.2.3.
+  Codec sources use separate explicit vendor groups and tagged backend allocator hooks.
   Planned VU/tool dependencies from the reference are `src/external/vclpp` (and its
   nested `external/parse-utils`), `src/external/vu-checker`, and possibly
   `src/external/miniz`.
@@ -48,8 +49,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make test-common` checks partial shutdown and offline capability failures in fresh
   emulator processes; Common startup is one-shot after static CVar registration.
   `make compile-game` is the separate M2b campaign compile gate. `make link-game`
-  attempts the retained-object resident link and preserves failure evidence under
-  `build/<config>/resident/`; it must fail until all required services are supplied.
+  validates the retained-object resident link, registrations and map coverage under
+  `build/<config>/resident/`. Both configurations pass; its entry still rejects execution
+  until M3 game-fixture startup exists.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests
   cannot replace target compilation. Check Make's exit status, including VU tool failures.
@@ -61,8 +63,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   invalidate affected object groups automatically.
 - `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly by
   `compile-game`; `RESIDENT_SUPPORT_CXX_SRC` supplies the strict resident entry/shared
-  providers separately from core substitutes. Host-only vendor fixture lists do
-  not enable those vendor sources in an EE runtime target.
+  providers separately from core substitutes. `VENDOR_C_SRC` / `VENDOR_CXX_SRC` enable only audited relocated codec units. The source
+  inventory maps their original upstream project paths. Host fixture lists cannot enable
+  additional vendor sources in an EE runtime target.
 - Doom smoke procedures and the separately labeled Quake reference are in
   [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md).
 

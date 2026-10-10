@@ -28,7 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __FILE_SAVEGAME_H__
 #define __FILE_SAVEGAME_H__
 
-#include "zlib/zlib.h"
+#include "external/zlib/zlib.h" // [PS2_D3BFG]: codec dependencies live under src/external.
 
 // Listing of the types of files within a savegame package
 enum saveGameType_t {

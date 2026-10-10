@@ -31,6 +31,11 @@ DEFAULT_CONFIG = Path.home() / "Library/Application Support/PCSX2/inis/PCSX2.ini
 RESULT_LIMIT = 4096
 LIFECYCLE_STAGES = ("system", "idlib", "commands", "cvars", "filesystem", "jobs", "session")
 NEGATIVE_PROBES = {
+    "jpeg-invalid": "SWF JPEG: invalid input",
+    "jpeg-oversize": "SWF JPEG: invalid or oversized dimensions (limit 1024)",
+    "jpeg-marker": "SWF JPEG: marker extends past input",
+    "jpeg-truncated": "SWF JPEG: truncated input",
+    "jpeg-signature": "SWF JPEG: Not a JPEG file",
     "input-init": "input capability unavailable: idUsercmdGen::Init",
     "input-map": "input capability unavailable: idUsercmdGen::InitForNewMap",
     "input-build": "input capability unavailable: idUsercmdGen::BuildCurrentUsercmd",
@@ -80,6 +85,8 @@ VERSION_RE = re.compile(
     r"(?:[ \t]+\([A-Za-z0-9 ._:/+-]+\))?[ \t]*$", re.MULTILINE)
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_CORE_CHECKS = frozenset({
+    "codecs/crc-known-vector", "codecs/zlib-streaming-ledger", "codecs/zlib-error-cleanup",
+    "codecs/jpeg-rgba-tables-ledger",
     "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
     "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/disabled-resolution-cvars",

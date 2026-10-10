@@ -107,7 +107,7 @@ LICENSE.txt
 base/                           # keep tracked source content; generated/retail files ignored
 gamedata/                       # Doom 3 BFG and RoE game data; stays local, never committed
 src/
-  external/                     # third-party dependencies: dlmalloc now; pinned VU tools later
+  external/                     # third-party dependencies: dlmalloc, JPEG, zlib; pinned VU tools later
   neo/                          # existing neo/ moved intact
     idlib/ framework/ d3xp/ cm/ aas/ ui/ swf/ renderer/ sound/ sys/
   ps2/
@@ -422,16 +422,16 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 ## 13. Open inputs and decision points
 
-- **Approval:** M0–M2 passed; the user has asked to continue the plan. M2b campaign portability is now in progress.
+- **Approval:** M0–M2 passed; the user has asked to continue the plan. M2b campaign compile/link acceptance is complete; M3 logical services and game-fixture startup are next.
 - **Retail data:** the user supplied BFG assets in `gamedata/d3_bfg/` and separate RoE reference assets in `gamedata/d3_roe/`. Inventory the BFG resource containers and resolve logical runtime paths before a campaign initialization claim. Core and synthetic tests remain independent of them.
 - **Reuse notices:** the user authorizes GPL v3 reuse of reference code they own. Preserve third-party notices and record each import in `docs/REUSE.md`.
 - **Hardware:** establish access and the preferred transfer/storage method before requiring physical-console acceptance. PCSX2 can support the initial milestones.
 - **Campaign scope assumption:** original Doom 3 campaign first; the BFG expansion code may remain where shared, but expansion content is not the first completion target.
 - **Feasibility gate:** after M2/M3 memory measurements and a representative asset inventory, revise the quantitative budgets and streaming plan. If core game state cannot fit, report that evidence and the concrete fidelity/content trade-offs before expanding the implementation.
 
-The initial M0–M2 scope (core compilation and headless boot) is complete. The current
-implementation work is M2b, beginning with the full campaign header boundary and
-continuing through explicit error/type handling and subsystem replacements. Progress
+The initial M0–M2 scope (core compilation and headless boot) is complete. The completed
+M2b slice supplies campaign portability, explicit error/type handling, typed subsystem
+replacements and audited codecs. M3 logical services and game-fixture startup follow. Progress
 and remaining resident-link work are recorded in [PORT_STATUS.md](PORT_STATUS.md).
 The current core runs real `idCommonLocal::Init` / `Shutdown` through completed-stage
 tracking for system, idlib, commands, cvars, fixture filesystem, synchronous jobs and
@@ -443,10 +443,15 @@ campaign achievements with Classic evaluation gated. The logical sound header us
 `ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
 Only unloaded sample bookkeeping is implemented; resource, timing/amplitude and device
 operations fail explicitly. Meaningful sound semantics remain required before M3.
-`make link-game` now measures the remaining M2b link gate: 17 unresolved codec symbols
-remain with all 305 inputs retained. Common/OS metadata, rejected source-model import,
-typed renderer and input interfaces, and deferred game/UI providers are supplied;
-codec integration remains. Renderer initialization, resource loading, queries requiring
+`make link-game` now passes the M2b retained-object gate in both configurations: all
+340 inputs, 11 game/class/cvar registration roots and map inputs are present, without
+unresolved symbols, duplicates, Classic/desktop imports or garbage collection. Bundled
+JPEG/zlib dependencies are under `src/external/`, explicitly selected with separate
+vendor flags and strict tagged allocator hooks. Their bounded SWF JPEG and streaming
+zlib fixtures run on the EE. The linked entry still explicitly rejects execution until
+M3 startup; no resident game runtime is accepted. Common/OS metadata, rejected source
+imports, typed renderer/input interfaces and deferred game/UI providers are supplied.
+Renderer initialization, resource loading, queries requiring
 live state and drawing fail explicitly. Offline multiplayer lifecycle and native save
 description ownership are tested. Native input action metadata is supplied, but sampling
 and player-command generation fail explicitly. Shell, multiplayer, physical input and

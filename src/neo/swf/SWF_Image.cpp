@@ -29,7 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 #include "../renderer/Image.h"
 //#include "../../renderer/ImageTools/ImageProcess.h"
-#include "../renderer/jpeg-6/jpeglib.h"
+#include "external/jpeg-6/jpeglib.h" // [PS2_D3BFG]: codec dependencies live under src/external.
 
 // [PS2_D3BFG]: Bounded JPEG input and explicit owned-state cleanup replace exception recovery.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )

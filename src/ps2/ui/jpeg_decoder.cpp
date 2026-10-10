@@ -10,7 +10,7 @@
 
 #include <cstdio>
 #include <cstring>
-#include <renderer/jpeg-6/jpeglib.h>
+#include <jpeg-6/jpeglib.h>
 
 namespace ps2::jpeg
 {

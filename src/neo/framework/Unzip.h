@@ -37,7 +37,7 @@
 #ifndef __UNZIP_H__
 #define __UNZIP_H__
 
-#include "zlib/zlib.h"
+#include "external/zlib/zlib.h" // [PS2_D3BFG]: codec dependencies live under src/external.
 
 #if defined(STRICTUNZIP) || defined(STRICTZIPUNZIP)
 /* like the STRICT of WIN32, we define a pointer that cannot be converted

@@ -44,7 +44,7 @@ Contains external code for building ZipFiles.
 #include "Unzip.h"
 
 #undef STDC
-#include "zlib/zutil.h"
+#include "external/zlib/zutil.h" // [PS2_D3BFG]: codec dependencies live under src/external.
 
 /* zip.c -- IO on .zip files using zlib
    Version 1.01e, February 12th, 2005

@@ -83,7 +83,7 @@ endif
 COMMON_DEFS = -DPS2_D3BFG $(CONFIG_DEFS)
 LANGFLAGS = -std=gnu++20 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing
 SDK_INCS = -isystem $(PS2SDK)/ee/include -isystem $(PS2SDK)/common/include
-PROJECT_INCS = -Isrc -Isrc/neo
+PROJECT_INCS = -Isrc -Isrc/neo -isystem src/external
 HEAP_VENDOR_INCS = -isystem src/external
 ENGINE_BRIDGE_INCS = -isystem src/neo
 COMMON_CXXFLAGS = -D_EE -G0 $(OPTFLAGS) $(DBGFLAGS) $(LANGFLAGS) $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
@@ -126,8 +126,10 @@ GAME_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/game-backend/src/,$(GAME_SIZE_OPT
 RESIDENT_SUPPORT_OBJS = $(addprefix $(OUTPUT_DIR)/resident-support/src/,$(RESIDENT_SUPPORT_CXX_SRC:.cpp=.o))
 RESIDENT_SIZE_OPT_CXX_SRC = $(filter $(SIZE_OPT_CXX_SRC),$(RESIDENT_SUPPORT_CXX_SRC))
 RESIDENT_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/resident-support/src/,$(RESIDENT_SIZE_OPT_CXX_SRC:.cpp=.o))
-RESIDENT_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(CORE_C_SRC)
-RESIDENT_LINK_OBJS = $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(RESIDENT_SUPPORT_OBJS) $(CORE_C_OBJS)
+CODEC_C_OBJS = $(addprefix $(OUTPUT_DIR)/codecs/src/,$(VENDOR_C_SRC:.c=.o))
+CODEC_CXX_OBJS = $(addprefix $(OUTPUT_DIR)/codecs/src/,$(VENDOR_CXX_SRC:.cpp=.o))
+RESIDENT_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(CORE_C_SRC) $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
+RESIDENT_LINK_OBJS = $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(RESIDENT_SUPPORT_OBJS) $(CORE_C_OBJS) $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
 
 ifeq ($(CORE_BOOT),1)
 	BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
@@ -135,6 +137,9 @@ ifeq ($(CORE_BOOT),1)
 	LINK_SOURCES = $(PS2_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC)
 	MILESTONE = headless-core
 	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.link-flags.json
+	LINK_OBJS += $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
+	LINK_SOURCES += $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
+	REPORT_FLAGS += $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
 else
 	BOOT_OBJS =
 	LINK_OBJS = $(PS2_OBJS)
@@ -194,6 +199,22 @@ $(OUTPUT_DIR)/.campaign-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile 
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CAMPAIGN_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --sources $(CAMPAIGN_CXX_SRC)
 
 VENDOR_CFLAGS = -D_EE -G0 $(OPTFLAGS) $(DBGFLAGS) -std=gnu11 -fno-strict-aliasing -Wall -Wextra $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
+CODEC_CFLAGS = $(VENDOR_CFLAGS) -DMY_ZCALLOC
+CODEC_CXXFLAGS = $(NEO_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS)
+
+$(OUTPUT_DIR)/.codec-c-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CC) $(CODEC_CFLAGS) --sources $(VENDOR_C_SRC)
+
+$(OUTPUT_DIR)/.codec-cxx-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CODEC_CXXFLAGS) --sources $(VENDOR_CXX_SRC)
+
+$(CODEC_C_OBJS): $(OUTPUT_DIR)/codecs/src/%.o: src/%.c $(OUTPUT_DIR)/.codec-c-flags.json
+	@mkdir -p $(dir $@)
+	$(EE_CC) $(CODEC_CFLAGS) -c $< -o $@
+
+$(CODEC_CXX_OBJS): $(OUTPUT_DIR)/codecs/src/%.o: src/%.cpp $(OUTPUT_DIR)/.codec-cxx-flags.json
+	@mkdir -p $(dir $@)
+	$(EE_CXX) $(CODEC_CXXFLAGS) -c $< -o $@
 
 $(OUTPUT_DIR)/.vendor-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CC) $(VENDOR_CFLAGS) --sources $(CORE_C_SRC)
@@ -287,12 +308,12 @@ compile-core: inventory $(CORE_ARCHIVE)
 
 # This is deliberately separate from compile-core: it uses the real campaign
 # header boundary and reports the remaining M2b portability blockers.
-compile-game: inventory $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS)
+compile-game: inventory $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
 	@echo "Campaign compile gate: $(words $(CAMPAIGN_OBJS)) retained EE units; replacements remain listed in the inventory."
 
 # Real retained-object link, with an explicit non-game entry. Failure reports never produce a runnable ELF.
 link-game: inventory $(RESIDENT_LINK_OBJS)
-	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR)/resident --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json
+	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR)/resident --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
 
 compiledb:
 	@$(PYTHON) $(SCRIPTS)/gen_compile_commands.py --make $(MAKE) --build $(BUILD)
@@ -329,7 +350,7 @@ HOST_WARNFLAGS = -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wconversion 
 
 HOST_TEST_FLAGS = -std=c++20 -O1 -g -fno-exceptions -fno-rtti -fno-threadsafe-statics \
 	-fno-strict-aliasing -fsized-deallocation -fsanitize=address,undefined -fno-omit-frame-pointer \
-	$(HOST_WARNFLAGS) -Isrc -DID_HOST_TEST -DPS2_D3BFG_ASSERTS=1
+	$(HOST_WARNFLAGS) -Isrc -isystem src/external -DID_HOST_TEST -DPS2_D3BFG_ASSERTS=1
 
 HOST_HEAP_SOURCES = src/tests/smoketests/type_query_tests.cpp src/tests/smoketests/type_query_bridge.cpp src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/tests/smoketests/class_alloc_tests.cpp src/ps2/game/class_alloc.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 
@@ -351,8 +372,8 @@ build/tests/common_tests_%: $(HOST_COMMON_SOURCES) $(HOST_COMMON_HEADERS) build/
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_COMMON_SOURCES) -o $@
 
 HOST_JPEG_FLAGS = $(filter-out -Werror,$(HOST_TEST_FLAGS)) -Wno-register -Wno-writable-strings -Isrc/neo
-HOST_JPEG_OBJS = $(addprefix build/tests/jpeg/,$(JPEG_TEST_CXX_SRC:.cpp=.o))
-HOST_JPEG_PROJECT_SOURCES = src/tests/host/jpeg_decoder_tests.cpp src/ps2/ui/jpeg_decoder.cpp src/ps2/system/heap.cpp
+HOST_JPEG_OBJS = $(addprefix build/tests/jpeg/,$(patsubst %.cpp,%.o,$(filter-out external/jpeg-6/jmemnobs.cpp,$(JPEG_TEST_CXX_SRC))))
+HOST_JPEG_PROJECT_SOURCES = src/tests/host/jpeg_decoder_tests.cpp src/ps2/ui/jpeg_decoder.cpp src/ps2/system/codec_memory.cpp src/ps2/system/heap.cpp
 
 build/tests/.jpeg-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_JPEG_FLAGS) $(HOST_TEST_FLAGS) --sources $(JPEG_TEST_CXX_SRC) $(HOST_JPEG_PROJECT_SOURCES)
@@ -361,9 +382,29 @@ $(HOST_JPEG_OBJS): build/tests/jpeg/%.o: src/%.cpp build/tests/.jpeg-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_JPEG_FLAGS) -MMD -MP -c $< -o $@
 
-build/tests/jpeg_decoder_tests: $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) src/ps2/ui/jpeg_decoder.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/neo/renderer/jpeg-6/jpeglib.h src/neo/idlib/sys/sys_alloc_tags.h build/tests/.jpeg-flags.json
+build/tests/jpeg_decoder_tests: $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) src/ps2/ui/jpeg_decoder.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/external/jpeg-6/jpeglib.h src/neo/idlib/sys/sys_alloc_tags.h build/tests/.jpeg-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -DID_PS2_CORE=1 -isystem src/neo $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) -o $@
+
+HOST_CC ?= clang
+HOST_ZLIB_FLAGS = -std=gnu11 -O1 -g -fno-strict-aliasing -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -DMY_ZCALLOC
+HOST_ZLIB_OBJS = $(addprefix build/tests/zlib/,$(VENDOR_C_SRC:.c=.o))
+HOST_CODEC_JPEG_OBJS = $(addprefix build/tests/jpeg/,$(VENDOR_CXX_SRC:.cpp=.o))
+HOST_CODEC_SOURCES = src/tests/host/codec_tests.cpp src/tests/smoketests/codec_tests.cpp src/ps2/ui/jpeg_decoder.cpp src/ps2/system/codec_memory.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
+
+build/tests/.zlib-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CC) $(HOST_ZLIB_FLAGS) --sources $(VENDOR_C_SRC)
+
+$(HOST_ZLIB_OBJS): build/tests/zlib/%.o: src/%.c build/tests/.zlib-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(HOST_ZLIB_FLAGS) -MMD -MP -c $< -o $@
+
+build/tests/.codec-test-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_CODEC_SOURCES)
+
+build/tests/codec_tests: $(HOST_CODEC_SOURCES) $(HOST_ZLIB_OBJS) $(HOST_CODEC_JPEG_OBJS) src/tests/smoketests/codec_fixtures.h src/tests/smoketests/codec_tests.h build/tests/.codec-test-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -isystem src/neo $(HOST_CODEC_SOURCES) $(HOST_ZLIB_OBJS) $(HOST_CODEC_JPEG_OBJS) -o $@
 
 HOST_FILESYSTEM_SOURCES = src/tests/host/filesystem_tests.cpp src/ps2/system/filesystem.cpp src/ps2/system/log.cpp
 
@@ -374,11 +415,11 @@ build/tests/filesystem_tests: $(HOST_FILESYSTEM_SOURCES) src/ps2/system/filesyst
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) $(HOST_FILESYSTEM_SOURCES) -o $@
 
-test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests
+test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests
 	./build/tests/heap_tests
 	$(PYTHON) -m unittest discover -s src/tests/host -p 'test_*.py'
 
--include $(HOST_JPEG_OBJS:.o=.d) $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d)
+-include $(HOST_JPEG_OBJS:.o=.d) $(HOST_ZLIB_OBJS:.o=.d) $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d) $(CODEC_C_OBJS:.o=.d) $(CODEC_CXX_OBJS:.o=.d)
 
 clean:
 	rm -rf build/debug build/release build/tests

@@ -12,7 +12,7 @@ RENDER_STUB_CXX_SRC = \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp
 
-SIZE_OPT_CXX_SRC = ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/system/resident_boot.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/system/resident_boot.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -80,6 +80,8 @@ CORE_FRAMEWORK_CXX_SRC = \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp
 CORE_BACKEND_CXX_SRC = \
+	ps2/system/codec_memory.cpp \
+	ps2/ui/jpeg_decoder.cpp \
 	ps2/input/usercmd_stub.cpp \
 	ps2/game/multiplayer_stub.cpp \
 	ps2/system/save_metadata.cpp \
@@ -103,6 +105,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
+	tests/smoketests/codec_tests.cpp \
 	tests/smoketests/input_tests.cpp \
 	tests/smoketests/deferred_tests.cpp \
 	tests/smoketests/renderer_tests.cpp \
@@ -399,9 +402,43 @@ CAMPAIGN_CXX_SRC = \
 	neo/ui/Window.cpp \
 	neo/ui/Winvar.cpp
 
-# No external C dependency is required by the initial core compile gate.
-VENDOR_C_SRC =
-VENDOR_CXX_SRC =
+# Audited streaming zlib and JPEG decompression; no gzip I/O, JPEG encoder or raw source reader.
+VENDOR_C_SRC = \
+	external/zlib/compress.c \
+	external/zlib/adler32.c \
+	external/zlib/crc32.c \
+	external/zlib/deflate.c \
+	external/zlib/inffast.c \
+	external/zlib/inflate.c \
+	external/zlib/inftrees.c \
+	external/zlib/trees.c \
+	external/zlib/zutil.c
+VENDOR_CXX_SRC = \
+	external/jpeg-6/jcomapi.cpp \
+	external/jpeg-6/jdapimin.cpp \
+	external/jpeg-6/jdapistd.cpp \
+	external/jpeg-6/jdcoefct.cpp \
+	external/jpeg-6/jdcolor.cpp \
+	external/jpeg-6/jddctmgr.cpp \
+	external/jpeg-6/jdhuff.cpp \
+	external/jpeg-6/jdinput.cpp \
+	external/jpeg-6/jdmainct.cpp \
+	external/jpeg-6/jdmarker.cpp \
+	external/jpeg-6/jdmaster.cpp \
+	external/jpeg-6/jdmerge.cpp \
+	external/jpeg-6/jdphuff.cpp \
+	external/jpeg-6/jdpostct.cpp \
+	external/jpeg-6/jdsample.cpp \
+	external/jpeg-6/jdtrans.cpp \
+	external/jpeg-6/jerror.cpp \
+	external/jpeg-6/jidctflt.cpp \
+	external/jpeg-6/jidctfst.cpp \
+	external/jpeg-6/jidctint.cpp \
+	external/jpeg-6/jidctred.cpp \
+	external/jpeg-6/jmemmgr.cpp \
+	external/jpeg-6/jquant1.cpp \
+	external/jpeg-6/jquant2.cpp \
+	external/jpeg-6/jutils.cpp
 
 # Isolated compiler probe; these remain required in the campaign manifest as well.
 SCRIPT_CXX_SRC = \
@@ -413,7 +450,7 @@ SCRIPT_BOOT_CXX_SRC = \
 	tests/smoketests/script_boot.cpp
 
 # Required portable campaign support; compiled strictly without claiming a resident link.
-GAME_BACKEND_CXX_SRC = ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
+GAME_BACKEND_CXX_SRC = ps2/system/codec_memory.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
 
 # Resident-only entry and shared providers. No core filesystem or Common replacement is linked.
 RESIDENT_SUPPORT_CXX_SRC = \
@@ -428,49 +465,49 @@ RESIDENT_SUPPORT_CXX_SRC = \
 
 # Existing upstream JPEG sources, used only by the host decoder harness at this stage.
 JPEG_TEST_CXX_SRC = \
-	neo/renderer/jpeg-6/jcapimin.cpp \
-	neo/renderer/jpeg-6/jcapistd.cpp \
-	neo/renderer/jpeg-6/jccoefct.cpp \
-	neo/renderer/jpeg-6/jccolor.cpp \
-	neo/renderer/jpeg-6/jcdctmgr.cpp \
-	neo/renderer/jpeg-6/jchuff.cpp \
-	neo/renderer/jpeg-6/jcinit.cpp \
-	neo/renderer/jpeg-6/jcmainct.cpp \
-	neo/renderer/jpeg-6/jcmarker.cpp \
-	neo/renderer/jpeg-6/jcmaster.cpp \
-	neo/renderer/jpeg-6/jcomapi.cpp \
-	neo/renderer/jpeg-6/jcparam.cpp \
-	neo/renderer/jpeg-6/jcphuff.cpp \
-	neo/renderer/jpeg-6/jcprepct.cpp \
-	neo/renderer/jpeg-6/jcsample.cpp \
-	neo/renderer/jpeg-6/jctrans.cpp \
-	neo/renderer/jpeg-6/jdapimin.cpp \
-	neo/renderer/jpeg-6/jdapistd.cpp \
-	neo/renderer/jpeg-6/jdatadst.cpp \
-	neo/renderer/jpeg-6/jdatasrc.cpp \
-	neo/renderer/jpeg-6/jdcoefct.cpp \
-	neo/renderer/jpeg-6/jdcolor.cpp \
-	neo/renderer/jpeg-6/jddctmgr.cpp \
-	neo/renderer/jpeg-6/jdhuff.cpp \
-	neo/renderer/jpeg-6/jdinput.cpp \
-	neo/renderer/jpeg-6/jdmainct.cpp \
-	neo/renderer/jpeg-6/jdmarker.cpp \
-	neo/renderer/jpeg-6/jdmaster.cpp \
-	neo/renderer/jpeg-6/jdmerge.cpp \
-	neo/renderer/jpeg-6/jdphuff.cpp \
-	neo/renderer/jpeg-6/jdpostct.cpp \
-	neo/renderer/jpeg-6/jdsample.cpp \
-	neo/renderer/jpeg-6/jdtrans.cpp \
-	neo/renderer/jpeg-6/jerror.cpp \
-	neo/renderer/jpeg-6/jfdctflt.cpp \
-	neo/renderer/jpeg-6/jfdctfst.cpp \
-	neo/renderer/jpeg-6/jfdctint.cpp \
-	neo/renderer/jpeg-6/jidctflt.cpp \
-	neo/renderer/jpeg-6/jidctfst.cpp \
-	neo/renderer/jpeg-6/jidctint.cpp \
-	neo/renderer/jpeg-6/jidctred.cpp \
-	neo/renderer/jpeg-6/jmemmgr.cpp \
-	neo/renderer/jpeg-6/jmemnobs.cpp \
-	neo/renderer/jpeg-6/jquant1.cpp \
-	neo/renderer/jpeg-6/jquant2.cpp \
-	neo/renderer/jpeg-6/jutils.cpp
+	external/jpeg-6/jcapimin.cpp \
+	external/jpeg-6/jcapistd.cpp \
+	external/jpeg-6/jccoefct.cpp \
+	external/jpeg-6/jccolor.cpp \
+	external/jpeg-6/jcdctmgr.cpp \
+	external/jpeg-6/jchuff.cpp \
+	external/jpeg-6/jcinit.cpp \
+	external/jpeg-6/jcmainct.cpp \
+	external/jpeg-6/jcmarker.cpp \
+	external/jpeg-6/jcmaster.cpp \
+	external/jpeg-6/jcomapi.cpp \
+	external/jpeg-6/jcparam.cpp \
+	external/jpeg-6/jcphuff.cpp \
+	external/jpeg-6/jcprepct.cpp \
+	external/jpeg-6/jcsample.cpp \
+	external/jpeg-6/jctrans.cpp \
+	external/jpeg-6/jdapimin.cpp \
+	external/jpeg-6/jdapistd.cpp \
+	external/jpeg-6/jdatadst.cpp \
+	external/jpeg-6/jdatasrc.cpp \
+	external/jpeg-6/jdcoefct.cpp \
+	external/jpeg-6/jdcolor.cpp \
+	external/jpeg-6/jddctmgr.cpp \
+	external/jpeg-6/jdhuff.cpp \
+	external/jpeg-6/jdinput.cpp \
+	external/jpeg-6/jdmainct.cpp \
+	external/jpeg-6/jdmarker.cpp \
+	external/jpeg-6/jdmaster.cpp \
+	external/jpeg-6/jdmerge.cpp \
+	external/jpeg-6/jdphuff.cpp \
+	external/jpeg-6/jdpostct.cpp \
+	external/jpeg-6/jdsample.cpp \
+	external/jpeg-6/jdtrans.cpp \
+	external/jpeg-6/jerror.cpp \
+	external/jpeg-6/jfdctflt.cpp \
+	external/jpeg-6/jfdctfst.cpp \
+	external/jpeg-6/jfdctint.cpp \
+	external/jpeg-6/jidctflt.cpp \
+	external/jpeg-6/jidctfst.cpp \
+	external/jpeg-6/jidctint.cpp \
+	external/jpeg-6/jidctred.cpp \
+	external/jpeg-6/jmemmgr.cpp \
+	external/jpeg-6/jmemnobs.cpp \
+	external/jpeg-6/jquant1.cpp \
+	external/jpeg-6/jquant2.cpp \
+	external/jpeg-6/jutils.cpp

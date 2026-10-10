@@ -16,25 +16,28 @@ for auditing only; it never selects files for compilation.
 | `external.vcxproj` | 56 |
 | Total project units | 440 |
 
-There are 458 shipped C/C++ source files under `src/neo/`: the 440 project units plus
-18 source files outside those manifests. The obsolete `game.vcxproj` names the absent
+There are 458 shipped C/C++ source files across `src/neo/` and the relocated codec
+trees in `src/external/`: the 440 project units plus 18 files outside those manifests.
+The audit maps the original codec paths in the unchanged Windows reference projects
+through `source_relocations`; compilation uses only current explicit paths. The obsolete `game.vcxproj` names the absent
 `game/` tree and is excluded from this audit. `d3xp/` is the BFG campaign game source.
 The Windows project spells `renderer/OpenGL/gl_Image.cpp` as `gl_image.cpp`; the audit
 matches project paths without case and records the actual on-disk filename so the
 inventory works on hosts with either filesystem behavior.
 
 Third-party dependencies imported for the port live under `src/external/`.
-The current core uses `src/external/dlmalloc/`; its source is explicitly listed
+The current core uses `src/external/dlmalloc/`, JPEG 6 and zlib 1.2.3. dlmalloc is listed
 in `CORE_C_SRC`, and the heap bridge imports its header through a system include path.
 
 ## Source dispositions
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 281 | Debug/release compile gates pass; resident linking and runtime adaptation remain required |
+| Campaign runtime | 281 | Debug/release compile and resident link gates pass; M3 runtime adaptation remains required |
 | PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
 | Deferred runtime | 33 | BFG shell, multiplayer, online services and demo paths; callers still need explicit adapters |
-| Optional vendor | 56 | zlib/JPEG; include only when a format, license and target configuration are audited |
+| Vendor runtime | 34 | Nine zlib streaming/CRC and 25 JPEG decompression sources; separate vendor flags, strict tagged heap hooks |
+| Optional vendor | 22 | Remaining shipped zlib/JPEG units excluded from the EE |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
 | PCH excluded | 3 | Visual Studio precompiled-header translation units |
 | Outside project manifests | 18 | Kept for inspection; never silently enabled |
@@ -42,7 +45,8 @@ in `CORE_C_SRC`, and the heap bridge imports its header through a system include
 These are source inclusion decisions, not claims that replacement APIs exist. Essential
 HUD/PDA menus, GUI/SWF, campaign physics/scripts/AI, collision, renderer frontend and
 logical sound remain in the intended runtime list. Original multiplayer and BFG launcher
-files are excluded; shared callers will be adapted before the campaign resident link.
+files are excluded; typed providers close their retained link dependencies and reject
+unavailable operations explicitly.
 `doomclassic/` is excluded as an entire tree from every new target and remains pending
 its separate deletion gate. Retail assets do not participate in these build targets.
 
@@ -149,17 +153,17 @@ compiles them with strict backend warnings and their own flag stamp, alongside t
 281-unit campaign manifest. The adapters supply bounded SWF JPEG decoding, lifecycle
 tracking, offline session services and the portable audio boundary. Lifecycle, offline
 session and audio support also link into the foundation; the JPEG decoder remains
-campaign-only and has host runtime acceptance so far.
+also linked in the foundation for target decoding and cleanup probes.
 
 `JPEG_TEST_CXX_SRC` is an explicit host-only list of the shipped legacy JPEG sources.
-It does not change their runtime dispositions or import a new dependency. Host codec
+The separate target lists select only audited decompression/streaming units. Host codec
 objects retain visible legacy warnings without `-Werror`; Clang's removed `register`
 and writable-string diagnostics are suppressed only there. The new decoder/test units
 retain strict warnings and ASan/UBSan. The source audit allows this host fixture list
-without allowing excluded vendor/editor code into target groups.
+without allowing additional excluded vendor/editor code into target groups.
 
-The codec's target dependency still needs selection/import under `src/external/` and
-target decode/runtime acceptance before a resident game link. A tagged fix bounds the
+The codecs now live under `src/external/`, with target decode/runtime acceptance and
+a passing resident link. The original IJG terms are restored as `README.ijg`. A tagged fix bounds the
 shipped encoder's Huffman-value copy; the authored fixture generator exposed its
 256-byte read from 12/162-byte standard tables under ASan.
 
@@ -230,8 +234,8 @@ processes with assertions enabled and disabled. See the latest acceptance eviden
 ## Resident campaign link gate
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
-all 281 campaign objects, fifteen campaign backend objects, eight strict resident support
-objects and dlmalloc: 305 direct inputs, without GC or archives hiding undefined
+all 281 campaign objects, sixteen campaign backend objects, eight strict resident support
+objects, dlmalloc and 34 codec objects: 340 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
@@ -239,8 +243,8 @@ substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
 `link_resident.py` records the compiler/link command, flags, source/dependency/object
 hashes, actual linker status, unique demangled symbols and requesting objects in
 `build/<config>/resident/report.{json,txt}`, beside the raw log, response file and map.
-The current gate fails with 17 codec symbols in both configurations; no resident ELF is
-emitted. Compiler nonzero exits stay failures even without a recognized diagnostic.
+The current gate passes in both configurations without unresolved symbols or duplicate
+definitions; each emits matched stripped/unstripped resident ELFs. Compiler nonzero exits stay failures even without a recognized diagnostic.
 Successful links also require a MIPS executable/load segment, every input in the map,
 static game interfaces, three native class registration roots and the static CVar
 registry. Stale ELF/report files are cleared before attempts. The resident entry is
@@ -249,7 +253,7 @@ explicitly unavailable until M3 startup; a future linked probe is not game boot.
 Native `d3xp/Achievements.cpp` moves from deferred to campaign runtime. Its campaign
 logic and cvars remain intact; portable builds gate the Classic header and terminate
 Classic evaluation. Every original campaign unit stays selected. Achievement-manager
-runtime execution remains pending the resident link and actual player fixture.
+runtime execution remains pending the actual resident player fixture.
 
 The shared `common_campaign.cpp` supplies offline Common queries, native snapshot/
 interpolation/usercmd state reset, inactive-demo cleanup, and explicit failures for
@@ -335,16 +339,40 @@ encounter the existing unavailable `Sys_SetRumble` provider. No SDK input module
 poller, device buffer or additional upstream unit is enabled. Physical controls and
 explicit synthetic command injection remain required for their later runtime gates.
 
-The core now contains 21 backend and twelve smoke units. Three required `input/`
+At the input-interface slice, the core contained 21 backend and twelve smoke units. Three required `input/`
 markers verify native table order/extent and independent command names/prefix handling,
 repeated empty cleanup and invalid indices with exact ledger recovery, and disabled
 controller cvar policy. Eleven fresh-process probes cover every unavailable input method,
 null command validation and forced controller/rumble values with asserts enabled and
-disabled. All 305 resident inputs remain retained; only 17 codec symbols are unresolved.
-Source dispositions stay unchanged; source audit and the compile database cover the new
+disabled. That slice retained all 305 inputs and left only 17 codec symbols unresolved.
+Source dispositions stayed unchanged; source audit and the compile database covered the new
 strict full-header units. The input link group is closed; physical input acceptance remains a later gate.
 
 The negative-probe classifier matches only the first fatal line and requires a name
 boundary after the expected text. A new host regression rejects InitForNewMap under
 an Init probe and a later matching message after an unrelated failure. The current
-host suite contains 62 Python regressions plus the shared ASan/UBSan fixtures.
+host suite at that slice contained 62 Python regressions plus the shared ASan/UBSan fixtures.
+
+
+## Codec integration and M2b link acceptance
+
+`VENDOR_C_SRC` selects nine zlib 1.2.3 C sources with C11 vendor flags and
+`MY_ZCALLOC`; `VENDOR_CXX_SRC` selects 25 engine-modified JPEG 6 decompression sources
+with the visible legacy C++20 warning policy. Both have separate compiler/flag/source
+stamps and explicit object trees. Vendor format/bounds warnings remain visible. Observed
+legacy warnings include zlib state-machine fallthroughs and K&R declarations, and JPEG
+`register`/unused declarations; no blanket suppression was added for them.
+
+The strict `codec_memory.cpp` provides typed JPEG no-backing-store allocation hooks,
+checked C-linkage zlib products and shared JPEG diagnostic hooks. Explicit stream
+allocator callbacks retain priority over defaults. Codec memory uses native JPG/ZIP
+heap tags and returns to the exact ledger on successful and partial-failure cleanup.
+No temporary-file memory manager, JPEG encoder, raw JPEG memory reader or gzip file I/O
+is linked on the EE. Portable `LoadJPG` fails explicitly; bounded SWF decoding is usable.
+
+The source inventory moves 34 bundled sources from optional vendor to vendor runtime.
+No campaign units were dropped. Original codec paths are remapped for reference-project
+coverage, and host regressions reject lost relocations or excluded codec additions.
+`make compiledb` records 358 target entries. The foundation has 23 backend and 13 smoke
+units; `compile-game` also builds the 34 audited codec units. The default ELF continues
+to run core/codec fixtures, while the resident entry rejects execution pending M3.

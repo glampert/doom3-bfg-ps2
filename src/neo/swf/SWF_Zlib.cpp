@@ -27,7 +27,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../idlib/precompiled.h"
-#include "../framework/zlib/zlib.h"
+#include "external/zlib/zlib.h" // [PS2_D3BFG]: codec dependencies live under src/external.
 
 /*
 ========================

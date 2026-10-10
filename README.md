@@ -26,12 +26,12 @@ make platform-probe          # SDK/timer/alignment probe
 make headless-core           # scalar Doom foundation and integration tests
 make compile-core            # 52 scalar idlib units and 10 framework/session support units
 make compile-game            # all 281 retained campaign units; compile gate only
-make link-game               # resident link gate; reports the remaining unresolved symbols
+make link-game               # retained campaign link and registration/map gate
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make release smoke           # release core smoke run
 make smoke-negative          # expected missing-fixture failure
-make test-common             # seven partial-startup and forty expected-fatal probes
+make test-common             # seven partial-startup and forty-five expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 
@@ -49,9 +49,9 @@ visible. A host runtime test does not replace the EE compile/link check.
 
 Debug/release core runs and the expected missing-fixture failure pass in PCSX2.
 [docs/PORT_STATUS.md](docs/PORT_STATUS.md) records the checks, archived run identities,
-ELF/startup memory measurements and the remaining resident-link work.
+ELF/startup memory measurements and resident-link acceptance.
 
-M2b is in progress: the campaign headers now separate OpenGL state from shared
+M2b compile/link acceptance is complete: campaign headers separate OpenGL state from shared
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
 All 281 retained campaign units now compile in both configurations. The four logical-
 sound units use a portable sample/voice/device boundary without DirectX SDK headers;
@@ -67,20 +67,24 @@ compilation, limits and explicit cleanup before fatal errors. `make test-script`
 Recoverable script loading and actual interpreter/game execution remain later gates.
 Portable common errors now terminate through the shared logging sink without desktop
 dialogs or renderer/session calls. SWF JPEG errors explicitly release decoder/output
-state; bounded input, dimensions and repeated/table-based decoding have sanitizer tests.
+state; bounded input, dimensions and repeated/table-based decoding pass host sanitizer
+and EE tests. JPEG and zlib live under `src/external/`, with explicit decompression/stream
+source lists, original notices and tagged heap hooks.
 Filesystem/ZIP/key units now compile with bounded device paths, stdio handles, an explicit
 ZIP timestamp policy and the engine's fixed key-label table. Shared directory and file services are
-tested on the EE; full campaign filesystem initialization and ZIP runtime linking remain pending.
+tested on the EE; ZIP codec linking passes, while full campaign filesystem startup and
+actual archive/game-resource use remain pending.
 Retained menu, GUI-variable, file and model casts use checked portable hierarchy queries.
 Shared host/EE tests cover null/sibling rejection, inherited/const types and separate-unit
 identity; actual file objects and engine hierarchy declarations are checked on the EE.
 
 `make link-game` attempts a real whole-object campaign link under
 `build/<config>/resident/`, with its own strict support objects and no core filesystem
-substitute. It currently fails on 17 unresolved JPEG/zlib symbols. JSON/text reports
-retain object/source hashes, flags, requestors and the real linker exit status. Failed attempts remove stale resident
-ELFs. A successful gate must retain game/class/cvar registration roots and every input
-object in its map. Its eventual entry still requires M3 game-fixture startup.
+substitute. Debug and release now link all 340 inputs without unresolved symbols or
+duplicate definitions. JSON/text reports retain object/source hashes, flags and the real
+linker exit status, and verify the game/class/cvar registration roots and every input in
+the map. Failed attempts remove stale resident ELFs. The resident entry deliberately
+fails until M3 game-fixture startup exists; a successful link is not game boot.
 
 Typed renderer providers now bind the native screen, image, shader, cinematic and
 vertex-buffer interfaces, resolving the renderer link group. They expose inactive
@@ -122,7 +126,8 @@ profile's stats and achievement bits. Match parameters are copied, stale user ha
 are rejected, and loading completes only on `LoadingFinished`. Online requests are
 unsupported; profile persistence reports failure without discarding transient data.
 The static versioned `GetGameAPI` import path now compiles, but is not invoked by the
-foundation. Resident game linking, interpreter execution and map loading remain pending.
+foundation. Resident linking passes; game initialization, interpreter execution and map
+loading remain pending.
 
 The portable audio boundary preserves sample names, reference/purge flags and last-played
 bookkeeping. Samples remain unloaded; resource loading, duration/amplitude queries and
@@ -244,6 +249,10 @@ uses GPL v3 or later. Quake II measurements in `.claude/rules/` remain reference
 until independently reproduced with this port.
 
 ## Attributions
+
+This software is based in part on the work of the Independent JPEG Group. The
+engine-modified JPEG 6 and Jean-loup Gailly/Mark Adler’s zlib 1.2.3 retain their original
+notices under `src/external/`; the target builds only the audited codec source lists.
 
 The input action table preserves id Software's native `framework/UsercmdGen.cpp` names,
 order and terminator; the portable provider is new backend code.

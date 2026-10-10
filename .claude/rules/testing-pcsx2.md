@@ -20,7 +20,7 @@
   `20261008T070310Z_smoke_88ff01f3485548c6` checks timer progress/conversion,
   64-byte static/stack buffer alignment, scalar vector math and the EE FPU's finite
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
-- Latest debug/release core and missing-fixture runs passed on 2026-10-09. Run identities,
+- Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
   [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 28 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
@@ -47,7 +47,8 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 62 Python regressions, including real JPEG
+  The complete host suite currently has 66 Python regressions, including shared codec, source
+  relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
 - Core smoke now also requires six filesystem-service markers. The runner stages
@@ -58,11 +59,11 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 47 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 52 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Forty negative probes require matching run/begin identities and
+  uses a fresh process. Forty-five negative probes require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
   matchmaking, Classic switching, absent save manager, unsupported input device, audio
   resource loading, audio duration queries, audio device initialization, process launch,
@@ -105,9 +106,19 @@
   input probes verify unavailable methods, null-string validation and forced preferences;
   changing an archived cvar cannot turn the boundary into an input source.
 
-- `make link-game` is a failing compile/link gate until resident services exist. Do not
-  launch a failed link map or reuse an older resident ELF. Its reports preserve actual
-  linker errors and all inputs; the default runnable ELF remains the validated core.
+- Four required `codecs/` markers check the known CRC vector, independent wrapped/raw
+  streams with chunked input/output and compression round trips, checksum/truncation and
+  partial allocator failures, and RGBA JPEG/full/table/abbreviated reuse. All scopes
+  recover exact requested/backing/count ledgers. Five JPEG failure probes reject invalid
+  input, an overlong marker, truncation, an invalid signature and dimensions over 1024
+  with the expected fatal on the EE. Host sanitizer checks also verify full decoder/output
+  cleanup before fatal. Codec memory uses the same heap through native JPG/ZIP tags.
+
+- `make link-game` passes the M2b compile/link gate in debug/release: all 340 inputs,
+  every required game/class/cvar registration root and map input are retained without
+  unresolved symbols, duplicates, Classic imports or GC. Its resident entry still fails
+  explicitly until M3 startup. Do not reuse an older resident ELF after a failed attempt.
+  The default runnable ELF remains the validated core/codec fixture.
   Six host regressions reject stale images, nonzero links, missing registrations/map
   inputs, non-executables and ignored undefined diagnostics.
 

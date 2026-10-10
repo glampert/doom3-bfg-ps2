@@ -7,13 +7,13 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
-After the input-interface slice on 2026-10-10, debug/release fixed core ELF residency is
-1,757,104 / 1,813,680 bytes, including 459,824 bytes of BSS. Core
-initialization requests 31,425 bytes (42,704 backing);
-the synthetic test peak is 57,367 bytes (69,372 backing). Both shut down to the exact
-process-lifetime baseline of 1,024 requested / 1,068 backing bytes in one allocation.
-dlmalloc's commitment after tests is 86,096 / 86,864 bytes, including untagged C/newlib
-allocations and freed space. Do not double-count tagged backing on top of the arena.
+After codec integration on 2026-10-10, debug/release fixed core ELF residency is
+1,862,320 / 1,934,512 bytes, including 459,824 bytes of BSS. Core initialization
+requests 31,425 bytes (42,704 backing). The codec/compression synthetic peak is
+315,905 requested / 327,668 backing bytes. Both shut down to the exact process-lifetime
+baseline of 1,024 requested / 1,068 backing bytes in one allocation. dlmalloc commitment
+after tests is 345,424 / 346,960 bytes, including untagged C/newlib allocations and
+freed space. Do not double-count tagged backing on top of the arena.
 The real portable `commonLocal` occupies 54,792 bytes; its desktop-only 2,304,000-byte
 Classic framebuffer is absent. This prevents Classic residency when importing Common;
 the previous small Common adapter did not contain that framebuffer either. Match tests
@@ -33,7 +33,12 @@ requiring exact repeated ledger recovery; full shutdown still returns to baselin
 Shell resources, save pipelines and multiplayer matches are not initialized. The input
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
-The still-failing resident link provides no resident game memory measurement.
+The passing whole-object resident link has 10,846,310 / 11,265,830 bytes of fixed PT_LOAD
+residency, including 5,237,734 / 5,237,798 bytes of BSS. These are static image sizes;
+its entry still rejects execution pending M3. Codec fixture memory measures compression
+windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
+All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
+buffers, and no codec temporary-file backing store is enabled.
 Class `memused` counts object bytes without another size prefix; shared heap metadata
 supplies exact unsized-delete accounting while preserving object alignment. The
 allocation tests use small probe classes and do not measure resident campaign state.

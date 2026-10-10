@@ -34,6 +34,11 @@ def audit(root: Path) -> tuple[dict, list[str]]:
     neo = root / "src/neo"
     actual = {"neo/" + str(path.relative_to(neo)) for path in neo.rglob("*")
               if path.is_file() and path.suffix in SOURCE_SUFFIXES}
+    relocations = inventory.get("source_relocations", {})
+    for destination in relocations.values():
+        tree = root / "src" / destination
+        actual.update(str(path.relative_to(root / "src")) for path in tree.rglob("*")
+                      if path.is_file() and path.suffix in SOURCE_SUFFIXES)
     canonical = {path.casefold(): path for path in actual}
     errors = []
     if len(actual) != len(canonical):
@@ -57,6 +62,10 @@ def audit(root: Path) -> tuple[dict, list[str]]:
             if "Include" not in node.attrib:
                 continue
             source = "neo/" + node.attrib["Include"].replace("\\", "/")
+            for original, destination in relocations.items():
+                if source.casefold().startswith(original.casefold()):
+                    source = destination + source[len(original):]
+                    break
             actual_source = canonical.get(source.casefold())
             if actual_source is None:
                 errors.append(f"{project} names missing source: {source}")
@@ -78,13 +87,20 @@ def audit(root: Path) -> tuple[dict, list[str]]:
                 errors.append(f"Classic Doom source present in {name}: {source}")
             if not (root / "src" / source).is_file():
                 errors.append(f"{name} source missing: {source}")
-            if source.startswith("neo/") and dispositions.get(source) != "campaign_runtime" and not (
-                    name == "JPEG_TEST_CXX_SRC" and source.startswith("neo/renderer/jpeg-6/") and
+            if source in dispositions and dispositions[source] != "campaign_runtime" and not (
+                    name == "JPEG_TEST_CXX_SRC" and source.startswith("external/jpeg-6/") and
                     dispositions.get(source) in ("vendor_optional", "source_only_excluded")):
-                errors.append(f"{name} enables an excluded/replaced source: {source}")
+                if not (name in ("VENDOR_C_SRC", "VENDOR_CXX_SRC", "JPEG_TEST_CXX_SRC") and
+                        dispositions[source] == "vendor_runtime"):
+                    errors.append(f"{name} enables an excluded/replaced source: {source}")
+            elif source.startswith("neo/") and source not in dispositions:
+                errors.append(f"{name} enables an unclassified source: {source}")
     intended = set(inventory["categories"]["campaign_runtime"]["sources"])
     if set(lists["CAMPAIGN_CXX_SRC"]) != intended:
         errors.append("CAMPAIGN_CXX_SRC differs from the reviewed campaign disposition")
+    vendor = set(inventory["categories"].get("vendor_runtime", {}).get("sources", []))
+    if set(lists["VENDOR_C_SRC"] + lists["VENDOR_CXX_SRC"]) != vendor:
+        errors.append("Vendor source lists differ from the reviewed runtime disposition")
     classic_count = sum(1 for path in (root / "doomclassic").rglob("*")
                         if path.is_file() and path.suffix in SOURCE_SUFFIXES)
     summary = {
