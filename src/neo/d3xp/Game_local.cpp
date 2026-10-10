@@ -1997,6 +1997,13 @@ idGameLocal::SetupPlayerPVS
 ================
 */
 void idGameLocal::SetupPlayerPVS() {
+	// [PS2_D3BFG]: The bounded simulation has no render-world topology or PVS acquisition.
+#if defined( ID_PS2 )
+	if ( ps2::gamefixture::IsEnabled() ) {
+		playerPVS.i = playerConnectedAreas.i = -1;
+		return;
+	}
+#endif
 	int			i;
 	idEntity *	ent;
 	idPlayer *	player;
@@ -2281,12 +2288,10 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 	}
 #endif
 
-	// [PS2_D3BFG]: Logic fixtures use the real frame/event loop without a render world or players.
+	// [PS2_D3BFG]: Authored fixtures retain native frames with zero or one bounded player.
 #if defined( ID_PS2 )
 	if ( ps2::gamefixture::IsEnabled() ) {
-		if ( gamestate != GAMESTATE_ACTIVE || gameRenderWorld != NULL || numClients != 0 ) {
-			Error( "invalid headless fixture frame state" );
-		}
+		ps2::gamefixture::ValidateFrame();
 	} else
 #endif
 	{
@@ -3252,6 +3257,12 @@ idGameLocal::SpawnEntityType
 */
 idEntity *idGameLocal::SpawnEntityType( const idTypeInfo &classdef, const idDict *args, bool bIsClientReadSnapshot ) {
 	idClass *obj;
+	// [PS2_D3BFG]: Reject unsupported player keys/slots before constructors or base spawning.
+#if defined( ID_PS2 )
+	if ( ps2::gamefixture::IsEnabled() && classdef.IsType( idPlayer::Type ) ) {
+		ps2::gamefixture::ValidatePlayerSpawn( classdef, args );
+	}
+#endif
 
 #if _DEBUG
 	if ( common->IsClient() ) {

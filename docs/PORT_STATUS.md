@@ -5,14 +5,16 @@ foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core 
 offline services. The M2b campaign gate compiles all 281 retained units in debug and
 release; audited JPEG/zlib integration now closes the retained resident link in both
 configurations. M2b compile/link acceptance is complete. The first partial M3 game
-fixture now runs native initialization, playerless entity/script ticks, native target
+fixture now runs native initialization, entity/script ticks, native target
 activation, timed events, removal/cancellation, fixed-world collision, native physics
 wall stops, gravity, floor contacts/rest, grounded sliding and stable map reloads.
 Native player physics also consumes injected commands for acceleration, wall collision,
 reverse movement and stopping after input release, followed by jumping/landing,
 held-jump suppression/rearming and crouch/standing collision shapes.
+It now also spawns a restricted native `idPlayer`, delivers injected commands through
+the native player pipeline and ticks its movement, linked conditions and actor script.
 Bounded logical PCM samples and deterministic headless voices are usable as
-standalone services. Player/AAS/PVS startup, broader map loading and native sound/
+standalone services. Full campaign player/AAS/PVS startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
@@ -1579,3 +1581,91 @@ entries, warm reload ledgers match, and full shutdown recovers the pre-boot base
 The fixture keeps zero clients and null sound/render worlds. Kernel/stacks and real
 campaign transitions remain unmeasured. The next candidate is bounded headless
 `idPlayer` entity startup.
+
+## M3 small step: bounded native player startup and ticks
+
+The resident fixture now spawns a real `idPlayer` in client slot zero through the
+native factory and entity/actor `CallSpawn` chain. A fixture-only setup installs
+native player physics, empty inventory, linked AI script variables and manual actor
+script state. Its constructor executes once per map. Native player and view constructors
+skip HUD/PDA and material/fullscreen FX acquisition only when the fixture was explicitly
+selected before Common startup. Regular campaign construction stays separate.
+
+After the existing 88 frames, the physics probe stops and its command cursors reset.
+Frames 89–99 run through native `RunAllUserCmdsForPlayer`, `RunSingleUserCmd`,
+`HandleUserCmds` and the bounded player Think path. That path calls native speed
+adjustment, movement, condition updates and actor script execution. Four forward
+commands accelerate to 63.8 units/s; seven neutral commands stop at x=-26.192.
+The authored idle script advances eleven times, with native floor support, health 100,
+empty weapon/inventory state and linked movement conditions checked each frame.
+Native PVS acquisition is skipped in fixture mode; no navigation/presentation data
+is fabricated. Map shutdown invalidates the player handle, name and client-slot lookup.
+
+The first target run exposed incomplete probe deactivation: native physics deactivation
+sets TH_UPDATEVISUALS, which these probes have no Present call to clear. Their Think
+methods now respect TH_THINK and their completed visual flags are cleared separately.
+This fixes continued monster sliding/out-of-bounds warnings during posture tests and
+prevents the old player-physics probe from consuming the native player's commands.
+
+This is restricted headless player acceptance. Only the exact seven spawn keys and
+neutral/full-forward commands are accepted. Extra model keys, missing `AI_ONGROUND`
+script storage and attack commands are tested failures in fresh processes. Regular
+player Init/SpawnToPoint, persistent inventory, weapons, models/joints, HUD/PDA,
+achievements, view/campaign behavior and AAS/PVS remain later gates. No retail assets,
+sound or render world are initialized.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` | Strict EE compile and retained-object link passed |
+| Resident link | 344 inputs, 11 registration roots, no GC, unresolved symbols or duplicates |
+| Native registries | Unchanged: 535 events, 160 classes, 496,480 bytes of event callbacks |
+| Debug/release `make test-game` | All eight fresh-process scenarios passed in each configuration |
+| Positive classifier | Thirty-two required checks; all earlier traces plus 33 native-player command/movement/script traces |
+| Host sanitizer fixtures and classifiers | All 84 Python regressions passed; native-player regression rejects missing/duplicate traces, command/cursor/timing, movement/floor/health and script constructor/tick errors |
+| Separate core smoke | Debug/release core and expected missing-fixture tests passed; core memory unchanged; Common matrix not rerun |
+| Source inventory | Unchanged 458-unit inventory and 363-entry compile database |
+
+Matched run identities:
+
+- Game debug/release: `20261010T100503Z_smoke_5161bbf2ce034262` /
+  `20261010T100544Z_smoke_3e78bea4d69e4a21`.
+- Missing map: `20261010T100507Z_smoke_ed9c7e8758714a3c` /
+  `20261010T100548Z_smoke_0599c1638f194f75`.
+- Script error: `20261010T100509Z_smoke_92b13dd5904d4501` /
+  `20261010T100550Z_smoke_406a368a7a744de4`.
+- Geometry: `20261010T100512Z_smoke_83305aea8988456c` /
+  `20261010T100553Z_smoke_4608a53e8dfe44a4`.
+- Material: `20261010T100514Z_smoke_688768a3c3904220` /
+  `20261010T100555Z_smoke_c4e0ec6726064a39`.
+- Player arguments: `20261010T100517Z_smoke_6b20bfaff07a42fb` /
+  `20261010T100557Z_smoke_91c61cc2e77f44f7`.
+- Player script linkage: `20261010T100520Z_smoke_38ab79c79f7b450d` /
+  `20261010T100600Z_smoke_349c35d56414453b`.
+- Player command: `20261010T100522Z_smoke_d14034e00cfa48e6` /
+  `20261010T100602Z_smoke_5716c908ac494664`.
+- Core: `20261010T100638Z_smoke_62efff2a732d4192` /
+  `20261010T100643Z_smoke_ddc6c8c114384033`.
+- Core missing fixture: `20261010T100641Z_smoke_969d0cc56fbb424a` /
+  `20261010T100646Z_smoke_45c4659589974dac`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,898,406 bytes | 11,318,374 bytes |
+| Resident BSS (included above) | 5,238,118 bytes | 5,238,118 bytes |
+| After native game Init: requested / backing / count | 1,399,564 / 1,495,080 / 2,334 | 1,399,564 / 1,495,080 / 2,334 |
+| After 99 ticks, conversion: requested / backing / count | 1,793,384 / 1,896,880 / 2,528 | 1,793,384 / 1,896,880 / 2,528 |
+| After 99 ticks, text cache: requested / backing / count | 1,793,400 / 1,896,492 / 2,517 | 1,793,400 / 1,896,492 / 2,517 |
+| After 99 ticks, binary cache: requested / backing / count | 1,791,152 / 1,894,224 / 2,516 | 1,791,152 / 1,894,224 / 2,516 |
+| Peak requested / backing | 2,060,728 / 2,160,324 bytes | 2,060,728 / 2,160,324 bytes |
+| Arena commitment after three cycles | 2,339,866 bytes | 2,341,786 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Warm map-shutdown ledgers match, and each shutdown frees all collision/clip allocations
+and cache entries. Fixed ELF residency includes the script program's inline storage;
+tagged backing is part of the arena, not an extra allocation above it. Kernel/stacks
+and campaign transitions remain unmeasured. The next candidate is a small native
+player script-state transition and jump/crouch command coverage before broader maps.

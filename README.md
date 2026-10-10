@@ -2,9 +2,9 @@
 
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
 using the free ps2dev SDK. The port builds a scalar EE core and an authored headless
-game fixture that runs native initialization, entity thinking, script events and bounded collision/physics.
-Player/AAS/PVS startup, retail maps, rendering, SPU2 output, input and saves remain
-later milestones; the port is not playable yet.
+game fixture that runs native initialization, entity thinking, script events, bounded collision/physics
+and a restricted native `idPlayer`. Full campaign player/AAS/PVS startup, retail maps,
+rendering, SPU2 output, input and saves remain later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
 under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
@@ -29,7 +29,7 @@ make compile-core            # 52 scalar idlib units and 10 framework/session su
 make compile-game            # all 281 retained campaign units; compile gate only
 make link-game               # retained campaign link and registration/map gate
 make headless-game           # resident native game fixture ELF
-make test-game               # boot/ticks/reloads, missing map and script error in PCSX2
+make test-game               # boot/player/ticks/reloads and seven expected failures in PCSX2
 make BUILD=release test-game  # same game checks with assertions disabled
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
@@ -93,9 +93,10 @@ runner's explicit game manifest before selecting the authored fixture.
 
 `make test-game` boots native `idGameLocal`, parses a fixed floor/wall worldspawn `.map` through
 the native loose-file filesystem, and spawns a logic entity through the real class
-factory. Each of three map reloads runs 88 native `RunFrame` calls. The first eight
+factory. Each of three map reloads runs 99 native `RunFrame` calls. The first eight
 check logic-entity Think and script increments scheduled through `sys.waitFrame`;
-the remaining frames exercise native player-physics posture changes.
+frames 9–88 exercise native player-physics posture changes, then frames 89–99 tick a
+real `idPlayer` in client slot zero through the native command/Think pipeline.
 The script activates a native `idTarget_SessionCommand` on frame four. A queued 90 ms
 activation fires on frame six (100 ms). Each command is returned and cleared in the
 same frame. Script removal on frame seven (116 ms) invalidates the cached `idEntityPtr`
@@ -114,13 +115,21 @@ then jumps again after release. Crouch shrinks the native clip height from 74 to
 units, prevents takeoff with jump also pressed, and restores standing height when
 released in open space. The completed script stays at eight increments and the
 monster probes become inactive during these additional player frames.
+The player factory retains native entity/actor spawn and script threads, with a
+fixture-only player setup and Think path that calls native speed adjustment, movement,
+condition updates and actor script execution. Its constructor runs once per map and
+the authored idle state advances once per tick. Forward/neutral injected commands
+exercise walking and friction; health, empty inventory, floor identity, linked
+conditions, command cursors and native handle invalidation are checked. HUD/PDA,
+models, weapons, view effects and sound/render worlds are not acquired.
 Three reloads cover brush conversion, text `.cm` loading and
 generated binary collision-cache loading. Clip/collision ownership returns to zero
 at map shutdown.
 Warm reload ledgers stay exact; full shutdown returns to the pre-boot ledger. Missing
-maps, script errors and unsupported brush planes/materials must fail with the expected diagnostic in debug and release.
-This is partial M3 game acceptance. The fixture has no players or AAS/PVS,
-sound world or render world and uses a separate bounded startup method; regular
+maps, script errors, unsupported brush planes/materials, extra player spawn keys,
+missing player script fields and unsupported commands must fail with the expected diagnostic in debug and release.
+This is partial M3 game acceptance. The fixture omits AAS/PVS,
+sound and render worlds and uses separate bounded map/player setup methods; regular
 `InitFromNewMap` and retail content remain pending. Headless gameplay work takes
 priority, with sound and rendering integration deferred.
 

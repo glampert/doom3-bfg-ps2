@@ -40,7 +40,7 @@ Shell resources, save pipelines and multiplayer matches are not initialized. The
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
 The passing whole-object resident link with bounded collision/physics has
-10,892,518 / 11,312,486 bytes of fixed PT_LOAD residency, including 5,238,118 bytes of
+10,898,406 / 11,318,374 bytes of fixed PT_LOAD residency, including 5,238,118 bytes of
 BSS in both configurations. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
 All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
@@ -121,6 +121,19 @@ conversion, 1,747,772 / 1,848,324 / 2,455 for text loading and 1,745,524 / 1,846
 and every map shutdown still releases all COLLISION/PHYSICS_CLIP allocations and
 trace-model cache entries. Warm reload ledgers match; full pre-boot recovery remains
 exact at 7,424 / 7,600 / 4. The fixture still spawns no `idPlayer` or physical input device.
+
+Adding bounded native `idPlayer` startup/ticks extends each map to 99 frames. Native
+Init now requests 1,399,564 / 1,495,080 / 2,334 with the authored player script object.
+Live requested/backing/count after all ticks is 1,793,384 / 1,896,880 / 2,528 for
+conversion, 1,793,400 / 1,896,492 / 2,517 for text loading and 1,791,152 / 1,894,224 /
+2,516 for binary loading in both configurations. Conversion scratch still determines
+the 2,060,728 / 2,160,324 peak. Final arena commitment is 2,339,866 / 2,341,786 bytes
+(debug/release). These figures include the player, native actor/animation threads,
+script storage, empty inventory and native collision shape; HUD/PDA, model, weapons,
+view effects, AAS/PVS and sound/render worlds are absent. The completed probes now
+deactivate correctly instead of accumulating out-of-bounds warnings. Map shutdown
+releases all COLLISION/PHYSICS_CLIP/PHYSICS_CLIP_ENTITY allocations and trace-model
+cache entries, and full shutdown still recovers exactly 7,424 / 7,600 / 4.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See

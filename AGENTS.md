@@ -51,12 +51,13 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make compile-game` is the separate M2b campaign compile gate. `make link-game`
   validates the retained-object resident link, registrations and map coverage under
   `build/<config>/resident/`. `make headless-game` selects that resident fixture ELF;
-  `make test-game` checks native startup, playerless entity/script ticks and reloads,
-  plus missing-map, script-error and restricted geometry/material failures in fresh emulator processes.
+  `make test-game` checks native startup, entity/script ticks, bounded native `idPlayer`
+  startup/commands and reloads, plus missing-map, script-error, restricted geometry/material
+  and player spawn/script/command failures in fresh emulator processes.
   Fixed floor/wall collision and native physics wall-stop, gravity, floor-rest and
   grounded-sliding probes are covered, along with native player physics driven by
   explicitly injected user commands, including jumping/landing, jump release and
-  crouch/standing collision shapes; full player/AAS/PVS
+  crouch/standing collision shapes; full campaign player/AAS/PVS
   startup and general campaign maps remain later gates. Prioritize
   headless simulation; sound and rendering integration follow at a later stage.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is

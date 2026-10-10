@@ -230,7 +230,7 @@ math path; PS2-specific math replacement headers are a later milestone.
   rejects resource/physics keys and runs native `InitScriptForMap`/`SpawnMapEntities`.
   It does not call regular `InitFromNewMap`, whose AAS/PVS/player/resource setup
   remains pending. Only explicit fixture mode permits native `RunFrame` with a null
-  render world and no clients, suppressing player synchronization/debug drawing while
+  render world and initially no clients, suppressing player synchronization/debug drawing while
   retaining native clocks, entity Think, interpreter and event service loops.
 - Worldspawn's thread `DelayedStart(0)` at game time zero schedules execution for at
   least 1 ms, so map `main` starts on the first native frame. A script that increments
@@ -239,8 +239,8 @@ math path; PS2-specific math replacement headers are a later milestone.
   game frames, not wall-clock sleeps.
 - Native `MapShutdown` cancels pending script/event work and resets map definitions.
   Three logic-map reloads recover the same warm ledger; full game/decl/Common shutdown
-  recovers the pre-boot baseline. Sound/render worlds, AAS/PVS and players remain
-  uninitialized. Extend headless simulation before sound/render integration.
+  recovers the pre-boot baseline. That initial slice leaves sound/render worlds,
+  AAS/PVS and players uninitialized. Extend headless simulation before sound/render integration.
 - `$name` script references bind when native `idEntity::SetName` calls `program.SetEntity`.
   If the reference is compiled after the entity was named, it stays null until rebound.
   In this fixture, worldspawn compiles the map script after its own base Spawn named it;
@@ -341,3 +341,37 @@ math path; PS2-specific math replacement headers are a later milestone.
   restoring standing height. The fixture proves only the unobstructed restoration
   case and leaves movement cvars unchanged. Its script stops after eight increments;
   later frames verify that completed state, rather than inventing further script work.
+
+## Bounded native player fixture
+
+- `idPlayer` construction itself acquires HUD/PDA handlers and `idPlayerView` materials/
+  fullscreen FX. The explicit process-wide fixture selection must precede factory
+  construction, with those acquisitions gated only in that mode. Native campaign
+  construction remains unchanged; a null render world alone is not fixture selection.
+- Validate exact player type, all seven fixture keys, empty slot zero and zero clients
+  before `SpawnEntityType` constructs/registers a player. Native entity registration
+  trusts `spawn_entnum`; checking after base Spawn cannot protect an existing slot.
+  The authored API uses `SpawnEntityType`, not general entityDef/map player loading.
+- Native `CallSpawn` runs entity and actor setup before player Spawn. Actor setup
+  allocates script storage and manual actor/animation threads, but queues its script
+  constructor without executing it. The bounded player setup links all native AI
+  variables, executes the constructor once, sets an authored `FixtureIdle` state and
+  installs native player physics/empty inventory. Regular `Init`/`SpawnToPoint`,
+  persistent inventory, weapons, model joints, HUD and achievements remain deferred.
+- With a native `idPlayer` in slot zero and `numClients=1`, `RunEntityThink` selects
+  `RunAllUserCmdsForPlayer` → `RunSingleUserCmd` → `HandleUserCmds` → player Think.
+  The fixture retains that delivery and native speed adjustment, `Move`, condition
+  updates and actor interpreter state. Only neutral/full-forward commands are accepted;
+  buttons, strafing, view-angle changes and impulses fail before simulation. AAS remains
+  empty, and fixture-only `SetupPlayerPVS` acquires no render-world topology.
+- `BecomeInactive(TH_PHYSICS)` reactivates `TH_UPDATEVISUALS`. Custom headless probes
+  must respect TH_THINK and clear the pending visual flag separately, since they have
+  no `Present` call to do so. Native active-list removal occurs at the end of the next
+  frame. The initial extended posture probe did not fully deactivate the monster
+  probes; the native-player slice fixes their continued Think/out-of-bounds warnings.
+- The native-player checks run frames 89–99 after the earlier physics probe stops and
+  its command cursors reset. Native walk speed 140 with ground acceleration/friction
+  reaches 63.8 units/s after four commands, then stops at x=-26.192 on frame 99.
+  Script globals reset per map: one constructor and eleven state increments. Three
+  reloads invalidate the player handle and recover exact warm/full ledgers. This
+  establishes restricted player simulation, not full campaign player behavior.

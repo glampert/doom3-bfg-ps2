@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: headless_fixture.cpp
-// Brief: Load a fixed collision world and run native spawning/scripts without players or presentation.
+// Brief: Load a fixed collision world and bounded native player/scripts without presentation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -74,7 +74,109 @@ void Enable()
     s_enabled = true;
 }
 bool IsEnabled() { return s_enabled; }
+
+void ValidatePlayerSpawn(const idTypeInfo & type, const idDict * args)
+{
+    if (!IsEnabled() || &type != &idPlayer::Type || args == nullptr || gameLocal.GameState() != GAMESTATE_ACTIVE ||
+        gameLocal.world == nullptr || gameRenderWorld != nullptr || gameSoundWorld != nullptr ||
+        gameLocal.numClients != 0 || gameLocal.entities[0] != nullptr)
+    {
+        FatalError("invalid headless player spawn state");
+    }
+    struct Key
+    {
+        const char * name;
+        const char * value;
+    };
+    static constexpr Key kKeys[] = {
+        { "classname", "fixture_player" },
+        { "name", "native_player" },
+        { "spawn_entnum", "0" },
+        { "noclipmodel", "1" },
+        { "scriptobject", "fixture_player" },
+        { "origin", "-32 0 0.25" },
+        { "health", "100" },
+    };
+    if (args->GetNumKeyVals() != static_cast<int>(ArrayLength(kKeys)))
+    {
+        FatalError("headless player spawn arguments are unsupported");
+    }
+    for (const auto & key : kKeys)
+    {
+        if (idStr::Cmp(args->GetString(key.name), key.value) != 0)
+        {
+            FatalError("headless player spawn arguments are unsupported: %s", key.name);
+        }
+    }
+}
+
+void ValidateFrame()
+{
+    const idPlayer * player = gameLocal.GetLocalPlayer();
+    if (!IsEnabled() || gameLocal.GameState() != GAMESTATE_ACTIVE || gameRenderWorld != nullptr || gameSoundWorld != nullptr ||
+        gameLocal.numClients < 0 || gameLocal.numClients > 1 ||
+        (gameLocal.numClients == 0 ? gameLocal.entities[0] != nullptr : player == nullptr || player->GetType() != &idPlayer::Type))
+    {
+        FatalError("invalid headless fixture frame state");
+    }
+}
 } // namespace ps2::gamefixture
+
+void idPlayer::SpawnHeadlessFixture()
+{
+    if (!ps2::gamefixture::IsEnabled() || entityNumber != 0 || gameLocal.entities[0] != this || gameLocal.numClients != 0 ||
+        hudManager != nullptr || pdaMenu != nullptr || renderEntity.hModel != nullptr || !scriptObject.HasObject())
+    {
+        ps2::FatalError("invalid headless player initialization");
+    }
+    // Entity and Actor CallSpawn have already installed native identity, script storage
+    // and manual actor/animation threads. Only this bounded simulation subset follows.
+    cinematic = true;
+    physicsObj.SetSelf(this);
+    SetClipModel();
+    physicsObj.SetMass(100.0f);
+    physicsObj.SetContents(CONTENTS_BODY);
+    physicsObj.SetClipMask(MASK_PLAYERSOLID);
+    physicsObj.SetGravity(gameLocal.GetGravity());
+    SetPhysics(&physicsObj);
+    SetOrigin(spawnArgs.GetVector("origin"));
+    InitAASLocation(); // The fixture has no AAS instances; no navigation data is acquired.
+    SetEyeHeight(pm_normalviewheight.GetFloat());
+    stamina = pm_stamina.GetFloat();
+    inventory.Clear();
+    inventory.maxHealth = health;
+    fl.takedamage = true;
+    weaponEnabled = false;
+    playerView.SetPlayerEntity(this);
+    LinkScriptVariables();
+    ConstructScriptObject()->Execute();
+    SetState("FixtureIdle");
+    gameLocal.numClients = 1;
+    BecomeActive(TH_THINK | TH_PHYSICS);
+}
+
+void idPlayer::ThinkHeadlessFixture()
+{
+    ps2::gamefixture::ValidateFrame();
+    if (entityNumber != 0 || gameLocal.GetLocalPlayer() != this || health != 100 ||
+        usercmd.rightmove != 0 || usercmd.buttons != 0 || usercmd.impulse != 0 || usercmd.impulseSequence != 0 ||
+        usercmd.angles[0] != 0 || usercmd.angles[1] != 0 || usercmd.angles[2] != 0 ||
+        (usercmd.forwardmove != 0 && usercmd.forwardmove != 127))
+    {
+        ps2::FatalError("unsupported headless player command or state");
+    }
+    // Keep native player speed, Move/physics, linked condition variables and actor
+    // interpreter state. Weapon/view/UI/audio/trigger/campaign behavior remains deferred.
+    AdjustSpeed();
+    Move();
+    UpdateConditions();
+    UpdateScript();
+    oldButtons = usercmd.buttons;
+    usercmd.pos = physicsObj.GetOrigin();
+    playedTimeResidual += gameLocal.time - gameLocal.previousTime;
+    playedTimeSecs += playedTimeResidual / 1000;
+    playedTimeResidual %= 1000;
+}
 
 void idGameLocal::InitHeadlessFixture(const char * mapName)
 {
@@ -130,5 +232,5 @@ void idGameLocal::InitHeadlessFixture(const char * mapName)
     idEvent::ServiceEvents();
     SetScriptFPS(com_engineHz_latched);
     gamestate = GAMESTATE_ACTIVE;
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME collision map ready; players/AAS/PVS/presentation deferred\n");
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME collision map ready; AAS/PVS/presentation deferred\n");
 }

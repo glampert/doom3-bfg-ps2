@@ -97,6 +97,9 @@ GAME_FAILURES = {
     "game-syntax": "script maps/logic.script:",
     "game-geometry": "headless game fixture brush planes are unsupported",
     "game-material": "headless game fixture brush material is unsupported",
+    "game-player-args": "headless player spawn arguments are unsupported",
+    "game-player-script": "Missing 'AI_ONGROUND' field in script object 'fixture_player'",
+    "game-player-command": "unsupported headless player command or state",
 }
 REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/native-ticks-script-events",
                                   "game/script-target-command", "game/delayed-events-posted", "game/entity-removal-cancellation",
@@ -108,6 +111,9 @@ REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/
                                   "game/player-posture-command-queue", "game/player-jump-land",
                                   "game/player-jump-held-release", "game/player-crouch-shape-jump",
                                   "game/player-stand-restore",
+                                  "game/native-player-spawn", "game/native-player-command-path",
+                                  "game/native-player-script", "game/native-player-movement",
+                                  "game/native-player-simulation-state",
                                   "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
 SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -301,6 +307,29 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                         actual[7:12], (21.151, -16, z, vz, 38 if crouched else 74)))):
                     return False
             return True
+        native_players = [tuple(int(value) if index < 7 or index >= 11 else float(value)
+                                for index, value in enumerate(match)) for match in re.findall(
+            r"GAME_NATIVE_PLAYER cycle=(\d+) frame=(\d+) cmd=(-?\d+) time=(\d+) read=(-?\d+) written=(\d+) pending=(\d+) x=(-?\d+\.\d+) y=(-?\d+\.\d+) z=(-?\d+\.\d+) vx=(-?\d+\.\d+) floor=(\d+) health=(\d+) script=(\d+) constructs=(\d+)(?:\s|$)", log)]
+        expected_native_players = [(cycle, frame) for cycle in range(3) for frame in range(89, 100)]
+        def matches_native_players(expected: list) -> bool:
+            if len(native_players) != len(expected):
+                return False
+            # Native walk speed 140, ground acceleration 10 and friction 6 with stop speed 100.
+            x, vx = -32.0, 0.0
+            for actual, (cycle, frame) in zip(native_players, expected):
+                if frame == 89:
+                    x, vx = -32.0, 0.0
+                dt = (frame * 1000 // 60 - (frame - 1) * 1000 // 60) / 1000
+                vx = max(0.0, vx - max(100.0, vx) * 6 * dt)
+                if frame <= 92:
+                    vx = min(140.0, vx + 140 * 10 * dt)
+                x += vx * dt
+                tick = frame - 88
+                if (actual[:7] != (cycle, frame, 127 if frame <= 92 else 0, frame * 1000 // 60,
+                                   tick - 1, tick, 0) or actual[11:] != (1, 100, tick, 1) or
+                    any(abs(value - target) >= 0.05 for value, target in zip(actual[7:11], (x, 0, 0.25, vx)))):
+                    return False
+            return True
         accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
                     result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
                     all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
@@ -319,7 +348,8 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     (matches_falls(expected_frames) or matches_falls(expected_frames + expected_frames)) and
                     (matches_slides(expected_frames) or matches_slides(expected_frames + expected_frames)) and
                     (matches_players(expected_frames) or matches_players(expected_frames + expected_frames)) and
-                    (matches_postures(expected_postures) or matches_postures(expected_postures + expected_postures)))
+                    (matches_postures(expected_postures) or matches_postures(expected_postures + expected_postures)) and
+                    (matches_native_players(expected_native_players) or matches_native_players(expected_native_players + expected_native_players)))
         return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:
@@ -490,11 +520,22 @@ def stage_game_fixtures(directory: Path, scenario: str) -> None:
     for folder in ("def", "maps", "script", "materials", "fx", "particles", "af", "newpdas"):
         (directory / folder).mkdir(parents=True, exist_ok=True)
     (directory / "def/fixture.def").write_text(
-        'entityDef aas_types {}\nentityDef worldspawn { "spawnclass" "idWorldspawn" "noclipmodel" "1" }\n')
+        'entityDef aas_types {}\nentityDef worldspawn { "spawnclass" "idWorldspawn" "noclipmodel" "1" }\n'
+        'entityDef fixture_player { "spawnclass" "idPlayer" }\n')
     (directory / "script/doom_defs.script").write_text(
         'scriptEvent void waitFrame();\nscriptEvent void activate(entity activator);\nscriptEvent void remove();\n')
+    fields = ("AI_FORWARD", "AI_BACKWARD", "AI_STRAFE_LEFT", "AI_STRAFE_RIGHT", "AI_ATTACK_HELD",
+              "AI_WEAPON_FIRED", "AI_JUMP", "AI_DEAD", "AI_CROUCH", "AI_ONGROUND", "AI_ONLADDER",
+              "AI_HARDLANDING", "AI_SOFTLANDING", "AI_RUN", "AI_PAIN", "AI_RELOAD", "AI_TELEPORT",
+              "AI_TURN_LEFT", "AI_TURN_RIGHT")
+    player_fields = ''.join(f'boolean {name};\n' for name in fields
+                            if scenario != "game-player-script" or name != "AI_ONGROUND")
     (directory / "script/doom_main.script").write_text(
-        'float fixtureTicks = 0;\nvoid doom_main() {}\n')
+        'float fixtureTicks = 0;\nfloat nativePlayerConstructs = 0;\nfloat nativePlayerTicks = 0;\n'
+        'object fixture_player {\n' + player_fields + 'void init();\nvoid FixtureIdle();\n};\n'
+        'void fixture_player::init() { nativePlayerConstructs++; }\n'
+        'void fixture_player::FixtureIdle() { while (1) { nativePlayerTicks++; sys.waitFrame(); } }\n'
+        'void doom_main() {}\n')
     (directory / "materials/fixture.mtr").write_text(
         '_tracemodel { solid }\ntextures/fixture/solid { solid }\n')
     def brush(bounds: tuple, material: str) -> str:

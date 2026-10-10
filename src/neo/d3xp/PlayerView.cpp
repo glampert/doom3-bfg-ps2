@@ -31,6 +31,11 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "Game_local.h"
 
+// [PS2_D3BFG]: Selected simulation fixtures do not load presentation assets in constructors.
+#if defined( ID_PS2 )
+#include "ps2/game/headless_fixture.h"
+#endif
+
 // _D3XP : rename all gameLocal.time to gameLocal.slow.time for merge!
 
 const int IMPULSE_DELAY = 150;
@@ -43,12 +48,20 @@ idPlayerView::idPlayerView() {
 	memset( screenBlobs, 0, sizeof( screenBlobs ) );
 	memset( &view, 0, sizeof( view ) );
 	player = NULL;
-	tunnelMaterial = declManager->FindMaterial( "textures/decals/tunnel" );
-	armorMaterial = declManager->FindMaterial( "armorViewEffect" );
-	berserkMaterial = declManager->FindMaterial( "textures/decals/berserk" );
-	irGogglesMaterial = declManager->FindMaterial( "textures/decals/irblend" );
-	bloodSprayMaterial = declManager->FindMaterial( "textures/decals/bloodspray" );
-	bfgMaterial = declManager->FindMaterial( "textures/decals/bfgvision" );
+	// [PS2_D3BFG]: Preserve initialized view state without loading fixture-only effects/materials.
+#if defined( ID_PS2 )
+	if ( ps2::gamefixture::IsEnabled() ) {
+		tunnelMaterial = armorMaterial = berserkMaterial = irGogglesMaterial = bloodSprayMaterial = bfgMaterial = NULL;
+	} else
+#endif
+	{
+		tunnelMaterial = declManager->FindMaterial( "textures/decals/tunnel" );
+		armorMaterial = declManager->FindMaterial( "armorViewEffect" );
+		berserkMaterial = declManager->FindMaterial( "textures/decals/berserk" );
+		irGogglesMaterial = declManager->FindMaterial( "textures/decals/irblend" );
+		bloodSprayMaterial = declManager->FindMaterial( "textures/decals/bloodspray" );
+		bfgMaterial = declManager->FindMaterial( "textures/decals/bfgvision" );
+	}
 	bfgVision = false;
 	dvFinishTime = 0;
 	kickFinishTime = 0;
@@ -62,6 +75,10 @@ idPlayerView::idPlayerView() {
 	shakeAng.Zero();
 	fxManager = NULL;
 
+	// [PS2_D3BFG]: Fullscreen effects are unavailable in the explicitly selected fixture.
+#if defined( ID_PS2 )
+	if ( !ps2::gamefixture::IsEnabled() )
+#endif
 	if ( fxManager == NULL ) {
 		fxManager = new (TAG_ENTITY) FullscreenFXManager;
 		fxManager->Initialize( this );

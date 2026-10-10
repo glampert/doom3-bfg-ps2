@@ -33,6 +33,11 @@ If you have questions concerning this license or the applicable additional terms
 #include "../framework/Common_local.h"
 #include "PredictedValue_impl.h"
 
+// [PS2_D3BFG]: Explicit fixture-only player startup and simulation before presentation exists.
+#if defined( ID_PS2 )
+#include "ps2/game/headless_fixture.h"
+#endif
+
 idCVar flashlight_batteryDrainTimeMS( "flashlight_batteryDrainTimeMS", "30000", CVAR_INTEGER, "amount of time (in MS) it takes for full battery to drain (-1 == no battery drain)" );
 idCVar flashlight_batteryChargeTimeMS( "flashlight_batteryChargeTimeMS", "3000", CVAR_INTEGER, "amount of time (in MS) it takes to fully recharge battery" );
 idCVar flashlight_minActivatePercent( "flashlight_minActivatePercent", ".25", CVAR_FLOAT, "( 0.0 - 1.0 ) minimum amount of battery (%) needed to turn on flashlight" );
@@ -1291,12 +1296,22 @@ idPlayer::idPlayer():
 	weapon					= NULL;
 	primaryObjective		= NULL;
 
+	// [PS2_D3BFG]: A selected simulation fixture owns no HUD/PDA presentation handlers.
+#if defined( ID_PS2 )
+	hudManager = ps2::gamefixture::IsEnabled() ? NULL : new idMenuHandler_HUD();
+#else
 	hudManager				= new idMenuHandler_HUD();
+#endif
 	hud						= NULL;
 	objectiveSystemOpen		= false;
 	memset( quickSlot, -1, sizeof( quickSlot ) );
 
+	// [PS2_D3BFG]: Keep the absent fixture PDA explicit; ordinary construction is unchanged.
+#if defined( ID_PS2 )
+	pdaMenu = ps2::gamefixture::IsEnabled() ? NULL : new (TAG_SWF) idMenuHandler_PDA();
+#else
 	pdaMenu = new (TAG_SWF) idMenuHandler_PDA();
+#endif
 	pdaVideoMat				= NULL;
 	mpMessages				= NULL;
 
@@ -1788,6 +1803,13 @@ Prepare any resources used by the player.
 ==============
 */
 void idPlayer::Spawn() {
+	// [PS2_D3BFG]: Native entity/actor spawn precedes the bounded fixture player setup.
+#if defined( ID_PS2 )
+	if ( ps2::gamefixture::IsEnabled() ) {
+		SpawnHeadlessFixture();
+		return;
+	}
+#endif
 	idStr		temp;
 	idBounds	bounds;
 
@@ -7515,6 +7537,13 @@ Called every tic for each player
 ==============
 */
 void idPlayer::Think() {
+	// [PS2_D3BFG]: Fixture simulation omits HUD/weapons/model/view/audio integration explicitly.
+#if defined( ID_PS2 )
+	if ( ps2::gamefixture::IsEnabled() ) {
+		ThinkHeadlessFixture();
+		return;
+	}
+#endif
 	playedTimeResidual += ( gameLocal.time - gameLocal.previousTime );
 	playedTimeSecs += playedTimeResidual / 1000;
 	playedTimeResidual = playedTimeResidual % 1000;

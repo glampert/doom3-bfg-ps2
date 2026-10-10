@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 51 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 52 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 83 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 84 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -141,7 +141,8 @@
   inputs, non-executables and ignored undefined diagnostics.
 
 - `make headless-game` builds `build/<config>/resident/d3bfg.elf`. `make test-game`
-  runs `game`, `game-missing-map`, `game-syntax`, `game-geometry` and `game-material`
+  runs `game`, `game-missing-map`, `game-syntax`, `game-geometry`, `game-material`,
+  `game-player-args`, `game-player-script` and `game-player-command`
   sequentially in fresh processes;
   `make BUILD=release test-game` selects assertions-disabled validation. To run one
   scenario directly, pass the resident ELF with `--elf` to `run_pcsx2_test.py`.
@@ -153,8 +154,8 @@
   hashes and flags must match before launch; authored file hashes are archived too.
   Generated text/binary collision caches remain in the archive and are hashed in
   `summary.json` after process cleanup.
-- A game pass requires the matching closed JSON, begin/final markers, all twenty-seven `game/`
-  checks and exactly three cycles of 88 native frames. Each cycle starts with eight
+- A game pass requires the matching closed JSON, begin/final markers, all thirty-two `game/`
+  checks and exactly three cycles of 99 native frames. Each cycle starts with eight
   frame/entity/script, command, lifetime, wall-stop, falling, grounded-sliding and
   player-input/physics traces at native 60 Hz.
   Checks cover native initialization, logic world, ticks/script events, map shutdown,
@@ -175,7 +176,7 @@
   `GAME_PHYSICS` must move x to 8.192/16.896 on the first two frames and stay within
   0.05 of 21.75 from frame three, with y=0/z=16 and wall-clipped velocity. These
   checks must pass on conversion, text-cache and binary-cache loads. Map shutdown
-  requires zero COLLISION/PHYSICS_CLIP allocations and an empty trace-model cache.
+  requires zero COLLISION/PHYSICS_CLIP/PHYSICS_CLIP_ENTITY allocations and an empty trace-model cache.
   `GAME_FALL` checks old-velocity integration with a fixture gravity of 512 units/s²,
   landing around z=2.251 on frame six and floor contact/rest/zero velocity on frames
   seven/eight. `GAME_SLIDE` requires ground/floor support throughout, wall blocking
@@ -197,19 +198,32 @@
   restores standing height on frames 85–88. The completed monster probes are inactive
   during this phase. Missing, duplicated, reordered or incorrect posture traces fail
   despite PASS markers. Standing restoration is tested only with unobstructed headroom;
-  crouch speed, low ceilings, stairs/slopes and full `idPlayer` startup remain pending.
+  crouch speed, low ceilings and stairs/slopes remain pending.
+  `GAME_NATIVE_PLAYER` covers frames 89–99 with one native player in slot zero. The
+  earlier physics probe is inactive, and its command cursors reset before player
+  spawn. Forward commands on frames 89–92 accelerate using native walk speed 140;
+  neutral commands apply native ground friction and stop by frame 99 at x=-26.192.
+  Every trace requires native floor contact, health 100, exact timestamps/cursors,
+  no pending command, one constructor execution and script increments 1–11. Five
+  checks require real player identity/clip shape, native command delivery, script
+  execution, movement and linked conditions/empty resources. Map shutdown invalidates
+  the player handle and name/client-slot lookup. This uses bounded player setup and
+  Think methods; regular campaign Init/SpawnToPoint, weapons, models, HUD and AAS/PVS
+  remain pending. Missing, duplicate, incorrect or unconsumed traces fail even with PASS markers.
   `core SKIP` means the core test suite was not run, although staged Common foundation
   startup executes.
   The entry's platform marker covers manifest/host I/O, not the SDK-only platform suite.
 - Game negatives must observe native initialization and the correct first fatal after
   game startup: the missing-map diagnostic or a source-located `maps/logic.script`
-  error, or the geometry/material restriction diagnostic before collision loading.
+  error, or the geometry/material restriction diagnostic before collision loading;
+  extra player spawn keys before factory construction, missing `AI_ONGROUND` script
+  storage during native linkage, and attack input before movement/script execution.
   A result file, wrong source, unrelated first fatal, bus/TLB error, watchdog
-  or nonzero emulator status fails. Nine host regressions verify these classifications
+  or nonzero emulator status fails. Eleven host regressions verify these classifications
   and resident archive identity; target debug/release runs are required too.
-- This is playerless logic-map acceptance: native entity thinking, script `waitFrame`
-  scheduling, bounded monster/player physics with injected commands and map teardown run,
-  while AAS/PVS, full player entities, device input, sound/
+- This is bounded logic-map/player acceptance: native entity thinking, script `waitFrame`
+  scheduling, monster/player physics, restricted native player ticks with injected commands and map teardown run,
+  while AAS/PVS, full campaign player behavior, device input, sound/
   render worlds and regular campaign map loading remain pending. Sound and rendering
   integration are deferred while the headless gameplay fixture grows.
 

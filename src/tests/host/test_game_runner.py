@@ -26,6 +26,8 @@ def complete():
     slide_y = (33.024, 34.112, 35.807, 36.832, 37.921, 39.010, 40.035, 41.124)
     player_x = (20.328, 20.872, 21.614, 21.749, 21.379, 21.183, 21.151, 21.151)
     player_vx = (20.480, 32.040, 43.600, -0.054, -21.760, -11.560, -1.960, 0.000)
+    native_x = (-31.595, -30.960, -30.156, -29.072, -28.161, -27.457, -26.882, -26.481, -26.257, -26.192, -26.192)
+    native_vx = (23.800, 37.400, 50.200, 63.800, 53.600, 44.000, 33.800, 23.600, 14.000, 3.800, 0.000)
     # Rounded native EE traces: the two jumps start at different 60 Hz millisecond phases.
     jump_z = (
         (2.352, 4.195, 6.010, 7.677, 9.110, 10.490, 11.722, 12.746, 13.690, 14.486,
@@ -88,6 +90,12 @@ def complete():
                     f"x=21.151 y=-16.000 z={z:.3f} vz={vz:.3f} height={height:.3f} "
                     f"floor={int(not airborne)} jumped={int(frame in (9, 44))} "
                     f"crouched={crouched} script=8\n")
+        for frame in range(89, 100):
+            tick = frame - 88
+            log += (f"[D3BFG] GAME_NATIVE_PLAYER cycle={cycle} frame={frame} cmd={127 if frame <= 92 else 0} "
+                    f"time={frame * 1000 // 60} read={tick - 1} written={tick} pending=0 "
+                    f"x={native_x[tick - 1]:.3f} y=0.000 z=0.250 vx={native_vx[tick - 1]:.3f} "
+                    f"floor=1 health=100 script={tick} constructs=1\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -241,6 +249,26 @@ class GameRunnerTests(unittest.TestCase):
             log.replace("crouched=0 script=8", "crouched=0 script=9"),
             log.replace("x=21.151 y=-16.000 z=2.352", "x=22.000 y=-16.000 z=2.352"),
         ):
+            with self.subTest(output=bad):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
+
+    def test_game_requires_native_player_commands_script_lifetime_and_movement(self):
+        result, log = complete()
+        trace = next(line for line in log.splitlines() if "GAME_NATIVE_PLAYER cycle=1 frame=89" in line)
+        bad_traces = (
+            trace.replace("frame=89", "frame=90"), trace.replace("cmd=127", "cmd=0"),
+            trace.replace("time=1483", "time=1482"), trace.replace("read=0", "read=-1"),
+            trace.replace("written=1", "written=2"), trace.replace("pending=0", "pending=1"),
+            trace.replace("x=-31.595", "x=-32.000"), trace.replace("y=0.000", "y=1.000"),
+            trace.replace("z=0.250", "z=0.000"), trace.replace("vx=23.800", "vx=0.000"),
+            trace.replace("floor=1", "floor=0"), trace.replace("health=100", "health=0"),
+            trace.replace("script=1", "script=0"), trace.replace("constructs=1", "constructs=2"),
+        )
+        for bad in (log.replace(trace + "\n", ""), log + trace + "\n",
+                    *(log.replace(trace, changed) for changed in bad_traces),
+                    log.replace("frame=93 cmd=0", "frame=93 cmd=127"),
+                    log.replace("x=-26.192 y=0.000 z=0.250 vx=0.000", "x=-26.192 y=0.000 z=0.250 vx=3.800"),
+                    log.replace("health=100 script=11", "health=100 script=10")):
             with self.subTest(output=bad):
                 self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
 

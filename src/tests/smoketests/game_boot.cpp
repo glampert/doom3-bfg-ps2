@@ -50,6 +50,10 @@ class LogicProbe final : public idEntity
     }
     void Think() override
     {
+        if ((thinkFlags & TH_THINK) == 0)
+        {
+            return;
+        }
         ++ticks;
         if (m_motion == Motion::Wall)
         {
@@ -119,6 +123,10 @@ class PlayerPhysicsProbe final : public idEntity
     }
     void Think() override
     {
+        if ((thinkFlags & TH_THINK) == 0)
+        {
+            return;
+        }
         if (m_commands == nullptr || !m_commands->HasUserCmdForPlayer(0))
         {
             ps2::FatalError("native player-physics probe requires a queued user command");
@@ -167,6 +175,90 @@ bool FloorContacts(const idPhysics_Actor & physics)
         }
     }
     return false;
+}
+
+void PlayerArgs(idDict & args)
+{
+    args.Clear();
+    args.Set("classname", "fixture_player");
+    args.Set("name", "native_player");
+    args.Set("spawn_entnum", "0");
+    args.Set("noclipmodel", "1");
+    args.Set("scriptobject", "fixture_player");
+    args.Set("origin", "-32 0 0.25");
+    args.Set("health", "100");
+}
+
+bool NativePlayerTests(idUserCmdMgr & commands, int cycle, idEntityPtr<idPlayer> & reference)
+{
+    commands.ResetPlayer(0);
+    idDict args;
+    PlayerArgs(args);
+    auto * player = static_cast<idPlayer *>(gameLocal.SpawnEntityType(idPlayer::Type, &args));
+    args.Clear();
+    PS2_Assert(player != nullptr);
+    reference = player;
+    idVarDef * constructs = gameLocal.program.GetDef(&type_float, "nativePlayerConstructs", &def_namespace);
+    idVarDef * ticks = gameLocal.program.GetDef(&type_float, "nativePlayerTicks", &def_namespace);
+    const auto * physics = static_cast<const idPhysics_Player *>(player->GetPlayerPhysics());
+    bool passed = Check("native-player-spawn", gameLocal.GetLocalPlayer() == player && gameLocal.entities[0] == player &&
+                                               player->entityNumber == 0 && player->GetType() == &idPlayer::Type && gameLocal.numClients == 1 &&
+                                               reference.IsValid() && player->GetPhysics() == physics &&
+                                               physics->GetBounds()[0] == idVec3(-16.0f, -16.0f, 0.0f) &&
+                                               physics->GetBounds()[1] == idVec3(16.0f, 16.0f, 74.0f) &&
+                                               physics->GetOrigin() == idVec3(-32.0f, 0.0f, CM_CLIP_EPSILON));
+    bool scriptPassed = constructs != nullptr && *constructs->value.floatPtr == 1.0f && ticks != nullptr && *ticks->value.floatPtr == 0.0f;
+    bool queuePassed = true, movementPassed = true, statePassed = true;
+    float previousX = -32.0f, previousVelocity = 0.0f;
+    for (int frame = 89; frame <= 99; ++frame)
+    {
+        usercmd_t input;
+        input.forwardmove = frame <= 92 ? 127 : 0;
+        input.clientGameMilliseconds = input.serverGameMilliseconds = FRAME_TO_MSEC(frame);
+        commands.PutUserCmdForPlayer(0, input);
+        queuePassed = commands.HasUserCmdForPlayer(0) && queuePassed;
+        gameReturn_t result{};
+        ::game->RunFrame(commands, result);
+        const auto & position = physics->GetOrigin();
+        const auto & velocity = physics->GetLinearVelocity();
+        const bool floor = FloorContacts(*physics), pending = commands.HasUserCmdForPlayer(0);
+        const int tick = frame - 88;
+        queuePassed = player->usercmd.forwardmove == input.forwardmove && player->usercmd.clientGameMilliseconds == FRAME_TO_MSEC(frame) &&
+                      player->usercmd.serverGameMilliseconds == FRAME_TO_MSEC(frame) && !pending &&
+                      commands.readFrame[0] == tick - 1 && commands.writeFrame[0] == tick &&
+                      gameLocal.GetLastClientUsercmdMilliseconds(0) == FRAME_TO_MSEC(frame) &&
+                      player->usercmd.pos == position && queuePassed;
+        scriptPassed = constructs != nullptr && *constructs->value.floatPtr == 1.0f && ticks != nullptr &&
+                       *ticks->value.floatPtr == static_cast<float>(tick) && scriptPassed;
+        statePassed = player->health == 100 && player->inventory.maxHealth == 100 && player->inventory.armor == 0 &&
+                      player->inventory.weapons == 0 && player->weapon.GetEntity() == nullptr && player->flashlight.GetEntity() == nullptr &&
+                      player->hudManager == nullptr && player->hud == nullptr && player->pdaMenu == nullptr &&
+                      player->GetRenderView() == nullptr && player->GetRenderEntity()->hModel == nullptr &&
+                      gameRenderWorld == nullptr && gameSoundWorld == nullptr && gameLocal.NumAAS() == 0 &&
+                      floor && player->AI_ONGROUND && !player->AI_JUMP && !player->AI_CROUCH && !player->AI_DEAD &&
+                      player->AI_FORWARD == (frame <= 92) && !player->AI_BACKWARD && !player->AI_RUN && !player->AI_ATTACK_HELD &&
+                      !player->AI_ONLADDER && physics->GetClipModel()->IsLinked() &&
+                      gameLocal.GetFrameNum() == frame && gameLocal.time == FRAME_TO_MSEC(frame) &&
+                      result.sessionCommand[0] == '\0' && result.vibrationHigh == 0 && result.vibrationLow == 0 && statePassed;
+        movementPassed = Near(position.y, 0.0f) && Near(position.z, CM_CLIP_EPSILON) && velocity.y == 0.0f && velocity.z == 0.0f &&
+                         position.x >= previousX && position.x < -16.0f &&
+                         (frame <= 92 ? velocity.x > previousVelocity : velocity.x <= previousVelocity) &&
+                         (frame < 99 || (velocity == vec3_zero && Near(position.x, previousX))) && movementPassed;
+        previousX = position.x;
+        previousVelocity = velocity.x;
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_NATIVE_PLAYER cycle=%d frame=%d cmd=%d time=%d read=%d written=%d pending=%d x=%.3f y=%.3f z=%.3f vx=%.3f floor=%d health=%d script=%.0f constructs=%.0f\n",
+                 cycle, frame, static_cast<int>(player->usercmd.forwardmove), player->usercmd.clientGameMilliseconds,
+                 commands.readFrame[0], commands.writeFrame[0], static_cast<int>(pending),
+                 static_cast<double>(position.x), static_cast<double>(position.y), static_cast<double>(position.z),
+                 static_cast<double>(velocity.x), static_cast<int>(floor), player->health,
+                 static_cast<double>(ticks != nullptr ? *ticks->value.floatPtr : -1.0f),
+                 static_cast<double>(constructs != nullptr ? *constructs->value.floatPtr : -1.0f));
+    }
+    passed = Check("native-player-command-path", queuePassed) && passed;
+    passed = Check("native-player-script", scriptPassed) && passed;
+    passed = Check("native-player-movement", movementPassed) && passed;
+    passed = Check("native-player-simulation-state", statePassed) && passed;
+    return passed;
 }
 
 bool PlayerPostureTests(PlayerPhysicsProbe & player, idUserCmdMgr & commands, idVarDef * scriptTicks, int cycle)
@@ -318,6 +410,28 @@ bool RunGameTests(const char * mode)
     if (idStr::Cmp(mode, "game") != 0)
     {
         gameLocal.InitHeadlessFixture("maps/logic");
+        if (idStr::Cmp(mode, "game-player-args") == 0 || idStr::Cmp(mode, "game-player-script") == 0 ||
+            idStr::Cmp(mode, "game-player-command") == 0)
+        {
+            idDict args;
+            PlayerArgs(args);
+            if (idStr::Cmp(mode, "game-player-args") == 0)
+            {
+                args.Set("model", "unsupported.md5mesh");
+            }
+            gameLocal.SpawnEntityType(idPlayer::Type, &args);
+            if (idStr::Cmp(mode, "game-player-command") == 0)
+            {
+                auto * commands = new (TAG_GAME) idUserCmdMgr;
+                usercmd_t input;
+                input.buttons = BUTTON_ATTACK;
+                input.clientGameMilliseconds = input.serverGameMilliseconds = FRAME_TO_MSEC(1);
+                commands->PutUserCmdForPlayer(0, input);
+                gameReturn_t result{};
+                ::game->RunFrame(*commands, result);
+                delete commands;
+            }
+        }
         ps2::FatalError("game failure probe returned unexpectedly");
     }
     // This buffer is native and deliberately heap allocated instead of consuming the EE stack.
@@ -514,13 +628,24 @@ bool RunGameTests(const char * mode)
         probe->BecomeInactive(TH_THINK | TH_PHYSICS);
         falling->BecomeInactive(TH_THINK | TH_PHYSICS);
         sliding->BecomeInactive(TH_THINK | TH_PHYSICS);
+        // Native physics deactivation schedules a visual update. These probes have
+        // no Present call to clear it; finish deactivation before the next frame.
+        probe->BecomeInactive(TH_UPDATEVISUALS);
+        falling->BecomeInactive(TH_UPDATEVISUALS);
+        sliding->BecomeInactive(TH_UPDATEVISUALS);
         passed = PlayerPostureTests(*player, *commands, value, cycle) && passed;
+        player->BecomeInactive(TH_THINK | TH_PHYSICS);
+        player->BecomeInactive(TH_UPDATEVISUALS);
+        idEntityPtr<idPlayer> nativePlayer;
+        passed = NativePlayerTests(*commands, cycle, nativePlayer) && passed;
         Memory("ticked");
         ::game->MapShutdown();
         passed = Check("map-shutdown", gameLocal.GameState() == GAMESTATE_NOMAP && gameLocal.world == nullptr &&
                                        gameLocal.FindEntity("logic_probe") == nullptr && gameLocal.FindEntity("logic_target") == nullptr &&
                                        gameLocal.FindEntity("fall_probe") == nullptr && gameLocal.FindEntity("slide_probe") == nullptr &&
                                        gameLocal.FindEntity("player_physics_probe") == nullptr &&
+                                       gameLocal.FindEntity("native_player") == nullptr && gameLocal.entities[0] == nullptr &&
+                                       !nativePlayer.IsValid() && nativePlayer.GetEntity() == nullptr &&
                                        !targetRef.IsValid() && targetRef.GetEntity() == nullptr &&
                                        gameLocal.program.GetDef(&type_entity, "$logic_target", &def_namespace) == nullptr &&
                                        gameLocal.sessionCommand.Length() == 0 && gameLocal.program.FindFunction("main") == nullptr) &&
@@ -531,6 +656,7 @@ bool RunGameTests(const char * mode)
                  passed;
         passed = Check("collision-shutdown", ps2::heap::GetStats(TAG_COLLISION).allocationCount == 0 &&
                                              ps2::heap::GetStats(TAG_PHYSICS_CLIP).allocationCount == 0 &&
+                                             ps2::heap::GetStats(TAG_PHYSICS_CLIP_ENTITY).allocationCount == 0 &&
                                              idClipModel::TraceModelCacheSize() == 0) &&
                  passed;
         const auto stats = ps2::heap::GetTotalStats();
