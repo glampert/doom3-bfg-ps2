@@ -261,6 +261,139 @@ bool NativePlayerTests(idUserCmdMgr & commands, int cycle, idEntityPtr<idPlayer>
     return passed;
 }
 
+float ScriptFloat(const char * name)
+{
+    const idVarDef * value = gameLocal.program.GetDef(&type_float, name, &def_namespace);
+    if (value == nullptr)
+    {
+        ps2::FatalError("missing native player fixture global: %s", name);
+    }
+    return *value->value.floatPtr;
+}
+
+bool NativePlayerPostureTests(idPlayer & player, idUserCmdMgr & commands, int cycle)
+{
+    const auto & physics = *static_cast<const idPhysics_Player *>(player.GetPlayerPhysics());
+    const idVec3 start = physics.GetOrigin();
+    const float gravity = g_gravity.GetFloat(), jumpHeight = pm_jumpheight.GetFloat();
+    const float launchSpeed = idMath::Sqrt(2.0f * gravity * jumpHeight);
+    // Native contacts detect the floor on the 600 ms sample just above it. The
+    // following WalkMove settles overclip velocity; vertical rest keeps that height
+    // until crouched movement steps down to the collision margin.
+    const float landingOffset = launchSpeed * 0.6f - 0.5f * gravity * 0.6f * 0.6f;
+    const idEventDef * getState = idEventDef::FindEvent("getState");
+    if (getState == nullptr || !player.RespondsTo(*getState))
+    {
+        ps2::FatalError("native player actor state query is unavailable");
+    }
+    bool queuePassed = true, jumpPassed = true, crouchPassed = true, scriptPassed = true, conditionsPassed = true;
+    float peakZ = start.z, expectedX = start.x, expectedVx = 0.0f, expectedEye = pm_normalviewheight.GetFloat();
+    for (int frame = 100; frame <= 195; ++frame)
+    {
+        const bool crouched = frame >= 181 && frame <= 189;
+        const bool moving = frame >= 181 && frame <= 184;
+        const bool airborne = frame < 135 || (frame >= 142 && frame < 177);
+        const bool landing = frame == 135 || frame == 136 || frame == 177 || frame == 178;
+        usercmd_t input;
+        input.buttons = crouched ? BUTTON_CROUCH | BUTTON_JUMP : frame <= 140 || frame == 142 ? BUTTON_JUMP
+                                                                                              : 0;
+        input.forwardmove = moving ? 127 : 0;
+        input.clientGameMilliseconds = input.serverGameMilliseconds = FRAME_TO_MSEC(frame);
+        commands.PutUserCmdForPlayer(0, input);
+        gameReturn_t result{};
+        ::game->RunFrame(commands, result);
+        const auto & position = physics.GetOrigin();
+        const auto & velocity = physics.GetLinearVelocity();
+        const bool floor = FloorContacts(physics), jumped = physics.HasJumped();
+        const int tick = frame - 88;
+        queuePassed = player.usercmd.buttons == input.buttons && player.usercmd.forwardmove == input.forwardmove &&
+                      player.usercmd.clientGameMilliseconds == FRAME_TO_MSEC(frame) &&
+                      player.usercmd.serverGameMilliseconds == FRAME_TO_MSEC(frame) && player.usercmd.pos == position &&
+                      gameLocal.GetLastClientUsercmdMilliseconds(0) == FRAME_TO_MSEC(frame) &&
+                      commands.readFrame[0] == tick - 1 && commands.writeFrame[0] == tick &&
+                      !commands.HasUserCmdForPlayer(0) && queuePassed;
+        const int launch = frame < 142 ? 100 : 142;
+        const float elapsed = static_cast<float>(FRAME_TO_MSEC(frame) - FRAME_TO_MSEC(launch - 1)) * 0.001f;
+        const bool ballistic = frame <= 135 || (frame >= 142 && frame <= 177);
+        const float launchZ = start.z + (frame < 142 ? 0.0f : landingOffset);
+        const float restZ = frame < 142 ? start.z + landingOffset : frame < 181 ? start.z + 2.0f * landingOffset
+                                                                                : start.z;
+        const float z = ballistic ? launchZ + launchSpeed * elapsed - 0.5f * gravity * elapsed * elapsed : restZ;
+        const float vz = ballistic ? launchSpeed - gravity * elapsed : frame == 136 || frame == 178 ? 0.289f
+                                                                                                    : 0.0f;
+        jumpPassed = jumped == (frame == 100 || frame == 142) && floor == !airborne &&
+                     Near(position.z, z) && Near(velocity.z, vz) && Near(position.y, start.y) && velocity.y == 0.0f &&
+                     position.z >= start.z - 0.01f && position.z <= launchZ + jumpHeight + 0.05f && jumpPassed;
+        if (position.z > peakZ)
+        {
+            peakZ = position.z;
+        }
+        const float dt = static_cast<float>(gameLocal.time - gameLocal.previousTime) * 0.001f;
+        expectedVx = Max(0.0f, expectedVx - Max(100.0f, expectedVx) * 6.0f * dt);
+        if (moving)
+        {
+            expectedVx = Min(pm_crouchspeed.GetFloat(), expectedVx + pm_crouchspeed.GetFloat() * 10.0f * dt);
+        }
+        expectedX += expectedVx * dt;
+        const float rate = pm_crouchrate.GetFloat();
+        expectedEye = expectedEye * rate + (crouched ? pm_crouchviewheight.GetFloat() : pm_normalviewheight.GetFloat()) * (1.0f - rate);
+        crouchPassed = physics.IsCrouching() == crouched && Near(physics.GetBounds()[1].z, crouched ? 38.0f : 74.0f) &&
+                       Near(position.x, expectedX) && Near(velocity.x, expectedVx) && Near(player.EyeHeight(), expectedEye) && crouchPassed;
+        const int state = airborne ? 2 : crouched ? 3
+                                                  : 1;
+        const int transitions = frame < 135 ? 2 : frame < 142       ? 3
+                                                  : frame < 177     ? 4
+                                                    : frame < 181   ? 5
+                                                      : frame < 190 ? 6
+                                                                    : 7;
+        const int starts = frame < 142 ? 1 : 2, landings = frame < 135 ? 0 : frame < 177 ? 1
+                                                                                         : 2;
+        const int softTicks = frame < 135 ? 0 : frame == 135     ? 1
+                                                : frame < 177    ? 2
+                                                  : frame == 177 ? 3
+                                                                 : 4;
+        const char * stateName = airborne ? "FixtureAir" : crouched ? "FixtureCrouch"
+                                                                    : "FixtureIdle";
+        const function_t * stateFunction = player.scriptObject.GetFunction(stateName);
+        const bool nativeState = player.ProcessEvent(getState);
+        scriptPassed = nativeState && stateFunction != nullptr &&
+                       idStr::Cmp(gameLocal.program.returnStringDef->value.stringPtr, stateFunction->Name()) == 0 &&
+                       ScriptFloat("nativePlayerState") == static_cast<float>(state) &&
+                       ScriptFloat("nativePlayerTransitions") == static_cast<float>(transitions) &&
+                       ScriptFloat("nativePlayerJumpStarts") == static_cast<float>(starts) &&
+                       ScriptFloat("nativePlayerLandings") == static_cast<float>(landings) &&
+                       ScriptFloat("nativePlayerSoftLandingTicks") == static_cast<float>(softTicks) &&
+                       ScriptFloat("nativePlayerTicks") == static_cast<float>(tick) &&
+                       ScriptFloat("nativePlayerConstructs") == 1.0f && ScriptFloat("fixtureTicks") == 8.0f && scriptPassed;
+        conditionsPassed = player.AI_JUMP == jumped && player.AI_ONGROUND == floor && player.AI_CROUCH == crouched &&
+                           player.AI_SOFTLANDING == landing && !player.AI_HARDLANDING && !player.AI_DEAD &&
+                           !player.AI_ONLADDER && player.AI_FORWARD == moving && player.health == 100 &&
+                           player.inventory.weapons == 0 && player.weapon.GetEntity() == nullptr &&
+                           player.GetRenderView() == nullptr && gameRenderWorld == nullptr && gameSoundWorld == nullptr &&
+                           gameLocal.GetFrameNum() == frame && gameLocal.time == FRAME_TO_MSEC(frame) &&
+                           gameLocal.FindEntity("logic_target") == nullptr && result.sessionCommand[0] == '\0' &&
+                           result.vibrationLow == 0 && result.vibrationHigh == 0 && conditionsPassed;
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_PLAYER_STATE cycle=%d frame=%d buttons=%d cmd=%d time=%d read=%d written=%d pending=%d x=%.3f y=%.3f z=%.3f vx=%.3f vz=%.3f height=%.3f eye=%.3f floor=%d jumped=%d crouched=%d soft=%d health=%d script=%.0f state=%.0f transitions=%.0f starts=%.0f landings=%.0f soft_ticks=%.0f constructs=%.0f native=%s\n",
+                 cycle, frame, static_cast<int>(player.usercmd.buttons), static_cast<int>(player.usercmd.forwardmove),
+                 player.usercmd.clientGameMilliseconds, commands.readFrame[0], commands.writeFrame[0],
+                 static_cast<int>(commands.HasUserCmdForPlayer(0)), static_cast<double>(position.x), static_cast<double>(position.y),
+                 static_cast<double>(position.z), static_cast<double>(velocity.x), static_cast<double>(velocity.z),
+                 static_cast<double>(physics.GetBounds()[1].z), static_cast<double>(player.EyeHeight()),
+                 static_cast<int>(floor), static_cast<int>(jumped), static_cast<int>(physics.IsCrouching()),
+                 static_cast<int>(player.AI_SOFTLANDING), player.health, static_cast<double>(ScriptFloat("nativePlayerTicks")),
+                 static_cast<double>(ScriptFloat("nativePlayerState")), static_cast<double>(ScriptFloat("nativePlayerTransitions")),
+                 static_cast<double>(ScriptFloat("nativePlayerJumpStarts")), static_cast<double>(ScriptFloat("nativePlayerLandings")),
+                 static_cast<double>(ScriptFloat("nativePlayerSoftLandingTicks")), static_cast<double>(ScriptFloat("nativePlayerConstructs")),
+                 gameLocal.program.returnStringDef->value.stringPtr);
+    }
+    bool passed = Check("native-player-posture-commands", queuePassed);
+    passed = Check("native-player-jump-held-release-land", jumpPassed && Near(peakZ, start.z + landingOffset + jumpHeight)) && passed;
+    passed = Check("native-player-crouch-speed-view", crouchPassed) && passed;
+    passed = Check("native-player-script-transitions", scriptPassed) && passed;
+    passed = Check("native-player-posture-conditions", conditionsPassed) && passed;
+    return passed;
+}
+
 bool PlayerPostureTests(PlayerPhysicsProbe & player, idUserCmdMgr & commands, idVarDef * scriptTicks, int cycle)
 {
     // Continue the same native simulation after the initial movement/event checks.
@@ -411,7 +544,7 @@ bool RunGameTests(const char * mode)
     {
         gameLocal.InitHeadlessFixture("maps/logic");
         if (idStr::Cmp(mode, "game-player-args") == 0 || idStr::Cmp(mode, "game-player-script") == 0 ||
-            idStr::Cmp(mode, "game-player-command") == 0)
+            idStr::Cmp(mode, "game-player-command") == 0 || idStr::Cmp(mode, "game-player-state") == 0)
         {
             idDict args;
             PlayerArgs(args);
@@ -420,11 +553,11 @@ bool RunGameTests(const char * mode)
                 args.Set("model", "unsupported.md5mesh");
             }
             gameLocal.SpawnEntityType(idPlayer::Type, &args);
-            if (idStr::Cmp(mode, "game-player-command") == 0)
+            if (idStr::Cmp(mode, "game-player-command") == 0 || idStr::Cmp(mode, "game-player-state") == 0)
             {
                 auto * commands = new (TAG_GAME) idUserCmdMgr;
                 usercmd_t input;
-                input.buttons = BUTTON_ATTACK;
+                input.buttons = idStr::Cmp(mode, "game-player-command") == 0 ? BUTTON_ATTACK : BUTTON_JUMP;
                 input.clientGameMilliseconds = input.serverGameMilliseconds = FRAME_TO_MSEC(1);
                 commands->PutUserCmdForPlayer(0, input);
                 gameReturn_t result{};
@@ -638,6 +771,7 @@ bool RunGameTests(const char * mode)
         player->BecomeInactive(TH_UPDATEVISUALS);
         idEntityPtr<idPlayer> nativePlayer;
         passed = NativePlayerTests(*commands, cycle, nativePlayer) && passed;
+        passed = NativePlayerPostureTests(*nativePlayer.GetEntity(), *commands, cycle) && passed;
         Memory("ticked");
         ::game->MapShutdown();
         passed = Check("map-shutdown", gameLocal.GameState() == GAMESTATE_NOMAP && gameLocal.world == nullptr &&

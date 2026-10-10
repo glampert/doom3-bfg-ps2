@@ -100,6 +100,7 @@ GAME_FAILURES = {
     "game-player-args": "headless player spawn arguments are unsupported",
     "game-player-script": "Missing 'AI_ONGROUND' field in script object 'fixture_player'",
     "game-player-command": "unsupported headless player command or state",
+    "game-player-state": "Unknown function 'FixtureAir' in 'fixture_player'",
 }
 REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/native-ticks-script-events",
                                   "game/script-target-command", "game/delayed-events-posted", "game/entity-removal-cancellation",
@@ -114,6 +115,9 @@ REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/
                                   "game/native-player-spawn", "game/native-player-command-path",
                                   "game/native-player-script", "game/native-player-movement",
                                   "game/native-player-simulation-state",
+                                  "game/native-player-posture-commands", "game/native-player-jump-held-release-land",
+                                  "game/native-player-crouch-speed-view", "game/native-player-script-transitions",
+                                  "game/native-player-posture-conditions",
                                   "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
 SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -330,6 +334,52 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     any(abs(value - target) >= 0.05 for value, target in zip(actual[7:11], (x, 0, 0.25, vx)))):
                     return False
             return True
+        state_fields = ("cycle", "frame", "buttons", "cmd", "time", "read", "written", "pending", "x", "y", "z", "vx", "vz",
+                        "height", "eye", "floor", "jumped", "crouched", "soft", "health", "script", "state", "transitions",
+                        "starts", "landings", "soft_ticks", "constructs", "native")
+        state_pattern = "GAME_PLAYER_STATE " + " ".join(
+            name + "=" + (r"([A-Za-z0-9_:]+)" if index == 27 else r"(-?\d+\.\d+)" if 8 <= index <= 14 else r"(-?\d+)")
+            for index, name in enumerate(state_fields)) + r"(?:\s|$)"
+        player_states = [tuple(value if index == 27 else float(value) if 8 <= index <= 14 else int(value)
+                               for index, value in enumerate(match)) for match in re.findall(state_pattern, log)]
+        expected_player_states = [(cycle, frame) for cycle in range(3) for frame in range(100, 196)]
+        def matches_player_states(expected: list) -> bool:
+            if len(player_states) != len(expected):
+                return False
+            speed = (2 * 48 * 1066) ** 0.5
+            offset = speed * 0.6 - 0.5 * 1066 * 0.6 ** 2
+            x, vx, eye = -26.192, 0.0, 68.0
+            for actual, (cycle, frame) in zip(player_states, expected):
+                if frame == 100:
+                    x, vx, eye = -26.192, 0.0, 68.0
+                crouched, moving = 181 <= frame <= 189, 181 <= frame <= 184
+                airborne = frame < 135 or 142 <= frame < 177
+                ballistic = frame <= 135 or 142 <= frame <= 177
+                launch = 100 if frame < 142 else 142
+                elapsed = (frame * 1000 // 60 - (launch - 1) * 1000 // 60) / 1000
+                launch_z = 0.25 + (0 if frame < 142 else offset)
+                rest_z = 0.25 + offset if frame < 142 else 0.25 + 2 * offset if frame < 181 else 0.25
+                z = launch_z + speed * elapsed - 0.5 * 1066 * elapsed ** 2 if ballistic else rest_z
+                vz = speed - 1066 * elapsed if ballistic else 0.289 if frame in (136, 178) else 0
+                dt = (frame * 1000 // 60 - (frame - 1) * 1000 // 60) / 1000
+                vx = max(0.0, vx - max(100.0, vx) * 6 * dt)
+                if moving:
+                    vx = min(80.0, vx + 80 * 10 * dt)
+                x += vx * dt
+                eye = eye * 0.87 + (32 if crouched else 68) * 0.13
+                state = 2 if airborne else 3 if crouched else 1
+                transitions = 2 if frame < 135 else 3 if frame < 142 else 4 if frame < 177 else 5 if frame < 181 else 6 if frame < 190 else 7
+                starts, landings = (1 if frame < 142 else 2), (0 if frame < 135 else 1 if frame < 177 else 2)
+                soft_ticks = 0 if frame < 135 else 1 if frame == 135 else 2 if frame < 177 else 3 if frame == 177 else 4
+                buttons = 96 if crouched else 32 if frame <= 140 or frame == 142 else 0
+                tick = frame - 88
+                native = "fixture_player::" + ("FixtureAir" if airborne else "FixtureCrouch" if crouched else "FixtureIdle")
+                if (actual[:8] != (cycle, frame, buttons, 127 if moving else 0, frame * 1000 // 60, tick - 1, tick, 0) or
+                    actual[15:] != (int(not airborne), int(frame in (100, 142)), int(crouched), int(frame in (135, 136, 177, 178)),
+                                    100, tick, state, transitions, starts, landings, soft_ticks, 1, native) or
+                    any(abs(value - target) >= 0.05 for value, target in zip(actual[8:15], (x, 0, z, vx, vz, 38 if crouched else 74, eye)))):
+                    return False
+            return True
         accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
                     result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
                     all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
@@ -349,7 +399,8 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     (matches_slides(expected_frames) or matches_slides(expected_frames + expected_frames)) and
                     (matches_players(expected_frames) or matches_players(expected_frames + expected_frames)) and
                     (matches_postures(expected_postures) or matches_postures(expected_postures + expected_postures)) and
-                    (matches_native_players(expected_native_players) or matches_native_players(expected_native_players + expected_native_players)))
+                    (matches_native_players(expected_native_players) or matches_native_players(expected_native_players + expected_native_players)) and
+                    (matches_player_states(expected_player_states) or matches_player_states(expected_player_states + expected_player_states)))
         return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:
@@ -523,18 +574,35 @@ def stage_game_fixtures(directory: Path, scenario: str) -> None:
         'entityDef aas_types {}\nentityDef worldspawn { "spawnclass" "idWorldspawn" "noclipmodel" "1" }\n'
         'entityDef fixture_player { "spawnclass" "idPlayer" }\n')
     (directory / "script/doom_defs.script").write_text(
-        'scriptEvent void waitFrame();\nscriptEvent void activate(entity activator);\nscriptEvent void remove();\n')
+        'scriptEvent void waitFrame();\nscriptEvent void activate(entity activator);\nscriptEvent void remove();\n'
+        'scriptEvent void setState(string stateName);\n')
     fields = ("AI_FORWARD", "AI_BACKWARD", "AI_STRAFE_LEFT", "AI_STRAFE_RIGHT", "AI_ATTACK_HELD",
               "AI_WEAPON_FIRED", "AI_JUMP", "AI_DEAD", "AI_CROUCH", "AI_ONGROUND", "AI_ONLADDER",
               "AI_HARDLANDING", "AI_SOFTLANDING", "AI_RUN", "AI_PAIN", "AI_RELOAD", "AI_TELEPORT",
               "AI_TURN_LEFT", "AI_TURN_RIGHT")
     player_fields = ''.join(f'boolean {name};\n' for name in fields
                             if scenario != "game-player-script" or name != "AI_ONGROUND")
+    # The missing-field case must compile, then fail in native LinkScriptVariables.
+    grounded = '1' if scenario == "game-player-script" else 'AI_ONGROUND'
+    air_decl = '' if scenario == "game-player-state" else 'void FixtureAir();\n'
+    air_body = '' if scenario == "game-player-state" else (
+        'void fixture_player::FixtureAir() { nativePlayerState = 2; nativePlayerTransitions++; nativePlayerJumpStarts++; '
+        f'while (1) {{ if ({grounded}) {{ nativePlayerLandings++; setState("FixtureIdle"); }} '
+        'nativePlayerTicks++; sys.waitFrame(); } }\n')
     (directory / "script/doom_main.script").write_text(
         'float fixtureTicks = 0;\nfloat nativePlayerConstructs = 0;\nfloat nativePlayerTicks = 0;\n'
-        'object fixture_player {\n' + player_fields + 'void init();\nvoid FixtureIdle();\n};\n'
+        'float nativePlayerState = 0;\nfloat nativePlayerTransitions = 0;\n'
+        'float nativePlayerJumpStarts = 0;\nfloat nativePlayerLandings = 0;\nfloat nativePlayerSoftLandingTicks = 0;\n'
+        'object fixture_player {\n' + player_fields + 'void init();\nvoid FixtureIdle();\n'
+        + air_decl + 'void FixtureCrouch();\n};\n'
         'void fixture_player::init() { nativePlayerConstructs++; }\n'
-        'void fixture_player::FixtureIdle() { while (1) { nativePlayerTicks++; sys.waitFrame(); } }\n'
+        'void fixture_player::FixtureIdle() { nativePlayerState = 1; nativePlayerTransitions++; '
+        f'while (1) {{ if (!{grounded}) {{ setState("FixtureAir"); }} '
+        'if (AI_CROUCH) { setState("FixtureCrouch"); } '
+        'if (AI_SOFTLANDING) { nativePlayerSoftLandingTicks++; } nativePlayerTicks++; sys.waitFrame(); } }\n'
+        + air_body +
+        'void fixture_player::FixtureCrouch() { nativePlayerState = 3; nativePlayerTransitions++; '
+        'while (1) { if (!AI_CROUCH) { setState("FixtureIdle"); } nativePlayerTicks++; sys.waitFrame(); } }\n'
         'void doom_main() {}\n')
     (directory / "materials/fixture.mtr").write_text(
         '_tracemodel { solid }\ntextures/fixture/solid { solid }\n')

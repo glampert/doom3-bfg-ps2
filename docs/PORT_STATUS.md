@@ -13,6 +13,8 @@ reverse movement and stopping after input release, followed by jumping/landing,
 held-jump suppression/rearming and crouch/standing collision shapes.
 It now also spawns a restricted native `idPlayer`, delivers injected commands through
 the native player pipeline and ticks its movement, linked conditions and actor script.
+Native player jump/crouch commands, crouch speed/view interpolation and authored
+idle/air/crouch state transitions now pass over 195 frames per reload.
 Bounded logical PCM samples and deterministic headless voices are usable as
 standalone services. Full campaign player/AAS/PVS startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
@@ -1669,3 +1671,87 @@ and cache entries. Fixed ELF residency includes the script program's inline stor
 tagged backing is part of the arena, not an extra allocation above it. Kernel/stacks
 and campaign transitions remain unmeasured. The next candidate is a small native
 player script-state transition and jump/crouch command coverage before broader maps.
+
+## M3 small step: native player posture and actor states
+
+The native player fixture now accepts jump/crouch buttons alongside neutral/full-forward
+movement. Frames 100–195 continue the same command queue and native player Think
+pipeline. With native gravity 1066 and jump height 48, takeoff occurs on frames 100
+and 142. Holding jump through frame 140 does not retrigger it after landing; release
+on frame 141 rearms the second jump. Combined crouch/jump on frames 181–189 stays
+grounded, shrinks clip height to 38 and restores height 74 on release. Four crouched
+forward commands use native speed 80, then friction stops the player at x=-24.759.
+Eye height follows native interpolation toward 32/68 rather than changing instantly:
+42.280 at the last crouched tick and 56.847 after six released ticks.
+
+Authored `FixtureIdle`, `FixtureAir` and `FixtureCrouch` states follow the native linked
+conditions through the real actor `setState` event. The next state executes within
+the same player tick, with one script increment per frame. The native `getState`
+event confirms each function name alongside authored counters: seven state entries,
+two jumps/landings, four soft-landing flag ticks, one constructor and 107 script ticks
+per map. Health stays 100; inventory/resources and sound/render worlds stay empty.
+
+The initial diagnostic run (`20261010T102342Z_smoke_bcc91c88f9774267`) failed the new
+landing expectations. Native floor contact occurs on frames 135/177 at z≈0.310/0.370
+while velocity remains downward. The following WalkMove overclips velocity to about
++0.289 before settling. `CrashLand` uses old velocity, so the soft-landing flag spans
+two ticks per landing. The checks now preserve this native behavior and distinguish
+ground transitions from flag ticks; no engine physics was changed. The first matrix
+also caught the missing-field fixture failing during compilation after the new states
+referenced that field. Its authored script now avoids that reference, preserving the
+intended native `LinkScriptVariables` failure.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` | Strict EE compile and retained-object link passed |
+| Resident link | Unchanged 344 inputs, 11 registration roots; no GC, unresolved symbols or duplicates |
+| Native registries | Unchanged 535 events, 160 classes and 496,480 bytes of event callbacks |
+| Debug/release `make test-game` | All nine fresh-process scenarios passed in each configuration |
+| Positive classifier | Thirty-seven required checks, all earlier traces and 288 additional player-state traces across three 195-frame reloads |
+| Host sanitizer fixtures and classifiers | All 85 Python regressions passed, including missing/duplicate/reordered state traces, every command/physics/view/state field and both negative script shapes |
+| Scope and source inventory | No native source or source-list changes; 458-unit inventory and 363-entry compile database remain valid; core/Common emulator matrices not rerun |
+
+Matched run identities (debug / release):
+
+- Game: `20261010T103135Z_smoke_f5fa4eed241e44f2` /
+  `20261010T103231Z_smoke_a1d098add8394fdb`.
+- Missing map: `20261010T103139Z_smoke_fa50c3adc8af4ff0` /
+  `20261010T103235Z_smoke_ab78b21259ce469c`.
+- Script error: `20261010T103141Z_smoke_fa50675e49814d98` /
+  `20261010T103238Z_smoke_25b14f6c8f1545ea`.
+- Geometry: `20261010T103144Z_smoke_33c90549233b48d5` /
+  `20261010T103240Z_smoke_381bdd7e6a984fe3`.
+- Material: `20261010T103147Z_smoke_b8741f571d8041fb` /
+  `20261010T103243Z_smoke_b0161a3ac1d64510`.
+- Player arguments: `20261010T103149Z_smoke_bd10ca2e61cd4906` /
+  `20261010T103245Z_smoke_a48a0a3a83bc4f16`.
+- Player script linkage: `20261010T103152Z_smoke_cfe5b076f54b46ec` /
+  `20261010T103248Z_smoke_0eca9351b10147e6`.
+- Player command: `20261010T103154Z_smoke_3c923163c3874dd4` /
+  `20261010T103250Z_smoke_22c7a7750dd74edd`.
+- Player actor state: `20261010T103157Z_smoke_c23bbc8c523c4b87` /
+  `20261010T103253Z_smoke_5c5e9a278f304689`.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,903,526 bytes | 11,323,622 bytes |
+| Resident BSS (included above) | 5,238,118 bytes | 5,238,118 bytes |
+| After native game Init: requested / backing / count | 1,401,332 / 1,499,096 / 2,386 | 1,401,332 / 1,499,096 / 2,386 |
+| After 195 ticks, conversion: requested / backing / count | 1,797,968 / 1,903,668 / 2,579 | 1,797,968 / 1,903,668 / 2,579 |
+| After 195 ticks, text cache: requested / backing / count | 1,797,984 / 1,903,280 / 2,568 | 1,797,984 / 1,903,280 / 2,568 |
+| After 195 ticks, binary cache: requested / backing / count | 1,795,736 / 1,901,012 / 2,567 | 1,795,736 / 1,901,012 / 2,567 |
+| Peak requested / backing | 2,062,496 / 2,164,340 bytes | 2,062,496 / 2,164,340 bytes |
+| Arena commitment after three cycles | 2,347,034 bytes | 2,344,730 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The new script functions/counters account for additional native program allocations;
+conversion scratch still determines the peak. Every map frees collision/clip ownership
+and cache entries, warm shutdown ledgers match, and full shutdown recovers the exact
+pre-boot baseline. Arena commitment includes backing and untagged libc allocations;
+it is separate from fixed ELF residency. Kernel/stacks and campaign transitions remain
+unmeasured. The next candidate is bounded low-ceiling crouch passage and blocked
+standing restoration before stairs/slopes and broader campaign player behavior.

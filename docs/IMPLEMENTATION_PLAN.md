@@ -464,7 +464,7 @@ JPEG/zlib dependencies are under `src/external/`, explicitly selected with separ
 vendor flags and strict tagged allocator hooks. Their bounded SWF JPEG and streaming
 zlib fixtures run on the EE. The linked entry requires an explicit authored game manifest.
 Native declarations, class/event registries, script compilation/interpreter execution,
-worldspawn map parsing and 99 native frames over three reloads pass in debug/release.
+worldspawn map parsing and 195 native frames over three reloads pass in debug/release.
 The first eight frames run the authored logic script; later frames retain its completed state.
 Script-driven native target activation returns a command on frame four; a queued 90 ms
 activation returns another on frame six (100 ms). Script removal on frame seven
@@ -487,6 +487,11 @@ Forward/neutral commands prove walking/friction and exact consumption; the const
 runs once and the idle script advances eleven times. Extra spawn keys, missing script
 fields and attack commands fail explicitly in both configurations. Map teardown
 invalidates the native handle and releases clip/collision ownership.
+Frames 100–195 extend that player with two native jumps, held-jump suppression and
+release/rearming, crouch walking and eye-height interpolation. Authored actor states
+follow linked airborne/crouched conditions; native `getState` confirms seven state
+entries, two landings and one script increment per tick. A missing airborne state
+fails at the native actor transition in both configurations.
 Render/sound worlds stay null, with a bounded startup path separate from regular
 `InitFromNewMap`; full campaign player/AAS/PVS and retail
 map startup remain pending.
@@ -500,6 +505,6 @@ physical saves remain unavailable.
 Meaningful logical render contracts and native sound-world integration are deferred while
 the headless simulation fixture grows. Native entity activation is now exercised by the
 authored script. The fixture also covers timed activation and removal/cancellation.
-The next candidate is a small script-driven player state transition and native player
-jump/crouch command acceptance before broadening map/collision coverage. The current
+The next candidate is a bounded low-ceiling fixture for crouch passage and blocked
+standing restoration, extending the authored geometry gate before stairs/slopes. The current
 fixture does not establish general campaign loading, full player/AI behavior or M3 completion.

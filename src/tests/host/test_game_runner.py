@@ -28,6 +28,23 @@ def complete():
     player_vx = (20.480, 32.040, 43.600, -0.054, -21.760, -11.560, -1.960, 0.000)
     native_x = (-31.595, -30.960, -30.156, -29.072, -28.161, -27.457, -26.882, -26.481, -26.257, -26.192, -26.192)
     native_vx = (23.800, 37.400, 50.200, 63.800, 53.600, 44.000, 33.800, 23.600, 14.000, 3.800, 0.000)
+    # Native idPlayer traces, including early contact and the following overclip tick.
+    native_jump_z = (
+        5.232, 10.226, 14.912, 19.042, 23.130, 26.910, 30.186, 33.368, 36.242, 38.666,
+        40.942, 42.910, 44.481, 45.851, 46.912, 47.630, 48.094, 48.250, 48.115, 47.673,
+        46.922, 45.935, 44.586, 42.930, 41.090, 38.835, 36.272, 33.579, 30.419, 26.950,
+        23.404, 19.337, 14.962, 10.564, 5.591, 0.310)
+    native_jump_vz = (
+        302.844, 284.722, 266.600, 249.544, 231.422, 213.300, 196.244, 178.122, 160.000,
+        142.944, 124.822, 106.700, 89.644, 71.522, 53.400, 36.344, 18.222, 0.100,
+        -16.956, -35.078, -53.200, -70.256, -88.378, -106.500, -123.556, -141.678,
+        -159.800, -176.856, -194.978, -213.100, -230.156, -248.278, -266.400,
+        -283.456, -301.578, -319.700)
+    crouch_x = (-25.987, -25.712, -25.379, -25.014, -24.800, -24.759, -24.759,
+                -24.759, -24.759, -24.759, -24.759, -24.759, -24.759, -24.759, -24.759)
+    crouch_vx = (12.800, 16.200, 19.600, 22.800, 12.600, 2.400, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    crouch_eye = (63.320, 59.248, 55.706, 52.624, 49.943, 47.611, 45.581, 43.816,
+                  42.280, 45.623, 48.532, 51.063, 53.265, 55.180, 56.847)
     # Rounded native EE traces: the two jumps start at different 60 Hz millisecond phases.
     jump_z = (
         (2.352, 4.195, 6.010, 7.677, 9.110, 10.490, 11.722, 12.746, 13.690, 14.486,
@@ -96,6 +113,34 @@ def complete():
                     f"time={frame * 1000 // 60} read={tick - 1} written={tick} pending=0 "
                     f"x={native_x[tick - 1]:.3f} y=0.000 z=0.250 vx={native_vx[tick - 1]:.3f} "
                     f"floor=1 health=100 script={tick} constructs=1\n")
+        for frame in range(100, 196):
+            tick = frame - 88
+            airborne = frame < 135 or 142 <= frame < 177
+            crouched = 181 <= frame <= 189
+            if frame <= 135 or 142 <= frame <= 177:
+                offset = frame - (100 if frame < 142 else 142)
+                z = native_jump_z[offset] + (0 if frame < 142 else 0.060)
+                vz = native_jump_vz[offset]
+            else:
+                z = 0.310 if frame < 142 else 0.370 if frame < 181 else 0.250
+                vz = 0.289 if frame in (136, 178) else 0
+            x = crouch_x[frame - 181] if frame >= 181 else -26.192
+            vx = crouch_vx[frame - 181] if frame >= 181 else 0
+            eye = crouch_eye[frame - 181] if frame >= 181 else 68
+            state = "FixtureAir" if airborne else "FixtureCrouch" if crouched else "FixtureIdle"
+            transitions = (2 if frame < 135 else 3 if frame < 142 else 4 if frame < 177
+                           else 5 if frame < 181 else 6 if frame < 190 else 7)
+            soft_ticks = 0 if frame < 135 else 1 if frame == 135 else 2 if frame < 177 else 3 if frame == 177 else 4
+            buttons = 96 if crouched else 32 if frame <= 140 or frame == 142 else 0
+            log += (f"[D3BFG] GAME_PLAYER_STATE cycle={cycle} frame={frame} buttons={buttons} "
+                    f"cmd={127 if 181 <= frame <= 184 else 0} time={frame * 1000 // 60} "
+                    f"read={tick - 1} written={tick} pending=0 x={x:.3f} y=0.000 z={z:.3f} "
+                    f"vx={vx:.3f} vz={vz:.3f} height={38 if crouched else 74:.3f} eye={eye:.3f} "
+                    f"floor={int(not airborne)} jumped={int(frame in (100, 142))} crouched={int(crouched)} "
+                    f"soft={int(frame in (135, 136, 177, 178))} health=100 script={tick} "
+                    f"state={2 if airborne else 3 if crouched else 1} transitions={transitions} "
+                    f"starts={1 if frame < 142 else 2} landings={0 if frame < 135 else 1 if frame < 177 else 2} "
+                    f"soft_ticks={soft_ticks} constructs=1 native=fixture_player::{state}\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -272,7 +317,54 @@ class GameRunnerTests(unittest.TestCase):
             with self.subTest(output=bad):
                 self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
 
+    def test_game_requires_native_player_posture_landing_and_actor_state_transitions(self):
+        result, log = complete()
+        traces = [line for line in log.splitlines() if "GAME_PLAYER_STATE cycle=1" in line]
+        # Exercise each column at takeoff, contact, release, crouch and standing phases.
+        changes = {
+            100: (("frame=100", "frame=101"), ("buttons=32", "buttons=0"), ("cmd=0", "cmd=127"),
+                  ("time=1666", "time=1665"), ("read=11", "read=10"), ("written=12", "written=13"),
+                  ("pending=0", "pending=1"), ("x=-26.192", "x=-25.000"), ("y=0.000", "y=1.000"),
+                  ("z=5.232", "z=0.250"), ("vx=0.000", "vx=1.000"), ("vz=302.844", "vz=0.000"),
+                  ("height=74.000", "height=38.000"), ("eye=68.000", "eye=32.000"),
+                  ("floor=0", "floor=1"), ("jumped=1", "jumped=0"), ("crouched=0", "crouched=1"),
+                  ("soft=0", "soft=1"), ("health=100", "health=99"), ("script=12", "script=11"),
+                  ("state=2", "state=1"), ("transitions=2", "transitions=1"), ("starts=1", "starts=2"),
+                  ("landings=0", "landings=1"), ("soft_ticks=0", "soft_ticks=1"),
+                  ("constructs=1", "constructs=2"), ("FixtureAir", "FixtureIdle")),
+            135: (("floor=1", "floor=0"), ("soft=1", "soft=0"), ("landings=1", "landings=0")),
+            136: (("vz=0.289", "vz=0.000"), ("soft_ticks=2", "soft_ticks=1")),
+            140: (("buttons=32", "buttons=0"), ("jumped=0", "jumped=1")),
+            141: (("buttons=0", "buttons=32"),),
+            142: (("starts=2", "starts=1"), ("transitions=4", "transitions=2")),
+            177: (("soft_ticks=3", "soft_ticks=4"), ("landings=2", "landings=1")),
+            181: (("buttons=96", "buttons=64"), ("vx=12.800", "vx=23.800"),
+                  ("eye=63.320", "eye=32.000"), ("FixtureCrouch", "FixtureIdle")),
+            190: (("buttons=0", "buttons=96"), ("eye=45.623", "eye=68.000"),
+                  ("height=74.000", "height=38.000"), ("transitions=7", "transitions=6")),
+            195: (("script=107", "script=106"), ("x=-24.759", "x=-26.192")),
+        }
+        bad_logs = [log.replace(traces[0] + "\n", ""), log + traces[0] + "\n",
+                    log.replace(traces[0] + "\n" + traces[1], traces[1] + "\n" + traces[0])]
+        for frame, replacements in changes.items():
+            trace = next(line for line in traces if f"frame={frame} " in line)
+            for old, new in replacements:
+                self.assertIn(old, trace)
+                bad_logs.append(log.replace(trace, trace.replace(old, new)))
+        for index, bad in enumerate(bad_logs):
+            with self.subTest(case=index):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
+
     def test_negative_game_requires_native_init_and_first_fatal_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            runner.stage_game_fixtures(directory, "game-player-script")
+            self.assertNotIn("AI_ONGROUND", (directory / "script/doom_main.script").read_text())
+            runner.stage_game_fixtures(directory, "game-player-state")
+            script = (directory / "script/doom_main.script").read_text()
+            self.assertIn('setState("FixtureAir")', script)
+            self.assertNotIn("void FixtureAir();", script)
+            self.assertNotIn("void fixture_player::FixtureAir()", script)
         for mode, message in runner.GAME_FAILURES.items():
             begin = "[D3BFG] RUN run1 BEGIN\n[D3BFG] STAGE game BEGIN\n[D3BFG] CHECK game/native-init PASS\n"
             log = begin + f"[D3BFG] FATAL {message}1: invalid input\n"

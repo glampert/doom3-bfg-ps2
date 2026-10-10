@@ -361,8 +361,8 @@ math path; PS2-specific math replacement headers are a later milestone.
 - With a native `idPlayer` in slot zero and `numClients=1`, `RunEntityThink` selects
   `RunAllUserCmdsForPlayer` → `RunSingleUserCmd` → `HandleUserCmds` → player Think.
   The fixture retains that delivery and native speed adjustment, `Move`, condition
-  updates and actor interpreter state. Only neutral/full-forward commands are accepted;
-  buttons, strafing, view-angle changes and impulses fail before simulation. AAS remains
+  updates and actor interpreter state. Neutral/full-forward, jump and crouch commands
+  are accepted; other buttons, strafing, view-angle changes and impulses fail before simulation. AAS remains
   empty, and fixture-only `SetupPlayerPVS` acquires no render-world topology.
 - `BecomeInactive(TH_PHYSICS)` reactivates `TH_UPDATEVISUALS`. Custom headless probes
   must respect TH_THINK and clear the pending visual flag separately, since they have
@@ -375,3 +375,16 @@ math path; PS2-specific math replacement headers are a later milestone.
   Script globals reset per map: one constructor and eleven state increments. Three
   reloads invalidate the player handle and recover exact warm/full ledgers. This
   establishes restricted player simulation, not full campaign player behavior.
+- Frames 100–195 add two jumps using native gravity 1066 and jump height 48, then
+  crouch walking at speed 80 and native eye-height interpolation (rate 0.87, targets
+  68/32). Native contacts mark the floor at z≈0.310/0.370 on frames 135/177 while
+  velocity is still downward; the next WalkMove overclips it to about +0.289 before
+  settling. `CrashLand` uses old vertical velocity, so `AI_SOFTLANDING` is true for
+  two ticks per landing. Count grounded transitions separately from soft-flag ticks.
+- Actor `setState` ends current script processing; native `UpdateScript` switches to
+  the requested function within the same player tick. Authored Idle→Air→Idle→Air→
+  Idle→Crouch→Idle states therefore increment the tick counter once per frame across
+  seven state entries, two jumps and two landings. Query the native `getState` event
+  as well as authored counters. A missing function must fail at `Event_SetState`;
+  missing AI storage must fail at `LinkScriptVariables`, so that negative script
+  deliberately avoids referencing the omitted field during compilation.

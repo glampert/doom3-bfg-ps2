@@ -159,7 +159,8 @@ void idPlayer::ThinkHeadlessFixture()
 {
     ps2::gamefixture::ValidateFrame();
     if (entityNumber != 0 || gameLocal.GetLocalPlayer() != this || health != 100 ||
-        usercmd.rightmove != 0 || usercmd.buttons != 0 || usercmd.impulse != 0 || usercmd.impulseSequence != 0 ||
+        usercmd.rightmove != 0 || (usercmd.buttons & ~(BUTTON_JUMP | BUTTON_CROUCH)) != 0 ||
+        usercmd.impulse != 0 || usercmd.impulseSequence != 0 ||
         usercmd.angles[0] != 0 || usercmd.angles[1] != 0 || usercmd.angles[2] != 0 ||
         (usercmd.forwardmove != 0 && usercmd.forwardmove != 127))
     {

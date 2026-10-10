@@ -135,6 +135,16 @@ deactivate correctly instead of accumulating out-of-bounds warnings. Map shutdow
 releases all COLLISION/PHYSICS_CLIP/PHYSICS_CLIP_ENTITY allocations and trace-model
 cache entries, and full shutdown still recovers exactly 7,424 / 7,600 / 4.
 
+Native player jump/crouch and three authored actor states extend each map to 195
+frames. Script functions/counters raise native Init to 1,401,332 / 1,499,096 / 2,386.
+Live requested/backing/count after those ticks is 1,797,968 / 1,903,668 / 2,579 for
+conversion, 1,797,984 / 1,903,280 / 2,568 for text loading and 1,795,736 / 1,901,012 /
+2,567 for binary loading in both configurations. Peak remains conversion scratch at
+2,062,496 / 2,164,340 bytes. Fixed resident PT_LOAD is 10,903,526 / 11,323,622 bytes
+(debug/release), including unchanged BSS of 5,238,118. Final arena commitment is
+2,347,034 / 2,344,730 bytes. Clip/collision/cache teardown, warm reload and full
+7,424 / 7,600 / 4 recovery remain exact; no presentation/AAS/PVS resources were added.
+
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See
 [IMPLEMENTATION_PLAN.md](../../docs/IMPLEMENTATION_PLAN.md#7-memory-feasibility-and-budgets).
