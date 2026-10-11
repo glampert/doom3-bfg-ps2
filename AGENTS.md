@@ -60,8 +60,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   crouch/standing collision shapes. The native `idPlayer` also covers jump/crouch
   commands, crouch speed/view interpolation, authored actor-state transitions,
   low-ceiling passage, blocked standing restoration and bounded step-up/high-rise blocking;
-  full campaign player/AAS/PVS
-  startup and general campaign maps remain later gates. Prioritize
+  `make test-map` uses native `InitFromNewMap` with one authored floor, logical
+  world/model/PVS queries, AAS routing and one idle native AI over three 60-frame
+  reloads. Rendering and playback stay inactive; a native empty sound world provides
+  startup bookkeeping. Full campaign player startup, animated AI and general campaign
+  maps remain later gates. Prioritize
   headless simulation; sound and rendering integration follow at a later stage.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests

@@ -211,6 +211,32 @@ def complete():
 
 
 class GameRunnerTests(unittest.TestCase):
+    def test_native_map_requires_queries_ai_reload_and_matched_completion(self):
+        result = {"schema": 1, "test_id": "run1", "manifest": "PASS", "platform": "PASS",
+                  "core": "SKIP", "game": "PASS"}
+        log = "[D3BFG] RUN run1 BEGIN\n[D3BFG] STAGE game BEGIN\n"
+        for cycle in range(3):
+            log += ''.join(f"[D3BFG] CHECK {name} PASS\n" for name in sorted(runner.REQUIRED_MAP_CHECKS))
+            log += f"[D3BFG] MAP_TICK cycle={cycle} frames=60 ai_x=-32.000 ai_z=0.250 heap=2220154/2329964/2681\n"
+        log += ("[D3BFG] CHECK map/reload-ledger PASS\n[D3BFG] CHECK game/full-shutdown-ledger PASS\n"
+                "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n")
+        classify = lambda text=log, data=result, timeout=False: runner.classify_run(
+            "run1", "game-map", data, text, None, timeout)[0]
+        self.assertTrue(classify())
+        self.assertTrue(classify(log + log))
+        for name in (*runner.REQUIRED_MAP_CHECKS, "map/reload-ledger", "game/full-shutdown-ledger"):
+            with self.subTest(marker=name):
+                self.assertFalse(classify(log.replace(f"[D3BFG] CHECK {name} PASS\n", "")))
+        for before, after in (("cycle=2", "cycle=1"), ("frames=60", "frames=59"),
+                              ("ai_z=0.250", "ai_z=-1.000"), ("ai_x=-32.000", "ai_x=0.000"),
+                              ("RESULT run1 PASS", "RESULT stale PASS")):
+            self.assertFalse(classify(log.replace(before, after)))
+        self.assertFalse(classify(log + "[D3BFG] CHECK map/model-trace FAIL\n"))
+        self.assertFalse(classify(log + "TLB Miss\n"))
+        self.assertFalse(classify(data={**result, "test_id": "stale"}))
+        self.assertFalse(classify(data=None))
+        self.assertFalse(classify(timeout=True))
+
     def test_game_requires_every_native_check_and_all_reload_ticks(self):
         result, log = complete()
         self.assertTrue(runner.classify_run("run1", "game", result, log, None, False)[0])

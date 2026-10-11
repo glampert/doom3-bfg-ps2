@@ -1,0 +1,30 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+float mapTicks = 0;
+float mapAITicks = 0;
+float mapAITravel = 0;
+float mapAIUnreachable = 0;
+object headless_ai {
+boolean AI_TALK;
+boolean AI_DAMAGE;
+boolean AI_PAIN;
+boolean AI_DEAD;
+boolean AI_ENEMY_VISIBLE;
+boolean AI_ENEMY_IN_FOV;
+boolean AI_ENEMY_DEAD;
+boolean AI_MOVE_DONE;
+boolean AI_ONGROUND;
+boolean AI_ACTIVATED;
+boolean AI_FORWARD;
+boolean AI_JUMP;
+boolean AI_BLOCKED;
+boolean AI_DEST_UNREACHABLE;
+boolean AI_HIT_ENEMY;
+boolean AI_OBSTACLE_IN_PATH;
+boolean AI_PUSHED;
+float AI_SPECIAL_DAMAGE;
+void init();
+void Idle();
+};
+void headless_ai::init() { setMoveType(4); mapAITravel = travelDistanceToPoint('32 0 0.25'); mapAIUnreachable = travelDistanceToPoint('256 0 0.25'); setState("Idle"); }
+void headless_ai::Idle() { while (1) { mapAITicks++; sys.waitFrame(); } }
+void doom_main() {}

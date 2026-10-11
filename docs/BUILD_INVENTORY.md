@@ -245,8 +245,8 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 ## Resident campaign link gate
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
-all 281 campaign objects, nineteen campaign backend objects, nine strict resident support
-objects, dlmalloc and 34 codec objects: 344 direct inputs, without GC or archives hiding undefined
+all 281 campaign objects, nineteen campaign backend objects, ten strict resident support
+objects, dlmalloc and 34 codec objects: 345 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
@@ -437,3 +437,18 @@ checks them and the flag stamps before archiving the image, symbols, map, report
 response file, settings and authored fixture hashes. Host regressions reject stale
 images/flags, incomplete link evidence, partial tick traces and unrelated fatal errors;
 only the target runs establish native game execution.
+
+
+## Native authored map startup
+
+`tests/smoketests/map_boot.cpp` is one additional strict, cold resident support unit.
+The resident link now has 345 direct inputs, and the regenerated compile database has
+364 entries; the 281-unit campaign manifest and 458-unit source inventory are unchanged.
+`make test-map` selects the single `game-map` scenario with authored inputs in
+`src/tests/data/headless_map/`. Native `InitFromNewMap`, worldspawn/AI factories, PVS,
+collision and AAS run. CPU models/worlds use explicit logical renderer initialization;
+physical renderer initialization and the core target's world allocation remain unavailable.
+A native empty sound world supplies bookkeeping only. Tagged engine changes skip
+automatic player spawning for this mode and bound silhouette scratch by the surface's
+index count on PS2. Full campaign player startup, animated models/AI, Common transitions
+and retail assets remain later gates.

@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: null_render.cpp
-// Brief: Bind native renderer interfaces without starting desktop rendering or inventing frame output.
+// Brief: Preserve native CPU world/model queries and explicitly defer rendering output.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -29,9 +29,10 @@ idGuiModel * tr_guiModel = nullptr;
 
 namespace
 {
+static bool s_logicalInitialized = false;
 void CheckNoResources(const idRenderSystemLocal & renderer, const char * method)
 {
-    if (renderer.registered || renderer.worlds.Num() != 0 || renderer.fonts.Num() != 0 || renderer.guiModel != nullptr ||
+    if (s_logicalInitialized || renderer.registered || renderer.worlds.Num() != 0 || renderer.fonts.Num() != 0 || renderer.guiModel != nullptr ||
         renderer.unitSquareTriangles != nullptr || renderer.zeroOneCubeTriangles != nullptr ||
         renderer.testImageTriangles != nullptr || renderer.testVideo != nullptr)
     {
@@ -49,6 +50,54 @@ void CheckDemoInactive(const char * method)
 }
 } // namespace
 
+namespace ps2::render
+{
+bool IsLogicalInitialized() { return s_logicalInitialized; }
+void AdvanceLogicalFrame()
+{
+    if (!s_logicalInitialized || tr.frameCount == INT_MAX)
+    {
+        Unavailable("invalid logical renderer frame");
+    }
+    ++tr.frameCount;
+}
+#if defined(PS2_D3BFG_FOUNDATION)
+void InitLogical(const char *) { Unavailable("logical renderer requires the resident campaign target"); }
+void ShutdownLogical() { Unavailable("logical renderer requires the resident campaign target"); }
+#else
+void InitLogical(const char * defaultMaterialName)
+{
+    PS2_Assert(defaultMaterialName != nullptr);
+    if (s_logicalInitialized || !common->IsInitialized() || defaultMaterialName == nullptr || defaultMaterialName[0] == '\0')
+    {
+        Unavailable("invalid logical renderer startup");
+    }
+    CheckNoResources(tr, "logical renderer startup with live resources");
+    tr.defaultMaterial = declManager->FindMaterial(defaultMaterialName, false);
+    if (tr.defaultMaterial == nullptr || tr.defaultMaterial->GetNumStages() != 0)
+    {
+        Unavailable("logical renderer requires a stage-free default material");
+    }
+    renderModelManager->Init();
+    s_logicalInitialized = true;
+    // Native model queries cache by renderer frame; zero is the uninitialized definition stamp.
+    AdvanceLogicalFrame();
+}
+void ShutdownLogical()
+{
+    if (!s_logicalInitialized || tr.worlds.Num() != 0)
+    {
+        Unavailable("logical renderer shutdown with live worlds");
+    }
+    renderModelManager->Shutdown();
+    cmdSystem->RemoveFlaggedCommands(CMD_FL_RENDERER);
+    tr.worlds.Clear();
+    tr.defaultMaterial = nullptr;
+    s_logicalInitialized = false;
+}
+#endif
+} // namespace ps2::render
+
 idRenderSystemLocal::idRenderSystemLocal()
     : registered(false), takingScreenshot(false), frameCount(0), viewCount(0), frameShaderTime(0.0f), ambientLightVector(0.0f, 0.0f, 0.0f, 0.0f), worlds(), primaryWorld(nullptr), primaryRenderView{}, primaryView(nullptr), whiteMaterial(nullptr), charSetMaterial(nullptr), defaultPointLight(nullptr), defaultProjectedLight(nullptr), defaultMaterial(nullptr), testImage(nullptr), testVideo(nullptr), testVideoStartTime(0), ambientCubeImage(nullptr), viewDef(nullptr), pc{}, identitySpace{}, renderCrops{}, currentRenderCrop(0), guiRecursionLevel(0), currentColorNativeBytesOrder(0xFFFFFFFFU), currentGLState(0), guiModel(nullptr), fonts(), gammaTable{}, unitSquareTriangles(nullptr), zeroOneCubeTriangles(nullptr), testImageTriangles(nullptr), unitSquareSurface_{}, zeroOneCubeSurface_{}, testImageSurface_{}, frontEndJobList(nullptr), timerQueryId(0)
 {
@@ -59,7 +108,7 @@ idRenderSystemLocal::~idRenderSystemLocal() { CheckNoResources(*this, "idRenderS
 
 void idRenderSystemLocal::Clear()
 {
-    // Clear only inactive native value state. Live resource ownership requires the later logical renderer.
+    // Clear only inactive native value state; logical ownership must be shut down first.
     CheckNoResources(*this, "idRenderSystemLocal::Clear with live resources");
     registered = takingScreenshot = false;
     frameCount = viewCount = testVideoStartTime = currentRenderCrop = guiRecursionLevel = 0;
@@ -111,8 +160,6 @@ RENDER_UNAVAILABLE(int, idRenderSystemLocal::GetHeight, () const)
 RENDER_UNAVAILABLE(float, idRenderSystemLocal::GetPixelAspect, () const)
 RENDER_UNAVAILABLE(float, idRenderSystemLocal::GetPhysicalScreenWidthInCentimeters, () const)
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::EnableStereoScopicRendering, (stereo3DMode_t) const)
-RENDER_UNAVAILABLE(idRenderWorld *, idRenderSystemLocal::AllocRenderWorld, ())
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::FreeRenderWorld, (idRenderWorld *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::BeginLevelLoad, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::EndLevelLoad, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::LoadLevelImages, ())
@@ -170,3 +217,32 @@ RENDER_UNAVAILABLE(void, idRenderWorldLocal::StartWritingDemo, (idDemoFile *))
 RENDER_UNAVAILABLE(bool, idRenderWorldLocal::ProcessDemoCommand, (idDemoFile *, renderView_t *, int *))
 
 #undef RENDER_UNAVAILABLE
+
+#if defined(PS2_D3BFG_FOUNDATION)
+idRenderWorld * idRenderSystemLocal::AllocRenderWorld() { ps2::render::Unavailable("idRenderSystemLocal::AllocRenderWorld"); }
+void idRenderSystemLocal::FreeRenderWorld(idRenderWorld *) { ps2::render::Unavailable("idRenderSystemLocal::FreeRenderWorld"); }
+#else
+idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
+{
+    if (!ps2::render::IsLogicalInitialized())
+    {
+        ps2::render::Unavailable("idRenderSystemLocal::AllocRenderWorld");
+    }
+    auto * world = new (TAG_RENDER) idRenderWorldLocal;
+    worlds.Append(world);
+    return world;
+}
+void idRenderSystemLocal::FreeRenderWorld(idRenderWorld * world)
+{
+    auto * local = static_cast<idRenderWorldLocal *>(world);
+    if (!ps2::render::IsLogicalInitialized() || local == nullptr || !worlds.Remove(local))
+    {
+        ps2::render::Unavailable("idRenderSystemLocal::FreeRenderWorld");
+    }
+    if (primaryWorld == local)
+    {
+        primaryWorld = nullptr;
+    }
+    delete local;
+}
+#endif

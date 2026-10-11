@@ -13,7 +13,9 @@ namespace ps2::gamefixture
 {
 // Explicit process-wide selection before Common/game startup; never selected by ordinary boot.
 void Enable();
+void EnableMap();
 bool IsEnabled();
+bool IsMapEnabled();
 // Validate before the native factory/registration can allocate media or overwrite a client slot.
 void ValidatePlayerSpawn(const idTypeInfo & type, const idDict * args);
 void ValidateFrame();

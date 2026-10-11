@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/game/headless_fixture.h"
+#include "ps2/renderer/null_render.h"
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>
 
@@ -68,7 +69,8 @@ namespace ps2::gamefixture
 namespace
 {
 static bool s_enabled = false;
-}
+static bool s_mapEnabled = false;
+} // namespace
 void Enable()
 {
     if (s_enabled || common->IsInitialized())
@@ -78,6 +80,12 @@ void Enable()
     s_enabled = true;
 }
 bool IsEnabled() { return s_enabled; }
+void EnableMap()
+{
+    Enable();
+    s_mapEnabled = true;
+}
+bool IsMapEnabled() { return s_mapEnabled; }
 
 void ValidatePlayerSpawn(const idTypeInfo & type, const idDict * args)
 {
@@ -116,6 +124,16 @@ void ValidatePlayerSpawn(const idTypeInfo & type, const idDict * args)
 
 void ValidateFrame()
 {
+    if (IsMapEnabled())
+    {
+        if (gameLocal.GameState() != GAMESTATE_ACTIVE || gameRenderWorld == nullptr || gameSoundWorld == nullptr ||
+            gameLocal.numClients != 0 || gameLocal.entities[0] != nullptr)
+        {
+            FatalError("invalid headless map frame state");
+        }
+        ps2::render::AdvanceLogicalFrame();
+        return;
+    }
     const idPlayer * player = gameLocal.GetLocalPlayer();
     if (!IsEnabled() || gameLocal.GameState() != GAMESTATE_ACTIVE || gameRenderWorld != nullptr || gameSoundWorld != nullptr ||
         gameLocal.numClients < 0 || gameLocal.numClients > 1 ||

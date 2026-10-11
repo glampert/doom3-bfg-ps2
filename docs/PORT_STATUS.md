@@ -19,8 +19,9 @@ The next 80 frames add low-ceiling crouch passage and blocked standing restorati
 followed by 56 frames of native low-step climbing and high-rise blocking, bringing
 each reload to 331 native frames with the same player, verified in debug and release.
 Bounded logical PCM samples and deterministic headless voices are usable as
-standalone services. Full campaign player/AAS/PVS startup, broader map loading and native sound/
-render integration remain pending; headless gameplay work takes priority.
+standalone services. Native authored `InitFromNewMap` now loads logical world/models, PVS, collision,
+AAS and one idle AI. Full campaign player startup, animated AI/gameplay, retail maps
+and sound/render output remain pending; headless gameplay work takes priority.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
 
@@ -1927,6 +1928,90 @@ shutdown returns exactly to the pre-boot baseline. Fixed ELF residency and arena
 commitment are separate; tagged backing is already inside the arena. Kernel/stacks,
 full campaign state and transition peaks remain unmeasured.
 
-The next candidate is bounded native slope coverage, distinguishing walkable ground
-from steep blocking/sliding surfaces before broader authored maps. Rendering, sound
-integration and full campaign player/AAS/PVS startup remain deferred.
+The next candidate at this stage was bounded native slope coverage. The user
+subsequently redirected work to the authored native map path recorded below.
+
+
+## M3: native authored map, logical world/PVS and idle AI
+
+The user's priority is now progressing toward campaign map startup headlessly,
+without another series of movement fixtures. One integrated `game-map` scenario,
+selected by `make test-map`, uses committed authored data in
+`src/tests/data/headless_map/` and real `idGameLocal::InitFromNewMap` / `MapPopulate`.
+It contains worldspawn, one solid floor, two CPU floor models, two logical render areas,
+one portal, two hand-authored convex AAS cells and one native `idAI`.
+
+Native declaration/model/world ownership, PVS construction, collision conversion,
+AAS loading/routing and entity/actor/AI spawning run through retained engine code.
+The AI has an explicit 16×16×32 collision box, no mesh/animation, an idle actor state
+and `neverDormant` for the playerless run. Its script queries the opposite AAS cell
+and an out-of-region goal; the latter must return -1, proving the actor retained its
+AAS binding rather than using the no-AAS distance fallback. Both map and AI scripts
+advance once on each of 60 native game frames, over three map reloads.
+
+Logical renderer initialization owns CPU models/worlds without device/frame/texture
+arenas. Its frame clock starts at one and advances with game ticks: native model
+queries otherwise return an uninitialized null cache at frame zero. Native model
+trace also needs the `collision` material flag on stage-free surfaces and clockwise
+indices for the upward-facing floor. Point/bounds area queries, static model tracing,
+portal state and open/closed/reopened PVS checks now pass. The native AAS reader accepts
+the authored map's actual geometry CRC; routing crosses its two cells and rejects
+out-of-region positions. A native clip trace verifies the floor and the actor retains
+native ground contacts. The empty native sound world supplies required map-startup
+bookkeeping; `s_noSound=1`, no playing sound world and no physical renderer are verified.
+
+One tagged startup seam skips automatic lobby-player spawning for the selected headless
+map mode. The old bounded player fixture keeps its separate startup and null worlds;
+ordinary game startup retains its player synchronization. Loading pacifiers return
+only when the initialized logical renderer explicitly supplies the headless loading
+path. Presentation capabilities still fail explicitly. This does not execute Common's
+campaign map-change pipeline or normal campaign player startup, animated AI/navigation/
+combat, retail content, drawing or audible playback. M3 remains partial.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` and `headless-core` | EE compile/link passed; new backend/test code passes strict `-Werror` |
+| Resident link | 345 direct inputs, 11 registration roots; no GC, unresolved symbols or duplicates |
+| Native authored map | Seventeen distinct required checks; 60 native frames on each of three reloads; warm map shutdown and exact full teardown pass |
+| Existing game/core/renderer contracts | Eleven existing game scenarios, core positive and eight renderer negatives passed per configuration; final native map and existing positive game rerun after the silhouette scratch fix |
+| Host sanitizer fixtures/classifiers | All 88 Python regressions passed; new classifier rejects missing query/tick/reload evidence, stale identities, crashes and timeouts |
+| Source audit/editor tooling | 458-unit BFG inventory unchanged; one cold resident support unit added; compile database regenerated to 364 entries |
+
+Final native map runs (2026-10-11): debug
+`20261011T085646Z_smoke_00b8de4c38964b7c`, release
+`20261011T085653Z_smoke_ff579fc1a6344ce1`. Final existing game positives:
+`20261011T085649Z_smoke_410f8035a14340a8` /
+`20261011T085657Z_smoke_be241da17ade4079`. Core positives:
+`20261011T085424Z_smoke_2e17ae722a5d439f` /
+`20261011T085519Z_smoke_fe797d4fb6474ae7`. All forty-two pre-scratch-fix contract runs
+are listed locally in `build/map-target-tests.log`; final map/game runs are in
+`build/map-final-target-tests.log`. Broader Common/emulator matrices were not rerun.
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,920,422 bytes | 11,338,214 bytes |
+| Resident BSS (included above) | 5,238,118 bytes | 5,238,118 bytes |
+| First 60-frame map: requested / backing / count | 2,220,520 / 2,330,300 / 2,681 | Same |
+| Second 60-frame map | 2,220,536 / 2,330,316 / 2,681 | Same |
+| Third 60-frame map | 2,220,256 / 2,330,060 / 2,681 | Same |
+| Tagged peak requested / backing | 2,523,851 / 2,628,112 bytes | Same |
+| dlmalloc arena commitment after map/game/logical teardown | 2,645,530 bytes | Same |
+| Full Common/decl/game teardown requested / backing / count | 7,424 / 7,600 / 4 | Same |
+
+The first measurement exposed native `R_IdentifySilEdges` reserving desktop-sized
+scratch granularity for tiny models: peak requested/backing was 8,175,854 / 8,276,688
+bytes, with approximately 12 MB arena commitment. The PS2 path now bounds silhouette
+list/hash granularity by the surface's index count, capped at the existing native limit;
+at most one edge can be created per index. It preserves edge matching and reduces
+this map's tagged peak to 2.52 MB and arena commitment to 2.65 MB. Tagged backing is
+already inside the arena, so do not add it again. These measurements exclude kernel
+reservation and stacks, and establish no retail campaign or transition budget.
+
+Next extend the same authored map with native AI movement and CPU model/joint behavior,
+then campaign player startup and Common map transitions. Retail map dependency inventory,
+conversion and residency remain subsequent gates. No additional standalone movement
+fixtures are scheduled for this phase.

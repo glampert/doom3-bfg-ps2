@@ -1,0 +1,4 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+_tracemodel { solid }
+textures/fixture/solid { solid collision }
+itemHighlightShell {}

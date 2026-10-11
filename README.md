@@ -3,7 +3,8 @@
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
 using the free ps2dev SDK. The port builds a scalar EE core and an authored headless
 game fixture that runs native initialization, entity thinking, script events, bounded collision/physics
-and a restricted native `idPlayer`. Full campaign player/AAS/PVS startup, retail maps,
+and a restricted native `idPlayer`. An authored map also boots through native `InitFromNewMap`
+with logical world/model/PVS queries, collision, AAS and one idle native AI. Full campaign player startup, retail maps,
 rendering, SPU2 output, input and saves remain later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
@@ -29,8 +30,10 @@ make compile-core            # 52 scalar idlib units and 10 framework/session su
 make compile-game            # all 281 retained campaign units; compile gate only
 make link-game               # retained campaign link and registration/map gate
 make headless-game           # resident native game fixture ELF
-make test-game               # boot/player/ticks/reloads and nine expected failures in PCSX2
+make test-game               # boot/player/ticks/reloads and ten expected failures in PCSX2
 make BUILD=release test-game  # same game checks with assertions disabled
+make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
+make BUILD=release test-map   # same map checks with assertions disabled
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make release smoke           # release core smoke run
@@ -85,7 +88,7 @@ identity; actual file objects and engine hierarchy declarations are checked on t
 
 `make link-game` attempts a real whole-object campaign link under
 `build/<config>/resident/`, with its own strict support objects and no core filesystem
-substitute. Debug and release now link all 344 inputs without unresolved symbols or
+substitute. Debug and release now link all 345 inputs without unresolved symbols or
 duplicate definitions. JSON/text reports retain object/source hashes, flags and the real
 linker exit status, and verify the game/class/cvar registration roots and every input in
 the map. Failed attempts remove stale resident ELFs. The resident entry requires the
@@ -140,10 +143,17 @@ maps, script errors, unsupported brush planes/materials, extra player spawn keys
 missing player script fields, unsupported commands and missing actor states must fail
 with the expected diagnostic in debug and release. Changed roof or step planes also fail
 the exact five-brush geometry gate before collision loading.
-This is partial M3 game acceptance. The fixture omits AAS/PVS,
-sound and render worlds and uses separate bounded map/player setup methods; regular
-`InitFromNewMap` and retail content remain pending. Headless gameplay work takes
-priority, with sound and rendering integration deferred.
+This is partial M3 game acceptance. That original fixture keeps null render/sound worlds
+and separate bounded map/player setup. `make test-map` now exercises native
+`InitFromNewMap` with an authored floor, two logical areas and a portal, two static
+CPU models, two AAS cells and one native `idAI` with a collision box and actor script.
+It checks world/model traces, portal close/reopen PVS, collision, walk routing and
+actor-bound reachability, then runs 60 native frames across each of three reloads.
+Warm map shutdown and full teardown recover exact ledgers. The empty native sound
+world supplies startup bookkeeping with `s_noSound=1`; no playback or drawing is requested.
+The AI is unanimated and idle, with `neverDormant` for the playerless run. Common map
+transitions, normal campaign player startup, animated AI navigation/combat and retail
+content remain pending. Headless gameplay work takes priority.
 
 The first M3 service slice supplies logical sound samples from bounded, extensionless
 fixture paths backed by loose 16-bit PCM WAVs. Mono/stereo data at 8–48 kHz provides
@@ -151,8 +161,8 @@ real frame counts, integer millisecond duration and 60 Hz peak amplitude queries
 Generated defaults own real PCM too. Streams close before load failures are reported;
 reload, purge, rename and destruction recover exact tagged heap ledgers. Missing,
 malformed, compressed or oversized input fails explicitly. The initial 256 KiB payload
-limit is for authored fixtures; retail `.idwav`/ADPCM conversion, native sound-world
-initialization and SPU2 playback remain pending.
+limit is for authored fixtures; retail `.idwav`/ADPCM conversion, populated sound-world/channel integration
+and SPU2 playback remain pending. The native map mode uses an empty sound world only.
 
 Explicit headless initialization selects a monotonic fixture clock and a bounded pool
 of 48 logical voices. Playback supports lead-in/loop transitions, seeking, fractional

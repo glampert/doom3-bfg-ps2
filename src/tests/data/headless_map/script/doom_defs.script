@@ -1,0 +1,5 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+scriptEvent void waitFrame();
+scriptEvent void setState(string name);
+scriptEvent void setMoveType(float type);
+scriptEvent float travelDistanceToPoint(vector point);

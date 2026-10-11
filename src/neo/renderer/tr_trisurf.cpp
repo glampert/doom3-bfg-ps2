@@ -673,8 +673,15 @@ void R_IdentifySilEdges( srfTriangles_t *tri, bool omitCoplanarEdges ) {
 
 	const int numTris = tri->numIndexes / 3;
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: At most one edge per index; avoid multi-megabyte scratch for tiny CPU models.
+	const int edgeCapacity = Max( 1, Min( tri->numIndexes, MAX_SIL_EDGES ) );
+	idList<silEdge_t> silEdges( edgeCapacity );
+	idHashIndex silEdgeHash( SILEDGE_HASH_SIZE, edgeCapacity );
+#else
 	idList<silEdge_t>	silEdges( MAX_SIL_EDGES );
 	idHashIndex	silEdgeHash( SILEDGE_HASH_SIZE, MAX_SIL_EDGES );
+#endif
 	int			numPlanes = numTris;
 
 

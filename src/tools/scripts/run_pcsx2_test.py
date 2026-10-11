@@ -127,7 +127,11 @@ REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/
                                   "game/native-player-step-rise", "game/native-player-step-high-block",
                                   "game/native-player-step-state", "game/native-player-step-stop",
                                   "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
-SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
+REQUIRED_MAP_CHECKS = frozenset("map/" + name for name in (
+    "native-startup", "world-areas", "world-model", "model-trace", "world-portal",
+    "pvs-open", "pvs-closed", "pvs-reopened", "aas-route", "native-ai-ticks",
+    "ai-floor", "ai-aas-binding", "native-map-shutdown", "collision-floor", "presentation-off"))
+SCENARIOS = ("game-map", "game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
 CRASH_RE = re.compile(r"TLB Miss|\[D3BFG\] FATAL|Assertion failed|Bus error", re.IGNORECASE)
 VERSION_RE = re.compile(
@@ -197,6 +201,25 @@ def read_result(path: Path) -> dict | None:
 def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                  returncode: int | None, timed_out: bool) -> tuple[bool, str]:
     """A process exiting successfully is insufficient: target identity, stages and result must agree."""
+    if scenario == "game-map":
+        required = REQUIRED_MAP_CHECKS
+        checks = CHECK_RE.findall(log)
+        ticks = re.findall(r"MAP_TICK cycle=(\d+) frames=(\d+) ai_x=([-\d.]+) ai_z=([-\d.]+)", log)
+        expected_ticks = [(str(cycle), "60", "-32.000", "0.250") for cycle in range(3)]
+        accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
+                    result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
+                    all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
+                    result.get("core") == "SKIP" and f"[D3BFG] RUN {test_id} BEGIN" in log and
+                    "[D3BFG] STAGE game BEGIN" in log and "[D3BFG] STAGE game PASS" in log and
+                    f"[D3BFG] RESULT {test_id} PASS" in log and
+                    required.issubset({name for name, status in checks if status == "PASS"}) and
+                    all(sum(name == marker and status == "PASS" for name, status in checks) in (3, 6)
+                        for marker in required) and
+                    ("game/full-shutdown-ledger", "PASS") in checks and
+                    ("map/reload-ledger", "PASS") in checks and
+                    not any(status == "FAIL" for _, status in checks) and
+                    ticks in (expected_ticks, expected_ticks + expected_ticks))
+        return accepted, "native headless map completed" if accepted else "incomplete or failed native headless map"
     if scenario in GAME_FAILURES:
         begin = log.find("[D3BFG] STAGE game BEGIN")
         fatal = log.find("[D3BFG] FATAL", begin) if begin >= 0 else -1
@@ -670,6 +693,9 @@ def archive_resident_artifacts(elf: Path, staged_elf: Path, symbols: Path, outpu
 
 
 def stage_game_fixtures(directory: Path, scenario: str) -> None:
+    if scenario == "game-map":
+        shutil.copytree(Path(__file__).resolve().parents[2] / "tests/data/headless_map", directory)
+        return
     for folder in ("def", "maps", "script", "materials", "fx", "particles", "af", "newpdas"):
         (directory / folder).mkdir(parents=True, exist_ok=True)
     (directory / "def/fixture.def").write_text(
@@ -784,7 +810,7 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
     shutil.copy2(elf, staged_elf)
     shutil.copy2(symbols, output / "d3bfg_unstripped.elf")
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
-    game_scenario = args.scenario == "game" or args.scenario in GAME_FAILURES
+    game_scenario = args.scenario in ("game", "game-map") or args.scenario in GAME_FAILURES
     archive = archive_resident_artifacts if game_scenario else archive_build_artifacts
     build_artifacts = archive(elf, staged_elf, output / "d3bfg_unstripped.elf", output)
     if game_scenario:

@@ -12,8 +12,22 @@ device capabilities and no frame/vertex arenas, texture payloads or GS setup. On
 inactive queries, empty cleanup and a disabled resolution policy are implemented.
 Initialization, display dimensions, loading and draw submission fail by method name.
 Retained frontend cvars preserve native defaults/flags and cannot enable rendering.
-These typed providers close the renderer link group; logical world/material/model
-contracts and GS/VU implementation remain separate, unimplemented gates.
+The resident map mode now explicitly initializes native CPU model/world ownership,
+with stage-free materials. Areas, portals, static model traces and portal-controlled PVS
+pass in the authored map; physical initialization, image/vertex payload loading and
+submission still fail by method name. GS/VU output remains unimplemented.
+
+- Start the logical renderer frame counter above zero and advance it with game ticks.
+  Native `R_EntityDefDynamicModel` compares the definition stamp to `tr.frameCount`;
+  at zero an uninitialized definition returns its null cached model, hiding static
+  surfaces from `ModelTrace`. This was reproduced on the EE in the headless map.
+- Stage-free materials are not drawn. CPU `ModelTrace` needs the native `collision`
+  material flag to include these surfaces. Doom's three-point plane normal uses
+  clockwise triangle indices for the upward-facing authored floor.
+- `R_IdentifySilEdges` uses desktop-sized list/hash granularity `MAX_SIL_EDGES=0x7ffff`.
+  The PS2 path bounds scratch granularity by `max(1,min(numIndexes,MAX_SIL_EDGES))`:
+  at most one edge can be created per index. This preserves native edge matching and
+  avoids multi-megabyte temporary allocations for tiny CPU models.
 
 ## Frame model: 2D and 3D interleave
 

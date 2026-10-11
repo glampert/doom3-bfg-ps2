@@ -1,0 +1,23 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+Version 2
+{
+"classname" "worldspawn"
+"name" "worldMap"
+"gravity" "512"
+{
+brushDef3
+{
+( 1 0 0 -128 ) ( ( 1 0 0 ) ( 0 1 0 ) ) "textures/fixture/solid" 0 0 0
+( -1 0 0 -128 ) ( ( 1 0 0 ) ( 0 1 0 ) ) "textures/fixture/solid" 0 0 0
+( 0 1 0 -128 ) ( ( 1 0 0 ) ( 0 1 0 ) ) "textures/fixture/solid" 0 0 0
+( 0 -1 0 -128 ) ( ( 1 0 0 ) ( 0 1 0 ) ) "textures/fixture/solid" 0 0 0
+( 0 0 1 0 ) ( ( 1 0 0 ) ( 0 1 0 ) ) "textures/fixture/solid" 0 0 0
+( 0 0 -1 -8 ) ( ( 1 0 0 ) ( 0 1 0 ) ) "textures/fixture/solid" 0 0 0
+}
+}
+}
+{
+"classname" "headless_ai"
+"name" "map_ai"
+"origin" "-32 0 0"
+}

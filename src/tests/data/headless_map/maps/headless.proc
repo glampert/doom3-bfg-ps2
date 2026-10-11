@@ -1,0 +1,23 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+mapProcFile003
+model { "_area0" 1 { "textures/fixture/solid" 4 6
+( -128 -128 0 0 0 0 0 1 )
+( 0 -128 0 0 0 0 0 1 )
+( 0 128 0 0 0 0 0 1 )
+( -128 128 0 0 0 0 0 1 )
+0 2 1 0 3 2
+} }
+model { "_area1" 1 { "textures/fixture/solid" 4 6
+( 0 -128 0 0 0 0 0 1 )
+( 128 -128 0 0 0 0 0 1 )
+( 128 128 0 0 0 0 0 1 )
+( 0 128 0 0 0 0 0 1 )
+0 2 1 0 3 2
+} }
+interAreaPortals { 2 1
+4 0 1 ( 0 -64 0 ) ( 0 -64 64 ) ( 0 64 64 ) ( 0 64 0 )
+}
+nodes { 2
+( 0 0 1 0 ) 1 0
+( 1 0 0 0 ) -2 -1
+}

@@ -8,6 +8,7 @@
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "tests/smoketests/game_boot.h"
+#include "tests/smoketests/map_boot.h"
 #include <idlib/precompiled.h>
 #include <kernel.h>
 #include <sifrpc.h>
@@ -35,7 +36,7 @@ void Manifest()
             ps2::FatalError("invalid game fixture run identity");
         }
     }
-    if (strcmp(s_mode, "game") != 0 && strcmp(s_mode, "game-missing-map") != 0 && strcmp(s_mode, "game-syntax") != 0 &&
+    if (strcmp(s_mode, "game-map") != 0 && strcmp(s_mode, "game") != 0 && strcmp(s_mode, "game-missing-map") != 0 && strcmp(s_mode, "game-syntax") != 0 &&
         strcmp(s_mode, "game-geometry") != 0 && strcmp(s_mode, "game-material") != 0 &&
         strcmp(s_mode, "game-player-args") != 0 && strcmp(s_mode, "game-player-script") != 0 &&
         strcmp(s_mode, "game-player-command") != 0 && strcmp(s_mode, "game-player-state") != 0 &&
@@ -60,12 +61,19 @@ int main()
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_TAG before %u %zu/%zu/%zu\n", tag, stats.requestedBytes, stats.backingBytes, stats.allocationCount);
         }
     }
-    ps2::gamefixture::Enable();
+    if (strcmp(s_mode, "game-map") == 0)
+    {
+        ps2::gamefixture::EnableMap();
+    }
+    else
+    {
+        ps2::gamefixture::Enable();
+    }
     common->Init(0, nullptr, nullptr);
     cvarSystem->SetCVarBool("g_xp_bind_run_once", true);
     cvarSystem->SetCVarBool("s_noSound", true);
     declManager->Init();
-    bool passed = ps2::smoketests::RunGameTests(s_mode);
+    bool passed = ps2::gamefixture::IsMapEnabled() ? ps2::smoketests::RunMapTests() : ps2::smoketests::RunGameTests(s_mode);
     declManager->Shutdown();
     common->Shutdown();
     const auto final = ps2::heap::GetTotalStats();

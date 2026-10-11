@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 55 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 56 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 87 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 88 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -132,7 +132,7 @@
   with the expected fatal on the EE. Host sanitizer checks also verify full decoder/output
   cleanup before fatal. Codec memory uses the same heap through native JPG/ZIP tags.
 
-- `make link-game` passes the retained compile/link gate in debug/release: all 344 inputs,
+- `make link-game` passes the retained compile/link gate in debug/release: all 345 inputs,
   every required game/class/cvar registration root and map input are retained without
   unresolved symbols, duplicates, Classic imports or GC. Its resident entry requires
   an explicit authored fixture manifest. Do not reuse an older resident ELF after a failed attempt.
@@ -258,6 +258,27 @@
   while AAS/PVS, full campaign player behavior, device input, sound/
   render worlds and regular campaign map loading remain pending. Sound and rendering
   integration are deferred while the headless gameplay fixture grows.
+
+## Doom authored native map procedure
+
+- `make test-map` / `make BUILD=release test-map` run one integrated `game-map`
+  scenario against the resident ELF. The runner copies only committed authored data
+  from `src/tests/data/headless_map/`; it hashes the map/proc/AAS/decl/scripts and
+  archives generated collision/render-world caches with matched ELF/symbols/map.
+- Seventeen distinct required checks cover native startup, world/model/trace queries,
+  portal open/close/reopen PVS, native floor collision, AAS routing and actor binding,
+  inactive presentation, native AI/map script ticks, map shutdown, warm ledger stability
+  and full teardown. Fifteen checks repeat once per reload, with three 60-frame summaries;
+  missing checks, stale identities, crashes and watchdogs fail.
+- This runs native `InitFromNewMap` / `MapPopulate`, with automatic lobby-player spawning
+  omitted only in the explicit map mode. One idle unanimated native AI uses an explicit
+  collision box and `neverDormant` because no player supplies visibility. The AAS is
+  hand-authored with the actual geometry CRC. An empty native sound world supplies
+  bookkeeping while playback/drawing stay inactive. Normal campaign player startup,
+  animated AI/gameplay, Common transitions and retail maps remain later gates.
+- Debug/release final map runs on 2026-10-11:
+  `20261011T085646Z_smoke_00b8de4c38964b7c` /
+  `20261011T085653Z_smoke_ff579fc1a6344ce1`. Current memory evidence is in PORT_STATUS.
 
 ## Quake II reference procedures
 

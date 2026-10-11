@@ -1201,6 +1201,10 @@ void idGameLocal::InitFromNewMap( const char *mapName, idRenderWorld *renderWorl
 	mpGame.Reset();
 	mpGame.Precache();
 
+	// [PS2_D3BFG]: Authored headless map startup has no player/presentation services yet.
+#if defined( ID_PS2 )
+	if ( !ps2::gamefixture::IsMapEnabled() )
+#endif
 	SyncPlayersWithLobbyUsers( true );
 
 	// free up any unused animations
@@ -1999,7 +2003,7 @@ idGameLocal::SetupPlayerPVS
 void idGameLocal::SetupPlayerPVS() {
 	// [PS2_D3BFG]: The bounded simulation has no render-world topology or PVS acquisition.
 #if defined( ID_PS2 )
-	if ( ps2::gamefixture::IsEnabled() ) {
+	if ( ps2::gamefixture::IsEnabled() && !ps2::gamefixture::IsMapEnabled() ) {
 		playerPVS.i = playerConnectedAreas.i = -1;
 		return;
 	}

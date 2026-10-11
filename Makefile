@@ -177,7 +177,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release platform-probe headless-core compile-core compile-game headless-game test-game link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform clean FORCE
+.PHONY: all release platform-probe headless-core compile-core compile-game headless-game test-map test-game link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform clean FORCE
 
 all: inventory $(GAME_ELF) $(OUTPUT_DIR)/build-report.json
 release: all
@@ -316,6 +316,9 @@ link-game: inventory $(RESIDENT_LINK_OBJS)
 	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR)/resident --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
 
 headless-game: link-game
+
+test-map: headless-game
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-map
 
 test-game: headless-game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game

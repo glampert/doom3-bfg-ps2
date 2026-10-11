@@ -4,6 +4,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "ps2/renderer/null_render.h"
 #include "ps2/system/lifecycle.h"
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>
@@ -143,7 +144,14 @@ void idCommonLocal::FlushRedirect()
 CORE_UNSUPPORTED(void, CreateMainMenu, ())
 CORE_UNSUPPORTED(void, Quit, ())
 CORE_UNSUPPORTED(void, UpdateScreen, (bool))
-CORE_UNSUPPORTED(void, UpdateLevelLoadPacifier, ())
+void idCommonLocal::UpdateLevelLoadPacifier()
+{
+    // Headless loading has no progress screen or frontend frame to submit.
+    if (!ps2::render::IsLogicalInitialized() || !IsInitialized() || WriteDemo() != nullptr)
+    {
+        Unsupported("UpdateLevelLoadPacifier");
+    }
+}
 CORE_UNSUPPORTED(const char *, KeysFromBinding, (const char *))
 CORE_UNSUPPORTED(const char *, BindingFromKey, (const char *))
 CORE_UNSUPPORTED(int, ButtonState, (int))

@@ -170,6 +170,26 @@ Kernel reservation, stacks, full game state, assets, GS VRAM and transition peak
 unmeasured. The initial core does not establish campaign feasibility. See
 [IMPLEMENTATION_PLAN.md](../../docs/IMPLEMENTATION_PLAN.md#7-memory-feasibility-and-budgets).
 
+## Doom authored native map baseline
+
+On 2026-10-11 the native authored map/world/PVS/AAS/idle-AI path passes in debug and
+release. Fixed resident `PT_LOAD` is 10,920,422 / 11,338,214 bytes, including 5,238,118
+BSS bytes. Three 60-frame map reloads use about 2.22 MB requested / 2.33 MB backing
+in 2,681 allocations. Tagged peak is 2,523,851 / 2,628,112 bytes; final arena commitment
+is 2,645,530 bytes in both configurations. Full teardown returns to 7,424 / 7,600 bytes
+in four pre-main allocations. Warm map shutdown is exact. See the current section in
+[PORT_STATUS.md](../../docs/PORT_STATUS.md) for run identities and limits.
+
+Native `R_IdentifySilEdges` originally used `MAX_SIL_EDGES` as list/hash granularity,
+reserving multi-megabyte scratch even for the default cube and two tiny floor models.
+That produced 8,175,854 requested peak and roughly 12 MB arena commitment. Bound PS2
+scratch granularity by the surface's index count, capped at the native maximum:
+at most one edge is appended per index. The edge algorithm/output stays native.
+This is a measured loading peak reduction, not a retail-map capacity or hardware timing
+result. The authored AI has no mesh/animation, no campaign player or Common transition
+runs, and no texture/frame arenas or playback resources are initialized. Kernel and
+stack accounting remains separate; tagged backing is part of the arena.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

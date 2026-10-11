@@ -1,0 +1,14 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+entityDef aas_types { "type0" "aas48" }
+entityDef worldspawn { "spawnclass" "idWorldspawn" "noclipmodel" "1" }
+entityDef headless_ai {
+"spawnclass" "idAI"
+"scriptobject" "headless_ai"
+"mins" "-8 -8 0"
+"maxs" "8 8 32"
+"health" "100"
+"use_combat_bbox" "1"
+"use_aas" "aas48"
+"neverDormant" "1"
+"eye_height" "26"
+}
