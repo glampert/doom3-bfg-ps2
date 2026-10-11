@@ -16,7 +16,8 @@ the native player pipeline and ticks its movement, linked conditions and actor s
 Native player jump/crouch commands, crouch speed/view interpolation and authored
 idle/air/crouch state transitions now pass over 195 frames per reload.
 The next 80 frames add low-ceiling crouch passage and blocked standing restoration,
-bringing each reload to 275 native frames with the same player.
+followed by 56 frames of native low-step climbing and high-rise blocking, bringing
+each reload to 331 native frames with the same player, verified in debug and release.
 Bounded logical PCM samples and deterministic headless voices are usable as
 standalone services. Full campaign player/AAS/PVS startup, broader map loading and native sound/
 render integration remain pending; headless gameplay work takes priority.
@@ -1849,3 +1850,83 @@ Fixed ELF residency and arena commitment are separate; tagged backing is already
 inside the arena. Kernel/stacks and campaign transitions remain unmeasured. The next
 candidate is native step-up coverage with a traversable step and an obstacle above
 the configured step height, before slopes and broader campaign loading.
+
+## M3 small step: native step-up and high-rise blocking
+
+The authored world now contains exactly five axial brushes: the existing floor,
+wall and roof, a 12-unit platform from (-24,-56,0) to (0,-24,12), and a higher box
+from (0,-56,0) to (8,-24,36). The second rise is 24 units, exceeding the unchanged
+native `pm_stepsize=16`. This lane at y=-40 is separate from the earlier movement
+and ceiling tests. The geometry gate validates every plane/material and brush count;
+raising the low platform by one unit is a new expected-fatal scenario before loading.
+
+Frames 276–331 reposition the same native player at (-48,-40,0.25) and continue the
+native command/Think/physics/script pipeline. Forward input through 315 climbs the
+12-unit platform on frame 283 without a jump, then stops near x=-16.25 against the
+high rise on 293. The climb reports one positive signed step of 12; native
+`HasSteppedUp` alone also covers downward steps. Ground contacts and linked idle
+state persist. Neutral input on 316–331 requires zero velocity at z=12.25. Eye
+height continues toward 68; by frame 331 the actor has 243 script ticks, nine state
+entries and one constructor. Health, empty resources and jump/landing counts stay
+unchanged. General stairs, slopes and campaign player behavior remain outside this gate.
+
+The first diagnostic run (`20261011T074006Z_smoke_12ea8accc8c24529`) passed all six
+new step checks but failed the existing floor point-contents check on all three
+reloads. Five brushes trigger native axial BSP construction. Its filtering retains
+spanning brushes on ancestor nodes, while upstream `PointContents` visited only the
+leaf. The tagged fix visits the leaf and each ancestor, preserving bounds/plane tests
+and native unmasked point semantics. Existing floor inside/outside and volume-mask
+checks cover conversion, text `.cm` and generated binary `.bcm` reloads.
+
+### Acceptance
+
+| Gate | Result |
+| --- | --- |
+| Debug/release `headless-game` | Strict EE compile and retained-object link passed |
+| Resident link | Unchanged 344 inputs and 11 registration roots; no GC, unresolved symbols or duplicates |
+| Native registries | Unchanged 535 events, 160 classes and 496,480 bytes of event callbacks |
+| Host sanitizer fixtures and classifiers | All 87 Python regressions passed; 14 game classifier cases include missing/duplicate/reordered step traces and mutations of every trace field |
+| Debug/release `make test-game` | All eleven fresh-process scenarios passed in each configuration after the point-contents fix |
+| Positive contract | Forty-nine required checks, all earlier traces, three step-world traces and 168 step-lane traces across three 331-frame reloads |
+| Scope and source inventory | One tagged native collision fix; source lists unchanged, 458-unit inventory and 363-entry compile database remain valid; core/Common emulator matrices not rerun |
+
+Matched run identities (2026-10-11):
+
+| Scenario | Debug | Release |
+| --- | --- | --- |
+| Game | `20261011T082250Z_smoke_29615e1b703f43a3` | `20261011T082337Z_smoke_a6edd35ee1894b2b` |
+| Missing map | `20261011T082255Z_smoke_54884d01031642be` | `20261011T082341Z_smoke_5b2151dda7a54639` |
+| Script error | `20261011T082257Z_smoke_5a3303429d174d4d` | `20261011T082343Z_smoke_04cf9a111e514923` |
+| Floor geometry | `20261011T082300Z_smoke_b96a346a729b4d01` | `20261011T082346Z_smoke_f9a5197bdc6745e6` |
+| Material | `20261011T082302Z_smoke_afca1fa853e34599` | `20261011T082349Z_smoke_612cd13b6bb84871` |
+| Player arguments | `20261011T082305Z_smoke_2311766d19344206` | `20261011T082351Z_smoke_7b825066b76c4c8e` |
+| Player script linkage | `20261011T082308Z_smoke_808f39c6a1544821` | `20261011T082354Z_smoke_36d7360a288b4667` |
+| Player command | `20261011T082310Z_smoke_21c202ccaf284afc` | `20261011T082356Z_smoke_85ba9ffa32654d0f` |
+| Player actor state | `20261011T082313Z_smoke_5a093bfbaf1046cb` | `20261011T082359Z_smoke_204871bd01384f01` |
+| Roof geometry | `20261011T082316Z_smoke_8da5dd0e902f499e` | `20261011T082402Z_smoke_64aade9e97234950` |
+| Step geometry | `20261011T082319Z_smoke_8891dbdc8e554470` | `20261011T082404Z_smoke_b8b510b1e0934009` |
+
+### Measured memory
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Resident fixed `PT_LOAD` residency | 10,913,894 bytes | 11,333,222 bytes |
+| Resident BSS (included above) | 5,238,118 bytes | 5,238,118 bytes |
+| After native game Init: requested / backing / count | 1,401,332 / 1,499,096 / 2,386 | 1,401,332 / 1,499,096 / 2,386 |
+| After 331 ticks, conversion: requested / backing / count | 1,810,892 / 1,919,088 / 2,640 | 1,810,892 / 1,919,088 / 2,640 |
+| After 331 ticks, text cache: requested / backing / count | 1,810,908 / 1,918,004 / 2,611 | 1,810,908 / 1,918,004 / 2,611 |
+| After 331 ticks, binary cache: requested / backing / count | 1,801,868 / 1,908,908 / 2,609 | 1,801,868 / 1,908,908 / 2,609 |
+| Peak requested / backing | 2,077,364 / 2,181,712 bytes | 2,077,364 / 2,181,712 bytes |
+| Arena commitment after three cycles | 2,353,050 bytes | 2,351,514 bytes |
+| Full game/decl/Common shutdown: requested / backing / count | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The additional brushes and BSP nodes raise collision/cache allocations and conversion
+scratch, while native game Init and script storage remain unchanged. Every map releases
+collision/clip ownership and trace-model cache entries, warm ledgers match and full
+shutdown returns exactly to the pre-boot baseline. Fixed ELF residency and arena
+commitment are separate; tagged backing is already inside the arena. Kernel/stacks,
+full campaign state and transition peaks remain unmeasured.
+
+The next candidate is bounded native slope coverage, distinguishing walkable ground
+from steep blocking/sliding surfaces before broader authored maps. Rendering, sound
+integration and full campaign player/AAS/PVS startup remain deferred.

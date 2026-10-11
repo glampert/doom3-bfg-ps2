@@ -39,7 +39,7 @@ void Manifest()
         strcmp(s_mode, "game-geometry") != 0 && strcmp(s_mode, "game-material") != 0 &&
         strcmp(s_mode, "game-player-args") != 0 && strcmp(s_mode, "game-player-script") != 0 &&
         strcmp(s_mode, "game-player-command") != 0 && strcmp(s_mode, "game-player-state") != 0 &&
-        strcmp(s_mode, "game-ceiling-geometry") != 0)
+        strcmp(s_mode, "game-ceiling-geometry") != 0 && strcmp(s_mode, "game-step-geometry") != 0)
     {
         ps2::FatalError("invalid game fixture mode");
     }

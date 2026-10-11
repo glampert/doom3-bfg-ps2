@@ -40,7 +40,7 @@ Shell resources, save pipelines and multiplayer matches are not initialized. The
 provider adds two disabled archived cvars and native action metadata, without device
 handles, polling buffers or generated player commands. Empty cleanup has no heap cost.
 The passing whole-object resident link with bounded collision/physics has
-10,909,030 / 11,328,614 bytes of fixed PT_LOAD residency, including 5,238,118 bytes of
+10,913,894 / 11,333,222 bytes of fixed PT_LOAD residency, including 5,238,118 bytes of
 BSS in both configurations. Codec fixture memory measures compression
 windows and tiny authored images, not retail JPEG/SWF assets or initialized game state.
 All JPEG/zlib scopes recover exact ledgers; partial allocation failures release acquired
@@ -154,6 +154,17 @@ resident PT_LOAD is 10,909,030 / 11,328,614 bytes (debug/release), with unchange
 BSS. Final arena commitment is 2,349,722 / 2,347,930 bytes. Disabling completed probe
 bodies retains their ownership until map shutdown; every collision/clip/cache scope
 is still released, warm ledgers match and full recovery remains 7,424 / 7,600 / 4.
+
+Adding the two step boxes triggers native axial BSP construction and extends each map
+to 331 frames. Native Init stays 1,401,332 / 1,499,096 / 2,386. Live requested/backing/count
+is 1,810,892 / 1,919,088 / 2,640 for conversion, 1,810,908 / 1,918,004 / 2,611 for text
+loading and 1,801,868 / 1,908,908 / 2,609 for binary loading in both configurations.
+Conversion scratch raises the peak to 2,077,364 / 2,181,712 bytes. Fixed resident
+PT_LOAD is 10,913,894 / 11,333,222 bytes (debug/release), including unchanged BSS
+of 5,238,118. Final arena commitment is 2,353,050 / 2,351,514 bytes. BSP nodes/brush
+references are map-owned; every collision/clip/cache scope is released, warm reload
+ledgers match and full recovery remains exactly 7,424 / 7,600 / 4. These 2026-10-11
+measurements cover bounded native stepping, not general stairs/slopes or campaign maps.
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See

@@ -419,30 +419,33 @@ int idCollisionModelManagerLocal::PointContents( const idVec3 p, cmHandle_t mode
 	idPlane *plane;
 
 	node = idCollisionModelManagerLocal::PointNode( p, idCollisionModelManagerLocal::models[model] );
-	for ( bref = node->brushes; bref; bref = bref->next ) {
-		b = bref->b;
-		// test if the point is within the brush bounds
-		for ( i = 0; i < 3; i++ ) {
-			if ( p[i] < b->bounds[0][i] ) {
-				break;
+	// [PS2_D3BFG]: Axial BSP filtering keeps spanning brushes on ancestors, not only the leaf.
+	for ( ; node != NULL; node = node->parent ) {
+		for ( bref = node->brushes; bref; bref = bref->next ) {
+			b = bref->b;
+			// test if the point is within the brush bounds
+			for ( i = 0; i < 3; i++ ) {
+				if ( p[i] < b->bounds[0][i] ) {
+					break;
+				}
+				if ( p[i] > b->bounds[1][i] ) {
+					break;
+				}
 			}
-			if ( p[i] > b->bounds[1][i] ) {
-				break;
+			if ( i < 3 ) {
+				continue;
 			}
-		}
-		if ( i < 3 ) {
-			continue;
-		}
-		// test if the point is inside the brush
-		plane = b->planes;
-		for ( i = 0; i < b->numPlanes; i++, plane++ ) {
-			d = plane->Distance( p );
-			if ( d >= 0.0f ) {
-				break;
+			// test if the point is inside the brush
+			plane = b->planes;
+			for ( i = 0; i < b->numPlanes; i++, plane++ ) {
+				d = plane->Distance( p );
+				if ( d >= 0.0f ) {
+					break;
+				}
 			}
-		}
-		if ( i >= b->numPlanes ) {
-			return b->contents;
+			if ( i >= b->numPlanes ) {
+				return b->contents;
+			}
 		}
 	}
 	return 0;

@@ -68,6 +68,23 @@ def complete():
         (4.595, 40.400, 47.388), (5.108, 30.200, 50.068), (5.448, 20.000, 52.399), (5.615, 10.400, 54.427),
         (5.618, 0.200, 56.191), (5.618, 0.000, 57.727), (5.618, 0.000, 59.062), (5.618, 0.000, 60.224),
     )
+    # Rounded native EE samples for the low step and subsequent high-rise block.
+    step_motion = (
+        (-47.595, 23.800, 61.235), (-47.010, 36.600, 62.114), (-46.156, 50.200, 62.879), (-45.072, 63.800, 63.545),
+        (-43.846, 76.600, 64.124), (-42.313, 90.200, 64.628), (-40.548, 103.800, 65.066), (-38.688, 116.235, 65.448),
+        (-36.509, 128.179, 65.780), (-34.148, 138.905, 66.068), (-31.908, 140.000, 66.319), (-29.528, 140.000, 66.538),
+        (-27.148, 140.000, 66.728), (-24.908, 140.000, 66.893), (-22.528, 140.000, 67.037), (-20.148, 140.000, 67.162),
+        (-17.908, 140.000, 67.271), (-16.251, -0.140, 67.366), (-16.250, -0.024, 67.448), (-16.250, -0.022, 67.520),
+        (-16.250, -0.024, 67.582), (-16.250, -0.024, 67.637), (-16.250, -0.022, 67.684), (-16.250, -0.024, 67.725),
+        (-16.250, -0.024, 67.761), (-16.250, -0.022, 67.792), (-16.250, -0.024, 67.819), (-16.250, -0.024, 67.842),
+        (-16.250, -0.022, 67.863), (-16.250, -0.024, 67.881), (-16.250, -0.024, 67.896), (-16.250, -0.022, 67.910),
+        (-16.250, -0.024, 67.921), (-16.250, -0.024, 67.932), (-16.250, -0.022, 67.941), (-16.250, -0.024, 67.948),
+        (-16.250, -0.024, 67.955), (-16.250, -0.022, 67.961), (-16.250, -0.024, 67.966), (-16.250, -0.024, 67.970),
+        (-16.250, 0.000, 67.974), (-16.250, 0.000, 67.978), (-16.250, 0.000, 67.980), (-16.250, 0.000, 67.983),
+        (-16.250, 0.000, 67.985), (-16.250, 0.000, 67.987), (-16.250, 0.000, 67.989), (-16.250, 0.000, 67.990),
+        (-16.250, 0.000, 67.991), (-16.250, 0.000, 67.993), (-16.250, 0.000, 67.994), (-16.250, 0.000, 67.994),
+        (-16.250, 0.000, 67.995), (-16.250, 0.000, 67.996), (-16.250, 0.000, 67.996), (-16.250, 0.000, 67.997),
+    )
     # Rounded native EE traces: the two jumps start at different 60 Hz millisecond phases.
     jump_z = (
         (2.352, 4.195, 6.010, 7.677, 9.110, 10.490, 11.722, 12.746, 13.690, 14.486,
@@ -179,6 +196,16 @@ def complete():
                     f"headroom={0.15278 if 213 <= frame <= 263 else 1:.5f} script={tick} "
                     f"state={3 if crouched else 1} transitions={7 if frame < 212 else 8 if frame < 265 else 9} "
                     f"native=fixture_player::{state}\n")
+        log += (f"[D3BFG] GAME_STEP_WORLD cycle={cycle} low=0.48438 low_x=-40.250 low_z=12.250 "
+                "high=0.31250 high_x=-16.250 high_z=36.250 limit=16\n")
+        for frame in range(276, 332):
+            x, vx, eye = step_motion[frame - 276]
+            tick = frame - 88
+            log += (f"[D3BFG] GAME_STEP cycle={cycle} frame={frame} buttons=0 cmd={127 if frame <= 315 else 0} "
+                    f"time={frame * 1000 // 60} read={tick - 1} written={tick} pending=0 x={x:.3f} y=-40.000 "
+                    f"z={0.25 if frame < 283 else 12.25:.3f} vx={vx:.3f} vz=0.000 stepped={int(frame == 283)} "
+                    f"step={12 if frame == 283 else 0:.3f} floor=1 forward={int(frame <= 315 and vx > 5)} "
+                    f"health=100 eye={eye:.3f} script={tick} state=1 transitions=9 native=fixture_player::FixtureIdle\n")
     log += "[D3BFG] STAGE game PASS\n[D3BFG] RESULT run1 PASS\n"
     return result, log
 
@@ -246,6 +273,8 @@ class GameRunnerTests(unittest.TestCase):
             log.replace("point=0.49219", "point=1.00000"),
             log.replace("box_z=2.250", "box_z=0.250"),
             log.replace("filtered=0", "filtered=1"),
+            log.replace("inside=1", "inside=0"),
+            log.replace("outside=0", "outside=1"),
             "\n".join(line for line in log.splitlines() if "GAME_PHYSICS cycle=1 frame=3" not in line),
             log.replace("x=8.192", "x=0.000"),
             log.replace("x=21.750", "x=24.000"),
@@ -430,6 +459,44 @@ class GameRunnerTests(unittest.TestCase):
             with self.subTest(case=index):
                 self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
 
+    def test_game_requires_step_rise_high_block_and_stationary_grounded_traces(self):
+        result, log = complete()
+        world = next(line for line in log.splitlines() if "GAME_STEP_WORLD cycle=1" in line)
+        traces = [line for line in log.splitlines() if "GAME_STEP cycle=1" in line]
+        bad_logs = [log.replace(world + "\n", ""), log + world + "\n",
+                    log.replace(traces[0] + "\n", ""), log + traces[0] + "\n",
+                    log.replace(traces[0] + "\n" + traces[1], traces[1] + "\n" + traces[0])]
+        for old, new in (("cycle=1", "cycle=2"), ("low=0.48438", "low=1.00000"), ("low_x=-40.250", "low_x=-24.250"),
+                         ("low_z=12.250", "low_z=16.250"), ("high=0.31250", "high=1.00000"),
+                         ("high_x=-16.250", "high_x=0.250"), ("high_z=36.250", "high_z=24.250"),
+                         ("limit=16", "limit=24")):
+            self.assertIn(old, world)
+            bad_logs.append(log.replace(world, world.replace(old, new)))
+        changes = {
+            276: (("cycle=1", "cycle=2"), ("frame=276", "frame=277"), ("buttons=0", "buttons=32"), ("cmd=127", "cmd=0"),
+                  ("time=4600", "time=4599"), ("read=187", "read=186"), ("written=188", "written=189"),
+                  ("pending=0", "pending=1"), ("x=-47.595", "x=-48.000"), ("y=-40.000", "y=0.000"),
+                  ("z=0.250", "z=12.250"), ("vx=23.800", "vx=0.000"), ("vz=0.000", "vz=1.000"),
+                  ("stepped=0", "stepped=1"), ("step=0.000", "step=-12.000"), ("floor=1", "floor=0"),
+                  ("forward=1", "forward=0"), ("health=100", "health=99"), ("eye=61.235", "eye=68.000"),
+                  ("script=188", "script=187"), ("state=1", "state=2"), ("transitions=9", "transitions=10"),
+                  ("FixtureIdle", "FixtureAir")),
+            283: (("z=12.250", "z=0.250"), ("stepped=1", "stepped=0"), ("step=12.000", "step=-12.000"),
+                  ("vx=116.235", "vx=0.000")),
+            293: (("x=-16.251", "x=0.250"), ("z=12.250", "z=36.250"), ("forward=0", "forward=1")),
+            315: (("cmd=127", "cmd=0"),),
+            316: (("cmd=0", "cmd=127"), ("vx=0.000", "vx=23.800"), ("stepped=0", "stepped=1")),
+            331: (("script=243", "script=242"), ("eye=67.997", "eye=60.224")),
+        }
+        for frame, replacements in changes.items():
+            trace = next(line for line in traces if f"frame={frame} " in line)
+            for old, new in replacements:
+                self.assertIn(old, trace)
+                bad_logs.append(log.replace(trace, trace.replace(old, new)))
+        for index, bad in enumerate(bad_logs):
+            with self.subTest(case=index):
+                self.assertFalse(runner.classify_run("run1", "game", result, bad, None, False)[0])
+
     def test_negative_game_requires_native_init_and_first_fatal_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -444,6 +511,10 @@ class GameRunnerTests(unittest.TestCase):
             self.assertIn('( 0 0 -1 43 )', (directory / "maps/logic.map").read_text())
             runner.stage_game_fixtures(directory, "game")
             self.assertIn('( 0 0 -1 44 )', (directory / "maps/logic.map").read_text())
+            self.assertIn('( 0 0 1 -12 )', (directory / "maps/logic.map").read_text())
+            self.assertIn('( 0 0 1 -36 )', (directory / "maps/logic.map").read_text())
+            runner.stage_game_fixtures(directory, "game-step-geometry")
+            self.assertIn('( 0 0 1 -13 )', (directory / "maps/logic.map").read_text())
         for mode, message in runner.GAME_FAILURES.items():
             begin = "[D3BFG] RUN run1 BEGIN\n[D3BFG] STAGE game BEGIN\n[D3BFG] CHECK game/native-init PASS\n"
             log = begin + f"[D3BFG] FATAL {message}1: invalid input\n"

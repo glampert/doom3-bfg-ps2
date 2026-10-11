@@ -13,11 +13,13 @@
 
 namespace
 {
-// Only these axial boxes reach the native converter: floor, wall, then a low roof.
-static constexpr float kBrushBounds[3][2][3] = {
+// Only these axial boxes reach the native converter: floor, wall, roof and two steps.
+static constexpr float kBrushBounds[5][2][3] = {
     { { -64.0f, -64.0f, -8.0f }, { 64.0f, 64.0f, 0.0f } },
     { { 24.0f, -64.0f, 0.0f }, { 32.0f, 64.0f, 64.0f } },
     { { -24.0f, 24.0f, 44.0f }, { -16.0f, 56.0f, 52.0f } },
+    { { -24.0f, -56.0f, 0.0f }, { 0.0f, -24.0f, 12.0f } },
+    { { 0.0f, -56.0f, 0.0f }, { 8.0f, -24.0f, 36.0f } },
 };
 
 void ValidateBrushes(const idMapEntity & entity)
@@ -25,19 +27,19 @@ void ValidateBrushes(const idMapEntity & entity)
     const int brushCount = ps2::ArrayLength(kBrushBounds);
     if (entity.GetNumPrimitives() != brushCount)
     {
-        ps2::FatalError("headless game fixture requires three six-sided collision brushes");
+        ps2::FatalError("headless game fixture requires five six-sided collision brushes");
     }
     for (int brushIndex = 0; brushIndex < brushCount; ++brushIndex)
     {
         const idMapPrimitive * primitive = entity.GetPrimitive(brushIndex);
         if (primitive->GetType() != idMapPrimitive::TYPE_BRUSH)
         {
-            ps2::FatalError("headless game fixture requires three six-sided collision brushes");
+            ps2::FatalError("headless game fixture requires five six-sided collision brushes");
         }
         const auto * brush = static_cast<const idMapBrush *>(primitive);
         if (brush->GetNumSides() != 6 || brush->epairs.GetNumKeyVals() != 0)
         {
-            ps2::FatalError("headless game fixture requires three six-sided collision brushes");
+            ps2::FatalError("headless game fixture requires five six-sided collision brushes");
         }
         for (int sideIndex = 0; sideIndex < 6; ++sideIndex)
         {

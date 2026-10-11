@@ -22,7 +22,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 54 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 55 runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -47,7 +47,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 86 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 87 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -142,21 +142,21 @@
 
 - `make headless-game` builds `build/<config>/resident/d3bfg.elf`. `make test-game`
   runs `game`, `game-missing-map`, `game-syntax`, `game-geometry`, `game-material`,
-  `game-player-args`, `game-player-script`, `game-player-command`, `game-player-state`
-  and `game-ceiling-geometry`
+  `game-player-args`, `game-player-script`, `game-player-command`, `game-player-state`,
+  `game-ceiling-geometry` and `game-step-geometry`
   sequentially in fresh processes;
   `make BUILD=release test-game` selects assertions-disabled validation. To run one
   scenario directly, pass the resident ELF with `--elf` to `run_pcsx2_test.py`.
   Core scenarios still require the separate core ELF.
 - Game runs stage `game.manifest`, minimal declarations, default script/defines and
-  a worldspawn floor/wall/low-roof map/script and stage-free collision materials under `game-fixture/`. The native filesystem needs
+  a worldspawn floor/wall/low-roof/step map/script and stage-free collision materials under `game-fixture/`. The native filesystem needs
   both `fs_game` and its search-path gamedir set to that root for relative script paths.
   No core filesystem substitute or retail containers are used. Resident report/image/map
   hashes and flags must match before launch; authored file hashes are archived too.
   Generated text/binary collision caches remain in the archive and are hashed in
   `summary.json` after process cleanup.
-- A game pass requires the matching closed JSON, begin/final markers, all forty-three `game/`
-  checks and exactly three cycles of 275 native frames. Each cycle starts with eight
+- A game pass requires the matching closed JSON, begin/final markers, all forty-nine `game/`
+  checks and exactly three cycles of 331 native frames. Each cycle starts with eight
   frame/entity/script, command, lifetime, wall-stop, falling, grounded-sliding and
   player-input/physics traces at native 60 Hz.
   Checks cover native initialization, logic world, ticks/script events, map shutdown,
@@ -199,7 +199,7 @@
   restores standing height on frames 85–88. The completed monster probes are inactive
   during this phase. Missing, duplicated, reordered or incorrect posture traces fail
   despite PASS markers. Standing restoration is tested only with unobstructed headroom;
-  stairs/slopes remain pending; the native player ceiling phase below adds blocked restoration.
+  the native player ceiling and step phases below add blocked restoration and bounded stepping.
   `GAME_NATIVE_PLAYER` covers frames 89–99 with one native player in slot zero. The
   earlier physics probe is inactive, and its command cursors reset before player
   spawn. Forward commands on frames 89–92 accelerate using native walk speed 140;
@@ -231,6 +231,15 @@
   upward sweep fraction 0.15278 on 213–263, then 1.0. The actor has nine state entries
   and 187 ticks by frame 275, while jump/landing counters stay unchanged. Six new
   markers and every numeric trace are required; duplicated/reordered/missing rows fail.
+  `GAME_STEP_WORLD` adds low/high swept-box collision and surface-height traces.
+  `GAME_STEP` adds 56 traces per cycle, frames 276–331. The same player starts at
+  (-48,-40,0.25), climbs the 12-unit platform on frame 283 with signed step height 12,
+  and blocks against a further 24-unit rise on 293. Native step limit stays 16; no
+  jump is injected. Forward stays held through 315, then neutral commands require
+  zero velocity at (-16.25,-40,12.25). Ground/AI/script state stays idle, with 243
+  script ticks and nine state entries by 331. Eye height continues toward 68.
+  Six added markers and every queue/time/position/velocity/step/contact/view/state
+  field are required. Missing, duplicate or reordered rows fail despite PASS markers.
   `core SKIP` means the core test suite was not run, although staged Common foundation
   startup executes.
   The entry's platform marker covers manifest/host I/O, not the SDK-only platform suite.
@@ -240,9 +249,9 @@
   extra player spawn keys before factory construction, missing `AI_ONGROUND` script
   storage during native linkage, attack input before movement/script execution,
   a missing `FixtureAir` function during native actor `setState`, and a changed roof
-  plane before collision loading.
+  plane or step height before collision loading.
   A result file, wrong source, unrelated first fatal, bus/TLB error, watchdog
-  or nonzero emulator status fails. Thirteen host regressions verify these classifications
+  or nonzero emulator status fails. Fourteen host regressions verify these classifications
   and resident archive identity; target debug/release runs are required too.
 - This is bounded logic-map/player acceptance: native entity thinking, script `waitFrame`
   scheduling, monster/player physics, restricted native player ticks with injected commands and map teardown run,

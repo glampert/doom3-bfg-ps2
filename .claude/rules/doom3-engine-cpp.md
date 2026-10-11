@@ -225,7 +225,7 @@ math path; PS2-specific math replacement headers are a later milestone.
   Unlike the isolated compiler probe, game initialization installs the real event and
   class registries (535 event definitions and 160 classes, including the logic and
   player-physics probes).
-- `InitHeadlessFixture` accepts only the bounded worldspawn map with two fixed axial
+- `InitHeadlessFixture` accepts only the bounded worldspawn map with five fixed axial
   collision brushes, validates every plane/material before collision conversion,
   rejects resource/physics keys and runs native `InitScriptForMap`/`SpawnMapEntities`.
   It does not call regular `InitFromNewMap`, whose AAS/PVS/player/resource setup
@@ -278,6 +278,12 @@ math path; PS2-specific math replacement headers are a later milestone.
   A nonempty trace-model volume applies `contentMask`. Use volume queries to test
   contents filtering; retain the upstream distinction instead of assuming identical
   point/volume semantics.
+- More than four brushes triggers native axial BSP construction. `R_FilterBrushIntoTree`
+  keeps brushes spanning all descendants on ancestor nodes; upstream `PointContents`
+  checked only the leaf, missing the floor after the step fixture added its fifth
+  brush. The tagged fix checks leaf-to-root brush lists and preserves native bounds,
+  plane tests and unmasked return semantics. Floor inside/outside and volume-mask
+  checks run on conversion, text-cache and binary-cache reloads.
 - Three reloads exercise brush conversion and `.cm` writing, text `.cm` parsing and
   generated `.bcm` writing, then binary loading. The binary loader used to retain
   serialized visitation/sidedness from another trace epoch: the first point trace
@@ -399,3 +405,9 @@ math path; PS2-specific math replacement headers are a later milestone.
   even with forward held against a collision. Headless checks must distinguish input
   from linked movement conditions. Completed probes still own linked collision bodies
   after Think stops; disable those bodies explicitly when isolating the ceiling lane.
+- The step lane uses a 12-unit platform (-24,-56,0)→(0,-24,12) followed by a high
+  box (0,-56,0)→(8,-24,36): the second rise is 24, above native `pm_stepsize=16`.
+  `HasSteppedUp` includes both PMF_STEPPED_UP and PMF_STEPPED_DOWN. Check signed
+  `GetStepUp` as well as the flag to distinguish climbing from stepping down.
+  This fixture climbs at frame 283 and blocks near x=-16.25 on 293 while grounded;
+  no jump or crouch is needed, and `PM_STEPSCALE=1` preserves horizontal velocity.

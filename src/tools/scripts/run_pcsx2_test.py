@@ -102,6 +102,7 @@ GAME_FAILURES = {
     "game-player-command": "unsupported headless player command or state",
     "game-player-state": "Unknown function 'FixtureAir' in 'fixture_player'",
     "game-ceiling-geometry": "headless game fixture brush planes are unsupported",
+    "game-step-geometry": "headless game fixture brush planes are unsupported",
 }
 REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/native-ticks-script-events",
                                   "game/script-target-command", "game/delayed-events-posted", "game/entity-removal-cancellation",
@@ -122,6 +123,9 @@ REQUIRED_GAME_CHECKS = frozenset({"game/native-init", "game/logic-world", "game/
                                   "game/native-player-headroom-world", "game/native-player-headroom-command-path",
                                   "game/native-player-ceiling-standing-block", "game/native-player-ceiling-crouch-pass",
                                   "game/native-player-ceiling-release-restore", "game/native-player-ceiling-script-view",
+                                  "game/native-player-step-world", "game/native-player-step-command-path",
+                                  "game/native-player-step-rise", "game/native-player-step-high-block",
+                                  "game/native-player-step-state", "game/native-player-step-stop",
                                   "game/map-shutdown", "game/reload-ledger", "game/full-shutdown-ledger"})
 SCENARIOS = ("game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
@@ -432,6 +436,48 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     any(abs(value - target) >= 0.05 for value, target in zip(actual[8:14], (x, 40, 0.25, vx, 38 if crouched else 74, eye)))):
                     return False
             return True
+        step_worlds = [tuple(int(value) if index == 0 else float(value) for index, value in enumerate(match))
+                       for match in re.findall(
+                           r"GAME_STEP_WORLD cycle=(\d+) low=(-?\d+\.\d+) low_x=(-?\d+\.\d+) low_z=(-?\d+\.\d+) "
+                           r"high=(-?\d+\.\d+) high_x=(-?\d+\.\d+) high_z=(-?\d+\.\d+) limit=(-?\d+)(?:\s|$)", log)]
+        def matches_step_worlds(expected: list) -> bool:
+            return len(step_worlds) == len(expected) and all(
+                actual[0] == cycle and all(abs(value - target) < 0.0001 for value, target in
+                                          zip(actual[1:], (7.75 / 16, -40.25, 12.25, 3.75 / 12, -16.25, 36.25, 16)))
+                for actual, cycle in zip(step_worlds, expected))
+        step_fields = ("cycle", "frame", "buttons", "cmd", "time", "read", "written", "pending", "x", "y", "z", "vx", "vz",
+                       "stepped", "step", "floor", "forward", "health", "eye", "script", "state", "transitions", "native")
+        step_pattern = "GAME_STEP " + " ".join(
+            name + "=" + (r"([A-Za-z0-9_:]+)" if index == 22 else r"(-?\d+\.\d+)" if 8 <= index <= 12 or index in (14, 18) else r"(-?\d+)")
+            for index, name in enumerate(step_fields)) + r"(?:\s|$)"
+        steps = [tuple(value if index == 22 else float(value) if 8 <= index <= 12 or index in (14, 18) else int(value)
+                       for index, value in enumerate(match)) for match in re.findall(step_pattern, log)]
+        expected_steps = [(cycle, frame) for cycle in range(3) for frame in range(276, 332)]
+        def matches_steps(expected: list) -> bool:
+            if len(steps) != len(expected):
+                return False
+            x, vx, eye = -48.0, 0.0, 60.224
+            for actual, (cycle, frame) in zip(steps, expected):
+                if frame == 276:
+                    x, vx, eye = -48.0, 0.0, 60.224
+                moving = frame <= 315
+                dt = (frame * 1000 // 60 - (frame - 1) * 1000 // 60) / 1000
+                vx = 0.0 if abs(vx) < 1 else max(0.0, vx - max(100.0, vx) * 6 * dt)
+                if moving:
+                    vx = min(140, vx + 140 * 10 * dt)
+                x += vx * dt
+                if x > -16.25:
+                    x, vx = -16.25, -vx * 0.001
+                eye = eye * 0.87 + 68 * 0.13
+                tick = frame - 88
+                if (actual[:8] != (cycle, frame, 0, 127 if moving else 0, frame * 1000 // 60, tick - 1, tick, 0) or
+                    actual[13] != int(frame == 283) or actual[15:18] != (1, int(moving and vx > 5), 100) or
+                    actual[19:] != (tick, 1, 9, "fixture_player::FixtureIdle") or
+                    abs(actual[14] - (12 if frame == 283 else 0)) >= 0.05 or abs(actual[18] - eye) >= 0.05 or
+                    any(abs(value - target) >= 0.05 for value, target in
+                        zip(actual[8:13], (x, -40, 0.25 if frame < 283 else 12.25, vx, 0)))):
+                    return False
+            return True
         accepted = (not timed_out and not CRASH_RE.search(log) and returncode in (None, 0) and
                     result is not None and result.get("schema") == 1 and result.get("test_id") == test_id and
                     all(result.get(key) == "PASS" for key in ("manifest", "platform", "game")) and
@@ -454,7 +500,9 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     (matches_native_players(expected_native_players) or matches_native_players(expected_native_players + expected_native_players)) and
                     (matches_player_states(expected_player_states) or matches_player_states(expected_player_states + expected_player_states)) and
                     (matches_headroom_worlds([0, 1, 2]) or matches_headroom_worlds([0, 1, 2, 0, 1, 2])) and
-                    (matches_headrooms(expected_headrooms) or matches_headrooms(expected_headrooms + expected_headrooms)))
+                    (matches_headrooms(expected_headrooms) or matches_headrooms(expected_headrooms + expected_headrooms)) and
+                    (matches_step_worlds([0, 1, 2]) or matches_step_worlds([0, 1, 2, 0, 1, 2])) and
+                    (matches_steps(expected_steps) or matches_steps(expected_steps + expected_steps)))
         return accepted, "game completed" if accepted else "incomplete or failed game fixture"
     if scenario in NEGATIVE_PROBES:
         if timed_out:
@@ -677,7 +725,9 @@ def stage_game_fixtures(directory: Path, scenario: str) -> None:
             'Version 2\n{\n"classname" "worldspawn"\n"name" "worldMap"\n' +
             brush(floor, material) + brush(((24, -64, 0), (32, 64, 64)), "textures/fixture/solid") +
             brush(((-24, 24, 43 if scenario == "game-ceiling-geometry" else 44), (-16, 56, 52)),
-                  "textures/fixture/solid") + '}\n')
+                  "textures/fixture/solid") +
+            brush(((-24, -56, 0), (0, -24, 13 if scenario == "game-step-geometry" else 12)), "textures/fixture/solid") +
+            brush(((0, -56, 0), (8, -24, 36)), "textures/fixture/solid") + '}\n')
     (directory / "maps/logic.script").write_text(
         'void main() { fixtureTicks = absent; }\n' if scenario == "game-syntax" else
         'void main() { while (fixtureTicks < 8) { fixtureTicks++; '

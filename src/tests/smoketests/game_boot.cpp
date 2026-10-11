@@ -528,6 +528,115 @@ bool NativePlayerHeadroomTests(idPlayer & player, idUserCmdMgr & commands, int c
     return passed;
 }
 
+bool NativePlayerStepTests(idPlayer & player, idUserCmdMgr & commands, int cycle)
+{
+    PS2_Assert(gameLocal.GetFrameNum() == 275 && !commands.HasUserCmdForPlayer(0));
+    auto & physics = *static_cast<idPhysics_Player *>(player.GetPlayerPhysics());
+    // The earlier lane disabled the completed probe bodies. Reposition this same
+    // player for a 12-unit rise followed by a 24-unit rise, with native step limit 16.
+    const idVec3 start(-48.0f, -40.0f, CM_CLIP_EPSILON);
+    const idBounds standing(idVec3(-16.0f, -16.0f, 0.0f), idVec3(16.0f, 16.0f, 74.0f));
+    trace_t low{}, high{}, lowSurface{}, highSurface{};
+    const bool lowHit = gameLocal.clip.TraceBounds(low, start, idVec3(-32.0f, -40.0f, 0.25f), standing, CONTENTS_SOLID, &player);
+    const bool highHit = gameLocal.clip.TraceBounds(high, idVec3(-20.0f, -40.0f, 12.25f),
+                                                    idVec3(-8.0f, -40.0f, 12.25f), standing, CONTENTS_SOLID, &player);
+    const bool lowTop = gameLocal.clip.TracePoint(lowSurface, idVec3(-20.0f, -40.0f, 40.0f),
+                                                  idVec3(-20.0f, -40.0f, 0.0f), CONTENTS_SOLID, &player);
+    const bool highTop = gameLocal.clip.TracePoint(highSurface, idVec3(4.0f, -40.0f, 40.0f),
+                                                   idVec3(4.0f, -40.0f, 0.0f), CONTENTS_SOLID, &player);
+    bool passed = Check("native-player-step-world", pm_stepsize.GetFloat() == 16.0f && lowHit && highHit && lowTop && highTop &&
+                                                    Near(low.fraction, 7.75f / 16.0f) && Near(low.endpos.x, -40.25f) &&
+                                                    Near(high.fraction, 3.75f / 12.0f) && Near(high.endpos.x, -16.25f) &&
+                                                    Near(lowSurface.endpos.z, 12.25f) && Near(highSurface.endpos.z, 36.25f) &&
+                                                    low.c.entityNum == ENTITYNUM_WORLD && high.c.entityNum == ENTITYNUM_WORLD &&
+                                                    lowSurface.c.entityNum == ENTITYNUM_WORLD && highSurface.c.entityNum == ENTITYNUM_WORLD &&
+                                                    low.c.normal == idVec3(-1.0f, 0.0f, 0.0f) && high.c.normal == low.c.normal &&
+                                                    lowSurface.c.normal == idVec3(0.0f, 0.0f, 1.0f) && highSurface.c.normal == lowSurface.c.normal);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_STEP_WORLD cycle=%d low=%.5f low_x=%.3f low_z=%.3f high=%.5f high_x=%.3f high_z=%.3f limit=%.0f\n",
+             cycle, static_cast<double>(low.fraction), static_cast<double>(low.endpos.x), static_cast<double>(lowSurface.endpos.z),
+             static_cast<double>(high.fraction), static_cast<double>(high.endpos.x), static_cast<double>(highSurface.endpos.z),
+             static_cast<double>(pm_stepsize.GetFloat()));
+    player.SetOrigin(start);
+    physics.SetLinearVelocity(vec3_zero);
+    const idEventDef * getState = idEventDef::FindEvent("getState");
+    const function_t * idle = player.scriptObject.GetFunction("FixtureIdle");
+    if (getState == nullptr || idle == nullptr || !player.RespondsTo(*getState))
+    {
+        ps2::FatalError("native player actor state query is unavailable");
+    }
+    bool queuePassed = true, risePassed = true, blockedPassed = true, statePassed = true, stopPassed = true;
+    int steps = 0;
+    float previousX = start.x, previousZ = start.z, expectedEye = player.EyeHeight();
+    for (int frame = 276; frame <= 331; ++frame)
+    {
+        const bool moving = frame <= 315;
+        usercmd_t input;
+        input.forwardmove = moving ? 127 : 0;
+        input.clientGameMilliseconds = input.serverGameMilliseconds = FRAME_TO_MSEC(frame);
+        commands.PutUserCmdForPlayer(0, input);
+        gameReturn_t result{};
+        ::game->RunFrame(commands, result);
+        const auto & position = physics.GetOrigin();
+        const auto & velocity = physics.GetLinearVelocity();
+        const bool floor = FloorContacts(physics), stepped = physics.HasSteppedUp();
+        const float step = physics.GetStepUp();
+        const int tick = frame - 88;
+        queuePassed = player.usercmd.buttons == 0 && player.usercmd.forwardmove == input.forwardmove &&
+                      player.usercmd.clientGameMilliseconds == FRAME_TO_MSEC(frame) &&
+                      player.usercmd.serverGameMilliseconds == FRAME_TO_MSEC(frame) && player.usercmd.pos == position &&
+                      gameLocal.GetLastClientUsercmdMilliseconds(0) == FRAME_TO_MSEC(frame) &&
+                      commands.readFrame[0] == tick - 1 && commands.writeFrame[0] == tick &&
+                      !commands.HasUserCmdForPlayer(0) && queuePassed;
+        if (stepped)
+        {
+            ++steps;
+        }
+        risePassed = stepped == (frame == 283) && Near(step, frame == 283 ? 12.0f : 0.0f) &&
+                     Near(position.z, frame < 283 ? 0.25f : 12.25f) &&
+                     (frame != 283 || (Near(position.z - previousZ, 12.0f) && position.x > -40.25f && velocity.x > 100.0f)) && risePassed;
+        blockedPassed = position.x >= previousX - 0.01f && position.x <= -16.2f &&
+                        (frame < 294 || (Near(position.x, -16.25f) && idMath::Fabs(velocity.x) < 1.0f)) &&
+                        (frame < 283 || position.z < 16.0f) && blockedPassed;
+        if (!moving)
+        {
+            stopPassed = velocity == vec3_zero && Near(position.x, -16.25f) && Near(position.z, 12.25f) && !stepped && stopPassed;
+        }
+        expectedEye = expectedEye * pm_crouchrate.GetFloat() + pm_normalviewheight.GetFloat() * (1.0f - pm_crouchrate.GetFloat());
+        const bool nativeState = player.ProcessEvent(getState);
+        statePassed = floor && player.AI_ONGROUND && !player.AI_CROUCH && !player.AI_JUMP &&
+                      !player.AI_SOFTLANDING && !player.AI_HARDLANDING && !player.AI_DEAD && !physics.HasJumped() &&
+                      player.AI_FORWARD == (moving && velocity.x > 5.0f) && Near(position.y, start.y) &&
+                      velocity.y == 0.0f && velocity.z == 0.0f && physics.GetBounds()[1].z == 74.0f &&
+                      Near(player.EyeHeight(), expectedEye) && nativeState &&
+                      idStr::Cmp(gameLocal.program.returnStringDef->value.stringPtr, idle->Name()) == 0 &&
+                      ScriptFloat("nativePlayerTicks") == static_cast<float>(tick) && ScriptFloat("nativePlayerState") == 1.0f &&
+                      ScriptFloat("nativePlayerTransitions") == 9.0f && ScriptFloat("nativePlayerConstructs") == 1.0f &&
+                      ScriptFloat("nativePlayerJumpStarts") == 2.0f && ScriptFloat("nativePlayerLandings") == 2.0f &&
+                      ScriptFloat("nativePlayerSoftLandingTicks") == 4.0f && ScriptFloat("fixtureTicks") == 8.0f &&
+                      player.health == 100 && player.inventory.weapons == 0 && player.weapon.GetEntity() == nullptr &&
+                      gameRenderWorld == nullptr && gameSoundWorld == nullptr && gameLocal.GetFrameNum() == frame &&
+                      gameLocal.time == FRAME_TO_MSEC(frame) && result.sessionCommand[0] == '\0' &&
+                      result.vibrationLow == 0 && result.vibrationHigh == 0 && statePassed;
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_STEP cycle=%d frame=%d buttons=%d cmd=%d time=%d read=%d written=%d pending=%d x=%.3f y=%.3f z=%.3f vx=%.3f vz=%.3f stepped=%d step=%.3f floor=%d forward=%d health=%d eye=%.3f script=%.0f state=%.0f transitions=%.0f native=%s\n",
+                 cycle, frame, static_cast<int>(player.usercmd.buttons), static_cast<int>(player.usercmd.forwardmove),
+                 player.usercmd.clientGameMilliseconds, commands.readFrame[0], commands.writeFrame[0],
+                 static_cast<int>(commands.HasUserCmdForPlayer(0)), static_cast<double>(position.x), static_cast<double>(position.y),
+                 static_cast<double>(position.z), static_cast<double>(velocity.x), static_cast<double>(velocity.z),
+                 static_cast<int>(stepped), static_cast<double>(step), static_cast<int>(floor), static_cast<int>(player.AI_FORWARD),
+                 player.health, static_cast<double>(player.EyeHeight()), static_cast<double>(ScriptFloat("nativePlayerTicks")),
+                 static_cast<double>(ScriptFloat("nativePlayerState")), static_cast<double>(ScriptFloat("nativePlayerTransitions")),
+                 gameLocal.program.returnStringDef->value.stringPtr);
+        previousX = position.x;
+        previousZ = position.z;
+    }
+    passed = Check("native-player-step-command-path", queuePassed) && passed;
+    passed = Check("native-player-step-rise", risePassed && steps == 1) && passed;
+    passed = Check("native-player-step-high-block", blockedPassed) && passed;
+    passed = Check("native-player-step-state", statePassed) && passed;
+    passed = Check("native-player-step-stop", stopPassed) && passed;
+    return passed;
+}
+
 bool PlayerPostureTests(PlayerPhysicsProbe & player, idUserCmdMgr & commands, idVarDef * scriptTicks, int cycle)
 {
     // Continue the same native simulation after the initial movement/event checks.
@@ -907,6 +1016,7 @@ bool RunGameTests(const char * mode)
         passed = NativePlayerTests(*commands, cycle, nativePlayer) && passed;
         passed = NativePlayerPostureTests(*nativePlayer.GetEntity(), *commands, cycle) && passed;
         passed = NativePlayerHeadroomTests(*nativePlayer.GetEntity(), *commands, cycle) && passed;
+        passed = NativePlayerStepTests(*nativePlayer.GetEntity(), *commands, cycle) && passed;
         Memory("ticked");
         ::game->MapShutdown();
         passed = Check("map-shutdown", gameLocal.GameState() == GAMESTATE_NOMAP && gameLocal.world == nullptr &&
