@@ -1,0 +1,5 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+// CPU default models need a material, while headless startup needs no image stages.
+_headless_default {}
+_tracemodel { solid }
+itemHighlightShell {}

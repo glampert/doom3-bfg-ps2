@@ -52,7 +52,7 @@ its separate deletion gate. Retail assets do not participate in these build targ
 
 ## Build gates and artifacts
 
-`make` / `make release` link the production Common loop as
+`make` / `make release` link the production native headless console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
 `make headless-core` links asset-free foundation tests into
 `build/<config>/tests/core/d3bfg_tests.elf`; `make platform-probe` selects the separate
@@ -61,6 +61,13 @@ the core stage or the `PLATFORM_TEST_CXX_SRC` skip provider. The platform link h
 Doom core services. The core test initializes retained foundation services and
 does not initialize the campaign game. `CORE_BOOT` controls this selection only in
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
+
+`PS2_CXX_SRC` now owns both production entry and the strict headless lifecycle provider.
+Production links 343 direct objects, retaining all eleven registration roots with no
+test inputs or fixture symbols. Native game initialization, declarations, key/console
+and event services, CPU worlds and silent sound bookkeeping precede the console loop.
+`make headless` stages authored data separately from retail assets; `make test-headless`
+runs production itself. Native `RunFrame` returns at `NOMAP` until map integration exists.
 
 `make compile-core` compiles the scalar idlib subset and the initial command/CVar/file
 foundation. Its upstream list contains 52 idlib units: all 55 from `idlib.vcxproj` except
@@ -251,7 +258,7 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
 all 281 campaign objects, eighteen campaign backend objects, seven shared support
-objects, one production entry, dlmalloc and 34 codec objects: 342 direct inputs, without GC or archives hiding undefined
+objects, two production entry/lifecycle units, dlmalloc and 34 codec objects: 343 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.

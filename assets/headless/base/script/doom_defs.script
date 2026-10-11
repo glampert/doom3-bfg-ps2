@@ -1,0 +1,2 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+// The native compiler includes this before doom_main; no script events are needed in NOMAP.

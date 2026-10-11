@@ -48,6 +48,10 @@ math path; PS2-specific math replacement headers are a later milestone.
 
 ## Campaign portability findings
 
+- `gameReturn_t`'s native constructor leaves `sessionCommand` uninitialized. Native
+  `idGameLocal::RunFrame` returns immediately at `NOMAP` without filling it; production
+  headless frames explicitly clear it before dispatch. The native script compiler also
+  includes `script/doom_defs.script` before `doom_main.script`, even for a minimal program.
 - `Game_local.h` includes `MenuScreen.h`, which previously pulled in `tr_local.h`
   and all its OpenGL state. Display mode declarations belong in public `RenderSystem.h`.
   The campaign target uses the full precompiled header; the reduced core header is
@@ -119,10 +123,11 @@ math path; PS2-specific math replacement headers are a later milestone.
   All portable objects omit the Classic framebuffer/material; the physical Classic tree remains excluded, pending its separate deletion gate.
 - Portable `com_smp` defaults to zero with ROM flags. Init creates no game worker and
   `RunGameAndDraw` calls `Run` synchronously regardless of forced cvar writes. The
-  foundation frame currently pumps commands and offline users only. Static game API
+  foundation test frame pumps commands and offline users only. Static game API
   import uses C linkage and validates `GAME_API_VERSION`/both exported interfaces, but
-  is exercised by native `idGameLocal::Init` in the resident logic fixture. The
-  foundation still does not initialize the game.
+  is exercised by native `idGameLocal::Init` in the resident logic fixture and production
+  headless console. Production adds native declarations, console/key/event services,
+  CPU worlds and game startup after the foundation. Tests keep separate startup ownership.
 - Offline profiles use native engine stats/128 achievement bits with no save processors
   or persistence. Default profile lookup shares the active profile without resetting it.
   Re-registration resets the transient lifetime; storage queries fail,

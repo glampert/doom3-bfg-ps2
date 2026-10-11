@@ -1,8 +1,14 @@
 
 # PS2 backend cvars
 
-No `ps2_*` backend controls are registered yet. The foundation uses Doom's existing
-command and cvar system. The following engine cvars have PS2-specific policies:
+The production headless loop registers the backend control below using Doom's
+native command and cvar system. Test executables do not register production controls.
+
+| Name | Debug default | Release default | Flags | Behavior and registration |
+| --- | --- | --- | --- | --- |
+| `ps2_maxFrames` | `0` | `0` | `CVAR_SYSTEM`, `CVAR_INTEGER` | Live, unarchived completed-frame limit, clamped to 0–1,000,000. Zero runs until quit; a positive value requests shutdown once reached. Registered in `src/ps2/system/headless.cpp`. |
+
+The following engine cvars have PS2-specific policies:
 
 | Name | Debug default | Release default | Flags | Behavior and registration |
 | --- | --- | --- | --- | --- |
@@ -21,6 +27,10 @@ not archived, and forced writes cannot change the portable synchronous dispatch 
 The input preferences retain their native archive flags and add ROM while unavailable;
 rumble changes its native default from one to zero. Forced values may be archived but
 do not enable a service. Other imported engine cvars retain their upstream defaults.
+Production console startup forces `com_allowConsole=1`, `s_noSound=1` and
+`g_xp_bind_run_once=1` before game initialization; these are startup policy overrides,
+not changed declarations/defaults. They open the native console, keep playback inactive
+and avoid executing desktop control bindings. No menu SWF or input device is initialized.
 The test bootstrap may register temporary fixture cvars; those are test inputs rather than user-facing backend controls.
 
 When a cvar is added to `src/ps2/`, record its name, debug and release defaults, flags,

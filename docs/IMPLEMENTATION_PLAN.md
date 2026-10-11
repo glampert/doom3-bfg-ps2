@@ -18,8 +18,9 @@ Scope decisions for this plan:
 
 ## 2. Evidence from this checkout and machine
 
-The initial M0–M2 foundation is implemented. Current acceptance results, memory
-measurements and the remaining game-fixture work are recorded in
+The initial M0–M2 foundation is implemented, with partial M3 authored-map/player
+acceptance and a separate production headless console loop. Current acceptance results,
+memory measurements and remaining campaign integration work are recorded in
 [PORT_STATUS.md](PORT_STATUS.md). The inspection below predates implementation;
 its `neo/` paths now live under `src/neo/`, and the reference Makefile is preserved at
 `docs/reference/quake2.Makefile`.
@@ -231,6 +232,13 @@ Use explicit bootstrap modes rather than dozens of ad hoc null checks:
 4. **Retail map headless boot:** run actual campaign initialization and a selected converted map, including script, collision and AI events, within measured memory limits.
 
 Stage 2 should branch deliberately within the Common startup lifecycle after the required services, with matching partial-shutdown bookkeeping. It must not simply return from the platform entry point before invoking Doom code. Stage 3 must satisfy `program.Startup(SCRIPT_DEFAULT)` and `aas_types`; tiny checked-in fixtures or locally generated test content supply these dependencies. Inventory additional startup declarations as the tests progress.
+
+Production and fixture executables are separate. Production now initializes the native
+game and console with authored `assets/headless/` data and sustains Common/native
+`NOMAP` frames until quit or a frame limit. It has live HostFs console commands and
+ordered shutdown, while menu SWF, campaign map transitions and retail startup resources
+remain pending. Tests continue to load and tick the authored map independently; the
+next production gate connects map ownership and simulation to this Common loop.
 
 For headless stages, exclude the desktop backend and prevent its allocations, not just `r_skipBackEnd`. New `ps2/renderer/null_render.*` and `ps2/audio/sound_backend.*` provide narrowly defined contracts. They may discard output, but material lookup, model bounds/joints, render-world portals/traces, sound duration and trigger timing require meaningful behavior by the game-fixture stage. Unexpected calls fail with the method name instead of silently succeeding.
 

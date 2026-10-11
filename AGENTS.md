@@ -40,10 +40,15 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 
 ## Build and verify
 
-- `make` compiles and links the production Common loop with the real EE compiler.
+- `make` compiles and links the production native headless console with the real EE compiler.
   `make release` selects release; the artifacts are `build/<config>/d3bfg.elf` and
   matching `d3bfg_unstripped.elf`, map and resident `report.{json,txt}`. The verbatim reference Makefile
   is preserved in `docs/reference/quake2.Makefile`.
+- `make headless` packages production with authored data under `build/<config>/headless/`;
+  `make run` / `make run-headless` launch it. The native game stays in `NOMAP` while Common
+  pumps console commands and native frames. `console.txt` accepts append-only lines via
+  HostFs; `ps2_maxFrames=0` runs until quit. `make test-headless` checks 120 frames,
+  live command input and full shutdown without linking fixtures into production.
 - `make compile-core` checks the explicit scalar idlib/framework source set.
   `make headless-core` links staged foundation startup/tests as
   `build/<config>/tests/core/d3bfg_tests.elf`; production links no test code.

@@ -2125,3 +2125,76 @@ The debug compiler probe's positive case also passes:
 The broader Common/player negative matrices and full host suite were not rerun
 for this define/source-selection change. The next production integration work
 remains native headless map startup and game ticks in the Common loop.
+
+## Production native headless console startup
+
+The production executable now continues past foundation startup into native
+declarations, key/console/event services, static game API import and actual
+`idGameLocal::Init`. It allocates CPU render-world and silent sound-world ownership
+without a graphics/audio device, opens the retained native console and stays in
+`GAMESTATE_NOMAP`. Common polls console input, runs native events/commands and offline
+services, then calls native `RunFrame` synchronously with approximately 60 Hz pacing.
+The native NOMAP return does not advance map frames. Menu SWF and campaign map/player
+startup remain separate integration gates.
+
+`make headless` stages a runnable production package at `build/<config>/headless/`,
+using small authored scripts, `aas_types` and stage-free materials from
+`assets/headless/`. It preserves packaged port settings and does not alter local
+retail assets. `make run` / `make run-headless` launch it. Append complete command lines
+to the package's `console.txt`; the backend delivers native `SE_CONSOLE` events,
+echoes commands and retains native in-memory history. `quit` / `exit` finish the
+current Common frame, then release game/world/console services before foundation
+shutdown. `ps2_maxFrames` defaults to zero for continuous operation; a positive limit
+requests the same ordered shutdown. `ps2_status` reports completed frames and state.
+
+Input polling is bounded to 1 KiB per 100 ms, with 1,023-byte command lines. Partial
+lines wait for newline; oversized lines and embedded control characters are rejected
+as whole lines. Native command-buffer `wait` executes once per Common frame. Native
+history is freed before idlib teardown. The NOMAP path exposed `gameReturn_t`'s
+uninitialized session-command array; the backend clears it before dispatch rather
+than treating untouched output as a transition request.
+
+### Acceptance (2026-10-11 UTC)
+
+- Debug/release production and core/campaign tests compile and link with the real EE
+  compiler and strict backend warnings. Production retains 343 direct inputs, eleven
+  registration roots and no test inputs or fixture symbols; campaign tests retain 345.
+- Both production configurations pass a 120-frame limit and a continuous console run
+  stopped by live `quit` after 152 debug / 153 release frames. Native console/NOMAP,
+  disabled output devices, partial-line waiting, invalid-line rejection, command history,
+  reverse shutdown and emulator exit status zero are required.
+- Existing core, authored native map and bounded native-player smoke runs pass in both
+  configurations. No new gameplay fixtures are linked into production or tests.
+- All 99 host regressions pass, including seven new production-run classification checks
+  for stale identities, incorrect state/counts, crashes, missing cleanup, leaked allocations,
+  invalid-input acceptance and mirrored log streams. The compile database has 367 entries;
+  the 458-unit native source inventory is unchanged. Broader Common/failure matrices were
+  not rerun for this production-only integration.
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Fixed production `PT_LOAD` | 10,863,078 bytes | 11,282,726 bytes |
+| Ready tagged requested / backing / count | 1,845,319 / 1,942,752 / 2,384 | Same |
+| Live-console peak requested / backing | 1,845,560 / 1,943,152 | Same |
+| Arena peak commitment | 1,957,402 bytes | 1,959,642 bytes |
+| Pre-init and full-shutdown requested / backing / count | 7,424 / 7,600 / 4 | Same |
+
+Tagged backing is already inside the arena; do not add it twice. These measurements
+exclude kernel reservation and stacks, and do not establish a campaign map budget.
+
+| Production check | Debug archive | Release archive |
+| --- | --- | --- |
+| 120 frames | `20261011T125720Z_headless_adc21fbe417d` | `20261011T125733Z_headless_cfda241e40dc` |
+| Live console / quit | `20261011T125724Z_headless_6a7d97b2ff52` | `20261011T125737Z_headless_6bbb3cb1c411` |
+
+Core/map/player regression archives, respectively: debug
+`20261011T125818Z_smoke_10403214d980462e`,
+`20261011T125820Z_smoke_c0287bba6a864c9e`,
+`20261011T125823Z_smoke_6cf23bd378f74e27`; release
+`20261011T125828Z_smoke_893045d2ec674dae`,
+`20261011T125830Z_smoke_e8d7f16e06c34f3f`,
+`20261011T125833Z_smoke_b66eae4cc6b14fdf`.
+
+Next connect native map loading, game time and simulation to this production Common
+loop, preserving the existing authored map regression. Menu assets, full player startup,
+animated AI and retail resource residency remain pending.

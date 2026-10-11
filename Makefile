@@ -195,7 +195,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release platform-probe headless-core compile-core compile-game headless-game test-map test-game link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless platform-probe headless-core compile-core compile-game headless-game test-map test-game link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
 
 all: link-game
 release: all
@@ -392,8 +392,15 @@ test-script: script-probe
 tools: inventory
 	@echo "Build metadata and source audit tools are Python scripts under $(SCRIPTS)/."
 
-run: all
-	$(PCSX2) -batch -elf $(abspath $(GAME_ELF))
+headless: all
+	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)
+
+run: run-headless
+run-headless: headless
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/headless/d3bfg.elf
+
+test-headless: all
+	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2)
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core

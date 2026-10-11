@@ -993,7 +993,7 @@ idCommonLocal::Init
 =================
 */
 void idCommonLocal::Init( int argc, const char * const * argv, const char *cmdline ) {
-	// [PS2_D3BFG]: Stop deliberately after core/offline services; presentation and game boot are later stages.
+	// [PS2_D3BFG]: Tests stop at foundation services; production continues to the headless console.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 	if ( argc != 0 || ( cmdline != NULL && cmdline[0] != '\0' ) ) {
 		ps2::FatalError( "argument-driven Common startup is not implemented" );
@@ -1008,6 +1008,10 @@ void idCommonLocal::Init( int argc, const char * const * argv, const char *cmdli
 			ps2::FatalError( "Common service initialization failed" );
 		}
 	}
+	// [PS2_D3BFG]: Native game/console startup belongs only to the production executable.
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+	if ( com_fullyInitialized ) { InitHeadless(); }
+#endif
 	return;
 #else
 	try {
@@ -1305,6 +1309,10 @@ void idCommonLocal::Shutdown() {
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 	if ( com_shuttingDown ) { return; }
 	com_shuttingDown = true;
+	// [PS2_D3BFG]: Release game/console ownership while foundation services are still alive.
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+	ShutdownHeadless();
+#endif
 	// [PS2_D3BFG]: Release retained diagnostics before lifecycle shutdown tears down idlib.
 	warningList.Clear();
 	warningCaption.Clear();
@@ -1575,6 +1583,10 @@ idCommonLocal::ProcessEvent
 ===============
 */
 bool idCommonLocal::ProcessEvent( const sysEvent_t *event ) {
+	// [PS2_D3BFG]: Headless console input must not enter deferred menus or dialogs.
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+	return console->ProcessEvent( event, false );
+#endif
 	// hitting escape anywhere brings up the menu
 	if ( game && game->IsInGame() ) {
 		if ( event->evType == SE_KEY && event->evValue2 == 1 && ( event->evValue == K_ESCAPE || event->evValue == K_JOY9 ) ) {

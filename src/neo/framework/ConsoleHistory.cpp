@@ -164,6 +164,10 @@ idConsoleHistory::ClearHistory
 ========================
 */
 void idConsoleHistory::ClearHistory() {
+	// [PS2_D3BFG]: Headless console shutdown releases history before idlib teardown.
+#if defined( ID_PS2 )
+	for ( int i = 0; i < COMMAND_HISTORY; ++i ) { historyLines[i].Clear(); }
+#endif
 	upPoint = 0;
 	downPoint = 0;
 	returnLine = 0;

@@ -445,6 +445,12 @@ private:
 #endif
 
 private:
+	// [PS2_D3BFG]: Production owns native headless services separately from test startup.
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+	void	InitHeadless();
+	void	FrameHeadless();
+	void	ShutdownHeadless();
+#endif
 	void	InitCommands();
 	void	InitSIMD();
 	void	AddStartupCommands();

@@ -1,0 +1,3 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+// Native game initialization compiles this program; no map has been started yet.
+void doom_main() {}

@@ -9,4 +9,5 @@
 namespace ps2::runtime
 {
 void RequestQuit();
+bool IsQuitRequested();
 } // namespace ps2::runtime

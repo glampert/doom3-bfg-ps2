@@ -1,7 +1,8 @@
 # Doom 3 BFG Edition for the PlayStation 2
 
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
-using the free ps2dev SDK. The production executable runs a paced Common service loop.
+using the free ps2dev SDK. The production executable boots the native game into a
+headless console and runs a paced Common/game loop until `quit` or a frame limit.
 Separate native test executables exercise a scalar EE core and an authored headless
 game fixture that runs native initialization, entity thinking, script events, bounded collision/physics
 and a restricted native `idPlayer`. An authored map also boots through native `InitFromNewMap`
@@ -25,6 +26,10 @@ Quake II reference is retained in `docs/reference/quake2.Makefile`.
 ```sh
 make                         # production d3bfg.elf, debug
 make release                 # production d3bfg.elf, release
+make headless                # package production with authored console boot data
+make run-headless            # run the console package in PCSX2, until quit
+make test-headless           # 120 frames, live console commands and shutdown in PCSX2
+make BUILD=release test-headless # same production checks without assertions
 make platform-probe          # SDK/timer/alignment probe
 make headless-core           # scalar Doom foundation and integration tests
 make compile-core            # 52 scalar idlib units and 10 framework/session support units
@@ -46,13 +51,34 @@ make compiledb               # compile_commands.json from real Make rules
 Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,
 `d3bfg.map` and `report.{json,txt}`. This executable links the full retained campaign
 without sources or headers under `src/tests/`, fixture symbols or linker GC. Its
-`main()` preserves the loader's IOP, initializes Common, pumps commands/offline
-services with approximately 60 Hz idle pacing, and shuts down after a quit request.
-Native campaign map transitions and `RunFrame`, physical input and presentation are
-still pending. Startup uses the native filesystem and requires `base/default.cfg`
-under the loader's HostFs root. It optionally executes `base/d3bfg.cfg`; `quit` and
-`exit` request shutdown after the current frame. Desktop `default.cfg` is checked
-for existence but is not executed by this bootstrap. `make run` launches production.
+`main()` preserves the loader's IOP and initializes Common, native declarations,
+key/console events, the static game API and `idGameLocal::Init`, plus CPU render-world
+and silent sound bookkeeping. Common processes console events, commands, offline
+services and native `RunFrame` on the calling thread with approximately 60 Hz idle
+pacing. The game remains in `NOMAP`, whose native frame returns without advancing map
+simulation. Main-menu SWF, map transitions, physical input and presentation remain
+pending. Startup checks `base/default.cfg` for existence and optionally executes
+`base/d3bfg.cfg`; desktop bindings are not executed. `quit` / `exit` request ordered
+game/world/console shutdown followed by Common shutdown at the frame boundary.
+
+`make headless` packages the production ELF and small authored boot data from
+`assets/headless/` under `build/<config>/headless/`. It preserves an existing packaged
+`base/d3bfg.cfg` and leaves local `base/` assets alone. `make run` / `make run-headless`
+launch this package. The native console is active with stdout output and no drawing.
+Append newline-terminated commands to its `console.txt` from another terminal:
+
+```sh
+printf 'ps2_status\nhistory\n' >> build/debug/headless/console.txt
+printf 'quit\n' >> build/debug/headless/console.txt
+```
+
+Input is read from the beginning on each boot; clear old commands before restarting.
+The backend polls at 100 ms intervals, reads at most 1 KiB per poll, and submits complete
+lines through native `SE_CONSOLE` events. Lines of at most 1,023 bytes are accepted;
+oversized lines and embedded control characters are discarded through the newline.
+History stays in memory. Set `ps2_maxFrames 120` in the packaged `base/d3bfg.cfg` for a
+bounded run; its default `0` keeps running until a quit command. `ps2_status` reports
+completed frames, native `NOMAP`/console state and the tagged heap ledger.
 
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 `d3bfg_tests.map`. `make headless-core` writes `build/<config>/tests/core/`,
@@ -84,7 +110,7 @@ M2b compile/link acceptance is complete: campaign headers separate OpenGL state 
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
 All 281 retained campaign units now compile in both configurations. The four logical-
 sound units use a portable sample/voice/device boundary without DirectX SDK headers;
-the default executable runs the production Common loop. Six native profile, user and
+the default executable runs the production headless game/console loop. Six native profile, user and
 snapshot/compression support units have been retained for the real Common layout and
 offline services. Campaign achievements are retained too; their Classic evaluation
 entry is explicitly unavailable.
@@ -102,14 +128,14 @@ and EE tests. JPEG and zlib live under `src/external/`, with explicit decompress
 source lists, original notices and tagged heap hooks.
 Filesystem/ZIP/key units now compile with bounded device paths, stdio handles, an explicit
 ZIP timestamp policy and the engine's fixed key-label table. Shared directory and file services are
-tested on the EE; ZIP codec linking passes, while full campaign filesystem startup and
-actual archive/game-resource use remain pending.
+tested on the EE; native loose-file startup and ZIP codec linking pass, while retail
+archive/game-resource use remains pending.
 Retained menu, GUI-variable, file and model casts use checked portable hierarchy queries.
 Shared host/EE tests cover null/sibling rejection, inherited/const types and separate-unit
 identity; actual file objects and engine hierarchy declarations are checked on the EE.
 
 `make link-game` performs the production whole-object campaign link under
-`build/<config>/`, with strict support objects and the native filesystem. All 342 inputs
+`build/<config>/`, with strict support objects and the native filesystem. All 343 inputs
 must link without unresolved symbols or duplicate definitions. JSON/text reports
 retain object/source hashes, flags and the real linker status, verify registration
 roots and every map input, and reject test sources, transitive test headers and

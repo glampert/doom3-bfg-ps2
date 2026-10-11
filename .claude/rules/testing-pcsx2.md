@@ -2,6 +2,14 @@
 
 ## Doom foundation procedures
 
+- `make test-headless` / `make BUILD=release test-headless` exercise the production ELF
+  with authored `assets/headless/` data. One run completes exactly 120 frames; another
+  continues past 120 until live HostFs commands request quit. Require active native
+  console/NOMAP state, command history, rejection of partial/oversized/control-character
+  input and exact startup ledger recovery after ordered shutdown. Archives include
+  production link evidence, matched images, config/input hashes and both PCSX2 streams.
+  PCSX2 mirrors IOP lines into stdout and emulog; count native markers from one stream
+  while checking both for crashes. Seven host regressions reject false acceptance.
 - `make` / `make release` build production, without smoke fixtures. Build tests
   explicitly with `make platform-probe`, `make headless-core` or `make headless-game`.
   All native test variants are named `d3bfg_tests.elf` under `build/<config>/tests/`.

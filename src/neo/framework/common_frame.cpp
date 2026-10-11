@@ -308,6 +308,11 @@ This is an out-of-sequence screen update, not the normal game rendering
 ===============
 */
 void idCommonLocal::UpdateScreen( bool captureToImage ) {
+	// [PS2_D3BFG]: Console submission needs no draw; captures still require presentation.
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+	if ( captureToImage ) { FatalError( "headless console cannot capture a screen" ); }
+	return;
+#endif
 	if ( insideUpdateScreen ) {
 		return;
 	}
@@ -380,9 +385,13 @@ idCommonLocal::Frame
 =================
 */
 void idCommonLocal::Frame() {
-	// [PS2_D3BFG]: The current capability boundary pumps only foundation services.
+	// [PS2_D3BFG]: Production pumps native headless services; tests retain foundation frames.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+	FrameHeadless();
+#else
 	ps2::lifecycle::Frame();
+#endif
 	return;
 #endif
 	// [PS2_D3BFG]: Portable failures are explicit/fatal; normal-return block scope remains intact.

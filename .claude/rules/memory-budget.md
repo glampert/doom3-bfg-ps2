@@ -7,6 +7,14 @@ accounting using Doom tags. Unsized free uses the allocation's metadata, and con
 before `main` are included. The complete validation table is in
 [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
+The separate production console boot measured on 2026-10-11 UTC retains 10,863,078 /
+11,282,726 fixed `PT_LOAD` bytes (debug/release). Native game/console startup requests
+1,845,319 bytes, with 1,942,752 backing in 2,384 allocations. Live console input peaks
+at 1,845,560 / 1,943,152 requested/backing bytes; arena peak commitment is 1,957,402 /
+1,959,642 bytes. Both 120-frame and live-quit runs recover exactly 7,424 / 7,600 bytes
+in four process-lifetime allocations. Tagged backing is inside the arena. NOMAP console
+residency excludes loaded maps, retail assets, rendering/output devices, kernel and stacks.
+
 After the M3 collision slice on 2026-10-10, debug/release fixed core ELF residency is
 1,881,520 / 1,954,864 bytes, including 459,824 bytes of BSS. Core initialization
 requests 31,425 bytes (42,704 backing). The codec/compression synthetic peak is
