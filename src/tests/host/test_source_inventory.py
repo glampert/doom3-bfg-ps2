@@ -44,6 +44,15 @@ class SourceInventoryTests(unittest.TestCase):
             self.assertTrue(any("excluded/replaced source" in error for error in errors), errors)
             self.assertTrue(any("reviewed runtime disposition" in error for error in errors), errors)
 
+    def test_production_list_rejects_test_sources(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = self.fixture(Path(temp))
+            manifest = root / "config/sources.mk"
+            manifest.write_text(manifest.read_text().replace("PS2_CXX_SRC = ps2/system/main.cpp",
+                "PS2_CXX_SRC = ps2/system/main.cpp tests/smoketests/game_main.cpp"))
+            _, errors = audit_sources.audit(root)
+            self.assertTrue(any("test source in production" in error for error in errors), errors)
+
     def test_lost_relocation_is_detected(self):
         with tempfile.TemporaryDirectory() as temp:
             root = self.fixture(Path(temp))

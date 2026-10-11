@@ -2,10 +2,11 @@
 
 ## Doom foundation procedures
 
-- Build the current milestone with `make`, or select `make platform-probe` /
-  `make headless-core` explicitly. `make release` chooses the release configuration.
+- `make` / `make release` build production, without smoke fixtures. Build tests
+  explicitly with `make platform-probe`, `make headless-core` or `make headless-game`.
+  All native test variants are named `d3bfg_tests.elf` under `build/<config>/tests/`.
   Match `--elf` and `--symbols` when passing a nondefault configuration to the runner.
-- `python3 src/tools/scripts/run_pcsx2_test.py --scenario platform` stages an isolated
+- `make smoke-platform` stages an isolated
   manifest, ELF/symbols, logs and result under `build/test-results/<UTC-run-id>/`.
   Use `--scenario core` for the foundation bootstrap and `core-missing-fixture` for
   its negative fixture test. Build the matching ELF before each scenario.
@@ -47,7 +48,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 88 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 92 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -132,15 +133,15 @@
   with the expected fatal on the EE. Host sanitizer checks also verify full decoder/output
   cleanup before fatal. Codec memory uses the same heap through native JPG/ZIP tags.
 
-- `make link-game` passes the retained compile/link gate in debug/release: all 345 inputs,
+- `make link-game` passes the retained compile/link gate in debug/release: all 342 production inputs,
   every required game/class/cvar registration root and map input are retained without
-  unresolved symbols, duplicates, Classic imports or GC. Its resident entry requires
+  unresolved symbols, duplicates, Classic imports or GC. The campaign test entry separately requires
   an explicit authored fixture manifest. Do not reuse an older resident ELF after a failed attempt.
-  The default runnable ELF remains the validated core/codec/audio fixture.
-  Six host regressions reject stale images, nonzero links, missing registrations/map
+  The default runnable ELF is the production Common loop; the runner uses only test images.
+  Nine host regressions reject test inputs/headers/symbols, stale images, nonzero links, missing registrations/map
   inputs, non-executables and ignored undefined diagnostics.
 
-- `make headless-game` builds `build/<config>/resident/d3bfg.elf`. `make test-game`
+- `make headless-game` builds `build/<config>/tests/game/d3bfg_tests.elf`. `make test-game`
   runs `game`, `game-missing-map`, `game-syntax`, `game-geometry`, `game-material`,
   `game-player-args`, `game-player-script`, `game-player-command`, `game-player-state`,
   `game-ceiling-geometry` and `game-step-geometry`

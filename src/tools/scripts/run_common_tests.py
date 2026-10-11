@@ -17,7 +17,7 @@ from run_pcsx2_test import DEFAULT_CONFIG, DEFAULT_EMULATOR, LIFECYCLE_STAGES, N
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--elf", type=Path, default=REPO_ROOT / "build/debug/d3bfg.elf")
+    parser.add_argument("--elf", type=Path, default=REPO_ROOT / "build/debug/tests/core/d3bfg_tests.elf")
     parser.add_argument("--emulator", type=Path, default=DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--output", type=Path, default=REPO_ROOT / "build/test-results")

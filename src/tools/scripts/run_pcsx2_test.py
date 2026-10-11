@@ -648,19 +648,20 @@ def archive_build_artifacts(elf: Path, staged_elf: Path, staged_symbols: Path, o
     report = json.loads(report_path.read_text(encoding="utf-8"))
     if report.get("elf_sha256") != sha256(staged_symbols) or report.get("runnable_elf_sha256") != sha256(staged_elf):
         raise ValueError("build report does not match the staged ELF and symbols; rebuild before running")
-    artifacts = {"build-report.json": None, "build-report.txt": None,
-                 "d3bfg.map": report.get("link_map_sha256"),
-                 ".source-identity.json": report.get("source_identity_sha256")}
+    artifacts = {"build-report.json": (report_path, None), "build-report.txt": (source / "build-report.txt", None),
+                 "d3bfg_tests.map": (source / "d3bfg_tests.map", report.get("link_map_sha256")),
+                 ".source-identity.json": (source / ".source-identity.json", report.get("source_identity_sha256"))}
     for flag_path, expected in report["flag_stamps"].items():
         name = Path(flag_path).name
-        if json.loads((source / name).read_text(encoding="utf-8")) != expected:
+        stamp = Path(flag_path) if Path(flag_path).is_absolute() else REPO_ROOT / flag_path
+        if json.loads(stamp.read_text(encoding="utf-8")) != expected:
             raise ValueError(f"build flag stamp does not match the ELF report: {name}")
-        artifacts[name] = sha256(source / name)
+        artifacts[name] = (stamp, sha256(stamp))
     hashes = {}
-    for name, expected_hash in artifacts.items():
-        shutil.copy2(source / name, output / name)
+    for name, (path, expected_hash) in artifacts.items():
+        shutil.copy2(path, output / name)
         actual_hash = sha256(output / name)
-        if name in ("d3bfg.map", ".source-identity.json") and expected_hash is None:
+        if name in ("d3bfg_tests.map", ".source-identity.json") and expected_hash is None:
             raise ValueError(f"build report lacks the artifact identity: {name}")
         if expected_hash is not None and expected_hash != actual_hash:
             raise ValueError(f"build artifact does not match the ELF report: {name}")
@@ -677,10 +678,10 @@ def archive_resident_artifacts(elf: Path, staged_elf: Path, symbols: Path, outpu
             report.get("duplicate_definitions") != [] or report.get("missing_map_objects") != [] or
             report.get("elf_sha256") != sha256(symbols) or
             report.get("runnable_elf_sha256") != sha256(staged_elf) or
-            report.get("link_map_sha256") != sha256(source / "d3bfg.map")):
+            report.get("link_map_sha256") != sha256(source / "d3bfg_tests.map")):
         raise ValueError("resident report does not match the staged game images and map")
     hashes = {}
-    for name in ("report.json", "report.txt", "d3bfg.map", "objects.rsp"):
+    for name in ("report.json", "report.txt", "d3bfg_tests.map", "objects.rsp"):
         shutil.copy2(source / name, output / name)
         hashes[name] = sha256(output / name)
     for path, expected in report["flag_stamps"].items():
@@ -792,7 +793,7 @@ def stage_audio_fixtures(directory: Path) -> None:
 def run(args: argparse.Namespace) -> tuple[bool, Path]:
     emulator = args.emulator.resolve()
     elf = args.elf.resolve()
-    symbols = args.symbols.resolve() if args.symbols else elf.with_name("d3bfg_unstripped.elf")
+    symbols = args.symbols.resolve() if args.symbols else elf.with_name("d3bfg_tests_unstripped.elf")
     if not emulator.is_file() or not os.access(emulator, os.X_OK):
         raise ValueError(f"emulator is not executable: {emulator}")
     if not elf.is_file() or not symbols.is_file():
@@ -806,13 +807,13 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_" + test_id
     output = args.output.resolve() / run_id
     output.mkdir(parents=True, exist_ok=False)
-    staged_elf = output / "d3bfg.elf"
+    staged_elf = output / "d3bfg_tests.elf"
     shutil.copy2(elf, staged_elf)
-    shutil.copy2(symbols, output / "d3bfg_unstripped.elf")
+    shutil.copy2(symbols, output / "d3bfg_tests_unstripped.elf")
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
     game_scenario = args.scenario in ("game", "game-map") or args.scenario in GAME_FAILURES
     archive = archive_resident_artifacts if game_scenario else archive_build_artifacts
-    build_artifacts = archive(elf, staged_elf, output / "d3bfg_unstripped.elf", output)
+    build_artifacts = archive(elf, staged_elf, output / "d3bfg_tests_unstripped.elf", output)
     if game_scenario:
         stage_game_fixtures(output / "game-fixture", args.scenario)
         (output / "game.manifest").write_text(f"D3BFG_GAME_1\n{test_id}\n{args.scenario}\n")
@@ -841,7 +842,7 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
     metadata = {
         "schema": 1, "test_id": test_id, "scenario": args.scenario,
         "started_utc": datetime.now(timezone.utc).isoformat(), "timeout_seconds": args.timeout,
-        "elf_sha256": sha256(staged_elf), "symbols_sha256": sha256(output / "d3bfg_unstripped.elf"),
+        "elf_sha256": sha256(staged_elf), "symbols_sha256": sha256(output / "d3bfg_tests_unstripped.elf"),
         "manifest_sha256": sha256(output / "smoke.manifest"),
         "fixture_path": fixture_path,
         "fixture_sha256": sha256(fixture) if fixture.exists() else None,
@@ -910,7 +911,7 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--elf", type=Path, default=REPO_ROOT / "build/debug/d3bfg.elf")
+    parser.add_argument("--elf", type=Path, default=REPO_ROOT / "build/debug/tests/core/d3bfg_tests.elf")
     parser.add_argument("--symbols", type=Path, help="matching unstripped ELF (default: next to --elf)")
     parser.add_argument("--emulator", type=Path, default=DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG,

@@ -52,10 +52,12 @@ its separate deletion gate. Retail assets do not participate in these build targ
 
 ## Build gates and artifacts
 
-`make` / `make release` link the asset-free **headless core** into
-`build/<config>/d3bfg.elf`. `make platform-probe` selects the separate SDK-only probe.
-The program and build report identify the milestone explicitly. The core initializes
-Doom's retained foundation services; it does not initialize the campaign game.
+`make` / `make release` link the production Common loop as
+`build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
+`make headless-core` links asset-free foundation tests into
+`build/<config>/tests/core/d3bfg_tests.elf`; `make platform-probe` selects the separate
+SDK-only test variant. The core test initializes retained foundation services and
+does not initialize the campaign game.
 
 `make compile-core` compiles the scalar idlib subset and the initial command/CVar/file
 foundation. Its upstream list contains 52 idlib units: all 55 from `idlib.vcxproj` except
@@ -81,11 +83,11 @@ campaign header boundary. Both configurations pass. It does not select the reduc
 core precompiled header or establish a resident game link; replacement services and
 registrations still need that separate gate.
 
-Each successful ELF link writes:
+Each successful core/platform/script test link writes:
 
-- `d3bfg_unstripped.elf`, the matching symbols for crash analysis;
-- `d3bfg.elf`, stripped by default (`STRIP_ELF=0` copies the unstripped artifact);
-- `d3bfg.map`, a linker map without garbage collection;
+- `d3bfg_tests_unstripped.elf`, the matching symbols for crash analysis;
+- `d3bfg_tests.elf`, stripped by default (`STRIP_ELF=0` copies the unstripped artifact);
+- `d3bfg_tests.map`, a linker map without garbage collection;
 - `build-report.json` and `build-report.txt`, compiler version, source/config identity,
   source hashes, ELF hash, ELF load-segment memory total, section sizes and largest symbols.
 
@@ -103,8 +105,8 @@ EE software-double helpers. Explicit upstream object groups suppress the observe
 Format, array-bound, uninitialized-value and nonvirtual-destructor diagnostics remain
 visible. The checked backend bridge treats upstream `neo` contracts as system headers;
 new backend/test headers remain checked. SDK and dlmalloc headers are system headers.
-No project-wide `-w`, VU dependency or retail-data
-dependency is introduced by this foundation.
+No project-wide `-w` or VU dependency is introduced. Core/platform tests are asset-free;
+production native filesystem startup requires `base/default.cfg` in HostFs.
 
 Compiler/flag/source-list stamps rebuild affected object groups when configuration
 changes; changing flags no longer requires manually deleting the object tree. Header
@@ -245,21 +247,24 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 ## Resident campaign link gate
 
 `make link-game` / `make BUILD=release link-game` attempt the actual EE link with
-all 281 campaign objects, nineteen campaign backend objects, ten strict resident support
-objects, dlmalloc and 34 codec objects: 345 direct inputs, without GC or archives hiding undefined
+all 281 campaign objects, eighteen campaign backend objects, seven shared support
+objects, one production entry, dlmalloc and 34 codec objects: 342 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
 
 `link_resident.py` records the compiler/link command, flags, source/dependency/object
 hashes, actual linker status, unique demangled symbols and requesting objects in
-`build/<config>/resident/report.{json,txt}`, beside the raw log, response file and map.
+`build/<config>/report.{json,txt}`, beside the raw log, response file and map.
 The current gate passes in both configurations without unresolved symbols or duplicate
 definitions; each emits matched stripped/unstripped resident ELFs. Compiler nonzero exits stay failures even without a recognized diagnostic.
 Successful links also require a MIPS executable/load segment, every input in the map,
 static game interfaces, three native class registration roots and the static CVar
-registry. Stale ELF/report files are cleared before attempts. The resident entry now
-boots an explicitly selected authored logic fixture; the runtime gate is `make test-game`.
+registry. Stale ELF/report files are cleared before attempts. The production entry now pumps Common frames and shuts down at a quit boundary.
+`make headless-game` separately links 345 inputs under `build/<config>/tests/game/`,
+including four test entries/adapters, with `PS2_D3BFG_TESTS=1` in isolated object trees.
+Production uses `0`; its gate rejects test sources, transitive headers and fixture
+symbols. Test runtime gates remain `make test-game` and `make test-map`.
 
 Native `d3xp/Achievements.cpp` moves from deferred to campaign runtime. Its campaign
 logic and cvars remain intact; portable builds gate the Classic header and terminate
@@ -390,7 +395,7 @@ and 13 smoke units. The first M3 PCM slice recorded 359 entries and 24 foundatio
 units. The voice slice added shared timeline and smoke units: 361 entries,
 25 foundation backend units and 14 core smoke units. The initial game fixture adds
 two resident-only units, bringing the compile database to 363 entries. `compile-game`
-also builds the 34 audited codec units. The default ELF runs core/codec/audio fixtures;
+also builds the 34 audited codec units. The core test ELF runs core/codec/audio fixtures;
 the separate resident ELF runs the authored game fixture.
 
 ## Initial headless game fixture
@@ -398,7 +403,7 @@ the separate resident ELF runs the authored game fixture.
 `make headless-game` selects the whole-object resident link above. `make test-game`
 runs positive native startup/ticks/reloads, missing-map and malformed-script scenarios
 in fresh PCSX2 processes; `BUILD=release` verifies the same behavior without asserts.
-The strict, cold `ps2/game/headless_fixture.cpp` is a campaign backend unit;
+The strict, cold `tests/smoketests/headless_fixture.cpp` is a campaign test unit;
 `tests/smoketests/game_boot.cpp` is strict, cold resident support. Neither changes the
 281-unit native campaign manifest or enables additional vendor code.
 

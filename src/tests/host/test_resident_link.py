@@ -38,9 +38,9 @@ class ResidentLinkTests(unittest.TestCase):
         obj.write_bytes(b"object")
         return argparse.Namespace(
             compiler="ee-g++", configuration="debug", output=root / "out", linkfile=root / "linkfile",
-            sdk_lib=root, objects=[str(obj)], sources=["src/ps2/system/resident_boot.cpp"])
+            sdk_lib=root, objects=[str(obj)], sources=["src/ps2/system/main.cpp"])
 
-    def link(self, args, *, status=0, log="", registrations=None, mapped=True, executable=True):
+    def link(self, args, *, status=0, log="", registrations=None, mapped=True, executable=True, identity=None):
         def compiler(command, **kwargs):
             if command[0] == args.compiler:
                 candidate = Path(command[command.index("-o") + 1])
@@ -64,7 +64,7 @@ class ResidentLinkTests(unittest.TestCase):
 
         with patch.object(link_resident.subprocess, "run", side_effect=compiler), \
              patch.object(link_resident.subprocess, "check_output", side_effect=output), \
-             patch.object(link_resident, "source_identity", return_value={}):
+             patch.object(link_resident, "source_identity", return_value={} if identity is None else identity):
             return link_resident.run(args)
 
     def test_failed_link_removes_stale_images_and_records_exit(self):
@@ -115,6 +115,31 @@ class ResidentLinkTests(unittest.TestCase):
             args.sources = ["doomclassic/main.cpp"]
             with self.assertRaisesRegex(ValueError, "Classic"):
                 link_resident.run(args)
+
+    def test_production_rejects_test_source_before_link(self):
+        with tempfile.TemporaryDirectory() as temp:
+            args = self.fixture(Path(temp))
+            args.sources = ["src/tests/smoketests/game_main.cpp"]
+            with self.assertRaisesRegex(ValueError, "test source/object"):
+                link_resident.run(args)
+            args.kind = "tests"
+            args.name = "d3bfg"
+            with self.assertRaisesRegex(ValueError, "executable name"):
+                link_resident.run(args)
+
+    def test_production_rejects_transitive_test_headers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            args = self.fixture(Path(temp))
+            self.assertEqual(self.link(args, identity={"project_input_sha256": {
+                "src/tests/smoketests/headless_fixture.h": "hash"}}), 1)
+            self.assertFalse(list(args.output.glob("*.elf*")))
+
+    def test_production_rejects_fixture_symbols(self):
+        with tempfile.TemporaryDirectory() as temp:
+            args = self.fixture(Path(temp))
+            names = (*link_resident.REGISTRATIONS, "ps2::gamefixture::Enable()")
+            self.assertEqual(self.link(args, registrations=names), 1)
+            self.assertFalse(list(args.output.glob("*.elf*")))
 
 
 if __name__ == "__main__":

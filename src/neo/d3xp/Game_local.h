@@ -346,7 +346,7 @@ public:
 	virtual void			SetPersistentPlayerInfo( int clientNum, const idDict &playerInfo );
 	virtual void			InitFromNewMap( const char *mapName, idRenderWorld *renderWorld, idSoundWorld *soundWorld, int gameType, int randSeed );
 	// [PS2_D3BFG]: Explicit logic-only authored fixture; normal map loading remains separate.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	void InitHeadlessFixture( const char *mapName );
 #endif
 	virtual bool			InitFromSaveGame( const char *mapName, idRenderWorld *renderWorld, idSoundWorld *soundWorld, idFile * saveGameFile, idFile * stringTableFile, int saveGameVersion );

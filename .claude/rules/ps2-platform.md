@@ -2,7 +2,8 @@
 
 ## Verified Doom foundation
 
-The Doom core boots in PCSX2 with `src/ps2/system/main.cpp`: it preserves the loader's
+Production boots in PCSX2 with `src/ps2/system/main.cpp`; the core test driver is
+`src/tests/smoketests/main.cpp`. Both preserve the loader's
 IOP/HostFs, initializes SIF RPC and uses SDK bus-clock reads. Target fixtures verify
 timer conversion/progress, 64-byte buffers and finite EE divide-by-zero behavior.
 The dlmalloc wrapper pins 4 KiB pages and checks the `size_t`/`ptrdiff_t` sbrk boundary.
@@ -47,6 +48,15 @@ metadata, not acceptance of translated content. Process launch/quit, clipboard, 
 capture, rumble, desktop physical-working-set control and drive-capacity queries are
 explicitly unavailable. Never return fabricated free space or treat desktop memory
 controls as EE allocation budgets.
+
+Production `Quit` / `Sys_Quit` now request exit at the main loop's frame boundary;
+Common shuts down after its current command/offline-service frame returns. Test
+variants retain the explicit unavailable-operation boundary. Native filesystem
+startup mounts `host:/base`, requires `default.cfg`, and optionally executes the
+port's `d3bfg.cfg`. `BuildOSPath` can return a directory without a trailing slash;
+`AddGameDirectory` must remove only an actual slash. Unconditionally removing the
+last character scanned `host:/bas` instead of `host:/base`, observed and corrected
+in the production debug/release PCSX2 runs on 2026-10-11.
 
 ## Quake II reference
 

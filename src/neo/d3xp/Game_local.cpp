@@ -31,8 +31,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "Game_local.h"
 // [PS2_D3BFG]: Allow explicitly selected playerless fixtures to tick without presentation.
-#if defined( ID_PS2 )
-#include "ps2/game/headless_fixture.h"
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
+#include "tests/smoketests/headless_fixture.h"
 #endif
 
 #ifdef GAME_DLL
@@ -1202,7 +1202,7 @@ void idGameLocal::InitFromNewMap( const char *mapName, idRenderWorld *renderWorl
 	mpGame.Precache();
 
 	// [PS2_D3BFG]: Authored headless map startup has no player/presentation services yet.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( !ps2::gamefixture::IsMapEnabled() )
 #endif
 	SyncPlayersWithLobbyUsers( true );
@@ -2002,7 +2002,7 @@ idGameLocal::SetupPlayerPVS
 */
 void idGameLocal::SetupPlayerPVS() {
 	// [PS2_D3BFG]: The bounded simulation has no render-world topology or PVS acquisition.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( ps2::gamefixture::IsEnabled() && !ps2::gamefixture::IsMapEnabled() ) {
 		playerPVS.i = playerConnectedAreas.i = -1;
 		return;
@@ -2293,7 +2293,7 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 #endif
 
 	// [PS2_D3BFG]: Authored fixtures retain native frames with zero or one bounded player.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( ps2::gamefixture::IsEnabled() ) {
 		ps2::gamefixture::ValidateFrame();
 	} else
@@ -3262,7 +3262,7 @@ idGameLocal::SpawnEntityType
 idEntity *idGameLocal::SpawnEntityType( const idTypeInfo &classdef, const idDict *args, bool bIsClientReadSnapshot ) {
 	idClass *obj;
 	// [PS2_D3BFG]: Reject unsupported player keys/slots before constructors or base spawning.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( ps2::gamefixture::IsEnabled() && classdef.IsType( idPlayer::Type ) ) {
 		ps2::gamefixture::ValidatePlayerSpawn( classdef, args );
 	}

@@ -1,10 +1,10 @@
 // ================================================================================================
-// File: resident_boot.cpp
+// File: game_main.cpp
 // Brief: Boot and tick an explicitly selected authored game fixture, then persist its matched result.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/game/headless_fixture.h"
+#include "tests/smoketests/headless_fixture.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "tests/smoketests/game_boot.h"

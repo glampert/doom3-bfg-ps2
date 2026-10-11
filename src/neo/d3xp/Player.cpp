@@ -34,8 +34,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "PredictedValue_impl.h"
 
 // [PS2_D3BFG]: Explicit fixture-only player startup and simulation before presentation exists.
-#if defined( ID_PS2 )
-#include "ps2/game/headless_fixture.h"
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
+#include "tests/smoketests/headless_fixture.h"
 #endif
 
 idCVar flashlight_batteryDrainTimeMS( "flashlight_batteryDrainTimeMS", "30000", CVAR_INTEGER, "amount of time (in MS) it takes for full battery to drain (-1 == no battery drain)" );
@@ -1297,7 +1297,7 @@ idPlayer::idPlayer():
 	primaryObjective		= NULL;
 
 	// [PS2_D3BFG]: A selected simulation fixture owns no HUD/PDA presentation handlers.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	hudManager = ps2::gamefixture::IsEnabled() ? NULL : new idMenuHandler_HUD();
 #else
 	hudManager				= new idMenuHandler_HUD();
@@ -1307,7 +1307,7 @@ idPlayer::idPlayer():
 	memset( quickSlot, -1, sizeof( quickSlot ) );
 
 	// [PS2_D3BFG]: Keep the absent fixture PDA explicit; ordinary construction is unchanged.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	pdaMenu = ps2::gamefixture::IsEnabled() ? NULL : new (TAG_SWF) idMenuHandler_PDA();
 #else
 	pdaMenu = new (TAG_SWF) idMenuHandler_PDA();
@@ -1804,7 +1804,7 @@ Prepare any resources used by the player.
 */
 void idPlayer::Spawn() {
 	// [PS2_D3BFG]: Native entity/actor spawn precedes the bounded fixture player setup.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( ps2::gamefixture::IsEnabled() ) {
 		SpawnHeadlessFixture();
 		return;
@@ -7538,7 +7538,7 @@ Called every tic for each player
 */
 void idPlayer::Think() {
 	// [PS2_D3BFG]: Fixture simulation omits HUD/weapons/model/view/audio integration explicitly.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( ps2::gamefixture::IsEnabled() ) {
 		ThinkHeadlessFixture();
 		return;

@@ -40,17 +40,19 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 
 ## Build and verify
 
-- `make` compiles and links the current debug milestone with the real EE compiler.
+- `make` compiles and links the production Common loop with the real EE compiler.
   `make release` selects release; the artifacts are `build/<config>/d3bfg.elf` and
-  matching `d3bfg_unstripped.elf`, map and build report. The verbatim reference Makefile
+  matching `d3bfg_unstripped.elf`, map and resident `report.{json,txt}`. The verbatim reference Makefile
   is preserved in `docs/reference/quake2.Makefile`.
 - `make compile-core` checks the explicit scalar idlib/framework source set.
-  `make headless-core` links real `idCommonLocal` staged foundation startup and tests.
+  `make headless-core` links staged foundation startup/tests as
+  `build/<config>/tests/core/d3bfg_tests.elf`; production links no test code.
   `make test-common` checks partial shutdown and offline capability failures in fresh
   emulator processes; Common startup is one-shot after static CVar registration.
   `make compile-game` is the separate M2b campaign compile gate. `make link-game`
   validates the retained-object resident link, registrations and map coverage under
-  `build/<config>/resident/`. `make headless-game` selects that resident fixture ELF;
+  `build/<config>/`. `make headless-game` separately builds
+  `build/<config>/tests/game/d3bfg_tests.elf`;
   `make test-game` checks native startup, entity/script ticks, bounded native `idPlayer`
   startup/commands and reloads, plus missing-map, script-error, restricted geometry/material
   and player spawn/script/command/state failures in fresh emulator processes.
@@ -69,15 +71,17 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests
   cannot replace target compilation. Check Make's exit status, including VU tool failures.
-- `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS` and `PS2_D3BFG_PROFILE` are always 0 or 1.
+- `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend
   files in `PS2_CXX_SRC` or the relevant core group; cold sources also go in
   `SIZE_OPT_CXX_SRC`. Run `make compiledb` after changing source lists. Flag stamps
   invalidate affected object groups automatically.
 - `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly by
-  `compile-game`; `RESIDENT_SUPPORT_CXX_SRC` supplies the strict resident entry/shared
-  providers separately from core substitutes. `VENDOR_C_SRC` / `VENDOR_CXX_SRC` enable only audited relocated codec units. The source
+  `compile-game`; `RESIDENT_SUPPORT_CXX_SRC` supplies strict shared providers;
+  `PS2_CXX_SRC` owns production entry, `CORE_TEST_DRIVER_CXX_SRC` and `GAME_TEST_CXX_SRC`
+  own test entries/adapters. Keep fixture hooks behind `PS2_D3BFG_TESTS` and separate
+  campaign/test object trees. The production link rejects test inputs and symbols. `VENDOR_C_SRC` / `VENDOR_CXX_SRC` enable only audited relocated codec units. The source
   inventory maps their original upstream project paths. Host fixture lists cannot enable
   additional vendor sources in an EE runtime target.
 - Doom smoke procedures and the separately labeled Quake reference are in

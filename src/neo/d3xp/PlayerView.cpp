@@ -32,8 +32,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "Game_local.h"
 
 // [PS2_D3BFG]: Selected simulation fixtures do not load presentation assets in constructors.
-#if defined( ID_PS2 )
-#include "ps2/game/headless_fixture.h"
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
+#include "tests/smoketests/headless_fixture.h"
 #endif
 
 // _D3XP : rename all gameLocal.time to gameLocal.slow.time for merge!
@@ -49,7 +49,7 @@ idPlayerView::idPlayerView() {
 	memset( &view, 0, sizeof( view ) );
 	player = NULL;
 	// [PS2_D3BFG]: Preserve initialized view state without loading fixture-only effects/materials.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( ps2::gamefixture::IsEnabled() ) {
 		tunnelMaterial = armorMaterial = berserkMaterial = irGogglesMaterial = bloodSprayMaterial = bfgMaterial = NULL;
 	} else
@@ -76,7 +76,7 @@ idPlayerView::idPlayerView() {
 	fxManager = NULL;
 
 	// [PS2_D3BFG]: Fullscreen effects are unavailable in the explicitly selected fixture.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( !ps2::gamefixture::IsEnabled() )
 #endif
 	if ( fxManager == NULL ) {

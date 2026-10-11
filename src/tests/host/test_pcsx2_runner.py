@@ -168,9 +168,9 @@ class ProcessTests(unittest.TestCase):
         inventory = mock.patch.object(runner, "emulator_is_running", return_value=False)
         inventory.start()
         self.addCleanup(inventory.stop)
-        self.elf = self.root / "d3bfg.elf"
+        self.elf = self.root / "d3bfg_tests.elf"
         self.elf.write_bytes(b"ELF test input")
-        self.symbols = self.root / "d3bfg_unstripped.elf"
+        self.symbols = self.root / "d3bfg_tests_unstripped.elf"
         self.symbols.write_bytes(b"ELF test symbols")
         self.config = self.root / "PCSX2.ini"
         self.config.write_text("[EmuCore]\nHostFs = true\n[Logging]\nEnableIOPConsole = true\n"
@@ -178,11 +178,11 @@ class ProcessTests(unittest.TestCase):
         flags = {"compiler": "fixture compiler", "tokens": ["-std=gnu++20"]}
         (self.root / ".backend-flags.json").write_text(json.dumps(flags))
         (self.root / ".source-identity.json").write_text('{"source_commit":"fixture"}\n')
-        (self.root / "d3bfg.map").write_text("fixture map\n")
+        (self.root / "d3bfg_tests.map").write_text("fixture map\n")
         (self.root / "build-report.txt").write_text("fixture report\n")
         report = {"elf_sha256": runner.sha256(self.symbols), "runnable_elf_sha256": runner.sha256(self.elf),
                   "source_identity_sha256": runner.sha256(self.root / ".source-identity.json"),
-                  "link_map_sha256": runner.sha256(self.root / "d3bfg.map"),
+                  "link_map_sha256": runner.sha256(self.root / "d3bfg_tests.map"),
                   "flag_stamps": {str(self.root / ".backend-flags.json"): flags}}
         (self.root / "build-report.json").write_text(json.dumps(report))
 
@@ -235,7 +235,7 @@ class ProcessTests(unittest.TestCase):
     def test_completed_process_archives_inputs_and_results(self):
         passed, output = self.run_fixture("pass")
         self.assertTrue(passed)
-        self.assertEqual((output / "d3bfg.elf").read_bytes(), self.elf.read_bytes())
+        self.assertEqual((output / "d3bfg_tests.elf").read_bytes(), self.elf.read_bytes())
         self.assertEqual((output / "PCSX2.ini.snapshot").read_bytes(), self.config.read_bytes())
         self.assertEqual(json.loads((output / "summary.json").read_text())["returncode_after_cleanup"], 0)
         metadata = json.loads((output / "run.json").read_text())
@@ -305,7 +305,7 @@ class ProcessTests(unittest.TestCase):
             self.run_fixture("pass")
 
     def test_changed_map_rejected_before_emulator_launch(self):
-        (self.root / "d3bfg.map").write_text("changed map")
+        (self.root / "d3bfg_tests.map").write_text("changed map")
         with self.assertRaisesRegex(ValueError, "artifact does not match"):
             self.run_fixture("pass")
 

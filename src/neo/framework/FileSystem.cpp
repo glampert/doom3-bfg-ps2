@@ -33,8 +33,8 @@ If you have questions concerning this license or the applicable additional terms
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #include "ps2/system/filesystem.h"
 // [PS2_D3BFG]: The authored game fixture uses native loose-file reads in one isolated root.
-#if defined( ID_PS2 )
-#include "ps2/game/headless_fixture.h"
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
+#include "tests/smoketests/headless_fixture.h"
 #endif
 #include <errno.h>
 #endif
@@ -2561,7 +2561,14 @@ void idFileSystemLocal::AddGameDirectory( const char *path, const char *dir ) {
 	search.gamedir = dir;
 
 	idStr pakfile = BuildOSPath( path, dir, "" );
+	// [PS2_D3BFG]: The bounded path builder may already return a directory without a trailing slash.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	if ( pakfile.Length() > 0 && pakfile[ pakfile.Length() - 1 ] == '/' ) {
+		pakfile[ pakfile.Length() - 1 ] = 0;
+	}
+#else
 	pakfile[ pakfile.Length() - 1 ] = 0;	// strip the trailing slash
+#endif
 
 	idStrList pakfiles;
 	ListOSFiles( pakfile, ".resources", pakfiles );
@@ -2706,7 +2713,7 @@ is resetting due to a game change
 */
 void idFileSystemLocal::Init() {
 	// [PS2_D3BFG]: Explicit fixture startup avoids retail containers and desktop default configuration.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	if ( ps2::gamefixture::IsEnabled() ) {
 		fs_basepath.SetString( "host:" );
 		fs_savepath.SetString( "host:" );

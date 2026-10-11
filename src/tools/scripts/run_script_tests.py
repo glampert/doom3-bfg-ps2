@@ -60,18 +60,18 @@ def run_case(elf, case, version):
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ_") + test_id
     output = smoke.REPO_ROOT / "build/test-results" / run_id
     output.mkdir(parents=True)
-    shutil.copy2(elf, output / "d3bfg.elf")
-    shutil.copy2(elf.with_name("d3bfg_unstripped.elf"), output / "d3bfg_unstripped.elf")
-    artifacts = smoke.archive_build_artifacts(elf, output / "d3bfg.elf", output / "d3bfg_unstripped.elf", output)
+    shutil.copy2(elf, output / "d3bfg_tests.elf")
+    shutil.copy2(elf.with_name("d3bfg_tests_unstripped.elf"), output / "d3bfg_tests_unstripped.elf")
+    artifacts = smoke.archive_build_artifacts(elf, output / "d3bfg_tests.elf", output / "d3bfg_tests_unstripped.elf", output)
     shutil.copy2(smoke.DEFAULT_CONFIG, output / "PCSX2.ini.snapshot")
     (output / "script-case.txt").write_text(f"{test_id}\n{case}\n")
     (output / "included.script").write_text("float answer = 42;\n")
-    command = [str(smoke.DEFAULT_EMULATOR), "-batch", "-elf", str(output / "d3bfg.elf"),
+    command = [str(smoke.DEFAULT_EMULATOR), "-batch", "-elf", str(output / "d3bfg_tests.elf"),
                "-logfile", str(output / "emulog.txt")]
     metadata = {"test_id": test_id, "case": case, "command": command, "emulator_version": version,
                 "artifacts": artifacts, "fixture_sha256": smoke.sha256(output / "script-case.txt"),
                 "include_sha256": smoke.sha256(output / "included.script"),
-                "elf_sha256": smoke.sha256(output / "d3bfg.elf"),
+                "elf_sha256": smoke.sha256(output / "d3bfg_tests.elf"),
                 "config_sha256": smoke.sha256(output / "PCSX2.ini.snapshot")}
     (output / "run.json").write_text(json.dumps(metadata, indent=2) + "\n")
     started = time.monotonic()
@@ -101,7 +101,7 @@ def run_case(elf, case, version):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", choices=tuple(CASES), help="run one case instead of the complete matrix")
-    parser.add_argument("--elf", type=Path, default=smoke.REPO_ROOT / "build/debug-script/d3bfg.elf")
+    parser.add_argument("--elf", type=Path, default=smoke.REPO_ROOT / "build/debug-script/tests/script/d3bfg_tests.elf")
     args = parser.parse_args()
     if smoke.emulator_is_running(smoke.DEFAULT_EMULATOR):
         parser.error("an emulator is already running; close it before running isolated compiler tests")

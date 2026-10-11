@@ -45,6 +45,10 @@ If you have questions concerning this license or the applicable additional terms
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #include "ps2/system/lifecycle.h"
 #include "ps2/system/log.h"
+// [PS2_D3BFG]: Production quit is serviced after the current frame finishes.
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+#include "ps2/system/runtime.h"
+#endif
 // [PS2_D3BFG]: Match the static game export's C linkage.
 extern "C" gameExport_t * GetGameAPI( gameImport_t * import );
 #endif
@@ -220,12 +224,17 @@ idCommonLocal::Quit
 // [PS2_D3BFG]: Foundation-only interfaces are defined in the console backend.
 #if !defined( PS2_D3BFG_FOUNDATION )
 void idCommonLocal::Quit() {
-
+	// [PS2_D3BFG]: Keep services alive until the production frame returns to main.
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+	ps2::runtime::RequestQuit();
+	return;
+#else
 	// don't try to shutdown if we are in a recursive error
 	if ( !com_errorEntered ) {
 		Shutdown();
 	}
 	Sys_Quit();
+#endif
 }
 
 

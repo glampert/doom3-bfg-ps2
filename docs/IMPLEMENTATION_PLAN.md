@@ -172,7 +172,8 @@ Quake BSP/MD2 loaders, its `refexport_t` seam, Quake gameplay, and Quake-specifi
 
 Base the root Makefile on the working Quake configuration. Provide separate source groups for legacy engine C++, third-party C/C++, new backend C++, host tools and target tests.
 
-- `make` and `make release`: initially the current validated PS2 milestone, ultimately `build/<config>/d3bfg.elf` and `d3bfg_unstripped.elf`.
+- `make` and `make release`: production `build/<config>/d3bfg.elf` and `d3bfg_unstripped.elf`, with no test fixtures linked.
+- Native test variants use `d3bfg_tests.elf` under `build/<config>/tests/{platform,core,game}/`; the isolated compiler probe uses `build/<config>-script/tests/script/`.
 - `make compile-core`: compile the portable idlib/framework subset.
 - `make compile-game`: compile the intended campaign engine/game source set, even while only a smaller boot executable is runnable. Report exactly which subsystems remain replaced or excluded.
 - `make test-host`, `make smoke`, `make smoke-render`, `make tools`, `make compiledb`: tests and tooling with explicit outputs and exit status.
@@ -529,3 +530,9 @@ movement fixtures for now. Extend this map with AI navigation/movement and CPU m
 joint behavior next, then remove the campaign-player/transition blockers and investigate
 one selected retail map. The authored static-data path does not establish full campaign
 loading, animated AI/combat, sound/render output or M3 completion.
+
+The production entry is now separate from fixture drivers. It initializes Common,
+runs paced synchronous command/offline-service frames and performs ordered shutdown
+after a frame-boundary quit request. Campaign test hooks compile only with
+`PS2_D3BFG_TESTS=1` in separate object trees. Native campaign map/game simulation
+will next join this production loop; the current idle loop does not load a map.

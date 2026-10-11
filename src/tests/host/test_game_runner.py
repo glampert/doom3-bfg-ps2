@@ -555,23 +555,23 @@ class GameRunnerTests(unittest.TestCase):
             root = Path(temporary)
             source = root / "resident"
             source.mkdir()
-            elf = source / "d3bfg.elf"
-            symbols = source / "d3bfg_unstripped.elf"
+            elf = source / "d3bfg_tests.elf"
+            symbols = source / "d3bfg_tests_unstripped.elf"
             elf.write_bytes(b"runnable")
             symbols.write_bytes(b"symbols")
-            for name in ("d3bfg.map", "objects.rsp", "report.txt"):
+            for name in ("d3bfg_tests.map", "objects.rsp", "report.txt"):
                 (source / name).write_text(name)
             stamp = root / "flags.json"
             stamp.write_text('{"flags": "original"}')
             report = {"passed": True, "garbage_collection": False, "registrations": {"gameLocal": True},
                       "object_count": 344, "unresolved": [], "duplicate_definitions": [], "missing_map_objects": [],
                       "elf_sha256": runner.sha256(symbols), "runnable_elf_sha256": runner.sha256(elf),
-                      "link_map_sha256": runner.sha256(source / "d3bfg.map"),
+                      "link_map_sha256": runner.sha256(source / "d3bfg_tests.map"),
                       "flag_stamps": {str(stamp): {"flags": "original"}}}
             destination = root / "archive"
             destination.mkdir()
             (source / "report.json").write_text(json.dumps(report))
-            self.assertIn("d3bfg.map", runner.archive_resident_artifacts(elf, elf, symbols, destination))
+            self.assertIn("d3bfg_tests.map", runner.archive_resident_artifacts(elf, elf, symbols, destination))
             for name in ("elf_sha256", "runnable_elf_sha256", "link_map_sha256", "registrations", "passed"):
                 changed = dict(report, **{name: False if name == "passed" else {} if name == "registrations" else "stale"})
                 (source / "report.json").write_text(json.dumps(changed))

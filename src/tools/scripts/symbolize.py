@@ -16,7 +16,7 @@
 # "#N 0xADDR" frame line is picked out and everything else is ignored.
 #
 # Adapted from quake2-ps2's symbolize.py. The original GNU GPL v2 notice is retained;
-# see GPL-2.0.txt in this directory. No d3bfg_unstripped.elf exists yet.
+# see GPL-2.0.txt in this directory.
 # ================================================================================================
 
 import argparse

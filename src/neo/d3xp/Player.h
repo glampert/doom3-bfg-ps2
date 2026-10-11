@@ -427,7 +427,7 @@ public:
 	void					Spawn();
 	void					Think();
 	// [PS2_D3BFG]: Bounded native player fixture; normal player initialization stays separate.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 	void					SpawnHeadlessFixture();
 	void					ThinkHeadlessFixture();
 #endif

@@ -86,7 +86,7 @@ def report(args: argparse.Namespace) -> None:
     flags = {path: json.loads(Path(path).read_text(encoding="utf-8")) for path in args.flags}
     identity = json.loads(args.identity.read_text(encoding="utf-8"))
     source_commit, source_dirty = identity["source_commit"], identity["source_dirty"]
-    link_map = elf.with_name("d3bfg.map")
+    link_map = args.runnable_elf.with_suffix(".map")
     data = {
         "schema_version": 1,
         "milestone": args.milestone,

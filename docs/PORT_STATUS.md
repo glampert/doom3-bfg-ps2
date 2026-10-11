@@ -2015,3 +2015,80 @@ Next extend the same authored map with native AI movement and CPU model/joint be
 then campaign player startup and Common map transitions. Retail map dependency inventory,
 conversion and residency remain subsequent gates. No additional standalone movement
 fixtures are scheduled for this phase.
+
+
+## Production loop and native test executable separation
+
+Production `make` / `make release` now build `build/<config>/d3bfg.elf` with the
+full retained campaign set and a dedicated `src/ps2/system/main.cpp`. The entry
+preserves the loader's IOP/HostFs, initializes real Common services, repeatedly
+calls `common->Frame()` with approximately 60 Hz idle pacing and shuts down after
+a frame-boundary quit request. Common currently executes commands and offline
+services only; it does not load a campaign map, call native game `RunFrame`, sample
+physical input or submit presentation. Those stages remain the next production
+integration work.
+
+The production native filesystem uses `host:/base` and requires `default.cfg`;
+it does not execute that desktop config. An optional `base/d3bfg.cfg` can queue
+port settings and `quit` / `exit`. Production quit requests keep services alive
+until the current frame returns. Native directory startup exposed a path-contract
+mismatch: `AddGameDirectory` unconditionally removed the last character even when
+`BuildOSPath` returned no trailing slash. The tagged portable path now strips only
+an actual slash, and production logs confirm scanning `host:/base`.
+
+Core/platform drivers moved to `src/tests/smoketests/main.cpp`, and the campaign
+entry to `game_main.cpp`. Fixture helpers moved from `src/ps2/game/` into
+`src/tests/smoketests/headless_fixture.*`. Tagged engine fixture hooks and fixture
+method declarations compile only with `PS2_D3BFG_TESTS=1`; production uses `0`.
+Separate campaign/test object and flag trees prevent either variant from reusing
+the other's objects. Production source auditing and final link checks reject test
+sources, transitive test headers and fixture symbols. No linker GC hides fixtures.
+
+All native test variants are named `d3bfg_tests.elf`, with matching symbols/map:
+`build/<config>/tests/core/`, `tests/platform/` and `tests/game/`; the compiler probe
+uses `build/<config>-script/tests/script/`. Smoke commands and archived artifacts
+now use the test name and select those paths explicitly. Production reports are
+`build/<config>/report.{json,txt}`; campaign test reports live in `tests/game/`.
+
+### Acceptance
+
+- Debug/release production and campaign/core tests compile/link with the real EE
+  compiler; strict backend/test sources pass `-Werror`.
+- Production retains 342 direct inputs and all eleven registration roots with zero
+  unresolved/duplicate symbols, zero test inputs and zero fixture symbols. Campaign
+  tests retain 345 direct inputs; both links disable GC.
+- Four production PCSX2 runs pass: sustained idle startup and config-driven delayed
+  quit in each configuration, with completed reverse Common shutdown on quit.
+- Eight relocated test runs pass: core, authored native map, bounded native player
+  and expected missing-map failure in debug and release. The SDK-only platform probe
+  and one positive isolated compiler probe also pass from their new locations.
+- All 92 host regressions pass, including four new production-isolation checks and
+  existing sanitizer harnesses. The 458-unit source inventory remains unchanged;
+  the compile database now has 365 entries. Broader Common and negative-game matrices
+  were not rerun for this separation.
+
+Production fixed `PT_LOAD` residency is 10,858,662 bytes debug / 11,278,374 bytes
+release. Campaign test residency is 10,920,422 / 11,338,342 bytes. These are fixed
+ELF measurements, not total runtime or campaign memory budgets.
+
+Production run archives (2026-10-11): debug idle
+`20261011T101838Z_production_a442fd9c4e09`, debug quit
+`20261011T101841Z_production_016323a91f60`, release idle
+`20261011T101843Z_production_9577769389e5`, release quit
+`20261011T101846Z_production_1108673fb5de`.
+Relocated core/map/game/missing-map runs, in that order: debug
+`20261011T102029Z_smoke_fe00815459934bbc`,
+`20261011T102031Z_smoke_b987a6dfc4504e30`,
+`20261011T102035Z_smoke_84464c3b71514e39`,
+`20261011T102039Z_smoke_fff60da7f61d4dfe`; release
+`20261011T102041Z_smoke_695beec02293409b`,
+`20261011T102044Z_smoke_ad348b9eaed64489`,
+`20261011T102047Z_smoke_41f038d00cdc4c98`,
+`20261011T102051Z_smoke_93af0ff1591b4d40`.
+Platform run: `20261011T101920Z_smoke_8375976291554570`.
+Compiler probe: `20261011T102158Z_script_a88374ca45804d95`.
+
+Next connect native headless map ownership/startup and game ticks to the production
+Common loop, retaining the authored map test as the regression boundary. Full
+campaign player startup, animated AI, map transitions and retail resource residency
+remain pending. No additional gameplay fixtures were introduced by this split.

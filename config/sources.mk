@@ -1,8 +1,8 @@
 # Explicit EE source lists. Paths are relative to src/.
 # source_inventory.json classifies all shipped units; audit_sources.py validates coverage.
 
-PS2_CXX_SRC = \
-	ps2/system/main.cpp \
+CORE_TEST_DRIVER_CXX_SRC = \
+	tests/smoketests/main.cpp \
 	ps2/system/log.cpp \
 	tests/smoketests/platform_boot.cpp
 
@@ -12,7 +12,7 @@ RENDER_STUB_CXX_SRC = \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp
 
-SIZE_OPT_CXX_SRC = tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp ps2/game/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/system/resident_boot.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(PS2_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = ps2/system/main.cpp tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -453,13 +453,10 @@ SCRIPT_BOOT_CXX_SRC = \
 	tests/smoketests/script_boot.cpp
 
 # Required portable campaign support; compiled strictly without claiming a resident link.
-GAME_BACKEND_CXX_SRC = ps2/game/headless_fixture.cpp ps2/audio/voice_timeline.cpp ps2/audio/pcm_wave.cpp ps2/system/codec_memory.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
+GAME_BACKEND_CXX_SRC = ps2/audio/voice_timeline.cpp ps2/audio/pcm_wave.cpp ps2/system/codec_memory.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
 
-# Resident-only entry and shared providers. No core filesystem or Common replacement is linked.
+# Shared providers for production and campaign tests; no test source belongs here.
 RESIDENT_SUPPORT_CXX_SRC = \
-	tests/smoketests/map_boot.cpp \
-	tests/smoketests/game_boot.cpp \
-	ps2/system/resident_boot.cpp \
 	ps2/system/log.cpp \
 	ps2/system/heap.cpp \
 	ps2/system/filesystem.cpp \
@@ -516,3 +513,11 @@ JPEG_TEST_CXX_SRC = \
 	external/jpeg-6/jquant1.cpp \
 	external/jpeg-6/jquant2.cpp \
 	external/jpeg-6/jutils.cpp
+
+# Production entry and isolated campaign-test entry/adapters.
+PS2_CXX_SRC = ps2/system/main.cpp
+GAME_TEST_CXX_SRC = \
+	tests/smoketests/game_main.cpp \
+	tests/smoketests/headless_fixture.cpp \
+	tests/smoketests/game_boot.cpp \
+	tests/smoketests/map_boot.cpp

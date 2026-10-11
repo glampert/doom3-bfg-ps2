@@ -5,6 +5,9 @@
 // ================================================================================================
 
 #include "ps2/system/log.h"
+#if !PS2_D3BFG_TESTS
+#include "ps2/system/runtime.h"
+#endif
 #include <idlib/precompiled.h>
 
 namespace
@@ -70,7 +73,14 @@ const char * Sys_TimeStampToStr(ID_TIME_T timestamp)
     return s_timestamp;
 }
 
-void Sys_Quit() { Unsupported("Sys_Quit"); }
+void Sys_Quit()
+{
+#if PS2_D3BFG_TESTS
+    Unsupported("Sys_Quit");
+#else
+    ps2::runtime::RequestQuit();
+#endif
+}
 void Sys_Launch(const char *, idCmdArgs &, void *, unsigned int) { Unsupported("Sys_Launch"); }
 char * Sys_GetClipboardData() { Unsupported("Sys_GetClipboardData"); }
 void Sys_GrabMouseCursor(bool) { Unsupported("Sys_GrabMouseCursor"); }

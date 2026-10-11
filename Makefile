@@ -1,5 +1,5 @@
 # Doom 3 BFG PS2: explicit EE build foundation.
-# The default ELF runs the validated headless core foundation, not campaign gameplay.
+# The default ELF is the production loop; native smoke executables are built separately.
 # The unmodified Quake II reference is docs/reference/quake2.Makefile.
 
 .DEFAULT_GOAL := all
@@ -61,12 +61,16 @@ ifneq ($(filter link-game,$(MAKECMDGOALS)),)
 endif
 OUTPUT_DIR = build/$(BUILD)$(if $(filter 1,$(SCRIPT_PROBE)),-script,)
 ifeq ($(SCRIPT_PROBE),1)
-	PS2_CXX_SRC = $(SCRIPT_BOOT_CXX_SRC)
+	CORE_TEST_DRIVER_CXX_SRC = $(SCRIPT_BOOT_CXX_SRC)
 	CORE_BOOT_CXX_SRC =
 endif
 
-EE_BIN = $(OUTPUT_DIR)/d3bfg_unstripped.elf
+CORE_TEST_DIR = $(OUTPUT_DIR)/tests/$(if $(filter 1,$(SCRIPT_PROBE)),script,$(if $(filter 1,$(CORE_BOOT)),core,platform))
+EE_BIN = $(CORE_TEST_DIR)/d3bfg_tests_unstripped.elf
+TEST_ELF = $(CORE_TEST_DIR)/d3bfg_tests.elf
 GAME_ELF = $(OUTPUT_DIR)/d3bfg.elf
+GAME_TEST_DIR = $(OUTPUT_DIR)/tests/game
+GAME_TEST_ELF = $(GAME_TEST_DIR)/d3bfg_tests.elf
 CORE_ARCHIVE = $(OUTPUT_DIR)/libd3bfg_core.a
 SCRIPTS = src/tools/scripts
 
@@ -97,15 +101,17 @@ EE_CXX_WARNFLAGS = -Wall -Wextra -Werror \
 	-Wnon-virtual-dtor -Woverloaded-virtual -Wvla \
 	-Wlogical-op -Wduplicated-cond -Wduplicated-branches
 
-PS2_CXXFLAGS = $(COMMON_CXXFLAGS) $(EE_CXX_WARNFLAGS) -DID_PS2_CORE=1 -DPS2_D3BFG_CORE_TESTS=$(CORE_BOOT)
+PS2_CXXFLAGS = $(COMMON_CXXFLAGS) $(EE_CXX_WARNFLAGS) -DID_PS2_CORE=1 -DPS2_D3BFG_CORE_TESTS=$(CORE_BOOT) -DPS2_D3BFG_TESTS=1
 
 # Legacy code keeps visible warnings and all language restrictions. Any
 # necessary warning suppression belongs on the individual object, with a reason.
 # Single-precision literals avoid software-double helpers on the EE.
 NEO_CXXFLAGS = $(COMMON_CXXFLAGS) -Wall -Wextra -fsingle-precision-constant
-CORE_CXXFLAGS = $(NEO_CXXFLAGS) -DID_PS2_CORE=1
+CORE_CXXFLAGS = $(NEO_CXXFLAGS) -DID_PS2_CORE=1 -DPS2_D3BFG_TESTS=1
 FOUNDATION_HEADER_FLAGS = -UID_PS2_CORE -DPS2_D3BFG_FOUNDATION=1
-CAMPAIGN_CXXFLAGS = $(NEO_CXXFLAGS)
+CAMPAIGN_CXXFLAGS = $(NEO_CXXFLAGS) -DPS2_D3BFG_TESTS=0
+GAME_RUNTIME_CXXFLAGS = $(filter-out -DPS2_D3BFG_TESTS=1 -DPS2_D3BFG_CORE_TESTS=$(CORE_BOOT),$(PS2_CXXFLAGS)) -DPS2_D3BFG_TESTS=0 -DPS2_D3BFG_CORE_TESTS=0
+GAME_TEST_CXXFLAGS = $(NEO_CXXFLAGS) -DPS2_D3BFG_TESTS=1
 
 # Observed in GCC 15's scalar idlib build: MSVC pragmas, unused public interface
 # parameters, legacy copy/memset conventions, ineffective const casts, and old
@@ -114,7 +120,7 @@ CAMPAIGN_CXXFLAGS = $(NEO_CXXFLAGS)
 LEGACY_SHARED_WARNFLAGS = -Wno-unknown-pragmas -Wno-unused-parameter \
 	-Wno-deprecated-copy -Wno-class-memaccess -Wno-ignored-qualifiers -Wno-write-strings
 
-PS2_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(PS2_CXX_SRC:.cpp=.o))
+CORE_TEST_DRIVER_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_TEST_DRIVER_CXX_SRC:.cpp=.o))
 CORE_OBJS = $(addprefix $(OUTPUT_DIR)/core/src/,$(CORE_CXX_SRC:.cpp=.o) $(CORE_FRAMEWORK_CXX_SRC:.cpp=.o))
 CORE_BACKEND_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BACKEND_CXX_SRC:.cpp=.o))
 CORE_C_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_C_SRC:.c=.o))
@@ -123,29 +129,37 @@ GAME_BACKEND_OBJS = $(addprefix $(OUTPUT_DIR)/game-backend/src/,$(GAME_BACKEND_C
 SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(SIZE_OPT_CXX_SRC:.cpp=.o))
 GAME_SIZE_OPT_CXX_SRC = $(filter $(SIZE_OPT_CXX_SRC),$(GAME_BACKEND_CXX_SRC))
 GAME_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/game-backend/src/,$(GAME_SIZE_OPT_CXX_SRC:.cpp=.o))
-RESIDENT_SUPPORT_OBJS = $(addprefix $(OUTPUT_DIR)/resident-support/src/,$(RESIDENT_SUPPORT_CXX_SRC:.cpp=.o))
-RESIDENT_SIZE_OPT_CXX_SRC = $(filter $(SIZE_OPT_CXX_SRC),$(RESIDENT_SUPPORT_CXX_SRC))
+RESIDENT_SUPPORT_OBJS = $(addprefix $(OUTPUT_DIR)/resident-support/src/,$(RESIDENT_SUPPORT_CXX_SRC:.cpp=.o) $(PS2_CXX_SRC:.cpp=.o))
+RESIDENT_SIZE_OPT_CXX_SRC = $(filter $(SIZE_OPT_CXX_SRC),$(RESIDENT_SUPPORT_CXX_SRC) $(PS2_CXX_SRC))
 RESIDENT_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/resident-support/src/,$(RESIDENT_SIZE_OPT_CXX_SRC:.cpp=.o))
 CODEC_C_OBJS = $(addprefix $(OUTPUT_DIR)/codecs/src/,$(VENDOR_C_SRC:.c=.o))
 CODEC_CXX_OBJS = $(addprefix $(OUTPUT_DIR)/codecs/src/,$(VENDOR_CXX_SRC:.cpp=.o))
-RESIDENT_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(CORE_C_SRC) $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
+RESIDENT_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(PS2_CXX_SRC) $(CORE_C_SRC) $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
 RESIDENT_LINK_OBJS = $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(RESIDENT_SUPPORT_OBJS) $(CORE_C_OBJS) $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
+
+TEST_CAMPAIGN_OBJS = $(addprefix $(OUTPUT_DIR)/test-campaign/src/,$(CAMPAIGN_CXX_SRC:.cpp=.o))
+TEST_BACKEND_OBJS = $(addprefix $(OUTPUT_DIR)/test-backend/src/,$(GAME_BACKEND_CXX_SRC:.cpp=.o))
+TEST_SUPPORT_OBJS = $(addprefix $(OUTPUT_DIR)/test-support/src/,$(RESIDENT_SUPPORT_CXX_SRC:.cpp=.o) $(GAME_TEST_CXX_SRC:.cpp=.o))
+TEST_SUPPORT_SIZE_OPT_CXX_SRC = $(filter $(SIZE_OPT_CXX_SRC),$(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC))
+TEST_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/test-backend/src/,$(GAME_SIZE_OPT_CXX_SRC:.cpp=.o)) $(addprefix $(OUTPUT_DIR)/test-support/src/,$(TEST_SUPPORT_SIZE_OPT_CXX_SRC:.cpp=.o))
+GAME_TEST_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC) $(CORE_C_SRC) $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
+GAME_TEST_LINK_OBJS = $(TEST_CAMPAIGN_OBJS) $(TEST_BACKEND_OBJS) $(TEST_SUPPORT_OBJS) $(CORE_C_OBJS) $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
 
 ifeq ($(CORE_BOOT),1)
 	BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
-	LINK_OBJS = $(PS2_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS)
-	LINK_SOURCES = $(PS2_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC)
+	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS)
+	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC)
 	MILESTONE = headless-core
-	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.link-flags.json
+	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(CORE_TEST_DIR)/.link-flags.json
 	LINK_OBJS += $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
 	LINK_SOURCES += $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
 	REPORT_FLAGS += $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
 else
 	BOOT_OBJS =
-	LINK_OBJS = $(PS2_OBJS)
-	LINK_SOURCES = $(PS2_CXX_SRC)
+	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS)
+	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC)
 	MILESTONE = platform-probe
-	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.link-flags.json
+	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(CORE_TEST_DIR)/.link-flags.json
 endif
 
 ifeq ($(SCRIPT_PROBE),1)
@@ -159,7 +173,7 @@ endif
 # Do not garbage-collect registration objects to manufacture a smaller link.
 # The loaded PT_LOAD sizes are recorded independently of ELF stripping.
 EE_LINKFILE ?= $(PS2SDK)/ee/startup/linkfile
-EE_LDFLAGS = -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib -Wl,-zmax-page-size=128 -Wl,-Map,$(OUTPUT_DIR)/d3bfg.map
+EE_LDFLAGS = -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib -Wl,-zmax-page-size=128 -Wl,-Map,$(CORE_TEST_DIR)/d3bfg_tests.map
 EE_LIBS = -lkernel -lm
 ifeq ($(CORE_BOOT),1)
 	EE_LIBS += -lpatches
@@ -168,7 +182,7 @@ endif
 # are deliberately absent. Never use this gate as evidence of a resident game link.
 ifeq ($(SCRIPT_PROBE),1)
 	EE_LDFLAGS += -Wl,--gc-sections
-	SCRIPT_CXXFLAGS = $(CAMPAIGN_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS) -ffunction-sections -fdata-sections
+	SCRIPT_CXXFLAGS = $(GAME_TEST_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS) -ffunction-sections -fdata-sections
 $(OUTPUT_DIR)/.script-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(SCRIPT_CXXFLAGS) --sources $(SCRIPT_CXX_SRC)
 $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-flags.json
@@ -177,12 +191,13 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release platform-probe headless-core compile-core compile-game headless-game test-map test-game link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform clean FORCE
+.PHONY: all release platform-probe headless-core compile-core compile-game headless-game test-map test-game link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
 
-all: inventory $(GAME_ELF) $(OUTPUT_DIR)/build-report.json
+all: link-game
 release: all
-platform-probe: all
-headless-core: all
+platform-probe: core-tests
+headless-core: core-tests
+core-tests: inventory $(TEST_ELF) $(CORE_TEST_DIR)/build-report.json
 
 inventory:
 	@$(PYTHON) $(SCRIPTS)/audit_sources.py
@@ -190,7 +205,7 @@ inventory:
 # A stamp is rewritten only when its compiler identity, flags or source list
 # changes. This fixes the reference's stale-object behavior after flag edits.
 $(OUTPUT_DIR)/.backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(PS2_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(BOOT_OBJS)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_BOOT_CXX_SRC)
 
 $(OUTPUT_DIR)/.core-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CORE_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-core neo/framework/Common.cpp neo/framework/PlayerProfile.cpp neo/sys/Snapshot.cpp neo/sys/LightweightCompression.cpp neo/sys/Snapshot_Jobs.cpp neo/sys/sys_localuser.cpp neo/sys/sys_signin.cpp --sources $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC)
@@ -219,13 +234,13 @@ $(CODEC_CXX_OBJS): $(OUTPUT_DIR)/codecs/src/%.o: src/%.cpp $(OUTPUT_DIR)/.codec-
 $(OUTPUT_DIR)/.vendor-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CC) $(VENDOR_CFLAGS) --sources $(CORE_C_SRC)
 
-$(OUTPUT_DIR)/.link-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+$(CORE_TEST_DIR)/.link-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(OPTFLAGS) $(EE_LDFLAGS) $(EE_LIBS) --objects $(LINK_OBJS) --milestone $(MILESTONE)
 
-$(OUTPUT_DIR)/.strip-flags.json: FORCE $(SCRIPTS)/build_metadata.py
+$(CORE_TEST_DIR)/.strip-flags.json: FORCE $(SCRIPTS)/build_metadata.py
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) STRIP_ELF=$(STRIP_ELF) STRIP=$(EE_STRIP)
 
-$(PS2_OBJS) $(BOOT_OBJS) $(CORE_BACKEND_OBJS): $(OUTPUT_DIR)/src/%.o: src/%.cpp $(OUTPUT_DIR)/.backend-flags.json
+$(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_BACKEND_OBJS): $(OUTPUT_DIR)/src/%.o: src/%.cpp $(OUTPUT_DIR)/.backend-flags.json
 	@mkdir -p $(dir $@)
 	$(EE_CXX) $(PS2_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(CXX_VENDOR_INCS_FOR) -c $< -o $@
 
@@ -233,7 +248,7 @@ $(CORE_C_OBJS): $(OUTPUT_DIR)/src/%.o: src/%.c $(OUTPUT_DIR)/.vendor-flags.json
 	@mkdir -p $(dir $@)
 	$(EE_CC) $(VENDOR_CFLAGS) -c $< -o $@
 
-$(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS): CXX_OPTFLAGS_FOR = -Os
+$(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT_OBJS): CXX_OPTFLAGS_FOR = -Os
 
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
@@ -255,20 +270,43 @@ $(CAMPAIGN_OBJS): $(OUTPUT_DIR)/campaign/src/%.o: src/%.cpp $(OUTPUT_DIR)/.campa
 	$(EE_CXX) $(CAMPAIGN_CXXFLAGS) $(NEO_WARNFLAGS_FOR) -c $< -o $@
 
 $(OUTPUT_DIR)/.game-backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(GAME_SIZE_OPT_CXX_SRC) --sources $(GAME_BACKEND_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(GAME_RUNTIME_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(GAME_SIZE_OPT_CXX_SRC) --sources $(GAME_BACKEND_CXX_SRC)
 
 $(GAME_BACKEND_OBJS): $(OUTPUT_DIR)/game-backend/src/%.o: src/%.cpp $(OUTPUT_DIR)/.game-backend-flags.json
 	@mkdir -p $(dir $@)
-	$(EE_CXX) $(PS2_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE -c $< -o $@
+	$(EE_CXX) $(GAME_RUNTIME_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE -c $< -o $@
 
 $(OUTPUT_DIR)/.resident-support-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --heap-vendor-includes $(HEAP_VENDOR_INCS) --cold-sources $(RESIDENT_SIZE_OPT_CXX_SRC) --sources $(RESIDENT_SUPPORT_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(GAME_RUNTIME_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --heap-vendor-includes $(HEAP_VENDOR_INCS) --cold-sources $(RESIDENT_SIZE_OPT_CXX_SRC) --sources $(RESIDENT_SUPPORT_CXX_SRC) $(PS2_CXX_SRC)
 
 $(RESIDENT_SUPPORT_OBJS): $(OUTPUT_DIR)/resident-support/src/%.o: src/%.cpp $(OUTPUT_DIR)/.resident-support-flags.json
 	@mkdir -p $(dir $@)
-	$(EE_CXX) $(PS2_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE $(CXX_VENDOR_INCS_FOR) -c $< -o $@
+	$(EE_CXX) $(GAME_RUNTIME_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE $(CXX_VENDOR_INCS_FOR) -c $< -o $@
 
 $(OUTPUT_DIR)/resident-support/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
+
+$(OUTPUT_DIR)/.test-campaign-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(GAME_TEST_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --sources $(CAMPAIGN_CXX_SRC)
+
+$(TEST_CAMPAIGN_OBJS): $(OUTPUT_DIR)/test-campaign/src/%.o: src/%.cpp $(OUTPUT_DIR)/.test-campaign-flags.json
+	@mkdir -p $(dir $@)
+	$(EE_CXX) $(GAME_TEST_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS) -c $< -o $@
+
+$(OUTPUT_DIR)/.test-backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(GAME_SIZE_OPT_CXX_SRC) --sources $(GAME_BACKEND_CXX_SRC)
+
+$(TEST_BACKEND_OBJS): $(OUTPUT_DIR)/test-backend/src/%.o: src/%.cpp $(OUTPUT_DIR)/.test-backend-flags.json
+	@mkdir -p $(dir $@)
+	$(EE_CXX) $(PS2_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE -c $< -o $@
+
+$(OUTPUT_DIR)/.test-support-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --heap-vendor-includes $(HEAP_VENDOR_INCS) --cold-sources $(TEST_SUPPORT_SIZE_OPT_CXX_SRC) --sources $(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC)
+
+$(TEST_SUPPORT_OBJS): $(OUTPUT_DIR)/test-support/src/%.o: src/%.cpp $(OUTPUT_DIR)/.test-support-flags.json
+	@mkdir -p $(dir $@)
+	$(EE_CXX) $(PS2_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE $(CXX_VENDOR_INCS_FOR) -c $< -o $@
+
+$(OUTPUT_DIR)/test-support/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
 
 # The foundation uses the real Common layout and retained session/profile value types.
 $(OUTPUT_DIR)/core/src/neo/framework/Common.o: CORE_HEADER_FLAGS = $(FOUNDATION_HEADER_FLAGS)
@@ -279,22 +317,22 @@ $(OUTPUT_DIR)/src/tests/smoketests/renderer_tests.o $(OUTPUT_DIR)/src/tests/smok
 $(OUTPUT_DIR)/src/ps2/system/lifecycle.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 $(CORE_OBJS) $(CAMPAIGN_OBJS): NEO_WARNFLAGS_FOR = $(LEGACY_SHARED_WARNFLAGS)
 
-$(EE_BIN): $(LINK_OBJS) $(OUTPUT_DIR)/.link-flags.json
+$(EE_BIN): $(LINK_OBJS) $(CORE_TEST_DIR)/.link-flags.json
 	@mkdir -p $(dir $@)
 	$(EE_CXX) $(OPTFLAGS) -o $@ $(LINK_OBJS) $(EE_LDFLAGS) $(EE_LIBS)
 
-$(GAME_ELF): $(EE_BIN) $(OUTPUT_DIR)/.strip-flags.json
+$(TEST_ELF): $(EE_BIN) $(CORE_TEST_DIR)/.strip-flags.json
 ifeq ($(STRIP_ELF),1)
 	$(EE_STRIP) --strip-all -o $@ $<
 else
 	cp -f $< $@
 endif
 
-$(OUTPUT_DIR)/.source-identity.json: FORCE $(LINK_OBJS) $(SCRIPTS)/build_metadata.py
+$(CORE_TEST_DIR)/.source-identity.json: FORCE $(LINK_OBJS) $(SCRIPTS)/build_metadata.py
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py identity --output $@ --sources $(addprefix src/,$(LINK_SOURCES)) --dependencies $(LINK_OBJS:.o=.d) --policies Makefile config/sources.mk config/source_inventory.json $(SCRIPTS)/build_metadata.py
 
-$(OUTPUT_DIR)/build-report.json: $(EE_BIN) $(GAME_ELF) $(REPORT_FLAGS) $(OUTPUT_DIR)/.source-identity.json $(SCRIPTS)/build_metadata.py
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py report --elf $(EE_BIN) --runnable-elf $(GAME_ELF) --identity $(OUTPUT_DIR)/.source-identity.json --output $(OUTPUT_DIR)/build-report --compiler $(EE_CXX) --configuration $(BUILD) --milestone $(MILESTONE) --flags $(REPORT_FLAGS) --sources $(addprefix src/,$(LINK_SOURCES))
+$(CORE_TEST_DIR)/build-report.json: $(EE_BIN) $(TEST_ELF) $(REPORT_FLAGS) $(CORE_TEST_DIR)/.source-identity.json $(SCRIPTS)/build_metadata.py
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py report --elf $(EE_BIN) --runnable-elf $(TEST_ELF) --identity $(CORE_TEST_DIR)/.source-identity.json --output $(CORE_TEST_DIR)/build-report --compiler $(EE_CXX) --configuration $(BUILD) --milestone $(MILESTONE) --flags $(REPORT_FLAGS) --sources $(addprefix src/,$(LINK_SOURCES))
 
 # The shared logger is used by both the SDK-only probe and the core adapters.
 $(CORE_ARCHIVE): $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS) $(OUTPUT_DIR)/src/ps2/system/log.o
@@ -311,39 +349,41 @@ compile-core: inventory $(CORE_ARCHIVE)
 compile-game: inventory $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
 	@echo "Campaign compile gate: $(words $(CAMPAIGN_OBJS)) retained EE units; replacements remain listed in the inventory."
 
-# Real retained-object link with an explicitly selected game fixture entry. Failed gates remove stale ELFs.
+# Production retained-object link with no test sources or fixture hooks. Failed gates remove stale ELFs.
 link-game: inventory $(RESIDENT_LINK_OBJS)
-	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR)/resident --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
+	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR) --kind game --name d3bfg --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
 
-headless-game: link-game
+# The same retained campaign is compiled with fixture hooks into a separate native executable.
+headless-game: inventory $(GAME_TEST_LINK_OBJS)
+	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(GAME_TEST_DIR) --kind tests --name d3bfg_tests --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --sources $(addprefix src/,$(GAME_TEST_LINK_SOURCES)) --objects $(GAME_TEST_LINK_OBJS) --flags $(OUTPUT_DIR)/.test-campaign-flags.json $(OUTPUT_DIR)/.test-backend-flags.json $(OUTPUT_DIR)/.test-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
 
 test-map: headless-game
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-map
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-map
 
 test-game: headless-game
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-missing-map
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-syntax
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-geometry
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-material
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-player-args
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-player-script
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-player-command
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-player-state
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-ceiling-geometry
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(OUTPUT_DIR)/resident/d3bfg.elf --scenario game-step-geometry
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-missing-map
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-syntax
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-geometry
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-material
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-player-args
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-player-script
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-player-command
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-player-state
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-ceiling-geometry
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-step-geometry
 
 compiledb:
 	@$(PYTHON) $(SCRIPTS)/gen_compile_commands.py --make $(MAKE) --build $(BUILD)
 
 script-probe:
-	$(MAKE) --no-print-directory BUILD=$(BUILD) SCRIPT_PROBE=1 all
+	$(MAKE) --no-print-directory BUILD=$(BUILD) SCRIPT_PROBE=1 core-tests
 
-test-common: all
-	$(PYTHON) $(SCRIPTS)/run_common_tests.py --emulator $(PCSX2) --elf $(GAME_ELF)
+test-common: headless-core
+	$(PYTHON) $(SCRIPTS)/run_common_tests.py --emulator $(PCSX2) --elf $(TEST_ELF)
 
 test-script: script-probe
-	$(PYTHON) $(SCRIPTS)/run_script_tests.py --elf build/$(BUILD)-script/d3bfg.elf
+	$(PYTHON) $(SCRIPTS)/run_script_tests.py --elf build/$(BUILD)-script/tests/script/d3bfg_tests.elf
 
 tools: inventory
 	@echo "Build metadata and source audit tools are Python scripts under $(SCRIPTS)/."
@@ -351,14 +391,14 @@ tools: inventory
 run: all
 	$(PCSX2) -batch -elf $(abspath $(GAME_ELF))
 
-smoke: all
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(GAME_ELF) --scenario core
+smoke: headless-core
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core
 
-smoke-negative: all
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(GAME_ELF) --scenario core-missing-fixture
+smoke-negative: headless-core
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core-missing-fixture
 
-smoke-platform: all
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(GAME_ELF) --scenario platform
+smoke-platform: platform-probe
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario platform
 
 HOST_CXX ?= clang++
 
@@ -455,11 +495,11 @@ test-host: build/tests/heap_tests build/tests/common_tests_1 build/tests/common_
 	./build/tests/heap_tests
 	$(PYTHON) -m unittest discover -s src/tests/host -p 'test_*.py'
 
--include $(HOST_JPEG_OBJS:.o=.d) $(HOST_ZLIB_OBJS:.o=.d) $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d) $(CODEC_C_OBJS:.o=.d) $(CODEC_CXX_OBJS:.o=.d)
+-include $(HOST_JPEG_OBJS:.o=.d) $(HOST_ZLIB_OBJS:.o=.d) $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d) $(TEST_CAMPAIGN_OBJS:.o=.d) $(TEST_BACKEND_OBJS:.o=.d) $(TEST_SUPPORT_OBJS:.o=.d) $(CODEC_C_OBJS:.o=.d) $(CODEC_CXX_OBJS:.o=.d)
 
 clean:
 	rm -rf build/debug build/release build/tests
 
 FORCE:
 
--include $(PS2_OBJS:.o=.d) $(BOOT_OBJS:.o=.d) $(CORE_OBJS:.o=.d) $(CORE_BACKEND_OBJS:.o=.d) $(CORE_C_OBJS:.o=.d) $(CAMPAIGN_OBJS:.o=.d)
+-include $(CORE_TEST_DRIVER_OBJS:.o=.d) $(BOOT_OBJS:.o=.d) $(CORE_OBJS:.o=.d) $(CORE_BACKEND_OBJS:.o=.d) $(CORE_C_OBJS:.o=.d) $(CAMPAIGN_OBJS:.o=.d)

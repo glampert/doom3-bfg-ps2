@@ -71,9 +71,13 @@ def diagnostics(log: str) -> tuple[list[dict], list[str]]:
 
 def run(args: argparse.Namespace) -> int:
     args.output.mkdir(parents=True, exist_ok=True)
-    elf = args.output / "d3bfg_unstripped.elf"
-    candidate = args.output / "d3bfg_unstripped.elf.tmp"
-    runnable = args.output / "d3bfg.elf"
+    name = getattr(args, "name", "d3bfg")
+    kind = getattr(args, "kind", "game")
+    if kind not in ("game", "tests") or name != {"game": "d3bfg", "tests": "d3bfg_tests"}[kind]:
+        raise ValueError("invalid resident executable name")
+    elf = args.output / (name + "_unstripped.elf")
+    candidate = elf.with_suffix(".elf.tmp")
+    runnable = args.output / (name + ".elf")
     for path in (elf, candidate, runnable, args.output / "report.json", args.output / "report.txt"):
         path.unlink(missing_ok=True)
     if len(args.sources) != len(args.objects) or not args.objects:
@@ -82,12 +86,14 @@ def run(args: argparse.Namespace) -> int:
         raise ValueError("duplicate resident source/object")
     if any("doomclassic" in str(path).casefold() for path in args.sources + args.objects):
         raise ValueError("Classic source/object in resident link")
+    if kind == "game" and any("tests" in Path(path).parts for path in args.sources + args.objects):
+        raise ValueError("test source/object in production link")
     for path in args.objects:
         if not Path(path).is_file():
             raise ValueError(f"missing resident object: {path}")
     response = args.output / "objects.rsp"
     response.write_text("\n".join(shlex.quote(path) for path in args.objects) + "\n")
-    link_map = args.output / "d3bfg.map"
+    link_map = args.output / (name + ".map")
     link_map.unlink(missing_ok=True)
     command = [args.compiler, "-o", str(candidate), "@" + str(response),
                "-T" + str(args.linkfile), "-L" + str(args.sdk_lib), "-Wl,-zmax-page-size=128",
@@ -106,7 +112,7 @@ def run(args: argparse.Namespace) -> int:
             item["symbol"] = name
             item["category"] = category(name)
     data = {
-        "schema_version": 1, "configuration": args.configuration, "milestone": "resident-link",
+        "schema_version": 1, "configuration": args.configuration, "milestone": "resident-link", "kind": kind,
         "linker_returncode": result.returncode, "passed": False, "command": command,
         "object_count": len(args.objects), "garbage_collection": False,
         "inputs": [{"source": source, "object": obj,
@@ -120,6 +126,9 @@ def run(args: argparse.Namespace) -> int:
                                            ["Makefile", "config/sources.mk", "config/source_inventory.json",
                                             "src/tools/scripts/link_resident.py"]),
     }
+    if kind == "game":
+        data["test_inputs"] = [path for path in data["source_identity"].get("project_input_sha256", {})
+                               if "tests" in Path(path).parts]
     if result.returncode == 0 and not unresolved and not duplicates:
         # A resident gate must retain the actual game hierarchy and registration roots.
         try:
@@ -133,7 +142,11 @@ def run(args: argparse.Namespace) -> int:
                 header = stream.read(52)
             data["executable"] = struct.unpack_from("<H", header, 16)[0] == 2 and bool(segments)
             data["loaded_memory_bytes"] = sum(segment["memory_bytes"] for segment in segments)
-            data["passed"] = data["executable"] and all(data["registrations"].values()) and not data["missing_map_objects"]
+            data["test_symbols"] = [line for line in symbols.splitlines()
+                                    if any(token in line for token in ("ps2::smoketests::", "ps2::gamefixture::", "HeadlessFixture"))]
+            isolated = kind != "game" or (not data["test_inputs"] and not data["test_symbols"])
+            data["passed"] = (data["executable"] and all(data["registrations"].values()) and
+                              not data["missing_map_objects"] and isolated)
             if data["passed"]:
                 subprocess.run([prefix + "strip", "--strip-all", "-o", str(runnable), str(candidate)], check=True)
                 candidate.replace(elf)
@@ -163,6 +176,8 @@ def main() -> int:
     parser.add_argument("--compiler", required=True)
     parser.add_argument("--configuration", choices=("debug", "release"), required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--kind", choices=("game", "tests"), default="game")
+    parser.add_argument("--name", choices=("d3bfg", "d3bfg_tests"), default="d3bfg")
     parser.add_argument("--linkfile", type=Path, required=True)
     parser.add_argument("--sdk-lib", type=Path, required=True)
     parser.add_argument("--sources", nargs="+", required=True)

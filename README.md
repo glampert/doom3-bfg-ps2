@@ -1,7 +1,8 @@
 # Doom 3 BFG Edition for the PlayStation 2
 
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
-using the free ps2dev SDK. The port builds a scalar EE core and an authored headless
+using the free ps2dev SDK. The production executable runs a paced Common service loop.
+Separate native test executables exercise a scalar EE core and an authored headless
 game fixture that runs native initialization, entity thinking, script events, bounded collision/physics
 and a restricted native `idPlayer`. An authored map also boots through native `InitFromNewMap`
 with logical world/model/PVS queries, collision, AAS and one idle native AI. Full campaign player startup, retail maps,
@@ -22,31 +23,50 @@ The Doom Makefile uses explicit source lists in `config/sources.mk`; the unchang
 Quake II reference is retained in `docs/reference/quake2.Makefile`.
 
 ```sh
-make                         # current debug milestone
-make release                 # release configuration
+make                         # production d3bfg.elf, debug
+make release                 # production d3bfg.elf, release
 make platform-probe          # SDK/timer/alignment probe
 make headless-core           # scalar Doom foundation and integration tests
 make compile-core            # 52 scalar idlib units and 10 framework/session support units
 make compile-game            # all 281 retained campaign units; compile gate only
-make link-game               # retained campaign link and registration/map gate
-make headless-game           # resident native game fixture ELF
+make link-game               # production campaign link, registrations and test-isolation gate
+make headless-game           # native campaign test executable
 make test-game               # boot/player/ticks/reloads and ten expected failures in PCSX2
 make BUILD=release test-game  # same game checks with assertions disabled
 make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
 make BUILD=release test-map   # same map checks with assertions disabled
 make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
-make release smoke           # release core smoke run
+make BUILD=release smoke     # release core smoke run
 make smoke-negative          # expected missing-fixture failure
 make test-common             # seven partial-startup and fifty-nine expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 
-Each configuration produces `build/<config>/d3bfg.elf`, matching
-`d3bfg_unstripped.elf`, `d3bfg.map`, and `build-report.{json,txt}`. Reports distinguish
-fixed ELF load-segment residency from runtime allocation. Flag/compiler/source-list
-stamps invalidate affected objects automatically. Debug uses `-O2` with asserts;
-release uses `-O3` without debug-only checks. Explicit cold backend code uses `-Os`.
+Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,
+`d3bfg.map` and `report.{json,txt}`. This executable links the full retained campaign
+without sources or headers under `src/tests/`, fixture symbols or linker GC. Its
+`main()` preserves the loader's IOP, initializes Common, pumps commands/offline
+services with approximately 60 Hz idle pacing, and shuts down after a quit request.
+Native campaign map transitions and `RunFrame`, physical input and presentation are
+still pending. Startup uses the native filesystem and requires `base/default.cfg`
+under the loader's HostFs root. It optionally executes `base/d3bfg.cfg`; `quit` and
+`exit` request shutdown after the current frame. Desktop `default.cfg` is checked
+for existence but is not executed by this bootstrap. `make run` launches production.
+
+Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
+`d3bfg_tests.map`. `make headless-core` writes `build/<config>/tests/core/`,
+`make platform-probe` writes `build/<config>/tests/platform/`, and
+`make headless-game` writes `build/<config>/tests/game/`. The isolated compiler probe
+uses `build/<config>-script/tests/script/`. Core/platform/script reports are named
+`build-report.{json,txt}`; campaign test reports are `report.{json,txt}`. All smoke
+commands select these test images explicitly. Campaign tests have their own object
+and flag trees with `PS2_D3BFG_TESTS=1`; production uses `0`.
+
+Reports distinguish fixed ELF load-segment residency from runtime allocation.
+Flag/compiler/source-list stamps invalidate affected objects automatically. Debug
+uses `-O2` with asserts; release uses `-O3` without debug-only checks. Explicit cold
+backend code uses `-Os`.
 
 All target C++ uses C++20 without exceptions, RTTI or thread-safe local statics. New
 backend/tests pass the full strict GCC warning set with `-Werror`. Legacy style warning
@@ -62,7 +82,7 @@ M2b compile/link acceptance is complete: campaign headers separate OpenGL state 
 renderer/menu contracts, and initial C++20/source portability fixes are in place.
 All 281 retained campaign units now compile in both configurations. The four logical-
 sound units use a portable sample/voice/device boundary without DirectX SDK headers;
-the default executable remains the headless core. Six native profile, user and
+the default executable runs the production Common loop. Six native profile, user and
 snapshot/compression support units have been retained for the real Common layout and
 offline services. Campaign achievements are retained too; their Classic evaluation
 entry is explicitly unavailable.
@@ -86,13 +106,13 @@ Retained menu, GUI-variable, file and model casts use checked portable hierarchy
 Shared host/EE tests cover null/sibling rejection, inherited/const types and separate-unit
 identity; actual file objects and engine hierarchy declarations are checked on the EE.
 
-`make link-game` attempts a real whole-object campaign link under
-`build/<config>/resident/`, with its own strict support objects and no core filesystem
-substitute. Debug and release now link all 345 inputs without unresolved symbols or
-duplicate definitions. JSON/text reports retain object/source hashes, flags and the real
-linker exit status, and verify the game/class/cvar registration roots and every input in
-the map. Failed attempts remove stale resident ELFs. The resident entry requires the
-runner's explicit game manifest before selecting the authored fixture.
+`make link-game` performs the production whole-object campaign link under
+`build/<config>/`, with strict support objects and the native filesystem. All 342 inputs
+must link without unresolved symbols or duplicate definitions. JSON/text reports
+retain object/source hashes, flags and the real linker status, verify registration
+roots and every map input, and reject test sources, transitive test headers and
+fixture symbols. Failed attempts remove stale images. `make headless-game` separately
+links the 345-input campaign test image with explicit authored-fixture selection.
 
 `make test-game` boots native `idGameLocal`, parses a fixed floor/wall/low-roof/step worldspawn `.map` through
 the native loose-file filesystem, and spawns a logic entity through the real class
@@ -330,7 +350,7 @@ strings and forced controller/rumble settings.
 This milestone preserves the loader's IOP/`host:` filesystem and initializes SIF RPC.
 Physical USB/HDD bring-up, the GS/VU1 path, SPU2 audio, controller input, save games and
 a custom EE exception handler are not implemented. For an emulator-reported PC, use the
-archived `d3bfg_unstripped.elf` with `mips64r5900el-ps2-elf-addr2line`. The standalone
+archived `d3bfg_tests_unstripped.elf` (or production `d3bfg_unstripped.elf`) with `mips64r5900el-ps2-elf-addr2line`. The standalone
 symbolization helper is in `src/tools/scripts/`.
 
 ## Local data and reference knowledge

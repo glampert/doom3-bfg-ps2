@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 
 PROJECTS = ("idlib.vcxproj", "doomexe.vcxproj", "game-d3xp.vcxproj", "external.vcxproj")
 SOURCE_SUFFIXES = {".c", ".cpp", ".cc"}
-EE_LISTS = ("PS2_CXX_SRC", "CORE_CXX_SRC", "CORE_FRAMEWORK_CXX_SRC", "CORE_BACKEND_CXX_SRC", "CORE_C_SRC", "CORE_BOOT_CXX_SRC",
+EE_LISTS = ("PS2_CXX_SRC", "CORE_TEST_DRIVER_CXX_SRC", "GAME_TEST_CXX_SRC", "CORE_CXX_SRC", "CORE_FRAMEWORK_CXX_SRC", "CORE_BACKEND_CXX_SRC", "CORE_C_SRC", "CORE_BOOT_CXX_SRC",
             "CAMPAIGN_CXX_SRC", "VENDOR_C_SRC", "VENDOR_CXX_SRC", "SCRIPT_CXX_SRC", "SCRIPT_BOOT_CXX_SRC", "GAME_BACKEND_CXX_SRC", "RESIDENT_SUPPORT_CXX_SRC", "RENDER_STUB_CXX_SRC", "JPEG_TEST_CXX_SRC")
 
 
@@ -95,6 +95,10 @@ def audit(root: Path) -> tuple[dict, list[str]]:
                     errors.append(f"{name} enables an excluded/replaced source: {source}")
             elif source.startswith("neo/") and source not in dispositions:
                 errors.append(f"{name} enables an unclassified source: {source}")
+    for name in ("PS2_CXX_SRC", "CAMPAIGN_CXX_SRC", "GAME_BACKEND_CXX_SRC", "RESIDENT_SUPPORT_CXX_SRC", "CORE_C_SRC", "VENDOR_C_SRC", "VENDOR_CXX_SRC"):
+        for source in lists[name]:
+            if "tests" in Path(source).parts:
+                errors.append(f"{name} enables a test source in production: {source}")
     intended = set(inventory["categories"]["campaign_runtime"]["sources"])
     if set(lists["CAMPAIGN_CXX_SRC"]) != intended:
         errors.append("CAMPAIGN_CXX_SRC differs from the reviewed campaign disposition")
