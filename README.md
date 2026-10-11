@@ -61,7 +61,9 @@ Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 uses `build/<config>-script/tests/script/`. Core/platform/script reports are named
 `build-report.{json,txt}`; campaign test reports are `report.{json,txt}`. All smoke
 commands select these test images explicitly. Campaign tests have their own object
-and flag trees with `PS2_D3BFG_TESTS=1`; production uses `0`.
+and flag trees with `PS2_D3BFG_TESTS=1`; production uses `0`. This is the only test
+enable define. Make selects the core stage or SDK-only skip provider through source
+lists; `CORE_BOOT` remains a Make selector, not a compiler define.
 
 Reports distinguish fixed ELF load-segment residency from runtime allocation.
 Flag/compiler/source-list stamps invalidate affected objects automatically. Debug

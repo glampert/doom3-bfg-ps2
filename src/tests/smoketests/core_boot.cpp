@@ -7,6 +7,7 @@
 #include "ps2/system/log.h"
 
 #include "tests/smoketests/core_boot.h"
+#include "tests/smoketests/boot_stage.h"
 #include "tests/smoketests/audio_tests.h"
 #include "tests/smoketests/renderer_tests.h"
 #include "tests/smoketests/deferred_tests.h"
@@ -262,6 +263,14 @@ bool CheckMissingAndEscapingPaths()
 }
 
 } // namespace
+
+void InitTestServices() { ps2::filesystem::Init(); }
+
+const char * RunCoreTestStage(const char * fixturePath)
+{
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE core BEGIN\n");
+    return RunCoreTests(fixturePath) ? "PASS" : "FAIL";
+}
 
 bool RunCoreTests(const char * fixturePath)
 {

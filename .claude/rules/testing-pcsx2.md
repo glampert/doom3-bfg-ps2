@@ -6,6 +6,9 @@
   explicitly with `make platform-probe`, `make headless-core` or `make headless-game`.
   All native test variants are named `d3bfg_tests.elf` under `build/<config>/tests/`.
   Match `--elf` and `--symbols` when passing a nondefault configuration to the runner.
+- `PS2_D3BFG_TESTS` is the sole test-enable define. Make's `CORE_BOOT` selector
+  chooses the real core stage or the SDK-only skip provider through source lists.
+  Build and run platform/core variants separately so archived flag stamps match.
 - `make smoke-platform` stages an isolated
   manifest, ELF/symbols, logs and result under `build/test-results/<UTC-run-id>/`.
   Use `--scenario core` for the foundation bootstrap and `core-missing-fixture` for

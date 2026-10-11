@@ -6,6 +6,8 @@ CORE_TEST_DRIVER_CXX_SRC = \
 	ps2/system/log.cpp \
 	tests/smoketests/platform_boot.cpp
 
+PLATFORM_TEST_CXX_SRC = tests/smoketests/platform_stage.cpp
+
 RENDER_STUB_CXX_SRC = \
 	ps2/renderer/null_render.cpp \
 	ps2/renderer/image_stubs.cpp \

@@ -56,8 +56,11 @@ its separate deletion gate. Retail assets do not participate in these build targ
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
 `make headless-core` links asset-free foundation tests into
 `build/<config>/tests/core/d3bfg_tests.elf`; `make platform-probe` selects the separate
-SDK-only test variant. The core test initializes retained foundation services and
-does not initialize the campaign game.
+SDK-only test variant. Both use `PS2_D3BFG_TESTS=1`; Make source selection supplies
+the core stage or the `PLATFORM_TEST_CXX_SRC` skip provider. The platform link has no
+Doom core services. The core test initializes retained foundation services and
+does not initialize the campaign game. `CORE_BOOT` controls this selection only in
+Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
 `make compile-core` compiles the scalar idlib subset and the initial command/CVar/file
 foundation. Its upstream list contains 52 idlib units: all 55 from `idlib.vcxproj` except

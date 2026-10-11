@@ -80,7 +80,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly by
   `compile-game`; `RESIDENT_SUPPORT_CXX_SRC` supplies strict shared providers;
   `PS2_CXX_SRC` owns production entry, `CORE_TEST_DRIVER_CXX_SRC` and `GAME_TEST_CXX_SRC`
-  own test entries/adapters. Keep fixture hooks behind `PS2_D3BFG_TESTS` and separate
+  own test entries/adapters. `PLATFORM_TEST_CXX_SRC` supplies the SDK-only core-stage
+  skip provider. Make selects test stages through source lists; `PS2_D3BFG_TESTS` is
+  the sole test-enable define. Keep fixture hooks behind it and separate
   campaign/test object trees. The production link rejects test inputs and symbols. `VENDOR_C_SRC` / `VENDOR_CXX_SRC` enable only audited relocated codec units. The source
   inventory maps their original upstream project paths. Host fixture lists cannot enable
   additional vendor sources in an EE runtime target.

@@ -58,7 +58,7 @@ def main() -> int:
             transcript = sys.stdin.read()
         else:
             transcripts = []
-            for goals in (["all", "headless-core", "headless-game", "compile-core"], ["SCRIPT_PROBE=1", "core-tests"]):
+            for goals in (["all", "headless-core", "headless-game", "compile-core"], ["SCRIPT_PROBE=1", "core-tests"], ["platform-probe"]):
                 result = subprocess.run([args.make, "--no-print-directory", "-Bnk", f"BUILD={args.build}", *goals],
                                         text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
                 if result.returncode:

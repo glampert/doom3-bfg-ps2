@@ -60,6 +60,10 @@ ifneq ($(filter link-game,$(MAKECMDGOALS)),)
 	endif
 endif
 OUTPUT_DIR = build/$(BUILD)$(if $(filter 1,$(SCRIPT_PROBE)),-script,)
+# Select the core-stage provider without another test-enable compiler define.
+ifeq ($(CORE_BOOT),0)
+	CORE_TEST_DRIVER_CXX_SRC += $(PLATFORM_TEST_CXX_SRC)
+endif
 ifeq ($(SCRIPT_PROBE),1)
 	CORE_TEST_DRIVER_CXX_SRC = $(SCRIPT_BOOT_CXX_SRC)
 	CORE_BOOT_CXX_SRC =
@@ -101,7 +105,7 @@ EE_CXX_WARNFLAGS = -Wall -Wextra -Werror \
 	-Wnon-virtual-dtor -Woverloaded-virtual -Wvla \
 	-Wlogical-op -Wduplicated-cond -Wduplicated-branches
 
-PS2_CXXFLAGS = $(COMMON_CXXFLAGS) $(EE_CXX_WARNFLAGS) -DID_PS2_CORE=1 -DPS2_D3BFG_CORE_TESTS=$(CORE_BOOT) -DPS2_D3BFG_TESTS=1
+PS2_CXXFLAGS = $(COMMON_CXXFLAGS) $(EE_CXX_WARNFLAGS) -DID_PS2_CORE=1 -DPS2_D3BFG_TESTS=1
 
 # Legacy code keeps visible warnings and all language restrictions. Any
 # necessary warning suppression belongs on the individual object, with a reason.
@@ -110,7 +114,7 @@ NEO_CXXFLAGS = $(COMMON_CXXFLAGS) -Wall -Wextra -fsingle-precision-constant
 CORE_CXXFLAGS = $(NEO_CXXFLAGS) -DID_PS2_CORE=1 -DPS2_D3BFG_TESTS=1
 FOUNDATION_HEADER_FLAGS = -UID_PS2_CORE -DPS2_D3BFG_FOUNDATION=1
 CAMPAIGN_CXXFLAGS = $(NEO_CXXFLAGS) -DPS2_D3BFG_TESTS=0
-GAME_RUNTIME_CXXFLAGS = $(filter-out -DPS2_D3BFG_TESTS=1 -DPS2_D3BFG_CORE_TESTS=$(CORE_BOOT),$(PS2_CXXFLAGS)) -DPS2_D3BFG_TESTS=0 -DPS2_D3BFG_CORE_TESTS=0
+GAME_RUNTIME_CXXFLAGS = $(filter-out -DPS2_D3BFG_TESTS=1,$(PS2_CXXFLAGS)) -DPS2_D3BFG_TESTS=0
 GAME_TEST_CXXFLAGS = $(NEO_CXXFLAGS) -DPS2_D3BFG_TESTS=1
 
 # Observed in GCC 15's scalar idlib build: MSVC pragmas, unused public interface

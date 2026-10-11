@@ -2092,3 +2092,36 @@ Next connect native headless map ownership/startup and game ticks to the product
 Common loop, retaining the authored map test as the regression boundary. Full
 campaign player startup, animated AI, map transitions and retail resource residency
 remain pending. No additional gameplay fixtures were introduced by this split.
+
+## Single test-enable define
+
+`PS2_D3BFG_CORE_TESTS` has been removed. Native test code uses
+`PS2_D3BFG_TESTS=1`, while production uses `0`. Make's `CORE_BOOT` selector now
+chooses the core-stage implementation or a small SDK-only skip provider through
+explicit source lists. The shared entry preserves filesystem initialization before
+platform checks, core BEGIN/PASS/FAIL markers and the platform variant's core SKIP
+result. `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` remain unchanged.
+
+Debug/release production, core, SDK-only platform and campaign test builds pass
+with the real EE compiler and strict backend warnings. Production still retains
+342 direct inputs with no test inputs or fixture symbols; campaign tests retain
+345. The debug isolated compiler probe also builds. The four source-inventory
+host regressions pass, and the compile database now includes 366 entries. No new
+gameplay fixtures were added.
+
+PCSX2 acceptance on 2026-10-11 covers both configurations' platform/core success,
+expected missing-fixture failure and existing authored native map:
+
+| Check | Debug archive | Release archive |
+| --- | --- | --- |
+| Platform | `20261011T105707Z_smoke_472bd63c2197403a` | `20261011T105728Z_smoke_bdcdf2f76e2a436b` |
+| Core | `20261011T105758Z_smoke_3bcb05e339114732` | `20261011T110010Z_smoke_180d9f8a11f34092` |
+| Missing fixture | `20261011T110007Z_smoke_fe86b2154b1b4912` | `20261011T110013Z_smoke_7c4fb37c2768436a` |
+| Native map | `20261011T110015Z_smoke_baf0d7131c54463f` | `20261011T110018Z_smoke_2c0832cec851465f` |
+
+The debug compiler probe's positive case also passes:
+`20261011T110101Z_script_13d2f6493fb74675`.
+
+The broader Common/player negative matrices and full host suite were not rerun
+for this define/source-selection change. The next production integration work
+remains native headless map startup and game ticks in the Common loop.

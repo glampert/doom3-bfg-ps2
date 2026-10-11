@@ -7,11 +7,7 @@
 #include "ps2/system/log.h"
 
 #include "tests/smoketests/platform_boot.h"
-
-#if PS2_D3BFG_CORE_TESTS
-#include "tests/smoketests/core_boot.h"
-#include "ps2/system/filesystem.h"
-#endif
+#include "tests/smoketests/boot_stage.h"
 
 #include <kernel.h>
 #include <sifrpc.h>
@@ -112,9 +108,7 @@ int main()
 {
     // Preserve the loader's IOP/host filesystem. Console device bring-up is a later stage.
     SifInitRpc(0);
-#if PS2_D3BFG_CORE_TESTS
-    ps2::filesystem::Init();
-#endif
+    ps2::smoketests::InitTestServices();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE platform BEGIN\n");
     BootManifest manifest;
     const bool manifestPassed = ReadManifest(manifest);
@@ -129,13 +123,10 @@ int main()
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE platform %s\n", platformPassed ? "PASS" : "FAIL");
 
     const char * coreStatus = "SKIP";
-#if PS2_D3BFG_CORE_TESTS
     if (platformPassed)
     {
-        ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE core BEGIN\n");
-        coreStatus = ps2::smoketests::RunCoreTests(manifest.fixturePath) ? "PASS" : "FAIL";
+        coreStatus = ps2::smoketests::RunCoreTestStage(manifest.fixturePath);
     }
-#endif
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE core %s\n", coreStatus);
     const bool resultWritten = WriteResult(manifest, manifestPassed, platformPassed, coreStatus);
     const bool passed = platformPassed && strcmp(coreStatus, "FAIL") != 0 && resultWritten;
