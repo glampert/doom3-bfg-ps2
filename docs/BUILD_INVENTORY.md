@@ -295,6 +295,10 @@ object trees. No vendor/data import is added.
 
 ## Renderer interface stubs
 
+The active 2D bring-up proposal and Quake II reuse inventory are in
+[RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md). Its destinations and budgets are proposed;
+the renderer slices below record the existing implementation history.
+
 Four explicit `RENDER_STUB_CXX_SRC` units also appear in the core/campaign backend
 lists and cold policy. They compile against full native headers under strict warnings;
 no upstream renderer sources or layouts change. `null_render.cpp` binds `renderSystem`

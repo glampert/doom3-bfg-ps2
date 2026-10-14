@@ -16,6 +16,11 @@ contains the campaign milestones; [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY
 records the explicit source dispositions and deferred replacements. Third-party
 dependencies imported for the port live under `src/external/`.
 
+[RENDERER_2D_PLAN.md](docs/RENDERER_2D_PLAN.md) inventories the Doom UI and Quake II
+PS2 renderer, and proposes the next rendering work: GS primitives, a visible native
+console, then the native offline main menu. It records reuse boundaries, asset and
+memory requirements, and acceptance gates; renderer implementation has not started.
+
 ## Build
 
 Install ps2dev with `mips64r5900el-ps2-elf-g++` and ps2sdk. The defaults are
