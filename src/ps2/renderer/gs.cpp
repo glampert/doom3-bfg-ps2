@@ -22,6 +22,7 @@ static int s_width = 0;
 static int s_height = 0;
 static u32 s_fixedVramBytes = 0;
 static bool s_initialized = false;
+static u64 s_previousImr = 0;
 
 int Index(DrawContext context)
 {
@@ -71,15 +72,26 @@ PS2_COLD_FUNC bool Init(const Config & config)
     s_depth.mask = 1;
     s_depth.enable = DRAW_DISABLE;
     s_depth.method = ZTEST_METHOD_ALLPASS;
+    s_previousImr = GsGetIMR();
     if (graph_set_mode(GRAPH_MODE_INTERLACED, video::GraphMode(config.standard), GRAPH_MODE_FIELD, GRAPH_ENABLE) != 0)
     {
         graph_shutdown();
+        GsPutIMR(s_previousImr);
         graph_vram_clear();
         s_width = s_height = 0;
         s_fixedVramBytes = 0;
         return false;
     }
     graph_disable_output();
+    // Claim the VIF/GIF interfaces as well as the GS. A GS CSR reset alone left
+    // inherited loader state that blocked our first PATH2 DIRECT on the target.
+    WaitUntil([] { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "initial GIF DMA");
+    Log(LogLevel::Info, "[D3BFG] GS claim GIF_STAT=%08x VIF1_STAT=%08x\n", *R_EE_GIF_STAT, *R_EE_VIF1_STAT);
+    *R_EE_GIF_CTRL = 1;
+    *R_EE_GIF_CTRL = 0;
+    *R_EE_VIF1_FBRST = 1;
+    *R_EE_VIF1_FBRST = 0;
+    EE_SYNCP();
     // Poll CSR directly; no interrupt handler may consume our FINISH/VSYNC events.
     GsPutIMR(0x7F00);
     graph_set_screen(0, 0, s_width, s_height);
@@ -136,6 +148,7 @@ PS2_COLD_FUNC void Shutdown()
     if (!s_initialized) { return; }
     cmdbuf::WaitIdle();
     graph_shutdown();
+    GsPutIMR(s_previousImr);
     graph_vram_clear();
     s_frames[0] = {};
     s_frames[1] = {};

@@ -2,6 +2,21 @@
 
 ## Doom foundation procedures
 
+- `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
+  executable for one integrated GS scene in NTSC/PAL, then three expected-fatal probes.
+  They do not initialize Common/game UI or link fixtures into production. Seven GS
+  markers require 120 presented frames, alternating contexts, a reload with smaller
+  command halves, pressure/drains and exact tagged cleanup. GIF/oversized-DIRECT bounds
+  and a deliberately stalled deadline must remain fatal with assertions off.
+- `make run-renderer` holds the completed NTSC picture for 60 seconds; PCSX2's configured
+  F8 saves a framebuffer screenshot. `--scenario renderer-pal --visual-wait 60 --timeout 90`
+  selects PAL when invoking the runner directly with the matching `--elf`. The native
+  ready file is consumed only after its closed-file log marker, and the runner releases
+  the hold through `renderer.resume`. Archives flag pixel inspection as required even
+  when all native/log checks pass. Preserve the image/hash and record the inspection;
+  the on-target capture path is still the next 2D gate. Accepted 2026-10-14 run identities
+  and measured budgets are in PORT_STATUS; no physical PS2 or cache-coherency claim.
+
 - `make test-headless` / `make BUILD=release test-headless` exercise the production ELF
   with authored `assets/headless/` data. One run completes exactly 120 frames; another
   continues past 120 until live HostFs commands request quit. Require active native
@@ -59,7 +74,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 92 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 105 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -71,11 +86,11 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 66 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 69 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Fifty-nine negative probes require matching run/begin identities and
+  uses a fresh process. Sixty-two negative probes require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
   matchmaking, Classic switching, absent save manager, unsupported input device, audio
   missing WAVs, unloaded duration queries, audio device initialization, invalid WAV
@@ -135,6 +150,9 @@
   acquires no devices or sampling buffers and publishes no player commands. Eleven
   input probes verify unavailable methods, null-string validation and forced preferences;
   changing an archived cvar cannot turn the boundary into an input source.
+
+- The additional GS failure probes cover release-safe GIF bounds, oversized DIRECT
+  reservations and a stalled deadline; they do not claim Common or UI startup.
 
 - Four required `codecs/` markers check the known CRC vector, independent wrapped/raw
   streams with chunked input/output and compression round trips, checksum/truncation and

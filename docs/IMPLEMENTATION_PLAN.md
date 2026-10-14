@@ -418,11 +418,13 @@ Work in small commits; each implementation commit states its behavior change and
 
 M2b is required before M3. M4 and the host asset inventory can proceed independently after M2 while M2b/M3 mature. The first retail-map trial requires both game initialization and compatible converted content. Optimization should not conceal unresolved loading/gameplay failures.
 
-The current selected work is planning the first GS-backed 2D renderer and native
+The current selected work is the first GS-backed 2D renderer and native
 offline main menu. [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) expands M4 into ordered
 device, texture/capture, visible-console, SWF and shell gates, with a source inventory
-of Doom and the Quake II PS2 reference. This pass documents the roadmap before any
-renderer implementation. Sound output and world rendering remain later work.
+of Doom and the Quake II PS2 reference. The approved first slice, 2D-1, now passes
+debug/release solid/alpha scene, pressure and cleanup checks with inspected PCSX2
+captures. Native console/SWF/menu integration follows the remaining 2D gates.
+Sound output and world rendering remain later work.
 
 Preserve the completed headless path and pause further standalone movement fixtures.
 One integrated authored map now combines logical world/model/PVS checks with native
@@ -443,7 +445,7 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 ## 13. Open inputs and decision points
 
-- **Current scope:** M0–M2 and M2b compile/link passed. M3 boot/ticks/events, bounded collision/physics, restricted native player ticks and authored native map/world/PVS/AAS/idle-AI startup pass; campaign player, animated AI/gameplay and broader maps remain pending. The user now requests a 2D renderer/main-menu inventory and roadmap before implementation; preserve headless simulation during subsequent rendering work.
+- **Current scope:** M0–M2 and M2b compile/link passed. M3 boot/ticks/events, bounded collision/physics, restricted native player ticks and authored native map/world/PVS/AAS/idle-AI startup pass; campaign player, animated AI/gameplay and broader maps remain pending. The user approved the 2D renderer/main-menu roadmap; its first CPU-only GS slice now passes in PCSX2. Preserve headless simulation during subsequent rendering work.
 - **Retail data:** the user supplied BFG assets in `gamedata/d3_bfg/` and separate RoE reference assets in `gamedata/d3_roe/`. Inventory the BFG resource containers and resolve logical runtime paths before a campaign initialization claim. Core and synthetic tests remain independent of them.
 - **Reuse notices:** the user authorizes GPL v3 reuse of reference code they own. Preserve third-party notices and record each import in `docs/REUSE.md`.
 - **Hardware:** establish access and the preferred transfer/storage method before requiring physical-console acceptance. PCSX2 can support the initial milestones.

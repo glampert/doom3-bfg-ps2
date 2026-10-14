@@ -32,6 +32,9 @@ DEFAULT_CONFIG = Path.home() / "Library/Application Support/PCSX2/inis/PCSX2.ini
 RESULT_LIMIT = 4096
 LIFECYCLE_STAGES = ("system", "idlib", "commands", "cvars", "filesystem", "jobs", "session")
 NEGATIVE_PROBES = {
+    "renderer-gif-overflow": "GIF payload overflow:",
+    "renderer-direct-overflow": "DIRECT request exceeds command half capacity",
+    "renderer-wait-timeout": "GS pipeline timeout: injected wait;",
     "jpeg-invalid": "SWF JPEG: invalid input",
     "jpeg-oversize": "SWF JPEG: invalid or oversized dimensions (limit 1024)",
     "jpeg-marker": "SWF JPEG: marker extends past input",
@@ -131,13 +134,16 @@ REQUIRED_MAP_CHECKS = frozenset("map/" + name for name in (
     "native-startup", "world-areas", "world-model", "model-trace", "world-portal",
     "pvs-open", "pvs-closed", "pvs-reopened", "aas-route", "native-ai-ticks",
     "ai-floor", "ai-aas-binding", "native-map-shutdown", "collision-floor", "presentation-off"))
-SCENARIOS = ("game-map", "game", *GAME_FAILURES, "platform", "core", "core-missing-fixture") + tuple(
+SCENARIOS = ("game-map", "game", *GAME_FAILURES, "platform", "core", "core-missing-fixture", "renderer-ntsc", "renderer-pal") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
 CRASH_RE = re.compile(r"TLB Miss|\[D3BFG\] FATAL|Assertion failed|Bus error", re.IGNORECASE)
 VERSION_RE = re.compile(
     r"^PCSX2 v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9][A-Za-z0-9._-]*)?"
     r"(?:[ \t]+\([A-Za-z0-9 ._:/+-]+\))?[ \t]*$", re.MULTILINE)
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
+REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
+    "inactive-start", "rejected-partial-init", "device-init", "context-frames",
+    "presented-scene", "bounded-pressure", "reload-shutdown-ledger"))
 REQUIRED_CORE_CHECKS = frozenset({
     "codecs/crc-known-vector", "codecs/zlib-streaming-ledger", "codecs/zlib-error-cleanup",
     "codecs/jpeg-rgba-tables-ledger",
@@ -577,6 +583,23 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
             valid_shutdown = tuple(shutdown) in (reverse, reverse + reverse)
             if not valid_ready or not valid_shutdown or "[D3BFG] CHECK probe/partial-shutdown PASS" not in log:
                 return False, "invalid partial startup/shutdown sequence"
+        elif scenario in ("renderer-ntsc", "renderer-pal"):
+            checks = CHECK_RE.findall(log)
+            if not REQUIRED_GS_CHECKS.issubset({name for name, status in checks if status == "PASS"}) or any(status == "FAIL" for _, status in checks):
+                return False, "missing or failed GS checks"
+            standard, height = ("PAL", 512) if scenario == "renderer-pal" else ("NTSC", 448)
+            if (f"[D3BFG] RUN {test_id} BEGIN" not in log or
+                    f"GS ready {standard} 512x{height} PSMCT16/Z16" not in log or
+                    any(f"GS scene {standard} cycle={cycle} frames={frames} context=0" not in log
+                        for cycle, frames in ((0, 120), (1, 4)))):
+                return False, "incorrect GS mode or completed frames"
+            memory = re.findall(r"GS memory baseline=(\d+)/(\d+)/(\d+) final=(\d+)/(\d+)/(\d+)", log)
+            chains = re.findall(r"GS chains half=(\d+) peak=(\d+) kicks=(\d+) drains=(\d+)", log)
+            if (not memory or any(item[:3] != item[3:] for item in memory) or
+                    {int(item[0]) for item in chains} != {131072, 1024} or
+                    any(int(peak) > int(half) or int(kicks) <= (121 if int(half) == 131072 else 5) or int(drains) <= 0
+                        for half, peak, kicks, drains in chains)):
+                return False, "invalid GS ownership or chain accounting"
         elif scenario != "platform":
             checks = CHECK_RE.findall(log)
             names = {name for name, _ in checks}
@@ -833,7 +856,8 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         (fs_fixtures / "large.bin").write_bytes(b"Z" * 71680)
         stage_audio_fixtures(output / "audio-fixtures")
     probe = args.scenario in NEGATIVE_PROBES or args.scenario.startswith("lifecycle-")
-    fixture_path = "host:probe-" + args.scenario if probe else "host:fixture.txt"
+    fixture_path = ("host:" + args.scenario if args.scenario in ("renderer-ntsc", "renderer-pal") else
+                    "host:probe-" + args.scenario if probe else "host:fixture.txt")
     (output / "smoke.manifest").write_text(f"D3BFG_SMOKE 1\n{test_id}\n{fixture_path}\n", encoding="ascii")
     emulator_log = output / "emulog.txt"
     stdout_log = output / "stdout.txt"
@@ -863,12 +887,15 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         "build_artifact_sha256": build_artifacts,
         "config_sha256": sha256(args.config), "emulator": str(emulator),
         "emulator_version": version, "command": command,
+        "visual_wait_seconds": getattr(args, "visual_wait", 0),
     }
     (output / "run.json").write_text(json.dumps(metadata, indent=2) + "\n")
     started = time.monotonic()
     timed_out = False
     result = None
     returncode = None
+    ready_at = None
+    resumed = False
     with stdout_log.open("wb") as stdout:
         process = subprocess.Popen(command, cwd=output, stdout=stdout, stderr=subprocess.STDOUT)
         try:
@@ -876,6 +903,17 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 result = read_result(output / "result.json")
                 log = read_text(emulator_log) + "\n" + read_text(stdout_log)
                 returncode = process.poll()
+                if args.scenario in ("renderer-ntsc", "renderer-pal") and not resumed:
+                    ready = output / "renderer.ready"
+                    if ready_at is None and ready.is_file() and "GS scene presented; waiting for renderer.resume" in log:
+                        standard, height = ("PAL", 512) if args.scenario == "renderer-pal" else ("NTSC", 448)
+                        if ready.stat().st_size > 128 or ready.read_text() != f"GS_SCENE 1 {standard} 512 {height} 120\n":
+                            raise ValueError("invalid completed GS scene metadata")
+                        ready_at = time.monotonic()
+                        print(f"GS visual ready: {standard} 512x{height}; artifacts: {output}", flush=True)
+                    if ready_at is not None and time.monotonic() - ready_at >= getattr(args, "visual_wait", 0):
+                        (output / "renderer.resume").write_bytes(b"resume\n")
+                        resumed = True
                 # Wait for both a closed result and a final marker, which stdout can lag behind.
                 has_completion = f"[D3BFG] RESULT {test_id} " in log
                 if (args.scenario in NEGATIVE_PROBES or args.scenario in GAME_FAILURES) and classify_run(test_id, args.scenario, result, log, returncode, False)[0]:
@@ -896,6 +934,8 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         "passed": passed, "reason": reason, "elapsed_seconds": time.monotonic() - started,
         "returncode_before_cleanup": returncode, "returncode_after_cleanup": process.returncode,
         "timed_out": timed_out,
+        "renderer_scene_sha256": sha256(output / "renderer.ready") if (output / "renderer.ready").is_file() else None,
+        "visual_inspection_required": args.scenario in ("renderer-ntsc", "renderer-pal"),
     }
     if game_scenario:
         # Native collision startup creates the text cache, then binary cache on reload.
@@ -920,9 +960,13 @@ def main() -> int:
     parser.add_argument("--fixture", type=Path, help="authored core fixture to stage beside the ELF")
     parser.add_argument("--output", type=Path, default=REPO_ROOT / "build/test-results")
     parser.add_argument("--timeout", type=float, default=45.0)
+    parser.add_argument("--visual-wait", type=float, default=0,
+                        help="hold the completed GS scene for inspection, 0–60 seconds; renderer scenarios only")
     args = parser.parse_args()
     if args.timeout <= 0 or args.timeout > 3600:
         parser.error("--timeout must be greater than zero and no greater than 3600 seconds")
+    if not 0 <= args.visual_wait <= 60 or (args.visual_wait and args.scenario not in ("renderer-ntsc", "renderer-pal")):
+        parser.error("--visual-wait requires a renderer scenario and must be between 0 and 60 seconds")
     try:
         passed, _ = run(args)
         return 0 if passed else 1

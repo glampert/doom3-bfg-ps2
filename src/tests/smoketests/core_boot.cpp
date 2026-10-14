@@ -10,6 +10,7 @@
 #include "tests/smoketests/boot_stage.h"
 #include "tests/smoketests/audio_tests.h"
 #include "tests/smoketests/renderer_tests.h"
+#include "tests/smoketests/renderer_gs_tests.h"
 #include "tests/smoketests/deferred_tests.h"
 #include "tests/smoketests/input_tests.h"
 #include "tests/smoketests/codec_tests.h"
@@ -274,6 +275,10 @@ const char * RunCoreTestStage(const char * fixturePath)
 
 bool RunCoreTests(const char * fixturePath)
 {
+    if (idStr::Cmp(fixturePath, "host:renderer-ntsc") == 0) { return RunGsTests(video::Standard::Ntsc); }
+    if (idStr::Cmp(fixturePath, "host:renderer-pal") == 0) { return RunGsTests(video::Standard::Pal); }
+    if (idStr::Cmpn(fixturePath, "host:probe-renderer-", 20) == 0 &&
+        RunGsFailureProbe(fixturePath + 11)) { return false; }
     if (IsCommonProbe(fixturePath)) { return RunCommonProbe(fixturePath); }
     core::PrintMemory("before-core");
     bool passed = RunHeapTests();

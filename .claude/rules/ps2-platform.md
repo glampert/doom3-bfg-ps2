@@ -58,6 +58,16 @@ port's `d3bfg.cfg`. `BuildOSPath` can return a directory without a trailing slas
 last character scanned `host:/bas` instead of `host:/base`, observed and corrected
 in the production debug/release PCSX2 runs on 2026-10-11.
 
+## Doom-observed SDK timer conversion trap
+
+The installed `ee/kernel/src/timer.c::TimerUSec2BusClock` returns `u64`, but evaluates
+`seconds * kBUSCLK` in `u32`. At 147,456,000 bus ticks/second, a seconds argument of
+30 or more wraps; 90 seconds becomes about 2.62 seconds. This prematurely ended the
+first GS inspection hold in PCSX2 on 2026-10-14. Use a wide calculation, such as
+`TimerUSec2BusClock(1, 0) * 90U`, rather than passing a long seconds value. The final
+60-second inspection holds completed in both configurations. This trap belongs to
+the current SDK implementation, not a hardware timer limit.
+
 ## Quake II reference
 
 SDK and EE hardware findings below are useful, but named source files, boot flows,

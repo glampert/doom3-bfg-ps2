@@ -34,6 +34,8 @@ def read_log(output: Path) -> str:
 def classify(log: str, case: str, identity: str) -> tuple[bool, str]:
     if smoke.CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "crash or fatal diagnostic"
+    if "[D3BFG] GS ready" in log:
+        return False, "headless run initialized a GS device"
     required = ("game initialized.", "HEADLESS console ready;", "LOOP ready;",
                 "------------ Game Shutdown", "COMMON stage=system shutdown", "BOOT production shutdown complete")
     if any(marker not in log for marker in required):

@@ -1,9 +1,24 @@
 # 2D renderer bring-up and main-menu roadmap
 
 This is the reference inventory and implementation roadmap for the first GS-backed
-Doom 2D renderer. Inspection date: **2026-10-14, Australia/Sydney**. Everything described
-as a milestone, budget or destination below is proposed; this pass adds no renderer code.
+Doom 2D renderer. Inspection and approval date: **2026-10-14, Australia/Sydney**.
+The inventories retain that original source snapshot; implementation progress is recorded
+below. Uncompleted gates, budgets and destinations remain proposed.
 It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+
+## Implementation progress
+
+**2D-1 is accepted in PCSX2 in debug and release.** The backend owns aligned command
+halves, resets/claims VIF/GIF/GS state, draws clipped solid sprites with alpha, alternates
+contexts and immediately presents completed frames. One integrated native test covers
+120 frames, reloads, buffer pressure and exact cleanup in NTSC/PAL; three failure probes
+verify release-safe bounds and wait deadlines. The production executable remains headless
+and links no fixtures. Native UI drawing, textures and on-target readback remain pending.
+
+See [PORT_STATUS.md](PORT_STATUS.md#cpu-only-gs-bring-up-2d-1) for measurements and run
+identities, and the [release scene capture](images/renderer-2d-1-ntsc.png). Next is **2D-2**:
+direct textures, smooth textured alpha, residency hazards and bounded native capture.
+Physical PS2 acceptance remains 2D-8.
 
 ## Scope and completion criteria
 
@@ -91,7 +106,8 @@ No VU tool/submodule import is required for this CPU 2D roadmap.
 
 ## Reuse and adaptation map
 
-Proposed destinations are relative to D: and are not files added by this plan.
+Original proposed destinations are relative to D:. The device-layer subset now exists;
+the UI/texture/capture destinations remain subsequent work.
 
 | First-pass destination | Start from | Required adaptation |
 | --- | --- | --- |
@@ -114,9 +130,9 @@ where present. Quake embedded `builtin/` artwork/palettes are game data generate
 bootstrap graphics. Proprietary Doom input and converted output remain local/ignored.
 
 Build integration must cover both **Make and `src/tools/scripts/link_resident.py`**.
-The resident linker currently hardcodes `-lkernel -lm -lpatches`; modifying `EE_LIBS`
-alone will not link GS into production. Add explicit audited library arguments and
-record them in link reports/stamps. Register sources in the relevant strict groups,
+At the inspection baseline the resident linker hardcoded `-lkernel -lm -lpatches`;
+modifying `EE_LIBS` alone could not link GS into production. 2D-1 now passes an audited
+library list from Make and records it in link reports/stamps. Register sources in the relevant strict groups,
 put cold initialization/capture code in `SIZE_OPT_CXX_SRC`, run the source audit and
 regenerate the compile database. Keep one provider per native method/global and retain
 the production test-input/symbol rejection gate.
@@ -402,9 +418,9 @@ shared contracts change, not for every documentation or isolated GS edit.
 | PAL/NTSC, subpixels and readability | Start with the plan's 512-wide mode, retain virtual UI metrics, inspect captures and physical output. Consider 640-wide/32-bit color only after a quantified VRAM/readability comparison. |
 | Timing/cache evidence | Preserve Quake patterns and add bounded diagnostics, but reproduce Doom results. PCSX2 cannot establish EE cache coherency or real GS fill cost. |
 
-## First implementation slice
+## First implementation slice (completed)
 
-After this roadmap is reviewed, tackle **2D-1 only** as the next small change:
+The approved **2D-1** slice used these boundaries:
 
 1. Import/adapt Q: `video_mode`, `gif_writer`, the minimal GS/context code,
    `cmd_buffer` and the 2D frame portion of `render_system`; supply only the small
@@ -420,6 +436,7 @@ After this roadmap is reviewed, tackle **2D-1 only** as the next small change:
    using available emulator evidence; the hardened on-target capture path follows in
    2D-2. Preserve production headless and existing renderer inactive tests.
 
-The resulting change should prove video setup, command ownership and solid GS pixels.
+The resulting change proves video setup, command ownership and solid GS pixels in PCSX2.
 Texture loading, native console drawing, SWF and main-menu startup remain subsequent
-gates. This document is the roadmap for those gates; implementation has not begun.
+gates. This document remains the roadmap for those gates; no native menu or world-rendering
+acceptance is claimed by the solid scene.

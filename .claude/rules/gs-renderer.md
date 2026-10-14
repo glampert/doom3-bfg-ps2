@@ -15,7 +15,8 @@ Retained frontend cvars preserve native defaults/flags and cannot enable renderi
 The resident map mode now explicitly initializes native CPU model/world ownership,
 with stage-free materials. Areas, portals, static model traces and portal-controlled PVS
 pass in the authored map; physical initialization, image/vertex payload loading and
-submission still fail by method name. GS/VU output remains unimplemented.
+submission still fail by method name. The separate CPU-only GS device layer now draws
+solid 2D frames; native GUI/texture/console submission and VU output remain unimplemented.
 
 - Start the logical renderer frame counter above zero and advance it with game ticks.
   Native `R_EntityDefDynamicModel` compares the definition stamp to `tr.frameCount`;
@@ -29,7 +30,26 @@ submission still fail by method name. GS/VU output remains unimplemented.
   at most one edge can be created per index. This preserves native edge matching and
   avoids multi-megabyte temporary allocations for tiny CPU models.
 
-## Frame model: 2D and 3D interleave
+## Doom CPU-only device acceptance
+
+- `ps2::rs` owns a frame, `cmdbuf` owns two tagged 64-byte-aligned command halves,
+  and `gs` owns both PSMCT16 contexts and Z16 with depth writes masked. Default
+  halves are 128 KiB each. `EndFrame` fences and immediately presents; the final
+  picture requires no following frame. Production does not initialize this layer yet.
+- Reset/claim VIF1 and GIF along with the GS at device startup, after bounded checks
+  for incoming DMA completion. A GS CSR reset alone stalled the first Doom PATH2
+  DIRECT in PCSX2: VIF1 waited on GIF, with GIF_STAT `0x00000e00`. Resetting both
+  interfaces resolved it. Initial/reload runs and release reproduce the fixed path;
+  this does not identify a particular loader-state bit or establish hardware behavior.
+- All packet reservations leave space for the final EOP and four-qword FINISH/END
+  terminator. SDK environment emission is preflighted for sixteen qwords. DMA,
+  FINISH and VSYNC polls use a wrap-safe COP0 Count deadline in both builds.
+- Debug/release NTSC 512×448 and PAL 512×512 solid/alpha scenes, context flips,
+  128 KiB and 1 KiB pressure, repeated teardown and exact tagged ledger recovery
+  pass on 2026-10-14. Captures are visually inspected; see PORT_STATUS. These are
+  PCSX2 functional observations, not GS throughput or EE cache-coherency results.
+
+## Quake frame model: 2D and 3D interleave
 
 - The engine draws **2D → 3D → 2D** per frame (`SCR_TileClear`, then `V_RenderView`, then
   HUD/console in `SCR_UpdateScreen`), with no hook at the boundaries.

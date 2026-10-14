@@ -113,6 +113,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
+	tests/smoketests/renderer_gs_tests.cpp \
 	tests/smoketests/voice_tests.cpp \
 	tests/smoketests/codec_tests.cpp \
 	tests/smoketests/input_tests.cpp \

@@ -7,7 +7,7 @@ Separate native test executables exercise a scalar EE core and an authored headl
 game fixture that runs native initialization, entity thinking, script events, bounded collision/physics
 and a restricted native `idPlayer`. An authored map also boots through native `InitFromNewMap`
 with logical world/model/PVS queries, collision, AAS and one idle native AI. Full campaign player startup, retail maps,
-rendering, SPU2 output, input and saves remain later milestones; the port is not playable yet.
+native UI/world rendering, SPU2 output, input and saves remain later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
 under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
@@ -19,8 +19,9 @@ dependencies imported for the port live under `src/external/`.
 [RENDERER_2D_PLAN.md](docs/RENDERER_2D_PLAN.md) inventories the Doom UI and Quake II
 PS2 renderer, and proposes the next rendering work: GS primitives, a visible native
 console, then the native offline main menu. It records reuse boundaries, asset and
-memory requirements, and acceptance gates. The initial CPU-only GS device layer now
-compiles and links; native console/SWF/menu drawing remains pending.
+memory requirements, and acceptance gates. The CPU-only GS device layer now draws
+solid colors and alpha in NTSC/PAL, with inspected PCSX2 captures and debug/release
+acceptance. Native console/SWF/menu drawing remains pending; production stays headless.
 
 ## Build
 
@@ -36,6 +37,9 @@ make headless                # package production with authored console boot dat
 make run-headless            # run the console package in PCSX2, until quit
 make test-headless           # 120 frames, live console commands and shutdown in PCSX2
 make BUILD=release test-headless # same production checks without assertions
+make test-renderer           # NTSC/PAL GS scene, reload/pressure and three failure probes
+make BUILD=release test-renderer # same device checks without assertions
+make run-renderer            # hold the final NTSC scene for 60 seconds; F8 saves a capture
 make platform-probe          # SDK/timer/alignment probe
 make headless-core           # scalar Doom foundation and integration tests
 make compile-core            # 52 scalar idlib units and 10 framework/session support units
@@ -50,7 +54,7 @@ make test-host               # shared heap tests with ASan/UBSan, runner tests
 make smoke                   # core smoke run in PCSX2
 make BUILD=release smoke     # release core smoke run
 make smoke-negative          # expected missing-fixture failure
-make test-common             # seven partial-startup and fifty-nine expected-fatal probes
+make test-common             # seven partial-startup and sixty-two expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 ```
 

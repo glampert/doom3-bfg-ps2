@@ -30,8 +30,8 @@ void WaitUntil(Ready ready, const char * name)
     {
         if (ReadCycles() - start >= kTimeoutCycles)
         {
-            FatalError("GS pipeline timeout: %s; D1_CHCR=%08x D1_TADR=%08x VIF1_STAT=%08x CSR=%08llx",
-                       name, *R_EE_D1_CHCR, *R_EE_D1_TADR, *R_EE_VIF1_STAT, *GS_REG_CSR);
+            FatalError("GS pipeline timeout: %s; D1_CHCR=%08x D1_TADR=%08x VIF1_STAT=%08x VIF1_CODE=%08x GIF_STAT=%08x CSR=%08llx",
+                       name, *R_EE_D1_CHCR, *R_EE_D1_TADR, *R_EE_VIF1_STAT, *R_EE_VIF1_CODE, *R_EE_GIF_STAT, *GS_REG_CSR);
         }
     }
 }

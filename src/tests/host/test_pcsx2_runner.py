@@ -102,6 +102,36 @@ class ClassifierTests(unittest.TestCase):
                          (False, "watchdog timeout"))
 
 
+class RendererClassifierTests(unittest.TestCase):
+    def log(self):
+        checks = "".join(f"[D3BFG] CHECK {name} PASS\n" for name in runner.REQUIRED_GS_CHECKS)
+        return (checks + "[D3BFG] RUN run1 BEGIN\nGS ready NTSC 512x448 PSMCT16/Z16\n"
+                "GS scene NTSC cycle=0 frames=120 context=0\nGS scene NTSC cycle=1 frames=4 context=0\n"
+                "GS chains half=131072 peak=131008 kicks=123 drains=1\n"
+                "GS chains half=1024 peak=1024 kicks=230 drains=224\n"
+                "GS memory baseline=1/2/3 final=1/2/3\n" + complete_log(core="PASS"))
+
+    def classify(self, log):
+        return runner.classify_run("run1", "renderer-ntsc", complete_result(core="PASS"), log, None, False)[0]
+
+    def test_completed_native_scene_and_mirrored_streams(self):
+        self.assertTrue(self.classify(self.log()))
+        self.assertTrue(self.classify(self.log() + self.log()))
+
+    def test_scene_needs_required_checks_mode_and_final_frames(self):
+        for old, new in (("renderer-gs/context-frames PASS", "renderer-gs/context-frames FAIL"),
+                         ("NTSC", "PAL"), ("frames=120 context=0", "frames=119 context=0"),
+                         ("RUN run1 BEGIN", "RUN old BEGIN")):
+            with self.subTest(field=old):
+                self.assertFalse(self.classify(self.log().replace(old, new)))
+
+    def test_bad_capacity_pressure_or_cleanup_cannot_pass(self):
+        for old, new in (("peak=1024", "peak=1040"), ("drains=1", "drains=0"),
+                         ("kicks=123", "kicks=121"), ("final=1/2/3", "final=1/2/4")):
+            with self.subTest(field=old):
+                self.assertFalse(self.classify(self.log().replace(old, new)))
+
+
 class CommonProbeClassifierTests(unittest.TestCase):
     def partial_log(self, stage="cvars"):
         completed = runner.LIFECYCLE_STAGES[:runner.LIFECYCLE_STAGES.index(stage) + 1]

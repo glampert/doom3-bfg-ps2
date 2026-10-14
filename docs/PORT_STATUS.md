@@ -21,7 +21,8 @@ each reload to 331 native frames with the same player, verified in debug and rel
 Bounded logical PCM samples and deterministic headless voices are usable as
 standalone services. Native authored `InitFromNewMap` now loads logical world/models, PVS, collision,
 AAS and one idle AI. Full campaign player startup, animated AI/gameplay, retail maps
-and sound/render output remain pending; headless gameplay work takes priority.
+and sound/world-render output remain pending. The first CPU-only GS 2D device slice
+now passes in PCSX2; native console/SWF/menu integration is the next rendering direction.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
 
@@ -2198,3 +2199,78 @@ Core/map/player regression archives, respectively: debug
 Next connect native map loading, game time and simulation to this production Common
 loop, preserving the existing authored map regression. Menu assets, full player startup,
 animated AI and retail resource residency remain pending.
+
+## CPU-only GS bring-up (2D-1)
+
+The first approved renderer slice passes on 2026-10-14 with GCC 15.2 and PCSX2 2.6.3
+Metal. It adapts Quake II GS/video/GIF/frame/command code into a CPU-only backend,
+with owned tagged command storage, inline packet headers, release preflight and finite
+DMA/FINISH/VSYNC deadlines. Device startup claims/resets VIF/GIF as well as GS and
+restores the previous interrupt mask on teardown. This is the first M4 slice; it
+does not establish native console/SWF/menu drawing, textures, 3D or physical-console
+acceptance. The native render-system providers stay inactive and production still
+boots the headless Common/game loop without fixtures.
+
+One integrated core-test scene draws a 4×4 color grid, clipped screen-edge borders,
+ordered solid alpha layers and a moving/final-frame marker. Each TV standard runs
+120 presented frames, holds the last picture without another BeginFrame, then tests
+pressure and reinitializes with smaller command halves. Native checks require both
+contexts, exact frame counts, bounds, drains and baseline ledger recovery. Three
+negative cases verify GIF preflight, oversized DIRECT rejection and a deliberately
+stalled deadline with assertions enabled and disabled.
+
+| Measurement | Debug | Release |
+| --- | --- | --- |
+| Production resident inputs / test inputs or symbols | 347 / none | 347 / none |
+| Fixed production `PT_LOAD` | 10,875,686 bytes | 11,293,990 bytes |
+| GS scene startup/final tagged requested / backing / count | 1,047 / 1,176 / 2 | Same |
+| GS scene live/peak tagged requested / backing / count, 128 KiB halves | 263,191 / 263,412 / 3 | Same |
+| Scene arena peak commitment | 280,656 bytes | 282,192 bytes |
+| Command-half peak, 128 KiB / 1 KiB | 131,008 / 1,024 bytes | Same |
+| Kicks / drains, primary run then small-half reload | 123 / 1; 230 / 224 | Same |
+| Fixed VRAM: NTSC 512×448 / PAL 512×512 | 1,376,256 / 1,572,864 bytes | Same |
+
+The scene's heap baseline belongs to its isolated core-stage process, not production's
+game startup. Packet peak includes chain tags/terminators; VRAM is two PSMCT16 color
+buffers plus Z16. Depth writes and dithering are disabled. No texture/GUI vertex pool
+is allocated. These are functional/residency observations, not throughput measurements.
+
+| Target gate | Debug archive | Release archive |
+| --- | --- | --- |
+| NTSC scene, pressure and reload | `20261014T055815Z_smoke_991bd72c0df3489b` | `20261014T055834Z_smoke_da4e14ee2be54fd3` |
+| PAL scene, pressure and reload | `20261014T055819Z_smoke_7d614ac79ec34cdd` | `20261014T055839Z_smoke_71c6c2f172e549bc` |
+| GIF overflow rejected | `20261014T055824Z_smoke_4212b37d772d43a9` | `20261014T055843Z_smoke_2d5cbbf742ac4016` |
+| DIRECT overflow rejected | `20261014T055826Z_smoke_0c7b2184722941c4` | `20261014T055845Z_smoke_00035bc2facf4d67` |
+| Injected wait timeout rejected | `20261014T055828Z_smoke_feaf7751d6ab4fd1` | `20261014T055847Z_smoke_c816276f8a654fe1` |
+| Existing inactive core smoke | `20261014T055405Z_smoke_57c3c11006d54576` | `20261014T055439Z_smoke_a601c85d78d343a8` |
+| Production 120-frame headless loop | `20261014T055412Z_headless_ff885f4b70b9` | `20261014T055444Z_headless_29b3fa0b4cb1` |
+| Production live-console/quit | `20261014T055416Z_headless_ecfe8adc3236` | `20261014T055449Z_headless_a590b3b60f94` |
+
+Production full shutdown again recovers 7,424 requested / 7,600 backing / four
+allocations, with no GS initialization. All 105 Python regressions pass, including
+SDK-library order, renderer result classification and rejection of GS startup in a
+headless result. The regenerated compile database has 372 entries.
+
+Visually inspected F8 captures are archived with matching ELFs/maps/flags/config and
+`scene.png` / `visual-review.json`: debug PAL
+`20261014T054644Z_smoke_43fa353523a047f7`, release NTSC
+`20261014T054912Z_smoke_4f618ea62c834d5e`. Both held scenes complete and recover their
+ledgers. The [release NTSC capture](images/renderer-2d-1-ntsc.png) is retained here as
+review evidence; it is PCSX2's scaled 4:3 framebuffer output, not native GS readback.
+An earlier debug NTSC inspection is also archived as
+`20261014T054215Z_smoke_977bfcc22dc94297`. Pixel code is unchanged by subsequent
+heap-telemetry logging. Automatic matrix summaries still mark visual inspection as
+required; a log PASS is not a pixel check.
+
+The initial submission stalled at VIF1 DIRECT/GS setup; resetting VIF/GIF state fixed
+it. The first long inspection wait then exposed the SDK's 32-bit seconds conversion
+overflow; widening the conversion fixed it. Failed runs remain archived as
+`20261014T053254Z_smoke_8fdf15167e174a4a`,
+`20261014T053739Z_smoke_ee882c8ce9d649de`, and
+`20261014T053944Z_smoke_1bbcc16af3984aff`; the first two are pipeline-timeout failures,
+the third a failed inspection-hold check. Neither failure was counted as acceptance.
+Durable findings and recipes are in the GS/platform/testing rules.
+
+Next is 2D-2: RGBA textures, sampler/stride/POT handling, smooth textured alpha,
+residency hazards and bounded on-target capture. Sound, native UI and world rendering
+remain subsequent gates in [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md).

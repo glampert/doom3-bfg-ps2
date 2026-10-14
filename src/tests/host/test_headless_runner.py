@@ -39,6 +39,9 @@ class HeadlessAcceptance(unittest.TestCase):
             with self.subTest(crash=crash):
                 self.assertFalse(runner.classify(completed() + crash, "bounded", "run")[0])
 
+    def test_headless_completion_cannot_hide_graphics_startup(self):
+        self.assertFalse(runner.classify(completed() + "[D3BFG] GS ready NTSC 512x448\n", "bounded", "run")[0])
+
     def test_wrong_identity_and_state(self):
         for old, new in (("run_begin", "stale_begin"), ("console=1", "console=0"), ("game_nomap=1", "game_nomap=0"), ("sound_output=0", "sound_output=1")):
             with self.subTest(field=old):

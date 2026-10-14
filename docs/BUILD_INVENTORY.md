@@ -486,7 +486,8 @@ The first profile is 512×448 NTSC or 512×512 PAL, two PSMCT16 framebuffers and
 with masked depth writes. A frame alternates contexts, clears, emits clipped solid
 GS sprites, fences and presents immediately. Partial/repeated shutdown drains
 references before releasing storage. Textures, native GUI/SWF and menu drawing
-remain subsequent roadmap gates. Visual acceptance is pending the integrated GS run.
+remain subsequent roadmap gates. At the foundation commit, visual acceptance was
+pending the integrated GS run; the accepted follow-up is recorded below.
 
 Make and the resident linker now pass the same explicit `draw graph packet2 dma
 kernel m patches` library order, recorded in the resident SDK flag stamp and link
@@ -500,3 +501,13 @@ configurations on 2026-10-14, with exact startup ledger recovery (7,424 requeste
 7,600 backing / four allocations) and no GS initialization. Archives: debug
 `20261014T052340Z_headless_b23efba852d1`, `20261014T052345Z_headless_4836b1b75218`;
 release `20261014T052523Z_headless_9cbf51804843`, `20261014T052527Z_headless_0621a07f9946`.
+
+The completed 2D-1 follow-up claims/resets the VIF/GIF interfaces before the first
+DIRECT and restores the original GS interrupt mask on teardown. The existing core
+test driver selects one new integrated `renderer_gs_tests.cpp` by manifest; production
+source lists do not include it. `test-renderer` runs NTSC/PAL plus three release-safe
+failure cases, and `run-renderer` holds the final scene for F8 inspection. Native
+console/SWF/menu stubs remain unchanged. Final production `PT_LOAD` is 10,875,686 /
+11,293,990 bytes with 347 inputs and no test symbols; the compile database has 372
+entries. Measured scene budgets, inspected captures and final debug/release regression
+identities are in [PORT_STATUS.md](PORT_STATUS.md#cpu-only-gs-bring-up-2d-1).

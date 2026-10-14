@@ -49,6 +49,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   pumps console commands and native frames. `console.txt` accepts append-only lines via
   HostFs; `ps2_maxFrames=0` runs until quit. `make test-headless` checks 120 frames,
   live command input and full shutdown without linking fixtures into production.
+- `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
+  NTSC/PAL solid/alpha frames, context flips, pressure, reload/cleanup and three bounds/
+  deadline failures. `make run-renderer` holds the NTSC scene for F8 capture/inspection.
+  Production still stays headless; native console/SWF/menu providers remain pending.
+  The device owns tagged command halves and uses `draw`, `graph`, `packet2`, `dma`.
+  Preserve release preflight/deadlines, VIF/GIF ownership and immediate final presentation.
 - `make compile-core` checks the explicit scalar idlib/framework source set.
   `make headless-core` links staged foundation startup/tests as
   `build/<config>/tests/core/d3bfg_tests.elf`; production links no test code.
@@ -71,8 +77,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   world/model/PVS queries, AAS routing and one idle native AI over three 60-frame
   reloads. Rendering and playback stay inactive; a native empty sound world provides
   startup bookkeeping. Full campaign player startup, animated AI and general campaign
-  maps remain later gates. Prioritize
-  headless simulation; sound and rendering integration follow at a later stage.
+  maps remain later gates. Preserve headless simulation while the selected 2D renderer/
+  console/menu roadmap progresses; sound and world rendering follow later.
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests
   cannot replace target compilation. Check Make's exit status, including VU tool failures.
