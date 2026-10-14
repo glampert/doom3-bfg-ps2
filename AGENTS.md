@@ -51,9 +51,13 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   live command input and full shutdown without linking fixtures into production.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
-  context flips, residency/buffer pressure, reload/cleanup and three bounds/deadline
-  failures. `make run-renderer` captures and holds the NTSC scene for inspection.
-  Production still stays headless; native console/SWF/menu providers remain pending.
+  native drawing adapters/ASCII glyphs, context flips, residency/buffer pressure,
+  reload/cleanup and seven bounds/state/deadline failures. `make run-renderer` captures
+  and holds the NTSC scene for inspection.
+  Production still stays headless; real console/Common presentation and SWF/menu
+  providers remain pending. `ui::Init/Shutdown` explicitly own native 2D capability
+  and intrinsic images after/before the caller-owned `rs` device; low-level GS
+  readiness alone never changes `R_IsInitialized`, and OpenGL stays unavailable.
   The device owns tagged command halves/pixels and uses `draw`, `graph`, `packet2`, `dma`.
   Preserve release preflight/deadlines, VIF/GIF ownership and immediate final presentation.
 - `make compile-core` checks the explicit scalar idlib/framework source set.

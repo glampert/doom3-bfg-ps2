@@ -216,6 +216,14 @@ release bytes. Tagged bytes are contained in that arena. Capture is streamed thr
 32-row strips; no whole-frame RGB allocation is made. See PORT_STATUS for exact
 isolated-test and production baselines; these are PCSX2 residency observations.
 
+The first native adapter slice adds 270,336 owned texture bytes for the 256×256 RGBA
+ASCII atlas and page-minimum white texel. Generation temporarily uses another 262,144
+bytes, released before frames. Image declarations/state are owned and freed separately;
+the default headless path never acquires them. Latest production `PT_LOAD` is
+10,992,678 debug / 11,412,390 release bytes with 355 retained inputs. Integrated-test
+tagged peak remains 1,051,671 / 1,052,076 bytes; arena peaks are now 1,070,288 /
+1,070,544 bytes. These include the earlier split-upload and adapter reload exercises.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

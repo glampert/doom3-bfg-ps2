@@ -23,7 +23,11 @@ See [PORT_STATUS.md](PORT_STATUS.md#cpu-only-gs-bring-up-2d-1) for measurements 
 identities. The [2D-2 NTSC](images/renderer-2d-2-ntsc.png) and
 [PAL](images/renderer-2d-2-pal.png) images are native unscaled readback, with 24 scene
 pixel checks plus upload/pressure checks. See the [2D-2 acceptance record](PORT_STATUS.md#rgba-textures-and-native-capture-2d-2).
-Next is **2D-3**: intrinsic images, display/draw adapters and a visible native console.
+**2D-3 is in progress:** intrinsic white/ASCII images and native display/color/state/
+axis-quad/text adapters are now verified through the existing scene. Native adapter
+captures cover 26 additional pixels, 120 frames and reload; the real native console
+and Common presentation lifecycle remain next. See the
+[adapter acceptance record](PORT_STATUS.md#native-console-drawing-adapters-2d-3-first-slice).
 Physical PS2 acceptance remains 2D-8.
 
 ## Scope and completion criteria
@@ -445,6 +449,7 @@ The approved **2D-1** slice used these boundaries:
 
 That slice proved video setup, command ownership and solid GS pixels in PCSX2.
 2D-2 now adds direct textures, residency fences and native capture. The next slice,
-2D-3, connects intrinsic images and native display/draw methods to `console->Draw`
-through a safe Common presentation lifecycle. SWF and main-menu startup remain later
+2D-3, has supplied intrinsic images and native display/draw methods. It next connects
+`console->Draw` through an explicit production display policy and safe Common frame/
+`UpdateScreen` lifecycle. SWF and main-menu startup remain later
 gates; the device scenes do not establish native menu or world-rendering acceptance.

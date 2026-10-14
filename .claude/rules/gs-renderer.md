@@ -10,13 +10,16 @@ The current `src/ps2/renderer/` stubs bind native `tr` / `renderSystem`, image, 
 cinematic and vertex-cache interfaces. Construction creates empty metadata, with zero
 device capabilities and no frame/vertex arenas, texture payloads or GS setup. Only
 inactive queries, empty cleanup and a disabled resolution policy are implemented.
-Initialization, display dimensions, loading and draw submission fail by method name.
+Before explicit 2D activation, display/draw requests fail by method name. General
+renderer initialization and resource loading remain unavailable.
 Retained frontend cvars preserve native defaults/flags and cannot enable rendering.
 The resident map mode now explicitly initializes native CPU model/world ownership,
 with stage-free materials. Areas, portals, static model traces and portal-controlled PVS
 pass in the authored map; physical initialization, image/vertex payload loading and
 submission still fail by method name. The separate CPU-only GS device layer now draws
-solid and direct RGBA 2D frames; native GUI/image-provider/console submission and VU output remain unimplemented.
+solid and direct RGBA 2D frames. Explicit native UI activation now supplies a bounded
+white/ASCII image and axis-quad/text profile. Real Console/Common presentation, indexed
+GUI/SWF collection, general image loading and VU output remain subsequent gates.
 
 - Start the logical renderer frame counter above zero and advance it with game ticks.
   Native `R_EntityDefDynamicModel` compares the definition stamp to `tr.frameCount`;
@@ -70,6 +73,32 @@ Wait for trailing VIF restore NOPs to leave the FIFO before starting the next st
 On timeout, suspend DMAC while clearing owned VIF1 STR, then reset owned VIF/GIF and
 restore saved idle state. The injected deadline proves state restoration in PCSX2,
 not recovery from a genuinely wedged physical GS. No hardware cache claim follows.
+
+## Doom native drawing adapters
+
+Native `ui::Init` is separate from low-level `rs` readiness. Only native activation
+sets `R_IsInitialized`; `IsOpenGLRunning` remains false. Shutdown images/UI before
+the caller-owned device, without replacing logical-world ownership. The initial
+image profile owns only `_white` and `textures/bigchars`; the latter requires clamp
+and nearest/default sampling. Its authored ASCII atlas has sixteen 16×16 cells per
+axis, 15×14 glyph coverage, native cursor bytes 10/11 and explicit fallback boxes.
+
+Map all console coordinates once from virtual 640×480 to GS 1/16 fixed point. Clip
+positions and interpolate UV before converting; normalized UV addresses logical image
+dimensions. Reject NaN/Inf/subnormal representations before EE arithmetic and preserve
+fractional endpoints. Axis-aligned quads only; rotated/indexed geometry remains 2D-4.
+
+`GLS_DEFAULT` is ONE/ZERO replacement. Ordinary intrinsic console helpers select a
+declared straight-alpha profile; `GLS_OVERRIDE` can explicitly select replacement.
+Disable GS environment cutout for replacement, since alpha-zero fragments still write
+RGB. Reject unsupported blend, mask, depth or shader state instead of normalizing it.
+Color packing uses native byte truncation and compile-time EE little endian. Core GS
+dispatch runs before idlib initialization, so runtime `LittleLong` callbacks are not
+available there. Bounded text is preflighted before glyph emission.
+
+`Console.cpp`, `EditField.cpp` and material/decl implementation are campaign-only.
+The core adapter scene calls native draw methods with authored content; it does not
+establish real console or resident material acceptance. Common presentation is next.
 
 ## Quake frame model: 2D and 3D interleave
 

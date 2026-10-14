@@ -3,12 +3,14 @@
 ## Doom foundation procedures
 
 - `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
-  executable for one integrated GS scene in NTSC/PAL, then three expected-fatal probes.
-  They do not initialize Common/game UI or link fixtures into production. Eleven GS
+  executable for the integrated GS/native-adapter scenes in NTSC/PAL, then seven expected-fatal probes.
+  They do not initialize real Console/Common presentation or link fixtures into production. Twelve GS
   markers require 120 presented frames, alternating contexts, a reload with smaller
   command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
-  exact tagged cleanup. GIF/oversized-DIRECT bounds
-  and a deliberately stalled deadline must remain fatal with assertions off.
+  exact tagged cleanup. GIF/oversized-DIRECT bounds, a deliberately stalled deadline,
+  and active unsupported UI state, rectangle, skewed quad and oversized text must remain
+  fatal with assertions off. Adapter startup also rejects insufficient VRAM/pixel budgets
+  without retaining partial ownership.
 - `make run-renderer` holds the completed NTSC picture for 60 seconds; PCSX2's configured
   F8 saves a framebuffer screenshot. `--scenario renderer-pal --visual-wait 60 --timeout 90`
   selects PAL when invoking the runner directly with the matching `--elf`. The native
@@ -18,6 +20,8 @@
   framebuffers as checked top-down 24-bit data. The runner rejects malformed dimensions,
   header/length, 24 authored scene pixels (including bilinear interpolation), split-upload
   quadrants and pressure pixels; captures before/after recovery must have identical hashes.
+  `renderer-ui*.tga` adds 26 glyph/cursor/color/alpha/fractional/clip comparisons, with
+  identical primary/reload images and 120/four native adapter frames.
   A timeout-injected partial file is never accepted. Preserve images/hashes and record inspection.
   Accepted 2026-10-14 run identities
   and measured budgets are in PORT_STATUS; no physical PS2 or cache-coherency claim.

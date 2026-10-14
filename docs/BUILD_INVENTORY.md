@@ -520,3 +520,20 @@ stay inactive. The existing scene now verifies textures, dirty/eviction fences a
 native TGA pixels/recovery; capture injection compiles only under `PS2_D3BFG_TESTS`.
 Both production headless checks and all 115 Python host regressions pass; see
 [2D-2 acceptance](PORT_STATUS.md#rgba-textures-and-native-capture-2d-2) for budgets and artifacts.
+
+The first 2D-3 slice adds explicit strict `ui_geometry.cpp`, `ui_draw.cpp`, `charset.cpp`
+and cold `image_backend.cpp` to core/resident support. Native display/color/quad/text
+methods move out of `null_render.cpp`; implemented intrinsic-image methods move out
+of `image_stubs.cpp`. A tagged `Image.h` friend returns the typed handle from the
+existing opaque backend state. There is still one provider per native method, with no
+desktop `RenderSystem.cpp`/`Image_GL.cpp` added. Core adapters and the GS test use the
+audited full-header foundation seam; resident adapters use full campaign headers.
+
+Production has 355 direct inputs, no test inputs/symbols and no GC. Debug/release
+`PT_LOAD` is 10,992,678 / 11,412,390 bytes; the compile database has 380 entries.
+`Console.cpp`, `ConsoleHistory.cpp`, `EditField.cpp`, `DebugGraph.cpp`, `Material.cpp`
+and `DeclManager.cpp` remain campaign-only. The adapter scene calls native draw helpers
+with authored content; it does not import the real console into the core test target.
+Both headless modes and all 122 Python regressions pass, plus host geometry/charset
+ASan/UBSan harnesses. Production Common presentation and resident material/console
+acceptance are the remaining 2D-3 gate.

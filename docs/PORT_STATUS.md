@@ -2342,3 +2342,68 @@ device pools, and full shutdown recovers 7,424 / 7,600 bytes / four allocations.
 Source audit and both strict EE builds pass; the compile database contains 376 entries.
 Backend implementation commit: `4744e2d`. Next is **2D-3**, connecting display/intrinsic-image/draw
 providers to the real native console while preserving the existing headless package.
+
+## Native console drawing adapters (2D-3 first slice)
+
+Implementation commit `e40a003` supplies the first 2D-3 slice. The native
+`idRenderSystemLocal` now has an explicitly activated 2D capability, physical display
+metrics/pixel aspect, byte-accurate color packing, supported state selection, fills,
+axis-aligned quad methods and small/big character/string helpers. Activation is
+independent of logical worlds and the low-level GS scene; OpenGL remains unavailable.
+Common production presentation and the real `console->Draw` acceptance gate remain
+pending, so **2D-3 is not complete**.
+
+The two native image declarations own typed handles through existing opaque backend
+state: white and a code-authored 256×256 ASCII atlas. Their 270,336 pixel bytes are
+bounded by the existing renderer budget; generation's temporary 262,144 bytes are freed
+before frames. Manager lookup admits only those names and sampler/usage profiles.
+Charset glyphs occupy native 16×16 cells, with cursor bytes 10/11 and explicit box
+fallbacks. No font dependency, Quake/retail artwork or native GUI vertex pool is added.
+
+Geometry maps virtual 640×480 to GS 1/16 fixed point, retaining fractional positions
+and interpolating clipped UVs. Portable input-bit checks reject nonfinite/subnormal
+values before EE arithmetic. Text length/advance is checked before glyph emission.
+`GLS_OVERRIDE|GLS_DEFAULT` performs replacement, including zero-alpha RGB writes;
+ordinary intrinsic helpers use the declared straight-alpha profile. Arbitrary quads
+require one constant ambient image stage; unsupported transforms, shaders, masks,
+blends and geometry fail explicitly. Resident parsed-material equivalence and real
+console drawing are subsequent verification, not claims made by the core scene.
+
+The existing renderer scenario now calls native draw helpers for 120 frames, then four
+after warm reload, and verifies startup rollback and exact cleanup. It displays authored
+ASCII/cursor/color/input-line content; no real console state or input delivery is implied.
+**26 native adapter pixel checks** cover glyph strokes/holes/transparency, cursors, color
+escapes, replacement/alpha, clipping and fractional boundaries. Primary/reload hashes
+match, as do debug/release images. Inspected unscaled release captures:
+[NTSC](images/renderer-2d-3-adapters-ntsc.png), [PAL](images/renderer-2d-3-adapters-pal.png).
+
+Both complete debug/release renderer matrices pass: twelve native checks, existing
+24-pixel texture scene/upload/pressure checks, and seven expected-fatal probes.
+New active UI probes reject unsupported state, negative rectangle width, skewed quads
+and oversized strings before primitive emission. All **122 Python regressions** and
+host geometry/charset ASan/UBSan checks pass. Source audit and strict EE builds pass;
+the compile database has 380 entries.
+
+Production retains 355 direct inputs with no test inputs/symbols or GC. `PT_LOAD` is
+10,992,678 debug / 11,412,390 release bytes. Both headless modes still allocate no
+device pools and recover 7,424 requested / 7,600 backing bytes / four allocations.
+Isolated scene baseline/final remains 1,047 / 1,176 bytes / two allocations; tagged
+peak is 1,051,671 / 1,052,076 bytes and arena peak 1,070,288 debug / 1,070,544 release.
+Pressure chain peaks remain 131,008 / 1,024 bytes, with 135/3 primary kicks/drains
+and 558/547 on the small-half reload. No physical PS2/cache/throughput claim is made.
+
+| Target gate | Debug archive | Release archive |
+| --- | --- | --- |
+| NTSC native adapters/pixels/reload | `20261014T124628Z_smoke_fd61fd7f909f4ab1` | `20261014T124417Z_smoke_8a4f3f50454a432e` |
+| PAL native adapters/pixels/reload | `20261014T124636Z_smoke_72e66181f9314bb0` | `20261014T124425Z_smoke_8f43d40415d241c4` |
+| Unsupported UI state | `20261014T124316Z_smoke_c381efa6e75b45f4` | `20261014T124440Z_smoke_1be9fff239a340ce` |
+| Invalid UI bounds | `20261014T124318Z_smoke_9ecf66b67ac94991` | `20261014T124442Z_smoke_8fc1871fbc03460b` |
+| Unsupported skewed quad | `20261014T124320Z_smoke_21d42adadbbb40a7` | `20261014T124445Z_smoke_ed5f079df23f4772` |
+| Oversized text | `20261014T124322Z_smoke_58e5f4ebc7ae4610` | `20261014T124447Z_smoke_b88ebe76df014378` |
+| Production 120 frames | `20261014T124905Z_headless_89095fd79511` | `20261014T125054Z_headless_995bf3056f07` |
+| Production live commands/quit | `20261014T124910Z_headless_0874c8ab138e` | `20261014T125059Z_headless_3440c62193b1` |
+
+Next select visible versus headless policy before allocating display resources, call
+the real native console from Common's frame lifecycle, and make `UpdateScreen` safe
+without nesting frames or ticking the game twice. Real edit-field input/history and
+capture-before-quit verification complete the remaining 2D-3 gate.
