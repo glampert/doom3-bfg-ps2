@@ -259,7 +259,7 @@ $(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
 $(OUTPUT_DIR)/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
-$(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
+$(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.

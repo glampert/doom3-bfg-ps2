@@ -20,8 +20,10 @@ dependencies imported for the port live under `src/external/`.
 PS2 renderer, and proposes the next rendering work: GS primitives, a visible native
 console, then the native offline main menu. It records reuse boundaries, asset and
 memory requirements, and acceptance gates. The CPU-only GS device layer now draws
-solid colors and alpha in NTSC/PAL, with inspected PCSX2 captures and debug/release
-acceptance. Native console/SWF/menu drawing remains pending; production stays headless.
+solid colors and RGBA textures with alpha in NTSC/PAL. It owns bounded pixel/VRAM
+storage, fences dirty uploads and eviction, and streams native framebuffer captures
+with checked writes and recoverable readback deadlines. Native console/SWF/menu drawing
+remains pending; production stays headless. Target acceptance is recorded in PORT_STATUS.
 
 ## Build
 
@@ -37,9 +39,9 @@ make headless                # package production with authored console boot dat
 make run-headless            # run the console package in PCSX2, until quit
 make test-headless           # 120 frames, live console commands and shutdown in PCSX2
 make BUILD=release test-headless # same production checks without assertions
-make test-renderer           # NTSC/PAL GS scene, reload/pressure and three failure probes
+make test-renderer           # textured NTSC/PAL scene, native capture/pixels, reload and failure probes
 make BUILD=release test-renderer # same device checks without assertions
-make run-renderer            # hold the final NTSC scene for 60 seconds; F8 saves a capture
+make run-renderer            # native capture plus a 60-second inspection hold; F8 also saves a capture
 make platform-probe          # SDK/timer/alignment probe
 make headless-core           # scalar Doom foundation and integration tests
 make compile-core            # 52 scalar idlib units and 10 framework/session support units
@@ -423,3 +425,5 @@ The first GS device layer adapts its video-mode, GS, GIF writer, command-chain a
 frame code from reference commit `e64493c1bbadd84b2ab5d52a128ef25905236510`. Doom owns
 the command storage and adds release-safe packet bounds and hardware timeouts; no
 Quake game artwork, palette, model cache or VU programs are imported.
+Texture metadata, residency fences and strip capture also adapt that reference's
+mechanisms, with Doom-owned pixels, conservative RGBA pages and checked recovery.

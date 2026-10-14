@@ -28,10 +28,17 @@ gs::DrawContext LastPresentedContext()
 PS2_COLD_FUNC bool Init(const Config & config)
 {
     if (s_initialized) { FatalError("render system initialized twice"); }
-    if (!video::IsValid(config.standard) || !cmdbuf::Init(config.commandHalfBytes)) { return false; }
+    // Both sixteen-qword environments plus chain terminators must fit the first half.
+    if (!video::IsValid(config.standard) || config.commandHalfBytes < 640U || !cmdbuf::Init(config.commandHalfBytes)) { return false; }
     if (!gs::Init({config.standard, 512, video::VisibleLines(config.standard)}))
     {
         cmdbuf::Shutdown();
+        return false;
+    }
+    if (!tex::Init(config.textureVramBytes, config.texturePixelBytes))
+    {
+        cmdbuf::Shutdown();
+        gs::Shutdown();
         return false;
     }
     s_context = gs::DrawContext::Ctx0;
@@ -61,9 +68,18 @@ void EndFrame()
     s_frame = false;
     ++s_frames;
 }
+bool TexturedRect(tex::Handle texture, int x, int y, int width, int height, int u0, int v0, int u1, int v1, gs::Color color)
+{
+    if (!s_frame) { FatalError("2D texture draw outside a frame"); }
+    gs::TextureBinding binding = {};
+    if (!tex::Bind(texture, binding)) { return false; }
+    gs::TexturedRect(s_context, binding, x, y, width, height, u0, v0, u1, v1, color);
+    return true;
+}
 PS2_COLD_FUNC void Shutdown()
 {
     if (s_frame) { EndFrame(); }
+    tex::Shutdown();
     // Partial startup and repeated shutdown both leave no DMA references or heap ownership.
     cmdbuf::Shutdown();
     gs::Shutdown();

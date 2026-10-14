@@ -22,6 +22,7 @@ import signal
 import struct
 import subprocess
 import sys
+import renderer_capture
 import time
 import uuid
 
@@ -143,7 +144,7 @@ VERSION_RE = re.compile(
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
     "inactive-start", "rejected-partial-init", "device-init", "context-frames",
-    "presented-scene", "bounded-pressure", "reload-shutdown-ledger"))
+    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload"))
 REQUIRED_CORE_CHECKS = frozenset({
     "codecs/crc-known-vector", "codecs/zlib-streaming-ledger", "codecs/zlib-error-cleanup",
     "codecs/jpeg-rgba-tables-ledger",
@@ -930,12 +931,41 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
     log = read_text(emulator_log) + "\n" + read_text(stdout_log)
     result = read_result(output / "result.json")
     passed, reason = classify_run(test_id, args.scenario, result, log, returncode, timed_out)
+    capture_checks = {}
+    if passed and args.scenario in ("renderer-ntsc", "renderer-pal"):
+        standard = "PAL" if args.scenario == "renderer-pal" else "NTSC"
+        try:
+            for name in ("renderer.tga", "renderer-recovered.tga", "renderer-reload.tga"):
+                capture_checks[name] = renderer_capture.verify_scene(output / name, standard)
+            if capture_checks["renderer.tga"]["sha256"] != capture_checks["renderer-recovered.tga"]["sha256"]:
+                raise ValueError("capture recovery changed the completed framebuffer")
+            width, height, pixels = renderer_capture.read_tga(output / "renderer-upload.tga")
+            if (width, height) != (512, 512 if standard == "PAL" else 448):
+                raise ValueError("incorrect split upload capture dimensions")
+            for x, y, expected in ((128, 64, (255, 0, 0)), (384, 64, (0, 255, 0)),
+                                   (128, 192, (0, 0, 255)), (384, 192, (255, 255, 0))):
+                offset = (y * width + x) * 3
+                if any(abs(actual - wanted) > 8 for actual, wanted in zip(pixels[offset:offset + 3], expected)):
+                    raise ValueError(f"split upload capture lost texture data at {x},{y}")
+            capture_checks["renderer-upload.tga"] = {"sha256": sha256(output / "renderer-upload.tga"), "quadrants": "PASS"}
+            for name in ("renderer-pressure.tga", "renderer-pressure-reload.tga"):
+                width, height, pixels = renderer_capture.read_tga(output / name)
+                if (width, height) != (512, 512 if standard == "PAL" else 448):
+                    raise ValueError("incorrect pressure capture dimensions")
+                for x, y, expected in ((128, 4, (128, 128, 128)), (128, 12, (128, 128, 128)), (128, 20, (0, 0, 0))):
+                    offset = (y * width + x) * 3
+                    if any(abs(actual - wanted) > 8 for actual, wanted in zip(pixels[offset:offset + 3], expected)):
+                        raise ValueError(f"pressure capture lost textured draws at {x},{y}")
+                capture_checks[name] = {"sha256": sha256(output / name), "pressure_pixels": "PASS"}
+        except (OSError, ValueError) as error:
+            passed, reason = False, str(error)
     summary = {
         "passed": passed, "reason": reason, "elapsed_seconds": time.monotonic() - started,
         "returncode_before_cleanup": returncode, "returncode_after_cleanup": process.returncode,
         "timed_out": timed_out,
         "renderer_scene_sha256": sha256(output / "renderer.ready") if (output / "renderer.ready").is_file() else None,
         "visual_inspection_required": args.scenario in ("renderer-ntsc", "renderer-pal"),
+        "renderer_capture_checks": capture_checks,
     }
     if game_scenario:
         # Native collision startup creates the text cache, then binary cache on reload.
