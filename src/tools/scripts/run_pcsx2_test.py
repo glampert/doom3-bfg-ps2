@@ -36,6 +36,10 @@ NEGATIVE_PROBES = {
     "renderer-gif-overflow": "GIF payload overflow:",
     "renderer-direct-overflow": "DIRECT request exceeds command half capacity",
     "renderer-wait-timeout": "GS pipeline timeout: injected wait;",
+    "renderer-ui-state": "renderer capability unavailable: native UI blend/state profile",
+    "renderer-ui-bounds": "invalid native UI rectangle or UV",
+    "renderer-ui-quad": "renderer capability unavailable: native UI quad requires axis-aligned positions and UVs",
+    "renderer-ui-text": "native UI text exceeds bounded input profile",
     "jpeg-invalid": "SWF JPEG: invalid input",
     "jpeg-oversize": "SWF JPEG: invalid or oversized dimensions (limit 1024)",
     "jpeg-marker": "SWF JPEG: marker extends past input",
@@ -144,7 +148,7 @@ VERSION_RE = re.compile(
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
     "inactive-start", "rejected-partial-init", "device-init", "context-frames",
-    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload"))
+    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters"))
 REQUIRED_CORE_CHECKS = frozenset({
     "codecs/crc-known-vector", "codecs/zlib-streaming-ledger", "codecs/zlib-error-cleanup",
     "codecs/jpeg-rgba-tables-ledger",
@@ -948,6 +952,10 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 if any(abs(actual - wanted) > 8 for actual, wanted in zip(pixels[offset:offset + 3], expected)):
                     raise ValueError(f"split upload capture lost texture data at {x},{y}")
             capture_checks["renderer-upload.tga"] = {"sha256": sha256(output / "renderer-upload.tga"), "quadrants": "PASS"}
+            for name in ("renderer-ui.tga", "renderer-ui-reload.tga"):
+                capture_checks[name] = renderer_capture.verify_ui_scene(output / name, standard)
+            if capture_checks["renderer-ui.tga"]["sha256"] != capture_checks["renderer-ui-reload.tga"]["sha256"]:
+                raise ValueError("native UI reload changed the authored adapter image")
             for name in ("renderer-pressure.tga", "renderer-pressure-reload.tga"):
                 width, height, pixels = renderer_capture.read_tga(output / name)
                 if (width, height) != (512, 512 if standard == "PAL" else 448):

@@ -195,6 +195,22 @@ void TexturedRect(DrawContext context, const TextureBinding & binding, int x, in
     const int startV = Coord(v0, v1, static_cast<s64>(top) - y, height);
     const int endU = Coord(u0, u1, static_cast<s64>(endX) - x, width);
     const int endV = Coord(v0, v1, static_cast<s64>(endY) - y, height);
+    TexturedRectFixed(context, binding, left * 16, top * 16, endX * 16, endY * 16,
+                      startU, startV, endU, endV, color, BlendMode::StraightAlpha);
+}
+
+void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int x0, int y0, int x1, int y1,
+                       int u0, int v0, int u1, int v1, Color color, BlendMode blend)
+{
+    (void)ValidateBinding(binding);
+    (void)Index(context);
+    if (x0 < 0 || y0 < 0 || x1 < x0 || y1 < y0 || x1 > s_width * 16 || y1 > s_height * 16 ||
+        u0 < 0 || v0 < 0 || u1 < u0 || v1 < v0 || u1 > 16383 || v1 > 16383 ||
+        (blend != BlendMode::Replace && blend != BlendMode::StraightAlpha))
+    {
+        FatalError("invalid fixed GS textured rectangle");
+    }
+    if (x0 == x1 || y0 == y1 || (color.a == 0 && blend == BlendMode::StraightAlpha)) { return; }
     const auto & layout = binding.layout;
     const auto & sampler = binding.sampler;
     const int filter = sampler.filter == tex::Filter::Linear ? 1 : 0;
@@ -206,14 +222,18 @@ void TexturedRect(DrawContext context, const TextureBinding & binding, int x, in
         sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
         0, layout.width - 1, 0, layout.height - 1));
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
-    writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_SPRITE, 0, 1, 0, 1, 0, 1, Index(context), 0));
+    // A zero-alpha texel still replaces RGB in ONE/ZERO mode. Environment cutout is
+    // not the native GUI contract, so disable it explicitly for every UI sprite.
+    writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 0, 1));
+    writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_SPRITE, 0, 1, 0,
+        blend == BlendMode::StraightAlpha ? 1 : 0, 0, 1, Index(context), 0));
     const auto Modulate = [](u8 value) { return static_cast<u8>((static_cast<u32>(value) * 128U + 127U) / 255U); };
     writer.SetRegister(GS_REG_RGBAQ, GS_SET_RGBAQ(Modulate(color.r), Modulate(color.g), Modulate(color.b),
                                                Modulate(color.a), 0x3F800000U));
-    writer.SetRegister(GS_REG_UV, GS_SET_UV(startU, startV));
-    writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((left + 2048) * 16, (top + 2048) * 16, 0));
-    writer.SetRegister(GS_REG_UV, GS_SET_UV(endU, endV));
-    writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((endX + 2048) * 16, (endY + 2048) * 16, 0));
+    writer.SetRegister(GS_REG_UV, GS_SET_UV(u0, v0));
+    writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(x0 + 2048 * 16, y0 + 2048 * 16, 0));
+    writer.SetRegister(GS_REG_UV, GS_SET_UV(u1, v1));
+    writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(x1 + 2048 * 16, y1 + 2048 * 16, 0));
     cmdbuf::EndDirect(writer);
 }
 

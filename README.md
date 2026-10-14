@@ -26,6 +26,11 @@ with checked writes and recoverable readback deadlines. Native console/SWF/menu 
 remains pending; production stays headless. Target acceptance is recorded in
 [PORT_STATUS.md](docs/PORT_STATUS.md#rgba-textures-and-native-capture-2d-2).
 
+The first 2D-3 slice supplies native display/color/quad/text adapters and owned white
+and authored ASCII charset images. Fractional 640×480 coordinates map to GS fixed point;
+the existing scene verifies glyphs, cursors and explicit replacement/alpha behavior.
+Connecting the real native `console->Draw` to production Common frames is next.
+
 ## Build
 
 Install ps2dev with `mips64r5900el-ps2-elf-g++` and ps2sdk. The defaults are
@@ -233,10 +238,11 @@ sample's pre-gain peak envelope; no output mixer or physical device is initializ
 
 Typed renderer providers now bind the native screen, image, shader, cinematic and
 vertex-buffer interfaces, resolving the renderer link group. They expose inactive
-state and empty metadata cleanup. Initialization, display dimensions, resource loading,
-draw submission and active demos fail with the method name. The 42 frontend cvars retain
-native defaults and flags. No frame arenas, texture/vertex payloads or GS device are
-created; meaningful world/material/model queries remain required for general map loading.
+state and empty metadata cleanup until explicit native 2D activation. The 2D profile
+supports display metrics, color/state, fills, axis-aligned constant-material quads and
+authored ASCII text; unsupported state, geometry, images, shaders and demos fail explicitly.
+The 42 frontend cvars retain native defaults and flags. Production still activates no
+device pools; native console integration and general UI/world drawing remain pending.
 
 The deferred game/UI providers now close the multiplayer, leaderboard, shell and save
 metadata link group. Single-player multiplayer reset/precache and empty scoreboard
@@ -428,3 +434,6 @@ the command storage and adds release-safe packet bounds and hardware timeouts; n
 Quake game artwork, palette, model cache or VU programs are imported.
 Texture metadata, residency fences and strip capture also adapt that reference's
 mechanisms, with Doom-owned pixels, conservative RGBA pages and checked recovery.
+Native character layout and color-escape helpers follow id Software's
+`renderer/RenderSystem.cpp`. The bootstrap ASCII bitmap charset is authored for this port;
+it contains no retail or Quake artwork and uses the project's GPL v3 or later license.

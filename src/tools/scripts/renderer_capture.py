@@ -44,6 +44,37 @@ SCENE_PIXELS = (
     ("evict-yellow", 224, 408, (255, 255, 0)),
 )
 
+# Virtual 640x480 positions deliberately sit inside the authored glyph strokes or empty regions.
+# The A's top, legs, crossbar and hole distinguish readable coverage from opaque text quads.
+UI_SCENE_PIXELS = (
+    ("ui-background", 12, 12, (16, 24, 40)),
+    ("native-big-cyan", 36, 26, (0, 255, 255)),
+    ("native-color-red", 34, 82, (255, 0, 0)),
+    ("native-color-green", 66.5, 82, (0, 255, 0)),
+    ("native-color-blue", 114, 82, (0, 0, 255)),
+    ("native-a-top", 35.5, 105.75, (255, 255, 255)),
+    ("native-a-left-leg", 32.5, 108.5, (255, 255, 255)),
+    ("native-a-right-leg", 39, 108.5, (255, 255, 255)),
+    ("native-a-crossbar", 35.5, 112, (255, 255, 255)),
+    ("native-a-hole", 35.5, 108.5, (16, 24, 40)),
+    ("native-a-top-corner", 32.5, 105.75, (16, 24, 40)),
+    ("native-cursor-underline", 35.5, 190, (255, 255, 255)),
+    ("native-cursor-underline-hole", 35.5, 182, (16, 24, 40)),
+    ("native-cursor-block", 59.5, 182, (255, 255, 255)),
+    ("native-cursor-block-margin", 56.5, 182, (16, 24, 40)),
+    ("native-replace-zero-alpha", 96, 224, (255, 0, 0)),
+    ("native-straight-alpha", 240, 224, (8, 140, 20)),
+    ("native-fractional-white", 360, 224, (255, 255, 255)),
+    ("native-fractional-left-uncovered", 320, 224, (16, 24, 40)),
+    ("native-fractional-right-covered", 400, 224, (255, 255, 255)),
+    ("native-fractional-right-uncovered", 401.25, 224, (16, 24, 40)),
+    ("native-clipped-blue", 1, 272, (0, 0, 255)),
+    ("native-clipped-blue-right", 31.25, 272, (0, 0, 255)),
+    ("native-clipped-blue-outside", 33.75, 272, (16, 24, 40)),
+    ("native-input-line", 35.5, 306, (255, 255, 255)),
+    ("native-input-final-cursor", 235.5, 310, (255, 255, 255)),
+)
+
 
 def _read_capture(path: Path) -> tuple[int, int, bytes, str]:
     with Path(path).open("rb") as stream:
@@ -83,6 +114,28 @@ def verify_scene(path: Path, standard: str) -> dict:
         raise ValueError(f"renderer capture is {width}x{height}; expected 512x{expected_height} for {standard}")
     checks = []
     for name, x, y, expected in SCENE_PIXELS:
+        offset = (y * width + x) * 3
+        actual = tuple(pixels[offset:offset + 3])
+        passed = all(abs(a - e) <= PIXEL_TOLERANCE for a, e in zip(actual, expected))
+        checks.append({"name": name, "x": x, "y": y, "expected_rgb": list(expected),
+                       "actual_rgb": list(actual), "tolerance": PIXEL_TOLERANCE, "passed": passed})
+        if not passed:
+            raise ValueError(f"renderer capture pixel {name} ({x},{y}) is {actual}; expected {expected} within {PIXEL_TOLERANCE}")
+    return {"schema": 1, "standard": standard, "width": width, "height": height,
+            "sha256": digest, "checks": checks}
+
+
+def verify_ui_scene(path: Path, standard: str) -> dict:
+    """Require native UI glyph coverage, colors, blending and clipped/fractional geometry."""
+    if standard not in ("NTSC", "PAL"):
+        raise ValueError("renderer capture standard must be NTSC or PAL")
+    width, height, pixels, digest = _read_capture(path)
+    expected_height = 448 if standard == "NTSC" else 512
+    if (width, height) != (512, expected_height):
+        raise ValueError(f"renderer capture is {width}x{height}; expected 512x{expected_height} for {standard}")
+    checks = []
+    for name, virtual_x, virtual_y, expected in UI_SCENE_PIXELS:
+        x, y = int(virtual_x * width / 640), int(virtual_y * height / 480)
         offset = (y * width + x) * 3
         actual = tuple(pixels[offset:offset + 3])
         passed = all(abs(a - e) <= PIXEL_TOLERANCE for a, e in zip(actual, expected))

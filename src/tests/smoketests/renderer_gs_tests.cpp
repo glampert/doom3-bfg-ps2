@@ -9,6 +9,8 @@
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/renderer/capture.h"
 #include "ps2/renderer/vram.h"
+#include "ps2/renderer/ui_draw.h"
+#include "ps2/renderer/image_backend.h"
 #include "ps2/system/heap.h"
 #include <kernel.h>
 #include <delaythread.h>
@@ -17,6 +19,7 @@
 #include <timer.h>
 #include <climits>
 #include <idlib/precompiled.h>
+#include <renderer/tr_local.h>
 
 namespace ps2::smoketests
 {
@@ -33,6 +36,65 @@ static u8 s_npot[19][40][4] = {};
 static u8 s_checker[8][8][4] = {};
 static u8 s_pressure[64][64][4] = {};
 bool SameLedger(const heap::Stats & before);
+bool NativeAdapters(video::Standard standard)
+{
+    const auto before = heap::GetTotalStats();
+    bool passed = !ui::IsInitialized() && !R_IsInitialized();
+    // Startup failure must not claim native capabilities or retain partial image ownership.
+    if (!rs::Init({standard, 1024U, 65536U, 524288U})) { return false; }
+    passed = !ui::Init() && !tr.registered && !render::ConsoleImagesInitialized() && passed;
+    rs::Shutdown();
+    passed = SameLedger(before) && passed;
+    if (!rs::Init({standard, 1024U, 1048576U, 131072U})) { return false; }
+    passed = !ui::Init() && !tr.registered && !render::ConsoleImagesInitialized() && passed;
+    rs::Shutdown();
+    passed = SameLedger(before) && passed;
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+        if (!rs::Init({standard, 1024U, 1048576U, 524288U}) || !ui::Init()) { rs::Shutdown(); return false; }
+        const idImage * const white = render::ConsoleWhiteImage();
+        const idImage * const chars = render::ConsoleCharsetImage();
+        passed = white != nullptr && chars != nullptr && white->IsLoaded() && chars->IsLoaded() &&
+            white->StorageSize() == 8192 && chars->StorageSize() == 262144 && tr.registered && R_IsInitialized() &&
+            !renderSystem->IsOpenGLRunning() && renderSystem->IsFullScreen() && renderSystem->GetWidth() == 512 &&
+            renderSystem->GetHeight() == video::VisibleLines(standard) && passed;
+        renderSystem->SetColor(idVec4(0.5f, 0.25f, 1.0f, 0.75f));
+        passed = renderSystem->GetColor() == 0xBFFF3F7FU && passed;
+        const u32 frames = cycle == 0 ? 120U : 4U;
+        for (u32 frame = 0; frame < frames; ++frame)
+        {
+            rs::BeginFrame({16, 24, 40, 255});
+            renderSystem->SetGLState(GLS_DEFAULT);
+            renderSystem->DrawBigStringExt(32, 24, "D3BFG PS2", colorCyan, true);
+            renderSystem->DrawSmallStringExt(32, 56, "Native draw adapters - 640x480 canvas", colorWhite, true);
+            renderSystem->DrawSmallStringExt(32, 80, "^1RED ^2GREEN ^4BLUE ^7WHITE", colorWhite, false);
+            renderSystem->DrawSmallStringExt(32, 104, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", colorWhite, true);
+            renderSystem->DrawSmallStringExt(32, 128, "abcdefghijklmnopqrstuvwxyz 0123456789", colorWhite, true);
+            renderSystem->DrawSmallStringExt(32, 152, "[]{}()<>!?+-*/=.,:;_", colorWhite, true);
+            renderSystem->SetColor(colorWhite);
+            renderSystem->DrawSmallChar(32, 176, 10);
+            renderSystem->DrawSmallChar(56, 176, 11);
+            renderSystem->SetGLState(GLS_OVERRIDE | GLS_DEFAULT);
+            renderSystem->DrawFilled(idVec4(1.0f, 0.0f, 0.0f, 0.0f), 32.0f, 208.0f, 128.0f, 32.0f);
+            renderSystem->SetGLState(GLS_DEFAULT);
+            renderSystem->DrawFilled(idVec4(0.0f, 1.0f, 0.0f, 0.5f), 176.0f, 208.0f, 128.0f, 32.0f);
+            renderSystem->DrawFilled(colorWhite, 320.25f, 208.125f, 80.5f, 31.875f);
+            renderSystem->DrawFilled(colorBlue, -16.25f, 256.0f, 48.5f, 32.0f);
+            renderSystem->DrawSmallStringExt(32, 304, "]echo authored input line", colorWhite, true);
+            renderSystem->SetColor(colorWhite);
+            renderSystem->DrawSmallChar(32 + 25 * SMALLCHAR_WIDTH, 304, frame == frames - 1U ? 11 : 10);
+            renderSystem->SetColor(colorWhite);
+            rs::EndFrame();
+        }
+        passed = capture::WriteTga(cycle == 0 ? "host:renderer-ui.tga" : "host:renderer-ui-reload.tga", rs::LastPresentedContext()) && passed;
+        Log(LogLevel::Info, "[D3BFG] UI scene cycle=%d frames=%u pixel_bytes=%u\n", cycle, frames, tex::GetStats().pixelBytes);
+        ui::Shutdown();
+        ui::Shutdown();
+        rs::Shutdown();
+        passed = !ui::IsInitialized() && !R_IsInitialized() && !tr.registered && !render::ConsoleImagesInitialized() && SameLedger(before) && passed;
+    }
+    return passed;
+}
 bool SplitUpload(video::Standard standard)
 {
     const auto before = heap::GetTotalStats();
@@ -200,6 +262,7 @@ bool RunGsTests(video::Standard standard)
     rs::Shutdown();
     passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !cmdbuf::IsInitialized()) && passed;
     passed = Check("split-upload", SplitUpload(standard)) && passed;
+    passed = Check("native-adapters", NativeAdapters(standard)) && passed;
     bool contexts = true;
     bool bounds = true;
     bool pressure = true;
@@ -290,7 +353,9 @@ bool RunGsTests(video::Standard standard)
 bool RunGsFailureProbe(const char * name)
 {
     if (strcmp(name, "renderer-gif-overflow") != 0 && strcmp(name, "renderer-direct-overflow") != 0 &&
-        strcmp(name, "renderer-wait-timeout") != 0) { return false; }
+        strcmp(name, "renderer-wait-timeout") != 0 && strcmp(name, "renderer-ui-state") != 0 &&
+        strcmp(name, "renderer-ui-bounds") != 0 && strcmp(name, "renderer-ui-quad") != 0 &&
+        strcmp(name, "renderer-ui-text") != 0) { return false; }
     Log(LogLevel::Info, "[D3BFG] PROBE %s BEGIN\n", name);
     Log(LogLevel::Info, "[D3BFG] CHECK probe/ready PASS\n");
     if (strcmp(name, "renderer-gif-overflow") == 0)
@@ -309,7 +374,30 @@ bool RunGsFailureProbe(const char * name)
     {
         gs::WaitUntil([] { return false; }, "injected wait");
     }
-    else { return false; }
+    else
+    {
+        if (!rs::Init({video::Standard::Ntsc, 1024U}) || !ui::Init()) { FatalError("probe UI initialization failed"); }
+        if (strcmp(name, "renderer-ui-state") == 0)
+        {
+            renderSystem->SetGLState(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE);
+        }
+        rs::BeginFrame({0, 0, 0, 255});
+        if (strcmp(name, "renderer-ui-bounds") == 0)
+        {
+            renderSystem->DrawFilled(colorWhite, 0.0f, 0.0f, -1.0f, 16.0f);
+        }
+        else if (strcmp(name, "renderer-ui-quad") == 0)
+        {
+            renderSystem->DrawStretchPic(idVec4(0, 0, 0, 0), idVec4(16, 0, 1, 0),
+                idVec4(17, 16, 1, 1), idVec4(0, 16, 0, 1), nullptr);
+        }
+        else if (strcmp(name, "renderer-ui-text") == 0)
+        {
+            static char oversized[MAX_STRING_CHARS + 1] = {};
+            memset(oversized, 'A', MAX_STRING_CHARS);
+            renderSystem->DrawSmallStringExt(0, 0, oversized, colorWhite, true);
+        }
+    }
     FatalError("GS failure probe unexpectedly returned");
 }
 } // namespace ps2::smoketests

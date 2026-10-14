@@ -6,6 +6,7 @@
 # ================================================================================================
 
 import hashlib
+import math
 from pathlib import Path
 import struct
 import sys
@@ -88,6 +89,44 @@ def scene(height=448):
     rectangle(0, height - 4, 512, 4, (255, 255, 255))
     rectangle(0, 0, 4, height, (255, 255, 255))
     rectangle(508, 0, 4, height, (255, 255, 255))
+    return rgb
+
+
+def ui_rectangle(rgb, height, x, y, width, rows, color):
+    """Fill a virtual-space region independently of the verifier's sampled positions."""
+    left, right = max(0, math.ceil(x * 512 / 640)), min(512, math.ceil((x + width) * 512 / 640))
+    top, bottom = max(0, math.ceil(y * height / 480)), min(height, math.ceil((y + rows) * height / 480))
+    row = bytes(color) * max(0, right - left)
+    for line in range(top, bottom):
+        offset = (line * 512 + left) * 3
+        rgb[offset:offset + len(row)] = row
+
+
+def ui_scene(height=448):
+    # Draw only simple authored strokes needed by this scene contract, not the complete atlas.
+    # These geometric bars describe an A, cursor shapes, colored glyph bars and the input prompt.
+    rgb = bytearray(bytes((16, 24, 40)) * (512 * height))
+
+    def rectangle(x, y, width, rows, color):
+        ui_rectangle(rgb, height, x, y, width, rows, color)
+
+    white = (255, 255, 255)
+    rectangle(32, 25, 12, 2, (0, 255, 255))
+    rectangle(32, 81, 6, 2, (255, 0, 0))
+    rectangle(65.5, 81, 4.5, 2, (0, 255, 0))
+    rectangle(112, 81, 6, 2, (0, 0, 255))
+    rectangle(33.5, 105, 4.5, 2, white)
+    rectangle(32, 107, 1.5, 12, white)
+    rectangle(38, 107, 1.5, 12, white)
+    rectangle(32, 111, 7.5, 2, white)
+    rectangle(33, 189, 6, 2, white)
+    rectangle(57, 177, 6, 14, white)
+    rectangle(32, 208, 128, 32, (255, 0, 0))
+    rectangle(176, 208, 128, 32, (8, 140, 20))
+    rectangle(320.25, 208.125, 80.5, 31.875, white)
+    rectangle(-16.25, 256, 48.5, 32, (0, 0, 255))
+    rectangle(33.5, 305, 4.5, 2, white)
+    rectangle(233, 305, 6, 14, white)
     return rgb
 
 
@@ -183,6 +222,72 @@ class RendererCapture(unittest.TestCase):
         pixels[offset:offset + 3] = bytes((192, 128, 128))
         with self.assertRaisesRegex(ValueError, "textured-overlap-order"):
             capture.verify_scene(self.write(tga(512, 448, pixels)), "NTSC")
+
+    def test_valid_ui_scene_dimensions_hash_and_scaled_pixels(self):
+        for standard, height in (("NTSC", 448), ("PAL", 512)):
+            with self.subTest(standard=standard):
+                content = tga(512, height, ui_scene(height))
+                result = capture.verify_ui_scene(self.write(content), standard)
+                self.assertEqual((result["width"], result["height"]), (512, height))
+                self.assertEqual(result["sha256"], hashlib.sha256(content).hexdigest())
+                self.assertEqual(len(result["checks"]), 26)
+                self.assertTrue(all(item["passed"] for item in result["checks"]))
+                underline = next(item for item in result["checks"] if item["name"] == "native-cursor-underline")
+                self.assertEqual(underline["y"], int(190 * height / 480))
+
+    def test_ui_scene_requires_capture_and_correct_standard(self):
+        with self.assertRaises(FileNotFoundError):
+            capture.verify_ui_scene(self.path, "NTSC")
+        self.write(tga(512, 448, ui_scene()))
+        with self.assertRaisesRegex(ValueError, "expected 512x512"):
+            capture.verify_ui_scene(self.path, "PAL")
+        with self.assertRaisesRegex(ValueError, "standard"):
+            capture.verify_ui_scene(self.path, "SECAM")
+        with self.assertRaisesRegex(ValueError, "expected 512x448"):
+            capture.verify_ui_scene(self.write(tga(2, 2, bytes(12))), "NTSC")
+
+    def test_ui_scene_rejects_missing_text_and_opaque_glyph_cells(self):
+        for color, failure in (((16, 24, 40), "native-a-top"), ((255, 255, 255), "native-a-hole")):
+            with self.subTest(color=color):
+                pixels = ui_scene()
+                ui_rectangle(pixels, 448, 32, 104, 8, 16, color)
+                with self.assertRaisesRegex(ValueError, failure):
+                    capture.verify_ui_scene(self.write(tga(512, 448, pixels)), "NTSC")
+
+    def test_ui_scene_rejects_zero_alpha_replace_being_skipped(self):
+        pixels = ui_scene()
+        ui_rectangle(pixels, 448, 32, 208, 128, 32, (16, 24, 40))
+        with self.assertRaisesRegex(ValueError, "native-replace-zero-alpha"):
+            capture.verify_ui_scene(self.write(tga(512, 448, pixels)), "NTSC")
+
+    def test_ui_scene_rejects_alpha_replace_and_color_loss(self):
+        for bounds, color, failure in (
+            ((176, 208, 128, 32), (0, 255, 0), "native-straight-alpha"),
+            ((65.5, 81, 4.5, 2), (255, 255, 255), "native-color-green"),
+        ):
+            with self.subTest(failure=failure):
+                pixels = ui_scene()
+                ui_rectangle(pixels, 448, *bounds, color)
+                with self.assertRaisesRegex(ValueError, failure):
+                    capture.verify_ui_scene(self.write(tga(512, 448, pixels)), "NTSC")
+
+    def test_ui_scene_rejects_wrong_cursor_shape_and_missing_final_cursor(self):
+        for bounds, color, failure in (
+            ((33, 177, 6, 14), (255, 255, 255), "native-cursor-underline-hole"),
+            ((233, 305, 6, 14), (16, 24, 40), "native-input-final-cursor"),
+        ):
+            with self.subTest(failure=failure):
+                pixels = ui_scene()
+                ui_rectangle(pixels, 448, *bounds, color)
+                with self.assertRaisesRegex(ValueError, failure):
+                    capture.verify_ui_scene(self.write(tga(512, 448, pixels)), "NTSC")
+
+    def test_ui_scene_rejects_truncated_fractional_positions(self):
+        pixels = ui_scene()
+        ui_rectangle(pixels, 448, 320.25, 208.125, 80.5, 31.875, (16, 24, 40))
+        ui_rectangle(pixels, 448, 320, 208, 80, 32, (255, 255, 255))
+        with self.assertRaisesRegex(ValueError, "native-fractional-left-uncovered"):
+            capture.verify_ui_scene(self.write(tga(512, 448, pixels)), "NTSC")
 
 
 if __name__ == "__main__":

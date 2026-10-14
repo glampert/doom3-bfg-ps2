@@ -86,4 +86,13 @@ PS2_COLD_FUNC void Shutdown()
     s_initialized = false;
     s_frames = 0;
 }
+bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Color color, gs::BlendMode blend)
+{
+    if (!s_frame) { FatalError("2D fixed texture draw outside a frame"); }
+    gs::TextureBinding binding = {};
+    if (!tex::Bind(texture, binding)) { return false; }
+    gs::TexturedRectFixed(s_context, binding, rect.x0, rect.y0, rect.x1, rect.y1,
+                         rect.u0, rect.v0, rect.u1, rect.v1, color, blend);
+    return true;
+}
 } // namespace ps2::rs

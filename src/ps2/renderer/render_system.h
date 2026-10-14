@@ -8,6 +8,7 @@
 #include "ps2/renderer/gs.h"
 #include "ps2/renderer/cmd_buffer.h"
 #include "ps2/renderer/texture.h"
+#include "ps2/renderer/ui_geometry.h"
 
 namespace ps2::rs
 {
@@ -26,6 +27,7 @@ void BeginFrame(gs::Color clearColor);
 void FillRect(int x, int y, int width, int height, gs::Color color);
 bool TexturedRect(tex::Handle texture, int x, int y, int width, int height, int u0, int v0, int u1, int v1,
                   gs::Color color = {255, 255, 255, 255});
+bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Color color, gs::BlendMode blend);
 void EndFrame(); // Immediate completed-frame presentation; deferred mode is a later gate.
 u32 FrameCount();
 gs::DrawContext LastPresentedContext();

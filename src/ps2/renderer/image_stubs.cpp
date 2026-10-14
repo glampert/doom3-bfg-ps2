@@ -18,30 +18,6 @@ idImageManager * globalImages = &s_imageManager;
 idRenderProgManager renderProgManager;
 idResolutionScale resolutionScale;
 
-bool idImage::IsLoaded() const
-{
-    if (backendState != nullptr)
-    {
-        ps2::render::Unavailable("idImage::IsLoaded with backend state");
-    }
-    return false;
-}
-void idImage::PurgeImage()
-{
-    if (backendState != nullptr)
-    {
-        ps2::render::Unavailable("idImage::PurgeImage with backend state");
-    }
-}
-int idImage::StorageSize() const
-{
-    if (backendState != nullptr)
-    {
-        ps2::render::Unavailable("idImage::StorageSize with backend state");
-    }
-    return 0; // An image declaration has no allocated texture storage.
-}
-
 idRenderProgManager::idRenderProgManager()
     : backendState(nullptr)
 {
@@ -79,10 +55,8 @@ RENDER_UNAVAILABLE(void, idImage::Reload, (bool))
 RENDER_UNAVAILABLE(void, idImage::ActuallyLoadImage, (bool))
 RENDER_UNAVAILABLE(void, idImage::Bind, ())
 RENDER_UNAVAILABLE(void, idImage::AllocImage, (const idImageOpts &, textureFilter_t, textureRepeat_t))
-RENDER_UNAVAILABLE(void, idImage::GenerateImage, (const byte *, int, int, textureFilter_t, textureRepeat_t, textureUsage_t))
 RENDER_UNAVAILABLE(void, idImage::GenerateCubeImage, (const byte * [6], int, textureFilter_t, textureUsage_t))
 RENDER_UNAVAILABLE(void, idImage::MakeDefault, ())
-RENDER_UNAVAILABLE(void, idImage::SetSamplerState, (textureFilter_t, textureRepeat_t))
 RENDER_UNAVAILABLE(void, idImage::CopyFramebuffer, (int, int, int, int))
 RENDER_UNAVAILABLE(void, idImage::CopyDepthbuffer, (int, int, int, int))
 RENDER_UNAVAILABLE(void, idImage::UploadScratch, (const byte *, int, int))
@@ -92,14 +66,9 @@ RENDER_UNAVAILABLE(void, idImage::Resize, (int, int))
 RENDER_UNAVAILABLE(void, idImage::SetTexParameters, ())
 RENDER_UNAVAILABLE(void, idImage::Print, () const)
 
-RENDER_UNAVAILABLE(void, idImageManager::Init, ())
-RENDER_UNAVAILABLE(void, idImageManager::Shutdown, ())
 RENDER_UNAVAILABLE(void, idImageManager::StartBuild, ())
 RENDER_UNAVAILABLE(void, idImageManager::FinishBuild, (bool))
-RENDER_UNAVAILABLE(idImage *, idImageManager::ImageFromFile, (const char *, textureFilter_t, textureRepeat_t, textureUsage_t, cubeFiles_t))
 RENDER_UNAVAILABLE(idImage *, idImageManager::ImageFromFunction, (const char *, void (*)(idImage *)))
-RENDER_UNAVAILABLE(idImage *, idImageManager::GetImage, (const char *) const)
-RENDER_UNAVAILABLE(idImage *, idImageManager::GetImageWithParameters, (const char *, textureFilter_t, textureRepeat_t, textureUsage_t, cubeFiles_t) const)
 RENDER_UNAVAILABLE(idImage *, idImageManager::ScratchImage, (const char *, idImageOpts *, textureFilter_t, textureRepeat_t, textureUsage_t))
 RENDER_UNAVAILABLE(idImage *, idImageManager::AllocImage, (const char *))
 RENDER_UNAVAILABLE(idImage *, idImageManager::AllocStandaloneImage, (const char *))

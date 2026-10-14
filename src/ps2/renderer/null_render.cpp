@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/null_render.h"
+#include "ps2/renderer/ui_draw.h"
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>
 #include <renderer/tr_local.h>
@@ -137,15 +138,15 @@ void idRenderSystemLocal::Clear()
 }
 
 // These queries describe an inactive backend, not successful logical initialization or a display mode.
-bool R_IsInitialized() { return false; }
+bool R_IsInitialized() { return ps2::ui::IsInitialized(); }
 bool idRenderSystemLocal::IsOpenGLRunning() const { return false; }
-bool idRenderSystemLocal::IsFullScreen() const { return false; }
+bool idRenderSystemLocal::IsFullScreen() const { return this == &tr && ps2::ui::IsInitialized(); }
 bool idRenderSystemLocal::HasQuadBufferSupport() const { return false; }
 bool idRenderSystemLocal::IsStereoScopicRenderingSupported() const { return false; }
 stereo3DMode_t idRenderSystemLocal::GetStereo3DMode() const { return STEREO3D_OFF; }
 stereo3DMode_t idRenderSystemLocal::GetStereoScopicRenderingMode() const { return STEREO3D_OFF; }
 bool idRenderSystemLocal::AreAutomaticBackgroundSwapsRunning(autoRenderIconType_t *) const { return false; }
-void idRenderSystemLocal::Shutdown() { Clear(); }
+void idRenderSystemLocal::Shutdown() { if (this == &tr) { ps2::ui::Shutdown(); } Clear(); }
 void idRenderSystemLocal::ShutdownOpenGL() { CheckNoResources(*this, "idRenderSystemLocal::ShutdownOpenGL"); }
 void idRenderSystemLocal::EndAutomaticBackgroundSwaps() {}
 
@@ -155,9 +156,6 @@ void idRenderSystemLocal::EndAutomaticBackgroundSwaps() {}
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::Init, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::InitOpenGL, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::ResetGuiModels, ())
-RENDER_UNAVAILABLE(int, idRenderSystemLocal::GetWidth, () const)
-RENDER_UNAVAILABLE(int, idRenderSystemLocal::GetHeight, () const)
-RENDER_UNAVAILABLE(float, idRenderSystemLocal::GetPixelAspect, () const)
 RENDER_UNAVAILABLE(float, idRenderSystemLocal::GetPhysicalScreenWidthInCentimeters, () const)
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::EnableStereoScopicRendering, (stereo3DMode_t) const)
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::BeginLevelLoad, ())
@@ -168,18 +166,8 @@ RENDER_UNAVAILABLE(void, idRenderSystemLocal::BeginAutomaticBackgroundSwaps, (au
 RENDER_UNAVAILABLE(idFont *, idRenderSystemLocal::RegisterFont, (const char *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::ResetFonts, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::PrintMemInfo, (MemInfo_t *))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::SetColor, (const idVec4 &))
-RENDER_UNAVAILABLE(uint32, idRenderSystemLocal::GetColor, ())
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::SetGLState, (uint64))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawFilled, (const idVec4 &, float, float, float, float))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawStretchPic, (float, float, float, float, float, float, float, float, const idMaterial *))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawStretchPic, (const idVec4 &, const idVec4 &, const idVec4 &, const idVec4 &, const idMaterial *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawStretchTri, (const idVec2 &, const idVec2 &, const idVec2 &, const idVec2 &, const idVec2 &, const idVec2 &, const idMaterial *))
 RENDER_UNAVAILABLE(idDrawVert *, idRenderSystemLocal::AllocTris, (int, const triIndex_t *, int, const idMaterial *, stereoDepthType_t))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawSmallChar, (int, int, int))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawSmallStringExt, (int, int, const char *, const idVec4 &, bool))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawBigChar, (int, int, int))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawBigStringExt, (int, int, const char *, const idVec4 &, bool))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::WriteDemoPics, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawDemoPics, ())
 RENDER_UNAVAILABLE(const emptyCommand_t *, idRenderSystemLocal::SwapCommandBuffers, (uint64 *, uint64 *, uint64 *, uint64 *))

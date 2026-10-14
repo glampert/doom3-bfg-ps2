@@ -67,6 +67,11 @@ typedef enum {
 
 #define	MAX_IMAGE_NAME	256
 
+// [PS2_D3BFG]: Expose the typed native-image texture handle without duplicating image ownership.
+#if defined(PS2_D3BFG)
+class idImage;
+namespace ps2 { namespace tex { struct Handle; } namespace render { tex::Handle ConsoleImageTexture(const idImage * image); } }
+#endif
 class idImage {
 public:
 				idImage( const char * name );
@@ -161,6 +166,10 @@ public:
 
 private:
 	friend class idImageManager;
+#if defined(PS2_D3BFG)
+	// [PS2_D3BFG]: The backend owns the opaque state; draw adapters only obtain its checked handle.
+	friend ps2::tex::Handle ps2::render::ConsoleImageTexture(const idImage * image);
+#endif
 
 	void				AllocImage();
 	void				DeriveOpts();
