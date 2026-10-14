@@ -95,9 +95,14 @@ def run(args: argparse.Namespace) -> int:
     response.write_text("\n".join(shlex.quote(path) for path in args.objects) + "\n")
     link_map = args.output / (name + ".map")
     link_map.unlink(missing_ok=True)
+    libraries = getattr(args, "libraries", ("kernel", "m", "patches"))
+    if (not libraries or len(set(libraries)) != len(libraries) or
+            any(name not in ("draw", "graph", "packet2", "dma", "kernel", "m", "patches") for name in libraries) or
+            not {"kernel", "m", "patches"}.issubset(libraries)):
+        raise ValueError("invalid resident SDK library list")
     command = [args.compiler, "-o", str(candidate), "@" + str(response),
                "-T" + str(args.linkfile), "-L" + str(args.sdk_lib), "-Wl,-zmax-page-size=128",
-               "-Wl,--demangle=gnu-v3", "-Wl,-Map," + str(link_map), "-lkernel", "-lm", "-lpatches"]
+               "-Wl,--demangle=gnu-v3", "-Wl,-Map," + str(link_map), *["-l" + name for name in libraries]]
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
     (args.output / "link.log").write_text(result.stdout)
     unresolved, duplicates = diagnostics(result.stdout)
@@ -180,6 +185,8 @@ def main() -> int:
     parser.add_argument("--name", choices=("d3bfg", "d3bfg_tests"), default="d3bfg")
     parser.add_argument("--linkfile", type=Path, required=True)
     parser.add_argument("--sdk-lib", type=Path, required=True)
+    parser.add_argument("--libraries", nargs="+", default=("kernel", "m", "patches"),
+                        help="explicit audited SDK libraries, in link order")
     parser.add_argument("--sources", nargs="+", required=True)
     parser.add_argument("--objects", nargs="+", required=True)
     parser.add_argument("--flags", nargs="+", required=True)

@@ -104,6 +104,25 @@ class ResidentLinkTests(unittest.TestCase):
             self.assertTrue((args.output / "d3bfg.elf").is_file())
             self.assertNotIn("--gc-sections", " ".join(report["command"]))
 
+    def test_renderer_sdk_libraries_are_linked_and_recorded_in_order(self):
+        with tempfile.TemporaryDirectory() as temp:
+            args = self.fixture(Path(temp))
+            args.libraries = ["draw", "graph", "packet2", "dma", "kernel", "m", "patches"]
+            self.assertEqual(self.link(args), 0)
+            command = json.loads((args.output / "report.json").read_text())["command"]
+            self.assertEqual(command[-7:], ["-l" + name for name in args.libraries])
+
+    def test_invalid_sdk_libraries_do_not_invoke_the_linker(self):
+        for libraries in ([], ["kernel", "m"], ["kernel", "m", "patches", "--gc-sections"],
+                          ["kernel", "m", "patches", "kernel"]):
+            with self.subTest(libraries=libraries), tempfile.TemporaryDirectory() as temp:
+                args = self.fixture(Path(temp))
+                args.libraries = libraries
+                with patch.object(link_resident.subprocess, "run") as process:
+                    with self.assertRaisesRegex(ValueError, "SDK library"):
+                        link_resident.run(args)
+                    process.assert_not_called()
+
     def test_duplicate_and_classic_inputs_are_rejected_before_link(self):
         with tempfile.TemporaryDirectory() as temp:
             args = self.fixture(Path(temp))

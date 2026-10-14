@@ -179,8 +179,10 @@ endif
 EE_LINKFILE ?= $(PS2SDK)/ee/startup/linkfile
 EE_LDFLAGS = -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib -Wl,-zmax-page-size=128 -Wl,-Map,$(CORE_TEST_DIR)/d3bfg_tests.map
 EE_LIBS = -lkernel -lm
+RENDER_SDK_LIBS = draw graph packet2 dma
+RESIDENT_SDK_LIBS = $(RENDER_SDK_LIBS) kernel m patches
 ifeq ($(CORE_BOOT),1)
-	EE_LIBS += -lpatches
+	EE_LIBS = $(addprefix -l,$(RESIDENT_SDK_LIBS))
 endif
 # Isolated compiler fixture only: discard game-object/save/interpreter methods whose services
 # are deliberately absent. Never use this gate as evidence of a resident game link.
@@ -257,6 +259,7 @@ $(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
 $(OUTPUT_DIR)/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
+$(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.
@@ -354,12 +357,15 @@ compile-game: inventory $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(CODEC_C_OBJS) $(
 	@echo "Campaign compile gate: $(words $(CAMPAIGN_OBJS)) retained EE units; replacements remain listed in the inventory."
 
 # Production retained-object link with no test sources or fixture hooks. Failed gates remove stale ELFs.
-link-game: inventory $(RESIDENT_LINK_OBJS)
-	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR) --kind game --name d3bfg --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
+$(OUTPUT_DIR)/.resident-sdk-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib $(addprefix -l,$(RESIDENT_SDK_LIBS))
+
+link-game: inventory $(RESIDENT_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
+	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR) --kind game --name d3bfg --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
 
 # The same retained campaign is compiled with fixture hooks into a separate native executable.
-headless-game: inventory $(GAME_TEST_LINK_OBJS)
-	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(GAME_TEST_DIR) --kind tests --name d3bfg_tests --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --sources $(addprefix src/,$(GAME_TEST_LINK_SOURCES)) --objects $(GAME_TEST_LINK_OBJS) --flags $(OUTPUT_DIR)/.test-campaign-flags.json $(OUTPUT_DIR)/.test-backend-flags.json $(OUTPUT_DIR)/.test-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
+headless-game: inventory $(GAME_TEST_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
+	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(GAME_TEST_DIR) --kind tests --name d3bfg_tests --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(GAME_TEST_LINK_SOURCES)) --objects $(GAME_TEST_LINK_OBJS) --flags $(OUTPUT_DIR)/.test-campaign-flags.json $(OUTPUT_DIR)/.test-backend-flags.json $(OUTPUT_DIR)/.test-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
 
 test-map: headless-game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-map

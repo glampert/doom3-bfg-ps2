@@ -19,7 +19,8 @@ dependencies imported for the port live under `src/external/`.
 [RENDERER_2D_PLAN.md](docs/RENDERER_2D_PLAN.md) inventories the Doom UI and Quake II
 PS2 renderer, and proposes the next rendering work: GS primitives, a visible native
 console, then the native offline main menu. It records reuse boundaries, asset and
-memory requirements, and acceptance gates; renderer implementation has not started.
+memory requirements, and acceptance gates. The initial CPU-only GS device layer now
+compiles and links; native console/SWF/menu drawing remains pending.
 
 ## Build
 
@@ -413,3 +414,8 @@ The shared `src/ps2/common.h` assertion macros and `ArrayLength` helper are adap
 from that project. The author authorizes reuse of their code under this project's
 GPL v3 or later terms. Third-party notices retain their original terms; the import
 inventory is recorded in [docs/REUSE.md](docs/REUSE.md).
+
+The first GS device layer adapts its video-mode, GS, GIF writer, command-chain and
+frame code from reference commit `e64493c1bbadd84b2ab5d52a128ef25905236510`. Doom owns
+the command storage and adds release-safe packet bounds and hardware timeouts; no
+Quake game artwork, palette, model cache or VU programs are imported.

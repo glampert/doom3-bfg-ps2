@@ -471,3 +471,32 @@ A native empty sound world supplies bookkeeping only. Tagged engine changes skip
 automatic player spawning for this mode and bound silhouette scratch by the surface's
 index count on PS2. Full campaign player startup, animated models/AI, Common transitions
 and retail assets remain later gates.
+
+## CPU-only GS device foundation (2D-1)
+
+Four strict backend sources now supply `video_mode`, `gs`, `cmd_buffer` and the
+backend `render_system`. `gif_writer.h` reserves before SDK environment writes;
+`pipeline_wait.h` uses wrap-safe COP0 Count deadlines for DMA, FINISH and VSYNC
+in both configurations. The command recorder owns tagged, 64-byte-aligned halves
+and inline packet2 headers; it does not borrow map/parser scratch or initialize VU.
+The native Doom renderer providers remain inactive. Device allocation is opt-in
+through the backend API; the production Common loop still runs headlessly.
+
+The first profile is 512×448 NTSC or 512×512 PAL, two PSMCT16 framebuffers and Z16
+with masked depth writes. A frame alternates contexts, clears, emits clipped solid
+GS sprites, fences and presents immediately. Partial/repeated shutdown drains
+references before releasing storage. Textures, native GUI/SWF and menu drawing
+remain subsequent roadmap gates. Visual acceptance is pending the integrated GS run.
+
+Make and the resident linker now pass the same explicit `draw graph packet2 dma
+kernel m patches` library order, recorded in the resident SDK flag stamp and link
+command/report. Production retains 347 direct inputs without GC or test symbols.
+Debug/release fixed `PT_LOAD` is 10,875,174 / 11,293,734 bytes. Both strict EE builds
+and core test links pass; eleven resident-link host regressions pass. The compile
+database contains 371 entries.
+
+The existing production 120-frame and live-console/quit regressions passed in both
+configurations on 2026-10-14, with exact startup ledger recovery (7,424 requested /
+7,600 backing / four allocations) and no GS initialization. Archives: debug
+`20261014T052340Z_headless_b23efba852d1`, `20261014T052345Z_headless_4836b1b75218`;
+release `20261014T052523Z_headless_9cbf51804843`, `20261014T052527Z_headless_0621a07f9946`.

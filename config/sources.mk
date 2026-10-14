@@ -14,7 +14,7 @@ RENDER_STUB_CXX_SRC = \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp
 
-SIZE_OPT_CXX_SRC = $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC)
+SIZE_OPT_CXX_SRC = $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/cmd_buffer.cpp
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -82,6 +82,10 @@ CORE_FRAMEWORK_CXX_SRC = \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp
 CORE_BACKEND_CXX_SRC = \
+	ps2/system/video_mode.cpp \
+	ps2/renderer/gs.cpp \
+	ps2/renderer/cmd_buffer.cpp \
+	ps2/renderer/render_system.cpp \
 	ps2/audio/voice_timeline.cpp \
 	ps2/audio/pcm_wave.cpp \
 	ps2/system/codec_memory.cpp \
@@ -459,6 +463,10 @@ GAME_BACKEND_CXX_SRC = ps2/audio/voice_timeline.cpp ps2/audio/pcm_wave.cpp ps2/s
 
 # Shared providers for production and campaign tests; no test source belongs here.
 RESIDENT_SUPPORT_CXX_SRC = \
+	ps2/system/video_mode.cpp \
+	ps2/renderer/gs.cpp \
+	ps2/renderer/cmd_buffer.cpp \
+	ps2/renderer/render_system.cpp \
 	ps2/system/log.cpp \
 	ps2/system/heap.cpp \
 	ps2/system/filesystem.cpp \
