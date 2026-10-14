@@ -2274,3 +2274,71 @@ Durable findings and recipes are in the GS/platform/testing rules.
 Next is 2D-2: RGBA textures, sampler/stride/POT handling, smooth textured alpha,
 residency hazards and bounded on-target capture. Sound, native UI and world rendering
 remain subsequent gates in [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md).
+
+## RGBA textures and native capture (2D-2)
+
+Accepted on 2026-10-14 with GCC 15.2 and PCSX2 2.6.3 in debug/release NTSC/PAL.
+The CPU device supports owned straight RGBA8, nearest/linear filtering, logical region
+clamp and repeat on POT axes. Logical dimensions are bounded to 512; TEX0 extents
+are POT, upload stride is at least 64 and allocations cover whole PSMCT32 pages.
+Padding duplicates image edges and alpha converts to GS 128 unity. NPOT repeat,
+indexed/coverage formats and native image-manager/UI providers remain pending.
+
+The 64-record registry caps owned pixels at 2 MiB and defaults to 2 MiB texture VRAM.
+Synchronous uploads fence pending PATH2 before PATH3, write back chain and pixels, then
+wait for DMA and GS FINISH. Dirty uploads, eviction and destruction retire queued TEX0
+references before changing storage. No second Quake identity/cache or palette is imported.
+
+The existing integrated scene now includes authored 37×19 images with padded source
+stride, nearest/bilinear transitions, POT repeat, clipped sprites, texture/vertex alpha
+and tint, ordered dirty updates and eviction/rebind. A 512 KiB quadrant upload crosses
+the SDK IMAGE/REF split. Small VRAM and command halves force eviction and chunk drains.
+Eleven native checks require exact ownership recovery; three expected-fatal probes
+still pass with assertions disabled. No new standalone fixture is introduced.
+
+Capture streams the most recently completed context through aligned 32-row strips
+into checked top-down 24-bit TGAs. Finite waits cover request, receive and PATH3/FIFO
+restoration. Injected receive timeout returns failure, restores owned pipeline state,
+then captures the same framebuffer with an identical hash; fresh pressure draws and
+reload follow. Failed output open is rejected and every write/close is checked. The
+injected deadline validates restoration, not a physically wedged GS recovery claim.
+
+The runner requires exact native dimensions/header/length, **24 scene pixel comparisons**,
+split-upload quadrants and pressure pixels. NTSC and PAL release readbacks were visually
+inspected; debug image hashes match release exactly. Converted unscaled PNG evidence:
+[NTSC 512×448](images/renderer-2d-2-ntsc.png), [PAL 512×512](images/renderer-2d-2-pal.png).
+Each run archives raw TGAs, checks/hashes, ELF/map/flags/config and inspection metadata.
+No physical PS2 acceptance or EE cache/GS timing claim follows.
+
+| Measurement | Debug | Release |
+| --- | --- | --- |
+| Production direct inputs / test inputs or symbols | 351 / none | Same |
+| Production `PT_LOAD` | 10,978,470 bytes | 11,396,518 bytes |
+| Scene baseline/final requested / backing / count | 1,047 / 1,176 / 2 | Same |
+| Owned scene pixels / textures | 81,920 bytes / 8 | Same |
+| Texture VRAM peak / evictions / uploads | 65,536 bytes / 3 / 9 | Same |
+| Split-upload tagged peak requested / backing | 1,051,671 / 1,052,076 bytes | Same |
+| Arena peak commitment | 1,067,984 bytes | 1,069,776 bytes |
+| Command-half peak, primary / small reload | 131,008 / 1,024 bytes | Same |
+| Kicks / drains, primary then small reload | 134 / 2; 559 / 547 | Same |
+| Persistent aligned capture/control storage | Approximately 80 KiB | Same |
+
+The split-upload peak includes caller source and owned copy. Capture BSS is included
+in production `PT_LOAD`; tagged allocations are inside the arena, not additional to it.
+Production continues the headless Common/game loop without initializing GS or allocating
+device pools, and full shutdown recovers 7,424 / 7,600 bytes / four allocations.
+
+| Target gate | Debug archive | Release archive |
+| --- | --- | --- |
+| NTSC textures/capture/recovery/reload | `20261014T094817Z_smoke_45502ce34b9444e4` | `20261014T094919Z_smoke_5950c84c799940a3` |
+| PAL textures/capture/recovery/reload | `20261014T094913Z_smoke_9e4eccbb8658404e` | `20261014T094924Z_smoke_fdc2180c992148d7` |
+| GIF overflow rejected | `20261014T093929Z_smoke_0d125f42f3a74c61` | `20261014T094027Z_smoke_031b08e4705242a6` |
+| DIRECT overflow rejected | `20261014T093932Z_smoke_132d1946a7654767` | `20261014T094029Z_smoke_5310f1c0a8e34f3f` |
+| Injected wait timeout rejected | `20261014T093934Z_smoke_ceeb7d4175104297` | `20261014T094031Z_smoke_f0cecbc97dbc43c2` |
+| Production 120-frame loop | `20261014T094113Z_headless_aaa892d1f4b1` | `20261014T094218Z_headless_7a4ef4bd4542` |
+| Production live commands/quit | `20261014T094117Z_headless_6ff17bf5b752` | `20261014T094222Z_headless_9d6b65e6dd6f` |
+
+`make test-host` passes all 115 Python regressions and the existing native host harnesses.
+Source audit and both strict EE builds pass; the compile database contains 376 entries.
+Backend implementation commit: `4744e2d`. Next is **2D-3**, connecting display/intrinsic-image/draw
+providers to the real native console while preserving the existing headless package.

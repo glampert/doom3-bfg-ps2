@@ -36,6 +36,7 @@ SCENE_PIXELS = (
     ("clipped-texture-edge", 22, 288, (0, 0, 255)),
     ("textured-tint-alpha", 400, 256, (32, 64, 32)),
     ("textured-white-alpha", 160, 336, (255, 128, 128)),
+    ("textured-overlap-order", 224, 340, (128, 64, 64)),
     ("textured-black-alpha", 400, 336, (0, 0, 128)),
     ("dirty-before", 48, 408, (255, 0, 0)),
     ("dirty-after", 104, 408, (0, 255, 0)),

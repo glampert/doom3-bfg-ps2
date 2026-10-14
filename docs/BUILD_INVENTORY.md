@@ -511,3 +511,12 @@ console/SWF/menu stubs remain unchanged. Final production `PT_LOAD` is 10,875,68
 11,293,990 bytes with 347 inputs and no test symbols; the compile database has 372
 entries. Measured scene budgets, inspected captures and final debug/release regression
 identities are in [PORT_STATUS.md](PORT_STATUS.md#cpu-only-gs-bring-up-2d-1).
+
+The accepted 2D-2 source lists add strict `texture_layout.cpp`, `vram.cpp`, `texture.cpp`
+and cold `capture.cpp` to both core and resident support. Production has 351 direct
+inputs, no test inputs/symbols and no GC; debug/release `PT_LOAD` is 10,978,470 /
+11,396,518 bytes. The compile database has 376 entries. Native image/GUI method providers
+stay inactive. The existing scene now verifies textures, dirty/eviction fences and
+native TGA pixels/recovery; capture injection compiles only under `PS2_D3BFG_TESTS`.
+Both production headless checks and all 115 Python host regressions pass; see
+[2D-2 acceptance](PORT_STATUS.md#rgba-textures-and-native-capture-2d-2) for budgets and artifacts.

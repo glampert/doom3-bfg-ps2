@@ -8,16 +8,22 @@ It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.
 
 ## Implementation progress
 
-**2D-1 is accepted in PCSX2 in debug and release.** The backend owns aligned command
+**2D-1 and 2D-2 are accepted in PCSX2 in debug and release.** The backend owns aligned command
 halves, resets/claims VIF/GIF/GS state, draws clipped solid sprites with alpha, alternates
 contexts and immediately presents completed frames. One integrated native test covers
 120 frames, reloads, buffer pressure and exact cleanup in NTSC/PAL; three failure probes
-verify release-safe bounds and wait deadlines. The production executable remains headless
-and links no fixtures. Native UI drawing, textures and on-target readback remain pending.
+verify release-safe bounds and wait deadlines. Direct RGBA textures now support nearest/linear
+filtering, logical edge clamp and POT repeat, with bounded owned pixels and page-aligned
+LRU residency. Dirty uploads, evictions and destruction fence queued references. Native
+strip readback streams checked TGAs and restores the pipeline after injected timeout.
+The production executable remains headless and links no fixtures. Native image providers
+and UI drawing remain pending.
 
 See [PORT_STATUS.md](PORT_STATUS.md#cpu-only-gs-bring-up-2d-1) for measurements and run
-identities, and the [release scene capture](images/renderer-2d-1-ntsc.png). Next is **2D-2**:
-direct textures, smooth textured alpha, residency hazards and bounded native capture.
+identities. The [2D-2 NTSC](images/renderer-2d-2-ntsc.png) and
+[PAL](images/renderer-2d-2-pal.png) images are native unscaled readback, with 24 scene
+pixel checks plus upload/pressure checks. See the [2D-2 acceptance record](PORT_STATUS.md#rgba-textures-and-native-capture-2d-2).
+Next is **2D-3**: intrinsic images, display/draw adapters and a visible native console.
 Physical PS2 acceptance remains 2D-8.
 
 ## Scope and completion criteria
@@ -106,8 +112,9 @@ No VU tool/submodule import is required for this CPU 2D roadmap.
 
 ## Reuse and adaptation map
 
-Original proposed destinations are relative to D:. The device-layer subset now exists;
-the UI/texture/capture destinations remain subsequent work.
+Original proposed destinations are relative to D:. Device, direct RGBA texture and
+capture subsets now exist; native UI/image/font providers and coverage/CLUT work remain
+subsequent gates.
 
 | First-pass destination | Start from | Required adaptation |
 | --- | --- | --- |
@@ -436,7 +443,8 @@ The approved **2D-1** slice used these boundaries:
    using available emulator evidence; the hardened on-target capture path follows in
    2D-2. Preserve production headless and existing renderer inactive tests.
 
-The resulting change proves video setup, command ownership and solid GS pixels in PCSX2.
-Texture loading, native console drawing, SWF and main-menu startup remain subsequent
-gates. This document remains the roadmap for those gates; no native menu or world-rendering
-acceptance is claimed by the solid scene.
+That slice proved video setup, command ownership and solid GS pixels in PCSX2.
+2D-2 now adds direct textures, residency fences and native capture. The next slice,
+2D-3, connects intrinsic images and native display/draw methods to `console->Draw`
+through a safe Common presentation lifecycle. SWF and main-menu startup remain later
+gates; the device scenes do not establish native menu or world-rendering acceptance.

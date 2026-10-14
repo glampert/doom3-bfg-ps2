@@ -16,7 +16,7 @@ The resident map mode now explicitly initializes native CPU model/world ownershi
 with stage-free materials. Areas, portals, static model traces and portal-controlled PVS
 pass in the authored map; physical initialization, image/vertex payload loading and
 submission still fail by method name. The separate CPU-only GS device layer now draws
-solid 2D frames; native GUI/texture/console submission and VU output remain unimplemented.
+solid and direct RGBA 2D frames; native GUI/image-provider/console submission and VU output remain unimplemented.
 
 - Start the logical renderer frame counter above zero and advance it with game ticks.
   Native `R_EntityDefDynamicModel` compares the definition stamp to `tr.frameCount`;
@@ -48,6 +48,28 @@ solid 2D frames; native GUI/texture/console submission and VU output remain unim
   128 KiB and 1 KiB pressure, repeated teardown and exact tagged ledger recovery
   pass on 2026-10-14. Captures are visually inspected; see PORT_STATUS. These are
   PCSX2 functional observations, not GS throughput or EE cache-coherency results.
+
+## Doom RGBA and capture acceptance
+
+The accepted Doom 2D-2 path uses RGBA32 with logical dimensions up to 512, POT TEX0
+extents, a minimum 64-pixel upload/TBW stride and whole 64×32 pages. Every padded texel
+repeats the nearest logical edge; region clamp bounds sampling to the logical image.
+Repeat requires a POT logical extent on that axis. Engine alpha converts with
+`(a*128+127)/255`; textured vertex RGB also converts to 128 unity. The 16-bit color
+buffer rounds blended output, so native pixel comparisons allow eight channel levels.
+
+Queued TEX0 references are hazards even before a kick. Dirty reupload, eviction and
+destruction drain/FINISH before overwriting or releasing VRAM. Uploads retire PATH2
+before synchronous PATH3 IMAGE/REF chains, preflight the SDK's chunk count, write back
+both chain and owned pixels, and wait for DMA plus GS FINISH. A 512 KiB upload crosses
+the 32767-qword IMAGE split and is checked by native quadrant readback.
+
+Capture accepts only the most recent completed context. Aligned static targets survive
+failure; finite request/receive/restore polls restore forward BUSDIR/FDR, IMR and PATH3.
+Wait for trailing VIF restore NOPs to leave the FIFO before starting the next strip.
+On timeout, suspend DMAC while clearing owned VIF1 STR, then reset owned VIF/GIF and
+restore saved idle state. The injected deadline proves state restoration in PCSX2,
+not recovery from a genuinely wedged physical GS. No hardware cache claim follows.
 
 ## Quake frame model: 2D and 3D interleave
 

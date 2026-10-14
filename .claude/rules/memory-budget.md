@@ -198,6 +198,24 @@ result. The authored AI has no mesh/animation, no campaign player or Common tran
 runs, and no texture/frame arenas or playback resources are initialized. Kernel and
 stack accounting remains separate; tagged backing is part of the arena.
 
+## Doom 2D device budgets
+
+Accepted 2D-2 production `PT_LOAD` is 10,978,470 debug / 11,396,518 release bytes,
+including approximately 80 KiB of persistent aligned capture strips/control storage.
+That BSS remains resident in headless mode; the headless loop still allocates no device
+command/pixel pools. Default device caps are two 128 KiB command halves, 2 MiB owned
+RGBA pixels and 2 MiB texture VRAM. PSMCT16 color contexts plus Z16 consume 1,376,256
+NTSC / 1,572,864 PAL bytes. Direct RGBA storage charges whole 64×32/8192-byte pages,
+including deterministic padding, rather than logical width×height bytes.
+
+The integrated small-pool scene owns 81,920 pixel bytes, peaks at 65,536 texture VRAM
+bytes, and demonstrates three LRU evictions with queued-reference fences. Its separate
+512 KiB split-upload exercise peaks at 1,051,671 requested / 1,052,076 backing bytes
+including caller source plus owned copy. Arena peaks are 1,067,984 debug / 1,069,776
+release bytes. Tagged bytes are contained in that arena. Capture is streamed through
+32-row strips; no whole-frame RGB allocation is made. See PORT_STATUS for exact
+isolated-test and production baselines; these are PCSX2 residency observations.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

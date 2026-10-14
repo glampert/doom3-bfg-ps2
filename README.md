@@ -23,7 +23,8 @@ memory requirements, and acceptance gates. The CPU-only GS device layer now draw
 solid colors and RGBA textures with alpha in NTSC/PAL. It owns bounded pixel/VRAM
 storage, fences dirty uploads and eviction, and streams native framebuffer captures
 with checked writes and recoverable readback deadlines. Native console/SWF/menu drawing
-remains pending; production stays headless. Target acceptance is recorded in PORT_STATUS.
+remains pending; production stays headless. Target acceptance is recorded in
+[PORT_STATUS.md](docs/PORT_STATUS.md#rgba-textures-and-native-capture-2d-2).
 
 ## Build
 

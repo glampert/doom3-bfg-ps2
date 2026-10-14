@@ -78,6 +78,7 @@ def scene(height=448):
     rectangle(384, 240, 104, 24, (32, 64, 32))
     rectangle(24, 296, 224, 88, (255, 0, 0))
     rectangle(136, 312, 112, 56, (255, 128, 128))
+    rectangle(200, 328, 48, 24, (128, 64, 64))
     rectangle(304, 296, 184, 88, (0, 0, 255))
     rectangle(360, 312, 128, 56, (0, 0, 128))
     for x, color in ((24, (255, 0, 0)), (80, (0, 255, 0)),
@@ -173,6 +174,14 @@ class RendererCapture(unittest.TestCase):
             destination = (y * 512 + 184) * 3
             pixels[destination:destination + 148 * 3] = pixels[source:source + 148 * 3]
         with self.assertRaisesRegex(ValueError, "npot-linear-blend"):
+            capture.verify_scene(self.write(tga(512, 448, pixels)), "NTSC")
+
+    def test_translucent_texture_order_is_observable(self):
+        pixels = scene()
+        offset = (340 * 512 + 224) * 3
+        # Black followed by white produces a lighter composite than white followed by black.
+        pixels[offset:offset + 3] = bytes((192, 128, 128))
+        with self.assertRaisesRegex(ValueError, "textured-overlap-order"):
             capture.verify_scene(self.write(tga(512, 448, pixels)), "NTSC")
 
 

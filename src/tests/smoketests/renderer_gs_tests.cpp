@@ -133,6 +133,7 @@ bool DrawScene(u32 frame, bool hazards)
     // Opaque primaries, a 50% white layer and a 50% black layer; order is intentional.
     rs::FillRect(24, 296, 224, 88, {255, 0, 0, 255});
     drawn = rs::TexturedRect(s_textures[3], 136, 312, 224, 56, 0, 0, 1, 1) && drawn;
+    drawn = rs::TexturedRect(s_textures[4], 200, 328, 48, 24, 0, 0, 1, 1) && drawn;
     rs::FillRect(304, 296, 184, 88, {0, 0, 255, 255});
     drawn = rs::TexturedRect(s_textures[4], 360, 312, 128, 56, 0, 0, 1, 1) && drawn;
     drawn = rs::TexturedRect(s_textures[0], 24, 152, 148, 76, 0, 0, 37, 19) && drawn;
@@ -254,7 +255,7 @@ bool RunGsTests(video::Standard standard)
         Log(LogLevel::Info, "[D3BFG] GS textures pixels=%u peak=%u count=%u uploads=%u evictions=%u vram=%u/%u\n",
             textureStats.pixelBytes, textureStats.peakPixelBytes, textureStats.textures, textureStats.uploads,
             textureStats.evictions, static_cast<u32>(vramStats.usedBytes), static_cast<u32>(vramStats.peakBytes));
-        // Destroy while a draw still owns a queued TEX0 reference, then reuse the range.
+        // Destroy while a draw still owns a queued TEX0 reference; finish it before release.
         rs::BeginFrame({0, 0, 0, 255});
         textures = rs::TexturedRect(s_textures[0], 0, 0, 148, 76, 0, 0, 37, 19) && textures;
         tex::Destroy(s_textures[0]);

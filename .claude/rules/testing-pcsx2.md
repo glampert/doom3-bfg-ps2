@@ -4,17 +4,22 @@
 
 - `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
   executable for one integrated GS scene in NTSC/PAL, then three expected-fatal probes.
-  They do not initialize Common/game UI or link fixtures into production. Seven GS
+  They do not initialize Common/game UI or link fixtures into production. Eleven GS
   markers require 120 presented frames, alternating contexts, a reload with smaller
-  command halves, pressure/drains and exact tagged cleanup. GIF/oversized-DIRECT bounds
+  command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
+  exact tagged cleanup. GIF/oversized-DIRECT bounds
   and a deliberately stalled deadline must remain fatal with assertions off.
 - `make run-renderer` holds the completed NTSC picture for 60 seconds; PCSX2's configured
   F8 saves a framebuffer screenshot. `--scenario renderer-pal --visual-wait 60 --timeout 90`
   selects PAL when invoking the runner directly with the matching `--elf`. The native
   ready file is consumed only after its closed-file log marker, and the runner releases
   the hold through `renderer.resume`. Archives flag pixel inspection as required even
-  when all native/log checks pass. Preserve the image/hash and record the inspection;
-  the on-target capture path is still the next 2D gate. Accepted 2026-10-14 run identities
+  when all native/log checks pass. Native `renderer*.tga` files now stream completed
+  framebuffers as checked top-down 24-bit data. The runner rejects malformed dimensions,
+  header/length, 24 authored scene pixels (including bilinear interpolation), split-upload
+  quadrants and pressure pixels; captures before/after recovery must have identical hashes.
+  A timeout-injected partial file is never accepted. Preserve images/hashes and record inspection.
+  Accepted 2026-10-14 run identities
   and measured budgets are in PORT_STATUS; no physical PS2 or cache-coherency claim.
 
 - `make test-headless` / `make BUILD=release test-headless` exercise the production ELF

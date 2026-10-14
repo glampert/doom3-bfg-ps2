@@ -50,10 +50,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   HostFs; `ps2_maxFrames=0` runs until quit. `make test-headless` checks 120 frames,
   live command input and full shutdown without linking fixtures into production.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
-  NTSC/PAL solid/alpha frames, context flips, pressure, reload/cleanup and three bounds/
-  deadline failures. `make run-renderer` holds the NTSC scene for F8 capture/inspection.
+  NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
+  context flips, residency/buffer pressure, reload/cleanup and three bounds/deadline
+  failures. `make run-renderer` captures and holds the NTSC scene for inspection.
   Production still stays headless; native console/SWF/menu providers remain pending.
-  The device owns tagged command halves and uses `draw`, `graph`, `packet2`, `dma`.
+  The device owns tagged command halves/pixels and uses `draw`, `graph`, `packet2`, `dma`.
   Preserve release preflight/deadlines, VIF/GIF ownership and immediate final presentation.
 - `make compile-core` checks the explicit scalar idlib/framework source set.
   `make headless-core` links staged foundation startup/tests as
