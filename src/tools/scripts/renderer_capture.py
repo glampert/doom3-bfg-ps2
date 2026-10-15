@@ -75,6 +75,38 @@ UI_SCENE_PIXELS = (
     ("native-input-final-cursor", 235.5, 310, (255, 255, 255)),
 )
 
+# Virtual-space samples use barycentric colors or interior points of the authored A's strokes.
+# Rotated/skewed quad bounding boxes contain deliberate empty samples to reject sprite substitutes.
+INDEXED_SCENE_PIXELS = (
+    ("indexed-background", 216, 400, (16, 24, 40)),
+    ("indexed-rotated-a-top", 120, 79, (255, 255, 255)),
+    ("indexed-rotated-a-leg", 65, 95, (255, 255, 255)),
+    ("indexed-rotated-a-hole", 113, 107, (16, 24, 40)),
+    ("indexed-rotated-a-crossbar", 108, 127, (255, 255, 255)),
+    ("indexed-rotated-a-corner", 73, 63, (16, 24, 40)),
+    ("indexed-rotated-outside", 192, 48, (16, 24, 40)),
+    ("indexed-clipped-a-leg", 66, 273, (0, 255, 255)),
+    ("indexed-clipped-a-hole", 6, 285, (16, 24, 40)),
+    ("indexed-clipped-a-crossbar", 11, 305, (0, 255, 255)),
+    ("indexed-clipped-outside", 100, 230, (16, 24, 40)),
+    ("indexed-gouraud-red", 280, 80, (153, 51, 51)),
+    ("indexed-gouraud-green", 344, 64, (76, 153, 25)),
+    ("indexed-gouraud-blue", 264, 144, (76, 25, 153)),
+    ("indexed-triangle-outside", 396, 128, (16, 24, 40)),
+    ("indexed-solid-diamond", 528, 128, (255, 255, 0)),
+    ("indexed-solid-diamond-left", 472, 128, (255, 255, 0)),
+    ("indexed-solid-diamond-outside", 456, 64, (16, 24, 40)),
+    ("indexed-alpha-gradient-middle", 352, 192, (136, 140, 148)),
+    ("indexed-alpha-gradient-right", 400, 192, (225, 226, 228)),
+    ("indexed-alpha-gradient-outside", 304, 224, (16, 24, 40)),
+    ("indexed-deferred-white-on-red", 280, 312, (255, 128, 128)),
+    ("indexed-interleaved-black-order", 344, 312, (128, 64, 64)),
+    ("indexed-deferred-white-on-blue", 456, 312, (128, 128, 255)),
+    ("indexed-deferred-white-on-background", 420, 312, (136, 140, 148)),
+    ("indexed-pressure-last-triangle", 632, 424, (0, 255, 0)),
+    ("indexed-pressure-triangle-outside", 612, 444, (16, 24, 40)),
+)
+
 
 def _read_capture(path: Path) -> tuple[int, int, bytes, str]:
     with Path(path).open("rb") as stream:
@@ -127,6 +159,15 @@ def verify_scene(path: Path, standard: str) -> dict:
 
 def verify_ui_scene(path: Path, standard: str) -> dict:
     """Require native UI glyph coverage, colors, blending and clipped/fractional geometry."""
+    return _verify_virtual_scene(path, standard, UI_SCENE_PIXELS)
+
+
+def verify_indexed_scene(path: Path, standard: str) -> dict:
+    """Require genuine indexed triangles, interpolated native attributes and deferred ordering."""
+    return _verify_virtual_scene(path, standard, INDEXED_SCENE_PIXELS)
+
+
+def _verify_virtual_scene(path: Path, standard: str, scene_pixels: tuple) -> dict:
     if standard not in ("NTSC", "PAL"):
         raise ValueError("renderer capture standard must be NTSC or PAL")
     width, height, pixels, digest = _read_capture(path)
@@ -134,7 +175,7 @@ def verify_ui_scene(path: Path, standard: str) -> dict:
     if (width, height) != (512, expected_height):
         raise ValueError(f"renderer capture is {width}x{height}; expected 512x{expected_height} for {standard}")
     checks = []
-    for name, virtual_x, virtual_y, expected in UI_SCENE_PIXELS:
+    for name, virtual_x, virtual_y, expected in scene_pixels:
         x, y = int(virtual_x * width / 640), int(virtual_y * height / 480)
         offset = (y * width + x) * 3
         actual = tuple(pixels[offset:offset + 3])

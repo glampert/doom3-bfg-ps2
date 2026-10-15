@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/ui_draw.h"
 
 namespace ps2::rs
 {
@@ -53,16 +54,19 @@ void BeginFrame(gs::Color clearColor)
     cmdbuf::BeginFrame();
     s_context = s_context == gs::DrawContext::Ctx0 ? gs::DrawContext::Ctx1 : gs::DrawContext::Ctx0;
     s_frame = true;
+    ui::BeginGeometryFrame();
     gs::FillRect(s_context, 0, 0, gs::Width(), gs::Height(), clearColor);
 }
 void FillRect(int x, int y, int width, int height, gs::Color color)
 {
     if (!s_frame) { FatalError("2D fill outside a frame"); }
+    ui::Flush();
     gs::FillRect(s_context, x, y, width, height, color);
 }
 void EndFrame()
 {
     if (!s_frame) { FatalError("2D EndFrame without BeginFrame"); }
+    ui::Flush();
     cmdbuf::EndFrame();
     gs::Present(s_context);
     s_frame = false;
@@ -71,6 +75,7 @@ void EndFrame()
 bool TexturedRect(tex::Handle texture, int x, int y, int width, int height, int u0, int v0, int u1, int v1, gs::Color color)
 {
     if (!s_frame) { FatalError("2D texture draw outside a frame"); }
+    ui::Flush();
     gs::TextureBinding binding = {};
     if (!tex::Bind(texture, binding)) { return false; }
     gs::TexturedRect(s_context, binding, x, y, width, height, u0, v0, u1, v1, color);
@@ -89,10 +94,20 @@ PS2_COLD_FUNC void Shutdown()
 bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Color color, gs::BlendMode blend)
 {
     if (!s_frame) { FatalError("2D fixed texture draw outside a frame"); }
+    ui::Flush();
     gs::TextureBinding binding = {};
     if (!tex::Bind(texture, binding)) { return false; }
     gs::TexturedRectFixed(s_context, binding, rect.x0, rect.y0, rect.x1, rect.y1,
                          rect.u0, rect.v0, rect.u1, rect.v1, color, blend);
+    return true;
+}
+bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triangle, gs::BlendMode blend)
+{
+    if (!s_frame) { FatalError("2D triangle draw outside a frame"); }
+    ui::Flush();
+    gs::TextureBinding binding = {};
+    if (!tex::Bind(texture, binding)) { return false; }
+    gs::TexturedTriangleFixed(s_context, binding, triangle, blend);
     return true;
 }
 } // namespace ps2::rs

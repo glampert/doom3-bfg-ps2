@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <timer.h>
+#include <bit>
 #include <climits>
 #include <idlib/precompiled.h>
 #include <renderer/tr_local.h>
@@ -35,7 +36,134 @@ static tex::Handle s_textures[8] = {};
 static u8 s_npot[19][40][4] = {};
 static u8 s_checker[8][8][4] = {};
 static u8 s_pressure[64][64][4] = {};
+static constexpr triIndex_t kQuadIndices[] = {0, 1, 2, 0, 2, 3};
+static constexpr triIndex_t kTriangleIndices[] = {0, 1, 2};
 bool SameLedger(const heap::Stats & before);
+
+void IndexedVertex(idDrawVert & vertex, float x, float y, float s, float t, gs::Color color)
+{
+    vertex.Clear();
+    vertex.xyz.Set(x, y, 0.0f);
+    // SetTexCoord stores native half-floats; reading them as floats cannot produce this scene.
+    vertex.SetTexCoord(s, t);
+    vertex.SetNativeOrderColor(static_cast<dword>(color.r) | (static_cast<dword>(color.g) << 8U) |
+        (static_cast<dword>(color.b) << 16U) | (static_cast<dword>(color.a) << 24U));
+    vertex.ClearColor2();
+}
+
+void IndexedQuad(idDrawVert * vertices, const idVec2 (&positions)[4], float s0, float t0, float s1, float t1, gs::Color color)
+{
+    IndexedVertex(vertices[0], positions[0].x, positions[0].y, s0, t0, color);
+    IndexedVertex(vertices[1], positions[1].x, positions[1].y, s1, t0, color);
+    IndexedVertex(vertices[2], positions[2].x, positions[2].y, s1, t1, color);
+    IndexedVertex(vertices[3], positions[3].x, positions[3].y, s0, t1, color);
+}
+
+bool NativeIndexed(video::Standard standard)
+{
+    const auto before = heap::GetTotalStats();
+    bool passed = true;
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+        if (!rs::Init({standard, 1024U, 1048576U, 524288U}) || !ui::Init()) { rs::Shutdown(); return false; }
+        auto * const pressureVertices = static_cast<idDrawVert *>(heap::TryAlloc(1024U * sizeof(idDrawVert), TAG_RENDER, 16));
+        auto * const pressureIndices = static_cast<triIndex_t *>(heap::TryAlloc(3072U * sizeof(triIndex_t), TAG_RENDER, 16));
+        if (pressureVertices == nullptr || pressureIndices == nullptr)
+        {
+            heap::Free(pressureVertices);
+            heap::Free(pressureIndices);
+            ui::Shutdown();
+            rs::Shutdown();
+            return false;
+        }
+        for (int vertex = 0; vertex < 1024; ++vertex)
+        {
+            const int corner = vertex % 3;
+            IndexedVertex(pressureVertices[vertex], corner == 0 ? 608.0f : 640.0f, corner == 2 ? 448.0f : 416.0f,
+                0, 0, {0, 255, 0, 255});
+        }
+        for (int index = 0; index < 3072; ++index) { pressureIndices[index] = static_cast<triIndex_t>(index % 3); }
+        const auto warm = heap::GetTotalStats();
+        const idImage * const white = render::ConsoleWhiteImage();
+        const idImage * const chars = render::ConsoleCharsetImage();
+        const u32 frames = cycle == 0 ? 120U : 4U;
+        for (u32 frame = 0; frame < frames; ++frame)
+        {
+            rs::BeginFrame({16, 24, 40, 255});
+            renderSystem->SetGLState(GLS_DEFAULT);
+            renderSystem->DrawSmallStringExt(32, 16, "Indexed GUI: rotation / clipping / color / alpha", colorWhite, true);
+            idDrawVert vertices[4];
+            const idVec2 rotated[4] = {idVec2(64, 48), idVec2(192, 80), idVec2(160, 208), idVec2(32, 176)};
+            IndexedQuad(vertices, rotated, 1.0f / 16.0f, 4.0f / 16.0f, 2.0f / 16.0f, 5.0f / 16.0f, {255, 255, 255, 255});
+            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, chars, gs::BlendMode::StraightAlpha);
+            const idVec2 clipped[4] = {idVec2(-80, 256), idVec2(80, 224), idVec2(112, 352), idVec2(-48, 384)};
+            IndexedQuad(vertices, clipped, 1.0f / 16.0f, 4.0f / 16.0f, 2.0f / 16.0f, 5.0f / 16.0f, {0, 255, 255, 255});
+            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, chars, gs::BlendMode::StraightAlpha);
+            IndexedVertex(vertices[0], 248, 48, 0, 0, {255, 0, 0, 255});
+            IndexedVertex(vertices[1], 408, 48, 1, 0, {0, 255, 0, 255});
+            IndexedVertex(vertices[2], 248, 208, 0, 1, {0, 0, 255, 255});
+            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, gs::BlendMode::Replace);
+            const idVec2 diamond[4] = {idVec2(528, 48), idVec2(608, 128), idVec2(528, 208), idVec2(448, 128)};
+            IndexedQuad(vertices, diamond, 0, 0, 1, 1, {255, 255, 0, 255});
+            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, white, gs::BlendMode::Replace);
+            IndexedVertex(vertices[0], 288, 176, 0, 0, {255, 255, 255, 0});
+            IndexedVertex(vertices[1], 416, 176, 1, 0, {255, 255, 255, 255});
+            IndexedVertex(vertices[2], 416, 240, 1, 1, {255, 255, 255, 255});
+            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, gs::BlendMode::StraightAlpha);
+            renderSystem->DrawFilled(colorRed, 192, 256, 160, 112);
+            renderSystem->DrawFilled(colorBlue, 448, 256, 160, 112);
+            // AllocTris returns unfilled storage. Drawing the next sprite must consume the final data.
+            idDrawVert * const delayed = ui::AllocTrisForImage(4, kQuadIndices, 6, white, gs::BlendMode::StraightAlpha);
+            const idVec2 overlap[4] = {idVec2(256, 272), idVec2(480, 272), idVec2(480, 352), idVec2(256, 352)};
+            IndexedQuad(delayed, overlap, 0, 0, 1, 1, {255, 255, 255, 128});
+            renderSystem->DrawFilled(idVec4(0, 0, 0, 0.5f), 320, 288, 64, 48);
+            // The last queued triangle must survive EndFrame even when no later sprite forces it out.
+            IndexedVertex(vertices[0], 608, 416, 0, 0, {0, 255, 0, 255});
+            IndexedVertex(vertices[1], 640, 416, 1, 0, {0, 255, 0, 255});
+            IndexedVertex(vertices[2], 640, 448, 1, 1, {0, 255, 0, 255});
+            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, gs::BlendMode::Replace);
+            if (frame == frames - 1U)
+            {
+                // Isolate each bounded pool so all three independent recycling paths are exercised.
+                ui::Flush();
+                for (int draw = 0; draw < 5; ++draw)
+                {
+                    ui::DrawIndexed(pressureVertices, 1024, kTriangleIndices, 3, white, gs::BlendMode::Replace);
+                }
+                ui::Flush();
+                for (int draw = 0; draw < 3; ++draw)
+                {
+                    ui::DrawIndexed(pressureVertices, 3, pressureIndices, 3072, white, gs::BlendMode::Replace);
+                }
+                ui::Flush();
+                for (int draw = 0; draw < 130; ++draw)
+                {
+                    ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, gs::BlendMode::Replace);
+                }
+            }
+            // EndFrame must consume the last queued triangles without an explicit fixture flush.
+            rs::EndFrame();
+            passed = SameLedger(warm) && passed;
+        }
+        passed = capture::WriteTga(cycle == 0 ? "host:renderer-indexed.tga" : "host:renderer-indexed-reload.tga",
+            rs::LastPresentedContext()) && passed;
+        const auto chains = cmdbuf::GetStats();
+        const auto geometry = ui::GetGeometryStats();
+        passed = chains.drains > 0 && chains.peakBytes <= 1024U &&
+            geometry.peakVertices == 4096U && geometry.peakIndexes == 6144U && geometry.peakDraws == 128U &&
+            geometry.flushes > frames && passed;
+        Log(LogLevel::Info, "[D3BFG] UI indexed cycle=%d frames=%u vertices=%u indices=%u draws=%u flushes=%u triangles=%u drains=%u\n",
+            cycle, frames, geometry.peakVertices, geometry.peakIndexes, geometry.peakDraws,
+            geometry.flushes, geometry.triangles, chains.drains);
+        heap::Free(pressureVertices);
+        heap::Free(pressureIndices);
+        ui::Shutdown();
+        rs::Shutdown();
+        passed = SameLedger(before) && passed;
+    }
+    return passed;
+}
+
 bool NativeAdapters(video::Standard standard)
 {
     const auto before = heap::GetTotalStats();
@@ -263,6 +391,7 @@ bool RunGsTests(video::Standard standard)
     passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !cmdbuf::IsInitialized()) && passed;
     passed = Check("split-upload", SplitUpload(standard)) && passed;
     passed = Check("native-adapters", NativeAdapters(standard)) && passed;
+    passed = Check("native-indexed", NativeIndexed(standard)) && passed;
     bool contexts = true;
     bool bounds = true;
     bool pressure = true;
@@ -355,7 +484,9 @@ bool RunGsFailureProbe(const char * name)
     if (strcmp(name, "renderer-gif-overflow") != 0 && strcmp(name, "renderer-direct-overflow") != 0 &&
         strcmp(name, "renderer-wait-timeout") != 0 && strcmp(name, "renderer-ui-state") != 0 &&
         strcmp(name, "renderer-ui-bounds") != 0 && strcmp(name, "renderer-ui-quad") != 0 &&
-        strcmp(name, "renderer-ui-text") != 0) { return false; }
+        strcmp(name, "renderer-ui-text") != 0 && strcmp(name, "renderer-ui-indices") != 0 &&
+        strcmp(name, "renderer-ui-capacity") != 0 && strcmp(name, "renderer-ui-depth") != 0 &&
+        strcmp(name, "renderer-ui-half") != 0 && strcmp(name, "renderer-ui-color2") != 0) { return false; }
     Log(LogLevel::Info, "[D3BFG] PROBE %s BEGIN\n", name);
     Log(LogLevel::Info, "[D3BFG] CHECK probe/ready PASS\n");
     if (strcmp(name, "renderer-gif-overflow") == 0)
@@ -388,7 +519,7 @@ bool RunGsFailureProbe(const char * name)
         }
         else if (strcmp(name, "renderer-ui-quad") == 0)
         {
-            renderSystem->DrawStretchPic(idVec4(0, 0, 0, 0), idVec4(16, 0, 1, 0),
+            renderSystem->DrawStretchPic(idVec4(std::bit_cast<float>(0x7F800000U), 0, 0, 0), idVec4(16, 0, 1, 0),
                 idVec4(17, 16, 1, 1), idVec4(0, 16, 0, 1), nullptr);
         }
         else if (strcmp(name, "renderer-ui-text") == 0)
@@ -396,6 +527,25 @@ bool RunGsFailureProbe(const char * name)
             static char oversized[MAX_STRING_CHARS + 1] = {};
             memset(oversized, 'A', MAX_STRING_CHARS);
             renderSystem->DrawSmallStringExt(0, 0, oversized, colorWhite, true);
+        }
+        else if (strcmp(name, "renderer-ui-capacity") == 0)
+        {
+            (void)ui::AllocTrisForImage(ui::kMaxVertices + 1, kTriangleIndices, 3,
+                render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+        }
+        else
+        {
+            idDrawVert vertices[3];
+            IndexedVertex(vertices[0], 0, 0, 0, 0, {255, 255, 255, 255});
+            IndexedVertex(vertices[1], 32, 0, 1, 0, {255, 255, 255, 255});
+            IndexedVertex(vertices[2], 0, 32, 0, 1, {255, 255, 255, 255});
+            static constexpr triIndex_t badIndices[] = {0, 1, 3};
+            if (strcmp(name, "renderer-ui-depth") == 0) { vertices[0].xyz.z = 1.0f; }
+            if (strcmp(name, "renderer-ui-half") == 0) { vertices[0].st[0] = static_cast<halfFloat_t>(0x7C00U); }
+            if (strcmp(name, "renderer-ui-color2") == 0) { vertices[0].color2[0] = 0; }
+            ui::DrawIndexed(vertices, 3, strcmp(name, "renderer-ui-indices") == 0 ? badIndices : kTriangleIndices,
+                3, render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+            ui::Flush();
         }
     }
     FatalError("GS failure probe unexpectedly returned");

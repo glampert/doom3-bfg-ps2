@@ -219,10 +219,21 @@ isolated-test and production baselines; these are PCSX2 residency observations.
 The first native adapter slice adds 270,336 owned texture bytes for the 256×256 RGBA
 ASCII atlas and page-minimum white texel. Generation temporarily uses another 262,144
 bytes, released before frames. Image declarations/state are owned and freed separately;
-the default headless path never acquires them. Latest production `PT_LOAD` is
+the default headless path never acquires them. At that adapter checkpoint production `PT_LOAD` was
 10,992,678 debug / 11,412,390 release bytes with 355 retained inputs. Integrated-test
 tagged peak remains 1,051,671 / 1,052,076 bytes; arena peaks are now 1,070,288 /
 1,070,544 bytes. These include the earlier split-upload and adapter reload exercises.
+
+The indexed 2D-4 slice on 2026-10-15 adds 146,944 requested bytes in three tagged CPU
+arrays: 4,096 native vertices, 6,144 16-bit indices and 128 ordered draw records.
+They are allocated only by native UI activation, recycled after completed draw runs
+and released before device shutdown; no desktop vertex-cache pool is enabled.
+Current production retains 357 inputs and 11,009,702 debug / 11,434,406 release
+`PT_LOAD` bytes. The visible console peaks at 2,786,855 requested / 2,884,740 backing
+bytes, with arena high-water 2,900,314 debug / 2,897,498 release. Both visible and
+headless runs recover exactly 7,424 / 7,600 bytes in four allocations. Headless
+allocates no UI/device pools. These authored console measurements exclude retail
+SWF/font working sets and loaded campaign maps; see PORT_STATUS for matched runs.
 
 ## Quake II reference
 

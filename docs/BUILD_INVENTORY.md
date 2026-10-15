@@ -63,7 +63,7 @@ does not initialize the campaign game. `CORE_BOOT` controls this selection only 
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
 `PS2_CXX_SRC` owns production entry, the Common loop provider and the strict optional
-presentation provider. Production links 356 direct objects, retaining all eleven
+presentation provider. Production links 357 direct objects, retaining all eleven
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.
@@ -552,8 +552,8 @@ with Common. Production mouse-capture requests are harmless without a mouse; tes
 variants retain their unavailable-capability checks. No test fixture or new upstream
 source is enabled, and the core test still does not link Console/Material/DeclManager.
 
-Current production has 356 direct inputs, no test inputs/symbols and no GC. Debug/release
-`PT_LOAD` is 10,997,606 / 11,417,190 bytes; the compile database has 381 entries.
+At the 2D-3 checkpoint, production had 356 direct inputs, no test inputs/symbols and no GC. Debug/release
+`PT_LOAD` was 10,997,606 / 11,417,190 bytes; the compile database had 381 entries.
 `stage_headless.py` packages explicit startup policy for either mode; `run_console.py`
 checks the real native edit field, history replay, close/reopen and capture-before-quit
 in NTSC/PAL. Host capture checks distinguish native glyph strokes/holes and translucent
@@ -562,3 +562,17 @@ console runs and both configurations of the existing headless matrix pass, along
 135 Python regressions and existing ASan/UBSan C++ harnesses. The inspected captures
 and acceptance evidence are recorded in [PORT_STATUS.md](PORT_STATUS.md#production-native-visible-console-2d-3);
 indexed GUI/SWF, general materials and the native menu remain later gates.
+
+The first 2D-4 slice adds explicit strict `ui_triangles.cpp` to core/resident support.
+`ui_draw.cpp` now owns bounded tagged CPU vertex/index/run storage and implements
+native `AllocTris`, `DrawStretchTri` and transformed `DrawStretchPic` collection.
+`render_system.cpp` flushes ordered collection at sprite/frame boundaries, and `gs.cpp`
+emits affine UV triangles with Gouraud RGB/alpha. This adds no upstream source, no
+desktop `GuiModel.cpp`/vertex-cache allocation path and no additional test fixture.
+The existing GS test scene now covers indexed drawing and five more failure cases.
+
+Production currently has 357 direct inputs, no test inputs/symbols and no GC.
+Debug/release `PT_LOAD` is 11,009,702 / 11,434,406 bytes, and the compile database has
+382 entries. Campaign source dispositions remain unchanged. Both production builds
+pass; target acceptance for indexed geometry is recorded in PORT_STATUS. Native SWF,
+fonts, general materials and the offline menu remain later gates.

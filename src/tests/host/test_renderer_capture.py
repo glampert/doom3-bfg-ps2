@@ -130,6 +130,63 @@ def ui_scene(height=448):
     return rgb
 
 
+def indexed_scene(height=448):
+    """Independent affine/barycentric raster model, including glyph transparency and draw order."""
+    rgb = bytearray(bytes((16, 24, 40)) * (512 * height))
+
+    def triangle(points, colors, uv=None):
+        (ax, ay), (bx, by), (cx, cy) = points
+        denominator = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+        left = max(0, math.floor(min(ax, bx, cx) * 512 / 640))
+        right = min(512, math.ceil(max(ax, bx, cx) * 512 / 640))
+        top = max(0, math.floor(min(ay, by, cy) * height / 480))
+        bottom = min(height, math.ceil(max(ay, by, cy) * height / 480))
+        for y in range(top, bottom):
+            for x in range(left, right):
+                px, py = x * 640 / 512, y * 480 / height
+                wa = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denominator
+                wb = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denominator
+                wc = 1 - wa - wb
+                if min(wa, wb, wc) < -0.00001:
+                    continue
+                weights = wa, wb, wc
+                if uv is not None:
+                    u, v = (sum(point[channel] * weight for point, weight in zip(uv, weights))
+                            for channel in range(2))
+                    cell_x, cell_y = min(15, max(0, int(u * 16))), min(15, max(0, int(v * 16)))
+                    # Authored A is five columns scaled three pixels wide and seven two-pixel rows.
+                    rows = (14, 17, 17, 31, 17, 17, 17)
+                    if (cell_x >= 15 or not 1 <= cell_y < 15 or
+                            not rows[(cell_y - 1) // 2] & (1 << (4 - cell_x // 3))):
+                        continue
+                color = [sum(point[channel] * weight for point, weight in zip(colors, weights))
+                         for channel in range(4)]
+                alpha = color[3] / 255
+                offset = (y * 512 + x) * 3
+                rgb[offset:offset + 3] = bytes(max(0, min(255, round(color[channel] * alpha +
+                    rgb[offset + channel] * (1 - alpha)))) for channel in range(3))
+
+    def quad(points, color, glyph=False):
+        texcoords = ((0, 0), (1, 0), (1, 1), (0, 1))
+        for indices in ((0, 1, 2), (0, 2, 3)):
+            triangle(tuple(points[index] for index in indices), (color,) * 3,
+                     tuple(texcoords[index] for index in indices) if glyph else None)
+
+    quad(((64, 48), (192, 80), (160, 208), (32, 176)), (255, 255, 255, 255), True)
+    quad(((-80, 256), (80, 224), (112, 352), (-48, 384)), (0, 255, 255, 255), True)
+    triangle(((248, 48), (408, 48), (248, 208)),
+             ((255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)))
+    quad(((528, 48), (608, 128), (528, 208), (448, 128)), (255, 255, 0, 255))
+    triangle(((288, 176), (416, 176), (416, 240)),
+             ((255, 255, 255, 0), (255, 255, 255, 255), (255, 255, 255, 255)))
+    ui_rectangle(rgb, height, 192, 256, 160, 112, (255, 0, 0))
+    ui_rectangle(rgb, height, 448, 256, 160, 112, (0, 0, 255))
+    quad(((256, 272), (480, 272), (480, 352), (256, 352)), (255, 255, 255, 128))
+    ui_rectangle(rgb, height, 320, 288, 64, 48, (128, 64, 64))
+    triangle(((608, 416), (640, 416), (640, 448)), ((0, 255, 0, 255),) * 3)
+    return rgb
+
+
 class RendererCapture(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -288,6 +345,54 @@ class RendererCapture(unittest.TestCase):
         ui_rectangle(pixels, 448, 320, 208, 80, 32, (255, 255, 255))
         with self.assertRaisesRegex(ValueError, "native-fractional-left-uncovered"):
             capture.verify_ui_scene(self.write(tga(512, 448, pixels)), "NTSC")
+
+    def test_valid_indexed_scene_both_standards(self):
+        for standard, height in (("NTSC", 448), ("PAL", 512)):
+            with self.subTest(standard=standard):
+                content = tga(512, height, indexed_scene(height))
+                result = capture.verify_indexed_scene(self.write(content), standard)
+                self.assertEqual((result["width"], result["height"]), (512, height))
+                self.assertEqual(result["sha256"], hashlib.sha256(content).hexdigest())
+                self.assertEqual(len(result["checks"]), 27)
+                self.assertTrue(all(item["passed"] for item in result["checks"]))
+
+    def test_indexed_scene_requires_capture_and_native_dimensions(self):
+        with self.assertRaises(FileNotFoundError):
+            capture.verify_indexed_scene(self.path, "NTSC")
+        self.write(tga(512, 448, indexed_scene()))
+        with self.assertRaisesRegex(ValueError, "expected 512x512"):
+            capture.verify_indexed_scene(self.path, "PAL")
+        with self.assertRaisesRegex(ValueError, "standard"):
+            capture.verify_indexed_scene(self.path, "SECAM")
+        with self.assertRaisesRegex(ValueError, "expected 512x448"):
+            capture.verify_indexed_scene(self.write(tga(2, 2, bytes(12))), "NTSC")
+
+    def test_indexed_scene_rejects_flat_colors_missing_alpha_and_wrong_draw_order(self):
+        original = indexed_scene()
+        for bounds, color, failure in (
+            ((248, 48, 160, 160), (255, 0, 0), "indexed-gouraud-red"),
+            ((288, 176, 128, 64), (255, 255, 255), "indexed-alpha-gradient-middle"),
+            ((320, 288, 64, 48), (192, 128, 128), "indexed-interleaved-black-order"),
+            ((608, 416, 32, 32), (16, 24, 40), "indexed-pressure-last-triangle"),
+        ):
+            with self.subTest(failure=failure):
+                pixels = bytearray(original)
+                ui_rectangle(pixels, 448, *bounds, color)
+                with self.assertRaisesRegex(ValueError, failure):
+                    capture.verify_indexed_scene(self.write(tga(512, 448, pixels)), "NTSC")
+
+    def test_indexed_scene_rejects_sprite_replacement_and_lost_clipped_uvs(self):
+        original = indexed_scene()
+        for bounds, color, failure in (
+            ((32, 48, 160, 160), (255, 255, 255), "indexed-rotated-a-hole"),
+            ((0, 224, 112, 160), (0, 255, 255), "indexed-clipped-a-hole"),
+            ((448, 48, 160, 160), (255, 255, 0), "indexed-solid-diamond-outside"),
+        ):
+            with self.subTest(failure=failure):
+                pixels = bytearray(original)
+                ui_rectangle(pixels, 448, *bounds, color)
+                with self.assertRaisesRegex(ValueError, failure):
+                    capture.verify_indexed_scene(self.write(tga(512, 448, pixels)), "NTSC")
 
 
 if __name__ == "__main__":

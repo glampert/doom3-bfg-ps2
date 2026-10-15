@@ -36,6 +36,16 @@ console closing/reopening and capture-before-quit use the same production execut
 as headless startup. `UpdateScreen` requests during a Common frame coalesce into its
 final draw, without nesting frames or advancing the game clock again.
 
+The first 2D-4 slice adds bounded native `AllocTris` collection, rotated/skewed quads
+and textured triangles with per-vertex RGB/alpha. CPU spans hold at most 4,096 vertices,
+6,144 indices and 128 ordered draws; a flush consumes and recycles them. Geometry is
+clipped on the 640×480 canvas before fixed-point GS emission, and mixed sprite/triangle
+calls preserve submission order. This uses the existing intrinsic images and restricted
+constant-material profile. Native SWF execution, fonts, general material/image loading
+and additive vertex color remain pending; this slice does not complete 2D-4.
+Debug/release NTSC/PAL captures, bounds failures and production regressions pass;
+see the [indexed UI acceptance record](docs/PORT_STATUS.md#indexed-native-ui-geometry-2d-4-first-slice).
+
 ## Build
 
 Install ps2dev with `mips64r5900el-ps2-elf-g++` and ps2sdk. The defaults are
@@ -55,7 +65,7 @@ make test-console            # native console/edit/history/capture/quit checks i
 make BUILD=release test-console # same production presentation checks without assertions
 make test-headless           # 120 frames, live console commands and shutdown in PCSX2
 make BUILD=release test-headless # same production checks without assertions
-make test-renderer           # textured NTSC/PAL scene, native capture/pixels, reload and failure probes
+make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes
 make BUILD=release test-renderer # same device checks without assertions
 make run-renderer            # native capture plus a 60-second inspection hold; F8 also saves a capture
 make platform-probe          # SDK/timer/alignment probe
@@ -281,11 +291,12 @@ sample's pre-gain peak envelope; no output mixer or physical device is initializ
 Typed renderer providers now bind the native screen, image, shader, cinematic and
 vertex-buffer interfaces, resolving the renderer link group. They expose inactive
 state and empty metadata cleanup until explicit native 2D activation. The 2D profile
-supports display metrics, color/state, fills, axis-aligned constant-material quads and
-authored ASCII text; unsupported state, geometry, images, shaders and demos fail explicitly.
+supports display metrics, color/state, fills, constant-material quads, bounded indexed
+triangles with per-vertex RGB/alpha and authored ASCII text; unsupported state,
+geometry, images, shaders and demos fail explicitly.
 The 42 frontend cvars retain native defaults and flags. Production activates the device
 and intrinsic images only when its startup policy requests a visible console; general
-UI/world drawing remains pending.
+SWF/menu and world drawing remain pending.
 
 The deferred game/UI providers now close the multiplayer, leaderboard, shell and save
 metadata link group. Single-player multiplayer reset/precache and empty scoreboard

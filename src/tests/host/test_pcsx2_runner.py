@@ -111,6 +111,8 @@ class RendererClassifierTests(unittest.TestCase):
                 "GS scene NTSC cycle=0 frames=120 context=0\nGS scene NTSC cycle=1 frames=4 context=0\n"
                 "GS chains half=131072 peak=131008 kicks=123 drains=1\n"
                 "GS chains half=1024 peak=1024 kicks=230 drains=224\n"
+                "UI indexed cycle=0 frames=120 vertices=4096 indices=6144 draws=128 flushes=365 triangles=4527 drains=150\n"
+                "UI indexed cycle=1 frames=4 vertices=4096 indices=6144 draws=128 flushes=17 triangles=3251 drains=120\n"
                 "GS memory baseline=1/2/3 final=1/2/3\n" + complete_log(core="PASS"))
 
     def classify(self, log):
@@ -132,6 +134,17 @@ class RendererClassifierTests(unittest.TestCase):
                          ("kicks=123", "kicks=121"), ("final=1/2/3", "final=1/2/4")):
             with self.subTest(field=old):
                 self.assertFalse(self.classify(self.log().replace(old, new)))
+
+    def test_indexed_scene_requires_warm_frames_all_bounded_pools_and_pressure(self):
+        for old, new in (("native-indexed PASS", "native-indexed FAIL"),
+                         ("UI indexed cycle=0 frames=120", "UI indexed cycle=0 frames=119"),
+                         ("vertices=4096", "vertices=4095"), ("indices=6144", "indices=6143"),
+                         ("draws=128", "draws=127"), ("flushes=365", "flushes=120"),
+                         ("triangles=4527", "triangles=3200"), ("drains=150", "drains=0")):
+            with self.subTest(field=old):
+                self.assertFalse(self.classify(self.log().replace(old, new)))
+        self.assertFalse(self.classify(self.log().replace(
+            "UI indexed cycle=1 frames=4 vertices=4096 indices=6144 draws=128 flushes=17 triangles=3251 drains=120\n", "")))
 
 
 class CommonProbeClassifierTests(unittest.TestCase):

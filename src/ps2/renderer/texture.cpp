@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/texture.h"
+#include "ps2/renderer/ui_draw.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/renderer/cmd_buffer.h"
 #include "ps2/system/heap.h"
@@ -91,6 +92,7 @@ Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t 
 }
 bool Update(Handle handle, const void * rgba, size_t sourceBytes, size_t strideBytes)
 {
+    ui::Flush();
     auto & record = Find(handle);
     // Uploads are synchronous, so the CPU payload has no outstanding DMA reader.
     // Its old VRAM contents remain usable until Bind drains and uploads the dirty version.
@@ -101,6 +103,7 @@ bool Update(Handle handle, const void * rgba, size_t sourceBytes, size_t strideB
 void Destroy(Handle handle)
 {
     if (handle.id == 0) { return; }
+    ui::Flush();
     auto & record = Find(handle);
     Fence();
     ReleaseVram(record);

@@ -38,6 +38,17 @@ Live echo/history/close/reopen/final capture and both headless modes pass; produ
 continues to link zero test inputs and fixture symbols.
 Physical PS2 acceptance remains 2D-8.
 
+**The 2D-4 indexed-geometry slice is accepted in PCSX2 in debug and release on
+2026-10-15:** bounded CPU GUI spans, indexed triangles and
+rotated/skewed native quads now connect to the GS path. The collector retains submission
+order across sprite/triangle changes, clips UV/RGBA with geometry, decodes native half
+UV bits directly and interpolates per-vertex color/alpha. Native SWF execution, fonts
+and the authored mask-free interactive SWF remain the rest of the 2D-4 gate. This slice
+does not activate desktop vertex-cache handles, general materials or additive color.
+The unscaled [NTSC](images/renderer-2d-4-ntsc.png) and
+[PAL](images/renderer-2d-4-pal.png) captures show this indexed slice; target acceptance
+and measurements are recorded in [PORT_STATUS](PORT_STATUS.md#indexed-native-ui-geometry-2d-4-first-slice).
+
 ## Scope and completion criteria
 
 Bring the production `d3bfg.elf` from the native headless console baseline to a visible
@@ -175,7 +186,8 @@ flowchart TD
 
 - Keep native `tr` / `renderSystem` identity and CPU world/model queries. Add an explicit
   2D/device capability; never return `IsOpenGLRunning=true` to satisfy a caller. Audit
-  `R_IsInitialized` callers when reporting GS readiness, since it currently returns false.
+  `R_IsInitialized` callers when reporting GS readiness; only explicit native UI activation
+  currently makes it true.
 - Select headless versus display mode before allocating device resources. Current
   `d3bfg.cfg` executes after `InitHeadless`, so an init-time display cvar in that file
   cannot work without a reviewed earlier configuration phase. Prefer one production
@@ -216,6 +228,25 @@ commands with a 2D consumer. Preserve compatible CPU frame handles where retaine
 needs them; no static/world/joint vertex storage is promised by this phase. Overflow
 flushes only completed runs or rejects an oversized single request before mutation.
 State is restored after every chain drain; no silently dropped widgets or stale handles.
+
+The first implementation uses 4,096 `idDrawVert` entries, 6,144 indices and 128 ordered
+draw runs, allocated only by explicit `ui::Init`. A returned write-only span must be
+fully filled before the next allocation or draw. Pool pressure flushes completed runs;
+oversized single requests and indices outside their local vertex span fail before a
+flush. Frame end and sprite interleaving consume queued triangles before later draws.
+No span survives a flush or frame boundary. The retained vertex/index/joint buffer and
+vertex-cache objects remain empty metadata; a later caller needing cache handles needs
+an explicit implementation rather than treating these pointers as handles.
+
+The CPU mapper accepts either winding, clips to the virtual canvas and interpolates
+UV/RGBA before nearest rounding to GS 1/16 pixel/texel fields. Half UV decoding rejects
+exponent 31 before EE arithmetic. The initial additive-color boundary requires exact
+`color2={128,128,128,128}`. Native SWF's `PackColor(0.5)` truncates to 127, so its eventual
+zero-additive adapter must reconcile that encoding explicitly; silently accepting a
+nonzero transform is not part of this slice.
+
+Texture updates/destruction flush queued UI geometry before modifying pixels or VRAM.
+The resource fence therefore covers both collected CPU triangles and emitted GS work.
 
 Doom's ordinary GUI/console uses a 640×480 virtual canvas. SWF also computes its own
 frame scaling through `GetWidth`, `GetHeight` and `GetPixelAspect`, then produces virtual
@@ -468,7 +499,8 @@ That slice proved video setup, command ownership and solid GS pixels in PCSX2.
 2D-2 adds direct textures, residency fences and native capture. Accepted 2D-3 now
 supplies intrinsic images, native display/draw methods and `console->Draw` through
 an explicit production display policy and safe Common frame/`UpdateScreen` lifecycle.
-The next planned gate is **2D-4**, bounded indexed UI and an authored native SWF; retail
+The current **2D-4** slice supplies bounded indexed UI; the next work is native fonts,
+the required material/image profile and an authored native SWF. Retail
 UI dependency/cooking inventory (**2D-5**) can proceed in parallel. SWF and main-menu
 startup remain later gates; console presentation does not establish native menu or
 world-rendering acceptance.

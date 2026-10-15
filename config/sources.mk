@@ -85,6 +85,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/system/video_mode.cpp \
 	ps2/renderer/gs.cpp \
 	ps2/renderer/ui_geometry.cpp \
+	ps2/renderer/ui_triangles.cpp \
 	ps2/renderer/ui_draw.cpp \
 	ps2/renderer/charset.cpp \
 	ps2/renderer/image_backend.cpp \
@@ -475,6 +476,7 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/system/video_mode.cpp \
 	ps2/renderer/gs.cpp \
 	ps2/renderer/ui_geometry.cpp \
+	ps2/renderer/ui_triangles.cpp \
 	ps2/renderer/ui_draw.cpp \
 	ps2/renderer/charset.cpp \
 	ps2/renderer/image_backend.cpp \

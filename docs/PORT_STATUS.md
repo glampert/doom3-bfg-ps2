@@ -24,7 +24,9 @@ AAS and one idle AI. Full campaign player startup, animated AI/gameplay, retail 
 and sound/world-render output remain pending. The first CPU-only GS 2D device slice
 now passes in PCSX2. Production now connects the real native console to Common
 frames through an explicit NTSC/PAL boot policy; indexed GUI/SWF and native menu
-integration are the next rendering direction.
+integration are the next rendering direction. The first indexed GUI slice now supplies
+bounded CPU collection, clipped textured triangles and per-vertex color/alpha; native
+SWF/font execution and the menu remain pending.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
 
@@ -2513,3 +2515,129 @@ from the positive `make test-console` runner.
 Indexed GUI/triangle storage, general image/material loading, native SWF/font execution
 and the offline BFG main menu remain the following gates (2D-4 through 2D-7). Physical
 pad/keyboard navigation and a physical-PS2 video/cache check remain 2D-8.
+
+## Indexed native UI geometry (2D-4 first slice)
+
+**This indexed-geometry slice is accepted in PCSX2 in debug and release on
+2026-10-15.** All twenty-eight renderer sessions and eight production regressions pass.
+
+The first 2D-4 slice adds bounded native GUI allocation and ordered CPU triangles.
+It preserves the production console/headless split and extends the existing core GS
+fixture; no new test fixture, test-enable define or retail asset is introduced. Native
+SWF/font execution, the interactive authored SWF and general material/image loading
+remain later work, so **2D-4 as a whole is not complete**.
+
+`ui::Init` now allocates 4,096 native `idDrawVert` entries, 6,144 indices and 128 ordered
+draw runs with tagged ownership. `AllocTris` copies indices and returns a write-only
+CPU span; fill it before the next allocation or draw that can flush. Oversized requests
+and indices outside the local vertex span fail before mutation. Pool pressure flushes
+completed runs and recycles storage. Sprite interleaving and `EndFrame` flush queued
+triangles in submission order, including a final draw with no following sprite/frame.
+Texture `Update`/`Destroy` also flush queued UI references before changing or releasing
+their pixel/VRAM ownership, so earlier triangles cannot observe a later mutation.
+All spans expire at a flush or frame boundary. Native vertex-cache handles, static
+buffers and joint buffers remain unavailable.
+
+Native rotated/skewed quads and `DrawStretchTri` use the indexed path. The CPU mapper
+clips either winding against the 640×480 canvas, interpolates UV/RGBA before fixed
+rounding and rejects unsupported float representations before EE arithmetic. Native
+half UVs are decoded from bits, with exponent 31 rejected explicitly. The initial
+profile accepts zero depth and exact `color2={128,128,128,128}`; additive transforms
+remain unavailable. Native SWF's `PackColor(0.5)` truncates to 127, which its future
+zero-additive adapter must reconcile explicitly.
+
+Every GS triangle reserves thirty qwords, declares its sampler/texture/clamp/blend/test
+and Gouraud triangle state, then writes all three RGBQ/UV/XYZ2 vertices. RGB and alpha
+map native 255 to GS unity 128. Degenerate geometry is skipped, and straight-alpha
+triangles with three zero-alpha vertices can skip; replacement still writes RGB at
+zero alpha. These packets fit the existing 1 KiB pressure halves and do not rely on
+primitive state surviving a drain.
+
+The native material entry points retain the existing one-constant-ambient-stage
+profile. The core indexed scene uses the intrinsic-image API because core does not
+link `DeclManager`/material implementations; this does not establish resident material
+or native SWF acceptance. Its authored image contains a transformed white `A`, a
+partially clipped cyan `A`, a three-color triangle, a yellow diamond, an alpha gradient
+and sprite/triangle overlap. Native TGA checks distinguish geometry, glyph holes,
+clipped UVs, interpolated colors/alpha and submission order. All three CPU pool limits
+and command-half drains are exercised on the final frame, with exact warm/final ledger
+checks and identical primary/reload captures required.
+
+Both production configurations compile and link 357 direct inputs, with no test
+inputs/symbols and no linker GC. Debug/release `PT_LOAD` is 11,009,702 / 11,434,406
+bytes; the compile database has 382 entries. All 140 Python regressions and the host
+ASan/UBSan harnesses pass, including the new triangle mapper's 20,000 generated cases.
+The target matrix adds five release-safe failures—capacity, local indices, depth,
+half UV and additive color—to the existing seven. Each renderer configuration runs
+two positive standards and twelve isolated expected-fatal sessions.
+
+All four debug/release NTSC/PAL positive renderer runs pass thirteen GS markers and
+all twenty-seven indexed, twenty-six existing UI and twenty-four base scene pixel
+comparisons, plus upload/pressure and recovery checks. Primary/reload captures have
+identical hashes. Both cycles reach every CPU pool limit; the 1 KiB command halves
+drain while retaining the image. Every warm frame preserves its tagged ledger, and
+the integrated scene returns to its exact 1,047 requested / 1,176 backing bytes / two
+allocation baseline.
+
+| Indexed cycle | Frames | Vertex/index/run peaks | Flushes | Emitted triangles | Command drains |
+| --- | ---: | --- | ---: | ---: | ---: |
+| Primary | 120 | 4,096 / 6,144 / 128 | 366 | 4,647 | 6,927 |
+| Reload | 4 | 4,096 / 6,144 / 128 | 18 | 3,255 | 3,331 |
+
+| Positive renderer gate | Debug archive | Release archive |
+| --- | --- | --- |
+| NTSC | `20261015T045024Z_smoke_190499effc06446d` | `20261015T045208Z_smoke_3570041d53194caf` |
+| PAL | `20261015T045034Z_smoke_103df0044cb8476e` | `20261015T045218Z_smoke_daa040892c0e4300` |
+
+The release [NTSC](images/renderer-2d-4-ntsc.png) and
+[PAL](images/renderer-2d-4-pal.png) captures were inspected at their original
+512×448 / 512×512 dimensions. The transformed and clipped glyphs, interpolated RGB,
+yellow diamond, alpha gradient, layered rectangles and final corner triangle are
+visible without missing triangles or visible seams. A separate 3×3 readback around
+the translucent quad's shared diagonal in both debug standards is uniformly
+`(66,66,74)`, within the eight-level tolerance of `(68,70,74)`: no gap or doubled alpha
+is present at that sample. Debug and release native indexed TGA hashes match per mode:
+
+- NTSC: `1c0e7a04eb12b303062b988125bf982303ab5af7f1987db795519ed61b51ccde`.
+- PAL: `c3bbb0254ccc0d04803d79f2f70762bfa9ff2d623a6f3f14a5d94176a67ac455`.
+
+All twelve expected-fatal renderer cases pass in each configuration. Each run requires
+its matching first fatal diagnostic; watchdogs, crashes and unrelated failures cannot
+satisfy the gate. The final five cases cover the new indexed boundaries.
+
+| Expected-fatal renderer case | Debug archive | Release archive |
+| --- | --- | --- |
+| GIF capacity | `20261015T045045Z_smoke_c7a0c946d4664cec` | `20261015T045229Z_smoke_79c3917506a4475d` |
+| DIRECT capacity | `20261015T045047Z_smoke_f7ae4ec05c4e48c2` | `20261015T045231Z_smoke_d1508e5b8dc04321` |
+| Wait deadline | `20261015T045049Z_smoke_b7b4ae1cb87a4a36` | `20261015T045233Z_smoke_995902ac3e6f4263` |
+| Unsupported UI state | `20261015T045052Z_smoke_6e3fa194f1b94bf5` | `20261015T045236Z_smoke_9f68b9f5660e4933` |
+| UI rectangle bounds | `20261015T045054Z_smoke_47fc79ff54244a2a` | `20261015T045238Z_smoke_9f3afbb446764ea6` |
+| Invalid quad coordinate | `20261015T045056Z_smoke_483d1e8c2683462c` | `20261015T045240Z_smoke_129d702006394307` |
+| Oversized text | `20261015T045058Z_smoke_82787c22eba04bb0` | `20261015T045242Z_smoke_9125e93c2b8e4f01` |
+| Invalid local index | `20261015T045100Z_smoke_9afddbee26d24921` | `20261015T045244Z_smoke_b9c147185edc458a` |
+| Oversized indexed request | `20261015T045102Z_smoke_f3917e804bf94623` | `20261015T045246Z_smoke_8fdf9d51d381493b` |
+| Nonzero UI depth | `20261015T045104Z_smoke_ad408578076d450b` | `20261015T045248Z_smoke_2a41d160bca346db` |
+| Nonfinite half UV | `20261015T045106Z_smoke_7f433fb329984eb5` | `20261015T045250Z_smoke_27f32668bcf145fc` |
+| Additive vertex color | `20261015T045108Z_smoke_9330468fef184ccb` | `20261015T045252Z_smoke_7c3a9dfb9c9e4e44` |
+
+The production console matrix still passes native edit/history, close/reopen and
+capture-before-quit in NTSC/PAL. Both existing headless cases pass without GS startup
+or UI pool allocation. Every production run recovers its exact 7,424 requested /
+7,600 backing bytes / four allocation startup ledger.
+
+| Production regression | Debug archive | Release archive |
+| --- | --- | --- |
+| Visible NTSC console | `20261015T045254Z_console_f2a3fc19dd2e` | `20261015T045306Z_console_9f9ac49f0ab9` |
+| Visible PAL console | `20261015T045300Z_console_056a029ba7f6` | `20261015T045312Z_console_4cb27071d167` |
+| Headless 120 frames | `20261015T045318Z_headless_9996905f06d0` | `20261015T045327Z_headless_7e562c48e31b` |
+| Headless live commands/quit | `20261015T045322Z_headless_52c98bc449a5` | `20261015T045331Z_headless_9dd4d0d7c5d9` |
+
+Visible production peak requested/backing memory is 2,786,855 / 2,884,740 bytes in both
+configurations. Arena high-water is 2,900,314 debug / 2,897,498 release. Headless bounded
+peak requested/backing memory remains 1,845,504 / 1,943,072 bytes; live-command peaks
+are 1,845,528 / 1,943,120. These are measured authored console packages, not retail UI
+budgets. No physical PS2 cache-coherency or GS-cost claim follows from PCSX2 pixels.
+
+The next 2D-4 work is a scoped material/image/font path and one mask-free native SWF
+with text, animation and focus/select input. Retail dependency inventory/cooking (2D-5)
+can proceed alongside it; the native BFG main menu remains 2D-7.

@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: gs.h
-// Brief: Own fixed 16-bit drawing contexts and emit clipped solid and direct RGBA sprites.
+// Brief: Own fixed 16-bit drawing contexts and emit clipped direct RGBA sprites and triangles.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -8,6 +8,7 @@
 #include "ps2/renderer/gif_writer.h"
 #include "ps2/system/video_mode.h"
 #include "ps2/renderer/texture_layout.h"
+#include "ps2/renderer/ui_triangles.h"
 
 namespace ps2::gs
 {
@@ -30,6 +31,8 @@ void TexturedRect(DrawContext context, const TextureBinding & binding, int x, in
 // Coordinates exclude XYOFFSET and are already clipped, in GS 1/16 pixel/texel units.
 void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int x0, int y0, int x1, int y1,
                        int u0, int v0, int u1, int v1, Color color, BlendMode blend);
+void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
+                           const ui::FixedTriangle & triangle, BlendMode blend);
 void FillRect(DrawContext context, int x, int y, int width, int height, Color color);
 void Present(DrawContext context);
 } // namespace ps2::gs

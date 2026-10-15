@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: gs.cpp
-// Brief: Own GS contexts, direct RGBA uploads and ordered CPU sprites without Quake policy or VU.
+// Brief: Own GS contexts, direct RGBA uploads and ordered CPU primitives without Quake policy or VU.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -234,6 +234,60 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(x0 + 2048 * 16, y0 + 2048 * 16, 0));
     writer.SetRegister(GS_REG_UV, GS_SET_UV(u1, v1));
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(x1 + 2048 * 16, y1 + 2048 * 16, 0));
+    cmdbuf::EndDirect(writer);
+}
+
+void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
+                           const ui::FixedTriangle & triangle, BlendMode blend)
+{
+    (void)ValidateBinding(binding);
+    (void)Index(context);
+    if (blend != BlendMode::Replace && blend != BlendMode::StraightAlpha)
+    {
+        FatalError("invalid fixed GS textured triangle blend");
+    }
+    for (const auto & vertex : triangle.vertices)
+    {
+        if (vertex.x < 0 || vertex.y < 0 || vertex.x > s_width * 16 || vertex.y > s_height * 16 ||
+            vertex.u < 0 || vertex.v < 0 || vertex.u > 16383 || vertex.v > 16383)
+        {
+            FatalError("invalid fixed GS textured triangle vertex");
+        }
+    }
+    const auto & first = triangle.vertices[0];
+    const auto & second = triangle.vertices[1];
+    const auto & third = triangle.vertices[2];
+    const s64 area = static_cast<s64>(second.x - first.x) * (third.y - first.y) -
+                     static_cast<s64>(second.y - first.y) * (third.x - first.x);
+    if (area == 0 || (blend == BlendMode::StraightAlpha && first.a == 0 && second.a == 0 && third.a == 0))
+    {
+        return;
+    }
+    const auto & layout = binding.layout;
+    const auto & sampler = binding.sampler;
+    const int filter = sampler.filter == tex::Filter::Linear ? 1 : 0;
+    // Six complete state writes and three RGBAQ/UV/XYZ2 vertices: thirty qwords.
+    // A drain may alternate command halves; never depend on the previous primitive's state.
+    GifWriter writer = cmdbuf::BeginDirect(30);
+    writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
+    writer.SetRegister(ContextReg(GS_REG_TEX0, context), GS_SET_TEX0(binding.address >> 6,
+        static_cast<u32>(layout.stridePixels) >> 6, GS_PSM_32, layout.widthLog2, layout.heightLog2, 1, 0, 0, 0, 0, 0, 0));
+    writer.SetRegister(ContextReg(GS_REG_CLAMP, context), GS_SET_CLAMP(
+        sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
+        0, layout.width - 1, 0, layout.height - 1));
+    writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
+    // ONE/ZERO replaces RGB even where interpolated or texture alpha is zero.
+    writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 0, 1));
+    writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_TRIANGLE, PRIM_SHADE_GOURAUD, 1, 0,
+        blend == BlendMode::StraightAlpha ? 1 : 0, 0, PRIM_MAP_UV, Index(context), 0));
+    const auto Modulate = [](u8 value) { return static_cast<u8>((static_cast<u32>(value) * 128U + 127U) / 255U); };
+    for (const auto & vertex : triangle.vertices)
+    {
+        writer.SetRegister(GS_REG_RGBAQ, GS_SET_RGBAQ(Modulate(vertex.r), Modulate(vertex.g), Modulate(vertex.b),
+                                                   Modulate(vertex.a), 0x3F800000U));
+        writer.SetRegister(GS_REG_UV, GS_SET_UV(vertex.u, vertex.v));
+        writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(vertex.x + 2048 * 16, vertex.y + 2048 * 16, 0));
+    }
     cmdbuf::EndDirect(writer);
 }
 

@@ -38,8 +38,13 @@ NEGATIVE_PROBES = {
     "renderer-wait-timeout": "GS pipeline timeout: injected wait;",
     "renderer-ui-state": "renderer capability unavailable: native UI blend/state profile",
     "renderer-ui-bounds": "invalid native UI rectangle or UV",
-    "renderer-ui-quad": "renderer capability unavailable: native UI quad requires axis-aligned positions and UVs",
+    "renderer-ui-quad": "invalid native UI quad coordinate",
     "renderer-ui-text": "native UI text exceeds bounded input profile",
+    "renderer-ui-indices": "native UI index outside vertex span",
+    "renderer-ui-capacity": "invalid native UI indexed request",
+    "renderer-ui-depth": "native UI vertex requires zero depth",
+    "renderer-ui-half": "native UI half UV is not finite",
+    "renderer-ui-color2": "renderer capability unavailable: native UI additive vertex color",
     "jpeg-invalid": "SWF JPEG: invalid input",
     "jpeg-oversize": "SWF JPEG: invalid or oversized dimensions (limit 1024)",
     "jpeg-marker": "SWF JPEG: marker extends past input",
@@ -148,7 +153,7 @@ VERSION_RE = re.compile(
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
     "inactive-start", "rejected-partial-init", "device-init", "context-frames",
-    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters"))
+    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters", "native-indexed"))
 REQUIRED_CORE_CHECKS = frozenset({
     "codecs/crc-known-vector", "codecs/zlib-streaming-ledger", "codecs/zlib-error-cleanup",
     "codecs/jpeg-rgba-tables-ledger",
@@ -605,6 +610,12 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                     any(int(peak) > int(half) or int(kicks) <= (121 if int(half) == 131072 else 5) or int(drains) <= 0
                         for half, peak, kicks, drains in chains)):
                 return False, "invalid GS ownership or chain accounting"
+            indexed = re.findall(r"UI indexed cycle=(\d+) frames=(\d+) vertices=(\d+) indices=(\d+) draws=(\d+) flushes=(\d+) triangles=(\d+) drains=(\d+)", log)
+            if ({(int(cycle), int(frames)) for cycle, frames, *_ in indexed} != {(0, 120), (1, 4)} or
+                    any((int(vertices), int(indices), int(draws)) != (4096, 6144, 128) or
+                        int(flushes) <= int(frames) or int(triangles) <= 3200 or int(drains) <= 0
+                        for _, frames, vertices, indices, draws, flushes, triangles, drains in indexed)):
+                return False, "invalid native indexed geometry accounting"
         elif scenario != "platform":
             checks = CHECK_RE.findall(log)
             names = {name for name, _ in checks}
@@ -956,6 +967,10 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 capture_checks[name] = renderer_capture.verify_ui_scene(output / name, standard)
             if capture_checks["renderer-ui.tga"]["sha256"] != capture_checks["renderer-ui-reload.tga"]["sha256"]:
                 raise ValueError("native UI reload changed the authored adapter image")
+            for name in ("renderer-indexed.tga", "renderer-indexed-reload.tga"):
+                capture_checks[name] = renderer_capture.verify_indexed_scene(output / name, standard)
+            if capture_checks["renderer-indexed.tga"]["sha256"] != capture_checks["renderer-indexed-reload.tga"]["sha256"]:
+                raise ValueError("native indexed geometry reload changed the authored image")
             for name in ("renderer-pressure.tga", "renderer-pressure-reload.tga"):
                 width, height, pixels = renderer_capture.read_tga(output / name)
                 if (width, height) != (512, 512 if standard == "PAL" else 448):

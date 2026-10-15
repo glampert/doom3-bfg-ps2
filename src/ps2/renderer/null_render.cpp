@@ -166,8 +166,6 @@ RENDER_UNAVAILABLE(void, idRenderSystemLocal::BeginAutomaticBackgroundSwaps, (au
 RENDER_UNAVAILABLE(idFont *, idRenderSystemLocal::RegisterFont, (const char *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::ResetFonts, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::PrintMemInfo, (MemInfo_t *))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawStretchTri, (const idVec2 &, const idVec2 &, const idVec2 &, const idVec2 &, const idVec2 &, const idVec2 &, const idMaterial *))
-RENDER_UNAVAILABLE(idDrawVert *, idRenderSystemLocal::AllocTris, (int, const triIndex_t *, int, const idMaterial *, stereoDepthType_t))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::WriteDemoPics, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawDemoPics, ())
 RENDER_UNAVAILABLE(const emptyCommand_t *, idRenderSystemLocal::SwapCommandBuffers, (uint64 *, uint64 *, uint64 *, uint64 *))

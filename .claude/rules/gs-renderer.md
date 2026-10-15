@@ -19,8 +19,9 @@ pass in the authored map; physical initialization, image/vertex payload loading 
 submission still fail by method name. The separate CPU-only GS device layer now draws
 solid and direct RGBA 2D frames. Explicit native UI activation now supplies a bounded
 white/ASCII image and axis-quad/text profile. Production now optionally draws the real
-native console through Common. Indexed GUI/SWF collection, general image loading and
-VU output remain subsequent gates.
+native console through Common. Bounded indexed GUI collection and CPU triangles now
+extend the native adapter; SWF execution, general image loading and VU output remain
+subsequent gates.
 
 - Start the logical renderer frame counter above zero and advance it with game ticks.
   Native `R_EntityDefDynamicModel` compares the definition stamp to `tr.frameCount`;
@@ -88,7 +89,37 @@ axis, 15×14 glyph coverage, native cursor bytes 10/11 and explicit fallback box
 Map all console coordinates once from virtual 640×480 to GS 1/16 fixed point. Clip
 positions and interpolate UV before converting; normalized UV addresses logical image
 dimensions. Reject NaN/Inf/subnormal representations before EE arithmetic and preserve
-fractional endpoints. Axis-aligned quads only; rotated/indexed geometry remains 2D-4.
+fractional endpoints. Indexed geometry additionally clips triangles with either winding,
+interpolating UV/RGBA before rounding; transformed native quads use the same path.
+
+Explicit UI activation owns bounded CPU spans: 4,096 vertices, 6,144 indices and 128
+ordered runs. Fill each returned span before the next allocation/draw. Pressure flushes
+completed draws and recycles storage; oversized requests and invalid local indices fail
+before flushing. Frame end and sprite emission flush queued triangles first. These are
+write-only CPU spans, not native vertex-cache handles; static/index/joint buffer APIs
+remain unavailable. Shutdown releases these three allocations before intrinsic images.
+Texture update/destruction flushes queued UI references before mutating/releasing the
+underlying texture, then preserves the existing command/FINISH residency fence.
+
+Decode native half UVs from their bits and reject exponent 31 before EE arithmetic;
+the retained `F16toF32` implementation does not preserve Inf/NaN classification. The
+initial indexed profile requires zero depth and exact `color2` bytes of 128. Native SWF's
+`PackColor(0.5)` produces 127, so future zero-additive SWF integration must reconcile that
+encoding explicitly. Nonzero additive transforms remain unsupported.
+
+Textured triangles select Gouraud RGB/alpha and affine fixed UV. Each triangle reserves
+30 qwords and explicitly writes TEX1/TEX0/CLAMP/ALPHA/TEST/PRIM plus all three vertices,
+so command-half drains cannot inherit stale primitive state. Validate binding, context,
+blend and all fixed XY/UV fields before reserving. Emit exact fixed endpoints plus
+XYOFFSET; there is no sprite-specific half-pixel adjustment. GS modulation maps native
+255 to unity 128 for both vertex RGB and alpha. Degenerate triangles are skipped;
+all-zero-alpha triangles skip only with straight-alpha blending, preserving replacement
+RGB writes at alpha zero. Debug/release NTSC/PAL indexed captures pass twenty-seven
+pixel checks, identical reload hashes and 120/four frames on 2026-10-15. All three CPU
+pool limits and 1 KiB command-half drains preserve ordering and exact ledger recovery.
+A 3×3 shared-diagonal sample on a translucent quad in both debug modes shows single
+blending without gaps. These PCSX2 observations do not establish cache coherence or
+GS cost on hardware; run identities and images are recorded in PORT_STATUS.
 
 `GLS_DEFAULT` is ONE/ZERO replacement. Ordinary intrinsic console helpers select a
 declared straight-alpha profile; `GLS_OVERRIDE` can explicitly select replacement.

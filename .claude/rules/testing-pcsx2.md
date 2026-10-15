@@ -3,14 +3,17 @@
 ## Doom foundation procedures
 
 - `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
-  executable for the integrated GS/native-adapter scenes in NTSC/PAL, then seven expected-fatal probes.
-  They do not initialize real Console/Common presentation or link fixtures into production. Twelve GS
+  executable for the integrated GS/native-adapter scenes in NTSC/PAL, then twelve expected-fatal probes.
+  They do not initialize real Console/Common presentation or link fixtures into production. Thirteen GS
   markers require 120 presented frames, alternating contexts, a reload with smaller
   command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
   exact tagged cleanup. GIF/oversized-DIRECT bounds, a deliberately stalled deadline,
-  and active unsupported UI state, rectangle, skewed quad and oversized text must remain
+  and active unsupported UI state, rectangle, invalid quad and oversized text must remain
   fatal with assertions off. Adapter startup also rejects insufficient VRAM/pixel budgets
   without retaining partial ownership.
+  Indexed geometry adds oversized single-request, invalid local-index, nonzero-depth,
+  nonfinite half-UV and additive-color failures. Run both positive standards and all
+  twelve failures sequentially: fourteen isolated emulator sessions per configuration.
 - `make run-renderer` holds the completed NTSC picture for 60 seconds; PCSX2's configured
   F8 saves a framebuffer screenshot. `--scenario renderer-pal --visual-wait 60 --timeout 90`
   selects PAL when invoking the runner directly with the matching `--elf`. The native
@@ -22,9 +25,13 @@
   quadrants and pressure pixels; captures before/after recovery must have identical hashes.
   `renderer-ui*.tga` adds 26 glyph/cursor/color/alpha/fractional/clip comparisons, with
   identical primary/reload images and 120/four native adapter frames.
+  `renderer-indexed*.tga` adds 27 rotated/clipped glyph, solid-shape, Gouraud RGB/alpha,
+  submission-order and pool-pressure pixel checks. Require 120/four frames, identical
+  primary/reload captures, all three CPU pool limits reached, command drains and exact
+  ledger cleanup. This extends the existing integrated fixture; no new fixture is added.
   A timeout-injected partial file is never accepted. Preserve images/hashes and record inspection.
-  Accepted 2026-10-14 run identities
-  and measured budgets are in PORT_STATUS; no physical PS2 or cache-coherency claim.
+  Acceptance run identities and measured budgets are in PORT_STATUS; no physical PS2
+  or cache-coherency claim.
 
 - `make test-headless` / `make BUILD=release test-headless` exercise the production ELF
   with authored `assets/headless/` data. One run completes exactly 120 frames; another
@@ -70,7 +77,7 @@
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
 - Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
-  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs 56 runner
+  [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
 - Shared diagnostics checks add five host regressions for channel/variadic forwarding,
   long output, assertion evaluation/disable behavior, source-location diagnostics and
@@ -95,7 +102,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 105 Python regressions, including shared PCM/voice timing, codec, source
+  The complete host suite currently has 140 Python regressions, including shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
