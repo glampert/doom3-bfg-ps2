@@ -18,9 +18,13 @@
 namespace
 {
 static bool s_initialized = false;
+static bool s_swfDraw = false;
+static uint64 s_savedSwfState = 0;
+static uint32 s_savedSwfColor = 0;
 // The EE's native RGBA byte order is little endian; no idlib swap initialization is required.
 static_assert(std::endian::native == std::endian::little);
 static constexpr uint64 kBlendAlpha = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
+static constexpr uint64 kBlendSwf = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
 static constexpr uint64 kAllowedState = GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS | GLS_DEPTHMASK | GLS_DEPTHFUNC_BITS | GLS_OVERRIDE;
 struct Profile
 {
@@ -29,6 +33,7 @@ struct Profile
     ps2::gs::Color tint;
     bool vertexColor;
     bool enabled;
+    bool swf = false;
 };
 struct Batch { Profile profile; int firstVertex; int vertexCount; int firstIndex; int indexCount; };
 static idDrawVert * s_vertices = nullptr;
@@ -80,7 +85,7 @@ ps2::gs::BlendMode Blend(uint64 state)
     const uint64 equation = state & (GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS);
     const uint64 depth = state & GLS_DEPTHFUNC_BITS;
     if ((state & ~kAllowedState) != 0 || (depth != GLS_DEPTHFUNC_LESS && depth != GLS_DEPTHFUNC_ALWAYS) ||
-        (equation != GLS_DEFAULT && equation != kBlendAlpha))
+        (equation != GLS_DEFAULT && equation != kBlendAlpha && !(s_swfDraw && equation == kBlendSwf)))
     {
         ps2::render::Unavailable("native UI blend/state profile");
     }
@@ -119,7 +124,8 @@ Profile MaterialProfile(const idMaterial * material, ps2::gs::Color base)
     for (int i = 0; i < 4; ++i) { modulated[i] = static_cast<u8>(Register(stage.color.registers[i]) * static_cast<float>(channels[i])); }
     (void)ps2::render::ConsoleImageTexture(stage.texture.image);
     return {stage.texture.image, Blend(CombinedState(stage.drawStateBits)),
-            {modulated[0], modulated[1], modulated[2], modulated[3]}, stage.vertexColor == SVC_MODULATE, condition != 0.0f};
+            {modulated[0], modulated[1], modulated[2], modulated[3]}, stage.vertexColor == SVC_MODULATE,
+            condition != 0.0f, s_swfDraw};
 }
 float DecodeHalf(halfFloat_t value)
 {
@@ -137,7 +143,10 @@ ps2::ui::Vertex DecodeVertex(const idDrawVert & vertex, const Profile & profile)
     if (!PortableFloat(vertex.xyz.z) || vertex.xyz.z != 0.0f) { ps2::FatalError("native UI vertex requires zero depth"); }
     for (int channel = 0; channel < 4; ++channel)
     {
-        if (vertex.color2[channel] != 128) { ps2::render::Unavailable("native UI additive vertex color"); }
+        if (vertex.color2[channel] != 128 && !(profile.swf && vertex.color2[channel] == 127))
+        {
+            ps2::render::Unavailable("native UI additive vertex color");
+        }
     }
     const auto Modulate = [](u8 color, u8 tint) { return static_cast<u8>((static_cast<u32>(color) * tint + 127U) / 255U); };
     const auto & tint = profile.tint;
@@ -270,7 +279,7 @@ PS2_COLD_FUNC void Shutdown()
 {
     if (!s_initialized) { return; }
     if (rs::FrameStarted()) { FatalError("native UI shutdown with an open frame"); }
-    if (s_batchCount != 0 || s_flushing) { FatalError("native UI shutdown with pending geometry"); }
+    if (s_batchCount != 0 || s_flushing || s_swfDraw) { FatalError("native UI shutdown with pending geometry"); }
     FreeGeometry();
     render::ShutdownConsoleImages();
     tr.whiteMaterial = tr.charSetMaterial = nullptr;
@@ -280,10 +289,27 @@ PS2_COLD_FUNC void Shutdown()
     s_initialized = false;
 }
 GeometryStats GetGeometryStats() { return s_geometryStats; }
+void BeginSwfDraw()
+{
+    Require(&tr, "native SWF draw scope", true);
+    if (s_swfDraw) { FatalError("nested native SWF drawing"); }
+    Flush();
+    s_savedSwfState = tr.currentGLState;
+    s_savedSwfColor = tr.currentColorNativeBytesOrder;
+    s_swfDraw = true;
+}
+void EndSwfDraw()
+{
+    if (!s_swfDraw) { FatalError("native SWF draw scope not active"); }
+    Flush();
+    s_swfDraw = false;
+    tr.currentGLState = s_savedSwfState;
+    tr.currentColorNativeBytesOrder = s_savedSwfColor;
+}
 void BeginGeometryFrame()
 {
     if (!s_initialized) { return; }
-    if (s_batchCount != 0 || s_flushing) { FatalError("native UI geometry crossed a frame boundary"); }
+    if (s_batchCount != 0 || s_flushing || s_swfDraw) { FatalError("native UI geometry crossed a frame boundary"); }
 }
 idDrawVert * AllocTrisForImage(int vertices, const u16 * indexes, int indexCount, const idImage * image, gs::BlendMode blend)
 {

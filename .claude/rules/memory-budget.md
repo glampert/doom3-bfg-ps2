@@ -228,12 +228,25 @@ The indexed 2D-4 slice on 2026-10-15 adds 146,944 requested bytes in three tagge
 arrays: 4,096 native vertices, 6,144 16-bit indices and 128 ordered draw records.
 They are allocated only by native UI activation, recycled after completed draw runs
 and released before device shutdown; no desktop vertex-cache pool is enabled.
-Current production retains 357 inputs and 11,009,702 debug / 11,434,406 release
+At that indexed-geometry checkpoint production retained 357 inputs and 11,009,702 debug / 11,434,406 release
 `PT_LOAD` bytes. The visible console peaks at 2,786,855 requested / 2,884,740 backing
 bytes, with arena high-water 2,900,314 debug / 2,897,498 release. Both visible and
 headless runs recover exactly 7,424 / 7,600 bytes in four allocations. Headless
 allocates no UI/device pools. These authored console measurements exclude retail
 SWF/font working sets and loaded campaign maps; see PORT_STATUS for matched runs.
+
+The authored native SWF/font completion on 2026-10-15 retains 360 production inputs
+and 11,018,214 debug / 11,435,878 release `PT_LOAD` bytes. The lazy 512×128 procedural
+font atlas adds 262,144 owned RGBA bytes and a temporary source allocation of the same
+size during generation. Native glyph/index arrays and font/material caches have separate
+ownership. Compiled exact-resource validation payloads total 4,386 bytes in fixed ELF
+residency, not tagged heap storage.
+Debug/release NTSC/PAL three-load runs peak at 3,065,630 requested / 3,167,572 backing
+bytes, with arena high-water 3,424,282 debug / 3,424,410 release. Every warm unload
+returns to 2,792,635 / 2,892,808 bytes in 2,446 allocations after clearing command history;
+fonts/materials remain cached until UI shutdown. Full shutdown recovers 7,424 / 7,600
+bytes in four allocations. These are authored ASCII UI measurements, not retail menu,
+localization or campaign-map budgets. Headless startup still allocates no UI pools.
 
 ## Quake II reference
 

@@ -109,6 +109,43 @@ math path; PS2-specific math replacement headers are a later milestone.
   rejects source exhaustion/oversized images, and frees owned output and codec state
   before a fatal diagnostic. Host codec tests do not establish target JPEG execution.
 
+## Authored native SWF and font profile
+
+- The first visible movie uses native `idSWF` BSWF16 loading, AVM1 functions, timeline
+  instances, edit text and keyboard shortcuts. `ps2::ui::OpenAuthoredAsset` admits only
+  the generated authored resource whitelist: exact path, length and bytes. Font and
+  BSWF parsing consume an owned read-only `idFile_Memory` snapshot, so a second mutable
+  HostFs open cannot replace checked counts or strings. This is an exact authored
+  profile, not validation of arbitrary BSWF/font files or retail menu compatibility.
+  The authored material text is checked too; native DeclManager owns its indexed text.
+- PS2 SWF construction has no source-SWF inflate/cache-write fallback and does not
+  preload unused retail cursor/controller media. `_white` remains the owned RGBA
+  intrinsic: `R_ParseImageProgram_r` otherwise rewrites it to a desktop YCoCg disk path
+  (`guis/assets/white`), outside this image profile. Do not add a permissive image alias
+  to hide that remap or a missing authored material declaration.
+- Call `idSWF::Activate(true)` before querying frame-one children or binding authored
+  functions to shortcut keys. Activation frees/rebuilds the display list and runs its
+  initialization actions; child pointers obtained beforehand can become invalid.
+  Focus/select commands pass native key events to the authored AVM1 functions.
+- Native `idSWF::Render` uses its caller's time on PS2. A Common frame advances the
+  movie clock; a redraw uses the previous value and cannot tick the timeline again.
+  Native `Pause`/`Resume` retain their timeline behavior. HostFs input and a rendered
+  movie do not establish controller input, sound playback or campaign/menu startup.
+- `RegisterFont` owns at most one native `idFont`, `ps2_ascii` (also accepted through
+  `fonts/ps2_ascii`), with no localization alias or retail fallback. Its authored
+  `newfonts/ps2_ascii/48.dat` is 1,342 bytes: 12-byte big-endian `idf*`/48-point header,
+  95 native padded 10-byte glyph records and 95 little-endian ASCII codepoints 32..126.
+  Records have width/height 15/14, top 14, left 0 and advance 16; the native structure
+  inserts a zero byte before its little-endian 16-bit atlas coordinates. Validate the
+  complete profile before native allocation and validate the material's loaded first
+  image before native glyph scaling dereferences it.
+- Native `idFont` separately allocates `glyphData` and `charIndex`; deleting only its
+  `fontInfo` leaks both. The PS2 destructor frees those arrays. Movie dictionaries
+  borrow cached fonts, and fonts borrow material/image declarations: destroy the movie,
+  then the font cache, then UI images/geometry and the GS device, before declarations
+  and idlib disappear. A movie reload may retain the warm font/image cache; full
+  Common shutdown must recover the pre-boot ledger.
+
 ## Staged Common and offline profiles
 
 - The foundation instantiates real `idCommonLocal`. Portable Init/Shutdown track

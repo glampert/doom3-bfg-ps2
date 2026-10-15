@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: image_backend.h
-// Brief: Activate only the two owned native images needed by the authored console profile.
+// Brief: Own console intrinsics and one lazily generated native ASCII font image.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -18,5 +18,6 @@ void ShutdownConsoleImages();
 bool ConsoleImagesInitialized();
 idImage * ConsoleWhiteImage();
 idImage * ConsoleCharsetImage();
+idImage * AuthoredFontImage();
 tex::Handle ConsoleImageTexture(const idImage * image);
 } // namespace ps2::render

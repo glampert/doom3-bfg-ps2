@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+# ================================================================================================
+# File: ui_capture.py
+# Brief: Check native authored SWF geometry, readable text, script focus and animated color/alpha.
+# This source code is released under the GNU GPL-3.0-or-later license.
+# ================================================================================================
+
+import hashlib
+from pathlib import Path
+
+from renderer_capture import PIXEL_TOLERANCE, read_tga
+
+
+MOVIE_PATH = "generated/swf/ps2_demo.bswf"
+FONT_PATH = "newfonts/ps2_ascii/48.dat"
+NEGATIVE_DIAGNOSTICS = {
+    "bswf-missing": "authored UI asset missing: " + MOVIE_PATH,
+    "bswf-truncated": "authored UI asset length mismatch: " + MOVIE_PATH,
+    "bswf-oversized": "authored UI asset length mismatch: " + MOVIE_PATH,
+    "bswf-mutated": "authored UI asset content mismatch: " + MOVIE_PATH,
+    "font-missing": "authored UI asset missing: " + FONT_PATH,
+    "font-mutated": "authored UI asset content mismatch: " + FONT_PATH,
+}
+BACKGROUND = (16, 24, 40)
+PANEL = (32, 48, 64)
+TEXT = (240, 248, 255)
+# Expected authored scene data is deliberately independent of its asset generator.
+# Samples sit inside solid regions, glyph strokes and holes, away from rasterization edges.
+STATIC_PIXELS = (
+    ("outside-panel", 16, 16, BACKGROUND),
+    ("panel-top", 320, 32, PANEL),
+    ("panel-bottom", 320, 448, PANEL),
+    ("transformed-a-top", 502.8, 162.4, (255, 255, 255)),
+    ("transformed-a-left-leg", 453.2, 181.6, (255, 255, 255)),
+    ("transformed-a-right-leg", 539.6, 200.8, (255, 255, 255)),
+    ("transformed-a-hole", 496.4, 191.2, PANEL),
+    ("transformed-a-crossbar", 493.2, 205.6, (255, 255, 255)),
+    ("transformed-a-corner", 459.6, 152.8, PANEL),
+    ("transformed-quad-outside", 438, 140, PANEL),
+    ("native-title-d-top", 70, 51, TEXT),
+    ("native-title-d-left", 66, 57, TEXT),
+    ("native-title-d-right", 81, 57, TEXT),
+    ("native-title-d-hole", 73, 57, PANEL),
+    ("native-title-o-top", 92, 51, TEXT),
+    ("native-title-o-hole", 92, 57, PANEL),
+    ("native-subtitle-a-top", 71.5, 90.5, TEXT),
+    ("native-subtitle-a-hole", 71.5, 94.5, PANEL),
+    # Font glyph quads include one physical pixel for the half-texel gutter. These
+    # row centers land inside the two-pixel strokes after either NTSC/PAL scaling.
+    ("native-subtitle-a-crossbar", 71.5, 97.5, TEXT),
+)
+PULSE_COLORS = {1: (0.1, 0.85, 1.0, 1.0), 2: (0.8, 0.25, 1.0, 0.4),
+                3: (1.0, 0.5, 0.1, 0.7), 4: (0.2, 1.0, 0.3, 1.0)}
+
+
+def blended(color, alpha, background=PANEL):
+    return tuple(round(channel * alpha + backdrop * (1.0 - alpha)) for channel, backdrop in zip(color, background))
+
+
+def expected_pixels(pulse: int, focus: int, selected: int):
+    if pulse not in PULSE_COLORS or focus not in (0, 1) or selected not in (-1, 0, 1):
+        raise ValueError("invalid native SWF capture state")
+    red, green, blue, alpha = PULSE_COLORS[pulse]
+    animated = blended((red * 255, green * 255, blue * 255), alpha)
+    highlight = blended((24, 192, 224), 110 / 255)
+    return STATIC_PIXELS + (
+        ("pulse-color-alpha-left", 80, 230, animated),
+        ("pulse-color-alpha-middle", 174, 240, animated),
+        ("pulse-color-alpha-right", 268, 250, animated),
+        ("pulse-outside", 300, 236, PANEL),
+        ("focus-first-row", 270, 340, highlight if focus == 0 else PANEL),
+        ("focus-second-row", 270, 388, highlight if focus == 1 else PANEL),
+        ("native-status-t-or-s-top-left", 65.5, 411.5, TEXT if selected == -1 else PANEL),
+        ("native-status-t-or-s-left", 65.5, 414.5, PANEL if selected == -1 else TEXT),
+        ("native-status-selection-digit", 215.5, 414.5, TEXT if selected == 1 else PANEL),
+    )
+
+
+def verify(path: Path, standard: str, *, pulse: int, focus: int, selected: int) -> dict:
+    if standard not in ("ntsc", "pal"):
+        raise ValueError("native SWF capture standard must be ntsc or pal")
+    width, height, pixels = read_tga(path)
+    expected_height = 448 if standard == "ntsc" else 512
+    if (width, height) != (512, expected_height):
+        raise ValueError(f"native SWF capture expected 512x{expected_height}, got {width}x{height}")
+    checks = []
+    for name, virtual_x, virtual_y, expected in expected_pixels(pulse, focus, selected):
+        x, y = int(virtual_x * width / 640), int(virtual_y * height / 480)
+        offset = (y * width + x) * 3
+        actual = tuple(pixels[offset:offset + 3])
+        passed = all(abs(value - target) <= PIXEL_TOLERANCE for value, target in zip(actual, expected))
+        checks.append({"name": name, "x": x, "y": y, "expected": expected, "actual": actual, "passed": passed})
+        if not passed:
+            raise ValueError(f"native SWF capture {name} at {x},{y}: expected {expected}, got {actual}")
+    return {"width": width, "height": height, "pulse": pulse, "focus": focus, "selected": selected,
+            "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(), "checks": checks}

@@ -48,6 +48,7 @@ If you have questions concerning this license or the applicable additional terms
 // [PS2_D3BFG]: Production quit is serviced after the current frame finishes.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
 #include "ps2/system/runtime.h"
+#include "ps2/ui/movie.h"
 #endif
 // [PS2_D3BFG]: Match the static game export's C linkage.
 extern "C" gameExport_t * GetGameAPI( gameImport_t * import );
@@ -1583,9 +1584,9 @@ idCommonLocal::ProcessEvent
 ===============
 */
 bool idCommonLocal::ProcessEvent( const sysEvent_t *event ) {
-	// [PS2_D3BFG]: Headless console input must not enter deferred menus or dialogs.
+	// [PS2_D3BFG]: The console has priority over the scoped native SWF; retail menus remain deferred.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	return console->ProcessEvent( event, false );
+	return console->ProcessEvent( event, false ) || ps2::movie::ProcessEvent( event );
 #endif
 	// hitting escape anywhere brings up the menu
 	if ( game && game->IsInGame() ) {

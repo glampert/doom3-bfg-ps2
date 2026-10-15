@@ -63,13 +63,13 @@ does not initialize the campaign game. `CORE_BOOT` controls this selection only 
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
 `PS2_CXX_SRC` owns production entry, the Common loop provider and the strict optional
-presentation provider. Production links 357 direct objects, retaining all eleven
+presentation and authored movie providers. Production links 360 direct objects, retaining all eleven
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.
-`make headless` and `make console` stage the same ELF with authored data separately
+`make headless`, `make console` and `make ui` stage the same ELF with authored data separately
 from retail assets. Package-root `presentation.cfg` selects headless/NTSC/PAL before
-Common startup. `make test-headless` and `make test-console` exercise production itself.
+Common startup. `make test-headless`, `make test-console` and `make test-ui` exercise production itself.
 Visible frames call real native `console->Draw(false)` after the native `NOMAP` tick;
 `UpdateScreen` coalesces in-frame requests without advancing clocks. Native `RunFrame`
 returns at `NOMAP` until map integration exists.
@@ -571,8 +571,22 @@ emits affine UV triangles with Gouraud RGB/alpha. This adds no upstream source, 
 desktop `GuiModel.cpp`/vertex-cache allocation path and no additional test fixture.
 The existing GS test scene now covers indexed drawing and five more failure cases.
 
-Production currently has 357 direct inputs, no test inputs/symbols and no GC.
+At the indexed-geometry checkpoint, production had 357 direct inputs, no test inputs/symbols and no GC.
 Debug/release `PT_LOAD` is 11,009,702 / 11,434,406 bytes, and the compile database has
 382 entries. Campaign source dispositions remain unchanged. Both production builds
 pass; target acceptance for indexed geometry is recorded in PORT_STATUS. Native SWF,
-fonts, general materials and the offline menu remain later gates.
+fonts, general materials and the offline menu remained later gates at that checkpoint.
+
+The authored SWF implementation adds strict, cold `ui/authored_assets.cpp` and
+`renderer/font_backend.cpp` to resident support, plus production-only `ui/movie.cpp`.
+No upstream unit is newly enabled: native SWF, Font, Material and DeclManager code was
+already retained. Tagged native seams admit checked binary snapshots, skip unused
+retail cursor/controller preloads, retain the white RGBA intrinsic, free font arrays
+and use caller-owned timeline time for redraws. The core target retains inactive font
+providers and does not link the movie, native Font/SWF or authored resource snapshot.
+
+Production now has 360 direct inputs, zero test inputs/symbols and no GC. Debug/release
+`PT_LOAD` is 11,018,214 / 11,435,878 bytes; the compile database has 385 entries.
+`make ui` packages authored data separately from the existing console/headless packages;
+`make test-ui` exercises the production movie and its failure boundaries. Retail menu
+dependencies, general material/image/font loading and the offline shell remain pending.

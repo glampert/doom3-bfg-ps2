@@ -58,20 +58,32 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   Common frames own exactly one native console presentation; `UpdateScreen` coalesces
   redraw requests during a frame and never advances simulation. Finish queued capture
   and final presentation before UI/device shutdown; visible vsync adds no headless sleep.
+  `make ui` / `make run-ui` stage/run the same ELF with the authored native SWF under
+  `build/<config>/ui/`, using `CONSOLE_STANDARD` for NTSC/PAL. `make test-ui` checks native
+  loading, ASCII `idFont`, timeline color/alpha, AVM1 focus/select, capture and reloads.
+  `ps2_ui` controls load/unload/reload/status/pause/resume; `ps2_uiKey tab`/`enter` supply
+  native SWF key events while the console is closed. Console input has priority; its
+  toggle opens/closes it over the movie. The game stays in `NOMAP`. Authored assets and
+  their compiled exact-byte admission profile come from `build_authored_ui.py`; use
+  `--check` to detect stale outputs before staging. General BSWF parsing/conversion and
+  retail menu/Shell integration remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
   RGB/alpha, context flips, residency/buffer pressure, reload/cleanup and twelve
   bounds/state/deadline failures. `make run-renderer` captures
   and holds the NTSC scene for inspection.
-  Production optionally presents the real native console through Common; SWF/menu
-  providers remain pending. `ui::Init/Shutdown` explicitly own native 2D capability
-  and intrinsic images after/before the caller-owned `rs` device; low-level GS
+  Production optionally presents the real native console and authored native SWF through
+  Common; retail menu/Shell providers remain pending. `ui::Init/Shutdown` explicitly own
+  native 2D capability and intrinsic images after/before the caller-owned `rs` device; low-level GS
   readiness alone never changes `R_IsInitialized`, and OpenGL stays unavailable.
   UI collection owns 4,096 vertices, 6,144 indices and 128 ordered draw runs. Fill returned
   write-only spans before the next allocation/draw; flushing or ending a frame recycles
   them. Native vertex-cache/static/joint buffers remain unavailable. Half UVs are decoded
-  from checked bits, and `color2` currently requires exactly 128 in all four channels.
+  from checked bits, and `color2` requires exactly 128 in all four channels; the scoped
+  native SWF path also admits its zero-additive encoding of 127. Additive color stays
+  unsupported. The native font cache owns the authored ASCII font and a separate lazy
+  atlas with gutters; shut down movies before fonts and fonts/images before the device.
   The device owns tagged command halves/pixels and uses `draw`, `graph`, `packet2`, `dma`.
   Preserve release preflight/deadlines, VIF/GIF ownership and immediate final presentation.
 - `make compile-core` checks the explicit scalar idlib/framework source set.

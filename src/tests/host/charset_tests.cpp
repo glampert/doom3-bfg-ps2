@@ -149,6 +149,55 @@ bool Cursors(const Buffer & pixels)
     }
     return true;
 }
+
+bool FontAtlas(const Buffer & console)
+{
+    Buffer guarded(ps2::render::kAuthoredFontAtlasBytes + kGuardBytes * 2U, kGuard);
+    auto * const pixels = guarded.data() + kGuardBytes;
+    if (!Check(!ps2::render::MakeAuthoredFontCharset(nullptr, ps2::render::kAuthoredFontAtlasBytes), "null font buffer") ||
+        !Check(!ps2::render::MakeAuthoredFontCharset(pixels, ps2::render::kAuthoredFontAtlasBytes - 1U), "short font buffer") ||
+        !Check(std::all_of(guarded.begin(), guarded.end(), [](std::uint8_t byte) { return byte == kGuard; }),
+               "rejected font generation changes no bytes") ||
+        !Check(ps2::render::MakeAuthoredFontCharset(pixels, ps2::render::kAuthoredFontAtlasBytes), "exact font capacity"))
+    {
+        return false;
+    }
+    for (size_t i = 0; i < kGuardBytes; ++i)
+    {
+        if (!Check(guarded[i] == kGuard && guarded[guarded.size() - 1U - i] == kGuard, "font prefix/tail guards")) { return false; }
+    }
+    for (int y = 0; y < ps2::render::kAuthoredFontAtlasHeight; ++y)
+    {
+        for (int x = 0; x < ps2::render::kAuthoredFontAtlasWidth; ++x)
+        {
+            const int code = (y / 16) * 16 + x / 32;
+            const int localX = x % 32;
+            const int localY = y % 16;
+            const std::uint8_t expected = code >= 32 && code <= 126 && localX >= 1 && localX <= 15 && localY >= 1 && localY <= 14 ?
+                Texel(console, code, localX - 1, localY)[3] : 0;
+            const size_t offset = static_cast<size_t>(y * ps2::render::kAuthoredFontAtlasWidth + x) * 4U;
+            if (!Check(pixels[offset] == 255 && pixels[offset + 1U] == 255 && pixels[offset + 2U] == 255 &&
+                       pixels[offset + 3U] == expected, "font matches console coverage with transparent half-texel gutters"))
+            {
+                return false;
+            }
+        }
+    }
+    for (int code = 32; code <= 126; ++code)
+    {
+        const float s = static_cast<float>((code & 15) * 32 + 1);
+        const float t = static_cast<float>((code >> 4) * 16 + 1);
+        if (!Check(s - 0.5f > 0.0f && t - 0.5f > 0.0f &&
+                   s + 15.5f < static_cast<float>(ps2::render::kAuthoredFontAtlasWidth) &&
+                   t + 14.5f < static_cast<float>(ps2::render::kAuthoredFontAtlasHeight), "native font expanded UVs stay inside atlas"))
+        {
+            return false;
+        }
+    }
+    Buffer reload(ps2::render::kAuthoredFontAtlasBytes, kGuard);
+    return Check(ps2::render::MakeAuthoredFontCharset(reload.data(), reload.size()) &&
+                 std::equal(reload.begin(), reload.end(), pixels), "font reload is deterministic");
+}
 } // namespace
 
 int main()
@@ -156,7 +205,7 @@ int main()
     Buffer pixels(ps2::render::kConsoleAtlasBytes, kGuard);
     Buffer reload(ps2::render::kConsoleAtlasBytes, 0);
     if (!Bounds() || !Check(ps2::render::MakeConsoleCharset(pixels.data(), pixels.size()), "atlas generation") ||
-        !Pixels(pixels) || !Characters(pixels) || !Cursors(pixels) ||
+        !Pixels(pixels) || !Characters(pixels) || !Cursors(pixels) || !FontAtlas(pixels) ||
         !Check(ps2::render::MakeConsoleCharset(reload.data(), reload.size()) && pixels == reload, "reload is deterministic"))
     {
         return 1;

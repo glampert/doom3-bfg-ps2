@@ -392,9 +392,12 @@ static bool R_ParseImageProgram_r( idLexer &src, byte **pic, int *width, int *he
 	}
 
 	// also check for _white
+	// [PS2_D3BFG]: UI uses the owned RGBA intrinsic, without desktop YCoCg disk-image remapping.
+#if !defined( ID_PS2 )
 	if ( token == "_white" ) {
 		token = "guis\\assets\\white";
 	}
+#endif
 
 	AppendToken( token );
 

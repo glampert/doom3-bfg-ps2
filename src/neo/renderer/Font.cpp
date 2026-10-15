@@ -28,6 +28,11 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "../idlib/precompiled.h"
 #include "Font.h"
+// [PS2_D3BFG]: Validate the bounded authored profile before native font allocation and loading.
+#if defined( ID_PS2 )
+#include "ps2/renderer/font_backend.h"
+#include "ps2/ui/authored_assets.h"
+#endif
 
 const char * DEFAULT_FONT = "Arial_Narrow";
 
@@ -79,6 +84,13 @@ idFont::~idFont
 ==============================
 */
 idFont::~idFont() {
+	// [PS2_D3BFG]: The native font owns both separately allocated glyph/index arrays.
+#if defined( ID_PS2 )
+	if ( fontInfo != NULL ) {
+		Mem_Free( fontInfo->glyphData );
+		Mem_Free( fontInfo->charIndex );
+	}
+#endif
 	delete fontInfo;
 }
 
@@ -89,7 +101,12 @@ idFont::idFont
 */
 idFont::idFont( const char * n ) : name( n ) {
 	fontInfo = NULL;
+	// [PS2_D3BFG]: The authored ASCII font has no localization aliases or retail fallback.
+#if defined( ID_PS2 )
+	alias = NULL;
+#else
 	alias = RemapFont( n );
+#endif
 
 	if ( alias != NULL ) {
 		// Make sure we don't have a circular reference
@@ -102,12 +119,17 @@ idFont::idFont( const char * n ) : name( n ) {
 	}
 
 	if ( !LoadFont() ) {
+		// [PS2_D3BFG]: Reject unavailable/malformed authored fonts without probing retail assets.
+#if defined( ID_PS2 )
+		idLib::FatalError( "Could not load authored ASCII font \"%s\"", n );
+#else
 		if ( name.Icmp( DEFAULT_FONT ) == 0 ) {
 			idLib::FatalError( "Could not load default font \"%s\"", DEFAULT_FONT );
 		} else {
 			idLib::Warning( "Could not load font %s", n );
 			alias = renderSystem->RegisterFont( DEFAULT_FONT );
 		}
+#endif
 	}
 }
 
@@ -168,10 +190,23 @@ idFont::LoadFont
 */
 bool idFont::LoadFont() {
 	idStr fontName = va( "newfonts/%s/48.dat", GetName() );
+	// [PS2_D3BFG]: The authored bytes are checked before publishing an immutable native file.
+#if defined( ID_PS2 )
+	idFile * fd = ps2::ui::OpenAuthoredAsset( fontName );
+#else
 	idFile * fd = fileSystem->OpenFileRead( fontName );
+#endif
 	if ( fd == NULL ) {
 		return false;
 	}
+	// [PS2_D3BFG]: Require exact bounded counts, metrics and atlas coordinates before allocation.
+#if defined( ID_PS2 )
+	static_assert( sizeof( glyphInfo_t ) == 10, "authored font records require the native padded layout" );
+	if ( !ps2::fonts::PreflightAuthoredFont( fd, GetName() ) ) {
+		delete fd;
+		return false;
+	}
+#endif
 
 	const int FONT_INFO_VERSION = 42;
 	const int FONT_INFO_MAGIC = ( FONT_INFO_VERSION | ( 'i' << 24 ) | ( 'd' << 16 ) | ( 'f' << 8 ) );
@@ -228,8 +263,19 @@ bool idFont::LoadFont() {
 	fontTextureName.SetFileExtension( "tga" );
 
 	fontInfo->material = declManager->FindMaterial( fontTextureName );
+	// [PS2_D3BFG]: Native glyph scaling dereferences the first image; retain release validation.
+#if defined( ID_PS2 )
+	ps2::fonts::ValidateAuthoredFontMaterial( fontInfo->material );
+#endif
 	fontInfo->material->SetSort( SS_GUI );
 
+	// [PS2_D3BFG]: Authored metrics already match the atlas; do not probe legacy retail metrics.
+#if defined( ID_PS2 )
+	for ( int i = 0; i < 3; i++ ) {
+		fontInfo->oldInfo[i].maxWidth = 16;
+		fontInfo->oldInfo[i].maxHeight = 14;
+	}
+#else
 	// Load the old glyph data because we want our new fonts to fit in the old glyph metrics
 	int pointSizes[3] = { 12, 24, 48 };
 	float scales[3] = { 4.0f, 2.0f, 1.0f };
@@ -264,6 +310,7 @@ bool idFont::LoadFont() {
 			fontInfo->oldInfo[i].maxHeight = mh;
 		}
 	}
+#endif
 	delete fd;
 	return true;
 }

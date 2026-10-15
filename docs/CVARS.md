@@ -11,16 +11,29 @@ native command and cvar system. Test executables do not register production cont
 Presentation is an early package policy, not a cvar: `presentation.cfg` beside the
 ELF contains `headless`, `ntsc` or `pal`. A missing file selects headless. The policy
 is read before Common startup and device allocation; `d3bfg.cfg` runs afterward.
-Visible mode additionally registers `ps2_consoleText`, `ps2_consoleKey` and
-`ps2_capture` as `CMD_FL_SYSTEM` console commands, not cvars. See
-[README.md](../README.md#build) for argument limits and usage.
+Visible mode additionally registers the following `CMD_FL_SYSTEM` console commands,
+not cvars. They have no debug/release default or archive behavior:
+
+| Command | Arguments and behavior |
+| --- | --- |
+| `ps2_consoleText` | One quoted printable ASCII argument, delivered to the active native console edit field. |
+| `ps2_consoleKey` | One named native console key; `toggle` opens/closes the console over an active movie. |
+| `ps2_capture` | One checked `.tga` basename; capture the next completed presentation, including before queued quit. |
+| `ps2_ui` | One of `load`, `unload`, `reload`, `status`, `pause`, `resume`; controls the authored native SWF. Load closes the console; unload reopens it. |
+| `ps2_uiKey` | `tab` or `enter`; queue native SWF key events for the loaded movie while the console is closed. |
+
+`ps2_ui` and `ps2_uiKey` are registered in `src/ps2/ui/movie.cpp`; the other visible
+controls are registered in `src/ps2/system/presentation.cpp`. Native console input takes
+priority over SWF input. The UI package selects startup loading with a `ps2_ui load`
+command in its packaged `d3bfg.cfg`; there is no UI-enable cvar. See
+[README.md](../README.md#build) for complete argument limits and usage.
 
 The following engine cvars have PS2-specific policies:
 
 | Name | Debug default | Release default | Flags | Behavior and registration |
 | --- | --- | --- | --- | --- |
 | `jobs_numThreads` | `0` | `0` | `CVAR_INTEGER`, `CVAR_NOCHEAT`, `CVAR_INIT` | Initial synchronous scheduler; worker creation is disabled and explicit parallelism requests still execute on the caller. Registered in `src/neo/idlib/ParallelJobList.cpp`. |
-| `com_smp` | `0` | `0` | `CVAR_BOOL`, `CVAR_SYSTEM`, `CVAR_NOCHEAT`, `CVAR_ROM` | Synchronous game/draw dispatch; portable startup creates no game worker. Registered in `src/neo/framework/Common.cpp`, including the foundation. Game execution is still deferred. |
+| `com_smp` | `0` | `0` | `CVAR_BOOL`, `CVAR_SYSTEM`, `CVAR_NOCHEAT`, `CVAR_ROM` | Synchronous game/draw dispatch; portable startup creates no game worker. Registered in `src/neo/framework/Common.cpp`, including the foundation. Production calls native `RunFrame` on the caller and stays in `NOMAP`. |
 | `sys_lang` | `english` | `english` | `CVAR_SYSTEM`, `CVAR_INIT` | Resource language identifier; six engine language names are exposed. Restart policy follows `CVAR_INIT`. Registered in `src/ps2/system/sys_services.cpp`. |
 | `net_clientMaxPrediction` | `5000` | `5000` | `CVAR_SYSTEM`, `CVAR_INTEGER`, `CVAR_NOCHEAT` | Retained frame metadata in milliseconds; no online service is enabled. Registered in `src/ps2/system/common_campaign.cpp`. |
 | `saveGame_enable` | `0` | `0` | `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled save policy in both core and campaign builds; neither live nor restart changes enable storage. Forced internal writes still encounter the unavailable session save manager. Registered in `src/ps2/system/save_metadata.cpp`. |
@@ -37,7 +50,8 @@ do not enable a service. Other imported engine cvars retain their upstream defau
 Production console startup forces `com_allowConsole=1`, `s_noSound=1` and
 `g_xp_bind_run_once=1` before game initialization; these are startup policy overrides,
 not changed declarations/defaults. They open the native console, keep playback inactive
-and avoid executing desktop control bindings. No menu SWF or input device is initialized.
+and avoid executing desktop control bindings. The authored SWF is an explicit visible-mode
+command; retail menu startup and physical input devices remain inactive.
 The test bootstrap may register temporary fixture cvars; those are test inputs rather than user-facing backend controls.
 
 When a cvar is added to `src/ps2/`, record its name, debug and release defaults, flags,
@@ -52,8 +66,9 @@ The 42 controls below are registered by [render_cvars.cpp](../src/ps2/renderer/r
 in both core and campaign builds. Native defaults, declared flags, numeric bounds and
 completion handlers are preserved. They remain live cvars under the engine's cheat
 policy; neither changing them nor setting a skip flag initializes the renderer.
-Drawing, image/shader loading and buffer allocation fail at the interface until their
-logical contracts exist. No GS/device behavior is implemented by this registration.
+World drawing, general image/shader loading and native vertex-cache allocation remain
+unavailable. The separate console/authored-SWF paths use their bounded 2D providers;
+these retained frontend cvar registrations do not initialize a GS device or select UI presentation.
 
 | Name | Debug default | Release default | Declaration flags | Bounds / metadata |
 | --- | --- | --- | --- | --- |

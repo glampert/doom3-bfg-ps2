@@ -86,7 +86,12 @@ void idSWF::Render( idRenderSystem * gui, int time, bool isSplitscreen ) {
 		}
 	}
 
+	// [PS2_D3BFG]: The caller owns timeline time so redraws can preserve the current frame.
+#if defined( ID_PS2 )
+	int currentTime = time;
+#else
 	int currentTime = Sys_Milliseconds();
+#endif
 	int framesToRun = 0;
 
 	if ( paused ) {

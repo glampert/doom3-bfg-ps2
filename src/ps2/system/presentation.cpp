@@ -7,6 +7,8 @@
 #include "ps2/renderer/capture.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/ui_draw.h"
+#include "ps2/renderer/font_backend.h"
+#include "ps2/ui/movie.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
@@ -118,6 +120,7 @@ void Present()
     ps2::rs::BeginFrame({16, 24, 40, 255});
     renderSystem->SetGLState(0);
     renderSystem->SetColor(colorWhite);
+    ps2::movie::Render(s_inFrame);
     console->Draw(false);
     ps2::rs::EndFrame();
     if (s_captureName[0] != '\0')
@@ -185,6 +188,8 @@ void InitPresentation()
         rs::Shutdown();
         FatalError("cannot initialize native console images");
     }
+    fonts::Init();
+    movie::Init();
     cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, "type quoted ASCII into the native console edit field");
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, "send a named native console key");
     cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, "capture the next completed console frame to a HostFs .tga basename");
@@ -233,6 +238,8 @@ void ShutdownPresentation(int frames)
     cmdSystem->RemoveCommand("ps2_capture");
     cmdSystem->RemoveCommand("ps2_consoleKey");
     cmdSystem->RemoveCommand("ps2_consoleText");
+    movie::Shutdown();
+    fonts::Shutdown();
     ui::Shutdown();
     rs::Shutdown();
 }

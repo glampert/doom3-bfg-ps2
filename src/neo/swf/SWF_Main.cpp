@@ -54,6 +54,11 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 	random.SetSeed( Sys_Milliseconds() );
 
 	guiSolid = declManager->FindMaterial( "guiSolid" );
+	// [PS2_D3BFG]: Keyboard-only authored UI does not preload unused retail cursor/controller media.
+#if defined( ID_PS2 )
+	white = declManager->FindMaterial( "_white" );
+	guiCursor_arrow = guiCursor_hand = NULL;
+#else
 	guiCursor_arrow = declManager->FindMaterial( "ui/assets/guicursor_arrow" );
 	guiCursor_hand = declManager->FindMaterial( "ui/assets/guicursor_hand" );
 	white = declManager->FindMaterial( "_white" );
@@ -78,6 +83,8 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 			declManager->FindMaterial( tooltipButtonImage[index].psImage );
 		}
 	}
+
+#endif
 
 	frameWidth = 0;
 	frameHeight = 0;
@@ -121,6 +128,10 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 	binaryFileName += filename;
 	binaryFileName.SetFileExtension( ".bswf" );
 
+	// [PS2_D3BFG]: Authored cooked UI never falls back to source inflation or target cache writes.
+#if defined( ID_PS2 )
+	if ( !LoadBinary( binaryFileName, timestamp ) ) { idLib::FatalError( "authored native SWF load failed" ); }
+#else
 	if ( swf_loadBinary.GetBool() ) {
 		ID_TIME_T sourceTime = fileSystem->GetTimestamp( filename );
 		if ( !LoadBinary( binaryFileName, sourceTime ) ) {
@@ -131,6 +142,8 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 	} else {
 		LoadSWF( filename );
 	}
+#endif
+
 	idStr atlasFileName = binaryFileName;
 	atlasFileName.SetFileExtension( ".tga" );
 	atlasMaterial = declManager->FindMaterial( atlasFileName );

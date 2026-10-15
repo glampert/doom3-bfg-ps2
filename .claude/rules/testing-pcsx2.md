@@ -53,6 +53,22 @@
   input/config/data hashes and matched production evidence are archived. Inspect
   images as well as logs; this proves console presentation, not SWF/menu or hardware
   acceptance. Run all emulator targets sequentially in isolated sessions.
+- `make test-ui` / `make BUILD=release test-ui` exercise the authored native SWF in the
+  production ELF. Three loads each render at least 120 frames, pause two different
+  timeline states (including fractional alpha), execute native Tab/Enter AVM1 focus and
+  selection, and open/type/close the real console over the movie. Twenty-eight pixels
+  per capture cover shapes, a skewed bitmap, glyph strokes/holes, focus and status text.
+  Require stable warm unload ledgers, full startup recovery, one presentation per normal
+  frame, coalesced redraws and final capture/quit. Six fresh processes reject missing,
+  truncated, oversized or mutated BSWF and missing/mutated font data before publication.
+  The runner uses actual native Echo output as a wait barrier: HostFs submission logs
+  alone precede command execution. Animation waits must exceed the 6 Hz authored
+  timeline interval; repeatedly pausing earlier resets its partial interval. Select
+  glyph probes inside stroke row centers at both 448 and 512 lines, keeping the existing
+  framebuffer tolerance. Inspect native captures; this is authored UI, not retail shell
+  or physical PS2 acceptance. `make ui` / `run-ui` stage/launch the same ELF and opt-in
+  assets, with `CONSOLE_STANDARD=ntsc` or `pal`.
+
 - `make` / `make release` build production, without smoke fixtures. Build tests
   explicitly with `make platform-probe`, `make headless-core` or `make headless-game`.
   All native test variants are named `d3bfg_tests.elf` under `build/<config>/tests/`.

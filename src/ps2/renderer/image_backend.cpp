@@ -25,8 +25,10 @@ namespace
 {
 static bool s_initialized = false;
 static idImage * s_charsetImage = nullptr;
+static idImage * s_fontImage = nullptr;
 static constexpr const char * kWhiteName = "_white";
 static constexpr const char * kCharsetName = "textures/bigchars";
+static constexpr const char * kFontName = "textures/ps2_ascii";
 
 bool IsWhiteName(const char * name)
 {
@@ -36,9 +38,13 @@ bool IsCharsetName(const char * name)
 {
     return name != nullptr && idStr::Icmp(name, kCharsetName) == 0;
 }
+bool IsFontName(const char * name)
+{
+    return name != nullptr && idStr::Icmp(name, kFontName) == 0;
+}
 bool SupportedImage(const idImage * image)
 {
-    return s_initialized && image != nullptr && (image == globalImages->whiteImage || image == s_charsetImage);
+    return s_initialized && image != nullptr && (image == globalImages->whiteImage || image == s_charsetImage || image == s_fontImage);
 }
 bool SupportedSampler(const idImage * image, textureFilter_t filter, textureRepeat_t repeat)
 {
@@ -54,6 +60,17 @@ ps2::tex::Sampler ImageSampler(const idImage * image)
 {
     return {ps2::tex::Filter::Nearest, image == globalImages->whiteImage ? ps2::tex::Wrap::Repeat : ps2::tex::Wrap::Clamp,
             image == globalImages->whiteImage ? ps2::tex::Wrap::Repeat : ps2::tex::Wrap::Clamp};
+}
+void GenerateFontImage(idImage * image)
+{
+    auto * const pixels = ps2::heap::Alloc(ps2::render::kAuthoredFontAtlasBytes, TAG_RENDER);
+    if (!ps2::render::MakeAuthoredFontCharset(pixels, ps2::render::kAuthoredFontAtlasBytes))
+    {
+        ps2::FatalError("authored native font atlas generation failed");
+    }
+    image->GenerateImage(static_cast<const byte *>(pixels), ps2::render::kAuthoredFontAtlasWidth,
+                         ps2::render::kAuthoredFontAtlasHeight, TF_NEAREST, TR_CLAMP, TD_FONT);
+    ps2::heap::Free(pixels);
 }
 } // namespace
 
@@ -74,11 +91,12 @@ void ShutdownConsoleImages()
 bool ConsoleImagesInitialized() { return s_initialized; }
 idImage * ConsoleWhiteImage() { return s_initialized ? globalImages->whiteImage : nullptr; }
 idImage * ConsoleCharsetImage() { return s_initialized ? s_charsetImage : nullptr; }
+idImage * AuthoredFontImage() { return s_initialized ? s_fontImage : nullptr; }
 tex::Handle ConsoleImageTexture(const idImage * image)
 {
     if (!SupportedImage(image) || image->backendState == nullptr)
     {
-        Unavailable("ConsoleImageTexture outside the loaded console profile");
+        Unavailable("ConsoleImageTexture outside the loaded authored UI profile");
     }
     return image->backendState->texture;
 }
@@ -103,8 +121,11 @@ int idImage::StorageSize() const { return backendState != nullptr ? backendState
 void idImage::GenerateImage(const byte * rgba, int width, int height, textureFilter_t tf, textureRepeat_t tr, textureUsage_t tu)
 {
     const bool white = this == globalImages->whiteImage;
+    const bool font = this == s_fontImage;
+    const int expectedWidth = white ? 1 : (font ? ps2::render::kAuthoredFontAtlasWidth : ps2::render::kConsoleAtlasSize);
+    const int expectedHeight = white ? 1 : (font ? ps2::render::kAuthoredFontAtlasHeight : ps2::render::kConsoleAtlasSize);
     if (!SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
-        (white ? (width != 1 || height != 1) : (width != ps2::render::kConsoleAtlasSize || height != ps2::render::kConsoleAtlasSize)))
+        width != expectedWidth || height != expectedHeight)
     {
         ps2::render::Unavailable("idImage::GenerateImage outside the console profile");
     }
@@ -206,6 +227,7 @@ PS2_COLD_FUNC void idImageManager::Shutdown()
     imageHash.Clear();
     whiteImage = nullptr;
     s_charsetImage = nullptr;
+    s_fontImage = nullptr;
     s_initialized = false;
 }
 
@@ -214,6 +236,7 @@ idImage * idImageManager::GetImage(const char * name) const
     if (!s_initialized || this != globalImages) { ps2::render::Unavailable("idImageManager::GetImage outside the console profile"); }
     if (IsWhiteName(name)) { return whiteImage; }
     if (IsCharsetName(name)) { return s_charsetImage; }
+    if (IsFontName(name)) { return s_fontImage; }
     return nullptr;
 }
 
@@ -233,9 +256,30 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
     {
         ps2::render::Unavailable("idImageManager::ImageFromFile");
     }
+    if (IsFontName(name) && s_fontImage == nullptr)
+    {
+        if ((tf != TF_DEFAULT && tf != TF_NEAREST) || tr != TR_CLAMP ||
+            (tu != TD_DEFAULT && tu != TD_FONT) || cube != CF_2D)
+        {
+            ps2::render::Unavailable("authored native font sampler profile");
+        }
+        s_fontImage = new (TAG_IMAGE) idImage(kFontName);
+        images.Append(s_fontImage);
+        s_fontImage->referencedOutsideLevelLoad = true;
+        GenerateFontImage(s_fontImage);
+    }
     idImage * const image = GetImageWithParameters(name, tf, tr, tu, cube);
-    if (image == nullptr) { ps2::render::Unavailable("idImageManager::ImageFromFile outside the console profile"); }
-    if (!image->IsLoaded()) { ps2::render::Unavailable("idImageManager::ImageFromFile with purged intrinsic"); }
+    if (image == nullptr)
+    {
+        ps2::FatalError("idImageManager::ImageFromFile outside the authored UI profile name=%s filter=%d repeat=%d usage=%d cube=%d",
+                        name != nullptr ? name : "<null>", static_cast<int>(tf), static_cast<int>(tr),
+                        static_cast<int>(tu), static_cast<int>(cube));
+    }
+    if (!image->IsLoaded())
+    {
+        if (image != s_fontImage) { ps2::render::Unavailable("idImageManager::ImageFromFile with purged intrinsic"); }
+        GenerateFontImage(image);
+    }
     image->AddReference();
     return image;
 }

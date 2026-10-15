@@ -20,8 +20,8 @@ submission still fail by method name. The separate CPU-only GS device layer now 
 solid and direct RGBA 2D frames. Explicit native UI activation now supplies a bounded
 white/ASCII image and axis-quad/text profile. Production now optionally draws the real
 native console through Common. Bounded indexed GUI collection and CPU triangles now
-extend the native adapter; SWF execution, general image loading and VU output remain
-subsequent gates.
+extend the native adapter. The authored native SWF/font path now passes debug/release NTSC/PAL;
+general image loading, retail menus and VU output remain subsequent gates.
 
 - Start the logical renderer frame counter above zero and advance it with game ticks.
   Native `R_EntityDefDynamicModel` compares the definition stamp to `tr.frameCount`;
@@ -103,9 +103,9 @@ underlying texture, then preserves the existing command/FINISH residency fence.
 
 Decode native half UVs from their bits and reject exponent 31 before EE arithmetic;
 the retained `F16toF32` implementation does not preserve Inf/NaN classification. The
-initial indexed profile requires zero depth and exact `color2` bytes of 128. Native SWF's
-`PackColor(0.5)` produces 127, so future zero-additive SWF integration must reconcile that
-encoding explicitly. Nonzero additive transforms remain unsupported.
+initial indexed profile requires zero depth and exact `color2` bytes of 128. Only a
+scoped native SWF draw additionally accepts 127, produced by native `PackColor(0.5)`,
+as its zero-additive encoding. Nonzero additive transforms remain unsupported.
 
 Textured triangles select Gouraud RGB/alpha and affine fixed UV. Each triangle reserves
 30 qwords and explicitly writes TEX1/TEX0/CLAMP/ALPHA/TEST/PRIM plus all three vertices,
@@ -151,6 +151,41 @@ uses the full resident ELF and `run_console.py`, without importing these units i
 - Native ASCII/key commands drive the retained edit field and RAM history. Persistent
   history writes and physical device polling remain unavailable; production console
   close tolerates the absence of mouse capture. Test capability failures stay explicit.
+
+## Doom authored native SWF profile
+
+- Native SWF uses a bounded normal-blend scope around its existing GUI calls. The
+  native GUI fragment shader multiplies texture/vertex RGBA, adds the color transform,
+  then premultiplies RGB by alpha for ONE/ONE_MINUS_SRC_ALPHA blending. With the authored
+  zero-additive transform, GS straight-alpha modulation produces the same intended
+  equation. Do not premultiply the CPU vertex RGB a second time. Other SWF blend modes,
+  masks and nonzero additive color remain unsupported.
+- Native packed zero additive color can be 127, while cleared GUI vertices use 128.
+  Accept either only inside the SWF scope and treat it as zero; this does not implement
+  general additive transforms or preserve the desktop shader's one-byte quantization
+  bias. Preserve the initial strict 128-only contract outside the scope. Flush before
+  entering/leaving the scope and restore saved native state/color so console drawing
+  cannot inherit SWF state. A scope must not cross a frame or shutdown boundary.
+- Keep `_white` and the 256×256 console charset as the two initial images. Only an
+  explicit `textures/ps2_ascii` request creates the third owned font image lazily.
+  It is 512×128 RGBA8, nearest/default filtering and clamp, with TD_FONT/TD_DEFAULT
+  usage. Each printable ASCII glyph copies the existing 15×14 coverage to a padded
+  32×16 cell at `s=(code&15)*32+1`, `t=(code>>4)*16+1`. Other pixels stay transparent.
+  The image manager owns purge, explicit `ImageFromFile` regeneration and shutdown.
+- Native `GetScaledGlyph` expands UVs by half a texel on every side. Console cells
+  beginning at x=0 would yield a negative UV for glyphs in column zero; the padded
+  font atlas keeps all expanded printable glyph UVs strictly inside 512×128. Preserve
+  this gutter instead of clamping transformed UVs and changing their interpolation.
+  Font records stay 10 bytes each and the authored font file stays 1,342 bytes.
+- Movie rendering precedes the real console in the same production frame. Shutdown
+  destroys the movie, then cached fonts, then UI geometry/images and the caller-owned
+  device. Font/image warm caches may survive a movie unload; repeated warm unloads
+  and full Common shutdown are separate ownership checks.
+- Debug/release NTSC/PAL production runs on 2026-10-15 each completed three authored
+  movie load/unload cycles, 28 native pixel checks per capture, console overlays, native
+  Tab/Enter actions, stable warm ledgers and exact full pre-boot ledger recovery. Six
+  fresh malformed/missing asset probes pass in both builds. See PORT_STATUS for matched
+  archives; this does not establish retail SWFs, world rendering or hardware behavior.
 
 ## Quake frame model: 2D and 3D interleave
 

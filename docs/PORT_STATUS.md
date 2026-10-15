@@ -23,10 +23,11 @@ standalone services. Native authored `InitFromNewMap` now loads logical world/mo
 AAS and one idle AI. Full campaign player startup, animated AI/gameplay, retail maps
 and sound/world-render output remain pending. The first CPU-only GS 2D device slice
 now passes in PCSX2. Production now connects the real native console to Common
-frames through an explicit NTSC/PAL boot policy; indexed GUI/SWF and native menu
-integration are the next rendering direction. The first indexed GUI slice now supplies
-bounded CPU collection, clipped textured triangles and per-vertex color/alpha; native
-SWF/font execution and the menu remain pending.
+frames through an explicit NTSC/PAL boot policy. Bounded indexed geometry, native font
+metrics, material declarations and timeline/AVM1 execution now draw an authored mask-free
+SWF with animation, focus/select and console overlays in debug/release NTSC/PAL. Retail
+UI inventory/cooking, required feature closure and native offline menu integration are
+the next rendering work.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
 
@@ -2641,3 +2642,98 @@ budgets. No physical PS2 cache-coherency or GS-cost claim follows from PCSX2 pix
 The next 2D-4 work is a scoped material/image/font path and one mask-free native SWF
 with text, animation and focus/select input. Retail dependency inventory/cooking (2D-5)
 can proceed alongside it; the native BFG main menu remains 2D-7.
+
+## Authored native SWF and fonts (2D-4)
+
+Accepted on **2026-10-15, Australia/Sydney**, with ps2dev GCC 15.2 and PCSX2 2.6.3.
+The production ELF now loads one authored mask-free native BSWF, executes native
+timeline/AVM1 actions, draws native `idFont` text and routes Tab/Enter through native
+SWF events. This completes the authored 2D-4 interface gate. It does not load the
+retail BFG shell, enable physical input, render the world or play sound.
+
+`make ui` / `run-ui` stage and launch the production ELF with optional authored data;
+new package configs load the scene automatically. `ps2_ui` controls loading, unloading,
+reloading, status and pause/resume; `ps2_uiKey tab|enter` queues engine key events.
+The real console retains input priority and can open over the movie. Movie/font/UI/device
+shutdown follows ownership order, and headless startup creates none of these resources.
+
+The reproducible [authored package](../assets/ui/README.md) contains a 2,364-byte BSWF,
+1,342-byte font and 680-byte material file. Native unchecked BSWF/font loaders see an owned
+snapshot only after its length and full contents match the generated authored bytes.
+The 4,386 validation payload bytes are compiled into the backend; this narrow admission
+path is not a general BSWF/font validator. Source-SWF expansion/cache writes, retail
+cursor/controller preloads and font fallback probing stay unavailable.
+
+Native font metrics use the EE's padded ten-byte glyph records. A separately generated
+512×128 RGBA atlas adds 262,144 owned pixel bytes only when the font is requested;
+gutters contain native half-texel UV expansion. Glyph/index arrays are explicitly freed.
+The SWF draw scope accepts native normal blending and neutral `color2` bytes 127/128,
+restores prior color/state afterward, and retains all other material/state/additive
+rejections. Timeline time comes from the production owner so redraws preserve it.
+
+| Native UI acceptance | Debug archive | Release archive |
+| --- | --- | --- |
+| NTSC, three loads | `20261015T072206Z_ui_e4a5793b3c00` | `20261015T072252Z_ui_9788e15effb5` |
+| PAL, three loads | `20261015T072218Z_ui_21b4a8960e9f` | `20261015T072304Z_ui_538cf80e2101` |
+
+Each load draws at least 120 normal frames. Two paused captures have different native
+pulse frames, including fractional alpha. Native Tab/Enter changes focus from row zero
+to one, runs the authored selection function and displays `SELECTED 1`. Opening the
+console, typing/submitting `echo ui_console`, presenting it and closing it succeeds
+before movie input resumes. Each run records three coalesced redraw requests and exactly
+one presentation per normal frame: 559/595 debug NTSC/PAL and 571/601 release NTSC/PAL.
+Capture queued with quit completes before shutdown.
+
+All **24 UI captures pass 28 independent pixel checks each** (672 checks), covering
+indexed shapes, transformed bitmap strokes/holes, native font strokes/holes, focus,
+selection text and animated color/alpha. The unscaled third-cycle selected captures
+were inspected in [NTSC](images/swf-2d-4-ntsc.png) and [PAL](images/swf-2d-4-pal.png).
+Two original probes lay just outside PAL glyph strokes; moving them to stroke-row
+centers made the same probes valid in both standards without changing tolerance.
+
+| Expected asset rejection | Debug archive | Release archive |
+| --- | --- | --- |
+| Missing BSWF | `20261015T072233Z_ui_eb22d75de4a8` | `20261015T072318Z_ui_136765abc09a` |
+| Truncated BSWF | `20261015T072235Z_ui_f6dab22d4c22` | `20261015T072320Z_ui_7942d00ed063` |
+| Oversized BSWF | `20261015T072237Z_ui_b434a32b7dd2` | `20261015T072323Z_ui_a1514ec3024f` |
+| Mutated BSWF | `20261015T072240Z_ui_8678ea98b5dd` | `20261015T072325Z_ui_ff1fdf6faded` |
+| Missing font | `20261015T072242Z_ui_08b58fdb6140` | `20261015T072327Z_ui_d7c42def298c` |
+| Mutated font | `20261015T072244Z_ui_40705a5b83d2` | `20261015T072330Z_ui_2dece6af9258` |
+
+These twelve fresh processes stop at the expected asset diagnostic before a loaded
+movie is published. Stale identities, skipped waits/actions, crashes, wrong diagnostics,
+missing captures and watchdog expiry fail acceptance. HostFs logs submitted commands
+before waits execute, so the driver uses native Echo output as phase barriers.
+
+All warm unloads in all four positive runs return to **2,792,635 requested / 2,892,808
+backing bytes / 2,446 allocations** after clearing native command history. The font and
+material caches intentionally remain warm until UI shutdown. Every full shutdown
+returns to **7,424 / 7,600 bytes / four allocations**. UI peak requested/backing is
+3,065,630 / 3,167,572 bytes; arena high-water is 3,424,282 debug / 3,424,410 release.
+Tagged backing is contained inside the arena, not added to it. These authored-package
+measurements do not estimate retail shell/font residency or physical PS2 performance.
+
+| Existing production/device regression | Debug archive | Release archive |
+| --- | --- | --- |
+| NTSC console | `20261015T072024Z_console_5f6b6c71da40` | `20261015T072332Z_console_b3e3ec21c77d` |
+| PAL console | `20261015T072030Z_console_60f49af75e72` | `20261015T072338Z_console_2a34dd847c15` |
+| Headless 120 frames | `20261015T072036Z_headless_dddf1a32b081` | `20261015T072343Z_headless_0ebf63a328a9` |
+| Headless live input/quit | `20261015T072040Z_headless_e2f22264c897` | `20261015T072348Z_headless_78b6e5770a92` |
+| NTSC integrated renderer | `20261015T072046Z_smoke_34f74eddfcff4a46` | `20261015T072354Z_smoke_2bb13a59701d47df` |
+| PAL integrated renderer | `20261015T072057Z_smoke_a4a874b5aba94aa5` | `20261015T072404Z_smoke_277433cc81904be5` |
+
+All twelve existing renderer bounds/state/deadline cases also pass in each configuration,
+from debug `20261015T072108Z_smoke_eae667d4fe114557` through
+`20261015T072131Z_smoke_fee23b3c59f4412f`, and release
+`20261015T072415Z_smoke_2c3621cc3f2c4ab7` through
+`20261015T072438Z_smoke_389186d16ebe476f`. No new native fixture executable was added.
+
+Both production/core builds pass strict backend compilation. Production retains 360
+direct inputs, zero test inputs/symbols and no linker GC; `PT_LOAD` is 11,018,214 debug /
+11,435,878 release bytes. The compile database has 385 entries. All 160 Python host
+regressions and the existing ASan/UBSan C++ harnesses pass, as does authored-data regeneration.
+
+Next is **2D-5 retail UI dependency/feature inventory and cooking**: identify the bounded
+shell/dialog/font/localization package and its actual mask/blend/atlas requirements.
+Required feature closure is 2D-6, native offline menu integration is 2D-7, and physical
+input/PS2 acceptance is 2D-8. Retail assets and converted output remain local and ignored.

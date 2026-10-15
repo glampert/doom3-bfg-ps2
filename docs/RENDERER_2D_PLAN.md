@@ -42,12 +42,23 @@ Physical PS2 acceptance remains 2D-8.
 2026-10-15:** bounded CPU GUI spans, indexed triangles and
 rotated/skewed native quads now connect to the GS path. The collector retains submission
 order across sprite/triangle changes, clips UV/RGBA with geometry, decodes native half
-UV bits directly and interpolates per-vertex color/alpha. Native SWF execution, fonts
-and the authored mask-free interactive SWF remain the rest of the 2D-4 gate. This slice
+UV bits directly and interpolates per-vertex color/alpha. This first slice preceded native
+SWF execution, fonts and the authored mask-free interactive SWF described below. It
 does not activate desktop vertex-cache handles, general materials or additive color.
 The unscaled [NTSC](images/renderer-2d-4-ntsc.png) and
 [PAL](images/renderer-2d-4-pal.png) captures show this indexed slice; target acceptance
 and measurements are recorded in [PORT_STATUS](PORT_STATUS.md#indexed-native-ui-geometry-2d-4-first-slice).
+
+**2D-4 is accepted in PCSX2 in debug and release on 2026-10-15.** It now loads one reproducible authored native BSWF,
+uses native `idFont` metrics and a guttered ASCII atlas, runs timeline/AVM1 actions and
+routes injected Tab/Enter through native SWF events. The production owner supports
+load/unload/reload and console overlays; native redraws preserve timeline time. Only
+the generated BSWF/font/material bytes are admitted before legacy parsing. This is an
+explicit authored profile, not a general retail loader. Its acceptance record is
+[PORT_STATUS](PORT_STATUS.md#authored-native-swf-and-fonts-2d-4).
+The inspected unscaled [NTSC](images/swf-2d-4-ntsc.png) and
+[PAL](images/swf-2d-4-pal.png) captures show native text, geometry, animated alpha and
+script-driven selection. Retail shell and physical PS2 acceptance remain later gates.
 
 ## Scope and completion criteria
 
@@ -240,10 +251,10 @@ an explicit implementation rather than treating these pointers as handles.
 
 The CPU mapper accepts either winding, clips to the virtual canvas and interpolates
 UV/RGBA before nearest rounding to GS 1/16 pixel/texel fields. Half UV decoding rejects
-exponent 31 before EE arithmetic. The initial additive-color boundary requires exact
-`color2={128,128,128,128}`. Native SWF's `PackColor(0.5)` truncates to 127, so its eventual
-zero-additive adapter must reconcile that encoding explicitly; silently accepting a
-nonzero transform is not part of this slice.
+exponent 31 before EE arithmetic. The initial indexed additive-color boundary required
+exact `color2={128,128,128,128}`. The explicit SWF drawing scope also admits 127, matching
+native `PackColor(0.5)` truncation, with a one-byte neutral encoding difference. Outside
+that scope the original 128 requirement remains. Nonzero additive transforms remain unavailable.
 
 Texture updates/destruction flush queued UI geometry before modifying pixels or VRAM.
 The resource fence therefore covers both collected CPU triangles and emitted GS work.
@@ -499,8 +510,8 @@ That slice proved video setup, command ownership and solid GS pixels in PCSX2.
 2D-2 adds direct textures, residency fences and native capture. Accepted 2D-3 now
 supplies intrinsic images, native display/draw methods and `console->Draw` through
 an explicit production display policy and safe Common frame/`UpdateScreen` lifecycle.
-The current **2D-4** slice supplies bounded indexed UI; the next work is native fonts,
-the required material/image profile and an authored native SWF. Retail
-UI dependency/cooking inventory (**2D-5**) can proceed in parallel. SWF and main-menu
-startup remain later gates; console presentation does not establish native menu or
-world-rendering acceptance.
+The current **2D-4** implementation supplies bounded indexed UI, authored materials,
+native fonts and one interactive mask-free native SWF. The next work is retail UI
+dependency/cooking inventory (**2D-5**), followed by required SWF feature closure
+(**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
+the interface; native BFG menu and world-rendering acceptance remain separate gates.

@@ -32,6 +32,11 @@ If you have questions concerning this license or the applicable additional terms
 #pragma warning(disable: 4355) // 'this' : used in base member initializer list
 
 #define BSWF_VERSION 16		// bumped to 16 for storing atlas image dimensions for unbuffered loads
+// [PS2_D3BFG]: The first native UI profile admits exact authored snapshots before legacy parsing.
+#if defined( ID_PS2 )
+#include "ps2/ui/authored_assets.h"
+#endif
+
 #define BSWF_MAGIC ( ( 'B' << 24 ) | ( 'S' << 16 ) | ( 'W' << 8 ) | BSWF_VERSION )
 
 /*
@@ -128,7 +133,12 @@ idSWF::LoadBinary
 ===================
 */
 bool idSWF::LoadBinary( const char * bfilename, ID_TIME_T sourceTime ) {
+	// [PS2_D3BFG]: Validate bounded authored bytes once before trusting counts or pointers.
+#if defined( ID_PS2 )
+	idFile * f = ps2::ui::OpenAuthoredAsset( bfilename );
+#else
 	idFile * f = fileSystem->OpenFileReadMemory( bfilename );
+#endif
 	if ( f == NULL || f->Length() <= 0 ) {
 		return false;
 	}

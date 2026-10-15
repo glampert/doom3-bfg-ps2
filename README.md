@@ -3,13 +3,15 @@
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
 using the free ps2dev SDK. The production executable boots the native game into a
 headless or GS-rendered native console and runs the Common/game loop until `quit` or
-a frame limit. NTSC/PAL presentation is an explicit package startup choice.
+a frame limit. The same executable can load an authored native SWF with text, timeline
+animation and keyboard focus/select events. NTSC/PAL presentation is an explicit
+package startup choice.
 Separate native test executables exercise a scalar EE core and an authored headless
 game fixture that runs native initialization, entity thinking, script events, bounded collision/physics
 and a restricted native `idPlayer`. An authored map also boots through native `InitFromNewMap`
 with logical world/model/PVS queries, collision, AAS and one idle native AI. Full campaign player startup, retail maps,
-native SWF/menu and world rendering, SPU2 output, physical input and saves remain later
-milestones; the port is not playable yet.
+retail SWF/menu integration and world rendering, SPU2 output, physical input and saves
+remain later milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
 under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
@@ -25,7 +27,8 @@ memory requirements, and acceptance gates. The CPU-only GS device layer now draw
 solid colors and RGBA textures with alpha in NTSC/PAL. It owns bounded pixel/VRAM
 storage, fences dirty uploads and eviction, and streams native framebuffer captures
 with checked writes and recoverable readback deadlines. Production can now call the
-real native `console->Draw` after each Common frame; SWF/menu drawing remains pending.
+real native `console->Draw` after each Common frame and draw an authored native SWF
+beneath it.
 Debug/release NTSC/PAL console acceptance and inspected captures are recorded in
 [PORT_STATUS.md](docs/PORT_STATUS.md#production-native-visible-console-2d-3).
 
@@ -41,10 +44,20 @@ and textured triangles with per-vertex RGB/alpha. CPU spans hold at most 4,096 v
 6,144 indices and 128 ordered draws; a flush consumes and recycles them. Geometry is
 clipped on the 640×480 canvas before fixed-point GS emission, and mixed sprite/triangle
 calls preserve submission order. This uses the existing intrinsic images and restricted
-constant-material profile. Native SWF execution, fonts, general material/image loading
-and additive vertex color remain pending; this slice does not complete 2D-4.
+constant-material profile. General material/image loading and additive vertex color
+remain pending.
 Debug/release NTSC/PAL captures, bounds failures and production regressions pass;
 see the [indexed UI acceptance record](docs/PORT_STATUS.md#indexed-native-ui-geometry-2d-4-first-slice).
+
+The authored 2D-4 slice now connects the native SWF loader, timeline, AVM1 interpreter and
+`idFont` to this geometry path. [Authored UI data](assets/ui/README.md) supplies a
+mask-free scene with transformed bitmap geometry, solid fills, ASCII text, color/alpha
+animation and Tab/Enter focus/select functions. Its font uses a separate procedural
+atlas with UV gutters. BSWF/font loading admits exact authored snapshots before the
+legacy binary parsers run. Retail main-menu/Shell integration, general asset conversion,
+masks, gradients, additive color and broader material profiles remain pending.
+Debug/release NTSC/PAL acceptance, native captures and stable reload/shutdown ledgers
+are recorded in [PORT_STATUS](docs/PORT_STATUS.md#authored-native-swf-and-fonts-2d-4).
 
 ## Build
 
@@ -63,6 +76,11 @@ make CONSOLE_STANDARD=pal console # select PAL presentation
 make run-console             # run the visible console package in PCSX2
 make test-console            # native console/edit/history/capture/quit checks in NTSC/PAL
 make BUILD=release test-console # same production presentation checks without assertions
+make ui                      # package the authored native SWF with visible NTSC presentation
+make CONSOLE_STANDARD=pal ui  # select PAL for the authored UI package
+make run-ui                  # run the authored native SWF in PCSX2
+make test-ui                 # native SWF/font/timeline/focus/reload/capture checks in NTSC/PAL
+make BUILD=release test-ui    # same authored UI checks without assertions
 make test-headless           # 120 frames, live console commands and shutdown in PCSX2
 make BUILD=release test-headless # same production checks without assertions
 make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes
@@ -95,7 +113,7 @@ and silent sound bookkeeping. Common processes console events, commands, offline
 services and native `RunFrame` on the calling thread. Headless mode retains approximately
 60 Hz idle pacing; visible mode presents once per completed Common frame and uses GS
 vsync without an additional sleep. The game remains in `NOMAP`, whose native frame
-returns without advancing map simulation. Main-menu SWF, map transitions and physical
+returns without advancing map simulation. Retail main-menu SWF, map transitions and physical
 input remain pending. Startup checks `base/default.cfg` for existence and optionally executes
 `base/d3bfg.cfg`; desktop bindings are not executed. `quit` / `exit` request ordered
 game/world/console shutdown followed by Common shutdown at the frame boundary.
@@ -149,6 +167,28 @@ package root. A capture queued with `quit` completes after the final native
 draw and before UI/device shutdown. Visible `ps2_status` also reports presentation
 and redraw-request counts. These three controls are available only in visible mode;
 `ps2_maxFrames` and the ordinary command stream work in either mode.
+
+`make ui` stages the same production ELF with the resources from `assets/ui/base/`
+under `build/<config>/ui/`. It uses `CONSOLE_STANDARD=ntsc` or `pal` and adds
+`ps2_ui load` to a newly created packaged `base/d3bfg.cfg`. Existing packaged settings
+are preserved; append that command manually if an older configuration does not load
+the scene. The native game remains in `NOMAP` while the authored movie runs.
+
+```sh
+printf 'ps2_uiKey tab\nps2_uiKey enter\nps2_ui status\n' >> build/debug/ui/console.txt
+printf 'ps2_capture "ui-selected.tga"\n' >> build/debug/ui/console.txt
+printf 'ps2_consoleKey toggle\n' >> build/debug/ui/console.txt
+```
+
+`ps2_ui` takes one of `load`, `unload`, `reload`, `status`, `pause` or `resume`.
+Loading closes the console; unloading reopens it. Reloading resets the authored
+focus and selection state. `ps2_uiKey tab` and `ps2_uiKey enter` deliver native key
+events to the loaded movie while the console is closed. The authored AVM1 functions
+move focus, select an item and update the status text. Native console input has
+priority: `ps2_consoleKey toggle` opens it over the movie, and toggling again restores
+movie input. UI commands are visible-mode controls registered as ordinary system
+commands; no physical input device is enabled. `ps2_capture` and queued final capture
+before `quit` work with either console or movie drawing.
 
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 `d3bfg_tests.map`. `make headless-core` writes `build/<config>/tests/core/`,
@@ -295,8 +335,9 @@ supports display metrics, color/state, fills, constant-material quads, bounded i
 triangles with per-vertex RGB/alpha and authored ASCII text; unsupported state,
 geometry, images, shaders and demos fail explicitly.
 The 42 frontend cvars retain native defaults and flags. Production activates the device
-and intrinsic images only when its startup policy requests a visible console; general
-SWF/menu and world drawing remain pending.
+and intrinsic images only when its startup policy requests visible presentation. The
+authored SWF uses native material declarations, font metrics and timeline/scripts;
+general SWF assets, retail menu integration and world drawing remain pending.
 
 The deferred game/UI providers now close the multiplayer, leaderboard, shell and save
 metadata link group. Single-player multiplayer reset/precache and empty scoreboard
