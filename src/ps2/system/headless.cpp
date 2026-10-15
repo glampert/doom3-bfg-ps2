@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: headless.cpp
-// Brief: Own native game/console startup, headless frames and live HostFs console commands.
+// Brief: Own native game/console startup, synchronous frames and live HostFs commands.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -20,7 +20,7 @@
 namespace
 {
 static idCVar s_maxFrames("ps2_maxFrames", "0", CVAR_SYSTEM | CVAR_INTEGER,
-                         "quit after this many completed headless frames; zero runs until quit", 0.0f, 1000000.0f);
+                         "quit after this many completed frames; zero runs until quit", 0.0f, 1000000.0f);
 static bool s_quitRequested = false;
 static bool s_initialized = false;
 static int s_frames = 0;
@@ -40,9 +40,10 @@ void Status(const idCmdArgs &)
              "[D3BFG] HEADLESS frames=%d game_frames=%d state=console console=%d game_nomap=%d render_device=%d sound_output=%d heap=%zu/%zu/%zu\n",
              s_frames, gameLocal.GetFrameNum(), static_cast<int>(console->Active()),
              static_cast<int>(gameLocal.GameState() == GAMESTATE_NOMAP),
-             static_cast<int>(renderSystem->IsOpenGLRunning()),
+             static_cast<int>(ps2::runtime::HasPresentation()),
              static_cast<int>(soundSystem->GetPlayingSoundWorld() != nullptr),
              stats.requestedBytes, stats.backingBytes, stats.allocationCount);
+    ps2::runtime::LogPresentationStatus(s_frames);
 }
 
 void SubmitConsoleLine()
@@ -51,7 +52,13 @@ void SubmitConsoleLine()
     {
         s_consoleLine[s_consoleLineLength] = '\0';
         common->Printf("]%s\n", s_consoleLine);
-        consoleHistory.AddToHistory(s_consoleLine, false);
+        idCmdArgs args;
+        args.TokenizeString(s_consoleLine, false);
+        // Host control messages must not displace commands entered in the native edit field.
+        if (idStr::Icmpn(args.Argv(0), "ps2_", 4) != 0)
+        {
+            consoleHistory.AddToHistory(s_consoleLine, false);
+        }
         const size_t size = s_consoleLineLength + 1;
         void * text = ps2::heap::Alloc(size, TAG_EVENTS);
         memcpy(text, s_consoleLine, size);
@@ -161,6 +168,7 @@ void idCommonLocal::InitHeadless()
         ps2::FatalError("native game did not reach the headless console");
     }
     s_initialized = true;
+    ps2::runtime::InitPresentation();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] HEADLESS console ready; append commands to host:console.txt\n");
     Status(idCmdArgs{});
 }
@@ -172,14 +180,11 @@ void idCommonLocal::FrameHeadless()
     {
         ps2::FatalError("invalid headless game frame");
     }
+    ps2::runtime::BeginPresentationFrame();
     PollConsole();
     Sys_GenerateEvents();
     eventLoop->RunEventLoop(false);
     ps2::lifecycle::Frame();
-    if (s_quitRequested)
-    {
-        return;
-    }
     ps2::render::AdvanceLogicalFrame();
     gameReturn_t result{};
     // The native constructor omits this array, and NOMAP returns without filling the result.
@@ -190,6 +195,8 @@ void idCommonLocal::FrameHeadless()
         ps2::FatalError("headless console cannot process a map/session transition");
     }
     ++s_frames;
+    // Complete and display the last frame even when input requested quit or a capture.
+    ps2::runtime::PresentConsoleFrame(s_frames);
     if (s_maxFrames.GetInteger() > 0 && s_frames >= s_maxFrames.GetInteger())
     {
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] HEADLESS frame limit reached frames=%d\n", s_frames);
@@ -204,6 +211,7 @@ void idCommonLocal::ShutdownHeadless()
         return;
     }
     Status(idCmdArgs{});
+    ps2::runtime::ShutdownPresentation(s_frames);
     UnloadGameDLL();
     soundSystem->FreeSoundWorld(menuSoundWorld);
     soundSystem->FreeSoundWorld(soundWorld);

@@ -22,7 +22,9 @@ Bounded logical PCM samples and deterministic headless voices are usable as
 standalone services. Native authored `InitFromNewMap` now loads logical world/models, PVS, collision,
 AAS and one idle AI. Full campaign player startup, animated AI/gameplay, retail maps
 and sound/world-render output remain pending. The first CPU-only GS 2D device slice
-now passes in PCSX2; native console/SWF/menu integration is the next rendering direction.
+now passes in PCSX2. Production now connects the real native console to Common
+frames through an explicit NTSC/PAL boot policy; indexed GUI/SWF and native menu
+integration are the next rendering direction.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
 
@@ -2407,3 +2409,107 @@ Next select visible versus headless policy before allocating display resources, 
 the real native console from Common's frame lifecycle, and make `UpdateScreen` safe
 without nesting frames or ticking the game twice. Real edit-field input/history and
 capture-before-quit verification complete the remaining 2D-3 gate.
+
+## Production native visible console (2D-3)
+
+**2D-3 is accepted in PCSX2 on 2026-10-15 in debug and release.** The implementation
+connects real `console->Draw(false)` to the production
+Common frame loop. One production `d3bfg.elf` supports headless, NTSC 512×448 and PAL
+512×512. Package-root `presentation.cfg` selects the policy before Common initializes;
+a missing file means headless, and malformed/oversized content is fatal. `make console`
+packages visible NTSC by default; `CONSOLE_STANDARD=pal` selects PAL. `make run-console`
+launches it, and `make test-console` exercises both standards. Retail data and test
+fixtures are not involved.
+
+PCSX2 HostFs reports an absent policy as `-5`/`EIO`; the optional file therefore
+warns and defaults to headless on either `ENOENT` or `EIO`. Missing policy cannot be
+distinguished from another `EIO` here. Other open errors, read/close failures and
+invalid present content remain fatal; required assets do not use this fallback.
+
+Common processes console input and commands, advances its clock/logical stamp and
+native `NOMAP` frame, then draws and immediately presents the real console once.
+`UpdateScreen` calls made by native Enter/refresh coalesce into that final draw;
+outside a Common frame they redraw without advancing clocks or game/logical ticks.
+Visible frames use GS vsync without adding the headless 60 Hz sleep. Closing/reopening
+the console tolerates the absence of a production mouse device. The native game still
+stays in `NOMAP`; this does not load a campaign map or native BFG shell.
+
+HostFs `console.txt` retains ordinary native command submission. Visible-only
+`ps2_consoleText` and `ps2_consoleKey` additionally deliver validated native character
+and key events to the actual edit field. Native Enter adds to RAM history; persistent
+history writes remain unavailable, and `ps2_` host controls do not displace edit-field
+history. `ps2_capture` queues a bounded HostFs TGA basename for the next completed
+frame. A capture and quit arriving together still finish that frame and readback
+before native UI images/device teardown. Full shutdown must recover the startup ledger.
+
+The strict production-only `presentation.cpp` is cold-optimized. Tagged edits to native
+Console/Common retain source boundaries, and test variants keep their unavailable
+capability failures. Both production configurations link 356 direct objects with no
+test inputs/symbols or linker GC. `PT_LOAD` is 10,997,606 debug / 11,417,190 release
+bytes; the regenerated compile database has 381 entries.
+
+The automated production runner waits at least 120 frames, types/submits an echo,
+replays native up-arrow history, closes/reopens the console, edits an incomplete
+`echo pending`, captures it, then requests history and native edit-field quit with a
+final capture. It requires presentation count equal to completed Common frames,
+redraw requests without extra ticks, exact startup-ledger recovery and two ordered
+captures. Nineteen edit-capture pixel checks cover the translucent half-console,
+cyan prompt/border, glyph strokes/holes and uncovered background. Final capture must
+match the completed quit frame. Archives preserve matched ELF/map/reports, startup
+policy/data/input hashes, flags, emulator config/logs and native TGAs.
+
+Both configurations pass in PCSX2 2.6.3. Debug NTSC/PAL complete 199/187 Common frames
+and presentations; release completes 199/177. Each run has three redraw requests,
+coalesced into normal frames rather than additional simulation ticks or presentations.
+This equality describes the tested in-frame path; an out-of-frame `UpdateScreen` is
+allowed to redraw without a tick. Both captures close before teardown; the second
+capture is from the final completed quit frame.
+
+| Measured production visible loop | Debug | Release |
+| --- | ---: | ---: |
+| Tagged baseline/final requested / backing / allocations | 7,424 / 7,600 / 4 | Same |
+| Peak requested / backing bytes | 2,639,911 / 2,737,664 | Same |
+| Peak arena committed bytes | 2,752,666 | 2,750,874 |
+
+These totals are separate from fixed ELF residency; do not add arena commitment to
+its contained tagged backing a second time. Intrinsic image ownership and command
+buffers recover before the final foundation shutdown.
+
+The unscaled release captures were visually inspected: [NTSC 512×448](images/console-2d-3-ntsc.png)
+and [PAL 512×512](images/console-2d-3-pal.png). They show native scrollback, the edited
+`echo pending` input line, cyan prompt/border and version text over a translucent
+half-console; the cursor follows the native blink phase. Original edit TGA SHA-256 is
+`ee98ffbc082266dd6437cbfe0f49c7b68e1016fe36c52bddf47e45cccab74b8f` for NTSC and
+`c90e3668d393c635b0af97dd84ba2a533d52e3bcebc8dbce4a35dbeddb817101` for PAL.
+These are PCSX2 functional/readability observations, not physical-PS2 cache or GS-cost
+acceptance.
+
+All 135 Python host regressions pass, including thirteen new production-console
+staging/classifier/capture checks, alongside the existing ASan/UBSan C++ harnesses.
+Both configurations also pass the existing headless bounded/live-command checks, with
+no GS startup/device pools and exact startup-ledger recovery.
+
+| Production gate | Debug archive | Release archive |
+| --- | --- | --- |
+| Native visible NTSC | `20261015T000647Z_console_89637cdc87ec` | `20261015T000700Z_console_9049100ca398` |
+| Native visible PAL | `20261015T000653Z_console_58d2cafed9a1` | `20261015T000705Z_console_d97eb136d785` |
+| Headless 120 frames | `20261015T000711Z_headless_089b171561c0` | `20261015T000721Z_headless_79d4efab52e6` |
+| Headless live commands/quit | `20261015T000716Z_headless_cf66dd06be66` | `20261015T000725Z_headless_9a9fc0827ea8` |
+
+Four additional one-off release production-package probes pass. Missing policy
+warns, completes three headless frames, initializes no GS device and fully shuts down.
+The other probes require the intended first fatal diagnostic, with no unrelated
+TLB/bus/assert failure. These are fresh isolated packages with matched production
+images/reports and archived summaries/logs; they add no test fixture and are separate
+from the positive `make test-console` runner.
+
+| Release policy/input probe | Archive |
+| --- | --- |
+| Missing policy → headless | `20261015T000625Z_console-policy_missing-policy_cc59a8cc` |
+| Invalid startup policy | `20261015T000628Z_console-policy_invalid-policy_94550d18` |
+| Unknown named console key | `20261015T000630Z_console-policy_invalid-key_594400f2` |
+| Capture basename with path traversal | `20261015T000632Z_console-policy_invalid-capture_473fade5` |
+
+Indexed GUI/triangle storage, general image/material loading, native SWF/font execution
+and the offline BFG main menu remain the following gates (2D-4 through 2D-7). Physical
+pad/keyboard navigation and a physical-PS2 video/cache check remain 2D-8.

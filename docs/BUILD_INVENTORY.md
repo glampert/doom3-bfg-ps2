@@ -52,7 +52,7 @@ its separate deletion gate. Retail assets do not participate in these build targ
 
 ## Build gates and artifacts
 
-`make` / `make release` link the production native headless console loop as
+`make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
 `make headless-core` links asset-free foundation tests into
 `build/<config>/tests/core/d3bfg_tests.elf`; `make platform-probe` selects the separate
@@ -62,12 +62,17 @@ Doom core services. The core test initializes retained foundation services and
 does not initialize the campaign game. `CORE_BOOT` controls this selection only in
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
-`PS2_CXX_SRC` now owns both production entry and the strict headless lifecycle provider.
-Production links 343 direct objects, retaining all eleven registration roots with no
-test inputs or fixture symbols. Native game initialization, declarations, key/console
-and event services, CPU worlds and silent sound bookkeeping precede the console loop.
-`make headless` stages authored data separately from retail assets; `make test-headless`
-runs production itself. Native `RunFrame` returns at `NOMAP` until map integration exists.
+`PS2_CXX_SRC` owns production entry, the Common loop provider and the strict optional
+presentation provider. Production links 356 direct objects, retaining all eleven
+registration roots with no test inputs or fixture symbols. Native game initialization,
+declarations, key/console and event services, CPU worlds and silent sound bookkeeping
+precede the console loop.
+`make headless` and `make console` stage the same ELF with authored data separately
+from retail assets. Package-root `presentation.cfg` selects headless/NTSC/PAL before
+Common startup. `make test-headless` and `make test-console` exercise production itself.
+Visible frames call real native `console->Draw(false)` after the native `NOMAP` tick;
+`UpdateScreen` coalesces in-frame requests without advancing clocks. Native `RunFrame`
+returns at `NOMAP` until map integration exists.
 
 `make compile-core` compiles the scalar idlib subset and the initial command/CVar/file
 foundation. Its upstream list contains 52 idlib units: all 55 from `idlib.vcxproj` except
@@ -529,11 +534,31 @@ existing opaque backend state. There is still one provider per native method, wi
 desktop `RenderSystem.cpp`/`Image_GL.cpp` added. Core adapters and the GS test use the
 audited full-header foundation seam; resident adapters use full campaign headers.
 
-Production has 355 direct inputs, no test inputs/symbols and no GC. Debug/release
-`PT_LOAD` is 10,992,678 / 11,412,390 bytes; the compile database has 380 entries.
+At the 2026-10-14 first-slice checkpoint, production had 355 direct inputs, no test
+inputs/symbols and no GC. Debug/release `PT_LOAD` was 10,992,678 / 11,412,390 bytes;
+the compile database had 380 entries.
 `Console.cpp`, `ConsoleHistory.cpp`, `EditField.cpp`, `DebugGraph.cpp`, `Material.cpp`
 and `DeclManager.cpp` remain campaign-only. The adapter scene calls native draw helpers
 with authored content; it does not import the real console into the core test target.
-Both headless modes and all 122 Python regressions pass, plus host geometry/charset
-ASan/UBSan harnesses. Production Common presentation and resident material/console
-acceptance are the remaining 2D-3 gate.
+At that checkpoint, both headless modes and all 122 Python regressions passed, plus
+host geometry/charset ASan/UBSan harnesses. Production Common presentation and real
+console acceptance were still the remaining 2D-3 gate.
+
+The remaining 2D-3 implementation adds strict, cold `system/presentation.cpp` only to
+`PS2_CXX_SRC`/`SIZE_OPT_CXX_SRC`. Native `Console.cpp` retains RAM history on Enter,
+while persistent history writes remain unavailable. The tagged PS2 `UpdateScreen`
+branch forwards to this production provider; native frame and shutdown ownership stay
+with Common. Production mouse-capture requests are harmless without a mouse; test
+variants retain their unavailable-capability checks. No test fixture or new upstream
+source is enabled, and the core test still does not link Console/Material/DeclManager.
+
+Current production has 356 direct inputs, no test inputs/symbols and no GC. Debug/release
+`PT_LOAD` is 10,997,606 / 11,417,190 bytes; the compile database has 381 entries.
+`stage_headless.py` packages explicit startup policy for either mode; `run_console.py`
+checks the real native edit field, history replay, close/reopen and capture-before-quit
+in NTSC/PAL. Host capture checks distinguish native glyph strokes/holes and translucent
+background from missing/opaque text. All four debug/release NTSC/PAL production
+console runs and both configurations of the existing headless matrix pass, along with
+135 Python regressions and existing ASan/UBSan C++ harnesses. The inspected captures
+and acceptance evidence are recorded in [PORT_STATUS.md](PORT_STATUS.md#production-native-visible-console-2d-3);
+indexed GUI/SWF, general materials and the native menu remain later gates.

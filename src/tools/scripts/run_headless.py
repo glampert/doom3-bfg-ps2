@@ -16,7 +16,7 @@ import time
 import uuid
 
 import run_pcsx2_test as smoke
-from stage_headless import REPO_ROOT, sha256, stage
+from stage_headless import REPO_ROOT, boot_data, sha256, stage
 
 STATUS_RE = re.compile(r"\[D3BFG\] HEADLESS frames=(\d+) game_frames=0 state=console console=1 game_nomap=1 render_device=0 sound_output=0 heap=(\d+)/(\d+)/(\d+)")
 MEMORY_RE = re.compile(r"HEADLESS memory baseline=(\d+)/(\d+)/(\d+) final=(\d+)/(\d+)/(\d+) peak=(\d+)/(\d+) arena=(\d+)")
@@ -74,7 +74,7 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
     config = f'echo "{identity}_begin"\n'
     config += "ps2_maxFrames 120\nps2_status\nwait 60\nps2_status\n" if case == "bounded" else f'wait 120\necho "{identity}_ready"\nps2_status\n'
     (output / "base/d3bfg.cfg").write_text(config)
-    (output / "boot-data.json").write_text(json.dumps({str(path.relative_to(output)): sha256(path) for path in sorted((output / "base").rglob("*")) if path.is_file()}, indent=2) + "\n")
+    (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
     (output / "console.txt").write_bytes(b"")
     command = [str(args.emulator), "-batch", "-elf", str(output / "d3bfg.elf"), "-logfile", str(output / "emulog.txt")]
     started = time.monotonic()
@@ -119,7 +119,7 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
     data = {"passed": passed, "reason": reason, "configuration": args.build, "case": case,
             "command": command, "emulator_version": version, "elapsed_seconds": time.monotonic() - started,
             "emulator_returncode": process.returncode,
-            "boot_data": {str(path.relative_to(output)): sha256(path) for path in sorted((output / "base").rglob("*")) if path.is_file()},
+            "boot_data": boot_data(output),
             "console_sha256": sha256(output / "console.txt")}
     (output / "summary.json").write_text(json.dumps(data, indent=2) + "\n")
     print(f"{'PASS' if passed else 'FAIL'} {case}: {reason}\nArtifacts: {output}", flush=True)

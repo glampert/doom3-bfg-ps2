@@ -18,8 +18,9 @@ with stage-free materials. Areas, portals, static model traces and portal-contro
 pass in the authored map; physical initialization, image/vertex payload loading and
 submission still fail by method name. The separate CPU-only GS device layer now draws
 solid and direct RGBA 2D frames. Explicit native UI activation now supplies a bounded
-white/ASCII image and axis-quad/text profile. Real Console/Common presentation, indexed
-GUI/SWF collection, general image loading and VU output remain subsequent gates.
+white/ASCII image and axis-quad/text profile. Production now optionally draws the real
+native console through Common. Indexed GUI/SWF collection, general image loading and
+VU output remain subsequent gates.
 
 - Start the logical renderer frame counter above zero and advance it with game ticks.
   Native `R_EntityDefDynamicModel` compares the definition stamp to `tr.frameCount`;
@@ -38,7 +39,8 @@ GUI/SWF collection, general image loading and VU output remain subsequent gates.
 - `ps2::rs` owns a frame, `cmdbuf` owns two tagged 64-byte-aligned command halves,
   and `gs` owns both PSMCT16 contexts and Z16 with depth writes masked. Default
   halves are 128 KiB each. `EndFrame` fences and immediately presents; the final
-  picture requires no following frame. Production does not initialize this layer yet.
+  picture requires no following frame. Production initializes this layer only for an
+  explicit visible console startup policy.
 - Reset/claim VIF1 and GIF along with the GS at device startup, after bounded checks
   for incoming DMA completion. A GS CSR reset alone stalled the first Doom PATH2
   DIRECT in PCSX2: VIF1 waited on GIF, with GIF_STAT `0x00000e00`. Resetting both
@@ -98,7 +100,26 @@ available there. Bounded text is preflighted before glyph emission.
 
 `Console.cpp`, `EditField.cpp` and material/decl implementation are campaign-only.
 The core adapter scene calls native draw methods with authored content; it does not
-establish real console or resident material acceptance. Common presentation is next.
+establish real console or resident material acceptance. Production console acceptance
+uses the full resident ELF and `run_console.py`, without importing these units into core.
+
+## Doom production console frame ownership
+
+- Read package-root `presentation.cfg` before Common startup: missing means headless;
+  otherwise only bounded `headless`/`ntsc`/`pal` content is accepted. Repackaging always
+  replaces the policy. `d3bfg.cfg` executes later and cannot select startup allocation.
+- One Common frame processes events/commands, advances clocks/logical and native NOMAP
+  work, then calls `console->Draw(false)` inside one GS frame. GS vsync paces visible
+  mode; do not add the headless idle sleep afterward.
+- Native Enter calls `UpdateScreen` synchronously. Coalesce an in-frame request into
+  its final presentation; an out-of-frame redraw must not advance simulation. Guard
+  drawing to prevent recursive Begin/End calls, including refresh-on-print requests.
+- A queued `ps2_capture` reads the newest completed context after the final draw. A
+  quit command must finish a queued capture before shutdown, even when both arrive in
+  one HostFs batch. Release intrinsic UI images before the caller-owned GS device.
+- Native ASCII/key commands drive the retained edit field and RAM history. Persistent
+  history writes and physical device polling remain unavailable; production console
+  close tolerates the absence of mouse capture. Test capability failures stay explicit.
 
 ## Quake frame model: 2D and 3D interleave
 

@@ -44,9 +44,10 @@ EE assembly when testing allocation side effects.
 
 The shared OS-service bridge formats nonnegative durations and supplied epoch values
 in UTC. It exposes six engine language identifiers with an English default; that is
-metadata, not acceptance of translated content. Process launch/quit, clipboard, mouse
-capture, rumble, desktop physical-working-set control and drive-capacity queries are
-explicitly unavailable. Never return fabricated free space or treat desktop memory
+metadata, not acceptance of translated content. Process launch, clipboard, rumble,
+desktop physical-working-set control and drive-capacity queries are explicitly
+unavailable. Production mouse-capture requests are harmless with no mouse device;
+test variants retain their unavailable-capability failure. Never return fabricated free space or treat desktop memory
 controls as EE allocation budgets.
 
 Production `Quit` / `Sys_Quit` now request exit at the main loop's frame boundary;
@@ -57,6 +58,17 @@ port's `d3bfg.cfg`. `BuildOSPath` can return a directory without a trailing slas
 `AddGameDirectory` must remove only an actual slash. Unconditionally removing the
 last character scanned `host:/bas` instead of `host:/base`, observed and corrected
 in the production debug/release PCSX2 runs on 2026-10-11.
+
+## Doom-observed HostFs missing-file error
+
+On PCSX2 2.6.3, opening an absent `host:presentation.cfg` reports an IOP result of
+`-5`, mapped to `EIO` rather than `ENOENT` by the current FILEIO/libc path. The
+optional production startup-policy file must preserve old headless packages, so its
+open failure defaults to headless on either `ENOENT` or `EIO` and emits a warning.
+This also means the backend cannot distinguish missing policy from another `EIO`
+condition on this path. Other open errors, read/close failures and invalid present
+content remain fatal. Do not generalize this compatibility fallback to required
+assets or other storage drivers; staging writes explicit policy for normal runs.
 
 ## Doom-observed SDK timer conversion trap
 

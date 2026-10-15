@@ -40,7 +40,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 
 ## Build and verify
 
-- `make` compiles and links the production native headless console with the real EE compiler.
+- `make` compiles and links the production native console with the real EE compiler.
   `make release` selects release; the artifacts are `build/<config>/d3bfg.elf` and
   matching `d3bfg_unstripped.elf`, map and resident `report.{json,txt}`. The verbatim reference Makefile
   is preserved in `docs/reference/quake2.Makefile`.
@@ -49,12 +49,21 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   pumps console commands and native frames. `console.txt` accepts append-only lines via
   HostFs; `ps2_maxFrames=0` runs until quit. `make test-headless` checks 120 frames,
   live command input and full shutdown without linking fixtures into production.
+  `make console` / `make run-console` stage/run the same ELF visibly under
+  `build/<config>/console/`; `CONSOLE_STANDARD=ntsc` (default) or `pal` selects the mode.
+  Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` before Common startup;
+  a missing file defaults to headless. `make test-console` checks native console drawing,
+  edit/history events, close/reopen and final capture/quit in both standards.
+  HostFs `ps2_consoleText`, `ps2_consoleKey` and `ps2_capture` are visible-mode controls.
+  Common frames own exactly one native console presentation; `UpdateScreen` coalesces
+  redraw requests during a frame and never advances simulation. Finish queued capture
+  and final presentation before UI/device shutdown; visible vsync adds no headless sleep.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, context flips, residency/buffer pressure,
   reload/cleanup and seven bounds/state/deadline failures. `make run-renderer` captures
   and holds the NTSC scene for inspection.
-  Production still stays headless; real console/Common presentation and SWF/menu
+  Production optionally presents the real native console through Common; SWF/menu
   providers remain pending. `ui::Init/Shutdown` explicitly own native 2D capability
   and intrinsic images after/before the caller-owned `rs` device; low-level GS
   readiness alone never changes `R_IsInitialized`, and OpenGL stays unavailable.

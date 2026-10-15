@@ -1,12 +1,19 @@
 
 # PS2 backend cvars
 
-The production headless loop registers the backend control below using Doom's
+The production loop registers the backend control below using Doom's
 native command and cvar system. Test executables do not register production controls.
 
 | Name | Debug default | Release default | Flags | Behavior and registration |
 | --- | --- | --- | --- | --- |
 | `ps2_maxFrames` | `0` | `0` | `CVAR_SYSTEM`, `CVAR_INTEGER` | Live, unarchived completed-frame limit, clamped to 0–1,000,000. Zero runs until quit; a positive value requests shutdown once reached. Registered in `src/ps2/system/headless.cpp`. |
+
+Presentation is an early package policy, not a cvar: `presentation.cfg` beside the
+ELF contains `headless`, `ntsc` or `pal`. A missing file selects headless. The policy
+is read before Common startup and device allocation; `d3bfg.cfg` runs afterward.
+Visible mode additionally registers `ps2_consoleText`, `ps2_consoleKey` and
+`ps2_capture` as `CMD_FL_SYSTEM` console commands, not cvars. See
+[README.md](../README.md#build) for argument limits and usage.
 
 The following engine cvars have PS2-specific policies:
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: stage_headless.py
-# Brief: Package the production ELF with authored headless startup data without changing local assets.
+# Brief: Package production with authored startup data and an explicit headless or visible console policy.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -13,13 +13,21 @@ import shutil
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BOOT_ROOT = REPO_ROOT / "assets/headless"
+PRESENTATIONS = ("headless", "ntsc", "pal")
 
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def stage(build: str, output: Path) -> Path:
+def boot_data(output: Path) -> dict[str, str]:
+    paths = sorted(path for path in (output / "base").rglob("*") if path.is_file())
+    return {str(path.relative_to(output)): sha256(path) for path in paths + [output / "presentation.cfg"]}
+
+
+def stage(build: str, output: Path, presentation: str = "headless") -> Path:
+    if presentation not in PRESENTATIONS:
+        raise ValueError("presentation must be headless, ntsc or pal")
     source = REPO_ROOT / "build" / build
     report = json.loads((source / "report.json").read_text())
     if not report["passed"] or report["kind"] != "game" or report["test_inputs"] or report["test_symbols"]:
@@ -36,7 +44,6 @@ def stage(build: str, output: Path) -> Path:
     output.mkdir(parents=True, exist_ok=True)
     for name in ("d3bfg.elf", "d3bfg_unstripped.elf", "d3bfg.map", "report.json", "report.txt", "objects.rsp"):
         shutil.copy2(source / name, output / name)
-    inputs = {}
     for path in sorted(BOOT_ROOT.rglob("*")):
         if not path.is_file():
             continue
@@ -45,8 +52,9 @@ def stage(build: str, output: Path) -> Path:
         # Preserve the user's port settings across rebuilds of the runnable package.
         if path.name != "d3bfg.cfg" or not target.exists():
             shutil.copy2(path, target)
-        inputs[str(path.relative_to(BOOT_ROOT))] = sha256(target)
-    (output / "boot-data.json").write_text(json.dumps(inputs, indent=2) + "\n")
+    # Always replace startup policy, including when reusing a formerly visible package for headless.
+    (output / "presentation.cfg").write_text(presentation + "\n")
+    (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
     return output
 
 
@@ -54,12 +62,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", choices=("debug", "release"), default="debug")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--presentation", choices=PRESENTATIONS, default="headless")
     args = parser.parse_args()
     try:
-        output = stage(args.build, args.output or REPO_ROOT / "build" / args.build / "headless")
+        package = "headless" if args.presentation == "headless" else "console"
+        output = stage(args.build, args.output or REPO_ROOT / "build" / args.build / package, args.presentation)
     except (OSError, ValueError, KeyError) as error:
         parser.exit(1, f"error: {error}\n")
-    print(f"Headless package: {output}")
+    print(f"Production {args.presentation} package: {output}")
     return 0
 
 

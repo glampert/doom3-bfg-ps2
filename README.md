@@ -2,12 +2,14 @@
 
 A PlayStation 2 port of [id's Doom 3 BFG Edition](https://github.com/id-Software/DOOM-3-BFG)
 using the free ps2dev SDK. The production executable boots the native game into a
-headless console and runs a paced Common/game loop until `quit` or a frame limit.
+headless or GS-rendered native console and runs the Common/game loop until `quit` or
+a frame limit. NTSC/PAL presentation is an explicit package startup choice.
 Separate native test executables exercise a scalar EE core and an authored headless
 game fixture that runs native initialization, entity thinking, script events, bounded collision/physics
 and a restricted native `idPlayer`. An authored map also boots through native `InitFromNewMap`
 with logical world/model/PVS queries, collision, AAS and one idle native AI. Full campaign player startup, retail maps,
-native UI/world rendering, SPU2 output, input and saves remain later milestones; the port is not playable yet.
+native SWF/menu and world rendering, SPU2 output, physical input and saves remain later
+milestones; the port is not playable yet.
 
 The engine is under `src/neo/`, moved intact in commit `4e5f082`. New console code is
 under `src/ps2/`, and host/target regression tests are under `src/tests/`. Upstream
@@ -22,14 +24,17 @@ console, then the native offline main menu. It records reuse boundaries, asset a
 memory requirements, and acceptance gates. The CPU-only GS device layer now draws
 solid colors and RGBA textures with alpha in NTSC/PAL. It owns bounded pixel/VRAM
 storage, fences dirty uploads and eviction, and streams native framebuffer captures
-with checked writes and recoverable readback deadlines. Native console/SWF/menu drawing
-remains pending; production stays headless. Target acceptance is recorded in
-[PORT_STATUS.md](docs/PORT_STATUS.md#rgba-textures-and-native-capture-2d-2).
+with checked writes and recoverable readback deadlines. Production can now call the
+real native `console->Draw` after each Common frame; SWF/menu drawing remains pending.
+Debug/release NTSC/PAL console acceptance and inspected captures are recorded in
+[PORT_STATUS.md](docs/PORT_STATUS.md#production-native-visible-console-2d-3).
 
-The first 2D-3 slice supplies native display/color/quad/text adapters and owned white
-and authored ASCII charset images. Fractional 640×480 coordinates map to GS fixed point;
-the existing scene verifies glyphs, cursors and explicit replacement/alpha behavior.
-Connecting the real native `console->Draw` to production Common frames is next.
+Accepted 2D-3 supplies native display/color/quad/text adapters, owned white
+and authored ASCII charset images, and production console presentation. Fractional
+640×480 coordinates map to GS fixed point. Native edit-field input, command history,
+console closing/reopening and capture-before-quit use the same production executable
+as headless startup. `UpdateScreen` requests during a Common frame coalesce into its
+final draw, without nesting frames or advancing the game clock again.
 
 ## Build
 
@@ -42,7 +47,12 @@ Quake II reference is retained in `docs/reference/quake2.Makefile`.
 make                         # production d3bfg.elf, debug
 make release                 # production d3bfg.elf, release
 make headless                # package production with authored console boot data
-make run-headless            # run the console package in PCSX2, until quit
+make run-headless            # run the headless package in PCSX2, until quit
+make console                 # package the same production ELF with visible NTSC console
+make CONSOLE_STANDARD=pal console # select PAL presentation
+make run-console             # run the visible console package in PCSX2
+make test-console            # native console/edit/history/capture/quit checks in NTSC/PAL
+make BUILD=release test-console # same production presentation checks without assertions
 make test-headless           # 120 frames, live console commands and shutdown in PCSX2
 make BUILD=release test-headless # same production checks without assertions
 make test-renderer           # textured NTSC/PAL scene, native capture/pixels, reload and failure probes
@@ -72,17 +82,23 @@ without sources or headers under `src/tests/`, fixture symbols or linker GC. Its
 `main()` preserves the loader's IOP and initializes Common, native declarations,
 key/console events, the static game API and `idGameLocal::Init`, plus CPU render-world
 and silent sound bookkeeping. Common processes console events, commands, offline
-services and native `RunFrame` on the calling thread with approximately 60 Hz idle
-pacing. The game remains in `NOMAP`, whose native frame returns without advancing map
-simulation. Main-menu SWF, map transitions, physical input and presentation remain
-pending. Startup checks `base/default.cfg` for existence and optionally executes
+services and native `RunFrame` on the calling thread. Headless mode retains approximately
+60 Hz idle pacing; visible mode presents once per completed Common frame and uses GS
+vsync without an additional sleep. The game remains in `NOMAP`, whose native frame
+returns without advancing map simulation. Main-menu SWF, map transitions and physical
+input remain pending. Startup checks `base/default.cfg` for existence and optionally executes
 `base/d3bfg.cfg`; desktop bindings are not executed. `quit` / `exit` request ordered
 game/world/console shutdown followed by Common shutdown at the frame boundary.
 
 `make headless` packages the production ELF and small authored boot data from
 `assets/headless/` under `build/<config>/headless/`. It preserves an existing packaged
-`base/d3bfg.cfg` and leaves local `base/` assets alone. `make run` / `make run-headless`
-launch this package. The native console is active with stdout output and no drawing.
+`base/d3bfg.cfg` and leaves local `base/` assets alone. The package root has
+`presentation.cfg`, read before Common initialization: `headless`, `ntsc` or `pal`,
+with an optional final newline. A missing file selects headless; invalid content is
+fatal. The current PCSX2 HostFs maps a missing file to `EIO`, so policy open failure
+with `ENOENT` or `EIO` warns and defaults to headless; other errors remain fatal.
+Staging always replaces this policy, so repackaging cannot retain a stale mode.
+`make run` / `make run-headless` launch this package. The native console is active with stdout output and no drawing.
 Append newline-terminated commands to its `console.txt` from another terminal:
 
 ```sh
@@ -97,6 +113,32 @@ oversized lines and embedded control characters are discarded through the newlin
 History stays in memory. Set `ps2_maxFrames 120` in the packaged `base/d3bfg.cfg` for a
 bounded run; its default `0` keeps running until a quit command. `ps2_status` reports
 completed frames, native `NOMAP`/console state and the tagged heap ledger.
+
+`make console` stages the same ELF and authored boot data under
+`build/<config>/console/`; `CONSOLE_STANDARD` defaults to `ntsc`. It opens the native
+half-height console over a dark background. Use its `console.txt` for commands, or
+send ASCII and named keys to the native edit field:
+
+```sh
+printf 'ps2_consoleText "echo hello"\nps2_consoleKey enter\n' >> build/debug/console/console.txt
+printf 'ps2_consoleKey up\nps2_consoleKey enter\n' >> build/debug/console/console.txt
+printf 'ps2_capture console.tga\nquit\n' >> build/debug/console/console.txt
+```
+
+`ps2_consoleText` requires an active console and one quoted argument of at most 255
+printable ASCII characters, excluding grave and tilde. `ps2_consoleKey` accepts
+`enter`, `up`, `down`, `left`, `right`, `toggle`, `escape`, `home`, `end`, `delete` and
+`backspace`. These deliver native character/key events; physical keyboard/pad polling
+is not enabled. Native Enter adds to RAM history; persistent history writes remain
+disabled. Host `ps2_` control messages do not replace edit-field history.
+`ps2_capture` accepts one pending ASCII alphanumeric/dash/underscore basename ending
+in `.tga` (at most 63 bytes including the suffix). Quote names containing a dash,
+for example `ps2_capture "console-edit.tga"`, because the native command lexer splits
+unquoted dashes into separate tokens. It writes the next completed frame to the
+package root. A capture queued with `quit` completes after the final native
+draw and before UI/device shutdown. Visible `ps2_status` also reports presentation
+and redraw-request counts. These three controls are available only in visible mode;
+`ps2_maxFrames` and the ordinary command stream work in either mode.
 
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 `d3bfg_tests.map`. `make headless-core` writes `build/<config>/tests/core/`,
@@ -241,8 +283,9 @@ vertex-buffer interfaces, resolving the renderer link group. They expose inactiv
 state and empty metadata cleanup until explicit native 2D activation. The 2D profile
 supports display metrics, color/state, fills, axis-aligned constant-material quads and
 authored ASCII text; unsupported state, geometry, images, shaders and demos fail explicitly.
-The 42 frontend cvars retain native defaults and flags. Production still activates no
-device pools; native console integration and general UI/world drawing remain pending.
+The 42 frontend cvars retain native defaults and flags. Production activates the device
+and intrinsic images only when its startup policy requests a visible console; general
+UI/world drawing remains pending.
 
 The deferred game/UI providers now close the multiplayer, leaderboard, shell and save
 metadata link group. Single-player multiplayer reset/precache and empty scoreboard

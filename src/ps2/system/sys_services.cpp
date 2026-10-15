@@ -83,7 +83,14 @@ void Sys_Quit()
 }
 void Sys_Launch(const char *, idCmdArgs &, void *, unsigned int) { Unsupported("Sys_Launch"); }
 char * Sys_GetClipboardData() { Unsupported("Sys_GetClipboardData"); }
-void Sys_GrabMouseCursor(bool) { Unsupported("Sys_GrabMouseCursor"); }
+void Sys_GrabMouseCursor(bool)
+{
+#if PS2_D3BFG_TESTS
+    Unsupported("Sys_GrabMouseCursor");
+#else
+    // The native console toggles capture; this console has no desktop cursor or mouse device.
+#endif
+}
 void Sys_SetRumble(int, int, int) { Unsupported("Sys_SetRumble"); }
 void Sys_SetPhysicalWorkMemory(int, int) { Unsupported("Sys_SetPhysicalWorkMemory"); }
 int Sys_GetDriveFreeSpace(const char *) { Unsupported("Sys_GetDriveFreeSpace"); }

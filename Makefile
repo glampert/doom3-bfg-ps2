@@ -8,6 +8,7 @@
 PS2DEV ?= $(HOME)/ps2dev
 PS2SDK ?= $(PS2DEV)/ps2sdk
 PCSX2 ?= /Applications/PCSX2.app/Contents/MacOS/PCSX2
+CONSOLE_STANDARD ?= ntsc
 PYTHON ?= python3
 EE_TOOL_PREFIX ?= $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-
 
@@ -197,7 +198,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless console run-console test-console platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
 
 all: link-game
 release: all
@@ -407,6 +408,15 @@ run-headless: headless
 
 test-headless: all
 	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2)
+
+console: all
+	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD)
+
+run-console: console
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/console/d3bfg.elf
+
+test-console: all
+	$(PYTHON) $(SCRIPTS)/run_console.py --build $(BUILD) --emulator $(PCSX2)
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core

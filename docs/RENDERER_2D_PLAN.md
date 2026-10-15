@@ -3,7 +3,8 @@
 This is the reference inventory and implementation roadmap for the first GS-backed
 Doom 2D renderer. Inspection and approval date: **2026-10-14, Australia/Sydney**.
 The inventories retain that original source snapshot; implementation progress is recorded
-below. Uncompleted gates, budgets and destinations remain proposed.
+below, most recently on **2026-10-15, Australia/Sydney**. Uncompleted gates, budgets
+and destinations remain proposed.
 It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Implementation progress
@@ -16,23 +17,30 @@ verify release-safe bounds and wait deadlines. Direct RGBA textures now support 
 filtering, logical edge clamp and POT repeat, with bounded owned pixels and page-aligned
 LRU residency. Dirty uploads, evictions and destruction fence queued references. Native
 strip readback streams checked TGAs and restores the pipeline after injected timeout.
-The production executable remains headless and links no fixtures. Native image providers
-and UI drawing remain pending.
+The production executable links no fixtures. The original device scenes use a separate
+core test ELF; native image/draw adapters and production console integration now build
+on this layer.
 
 See [PORT_STATUS.md](PORT_STATUS.md#cpu-only-gs-bring-up-2d-1) for measurements and run
 identities. The [2D-2 NTSC](images/renderer-2d-2-ntsc.png) and
 [PAL](images/renderer-2d-2-pal.png) images are native unscaled readback, with 24 scene
 pixel checks plus upload/pressure checks. See the [2D-2 acceptance record](PORT_STATUS.md#rgba-textures-and-native-capture-2d-2).
-**2D-3 is in progress:** intrinsic white/ASCII images and native display/color/state/
-axis-quad/text adapters are now verified through the existing scene. Native adapter
-captures cover 26 additional pixels, 120 frames and reload; the real native console
-and Common presentation lifecycle remain next. See the
-[adapter acceptance record](PORT_STATUS.md#native-console-drawing-adapters-2d-3-first-slice).
+**2D-3 is accepted in PCSX2 in debug and release on 2026-10-15:** intrinsic white/ASCII
+images and native display/color/state/axis-quad/text adapters are verified through the
+existing scene. Production selects headless/NTSC/PAL before Common initialization,
+calls `console->Draw(false)` once per visible frame and safely coalesces `UpdateScreen`
+requests. Live native edit/history input, close/reopen and queued final capture use
+production commands. See the [adapter acceptance record](PORT_STATUS.md#native-console-drawing-adapters-2d-3-first-slice)
+and [production-console acceptance](PORT_STATUS.md#production-native-visible-console-2d-3).
+The unscaled [NTSC](images/console-2d-3-ntsc.png) and [PAL](images/console-2d-3-pal.png)
+captures show the real console edit field, with nineteen native pixel checks per run.
+Live echo/history/close/reopen/final capture and both headless modes pass; production
+continues to link zero test inputs and fixture symbols.
 Physical PS2 acceptance remains 2D-8.
 
 ## Scope and completion criteria
 
-Bring the production `d3bfg.elf` from its current native headless console to a visible
+Bring the production `d3bfg.elf` from the native headless console baseline to a visible
 console, then a rendered and navigable Doom 3 main menu. Reuse the Quake II PS2 hardware
 layer, retain Doom's useful GUI/SWF contracts, and introduce a bounded CPU 2D submission
 path. A functioning GS sprite demo is the first hardware gate, not main-menu acceptance.
@@ -172,6 +180,9 @@ flowchart TD
   `d3bfg.cfg` executes after `InitHeadless`, so an init-time display cvar in that file
   cannot work without a reviewed earlier configuration phase. Prefer one production
   binary with an explicit boot policy/package; keep numeric test defines unchanged.
+  **Implemented:** package-root `presentation.cfg` selects `headless` (also the missing-file
+  default), `ntsc` or `pal` before Common startup; `make headless` / `make console` stage
+  the same ELF. `CONSOLE_STANDARD=pal` selects PAL packaging.
 - Foundation, declarations, native game, logical CPU renderer and optional 2D resources
   remain individually owned startup stages. Preserve stage-free model materials for
   headless map tests; visible intrinsic/UI materials are a separate supported profile.
@@ -186,6 +197,10 @@ flowchart TD
 - `UpdateScreen` from console submission becomes a safe redraw request or a separate
   completed 2D frame when no frame is open. It must not enter desktop Draw/swap/thread
   code. Quit drains all references before freeing buffers, images, palettes or fonts.
+  **Implemented for the console:** in-frame redraws coalesce into the final native
+  draw; an out-of-frame request redraws without advancing clocks or logical/game ticks.
+  A pending `ps2_capture` completes after final presentation, including when `quit`
+  arrives in the same command batch. Intrinsic images are released before the device.
 
 ### Geometry and coordinates
 
@@ -332,10 +347,12 @@ and keep save enumeration, leaderboards, online lobbies and Classic switching un
 
 Route focus/select/back/console events through native menu/console handling before
 considering pad/keyboard polling. Production `ProcessEvent` currently routes only to
-the console, and console close currently reaches unavailable mouse capture. Supply
-headless/display-aware cursor behavior; no fake desktop window, rumble or player
-user-command sampling is needed. Reuse Q: `input/pad.*` / `keyboard.*` only when the
-visual/input contracts are stable, adapting their events and IOP/module dependencies.
+the console. Console closing/reopening now tolerates the absence of a mouse in
+production; test capability probes keep their explicit unsupported failures. HostFs
+commands deliver bounded ASCII and named native keys without introducing a physical
+input device. No desktop window, rumble or player user-command sampling is needed.
+Reuse Q: `input/pad.*` / `keyboard.*` only when the visual/input contracts are stable,
+adapting their events and IOP/module dependencies.
 
 ## Memory and frame ownership
 
@@ -448,8 +465,10 @@ The approved **2D-1** slice used these boundaries:
    2D-2. Preserve production headless and existing renderer inactive tests.
 
 That slice proved video setup, command ownership and solid GS pixels in PCSX2.
-2D-2 now adds direct textures, residency fences and native capture. The next slice,
-2D-3, has supplied intrinsic images and native display/draw methods. It next connects
-`console->Draw` through an explicit production display policy and safe Common frame/
-`UpdateScreen` lifecycle. SWF and main-menu startup remain later
-gates; the device scenes do not establish native menu or world-rendering acceptance.
+2D-2 adds direct textures, residency fences and native capture. Accepted 2D-3 now
+supplies intrinsic images, native display/draw methods and `console->Draw` through
+an explicit production display policy and safe Common frame/`UpdateScreen` lifecycle.
+The next planned gate is **2D-4**, bounded indexed UI and an authored native SWF; retail
+UI dependency/cooking inventory (**2D-5**) can proceed in parallel. SWF and main-menu
+startup remain later gates; console presentation does not establish native menu or
+world-rendering acceptance.

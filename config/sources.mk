@@ -542,7 +542,7 @@ JPEG_TEST_CXX_SRC = \
 	external/jpeg-6/jutils.cpp
 
 # Production entry and isolated campaign-test entry/adapters.
-PS2_CXX_SRC = ps2/system/main.cpp ps2/system/headless.cpp
+PS2_CXX_SRC = ps2/system/main.cpp ps2/system/headless.cpp ps2/system/presentation.cpp
 GAME_TEST_CXX_SRC = \
 	tests/smoketests/game_main.cpp \
 	tests/smoketests/headless_fixture.cpp \

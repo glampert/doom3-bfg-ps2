@@ -34,6 +34,18 @@
   production link evidence, matched images, config/input hashes and both PCSX2 streams.
   PCSX2 mirrors IOP lines into stdout and emulog; count native markers from one stream
   while checking both for crashes. Seven host regressions reject false acceptance.
+- `make test-console` / `make BUILD=release test-console` exercise the same production
+  ELF visibly in NTSC and PAL. Startup policy is selected by package-root
+  `presentation.cfg`; `make console` defaults to NTSC and `CONSOLE_STANDARD=pal`
+  stages PAL. The runner waits at least 120 frames, submits and replays native edit
+  history, closes/reopens the real console, checks an edited input line, and queues
+  capture plus native quit in the same batch. Require exactly one presentation per
+  completed Common frame, safe redraw requests, final capture before shutdown and
+  exact startup-ledger recovery. Nineteen native edit-capture pixels check glyph
+  strokes/holes, cyan prompt/border and translucent/uncovered background. Both TGAs,
+  input/config/data hashes and matched production evidence are archived. Inspect
+  images as well as logs; this proves console presentation, not SWF/menu or hardware
+  acceptance. Run all emulator targets sequentially in isolated sessions.
 - `make` / `make release` build production, without smoke fixtures. Build tests
   explicitly with `make platform-probe`, `make headless-core` or `make headless-game`.
   All native test variants are named `d3bfg_tests.elf` under `build/<config>/tests/`.

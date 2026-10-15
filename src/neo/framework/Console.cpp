@@ -560,7 +560,12 @@ void idConsoleLocal::KeyDownEvent( int key ) {
 		// copy line to history buffer
 
 		if ( consoleField.GetBuffer()[ 0 ] != '\n' && consoleField.GetBuffer()[ 0 ] != '\0' ) {
+			// [PS2_D3BFG]: Retain native RAM history while persistent history writes are unavailable.
+#if defined( ID_PS2 )
+			consoleHistory.AddToHistory( consoleField.GetBuffer(), false );
+#else
 			consoleHistory.AddToHistory( consoleField.GetBuffer() );
+#endif
 		}
 
 		consoleField.Clear();

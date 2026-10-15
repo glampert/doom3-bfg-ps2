@@ -40,6 +40,10 @@ If you have questions concerning this license or the applicable additional terms
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #include "ps2/system/lifecycle.h"
 #endif
+// [PS2_D3BFG]: Production owns synchronous console presentation separately from desktop drawing.
+#if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
+#include "ps2/system/runtime.h"
+#endif
 
 /*
 
@@ -308,9 +312,9 @@ This is an out-of-sequence screen update, not the normal game rendering
 ===============
 */
 void idCommonLocal::UpdateScreen( bool captureToImage ) {
-	// [PS2_D3BFG]: Console submission needs no draw; captures still require presentation.
+	// [PS2_D3BFG]: Coalesce console redraws without entering desktop drawing or advancing game time.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	if ( captureToImage ) { FatalError( "headless console cannot capture a screen" ); }
+	ps2::runtime::UpdateScreen( captureToImage );
 	return;
 #endif
 	if ( insideUpdateScreen ) {
@@ -385,7 +389,7 @@ idCommonLocal::Frame
 =================
 */
 void idCommonLocal::Frame() {
-	// [PS2_D3BFG]: Production pumps native headless services; tests retain foundation frames.
+	// [PS2_D3BFG]: Production pumps native game/console services; tests retain foundation frames.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
 	FrameHeadless();
