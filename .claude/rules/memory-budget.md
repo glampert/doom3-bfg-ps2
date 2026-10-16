@@ -259,6 +259,16 @@ native references, metadata, font arrays and transition peaks still need measure
 Pages include a one-texel gutter and 254×254 interior; deduplication makes unique
 storage differ from logical page count. See docs/RETAIL_UI_PIPELINE.md.
 
+The subsequent UIPG packaging step adds twelve indexed runtime files while retaining
+the raw page/source assets for inspection: 157 unique files / 71,825,068 bytes, plus
+a 10,180,729-byte diagnostic manifest. The EE reads the compact per-image index,
+not that JSON report. The authored six-page test reserves two CPU texture slots
+(524,288 bytes), one aligned input page (262,144 bytes) and six records (48 bytes):
+786,480 requested RENDER bytes, separately from object/file/allocator overhead and
+the caller's device. Warm drawing allocates no additional buffers. One VRAM page
+forces eviction in the test; this deliberately constrained scene does not establish
+the English retail shell's working set or a performance budget.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

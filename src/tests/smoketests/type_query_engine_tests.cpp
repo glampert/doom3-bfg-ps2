@@ -4,10 +4,12 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+// Engine declarations depend on the platform and type setup in this header.
+#include <idlib/precompiled.h>
+
 #include "ps2/system/log.h"
 #include "tests/smoketests/type_query_tests.h"
 #include <d3xp/Game_local.h>
-#include <idlib/precompiled.h>
 #include <renderer/Model_local.h>
 #include <ui/Winvar.h>
 

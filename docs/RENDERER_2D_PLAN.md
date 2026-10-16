@@ -68,8 +68,14 @@ transforms. The local profile resolves 31 required labels, five font families an
 twelve images into 143 logical pages. See [RETAIL_UI_PIPELINE.md](RETAIL_UI_PIPELINE.md)
 and the [host acceptance record](PORT_STATUS.md#retail-ui-host-inventory-and-cooking-2d-5).
 This is a candidate package with `runtime_ready=false`; actual resident working-set
-measurement, native page binding/triangle splitting and dynamic dependency closure
-remain open. Full 2D-5 acceptance and 2D-6 masks/blends precede 2D-7 offline Shell startup.
+measurement, native SWF/font binding and dynamic dependency closure remain open.
+The page slice adds compact UIPG output, fixed native page slots and page/screen triangle
+splitting in the existing authored renderer scene. English is the only initial UI
+language; alternative-language resources and font handling are outside this scope.
+See the [page acceptance record](PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
+and inspected [NTSC](images/renderer-paged-2d-5-ntsc.png) /
+[PAL](images/renderer-paged-2d-5-pal.png) captures. Native SWF/font binding remains next.
+Full 2D-5 acceptance and 2D-6 masks/blends precede 2D-7 offline Shell startup.
 
 ## Scope and completion criteria
 
@@ -464,7 +470,7 @@ calendar estimates. Each slice must leave a reviewable build and preserve headle
 | **2D-2: textures, alpha and capture** | Direct RGBA textures, sampler/stride/POT metadata, residency and hazards; bounded framebuffer capture. | Authored NPOT/edge/sampler images, overlapping textured alpha layers, clipped sprites, dirty upload/eviction pressure and chunk overflow; inspect target captures and compare expected pixel regions. A printed PASS alone is insufficient. |
 | **2D-3: native visible console** | Doom display/color/state/quad/text providers, intrinsic white + authored charset, safe Common presentation/UpdateScreen integration. | Real `console->Draw` displays existing native text, input line and translucent background for at least 120 frames; live HostFs `echo`, `history` and quit continue to work; capture-before-quit displays the last frame. Headless `test-headless` still allocates no device pools. |
 | **2D-4: indexed UI and authored SWF** | Bounded GUI collection/CPU handles and triangle emission; fonts, basic materials, native timeline/script runtime and input transforms. | One authored mask-free native SWF with a rotated/skewed textured quad, indexed solid shapes, text, focus/select and an animated alpha/color multiplier. Verify geometry/index limits, half-float UV decoding, ordering and warm reload cleanup. This proves the interface, not the retail shell. |
-| **2D-5: retail UI inventory and cooking** | Reproducible container/dependency/feature inventory; DXT/green-alpha decoding, atlas paging/remap, font/localization subset and cooked binary UI manifest. Can progress in parallel with 2D-3/4. | Bounded shell/dialog/fonts package with hashes, estimated/actual resident working set and explicit unsupported feature list. No proprietary output committed. Repeated conversion is deterministic; wrong/truncated/oversized input fails before publishing ownership. |
+| **2D-5: retail UI inventory and cooking** | Reproducible container/dependency/feature inventory; DXT/green-alpha decoding, atlas paging/remap, English font/localization scope and compact cooked runtime indices. Can progress in parallel with 2D-3/4. | Bounded shell/dialog/fonts package with hashes, estimated/actual resident working set and explicit unsupported feature list. No proprietary output committed. Repeated conversion is deterministic; wrong/truncated/oversized input fails before publishing ownership. |
 | **2D-6: required SWF feature closure** | Actual shell-required masks, nonzero additive color, blends, morphs/gradient/stroke and page splits; choose measured exact/native adaptation/composition per feature. Depends on 2D-4/5. | Target captures against CPU/reference expected regions for nested/concave required clips, alpha/color transforms and page boundaries; no silently dropped masks or substitute normal blends. Feature inventory has no unresolved essential root/dialog draw requirement. |
 | **2D-7: native offline main menu** | Bounded native shell/root/press-start/dialog providers, Common menu/level-load hooks, localization, optional silent cue policy and focus/console routing. | Production reaches a recognizable native BFG root, remains responsive for at least 600 frames, handles focus/select/back, visible console and quit/confirmation, and has no unexpected unavailable-capability fatal. Menu/console/reload loops have stable warm ledgers; full shutdown returns to baseline. Unsupported campaign/network/save/video actions are explicit. |
 | **2D-8: device input and hardware check** | Scoped Quake pad/keyboard reuse or current PS2 input services; correct event mapping and presentation pacing. | Navigate and quit on the intended input device; no unintended input consumption or reconnect crash. Verify at least one physical PS2 capture/view for cache/DMA, video/alpha/font readability and NTSC/PAL behavior before calling this hardware-accepted. PCSX2 is the regression gate, not an EE cache or GS cost measurement. |
@@ -523,7 +529,7 @@ supplies intrinsic images, native display/draw methods and `console->Draw` throu
 an explicit production display policy and safe Common frame/`UpdateScreen` lifecycle.
 The current **2D-4** implementation supplies bounded indexed UI, authored materials,
 native fonts and one interactive mask-free native SWF. The host retail UI
-inventory/cook foundation (**2D-5**) is now available. Next connect bounded native
-page/font loading and measure the working set, followed by required SWF feature closure
+inventory/cook foundation (**2D-5**) is now available. Next connect the bounded native page path to SWF/font loading and measure the
+English menu working set, followed by required SWF feature closure
 (**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
 the interface; native BFG menu and world-rendering acceptance remain separate gates.

@@ -4,7 +4,7 @@
 
 - `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
   executable for the integrated GS/native-adapter scenes in NTSC/PAL, then twelve expected-fatal probes.
-  They do not initialize real Console/Common presentation or link fixtures into production. Thirteen GS
+  They do not initialize real Console/Common presentation or link fixtures into production. Fourteen GS
   markers require 120 presented frames, alternating contexts, a reload with smaller
   command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
   exact tagged cleanup. GIF/oversized-DIRECT bounds, a deliberately stalled deadline,
@@ -30,6 +30,13 @@
   primary/reload captures, all three CPU pool limits reached, command drains and exact
   ledger cleanup. This extends the existing integrated fixture; no new fixture is added.
   A timeout-injected partial file is never accepted. Preserve images/hashes and record inspection.
+  `renderer-paged*.tga` adds 45 pixel probes, including 22 seam/filtering samples, over
+  a cooked authored six-page atlas. Two fixed CPU texture slots and one scratch page
+  preserve warm ledgers across 120/four frames; periodic six-page sweeps force reuse,
+  while intervening frames exercise a two-page working set. One VRAM page forces
+  queued-reference retirement. Reject bad headers/tables/lengths, insufficient cache
+  budgets and corrupt pixels without retaining ownership. Primary/reload captures
+  must match. This tests page mechanics, not a measured retail-menu working set.
   Acceptance run identities and measured budgets are in PORT_STATUS; no physical PS2
   or cache-coherency claim.
 
@@ -118,7 +125,7 @@
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The complete host suite currently has 140 Python regressions, including shared PCM/voice timing, codec, source
+  The host suite includes shared PCM/voice timing, codec, source
   relocation audit, real JPEG
   and filesystem sanitizer fixtures.
 
@@ -206,7 +213,7 @@
   with the expected fatal on the EE. Host sanitizer checks also verify full decoder/output
   cleanup before fatal. Codec memory uses the same heap through native JPG/ZIP tags.
 
-- `make link-game` passes the retained compile/link gate in debug/release: all 342 production inputs,
+- `make link-game` passes the retained compile/link gate in debug/release: all 363 production inputs,
   every required game/class/cvar registration root and map input are retained without
   unresolved symbols, duplicates, Classic imports or GC. The campaign test entry separately requires
   an explicit authored fixture manifest. Do not reuse an older resident ELF after a failed attempt.

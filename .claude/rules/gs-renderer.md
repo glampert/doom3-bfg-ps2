@@ -44,8 +44,27 @@ the original atlas's outer boundary and unused padding. Each page records a sour
 rectangle and affine global-normalized-UV to page-UV map; split/clip geometry at page
 boundaries before applying it. Native SWF RenderShape uses atlasMaterial, atlasOffset,
 image size and channelScale for bitmap fills, not dictionary.material. Dictionary
-renaming alone cannot implement paging. These are host contracts; native binding,
-triangle splitting and resident working-set acceptance remain pending.
+renaming alone cannot implement paging. `ui_page_image.*` now streams compact UIPG
+images through fixed texture slots and calls `ui_page_geometry.*` for page/screen
+splits. Native SWF/font binding and retail working-set acceptance remain pending.
+
+Page intersections must be reconstructed from the canonical original triangle and
+shared boundary constraints. Chaining interpolation through different preceding
+page clips produced a real one-sixteenth-pixel shared-edge mismatch. Track original
+edge/plane provenance, mark vertices already on a plane, preserve constant components
+and coalesce exactly equivalent constraints for rank-one UV mappings. Merely sorting
+the traversed edge endpoints is insufficient. A rounded fixed UV at a page border can
+also be a nearby interior vertex; compare genuine shared constraints in seam tests.
+Keep this math single precision on EE; guards and exact integer significand products
+handle degenerate constraints without software-double operations.
+
+UIPG v1 stores a checked 32-byte little-endian header and eight-byte offset/FNV1a32
+records, followed by fixed 262,144-byte raw RGBA pages. Validate exact file length,
+dimensions, inferred grid/count and every offset before reserving cache ownership;
+verify each complete page before updating a texture slot. The scratch buffer is
+separate from texture pixels. Reuse follows existing Update/Bind/Upload fences, so
+queued pieces from this frame retire before their texture contents change. Close
+images before the device and retain explicit linear/clamp sampling in this slice.
 
 ## Doom CPU-only device acceptance
 

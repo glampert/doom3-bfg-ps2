@@ -57,7 +57,9 @@ retail containers and publish ignored extraction/inventory/cooking output. The C
 unpacker uses the host compiler without engine linkage; the UI pipeline uses Python's
 standard library. None adds an EE source, vendor dependency or target capability.
 The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest;
-the production count remains 360 retained inputs and 385 compile-database entries.
+the native UIPG reader, page splitter and fixed texture cache add three strict backend
+units. Production now retains 363 inputs and the compile database has 388 entries.
+The target renderer scene uses authored pages; retail SWF/font admission stays pending.
 
 `make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
@@ -70,7 +72,7 @@ does not initialize the campaign game. `CORE_BOOT` controls this selection only 
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
 `PS2_CXX_SRC` owns production entry, the Common loop provider and the strict optional
-presentation and authored movie providers. Production links 360 direct objects, retaining all eleven
+presentation and authored movie providers. Production links 363 direct objects, retaining all eleven
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.

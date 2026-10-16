@@ -75,7 +75,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
-  RGB/alpha, context flips, residency/buffer pressure, reload/cleanup and twelve
+  RGB/alpha, streamed UIPG pages with triangle splits and bounded cache pressure, context flips, residency/buffer pressure, reload/cleanup and twelve
   bounds/state/deadline failures. `make run-renderer` captures
   and holds the NTSC scene for inspection.
   Production optionally presents the real native console and authored native SWF through
@@ -127,9 +127,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `make ui-inventory` / `make ui-cook` inspect/cook the local retail shell/dialog profile
   in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
   Output must stay under `build/`. The manifest records hashes, dependencies, feature
-  gaps, full font/language data and lossless guttered RGBA pages. `runtime_ready=false`
-  is intentional: native page binding, masks/blends and offline Shell integration are
-  later gates. See [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
+  gaps, full English font/language data, lossless guttered RGBA pages and compact UIPG
+  runtime images. Initial UI localization supports English only. `PageImage` streams
+  checked pages through fixed texture slots and splits triangles; close it before the
+  device. `runtime_ready=false` is intentional: native SWF/font binding, masks/blends
+  and offline Shell integration are later gates. See [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend

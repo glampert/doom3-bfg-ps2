@@ -2817,3 +2817,85 @@ bytes on the host. No EE/backend source or source list changed: production remai
 UI admission and headless behavior are unchanged; target/emulator acceptance is not
 claimed for this host-only step. `make`, `make release` and `make inventory` pass;
 no emulator run is needed for these host-only changes.
+
+## Streamed page images and triangle splits (2D-5 slice)
+
+On **2026-10-16, Australia/Sydney**, the authored resource generator now emits the
+approved C++ layout directly. Its exact-byte `--check` passes without requiring a
+formatter, and authored SWF/font/material bytes remain unchanged. Target compilation
+also exposed the preceding format pass's include-order regression in the engine
+type-query test; `precompiled.h` now stays in a separate first include block.
+
+The English-only retail cook now emits twelve compact **UIPG v1** image files in
+addition to its source assets and inspectable RGBA pages. The runtime reads a 32-byte
+little-endian header and eight-byte offset/checksum records rather than the large
+JSON report. Every package has fixed 256×256 RGBA pages, one-pixel gutters, a bounded
+inferred grid, exact length/offset validation and per-page FNV1a32 checks. Host SHA-256
+and publication validation remain in place. The package has **157 unique asset files /
+71,825,068 bytes**, plus a **10,180,729-byte manifest** with SHA-256
+`c117443f418a0f8fdb264c755250cec891581e77f5a05f3fa04aafac1f7d7218`.
+This includes duplicate disk storage for raw pages and indexed runtime files; it is
+not simultaneous EE residency. Initial localization/fonts support English only.
+
+The new strict `ui_page_format.*`, `ui_page_geometry.*` and `ui_page_image.*` backend
+units validate metadata, stream one input page, split full-atlas triangles at page
+and screen boundaries, and reuse a fixed set of texture slots through existing
+Update/Bind/upload fences. Draw order, interpolation and queued texture ownership
+survive CPU-cache and VRAM eviction. Invalid page data never replaces a valid slot.
+Callers close images before shutting down their device; filtering is linear/clamp.
+No native retail SWF/font provider is enabled by this slice.
+
+Clipping reconstructs intersections from the original triangle and canonical boundary
+constraints. This fixes a reproduced one-sixteenth-pixel adjacent-page disagreement
+caused by chained interpolation. Constant components and exactly equivalent planes
+preserve valid UV line/point mappings, including page corners. Arithmetic remains
+single precision; the EE object imports no software-double helpers. Host sanitizer
+checks cover malformed metadata, shared seams, reversed winding, color/alpha,
+nonportable values, untouched rejected outputs and randomized rank-one mappings.
+
+The existing renderer fixture now cooks an authored **600×320, six-page atlas**,
+draws clipped/rotated triangles, zoomed bilinear seams and overlapping alpha layers,
+and reloads it. It reserves **524,288 texture bytes + 262,144 input bytes + 48 table
+bytes**, or **786,480 requested RENDER bytes**, with fixed object/file/allocator and
+device overhead accounted separately. Two CPU slots compete for one VRAM page.
+There are no draw-time allocations and warm ledgers remain exact over 120/four frames.
+Periodic six-page sweeps test eviction; intervening frames keep a two-page working
+set hot. The first deliberate all-pages-every-frame experiment exceeded its watchdog
+under HostFs/hash thrashing and was not accepted as a rendering result.
+
+The primary cycle records **170 loads, 1,870 hits, 168 evictions and 2,185 triangles**;
+reload records **68 / 44 / 66 / 170**. Bad header/table/length/pixel files, invalid
+paths/slot counts and insufficient cache budgets are rejected with exact cleanup.
+Each native capture checks **45 pixels**, including **22 filtering/seam probes**, at
+the existing tolerance of eight. Primary/reload hashes match per standard; inspected
+unscaled captures are [NTSC](images/renderer-paged-2d-5-ntsc.png) and
+[PAL](images/renderer-paged-2d-5-pal.png). Renderer shutdown returns exactly to its
+**1,047 requested / 1,176 backing bytes / 2 allocations** baseline.
+
+The production link now retains **363 objects**, zero test inputs/symbols and no GC;
+the compile database contains **388 entries**. Production fixed `PT_LOAD` residency is
+**11,034,470 debug / 11,455,974 release bytes**. `runtime_ready=false` remains correct:
+native SWF/font page binding, English menu working-set measurements, masks/blends and
+offline Shell integration remain subsequent gates. The authored cache exercise is
+not a retail residency/performance or physical PS2 acceptance claim.
+
+Debug/release production and core builds, **283 Python host regressions**, existing
+ASan/UBSan harnesses and both new native format/geometry harnesses pass. Geometry
+coverage includes 40,000 randomized cases and 1,200 rank-one profiles. Both complete
+renderer matrices pass their two positive standards and twelve expected-fatal probes;
+assertions are disabled in release. Production `test-headless` also passes bounded
+frames and live command/quit runs in both configurations with exact shutdown recovery.
+Authored generation and the compiler database are current, and no retail file is tracked.
+
+| Configuration | NTSC acceptance archive | PAL acceptance archive |
+| --- | --- | --- |
+| Debug | `20261016T123532Z_smoke_c85948736c03477b` | `20261016T123556Z_smoke_ef0d53ec863c412e` |
+| Release | `20261016T123712Z_smoke_7545305176dd4af1` | `20261016T123735Z_smoke_11870183015241c1` |
+
+Both configurations have the same paged capture hashes: NTSC
+`827db3465baa2d5c46481bec5ff4d55c6a3bf2152caf67de951c85c3739ddddb`, PAL
+`f774a78722736c4cbdda72595bd98511d76606ec52830a558cf1606d1ab3f928`.
+Each archive retains matching ELF/symbol/map/report, flags, authored package variants,
+capture checks and logs. The next work binds UIPG pages into native SWF/font drawing
+for the English profile, then measures that real active working set before masks,
+special blends and offline Shell integration.

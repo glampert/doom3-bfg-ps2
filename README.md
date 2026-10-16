@@ -30,8 +30,12 @@ with checked writes and recoverable readback deadlines. Production can now call 
 real native `console->Draw` after each Common frame and draw an authored native SWF
 beneath it.
 Host tools now inventory the local retail shell/dialog and cook lossless image pages,
-fonts and localization candidates. These packages are not yet admitted by the native
+fonts and English localization candidates. The backend now streams compact UIPG
+images through a bounded page cache and splits atlas triangles, verified with authored
+renderer data. Retail SWF/font packages are not yet admitted by the native
 runtime; see [the retail UI pipeline](docs/RETAIL_UI_PIPELINE.md) for usage and remaining gates.
+The [page acceptance record](docs/PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
+includes native NTSC/PAL captures and the fixed cache/input/table budget.
 Debug/release NTSC/PAL console acceptance and inspected captures are recorded in
 [PORT_STATUS.md](docs/PORT_STATUS.md#production-native-visible-console-2d-3).
 

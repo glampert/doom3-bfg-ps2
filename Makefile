@@ -263,7 +263,7 @@ $(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
 $(OUTPUT_DIR)/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
-$(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/renderer/ui_draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
+$(OUTPUT_DIR)/src/ps2/renderer/ui_page_image.o $(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/renderer/ui_draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.
@@ -578,6 +578,14 @@ build/tests/ui_geometry_tests: src/tests/host/ui_geometry_tests.cpp src/ps2/rend
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_geometry_tests.cpp src/ps2/renderer/ui_geometry.cpp -o $@
 
+build/tests/ui_page_format_tests: src/tests/host/ui_page_format_tests.cpp src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_format.h Makefile
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_format_tests.cpp src/ps2/renderer/ui_page_format.cpp -o $@
+
+build/tests/ui_page_geometry_tests: src/tests/host/ui_page_geometry_tests.cpp src/ps2/renderer/ui_page_geometry.cpp src/ps2/renderer/ui_page_geometry.h src/ps2/renderer/ui_triangles.h Makefile
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_geometry_tests.cpp src/ps2/renderer/ui_page_geometry.cpp -o $@
+
 build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp src/ps2/renderer/ui_triangles.h src/ps2/renderer/ui_geometry.h Makefile
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp -o $@
@@ -586,7 +594,9 @@ build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/renderer/cha
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/ps2/renderer/charset.cpp -o $@
 
-test-host: build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+	./build/tests/ui_page_format_tests
+	./build/tests/ui_page_geometry_tests
 	./build/tests/ui_triangles_tests
 	./build/tests/charset_tests
 	./build/tests/ui_geometry_tests
