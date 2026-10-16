@@ -242,10 +242,12 @@ def header(assets):
     for index, (path, data) in enumerate(assets.items()):
         name = f"kResource{index}"
         text += f"static constexpr std::uint8_t {name}[] = {{\n"
-        for start in range(0, len(data), 16):
-            text += "    " + ", ".join(f"0x{byte:02x}" for byte in data[start:start + 16]) + ",\n"
+        # One byte per line is already a fixed point of the repository formatter;
+        # generation and --check do not depend on an installed C++ formatter.
+        for byte in data:
+            text += f"    0x{byte:02x},\n"
         text += "};\n\n"
-        entries.append(f'    {{"{path}", {name}, sizeof({name})}},')
+        entries.append(f'    {{ "{path}", {name}, sizeof({name}) }},')
     text += ("struct Resource\n{\n    const char * path;\n    const std::uint8_t * bytes;\n"
              "    std::size_t length;\n};\n\nstatic constexpr Resource kResources[] = {\n"
              + "\n".join(entries) + "\n};\n} // namespace ps2::ui::authored\n")

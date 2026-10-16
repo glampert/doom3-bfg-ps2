@@ -7,6 +7,7 @@
 
 import importlib.util
 import math
+import os
 from pathlib import Path
 import re
 import struct
@@ -149,6 +150,21 @@ def actions(data):
 
 
 class AuthoredNativeUI(unittest.TestCase):
+    def test_generated_header_uses_formatter_stable_cpp_layout(self):
+        header = builder.header({"test/data": bytes((0, 127, 255))}).decode("ascii")
+        expected = ("\n{\n"
+                    "static constexpr std::uint8_t kResource0[] = {\n"
+                    "    0x00,\n    0x7f,\n    0xff,\n};\n\n"
+                    "struct Resource\n{\n"
+                    "    const char * path;\n"
+                    "    const std::uint8_t * bytes;\n"
+                    "    std::size_t length;\n};\n\n"
+                    "static constexpr Resource kResources[] = {\n"
+                    '    { "test/data", kResource0, sizeof(kResource0) },\n'
+                    "};\n} // namespace ps2::ui::authored\n")
+        self.assertEqual(header.split("namespace ps2::ui::authored", 1)[1], expected)
+        self.assertEqual(builder.header({"test/data": bytes((0, 127, 255))}).decode("ascii"), header)
+
     def test_tracked_resources_and_compiled_whitelist_are_reproducible(self):
         for relative, expected in builder.outputs().items():
             with self.subTest(path=str(relative)):
@@ -252,11 +268,18 @@ class AuthoredNativeUI(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(content)
             command = [sys.executable, str(ROOT / "src/tools/scripts/build_authored_ui.py"), "--root", str(root), "--check"]
-            self.assertEqual(subprocess.run(command, capture_output=True).returncode, 0)
-            path = root / builder.ASSET_ROOT / "base" / builder.SWF_PATH
-            path.write_bytes(b"stale")
-            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
-            self.assertEqual(path.read_bytes(), b"stale")
+            # An empty PATH proves header generation/checking needs only Python,
+            # including on a machine without clang-format or the PS2 toolchain.
+            environment = {**os.environ, "PATH": ""}
+            self.assertEqual(subprocess.run(command, capture_output=True, env=environment).returncode, 0)
+            for relative in (builder.HEADER_PATH, builder.ASSET_ROOT / "base" / builder.SWF_PATH):
+                with self.subTest(path=str(relative)):
+                    path = root / relative
+                    original = path.read_bytes()
+                    path.write_bytes(b"stale")
+                    self.assertNotEqual(subprocess.run(command, capture_output=True, env=environment).returncode, 0)
+                    self.assertEqual(path.read_bytes(), b"stale")
+                    path.write_bytes(original)
 
 
 if __name__ == "__main__":
