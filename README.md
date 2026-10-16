@@ -29,6 +29,9 @@ storage, fences dirty uploads and eviction, and streams native framebuffer captu
 with checked writes and recoverable readback deadlines. Production can now call the
 real native `console->Draw` after each Common frame and draw an authored native SWF
 beneath it.
+Host tools now inventory the local retail shell/dialog and cook lossless image pages,
+fonts and localization candidates. These packages are not yet admitted by the native
+runtime; see [the retail UI pipeline](docs/RETAIL_UI_PIPELINE.md) for usage and remaining gates.
 Debug/release NTSC/PAL console acceptance and inspected captures are recorded in
 [PORT_STATUS.md](docs/PORT_STATUS.md#production-native-visible-console-2d-3).
 
@@ -103,6 +106,8 @@ make smoke-negative          # expected missing-fixture failure
 make test-common             # seven partial-startup and sixty-two expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
 make resource-unpack         # standalone C++20 host resource reader/extractor
+make ui-inventory            # inspect local retail UI dependencies and feature gaps
+make ui-cook                 # publish host candidates under ignored build/ui-retail/
 ```
 
 The [host resource unpacker](src/tools/resource_unpack/README.md) expands native BFG
@@ -533,6 +538,9 @@ order and terminator; the portable provider is new backend code.
 The standalone host resource unpacker follows id Software's
 `framework/File_Resource.{h,cpp}` and `File.cpp` binary layouts and lookup order.
 Its bounded table reader, streaming output and filesystem validation are new host code.
+The retail UI host readers follow the native BSWF16, binary image, font, language and
+material layouts under `src/neo/`. Their checked parsers, lossless page cooker and
+synthetic regression data are new code; no proprietary resource is redistributed.
 
 The PS2 backend draws on Guilherme Lampert's [quake2-ps2](https://github.com/glampert/quake2-ps2).
 The shared `src/ps2/common.h` assertion macros and `ArrayLength` helper are adapted

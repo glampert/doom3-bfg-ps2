@@ -119,6 +119,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   with later input containers/records winning. Existing files require `--overwrite`.
   Keep retail output ignored. `make test-host` exercises its separate sanitizer build;
   this host-only tool does not change native asset providers or boot capability.
+- `make ui-inventory` / `make ui-cook` inspect/cook the local retail shell/dialog profile
+  in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
+  Output must stay under `build/`. The manifest records hashes, dependencies, feature
+  gaps, full font/language data and lossless guttered RGBA pages. `runtime_ready=false`
+  is intentional: native page binding, masks/blends and offline Shell integration are
+  later gates. See [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend

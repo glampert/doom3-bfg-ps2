@@ -35,6 +35,18 @@ general image loading, retail menus and VU output remain subsequent gates.
   at most one edge can be created per index. This preserves native edge matching and
   avoids multi-megabyte temporary allocations for tiny CPU models.
 
+## Retail host page contract
+
+The 2D-5 host cooker preserves source pixels in 256×256 RGBA pages with a 254×254
+interior and one-texel gutter. Internal gutters sample neighboring full-atlas pixels;
+clamping each tile to its own edge changes bilinear filtering at seams. Clamp only
+the original atlas's outer boundary and unused padding. Each page records a source
+rectangle and affine global-normalized-UV to page-UV map; split/clip geometry at page
+boundaries before applying it. Native SWF RenderShape uses atlasMaterial, atlasOffset,
+image size and channelScale for bitmap fills, not dictionary.material. Dictionary
+renaming alone cannot implement paging. These are host contracts; native binding,
+triangle splitting and resident working-set acceptance remain pending.
+
 ## Doom CPU-only device acceptance
 
 - `ps2::rs` owns a frame, `cmdbuf` owns two tagged 64-byte-aligned command halves,

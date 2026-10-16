@@ -46,6 +46,25 @@ math path; PS2-specific math replacement headers are a later milestone.
   Cvar direct commands enforce ROM/INIT flags; `set` and programmatic setters explicitly
   force writes. Test both paths instead of treating the forced setter as a restriction.
 
+## Retail UI format findings
+
+- Native binary fonts have a big-endian header, little-endian ten-byte glyph records
+  and a little-endian codepoint array. Sorted duplicate codepoints occur in retail
+  fonts; native lookup selects the last duplicate. Preserve the old 12/24/48-point
+  layout metrics independently of modern glyph extrema or any future subset.
+- RegisterFont removes literal `fonts/` before each constructor/remap. Font aliases
+  use the registered name before spaces/hyphens normalize, then retry registration.
+  The default-font short circuit is exact `Arial_Narrow`. Case-folding it changes
+  alias behavior. Native language indirection has a two-lookup limit.
+- DeclManager::MakeNameCanonical lowercases, slash-converts and removes the last
+  dot suffix, but preserves repeated internal separators. Keep material identities
+  separate from normalized extraction filesystem paths (`gui//x` differs from `gui/x`).
+- Resource container payloads are stored directly. Their header/table integers are
+  big-endian; ReadString filename lengths are little-endian. Two retail sound names
+  contain `generated//sound/`; extraction merges that filesystem alias deliberately.
+  Host format validation/cooking is not native retail admission; see
+  docs/RETAIL_UI_PIPELINE.md and the checked host readers for bounds.
+
 ## Campaign portability findings
 
 - `gameReturn_t`'s native constructor leaves `sessionCommand` uninitialized. Native

@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "scope": "Native offline PressStart, Root and Quit dialog candidates; no runtime activation.",
+  "roots": [
+    "generated/swf/shell.bswf",
+    "generated/swf/dialog.bswf"
+  ],
+  "source_language": "strings/english.lang",
+  "language_ids": [
+    "#str_00395",
+    "#str_01975",
+    "#str_01976",
+    "#str_02206",
+    "#str_02215",
+    "#str_02219",
+    "#str_dlg_confirm_quit",
+    "#str_swf_accept",
+    "#str_swf_campaign",
+    "#str_swf_campaign_desc",
+    "#str_swf_cancel",
+    "#str_swf_change_game",
+    "#str_swf_credits",
+    "#str_swf_multiplayer",
+    "#str_swf_press_start",
+    "#str_swf_quit",
+    "#str_swf_select",
+    "#str_swf_settings"
+  ],
+  "material_names": [
+    "_white",
+    "guiSolid",
+    "generated/swf/shell.tga",
+    "generated/swf/dialog.tga",
+    "ui/assets/guicursor_arrow",
+    "ui/assets/guicursor_hand",
+    "guis/assets/mainmenu/doom_cover.tga",
+    "guis/assets/mainmenu/doom2_cover.tga",
+    "guis/assets/mainmenu/doom3_cover.tga"
+  ],
+  "path_contracts": {
+    "shell": [
+      "menuStart/info/options",
+      "menuStart/info/btnStart",
+      "menuStart/backing",
+      "menuMain/info/options",
+      "menuMain/info/helpTooltip",
+      "pcBar",
+      "prompts",
+      "pacifier",
+      "buttons",
+      "smallFrame",
+      "smallFrameMP",
+      "logoInfo",
+      "background"
+    ]
+  },
+  "source_contracts": [
+    "src/neo/d3xp/menus/MenuHandler.cpp",
+    "src/neo/d3xp/menus/MenuHandler_Shell.cpp",
+    "src/neo/d3xp/menus/MenuScreen_Shell_PressStart.cpp",
+    "src/neo/d3xp/menus/MenuScreen_Shell_Root.cpp",
+    "src/neo/framework/Common_dialog.cpp"
+  ],
+  "exclusions": [
+    "No target menu, renderer or asset-provider activation in this host pipeline.",
+    "Do not execute AVM1 during inspection or claim dynamic dependency closure.",
+    "Do not downscale artwork, change the theme or select demo-mode layout.",
+    "Intro movies, Mars cinematics, sound playback and save-indicator startup require explicit later gating.",
+    "Campaign loading, online services, saves and Classic switching remain unavailable.",
+    "Physical controller layout and device input remain later integration decisions."
+  ],
+  "page_config": {
+    "extent": 256,
+    "gutter": 1,
+    "pixel_cache_budget_bytes": 2097152,
+    "resampling": "none",
+    "filtering": "Preserve source texels; internal gutters sample adjacent atlas pixels."
+  }
+}

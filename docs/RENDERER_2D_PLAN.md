@@ -3,7 +3,7 @@
 This is the reference inventory and implementation roadmap for the first GS-backed
 Doom 2D renderer. Inspection and approval date: **2026-10-14, Australia/Sydney**.
 The inventories retain that original source snapshot; implementation progress is recorded
-below, most recently on **2026-10-15, Australia/Sydney**. Uncompleted gates, budgets
+below, most recently on **2026-10-16, Australia/Sydney**. Uncompleted gates, budgets
 and destinations remain proposed.
 It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
@@ -59,6 +59,17 @@ explicit authored profile, not a general retail loader. Its acceptance record is
 The inspected unscaled [NTSC](images/swf-2d-4-ntsc.png) and
 [PAL](images/swf-2d-4-pal.png) captures show native text, geometry, animated alpha and
 script-driven selection. Retail shell and physical PS2 acceptance remain later gates.
+
+**2D-5 has a host inventory/cooking foundation on 2026-10-16.** A standalone C++
+resource unpacker and checked Python format readers inventory the scoped retail
+shell/dialog, fonts, localization, materials and images. The reproducible host cook
+retains native data and pages decoded artwork losslessly, with hashes, gutters and UV
+transforms. The local profile resolves 31 required labels, five font families and
+twelve images into 143 logical pages. See [RETAIL_UI_PIPELINE.md](RETAIL_UI_PIPELINE.md)
+and the [host acceptance record](PORT_STATUS.md#retail-ui-host-inventory-and-cooking-2d-5).
+This is a candidate package with `runtime_ready=false`; actual resident working-set
+measurement, native page binding/triangle splitting and dynamic dependency closure
+remain open. Full 2D-5 acceptance and 2D-6 masks/blends precede 2D-7 offline Shell startup.
 
 ## Scope and completion criteria
 
@@ -511,7 +522,8 @@ That slice proved video setup, command ownership and solid GS pixels in PCSX2.
 supplies intrinsic images, native display/draw methods and `console->Draw` through
 an explicit production display policy and safe Common frame/`UpdateScreen` lifecycle.
 The current **2D-4** implementation supplies bounded indexed UI, authored materials,
-native fonts and one interactive mask-free native SWF. The next work is retail UI
-dependency/cooking inventory (**2D-5**), followed by required SWF feature closure
+native fonts and one interactive mask-free native SWF. The host retail UI
+inventory/cook foundation (**2D-5**) is now available. Next connect bounded native
+page/font loading and measure the working set, followed by required SWF feature closure
 (**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
 the interface; native BFG menu and world-rendering acceptance remain separate gates.

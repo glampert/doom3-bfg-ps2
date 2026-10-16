@@ -248,6 +248,17 @@ fonts/materials remain cached until UI shutdown. Full shutdown recovers 7,424 / 
 bytes in four allocations. These are authored ASCII UI measurements, not retail menu,
 localization or campaign-map budgets. Headless startup still allocates no UI pools.
 
+## Retail UI host inventory (2D-5)
+
+The 2026-10-16 host shell/dialog cook produces 143 logical 256×256 RGBA pages,
+145 unique asset files / 34,336,948 bytes, plus a 10,173,242-byte manifest. Source
+level-zero RGBA totals 26,220,672 bytes. These are ignored host storage totals, not
+EE allocations or simultaneous GS residency. Never bulk-load that decoded package
+to infer a target budget. The profile's eight-page / 2 MiB CPU pixel cache is proposed;
+native references, metadata, font arrays and transition peaks still need measurement.
+Pages include a one-texel gutter and 254×254 interior; deduplication makes unique
+storage differ from logical page count. See docs/RETAIL_UI_PIPELINE.md.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

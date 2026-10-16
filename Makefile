@@ -9,6 +9,9 @@ PS2DEV ?= $(HOME)/ps2dev
 PS2SDK ?= $(PS2DEV)/ps2sdk
 PCSX2 ?= /Applications/PCSX2.app/Contents/MacOS/PCSX2
 CONSOLE_STANDARD ?= ntsc
+UI_DATA_ROOT ?= gamedata/d3_bfg
+UI_COOK_OUTPUT ?= build/ui-retail
+UI_RETAIL_CONFIG ?= config/ui_retail.json
 PYTHON ?= python3
 EE_TOOL_PREFIX ?= $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-
 
@@ -198,7 +201,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless console run-console test-console ui run-ui test-ui resource-unpack platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless console run-console test-console ui run-ui test-ui ui-inventory ui-cook resource-unpack platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
 
 all: link-game
 release: all
@@ -400,6 +403,12 @@ tools: inventory resource-unpack
 	@echo "Host resource unpacker: build/tools/resource_unpack; Python tools: $(SCRIPTS)/."
 
 resource-unpack: build/tools/resource_unpack
+
+ui-inventory:
+	$(PYTHON) $(SCRIPTS)/inventory_retail_ui.py --data-root "$(UI_DATA_ROOT)" --output "$(UI_COOK_OUTPUT)" --config "$(UI_RETAIL_CONFIG)"
+
+ui-cook:
+	$(PYTHON) $(SCRIPTS)/inventory_retail_ui.py --data-root "$(UI_DATA_ROOT)" --output "$(UI_COOK_OUTPUT)" --config "$(UI_RETAIL_CONFIG)" --cook
 
 headless: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)

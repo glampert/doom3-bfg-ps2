@@ -2768,3 +2768,52 @@ No proprietary files were added to the repository, and no EE runtime capability 
 Usage and limits are in [the unpacker guide](../src/tools/resource_unpack/README.md).
 The UI dependency inventory and lossless host page cooker build on the same native
 resource layout; target retail loading and rendering remain separate later gates.
+
+## Retail UI host inventory and cooking (2D-5)
+
+On **2026-10-16, Australia/Sydney**, `make ui-inventory` / `make ui-cook` now provide
+the host foundation for a scoped native offline PressStart/Root/Quit-dialog package.
+The checked-in `config/ui_retail.json` profile selects shell/dialog, English labels,
+fonts, cursor/cover images and native source/path contracts. Independent checked
+readers inspect BSWF16, modern/legacy font data, language, materials and BIMAGE v10;
+the cooker decodes DXT1/DXT5 and native green-alpha without resampling.
+Usage, ownership and limits are in [RETAIL_UI_PIPELINE.md](RETAIL_UI_PIPELINE.md).
+
+The local `_common` / `_ordered` inventory resolves **2 SWFs, 5 font families,
+12 images and 31/31 required localization IDs**, with **128 material files** and
+**160 hashed inputs**. Five native menu/dialog source files are hashed separately.
+Twelve of thirteen configured shell paths appear in static timeline expansion;
+`menuStart/backing` is absent and is optional in native PressStart code.
+The shell reports 54 mask placements, 29 additive-color placements, blend modes
+0/4/8 and fifteen strokes; dialog adds ten masks and blend modes 0/8. Static script
+inventory is conservative and does not establish dynamic resource/callback closure.
+
+The host cook preserves original shell/dialog bytes, five complete modern fonts,
+twelve legacy metric files and full English localization. Decoded artwork becomes
+**143 logical 256×256 RGBA pages** with one-pixel gutters, source rectangles and
+full-atlas-to-page UV transforms. Internal gutters sample neighboring original atlas
+texels. The immutable package contains **145 unique asset files / 34,336,948 bytes**,
+excluding the **10,173,242-byte manifest**. Repeated cooking is byte-identical:
+manifest SHA-256 `6fd558c9b8ee7a05b7904b30ea49eef09cf039cdafafb44a2fb6762bf9b17b4a`.
+Output remains local under ignored `build/`; no proprietary file is committed.
+
+`make test-host` passes **264 Python regressions** and its ASan/UBSan C++ harnesses,
+including fourteen unpacker and ninety new UI format/cook regressions. Tests cover
+truncation/ranges, duplicate priority, aliases, native font behavior, localization,
+DXT/swizzles, lossless pages/seams/UVs, immutable asset hashes and preservation of
+prior output after failures. Required missing strings/glyphs refuse cooking before
+staging; source/config publication aliases are rejected. All referenced cooked source
+and page files pass size/hash validation on the real local package. All twelve decoded
+images reconstruct byte-for-byte from page interiors, with every source pixel covered
+exactly once. The decoded shell atlas and font alpha plane were visually inspected;
+ignored evidence is in `build/ui-retail-validation.json`.
+
+This is **partial 2D-5**, with `runtime_ready=false`. Native page binding and triangle
+splitting, general bounded retail admission, masks/special blends and offline native
+Shell startup remain open. The proposed eight-page / 2 MiB CPU pixel cache is not a
+measured simultaneous working set; the twelve decoded base images total 26,220,672
+bytes on the host. No EE/backend source or source list changed: production remains
+360 retained objects and the compile database 385 entries. Existing authored native
+UI admission and headless behavior are unchanged; target/emulator acceptance is not
+claimed for this host-only step. `make`, `make release` and `make inventory` pass;
+no emulator run is needed for these host-only changes.

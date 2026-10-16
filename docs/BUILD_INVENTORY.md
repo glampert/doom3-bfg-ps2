@@ -52,6 +52,13 @@ its separate deletion gate. Retail assets do not participate in these build targ
 
 ## Build gates and artifacts
 
+Host-only `make resource-unpack`, `make ui-inventory` and `make ui-cook` read local
+retail containers and publish ignored extraction/inventory/cooking output. The C++
+unpacker uses the host compiler without engine linkage; the UI pipeline uses Python's
+standard library. None adds an EE source, vendor dependency or target capability.
+The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest;
+the production count remains 360 retained inputs and 385 compile-database entries.
+
 `make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
 `make headless-core` links asset-free foundation tests into
