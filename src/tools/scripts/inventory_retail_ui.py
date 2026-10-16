@@ -22,6 +22,7 @@ from ui_bimage import decode_level, inspect_bimage
 from ui_font import inspect_font, inspect_old_font, inspect_language, language_coverage
 from ui_material import index_materials, resolve_material, canonical_material_name
 from ui_pages import write_pages
+from ui_page_package import write_page_package
 from ui_resources import MAX_RESOURCE_BYTES, ResourceCatalog, digest, identity, logical_name
 from ui_swf import inspect_swf
 
@@ -34,7 +35,7 @@ PIXEL_CACHE_BUDGET = 2 * 1024 * 1024
 _BLOCKERS = [
     "Native masks/stencil and their nested/concave composition remain unsupported.",
     "Nonzero additive color and required special blend modes need measured 2D-6 closure.",
-    "Cooked pages need page-aware native binding and triangle splitting; dictionary names alone do not page RenderShape.",
+    "Native SWF/font drawing must bind UIPG images and route atlas triangles through page splitting; dictionary names alone do not page RenderShape.",
     "General retail BSWF/font/material/image admission and bounded target loading are not implemented.",
     "Static AVM1 inventory cannot close dynamic names, callbacks or runtime-generated strings/resources.",
     "Native offline PressStart/Root/Quit-dialog startup, input policy and optional media gating remain pending.",
@@ -120,6 +121,8 @@ def _configuration(path):
         raise ValueError("retail UI source_language is required")
     for name in config["roots"] + [config["source_language"]]:
         logical_name(name)
+    if logical_name(config["source_language"]) != "strings/english.lang":
+        raise ValueError("retail UI pipeline supports English strings/english.lang only")
     page = config.get("page_config", {})
     if (page.get("extent") != 256 or page.get("gutter") != 1 or
             page.get("pixel_cache_budget_bytes") != PIXEL_CACHE_BUDGET or page.get("resampling") != "none"):
@@ -369,6 +372,7 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
         source_contracts.append({"name": name, "bytes": len(data), "sha256": digest(data)})
     manifest = {"schema_version": 1, "pipeline": "retail-ui-host-candidates", "mode": "cook" if cook else "inventory",
                 "runtime_ready": False, "dynamic_dependency_closure": False,
+                "supported_languages": ["english"],
                 "scope": config.get("scope"), "config_sha256": config_hash,
                 "containers": [{"name": value.path.name, "sha256": value.sha256,
                                 "bytes": value.identity[1], "entries": len(value.entries)} for value in catalog.containers],
@@ -387,7 +391,7 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                                 "rgba_page_bytes": 256 * 256 * 4, "proposed_resident_pages": 8,
                                 "source_decoded_base_bytes": sum(value["decoded_bytes"] for value in image_details.values()),
                                 "policy": "Stream bounded pages; package totals are not simultaneous EE/GS residency or a measured target budget."},
-                "cooked": {"assets": {}, "page_layouts": {}, "storage_bytes": 0, "file_count": 0}}
+                "cooked": {"assets": {}, "page_layouts": {}, "runtime_images": {}, "storage_bytes": 0, "file_count": 0}}
     if cook and issues:
         first_issue = issues[0]
         raise ValueError("retail UI cooking has unresolved required UI dependencies: " + first_issue["kind"] +
@@ -408,6 +412,7 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                 if page_count > MAX_TOTAL_PAGES:
                     raise ValueError("retail UI package exceeds 1024 total pages")
                 manifest["cooked"]["page_layouts"][name] = layout
+                manifest["cooked"]["runtime_images"][name] = write_page_package(layout, stage)
             files = list((stage / "assets").iterdir())
             manifest["cooked"]["storage_bytes"] = sum(path.stat().st_size for path in files)
             manifest["cooked"]["file_count"] = len(files)
