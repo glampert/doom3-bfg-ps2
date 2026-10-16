@@ -41,6 +41,11 @@ below still need verification when imported; the current foundation is in
 - Comments explain decisions and hardware reasons, the way the existing code does.
   Keep header comments brief (1-2 lines). Avoid adding history to comments.
 - Formatting follows the root `_clang-format`.
+- New C++ code, including host tools, uses braces on their own lines for functions,
+  namespaces, lambdas and control-flow blocks. Always brace conditional bodies;
+  do not put bodies or complete blocks on a single line, even for short functions.
+- Give the code breathing room: generally leave a blank line after a completed block
+  before the next independent statement or block.
 
 ## Sized types
 

@@ -16,6 +16,11 @@ preconditions, `ArrayLength`, and portable format/cold function macros. Preserve
 validation in release builds. Reused Quake II backend code is attributed in README.md;
 new file banners use `This source code is released under the GNU GPL-3.0-or-later license.`
 
+New C++ code, including host tools, places block braces on their own lines. Always
+brace conditional bodies and expand blocks across multiple lines, including short
+functions. Leave a blank line after a completed block before the next independent
+statement or block; keep the code visually spaced rather than densely packed.
+
 [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) describes the proposed milestones and
 source changes. [README.md](README.md) records current project status; expand it as the
 port develops. [CVARS.md](docs/CVARS.md) lists implemented backend cvars; add each one with
