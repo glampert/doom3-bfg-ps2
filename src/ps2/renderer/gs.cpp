@@ -7,12 +7,12 @@
 #include "ps2/renderer/gs.h"
 #include "ps2/renderer/cmd_buffer.h"
 #include "ps2/renderer/pipeline_wait.h"
+#include <dma.h>
+#include <dma_tags.h>
 #include <graph.h>
 #include <gs_gp.h>
 #include <gs_psm.h>
 #include <kernel.h>
-#include <dma.h>
-#include <dma_tags.h>
 
 namespace ps2::gs
 {
@@ -30,10 +30,18 @@ alignas(64) static qword_t s_upload[128] = {};
 int Index(DrawContext context)
 {
     const int index = static_cast<int>(context);
-    if (index < 0 || index > 1) { FatalError("invalid GS drawing context"); }
+    if (index < 0 || index > 1)
+    {
+        FatalError("invalid GS drawing context");
+    }
     return index;
 }
-u64 ContextReg(int reg, DrawContext context) { return static_cast<u64>(reg + Index(context)); }
+
+u64 ContextReg(int reg, DrawContext context)
+{
+    return static_cast<u64>(reg + Index(context));
+}
+
 tex::Layout ValidateBinding(const TextureBinding & binding)
 {
     tex::Layout verified = {};
@@ -51,19 +59,41 @@ tex::Layout ValidateBinding(const TextureBinding & binding)
 }
 } // namespace
 
-bool IsInitialized() { return s_initialized; }
-int Width() { return s_width; }
-int Height() { return s_height; }
-u32 FixedVramBytes() { return s_fixedVramBytes; }
+bool IsInitialized()
+{
+    return s_initialized;
+}
+
+int Width()
+{
+    return s_width;
+}
+
+int Height()
+{
+    return s_height;
+}
+
+u32 FixedVramBytes()
+{
+    return s_fixedVramBytes;
+}
+
 FramebufferInfo GetFramebuffer(DrawContext context)
 {
-    if (!s_initialized) { FatalError("framebuffer query before GS initialization"); }
-    return {s_frames[Index(context)].address, s_width, s_height, GS_PSM_16};
+    if (!s_initialized)
+    {
+        FatalError("framebuffer query before GS initialization");
+    }
+    return { s_frames[Index(context)].address, s_width, s_height, GS_PSM_16 };
 }
 
 PS2_COLD_FUNC bool Init(const Config & config)
 {
-    if (s_initialized || !cmdbuf::IsInitialized()) { FatalError("invalid GS initialization order"); }
+    if (s_initialized || !cmdbuf::IsInitialized())
+    {
+        FatalError("invalid GS initialization order");
+    }
     // Narrow first device profile: all dimensions are page-aligned and fit the TV standard.
     if (!video::IsValid(config.standard) || config.width != 512 || config.height != video::VisibleLines(config.standard))
     {
@@ -108,7 +138,8 @@ PS2_COLD_FUNC bool Init(const Config & config)
     graph_disable_output();
     // Claim the VIF/GIF interfaces as well as the GS. A GS CSR reset alone left
     // inherited loader state that blocked our first PATH2 DIRECT on the target.
-    WaitUntil([] { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "initial GIF DMA");
+    WaitUntil([]
+              { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "initial GIF DMA");
     Log(LogLevel::Info, "[D3BFG] GS claim GIF_STAT=%08x VIF1_STAT=%08x\n", *R_EE_GIF_STAT, *R_EE_VIF1_STAT);
     *R_EE_GIF_CTRL = 1;
     *R_EE_GIF_CTRL = 0;
@@ -131,7 +162,7 @@ PS2_COLD_FUNC bool Init(const Config & config)
     writer.SetupEnvironment(0, s_frames[0], s_depth);
     writer.SetupEnvironment(1, s_frames[1], s_depth);
     cmdbuf::EndDirect(writer);
-    FillRect(DrawContext::Ctx0, 0, 0, s_width, s_height, {0, 0, 0, 255});
+    FillRect(DrawContext::Ctx0, 0, 0, s_width, s_height, { 0, 0, 0, 255 });
     cmdbuf::EndFrame();
     Log(LogLevel::Info, "[D3BFG] GS ready %s %dx%d PSMCT16/Z16 fixed_vram=%u\n",
         video::Name(config.standard), s_width, s_height, s_fixedVramBytes);
@@ -148,16 +179,23 @@ void UploadRgba32(const TextureBinding & binding, const void * pixels)
     // Retire queued PATH2 references before PATH3 uploads or overwrites an address.
     cmdbuf::Kick();
     cmdbuf::WaitIdle();
-    WaitUntil([] { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "texture GIF DMA idle");
+    WaitUntil([]
+              { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "texture GIF DMA idle");
     // Audited draw.c: six setup qwords and three per IMAGE/REF chunk. Preflight
     // the maximum 512x512 layout before calling the SDK, rather than postchecking only.
     const u32 chunks = (verified.bytes / 16U + GIF_BLOCK_SIZE - 1U) / GIF_BLOCK_SIZE;
     const u32 transferQwords = 6U + 3U * chunks;
-    if (transferQwords + 4U > static_cast<u32>(ArrayLength(s_upload))) { FatalError("texture upload chain overflow"); }
+    if (transferQwords + 4U > static_cast<u32>(ArrayLength(s_upload)))
+    {
+        FatalError("texture upload chain overflow");
+    }
     qword_t * end = draw_texture_transfer(s_upload, const_cast<void *>(pixels), verified.stridePixels,
-                                         verified.storageHeight, GS_PSM_32, static_cast<int>(binding.address),
-                                         verified.stridePixels);
-    if (end != s_upload + transferQwords) { FatalError("unexpected SDK texture packet size"); }
+                                          verified.storageHeight, GS_PSM_32, static_cast<int>(binding.address),
+                                          verified.stridePixels);
+    if (end != s_upload + transferQwords)
+    {
+        FatalError("unexpected SDK texture packet size");
+    }
     DMATAG_END(end, 3, 0, 0, 0);
     ++end;
     PACK_GIFTAG(end, GIF_SET_TAG(2, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
@@ -169,15 +207,20 @@ void UploadRgba32(const TextureBinding & binding, const void * pixels)
     FlushCache(0);
     *GS_REG_CSR = 2;
     dma_channel_send_chain(DMA_CHANNEL_GIF, s_upload, 0, 0, 0);
-    WaitUntil([] { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "texture GIF DMA");
-    WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "texture GS FINISH");
+    WaitUntil([]
+              { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "texture GIF DMA");
+    WaitUntil([]
+              { return (*GS_REG_CSR & 2U) != 0; }, "texture GS FINISH");
 }
 
 void TexturedRect(DrawContext context, const TextureBinding & binding, int x, int y, int width, int height,
                   int u0, int v0, int u1, int v1, Color color)
 {
     if (!s_initialized || width < 0 || height < 0 || u0 < 0 || v0 < 0 || u1 < u0 || v1 < v0 ||
-        u1 > 1023 || v1 > 1023) { FatalError("invalid GS textured rectangle"); }
+        u1 > 1023 || v1 > 1023)
+    {
+        FatalError("invalid GS textured rectangle");
+    }
     (void)Index(context);
     (void)ValidateBinding(binding);
     const s64 right = static_cast<s64>(x) + width;
@@ -186,9 +229,13 @@ void TexturedRect(DrawContext context, const TextureBinding & binding, int x, in
     const int top = y > 0 ? y : 0;
     const int endX = static_cast<int>(right < s_width ? right : s_width);
     const int endY = static_cast<int>(bottom < s_height ? bottom : s_height);
-    if (left >= endX || top >= endY || color.a == 0) { return; }
+    if (left >= endX || top >= endY || color.a == 0)
+    {
+        return;
+    }
     // Interpolate UV in wide fixed point after screen clipping; no wrapped coordinates.
-    const auto Coord = [](int start, int end, s64 offset, int extent) {
+    const auto Coord = [](int start, int end, s64 offset, int extent)
+    {
         return static_cast<int>(static_cast<s64>(start) * 16 + static_cast<s64>(end - start) * 16 * offset / extent);
     };
     const int startU = Coord(u0, u1, static_cast<s64>(left) - x, width);
@@ -210,26 +257,30 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
     {
         FatalError("invalid fixed GS textured rectangle");
     }
-    if (x0 == x1 || y0 == y1 || (color.a == 0 && blend == BlendMode::StraightAlpha)) { return; }
+    if (x0 == x1 || y0 == y1 || (color.a == 0 && blend == BlendMode::StraightAlpha))
+    {
+        return;
+    }
     const auto & layout = binding.layout;
     const auto & sampler = binding.sampler;
     const int filter = sampler.filter == tex::Filter::Linear ? 1 : 0;
     GifWriter writer = cmdbuf::BeginDirect(22);
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
     writer.SetRegister(ContextReg(GS_REG_TEX0, context), GS_SET_TEX0(binding.address >> 6,
-        static_cast<u32>(layout.stridePixels) >> 6, GS_PSM_32, layout.widthLog2, layout.heightLog2, 1, 0, 0, 0, 0, 0, 0));
+                                                                     static_cast<u32>(layout.stridePixels) >> 6, GS_PSM_32, layout.widthLog2, layout.heightLog2, 1, 0, 0, 0, 0, 0, 0));
     writer.SetRegister(ContextReg(GS_REG_CLAMP, context), GS_SET_CLAMP(
-        sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
-        0, layout.width - 1, 0, layout.height - 1));
+                                                          sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
+                                                          0, layout.width - 1, 0, layout.height - 1));
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
     // A zero-alpha texel still replaces RGB in ONE/ZERO mode. Environment cutout is
     // not the native GUI contract, so disable it explicitly for every UI sprite.
     writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 0, 1));
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_SPRITE, 0, 1, 0,
-        blend == BlendMode::StraightAlpha ? 1 : 0, 0, 1, Index(context), 0));
-    const auto Modulate = [](u8 value) { return static_cast<u8>((static_cast<u32>(value) * 128U + 127U) / 255U); };
+                                                blend == BlendMode::StraightAlpha ? 1 : 0, 0, 1, Index(context), 0));
+    const auto Modulate = [](u8 value)
+    { return static_cast<u8>((static_cast<u32>(value) * 128U + 127U) / 255U); };
     writer.SetRegister(GS_REG_RGBAQ, GS_SET_RGBAQ(Modulate(color.r), Modulate(color.g), Modulate(color.b),
-                                               Modulate(color.a), 0x3F800000U));
+                                                  Modulate(color.a), 0x3F800000U));
     writer.SetRegister(GS_REG_UV, GS_SET_UV(u0, v0));
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(x0 + 2048 * 16, y0 + 2048 * 16, 0));
     writer.SetRegister(GS_REG_UV, GS_SET_UV(u1, v1));
@@ -271,20 +322,21 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
     GifWriter writer = cmdbuf::BeginDirect(30);
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
     writer.SetRegister(ContextReg(GS_REG_TEX0, context), GS_SET_TEX0(binding.address >> 6,
-        static_cast<u32>(layout.stridePixels) >> 6, GS_PSM_32, layout.widthLog2, layout.heightLog2, 1, 0, 0, 0, 0, 0, 0));
+                                                                     static_cast<u32>(layout.stridePixels) >> 6, GS_PSM_32, layout.widthLog2, layout.heightLog2, 1, 0, 0, 0, 0, 0, 0));
     writer.SetRegister(ContextReg(GS_REG_CLAMP, context), GS_SET_CLAMP(
-        sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
-        0, layout.width - 1, 0, layout.height - 1));
+                                                          sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
+                                                          0, layout.width - 1, 0, layout.height - 1));
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
     // ONE/ZERO replaces RGB even where interpolated or texture alpha is zero.
     writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 0, 1));
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_TRIANGLE, PRIM_SHADE_GOURAUD, 1, 0,
-        blend == BlendMode::StraightAlpha ? 1 : 0, 0, PRIM_MAP_UV, Index(context), 0));
-    const auto Modulate = [](u8 value) { return static_cast<u8>((static_cast<u32>(value) * 128U + 127U) / 255U); };
+                                                blend == BlendMode::StraightAlpha ? 1 : 0, 0, PRIM_MAP_UV, Index(context), 0));
+    const auto Modulate = [](u8 value)
+    { return static_cast<u8>((static_cast<u32>(value) * 128U + 127U) / 255U); };
     for (const auto & vertex : triangle.vertices)
     {
         writer.SetRegister(GS_REG_RGBAQ, GS_SET_RGBAQ(Modulate(vertex.r), Modulate(vertex.g), Modulate(vertex.b),
-                                                   Modulate(vertex.a), 0x3F800000U));
+                                                      Modulate(vertex.a), 0x3F800000U));
         writer.SetRegister(GS_REG_UV, GS_SET_UV(vertex.u, vertex.v));
         writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(vertex.x + 2048 * 16, vertex.y + 2048 * 16, 0));
     }
@@ -293,7 +345,10 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
 
 void FillRect(DrawContext context, int x, int y, int width, int height, Color color)
 {
-    if (!s_initialized || width < 0 || height < 0) { FatalError("invalid GS fill rectangle"); }
+    if (!s_initialized || width < 0 || height < 0)
+    {
+        FatalError("invalid GS fill rectangle");
+    }
     (void)Index(context);
     // Wide arithmetic before clipping: untrusted dimensions must not wrap GS coordinates.
     const s64 right = static_cast<s64>(x) + width;
@@ -302,7 +357,10 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
     const int top = y > 0 ? y : 0;
     const int endX = static_cast<int>(right < s_width ? right : s_width);
     const int endY = static_cast<int>(bottom < s_height ? bottom : s_height);
-    if (left >= endX || top >= endY || color.a == 0) { return; }
+    if (left >= endX || top >= endY || color.a == 0)
+    {
+        return;
+    }
     GifWriter writer = cmdbuf::BeginDirect(10);
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
     const int blend = color.a == 255 ? 0 : 1;
@@ -316,17 +374,24 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
 
 void Present(DrawContext context)
 {
-    if (!s_initialized) { FatalError("GS present before initialization"); }
+    if (!s_initialized)
+    {
+        FatalError("GS present before initialization");
+    }
     cmdbuf::WaitIdle();
     *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
-    WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC");
+    WaitUntil([]
+              { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC");
     graph_set_framebuffer_filtered(static_cast<int>(s_frames[Index(context)].address), s_width, GS_PSM_16, 0, 0);
     graph_enable_output();
 }
 
 PS2_COLD_FUNC void Shutdown()
 {
-    if (!s_initialized) { return; }
+    if (!s_initialized)
+    {
+        return;
+    }
     cmdbuf::WaitIdle();
     dma_channel_shutdown(DMA_CHANNEL_GIF, 0);
     graph_shutdown();

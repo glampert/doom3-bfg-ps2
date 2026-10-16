@@ -33,31 +33,31 @@ bool CheckDrawVert()
     vertex.Clear();
     vertex.SetTexCoord(0.5f, -2.0f);
     return Check("drawvert-half-layout", sizeof(idDrawVert) == 32 &&
-        vertex.GetTexCoordNativeS() == 0x3800U && vertex.GetTexCoordNativeT() == 0xC000U &&
-        Near(F16toF32(vertex.GetTexCoordNativeS()), 0.5f) &&
-        Near(F16toF32(vertex.GetTexCoordNativeT()), -2.0f) && F32toF16(0.0f) == 0);
+                                         vertex.GetTexCoordNativeS() == 0x3800U && vertex.GetTexCoordNativeT() == 0xC000U &&
+                                         Near(F16toF32(vertex.GetTexCoordNativeS()), 0.5f) &&
+                                         Near(F16toF32(vertex.GetTexCoordNativeT()), -2.0f) && F32toF16(0.0f) == 0);
 }
 
 bool CheckMatrix()
 {
     // Scale, then translate: a different multiply order produces a visibly different point.
     const idRenderMatrix scale(
-        2.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 3.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 4.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f);
+    2.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 3.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 4.0f, 0.0f,
+    0.0f, 0.0f, 0.0f, 1.0f);
     const idRenderMatrix translation(
-        1.0f, 0.0f, 0.0f, 5.0f,
-        0.0f, 1.0f, 0.0f, 6.0f,
-        0.0f, 0.0f, 1.0f, 7.0f,
-        0.0f, 0.0f, 0.0f, 1.0f);
+    1.0f, 0.0f, 0.0f, 5.0f,
+    0.0f, 1.0f, 0.0f, 6.0f,
+    0.0f, 0.0f, 1.0f, 7.0f,
+    0.0f, 0.0f, 0.0f, 1.0f);
     idRenderMatrix composed;
     idRenderMatrix::Multiply(translation, scale, composed);
     const idVec3 input(1.0f, 2.0f, 3.0f);
     idVec4 output;
     composed.TransformPoint(input, output);
     return Check("matrix-compose", Near(output.x, 7.0f) && Near(output.y, 12.0f) &&
-        Near(output.z, 19.0f) && Near(output.w, 1.0f));
+                                   Near(output.z, 19.0f) && Near(output.w, 1.0f));
 }
 
 bool CheckPolynomialLifetime()
@@ -73,11 +73,11 @@ bool CheckPolynomialLifetime()
         idPolynomial assigned;
         assigned = sum;
         passed = Near(original.GetValue(0.0f), 3.0f) && Near(copy.GetValue(0.0f), 7.0f) &&
-            Near(assigned.GetValue(0.0f), 10.0f);
+                 Near(assigned.GetValue(0.0f), 10.0f);
     }
     const ps2::heap::Stats final = ps2::heap::GetStats(tag);
     passed = passed && final.requestedBytes == initial.requestedBytes &&
-        final.backingBytes == initial.backingBytes && final.allocationCount == initial.allocationCount;
+             final.backingBytes == initial.backingBytes && final.allocationCount == initial.allocationCount;
     return Check("polynomial-copy-lifetime", passed);
 }
 
@@ -87,15 +87,16 @@ bool CheckTaggedAlignment()
     {
         int value;
     };
+
     const auto tag = static_cast<std::uint16_t>(TAG_TEMP);
     const ps2::heap::Stats before = ps2::heap::GetStats(tag);
-    auto * allocation = new (TAG_TEMP) AlignedValue{42};
+    auto * allocation = new (TAG_TEMP) AlignedValue{ 42 };
     bool passed = reinterpret_cast<std::uintptr_t>(allocation) % 128 == 0 && allocation->value == 42 &&
-        ps2::heap::GetStats(tag).requestedBytes == before.requestedBytes + sizeof(AlignedValue);
+                  ps2::heap::GetStats(tag).requestedBytes == before.requestedBytes + sizeof(AlignedValue);
     delete allocation;
     const ps2::heap::Stats after = ps2::heap::GetStats(tag);
     passed = passed && after.requestedBytes == before.requestedBytes &&
-        after.backingBytes == before.backingBytes && after.allocationCount == before.allocationCount;
+             after.backingBytes == before.backingBytes && after.allocationCount == before.allocationCount;
     return Check("tagged-overaligned-new", passed);
 }
 
@@ -116,7 +117,7 @@ bool CheckSurfaceRay()
     }
     vertices[1].xyz.x = 1.0f;
     vertices[2].xyz.y = 1.0f;
-    const int indices[3] = {0, 1, 2};
+    const int indices[3] = { 0, 1, 2 };
     const idSurface surface(vertices, 3, indices, 3);
     const idVec3 above(0.25f, 0.25f, 1.0f);
     const idVec3 downward(0.0f, 0.0f, -1.0f);
@@ -138,7 +139,7 @@ bool CheckLexer()
     passed = lexer.ExpectTokenString("{") != 0 && passed;
     passed = lexer.ExpectTokenString("key") != 0 && passed;
     passed = lexer.ReadToken(&token) != 0 && token.type == TT_STRING &&
-        token.Icmp("two words") == 0 && token.line == 2 && passed;
+             token.Icmp("two words") == 0 && token.line == 2 && passed;
     passed = lexer.ExpectTokenString("count") != 0 && passed;
     passed = lexer.ReadToken(&token) != 0 && token.type == TT_NUMBER && token.GetIntValue() == 42 && passed;
     passed = lexer.ExpectTokenString("ratio") != 0 && passed;
@@ -167,8 +168,8 @@ bool CheckStrings()
     const idStrStatic<16> boolean(true);
     const idStrStatic<16> character('x');
     return Check("bounded-format-static-scalar", exactLength == 4 && idStr::Cmp(exact, "abcd") == 0 &&
-        truncatedLength == -1 && truncated[4] == '\0' && idStr::Cmp(truncated, "abcd") == 0 &&
-        integer.Icmp("42") == 0 && boolean.Icmp("1") == 0 && character.Icmp("x") == 0);
+                                                 truncatedLength == -1 && truncated[4] == '\0' && idStr::Cmp(truncated, "abcd") == 0 &&
+                                                 integer.Icmp("42") == 0 && boolean.Icmp("1") == 0 && character.Icmp("x") == 0);
 }
 
 struct JobState
@@ -245,12 +246,12 @@ bool CheckEvents()
     }
     const ps2::heap::Stats queued = ps2::heap::GetStats(tag);
     bool passed = queued.allocationCount == initial.allocationCount + kQueueCapacity &&
-        queued.requestedBytes == initial.requestedBytes + kQueueCapacity * sizeof(int);
+                  queued.requestedBytes == initial.requestedBytes + kQueueCapacity * sizeof(int);
     for (int expected = 1; expected <= kQueueCapacity; ++expected)
     {
         const sysEvent_t event = Sys_GetEvent();
         passed = event.evType == SE_CONSOLE && event.evValue == expected &&
-            event.evPtrLength == static_cast<int>(sizeof(int)) && event.evPtr != nullptr && passed;
+                 event.evPtrLength == static_cast<int>(sizeof(int)) && event.evPtr != nullptr && passed;
         if (event.evPtr != nullptr)
         {
             passed = *static_cast<int *>(event.evPtr) == expected && passed;
@@ -263,7 +264,7 @@ bool CheckEvents()
     Sys_ClearEvents();
     const ps2::heap::Stats final = ps2::heap::GetStats(tag);
     passed = final.allocationCount == initial.allocationCount &&
-        final.requestedBytes == initial.requestedBytes && final.backingBytes == initial.backingBytes && passed;
+             final.requestedBytes == initial.requestedBytes && final.backingBytes == initial.backingBytes && passed;
     return Check("event-overflow-transfer-clear-ledger", passed);
 }
 
@@ -271,12 +272,12 @@ bool CheckJobs()
 {
     RegisterJob(RunOrderedJob, "idlib-smoke-order");
     const int initialLists = parallelJobManager->GetNumJobLists();
-    JobState state = {0, true};
-    JobData jobs[4] = {{&state, 0}, {&state, 1}, {&state, 2}, {&state, 3}};
+    JobState state = { 0, true };
+    JobData jobs[4] = { { &state, 0 }, { &state, 1 }, { &state, 2 }, { &state, 3 } };
     idParallelJobList * predecessor = parallelJobManager->AllocJobList(
-        JOBLIST_RENDERER_FRONTEND, JOBLIST_PRIORITY_MEDIUM, 2, 1, nullptr);
+    JOBLIST_RENDERER_FRONTEND, JOBLIST_PRIORITY_MEDIUM, 2, 1, nullptr);
     idParallelJobList * dependent = parallelJobManager->AllocJobList(
-        JOBLIST_RENDERER_BACKEND, JOBLIST_PRIORITY_MEDIUM, 2, 1, nullptr);
+    JOBLIST_RENDERER_BACKEND, JOBLIST_PRIORITY_MEDIUM, 2, 1, nullptr);
 
     predecessor->AddJob(RunOrderedJob, &jobs[0]);
     predecessor->InsertSyncPoint(SYNC_SIGNAL);
@@ -292,8 +293,8 @@ bool CheckJobs()
     dependent->Wait();
 
     bool passed = state.valid && state.step == 4 && parallelJobManager->GetNumProcessingUnits() == 0 &&
-        predecessor->GetNumExecutedJobs() == 2 && predecessor->GetNumSyncs() == 1 &&
-        dependent->GetNumExecutedJobs() == 2 && dependent->GetNumSyncs() == 1 && !dependent->IsSubmitted();
+                  predecessor->GetNumExecutedJobs() == 2 && predecessor->GetNumSyncs() == 1 &&
+                  dependent->GetNumExecutedJobs() == 2 && dependent->GetNumSyncs() == 1 && !dependent->IsSubmitted();
     // Reuse the completed list to verify empty submission completes without waiting on a worker.
     dependent->Submit();
     passed = dependent->TryWait() && dependent->GetNumExecutedJobs() == 0 && passed;

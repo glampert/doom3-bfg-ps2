@@ -74,8 +74,17 @@ void idMultiplayerGame::Reset()
     RequireOffline("idMultiplayerGame::Reset");
     Clear();
 }
-void idMultiplayerGame::Precache() { RequireOffline("idMultiplayerGame::Precache"); }
-void idMultiplayerGame::Shutdown() { Clear(); }
+
+void idMultiplayerGame::Precache()
+{
+    RequireOffline("idMultiplayerGame::Precache");
+}
+
+void idMultiplayerGame::Shutdown()
+{
+    Clear();
+}
+
 void idMultiplayerGame::CleanupScoreboard()
 {
     if (scoreboardManager != nullptr)
@@ -83,11 +92,13 @@ void idMultiplayerGame::CleanupScoreboard()
         Unsupported("idMultiplayerGame::CleanupScoreboard with active scoreboard");
     }
 }
+
 bool idMultiplayerGame::IsScoreboardActive()
 {
     CleanupScoreboard();
     return false;
 }
+
 void idMultiplayerGame::SetScoreboardActive(bool active)
 {
     if (active)
@@ -96,25 +107,41 @@ void idMultiplayerGame::SetScoreboardActive(bool active)
     }
     CleanupScoreboard();
 }
+
 bool idMultiplayerGame::IsGametypeFlagBased()
 {
     RequireOffline("idMultiplayerGame::IsGametypeFlagBased");
     return false;
 }
+
 bool idMultiplayerGame::IsGametypeTeamBased()
 {
     RequireOffline("idMultiplayerGame::IsGametypeTeamBased");
     return false;
 }
-bool idMultiplayerGame::IsFlagMsgOn() { return flagMsgOn; }
+
+bool idMultiplayerGame::IsFlagMsgOn()
+{
+    return flagMsgOn;
+}
 
 // Campaign lifecycle can register zero online boards. No map/mode enumeration,
 // title-storage query, leaderboard definition or remote request is performed.
-void LeaderboardLocal_Init() { RequireOffline("LeaderboardLocal_Init"); }
-void LeaderboardLocal_Shutdown() { RequireOffline("LeaderboardLocal_Shutdown"); }
+void LeaderboardLocal_Init()
+{
+    RequireOffline("LeaderboardLocal_Init");
+}
 
-#define MP_UNSUPPORTED(result, method, parameters) \
-    result idMultiplayerGame::method parameters { Unsupported("idMultiplayerGame::" #method); }
+void LeaderboardLocal_Shutdown()
+{
+    RequireOffline("LeaderboardLocal_Shutdown");
+}
+
+#define MP_UNSUPPORTED(result, method, parameters)  \
+    result idMultiplayerGame::method parameters     \
+    {                                               \
+        Unsupported("idMultiplayerGame::" #method); \
+    }
 
 MP_UNSUPPORTED(void, Run, ())
 MP_UNSUPPORTED(bool, Draw, (int))

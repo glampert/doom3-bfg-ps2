@@ -15,7 +15,12 @@ namespace ps2::filesystem
 {
 
 static constexpr size_t kPathCapacity = 256;
-enum class OpenMode { Read, Write, Append };
+enum class OpenMode
+{
+    Read,
+    Write,
+    Append
+};
 
 // Call after SifInitRpc; preserves the loader's IOP. Removal remains disabled if the ROM patch fails.
 bool Init();

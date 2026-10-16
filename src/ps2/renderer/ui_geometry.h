@@ -21,9 +21,29 @@ struct Rect
     float t1;
 };
 
-struct Viewport { int width; int height; };
-struct FixedRect { int x0; int y0; int x1; int y1; int u0; int v0; int u1; int v1; };
-enum class Result { Draw, Clipped, Invalid };
+struct Viewport
+{
+    int width;
+    int height;
+};
+
+struct FixedRect
+{
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    int u0;
+    int v0;
+    int u1;
+    int v1;
+};
+enum class Result
+{
+    Draw,
+    Clipped,
+    Invalid
+};
 
 // Native coordinates use 640x480; UVs address the logical texture rather than its padded extent.
 // Outputs are nearest-rounded 1/16 screen pixels (without XYOFFSET) and 1/16 texels.

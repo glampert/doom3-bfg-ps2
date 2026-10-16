@@ -6,8 +6,8 @@
 
 #include "ps2/system/log.h"
 
-#include "tests/smoketests/platform_boot.h"
 #include "tests/smoketests/boot_stage.h"
+#include "tests/smoketests/platform_boot.h"
 
 #include <kernel.h>
 #include <sifrpc.h>
@@ -51,8 +51,8 @@ bool ReadManifest(BootManifest & manifest)
     }
     char magic[32] = {};
     const bool linesRead = ReadLine(file, magic, sizeof(magic)) &&
-        ReadLine(file, manifest.testId, sizeof(manifest.testId)) &&
-        ReadLine(file, manifest.fixturePath, sizeof(manifest.fixturePath));
+                           ReadLine(file, manifest.testId, sizeof(manifest.testId)) &&
+                           ReadLine(file, manifest.fixturePath, sizeof(manifest.fixturePath));
     const bool atEnd = fgetc(file) == EOF && ferror(file) == 0;
     const bool closed = fclose(file) == 0;
     if (!linesRead || !atEnd || !closed || strcmp(magic, "D3BFG_SMOKE 1") != 0)
@@ -68,7 +68,7 @@ bool ReadManifest(BootManifest & manifest)
     {
         const char letter = manifest.testId[index];
         if (!((letter >= 'a' && letter <= 'z') || (letter >= 'A' && letter <= 'Z') ||
-            (letter >= '0' && letter <= '9') || letter == '-' || letter == '_'))
+              (letter >= '0' && letter <= '9') || letter == '-' || letter == '_'))
         {
             return false;
         }
@@ -88,7 +88,7 @@ bool ReadManifest(BootManifest & manifest)
 }
 
 bool WriteResult(const BootManifest & manifest, bool manifestPassed, bool platformPassed,
-    const char * coreStatus)
+                 const char * coreStatus)
 {
     FILE * file = fopen("host:result.json", "wb");
     if (file == nullptr)
@@ -96,8 +96,8 @@ bool WriteResult(const BootManifest & manifest, bool manifestPassed, bool platfo
         return false;
     }
     const int written = fprintf(file,
-        "{\"schema\":1,\"test_id\":\"%s\",\"manifest\":\"%s\",\"platform\":\"%s\",\"core\":\"%s\"}\n",
-        manifest.testId, manifestPassed ? "PASS" : "FAIL", platformPassed ? "PASS" : "FAIL", coreStatus);
+                                "{\"schema\":1,\"test_id\":\"%s\",\"manifest\":\"%s\",\"platform\":\"%s\",\"core\":\"%s\"}\n",
+                                manifest.testId, manifestPassed ? "PASS" : "FAIL", platformPassed ? "PASS" : "FAIL", coreStatus);
     const bool closed = fclose(file) == 0;
     return written > 0 && closed;
 }

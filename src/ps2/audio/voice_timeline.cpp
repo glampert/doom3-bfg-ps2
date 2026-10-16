@@ -163,5 +163,8 @@ PlaybackCursor VoiceTimeline::GetCursor() const
              static_cast<int>(m_phase / (1000 * kPitchScale)) };
 }
 
-float VoiceTimeline::GetPitch() const { return static_cast<float>(m_pitch) / static_cast<float>(kPitchScale); }
+float VoiceTimeline::GetPitch() const
+{
+    return static_cast<float>(m_pitch) / static_cast<float>(kPitchScale);
+}
 } // namespace ps2::audio

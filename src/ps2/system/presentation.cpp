@@ -5,19 +5,24 @@
 // ================================================================================================
 
 #include "ps2/renderer/capture.h"
+#include "ps2/renderer/font_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/ui_draw.h"
-#include "ps2/renderer/font_backend.h"
-#include "ps2/ui/movie.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
-#include <idlib/precompiled.h>
+#include "ps2/ui/movie.h"
 #include <cerrno>
+#include <idlib/precompiled.h>
 
 namespace
 {
-enum class Presentation { Headless, Ntsc, Pal };
+enum class Presentation
+{
+    Headless,
+    Ntsc,
+    Pal
+};
 static Presentation s_policy = Presentation::Headless;
 static bool s_configured = false;
 static bool s_inFrame = false;
@@ -62,11 +67,15 @@ void ConsoleText(const idCmdArgs & args)
 void ConsoleKey(const idCmdArgs & args)
 {
     RequireConsole(args, 2);
-    struct Key { const char * name; int code; };
+
+    struct Key
+    {
+        const char * name;
+        int code;
+    };
+
     static constexpr Key kKeys[] = {
-        {"enter", K_ENTER}, {"up", K_UPARROW}, {"down", K_DOWNARROW},
-        {"left", K_LEFTARROW}, {"right", K_RIGHTARROW}, {"toggle", K_GRAVE},
-        {"escape", K_ESCAPE}, {"home", K_HOME}, {"end", K_END}, {"delete", K_DEL}
+        { "enter", K_ENTER }, { "up", K_UPARROW }, { "down", K_DOWNARROW }, { "left", K_LEFTARROW }, { "right", K_RIGHTARROW }, { "toggle", K_GRAVE }, { "escape", K_ESCAPE }, { "home", K_HOME }, { "end", K_END }, { "delete", K_DEL }
     };
     if (strcmp(args.Argv(1), "backspace") == 0)
     {
@@ -117,7 +126,7 @@ void Present()
         ps2::FatalError("nested native console presentation");
     }
     s_drawing = true;
-    ps2::rs::BeginFrame({16, 24, 40, 255});
+    ps2::rs::BeginFrame({ 16, 24, 40, 255 });
     renderSystem->SetGLState(0);
     renderSystem->SetColor(colorWhite);
     ps2::movie::Render(s_inFrame);
@@ -143,14 +152,20 @@ namespace ps2::runtime
 {
 void ConfigurePresentation()
 {
-    if (s_configured) { FatalError("presentation policy already configured"); }
+    if (s_configured)
+    {
+        FatalError("presentation policy already configured");
+    }
     char policy[16] = {};
     errno = 0;
     FILE * file = filesystem::Open("host:presentation.cfg", filesystem::OpenMode::Read);
     if (file == nullptr)
     {
         // HostFs reports a missing file as -5/EIO in PCSX2; absence must keep old packages headless.
-        if (errno != ENOENT && errno != EIO) { FatalError("cannot open presentation.cfg: errno=%d", errno); }
+        if (errno != ENOENT && errno != EIO)
+        {
+            FatalError("cannot open presentation.cfg: errno=%d", errno);
+        }
         Log(LogLevel::Warning, "presentation.cfg unavailable (errno=%d); defaulting to headless\n", errno);
     }
     else
@@ -158,31 +173,68 @@ void ConfigurePresentation()
         const size_t length = fread(policy, 1, sizeof(policy) - 1, file);
         const bool read = ferror(file) == 0 && length < sizeof(policy) - 1;
         const bool closed = fclose(file) == 0;
-        if (!read || !closed) { FatalError("cannot read bounded presentation.cfg"); }
+        if (!read || !closed)
+        {
+            FatalError("cannot read bounded presentation.cfg");
+        }
         // Do not let an embedded NUL hide extra boot policy bytes.
-        if (strlen(policy) != length) { FatalError("invalid presentation.cfg"); }
+        if (strlen(policy) != length)
+        {
+            FatalError("invalid presentation.cfg");
+        }
         size_t end = length;
-        if (end != 0 && policy[end - 1] == '\n') { policy[--end] = '\0'; }
-        if (end != 0 && policy[end - 1] == '\r') { policy[--end] = '\0'; }
-        if (strcmp(policy, "headless") == 0) { s_policy = Presentation::Headless; }
-        else if (strcmp(policy, "ntsc") == 0) { s_policy = Presentation::Ntsc; }
-        else if (strcmp(policy, "pal") == 0) { s_policy = Presentation::Pal; }
-        else { FatalError("presentation.cfg must select headless, ntsc or pal"); }
+        if (end != 0 && policy[end - 1] == '\n')
+        {
+            policy[--end] = '\0';
+        }
+        if (end != 0 && policy[end - 1] == '\r')
+        {
+            policy[--end] = '\0';
+        }
+        if (strcmp(policy, "headless") == 0)
+        {
+            s_policy = Presentation::Headless;
+        }
+        else if (strcmp(policy, "ntsc") == 0)
+        {
+            s_policy = Presentation::Ntsc;
+        }
+        else if (strcmp(policy, "pal") == 0)
+        {
+            s_policy = Presentation::Pal;
+        }
+        else
+        {
+            FatalError("presentation.cfg must select headless, ntsc or pal");
+        }
     }
     s_configured = true;
     Log(LogLevel::Info, "[D3BFG] BOOT presentation=%s\n",
-        s_policy == Presentation::Headless ? "headless" : s_policy == Presentation::Pal ? "pal" : "ntsc");
+        s_policy == Presentation::Headless ? "headless" : s_policy == Presentation::Pal ? "pal"
+                                                                                        : "ntsc");
 }
 
-bool HasPresentation() { return ui::IsInitialized(); }
+bool HasPresentation()
+{
+    return ui::IsInitialized();
+}
 
 void InitPresentation()
 {
-    if (!s_configured || HasPresentation()) { FatalError("invalid presentation startup"); }
-    if (s_policy == Presentation::Headless) { return; }
+    if (!s_configured || HasPresentation())
+    {
+        FatalError("invalid presentation startup");
+    }
+    if (s_policy == Presentation::Headless)
+    {
+        return;
+    }
     rs::Config config;
     config.standard = s_policy == Presentation::Pal ? video::Standard::Pal : video::Standard::Ntsc;
-    if (!rs::Init(config)) { FatalError("cannot initialize console display"); }
+    if (!rs::Init(config))
+    {
+        FatalError("cannot initialize console display");
+    }
     if (!ui::Init())
     {
         rs::Shutdown();
@@ -197,15 +249,27 @@ void InitPresentation()
 
 void BeginPresentationFrame()
 {
-    if (!HasPresentation()) { return; }
-    if (s_inFrame || s_drawing) { FatalError("nested console Common frame"); }
+    if (!HasPresentation())
+    {
+        return;
+    }
+    if (s_inFrame || s_drawing)
+    {
+        FatalError("nested console Common frame");
+    }
     s_inFrame = true;
 }
 
 void PresentConsoleFrame(int frames)
 {
-    if (!HasPresentation()) { return; }
-    if (!s_inFrame || frames <= s_frames) { FatalError("invalid console frame boundary"); }
+    if (!HasPresentation())
+    {
+        return;
+    }
+    if (!s_inFrame || frames <= s_frames)
+    {
+        FatalError("invalid console frame boundary");
+    }
     s_frames = frames;
     Present();
     s_inFrame = false;
@@ -213,26 +277,47 @@ void PresentConsoleFrame(int frames)
 
 void UpdateScreen(bool captureToImage)
 {
-    if (captureToImage) { FatalError("console offscreen image capture unavailable; use ps2_capture"); }
-    if (!HasPresentation() || s_drawing) { return; }
-    if (s_redraws == UINT_MAX) { FatalError("console redraw counter overflow"); }
+    if (captureToImage)
+    {
+        FatalError("console offscreen image capture unavailable; use ps2_capture");
+    }
+    if (!HasPresentation() || s_drawing)
+    {
+        return;
+    }
+    if (s_redraws == UINT_MAX)
+    {
+        FatalError("console redraw counter overflow");
+    }
     ++s_redraws;
     // Every Common frame presents. Enter/refresh-on-print requests coalesce into its final draw.
     // Outside a Common frame, a synchronous redraw preserves the clock and logical/game stamps.
-    if (!s_inFrame) { Present(); }
+    if (!s_inFrame)
+    {
+        Present();
+    }
 }
 
 void LogPresentationStatus(int frames)
 {
-    if (!HasPresentation()) { return; }
+    if (!HasPresentation())
+    {
+        return;
+    }
     Log(LogLevel::Info, "[D3BFG] CONSOLE frames=%d presents=%u redraws=%u active=%d\n",
         frames, rs::FrameCount(), s_redraws, static_cast<int>(console->Active()));
 }
 
 void ShutdownPresentation(int frames)
 {
-    if (!HasPresentation()) { return; }
-    if (s_inFrame || s_drawing || s_captureName[0] != '\0') { FatalError("console shutdown with pending frame work"); }
+    if (!HasPresentation())
+    {
+        return;
+    }
+    if (s_inFrame || s_drawing || s_captureName[0] != '\0')
+    {
+        FatalError("console shutdown with pending frame work");
+    }
     Log(LogLevel::Info, "[D3BFG] CONSOLE shutdown complete frames=%d presents=%u redraws=%u\n",
         frames, rs::FrameCount(), s_redraws);
     cmdSystem->RemoveCommand("ps2_capture");

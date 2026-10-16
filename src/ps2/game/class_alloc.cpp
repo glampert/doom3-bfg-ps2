@@ -33,7 +33,7 @@ void * AllocClass(size_t size, size_t alignment, std::uint16_t tag, int & bytes,
     if (pointer == nullptr)
     {
         FatalError("idClass allocation failed: size=%zu alignment=%zu tag=%u bytes=%d objects=%d",
-            size, alignment, static_cast<unsigned int>(tag), bytes, objects);
+                   size, alignment, static_cast<unsigned int>(tag), bytes, objects);
     }
     return pointer;
 }

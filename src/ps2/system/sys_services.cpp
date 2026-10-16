@@ -6,7 +6,7 @@
 
 #include "ps2/system/log.h"
 #if !PS2_D3BFG_TESTS
-#include "ps2/system/runtime.h"
+    #include "ps2/system/runtime.h"
 #endif
 #include <idlib/precompiled.h>
 
@@ -27,9 +27,20 @@ static char s_timestamp[64];
 
 idCVar sys_lang("sys_lang", ID_LANG_ENGLISH, CVAR_SYSTEM | CVAR_INIT, "language identifier for resource lookup");
 
-int Sys_NumLangs() { return kLanguageCount; }
-const char * Sys_Lang(int index) { return index >= 0 && index < kLanguageCount ? kLanguages[index] : ""; }
-const char * Sys_DefaultLanguage() { return ID_LANG_ENGLISH; }
+int Sys_NumLangs()
+{
+    return kLanguageCount;
+}
+
+const char * Sys_Lang(int index)
+{
+    return index >= 0 && index < kLanguageCount ? kLanguages[index] : "";
+}
+
+const char * Sys_DefaultLanguage()
+{
+    return ID_LANG_ENGLISH;
+}
 
 const char * Sys_SecToStr(int seconds)
 {
@@ -81,8 +92,17 @@ void Sys_Quit()
     ps2::runtime::RequestQuit();
 #endif
 }
-void Sys_Launch(const char *, idCmdArgs &, void *, unsigned int) { Unsupported("Sys_Launch"); }
-char * Sys_GetClipboardData() { Unsupported("Sys_GetClipboardData"); }
+
+void Sys_Launch(const char *, idCmdArgs &, void *, unsigned int)
+{
+    Unsupported("Sys_Launch");
+}
+
+char * Sys_GetClipboardData()
+{
+    Unsupported("Sys_GetClipboardData");
+}
+
 void Sys_GrabMouseCursor(bool)
 {
 #if PS2_D3BFG_TESTS
@@ -91,7 +111,23 @@ void Sys_GrabMouseCursor(bool)
     // The native console toggles capture; this console has no desktop cursor or mouse device.
 #endif
 }
-void Sys_SetRumble(int, int, int) { Unsupported("Sys_SetRumble"); }
-void Sys_SetPhysicalWorkMemory(int, int) { Unsupported("Sys_SetPhysicalWorkMemory"); }
-int Sys_GetDriveFreeSpace(const char *) { Unsupported("Sys_GetDriveFreeSpace"); }
-int64 Sys_GetDriveFreeSpaceInBytes(const char *) { Unsupported("Sys_GetDriveFreeSpaceInBytes"); }
+
+void Sys_SetRumble(int, int, int)
+{
+    Unsupported("Sys_SetRumble");
+}
+
+void Sys_SetPhysicalWorkMemory(int, int)
+{
+    Unsupported("Sys_SetPhysicalWorkMemory");
+}
+
+int Sys_GetDriveFreeSpace(const char *)
+{
+    Unsupported("Sys_GetDriveFreeSpace");
+}
+
+int64 Sys_GetDriveFreeSpaceInBytes(const char *)
+{
+    Unsupported("Sys_GetDriveFreeSpaceInBytes");
+}

@@ -46,7 +46,7 @@ struct PlaybackCursor
 
 class VoiceTimeline final
 {
-  public:
+public:
     void Configure(SampleTiming leadin, SampleTiming looping = {});
     void Start(int offsetMS, std::uint64_t now);
     void Advance(std::uint64_t now);
@@ -58,7 +58,7 @@ class VoiceTimeline final
     PlaybackCursor GetCursor() const;
     float GetPitch() const;
 
-  private:
+private:
     void CheckClock(std::uint64_t now);
     SampleTiming m_leadin;
     SampleTiming m_looping;

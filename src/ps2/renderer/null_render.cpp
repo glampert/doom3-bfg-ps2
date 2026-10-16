@@ -31,6 +31,7 @@ idGuiModel * tr_guiModel = nullptr;
 namespace
 {
 static bool s_logicalInitialized = false;
+
 void CheckNoResources(const idRenderSystemLocal & renderer, const char * method)
 {
     if (s_logicalInitialized || renderer.registered || renderer.worlds.Num() != 0 || renderer.fonts.Num() != 0 || renderer.guiModel != nullptr ||
@@ -53,7 +54,11 @@ void CheckDemoInactive(const char * method)
 
 namespace ps2::render
 {
-bool IsLogicalInitialized() { return s_logicalInitialized; }
+bool IsLogicalInitialized()
+{
+    return s_logicalInitialized;
+}
+
 void AdvanceLogicalFrame()
 {
     if (!s_logicalInitialized || tr.frameCount == INT_MAX)
@@ -63,8 +68,15 @@ void AdvanceLogicalFrame()
     ++tr.frameCount;
 }
 #if defined(PS2_D3BFG_FOUNDATION)
-void InitLogical(const char *) { Unavailable("logical renderer requires the resident campaign target"); }
-void ShutdownLogical() { Unavailable("logical renderer requires the resident campaign target"); }
+void InitLogical(const char *)
+{
+    Unavailable("logical renderer requires the resident campaign target");
+}
+
+void ShutdownLogical()
+{
+    Unavailable("logical renderer requires the resident campaign target");
+}
 #else
 void InitLogical(const char * defaultMaterialName)
 {
@@ -84,6 +96,7 @@ void InitLogical(const char * defaultMaterialName)
     // Native model queries cache by renderer frame; zero is the uninitialized definition stamp.
     AdvanceLogicalFrame();
 }
+
 void ShutdownLogical()
 {
     if (!s_logicalInitialized || tr.worlds.Num() != 0)
@@ -105,7 +118,10 @@ idRenderSystemLocal::idRenderSystemLocal()
     Clear();
 }
 
-idRenderSystemLocal::~idRenderSystemLocal() { CheckNoResources(*this, "idRenderSystemLocal::~idRenderSystemLocal"); }
+idRenderSystemLocal::~idRenderSystemLocal()
+{
+    CheckNoResources(*this, "idRenderSystemLocal::~idRenderSystemLocal");
+}
 
 void idRenderSystemLocal::Clear()
 {
@@ -138,20 +154,69 @@ void idRenderSystemLocal::Clear()
 }
 
 // These queries describe an inactive backend, not successful logical initialization or a display mode.
-bool R_IsInitialized() { return ps2::ui::IsInitialized(); }
-bool idRenderSystemLocal::IsOpenGLRunning() const { return false; }
-bool idRenderSystemLocal::IsFullScreen() const { return this == &tr && ps2::ui::IsInitialized(); }
-bool idRenderSystemLocal::HasQuadBufferSupport() const { return false; }
-bool idRenderSystemLocal::IsStereoScopicRenderingSupported() const { return false; }
-stereo3DMode_t idRenderSystemLocal::GetStereo3DMode() const { return STEREO3D_OFF; }
-stereo3DMode_t idRenderSystemLocal::GetStereoScopicRenderingMode() const { return STEREO3D_OFF; }
-bool idRenderSystemLocal::AreAutomaticBackgroundSwapsRunning(autoRenderIconType_t *) const { return false; }
-void idRenderSystemLocal::Shutdown() { if (this == &tr) { ps2::ui::Shutdown(); } Clear(); }
-void idRenderSystemLocal::ShutdownOpenGL() { CheckNoResources(*this, "idRenderSystemLocal::ShutdownOpenGL"); }
-void idRenderSystemLocal::EndAutomaticBackgroundSwaps() {}
+bool R_IsInitialized()
+{
+    return ps2::ui::IsInitialized();
+}
+
+bool idRenderSystemLocal::IsOpenGLRunning() const
+{
+    return false;
+}
+
+bool idRenderSystemLocal::IsFullScreen() const
+{
+    return this == &tr && ps2::ui::IsInitialized();
+}
+
+bool idRenderSystemLocal::HasQuadBufferSupport() const
+{
+    return false;
+}
+
+bool idRenderSystemLocal::IsStereoScopicRenderingSupported() const
+{
+    return false;
+}
+
+stereo3DMode_t idRenderSystemLocal::GetStereo3DMode() const
+{
+    return STEREO3D_OFF;
+}
+
+stereo3DMode_t idRenderSystemLocal::GetStereoScopicRenderingMode() const
+{
+    return STEREO3D_OFF;
+}
+
+bool idRenderSystemLocal::AreAutomaticBackgroundSwapsRunning(autoRenderIconType_t *) const
+{
+    return false;
+}
+
+void idRenderSystemLocal::Shutdown()
+{
+    if (this == &tr)
+    {
+        ps2::ui::Shutdown();
+    }
+    Clear();
+}
+
+void idRenderSystemLocal::ShutdownOpenGL()
+{
+    CheckNoResources(*this, "idRenderSystemLocal::ShutdownOpenGL");
+}
+
+void idRenderSystemLocal::EndAutomaticBackgroundSwaps()
+{
+}
 
 #define RENDER_UNAVAILABLE(result, method, parameters) \
-    PS2_COLD_FUNC result method parameters { ps2::render::Unavailable(#method); }
+    PS2_COLD_FUNC result method parameters             \
+    {                                                  \
+        ps2::render::Unavailable(#method);             \
+    }
 
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::Init, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::InitOpenGL, ())
@@ -190,25 +255,64 @@ RENDER_UNAVAILABLE(void, RB_AddDebugLine, (const idVec4 &, const idVec3 &, const
 RENDER_UNAVAILABLE(void, RB_AddDebugText, (const char *, const idVec3 &, float, const idVec4 &, const idMat3 &, int, int, bool))
 RENDER_UNAVAILABLE(void, RB_AddDebugPolygon, (const idVec4 &, const idWinding &, int, bool))
 RENDER_UNAVAILABLE(float, RB_DrawTextLength, (const char *, float, int))
-void RB_ClearDebugText(int) {}
-void RB_ClearDebugLines(int) {}
-void RB_ClearDebugPolygons(int) {}
+
+void RB_ClearDebugText(int)
+{
+}
+
+void RB_ClearDebugLines(int)
+{
+}
+
+void RB_ClearDebugPolygons(int)
+{
+}
 
 // Native world mutation can request demo writes while no recorder exists. Preserve that idle path.
-void idRenderWorldLocal::WriteLoadMap() { CheckDemoInactive("idRenderWorldLocal::WriteLoadMap"); }
-void idRenderWorldLocal::WriteFreeEntity(int) { CheckDemoInactive("idRenderWorldLocal::WriteFreeEntity"); }
-void idRenderWorldLocal::WriteFreeLight(int) { CheckDemoInactive("idRenderWorldLocal::WriteFreeLight"); }
-void idRenderWorldLocal::WriteRenderView(const renderView_t *) { CheckDemoInactive("idRenderWorldLocal::WriteRenderView"); }
-void idRenderWorldLocal::WriteVisibleDefs(const viewDef_t *) { CheckDemoInactive("idRenderWorldLocal::WriteVisibleDefs"); }
-void idRenderWorldLocal::StopWritingDemo() { CheckDemoInactive("idRenderWorldLocal::StopWritingDemo"); }
+void idRenderWorldLocal::WriteLoadMap()
+{
+    CheckDemoInactive("idRenderWorldLocal::WriteLoadMap");
+}
+
+void idRenderWorldLocal::WriteFreeEntity(int)
+{
+    CheckDemoInactive("idRenderWorldLocal::WriteFreeEntity");
+}
+
+void idRenderWorldLocal::WriteFreeLight(int)
+{
+    CheckDemoInactive("idRenderWorldLocal::WriteFreeLight");
+}
+
+void idRenderWorldLocal::WriteRenderView(const renderView_t *)
+{
+    CheckDemoInactive("idRenderWorldLocal::WriteRenderView");
+}
+
+void idRenderWorldLocal::WriteVisibleDefs(const viewDef_t *)
+{
+    CheckDemoInactive("idRenderWorldLocal::WriteVisibleDefs");
+}
+
+void idRenderWorldLocal::StopWritingDemo()
+{
+    CheckDemoInactive("idRenderWorldLocal::StopWritingDemo");
+}
 RENDER_UNAVAILABLE(void, idRenderWorldLocal::StartWritingDemo, (idDemoFile *))
 RENDER_UNAVAILABLE(bool, idRenderWorldLocal::ProcessDemoCommand, (idDemoFile *, renderView_t *, int *))
 
 #undef RENDER_UNAVAILABLE
 
 #if defined(PS2_D3BFG_FOUNDATION)
-idRenderWorld * idRenderSystemLocal::AllocRenderWorld() { ps2::render::Unavailable("idRenderSystemLocal::AllocRenderWorld"); }
-void idRenderSystemLocal::FreeRenderWorld(idRenderWorld *) { ps2::render::Unavailable("idRenderSystemLocal::FreeRenderWorld"); }
+idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
+{
+    ps2::render::Unavailable("idRenderSystemLocal::AllocRenderWorld");
+}
+
+void idRenderSystemLocal::FreeRenderWorld(idRenderWorld *)
+{
+    ps2::render::Unavailable("idRenderSystemLocal::FreeRenderWorld");
+}
 #else
 idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
 {
@@ -220,6 +324,7 @@ idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
     worlds.Append(world);
     return world;
 }
+
 void idRenderSystemLocal::FreeRenderWorld(idRenderWorld * world)
 {
     auto * local = static_cast<idRenderWorldLocal *>(world);

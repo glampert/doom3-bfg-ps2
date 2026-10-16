@@ -10,7 +10,7 @@
 #include <cstdlib>
 
 #if defined(_EE)
-#include <kernel.h>
+    #include <kernel.h>
 #endif
 
 namespace ps2
@@ -21,10 +21,17 @@ void LogV(LogLevel level, const char * format, va_list arguments)
     // This is the only stdout sink. Keep it independent of common, Sys_* and the tagged heap.
     switch (level)
     {
-        case LogLevel::Info: break;
-        case LogLevel::Warning: std::printf("[D3BFG] WARNING "); break;
-        case LogLevel::Error: std::printf("[D3BFG] ERROR "); break;
-        case LogLevel::Fatal: std::printf("[D3BFG] FATAL "); break;
+    case LogLevel::Info:
+        break;
+    case LogLevel::Warning:
+        std::printf("[D3BFG] WARNING ");
+        break;
+    case LogLevel::Error:
+        std::printf("[D3BFG] ERROR ");
+        break;
+    case LogLevel::Fatal:
+        std::printf("[D3BFG] FATAL ");
+        break;
     }
     std::vprintf(format, arguments);
     if (level != LogLevel::Info)

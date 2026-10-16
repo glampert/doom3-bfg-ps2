@@ -18,7 +18,7 @@ static char s_file[512] = {};
 static int s_line = 0;
 static int s_depth = 0;
 static constexpr int kMaxDepth = 64;
-}
+} // namespace
 
 ErrorScope::ErrorScope(Cleanup cleanup, void * data)
     : m_previous(s_scope), m_cleanup(cleanup), m_data(data)
@@ -45,7 +45,10 @@ void ErrorScope::SetLocation(const char * file, int line)
     s_line = line;
 }
 
-bool ErrorScope::IsActive() { return s_scope != nullptr; }
+bool ErrorScope::IsActive()
+{
+    return s_scope != nullptr;
+}
 
 void ErrorScope::CleanupAll()
 {
@@ -66,7 +69,10 @@ NestingScope::NestingScope()
     ++s_depth;
 }
 
-NestingScope::~NestingScope() { --s_depth; }
+NestingScope::~NestingScope()
+{
+    --s_depth;
+}
 
 void Fail(const char * format, ...)
 {

@@ -16,15 +16,18 @@ struct QueryRoot
     PS2_TYPE_ROOT(QueryRoot)
     virtual ~QueryRoot() = default;
 };
+
 struct QueryChild : QueryRoot
 {
     PS2_TYPE_DERIVED(QueryChild, QueryRoot)
     int value = 42;
 };
+
 struct QueryGrandchild final : QueryChild
 {
     PS2_TYPE_DERIVED(QueryGrandchild, QueryChild)
 };
+
 struct QuerySibling final : QueryRoot
 {
     PS2_TYPE_DERIVED(QuerySibling, QueryRoot)

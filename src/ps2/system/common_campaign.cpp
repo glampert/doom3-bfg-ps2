@@ -24,9 +24,20 @@ idCVar net_clientMaxPrediction("net_clientMaxPrediction", "5000", CVAR_SYSTEM | 
 idCVar net_ucmdRate("net_ucmdRate", "40", CVAR_SYSTEM | CVAR_INTEGER,
                     "usercmd send interval in milliseconds; online services are unavailable");
 
-bool idCommonLocal::IsMultiplayer() { return false; }
-bool idCommonLocal::IsServer() { return false; }
-bool idCommonLocal::IsClient() { return false; }
+bool idCommonLocal::IsMultiplayer()
+{
+    return false;
+}
+
+bool idCommonLocal::IsServer()
+{
+    return false;
+}
+
+bool idCommonLocal::IsClient()
+{
+    return false;
+}
 
 void idCommonLocal::ResetNetworkingState()
 {
@@ -58,6 +69,7 @@ void idCommonLocal::StopPlayingRenderDemo()
     }
     timeDemo = TD_NO;
 }
+
 void idCommonLocal::StopRecordingRenderDemo()
 {
     if (writeDemo != nullptr)
@@ -67,7 +79,10 @@ void idCommonLocal::StopRecordingRenderDemo()
 }
 
 #define CAMPAIGN_UNSUPPORTED(result, method, parameters) \
-    result idCommonLocal::method parameters { Unsupported(#method); }
+    result idCommonLocal::method parameters              \
+    {                                                    \
+        Unsupported(#method);                            \
+    }
 
 CAMPAIGN_UNSUPPORTED(int, GetSnapRate, ())
 CAMPAIGN_UNSUPPORTED(void, NetReceiveReliable, (int, int, idBitMsg &))

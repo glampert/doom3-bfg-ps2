@@ -24,7 +24,10 @@ static constexpr int kAtlas = ps2::render::kConsoleAtlasSize;
 
 bool Check(bool passed, const char * name)
 {
-    if (!passed) { std::fprintf(stderr, "Console charset failed: %s\n", name); }
+    if (!passed)
+    {
+        std::fprintf(stderr, "Console charset failed: %s\n", name);
+    }
     return passed;
 }
 
@@ -33,7 +36,7 @@ Pixel Texel(const Buffer & pixels, int code, int x, int y)
     const int atlasX = (code & 15) * kCell + x;
     const int atlasY = (code >> 4) * kCell + y;
     const size_t index = static_cast<size_t>(atlasY * kAtlas + atlasX) * 4U;
-    return {pixels[index], pixels[index + 1U], pixels[index + 2U], pixels[index + 3U]};
+    return { pixels[index], pixels[index + 1U], pixels[index + 2U], pixels[index + 3U] };
 }
 
 bool SameGlyph(const Buffer & pixels, int first, int second)
@@ -42,7 +45,10 @@ bool SameGlyph(const Buffer & pixels, int first, int second)
     {
         for (int x = 0; x < kCell; ++x)
         {
-            if (Texel(pixels, first, x, y) != Texel(pixels, second, x, y)) { return false; }
+            if (Texel(pixels, first, x, y) != Texel(pixels, second, x, y))
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -53,7 +59,10 @@ int OpaqueCount(const Buffer & pixels, int code)
     int count = 0;
     for (int y = 0; y < kCell; ++y)
     {
-        for (int x = 0; x < kCell; ++x) { count += Texel(pixels, code, x, y)[3] == 255 ? 1 : 0; }
+        for (int x = 0; x < kCell; ++x)
+        {
+            count += Texel(pixels, code, x, y)[3] == 255 ? 1 : 0;
+        }
     }
     return count;
 }
@@ -64,7 +73,8 @@ bool Bounds()
     auto * const output = guarded.data() + kGuardBytes;
     if (!Check(!ps2::render::MakeConsoleCharset(nullptr, ps2::render::kConsoleAtlasBytes), "null buffer") ||
         !Check(!ps2::render::MakeConsoleCharset(output, ps2::render::kConsoleAtlasBytes - 1U), "short buffer") ||
-        !Check(std::all_of(guarded.begin(), guarded.end(), [](std::uint8_t byte) { return byte == kGuard; }),
+        !Check(std::all_of(guarded.begin(), guarded.end(), [](std::uint8_t byte)
+                           { return byte == kGuard; }),
                "rejected generation changes no bytes") ||
         !Check(ps2::render::MakeConsoleCharset(output, ps2::render::kConsoleAtlasBytes), "exact capacity"))
     {
@@ -72,7 +82,10 @@ bool Bounds()
     }
     for (size_t i = 0; i < kGuardBytes; ++i)
     {
-        if (!Check(guarded[i] == kGuard && guarded[guarded.size() - 1U - i] == kGuard, "prefix/tail guards")) { return false; }
+        if (!Check(guarded[i] == kGuard && guarded[guarded.size() - 1U - i] == kGuard, "prefix/tail guards"))
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -93,11 +106,17 @@ bool Pixels(const Buffer & pixels)
         for (int x = 0; x < kCell; ++x)
         {
             if (!Check(Texel(pixels, code, x, 0)[3] == 0 && Texel(pixels, code, x, 15)[3] == 0,
-                       "top/bottom transparent atlas gutter")) { return false; }
+                       "top/bottom transparent atlas gutter"))
+            {
+                return false;
+            }
         }
         for (int y = 0; y < kCell; ++y)
         {
-            if (!Check(Texel(pixels, code, 15, y)[3] == 0, "right transparent atlas gutter")) { return false; }
+            if (!Check(Texel(pixels, code, 15, y)[3] == 0, "right transparent atlas gutter"))
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -105,28 +124,49 @@ bool Pixels(const Buffer & pixels)
 
 bool Characters(const Buffer & pixels)
 {
-    if (!Check(OpaqueCount(pixels, ' ') == 0, "space is fully transparent")) { return false; }
+    if (!Check(OpaqueCount(pixels, ' ') == 0, "space is fully transparent"))
+    {
+        return false;
+    }
     for (int code = 33; code <= 126; ++code)
     {
-        if (!Check(OpaqueCount(pixels, code) > 0 && !SameGlyph(pixels, code, 255), "printable ASCII is authored")) { return false; }
+        if (!Check(OpaqueCount(pixels, code) > 0 && !SameGlyph(pixels, code, 255), "printable ASCII is authored"))
+        {
+            return false;
+        }
     }
     for (int code = 0; code < 256; ++code)
     {
-        if (code == 10 || code == 11 || (code >= 32 && code <= 126)) { continue; }
-        if (!Check(SameGlyph(pixels, code, 255), "unsupported bytes use the explicit box fallback")) { return false; }
+        if (code == 10 || code == 11 || (code >= 32 && code <= 126))
+        {
+            continue;
+        }
+        if (!Check(SameGlyph(pixels, code, 255), "unsupported bytes use the explicit box fallback"))
+        {
+            return false;
+        }
     }
     for (int code = 'A'; code <= 'Z'; ++code)
     {
-        if (!Check(!SameGlyph(pixels, code, code - 'A' + 'a'), "uppercase/lowercase remain distinct")) { return false; }
+        if (!Check(!SameGlyph(pixels, code, code - 'A' + 'a'), "uppercase/lowercase remain distinct"))
+        {
+            return false;
+        }
     }
     if (!Check(!SameGlyph(pixels, '0', 'O') && !SameGlyph(pixels, '1', 'I') && !SameGlyph(pixels, '1', 'l'),
-               "ambiguous console digits retain distinct glyphs")) { return false; }
+               "ambiguous console digits retain distinct glyphs"))
+    {
+        return false;
+    }
     // Native DrawSmallChar addresses byte row/column directly. A sits in row 4, column 1,
     // and its crossbar must span all five columns after expansion for a readable small glyph.
     for (int x = 0; x < 15; ++x)
     {
         if (!Check(Texel(pixels, 'A', x, 7)[3] == 255 && Texel(pixels, 'A', x, 8)[3] == 255,
-                   "native byte addressing and full-width A crossbar")) { return false; }
+                   "native byte addressing and full-width A crossbar"))
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -156,7 +196,8 @@ bool FontAtlas(const Buffer & console)
     auto * const pixels = guarded.data() + kGuardBytes;
     if (!Check(!ps2::render::MakeAuthoredFontCharset(nullptr, ps2::render::kAuthoredFontAtlasBytes), "null font buffer") ||
         !Check(!ps2::render::MakeAuthoredFontCharset(pixels, ps2::render::kAuthoredFontAtlasBytes - 1U), "short font buffer") ||
-        !Check(std::all_of(guarded.begin(), guarded.end(), [](std::uint8_t byte) { return byte == kGuard; }),
+        !Check(std::all_of(guarded.begin(), guarded.end(), [](std::uint8_t byte)
+                           { return byte == kGuard; }),
                "rejected font generation changes no bytes") ||
         !Check(ps2::render::MakeAuthoredFontCharset(pixels, ps2::render::kAuthoredFontAtlasBytes), "exact font capacity"))
     {
@@ -164,7 +205,10 @@ bool FontAtlas(const Buffer & console)
     }
     for (size_t i = 0; i < kGuardBytes; ++i)
     {
-        if (!Check(guarded[i] == kGuard && guarded[guarded.size() - 1U - i] == kGuard, "font prefix/tail guards")) { return false; }
+        if (!Check(guarded[i] == kGuard && guarded[guarded.size() - 1U - i] == kGuard, "font prefix/tail guards"))
+        {
+            return false;
+        }
     }
     for (int y = 0; y < ps2::render::kAuthoredFontAtlasHeight; ++y)
     {
@@ -173,11 +217,11 @@ bool FontAtlas(const Buffer & console)
             const int code = (y / 16) * 16 + x / 32;
             const int localX = x % 32;
             const int localY = y % 16;
-            const std::uint8_t expected = code >= 32 && code <= 126 && localX >= 1 && localX <= 15 && localY >= 1 && localY <= 14 ?
-                Texel(console, code, localX - 1, localY)[3] : 0;
+            const std::uint8_t expected = code >= 32 && code <= 126 && localX >= 1 && localX <= 15 && localY >= 1 && localY <= 14 ? Texel(console, code, localX - 1, localY)[3] : 0;
             const size_t offset = static_cast<size_t>(y * ps2::render::kAuthoredFontAtlasWidth + x) * 4U;
             if (!Check(pixels[offset] == 255 && pixels[offset + 1U] == 255 && pixels[offset + 2U] == 255 &&
-                       pixels[offset + 3U] == expected, "font matches console coverage with transparent half-texel gutters"))
+                       pixels[offset + 3U] == expected,
+                       "font matches console coverage with transparent half-texel gutters"))
             {
                 return false;
             }
@@ -189,14 +233,16 @@ bool FontAtlas(const Buffer & console)
         const float t = static_cast<float>((code >> 4) * 16 + 1);
         if (!Check(s - 0.5f > 0.0f && t - 0.5f > 0.0f &&
                    s + 15.5f < static_cast<float>(ps2::render::kAuthoredFontAtlasWidth) &&
-                   t + 14.5f < static_cast<float>(ps2::render::kAuthoredFontAtlasHeight), "native font expanded UVs stay inside atlas"))
+                   t + 14.5f < static_cast<float>(ps2::render::kAuthoredFontAtlasHeight),
+                   "native font expanded UVs stay inside atlas"))
         {
             return false;
         }
     }
     Buffer reload(ps2::render::kAuthoredFontAtlasBytes, kGuard);
     return Check(ps2::render::MakeAuthoredFontCharset(reload.data(), reload.size()) &&
-                 std::equal(reload.begin(), reload.end(), pixels), "font reload is deterministic");
+                 std::equal(reload.begin(), reload.end(), pixels),
+                 "font reload is deterministic");
 }
 } // namespace
 

@@ -5,8 +5,8 @@
 // ================================================================================================
 
 #include "ps2/common.h"
-#include "ps2/game/script_error.h"
 #include "ps2/game/class_alloc.h"
+#include "ps2/game/script_error.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
@@ -17,6 +17,7 @@ namespace
 {
 
 void Forward(const char * format, ...) PS2_PRINTF_FUNC(1, 2);
+
 void Forward(const char * format, ...)
 {
     va_list arguments;
@@ -29,9 +30,12 @@ void Forward(const char * format, ...)
 
 int main(int argc, char ** argv)
 {
-    constexpr int values[] = {1, 2, 3};
+    constexpr int values[] = { 1, 2, 3 };
     static_assert(ps2::ArrayLength(values) == 3);
-    if (argc != 2) { return 2; }
+    if (argc != 2)
+    {
+        return 2;
+    }
     const char * mode = argv[1];
     if (std::strcmp(mode, "log") == 0)
     {
@@ -70,7 +74,8 @@ int main(int argc, char ** argv)
     }
     else if (std::strcmp(mode, "script-cleanup") == 0)
     {
-        auto cleanup = [](void * data) { ps2::Log(ps2::LogLevel::Info, "%s\n", static_cast<const char *>(data)); };
+        auto cleanup = [](void * data)
+        { ps2::Log(ps2::LogLevel::Info, "%s\n", static_cast<const char *>(data)); };
         char first[] = "program";
         char second[] = "parser";
         ps2::script::ErrorScope outer(cleanup, first);
@@ -90,10 +95,14 @@ int main(int argc, char ** argv)
     else if (std::strcmp(mode, "script-normal") == 0)
     {
         {
-            ps2::script::ErrorScope cleanup([](void *) { ps2::FatalError("unexpected cleanup"); }, nullptr);
+            ps2::script::ErrorScope cleanup([](void *)
+                                            { ps2::FatalError("unexpected cleanup"); }, nullptr);
             ps2::script::NestingScope depth;
         }
-        if (ps2::script::ErrorScope::IsActive()) { return 3; }
+        if (ps2::script::ErrorScope::IsActive())
+        {
+            return 3;
+        }
     }
     else if (std::strcmp(mode, "class-fail") == 0)
     {
@@ -108,7 +117,10 @@ int main(int argc, char ** argv)
         void * pointer = ps2::heap::Alloc(8, 202);
         ps2::game::FreeClass(pointer, bytes, objects);
     }
-    else { return 2; }
+    else
+    {
+        return 2;
+    }
     ps2::Log(ps2::LogLevel::Info, "returned\n");
     return 0;
 }

@@ -15,11 +15,11 @@
 #include <unistd.h>
 
 #if defined(ID_HOST_TEST)
-#include <chrono>
-#include <thread>
+    #include <chrono>
+    #include <thread>
 #else
-#include <kernel.h>
-#include <timer.h>
+    #include <kernel.h>
+    #include <timer.h>
 #endif
 
 #include <idlib/precompiled.h>
@@ -42,7 +42,8 @@ std::uint64_t ReadTicks()
 {
 #if defined(ID_HOST_TEST)
     return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count());
+                                      std::chrono::steady_clock::now().time_since_epoch())
+                                      .count());
 #else
     return GetTimerSystemTime();
 #endif
@@ -79,26 +80,107 @@ public:
         Sys_DebugVPrintf(format, args);
         va_end(args);
     }
-    void DebugVPrintf(const char * format, va_list args) override { Sys_DebugVPrintf(format, args); }
-    double GetClockTicks() override { return Sys_GetClockTicks(); }
-    double ClockTicksPerSecond() override { return Sys_ClockTicksPerSecond(); }
-    cpuid_t GetProcessorId() override { return Sys_GetProcessorId(); }
-    const char * GetProcessorString() override { return Sys_GetProcessorString(); }
-    const char * FPU_GetState() override { return Sys_FPU_GetState(); }
-    bool FPU_StackIsEmpty() override { return Sys_FPU_StackIsEmpty(); }
-    void FPU_SetFTZ(bool enabled) override { Sys_FPU_SetFTZ(enabled); }
-    void FPU_SetDAZ(bool enabled) override { Sys_FPU_SetDAZ(enabled); }
-    void FPU_EnableExceptions(int exceptions) override { Sys_FPU_EnableExceptions(exceptions); }
-    bool LockMemory(void * pointer, int bytes) override { return Sys_LockMemory(pointer, bytes); }
-    bool UnlockMemory(void * pointer, int bytes) override { return Sys_UnlockMemory(pointer, bytes); }
-    void GetCallStack(address_t * stack, int size) override { Sys_GetCallStack(stack, size); }
-    const char * GetCallStackStr(const address_t * stack, int size) override { return Sys_GetCallStackStr(stack, size); }
-    const char * GetCallStackCurStr(int depth) override { return Sys_GetCallStackCurStr(depth); }
-    void ShutdownSymbols() override { Sys_ShutdownSymbols(); }
-    int DLL_Load(const char * name) override { return Sys_DLL_Load(name); }
-    void * DLL_GetProcAddress(int handle, const char * name) override { return Sys_DLL_GetProcAddress(handle, name); }
-    void DLL_Unload(int handle) override { Sys_DLL_Unload(handle); }
-    void DLL_GetFileName(const char *, char *, int) override { Sys_Error("Dynamic libraries are unavailable in the resident core"); }
+
+    void DebugVPrintf(const char * format, va_list args) override
+    {
+        Sys_DebugVPrintf(format, args);
+    }
+
+    double GetClockTicks() override
+    {
+        return Sys_GetClockTicks();
+    }
+
+    double ClockTicksPerSecond() override
+    {
+        return Sys_ClockTicksPerSecond();
+    }
+
+    cpuid_t GetProcessorId() override
+    {
+        return Sys_GetProcessorId();
+    }
+
+    const char * GetProcessorString() override
+    {
+        return Sys_GetProcessorString();
+    }
+
+    const char * FPU_GetState() override
+    {
+        return Sys_FPU_GetState();
+    }
+
+    bool FPU_StackIsEmpty() override
+    {
+        return Sys_FPU_StackIsEmpty();
+    }
+
+    void FPU_SetFTZ(bool enabled) override
+    {
+        Sys_FPU_SetFTZ(enabled);
+    }
+
+    void FPU_SetDAZ(bool enabled) override
+    {
+        Sys_FPU_SetDAZ(enabled);
+    }
+
+    void FPU_EnableExceptions(int exceptions) override
+    {
+        Sys_FPU_EnableExceptions(exceptions);
+    }
+
+    bool LockMemory(void * pointer, int bytes) override
+    {
+        return Sys_LockMemory(pointer, bytes);
+    }
+
+    bool UnlockMemory(void * pointer, int bytes) override
+    {
+        return Sys_UnlockMemory(pointer, bytes);
+    }
+
+    void GetCallStack(address_t * stack, int size) override
+    {
+        Sys_GetCallStack(stack, size);
+    }
+
+    const char * GetCallStackStr(const address_t * stack, int size) override
+    {
+        return Sys_GetCallStackStr(stack, size);
+    }
+
+    const char * GetCallStackCurStr(int depth) override
+    {
+        return Sys_GetCallStackCurStr(depth);
+    }
+
+    void ShutdownSymbols() override
+    {
+        Sys_ShutdownSymbols();
+    }
+
+    int DLL_Load(const char * name) override
+    {
+        return Sys_DLL_Load(name);
+    }
+
+    void * DLL_GetProcAddress(int handle, const char * name) override
+    {
+        return Sys_DLL_GetProcAddress(handle, name);
+    }
+
+    void DLL_Unload(int handle) override
+    {
+        Sys_DLL_Unload(handle);
+    }
+
+    void DLL_GetFileName(const char *, char *, int) override
+    {
+        Sys_Error("Dynamic libraries are unavailable in the resident core");
+    }
+
     sysEvent_t GenerateMouseButtonEvent(int button, bool down) override
     {
         if (button < 1 || button > 8)
@@ -111,6 +193,7 @@ public:
         event.evValue2 = down ? 1 : 0;
         return event;
     }
+
     sysEvent_t GenerateMouseMoveEvent(int x, int y) override
     {
         sysEvent_t event = {};
@@ -119,8 +202,16 @@ public:
         event.evValue2 = y;
         return event;
     }
-    void OpenURL(const char *, bool) override { Sys_Error("Opening URLs is unavailable in the core"); }
-    void StartProcess(const char *, bool) override { Sys_Error("Starting processes is unavailable in the core"); }
+
+    void OpenURL(const char *, bool) override
+    {
+        Sys_Error("Opening URLs is unavailable in the core");
+    }
+
+    void StartProcess(const char *, bool) override
+    {
+        Sys_Error("Starting processes is unavailable in the core");
+    }
 };
 
 static CoreSys s_sys;
@@ -227,130 +318,301 @@ void Sys_Sleep(int milliseconds)
 #endif
 }
 
-cpuid_t Sys_GetProcessorId() { return CPUID_GENERIC; }
-const char * Sys_GetProcessorString() { return CPUSTRING; }
-void Sys_CPUCount(int & physical, int & logical, int & packages) { physical = logical = packages = 1; }
+cpuid_t Sys_GetProcessorId()
+{
+    return CPUID_GENERIC;
+}
 
-bool Sys_FPU_StackIsEmpty() { return true; } // COP1 has registers rather than an x87 stack.
-void Sys_FPU_ClearStack() {}
-const char * Sys_FPU_GetState() { return "scalar core: fixed EE precision and rounding"; }
+const char * Sys_GetProcessorString()
+{
+    return CPUSTRING;
+}
+
+void Sys_CPUCount(int & physical, int & logical, int & packages)
+{
+    physical = logical = packages = 1;
+}
+
+bool Sys_FPU_StackIsEmpty()
+{
+    return true;
+} // COP1 has registers rather than an x87 stack.
+
+void Sys_FPU_ClearStack()
+{
+}
+
+const char * Sys_FPU_GetState()
+{
+    return "scalar core: fixed EE precision and rounding";
+}
+
 void Sys_FPU_EnableExceptions(int exceptions)
 {
-    if (exceptions != 0) { Sys_Error("EE floating point exception traps are unavailable"); }
-}
-void Sys_FPU_SetPrecision(int precision)
-{
-    if (precision != FPU_PRECISION_SINGLE) { Sys_Error("EE floating point precision is fixed to single"); }
-}
-void Sys_FPU_SetRounding(int rounding)
-{
-    if (rounding != FPU_ROUNDING_TO_ZERO) { Sys_Error("EE floating point rounding is fixed toward zero"); }
-}
-void Sys_FPU_SetFTZ(bool enabled)
-{
-    if (!enabled) { Sys_Error("EE denormal flushing cannot be disabled"); }
-}
-void Sys_FPU_SetDAZ(bool enabled)
-{
-    if (!enabled) { Sys_Error("EE denormal operands cannot be enabled"); }
+    if (exceptions != 0)
+    {
+        Sys_Error("EE floating point exception traps are unavailable");
+    }
 }
 
-bool Sys_LockMemory(void * pointer, int bytes) { return bytes >= 0 && (pointer != nullptr || bytes == 0); }
-bool Sys_UnlockMemory(void * pointer, int bytes) { return Sys_LockMemory(pointer, bytes); }
+void Sys_FPU_SetPrecision(int precision)
+{
+    if (precision != FPU_PRECISION_SINGLE)
+    {
+        Sys_Error("EE floating point precision is fixed to single");
+    }
+}
+
+void Sys_FPU_SetRounding(int rounding)
+{
+    if (rounding != FPU_ROUNDING_TO_ZERO)
+    {
+        Sys_Error("EE floating point rounding is fixed toward zero");
+    }
+}
+
+void Sys_FPU_SetFTZ(bool enabled)
+{
+    if (!enabled)
+    {
+        Sys_Error("EE denormal flushing cannot be disabled");
+    }
+}
+
+void Sys_FPU_SetDAZ(bool enabled)
+{
+    if (!enabled)
+    {
+        Sys_Error("EE denormal operands cannot be enabled");
+    }
+}
+
+bool Sys_LockMemory(void * pointer, int bytes)
+{
+    return bytes >= 0 && (pointer != nullptr || bytes == 0);
+}
+
+bool Sys_UnlockMemory(void * pointer, int bytes)
+{
+    return Sys_LockMemory(pointer, bytes);
+}
 
 void Sys_GetCallStack(address_t * stack, int size)
 {
-    if (size < 0 || (stack == nullptr && size != 0)) { Sys_Error("Invalid call stack buffer"); }
-    for (int index = 0; index < size; ++index) { stack[index] = 0; }
-}
-const char * Sys_GetCallStackStr(const address_t *, int) { return "call stack unavailable; symbolize ELF addresses offline"; }
-const char * Sys_GetCallStackCurStr(int) { return "call stack unavailable; symbolize ELF addresses offline"; }
-void Sys_ShutdownSymbols() {}
-int Sys_DLL_Load(const char *) { return 0; }
-void * Sys_DLL_GetProcAddress(int, const char *) { return nullptr; }
-void Sys_DLL_Unload(int handle)
-{
-    if (handle != 0) { Sys_Error("Dynamic libraries are unavailable in the resident core"); }
+    if (size < 0 || (stack == nullptr && size != 0))
+    {
+        Sys_Error("Invalid call stack buffer");
+    }
+    for (int index = 0; index < size; ++index)
+    {
+        stack[index] = 0;
+    }
 }
 
-uintptr_t Sys_GetCurrentThreadID() { return 1; }
+const char * Sys_GetCallStackStr(const address_t *, int)
+{
+    return "call stack unavailable; symbolize ELF addresses offline";
+}
+
+const char * Sys_GetCallStackCurStr(int)
+{
+    return "call stack unavailable; symbolize ELF addresses offline";
+}
+
+void Sys_ShutdownSymbols()
+{
+}
+
+int Sys_DLL_Load(const char *)
+{
+    return 0;
+}
+
+void * Sys_DLL_GetProcAddress(int, const char *)
+{
+    return nullptr;
+}
+
+void Sys_DLL_Unload(int handle)
+{
+    if (handle != 0)
+    {
+        Sys_Error("Dynamic libraries are unavailable in the resident core");
+    }
+}
+
+uintptr_t Sys_GetCurrentThreadID()
+{
+    return 1;
+}
+
 uintptr_t Sys_CreateThread(xthread_t, void *, xthreadPriority, const char *, core_t, int, bool)
 {
     Sys_Error("Worker threads are unavailable in the synchronous core");
 }
+
 void Sys_WaitForThread(uintptr_t handle)
 {
-    if (handle != 0) { Sys_Error("Waiting for a worker is unavailable in the synchronous core"); }
+    if (handle != 0)
+    {
+        Sys_Error("Waiting for a worker is unavailable in the synchronous core");
+    }
 }
+
 void Sys_DestroyThread(uintptr_t handle)
 {
-    if (handle != 0) { Sys_Error("Destroying a worker is unavailable in the synchronous core"); }
+    if (handle != 0)
+    {
+        Sys_Error("Destroying a worker is unavailable in the synchronous core");
+    }
 }
-void Sys_SetCurrentThreadName(const char *) {}
-void Sys_Yield() { __asm__ volatile("" ::: "memory"); }
 
-void Sys_SignalCreate(signalHandle_t & handle, bool manualReset) { handle = {false, manualReset}; }
-void Sys_SignalDestroy(signalHandle_t & handle) { handle = {}; }
-void Sys_SignalRaise(signalHandle_t & handle) { handle.signaled = true; }
-void Sys_SignalClear(signalHandle_t & handle) { handle.signaled = false; }
+void Sys_SetCurrentThreadName(const char *)
+{
+}
+
+void Sys_Yield()
+{
+    __asm__ volatile("" ::: "memory");
+}
+
+void Sys_SignalCreate(signalHandle_t & handle, bool manualReset)
+{
+    handle = { false, manualReset };
+}
+
+void Sys_SignalDestroy(signalHandle_t & handle)
+{
+    handle = {};
+}
+
+void Sys_SignalRaise(signalHandle_t & handle)
+{
+    handle.signaled = true;
+}
+
+void Sys_SignalClear(signalHandle_t & handle)
+{
+    handle.signaled = false;
+}
+
 bool Sys_SignalWait(signalHandle_t & handle, int timeout)
 {
-    if (timeout < -1) { Sys_Error("Invalid signal timeout"); }
+    if (timeout < -1)
+    {
+        Sys_Error("Invalid signal timeout");
+    }
     if (!handle.signaled)
     {
-        if (timeout == -1) { Sys_Error("An unsignaled infinite wait cannot progress on the sole core thread"); }
-        if (timeout > 0) { Sys_Sleep(timeout); }
-        if (!handle.signaled) { return false; }
+        if (timeout == -1)
+        {
+            Sys_Error("An unsignaled infinite wait cannot progress on the sole core thread");
+        }
+        if (timeout > 0)
+        {
+            Sys_Sleep(timeout);
+        }
+        if (!handle.signaled)
+        {
+            return false;
+        }
     }
-    if (!handle.manualReset) { handle.signaled = false; }
+    if (!handle.manualReset)
+    {
+        handle.signaled = false;
+    }
     return true;
 }
 
-void Sys_MutexCreate(mutexHandle_t & handle) { handle = 0; }
+void Sys_MutexCreate(mutexHandle_t & handle)
+{
+    handle = 0;
+}
+
 void Sys_MutexDestroy(mutexHandle_t & handle)
 {
-    if (handle != 0) { Sys_Error("Destroying an invalid or locked mutex"); }
+    if (handle != 0)
+    {
+        Sys_Error("Destroying an invalid or locked mutex");
+    }
     handle = -1;
 }
+
 bool Sys_MutexLock(mutexHandle_t & handle, bool)
 {
     // Windows critical sections are recursive; the sole thread can always acquire its own lock.
-    if (handle < 0 || handle == INT_MAX) { Sys_Error("Invalid mutex or recursive lock overflow"); }
+    if (handle < 0 || handle == INT_MAX)
+    {
+        Sys_Error("Invalid mutex or recursive lock overflow");
+    }
     ++handle;
     return true;
 }
+
 void Sys_MutexUnlock(mutexHandle_t & handle)
 {
-    if (handle <= 0) { Sys_Error("Unlocking an invalid or unlocked mutex"); }
+    if (handle <= 0)
+    {
+        Sys_Error("Unlocking an invalid or unlocked mutex");
+    }
     --handle;
 }
 
-interlockedInt_t Sys_InterlockedIncrement(interlockedInt_t & value) { value = WrapAdd(value, 1); return value; }
-interlockedInt_t Sys_InterlockedDecrement(interlockedInt_t & value) { value = WrapSub(value, 1); return value; }
-interlockedInt_t Sys_InterlockedAdd(interlockedInt_t & value, interlockedInt_t increment) { value = WrapAdd(value, increment); return value; }
-interlockedInt_t Sys_InterlockedSub(interlockedInt_t & value, interlockedInt_t decrement) { value = WrapSub(value, decrement); return value; }
+interlockedInt_t Sys_InterlockedIncrement(interlockedInt_t & value)
+{
+    value = WrapAdd(value, 1);
+    return value;
+}
+
+interlockedInt_t Sys_InterlockedDecrement(interlockedInt_t & value)
+{
+    value = WrapSub(value, 1);
+    return value;
+}
+
+interlockedInt_t Sys_InterlockedAdd(interlockedInt_t & value, interlockedInt_t increment)
+{
+    value = WrapAdd(value, increment);
+    return value;
+}
+
+interlockedInt_t Sys_InterlockedSub(interlockedInt_t & value, interlockedInt_t decrement)
+{
+    value = WrapSub(value, decrement);
+    return value;
+}
+
 interlockedInt_t Sys_InterlockedExchange(interlockedInt_t & value, interlockedInt_t replacement)
 {
     const interlockedInt_t previous = value;
     value = replacement;
     return previous;
 }
+
 interlockedInt_t Sys_InterlockedCompareExchange(interlockedInt_t & value, interlockedInt_t comparand, interlockedInt_t replacement)
 {
     const interlockedInt_t previous = value;
-    if (value == comparand) { value = replacement; }
+    if (value == comparand)
+    {
+        value = replacement;
+    }
     return previous;
 }
-void * Sys_InterlockedExchangePointer(void * & pointer, void * replacement)
+
+void * Sys_InterlockedExchangePointer(void *& pointer, void * replacement)
 {
     void * previous = pointer;
     pointer = replacement;
     return previous;
 }
-void * Sys_InterlockedCompareExchangePointer(void * & pointer, void * comparand, void * replacement)
+
+void * Sys_InterlockedCompareExchangePointer(void *& pointer, void * comparand, void * replacement)
 {
     void * previous = pointer;
-    if (pointer == comparand) { pointer = replacement; }
+    if (pointer == comparand)
+    {
+        pointer = replacement;
+    }
     return previous;
 }
 
@@ -360,11 +622,17 @@ void Sys_FlushCacheLine(const void * pointer, int offset)
     (void)pointer;
     (void)offset;
 #else
-    if (pointer == nullptr || offset < 0) { Sys_Error("Invalid cache flush address"); }
+    if (pointer == nullptr || offset < 0)
+    {
+        Sys_Error("Invalid cache flush address");
+    }
     constexpr uintptr_t kLineMask = 63;
     const uintptr_t address = reinterpret_cast<uintptr_t>(pointer);
     const uintptr_t relative = static_cast<uintptr_t>(offset);
-    if (address > UINTPTR_MAX - relative - 64U) { Sys_Error("Cache flush address overflow"); }
+    if (address > UINTPTR_MAX - relative - 64U)
+    {
+        Sys_Error("Cache flush address overflow");
+    }
     const uintptr_t start = (address + relative) & ~kLineMask;
     SyncDCache(reinterpret_cast<void *>(start), reinterpret_cast<void *>(start + 64U));
 #endif
@@ -385,13 +653,16 @@ void Sys_QueEvent(sysEventType_t type, int value, int value2, int ptrLength, voi
         Sys_Printf("[D3BFG] EVENT queue overflow: dropped oldest event\n");
     }
     const size_t tail = (s_eventHead + s_eventCount) % kEventCapacity;
-    s_events[tail] = {type, value, value2, ptrLength, pointer, device};
+    s_events[tail] = { type, value, value2, ptrLength, pointer, device };
     ++s_eventCount;
 }
 
 sysEvent_t Sys_GetEvent()
 {
-    if (s_eventCount == 0) { return {}; }
+    if (s_eventCount == 0)
+    {
+        return {};
+    }
     const sysEvent_t event = s_events[s_eventHead];
     s_events[s_eventHead] = {};
     s_eventHead = (s_eventHead + 1) % kEventCapacity;
@@ -409,16 +680,32 @@ void Sys_ClearEvents()
     }
     s_eventHead = 0;
 }
-void Sys_GenerateEvents() {} // No input drivers run in the initial headless core.
+
+void Sys_GenerateEvents()
+{
+} // No input drivers run in the initial headless core.
 
 ID_TIME_T Sys_FileTimeStamp(idFileHandle file)
 {
-    if (file == nullptr) { return -1; }
+    if (file == nullptr)
+    {
+        return -1;
+    }
     struct stat status = {};
     const int descriptor = fileno(file);
-    if (descriptor < 0 || fstat(descriptor, &status) != 0) { return -1; }
+    if (descriptor < 0 || fstat(descriptor, &status) != 0)
+    {
+        return -1;
+    }
     return static_cast<ID_TIME_T>(status.st_mtime);
 }
 
-const char * Sys_DefaultBasePath() { return "host:"; }
-const char * Sys_DefaultSavePath() { return "host:"; }
+const char * Sys_DefaultBasePath()
+{
+    return "host:";
+}
+
+const char * Sys_DefaultSavePath()
+{
+    return "host:";
+}

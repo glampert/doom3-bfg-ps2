@@ -29,7 +29,10 @@ bool ReadAt(void * context, size_t offset, void * output, size_t size)
 }
 } // namespace
 
-idSoundSample::~idSoundSample() { FreeData(); }
+idSoundSample::~idSoundSample()
+{
+    FreeData();
+}
 
 void idSoundSample::SetName(const char * name)
 {
@@ -166,36 +169,43 @@ void idSoundSample::RequireLoaded(const char * operation) const
         ps2::FatalError("sound sample query requires loaded data: %s", operation);
     }
 }
+
 int idSoundSample::LengthInMsec() const
 {
     RequireLoaded("idSoundSample::LengthInMsec");
     return ps2::audio::DurationMsec(m_wave);
 }
+
 int idSoundSample::SampleRate() const
 {
     RequireLoaded("idSoundSample::SampleRate");
     return static_cast<int>(m_wave.sampleRate);
 }
+
 int idSoundSample::NumSamples() const
 {
     RequireLoaded("idSoundSample::NumSamples");
     return static_cast<int>(m_wave.frames);
 }
+
 int idSoundSample::NumChannels() const
 {
     RequireLoaded("idSoundSample::NumChannels");
     return static_cast<int>(m_wave.channels);
 }
+
 int idSoundSample::BufferSize() const
 {
     RequireLoaded("idSoundSample::BufferSize");
     return static_cast<int>(m_wave.dataBytes);
 }
+
 bool idSoundSample::IsCompressed() const
 {
     RequireLoaded("idSoundSample::IsCompressed");
     return false;
 }
+
 float idSoundSample::GetAmplitude(int timeMS) const
 {
     RequireLoaded("idSoundSample::GetAmplitude");
@@ -207,11 +217,26 @@ idSoundVoice_Base::idSoundVoice_Base()
     : position(0.0f), gain(1.0f), centerChannel(0.0f), pitch(1.0f), innerRadius(32.0f), occlusion(0.0f), channelMask(0), innerSampleRangeSqr(0.0f), outerSampleRangeSqr(0.0f)
 {
 }
-void idSoundVoice_Base::InitSurround(int, int) { Unsupported("idSoundVoice_Base::InitSurround"); }
-void idSoundVoice_Base::CalculateSurround(int, float *, float) { Unsupported("idSoundVoice_Base::CalculateSurround"); }
-const idSoundSample * idSoundVoice_Base::GetCurrentSample() { Unsupported("idSoundVoice_Base::GetCurrentSample"); }
 
-idSoundVoice::idSoundVoice(idSoundHardware * owner) : m_owner(owner) { PS2_Assert(owner != nullptr); }
+void idSoundVoice_Base::InitSurround(int, int)
+{
+    Unsupported("idSoundVoice_Base::InitSurround");
+}
+
+void idSoundVoice_Base::CalculateSurround(int, float *, float)
+{
+    Unsupported("idSoundVoice_Base::CalculateSurround");
+}
+
+const idSoundSample * idSoundVoice_Base::GetCurrentSample()
+{
+    Unsupported("idSoundVoice_Base::GetCurrentSample");
+}
+
+idSoundVoice::idSoundVoice(idSoundHardware * owner) : m_owner(owner)
+{
+    PS2_Assert(owner != nullptr);
+}
 
 void idSoundVoice::RequireAllocated() const
 {
@@ -279,38 +304,45 @@ void idSoundVoice::Start(int offsetMS, int flags)
     m_timeline.Start(offsetMS, m_owner->Now());
     m_flags = flags;
 }
+
 void idSoundVoice::Stop()
 {
     RequireAllocated();
     m_timeline.Stop(m_owner->Now());
 }
+
 void idSoundVoice::Pause()
 {
     RequireAllocated();
     m_timeline.Pause(m_owner->Now());
 }
+
 void idSoundVoice::UnPause()
 {
     RequireAllocated();
     m_timeline.UnPause(m_owner->Now());
 }
+
 bool idSoundVoice::Update()
 {
     Sync();
     const auto state = m_timeline.GetCursor().state;
     return state == ps2::audio::VoiceState::Playing || state == ps2::audio::VoiceState::Paused;
 }
+
 void idSoundVoice::SetPitch(float value)
 {
     RequireAllocated();
     m_timeline.SetPitch(value, m_owner->Now());
     pitch = m_timeline.GetPitch();
 }
+
 ps2::audio::PlaybackCursor idSoundVoice::GetPlaybackCursor()
 {
     Sync();
     return m_timeline.GetCursor();
 }
+
 const idSoundSample * idSoundVoice::GetCurrentSample()
 {
     const auto segment = GetPlaybackCursor().segment;
@@ -320,6 +352,7 @@ const idSoundSample * idSoundVoice::GetCurrentSample()
     }
     return segment == ps2::audio::VoiceSegment::Leadin ? m_leadin : m_looping;
 }
+
 float idSoundVoice::GetAmplitude()
 {
     const auto cursor = GetPlaybackCursor();
@@ -335,7 +368,10 @@ float idSoundVoice::GetAmplitude()
     return sample->GetAmplitude(cursor.timeMS); // Pre-gain envelope; native callers apply GetGain separately.
 }
 
-idSoundHardware::~idSoundHardware() { Shutdown(); }
+idSoundHardware::~idSoundHardware()
+{
+    Shutdown();
+}
 
 void idSoundHardware::RequireInitialized(const char * operation) const
 {

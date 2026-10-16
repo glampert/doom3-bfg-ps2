@@ -42,7 +42,10 @@ void idMenuHandler_Shell::Cleanup()
 }
 
 #define SHELL_UNSUPPORTED(result, owner, method, parameters) \
-    result owner::method parameters { Unsupported(#owner "::" #method); }
+    result owner::method parameters                          \
+    {                                                        \
+        Unsupported(#owner "::" #method);                    \
+    }
 
 SHELL_UNSUPPORTED(void, idMenuHandler_Shell, Update, ())
 SHELL_UNSUPPORTED(void, idMenuHandler_Shell, ActivateMenu, (bool))

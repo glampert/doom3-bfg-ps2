@@ -16,8 +16,24 @@ Standard ConsoleStandard()
     GetRomName(romName);
     return romName[4] == 'E' ? Standard::Pal : Standard::Ntsc;
 }
-bool IsValid(Standard standard) { return standard == Standard::Ntsc || standard == Standard::Pal; }
-const char * Name(Standard standard) { return standard == Standard::Pal ? "PAL" : "NTSC"; }
-int VisibleLines(Standard standard) { return standard == Standard::Pal ? 512 : 448; }
-int GraphMode(Standard standard) { return standard == Standard::Pal ? GRAPH_MODE_PAL : GRAPH_MODE_NTSC; }
+
+bool IsValid(Standard standard)
+{
+    return standard == Standard::Ntsc || standard == Standard::Pal;
+}
+
+const char * Name(Standard standard)
+{
+    return standard == Standard::Pal ? "PAL" : "NTSC";
+}
+
+int VisibleLines(Standard standard)
+{
+    return standard == Standard::Pal ? 512 : 448;
+}
+
+int GraphMode(Standard standard)
+{
+    return standard == Standard::Pal ? GRAPH_MODE_PAL : GRAPH_MODE_NTSC;
+}
 } // namespace ps2::video

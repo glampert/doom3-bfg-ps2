@@ -15,6 +15,7 @@ struct Stats
     u32 kicks;
     u32 drains;
 };
+
 bool Init(u32 halfBytes);
 void Shutdown();
 bool IsInitialized();

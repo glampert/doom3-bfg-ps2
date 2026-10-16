@@ -29,7 +29,10 @@ static_assert(ps2::ArrayLength(kTagNames) == TAG_NUM_TAGS);
 
 // Keep unsupported interfaces visible at the ABI boundary. A core compile/link is not a game boot.
 #define CORE_UNSUPPORTED(result, method, parameters) \
-    result method parameters override { Unsupported(#method); }
+    result method parameters override                \
+    {                                                \
+        Unsupported(#method);                        \
+    }
 
 bool FixturePath(const char * input, char * output, size_t capacity)
 {
@@ -39,7 +42,10 @@ bool FixturePath(const char * input, char * output, size_t capacity)
     }
     const char * relative = idStr::Cmpn(input, "host:", 5) == 0 ? input + 5 : input;
     const size_t length = strlen(relative);
-    if (length >= MAX_OSPATH - 5 || !ps2::filesystem::IsRelativePath(relative)) { return false; }
+    if (length >= MAX_OSPATH - 5 || !ps2::filesystem::IsRelativePath(relative))
+    {
+        return false;
+    }
 #if defined(ID_HOST_TEST)
     const int written = idStr::snPrintf(output, static_cast<int>(capacity), "%s", relative);
 #else
@@ -61,7 +67,10 @@ public:
         ps2::heap::Free(m_data);
     }
 
-    ID_TIME_T Timestamp() const override { return m_timestamp; }
+    ID_TIME_T Timestamp() const override
+    {
+        return m_timestamp;
+    }
 
 private:
     void * m_data;
@@ -71,9 +80,20 @@ private:
 class CoreFileSystem final : public idFileSystem
 {
 public:
-    void Init() override { m_initialized = true; }
-    void Shutdown(bool) override { m_initialized = false; }
-    bool IsInitialized() const override { return m_initialized; }
+    void Init() override
+    {
+        m_initialized = true;
+    }
+
+    void Shutdown(bool) override
+    {
+        m_initialized = false;
+    }
+
+    bool IsInitialized() const override
+    {
+        return m_initialized;
+    }
 
     int ReadFile(const char * path, void ** buffer, ID_TIME_T * timestamp) override
     {
@@ -135,14 +155,23 @@ public:
         return static_cast<int>(length);
     }
 
-    void FreeFile(void * buffer) override { ps2::heap::Free(buffer); }
+    void FreeFile(void * buffer) override
+    {
+        ps2::heap::Free(buffer);
+    }
 
-    int GetFileLength(const char * path) override { return ReadFile(path, nullptr, nullptr); }
+    int GetFileLength(const char * path) override
+    {
+        return ReadFile(path, nullptr, nullptr);
+    }
 
     idFile * OpenFileRead(const char * path, bool, const char *) override
     {
         char normalized[MAX_OSPATH] = {};
-        if (!m_initialized || !FixturePath(path, normalized, sizeof(normalized))) { return nullptr; }
+        if (!m_initialized || !FixturePath(path, normalized, sizeof(normalized)))
+        {
+            return nullptr;
+        }
         return idFile_Permanent::OpenPortableRead(path, normalized);
     }
 
@@ -163,7 +192,10 @@ public:
         return OpenFileRead(path, false, nullptr);
     }
 
-    void CloseFile(idFile * file) override { delete file; }
+    void CloseFile(idFile * file) override
+    {
+        delete file;
+    }
 
     findFile_t FindFile(const char * path) override
     {
@@ -175,13 +207,21 @@ public:
         return idStr::IcmpPath(first, second) != 0;
     }
 
-    bool InProductionMode() override { return false; }
-    bool UsingResourceFiles() override { return false; }
+    bool InProductionMode() override
+    {
+        return false;
+    }
+
+    bool UsingResourceFiles() override
+    {
+        return false;
+    }
 
     CORE_UNSUPPORTED(void, Restart, ())
     CORE_UNSUPPORTED(idFileList *, ListFiles, (const char *, const char *, bool, bool, const char *))
     CORE_UNSUPPORTED(idFileList *, ListFilesTree, (const char *, const char *, bool, const char *))
     CORE_UNSUPPORTED(void, FreeFileList, (idFileList *))
+
     // The foundation has one host fixture root. Preserve the same path jail for script diagnostics.
     const char * OSPathToRelativePath(const char * path) override
     {
@@ -252,27 +292,34 @@ idFileSystem * fileSystem = &s_fileSystem;
 namespace ps2::core
 {
 
-void Init() { common->Init(0, nullptr, nullptr); }
-void Shutdown() { common->Shutdown(); }
+void Init()
+{
+    common->Init(0, nullptr, nullptr);
+}
+
+void Shutdown()
+{
+    common->Shutdown();
+}
 
 void PrintMemory(const char * stage)
 {
     const heap::Stats totals = heap::GetTotalStats();
     const heap::ArenaStats arena = heap::GetArenaStats();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] MEMORY %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu peak_backing=%zu\n",
-        stage, totals.requestedBytes, totals.backingBytes, totals.allocationCount,
-        totals.peakRequestedBytes, totals.peakBackingBytes);
+             stage, totals.requestedBytes, totals.backingBytes, totals.allocationCount,
+             totals.peakRequestedBytes, totals.peakBackingBytes);
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] ARENA %s available=%d committed=%zu used=%zu free=%zu peak_committed=%zu\n",
-        stage, arena.available ? 1 : 0, arena.committedBytes, arena.usedBytes, arena.freeBytes,
-        arena.peakCommittedBytes);
+             stage, arena.available ? 1 : 0, arena.committedBytes, arena.usedBytes, arena.freeBytes,
+             arena.peakCommittedBytes);
     for (std::uint16_t tag = 0; tag < static_cast<std::uint16_t>(TAG_NUM_TAGS); ++tag)
     {
         const heap::Stats stats = heap::GetStats(tag);
         if (stats.allocationCount != 0 || stats.peakRequestedBytes != 0)
         {
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] TAG %s %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu\n",
-                stage, kTagNames[tag], stats.requestedBytes, stats.backingBytes,
-                stats.allocationCount, stats.peakRequestedBytes);
+                     stage, kTagNames[tag], stats.requestedBytes, stats.backingBytes,
+                     stats.allocationCount, stats.peakRequestedBytes);
         }
     }
 }

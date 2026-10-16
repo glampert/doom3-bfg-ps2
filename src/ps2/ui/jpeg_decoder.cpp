@@ -28,10 +28,12 @@ enum class EngineTag : std::uint16_t
 static constexpr std::uint16_t kImageTag = static_cast<std::uint16_t>(EngineTag::SWF);
 
 struct State;
+
 struct ErrorManager : jpeg_error_mgr
 {
     State * owner;
 };
+
 struct State
 {
     jpeg_decompress_struct decoder;
@@ -47,7 +49,10 @@ State * Owner(j_common_ptr decoder)
 
 void Release(State * state)
 {
-    if (state == nullptr) { return; }
+    if (state == nullptr)
+    {
+        return;
+    }
     heap::Free(state->output);
     jpeg_destroy_decompress(&state->decoder);
     heap::Free(state);
@@ -76,16 +81,26 @@ void OutputMessage(j_common_ptr decoder)
     Log(LogLevel::Warning, "SWF JPEG: %s", message);
 }
 
-void InitSource(j_decompress_ptr) {}
-void TermSource(j_decompress_ptr) {}
+void InitSource(j_decompress_ptr)
+{
+}
+
+void TermSource(j_decompress_ptr)
+{
+}
+
 boolean FillInput(j_decompress_ptr decoder)
 {
     // Memory input is complete. Returning TRUE without adding bytes lets libjpeg read past EOF.
     Fail(Owner(reinterpret_cast<j_common_ptr>(decoder)), "truncated input");
 }
+
 void SkipInput(j_decompress_ptr decoder, long count)
 {
-    if (count <= 0) { return; }
+    if (count <= 0)
+    {
+        return;
+    }
     const size_t bytes = static_cast<size_t>(count);
     if (bytes > decoder->src->bytes_in_buffer)
     {
@@ -161,14 +176,23 @@ unsigned char * Decode(void * decoder, const unsigned char * input, int inputSiz
         Fail(state, "decoded image exceeds 4 MiB");
     }
     state->output = static_cast<unsigned char *>(heap::TryAlloc(outputBytes, kImageTag));
-    if (state->output == nullptr) { Fail(state, "output allocation failed"); }
+    if (state->output == nullptr)
+    {
+        Fail(state, "output allocation failed");
+    }
     std::memset(state->output, 255, outputBytes);
     while (info.output_scanline < info.output_height)
     {
         JSAMPROW row = state->output + static_cast<size_t>(info.output_scanline) * rowBytes;
-        if (jpeg_read_scanlines(&info, &row, 1) != 1) { Fail(state, "scanline did not advance"); }
+        if (jpeg_read_scanlines(&info, &row, 1) != 1)
+        {
+            Fail(state, "scanline did not advance");
+        }
     }
-    if (!jpeg_finish_decompress(&info)) { Fail(state, "incomplete image"); }
+    if (!jpeg_finish_decompress(&info))
+    {
+        Fail(state, "incomplete image");
+    }
     width = static_cast<int>(info.output_width);
     height = static_cast<int>(info.output_height);
     info.src = nullptr;

@@ -16,7 +16,7 @@ bool Check(bool condition, const char * name)
     Log(LogLevel::Info, "[D3BFG] CHECK types/%s %s\n", name, condition ? "PASS" : "FAIL");
     return condition;
 }
-}
+} // namespace
 
 bool RunTypeQueryTests()
 {
@@ -27,19 +27,22 @@ bool RunTypeQueryTests()
     const QueryRoot * constant = &child;
     const QueryChild * const qualified = CheckedCast<const QueryChild * const>(constant);
     bool passed = Check(CheckedCast<QueryChild *>(base) == &child &&
-        CheckedCast<QueryGrandchild *>(base) == &child &&
-        CheckedCast<QueryRoot *>(&child) == base &&
-        CheckedCast<const QueryChild *>(constant) == &child &&
-        qualified != nullptr && qualified->value == 42, "inherited-const");
+                        CheckedCast<QueryGrandchild *>(base) == &child &&
+                        CheckedCast<QueryRoot *>(&child) == base &&
+                        CheckedCast<const QueryChild *>(constant) == &child &&
+                        qualified != nullptr && qualified->value == 42,
+                        "inherited-const");
     passed &= Check(CheckedCast<QueryChild *>(&root) == nullptr &&
-        CheckedCast<QueryChild *>(static_cast<QueryRoot *>(&sibling)) == nullptr &&
-        CheckedCast<QuerySibling *>(base) == nullptr &&
-        CheckedCast<QueryChild *>(static_cast<QueryRoot *>(nullptr)) == nullptr, "rejected-null-sibling");
+                    CheckedCast<QueryChild *>(static_cast<QueryRoot *>(&sibling)) == nullptr &&
+                    CheckedCast<QuerySibling *>(base) == nullptr &&
+                    CheckedCast<QueryChild *>(static_cast<QueryRoot *>(nullptr)) == nullptr,
+                    "rejected-null-sibling");
     QueryRoot * otherUnit = NewQueryChildFromOtherUnit();
     QueryChild * queried = CheckedCast<QueryChild *>(otherUnit);
     passed &= Check(QueryChildTypeKeyFromOtherUnit() == TypeKey<QueryChild>() &&
-        TypeKey<QueryChild>() != TypeKey<QuerySibling>() && queried != nullptr &&
-        queried->value == 42 && CheckedCast<QuerySibling *>(otherUnit) == nullptr, "translation-unit-identity");
+                    TypeKey<QueryChild>() != TypeKey<QuerySibling>() && queried != nullptr &&
+                    queried->value == 42 && CheckedCast<QuerySibling *>(otherUnit) == nullptr,
+                    "translation-unit-identity");
     delete otherUnit;
     return passed;
 }

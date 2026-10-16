@@ -7,13 +7,13 @@
 #include "ps2/renderer/cmd_buffer.h"
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/system/heap.h"
-#include <idlib/precompiled.h>
 #include <dma.h>
+#include <gs_gp.h>
+#include <idlib/precompiled.h>
 #include <kernel.h>
 #include <packet2_chain.h>
 #include <packet2_utils.h>
 #include <packet2_vif.h>
-#include <gs_gp.h>
 
 namespace ps2::cmdbuf
 {
@@ -31,32 +31,53 @@ static qword_t * s_directBase = nullptr;
 static int s_directCapacity = 0;
 static Stats s_stats = {};
 
-packet2_t * Current() { return &s_packets[s_half]; }
-int Used() { return static_cast<int>(packet2_get_qw_count(Current())); }
+packet2_t * Current()
+{
+    return &s_packets[s_half];
+}
+
+int Used()
+{
+    return static_cast<int>(packet2_get_qw_count(Current()));
+}
+
 void Reset()
 {
     packet2_reset(Current(), 0);
     s_kickedQwords = 0;
 }
+
 void RecordPeak()
 {
     const u32 bytes = packet2_get_qw_count(Current()) * 16U;
-    if (bytes > s_stats.peakBytes) { s_stats.peakBytes = bytes; }
+    if (bytes > s_stats.peakBytes)
+    {
+        s_stats.peakBytes = bytes;
+    }
 }
 } // namespace
 
-bool IsInitialized() { return s_storage != nullptr; }
+bool IsInitialized()
+{
+    return s_storage != nullptr;
+}
 
 PS2_COLD_FUNC bool Init(u32 halfBytes)
 {
-    if (IsInitialized()) { FatalError("command buffer initialized twice"); }
+    if (IsInitialized())
+    {
+        FatalError("command buffer initialized twice");
+    }
     if (halfBytes < 256U || (halfBytes & 63U) != 0 || halfBytes / 16U > 65535U)
     {
         Log(LogLevel::Error, "invalid command half size: %u\n", halfBytes);
         return false;
     }
     s_storage = heap::TryAlloc(static_cast<size_t>(halfBytes) * 2U, TAG_RENDER, 64);
-    if (s_storage == nullptr) { return false; }
+    if (s_storage == nullptr)
+    {
+        return false;
+    }
     u8 * const bytes = static_cast<u8 *>(s_storage);
     for (int half = 0; half < 2; ++half)
     {
@@ -73,7 +94,8 @@ PS2_COLD_FUNC bool Init(u32 halfBytes)
     s_half = 0;
     s_kickedQwords = 0;
     s_stats = {};
-    gs::WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
+    gs::WaitUntil([]
+                  { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
     if (dma_channel_initialize(DMA_CHANNEL_VIF1, nullptr, 0) < 0)
     {
         heap::Free(s_storage);
@@ -87,16 +109,27 @@ PS2_COLD_FUNC bool Init(u32 halfBytes)
 
 void WaitIdle()
 {
-    if (!s_inFlight) { return; }
-    gs::WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "VIF1 DMA");
-    gs::WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "GS FINISH");
+    if (!s_inFlight)
+    {
+        return;
+    }
+    gs::WaitUntil([]
+                  { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "VIF1 DMA");
+    gs::WaitUntil([]
+                  { return (*GS_REG_CSR & 2U) != 0; }, "GS FINISH");
     s_inFlight = false;
 }
 
 PS2_COLD_FUNC void Shutdown()
 {
-    if (!IsInitialized()) { return; }
-    if (s_directBase != nullptr) { FatalError("command shutdown with an open DIRECT payload"); }
+    if (!IsInitialized())
+    {
+        return;
+    }
+    if (s_directBase != nullptr)
+    {
+        FatalError("command shutdown with an open DIRECT payload");
+    }
     // Preserve any completed work even during partial frame teardown.
     Kick();
     WaitIdle();
@@ -130,7 +163,10 @@ GifWriter BeginDirect(int payloadQwords)
     }
     const int capacity = Current()->max_qwords_count - kTerminatorQwords;
     // One CNT tag and one final EOP qword belong to this block.
-    if (payloadQwords > capacity - 2) { FatalError("DIRECT request exceeds command half capacity"); }
+    if (payloadQwords > capacity - 2)
+    {
+        FatalError("DIRECT request exceeds command half capacity");
+    }
     const int request = payloadQwords + 2;
     if (Used() > capacity - request)
     {
@@ -169,8 +205,14 @@ void EndDirect(const GifWriter & writer)
 
 void Kick()
 {
-    if (!IsInitialized() || s_directBase != nullptr) { FatalError("invalid command Kick state"); }
-    if (Used() == s_kickedQwords) { return; }
+    if (!IsInitialized() || s_directBase != nullptr)
+    {
+        FatalError("invalid command Kick state");
+    }
+    if (Used() == s_kickedQwords)
+    {
+        return;
+    }
     WaitIdle();
     PS2_Assert(Current()->tag_opened_at == nullptr && Current()->vif_code_opened_at == nullptr);
     packet2_t * const packet = Current();
@@ -197,10 +239,17 @@ void Kick()
 
 void EndFrame()
 {
-    if (!s_frame || s_directBase != nullptr) { FatalError("invalid command EndFrame state"); }
+    if (!s_frame || s_directBase != nullptr)
+    {
+        FatalError("invalid command EndFrame state");
+    }
     Kick();
     WaitIdle();
     s_frame = false;
 }
-Stats GetStats() { return s_stats; }
+
+Stats GetStats()
+{
+    return s_stats;
+}
 } // namespace ps2::cmdbuf

@@ -100,9 +100,8 @@ static bool LogicalName(std::string & name)
     // Native tables contain a few internal repeated separators. Filesystems
     // collapse these aliases, so select duplicates after that normalization.
     name.erase(std::unique(name.begin(), name.end(), [](char first, char second)
-    {
-        return first == '/' && second == '/';
-    }), name.end());
+                           { return first == '/' && second == '/'; }),
+               name.end());
     std::size_t start = 0;
     while (start <= name.size())
     {
@@ -212,7 +211,7 @@ static bool ParseContainer(const fs::path & input, std::size_t index, Container 
     {
         return Fail("resource table has trailing bytes: " + input.string());
     }
-    std::vector<std::pair<std::uint32_t, std::uint32_t>> spans;
+    std::vector<std::pair<std::uint32_t, std::uint32_t> > spans;
     spans.reserve(container.entries.size());
     for (const Entry & entry : container.entries)
     {
@@ -297,7 +296,7 @@ static bool CheckDestination(const fs::path & root, const std::string & name, bo
         }
         const bool last = std::next(part) == relative.end();
         if (fs::exists(status) && ((!last && !fs::is_directory(status)) ||
-                                  (last && (!overwrite || !fs::is_regular_file(status)))))
+                                   (last && (!overwrite || !fs::is_regular_file(status)))))
         {
             return Fail("output path already exists or conflicts: " + current.string());
         }

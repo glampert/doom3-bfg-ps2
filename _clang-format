@@ -1,7 +1,7 @@
 ---
 # BasedOnStyle:  Mozilla
 Language:                                       Cpp
-AccessModifierOffset:                           -2
+AccessModifierOffset:                           -4
 AlignAfterOpenBracket:                          true
 AlignEscapedNewlinesLeft:                       false
 AlignOperands:                                  true
@@ -26,6 +26,9 @@ ConstructorInitializerIndentWidth:              4
 DerivePointerAlignment:                         false
 ExperimentalAutoDetectBinPacking:               false
 IndentCaseLabels:                               false
+IndentAccessModifiers:                          false
+IndentPPDirectives:                             BeforeHash
+PPIndentWidth:                                  4
 IndentWrappedFunctionNames:                     false
 IndentFunctionDeclarationAfterType:             false
 MaxEmptyLinesToKeep:                            1
@@ -54,11 +57,13 @@ SpacesInAngles:                                 false
 SpaceInEmptyParentheses:                        false
 SpacesInCStyleCastParentheses:                  false
 SpaceAfterCStyleCast:                           false
+SpaceAfterTemplateKeyword:                      false
 SpacesInContainerLiterals:                      true
 SpaceBeforeAssignmentOperators:                 true
 ContinuationIndentWidth:                        0
 CommentPragmas:                                 '^ IWYU pragma:'
 ForEachMacros:                                  [ foreach, Q_FOREACH, BOOST_FOREACH ]
 SpaceBeforeParens:                              ControlStatements
+SeparateDefinitionBlocks:                       Always
 DisableFormat:                                  false
 ...

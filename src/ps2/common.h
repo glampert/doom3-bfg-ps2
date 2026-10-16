@@ -34,19 +34,21 @@ constexpr int ArrayLength(const T (&)[N])
 
 // Conditions run exactly once when enabled; neither condition nor message runs when disabled.
 #if PS2_D3BFG_ASSERTS
-    #define PS2_Assert(cond) \
-        do { \
-            if (!(cond)) [[unlikely]] \
-            { \
+    #define PS2_Assert(cond)                                                             \
+        do                                                                               \
+        {                                                                                \
+            if (!(cond)) [[unlikely]]                                                    \
+            {                                                                            \
                 ps2::FatalError("Assert Failed: %s (%s:%d)", #cond, __FILE__, __LINE__); \
-            } \
+            }                                                                            \
         } while (0)
-    #define PS2_AssertMsg(cond, message) \
-        do { \
-            if (!(cond)) [[unlikely]] \
-            { \
+    #define PS2_AssertMsg(cond, message)                                                                \
+        do                                                                                              \
+        {                                                                                               \
+            if (!(cond)) [[unlikely]]                                                                   \
+            {                                                                                           \
                 ps2::FatalError("Assert Failed: %s: %s (%s:%d)", #cond, (message), __FILE__, __LINE__); \
-            } \
+            }                                                                                           \
         } while (0)
 #else
     #define PS2_Assert(cond) (void)sizeof(cond)

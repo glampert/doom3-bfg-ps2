@@ -29,13 +29,40 @@ static constexpr std::uint16_t kZipTag = static_cast<std::uint16_t>(EngineTag::Z
 } // namespace
 
 // These typed hooks replace jmemnobs.cpp; the codec handles a null allocation through its error exit.
-void * jpeg_get_small(j_common_ptr, size_t bytes) { return ps2::heap::TryAlloc(bytes, kJpegTag); }
-void * jpeg_get_large(j_common_ptr, size_t bytes) { return ps2::heap::TryAlloc(bytes, kJpegTag); }
-void jpeg_free_small(j_common_ptr, void * pointer, size_t) { ps2::heap::Free(pointer); }
-void jpeg_free_large(j_common_ptr, void * pointer, size_t) { ps2::heap::Free(pointer); }
-long jpeg_mem_available(j_common_ptr, long, long maximum, long) { return maximum; }
-long jpeg_mem_init(j_common_ptr) { return 0; }
-void jpeg_mem_term(j_common_ptr) {}
+void * jpeg_get_small(j_common_ptr, size_t bytes)
+{
+    return ps2::heap::TryAlloc(bytes, kJpegTag);
+}
+
+void * jpeg_get_large(j_common_ptr, size_t bytes)
+{
+    return ps2::heap::TryAlloc(bytes, kJpegTag);
+}
+
+void jpeg_free_small(j_common_ptr, void * pointer, size_t)
+{
+    ps2::heap::Free(pointer);
+}
+
+void jpeg_free_large(j_common_ptr, void * pointer, size_t)
+{
+    ps2::heap::Free(pointer);
+}
+
+long jpeg_mem_available(j_common_ptr, long, long maximum, long)
+{
+    return maximum;
+}
+
+long jpeg_mem_init(j_common_ptr)
+{
+    return 0;
+}
+
+void jpeg_mem_term(j_common_ptr)
+{
+}
+
 PS2_COLD_FUNC void jpeg_open_backing_store(j_common_ptr decoder, backing_store_ptr, long)
 {
     ERREXIT(decoder, JERR_NO_BACKING_STORE);
@@ -54,7 +81,11 @@ extern "C"
         }
         return ps2::heap::TryAlloc(count * stride, kZipTag);
     }
-    void zcfree(voidpf, voidpf pointer) { ps2::heap::Free(pointer); }
+
+    void zcfree(voidpf, voidpf pointer)
+    {
+        ps2::heap::Free(pointer);
+    }
 }
 
 // The engine-modified JPEG error module uses these hooks in its default error manager.
@@ -65,6 +96,7 @@ extern "C"
     ps2::FatalErrorV(format, args);
 }
 PS2_PRINTF_FUNC(1, 2)
+
 void jpg_Printf(const char * format, ...)
 {
     va_list args;

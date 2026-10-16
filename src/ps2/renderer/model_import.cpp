@@ -20,9 +20,32 @@ namespace
 }
 } // namespace
 
-aseModel_t * ASE_Load(const char *) { Unsupported("ASE_Load"); }
-void ASE_Free(aseModel_t *) { Unsupported("ASE_Free"); }
-maModel_t * MA_Load(const char *) { Unsupported("MA_Load"); }
-void MA_Free(maModel_t *) { Unsupported("MA_Free"); }
-lwObject * lwGetObject(const char *, unsigned int *, int *) { Unsupported("lwGetObject"); }
-void lwFreeObject(lwObject *) { Unsupported("lwFreeObject"); }
+aseModel_t * ASE_Load(const char *)
+{
+    Unsupported("ASE_Load");
+}
+
+void ASE_Free(aseModel_t *)
+{
+    Unsupported("ASE_Free");
+}
+
+maModel_t * MA_Load(const char *)
+{
+    Unsupported("MA_Load");
+}
+
+void MA_Free(maModel_t *)
+{
+    Unsupported("MA_Free");
+}
+
+lwObject * lwGetObject(const char *, unsigned int *, int *)
+{
+    Unsupported("lwGetObject");
+}
+
+void lwFreeObject(lwObject *)
+{
+    Unsupported("lwFreeObject");
+}

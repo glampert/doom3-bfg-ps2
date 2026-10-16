@@ -34,7 +34,13 @@ struct ClipVertex
     float a;
 };
 
-enum class Edge { Left, Right, Top, Bottom };
+enum class Edge
+{
+    Left,
+    Right,
+    Top,
+    Bottom
+};
 
 static bool PortableFloat(float value)
 {
@@ -69,10 +75,14 @@ static bool Inside(const ClipVertex & vertex, Edge edge)
 {
     switch (edge)
     {
-    case Edge::Left: return vertex.x >= 0.0f;
-    case Edge::Right: return vertex.x <= kVirtualWidth;
-    case Edge::Top: return vertex.y >= 0.0f;
-    case Edge::Bottom: return vertex.y <= kVirtualHeight;
+    case Edge::Left:
+        return vertex.x >= 0.0f;
+    case Edge::Right:
+        return vertex.x <= kVirtualWidth;
+    case Edge::Top:
+        return vertex.y >= 0.0f;
+    case Edge::Bottom:
+        return vertex.y <= kVirtualHeight;
     }
     return false;
 }
@@ -89,13 +99,11 @@ static ClipVertex Intersection(const ClipVertex & first, const ClipVertex & seco
     const ClipVertex & from = reverse ? second : first;
     const ClipVertex & to = reverse ? first : second;
     const bool horizontal = (edge == Edge::Top) || (edge == Edge::Bottom);
-    const float boundary = (edge == Edge::Right) ? kVirtualWidth :
-                           ((edge == Edge::Bottom) ? kVirtualHeight : 0.0f);
+    const float boundary = (edge == Edge::Right) ? kVirtualWidth : ((edge == Edge::Bottom) ? kVirtualHeight : 0.0f);
     const float origin = horizontal ? from.y : from.x;
     const float end = horizontal ? to.y : to.x;
     const float fraction = Clamp((boundary - origin) / (end - origin), 0.0f, 1.0f);
-    ClipVertex clipped
-    {
+    ClipVertex clipped{
         Interpolate(from.x, to.x, fraction), Interpolate(from.y, to.y, fraction),
         Interpolate(from.s, to.s, fraction), Interpolate(from.t, to.t, fraction),
         Interpolate(from.r, to.r, fraction), Interpolate(from.g, to.g, fraction),
@@ -175,8 +183,7 @@ static FixedVertex MapVertex(const ClipVertex & vertex, Viewport viewport,
 {
     const float scaleX = static_cast<float>(viewport.width) / kVirtualWidth;
     const float scaleY = static_cast<float>(viewport.height) / kVirtualHeight;
-    return
-    {
+    return {
         RoundFixed(Clamp(vertex.x, 0.0f, kVirtualWidth) * scaleX),
         RoundFixed(Clamp(vertex.y, 0.0f, kVirtualHeight) * scaleY),
         RoundFixed(Clamp(vertex.s * static_cast<float>(textureWidth), 0.0f, kTexelLimit)),
@@ -196,7 +203,7 @@ static bool Degenerate(const Vertex (&vertices)[3])
 
 static bool Degenerate(const FixedTriangle & triangle)
 {
-    const FixedVertex (&v)[3] = triangle.vertices;
+    const FixedVertex(&v)[3] = triangle.vertices;
     const std::int64_t dx1 = v[1].x - v[0].x;
     const std::int64_t dy1 = v[1].y - v[0].y;
     const std::int64_t dx2 = v[2].x - v[0].x;
@@ -225,8 +232,7 @@ Result MapTriangle(const Vertex (&input)[3], Viewport viewport, int textureWidth
         {
             return Result::Invalid;
         }
-        scratch[0][i] =
-        {
+        scratch[0][i] = {
             v.x, v.y, v.s, v.t, static_cast<float>(v.r), static_cast<float>(v.g),
             static_cast<float>(v.b), static_cast<float>(v.a)
         };

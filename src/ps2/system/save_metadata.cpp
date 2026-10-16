@@ -11,7 +11,10 @@
 idCVar saveGame_enable("saveGame_enable", "0", CVAR_BOOL | CVAR_ROM,
                        "save storage is unavailable; changing this value does not enable the save manager");
 
-idSaveGameDetails::idSaveGameDetails() { Clear(); }
+idSaveGameDetails::idSaveGameDetails()
+{
+    Clear();
+}
 
 void idSaveGameDetails::Clear()
 {

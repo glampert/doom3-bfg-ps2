@@ -12,14 +12,34 @@ idVertexCache vertexCache{};
 
 // Empty construction must work before main without allocating desktop buffer pools.
 idVertexBuffer::idVertexBuffer()
-    : size(0), offsetInOtherBuffer(0), apiObject(nullptr) {}
+    : size(0), offsetInOtherBuffer(0), apiObject(nullptr)
+{
+}
+
 idIndexBuffer::idIndexBuffer()
-    : size(0), offsetInOtherBuffer(0), apiObject(nullptr) {}
+    : size(0), offsetInOtherBuffer(0), apiObject(nullptr)
+{
+}
+
 idJointBuffer::idJointBuffer()
-    : numJoints(0), offsetInOtherBuffer(0), apiObject(nullptr) {}
-idVertexBuffer::~idVertexBuffer() { FreeBufferObject(); }
-idIndexBuffer::~idIndexBuffer() { FreeBufferObject(); }
-idJointBuffer::~idJointBuffer() { FreeBufferObject(); }
+    : numJoints(0), offsetInOtherBuffer(0), apiObject(nullptr)
+{
+}
+
+idVertexBuffer::~idVertexBuffer()
+{
+    FreeBufferObject();
+}
+
+idIndexBuffer::~idIndexBuffer()
+{
+    FreeBufferObject();
+}
+
+idJointBuffer::~idJointBuffer()
+{
+    FreeBufferObject();
+}
 
 void idVertexBuffer::FreeBufferObject()
 {
@@ -28,6 +48,7 @@ void idVertexBuffer::FreeBufferObject()
         ps2::render::Unavailable("idVertexBuffer::FreeBufferObject with backend state");
     }
 }
+
 void idIndexBuffer::FreeBufferObject()
 {
     if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0)
@@ -35,6 +56,7 @@ void idIndexBuffer::FreeBufferObject()
         ps2::render::Unavailable("idIndexBuffer::FreeBufferObject with backend state");
     }
 }
+
 void idJointBuffer::FreeBufferObject()
 {
     if (apiObject != nullptr || numJoints != 0 || offsetInOtherBuffer != 0)
@@ -64,6 +86,7 @@ void idVertexCache::FreeStaticData()
     ClearEmptySet(staticData);
     mostUsedVertex = mostUsedIndex = mostUsedJoint = 0;
 }
+
 void idVertexCache::Shutdown()
 {
     FreeStaticData();
@@ -74,7 +97,10 @@ void idVertexCache::Shutdown()
 }
 
 #define RENDER_UNAVAILABLE(result, method, parameters) \
-    PS2_COLD_FUNC result method parameters { ps2::render::Unavailable(#method); }
+    PS2_COLD_FUNC result method parameters             \
+    {                                                  \
+        ps2::render::Unavailable(#method);             \
+    }
 
 RENDER_UNAVAILABLE(void, idVertexCache::Init, (bool))
 RENDER_UNAVAILABLE(void, idVertexCache::PurgeAll, ())

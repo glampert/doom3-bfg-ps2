@@ -5,9 +5,9 @@
 // ================================================================================================
 
 #include "tests/smoketests/game_boot.h"
-#include "tests/smoketests/headless_fixture.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
+#include "tests/smoketests/headless_fixture.h"
 #include <idlib/precompiled.h>
 
 // Use the retained game class/event hierarchy and interpreter, not the compiler-only substitute.
@@ -34,7 +34,7 @@ class LogicProbe final : public idEntity
 {
     CLASS_PROTOTYPE(LogicProbe);
 
-  public:
+public:
     void Spawn()
     {
         m_physics.SetSelf(this);
@@ -48,6 +48,7 @@ class LogicProbe final : public idEntity
         SetPhysics(&m_physics);
         BecomeActive(TH_THINK);
     }
+
     void Think() override
     {
         if ((thinkFlags & TH_THINK) == 0)
@@ -65,6 +66,7 @@ class LogicProbe final : public idEntity
         }
         RunPhysics();
     }
+
     void SetMotion(Motion motion)
     {
         PS2_Assert(ticks == 0 && motion != Motion::Wall);
@@ -83,10 +85,15 @@ class LogicProbe final : public idEntity
             m_physics.SetOrigin(idVec3(0.0f, 32.0f, 2.0f + CM_CLIP_EPSILON));
         }
     }
-    const idPhysics_Monster & GetMotionPhysics() const { return m_physics; }
+
+    const idPhysics_Monster & GetMotionPhysics() const
+    {
+        return m_physics;
+    }
+
     int ticks = 0;
 
-  private:
+private:
     idPhysics_Monster m_physics;
     Motion m_motion = Motion::Wall;
 };
@@ -97,7 +104,7 @@ class PlayerPhysicsProbe final : public idEntity
 {
     CLASS_PROTOTYPE(PlayerPhysicsProbe);
 
-  public:
+public:
     void Spawn()
     {
         m_physics.SetSelf(this);
@@ -116,11 +123,13 @@ class PlayerPhysicsProbe final : public idEntity
         SetPhysics(&m_physics);
         BecomeActive(TH_THINK | TH_PHYSICS);
     }
+
     void BindCommands(idUserCmdMgr & commands)
     {
         PS2_Assert(ticks == 0 && m_commands == nullptr);
         m_commands = &commands;
     }
+
     void Think() override
     {
         if ((thinkFlags & TH_THINK) == 0)
@@ -136,11 +145,20 @@ class PlayerPhysicsProbe final : public idEntity
         ++ticks;
         RunPhysics();
     }
-    const idPhysics_Player & GetMotionPhysics() const { return m_physics; }
-    const usercmd_t & GetCommand() const { return m_command; }
+
+    const idPhysics_Player & GetMotionPhysics() const
+    {
+        return m_physics;
+    }
+
+    const usercmd_t & GetCommand() const
+    {
+        return m_command;
+    }
+
     int ticks = 0;
 
-  private:
+private:
     idPhysics_Player m_physics;
     idUserCmdMgr * m_commands = nullptr;
     usercmd_t m_command;
@@ -153,11 +171,16 @@ bool Check(const char * name, bool passed)
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK game/%s %s\n", name, passed ? "PASS" : "FAIL");
     return passed;
 }
+
 bool Same(const ps2::heap::Stats & a, const ps2::heap::Stats & b)
 {
     return a.requestedBytes == b.requestedBytes && a.backingBytes == b.backingBytes && a.allocationCount == b.allocationCount;
 }
-bool Near(float actual, float expected) { return idMath::Fabs(actual - expected) < 0.05f; }
+
+bool Near(float actual, float expected)
+{
+    return idMath::Fabs(actual - expected) < 0.05f;
+}
 
 bool FloorContacts(const idPhysics_Actor & physics)
 {
@@ -765,6 +788,7 @@ bool CollisionTests(LogicProbe & probe, int cycle)
              passed;
     return passed;
 }
+
 void Memory(const char * stage)
 {
     const auto stats = ps2::heap::GetTotalStats();

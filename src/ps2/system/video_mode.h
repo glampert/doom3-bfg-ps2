@@ -9,7 +9,11 @@
 
 namespace ps2::video
 {
-enum class Standard : u8 { Ntsc, Pal };
+enum class Standard : u8
+{
+    Ntsc,
+    Pal
+};
 Standard ConsoleStandard();
 const char * Name(Standard standard);
 int VisibleLines(Standard standard);

@@ -84,7 +84,10 @@ void RecoverPipeline(const SavedPipeline & saved)
     *R_EE_D1_QWC = 0;
     EE_SYNCL();
     *R_EE_D_ENABLEW = enable;
-    if (interrupts != 0) { EIntr(); }
+    if (interrupts != 0)
+    {
+        EIntr();
+    }
 
     // No frame or PATH3 upload is in flight here. Discard incomplete capture commands
     // rather than let a delayed DIRECT turn the bus around after its caller returned.
@@ -143,9 +146,12 @@ bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
     GsPutIMR(saved.imr | kFinishMask);
     *GS_REG_CSR = kFinish;
     const bool requested = dma_channel_send_normal(DMA_CHANNEL_VIF1, s_request, 7, 0, 0) == 0 &&
-        TryWait([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "request DMA") &&
-        TryWait([] { return (*GS_REG_CSR & kFinish) != 0; }, "request FINISH") &&
-        TryWait([] { return (*R_EE_VIF1_STAT & kVifFifoCount) == 0; }, "request FIFO");
+                           TryWait([]
+                                   { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "request DMA") &&
+                           TryWait([]
+                                   { return (*GS_REG_CSR & kFinish) != 0; }, "request FINISH") &&
+                           TryWait([]
+                                   { return (*R_EE_VIF1_STAT & kVifFifoCount) == 0; }, "request FIFO");
     if (!requested)
     {
         RecoverPipeline(saved);
@@ -163,7 +169,8 @@ bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
     s_injectReadbackTimeout = false;
 #endif
     const bool received = dma_channel_receive_normal(DMA_CHANNEL_VIF1, s_pixels, bytes, 0, 0) == 0 &&
-        TryWait([injected] { return !injected && (*R_EE_D1_CHCR & kDmaStart) == 0; }, "receive DMA");
+                          TryWait([injected]
+                                  { return !injected && (*R_EE_D1_CHCR & kDmaStart) == 0; }, "receive DMA");
     if (!received)
     {
         RecoverPipeline(saved);
@@ -173,9 +180,12 @@ bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
     RestoreDirection(saved);
     *GS_REG_CSR = kFinish;
     const bool restored = dma_channel_send_normal(DMA_CHANNEL_VIF1, s_restorePath3, 1, 0, 0) == 0 &&
-        TryWait([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "PATH3 restore DMA") &&
-        TryWait([] { return (*R_EE_GIF_STAT & kPath3VifMask) == 0; }, "PATH3 restore") &&
-        TryWait([] { return (*R_EE_VIF1_STAT & kVifFifoCount) == 0; }, "PATH3 restore FIFO");
+                          TryWait([]
+                                  { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "PATH3 restore DMA") &&
+                          TryWait([]
+                                  { return (*R_EE_GIF_STAT & kPath3VifMask) == 0; }, "PATH3 restore") &&
+                          TryWait([]
+                                  { return (*R_EE_VIF1_STAT & kVifFifoCount) == 0; }, "PATH3 restore FIFO");
     if (!restored)
     {
         RecoverPipeline(saved);
@@ -210,15 +220,24 @@ bool WriteFrame(std::FILE * file, const gs::FramebufferInfo & frame)
     header[15] = static_cast<u8>(frame.height >> 8);
     header[16] = 24;
     header[17] = 0x20; // Top-down rows, matching native GS coordinates.
-    if (std::fwrite(header, 1, sizeof(header), file) != sizeof(header)) { return false; }
+    if (std::fwrite(header, 1, sizeof(header), file) != sizeof(header))
+    {
+        return false;
+    }
     for (int y = 0; y < frame.height; y += kStripRows)
     {
         const int rows = frame.height - y < kStripRows ? frame.height - y : kStripRows;
-        if (!ReadRows(frame, y, rows)) { return false; }
+        if (!ReadRows(frame, y, rows))
+        {
+            return false;
+        }
         const int count = frame.width * rows;
         ToBgr(count);
         const size_t bytes = static_cast<size_t>(count) * 3U;
-        if (std::fwrite(s_bgr, 1, bytes, file) != bytes) { return false; }
+        if (std::fwrite(s_bgr, 1, bytes, file) != bytes)
+        {
+            return false;
+        }
     }
     return std::ferror(file) == 0;
 }
@@ -247,13 +266,22 @@ PS2_COLD_FUNC bool WriteTga(const char * path, gs::DrawContext context)
     }
     s_active = true;
     bool written = WriteFrame(file, frame);
-    if (std::fclose(file) != 0) { written = false; }
+    if (std::fclose(file) != 0)
+    {
+        written = false;
+    }
     s_active = false;
-    if (!written) { Log(LogLevel::Error, "GS capture failed: %s", path); }
+    if (!written)
+    {
+        Log(LogLevel::Error, "GS capture failed: %s", path);
+    }
     return written;
 }
 
 #if PS2_D3BFG_TESTS
-void InjectReadbackTimeoutOnce() { s_injectReadbackTimeout = true; }
+void InjectReadbackTimeoutOnce()
+{
+    s_injectReadbackTimeout = true;
+}
 #endif
 } // namespace ps2::capture

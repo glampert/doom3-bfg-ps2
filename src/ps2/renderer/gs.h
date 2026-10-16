@@ -6,18 +6,53 @@
 
 #pragma once
 #include "ps2/renderer/gif_writer.h"
-#include "ps2/system/video_mode.h"
 #include "ps2/renderer/texture_layout.h"
 #include "ps2/renderer/ui_triangles.h"
+#include "ps2/system/video_mode.h"
 
 namespace ps2::gs
 {
-enum class DrawContext : int { Ctx0, Ctx1 };
-enum class BlendMode : u8 { Replace, StraightAlpha };
-struct Config { video::Standard standard; int width; int height; };
-struct Color { u8 r; u8 g; u8 b; u8 a; };
-struct FramebufferInfo { u32 address; int width; int height; int pixelFormat; };
-struct TextureBinding { u32 address; tex::Layout layout; tex::Sampler sampler; };
+enum class DrawContext : int
+{
+    Ctx0,
+    Ctx1
+};
+enum class BlendMode : u8
+{
+    Replace,
+    StraightAlpha
+};
+
+struct Config
+{
+    video::Standard standard;
+    int width;
+    int height;
+};
+
+struct Color
+{
+    u8 r;
+    u8 g;
+    u8 b;
+    u8 a;
+};
+
+struct FramebufferInfo
+{
+    u32 address;
+    int width;
+    int height;
+    int pixelFormat;
+};
+
+struct TextureBinding
+{
+    u32 address;
+    tex::Layout layout;
+    tex::Sampler sampler;
+};
+
 bool Init(const Config & config);
 void Shutdown();
 bool IsInitialized();

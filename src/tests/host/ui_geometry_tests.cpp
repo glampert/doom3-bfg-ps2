@@ -50,30 +50,35 @@ static bool Coordinates()
 {
     FixedRect output{};
     if (!Check((MapRect(kFull, kNtsc, 64, 32, output) == Result::Draw) &&
-               Equal(output, { 0, 0, 8192, 7168, 0, 0, 1024, 512 }), "NTSC full viewport") ||
+               Equal(output, { 0, 0, 8192, 7168, 0, 0, 1024, 512 }),
+               "NTSC full viewport") ||
         !Check((MapRect(kFull, kPal, 64, 32, output) == Result::Draw) &&
-               Equal(output, { 0, 0, 8192, 8192, 0, 0, 1024, 512 }), "PAL full viewport"))
+               Equal(output, { 0, 0, 8192, 8192, 0, 0, 1024, 512 }),
+               "PAL full viewport"))
     {
         return false;
     }
 
     const Rect clipped{ -160.0f, -120.0f, 320.0f, 240.0f, 0.0f, 0.0f, 1.0f, 1.0f };
     if (!Check((MapRect(clipped, kNtsc, 64, 32, output) == Result::Draw) &&
-               Equal(output, { 0, 0, 2048, 1792, 512, 256, 1024, 512 }), "clipped UV quadrants"))
+               Equal(output, { 0, 0, 2048, 1792, 512, 256, 1024, 512 }),
+               "clipped UV quadrants"))
     {
         return false;
     }
 
     const Rect lowerRight{ 480.0f, 360.0f, 320.0f, 240.0f, 0.25f, 0.25f, 0.75f, 0.75f };
     if (!Check((MapRect(lowerRight, kNtsc, 64, 32, output) == Result::Draw) &&
-               Equal(output, { 6144, 5376, 8192, 7168, 256, 128, 512, 256 }), "clipped right/bottom"))
+               Equal(output, { 6144, 5376, 8192, 7168, 256, 128, 512, 256 }),
+               "clipped right/bottom"))
     {
         return false;
     }
 
     const Rect fractional{ 0.5f, 0.5f, 1.25f, 1.25f, 0.25f, 0.125f, 0.75f, 0.875f };
     if (!Check((MapRect(fractional, kNtsc, 64, 32, output) == Result::Draw) &&
-               Equal(output, { 6, 7, 22, 26, 256, 64, 768, 448 }), "fractional destination"))
+               Equal(output, { 6, 7, 22, 26, 256, 64, 768, 448 }),
+               "fractional destination"))
     {
         return false;
     }
@@ -83,7 +88,8 @@ static bool Coordinates()
     const Rect second{ 13.25f, 0.0f, 626.75f, 480.0f, 0.0f, 0.0f, 1.0f, 1.0f };
     if (!Check((MapRect(first, kNtsc, 1, 1, output) == Result::Draw) &&
                (MapRect(second, kNtsc, 1, 1, neighbor) == Result::Draw) &&
-               (output.x1 == neighbor.x0) && (output.x1 == 170), "adjacent fractional seams"))
+               (output.x1 == neighbor.x0) && (output.x1 == 170),
+               "adjacent fractional seams"))
     {
         return false;
     }
@@ -91,18 +97,20 @@ static bool Coordinates()
     const Rect repeat{ 0.0f, 0.0f, 640.0f, 480.0f, 0.0f, 0.0f, 2.0f, 2.0f };
     const Rect largestUv{ 0.0f, 0.0f, 640.0f, 480.0f, 0.0f, 0.0f, 1023.0f, 1023.0f };
     return Check((MapRect(repeat, kNtsc, 64, 32, output) == Result::Draw) &&
-                 Equal(output, { 0, 0, 8192, 7168, 0, 0, 2048, 1024 }), "repeat UV span") &&
+                 Equal(output, { 0, 0, 8192, 7168, 0, 0, 2048, 1024 }),
+                 "repeat UV span") &&
            Check((MapRect(kFull, kNtsc, 3, 5, output) == Result::Draw) &&
-                 (output.u1 == 48) && (output.v1 == 80), "logical NPOT extent") &&
+                 (output.u1 == 48) && (output.v1 == 80),
+                 "logical NPOT extent") &&
            Check((MapRect(largestUv, kNtsc, 1, 1, output) == Result::Draw) &&
-                 (output.u1 == 16368) && (output.v1 == 16368), "largest safe UV field") &&
+                 (output.u1 == 16368) && (output.v1 == 16368),
+                 "largest safe UV field") &&
            Check(Unchanged(repeat, kNtsc, 512, 512, Result::Invalid), "repeat cannot wrap UV field");
 }
 
 static bool Rejections()
 {
-    const Rect clipped[] =
-    {
+    const Rect clipped[] = {
         { -100.0f, 0.0f, 100.0f, 20.0f, 0.0f, 0.0f, 1.0f, 1.0f },
         { 640.0f, 0.0f, 100.0f, 20.0f, 0.0f, 0.0f, 1.0f, 1.0f },
         { 0.0f, -100.0f, 20.0f, 100.0f, 0.0f, 0.0f, 1.0f, 1.0f },
@@ -120,8 +128,7 @@ static bool Rejections()
         }
     }
 
-    const Rect invalid[] =
-    {
+    const Rect invalid[] = {
         { 0.0f, 0.0f, -1.0f, 20.0f, 0.0f, 0.0f, 1.0f, 1.0f },
         { 0.0f, 0.0f, 20.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f },
         { -32769.0f, 0.0f, 20.0f, 20.0f, 0.0f, 0.0f, 1.0f, 1.0f },
@@ -151,17 +158,16 @@ static bool Rejections()
     return Check(Unchanged(kFull, kNtsc, 0, 32, Result::Invalid) &&
                  Unchanged(kFull, kNtsc, 64, -1, Result::Invalid) &&
                  Unchanged(kFull, kNtsc, 513, 32, Result::Invalid) &&
-                 Unchanged(kFull, kNtsc, 64, 513, Result::Invalid), "invalid texture dimensions");
+                 Unchanged(kFull, kNtsc, 64, 513, Result::Invalid),
+                 "invalid texture dimensions");
 }
 
 static bool FloatEncodings()
 {
-    static constexpr float Rect::* kFields[] =
-    {
+    static constexpr float Rect::* kFields[] = {
         &Rect::x, &Rect::y, &Rect::width, &Rect::height, &Rect::s0, &Rect::t0, &Rect::s1, &Rect::t1
     };
-    static constexpr std::uint32_t kInvalidBits[] =
-    {
+    static constexpr std::uint32_t kInvalidBits[] = {
         0x7F800000U, 0xFF800000U, 0x7FC00000U, 0xFFC00000U, 0x7F800001U, 0x00000001U, 0x80000001U
     };
     for (std::uint32_t bits : kInvalidBits)

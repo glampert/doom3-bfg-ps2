@@ -11,8 +11,19 @@ class idFile;
 namespace ps2::smoketests
 {
 
-const void * QueryChildTypeKeyFromOtherUnit() { return TypeKey<QueryChild>(); }
-const void * FileTypeKeyFromOtherUnit() { return TypeKey<idFile>(); }
-QueryRoot * NewQueryChildFromOtherUnit() { return new QueryChild; }
+const void * QueryChildTypeKeyFromOtherUnit()
+{
+    return TypeKey<QueryChild>();
+}
+
+const void * FileTypeKeyFromOtherUnit()
+{
+    return TypeKey<idFile>();
+}
+
+QueryRoot * NewQueryChildFromOtherUnit()
+{
+    return new QueryChild;
+}
 
 } // namespace ps2::smoketests

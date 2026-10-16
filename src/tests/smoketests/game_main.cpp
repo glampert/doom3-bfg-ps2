@@ -4,10 +4,10 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "tests/smoketests/headless_fixture.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "tests/smoketests/game_boot.h"
+#include "tests/smoketests/headless_fixture.h"
 #include "tests/smoketests/map_boot.h"
 #include <idlib/precompiled.h>
 #include <kernel.h>

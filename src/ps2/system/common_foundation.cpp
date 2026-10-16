@@ -15,6 +15,7 @@
 namespace
 {
 static constexpr size_t kPrintCapacity = 2048;
+
 [[noreturn]] void Unsupported(const char * operation)
 {
     ps2::FatalError("unsupported Common foundation operation: %s", operation);
@@ -22,7 +23,10 @@ static constexpr size_t kPrintCapacity = 2048;
 } // namespace
 
 #define CORE_UNSUPPORTED(result, method, parameters) \
-    result idCommonLocal::method parameters { Unsupported(#method); }
+    result idCommonLocal::method parameters          \
+    {                                                \
+        Unsupported(#method);                        \
+    }
 
 void idCommonLocal::Printf(const char * format, ...)
 {
@@ -144,6 +148,7 @@ void idCommonLocal::FlushRedirect()
 CORE_UNSUPPORTED(void, CreateMainMenu, ())
 CORE_UNSUPPORTED(void, Quit, ())
 CORE_UNSUPPORTED(void, UpdateScreen, (bool))
+
 void idCommonLocal::UpdateLevelLoadPacifier()
 {
     // Headless loading has no progress screen or frontend frame to submit.
@@ -169,7 +174,11 @@ CORE_UNSUPPORTED(void, LaunchExternalTitle, (int, int, const lobbyConnectInfo_t 
 
 #undef CORE_UNSUPPORTED
 
-void idCommonLocal::Frame() { ps2::lifecycle::Frame(); }
+void idCommonLocal::Frame()
+{
+    ps2::lifecycle::Frame();
+}
+
 void idCommonLocal::SwitchToGame(currentGame_t title)
 {
     if (title != DOOM3_BFG)
@@ -177,18 +186,39 @@ void idCommonLocal::SwitchToGame(currentGame_t title)
         Unsupported("Classic title switching");
     }
 }
-bool idCommonLocal::JapaneseCensorship() const { return false; }
-void idCommonLocal::ResetPlayerInput(int) { Unsupported("controller input"); }
+
+bool idCommonLocal::JapaneseCensorship() const
+{
+    return false;
+}
+
+void idCommonLocal::ResetPlayerInput(int)
+{
+    Unsupported("controller input");
+}
+
 void idCommonLocal::ClearWipe()
 {
     wipeMaterial = nullptr;
     wipeStartTime = wipeStopTime = 0;
     wipeHold = false;
 }
-int idGameThread::Run() { Unsupported("game worker before game fixture startup"); }
 
-void idCommonLocal::PrintWarnings() { ps2::Log(ps2::LogLevel::Info, "[D3BFG] WARNINGS count=%u\n", m_warningCount); }
-void idCommonLocal::ClearWarnings(const char *) { m_warningCount = 0; }
+int idGameThread::Run()
+{
+    Unsupported("game worker before game fixture startup");
+}
+
+void idCommonLocal::PrintWarnings()
+{
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] WARNINGS count=%u\n", m_warningCount);
+}
+
+void idCommonLocal::ClearWarnings(const char *)
+{
+    m_warningCount = 0;
+}
+
 void idCommonLocal::SetRefreshOnPrint(bool refresh)
 {
     if (refresh)
@@ -196,5 +226,12 @@ void idCommonLocal::SetRefreshOnPrint(bool refresh)
         Unsupported("refresh console display");
     }
 }
-void idCommonLocal::StartupVariable(const char *) {}
-void idCommonLocal::WriteConfigToFile(const char *) { Unsupported("config file persistence"); }
+
+void idCommonLocal::StartupVariable(const char *)
+{
+}
+
+void idCommonLocal::WriteConfigToFile(const char *)
+{
+    Unsupported("config file persistence");
+}

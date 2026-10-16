@@ -5,24 +5,24 @@
 // ================================================================================================
 
 #include "tests/smoketests/offline_tests.h"
-#include "tests/smoketests/audio_tests.h"
-#include "tests/smoketests/deferred_tests.h"
-#include "tests/smoketests/input_tests.h"
-#include "tests/smoketests/codec_tests.h"
 #include "ps2/system/core.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/lifecycle.h"
 #include "ps2/system/log.h"
 #include "ps2/system/offline_session.h"
+#include "tests/smoketests/audio_tests.h"
+#include "tests/smoketests/codec_tests.h"
+#include "tests/smoketests/deferred_tests.h"
+#include "tests/smoketests/input_tests.h"
 #include <cstring>
 #include <idlib/precompiled.h>
 
 // Common_local.h relies on the complete engine precompiled header.
+#include "tests/smoketests/renderer_tests.h"
 #include <framework/Common_local.h>
 #include <renderer/Model_ase.h>
 #include <renderer/Model_lwo.h>
 #include <renderer/Model_ma.h>
-#include "tests/smoketests/renderer_tests.h"
 
 namespace ps2::smoketests
 {
@@ -58,8 +58,8 @@ bool RunOfflineTests()
         commonLocal.StopRecordingRenderDemo();
         const heap::Stats after = heap::GetTotalStats();
         resetPassed = resetPassed && !common->IsMultiplayer() && !common->IsServer() && !common->IsClient() &&
-            after.requestedBytes == resetBaseline.requestedBytes && after.backingBytes == resetBaseline.backingBytes &&
-            after.allocationCount == resetBaseline.allocationCount;
+                      after.requestedBytes == resetBaseline.requestedBytes && after.backingBytes == resetBaseline.backingBytes &&
+                      after.allocationCount == resetBaseline.allocationCount;
     }
     const bool resetChecked = Check("common-idle-demo-ledger", resetPassed);
 
@@ -172,7 +172,10 @@ bool RunOfflineTests()
     return passed && resetChecked;
 }
 
-bool IsCommonProbe(const char * path) { return idStr::Cmpn(path, "host:probe-", 11) == 0; }
+bool IsCommonProbe(const char * path)
+{
+    return idStr::Cmpn(path, "host:probe-", 11) == 0;
+}
 
 bool RunCommonProbe(const char * path)
 {

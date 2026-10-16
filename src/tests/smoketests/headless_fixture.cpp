@@ -71,6 +71,7 @@ namespace
 static bool s_enabled = false;
 static bool s_mapEnabled = false;
 } // namespace
+
 void Enable()
 {
     if (s_enabled || common->IsInitialized())
@@ -79,13 +80,22 @@ void Enable()
     }
     s_enabled = true;
 }
-bool IsEnabled() { return s_enabled; }
+
+bool IsEnabled()
+{
+    return s_enabled;
+}
+
 void EnableMap()
 {
     Enable();
     s_mapEnabled = true;
 }
-bool IsMapEnabled() { return s_mapEnabled; }
+
+bool IsMapEnabled()
+{
+    return s_mapEnabled;
+}
 
 void ValidatePlayerSpawn(const idTypeInfo & type, const idDict * args)
 {
@@ -95,11 +105,13 @@ void ValidatePlayerSpawn(const idTypeInfo & type, const idDict * args)
     {
         FatalError("invalid headless player spawn state");
     }
+
     struct Key
     {
         const char * name;
         const char * value;
     };
+
     static constexpr Key kKeys[] = {
         { "classname", "fixture_player" },
         { "name", "native_player" },

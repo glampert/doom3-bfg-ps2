@@ -9,7 +9,13 @@
 namespace ps2::smoketests
 {
 
-void InitTestServices() {}
-const char * RunCoreTestStage(const char *) { return "SKIP"; }
+void InitTestServices()
+{
+}
+
+const char * RunCoreTestStage(const char *)
+{
+    return "SKIP";
+}
 
 } // namespace ps2::smoketests

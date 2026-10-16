@@ -20,6 +20,7 @@ bool Check(const char * name, bool passed)
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK map/%s %s\n", name, passed ? "PASS" : "FAIL");
     return passed;
 }
+
 bool WorldQueries(idRenderWorld & world)
 {
     const idVec3 left(-32.0f, 0.0f, 16.0f), right(32.0f, 0.0f, 16.0f);

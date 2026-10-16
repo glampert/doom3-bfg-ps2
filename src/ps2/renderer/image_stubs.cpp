@@ -26,6 +26,7 @@ idRenderProgManager::idRenderProgManager()
         shader = -1;
     }
 }
+
 idRenderProgManager::~idRenderProgManager()
 {
     if (backendState != nullptr)
@@ -36,10 +37,25 @@ idRenderProgManager::~idRenderProgManager()
 
 // This policy stays at full resolution without a device/timing source. It allocates no render target.
 idResolutionScale::idResolutionScale()
-    : dropMilliseconds(0.0f), raiseMilliseconds(0.0f), framesAboveRaise(0), currentResolution(1.0f) {}
-void idResolutionScale::ResetToFullResolution() { currentResolution = 1.0f; }
-void idResolutionScale::GetCurrentResolutionScale(float & x, float & y) { x = y = currentResolution; }
-void idResolutionScale::GetConsoleText(idStr & text) { text = "rendering unavailable"; }
+    : dropMilliseconds(0.0f), raiseMilliseconds(0.0f), framesAboveRaise(0), currentResolution(1.0f)
+{
+}
+
+void idResolutionScale::ResetToFullResolution()
+{
+    currentResolution = 1.0f;
+}
+
+void idResolutionScale::GetCurrentResolutionScale(float & x, float & y)
+{
+    x = y = currentResolution;
+}
+
+void idResolutionScale::GetConsoleText(idStr & text)
+{
+    text = "rendering unavailable";
+}
+
 void idResolutionScale::SetCurrentGPUFrameTime(int microseconds)
 {
     if (microseconds != 0)
@@ -49,7 +65,10 @@ void idResolutionScale::SetCurrentGPUFrameTime(int microseconds)
 }
 
 #define RENDER_UNAVAILABLE(result, method, parameters) \
-    PS2_COLD_FUNC result method parameters { ps2::render::Unavailable(#method); }
+    PS2_COLD_FUNC result method parameters             \
+    {                                                  \
+        ps2::render::Unavailable(#method);             \
+    }
 
 RENDER_UNAVAILABLE(void, idImage::Reload, (bool))
 RENDER_UNAVAILABLE(void, idImage::ActuallyLoadImage, (bool))

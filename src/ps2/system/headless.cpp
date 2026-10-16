@@ -13,14 +13,14 @@
 #include <idlib/precompiled.h>
 
 // Native Common/game declarations depend on the complete engine precompiled header.
+#include <d3xp/Game_local.h>
 #include <framework/Common_local.h>
 #include <framework/ConsoleHistory.h>
-#include <d3xp/Game_local.h>
 
 namespace
 {
 static idCVar s_maxFrames("ps2_maxFrames", "0", CVAR_SYSTEM | CVAR_INTEGER,
-                         "quit after this many completed frames; zero runs until quit", 0.0f, 1000000.0f);
+                          "quit after this many completed frames; zero runs until quit", 0.0f, 1000000.0f);
 static bool s_quitRequested = false;
 static bool s_initialized = false;
 static int s_frames = 0;
@@ -133,8 +133,15 @@ void PollConsole()
 
 namespace ps2::runtime
 {
-void RequestQuit() { s_quitRequested = true; }
-bool IsQuitRequested() { return s_quitRequested; }
+void RequestQuit()
+{
+    s_quitRequested = true;
+}
+
+bool IsQuitRequested()
+{
+    return s_quitRequested;
+}
 } // namespace ps2::runtime
 
 void idCommonLocal::InitHeadless()
@@ -162,7 +169,7 @@ void idCommonLocal::InitHeadless()
     cmdSystem->AddCommand("ps2_status", Status, CMD_FL_SYSTEM, "print headless startup state and completed frame counts");
     cvarSystem->SetCVarBool("com_allowConsole", true);
     consoleUsed = true;
-    const sysEvent_t open{SE_KEY, K_GRAVE, 1, 0, nullptr, 0};
+    const sysEvent_t open{ SE_KEY, K_GRAVE, 1, 0, nullptr, 0 };
     if (!console->ProcessEvent(&open, false) || !console->Active() || gameLocal.GameState() != GAMESTATE_NOMAP)
     {
         ps2::FatalError("native game did not reach the headless console");

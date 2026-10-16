@@ -14,8 +14,16 @@ namespace ps2::tex
 
 static constexpr int kMaxDimension = 512;
 
-enum class Filter : std::uint8_t { Nearest, Linear };
-enum class Wrap : std::uint8_t { Clamp, Repeat };
+enum class Filter : std::uint8_t
+{
+    Nearest,
+    Linear
+};
+enum class Wrap : std::uint8_t
+{
+    Clamp,
+    Repeat
+};
 
 struct Sampler
 {

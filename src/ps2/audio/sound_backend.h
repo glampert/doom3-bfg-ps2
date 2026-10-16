@@ -13,7 +13,7 @@
 // Logical samples/voices are usable with an explicit headless clock. Physical output remains deferred.
 class idSoundSample final
 {
-  public:
+public:
     idSoundSample() = default;
     ~idSoundSample();
     idSoundSample(const idSoundSample &) = delete;
@@ -24,10 +24,26 @@ class idSoundSample final
     void FreeData();
 
     void SetName(const char * name);
-    const char * GetName() const { return m_name.c_str(); }
-    ID_TIME_T GetTimestamp() const { return m_timestamp; }
-    bool IsDefault() const { return m_isDefault; }
-    bool IsLoaded() const { return m_pcm != nullptr; }
+
+    const char * GetName() const
+    {
+        return m_name.c_str();
+    }
+
+    ID_TIME_T GetTimestamp() const
+    {
+        return m_timestamp;
+    }
+
+    bool IsDefault() const
+    {
+        return m_isDefault;
+    }
+
+    bool IsLoaded() const
+    {
+        return m_pcm != nullptr;
+    }
 
     int LengthInMsec() const;
     int SampleRate() const;
@@ -37,15 +53,42 @@ class idSoundSample final
     bool IsCompressed() const;
     float GetAmplitude(int timeMS) const;
 
-    void SetNeverPurge() { m_neverPurge = true; }
-    bool GetNeverPurge() const { return m_neverPurge; }
-    void SetLevelLoadReferenced() { m_levelLoadReferenced = true; }
-    void ResetLevelLoadReferenced() { m_levelLoadReferenced = false; }
-    bool GetLevelLoadReferenced() const { return m_levelLoadReferenced; }
-    int GetLastPlayedTime() const { return m_lastPlayedTime; }
-    void SetLastPlayedTime(int time) { m_lastPlayedTime = time; }
+    void SetNeverPurge()
+    {
+        m_neverPurge = true;
+    }
 
-  private:
+    bool GetNeverPurge() const
+    {
+        return m_neverPurge;
+    }
+
+    void SetLevelLoadReferenced()
+    {
+        m_levelLoadReferenced = true;
+    }
+
+    void ResetLevelLoadReferenced()
+    {
+        m_levelLoadReferenced = false;
+    }
+
+    bool GetLevelLoadReferenced() const
+    {
+        return m_levelLoadReferenced;
+    }
+
+    int GetLastPlayedTime() const
+    {
+        return m_lastPlayedTime;
+    }
+
+    void SetLastPlayedTime(int time)
+    {
+        m_lastPlayedTime = time;
+    }
+
+private:
     friend class idSoundVoice;
     void RetainVoice() const;
     void ReleaseVoice() const;
@@ -65,7 +108,7 @@ class idSoundHardware;
 
 class idSoundVoice final : public idSoundVoice_Base
 {
-  public:
+public:
     void Start(int offsetMS, int flags);
     void Stop();
     void Pause();
@@ -76,7 +119,7 @@ class idSoundVoice final : public idSoundVoice_Base
     const idSoundSample * GetCurrentSample();
     ps2::audio::PlaybackCursor GetPlaybackCursor();
 
-  private:
+private:
     // Pool ownership is required before any voice can exist; callers never delete voices.
     friend class idSoundHardware;
     explicit idSoundVoice(idSoundHardware * owner);
@@ -97,7 +140,7 @@ class idSoundVoice final : public idSoundVoice_Base
 
 class idSoundHardware final
 {
-  public:
+public:
     static constexpr int kHeadlessVoiceCount = MAX_HARDWARE_VOICES;
     idSoundHardware() = default;
     ~idSoundHardware();
@@ -107,16 +150,26 @@ class idSoundHardware final
     // Select logical playback explicitly. Clock context must remain valid while the pool is used.
     // Shutdown releases resources; Init can recreate the pool with the same selected clock.
     void InitHeadless(ps2::audio::VoiceClock clock);
-    bool IsHeadlessInitialized() const { return m_voices != nullptr; }
+
+    bool IsHeadlessInitialized() const
+    {
+        return m_voices != nullptr;
+    }
+
     void Init();
     void Shutdown();
     void Update();
     idSoundVoice * AllocateVoice(const idSoundSample * leadin, const idSoundSample * looping);
     void FreeVoice(idSoundVoice * voice);
-    int GetNumZombieVoices() const { return 0; }
+
+    int GetNumZombieVoices() const
+    {
+        return 0;
+    }
+
     int GetNumFreeVoices() const;
 
-  private:
+private:
     friend class idSoundVoice;
     std::uint64_t Now();
     void RequireInitialized(const char * operation) const;

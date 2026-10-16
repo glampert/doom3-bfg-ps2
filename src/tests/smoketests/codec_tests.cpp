@@ -112,6 +112,7 @@ struct FailingAllocator
     unsigned int failAt = 0;
     unsigned int live = 0;
 };
+
 voidpf Allocate(voidpf opaque, uInt items, uInt size)
 {
     auto * state = static_cast<FailingAllocator *>(opaque);
@@ -126,6 +127,7 @@ voidpf Allocate(voidpf opaque, uInt items, uInt size)
     }
     return pointer;
 }
+
 void Free(voidpf opaque, voidpf pointer)
 {
     auto * state = static_cast<FailingAllocator *>(opaque);
@@ -133,6 +135,7 @@ void Free(voidpf opaque, voidpf pointer)
     --state->live;
     zcfree(nullptr, pointer);
 }
+
 bool AllocationFailures()
 {
     const heap::Stats before = heap::GetTotalStats();
@@ -204,6 +207,7 @@ bool PixelsMatch(const unsigned char * output, int width, int height)
     }
     return true;
 }
+
 bool JpegFixture()
 {
     const heap::Stats before = heap::GetTotalStats();

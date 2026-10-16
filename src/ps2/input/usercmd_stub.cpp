@@ -81,11 +81,19 @@ namespace
 
 class UsercmdGen final : public idUsercmdGen
 {
-  public:
+public:
     // No keys, angles, commands, polling buffers or device handles are acquired by this provider.
-    void Clear() override {}
-    void ClearAngles() override {}
-    void Shutdown() override {}
+    void Clear() override
+    {
+    }
+
+    void ClearAngles() override
+    {
+    }
+
+    void Shutdown() override
+    {
+    }
 
     int CommandStringUsercmdData(const char * command) override
     {
@@ -116,6 +124,7 @@ class UsercmdGen final : public idUsercmdGen
         }
         Unsupported("idUsercmdGen::ButtonState");
     }
+
     int KeyState(int key) override
     {
         if (key < 0 || key >= K_LAST_KEY)
@@ -125,12 +134,35 @@ class UsercmdGen final : public idUsercmdGen
         Unsupported("idUsercmdGen::KeyState");
     }
 
-    void Init() override { Unsupported("idUsercmdGen::Init"); }
-    void InitForNewMap() override { Unsupported("idUsercmdGen::InitForNewMap"); }
-    void InhibitUsercmd(inhibit_t, bool) override { Unsupported("idUsercmdGen::InhibitUsercmd"); }
-    void MouseState(int *, int *, int *, bool *) override { Unsupported("idUsercmdGen::MouseState"); }
-    void BuildCurrentUsercmd(int) override { Unsupported("idUsercmdGen::BuildCurrentUsercmd"); }
-    usercmd_t GetCurrentUsercmd() override { Unsupported("idUsercmdGen::GetCurrentUsercmd"); }
+    void Init() override
+    {
+        Unsupported("idUsercmdGen::Init");
+    }
+
+    void InitForNewMap() override
+    {
+        Unsupported("idUsercmdGen::InitForNewMap");
+    }
+
+    void InhibitUsercmd(inhibit_t, bool) override
+    {
+        Unsupported("idUsercmdGen::InhibitUsercmd");
+    }
+
+    void MouseState(int *, int *, int *, bool *) override
+    {
+        Unsupported("idUsercmdGen::MouseState");
+    }
+
+    void BuildCurrentUsercmd(int) override
+    {
+        Unsupported("idUsercmdGen::BuildCurrentUsercmd");
+    }
+
+    usercmd_t GetCurrentUsercmd() override
+    {
+        Unsupported("idUsercmdGen::GetCurrentUsercmd");
+    }
 };
 
 static UsercmdGen s_usercmdGen;

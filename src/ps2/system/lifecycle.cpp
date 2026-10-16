@@ -54,7 +54,10 @@ const char * StageName(Stage stage)
     FatalError("invalid Common lifecycle stage");
 }
 
-Stage CompletedStage() { return s_completed; }
+Stage CompletedStage()
+{
+    return s_completed;
+}
 
 void StopAfterForTest(Stage stage)
 {

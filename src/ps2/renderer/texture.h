@@ -9,8 +9,20 @@
 
 namespace ps2::tex
 {
-struct Handle { u32 id = 0; };
-struct Stats { u32 pixelBytes; u32 peakPixelBytes; u32 textures; u32 uploads; u32 evictions; };
+struct Handle
+{
+    u32 id = 0;
+};
+
+struct Stats
+{
+    u32 pixelBytes;
+    u32 peakPixelBytes;
+    u32 textures;
+    u32 uploads;
+    u32 evictions;
+};
+
 bool Init(u32 vramBytes, u32 pixelBudgetBytes);
 void Shutdown();
 bool IsInitialized();

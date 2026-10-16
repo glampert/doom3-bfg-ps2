@@ -77,7 +77,7 @@ bool CheckScalarMath()
     const float unitY = y * inverseLength;
     constexpr float kTolerance = 0.00001f;
     return Check("scalar-math", sizeof(float) == 4 && fabsf(length - 5.0f) < kTolerance &&
-        fabsf(unitX - 0.6f) < kTolerance && fabsf(unitY - 0.8f) < kTolerance);
+                                fabsf(unitX - 0.6f) < kTolerance && fabsf(unitY - 0.8f) < kTolerance);
 }
 
 } // namespace

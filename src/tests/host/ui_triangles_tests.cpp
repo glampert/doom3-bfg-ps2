@@ -16,17 +16,16 @@ namespace
 
 using ps2::ui::FixedTriangle;
 using ps2::ui::FixedVertex;
+using ps2::ui::kMaxClippedTriangles;
 using ps2::ui::MapTriangle;
 using ps2::ui::Result;
 using ps2::ui::Vertex;
 using ps2::ui::Viewport;
-using ps2::ui::kMaxClippedTriangles;
 
 static constexpr Viewport kNtsc{ 512, 448 };
 static constexpr Viewport kPal{ 512, 512 };
 static constexpr Viewport kIdentity{ 640, 480 };
-static constexpr Vertex kFull[3] =
-{
+static constexpr Vertex kFull[3] = {
     { 0.0f, 0.0f, 1.0f, 0.0f, 255, 0, 17, 255 },
     { 640.0f, 0.0f, 0.0f, 1.0f, 0, 255, 31, 128 },
     { 0.0f, 480.0f, 0.5f, 0.25f, 0, 0, 255, 0 }
@@ -89,7 +88,7 @@ static bool Unchanged(const Vertex (&input)[3], Viewport viewport, int width, in
 
 static std::int64_t Area(const FixedTriangle & triangle)
 {
-    const FixedVertex (&v)[3] = triangle.vertices;
+    const FixedVertex(&v)[3] = triangle.vertices;
     const std::int64_t dx1 = v[1].x - v[0].x;
     const std::int64_t dy1 = v[1].y - v[0].y;
     const std::int64_t dx2 = v[2].x - v[0].x;
@@ -123,13 +122,15 @@ static bool Mapping()
                Equal(output[0].vertices[0], { 0, 0, 1024, 0, 255, 0, 17, 255 }) &&
                Equal(output[0].vertices[1], { 8192, 0, 0, 512, 0, 255, 31, 128 }) &&
                Equal(output[0].vertices[2], { 0, 7168, 512, 128, 0, 0, 255, 0 }) &&
-               Untouched(output, 1), "NTSC reversed UV and byte colors") ||
+               Untouched(output, 1),
+               "NTSC reversed UV and byte colors") ||
         !Check((MapTriangle(kFull, kPal, 3, 5, output, count) == Result::Draw) &&
                (count == 1) && (output[0].vertices[1].u == 0) &&
                (output[0].vertices[1].v == 80) &&
                (output[0].vertices[2].y == 8192) &&
                (output[0].vertices[2].u == 24) &&
-               (output[0].vertices[2].v == 20), "PAL and logical NPOT texture"))
+               (output[0].vertices[2].v == 20),
+               "PAL and logical NPOT texture"))
     {
         return false;
     }
@@ -143,8 +144,7 @@ static bool Mapping()
         return false;
     }
 
-    const Vertex subpixels[3] =
-    {
+    const Vertex subpixels[3] = {
         { 0.5f, 0.5f, 0.25f, 0.125f, 255, 255, 255, 255 },
         { 1.75f, 0.5f, 0.75f, 0.125f, 255, 255, 255, 255 },
         { 0.5f, 1.75f, 0.25f, 0.875f, 255, 255, 255, 255 }
@@ -163,14 +163,14 @@ static bool Mapping()
     repeat[1].t = 1023.0f;
     return Check((MapTriangle(repeat, kIdentity, 1, 1, output, count) == Result::Draw) &&
                  (output[0].vertices[0].u == 16368) &&
-                 (output[0].vertices[1].v == 16368), "largest safe UV field") &&
+                 (output[0].vertices[1].v == 16368),
+                 "largest safe UV field") &&
            Check(Unchanged(repeat, kIdentity, 2, 1, Result::Invalid), "UV fields never wrap");
 }
 
 static bool Clipping()
 {
-    const Vertex left[3] =
-    {
+    const Vertex left[3] = {
         { -100.0f, 100.0f, 0.0f, 0.0f, 0, 20, 100, 0 },
         { 100.0f, 100.0f, 1.0f, 0.0f, 200, 40, 200, 200 },
         { 100.0f, 300.0f, 1.0f, 1.0f, 100, 60, 0, 100 }
@@ -190,8 +190,7 @@ static bool Clipping()
         return false;
     }
 
-    const Vertex enclosing[3] =
-    {
+    const Vertex enclosing[3] = {
         { -1000.0f, -1000.0f, 0.0f, 0.0f, 255, 255, 255, 255 },
         { 5000.0f, -1000.0f, 1.0f, 0.0f, 255, 255, 255, 255 },
         { -1000.0f, 5000.0f, 0.0f, 1.0f, 255, 255, 255, 255 }
@@ -204,28 +203,28 @@ static bool Clipping()
         return false;
     }
 
-    const Vertex crossing[3] =
-    {
+    const Vertex crossing[3] = {
         { -100.0f, 100.0f, 0.0f, 0.0f, 0, 13, 255, 70 },
         { 740.0f, 100.0f, 1.0f, 0.0f, 255, 90, 0, 200 },
         { 320.0f, 600.0f, 0.5f, 1.0f, 127, 255, 100, 255 }
     };
     if (!Check((MapTriangle(crossing, kIdentity, 64, 32, output, count) == Result::Draw) &&
-               (count >= 3), "multiple clipped fan triangles"))
+               (count >= 3),
+               "multiple clipped fan triangles"))
     {
         return false;
     }
 
     for (int start = 0; start < 3; ++start)
     {
-        const Vertex permuted[3] =
-        {
+        const Vertex permuted[3] = {
             crossing[start], crossing[(start + 2) % 3], crossing[(start + 1) % 3]
         };
         FixedTriangle backward[kMaxClippedTriangles]{};
         int backwardCount = 0;
         if (!Check((MapTriangle(permuted, kIdentity, 64, 32, backward, backwardCount) == Result::Draw) &&
-                   (backwardCount == count), "index ordering preserves clipped vertex count"))
+                   (backwardCount == count),
+                   "index ordering preserves clipped vertex count"))
         {
             return false;
         }
@@ -250,8 +249,7 @@ static bool Clipping()
         }
     }
 
-    const Vertex roundedColor[3] =
-    {
+    const Vertex roundedColor[3] = {
         { -1.0f, 100.0f, 0.0f, 0.0f, 0, 0, 255, 0 },
         { 1.0f, 100.0f, 1.0f, 0.0f, 1, 255, 0, 255 },
         { 1.0f, 102.0f, 1.0f, 1.0f, 1, 255, 0, 255 }
@@ -263,8 +261,7 @@ static bool Clipping()
 
 static bool Rejections()
 {
-    const Vertex clipped[][3] =
-    {
+    const Vertex clipped[][3] = {
         { { -10.0f, 0.0f, 0, 0, 0, 0, 0, 0 },
           { 0.0f, 10.0f, 0, 0, 0, 0, 0, 0 },
           { 0.0f, 20.0f, 0, 0, 0, 0, 0, 0 } },
@@ -287,7 +284,7 @@ static bool Rejections()
           { 0.09375f, 0.046875f, 0, 0, 0, 0, 0, 0 },
           { 0.15625f, 0.078125f, 0, 0, 0, 0, 0, 0 } }
     };
-    for (const Vertex (&triangle)[3] : clipped)
+    for (const Vertex(&triangle)[3] : clipped)
     {
         if (!Check(Unchanged(triangle, kIdentity, 64, 32, Result::Clipped),
                    "empty/float-degenerate/fixed-degenerate output remains untouched"))
@@ -306,21 +303,20 @@ static bool Rejections()
     return Check(Unchanged(kFull, kNtsc, 0, 32, Result::Invalid) &&
                  Unchanged(kFull, kNtsc, 64, -1, Result::Invalid) &&
                  Unchanged(kFull, kNtsc, 513, 32, Result::Invalid) &&
-                 Unchanged(kFull, kNtsc, 64, 513, Result::Invalid), "invalid texture dimensions");
+                 Unchanged(kFull, kNtsc, 64, 513, Result::Invalid),
+                 "invalid texture dimensions");
 }
 
 static bool SharedEdges()
 {
     // Two separately indexed triangles traverse the same diagonal in opposite directions. Both
     // endpoints are outside different clipping planes, so the shared visible edge is generated.
-    const Vertex first[3] =
-    {
+    const Vertex first[3] = {
         { -17.03125f, 77.3125f, 0.03125f, 0.0625f, 3, 252, 17, 7 },
         { 500.0f, 10.0f, 0.75f, 0.125f, 200, 27, 91, 180 },
         { 630.90625f, 499.53125f, 0.96875f, 0.9375f, 251, 7, 129, 249 }
     };
-    const Vertex second[3] =
-    {
+    const Vertex second[3] = {
         first[2], first[0], { 10.0f, 450.0f, 0.125f, 0.75f, 33, 89, 211, 100 }
     };
     FixedTriangle forward[kMaxClippedTriangles]{};
@@ -360,8 +356,7 @@ static bool SharedEdges()
 static bool FloatEncodings()
 {
     static constexpr float Vertex::* kFields[] = { &Vertex::x, &Vertex::y, &Vertex::s, &Vertex::t };
-    static constexpr std::uint32_t kInvalidBits[] =
-    {
+    static constexpr std::uint32_t kInvalidBits[] = {
         0x7F800000U, 0xFF800000U, 0x7FC00000U, 0xFFC00000U, 0x7F800001U, 0x00000001U, 0x80000001U
     };
     for (int i = 0; i < 3; ++i)
@@ -457,7 +452,8 @@ static bool BoundedPolygons()
                 if (!Check((vertex.x >= 0) && (vertex.x <= 8192) &&
                            (vertex.y >= 0) && (vertex.y <= 7168) &&
                            (vertex.u >= 0) && (vertex.u <= 2048) &&
-                           (vertex.v >= 0) && (vertex.v <= 1024), "all output fields stay bounded"))
+                           (vertex.v >= 0) && (vertex.v <= 1024),
+                           "all output fields stay bounded"))
                 {
                     return false;
                 }
@@ -472,5 +468,7 @@ static bool BoundedPolygons()
 int main()
 {
     return Mapping() && Clipping() && SharedEdges() && Rejections() && FloatEncodings() &&
-           BoundedPolygons() ? 0 : 1;
+           BoundedPolygons()
+           ? 0
+           : 1;
 }

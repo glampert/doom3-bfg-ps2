@@ -5,9 +5,9 @@
 // ================================================================================================
 
 #include "ps2/ui/authored_assets.h"
-#include "ps2/ui/authored_ui_data.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
+#include "ps2/ui/authored_ui_data.h"
 #include <idlib/precompiled.h>
 
 namespace ps2::ui
@@ -17,14 +17,21 @@ PS2_COLD_FUNC idFile * OpenAuthoredAsset(const char * path)
     const authored::Resource * resource = nullptr;
     for (const auto & candidate : authored::kResources)
     {
-        if (path != nullptr && strcmp(path, candidate.path) == 0) { resource = &candidate; break; }
+        if (path != nullptr && strcmp(path, candidate.path) == 0)
+        {
+            resource = &candidate;
+            break;
+        }
     }
     if (resource == nullptr || resource->length == 0 || resource->length > 16384)
     {
         FatalError("UI asset outside authored profile: %s", path != nullptr ? path : "<null>");
     }
     idFile * const source = fileSystem->OpenFileRead(path);
-    if (source == nullptr) { FatalError("authored UI asset missing: %s", path); }
+    if (source == nullptr)
+    {
+        FatalError("authored UI asset missing: %s", path);
+    }
     if (source->Length() != static_cast<int>(resource->length))
     {
         delete source;

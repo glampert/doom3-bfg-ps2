@@ -41,7 +41,10 @@ u32 ReadLittleInt(const u8 * bytes)
 
 namespace ps2::fonts
 {
-bool IsInitialized() { return s_initialized; }
+bool IsInitialized()
+{
+    return s_initialized;
+}
 
 PS2_COLD_FUNC void Init()
 {
@@ -54,8 +57,14 @@ PS2_COLD_FUNC void Init()
 
 PS2_COLD_FUNC void Shutdown()
 {
-    if (!s_initialized) { return; }
-    if (!ui::IsInitialized() || rs::FrameStarted()) { FatalError("invalid native UI font shutdown ownership"); }
+    if (!s_initialized)
+    {
+        return;
+    }
+    if (!ui::IsInitialized() || rs::FrameStarted())
+    {
+        FatalError("invalid native UI font shutdown ownership");
+    }
     tr.fonts.DeleteContents(true);
     s_initialized = false;
 }
@@ -67,10 +76,16 @@ bool PreflightAuthoredFont(idFile * file, const char * name)
         return false;
     }
     u8 bytes[kFileBytes] = {};
-    if (file->Read(bytes, kFileBytes) != kFileBytes) { return false; }
+    if (file->Read(bytes, kFileBytes) != kFileBytes)
+    {
+        return false;
+    }
     // Native glyphInfo_t stores a zero padding byte before the little-endian atlas coordinates.
-    static constexpr u8 kHeader[kHeaderBytes] = {'i', 'd', 'f', 42, 0, 48, 0, 14, 0, 0, 0, 95};
-    if (memcmp(bytes, kHeader, sizeof(kHeader)) != 0) { return false; }
+    static constexpr u8 kHeader[kHeaderBytes] = { 'i', 'd', 'f', 42, 0, 48, 0, 14, 0, 0, 0, 95 };
+    if (memcmp(bytes, kHeader, sizeof(kHeader)) != 0)
+    {
+        return false;
+    }
     for (int i = 0; i < kGlyphCount; ++i)
     {
         const int code = i + 32;
@@ -110,7 +125,10 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
     }
     if (fonts.Num() == 1)
     {
-        if (strcmp(fonts[0]->GetName(), kFontName) != 0) { ps2::FatalError("native UI font cache ownership changed"); }
+        if (strcmp(fonts[0]->GetName(), kFontName) != 0)
+        {
+            ps2::FatalError("native UI font cache ownership changed");
+        }
         fonts[0]->Touch();
         return fonts[0];
     }

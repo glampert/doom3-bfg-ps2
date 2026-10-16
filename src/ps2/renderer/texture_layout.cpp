@@ -114,7 +114,7 @@ bool PadRgba32(const Layout & layout, const void * source, size_t sourceBytes,
     const size_t priorRows = static_cast<size_t>(layout.height - 1);
     if ((sourceStrideBytes < rowBytes) ||
         ((priorRows > 0) && (sourceStrideBytes >
-            ((std::numeric_limits<size_t>::max() - rowBytes) / priorRows))))
+                             ((std::numeric_limits<size_t>::max() - rowBytes) / priorRows))))
     {
         return false;
     }
@@ -132,7 +132,7 @@ bool PadRgba32(const Layout & layout, const void * source, size_t sourceBytes,
         const int sourceY = (y < layout.height) ? y : (layout.height - 1);
         const auto * sourceRow = sourcePixels + (static_cast<size_t>(sourceY) * sourceStrideBytes);
         auto * destinationRow = destinationPixels +
-            (static_cast<size_t>(y) * static_cast<size_t>(layout.stridePixels) * kPixelBytes);
+                                (static_cast<size_t>(y) * static_cast<size_t>(layout.stridePixels) * kPixelBytes);
         for (int x = 0; x < layout.stridePixels; ++x)
         {
             const int sourceX = (x < layout.width) ? x : (layout.width - 1);
@@ -142,7 +142,7 @@ bool PadRgba32(const Layout & layout, const void * source, size_t sourceBytes,
             paddedPixel[1] = pixel[1];
             paddedPixel[2] = pixel[2];
             paddedPixel[3] = static_cast<std::uint8_t>(
-                ((static_cast<std::uint32_t>(pixel[3]) * 128U) + 127U) / 255U);
+            ((static_cast<std::uint32_t>(pixel[3]) * 128U) + 127U) / 255U);
         }
     }
     return true;

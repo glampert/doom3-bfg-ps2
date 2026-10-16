@@ -11,8 +11,8 @@
 #include <new>
 
 #if defined(_EE)
-#define USE_DL_PREFIX 1
-#include <dlmalloc/malloc.h>
+    #define USE_DL_PREFIX 1
+    #include <dlmalloc/malloc.h>
 #endif
 
 namespace ps2::heap
@@ -115,7 +115,7 @@ void * TryAlloc(size_t size, std::uint16_t tag, size_t alignment)
     const std::uintptr_t address = (start + alignment - 1) & ~(alignment - 1);
     void * pointer = reinterpret_cast<void *>(address);
     auto * header = static_cast<Header *>(reinterpret_cast<void *>(address - sizeof(Header)));
-    *header = {base, size, backing, kAllocationMagic, tag};
+    *header = { base, size, backing, kAllocationMagic, tag };
     Add(s_tags[tag], size, backing);
     Add(s_total, size, backing);
     return pointer;
@@ -169,8 +169,8 @@ ArenaStats GetArenaStats()
 #if defined(_EE)
     const struct mallinfo info = dlmallinfo();
     // This ABI uses signed int fields, safe within the EE's 32 MiB addressable RAM.
-    return {true, static_cast<size_t>(info.arena), static_cast<size_t>(info.uordblks),
-        static_cast<size_t>(info.fordblks), static_cast<size_t>(info.usmblks)};
+    return { true, static_cast<size_t>(info.arena), static_cast<size_t>(info.uordblks),
+             static_cast<size_t>(info.fordblks), static_cast<size_t>(info.usmblks) };
 #else
     return {};
 #endif
@@ -190,23 +190,102 @@ void ResetPeaks()
 } // namespace ps2::heap
 
 // Standard, sized, nothrow and over-aligned allocations share the same metadata.
-void * operator new(size_t size) { return ps2::heap::Alloc(size, ps2::heap::kNewTag); }
-void * operator new[](size_t size) { return ps2::heap::Alloc(size, ps2::heap::kNewTag); }
-void operator delete(void * pointer) noexcept { ps2::heap::Free(pointer); }
-void operator delete[](void * pointer) noexcept { ps2::heap::Free(pointer); }
-void operator delete(void * pointer, size_t) noexcept { ps2::heap::Free(pointer); }
-void operator delete[](void * pointer, size_t) noexcept { ps2::heap::Free(pointer); }
-void * operator new(size_t size, const std::nothrow_t &) noexcept { return ps2::heap::TryAlloc(size, ps2::heap::kNewTag); }
-void * operator new[](size_t size, const std::nothrow_t &) noexcept { return ps2::heap::TryAlloc(size, ps2::heap::kNewTag); }
-void operator delete(void * pointer, const std::nothrow_t &) noexcept { ps2::heap::Free(pointer); }
-void operator delete[](void * pointer, const std::nothrow_t &) noexcept { ps2::heap::Free(pointer); }
-void * operator new(size_t size, std::align_val_t alignment) { return ps2::heap::Alloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment)); }
-void * operator new[](size_t size, std::align_val_t alignment) { return ps2::heap::Alloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment)); }
-void operator delete(void * pointer, std::align_val_t) noexcept { ps2::heap::Free(pointer); }
-void operator delete[](void * pointer, std::align_val_t) noexcept { ps2::heap::Free(pointer); }
-void operator delete(void * pointer, size_t, std::align_val_t) noexcept { ps2::heap::Free(pointer); }
-void operator delete[](void * pointer, size_t, std::align_val_t) noexcept { ps2::heap::Free(pointer); }
-void * operator new(size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept { return ps2::heap::TryAlloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment)); }
-void * operator new[](size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept { return ps2::heap::TryAlloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment)); }
-void operator delete(void * pointer, std::align_val_t, const std::nothrow_t &) noexcept { ps2::heap::Free(pointer); }
-void operator delete[](void * pointer, std::align_val_t, const std::nothrow_t &) noexcept { ps2::heap::Free(pointer); }
+void * operator new(size_t size)
+{
+    return ps2::heap::Alloc(size, ps2::heap::kNewTag);
+}
+
+void * operator new[](size_t size)
+{
+    return ps2::heap::Alloc(size, ps2::heap::kNewTag);
+}
+
+void operator delete(void * pointer) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void operator delete[](void * pointer) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void operator delete(void * pointer, size_t) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void operator delete[](void * pointer, size_t) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void * operator new(size_t size, const std::nothrow_t &) noexcept
+{
+    return ps2::heap::TryAlloc(size, ps2::heap::kNewTag);
+}
+
+void * operator new[](size_t size, const std::nothrow_t &) noexcept
+{
+    return ps2::heap::TryAlloc(size, ps2::heap::kNewTag);
+}
+
+void operator delete(void * pointer, const std::nothrow_t &) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void operator delete[](void * pointer, const std::nothrow_t &) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void * operator new(size_t size, std::align_val_t alignment)
+{
+    return ps2::heap::Alloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment));
+}
+
+void * operator new[](size_t size, std::align_val_t alignment)
+{
+    return ps2::heap::Alloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment));
+}
+
+void operator delete(void * pointer, std::align_val_t) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void operator delete[](void * pointer, std::align_val_t) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void operator delete(void * pointer, size_t, std::align_val_t) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void operator delete[](void * pointer, size_t, std::align_val_t) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void * operator new(size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
+{
+    return ps2::heap::TryAlloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment));
+}
+
+void * operator new[](size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
+{
+    return ps2::heap::TryAlloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment));
+}
+
+void operator delete(void * pointer, std::align_val_t, const std::nothrow_t &) noexcept
+{
+    ps2::heap::Free(pointer);
+}
+
+void operator delete[](void * pointer, std::align_val_t, const std::nothrow_t &) noexcept
+{
+    ps2::heap::Free(pointer);
+}

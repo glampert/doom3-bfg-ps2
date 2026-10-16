@@ -37,7 +37,11 @@ struct FixedVertex
     std::uint8_t a;
 };
 
-struct FixedTriangle { FixedVertex vertices[3]; };
+struct FixedTriangle
+{
+    FixedVertex vertices[3];
+};
+
 static constexpr int kMaxClippedTriangles = 5;
 
 // Clip to 640x480, preserving either winding and interpolating UVs and RGBA before fixed rounding.
