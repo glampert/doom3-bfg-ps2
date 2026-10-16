@@ -198,7 +198,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless console run-console test-console ui run-ui test-ui platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless console run-console test-console ui run-ui test-ui resource-unpack platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
 
 all: link-game
 release: all
@@ -396,8 +396,10 @@ test-common: headless-core
 test-script: script-probe
 	$(PYTHON) $(SCRIPTS)/run_script_tests.py --elf build/$(BUILD)-script/tests/script/d3bfg_tests.elf
 
-tools: inventory
-	@echo "Build metadata and source audit tools are Python scripts under $(SCRIPTS)/."
+tools: inventory resource-unpack
+	@echo "Host resource unpacker: build/tools/resource_unpack; Python tools: $(SCRIPTS)/."
+
+resource-unpack: build/tools/resource_unpack
 
 headless: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)
@@ -464,6 +466,23 @@ HOST_WARNFLAGS = -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wconversion 
 HOST_TEST_FLAGS = -std=c++20 -O1 -g -fno-exceptions -fno-rtti -fno-threadsafe-statics \
 	-fno-strict-aliasing -fsized-deallocation -fsanitize=address,undefined -fno-omit-frame-pointer \
 	$(HOST_WARNFLAGS) -Isrc -isystem src/external -DID_HOST_TEST -DPS2_D3BFG_ASSERTS=1
+
+HOST_TOOL_FLAGS = -std=c++20 -O2 -fno-exceptions -fno-rtti -fno-threadsafe-statics $(HOST_WARNFLAGS)
+RESOURCE_UNPACK_SRC = src/tools/resource_unpack/main.cpp
+
+build/tools/.resource-unpack-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TOOL_FLAGS) --sources $(RESOURCE_UNPACK_SRC)
+
+build/tools/resource_unpack: $(RESOURCE_UNPACK_SRC) build/tools/.resource-unpack-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TOOL_FLAGS) $(RESOURCE_UNPACK_SRC) -o $@
+
+build/tests/.resource-unpack-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(RESOURCE_UNPACK_SRC)
+
+build/tests/resource_unpack: $(RESOURCE_UNPACK_SRC) build/tests/.resource-unpack-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) $(RESOURCE_UNPACK_SRC) -o $@
 
 HOST_HEAP_SOURCES = src/tests/smoketests/type_query_tests.cpp src/tests/smoketests/type_query_bridge.cpp src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/tests/smoketests/class_alloc_tests.cpp src/ps2/game/class_alloc.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 
@@ -558,7 +577,7 @@ build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/renderer/cha
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/ps2/renderer/charset.cpp -o $@
 
-test-host: build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
 	./build/tests/ui_triangles_tests
 	./build/tests/charset_tests
 	./build/tests/ui_geometry_tests

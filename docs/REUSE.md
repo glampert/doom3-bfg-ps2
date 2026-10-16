@@ -6,6 +6,7 @@ checkout at build time.
 
 | Destination | Source and adaptation | License |
 | --- | --- | --- |
+| `src/tools/resource_unpack/main.cpp` | Native `src/neo/framework/File_Resource.{h,cpp}` / `File.cpp` container and string layouts, plus reverse container/record lookup priority; standalone bounded reader and 64 KiB streaming extractor with checked filesystem publication | New host implementation under GPL v3 or later; no engine/SDK linkage or retail data imported |
 | `docs/reference/quake2.Makefile` | Verbatim reference retained when the Doom Makefile was introduced; excluded from the build | Original reference notice retained |
 | `src/tools/scripts/symbolize.py` | Standalone Quake symbolization helper with Doom defaults | Original GPL v2 notice and `GPL-2.0.txt` retained |
 | `src/external/dlmalloc/malloc.c`, `malloc.h` | Doug Lea malloc 2.7.2, including the reference's PS2 configuration; normalize line endings/trailing whitespace, reject calloc multiplication overflow and correct the prefixed `dlmallinfo` header declaration | Original public-domain notices retained |

@@ -113,6 +113,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
   documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests
   cannot replace target compilation. Check Make's exit status, including VU tool failures.
+- `make resource-unpack` builds the standalone C++20 host extractor at
+  `build/tools/resource_unpack`, using the native resource layout without engine/SDK
+  linkage. `--list` validates metadata; `--output DIR` streams a merged directory tree,
+  with later input containers/records winning. Existing files require `--overwrite`.
+  Keep retail output ignored. `make test-host` exercises its separate sanitizer build;
+  this host-only tool does not change native asset providers or boot capability.
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend

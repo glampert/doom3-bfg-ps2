@@ -2737,3 +2737,34 @@ Next is **2D-5 retail UI dependency/feature inventory and cooking**: identify th
 shell/dialog/font/localization package and its actual mask/blend/atlas requirements.
 Required feature closure is 2D-6, native offline menu integration is 2D-7, and physical
 input/PS2 acceptance is 2D-8. Retail assets and converted output remain local and ignored.
+
+## Standalone host resource extraction (2D-5 foundation)
+
+On **2026-10-16, Australia/Sydney**, the standalone C++20 `resource_unpack` now expands
+native BFG `.resources` containers into ordinary directory trees. `make resource-unpack`
+builds `build/tools/resource_unpack`; the source also builds directly without ps2dev or
+engine initialization. The format comes from native `File_Resource.{h,cpp}` and
+`idFile::ReadString`: resource payloads are stored directly, so unpacking preserves
+their bytes rather than decoding individual BSWF/BIMAGE files.
+
+The tool preflights every input table and destination, checks mixed-endian fields and
+file bounds, rejects traversal/symlinks/source aliases, and streams files through a
+64 KiB buffer with checked reads/writes/close. Existing files require explicit
+`--overwrite`. Later input containers and duplicate records win after path normalization.
+Two retail sound entries contain `generated//sound/`; internal repeated separators
+collapse to the same filesystem output path while leading/trailing separators remain
+invalid. Completed files publish individually; a later I/O error is not a rollback of
+the entire output tree. Use a destination tree without concurrent external mutation.
+
+All **64 local retail containers** pass table/list validation. The sanitizer build
+also lists their combined **23,500 normalized merged entries** successfully. Extracting
+`_common.resources` followed by `_ordered.resources` produces **2,316 files / 80,053,423
+payload bytes**; every extracted file was compared byte-for-byte with the independent
+Python table reader. Output and `build/resource-unpack-validation.json` remain ignored.
+Fourteen synthetic ASan/UBSan host tests cover malformed/truncated tables, unsafe paths,
+overlap/duplicate semantics, streaming, symlinks, overwrite and no-write preflight failures.
+No proprietary files were added to the repository, and no EE runtime capability changed.
+
+Usage and limits are in [the unpacker guide](../src/tools/resource_unpack/README.md).
+The UI dependency inventory and lossless host page cooker build on the same native
+resource layout; target retail loading and rendering remain separate later gates.

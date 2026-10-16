@@ -102,7 +102,20 @@ make BUILD=release smoke     # release core smoke run
 make smoke-negative          # expected missing-fixture failure
 make test-common             # seven partial-startup and sixty-two expected-fatal probes
 make compiledb               # compile_commands.json from real Make rules
+make resource-unpack         # standalone C++20 host resource reader/extractor
 ```
+
+The [host resource unpacker](src/tools/resource_unpack/README.md) expands native BFG
+`.resources` containers into ordinary files without starting the engine. It validates
+tables and paths, streams payloads and refuses existing outputs by default. For example:
+
+```sh
+build/tools/resource_unpack --output build/unpacked-bfg \
+    gamedata/d3_bfg/_common.resources gamedata/d3_bfg/_ordered.resources
+```
+
+Extracted BSWF/BIMAGE files keep their native formats. Retail extraction belongs in
+ignored local directories; it is separate from authored UI assets and target startup.
 
 Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,
 `d3bfg.map` and `report.{json,txt}`. This executable links the full retained campaign
@@ -516,6 +529,10 @@ notices under `src/external/`; the target builds only the audited codec source l
 
 The input action table preserves id Software's native `framework/UsercmdGen.cpp` names,
 order and terminator; the portable provider is new backend code.
+
+The standalone host resource unpacker follows id Software's
+`framework/File_Resource.{h,cpp}` and `File.cpp` binary layouts and lookup order.
+Its bounded table reader, streaming output and filesystem validation are new host code.
 
 The PS2 backend draws on Guilherme Lampert's [quake2-ps2](https://github.com/glampert/quake2-ps2).
 The shared `src/ps2/common.h` assertion macros and `ArrayLength` helper are adapted
