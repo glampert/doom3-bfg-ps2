@@ -486,6 +486,62 @@ static void AdjacentPageRegression()
     }
 }
 
+static void OuterFontGutters()
+{
+    // Native font bounds expand by half a source texel. The outside gutter
+    // keeps the full screen geometry and maps the endpoint to page texel 0.5.
+    const Vertex lower[3] = {
+        { 100.0f, 100.0f, -0.5f / 512.0f, -0.5f / 128.0f, 80, 100, 120, 140 },
+        { 116.0f, 100.0f, 15.5f / 512.0f, -0.5f / 128.0f, 80, 100, 120, 140 },
+        { 100.0f, 115.0f, -0.5f / 512.0f, 14.5f / 128.0f, 80, 100, 120, 140 }
+    };
+    FixedTriangle output[kMaxPageTriangles];
+    Fill(output);
+    int count = -99;
+    assert(MapPageTriangle(lower, kIdentity, 512, 128, 0, 0, output, count) == Result::Invalid);
+    assert(count == -99);
+    AssertUntouched(output);
+    assert(MapPageTriangle(lower, kIdentity, 512, 128, 0, 0, output, count, true) == Result::Draw);
+    assert(count == 1);
+    assert(Contains(output, count, { 1600, 1600, 8, 8, 80, 100, 120, 140 }));
+    assert(Contains(output, count, { 1856, 1600, 264, 8, 80, 100, 120, 140 }));
+    assert(Contains(output, count, { 1600, 1840, 8, 248, 80, 100, 120, 140 }));
+
+    const Vertex upper[3] = {
+        { 100.0f, 100.0f, 511.5f / 512.0f, 127.5f / 128.0f, 80, 100, 120, 140 },
+        { 116.0f, 100.0f, 512.5f / 512.0f, 127.5f / 128.0f, 80, 100, 120, 140 },
+        { 100.0f, 115.0f, 511.5f / 512.0f, 128.5f / 128.0f, 80, 100, 120, 140 }
+    };
+    assert(MapPageTriangle(upper, kIdentity, 512, 128, 2, 0, output, count, true) == Result::Draw);
+    assert(count == 1);
+    assert(Contains(output, count, { 1600, 1600, 72, 2056, 80, 100, 120, 140 }));
+    assert(Contains(output, count, { 1856, 1600, 88, 2056, 80, 100, 120, 140 }));
+    assert(Contains(output, count, { 1600, 1840, 72, 2072, 80, 100, 120, 140 }));
+
+    Vertex invalid[3] = { lower[0], lower[1], lower[2] };
+    invalid[0].s = -0.51f / 512.0f;
+    Fill(output);
+    count = -99;
+    assert(MapPageTriangle(invalid, kIdentity, 512, 128, 0, 0, output, count, true) == Result::Invalid);
+    assert(count == -99);
+    AssertUntouched(output);
+
+    // Extending the outside atlas planes must not move any endpoint shared
+    // by the ordinary interior page planes.
+    const Vertex crossing[3] = {
+        { 20.0f, 20.0f, -0.5f / 512.0f, -0.5f / 128.0f, 80, 100, 120, 140 },
+        { 620.0f, 20.0f, 510.5f / 512.0f, -0.5f / 128.0f, 80, 100, 120, 140 },
+        { 20.0f, 450.0f, -0.5f / 512.0f, 100.5f / 128.0f, 80, 100, 120, 140 }
+    };
+    FixedTriangle right[kMaxPageTriangles]{};
+    int rightCount = 0;
+    assert(MapPageTriangle(crossing, kNtsc, 512, 128, 0, 0, output, count, true) == Result::Draw);
+    assert(MapPageTriangle(crossing, kNtsc, 512, 128, 1, 0, right, rightCount, true) == Result::Draw);
+    const SeamVertices leftSeam = Seam(output, count, true, 4080);
+    const SeamVertices rightSeam = Seam(right, rightCount, true, 16);
+    assert(leftSeam.size() == 2 && leftSeam == rightSeam);
+}
+
 static void RandomAdjacentPages()
 {
     std::uint32_t state = 0x5345414DU;
@@ -672,6 +728,7 @@ int main()
     Rejections();
     BoundedPolygons();
     AdjacentPageRegression();
+    OuterFontGutters();
     RandomAdjacentPages();
     RankOneMappings();
     return 0;

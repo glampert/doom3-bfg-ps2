@@ -253,20 +253,25 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::gs::Color colo
     }
     auto * const pages = ps2::render::UiPageImage(image);
 
-    if (pages != nullptr && (!UnitValue(rect.s0) || !UnitValue(rect.t0) || !UnitValue(rect.s1) || !UnitValue(rect.t1)))
+    // PageImage validates full-atlas UVs, including the admitted retail font's outer half texel.
+    // MapRect validates rectangle positions/sizes independently of texture coordinates here.
+    auto validation = rect;
+
+    if (pages != nullptr)
     {
-        ps2::FatalError("invalid native UI paged rectangle or UV");
+        validation.s0 = validation.t0 = 0.0f;
+        validation.s1 = validation.t1 = 1.0f;
     }
 
     ps2::ui::FixedRect fixed = {};
-    const auto result = ps2::ui::MapRect(rect, { ps2::gs::Width(), ps2::gs::Height() },
+    const auto result = ps2::ui::MapRect(validation, { ps2::gs::Width(), ps2::gs::Height() },
                                          pages != nullptr ? 1 : image->GetUploadWidth(),
                                          pages != nullptr ? 1 : image->GetUploadHeight(), fixed);
     if (result == ps2::ui::Result::Invalid)
     {
         ps2::FatalError("invalid native UI rectangle or UV");
     }
-    if (result == ps2::ui::Result::Clipped)
+    if (result == ps2::ui::Result::Clipped && pages == nullptr)
     {
         return;
     }
@@ -290,6 +295,11 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::gs::Color colo
             {
                 ps2::FatalError("invalid native UI paged rectangle or UV");
             }
+        }
+
+        if (result == ps2::ui::Result::Clipped)
+        {
+            return;
         }
 
         // Direct glyph/quad draws must retire older indexed SWF runs before loading cache pages.
@@ -692,9 +702,9 @@ void idRenderSystemLocal::DrawStretchPic(const idVec4 & tl, const idVec4 & trCor
     const bool paged = ps2::render::UiPageImage(profile.image) != nullptr;
     for (const auto * corner : corners)
     {
-        if (corner->z < 0.0f || corner->w < 0.0f ||
-            corner->z > (paged ? 1.0f : 1023.0f / static_cast<float>(profile.image->GetUploadWidth())) ||
-            corner->w > (paged ? 1.0f : 1023.0f / static_cast<float>(profile.image->GetUploadHeight())))
+        if (!paged && (corner->z < 0.0f || corner->w < 0.0f ||
+                       corner->z > 1023.0f / static_cast<float>(profile.image->GetUploadWidth()) ||
+                       corner->w > 1023.0f / static_cast<float>(profile.image->GetUploadHeight())))
         {
             ps2::FatalError("invalid native UI triangle or UV");
         }

@@ -90,7 +90,7 @@ public:
     PageImage & operator=(const PageImage &) = delete;
 
     bool Open(const char * path, u32 cacheSlots = 2);
-    bool Open(const char * path, PageCache & cache);
+    bool Open(const char * path, PageCache & cache, bool outerGutter = false);
     void Close();
     bool IsOpen() const;
     const PageHeader & GetHeader() const;
@@ -110,6 +110,7 @@ private:
     PageCache * m_cache = nullptr;
     PageCache m_ownedCache;
     PageImageStats m_stats = {};
+    bool m_outerGutter = false;
 };
 
 } // namespace ps2::ui

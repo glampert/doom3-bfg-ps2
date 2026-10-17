@@ -12,6 +12,7 @@
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
 #include "ps2/ui/movie.h"
+#include "ps2/ui/retail_movie.h"
 #include <cerrno>
 #include <idlib/precompiled.h>
 
@@ -130,6 +131,7 @@ void Present()
     renderSystem->SetGLState(0);
     renderSystem->SetColor(colorWhite);
     ps2::movie::Render(s_inFrame);
+    ps2::retail_movie::Render(s_inFrame);
     console->Draw(false);
     ps2::rs::EndFrame();
     if (s_captureName[0] != '\0')
@@ -242,6 +244,7 @@ void InitPresentation()
     }
     fonts::Init();
     movie::Init();
+    retail_movie::Init();
     cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, "type quoted ASCII into the native console edit field");
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, "send a named native console key");
     cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, "capture the next completed console frame to a HostFs .tga basename");
@@ -324,6 +327,7 @@ void ShutdownPresentation(int frames)
     cmdSystem->RemoveCommand("ps2_consoleKey");
     cmdSystem->RemoveCommand("ps2_consoleText");
     movie::Shutdown();
+    retail_movie::Shutdown();
     fonts::Shutdown();
     ui::Shutdown();
     rs::Shutdown();

@@ -32,6 +32,11 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "tr_local.h"
 
+// [PS2_D3BFG]: Only admitted retail UI bindings generate a bounded constant stage.
+#if defined( ID_PS2 )
+#include "ps2/ui/retail_assets.h"
+#endif
+
 /*
 
 Any errors during parsing just set MF_DEFAULTED and return, rather than throwing
@@ -2734,6 +2739,15 @@ idMaterial::SetDefaultText
 ===================
 */
 bool idMaterial::SetDefaultText() {
+	// [PS2_D3BFG]: Preserve implicit UI image identities without entity-register stages.
+#if defined( ID_PS2 )
+	char nativeUI[1024];
+	if ( ps2::ui::retail::MaterialText( GetName(), nativeUI, sizeof( nativeUI ) ) )
+	{
+		SetText( nativeUI );
+		return true;
+	}
+#endif
 	// if there exists an image with the same name
 	if ( 1 ) { //fileSystem->ReadFile( GetName(), NULL ) != -1 ) {
 		char generated[2048];

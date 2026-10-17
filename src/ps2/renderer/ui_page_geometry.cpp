@@ -69,9 +69,9 @@ static bool ValidPosition(float value)
     return PortableFloat(value) && (value >= -kCoordinateLimit) && (value <= kCoordinateLimit);
 }
 
-static bool ValidUv(float value)
+static bool ValidUv(float value, float lower, float upper)
 {
-    return PortableFloat(value) && (value >= 0.0f) && (value <= 1.0f);
+    return PortableFloat(value) && (value >= lower) && (value <= upper);
 }
 
 static float Clamp(float value, float lower, float upper)
@@ -540,15 +540,15 @@ static std::uint8_t RoundColor(float value)
 }
 
 static FixedVertex MapVertex(const ClipVertex & vertex, Viewport viewport, float originU, float originV,
-                             float endU, float endV)
+                             float lowerU, float lowerV, float upperU, float upperV)
 {
     const float scaleX = static_cast<float>(viewport.width) / kVirtualWidth;
     const float scaleY = static_cast<float>(viewport.height) / kVirtualHeight;
     return {
         RoundFixed(Clamp(vertex.x, 0.0f, kVirtualWidth) * scaleX),
         RoundFixed(Clamp(vertex.y, 0.0f, kVirtualHeight) * scaleY),
-        RoundFixed(Clamp(vertex.u, originU, endU) - originU + 1.0f),
-        RoundFixed(Clamp(vertex.v, originV, endV) - originV + 1.0f),
+        RoundFixed(Clamp(vertex.u, lowerU, upperU) - originU + 1.0f),
+        RoundFixed(Clamp(vertex.v, lowerV, upperV) - originV + 1.0f),
         RoundColor(vertex.r), RoundColor(vertex.g), RoundColor(vertex.b), RoundColor(vertex.a)
     };
 }
@@ -556,7 +556,7 @@ static FixedVertex MapVertex(const ClipVertex & vertex, Viewport viewport, float
 } // namespace
 
 Result MapPageTriangle(const Vertex (&input)[3], Viewport viewport, int atlasWidth, int atlasHeight,
-                       int column, int row, FixedTriangle (&output)[kMaxPageTriangles], int & triangleCount)
+                       int column, int row, FixedTriangle (&output)[kMaxPageTriangles], int & triangleCount, bool outerGutter)
 {
     if ((viewport.width < 1) || (viewport.height < 1) || (viewport.width > kViewportLimit) || (viewport.height > kViewportLimit) ||
         (atlasWidth < 1) || (atlasHeight < 1) || (atlasWidth > kAtlasExtentLimit) || (atlasHeight > kAtlasExtentLimit) ||
@@ -572,11 +572,15 @@ Result MapPageTriangle(const Vertex (&input)[3], Viewport viewport, int atlasWid
         return Result::Invalid;
     }
 
+    const float allowanceU = outerGutter ? 0.5f / static_cast<float>(atlasWidth) : 0.0f;
+    const float allowanceV = outerGutter ? 0.5f / static_cast<float>(atlasHeight) : 0.0f;
+
     // Complete input admission precedes arithmetic even when an earlier vertex
     // would make the triangle empty. EE cannot inspect IEEE special values safely.
     for (const Vertex & vertex : input)
     {
-        if (!ValidPosition(vertex.x) || !ValidPosition(vertex.y) || !ValidUv(vertex.s) || !ValidUv(vertex.t))
+        if (!ValidPosition(vertex.x) || !ValidPosition(vertex.y) || !ValidUv(vertex.s, -allowanceU, 1.0f + allowanceU) ||
+            !ValidUv(vertex.t, -allowanceV, 1.0f + allowanceV))
         {
             return Result::Invalid;
         }
@@ -588,6 +592,10 @@ Result MapPageTriangle(const Vertex (&input)[3], Viewport viewport, int atlasWid
     const float originV = static_cast<float>(originY);
     const float endU = static_cast<float>((atlasWidth - originX < kInteriorExtent) ? atlasWidth : originX + kInteriorExtent);
     const float endV = static_cast<float>((atlasHeight - originY < kInteriorExtent) ? atlasHeight : originY + kInteriorExtent);
+    const float lowerU = outerGutter && column == 0 ? -0.5f : originU;
+    const float lowerV = outerGutter && row == 0 ? -0.5f : originV;
+    const float upperU = outerGutter && column + 1 == columns ? endU + 0.5f : endU;
+    const float upperV = outerGutter && row + 1 == rows ? endV + 0.5f : endV;
     ClipVertex scratch[2][kClipCapacity]{};
     for (int i = 0; i < 3; ++i)
     {
@@ -600,9 +608,9 @@ Result MapPageTriangle(const Vertex (&input)[3], Viewport viewport, int atlasWid
 
     // A constant UV exactly on a shared page edge has nonzero screen area.
     // Give that boundary to just one page to avoid float alpha blending.
-    const bool upperU = (column + 1 < columns) && (scratch[0][0].u == endU) && (scratch[0][1].u == endU) && (scratch[0][2].u == endU);
-    const bool upperV = (row + 1 < rows) && (scratch[0][0].v == endV) && (scratch[0][1].v == endV) && (scratch[0][2].v == endV);
-    if (upperU || upperV || Degenerate(input))
+    const bool sharedUpperU = (column + 1 < columns) && (scratch[0][0].u == endU) && (scratch[0][1].u == endU) && (scratch[0][2].u == endU);
+    const bool sharedUpperV = (row + 1 < rows) && (scratch[0][0].v == endV) && (scratch[0][1].v == endV) && (scratch[0][2].v == endV);
+    if (sharedUpperU || sharedUpperV || Degenerate(input))
     {
         triangleCount = 0;
         return Result::Clipped;
@@ -636,7 +644,7 @@ Result MapPageTriangle(const Vertex (&input)[3], Viewport viewport, int atlasWid
     }
 
     Plane planes[] = {
-        { Axis::U, originU, true }, { Axis::U, endU, false }, { Axis::V, originV, true }, { Axis::V, endV, false }, { Axis::X, 0.0f, true }, { Axis::X, kVirtualWidth, false }, { Axis::Y, 0.0f, true }, { Axis::Y, kVirtualHeight, false }
+        { Axis::U, lowerU, true }, { Axis::U, upperU, false }, { Axis::V, lowerV, true }, { Axis::V, upperV, false }, { Axis::X, 0.0f, true }, { Axis::X, kVirtualWidth, false }, { Axis::Y, 0.0f, true }, { Axis::Y, kVirtualHeight, false }
     };
     InitializeSupports(original, planes);
     int count = 3;
@@ -668,7 +676,7 @@ Result MapPageTriangle(const Vertex (&input)[3], Viewport viewport, int atlasWid
     FixedVertex mapped[kClipCapacity]{};
     for (int i = 0; i < count; ++i)
     {
-        mapped[i] = MapVertex(scratch[active][i], viewport, originU, originV, endU, endV);
+        mapped[i] = MapVertex(scratch[active][i], viewport, originU, originV, lowerU, lowerV, upperU, upperV);
     }
 
     FixedTriangle triangles[kMaxPageTriangles]{};

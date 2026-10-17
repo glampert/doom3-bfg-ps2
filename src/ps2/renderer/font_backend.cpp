@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: font_backend.cpp
-// Brief: Reuse native idFont metrics with an authored ASCII atlas and bounded owned cache.
+// Brief: Admit checked English font records and preserve native modern glyphs and legacy layout.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -8,7 +8,11 @@
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/ui_draw.h"
+#include "ps2/renderer/ui_font_format.h"
 #include "ps2/system/log.h"
+#include "ps2/type_query.h"
+#include "ps2/ui/authored_assets.h"
+#include "ps2/ui/retail_assets.h"
 #include <idlib/precompiled.h>
 #include <renderer/Font.h>
 #include <renderer/tr_local.h>
@@ -20,6 +24,7 @@ static constexpr int kGlyphCount = 95;
 static constexpr int kHeaderBytes = 12;
 static constexpr int kGlyphBytes = 10;
 static constexpr int kFileBytes = kHeaderBytes + kGlyphCount * (kGlyphBytes + 4);
+static constexpr int kMaxCachedFonts = 9;
 static bool s_initialized = false;
 
 bool IsFontName(const char * name)
@@ -100,6 +105,99 @@ bool PreflightAuthoredFont(idFile * file, const char * name)
     return file->Seek(0, FS_SEEK_SET) == 0;
 }
 
+idFile * OpenFontAsset(const char * name)
+{
+    if (!s_initialized)
+    {
+        FatalError("native UI font opened before font startup");
+    }
+
+    if (IsFontName(name))
+    {
+        return ui::OpenAuthoredAsset("newfonts/ps2_ascii/48.dat");
+    }
+
+    ui::retail::FontRecord record{};
+    if (!ui::retail::FindFont(name, record))
+    {
+        FatalError("native UI font outside the admitted English profile: %s", name != nullptr ? name : "<null>");
+    }
+
+    return ui::retail::OpenFont(record);
+}
+
+bool PreflightFont(idFile * file, const char * name)
+{
+    if (IsFontName(name))
+    {
+        return PreflightAuthoredFont(file, name);
+    }
+
+    ui::retail::FontRecord record{};
+    ui::retail::ImageRecord image{};
+    const auto * const memory = CheckedCast<const idFile_Memory *>(file);
+    if (!s_initialized || memory == nullptr || memory->Tell() != 0 || !ui::retail::FindFont(name, record) ||
+        memory->Length() != static_cast<int>(record.bytes) ||
+        !ui::retail::GetCatalog().GetImage(record.imageIndex, image))
+    {
+        return false;
+    }
+
+    FontFormatSummary summary{};
+    return ValidateFontBytes(memory->GetDataPtr(), record.bytes, image.width, image.height, summary);
+}
+
+void ValidateFontMaterial(const idMaterial * material, const char * name)
+{
+    if (IsFontName(name))
+    {
+        ValidateAuthoredFontMaterial(material);
+        return;
+    }
+
+    ui::retail::FontRecord record{};
+    ui::retail::ImageRecord image{};
+    if (!s_initialized || material == nullptr || material->GetNumStages() != 1 ||
+        material->ConstantRegisters() == nullptr || material->TestMaterialFlag(MF_DEFAULTED | MF_POLYGONOFFSET) ||
+        !ui::retail::FindFont(name, record) || !ui::retail::GetCatalog().GetImage(record.imageIndex, image))
+    {
+        FatalError("native English font requires one admitted constant atlas material");
+    }
+
+    const shaderStage_t & stage = *material->GetStage(0);
+    if (stage.texture.image == nullptr || stage.texture.image != globalImages->GetImage(image.name) ||
+        stage.lighting != SL_AMBIENT || !stage.texture.image->IsLoaded() ||
+        stage.texture.image->GetUploadWidth() != static_cast<int>(image.width) ||
+        stage.texture.image->GetUploadHeight() != static_cast<int>(image.height))
+    {
+        FatalError("native English font material does not reference its admitted atlas: %s", record.family);
+    }
+}
+
+void GetFontLayout(const char * name, int index, int & width, int & height)
+{
+    if (!s_initialized || index < 0 || index >= 3)
+    {
+        FatalError("invalid native UI font layout query");
+    }
+
+    if (IsFontName(name))
+    {
+        width = 16;
+        height = 14;
+        return;
+    }
+
+    ui::retail::FontRecord record{};
+    if (!ui::retail::FindFont(name, record))
+    {
+        FatalError("native UI font layout outside the admitted English profile");
+    }
+
+    width = static_cast<int>(record.maxAdvance[static_cast<u32>(index)]);
+    height = static_cast<int>(record.maxHeight[static_cast<u32>(index)]);
+}
+
 void ValidateAuthoredFontMaterial(const idMaterial * material)
 {
     if (!s_initialized || material == nullptr || material->GetNumStages() != 1 ||
@@ -119,22 +217,42 @@ void ValidateAuthoredFontMaterial(const idMaterial * material)
 
 idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
 {
-    if (this != &tr || !ps2::fonts::IsInitialized() || !ps2::ui::IsInitialized() || !IsFontName(fontName) || fonts.Num() > 1)
+    if (this != &tr || !ps2::fonts::IsInitialized() || !ps2::ui::IsInitialized() || fontName == nullptr)
     {
-        ps2::FatalError("native UI font is outside the authored ASCII profile");
+        ps2::FatalError("native UI font registration outside initialized ownership");
     }
-    if (fonts.Num() == 1)
+
+    ps2::ui::retail::FontRecord record{};
+    idStr request(fontName);
+    request.Replace("fonts/", "");
+    const char * canonical = kFontName;
+    if (!IsFontName(request))
     {
-        if (strcmp(fonts[0]->GetName(), kFontName) != 0)
+        if (!ps2::ui::retail::FindFont(request, record))
         {
-            ps2::FatalError("native UI font cache ownership changed");
+            ps2::FatalError("native UI font is outside the admitted English profile: %s", fontName);
         }
-        fonts[0]->Touch();
-        return fonts[0];
+
+        canonical = record.family;
     }
-    auto * const font = new (TAG_FONT) idFont(kFontName);
+
+    for (int index = 0; index < fonts.Num(); ++index)
+    {
+        if (strcmp(fonts[index]->GetName(), canonical) == 0)
+        {
+            fonts[index]->Touch();
+            return fonts[index];
+        }
+    }
+
+    if (fonts.Num() >= kMaxCachedFonts)
+    {
+        ps2::FatalError("native UI font cache exceeded the bounded English profile");
+    }
+
+    auto * const font = new (TAG_FONT) idFont(canonical);
     fonts.Append(font);
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] UI font ready name=%s glyphs=%d atlas=512x128\n", kFontName, kGlyphCount);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] UI font ready name=%s cached=%d\n", canonical, fonts.Num());
     return font;
 }
 

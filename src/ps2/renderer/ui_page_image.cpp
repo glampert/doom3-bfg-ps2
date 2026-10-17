@@ -223,7 +223,7 @@ PS2_COLD_FUNC bool PageImage::Open(const char * path, u32 cacheSlots)
     return Open(path, m_ownedCache);
 }
 
-PS2_COLD_FUNC bool PageImage::Open(const char * path, PageCache & cache)
+PS2_COLD_FUNC bool PageImage::Open(const char * path, PageCache & cache, bool outerGutter)
 {
     if (m_file != nullptr || m_cache != nullptr || !cache.IsInitialized() || !ValidPath(path))
     {
@@ -231,6 +231,7 @@ PS2_COLD_FUNC bool PageImage::Open(const char * path, PageCache & cache)
     }
 
     m_stats = {};
+    m_outerGutter = outerGutter;
     m_file = std::fopen(path, "rb");
 
     if (m_file == nullptr)
@@ -303,6 +304,7 @@ PS2_COLD_FUNC void PageImage::Close()
 
     m_file = nullptr;
     m_header = {};
+    m_outerGutter = false;
     m_stats.cacheBytes = 0;
     m_stats.scratchBytes = 0;
     m_stats.metadataBytes = 0;
@@ -384,7 +386,7 @@ bool PageImage::ValidateTriangle(const Vertex (&vertices)[3]) const
     int count = 0;
     const Viewport viewport{ gs::Width(), gs::Height() };
     return MapPageTriangle(vertices, viewport, static_cast<int>(m_header.width),
-                           static_cast<int>(m_header.height), 0, 0, pieces, count) != Result::Invalid;
+                           static_cast<int>(m_header.height), 0, 0, pieces, count, m_outerGutter) != Result::Invalid;
 }
 
 bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
@@ -400,7 +402,7 @@ bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
     const Viewport viewport{ gs::Width(), gs::Height() };
 
     if (MapPageTriangle(vertices, viewport, static_cast<int>(m_header.width),
-                        static_cast<int>(m_header.height), 0, 0, pieces, count) == Result::Invalid)
+                        static_cast<int>(m_header.height), 0, 0, pieces, count, m_outerGutter) == Result::Invalid)
     {
         return Failed("invalid paged triangle");
     }
@@ -418,15 +420,25 @@ bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
         maxT = vertex.t > maxT ? vertex.t : maxT;
     }
 
-    const auto columnAt = [this](float value)
+    const auto columnAt = [this](float value) -> u32
     {
+        if (value <= 0.0f)
+        {
+            return 0U;
+        }
+
         const u32 column = static_cast<u32>(value * static_cast<float>(m_header.width) / static_cast<float>(kPageInterior));
-        return column < m_header.columns ? column : m_header.columns - 1U;
+        return static_cast<u32>(column < m_header.columns ? column : m_header.columns - 1U);
     };
-    const auto rowAt = [this](float value)
+    const auto rowAt = [this](float value) -> u32
     {
+        if (value <= 0.0f)
+        {
+            return 0U;
+        }
+
         const u32 row = static_cast<u32>(value * static_cast<float>(m_header.height) / static_cast<float>(kPageInterior));
-        return row < m_header.rows ? row : m_header.rows - 1U;
+        return static_cast<u32>(row < m_header.rows ? row : m_header.rows - 1U);
     };
 
     ui::Flush();
@@ -437,7 +449,7 @@ bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
         {
             const Result result = MapPageTriangle(vertices, viewport, static_cast<int>(m_header.width),
                                                   static_cast<int>(m_header.height), static_cast<int>(column),
-                                                  static_cast<int>(row), pieces, count);
+                                                  static_cast<int>(row), pieces, count, m_outerGutter);
 
             if (result == Result::Invalid)
             {

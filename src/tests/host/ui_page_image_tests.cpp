@@ -137,6 +137,38 @@ static bool Draw(ps2::ui::PageImage & image, bool second = false)
     return image.DrawTriangle(vertices, ps2::gs::BlendMode::Replace);
 }
 
+static bool OuterFontGutters(const char * path)
+{
+    const auto baseline = ps2::heap::GetTotalStats();
+    ps2::ui::PageCache cache;
+    ps2::ui::PageImage image;
+    bool passed = Check(cache.Init(1), "outer gutter cache startup");
+    passed = Check(image.Open(path, cache, true), "outer gutter image admission") && passed;
+    const float lowerS = -0.5f / static_cast<float>(image.GetHeader().width);
+    const float lowerT = -0.5f / static_cast<float>(image.GetHeader().height);
+    const ps2::ui::Vertex vertices[] = {
+        { 10.0f, 10.0f, lowerS, lowerT, 255, 255, 255, 255 },
+        { 30.0f, 10.0f, 0.02f, lowerT, 255, 255, 255, 255 },
+        { 10.0f, 30.0f, lowerS, 0.04f, 255, 255, 255, 255 }
+    };
+    passed = Check(image.ValidateTriangle(vertices) &&
+                   image.DrawTriangle(vertices, ps2::gs::BlendMode::Replace) &&
+                   s_lastPixel == 0xFF0000FFU && cache.GetStats().loads == 1,
+                   "negative outer font UVs retain first page ownership") &&
+             passed;
+    image.Close();
+    passed = Check(image.Open(path, cache) && !image.ValidateTriangle(vertices),
+                   "closing and reopening resets outer gutter admission") &&
+             passed;
+    image.Close();
+    cache.Shutdown();
+    const auto after = ps2::heap::GetTotalStats();
+    return Check(after.requestedBytes == baseline.requestedBytes &&
+                 after.allocationCount == baseline.allocationCount && TextureCount() == 0,
+                 "outer gutter cleanup") &&
+           passed;
+}
+
 static bool SharedCache(const char * firstPath, const char * secondPath, const char * corruptPath)
 {
     using ps2::ui::PageCache;
@@ -447,6 +479,7 @@ int main()
     if (passed)
     {
         passed = SharedCache(first, second, corrupt) && passed;
+        passed = OuterFontGutters(first) && passed;
         passed = BoundsAndFailures(first) && passed;
         passed = ShutdownPrecondition(first) && passed;
     }

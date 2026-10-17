@@ -12,6 +12,7 @@
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/authored_ui_data.h"
+#include "ps2/ui/retail_assets.h"
 
 #include <idlib/precompiled.h>
 #include <new>
@@ -30,6 +31,8 @@ static bool s_initialized = false;
 static idImage * s_charsetImage = nullptr;
 static idImage * s_fontImage = nullptr;
 static idImage * s_movieImage = nullptr;
+static idImage * s_retailImages[ps2::ui::retail::kMaxImages] = {};
+static u32 s_retailImageCount = 0;
 static ps2::ui::PageCache s_pageCache;
 static constexpr u32 kPageSlots = 4;
 static constexpr const char * kWhiteName = "_white";
@@ -64,9 +67,22 @@ bool IsFontName(const char * name)
     return name != nullptr && idStr::Icmp(name, kFontName) == 0;
 }
 
+bool IsRetailImage(const idImage * image)
+{
+    for (u32 i = 0; i < s_retailImageCount; ++i)
+    {
+        if (image == s_retailImages[i])
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool SupportedImage(const idImage * image)
 {
-    return s_initialized && image != nullptr && (image == globalImages->whiteImage || image == s_charsetImage || image == s_fontImage || image == s_movieImage);
+    return s_initialized && image != nullptr && (image == globalImages->whiteImage || image == s_charsetImage || image == s_fontImage || image == s_movieImage || IsRetailImage(image));
 }
 
 bool SupportedSampler(const idImage * image, textureFilter_t filter, textureRepeat_t repeat)
@@ -79,6 +95,11 @@ bool SupportedSampler(const idImage * image, textureFilter_t filter, textureRepe
     {
         return (filter == TF_DEFAULT || filter == TF_NEAREST || filter == TF_LINEAR) &&
                (repeat == TR_REPEAT || repeat == TR_CLAMP);
+    }
+
+    if (IsRetailImage(image))
+    {
+        return (filter == TF_DEFAULT || filter == TF_LINEAR) && repeat == TR_CLAMP;
     }
     return (filter == TF_DEFAULT || filter == TF_NEAREST) && repeat == TR_CLAMP;
 }
@@ -138,6 +159,71 @@ PS2_COLD_FUNC void idImage::LoadPageImage(const ps2::ui::authored::PageResource 
     image->filter = TF_NEAREST;
     image->repeat = TR_CLAMP;
     image->usage = TD_FONT;
+}
+
+PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource)
+{
+    if (!ps2::ui::retail::IsInitialized() || ps2::rs::FrameStarted() || backendState != nullptr || !IsRetailImage(this))
+    {
+        ps2::FatalError("invalid retail UI page load ownership");
+    }
+
+    if (!s_pageCache.IsInitialized() && !s_pageCache.Init(6, { ps2::tex::Filter::Linear }))
+    {
+        ps2::FatalError("retail UI shared page budget unavailable");
+    }
+
+    bool outerGutter = false;
+    const auto & catalog = ps2::ui::retail::GetCatalog();
+
+    for (std::uint32_t index = 0; index < catalog.FontCount(); ++index)
+    {
+        ps2::ui::retail::FontRecord font;
+        ps2::ui::retail::ImageRecord image;
+        catalog.GetFont(index, font);
+        catalog.GetImage(font.imageIndex, image);
+        outerGutter = outerGutter || strcmp(image.name, resource.name) == 0;
+    }
+
+    char path[256];
+    idStr::snPrintf(path, static_cast<int>(sizeof(path)), "retail/%s", resource.path);
+    auto * const pages = new (TAG_RENDER) ps2::ui::PageImage;
+    bool valid = pages->Open(fileSystem->RelativePathToOSPath(path), s_pageCache, outerGutter);
+    const auto & header = pages->GetHeader();
+    const u32 pageCount = static_cast<u32>((resource.descriptorBytes - ps2::ui::kPageHeaderBytes) / ps2::ui::kPageRecordBytes);
+    valid = valid && header.width == resource.width && header.height == resource.height &&
+            header.fileBytes == resource.fileBytes && header.pageCount == pageCount;
+
+    if (valid)
+    {
+        const auto * const records = pages->GetRecords();
+
+        for (u32 page = 0; page < pageCount; ++page)
+        {
+            std::uint8_t raw[ps2::ui::kPageRecordBytes];
+            memcpy(raw, resource.descriptor + ps2::ui::kPageHeaderBytes + page * ps2::ui::kPageRecordBytes, sizeof(raw));
+            ps2::ui::PageRecord record;
+            valid = valid && ps2::ui::DecodePageRecord(raw, header, page, record) &&
+                    record.offset == records[page].offset && record.checksum == records[page].checksum;
+        }
+    }
+
+    if (!valid)
+    {
+        delete pages;
+        ps2::FatalError("retail UI page profile mismatch: %s", resource.name);
+    }
+
+    backendState = new (ps2::heap::Alloc(sizeof(backendState_t), TAG_RENDER))
+    backendState_t{ {}, static_cast<int>(pageCount * sizeof(ps2::ui::PageRecord)), pages };
+    opts = idImageOpts();
+    opts.width = static_cast<int>(resource.width);
+    opts.height = static_cast<int>(resource.height);
+    opts.format = FMT_RGBA8;
+    opts.numLevels = 1;
+    filter = TF_LINEAR;
+    repeat = TR_CLAMP;
+    usage = outerGutter ? TD_FONT : TD_DEFAULT;
 }
 
 namespace ps2::render
@@ -256,7 +342,7 @@ void idImage::GenerateImage(const byte * rgba, int width, int height, textureFil
     const bool white = this == globalImages->whiteImage;
     const int expectedWidth = white ? 1 : ps2::render::kConsoleAtlasSize;
     const int expectedHeight = white ? 1 : ps2::render::kConsoleAtlasSize;
-    if (this == s_fontImage || this == s_movieImage || !SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
+    if (this == s_fontImage || this == s_movieImage || IsRetailImage(this) || !SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
         width != expectedWidth || height != expectedHeight)
     {
         ps2::render::Unavailable("idImage::GenerateImage outside the console profile");
@@ -383,12 +469,15 @@ PS2_COLD_FUNC void idImageManager::Shutdown()
         images[i]->PurgeImage();
     }
     s_pageCache.Shutdown();
+    ps2::ui::retail::Shutdown();
     images.DeleteContents(true);
     imageHash.Clear();
     whiteImage = nullptr;
     s_charsetImage = nullptr;
     s_fontImage = nullptr;
     s_movieImage = nullptr;
+    memset(s_retailImages, 0, sizeof(s_retailImages));
+    s_retailImageCount = 0;
     s_initialized = false;
 }
 
@@ -414,6 +503,14 @@ idImage * idImageManager::GetImage(const char * name) const
     {
         return s_movieImage;
     }
+
+    for (u32 i = 0; i < s_retailImageCount; ++i)
+    {
+        if (name != nullptr && strcmp(name, s_retailImages[i]->GetName()) == 0)
+        {
+            return s_retailImages[i];
+        }
+    }
     return nullptr;
 }
 
@@ -436,7 +533,47 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
     {
         ps2::render::Unavailable("idImageManager::ImageFromFile");
     }
+
+    ps2::ui::retail::ImageRecord retail;
+
+    if (ps2::ui::retail::IsInitialized() && ps2::ui::retail::GetCatalog().FindImage(name, retail))
+    {
+        if ((tf != TF_DEFAULT && tf != TF_LINEAR) || tr != TR_CLAMP || cube != CF_2D ||
+            (tu != TD_DEFAULT && tu != TD_FONT))
+        {
+            ps2::FatalError("retail native UI sampler profile invalid: %s", retail.name);
+        }
+
+        idImage * image = GetImage(name);
+
+        if (image == nullptr)
+        {
+            if (s_retailImageCount == static_cast<u32>(ps2::ArrayLength(s_retailImages)))
+            {
+                ps2::FatalError("retail native image count exceeds bounded catalog");
+            }
+
+            image = new (TAG_IMAGE) idImage(retail.name);
+            s_retailImages[s_retailImageCount++] = image;
+            images.Append(image);
+            image->referencedOutsideLevelLoad = true;
+        }
+
+        if (!image->IsLoaded())
+        {
+            image->LoadRetailPageImage(retail);
+        }
+
+        image->AddReference();
+        return image;
+    }
+
     const auto * const resource = PageResource(name);
+
+    if (resource != nullptr && ps2::ui::retail::IsInitialized())
+    {
+        ps2::FatalError("authored pages unavailable in the retail image profile");
+    }
     if (resource != nullptr && GetImage(name) == nullptr)
     {
         if ((tf != TF_DEFAULT && tf != TF_NEAREST) || tr != TR_CLAMP ||

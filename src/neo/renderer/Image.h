@@ -70,10 +70,30 @@ typedef enum {
 // [PS2_D3BFG]: Expose typed direct/paged image access without duplicating native ownership.
 #if defined(PS2_D3BFG)
 class idImage;
-namespace ps2 {
-namespace tex { struct Handle; }
-namespace ui { class PageImage; namespace authored { struct PageResource; } }
-namespace render {
+namespace ps2
+{
+namespace tex
+{
+struct Handle;
+}
+
+namespace ui
+{
+class PageImage;
+
+namespace authored
+{
+struct PageResource;
+}
+
+namespace retail
+{
+struct ImageRecord;
+}
+}
+
+namespace render
+{
 tex::Handle ConsoleImageTexture(const idImage * image);
 void ValidateUiImage(const idImage * image);
 ui::PageImage * UiPageImage(const idImage * image);
@@ -180,6 +200,7 @@ private:
 	friend void ps2::render::ValidateUiImage(const idImage * image);
 	friend ps2::ui::PageImage * ps2::render::UiPageImage(const idImage * image);
 	void LoadPageImage(const ps2::ui::authored::PageResource & resource);
+	void LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource);
 #endif
 
 	void				AllocImage();

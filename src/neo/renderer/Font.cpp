@@ -28,10 +28,9 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "../idlib/precompiled.h"
 #include "Font.h"
-// [PS2_D3BFG]: Validate the bounded authored profile before native font allocation and loading.
+// [PS2_D3BFG]: Validate bounded authored/English profiles before native font allocation and loading.
 #if defined( ID_PS2 )
 #include "ps2/renderer/font_backend.h"
-#include "ps2/ui/authored_assets.h"
 #endif
 
 const char * DEFAULT_FONT = "Arial_Narrow";
@@ -101,7 +100,7 @@ idFont::idFont
 */
 idFont::idFont( const char * n ) : name( n ) {
 	fontInfo = NULL;
-	// [PS2_D3BFG]: The authored ASCII font has no localization aliases or retail fallback.
+	// [PS2_D3BFG]: Registration resolves the admitted English aliases to a canonical family.
 #if defined( ID_PS2 )
 	alias = NULL;
 #else
@@ -119,9 +118,9 @@ idFont::idFont( const char * n ) : name( n ) {
 	}
 
 	if ( !LoadFont() ) {
-		// [PS2_D3BFG]: Reject unavailable/malformed authored fonts without probing retail assets.
+		// [PS2_D3BFG]: Reject unavailable/malformed fonts without probing unrelated retail assets.
 #if defined( ID_PS2 )
-		idLib::FatalError( "Could not load authored ASCII font \"%s\"", n );
+		idLib::FatalError( "Could not load admitted native font \"%s\"", n );
 #else
 		if ( name.Icmp( DEFAULT_FONT ) == 0 ) {
 			idLib::FatalError( "Could not load default font \"%s\"", DEFAULT_FONT );
@@ -190,9 +189,9 @@ idFont::LoadFont
 */
 bool idFont::LoadFont() {
 	idStr fontName = va( "newfonts/%s/48.dat", GetName() );
-	// [PS2_D3BFG]: The authored bytes are checked before publishing an immutable native file.
+	// [PS2_D3BFG]: Font bytes are checked before publishing an immutable native file.
 #if defined( ID_PS2 )
-	idFile * fd = ps2::ui::OpenAuthoredAsset( fontName );
+	idFile * fd = ps2::fonts::OpenFontAsset( GetName() );
 #else
 	idFile * fd = fileSystem->OpenFileRead( fontName );
 #endif
@@ -201,8 +200,8 @@ bool idFont::LoadFont() {
 	}
 	// [PS2_D3BFG]: Require exact bounded counts, metrics and atlas coordinates before allocation.
 #if defined( ID_PS2 )
-	static_assert( sizeof( glyphInfo_t ) == 10, "authored font records require the native padded layout" );
-	if ( !ps2::fonts::PreflightAuthoredFont( fd, GetName() ) ) {
+	static_assert( sizeof( glyphInfo_t ) == 10, "native font records require the padded layout" );
+	if ( !ps2::fonts::PreflightFont( fd, GetName() ) ) {
 		delete fd;
 		return false;
 	}
@@ -265,15 +264,18 @@ bool idFont::LoadFont() {
 	fontInfo->material = declManager->FindMaterial( fontTextureName );
 	// [PS2_D3BFG]: Native glyph scaling dereferences the first image; retain release validation.
 #if defined( ID_PS2 )
-	ps2::fonts::ValidateAuthoredFontMaterial( fontInfo->material );
+	ps2::fonts::ValidateFontMaterial( fontInfo->material, GetName() );
 #endif
 	fontInfo->material->SetSort( SS_GUI );
 
-	// [PS2_D3BFG]: Authored metrics already match the atlas; do not probe legacy retail metrics.
+	// [PS2_D3BFG]: Preserve checked legacy extrema independently of the modern glyph arrays.
 #if defined( ID_PS2 )
 	for ( int i = 0; i < 3; i++ ) {
-		fontInfo->oldInfo[i].maxWidth = 16;
-		fontInfo->oldInfo[i].maxHeight = 14;
+		int width = 0;
+		int height = 0;
+		ps2::fonts::GetFontLayout( GetName(), i, width, height );
+		fontInfo->oldInfo[i].maxWidth = static_cast<float>( width );
+		fontInfo->oldInfo[i].maxHeight = static_cast<float>( height );
 	}
 #else
 	// Load the old glyph data because we want our new fonts to fit in the old glyph metrics

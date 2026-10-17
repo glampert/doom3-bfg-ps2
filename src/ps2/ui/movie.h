@@ -11,6 +11,7 @@ namespace ps2::movie
 {
 void Init();
 void Shutdown();
+bool IsLoaded();
 bool ProcessEvent(const sysEvent_t * event);
 void Render(bool advance);
 } // namespace ps2::movie
