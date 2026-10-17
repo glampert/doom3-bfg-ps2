@@ -12,5 +12,7 @@ namespace ps2::retail_movie
 void Init();
 void Shutdown();
 bool IsLoaded();
+// Advance native retail timelines once per Common frame before drawing; redraws never execute them.
+void Advance(bool advance);
 void Render(bool advance);
 } // namespace ps2::retail_movie

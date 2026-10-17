@@ -311,10 +311,10 @@ The real shell contains 54 mask placements, 29 additive-color placements, blend 
 The shared native page cache and authored SWF/font binding provide the integration
 foundation. Selected English font/image admission and legacy layout metrics now pass
 through the opt-in native resource path. Inactive BSWF dictionaries and isolated English text now have a bounded native path.
-Executable retail timelines, full movie mask/blend rendering and measured active menu
-working sets remain pending. Static AVM1
-evidence also needs runtime dependency/callback validation. This slice does not complete milestone 2D-5 or activate
-the retail menu.
+The scoped execution path below now adds native timeline and callback ownership for
+initial states. Full movie mask/blend rendering, general dynamic resource closure and
+measured active menu working sets remain pending. This does not complete milestone
+2D-5 or activate the complete retail menu.
 
 Standalone `PageImage` callers can still own a private window. Simultaneous native
 SWF/font images use the shared cache so opening an atlas does not multiply pixel or
@@ -323,5 +323,76 @@ four-slot budget does not establish a retail working set.
 
 Offline native Shell startup follows those gates. It must explicitly gate intro/Mars
 cinematics, sound, save-indicator startup and unavailable campaign/online/save/Classic
-operations. PC `pcBar` versus controller layout and initial Classic cover behavior
-remain product decisions. None is silently selected by this host profile.
+operations. The minimal owner below selects Doom 3 only. PC `pcBar` versus controller
+layout remains a later input/presentation decision; the current execution proof keeps
+the existing native PC platform value.
+
+## Scoped retail timeline execution
+
+The opt-in execution path uses the original shell/dialog bytes, native sprite hierarchy
+and native AVM1 interpreter. It retains the resource-only rendering boundary: full
+movie drawing, movie event routing and the complete Shell handler remain unavailable.
+English is the only locale. The inspection screen still draws the three isolated native
+edit-text records, rather than pretending that an incomplete movie is fully rendered.
+
+After staging with `make retail-movies` and launching `make run-retail-movies`, append
+commands to the package's HostFs input file:
+
+```sh
+printf 'ps2_uiRetail execute shell\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail status\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail execute dialog\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail movie shell\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail unload\nquit\n' >> build/debug/ui-retail-movies/console.txt
+```
+
+`movie` preserves inactive inspection; `execute` requests an additional target-side
+placement/action preflight before activation. That pass checks command operands,
+dictionary references, display mutations, sprite cycles/depth, constant pools, function
+headers/registers and branches to actual instruction boundaries. Only the 32 action
+families observed across the selected retail movies and authored demo are admitted.
+Unused interpreter APIs, including construction/inheritance, are not enabled by this
+profile. Source checksums do not replace structural and runtime checks.
+
+The shell receives a minimal owner built from the original carousel and Credits
+implementations. The carousel retains five visible slots with **one Doom 3 option** and
+an admitted Doom 3 cover material. The original native callbacks are installed before
+frame one, pinned by their owner and checked by resolved function identity and signature.
+They cannot be replaced by an alias to another native service. The Credits callback
+uses the original screen's active-state gate; this slice does not enter a Credits page.
+Widgets detach from their borrowed movie before its destruction. An unprovided callback
+or resource demand fails explicitly and is logged before dispatch.
+
+Timeline advancement happens once per Common frame, before GS frame submission. Native
+movie rate and bounded catch-up are retained; synchronous redraws never execute scripts.
+Each execution scope admits at most 65,536 instructions, 32,768 timeline commands,
+4,096 script calls, 32 nested script calls and 64 nested traversal/property operations.
+Operand stacks are capped at 4,096 entries and native argument lists at 16. Live bounds
+include 2,048 sprites, 512 texts and 16 hierarchy levels; the original shell frame-one
+placement graph contains 1,855 sprites, 485 texts and nine levels. Strings, objects,
+functions and properties also retain bounded lifetime/work accounting between scopes.
+Native seeks and widget callbacks reject destructive ancestor reentry against every
+active script source and receiver, including outer callers hidden by a nested call.
+Their bounded ancestor snapshots remain live until each call returns.
+
+Run `make test-retail-timelines` for executable shell/dialog reloads in NTSC/PAL, or
+`make test-retail-movies` for the inactive and executable gates plus corrupt-resource
+and runtime-limit failures. Select `BUILD=release` to verify checks with assertions off.
+The optional runner case `--case dialog-execution` isolates three dialog reloads.
+Archives retain native execution/owner counters, source-derived text probes, page/heap
+ledgers, capture comparisons and matched build evidence. This extends the existing
+production acceptance mode and adds no native test fixture.
+
+Loaded shell allocations vary with clock-driven animation frames. Active captures keep
+the 16 MiB heap ceiling and live-instance limits; stable ownership is checked after
+each movie/widget teardown, with exact warm release ledgers and full shutdown recovery.
+The runner clears console history before the final unload so its queued echo identity
+does not add a transient history string to that checkpoint. Shell reload images and
+warm dialog reloads must match. The existing NTSC dialog cold-edge allowance is limited
+to four pixels, channel delta at most 25, on the source-derived final-T bottom row;
+all 32 source probes remain required.
+
+These checks cover the selected initial states and owners. They do not establish
+general AVM1 lifetime safety: copied text aliases and raw function/default-sprite
+references retain upstream limitations. General dynamic path closure, active artwork
+residency, masks/blends and PressStart → Root → Quit navigation remain later gates.

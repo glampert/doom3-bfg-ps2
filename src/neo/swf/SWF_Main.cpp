@@ -28,6 +28,12 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "../idlib/precompiled.h"
 #include "../renderer/image.h"
+// [PS2_D3BFG]: Retail execution has an explicit bounded scope, independent of rendering.
+#if defined( ID_PS2 )
+#include "ps2/ui/swf_runtime.h"
+#include "ps2/ui/retail_assets.h"
+#include "ps2/ui/retail_owner.h"
+#endif
 
 #pragma warning(disable: 4355) // 'this' : used in base member initializer list
 
@@ -49,6 +55,8 @@ idSWF::idSWF
 idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_, bool resourceOnly_ )
 {
 	resourceOnly = resourceOnly_;
+	// [PS2_D3BFG]: Construction never executes retail bytecode before explicit admission.
+	resourceExecution = false;
 #else
 idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 #endif
@@ -289,9 +297,17 @@ when a SWF is deactivated, it rewinds the timeline back to the start
 void idSWF::Activate( bool b ) {
 	// [PS2_D3BFG]: Resource admission does not authorize movie execution or presentation.
 #if defined( ID_PS2 )
-	if ( resourceOnly )
+	if ( resourceOnly && !resourceExecution )
 	{
 		idLib::FatalError( "resource-only SWF cannot activate a timeline" );
+	}
+#endif
+
+	// [PS2_D3BFG]: Timeline permission is scoped; it cannot escape into event/render callers.
+#if defined( ID_PS2 )
+	if ( resourceExecution && !ps2::ui::swf::Active() )
+	{
+		idLib::FatalError( "retail SWF activation outside execution scope" );
 	}
 #endif
 
@@ -306,6 +322,71 @@ void idSWF::Activate( bool b ) {
 	}
 	isActive = b;
 }
+
+// [PS2_D3BFG]: Run original retail timelines without authorizing masks/blends or Shell rendering.
+#if defined( ID_PS2 )
+void idSWF::EnableResourceExecution()
+{
+	if ( !resourceOnly || resourceExecution || !IsLoaded() ||
+		!ps2::ui::swf::Active() || !ps2::ui::retail::MovieExecutionAdmitted() )
+	{
+		idLib::FatalError( "retail SWF execution requires an admitted idle snapshot" );
+	}
+
+	resourceExecution = true;
+	Activate( true );
+}
+
+// [PS2_D3BFG]: Mutable script names cannot authorize an aliased native service.
+bool idSWF::IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const
+{
+	return ps2::ui::retail_owner::IsCallback( name, function, this ) ||
+		( idStr::Cmp( name, "inhibitControl" ) == 0 && function == &scriptFunction_inhibitControl ) ||
+		( idStr::Cmp( name, "useInhibit" ) == 0 && function == &scriptFunction_useInhibit ) ||
+		( idStr::Cmp( name, "deactivate" ) == 0 && function == &scriptFunction_deactivate ) ||
+		( idStr::Cmp( name, "getPlatform" ) == 0 && function == &scriptFunction_getPlatform ) ||
+		( idStr::Cmp( name, "getTruePlatform" ) == 0 && function == &scriptFunction_getTruePlatform ) ||
+		( idStr::Cmp( name, "swapPS3Buttons" ) == 0 && function == &scriptFunction_swapPS3Buttons ) ||
+		( idStr::Cmp( name, "getLocalString" ) == 0 && function == &scriptFunction_getLocalString );
+}
+
+unsigned idSWF::AdvanceResourceExecution( int time )
+{
+	if ( !resourceOnly || !resourceExecution || !ps2::ui::swf::Active() || time < lastRenderTime )
+	{
+		idLib::FatalError( "invalid retail SWF execution clock or ownership" );
+	}
+
+	if ( !IsActive() )
+	{
+		lastRenderTime = time;
+		return 0;
+	}
+
+	// Use the original movie rate and bounded catch-up, preserving time across synchronous redraws.
+	const float frameMilliseconds = 256000.0f / static_cast<float>( frameRate );
+	unsigned frames = static_cast<unsigned>( static_cast<float>( time - lastRenderTime ) / frameMilliseconds );
+
+	if ( frames > 10 )
+	{
+		frames = 10;
+		lastRenderTime = time;
+	}
+	else
+	{
+		lastRenderTime += static_cast<int>( static_cast<float>( frames ) * frameMilliseconds );
+	}
+
+	unsigned advanced = 0;
+	for ( ; advanced < frames && IsActive(); ++advanced )
+	{
+		mainspriteInstance->Run();
+		mainspriteInstance->RunActions();
+	}
+
+	return advanced;
+}
+#endif
 
 /*
 ===================

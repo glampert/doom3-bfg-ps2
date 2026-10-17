@@ -27,6 +27,35 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../idlib/precompiled.h"
+// [PS2_D3BFG]: Release-safe hierarchy and work limits apply only inside admitted retail execution.
+#if defined( ID_PS2 )
+#include "ps2/ui/swf_runtime.h"
+
+namespace
+{
+static void CountResourceInstances( idSWFSpriteInstance * instance, unsigned & sprites, unsigned & texts, unsigned level )
+{
+	ps2::ui::swf::Require( instance != NULL && level <= ps2::ui::swf::kMaxHierarchyDepth, "sprite hierarchy depth" );
+	ps2::ui::swf::Require( ++sprites <= ps2::ui::swf::kMaxSprites, "live sprite limit" );
+	ps2::ui::swf::CheckCount( "display entries", instance->displayList.Num(), 1024 );
+
+	for ( int index = 0; index < instance->displayList.Num(); ++index )
+	{
+		const swfDisplayEntry_t & entry = instance->displayList[index];
+		if ( entry.spriteInstance != NULL )
+		{
+			CountResourceInstances( entry.spriteInstance, sprites, texts, level + 1 );
+		}
+
+		if ( entry.textInstance != NULL )
+		{
+			ps2::ui::swf::Require( ++texts <= ps2::ui::swf::kMaxTexts, "live text limit" );
+		}
+	}
+}
+}
+#endif
+
 
 idSWFScriptObject_SpriteInstancePrototype spriteInstanceScriptObjectPrototype;
 
@@ -63,6 +92,18 @@ idSWFSpriteInstance::Init
 ========================
 */
 void idSWFSpriteInstance::Init( idSWFSprite * _sprite, idSWFSpriteInstance * _parent, int _depth )  {
+// [PS2_D3BFG]: Reject recursive placement graphs before another native instance is allocated.
+#if defined( ID_PS2 )
+	if ( ps2::ui::swf::Active() )
+	{
+		unsigned level = 1;
+		for ( idSWFSpriteInstance * ancestor = _parent; ancestor != NULL; ancestor = ancestor->parent )
+		{
+			ps2::ui::swf::Require( ++level <= ps2::ui::swf::kMaxHierarchyDepth, "sprite hierarchy depth" );
+		}
+	}
+#endif
+
 	sprite = _sprite;
 	parent = _parent;
 	depth = _depth;
@@ -129,6 +170,14 @@ idSWFSpriteInstance::FindDisplayEntry
 */
 swfDisplayEntry_t * idSWFSpriteInstance::FindDisplayEntry( int depth ) {
 	int len = displayList.Num();
+	// [PS2_D3BFG]: Empty native display lists have no valid binary-search element zero.
+#if defined( ID_PS2 )
+	if ( len == 0 )
+	{
+		return NULL;
+	}
+#endif
+
 	int mid = len;
 	int offset = 0;
 	while ( mid > 0 ) {
@@ -150,6 +199,25 @@ idSWFSpriteInstance::AddDisplayEntry
 ========================
 */
 swfDisplayEntry_t * idSWFSpriteInstance::AddDisplayEntry( int depth, int characterID ) {
+	// [PS2_D3BFG]: Bound live hierarchy growth before insertion or nested frame-one placement.
+#if defined( ID_PS2 )
+	if ( ps2::ui::swf::Active() )
+	{
+		idSWFSpriteInstance * root = this;
+		while ( root->parent != NULL )
+		{
+			root = root->parent;
+		}
+
+		unsigned sprites = 0;
+		unsigned texts = 0;
+		CountResourceInstances( root, sprites, texts, 1 );
+		idSWFDictionaryEntry * entry = sprite->swf->FindDictionaryEntry( characterID );
+		ps2::ui::swf::Require( entry != NULL && depth > 0 && depth <= 1024, "display placement identity" );
+		ps2::ui::swf::Require( sprites < ps2::ui::swf::kMaxSprites && texts < ps2::ui::swf::kMaxTexts && displayList.Num() < 1024, "display placement capacity" );
+	}
+#endif
+
 	int i = 0;
 	for ( ; i < displayList.Num(); i++ ) {
 		if ( displayList[i].depth == depth ) {
@@ -229,6 +297,16 @@ idSWFSpriteInstance::Run
 ===================
 */
 bool idSWFSpriteInstance::Run() {
+	// [PS2_D3BFG]: Recursive traversal cannot escape the admitted execution scope.
+#if defined( ID_PS2 )
+	ps2::ui::swf::VisitScope visit;
+	if ( sprite->GetSWF()->IsResourceOnly() &&
+		( !sprite->GetSWF()->IsResourceExecution() || !ps2::ui::swf::Active() ) )
+	{
+		idLib::FatalError( "retail sprite traversal outside execution scope" );
+	}
+#endif
+
 	if ( !isVisible ) {
 		return false;
 	}
@@ -265,6 +343,16 @@ idSWFSpriteInstance::RunActions
 ===================
 */
 bool idSWFSpriteInstance::RunActions() {
+	// [PS2_D3BFG]: Recursive traversal cannot escape the admitted execution scope.
+#if defined( ID_PS2 )
+	ps2::ui::swf::VisitScope visit;
+	if ( sprite->GetSWF()->IsResourceOnly() &&
+		( !sprite->GetSWF()->IsResourceExecution() || !ps2::ui::swf::Active() ) )
+	{
+		idLib::FatalError( "retail sprite traversal outside execution scope" );
+	}
+#endif
+
 	if ( !isVisible ) {
 		actions.SetNum( 0 );
 		return false;
@@ -273,10 +361,20 @@ bool idSWFSpriteInstance::RunActions() {
 	if ( firstRun && scriptObject->HasProperty( "onLoad" ) ) {
 		firstRun = false;
 		idSWFScriptVar onLoad = scriptObject->Get( "onLoad" );
+// [PS2_D3BFG]: Frame hooks cannot alias unchecked native services around the dispatch policy.
+#if defined( ID_PS2 )
+		ps2::ui::swf::Require( onLoad.IsFunction() && onLoad.GetFunction()->IsScript(), "onLoad callback capability" );
+		ps2::ui::swf::Trace( "callback", "onLoad" );
+#endif
 		onLoad.GetFunction()->Call( scriptObject, idSWFParmList() );
 	}
 
 	if ( onEnterFrame.IsFunction() ) {
+// [PS2_D3BFG]: Native methods retain their explicit argument/capability checks.
+#if defined( ID_PS2 )
+		ps2::ui::swf::Require( onEnterFrame.GetFunction()->IsScript(), "onEnterFrame callback capability" );
+		ps2::ui::swf::Trace( "callback", "onEnterFrame" );
+#endif
 		onEnterFrame.GetFunction()->Call( scriptObject, idSWFParmList() );
 	}
 
@@ -351,11 +449,17 @@ idSWFSpriteInstance::RunTo
 void idSWFSpriteInstance::RunTo( int targetFrame ) {
 	// [PS2_D3BFG]: Storage-only admission never authorizes placement decoding or imported scripts.
 #if defined( ID_PS2 )
-	if ( sprite->GetSWF()->IsResourceOnly() )
+	if ( sprite->GetSWF()->IsResourceOnly() &&
+		( !sprite->GetSWF()->IsResourceExecution() || !ps2::ui::swf::Active() ) )
 	{
 		idLib::FatalError( "resource-only SWF cannot advance a timeline" );
 	}
 #endif
+// [PS2_D3BFG]: A script can re-enter RunTo through gotoAndPlay/gotoAndStop.
+#if defined( ID_PS2 )
+	ps2::ui::swf::VisitScope visit;
+#endif
+
 	if ( targetFrame == currentFrame ) {
 		return; // otherwise we'll re-run the current frame
 	}
@@ -375,6 +479,10 @@ void idSWFSpriteInstance::RunTo( int targetFrame ) {
 	uint32 firstActionCommand = sprite->frameOffsets[ targetFrame - 1 ];
 
 	for ( uint32 c = sprite->frameOffsets[ currentFrame ]; c < sprite->frameOffsets[ targetFrame ]; c++ ) {
+// [PS2_D3BFG]: Catch-up, seeks and script-triggered seeks share one work budget.
+#if defined( ID_PS2 )
+		ps2::ui::swf::ChargeCommand();
+#endif
 		idSWFSprite::swfSpriteCommand_t & command = sprite->commands[ c ];
 		if ( command.tag == Tag_DoAction && c < firstActionCommand ) {
 			// Skip DoAction up to the firstActionCommand

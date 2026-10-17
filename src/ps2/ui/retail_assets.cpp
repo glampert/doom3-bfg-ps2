@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: retail_assets.cpp
-// Brief: Publish checked English fonts and inactive movie snapshots without executing retail scripts.
+// Brief: Publish checked English resources and separately admit retail movie storage and execution.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -24,6 +24,8 @@ static CatalogView s_catalog;
 static std::uint32_t s_profile[16] = {};
 static bool s_language = false;
 static SwfSummary s_movieSummary;
+static bool s_executionRequested = false;
+static bool s_executionAdmitted = false;
 static constexpr const char * kMovies[] = { "generated/swf/shell.bswf", "generated/swf/dialog.bswf" };
 static constexpr const char * kMovieFiles[] = { "retail/shell.bswf", "retail/dialog.bswf" };
 
@@ -148,6 +150,8 @@ PS2_COLD_FUNC void Shutdown()
 
     memset(s_profile, 0, sizeof(s_profile));
     s_movieSummary = {};
+    s_executionRequested = false;
+    s_executionAdmitted = false;
     heap::Free(s_bytes);
     s_bytes = nullptr;
     s_catalog = {};
@@ -214,12 +218,15 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
     return snapshot;
 }
 
-PS2_COLD_FUNC void PrepareMovie(unsigned index)
+PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute)
 {
     if (!IsInitialized() || rs::FrameStarted() || index >= 2)
     {
         FatalError("invalid retail movie preparation ownership");
     }
+
+    s_executionRequested = execute;
+    s_executionAdmitted = false;
 
     if (s_profile[0] == 0)
     {
@@ -319,6 +326,22 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
         FatalError("retail movie structural preflight failed: %s", logicalPath);
     }
 
+    if (s_executionRequested)
+    {
+        SwfExecutionSummary execution;
+        if (!ValidateSwfExecutionBytes(bytes, s_profile[offset], execution))
+        {
+            heap::Free(bytes);
+            FatalError("retail movie execution preflight failed: %s", logicalPath);
+        }
+
+        s_executionAdmitted = true;
+        Log(LogLevel::Info,
+            "[D3BFG] RETAIL executable movie=%u actions=%lu functions=%lu placements=%lu removals=%lu\n",
+            index, static_cast<unsigned long>(execution.actions), static_cast<unsigned long>(execution.functions),
+            static_cast<unsigned long>(execution.placements), static_cast<unsigned long>(execution.removals));
+    }
+
     s_movieSummary = summary;
     Log(LogLevel::Info, "[D3BFG] RETAIL BSWF admitted movie=%u dictionary=%lu sprites=%lu commands=%lu fonts=%lu texts=%lu preview=%lu scripts=inactive\n",
         index, static_cast<unsigned long>(summary.dictionary), static_cast<unsigned long>(summary.sprites),
@@ -327,6 +350,11 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
     auto * const snapshot = new (TAG_SWF) idFile_Memory(logicalPath, static_cast<const char *>(bytes), static_cast<int>(s_profile[offset]));
     snapshot->TakeDataOwnership();
     return snapshot;
+}
+
+bool MovieExecutionAdmitted()
+{
+    return IsInitialized() && s_language && s_executionAdmitted;
 }
 
 SwfSummary GetMovieSummary()

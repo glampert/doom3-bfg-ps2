@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "ps2/ui/swf_execution.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -33,6 +34,10 @@ using SwfIdentityCheck = bool (*)(const char * name, bool font, void * context);
 // On failure output is untouched. No allocation or recursion is used.
 bool ValidateSwfBytes(const void * bytes, std::size_t length, SwfSummary & output,
                       SwfIdentityCheck identity = nullptr, void * context = nullptr);
+// Additional execution admission: decode every command/action after all dictionary kinds are known,
+// reject invalid baseline display mutations and cyclic/deep sprite placement graphs. No allocation
+// is performed. Rendering features and dynamic runtime budgets remain separately gated.
+bool ValidateSwfExecutionBytes(const void * bytes, std::size_t length, SwfExecutionSummary & output);
 // Check the native one-entry-per-line dictionary grammar before its legacy parser. UTF-8 validity
 // is checked separately by native VerifyUTF8 in every configuration. Counts publish only on success.
 bool ValidateEnglishBytes(const void * bytes, std::size_t length, std::uint32_t & entries);

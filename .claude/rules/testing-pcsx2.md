@@ -84,18 +84,32 @@
   or physical PS2 acceptance. `make ui` / `run-ui` stage/launch the same ELF and opt-in
   assets, with `CONSOLE_STANDARD=ntsc` or `pal`.
 - `make test-retail-movies` / `make BUILD=release test-retail-movies` check inactive
-  native shell/dialog dictionaries in production. Four phases each run at least 120
+  dictionaries and executable native shell/dialog timelines in separate production runs.
+  Four phases each run at least 120
   frames: shell, dialog, shell return and another shell load. Check native dictionary/
   font/text counts, all 9,097 English entries, source-derived integer text widths and
   32 glyph/color probes per capture. Probes allow the existing channel tolerance of
   eight within one projected pixel for GS raster rounding. Inspect both styles and
-  standards. Shell reload captures must match; compare warm heap ledgers after both
-  lazy movie atlas bindings have been admitted, not the first cold shell load.
-  Seven images share six linear slots/scratch, with 984 metadata bytes; these labels
-  keep three font pages warm without evictions. Full shutdown must recover startup.
-  Six fresh processes reject bad profile, missing movie, corrupt movie/English bytes,
+  standards. Shell reload captures must match; warm dialog captures must match. Only
+  the documented NTSC cold/warm final-T bottom edge admits four changed pixels with
+  channel delta at most 25, within the source-derived glyph row/bounds. Source probes
+  stay unchanged. Inactive loaded ledgers remain exact after lazy binding. Executable
+  movie ledgers can vary with animation frames: compare exact post-release warm ledgers,
+  retain the 16 MiB loaded-heap ceiling and require full startup recovery at shutdown.
+  HostFs adds every non-ps2 command to history before executing the batch: clear history
+  before the final unload, or the future long echo identity contributes a transient
+  64-byte string to its release checkpoint.
+  Inactive inspection has seven shared images/984 metadata bytes; the native Doom 3
+  carousel cover adds a table for eight images/1,032 metadata bytes. Both use the same
+  six linear slots/scratch and keep three font pages warm without eviction. Executable
+  phases require fresh real callback/owner traces and bounded hierarchy/work counters.
+  Twelve fresh processes reject bad profile, missing movie, corrupt movie/English bytes,
   oversized counts and init actions. Count/init cases recompute FNV to reach storage
-  preflight. No AVM1, placement commands, masks, full movie or Shell is executed.
+  preflight. Placement/opcode/branch/operand cases reach execution preflight; a valid
+  infinite loop and an alias to a different native service reach their runtime guards.
+  `make test-retail-timelines` isolates executable NTSC/PAL runs. The minimal owner uses
+  the real carousel/Credits callbacks and only one Doom 3 option; full movie drawing,
+  masks/blends, Shell navigation and physical PS2 acceptance remain pending.
 - `make test-host` also runs the real shared page-cache implementation under ASan/UBSan
   with assertions enabled and disabled. Only GS/texture submission is stubbed. Keep
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
@@ -131,6 +145,14 @@
 - PCSX2 2.6.3 prints a valid `PCSX2 v2.6.3` line for `-version` but exits with status 1;
   `-help` also exits 1. The runner recognizes the version line and accepts status 0/1
   for that query only. It does not treat a test process exit as a pass.
+- On 2026-10-18, PCSX2 trapped with host SIGILL after a clean native headless shutdown
+  while handling the runner's SIGINT. macOS reported a recursive `os_unfair_lock` in
+  malloc, reached through Qt's `QMetaObject` invocation from `SignalHandler(int)` on
+  the host main thread. Archive `20261017T232856Z_headless_33732efd2906` remains failed;
+  the unchanged fresh console run `20261017T232949Z_headless_3499b4999c28` passes. This
+  host signal-handler fault is separate from the EE TLB flake below. Keep strict
+  emulator-exit checks and triage before retrying; native completion markers cannot
+  turn a crashed process into a pass.
 - The platform probe passed on 2026-10-08; archived run
   `20261008T070310Z_smoke_88ff01f3485548c6` checks timer progress/conversion,
   64-byte static/stack buffer alignment, scalar vector math and the EE FPU's finite

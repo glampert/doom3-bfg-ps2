@@ -27,6 +27,10 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../idlib/precompiled.h"
+// [PS2_D3BFG]: Native widget callbacks retain their own timeline lifetime restrictions.
+#if defined( ID_PS2 )
+#include "ps2/ui/retail_owner.h"
+#endif
 
 idCVar swf_debug( "swf_debug", "0", CVAR_INTEGER|CVAR_ARCHIVE, "debug swf scripts.  1 shows traces/errors.  2 also shows warnings.  3 also shows disassembly.  4 shows parameters in the disassembly." );
 idCVar swf_debugInvoke( "swf_debugInvoke", "0", CVAR_INTEGER, "debug swf functions being called from game." );
@@ -67,6 +71,10 @@ idSWFScriptFunction_Script::~idSWFScriptFunction_Script
 ========================
 */
 idSWFScriptFunction_Script::~idSWFScriptFunction_Script() {
+	// [PS2_D3BFG]: Retained functions remain charged until their actual destruction.
+#if defined( ID_PS2 )
+	ps2::ui::swf::TrackFunction( false );
+#endif
 	for ( int i = 0; i < scope.Num(); i++ ) {
 		if ( verify( scope[i] ) ) {
 			scope[i]->Release();
@@ -104,6 +112,17 @@ idSWFScriptFunction_Script::Call
 ========================
 */
 idSWFScriptVar idSWFScriptFunction_Script::Call( idSWFScriptObject * thisObject, const idSWFParmList & parms ) {
+	// [PS2_D3BFG]: Validate dynamic call setup before indexing native fixed-size argument/register arrays.
+#if defined( ID_PS2 )
+	ps2::ui::swf::CheckCount( "function arguments", parms.Num(), SWF_MAX_PARMS );
+	ps2::ui::swf::Require( scope.Num() > 0 && scope.Num() <= 64, "function scope" );
+	unsigned preloadCount = 1;
+	for ( unsigned bit = 0; bit <= 8; ++bit )
+	{
+		preloadCount += ( bit == 0 || bit == 2 || bit == 4 || bit == 6 || bit == 7 || bit == 8 ) ? ( flags >> bit ) & 1 : 0;
+	}
+	ps2::ui::swf::Require( preloadCount <= (unsigned)registers.Num(), "function preload registers" );
+#endif
 	idSWFBitStream bitstream( data, length, false );
 
 	// We assume scope[0] is the global scope
@@ -233,7 +252,92 @@ idSWFScriptVar idSWFScriptFunction_Script::Call( idSWFScriptObject * thisObject,
 <anonymous>::Split
 ========================
 */
+// [PS2_D3BFG]: Compare immutable callback object identities, independently of script lookup names.
+#if defined( ID_PS2 )
+extern idSWFScriptObject_SpriteInstancePrototype spriteInstanceScriptObjectPrototype;
+extern idSWFScriptObject_TextInstancePrototype textInstanceScriptObjectPrototype;
+#endif
+
 namespace {
+// [PS2_D3BFG]: Timeline execution admits real scoped services, never placeholder Shell callbacks.
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Opaque origin snapshots keep the budget layer independent of engine types.
+	static const void * ScriptOriginParent( const void * origin )
+	{
+		return static_cast<const idSWFSpriteInstance *>( origin )->parent;
+	}
+
+	void CheckNativeCall( const idStr & name, idSWFScriptFunction * function, idSWFScriptObject * receiver, const idSWFParmList & parms, bool method, idSWF * owner, idSWFSpriteInstance * executing )
+	{
+		if ( !ps2::ui::swf::Active() || function->IsScript() )
+		{
+			return;
+		}
+
+		ps2::ui::swf::Trace( "native-callback", name );
+		// [PS2_D3BFG]: A script can overwrite or alias every ordinary global/property slot.
+		bool identity = owner != NULL && !method && owner->IsResourceNativeFunction( name, function );
+		if ( method )
+		{
+			identity = ( name == "gotoAndPlay" && function == &spriteInstanceScriptObjectPrototype.scriptFunction_gotoAndPlay ) ||
+				( name == "gotoAndStop" && function == &spriteInstanceScriptObjectPrototype.scriptFunction_gotoAndStop ) ||
+				( name == "calcNumLines" && function == &textInstanceScriptObjectPrototype.scriptFunction_calcNumLines );
+		}
+
+		ps2::ui::swf::Require( identity, "native callback identity unavailable" );
+		// [PS2_D3BFG]: Native widget updates can seek too; they cannot retire an executing descendant.
+		if ( !method && ( name == "refreshCarousel" || name == "updateCredits" ) )
+		{
+			ps2::ui::retail_owner::CheckCallbackOrigin( name, executing, owner );
+		}
+
+		int expected = -1;
+		if ( method )
+		{
+			if ( name == "gotoAndPlay" || name == "gotoAndStop" )
+			{
+				expected = 1;
+				ps2::ui::swf::Require( parms.Num() == 1 && receiver != NULL && receiver->GetSprite() != NULL, "timeline method signature" );
+				// [PS2_D3BFG]: An ancestor seek can delete its currently executing descendant/function.
+				idSWFSpriteInstance * target = receiver->GetSprite();
+				ps2::ui::swf::Require( owner != NULL && executing != NULL &&
+					executing->sprite->GetSWF() == owner && target->sprite->GetSWF() == owner, "timeline movie ownership" );
+				ps2::ui::swf::CheckSeek( target, "ancestor timeline seek unavailable" );
+
+				ps2::ui::swf::Require( parms[0].IsString() || parms[0].IsNumeric(), "timeline frame type" );
+				const idStr frame = parms[0].ToString();
+				ps2::ui::swf::Trace( "frame", frame );
+				ps2::ui::swf::Require( receiver->GetSprite()->FrameExists( frame ), "timeline frame missing" );
+			}
+			else if ( name == "calcNumLines" )
+			{
+				expected = 0;
+				ps2::ui::swf::Require( receiver != NULL && receiver->GetText() != NULL, "text metric receiver" );
+				ps2::ui::swf::Require( owner != NULL && receiver->GetText()->swf == owner, "text metric movie ownership" );
+			}
+		}
+		else if ( name == "inhibitControl" || name == "useInhibit" )
+		{
+			expected = 1;
+			ps2::ui::swf::Require( parms.Num() == 1 && parms[0].IsNumeric(), "control callback signature" );
+		}
+		else if ( name == "deactivate" || name == "getPlatform" || name == "getTruePlatform" || name == "swapPS3Buttons" ||
+			name == "refreshCarousel" || name == "updateCredits" )
+		{
+			expected = 0;
+		}
+		else if ( name == "getLocalString" )
+		{
+			expected = 1;
+			ps2::ui::swf::Require( parms.Num() == 1 && !parms[0].IsObject() && !parms[0].IsFunction(), "English callback signature" );
+			ps2::ui::swf::Trace( "localization", parms[0].ToString() );
+		}
+
+		ps2::ui::swf::Require( expected >= 0, va( "native callback unavailable: %s", name.c_str() ) );
+		ps2::ui::swf::Require( parms.Num() == expected, "native callback parameter count" );
+	}
+#endif
+
 	const char * GetPropertyName( int index ) {
 		switch ( index ) {
 		case 0: return "_x";
@@ -393,6 +497,13 @@ idSWFScriptFunction_Script::Run
 */
 idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, idSWFStack & stack, idSWFBitStream & bitstream ) {
 	static int callstackLevel = -1;
+	// [PS2_D3BFG]: Function and with-block recursion share one release-safe call budget.
+#if defined( ID_PS2 )
+	ps2::ui::swf::CallScope executionCall;
+	ps2::ui::swf::Require( thisObject != NULL, "script receiver" );
+	// [PS2_D3BFG]: Nested calls cannot discard an outer script's source or borrowed receiver.
+	ps2::ui::swf::OriginScope executionOrigin( defaultSprite, thisObject->GetSprite(), ScriptOriginParent );
+#endif
 	idSWFSpriteInstance * thisSprite = thisObject->GetSprite();
 	idSWFSpriteInstance * currentTarget = thisSprite;
 
@@ -403,6 +514,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 	callstackLevel++;
 
 	while ( bitstream.Tell() < bitstream.Length() ) {
+		// [PS2_D3BFG]: Backward branches cannot consume unbounded target time.
+#if defined( ID_PS2 )
+		ps2::ui::swf::ChargeInstruction();
+#endif
 		swfAction_t code = (swfAction_t)bitstream.ReadU8();
 		uint16 recordLength = 0;
 		if ( code >= 0x80 ) {
@@ -467,6 +582,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				assert( recordLength == 2 );
 				int frameNum = bitstream.ReadU16() + 1;
 				if ( verify( currentTarget != NULL ) ) {
+					// [PS2_D3BFG]: Direct frame opcodes share native method lifetime guards.
+#if defined( ID_PS2 )
+					ps2::ui::swf::CheckSeek( currentTarget, "ancestor timeline seek unavailable" );
+#endif
 					currentTarget->RunTo( frameNum );
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for runTo %d\n", frameNum );
@@ -500,7 +619,16 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 					case 1: stack.Alloc().SetFloat( pushstream.ReadFloat() ); break;
 					case 2: stack.Alloc().SetNULL(); break;
 					case 3: stack.Alloc().SetUndefined(); break;
-					case 4: stack.Alloc() = registers[ pushstream.ReadU8() ]; break;
+					// [PS2_D3BFG]: Register references inherited by nested actions are checked dynamically too.
+					case 4:
+					{
+						const unsigned reg = pushstream.ReadU8();
+#if defined( ID_PS2 )
+						ps2::ui::swf::Require( reg < (unsigned)registers.Num(), "push register index" );
+#endif
+						stack.Alloc() = registers[reg];
+						break;
+					}
 					case 5: stack.Alloc().SetBool( pushstream.ReadU8() != 0 ); break;
 					case 6: stack.Alloc().SetFloat( (float)pushstream.ReadDouble() ); break;
 					case 7: stack.Alloc().SetInteger( pushstream.ReadS32() ); break;
@@ -556,6 +684,13 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				stack.A().SetInteger( stack.A().ToString().Length() );
 				break;
 			case Action_StringAdd:
+				// [PS2_D3BFG]: Reject exponential string growth before allocating the concatenation.
+#if defined( ID_PS2 )
+				if ( ps2::ui::swf::Active() )
+				{
+					ps2::ui::swf::CheckString( stack.B().ToString().Length() + stack.A().ToString().Length() );
+				}
+#endif
 				stack.B().SetString( stack.B().ToString() + stack.A().ToString() );
 				stack.Pop( 1 );
 				break;
@@ -683,6 +818,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				break;
 			case Action_CallFunction: {
 				idStr functionName = stack.A().ToString();
+				// [PS2_D3BFG]: Record actual dynamic calls before resolving the required native/script provider.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Trace( "function", functionName );
+#endif
 				idSWFScriptVar function;
 				idSWFScriptObject * object = NULL;
 				for ( int i = scope.Num() - 1; i >= 0; i-- ) {
@@ -695,14 +834,28 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				stack.Pop( 1 );
 
 				idSWFParmList parms;
-				parms.SetNum( stack.A().ToInteger() );
+				// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries even in release builds.
+				const int argumentCount = stack.A().ToInteger();
+#if defined( ID_PS2 )
+				ps2::ui::swf::CheckCount( "dynamic argument count", argumentCount, SWF_MAX_PARMS );
+				ps2::ui::swf::Require( argumentCount <= stack.Num() - 1, "dynamic argument stack" );
+#endif
+				parms.SetNum( argumentCount );
 				stack.Pop( 1 );
 				for ( int i = 0; i < parms.Num(); i++ ) {
 					parms[i] = stack.A();
 					stack.Pop( 1 );
 				}
 
+				// [PS2_D3BFG]: Required retail callbacks cannot silently become an undefined return value.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Require( function.IsFunction() && object != NULL, va( "unresolved function %s", functionName.c_str() ) );
+#endif
 				if ( function.IsFunction() && verify( object ) ) {
+					// [PS2_D3BFG]: Native services have an explicit bounded signature and capability profile.
+#if defined( ID_PS2 )
+					CheckNativeCall( functionName, function.GetFunction(), object, parms, false, defaultSprite != NULL ? defaultSprite->sprite->GetSWF() : NULL, thisSprite );
+#endif
 					stack.Alloc() = function.GetFunction()->Call( object, parms );
 				} else {
 					idLib::PrintfIf( swf_debug.GetInteger() > 0, "SWF: unknown function %s\n", functionName.c_str() );
@@ -717,6 +870,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				if ( functionName.IsEmpty() || stack.A().IsUndefined() || stack.A().IsNULL() ) {
 					functionName = "__constructor__";
 				}
+				// [PS2_D3BFG]: Dynamic method demands are distinct from optional property lookups.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Trace( "method", functionName );
+#endif
 				idSWFScriptObject * object = NULL;
 				idSWFScriptVar function;
 				if ( stack.B().IsObject() ) {
@@ -732,14 +889,28 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				stack.Pop( 2 );
 
 				idSWFParmList parms;
-				parms.SetNum( stack.A().ToInteger() );
+				// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries even in release builds.
+				const int argumentCount = stack.A().ToInteger();
+#if defined( ID_PS2 )
+				ps2::ui::swf::CheckCount( "dynamic argument count", argumentCount, SWF_MAX_PARMS );
+				ps2::ui::swf::Require( argumentCount <= stack.Num() - 1, "dynamic argument stack" );
+#endif
+				parms.SetNum( argumentCount );
 				stack.Pop( 1 );
 				for ( int i = 0; i < parms.Num(); i++ ) {
 					parms[i] = stack.A();
 					stack.Pop( 1 );
 				}
 
+				// [PS2_D3BFG]: Missing methods require an explicit provider before the scope can run.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Require( function.IsFunction() && object != NULL, va( "unresolved method %s", functionName.c_str() ) );
+#endif
 				if ( function.IsFunction() ) {
+					// [PS2_D3BFG]: Native methods must resolve their actual sprite/text receiver and signature.
+#if defined( ID_PS2 )
+					CheckNativeCall( functionName, function.GetFunction(), object, parms, true, defaultSprite != NULL ? defaultSprite->sprite->GetSWF() : NULL, thisSprite );
+#endif
 					stack.Alloc() = function.GetFunction()->Call( object, parms );
 				} else {
 					stack.Alloc().SetUndefined();
@@ -790,7 +961,8 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 
 				// The number of registers is from 0 to 255, although valid values are 1 to 256. 
 				// There must always be at least one register for DefineFunction2, to hold "this" or "super" when required.
-				uint8 numRegs = bitstream.ReadU8() + 1; 
+				// [PS2_D3BFG]: Preserve the documented 256-register encoding instead of wrapping uint8 to zero.
+				unsigned numRegs = (unsigned)bitstream.ReadU8() + 1;
 
 				// Note that SWF byte-ordering causes the flag bits to be reversed per-byte
 				// from how the swf_file_format_spec_v10.pdf document describes the ordering in ActionDefineFunction2.
@@ -918,6 +1090,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				break;
 			}
 			case Action_SetMember: {
+				// [PS2_D3BFG]: A retail state mutation requires its actual receiver hierarchy.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Require( stack.C().IsObject(), "invalid member write receiver" );
+#endif
 				if ( stack.C().IsObject() ) {
 					idSWFScriptObject * object = stack.C().GetObject();
 					if ( stack.B().IsNumeric() ) {
@@ -934,6 +1110,11 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				object->MakeArray();
 
 				int numElements = stack.A().ToInteger();
+				// [PS2_D3BFG]: Bound dynamic object/array work before entering its native loop.
+#if defined( ID_PS2 )
+				ps2::ui::swf::CheckCount( "dynamic element count", numElements, 256 );
+				ps2::ui::swf::Require( numElements <= ( stack.Num() - 1 ) / 2, "dynamic element stack" );
+#endif
 				stack.Pop( 1 );
 
 				for ( int i = 0; i < numElements; i++ ) {
@@ -950,6 +1131,11 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				idSWFScriptObject * object = idSWFScriptObject::Alloc();
 
 				int numElements = stack.A().ToInteger();
+				// [PS2_D3BFG]: Bound dynamic object/array work before entering its native loop.
+#if defined( ID_PS2 )
+				ps2::ui::swf::CheckCount( "dynamic element count", numElements, 256 );
+				ps2::ui::swf::Require( numElements <= ( stack.Num() - 1 ) / 2, "dynamic element stack" );
+#endif
 				stack.Pop( 1 );
 
 				for ( int i = 0; i < numElements; i++ ) {
@@ -963,6 +1149,11 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				break;
 			}
 			case Action_NewObject: {
+				// [PS2_D3BFG]: Retail movies do not need constructors; unresolved native prototypes and
+				// constructor aliases must not bypass scoped callback/capability dispatch.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Require( false, "script object construction unavailable" );
+#endif
 				idSWFScriptObject * object = idSWFScriptObject::Alloc();
 
 				idStr functionName = stack.A().ToString();
@@ -972,6 +1163,11 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 					object->MakeArray();
 
 					int numElements = stack.A().ToInteger();
+				// [PS2_D3BFG]: Bound dynamic object/array work before entering its native loop.
+#if defined( ID_PS2 )
+				ps2::ui::swf::CheckCount( "dynamic element count", numElements, 256 );
+				ps2::ui::swf::Require( numElements <= stack.Num() - 1, "dynamic element stack" );
+#endif
 					stack.Pop( 1 );
 
 					for ( int i = 0; i < numElements; i++ ) {
@@ -985,7 +1181,13 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 					// object prototype is not set here because it will be auto created from Object later
 				} else {
 					idSWFParmList parms;
-					parms.SetNum( stack.A().ToInteger() );
+					// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries even in release builds.
+				const int argumentCount = stack.A().ToInteger();
+#if defined( ID_PS2 )
+				ps2::ui::swf::CheckCount( "dynamic argument count", argumentCount, SWF_MAX_PARMS );
+				ps2::ui::swf::Require( argumentCount <= stack.Num() - 1, "dynamic argument stack" );
+#endif
+				parms.SetNum( argumentCount );
 					stack.Pop( 1 );
 					for ( int i = 0; i < parms.Num(); i++ ) {
 						parms[i] = stack.A();
@@ -1009,6 +1211,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				break;
 			}
 			case Action_Extends: {
+				// [PS2_D3BFG]: Unsupported retail inheritance cannot dereference an absent native prototype.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Require( false, "script inheritance unavailable" );
+#endif
 				idSWFScriptFunction * superclassConstructorFunction = stack.A().GetFunction();
 				idSWFScriptFunction *subclassConstructorFunction = stack.B().GetFunction();
 				stack.Pop( 2 );
@@ -1070,6 +1276,13 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				break;
 			case Action_Add2: {
 				if ( stack.A().IsString() || stack.B().IsString() ) {
+					// [PS2_D3BFG]: Reject exponential string growth before allocating the concatenation.
+#if defined( ID_PS2 )
+					if ( ps2::ui::swf::Active() )
+					{
+						ps2::ui::swf::CheckString( stack.B().ToString().Length() + stack.A().ToString().Length() );
+					}
+#endif
 					stack.B().SetString( stack.B().ToString() + stack.A().ToString() );
 				} else {
 					stack.B().SetFloat( stack.B().ToFloat() + stack.A().ToFloat() );
@@ -1149,6 +1362,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 			}
 			case Action_StoreRegister: {
 				uint8 registerNumber = bitstream.ReadU8();
+				// [PS2_D3BFG]: StoreRegister keeps native release accesses within the active register list.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Require( registerNumber < registers.Num(), "store register index" );
+#endif
 				registers[ registerNumber ] = stack.A();
 				break;
 			}
@@ -1185,6 +1402,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 			case Action_SetTarget2:
 			case Action_NewMethod:
 			default:
+				// [PS2_D3BFG]: Unsupported actions are a release failure in explicit retail execution.
+#if defined( ID_PS2 )
+				ps2::ui::swf::Require( false, "unsupported action" );
+#endif
 				idLib::Warning( "SWF: Unhandled Action %s", idSWF::GetActionName( code ) );
 				// We have to abort here because the rest of the script is basically meaningless now
 				assert( false );

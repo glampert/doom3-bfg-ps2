@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: test_retail_movies.py
-# Brief: Check inactive movie staging and rejection guards without proprietary data or an emulator.
+# Brief: Check movie staging, execution acceptance and guards without retail data or an emulator.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -18,7 +18,7 @@ import run_retail_movies as runner
 import stage_retail_ui as staging
 from ui_font import inspect_language, inspect_font
 from ui_page_package import fnv1a32
-from ui_swf import inspect_swf
+from ui_swf import Inspector, Reader, inspect_swf
 
 
 class MovieResourcesTests(unittest.TestCase):
@@ -52,10 +52,11 @@ class MovieResourcesTests(unittest.TestCase):
         self.manifest["font_resolutions"] = [{"requested": requested, "family": "ps2_ascii"}]
         (self.source / "font.uip").write_bytes((ROOT / "assets/ui/base/textures/ps2_ascii.uipg").read_bytes())
         self.manifest["cooked"]["runtime_images"] = {"font": {"path": "font.uip", "page_count": 3},
-            "shell": {"page_count": 1}, "dialog": {"page_count": 1}}
+            "shell": {"page_count": 1}, "dialog": {"page_count": 1}, "cover": {"page_count": 2}}
         self.manifest["image_resolutions"] = [{"logical_image": "newfonts/ps2_ascii/48.tga", "selected": "font", "status": "resolved"},
             {"logical_image": "generated/swf/shell.tga", "selected": "shell"},
-            {"logical_image": "generated/swf/dialog.tga", "selected": "dialog"}]
+            {"logical_image": "generated/swf/dialog.tga", "selected": "dialog"},
+            {"logical_image": "guis/assets/mainmenu/doom3_cover.tga", "selected": "cover"}]
         return self.manifest
 
     def test_source_pixel_probes_reject_blank_or_wrong_color_labels(self):
@@ -82,30 +83,236 @@ class MovieResourcesTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "source pixel"):
                 runner.verify_capture(path, manifest, self.source, 0, standard)
 
-    def test_native_acceptance_checks_layout_warm_ownership_frames_and_full_cleanup(self):
-        manifest = self.label_manifest()
+    def acceptance_log(self, manifest, execution=False, phases=runner.PHASES):
         log = "GS ready NTSC\nrun_ready \n"
-        for phase, (name, _, movie) in enumerate(runner.PHASES):
+        open_images = {next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == font[:-4] + ".tga")
+                       for font in manifest["fonts"]}
+        for phase, (name, movie_name, movie) in enumerate(phases):
             prototype, rows = runner.expected_labels(manifest, self.source, movie)
+            mode = "active" if execution else "inactive"
             log += (f"RETAIL movie={movie} state=loaded frames=120 dictionary=16 texts=6 preview=10 "
-                    f"english=3 scripts=inactive heap=100/120/8\n")
+                    f"english=3 scripts={mode} heap=100/120/8\n")
+            if execution:
+                log += (f"RETAIL execution movie={movie} ticks=120 root=1 sprites=2 texts=3 "
+                        "instructions=1000 calls=5 commands=7 depth=2 native_steps=20\n")
+                if movie == 0:
+                    log += "RETAIL owner screen=0 next=0 carousel_items=1 carousel_slots=5 carousel_view=0 credits=1 callbacks=2\n"
+                    log += ("SWF dependency movie=swf/shell.swf kind=function name=refreshCarousel\n"
+                            "SWF dependency movie=swf/shell.swf kind=native-callback name=refreshCarousel\n"
+                            "SWF dependency movie=swf/shell.swf kind=owner-caller name=options\n"
+                            "SWF dependency movie=swf/shell.swf kind=function name=updateCredits\n"
+                            "SWF dependency movie=swf/shell.swf kind=native-callback name=updateCredits\n")
+                else:
+                    log += ("SWF dependency movie=swf/dialog.swf kind=function name=getLocalString\n"
+                            "SWF dependency movie=swf/dialog.swf kind=native-callback name=getLocalString\n"
+                            "SWF dependency movie=swf/dialog.swf kind=method name=calcNumLines\n"
+                            "SWF dependency movie=swf/dialog.swf kind=native-callback name=calcNumLines\n"
+                            "SWF dependency movie=swf/dialog.swf kind=function name=getPlatform\n"
+                            "SWF dependency movie=swf/dialog.swf kind=native-callback name=getPlatform\n")
             for index, key, width, font, height in rows:
                 log += f"RETAIL label={index} id={key} width={width}.00 font={font} height={height}\n"
-            images, metadata = (2, 32) if phase == 0 else (3, 40)
+            open_images.add(next(row["selected"] for row in manifest["image_resolutions"]
+                                 if row["logical_image"] == "generated/swf/" + movie_name + ".tga"))
+            if execution and movie == 0:
+                open_images.add(next(row["selected"] for row in manifest["image_resolutions"]
+                                     if row["logical_image"] == "guis/assets/mainmenu/doom3_cover.tga"))
+            images = len(open_images)
+            metadata = sum(manifest["cooked"]["runtime_images"][image]["page_count"] * 8 for image in open_images)
             log += (f"[D3BFG] RETAIL pages images={images} slots=6 cache=1572864 scratch=262144 metadata={metadata} "
                     f"loads=3 hits={(phase + 1) * 100} evictions=0 triangles={(phase + 1) * 200}\n")
             frame = (phase + 1) * 120
             log += f"CONSOLE capture=movie-{name}.tga frame={frame} presents={frame} redraws=0\n"
-        log += ("run_done \nCONSOLE capture=movie-quit.tga frame=481 presents=481 redraws=0\n"
-                "[D3BFG] CONSOLE shutdown complete frames=481 presents=481 redraws=0\n"
+            if execution:
+                log += f"RETAIL released movie={movie} images={images} heap=80/100/4\n"
+        final = len(phases) * 120 + 1
+        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={final} presents={final} redraws=0\n"
+                f"[D3BFG] CONSOLE shutdown complete frames={final} presents={final} redraws=0\n"
                 "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
                 "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
+        return log
+
+    def test_native_acceptance_checks_layout_warm_ownership_frames_and_full_cleanup(self):
+        manifest = self.label_manifest()
+        log = self.acceptance_log(manifest)
         self.assertTrue(runner.classify(log, "run", "ntsc", manifest, self.source)[0])
         for before, after in (("width=160.00", "width=159.00"), ("final=7424", "final=7425"),
                               ("frames=120", "frames=119"), ("cache=1572864", "cache=3145728"),
                               ("scripts=inactive", "scripts=active")):
             self.assertIn(before, log)
             self.assertFalse(runner.classify(log.replace(before, after), "run", "ntsc", manifest, self.source)[0])
+        stale_final = log.replace("frame=481 presents=481", "frame=480 presents=480")
+        stale_final = stale_final.replace("frames=481 presents=481", "frames=480 presents=480")
+        self.assertFalse(runner.classify(stale_final, "run", "ntsc", manifest, self.source)[0])
+
+    def test_final_capture_requires_complete_native_dimensions_and_a_readable_file(self):
+        path = self.source / "movie-quit.tga"
+        with self.assertRaises(OSError):
+            runner.verify_final_capture(path, "ntsc")
+        for standard, height in (("ntsc", 448), ("pal", 512)):
+            header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, height, 24, 0x20)
+            raw = header + bytes(512 * height * 3)
+            path.write_bytes(raw)
+            self.assertEqual(runner.verify_final_capture(path, standard)["height"], height)
+            with self.assertRaisesRegex(ValueError, "dimensions"):
+                runner.verify_final_capture(path, "pal" if standard == "ntsc" else "ntsc")
+            path.write_bytes(raw[:-1])
+            with self.assertRaises(ValueError):
+                runner.verify_final_capture(path, standard)
+
+    def test_execution_acceptance_requires_active_scripts_live_hierarchy_and_native_work(self):
+        manifest = self.label_manifest()
+        log = self.acceptance_log(manifest, execution=True)
+        self.assertTrue(runner.classify(log, "run", "ntsc", manifest, self.source, execution=True)[0])
+        self.assertFalse(runner.classify(log, "run", "ntsc", manifest, self.source)[0])
+        inactive = self.acceptance_log(manifest)
+        self.assertFalse(runner.classify(inactive, "run", "ntsc", manifest, self.source, execution=True)[0])
+        for before, after in (("scripts=active", "scripts=inactive"), ("ticks=120", "ticks=119"),
+                              ("ticks=120", "ticks=121"), ("root=1", "root=0"), ("root=1", "root=65536"),
+                              ("frames=120", "frames=121"),
+                              ("sprites=2", "sprites=0"), ("sprites=2", "sprites=2049"),
+                              ("texts=3", "texts=0"), ("texts=3", "texts=513"),
+                              ("depth=2", "depth=0"), ("depth=2", "depth=17"),
+                              ("instructions=1000", "instructions=0"), ("calls=5", "calls=0"),
+                              ("commands=7", "commands=0"), ("native_steps=20", "native_steps=0"),
+                              ("native_steps=20", "native_steps=1"),
+                              ("final=7424", "final=7425"),
+                              ("carousel_items=1", "carousel_items=0"), ("carousel_slots=5", "carousel_slots=3"),
+                              ("credits=1", "credits=0"), ("callbacks=2", "callbacks=1"),
+                              ("owner screen=0", "owner screen=1"), ("heap=100/120/8", "heap=121/120/8"),
+                              ("heap=100/120/8", "heap=100/16777217/8"), ("heap=100/120/8", "heap=100/120/0")):
+            with self.subTest(before=before, after=after):
+                self.assertFalse(runner.classify(log.replace(before, after), "run", "ntsc", manifest,
+                                                 self.source, execution=True)[0])
+
+    def test_execution_acceptance_rejects_stale_or_wrong_movie_status(self):
+        manifest = self.label_manifest()
+        log = self.acceptance_log(manifest, execution=True)
+        dialog = next(row.group(0) for row in runner.EXECUTION.finditer(log) if row[1] == "1")
+        for changed in (log.replace(dialog, ""), log.replace(dialog, dialog.replace("movie=1", "movie=0")),
+                        log.replace("RETAIL movie=1 state=loaded", "RETAIL movie=1 state=stale")):
+            self.assertFalse(runner.classify(changed, "run", "ntsc", manifest, self.source, execution=True)[0])
+        inactive = self.acceptance_log(manifest)
+        self.assertFalse(runner.classify(inactive.replace("RETAIL movie=1 state=loaded", "RETAIL movie=1 state=stale"),
+                                         "run", "ntsc", manifest, self.source)[0])
+        injected = inactive.replace("RETAIL movie=1 state=loaded", dialog + "\nRETAIL movie=1 state=loaded")
+        self.assertFalse(runner.classify(injected, "run", "ntsc", manifest, self.source)[0])
+
+    def test_shell_execution_requires_fresh_native_owner_and_releases_it_for_dialog(self):
+        manifest = self.label_manifest()
+        log = self.acceptance_log(manifest, execution=True)
+        owner = list(runner.OWNER.finditer(log))[-1].group(0)
+        prefix, suffix = log.rsplit(owner, 1)
+        self.assertFalse(runner.classify(prefix + suffix, "run", "ntsc", manifest, self.source, execution=True)[0])
+        leaked = log.replace("RETAIL movie=1 state=loaded", owner + "\nRETAIL movie=1 state=loaded")
+        self.assertFalse(runner.classify(leaked, "run", "ntsc", manifest, self.source, execution=True)[0])
+        inactive = self.acceptance_log(manifest)
+        self.assertFalse(runner.classify(owner + "\n" + inactive, "run", "ntsc", manifest, self.source)[0])
+
+    def test_execution_requires_actual_native_callback_traces_in_every_loaded_movie(self):
+        manifest = self.label_manifest()
+        log = self.acceptance_log(manifest, execution=True)
+        accepted = lambda text: runner.classify(text, "run", "ntsc", manifest, self.source, execution=True)[0]
+        for movie, kind, name in (("shell", "native-callback", "refreshCarousel"),
+                                  ("shell", "native-callback", "updateCredits"),
+                                  ("shell", "owner-caller", "options"),
+                                  ("dialog", "native-callback", "getLocalString"),
+                                  ("dialog", "native-callback", "calcNumLines"),
+                                  ("dialog", "native-callback", "getPlatform")):
+            line = f"SWF dependency movie=swf/{movie}.swf kind={kind} name={name}\n"
+            for changed in (log.replace(line, ""), log.replace(line, line.replace("kind=" + kind, "kind=registered")),
+                            log.replace(line, line.replace("swf/" + movie + ".swf", "swf/other.swf"))):
+                with self.subTest(movie=movie, kind=kind, name=name):
+                    self.assertFalse(accepted(changed))
+            prefix, suffix = log.rsplit(line, 1)
+            self.assertFalse(accepted(prefix + suffix))
+
+    def test_execution_counters_are_monotonic_until_each_movie_is_reloaded(self):
+        manifest = self.label_manifest()
+        log = self.acceptance_log(manifest, execution=True)
+        final = next(runner.EXECUTION.finditer(log)).group(0)
+        earlier = final.replace("ticks=120", "ticks=60").replace("instructions=1000", "instructions=500")
+        log = log.replace(final, earlier + "\n" + final)
+        self.assertTrue(runner.classify(log, "run", "ntsc", manifest, self.source, execution=True)[0])
+        for before, after in (("ticks=60", "ticks=121"), ("instructions=500", "instructions=1001")):
+            self.assertFalse(runner.classify(log.replace(before, after), "run", "ntsc", manifest,
+                                             self.source, execution=True)[0])
+
+    def test_dialog_execution_proves_three_sustained_reloads_without_shell_admission(self):
+        manifest = self.label_manifest()
+        log = self.acceptance_log(manifest, execution=True, phases=runner.DIALOG_PHASES)
+        accepted = lambda text: runner.classify(text, "run", "ntsc", manifest, self.source,
+                                               execution=True, phases=runner.DIALOG_PHASES)[0]
+        self.assertTrue(accepted(log))
+        self.assertNotIn("RETAIL movie=0", log)
+        self.assertIn("frames=361", log)
+        for before, after in (("movie-dialog2.tga", "movie-shell2.tga"),
+                              ("ticks=120", "ticks=119"), ("scripts=active", "scripts=inactive"),
+                              ("RETAIL execution movie=1", "RETAIL execution movie=0"),
+                              ("images=2", "images=3"), ("final=7424", "final=7425")):
+            with self.subTest(before=before):
+                self.assertFalse(accepted(log.replace(before, after)))
+        prefix, suffix = log.rsplit("heap=100/120/8", 1)
+        self.assertTrue(accepted(prefix + "heap=101/120/8" + suffix))
+        self.assertFalse(runner.classify(log, "run", "ntsc", manifest, self.source, execution=True)[0])
+
+    def test_execution_releases_exact_warm_ownership_despite_different_live_animation_allocations(self):
+        manifest = self.label_manifest()
+        log = self.acceptance_log(manifest, execution=True)
+        accepted = lambda text: runner.classify(text, "run", "ntsc", manifest, self.source, execution=True)[0]
+        prefix, suffix = log.rsplit("heap=100/120/8", 1)
+        varied = prefix + "heap=11128409/11828856/15842" + suffix
+        self.assertTrue(accepted(varied))
+        final = list(runner.RELEASED.finditer(log))[-1].group(0)
+        prefix, suffix = log.rsplit(final, 1)
+        for changed in ("", final + "\n" + final, final.replace("movie=0", "movie=1"),
+                        final.replace("images=4", "images=3"), final.replace("heap=80", "heap=81"),
+                        final.replace("/100/", "/101/"), final.replace("/4", "/5"),
+                        final.replace("heap=80/100/4", "heap=101/100/4"),
+                        final.replace("heap=80/100/4", "heap=80/16777217/4"),
+                        final.replace("heap=80/100/4", "heap=80/100/0")):
+            with self.subTest(release=changed):
+                self.assertFalse(accepted(prefix + changed + suffix))
+        moved = log.replace(final, "", 1)
+        moved = moved.replace("CONSOLE capture=movie-shell1.tga", final + "\nCONSOLE capture=movie-shell1.tga")
+        self.assertFalse(accepted(moved))
+
+    def test_dialog_reload_tolerance_is_limited_to_measured_cold_final_glyph_edge(self):
+        manifest = self.label_manifest()
+        x1, x2, row = runner.dialog_rounding_row(manifest, self.source)
+        self.assertGreaterEqual(x2 - x1, 5)
+        baseline = bytes((16, 24, 40)) * 512 * 448
+        header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, 448, 24, 0x20)
+
+        def variant(count=4, delta=25, x=x1, y=row):
+            pixels = bytearray(baseline)
+            for index in range(count):
+                pixels[(y * 512 + x + index) * 3] += delta
+            return pixels
+
+        def compare(first, second=baseline, third=baseline, standard="ntsc", phases=runner.DIALOG_PHASES):
+            captures = {}
+            for (name, _, _), rgb in zip(phases, (first, second, third)):
+                bgr = bytearray(rgb)
+                bgr[0::3], bgr[2::3] = rgb[2::3], rgb[0::3]
+                path = self.source / ("movie-" + name + ".tga")
+                path.write_bytes(header + bgr)
+                captures[path.name] = {"sha256": runner.sha256(path)}
+            return runner.verify_reload_captures(self.source, phases, captures, manifest, self.source, standard)
+
+        self.assertTrue(compare(baseline)["1"]["identical"])
+        proof = compare(variant())["1"]
+        self.assertEqual((proof["changed_pixels"], proof["maximum_channel_delta"]), (4, 25))
+        self.assertTrue(proof["warm_identical"])
+        for changed in (variant(count=5), variant(delta=26), variant(y=row - 1), variant(x=x1 - 1)):
+            with self.assertRaisesRegex(ValueError, "cold glyph edge tolerance"):
+                compare(changed)
+        with self.assertRaisesRegex(ValueError, "changed across"):
+            compare(variant(), third=variant(count=1))
+        with self.assertRaisesRegex(ValueError, "changed across"):
+            compare(variant(), standard="pal")
+        shell_phases = tuple(("shell" + str(index), "shell", 0) for index in (1, 2, 3))
+        with self.assertRaisesRegex(ValueError, "changed across"):
+            compare(variant(), phases=shell_phases)
 
     def test_profile_records_exact_sources_and_dictionary_text_prototype(self):
         raw, assets = staging.movie_resources(self.source, self.manifest)
@@ -141,15 +348,25 @@ class MovieResourcesTests(unittest.TestCase):
     def test_native_negative_requires_specific_guard_and_no_published_movie(self):
         identity = "movie_test"
         for case, expected in (("movie-count", "retail movie structural preflight failed: shell"),
+                               ("movie-placement", "retail movie execution preflight failed: shell"),
+                               ("movie-opcode", "retail movie execution preflight failed: shell"),
+                               ("movie-branch", "retail movie execution preflight failed: shell"),
+                               ("movie-operand", "retail movie execution preflight failed: shell"),
+                               ("movie-budget", "retail SWF execution rejected (swf/shell.swf): instruction budget"),
                                ("english", "retail movie resource checksum mismatch: english")):
-            log = f']echo "{identity}_ready"\n{identity}_ready \n]ps2_uiRetail movie shell\n[D3BFG] FATAL {expected}\n'
+            command = "execute" if case in runner.EXECUTION_NEGATIVES else "movie"
+            log = f']echo "{identity}_ready"\n{identity}_ready \n]ps2_uiRetail {command} shell\n[D3BFG] FATAL {expected}\n'
             self.assertTrue(runner.classify_negative(log, identity, case)[0])
             self.assertFalse(runner.classify_negative(log.replace(expected, "out of memory"), identity, case)[0])
             self.assertFalse(runner.classify_negative(log + "RETAIL movie=0 state=loaded\n", identity, case)[0])
+            self.assertFalse(runner.classify_negative(log + "RETAIL movie=1 state=loaded\n", identity, case)[0])
             self.assertFalse(runner.classify_negative(log + "CONSOLE capture=movie-shell1.tga frame=1 presents=1 redraws=0\n", identity, case)[0])
+            self.assertFalse(runner.classify_negative(log + "CONSOLE capture=unexpected.tga frame=1 presents=1 redraws=0\n", identity, case)[0])
+            if case == "movie-budget":
+                self.assertFalse(runner.classify_negative(log.replace("(swf/shell.swf)", "(swf/dialog.swf)"), identity, case)[0])
 
     def test_structural_mutations_recompute_integrity_to_exercise_native_reader(self):
-        for case in ("movie-count", "movie-init"):
+        for case in ("movie-count", "movie-init") + runner.EXECUTION_NEGATIVES:
             output = self.source / case
             directory = output / "base/retail"
             directory.mkdir(parents=True)
@@ -160,6 +377,81 @@ class MovieResourcesTests(unittest.TestCase):
             raw = (directory / "shell.bswf").read_bytes()
             self.assertNotEqual(raw, self.movie)
             self.assertEqual(struct.unpack_from("<I", (directory / "movies.uim").read_bytes(), 36)[0], fnv1a32(raw))
+
+    def test_execution_mutations_change_the_intended_placement_or_action_operand(self):
+        commands = runner.root_commands(self.movie)
+        action = next(row for row in commands if row[0] == 12)
+        placement = next(row for row in commands if row[0] == 26)
+        self.assertGreater(action[2], 5)
+        for case, expected in (("movie-opcode", b"\xff"), ("movie-branch", b"\x99\x02\x00\xff\x7f"),
+                               ("movie-operand", b"\x96\x01\x00\x00"), ("movie-placement", b"\x86")):
+            output = self.source / case
+            directory = output / "base/retail"
+            directory.mkdir(parents=True)
+            profile, _ = staging.movie_resources(self.source, self.manifest)
+            (directory / "movies.uim").write_bytes(profile)
+            (directory / "shell.bswf").write_bytes(self.movie)
+            runner.mutate(output, case)
+            mutated = (directory / "shell.bswf").read_bytes()
+            offset = placement[1] if case == "movie-placement" else action[1]
+            self.assertEqual(mutated[offset:offset + len(expected)], expected)
+            self.assertEqual(mutated[:offset], self.movie[:offset])
+            self.assertEqual(mutated[offset + len(expected):], self.movie[offset + len(expected):])
+
+    def test_instruction_budget_mutation_is_valid_backward_branch_not_a_parser_failure(self):
+        directory = self.source / "budget/base/retail"
+        directory.mkdir(parents=True)
+        profile, _ = staging.movie_resources(self.source, self.manifest)
+        (directory / "movies.uim").write_bytes(profile)
+        (directory / "shell.bswf").write_bytes(self.movie)
+        runner.mutate(self.source / "budget", "movie-budget")
+        mutated = (directory / "shell.bswf").read_bytes()
+        self.assertEqual(len(mutated), len(self.movie))
+        inventory = inspect_swf(mutated)
+        self.assertEqual(inventory["scripts"]["opcodes"]["Jump"], 1)
+        self.assertEqual(inventory["dictionary_counts"], self.manifest["swfs"]["generated/swf/shell.bswf"]["dictionary_counts"])
+
+    def test_native_callback_alias_expands_a_valid_root_action_and_updates_profile_lengths(self):
+        minimal = runner.replace_root_action(self.movie, b"\x07\0")
+        logical = "generated/swf/shell.bswf"
+        self.add_asset(logical, minimal)
+        self.manifest["swfs"][logical] = inspect_swf(bytes(minimal))
+        directory = self.source / "alias/base/retail"
+        directory.mkdir(parents=True)
+        profile, _ = staging.movie_resources(self.source, self.manifest)
+        (directory / "movies.uim").write_bytes(profile)
+        (directory / "shell.bswf").write_bytes(minimal)
+        runner.mutate(self.source / "alias", "movie-native-alias")
+        mutated = (directory / "shell.bswf").read_bytes()
+        self.assertGreater(len(mutated), len(minimal))
+        inventory = inspect_swf(mutated)
+        self.assertEqual(inventory["dictionary_counts"], self.manifest["swfs"][logical]["dictionary_counts"])
+        words = struct.unpack("<16I", (directory / "movies.uim").read_bytes())
+        self.assertEqual(words[8:10], (len(mutated), fnv1a32(mutated)))
+        commands = runner.root_commands(mutated)
+        _, offset, size = next(row for row in commands if row[0] == 12)
+        actions = mutated[offset:offset + size]
+        self.assertIn(b"getLocalString\0", actions)
+        self.assertIn(b"setCVarInteger\0", actions)
+        inspector = Inspector()
+        inspector.actions(Reader(actions))
+        self.assertEqual(dict(inspector.opcodes), {"Push": 2, "GetVariable": 1, "SetVariable": 1,
+                                                  "CallFunction": 1, "Pop": 1, "End": 1})
+
+    def test_native_callback_alias_guard_requires_the_identity_failure_at_the_admitted_name(self):
+        trace = "SWF dependency movie=swf/shell.swf kind=native-callback name=getLocalString"
+        fatal = "retail SWF execution rejected (swf/shell.swf): native callback identity unavailable"
+        log = "run_ready \n]ps2_uiRetail execute shell\n" + trace + "\n[D3BFG] FATAL " + fatal + "\n"
+        accepted = lambda text: runner.classify_negative(text, "run", "movie-native-alias")[0]
+        self.assertTrue(accepted(log))
+        for changed in (log.replace(trace, ""), log.replace("name=getLocalString", "name=setCVarInteger"),
+                        log.replace(fatal, "out of memory"), log.replace("identity unavailable", "signature unavailable"),
+                        log.replace("rejected (swf/shell.swf)", "rejected (swf/dialog.swf)"),
+                        log + "RETAIL movie=0 state=loaded\n",
+                        log + "RETAIL movie=1 state=loaded\n",
+                        log + "CONSOLE capture=movie-shell1.tga frame=1 presents=1 redraws=0\n", log + "TLB Miss\n"):
+            with self.subTest(log=changed):
+                self.assertFalse(accepted(changed))
 
 
 if __name__ == "__main__":

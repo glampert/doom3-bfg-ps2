@@ -508,6 +508,25 @@ math path; PS2-specific math replacement headers are a later milestone.
   This fixture climbs at frame 283 and blocks near x=-16.25 on 293 while grounded;
   no jump or crouch is needed, and `PM_STEPSCALE=1` preserves horizontal velocity.
 
+## Scoped retail execution
+
+- Retail origin and permission to execute are separate: a resource-only `idSWF` still
+  rejects full Render/HandleEvent after timeline admission. Construction stays inactive;
+  real widget callbacks must be installed before explicit activation. Advance once per
+  Common frame before GS submission; synchronous redraws preserve movie time.
+- The shell's first frame needs native `refreshCarousel` and `updateCredits` owners.
+  Use their actual widgets, retain callback identity and detach the borrowed movie before
+  the base menu handler cleans up. The port's minimal carousel selects Doom 3 only.
+- Script lookup names are mutable. Native service authorization must compare the
+  resolved function object and owner, not only its name/signature. Native widget updates
+  can seek too; reject callbacks/seeks that could destroy an executing descendant.
+  Check every active script source and receiver, not just the innermost caller: a
+  descendant can call a function on root while its outer action is still running.
+- Static command/action validation does not bound dynamic work. Keep release checks for
+  instruction/call/stack/allocation work, and cap native argument lists at
+  `SWF_MAX_PARMS` (16). This selected profile is not general SWF execution support;
+  copied text aliases and raw default-sprite references retain upstream lifetime limits.
+
 ## Native BSWF atlas records
 
 BSWF16 image records interleave **width, atlas X offset, height, atlas Y offset**.

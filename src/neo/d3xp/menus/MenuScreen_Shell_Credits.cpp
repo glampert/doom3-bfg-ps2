@@ -27,6 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Preserve nullable Shell hierarchy queries without compiler RTTI.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 static const int NUM_CREDIT_LINES = 16;
@@ -731,7 +733,7 @@ void idMenuScreen_Shell_Credits::Update() {
 		if ( cmdBar != NULL ) {
 			cmdBar->ClearAllButtons();
 
-			idMenuHandler_Shell * shell = dynamic_cast< idMenuHandler_Shell * >( menuData );
+			idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
 			bool complete = false;
 			if ( shell != NULL ) {
 				complete = shell->GetGameComplete();
@@ -778,7 +780,7 @@ idMenuScreen_Shell_Credits::ShowScreen
 void idMenuScreen_Shell_Credits::ShowScreen( const mainMenuTransition_t transitionType ) {
 
 	if ( menuData != NULL ) {
-		idMenuHandler_Shell * shell = dynamic_cast< idMenuHandler_Shell * >( menuData );
+		idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
 		bool complete = false;
 		if ( shell != NULL ) {
 			complete = shell->GetGameComplete();
@@ -822,7 +824,7 @@ bool idMenuScreen_Shell_Credits::HandleAction( idWidgetAction & action, const id
 	switch ( actionType ) {
 		case WIDGET_ACTION_GO_BACK: {
 
-			idMenuHandler_Shell * shell = dynamic_cast< idMenuHandler_Shell * >( menuData );
+			idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
 			bool complete = false;
 			if ( shell != NULL ) {
 				complete = shell->GetGameComplete();
@@ -857,7 +859,7 @@ void idMenuScreen_Shell_Credits::UpdateCredits() {
 	}
 
 	if ( creditIndex >= creditList.Num() + NUM_CREDIT_LINES ) {
-		idMenuHandler_Shell * shell = dynamic_cast< idMenuHandler_Shell * >( menuData );
+		idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
 			bool complete = false;
 			if ( shell != NULL ) {
 				complete = shell->GetGameComplete();

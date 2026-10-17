@@ -323,6 +323,30 @@ operation, so use the explicit full-release seam at shutdown. Current production
 PT_LOAD is 11,066,918 debug / 11,490,086 release bytes (369 direct inputs). These are
 inactive dictionary/text measurements, not active menu/campaign or hardware budgets.
 
+## Scoped retail timelines and native widget owners
+
+The 2026-10-18 debug/release NTSC/PAL gate activates the original shell/dialog with
+minimal native carousel/Credits ownership. Shell frame one has 1,855 sprites / 485
+texts / nine levels; animation grows within the 2,048 / 512 / 16 limits. All active
+script sources/receivers retain bounded strict-ancestor snapshots until their calls
+return. The fixed origin ledger is part of ELF residency, not a heap allocation.
+
+Peak heap usage across the four execution runs is 11,137,065 requested / 11,838,584
+backing bytes. Arena commitment is 11,986,395 debug / 11,984,219 release. Clock-driven
+animation makes loaded ownership variable: bound it, then compare exact warm ownership
+after movie/widget teardown (5,446,190 / 5,551,040 bytes in 2,548 allocations). Full
+shutdown returns to 7,424 / 7,600 bytes in four allocations. Clear queued console
+history before a final release checkpoint; its future echo identity otherwise adds
+a transient 64-byte string even though shutdown frees it correctly.
+
+The Doom 3 cover adds only metadata, bringing open tables to eight images / 1,032
+record bytes. Six linear slots plus scratch and records request 1,836,040 RENDER
+payload bytes, included in the heap totals above. Only three font pages stream, with
+no eviction; movie/cover artwork does not draw yet. Current production PT_LOAD is
+11,139,621 debug / 11,575,973 release bytes (373 direct inputs). Keep fixed residency,
+heap backing and allocator arena separate. These are bounded initial timeline/text
+measurements, not complete menu artwork, campaign or physical hardware budgets.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

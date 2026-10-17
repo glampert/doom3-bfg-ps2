@@ -44,6 +44,13 @@ ignored local directories; it is separate from authored UI assets and target sta
 
 ## Production packages and controls
 
+Retail UI commands and staging are described in the
+[retail pipeline guide](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
+`ps2_uiRetail movie shell|dialog` inspects inactive resources;
+`ps2_uiRetail execute shell|dialog` runs admitted native timelines and the minimal
+widget owners while retaining the separate text inspection screen. Complete menu
+drawing and navigation remain pending.
+
 Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,
 `d3bfg.map` and `report.{json,txt}`. This executable links the full retained campaign
 without sources or headers under `src/tests/`, fixture symbols or linker GC. Its

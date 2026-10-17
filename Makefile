@@ -24,7 +24,8 @@
 #   make BUILD=release CONSOLE_STANDARD=pal run-retail-ui # release PAL resource screen
 #   make retail-movies           # stage inactive retail SWFs and the English dictionary
 #   make run-retail-movies       # draw English labels using original native SWF text records
-#   make test-retail-movies      # shell/dialog dictionaries, text layout, reloads and rejection guards
+#   make test-retail-movies      # inactive/executable timelines, English layout, reloads and guards
+#   make test-retail-timelines   # only executable retail timelines (no full movie rendering)
 #   make BUILD=release test-retail-movies # same native movie resource gate without assertions
 #   make test-retail-ui          # five fonts, layout/pixel checks, reloads and invalid resources
 #   make BUILD=release test-retail-ui # same resource checks without assertions
@@ -500,7 +501,7 @@ run-ui: ui
 test-ui: all
 	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --emulator $(PCSX2)
 
-.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies
+.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines
 
 retail-ui: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)"
@@ -519,6 +520,9 @@ run-retail-movies: retail-movies
 
 test-retail-movies: all
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
+
+test-retail-timelines: all
+	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case execution
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core
@@ -694,11 +698,22 @@ build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/renderer/cha
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/ps2/renderer/charset.cpp -o $@
 
-build/tests/ui_swf_format_tests: src/tests/host/ui_swf_format_tests.cpp src/ps2/ui/swf_format.cpp src/ps2/ui/swf_format.h Makefile
+build/tests/ui_swf_format_tests: src/tests/host/ui_swf_format_tests.cpp src/ps2/ui/swf_format.cpp src/ps2/ui/swf_format.h src/ps2/ui/swf_execution.cpp src/ps2/ui/swf_execution.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_swf_format_tests.cpp src/ps2/ui/swf_format.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_swf_format_tests.cpp src/ps2/ui/swf_format.cpp src/ps2/ui/swf_execution.cpp -o $@
 
-test-host: build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/ui_page_image_tests_1 build/tests/ui_page_image_tests_0 build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+build/tests/swf_execution_tests: src/tests/host/swf_execution_tests.cpp src/ps2/ui/swf_execution.cpp src/ps2/ui/swf_execution.h src/ps2/ui/swf_format.cpp src/ps2/ui/swf_format.h Makefile
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/swf_execution_tests.cpp src/ps2/ui/swf_execution.cpp src/ps2/ui/swf_format.cpp -o $@
+
+build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp src/ps2/ui/swf_runtime.h src/ps2/system/log.h Makefile
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp -o $@
+
+test-host: build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/ui_page_image_tests_1 build/tests/ui_page_image_tests_0 build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+	./build/tests/swf_runtime_tests_0
+	./build/tests/swf_runtime_tests_1
+	./build/tests/swf_execution_tests
 	./build/tests/ui_swf_format_tests
 	./build/tests/ui_font_format_tests
 	./build/tests/ui_retail_catalog_tests

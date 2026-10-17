@@ -127,6 +127,7 @@ void Present()
         ps2::FatalError("nested native console presentation");
     }
     s_drawing = true;
+    ps2::retail_movie::Advance(s_inFrame);
     ps2::rs::BeginFrame({ 16, 24, 40, 255 });
     renderSystem->SetGLState(0);
     renderSystem->SetColor(colorWhite);

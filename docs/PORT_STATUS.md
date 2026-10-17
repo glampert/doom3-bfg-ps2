@@ -25,9 +25,11 @@ and sound/world-render output remain pending. The first CPU-only GS 2D device sl
 now passes in PCSX2. Production now connects the real native console to Common
 frames through an explicit NTSC/PAL boot policy. Bounded indexed geometry, native font
 metrics, material declarations and timeline/AVM1 execution now draw an authored mask-free
-SWF with animation, focus/select and console overlays in debug/release NTSC/PAL. Retail
-UI inventory/cooking, required feature closure and native offline menu integration are
-the next rendering work.
+SWF with animation, focus/select and console overlays in debug/release NTSC/PAL. The
+retail pipeline now admits English fonts, inactive dictionaries and explicitly bounded
+shell/dialog timeline execution with minimal native carousel/Credits ownership. Full
+retail movie rendering, active artwork residency, required masks/blends and offline
+menu navigation remain the next rendering work.
 The sections below preserve each slice's
 historical measurements; current acceptance evidence is at the end.
 
@@ -3154,3 +3156,116 @@ contains complete examples and ownership details.
 Next close bounded placement/AVM1 execution and dynamic resource/path contracts,
 measure the actual menu bitmap/font working set, and implement required masks/blends
 before accepting full retail movie rendering and offline PressStart → Root → Quit.
+
+## Scoped retail timelines and native widget owners (2D-5 slice)
+
+Accepted **2026-10-18, Australia/Sydney**, in production debug/release NTSC/PAL.
+Original shell/dialog timelines now execute through the native AVM1 interpreter in an
+explicit production execution mode. Construction remains inactive, and full movie
+drawing/event routing still fail explicitly. The inspection screen continues to draw
+three isolated English text records. This establishes timeline and widget ownership;
+it does not complete retail menu rendering, navigation or milestone 2D-5.
+
+A second target preflight validates placements, dictionary references, display changes,
+sprite graphs, branches, constant pools, registers and function bodies. The execution
+profile admits the **32 action families** used by these movies and the authored demo.
+Release checks bound instruction/command/call/allocation work, recursion, stacks,
+strings, properties and live instances. Native services require the actual resolved
+function object, correct owner and supported signature. A bounded origin stack protects
+every active script source and receiver against destructive ancestor seeks, including
+outer callers hidden by nested functions and native widget callbacks. This selected
+profile does not establish general AVM1 lifetime safety.
+
+The shell borrows a minimal native menu owner. The original carousel retains five
+visible slots with **one Doom 3 option** and its admitted cover material; the original
+Credits screen installs its real callback and retains its idle-state gate. These are
+native owners rather than placeholder callbacks. Callback references stay pinned until
+the owner detaches from its borrowed movie, before movie destruction. Complete Shell
+startup, screen transitions, Credits navigation, saves, online services, sound and
+Classic Doom remain unavailable.
+
+The first shell frame contains **1,855 sprites / 485 texts / nine levels**; animation
+adds instances within the **2,048 / 512 / 16** live limits. Dialog contains **49 / 11 /
+five**. Native movie rate and bounded catch-up advance before GS submission, once per
+Common frame; synchronous redraws do not run scripts. The root can remain on frame
+one while descendant timelines continue to tick. Execution counters distinguish Common
+ticks from actual native timeline steps.
+
+The Doom 3 cover adds only cached image/material metadata: **eight images / 1,032 page
+record bytes** after both movie bindings exist. Six shared linear slots and one scratch
+page still request **1,836,040 RENDER payload bytes** including records. Only three font
+pages load, remain warm and incur no eviction. Movie/cover bitmap pixels are not drawn,
+so these figures do not measure an active menu's artwork working set.
+
+Loaded heap usage varies with clock-driven animation. The acceptance gate keeps a
+**16 MiB** loaded-heap ceiling and compares exact ownership after movie/widget teardown.
+Warm release retains **5,446,190 requested / 5,551,040 backing bytes in 2,548
+allocations** after both lazy image bindings exist. Console history is cleared before
+the final unload: HostFs queues the entire batch into history first, so a future long
+echo identity would otherwise add a transient 64-byte string at that checkpoint.
+
+| Configuration | Executable NTSC archive | Executable PAL archive |
+| --- | --- | --- |
+| Debug | `20261017T232203Z_movies_7ce187b923fe` | `20261017T232254Z_movies_aa53c53ff00a` |
+| Release | `20261017T232515Z_movies_a2f665139d77` | `20261017T232600Z_movies_76f2b46935c9` |
+
+Each run completes four phases of at least 120 Common frames: shell, dialog and two
+shell returns. Native timeline-step counters advance beyond activation; each load must
+produce fresh real callback traces and the shell's exact carousel/Credits owner state.
+All **32 source-derived text probes** pass. Shell reload captures match; all shell/dialog
+styles were visually inspected in both standards/builds for complete, readable labels
+and correct alignment. Final capture is readable, newer than the last movie capture and
+drained before shutdown. Retail captures and cooked data remain under ignored `build/`.
+
+Across these runs, peak heap usage is at most **11,137,065 requested / 11,838,584 backing
+bytes**. Arena commitment is **11,986,395 debug / 11,984,219 release**. Animation phase
+changes the loaded peak; these figures are measured maxima, not deterministic live
+ledgers or campaign budgets. All runs recover exactly **7,424 / 7,600 bytes in four
+allocations**, matching startup. Fixed `PT_LOAD` is **11,139,621 debug / 11,575,973
+release bytes**; the separate core test images are **2,118,896 / 2,203,120**. Production
+retains **373 direct objects**, zero test inputs/symbols and no GC. The compiler database
+contains **398 entries**; the source audit classifies all **458** upstream units.
+
+Both complete retail matrices pass **sixteen isolated processes per build**: inactive
+and executable NTSC/PAL plus twelve negative cases. Four new malformed placement/action
+cases reach execution preflight after recomputing the profile checksum. A valid infinite
+loop reaches the instruction budget; an alias to a different real native service fails
+function identity before dispatch. Specific diagnostics are required before movie
+publication or any capture; crashes, unrelated fatals and generic allocation failures
+do not pass. Strict production/core builds and **329 Python host regressions** pass.
+ASan/UBSan harnesses cover the shared action reader and runtime limits, including all
+active caller origins with assertions enabled/disabled. No new native fixture is added.
+
+Three consecutive dialog executions also pass in both standards/builds: debug
+`20261017T232743Z_movies_da67a30ed913` / `20261017T232754Z_movies_e1a32ca6fce6`, release
+`20261017T232954Z_movies_806575a71be9` / `20261017T233006Z_movies_b84fb42cb04f`.
+Warm dialog captures match. The cold NTSC final-T edge reproduces the previously
+measured four-pixel / 25-channel variance at source glyph row 332, x=81–96; all 32
+source probes remain required. PAL captures are identical across all three loads.
+The latest classifier rechecks all eight executable archives and rejects a counter
+that never advances beyond activation's single step.
+
+Existing authored UI positive animation/input/reload checks pass in NTSC/PAL:
+debug `20261017T232807Z_ui_face18f8ed5a` / `20261017T232827Z_ui_3ad388c073be`, release
+`20261017T233018Z_ui_4f0f4d69839b` / `20261017T233038Z_ui_60a7c32420e7`.
+Production headless bounded/live-command checks pass with exact cleanup: debug
+`20261017T232851Z_headless_0044931d4f6c` / `20261017T232949Z_headless_3499b4999c28`, release
+`20261017T233102Z_headless_c89c9d5f4151` / `20261017T233106Z_headless_d1eb1cb7a842`.
+One prior debug console attempt remains failed: PCSX2 trapped in its host SIGINT/Qt
+shutdown handler after native shutdown completed. The macOS report identifies a
+recursive allocator lock; the unchanged fresh retry passes. Its archive and triage
+are recorded in [the emulator rules](../.claude/rules/testing-pcsx2.md). No process-exit
+or crash check was relaxed.
+
+Run `make ui-cook` and `make run-retail-movies`, then append
+`ps2_uiRetail execute shell` or `ps2_uiRetail execute dialog` to
+`build/<config>/ui-retail-movies/console.txt`. `movie shell|dialog` keeps inactive
+inspection available. `make test-retail-timelines` checks executable NTSC/PAL reloads;
+`make test-retail-movies` also checks inactive loads and twelve expected failures.
+Select `BUILD=release` and/or `CONSOLE_STANDARD=pal` when staging. See
+[the execution guide](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
+
+Next close the retail mask/additive/special-blend requirements before full movie
+drawing, then resolve dynamic screen resources and measure simultaneous artwork/font
+residency. Offline native PressStart → Root → Quit-dialog navigation follows those
+gates. No physical PS2 cache, throughput or complete menu acceptance is claimed.

@@ -114,6 +114,11 @@ public:
         return m_valid && m_left == 0;
     }
 
+    const U8 * Pointer() const
+    {
+        return m_data;
+    }
+
 private:
     const U8 * m_data;
     std::size_t m_left;
@@ -123,7 +128,7 @@ private:
 class Validator final
 {
 public:
-    Validator(const void * bytes, std::size_t length, SwfIdentityCheck identity, void * context) : m_reader(bytes, length), m_identity(identity), m_context(context)
+    Validator(const void * bytes, std::size_t length, SwfIdentityCheck identity, void * context, SwfExecutionSummary * execution = nullptr) : m_reader(bytes, length), m_identity(identity), m_context(context), m_execution(execution)
     {
     }
 
@@ -160,7 +165,7 @@ public:
                 Shape();
                 break;
             case 4:
-                Sprite();
+                Sprite(index);
                 break;
             case 5:
                 Font();
@@ -181,6 +186,11 @@ public:
         }
 
         if (!r.End() || m_summary.fonts == 0 || m_summary.editTexts == 0 || !m_hasPreview)
+        {
+            return false;
+        }
+
+        if (m_execution != nullptr && !Execution())
         {
             return false;
         }
@@ -223,7 +233,7 @@ private:
         }
     }
 
-    void Sprite()
+    void Sprite(U32 dictionary = kMaxDictionary)
     {
         auto & r = m_reader;
         ++m_summary.sprites;
@@ -249,8 +259,9 @@ private:
         }
 
         const U32 bufferBytes = r.Read(4);
-        r.Take(bufferBytes);
+        const U8 * const buffer = r.Take(bufferBytes);
         const U32 commands = r.Count(8, 32768);
+        const U8 * const descriptors = r.Pointer();
         m_summary.commands += commands;
         r.Require(commands == previous && m_summary.commands <= 32768);
         U32 used = 0;
@@ -267,6 +278,170 @@ private:
         // Native sprite Init executes doInitActions even before its first frame. This storage-only
         // profile rejects them, so constructing the inactive root cannot execute any imported code.
         r.Require(r.Read(4) == 0 && used == bufferBytes);
+
+        if (m_execution != nullptr && r.Valid())
+        {
+            m_sprites[m_spriteCount++] = { buffer, descriptors, commands, dictionary, frames };
+        }
+    }
+
+    struct SpriteData
+    {
+        const U8 * buffer = nullptr;
+        const U8 * descriptors = nullptr;
+        U32 commands = 0;
+        U32 dictionary = kMaxDictionary;
+        U32 frames = 0;
+    };
+
+    static U32 Big(const U8 * bytes)
+    {
+        return (static_cast<U32>(bytes[0]) << 24) | (static_cast<U32>(bytes[1]) << 16) |
+               (static_cast<U32>(bytes[2]) << 8) | static_cast<U32>(bytes[3]);
+    }
+
+    bool Execution()
+    {
+        SwfExecutionSummary summary;
+        std::uint16_t display[kMaxSwfDisplayDepth + 1];
+
+        for (U32 index = 0; index < m_spriteCount; ++index)
+        {
+            const SpriteData & sprite = m_sprites[index];
+            std::memset(display, 0xff, sizeof(display));
+            U32 used = 0;
+
+            for (U32 command = 0; command < sprite.commands; ++command)
+            {
+                const U32 tag = Big(sprite.descriptors + command * 8);
+                const U32 length = Big(sprite.descriptors + command * 8 + 4);
+                SwfPlacement placement;
+
+                if (!ValidateSwfCommand(tag, sprite.buffer + used, length, m_types,
+                                        m_summary.dictionary, sprite.frames, summary, &placement))
+                {
+                    return false;
+                }
+
+                used += length;
+
+                if (tag == 12)
+                {
+                    continue;
+                }
+
+                auto & character = display[placement.depth];
+
+                if (placement.remove)
+                {
+                    // Native removal of a missing depth is an intentional no-op.
+                    character = 0xffffU;
+                }
+                else if (placement.move)
+                {
+                    if (character == 0xffffU)
+                    {
+                        return false;
+                    }
+
+                    if (placement.hasCharacter)
+                    {
+                        const U32 oldKind = m_types[character];
+                        const U32 newKind = m_types[placement.character];
+
+                        if (oldKind == 4 || oldKind == 7 || newKind == 4 || newKind == 7)
+                        {
+                            return false;
+                        }
+
+                        character = placement.character;
+                    }
+                }
+                else
+                {
+                    if (character != 0xffffU)
+                    {
+                        return false;
+                    }
+
+                    character = placement.character;
+                }
+            }
+        }
+
+        for (U32 index = 0; index < m_spriteCount; ++index)
+        {
+            if (!Graph(index))
+            {
+                return false;
+            }
+        }
+
+        *m_execution = summary;
+        return true;
+    }
+
+    bool Graph(U32 index, U32 depth = 1)
+    {
+        if (depth > kMaxSwfSpriteDepth || m_graphState[index] == 1)
+        {
+            return false;
+        }
+
+        if (m_graphState[index] == 2)
+        {
+            return depth + m_graphHeight[index] - 1 <= kMaxSwfSpriteDepth;
+        }
+
+        m_graphState[index] = 1;
+        U32 height = 1;
+        const SpriteData & sprite = m_sprites[index];
+        U32 used = 0;
+
+        for (U32 command = 0; command < sprite.commands; ++command)
+        {
+            const U32 tag = Big(sprite.descriptors + command * 8);
+            const U32 length = Big(sprite.descriptors + command * 8 + 4);
+            const U8 * const data = sprite.buffer + used;
+            used += length;
+
+            if ((tag != 26 && tag != 70) || (data[0] & 2U) == 0)
+            {
+                continue;
+            }
+
+            const U32 characterOffset = tag == 26 ? 3 : 4;
+            const U32 character = static_cast<U32>(data[characterOffset]) |
+                                  (static_cast<U32>(data[characterOffset + 1]) << 8);
+
+            if (m_types[character] != 4)
+            {
+                continue;
+            }
+
+            U32 child = 0;
+
+            while (child < m_spriteCount && m_sprites[child].dictionary != character)
+            {
+                ++child;
+            }
+
+            if (child == m_spriteCount || !Graph(child, depth + 1))
+            {
+                return false;
+            }
+
+            const U32 childHeight = static_cast<U32>(m_graphHeight[child]) + 1;
+
+            if (childHeight > height)
+            {
+                height = childHeight;
+            }
+        }
+
+        m_graphHeight[index] = static_cast<U8>(height);
+        m_graphState[index] = 2;
+        return true;
     }
 
     void Image()
@@ -379,6 +554,11 @@ private:
     U32 m_fontRefs[256] = {};
     U32 m_references = 0;
     bool m_hasPreview = false;
+    SwfExecutionSummary * m_execution;
+    SpriteData m_sprites[512];
+    U32 m_spriteCount = 0;
+    U8 m_graphState[512] = {};
+    U8 m_graphHeight[512] = {};
 };
 } // namespace
 
@@ -390,6 +570,25 @@ bool ValidateSwfBytes(const void * bytes, std::size_t length, SwfSummary & outpu
     }
 
     return Validator(bytes, length, identity, context).Run(output);
+}
+
+bool ValidateSwfExecutionBytes(const void * bytes, std::size_t length, SwfExecutionSummary & output)
+{
+    if (bytes == nullptr || length < 64 || length > kMaxSwfBytes)
+    {
+        return false;
+    }
+
+    SwfSummary storage;
+    SwfExecutionSummary execution;
+
+    if (!Validator(bytes, length, nullptr, nullptr, &execution).Run(storage))
+    {
+        return false;
+    }
+
+    output = execution;
+    return true;
 }
 
 bool ValidateEnglishBytes(const void * bytes, std::size_t length, std::uint32_t & entries)

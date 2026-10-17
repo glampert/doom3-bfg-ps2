@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: retail_movie.cpp
-// Brief: Inspect native English fonts and inactive retail SWF text before movie/Shell activation.
+// Brief: Own English resource screens and bounded retail timeline execution with native widgets.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -13,6 +13,8 @@
 #include "ps2/system/log.h"
 #include "ps2/ui/movie.h"
 #include "ps2/ui/retail_assets.h"
+#include "ps2/ui/retail_owner.h"
+#include "ps2/ui/swf_runtime.h"
 #include <idlib/precompiled.h>
 #include <renderer/Font.h>
 #include <swf/SWF.h>
@@ -32,19 +34,38 @@ static u32 s_cycle = 0;
 static idSWF * s_resourceMovie = nullptr;
 static idSWFTextInstance * s_texts[3] = {};
 static int s_movieIndex = -1;
+static u32 s_executionTicks = 0;
+static u32 s_nativeSteps = 0;
 static constexpr const char * kLabels[] = { "#str_swf_campaign", "#str_swf_settings", "#str_swf_quit" };
 
 void CloseResourceMovie()
 {
+    const int releasedMovie = s_movieIndex;
+
     for (auto *& text : s_texts)
     {
         delete text;
         text = nullptr;
     }
 
+    if (s_resourceMovie != nullptr && s_resourceMovie->IsResourceExecution())
+    {
+        ps2::ui::retail_owner::Shutdown(*s_resourceMovie);
+    }
+
     delete s_resourceMovie;
     s_resourceMovie = nullptr;
     s_movieIndex = -1;
+    s_executionTicks = 0;
+    s_nativeSteps = 0;
+
+    if (releasedMovie >= 0)
+    {
+        const auto heap = ps2::heap::GetTotalStats();
+        const auto pages = ps2::render::GetUiPageStats();
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL released movie=%d images=%u heap=%zu/%zu/%zu\n",
+                 releasedMovie, pages.images, heap.requestedBytes, heap.backingBytes, heap.allocationCount);
+    }
 }
 
 ps2::ui::retail::FontRecord CurrentFont()
@@ -56,6 +77,63 @@ ps2::ui::retail::FontRecord CurrentFont()
     }
 
     return record;
+}
+
+void CountHierarchy(const idSWFSpriteInstance * instance, unsigned level, unsigned & sprites, unsigned & texts, unsigned & depth)
+{
+    if (instance == nullptr || level > ps2::ui::swf::kMaxHierarchyDepth || ++sprites > ps2::ui::swf::kMaxSprites)
+    {
+        ps2::FatalError("retail execution hierarchy exceeds admitted limits");
+    }
+
+    depth = Max(depth, level);
+    for (int index = 0; index < instance->displayList.Num(); ++index)
+    {
+        const auto & entry = instance->displayList[index];
+        if (entry.spriteInstance != nullptr)
+        {
+            CountHierarchy(entry.spriteInstance, level + 1, sprites, texts, depth);
+        }
+
+        if (entry.textInstance != nullptr && ++texts > ps2::ui::swf::kMaxTexts)
+        {
+            ps2::FatalError("retail execution text instances exceed admitted limits");
+        }
+    }
+}
+
+void ExecutionStatus()
+{
+    if (!s_resourceMovie->IsResourceExecution())
+    {
+        return;
+    }
+
+    auto * const root = s_resourceMovie->GetRootObject().GetSprite();
+    if (root == nullptr)
+    {
+        ps2::FatalError("retail execution root instance missing");
+    }
+
+    unsigned sprites = 0;
+    unsigned texts = 0;
+    unsigned depth = 0;
+    CountHierarchy(root, 1, sprites, texts, depth);
+    ps2::ui::retail_owner::Status();
+    const auto stats = ps2::ui::swf::GetStats();
+    ps2::Log(ps2::LogLevel::Info,
+             "[D3BFG] RETAIL execution movie=%d ticks=%u root=%u sprites=%u texts=%u instructions=%lu calls=%lu commands=%lu depth=%u native_steps=%u\n",
+             s_movieIndex, s_executionTicks, static_cast<unsigned>(root->GetCurrentFrame()), sprites, texts,
+             static_cast<unsigned long>(stats.instructions), static_cast<unsigned long>(stats.calls),
+             static_cast<unsigned long>(stats.commands), depth, s_nativeSteps);
+    ps2::Log(ps2::LogLevel::Info,
+             "[D3BFG] RETAIL execution peaks instructions=%lu calls=%lu commands=%lu call_depth=%lu visit_depth=%lu stack=%lu objects=%lu functions=%lu strings=%lu string_bytes=%lu traces=%lu\n",
+             static_cast<unsigned long>(stats.peakInstructions), static_cast<unsigned long>(stats.peakCalls),
+             static_cast<unsigned long>(stats.peakCommands), static_cast<unsigned long>(stats.peakDepth),
+             static_cast<unsigned long>(stats.peakVisitDepth), static_cast<unsigned long>(stats.peakStack),
+             static_cast<unsigned long>(stats.peakObjects), static_cast<unsigned long>(stats.peakFunctions),
+             static_cast<unsigned long>(stats.peakStrings), static_cast<unsigned long>(stats.peakStringBytes),
+             static_cast<unsigned long>(stats.traces));
 }
 
 void Status()
@@ -72,10 +150,12 @@ void Status()
     {
         const auto summary = ps2::ui::retail::GetMovieSummary();
         ps2::Log(ps2::LogLevel::Info,
-                 "[D3BFG] RETAIL movie=%d state=loaded frames=%u dictionary=%lu texts=%lu preview=%lu english=%d scripts=inactive heap=%zu/%zu/%zu\n",
+                 "[D3BFG] RETAIL movie=%d state=loaded frames=%u dictionary=%lu texts=%lu preview=%lu english=%d scripts=%s heap=%zu/%zu/%zu\n",
                  s_movieIndex, s_frames, static_cast<unsigned long>(summary.dictionary),
                  static_cast<unsigned long>(summary.editTexts), static_cast<unsigned long>(summary.previewText),
-                 idLocalization::GetDictionary().GetNumKeyVals(), heap.requestedBytes, heap.backingBytes, heap.allocationCount);
+                 idLocalization::GetDictionary().GetNumKeyVals(), s_resourceMovie->IsResourceExecution() ? "active" : "inactive", heap.requestedBytes, heap.backingBytes, heap.allocationCount);
+
+        ExecutionStatus();
 
         for (int index = 0; index < ps2::ArrayLength(s_texts); ++index)
         {
@@ -181,7 +261,7 @@ void Load()
     Status();
 }
 
-void LoadResourceMovie(unsigned index)
+void LoadResourceMovie(unsigned index, bool execute = false)
 {
     if (!s_loaded || ps2::rs::FrameStarted() || index >= 2)
     {
@@ -189,7 +269,7 @@ void LoadResourceMovie(unsigned index)
     }
 
     CloseResourceMovie();
-    ps2::ui::retail::PrepareMovie(index);
+    ps2::ui::retail::PrepareMovie(index, execute);
     s_resourceMovie = new (TAG_SWF) idSWF(index == 0 ? "shell" : "dialog", nullptr, true);
     const auto summary = ps2::ui::retail::GetMovieSummary();
     auto * const entry = s_resourceMovie->GetDictionaryEntry(static_cast<int>(summary.previewText));
@@ -220,6 +300,15 @@ void LoadResourceMovie(unsigned index)
         s_texts[label]->SetText(kLabels[label]);
     }
 
+    if (execute)
+    {
+        ps2::ui::retail_owner::Init(*s_resourceMovie, index);
+        ps2::ui::swf::ResetStats();
+        const ps2::ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
+        s_resourceMovie->EnableResourceExecution();
+        s_nativeSteps = 1;
+    }
+
     s_movieIndex = static_cast<int>(index);
     s_frames = 0;
     Status();
@@ -229,11 +318,11 @@ void Control(const idCmdArgs & args)
 {
     if (!s_initialized || args.Argc() < 2 || args.Argc() > 3)
     {
-        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX or movie NAME");
+        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME or execute NAME");
     }
 
     const char * const action = args.Argv(1);
-    if (strcmp(action, "movie") == 0)
+    if (strcmp(action, "movie") == 0 || strcmp(action, "execute") == 0)
     {
         if (args.Argc() != 3)
         {
@@ -242,14 +331,19 @@ void Control(const idCmdArgs & args)
 
         if (strcmp(args.Argv(2), "shell") == 0)
         {
-            LoadResourceMovie(0);
+            LoadResourceMovie(0, strcmp(action, "execute") == 0);
         }
         else if (strcmp(args.Argv(2), "dialog") == 0)
         {
-            LoadResourceMovie(1);
+            LoadResourceMovie(1, strcmp(action, "execute") == 0);
         }
         else if (strcmp(args.Argv(2), "none") == 0)
         {
+            if (strcmp(action, "execute") == 0)
+            {
+                ps2::FatalError("ps2_uiRetail execute requires shell or dialog");
+            }
+
             CloseResourceMovie();
             s_frames = 0;
             Status();
@@ -340,7 +434,7 @@ void Init()
     }
 
     cmdSystem->AddCommand("ps2_uiRetail", Control, CMD_FL_SYSTEM,
-                          "control English resources with load/unload/reload/status, font INDEX or movie shell/dialog/none");
+                          "control English resources with load/unload/reload/status, font INDEX, movie NAME or execute NAME");
     s_initialized = true;
 }
 
@@ -365,6 +459,23 @@ void Shutdown()
 bool IsLoaded()
 {
     return s_loaded;
+}
+
+void Advance(bool advance)
+{
+    if (!advance || s_resourceMovie == nullptr || !s_resourceMovie->IsResourceExecution())
+    {
+        return;
+    }
+
+    if (rs::FrameStarted() || s_executionTicks == UINT_MAX || s_nativeSteps > UINT_MAX - 10)
+    {
+        FatalError("retail execution frame ownership or counter overflow");
+    }
+
+    const ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
+    s_nativeSteps += s_resourceMovie->AdvanceResourceExecution(Sys_Milliseconds());
+    ++s_executionTicks;
 }
 
 void Render(bool advance)
@@ -393,7 +504,7 @@ void Render(bool advance)
     {
         renderSystem->SetGLState(0);
         renderSystem->DrawSmallStringExt(48, 32, s_movieIndex == 0 ? "Retail shell text resources" : "Retail dialog text resources", colorWhite, true);
-        renderSystem->DrawSmallStringExt(48, 52, "Native English layout; timelines, masks and Shell remain inactive", colorWhite, true);
+        renderSystem->DrawSmallStringExt(48, 52, s_resourceMovie->IsResourceExecution() ? "Native timeline/scripts active; full movie drawing remains pending" : "Native English layout; timelines, masks and Shell remain inactive", colorWhite, true);
         ui::BeginSwfDraw();
 
         for (int index = 0; index < ArrayLength(s_texts); ++index)

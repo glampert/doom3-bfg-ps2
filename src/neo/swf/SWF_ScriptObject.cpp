@@ -28,6 +28,54 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "../idlib/precompiled.h"
 
+// [PS2_D3BFG]: Native property writes cannot acquire undeclared media or silently ignore mutations.
+#if defined( ID_PS2 )
+namespace
+{
+	void CheckNativeWrite( idSWFScriptObject * receiver, idSWFScriptNativeVariable * native, const char * name, const idSWFScriptVar & value )
+	{
+		if ( !ps2::ui::swf::Active() )
+		{
+			return;
+		}
+
+		ps2::ui::swf::Trace( "native-property", name );
+		ps2::ui::swf::Require( !native->IsReadOnly(), "read-only native property write" );
+		if ( receiver->GetSprite() != NULL && idStr::Cmp( name, "material" ) == 0 && value.IsString() )
+		{
+			ps2::ui::swf::Trace( "material", value.ToString() );
+			ps2::ui::swf::Require( false, "dynamic material override unavailable" );
+		}
+
+		if ( receiver->GetText() != NULL && idStr::Cmp( name, "renderSound" ) == 0 )
+		{
+			ps2::ui::swf::Trace( "sound", value.ToString() );
+			ps2::ui::swf::Require( false, "text sound playback unavailable" );
+		}
+
+		if ( receiver->GetSprite() != NULL && ( idStr::Cmp( name, "_width" ) == 0 || idStr::Cmp( name, "_height" ) == 0 ) )
+		{
+			ps2::ui::swf::Require( false, "native sprite dimension setter unavailable" );
+		}
+
+		if ( receiver->GetSprite() != NULL && idStr::Cmp( name, "onEnterFrame" ) == 0 )
+		{
+			ps2::ui::swf::Require( value.IsUndefined() || value.IsNULL() || ( value.IsFunction() && const_cast<idSWFScriptVar &>( value ).GetFunction()->IsScript() ), "frame callback must be imported script" );
+		}
+
+		if ( receiver->GetText() != NULL && idStr::Cmp( name, "text" ) == 0 )
+		{
+			const idStr text = value.ToString();
+			ps2::ui::swf::CheckString( text.Length() );
+			if ( text.Cmpn( "#str_", 5 ) == 0 )
+			{
+				ps2::ui::swf::Trace( "localization", text );
+			}
+		}
+	}
+}
+#endif
+
 idCVar swf_debugShowAddress( "swf_debugShowAddress", "0", CVAR_BOOL, "shows addresses along with object types when they are serialized" );
 
 
@@ -62,6 +110,10 @@ idSWFScriptObject::idSWFScriptObject
 ========================
 */
 idSWFScriptObject::idSWFScriptObject() : prototype( NULL ), refCount( 1 ), noAutoDelete( false ), objectType( SWF_OBJECT_OBJECT ) {
+	// [PS2_D3BFG]: Live objects are counted across execution scopes and later teardown.
+#if defined( ID_PS2 )
+	ps2::ui::swf::TrackObject( true );
+#endif
 	data.sprite = NULL;
 	data.text = NULL;
 	Clear();
@@ -74,6 +126,11 @@ idSWFScriptObject::~idSWFScriptObject
 ========================
 */
 idSWFScriptObject::~idSWFScriptObject() {
+	// [PS2_D3BFG]: Release retained property/object accounting only with their native owner.
+#if defined( ID_PS2 )
+	ps2::ui::swf::TrackProperties( -variables.Num() );
+	ps2::ui::swf::TrackObject( false );
+#endif
 	if ( prototype != NULL ) {
 		prototype->Release();
 	}
@@ -114,6 +171,10 @@ idSWFScriptObject::Clear
 ========================
 */
 void idSWFScriptObject::Clear() {
+	// [PS2_D3BFG]: Native Clear can run outside the guarded execution scope.
+#if defined( ID_PS2 )
+	ps2::ui::swf::TrackProperties( -variables.Num() );
+#endif
 	variables.Clear();
 	for ( int i = 0; i < VARIABLE_HASH_BUCKETS; i++ ) {
 		variablesHash[i] = -1;
@@ -269,8 +330,16 @@ void idSWFScriptObject::Set( const char * name, const idSWFScriptVar & value ) {
 	if ( objectType == SWF_OBJECT_ARRAY ) {
 		if ( idStr::Cmp( name, "length" ) == 0 ) {
 			int newLength = value.ToInteger();
+			// [PS2_D3BFG]: Dynamic array indices/length cannot grow unbounded or overflow length arithmetic.
+#if defined( ID_PS2 )
+			ps2::ui::swf::CheckCount( "array length", newLength, 256 );
+#endif
 			for ( int i = 0; i < variables.Num(); i++ ) {
 				if ( variables[i].index >= newLength ) {
+					// [PS2_D3BFG]: Removing array entries also releases their live property accounting.
+#if defined( ID_PS2 )
+					ps2::ui::swf::TrackProperties( -1 );
+#endif
 					variables.RemoveIndexFast( i );
 					i--;
 				}
@@ -286,6 +355,13 @@ void idSWFScriptObject::Set( const char * name, const idSWFScriptVar & value ) {
 			}
 		} else {
 			int iName = atoi( name );
+			// [PS2_D3BFG]: An index stored by string uses the same fixed array limit.
+#if defined( ID_PS2 )
+			if ( iName > 0 )
+			{
+				ps2::ui::swf::CheckCount( "named array index", iName, 255 );
+			}
+#endif
 			if ( iName > 0 || ( iName == 0 && idStr::Cmp( name, "0" ) == 0 ) ) {
 				swfNamedVar_t * lengthVar = GetVariable( "length", true );
 				if ( lengthVar->value.ToInteger() <= iName ) {
@@ -297,6 +373,10 @@ void idSWFScriptObject::Set( const char * name, const idSWFScriptVar & value ) {
 
 	swfNamedVar_t * variable = GetVariable( name, true );
 	if ( variable->native ) {
+		// [PS2_D3BFG]: Shared setter policy also covers numeric access to a named native field.
+#if defined( ID_PS2 )
+		CheckNativeWrite( this, variable->native, variable->name, value );
+#endif
 		variable->native->Set( this, value );
 	} else if ( ( variable->flags & SWF_VAR_FLAG_READONLY ) == 0 ) {
 		variable->value = value;
@@ -309,6 +389,10 @@ idSWFScriptObject::Set
 ========================
 */
 void idSWFScriptObject::Set( int index, const idSWFScriptVar & value ) {
+	// [PS2_D3BFG]: Numeric writes retain their validation before any native length update.
+#if defined( ID_PS2 )
+	ps2::ui::swf::CheckCount( "array index", index, 255 );
+#endif
 	if ( index < 0 ) {
 		extern idCVar swf_debug;
 		if ( swf_debug.GetBool() ) {
@@ -325,6 +409,10 @@ void idSWFScriptObject::Set( int index, const idSWFScriptVar & value ) {
 
 	swfNamedVar_t * variable = GetVariable( index, true );
 	if ( variable->native ) {
+		// [PS2_D3BFG]: Shared setter policy also covers numeric access to a named native field.
+#if defined( ID_PS2 )
+		CheckNativeWrite( this, variable->native, variable->name, value );
+#endif
 		variable->native->Set( this, value );
 	} else if ( ( variable->flags & SWF_VAR_FLAG_READONLY ) == 0 ) {
 		variable->value = value;
@@ -351,6 +439,10 @@ idSWFScriptObject::DefaultValue
 ========================
 */
 idSWFScriptVar idSWFScriptObject::DefaultValue( bool stringHint ) {
+	// [PS2_D3BFG]: User valueOf/toString conversions share script recursion limits.
+#if defined( ID_PS2 )
+	ps2::ui::swf::CallScope conversionCall;
+#endif
 	const char * methods[2] = { "toString", "valueOf" };
 	if ( !stringHint ) {
 		SwapValues( methods[0], methods[1] );
@@ -358,6 +450,11 @@ idSWFScriptVar idSWFScriptObject::DefaultValue( bool stringHint ) {
 	for ( int i = 0; i < 2; i++ ) {
 		idSWFScriptVar method = Get( methods[i] );
 		if ( method.IsFunction() ) {
+			// [PS2_D3BFG]: Native callback aliases must not bypass their argument/capability dispatch.
+#if defined( ID_PS2 )
+			ps2::ui::swf::Trace( "conversion", methods[i] );
+			ps2::ui::swf::Require( method.GetFunction()->IsScript(), "native conversion callback unavailable" );
+#endif
 			idSWFScriptVar value = method.GetFunction()->Call( this, idSWFParmList() );
 			if ( !value.IsObject() && !value.IsFunction() ) {
 				return value;
@@ -403,12 +500,21 @@ idSWFScriptObject::GetVariable
 ========================
 */
 idSWFScriptObject::swfNamedVar_t * idSWFScriptObject::GetVariable( int index, bool create ) {
+	// [PS2_D3BFG]: Prototype cycles cannot recurse indefinitely in release retail execution.
+#if defined( ID_PS2 )
+	ps2::ui::swf::VisitScope propertyLookup;
+#endif
 	for ( int i = 0; i < variables.Num(); i++ ) {
 		if ( variables[i].index == index ) {
 			return &variables[i];
 		}
 	}
 	if ( create ) {
+		// [PS2_D3BFG]: Enforce per-object and aggregate live property limits before allocating.
+#if defined( ID_PS2 )
+		ps2::ui::swf::CheckCount( "object property count", variables.Num() + 1, 512 );
+		ps2::ui::swf::TrackProperties( 1 );
+#endif
 		swfNamedVar_t * variable = &variables.Alloc();
 		variable->flags = SWF_VAR_FLAG_NONE;
 		variable->index = index;
@@ -428,6 +534,17 @@ idSWFScriptObject::GetVariable
 ========================
 */
 idSWFScriptObject::swfNamedVar_t * idSWFScriptObject::GetVariable( const char * name, bool create ) {
+	// [PS2_D3BFG]: Prototype cycles cannot recurse indefinitely in release retail execution.
+#if defined( ID_PS2 )
+	ps2::ui::swf::VisitScope propertyLookup;
+#endif
+#if defined( ID_PS2 )
+	ps2::ui::swf::Require( name != NULL, "property name" );
+	if ( ps2::ui::swf::Active() )
+	{
+		ps2::ui::swf::CheckCount( "property name length", idStr::Length( name ), 256 );
+	}
+#endif
 	int hash = idStr::Hash( name ) & ( VARIABLE_HASH_BUCKETS - 1 );
 	for ( int i = variablesHash[hash]; i >= 0; i = variables[i].hashNext ) {
 		if ( variables[i].name == name ) {
@@ -444,6 +561,11 @@ idSWFScriptObject::swfNamedVar_t * idSWFScriptObject::GetVariable( const char * 
 	}
 
 	if ( create ) {
+		// [PS2_D3BFG]: Enforce per-object and aggregate live property limits before allocating.
+#if defined( ID_PS2 )
+		ps2::ui::swf::CheckCount( "object property count", variables.Num() + 1, 512 );
+		ps2::ui::swf::TrackProperties( 1 );
+#endif
 		swfNamedVar_t * variable = &variables.Alloc();
 		variable->flags = SWF_VAR_FLAG_NONE;
 		variable->index = atoi( name );
@@ -482,6 +604,10 @@ idSWFScriptVar idSWFScriptObject::GetNestedVar( const char * arg1, const char * 
 
 	idStaticList< const char *, numArgs > vars;	
 	for ( int i = 0; i < numArgs && args[ i ] != NULL; ++i ) {
+		// [PS2_D3BFG]: Record real hierarchy demands while preserving optional lookup semantics.
+#if defined( ID_PS2 )
+		ps2::ui::swf::Trace( "path-component", args[i] );
+#endif
 		vars.Append( args[ i ] );
 	}
 

@@ -33,9 +33,9 @@ in `CORE_C_SRC`, and the heap bridge imports its header through a system include
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 281 | Debug/release compile and resident link gates pass; M3 runtime adaptation remains required |
+| Campaign runtime | 282 | Includes native Credits for the minimal retail widget owner; M3 runtime adaptation remains required |
 | PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
-| Deferred runtime | 33 | BFG shell, multiplayer, online services and demo paths; callers still need explicit adapters |
+| Deferred runtime | 32 | BFG shell, multiplayer, online services and demo paths; callers still need explicit adapters |
 | Vendor runtime | 34 | Nine zlib streaming/CRC and 25 JPEG decompression sources; separate vendor flags, strict tagged heap hooks |
 | Optional vendor | 22 | Remaining shipped zlib/JPEG units excluded from the EE |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
@@ -57,9 +57,12 @@ retail containers and publish ignored extraction/inventory/cooking output. The C
 unpacker uses the host compiler without engine linkage; the UI pipeline uses Python's
 standard library. None adds an EE source, vendor dependency or target capability.
 The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest;
-the native UIPG reader, page splitter and fixed texture cache add three strict backend
-units. Production now retains 363 inputs and the compile database has 388 entries.
-The target renderer scene uses authored pages; retail SWF/font admission stays pending.
+the native UIPG reader, page splitter and fixed texture cache supply native page binding.
+The English resource catalog, inactive retail dictionaries and opt-in bounded timeline
+execution now build on that layer. Production retains **373 direct inputs** and the
+compile database has **398 entries**. The minimal retail owner adds the original native
+Credits unit and uses the retained carousel implementation; full movie drawing and
+offline Shell navigation remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
 
 `make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
@@ -72,7 +75,7 @@ does not initialize the campaign game. `CORE_BOOT` controls this selection only 
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
 `PS2_CXX_SRC` owns production entry, the Common loop provider and the strict optional
-presentation and authored movie providers. Production links 363 direct objects, retaining all eleven
+presentation and movie providers. Production links 373 direct objects, retaining all eleven
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.
@@ -102,7 +105,7 @@ campaign's `idClass` hierarchy and `idGameLocal` are not yet part of that execut
 all core objects directly, without garbage collection. Debug/release core and expected
 missing-fixture runs have passed in PCSX2; see [PORT_STATUS.md](PORT_STATUS.md).
 
-`make compile-game` independently compiles all 281 intended runtime units with the
+`make compile-game` independently compiles all 282 intended runtime units with the
 campaign header boundary. Both configurations pass. It does not select the reduced
 core precompiled header or establish a resident game link; replacement services and
 registrations still need that separate gate.

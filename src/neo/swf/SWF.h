@@ -83,6 +83,14 @@ public:
 	}
 
 	void RenderResourceText( idRenderSystem * gui, idSWFTextInstance * text, float x, float y );
+	// [PS2_D3BFG]: Explicit checked execution keeps full retail drawing/events unavailable.
+	bool IsResourceExecution() const
+	{
+		return resourceExecution;
+	}
+	void EnableResourceExecution();
+	bool IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const;
+	unsigned AdvanceResourceExecution( int time );
 #else
 	idSWF( const char * filename, idSoundWorld * soundWorld = NULL );
 #endif
@@ -146,9 +154,11 @@ public:
 	idSWFScriptObject * HitTest( idSWFSpriteInstance * spriteInstance, const swfRenderState_t & renderState, int x, int y, idSWFScriptObject * parentObject );
 
 private:
-	// [PS2_D3BFG]: This flag gates all movie presentation and timeline activation for resource snapshots.
+	// [PS2_D3BFG]: Resource snapshots retain their retail origin and never authorize full movie drawing.
 #if defined( ID_PS2 )
 	bool resourceOnly;
+	// [PS2_D3BFG]: Retail origin and authorization to execute have independent lifetimes.
+	bool resourceExecution;
 #endif
 	idStr			filename;
 	ID_TIME_T		timestamp;

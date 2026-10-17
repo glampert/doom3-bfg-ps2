@@ -89,9 +89,17 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `ps2_uiRetail movie shell|dialog|none` selects inactive native dictionaries and
   isolated English text layout. `make test-retail-movies` checks native storage/layout,
   warm reloads, shared pages, full cleanup and malformed resources in both standards.
-  Resource-only constructors never run imported AVM1/placements; full movie Render,
-  Activate, HandleEvent and timeline advancement are fatal in this mode. Native
+  Resource-only constructors never run imported AVM1/placements; inactive inspection
+  rejects Activate and timeline advancement, and full movie Render/HandleEvent remain fatal. Native
   dictionary shutdown releases retained localization keys/pools after movies/fonts.
+  `ps2_uiRetail execute shell|dialog` separately admits placement/AVM1 operands and
+  executes native timelines before presentation, without full movie drawing or event routing.
+  The shell borrows a minimal native widget owner: the original carousel has five slots
+  with only the admitted Doom 3 cover, and the original Credits screen owns its callback.
+  Callback identity, signatures and destructive ancestor seeks are checked in release too.
+  `make test-retail-timelines` checks executable movies; `make test-retail-movies` also
+  checks inactive inspection and malformed resources. Full Shell navigation, masks/blends,
+  general dynamic resources and active artwork residency remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex

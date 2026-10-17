@@ -28,6 +28,11 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __SWF_SCRIPTVAR_H__
 #define __SWF_SCRIPTVAR_H__
 
+// [PS2_D3BFG]: Keep all retail value and string checks scoped to explicit execution.
+#if defined( ID_PS2 )
+#include "ps2/ui/swf_runtime.h"
+#endif
+
 class idSWFScriptObject;
 class idSWFScriptFunction;
 
@@ -38,9 +43,28 @@ A reference counted string
 */
 class idSWFScriptString : public idStr {
 public:
-	idSWFScriptString( const idStr & s ) : idStr( s ), refCount( 1 ) { }
+	// [PS2_D3BFG]: Account for live strings across scopes, including their later out-of-scope destruction.
+	idSWFScriptString( const idStr & s ) : idStr( s ), refCount( 1 )
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::TrackString( true, Length() );
+#endif
+	}
 
-	static idSWFScriptString * Alloc( const idStr & s ) { return new (TAG_SWF) idSWFScriptString( s ); }
+	~idSWFScriptString()
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::TrackString( false, Length() );
+#endif
+	}
+
+	static idSWFScriptString * Alloc( const idStr & s )
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::CheckString( s.Length() );
+#endif
+		return new (TAG_SWF) idSWFScriptString( s );
+	}
 	ID_INLINE void	AddRef() { refCount++; }
 	ID_INLINE void	Release() { if ( --refCount == 0 ) { delete this; } }
 
@@ -93,9 +117,32 @@ public:
 	bool	ToBool() const;
 	int32	ToInteger() const;
 
-	idSWFScriptObject *		GetObject() { assert( type == SWF_VAR_OBJECT ); return value.object; }
-	idSWFScriptObject *		GetObject() const { assert( type == SWF_VAR_OBJECT ); return value.object; }
-	idSWFScriptFunction *	GetFunction() { assert( type == SWF_VAR_FUNCTION ); return value.function; }
+	// [PS2_D3BFG]: Native accessors cannot reinterpret the wrong union member in scoped release execution.
+	idSWFScriptObject * GetObject()
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::Require( type == SWF_VAR_OBJECT, "script value object type" );
+#endif
+		assert( type == SWF_VAR_OBJECT );
+		return value.object;
+	}
+	idSWFScriptObject *		GetObject() const
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::Require( type == SWF_VAR_OBJECT, "script value object type" );
+#endif
+		assert( type == SWF_VAR_OBJECT );
+		return value.object;
+	}
+	// [PS2_D3BFG]: Native accessors cannot reinterpret the wrong union member in scoped release execution.
+	idSWFScriptFunction * GetFunction()
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::Require( type == SWF_VAR_FUNCTION, "script value function type" );
+#endif
+		assert( type == SWF_VAR_FUNCTION );
+		return value.function;
+	}
 	idSWFSpriteInstance *	ToSprite();
 	idSWFTextInstance *		ToText();
 

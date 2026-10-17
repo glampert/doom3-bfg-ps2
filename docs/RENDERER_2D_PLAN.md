@@ -3,7 +3,7 @@
 This is the reference inventory and implementation roadmap for the first GS-backed
 Doom 2D renderer. Inspection and approval date: **2026-10-14, Australia/Sydney**.
 The inventories retain that original source snapshot; implementation progress is recorded
-below, most recently on **2026-10-17, Australia/Sydney**. Uncompleted gates, budgets
+below, most recently on **2026-10-18, Australia/Sydney**. Uncompleted gates, budgets
 and destinations remain proposed.
 It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
@@ -100,6 +100,17 @@ It validates retained storage before native allocation and never executes import
 AVM1 or placement commands; see the [dictionary/text acceptance record](PORT_STATUS.md#inactive-retail-dictionaries-and-english-text-2d-5-slice).
 Full movie rendering, active-menu resource closure and
 2D-6 masks/blends still precede 2D-7 offline Shell startup.
+
+**The 2026-10-18 bounded retail timeline slice passes debug/release NTSC/PAL.** The original
+shell/dialog command and action bytes receive a second target preflight, and native
+timelines advance before drawing through the existing production frame owner. The shell
+borrows real carousel and Credits widget owners; its five-slot carousel contains only
+Doom 3. Native callback identity, argument, work and hierarchy checks remain enabled in
+release builds. Full movie rendering/events remain unavailable: the visible output is
+still the isolated English text inspection screen. This establishes initial timeline
+and widget ownership, not a navigable Shell or a measured bitmap working set. See the
+[execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution) and
+[acceptance record](PORT_STATUS.md#scoped-retail-timelines-and-native-widget-owners-2d-5-slice).
 
 ## Scope and completion criteria
 
@@ -555,9 +566,10 @@ The current **2D-4** implementation supplies bounded indexed UI, authored materi
 native fonts and one interactive mask-free native SWF. The host retail UI
 inventory/cook foundation (**2D-5**) is now available. The authored native SWF/font page
 binding passes with a shared budget. Native English font/image/material resources and
-legacy layout metrics now pass their separate opt-in resource screen. Next admit the
-retail movie timeline/placement execution and measure the active menu working set;
-bounded inactive BSWF and English edit-text inspection now provide the storage/layout foundation,
-followed by required SWF feature closure
+legacy layout metrics now pass their separate opt-in resource screen. Bounded native
+retail timeline/placement execution now has a separate opt-in path with minimal native
+widget owners. Next close required drawing features and dynamic state/resource paths,
+then measure the actual menu bitmap working set. Inactive BSWF and English edit-text
+inspection provide the storage/layout foundation for required SWF feature closure
 (**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
 the interface; native BFG menu and world-rendering acceptance remain separate gates.

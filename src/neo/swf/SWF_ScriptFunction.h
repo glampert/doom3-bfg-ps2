@@ -28,6 +28,11 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __SWF_SCRIPTFUNCTION_H__
 #define __SWF_SCRIPTFUNCTION_H__
 
+// [PS2_D3BFG]: Scoped retail execution validates operands in release builds too.
+#if defined( ID_PS2 )
+#include "ps2/ui/swf_runtime.h"
+#endif
+
 /*
 ========================
 Interface for calling functions from script
@@ -36,6 +41,13 @@ Interface for calling functions from script
 class idSWFScriptFunction {
 public:
 	virtual ~idSWFScriptFunction() {};
+	// [PS2_D3BFG]: Distinguish imported script calls from native services without RTTI.
+#if defined( ID_PS2 )
+	virtual bool IsScript() const
+	{
+		return false;
+	}
+#endif
 
 	virtual idSWFScriptVar	Call( idSWFScriptObject * thisObject, const idSWFParmList & parms ){ return idSWFScriptVar(); }; // this should never be hit
 	virtual void			AddRef(){};
@@ -106,8 +118,22 @@ public:
 
 	void				Clear();
 	void				Copy( const idSWFConstantPool & other );
-	idSWFScriptString * Get( int n ) { return pool[n]; }
-	void				Append( idSWFScriptString * s ) { pool.Append( s ); }
+	// [PS2_D3BFG]: Constant indices and pool growth are bounded in the retail execution scope.
+	idSWFScriptString * Get( int n )
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::Require( n >= 0 && n < pool.Num(), "constant pool index" );
+#endif
+		return pool[n];
+	}
+
+	void Append( idSWFScriptString * s )
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::CheckCount( "constant pool", pool.Num() + 1, 4096 );
+#endif
+		pool.Append( s );
+	}
 
 private:
 	idList< idSWFScriptString *, TAG_SWF > pool;
@@ -120,11 +146,56 @@ The idSWFStack class is just a helper routine for treating an idList like a stac
 */
 class idSWFStack : public idList< idSWFScriptVar > {
 public:
+// [PS2_D3BFG]: Operand accesses, pops and allocation retain their checks in scoped release execution.
+#if defined( ID_PS2 )
+	idSWFScriptVar & A()
+	{
+		ps2::ui::swf::Require( Num() >= 1, "operand stack underflow" );
+		return operator[]( Num() - 1 );
+	}
+
+	idSWFScriptVar & B()
+	{
+		ps2::ui::swf::Require( Num() >= 2, "operand stack underflow" );
+		return operator[]( Num() - 2 );
+	}
+
+	idSWFScriptVar & C()
+	{
+		ps2::ui::swf::Require( Num() >= 3, "operand stack underflow" );
+		return operator[]( Num() - 3 );
+	}
+
+	idSWFScriptVar & D()
+	{
+		ps2::ui::swf::Require( Num() >= 4, "operand stack underflow" );
+		return operator[]( Num() - 4 );
+	}
+
+	void SetNum( int count )
+	{
+		ps2::ui::swf::CheckStack( count );
+		idList<idSWFScriptVar>::SetNum( count );
+	}
+
+	idSWFScriptVar & Alloc()
+	{
+		ps2::ui::swf::CheckStack( Num() + 1 );
+		return idList<idSWFScriptVar>::Alloc();
+	}
+
+	void Pop( int count )
+	{
+		ps2::ui::swf::Require( count >= 0 && count <= Num(), "operand stack pop" );
+		SetNum( Num() - count );
+	}
+#else
 	idSWFScriptVar & A() { return operator[]( Num() - 1 ); }
 	idSWFScriptVar & B() { return operator[]( Num() - 2 ); }
 	idSWFScriptVar & C() { return operator[]( Num() - 3 ); }
 	idSWFScriptVar & D() { return operator[]( Num() - 4 ); }
 	void Pop( int n )	{ SetNum( Num() - n ); }
+#endif
 };
 
 /*
@@ -136,8 +207,22 @@ class idSWFScriptFunction_Script : public idSWFScriptFunction {
 public:
 				idSWFScriptFunction_Script() : refCount( 1 ), flags( 0 ), prototype( NULL ), data( NULL ), length( 0 ), defaultSprite( NULL ) { registers.SetNum( 4 ); }
 	virtual		~idSWFScriptFunction_Script();
+	// [PS2_D3BFG]: Identify imported functions without enabling native services through aliases.
+#if defined( ID_PS2 )
+	bool IsScript() const override
+	{
+		return true;
+	}
+#endif
 
-	static idSWFScriptFunction_Script *	Alloc() { return new (TAG_SWF) idSWFScriptFunction_Script; }
+	// [PS2_D3BFG]: Track all lifetimes so a retail scope also bounds allocations retained by previous ticks.
+	static idSWFScriptFunction_Script * Alloc()
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::TrackFunction( true );
+#endif
+		return new (TAG_SWF) idSWFScriptFunction_Script;
+	}
 	void	AddRef() { refCount++; }
 	void	Release() { if ( --refCount == 0 ) { delete this; } }
 
@@ -147,8 +232,21 @@ public:
 	void	SetScope( idList<idSWFScriptObject *> & scope );
 	void	SetConstants( const idSWFConstantPool & _constants )	{ constants.Copy( _constants ); }
 	void	SetDefaultSprite( idSWFSpriteInstance * _sprite )		{ defaultSprite = _sprite; }
-	void	AllocRegisters( int numRegs	)							{ registers.SetNum( numRegs ); }
-	void	AllocParameters( int numParms )							{ parameters.SetNum( numParms ); }
+// [PS2_D3BFG]: Registers use at most the full eight-bit encoding plus register zero.
+	void AllocRegisters( int numRegs )
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::CheckCount( "register count", numRegs, 256 );
+#endif
+		registers.SetNum( numRegs );
+	}
+	void AllocParameters( int numParms )
+	{
+#if defined( ID_PS2 )
+		ps2::ui::swf::CheckCount( "declared parameter count", numParms, 255 );
+#endif
+		parameters.SetNum( numParms );
+	}
 	void	SetParameter( uint8 n, uint8 r, const char * name )		{ parameters[n].reg = r; parameters[n].name = name; }
 
 	idSWFScriptObject * GetPrototype()	    						{ return prototype; }
