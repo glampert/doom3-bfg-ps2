@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: retail_assets.cpp
-// Brief: Publish bounded catalog/font snapshots without admitting retail scripts or unchecked counts.
+// Brief: Publish checked English fonts and inactive movie snapshots without executing retail scripts.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -21,6 +21,66 @@ namespace
 {
 static void * s_bytes = nullptr;
 static CatalogView s_catalog;
+static std::uint32_t s_profile[16] = {};
+static bool s_language = false;
+static SwfSummary s_movieSummary;
+static constexpr const char * kMovies[] = { "generated/swf/shell.bswf", "generated/swf/dialog.bswf" };
+static constexpr const char * kMovieFiles[] = { "retail/shell.bswf", "retail/dialog.bswf" };
+
+void * Snapshot(const char * path, std::uint32_t length, std::uint32_t checksum)
+{
+    idFile * const source = fileSystem->OpenFileRead(path);
+
+    if (source == nullptr)
+    {
+        FatalError("retail movie resource missing: %s", path);
+    }
+
+    if (source->Length() != static_cast<int>(length))
+    {
+        delete source;
+        FatalError("retail movie resource length mismatch: %s", path);
+    }
+
+    void * const bytes = heap::Alloc(length, TAG_SWF);
+    const bool read = source->Read(bytes, static_cast<int>(length)) == static_cast<int>(length);
+    delete source;
+
+    if (!read || PageChecksum(bytes, length) != checksum)
+    {
+        heap::Free(bytes);
+        FatalError("retail movie resource checksum mismatch: %s", path);
+    }
+
+    return bytes;
+}
+
+bool MovieIdentity(const char * name, bool font, void *)
+{
+    if (font)
+    {
+        FontRecord record;
+        return FindFont(name, record);
+    }
+
+    idStr canonical(name);
+    canonical.ToLower();
+    canonical.BackSlashesToSlashes();
+    canonical.StripFileExtension();
+
+    for (std::uint32_t index = 0; index < s_catalog.MaterialCount(); ++index)
+    {
+        MaterialRecord record;
+        s_catalog.GetMaterial(index, record);
+
+        if (canonical == record.name)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 } // namespace
 
 bool IsInitialized()
@@ -80,6 +140,14 @@ PS2_COLD_FUNC void Shutdown()
         FatalError("retail UI catalog shutdown with active image ownership");
     }
 
+    if (s_language)
+    {
+        idLocalization::GetDictionary().ReleaseResources();
+        s_language = false;
+    }
+
+    memset(s_profile, 0, sizeof(s_profile));
+    s_movieSummary = {};
     heap::Free(s_bytes);
     s_bytes = nullptr;
     s_catalog = {};
@@ -144,5 +212,125 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
     auto * const snapshot = new (TAG_FONT) idFile_Memory(admitted.logicalPath, static_cast<const char *>(bytes), static_cast<int>(admitted.bytes));
     snapshot->TakeDataOwnership();
     return snapshot;
+}
+
+PS2_COLD_FUNC void PrepareMovie(unsigned index)
+{
+    if (!IsInitialized() || rs::FrameStarted() || index >= 2)
+    {
+        FatalError("invalid retail movie preparation ownership");
+    }
+
+    if (s_profile[0] == 0)
+    {
+        idFile * const profile = fileSystem->OpenFileRead("retail/movies.uim");
+        unsigned char raw[64] = {};
+        const bool read = profile != nullptr && profile->Length() == 64 && profile->Read(raw, 64) == 64;
+        delete profile;
+
+        if (!read)
+        {
+            FatalError("retail movie profile missing or truncated");
+        }
+
+        for (unsigned word = 0; word < 16; ++word)
+        {
+            for (unsigned byte = 0; byte < 4; ++byte)
+            {
+                s_profile[word] |= static_cast<std::uint32_t>(raw[word * 4 + byte]) << (byte * 8);
+            }
+        }
+
+        if (s_profile[0] != 0x564d4955U || s_profile[1] != 1 || s_profile[2] != 64 ||
+            s_profile[3] != 1 || s_profile[4] != 2 || s_profile[5] == 0 || s_profile[5] > 1024 * 1024 ||
+            s_profile[7] == 0 || s_profile[7] > 16384)
+        {
+            FatalError("retail movie profile invalid");
+        }
+
+        for (unsigned movie = 0; movie < 2; ++movie)
+        {
+            const unsigned offset = 8 + movie * 4;
+
+            if (s_profile[offset] < 64 || s_profile[offset] > kMaxSwfBytes || s_profile[offset + 2] == 0 ||
+                s_profile[offset + 2] > 1024 || s_profile[offset + 3] >= s_profile[offset + 2])
+            {
+                FatalError("retail movie profile bounds invalid");
+            }
+        }
+    }
+
+    if (!s_language)
+    {
+        if (idLocalization::GetDictionary().GetNumKeyVals() != 0)
+        {
+            FatalError("retail English dictionary requires exclusive localization ownership");
+        }
+
+        auto * const bytes = static_cast<byte *>(Snapshot("retail/english.lang", s_profile[5], s_profile[6]));
+        std::uint32_t entries = 0;
+
+        if (!ValidateEnglishBytes(bytes, s_profile[5], entries) || entries != s_profile[7])
+        {
+            heap::Free(bytes);
+            FatalError("retail English dictionary structural preflight failed");
+        }
+
+        idLocalization::VerifyUTF8(bytes, static_cast<int>(s_profile[5]), "retail/english.lang");
+        const bool loaded = idLocalization::LoadDictionary(bytes, static_cast<int>(s_profile[5]), "retail/english.lang");
+        heap::Free(bytes);
+
+        if (!loaded || idLocalization::GetDictionary().GetNumKeyVals() != static_cast<int>(s_profile[7]))
+        {
+            FatalError("retail English dictionary entry count invalid");
+        }
+
+        s_language = true;
+        Log(LogLevel::Info, "[D3BFG] RETAIL English ready entries=%lu bytes=%lu\n",
+            static_cast<unsigned long>(s_profile[7]), static_cast<unsigned long>(s_profile[5]));
+    }
+}
+
+PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
+{
+    unsigned index = 0;
+
+    for (; index < 2; ++index)
+    {
+        if (logicalPath != nullptr && strcmp(logicalPath, kMovies[index]) == 0)
+        {
+            break;
+        }
+    }
+
+    if (index == 2 || !s_language || rs::FrameStarted())
+    {
+        FatalError("retail movie outside the prepared inactive profile");
+    }
+
+    const unsigned offset = 8 + index * 4;
+    auto * const bytes = static_cast<char *>(Snapshot(kMovieFiles[index], s_profile[offset], s_profile[offset + 1]));
+    SwfSummary summary;
+
+    if (!ValidateSwfBytes(bytes, s_profile[offset], summary, MovieIdentity) ||
+        summary.dictionary != s_profile[offset + 2] || summary.previewText != s_profile[offset + 3])
+    {
+        heap::Free(bytes);
+        FatalError("retail movie structural preflight failed: %s", logicalPath);
+    }
+
+    s_movieSummary = summary;
+    Log(LogLevel::Info, "[D3BFG] RETAIL BSWF admitted movie=%u dictionary=%lu sprites=%lu commands=%lu fonts=%lu texts=%lu preview=%lu scripts=inactive\n",
+        index, static_cast<unsigned long>(summary.dictionary), static_cast<unsigned long>(summary.sprites),
+        static_cast<unsigned long>(summary.commands), static_cast<unsigned long>(summary.fonts),
+        static_cast<unsigned long>(summary.editTexts), static_cast<unsigned long>(summary.previewText));
+    auto * const snapshot = new (TAG_SWF) idFile_Memory(logicalPath, static_cast<const char *>(bytes), static_cast<int>(s_profile[offset]));
+    snapshot->TakeDataOwnership();
+    return snapshot;
+}
+
+SwfSummary GetMovieSummary()
+{
+    return s_movieSummary;
 }
 } // namespace ps2::ui::retail

@@ -598,3 +598,14 @@ const char * idStrId::GetLocalizedString() const {
 	return idLocalization::languageDict.GetLocalizedString( *this );
 }
 
+
+// [PS2_D3BFG]: Clear preserves key identity for language reloads; full console shutdown must free it.
+#if defined( ID_PS2 )
+void idLangDict::ReleaseResources()
+{
+	Clear();
+	keyVals.Clear();
+	keyIndex.Free();
+	blockAlloc.Shutdown();
+}
+#endif

@@ -54,6 +54,10 @@ public:
 	~idLangDict();
 
 	void					Clear();
+	// [PS2_D3BFG]: Full shutdown invalidates borrowed strings/idStrIds and releases retained keys/pools.
+#if defined( ID_PS2 )
+	void ReleaseResources();
+#endif
 	bool					Load( const byte * buffer, const int bufferLen, const char * name );
 	bool					Save( const char * fileName );
 

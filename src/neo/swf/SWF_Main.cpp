@@ -44,7 +44,14 @@ extern idCVar in_useJoystick;
 idSWF::idSWF
 ===================
 */
+// [PS2_D3BFG]: Keep inactive retail resources separate from executable authored movies.
+#if defined( ID_PS2 )
+idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_, bool resourceOnly_ )
+{
+	resourceOnly = resourceOnly_;
+#else
 idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
+#endif
 
 	atlasMaterial = NULL;
 
@@ -53,7 +60,12 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 
 	random.SetSeed( Sys_Milliseconds() );
 
+	// [PS2_D3BFG]: Isolated text uses the owned white intrinsic; retail shader text is not admitted.
+#if defined( ID_PS2 )
+	guiSolid = declManager->FindMaterial( resourceOnly ? "_white" : "guiSolid" );
+#else
 	guiSolid = declManager->FindMaterial( "guiSolid" );
+#endif
 	// [PS2_D3BFG]: Keyboard-only authored UI does not preload unused retail cursor/controller media.
 #if defined( ID_PS2 )
 	white = declManager->FindMaterial( "_white" );
@@ -128,9 +140,12 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 	binaryFileName += filename;
 	binaryFileName.SetFileExtension( ".bswf" );
 
-	// [PS2_D3BFG]: Authored cooked UI never falls back to source inflation or target cache writes.
+	// [PS2_D3BFG]: Admitted cooked UI never falls back to source inflation or target cache writes.
 #if defined( ID_PS2 )
-	if ( !LoadBinary( binaryFileName, timestamp ) ) { idLib::FatalError( "authored native SWF load failed" ); }
+	if ( !LoadBinary( binaryFileName, timestamp ) )
+	{
+		idLib::FatalError( "admitted native SWF load failed" );
+	}
 #else
 	if ( swf_loadBinary.GetBool() ) {
 		ID_TIME_T sourceTime = fileSystem->GetTimestamp( filename );
@@ -200,9 +215,17 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 	int debug = swf_debug.GetInteger();
 	swf_debug.SetInteger( 0 );
 
-	mainspriteInstance->Run();
-	mainspriteInstance->RunActions();
-	mainspriteInstance->RunTo( 0 );
+	// [PS2_D3BFG]: Resource-only snapshots do not instantiate placements or execute their AVM1.
+#if defined( ID_PS2 )
+	if ( !resourceOnly )
+	{
+#endif
+		mainspriteInstance->Run();
+		mainspriteInstance->RunActions();
+		mainspriteInstance->RunTo( 0 );
+#if defined( ID_PS2 )
+	}
+#endif
 
 	swf_debug.SetInteger( debug );
 
@@ -264,6 +287,14 @@ when a SWF is deactivated, it rewinds the timeline back to the start
 ===================
 */
 void idSWF::Activate( bool b ) {
+	// [PS2_D3BFG]: Resource admission does not authorize movie execution or presentation.
+#if defined( ID_PS2 )
+	if ( resourceOnly )
+	{
+		idLib::FatalError( "resource-only SWF cannot activate a timeline" );
+	}
+#endif
+
 	if ( !isActive && b ) {
 		inhibitControl = false;
 		lastRenderTime = Sys_Milliseconds();

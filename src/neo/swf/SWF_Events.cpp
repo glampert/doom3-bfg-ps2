@@ -211,6 +211,13 @@ idSWF::HandleEvent
 ===================
 */
 bool idSWF::HandleEvent( const sysEvent_t * event ) {
+	// [PS2_D3BFG]: Inactive retail dictionaries do not admit callbacks or event scripts.
+#if defined( ID_PS2 )
+	if ( resourceOnly )
+	{
+		idLib::FatalError( "resource-only SWF cannot handle events" );
+	}
+#endif
 	if ( !IsLoaded() || !IsActive() || ( !inhibitControl && useInhibtControl ) ) {
 		return false;
 	}

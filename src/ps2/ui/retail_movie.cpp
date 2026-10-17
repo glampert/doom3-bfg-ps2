@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: retail_movie.cpp
-// Brief: Measure native English font paging in production before retail SWF and Shell activation.
+// Brief: Inspect native English fonts and inactive retail SWF text before movie/Shell activation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -15,6 +15,7 @@
 #include "ps2/ui/retail_assets.h"
 #include <idlib/precompiled.h>
 #include <renderer/Font.h>
+#include <swf/SWF.h>
 
 namespace
 {
@@ -28,6 +29,23 @@ static u32 s_fontCount = 0;
 static u32 s_font = 0;
 static u32 s_frames = 0;
 static u32 s_cycle = 0;
+static idSWF * s_resourceMovie = nullptr;
+static idSWFTextInstance * s_texts[3] = {};
+static int s_movieIndex = -1;
+static constexpr const char * kLabels[] = { "#str_swf_campaign", "#str_swf_settings", "#str_swf_quit" };
+
+void CloseResourceMovie()
+{
+    for (auto *& text : s_texts)
+    {
+        delete text;
+        text = nullptr;
+    }
+
+    delete s_resourceMovie;
+    s_resourceMovie = nullptr;
+    s_movieIndex = -1;
+}
 
 ps2::ui::retail::FontRecord CurrentFont()
 {
@@ -48,6 +66,24 @@ void Status()
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL state=unloaded cycle=%u heap=%zu/%zu/%zu\n",
                  s_cycle, heap.requestedBytes, heap.backingBytes, heap.allocationCount);
         return;
+    }
+
+    if (s_resourceMovie != nullptr)
+    {
+        const auto summary = ps2::ui::retail::GetMovieSummary();
+        ps2::Log(ps2::LogLevel::Info,
+                 "[D3BFG] RETAIL movie=%d state=loaded frames=%u dictionary=%lu texts=%lu preview=%lu english=%d scripts=inactive heap=%zu/%zu/%zu\n",
+                 s_movieIndex, s_frames, static_cast<unsigned long>(summary.dictionary),
+                 static_cast<unsigned long>(summary.editTexts), static_cast<unsigned long>(summary.previewText),
+                 idLocalization::GetDictionary().GetNumKeyVals(), heap.requestedBytes, heap.backingBytes, heap.allocationCount);
+
+        for (int index = 0; index < ps2::ArrayLength(s_texts); ++index)
+        {
+            ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL label=%d id=%s width=%.2f font=%u height=%u\n",
+                     index, kLabels[index], static_cast<double>(s_texts[index]->GetTextLength()),
+                     static_cast<unsigned>(s_texts[index]->editText->fontID),
+                     static_cast<unsigned>(s_texts[index]->editText->fontHeight));
+        }
     }
 
     const auto font = CurrentFont();
@@ -94,6 +130,7 @@ void Unload(bool restoreConsole)
         ps2::FatalError("cannot unload the retail font proof during drawing");
     }
 
+    CloseResourceMovie();
     s_loaded = false;
     if (restoreConsole)
     {
@@ -144,14 +181,87 @@ void Load()
     Status();
 }
 
+void LoadResourceMovie(unsigned index)
+{
+    if (!s_loaded || ps2::rs::FrameStarted() || index >= 2)
+    {
+        ps2::FatalError("retail movie requires an idle loaded resource screen");
+    }
+
+    CloseResourceMovie();
+    ps2::ui::retail::PrepareMovie(index);
+    s_resourceMovie = new (TAG_SWF) idSWF(index == 0 ? "shell" : "dialog", nullptr, true);
+    const auto summary = ps2::ui::retail::GetMovieSummary();
+    auto * const entry = s_resourceMovie->GetDictionaryEntry(static_cast<int>(summary.previewText));
+
+    if (!s_resourceMovie->IsLoaded() || entry->type != SWF_DICT_EDITTEXT || entry->edittext == nullptr)
+    {
+        ps2::FatalError("retail movie text prototype missing after native loading");
+    }
+
+    auto * const font = s_resourceMovie->FindDictionaryEntry(entry->edittext->fontID, SWF_DICT_FONT);
+
+    if (font == nullptr || font->font == nullptr || font->font->fontID == nullptr ||
+        font->font->fontID->GetAscender(1.0f) <= 0.0f)
+    {
+        ps2::FatalError("retail movie text requires a positive native ascender");
+    }
+
+    for (int label = 0; label < ps2::ArrayLength(s_texts); ++label)
+    {
+        if (idLocalization::FindString(kLabels[label]) == nullptr)
+        {
+            ps2::FatalError("required retail English label missing: %s", kLabels[label]);
+        }
+
+        s_texts[label] = new (TAG_SWF) idSWFTextInstance;
+        s_texts[label]->Init(entry->edittext, s_resourceMovie);
+        s_texts[label]->variable.Clear();
+        s_texts[label]->SetText(kLabels[label]);
+    }
+
+    s_movieIndex = static_cast<int>(index);
+    s_frames = 0;
+    Status();
+}
+
 void Control(const idCmdArgs & args)
 {
     if (!s_initialized || args.Argc() < 2 || args.Argc() > 3)
     {
-        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status or font INDEX");
+        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX or movie NAME");
     }
 
     const char * const action = args.Argv(1);
+    if (strcmp(action, "movie") == 0)
+    {
+        if (args.Argc() != 3)
+        {
+            ps2::FatalError("ps2_uiRetail movie requires shell, dialog or none");
+        }
+
+        if (strcmp(args.Argv(2), "shell") == 0)
+        {
+            LoadResourceMovie(0);
+        }
+        else if (strcmp(args.Argv(2), "dialog") == 0)
+        {
+            LoadResourceMovie(1);
+        }
+        else if (strcmp(args.Argv(2), "none") == 0)
+        {
+            CloseResourceMovie();
+            s_frames = 0;
+            Status();
+        }
+        else
+        {
+            ps2::FatalError("unknown retail resource movie");
+        }
+
+        return;
+    }
+
     if (strcmp(action, "font") == 0)
     {
         const char * const index = args.Argv(2);
@@ -161,6 +271,7 @@ void Control(const idCmdArgs & args)
             ps2::FatalError("ps2_uiRetail font requires one admitted font index while loaded");
         }
 
+        CloseResourceMovie();
         s_font = static_cast<u32>(index[0] - '0');
         s_frames = 0;
         Status();
@@ -229,7 +340,7 @@ void Init()
     }
 
     cmdSystem->AddCommand("ps2_uiRetail", Control, CMD_FL_SYSTEM,
-                          "load/unload/reload/status the bounded English font proof, or select font INDEX");
+                          "control English resources with load/unload/reload/status, font INDEX or movie shell/dialog/none");
     s_initialized = true;
 }
 
@@ -276,6 +387,23 @@ void Render(bool advance)
         }
 
         ++s_frames;
+    }
+
+    if (s_resourceMovie != nullptr)
+    {
+        renderSystem->SetGLState(0);
+        renderSystem->DrawSmallStringExt(48, 32, s_movieIndex == 0 ? "Retail shell text resources" : "Retail dialog text resources", colorWhite, true);
+        renderSystem->DrawSmallStringExt(48, 52, "Native English layout; timelines, masks and Shell remain inactive", colorWhite, true);
+        ui::BeginSwfDraw();
+
+        for (int index = 0; index < ArrayLength(s_texts); ++index)
+        {
+            s_resourceMovie->RenderResourceText(renderSystem, s_texts[index], 48.0f, 100.0f + 110.0f * static_cast<float>(index));
+        }
+
+        ui::EndSwfDraw();
+        renderSystem->SetColor(colorWhite);
+        return;
     }
 
     const auto font = CurrentFont();

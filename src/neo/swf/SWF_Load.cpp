@@ -35,6 +35,7 @@ If you have questions concerning this license or the applicable additional terms
 // [PS2_D3BFG]: The first native UI profile admits exact authored snapshots before legacy parsing.
 #if defined( ID_PS2 )
 #include "ps2/ui/authored_assets.h"
+#include "ps2/ui/retail_assets.h"
 #endif
 
 #define BSWF_MAGIC ( ( 'B' << 24 ) | ( 'S' << 16 ) | ( 'W' << 8 ) | BSWF_VERSION )
@@ -133,9 +134,9 @@ idSWF::LoadBinary
 ===================
 */
 bool idSWF::LoadBinary( const char * bfilename, ID_TIME_T sourceTime ) {
-	// [PS2_D3BFG]: Validate bounded authored bytes once before trusting counts or pointers.
+	// [PS2_D3BFG]: Parse one immutable preflighted snapshot, with separate executable/resource profiles.
 #if defined( ID_PS2 )
-	idFile * f = ps2::ui::OpenAuthoredAsset( bfilename );
+	idFile * f = resourceOnly ? ps2::ui::retail::OpenMovie( bfilename ) : ps2::ui::OpenAuthoredAsset( bfilename );
 #else
 	idFile * f = fileSystem->OpenFileReadMemory( bfilename );
 #endif
@@ -148,7 +149,13 @@ bool idSWF::LoadBinary( const char * bfilename, ID_TIME_T sourceTime ) {
 	f->ReadBig( magic );
 	f->ReadBig( btimestamp );
 
-	if (  magic != BSWF_MAGIC || ( !fileSystem->InProductionMode() && sourceTime != btimestamp ) )  {
+	// [PS2_D3BFG]: Retail resource snapshots have no source SWF; their identity was checked before parsing.
+#if defined( ID_PS2 )
+	if ( magic != BSWF_MAGIC || ( !resourceOnly && !fileSystem->InProductionMode() && sourceTime != btimestamp ) )
+#else
+	if (  magic != BSWF_MAGIC || ( !fileSystem->InProductionMode() && sourceTime != btimestamp ) )
+#endif
+	{
 		delete f;
 		return false;
 	}

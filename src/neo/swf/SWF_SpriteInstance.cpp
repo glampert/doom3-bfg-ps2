@@ -349,6 +349,13 @@ idSWFSpriteInstance::RunTo
 ===================
 */
 void idSWFSpriteInstance::RunTo( int targetFrame ) {
+	// [PS2_D3BFG]: Storage-only admission never authorizes placement decoding or imported scripts.
+#if defined( ID_PS2 )
+	if ( sprite->GetSWF()->IsResourceOnly() )
+	{
+		idLib::FatalError( "resource-only SWF cannot advance a timeline" );
+	}
+#endif
 	if ( targetFrame == currentFrame ) {
 		return; // otherwise we'll re-run the current frame
 	}

@@ -74,7 +74,18 @@ This class handles loading and rendering SWF files
 */
 class idSWF {
 public:
+	// [PS2_D3BFG]: Resource inspection retains native dictionaries without executing imported timelines.
+#if defined( ID_PS2 )
+	idSWF( const char * filename, idSoundWorld * soundWorld = NULL, bool resourceOnly = false );
+	bool IsResourceOnly() const
+	{
+		return resourceOnly;
+	}
+
+	void RenderResourceText( idRenderSystem * gui, idSWFTextInstance * text, float x, float y );
+#else
 	idSWF( const char * filename, idSoundWorld * soundWorld = NULL );
+#endif
 	~idSWF();
 
 	bool	IsLoaded() { return ( frameRate > 0 ); }
@@ -135,6 +146,10 @@ public:
 	idSWFScriptObject * HitTest( idSWFSpriteInstance * spriteInstance, const swfRenderState_t & renderState, int x, int y, idSWFScriptObject * parentObject );
 
 private:
+	// [PS2_D3BFG]: This flag gates all movie presentation and timeline activation for resource snapshots.
+#if defined( ID_PS2 )
+	bool resourceOnly;
+#endif
 	idStr			filename;
 	ID_TIME_T		timestamp;
 

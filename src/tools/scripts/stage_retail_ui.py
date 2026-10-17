@@ -10,6 +10,11 @@ import json
 from pathlib import Path
 import re
 import shutil
+import struct
+
+from ui_font import inspect_language
+from ui_page_package import fnv1a32
+from ui_swf import inspect_swf
 
 from stage_headless import REPO_ROOT, boot_data, sha256, stage
 from ui_retail_catalog import build_catalog
@@ -73,13 +78,43 @@ def inspect_package(source: Path) -> tuple[dict, list[tuple[Path, dict]], Path]:
     return manifest, list(assets.values()), catalog
 
 
-def stage_retail(build: str, output: Path, standard: str, source: Path) -> Path:
+def movie_resources(source: Path, manifest: dict) -> tuple[bytes, list[tuple[Path, str]]]:
+    """Bind the two original movies and complete English dictionary to a fixed inactive profile."""
+    resources = []
+    language_name = "strings/english.lang"
+    language, _ = _asset(source, manifest["cooked"]["assets"][language_name], ".lang")
+    raw_language = language.read_bytes()
+    inspected_language = inspect_language(raw_language)
+    if (len(raw_language) > 1024 * 1024 or inspected_language["entry_count"] != manifest["language"]["entry_count"] or
+            not 1 <= inspected_language["entry_count"] <= 16384 or inspected_language["duplicate_keys"]):
+        raise ValueError("retail movie English dictionary exceeds the native profile")
+    resources.append((language, "english.lang"))
+    words = [0x564D4955, 1, 64, 1, 2, len(raw_language), fnv1a32(raw_language), inspected_language["entry_count"]]
+    for name in ("shell", "dialog"):
+        logical = "generated/swf/" + name + ".bswf"
+        asset, _ = _asset(source, manifest["cooked"]["assets"][logical], ".bswf")
+        raw = asset.read_bytes()
+        inspected = inspect_swf(raw)
+        entries = inspected["dictionary"]
+        if (inspected != manifest["swfs"][logical] or len(raw) > 1024 * 1024 or len(entries) > 1024 or
+                inspected["counts"].get("init_actions", 0) != 0):
+            raise ValueError("retail movie differs from inspected inactive profile")
+        preview = next((entry["id"] for entry in entries if entry["type"] == "edittext" and entry["font_height"] >= 400), None)
+        if preview is None:
+            raise ValueError("retail movie requires a native text prototype")
+        words.extend((len(raw), fnv1a32(raw), len(entries), preview))
+        resources.append((asset, name + ".bswf"))
+    return struct.pack("<16I", *words), resources
+
+
+def stage_retail(build: str, output: Path, standard: str, source: Path, movies: bool = False) -> Path:
     if standard not in ("ntsc", "pal"):
         raise ValueError("retail UI proof requires ntsc or pal presentation")
     source, output = _under_build(source), _under_build(output)
     if source == output or source.is_relative_to(output) or output.is_relative_to(source):
         raise ValueError("retail UI proof staging must not overlap the source cook")
     manifest, assets, catalog = inspect_package(source)
+    movie_profile, movie_assets = movie_resources(source, manifest) if movies else (None, [])
     for relative in ("base", "base/retail", "base/retail/assets", "base/retail_ui.uic"):
         if (output / relative).is_symlink():
             raise ValueError("retail UI proof output must not contain symlinks")
@@ -93,15 +128,28 @@ def stage_retail(build: str, output: Path, standard: str, source: Path) -> Path:
             raise ValueError("retail UI proof asset destination must not be a symlink")
         shutil.copy2(path, target)
     shutil.copy2(catalog, output / "base/retail_ui.uic")
+    if movies:
+        for path, name in movie_assets:
+            target = destination.parent / name
+            if target.is_symlink():
+                raise ValueError("retail movie output must not contain symlinks")
+            shutil.copy2(path, target)
+        profile_path = destination.parent / "movies.uim"
+        if profile_path.is_symlink():
+            raise ValueError("retail movie profile output must not be a symlink")
+        profile_path.write_bytes(movie_profile)
     config = output / "base/d3bfg.cfg"
     if not config_existed:
         text = config.read_text()
-        config.write_text(text + ("" if text.endswith("\n") else "\n") + "ps2_uiRetail load\n")
+        commands = "ps2_uiRetail load\n" + ("ps2_uiRetail movie shell\n" if movies else "")
+        config.write_text(text + ("" if text.endswith("\n") else "\n") + commands)
     metadata = {"scope": "native English font resources; retail SWF and Shell remain inactive",
                 "source_manifest_sha256": sha256(source / "manifest.json"),
                 "catalog": manifest["cooked"]["runtime_catalog"],
                 "assets": [identity for _, identity in assets],
-                "fonts": sorted(manifest["fonts"]), "runtime_ready": False}
+                "fonts": sorted(manifest["fonts"]), "runtime_ready": False, "inactive_movies": movies,
+                "movie_resources": [{"path": name, "bytes": path.stat().st_size, "sha256": sha256(path)}
+                                    for path, name in movie_assets]}
     (output / "retail-proof.json").write_text(json.dumps(metadata, indent=2) + "\n")
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
     return output
@@ -113,10 +161,11 @@ def main() -> int:
     parser.add_argument("--standard", choices=("ntsc", "pal"), default="ntsc")
     parser.add_argument("--source", type=Path, default=REPO_ROOT / "build/ui-retail")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--movies", action="store_true", help="stage inactive shell/dialog dictionaries and English text")
     args = parser.parse_args()
     try:
-        output = args.output or REPO_ROOT / "build" / args.build / "ui-retail"
-        package = stage_retail(args.build, output, args.standard, args.source)
+        output = args.output or REPO_ROOT / "build" / args.build / ("ui-retail-movies" if args.movies else "ui-retail")
+        package = stage_retail(args.build, output, args.standard, args.source, args.movies)
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, "error: " + str(error) + "\n")
     print("Production native English font package: " + str(package))

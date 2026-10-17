@@ -607,16 +607,17 @@ class Inspector:
                 if flags & ~63:
                     reader.fail("unknown edit text flags")
                 self.references.append((font, "font"))
-                reader.take(4)
+                color = list(reader.take(4))
                 maximum, align = reader.read(">Hi")
                 if not 0 <= align <= 3:
                     reader.fail("unknown edit text alignment")
-                reader.take(8)
+                left_margin, right_margin, indent, leading = reader.read(">HHHh")
                 variable, initial = reader.string(), reader.string()
                 self.dependencies["localization_ids"].update(LOCALIZATION.findall(initial))
                 self.literal_codepoints.update(ord(char) for char in initial if char.isprintable())
                 entry.update({"flags": flags, "font_id": font, "font_height": font_height, "max_length": maximum,
-                              "align": align, "variable_sha256": hashlib.sha256(variable.encode()).hexdigest() if variable else None,
+                              "align": align, "color_rgba": color, "left_margin": left_margin,
+                              "right_margin": right_margin, "indent": indent, "leading": leading, "variable_sha256": hashlib.sha256(variable.encode()).hexdigest() if variable else None,
                               "initial_text_bytes": len(initial.encode()), "initial_text_sha256": hashlib.sha256(initial.encode()).hexdigest()})
                 self.features["edit_text"] += 1
             self.entries.append(entry)

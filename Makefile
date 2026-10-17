@@ -438,7 +438,7 @@ run-ui: ui
 test-ui: all
 	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --emulator $(PCSX2)
 
-.PHONY: retail-ui run-retail-ui test-retail-ui
+.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies
 
 retail-ui: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)"
@@ -448,6 +448,15 @@ run-retail-ui: retail-ui
 
 test-retail-ui: all
 	$(PYTHON) $(SCRIPTS)/run_retail_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
+
+retail-movies: all
+	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)" --movies
+
+run-retail-movies: retail-movies
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-retail-movies/d3bfg.elf
+
+test-retail-movies: all
+	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core
@@ -623,7 +632,12 @@ build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/renderer/cha
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/ps2/renderer/charset.cpp -o $@
 
-test-host: build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/ui_page_image_tests_1 build/tests/ui_page_image_tests_0 build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+build/tests/ui_swf_format_tests: src/tests/host/ui_swf_format_tests.cpp src/ps2/ui/swf_format.cpp src/ps2/ui/swf_format.h Makefile
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_swf_format_tests.cpp src/ps2/ui/swf_format.cpp -o $@
+
+test-host: build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/ui_page_image_tests_1 build/tests/ui_page_image_tests_0 build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+	./build/tests/ui_swf_format_tests
 	./build/tests/ui_font_format_tests
 	./build/tests/ui_retail_catalog_tests
 	./build/tests/ui_page_format_tests

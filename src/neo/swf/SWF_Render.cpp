@@ -74,6 +74,13 @@ idSWF::Render
 ========================
 */
 void idSWF::Render( idRenderSystem * gui, int time, bool isSplitscreen ) {
+	// [PS2_D3BFG]: Masks/blends remain unadmitted; resource inspection must never draw the full movie.
+#if defined( ID_PS2 )
+	if ( resourceOnly )
+	{
+		idLib::FatalError( "resource-only SWF cannot render a movie" );
+	}
+#endif
 	if ( !IsLoaded() ) {
 		return;
 	}
@@ -1539,3 +1546,19 @@ void idSWF::FindTooltipIcons( idStr * text ) {
 }
 
 
+
+// [PS2_D3BFG]: Explicit isolated text inspection reuses native wrapping, alignment, metrics and glyphs.
+#if defined( ID_PS2 )
+void idSWF::RenderResourceText( idRenderSystem * gui, idSWFTextInstance * text, float x, float y )
+{
+	if ( !resourceOnly || text == NULL || text->swf != this )
+	{
+		idLib::FatalError( "invalid resource-only SWF text ownership" );
+	}
+
+	swfRenderState_t state;
+	state.matrix.tx = x - text->editText->bounds.tl.x;
+	state.matrix.ty = y - text->editText->bounds.tl.y;
+	RenderEditText( gui, text, state, 0, false );
+}
+#endif
