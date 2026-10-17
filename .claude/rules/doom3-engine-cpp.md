@@ -477,3 +477,13 @@ math path; PS2-specific math replacement headers are a later milestone.
   `GetStepUp` as well as the flag to distinguish climbing from stepping down.
   This fixture climbs at frame 283 and blocks near x=-16.25 on 293 while grounded;
   no jump or crouch is needed, and `PM_STEPSCALE=1` preserves horizontal velocity.
+
+## Native BSWF atlas records
+
+BSWF16 image records interleave **width, atlas X offset, height, atlas Y offset**.
+The writer/loader loops over axes; four consecutive integers are not a size pair
+followed by an offset pair. The authored seam probe uses `(16,246,16,64)` for a
+16×16 bitmap at (246,64). A wrong tuple can still render plausible pixels because
+native size factors cancel, while never crossing the intended page boundary.
+Check semantic dimensions/offsets in host readers and require actual page-load
+counters plus seam pixels on EE; a visually familiar letter alone missed this error.

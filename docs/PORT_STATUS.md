@@ -2896,6 +2896,81 @@ Both configurations have the same paged capture hashes: NTSC
 `827db3465baa2d5c46481bec5ff4d55c6a3bf2152caf67de951c85c3739ddddb`, PAL
 `f774a78722736c4cbdda72595bd98511d76606ec52830a558cf1606d1ab3f928`.
 Each archive retains matching ELF/symbol/map/report, flags, authored package variants,
-capture checks and logs. The next work binds UIPG pages into native SWF/font drawing
-for the English profile, then measures that real active working set before masks,
+capture checks and logs. The subsequent slice below binds UIPG pages into authored
+native SWF/font drawing. Retail English working-set measurement still precedes masks,
 special blends and offline Shell integration.
+
+## Native SWF and font page binding (2D-5 slice)
+
+Accepted **2026-10-17, Australia/Sydney**, in production debug/release NTSC/PAL.
+Native `idImage` now carries either direct intrinsic pixels or a checked `PageImage`.
+Logical dimensions remain full-atlas dimensions for native SWF and font UV generation;
+the existing draw adapters split paged indexed runs and glyph quads while preserving
+submission order. The authored movie's **272×256** atlas places its 16×16 bitmap at
+(246,64), across the x=254 page boundary. The **512×128** English ASCII font retains
+its metrics, glyph coverage and half-texel UV expansion. No retail data or additional
+target fixture is introduced.
+
+Both images borrow one `PageCache`, keyed by image identity and page. Four nearest/
+clamp texture slots reserve **1,048,576 pixel bytes**, one input page reserves
+**262,144 bytes**, and seven records reserve **56 bytes**: **1,310,776 RENDER payload
+bytes**, excluding objects, files, intrinsics and allocator overhead. Compiled authored
+descriptors admit the exact package dimensions/counts/table checksums; each full page
+is verified before updating a cache slot. Drawing allocates no storage. Image closure
+flushes/fences queued references and invalidates its keys; cache shutdown rejects live
+images in release too. Standalone renderer callers retain their private-cache API.
+
+`make test-ui` and its release variant pass both video standards, **three loads of at
+least 120 movie frames**, native timeline color/alpha, Tab/Enter AVM1 focus/select,
+console overlay/input, final capture/quit and **30 pixel probes per movie capture**.
+The new probes include the bitmap crossbar's seam center and either side. Captures
+were visually inspected: continuous bitmap strokes, readable text, correct focus and
+fractional alpha, with no visible gaps or tearing. Debug/release captures match within
+each standard. See [NTSC](images/ui-paged-native-2d-5-ntsc.png) and
+[PAL](images/ui-paged-native-2d-5-pal.png).
+
+| Configuration | NTSC archive | PAL archive |
+| --- | --- | --- |
+| Debug | `20261017T001212Z_ui_4197b9778645` | `20261017T001232Z_ui_4d40d3228e81` |
+| Release | `20261017T001349Z_ui_3e2328265446` | `20261017T001409Z_ui_c9c172245bd9` |
+
+The selected `ui-c1-b.tga` hashes are NTSC
+`d5cb35e1007c28262a2edbcace4be6c5e0085a0eab3cbad569c707b24f2acf0b`, PAL
+`fd32e0ae3b7c81b6002695f5c369f4d477cb652a922869a366bcd3538e6f4297`.
+Every captured cache state has **two images, four loads and zero evictions**;
+hits/triangles increase across all reloads. Movie unload keeps image/font caches warm.
+All four runs return to the same warm unload ledger, **3,842,041 requested /
+3,942,880 backing bytes in 2,456 allocations**. Peak is **3,878,214 / 3,984,104 bytes**,
+with arena commitment **4,210,330 debug / 4,213,402 release**. Full shutdown returns
+exactly to **7,424 / 7,600 bytes in four allocations**.
+
+Both builds also pass **twelve fresh-process invalid-data cases**: the prior six
+BSWF/font guards, missing movie/font UIPG files, truncated movie pixels, invalid
+header/table, and a deferred page checksum failure. Metadata failures precede load
+publication; corrupt pixels fail on their first stream before a completed movie
+presentation/capture. No generic allocation failure or EE crash is accepted. Archives
+under `build/test-results/` retain matched ELF/symbols/map/reports, configuration,
+authored inputs/mutations, logs and captures. The shared-cache ASan/UBSan harness passes
+with assertions 0/1, covering cross-image keys, LRU pressure, corrupt-read preservation,
+detach/reopen identity, owner bounds, sampler restrictions and partial cleanup.
+All **290 Python host regressions** and the existing sanitizer harnesses pass.
+
+The existing `test-renderer` matrices pass **fourteen isolated processes per build**:
+NTSC/PAL scenes plus twelve release-preserved failure guards. Positive archives are
+debug `20261017T001524Z_smoke_b513b8c381474b02` /
+`20261017T001549Z_smoke_fbd72621ecc143ac` and release
+`20261017T001643Z_smoke_0bce1dc0a96745b8` /
+`20261017T001706Z_smoke_115b8815ce5a4ad4`. Production `test-headless` also passes
+120-frame and live command/quit runs with no rendering device and exact cleanup:
+debug `20261017T001804Z_headless_f624128d5b4c` /
+`20261017T001809Z_headless_0f25486ce519`, release
+`20261017T001818Z_headless_a20fb343749a` /
+`20261017T001822Z_headless_e4b952125724`.
+
+Production retains **363 direct objects**, zero test inputs/symbols and no GC. Fixed
+`PT_LOAD` is **11,039,078 debug / 11,461,990 release bytes**; compile database entries
+remain **388**. The earlier renderer page scene still supplies constrained eviction/
+filtering coverage. These measurements establish authored native binding, not a retail
+menu working set or physical PS2/cache/performance acceptance. Next admit the bounded
+English retail font/image/material and BSWF profile, preserve native layout metrics,
+and measure its active working set before mask/blend closure and offline Shell startup.

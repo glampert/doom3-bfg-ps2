@@ -3,7 +3,7 @@
 This is the reference inventory and implementation roadmap for the first GS-backed
 Doom 2D renderer. Inspection and approval date: **2026-10-14, Australia/Sydney**.
 The inventories retain that original source snapshot; implementation progress is recorded
-below, most recently on **2026-10-16, Australia/Sydney**. Uncompleted gates, budgets
+below, most recently on **2026-10-17, Australia/Sydney**. Uncompleted gates, budgets
 and destinations remain proposed.
 It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
@@ -68,13 +68,27 @@ transforms. The local profile resolves 31 required labels, five font families an
 twelve images into 143 logical pages. See [RETAIL_UI_PIPELINE.md](RETAIL_UI_PIPELINE.md)
 and the [host acceptance record](PORT_STATUS.md#retail-ui-host-inventory-and-cooking-2d-5).
 This is a candidate package with `runtime_ready=false`; actual resident working-set
-measurement, native SWF/font binding and dynamic dependency closure remain open.
+measurement, native retail admission/binding and dynamic dependency closure remain open.
 The page slice adds compact UIPG output, fixed native page slots and page/screen triangle
 splitting in the existing authored renderer scene. English is the only initial UI
 language; alternative-language resources and font handling are outside this scope.
 See the [page acceptance record](PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
 and inspected [NTSC](images/renderer-paged-2d-5-ntsc.png) /
-[PAL](images/renderer-paged-2d-5-pal.png) captures. Native SWF/font binding remains next.
+[PAL](images/renderer-paged-2d-5-pal.png) captures.
+
+**The 2026-10-17 authored SWF/font page binding passes debug/release NTSC/PAL.**
+Native images retain logical atlas dimensions and dispatch bitmap/glyph
+triangles through one shared `PageCache`. The two images share four nearest/clamp slots
+(1 MiB), one 256 KiB scratch page and 56 bytes of page records. The movie's 272×256
+atlas crosses the x=254 page boundary; its 512×128 ASCII font keeps native metrics and
+half-texel UV expansion. Compiled authored descriptors admit page metadata/checksums,
+and streamed pixels are checked before cache replacement. Movie unload retains the
+warm image cache; UI shutdown closes images before cache/device teardown. Host cache
+checks cover assertions enabled/disabled. Production captures pass 30 pixel probes,
+three reloads, four warm page loads without eviction and twelve corrupt-resource cases;
+see the [binding record](PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).
+General retail SWF/font/material
+admission, legacy English font layout metrics and measured retail residency remain open.
 Full 2D-5 acceptance and 2D-6 masks/blends precede 2D-7 offline Shell startup.
 
 ## Scope and completion criteria
@@ -163,9 +177,9 @@ No VU tool/submodule import is required for this CPU 2D roadmap.
 
 ## Reuse and adaptation map
 
-Original proposed destinations are relative to D:. Device, direct RGBA texture and
-capture subsets now exist; native UI/image/font providers and coverage/CLUT work remain
-subsequent gates.
+Original proposed destinations are relative to D:. Device, direct RGBA texture,
+capture and authored native UI/image/font providers now exist. Retail admission and
+coverage/CLUT work remain subsequent gates.
 
 | First-pass destination | Start from | Required adaptation |
 | --- | --- | --- |
@@ -529,7 +543,9 @@ supplies intrinsic images, native display/draw methods and `console->Draw` throu
 an explicit production display policy and safe Common frame/`UpdateScreen` lifecycle.
 The current **2D-4** implementation supplies bounded indexed UI, authored materials,
 native fonts and one interactive mask-free native SWF. The host retail UI
-inventory/cook foundation (**2D-5**) is now available. Next connect the bounded native page path to SWF/font loading and measure the
-English menu working set, followed by required SWF feature closure
+inventory/cook foundation (**2D-5**) is now available. The authored native SWF/font page
+binding passes with a shared budget. Next admit
+the bounded English retail profile, preserve its native layout metrics and measure the
+menu working set, followed by required SWF feature closure
 (**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
 the interface; native BFG menu and world-rendering acceptance remain separate gates.

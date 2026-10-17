@@ -587,7 +587,7 @@ build/tests/ui_page_geometry_tests: src/tests/host/ui_page_geometry_tests.cpp sr
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_geometry_tests.cpp src/ps2/renderer/ui_page_geometry.cpp -o $@
 
 HOST_UI_PAGE_SOURCES = src/tests/host/ui_page_image_tests.cpp src/ps2/renderer/ui_page_image.cpp src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_geometry.cpp src/ps2/renderer/texture_layout.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
-HOST_UI_PAGE_HEADERS = src/ps2/renderer/ui_page_image.h src/tests/host/ui_page_stubs/tamtypes.h src/tests/host/ui_page_stubs/ps2/renderer/gif_writer.h src/tests/host/ui_page_stubs/idlib/precompiled.h
+HOST_UI_PAGE_HEADERS = src/ps2/renderer/ui_page_image.h src/ps2/renderer/ui_page_format.h src/ps2/renderer/ui_page_geometry.h src/ps2/renderer/ui_triangles.h src/ps2/renderer/ui_geometry.h src/ps2/renderer/texture.h src/ps2/renderer/gs.h src/ps2/renderer/render_system.h src/ps2/renderer/cmd_buffer.h src/ps2/renderer/ui_draw.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/tests/host/ui_page_stubs/tamtypes.h src/tests/host/ui_page_stubs/ps2/renderer/gif_writer.h src/tests/host/ui_page_stubs/idlib/precompiled.h
 
 build/tests/.ui-page-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_UI_PAGE_SOURCES)

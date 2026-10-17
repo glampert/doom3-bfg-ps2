@@ -594,8 +594,20 @@ retail cursor/controller preloads, retain the white RGBA intrinsic, free font ar
 and use caller-owned timeline time for redraws. The core target retains inactive font
 providers and does not link the movie, native Font/SWF or authored resource snapshot.
 
-Production now has 360 direct inputs, zero test inputs/symbols and no GC. Debug/release
+At the authored 2D-4 checkpoint production had 360 direct inputs, zero test inputs/symbols and no GC. Debug/release
 `PT_LOAD` is 11,018,214 / 11,435,878 bytes; the compile database has 385 entries.
 `make ui` packages authored data separately from the existing console/headless packages;
 `make test-ui` exercises the production movie and its failure boundaries. Retail menu
 dependencies, general material/image/font loading and the offline shell remain pending.
+
+The 2D-5 page foundation adds strict `ui_page_format.cpp`, `ui_page_geometry.cpp` and
+`ui_page_image.cpp` to core/resident support. The native binding reuses those existing
+units and the existing image/UI/movie adapters: it enables no additional upstream
+source or target fixture. Tagged `Image.h` declarations expose checked direct/paged
+access and a private backend loader. Production still has **363 direct inputs**, zero
+test inputs/symbols and no GC; debug/release `PT_LOAD` is **11,039,078 / 11,461,990 bytes**.
+The compile database has **388 entries**. A separate ASan/UBSan host cache harness uses
+the real cache/format/geometry/heap code with assertions 0/1 and stubbed GS submission;
+it adds no vendor source to an EE list. Header dependencies keep that harness current.
+The authored native SWF/font binding and remaining retail admission gates are recorded
+in [PORT_STATUS](PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).

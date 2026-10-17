@@ -66,11 +66,16 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make ui` / `make run-ui` stage/run the same ELF with the authored native SWF under
   `build/<config>/ui/`, using `CONSOLE_STANDARD` for NTSC/PAL. `make test-ui` checks native
   loading, ASCII `idFont`, timeline color/alpha, AVM1 focus/select, capture and reloads.
+  The authored page-binding gate passes debug/release NTSC/PAL: it checks 30 pixels,
+  shared cache budgets and twelve invalid-resource cases, including deferred
+  pixel corruption. A sanitizer cache harness also exercises assertions 0/1.
   `ps2_ui` controls load/unload/reload/status/pause/resume; `ps2_uiKey tab`/`enter` supply
   native SWF key events while the console is closed. Console input has priority; its
   toggle opens/closes it over the movie. The game stays in `NOMAP`. Authored assets and
   their compiled exact-byte admission profile come from `build_authored_ui.py`; use
-  `--check` to detect stale outputs before staging. General BSWF parsing/conversion and
+  `--check` to detect stale outputs before staging. Its UIPG header/table descriptors
+  are compiled too, and streamed page pixels are checked before cache replacement.
+  General retail SWF/font/material admission, legacy English layout metrics and
   retail menu/Shell integration remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
@@ -87,8 +92,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   them. Native vertex-cache/static/joint buffers remain unavailable. Half UVs are decoded
   from checked bits, and `color2` requires exactly 128 in all four channels; the scoped
   native SWF path also admits its zero-additive encoding of 127. Additive color stays
-  unsupported. The native font cache owns the authored ASCII font and a separate lazy
-  atlas with gutters; shut down movies before fonts and fonts/images before the device.
+  unsupported. Native `idImage` keeps logical atlas dimensions while SWF bitmap and
+  ASCII font triangles use shared page dispatch. The authored 272×256 movie bitmap
+  crosses x=254; the font retains its 512×128 atlas. Both images share one `PageCache`
+  with four nearest/clamp slots (1 MiB), one 256 KiB scratch page and 56 bytes of page
+  records. Images/cache remain warm across movie unload/reload. Shut down movies before
+  fonts, close every page image before its cache, and release images/cache before the device.
   The device owns tagged command halves/pixels and uses `draw`, `graph`, `packet2`, `dma`.
   Preserve release preflight/deadlines, VIF/GIF ownership and immediate final presentation.
 - `make compile-core` checks the explicit scalar idlib/framework source set.
@@ -128,10 +137,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
   Output must stay under `build/`. The manifest records hashes, dependencies, feature
   gaps, full English font/language data, lossless guttered RGBA pages and compact UIPG
-  runtime images. Initial UI localization supports English only. `PageImage` streams
-  checked pages through fixed texture slots and splits triangles; close it before the
-  device. `runtime_ready=false` is intentional: native SWF/font binding, masks/blends
-  and offline Shell integration are later gates. See [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
+  runtime images. Initial UI localization supports English only. Native authored SWF/font
+  images share a fixed `PageCache`; standalone `PageImage` callers may own a private
+  cache. `runtime_ready=false` is intentional: retail admission/binding and layout
+  metrics, masks/blends and offline Shell integration remain later gates. See
+  [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend

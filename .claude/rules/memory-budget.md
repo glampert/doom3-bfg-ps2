@@ -269,6 +269,21 @@ the caller's device. Warm drawing allocates no additional buffers. One VRAM page
 forces eviction in the test; this deliberately constrained scene does not establish
 the English retail shell's working set or a performance budget.
 
+The native authored binding on 2026-10-17 shares four nearest/clamp texture slots
+(1,048,576 bytes), one input scratch page (262,144 bytes) and seven page records
+(56 bytes) across a 272×256 SWF atlas and 512×128 font atlas. This totals 1,310,776
+requested RENDER payload bytes; objects, files, intrinsics and allocator overhead are
+separate. `idImage::StorageSize` attributes only each paged image's records; count
+shared pixels/scratch once through the cache stats. Four page loads remain warm
+through three movie reloads, with zero evictions. Movie unload retains images/fonts;
+UI shutdown releases them and recovers the complete startup ledger.
+Debug/release production `PT_LOAD` is 11,039,078 / 11,461,990 bytes (363 direct inputs).
+All four native UI runs peak at 3,878,214 requested / 3,984,104 backing bytes; arena
+commitment is 4,210,330 debug / 4,213,402 release. Each warm unload returns to
+3,842,041 / 3,942,880 bytes in 2,456 allocations. Full shutdown is exactly
+7,424 / 7,600 bytes in four allocations. These are authored page-binding measurements;
+the English retail menu's multi-font working set and transition peak remain unmeasured.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

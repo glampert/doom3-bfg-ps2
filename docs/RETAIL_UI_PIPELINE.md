@@ -112,7 +112,7 @@ alongside the UIPG files; the new transport therefore duplicates page payloads o
 disk. The twelve decoded source level-zero images total **26,220,672 bytes**.
 These are host storage totals, not simultaneous EE or GS residency.
 
-The native authored page scene reserves **two cache textures plus one scratch page**:
+The authored renderer scene accepted on **2026-10-16** reserves **two cache textures plus one scratch page**:
 524,288 bytes of cache pixels and 262,144 scratch bytes, plus its small page-record
 table. It streams into those existing slots without allocating during drawing,
 uses linear/clamp sampling, and fences queued texture references before replacement.
@@ -126,6 +126,23 @@ retail working set. The host profile's eight-page / 2 MiB cache remains a propos
 Measure page references, upload pressure, font/SWF metadata and load/transition peaks
 before accepting a retail target budget; do not load the complete decoded package
 into EE memory.
+
+The **2026-10-17 authored binding implementation** connects cooked pages to native
+`idImage`, SWF bitmap fills and `idFont` drawing, accepted in debug/release NTSC/PAL.
+Images retain their logical atlas dimensions while the draw adapter splits their
+triangles into page coordinates. Two authored images share one `PageCache`: four
+nearest/clamp texture slots (**1,048,576 bytes**), one **262,144-byte** scratch page
+and **56 bytes** of page records. Cache slots are keyed by image and page; drawing
+allocates no new storage. The movie's **272 × 256** atlas places its transformed
+bitmap across the x = 254 interior boundary. The ASCII font keeps its **512 × 128**
+atlas and native half-texel glyph UV expansion.
+
+BSWF/font/material admission still uses the compiled exact-byte authored profile.
+Page admission checks the header and every table checksum against compiled authored
+descriptors, then verifies streamed pixels before replacing a cache slot. Images and
+cache contents remain warm across movie unload/reload; UI shutdown closes every image
+before releasing the shared cache and device. This is authored English-only binding;
+retail source admission and legacy English layout metrics remain separate work.
 
 All inputs are inspected before publication. Cooking uses a private staging tree,
 publishes checked immutable assets and replaces the manifest last. A failed inspection
@@ -143,9 +160,14 @@ truncation and bounds, alias/lookup semantics, native font metrics, required lab
 DXT interpolation/swizzles, page seams/UVs, UIPG headers/records/checksums, immutable
 output and failed-cook preservation. Standalone sanitizer geometry checks exercise
 UV/screen clipping, reversed shared edges, color interpolation and invalid-input
-preservation. The existing renderer scene extends this with authored paged triangles,
-cache eviction, reload/cleanup and failure paths; target acceptance measurements are
-recorded separately after the emulator runs finish.
+preservation. A passing sanitizer harness exercises the real shared cache with
+`PS2_D3BFG_ASSERTS=0` and `1`, using stubbed GS submission. The existing renderer scene
+extends this with authored paged triangles, cache eviction, reload/cleanup and failure
+paths. The passing production `make test-ui` gate checks shared movie/font residency,
+native page splits, three warm reload cycles and twelve invalid-resource cases,
+including a deferred pixel checksum failure. Thirty pixel probes per capture pass;
+four page loads stay warm with zero evictions. Target measurements and inspected
+NTSC/PAL captures are in [PORT_STATUS](PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).
 Two real cooks are byte-identical; all source assets and page hashes are checked.
 Every decoded source image reconstructs exactly from its page interiors. The decoded
 shell atlas and font alpha plane were inspected locally; previews stay ignored.
@@ -153,18 +175,17 @@ Host tests do not establish EE parser safety, menu correctness or physical PS2 b
 
 The real shell contains 54 mask placements, 29 additive-color placements, blend modes
 0/4/8 and fifteen stroked shapes. Dialog adds ten mask placements and blend modes 0/8.
-The generic native page cache and triangle splitter provide the next integration
-foundation. Binding those pages through the native retail SWF and font paths remains
-pending, along with bounded retail font/material/image admission, mask and blend
+The shared native page cache and authored SWF/font binding provide the integration
+foundation. Binding the retail profile remains pending, including bounded native
+SWF/font/material/image admission and legacy English layout metrics, mask and blend
 rendering, and measured active working sets. Static AVM1 evidence also needs runtime
 dependency/callback validation. This slice does not complete milestone 2D-5 or activate
 the retail menu.
 
-The first `PageImage` window belongs to one opened atlas. Future simultaneous SWF/font
-binding must share a total page budget/cache across images; opening every atlas with
-its own default window would multiply scratch and texture residency. The device's
-existing texture budget remains a global cap, not permission to reserve that cap per
-atlas. The current target exercise proves a single atlas's streaming and reuse.
+Standalone `PageImage` callers can still own a private window. Simultaneous native
+SWF/font images use the shared cache so opening an atlas does not multiply pixel or
+scratch residency. The device's texture budget remains a global cap; the authored
+four-slot budget does not establish a retail working set.
 
 Offline native Shell startup follows those gates. It must explicitly gate intro/Mars
 cinematics, sound, save-indicator startup and unavailable campaign/online/save/Classic

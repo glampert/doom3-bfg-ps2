@@ -46,7 +46,8 @@ boundaries before applying it. Native SWF RenderShape uses atlasMaterial, atlasO
 image size and channelScale for bitmap fills, not dictionary.material. Dictionary
 renaming alone cannot implement paging. `ui_page_image.*` now streams compact UIPG
 images through fixed texture slots and calls `ui_page_geometry.*` for page/screen
-splits. Native SWF/font binding and retail working-set acceptance remain pending.
+splits. Native authored SWF/font images now share a `PageCache`; general retail
+admission and retail working-set acceptance remain pending.
 
 Page intersections must be reconstructed from the canonical original triangle and
 shared boundary constraints. Chaining interpolation through different preceding
@@ -64,7 +65,20 @@ dimensions, inferred grid/count and every offset before reserving cache ownershi
 verify each complete page before updating a texture slot. The scratch buffer is
 separate from texture pixels. Reuse follows existing Update/Bind/Upload fences, so
 queued pieces from this frame retire before their texture contents change. Close
-images before the device and retain explicit linear/clamp sampling in this slice.
+images before their cache and the device. Standalone renderer probes use linear/clamp;
+the authored native SWF/font profile shares four nearest/clamp slots. Keep the sampler
+fixed per cache and reject repeat/unknown sampling before allocating.
+
+Native `idImage` dimensions remain the full atlas dimensions. `SWF_Render` derives
+global UVs from the atlas material, and `idFont::GetScaledGlyph` expands glyph UVs by
+half a texel. Preserve those UVs through page splitting; publishing 256×256 as the
+logical dimensions scales both incorrectly. The authored font leaves padding for
+that expansion. Future font admission must handle or reject edge glyphs explicitly.
+Validate the entire queued native collection before emitting packets; paged emission
+must run under the collector's reentry guard because page Update/Bind also flushes it.
+Direct glyph quads flush older indexed bitmap runs before touching the shared cache.
+Closing an image flushes/fences queued references and invalidates its keys before its
+address can be reused. Cache shutdown rejects attached images with assertions off too.
 
 ## Doom CPU-only device acceptance
 

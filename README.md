@@ -32,8 +32,10 @@ beneath it.
 Host tools now inventory the local retail shell/dialog and cook lossless image pages,
 fonts and English localization candidates. The backend now streams compact UIPG
 images through a bounded page cache and splits atlas triangles, verified with authored
-renderer data. Retail SWF/font packages are not yet admitted by the native
-runtime; see [the retail UI pipeline](docs/RETAIL_UI_PIPELINE.md) for usage and remaining gates.
+renderer data. Native authored SWF bitmaps and font glyphs now draw through one shared
+page budget, accepted in debug/release NTSC/PAL. Retail SWF/font
+packages are not yet admitted by the native runtime; see
+[the retail UI pipeline](docs/RETAIL_UI_PIPELINE.md) for usage and remaining gates.
 The [page acceptance record](docs/PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
 includes native NTSC/PAL captures and the fixed cache/input/table budget.
 Debug/release NTSC/PAL console acceptance and inspected captures are recorded in
@@ -59,11 +61,26 @@ see the [indexed UI acceptance record](docs/PORT_STATUS.md#indexed-native-ui-geo
 The authored 2D-4 slice now connects the native SWF loader, timeline, AVM1 interpreter and
 `idFont` to this geometry path. [Authored UI data](assets/ui/README.md) supplies a
 mask-free scene with transformed bitmap geometry, solid fills, ASCII text, color/alpha
-animation and Tab/Enter focus/select functions. Its font uses a separate procedural
-atlas with UV gutters. BSWF/font loading admits exact authored snapshots before the
-legacy binary parsers run. Retail main-menu/Shell integration, general asset conversion,
+animation and Tab/Enter focus/select functions. The original **2026-10-15** acceptance
+used a resident procedural font atlas. The current implementation cooks both movie
+and font artwork into UIPG files: a **272×256** movie atlas with its bitmap crossing
+the x=254 page boundary, and the unchanged **512×128** ASCII font atlas. Native
+`idImage` dimensions retain atlas semantics; draw adapters split bitmap/glyph triangles
+through one shared `PageCache` with four nearest/clamp slots (**1 MiB**), one **256 KiB**
+scratch page and **56 bytes** of page records. BSWF/font loading admits exact authored
+snapshots before the legacy binary parsers run. Retail main-menu/Shell integration, general asset conversion,
 masks, gradients, additive color and broader material profiles remain pending.
-Debug/release NTSC/PAL acceptance, native captures and stable reload/shutdown ledgers
+Page headers/tables also match compiled authored descriptors, and each streamed page
+is checksum-checked before upload. Images/cache remain warm across movie reloads and
+close during UI shutdown. The **2026-10-17** binding slice passes 30 pixel probes per
+capture, three reloads and twelve invalid-data cases in both builds; its host cache
+harness covers assertions enabled and disabled. See the
+[native page-binding record](docs/PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice)
+and inspected [NTSC](docs/images/ui-paged-native-2d-5-ntsc.png) /
+[PAL](docs/images/ui-paged-native-2d-5-pal.png) captures. English remains the
+only initial language; retail font admission and legacy English layout metrics remain
+pending. The earlier 2D-4 debug/release NTSC/PAL acceptance, native captures and stable
+reload/shutdown ledgers
 are recorded in [PORT_STATUS](docs/PORT_STATUS.md#authored-native-swf-and-fonts-2d-4).
 
 ## Build

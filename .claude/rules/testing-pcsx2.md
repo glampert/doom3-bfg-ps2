@@ -63,11 +63,19 @@
 - `make test-ui` / `make BUILD=release test-ui` exercise the authored native SWF in the
   production ELF. Three loads each render at least 120 frames, pause two different
   timeline states (including fractional alpha), execute native Tab/Enter AVM1 focus and
-  selection, and open/type/close the real console over the movie. Twenty-eight pixels
-  per capture cover shapes, a skewed bitmap, glyph strokes/holes, focus and status text.
+  selection, and open/type/close the real console over the movie. Thirty pixels
+  per capture cover shapes, a skewed bitmap across a page seam, glyph strokes/holes,
+  focus and status text. Require two images sharing four nearest/clamp slots (1 MiB),
+  one 256 KiB scratch page and 56 bytes of page records. Captures must show exactly
+  four loads, increasing hits/triangles and zero evictions across all movie reloads.
   Require stable warm unload ledgers, full startup recovery, one presentation per normal
-  frame, coalesced redraws and final capture/quit. Six fresh processes reject missing,
-  truncated, oversized or mutated BSWF and missing/mutated font data before publication.
+  frame, coalesced redraws and final capture/quit. Twelve fresh processes exercise
+  invalid resources. BSWF/font cases reject missing, truncated, oversized or mutated
+  BSWF and missing/mutated font data before publication.
+  Page cases reject missing movie/font packages, truncated movie pages and bad header/
+  table metadata before load publication. A corrupt pixel page fails on the first
+  streamed checksum after publication, before any completed movie presentation/capture;
+  require its specific checksum diagnostic and fatal, never a generic allocation failure.
   The runner uses actual native Echo output as a wait barrier: HostFs submission logs
   alone precede command execution. Animation waits must exceed the 6 Hz authored
   timeline interval; repeatedly pausing earlier resets its partial interval. Select
@@ -75,6 +83,11 @@
   framebuffer tolerance. Inspect native captures; this is authored UI, not retail shell
   or physical PS2 acceptance. `make ui` / `run-ui` stage/launch the same ELF and opt-in
   assets, with `CONSOLE_STANDARD=ntsc` or `pal`.
+- `make test-host` also runs the real shared page-cache implementation under ASan/UBSan
+  with assertions enabled and disabled. Only GS/texture submission is stubbed. Keep
+  cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
+  allocation ledgers, partial-init cleanup and live-image shutdown guards covered.
+  These checks supplement strict EE compilation and native captures.
 
 - `make` / `make release` build production, without smoke fixtures. Build tests
   explicitly with `make platform-probe`, `make headless-core` or `make headless-game`.
