@@ -1,6 +1,7 @@
-# Doom 3 BFG PS2: explicit EE build foundation.
-# The default ELF is the production loop; native smoke executables are built separately.
-# The unmodified Quake II reference is docs/reference/quake2.Makefile.
+# =================================================================================================
+# Doom 3 BFG PS2 build targets
+# The default ELF is the game loop; native smoketest executables are built separately.
+# =================================================================================================
 #
 # Build, packaging and test commands (run from the repository root):
 #   make                         # production d3bfg.elf, debug
@@ -13,10 +14,10 @@
 #   make test-console            # native console/edit/history/capture/quit checks in NTSC/PAL
 #   make BUILD=release test-console # same production presentation checks without assertions
 #   make ui                      # package the authored native SWF with visible NTSC presentation
-#   make CONSOLE_STANDARD=pal ui  # select PAL for the authored UI package
+#   make CONSOLE_STANDARD=pal ui # select PAL for the authored UI package
 #   make run-ui                  # run the authored native SWF in PCSX2
 #   make test-ui                 # native SWF/font/timeline/focus/reload/capture checks in NTSC/PAL
-#   make BUILD=release test-ui    # same authored UI checks without assertions
+#   make BUILD=release test-ui   # same authored UI checks without assertions
 #   make ui-cook                 # cook the ignored local retail English resource package
 #   make retail-ui               # stage native retail fonts in build/debug/ui-retail/
 #   make run-retail-ui           # display the native English font resource screen
@@ -39,9 +40,9 @@
 #   make link-game               # production campaign link, registrations and test-isolation gate
 #   make headless-game           # native campaign test executable
 #   make test-game               # native game/player/tick/reload and failure checks in PCSX2
-#   make BUILD=release test-game  # same game checks with assertions disabled
+#   make BUILD=release test-game # same game checks with assertions disabled
 #   make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
-#   make BUILD=release test-map   # same map checks with assertions disabled
+#   make BUILD=release test-map  # same map checks with assertions disabled
 #   make test-host               # host format/logic/runner tests and ASan/UBSan harnesses
 #   make smoke                   # core smoke run in PCSX2
 #   make BUILD=release smoke     # release core smoke run
