@@ -1,6 +1,67 @@
 # Doom 3 BFG PS2: explicit EE build foundation.
 # The default ELF is the production loop; native smoke executables are built separately.
 # The unmodified Quake II reference is docs/reference/quake2.Makefile.
+#
+# Build, packaging and test commands (run from the repository root):
+#   make                         # production d3bfg.elf, debug
+#   make release                 # production d3bfg.elf, release
+#   make headless                # package production with authored console boot data
+#   make run-headless            # run the headless package in PCSX2, until quit
+#   make console                 # package the same production ELF with visible NTSC console
+#   make CONSOLE_STANDARD=pal console # select PAL presentation
+#   make run-console             # run the visible console package in PCSX2
+#   make test-console            # native console/edit/history/capture/quit checks in NTSC/PAL
+#   make BUILD=release test-console # same production presentation checks without assertions
+#   make ui                      # package the authored native SWF with visible NTSC presentation
+#   make CONSOLE_STANDARD=pal ui  # select PAL for the authored UI package
+#   make run-ui                  # run the authored native SWF in PCSX2
+#   make test-ui                 # native SWF/font/timeline/focus/reload/capture checks in NTSC/PAL
+#   make BUILD=release test-ui    # same authored UI checks without assertions
+#   make ui-cook                 # cook the ignored local retail English resource package
+#   make retail-ui               # stage native retail fonts in build/debug/ui-retail/
+#   make run-retail-ui           # display the native English font resource screen
+#   make BUILD=release CONSOLE_STANDARD=pal run-retail-ui # release PAL resource screen
+#   make retail-movies           # stage inactive retail SWFs and the English dictionary
+#   make run-retail-movies       # draw English labels using original native SWF text records
+#   make test-retail-movies      # shell/dialog dictionaries, text layout, reloads and rejection guards
+#   make BUILD=release test-retail-movies # same native movie resource gate without assertions
+#   make test-retail-ui          # five fonts, layout/pixel checks, reloads and invalid resources
+#   make BUILD=release test-retail-ui # same resource checks without assertions
+#   make test-headless           # 120 frames, live console commands and shutdown in PCSX2
+#   make BUILD=release test-headless # same production checks without assertions
+#   make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes
+#   make BUILD=release test-renderer # same device checks without assertions
+#   make run-renderer            # native capture plus a 60-second inspection hold; F8 also saves a capture
+#   make platform-probe          # SDK/timer/alignment probe
+#   make headless-core           # scalar Doom foundation and integration tests
+#   make compile-core            # compile the scalar idlib/framework source set
+#   make compile-game            # compile the retained campaign source set
+#   make link-game               # production campaign link, registrations and test-isolation gate
+#   make headless-game           # native campaign test executable
+#   make test-game               # native game/player/tick/reload and failure checks in PCSX2
+#   make BUILD=release test-game  # same game checks with assertions disabled
+#   make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
+#   make BUILD=release test-map   # same map checks with assertions disabled
+#   make test-host               # host format/logic/runner tests and ASan/UBSan harnesses
+#   make smoke                   # core smoke run in PCSX2
+#   make BUILD=release smoke     # release core smoke run
+#   make smoke-negative          # expected missing-fixture failure
+#   make test-common             # partial-startup and offline-capability failure checks
+#   make compiledb               # compile_commands.json from real Make rules
+#   make resource-unpack         # standalone C++20 host resource reader/extractor
+#   make ui-inventory            # inspect local retail UI dependencies and feature gaps
+#   make smoke-platform          # run the isolated SDK platform probe
+#   make test-script             # isolated native script compiler checks
+#   make inventory               # audit explicit source lists and exclusions
+#   make tools                   # audit sources and build the host resource unpacker
+#   make clean                   # remove generated build/test artifacts
+#
+# BUILD=debug is the default; BUILD=release selects an assertions-off build.
+# CONSOLE_STANDARD=ntsc (default) or pal selects visible package presentation.
+# PCSX2=/path/to/PCSX2 overrides the emulator executable.
+# UI_DATA_ROOT and UI_COOK_OUTPUT select the local retail installation/cook output.
+# Emulator test targets require an isolated PCSX2 session; run them sequentially.
+# Developer setup, controls and diagnostics: docs/DEVELOPMENT.md.
 
 .DEFAULT_GOAL := all
 .DELETE_ON_ERROR:

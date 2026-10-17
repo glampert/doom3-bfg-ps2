@@ -335,5 +335,5 @@ uses the full resident ELF and `run_console.py`, without importing these units i
   nearest/bilinear/trilinear (live), `ps2_mip_bias` (live).
 - Lightmap atlases are `ImageType::Wall` (Alpha8). Exclude them by format when a rule means
   "walls".
-- Before changing the heap or residency policy, read the README's VRAM heap notes: LRU, never
-  evict textures bound this frame, recoverable OOM, defrag on level change.
+- Before changing the Quake II reference's heap or residency policy, read that project's README
+  VRAM heap notes: LRU, never evict textures bound this frame, recoverable OOM, defrag on level change.

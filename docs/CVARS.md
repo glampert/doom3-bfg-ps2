@@ -28,7 +28,7 @@ not cvars. They have no debug/release default or archive behavior:
 `src/ps2/system/presentation.cpp`. Native console input takes
 priority over SWF input. The UI package selects startup loading with a `ps2_ui load`
 command in its packaged `d3bfg.cfg`; there is no UI-enable cvar. See
-[README.md](../README.md#build) for complete argument limits and usage.
+[developer guide](DEVELOPMENT.md#production-packages-and-controls) for complete argument limits and usage.
 
 The following engine cvars have PS2-specific policies:
 

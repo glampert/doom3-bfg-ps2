@@ -10,7 +10,8 @@ math path; PS2-specific math replacement headers are a later milestone.
   `// [PS2_D3BFG]: <why>`.
 - **No double FPU on the EE.** Unsuffixed constants in the legacy target are made float by
   `-fsingle-precision-constant`. Explicit upstream double arithmetic remains software
-  floating point; its current units are listed in README.md. Don't introduce new double
+  floating point; its current units are listed in the
+  [developer guide](../../docs/DEVELOPMENT.md#foundation-test-boundary). Don't introduce new double
   math in hot paths, or change precision without a target regression test.
 
 ## Core portability findings
