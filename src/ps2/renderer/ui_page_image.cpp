@@ -46,6 +46,134 @@ static bool ValidPath(const char * path)
 
 } // namespace
 
+PageCache::~PageCache()
+{
+    Shutdown();
+}
+
+bool PageCache::IsInitialized() const
+{
+    return m_scratch != nullptr && m_slotCount != 0;
+}
+
+PageCacheStats PageCache::GetStats() const
+{
+    return m_stats;
+}
+
+PS2_COLD_FUNC bool PageCache::Init(u32 slots, tex::Sampler sampler)
+{
+    if (m_scratch != nullptr || !rs::IsInitialized() || slots == 0 || slots > kMaxSlots ||
+        (sampler.filter != tex::Filter::Nearest && sampler.filter != tex::Filter::Linear) ||
+        sampler.wrapS != tex::Wrap::Clamp || sampler.wrapT != tex::Wrap::Clamp)
+    {
+        return Failed("invalid cache initialization state, slot count or sampler");
+    }
+
+    m_stats = {};
+    m_scratch = heap::TryAlloc(kPageBytes, TAG_RENDER, 64);
+
+    if (m_scratch == nullptr)
+    {
+        return Failed("page input allocation");
+    }
+
+    std::memset(m_scratch, 0, kPageBytes);
+    m_slotCount = slots;
+
+    for (u32 slot = 0; slot < m_slotCount; ++slot)
+    {
+        m_slots[slot].texture = tex::Create(kPageExtent, kPageExtent, sampler,
+                                            m_scratch, kPageBytes, kPageExtent * 4U);
+
+        if (m_slots[slot].texture.id == 0)
+        {
+            Shutdown();
+            return Failed("page cache texture budget");
+        }
+    }
+
+    m_stats.cacheBytes = slots * kPageBytes;
+    m_stats.scratchBytes = kPageBytes;
+    return true;
+}
+
+PS2_COLD_FUNC void PageCache::Shutdown()
+{
+    if (m_stats.images != 0)
+    {
+        FatalError("UI page cache shutdown with %u attached images", m_stats.images);
+    }
+
+    for (auto & slot : m_slots)
+    {
+        if (slot.texture.id != 0)
+        {
+            tex::Destroy(slot.texture);
+        }
+
+        slot = {};
+    }
+
+    heap::Free(m_scratch);
+    m_scratch = nullptr;
+    m_slotCount = 0;
+    m_use = 0;
+    m_stats.cacheBytes = 0;
+    m_stats.scratchBytes = 0;
+    m_stats.metadataBytes = 0;
+}
+
+PS2_COLD_FUNC bool PageCache::Attach(PageImage & image)
+{
+    if (!IsInitialized() || m_stats.images == kMaxImages)
+    {
+        return Failed("unavailable cache or attached image limit");
+    }
+
+    ++m_stats.images;
+    m_stats.metadataBytes += image.m_stats.metadataBytes;
+    return true;
+}
+
+PS2_COLD_FUNC void PageCache::Detach(PageImage & image)
+{
+    if (!IsInitialized() || m_stats.images == 0 ||
+        m_stats.metadataBytes < image.m_stats.metadataBytes)
+    {
+        FatalError("UI page cache attachment mismatch");
+    }
+
+    ui::Flush();
+    bool referenced = false;
+
+    for (const auto & slot : m_slots)
+    {
+        referenced = referenced || slot.image == &image;
+    }
+
+    if (referenced)
+    {
+        // Retire the image's queued draws before its identity can be reused. The shared textures
+        // remain allocated; their next Update/Bind also fences before replacing the pixel contents.
+        cmdbuf::Kick();
+        cmdbuf::WaitIdle();
+    }
+
+    for (auto & slot : m_slots)
+    {
+        if (slot.image == &image)
+        {
+            slot.image = nullptr;
+            slot.page = 0;
+            slot.lastUse = 0;
+        }
+    }
+
+    --m_stats.images;
+    m_stats.metadataBytes -= image.m_stats.metadataBytes;
+}
+
 PageImage::~PageImage()
 {
     Close();
@@ -53,7 +181,7 @@ PageImage::~PageImage()
 
 bool PageImage::IsOpen() const
 {
-    return m_file != nullptr && m_scratch != nullptr && m_slotCount != 0;
+    return m_file != nullptr && m_records != nullptr && m_cache != nullptr && m_cache->IsInitialized();
 }
 
 const PageHeader & PageImage::GetHeader() const
@@ -61,17 +189,45 @@ const PageHeader & PageImage::GetHeader() const
     return m_header;
 }
 
+const PageRecord * PageImage::GetRecords() const
+{
+    return m_records;
+}
+
 PageImageStats PageImage::GetStats() const
 {
-    return m_stats;
+    PageImageStats stats = m_stats;
+
+    if (m_cache == &m_ownedCache)
+    {
+        const auto cache = m_ownedCache.GetStats();
+        stats.cacheBytes = cache.cacheBytes;
+        stats.scratchBytes = cache.scratchBytes;
+    }
+
+    return stats;
 }
 
 PS2_COLD_FUNC bool PageImage::Open(const char * path, u32 cacheSlots)
 {
-    if (m_file != nullptr || !rs::IsInitialized() || !ValidPath(path) ||
-        cacheSlots == 0 || cacheSlots > kMaxSlots)
+    if (m_file != nullptr || m_cache != nullptr || !ValidPath(path))
     {
-        return Failed("invalid open state or cache slot count");
+        return Failed("invalid image open state or path");
+    }
+
+    if (!m_ownedCache.Init(cacheSlots))
+    {
+        return false;
+    }
+
+    return Open(path, m_ownedCache);
+}
+
+PS2_COLD_FUNC bool PageImage::Open(const char * path, PageCache & cache)
+{
+    if (m_file != nullptr || m_cache != nullptr || !cache.IsInitialized() || !ValidPath(path))
+    {
+        return Failed("invalid image open state, cache or path");
     }
 
     m_stats = {};
@@ -79,6 +235,7 @@ PS2_COLD_FUNC bool PageImage::Open(const char * path, u32 cacheSlots)
 
     if (m_file == nullptr)
     {
+        Close();
         return Failed("cannot open package");
     }
 
@@ -115,50 +272,28 @@ PS2_COLD_FUNC bool PageImage::Open(const char * path, u32 cacheSlots)
         }
     }
 
-    m_scratch = heap::TryAlloc(kPageBytes, TAG_RENDER, 64);
+    m_stats.metadataBytes = static_cast<u32>(metadataBytes);
 
-    if (m_scratch == nullptr)
+    if (!cache.Attach(*this))
     {
         Close();
-        return Failed("page input allocation");
+        return false;
     }
 
-    std::memset(m_scratch, 0, kPageBytes);
-    m_slotCount = cacheSlots;
-
-    for (u32 slot = 0; slot < m_slotCount; ++slot)
-    {
-        m_slots[slot].texture = tex::Create(kPageExtent, kPageExtent, { tex::Filter::Linear },
-                                            m_scratch, kPageBytes, kPageExtent * 4U);
-
-        if (m_slots[slot].texture.id == 0)
-        {
-            Close();
-            return Failed("page cache texture budget");
-        }
-    }
-
-    m_stats.cacheBytes = cacheSlots * kPageBytes;
-    m_stats.scratchBytes = kPageBytes;
-    m_stats.metadataBytes = static_cast<u32>(metadataBytes);
+    m_cache = &cache;
     return true;
 }
 
 PS2_COLD_FUNC void PageImage::Close()
 {
-    for (auto & slot : m_slots)
+    if (m_cache != nullptr)
     {
-        if (slot.texture.id != 0)
-        {
-            tex::Destroy(slot.texture);
-        }
-
-        slot = {};
+        m_cache->Detach(*this);
+        m_cache = nullptr;
     }
 
-    heap::Free(m_scratch);
+    m_ownedCache.Shutdown();
     heap::Free(m_records);
-    m_scratch = nullptr;
     m_records = nullptr;
 
     if (m_file != nullptr && std::fclose(m_file) != 0)
@@ -168,47 +303,56 @@ PS2_COLD_FUNC void PageImage::Close()
 
     m_file = nullptr;
     m_header = {};
-    m_slotCount = 0;
-    m_use = 0;
     m_stats.cacheBytes = 0;
     m_stats.scratchBytes = 0;
     m_stats.metadataBytes = 0;
 }
 
-bool PageImage::Load(u32 page, tex::Handle & texture)
+bool PageCache::Load(PageImage & image, u32 page, tex::Handle & texture)
 {
-    PS2_Assert(page < m_header.pageCount);
+    if (!image.IsOpen() || image.m_cache != this || page >= image.m_header.pageCount)
+    {
+        return Failed("invalid cache load state or page");
+    }
+
     Slot * oldest = nullptr;
 
     for (u32 index = 0; index < m_slotCount; ++index)
     {
         Slot & slot = m_slots[index];
 
-        if (slot.valid && slot.page == page)
+        if (slot.image == &image && slot.page == page)
         {
             slot.lastUse = ++m_use;
             ++m_stats.hits;
+            ++image.m_stats.hits;
             texture = slot.texture;
             return true;
         }
 
-        if (oldest == nullptr || (!slot.valid && oldest->valid) ||
-            (slot.valid == oldest->valid && slot.lastUse < oldest->lastUse))
+        const bool valid = slot.image != nullptr;
+        const bool oldestValid = oldest != nullptr && oldest->image != nullptr;
+
+        if (oldest == nullptr || (!valid && oldestValid) ||
+            (valid == oldestValid && slot.lastUse < oldest->lastUse))
         {
             oldest = &slot;
         }
     }
 
-    const PageRecord & record = m_records[page];
+    const PageRecord & record = image.m_records[page];
 
-    if (std::fseek(m_file, static_cast<long>(record.offset), SEEK_SET) != 0 ||
-        std::fread(m_scratch, 1, kPageBytes, m_file) != kPageBytes ||
+    if (std::fseek(image.m_file, static_cast<long>(record.offset), SEEK_SET) != 0 ||
+        std::fread(m_scratch, 1, kPageBytes, image.m_file) != kPageBytes ||
         PageChecksum(m_scratch, kPageBytes) != record.checksum)
     {
         return Failed("page read or checksum");
     }
 
-    PS2_Assert(oldest != nullptr);
+    if (oldest == nullptr)
+    {
+        return Failed("cache has no texture slot");
+    }
 
     // Update flushes collected native draws; the subsequent Bind drains queued GS references before
     // replacing this texture's VRAM contents. Failed reads never mutate an existing cache slot.
@@ -217,13 +361,30 @@ bool PageImage::Load(u32 page, tex::Handle & texture)
         return Failed("page texture update");
     }
 
-    m_stats.evictions += oldest->valid ? 1U : 0U;
-    oldest->valid = true;
+    const u32 eviction = oldest->image != nullptr ? 1U : 0U;
+    m_stats.evictions += eviction;
+    image.m_stats.evictions += eviction;
+    oldest->image = &image;
     oldest->page = page;
     oldest->lastUse = ++m_use;
     ++m_stats.loads;
+    ++image.m_stats.loads;
     texture = oldest->texture;
     return true;
+}
+
+bool PageImage::ValidateTriangle(const Vertex (&vertices)[3]) const
+{
+    if (!IsOpen() || !rs::FrameStarted())
+    {
+        return Failed("invalid triangle validation state");
+    }
+
+    FixedTriangle pieces[kMaxPageTriangles] = {};
+    int count = 0;
+    const Viewport viewport{ gs::Width(), gs::Height() };
+    return MapPageTriangle(vertices, viewport, static_cast<int>(m_header.width),
+                           static_cast<int>(m_header.height), 0, 0, pieces, count) != Result::Invalid;
 }
 
 bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
@@ -290,7 +451,7 @@ bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
 
             tex::Handle texture;
 
-            if (!Load(row * m_header.columns + column, texture))
+            if (!m_cache->Load(*this, row * m_header.columns + column, texture))
             {
                 return false;
             }
@@ -303,6 +464,7 @@ bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
                 }
 
                 ++m_stats.triangles;
+                ++m_cache->m_stats.triangles;
             }
         }
     }

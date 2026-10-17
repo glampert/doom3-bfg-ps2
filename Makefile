@@ -586,6 +586,16 @@ build/tests/ui_page_geometry_tests: src/tests/host/ui_page_geometry_tests.cpp sr
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_geometry_tests.cpp src/ps2/renderer/ui_page_geometry.cpp -o $@
 
+HOST_UI_PAGE_SOURCES = src/tests/host/ui_page_image_tests.cpp src/ps2/renderer/ui_page_image.cpp src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_geometry.cpp src/ps2/renderer/texture_layout.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
+HOST_UI_PAGE_HEADERS = src/ps2/renderer/ui_page_image.h src/tests/host/ui_page_stubs/tamtypes.h src/tests/host/ui_page_stubs/ps2/renderer/gif_writer.h src/tests/host/ui_page_stubs/idlib/precompiled.h
+
+build/tests/.ui-page-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_UI_PAGE_SOURCES)
+
+build/tests/ui_page_image_tests_%: $(HOST_UI_PAGE_SOURCES) $(HOST_UI_PAGE_HEADERS) build/tests/.ui-page-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) -Isrc/tests/host/ui_page_stubs $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_UI_PAGE_SOURCES) -o $@
+
 build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp src/ps2/renderer/ui_triangles.h src/ps2/renderer/ui_geometry.h Makefile
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp -o $@
@@ -594,9 +604,11 @@ build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/renderer/cha
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/ps2/renderer/charset.cpp -o $@
 
-test-host: build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/ui_page_image_tests_1 build/tests/ui_page_image_tests_0 build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
 	./build/tests/ui_page_format_tests
 	./build/tests/ui_page_geometry_tests
+	./build/tests/ui_page_image_tests_1
+	./build/tests/ui_page_image_tests_0
 	./build/tests/ui_triangles_tests
 	./build/tests/charset_tests
 	./build/tests/ui_geometry_tests
