@@ -23,6 +23,7 @@ from ui_font import inspect_font, inspect_old_font, inspect_language, language_c
 from ui_material import index_materials, resolve_material, canonical_material_name
 from ui_pages import write_pages
 from ui_page_package import write_page_package
+from ui_retail_catalog import build_catalog
 from ui_resources import MAX_RESOURCE_BYTES, ResourceCatalog, digest, identity, logical_name
 from ui_swf import inspect_swf
 
@@ -413,6 +414,8 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                     raise ValueError("retail UI package exceeds 1024 total pages")
                 manifest["cooked"]["page_layouts"][name] = layout
                 manifest["cooked"]["runtime_images"][name] = write_page_package(layout, stage)
+            catalog_bytes, catalog_summary = build_catalog(manifest, stage)
+            manifest["cooked"]["runtime_catalog"] = {**catalog_summary, **_asset(stage, catalog_bytes, ".uic")}
             files = list((stage / "assets").iterdir())
             manifest["cooked"]["storage_bytes"] = sum(path.stat().st_size for path in files)
             manifest["cooked"]["file_count"] = len(files)
