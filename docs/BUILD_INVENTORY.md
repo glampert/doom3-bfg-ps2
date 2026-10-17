@@ -611,3 +611,16 @@ the real cache/format/geometry/heap code with assertions 0/1 and stubbed GS subm
 it adds no vendor source to an EE list. Header dependencies keep that harness current.
 The authored native SWF/font binding and remaining retail admission gates are recorded
 in [PORT_STATUS](PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).
+
+The English retail resource slice adds strict `ui/retail_catalog.cpp`,
+`ui/retail_assets.cpp` and `renderer/ui_font_format.cpp` to core and resident support;
+resident-only `ui/retail_materials.cpp` generates the admitted constant stages.
+Production-only `ui/retail_movie.cpp` owns the opt-in resource screen/command. No
+additional upstream unit, vendor unit or target fixture is enabled. Tagged native
+Font/Material/Image seams retain the original glyph/index parser, lookup and UVs
+behind bounded snapshots; the core test still does not link native Font/SWF/Material.
+Production now retains **368 direct inputs**, zero test inputs/symbols and no GC.
+Debug/release `PT_LOAD` is **11,055,910 / 11,478,438 bytes**; the compile database
+contains **393 entries**. The core ELF retains **2,093,296 / 2,177,264 bytes** at this
+checkpoint. Separate host sanitizer readers validate UICT and native font metadata;
+they do not replace strict EE compilation or native pixel checks.

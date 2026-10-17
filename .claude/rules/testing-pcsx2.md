@@ -88,6 +88,17 @@
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
   allocation ledgers, partial-init cleanup and live-image shutdown guards covered.
   These checks supplement strict EE compilation and native captures.
+- After `make ui-cook`, `make test-retail-ui` and its `BUILD=release` variant each run
+  NTSC/PAL plus five fresh-process resource failures in isolated PCSX2 sessions. Seven
+  phases draw five native English fonts, return to the first and reload it, each for
+  at least 120 frames. Check all three legacy metric pairs, source-derived glyph
+  stroke/hole probes, stable reload captures, six-slot residency, page counters and
+  full startup-ledger recovery. Reject bad catalog headers, missing/mutated font data,
+  invalid page tables and deferred pixel corruption before a completed presentation.
+  Inspect all five fonts in both standards; proprietary captures and cooked files
+  remain under ignored `build/`. This proves the resource screen, not a retail SWF,
+  Shell navigation or physical PS2 performance. `make run-retail-ui` launches it;
+  append `ps2_uiRetail font 0` through `font 4`, `status` or `quit` to its console.txt.
 
 - `make` / `make release` build production, without smoke fixtures. Build tests
   explicitly with `make platform-probe`, `make headless-core` or `make headless-game`.

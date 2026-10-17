@@ -87,8 +87,13 @@ warm image cache; UI shutdown closes images before cache/device teardown. Host c
 checks cover assertions enabled/disabled. Production captures pass 30 pixel probes,
 three reloads, four warm page loads without eviction and twelve corrupt-resource cases;
 see the [binding record](PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).
-General retail SWF/font/material
-admission, legacy English font layout metrics and measured retail residency remain open.
+The subsequent **2026-10-17 English resource slice** admits a compact UICT catalog,
+native modern fonts, preserved legacy metrics and constant image material bindings.
+The opt-in production screen draws all five families at three sizes through six shared
+linear page slots. It opens five font atlases lazily and preserves their half-texel
+outer-edge sampling. This measures the bounded font screen; general retail BSWF/text
+binding and the active menu's residency remain open. See the
+[resource acceptance record](PORT_STATUS.md#native-english-retail-font-resources-2d-5-slice).
 Full 2D-5 acceptance and 2D-6 masks/blends precede 2D-7 offline Shell startup.
 
 ## Scope and completion criteria
@@ -178,7 +183,7 @@ No VU tool/submodule import is required for this CPU 2D roadmap.
 ## Reuse and adaptation map
 
 Original proposed destinations are relative to D:. Device, direct RGBA texture,
-capture and authored native UI/image/font providers now exist. Retail admission and
+capture and authored/native English font/image providers now exist. Retail BSWF admission and
 coverage/CLUT work remain subsequent gates.
 
 | First-pass destination | Start from | Required adaptation |
@@ -544,8 +549,9 @@ an explicit production display policy and safe Common frame/`UpdateScreen` lifec
 The current **2D-4** implementation supplies bounded indexed UI, authored materials,
 native fonts and one interactive mask-free native SWF. The host retail UI
 inventory/cook foundation (**2D-5**) is now available. The authored native SWF/font page
-binding passes with a shared budget. Next admit
-the bounded English retail profile, preserve its native layout metrics and measure the
-menu working set, followed by required SWF feature closure
+binding passes with a shared budget. Native English font/image/material resources and
+legacy layout metrics now pass their separate opt-in resource screen. Next admit the
+bounded retail BSWF and English text profile and measure the active menu working set,
+followed by required SWF feature closure
 (**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
 the interface; native BFG menu and world-rendering acceptance remain separate gates.

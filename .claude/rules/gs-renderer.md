@@ -46,8 +46,9 @@ boundaries before applying it. Native SWF RenderShape uses atlasMaterial, atlasO
 image size and channelScale for bitmap fills, not dictionary.material. Dictionary
 renaming alone cannot implement paging. `ui_page_image.*` now streams compact UIPG
 images through fixed texture slots and calls `ui_page_geometry.*` for page/screen
-splits. Native authored SWF/font images now share a `PageCache`; general retail
-admission and retail working-set acceptance remain pending.
+splits. Native authored SWF/font images now share a `PageCache`; the bounded English
+retail font resource screen uses a separate six-slot linear profile. General retail
+movie admission and active-menu working-set acceptance remain pending.
 
 Page intersections must be reconstructed from the canonical original triangle and
 shared boundary constraints. Chaining interpolation through different preceding
@@ -73,7 +74,11 @@ Native `idImage` dimensions remain the full atlas dimensions. `SWF_Render` deriv
 global UVs from the atlas material, and `idFont::GetScaledGlyph` expands glyph UVs by
 half a texel. Preserve those UVs through page splitting; publishing 256×256 as the
 logical dimensions scales both incorrectly. The authored font leaves padding for
-that expansion. Future font admission must handle or reject edge glyphs explicitly.
+that expansion. Retail fonts contain edge glyphs: the opt-in `outerGutter` mode admits
+only [-0.5/width, 1+0.5/width] and its height equivalent. Extend only the atlas's outer
+clip planes; map against the original page origin plus its one-texel gutter. This
+preserves native glyph geometry and interior samples. Default page admission remains
+strictly 0..1. Do not clamp the glyph UVs or rescale the complete texture to fit.
 Validate the entire queued native collection before emitting packets; paged emission
 must run under the collector's reentry guard because page Update/Bind also flushes it.
 Direct glyph quads flush older indexed bitmap runs before touching the shared cache.

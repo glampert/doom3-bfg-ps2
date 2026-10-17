@@ -36,8 +36,8 @@ PIXEL_CACHE_BUDGET = 2 * 1024 * 1024
 _BLOCKERS = [
     "Native masks/stencil and their nested/concave composition remain unsupported.",
     "Nonzero additive color and required special blend modes need measured 2D-6 closure.",
-    "Native SWF/font drawing must bind UIPG images and route atlas triangles through page splitting; dictionary names alone do not page RenderShape.",
-    "General retail BSWF/font/material/image admission and bounded target loading are not implemented.",
+    "Retail SWF/English text binding and measured active-menu page working sets remain pending; authored native SWF/font page binding is implemented.",
+    "Scoped English font/image/constant-material resource admission is implemented; general retail BSWF/resource profiles remain unadmitted.",
     "Static AVM1 inventory cannot close dynamic names, callbacks or runtime-generated strings/resources.",
     "Native offline PressStart/Root/Quit-dialog startup, input policy and optional media gating remain pending.",
 ]

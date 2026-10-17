@@ -2974,3 +2974,79 @@ filtering coverage. These measurements establish authored native binding, not a 
 menu working set or physical PS2/cache/performance acceptance. Next admit the bounded
 English retail font/image/material and BSWF profile, preserve native layout metrics,
 and measure its active working set before mask/blend closure and offline Shell startup.
+
+## Native English retail font resources (2D-5 slice)
+
+Accepted **2026-10-17, Australia/Sydney**, in production debug/release NTSC/PAL.
+The local retail cook now emits a bounded **UICT v1** resource catalog. Native adapters
+admit five complete English font families, image descriptors, aliases and implicit
+constant UI materials. The opt-in resource screen draws **Campaign** through native
+`idFont` at 12/24/48-point scales. This is a font/resource proof: it does not load a
+retail SWF, initialize Shell or complete milestone 2D-5. Production remains in NOMAP;
+sound and world rendering remain inactive.
+
+The **5,236-byte** immutable catalog contains twelve images, five fonts, nineteen
+aliases, twelve material bindings and 1,528 bytes of UIPG descriptors. Validation
+checks exact offsets, bounds, paths, canonical identities, references and English-only
+flags before publication. Font length/checksum/layout and glyph/ASCII bounds are
+checked before native parsing receives an immutable memory snapshot. Complete modern
+font records preserve native duplicate-codepoint selection. Legacy 12/24/48-point
+width/height pairs come from inspected source files; Sarasori retains the native
+fallback when old files are absent. No glyph subsetting or modern-extrema substitution
+changes those layout metrics. Only known implicit image-default materials are admitted;
+their constant native stages are generated, without loading retail shader text.
+
+Real font glyphs touch atlas edges. Optional outer half-texel admission preserves
+native glyph geometry and UV expansion through replicated gutters; authored UV bounds
+remain strict by default. Five open font atlases share **six linear/clamp slots**:
+**1,572,864 pixel bytes + 262,144 scratch bytes + 384 record bytes = 1,835,392 requested
+RENDER payload bytes**. Objects, catalog, glyph arrays, intrinsics and allocator
+overhead are separate. Other catalog images stay unopened. Each selected word uses
+at most four pages; sequential family changes and returning to the first yield
+**22 loads / 16 evictions**. The subsequent warm reload adds no page loads. This does
+not establish the complete retail menu's simultaneous working set or transition peak.
+
+| Configuration | NTSC archive | PAL archive |
+| --- | --- | --- |
+| Debug | `20261017T072657Z_retail_dca885ee656e` | `20261017T072717Z_retail_623547b5418a` |
+| Release | `20261017T072821Z_retail_3c6c488e9b07` | `20261017T072840Z_retail_15b5e6b8faac` |
+
+Each run completes seven phases of at least 120 frames: five font families, return to
+Arial Narrow, then its warm reload. Native metric checks cover all three scales;
+source-derived stroke/hole probes and ink presence check each family. All five fonts
+were visually inspected in both standards and configurations: readable, distinct
+families with no visible clipping or page seams. First/return/reload captures match;
+debug/release captures match per standard. Selected Arial Narrow hashes are NTSC
+`e8e41c936e4b68541a48ca3cc6b73323915c2a15098cdd0e64d8c3ffdb0aca98`, PAL
+`15c111ff1dfde7d26c3acf6aed23ed7c386e24829dcffe54c882e2b46a21efb0`.
+Retail captures, contact sheets, cooked data and matched build evidence stay under
+ignored `build/`; no proprietary asset is committed.
+
+All four runs peak at **4,392,239 requested / 4,495,188 backing bytes**. Arena commitment
+is **4,734,170 debug / 4,733,530 release**. Warm unload retains fonts/images at
+**4,388,908 / 4,491,596 bytes in 2,497 allocations**; full shutdown returns exactly to
+the startup baseline of **7,424 / 7,600 bytes in four allocations**. Each build also
+passes five fresh-process failures: invalid catalog header, missing or mutated font,
+invalid UIPG table and deferred pixel corruption. Every failure requires its specific
+diagnostic before the first completed retail presentation; corrupt pixels fail before
+cache replacement. Assertions are disabled in release.
+
+Strict debug/release production and core builds pass, with **368 production direct
+objects**, zero test inputs/symbols and no linker GC. Production fixed `PT_LOAD` is
+**11,055,910 debug / 11,478,438 release bytes**; core is **2,093,296 / 2,177,264**.
+The compiler database has **393 entries**. All **309 Python host regressions** and
+ASan/UBSan harnesses pass, including new UICT/font readers, geometry and shared-cache
+checks with assertions 0/1. Existing authored UI matrices (two standards plus twelve
+failure cases per build), renderer matrices (two standards plus twelve failure cases)
+and production headless bounded/live-command shutdown tests pass in debug/release.
+
+Run `make ui-cook` then `make run-retail-ui`; select PAL with `CONSOLE_STANDARD=pal`
+and release with `BUILD=release`. `make test-retail-ui` runs the resource gate for
+both standards and all five failures. Append `ps2_uiRetail font 0` through `font 4`,
+`ps2_uiRetail status` or `quit` to `build/<config>/ui-retail/console.txt` while running.
+See [the pipeline guide](RETAIL_UI_PIPELINE.md) for staging and command details.
+
+Next admit a bounded retail BSWF and bind its English labels/resources, then measure
+the actual active-menu working set. Masks, additive/special blends and offline native
+PressStart → Root → Quit-dialog integration follow. Neither these emulator results
+nor the font screen establish physical PS2 cache/performance or full menu acceptance.

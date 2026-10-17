@@ -75,8 +75,15 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   their compiled exact-byte admission profile come from `build_authored_ui.py`; use
   `--check` to detect stale outputs before staging. Its UIPG header/table descriptors
   are compiled too, and streamed page pixels are checked before cache replacement.
-  General retail SWF/font/material admission, legacy English layout metrics and
-  retail menu/Shell integration remain pending.
+  `make retail-ui` / `make run-retail-ui` stage/run the opt-in English retail font
+  screen from the local `make ui-cook` output, using `CONSOLE_STANDARD` and `BUILD`.
+  `make test-retail-ui` checks five real native fonts at 12/24/48-point scales, full
+  legacy layout metrics, source-derived pixels, 120 frames per family, return/reload,
+  shutdown and five corrupt-resource cases. HostFs `ps2_uiRetail` accepts load/unload/
+  reload/status or `font INDEX` (0–4). Start in a fresh visible process; retail linear
+  pages and authored nearest pages are separate profiles. No retail SWF or Shell is
+  loaded. General retail BSWF admission, English text binding, masks/blends and offline
+  Shell integration remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
@@ -139,8 +146,13 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   gaps, full English font/language data, lossless guttered RGBA pages and compact UIPG
   runtime images. Initial UI localization supports English only. Native authored SWF/font
   images share a fixed `PageCache`; standalone `PageImage` callers may own a private
-  cache. `runtime_ready=false` is intentional: retail admission/binding and layout
-  metrics, masks/blends and offline Shell integration remain later gates. See
+  cache. The cook also emits a bounded UICT resource index. Native snapshots validate
+  its offsets/paths/English records and font counts before legacy parsing; constant UI
+  material stages are generated from admitted bindings. The retail resource profile
+  shares six linear/clamp slots (1.5 MiB), one 256 KiB scratch page and lazy image
+  tables. Font UVs may use only the outer half-texel gutter, preserving native sampling
+  without rescaling glyphs. `runtime_ready=false` is intentional: retail BSWF/text
+  binding, masks/blends and offline Shell integration remain later gates. See
   [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).

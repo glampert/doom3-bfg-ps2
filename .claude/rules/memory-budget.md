@@ -284,6 +284,24 @@ commitment is 4,210,330 debug / 4,213,402 release. Each warm unload returns to
 7,424 / 7,600 bytes in four allocations. These are authored page-binding measurements;
 the English retail menu's multi-font working set and transition peak remain unmeasured.
 
+## English retail font resource screen (2D-5 slice)
+
+Accepted 2026-10-17 in debug/release NTSC/PAL. Six linear/clamp pixel slots reserve
+1,572,864 bytes, shared scratch reserves 262,144, and five open font image tables
+reserve 384: 1,835,392 requested RENDER payload bytes. The 5,236-byte immutable UICT
+catalog, font arrays, objects/files, intrinsics and allocator overhead are separate.
+Twelve image descriptors are admitted but only the five font atlases are opened.
+The test word's per-font working set is at most four pages. Sequential family changes
+produce 22 page loads and 16 evictions; returning to the first reloads four pages and
+its subsequent warm preview reload adds none. This is not the complete menu's set.
+
+All four runs peak at 4,392,239 requested / 4,495,188 backing bytes; arena commitment
+is 4,734,170 debug / 4,733,530 release. Warm preview unload retains native fonts/images
+at 4,388,908 / 4,491,596 bytes in 2,497 allocations. Full shutdown returns exactly to
+7,424 / 7,600 bytes in four allocations. Production fixed PT_LOAD is 11,055,910 debug /
+11,478,438 release bytes with 368 direct objects. Keep shared payload, allocator
+commitment and fixed ELF residency separate; do not add these as independent heaps.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

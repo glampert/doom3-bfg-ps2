@@ -1,9 +1,11 @@
 # Retail UI host inventory and cooking
 
 This is the host foundation for renderer milestone **2D-5**, verified on
-**2026-10-16, Australia/Sydney**. It produces inspected asset candidates for native
+**2026-10-17, Australia/Sydney**. It produces inspected asset candidates for native
 offline PressStart, Root and Quit-dialog bring-up. The package explicitly records
-`runtime_ready=false`: the native authored loader does not admit these retail files.
+`runtime_ready=false`: complete retail SWF/Shell loading is not admitted. The opt-in
+native resource screen now admits the selected English fonts and cooked images through
+a bounded catalog; this does not activate a retail movie or menu.
 The [renderer roadmap](RENDERER_2D_PLAN.md) tracks remaining target gates.
 
 ## Commands and local data
@@ -17,6 +19,10 @@ integration gates in this profile use that assumption.
 ```sh
 make ui-inventory
 make ui-cook
+make run-retail-ui
+make CONSOLE_STANDARD=pal run-retail-ui
+make test-retail-ui
+make BUILD=release test-retail-ui
 
 # Separate reports and override the local installation location:
 make ui-inventory UI_DATA_ROOT=/path/to/bfg/base UI_COOK_OUTPUT=build/ui-inventory
@@ -30,6 +36,26 @@ inventory report alongside a cooked manifest. Output must be a descendant of thi
 repository's ignored `build/` tree; retail files and generated assets stay local.
 Neither command runs the engine, emulator or AVM1 scripts, or changes the production
 package. `make ui` / `make test-ui` still use the authored native SWF.
+
+`make retail-ui` stages the same production ELF under `build/<config>/ui-retail/`;
+`run-retail-ui` displays the resource screen until quit. `UI_COOK_OUTPUT` selects the
+source cook, and `CONSOLE_STANDARD` selects NTSC/PAL. The package contains only the
+compact catalog, modern font files and UIPGs from the local cook. It does not copy
+retail SWFs, material source text, legacy font blobs or the full language dictionary.
+Use a fresh visible process: authored nearest-filter pages and the retail linear
+profile are deliberately separate startup choices.
+
+Append commands to the running package's `console.txt`, for example:
+
+```sh
+echo 'ps2_uiRetail font 3' >> build/debug/ui-retail/console.txt
+echo 'ps2_uiRetail status' >> build/debug/ui-retail/console.txt
+echo 'quit' >> build/debug/ui-retail/console.txt
+```
+
+Font indices are Arial Narrow (0), BankGothic (1), Chainlink (2), Microgramma (3)
+and Sarasori (4). Each screen uses native `idFont` at 12/24/48-point scales. The
+command's unload/reload retains checked font/image caches until full UI shutdown.
 
 For an ordinary directory tree containing the original native files, use the separate
 [C++ resource unpacker](../src/tools/resource_unpack/README.md):
@@ -73,6 +99,38 @@ No theme changes, downscaling or demo-mode substitutions are made.
 
 ## Page layout and ownership
 
+The cook additionally emits a content-addressed **UICT v1** runtime catalog, referenced
+by `cooked.runtime_catalog`. Staging renames that checked index to `base/retail_ui.uic`;
+the EE never parses the large diagnostic JSON. Its 64-byte little-endian header gives
+exact array/string/descriptor offsets and an English-only flag. Records bind images
+to complete UIPG header/tables, fonts to immutable modern `.dat` snapshots and three
+legacy width/height pairs, aliases to canonical families, and material names to images.
+The current index is **5,236 bytes**: twelve images, five fonts, nineteen aliases and
+twelve implicit material bindings. Catalog bounds are 128 KiB, 32 images, eight fonts,
+128 aliases, 64 materials and 1,024 total pages. Native validation rejects overlapping/
+inconsistent ranges, traversal or token-injection paths, duplicate identities, invalid
+references and missing canonical self-aliases before publishing a view.
+
+Each font snapshot is length/checksum checked and structurally validated before native
+`idFont` allocation: at most 2,048 glyphs, exact idf42 layout, sorted Unicode scalars,
+valid signed-byte ASCII lookup indices and checked atlas rectangles. Duplicate indices
+remain intact; native lookup chooses the last duplicate. The inspected old 12/24/48
+metrics are retained as bounded summaries; Sarasori uses the native modern-extrema
+fallback. Checksums provide integrity, not authentication or unchecked parser admission.
+Only implicit image-default materials enter this catalog. Native material creation
+generates their known constant blend/map/linear/clamp/vertexColor stages; original
+retail shader text is not loaded. Explicit unsupported definitions are reported as
+omitted bindings, and cannot silently become supported target shaders.
+
+The retail resource profile reserves **six linear/clamp slots (1,572,864 bytes)** and
+one **262,144-byte** scratch page within the existing global texture budget. Five font
+images add **384 bytes** of page records; other catalog images stay unopened until
+requested. Glyphs touching atlas edges retain their original UVs: optional outer
+half-texel clipping uses the existing replicated gutters, without shrinking geometry
+or rescaling interior samples. Default authored page admission remains strictly 0..1.
+Font resources, images and the immutable catalog remain warm across preview unloads;
+full shutdown releases fonts, then images/cache, then the catalog and device.
+
 `--cook` publishes immutable, content-addressed files under `assets/` and references
 them from the manifest. Source SWF/font/language files retain their original bytes.
 Decoded artwork uses raw RGBA8 pages of **256 × 256 pixels**, with a one-pixel gutter
@@ -104,9 +162,9 @@ catch changed/corrupt payloads; manifest SHA-256 records retain source/package
 identity. This format is a bounded page transport, not retail SWF/font admission.
 
 The current host package has **143 logical pages**, **12 UIPG files**,
-**157 unique asset files** and **71,825,068 asset bytes**, excluding its
-**10,180,729-byte manifest**. The manifest SHA-256 is
-`c117443f418a0f8fdb264c755250cec891581e77f5a05f3fa04aafac1f7d7218`.
+**158 unique asset files** and **71,830,304 asset bytes**, excluding its diagnostic
+manifest. This includes the **5,236-byte UICT** resource catalog, whose SHA-256 is
+`f87cf2962e9c92f431fd125d26fcf3e0312976b686cc2f7ccfe5af9e137b6f4e`.
 Original content-addressed RGBA pages and retained source assets remain available
 alongside the UIPG files; the new transport therefore duplicates page payloads on
 disk. The twelve decoded source level-zero images total **26,220,672 bytes**.
@@ -141,8 +199,9 @@ BSWF/font/material admission still uses the compiled exact-byte authored profile
 Page admission checks the header and every table checksum against compiled authored
 descriptors, then verifies streamed pixels before replacing a cache slot. Images and
 cache contents remain warm across movie unload/reload; UI shutdown closes every image
-before releasing the shared cache and device. This is authored English-only binding;
-retail source admission and legacy English layout metrics remain separate work.
+before releasing the shared cache and device. This establishes authored English-only
+movie binding; the separate retail resource path above now admits selected fonts and
+their legacy metrics, while retail movie binding remains pending.
 
 All inputs are inspected before publication. Cooking uses a private staging tree,
 publishes checked immutable assets and replaces the manifest last. A failed inspection
@@ -173,13 +232,20 @@ Every decoded source image reconstructs exactly from its page interiors. The dec
 shell atlas and font alpha plane were inspected locally; previews stay ignored.
 Host tests do not establish EE parser safety, menu correctness or physical PS2 behavior.
 
+The separate `make test-retail-ui` gate now passes debug/release NTSC/PAL: five native
+fonts at three scales, seven 120-frame phases, preserved legacy layout metrics,
+source-derived glyph probes, warm reloads and full shutdown recovery. Five fresh-process
+invalid-resource cases pass in each build. See the [resource acceptance record](PORT_STATUS.md#native-english-retail-font-resources-2d-5-slice)
+for matched archives, pixel/cache budgets and measured heap peaks. This gate does not
+admit a retail BSWF or activate Shell.
+
 The real shell contains 54 mask placements, 29 additive-color placements, blend modes
 0/4/8 and fifteen stroked shapes. Dialog adds ten mask placements and blend modes 0/8.
 The shared native page cache and authored SWF/font binding provide the integration
-foundation. Binding the retail profile remains pending, including bounded native
-SWF/font/material/image admission and legacy English layout metrics, mask and blend
-rendering, and measured active working sets. Static AVM1 evidence also needs runtime
-dependency/callback validation. This slice does not complete milestone 2D-5 or activate
+foundation. Selected English font/image admission and legacy layout metrics now pass
+through the opt-in native resource path. Retail BSWF admission, English text binding,
+mask/blend rendering and measured active menu working sets remain pending. Static AVM1
+evidence also needs runtime dependency/callback validation. This slice does not complete milestone 2D-5 or activate
 the retail menu.
 
 Standalone `PageImage` callers can still own a private window. Simultaneous native

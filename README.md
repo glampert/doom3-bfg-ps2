@@ -33,8 +33,10 @@ Host tools now inventory the local retail shell/dialog and cook lossless image p
 fonts and English localization candidates. The backend now streams compact UIPG
 images through a bounded page cache and splits atlas triangles, verified with authored
 renderer data. Native authored SWF bitmaps and font glyphs now draw through one shared
-page budget, accepted in debug/release NTSC/PAL. Retail SWF/font
-packages are not yet admitted by the native runtime; see
+page budget, accepted in debug/release NTSC/PAL. An opt-in resource screen now draws all
+five selected English retail fonts through checked native records and a shared linear
+page cache, preserving their original glyphs and legacy layout metrics. Retail SWF
+and Shell loading remain pending; see
 [the retail UI pipeline](docs/RETAIL_UI_PIPELINE.md) for usage and remaining gates.
 The [page acceptance record](docs/PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
 includes native NTSC/PAL captures and the fixed cache/input/table budget.
@@ -78,8 +80,10 @@ harness covers assertions enabled and disabled. See the
 [native page-binding record](docs/PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice)
 and inspected [NTSC](docs/images/ui-paged-native-2d-5-ntsc.png) /
 [PAL](docs/images/ui-paged-native-2d-5-pal.png) captures. English remains the
-only initial language; retail font admission and legacy English layout metrics remain
-pending. The earlier 2D-4 debug/release NTSC/PAL acceptance, native captures and stable
+only initial language. The retail resource slice adds bounded font/image/material
+admission and preserves English layout metrics; the full menu working set remains
+unmeasured. See the [retail resource acceptance record](docs/PORT_STATUS.md#native-english-retail-font-resources-2d-5-slice)
+for validation and budgets. The earlier 2D-4 debug/release NTSC/PAL acceptance, native captures and stable
 reload/shutdown ledgers
 are recorded in [PORT_STATUS](docs/PORT_STATUS.md#authored-native-swf-and-fonts-2d-4).
 
@@ -105,6 +109,12 @@ make CONSOLE_STANDARD=pal ui  # select PAL for the authored UI package
 make run-ui                  # run the authored native SWF in PCSX2
 make test-ui                 # native SWF/font/timeline/focus/reload/capture checks in NTSC/PAL
 make BUILD=release test-ui    # same authored UI checks without assertions
+make ui-cook                 # cook the ignored local retail English resource package
+make retail-ui               # stage native retail fonts in build/debug/ui-retail/
+make run-retail-ui           # display the native English font resource screen
+make BUILD=release CONSOLE_STANDARD=pal run-retail-ui # release PAL resource screen
+make test-retail-ui          # five fonts, layout/pixel checks, reloads and invalid resources
+make BUILD=release test-retail-ui # same resource checks without assertions
 make test-headless           # 120 frames, live console commands and shutdown in PCSX2
 make BUILD=release test-headless # same production checks without assertions
 make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes

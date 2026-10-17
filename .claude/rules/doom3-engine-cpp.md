@@ -57,6 +57,12 @@ math path; PS2-specific math replacement headers are a later milestone.
   and a little-endian codepoint array. Sorted duplicate codepoints occur in retail
   fonts; native lookup selects the last duplicate. Preserve the old 12/24/48-point
   layout metrics independently of modern glyph extrema or any future subset.
+- The bounded English resource provider validates exact font length, checksum, glyph
+  count/atlas bounds and ASCII indices before publishing an immutable memory file to
+  native parsing. It supplies cooked oldInfo width/height triples without loading the
+  legacy blobs on the target stack. Microgramma's modern advance differs from its
+  legacy values; substituting modern extrema changes layout. Sarasori has no old
+  files in the inspected package and retains native modern-extrema fallback.
 - RegisterFont removes literal `fonts/` before each constructor/remap. Font aliases
   use the registered name before spaces/hyphens normalize, then retry registration.
   The default-font short circuit is exact `Arial_Narrow`. Case-folding it changes
@@ -155,8 +161,11 @@ math path; PS2-specific math replacement headers are a later milestone.
   movie clock; a redraw uses the previous value and cannot tick the timeline again.
   Native `Pause`/`Resume` retain their timeline behavior. HostFs input and a rendered
   movie do not establish controller input, sound playback or campaign/menu startup.
-- `RegisterFont` owns at most one native `idFont`, `ps2_ascii` (also accepted through
-  `fonts/ps2_ascii`), with no localization alias or retail fallback. Its authored
+- The authored profile registers `ps2_ascii` (also accepted through
+  `fonts/ps2_ascii`). The separate English retail profile admits eight canonical font
+  families at most, giving a total cache bound of nine; its selected package has five.
+  Literal `fonts/` stripping and catalog aliases precede canonical cache lookup.
+  General localization/fallback remains unavailable. The authored
   `newfonts/ps2_ascii/48.dat` is 1,342 bytes: 12-byte big-endian `idf*`/48-point header,
   95 native padded 10-byte glyph records and 95 little-endian ASCII codepoints 32..126.
   Records have width/height 15/14, top 14, left 0 and advance 16; the native structure
