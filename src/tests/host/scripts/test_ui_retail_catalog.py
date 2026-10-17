@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
 import ui_retail_catalog as catalog
 from ui_font import inspect_font

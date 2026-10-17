@@ -11,7 +11,7 @@ import struct
 import sys
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools/scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 import build_authored_ui as authored
 from ui_swf import Inspector, Reader, SwfError, inspect_swf
 

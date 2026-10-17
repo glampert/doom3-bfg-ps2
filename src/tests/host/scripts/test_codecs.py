@@ -9,7 +9,7 @@ from pathlib import Path
 import subprocess
 import unittest
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 
 
 class CodecTests(unittest.TestCase):

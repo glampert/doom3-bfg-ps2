@@ -709,7 +709,7 @@ test-host: build/tests/ui_swf_format_tests build/tests/ui_font_format_tests buil
 	./build/tests/charset_tests
 	./build/tests/ui_geometry_tests
 	./build/tests/heap_tests
-	$(PYTHON) -m unittest discover -s src/tests/host -p 'test_*.py'
+	$(PYTHON) -m unittest discover -s src/tests/host/scripts -p 'test_*.py'
 
 -include $(HOST_JPEG_OBJS:.o=.d) $(HOST_ZLIB_OBJS:.o=.d) $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d) $(TEST_CAMPAIGN_OBJS:.o=.d) $(TEST_BACKEND_OBJS:.o=.d) $(TEST_SUPPORT_OBJS:.o=.d) $(CODEC_C_OBJS:.o=.d) $(CODEC_CXX_OBJS:.o=.d)
 

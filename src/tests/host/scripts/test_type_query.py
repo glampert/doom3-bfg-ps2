@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 DECLARATIONS = '''
 #include "ps2/type_query.h"
 struct Root { PS2_TYPE_ROOT(Root) virtual ~Root() = default; };

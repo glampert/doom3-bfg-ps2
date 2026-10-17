@@ -12,7 +12,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 SPEC = importlib.util.spec_from_file_location("ui_pages", ROOT / "src/tools/scripts/ui_pages.py")
 pages = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(pages)

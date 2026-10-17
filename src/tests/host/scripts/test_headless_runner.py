@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools/scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 import run_headless as runner
 
 

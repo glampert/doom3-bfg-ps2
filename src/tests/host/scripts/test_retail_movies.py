@@ -12,7 +12,7 @@ import sys
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
 import run_retail_movies as runner
 import stage_retail_ui as staging

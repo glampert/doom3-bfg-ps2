@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools/scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 import retail_ui_capture
 import run_retail_ui as runner
 import stage_retail_ui as staging

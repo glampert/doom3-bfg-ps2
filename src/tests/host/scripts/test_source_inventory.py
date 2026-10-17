@@ -11,7 +11,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 SPEC = importlib.util.spec_from_file_location("audit_sources", ROOT / "src/tools/scripts/audit_sources.py")
 audit_sources = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(audit_sources)

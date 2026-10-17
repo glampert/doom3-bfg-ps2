@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools/scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 from run_script_tests import classify
 
 

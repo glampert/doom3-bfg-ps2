@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools/scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 import run_ui as runner
 import stage_headless as staging
 import ui_capture

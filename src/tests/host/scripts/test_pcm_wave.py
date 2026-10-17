@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 SPEC = importlib.util.spec_from_file_location("pcm_runner", ROOT / "src/tools/scripts/run_pcsx2_test.py")
 runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)

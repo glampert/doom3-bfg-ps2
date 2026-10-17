@@ -10,7 +10,7 @@ Regenerate all tracked outputs from the repository root:
 ```sh
 python3 src/tools/scripts/build_authored_ui.py
 python3 src/tools/scripts/build_authored_ui.py --check
-python3 -m unittest discover -s src/tests/host -p test_authored_ui.py
+python3 -m unittest discover -s src/tests/host/scripts -p test_authored_ui.py
 ```
 
 The generator writes the following package-relative files beneath `base/`:

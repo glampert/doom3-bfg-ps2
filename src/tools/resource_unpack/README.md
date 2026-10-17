@@ -49,5 +49,5 @@ only those tests after building it:
 
 ```sh
 make build/tests/resource_unpack
-python3 -m unittest discover -s src/tests/host -p test_resource_unpack.py
+python3 -m unittest discover -s src/tests/host/scripts -p test_resource_unpack.py
 ```
