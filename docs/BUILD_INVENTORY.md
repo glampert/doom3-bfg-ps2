@@ -47,8 +47,8 @@ HUD/PDA menus, GUI/SWF, campaign physics/scripts/AI, collision, renderer fronten
 logical sound remain in the intended runtime list. Original multiplayer and BFG launcher
 files are excluded; typed providers close their retained link dependencies and reject
 unavailable operations explicitly.
-`doomclassic/` is excluded as an entire tree from every new target and remains pending
-its separate deletion gate. Retail assets do not participate in these build targets.
+The `doomclassic/` source tree has been removed; source-list and resident-link guards
+continue to reject Classic Doom inputs. Retail assets do not participate in these build targets.
 
 ## Build gates and artifacts
 

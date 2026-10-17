@@ -11,7 +11,7 @@ Scope decisions for this plan:
 - Use the Quake II PS2 repository as the platform, organization, style, and tooling reference, reusing its implementation wherever suitable (https://github.com/glampert/quake2-ps2).
 - Keep the BFG game implementation in `neo/d3xp`; despite the directory name, this is the relevant game source. Do not substitute the obsolete `game.vcxproj` manifest, which refers to a missing `neo/game` tree.
 - Target the original Doom 3 campaign first. Expansion campaigns, multiplayer, online services, stereoscopic rendering, and the BFG multi-game launcher are deferred/not in scope.
-- Exclude `doomclassic` from every new build. Record it as pending deletion, then delete it in a separate implementation commit after removing its engine references and verifying the link.
+- Classic Doom is outside this port's scope and its source tree has been removed. Keep the source-list and resident-link guards that reject Classic Doom inputs.
 - Keep CPU/game simulation behavior initially. Optimize measured bottlenecks after correctness tests exist; do not silently lower physics or script tick rates to improve frame rate.
 - Use C++20 for new C++ code, with exceptions, RTTI, and thread-safe local-static initialization disabled. The target engine must also work with these features disabled; suppressing legacy warnings cannot make exception or RTTI expressions compile.
 - Treat a 30 fps rendered frame rate as an eventual tuning objective, not a feasibility claim or an initial acceptance condition.
@@ -140,7 +140,7 @@ implements M0–M2; later subsystem entries remain proposals. Third-party depend
 imported for this port live in `src/external/`, including future vclpp/vu-checker
 tool dependencies.
 
-Perform the `neo` move as a mechanical commit. Audit project-relative paths, includes outside `neo`, debugger configuration, and data lookup immediately afterward. Keep runtime paths independent of the source tree. Leave `doomclassic/` in place and excluded until its separate deletion gate.
+Perform the `neo` move as a mechanical commit. Audit project-relative paths, includes outside `neo`, debugger configuration, and data lookup immediately afterward. Keep runtime paths independent of the source tree. The separate `doomclassic/` removal is complete; retained upstream Classic interfaces remain disabled or replaced in the PS2 build.
 
 New backend/tool code follows the reference's PascalCase types and functions, camelCase variables, `m_` members, `s_` local statics, `g_` exported globals, lowercase namespaces, `alignas`, file banners and `_clang-format`. Preserve its four-space/Allman layout, updating obsolete formatter options before making formatting mandatory. Use PS2SDK sized types at SDK interfaces and `<cstdint>` in shared host/target formats; equal-width typedefs are not necessarily pointer-compatible on the EE ABI. Define debug/assert/profile switches to `0` or `1` and test them with `#if`.
 

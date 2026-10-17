@@ -21,7 +21,6 @@ class SourceInventoryTests(unittest.TestCase):
     def fixture(self, root):
         repository = ROOT
         (root / "src").symlink_to(repository / "src", target_is_directory=True)
-        (root / "doomclassic").symlink_to(repository / "doomclassic", target_is_directory=True)
         (root / "config").mkdir()
         for name in ("source_inventory.json", "sources.mk"):
             (root / "config" / name).write_text((repository / "config" / name).read_text())

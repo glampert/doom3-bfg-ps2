@@ -510,7 +510,7 @@
   "excluded_trees": [
     {
       "path": "doomclassic",
-      "reason": "Classic Doom excluded from every new target; retained pending the separate deletion and link gate."
+      "reason": "Classic Doom is outside the port's scope and its source tree has been removed; source-list and resident-link guards reject its inputs."
     }
   ],
   "source_relocations": {

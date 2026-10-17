@@ -13,10 +13,8 @@
 *.vsm
 
 # Everything under build/ is generated - the per-config object trees and ELFs,
-# the host tool binaries, the bin2c IRX intermediates. dummy.txt is only there
-# to keep the directory in the repo.
-build/*
-!build/dummy.txt
+# the host tool binaries, and the bin2c IRX intermediates.
+/build/
 
 # Generated per-machine editor tooling:
 compile_commands.json

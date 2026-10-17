@@ -98,7 +98,6 @@ and command-file input are described in the [developer guide](docs/DEVELOPMENT.m
 |-- build/              # Generated executables, packages, tools and test results
 |-- config/             # Build source lists and asset profiles
 |-- docs/               # Developer guides, roadmaps and technical records
-|-- doomclassic/        # Upstream Classic Doom sources (not built for PS2)
 |-- gamedata/           # Local retail game installations (ignored)
 |-- src/
 |   |-- external/       # Imported third-party dependencies
