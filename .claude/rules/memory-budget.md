@@ -302,6 +302,27 @@ at 4,388,908 / 4,491,596 bytes in 2,497 allocations. Full shutdown returns exact
 11,478,438 release bytes with 368 direct objects. Keep shared payload, allocator
 commitment and fixed ELF residency separate; do not add these as independent heaps.
 
+## Inactive retail dictionaries and English text
+
+The 2026-10-17 resource-only shell/dialog gate keeps all 9,097 English entries and
+native BSWF dictionary geometry/timelines resident while rendering three isolated
+labels. Native shell has 618 dictionary records; dialog has 56. Only one movie lives
+at a time. File snapshots are freed after native parsing. Five font images plus two
+lazy movie atlas tables share the existing six slots (1,572,864 bytes) and scratch
+(262,144); table records total 984, making 1,835,992 requested RENDER payload bytes.
+Only three font pages stream for these labels; neither movie bitmap atlas draws.
+
+All four debug/release NTSC/PAL runs peak at 7,362,559 requested / 7,555,996 backing
+bytes. Arena commitment is 7,590,362 debug / 7,588,954 release. After both atlas bindings
+exist, repeated shell loads stay at 6,717,176 / 6,912,048 bytes in 4,704 allocations.
+The first shell load is smaller by 1,360 requested / 1,812 backing bytes / 11 allocations
+because the dialog's image/material metadata is still lazy. Full shutdown, including
+localization key/hash/block pools, recovers 7,424 / 7,600 bytes in four allocations.
+ClearDictionary alone retained 1,626,852 requested bytes above baseline; it is a reload
+operation, so use the explicit full-release seam at shutdown. Current production
+PT_LOAD is 11,066,918 debug / 11,490,086 release bytes (369 direct inputs). These are
+inactive dictionary/text measurements, not active menu/campaign or hardware budgets.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

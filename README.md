@@ -36,7 +36,9 @@ renderer data. Native authored SWF bitmaps and font glyphs now draw through one 
 page budget, accepted in debug/release NTSC/PAL. An opt-in resource screen now draws all
 five selected English retail fonts through checked native records and a shared linear
 page cache, preserving their original glyphs and legacy layout metrics. Retail SWF
-and Shell loading remain pending; see
+loading now has an explicit inactive resource mode: original shell/dialog dictionaries
+and English labels load through native SWF parsing and text layout. Full movie rendering,
+timeline execution and Shell startup remain pending; see
 [the retail UI pipeline](docs/RETAIL_UI_PIPELINE.md) for usage and remaining gates.
 The [page acceptance record](docs/PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
 includes native NTSC/PAL captures and the fixed cache/input/table budget.
@@ -83,7 +85,8 @@ and inspected [NTSC](docs/images/ui-paged-native-2d-5-ntsc.png) /
 only initial language. The retail resource slice adds bounded font/image/material
 admission and preserves English layout metrics; the full menu working set remains
 unmeasured. See the [retail resource acceptance record](docs/PORT_STATUS.md#native-english-retail-font-resources-2d-5-slice)
-for validation and budgets. The earlier 2D-4 debug/release NTSC/PAL acceptance, native captures and stable
+for validation and budgets. The [inactive dictionary/text record](docs/PORT_STATUS.md#inactive-retail-dictionaries-and-english-text-2d-5-slice)
+adds original shell/dialog parsing and English SWF layout. The earlier 2D-4 debug/release NTSC/PAL acceptance, native captures and stable
 reload/shutdown ledgers
 are recorded in [PORT_STATUS](docs/PORT_STATUS.md#authored-native-swf-and-fonts-2d-4).
 
@@ -113,6 +116,10 @@ make ui-cook                 # cook the ignored local retail English resource pa
 make retail-ui               # stage native retail fonts in build/debug/ui-retail/
 make run-retail-ui           # display the native English font resource screen
 make BUILD=release CONSOLE_STANDARD=pal run-retail-ui # release PAL resource screen
+make retail-movies           # stage inactive retail SWFs and the English dictionary
+make run-retail-movies       # draw English labels using original native SWF text records
+make test-retail-movies      # shell/dialog dictionaries, text layout, reloads and rejection guards
+make BUILD=release test-retail-movies # same native movie resource gate without assertions
 make test-retail-ui          # five fonts, layout/pixel checks, reloads and invalid resources
 make BUILD=release test-retail-ui # same resource checks without assertions
 make test-headless           # 120 frames, live console commands and shutdown in PCSX2

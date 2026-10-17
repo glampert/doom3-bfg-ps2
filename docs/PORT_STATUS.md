@@ -3050,3 +3050,107 @@ Next admit a bounded retail BSWF and bind its English labels/resources, then mea
 the actual active-menu working set. Masks, additive/special blends and offline native
 PressStart → Root → Quit-dialog integration follow. Neither these emulator results
 nor the font screen establish physical PS2 cache/performance or full menu acceptance.
+
+## Inactive retail dictionaries and English text (2D-5 slice)
+
+Accepted **2026-10-17, Australia/Sydney**, in production debug/release NTSC/PAL.
+The original retail shell/dialog BSWFs now load through native `idSWF::LoadBinary`
+from checked immutable snapshots. A resource-only constructor retains dictionaries,
+geometry, fonts and timeline storage while keeping imported placements and AVM1
+inactive. Full movie Render, Activate, HandleEvent and timeline advancement fail
+explicitly in this mode. This does not render an incomplete retail movie by dropping
+its masks/blends, initialize Shell or complete 2D-5.
+
+A strict shared storage reader checks every retained allocation/range, dictionary
+kind, font identity/reference, finite geometry and triangle index before native
+parsing. Bounds include a **1 MiB** movie, **1,024 dictionary records**, **512 sprites**,
+**32,768 total commands/vertices**, **65,536 indices** and **eight font records**.
+The actual shell contains **618 dictionary records, 256 sprites, 15,600 commands,
+three fonts and 117 edit texts**; dialog contains **56, 26, 280, two and five**.
+Initialization actions are rejected because native sprite Init would execute them
+before the first frame. Other command buffers remain opaque; these checks do not
+admit placement semantics, AVM1 execution or dynamic resource/callback closure.
+
+Staging additionally checks source SHA-256 and complete host inventory, then emits a
+fixed **64-byte UIMV** profile for two movie identities and English. Target checksum
+validation precedes structural preflight; self-consistent corrupt metadata still
+fails. The complete English dictionary loads through native localization:
+**9,097 entries / 563,876 source bytes**. Native grammar/count/escape and UTF-8 checks
+run in release too. Localization aliases and modern font bytes remain intact.
+
+Three selected label IDs use native edit-text instances, native font lookup and the
+original layout/drawing code. The original shell prototype **121** produces centered
+white 36-point text; dialog prototype **29** produces left-aligned orange 34-point
+text. Native wrapping, margins, alignment, source color, glyph sampling and integer
+GetTextLength truncation are preserved. The screen positions these isolated records
+for inspection; it is not the actual menu hierarchy or its timeline state.
+
+| Configuration | NTSC archive | PAL archive |
+| --- | --- | --- |
+| Debug | `20261017T083403Z_movies_59f4572c89e8` | `20261017T083420Z_movies_ed2413998e17` |
+| Release | `20261017T083516Z_movies_50e7912d36ff` | `20261017T083532Z_movies_67fd043cf0fb` |
+
+Each run completes four phases of at least 120 frames: shell, dialog, shell return
+and another shell load. Every capture checks source-derived label widths and **32
+stable glyph/color probes**, using the existing channel tolerance of eight within one
+projected pixel for raster rounding. All eight shell/dialog captures were visually
+inspected: readable original styles, complete labels and correct alignment in both
+standards/builds. Shell captures are byte-identical across reloads and configurations
+within each standard. Their hashes are NTSC
+`c6be866093fdb4eb773a7d518d03c5779545d4e4a0f3294ac5719c599d11719d`, PAL
+`c39e14462dd34a710d56d5c4d3b0d3d2c50c83158ebce77ffcd90deaa8019c6b`.
+NTSC dialog debug/release differ in four low-coverage pixels on the final T, with a
+maximum channel difference of 25; source probes pass in both, and no bit-identical
+cross-optimization dialog claim is made. Retail captures and original files stay
+under ignored `build/`; none is committed.
+
+Seven images share the existing six linear slots and scratch page. Five font tables
+plus the two lazy movie atlas tables use **984 record bytes**, for **1,835,992 requested
+RENDER payload bytes** including shared pixels/scratch. Only **three font pages** load
+and remain warm without evictions; movie atlas pixels are not drawn. First use of
+dialog adds **1,360 requested / 1,812 backing bytes in eleven allocations** of cached
+image/material metadata. Once both bindings exist, repeated shell loads stay exactly
+at **6,717,176 requested / 6,912,048 backing bytes in 4,704 allocations**.
+
+All four runs peak at **7,362,559 / 7,555,996 bytes**. Arena commitment is **7,590,362
+debug / 7,588,954 release**. The first shutdown check exposed native ClearDictionary's
+intentional retention of keys, hash and allocator pools for language reloads. A
+separate tagged PS2 full-release operation now frees them after all borrowers shut
+down, preserving the existing Clear semantics. Full shutdown in all accepted runs
+recovers **7,424 requested / 7,600 backing bytes in four allocations**, exactly baseline.
+These are inactive dictionary/text measurements, not an active-menu working set.
+
+Each build also passes six isolated failures: bad UIMV header, missing movie, corrupt
+movie checksum, oversized count, initialization actions and corrupt English data.
+Count/init cases recompute the profile FNV so the target structural reader must reject
+them. Specific fatals precede any loaded movie resource or capture; EE crashes and
+generic allocation failures do not pass. Strict production/core debug/release builds,
+**316 Python host regressions**, sanitizer readers and existing cache/geometry harnesses
+pass. The new reader also passes sampled truncations/mutations of both real local
+movies and the full real English grammar check. No new target fixture is introduced.
+
+Production retains **369 direct objects**, zero test inputs/symbols and no GC. Fixed
+`PT_LOAD` is **11,066,918 debug / 11,490,086 release bytes**; core is **2,101,488 /
+2,185,328**. The compiler database contains **394 entries**. All affected regression
+matrices also pass: authored SWF has fourteen isolated processes per build, retail font
+has seven per build, and production headless has bounded/live-command runs per build.
+Positive authored UI archives are debug `20261017T083710Z_ui_61997ac73924` /
+`20261017T083730Z_ui_3e3a96991995`, release `20261017T083827Z_ui_f6f95ca9defb` /
+`20261017T083846Z_ui_08ce5a85c594`. Retail font archives are debug
+`20261017T083942Z_retail_d6f3859ebfac` / `20261017T084002Z_retail_41b7925cb42a`, release
+`20261017T084040Z_retail_cd3d10413611` / `20261017T084059Z_retail_03ab136c56df`.
+Headless archives are debug `20261017T084139Z_headless_df0f114fa6e2` /
+`20261017T084143Z_headless_01292b1c0dbb`, release `20261017T084152Z_headless_d4eff2eff2da` /
+`20261017T084156Z_headless_2a301b24df26`. No physical PS2 acceptance is claimed.
+
+Run `make ui-cook` then `make run-retail-movies`; select `BUILD=release` and/or
+`CONSOLE_STANDARD=pal` as needed. `make test-retail-movies` runs both standards and the
+six failure cases; use `BUILD=release` for the assertions-off gate. Append
+`ps2_uiRetail movie shell`, `ps2_uiRetail movie dialog`, `ps2_uiRetail movie none`,
+`ps2_uiRetail status` or `quit` to `build/<config>/ui-retail-movies/console.txt`.
+The [pipeline guide](RETAIL_UI_PIPELINE.md#inactive-retail-dictionaries-and-english-text)
+contains complete examples and ownership details.
+
+Next close bounded placement/AVM1 execution and dynamic resource/path contracts,
+measure the actual menu bitmap/font working set, and implement required masks/blends
+before accepting full retail movie rendering and offline PressStart → Root → Quit.

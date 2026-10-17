@@ -624,3 +624,14 @@ Debug/release `PT_LOAD` is **11,055,910 / 11,478,438 bytes**; the compile databa
 contains **393 entries**. The core ELF retains **2,093,296 / 2,177,264 bytes** at this
 checkpoint. Separate host sanitizer readers validate UICT and native font metadata;
 they do not replace strict EE compilation or native pixel checks.
+
+The inactive retail dictionary/text slice adds strict shared `ui/swf_format.cpp` to
+`CORE_BACKEND_CXX_SRC` (45) and `RESIDENT_SUPPORT_CXX_SRC` (30), with size optimization
+for cold validation. It adds no upstream/vendor compilation unit or target fixture.
+Production retains **369 direct objects**, zero test inputs/symbols and no GC. Fixed
+`PT_LOAD` is **11,066,918 debug / 11,490,086 release bytes**; core is **2,101,488 /
+2,185,328**. The compiler database has **394 entries**. Tagged native SWF constructor,
+load/presentation gates and isolated text entry retain the original parsers/layout;
+a PS2-only LangDict release operation frees localization keys/pools at shutdown.
+The new host sanitizer reader checks retained BSWF storage and English grammar; it
+cannot authorize native AVM1/placement execution or replace target validation.

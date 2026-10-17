@@ -76,6 +76,26 @@ math path; PS2-specific math replacement headers are a later milestone.
   Host format validation/cooking is not native retail admission; see
   docs/RETAIL_UI_PIPELINE.md and the checked host readers for bounds.
 
+## Inactive retail SWF resources
+
+- Bounded retail resource snapshots use `idSWF(..., nullptr, true)`. Native dictionary
+  allocation/loading is retained, but the constructor skips Run/RunActions/RunTo.
+  Reject any doInitActions before construction: sprite Init otherwise executes them
+  even before the first frame. Command buffers remain opaque; this is storage
+  preflight, not placement/AVM1 validation. Render/Activate/HandleEvent/RunTo are fatal
+  in resource-only mode. Never activate this profile to work around missing masks.
+- The original BSWF timestamp refers to an unstaged source SWF. Resource-only loading
+  uses its preflighted immutable identity, without requiring that source timestamp;
+  authored executable loading preserves its existing check. Isolated text reuses the
+  native edit-text record's metrics, alignment and color via RenderResourceText.
+  GetTextLength caches an int even though it returns float; source oracles must retain
+  native truncation rather than compare an unrounded floating glyph sum.
+- idLangDict::Clear frees values but deliberately retains keys, indices and pools so
+  existing idStrIds survive language reloads. It is not full shutdown. PS2
+  ReleaseResources additionally clears key storage/hash and shuts down blockAlloc;
+  call it only after every borrowed string/idStrId user and native movie/font is gone.
+  Target English loading checks grammar, escapes/counts and UTF-8 in release too.
+
 ## Campaign portability findings
 
 - `gameReturn_t`'s native constructor leaves `sessionCommand` uninitialized. Native

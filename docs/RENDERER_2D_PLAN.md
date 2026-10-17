@@ -91,10 +91,15 @@ The subsequent **2026-10-17 English resource slice** admits a compact UICT catal
 native modern fonts, preserved legacy metrics and constant image material bindings.
 The opt-in production screen draws all five families at three sizes through six shared
 linear page slots. It opens five font atlases lazily and preserves their half-texel
-outer-edge sampling. This measures the bounded font screen; general retail BSWF/text
+outer-edge sampling. This measures the bounded font screen; executable retail BSWF/menu
 binding and the active menu's residency remain open. See the
 [resource acceptance record](PORT_STATUS.md#native-english-retail-font-resources-2d-5-slice).
-Full 2D-5 acceptance and 2D-6 masks/blends precede 2D-7 offline Shell startup.
+The following resource-only slice loads original shell/dialog dictionaries and the full
+English dictionary, then draws selected labels through native SWF edit-text layout.
+It validates retained storage before native allocation and never executes imported
+AVM1 or placement commands; see the [dictionary/text acceptance record](PORT_STATUS.md#inactive-retail-dictionaries-and-english-text-2d-5-slice).
+Full movie rendering, active-menu resource closure and
+2D-6 masks/blends still precede 2D-7 offline Shell startup.
 
 ## Scope and completion criteria
 
@@ -551,7 +556,8 @@ native fonts and one interactive mask-free native SWF. The host retail UI
 inventory/cook foundation (**2D-5**) is now available. The authored native SWF/font page
 binding passes with a shared budget. Native English font/image/material resources and
 legacy layout metrics now pass their separate opt-in resource screen. Next admit the
-bounded retail BSWF and English text profile and measure the active menu working set,
+retail movie timeline/placement execution and measure the active menu working set;
+bounded inactive BSWF and English edit-text inspection now provide the storage/layout foundation,
 followed by required SWF feature closure
 (**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
 the interface; native BFG menu and world-rendering acceptance remain separate gates.

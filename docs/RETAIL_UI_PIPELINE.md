@@ -211,6 +211,73 @@ Output symlinks and source/config aliases are refused. Use a tree without concur
 external mutation. This is atomic manifest replacement, not a durable filesystem
 transaction or an adversarial directory sandbox.
 
+## Inactive retail dictionaries and English text
+
+`make retail-movies` stages the original shell/dialog BSWF files and complete English
+language source beside the same checked font/image catalog. `make run-retail-movies`
+launches the production ELF with the shell text resource screen; select PAL with
+`CONSOLE_STANDARD=pal`, or release with `BUILD=release`. The separate package is
+`build/<config>/ui-retail-movies/`. Its controls are:
+
+```sh
+echo 'ps2_uiRetail movie dialog' >> build/debug/ui-retail-movies/console.txt
+echo 'ps2_uiRetail movie shell' >> build/debug/ui-retail-movies/console.txt
+echo 'ps2_uiRetail movie none' >> build/debug/ui-retail-movies/console.txt
+echo 'ps2_uiRetail status' >> build/debug/ui-retail-movies/console.txt
+echo 'quit' >> build/debug/ui-retail-movies/console.txt
+```
+
+`movie none` returns to the font screen. `unload` closes the active dictionary and
+text instances; checked fonts, image metadata and English data remain warm until UI
+shutdown. `reload` returns to the font screen; select `movie shell` or `dialog` again
+for dictionary inspection. English is the only admitted locale.
+
+This is explicitly **resource-only native SWF loading**, not a partial movie rendered
+with missing features. Native `LoadBinary` reads original geometry, fonts, timelines and
+text records from one immutable checked snapshot. Storage validation bounds file size
+(1 MiB), dictionary (1,024), sprites (512), total commands (32,768), total vertices
+(32,768), indices (65,536), font records (eight) and text font references before native
+allocation. Unknown record kinds, unsupported gradient/morph/static-text records and
+any `doInitActions` refuse admission. Command buffers remain opaque and inactive;
+this does not validate placement or AVM1 execution semantics.
+
+The resource constructor never runs first-frame placements/actions. Its full-movie
+`Render`, `Activate`, `HandleEvent` and timeline advancement paths fail explicitly.
+Only a separate native `RenderResourceText` entry draws isolated edit-text instances;
+wrapping, alignment, margins, font size, source color and glyph sampling remain native.
+Three English label IDs bind through the original dictionary. No original movie bytes
+are rewritten and no retail mask, additive transform or special blend is silently
+ignored. Full movie execution/rendering remains a later gate.
+
+Staging creates a fixed **64-byte UIMV v1** descriptor at `base/retail/movies.uim`.
+All sixteen words are little endian: magic `UIMV`, version 1, length 64, English flag
+1, movie count 2, language byte count/FNV1a32/entry count, then four words each for
+shell and dialog (byte count, FNV1a32, dictionary count, preview edit-text index).
+Resource paths are fixed `retail/{shell,dialog}.bswf` and `retail/english.lang`; the
+profile contains no dynamic paths. Host staging rechecks source SHA-256 and the full
+structural inventory. Target storage preflight still runs after length/checksum
+validation; checksums do not replace parser checks or authenticate resource files.
+
+The target admits at most 1 MiB and 16,384 English entries. It validates the native
+one-pair-per-line grammar and bounded escapes before the legacy loader, and verifies
+UTF-8 in release too. The local dictionary contains **9,097 entries / 563,876 bytes**.
+Native `ClearDictionary` intentionally retains keys and allocator pools for language
+reloads. The PS2 full-release operation invalidates borrowed strings/`idStrId` values
+and frees keys, indices and pools after movies/fonts have shut down.
+
+The local shell retains **618 dictionary records / 117 edit texts / 256 sprites /
+15,600 commands**; dialog retains **56 / 5 / 26 / 280**. Their selected original text
+prototypes are shell 121 (centered white, 36-point) and dialog 29 (left-aligned orange,
+34-point). Only the three label instances are drawn. Two movie atlas metadata tables
+add 600 bytes to the five font tables; all seven images share the same six linear
+slots and scratch page. Neither movie bitmap atlas streams pixels in this text-only
+screen. These are storage/text measurements, not the active menu's working set.
+
+Run `make test-retail-movies` and `make BUILD=release test-retail-movies` for both
+standards, four 120-frame phases, source-derived text widths and pixels, stable warm
+reloads, full shutdown recovery and six malformed-resource cases. Captures and all
+retail files remain under ignored `build/`.
+
 ## Validation and remaining gates
 
 `make test-host` runs the synthetic format/cook regressions alongside existing host
@@ -243,8 +310,9 @@ The real shell contains 54 mask placements, 29 additive-color placements, blend 
 0/4/8 and fifteen stroked shapes. Dialog adds ten mask placements and blend modes 0/8.
 The shared native page cache and authored SWF/font binding provide the integration
 foundation. Selected English font/image admission and legacy layout metrics now pass
-through the opt-in native resource path. Retail BSWF admission, English text binding,
-mask/blend rendering and measured active menu working sets remain pending. Static AVM1
+through the opt-in native resource path. Inactive BSWF dictionaries and isolated English text now have a bounded native path.
+Executable retail timelines, full movie mask/blend rendering and measured active menu
+working sets remain pending. Static AVM1
 evidence also needs runtime dependency/callback validation. This slice does not complete milestone 2D-5 or activate
 the retail menu.
 

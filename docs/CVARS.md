@@ -21,7 +21,7 @@ not cvars. They have no debug/release default or archive behavior:
 | `ps2_capture` | One checked `.tga` basename; capture the next completed presentation, including before queued quit. |
 | `ps2_ui` | One of `load`, `unload`, `reload`, `status`, `pause`, `resume`; controls the authored native SWF. Load closes the console; unload reopens it. |
 | `ps2_uiKey` | `tab` or `enter`; queue native SWF key events for the loaded movie while the console is closed. |
-| `ps2_uiRetail` | `load`, `unload`, `reload`, `status`, or `font INDEX`; opt-in native English font resource screen. The local catalog must be staged before loading, using a fresh visible process. Font indices 0–4 select the cooked English families. |
+| `ps2_uiRetail` | `load`, `unload`, `reload`, `status`, `font INDEX`, or `movie shell\|dialog\|none`; opt-in native English font/movie resource screen. The local catalog must be staged before loading, using a fresh visible process. Font indices 0–4 select the cooked English families. Movie inspection requires `make retail-movies` staging; timelines and full movie drawing remain disabled. |
 
 `ps2_ui` and `ps2_uiKey` are registered in `src/ps2/ui/movie.cpp`, `ps2_uiRetail` in
 `src/ps2/ui/retail_movie.cpp`, and the console/capture controls in

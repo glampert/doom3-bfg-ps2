@@ -84,6 +84,14 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   pages and authored nearest pages are separate profiles. No retail SWF or Shell is
   loaded. General retail BSWF admission, English text binding, masks/blends and offline
   Shell integration remain pending.
+  `make retail-movies` / `make run-retail-movies` stage/run original shell/dialog BSWFs
+  and the complete English dictionary under `build/<config>/ui-retail-movies/`.
+  `ps2_uiRetail movie shell|dialog|none` selects inactive native dictionaries and
+  isolated English text layout. `make test-retail-movies` checks native storage/layout,
+  warm reloads, shared pages, full cleanup and malformed resources in both standards.
+  Resource-only constructors never run imported AVM1/placements; full movie Render,
+  Activate, HandleEvent and timeline advancement are fatal in this mode. Native
+  dictionary shutdown releases retained localization keys/pools after movies/fonts.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
@@ -151,8 +159,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   material stages are generated from admitted bindings. The retail resource profile
   shares six linear/clamp slots (1.5 MiB), one 256 KiB scratch page and lazy image
   tables. Font UVs may use only the outer half-texel gutter, preserving native sampling
-  without rescaling glyphs. `runtime_ready=false` is intentional: retail BSWF/text
-  binding, masks/blends and offline Shell integration remain later gates. See
+  without rescaling glyphs. `runtime_ready=false` is intentional: executable retail BSWF/
+  menu binding, masks/blends and offline Shell integration remain later gates. See
   [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).

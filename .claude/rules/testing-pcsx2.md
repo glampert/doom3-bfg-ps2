@@ -83,6 +83,19 @@
   framebuffer tolerance. Inspect native captures; this is authored UI, not retail shell
   or physical PS2 acceptance. `make ui` / `run-ui` stage/launch the same ELF and opt-in
   assets, with `CONSOLE_STANDARD=ntsc` or `pal`.
+- `make test-retail-movies` / `make BUILD=release test-retail-movies` check inactive
+  native shell/dialog dictionaries in production. Four phases each run at least 120
+  frames: shell, dialog, shell return and another shell load. Check native dictionary/
+  font/text counts, all 9,097 English entries, source-derived integer text widths and
+  32 glyph/color probes per capture. Probes allow the existing channel tolerance of
+  eight within one projected pixel for GS raster rounding. Inspect both styles and
+  standards. Shell reload captures must match; compare warm heap ledgers after both
+  lazy movie atlas bindings have been admitted, not the first cold shell load.
+  Seven images share six linear slots/scratch, with 984 metadata bytes; these labels
+  keep three font pages warm without evictions. Full shutdown must recover startup.
+  Six fresh processes reject bad profile, missing movie, corrupt movie/English bytes,
+  oversized counts and init actions. Count/init cases recompute FNV to reach storage
+  preflight. No AVM1, placement commands, masks, full movie or Shell is executed.
 - `make test-host` also runs the real shared page-cache implementation under ASan/UBSan
   with assertions enabled and disabled. Only GS/texture submission is stubbed. Keep
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
