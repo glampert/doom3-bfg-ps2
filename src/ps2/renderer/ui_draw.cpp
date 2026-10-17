@@ -8,6 +8,7 @@
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/null_render.h"
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/ui_page_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include <bit>
@@ -156,7 +157,7 @@ Profile MaterialProfile(const idMaterial * material, ps2::gs::Color base)
     {
         modulated[i] = static_cast<u8>(Register(stage.color.registers[i]) * static_cast<float>(channels[i]));
     }
-    (void)ps2::render::ConsoleImageTexture(stage.texture.image);
+    ps2::render::ValidateUiImage(stage.texture.image);
     return { stage.texture.image, Blend(CombinedState(stage.drawStateBits)), { modulated[0], modulated[1], modulated[2], modulated[3] }, stage.vertexColor == SVC_MODULATE, condition != 0.0f, s_swfDraw };
 }
 
@@ -210,7 +211,7 @@ idDrawVert * Allocate(int vertexCount, const triIndex_t * indexes, int indexCoun
     {
         ps2::FatalError("invalid native UI indexed request");
     }
-    (void)ps2::render::ConsoleImageTexture(profile.image);
+    ps2::render::ValidateUiImage(profile.image);
     for (int index = 0; index < indexCount; ++index)
     {
         if (indexes[index] >= vertexCount)
@@ -250,10 +251,17 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::gs::Color colo
     {
         ps2::render::Unavailable("native UI unloaded image");
     }
-    const auto texture = ps2::render::ConsoleImageTexture(image);
+    auto * const pages = ps2::render::UiPageImage(image);
+
+    if (pages != nullptr && (!UnitValue(rect.s0) || !UnitValue(rect.t0) || !UnitValue(rect.s1) || !UnitValue(rect.t1)))
+    {
+        ps2::FatalError("invalid native UI paged rectangle or UV");
+    }
+
     ps2::ui::FixedRect fixed = {};
     const auto result = ps2::ui::MapRect(rect, { ps2::gs::Width(), ps2::gs::Height() },
-                                         image->GetUploadWidth(), image->GetUploadHeight(), fixed);
+                                         pages != nullptr ? 1 : image->GetUploadWidth(),
+                                         pages != nullptr ? 1 : image->GetUploadHeight(), fixed);
     if (result == ps2::ui::Result::Invalid)
     {
         ps2::FatalError("invalid native UI rectangle or UV");
@@ -262,7 +270,43 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::gs::Color colo
     {
         return;
     }
-    if (!ps2::rs::TexturedRectFixed(texture, fixed, color, blend))
+
+    if (pages != nullptr)
+    {
+        const ps2::ui::Vertex corners[] = {
+            { rect.x, rect.y, rect.s0, rect.t0, color.r, color.g, color.b, color.a },
+            { rect.x + rect.width, rect.y, rect.s1, rect.t0, color.r, color.g, color.b, color.a },
+            { rect.x + rect.width, rect.y + rect.height, rect.s1, rect.t1, color.r, color.g, color.b, color.a },
+            { rect.x, rect.y + rect.height, rect.s0, rect.t1, color.r, color.g, color.b, color.a }
+        };
+        const ps2::ui::Vertex triangles[][3] = {
+            { corners[0], corners[1], corners[2] },
+            { corners[0], corners[2], corners[3] }
+        };
+
+        for (const auto & triangle : triangles)
+        {
+            if (!pages->ValidateTriangle(triangle))
+            {
+                ps2::FatalError("invalid native UI paged rectangle or UV");
+            }
+        }
+
+        // Direct glyph/quad draws must retire older indexed SWF runs before loading cache pages.
+        ps2::ui::Flush();
+
+        for (const auto & triangle : triangles)
+        {
+            if (!pages->DrawTriangle(triangle, blend))
+            {
+                ps2::FatalError("native UI paged triangle failed");
+            }
+        }
+
+        return;
+    }
+
+    if (!ps2::rs::TexturedRectFixed(ps2::render::ConsoleImageTexture(image), fixed, color, blend))
     {
         ps2::FatalError("native UI texture residency failed");
     }
@@ -464,14 +508,26 @@ void Flush()
     Require(&tr, "native UI geometry flush", true);
     PS2_Assert(s_vertexCount > 0 && s_indexCount > 0);
     FixedTriangle output[kMaxClippedTriangles];
-    const auto Map = [&output](const Batch & batch, int first, int & count)
+    const auto Decode = [](const Batch & batch, int first, Vertex(&input)[3])
     {
-        Vertex input[3];
         for (int corner = 0; corner < 3; ++corner)
         {
             const int index = s_indexes[batch.firstIndex + first + corner];
             input[corner] = DecodeVertex(s_vertices[batch.firstVertex + index], batch.profile);
         }
+    };
+    const auto Map = [&output, &Decode](const Batch & batch, int first, int & count)
+    {
+        Vertex input[3];
+        Decode(batch, first, input);
+        auto * const pages = render::UiPageImage(batch.profile.image);
+
+        if (pages != nullptr)
+        {
+            count = 0;
+            return pages->ValidateTriangle(input) ? Result::Draw : Result::Invalid;
+        }
+
         return MapTriangle(input, { gs::Width(), gs::Height() }, batch.profile.image->GetUploadWidth(),
                            batch.profile.image->GetUploadHeight(), output, count);
     };
@@ -479,7 +535,7 @@ void Flush()
     for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
     {
         const Batch & batch = s_batches[batchIndex];
-        (void)render::ConsoleImageTexture(batch.profile.image);
+        render::ValidateUiImage(batch.profile.image);
         for (int index = 0; index < batch.indexCount; index += 3)
         {
             int count = 0;
@@ -502,9 +558,31 @@ void Flush()
         {
             continue;
         }
-        const auto texture = render::ConsoleImageTexture(batch.profile.image);
+        auto * const pages = render::UiPageImage(batch.profile.image);
         for (int index = 0; index < batch.indexCount; index += 3)
         {
+            if (pages != nullptr)
+            {
+                Vertex input[3];
+                Decode(batch, index, input);
+                const u32 before = pages->GetStats().triangles;
+
+                if (!pages->DrawTriangle(input, batch.profile.blend))
+                {
+                    FatalError("native UI paged triangle failed");
+                }
+
+                const u32 emitted = pages->GetStats().triangles - before;
+
+                if (s_geometryStats.triangles > UINT_MAX - emitted)
+                {
+                    FatalError("native UI geometry counter overflow");
+                }
+
+                s_geometryStats.triangles += emitted;
+                continue;
+            }
+
             int count = 0;
             if (Map(batch, index, count) == Result::Invalid)
             {
@@ -517,7 +595,7 @@ void Flush()
             s_geometryStats.triangles += static_cast<u32>(count);
             for (int triangle = 0; triangle < count; ++triangle)
             {
-                if (!rs::TexturedTriangleFixed(texture, output[triangle], batch.profile.blend))
+                if (!rs::TexturedTriangleFixed(render::ConsoleImageTexture(batch.profile.image), output[triangle], batch.profile.blend))
                 {
                     FatalError("native UI triangle texture residency failed");
                 }
@@ -611,11 +689,12 @@ void idRenderSystemLocal::DrawStretchPic(const idVec4 & tl, const idVec4 & trCor
     }
     static constexpr triIndex_t kQuadIndexes[] = { 0, 1, 2, 0, 2, 3 };
     const Profile profile = MaterialProfile(material, CurrentColor());
+    const bool paged = ps2::render::UiPageImage(profile.image) != nullptr;
     for (const auto * corner : corners)
     {
         if (corner->z < 0.0f || corner->w < 0.0f ||
-            corner->z > 1023.0f / static_cast<float>(profile.image->GetUploadWidth()) ||
-            corner->w > 1023.0f / static_cast<float>(profile.image->GetUploadHeight()))
+            corner->z > (paged ? 1.0f : 1023.0f / static_cast<float>(profile.image->GetUploadWidth())) ||
+            corner->w > (paged ? 1.0f : 1023.0f / static_cast<float>(profile.image->GetUploadHeight())))
         {
             ps2::FatalError("invalid native UI triangle or UV");
         }
@@ -665,8 +744,10 @@ void idRenderSystemLocal::DrawStretchTri(const idVec2 & p1, const idVec2 & p2, c
     }
     ps2::ui::FixedTriangle output[ps2::ui::kMaxClippedTriangles];
     int count = 0;
-    if (ps2::ui::MapTriangle(input, { ps2::gs::Width(), ps2::gs::Height() }, profile.image->GetUploadWidth(),
-                             profile.image->GetUploadHeight(), output, count) == ps2::ui::Result::Invalid)
+    auto * const pages = ps2::render::UiPageImage(profile.image);
+    if (pages != nullptr ? !pages->ValidateTriangle(input)
+                         : ps2::ui::MapTriangle(input, { ps2::gs::Width(), ps2::gs::Height() }, profile.image->GetUploadWidth(),
+                                                profile.image->GetUploadHeight(), output, count) == ps2::ui::Result::Invalid)
     {
         ps2::FatalError("invalid native UI triangle or UV");
     }

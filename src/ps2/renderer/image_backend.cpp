@@ -8,8 +8,10 @@
 #include "ps2/renderer/charset.h"
 #include "ps2/renderer/null_render.h"
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/ui_page_image.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
+#include "ps2/ui/authored_ui_data.h"
 
 #include <idlib/precompiled.h>
 #include <new>
@@ -19,6 +21,7 @@ struct idImage::backendState_t
 {
     ps2::tex::Handle texture;
     int storageBytes;
+    ps2::ui::PageImage * pages = nullptr;
 };
 
 namespace
@@ -26,9 +29,25 @@ namespace
 static bool s_initialized = false;
 static idImage * s_charsetImage = nullptr;
 static idImage * s_fontImage = nullptr;
+static idImage * s_movieImage = nullptr;
+static ps2::ui::PageCache s_pageCache;
+static constexpr u32 kPageSlots = 4;
 static constexpr const char * kWhiteName = "_white";
 static constexpr const char * kCharsetName = "textures/bigchars";
 static constexpr const char * kFontName = "textures/ps2_ascii";
+
+const ps2::ui::authored::PageResource * PageResource(const char * name)
+{
+    for (const auto & resource : ps2::ui::authored::kPageResources)
+    {
+        if (name != nullptr && idStr::Icmp(name, resource.imageName) == 0)
+        {
+            return &resource;
+        }
+    }
+
+    return nullptr;
+}
 
 bool IsWhiteName(const char * name)
 {
@@ -47,7 +66,7 @@ bool IsFontName(const char * name)
 
 bool SupportedImage(const idImage * image)
 {
-    return s_initialized && image != nullptr && (image == globalImages->whiteImage || image == s_charsetImage || image == s_fontImage);
+    return s_initialized && image != nullptr && (image == globalImages->whiteImage || image == s_charsetImage || image == s_fontImage || image == s_movieImage);
 }
 
 bool SupportedSampler(const idImage * image, textureFilter_t filter, textureRepeat_t repeat)
@@ -70,18 +89,56 @@ ps2::tex::Sampler ImageSampler(const idImage * image)
              image == globalImages->whiteImage ? ps2::tex::Wrap::Repeat : ps2::tex::Wrap::Clamp };
 }
 
-void GenerateFontImage(idImage * image)
-{
-    auto * const pixels = ps2::heap::Alloc(ps2::render::kAuthoredFontAtlasBytes, TAG_RENDER);
-    if (!ps2::render::MakeAuthoredFontCharset(pixels, ps2::render::kAuthoredFontAtlasBytes))
-    {
-        ps2::FatalError("authored native font atlas generation failed");
-    }
-    image->GenerateImage(static_cast<const byte *>(pixels), ps2::render::kAuthoredFontAtlasWidth,
-                         ps2::render::kAuthoredFontAtlasHeight, TF_NEAREST, TR_CLAMP, TD_FONT);
-    ps2::heap::Free(pixels);
-}
 } // namespace
+
+PS2_COLD_FUNC void idImage::LoadPageImage(const ps2::ui::authored::PageResource & resource)
+{
+    idImage * const image = this;
+    if (ps2::rs::FrameStarted() || image->backendState != nullptr)
+    {
+        ps2::FatalError("invalid native UI page load ownership");
+    }
+
+    if (!s_pageCache.IsInitialized() && !s_pageCache.Init(kPageSlots, { ps2::tex::Filter::Nearest }))
+    {
+        ps2::FatalError("native UI shared page budget unavailable");
+    }
+
+    auto * const pages = new (TAG_RENDER) ps2::ui::PageImage;
+    bool valid = pages->Open(fileSystem->RelativePathToOSPath(resource.path), s_pageCache);
+    const auto & header = pages->GetHeader();
+    valid = valid && header.width == resource.width && header.height == resource.height &&
+            header.fileBytes == resource.fileBytes && header.pageCount == resource.pageCount;
+
+    if (valid)
+    {
+        const auto * const records = pages->GetRecords();
+
+        for (u32 page = 0; page < header.pageCount; ++page)
+        {
+            valid = valid && records[page].checksum == resource.checksums[page];
+        }
+    }
+
+    if (!valid)
+    {
+        delete pages;
+        ps2::FatalError("authored UI page profile mismatch: %s", resource.path);
+    }
+
+    // Only checked metadata is resident here. Each page is verified against the admitted table
+    // before its first upload; a corrupt unread page cannot replace a valid cached page.
+    image->backendState = new (ps2::heap::Alloc(sizeof(idImage::backendState_t), TAG_RENDER))
+    idImage::backendState_t{ {}, static_cast<int>(header.pageCount * sizeof(ps2::ui::PageRecord)), pages };
+    image->opts = idImageOpts();
+    image->opts.width = static_cast<int>(header.width);
+    image->opts.height = static_cast<int>(header.height);
+    image->opts.format = FMT_RGBA8;
+    image->opts.numLevels = 1;
+    image->filter = TF_NEAREST;
+    image->repeat = TR_CLAMP;
+    image->usage = TD_FONT;
+}
 
 namespace ps2::render
 {
@@ -130,11 +187,34 @@ idImage * AuthoredFontImage()
 
 tex::Handle ConsoleImageTexture(const idImage * image)
 {
-    if (!SupportedImage(image) || image->backendState == nullptr)
+    ValidateUiImage(image);
+
+    if (image->backendState->pages != nullptr)
     {
-        Unavailable("ConsoleImageTexture outside the loaded authored UI profile");
+        Unavailable("single texture requested for a paged native UI image");
     }
+
     return image->backendState->texture;
+}
+
+void ValidateUiImage(const idImage * image)
+{
+    if (!SupportedImage(image) || image->backendState == nullptr ||
+        (image->backendState->pages != nullptr ? !image->backendState->pages->IsOpen() : image->backendState->texture.id == 0))
+    {
+        Unavailable("native UI image outside the loaded authored profile");
+    }
+}
+
+ui::PageImage * UiPageImage(const idImage * image)
+{
+    ValidateUiImage(image);
+    return image->backendState->pages;
+}
+
+ui::PageCacheStats GetUiPageStats()
+{
+    return s_pageCache.GetStats();
 }
 } // namespace ps2::render
 
@@ -153,7 +233,15 @@ void idImage::PurgeImage()
     {
         ps2::render::Unavailable("idImage::PurgeImage outside the console profile");
     }
-    ps2::tex::Destroy(backendState->texture);
+    if (backendState->pages != nullptr)
+    {
+        delete backendState->pages;
+    }
+    else
+    {
+        ps2::tex::Destroy(backendState->texture);
+    }
+
     ps2::heap::Free(backendState);
     backendState = nullptr;
 }
@@ -166,10 +254,9 @@ int idImage::StorageSize() const
 void idImage::GenerateImage(const byte * rgba, int width, int height, textureFilter_t tf, textureRepeat_t tr, textureUsage_t tu)
 {
     const bool white = this == globalImages->whiteImage;
-    const bool font = this == s_fontImage;
-    const int expectedWidth = white ? 1 : (font ? ps2::render::kAuthoredFontAtlasWidth : ps2::render::kConsoleAtlasSize);
-    const int expectedHeight = white ? 1 : (font ? ps2::render::kAuthoredFontAtlasHeight : ps2::render::kConsoleAtlasSize);
-    if (!SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
+    const int expectedWidth = white ? 1 : ps2::render::kConsoleAtlasSize;
+    const int expectedHeight = white ? 1 : ps2::render::kConsoleAtlasSize;
+    if (this == s_fontImage || this == s_movieImage || !SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
         width != expectedWidth || height != expectedHeight)
     {
         ps2::render::Unavailable("idImage::GenerateImage outside the console profile");
@@ -295,11 +382,13 @@ PS2_COLD_FUNC void idImageManager::Shutdown()
     {
         images[i]->PurgeImage();
     }
+    s_pageCache.Shutdown();
     images.DeleteContents(true);
     imageHash.Clear();
     whiteImage = nullptr;
     s_charsetImage = nullptr;
     s_fontImage = nullptr;
+    s_movieImage = nullptr;
     s_initialized = false;
 }
 
@@ -320,6 +409,10 @@ idImage * idImageManager::GetImage(const char * name) const
     if (IsFontName(name))
     {
         return s_fontImage;
+    }
+    if (s_movieImage != nullptr && PageResource(name) != nullptr)
+    {
+        return s_movieImage;
     }
     return nullptr;
 }
@@ -343,17 +436,19 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
     {
         ps2::render::Unavailable("idImageManager::ImageFromFile");
     }
-    if (IsFontName(name) && s_fontImage == nullptr)
+    const auto * const resource = PageResource(name);
+    if (resource != nullptr && GetImage(name) == nullptr)
     {
         if ((tf != TF_DEFAULT && tf != TF_NEAREST) || tr != TR_CLAMP ||
             (tu != TD_DEFAULT && tu != TD_FONT) || cube != CF_2D)
         {
-            ps2::render::Unavailable("authored native font sampler profile");
+            ps2::render::Unavailable("authored native page sampler profile");
         }
-        s_fontImage = new (TAG_IMAGE) idImage(kFontName);
-        images.Append(s_fontImage);
-        s_fontImage->referencedOutsideLevelLoad = true;
-        GenerateFontImage(s_fontImage);
+        idImage * const image = new (TAG_IMAGE) idImage(resource->imageName);
+        (IsFontName(name) ? s_fontImage : s_movieImage) = image;
+        images.Append(image);
+        image->referencedOutsideLevelLoad = true;
+        image->LoadPageImage(*resource);
     }
     idImage * const image = GetImageWithParameters(name, tf, tr, tu, cube);
     if (image == nullptr)
@@ -364,11 +459,11 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
     }
     if (!image->IsLoaded())
     {
-        if (image != s_fontImage)
+        if (resource == nullptr)
         {
             ps2::render::Unavailable("idImageManager::ImageFromFile with purged intrinsic");
         }
-        GenerateFontImage(image);
+        image->LoadPageImage(*resource);
     }
     image->AddReference();
     return image;

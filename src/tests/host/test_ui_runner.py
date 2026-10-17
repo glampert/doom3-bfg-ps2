@@ -28,6 +28,8 @@ def completed(standard="ntsc"):
             redraws = cycle - 1 if phase == "a" else cycle
             log += (f"[D3BFG] SWF state=loaded cycle={cycle} frames={frames} pulse={pulse} focus={focus} "
                     f"selected={selected} selects={selects} heap=100/120/6\n"
+                    f"[D3BFG] UI pages images=2 slots=4 cache=1048576 scratch=262144 metadata=56 "
+                    f"loads=4 hits={frame * 4} evictions=0 triangles={frame * 20}\n"
                     f"[D3BFG] CONSOLE capture=ui-c{cycle}-{phase}.tga frame={frame} presents={frame} redraws={redraws}\n")
             if phase == "a":
                 log += (f"[D3BFG] CONSOLE frames={frame + 1} presents={frame + 1} redraws={redraws} active=1\n"
@@ -87,13 +89,43 @@ class NativeUiAcceptance(unittest.TestCase):
                          ("baseline=7424/7600/4", "baseline=7425/7600/4")):
             self.assertFalse(runner.classify(completed().replace(old, new), "run", "ntsc")[0])
 
+    def test_movie_and_font_require_one_bounded_shared_page_cache(self):
+        changes = (("images=2", "images=1"), ("slots=4", "slots=8"), ("cache=1048576", "cache=2097152"),
+                   ("scratch=262144", "scratch=524288"), ("metadata=56", "metadata=112"),
+                   ("loads=4", "loads=3"), ("loads=4", "loads=5"), ("hits=480", "hits=0"),
+                   ("triangles=2400", "triangles=0"), ("evictions=0", "evictions=1"))
+        for old, new in changes:
+            with self.subTest(field=old):
+                self.assertFalse(runner.classify(completed().replace(old, new), "run", "ntsc")[0])
+
+    def test_shared_page_counters_must_advance_without_resetting_between_loads(self):
+        for old, new in (("hits=528", "hits=480"), ("triangles=2640", "triangles=2400"),
+                         ("loads=4 hits=1040", "loads=3 hits=1040")):
+            with self.subTest(field=old):
+                self.assertFalse(runner.classify(completed().replace(old, new), "run", "ntsc")[0])
+        self.assertFalse(runner.classify(runner.PAGES_RE.sub("", completed()), "run", "ntsc")[0])
+
     def test_invalid_assets_require_the_specific_prepublication_guard(self):
         for case, expected in ui_capture.NEGATIVE_DIAGNOSTICS.items():
+            if case == "movie-page-pixels":
+                continue
             log = f"run_begin \n]ps2_ui load\n[D3BFG] FATAL {expected}\n"
             self.assertTrue(runner.classify_negative(log, "run", case, expected)[0])
             for modified in (log.replace(expected, "out of memory"), log.replace("run_begin ", "old_begin "),
                              log + "[D3BFG] SWF state=loaded cycle=1", log + "TLB Miss, pc=0x1000 addr=0x0 [load]"):
                 self.assertFalse(runner.classify_negative(modified, "run", case, expected)[0])
+
+    def test_corrupt_page_pixels_fail_on_the_first_checked_stream_without_capture(self):
+        expected = ui_capture.NEGATIVE_DIAGNOSTICS["movie-page-pixels"]
+        log = ("run_begin \n]ps2_ui load\n[D3BFG] SWF state=loaded cycle=1\n"
+               "[D3BFG] UI page image rejected: page read or checksum\n"
+               f"[D3BFG] FATAL {expected}\n")
+        self.assertTrue(runner.classify_negative(log, "run", "movie-page-pixels", expected)[0])
+        for modified in (log.replace("page read or checksum", "read complete"),
+                         log.replace("[D3BFG] SWF state=loaded cycle=1\n", ""),
+                         log + "[D3BFG] CONSOLE capture=ui-c1-a.tga frame=1 presents=1 redraws=0\n",
+                         log + "BOOT production shutdown complete\n", log.replace(expected, "out of memory")):
+            self.assertFalse(runner.classify_negative(modified, "run", "movie-page-pixels", expected)[0])
 
 
 def capture(height, pulse=1, focus=0, selected=-1):
@@ -117,7 +149,7 @@ class NativeUiPixels(unittest.TestCase):
                     for focus, selected in ((0, -1), (1, 1)):
                         path.write_bytes(capture(height, pulse, focus, selected))
                         result = ui_capture.verify(path, standard, pulse=pulse, focus=focus, selected=selected)
-                        self.assertGreaterEqual(len(result["checks"]), 27)
+                        self.assertGreaterEqual(len(result["checks"]), 30)
 
     def test_geometry_text_focus_or_animation_pixel_cannot_be_skipped(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -143,7 +175,7 @@ class NativeUiPixels(unittest.TestCase):
 
 
 class AuthoredUiStaging(unittest.TestCase):
-    def test_ui_package_is_opt_in_and_all_six_mutations_stay_inside_it(self):
+    def test_ui_package_is_opt_in_and_all_mutations_stay_inside_it(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = root / "build/debug"
@@ -152,10 +184,14 @@ class AuthoredUiStaging(unittest.TestCase):
             (boot / "base").mkdir(parents=True)
             (boot / "base/d3bfg.cfg").write_text("ps2_status\n")
             ui = root / "assets/ui"
-            for relative in (ui_capture.MOVIE_PATH, ui_capture.FONT_PATH):
+            originals = {}
+            page = struct.pack("<8I", 0x47504955, 1, 250, 128, 256, 1, 1, 0)
+            page += struct.pack("<2I", 40, 123) + bytes(262144)
+            for relative in (ui_capture.MOVIE_PATH, ui_capture.FONT_PATH, ui_capture.MOVIE_PAGE_PATH, ui_capture.FONT_PAGE_PATH):
                 path = ui / "base" / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(b"authored-data")
+                originals[relative] = page if relative.endswith(".uipg") else b"authored-data"
+                path.write_bytes(originals[relative])
             for name in ("d3bfg.elf", "d3bfg_unstripped.elf", "d3bfg.map", "report.txt", "objects.rsp"):
                 (source / name).write_text(name)
             report = {"passed": True, "kind": "game", "test_inputs": [], "test_symbols": [], "flag_stamps": {}}
@@ -175,8 +211,9 @@ class AuthoredUiStaging(unittest.TestCase):
                     self.assertEqual((output / "base/d3bfg.cfg").read_text().count("ps2_ui load\n"), 1)
                     mutation = runner.mutate(output, case)
                     self.assertTrue(mutation["path"].startswith("base/"))
-                    self.assertEqual((ui / "base" / ui_capture.MOVIE_PATH).read_bytes(), b"authored-data")
-                    self.assertEqual((ui / "base" / ui_capture.FONT_PATH).read_bytes(), b"authored-data")
+                    self.assertNotEqual(mutation["mutated_sha256"], mutation["original_sha256"])
+                    for relative, original in originals.items():
+                        self.assertEqual((ui / "base" / relative).read_bytes(), original)
                 with self.assertRaisesRegex(ValueError, "separate package"):
                     staging.stage("debug", ui, "ntsc", include_ui=True)
                 (plain / "base/d3bfg.cfg").write_text("user preferences\n")

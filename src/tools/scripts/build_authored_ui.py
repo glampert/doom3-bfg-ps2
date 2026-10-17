@@ -9,7 +9,12 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
+import tempfile
+
+from ui_pages import write_pages
+from ui_page_package import HEADER, RECORD, write_page_package
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ASSET_ROOT = Path("assets/ui")
@@ -17,6 +22,8 @@ HEADER_PATH = Path("src/ps2/ui/authored_ui_data.h")
 SWF_PATH = "generated/swf/ps2_demo.bswf"
 FONT_PATH = "newfonts/ps2_ascii/48.dat"
 MATERIAL_PATH = "materials/ps2_ui.mtr"
+MOVIE_IMAGE_PATH = "textures/ps2_movie.uipg"
+FONT_IMAGE_PATH = "textures/ps2_ascii.uipg"
 
 
 def be(format_string, *values):
@@ -176,7 +183,8 @@ def edit_text(text, width=510, height=28, font_height=960, color=(240, 248, 255,
 def build_swf():
     dictionary = [be("i", 0), shape(640, 480, (16, 24, 40, 255)),
                   shape(576, 432, (32, 48, 64, 255))]
-    dictionary.append(be("i", 1) + string(".") + be("4i4f", 16, 16, 16, 64, 1, 1, 1, 1))
+    # Native BSWF16 interleaves imageSize[j], imageAtlasOffset[j] for x then y.
+    dictionary.append(be("i", 1) + string(".") + be("4i4f", 16, 246, 16, 64, 1, 1, 1, 1))
     dictionary.append(shape(128, 128, bitmap=3))
     dictionary.append(shape(220, 42))
     colors = ((0.1, 0.85, 1, 1), (0.8, 0.25, 1, 0.4), (1, 0.5, 0.1, 0.7), (0.2, 1, 0.3, 1))
@@ -214,13 +222,92 @@ def build_font():
 def build_materials():
     materials = []
     for name, image in (("_white", "_white"), ("guiSolid", "_white"),
-                        ("generated/swf/ps2_demo.tga", "textures/bigchars"),
+                        ("generated/swf/ps2_demo.tga", "textures/ps2_movie"),
                         ("newfonts/ps2_ascii/48.tga", "textures/ps2_ascii")):
         materials.append(f"{name}\n{{\n    {{\n        blend blend\n        map {image}\n"
                          "        nearest\n        clamp\n        vertexColor\n    }\n}\n")
     return ("// This source code is released under the GNU GPL-3.0-or-later license.\n"
-            "// Authored native SWF materials use backend-owned white, console and guttered font images.\n\n"
+            "// Authored native SWF materials use backend-owned white and cooked movie/font pages.\n\n"
             + "\n".join(materials)).encode("ascii")
+
+
+def charset_rows():
+    """Keep the host's authored glyph coverage tied to the native canonical bit patterns."""
+    source = (REPO_ROOT / "src/ps2/renderer/charset.cpp").read_text()
+    ascii_match = re.search(r"kAscii\[95\]\[7\]\s*=\s*\{(.*?)\n\};", source, re.S)
+    box_match = re.search(r"kBox\[7\]\s*=\s*\{([^}]+)\}", source)
+    if ascii_match is None or box_match is None:
+        raise ValueError("native authored glyph rows are missing")
+    rows = [tuple(int(value) for value in re.findall(r"\d+", row))
+            for row in re.findall(r"\{([^}]+)\}", ascii_match[1])]
+    box = tuple(int(value) for value in re.findall(r"\d+", box_match[1]))
+    if len(rows) != 95 or any(len(row) != 7 or any(not 0 <= value <= 31 for value in row)
+                              for row in [*rows, box]):
+        raise ValueError("native authored glyph rows exceed the 95 by 5x7 profile")
+    return rows, box
+
+
+def charset_pixels(font=False):
+    rows, box = charset_rows()
+
+    def covered(code, x, y):
+        if code == 10:
+            return 2 <= x < 14 and 13 <= y < 15
+        if code == 11:
+            return 2 <= x < 14 and 1 <= y < 15
+        if x >= 15 or not 1 <= y < 15:
+            return False
+        glyph = rows[code - 32] if 32 <= code <= 126 else box
+        return bool(glyph[(y - 1) // 2] & (1 << (4 - x // 3)))
+
+    width, height = (512, 128) if font else (256, 256)
+    pixels = bytearray(bytes((255, 255, 255, 0)) * (width * height))
+    for code in range(32, 127) if font else range(256):
+        origin_x = (code & 15) * (32 if font else 16) + int(font)
+        origin_y = (code >> 4) * 16 + int(font)
+        for y in range(14 if font else 16):
+            for x in range(15 if font else 16):
+                offset = ((origin_y + y) * width + origin_x + x) * 4
+                pixels[offset + 3] = 255 if covered(code, x, y + int(font)) else 0
+    return width, height, bytes(pixels)
+
+
+def authored_pixels(font=False):
+    width, height, source = charset_pixels(font)
+    if font:
+        return width, height, source
+    # Native RenderShape now samples an identical A across the x=254 page split.
+    # Keep its displayed 16x16 image/transform unchanged while exercising two pages.
+    width = 272
+    pixels = bytearray(bytes((255, 255, 255, 0)) * (width * height))
+    for y in range(height):
+        pixels[y * width * 4:(y * width + 256) * 4] = source[y * 256 * 4:(y + 1) * 256 * 4]
+    for y in range(16):
+        origin = ((64 + y) * 256 + 16) * 4
+        target = ((64 + y) * width + 246) * 4
+        pixels[target:target + 16 * 4] = source[origin:origin + 16 * 4]
+    return width, height, bytes(pixels)
+
+
+def page_assets():
+    """Use the same lossless page writers as the retail cook without embedding their pixels."""
+    assets, descriptors = {}, []
+    with tempfile.TemporaryDirectory(prefix="d3bfg-authored-ui-") as temporary:
+        directory = Path(temporary)
+        for path, image_name, font in ((MOVIE_IMAGE_PATH, "textures/ps2_movie", False),
+                                       (FONT_IMAGE_PATH, "textures/ps2_ascii", True)):
+            width, height, pixels = authored_pixels(font)
+            layout = write_pages(width, height, pixels, directory)
+            package = write_page_package(layout, directory)
+            data = (directory / package["path"]).read_bytes()
+            checksums = [RECORD.unpack_from(data, HEADER.size + index * RECORD.size)[1]
+                         for index in range(package["page_count"])]
+            assets[path] = data
+            descriptors.append({"image_name": image_name, "path": path, "width": width, "height": height,
+                                "file_bytes": len(data), "page_count": len(checksums), "checksums": checksums,
+                                "sha256": hashlib.sha256(data).hexdigest(),
+                                "source_sha256": hashlib.sha256(pixels).hexdigest()})
+    return assets, descriptors
 
 
 def fnv1a64(data):
@@ -230,7 +317,7 @@ def fnv1a64(data):
     return f"{value:016x}"
 
 
-def header(assets):
+def header(assets, pages=()):
     text = ("// ================================================================================================\n"
             "// File: authored_ui_data.h\n"
             "// Brief: Exact authored native UI resources admitted before unchecked legacy parsing.\n"
@@ -250,12 +337,27 @@ def header(assets):
         entries.append(f'    {{ "{path}", {name}, sizeof({name}) }},')
     text += ("struct Resource\n{\n    const char * path;\n    const std::uint8_t * bytes;\n"
              "    std::size_t length;\n};\n\nstatic constexpr Resource kResources[] = {\n"
-             + "\n".join(entries) + "\n};\n} // namespace ps2::ui::authored\n")
+             + "\n".join(entries) + "\n};\n")
+    if pages:
+        for index, page in enumerate(pages):
+            text += f"\nstatic constexpr std::uint32_t kPageChecksums{index}[] = {{\n"
+            text += "".join(f"    0x{checksum:08x},\n" for checksum in page["checksums"])
+            text += "};\n"
+        text += ("\nstruct PageResource\n{\n    const char * imageName;\n    const char * path;\n"
+                 "    std::uint32_t width;\n    std::uint32_t height;\n    std::uint32_t fileBytes;\n"
+                 "    const std::uint32_t * checksums;\n    std::size_t pageCount;\n};\n\n"
+                 "static constexpr PageResource kPageResources[] = {\n")
+        for index, page in enumerate(pages):
+            text += (f'    {{ "{page["image_name"]}", "{page["path"]}", {page["width"]}, {page["height"]}, '
+                     f'{page["file_bytes"]}, kPageChecksums{index}, {page["page_count"]} }},\n')
+        text += "};\n"
+    text += "} // namespace ps2::ui::authored\n"
     return text.encode("ascii")
 
 
 def outputs():
     assets = {SWF_PATH: build_swf(), FONT_PATH: build_font(), MATERIAL_PATH: build_materials()}
+    image_assets, pages = page_assets()
     manifest = {
         "generator": "src/tools/scripts/build_authored_ui.py",
         "license": "GPL-3.0-or-later",
@@ -270,10 +372,12 @@ def outputs():
                                "Add2", "GetMember", "SetMember", "Increment"]},
         "resources": {path: {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "fnv1a64": fnv1a64(data)}
                       for path, data in assets.items()},
+        "page_resources": pages,
     }
     result = {ASSET_ROOT / "base" / path: data for path, data in assets.items()}
+    result.update({ASSET_ROOT / "base" / path: data for path, data in image_assets.items()})
     result[ASSET_ROOT / "manifest.json"] = (json.dumps(manifest, indent=2) + "\n").encode("ascii")
-    result[HEADER_PATH] = header(assets)
+    result[HEADER_PATH] = header(assets, pages)
     return result
 
 

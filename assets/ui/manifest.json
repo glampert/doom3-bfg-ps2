@@ -54,8 +54,8 @@
   "resources": {
     "generated/swf/ps2_demo.bswf": {
       "bytes": 2364,
-      "sha256": "9b70850f6d09737820868294994bb2d25a5e7925c1cd01e2b22ac5da2a21ec11",
-      "fnv1a64": "b77c22e367507ebf"
+      "sha256": "03639f8a17d65e8692d8a8746c705259517177d9f8383ba4e75e343d4a221f99",
+      "fnv1a64": "b9a75aa6a37ca975"
     },
     "newfonts/ps2_ascii/48.dat": {
       "bytes": 1342,
@@ -63,9 +63,42 @@
       "fnv1a64": "7288f58d36cb48a8"
     },
     "materials/ps2_ui.mtr": {
-      "bytes": 680,
-      "sha256": "a592a7589d38f2d4a86325216edac2f5ca1548a1a8e0ae398d7376e2e305c89f",
-      "fnv1a64": "46aab4450e2b2239"
+      "bytes": 675,
+      "sha256": "161471f4b5d663fc9f18cc16eb35c79f4b627f83c844c88a4c2f2c300348777e",
+      "fnv1a64": "ac95845e3278d2af"
     }
-  }
+  },
+  "page_resources": [
+    {
+      "image_name": "textures/ps2_movie",
+      "path": "textures/ps2_movie.uipg",
+      "width": 272,
+      "height": 256,
+      "file_bytes": 1048640,
+      "page_count": 4,
+      "checksums": [
+        4284339541,
+        2423363397,
+        2367909317,
+        3828679125
+      ],
+      "sha256": "92fb00edcb9013747f1fe7f0dd5affce605993ab00cb877ea5352dd93af72b16",
+      "source_sha256": "599687870c5f0170d26cfbec1207592675e28d96c2eae4a4b338206a765f0508"
+    },
+    {
+      "image_name": "textures/ps2_ascii",
+      "path": "textures/ps2_ascii.uipg",
+      "width": 512,
+      "height": 128,
+      "file_bytes": 786488,
+      "page_count": 3,
+      "checksums": [
+        1721070757,
+        164603909,
+        373595589
+      ],
+      "sha256": "1c28196232bf42466778d81c09b28dce6fe5014a6f4f8de2fd36c332445c85ed",
+      "source_sha256": "e0e942fb84833c257ce7a7972c7ba197911ad3dc41f3d7105d4304037a943545"
+    }
+  ]
 }

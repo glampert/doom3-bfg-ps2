@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import time
 import uuid
@@ -25,8 +26,10 @@ import ui_capture
 LOADED_RE = re.compile(r"\[D3BFG\] SWF state=loaded cycle=(\d+) frames=(\d+) pulse=(-?\d+) focus=(-?\d+) selected=(-?\d+) selects=(\d+) heap=(\d+)/(\d+)/(\d+)")
 UNLOADED_RE = re.compile(r"\[D3BFG\] SWF state=unloaded cycle=(\d+) heap=(\d+)/(\d+)/(\d+)")
 CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(ui-(?:c[123]-[ab]|quit)\.tga) frame=(\d+) presents=(\d+) redraws=(\d+)")
+PAGES_RE = re.compile(r"\[D3BFG\] UI pages images=(\d+) slots=(\d+) cache=(\d+) scratch=(\d+) metadata=(\d+) "
+                      r"loads=(\d+) hits=(\d+) evictions=(\d+) triangles=(\d+)")
 TARGET_CRASH_RE = re.compile(r"TLB Miss|Assertion failed|Bus error", re.IGNORECASE)
-NEGATIVES = ("bswf-missing", "bswf-truncated", "bswf-oversized", "bswf-mutated", "font-missing", "font-mutated")
+NEGATIVES = tuple(ui_capture.NEGATIVE_DIAGNOSTICS)
 BASELINE = (7424, 7600, 4)
 ANIMATION_WAIT = 16  # 250..320 ms after resume: one 6 Hz timeline step in either video mode.
 
@@ -44,6 +47,18 @@ def capture_states(log: str) -> dict[str, tuple[int, ...]]:
         statuses = list(LOADED_RE.finditer(log, 0, capture.start()))
         if not statuses:
             raise ValueError("native SWF capture has no preceding state")
+        states[capture[1]] = tuple(map(int, statuses[-1].groups()))
+    return states
+
+
+def capture_page_states(log: str) -> dict[str, tuple[int, ...]]:
+    states = {}
+    for capture in CAPTURE_RE.finditer(log):
+        if capture[1] == "ui-quit.tga":
+            continue
+        statuses = list(PAGES_RE.finditer(log, 0, capture.start()))
+        if not statuses:
+            raise ValueError("native SWF capture has no preceding shared page state")
         states[capture[1]] = tuple(map(int, statuses[-1].groups()))
     return states
 
@@ -81,8 +96,21 @@ def classify(log: str, identity: str, standard: str) -> tuple[bool, str]:
         return False, "pending quit capture was not drained by the final native frame"
     try:
         states = capture_states(log)
+        page_states = capture_page_states(log)
     except ValueError as error:
         return False, str(error)
+    previous_page_state = None
+    for page_state in page_states.values():
+        images, slots, cache, scratch, metadata, loads, hits, evictions, triangles = page_state
+        if (images, slots, cache, scratch, metadata) != (2, 4, 1048576, 262144, 56):
+            return False, "native SWF and English font did not share the fixed page budget"
+        if loads != 4 or hits == 0 or triangles == 0 or evictions != 0:
+            return False, "native SWF and English font did not draw through the shared page cache"
+        if previous_page_state is not None:
+            previous_loads, previous_hits, previous_evictions, previous_triangles = previous_page_state
+            if loads < previous_loads or hits <= previous_hits or evictions < previous_evictions or triangles <= previous_triangles:
+                return False, "native shared page counters reset or stopped across captures and reloads"
+        previous_page_state = (loads, hits, evictions, triangles)
     for cycle in (1, 2, 3):
         first, second = (states[f"ui-c{cycle}-{phase}.tga"] for phase in ("a", "b"))
         if any(state[0] != cycle or state[1] < 120 or state[2] not in (1, 2, 3, 4) for state in (first, second)):
@@ -120,17 +148,28 @@ def classify_negative(log: str, identity: str, case: str, expected: str) -> tupl
         return False, "EE crash while rejecting invalid UI data"
     if not echoed(log, f"{identity}_begin") or "]ps2_ui load" not in log:
         return False, "missing native UI load attempt or stale identity"
-    if "[D3BFG] SWF state=loaded" in log or "BOOT production shutdown complete" in log:
+    pixel_failure = case == "movie-page-pixels"
+    if "BOOT production shutdown complete" in log or CAPTURE_RE.search(log):
+        return False, "invalid UI data completed a native capture or normal shutdown"
+    if not pixel_failure and "[D3BFG] SWF state=loaded" in log:
         return False, "invalid UI data was published as a loaded movie"
+    if pixel_failure and ("[D3BFG] SWF state=loaded" not in log or "page read or checksum" not in log):
+        return False, "corrupt page pixels did not reach the checked native streaming path"
     fatals = re.findall(r"\[D3BFG\] FATAL ([^\r\n]+)", log)
     if not fatals or any(expected not in fatal for fatal in fatals):
         return False, "missing or unexpected UI validation failure"
-    return True, f"native UI rejected {case} before publishing ownership"
+    return True, f"native UI rejected {case} before completing its first presentation" if pixel_failure else f"native UI rejected {case} before publishing ownership"
 
 
 def mutate(output: Path, case: str) -> dict:
     # These are authored package inputs only. Never modify source assets or the user's retail base.
-    path = output / "base" / (ui_capture.MOVIE_PATH if case.startswith("bswf-") else ui_capture.FONT_PATH)
+    if case.startswith("movie-page-"):
+        relative = ui_capture.MOVIE_PAGE_PATH
+    elif case.startswith("font-page-"):
+        relative = ui_capture.FONT_PAGE_PATH
+    else:
+        relative = ui_capture.MOVIE_PATH if case.startswith("bswf-") else ui_capture.FONT_PATH
+    path = output / "base" / relative
     original = path.read_bytes()
     before = sha256(path)
     if case.endswith("-missing"):
@@ -142,6 +181,19 @@ def mutate(output: Path, case: str) -> dict:
     elif case.endswith("-mutated"):
         changed = bytearray(original)
         changed[-1] ^= 1
+        path.write_bytes(changed)
+    elif case.endswith("-header"):
+        changed = bytearray(original)
+        changed[0] ^= 1
+        path.write_bytes(changed)
+    elif case.endswith("-table"):
+        changed = bytearray(original)
+        changed[32] ^= 1
+        path.write_bytes(changed)
+    elif case.endswith("-pixels"):
+        changed = bytearray(original)
+        payload = 32 + struct.unpack_from("<I", original, 24)[0] * 8
+        changed[payload] ^= 1
         path.write_bytes(changed)
     else:
         raise ValueError(f"unknown UI negative case: {case}")
@@ -273,7 +325,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", choices=("debug", "release"), default="debug")
     parser.add_argument("--standard", choices=("ntsc", "pal"))
-    parser.add_argument("--case", choices=("native",) + NEGATIVES, help="default: both native standards and six invalid-data cases")
+    parser.add_argument("--case", choices=("native",) + NEGATIVES, help="default: both native standards and twelve invalid-data cases")
     parser.add_argument("--emulator", type=Path, default=smoke.DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)
     parser.add_argument("--timeout", type=float, default=60.0)

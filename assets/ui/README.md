@@ -19,11 +19,14 @@ The generator writes the following package-relative files beneath `base/`:
 | --- | --- |
 | `generated/swf/ps2_demo.bswf` | Native BSWF version 16, 640 × 480, six timeline frames per second. |
 | `newfonts/ps2_ascii/48.dat` | Native 48-point font metrics for ASCII codepoints 32 through 126. |
-| `materials/ps2_ui.mtr` | Four materials referring to backend-owned white, console and padded font images. |
+| `materials/ps2_ui.mtr` | Four materials referring to the white intrinsic and paged movie/font images. |
+| `textures/ps2_movie.uipg` | 272 × 256 bitmap atlas; its A cell crosses the x = 254 page boundary. |
+| `textures/ps2_ascii.uipg` | 512 × 128 font atlas preserving the native half-texel glyph expansion. |
 
 `manifest.json` records the generated resource sizes, hashes and scene inventory.
 `src/ps2/ui/authored_ui_data.h` contains the same resource bytes as an explicit admission
-profile. Edit the generator rather than either generated copy. `--check` reports missing
+profile, plus compact expected dimensions and page checksums for the UIPG files. Edit the
+generator rather than either generated copy. `--check` reports missing
 or changed outputs without overwriting them.
 
 The movie has one main frame and 16 dictionary entries. It draws solid background and
@@ -47,7 +50,9 @@ native `idFile` string lengths are little endian, and PlaceObject2/AVM1 command 
 retain their SWF bit and byte order. The source timestamp is -1 because there is no
 separate raw `.swf` file. The font has a big endian header and 95 little endian, padded
 10-byte glyph records followed by sorted 32-bit codepoints. Its 512 × 128 procedural
-atlas leaves room for the native font renderer's half-texel UV expansion.
+atlas leaves room for the native font renderer's half-texel UV expansion. BSWF image
+records interleave width, atlas X offset, height and atlas Y offset. The transformed
+bitmap retains its screen geometry while sampling the copied A at (246, 64).
 
 BSWF and font loading currently admit only these exact bounded resources. The backend
 reads each file once, compares its bytes against the compiled profile and supplies an
@@ -59,6 +64,11 @@ parsing uses DeclManager's cached text, rather than the checked binary snapshots
 This admission path is specific to the authored profile; general conversion and
 validation belong to the later asset pipeline. The snapshots are transient; the movie,
 font cache and renderer own their parsed objects and image storage through shutdown.
+The two images share four nearest/clamp page slots (1 MiB), one 256 KiB scratch page
+and 56 bytes of page records. Opening checks the compiled metadata profile; streaming
+verifies a complete page before it can replace a cached page. These pixel checksums
+are integrity checks, not a general retail parser admission scheme. Movie unloads keep
+the image cache warm; UI shutdown closes both files before releasing the cache/device.
 
 Local retail data remains under the ignored repository-root `base/` folder. Do not copy
 it into this authored tree or replace these generated resources with retail binaries.

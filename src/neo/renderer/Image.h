@@ -67,10 +67,18 @@ typedef enum {
 
 #define	MAX_IMAGE_NAME	256
 
-// [PS2_D3BFG]: Expose the typed native-image texture handle without duplicating image ownership.
+// [PS2_D3BFG]: Expose typed direct/paged image access without duplicating native ownership.
 #if defined(PS2_D3BFG)
 class idImage;
-namespace ps2 { namespace tex { struct Handle; } namespace render { tex::Handle ConsoleImageTexture(const idImage * image); } }
+namespace ps2 {
+namespace tex { struct Handle; }
+namespace ui { class PageImage; namespace authored { struct PageResource; } }
+namespace render {
+tex::Handle ConsoleImageTexture(const idImage * image);
+void ValidateUiImage(const idImage * image);
+ui::PageImage * UiPageImage(const idImage * image);
+}
+}
 #endif
 class idImage {
 public:
@@ -167,8 +175,11 @@ public:
 private:
 	friend class idImageManager;
 #if defined(PS2_D3BFG)
-	// [PS2_D3BFG]: The backend owns the opaque state; draw adapters only obtain its checked handle.
+	// [PS2_D3BFG]: The backend owns direct/paged state; adapters only obtain checked access.
 	friend ps2::tex::Handle ps2::render::ConsoleImageTexture(const idImage * image);
+	friend void ps2::render::ValidateUiImage(const idImage * image);
+	friend ps2::ui::PageImage * ps2::render::UiPageImage(const idImage * image);
+	void LoadPageImage(const ps2::ui::authored::PageResource & resource);
 #endif
 
 	void				AllocImage();

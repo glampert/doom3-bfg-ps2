@@ -1,5 +1,5 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
-// Authored native SWF materials use backend-owned white, console and guttered font images.
+// Authored native SWF materials use backend-owned white and cooked movie/font pages.
 
 _white
 {
@@ -27,7 +27,7 @@ generated/swf/ps2_demo.tga
 {
     {
         blend blend
-        map textures/bigchars
+        map textures/ps2_movie
         nearest
         clamp
         vertexColor

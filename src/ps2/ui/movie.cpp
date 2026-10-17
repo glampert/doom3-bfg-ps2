@@ -5,8 +5,10 @@
 // ================================================================================================
 
 #include "ps2/ui/movie.h"
+#include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/ui_draw.h"
+#include "ps2/renderer/ui_page_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "ps2/ui/authored_assets.h"
@@ -23,6 +25,11 @@ static int s_time = 0;
 
 void Status()
 {
+    const auto pages = ps2::render::GetUiPageStats();
+    ps2::Log(ps2::LogLevel::Info,
+             "[D3BFG] UI pages images=%u slots=%u cache=%u scratch=%u metadata=%u loads=%u hits=%u evictions=%u triangles=%u\n",
+             pages.images, static_cast<u32>(pages.cacheBytes / ps2::ui::kPageBytes), pages.cacheBytes, pages.scratchBytes,
+             pages.metadataBytes, pages.loads, pages.hits, pages.evictions, pages.triangles);
     const auto stats = ps2::heap::GetTotalStats();
     if (s_movie == nullptr)
     {

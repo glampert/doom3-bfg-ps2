@@ -64,6 +64,8 @@ class NativeSwfInventory(unittest.TestCase):
         self.assertEqual(output["features"]["bitmap_fills"], 1)
         self.assertEqual(output["scripts"]["defined_functions"], ["focusNext", "select"])
         self.assertEqual(output["dependencies"]["fonts"], ["ps2_ascii"])
+        self.assertEqual(output["dictionary"][3]["size"], [16, 16])
+        self.assertEqual(output["dictionary"][3]["atlas_offset"], [246, 64])
         self.assertFalse(output["dynamic_dependency_closure"])
         encoded = json.dumps(output, sort_keys=True, allow_nan=False)
         self.assertNotIn("TAB TO FOCUS", encoded)

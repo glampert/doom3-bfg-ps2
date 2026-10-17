@@ -13,6 +13,8 @@ from renderer_capture import PIXEL_TOLERANCE, read_tga
 
 MOVIE_PATH = "generated/swf/ps2_demo.bswf"
 FONT_PATH = "newfonts/ps2_ascii/48.dat"
+MOVIE_PAGE_PATH = "textures/ps2_movie.uipg"
+FONT_PAGE_PATH = "textures/ps2_ascii.uipg"
 NEGATIVE_DIAGNOSTICS = {
     "bswf-missing": "authored UI asset missing: " + MOVIE_PATH,
     "bswf-truncated": "authored UI asset length mismatch: " + MOVIE_PATH,
@@ -20,6 +22,12 @@ NEGATIVE_DIAGNOSTICS = {
     "bswf-mutated": "authored UI asset content mismatch: " + MOVIE_PATH,
     "font-missing": "authored UI asset missing: " + FONT_PATH,
     "font-mutated": "authored UI asset content mismatch: " + FONT_PATH,
+    "movie-page-missing": "authored UI page profile mismatch: " + MOVIE_PAGE_PATH,
+    "movie-page-truncated": "authored UI page profile mismatch: " + MOVIE_PAGE_PATH,
+    "movie-page-header": "authored UI page profile mismatch: " + MOVIE_PAGE_PATH,
+    "movie-page-table": "authored UI page profile mismatch: " + MOVIE_PAGE_PATH,
+    "movie-page-pixels": "native UI paged triangle failed",
+    "font-page-missing": "authored UI page profile mismatch: " + FONT_PAGE_PATH,
 }
 BACKGROUND = (16, 24, 40)
 PANEL = (32, 48, 64)
@@ -34,7 +42,10 @@ STATIC_PIXELS = (
     ("transformed-a-left-leg", 453.2, 181.6, (255, 255, 255)),
     ("transformed-a-right-leg", 539.6, 200.8, (255, 255, 255)),
     ("transformed-a-hole", 496.4, 191.2, PANEL),
+    # The crossbar stays white on both sides of the movie atlas's x=254 page seam.
     ("transformed-a-crossbar", 493.2, 205.6, (255, 255, 255)),
+    ("transformed-a-page-seam", 496.8, 206.4, (255, 255, 255)),
+    ("transformed-a-crossbar-right", 500.4, 207.2, (255, 255, 255)),
     ("transformed-a-corner", 459.6, 152.8, PANEL),
     ("transformed-quad-outside", 438, 140, PANEL),
     ("native-title-d-top", 70, 51, TEXT),

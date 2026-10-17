@@ -1236,7 +1236,7 @@ static constexpr std::uint8_t kResource0[] = {
     0x00,
     0x00,
     0x00,
-    0x10,
+    0xf6,
     0x00,
     0x00,
     0x00,
@@ -3852,36 +3852,30 @@ static constexpr std::uint8_t kResource2[] = {
     0x69,
     0x74,
     0x65,
-    0x2c,
-    0x20,
-    0x63,
-    0x6f,
-    0x6e,
-    0x73,
-    0x6f,
-    0x6c,
-    0x65,
     0x20,
     0x61,
     0x6e,
     0x64,
     0x20,
-    0x67,
-    0x75,
-    0x74,
-    0x74,
-    0x65,
-    0x72,
+    0x63,
+    0x6f,
+    0x6f,
+    0x6b,
     0x65,
     0x64,
     0x20,
+    0x6d,
+    0x6f,
+    0x76,
+    0x69,
+    0x65,
+    0x2f,
     0x66,
     0x6f,
     0x6e,
     0x74,
     0x20,
-    0x69,
-    0x6d,
+    0x70,
     0x61,
     0x67,
     0x65,
@@ -4193,14 +4187,15 @@ static constexpr std::uint8_t kResource2[] = {
     0x65,
     0x73,
     0x2f,
-    0x62,
-    0x69,
-    0x67,
-    0x63,
-    0x68,
-    0x61,
-    0x72,
+    0x70,
     0x73,
+    0x32,
+    0x5f,
+    0x6d,
+    0x6f,
+    0x76,
+    0x69,
+    0x65,
     0x0a,
     0x20,
     0x20,
@@ -4417,5 +4412,34 @@ static constexpr Resource kResources[] = {
     { "generated/swf/ps2_demo.bswf", kResource0, sizeof(kResource0) },
     { "newfonts/ps2_ascii/48.dat", kResource1, sizeof(kResource1) },
     { "materials/ps2_ui.mtr", kResource2, sizeof(kResource2) },
+};
+
+static constexpr std::uint32_t kPageChecksums0[] = {
+    0xff5dd555,
+    0x90719745,
+    0x8d236dc5,
+    0xe43501d5,
+};
+
+static constexpr std::uint32_t kPageChecksums1[] = {
+    0x669574a5,
+    0x09cfa805,
+    0x16449dc5,
+};
+
+struct PageResource
+{
+    const char * imageName;
+    const char * path;
+    std::uint32_t width;
+    std::uint32_t height;
+    std::uint32_t fileBytes;
+    const std::uint32_t * checksums;
+    std::size_t pageCount;
+};
+
+static constexpr PageResource kPageResources[] = {
+    { "textures/ps2_movie", "textures/ps2_movie.uipg", 272, 256, 1048640, kPageChecksums0, 4 },
+    { "textures/ps2_ascii", "textures/ps2_ascii.uipg", 512, 128, 786488, kPageChecksums1, 3 },
 };
 } // namespace ps2::ui::authored
