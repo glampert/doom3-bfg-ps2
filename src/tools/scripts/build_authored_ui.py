@@ -17,7 +17,7 @@ from ui_pages import write_pages
 from ui_page_package import HEADER, RECORD, write_page_package
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-ASSET_ROOT = Path("assets/ui")
+ASSET_ROOT = Path("src/tests/data/ui")
 HEADER_PATH = Path("src/ps2/ui/authored_ui_data.h")
 SWF_PATH = "generated/swf/ps2_demo.bswf"
 FONT_PATH = "newfonts/ps2_ascii/48.dat"

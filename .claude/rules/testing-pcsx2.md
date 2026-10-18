@@ -44,7 +44,7 @@
   or cache-coherency claim.
 
 - `make test-headless` / `make BUILD=release test-headless` exercise the production ELF
-  with authored `assets/headless/` data. One run completes exactly 120 frames; another
+  with authored `src/tests/data/headless/` data. One run completes exactly 120 frames; another
   continues past 120 until live HostFs commands request quit. Require active native
   console/NOMAP state, command history, rejection of partial/oversized/control-character
   input and exact startup ledger recovery after ordered shutdown. Archives include

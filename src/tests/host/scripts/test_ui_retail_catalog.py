@@ -26,7 +26,7 @@ class RetailCatalogTests(unittest.TestCase):
     def setUpClass(cls):
         cls.temporary = tempfile.TemporaryDirectory()
         cls.directory = Path(cls.temporary.name)
-        cls.font_raw = (ROOT / "assets/ui/base/newfonts/ps2_ascii/48.dat").read_bytes()
+        cls.font_raw = (ROOT / "src/tests/data/ui/base/newfonts/ps2_ascii/48.dat").read_bytes()
         font_hash = hashlib.sha256(cls.font_raw).hexdigest()
         cls.font_asset = {"path": "assets/" + font_hash + ".dat", "bytes": len(cls.font_raw), "sha256": font_hash}
         (cls.directory / "assets").mkdir()

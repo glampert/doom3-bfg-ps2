@@ -93,7 +93,6 @@ and command-file input are described in the [developer guide](docs/DEVELOPMENT.m
 
 ```text
 .
-|-- assets/             # Authored boot, interface and test data
 |-- base/               # Upstream configs and render programs; local retail files ignored
 |-- build/              # Generated executables, packages, tools and test results
 |-- config/             # Build source lists and asset profiles
@@ -104,6 +103,7 @@ and command-file input are described in the [developer guide](docs/DEVELOPMENT.m
 |   |-- neo/            # Original Doom 3 BFG engine and game code
 |   |-- ps2/            # PlayStation 2 backend
 |   |-- tests/          # Host tests and separate native test executables
+|   |   `-- data/       # Authored boot, map and interface fixtures
 |   `-- tools/          # Host resource tools and build/test scripts
 `-- Makefile
 ```

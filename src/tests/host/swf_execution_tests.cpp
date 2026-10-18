@@ -436,7 +436,7 @@ int main(int argc, char ** argv)
     Actions();
     Commands();
     Movies();
-    CheckFile("assets/ui/base/generated/swf/ps2_demo.bswf");
+    CheckFile("src/tests/data/ui/base/generated/swf/ps2_demo.bswf");
 
     for (int argument = 1; argument < argc; ++argument)
     {

@@ -12,8 +12,8 @@ from pathlib import Path
 import shutil
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-BOOT_ROOT = REPO_ROOT / "assets/headless"
-UI_ROOT = REPO_ROOT / "assets/ui"
+BOOT_ROOT = REPO_ROOT / "src/tests/data/headless"
+UI_ROOT = REPO_ROOT / "src/tests/data/ui"
 PRESENTATIONS = ("headless", "ntsc", "pal")
 
 
@@ -41,7 +41,7 @@ def stage(build: str, output: Path, presentation: str = "headless", include_ui: 
             raise ValueError(f"production report does not match {name}; rebuild before staging")
     ui_files = sorted(path for path in (UI_ROOT / "base").rglob("*") if path.is_file()) if include_ui else []
     if include_ui and not ui_files:
-        raise ValueError("UI staging requires authored assets/ui/base data")
+        raise ValueError("UI staging requires authored src/tests/data/ui/base data")
     output = output.resolve()
     if output == source.resolve() or any(output.is_relative_to(root.resolve()) or root.resolve().is_relative_to(output) for root in (BOOT_ROOT, UI_ROOT)):
         raise ValueError("headless staging must use a separate package directory")

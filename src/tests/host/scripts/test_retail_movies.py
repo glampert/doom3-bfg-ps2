@@ -27,7 +27,7 @@ class MovieResourcesTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.source = Path(self.temporary.name)
         (self.source / "assets").mkdir()
-        self.movie = (ROOT / "assets/ui/base/generated/swf/ps2_demo.bswf").read_bytes()
+        self.movie = (ROOT / "src/tests/data/ui/base/generated/swf/ps2_demo.bswf").read_bytes()
         self.language = b'{ "#str_swf_campaign" "Campaign" "#str_swf_settings" "Settings" "#str_swf_quit" "Quit" }'
         self.manifest = {"cooked": {"assets": {}}, "swfs": {}, "language": inspect_language(self.language)}
         for name in ("shell", "dialog"):
@@ -44,13 +44,13 @@ class MovieResourcesTests(unittest.TestCase):
 
     def label_manifest(self):
         font_name = "newfonts/ps2_ascii/48.dat"
-        font = (ROOT / "assets/ui/base" / font_name).read_bytes()
+        font = (ROOT / "src/tests/data/ui/base" / font_name).read_bytes()
         self.add_asset(font_name, font)
         self.manifest["fonts"] = {font_name: inspect_font(font)}
         swf = self.manifest["swfs"]["generated/swf/shell.bswf"]
         requested = next(entry["name"] for entry in swf["dictionary"] if entry["type"] == "font")
         self.manifest["font_resolutions"] = [{"requested": requested, "family": "ps2_ascii"}]
-        (self.source / "font.uip").write_bytes((ROOT / "assets/ui/base/textures/ps2_ascii.uipg").read_bytes())
+        (self.source / "font.uip").write_bytes((ROOT / "src/tests/data/ui/base/textures/ps2_ascii.uipg").read_bytes())
         self.manifest["cooked"]["runtime_images"] = {"font": {"path": "font.uip", "page_count": 3},
             "shell": {"page_count": 1}, "dialog": {"page_count": 1}, "cover": {"page_count": 2}}
         self.manifest["image_resolutions"] = [{"logical_image": "newfonts/ps2_ascii/48.tga", "selected": "font", "status": "resolved"},

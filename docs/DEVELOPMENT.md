@@ -66,7 +66,7 @@ input remain pending. Startup checks `base/default.cfg` for existence and option
 game/world/console shutdown followed by Common shutdown at the frame boundary.
 
 `make headless` packages the production ELF and small authored boot data from
-`assets/headless/` under `build/<config>/headless/`. It preserves an existing packaged
+`src/tests/data/headless/` under `build/<config>/headless/`. It preserves an existing packaged
 `base/d3bfg.cfg` and leaves local `base/` assets alone. The package root has
 `presentation.cfg`, read before Common initialization: `headless`, `ntsc` or `pal`,
 with an optional final newline. A missing file selects headless; invalid content is
@@ -115,7 +115,7 @@ draw and before UI/device shutdown. Visible `ps2_status` also reports presentati
 and redraw-request counts. These three controls are available only in visible mode;
 `ps2_maxFrames` and the ordinary command stream work in either mode.
 
-`make ui` stages the same production ELF with the resources from `assets/ui/base/`
+`make ui` stages the same production ELF with the resources from `src/tests/data/ui/base/`
 under `build/<config>/ui/`. It uses `CONSOLE_STANDARD=ntsc` or `pal` and adds
 `ps2_ui load` to a newly created packaged `base/d3bfg.cfg`. Existing packaged settings
 are preserved; append that command manually if an older configuration does not load

@@ -2147,7 +2147,7 @@ startup remain separate integration gates.
 
 `make headless` stages a runnable production package at `build/<config>/headless/`,
 using small authored scripts, `aas_types` and stage-free materials from
-`assets/headless/`. It preserves packaged port settings and does not alter local
+`src/tests/data/headless/`. It preserves packaged port settings and does not alter local
 retail assets. `make run` / `make run-headless` launch it. Append complete command lines
 to the package's `console.txt`; the backend delivers native `SE_CONSOLE` events,
 echoes commands and retains native in-memory history. `quit` / `exit` finish the
@@ -2659,7 +2659,7 @@ reloading, status and pause/resume; `ps2_uiKey tab|enter` queues engine key even
 The real console retains input priority and can open over the movie. Movie/font/UI/device
 shutdown follows ownership order, and headless startup creates none of these resources.
 
-The reproducible [authored package](../assets/ui/README.md) contains a 2,364-byte BSWF,
+The reproducible [authored package](../src/tests/data/ui/README.md) contains a 2,364-byte BSWF,
 1,342-byte font and 680-byte material file. Native unchecked BSWF/font loaders see an owned
 snapshot only after its length and full contents match the generated authored bytes.
 The 4,386 validation payload bytes are compiled into the backend; this narrow admission

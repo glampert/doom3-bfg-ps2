@@ -54,8 +54,8 @@ class InventoryPipelineTests(unittest.TestCase):
                        "page_config": {"extent": 256, "gutter": 1, "pixel_cache_budget_bytes": 2097152,
                                        "resampling": "none"}}
         self.config_path.write_text(json.dumps(self.config))
-        self.raw_swf = (ROOT / "assets/ui/base/generated/swf/ps2_demo.bswf").read_bytes()
-        self.raw_font = (ROOT / "assets/ui/base/newfonts/ps2_ascii/48.dat").read_bytes()
+        self.raw_swf = (ROOT / "src/tests/data/ui/base/generated/swf/ps2_demo.bswf").read_bytes()
+        self.raw_font = (ROOT / "src/tests/data/ui/base/newfonts/ps2_ascii/48.dat").read_bytes()
         self.records = [("generated/swf/fixture.bswf", self.raw_swf),
                         ("newfonts/ps2_ascii/48.dat", self.raw_font),
                         ("generated/images/generated/swf/fixture#__0200.bimage", image(4, 4)),

@@ -234,7 +234,7 @@ Use explicit bootstrap modes rather than dozens of ad hoc null checks:
 Stage 2 should branch deliberately within the Common startup lifecycle after the required services, with matching partial-shutdown bookkeeping. It must not simply return from the platform entry point before invoking Doom code. Stage 3 must satisfy `program.Startup(SCRIPT_DEFAULT)` and `aas_types`; tiny checked-in fixtures or locally generated test content supply these dependencies. Inventory additional startup declarations as the tests progress.
 
 Production and fixture executables are separate. Production now initializes the native
-game and console with authored `assets/headless/` data and sustains Common/native
+game and console with authored `src/tests/data/headless/` data and sustains Common/native
 `NOMAP` frames until quit or a frame limit. It has live HostFs console commands and
 ordered shutdown, while menu SWF, campaign map transitions and retail startup resources
 remain pending. Tests continue to load and tick the authored map independently; the

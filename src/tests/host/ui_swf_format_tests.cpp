@@ -84,7 +84,7 @@ int main(int argc, char ** argv)
 {
     ps2::ui::SwfSummary summary;
     assert(!ps2::ui::ValidateSwfBytes(nullptr, 0, summary));
-    Check(Read("assets/ui/base/generated/swf/ps2_demo.bswf"), true);
+    Check(Read("src/tests/data/ui/base/generated/swf/ps2_demo.bswf"), true);
 
     const char language[] = "{\n\"#str_a\" \"Text\\nLine\"\n}\n";
     std::uint32_t entries = 99;

@@ -225,10 +225,10 @@ class AuthoredUiStaging(unittest.TestCase):
             root = Path(temporary)
             source = root / "build/debug"
             source.mkdir(parents=True)
-            boot = root / "assets/headless"
+            boot = root / "src/tests/data/headless"
             (boot / "base").mkdir(parents=True)
             (boot / "base/d3bfg.cfg").write_text("ps2_status\n")
-            ui = root / "assets/ui"
+            ui = root / "src/tests/data/ui"
             originals = {}
             page = struct.pack("<8I", 0x47504955, 1, 250, 128, 256, 1, 1, 0)
             page += struct.pack("<2I", 40, 123) + bytes(262144)

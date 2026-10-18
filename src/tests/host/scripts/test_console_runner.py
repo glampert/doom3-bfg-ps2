@@ -152,7 +152,7 @@ class ConsoleStaging(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.source = self.root / "build/debug"
         self.source.mkdir(parents=True)
-        self.assets = self.root / "assets/headless"
+        self.assets = self.root / "src/tests/data/headless"
         (self.assets / "base").mkdir(parents=True)
         (self.assets / "base/d3bfg.cfg").write_text("ps2_status\n")
         self.output = self.root / "package"
