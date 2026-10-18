@@ -1,7 +1,7 @@
 {
   "generator": "src/tools/scripts/build_authored_ui.py",
   "license": "GPL-3.0-or-later",
-  "profile": "BSWF16 native mask-free authored UI; no retail data",
+  "profile": "BSWF16 native convex-mask authored UI; no retail data",
   "blend_modes": [
     0,
     8
@@ -29,8 +29,24 @@
     "status edittext",
     "continue edittext",
     "options edittext",
-    "caption edittext"
+    "caption edittext",
+    "convex trapezoid mask",
+    "mask lifecycle sprite",
+    "masked bitmap and text sprite",
+    "masked A edittext"
   ],
+  "masks": {
+    "placements": 8,
+    "max_active": 3,
+    "max_vertices": 4,
+    "max_triangles": 2,
+    "profiles": [
+      "affine convex",
+      "nested",
+      "crossing clip ranges",
+      "same-depth expiry"
+    ]
+  },
   "script": {
     "functions": [
       "focusNext",
@@ -57,9 +73,9 @@
   },
   "resources": {
     "generated/swf/ps2_demo.bswf": {
-      "bytes": 2548,
-      "sha256": "38e26441ab98abb134d1db7b7c99ea36356ab9e206ed0056f905c22b0a557833",
-      "fnv1a64": "340358b8547dab47"
+      "bytes": 3413,
+      "sha256": "ac0a2310e84e6280b21dab52fff3d0659395a6c6b0e7eb0bf086983d581ebb9d",
+      "fnv1a64": "f1ecc5e24488c6a8"
     },
     "newfonts/ps2_ascii/48.dat": {
       "bytes": 1342,

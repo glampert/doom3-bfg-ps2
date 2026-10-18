@@ -79,11 +79,14 @@ def color_transform(multipliers):
     return bits.data()
 
 
-def place(depth, character=None, transform=None, name=None, color=None, move=False, blend=None):
+def place(depth, character=None, transform=None, name=None, color=None, move=False, blend=None, clip_depth=None):
     if blend is not None and blend != 8:
         raise ValueError("authored special blending supports only native additive mode 8")
+    if clip_depth is not None and not depth < clip_depth <= 65535:
+        raise ValueError("authored mask must end above its placement depth")
     flags = int(move) | (2 if character is not None else 0) | (4 if transform is not None else 0)
     flags |= (8 if color is not None else 0) | (32 if name is not None else 0)
+    flags |= 64 if clip_depth is not None else 0
     payload = bytes((flags,)) + (b"\x02" if blend is not None else b"") + struct.pack("<H", depth)
     if character is not None:
         payload += struct.pack("<H", character)
@@ -93,9 +96,11 @@ def place(depth, character=None, transform=None, name=None, color=None, move=Fal
         payload += color_transform(color)
     if name is not None:
         payload += name.encode("ascii") + b"\0"
+    if clip_depth is not None:
+        payload += struct.pack("<H", clip_depth)
     if blend is not None:
         payload += bytes((blend,))
-    return (70 if blend is not None else 26), payload  # No masks, clip actions or filters.
+    return (70 if blend is not None else 26), payload  # No clip actions or filters.
 
 
 def action(opcode, payload=b""):
@@ -164,7 +169,7 @@ def sprite(frames):
     return output
 
 
-def shape(width, height, color=(255, 255, 255, 255), bitmap=None):
+def shape(width, height, color=(255, 255, 255, 255), bitmap=None, points=None):
     bounds = (0, 0, width, height)
     output = be("i", 2) + be("8f", *(bounds + bounds)) + be("i", 1)
     output += bytes((4 if bitmap is not None else 0, 3)) + bytes(color) * 2
@@ -172,7 +177,9 @@ def shape(width, height, color=(255, 255, 255, 255), bitmap=None):
     scale = 20 * width / 16 if bitmap is not None else 1
     output += be("6f", scale, scale, 0, 0, 0, 0) * 2
     output += bytes((0,)) + be("fH", 0, 65535 if bitmap is None else bitmap)
-    vertices = (0, 0, width, 0, width, height, 0, height)
+    vertices = points if points is not None else (0, 0, width, 0, width, height, 0, height)
+    if len(vertices) != 8:
+        raise ValueError("authored shapes require four convex vertices")
     output += be("i8f", 4, *vertices) + be("i", 0)
     output += be("i6H", 6, 0, 1, 2, 0, 2, 3) + be("i", 0)
     return output
@@ -203,6 +210,32 @@ def build_swf():
                        edit_text("TAB TO FOCUS / ENTER TO SELECT"),
                        edit_text("CONTINUE"), edit_text("OPTIONS"),
                        edit_text("TIMELINE COLOR + ALPHA")))
+    # One affine trapezoid and two child timelines exercise geometric masks without a new fixture.
+    dictionary.append(shape(320, 48, points=(0, 0, 320, 0, 290, 48, 30, 48)))
+    lifecycle = [
+        place(1, 5, matrix(xx=140 / 220, yy=48 / 42), clip_depth=5),
+        place(2, 5, matrix(xx=140 / 220, yy=48 / 42, tx=80), clip_depth=7),
+        place(3, 5, matrix(xx=260 / 220, yy=8 / 42, ty=4), color=(1, .25, .125, 1)),
+        place(4, 5, matrix(xx=260 / 220, yy=8 / 42, ty=14), color=(.125, 1, .25, .5)),
+        place(5, 5, matrix(xx=260 / 220, yy=8 / 42, ty=24), color=(.5, .25, .125, .5), blend=8),
+        place(6, 5, matrix(xx=260 / 220, yy=6 / 42, ty=34), color=(.25, 1, .25, 1)),
+        place(8, 5, matrix(xx=8 / 220, yy=8 / 42, tx=244, ty=4)),
+        place(9, 5, matrix(xx=20 / 220, yy=48 / 42, tx=240), clip_depth=11),
+        place(10, 5, matrix(xx=20 / 220, yy=48 / 42, tx=250), clip_depth=11),
+        place(11, 5, matrix(xx=50 / 220, yy=8 / 42, tx=230, ty=16), color=(.75, .125, .75, 1)),
+        place(12, 5, matrix(xx=42 / 220, yy=8 / 42, tx=238, ty=28)),
+    ]
+    dictionary.append(be("i", 4) + sprite([lifecycle]))
+    page_and_text = [
+        place(1, 5, matrix(xx=96 / 220, yy=88 / 42), color=(.25, .25, .25, 1)),
+        place(2, 5, matrix(xx=42 / 220, yy=58 / 42, tx=8, ty=2), clip_depth=3),
+        place(3, 4, matrix(xx=.5, yy=.5)),
+        place(4, 5, matrix(xx=44 / 220, yy=20 / 42, tx=10, ty=66), clip_depth=5),
+        place(5, 19, matrix(ty=68)),
+        place(6, 5, matrix(xx=8 / 220, yy=8 / 42, tx=80, ty=72), color=(1, .5, 0, 1)),
+    ]
+    dictionary.append(be("i", 4) + sprite([page_and_text]))
+    dictionary.append(edit_text("A A A"))
     main = [place(1, 1, matrix()), place(2, 2, matrix(tx=32, ty=24)),
             place(3, 4, matrix(xx=.9, yy=.9, xy=-.2, yx=.2, tx=452, ty=136)),
             place(4, 6, matrix(tx=64, ty=216), "pulse"),
@@ -219,6 +252,13 @@ def build_swf():
     main.append(place(16, 4, matrix(xx=.75, yy=.75, tx=480, ty=304), color=(.5, .25, .125, .5), blend=8))
     main.append(place(17, 5, matrix(xx=32 / 220, yy=16 / 42, tx=368, ty=340),
                       color=(.5, .25, .125, .5), blend=8))
+    main.extend((place(18, 16, matrix(tx=64, ty=120), clip_depth=20),
+                 place(19, 5, matrix(xx=320 / 220, yy=48 / 42, tx=64, ty=120), color=(0, 0, .5, 1)),
+                 place(20, 17, matrix(tx=64, ty=120)),
+                 place(21, 5, matrix(xx=8 / 220, yy=8 / 42, tx=52, ty=148)),
+                 place(22, 16, matrix(xx=.3, yy=88 / 48, tx=300, ty=204), clip_depth=23),
+                 place(23, 18, matrix(tx=300, ty=204)),
+                 place(24, 5, matrix(xx=8 / 220, yy=8 / 42, tx=288, ty=280))))
     main.append(main_actions())
     header = be("IqffH", 0x42535710, -1, 640, 480, 6 * 256)
     return header + sprite([main]) + be("i", len(dictionary)) + b"".join(dictionary)
@@ -373,13 +413,16 @@ def outputs():
     manifest = {
         "generator": "src/tools/scripts/build_authored_ui.py",
         "license": "GPL-3.0-or-later",
-        "profile": "BSWF16 native mask-free authored UI; no retail data",
+        "profile": "BSWF16 native convex-mask authored UI; no retail data",
         "blend_modes": [0, 8],
         "frame": {"width": 640, "height": 480, "rate": 6, "main_frames": 1, "pulse_frames": 4},
         "dictionary": ["null", "background shape", "panel shape", "ASCII A bitmap", "transformed bitmap shape",
                        "pulse shape", "pulse timeline sprite", "focus shape", "focus sprite", "ps2_ascii font",
                        "title edittext", "subtitle edittext", "status edittext", "continue edittext", "options edittext",
-                       "caption edittext"],
+                       "caption edittext", "convex trapezoid mask", "mask lifecycle sprite",
+                       "masked bitmap and text sprite", "masked A edittext"],
+        "masks": {"placements": 8, "max_active": 3, "max_vertices": 4, "max_triangles": 2,
+                  "profiles": ["affine convex", "nested", "crossing clip ranges", "same-depth expiry"]},
         "script": {"functions": ["focusNext", "select"], "variables": ["focusIndex", "selectCount", "selected"],
                    "actions": ["End", "Add", "Subtract", "Multiply", "GetVariable", "Push", "DefineFunction",
                                "Add2", "GetMember", "SetMember", "Increment"]},

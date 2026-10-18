@@ -31,7 +31,18 @@ PAGES_RE = re.compile(r"\[D3BFG\] UI pages images=(\d+) slots=(\d+) cache=(\d+) 
 TARGET_CRASH_RE = re.compile(r"TLB Miss|Assertion failed|Bus error", re.IGNORECASE)
 NEGATIVES = tuple(ui_capture.NEGATIVE_DIAGNOSTICS)
 BASELINE = (7424, 7600, 4)
-ANIMATION_WAIT = 16  # 250..320 ms after resume: one 6 Hz timeline step in either video mode.
+ANIMATION_WAITS = (16, 1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29)
+
+
+def animation_probe_commands(identity: str, cycle: int, probe: int) -> tuple[str, ...]:
+    if not 1 <= probe <= 12:
+        raise ValueError("native UI animation probe must be within the twelve-probe bound")
+    # Native timelines use elapsed time. A fixed frame delay can repeatedly land on the same
+    # four-frame pulse phase when rendering slows down; vary bounded delays without accepting
+    # a frozen animation or changing the watchdog deadline.
+    frames = ANIMATION_WAITS[probe - 1]
+    return ("ps2_ui resume", f"wait {frames}", "ps2_ui pause", "ps2_ui status",
+            f'echo "{identity}_c{cycle}_probe{probe}"')
 
 
 def echoed(log: str, marker: str) -> bool:
@@ -248,8 +259,7 @@ def run(args: argparse.Namespace, standard: str, version: str, case: str = "nati
                         probe = 1
                         append("ps2_consoleKey toggle", "ps2_status", 'ps2_consoleText "echo ui_console"', "ps2_consoleKey enter",
                                "wait 6", "ps2_consoleKey toggle", "ps2_status", "ps2_uiKey tab", "ps2_uiKey enter",
-                               "ps2_ui resume", f"wait {ANIMATION_WAIT}", "ps2_ui pause", "ps2_ui status",
-                               f'echo "{identity}_c{cycle}_probe{probe}"')
+                               *animation_probe_commands(identity, cycle, probe))
                         phase = "animation-probe"
                     elif phase == "animation-probe" and echoed(log, f"{identity}_c{cycle}_probe{probe}"):
                         states = LOADED_RE.findall(log)
@@ -262,7 +272,7 @@ def run(args: argparse.Namespace, standard: str, version: str, case: str = "nati
                             phase = "second-capture"
                         elif probe < 12:
                             probe += 1
-                            append("ps2_ui resume", f"wait {ANIMATION_WAIT}", "ps2_ui pause", "ps2_ui status", f'echo "{identity}_c{cycle}_probe{probe}"')
+                            append(*animation_probe_commands(identity, cycle, probe))
                         else:
                             failure = "native SWF timeline stayed on one pulse after twelve bounded probes"
                             break

@@ -5,6 +5,8 @@
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
+import ast
+import inspect
 import json
 from pathlib import Path
 import struct
@@ -44,6 +46,49 @@ def completed(standard="ntsc"):
 
 
 class NativeUiAcceptance(unittest.TestCase):
+    def test_animation_probe_delays_avoid_fixed_phase_aliasing_without_weakening_acceptance(self):
+        commands = [runner.animation_probe_commands("run", 2, probe) for probe in range(1, 13)]
+        waits = [int(command[1].split()[1]) for command in commands]
+        self.assertEqual(waits, [16, 1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29])
+        self.assertEqual(len(set(waits)), 12)
+        for probe, command in enumerate(commands, 1):
+            self.assertEqual(command[0], "ps2_ui resume")
+            self.assertEqual(command[2:4], ("ps2_ui pause", "ps2_ui status"))
+            self.assertEqual(command[4], f'echo "run_c2_probe{probe}"')
+        # Pause resets the native timeline remainder. At two render frames per pulse,
+        # repeating the earlier four waits from phase 4 only samples phases 4 and 1.
+        phase = 4
+        aliased = []
+        for frames in [16, 17, 19, 23] * 3:
+            phase = 1 + ((phase - 1 + frames // 2) % 4)
+            aliased.append(phase)
+        self.assertEqual(aliased, [4, 4, 1, 4] * 3)
+        # Short, non-repeating waits must expose a different required pulse 2/3 from
+        # every initial phase at several render/timeline ratios, with either retained
+        # or discarded fractional time. No phase or animation assertion is relaxed.
+        for frames_per_pulse in (1, 2, 4, 8):
+            for initial in (1, 2, 3, 4):
+                for retain_remainder in (False, True):
+                    phase, remainder = initial, 0
+                    phases = []
+                    for frames in waits:
+                        ticks, remainder = divmod(frames + (remainder if retain_remainder else 0), frames_per_pulse)
+                        phase = 1 + ((phase - 1 + ticks) % 4)
+                        phases.append(phase)
+                    self.assertTrue(any(phase != initial and phase in (2, 3) for phase in phases),
+                                    (frames_per_pulse, initial, retain_remainder))
+        for probe in (0, 13):
+            with self.subTest(probe=probe), self.assertRaises(ValueError):
+                runner.animation_probe_commands("run", 2, probe)
+
+    def test_initial_and_retry_animation_probes_share_the_checked_command_builder(self):
+        tree = ast.parse(inspect.getsource(runner.run))
+        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name) and node.func.id == "animation_probe_commands"]
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            self.assertEqual([ast.unparse(argument) for argument in call.args], ["identity", "cycle", "probe"])
+
     def test_three_native_loads_in_both_standards(self):
         for standard in ("ntsc", "pal"):
             passed, reason = runner.classify(completed(standard), "run", standard)

@@ -264,8 +264,44 @@ RGB instead would require a growing tolerance. Preserve the eight-channel thresh
 and compute the intermediate storage rounds instead.
 
 These RGB-only presentation profiles do not promise destination-alpha accumulation
-in a one-bit-alpha framebuffer. Masks, native screen blend 4 and nonzero additive
+in a one-bit-alpha framebuffer. Complex masks, native screen blend 4 and nonzero additive
 color transforms remain unadmitted; full retail movie rendering still fails explicitly.
+
+## Doom native convex SWF masks
+
+The GS has no native eight-bit stencil counter. The checked CPU bridge captures the
+transformed fill triangles from native `RenderMask`; it never emits mask geometry or
+clips a new mask against its parent. Reverse interior edges cancel, one closed
+boundary remains, and all boundary points must lie inside every edge. This positive
+triangle chain proves one convex coverage region rather than merely matching an area
+or bounding box. Degenerate triangles contribute no coverage; an empty mask clips
+everything. Concave, disconnected, holed, overlapping, nonconforming and stroked
+geometry remains unavailable. The profile bounds each capture at 64 triangles and
+16 simplified boundary points, with four active masks and 64 total clip planes.
+
+Flush completed write-only spans before every capture/add/remove. Key masks by the
+native display entry, since crossing clip-depth ranges can expire out of stack order.
+After `RemoveIndexFast`, revisit the swapped entry when several masks expire together.
+Compare native inherited/local mask counts against the backend set before translating
+SWF state; arbitrary stencil GLS bits remain unsupported. Reject outstanding mask
+ownership at scope, frame and shutdown boundaries in release too.
+
+Clip indexed runs and direct rectangle/font paths alike. Preserve original triangle
+edges and mask-plane constraints, reconstruct intersections canonically, keep UV/RGBA
+interpolation in float, and round colors only after all mask planes. An exact mask
+corner on an original edge retains both constraints. Validate original geometry and
+UVs even if an empty/offscreen mask hides it. Then dispatch the clipped geometry
+through existing screen/page clipping. Native fill-style alpha does not weight mask
+coverage: the material override uses placement/inherited color-transform alpha only
+for the native early skip. Do not treat a faint admitted mask as partial coverage.
+
+The authored native SWF exercises three simultaneous masks, crossing ranges, joint
+expiry, oblique/transformed boundaries, alpha/additive content, bitmap page seams and text.
+The retail inventory has ten rectangular dialog placements, but the shell also needs
+a 185-point outline, disconnected/holed meshes and two stroked masks. Its largest
+fill has 198 vertices and 183 triangles. Full retail drawing remains gated. PCSX2
+captures establish bounded functional clipping, not hardware fill cost or frame-rate
+acceptance.
 
 ## Quake frame model: 2D and 3D interleave
 

@@ -46,6 +46,11 @@ NEGATIVE_PROBES = {
     "renderer-ui-depth": "native UI vertex requires zero depth",
     "renderer-ui-half": "native UI half UV is not finite",
     "renderer-ui-color2": "renderer capability unavailable: native UI additive vertex color",
+    "renderer-ui-mask-concave": "native SWF mask requires bounded convex fill geometry",
+    "renderer-ui-mask-leak": "native SWF draw ended with outstanding mask ownership",
+    "renderer-ui-mask-key": "unknown native SWF mask key",
+    "renderer-ui-mask-count": "native SWF mask state disagrees with active geometry",
+    "renderer-ui-mask-stroke": "native SWF stroke masks unavailable",
     "jpeg-invalid": "SWF JPEG: invalid input",
     "jpeg-oversize": "SWF JPEG: invalid or oversized dimensions (limit 1024)",
     "jpeg-marker": "SWF JPEG: marker extends past input",
@@ -549,7 +554,7 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
             return False, "watchdog timeout"
         if re.search(r"TLB Miss|Bus error", log, re.IGNORECASE):
             return False, "crash diagnostic"
-        if result is not None or "returned unexpectedly" in log:
+        if result is not None or "returned unexpectedly" in log or "unexpectedly returned" in log:
             return False, "negative probe returned"
         if returncode not in (None, 0):
             return False, f"emulator exited with status {returncode}"

@@ -66,7 +66,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make ui` / `make run-ui` stage/run the same ELF with the authored native SWF under
   `build/<config>/ui/`, using `CONSOLE_STANDARD` for NTSC/PAL. `make test-ui` checks native
   loading, ASCII `idFont`, timeline color/alpha, AVM1 focus/select, capture and reloads.
-  The authored page-binding gate passes debug/release NTSC/PAL: it checks 42 pixels,
+  The authored page-binding gate passes debug/release NTSC/PAL: it checks 77 pixels,
   shared cache budgets and twelve invalid-resource cases, including deferred
   pixel corruption. A sanitizer cache harness also exercises assertions 0/1.
   `ps2_ui` controls load/unload/reload/status/pause/resume; `ps2_uiKey tab`/`enter` supply
@@ -103,7 +103,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
-  RGB/alpha, streamed UIPG pages with triangle splits and bounded cache pressure, context flips, residency/buffer pressure, reload/cleanup and twelve
+  RGB/alpha, streamed UIPG pages with triangle splits and bounded cache pressure, context flips, residency/buffer pressure, reload/cleanup and seventeen
   bounds/state/deadline failures. `make run-renderer` captures
   and holds the NTSC scene for inspection.
   Production optionally presents the real native console and authored native SWF through
@@ -117,7 +117,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   native SWF path also admits its zero-additive encoding of 127. Native SWF blend 8
   maps to alpha-weighted GS addition; ordinary ONE/ONE state outside that scope stays
   unavailable. Nonzero additive color transforms and the other special blends remain
-  unsupported. Native `idImage` keeps logical atlas dimensions while SWF bitmap and
+  unsupported. Native SWF masks collect at most 64 fill triangles into one convex
+  boundary of at most 16 points, with four active keyed masks. Flush before every mask
+  mutation; empty masks clip all content. Direct glyphs and indexed draws share CPU
+  clipping; reject concave/disconnected/holed/stroked masks and capacity violations.
+  Native `idImage` keeps logical atlas dimensions while SWF bitmap and
   ASCII font triangles use shared page dispatch. The authored 272×256 movie bitmap
   crosses x=254; the font retains its 512×128 atlas. Both images share one `PageCache`
   with four nearest/clamp slots (1 MiB), one 256 KiB scratch page and 56 bytes of page

@@ -98,7 +98,7 @@ void EndFrame()
     {
         FatalError("2D EndFrame without BeginFrame");
     }
-    ui::Flush();
+    ui::EndGeometryFrame();
     cmdbuf::EndFrame();
     gs::Present(s_context);
     s_frame = false;

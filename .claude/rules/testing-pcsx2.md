@@ -3,17 +3,18 @@
 ## Doom foundation procedures
 
 - `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
-  executable for the integrated GS/native-adapter scenes in NTSC/PAL, then twelve expected-fatal probes.
+  executable for the integrated GS/native-adapter scenes in NTSC/PAL, then seventeen expected-fatal probes.
   They do not initialize real Console/Common presentation or link fixtures into production. Fourteen GS
   markers require 120 presented frames, alternating contexts, a reload with smaller
   command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
   exact tagged cleanup. GIF/oversized-DIRECT bounds, a deliberately stalled deadline,
   and active unsupported UI state, rectangle, invalid quad and oversized text must remain
-  fatal with assertions off. Adapter startup also rejects insufficient VRAM/pixel budgets
+  fatal with assertions off. Five mask probes reject concavity, scope leaks, unknown keys,
+  active-count disagreement and stroke coverage. Adapter startup also rejects insufficient VRAM/pixel budgets
   without retaining partial ownership.
   Indexed geometry adds oversized single-request, invalid local-index, nonzero-depth,
   nonfinite half-UV and additive-color failures. Run both positive standards and all
-  twelve failures sequentially: fourteen isolated emulator sessions per configuration.
+  seventeen failures sequentially: nineteen isolated emulator sessions per configuration.
 - `make run-renderer` holds the completed NTSC picture for 60 seconds; PCSX2's configured
   F8 saves a framebuffer screenshot. `--scenario renderer-pal --visual-wait 60 --timeout 90`
   selects PAL when invoking the runner directly with the matching `--elf`. The native
@@ -65,14 +66,18 @@
 - `make test-ui` / `make BUILD=release test-ui` exercise the authored native SWF in the
   production ELF. Three loads each render at least 120 frames, pause two different
   timeline states (including fractional alpha), execute native Tab/Enter AVM1 focus and
-  selection, and open/type/close the real console over the movie. Forty-two pixels
+  selection, and open/type/close the real console over the movie. Seventy-seven pixels
   per capture cover shapes, a skewed bitmap across a page seam, glyph strokes/holes,
   focus and status text. Additive mode 8 uses original native PlaceObject3/RenderShape
   calls for solid and paged geometry; check alpha weighting, overlap, saturation, transparent
-  holes and the page seam. Derive expected RGB after each five-bit framebuffer storage
+  holes and the page seam. Convex clip-depth masks add inherited/crossing ranges,
+  simultaneous expiry, transformed boundaries, masked page UVs and native text. Derive expected RGB after each five-bit framebuffer storage
   round; keep the existing eight-channel tolerance. Require two images sharing four nearest/clamp slots (1 MiB),
   one 256 KiB scratch page and 56 bytes of page records. Captures must show exactly
   four loads, increasing hits/triangles and zero evictions across all movie reloads.
+  Animation probes vary their bounded frame waits; a fixed wait can alias the same
+  four-frame pulse when rendering slows. Still require a different fractional-alpha
+  phase within twelve probes, without changing the watchdog or accepting a frozen timeline.
   Require stable warm unload ledgers, full startup recovery, one presentation per normal
   frame, coalesced redraws and final capture/quit. Twelve fresh processes exercise
   invalid resources. BSWF/font cases reject missing, truncated, oversized or mutated

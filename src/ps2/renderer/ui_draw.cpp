@@ -8,6 +8,7 @@
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/null_render.h"
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/ui_masks.h"
 #include "ps2/renderer/ui_page_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
@@ -22,6 +23,11 @@ static bool s_initialized = false;
 static bool s_swfDraw = false;
 static uint64 s_savedSwfState = 0;
 static uint32 s_savedSwfColor = 0;
+static const void * s_maskKeys[ps2::ui::kMaxActiveMasks] = {};
+static ps2::ui::ConvexMask s_masks[ps2::ui::kMaxActiveMasks] = {};
+static int s_maskCount = 0;
+static const void * s_captureMask = nullptr;
+static ps2::ui::MaskBuilder s_maskBuilder;
 // The EE's native RGBA byte order is little endian; no idlib swap initialization is required.
 static_assert(std::endian::native == std::endian::little);
 static constexpr uint64 kBlendAlpha = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
@@ -254,8 +260,114 @@ idDrawVert * Allocate(int vertexCount, const triIndex_t * indexes, int indexCoun
     return output;
 }
 
+void CountTriangles(u32 count)
+{
+    if (s_geometryStats.triangles > UINT_MAX - count)
+    {
+        ps2::FatalError("native UI geometry counter overflow");
+    }
+
+    s_geometryStats.triangles += count;
+}
+
+void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
+              ps2::gs::BlendMode blend, bool emit)
+{
+    using namespace ps2::ui;
+    FixedTriangle fixed[kMaxClippedTriangles];
+    auto * const pages = ps2::render::UiPageImage(image);
+    int fixedCount = 0;
+    // Validate the original input too: an empty/offscreen mask must never hide malformed UVs.
+    if (pages != nullptr ? !pages->ValidateTriangle(input) : MapTriangle(input, { ps2::gs::Width(), ps2::gs::Height() }, image->GetUploadWidth(), image->GetUploadHeight(), fixed, fixedCount) == Result::Invalid)
+    {
+        ps2::FatalError("invalid native UI triangle or UV");
+    }
+
+    // Most text/console geometry has no mask. Keep it on the original page/fixed path.
+    if (s_maskCount == 0)
+    {
+        if (emit && pages != nullptr)
+        {
+            const u32 before = pages->GetStats().triangles;
+            if (!pages->DrawTriangle(input, blend))
+            {
+                ps2::FatalError("native UI paged triangle failed");
+            }
+
+            CountTriangles(pages->GetStats().triangles - before);
+        }
+        else if (emit)
+        {
+            CountTriangles(static_cast<u32>(fixedCount));
+            for (int triangle = 0; triangle < fixedCount; ++triangle)
+            {
+                if (!ps2::rs::TexturedTriangleFixed(ps2::render::ConsoleImageTexture(image), fixed[triangle], blend))
+                {
+                    ps2::FatalError("native UI triangle texture residency failed");
+                }
+            }
+        }
+
+        return;
+    }
+
+    Vertex clipped[kMaxMaskClipVertices];
+    int count = 0;
+    if (!ClipMaskTriangle(input, s_masks, s_maskCount, clipped, count))
+    {
+        ps2::FatalError("native UI mask clipping exceeds bounded geometry");
+    }
+
+    for (int i = 1; i + 1 < count; ++i)
+    {
+        const Vertex piece[3] = { clipped[0], clipped[i], clipped[i + 1] };
+        if (pages != nullptr)
+        {
+            if (!pages->ValidateTriangle(piece))
+            {
+                ps2::FatalError("invalid native UI masked page geometry");
+            }
+
+            if (emit)
+            {
+                const u32 before = pages->GetStats().triangles;
+                if (!pages->DrawTriangle(piece, blend))
+                {
+                    ps2::FatalError("native UI paged triangle failed");
+                }
+
+                CountTriangles(pages->GetStats().triangles - before);
+            }
+        }
+        else
+        {
+            if (MapTriangle(piece, { ps2::gs::Width(), ps2::gs::Height() }, image->GetUploadWidth(),
+                            image->GetUploadHeight(), fixed, fixedCount) == Result::Invalid)
+            {
+                ps2::FatalError("invalid native UI masked triangle");
+            }
+
+            if (emit)
+            {
+                CountTriangles(static_cast<u32>(fixedCount));
+                for (int triangle = 0; triangle < fixedCount; ++triangle)
+                {
+                    if (!ps2::rs::TexturedTriangleFixed(ps2::render::ConsoleImageTexture(image), fixed[triangle], blend))
+                    {
+                        ps2::FatalError("native UI triangle texture residency failed");
+                    }
+                }
+            }
+        }
+    }
+}
+
 void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::gs::Color color, ps2::gs::BlendMode blend)
 {
+    if (s_captureMask != nullptr)
+    {
+        ps2::FatalError("native SWF mask requires indexed fill geometry");
+    }
     if (image == nullptr || !image->IsLoaded())
     {
         ps2::render::Unavailable("native UI unloaded image");
@@ -285,7 +397,7 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::gs::Color colo
         return;
     }
 
-    if (pages != nullptr)
+    if (pages != nullptr || s_maskCount != 0)
     {
         const ps2::ui::Vertex corners[] = {
             { rect.x, rect.y, rect.s0, rect.t0, color.r, color.g, color.b, color.a },
@@ -300,10 +412,7 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::gs::Color colo
 
         for (const auto & triangle : triangles)
         {
-            if (!pages->ValidateTriangle(triangle))
-            {
-                ps2::FatalError("invalid native UI paged rectangle or UV");
-            }
+            Triangle(triangle, image, blend, false);
         }
 
         if (result == ps2::ui::Result::Clipped)
@@ -316,10 +425,7 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::gs::Color colo
 
         for (const auto & triangle : triangles)
         {
-            if (!pages->DrawTriangle(triangle, blend))
-            {
-                ps2::FatalError("native UI paged triangle failed");
-            }
+            Triangle(triangle, image, blend, true);
         }
 
         return;
@@ -447,7 +553,7 @@ PS2_COLD_FUNC void Shutdown()
     {
         FatalError("native UI shutdown with an open frame");
     }
-    if (s_batchCount != 0 || s_flushing || s_swfDraw)
+    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0)
     {
         FatalError("native UI shutdown with pending geometry");
     }
@@ -468,7 +574,7 @@ GeometryStats GetGeometryStats()
 void BeginSwfDraw()
 {
     Require(&tr, "native SWF draw scope", true);
-    if (s_swfDraw)
+    if (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0)
     {
         FatalError("nested native SWF drawing");
     }
@@ -484,10 +590,94 @@ void EndSwfDraw()
     {
         FatalError("native SWF draw scope not active");
     }
+
+    if (s_captureMask != nullptr || s_maskCount != 0)
+    {
+        FatalError("native SWF draw ended with outstanding mask ownership");
+    }
+
     Flush();
     s_swfDraw = false;
     tr.currentGLState = s_savedSwfState;
     tr.currentColorNativeBytesOrder = s_savedSwfColor;
+}
+
+void BeginSwfMask(const void * key)
+{
+    Require(&tr, "native SWF mask capture", true);
+    if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr || s_maskCount == kMaxActiveMasks)
+    {
+        FatalError("invalid native SWF mask begin");
+    }
+
+    for (int i = 0; i < s_maskCount; ++i)
+    {
+        if (s_maskKeys[i] == key)
+        {
+            FatalError("duplicate native SWF mask key");
+        }
+    }
+
+    Flush();
+    s_maskBuilder.Reset();
+    s_captureMask = key;
+}
+
+void EndSwfMask()
+{
+    Require(&tr, "native SWF mask completion", true);
+    if (!s_swfDraw || s_flushing || s_captureMask == nullptr)
+    {
+        FatalError("native SWF mask capture not active");
+    }
+
+    Flush();
+    if (!s_maskBuilder.Finish(s_masks[s_maskCount]))
+    {
+        FatalError("native SWF mask requires bounded convex fill geometry");
+    }
+
+    s_maskKeys[s_maskCount++] = s_captureMask;
+    s_captureMask = nullptr;
+}
+
+void RemoveSwfMask(const void * key)
+{
+    Require(&tr, "native SWF mask removal", true);
+    if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr)
+    {
+        FatalError("invalid native SWF mask removal");
+    }
+
+    int index = 0;
+    while (index < s_maskCount && s_maskKeys[index] != key)
+    {
+        ++index;
+    }
+
+    if (index == s_maskCount)
+    {
+        FatalError("unknown native SWF mask key");
+    }
+
+    Flush();
+    for (int i = index; i + 1 < s_maskCount; ++i)
+    {
+        s_masks[i] = s_masks[i + 1];
+        s_maskKeys[i] = s_maskKeys[i + 1];
+    }
+
+    s_masks[--s_maskCount] = {};
+    s_maskKeys[s_maskCount] = nullptr;
+}
+
+void ValidateSwfMaskState(int activeMasks, bool capturing)
+{
+    if (!s_swfDraw || s_flushing || capturing != (s_captureMask != nullptr) ||
+        activeMasks != (capturing ? 0 : s_maskCount))
+    {
+        FatalError("native SWF mask state disagrees with active geometry");
+    }
 }
 
 void BeginGeometryFrame()
@@ -496,10 +686,20 @@ void BeginGeometryFrame()
     {
         return;
     }
-    if (s_batchCount != 0 || s_flushing || s_swfDraw)
+    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0)
     {
         FatalError("native UI geometry crossed a frame boundary");
     }
+}
+
+void EndGeometryFrame()
+{
+    if (s_initialized && (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0))
+    {
+        FatalError("native UI frame ended with outstanding SWF ownership");
+    }
+
+    Flush();
 }
 
 idDrawVert * AllocTrisForImage(int vertices, const u16 * indexes, int indexCount, const idImage * image, gs::BlendMode blend)
@@ -526,50 +726,72 @@ void Flush()
     }
     Require(&tr, "native UI geometry flush", true);
     PS2_Assert(s_vertexCount > 0 && s_indexCount > 0);
-    FixedTriangle output[kMaxClippedTriangles];
-    const auto Decode = [](const Batch & batch, int first, Vertex(&input)[3])
+    if (s_geometryStats.flushes == UINT_MAX)
     {
+        FatalError("native UI geometry counter overflow");
+    }
+
+    ++s_geometryStats.flushes;
+    if (s_captureMask != nullptr)
+    {
+        // Mask fills are coverage, independent of UV/color or existing parent clips.
+        for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
+        {
+            const Batch & batch = s_batches[batchIndex];
+            if (!batch.profile.enabled)
+            {
+                continue;
+            }
+
+            for (int first = 0; first < batch.indexCount; first += 3)
+            {
+                MaskPoint points[3];
+                for (int corner = 0; corner < 3; ++corner)
+                {
+                    const int index = s_indexes[batch.firstIndex + first + corner];
+                    const auto & position = s_vertices[batch.firstVertex + index].xyz;
+                    if (!PortableFloat(position.z) || position.z != 0.0f)
+                    {
+                        FatalError("native SWF mask vertex requires zero depth");
+                    }
+
+                    points[corner] = { position.x, position.y };
+                }
+
+                if (!s_maskBuilder.AddTriangle(points))
+                {
+                    FatalError("native SWF mask exceeds bounded fill geometry");
+                }
+            }
+        }
+
+        s_vertexCount = s_indexCount = s_batchCount = 0;
+        return;
+    }
+
+    const auto Visit = [](const Batch & batch, int first, bool emit)
+    {
+        Vertex input[3];
         for (int corner = 0; corner < 3; ++corner)
         {
             const int index = s_indexes[batch.firstIndex + first + corner];
             input[corner] = DecodeVertex(s_vertices[batch.firstVertex + index], batch.profile);
         }
-    };
-    const auto Map = [&output, &Decode](const Batch & batch, int first, int & count)
-    {
-        Vertex input[3];
-        Decode(batch, first, input);
-        auto * const pages = render::UiPageImage(batch.profile.image);
 
-        if (pages != nullptr)
-        {
-            count = 0;
-            return pages->ValidateTriangle(input) ? Result::Draw : Result::Invalid;
-        }
-
-        return MapTriangle(input, { gs::Width(), gs::Height() }, batch.profile.image->GetUploadWidth(),
-                           batch.profile.image->GetUploadHeight(), output, count);
+        Triangle(input, batch.profile.image, batch.profile.blend, emit);
     };
-    // Validate the complete queued collection before binding textures or emitting any GS packet.
+    // Preflight the complete collection, including clipped-away inputs, before any GS emission.
     for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
     {
         const Batch & batch = s_batches[batchIndex];
         render::ValidateUiImage(batch.profile.image);
         for (int index = 0; index < batch.indexCount; index += 3)
         {
-            int count = 0;
-            if (Map(batch, index, count) == Result::Invalid)
-            {
-                FatalError("invalid native UI triangle or UV");
-            }
+            Visit(batch, index, false);
         }
     }
+
     s_flushing = true;
-    if (s_geometryStats.flushes == UINT_MAX)
-    {
-        FatalError("native UI geometry counter overflow");
-    }
-    ++s_geometryStats.flushes;
     for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
     {
         const Batch & batch = s_batches[batchIndex];
@@ -577,48 +799,10 @@ void Flush()
         {
             continue;
         }
-        auto * const pages = render::UiPageImage(batch.profile.image);
+
         for (int index = 0; index < batch.indexCount; index += 3)
         {
-            if (pages != nullptr)
-            {
-                Vertex input[3];
-                Decode(batch, index, input);
-                const u32 before = pages->GetStats().triangles;
-
-                if (!pages->DrawTriangle(input, batch.profile.blend))
-                {
-                    FatalError("native UI paged triangle failed");
-                }
-
-                const u32 emitted = pages->GetStats().triangles - before;
-
-                if (s_geometryStats.triangles > UINT_MAX - emitted)
-                {
-                    FatalError("native UI geometry counter overflow");
-                }
-
-                s_geometryStats.triangles += emitted;
-                continue;
-            }
-
-            int count = 0;
-            if (Map(batch, index, count) == Result::Invalid)
-            {
-                FatalError("native UI geometry changed during flush");
-            }
-            if (s_geometryStats.triangles > UINT_MAX - static_cast<u32>(count))
-            {
-                FatalError("native UI geometry counter overflow");
-            }
-            s_geometryStats.triangles += static_cast<u32>(count);
-            for (int triangle = 0; triangle < count; ++triangle)
-            {
-                if (!rs::TexturedTriangleFixed(render::ConsoleImageTexture(batch.profile.image), output[triangle], batch.profile.blend))
-                {
-                    FatalError("native UI triangle texture residency failed");
-                }
-            }
+            Visit(batch, index, true);
         }
     }
     s_vertexCount = s_indexCount = s_batchCount = 0;
@@ -661,6 +845,11 @@ uint32 idRenderSystemLocal::GetColor()
 void idRenderSystemLocal::SetGLState(uint64 state)
 {
     Require(this, "idRenderSystemLocal::SetGLState");
+    if (s_captureMask != nullptr && (state & GLS_POLYMODE_LINE) != 0)
+    {
+        ps2::FatalError("native SWF stroke masks unavailable");
+    }
+
     (void)Blend(state);
     currentGLState = state;
 }

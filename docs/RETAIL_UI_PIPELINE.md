@@ -314,7 +314,9 @@ through the opt-in native resource path. Inactive BSWF dictionaries and isolated
 The scoped execution path below now adds native timeline and callback ownership for
 initial states. Native blend mode 8 now has an alpha-weighted additive GS path for
 the zero-additive-color profile, exercised by the authored native SWF. Mode 4, nonzero
-additive color transforms, masks and strokes are still explicit feature gaps. Full
+additive color transforms, complex masks and strokes are still explicit feature gaps.
+A bounded native convex-mask path now exists for authored geometry; it does not
+admit the shell's holed/disconnected meshes, 185-point outline or stroked masks. Full
 movie rendering, general dynamic resource closure and
 measured active menu working sets remain pending. This does not complete milestone
 2D-5 or activate the complete retail menu.

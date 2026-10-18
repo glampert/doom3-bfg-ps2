@@ -59,8 +59,8 @@ standard library. None adds an EE source, vendor dependency or target capability
 The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest;
 the native UIPG reader, page splitter and fixed texture cache supply native page binding.
 The English resource catalog, inactive retail dictionaries and opt-in bounded timeline
-execution now build on that layer. Production retains **373 direct inputs** and the
-compile database has **398 entries**. The minimal retail owner adds the original native
+execution now build on that layer. Production retains **374 direct inputs** and the
+compile database has **399 entries**. The minimal retail owner adds the original native
 Credits unit and uses the retained carousel implementation; full movie drawing and
 offline Shell navigation remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
 
@@ -75,7 +75,7 @@ does not initialize the campaign game. `CORE_BOOT` controls this selection only 
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
 `PS2_CXX_SRC` owns production entry, the Common loop provider and the strict optional
-presentation and movie providers. Production links 373 direct objects, retaining all eleven
+presentation and movie providers. Production links 374 direct objects, retaining all eleven
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.

@@ -24,8 +24,8 @@ AAS and one idle AI. Full campaign player startup, animated AI/gameplay, retail 
 and sound/world-render output remain pending. The first CPU-only GS 2D device slice
 now passes in PCSX2. Production now connects the real native console to Common
 frames through an explicit NTSC/PAL boot policy. Bounded indexed geometry, native font
-metrics, material declarations and timeline/AVM1 execution now draw an authored mask-free
-SWF with animation, focus/select and console overlays in debug/release NTSC/PAL. The
+metrics, material declarations and timeline/AVM1 execution now draw an authored
+SWF with bounded convex masks with animation, focus/select and console overlays in debug/release NTSC/PAL. The
 retail pipeline now admits English fonts, inactive dictionaries and explicitly bounded
 shell/dialog timeline execution with minimal native carousel/Credits ownership. Full
 retail movie rendering, active artwork residency, required masks/blends and offline
@@ -3329,3 +3329,94 @@ Run `make run-ui` to inspect this scene, or select `BUILD=release CONSOLE_STANDA
 gates; use `BUILD=release` for assertions-off checks. Next implement the required mask
 and remaining color/blend contracts before enabling full retail movie rendering and
 offline Shell navigation. No physical PS2 throughput or full menu acceptance is claimed.
+
+## Native convex SWF masks (2D-6 second slice)
+
+Accepted **2026-10-18, Australia/Sydney**, in debug/release NTSC/PAL.
+The first mask profile captures the native `RenderMask` fill triangles and clips
+content on the CPU, without a GS stencil buffer or mask pixel surfaces. Captures
+admit **64 input triangles**, **16 simplified convex boundary points** and **four
+active masks**. Reverse interior edges cancel; a single closed convex boundary
+proves exact coverage. Empty masks clip everything. Concave, disconnected, holed,
+overlapping, nonconforming and stroked geometry remains explicitly unavailable.
+
+Mask ownership uses native display-entry identities, so crossing clip ranges can
+expire in either order. Every mutation drains completed write-only spans. The PS2
+expiry loop revisits entries swapped by `RemoveIndexFast`, fixing simultaneous
+expiry. Native state must agree with the inherited/local active count; arbitrary
+stencil bits remain unsupported. Scope, frame and shutdown boundaries reject leaks
+in release too. Both indexed content and direct rectangle/font draws share clipping.
+Original triangle-edge/mask-plane constraints reconstruct intersections, preserving
+full-atlas UVs and float color interpolation before final byte rounding. Unmasked
+geometry keeps its existing direct path.
+
+The existing authored movie now has **20 dictionary entries**, **eight convex mask
+placements** and a peak of **three active masks**. Its original bitmap/font atlases
+are unchanged. All **77 source/reference pixels per capture** pass through three
+load/input/reload cycles in debug/release NTSC/PAL. They cover oblique trapezoid
+boundaries, nested/crossing intersections, simultaneous expiry, restored parent
+clipping, solid/half-alpha/additive strips, bitmap page seams/holes and native text.
+The [NTSC](images/swf-masks-2d-6-ntsc.png) and
+[PAL](images/swf-masks-2d-6-pal.png) captures were inspected for intact text, clean
+clip edges, transparent glyph holes and preserved original UI regions. Pixel
+colors and the existing eight-channel tolerance remain unchanged.
+
+| Configuration | Authored UI NTSC archive | Authored UI PAL archive |
+| --- | --- | --- |
+| Debug | `20261018T002132Z_ui_22f4f68962b5` | `20261018T002208Z_ui_5ea98e6dd667` |
+| Release | `20261018T002318Z_ui_f34a5871030b` | `20261018T002355Z_ui_97e19a6f293e` |
+
+Both matrices also pass all twelve malformed-resource cases. Two early runs
+(`20261018T001704Z_ui_8c27feda4750`, `20261018T001910Z_ui_c5d77f9620aa`) were rejected
+because frame-count animation probes repeatedly sampled the same pulse phases.
+The runner now uses twelve distinct bounded waits, including short intervals,
+while still requiring a different fractional-alpha phase, complete shutdown and
+the original watchdog. No crash, animation or pixel criterion was relaxed.
+
+The host sanitizer suite passes **334 Python regressions** plus its C++ harnesses.
+The existing triangle harness now covers topology rejection, capacity limits,
+reflected meshes, interpolation, hostile floats, fractional shared edges and
+3,000 deterministic four-mask intersections under reversed winding/mask order.
+No new native fixture or executable is added.
+
+The retail inventory remains a separate gate. Dialog has ten placements using two
+rectangular shapes. Shell has 54 placements referencing 29 mask shapes, including
+a 185-point outline, disconnected regions, concave text outlines and holes; two
+masks also have opaque boundary strokes. Its largest fill has 198 vertices and
+183 triangles. Conservative all-frame display graphs show at most one inherited/
+local active mask, but fourteen shell placements rotate/shear the local rectangle.
+A bounded triangulated representation and explicit stroke coverage are the next
+mask candidates. Full retail `Render` remains gated, as do screen blend 4, nonzero
+additive color transforms, active-artwork residency and offline Shell navigation.
+
+Both existing renderer matrices pass **19 isolated cases**: NTSC/PAL positive
+scenes and seventeen expected-fatal probes. The five new mask probes require
+concave coverage, scope leaks, unknown removal keys, active-count mismatch and
+stroke masks to fail with assertions off. Existing geometry/page pixels, timeout
+recovery, context flips, pool/residency pressure and cleanup remain accepted.
+Positive renderer archives are debug `20261018T002507Z_smoke_e8e38fb31db7409e` /
+`20261018T002531Z_smoke_79ad3d3e48d94129` and release
+`20261018T002635Z_smoke_9b0a680b808a416b` / `20261018T002658Z_smoke_5d09e03e510346ab`.
+Production headless bounded/live-quit regressions also pass in both builds:
+debug `20261018T002805Z_headless_0396520fe5b4` /
+`20261018T002809Z_headless_8d27771683a3`, release
+`20261018T002819Z_headless_92fbf113bdc5` / `20261018T002824Z_headless_7a2c585e6adb`.
+
+The CPU mask state occupies **4,404 fixed resident bytes**, with no new pixel/VRAM
+allocation. GCC reports 7,440 bytes of clipping scratch and a 1,888-byte dispatcher
+frame; individual stack frames and the 128 KiB reserve are recorded in the
+[memory notes](../.claude/rules/memory-budget.md#doom-convex-ui-mask-budget-2026-10-18).
+The twenty-entry movie peaks at **3,885,301 requested / 3,992,336 backing bytes**;
+arena commitment is **4,212,891 debug / 4,214,043 release**. Warm unload remains
+**3,842,175 / 3,943,140 / 2,459**, and full shutdown **7,424 / 7,600 / 4**.
+Production `PT_LOAD` is **11,159,397 debug / 11,596,517 release bytes**; core is
+**2,139,184 / 2,223,920 bytes**. Production retains **374 direct objects**, zero
+test inputs/symbols and no GC; the compile database has **399 entries**, and the
+audit still classifies 458 upstream units. These are functional emulator checks,
+not physical PS2 cache, throughput or frame-rate acceptance.
+
+Run the latest authored scene with `make run-ui`; use `make test-ui`,
+`make test-renderer`, `make test-headless` and `make test-host` for the associated
+gates, adding `BUILD=release` for assertions-off target checks. Next address the
+remaining complex shell mask geometry and strokes before the other retail drawing
+and native offline menu gates.

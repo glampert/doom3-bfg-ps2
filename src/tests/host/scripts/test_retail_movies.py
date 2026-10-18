@@ -90,7 +90,7 @@ class MovieResourcesTests(unittest.TestCase):
         for phase, (name, movie_name, movie) in enumerate(phases):
             prototype, rows = runner.expected_labels(manifest, self.source, movie)
             mode = "active" if execution else "inactive"
-            log += (f"RETAIL movie={movie} state=loaded frames=120 dictionary=16 texts=6 preview=10 "
+            log += (f"RETAIL movie={movie} state=loaded frames=120 dictionary=20 texts=7 preview=10 "
                     f"english=3 scripts={mode} heap=100/120/8\n")
             if execution:
                 log += (f"RETAIL execution movie={movie} ticks=120 root=1 sprites=2 texts=3 "
@@ -319,7 +319,7 @@ class MovieResourcesTests(unittest.TestCase):
         words = struct.unpack("<16I", raw)
         self.assertEqual(words[:5], (0x564D4955, 1, 64, 1, 2))
         self.assertEqual(words[5:8], (len(self.language), fnv1a32(self.language), 3))
-        self.assertEqual(words[8:12], (len(self.movie), fnv1a32(self.movie), 16, 10))
+        self.assertEqual(words[8:12], (len(self.movie), fnv1a32(self.movie), 20, 10))
         self.assertEqual(words[8:12], words[12:16])
         self.assertEqual([name for _, name in assets], ["english.lang", "shell.bswf", "dialog.bswf"])
         self.assertEqual(staging.movie_resources(self.source, self.manifest)[0], raw)

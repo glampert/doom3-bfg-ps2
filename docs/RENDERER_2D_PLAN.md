@@ -374,6 +374,27 @@ for the required remainder; either needs captured equivalence tests and a RAM/fi
 budget. A one-bit GS mask is an optional separately validated special case, not general
 SWF support. Retail shell acceptance waits for its actual required masks.
 
+The convex implementation captures native transformed fill triangles and proves one
+convex boundary by cancelling matching interior edges. It admits up to 64 input
+triangles, 16 boundary points and four simultaneous keyed masks; empty masks clip all
+content. It clips both indexed geometry and direct glyph quads, preserving original
+edge/plane constraints through interpolation. Unsupported topology, strokes and
+capacity violations fail in release too.
+Rectangles currently use the same CPU polygon path; a GS scissor fast path can follow
+after equivalent pixel/UV coverage is verified.
+
+The local retail profile contains two rectangular dialog masks (ten placements).
+The shell's 54 placements reference 29 shapes: a 185-point convex silhouette,
+disconnected regions, concave text outlines and holes, plus two stroked masks.
+Fourteen shell placements transform the local rectangular mask with rotation/shear.
+Conservative all-frame display graphs show at most one inherited/local mask active
+in either movie, although the authored path deliberately exercises three. The
+largest fill has 198 vertices and the largest mesh 183 triangles. These complex
+shapes remain outside the first convex admission profile; subsequent work should
+evaluate a bounded triangle-mesh representation and preserve exact shared-edge
+coverage before enabling the retail movie.
+
+
 ## UI assets and menu dependencies
 
 ### Read-only retail inventory
@@ -574,7 +595,7 @@ That slice proved video setup, command ownership and solid GS pixels in PCSX2.
 supplies intrinsic images, native display/draw methods and `console->Draw` through
 an explicit production display policy and safe Common frame/`UpdateScreen` lifecycle.
 The current **2D-4** implementation supplies bounded indexed UI, authored materials,
-native fonts and one interactive mask-free native SWF. The host retail UI
+native fonts and one interactive authored native SWF. The host retail UI
 inventory/cook foundation (**2D-5**) is now available. The authored native SWF/font page
 binding passes with a shared budget. Native English font/image/material resources and
 legacy layout metrics now pass their separate opt-in resource screen. Bounded native
@@ -584,3 +605,6 @@ then measure the actual menu bitmap working set. Inactive BSWF and English edit-
 inspection provide the storage/layout foundation for required SWF feature closure
 (**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
 the interface; native BFG menu and world-rendering acceptance remain separate gates.
+The first **2D-6** slices add scoped native mode-8 blending and bounded convex mask
+clipping. Complex shell masks, strokes, screen mode 4 and nonzero additive color
+transforms still precede full retail drawing.

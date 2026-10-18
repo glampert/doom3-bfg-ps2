@@ -29,6 +29,11 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 #include "../renderer/tr_local.h"
 
+// [PS2_D3BFG]: Native mask lifetimes drive checked CPU clipping instead of GS stencil state.
+#ifdef ID_PS2
+#include "ps2/renderer/ui_draw.h"
+#endif
+
 idCVar swf_timescale( "swf_timescale", "1", CVAR_FLOAT, "timescale for swf files" );
 idCVar swf_stopat( "swf_stopat", "0", CVAR_FLOAT, "stop at a specific frame" );
 
@@ -74,7 +79,7 @@ idSWF::Render
 ========================
 */
 void idSWF::Render( idRenderSystem * gui, int time, bool isSplitscreen ) {
-	// [PS2_D3BFG]: Masks/blends remain unadmitted; resource inspection must never draw the full movie.
+	// [PS2_D3BFG]: Complex masks/blends remain gated; resource inspection never draws the full movie.
 #if defined( ID_PS2 )
 	if ( resourceOnly )
 	{
@@ -179,6 +184,21 @@ idSWF::RenderMask
 ========================
 */
 void idSWF::RenderMask( idRenderSystem * gui, const swfDisplayEntry_t * mask, const swfRenderState_t & renderState, const int stencilMode ) {
+// [PS2_D3BFG]: Capture each mask once; keyed removal also supports crossing clip-depth ranges.
+#ifdef ID_PS2
+	if ( stencilMode == STENCIL_DECR )
+	{
+		ps2::ui::RemoveSwfMask( mask );
+		return;
+	}
+
+	if ( stencilMode != STENCIL_INCR || mask->characterID >= dictionary.Num() )
+	{
+		idLib::FatalError( "invalid native SWF mask request" );
+	}
+
+	ps2::ui::BeginSwfMask( mask );
+#endif
 	swfRenderState_t renderState2;
 	renderState2.stereoDepth = renderState.stereoDepth;
 	renderState2.matrix = mask->matrix.Multiply( renderState.matrix );
@@ -193,6 +213,15 @@ void idSWF::RenderMask( idRenderSystem * gui, const swfDisplayEntry_t * mask, co
 	} else if ( entry.type == SWF_DICT_MORPH ) {
 		RenderMorphShape( gui, entry.shape, renderState2 );
 	}
+// [PS2_D3BFG]: Finalize even an alpha-skipped empty mask, which clips all following geometry.
+#ifdef ID_PS2
+	else
+	{
+		idLib::FatalError( "native SWF mask requires shape geometry" );
+	}
+
+	ps2::ui::EndSwfMask();
+#endif
 }
 
 /*
@@ -223,6 +252,10 @@ void idSWF::RenderSprite( idRenderSystem * gui, idSWFSpriteInstance * spriteInst
 			if ( display.depth > mask->clipDepth ) {
 				RenderMask( gui, mask, renderState, STENCIL_DECR );
 				activeMasks.RemoveIndexFast( j );
+// [PS2_D3BFG]: Revisit the swapped entry when several masks expire before the same display.
+#ifdef ID_PS2
+				j--;
+#endif
 			}
 		}
 		if ( display.clipDepth > 0 ) {
@@ -395,6 +428,11 @@ idSWF::GLStateForBlendMode
 uint64 idSWF::GLStateForRenderState( const swfRenderState_t & renderState ) {
 	uint64 extraGLState = GLS_OVERRIDE | GLS_DEPTHFUNC_LESS | GLS_DEPTHMASK; // SWF GL State always overrides what's set in the material
 
+// [PS2_D3BFG]: Only the explicit native bridge may replace SWF stencil tests with CPU masks.
+#ifdef ID_PS2
+	const bool capturingMask = renderState.activeMasks == STENCIL_INCR;
+	ps2::ui::ValidateSwfMaskState( capturingMask ? 0 : renderState.activeMasks, capturingMask );
+#else
 	if ( renderState.activeMasks > 0 ) {
 		extraGLState |= GLS_STENCIL_FUNC_EQUAL | GLS_STENCIL_MAKE_REF( 128 + renderState.activeMasks ) | GLS_STENCIL_MAKE_MASK( 255 );
 	} else if ( renderState.activeMasks == STENCIL_INCR ) {
@@ -402,6 +440,7 @@ uint64 idSWF::GLStateForRenderState( const swfRenderState_t & renderState ) {
 	} else if ( renderState.activeMasks == STENCIL_DECR ) {
 		return GLS_COLORMASK | GLS_ALPHAMASK | GLS_STENCIL_OP_FAIL_KEEP | GLS_STENCIL_OP_ZFAIL_KEEP | GLS_STENCIL_OP_PASS_DECR;
 	}
+#endif
 
 	switch ( renderState.blendMode ) {
 		case 7: // difference : dst = abs( dst - src )

@@ -37,9 +37,16 @@ idDrawVert * AllocTrisForImage(int vertices, const u16 * indexes, int indexCount
 void DrawIndexed(const idDrawVert * vertices, int vertexCount, const u16 * indexes, int indexCount,
                  const idImage * image, gs::BlendMode blend);
 void BeginGeometryFrame();
+void EndGeometryFrame();
 void Flush();
 // Native SWF's zero-additive color transform maps its normal/add blends to straight RGBA GS draws.
 // Scope it explicitly; ordinary UI callers retain their stricter state/color2 contract.
 void BeginSwfDraw();
 void EndSwfDraw();
+// Masks collect native transformed fill triangles without drawing. A completed convex mask clips
+// subsequent geometry until its display-entry key is removed; removal need not be in stack order.
+void BeginSwfMask(const void * key);
+void EndSwfMask();
+void RemoveSwfMask(const void * key);
+void ValidateSwfMaskState(int activeMasks, bool capturing);
 } // namespace ps2::ui

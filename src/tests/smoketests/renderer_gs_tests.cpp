@@ -714,7 +714,10 @@ bool RunGsFailureProbe(const char * name)
         strcmp(name, "renderer-ui-bounds") != 0 && strcmp(name, "renderer-ui-quad") != 0 &&
         strcmp(name, "renderer-ui-text") != 0 && strcmp(name, "renderer-ui-indices") != 0 &&
         strcmp(name, "renderer-ui-capacity") != 0 && strcmp(name, "renderer-ui-depth") != 0 &&
-        strcmp(name, "renderer-ui-half") != 0 && strcmp(name, "renderer-ui-color2") != 0)
+        strcmp(name, "renderer-ui-half") != 0 && strcmp(name, "renderer-ui-color2") != 0 &&
+        strcmp(name, "renderer-ui-mask-concave") != 0 && strcmp(name, "renderer-ui-mask-leak") != 0 &&
+        strcmp(name, "renderer-ui-mask-key") != 0 && strcmp(name, "renderer-ui-mask-count") != 0 &&
+        strcmp(name, "renderer-ui-mask-stroke") != 0)
     {
         return false;
     }
@@ -770,6 +773,54 @@ bool RunGsFailureProbe(const char * name)
         {
             (void)ui::AllocTrisForImage(ui::kMaxVertices + 1, kTriangleIndices, 3,
                                         render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+        }
+        else if (idStr::Cmpn(name, "renderer-ui-mask-", 17) == 0)
+        {
+            const int keys[2] = { 0, 1 };
+            ui::BeginSwfDraw();
+            ui::BeginSwfMask(&keys[0]);
+            if (strcmp(name, "renderer-ui-mask-stroke") == 0)
+            {
+                renderSystem->SetGLState(GLS_POLYMODE_LINE);
+            }
+
+            if (strcmp(name, "renderer-ui-mask-concave") == 0)
+            {
+                // The triangulation exactly fills an L: its concavity must survive preflight.
+                static constexpr triIndex_t kConcaveIndices[] = { 0, 1, 2, 0, 2, 3, 0, 3, 5, 3, 4, 5 };
+                const idVec2 positions[] = {
+                    idVec2(0, 0), idVec2(64, 0), idVec2(64, 24),
+                    idVec2(24, 24), idVec2(24, 64), idVec2(0, 64)
+                };
+                idDrawVert * const vertices = ui::AllocTrisForImage(6, kConcaveIndices, 12,
+                                                                    render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+                for (int vertex = 0; vertex < 6; ++vertex)
+                {
+                    IndexedVertex(vertices[vertex], positions[vertex].x, positions[vertex].y,
+                                  0, 0, { 255, 255, 255, 255 });
+                }
+            }
+            else
+            {
+                idDrawVert * const vertices = ui::AllocTrisForImage(4, kQuadIndices, 6,
+                                                                    render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+                const idVec2 positions[] = { idVec2(0, 0), idVec2(64, 0), idVec2(64, 64), idVec2(0, 64) };
+                IndexedQuad(vertices, positions, 0, 0, 1, 1, { 255, 255, 255, 255 });
+            }
+
+            ui::EndSwfMask();
+            if (strcmp(name, "renderer-ui-mask-leak") == 0)
+            {
+                ui::EndSwfDraw();
+            }
+            else if (strcmp(name, "renderer-ui-mask-key") == 0)
+            {
+                ui::RemoveSwfMask(&keys[1]);
+            }
+            else if (strcmp(name, "renderer-ui-mask-count") == 0)
+            {
+                ui::ValidateSwfMaskState(0, false);
+            }
         }
         else
         {

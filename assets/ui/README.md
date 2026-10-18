@@ -29,9 +29,10 @@ profile, plus compact expected dimensions and page checksums for the UIPG files.
 generator rather than either generated copy. `--check` reports missing
 or changed outputs without overwriting them.
 
-The movie has one main frame and 16 dictionary entries. It draws solid background and
-panel shapes, an affine-transformed bitmap letter, six read-only native text instances,
-a focus marker and a child sprite with four color/alpha frames. Its two authored AVM1
+The movie has one main frame and 20 dictionary entries. It draws solid background and
+panel shapes, an affine-transformed bitmap letter, seven read-only native text instances,
+a focus marker and a child sprite with four color/alpha frames. Two additional child
+sprites exercise eight convex clip-depth masks, with three active at peak. Its two authored AVM1
 functions use native property access and arithmetic:
 
 - `focusNext` toggles `focusIndex` between 0 and 1, moves `focusFrame` between y = 312 and
@@ -41,13 +42,16 @@ functions use native property access and arithmetic:
 
 The production adapter binds Tab and Enter to these functions through the native SWF
 shortcut table. Loading or reloading the movie resets focus to 0, selection to -1 and the
-selection count to 0. Six additional PlaceObject3 records select native additive blend
+selection count to 0. Six original lower-right PlaceObject3 records select native additive blend
 mode 8. The lower-right patches check zero/half/full alpha, overlap and saturation;
 the second bitmap A checks transparent holes and the same page seam under additive
-blending. They reuse existing dictionary shapes and the original atlas.
+blending. A seventh additive placement checks a masked strip in the upper panel.
+These records reuse existing dictionary shapes and the original atlas.
 
 The generator includes no loops, imports, sound actions, dynamic
-calls, masks, line draws, gradients, morphs or nonzero additive color transforms. Mode 8
+calls, line draws, gradients, morphs or nonzero additive color transforms.
+Mask probes cover transformed trapezoids, inherited/nested intersections, crossing clip
+ranges, simultaneous expiry, alpha/additive strips, paged bitmap UVs and native text. Mode 8
 is its only special blend; other modes are rejected by the generator. This is an authored
 bring-up scene; it does not implement the retail BFG menu.
 

@@ -92,6 +92,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/renderer/gs.cpp \
 	ps2/renderer/ui_geometry.cpp \
 	ps2/renderer/ui_triangles.cpp \
+	ps2/renderer/ui_masks.cpp \
 	ps2/renderer/ui_page_format.cpp \
 	ps2/renderer/ui_page_geometry.cpp \
 	ps2/renderer/ui_page_image.cpp \
@@ -500,6 +501,7 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/renderer/gs.cpp \
 	ps2/renderer/ui_geometry.cpp \
 	ps2/renderer/ui_triangles.cpp \
+	ps2/renderer/ui_masks.cpp \
 	ps2/renderer/ui_draw.cpp \
 	ps2/renderer/charset.cpp \
 	ps2/renderer/image_backend.cpp \

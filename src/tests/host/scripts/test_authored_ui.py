@@ -114,7 +114,7 @@ def read_swf(data):
         raise ValueError("invalid authored BSWF16 header")
     main = read_sprite(reader)
     dictionary = []
-    for _ in range(reader.count(16)):
+    for _ in range(reader.count(20)):
         kind = reader.unpack(">i")
         if kind == 0:
             entry = {}
@@ -186,8 +186,9 @@ class AuthoredNativeUI(unittest.TestCase):
     def test_native_container_and_bitmap_references(self):
         main, dictionary = read_swf(builder.build_swf())
         self.assertEqual(main["frames"], 1)
-        self.assertEqual(len(dictionary), 16)
-        self.assertEqual([entry["kind"] for entry in dictionary], [0, 2, 2, 1, 2, 2, 4, 2, 4, 5, 7, 7, 7, 7, 7, 7])
+        self.assertEqual(len(dictionary), 20)
+        self.assertEqual([entry["kind"] for entry in dictionary],
+                         [0, 2, 2, 1, 2, 2, 4, 2, 4, 5, 7, 7, 7, 7, 7, 7, 2, 4, 4, 7])
         self.assertEqual(dictionary[3]["image_size"], (16, 16))
         self.assertEqual(dictionary[3]["atlas_offset"], (246, 64))
         bitmap_fill = dictionary[4]["fills"][0]
@@ -195,11 +196,11 @@ class AuthoredNativeUI(unittest.TestCase):
         self.assertEqual(bitmap_fill["indexes"], [0, 1, 2, 0, 2, 3])
         self.assertEqual(dictionary[9]["name"], "ps2_ascii")
         self.assertEqual(dictionary[12]["text"], "TAB TO FOCUS / ENTER TO SELECT")
-        for entry in dictionary[10:]:
+        for entry in [*dictionary[10:16], dictionary[19]]:
             self.assertEqual(entry["font"], 9)
             self.assertEqual(entry["flags"], 8)  # Read-only native edittext.
 
-    def test_mask_free_timeline_contains_real_color_transform_commands(self):
+    def test_pulse_timeline_contains_real_color_transform_commands(self):
         _, dictionary = read_swf(builder.build_swf())
         pulse = dictionary[6]
         self.assertEqual((pulse["frames"], pulse["offsets"]), (4, [0, 1, 2, 3, 4]))
@@ -210,17 +211,40 @@ class AuthoredNativeUI(unittest.TestCase):
             self.assertEqual(payload[0], 14 if index == 0 else 9)
             self.assertFalse(payload[0] & 0xC0)  # No clip actions or clip depth.
 
-    def test_additive_placements_use_native_mode_eight_without_masks_or_filters(self):
+    def test_additive_placements_use_native_mode_eight_without_filters(self):
         from ui_swf import inspect_swf
         movie = inspect_swf(builder.build_swf())
         self.assertEqual(movie["features"]["blend_modes"], [0, 8])
-        self.assertNotIn("masks", movie["features"])
+        self.assertEqual(movie["features"]["masks"], 8)
         self.assertNotIn("color_add", movie["features"])
         root = next(sprite for sprite in movie["sprites"] if sprite["dictionary_id"] is None)
         additions = [entry for entry in root["placements"] if entry["blend_mode"] == 8]
         self.assertEqual(len(additions), 6)
         self.assertEqual([entry["color"]["multiply"][3] for entry in additions], [0, .5, 1, 1, .5, .5])
         self.assertEqual(additions[4]["character"], 4)  # Same original bitmap, including its page seam.
+
+    def test_convex_masks_cover_nested_non_lifo_and_same_depth_expiry(self):
+        from ui_swf import inspect_swf
+        movie = inspect_swf(builder.build_swf())
+        sprites = {entry["dictionary_id"]: entry for entry in movie["sprites"]}
+        masks = {key: [(entry["depth"], entry["clip_depth"]) for entry in value["placements"]
+                       if entry["clip_depth"] is not None] for key, value in sprites.items()}
+        self.assertEqual(masks[None], [(18, 20), (22, 23)])
+        self.assertEqual(masks[17], [(1, 5), (2, 7), (9, 11), (10, 11)])
+        self.assertEqual(masks[18], [(2, 3), (4, 5)])
+        self.assertEqual(len(sprites[None]["placements"]), 24)
+        _, dictionary = read_swf(builder.build_swf())
+        fill = dictionary[16]["fills"][0]
+        points = fill["vertices"]
+        self.assertEqual(points, [(0, 0), (320, 0), (290, 48), (30, 48)])
+        self.assertEqual(fill["indexes"], [0, 1, 2, 0, 2, 3])
+        for first, second, third in zip(points, points[1:] + points[:1], points[2:] + points[:2]):
+            self.assertGreater((second[0] - first[0]) * (third[1] - second[1])
+                               - (second[1] - first[1]) * (third[0] - second[0]), 0)
+        self.assertEqual(dictionary[19]["text"], "A A A")
+        for depth, clip_depth in ((1, 1), (2, 1), (1, 65536)):
+            with self.subTest(depth=depth, clip_depth=clip_depth), self.assertRaises(ValueError):
+                builder.place(depth, 5, clip_depth=clip_depth)
 
     def test_native_actionscript_functions_own_focus_and_selection_state(self):
         main, _ = read_swf(builder.build_swf())

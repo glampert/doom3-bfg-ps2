@@ -196,6 +196,19 @@ class CommonProbeClassifierTests(unittest.TestCase):
             with self.subTest(probe=probe):
                 self.assertTrue(runner.classify_run("run1", probe, None, self.fatal_log(probe), None, False)[0])
 
+    def test_mask_probes_require_their_first_specific_guard(self):
+        for probe in ("renderer-ui-mask-concave", "renderer-ui-mask-leak", "renderer-ui-mask-key",
+                      "renderer-ui-mask-count", "renderer-ui-mask-stroke"):
+            with self.subTest(probe=probe):
+                expected = runner.NEGATIVE_PROBES[probe]
+                valid = self.fatal_log(probe)
+                self.assertTrue(runner.classify_run("run1", probe, None, valid, None, False)[0])
+                for log in (valid.replace(expected, "native SWF draw scope not active"),
+                            valid.replace(expected, "unrelated mask failure\n[D3BFG] FATAL " + expected),
+                            valid + "[D3BFG] GS failure probe unexpectedly returned\n"):
+                    self.assertFalse(runner.classify_run("run1", probe, None, log, None, False)[0])
+                self.assertFalse(runner.classify_run("run1", probe, complete_result(), valid, None, False)[0])
+
     def test_input_method_prefix_and_later_message_cannot_pass(self):
         expected = runner.NEGATIVE_PROBES["input-init"]
         wrong_method = self.fatal_log("input-init").replace(expected, runner.NEGATIVE_PROBES["input-map"])

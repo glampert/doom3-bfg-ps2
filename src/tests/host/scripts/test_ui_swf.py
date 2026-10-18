@@ -60,7 +60,7 @@ class NativeSwfInventory(unittest.TestCase):
     def test_authored_native_profile_and_deterministic_sanitized_report(self):
         output = inspect_swf(authored.build_swf())
         self.assertEqual(output["format"], "BSWF16")
-        self.assertEqual(output["dictionary_counts"], {"null": 1, "image": 1, "shape": 5, "sprite": 2, "font": 1, "edittext": 6})
+        self.assertEqual(output["dictionary_counts"], {"null": 1, "image": 1, "shape": 6, "sprite": 4, "font": 1, "edittext": 7})
         self.assertEqual(output["features"]["bitmap_fills"], 1)
         self.assertEqual(output["scripts"]["defined_functions"], ["focusNext", "select"])
         self.assertEqual(output["dependencies"]["fonts"], ["ps2_ascii"])

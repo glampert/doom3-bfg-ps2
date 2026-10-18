@@ -548,6 +548,11 @@ test-renderer: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-depth
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-half
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-color2
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-concave
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-leak
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-key
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-count
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-stroke
 
 run-renderer: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ntsc --visual-wait 60 --timeout 90
@@ -690,9 +695,9 @@ build/tests/ui_page_image_tests_%: $(HOST_UI_PAGE_SOURCES) $(HOST_UI_PAGE_HEADER
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) -Isrc/tests/host/ui_page_stubs $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_UI_PAGE_SOURCES) -o $@
 
-build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp src/ps2/renderer/ui_triangles.h src/ps2/renderer/ui_geometry.h Makefile
+build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp src/ps2/renderer/ui_masks.cpp src/ps2/renderer/ui_masks.h src/ps2/renderer/ui_triangles.h src/ps2/renderer/ui_geometry.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp src/ps2/renderer/ui_masks.cpp -o $@
 
 build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/renderer/charset.cpp src/ps2/renderer/charset.h Makefile
 	@mkdir -p $(dir $@)

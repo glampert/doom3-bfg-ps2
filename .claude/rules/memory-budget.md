@@ -370,3 +370,28 @@ The allocator names and whole-system accounting below describe `quake2-ps2`.
   (`ps2::heap::MemTag`). Kernel, ELF image and stack are booked as `MemTag::ElfSys`, so the
   tags add up to the whole 32 MB. dlmalloc's page size is pinned to 4096 because ps2sdk's
   `sysconf` fails (see `ps2-platform.md`).
+
+
+## Doom convex UI mask budget (2026-10-18)
+
+The bounded CPU mask bridge adds **4,404 bytes** of fixed resident state: a 3,852-byte
+triangle-edge builder, four 132-byte convex polygons, four display-entry keys and
+capture/count fields on the EE ABI. It adds no pixel surfaces, VRAM allocations,
+per-frame heap storage or new native fixture. Bounds are 64 input triangles per
+capture, 16 simplified boundary points, four active masks, 64 planes and at most
+67 clipped polygon vertices per source triangle.
+
+GCC 15 debug `-fstack-usage` reports **7,440 bytes** for `ClipMaskTriangle`,
+**1,888 bytes** for the caller's triangle dispatcher and **1,728 bytes** for
+`MaskBuilder::Finish`. Native `RenderSprite` reports **1,248 bytes per recursive
+level**. These are individual function frames, not a measured whole-program stack
+high-water. The SDK linkfile and final link map reserve **128 KiB** for the main
+stack; the admitted retail hierarchy cap is sixteen levels. The bounded call chain
+fits that reserve, but this is not a complete campaign stack measurement.
+
+The expanded twenty-entry authored movie peaks at **3,885,301 requested / 3,992,336
+backing bytes** in all four debug/release NTSC/PAL runs. Arena high-water is
+**4,212,891 debug / 4,214,043 release**. Each warm unload still returns exactly to
+**3,842,175 / 3,943,140 bytes / 2,459 allocations**, and full shutdown to
+**7,424 / 7,600 / 4**. Shared four-slot nearest cache, 256 KiB scratch and 56-byte
+page metadata are unchanged. See PORT_STATUS for final link sizes and acceptance IDs.
