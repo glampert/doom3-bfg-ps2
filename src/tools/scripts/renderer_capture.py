@@ -43,6 +43,9 @@ SCENE_PIXELS = (
     ("dirty-after", 104, 408, (0, 255, 0)),
     ("evict-blue", 168, 408, (0, 0, 255)),
     ("evict-yellow", 224, 408, (255, 255, 0)),
+    ("textured-add-quarter-alpha", 464, 408, (41, 33, 41)),
+    ("textured-add-half-alpha", 352, 408, (74, 49, 49)),
+    ("textured-add-black-preserves-destination", 408, 408, (16, 24, 40)),
 )
 
 # Virtual 640x480 positions deliberately sit inside the authored glyph strokes or empty regions.
@@ -74,6 +77,15 @@ UI_SCENE_PIXELS = (
     ("native-clipped-blue-outside", 33.75, 272, (16, 24, 40)),
     ("native-input-line", 35.5, 306, (255, 255, 255)),
     ("native-input-final-cursor", 235.5, 310, (255, 255, 255)),
+    # Half of source 127/63/31 is added to stored 16/24/40, then each pass stores
+    # five-bit RGB. Capture expands it back; account for both overlap storage rounds.
+    ("native-add-half-alpha", 352, 344, (74, 49, 49)),
+    ("native-add-overlap", 400, 360, (132, 74, 57)),
+    ("native-add-second-only", 464, 376, (74, 49, 49)),
+    ("native-add-outside", 492, 360, (16, 24, 40)),
+    ("native-add-zero-alpha", 528, 352, (16, 24, 40)),
+    ("native-add-saturates", 528, 400, (255, 255, 255)),
+    ("native-add-restores-alpha", 368, 416, (8, 74, 16)),
 )
 
 # Virtual-space samples use barycentric colors or interior points of the authored A's strokes.

@@ -79,10 +79,12 @@ def color_transform(multipliers):
     return bits.data()
 
 
-def place(depth, character=None, transform=None, name=None, color=None, move=False):
+def place(depth, character=None, transform=None, name=None, color=None, move=False, blend=None):
+    if blend is not None and blend != 8:
+        raise ValueError("authored special blending supports only native additive mode 8")
     flags = int(move) | (2 if character is not None else 0) | (4 if transform is not None else 0)
     flags |= (8 if color is not None else 0) | (32 if name is not None else 0)
-    payload = bytes((flags,)) + struct.pack("<H", depth)
+    payload = bytes((flags,)) + (b"\x02" if blend is not None else b"") + struct.pack("<H", depth)
     if character is not None:
         payload += struct.pack("<H", character)
     if transform is not None:
@@ -91,7 +93,9 @@ def place(depth, character=None, transform=None, name=None, color=None, move=Fal
         payload += color_transform(color)
     if name is not None:
         payload += name.encode("ascii") + b"\0"
-    return 26, payload  # PlaceObject2, with no masks, clip actions, filters or special blends.
+    if blend is not None:
+        payload += bytes((blend,))
+    return (70 if blend is not None else 26), payload  # No masks, clip actions or filters.
 
 
 def action(opcode, payload=b""):
@@ -207,6 +211,14 @@ def build_swf():
                                         (8, 12, 64, 408, "status"), (9, 13, 76, 320, "continueLabel"),
                                         (10, 14, 76, 368, "optionsLabel"), (11, 15, 64, 176, "caption")):
         main.append(place(depth, character, matrix(tx=x, ty=y), name))
+    # Exercise native RenderShape's mode 8, including alpha-zero bitmap holes and the page seam.
+    for depth, y, color in ((12, 304, (.5, .25, .125, 0)), (13, 332, (.5, .25, .125, .5)),
+                             (14, 360, (.5, .25, .125, 1)), (15, 388, (1, 1, 1, 1))):
+        height = 16 if depth == 15 else 24
+        main.append(place(depth, 5, matrix(xx=96 / 220, yy=height / 42, tx=336, ty=y), color=color, blend=8))
+    main.append(place(16, 4, matrix(xx=.75, yy=.75, tx=480, ty=304), color=(.5, .25, .125, .5), blend=8))
+    main.append(place(17, 5, matrix(xx=32 / 220, yy=16 / 42, tx=368, ty=340),
+                      color=(.5, .25, .125, .5), blend=8))
     main.append(main_actions())
     header = be("IqffH", 0x42535710, -1, 640, 480, 6 * 256)
     return header + sprite([main]) + be("i", len(dictionary)) + b"".join(dictionary)
@@ -362,6 +374,7 @@ def outputs():
         "generator": "src/tools/scripts/build_authored_ui.py",
         "license": "GPL-3.0-or-later",
         "profile": "BSWF16 native mask-free authored UI; no retail data",
+        "blend_modes": [0, 8],
         "frame": {"width": 640, "height": 480, "rate": 6, "main_frames": 1, "pulse_frames": 4},
         "dictionary": ["null", "background shape", "panel shape", "ASCII A bitmap", "transformed bitmap shape",
                        "pulse shape", "pulse timeline sprite", "focus shape", "focus sprite", "ps2_ascii font",

@@ -347,6 +347,21 @@ no eviction; movie/cover artwork does not draw yet. Current production PT_LOAD i
 heap backing and allocator arena separate. These are bounded initial timeline/text
 measurements, not complete menu artwork, campaign or physical hardware budgets.
 
+## Native SWF additive blend slice
+
+The 2026-10-18 mode-8 path adds one GS blend equation, without a new surface, pixel
+buffer or composition pass. The extended authored movie keeps its two images, four
+nearest slots (1 MiB), 256 KiB scratch page and 56 page-record bytes. Six new placement
+records reuse the existing dictionary/atlases; the BSWF is 2,548 bytes. Warm page loads
+remain four with no eviction in debug/release NTSC/PAL.
+
+The authored scene peaks at 3,879,948 requested / 3,985,980 backing bytes. Arena
+commitment is 4,212,059 debug / 4,213,595 release. Warm unload retains 3,842,175 /
+3,943,140 bytes in 2,459 allocations; full shutdown recovers 7,424 / 7,600 bytes in
+four allocations. Production PT_LOAD is 11,139,749 debug / 11,576,485 release bytes,
+with 373 direct inputs and no fixtures. These are authored UI measurements; the
+retail movie's simultaneous artwork working set remains unmeasured.
+
 ## Quake II reference
 
 The allocator names and whole-system accounting below describe `quake2-ps2`.

@@ -38,7 +38,7 @@ void DrawIndexed(const idDrawVert * vertices, int vertexCount, const u16 * index
                  const idImage * image, gs::BlendMode blend);
 void BeginGeometryFrame();
 void Flush();
-// Native SWF's zero-additive premultiplied shader profile maps to straight RGBA GS draws.
+// Native SWF's zero-additive color transform maps its normal/add blends to straight RGBA GS draws.
 // Scope it explicitly; ordinary UI callers retain their stricter state/color2 contract.
 void BeginSwfDraw();
 void EndSwfDraw();

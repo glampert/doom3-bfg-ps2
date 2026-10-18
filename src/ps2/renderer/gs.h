@@ -20,7 +20,9 @@ enum class DrawContext : int
 enum class BlendMode : u8
 {
     Replace,
-    StraightAlpha
+    StraightAlpha,
+    // Straight RGBA input; matches the native SWF premultiplied shader's ONE/ONE RGB sum.
+    AdditiveAlpha
 };
 
 struct Config

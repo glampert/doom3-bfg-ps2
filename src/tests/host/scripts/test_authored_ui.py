@@ -76,7 +76,7 @@ def read_sprite(reader):
     consumed = 0
     for _ in range(count):
         tag, length = reader.unpack(">iI")
-        if tag not in (12, 26) or length > len(blob) - consumed:
+        if tag not in (12, 26, 70) or length > len(blob) - consumed:
             raise ValueError("invalid native sprite command")
         commands.append((tag, blob[consumed:consumed + length]))
         consumed += length
@@ -209,6 +209,18 @@ class AuthoredNativeUI(unittest.TestCase):
             self.assertEqual(tag, 26)
             self.assertEqual(payload[0], 14 if index == 0 else 9)
             self.assertFalse(payload[0] & 0xC0)  # No clip actions or clip depth.
+
+    def test_additive_placements_use_native_mode_eight_without_masks_or_filters(self):
+        from ui_swf import inspect_swf
+        movie = inspect_swf(builder.build_swf())
+        self.assertEqual(movie["features"]["blend_modes"], [0, 8])
+        self.assertNotIn("masks", movie["features"])
+        self.assertNotIn("color_add", movie["features"])
+        root = next(sprite for sprite in movie["sprites"] if sprite["dictionary_id"] is None)
+        additions = [entry for entry in root["placements"] if entry["blend_mode"] == 8]
+        self.assertEqual(len(additions), 6)
+        self.assertEqual([entry["color"]["multiply"][3] for entry in additions], [0, .5, 1, 1, .5, .5])
+        self.assertEqual(additions[4]["character"], 4)  # Same original bitmap, including its page seam.
 
     def test_native_actionscript_functions_own_focus_and_selection_state(self):
         main, _ = read_swf(builder.build_swf())

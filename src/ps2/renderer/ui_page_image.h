@@ -98,7 +98,7 @@ public:
     PageImageStats GetStats() const;
     bool ValidateTriangle(const Vertex (&vertices)[3]) const;
     // Submission order is preserved. A required caller must handle false; a late I/O failure does
-    // not roll back already submitted pieces. Only replace and straight-alpha drawing are admitted.
+    // not roll back already submitted pieces. Replace, straight-alpha and alpha-weighted add are admitted.
     bool DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend);
 
 private:

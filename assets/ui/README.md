@@ -41,12 +41,18 @@ functions use native property access and arithmetic:
 
 The production adapter binds Tab and Enter to these functions through the native SWF
 shortcut table. Loading or reloading the movie resets focus to 0, selection to -1 and the
-selection count to 0. The generator includes no loops, imports, sound actions, dynamic
-calls, masks, line draws, gradients, morphs or special blend modes. This is an authored
+selection count to 0. Six additional PlaceObject3 records select native additive blend
+mode 8. The lower-right patches check zero/half/full alpha, overlap and saturation;
+the second bitmap A checks transparent holes and the same page seam under additive
+blending. They reuse existing dictionary shapes and the original atlas.
+
+The generator includes no loops, imports, sound actions, dynamic
+calls, masks, line draws, gradients, morphs or nonzero additive color transforms. Mode 8
+is its only special blend; other modes are rejected by the generator. This is an authored
 bring-up scene; it does not implement the retail BFG menu.
 
 The BSWF format follows the original engine writer: most scalar fields are big endian,
-native `idFile` string lengths are little endian, and PlaceObject2/AVM1 command streams
+native `idFile` string lengths are little endian, and PlaceObject2/3 and AVM1 command streams
 retain their SWF bit and byte order. The source timestamp is -1 because there is no
 separate raw `.swf` file. The font has a big endian header and 95 little endian, padded
 10-byte glyph records followed by sorted 32-bit codepoints. Its 512 × 128 procedural

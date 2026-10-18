@@ -21,9 +21,11 @@
   the hold through `renderer.resume`. Archives flag pixel inspection as required even
   when all native/log checks pass. Native `renderer*.tga` files now stream completed
   framebuffers as checked top-down 24-bit data. The runner rejects malformed dimensions,
-  header/length, 24 authored scene pixels (including bilinear interpolation), split-upload
+  header/length, 27 authored scene pixels (including bilinear interpolation and additive
+  texture/vertex alpha multiplication), split-upload
   quadrants and pressure pixels; captures before/after recovery must have identical hashes.
-  `renderer-ui*.tga` adds 26 glyph/cursor/color/alpha/fractional/clip comparisons, with
+  `renderer-ui*.tga` adds 33 glyph/cursor/color/alpha/fractional/clip comparisons, including
+  additive sprites, overlapping sums, saturation, zero alpha and restored normal blending, with
   identical primary/reload images and 120/four native adapter frames.
   `renderer-indexed*.tga` adds 27 rotated/clipped glyph, solid-shape, Gouraud RGB/alpha,
   submission-order and pool-pressure pixel checks. Require 120/four frames, identical
@@ -63,9 +65,12 @@
 - `make test-ui` / `make BUILD=release test-ui` exercise the authored native SWF in the
   production ELF. Three loads each render at least 120 frames, pause two different
   timeline states (including fractional alpha), execute native Tab/Enter AVM1 focus and
-  selection, and open/type/close the real console over the movie. Thirty pixels
+  selection, and open/type/close the real console over the movie. Forty-two pixels
   per capture cover shapes, a skewed bitmap across a page seam, glyph strokes/holes,
-  focus and status text. Require two images sharing four nearest/clamp slots (1 MiB),
+  focus and status text. Additive mode 8 uses original native PlaceObject3/RenderShape
+  calls for solid and paged geometry; check alpha weighting, overlap, saturation, transparent
+  holes and the page seam. Derive expected RGB after each five-bit framebuffer storage
+  round; keep the existing eight-channel tolerance. Require two images sharing four nearest/clamp slots (1 MiB),
   one 256 KiB scratch page and 56 bytes of page records. Captures must show exactly
   four loads, increasing hits/triangles and zero evictions across all movie reloads.
   Require stable warm unload ledgers, full startup recovery, one presentation per normal

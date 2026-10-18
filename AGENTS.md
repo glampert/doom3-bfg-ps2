@@ -66,7 +66,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make ui` / `make run-ui` stage/run the same ELF with the authored native SWF under
   `build/<config>/ui/`, using `CONSOLE_STANDARD` for NTSC/PAL. `make test-ui` checks native
   loading, ASCII `idFont`, timeline color/alpha, AVM1 focus/select, capture and reloads.
-  The authored page-binding gate passes debug/release NTSC/PAL: it checks 30 pixels,
+  The authored page-binding gate passes debug/release NTSC/PAL: it checks 42 pixels,
   shared cache budgets and twelve invalid-resource cases, including deferred
   pixel corruption. A sanitizer cache harness also exercises assertions 0/1.
   `ps2_ui` controls load/unload/reload/status/pause/resume; `ps2_uiKey tab`/`enter` supply
@@ -114,7 +114,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   write-only spans before the next allocation/draw; flushing or ending a frame recycles
   them. Native vertex-cache/static/joint buffers remain unavailable. Half UVs are decoded
   from checked bits, and `color2` requires exactly 128 in all four channels; the scoped
-  native SWF path also admits its zero-additive encoding of 127. Additive color stays
+  native SWF path also admits its zero-additive encoding of 127. Native SWF blend 8
+  maps to alpha-weighted GS addition; ordinary ONE/ONE state outside that scope stays
+  unavailable. Nonzero additive color transforms and the other special blends remain
   unsupported. Native `idImage` keeps logical atlas dimensions while SWF bitmap and
   ASCII font triangles use shared page dispatch. The authored 272×256 movie bitmap
   crosses x=254; the font retains its 512×128 atlas. Both images share one `PageCache`

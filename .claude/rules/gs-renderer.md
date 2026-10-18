@@ -163,7 +163,7 @@ so command-half drains cannot inherit stale primitive state. Validate binding, c
 blend and all fixed XY/UV fields before reserving. Emit exact fixed endpoints plus
 XYOFFSET; there is no sprite-specific half-pixel adjustment. GS modulation maps native
 255 to unity 128 for both vertex RGB and alpha. Degenerate triangles are skipped;
-all-zero-alpha triangles skip only with straight-alpha blending, preserving replacement
+all-zero-alpha triangles skip only with alpha-weighted blending, preserving replacement
 RGB writes at alpha zero. Debug/release NTSC/PAL indexed captures pass twenty-seven
 pixel checks, identical reload hashes and 120/four frames on 2026-10-15. All three CPU
 pool limits and 1 KiB command-half drains preserve ordering and exact ledger recovery.
@@ -236,6 +236,36 @@ uses the full resident ELF and `run_console.py`, without importing these units i
   Tab/Enter actions, stable warm ledgers and exact full pre-boot ledger recovery. Six
   fresh malformed/missing asset probes pass in both builds. See PORT_STATUS for matched
   archives; this does not establish retail SWFs, world rendering or hardware behavior.
+
+## Doom native SWF additive blending
+
+Native SWF mode 8 selects ONE/ONE after `gui.pixel` premultiplies its straight texture
+and color by output alpha. With the admitted zero-additive-color transform, the GS can
+compute the same RGB equation in one pass: `(Cs - 0) * As + Cd`. Select ALPHA A=Cs,
+B=zero (2), C=As, D=Cd; enable PRIM.ABE. Texture and interpolated vertex alpha still
+multiply through MODULATE, so half texture alpha and half vertex alpha contribute a
+quarter source. Zero-alpha sources and black RGB must preserve destination RGB.
+
+`BlendMode::AdditiveAlpha` takes straight RGBA, not already-premultiplied input. Only
+the native SWF draw scope maps GLS ONE/ONE to this equation; ordinary ONE/ONE state
+remains unavailable. Sprites and triangles write the complete ALPHA/PRIM state on
+every draw, including after command-half drains. Page splitting retains the blend
+without multiplying alpha again. Existing packet sizes remain 22/30 qwords, and no
+extra surfaces, passes or pixel allocations are introduced. COLCLAMP is enabled by
+the SDK environment, so overflowing sums saturate.
+
+Model framebuffer storage after every blend when deriving expected pixels. With
+dithering disabled, PSMCT16 truncates each RGB result to five bits; capture then
+expands those five bits to eight. For example, the authored panel stores 24/40/56.
+Native PackColor(.5/.25/.125) yields 127/63/31, and half source alpha contributes
+63/31/15. The first sum stores 80/64/64 (captured 82/66/66); adding it again stores
+136/88/72 (captured 140/90/74). Comparing repeated sums with ideal floating-point
+RGB instead would require a growing tolerance. Preserve the eight-channel threshold
+and compute the intermediate storage rounds instead.
+
+These RGB-only presentation profiles do not promise destination-alpha accumulation
+in a one-bit-alpha framebuffer. Masks, native screen blend 4 and nonzero additive
+color transforms remain unadmitted; full retail movie rendering still fails explicitly.
 
 ## Quake frame model: 2D and 3D interleave
 

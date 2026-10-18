@@ -42,6 +42,14 @@ u64 ContextReg(int reg, DrawContext context)
     return static_cast<u64>(reg + Index(context));
 }
 
+u64 AlphaState(BlendMode blend)
+{
+    // GS computes (A - B) * As + Cd. SWF adds its premultiplied source to Cd;
+    // straight input therefore selects zero for B, while ordinary alpha selects Cd.
+    const int subtract = blend == BlendMode::AdditiveAlpha ? 2 : 1;
+    return GS_SET_ALPHA(0, subtract, 0, 1, 0x80);
+}
+
 tex::Layout ValidateBinding(const TextureBinding & binding)
 {
     tex::Layout verified = {};
@@ -253,11 +261,11 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
     (void)Index(context);
     if (x0 < 0 || y0 < 0 || x1 < x0 || y1 < y0 || x1 > s_width * 16 || y1 > s_height * 16 ||
         u0 < 0 || v0 < 0 || u1 < u0 || v1 < v0 || u1 > 16383 || v1 > 16383 ||
-        (blend != BlendMode::Replace && blend != BlendMode::StraightAlpha))
+        (blend != BlendMode::Replace && blend != BlendMode::StraightAlpha && blend != BlendMode::AdditiveAlpha))
     {
         FatalError("invalid fixed GS textured rectangle");
     }
-    if (x0 == x1 || y0 == y1 || (color.a == 0 && blend == BlendMode::StraightAlpha))
+    if (x0 == x1 || y0 == y1 || (color.a == 0 && blend != BlendMode::Replace))
     {
         return;
     }
@@ -271,12 +279,12 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
     writer.SetRegister(ContextReg(GS_REG_CLAMP, context), GS_SET_CLAMP(
                                                           sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
                                                           0, layout.width - 1, 0, layout.height - 1));
-    writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
+    writer.SetRegister(ContextReg(GS_REG_ALPHA, context), AlphaState(blend));
     // A zero-alpha texel still replaces RGB in ONE/ZERO mode. Environment cutout is
     // not the native GUI contract, so disable it explicitly for every UI sprite.
     writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 0, 1));
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_SPRITE, 0, 1, 0,
-                                                blend == BlendMode::StraightAlpha ? 1 : 0, 0, 1, Index(context), 0));
+                                                blend != BlendMode::Replace ? 1 : 0, 0, 1, Index(context), 0));
     const auto Modulate = [](u8 value)
     { return static_cast<u8>((static_cast<u32>(value) * 128U + 127U) / 255U); };
     writer.SetRegister(GS_REG_RGBAQ, GS_SET_RGBAQ(Modulate(color.r), Modulate(color.g), Modulate(color.b),
@@ -293,7 +301,7 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
 {
     (void)ValidateBinding(binding);
     (void)Index(context);
-    if (blend != BlendMode::Replace && blend != BlendMode::StraightAlpha)
+    if (blend != BlendMode::Replace && blend != BlendMode::StraightAlpha && blend != BlendMode::AdditiveAlpha)
     {
         FatalError("invalid fixed GS textured triangle blend");
     }
@@ -310,7 +318,7 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
     const auto & third = triangle.vertices[2];
     const s64 area = static_cast<s64>(second.x - first.x) * (third.y - first.y) -
                      static_cast<s64>(second.y - first.y) * (third.x - first.x);
-    if (area == 0 || (blend == BlendMode::StraightAlpha && first.a == 0 && second.a == 0 && third.a == 0))
+    if (area == 0 || (blend != BlendMode::Replace && first.a == 0 && second.a == 0 && third.a == 0))
     {
         return;
     }
@@ -326,11 +334,11 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
     writer.SetRegister(ContextReg(GS_REG_CLAMP, context), GS_SET_CLAMP(
                                                           sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
                                                           0, layout.width - 1, 0, layout.height - 1));
-    writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
+    writer.SetRegister(ContextReg(GS_REG_ALPHA, context), AlphaState(blend));
     // ONE/ZERO replaces RGB even where interpolated or texture alpha is zero.
     writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 0, 1));
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_TRIANGLE, PRIM_SHADE_GOURAUD, 1, 0,
-                                                blend == BlendMode::StraightAlpha ? 1 : 0, 0, PRIM_MAP_UV, Index(context), 0));
+                                                blend != BlendMode::Replace ? 1 : 0, 0, PRIM_MAP_UV, Index(context), 0));
     const auto Modulate = [](u8 value)
     { return static_cast<u8>((static_cast<u32>(value) * 128U + 127U) / 255U); };
     for (const auto & vertex : triangle.vertices)

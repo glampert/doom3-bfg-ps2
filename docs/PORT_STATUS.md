@@ -3269,3 +3269,63 @@ Next close the retail mask/additive/special-blend requirements before full movie
 drawing, then resolve dynamic screen resources and measure simultaneous artwork/font
 residency. Offline native PressStart → Root → Quit-dialog navigation follows those
 gates. No physical PS2 cache, throughput or complete menu acceptance is claimed.
+
+## Native SWF additive blending (2D-6 first slice)
+
+Accepted **2026-10-18, Australia/Sydney**, in debug/release NTSC/PAL. Native SWF blend
+mode **8** now draws solids, textured sprites, indexed geometry and streamed pages
+through one GS pass. The native GUI shader premultiplies its straight source before
+ONE/ONE blending; the GS receives straight RGBA and computes **destination + source ×
+alpha** instead. Texture and vertex alpha multiply once, and overflowing RGB saturates.
+Ordinary ONE/ONE requests outside the SWF scope still fail. Nonzero additive color
+transforms, screen mode 4, masks and full retail movie drawing remain unavailable.
+
+The existing authored movie adds six native PlaceObject3 records, reusing its original
+sixteen-entry dictionary and two image atlases. It checks zero/half/full alpha,
+overlapping sums, saturation, transparent bitmap holes and the x=254 page seam.
+All **42 source/reference pixel checks per capture** pass across three animation/input/
+reload cycles. The unscaled [NTSC](images/swf-additive-2d-6-ntsc.png) and
+[PAL](images/swf-additive-2d-6-pal.png) captures were inspected for readable original
+text, intact status/console interaction, complete glyphs and clean additive regions.
+Expected additive RGB includes each five-bit framebuffer storage round; the existing
+eight-channel tolerance is unchanged. See [the GS arithmetic notes](../.claude/rules/gs-renderer.md#doom-native-swf-additive-blending).
+
+| Configuration | Authored UI NTSC archive | Authored UI PAL archive |
+| --- | --- | --- |
+| Debug | `20261017T235351Z_ui_0d615bfe1e40` | `20261017T235411Z_ui_690d066b4452` |
+| Release | `20261017T235508Z_ui_0ddb82878dfc` | `20261017T235528Z_ui_1e56c01627e9` |
+
+Both complete authored UI matrices also pass all twelve malformed-resource cases.
+The existing core renderer scene now checks **27 base pixels / 33 native adapter
+pixels**, including quarter weight from half texture × half vertex alpha, black-source
+preservation, additive sprites, overlap, saturation and restoration of ordinary alpha.
+Indexed and paged scene checks, timeout recovery, context flips, 1 KiB command halves,
+pool/residency pressure and cleanup continue to pass. Both renderer matrices retain
+twelve release-safe failure probes, including unscoped ONE/ONE and nonzero color2.
+Positive renderer archives are debug `20261017T234749Z_smoke_cf29e40f910f4177` /
+`20261017T234813Z_smoke_4e581908e8464b4a` and release
+`20261017T235057Z_smoke_34ce414ec3d74f1d` / `20261017T235120Z_smoke_70451ccf274d4fe3`.
+
+No new native fixture, pixel buffer, surface or composition pass is introduced.
+Sprites/triangles retain **22/30 qword** packets and write ALPHA/PRIM state explicitly
+after drains. The authored profile still shares four nearest slots (**1 MiB**), one
+**256 KiB** scratch page and **56 record bytes**; four warm page loads incur no eviction.
+Across all four production runs, peak heap usage is **3,879,948 requested / 3,985,980
+backing bytes**; arena commitment is **4,212,059 debug / 4,213,595 release**. Warm unload
+retains **3,842,175 / 3,943,140 bytes in 2,459 allocations**. Full shutdown recovers
+**7,424 / 7,600 bytes in four allocations**, exactly baseline.
+
+Strict production/core builds and **330 Python host regressions**, sanitizer readers,
+runtime and shared-cache harnesses pass. The generator's exact admission profile is
+reproducible with `build_authored_ui.py --check`. Production retains **373 direct objects**,
+zero test inputs/symbols and no GC; fixed PT_LOAD is **11,139,749 debug / 11,576,485
+release bytes**. Source groups and the **398-entry** compile database are unchanged.
+Production bounded/live-command headless checks pass: debug
+`20261017T235219Z_headless_57a5e62667e3` / `20261017T235224Z_headless_2bc22c3131dd`, release
+`20261017T235234Z_headless_3c5830d70d04` / `20261017T235238Z_headless_97f3e85d5deb`.
+
+Run `make run-ui` to inspect this scene, or select `BUILD=release CONSOLE_STANDARD=pal`.
+`make test-ui` and `make test-renderer` exercise the corresponding production/core
+gates; use `BUILD=release` for assertions-off checks. Next implement the required mask
+and remaining color/blend contracts before enabling full retail movie rendering and
+offline Shell navigation. No physical PS2 throughput or full menu acceptance is claimed.

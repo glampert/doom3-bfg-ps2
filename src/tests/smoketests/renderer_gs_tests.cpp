@@ -375,6 +375,17 @@ bool NativeAdapters(video::Standard standard)
             renderSystem->SetColor(colorWhite);
             renderSystem->DrawSmallChar(32 + 25 * SMALLCHAR_WIDTH, 304, frame == frames - 1U ? 11 : 10);
             renderSystem->SetColor(colorWhite);
+
+            ui::BeginSwfDraw();
+            renderSystem->SetGLState(GLS_OVERRIDE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE);
+            renderSystem->DrawFilled(idVec4(0.5f, 0.25f, 0.125f, 0.5f), 336.0f, 336.0f, 96.0f, 32.0f);
+            renderSystem->DrawFilled(idVec4(0.5f, 0.25f, 0.125f, 0.5f), 384.0f, 352.0f, 96.0f, 32.0f);
+            renderSystem->DrawFilled(idVec4(1.0f, 1.0f, 1.0f, 0.0f), 496.0f, 336.0f, 96.0f, 32.0f);
+            renderSystem->DrawFilled(colorWhite, 496.0f, 384.0f, 96.0f, 32.0f);
+            ui::EndSwfDraw();
+
+            // Closing the scope and a command-half drain must restore ordinary alpha blending.
+            renderSystem->DrawFilled(idVec4(0.0f, 0.5f, 0.0f, 0.5f), 336.0f, 400.0f, 96.0f, 32.0f);
             rs::EndFrame();
         }
         passed = capture::WriteTga(cycle == 0 ? "host:renderer-ui.tga" : "host:renderer-ui-reload.tga", rs::LastPresentedContext()) && passed;
@@ -516,6 +527,16 @@ bool DrawScene(u32 frame, bool hazards)
     // Region clamp must hold the blue NPOT right edge beyond its logical extent.
     drawn = rs::TexturedRect(s_textures[1], 24, 240, 148, 32, 37, 1, 74, 18) && drawn;
     drawn = rs::TexturedRect(s_textures[3], 344, 240, 144, 32, 0, 0, 1, 1, { 128, 255, 128, 128 }) && drawn;
+    // Half texture alpha and half vertex alpha must multiply once, yielding quarter source weight.
+    drawn = rs::TexturedRectFixed(s_textures[3], { 440 * 16, 400 * 16, 488 * 16, 416 * 16, 0, 0, 16, 16 },
+                                  { 128, 64, 32, 128 }, gs::BlendMode::AdditiveAlpha) &&
+            drawn;
+    drawn = rs::TexturedRectFixed(s_textures[3], { 328 * 16, 400 * 16, 376 * 16, 416 * 16, 0, 0, 16, 16 },
+                                  { 128, 64, 32, 255 }, gs::BlendMode::AdditiveAlpha) &&
+            drawn;
+    drawn = rs::TexturedRectFixed(s_textures[4], { 384 * 16, 400 * 16, 432 * 16, 416 * 16, 0, 0, 16, 16 },
+                                  { 255, 255, 255, 255 }, gs::BlendMode::AdditiveAlpha) &&
+            drawn;
     // Screen clipping preserves texture coordinates at the visible right edge.
     drawn = rs::TexturedRect(s_textures[0], -124, 280, 148, 12, 0, 0, 37, 19) && drawn;
     if (hazards)

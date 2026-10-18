@@ -312,7 +312,10 @@ The shared native page cache and authored SWF/font binding provide the integrati
 foundation. Selected English font/image admission and legacy layout metrics now pass
 through the opt-in native resource path. Inactive BSWF dictionaries and isolated English text now have a bounded native path.
 The scoped execution path below now adds native timeline and callback ownership for
-initial states. Full movie mask/blend rendering, general dynamic resource closure and
+initial states. Native blend mode 8 now has an alpha-weighted additive GS path for
+the zero-additive-color profile, exercised by the authored native SWF. Mode 4, nonzero
+additive color transforms, masks and strokes are still explicit feature gaps. Full
+movie rendering, general dynamic resource closure and
 measured active menu working sets remain pending. This does not complete milestone
 2D-5 or activate the complete retail menu.
 

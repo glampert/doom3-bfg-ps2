@@ -85,6 +85,8 @@ def scene(height=448):
     for x, color in ((24, (255, 0, 0)), (80, (0, 255, 0)),
                      (144, (0, 0, 255)), (200, (255, 255, 0))):
         rectangle(x, 400, 48, 16, color)
+    rectangle(440, 400, 48, 16, (41, 33, 41))
+    rectangle(328, 400, 48, 16, (74, 49, 49))
     rectangle(0, 0, 512, 4, (255, 255, 255))
     rectangle(0, height - 4, 512, 4, (255, 255, 255))
     rectangle(0, 0, 4, height, (255, 255, 255))
@@ -127,6 +129,11 @@ def ui_scene(height=448):
     rectangle(-16.25, 256, 48.5, 32, (0, 0, 255))
     rectangle(33.5, 305, 4.5, 2, white)
     rectangle(233, 305, 6, 14, white)
+    rectangle(336, 336, 96, 32, (74, 49, 49))
+    rectangle(384, 352, 96, 32, (74, 49, 49))
+    rectangle(384, 352, 48, 16, (132, 74, 57))
+    rectangle(496, 384, 96, 32, white)
+    rectangle(336, 400, 96, 32, (8, 74, 16))
     return rgb
 
 
@@ -287,7 +294,7 @@ class RendererCapture(unittest.TestCase):
                 result = capture.verify_ui_scene(self.write(content), standard)
                 self.assertEqual((result["width"], result["height"]), (512, height))
                 self.assertEqual(result["sha256"], hashlib.sha256(content).hexdigest())
-                self.assertEqual(len(result["checks"]), 26)
+                self.assertEqual(len(result["checks"]), 33)
                 self.assertTrue(all(item["passed"] for item in result["checks"]))
                 underline = next(item for item in result["checks"] if item["name"] == "native-cursor-underline")
                 self.assertEqual(underline["y"], int(190 * height / 480))

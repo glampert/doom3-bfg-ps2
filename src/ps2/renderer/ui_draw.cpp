@@ -26,6 +26,7 @@ static uint32 s_savedSwfColor = 0;
 static_assert(std::endian::native == std::endian::little);
 static constexpr uint64 kBlendAlpha = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
 static constexpr uint64 kBlendSwf = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
+static constexpr uint64 kBlendSwfAdd = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE;
 static constexpr uint64 kAllowedState = GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS | GLS_DEPTHMASK | GLS_DEPTHFUNC_BITS | GLS_OVERRIDE;
 
 struct Profile
@@ -108,10 +109,17 @@ ps2::gs::BlendMode Blend(uint64 state)
     const uint64 equation = state & (GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS);
     const uint64 depth = state & GLS_DEPTHFUNC_BITS;
     if ((state & ~kAllowedState) != 0 || (depth != GLS_DEPTHFUNC_LESS && depth != GLS_DEPTHFUNC_ALWAYS) ||
-        (equation != GLS_DEFAULT && equation != kBlendAlpha && !(s_swfDraw && equation == kBlendSwf)))
+        (equation != GLS_DEFAULT && equation != kBlendAlpha &&
+         !(s_swfDraw && (equation == kBlendSwf || equation == kBlendSwfAdd))))
     {
         ps2::render::Unavailable("native UI blend/state profile");
     }
+
+    if (s_swfDraw && equation == kBlendSwfAdd)
+    {
+        return ps2::gs::BlendMode::AdditiveAlpha;
+    }
+
     return equation == GLS_DEFAULT ? ps2::gs::BlendMode::Replace : ps2::gs::BlendMode::StraightAlpha;
 }
 
@@ -207,7 +215,8 @@ idDrawVert * Allocate(int vertexCount, const triIndex_t * indexes, int indexCoun
     Require(&tr, "native UI indexed allocation", true);
     if (s_flushing || vertexCount <= 0 || vertexCount > ps2::ui::kMaxVertices || indexes == nullptr ||
         indexCount <= 0 || indexCount > ps2::ui::kMaxIndexes || indexCount % 3 != 0 ||
-        (profile.blend != ps2::gs::BlendMode::Replace && profile.blend != ps2::gs::BlendMode::StraightAlpha))
+        (profile.blend != ps2::gs::BlendMode::Replace && profile.blend != ps2::gs::BlendMode::StraightAlpha &&
+         profile.blend != ps2::gs::BlendMode::AdditiveAlpha))
     {
         ps2::FatalError("invalid native UI indexed request");
     }

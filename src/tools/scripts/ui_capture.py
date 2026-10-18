@@ -59,6 +59,22 @@ STATIC_PIXELS = (
     # Font glyph quads include one physical pixel for the half-texel gutter. These
     # row centers land inside the two-pixel strokes after either NTSC/PAL scaling.
     ("native-subtitle-a-crossbar", 71.5, 97.5, TEXT),
+    # PackColor truncates the source to 127/63/31. GS white modulation preserves those
+    # bytes; half alpha is 64/128. The panel stores 24/40/56 in PSMCT16, each blend
+    # truncates to five bits again, then capture expands five-bit RGB to eight bits.
+    # Model each storage round instead of widening tolerance for accumulated error.
+    ("add-zero-alpha", 352, 316, (24, 41, 57)),
+    ("add-half-alpha", 352, 344, (82, 66, 66)),
+    ("add-full-alpha", 352, 372, (148, 99, 82)),
+    ("add-saturates", 352, 400, (255, 255, 255)),
+    ("add-overlap", 384, 348, (140, 90, 74)),
+    ("add-shared-edge-left", 344, 334, (82, 66, 66)),
+    ("add-shared-edge-middle", 352, 336, (82, 66, 66)),
+    ("add-shared-edge-right", 360, 338, (82, 66, 66)),
+    ("add-paged-a-top", 512, 314, (82, 66, 66)),
+    ("add-paged-a-hole", 528, 334, (24, 41, 57)),
+    ("add-paged-seam-left", 522, 349, (82, 66, 66)),
+    ("add-paged-seam-right", 534, 349, (82, 66, 66)),
 )
 PULSE_COLORS = {1: (0.1, 0.85, 1.0, 1.0), 2: (0.8, 0.25, 1.0, 0.4),
                 3: (1.0, 0.5, 0.1, 0.7), 4: (0.2, 1.0, 0.3, 1.0)}

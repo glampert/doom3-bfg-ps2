@@ -2,6 +2,10 @@
   "generator": "src/tools/scripts/build_authored_ui.py",
   "license": "GPL-3.0-or-later",
   "profile": "BSWF16 native mask-free authored UI; no retail data",
+  "blend_modes": [
+    0,
+    8
+  ],
   "frame": {
     "width": 640,
     "height": 480,
@@ -53,9 +57,9 @@
   },
   "resources": {
     "generated/swf/ps2_demo.bswf": {
-      "bytes": 2364,
-      "sha256": "03639f8a17d65e8692d8a8746c705259517177d9f8383ba4e75e343d4a221f99",
-      "fnv1a64": "b9a75aa6a37ca975"
+      "bytes": 2548,
+      "sha256": "38e26441ab98abb134d1db7b7c99ea36356ab9e206ed0056f905c22b0a557833",
+      "fnv1a64": "340358b8547dab47"
     },
     "newfonts/ps2_ascii/48.dat": {
       "bytes": 1342,

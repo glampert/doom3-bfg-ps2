@@ -112,6 +112,17 @@ and widget ownership, not a navigable Shell or a measured bitmap working set. Se
 [execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution) and
 [acceptance record](PORT_STATUS.md#scoped-retail-timelines-and-native-widget-owners-2d-5-slice).
 
+**The first 2D-6 slice passes debug/release NTSC/PAL on 2026-10-18: native additive blend mode 8.** Both retail
+movies require it. Its zero-additive-color profile maps the native premultiplied
+ONE/ONE shader output to one GS alpha-weighted sum, for sprites, indexed geometry and
+paged images. The existing authored SWF now contains real PlaceObject3 mode-8 records;
+the existing device scene adds texture/vertex alpha, saturation and state-restoration
+coverage. There are no new native fixtures or pixel buffers. Masks, screen mode 4,
+nonzero additive color transforms and full retail movie rendering remain pending.
+See the [acceptance record](PORT_STATUS.md#native-swf-additive-blending-2d-6-first-slice)
+and unscaled [NTSC](images/swf-additive-2d-6-ntsc.png) /
+[PAL](images/swf-additive-2d-6-pal.png) authored captures.
+
 ## Scope and completion criteria
 
 Bring the production `d3bfg.elf` from the native headless console baseline to a visible

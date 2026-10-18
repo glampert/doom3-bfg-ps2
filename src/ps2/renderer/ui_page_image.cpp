@@ -392,7 +392,7 @@ bool PageImage::ValidateTriangle(const Vertex (&vertices)[3]) const
 bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
 {
     if (!IsOpen() || !rs::FrameStarted() ||
-        (blend != gs::BlendMode::Replace && blend != gs::BlendMode::StraightAlpha))
+        (blend != gs::BlendMode::Replace && blend != gs::BlendMode::StraightAlpha && blend != gs::BlendMode::AdditiveAlpha))
     {
         return Failed("invalid draw state");
     }
