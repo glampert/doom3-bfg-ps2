@@ -3485,8 +3485,11 @@ no source change since: the local ps2sdk and newlib were rebuilt on 2026-10-19 (
 
 `make script-probe` fails on both hosts, independently of these changes: since `7d629da`
 sorted `script_boot.cpp`'s includes, `d3xp/Game_local.h` precedes `idlib/precompiled.h`.
-CI does not build that probe. These are local build checks; the first hosted runs follow
-the next push. No emulator, runtime or hardware acceptance is claimed.
+CI does not build that probe. The first hosted runs followed the push of `232d758`: Host
+tools passed with GCC, Apple clang and MSVC. PS2 game stopped at its first compile, because
+the image's EE compiler loads GMP, MPFR and MPC libraries the image lacks; `34d3161`
+installs them, and both configurations then linked in 568 s. No emulator, runtime or
+hardware acceptance is claimed.
 
 ## Script probe repair and the rebuilt toolchain (2026-10-19)
 

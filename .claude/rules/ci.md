@@ -21,9 +21,13 @@ paths:
   git 2.54 and BusyBox `ash` for recipes. Linux file names are case-sensitive and this Mac's
   APFS volume isn't, so an include or Makefile path in the wrong case builds locally and
   fails CI.
-- Each configuration logs about 16 MB, mostly some 34,000 legacy warnings from id's code
-  that the warning policy keeps visible (`-Wreorder` alone is half, repeated per unit from
-  shared headers). To triage a failure, search the step's log for `error:` and `Error`.
+- The first passing `ps2.yml` run (2026-10-19, `34d3161`) took 568 s: 10 s to start the
+  container, 287 s for the debug build and 258 s for release, with both resident links
+  clean and no git ownership message.
+- Its log holds 60,140 warning lines over both builds (55 MB with timestamps): legacy
+  warnings from id's code that the warning policy keeps visible, `-Wreorder` the largest
+  share, repeated per unit from shared headers. To triage a failure, search the step's log
+  for `error:` and `Error`.
 
 ## The ps2sdk image
 
