@@ -23,7 +23,8 @@ statement or block; keep the code visually spaced rather than densely packed.
 
 [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) describes the proposed milestones and
 source changes. [README.md](README.md) records current project status; expand it as the
-port develops. [CVARS.md](docs/CVARS.md) lists implemented backend cvars; add each one with
+port develops. [AGENT_HANDOVER.md](docs/AGENT_HANDOVER.md) is the current continuation guide.
+[CVARS.md](docs/CVARS.md) lists implemented backend cvars; add each one with
 its debug/release defaults and flags when it exists in code. The files in
 [.claude/rules/](.claude/rules/) include Quake II PS2 reference notes. Their Quake source
 paths, test results and runtime behavior are not yet Doom 3 implementation facts.
@@ -47,8 +48,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 
 - `make` compiles and links the production native console with the real EE compiler.
   `make release` selects release; the artifacts are `build/<config>/d3bfg.elf` and
-  matching `d3bfg_unstripped.elf`, map and resident `report.{json,txt}`. The verbatim reference Makefile
-  is preserved in `docs/reference/quake2.Makefile`.
+  matching `d3bfg_unstripped.elf`, map and resident `report.{json,txt}`. The active Makefile owns the Doom source lists; the historical copied Quake II
+  Makefile was removed. Use the external Quake II checkout for build comparisons.
 - `make headless` packages production with authored data under `build/<config>/headless/`;
   `make run` / `make run-headless` launch it. The native game stays in `NOMAP` while Common
   pumps console commands and native frames. `console.txt` accepts append-only lines via
@@ -82,8 +83,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   shutdown and five corrupt-resource cases. HostFs `ps2_uiRetail` accepts load/unload/
   reload/status or `font INDEX` (0–4). Start in a fresh visible process; retail linear
   pages and authored nearest pages are separate profiles. No retail SWF or Shell is
-  loaded. General retail BSWF admission, English text binding, masks/blends and offline
-  Shell integration remain pending.
+  loaded by that font-only mode. The separate movie profile below admits bounded
+  dictionaries, English text and timeline execution; full drawing and offline Shell
+  integration remain pending.
   `make retail-movies` / `make run-retail-movies` stage/run original shell/dialog BSWFs
   and the complete English dictionary under `build/<config>/ui-retail-movies/`.
   `ps2_uiRetail movie shell|dialog|none` selects inactive native dictionaries and
@@ -173,8 +175,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   material stages are generated from admitted bindings. The retail resource profile
   shares six linear/clamp slots (1.5 MiB), one 256 KiB scratch page and lazy image
   tables. Font UVs may use only the outer half-texel gutter, preserving native sampling
-  without rescaling glyphs. `runtime_ready=false` is intentional: executable retail BSWF/
-  menu binding, masks/blends and offline Shell integration remain later gates. See
+  without rescaling glyphs. `runtime_ready=false` is intentional: full retail movie drawing, complex masks,
+  remaining blends/color transforms, active artwork residency and offline Shell
+  integration remain later gates. Scoped dictionary/text/timeline admission exists. See
   [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).

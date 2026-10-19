@@ -6,6 +6,12 @@ of every shipped BFG C/C++ unit. `make inventory` fails when a source is added, 
 duplicated, left unclassified, or enabled despite an exclusion. Source discovery is used
 for auditing only; it never selects files for compilation.
 
+Current source audit, reviewed **2026-10-19**: 458 upstream units, 282 retained
+campaign units, 48 core backend sources, 34 resident support sources and 399 compile
+database entries. The last runtime acceptance is the 2026-10-18 convex-mask slice in
+[PORT_STATUS.md](PORT_STATUS.md#native-convex-swf-masks-2d-6-second-slice). Later
+sections retain dated source/size snapshots; their earlier counts are historical.
+
 ## Reviewed upstream projects
 
 | Project under `src/neo/` | Source units |
@@ -143,10 +149,10 @@ status, and writes argument-array entries only after a successful dry run. An ex
 database survives a failed command. Core and campaign objects live in separate trees
 because their precompiled-header boundaries differ.
 
-The verbatim Quake II Makefile remains at
-[`docs/reference/quake2.Makefile`](reference/quake2.Makefile) for inspection. The active
-Makefile borrows its compiler/configuration and warning policies, but has independent
-Doom source lists and no dependency on another checkout.
+The active Makefile borrows Quake II compiler/configuration and warning policies,
+but has independent Doom source lists and no dependency on another checkout. The
+historical copied reference Makefile was removed; compare with the external
+`quake2-ps2` checkout when needed.
 
 
 ## Isolated script compiler probe

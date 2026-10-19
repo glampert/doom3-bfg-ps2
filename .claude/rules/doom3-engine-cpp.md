@@ -82,9 +82,12 @@ math path; PS2-specific math replacement headers are a later milestone.
 - Bounded retail resource snapshots use `idSWF(..., nullptr, true)`. Native dictionary
   allocation/loading is retained, but the constructor skips Run/RunActions/RunTo.
   Reject any doInitActions before construction: sprite Init otherwise executes them
-  even before the first frame. Command buffers remain opaque; this is storage
-  preflight, not placement/AVM1 validation. Render/Activate/HandleEvent/RunTo are fatal
-  in resource-only mode. Never activate this profile to work around missing masks.
+  even before the first frame. Inactive inspection performs storage preflight only.
+  `execute shell|dialog` adds placement/AVM1 preflight and explicit
+  `EnableResourceExecution` permission under a checked execution scope, allowing
+  native timeline advancement and minimal widget callbacks. Full Render/HandleEvent
+  remain fatal even with this permission. Never clear `resourceOnly` to bypass
+  missing drawing/resource admission. See the scoped execution rules later in this file.
 - The original BSWF timestamp refers to an unstaged source SWF. Resource-only loading
   uses its preflighted immutable identity, without requiring that source timestamp;
   authored executable loading preserves its existing check. Isolated text reuses the
@@ -108,8 +111,9 @@ math path; PS2-specific math replacement headers are a later milestone.
   The campaign target uses the full precompiled header; the reduced core header is
   not a substitute for resolving these dependencies.
 - Texture/shader metadata headers now hide GL handles behind `ID_OPENGL`. The portable
-  backend state and residency/shader query implementations still need to be supplied
-  before a campaign link; no successful resource-load behavior is implied by the headers.
+  backend now supplies the retained state/residency/shader query contracts needed
+  for the campaign link. Only scoped 2D image/material/font loading is implemented;
+  the header split and successful link do not enable general resource loading.
 - C++20 reserves `requires`. Door/trigger members and requirement parameters use
   `requiredItem`, while the map key remains `"requires"` and save-field order is unchanged.
 - Missing generated `gamesys/TypeInfo.h` is variable/state-dump introspection, separate

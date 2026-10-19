@@ -1,5 +1,11 @@
 # Memory budget (32 MB EE RAM)
 
+Doom sections retain the measurements of their dated implementation slice. The
+latest authored UI baseline is [the convex-mask budget](#doom-convex-ui-mask-budget-2026-10-18);
+current aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
+production sizes and live ledgers must not be used as current budgets. Quake figures
+remain separately labeled reference observations.
+
 ## Doom foundation baseline
 
 The sole C/newlib arena is dlmalloc; `src/ps2/system/heap.*` adds exact requested/backing

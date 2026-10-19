@@ -10,7 +10,8 @@ Current implementation and acceptance details live in:
 - [Port status](PORT_STATUS.md): verified capabilities, limitations, captures and measurements.
 - [Implementation plan](IMPLEMENTATION_PLAN.md): campaign milestones.
 - [2D renderer roadmap](RENDERER_2D_PLAN.md): UI/menu bring-up and remaining rendering work.
-- [Retail UI pipeline](RETAIL_UI_PIPELINE.md): local resources, font screens and inactive movie/text inspection.
+- [Retail UI pipeline](RETAIL_UI_PIPELINE.md): local cooking, fonts, dictionary/text inspection and scoped timeline execution.
+- [Agent handover](AGENT_HANDOVER.md): current boundaries, next work and verification recipes.
 - [Build inventory](BUILD_INVENTORY.md): explicit sources, portability changes and warning policy.
 - [Backend cvars and commands](CVARS.md): defaults, flags and supported controls.
 - [Reuse inventory](REUSE.md): provenance and third-party notices.
@@ -24,8 +25,8 @@ reserved for later renderer work; no VU program or vclpp dependency is built yet
 
 Native source lists are explicit in `config/sources.mk`. Run `make inventory` to audit
 them and `make compiledb` after source-list changes. No source discovery enables
-extra engine/vendor files. The original Quake II Makefile remains at
-[reference/quake2.Makefile](reference/quake2.Makefile) as reference only.
+extra engine/vendor files. The copied Quake II reference Makefile has been removed;
+use the external `quake2-ps2` checkout when comparing build policies.
 
 ## Resource extraction
 
@@ -49,7 +50,30 @@ Retail UI commands and staging are described in the
 `ps2_uiRetail movie shell|dialog` inspects inactive resources;
 `ps2_uiRetail execute shell|dialog` runs admitted native timelines and the minimal
 widget owners while retaining the separate text inspection screen. Complete menu
-drawing and navigation remain pending.
+drawing and navigation remain pending. To inspect the current original-game resources:
+
+```sh
+make ui-cook
+make run-retail-movies
+```
+
+A newly created retail-movies package automatically loads its resource screen
+and selects inactive shell inspection. With that package running, append commands
+from another terminal:
+
+```sh
+printf 'ps2_uiRetail execute dialog\n' >> build/debug/ui-retail-movies/console.txt
+```
+
+Existing packaged settings are preserved. If an older package did not load the
+resource screen, check `ps2_uiRetail status` and send `ps2_uiRetail load` once before
+execution; repeating `load` while already loaded is fatal.
+
+This executes the original dialog timeline while drawing isolated native English
+labels. It does not draw the full dialog. `execute shell` selects the minimal
+carousel/Credits owner; `movie shell|dialog|none` selects inactive inspection. Use
+`make test-retail-timelines` for the scoped execution gate. All authored startup/map/UI
+fixtures live under `src/tests/data/`; generated packages and captures stay in `build/`.
 
 Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,
 `d3bfg.map` and `report.{json,txt}`. This executable links the full retained campaign
@@ -183,8 +207,8 @@ executes authored scripts and a logic-only map; general campaign map loading rem
 The portable audio boundary preserves sample names, reference/purge flags and last-played
 bookkeeping while owning loaded fixture PCM. Resource reload and generated defaults use
 the same timing/amplitude queries. Logical voices require the explicit headless clock;
-unconfigured device initialization still fails. Native sound-world integration and
-audsrv/SPU2 output remain later work.
+unconfigured device initialization still fails. An empty native sound world now supplies game/map startup bookkeeping; audible
+voice/device integration and audsrv/SPU2 output remain later work.
 
 Backend and smoke-test diagnostics use the shared `ps2::Log` / `LogV` sink with info,
 warning, error and fatal levels. It currently writes synchronously to stdout. System,

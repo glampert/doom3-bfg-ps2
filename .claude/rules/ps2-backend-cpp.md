@@ -1,8 +1,9 @@
 # PS2 C++ backend conventions (`src/ps2/`)
 
 The backend follows the conventions established by `quake2-ps2`. Reference-only APIs
-below still need verification when imported; the current foundation is in
-`src/ps2/system/` and `src/tests/smoketests/`.
+in other rule files still need verification when imported. Current backend code spans
+`src/ps2/`; target fixtures live in `src/tests/smoketests/`, host fixtures in
+`src/tests/host/`, and redistributable fixture assets in `src/tests/data/`.
 
 ## Language and structure
 

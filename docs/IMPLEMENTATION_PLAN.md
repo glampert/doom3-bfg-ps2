@@ -1,5 +1,28 @@
 # Doom 3 BFG for PlayStation 2: implementation plan
 
+## Current position — 2026-10-19
+
+This is the campaign-level plan. [PORT_STATUS.md](PORT_STATUS.md#current-snapshot--2026-10-19)
+is the current capability summary; [AGENT_HANDOVER.md](AGENT_HANDOVER.md) describes
+how to continue, and [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) owns the selected UI work.
+Initial inspection tables and proposed source changes below retain their historical
+context; they do not reopen completed portability work.
+
+| Milestone | Current acceptance |
+| --- | --- |
+| M0–M2 | Complete: layout/manifests, EE portability, staged core/Common boot |
+| M2b | Complete: retained campaign compilation and resident link; currently 282 campaign units |
+| M3 | Partial: native game/player fixtures and one authored map/PVS/collision/AAS/idle-AI fixture; full campaign player, animated AI and retail maps pending |
+| M4 / 2D-1–4 | Bounded GS 2D device, capture, console, indexed UI, fonts and authored native SWF accepted; world/depth/CLUT/VU scope remains later |
+| 2D-5–6 | Retail cooking, English resources and scoped timeline execution accepted within their profiles; additive blend 8 and convex masks accepted; full retail feature/resource closure pending |
+| 2D-7–8 | Native offline menu navigation, physical input and hardware acceptance pending |
+| M5–M8 | Host extraction/UI conversion foundation exists; campaign-map conversion, world rendering, sound, streaming, saves and campaign sweep remain pending |
+
+Production stays in `NOMAP`; its game loop does not yet load or simulate the authored
+map used by the separate test executable. Current work targets a fully rendered real
+dialog, then a shell frame and interactive offline menu. Preserve headless behavior
+and extend existing fixtures while menu work is selected.
+
 ## 1. Objective and scope
 
 Port the Doom 3 campaign from the BFG source release to the PS2 using the installed free EE/IOP toolchain. Preserve game rules, scripts, collision, AI, level progression, and essential in-world interfaces while substantially reducing rendering and asset costs.
@@ -22,8 +45,9 @@ The initial M0–M2 foundation is implemented, with partial M3 authored-map/play
 acceptance and a separate production headless console loop. Current acceptance results,
 memory measurements and remaining campaign integration work are recorded in
 [PORT_STATUS.md](PORT_STATUS.md). The inspection below predates implementation;
-its `neo/` paths now live under `src/neo/`, and the reference Makefile is preserved at
-`docs/reference/quake2.Makefile`.
+its `neo/` paths now live under `src/neo/`. The historical copied Quake II Makefile
+was removed in `6843948`; the active Doom Makefile and external Quake II checkout
+are the current build references.
 
 Inspection baseline:
 
@@ -98,49 +122,31 @@ The project manifests are useful source inventories, not portable build definiti
 Mirror the reference project's root Makefile, `src/ps2`, `src/tools`, data directory, and per-configuration build tree. Move `neo` intact beneath `src` to preserve Doom's own subsystem names and most relative includes. Do not rename its C++ engine into Quake's C subsystem layout.
 
 ```text
-Makefile
-_clang-format
-README.md
-AGENTS.md
-CLAUDE.md
-D3BFG_README.txt
-LICENSE.txt
-base/                           # keep tracked source content; generated/retail files ignored
-gamedata/                       # Doom 3 BFG and RoE game data; stays local, never committed
+base/                           # Source-release config/render programs; local retail data ignored
+config/                         # Explicit source manifests and retail UI profile
 src/
-  external/                     # third-party dependencies: dlmalloc, JPEG, zlib; pinned VU tools later
-  neo/                          # existing neo/ moved intact
-    idlib/ framework/ d3xp/ cm/ aas/ ui/ swf/ renderer/ sound/ sys/
-  ps2/
-    common.h                    # controlled bridge to Doom's public interfaces
-    system/                     # entry, sys, IOP/storage, heap, threading
-    debug/                      # logs, assertions, exceptions, frame metrics
-    input/ audio/ save/
-    math/                       # Single-precision optimized EE math functions and VU0-macro mode vector math
-    renderer/                   # GS, VRAM, textures, packets, VU, Doom adapter
-  tools/
-    host/                       # converters, validators
-    scripts/                    # build metadata, smoke runner, comparisons
+  external/                     # dlmalloc, JPEG 6, zlib; future pinned VU dependencies
+  neo/                          # Engine/game sources moved intact before portability edits
+  ps2/                          # System, logical game/audio/input and bounded renderer/UI adapters
   tests/
-    unittests/                  # small, redistributable inputs; no retail assets, host unit tests and small PS2 tests
-    smoketests/                 # larger integration tests designed to run on the PS2 - target boot/math/render/game scenarios
-build/
-  debug/ release/ tools/ tests/
-  test-results/<run-id>/
-docs/                           # asset format, budgets, port status, reuse inventory
-  IMPLEMENTATION_PLAN.md
-  CVARS.md
-.claude/rules                   # agent's documentation, skills and knowledge about the project and PS2 hardware/SDK
+    data/                       # headless/, headless_map/, ui/ authored fixture assets
+    host/                       # C++ host harnesses, stubs and scripts/ Python tests
+    smoketests/                 # Separate native test entries and integrated fixtures
+  tools/                        # Host resource tool, build/cook/test scripts, editor support
+build/                          # Ignored per-config objects, ELFs, packages, cooked data and results
+docs/                           # Milestones, status, developer guide, cvars, provenance and handover
+.claude/rules/                  # Doom findings and explicitly labeled Quake reference notes
 ```
 
 The engine now lives under `src/neo/`. Commit `4e5f082` moved the original blobs intact,
 without source edits. File tables below retain the original `neo/...` inspection paths;
-their implementation destinations are `src/neo/...`. The backend and test scaffolding
-implements M0–M2; later subsystem entries remain proposals. Third-party dependencies
+their implementation destinations are `src/neo/...`. The source tree above is current; additional subsystem directories are created only
+when implemented. M0–M2/M2b, partial M3 and bounded 2D work are accepted as summarized
+at the top of this plan. Third-party dependencies
 imported for this port live in `src/external/`, including future vclpp/vu-checker
 tool dependencies.
 
-Perform the `neo` move as a mechanical commit. Audit project-relative paths, includes outside `neo`, debugger configuration, and data lookup immediately afterward. Keep runtime paths independent of the source tree. The separate `doomclassic/` removal is complete; retained upstream Classic interfaces remain disabled or replaced in the PS2 build.
+The `neo` move was committed mechanically before portability edits. Continue to audit project-relative paths, external includes, debugger configuration and data lookup after structural changes. Keep runtime paths independent of the source tree. The separate `doomclassic/` removal is complete; retained upstream Classic interfaces remain disabled or replaced in the PS2 build.
 
 New backend/tool code follows the reference's PascalCase types and functions, camelCase variables, `m_` members, `s_` local statics, `g_` exported globals, lowercase namespaces, `alignas`, file banners and `_clang-format`. Preserve its four-space/Allman layout, updating obsolete formatter options before making formatting mandatory. Use PS2SDK sized types at SDK interfaces and `<cstdint>` in shared host/target formats; equal-width typedefs are not necessarily pointer-compatible on the EE ABI. Define debug/assert/profile switches to `0` or `1` and test them with `#if`.
 
@@ -188,7 +194,9 @@ Base the root Makefile on the working Quake configuration. Provide separate sour
 
 ### File/function change map
 
-Paths in this table are relative to the current `neo/` unless they explicitly name the new `ps2/` backend.
+This is the original implementation change map. Engine paths resolve under
+`src/neo/`, and backend paths under `src/ps2/`; consult BUILD_INVENTORY for implemented
+adapters and retained/deferred units.
 
 | Current file(s) / function(s) | Planned change |
 | --- | --- |
@@ -414,17 +422,18 @@ Work in small commits; each implementation commit states its behavior change and
 | **M5: inventory/converter and one campaign map** | Asset inventory, first versioned formats, bounded resource loader; first real map headless, then static textured world | Conversion report and hashes reproducible; map scripts/collision/portals load within budget; captured fixed-camera views have correct geometry/material placement |
 | **M6: gameplay rendering and presentation** | MD5 animation/skinning, simplified lighting/flashlight, input, essential HUD/PDA/world GUI, sound | Playable scripted section with enemy/weapon/door/light/UI interactions; deterministic captures and state checks; no missing essential UI or silent timing breakage |
 | **M7: residency and optimization** | Texture/model streaming; transition ownership; VU paths; measured batching and LOD | Stress maps/transitions retain headroom; scalar/VU tests agree within bounds; hardware measurements guide performance work; no stale-DMA asset eviction |
-| **M8: saves, campaign sweep and release work** | Bounded saves/card devices; campaign regression matrix; physical storage; packaging and docs | Save/load and progression tests pass; debug/release and hardware validation recorded; classic tree deleted once uncoupled; reproducible local release package |
+| **M8: saves, campaign sweep and release work** | Bounded saves/card devices; campaign regression matrix; physical storage; packaging and docs | Save/load and progression tests pass; debug/release and hardware validation recorded; Classic source guards remain enforced; reproducible local release package |
 
 M2b is required before M3. M4 and the host asset inventory can proceed independently after M2 while M2b/M3 mature. The first retail-map trial requires both game initialization and compatible converted content. Optimization should not conceal unresolved loading/gameplay failures.
 
-The current selected work is the first GS-backed 2D renderer and native
-offline main menu. [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) expands M4 into ordered
-device, texture/capture, visible-console, SWF and shell gates, with a source inventory
-of Doom and the Quake II PS2 reference. The approved first slice, 2D-1, now passes
-debug/release solid/alpha scene, pressure and cleanup checks with inspected PCSX2
-captures. Native console/SWF/menu integration follows the remaining 2D gates.
-Sound output and world rendering remain later work.
+The selected work is the GS-backed 2D renderer and native offline main menu.
+[RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) expands this work into device,
+texture/capture, console, SWF and menu gates. 2D-1–4 now pass, and bounded retail
+resource/timeline profiles, additive blend 8 and convex masks are accepted. Required
+complex masks/strokes, remaining color/blend semantics, dynamic artwork residency
+and full retail drawing still precede offline menu navigation. Recommended visible
+milestones are a real dialog, a complete shell frame, then responsive native menu
+flow. Sound output and world rendering remain later work.
 
 Preserve the completed headless path and pause further standalone movement fixtures.
 One integrated authored map now combines logical world/model/PVS checks with native
@@ -432,7 +441,7 @@ collision, AAS and one idle AI. Pending M3 work includes native AI movement and 
 model/joint contracts, campaign player startup and Common map transitions. Retail map
 loading still needs an inventory/conversion and measured residency gate.
 
-Suggested first implementation commits after approval:
+Initial implementation sequence (completed history):
 
 1. `Build: establish the PS2 layout and explicit source manifests.`
 2. `Platform: make idlib headers and scalar math compile for the EE.`
@@ -445,7 +454,7 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 ## 13. Open inputs and decision points
 
-- **Current scope:** M0–M2 and M2b compile/link passed. M3 boot/ticks/events, bounded collision/physics, restricted native player ticks and authored native map/world/PVS/AAS/idle-AI startup pass; campaign player, animated AI/gameplay and broader maps remain pending. The user approved the 2D renderer/main-menu roadmap; its first CPU-only GS slice now passes in PCSX2. Preserve headless simulation during subsequent rendering work.
+- **Current scope:** M0–M2 and M2b compile/link passed. M3 boot/ticks/events, bounded collision/physics, restricted native player ticks and authored native map/world/PVS/AAS/idle-AI startup pass; campaign player, animated AI/gameplay and broader maps remain pending. The user approved the 2D renderer/main-menu roadmap; console/authored SWF, resource/timeline profiles, additive blend 8 and convex masks now pass in PCSX2. Full retail drawing and navigation remain pending. Preserve headless simulation during subsequent rendering work.
 - **Retail data:** the user supplied BFG assets in `gamedata/d3_bfg/` and separate RoE reference assets in `gamedata/d3_roe/`. Inventory the BFG resource containers and resolve logical runtime paths before a campaign initialization claim. Core and synthetic tests remain independent of them.
 - **Reuse notices:** the user authorizes GPL v3 reuse of reference code they own. Preserve third-party notices and record each import in `docs/REUSE.md`.
 - **Hardware:** establish access and the preferred transfer/storage method before requiring physical-console acceptance. PCSX2 can support the initial milestones.

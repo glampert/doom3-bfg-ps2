@@ -1,7 +1,7 @@
 
 # PS2 backend cvars
 
-The production loop registers the backend control below using Doom's
+The production loop registers the backend cvar below using Doom's
 native command and cvar system. Test executables do not register production controls.
 
 | Name | Debug default | Release default | Flags | Behavior and registration |
@@ -11,17 +11,19 @@ native command and cvar system. Test executables do not register production cont
 Presentation is an early package policy, not a cvar: `presentation.cfg` beside the
 ELF contains `headless`, `ntsc` or `pal`. A missing file selects headless. The policy
 is read before Common startup and device allocation; `d3bfg.cfg` runs afterward.
-Visible mode additionally registers the following `CMD_FL_SYSTEM` console commands,
-not cvars. They have no debug/release default or archive behavior:
+Production registers `ps2_status` in both modes. Visible mode additionally registers
+the other `CMD_FL_SYSTEM` commands below. These commands have no debug/release
+default or archive behavior:
 
 | Command | Arguments and behavior |
 | --- | --- |
+| `ps2_status` | No arguments; reports startup state and completed frames in headless or visible production. Registered in `src/ps2/system/headless.cpp`. |
 | `ps2_consoleText` | One quoted printable ASCII argument, delivered to the active native console edit field. |
 | `ps2_consoleKey` | One named native console key; `toggle` opens/closes the console over an active movie. |
 | `ps2_capture` | One checked `.tga` basename; capture the next completed presentation, including before queued quit. |
 | `ps2_ui` | One of `load`, `unload`, `reload`, `status`, `pause`, `resume`; controls the authored native SWF. Load closes the console; unload reopens it. |
 | `ps2_uiKey` | `tab` or `enter`; queue native SWF key events for the loaded movie while the console is closed. |
-| `ps2_uiRetail` | `load`, `unload`, `reload`, `status`, `font INDEX`, or `movie shell\|dialog\|none`; opt-in native English font/movie resource screen. The local catalog must be staged before loading, using a fresh visible process. Font indices 0–4 select the cooked English families. Movie inspection requires `make retail-movies` staging; timelines and full movie drawing remain disabled. |
+| `ps2_uiRetail` | `load`, `unload`, `reload`, `status`, `font INDEX`, `movie shell\|dialog\|none`, or `execute shell\|dialog`; opt-in native English font/movie resource screen. The local catalog must be staged before loading, using a fresh visible process. Font indices 0–4 select the cooked English families. Movie inspection/execution requires `make retail-movies` staging and a loaded resource screen. `movie` keeps timelines inactive; `execute` enables checked native timeline/AVM1 work with minimal widget owners. Full movie drawing and event routing remain disabled. |
 
 `ps2_ui` and `ps2_uiKey` are registered in `src/ps2/ui/movie.cpp`, `ps2_uiRetail` in
 `src/ps2/ui/retail_movie.cpp`, and the console/capture controls in
@@ -36,7 +38,7 @@ The following engine cvars have PS2-specific policies:
 | --- | --- | --- | --- | --- |
 | `jobs_numThreads` | `0` | `0` | `CVAR_INTEGER`, `CVAR_NOCHEAT`, `CVAR_INIT` | Initial synchronous scheduler; worker creation is disabled and explicit parallelism requests still execute on the caller. Registered in `src/neo/idlib/ParallelJobList.cpp`. |
 | `com_smp` | `0` | `0` | `CVAR_BOOL`, `CVAR_SYSTEM`, `CVAR_NOCHEAT`, `CVAR_ROM` | Synchronous game/draw dispatch; portable startup creates no game worker. Registered in `src/neo/framework/Common.cpp`, including the foundation. Production calls native `RunFrame` on the caller and stays in `NOMAP`. |
-| `sys_lang` | `english` | `english` | `CVAR_SYSTEM`, `CVAR_INIT` | Resource language identifier; six engine language names are exposed. Restart policy follows `CVAR_INIT`. Registered in `src/ps2/system/sys_services.cpp`. |
+| `sys_lang` | `english` | `english` | `CVAR_SYSTEM`, `CVAR_INIT` | Resource language identifier; six engine language names are exposed, but the current UI resource provider admits English only. Restart policy follows `CVAR_INIT`. Registered in `src/ps2/system/sys_services.cpp`. |
 | `net_clientMaxPrediction` | `5000` | `5000` | `CVAR_SYSTEM`, `CVAR_INTEGER`, `CVAR_NOCHEAT` | Retained frame metadata in milliseconds; no online service is enabled. Registered in `src/ps2/system/common_campaign.cpp`. |
 | `saveGame_enable` | `0` | `0` | `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled save policy in both core and campaign builds; neither live nor restart changes enable storage. Forced internal writes still encounter the unavailable session save manager. Registered in `src/ps2/system/save_metadata.cpp`. |
 | `in_useJoystick` | `0` | `0` | `CVAR_ARCHIVE`, `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled controller preference in both configurations. Neither live nor restart changes create an input source; forced internal writes still fail at sampling. Registered in `src/ps2/input/usercmd_stub.cpp`. |
@@ -114,5 +116,5 @@ these retained frontend cvar registrations do not initialize a GS device or sele
 | `r_jointNameScale` | `0.02` | `0.02` | `CVAR_RENDERER`, `CVAR_FLOAT` | Native frontend control. |
 | `r_jointNameOffset` | `0.5` | `0.5` | `CVAR_RENDERER`, `CVAR_FLOAT` | Native frontend control. |
 | `r_debugArrowStep` | `120` | `120` | `CVAR_RENDERER`, `CVAR_ARCHIVE`, `CVAR_INTEGER` | Clamped to 0–120. |
-| `r_materialOverride` | empty string | empty string | `CVAR_RENDERER` | Native material-name completion; declaration services remain deferred. |
+| `r_materialOverride` | empty string | empty string | `CVAR_RENDERER` | Native material-name completion; world-material override drawing remains unavailable. |
 | `stereoRender_swapEyes` | `0` | `0` | `CVAR_BOOL`, `CVAR_ARCHIVE` | Native frontend control. |

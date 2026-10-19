@@ -53,6 +53,7 @@ make release          # release build: build/release/d3bfg.elf
 
 See the [Makefile header](Makefile) for packaging, run and test targets, and the
 [developer guide](docs/DEVELOPMENT.md) for runtime controls and diagnostics.
+Contributors continuing the port should start with the [handover notes](docs/AGENT_HANDOVER.md).
 
 ## Running in PCSX2
 

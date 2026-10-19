@@ -1,12 +1,17 @@
 # Retail UI host inventory and cooking
 
-This is the host foundation for renderer milestone **2D-5**, verified on
-**2026-10-17, Australia/Sydney**. It produces inspected asset candidates for native
-offline PressStart, Root and Quit-dialog bring-up. The package explicitly records
-`runtime_ready=false`: complete retail SWF/Shell loading is not admitted. The opt-in
-native resource screen now admits the selected English fonts and cooked images through
-a bounded catalog; this does not activate a retail movie or menu.
-The [renderer roadmap](RENDERER_2D_PLAN.md) tracks remaining target gates.
+This records the **2D-5** host pipeline and its scoped native resource/timeline
+profiles. Documentation reviewed **2026-10-19**, with runtime evidence through
+**2026-10-18**. Original shell/dialog dictionaries, English text and checked native
+timelines can load and execute through separate admission profiles. The visible
+retail screen still draws isolated English labels; full movie rendering, event
+routing and offline menu navigation are not admitted.
+
+The cook keeps `runtime_ready=false` because complete drawing/resource closure and
+the active menu working set remain pending. Convex masks and additive blend 8 are
+implemented, while complex/stroked masks, screen blend 4 and nonzero additive color
+transforms remain feature gaps. See the [renderer roadmap](RENDERER_2D_PLAN.md) and
+[agent handover](AGENT_HANDOVER.md) for the next dialog/shell/menu gates.
 
 ## Commands and local data
 

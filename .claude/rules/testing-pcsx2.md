@@ -119,7 +119,8 @@
   infinite loop and an alias to a different native service reach their runtime guards.
   `make test-retail-timelines` isolates executable NTSC/PAL runs. The minimal owner uses
   the real carousel/Credits callbacks and only one Doom 3 option; full movie drawing,
-  masks/blends, Shell navigation and physical PS2 acceptance remain pending.
+  complex masks/strokes, remaining blends/color transforms, Shell navigation and
+  physical PS2 acceptance remain pending.
 - `make test-host` also runs the real shared page-cache implementation under ASan/UBSan
   with assertions enabled and disabled. Only GS/texture submission is stubbed. Keep
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed

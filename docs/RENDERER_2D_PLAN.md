@@ -3,8 +3,9 @@
 This is the reference inventory and implementation roadmap for the first GS-backed
 Doom 2D renderer. Inspection and approval date: **2026-10-14, Australia/Sydney**.
 The inventories retain that original source snapshot; implementation progress is recorded
-below, most recently on **2026-10-18, Australia/Sydney**. Uncompleted gates, budgets
-and destinations remain proposed.
+below, reviewed on **2026-10-19, Australia/Sydney**, against runtime acceptance
+through **2026-10-18**. [AGENT_HANDOVER.md](AGENT_HANDOVER.md) is the continuation
+guide. Uncompleted gates, budgets and destinations remain proposed.
 It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Implementation progress
@@ -117,11 +118,41 @@ movies require it. Its zero-additive-color profile maps the native premultiplied
 ONE/ONE shader output to one GS alpha-weighted sum, for sprites, indexed geometry and
 paged images. The existing authored SWF now contains real PlaceObject3 mode-8 records;
 the existing device scene adds texture/vertex alpha, saturation and state-restoration
-coverage. There are no new native fixtures or pixel buffers. Masks, screen mode 4,
-nonzero additive color transforms and full retail movie rendering remain pending.
+coverage. There are no new native fixtures or pixel buffers. The convex-mask slice
+below follows this gate; complex masks, screen mode 4, nonzero additive color
+transforms and full retail movie rendering remain pending.
 See the [acceptance record](PORT_STATUS.md#native-swf-additive-blending-2d-6-first-slice)
 and unscaled [NTSC](images/swf-additive-2d-6-ntsc.png) /
 [PAL](images/swf-additive-2d-6-pal.png) authored captures.
+
+**The second 2D-6 slice passes debug/release NTSC/PAL on 2026-10-18: native convex masks.**
+The existing authored movie now has twenty dictionary entries and eight mask
+placements, with three active at peak. All 77 source/reference pixels pass across
+three load/input/reload cycles. Checked native mask lifetimes, arbitrary-order
+removal, simultaneous expiry and direct glyph/page clipping share the CPU path.
+Limits are 64 input triangles, sixteen simplified convex boundary points and four
+active masks. Complex masks and strokes still fail explicitly. See the
+[acceptance record](PORT_STATUS.md#native-convex-swf-masks-2d-6-second-slice) and
+[NTSC](images/swf-masks-2d-6-ntsc.png) / [PAL](images/swf-masks-2d-6-pal.png) captures.
+
+### Next selected work
+
+Continue required feature closure while targeting visible retail milestones:
+
+1. Audit the executed dialog's complete draw/resource requirements and enable a
+   separately admitted full-dialog path once every required operation is supported.
+   Its two mask shapes fit the new convex profile; this alone does not admit all
+   dialog rendering or justify removing the global resource-only guard.
+2. Close shell complex masks/strokes, screen blend 4, nonzero additive color
+   transforms and dynamic artwork bindings. Measure the active bitmap/font working
+   set and produce a complete original shell frame.
+3. Connect bounded native offline PressStart/Root/Quit ownership and Common hooks;
+   verify at least 600 responsive frames, focus/select/back, console and shutdown.
+4. Add physical device input and PS2 hardware acceptance as 2D-8.
+
+Extend the current renderer/UI gates; no additional native fixture program is
+planned for these slices. Campaign simulation, sound output and world rendering
+remain deferred while this approved UI/menu work proceeds.
 
 ## Scope and completion criteria
 
@@ -142,6 +173,10 @@ operations must be hidden or disabled explicitly. First menu input can be inject
 key events; usable pad or keyboard navigation is a separate final integration gate.
 
 ## Inspection baseline
+
+The following checkout/source inventories describe the original 2026-10-14
+inspection. Present-tense limitations inside those tables refer to that snapshot;
+current capabilities and remaining gates are summarized above.
 
 | Checkout / evidence | Inspected state |
 | --- | --- |
@@ -472,8 +507,8 @@ localization explicitly, gate optional music/sample lookups while playback stays
 and keep save enumeration, leaderboards, online lobbies and Classic switching unavailable.
 
 Route focus/select/back/console events through native menu/console handling before
-considering pad/keyboard polling. Production `ProcessEvent` currently routes only to
-the console. Console closing/reopening now tolerates the absence of a mouse in
+considering pad/keyboard polling. Production currently routes events to the console
+and selected authored movie; retail full-movie event handling remains gated. Console closing/reopening now tolerates the absence of a mouse in
 production; test capability probes keep their explicit unsupported failures. HostFs
 commands deliver bounded ASCII and named native keys without introducing a physical
 input device. No desktop window, rumble or player user-command sampling is needed.

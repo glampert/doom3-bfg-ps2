@@ -1,37 +1,45 @@
 # Port status and headless acceptance
 
-M0–M2 passed on 2026-10-08 with ps2dev GCC 15.2.0 and PCSX2 2.6.3. The current
-foundation now runs real `idCommonLocal::Init` / `Shutdown` through staged core and
-offline services. The M2b campaign gate compiles all 281 retained units in debug and
-release; audited JPEG/zlib integration now closes the retained resident link in both
-configurations. M2b compile/link acceptance is complete. The first partial M3 game
-fixture now runs native initialization, entity/script ticks, native target
-activation, timed events, removal/cancellation, fixed-world collision, native physics
-wall stops, gravity, floor contacts/rest, grounded sliding and stable map reloads.
-Native player physics also consumes injected commands for acceleration, wall collision,
-reverse movement and stopping after input release, followed by jumping/landing,
-held-jump suppression/rearming and crouch/standing collision shapes.
-It now also spawns a restricted native `idPlayer`, delivers injected commands through
-the native player pipeline and ticks its movement, linked conditions and actor script.
-Native player jump/crouch commands, crouch speed/view interpolation and authored
-idle/air/crouch state transitions now pass over 195 frames per reload.
-The next 80 frames add low-ceiling crouch passage and blocked standing restoration,
-followed by 56 frames of native low-step climbing and high-rise blocking, bringing
-each reload to 331 native frames with the same player, verified in debug and release.
-Bounded logical PCM samples and deterministic headless voices are usable as
-standalone services. Native authored `InitFromNewMap` now loads logical world/models, PVS, collision,
-AAS and one idle AI. Full campaign player startup, animated AI/gameplay, retail maps
-and sound/world-render output remain pending. The first CPU-only GS 2D device slice
-now passes in PCSX2. Production now connects the real native console to Common
-frames through an explicit NTSC/PAL boot policy. Bounded indexed geometry, native font
-metrics, material declarations and timeline/AVM1 execution now draw an authored
-SWF with bounded convex masks with animation, focus/select and console overlays in debug/release NTSC/PAL. The
-retail pipeline now admits English fonts, inactive dictionaries and explicitly bounded
-shell/dialog timeline execution with minimal native carousel/Credits ownership. Full
-retail movie rendering, active artwork residency, required masks/blends and offline
-menu navigation remain the next rendering work.
-The sections below preserve each slice's
-historical measurements; current acceptance evidence is at the end.
+## Current snapshot — 2026-10-19
+
+The port is not playable yet. The latest rendering implementation is `ac9de81`
+(convex SWF masks, accepted 2026-10-18); `1f045d8` subsequently moved the authored
+fixtures into `src/tests/data/` without changing their bytes. This documentation
+audit follows repository cleanup through `6843948`.
+
+| Area | Implemented and verified boundary | Remaining boundary |
+| --- | --- | --- |
+| M0–M2 / M2b | EE core startup, synchronous Common/services, retained campaign compile and resident link | Source inclusion is not campaign playability |
+| M3 game fixtures | Native startup/events/scripts; restricted player movement, jump/crouch/steps over 331-frame reloads; authored map/world/PVS/collision/AAS and one idle AI | Full campaign player, animated AI/gameplay, retail map conversion and Common map transitions |
+| Production loop | Native game initialization, console commands, sustained frames and ordered shutdown; game remains in `NOMAP` | Production map ownership and map simulation |
+| 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
+| 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
+| 2D-6 | Scoped additive blend 8 and bounded convex masks, including native text/page clipping | Complex/holed/disconnected/stroked masks, screen blend 4 and nonzero additive color transforms |
+| 2D-7–8 | Not accepted | Full retail drawing, native offline menu navigation, physical input and hardware validation |
+
+The current production retail screen displays isolated native English labels even
+when original shell/dialog timelines are executing. Full movie `Render` and event
+routing remain gated. No world rendering or audible playback is implemented.
+
+The last full target matrices passed debug/release NTSC/PAL: 77 authored UI pixel
+checks, twelve invalid-resource cases, nineteen core renderer cases per build, and
+bounded/live-quit production headless regressions. The fixture-move gate also passed
+334 host regressions plus C++ sanitizer harnesses, generator verification and
+headless/UI staging. See the [latest runtime record](#native-convex-swf-masks-2d-6-second-slice)
+for archive IDs, inspected captures and measured memory. The 2026-10-19 docs audit
+reruns source inventory, compile-database generation and authored-output checks; it
+does not claim a new emulator or hardware run.
+
+Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
+[2D roadmap](RENDERER_2D_PLAN.md). Recommended visible milestones are the real dialog
+rendered end to end, a complete shell frame, then responsive offline menu navigation.
+Required feature/resource admission precedes each milestone. Preserve headless
+simulation and extend existing fixtures; further standalone movement fixtures are
+paused while UI/menu work is selected.
+
+The sections below are an append-only history of acceptance slices. Earlier source
+counts, budgets, limitations and suggested next steps describe their dated slice;
+they are not current instructions.
 
 ## Initial M2 build and runtime evidence
 
@@ -3382,8 +3390,7 @@ No new native fixture or executable is added.
 The retail inventory remains a separate gate. Dialog has ten placements using two
 rectangular shapes. Shell has 54 placements referencing 29 mask shapes, including
 a 185-point outline, disconnected regions, concave text outlines and holes; two
-masks also have opaque boundary strokes. Its largest fill has 198 vertices and
-183 triangles. Conservative all-frame display graphs show at most one inherited/
+masks also have opaque boundary strokes. Its largest fill vertex count is 198; the largest triangle count is 183. Conservative all-frame display graphs show at most one inherited/
 local active mask, but fourteen shell placements rotate/shear the local rectangle.
 A bounded triangulated representation and explicit stroke coverage are the next
 mask candidates. Full retail `Render` remains gated, as do screen blend 4, nonzero
@@ -3420,3 +3427,25 @@ Run the latest authored scene with `make run-ui`; use `make test-ui`,
 gates, adding `BUILD=release` for assertions-off target checks. Next address the
 remaining complex shell mask geometry and strokes before the other retail drawing
 and native offline menu gates.
+
+
+## Documentation audit and agent handover (2026-10-19)
+
+Reviewed project plans, developer controls, agent rules, provenance and fixture/tool
+notes against cleanup through `6843948` and the current source manifest. Current
+summaries distinguish retail loading, scoped timeline execution and full drawing.
+The convex-mask slice and fixture relocation are reflected in the roadmap, and
+links/claims about the deleted copied Quake II Makefile have been removed. Dated
+acceptance measurements remain historical evidence.
+
+[AGENT_HANDOVER.md](AGENT_HANDOVER.md) records the continuation sequence, source
+entry points, profile/ownership invariants, local data policy, commands and relevant
+existing verification gates. README remains focused on future players and links
+to that developer entry point.
+
+Documentation checks pass for local Markdown paths/heading fragments and current
+guide Make targets. Fresh `make inventory` confirms 458 classified upstream units,
+282 campaign sources, 48 core backend and 34 resident support sources;
+`make compiledb` emits 399 entries, and authored generator `--check` passes.
+This is a documentation-only update. No new emulator, gameplay, menu, hardware or
+performance acceptance is claimed.

@@ -1,7 +1,9 @@
 # Performance: Quake II PS2 codegen and PCSX2 reference
 
 The named functions, object paths and measurements below come from `quake2-ps2`.
-Treat them as test ideas and hardware clues; this port has no renderer or timing baseline yet.
+Treat them as test ideas and hardware clues. Doom now has functional GS/UI captures
+and memory/stack baselines in PORT_STATUS, but no accepted campaign or physical PS2
+rendering-performance baseline. Quake timings below are not Doom measurements.
 
 ## EE codegen facts
 

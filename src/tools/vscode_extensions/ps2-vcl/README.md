@@ -1,6 +1,8 @@
 # PS2 VCL/VU Assembly syntax highlighting for VSCode
 
-Syntax highlighting for the PS2 VU microprograms in this repository:
+Syntax highlighting for PS2 VU microprograms, reused from the Quake II PS2 toolset.
+The Doom port does not yet include a VU program; this editor support is available
+for future renderer work. It recognizes:
 `.vcl` sources (openvcl/vclpp dialect, including the `#macro`/`#vuprog`
 preprocessor directives), the `.i` files they `#include`, and the assembled
 `.vsm` output.

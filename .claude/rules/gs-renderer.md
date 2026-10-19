@@ -6,10 +6,11 @@ renderer before treating it as a rule for this port.
 
 ## Doom renderer interface boundary
 
-The current `src/ps2/renderer/` stubs bind native `tr` / `renderSystem`, image, shader,
-cinematic and vertex-cache interfaces. Construction creates empty metadata, with zero
-device capabilities and no frame/vertex arenas, texture payloads or GS setup. Only
-inactive queries, empty cleanup and a disabled resolution policy are implemented.
+The logical adapters in `src/ps2/renderer/` bind native `tr` / `renderSystem`, image,
+shader, cinematic and vertex-cache interfaces. Default/headless construction creates
+metadata without GS setup or pixel/frame arenas. Explicit visible-mode `rs`/`ui`
+activation adds the separate bounded 2D capabilities described below; world submission,
+general shaders, cinematics and native vertex-cache buffers remain unavailable.
 Before explicit 2D activation, display/draw requests fail by method name. General
 renderer initialization and resource loading remain unavailable.
 Retained frontend cvars preserve native defaults/flags and cannot enable rendering.
@@ -204,12 +205,18 @@ uses the full resident ELF and `run_console.py`, without importing these units i
 
 ## Doom authored native SWF profile
 
+The image-allocation details in this section describe the initial 2026-10-15
+direct-texture slice. Current authored bitmap/font binding uses shared UIPG pages,
+described under Retail host page contract above; additive/convex-mask additions
+follow this section. Keep the initial captures as historical acceptance evidence.
+
 - Native SWF uses a bounded normal-blend scope around its existing GUI calls. The
   native GUI fragment shader multiplies texture/vertex RGBA, adds the color transform,
   then premultiplies RGB by alpha for ONE/ONE_MINUS_SRC_ALPHA blending. With the authored
   zero-additive transform, GS straight-alpha modulation produces the same intended
-  equation. Do not premultiply the CPU vertex RGB a second time. Other SWF blend modes,
-  masks and nonzero additive color remain unsupported.
+  equation. Do not premultiply the CPU vertex RGB a second time. Scoped native mode 8
+  and convex masks are now supported as documented below; other special blends,
+  nonzero additive color and complex/stroked masks remain unsupported.
 - Native packed zero additive color can be 127, while cleared GUI vertices use 128.
   Accept either only inside the SWF scope and treat it as zero; this does not implement
   general additive transforms or preserve the desktop shader's one-byte quantization
@@ -298,8 +305,7 @@ for the native early skip. Do not treat a faint admitted mask as partial coverag
 The authored native SWF exercises three simultaneous masks, crossing ranges, joint
 expiry, oblique/transformed boundaries, alpha/additive content, bitmap page seams and text.
 The retail inventory has ten rectangular dialog placements, but the shell also needs
-a 185-point outline, disconnected/holed meshes and two stroked masks. Its largest
-fill has 198 vertices and 183 triangles. Full retail drawing remains gated. PCSX2
+a 185-point outline, disconnected/holed meshes and two stroked masks. Its largest fill vertex count is 198; the largest triangle count is 183. Full retail drawing remains gated. PCSX2
 captures establish bounded functional clipping, not hardware fill cost or frame-rate
 acceptance.
 
