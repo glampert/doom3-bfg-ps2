@@ -19,8 +19,11 @@ math path; PS2-specific math replacement headers are a later milestone.
 - Engine headers such as `d3xp/Game_local.h` depend on type/platform declarations
   from `idlib/precompiled.h`. Keep that setup include in a separate first block;
   alphabetical include sorting otherwise moves Game_local ahead of it and breaks
-  the EE type-query test build. Generated authored admission headers emit the
-  approved formatter layout directly, so `--check` works without clang-format.
+  the EE type-query test build. The 2026-10-16 formatting pass broke the script
+  probe's `script_boot.cpp` this way until 2026-10-19; CI builds neither test
+  target, so build them after a formatter pass. Generated authored admission
+  headers emit the approved formatter layout directly, so `--check` works without
+  clang-format.
 - `idCVar`'s old default-constructor RTTI assertion compared a pointer type with a value
   type and was always true. `idInternalCVar` needs this constructor. Portable builds keep
   it without RTTI; deleting the constructor would break real cvar registration.

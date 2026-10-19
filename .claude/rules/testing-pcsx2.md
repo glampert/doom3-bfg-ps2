@@ -207,11 +207,13 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 69 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 83 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Sixty-two negative probes require matching run/begin identities and
+  uses a fresh process. Seventy-six negative probes (every `NEGATIVE_PROBES` entry,
+  including the seventeen renderer failures `test-renderer` also runs and five JPEG
+  rejections) require matching run/begin identities and
   the expected fatal diagnostic: online flags, absent user, loading out of order, network
   matchmaking, Classic switching, absent save manager, unsupported input device, audio
   missing WAVs, unloaded duration queries, audio device initialization, invalid WAV

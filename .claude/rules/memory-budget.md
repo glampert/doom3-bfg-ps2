@@ -406,3 +406,15 @@ backing bytes** in all four debug/release NTSC/PAL runs. Arena high-water is
 **3,842,175 / 3,943,140 bytes / 2,459 allocations**, and full shutdown to
 **7,424 / 7,600 / 4**. Shared four-slot nearest cache, 256 KiB scratch and 56-byte
 page metadata are unchanged. See PORT_STATUS for final link sizes and acceptance IDs.
+
+## Doom toolchain rebuild comparison (2026-10-19)
+
+The same production code on the old toolchain (2026-10-18 runs) and the rebuilt one
+(ps2sdk `329e2bb`, newlib built with `HAVE_BLKSIZE`) gives identical tagged ledgers:
+headless ready 1,845,287 / 1,942,720 bytes in 2,384 allocations, authored UI peak
+3,885,301 / 3,992,336, the same warm unloads and exact 7,424 / 7,600 / 4 recovery. Arena
+commitment moves only: +12,672 debug / +16,768 release bytes in the bounded headless
+run, consistent with stdio buffers now sized from `st_blksize`, and +384 / −3,712 in the
+NTSC authored UI run. Production `PT_LOAD` shrank by 384 bytes in both configurations,
+to 11,159,013 / 11,596,133. Untagged arena commitment depends on libc buffering and
+allocator layout; compare tagged ledgers across toolchains.

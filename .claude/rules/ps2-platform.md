@@ -80,6 +80,17 @@ first GS inspection hold in PCSX2 on 2026-10-14. Use a wide calculation, such as
 60-second inspection holds completed in both configurations. This trap belongs to
 the current SDK implementation, not a hardware timer limit.
 
+## Doom toolchain baseline
+
+The local `~/ps2dev` toolchain was rebuilt on 2026-10-19: ps2sdk `329e2bb`, GCC 15.2.0,
+binutils 2.45.1 and newlib 4.6.0 built with `HAVE_BLKSIZE`. CI pins the ps2sdk image of
+the same versions ([ci.md](ci.md)). newlib now sizes stdio buffers from `st_blksize`;
+quake2-ps2 measured 16 KB for `host:` files, where streams previously got 1 KB, and a seek
+outside the buffer reads the aligned block below its target. Every regular Doom gate
+passes on the rebuilt toolchain in debug and release, with unchanged tagged ledgers
+([memory-budget.md](memory-budget.md)); HostFs command polling, page streaming and the
+filesystem smoke checks behave as before in PCSX2.
+
 ## Quake II reference
 
 SDK and EE hardware findings below are useful, but named source files, boot flows,

@@ -4,8 +4,10 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "d3xp/Game_local.h"
+// Engine declarations depend on the platform and type setup in this header.
 #include "idlib/precompiled.h"
+
+#include "d3xp/Game_local.h"
 #include "ps2/game/script_error.h"
 #include "ps2/system/core.h"
 #include "ps2/system/heap.h"

@@ -21,15 +21,15 @@ The current production retail screen displays isolated native English labels eve
 when original shell/dialog timelines are executing. Full movie `Render` and event
 routing remain gated. No world rendering or audible playback is implemented.
 
-The last full target matrices passed debug/release NTSC/PAL: 77 authored UI pixel
+The last feature acceptance passed debug/release NTSC/PAL: 77 authored UI pixel
 checks, twelve invalid-resource cases, nineteen core renderer cases per build, and
 bounded/live-quit production headless regressions. The fixture-move gate also passed
 334 host regressions plus C++ sanitizer harnesses, generator verification and
-headless/UI staging. See the [latest runtime record](#native-convex-swf-masks-2d-6-second-slice)
-for archive IDs, inspected captures and measured memory. The 2026-10-19 docs audit
-reruns source inventory, compile-database generation and authored-output checks; it
-does not claim a new emulator or hardware run. [GitHub Actions](#github-actions-ci-2026-10-19)
-now builds production debug/release on Linux and the host tools on three hosts.
+headless/UI staging. See the [convex-mask record](#native-convex-swf-masks-2d-6-second-slice)
+for archive IDs, inspected captures and measured memory. [GitHub Actions](#github-actions-ci-2026-10-19)
+now builds production debug/release on Linux and the host tools on three hosts. Every
+regular target gate [passed again](#script-probe-repair-and-the-rebuilt-toolchain-2026-10-19)
+on the toolchain rebuilt on 2026-10-19, including the repaired script probe.
 
 Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
 [2D roadmap](RENDERER_2D_PLAN.md). Recommended visible milestones are the real dialog
@@ -3487,3 +3487,43 @@ no source change since: the local ps2sdk and newlib were rebuilt on 2026-10-19 (
 sorted `script_boot.cpp`'s includes, `d3xp/Game_local.h` precedes `idlib/precompiled.h`.
 CI does not build that probe. These are local build checks; the first hosted runs follow
 the next push. No emulator, runtime or hardware acceptance is claimed.
+
+## Script probe repair and the rebuilt toolchain (2026-10-19)
+
+`script_boot.cpp` again includes `idlib/precompiled.h` in its own commented first block.
+The 2026-10-16 formatting pass had sorted `d3xp/Game_local.h` ahead of it, so the isolated
+compiler probe no longer compiled. All fifteen compiler cases pass again in debug
+(`20261019T121308Z_script_0c1dedcef5734fac` to `20261019T121336Z_script_e79e7f532c044568`)
+and release (`20261019T121343Z_script_130ca5ff06b143ed` to
+`20261019T121409Z_script_43d1798e46a54c76`).
+
+This pass is also the first emulator run on the local toolchain rebuilt on 2026-10-19
+(ps2sdk `329e2bb`, GCC 15.2.0, newlib built with `HAVE_BLKSIZE`, so stdio sizes its
+buffers from `st_blksize`). Every regular target gate passes in both configurations,
+each with its runner's complete case set:
+
+| Gate | Cases per configuration |
+| --- | --- |
+| `smoke-platform`, `smoke`, `smoke-negative` | SDK probe, core foundation, expected missing fixture |
+| `test-renderer` | NTSC/PAL scenes and 17 expected fatals |
+| `test-common` | 7 lifecycle stops and 76 negative probes |
+| `test-headless`, `test-console` | Bounded and live-quit runs; NTSC/PAL console |
+| `test-ui` | NTSC/PAL authored movie and 12 invalid resources |
+| `test-retail-ui` | NTSC/PAL English fonts and 5 invalid resources |
+| `test-retail-movies` | Inactive and executable NTSC/PAL movies and 12 guards |
+| `test-game`, `test-map` | Game fixture and 10 expected fatals; authored map |
+
+Debug archives run from `20261019T121431Z_smoke_a25a3d839dd24e65` to
+`20261019T123056Z_smoke_49d2036617f644ea`, release from
+`20261019T123309Z_smoke_3b935fed6480463f` to `20261019T124825Z_smoke_89fd025e5f3a4e5c`.
+The new authored NTSC capture matches the accepted 2D-6 image, and the executed retail
+dialog screen draws its three English labels.
+
+Production code is unchanged since the 2026-10-18 runs, so they compare the two
+toolchains directly. Every tagged ledger matches: headless ready 1,845,287 / 1,942,720
+bytes in 2,384 allocations, the authored UI peak of 3,885,301 / 3,992,336, warm unloads
+and the exact 7,424 / 7,600 / 4 recovery. Only allocator arena commitment moves: +12,672
+(debug) and +16,768 (release) bytes in the bounded headless run, consistent with larger
+stdio buffers, and +384 / −3,712 bytes in the NTSC authored UI run. Production `PT_LOAD`
+is 384 bytes smaller, as recorded above. These are PCSX2 functional results, not
+hardware or I/O timing measurements.

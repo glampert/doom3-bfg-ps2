@@ -209,12 +209,14 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Documentation/path-only changes | Local links/targets, source inventory, authored `--check`; fixture moves also use host tests and package staging |
 | Include/Makefile paths, toolchain or CI | `make`, `make release`, plus the case-sensitive Linux check in [ci.md](../.claude/rules/ci.md) |
 
-Last runtime acceptance (2026-10-18): debug/release NTSC/PAL, 77 authored pixel checks,
+Last feature acceptance (2026-10-18): debug/release NTSC/PAL, 77 authored pixel checks,
 three reload/input cycles, twelve malformed-resource cases, nineteen core renderer
-cases per configuration and two headless cases per configuration. Host regression
-count is 334 plus C++ sanitizer harnesses. Runtime acceptance predates this docs-only
-audit; no emulator rerun was needed. Run IDs and screenshots are linked from
-PORT_STATUS; ignored `build/test-results/` archives may not exist on another machine.
+cases per configuration and two headless cases per configuration. On 2026-10-19 every
+regular target gate (smoke variants, renderer, Common, headless, console, UI, retail
+fonts/movies, game, map and the script probe) passed again in both configurations on
+the rebuilt toolchain, with unchanged tagged ledgers. Host regression count is 334 plus
+C++ sanitizer harnesses. Run IDs and screenshots are linked from PORT_STATUS; ignored
+`build/test-results/` archives may not exist on another machine.
 
 Production has 374 direct objects, no fixture inputs/symbols and no GC. The source
 audit has 458 upstream units / 282 campaign units; compile database 399 entries.
