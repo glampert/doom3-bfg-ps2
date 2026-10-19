@@ -27,7 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../idlib/precompiled.h"
-#include "../renderer/image.h"
+// [PS2_D3BFG]: Include paths match the on-disk case for case-sensitive build hosts.
+#include "../renderer/Image.h"
 // [PS2_D3BFG]: Retail execution has an explicit bounded scope, independent of rendering.
 #if defined( ID_PS2 )
 #include "ps2/ui/swf_runtime.h"

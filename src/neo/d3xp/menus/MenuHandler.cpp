@@ -27,7 +27,8 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #pragma hdrstop
-#include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Include paths match the on-disk case for case-sensitive build hosts.
+#include "../../idlib/precompiled.h"
 #include "../Game_local.h"
 
 extern idCVar in_useJoystick;
