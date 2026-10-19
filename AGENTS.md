@@ -160,10 +160,13 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   cannot replace target compilation. Check Make's exit status, including VU tool failures.
 - `make resource-unpack` builds the standalone C++20 host extractor at
   `build/tools/resource_unpack`, using the native resource layout without engine/SDK
-  linkage. `--list` validates metadata; `--output DIR` streams a merged directory tree,
-  with later input containers/records winning. Existing files require `--overwrite`.
-  Keep retail output ignored. `make test-host` exercises its separate sanitizer build;
-  this host-only tool does not change native asset providers or boot capability.
+  linkage. The host tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`, which owns
+  their flags on every host (MSVC included); make configures it into `build/tools/cmake/`
+  and starts that tree afresh when `HOST_CXX` changes. `--list` validates metadata;
+  `--output DIR` streams a merged directory tree, with later input containers/records
+  winning. Existing files require `--overwrite`. Keep retail output ignored.
+  `make test-host` exercises its separate sanitizer build; this host-only tool does not
+  change native asset providers or boot capability.
 - `make ui-inventory` / `make ui-cook` inspect/cook the local retail shell/dialog profile
   in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
   Output must stay under `build/`. The manifest records hashes, dependencies, feature
@@ -196,6 +199,10 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   additional vendor sources in an EE runtime target.
 - Doom smoke procedures and the separately labeled Quake reference are in
   [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md).
+- CI: `.github/workflows/ps2.yml` runs `make` and `make release` on Linux, in the ps2dev
+  `ps2sdk` image pinned by digest, for every change but docs. It keeps no ELF and runs no
+  test executable, host test or emulator gate. `tools.yml` builds the host tools with GCC,
+  Apple clang and MSVC. See [.claude/rules/ci.md](.claude/rules/ci.md).
 
 ## Git workflow
 
@@ -220,6 +227,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - GS alpha 1.0 is `0x80`. Normalized ST spans the power-of-two TEX0 extent, not the image.
 - PCSX2 models neither the EE cache nor GS-internal cost. A capture only gates regressions
   for those.
+- CI's Linux file names are case-sensitive and this Mac's APFS volume isn't. An include or
+  Makefile path in the wrong case builds locally and fails CI.
 
 ## Rules index (`.claude/rules/`)
 
@@ -238,3 +247,4 @@ reference observations until reproduced on this port.
 | [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md) | id's C++ | editing rules, engine quirks and bugs |
 | [memory-budget.md](.claude/rules/memory-budget.md) | heap, VRAM, assets, MapCycle | the 32 MB picture, map-transition peak, measured budgets |
 | [vclpp-submodule.md](.claude/rules/vclpp-submodule.md) | `external/vclpp` | vclpp/parse-utils conventions, verification recipes, CI, MASP mode, tyra |
+| [ci.md](.claude/rules/ci.md) | `.github` | the two workflows, the pinned ps2sdk image and moving it, checking a Linux build without Docker, runner traps |

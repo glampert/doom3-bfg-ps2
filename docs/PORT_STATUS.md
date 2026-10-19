@@ -28,7 +28,8 @@ bounded/live-quit production headless regressions. The fixture-move gate also pa
 headless/UI staging. See the [latest runtime record](#native-convex-swf-masks-2d-6-second-slice)
 for archive IDs, inspected captures and measured memory. The 2026-10-19 docs audit
 reruns source inventory, compile-database generation and authored-output checks; it
-does not claim a new emulator or hardware run.
+does not claim a new emulator or hardware run. [GitHub Actions](#github-actions-ci-2026-10-19)
+now builds production debug/release on Linux and the host tools on three hosts.
 
 Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
 [2D roadmap](RENDERER_2D_PLAN.md). Recommended visible milestones are the real dialog
@@ -3449,3 +3450,40 @@ guide Make targets. Fresh `make inventory` confirms 458 classified upstream unit
 `make compiledb` emits 399 entries, and authored generator `--check` passes.
 This is a documentation-only update. No new emulator, gameplay, menu, hardware or
 performance acceptance is claimed.
+
+## GitHub Actions CI (2026-10-19)
+
+GitHub Actions now builds the port. `ps2.yml` runs `make` and `make release` on Linux in
+the ps2dev project's `ghcr.io/ps2dev/ps2sdk` image, pinned by digest to its 2026-10-13
+build: ps2sdk `329e2bb`, GCC 15.2.0 and binutils 2.45.1, matching the local toolchain. It
+covers the source audit, every production object and the resident link checks, and keeps
+no ELF. `tools.yml` builds the C++ host tools with GCC, Apple clang and MSVC through the
+new `src/tools/CMakeLists.txt`, which `make resource-unpack` now drives as the single
+owner of their flags; the MSVC executable links its runtime statically and is kept as a
+run artifact. Neither workflow runs host tests, test executables or PCSX2 gates. Details
+and traps are in [ci.md](../.claude/rules/ci.md).
+
+Linux file names are case-sensitive. Thirty-three quoted includes in compiled id units
+spelled `idLib/`, `snapshot_jobs.h` or `image.h`, which the Mac's volume resolved. Each now
+matches the disk and carries a `[PS2_D3BFG]` tag: 30 `d3xp/menus` units,
+`sys/LightweightCompression.cpp`, `sys/Snapshot.h` and `swf/SWF_Main.cpp`. Thirty-one more
+remain in deferred or excluded sources that no target compiles.
+
+| Local check | Result |
+| --- | --- |
+| Case-sensitive APFS volume with the image's SDK, the local EE toolchain and GNU make 4.4.1 | `make` and `make release` link 374 objects with zero unresolved or duplicate symbols |
+| Same volume without the include fixes | Fails at the first wrong-case include |
+| Same volume, other targets | `compile-core`, `compile-game`, `headless-core`, `platform-probe` and `headless-game` build |
+| Working tree, macOS make 3.81 | Debug/release pass; `make compiledb` unchanged at 399 entries |
+| Host tools through CMake | Apple clang build passes the 14 unpacker regressions; the EE g++ in LP64 mode compiles the source cleanly with the GCC warning set at `-O2`/`-O3` |
+| `make test-host` | 334 Python regressions and the sanitizer harnesses pass |
+
+Production `PT_LOAD` is 11,159,013 debug / 11,596,133 release bytes, before and after the
+include fixes. That is 384 bytes below the convex-mask record in both configurations, with
+no source change since: the local ps2sdk and newlib were rebuilt on 2026-10-19 (ps2sdk
+`329e2bb`). No emulator gate has been rerun against the rebuilt toolchain.
+
+`make script-probe` fails on both hosts, independently of these changes: since `7d629da`
+sorted `script_boot.cpp`'s includes, `d3xp/Game_local.h` precedes `idlib/precompiled.h`.
+CI does not build that probe. These are local build checks; the first hosted runs follow
+the next push. No emulator, runtime or hardware acceptance is claimed.

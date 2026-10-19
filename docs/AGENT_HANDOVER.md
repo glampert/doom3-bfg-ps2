@@ -174,6 +174,11 @@ make ui-cook
 make run-retail-movies
 ```
 
+GitHub Actions builds production debug/release on Linux in the pinned ps2sdk image
+(`.github/workflows/ps2.yml`) and the C++ host tools with GCC, Apple clang and MSVC
+(`tools.yml`). Both are compile/link checks; host tests and emulator gates stay local.
+Linux file names are case-sensitive: [ci.md](../.claude/rules/ci.md) has the Mac reproduction.
+
 `run-ui` shows the authored scene. For original dialog execution in the separate
 retail package, while it is running with the resource screen loaded:
 
@@ -202,6 +207,7 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Common/frame/presentation ownership | `make test-headless`, `make test-console`, `make test-ui`, debug/release |
 | Game/map behavior | Existing `make test-game` / `make test-map`, debug/release; not a reason to resume standalone movement-fixture expansion |
 | Documentation/path-only changes | Local links/targets, source inventory, authored `--check`; fixture moves also use host tests and package staging |
+| Include/Makefile paths, toolchain or CI | `make`, `make release`, plus the case-sensitive Linux check in [ci.md](../.claude/rules/ci.md) |
 
 Last runtime acceptance (2026-10-18): debug/release NTSC/PAL, 77 authored pixel checks,
 three reload/input cycles, twelve malformed-resource cases, nineteen core renderer
@@ -212,8 +218,9 @@ PORT_STATUS; ignored `build/test-results/` archives may not exist on another mac
 
 Production has 374 direct objects, no fixture inputs/symbols and no GC. The source
 audit has 458 upstream units / 282 campaign units; compile database 399 entries.
-Production PT_LOAD is 11,159,397 debug / 11,596,517 release bytes; core is
-2,139,184 / 2,223,920. Authored UI peak is 3,885,301 requested / 3,992,336 backing;
+Production PT_LOAD is 11,159,013 debug / 11,596,133 release bytes with the SDK rebuilt
+on 2026-10-19 (11,159,397 / 11,596,517 before it); core was 2,139,184 / 2,223,920
+before the rebuild. Authored UI peak is 3,885,301 requested / 3,992,336 backing;
 full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are separate
 fixed/runtime measurements; do not sum tagged backing and committed arena twice.
 Retail timeline heap acceptance uses its own 16 MiB loaded ceiling and exact warm

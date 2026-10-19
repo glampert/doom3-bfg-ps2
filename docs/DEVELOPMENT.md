@@ -20,8 +20,17 @@ Current implementation and acceptance details live in:
 
 The native build uses the ps2dev EE compiler and PS2SDK, with GCC 15.2 used for current
 verification. Python 3.10 or later runs the build/report/cook scripts. Host tools and
-sanitizer tests use a C++20 host compiler (`HOST_CXX`, default `clang++`). VU tooling is
-reserved for later renderer work; no VU program or vclpp dependency is built yet.
+sanitizer tests use a C++20 host compiler (`HOST_CXX`, default `clang++`). The C++ host
+tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`: `make resource-unpack`
+configures it into `build/tools/cmake/` with `HOST_CXX`, and other hosts, Windows/MSVC
+included, build it with `cmake` directly. VU tooling is reserved for later renderer work;
+no VU program or vclpp dependency is built yet.
+
+GitHub Actions runs `make` and `make release` on Linux in the pinned ps2dev `ps2sdk` image,
+and builds the host tools with GCC, Apple clang and MSVC. These are compile and link checks;
+host tests and PCSX2 gates still run locally. Linux file names are case-sensitive, unlike
+the default macOS volume; [ci.md](../.claude/rules/ci.md) describes reproducing the Linux
+build on a Mac.
 
 Native source lists are explicit in `config/sources.mk`. Run `make inventory` to audit
 them and `make compiledb` after source-list changes. No source discovery enables

@@ -50,7 +50,7 @@
 #   make smoke-negative          # expected missing-fixture failure
 #   make test-common             # partial-startup and offline-capability failure checks
 #   make compiledb               # compile_commands.json from real Make rules
-#   make resource-unpack         # standalone C++20 host resource reader/extractor
+#   make resource-unpack         # standalone C++20 host resource reader/extractor (CMake)
 #   make ui-inventory            # inspect local retail UI dependencies and feature gaps
 #   make smoke-platform          # run the isolated SDK platform probe
 #   make test-script             # isolated native script compiler checks
@@ -567,15 +567,26 @@ HOST_TEST_FLAGS = -std=c++20 -O1 -g -fno-exceptions -fno-rtti -fno-threadsafe-st
 	-fno-strict-aliasing -fsized-deallocation -fsanitize=address,undefined -fno-omit-frame-pointer \
 	$(HOST_WARNFLAGS) -Isrc -isystem src/external -DID_HOST_TEST -DPS2_D3BFG_ASSERTS=1
 
-HOST_TOOL_FLAGS = -std=c++20 -O2 -fno-exceptions -fno-rtti -fno-threadsafe-statics $(HOST_WARNFLAGS)
 RESOURCE_UNPACK_SRC = src/tools/resource_unpack/main.cpp
 
-build/tools/.resource-unpack-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TOOL_FLAGS) --sources $(RESOURCE_UNPACK_SRC)
+# The C++ host tools are a CMake project (src/tools/CMakeLists.txt) that owns their flags, so
+# every host builds them alike, MSVC and CI included. Make configures it into build/tools/cmake/
+# and runs its build every time; CMake tracks the sources and does nothing while the tools are
+# current. A different HOST_CXX or compiler version rewrites the stamp, which starts a fresh tree.
+HOST_TOOLS_CMAKE = build/tools/cmake
 
-build/tools/resource_unpack: $(RESOURCE_UNPACK_SRC) build/tools/.resource-unpack-flags.json
-	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TOOL_FLAGS) $(RESOURCE_UNPACK_SRC) -o $@
+build/tools/.cmake-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) -DCMAKE_BUILD_TYPE=Release
+
+$(HOST_TOOLS_CMAKE)/CMakeCache.txt: build/tools/.cmake-flags.json
+	@rm -rf $(HOST_TOOLS_CMAKE)
+	cmake -S src/tools -B $(HOST_TOOLS_CMAKE) -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$(HOST_CXX) \
+		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(abspath build/tools) -DCMAKE_TARGET_MESSAGES=OFF
+
+# MAKEFLAGS is cleared so the Makefiles CMake generates don't try to join this make's jobserver,
+# which a non-recursive recipe doesn't pass on; --parallel gives them jobs of their own.
+build/tools/resource_unpack: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
+	@MAKEFLAGS= cmake --build $(HOST_TOOLS_CMAKE) --parallel --target resource_unpack
 
 build/tests/.resource-unpack-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(RESOURCE_UNPACK_SRC)

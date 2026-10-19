@@ -10,6 +10,13 @@ in other rule files still need verification when imported. Current backend code 
 - `-std=gnu++20 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing`,
   with the `-Werror` set in the Makefile's `EE_CXX_WARNFLAGS`. ps2sdk headers are
   `-isystem`, so only our code is held to it. id's C++ is exempt from strict warnings and `-Werror`.
+- The C++ host tools are held to the same set plus `-Wpedantic`, with no exceptions, RTTI
+  or thread-safe statics, by `src/tools/CMakeLists.txt`, and MSVC to `/W4`, all as errors.
+  `make tools` checks only the local compiler; CI checks GCC on glibc, Apple clang and MSVC
+  (see [ci.md](ci.md)). For GCC-only warnings before pushing, the EE compiler in its LP64
+  ABI stands in for a host GCC, `<filesystem>` included:
+  `mips64r5900el-ps2-elf-g++ -mabi=64 -std=c++20 -O3 <flags> -c -o /dev/null x.cpp`.
+  Without `-mabi=64` it is a 32-bit target, where `size_t` is 32 bits.
 - Allocation goes through `ps2::heap` with Doom's `memTag_t` (stored as a checked 16-bit tag).
   Required allocation failure is fatal; `TryAlloc` returns null for checked callers.
 - `alignas(N)` is the alignment idiom, not `__attribute__((aligned))`.

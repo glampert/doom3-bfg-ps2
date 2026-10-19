@@ -1,0 +1,55 @@
+# Builds the C++ host tools (src/tools/CMakeLists.txt) optimized and with warnings as errors,
+# with each compiler they support: GCC on Linux, Apple clang on macOS, MSVC on Windows.
+#
+# The game is built by ps2.yml, inside the ps2dev toolchain's container image. This workflow
+# runs when the tools or their CMake project change; they share no sources with the game.
+
+name: Host tools
+
+on:
+  push:
+    paths:
+      - 'src/tools/CMakeLists.txt'
+      - 'src/tools/resource_unpack/**'
+      - '.github/workflows/tools.yml'
+  pull_request:
+    paths:
+      - 'src/tools/CMakeLists.txt'
+      - 'src/tools/resource_unpack/**'
+      - '.github/workflows/tools.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GCC, Ubuntu (latest)
+            os: ubuntu-latest
+          - name: Apple clang, macOS (latest)
+            os: macos-latest
+          - name: MSVC, Windows (latest)
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Configure
+        run: cmake -S src/tools -B build/tools
+      # --config picks Release under Visual Studio, which builds every config from one
+      # tree. The other generators already have it from CMakeLists.txt.
+      - name: Build
+        run: cmake --build build/tools --config Release --parallel
+      # The Windows executables, for people who don't build the tools themselves. They are
+      # listed on the run's page (GitHub sign-in needed to download) and kept for 90 days.
+      - name: Upload the Windows executables
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: host-tools-windows-x64
+          path: build/tools/Release/*.exe
+          if-no-files-found: error

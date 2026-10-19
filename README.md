@@ -42,7 +42,8 @@ export PATH=$PS2DEV/bin:$PS2DEV/ee/bin:$PS2DEV/dvp/bin:$PS2SDK/bin:$PATH
 ```
 
 Python 3.10+ is required for build scripts. Host resource tools and tests also need
-a C++20 compiler (default: `clang++`). The native build is currently checked with GCC 15.2.
+a C++20 compiler (default: `clang++`), and the host tools need CMake 3.24 or newer. The
+native build is currently checked with GCC 15.2.
 
 From the repository root:
 
@@ -50,6 +51,24 @@ From the repository root:
 make                  # debug build: build/debug/d3bfg.elf
 make release          # release build: build/release/d3bfg.elf
 ```
+
+[CI](.github/workflows/ps2.yml) runs `make` and `make release` on Linux for every push and
+pull request that changes more than the documentation, inside the ps2dev project's
+[`ps2sdk` container image](https://github.com/ps2dev/ps2sdk/pkgs/container/ps2sdk), pinned
+to one build of it. It checks that both configurations compile and link, and keeps no ELF.
+
+The C++ host tools are a [CMake project](src/tools/CMakeLists.txt), which
+`make resource-unpack` drives. They also build on Windows with MSVC:
+
+```sh
+cmake -S src/tools -B build/tools
+cmake --build build/tools --config Release
+```
+
+That leaves the `.exe` files in `build/tools/Release/`, linked with the C/C++ runtime
+statically. [CI](.github/workflows/tools.yml) builds the tools with GCC, Apple clang and
+MSVC whenever they change, and keeps the Windows executables as the `host-tools-windows-x64`
+artifact on each run's page under the repository's Actions tab, for 90 days.
 
 See the [Makefile header](Makefile) for packaging, run and test targets, and the
 [developer guide](docs/DEVELOPMENT.md) for runtime controls and diagnostics.

@@ -6,6 +6,11 @@ current aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earl
 production sizes and live ledgers must not be used as current budgets. Quake figures
 remain separately labeled reference observations.
 
+Debug `PT_LOAD` depends on where the SDK is installed: asserts in ps2sdk's inline
+`packet2_chain.h` and `packet2_vif.h` embed its absolute path through `__FILE__`. The same
+sources built against a deeper SDK path measured 256 bytes more (2026-10-19). Compare debug
+sizes within one install only; release builds carry no such paths and match across installs.
+
 ## Doom foundation baseline
 
 The sole C/newlib arena is dlmalloc; `src/ps2/system/heap.*` adds exact requested/backing

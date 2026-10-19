@@ -60,8 +60,9 @@ continue to reject Classic Doom inputs. Retail assets do not participate in thes
 
 Host-only `make resource-unpack`, `make ui-inventory` and `make ui-cook` read local
 retail containers and publish ignored extraction/inventory/cooking output. The C++
-unpacker uses the host compiler without engine linkage; the UI pipeline uses Python's
-standard library. None adds an EE source, vendor dependency or target capability.
+unpacker is built by the host-tool CMake project, `src/tools/CMakeLists.txt`, with the host
+compiler and without engine linkage; the UI pipeline uses Python's standard library.
+None adds an EE source, vendor dependency or target capability.
 The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest;
 the native UIPG reader, page splitter and fixed texture cache supply native page binding.
 The English resource catalog, inactive retail dictionaries and opt-in bounded timeline

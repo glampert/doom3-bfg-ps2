@@ -15,13 +15,19 @@ build/tools/resource_unpack --output build/unpacked-bfg \
     gamedata/d3_bfg/_common.resources gamedata/d3_bfg/_ordered.resources
 ```
 
-The source has no SDK or engine dependencies. It can also be built directly with a
-C++20 compiler, without the PS2 toolchain:
+The source has no SDK or engine dependencies, and needs no PS2 toolchain. `make` drives the
+host-tool CMake project, [`src/tools/CMakeLists.txt`](../CMakeLists.txt), which owns the
+flags. Any host with CMake 3.24 and a C++20 compiler, Windows/MSVC included, can build it
+directly:
 
 ```sh
-clang++ -std=c++20 -O2 -fno-exceptions -fno-rtti \
-    src/tools/resource_unpack/main.cpp -o /tmp/resource_unpack
+cmake -S src/tools -B build/tools
+cmake --build build/tools --config Release
 ```
+
+That leaves `build/tools/resource_unpack`, or `build/tools/Release/resource_unpack.exe`
+under Visual Studio. The `host-tools-windows-x64` artifact of each
+[Host tools](../../../.github/workflows/tools.yml) CI run holds the Windows executable.
 
 Multiple inputs use native reverse lookup priority: later containers and later entries
 win after ASCII lowercase/backslash normalization. Redundant internal separators

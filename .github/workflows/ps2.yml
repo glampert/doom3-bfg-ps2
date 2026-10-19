@@ -1,0 +1,58 @@
+# Builds the production d3bfg.elf on Linux the way `make` and `make release` build it on a
+# development machine: the source-list audit, every retained campaign, backend and codec object
+# under its warning policy, and the whole-object resident link with its registration, map and
+# test-isolation checks. It runs inside ghcr.io/ps2dev/ps2sdk, the ps2dev project's Alpine image
+# of the EE, IOP and dvp toolchains and the PS2SDK. The image is pinned by digest, so a new
+# upstream toolchain or SDK can't change the result unannounced. .claude/rules/ci.md has how to
+# move the pin, and the traps.
+#
+# A compile and link check only: no ELF is kept, and no test executable or PCSX2 run is
+# involved, since the emulator gates stay local. The workflow runs for every change except to
+# the documentation or the editor settings.
+
+name: PS2 game
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
+      - '.vscode/**'
+      - 'src/tools/vscode_extensions/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
+      - '.vscode/**'
+      - 'src/tools/vscode_extensions/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Debug and release, ps2sdk image (Alpine)
+    # x64 on purpose: the runner can only run JavaScript actions (checkout) inside an Alpine
+    # container on an x64 machine.
+    runs-on: ubuntu-latest
+    # ps2sdk:latest as built on 2026-10-13: ps2sdk 329e2bb, GCC 15.2.0, binutils 2.45.1,
+    # newlib 4.6.0, on Alpine 3.24. The same toolchain and SDK as the local builds.
+    container: ghcr.io/ps2dev/ps2sdk@sha256:075831168002ab67659125e369d24f34e8f43d1af530f63582932e7648d9275a
+    steps:
+      # The image is Alpine's minimal root filesystem plus /usr/local/ps2dev: no make, and no
+      # Python 3 for the build scripts. git goes in before checkout, which would otherwise
+      # download a tarball with no repository in it; the link report records the commit.
+      - name: Install the host build tools
+        run: apk add --no-cache make python3 git
+      - uses: actions/checkout@v5
+      # The workspace belongs to the runner's user, not the container's root, so git refuses
+      # the repository ("dubious ownership") once checkout's temporary configuration is gone.
+      - name: Trust the checkout for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build debug
+        run: make -j"$(nproc)"
+      - name: Build release
+        run: make release -j"$(nproc)"
