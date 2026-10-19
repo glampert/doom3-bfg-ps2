@@ -10,7 +10,7 @@
         "${PS2SDK}/ee/include",
         "${PS2SDK}/common/include"
       ],
-      "defines": ["_EE", "ID_PS2_CORE", "PS2_D3BFG"],
+      "defines": ["_EE", "ID_PS2", "ID_PS2_CORE", "PS2_D3BFG"],
       "compilerPath": "${PS2DEV}/ee/bin/mips64r5900el-ps2-elf-gcc",
       "cStandard": "gnu89",
       "cppStandard": "gnu++20",
