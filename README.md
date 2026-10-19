@@ -109,16 +109,15 @@ and command-file input are described in the [developer guide](docs/DEVELOPMENT.m
 
 ## Attributions
 
-Thanks to id Software for the original game source, the ps2dev community for the
-toolchain and SDK, and Guilherme Lampert's [quake2-ps2](https://github.com/glampert/quake2-ps2)
-for PS2 backend code and reference work.
+Thanks to id Software for the original game source code and the ps2dev community for the toolchain and SDK.
 
-This software is based in part on the work of the Independent JPEG Group. Bundled
-dependencies also include zlib and Doug Lea's allocator; see the
-[reuse inventory](docs/REUSE.md) for provenance and individual notices.
+This project derives its PS2 backend code from [Quake II PS2](https://github.com/glampert/quake2-ps2).
+
+Bundled dependencies also include zlib, jpeg-6 and Doug Lea's allocator (dlmalloc);
+see the [reuse inventory](docs/REUSE.md) for provenance and individual notices.
 
 ## License
 
 The game and new PS2 backend source are released under the **GNU GPL-3.0-or-later**
 license. See [LICENSE.txt](LICENSE.txt). Third-party components and tools retain their
-own license notices. Original game assets are proprietary and are not included.
+own license notices. Original game assets are proprietary and are not included here.
