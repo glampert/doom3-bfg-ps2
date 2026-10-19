@@ -12,7 +12,9 @@ paths:
   ELF and builds no test executable; host tests and PCSX2 gates stay local.
 - **`tools.yml`** builds the C++ host tools (`src/tools/CMakeLists.txt`) alone, with GCC,
   Apple clang and MSVC, when they or their CMake project change. It keeps the Windows `.exe`
-  files as an artifact, `host-tools-windows-x64`, for 90 days.
+  files as an artifact, `host-tools-windows-x64`, for 90 days. Its first run (2026-10-19,
+  `232d758`) passed on all three: GCC 13.3 in 12 s, MSVC 19.51 in 34 s, and Apple clang 21
+  in 20 s after ten minutes waiting for a macOS runner.
 - The jobs see different hosts. `tools.yml` gets whatever GCC `ubuntu-latest` ships, on glibc
   with `_FORTIFY_SOURCE`, which makes an ignored `fread` result an error. `ps2.yml` gets the
   image's EE GCC 15.2 with Alpine 3.24's GNU make 4.4.1 (the Mac has 3.81), Python 3.14,
@@ -28,7 +30,8 @@ paths:
 - Alpine 3.24's minimal root filesystem plus `/usr/local/ps2dev`: the EE, IOP and dvp
   toolchains and the PS2SDK, without ps2sdk-ports or gsKit. Its environment sets `PS2DEV`,
   `PS2SDK` and `PATH`, and the Makefile's `?=` defaults yield to them. It has no make,
-  Python or git; the job adds `make python3 git` with apk.
+  Python or git, and lacks libraries its own compiler needs; the job adds
+  `make python3 git gmp mpfr4 mpc1` with apk (see the traps).
 - **Pinned by digest** (the multi-arch index), not `:latest`, so a new upstream GCC or SDK
   can't turn CI red with nothing changed here. quake2-ps2 pins the same digest; both match
   the shared local `~/ps2dev` install.
@@ -55,7 +58,9 @@ paths:
 
 This Mac has no Docker. The image's target files build with the local toolchain while its
 versions match the image's, so the case-sensitivity check needs only a case-sensitive volume.
-On 2026-10-19 this reproduced the CI build of both configurations:
+It runs the Mac's toolchain binaries, not the image's Linux ones, so it can't catch a
+missing runtime library (see the traps). On 2026-10-19 this reproduced the CI build of both
+configurations:
 
 1. `hdiutil create -size 3g -fs 'Case-sensitive APFS' -type SPARSE -volname D3CS <scratch>/d3cs`,
    then `hdiutil attach -nobrowse -mountpoint <scratch>/d3cs_mnt <scratch>/d3cs.sparseimage`.
@@ -84,6 +89,14 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
 - **JavaScript actions run inside an Alpine container only on x64 runners.** The runner ships
   `node20_alpine`/`node24_alpine` for linux-x64 alone, and on arm64 it fails with "JavaScript
   Actions in Alpine containers are only supported on x64 Linux runners".
+- **The image's EE compiler can't start without three host libraries.** Its `cc1`,
+  `cc1plus` and `lto1` link GMP, MPFR and MPC dynamically, and the image doesn't ship them.
+  The first `ps2.yml` run (2026-10-19, `232d758`) stopped at its first compile with
+  `Error loading shared library libmpc.so.3`. Install `gmp mpfr4 mpc1` (Alpine 3.24 names).
+  quake2-ps2 gets them through `build-base`, whose host gcc depends on them. The EE
+  binutils and driver need only musl; the `libstdc++`/`libgcc_s` users are gdb, openvcl
+  and the libcc1 plugins. On a new pin, list each image binary's needs with
+  `llvm-readelf -d` and map the sonames through Alpine's `APKINDEX` `p:so:` entries.
 - **Install git before `actions/checkout`.** Without git 2.18 or newer on `PATH`, it downloads
   a tarball through the REST API instead, with no `.git`, and the link report records an
   unknown commit.

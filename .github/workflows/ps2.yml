@@ -42,11 +42,13 @@ jobs:
     # newlib 4.6.0, on Alpine 3.24. The same toolchain and SDK as the local builds.
     container: ghcr.io/ps2dev/ps2sdk@sha256:075831168002ab67659125e369d24f34e8f43d1af530f63582932e7648d9275a
     steps:
-      # The image is Alpine's minimal root filesystem plus /usr/local/ps2dev: no make, and no
-      # Python 3 for the build scripts. git goes in before checkout, which would otherwise
-      # download a tarball with no repository in it; the link report records the commit.
+      # The image is Alpine's minimal root filesystem plus /usr/local/ps2dev: no make, no
+      # Python 3 for the build scripts, and not even the GMP, MPFR and MPC libraries that the
+      # EE compiler's cc1 and cc1plus load at run time. git goes in before checkout, which
+      # would otherwise download a tarball with no repository in it; the link report
+      # records the commit.
       - name: Install the host build tools
-        run: apk add --no-cache make python3 git
+        run: apk add --no-cache make python3 git gmp mpfr4 mpc1
       - uses: actions/checkout@v5
       # The workspace belongs to the runner's user, not the container's root, so git refuses
       # the repository ("dubious ownership") once checkout's temporary configuration is gone.
