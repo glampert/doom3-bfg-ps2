@@ -5,17 +5,21 @@
 The port is not playable yet. The latest rendering slice draws the
 [original dialog in full](#original-dialog-drawn-in-full-2d-6-third-slice) through
 native `idSWF::Render` (accepted 2026-10-20), after convex SWF masks (`ac9de81`,
-2026-10-18). `1f045d8` moved the authored fixtures into `src/tests/data/` without
-changing their bytes.
+2026-10-18). The
+[memory budget investigation](#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20)
+followed: production now boots the retail declarations and scripts, and the retail UI
+art has measured candidate formats. `1f045d8` moved the authored fixtures into
+`src/tests/data/` without changing their bytes.
 
 | Area | Implemented and verified boundary | Remaining boundary |
 | --- | --- | --- |
 | M0–M2 / M2b | EE core startup, synchronous Common/services, retained campaign compile and resident link | Source inclusion is not campaign playability |
 | M3 game fixtures | Native startup/events/scripts; restricted player movement, jump/crouch/steps over 331-frame reloads; authored map/world/PVS/collision/AAS and one idle AI | Full campaign player, animated AI/gameplay, retail map conversion and Common map transitions |
 | Production loop | Native game initialization, console commands, sustained frames and ordered shutdown; game remains in `NOMAP` | Production map ownership and map simulation |
+| Retail data boot | Retail `_common`/`_ordered` containers, every declaration folder and the full `doom_main.script` reach `NOMAP` in a 14.5 MB heap arena, with exact shutdown | Leaves about 6.4–6.8 MB for a level; budget levers measured, not applied |
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
-| 2D-6 | Scoped additive blend 8, bounded convex masks, and the original dialog drawn in full with Common's quit message | Complex/holed/disconnected/stroked masks, screen blend 4, nonzero additive color transforms and a UI page format that fits the working set |
+| 2D-6 | Scoped additive blend 8, bounded convex masks, and the original dialog drawn in full with Common's quit message | Complex/holed/disconnected/stroked masks, screen blend 4, nonzero additive color transforms, and the surveyed paletted/halved page formats |
 | 2D-7–8 | Not accepted | Shell drawing, native offline menu navigation, physical input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog; other retail modes still
@@ -39,9 +43,10 @@ regular target gate [passed again](#script-probe-repair-and-the-rebuilt-toolchai
 on the toolchain rebuilt on 2026-10-19, including the repaired script probe.
 
 Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
-[2D roadmap](RENDERER_2D_PLAN.md). The selected next work is asset recompression/
-re-export and fitting the game into the 32 MiB budget, then a complete shell frame and
-responsive offline menu navigation. Required feature/resource admission precedes each
+[2D roadmap](RENDERER_2D_PLAN.md). The selected work is asset recompression/re-export
+and fitting the game into the 32 MiB budget; its measurements are recorded and the
+levers are the next decision. A complete shell frame and responsive offline menu
+navigation follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -3630,3 +3635,117 @@ not hardware storage or GS fill measurements.
 
 Production `PT_LOAD` is 11,164,005 debug / 11,600,997 release bytes (+4,992 / +4,864),
 with 374 objects, no unresolved symbols and no fixtures.
+
+## Memory budget investigation: UI formats and the retail boot (2026-10-20)
+
+Measured **2026-10-20, Australia/Sydney**, as the first step of the selected asset
+recompression and 32 MiB work. Nothing was pruned or re-encoded yet: this section
+records what the retail UI art and the retail declarations and scripts cost, and
+which levers the numbers point to.
+
+### Retail UI texture formats (host survey)
+
+A scratch survey decoded the original atlases (dialog, shell, HUD, PDA and pause
+movies, the Doom 3 carousel cover and the five fonts) and compared candidate GS
+formats with the lossless cook. Its tools, reports and previews stay local under
+ignored `build/analysis/ui-formats/`. Texel error is premultiplied RGB plus alpha, in 8-bit
+units. A display simulation draws each atlas image at its stage scale with GS
+bilinear sampling, straight alpha and PSMCT16 truncation, over black, gray and white,
+and compares it with an area-filtered ideal. Every retail movie's stage is 1280×960,
+so art drawn at its authored size appears at 0.4× horizontally and 0.47× (NTSC) or
+0.53× (PAL) vertically.
+
+| Screen | Now: RGBA32 pages | PSMT8, one CLUT per image | Halved where safe |
+| --- | ---: | ---: | ---: |
+| Dialog | 3,932,160 (15 pages) | 626,960 | 183,032 |
+| Shell | 15,728,640 (60) | 3,075,792 | 1,176,528 |
+| HUD | 1,572,864 (6) | 230,352 | 103,668 |
+| PDA | 2,359,296 (9) | 405,104 | 335,168 |
+| Pause | 6,553,600 (25) | 1,323,072 | 700,908 |
+| Five fonts | 12,582,912 (48) | 901,120 (PSMT4 alpha) | 201,492 (English glyphs) |
+
+Byte counts are texel storage plus 1 KiB per image CLUT, without page padding.
+
+- **PSMT8 with one palette per atlas image is near-lossless.** Texel PSNR is 52.3 dB
+  (dialog), 47.6 (shell), 55.6 (HUD), 51.3 (PDA) and 47.5 (pause); at most 0.43% of
+  texels differ by more than 8/255. At display scale the error against the ideal stays
+  within 0.1 percentage points of the current RGBA32 path. One palette per 512×512
+  page scores 43–51 dB and leaves visible rings in the dialog's glow; the GS can bind a
+  different CLUT per draw, so per-image palettes need no extra texture storage.
+- **Halving is free where the art is not magnified.** id's atlas packer puts each image
+  in a 4-texel-aligned block with at least one clamped border texel, so a 2×2
+  premultiplied downsample never mixes images, and bilinear footprints at image edges
+  stay inside the block. At authored size, halved art is still minified on NTSC and
+  lowers the display error against the ideal (shell 2.70% → 1.97% of pixels two or
+  more 5-bit levels off; HUD 14.9% → 10.3%), and it is neutral on PAL. Static fill
+  and placement matrices bound how far each image is ever enlarged. Texels never drawn
+  above 1.25×: dialog 96%, shell 85%, HUD 90%, pause 66%, PDA 25%. The PDA and pause
+  menu enlarge pictures 2–4×, and those images keep full resolution.
+- **PSMT4 is too lossy for art** (4–17% of texels more than 8/255 off) but suits the
+  fonts, whose atlases are white RGB with DXT1-green alpha: 16 alpha levels display
+  identically to 8-bit alpha. English uses 98 glyphs per font, 16–20% of each atlas.
+- Every screen's candidate set fits the roughly 2.5 MiB of GS memory beside the
+  framebuffers, so pages would stay resident instead of streaming each frame. The
+  in-game set (HUD, PDA, pause and fonts) falls from about 23 MB of RGBA32 pages to
+  about 1.3 MB; the menus (shell, dialog and fonts) from about 32 MB to 1.6 MB.
+
+### Retail declarations and scripts on the EE
+
+`make test-retail-boot` boots production headless with the retail `_common` and
+`_ordered` containers mounted: every retail declaration folder loads, the complete
+retail `doom_main.script` compiles, the game reaches the `NOMAP` console for 120
+frames and shuts down. Production now prints tagged ledgers after the foundation,
+declaration and game startup stages.
+
+The first attempt ran out of memory 9.3 s into startup, while compiling scripts:
+`idResourceContainer::Init` reads `_ordered.resources` wholesale into RAM (11.3 MB
+`IDFILE`), and the arena reached 21.2 MB with 14 KB free. A tagged change now streams
+it like `_common.resources`. A failed allocation now reports the request, the live
+totals and every live tag before the fatal diagnostic.
+
+| Startup checkpoint (debug) | Requested | Backing | Allocations |
+| --- | ---: | ---: | ---: |
+| Foundation, containers mounted | 1,250,136 | 1,302,080 | 1,248 |
+| Declarations (materials, skins, sound shaders) | 4,204,461 | 5,313,644 | 24,885 |
+| Game (its declaration folders, events, scripts) | 10,148,418 | 13,473,216 | 75,748 |
+| Peak / arena commitment | 10,582,854 / 13,910,756 | 14,523,035 | |
+| Full shutdown | 7,424 | 7,600 | 4 |
+
+At game startup the largest owners (backing bytes) are compressed declaration text
+`DECLTEXT` 4,759,828 in 11,947 allocations, `SCRIPT` 2,828,664 in 33,710, `DECL`
+1,779,856, `STRING` 1,227,552, the two containers' file tables `RESOURCE` 1,079,480,
+the smoke-particle pool `PARTICLE` 680,300 and event callbacks in `SYSTEM` 635,524.
+Backing exceeds requested bytes by 3.32 MB (25%): every allocation pays the tagged
+header and alignment slack plus dlmalloc rounding. The compiled program has 95,386
+statements (1,907,720 bytes of the 3,515,932-byte static arrays already in BSS) and
+3,070 functions; compilation takes 7.8 s in PCSX2 and the whole run 18.5 s. Archive:
+`20261020T050009Z_headless_1a4fb98b209d`.
+
+Before any map, the retail boot therefore commits 26,738,688 bytes debug (27,175,808
+release) of the 33,554,432: the kernel's first MiB, 11.17 / 11.60 MB of `PT_LOAD` and
+the 14.52 MB arena. That leaves 6.8 MB debug and 6.4 MB release for stacks, a level's
+logic state, the in-game UI and load peaks. For scale, mars_city1's container holds
+5.4 MB of binary collision and 2 MB of AAS, and its 5.48 MB `.map` is 4.85 MB of
+brush/patch text the game parses at load, beside 592 KB of entity text (2,026 entities).
+
+| Lever | Measured size |
+| --- | ---: |
+| Heap per-allocation overhead at the retail boot | 3.32 MB |
+| Resident compressed declaration text | 4.76 MB |
+| Container file tables (`idStrStatic<256>` name per entry, 3,598 entries) | 1.08 MB |
+| Preallocated smoke particles | 0.68 MB |
+| Script static arrays beyond this program's use (statements, globals, functions) | ~0.9 MB |
+| mars_city1 `.map` brush/patch text | 4.85 MB on disc |
+| UI textures, RGBA32 pages to the candidates above | ~22 MB of pages |
+
+### Gates
+
+Debug only, by the user's direction for this change: `make test-host` (336 Python
+regressions, two of them new retail-runner checks, plus the C++ harnesses), core smoke
+`20261020T050740Z_smoke_674d5629fe9b4eb8`, `test-headless`
+(`20261020T050748Z_headless_3ae23afe53ba`, `20261020T050752Z_headless_31d7a03b1358`),
+`test-console` (`20261020T050835Z_console_085074c2eae3`,
+`20261020T050841Z_console_e01f246ac5c1`) and `test-retail-boot`
+(`20261020T050802Z_headless_d0f6c5e7f049`, with the same ledgers as the measured run
+above). Release and the core and game test ELFs build; release gates were not rerun.
+Production `PT_LOAD` is 11,167,077 debug / 11,604,197 release bytes (+3,072 / +3,200).

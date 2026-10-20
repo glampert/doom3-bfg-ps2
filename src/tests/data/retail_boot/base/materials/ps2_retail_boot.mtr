@@ -1,0 +1,3 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+// The port's CPU default-model material; the retail containers supply every other declaration.
+_headless_default {}

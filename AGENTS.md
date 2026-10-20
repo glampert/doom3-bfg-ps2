@@ -55,6 +55,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   pumps console commands and native frames. `console.txt` accepts append-only lines via
   HostFs; `ps2_maxFrames=0` runs until quit. `make test-headless` checks 120 frames,
   live command input and full shutdown without linking fixtures into production.
+  `make retail-boot` / `make run-retail-boot` stage/run the same ELF with the local retail
+  `_common`/`_ordered` containers hard-linked from `RETAIL_DATA_ROOT` (symlinks are not
+  listed). `make test-retail-boot` checks every retail declaration and the full
+  `doom_main.script` reaching `NOMAP`, and records the tagged `[D3BFG] MEMORY startup-*`
+  ledgers production prints after foundation, declaration and game startup.
   `make console` / `make run-console` stage/run the same ELF visibly under
   `build/<config>/console/`; `CONSOLE_STANDARD=ntsc` (default) or `pal` selects the mode.
   Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` before Common startup;

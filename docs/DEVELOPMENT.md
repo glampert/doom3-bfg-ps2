@@ -126,6 +126,17 @@ History stays in memory. Set `ps2_maxFrames 120` in the packaged `base/d3bfg.cfg
 bounded run; its default `0` keeps running until a quit command. `ps2_status` reports
 completed frames, native `NOMAP`/console state and the tagged heap ledger.
 
+`make retail-boot` stages the same ELF under `build/<config>/retail-boot/` with the
+retail `_common.resources` and `_ordered.resources` of `RETAIL_DATA_ROOT` (default
+`gamedata/d3_bfg`) hard-linked into its `base/` (copied across volumes; the native
+listing skips symlinks). Only the authored configuration and the port's
+`_headless_default` material come from `src/tests/data/`; every retail declaration and
+the full retail `doom_main.script` load from the containers. `make run-retail-boot`
+launches it with the same `console.txt` controls. Every production startup prints
+`[D3BFG] MEMORY`, `ARENA` and per-tag `TAG` ledgers after `startup-foundation`,
+`startup-decls` and `startup-game`; `make test-retail-boot` checks and records them.
+Retail packages stay under ignored `build/`.
+
 `make console` stages the same ELF and authored boot data under
 `build/<config>/console/`; `CONSOLE_STANDARD` defaults to `ntsc`. It opens the native
 half-height console over a dark background. Use its `console.txt` for commands, or

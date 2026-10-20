@@ -9,6 +9,7 @@
 #include "ps2/system/core.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
+#include "ps2/system/lifecycle.h"
 #include "tests/smoketests/audio_tests.h"
 #include "tests/smoketests/boot_stage.h"
 #include "tests/smoketests/class_alloc_tests.h"
@@ -296,12 +297,12 @@ bool RunCoreTests(const char * fixturePath)
     {
         return RunCommonProbe(fixturePath);
     }
-    core::PrintMemory("before-core");
+    lifecycle::PrintMemory("before-core");
     bool passed = RunHeapTests();
     passed = RunClassAllocTests() && passed;
     const heap::Stats baseline = heap::GetTotalStats();
     core::Init();
-    core::PrintMemory("initialized-core");
+    lifecycle::PrintMemory("initialized-core");
     passed = Check("initialized", common->IsInitialized() && fileSystem->IsInitialized()) && passed;
     passed = RunOfflineTests() && passed;
     passed = RunAudioTests() && passed;
@@ -319,7 +320,7 @@ bool RunCoreTests(const char * fixturePath)
     passed = RunIdlibTests() && passed;
     passed = RunTypeQueryTests() && passed;
     passed = RunEngineTypeQueryTests() && passed;
-    core::PrintMemory("tested-core");
+    lifecycle::PrintMemory("tested-core");
     core::Shutdown();
     const heap::Stats afterShutdown = heap::GetTotalStats();
     passed = Check("shutdown", !common->IsInitialized() && !fileSystem->IsInitialized() &&
@@ -327,7 +328,7 @@ bool RunCoreTests(const char * fixturePath)
                                baseline.backingBytes == afterShutdown.backingBytes &&
                                baseline.allocationCount == afterShutdown.allocationCount) &&
              passed;
-    core::PrintMemory("after-core-shutdown");
+    lifecycle::PrintMemory("after-core-shutdown");
     return passed;
 }
 

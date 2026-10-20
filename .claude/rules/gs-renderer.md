@@ -326,6 +326,40 @@ ten 256 KiB pages, below the dialog's working set of roughly 20. Shrinking the p
 real fix; the shell atlas alone (60 of the profile's 143 pages) makes it mandatory.
 These are PCSX2 HostFs costs, not hardware storage or GS fill measurements.
 
+## Retail UI page format survey (2026-10-20)
+
+A host survey compared GS formats for the original atlases (byte totals are in
+[memory-budget.md](memory-budget.md)). Facts to build the paletted pages on:
+
+- **Every retail movie's stage is 1280×960.** At authored size, art appears at 0.4×
+  horizontally and 448/960 (NTSC) or 512/960 (PAL) vertically. Many fills are
+  stretched far more along one axis (bars, glows); the PDA and pause menu enlarge
+  pictures 2–4×. Bound enlargement per image from its fill matrix (scale 20 per texel)
+  times the accumulated placement scales.
+- **id's packer (`WriteSwfImageAtlas`) aligns each image to a 4-texel block** with at
+  least one clamped border texel on every side, normalizes each channel to full range
+  (the draw multiplies back by `channelScale`) and fills unused atlas space with solid
+  red. A 2×2 premultiplied downsample therefore never mixes images, and bilinear
+  footprints at a halved image's edge stay inside its block; quartering would not.
+  Exclude the red filler from palettes.
+- **One CLUT per atlas image, not per page.** Per-page 256-color palettes score
+  43–51 dB and band smooth gradients (rings in the dialog's glow); per-image palettes
+  score 47.5–55.6 dB with no visible banding. The GS looks up each texel through the
+  bound CLUT before filtering, so a draw may only sample texels quantized with its own
+  palette. Block borders keep the footprint inside the image's texels.
+- **Halve only images never drawn above about 1.25× their authored size.** That covers
+  85–96% of menu and HUD texels and lowers the NTSC display error (less minification
+  aliasing); enlarged pictures keep full resolution.
+- **PSMT4 is for alpha-only fonts.** Retail font atlases are white RGB with DXT1-green
+  alpha. Sixteen alpha levels display identically to 8-bit alpha. For art, 16 colors
+  leave 4–17% of texels more than 8/255 off.
+- **Method.** The simulation samples each atlas image at its stage scale with GS
+  bilinear, straight alpha and PSMCT16 truncation, over black, gray and white. It
+  compares candidates with an area-filtered ideal in 5-bit levels. The current RGBA32
+  path is not the ideal: at 2.5× minification bilinear already aliases (1.3–15% of
+  pixels two or more levels off, depending on the movie). Judge a candidate against
+  that baseline, then confirm with target captures.
+
 ## Quake frame model: 2D and 3D interleave
 
 - The engine draws **2D → 3D → 2D** per frame (`SCR_TileClear`, then `V_RenderView`, then

@@ -445,3 +445,18 @@ dialog alone over the dark clear color, without the isolated label screen.
 `make test-retail-dialog` (also part of `make test-retail-movies`) runs the
 `dialog-render` case; see [PORT_STATUS](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice)
 for its acceptance record, page-streaming cost and memory.
+
+## Page format survey
+
+The current cook keeps every retail page lossless RGBA32 (`"resampling": "none"`, and
+the profile's exclusions forbid downscaling). That is why the dialog streams about 51
+pages per frame. A host survey on 2026-10-20 measured the alternatives on the original
+atlases. One CLUT per atlas image with PSMT8 indices is near-lossless. Halving images
+never drawn above about 1.25× their authored size is free at the 1280×960 stage's
+on-screen scale. English-only fonts in 16-level alpha display identically. Together
+they bring each screen to 0.1–1.2 MB, which fits GS memory beside the framebuffers.
+Results and method:
+[PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20)
+and the [GS rule](../.claude/rules/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
+Adopting halving or a glyph subset changes the profile's exclusions and needs the
+user's agreement; the lossless cook stays the quality reference.

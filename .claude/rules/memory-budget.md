@@ -2,7 +2,9 @@
 
 Doom sections retain the measurements of their dated implementation slice. The
 latest authored UI baseline is [the convex-mask budget](#doom-convex-ui-mask-budget-2026-10-18);
-current aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
+the retail boot and UI format measurements are in
+[the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20); current
+aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
 production sizes and live ledgers must not be used as current budgets. Quake figures
 remain separately labeled reference observations.
 
@@ -440,3 +442,39 @@ Its cost is bandwidth, not heap: about 51 RGBA32 page loads per frame (see
 [gs-renderer.md](gs-renderer.md)). A screen whose page working set exceeds the six
 slots streams 256 KiB per miss; paletted or downscaled pages change both the slot
 count GS memory can hold and the bytes each miss moves.
+
+## Retail boot and UI formats (2026-10-20)
+
+`make test-retail-boot` boots production with the retail `_common`/`_ordered`
+containers: every declaration folder, the full `doom_main.script`, `NOMAP` for 120
+frames and exact shutdown. Production prints `[D3BFG] MEMORY`/`ARENA`/`TAG` ledgers
+after `startup-foundation`, `startup-decls` and `startup-game`; an allocation failure
+lists every live tag before the fatal. Use these to judge any budget change.
+
+- Debug startup ends at 10,148,418 requested / 13,473,216 backing bytes in 75,748
+  allocations; peak 10,582,854 / 13,910,756, arena 14,523,035. With the kernel's first
+  MiB and 11.17 / 11.60 MB of `PT_LOAD`, 6.8 MB debug / 6.4 MB release remain before
+  any map, stacks and load peaks included.
+- Owners (backing): compressed declaration text 4.76 MB, script 2.83 MB (1.38 MB
+  requested), declaration objects 1.78 MB, strings 1.23 MB, container file tables
+  1.08 MB, smoke particles 0.68 MB, event callbacks 0.64 MB.
+- **Per-allocation overhead is 3.32 MB (25% of backing).** Small declaration/script
+  allocations each pay the tagged header, up to 15 bytes of alignment slack and
+  dlmalloc rounding. Count allocations, not only requested bytes.
+- `_ordered.resources` used to be read wholesale into RAM (11.3 MB); PS2 streams it.
+  `idResourceCacheEntry` keeps a 256-byte `idStrStatic` name per file, about 300 bytes
+  for each of 3,598 entries.
+- The script program's static arrays (3,515,932 bytes of BSS) hold 95,386 of 131,072
+  statements and 206,536 of 296,608 global bytes for the retail game scripts.
+- mars_city1's `.map` is 5.48 MB, 4.85 MB of it brush/patch text and 592 KB entity
+  text; its container also holds 5.4 MB of binary collision and 2 MB of AAS.
+
+Retail UI art is DXT in the containers and RGBA32 in the current pages. Measured
+candidates, as texture bytes without page padding: PSMT8 with one CLUT per atlas
+image, halved where the art is never drawn enlarged, takes the dialog from 3.9 MB of
+pages to 0.18 MB, the shell 15.7 → 1.18, HUD 1.57 → 0.10, PDA 2.36 → 0.34 and pause
+6.55 → 0.70; English-only 16-level-alpha fonts take all five from 12.6 MB to 0.20 MB.
+Every screen then fits beside the framebuffers in GS memory. Quality, halving safety
+and the display simulation are in [gs-renderer.md](gs-renderer.md). Nothing is
+re-encoded yet; these are survey measurements, not runtime budgets.
+

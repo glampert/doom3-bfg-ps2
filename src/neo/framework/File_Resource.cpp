@@ -56,11 +56,16 @@ idResourceContainer::Init
 */ 
 bool idResourceContainer::Init( const char *_fileName, uint8 containerIndex ) {
 
+	// [PS2_D3BFG]: EE RAM cannot hold the 11 MB ordered container; stream it like the others.
+#if defined( ID_PS2 )
+	resourceFile = fileSystem->OpenFileRead( _fileName );
+#else
 	if ( idStr::Icmp( _fileName, "_ordered.resources" ) == 0 ) {
 		resourceFile = fileSystem->OpenFileReadMemory( _fileName );
 	} else {
 		resourceFile = fileSystem->OpenFileRead( _fileName );
 	}
+#endif
 
 	if ( resourceFile == NULL ) {
 		idLib::Warning( "Unable to open resource file %s", _fileName );

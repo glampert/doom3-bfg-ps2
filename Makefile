@@ -32,6 +32,9 @@
 #   make BUILD=release test-retail-ui # same resource checks without assertions
 #   make test-headless           # 120 frames, live console commands and shutdown in PCSX2
 #   make BUILD=release test-headless # same production checks without assertions
+#   make retail-boot             # package production with the local retail containers
+#   make run-retail-boot         # boot the retail declarations and scripts headless, until quit
+#   make test-retail-boot        # retail startup ledgers, 120 frames and shutdown in PCSX2
 #   make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes
 #   make BUILD=release test-renderer # same device checks without assertions
 #   make run-renderer            # native capture plus a 60-second inspection hold; F8 also saves a capture
@@ -63,6 +66,7 @@
 # CONSOLE_STANDARD=ntsc (default) or pal selects visible package presentation.
 # PCSX2=/path/to/PCSX2 overrides the emulator executable.
 # UI_DATA_ROOT and UI_COOK_OUTPUT select the local retail installation/cook output.
+# RETAIL_DATA_ROOT (default UI_DATA_ROOT) selects the installation retail-boot mounts.
 # Emulator test targets require an isolated PCSX2 session; run them sequentially.
 # Developer setup, controls and diagnostics: docs/DEVELOPMENT.md.
 
@@ -74,6 +78,7 @@ PS2SDK ?= $(PS2DEV)/ps2sdk
 PCSX2 ?= /Applications/PCSX2.app/Contents/MacOS/PCSX2
 CONSOLE_STANDARD ?= ntsc
 UI_DATA_ROOT ?= gamedata/d3_bfg
+RETAIL_DATA_ROOT ?= $(UI_DATA_ROOT)
 UI_COOK_OUTPUT ?= build/ui-retail
 UI_RETAIL_CONFIG ?= config/ui_retail.json
 PYTHON ?= python3
@@ -265,7 +270,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless console run-console test-console ui run-ui test-ui ui-inventory ui-cook resource-unpack platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console test-console ui run-ui test-ui ui-inventory ui-cook resource-unpack platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
 
 all: link-game
 release: all
@@ -483,6 +488,15 @@ run-headless: headless
 
 test-headless: all
 	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2)
+
+retail-boot: all
+	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --retail-data "$(RETAIL_DATA_ROOT)"
+
+run-retail-boot: retail-boot
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/retail-boot/d3bfg.elf
+
+test-retail-boot: all
+	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2) --case retail --data-root "$(RETAIL_DATA_ROOT)"
 
 console: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD)

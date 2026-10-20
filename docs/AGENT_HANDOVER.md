@@ -1,9 +1,9 @@
 # Agent handover
 
-Reviewed **2026-10-20, Australia/Sydney**, after the full-dialog slice and against the
-current source manifests. This is a continuation guide; [AGENTS.md](../AGENTS.md)
-supplies the coding, build and Git rules. Runtime evidence remains in
-[PORT_STATUS.md](PORT_STATUS.md).
+Reviewed **2026-10-20, Australia/Sydney**, after the full-dialog slice and the first
+memory budget measurements, against the current source manifests. This is a continuation
+guide; [AGENTS.md](../AGENTS.md) supplies the coding, build and Git rules. Runtime
+evidence remains in [PORT_STATUS.md](PORT_STATUS.md).
 
 ## Read first
 
@@ -32,7 +32,8 @@ Production initializes the game but stays in `NOMAP`; it does not run that map.
 The user's milestones are: main menu with full 2D drawing, then pad/keyboard input,
 then a level boot without the 3D view but with in-game UI, then 3D rendering. The
 original dialog now draws in full. Before the shell, the user selected asset
-recompression/re-export and fitting the game into 32 MiB (see below). Preserve the
+recompression/re-export and fitting the game into 32 MiB; its first measurements are
+recorded (see below). Preserve the
 headless/game fixtures. English is the only initial UI language. Sound playback, world
 rendering, save/load and animated campaign AI remain later work. Extend existing native
 renderer/UI fixtures; the user has asked to avoid adding standalone fixture programs
@@ -47,6 +48,7 @@ for each feature.
 | Retail movie inspection | Original shell/dialog dictionaries, full English dictionary and isolated native edit-text layout | Inactive imported timelines |
 | Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; HandleEvent remains fatal |
 | Retail dialog drawing | Native `Render` of the original dialog with Common's quit message; draw admission requires no outlines, screen blends or additive color | About 51 page loads and 1.6 s per frame in PCSX2; choices fail explicitly; shell not admitted |
+| Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | 13.5 MB of heap backing before any map; no retail map or in-game UI yet |
 
 Recent implementation commits are the full-dialog slice (2026-10-20), `dd04ab0` (scoped
 native timelines/widget owners), `ec0df7a` (additive blending), `ac9de81` (convex masks)
@@ -59,22 +61,38 @@ external Quake II repository remains a reuse/reference source when available.
 
 ### 1. Asset recompression and the 32 MiB budget
 
-Selected by the user on 2026-10-20, after the first full UI picture. Two questions:
+Selected by the user on 2026-10-20, after the first full UI picture. The first
+measurements are in
+[PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20):
 
-- **UI pages.** The dialog streams about 51 RGBA32 pages per frame through six slots
-  (1.6 s per frame in PCSX2); GS memory beside the framebuffers holds about ten such
-  pages, and the shell atlas alone spans 60 of the profile's 143. Measure each screen's
-  page working set and evaluate paletted CLUT pages and downscaling art the 512-wide
-  screen cannot resolve, keeping the native UV/page contracts and the lossless cook as
-  the reference.
-- **Level memory.** Production already loads 11.6 MB release (`PT_LOAD`, 5.2 MB of it
-  BSS). Native declaration managers keep all decl text resident and the game compiles
-  all of `doom_main.script` at startup; the retail `def`, `materials`, `script`,
-  `particles`, `af`, `skins` and `fx` text totals about 10.7 MB uncompressed. Measure
-  a production boot with the real declarations and scripts, then a retail level's
-  collision/AAS/entity state beside the HUD, PDA, pause and loading movies.
+- **UI pages.** PSMT8 with one CLUT per atlas image is near-lossless (47.5–55.6 dB),
+  while per-page palettes band smooth gradients. Halving images never drawn above
+  about 1.25× is free at the 1280×960 stage's on-screen scale (85–96% of menu and HUD
+  texels). PSMT4 suits only the alpha-only fonts, which need 98 English glyphs each.
+  Candidate per-screen sets are 0.1–1.2 MB and fit GS memory beside the framebuffers,
+  against 1.6–15.7 MB of RGBA32 pages now. Facts and method:
+  [gs-renderer.md](../.claude/rules/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
+- **Retail boot.** `make test-retail-boot` reaches `NOMAP` with every retail
+  declaration and the full `doom_main.script`: 13.5 MB of heap backing (14.5 MB arena)
+  before any map, leaving 6.4–6.8 MB. The owners are declaration text (4.76 MB), script
+  (2.83 MB), declaration objects and names (3.0 MB), container tables (1.08 MB) and
+  smoke particles (0.68 MB). Per-allocation overhead accounts for 3.32 MB of the backing.
 
-Record measurements before choosing formats or pruning content.
+Proposed order, pending the user's choice:
+
+1. Paletted UI pages: a page format with PSMT8 indices and per-image CLUTs, selective
+   halving from bounded enlargement, English-subset PSMT4 fonts. Check captures against
+   the current RGBA32 path; the dialog should stop streaming pages every frame.
+2. Cheap heap wins, measured by `test-retail-boot`: a smaller tagged header or
+   small-block pools, heap-string container names, a PS2-sized smoke pool and script
+   limits sized to the retail program.
+3. Declaration text on demand from the containers (keep an index), or a pruned
+   declaration set: up to 4.76 MB.
+4. A retail level's logic state (entities, collision, AAS, PVS topology) beside the
+   in-game movies, with `.map` brush/patch text stripped at cook time.
+
+Record measurements for each lever before and after; prune content only with the
+user's agreement.
 
 ### 2. Close shell drawing requirements and capture a full shell frame
 
@@ -182,6 +200,7 @@ make test-host
 make run-ui
 make ui-cook
 make run-retail-movies
+make test-retail-boot
 ```
 
 GitHub Actions builds production debug/release on Linux in the pinned ps2sdk image
@@ -216,32 +235,37 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Geometry/GS/mask work | `make test-host`, `make test-renderer`, `make test-ui`; repeat target gates with `BUILD=release` |
 | Retail resources/timelines/menu | Host guards plus `make test-retail-ui`, `make test-retail-movies` or scoped `make test-retail-timelines` / `make test-retail-dialog`, as affected, in debug/release |
 | Common/frame/presentation ownership | `make test-headless`, `make test-console`, `make test-ui`, debug/release |
+| Heap, declarations, scripts or containers | `make test-retail-boot` (its startup ledgers), plus `make test-headless` |
 | Game/map behavior | Existing `make test-game` / `make test-map`, debug/release; not a reason to resume standalone movement-fixture expansion |
 | Documentation/path-only changes | Local links/targets, source inventory, authored `--check`; fixture moves also use host tests and package staging |
 | Include/Makefile paths, toolchain or CI | `make`, `make release`, plus the case-sensitive Linux check in [ci.md](../.claude/rules/ci.md) |
 
-Last feature acceptance (2026-10-20): the original dialog drawn in full in debug/release
-NTSC/PAL (`test-retail-dialog`, also inside `test-retail-movies`), plus retail fonts,
-authored UI, renderer, console, headless and host regressions. Previous (2026-10-18): 77
+Latest (2026-10-20, debug only by the user's direction): the retail boot and its
+startup ledgers, with host, core smoke, headless and console gates. Last feature
+acceptance (2026-10-20): the original dialog drawn in full in debug/release NTSC/PAL
+(`test-retail-dialog`, also inside `test-retail-movies`), plus retail fonts, authored
+UI, renderer, console, headless and host regressions. Previous (2026-10-18): 77
 authored pixel checks, three reload/input cycles, twelve malformed-resource cases,
 nineteen core renderer cases per configuration and two headless cases per configuration.
 On 2026-10-19 every regular target gate (smoke variants, renderer, Common, headless,
 console, UI, retail fonts/movies, game, map and the script probe) passed again in both
 configurations on the rebuilt toolchain, with unchanged tagged ledgers. Host regression
-count is 334 plus C++ sanitizer harnesses. Run IDs and screenshots are linked from
+count is 336 plus C++ sanitizer harnesses. Run IDs and screenshots are linked from
 PORT_STATUS; ignored `build/test-results/` archives may not exist on another machine.
 
 Production has 374 direct objects, no fixture inputs/symbols and no GC. The source audit
 has 458 upstream units / 282 campaign units; compile database 399 entries. Production
-PT_LOAD is 11,164,005 debug / 11,600,997 release bytes after the full-dialog slice
-(11,159,013 / 11,596,133 on the SDK rebuilt on 2026-10-19, 11,159,397 / 11,596,517
-before it); core was 2,139,184 / 2,223,920 before the rebuild. Authored UI peak is
-3,885,301 requested / 3,992,336 backing; full shutdown recovers 7,424 / 7,600 bytes /
-four allocations. These are separate fixed/runtime measurements; do not sum tagged
-backing and committed arena twice. Retail timeline heap acceptance uses its own 16 MiB
-loaded ceiling and exact warm release baselines. The fully drawn dialog peaks at
-6,079,651 requested / 6,183,080 backing bytes (debug NTSC); the shell's drawn working
-set is not measured yet.
+PT_LOAD is 11,167,077 debug / 11,604,197 release bytes after the retail boot change
+(11,164,005 / 11,600,997 after the full-dialog slice, 11,159,013 / 11,596,133 on the SDK
+rebuilt on 2026-10-19, 11,159,397 / 11,596,517 before it); core was 2,139,184 /
+2,223,920 before the rebuild. Authored UI peak is 3,885,301 requested / 3,992,336
+backing; full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are
+separate fixed/runtime measurements; do not sum tagged backing and committed arena
+twice. Retail timeline heap acceptance uses its own 16 MiB loaded ceiling and exact warm
+release baselines. The fully drawn dialog peaks at 6,079,651 requested / 6,183,080
+backing bytes (debug NTSC); the shell's drawn working set is not measured yet. The
+retail boot peaks at 10,582,854 / 13,910,756 with a 14,523,035-byte arena before any
+map.
 
 No native target or hardware test is newly claimed by the 2026-10-19 docs audit.
 Before another implementation commit, fetch, inspect the worktree and check divergence.

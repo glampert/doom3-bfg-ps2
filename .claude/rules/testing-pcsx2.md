@@ -51,6 +51,14 @@
   production link evidence, matched images, config/input hashes and both PCSX2 streams.
   PCSX2 mirrors IOP lines into stdout and emulog; count native markers from one stream
   while checking both for crashes. Seven host regressions reject false acceptance.
+- `make test-retail-boot` runs the production ELF headless with the local retail
+  `_common`/`_ordered` containers hard-linked into its package (`RETAIL_DATA_ROOT`,
+  default `gamedata/d3_bfg`; symlinks are skipped by the native listing). It requires
+  both container mounts, the full `doom_main.script` compile, the three startup
+  memory checkpoints in order, 120 `NOMAP` frames and exact startup-ledger recovery.
+  `summary.json` records each checkpoint, the largest tags and the compiled script
+  size. The run takes about 20 s (7.8 s of script compilation); `make run-retail-boot`
+  stages and launches the same package until quit. Retail data never enters the repo.
 - `make test-console` / `make BUILD=release test-console` exercise the same production
   ELF visibly in NTSC and PAL. Startup policy is selected by package-root
   `presentation.cfg`; `make console` defaults to NTSC and `CONSOLE_STANDARD=pal`

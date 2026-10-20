@@ -1,13 +1,12 @@
 // ================================================================================================
 // File: core.cpp
-// Brief: Bind the Common foundation to bounded loose-file fixtures and tagged memory reports.
+// Brief: Bind the Common foundation to bounded loose-file fixtures.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/system/core.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
-#include "ps2/system/log.h"
 
 #include <idlib/precompiled.h>
 
@@ -15,12 +14,6 @@ namespace
 {
 
 static constexpr size_t kFixtureLimit = 65536;
-
-static constexpr const char * kTagNames[] = {
-#define MEM_TAG(x) #x,
-#include <idlib/sys/sys_alloc_tags.h>
-};
-static_assert(ps2::ArrayLength(kTagNames) == TAG_NUM_TAGS);
 
 [[noreturn]] void Unsupported(const char * operation)
 {
@@ -300,28 +293,6 @@ void Init()
 void Shutdown()
 {
     common->Shutdown();
-}
-
-void PrintMemory(const char * stage)
-{
-    const heap::Stats totals = heap::GetTotalStats();
-    const heap::ArenaStats arena = heap::GetArenaStats();
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] MEMORY %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu peak_backing=%zu\n",
-             stage, totals.requestedBytes, totals.backingBytes, totals.allocationCount,
-             totals.peakRequestedBytes, totals.peakBackingBytes);
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] ARENA %s available=%d committed=%zu used=%zu free=%zu peak_committed=%zu\n",
-             stage, arena.available ? 1 : 0, arena.committedBytes, arena.usedBytes, arena.freeBytes,
-             arena.peakCommittedBytes);
-    for (std::uint16_t tag = 0; tag < static_cast<std::uint16_t>(TAG_NUM_TAGS); ++tag)
-    {
-        const heap::Stats stats = heap::GetStats(tag);
-        if (stats.allocationCount != 0 || stats.peakRequestedBytes != 0)
-        {
-            ps2::Log(ps2::LogLevel::Info, "[D3BFG] TAG %s %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu\n",
-                     stage, kTagNames[tag], stats.requestedBytes, stats.backingBytes,
-                     stats.allocationCount, stats.peakRequestedBytes);
-        }
-    }
 }
 
 } // namespace ps2::core

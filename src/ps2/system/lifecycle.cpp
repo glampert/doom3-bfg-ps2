@@ -1,11 +1,13 @@
 // ================================================================================================
 // File: lifecycle.cpp
-// Brief: Initialize real core/offline services without presentation, save buffers or worker threads.
+// Brief: Initialize real core/offline services without presentation, save buffers or worker threads,
+// and report the tagged heap at each startup stage.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/system/lifecycle.h"
 #include "ps2/system/filesystem.h"
+#include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "ps2/system/offline_session.h"
 
@@ -15,6 +17,12 @@ namespace ps2::lifecycle
 {
 namespace
 {
+
+static constexpr const char * kTagNames[] = {
+#define MEM_TAG(x) #x,
+#include <idlib/sys/sys_alloc_tags.h>
+};
+static_assert(ps2::ArrayLength(kTagNames) == TAG_NUM_TAGS);
 
 static Stage s_completed = Stage::None;
 static Stage s_stopAfter = Stage::None;
@@ -184,6 +192,28 @@ void Frame()
     ++idLib::frameNumber;
     cmdSystem->ExecuteCommandBuffer();
     offline::Frame();
+}
+
+void PrintMemory(const char * stage)
+{
+    const heap::Stats totals = heap::GetTotalStats();
+    const heap::ArenaStats arena = heap::GetArenaStats();
+    Log(LogLevel::Info, "[D3BFG] MEMORY %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu peak_backing=%zu\n",
+        stage, totals.requestedBytes, totals.backingBytes, totals.allocationCount, totals.peakRequestedBytes,
+        totals.peakBackingBytes);
+    Log(LogLevel::Info, "[D3BFG] ARENA %s available=%d committed=%zu used=%zu free=%zu peak_committed=%zu\n", stage,
+        arena.available ? 1 : 0, arena.committedBytes, arena.usedBytes, arena.freeBytes, arena.peakCommittedBytes);
+
+    for (std::uint16_t tag = 0; tag < static_cast<std::uint16_t>(TAG_NUM_TAGS); ++tag)
+    {
+        const heap::Stats stats = heap::GetStats(tag);
+
+        if (stats.allocationCount != 0 || stats.peakRequestedBytes != 0)
+        {
+            Log(LogLevel::Info, "[D3BFG] TAG %s %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu\n", stage,
+                kTagNames[tag], stats.requestedBytes, stats.backingBytes, stats.allocationCount, stats.peakRequestedBytes);
+        }
+    }
 }
 
 } // namespace ps2::lifecycle

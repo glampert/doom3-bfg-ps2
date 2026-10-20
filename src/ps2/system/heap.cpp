@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/system/heap.h"
+#include "ps2/system/log.h"
 
 #include <cstdlib>
 #include <limits>
@@ -73,6 +74,29 @@ void Remove(Stats & stats, const Header & header)
     --stats.allocationCount;
 }
 
+// The failed request and every live tag, so an exhausted budget names its owners. Formats
+// only integers: newlib's floating-point conversion allocates.
+[[noreturn]] PS2_COLD_FUNC void FailAllocation(size_t size, std::uint16_t tag, size_t alignment)
+{
+    for (std::uint16_t index = 0; index < kTagCount; ++index)
+    {
+        const Stats & stats = s_tags[index];
+
+        if (stats.allocationCount != 0)
+        {
+            ps2::Log(ps2::LogLevel::Error, "heap tag=%u requested=%zu backing=%zu allocations=%zu peak_requested=%zu\n",
+                     static_cast<unsigned>(index), stats.requestedBytes, stats.backingBytes, stats.allocationCount,
+                     stats.peakRequestedBytes);
+        }
+    }
+
+    const ArenaStats arena = GetArenaStats();
+    ps2::FatalError("heap: cannot allocate %zu bytes (tag %u, alignment %zu); live %zu requested / %zu backing bytes in %zu "
+                    "allocations; arena %zu committed, %zu free",
+                    size, static_cast<unsigned>(tag), alignment, s_total.requestedBytes, s_total.backingBytes,
+                    s_total.allocationCount, arena.committedBytes, arena.freeBytes);
+}
+
 } // namespace
 
 [[noreturn]] void Fail(const char * reason)
@@ -126,7 +150,7 @@ void * Alloc(size_t size, std::uint16_t tag, size_t alignment)
     void * pointer = TryAlloc(size, tag, alignment);
     if (pointer == nullptr)
     {
-        Fail("invalid request or out of memory");
+        FailAllocation(size, tag, alignment);
     }
     return pointer;
 }

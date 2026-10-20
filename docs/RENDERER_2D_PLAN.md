@@ -153,7 +153,11 @@ The user selected this order on 2026-10-20, after the first full UI picture:
    32 MiB. For UI this means page formats the GS can keep resident (paletted CLUT
    pages, downscaling art the 512-wide screen cannot resolve) and measured page and
    heap working sets; for the campaign it means the declaration, script, collision,
-   AAS and entity state a retail level needs alongside the in-game UI.
+   AAS and entity state a retail level needs alongside the in-game UI. The first
+   measurements are recorded in
+   [PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20):
+   PSMT8 with per-image CLUTs plus selective halving is the measured UI candidate,
+   and the retail declarations and scripts take 13.5 MB of heap before any map.
 2. Close shell complex masks/strokes, screen blend 4, nonzero additive color
    transforms and dynamic artwork bindings, then produce a complete original shell frame.
 3. Connect bounded native offline PressStart/Root/Quit ownership and Common hooks,

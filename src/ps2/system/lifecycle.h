@@ -36,5 +36,7 @@ void Frame();
 Stage CompletedStage();
 const char * StageName(Stage stage);
 void StopAfterForTest(Stage stage);
+// Totals, allocator arena and every tag with live or peak bytes, labeled with the stage.
+void PrintMemory(const char * stage);
 
 } // namespace ps2::lifecycle

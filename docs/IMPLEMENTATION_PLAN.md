@@ -22,7 +22,10 @@ Production stays in `NOMAP`; its game loop does not yet load or simulate the aut
 map used by the separate test executable. The real dialog now draws in full. Its page
 streaming showed that RGBA32 UI pages cannot hold a menu's working set, so the selected
 next work is asset recompression/re-export and fitting the campaign into the 32 MiB
-budget, before the shell frame and interactive offline menu. Preserve headless behavior
+budget, before the shell frame and interactive offline menu. Production now boots the
+retail declarations and scripts (`make test-retail-boot`), using 13.5 MB of heap
+before any map; the UI format and heap levers are measured in
+[PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20). Preserve headless behavior
 and extend existing fixtures.
 
 ## 1. Objective and scope
@@ -432,7 +435,8 @@ The selected work is the GS-backed 2D renderer and native offline main menu.
 [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) expands this work into device,
 texture/capture, console, SWF and menu gates. 2D-1–4 now pass, and bounded retail
 resource/timeline profiles, additive blend 8, convex masks and the fully drawn original
-dialog are accepted. Asset recompression and the 32 MiB budget come next, then complex
+dialog are accepted. Asset recompression and the 32 MiB budget are in progress (first
+measurements recorded), then complex
 masks/strokes, remaining color/blend semantics, dynamic artwork residency and shell
 drawing before offline menu navigation. Sound output and world rendering remain later
 work.
@@ -456,7 +460,7 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 ## 13. Open inputs and decision points
 
-- **Current scope:** M0–M2 and M2b compile/link passed. M3 boot/ticks/events, bounded collision/physics, restricted native player ticks and authored native map/world/PVS/AAS/idle-AI startup pass; campaign player, animated AI/gameplay and broader maps remain pending. The user approved the 2D renderer/main-menu roadmap; console/authored SWF, resource/timeline profiles, additive blend 8, convex masks and the fully drawn original dialog now pass in PCSX2. Asset recompression and the 32 MiB budget are selected next; shell drawing and navigation remain pending. Preserve headless simulation during subsequent rendering work.
+- **Current scope:** M0–M2 and M2b compile/link passed. M3 boot/ticks/events, bounded collision/physics, restricted native player ticks and authored native map/world/PVS/AAS/idle-AI startup pass; campaign player, animated AI/gameplay and broader maps remain pending. The user approved the 2D renderer/main-menu roadmap; console/authored SWF, resource/timeline profiles, additive blend 8, convex masks and the fully drawn original dialog now pass in PCSX2. Asset recompression and the 32 MiB budget are in progress: production boots the retail declarations and scripts, and the UI format candidates are measured. Shell drawing and navigation remain pending. Preserve headless simulation during subsequent rendering work.
 - **Retail data:** the user supplied BFG assets in `gamedata/d3_bfg/` and separate RoE reference assets in `gamedata/d3_roe/`. Inventory the BFG resource containers and resolve logical runtime paths before a campaign initialization claim. Core and synthetic tests remain independent of them.
 - **Reuse notices:** the user authorizes GPL v3 reuse of reference code they own. Preserve third-party notices and record each import in `docs/REUSE.md`.
 - **Hardware:** establish access and the preferred transfer/storage method before requiring physical-console acceptance. PCSX2 can support the initial milestones.

@@ -14,11 +14,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 import run_headless as runner
 
 
+RETAIL_STARTUP = ("Loaded resource file _common.resources\nLoaded resource file _ordered.resources\n"
+                  "[D3BFG] MEMORY startup-foundation requested=100 backing=200 allocations=3 peak_requested=100 peak_backing=200\n"
+                  "[D3BFG] MEMORY startup-decls requested=400 backing=500 allocations=6 peak_requested=400 peak_backing=500\n"
+                  "Compiled 'script/doom_main.script': 7807.0 ms\n     Strings: 120, 14868 bytes\n"
+                  "  Statements: 95386, 1907720 bytes\n   Functions: 3070, 386208 bytes\n   Variables: 206536 bytes\n"
+                  " Static data: 3515932 bytes\n   Allocated: 4998796 bytes\n"
+                  "[D3BFG] MEMORY startup-game requested=900 backing=1000 allocations=9 peak_requested=900 peak_backing=1000\n"
+                  "[D3BFG] TAG startup-game DECL requested=300 backing=350 allocations=4 peak_requested=300\n"
+                  "[D3BFG] TAG startup-game DECLTEXT requested=500 backing=600 allocations=5 peak_requested=500\n")
+
+
 def completed(case="bounded"):
     status = "[D3BFG] HEADLESS frames={frame} game_frames=0 state=console console=1 game_nomap=1 render_device=0 sound_output=0 heap=10/20/3\n"
-    log = "game initialized.\nHEADLESS console ready;\nLOOP ready;\nrun_begin\n"
+    log = RETAIL_STARTUP if case == "retail" else ""
+    log += "game initialized.\nHEADLESS console ready;\nLOOP ready;\nrun_begin\n"
     log += status.format(frame=0) + status.format(frame=120)
-    if case == "bounded":
+    if case in ("bounded", "retail"):
         log += "HEADLESS frame limit reached frames=120\n"
     else:
         log += ']echo "run_command"\n]history\n]quit\n'
@@ -30,7 +42,7 @@ def completed(case="bounded"):
 
 class HeadlessAcceptance(unittest.TestCase):
     def test_completed_modes(self):
-        for case in ("bounded", "console"):
+        for case in ("bounded", "console", "retail"):
             with self.subTest(case=case):
                 self.assertTrue(runner.classify(completed(case), case, "run")[0])
 
@@ -59,6 +71,29 @@ class HeadlessAcceptance(unittest.TestCase):
     def test_live_input_requires_submission_and_rejection(self):
         for log in (completed("console").replace("]history", ""), completed("console").replace("discarding invalid or oversized headless console line", ""), completed("console") + "]quit xxxxxxxxx\n"):
             self.assertFalse(runner.classify(log, "console", "run")[0])
+
+    def test_retail_requires_containers_script_and_checkpoints(self):
+        log = completed("retail")
+        for marker in ("Loaded resource file _common.resources", "Loaded resource file _ordered.resources",
+                       "Compiled 'script/doom_main.script'", "MEMORY startup-decls"):
+            with self.subTest(missing=marker):
+                self.assertFalse(runner.classify(log.replace(marker, "missing"), "retail", "run")[0])
+        repeated = log.replace("[D3BFG] MEMORY startup-game", "[D3BFG] MEMORY startup-decls requested=1 backing=1 allocations=1\n"
+                               "[D3BFG] MEMORY startup-game", 1)
+        self.assertFalse(runner.classify(repeated, "retail", "run")[0])
+        self.assertFalse(runner.classify(log.replace("HEADLESS frame limit reached frames=120", ""), "retail", "run")[0])
+        # An authored boot's checkpoints cannot stand in for the retail containers.
+        self.assertFalse(runner.classify(completed("bounded"), "retail", "run")[0])
+
+    def test_startup_memory_record(self):
+        record = runner.startup_memory(completed("retail"))
+        self.assertEqual(list(record["stages"]), list(runner.STARTUP_STAGES))
+        self.assertEqual(record["stages"]["startup-game"], {"requested": 900, "backing": 1000, "allocations": 9})
+        self.assertEqual([tag["tag"] for tag in record["tags"]], ["DECLTEXT", "DECL"])
+        self.assertEqual(record["script"]["statements"], 95386)
+        self.assertEqual(record["script"]["function_bytes"], 386208)
+        self.assertEqual(record["script"]["compile_ms"], 7807.0)
+        self.assertEqual(runner.startup_memory("no checkpoints"), {"stages": {}, "tags": [], "script": {}})
 
     def test_mirrored_logs_and_secondary_crash(self):
         with tempfile.TemporaryDirectory() as temporary:

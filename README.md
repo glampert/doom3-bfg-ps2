@@ -4,9 +4,10 @@ An in-progress PlayStation 2 port of [id Software's Doom 3 BFG Edition](https://
 built with the free ps2dev toolchain and SDK. The goal is a playable single-player
 Doom 3 campaign on the PS2.
 
-**The port is not playable yet.** It currently boots into a developer console and
-can display test interfaces, text from the original game and the original quit
-dialog, drawn by the game's own interface code. Gameplay systems are being brought up
+**The port is not playable yet.** It currently boots into a developer console, loads
+the original game's definitions and scripts, and can display test interfaces, text
+from the original game and the original quit dialog, drawn by the game's own
+interface code. Gameplay systems are being brought up
 with small test maps before moving on to the full campaign.
 
 - [x] PS2 startup, a sustained game loop and developer console.

@@ -11,6 +11,5 @@ namespace ps2::core
 
 void Init();
 void Shutdown();
-void PrintMemory(const char * stage);
 
 } // namespace ps2::core

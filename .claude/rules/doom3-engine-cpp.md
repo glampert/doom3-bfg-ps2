@@ -103,6 +103,30 @@ math path; PS2-specific math replacement headers are a later milestone.
   call it only after every borrowed string/idStrId user and native movie/font is gone.
   Target English loading checks grammar, escapes/counts and UTF-8 in release too.
 
+## Retail containers and declaration residency
+
+- The native filesystem mounts every `.resources` file in the base directory, but
+  the port's directory listing skips symlinks: stage containers as hard links or
+  copies. `fs_resourceLoadPriority` 1 serves container entries before loose files.
+- `idResourceContainer::Init` reads `_ordered.resources` wholesale through
+  `OpenFileReadMemory` (11.3 MB); on PS2 a tagged change opens it as a stream like
+  the others. Each `idResourceCacheEntry` holds an `idStrStatic<256>` name, so the
+  3,598 retail entries cost 1.08 MB of tables.
+- `USE_COMPRESSED_DECLS` keeps every declaration's Huffman-compressed text resident
+  from `declManager->Init` onward, parsed or not: 4.25 MB requested for 11,947 retail
+  declarations. `idGameLocal::Init` registers the `def`, `fx`, `particles`, `af` and
+  `newpdas` folders, so most declaration text arrives during game startup.
+- Declarations with one name keep the first definition in folder listing order and
+  warn for later ones. A loose authored `materials/*.mtr` beside the containers can
+  silently replace a retail material (`_tracemodel`, `itemHighlightShell`); the retail
+  boot package stages only the uniquely named `_headless_default`.
+- `idParser` tries an include relative to the including file first, so the retail
+  script compile logs failed HostFs opens such as `script/script/doom_defs.script`
+  before the container lookup succeeds. They are expected.
+- The retail `doom_main.script` compiles in 7.8 s in PCSX2: 95,386 statements and 3,070
+  functions, within the 131,072 / 3,584 static limits. `idGameLocal::Init` also
+  preallocates `idSmokeParticles` (680 KB) before any map.
+
 ## Campaign portability findings
 
 - `gameReturn_t`'s native constructor leaves `sessionCommand` uninitialized. Native

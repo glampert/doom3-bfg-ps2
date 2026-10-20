@@ -151,16 +151,20 @@ void idCommonLocal::InitHeadless()
     {
         ps2::FatalError("invalid headless game startup");
     }
+    // Tagged ledgers after each stage record what the startup data costs on the EE.
+    ps2::lifecycle::PrintMemory("startup-foundation");
     idKeyInput::Init();
     console->Init();
     consoleHistory.ClearHistory();
     eventLoop->Init();
     declManager->Init();
+    ps2::lifecycle::PrintMemory("startup-decls");
     // This bootstrap never executes desktop device bindings or starts an audio device.
     cvarSystem->SetCVarBool("g_xp_bind_run_once", true);
     cvarSystem->SetCVarBool("s_noSound", true);
     soundSystem->Init();
     LoadGameDLL(); // Validates the real static game ABI and calls native idGameLocal::Init.
+    ps2::lifecycle::PrintMemory("startup-game");
     ps2::render::InitLogical("_headless_default");
     renderWorld = renderSystem->AllocRenderWorld();
     soundWorld = soundSystem->AllocSoundWorld(renderWorld);
