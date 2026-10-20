@@ -480,6 +480,8 @@ private:
         }
 
         const U32 lines = r.Count(24, 1024);
+        m_summary.strokes += lines;
+
         for (U32 index = 0; index < lines && r.Valid(); ++index)
         {
             r.Take(12);

@@ -24,8 +24,9 @@
 #   make BUILD=release CONSOLE_STANDARD=pal run-retail-ui # release PAL resource screen
 #   make retail-movies           # stage inactive retail SWFs and the English dictionary
 #   make run-retail-movies       # draw English labels using original native SWF text records
-#   make test-retail-movies      # inactive/executable timelines, English layout, reloads and guards
+#   make test-retail-movies      # inactive/executable timelines, full dialog, English layout and guards
 #   make test-retail-timelines   # only executable retail timelines (no full movie rendering)
+#   make test-retail-dialog      # the original quit dialog drawn in full through native SWF Render
 #   make BUILD=release test-retail-movies # same native movie resource gate without assertions
 #   make test-retail-ui          # five fonts, layout/pixel checks, reloads and invalid resources
 #   make BUILD=release test-retail-ui # same resource checks without assertions
@@ -501,7 +502,7 @@ run-ui: ui
 test-ui: all
 	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --emulator $(PCSX2)
 
-.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines
+.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines test-retail-dialog
 
 retail-ui: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)"
@@ -523,6 +524,9 @@ test-retail-movies: all
 
 test-retail-timelines: all
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case execution
+
+test-retail-dialog: all
+	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case dialog-render
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core

@@ -26,6 +26,8 @@ static bool s_language = false;
 static SwfSummary s_movieSummary;
 static bool s_executionRequested = false;
 static bool s_executionAdmitted = false;
+static bool s_renderRequested = false;
+static bool s_renderAdmitted = false;
 static constexpr const char * kMovies[] = { "generated/swf/shell.bswf", "generated/swf/dialog.bswf" };
 static constexpr const char * kMovieFiles[] = { "retail/shell.bswf", "retail/dialog.bswf" };
 
@@ -152,6 +154,8 @@ PS2_COLD_FUNC void Shutdown()
     s_movieSummary = {};
     s_executionRequested = false;
     s_executionAdmitted = false;
+    s_renderRequested = false;
+    s_renderAdmitted = false;
     heap::Free(s_bytes);
     s_bytes = nullptr;
     s_catalog = {};
@@ -218,15 +222,17 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
     return snapshot;
 }
 
-PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute)
+PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
 {
-    if (!IsInitialized() || rs::FrameStarted() || index >= 2)
+    if (!IsInitialized() || rs::FrameStarted() || index >= 2 || (render && !execute))
     {
         FatalError("invalid retail movie preparation ownership");
     }
 
     s_executionRequested = execute;
     s_executionAdmitted = false;
+    s_renderRequested = render;
+    s_renderAdmitted = false;
 
     if (s_profile[0] == 0)
     {
@@ -340,6 +346,24 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
             "[D3BFG] RETAIL executable movie=%u actions=%lu functions=%lu placements=%lu removals=%lu\n",
             index, static_cast<unsigned long>(execution.actions), static_cast<unsigned long>(execution.functions),
             static_cast<unsigned long>(execution.placements), static_cast<unsigned long>(execution.removals));
+
+        if (s_renderRequested)
+        {
+            // Strokes, screen blending and nonzero additive color have no 2D backend path yet. Masks
+            // are admitted here; the CPU bridge still rejects any non-convex mask at draw time.
+            if (summary.strokes != 0 || execution.screenBlends != 0 || execution.additiveColors != 0)
+            {
+                heap::Free(bytes);
+                FatalError("retail movie draw features unavailable: %s strokes=%lu screen_blends=%lu additive_colors=%lu",
+                           logicalPath, static_cast<unsigned long>(summary.strokes),
+                           static_cast<unsigned long>(execution.screenBlends),
+                           static_cast<unsigned long>(execution.additiveColors));
+            }
+
+            s_renderAdmitted = true;
+            Log(LogLevel::Info, "[D3BFG] RETAIL drawable movie=%u masks=%lu strokes=0 screen_blends=0 additive_colors=0\n",
+                index, static_cast<unsigned long>(execution.masks));
+        }
     }
 
     s_movieSummary = summary;
@@ -355,6 +379,11 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
 bool MovieExecutionAdmitted()
 {
     return IsInitialized() && s_language && s_executionAdmitted;
+}
+
+bool MovieRenderAdmitted()
+{
+    return MovieExecutionAdmitted() && s_renderAdmitted;
 }
 
 SwfSummary GetMovieSummary()

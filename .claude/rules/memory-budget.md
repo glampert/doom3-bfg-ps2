@@ -418,3 +418,25 @@ run, consistent with stdio buffers now sized from `st_blksize`, and +384 / −3,
 NTSC authored UI run. Production `PT_LOAD` shrank by 384 bytes in both configurations,
 to 11,159,013 / 11,596,133. Untagged arena commitment depends on libc buffering and
 allocator layout; compare tagged ledgers across toolchains.
+
+## Original dialog full draw (2026-10-20)
+
+Drawing the original dialog through native `Render` adds no pixel surface, VRAM pool or
+fixed buffer: it reuses the six linear retail slots (1.5 MiB), the 256 KiB scratch page
+and the shared UI geometry spans. Six open images (five fonts plus the dialog atlas)
+hold 504 bytes of page records. Production `PT_LOAD` grows by 4,992 debug / 4,864
+release bytes, to 11,164,005 / 11,600,997, for the draw admission, dialog owner and
+mask counters.
+
+Debug and release, NTSC and PAL, all load the dialog at 5,673,819 requested / 5,807,980
+backing bytes in 3,229 allocations and rest at 5,690,707 / 5,827,180 / 3,281 on every
+load. Every release, cold or warm, returns to 5,443,407 / 5,547,524 / 2,531. The heap
+peaks at 6,079,651 / 6,183,080, with 6,399,643 (debug) / 6,400,923 (release) bytes of
+arena commitment, and full shutdown recovers 7,424 / 7,600 / 4 exactly. The dialog's script state adds about 17 KB once
+its intro has run. This is a much smaller footprint than the executing shell's 11 MB
+peak.
+
+Its cost is bandwidth, not heap: about 51 RGBA32 page loads per frame (see
+[gs-renderer.md](gs-renderer.md)). A screen whose page working set exceeds the six
+slots streams 256 KiB per miss; paletted or downscaled pages change both the slot
+count GS memory can hold and the bytes each miss moves.

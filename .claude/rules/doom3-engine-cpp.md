@@ -83,14 +83,14 @@ math path; PS2-specific math replacement headers are a later milestone.
 ## Inactive retail SWF resources
 
 - Bounded retail resource snapshots use `idSWF(..., nullptr, true)`. Native dictionary
-  allocation/loading is retained, but the constructor skips Run/RunActions/RunTo.
-  Reject any doInitActions before construction: sprite Init otherwise executes them
-  even before the first frame. Inactive inspection performs storage preflight only.
-  `execute shell|dialog` adds placement/AVM1 preflight and explicit
-  `EnableResourceExecution` permission under a checked execution scope, allowing
-  native timeline advancement and minimal widget callbacks. Full Render/HandleEvent
-  remain fatal even with this permission. Never clear `resourceOnly` to bypass
-  missing drawing/resource admission. See the scoped execution rules later in this file.
+  allocation/loading is retained, but the constructor skips Run/RunActions/RunTo. Reject
+  any doInitActions before construction: sprite Init otherwise executes them even before
+  the first frame. Inactive inspection performs storage preflight only. `execute
+  shell|dialog` adds placement/AVM1 preflight and explicit `EnableResourceExecution`
+  permission under a checked execution scope, allowing native timeline advancement and
+  minimal widget callbacks. Full Render needs the separate draw admission below;
+  HandleEvent remains fatal. Never clear `resourceOnly` to bypass missing
+  drawing/resource admission. See the scoped execution rules later in this file.
 - The original BSWF timestamp refers to an unstaged source SWF. Resource-only loading
   uses its preflighted immutable identity, without requiring that source timestamp;
   authored executable loading preserves its existing check. Isolated text reuses the
@@ -518,9 +518,30 @@ math path; PS2-specific math replacement headers are a later milestone.
 ## Scoped retail execution
 
 - Retail origin and permission to execute are separate: a resource-only `idSWF` still
-  rejects full Render/HandleEvent after timeline admission. Construction stays inactive;
-  real widget callbacks must be installed before explicit activation. Advance once per
-  Common frame before GS submission; synchronous redraws preserve movie time.
+  rejects HandleEvent after timeline admission, and Render until draw admission.
+  Construction stays inactive; real widget callbacks must be installed before explicit
+  activation. Advance once per Common frame before GS submission; synchronous redraws
+  preserve movie time.
+- Full drawing is a third admission, `EnableResourceRender`, after execution. The target
+  preflight must find no shape outline records, screen-blend (mode 4) placements or
+  nonzero additive color terms; masks pass and the convex CPU bridge still checks each
+  at draw time. Native `Render` then only draws a retail movie, without running frames,
+  inside a draw scope plus an execution scope that bounds any reachable script work.
+  HandleEvent stays fatal. The dialog qualifies (ten masks); the shell's 15 outlines,
+  five screen blends and 29 additive placements keep it blocked, matching the host
+  inventory.
+- Retail `guis.mtr` defines `guiSolid` as blend/colored/map `_white`/clamp, identical
+  to the implicit `_white` definition. GUI surfaces evaluate `colored` with all-one
+  shader parameters (`GuiModel.cpp`) and force vertex-color modulation
+  (`tr_backend_draw.cpp`), so both reduce to one constant vertex-colored stage over the
+  owned white image. The retail material hook supplies that text; no `_white` substitution.
+- Common's dialog manager stays uninitialized and `common->Dialog()` is fatal. The
+  dialog owner reproduces `idCommonDialog::Init` constants and `ShowDialog` globals for
+  GDM_QUIT_GAME / DIALOG_DYNAMIC. `GetDialogMsg` reads no manager state, so a
+  zero-initialized local manager supplies the native title/text keys. The three choices
+  are real refcounted function objects that fail explicitly until dialog events and
+  Common's deferred clear exist. The movie positions itself through `calcNumLines`,
+  `_y` writes and text `_stroke*` properties; native PC platform prompts are retained.
 - The shell's first frame needs native `refreshCarousel` and `updateCredits` owners.
   Use their actual widgets, retain callback identity and detach the borrowed movie before
   the base menu handler cleans up. The port's minimal carousel selects Doom 3 only.

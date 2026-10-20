@@ -5,8 +5,9 @@ built with the free ps2dev toolchain and SDK. The goal is a playable single-play
 Doom 3 campaign on the PS2.
 
 **The port is not playable yet.** It currently boots into a developer console and
-can display test interfaces and text from the original game. Gameplay systems are
-being brought up with small test maps before moving on to the full campaign.
+can display test interfaces, text from the original game and the original quit
+dialog, drawn by the game's own interface code. Gameplay systems are being brought up
+with small test maps before moving on to the full campaign.
 
 - [x] PS2 startup, a sustained game loop and developer console.
 - [x] Basic 2D graphics, fonts and interface foundations.

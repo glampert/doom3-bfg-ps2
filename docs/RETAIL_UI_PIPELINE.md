@@ -1,11 +1,11 @@
 # Retail UI host inventory and cooking
 
 This records the **2D-5** host pipeline and its scoped native resource/timeline
-profiles. Documentation reviewed **2026-10-19**, with runtime evidence through
-**2026-10-18**. Original shell/dialog dictionaries, English text and checked native
-timelines can load and execute through separate admission profiles. The visible
-retail screen still draws isolated English labels; full movie rendering, event
-routing and offline menu navigation are not admitted.
+profiles. Documentation reviewed **2026-10-20**, with runtime evidence through
+**2026-10-20**. Original shell/dialog dictionaries, English text and checked native
+timelines can load and execute through separate admission profiles, and the original
+dialog draws in full through a third one. The shell still shows isolated English
+labels; its drawing, event routing and offline menu navigation are not admitted.
 
 The cook keeps `runtime_ready=false` because complete drawing/resource closure and
 the active menu working set remain pending. Convex masks and additive blend 8 are
@@ -252,7 +252,8 @@ Only a separate native `RenderResourceText` entry draws isolated edit-text insta
 wrapping, alignment, margins, font size, source color and glyph sampling remain native.
 Three English label IDs bind through the original dictionary. No original movie bytes
 are rewritten and no retail mask, additive transform or special blend is silently
-ignored. Full movie execution/rendering remains a later gate.
+ignored. Execution and full drawing are later, separate admissions; see
+[full original dialog drawing](#full-original-dialog-drawing).
 
 Staging creates a fixed **64-byte UIMV v1** descriptor at `base/retail/movies.uim`.
 All sixteen words are little endian: magic `UIMV`, version 1, length 64, English flag
@@ -322,8 +323,9 @@ the zero-additive-color profile, exercised by the authored native SWF. Mode 4, n
 additive color transforms, complex masks and strokes are still explicit feature gaps.
 A bounded native convex-mask path now exists for authored geometry; it does not
 admit the shell's holed/disconnected meshes, 185-point outline or stroked masks. Full
-movie rendering, general dynamic resource closure and
-measured active menu working sets remain pending. This does not complete milestone
+drawing is admitted only for a movie without outlines, screen blends or additive color,
+which today means the dialog. Shell drawing, general dynamic resource closure and a
+measured active-menu working set remain pending. This does not complete milestone
 2D-5 or activate the complete retail menu.
 
 Standalone `PageImage` callers can still own a private window. Simultaneous native
@@ -406,3 +408,40 @@ These checks cover the selected initial states and owners. They do not establish
 general AVM1 lifetime safety: copied text aliases and raw function/default-sprite
 references retain upstream limitations. General dynamic path closure, active artwork
 residency, masks/blends and PressStart → Root → Quit navigation remain later gates.
+
+## Full original dialog drawing
+
+`ps2_uiRetail dialog quit` loads the original dialog with execution and a third,
+separate admission: full drawing through native `idSWF::Render`. With the retail-movies
+package running:
+
+```sh
+printf 'ps2_uiRetail dialog quit\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail status\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail unload\nquit\n' >> build/debug/ui-retail-movies/console.txt
+```
+
+Drawing is admitted per movie from the target preflight, not by name. Storage
+validation counts shape outline records; execution preflight counts screen-blend
+(mode 4) placements and color transforms with any nonzero additive term. A movie is
+drawable only when all three are zero, since the 2D backend has no stroke, screen or
+additive-color path yet. Masks are admitted and each one still passes the bounded
+convex CPU bridge at draw time. The dialog qualifies with ten masks; the shell's 15
+outlines, five screen-blend and 29 additive placements keep it blocked. The target
+counters match the host inventory for both movies.
+
+The dialog owner mirrors `idCommonDialog::Init` (the `DIALOG_*` constants) and
+`ShowDialog` for the root menu's quit request: `GDM_QUIT_GAME` as `DIALOG_DYNAMIC`, with
+title/text keys from native `GetDialogMsg` and ACCEPT / CANCEL / CHANGE GAME options
+from the English dictionary. Common's own dialog manager stays uninitialized. The three
+choices are native callback objects that fail explicitly when called; dialog event
+routing and Common's deferred clear belong to the offline menu gate. Retail `guiSolid`
+and `_white` resolve to one constant vertex-colored stage over the owned white image,
+which is how native GUI surfaces evaluate them.
+
+The timeline still advances once per Common frame before the GS frame; `Render` only
+draws, inside the SWF draw scope and an execution scope. The visible frame shows the
+dialog alone over the dark clear color, without the isolated label screen.
+`make test-retail-dialog` (also part of `make test-retail-movies`) runs the
+`dialog-render` case; see [PORT_STATUS](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice)
+for its acceptance record, page-streaming cost and memory.

@@ -79,9 +79,9 @@ idSWF::Render
 ========================
 */
 void idSWF::Render( idRenderSystem * gui, int time, bool isSplitscreen ) {
-	// [PS2_D3BFG]: Complex masks/blends remain gated; resource inspection never draws the full movie.
+	// [PS2_D3BFG]: Retail movies draw only after their profile admits every draw feature.
 #if defined( ID_PS2 )
-	if ( resourceOnly )
+	if ( resourceOnly && ( !resourceExecution || !resourceRender ) )
 	{
 		idLib::FatalError( "resource-only SWF cannot render a movie" );
 	}
@@ -106,11 +106,20 @@ void idSWF::Render( idRenderSystem * gui, int time, bool isSplitscreen ) {
 #endif
 	int framesToRun = 0;
 
+	// [PS2_D3BFG]: Retail timelines advance before the GS frame in their execution scope; drawing runs no frames.
+#if defined( ID_PS2 )
+	if ( paused && !resourceOnly ) {
+#else
 	if ( paused ) {
+#endif
 		lastRenderTime = currentTime;
 	}
 
+#if defined( ID_PS2 )
+	if ( swf_timescale.GetFloat() > 0.0f && !resourceOnly ) {
+#else
 	if ( swf_timescale.GetFloat() > 0.0f ) {
+#endif
 		if ( lastRenderTime == 0 ) {
 			lastRenderTime = currentTime;
 			framesToRun = 1;

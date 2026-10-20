@@ -24,6 +24,8 @@ struct SwfSummary
     std::uint32_t fonts = 0;
     std::uint32_t editTexts = 0;
     std::uint32_t previewText = 0;
+    // Shape outline records; native SWF draws them as line-mode strokes, which the 2D backend lacks.
+    std::uint32_t strokes = 0;
 };
 
 // Names are transient NUL-terminated ASCII. Returning false rejects the resource before native parsing.

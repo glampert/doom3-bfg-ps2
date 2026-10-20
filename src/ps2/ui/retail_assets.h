@@ -22,8 +22,10 @@ const CatalogView & GetCatalog();
 bool FindFont(const char * requested, FontRecord & output);
 idFile * OpenFont(const FontRecord & font);
 // The fixed shell/dialog profile loads one movie at a time; execute opts into additional preflight.
-void PrepareMovie(unsigned index, bool execute = false);
+// Render additionally requires a movie free of draw features the 2D backend cannot express.
+void PrepareMovie(unsigned index, bool execute = false, bool render = false);
 bool MovieExecutionAdmitted();
+bool MovieRenderAdmitted();
 idFile * OpenMovie(const char * logicalPath);
 SwfSummary GetMovieSummary();
 void RegisterMaterials();

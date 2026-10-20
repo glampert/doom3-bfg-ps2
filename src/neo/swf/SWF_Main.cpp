@@ -56,8 +56,9 @@ idSWF::idSWF
 idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_, bool resourceOnly_ )
 {
 	resourceOnly = resourceOnly_;
-	// [PS2_D3BFG]: Construction never executes retail bytecode before explicit admission.
+	// [PS2_D3BFG]: Construction never executes or draws retail content before explicit admission.
 	resourceExecution = false;
+	resourceRender = false;
 #else
 idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 #endif
@@ -69,12 +70,7 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 
 	random.SetSeed( Sys_Milliseconds() );
 
-	// [PS2_D3BFG]: Isolated text uses the owned white intrinsic; retail shader text is not admitted.
-#if defined( ID_PS2 )
-	guiSolid = declManager->FindMaterial( resourceOnly ? "_white" : "guiSolid" );
-#else
 	guiSolid = declManager->FindMaterial( "guiSolid" );
-#endif
 	// [PS2_D3BFG]: Keyboard-only authored UI does not preload unused retail cursor/controller media.
 #if defined( ID_PS2 )
 	white = declManager->FindMaterial( "_white" );
@@ -386,6 +382,17 @@ unsigned idSWF::AdvanceResourceExecution( int time )
 	}
 
 	return advanced;
+}
+
+// [PS2_D3BFG]: Drawing is authorized per movie profile, after execution, so unsupported draws stay unavailable.
+void idSWF::EnableResourceRender()
+{
+	if ( !resourceOnly || !resourceExecution || resourceRender || !ps2::ui::retail::MovieRenderAdmitted() )
+	{
+		idLib::FatalError( "retail SWF drawing requires an executing movie with admitted draw features" );
+	}
+
+	resourceRender = true;
 }
 #endif
 

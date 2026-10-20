@@ -58,8 +58,10 @@ Retail UI commands and staging are described in the
 [retail pipeline guide](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
 `ps2_uiRetail movie shell|dialog` inspects inactive resources;
 `ps2_uiRetail execute shell|dialog` runs admitted native timelines and the minimal
-widget owners while retaining the separate text inspection screen. Complete menu
-drawing and navigation remain pending. To inspect the current original-game resources:
+widget owners while retaining the separate text inspection screen.
+`ps2_uiRetail dialog quit` draws the original dialog in full with Common's quit
+message. Shell drawing and menu navigation remain pending. To inspect the current
+original-game resources:
 
 ```sh
 make ui-cook
@@ -79,9 +81,11 @@ resource screen, check `ps2_uiRetail status` and send `ps2_uiRetail load` once b
 execution; repeating `load` while already loaded is fatal.
 
 This executes the original dialog timeline while drawing isolated native English
-labels. It does not draw the full dialog. `execute shell` selects the minimal
-carousel/Credits owner; `movie shell|dialog|none` selects inactive inspection. Use
-`make test-retail-timelines` for the scoped execution gate. All authored startup/map/UI
+labels. `dialog quit` instead draws the complete dialog through native `idSWF::Render`;
+expect about 1.5 seconds per frame in PCSX2 while its atlas pages stream from HostFs.
+`execute shell` selects the minimal carousel/Credits owner; `movie shell|dialog|none`
+selects inactive inspection. Use `make test-retail-timelines` for the scoped execution
+gate and `make test-retail-dialog` for the full dialog. All authored startup/map/UI
 fixtures live under `src/tests/data/`; generated packages and captures stay in `build/`.
 
 Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,

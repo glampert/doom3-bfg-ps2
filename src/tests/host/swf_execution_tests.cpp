@@ -246,6 +246,35 @@ bool CommandValid(U32 tag, const Bytes & bytes, ps2::ui::SwfPlacement * placemen
     return ps2::ui::ValidateSwfCommand(tag, bytes.data(), bytes.size(), kTypes, sizeof(kTypes), 2, summary, placement);
 }
 
+ps2::ui::SwfExecutionSummary CommandSummary(U32 tag, const Bytes & bytes)
+{
+    ps2::ui::SwfExecutionSummary summary;
+    assert(ps2::ui::ValidateSwfCommand(tag, bytes.data(), bytes.size(), kTypes, sizeof(kTypes), 2, summary));
+    return summary;
+}
+
+void DrawFeatures()
+{
+    // Screen blending is admitted for execution but counted, so full drawing can refuse it.
+    auto summary = CommandSummary(70, { 2, 2, 1, 0, 2, 0, 4 });
+    assert(summary.screenBlends == 1 && summary.additiveColors == 0 && summary.masks == 0);
+    summary = CommandSummary(70, { 2, 2, 1, 0, 2, 0, 8 });
+    assert(summary.screenBlends == 0);
+
+    // Add terms follow multiply terms: add=1, mult=0, two bits, red add 1.
+    summary = CommandSummary(26, { 10, 1, 0, 2, 0, 0x89, 0x00 });
+    assert(summary.additiveColors == 1);
+    // Present but zero add terms leave the native zero-additive encoding.
+    summary = CommandSummary(26, { 10, 1, 0, 2, 0, 0x88, 0x00 });
+    assert(summary.additiveColors == 0);
+    // Multiply-only transforms with nonzero values are not additive.
+    summary = CommandSummary(26, { 10, 1, 0, 2, 0, 0x49, 0x54 });
+    assert(summary.additiveColors == 0);
+    // A clip depth makes the placement a mask.
+    summary = CommandSummary(26, { 66, 1, 0, 2, 0, 2, 0 });
+    assert(summary.masks == 1 && summary.additiveColors == 0 && summary.screenBlends == 0);
+}
+
 void Commands()
 {
     const Bytes image = { 2, 1, 0, 1, 0 };
@@ -323,7 +352,8 @@ Bytes Sprite(const std::vector<Command> & commands)
     return result;
 }
 
-Bytes Movie(const std::vector<Command> & root, const std::vector<Command> & child = {})
+// A negative outline count adds no shape; otherwise one unplaced shape holds that many outline records.
+Bytes Movie(const std::vector<Command> & root, const std::vector<Command> & child = {}, int outlines = -1)
 {
     Bytes result;
     Number(result, 0x42535710U, 4, true);
@@ -333,7 +363,7 @@ Bytes Movie(const std::vector<Command> & root, const std::vector<Command> & chil
     Float(result, 480);
     Number(result, 1536, 2, true);
     Append(result, Sprite(root));
-    Number(result, 5, 4, true);
+    Number(result, outlines < 0 ? 5 : 6, 4, true);
     Number(result, 0, 4, true);
     Number(result, 1, 4, true);
     String(result, ".");
@@ -368,6 +398,32 @@ Bytes Movie(const std::vector<Command> & root, const std::vector<Command> & chil
     result.insert(result.end(), 8, 0);
     String(result, "label");
     String(result, "English");
+
+    if (outlines >= 0)
+    {
+        Number(result, 2, 4, true);
+
+        for (unsigned bound = 0; bound < 8; ++bound)
+        {
+            Float(result, bound % 4 < 2 ? 0.0f : 10.0f);
+        }
+
+        Number(result, 0, 4, true);
+        Number(result, static_cast<U32>(outlines), 4, true);
+
+        for (int outline = 0; outline < outlines; ++outline)
+        {
+            result.insert(result.end(), 12, 0);
+            Number(result, 2, 4, true);
+            Float(result, 0);
+            Float(result, 0);
+            Float(result, 10);
+            Float(result, 10);
+            Number(result, 0, 4, true);
+            Number(result, 0, 4, true);
+        }
+    }
+
     return result;
 }
 
@@ -404,6 +460,13 @@ void Movies()
     assert(ps2::ui::ValidateSwfExecutionBytes(bytes.data(), bytes.size(), summary));
     assert(summary.placements == 3 && summary.removals == 1);
 
+    // Outline records are counted by storage admission, even on shapes no frame places.
+    ps2::ui::SwfSummary storage;
+    const Bytes outlined = Movie({ image }, {}, 2);
+    assert(ps2::ui::ValidateSwfBytes(outlined.data(), outlined.size(), storage) && storage.strokes == 2);
+    const Bytes plain = Movie({ image }, {}, 0);
+    assert(ps2::ui::ValidateSwfBytes(plain.data(), plain.size(), storage) && storage.strokes == 0);
+
     unsigned random = 42;
 
     for (unsigned mutation = 0; mutation < 1500; ++mutation)
@@ -423,8 +486,12 @@ void CheckFile(const char * path)
     const Bytes bytes{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
     ps2::ui::SwfExecutionSummary summary;
     assert(ps2::ui::ValidateSwfExecutionBytes(bytes.data(), bytes.size(), summary));
-    std::printf("SWF execution admission: bytes=%zu actions=%u functions=%u placements=%u removals=%u functionDepth=%u\n",
-                bytes.size(), summary.actions, summary.functions, summary.placements, summary.removals, summary.maxFunctionDepth);
+    ps2::ui::SwfSummary storage;
+    assert(ps2::ui::ValidateSwfBytes(bytes.data(), bytes.size(), storage));
+    std::printf("SWF execution admission: bytes=%zu actions=%u functions=%u placements=%u removals=%u functionDepth=%u "
+                "masks=%u screenBlends=%u additiveColors=%u strokes=%u\n",
+                bytes.size(), summary.actions, summary.functions, summary.placements, summary.removals, summary.maxFunctionDepth,
+                summary.masks, summary.screenBlends, summary.additiveColors, storage.strokes);
 }
 } // namespace
 
@@ -435,6 +502,7 @@ int main(int argc, char ** argv)
     assert(!ps2::ui::ValidateSwfExecutionBytes(nullptr, 0, summary));
     Actions();
     Commands();
+    DrawFeatures();
     Movies();
     CheckFile("src/tests/data/ui/base/generated/swf/ps2_demo.bswf");
 

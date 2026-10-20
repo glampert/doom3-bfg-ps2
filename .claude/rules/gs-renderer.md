@@ -272,7 +272,7 @@ and compute the intermediate storage rounds instead.
 
 These RGB-only presentation profiles do not promise destination-alpha accumulation
 in a one-bit-alpha framebuffer. Complex masks, native screen blend 4 and nonzero additive
-color transforms remain unadmitted; full retail movie rendering still fails explicitly.
+color transforms remain unadmitted; a movie that needs them is refused full drawing.
 
 ## Doom native convex SWF masks
 
@@ -305,9 +305,26 @@ for the native early skip. Do not treat a faint admitted mask as partial coverag
 The authored native SWF exercises three simultaneous masks, crossing ranges, joint
 expiry, oblique/transformed boundaries, alpha/additive content, bitmap page seams and text.
 The retail inventory has ten rectangular dialog placements, but the shell also needs
-a 185-point outline, disconnected/holed meshes and two stroked masks. Its largest fill vertex count is 198; the largest triangle count is 183. Full retail drawing remains gated. PCSX2
+a 185-point outline, disconnected/holed meshes and two stroked masks. Its largest fill vertex count is 198; the largest triangle count is 183. Shell drawing remains gated; the dialog's ten rectangular masks draw. PCSX2
 captures establish bounded functional clipping, not hardware fill cost or frame-rate
 acceptance.
+
+## Doom full retail dialog drawing
+
+The original dialog draws through native `idSWF::Render` with the existing adapters:
+bitmap fills via the shared page cache, `guiSolid` fills over the owned white image,
+normal and scoped additive blends, convex masks and native glyph quads with text
+strokes. No new GS path was needed. Its cost is page streaming: the 1152×596 dialog
+atlas spans 15 RGBA32 pages (5×3), and two fonts add theirs, while the retail profile
+shares six linear slots. Drawing order interleaves images and glyphs, so LRU misses
+about 51 pages per frame (about 890 triangles, 736 page hits). Each miss reads and
+checks 256 KiB from HostFs, about 31 ms in PCSX2, so a frame takes about 1.6 s.
+
+More slots cannot fix this. GS memory left after the NTSC/PAL framebuffers holds about
+ten 256 KiB pages, below the dialog's working set of roughly 20. Shrinking the pages
+(paletted CLUT formats, or downscaling art the 512-wide screen cannot resolve) is the
+real fix; the shell atlas alone (60 of the profile's 143 pages) makes it mandatory.
+These are PCSX2 HostFs costs, not hardware storage or GS fill measurements.
 
 ## Quake frame model: 2D and 3D interleave
 

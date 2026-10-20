@@ -3,8 +3,8 @@
 This is the reference inventory and implementation roadmap for the first GS-backed
 Doom 2D renderer. Inspection and approval date: **2026-10-14, Australia/Sydney**.
 The inventories retain that original source snapshot; implementation progress is recorded
-below, reviewed on **2026-10-19, Australia/Sydney**, against runtime acceptance
-through **2026-10-18**. [AGENT_HANDOVER.md](AGENT_HANDOVER.md) is the continuation
+below, reviewed on **2026-10-20, Australia/Sydney**, against runtime acceptance
+through **2026-10-20**. [AGENT_HANDOVER.md](AGENT_HANDOVER.md) is the continuation
 guide. Uncompleted gates, budgets and destinations remain proposed.
 It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
@@ -135,19 +135,30 @@ active masks. Complex masks and strokes still fail explicitly. See the
 [acceptance record](PORT_STATUS.md#native-convex-swf-masks-2d-6-second-slice) and
 [NTSC](images/swf-masks-2d-6-ntsc.png) / [PAL](images/swf-masks-2d-6-pal.png) captures.
 
+**The third 2D-6 slice passes debug/release NTSC/PAL on 2026-10-20: the original
+dialog drawn in full.** Native `idSWF::Render` now draws `dialog.bswf` with Common's
+quit message through the existing adapters: paged bitmap fills, `guiSolid` fills,
+normal/additive blends, convex masks and native glyphs with text strokes. Full drawing
+is a third admission, granted only to movies whose preflight finds no outlines, screen
+blends or additive color; the dialog qualifies and the shell does not. The dialog
+streams about 51 of its RGBA32 atlas/font pages per frame through six slots, about
+1.6 s per frame in PCSX2. See the
+[acceptance record](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice).
+
 ### Next selected work
 
-Continue required feature closure while targeting visible retail milestones:
+The user selected this order on 2026-10-20, after the first full UI picture:
 
-1. Audit the executed dialog's complete draw/resource requirements and enable a
-   separately admitted full-dialog path once every required operation is supported.
-   Its two mask shapes fit the new convex profile; this alone does not admit all
-   dialog rendering or justify removing the global resource-only guard.
+1. Investigate asset recompression/re-export and fit the game's memory budget into
+   32 MiB. For UI this means page formats the GS can keep resident (paletted CLUT
+   pages, downscaling art the 512-wide screen cannot resolve) and measured page and
+   heap working sets; for the campaign it means the declaration, script, collision,
+   AAS and entity state a retail level needs alongside the in-game UI.
 2. Close shell complex masks/strokes, screen blend 4, nonzero additive color
-   transforms and dynamic artwork bindings. Measure the active bitmap/font working
-   set and produce a complete original shell frame.
-3. Connect bounded native offline PressStart/Root/Quit ownership and Common hooks;
-   verify at least 600 responsive frames, focus/select/back, console and shutdown.
+   transforms and dynamic artwork bindings, then produce a complete original shell frame.
+3. Connect bounded native offline PressStart/Root/Quit ownership and Common hooks,
+   including dialog event routing; verify at least 600 responsive frames,
+   focus/select/back, console and shutdown.
 4. Add physical device input and PS2 hardware acceptance as 2D-8.
 
 Extend the current renderer/UI gates; no additional native fixture program is

@@ -27,6 +27,9 @@ struct GeometryStats
     u32 peakDraws;
     u32 flushes;
     u32 triangles;
+    // Completed native SWF mask captures and the most masks simultaneously clipping geometry.
+    u32 masks;
+    u32 peakMasks;
 };
 
 GeometryStats GetGeometryStats();

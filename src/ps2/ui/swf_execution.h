@@ -26,6 +26,10 @@ struct SwfExecutionSummary
     std::uint32_t placements = 0;
     std::uint32_t removals = 0;
     std::uint32_t maxFunctionDepth = 0;
+    // Draw features the 2D backend cannot yet express decide whether a movie may be drawn in full.
+    std::uint32_t masks = 0;
+    std::uint32_t screenBlends = 0;
+    std::uint32_t additiveColors = 0;
 };
 
 struct SwfPlacement

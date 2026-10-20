@@ -1,11 +1,12 @@
 # Port status and headless acceptance
 
-## Current snapshot — 2026-10-19
+## Current snapshot — 2026-10-20
 
-The port is not playable yet. The latest rendering implementation is `ac9de81`
-(convex SWF masks, accepted 2026-10-18); `1f045d8` subsequently moved the authored
-fixtures into `src/tests/data/` without changing their bytes. This documentation
-audit follows repository cleanup through `6843948`.
+The port is not playable yet. The latest rendering slice draws the
+[original dialog in full](#original-dialog-drawn-in-full-2d-6-third-slice) through
+native `idSWF::Render` (accepted 2026-10-20), after convex SWF masks (`ac9de81`,
+2026-10-18). `1f045d8` moved the authored fixtures into `src/tests/data/` without
+changing their bytes.
 
 | Area | Implemented and verified boundary | Remaining boundary |
 | --- | --- | --- |
@@ -14,16 +15,22 @@ audit follows repository cleanup through `6843948`.
 | Production loop | Native game initialization, console commands, sustained frames and ordered shutdown; game remains in `NOMAP` | Production map ownership and map simulation |
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
-| 2D-6 | Scoped additive blend 8 and bounded convex masks, including native text/page clipping | Complex/holed/disconnected/stroked masks, screen blend 4 and nonzero additive color transforms |
-| 2D-7–8 | Not accepted | Full retail drawing, native offline menu navigation, physical input and hardware validation |
+| 2D-6 | Scoped additive blend 8, bounded convex masks, and the original dialog drawn in full with Common's quit message | Complex/holed/disconnected/stroked masks, screen blend 4, nonzero additive color transforms and a UI page format that fits the working set |
+| 2D-7–8 | Not accepted | Shell drawing, native offline menu navigation, physical input and hardware validation |
 
-The current production retail screen displays isolated native English labels even
-when original shell/dialog timelines are executing. Full movie `Render` and event
-routing remain gated. No world rendering or audible playback is implemented.
+`ps2_uiRetail dialog quit` draws the complete original dialog; other retail modes still
+show isolated native English labels. Shell drawing and SWF event routing remain gated.
+The dialog streams most of its RGBA32 atlas pages every frame, about 1.6 s per frame
+in PCSX2, which motivates the asset recompression work selected next. No world
+rendering or audible playback is implemented.
 
-The last feature acceptance passed debug/release NTSC/PAL: 77 authored UI pixel
-checks, twelve invalid-resource cases, nineteen core renderer cases per build, and
-bounded/live-quit production headless regressions. The fixture-move gate also passed
+The last feature acceptance (2026-10-20) drew the original dialog in full in
+debug/release NTSC/PAL, with reload-stable captures, exact warm releases, a negative
+admission case and the affected regression gates; see its
+[record](#original-dialog-drawn-in-full-2d-6-third-slice). The previous one (2026-10-18)
+passed debug/release NTSC/PAL with 77 authored UI pixel checks, twelve invalid-resource
+cases, nineteen core renderer cases per build, and bounded/live-quit production
+headless regressions. The fixture-move gate also passed
 334 host regressions plus C++ sanitizer harnesses, generator verification and
 headless/UI staging. See the [convex-mask record](#native-convex-swf-masks-2d-6-second-slice)
 for archive IDs, inspected captures and measured memory. [GitHub Actions](#github-actions-ci-2026-10-19)
@@ -32,11 +39,11 @@ regular target gate [passed again](#script-probe-repair-and-the-rebuilt-toolchai
 on the toolchain rebuilt on 2026-10-19, including the repaired script probe.
 
 Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
-[2D roadmap](RENDERER_2D_PLAN.md). Recommended visible milestones are the real dialog
-rendered end to end, a complete shell frame, then responsive offline menu navigation.
-Required feature/resource admission precedes each milestone. Preserve headless
-simulation and extend existing fixtures; further standalone movement fixtures are
-paused while UI/menu work is selected.
+[2D roadmap](RENDERER_2D_PLAN.md). The selected next work is asset recompression/
+re-export and fitting the game into the 32 MiB budget, then a complete shell frame and
+responsive offline menu navigation. Required feature/resource admission precedes each
+milestone. Preserve headless simulation and extend existing fixtures; further
+standalone movement fixtures are paused.
 
 The sections below are an append-only history of acceptance slices. Earlier source
 counts, budgets, limitations and suggested next steps describe their dated slice;
@@ -3530,3 +3537,96 @@ and the exact 7,424 / 7,600 / 4 recovery. Only allocator arena commitment moves:
 stdio buffers, and +384 / −3,712 bytes in the NTSC authored UI run. Production `PT_LOAD`
 is 384 bytes smaller, as recorded above. These are PCSX2 functional results, not
 hardware or I/O timing measurements.
+
+## Original dialog drawn in full (2D-6 third slice)
+
+Accepted **2026-10-20, Australia/Sydney**, in debug/release NTSC/PAL. Production now
+draws the original `dialog.bswf` through native `idSWF::Render`, showing the root
+menu's quit confirmation: the "EXIT GAME" title, "Are you sure you want to exit
+DOOM 3?" and ACCEPT / CANCEL / CHANGE GAME, with the original textured band, masks,
+additive glows and text strokes. `ps2_uiRetail dialog quit` selects it in the
+retail-movies package. Captures were inspected; like every retail capture they stay
+under ignored `build/` and are not reproduced in `docs/images`.
+
+Full drawing is a third admission after storage and execution. The target preflight
+counts shape outline records, screen-blend placements and nonzero additive color
+terms, and admits drawing only when all three are zero. The dialog qualifies with ten
+masks, each still checked by the convex CPU bridge at draw time; the shell's 15
+outlines, five screen-blend and 29 additive placements keep it blocked. Both movies'
+target counts match the independent host inventory exactly. The timeline still
+advances once per Common frame before the GS frame; `Render` only draws, inside the
+SWF draw scope and an execution scope. Event routing stays unavailable.
+
+The dialog owner mirrors `idCommonDialog::Init` and `ShowDialog` for GDM_QUIT_GAME as
+DIALOG_DYNAMIC: title/text keys come from native `GetDialogMsg` (on a zero-initialized
+local manager, since Common's dialog manager stays uninitialized), options from the
+English dictionary. The three choices are native callback objects that fail
+explicitly if called. Retail `guiSolid` and `_white` now resolve to the single
+vertex-colored stage native GUI surfaces evaluate, replacing the earlier `_white`
+substitution for resource-only movies. No new GS path, pixel surface or fixture was
+needed.
+
+| Configuration | NTSC archive | PAL archive |
+| --- | --- | --- |
+| Debug | `20261020T014227Z_movies_ba3bde02d7c6` | `20261020T024117Z_movies_d7d8fec11046` |
+| Release | `20261020T024748Z_movies_2b4029dffa3a` | `20261020T025327Z_movies_38c63907875a` |
+
+A second debug NTSC session, `20261020T021239Z_movies_108e40a5711c`, reproduced every
+counter, ledger and capture comparison exactly. PAL runs draw the same layout at
+512×512; the inspected captures show intact text, masks, glows and textures in both
+standards.
+
+Each run loads the dialog three times: 120 frames, then two 30-frame warm reloads. Every
+load logs one admission matching the inventory, the native quit owner state, the
+dialog's script work (`showMessage`, `updatePrompts`, `updateCmds`, `calcNumLines`,
+platform/localization callbacks and the `rollOn` frame) and rising draw and mask
+counters. Two captures ten frames apart locate the only animation at rest, the selected
+option's pulse (about 57×20 pixels); every other pixel matches across all six captures,
+about 1.37 million pixels per NTSC run and 1.57 million per PAL run. The `dialog-blend`
+negative re-encodes a root placement as screen blend and stops at the specific admission
+fatal (debug `20261020T024745Z_movies_1be40ed68186`, release `20261020T025948Z_movies_51df9ee94762`).
+
+The rest of `test-retail-movies` passes in both configurations too: inactive and
+executable NTSC/PAL cases (debug `20261020T021021Z_movies_02f7d68f8f24` to
+`20261020T021143Z_movies_c2c91195aa4a`, release `20261020T021945Z_movies_5ada1edd86e9`
+to `20261020T022058Z_movies_727945080ead`) and all 13 negative cases (debug
+`20261020T024700Z_movies_4132ffb544a1` to `20261020T024745Z_movies_1be40ed68186`, release
+`20261020T025904Z_movies_5f4716b1232b` to `20261020T025948Z_movies_51df9ee94762`).
+
+Every other gate that runs changed code passes with its complete case set in both
+configurations: `test-retail-ui` (NTSC/PAL and five invalid resources), `test-ui`
+(NTSC/PAL and twelve invalid resources), `test-renderer` (19 cases), `test-console`
+and `test-headless`, plus `make test-host` (334 Python regressions and the C++
+sanitizer harnesses, with new synthetic draw-feature counter checks). Debug archives
+run from `20261020T015631Z_retail_7ef04cf4adb7` to `20261020T020114Z_headless_1265880d1424`,
+release from `20261020T020515Z_retail_d6c8e3f82b75` to `20261020T020943Z_headless_b959ebb73261`.
+
+Five slow dialog sessions ended early because their emulator window was closed during
+the run (confirmed by the user): PCSX2 shut down cleanly with exit status 0 and no
+target fault after 79–264 s. The archives are kept: debug NTSC
+`20261020T015200Z_movies_d68994c46880`, release NTSC `20261020T020325Z_movies_09765a4a87a7`
+and `20261020T022148Z_movies_66f75d9a7bd5`, debug PAL `20261020T021821Z_movies_71ffe2bb99e4`,
+plus one exploratory run. Shutdown confirmation is disabled in the local settings, so a
+closed window stops the VM at once. The runner now records why each session ended, and
+the accepted runs above are fresh sessions, not retries of a crashed run.
+
+**Page streaming dominates.** The 1152×596 dialog atlas spans 15 RGBA32 pages and two
+fonts add theirs, while the retail profile shares six linear slots. Each frame draws
+about 890 triangles and misses about 51 pages; every miss reads and checks 256 KiB
+from HostFs, about 31 ms in PCSX2, so a frame takes about 1.6 s. More slots cannot fix
+it: the GS memory left beside the framebuffers holds about ten such pages, below the
+dialog's working set of about 20; the shell atlas alone spans 60 pages, of 143 in the
+cooked profile. This is the measured
+reason for the asset recompression work selected next. These are PCSX2 HostFs costs,
+not hardware storage or GS fill measurements.
+
+| Measurement (debug/release, NTSC/PAL identical unless noted) | Value |
+| --- | ---: |
+| Loaded dialog, first frame | 5,673,819 requested / 5,807,980 backing / 3,229 allocations |
+| Loaded dialog at rest, every load | 5,690,707 / 5,827,180 / 3,281 |
+| Every release, cold and warm | 5,443,407 / 5,547,524 / 2,531 |
+| Heap peak / arena commitment | 6,079,651 / 6,183,080; 6,399,643 (release 6,400,923) |
+| Full shutdown | 7,424 / 7,600 / 4 (exact baseline) |
+
+Production `PT_LOAD` is 11,164,005 debug / 11,600,997 release bytes (+4,992 / +4,864),
+with 374 objects, no unresolved symbols and no fixtures.

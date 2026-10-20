@@ -22,6 +22,22 @@ PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacit
         return false;
     }
 
+    // Retail guis.mtr defines guiSolid as blend/colored/map _white/clamp, which is also the implicit
+    // _white definition. GUI surfaces evaluate "colored" with all-one shader parameters and always
+    // modulate by vertex color, so both reduce to this constant stage over the owned white image.
+    if (strcmp(name, "guisolid") == 0 || strcmp(name, "_white") == 0)
+    {
+        const int length = idStr::snPrintf(output, static_cast<int>(capacity),
+                                           "material %s\n{\n{\nblend blend\nmap \"_white\"\nclamp\nvertexColor\n}\n}\n", name);
+
+        if (length <= 0 || static_cast<size_t>(length) >= capacity)
+        {
+            FatalError("retail material definition exceeds bounded text");
+        }
+
+        return true;
+    }
+
     const auto & catalog = GetCatalog();
 
     for (std::uint32_t i = 0; i < catalog.MaterialCount(); ++i)

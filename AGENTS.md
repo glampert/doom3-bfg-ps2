@@ -92,7 +92,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   isolated English text layout. `make test-retail-movies` checks native storage/layout,
   warm reloads, shared pages, full cleanup and malformed resources in both standards.
   Resource-only constructors never run imported AVM1/placements; inactive inspection
-  rejects Activate and timeline advancement, and full movie Render/HandleEvent remain fatal. Native
+  rejects Activate and timeline advancement; HandleEvent remains fatal. Native
   dictionary shutdown releases retained localization keys/pools after movies/fonts.
   `ps2_uiRetail execute shell|dialog` separately admits placement/AVM1 operands and
   executes native timelines before presentation, without full movie drawing or event routing.
@@ -100,8 +100,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   with only the admitted Doom 3 cover, and the original Credits screen owns its callback.
   Callback identity, signatures and destructive ancestor seeks are checked in release too.
   `make test-retail-timelines` checks executable movies; `make test-retail-movies` also
-  checks inactive inspection and malformed resources. Full Shell navigation, masks/blends,
-  general dynamic resources and active artwork residency remain pending.
+  checks inactive inspection and malformed resources. `ps2_uiRetail dialog quit` draws the
+  original dialog in full through native `Render`, showing Common's quit message; full
+  drawing is a third admission, only for movies without outlines, screen blends or additive
+  color (the dialog, not the shell). `make test-retail-dialog` checks it. Its atlas pages
+  stream from HostFs every frame (about 1.5 s per frame in PCSX2). Shell drawing and
+  navigation, complex masks/blends, dynamic resources and artwork residency remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
@@ -178,7 +182,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   material stages are generated from admitted bindings. The retail resource profile
   shares six linear/clamp slots (1.5 MiB), one 256 KiB scratch page and lazy image
   tables. Font UVs may use only the outer half-texel gutter, preserving native sampling
-  without rescaling glyphs. `runtime_ready=false` is intentional: full retail movie drawing, complex masks,
+  without rescaling glyphs. `runtime_ready=false` is intentional: shell drawing, complex masks,
   remaining blends/color transforms, active artwork residency and offline Shell
   integration remain later gates. Scoped dictionary/text/timeline admission exists. See
   [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).

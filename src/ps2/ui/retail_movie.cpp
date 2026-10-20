@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: retail_movie.cpp
-// Brief: Own English resource screens and bounded retail timeline execution with native widgets.
+// Brief: Own English resource screens, bounded retail timelines and the fully drawn native dialog.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -36,6 +36,8 @@ static idSWFTextInstance * s_texts[3] = {};
 static int s_movieIndex = -1;
 static u32 s_executionTicks = 0;
 static u32 s_nativeSteps = 0;
+// The last timeline clock; full drawing reuses it so synchronous redraws present the same movie state.
+static int s_movieTime = 0;
 static constexpr const char * kLabels[] = { "#str_swf_campaign", "#str_swf_settings", "#str_swf_quit" };
 
 void CloseResourceMovie()
@@ -58,6 +60,7 @@ void CloseResourceMovie()
     s_movieIndex = -1;
     s_executionTicks = 0;
     s_nativeSteps = 0;
+    s_movieTime = 0;
 
     if (releasedMovie >= 0)
     {
@@ -157,7 +160,16 @@ void Status()
 
         ExecutionStatus();
 
-        for (int index = 0; index < ps2::ArrayLength(s_texts); ++index)
+        if (s_resourceMovie->IsResourceRender())
+        {
+            const auto geometry = ps2::ui::GetGeometryStats();
+            ps2::Log(ps2::LogLevel::Info,
+                     "[D3BFG] RETAIL draw movie=%d full=1 triangles=%u flushes=%u masks=%u peak_masks=%u peak_vertices=%u peak_indexes=%u peak_draws=%u\n",
+                     s_movieIndex, geometry.triangles, geometry.flushes, geometry.masks, geometry.peakMasks,
+                     geometry.peakVertices, geometry.peakIndexes, geometry.peakDraws);
+        }
+
+        for (int index = 0; index < ps2::ArrayLength(s_texts) && s_texts[index] != nullptr; ++index)
         {
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL label=%d id=%s width=%.2f font=%u height=%u\n",
                      index, kLabels[index], static_cast<double>(s_texts[index]->GetTextLength()),
@@ -261,15 +273,16 @@ void Load()
     Status();
 }
 
-void LoadResourceMovie(unsigned index, bool execute = false)
+// Present draws the complete dialog movie with the native quit confirmation instead of isolated labels.
+void LoadResourceMovie(unsigned index, bool execute = false, bool present = false)
 {
-    if (!s_loaded || ps2::rs::FrameStarted() || index >= 2)
+    if (!s_loaded || ps2::rs::FrameStarted() || index >= 2 || (present && (!execute || index != 1)))
     {
         ps2::FatalError("retail movie requires an idle loaded resource screen");
     }
 
     CloseResourceMovie();
-    ps2::ui::retail::PrepareMovie(index, execute);
+    ps2::ui::retail::PrepareMovie(index, execute, present);
     s_resourceMovie = new (TAG_SWF) idSWF(index == 0 ? "shell" : "dialog", nullptr, true);
     const auto summary = ps2::ui::retail::GetMovieSummary();
     auto * const entry = s_resourceMovie->GetDictionaryEntry(static_cast<int>(summary.previewText));
@@ -287,7 +300,7 @@ void LoadResourceMovie(unsigned index, bool execute = false)
         ps2::FatalError("retail movie text requires a positive native ascender");
     }
 
-    for (int label = 0; label < ps2::ArrayLength(s_texts); ++label)
+    for (int label = 0; label < ps2::ArrayLength(s_texts) && !present; ++label)
     {
         if (idLocalization::FindString(kLabels[label]) == nullptr)
         {
@@ -302,14 +315,28 @@ void LoadResourceMovie(unsigned index, bool execute = false)
 
     if (execute)
     {
-        ps2::ui::retail_owner::Init(*s_resourceMovie, index);
+        if (present)
+        {
+            ps2::ui::retail_owner::ShowQuitDialog(*s_resourceMovie);
+        }
+        else
+        {
+            ps2::ui::retail_owner::Init(*s_resourceMovie, index);
+        }
+
         ps2::ui::swf::ResetStats();
         const ps2::ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
         s_resourceMovie->EnableResourceExecution();
         s_nativeSteps = 1;
     }
 
+    if (present)
+    {
+        s_resourceMovie->EnableResourceRender();
+    }
+
     s_movieIndex = static_cast<int>(index);
+    s_movieTime = Sys_Milliseconds();
     s_frames = 0;
     Status();
 }
@@ -318,10 +345,21 @@ void Control(const idCmdArgs & args)
 {
     if (!s_initialized || args.Argc() < 2 || args.Argc() > 3)
     {
-        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME or execute NAME");
+        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME, execute NAME or dialog quit");
     }
 
     const char * const action = args.Argv(1);
+    if (strcmp(action, "dialog") == 0)
+    {
+        if (args.Argc() != 3 || strcmp(args.Argv(2), "quit") != 0)
+        {
+            ps2::FatalError("ps2_uiRetail dialog requires quit");
+        }
+
+        LoadResourceMovie(1, true, true);
+        return;
+    }
+
     if (strcmp(action, "movie") == 0 || strcmp(action, "execute") == 0)
     {
         if (args.Argc() != 3)
@@ -434,7 +472,7 @@ void Init()
     }
 
     cmdSystem->AddCommand("ps2_uiRetail", Control, CMD_FL_SYSTEM,
-                          "control English resources with load/unload/reload/status, font INDEX, movie NAME or execute NAME");
+                          "control English resources with load/unload/reload/status, font INDEX, movie NAME, execute NAME or dialog quit");
     s_initialized = true;
 }
 
@@ -473,8 +511,10 @@ void Advance(bool advance)
         FatalError("retail execution frame ownership or counter overflow");
     }
 
+    const int time = Sys_Milliseconds();
     const ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
-    s_nativeSteps += s_resourceMovie->AdvanceResourceExecution(Sys_Milliseconds());
+    s_nativeSteps += s_resourceMovie->AdvanceResourceExecution(time);
+    s_movieTime = time;
     ++s_executionTicks;
 }
 
@@ -498,6 +538,24 @@ void Render(bool advance)
         }
 
         ++s_frames;
+    }
+
+    if (s_resourceMovie != nullptr && s_resourceMovie->IsResourceRender())
+    {
+        // The timeline advanced before this GS frame; native Render only draws. A scope still bounds
+        // any script work a draw could reach, such as text-variable lookups.
+        renderSystem->SetGLState(0);
+        renderSystem->SetColor(colorWhite);
+        ui::BeginSwfDraw();
+
+        {
+            const ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
+            s_resourceMovie->Render(renderSystem, s_movieTime);
+        }
+
+        ui::EndSwfDraw();
+        renderSystem->SetColor(colorWhite);
+        return;
     }
 
     if (s_resourceMovie != nullptr)

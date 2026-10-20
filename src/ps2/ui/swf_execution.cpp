@@ -158,7 +158,8 @@ void Matrix(Reader & reader)
     bits.Read(width);
 }
 
-void Color(Reader & reader)
+// Returns whether any additive term is nonzero. Native order is multiply terms, then additive terms.
+bool Color(Reader & reader)
 {
     Bits bits(reader);
     const U32 add = bits.Read(1);
@@ -166,10 +167,19 @@ void Color(Reader & reader)
     const U32 width = bits.Read(4);
     reader.Require((add == 0 && multiply == 0) || width != 0);
 
-    for (U32 component = 0; component < (add + multiply) * 4; ++component)
+    for (U32 component = 0; component < multiply * 4; ++component)
     {
         bits.Read(width);
     }
+
+    bool additive = false;
+
+    for (U32 component = 0; component < add * 4; ++component)
+    {
+        additive = bits.Read(width) != 0 || additive;
+    }
+
+    return additive;
 }
 
 bool PlainAction(U32 opcode)
@@ -556,9 +566,9 @@ bool ValidateSwfCommand(U32 tag, const void * bytes, std::size_t length, const U
             Matrix(reader);
         }
 
-        if ((flags & 8U) != 0)
+        if ((flags & 8U) != 0 && Color(reader))
         {
-            Color(reader);
+            ++summary.additiveColors;
         }
 
         if ((flags & 16U) != 0)
@@ -575,13 +585,15 @@ bool ValidateSwfCommand(U32 tag, const void * bytes, std::size_t length, const U
         {
             result.clipDepth = static_cast<std::uint16_t>(reader.Read(2));
             reader.Require(result.clipDepth > result.depth && result.clipDepth <= kMaxSwfDisplayDepth);
+            ++summary.masks;
         }
 
         if ((flags2 & 2U) != 0)
         {
             const U32 blend = reader.Read();
-            // These retail modes are structurally admitted; drawing stays separately gated.
+            // These retail modes are structurally admitted; screen blending keeps full drawing unavailable.
             reader.Require(blend == 0 || blend == 1 || blend == 4 || blend == 8);
+            summary.screenBlends += blend == 4 ? 1U : 0U;
         }
 
         ++summary.placements;

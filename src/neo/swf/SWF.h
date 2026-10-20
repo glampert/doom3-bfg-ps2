@@ -91,6 +91,12 @@ public:
 	void EnableResourceExecution();
 	bool IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const;
 	unsigned AdvanceResourceExecution( int time );
+	// [PS2_D3BFG]: Full drawing is a separate admission; the timeline still advances only through AdvanceResourceExecution.
+	bool IsResourceRender() const
+	{
+		return resourceRender;
+	}
+	void EnableResourceRender();
 #else
 	idSWF( const char * filename, idSoundWorld * soundWorld = NULL );
 #endif
@@ -159,6 +165,8 @@ private:
 	bool resourceOnly;
 	// [PS2_D3BFG]: Retail origin and authorization to execute have independent lifetimes.
 	bool resourceExecution;
+	// [PS2_D3BFG]: Retail movies draw only after the profile admits their complete draw features.
+	bool resourceRender;
 #endif
 	idStr			filename;
 	ID_TIME_T		timestamp;

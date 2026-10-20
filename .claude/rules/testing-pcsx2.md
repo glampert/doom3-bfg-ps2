@@ -118,9 +118,23 @@
   preflight. Placement/opcode/branch/operand cases reach execution preflight; a valid
   infinite loop and an alias to a different native service reach their runtime guards.
   `make test-retail-timelines` isolates executable NTSC/PAL runs. The minimal owner uses
-  the real carousel/Credits callbacks and only one Doom 3 option; full movie drawing,
+  the real carousel/Credits callbacks and only one Doom 3 option; shell drawing,
   complex masks/strokes, remaining blends/color transforms, Shell navigation and
   physical PS2 acceptance remain pending.
+- `make test-retail-dialog` (case `dialog-render`, also part of `test-retail-movies`)
+  draws the original dialog in full with Common's quit message: one 120-frame load and
+  two 30-frame warm reloads. Each load needs exactly one draw admission matching the
+  inventory (ten masks; no outlines, screen blends or additive color), the native quit
+  owner state and English options, dialog script dependencies, rising draw/mask
+  counters, the shared six-slot page budget, identical warm release ledgers and full
+  shutdown recovery. Two captures ten frames apart locate the looping focus highlight;
+  every other pixel must match across all loads, and frames must show textured detail.
+  The `dialog-blend` negative re-encodes a root placement as screen blend and requires
+  the specific draw-admission fatal. Sessions are slow: each frame streams most atlas
+  pages (see [gs-renderer.md](gs-renderer.md)), so the case defaults to a 1200 s timeout.
+  The window looks frozen at about 1.6 s per frame. Closing it (local settings skip the
+  shutdown confirmation) ends the VM cleanly; the runner reports "emulator exited with
+  status 0 after N s" as the session end. That is an interrupted run, not a target fault.
 - `make test-host` also runs the real shared page-cache implementation under ASan/UBSan
   with assertions enabled and disabled. Only GS/texture submission is stubbed. Keep
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed

@@ -637,8 +637,15 @@ void EndSwfMask()
         FatalError("native SWF mask requires bounded convex fill geometry");
     }
 
+    if (s_geometryStats.masks == UINT_MAX)
+    {
+        FatalError("native UI geometry counter overflow");
+    }
+
     s_maskKeys[s_maskCount++] = s_captureMask;
     s_captureMask = nullptr;
+    ++s_geometryStats.masks;
+    s_geometryStats.peakMasks = Max(s_geometryStats.peakMasks, static_cast<u32>(s_maskCount));
 }
 
 void RemoveSwfMask(const void * key)

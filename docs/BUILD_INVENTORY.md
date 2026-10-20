@@ -68,8 +68,8 @@ the native UIPG reader, page splitter and fixed texture cache supply native page
 The English resource catalog, inactive retail dictionaries and opt-in bounded timeline
 execution now build on that layer. Production retains **374 direct inputs** and the
 compile database has **399 entries**. The minimal retail owner adds the original native
-Credits unit and uses the retained carousel implementation; full movie drawing and
-offline Shell navigation remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
+Credits unit and uses the retained carousel implementation. The original dialog now
+draws in full; shell drawing and offline Shell navigation remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
 
 `make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
