@@ -147,6 +147,7 @@ bool UpdateCadence()
 
 namespace ps2::smoketests
 {
+
 bool RunVoiceTimelineTests()
 {
     bool passed = true;
@@ -158,4 +159,5 @@ bool RunVoiceTimelineTests()
     Log(LogLevel::Info, "[D3BFG] CHECK audio/voice-timeline %s\n", passed ? "PASS" : "FAIL");
     return passed;
 }
+
 } // namespace ps2::smoketests

@@ -139,4 +139,5 @@ bool RunDeferredFailureProbe(const char * name)
     }
     return true; // The runner rejects an unavailable operation returning normally.
 }
+
 } // namespace ps2::smoketests

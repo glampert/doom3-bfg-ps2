@@ -8,5 +8,7 @@
 
 namespace ps2::smoketests
 {
+
 bool RunGameTests(const char * mode);
-}
+
+} // namespace ps2::smoketests

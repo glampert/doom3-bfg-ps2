@@ -428,4 +428,5 @@ bool RunAudioFailureProbe(const char * name)
     }
     return true; // The caller rejects an unavailable capability returning normally.
 }
+
 } // namespace ps2::smoketests

@@ -848,4 +848,5 @@ bool RunGsFailureProbe(const char * name)
     }
     FatalError("GS failure probe unexpectedly returned");
 }
+
 } // namespace ps2::smoketests

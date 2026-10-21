@@ -8,6 +8,8 @@
 
 namespace ps2::smoketests
 {
+
 bool RunCodecTests();
 bool RunCodecFailureProbe(const char * name);
+
 } // namespace ps2::smoketests

@@ -8,5 +8,7 @@
 
 namespace ps2::smoketests
 {
+
 bool RunVoiceTimelineTests();
-}
+
+} // namespace ps2::smoketests

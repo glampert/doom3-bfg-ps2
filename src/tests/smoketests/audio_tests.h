@@ -8,6 +8,8 @@
 
 namespace ps2::smoketests
 {
+    
 bool RunAudioTests();
 bool RunAudioFailureProbe(const char * name);
+
 } // namespace ps2::smoketests

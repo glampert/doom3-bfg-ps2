@@ -63,6 +63,7 @@ bool WorldQueries(idRenderWorld & world)
 
 namespace ps2::smoketests
 {
+
 bool RunMapTests()
 {
     ::game->Init();
@@ -155,4 +156,5 @@ bool RunMapTests()
              stats.requestedBytes, stats.backingBytes, stats.allocationCount);
     return passed;
 }
+
 } // namespace ps2::smoketests

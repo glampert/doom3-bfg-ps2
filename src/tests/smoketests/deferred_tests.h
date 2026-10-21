@@ -8,6 +8,8 @@
 
 namespace ps2::smoketests
 {
+
 bool RunDeferredTests();
 bool RunDeferredFailureProbe(const char * name);
+
 } // namespace ps2::smoketests

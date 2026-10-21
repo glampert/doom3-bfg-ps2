@@ -1077,4 +1077,5 @@ bool RunGameTests(const char * mode)
     Memory("shutdown");
     return passed;
 }
+
 } // namespace ps2::smoketests

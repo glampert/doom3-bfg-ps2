@@ -8,5 +8,7 @@
 
 namespace ps2::smoketests
 {
+
 bool RunMapTests();
-}
+
+} // namespace ps2::smoketests

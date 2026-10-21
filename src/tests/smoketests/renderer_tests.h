@@ -8,6 +8,8 @@
 
 namespace ps2::smoketests
 {
+
 bool RunRendererTests();
 bool RunRendererFailureProbe(const char * name);
+
 } // namespace ps2::smoketests

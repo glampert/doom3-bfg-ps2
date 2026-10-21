@@ -308,4 +308,5 @@ bool RunCodecFailureProbe(const char * name)
     jpeg::Destroy(decoder);
     return true; // The runner rejects an expected fatal returning normally.
 }
+
 } // namespace ps2::smoketests

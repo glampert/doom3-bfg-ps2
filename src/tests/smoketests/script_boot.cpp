@@ -182,6 +182,7 @@ int main()
                            baseline.backingBytes == after.backingBytes && baseline.allocationCount == after.allocationCount;
     ps2::core::Shutdown();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] SCRIPT RESULT %s %s\n", s_testId, recovered ? "PASS" : "FAIL");
+
     while (true)
     {
         SleepThread();

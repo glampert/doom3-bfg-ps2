@@ -8,6 +8,8 @@
 
 namespace ps2::smoketests
 {
+
 bool RunInputTests();
 bool RunInputFailureProbe(const char * name);
+
 } // namespace ps2::smoketests

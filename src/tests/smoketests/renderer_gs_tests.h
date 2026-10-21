@@ -9,6 +9,8 @@
 
 namespace ps2::smoketests
 {
+
 bool RunGsTests(video::Standard standard);
 bool RunGsFailureProbe(const char * name);
+
 } // namespace ps2::smoketests
