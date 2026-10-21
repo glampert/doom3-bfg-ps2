@@ -5,9 +5,9 @@
 // ================================================================================================
 
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
+#include "ps2/ui/draw.h"
 
-namespace ps2::rs
+namespace ps2::renderer
 {
 namespace
 {
@@ -48,18 +48,18 @@ PS2_COLD_FUNC bool Init(const Config & config)
         FatalError("render system initialized twice");
     }
     // Both sixteen-qword environments plus chain terminators must fit the first half.
-    if (!video::IsValid(config.standard) || config.commandHalfBytes < 640U || !cmdbuf::Init(config.commandHalfBytes))
+    if (!system::video::IsValid(config.standard) || config.commandHalfBytes < 640U || !gs::InitCommandBuffer(config.commandHalfBytes))
     {
         return false;
     }
-    if (!gs::Init({ config.standard, 512, video::VisibleLines(config.standard) }))
+    if (!gs::Init({ config.standard, 512, system::video::VisibleLines(config.standard) }))
     {
-        cmdbuf::Shutdown();
+        gs::ShutdownCommandBuffer();
         return false;
     }
     if (!tex::Init(config.textureVramBytes, config.texturePixelBytes))
     {
-        cmdbuf::Shutdown();
+        gs::ShutdownCommandBuffer();
         gs::Shutdown();
         return false;
     }
@@ -75,7 +75,7 @@ void BeginFrame(gs::Color clearColor)
     {
         FatalError("invalid 2D BeginFrame state");
     }
-    cmdbuf::BeginFrame();
+    gs::BeginCommandFrame();
     s_context = s_context == gs::DrawContext::Ctx0 ? gs::DrawContext::Ctx1 : gs::DrawContext::Ctx0;
     s_frame = true;
     ui::BeginGeometryFrame();
@@ -99,7 +99,7 @@ void EndFrame()
         FatalError("2D EndFrame without BeginFrame");
     }
     ui::EndGeometryFrame();
-    cmdbuf::EndFrame();
+    gs::EndCommandFrame();
     gs::Present(s_context);
     s_frame = false;
     ++s_frames;
@@ -129,7 +129,7 @@ PS2_COLD_FUNC void Shutdown()
     }
     tex::Shutdown();
     // Partial startup and repeated shutdown both leave no DMA references or heap ownership.
-    cmdbuf::Shutdown();
+    gs::ShutdownCommandBuffer();
     gs::Shutdown();
     s_initialized = false;
     s_frames = 0;
@@ -199,4 +199,4 @@ bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triang
     gs::TexturedTriangleFixed(s_context, binding, triangle, blend);
     return true;
 }
-} // namespace ps2::rs
+} // namespace ps2::renderer

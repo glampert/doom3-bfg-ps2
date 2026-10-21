@@ -6,10 +6,11 @@
 
 #pragma once
 
-namespace ps2::core
+namespace ps2::system::lifecycle
 {
 
-void Init();
-void Shutdown();
+// The core test boot: Common on the loose-file fixture filesystem core.cpp provides.
+void InitCore();
+void ShutdownCore();
 
-} // namespace ps2::core
+} // namespace ps2::system::lifecycle

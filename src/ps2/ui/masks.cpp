@@ -1,10 +1,10 @@
 // ================================================================================================
-// File: ui_masks.cpp
+// File: masks.cpp
 // Brief: Prove convex triangle coverage and preserve indexed seams through bounded CPU mask clips.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_masks.h"
+#include "ps2/ui/masks.h"
 
 #include <bit>
 #include <cstdint>

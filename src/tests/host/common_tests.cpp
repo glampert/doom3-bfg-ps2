@@ -70,7 +70,7 @@ int main(int argc, char ** argv)
     }
     else if (std::strcmp(mode, "heap-fail") == 0)
     {
-        ps2::heap::Fail("allocation 100%");
+        ps2::system::heap::Fail("allocation 100%");
     }
     else if (std::strcmp(mode, "script-cleanup") == 0)
     {
@@ -78,28 +78,28 @@ int main(int argc, char ** argv)
         { ps2::Log(ps2::LogLevel::Info, "%s\n", static_cast<const char *>(data)); };
         char first[] = "program";
         char second[] = "parser";
-        ps2::script::ErrorScope outer(cleanup, first);
-        ps2::script::ErrorScope inner(cleanup, second);
-        ps2::script::ErrorScope::SetLocation("fixture%name.script", 17);
-        ps2::script::Fail("unexpected %s", "100% token");
+        ps2::game::script::ErrorScope outer(cleanup, first);
+        ps2::game::script::ErrorScope inner(cleanup, second);
+        ps2::game::script::ErrorScope::SetLocation("fixture%name.script", 17);
+        ps2::game::script::Fail("unexpected %s", "100% token");
     }
     else if (std::strcmp(mode, "script-long") == 0)
     {
         char longText[4096];
         std::memset(longText, 'x', sizeof(longText) - 1);
         longText[sizeof(longText) - 1] = '\0';
-        ps2::script::ErrorScope cleanup([](void *) {}, nullptr);
-        ps2::script::ErrorScope::SetLocation("long.script", 3);
-        ps2::script::Fail("%s", longText);
+        ps2::game::script::ErrorScope cleanup([](void *) {}, nullptr);
+        ps2::game::script::ErrorScope::SetLocation("long.script", 3);
+        ps2::game::script::Fail("%s", longText);
     }
     else if (std::strcmp(mode, "script-normal") == 0)
     {
         {
-            ps2::script::ErrorScope cleanup([](void *)
+            ps2::game::script::ErrorScope cleanup([](void *)
                                             { ps2::FatalError("unexpected cleanup"); }, nullptr);
-            ps2::script::NestingScope depth;
+            ps2::game::script::NestingScope depth;
         }
-        if (ps2::script::ErrorScope::IsActive())
+        if (ps2::game::script::ErrorScope::IsActive())
         {
             return 3;
         }
@@ -114,7 +114,7 @@ int main(int argc, char ** argv)
     {
         int bytes = 0;
         int objects = 0;
-        void * pointer = ps2::heap::Alloc(8, 202);
+        void * pointer = ps2::system::heap::Alloc(8, 202);
         ps2::game::FreeClass(pointer, bytes, objects);
     }
     else

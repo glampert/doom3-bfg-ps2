@@ -50,7 +50,7 @@ idPlayerView::idPlayerView() {
 	player = NULL;
 	// [PS2_D3BFG]: Preserve initialized view state without loading fixture-only effects/materials.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( ps2::gamefixture::IsEnabled() ) {
+	if ( ps2::tests::fixture::IsEnabled() ) {
 		tunnelMaterial = armorMaterial = berserkMaterial = irGogglesMaterial = bloodSprayMaterial = bfgMaterial = NULL;
 	} else
 #endif
@@ -77,7 +77,7 @@ idPlayerView::idPlayerView() {
 
 	// [PS2_D3BFG]: Fullscreen effects are unavailable in the explicitly selected fixture.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( !ps2::gamefixture::IsEnabled() )
+	if ( !ps2::tests::fixture::IsEnabled() )
 #endif
 	if ( fxManager == NULL ) {
 		fxManager = new (TAG_ENTITY) FullscreenFXManager;

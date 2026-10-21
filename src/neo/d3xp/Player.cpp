@@ -1298,7 +1298,7 @@ idPlayer::idPlayer():
 
 	// [PS2_D3BFG]: A selected simulation fixture owns no HUD/PDA presentation handlers.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	hudManager = ps2::gamefixture::IsEnabled() ? NULL : new idMenuHandler_HUD();
+	hudManager = ps2::tests::fixture::IsEnabled() ? NULL : new idMenuHandler_HUD();
 #else
 	hudManager				= new idMenuHandler_HUD();
 #endif
@@ -1308,7 +1308,7 @@ idPlayer::idPlayer():
 
 	// [PS2_D3BFG]: Keep the absent fixture PDA explicit; ordinary construction is unchanged.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	pdaMenu = ps2::gamefixture::IsEnabled() ? NULL : new (TAG_SWF) idMenuHandler_PDA();
+	pdaMenu = ps2::tests::fixture::IsEnabled() ? NULL : new (TAG_SWF) idMenuHandler_PDA();
 #else
 	pdaMenu = new (TAG_SWF) idMenuHandler_PDA();
 #endif
@@ -1805,7 +1805,7 @@ Prepare any resources used by the player.
 void idPlayer::Spawn() {
 	// [PS2_D3BFG]: Native entity/actor spawn precedes the bounded fixture player setup.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( ps2::gamefixture::IsEnabled() ) {
+	if ( ps2::tests::fixture::IsEnabled() ) {
 		SpawnHeadlessFixture();
 		return;
 	}
@@ -7539,7 +7539,7 @@ Called every tic for each player
 void idPlayer::Think() {
 	// [PS2_D3BFG]: Fixture simulation omits HUD/weapons/model/view/audio integration explicitly.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( ps2::gamefixture::IsEnabled() ) {
+	if ( ps2::tests::fixture::IsEnabled() ) {
 		ThinkHeadlessFixture();
 		return;
 	}

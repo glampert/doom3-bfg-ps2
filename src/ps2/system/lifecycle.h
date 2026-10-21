@@ -8,7 +8,7 @@
 
 class idCommon;
 
-namespace ps2::lifecycle
+namespace ps2::system::lifecycle
 {
 
 enum class Stage
@@ -39,4 +39,4 @@ void StopAfterForTest(Stage stage);
 // Totals, allocator arena and every tag with live or peak bytes, labeled with the stage.
 void PrintMemory(const char * stage);
 
-} // namespace ps2::lifecycle
+} // namespace ps2::system::lifecycle

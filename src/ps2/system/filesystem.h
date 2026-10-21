@@ -11,7 +11,7 @@
 #include <cstdio>
 #include <ctime>
 
-namespace ps2::filesystem
+namespace ps2::system::filesystem
 {
 
 static constexpr size_t kPathCapacity = 256;
@@ -44,4 +44,4 @@ int List(const char * directory, const char * extension, void (*visit)(const cha
 std::uint32_t PackZipTime(const tm & utc);
 bool ZipTime(const char * path, std::uint32_t & packed);
 
-} // namespace ps2::filesystem
+} // namespace ps2::system::filesystem

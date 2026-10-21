@@ -6,10 +6,10 @@
 
 #pragma once
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 void InitTestServices();
 const char * RunCoreTestStage(const char * fixturePath);
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

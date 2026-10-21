@@ -7,7 +7,7 @@
 #include "tests/smoketests/type_query_tests.h"
 #include "ps2/system/log.h"
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -47,4 +47,4 @@ bool RunTypeQueryTests()
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

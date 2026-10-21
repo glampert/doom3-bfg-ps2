@@ -18,7 +18,7 @@ void * TryAllocClass(size_t size, size_t alignment, std::uint16_t tag, int & byt
     {
         return nullptr;
     }
-    void * pointer = heap::TryAlloc(size, tag, alignment);
+    void * pointer = system::heap::TryAlloc(size, tag, alignment);
     if (pointer != nullptr)
     {
         bytes += static_cast<int>(size);
@@ -44,14 +44,14 @@ void FreeClass(void * pointer, int & bytes, int & objects)
     {
         return;
     }
-    const size_t size = heap::GetRequestedSize(pointer);
+    const size_t size = system::heap::GetRequestedSize(pointer);
     if (bytes < 0 || objects <= 0 || size > static_cast<size_t>(bytes))
     {
         FatalError("idClass allocation counters underflow");
     }
     bytes -= static_cast<int>(size);
     --objects;
-    heap::Free(pointer);
+    system::heap::Free(pointer);
 }
 
 } // namespace ps2::game

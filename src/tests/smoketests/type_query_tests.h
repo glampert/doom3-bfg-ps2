@@ -8,7 +8,7 @@
 
 #include "ps2/type_query.h"
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 struct QueryRoot
@@ -39,4 +39,4 @@ QueryRoot * NewQueryChildFromOtherUnit();
 bool RunTypeQueryTests();
 bool RunEngineTypeQueryTests();
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

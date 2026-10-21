@@ -24,7 +24,7 @@
 #include <renderer/Model_lwo.h>
 #include <renderer/Model_ma.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -50,13 +50,13 @@ idMatchParameters CampaignParameters()
 
 bool RunOfflineTests()
 {
-    const heap::Stats resetBaseline = heap::GetTotalStats();
+    const system::heap::Stats resetBaseline = system::heap::GetTotalStats();
     bool resetPassed = true;
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         commonLocal.StopPlayingRenderDemo();
         commonLocal.StopRecordingRenderDemo();
-        const heap::Stats after = heap::GetTotalStats();
+        const system::heap::Stats after = system::heap::GetTotalStats();
         resetPassed = resetPassed && !common->IsMultiplayer() && !common->IsServer() && !common->IsClient() &&
                       after.requestedBytes == resetBaseline.requestedBytes && after.backingBytes == resetBaseline.backingBytes &&
                       after.allocationCount == resetBaseline.allocationCount;
@@ -65,13 +65,13 @@ bool RunOfflineTests()
 
     const idCVar * smp = cvarSystem->Find("com_smp");
     bool passed = Check("real-common", common == &commonLocal && common->IsInitialized() &&
-                                       lifecycle::CompletedStage() == lifecycle::Stage::Session && common->Session() == session &&
+                                       system::lifecycle::CompletedStage() == system::lifecycle::Stage::Session && common->Session() == session &&
                                        common->Game() == nullptr && common->RW() == nullptr && common->SW() == nullptr &&
                                        common->MenuSW() == nullptr && common->GetCurrentGame() == DOOM3_BFG &&
                                        smp != nullptr && !smp->GetBool() && (smp->GetFlags() & CVAR_ROM) != 0);
     idSignInManagerBase & signIn = session->GetSignInManager();
     idLocalUser * user = signIn.GetMasterLocalUser();
-    passed = Check("local-user", offline::IsInitialized() && session->GetState() == idSession::IDLE &&
+    passed = Check("local-user", system::session::IsInitialized() && session->GetState() == idSession::IDLE &&
                                  signIn.GetNumLocalUsers() == 1 && user != nullptr && !user->IsOnline() && !user->IsPersistent() &&
                                  user->GetOnlineCaps() == 0 && user->IsProfileReady() && !user->IsStorageDeviceAvailable() &&
                                  signIn.GetLocalUserByIndex(-1) == nullptr && signIn.GetLocalUserByIndex(1) == nullptr &&
@@ -107,7 +107,7 @@ bool RunOfflineTests()
                                               session->GetTitleStorageInt("absent", 73) == 73) &&
              passed;
 
-    heap::Stats baseline = {};
+    system::heap::Stats baseline = {};
     bool stable = true;
     bool transitions = true;
     // Doom string pools retain capacity until idLib shutdown. Warm them once before comparing reloads.
@@ -145,7 +145,7 @@ bool RunOfflineTests()
         session->QuitMatchToTitle();
         transitions = transitions && session->GetState() == idSession::IDLE && lobby.GetNumLobbyUsers() == 0 &&
                       !lobby.IsLobbyUserValid(id) && !lobby.IsHost();
-        const heap::Stats after = heap::GetTotalStats();
+        const system::heap::Stats after = system::heap::GetTotalStats();
         if (cycle == 0)
         {
             baseline = after;
@@ -183,34 +183,34 @@ bool RunCommonProbe(const char * path)
     if (idStr::Cmpn(name, "lifecycle-", 10) == 0)
     {
         const char * stageName = name + 10;
-        lifecycle::Stage stop = lifecycle::Stage::None;
-        for (const lifecycle::Stage stage : { lifecycle::Stage::System, lifecycle::Stage::Idlib,
-                                              lifecycle::Stage::Commands, lifecycle::Stage::Cvars, lifecycle::Stage::Filesystem,
-                                              lifecycle::Stage::Jobs, lifecycle::Stage::Session })
+        system::lifecycle::Stage stop = system::lifecycle::Stage::None;
+        for (const system::lifecycle::Stage stage : { system::lifecycle::Stage::System, system::lifecycle::Stage::Idlib,
+                                              system::lifecycle::Stage::Commands, system::lifecycle::Stage::Cvars, system::lifecycle::Stage::Filesystem,
+                                              system::lifecycle::Stage::Jobs, system::lifecycle::Stage::Session })
         {
-            if (idStr::Cmp(stageName, lifecycle::StageName(stage)) == 0)
+            if (idStr::Cmp(stageName, system::lifecycle::StageName(stage)) == 0)
             {
                 stop = stage;
             }
         }
-        if (stop == lifecycle::Stage::None)
+        if (stop == system::lifecycle::Stage::None)
         {
             FatalError("invalid lifecycle probe");
         }
-        const heap::Stats baseline = heap::GetTotalStats();
-        lifecycle::StopAfterForTest(stop);
+        const system::heap::Stats baseline = system::heap::GetTotalStats();
+        system::lifecycle::StopAfterForTest(stop);
         common->Init(0, nullptr, nullptr);
         common->Shutdown(); // A stopped Init already shut down; this must be idempotent.
-        const heap::Stats after = heap::GetTotalStats();
+        const system::heap::Stats after = system::heap::GetTotalStats();
         const bool passed = common == &commonLocal && !common->IsInitialized() && common->IsShuttingDown() &&
-                            lifecycle::CompletedStage() == lifecycle::Stage::None && !fileSystem->IsInitialized() &&
-                            !cvarSystem->IsInitialized() && !offline::IsInitialized() &&
+                            system::lifecycle::CompletedStage() == system::lifecycle::Stage::None && !fileSystem->IsInitialized() &&
+                            !cvarSystem->IsInitialized() && !system::session::IsInitialized() &&
                             baseline.requestedBytes == after.requestedBytes && baseline.backingBytes == after.backingBytes &&
                             baseline.allocationCount == after.allocationCount;
         Log(LogLevel::Info, "[D3BFG] CHECK probe/partial-shutdown %s\n", passed ? "PASS" : "FAIL");
         return passed;
     }
-    core::Init();
+    system::lifecycle::InitCore();
     Log(LogLevel::Info, "[D3BFG] CHECK probe/ready PASS\n[D3BFG] PROBE %s BEGIN\n", name);
     idMatchParameters parms = CampaignParameters();
     if (idStr::Cmp(name, "online-flags") == 0)
@@ -271,8 +271,8 @@ bool RunCommonProbe(const char * path)
         FatalError("invalid Common negative probe");
     }
     Log(LogLevel::Error, "[D3BFG] PROBE %s returned unexpectedly\n", name);
-    core::Shutdown();
+    system::lifecycle::ShutdownCore();
     return false;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

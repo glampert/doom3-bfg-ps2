@@ -11,7 +11,7 @@
 #include <renderer/ResolutionScale.h>
 #include <renderer/tr_local.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -35,7 +35,7 @@ bool RunRendererTests()
                                                glConfig.nativeScreenWidth == 0 && glConfig.nativeScreenHeight == 0 && globalImages->images.Num() == 0 &&
                                                globalImages->defaultImage == nullptr && globalImages->currentRenderImage == nullptr);
 
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     bool metadata = true;
     for (int cycle = 0; cycle < 3; ++cycle)
     {
@@ -60,7 +60,7 @@ bool RunRendererTests()
         }
         vertexCache.FreeStaticData();
         vertexCache.Shutdown();
-        const heap::Stats after = heap::GetTotalStats();
+        const system::heap::Stats after = system::heap::GetTotalStats();
         metadata = metadata && after.requestedBytes == before.requestedBytes && after.backingBytes == before.backingBytes &&
                    after.allocationCount == before.allocationCount;
     }
@@ -124,4 +124,4 @@ bool RunRendererFailureProbe(const char * name)
     return true; // The runner rejects an unavailable operation returning normally.
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

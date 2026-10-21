@@ -13,7 +13,7 @@
 #include <renderer/Model_local.h>
 #include <ui/Winvar.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -59,4 +59,4 @@ bool RunEngineTypeQueryTests()
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

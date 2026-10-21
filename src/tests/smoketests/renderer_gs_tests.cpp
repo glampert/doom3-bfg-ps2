@@ -9,10 +9,10 @@
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
-#include "ps2/renderer/ui_page_image.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
+#include "ps2/ui/draw.h"
+#include "ps2/ui/page_image.h"
 #include <bit>
 #include <climits>
 #include <delaythread.h>
@@ -23,11 +23,11 @@
 #include <string.h>
 #include <timer.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
-static constexpr gs::Color kColors[] = {
+static constexpr renderer::gs::Color kColors[] = {
     { 255, 0, 0, 255 },
     { 0, 255, 0, 255 },
     { 0, 0, 255, 255 },
@@ -45,15 +45,15 @@ static constexpr gs::Color kColors[] = {
     { 128, 0, 255, 255 },
     { 0, 0, 0, 255 }
 };
-static tex::Handle s_textures[8] = {};
+static renderer::tex::Handle s_textures[8] = {};
 static u8 s_npot[19][40][4] = {};
 static u8 s_checker[8][8][4] = {};
 static u8 s_pressure[64][64][4] = {};
 static constexpr triIndex_t kQuadIndices[] = { 0, 1, 2, 0, 2, 3 };
 static constexpr triIndex_t kTriangleIndices[] = { 0, 1, 2 };
-bool SameLedger(const heap::Stats & before);
+bool SameLedger(const system::heap::Stats & before);
 
-void IndexedVertex(idDrawVert & vertex, float x, float y, float s, float t, gs::Color color)
+void IndexedVertex(idDrawVert & vertex, float x, float y, float s, float t, renderer::gs::Color color)
 {
     vertex.Clear();
     vertex.xyz.Set(x, y, 0.0f);
@@ -64,7 +64,7 @@ void IndexedVertex(idDrawVert & vertex, float x, float y, float s, float t, gs::
     vertex.ClearColor2();
 }
 
-void IndexedQuad(idDrawVert * vertices, const idVec2 (&positions)[4], float s0, float t0, float s1, float t1, gs::Color color)
+void IndexedQuad(idDrawVert * vertices, const idVec2 (&positions)[4], float s0, float t0, float s1, float t1, renderer::gs::Color color)
 {
     IndexedVertex(vertices[0], positions[0].x, positions[0].y, s0, t0, color);
     IndexedVertex(vertices[1], positions[1].x, positions[1].y, s1, t0, color);
@@ -72,25 +72,25 @@ void IndexedQuad(idDrawVert * vertices, const idVec2 (&positions)[4], float s0, 
     IndexedVertex(vertices[3], positions[3].x, positions[3].y, s0, t1, color);
 }
 
-bool NativeIndexed(video::Standard standard)
+bool NativeIndexed(system::video::Standard standard)
 {
-    const auto before = heap::GetTotalStats();
+    const auto before = system::heap::GetTotalStats();
     bool passed = true;
     for (int cycle = 0; cycle < 2; ++cycle)
     {
-        if (!rs::Init({ standard, 1024U, 1048576U, 524288U }) || !ui::Init())
+        if (!renderer::Init({ standard, 1024U, 1048576U, 524288U }) || !ui::Init())
         {
-            rs::Shutdown();
+            renderer::Shutdown();
             return false;
         }
-        auto * const pressureVertices = static_cast<idDrawVert *>(heap::TryAlloc(1024U * sizeof(idDrawVert), TAG_RENDER, 16));
-        auto * const pressureIndices = static_cast<triIndex_t *>(heap::TryAlloc(3072U * sizeof(triIndex_t), TAG_RENDER, 16));
+        auto * const pressureVertices = static_cast<idDrawVert *>(system::heap::TryAlloc(1024U * sizeof(idDrawVert), TAG_RENDER, 16));
+        auto * const pressureIndices = static_cast<triIndex_t *>(system::heap::TryAlloc(3072U * sizeof(triIndex_t), TAG_RENDER, 16));
         if (pressureVertices == nullptr || pressureIndices == nullptr)
         {
-            heap::Free(pressureVertices);
-            heap::Free(pressureIndices);
+            system::heap::Free(pressureVertices);
+            system::heap::Free(pressureIndices);
             ui::Shutdown();
-            rs::Shutdown();
+            renderer::Shutdown();
             return false;
         }
         for (int vertex = 0; vertex < 1024; ++vertex)
@@ -103,37 +103,37 @@ bool NativeIndexed(video::Standard standard)
         {
             pressureIndices[index] = static_cast<triIndex_t>(index % 3);
         }
-        const auto warm = heap::GetTotalStats();
-        const idImage * const white = render::ConsoleWhiteImage();
-        const idImage * const chars = render::ConsoleCharsetImage();
+        const auto warm = system::heap::GetTotalStats();
+        const idImage * const white = renderer::ConsoleWhiteImage();
+        const idImage * const chars = renderer::ConsoleCharsetImage();
         const u32 frames = cycle == 0 ? 120U : 4U;
         for (u32 frame = 0; frame < frames; ++frame)
         {
-            rs::BeginFrame({ 16, 24, 40, 255 });
+            renderer::BeginFrame({ 16, 24, 40, 255 });
             renderSystem->SetGLState(GLS_DEFAULT);
             renderSystem->DrawSmallStringExt(32, 16, "Indexed GUI: rotation / clipping / color / alpha", colorWhite, true);
             idDrawVert vertices[4];
             const idVec2 rotated[4] = { idVec2(64, 48), idVec2(192, 80), idVec2(160, 208), idVec2(32, 176) };
             IndexedQuad(vertices, rotated, 1.0f / 16.0f, 4.0f / 16.0f, 2.0f / 16.0f, 5.0f / 16.0f, { 255, 255, 255, 255 });
-            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, chars, gs::BlendMode::StraightAlpha);
+            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, chars, renderer::gs::BlendMode::StraightAlpha);
             const idVec2 clipped[4] = { idVec2(-80, 256), idVec2(80, 224), idVec2(112, 352), idVec2(-48, 384) };
             IndexedQuad(vertices, clipped, 1.0f / 16.0f, 4.0f / 16.0f, 2.0f / 16.0f, 5.0f / 16.0f, { 0, 255, 255, 255 });
-            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, chars, gs::BlendMode::StraightAlpha);
+            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, chars, renderer::gs::BlendMode::StraightAlpha);
             IndexedVertex(vertices[0], 248, 48, 0, 0, { 255, 0, 0, 255 });
             IndexedVertex(vertices[1], 408, 48, 1, 0, { 0, 255, 0, 255 });
             IndexedVertex(vertices[2], 248, 208, 0, 1, { 0, 0, 255, 255 });
-            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, gs::BlendMode::Replace);
+            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, renderer::gs::BlendMode::Replace);
             const idVec2 diamond[4] = { idVec2(528, 48), idVec2(608, 128), idVec2(528, 208), idVec2(448, 128) };
             IndexedQuad(vertices, diamond, 0, 0, 1, 1, { 255, 255, 0, 255 });
-            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, white, gs::BlendMode::Replace);
+            ui::DrawIndexed(vertices, 4, kQuadIndices, 6, white, renderer::gs::BlendMode::Replace);
             IndexedVertex(vertices[0], 288, 176, 0, 0, { 255, 255, 255, 0 });
             IndexedVertex(vertices[1], 416, 176, 1, 0, { 255, 255, 255, 255 });
             IndexedVertex(vertices[2], 416, 240, 1, 1, { 255, 255, 255, 255 });
-            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, gs::BlendMode::StraightAlpha);
+            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, renderer::gs::BlendMode::StraightAlpha);
             renderSystem->DrawFilled(colorRed, 192, 256, 160, 112);
             renderSystem->DrawFilled(colorBlue, 448, 256, 160, 112);
             // AllocTris returns unfilled storage. Drawing the next sprite must consume the final data.
-            idDrawVert * const delayed = ui::AllocTrisForImage(4, kQuadIndices, 6, white, gs::BlendMode::StraightAlpha);
+            idDrawVert * const delayed = ui::AllocTrisForImage(4, kQuadIndices, 6, white, renderer::gs::BlendMode::StraightAlpha);
             const idVec2 overlap[4] = { idVec2(256, 272), idVec2(480, 272), idVec2(480, 352), idVec2(256, 352) };
             IndexedQuad(delayed, overlap, 0, 0, 1, 1, { 255, 255, 255, 128 });
             renderSystem->DrawFilled(idVec4(0, 0, 0, 0.5f), 320, 288, 64, 48);
@@ -141,34 +141,34 @@ bool NativeIndexed(video::Standard standard)
             IndexedVertex(vertices[0], 608, 416, 0, 0, { 0, 255, 0, 255 });
             IndexedVertex(vertices[1], 640, 416, 1, 0, { 0, 255, 0, 255 });
             IndexedVertex(vertices[2], 640, 448, 1, 1, { 0, 255, 0, 255 });
-            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, gs::BlendMode::Replace);
+            ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, renderer::gs::BlendMode::Replace);
             if (frame == frames - 1U)
             {
                 // Isolate each bounded pool so all three independent recycling paths are exercised.
                 ui::Flush();
                 for (int draw = 0; draw < 5; ++draw)
                 {
-                    ui::DrawIndexed(pressureVertices, 1024, kTriangleIndices, 3, white, gs::BlendMode::Replace);
+                    ui::DrawIndexed(pressureVertices, 1024, kTriangleIndices, 3, white, renderer::gs::BlendMode::Replace);
                 }
                 ui::Flush();
                 for (int draw = 0; draw < 3; ++draw)
                 {
-                    ui::DrawIndexed(pressureVertices, 3, pressureIndices, 3072, white, gs::BlendMode::Replace);
+                    ui::DrawIndexed(pressureVertices, 3, pressureIndices, 3072, white, renderer::gs::BlendMode::Replace);
                 }
                 ui::Flush();
                 for (int draw = 0; draw < 130; ++draw)
                 {
-                    ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, gs::BlendMode::Replace);
+                    ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, renderer::gs::BlendMode::Replace);
                 }
             }
             // EndFrame must consume the last queued triangles without an explicit fixture flush.
-            rs::EndFrame();
+            renderer::EndFrame();
             passed = SameLedger(warm) && passed;
         }
-        passed = capture::WriteTga(cycle == 0 ? "host:renderer-indexed.tga" : "host:renderer-indexed-reload.tga",
-                                   rs::LastPresentedContext()) &&
+        passed = renderer::gs::CaptureTga(cycle == 0 ? "host:renderer-indexed.tga" : "host:renderer-indexed-reload.tga",
+                                   renderer::LastPresentedContext()) &&
                  passed;
-        const auto chains = cmdbuf::GetStats();
+        const auto chains = renderer::gs::GetCommandStats();
         const auto geometry = ui::GetGeometryStats();
         passed = chains.drains > 0 && chains.peakBytes <= 1024U &&
                  geometry.peakVertices == 4096U && geometry.peakIndexes == 6144U && geometry.peakDraws == 128U &&
@@ -176,10 +176,10 @@ bool NativeIndexed(video::Standard standard)
         Log(LogLevel::Info, "[D3BFG] UI indexed cycle=%d frames=%u vertices=%u indices=%u draws=%u flushes=%u triangles=%u drains=%u\n",
             cycle, frames, geometry.peakVertices, geometry.peakIndexes, geometry.peakDraws,
             geometry.flushes, geometry.triangles, chains.drains);
-        heap::Free(pressureVertices);
-        heap::Free(pressureIndices);
+        system::heap::Free(pressureVertices);
+        system::heap::Free(pressureIndices);
         ui::Shutdown();
-        rs::Shutdown();
+        renderer::Shutdown();
         passed = SameLedger(before) && passed;
     }
     return passed;
@@ -196,8 +196,8 @@ bool PageQuad(ui::PageImage & image, const idVec2 (&positions)[4], float s0, flo
     };
     const ui::Vertex first[] = { vertices[0], vertices[1], vertices[2] };
     const ui::Vertex second[] = { vertices[0], vertices[2], vertices[3] };
-    return image.DrawTriangle(first, gs::BlendMode::StraightAlpha) &&
-           image.DrawTriangle(second, gs::BlendMode::StraightAlpha);
+    return image.DrawTriangle(first, renderer::gs::BlendMode::StraightAlpha) &&
+           image.DrawTriangle(second, renderer::gs::BlendMode::StraightAlpha);
 }
 
 bool PagedScene(ui::PageImage & image)
@@ -217,21 +217,21 @@ bool PagedScene(ui::PageImage & image)
                     550.0f / 600.0f, 100.0f / 320.0f, 128);
 }
 
-bool NativePagedImage(video::Standard standard)
+bool NativePagedImage(system::video::Standard standard)
 {
-    const auto baseline = heap::GetTotalStats();
+    const auto baseline = system::heap::GetTotalStats();
     bool passed = true;
 
     for (int cycle = 0; cycle < 2; ++cycle)
     {
         // Two CPU cache slots compete for one VRAM page. Reusing both ownership levels must fence
         // prior pieces of this same frame, including triangles not yet submitted to the GS.
-        if (!rs::Init({ standard, 1024U, 262144U, 524288U }))
+        if (!renderer::Init({ standard, 1024U, 262144U, 524288U }))
         {
             return false;
         }
 
-        const auto device = heap::GetTotalStats();
+        const auto device = system::heap::GetTotalStats();
         ui::PageImage image;
         char longPath[257];
         memset(longPath, 'x', sizeof(longPath) - 1);
@@ -245,34 +245,34 @@ bool NativePagedImage(video::Standard standard)
 
         if (!image.Open("host:renderer-pages-bad-pixel.uip", 1))
         {
-            rs::Shutdown();
+            renderer::Shutdown();
             return false;
         }
 
-        rs::BeginFrame({ 16, 24, 40, 255 });
+        renderer::BeginFrame({ 16, 24, 40, 255 });
         const ui::Vertex corrupt[] = {
             { 0, 0, 0, 0, 255, 255, 255, 255 },
             { 64, 0, 0.1f, 0, 255, 255, 255, 255 },
             { 0, 64, 0, 0.1f, 255, 255, 255, 255 }
         };
-        passed = !image.DrawTriangle(corrupt, gs::BlendMode::Replace) && image.GetStats().loads == 0 && passed;
-        rs::EndFrame();
+        passed = !image.DrawTriangle(corrupt, renderer::gs::BlendMode::Replace) && image.GetStats().loads == 0 && passed;
+        renderer::EndFrame();
         image.Close();
         image.Close();
         passed = SameLedger(device) && passed;
 
         if (!image.Open("host:renderer-pages.uip"))
         {
-            rs::Shutdown();
+            renderer::Shutdown();
             return false;
         }
 
-        const auto warm = heap::GetTotalStats();
+        const auto warm = system::heap::GetTotalStats();
         const u32 frames = cycle == 0 ? 120U : 4U;
 
         for (u32 frame = 0; frame < frames; ++frame)
         {
-            rs::BeginFrame({ 16, 24, 40, 255 });
+            renderer::BeginFrame({ 16, 24, 40, 255 });
             if (frame % 30U == 0 || frame == frames - 1U)
             {
                 // Periodic six-page sweeps exercise eviction; intervening frames keep a two-page
@@ -291,15 +291,15 @@ bool NativePagedImage(video::Standard standard)
                 }
             }
 
-            rs::EndFrame();
+            renderer::EndFrame();
             passed = SameLedger(warm) && passed;
         }
 
-        passed = capture::WriteTga(cycle == 0 ? "host:renderer-paged.tga" : "host:renderer-paged-reload.tga",
-                                   rs::LastPresentedContext()) &&
+        passed = renderer::gs::CaptureTga(cycle == 0 ? "host:renderer-paged.tga" : "host:renderer-paged-reload.tga",
+                                   renderer::LastPresentedContext()) &&
                  passed;
         const auto stats = image.GetStats();
-        const auto textures = tex::GetStats();
+        const auto textures = renderer::tex::GetStats();
         passed = image.GetHeader().pageCount == 6 && stats.loads > 6 && stats.evictions > 0 &&
                  stats.triangles > frames * 12U && stats.cacheBytes == 524288U &&
                  stats.scratchBytes == 262144U && stats.metadataBytes == 48U &&
@@ -310,51 +310,51 @@ bool NativePagedImage(video::Standard standard)
         image.Close();
         image.Close();
         passed = SameLedger(device) && passed;
-        rs::Shutdown();
+        renderer::Shutdown();
         passed = SameLedger(baseline) && passed;
     }
 
     return passed;
 }
 
-bool NativeAdapters(video::Standard standard)
+bool NativeAdapters(system::video::Standard standard)
 {
-    const auto before = heap::GetTotalStats();
+    const auto before = system::heap::GetTotalStats();
     bool passed = !ui::IsInitialized() && !R_IsInitialized();
     // Startup failure must not claim native capabilities or retain partial image ownership.
-    if (!rs::Init({ standard, 1024U, 65536U, 524288U }))
+    if (!renderer::Init({ standard, 1024U, 65536U, 524288U }))
     {
         return false;
     }
-    passed = !ui::Init() && !tr.registered && !render::ConsoleImagesInitialized() && passed;
-    rs::Shutdown();
+    passed = !ui::Init() && !tr.registered && !renderer::ConsoleImagesInitialized() && passed;
+    renderer::Shutdown();
     passed = SameLedger(before) && passed;
-    if (!rs::Init({ standard, 1024U, 1048576U, 131072U }))
+    if (!renderer::Init({ standard, 1024U, 1048576U, 131072U }))
     {
         return false;
     }
-    passed = !ui::Init() && !tr.registered && !render::ConsoleImagesInitialized() && passed;
-    rs::Shutdown();
+    passed = !ui::Init() && !tr.registered && !renderer::ConsoleImagesInitialized() && passed;
+    renderer::Shutdown();
     passed = SameLedger(before) && passed;
     for (int cycle = 0; cycle < 2; ++cycle)
     {
-        if (!rs::Init({ standard, 1024U, 1048576U, 524288U }) || !ui::Init())
+        if (!renderer::Init({ standard, 1024U, 1048576U, 524288U }) || !ui::Init())
         {
-            rs::Shutdown();
+            renderer::Shutdown();
             return false;
         }
-        const idImage * const white = render::ConsoleWhiteImage();
-        const idImage * const chars = render::ConsoleCharsetImage();
+        const idImage * const white = renderer::ConsoleWhiteImage();
+        const idImage * const chars = renderer::ConsoleCharsetImage();
         passed = white != nullptr && chars != nullptr && white->IsLoaded() && chars->IsLoaded() &&
                  white->StorageSize() == 8192 && chars->StorageSize() == 262144 && tr.registered && R_IsInitialized() &&
                  !renderSystem->IsOpenGLRunning() && renderSystem->IsFullScreen() && renderSystem->GetWidth() == 512 &&
-                 renderSystem->GetHeight() == video::VisibleLines(standard) && passed;
+                 renderSystem->GetHeight() == system::video::VisibleLines(standard) && passed;
         renderSystem->SetColor(idVec4(0.5f, 0.25f, 1.0f, 0.75f));
         passed = renderSystem->GetColor() == 0xBFFF3F7FU && passed;
         const u32 frames = cycle == 0 ? 120U : 4U;
         for (u32 frame = 0; frame < frames; ++frame)
         {
-            rs::BeginFrame({ 16, 24, 40, 255 });
+            renderer::BeginFrame({ 16, 24, 40, 255 });
             renderSystem->SetGLState(GLS_DEFAULT);
             renderSystem->DrawBigStringExt(32, 24, "D3BFG PS2", colorCyan, true);
             renderSystem->DrawSmallStringExt(32, 56, "Native draw adapters - 640x480 canvas", colorWhite, true);
@@ -386,50 +386,50 @@ bool NativeAdapters(video::Standard standard)
 
             // Closing the scope and a command-half drain must restore ordinary alpha blending.
             renderSystem->DrawFilled(idVec4(0.0f, 0.5f, 0.0f, 0.5f), 336.0f, 400.0f, 96.0f, 32.0f);
-            rs::EndFrame();
+            renderer::EndFrame();
         }
-        passed = capture::WriteTga(cycle == 0 ? "host:renderer-ui.tga" : "host:renderer-ui-reload.tga", rs::LastPresentedContext()) && passed;
-        Log(LogLevel::Info, "[D3BFG] UI scene cycle=%d frames=%u pixel_bytes=%u\n", cycle, frames, tex::GetStats().pixelBytes);
+        passed = renderer::gs::CaptureTga(cycle == 0 ? "host:renderer-ui.tga" : "host:renderer-ui-reload.tga", renderer::LastPresentedContext()) && passed;
+        Log(LogLevel::Info, "[D3BFG] UI scene cycle=%d frames=%u pixel_bytes=%u\n", cycle, frames, renderer::tex::GetStats().pixelBytes);
         ui::Shutdown();
         ui::Shutdown();
-        rs::Shutdown();
-        passed = !ui::IsInitialized() && !R_IsInitialized() && !tr.registered && !render::ConsoleImagesInitialized() && SameLedger(before) && passed;
+        renderer::Shutdown();
+        passed = !ui::IsInitialized() && !R_IsInitialized() && !tr.registered && !renderer::ConsoleImagesInitialized() && SameLedger(before) && passed;
     }
     return passed;
 }
 
-bool SplitUpload(video::Standard standard)
+bool SplitUpload(system::video::Standard standard)
 {
-    const auto before = heap::GetTotalStats();
-    if (!rs::Init({ standard, 1024U, 1024U * 1024U, 1024U * 1024U }))
+    const auto before = system::heap::GetTotalStats();
+    if (!renderer::Init({ standard, 1024U, 1024U * 1024U, 1024U * 1024U }))
     {
         return false;
     }
     // 512 KiB crosses the SDK's 32767-qword IMAGE limit and requires two REF chunks.
-    auto * const pixels = static_cast<gs::Color *>(heap::TryAlloc(512U * 256U * 4U, TAG_RENDER, 64));
+    auto * const pixels = static_cast<renderer::gs::Color *>(system::heap::TryAlloc(512U * 256U * 4U, TAG_RENDER, 64));
     if (pixels == nullptr)
     {
-        rs::Shutdown();
+        renderer::Shutdown();
         return false;
     }
     for (int y = 0; y < 256; ++y)
     {
         for (int x = 0; x < 512; ++x)
         {
-            pixels[y * 512 + x] = y < 128 ? (x < 256 ? gs::Color{ 255, 0, 0, 255 } : gs::Color{ 0, 255, 0, 255 }) : (x < 256 ? gs::Color{ 0, 0, 255, 255 } : gs::Color{ 255, 255, 0, 255 });
+            pixels[y * 512 + x] = y < 128 ? (x < 256 ? renderer::gs::Color{ 255, 0, 0, 255 } : renderer::gs::Color{ 0, 255, 0, 255 }) : (x < 256 ? renderer::gs::Color{ 0, 0, 255, 255 } : renderer::gs::Color{ 255, 255, 0, 255 });
         }
     }
-    const auto handle = tex::Create(512, 256, {}, pixels, 512U * 256U * 4U, 512U * 4U);
-    heap::Free(pixels);
+    const auto handle = renderer::tex::Create(512, 256, {}, pixels, 512U * 256U * 4U, 512U * 4U);
+    system::heap::Free(pixels);
     bool passed = handle.id != 0;
     if (passed)
     {
-        rs::BeginFrame({ 0, 0, 0, 255 });
-        passed = rs::TexturedRect(handle, 0, 0, 512, 256, 0, 0, 512, 256);
-        rs::EndFrame();
-        passed = capture::WriteTga("host:renderer-upload.tga", rs::LastPresentedContext()) && passed;
+        renderer::BeginFrame({ 0, 0, 0, 255 });
+        passed = renderer::TexturedRect(handle, 0, 0, 512, 256, 0, 0, 512, 256);
+        renderer::EndFrame();
+        passed = renderer::gs::CaptureTga("host:renderer-upload.tga", renderer::LastPresentedContext()) && passed;
     }
-    rs::Shutdown();
+    renderer::Shutdown();
     return SameLedger(before) && passed;
 }
 
@@ -439,9 +439,9 @@ bool CreateTextures()
     {
         for (int x = 0; x < 37; ++x)
         {
-            const gs::Color color = (x == 0 || y == 0) ? gs::Color{ 255, 0, 0, 255 } : (x == 36 || y == 18)         ? gs::Color{ 0, 0, 255, 255 }
-                                                                                       : ((x / 4 + y / 4) & 1) != 0 ? gs::Color{ 0, 255, 0, 255 }
-                                                                                                                    : gs::Color{ 255, 255, 0, 255 };
+            const renderer::gs::Color color = (x == 0 || y == 0) ? renderer::gs::Color{ 255, 0, 0, 255 } : (x == 36 || y == 18)         ? renderer::gs::Color{ 0, 0, 255, 255 }
+                                                                                       : ((x / 4 + y / 4) & 1) != 0 ? renderer::gs::Color{ 0, 255, 0, 255 }
+                                                                                                                    : renderer::gs::Color{ 255, 255, 0, 255 };
             memcpy(s_npot[y][x], &color, 4);
         }
     }
@@ -449,22 +449,22 @@ bool CreateTextures()
     {
         for (int x = 0; x < 8; ++x)
         {
-            const gs::Color color = ((x / 2 + y / 2) & 1) != 0 ? gs::Color{ 255, 0, 255, 255 } : gs::Color{ 0, 255, 255, 255 };
+            const renderer::gs::Color color = ((x / 2 + y / 2) & 1) != 0 ? renderer::gs::Color{ 255, 0, 255, 255 } : renderer::gs::Color{ 0, 255, 255, 255 };
             memcpy(s_checker[y][x], &color, 4);
         }
     }
-    const tex::Sampler linear = { tex::Filter::Linear, tex::Wrap::Clamp, tex::Wrap::Clamp };
-    const tex::Sampler repeat = { tex::Filter::Nearest, tex::Wrap::Repeat, tex::Wrap::Repeat };
-    s_textures[0] = tex::Create(37, 19, {}, s_npot, sizeof(s_npot), sizeof(s_npot[0]));
-    s_textures[1] = tex::Create(37, 19, linear, s_npot, sizeof(s_npot), sizeof(s_npot[0]));
-    s_textures[2] = tex::Create(8, 8, repeat, s_checker, sizeof(s_checker), sizeof(s_checker[0]));
-    const gs::Color white = { 255, 255, 255, 128 }, black = { 0, 0, 0, 128 }, red = { 255, 0, 0, 255 };
-    s_textures[3] = tex::Create(1, 1, {}, &white, sizeof(white), sizeof(white));
-    s_textures[4] = tex::Create(1, 1, {}, &black, sizeof(black), sizeof(black));
-    s_textures[5] = tex::Create(1, 1, {}, &red, sizeof(red), sizeof(red));
+    const renderer::tex::Sampler linear = { renderer::tex::Filter::Linear, renderer::tex::Wrap::Clamp, renderer::tex::Wrap::Clamp };
+    const renderer::tex::Sampler repeat = { renderer::tex::Filter::Nearest, renderer::tex::Wrap::Repeat, renderer::tex::Wrap::Repeat };
+    s_textures[0] = renderer::tex::Create(37, 19, {}, s_npot, sizeof(s_npot), sizeof(s_npot[0]));
+    s_textures[1] = renderer::tex::Create(37, 19, linear, s_npot, sizeof(s_npot), sizeof(s_npot[0]));
+    s_textures[2] = renderer::tex::Create(8, 8, repeat, s_checker, sizeof(s_checker), sizeof(s_checker[0]));
+    const renderer::gs::Color white = { 255, 255, 255, 128 }, black = { 0, 0, 0, 128 }, red = { 255, 0, 0, 255 };
+    s_textures[3] = renderer::tex::Create(1, 1, {}, &white, sizeof(white), sizeof(white));
+    s_textures[4] = renderer::tex::Create(1, 1, {}, &black, sizeof(black), sizeof(black));
+    s_textures[5] = renderer::tex::Create(1, 1, {}, &red, sizeof(red), sizeof(red));
     for (int index = 6; index < 8; ++index)
     {
-        const gs::Color color = index == 6 ? gs::Color{ 0, 0, 255, 255 } : gs::Color{ 255, 255, 0, 255 };
+        const renderer::gs::Color color = index == 6 ? renderer::gs::Color{ 0, 0, 255, 255 } : renderer::gs::Color{ 255, 255, 0, 255 };
         for (auto & row : s_pressure)
         {
             for (auto & pixel : row)
@@ -472,7 +472,7 @@ bool CreateTextures()
                 memcpy(pixel, &color, 4);
             }
         }
-        s_textures[index] = tex::Create(64, 64, {}, s_pressure, sizeof(s_pressure), sizeof(s_pressure[0]));
+        s_textures[index] = renderer::tex::Create(64, 64, {}, s_pressure, sizeof(s_pressure), sizeof(s_pressure[0]));
     }
     for (const auto handle : s_textures)
     {
@@ -481,14 +481,14 @@ bool CreateTextures()
             return false;
         }
     }
-    tex::Layout layout = {};
-    const auto before = heap::GetTotalStats();
-    return tex::MakeLayout(37, 19, {}, layout) && layout.stridePixels == 64 && layout.potWidth == 64 &&
+    renderer::tex::Layout layout = {};
+    const auto before = system::heap::GetTotalStats();
+    return renderer::tex::MakeLayout(37, 19, {}, layout) && layout.stridePixels == 64 && layout.potWidth == 64 &&
            layout.potHeight == 32 && layout.bytes == 8192 &&
-           tex::Create(37, 19, repeat, s_npot, sizeof(s_npot), sizeof(s_npot[0])).id == 0 &&
-           tex::Create(37, 19, {}, s_npot, 1, sizeof(s_npot[0])).id == 0 &&
-           tex::Create(512, 512, {}, s_npot, sizeof(s_npot), 2048).id == 0 &&
-           !tex::Update(s_textures[0], s_npot, 1, sizeof(s_npot[0])) && SameLedger(before);
+           renderer::tex::Create(37, 19, repeat, s_npot, sizeof(s_npot), sizeof(s_npot[0])).id == 0 &&
+           renderer::tex::Create(37, 19, {}, s_npot, 1, sizeof(s_npot[0])).id == 0 &&
+           renderer::tex::Create(512, 512, {}, s_npot, sizeof(s_npot), 2048).id == 0 &&
+           !renderer::tex::Update(s_textures[0], s_npot, 1, sizeof(s_npot[0])) && SameLedger(before);
 }
 
 bool Check(const char * name, bool passed)
@@ -497,9 +497,9 @@ bool Check(const char * name, bool passed)
     return passed;
 }
 
-bool SameLedger(const heap::Stats & before)
+bool SameLedger(const system::heap::Stats & before)
 {
-    const auto after = heap::GetTotalStats();
+    const auto after = system::heap::GetTotalStats();
     return after.requestedBytes == before.requestedBytes && after.backingBytes == before.backingBytes &&
            after.allocationCount == before.allocationCount;
 }
@@ -507,72 +507,72 @@ bool SameLedger(const heap::Stats & before)
 bool DrawScene(u32 frame, bool hazards)
 {
     bool drawn = true;
-    rs::BeginFrame({ 16, 24, 40, 255 });
+    renderer::BeginFrame({ 16, 24, 40, 255 });
     for (int row = 0; row < 4; ++row)
     {
         for (int column = 0; column < 4; ++column)
         {
-            rs::FillRect(24 + column * 120, 24 + row * 64, 104, 48, kColors[row * 4 + column]);
+            renderer::FillRect(24 + column * 120, 24 + row * 64, 104, 48, kColors[row * 4 + column]);
         }
     }
     // Opaque primaries, a 50% white layer and a 50% black layer; order is intentional.
-    rs::FillRect(24, 296, 224, 88, { 255, 0, 0, 255 });
-    drawn = rs::TexturedRect(s_textures[3], 136, 312, 224, 56, 0, 0, 1, 1) && drawn;
-    drawn = rs::TexturedRect(s_textures[4], 200, 328, 48, 24, 0, 0, 1, 1) && drawn;
-    rs::FillRect(304, 296, 184, 88, { 0, 0, 255, 255 });
-    drawn = rs::TexturedRect(s_textures[4], 360, 312, 128, 56, 0, 0, 1, 1) && drawn;
-    drawn = rs::TexturedRect(s_textures[0], 24, 152, 148, 76, 0, 0, 37, 19) && drawn;
-    drawn = rs::TexturedRect(s_textures[1], 184, 152, 148, 76, 0, 0, 37, 19) && drawn;
-    drawn = rs::TexturedRect(s_textures[2], 344, 152, 144, 76, 0, 0, 32, 16) && drawn;
+    renderer::FillRect(24, 296, 224, 88, { 255, 0, 0, 255 });
+    drawn = renderer::TexturedRect(s_textures[3], 136, 312, 224, 56, 0, 0, 1, 1) && drawn;
+    drawn = renderer::TexturedRect(s_textures[4], 200, 328, 48, 24, 0, 0, 1, 1) && drawn;
+    renderer::FillRect(304, 296, 184, 88, { 0, 0, 255, 255 });
+    drawn = renderer::TexturedRect(s_textures[4], 360, 312, 128, 56, 0, 0, 1, 1) && drawn;
+    drawn = renderer::TexturedRect(s_textures[0], 24, 152, 148, 76, 0, 0, 37, 19) && drawn;
+    drawn = renderer::TexturedRect(s_textures[1], 184, 152, 148, 76, 0, 0, 37, 19) && drawn;
+    drawn = renderer::TexturedRect(s_textures[2], 344, 152, 144, 76, 0, 0, 32, 16) && drawn;
     // Region clamp must hold the blue NPOT right edge beyond its logical extent.
-    drawn = rs::TexturedRect(s_textures[1], 24, 240, 148, 32, 37, 1, 74, 18) && drawn;
-    drawn = rs::TexturedRect(s_textures[3], 344, 240, 144, 32, 0, 0, 1, 1, { 128, 255, 128, 128 }) && drawn;
+    drawn = renderer::TexturedRect(s_textures[1], 24, 240, 148, 32, 37, 1, 74, 18) && drawn;
+    drawn = renderer::TexturedRect(s_textures[3], 344, 240, 144, 32, 0, 0, 1, 1, { 128, 255, 128, 128 }) && drawn;
     // Half texture alpha and half vertex alpha must multiply once, yielding quarter source weight.
-    drawn = rs::TexturedRectFixed(s_textures[3], { 440 * 16, 400 * 16, 488 * 16, 416 * 16, 0, 0, 16, 16 },
-                                  { 128, 64, 32, 128 }, gs::BlendMode::AdditiveAlpha) &&
+    drawn = renderer::TexturedRectFixed(s_textures[3], { 440 * 16, 400 * 16, 488 * 16, 416 * 16, 0, 0, 16, 16 },
+                                  { 128, 64, 32, 128 }, renderer::gs::BlendMode::AdditiveAlpha) &&
             drawn;
-    drawn = rs::TexturedRectFixed(s_textures[3], { 328 * 16, 400 * 16, 376 * 16, 416 * 16, 0, 0, 16, 16 },
-                                  { 128, 64, 32, 255 }, gs::BlendMode::AdditiveAlpha) &&
+    drawn = renderer::TexturedRectFixed(s_textures[3], { 328 * 16, 400 * 16, 376 * 16, 416 * 16, 0, 0, 16, 16 },
+                                  { 128, 64, 32, 255 }, renderer::gs::BlendMode::AdditiveAlpha) &&
             drawn;
-    drawn = rs::TexturedRectFixed(s_textures[4], { 384 * 16, 400 * 16, 432 * 16, 416 * 16, 0, 0, 16, 16 },
-                                  { 255, 255, 255, 255 }, gs::BlendMode::AdditiveAlpha) &&
+    drawn = renderer::TexturedRectFixed(s_textures[4], { 384 * 16, 400 * 16, 432 * 16, 416 * 16, 0, 0, 16, 16 },
+                                  { 255, 255, 255, 255 }, renderer::gs::BlendMode::AdditiveAlpha) &&
             drawn;
     // Screen clipping preserves texture coordinates at the visible right edge.
-    drawn = rs::TexturedRect(s_textures[0], -124, 280, 148, 12, 0, 0, 37, 19) && drawn;
+    drawn = renderer::TexturedRect(s_textures[0], -124, 280, 148, 12, 0, 0, 37, 19) && drawn;
     if (hazards)
     {
-        const gs::Color red = { 255, 0, 0, 255 }, green = { 0, 255, 0, 255 };
-        drawn = tex::Update(s_textures[5], &red, sizeof(red), sizeof(red)) && drawn;
-        drawn = rs::TexturedRect(s_textures[5], 24, 400, 48, 16, 0, 0, 1, 1) && drawn;
-        drawn = tex::Update(s_textures[5], &green, sizeof(green), sizeof(green)) && drawn;
-        drawn = rs::TexturedRect(s_textures[5], 80, 400, 48, 16, 0, 0, 1, 1) && drawn;
-        drawn = rs::TexturedRect(s_textures[6], 144, 400, 48, 16, 0, 0, 64, 64) && drawn;
-        drawn = rs::TexturedRect(s_textures[7], 200, 400, 48, 16, 0, 0, 64, 64) && drawn;
+        const renderer::gs::Color red = { 255, 0, 0, 255 }, green = { 0, 255, 0, 255 };
+        drawn = renderer::tex::Update(s_textures[5], &red, sizeof(red), sizeof(red)) && drawn;
+        drawn = renderer::TexturedRect(s_textures[5], 24, 400, 48, 16, 0, 0, 1, 1) && drawn;
+        drawn = renderer::tex::Update(s_textures[5], &green, sizeof(green), sizeof(green)) && drawn;
+        drawn = renderer::TexturedRect(s_textures[5], 80, 400, 48, 16, 0, 0, 1, 1) && drawn;
+        drawn = renderer::TexturedRect(s_textures[6], 144, 400, 48, 16, 0, 0, 64, 64) && drawn;
+        drawn = renderer::TexturedRect(s_textures[7], 200, 400, 48, 16, 0, 0, 64, 64) && drawn;
         // Rebind an evicted image after queued references have used the same pages.
-        drawn = rs::TexturedRect(s_textures[0], 264, 400, 74, 19, 0, 0, 37, 19) && drawn;
+        drawn = renderer::TexturedRect(s_textures[0], 264, 400, 74, 19, 0, 0, 37, 19) && drawn;
     }
     // Offscreen and enormous legal coordinates cannot wrap back into the picture.
-    rs::FillRect(INT_MAX, INT_MAX, INT_MAX, INT_MAX, { 255, 0, 255, 255 });
-    rs::FillRect(16, 16, 16, 16, { 255, 0, 255, 0 });
-    rs::FillRect(-10, -10, gs::Width() + 20, 14, { 255, 255, 255, 255 });
-    rs::FillRect(-10, gs::Height() - 4, gs::Width() + 20, 14, { 255, 255, 255, 255 });
-    rs::FillRect(-10, 0, 14, gs::Height(), { 255, 255, 255, 255 });
-    rs::FillRect(gs::Width() - 4, 0, 14, gs::Height(), { 255, 255, 255, 255 });
+    renderer::FillRect(INT_MAX, INT_MAX, INT_MAX, INT_MAX, { 255, 0, 255, 255 });
+    renderer::FillRect(16, 16, 16, 16, { 255, 0, 255, 0 });
+    renderer::FillRect(-10, -10, renderer::gs::Width() + 20, 14, { 255, 255, 255, 255 });
+    renderer::FillRect(-10, renderer::gs::Height() - 4, renderer::gs::Width() + 20, 14, { 255, 255, 255, 255 });
+    renderer::FillRect(-10, 0, 14, renderer::gs::Height(), { 255, 255, 255, 255 });
+    renderer::FillRect(renderer::gs::Width() - 4, 0, 14, renderer::gs::Height(), { 255, 255, 255, 255 });
     // A moving marker proves distinct frames; yellow marks the final 120-frame picture.
-    rs::FillRect(24 + static_cast<int>(frame % 440U), 432, 16, 12,
-                 frame == 119U ? gs::Color{ 255, 255, 0, 255 } : gs::Color{ 255, 255, 255, 255 });
-    rs::EndFrame();
+    renderer::FillRect(24 + static_cast<int>(frame % 440U), 432, 16, 12,
+                 frame == 119U ? renderer::gs::Color{ 255, 255, 0, 255 } : renderer::gs::Color{ 255, 255, 255, 255 });
+    renderer::EndFrame();
     return drawn;
 }
 
-bool HoldPresentedScene(video::Standard standard)
+bool HoldPresentedScene(system::video::Standard standard)
 {
     FILE * file = fopen("host:renderer.ready", "wb");
     if (file == nullptr)
     {
         return false;
     }
-    const int written = fprintf(file, "GS_SCENE 1 %s 512 %d 120\n", video::Name(standard), gs::Height());
+    const int written = fprintf(file, "GS_SCENE 1 %s 512 %d 120\n", system::video::Name(standard), renderer::gs::Height());
     const bool closed = fclose(file) == 0;
     if (written <= 0 || !closed)
     {
@@ -598,15 +598,15 @@ bool HoldPresentedScene(video::Standard standard)
 }
 } // namespace
 
-bool RunGsTests(video::Standard standard)
+bool RunGsTests(system::video::Standard standard)
 {
-    const auto baseline = heap::GetTotalStats();
-    bool passed = Check("inactive-start", !rs::IsInitialized() && !gs::IsInitialized() && !cmdbuf::IsInitialized());
-    rs::Shutdown();
-    const bool invalid = !rs::Init({ static_cast<video::Standard>(99), 128U * 1024U }) && !cmdbuf::Init(65);
-    const bool partial = cmdbuf::Init(1024) && !gs::Init({ standard, 640, video::VisibleLines(standard) });
-    rs::Shutdown();
-    passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !cmdbuf::IsInitialized()) && passed;
+    const auto baseline = system::heap::GetTotalStats();
+    bool passed = Check("inactive-start", !renderer::IsInitialized() && !renderer::gs::IsInitialized() && !renderer::gs::IsCommandBufferInitialized());
+    renderer::Shutdown();
+    const bool invalid = !renderer::Init({ static_cast<system::video::Standard>(99), 128U * 1024U }) && !renderer::gs::InitCommandBuffer(65);
+    const bool partial = renderer::gs::InitCommandBuffer(1024) && !renderer::gs::Init({ standard, 640, system::video::VisibleLines(standard) });
+    renderer::Shutdown();
+    passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !renderer::gs::IsCommandBufferInitialized()) && passed;
     passed = Check("split-upload", SplitUpload(standard)) && passed;
     passed = Check("native-adapters", NativeAdapters(standard)) && passed;
     passed = Check("native-indexed", NativeIndexed(standard)) && passed;
@@ -622,76 +622,76 @@ bool RunGsTests(video::Standard standard)
     for (int cycle = 0; cycle < 2; ++cycle)
     {
         const u32 halfBytes = cycle == 0 ? 128U * 1024U : 1024U;
-        if (!rs::Init({ standard, halfBytes, 64U * 1024U, 128U * 1024U }))
+        if (!renderer::Init({ standard, halfBytes, 64U * 1024U, 128U * 1024U }))
         {
             return Check("device-init", false);
         }
         textures = CreateTextures() && textures;
         if (!textures)
         {
-            rs::Shutdown();
+            renderer::Shutdown();
             return Check("textures", false);
         }
-        bounds = bounds && gs::Width() == 512 && gs::Height() == video::VisibleLines(standard) &&
-                 gs::FixedVramBytes() == (standard == video::Standard::Pal ? 1572864U : 1376256U);
+        bounds = bounds && renderer::gs::Width() == 512 && renderer::gs::Height() == system::video::VisibleLines(standard) &&
+                 renderer::gs::FixedVramBytes() == (standard == system::video::Standard::Pal ? 1572864U : 1376256U);
         const u32 frames = cycle == 0 ? 120U : 4U;
         for (u32 frame = 0; frame < frames; ++frame)
         {
             textures = DrawScene(frame, frame == frames - 1U) && textures;
-            const auto expected = (frame & 1U) == 0 ? gs::DrawContext::Ctx1 : gs::DrawContext::Ctx0;
-            contexts = contexts && !rs::FrameStarted() && rs::FrameCount() == frame + 1U &&
-                       rs::LastPresentedContext() == expected;
+            const auto expected = (frame & 1U) == 0 ? renderer::gs::DrawContext::Ctx1 : renderer::gs::DrawContext::Ctx0;
+            contexts = contexts && !renderer::FrameStarted() && renderer::FrameCount() == frame + 1U &&
+                       renderer::LastPresentedContext() == expected;
         }
         Log(LogLevel::Info, "[D3BFG] GS scene %s cycle=%d frames=%u context=%d\n",
-            video::Name(standard), cycle, rs::FrameCount(), static_cast<int>(rs::LastPresentedContext()));
-        captured = capture::WriteTga(cycle == 0 ? "host:renderer.tga" : "host:renderer-reload.tga",
-                                     rs::LastPresentedContext()) &&
+            system::video::Name(standard), cycle, renderer::FrameCount(), static_cast<int>(renderer::LastPresentedContext()));
+        captured = renderer::gs::CaptureTga(cycle == 0 ? "host:renderer.tga" : "host:renderer-reload.tga",
+                                     renderer::LastPresentedContext()) &&
                    captured;
         if (cycle == 0)
         {
             const u64 imr = GsGetIMR();
-            capture::InjectReadbackTimeoutOnce();
-            recovered = !capture::WriteTga("host:renderer-failed.tga", rs::LastPresentedContext()) &&
+            renderer::gs::InjectReadbackTimeoutOnce();
+            recovered = !renderer::gs::CaptureTga("host:renderer-failed.tga", renderer::LastPresentedContext()) &&
                         GsGetIMR() == imr && (*GS_REG_BUSDIR & 1U) == 0 && (*R_EE_VIF1_STAT & (1U << 23)) == 0 &&
                         (*R_EE_GIF_STAT & 2U) == 0 &&
-                        !capture::WriteTga("host:no-such-directory/capture.tga", rs::LastPresentedContext()) &&
-                        capture::WriteTga("host:renderer-recovered.tga", rs::LastPresentedContext());
+                        !renderer::gs::CaptureTga("host:no-such-directory/capture.tga", renderer::LastPresentedContext()) &&
+                        renderer::gs::CaptureTga("host:renderer-recovered.tga", renderer::LastPresentedContext());
             held = HoldPresentedScene(standard);
         }
         // Force one 128 KiB half to overflow, and many 1 KiB halves on the reload.
-        rs::BeginFrame({ 0, 0, 0, 255 });
+        renderer::BeginFrame({ 0, 0, 0, 255 });
         for (int draw = 0; draw < 1024; ++draw)
         {
-            textures = rs::TexturedRect(s_textures[3], draw % 512, (draw / 512) * 8, 1, 8, 0, 0, 1, 1) && textures;
+            textures = renderer::TexturedRect(s_textures[3], draw % 512, (draw / 512) * 8, 1, 8, 0, 0, 1, 1) && textures;
         }
-        rs::EndFrame();
-        captured = capture::WriteTga(cycle == 0 ? "host:renderer-pressure.tga" : "host:renderer-pressure-reload.tga",
-                                     rs::LastPresentedContext()) &&
+        renderer::EndFrame();
+        captured = renderer::gs::CaptureTga(cycle == 0 ? "host:renderer-pressure.tga" : "host:renderer-pressure-reload.tga",
+                                     renderer::LastPresentedContext()) &&
                    captured;
-        const auto textureStats = tex::GetStats();
-        const auto vramStats = vram::GetStats();
+        const auto textureStats = renderer::tex::GetStats();
+        const auto vramStats = renderer::gs::GetVramStats();
         textures = textureStats.evictions > 0 && textureStats.uploads >= 9U && textureStats.pixelBytes == 81920U &&
                    vramStats.usedBytes <= 65536U && textures;
         Log(LogLevel::Info, "[D3BFG] GS textures pixels=%u peak=%u count=%u uploads=%u evictions=%u vram=%u/%u\n",
             textureStats.pixelBytes, textureStats.peakPixelBytes, textureStats.textures, textureStats.uploads,
             textureStats.evictions, static_cast<u32>(vramStats.usedBytes), static_cast<u32>(vramStats.peakBytes));
         // Destroy while a draw still owns a queued TEX0 reference; finish it before release.
-        rs::BeginFrame({ 0, 0, 0, 255 });
-        textures = rs::TexturedRect(s_textures[0], 0, 0, 148, 76, 0, 0, 37, 19) && textures;
-        tex::Destroy(s_textures[0]);
-        rs::EndFrame();
-        const auto stats = cmdbuf::GetStats();
+        renderer::BeginFrame({ 0, 0, 0, 255 });
+        textures = renderer::TexturedRect(s_textures[0], 0, 0, 148, 76, 0, 0, 37, 19) && textures;
+        renderer::tex::Destroy(s_textures[0]);
+        renderer::EndFrame();
+        const auto stats = renderer::gs::GetCommandStats();
         pressure = pressure && stats.drains > 0 && stats.kicks > frames + 1U && stats.peakBytes <= halfBytes;
         Log(LogLevel::Info, "[D3BFG] GS chains half=%u peak=%u kicks=%u drains=%u\n",
             halfBytes, stats.peakBytes, stats.kicks, stats.drains);
-        const auto live = heap::GetTotalStats();
-        const auto arena = heap::GetArenaStats();
+        const auto live = system::heap::GetTotalStats();
+        const auto arena = system::heap::GetArenaStats();
         Log(LogLevel::Info, "[D3BFG] GS heap cycle=%d live=%zu/%zu/%zu peak=%zu/%zu arena_peak=%zu\n",
             cycle, live.requestedBytes, live.backingBytes, live.allocationCount,
             live.peakRequestedBytes, live.peakBackingBytes, arena.peakCommittedBytes);
-        rs::Shutdown();
-        rs::Shutdown();
-        cleanup = cleanup && !rs::IsInitialized() && !gs::IsInitialized() && !cmdbuf::IsInitialized() && SameLedger(baseline);
+        renderer::Shutdown();
+        renderer::Shutdown();
+        cleanup = cleanup && !renderer::IsInitialized() && !renderer::gs::IsInitialized() && !renderer::gs::IsCommandBufferInitialized() && SameLedger(baseline);
     }
     passed = Check("device-init", bounds) && passed;
     passed = Check("context-frames", contexts) && passed;
@@ -703,7 +703,7 @@ bool RunGsTests(video::Standard standard)
     passed = Check("reload-shutdown-ledger", cleanup) && passed;
     Log(LogLevel::Info, "[D3BFG] GS memory baseline=%zu/%zu/%zu final=%zu/%zu/%zu\n",
         baseline.requestedBytes, baseline.backingBytes, baseline.allocationCount,
-        heap::GetTotalStats().requestedBytes, heap::GetTotalStats().backingBytes, heap::GetTotalStats().allocationCount);
+        system::heap::GetTotalStats().requestedBytes, system::heap::GetTotalStats().backingBytes, system::heap::GetTotalStats().allocationCount);
     return passed;
 }
 
@@ -726,26 +726,26 @@ bool RunGsFailureProbe(const char * name)
     if (strcmp(name, "renderer-gif-overflow") == 0)
     {
         alignas(64) qword_t memory[2] = {};
-        GifWriter writer(memory, 1);
+        renderer::gs::GifWriter writer(memory, 1);
         writer.SetRegister(0, 0);
     }
     else if (strcmp(name, "renderer-direct-overflow") == 0)
     {
-        if (!cmdbuf::Init(1024))
+        if (!renderer::gs::InitCommandBuffer(1024))
         {
             FatalError("probe command initialization failed");
         }
-        cmdbuf::BeginFrame();
-        (void)cmdbuf::BeginDirect(INT_MAX);
+        renderer::gs::BeginCommandFrame();
+        (void)renderer::gs::BeginDirect(INT_MAX);
     }
     else if (strcmp(name, "renderer-wait-timeout") == 0)
     {
-        gs::WaitUntil([]
+        renderer::gs::WaitUntil([]
                       { return false; }, "injected wait");
     }
     else
     {
-        if (!rs::Init({ video::Standard::Ntsc, 1024U }) || !ui::Init())
+        if (!renderer::Init({ system::video::Standard::Ntsc, 1024U }) || !ui::Init())
         {
             FatalError("probe UI initialization failed");
         }
@@ -753,7 +753,7 @@ bool RunGsFailureProbe(const char * name)
         {
             renderSystem->SetGLState(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE);
         }
-        rs::BeginFrame({ 0, 0, 0, 255 });
+        renderer::BeginFrame({ 0, 0, 0, 255 });
         if (strcmp(name, "renderer-ui-bounds") == 0)
         {
             renderSystem->DrawFilled(colorWhite, 0.0f, 0.0f, -1.0f, 16.0f);
@@ -772,7 +772,7 @@ bool RunGsFailureProbe(const char * name)
         else if (strcmp(name, "renderer-ui-capacity") == 0)
         {
             (void)ui::AllocTrisForImage(ui::kMaxVertices + 1, kTriangleIndices, 3,
-                                        render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+                                        renderer::ConsoleWhiteImage(), renderer::gs::BlendMode::Replace);
         }
         else if (idStr::Cmpn(name, "renderer-ui-mask-", 17) == 0)
         {
@@ -793,7 +793,7 @@ bool RunGsFailureProbe(const char * name)
                     idVec2(24, 24), idVec2(24, 64), idVec2(0, 64)
                 };
                 idDrawVert * const vertices = ui::AllocTrisForImage(6, kConcaveIndices, 12,
-                                                                    render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+                                                                    renderer::ConsoleWhiteImage(), renderer::gs::BlendMode::Replace);
                 for (int vertex = 0; vertex < 6; ++vertex)
                 {
                     IndexedVertex(vertices[vertex], positions[vertex].x, positions[vertex].y,
@@ -803,7 +803,7 @@ bool RunGsFailureProbe(const char * name)
             else
             {
                 idDrawVert * const vertices = ui::AllocTrisForImage(4, kQuadIndices, 6,
-                                                                    render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+                                                                    renderer::ConsoleWhiteImage(), renderer::gs::BlendMode::Replace);
                 const idVec2 positions[] = { idVec2(0, 0), idVec2(64, 0), idVec2(64, 64), idVec2(0, 64) };
                 IndexedQuad(vertices, positions, 0, 0, 1, 1, { 255, 255, 255, 255 });
             }
@@ -842,11 +842,11 @@ bool RunGsFailureProbe(const char * name)
                 vertices[0].color2[0] = 0;
             }
             ui::DrawIndexed(vertices, 3, strcmp(name, "renderer-ui-indices") == 0 ? badIndices : kTriangleIndices,
-                            3, render::ConsoleWhiteImage(), gs::BlendMode::Replace);
+                            3, renderer::ConsoleWhiteImage(), renderer::gs::BlendMode::Replace);
             ui::Flush();
         }
     }
     FatalError("GS failure probe unexpectedly returned");
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

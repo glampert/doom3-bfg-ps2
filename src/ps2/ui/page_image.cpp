@@ -1,14 +1,14 @@
 // ================================================================================================
-// File: ui_page_image.cpp
+// File: page_image.cpp
 // Brief: Validate compact page tables, verify streamed pixels and fence fixed-slot texture reuse.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_page_image.h"
+#include "ps2/ui/page_image.h"
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
+#include "ps2/ui/draw.h"
 
 #include <idlib/precompiled.h>
 
@@ -61,17 +61,17 @@ PageCacheStats PageCache::GetStats() const
     return m_stats;
 }
 
-PS2_COLD_FUNC bool PageCache::Init(u32 slots, tex::Sampler sampler)
+PS2_COLD_FUNC bool PageCache::Init(u32 slots, renderer::tex::Sampler sampler)
 {
-    if (m_scratch != nullptr || !rs::IsInitialized() || slots == 0 || slots > kMaxSlots ||
-        (sampler.filter != tex::Filter::Nearest && sampler.filter != tex::Filter::Linear) ||
-        sampler.wrapS != tex::Wrap::Clamp || sampler.wrapT != tex::Wrap::Clamp)
+    if (m_scratch != nullptr || !renderer::IsInitialized() || slots == 0 || slots > kMaxSlots ||
+        (sampler.filter != renderer::tex::Filter::Nearest && sampler.filter != renderer::tex::Filter::Linear) ||
+        sampler.wrapS != renderer::tex::Wrap::Clamp || sampler.wrapT != renderer::tex::Wrap::Clamp)
     {
         return Failed("invalid cache initialization state, slot count or sampler");
     }
 
     m_stats = {};
-    m_scratch = heap::TryAlloc(kPageBytes, TAG_RENDER, 64);
+    m_scratch = system::heap::TryAlloc(kPageBytes, TAG_RENDER, 64);
 
     if (m_scratch == nullptr)
     {
@@ -83,7 +83,7 @@ PS2_COLD_FUNC bool PageCache::Init(u32 slots, tex::Sampler sampler)
 
     for (u32 slot = 0; slot < m_slotCount; ++slot)
     {
-        m_slots[slot].texture = tex::Create(kPageExtent, kPageExtent, sampler,
+        m_slots[slot].texture = renderer::tex::Create(kPageExtent, kPageExtent, sampler,
                                             m_scratch, kPageBytes, kPageExtent * 4U);
 
         if (m_slots[slot].texture.id == 0)
@@ -109,13 +109,13 @@ PS2_COLD_FUNC void PageCache::Shutdown()
     {
         if (slot.texture.id != 0)
         {
-            tex::Destroy(slot.texture);
+            renderer::tex::Destroy(slot.texture);
         }
 
         slot = {};
     }
 
-    heap::Free(m_scratch);
+    system::heap::Free(m_scratch);
     m_scratch = nullptr;
     m_slotCount = 0;
     m_use = 0;
@@ -156,8 +156,8 @@ PS2_COLD_FUNC void PageCache::Detach(PageImage & image)
     {
         // Retire the image's queued draws before its identity can be reused. The shared textures
         // remain allocated; their next Update/Bind also fences before replacing the pixel contents.
-        cmdbuf::Kick();
-        cmdbuf::WaitIdle();
+        renderer::gs::Kick();
+        renderer::gs::WaitIdle();
     }
 
     for (auto & slot : m_slots)
@@ -253,7 +253,7 @@ PS2_COLD_FUNC bool PageImage::Open(const char * path, PageCache & cache, bool ou
     }
 
     const size_t metadataBytes = static_cast<size_t>(m_header.pageCount) * sizeof(PageRecord);
-    m_records = static_cast<PageRecord *>(heap::TryAlloc(metadataBytes, TAG_RENDER));
+    m_records = static_cast<PageRecord *>(system::heap::TryAlloc(metadataBytes, TAG_RENDER));
 
     if (m_records == nullptr)
     {
@@ -294,7 +294,7 @@ PS2_COLD_FUNC void PageImage::Close()
     }
 
     m_ownedCache.Shutdown();
-    heap::Free(m_records);
+    system::heap::Free(m_records);
     m_records = nullptr;
 
     if (m_file != nullptr && std::fclose(m_file) != 0)
@@ -310,7 +310,7 @@ PS2_COLD_FUNC void PageImage::Close()
     m_stats.metadataBytes = 0;
 }
 
-bool PageCache::Load(PageImage & image, u32 page, tex::Handle & texture)
+bool PageCache::Load(PageImage & image, u32 page, renderer::tex::Handle & texture)
 {
     if (!image.IsOpen() || image.m_cache != this || page >= image.m_header.pageCount)
     {
@@ -358,7 +358,7 @@ bool PageCache::Load(PageImage & image, u32 page, tex::Handle & texture)
 
     // Update flushes collected native draws; the subsequent Bind drains queued GS references before
     // replacing this texture's VRAM contents. Failed reads never mutate an existing cache slot.
-    if (!tex::Update(oldest->texture, m_scratch, kPageBytes, kPageExtent * 4U))
+    if (!renderer::tex::Update(oldest->texture, m_scratch, kPageBytes, kPageExtent * 4U))
     {
         return Failed("page texture update");
     }
@@ -377,29 +377,29 @@ bool PageCache::Load(PageImage & image, u32 page, tex::Handle & texture)
 
 bool PageImage::ValidateTriangle(const Vertex (&vertices)[3]) const
 {
-    if (!IsOpen() || !rs::FrameStarted())
+    if (!IsOpen() || !renderer::FrameStarted())
     {
         return Failed("invalid triangle validation state");
     }
 
     FixedTriangle pieces[kMaxPageTriangles] = {};
     int count = 0;
-    const Viewport viewport{ gs::Width(), gs::Height() };
+    const Viewport viewport{ renderer::gs::Width(), renderer::gs::Height() };
     return MapPageTriangle(vertices, viewport, static_cast<int>(m_header.width),
                            static_cast<int>(m_header.height), 0, 0, pieces, count, m_outerGutter) != Result::Invalid;
 }
 
-bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
+bool PageImage::DrawTriangle(const Vertex (&vertices)[3], renderer::gs::BlendMode blend)
 {
-    if (!IsOpen() || !rs::FrameStarted() ||
-        (blend != gs::BlendMode::Replace && blend != gs::BlendMode::StraightAlpha && blend != gs::BlendMode::AdditiveAlpha))
+    if (!IsOpen() || !renderer::FrameStarted() ||
+        (blend != renderer::gs::BlendMode::Replace && blend != renderer::gs::BlendMode::StraightAlpha && blend != renderer::gs::BlendMode::AdditiveAlpha))
     {
         return Failed("invalid draw state");
     }
 
     FixedTriangle pieces[kMaxPageTriangles] = {};
     int count = 0;
-    const Viewport viewport{ gs::Width(), gs::Height() };
+    const Viewport viewport{ renderer::gs::Width(), renderer::gs::Height() };
 
     if (MapPageTriangle(vertices, viewport, static_cast<int>(m_header.width),
                         static_cast<int>(m_header.height), 0, 0, pieces, count, m_outerGutter) == Result::Invalid)
@@ -461,7 +461,7 @@ bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
                 continue;
             }
 
-            tex::Handle texture;
+            renderer::tex::Handle texture;
 
             if (!m_cache->Load(*this, row * m_header.columns + column, texture))
             {
@@ -470,7 +470,7 @@ bool PageImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
 
             for (int triangle = 0; triangle < count; ++triangle)
             {
-                if (!rs::TexturedTriangleFixed(texture, pieces[triangle], blend))
+                if (!renderer::TexturedTriangleFixed(texture, pieces[triangle], blend))
                 {
                     return Failed("page draw submission");
                 }

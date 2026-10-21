@@ -27,7 +27,7 @@ void PrepareMovie(unsigned index, bool execute = false, bool render = false);
 bool MovieExecutionAdmitted();
 bool MovieRenderAdmitted();
 idFile * OpenMovie(const char * logicalPath);
-SwfSummary GetMovieSummary();
+swf::Summary GetMovieSummary();
 void RegisterMaterials();
 bool MaterialText(const char * name, char * output, std::size_t capacity);
 } // namespace ps2::ui::retail

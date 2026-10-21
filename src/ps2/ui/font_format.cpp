@@ -1,12 +1,12 @@
 // ================================================================================================
-// File: ui_font_format.cpp
+// File: font_format.cpp
 // Brief: Check native glyph counts, metrics, Unicode indices and atlas bounds without allocation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_font_format.h"
+#include "ps2/ui/font_format.h"
 
-namespace ps2::fonts
+namespace ps2::ui::fonts
 {
 namespace
 {
@@ -118,4 +118,4 @@ bool ValidateFontBytes(const void * bytes, std::size_t length, std::uint32_t atl
     return true;
 }
 
-} // namespace ps2::fonts
+} // namespace ps2::ui::fonts

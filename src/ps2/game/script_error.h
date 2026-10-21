@@ -8,7 +8,7 @@
 
 #include "ps2/common.h"
 
-namespace ps2::script
+namespace ps2::game::script
 {
 
 // Single EE thread only. Cleanup callbacks must not allocate or report another error.
@@ -42,4 +42,4 @@ public:
 
 [[noreturn]] PS2_COLD_FUNC void Fail(const char * format, ...) PS2_PRINTF_FUNC(1, 2);
 
-} // namespace ps2::script
+} // namespace ps2::game::script

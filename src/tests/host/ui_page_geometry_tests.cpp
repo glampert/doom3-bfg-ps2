@@ -4,7 +4,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_page_geometry.h"
+#include "ps2/ui/page_geometry.h"
 
 #include <array>
 #include <bit>

@@ -32,16 +32,16 @@ If you have questions concerning this license or the applicable additional terms
 // [PS2_D3BFG]: route engine allocations through the backend's tagged, aligned ledger.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #include "ps2/system/heap.h"
-static_assert( TAG_NEW == ps2::heap::kNewTag && TAG_NUM_TAGS <= ps2::heap::kTagCount );
+static_assert( TAG_NEW == ps2::system::heap::kNewTag && TAG_NUM_TAGS <= ps2::system::heap::kTagCount );
 #endif
 
 // [PS2_D3BFG]: Tagged C++ new has non-null zero-size behavior and preserves its type's alignment.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 void * Mem_AllocAligned( size_t size, size_t alignment, memTag_t tag ) {
 	if ( size > static_cast<size_t>( INT_MAX ) || tag < 0 || tag >= TAG_NUM_TAGS ) {
-		ps2::heap::Fail( "invalid aligned Doom allocation" );
+		ps2::system::heap::Fail( "invalid aligned Doom allocation" );
 	}
-	return ps2::heap::Alloc( size, static_cast<uint16_t>( tag ), alignment );
+	return ps2::system::heap::Alloc( size, static_cast<uint16_t>( tag ), alignment );
 }
 #endif
 
@@ -65,9 +65,9 @@ void * Mem_Alloc16( const int size, const memTag_t tag ) {
 	// [PS2_D3BFG]: reject signed overflow/invalid tags before converting to size_t.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 	if ( size < 0 || tag < 0 || tag >= TAG_NUM_TAGS ) {
-		ps2::heap::Fail( "invalid Doom allocation" );
+		ps2::system::heap::Fail( "invalid Doom allocation" );
 	}
-	return ps2::heap::Alloc( static_cast<size_t>( size ), static_cast<uint16_t>( tag ), 16 );
+	return ps2::system::heap::Alloc( static_cast<size_t>( size ), static_cast<uint16_t>( tag ), 16 );
 #else
 	const int paddedSize = ( size + 15 ) & ~15;
 	return _aligned_malloc( paddedSize, 16 );
@@ -85,7 +85,7 @@ void Mem_Free16( void *ptr ) {
 	}
 	// [PS2_D3BFG]: metadata records the requested size even for unsized deletes.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	ps2::heap::Free( ptr );
+	ps2::system::heap::Free( ptr );
 #else
 	_aligned_free( ptr );
 #endif

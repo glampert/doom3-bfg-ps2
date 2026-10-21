@@ -301,7 +301,7 @@ def read_texture(path) -> Texture:
 
 
 def runtime_stats(texture: Texture) -> dict:
-    """The counters ps2::ui::PalettedImage reports for an open texture (ui_paletted_image.cpp).
+    """The counters ps2::ui::PalettedImage reports for an open texture (paletted_image.cpp).
 
     Pixel bytes are the CLUT texture (16x16 tiles, four per 64-texel row) plus every decoded page;
     metadata is the tables plus the placement lookup grid (at most 64 cells per axis, 32 texels

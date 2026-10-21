@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: ui_page_image.h
+// File: page_image.h
 // Brief: Stream cooked atlas pages through fixed texture slots without retaining the full image.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
@@ -7,8 +7,8 @@
 #pragma once
 
 #include "ps2/renderer/texture.h"
-#include "ps2/renderer/ui_page_format.h"
-#include "ps2/renderer/ui_page_geometry.h"
+#include "ps2/ui/page_format.h"
+#include "ps2/ui/page_geometry.h"
 
 #include <cstdio>
 
@@ -49,12 +49,12 @@ public:
     virtual bool ValidateTriangle(const Vertex (&vertices)[3]) const = 0;
     // Submission order is preserved. A required caller must handle false; a late failure does not
     // roll back already submitted pieces. Replace, straight-alpha and alpha-weighted add are admitted.
-    virtual bool DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend) = 0;
+    virtual bool DrawTriangle(const Vertex (&vertices)[3], renderer::gs::BlendMode blend) = 0;
 };
 
 class PageImage;
 
-// Initialize after rs, close every attached image, then shut down before the texture owner. All
+// Initialize after the renderer, close every attached image, then shut down before the texture owner. All
 // images share fixed texture slots and one input scratch page. Drawing performs no allocations.
 class PageCache final
 {
@@ -64,7 +64,7 @@ public:
     PageCache(const PageCache &) = delete;
     PageCache & operator=(const PageCache &) = delete;
 
-    bool Init(u32 slots = 2, tex::Sampler sampler = { tex::Filter::Linear });
+    bool Init(u32 slots = 2, renderer::tex::Sampler sampler = { renderer::tex::Filter::Linear });
     void Shutdown();
     bool IsInitialized() const;
     PageCacheStats GetStats() const;
@@ -74,7 +74,7 @@ private:
 
     struct Slot
     {
-        tex::Handle texture;
+        renderer::tex::Handle texture;
         const PageImage * image = nullptr;
         u32 page = 0;
         u64 lastUse = 0;
@@ -82,7 +82,7 @@ private:
 
     bool Attach(PageImage & image);
     void Detach(PageImage & image);
-    bool Load(PageImage & image, u32 page, tex::Handle & texture);
+    bool Load(PageImage & image, u32 page, renderer::tex::Handle & texture);
 
     static constexpr u32 kMaxSlots = 8;
     static constexpr u32 kMaxImages = 32;
@@ -111,7 +111,7 @@ public:
     const PageRecord * GetRecords() const;
     PageImageStats GetStats() const override;
     bool ValidateTriangle(const Vertex (&vertices)[3]) const override;
-    bool DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend) override;
+    bool DrawTriangle(const Vertex (&vertices)[3], renderer::gs::BlendMode blend) override;
 
 private:
     friend class PageCache;

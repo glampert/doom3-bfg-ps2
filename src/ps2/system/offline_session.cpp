@@ -1020,7 +1020,7 @@ private:
         Require(parms.gameMode == GAME_MODE_SINGLEPLAYER && parms.gameMap == GAME_MAP_SINGLEPLAYER && parms.numSlots == 1,
                 "only one-player campaign matches are supported");
         Require((parms.matchFlags & ~MATCH_PRIVATE) == 0, "online/stats/party match flags");
-        Require(ps2::filesystem::IsRelativePath(parms.mapName.c_str()), "campaign map path");
+        Require(ps2::system::filesystem::IsRelativePath(parms.mapName.c_str()), "campaign map path");
     }
 
     OfflineSignIn m_signIn;
@@ -1092,26 +1092,26 @@ void idAchievementSystem::SyncAchievementBits(idLocalUser *)
     // There is no online achievement cache to synchronize. Local bits remain in the transient profile.
 }
 
-namespace ps2::offline
+namespace ps2::system::session
 {
 void Init()
 {
-    session->Initialize();
+    ::session->Initialize();
 }
 
 void Shutdown()
 {
-    session->Shutdown();
+    ::session->Shutdown();
 }
 
 void Frame()
 {
-    session->UpdateSignInManager();
-    session->Pump();
+    ::session->UpdateSignInManager();
+    ::session->Pump();
 }
 
 bool IsInitialized()
 {
     return s_session.Initialized();
 }
-} // namespace ps2::offline
+} // namespace ps2::system::session

@@ -6,11 +6,11 @@
 
 #include "ps2/ui/retail_movie.h"
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
-#include "ps2/renderer/ui_paletted_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
+#include "ps2/ui/draw.h"
 #include "ps2/ui/movie.h"
+#include "ps2/ui/paletted_image.h"
 #include "ps2/ui/retail_assets.h"
 #include "ps2/ui/retail_owner.h"
 #include "ps2/ui/swf_runtime.h"
@@ -51,7 +51,7 @@ void CloseResourceMovie()
 
     if (s_resourceMovie != nullptr && s_resourceMovie->IsResourceExecution())
     {
-        ps2::ui::retail_owner::Shutdown(*s_resourceMovie);
+        ps2::ui::retail::DetachOwner(*s_resourceMovie);
     }
 
     delete s_resourceMovie;
@@ -63,7 +63,7 @@ void CloseResourceMovie()
 
     if (releasedMovie >= 0)
     {
-        const auto heap = ps2::heap::GetTotalStats();
+        const auto heap = ps2::system::heap::GetTotalStats();
         const auto textures = ps2::ui::GetPaletteStats();
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL released movie=%d images=%u heap=%zu/%zu/%zu\n",
                  releasedMovie, textures.images, heap.requestedBytes, heap.backingBytes, heap.allocationCount);
@@ -121,7 +121,7 @@ void ExecutionStatus()
     unsigned texts = 0;
     unsigned depth = 0;
     CountHierarchy(root, 1, sprites, texts, depth);
-    ps2::ui::retail_owner::Status();
+    ps2::ui::retail::OwnerStatus();
     const auto stats = ps2::ui::swf::GetStats();
     ps2::Log(ps2::LogLevel::Info,
              "[D3BFG] RETAIL execution movie=%d ticks=%u root=%u sprites=%u texts=%u instructions=%lu calls=%lu commands=%lu depth=%u native_steps=%u\n",
@@ -140,7 +140,7 @@ void ExecutionStatus()
 
 void Status()
 {
-    const auto heap = ps2::heap::GetTotalStats();
+    const auto heap = ps2::system::heap::GetTotalStats();
     if (!s_loaded)
     {
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL state=unloaded cycle=%u heap=%zu/%zu/%zu\n",
@@ -179,7 +179,7 @@ void Status()
 
     const auto font = CurrentFont();
     const auto textures = ps2::ui::GetPaletteStats();
-    const auto residency = ps2::tex::GetStats();
+    const auto residency = ps2::renderer::tex::GetStats();
     ps2::Log(ps2::LogLevel::Info,
              "[D3BFG] RETAIL state=loaded cycle=%u font=%u name=%s frames=%u heap=%zu/%zu/%zu\n",
              s_cycle, s_font, font.family, s_frames, heap.requestedBytes, heap.backingBytes, heap.allocationCount);
@@ -217,7 +217,7 @@ void OpenConsole()
 
 void Unload(bool restoreConsole)
 {
-    if (ps2::rs::FrameStarted())
+    if (ps2::renderer::FrameStarted())
     {
         ps2::FatalError("cannot unload the retail font proof during drawing");
     }
@@ -234,7 +234,7 @@ void Unload(bool restoreConsole)
 
 void Load()
 {
-    if (s_loaded || ps2::movie::IsLoaded() || ps2::rs::FrameStarted() || s_cycle == UINT_MAX)
+    if (s_loaded || ps2::ui::authored::IsLoaded() || ps2::renderer::FrameStarted() || s_cycle == UINT_MAX)
     {
         ps2::FatalError("invalid native retail font proof load ownership");
     }
@@ -276,7 +276,7 @@ void Load()
 // Present draws the complete dialog movie with the native quit confirmation instead of isolated labels.
 void LoadResourceMovie(unsigned index, bool execute = false, bool present = false)
 {
-    if (!s_loaded || ps2::rs::FrameStarted() || index >= 2 || (present && (!execute || index != 1)))
+    if (!s_loaded || ps2::renderer::FrameStarted() || index >= 2 || (present && (!execute || index != 1)))
     {
         ps2::FatalError("retail movie requires an idle loaded resource screen");
     }
@@ -317,11 +317,11 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
     {
         if (present)
         {
-            ps2::ui::retail_owner::ShowQuitDialog(*s_resourceMovie);
+            ps2::ui::retail::ShowQuitDialog(*s_resourceMovie);
         }
         else
         {
-            ps2::ui::retail_owner::Init(*s_resourceMovie, index);
+            ps2::ui::retail::AttachOwner(*s_resourceMovie, index);
         }
 
         ps2::ui::swf::ResetStats();
@@ -398,7 +398,7 @@ void Control(const idCmdArgs & args)
     {
         const char * const index = args.Argv(2);
         if (!s_loaded || args.Argc() != 3 || index[0] < '0' || index[0] > '7' ||
-            index[1] != '\0' || static_cast<u32>(index[0] - '0') >= s_fontCount || ps2::rs::FrameStarted())
+            index[1] != '\0' || static_cast<u32>(index[0] - '0') >= s_fontCount || ps2::renderer::FrameStarted())
         {
             ps2::FatalError("ps2_uiRetail font requires one admitted font index while loaded");
         }
@@ -462,9 +462,9 @@ void DrawText(idFont * font, float scale, float baseline)
 }
 } // namespace
 
-namespace ps2::retail_movie
+namespace ps2::ui::retail
 {
-void Init()
+void InitScreen()
 {
     if (s_initialized || !ui::IsInitialized())
     {
@@ -476,7 +476,7 @@ void Init()
     s_initialized = true;
 }
 
-void Shutdown()
+void ShutdownScreen()
 {
     if (!s_initialized)
     {
@@ -494,19 +494,19 @@ void Shutdown()
     s_initialized = false;
 }
 
-bool IsLoaded()
+bool IsScreenLoaded()
 {
     return s_loaded;
 }
 
-void Advance(bool advance)
+void AdvanceScreen(bool advance)
 {
     if (!advance || s_resourceMovie == nullptr || !s_resourceMovie->IsResourceExecution())
     {
         return;
     }
 
-    if (rs::FrameStarted() || s_executionTicks == UINT_MAX || s_nativeSteps > UINT_MAX - 10)
+    if (renderer::FrameStarted() || s_executionTicks == UINT_MAX || s_nativeSteps > UINT_MAX - 10)
     {
         FatalError("retail execution frame ownership or counter overflow");
     }
@@ -518,14 +518,14 @@ void Advance(bool advance)
     ++s_executionTicks;
 }
 
-void Render(bool advance)
+void RenderScreen(bool advance)
 {
     if (!s_loaded)
     {
         return;
     }
 
-    if (!ui::IsInitialized() || !rs::FrameStarted() || movie::IsLoaded())
+    if (!ui::IsInitialized() || !renderer::FrameStarted() || ui::authored::IsLoaded())
     {
         FatalError("invalid native retail font proof presentation ownership");
     }
@@ -587,4 +587,4 @@ void Render(bool advance)
 
     renderSystem->SetColor(colorWhite);
 }
-} // namespace ps2::retail_movie
+} // namespace ps2::ui::retail

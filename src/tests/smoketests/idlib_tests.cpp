@@ -10,7 +10,7 @@
 // Upstream headers are a system include for this strict C++20 test translation unit.
 #include <idlib/precompiled.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -63,7 +63,7 @@ bool CheckMatrix()
 bool CheckPolynomialLifetime()
 {
     const auto tag = static_cast<std::uint16_t>(TAG_MATH);
-    const ps2::heap::Stats initial = ps2::heap::GetStats(tag);
+    const ps2::system::heap::Stats initial = ps2::system::heap::GetStats(tag);
     bool passed = false;
     {
         const idPolynomial original(1.0f, 2.0f, 3.0f);
@@ -75,7 +75,7 @@ bool CheckPolynomialLifetime()
         passed = Near(original.GetValue(0.0f), 3.0f) && Near(copy.GetValue(0.0f), 7.0f) &&
                  Near(assigned.GetValue(0.0f), 10.0f);
     }
-    const ps2::heap::Stats final = ps2::heap::GetStats(tag);
+    const ps2::system::heap::Stats final = ps2::system::heap::GetStats(tag);
     passed = passed && final.requestedBytes == initial.requestedBytes &&
              final.backingBytes == initial.backingBytes && final.allocationCount == initial.allocationCount;
     return Check("polynomial-copy-lifetime", passed);
@@ -89,12 +89,12 @@ bool CheckTaggedAlignment()
     };
 
     const auto tag = static_cast<std::uint16_t>(TAG_TEMP);
-    const ps2::heap::Stats before = ps2::heap::GetStats(tag);
+    const ps2::system::heap::Stats before = ps2::system::heap::GetStats(tag);
     auto * allocation = new (TAG_TEMP) AlignedValue{ 42 };
     bool passed = reinterpret_cast<std::uintptr_t>(allocation) % 128 == 0 && allocation->value == 42 &&
-                  ps2::heap::GetStats(tag).requestedBytes == before.requestedBytes + sizeof(AlignedValue);
+                  ps2::system::heap::GetStats(tag).requestedBytes == before.requestedBytes + sizeof(AlignedValue);
     delete allocation;
-    const ps2::heap::Stats after = ps2::heap::GetStats(tag);
+    const ps2::system::heap::Stats after = ps2::system::heap::GetStats(tag);
     passed = passed && after.requestedBytes == before.requestedBytes &&
              after.backingBytes == before.backingBytes && after.allocationCount == before.allocationCount;
     return Check("tagged-overaligned-new", passed);
@@ -237,14 +237,14 @@ bool CheckEvents()
     Sys_ClearEvents();
     constexpr int kQueueCapacity = 64;
     const auto tag = static_cast<std::uint16_t>(TAG_EVENTS);
-    const ps2::heap::Stats initial = ps2::heap::GetStats(tag);
+    const ps2::system::heap::Stats initial = ps2::system::heap::GetStats(tag);
     for (int index = 0; index <= kQueueCapacity; ++index)
     {
         auto * payload = static_cast<int *>(Mem_Alloc(static_cast<int>(sizeof(int)), TAG_EVENTS));
         *payload = index;
         Sys_QueEvent(SE_CONSOLE, index, 0, static_cast<int>(sizeof(int)), payload, 0);
     }
-    const ps2::heap::Stats queued = ps2::heap::GetStats(tag);
+    const ps2::system::heap::Stats queued = ps2::system::heap::GetStats(tag);
     bool passed = queued.allocationCount == initial.allocationCount + kQueueCapacity &&
                   queued.requestedBytes == initial.requestedBytes + kQueueCapacity * sizeof(int);
     for (int expected = 1; expected <= kQueueCapacity; ++expected)
@@ -262,7 +262,7 @@ bool CheckEvents()
     void * discarded = Mem_Alloc(8, TAG_EVENTS);
     Sys_QueEvent(SE_CONSOLE, 0, 0, 8, discarded, 0);
     Sys_ClearEvents();
-    const ps2::heap::Stats final = ps2::heap::GetStats(tag);
+    const ps2::system::heap::Stats final = ps2::system::heap::GetStats(tag);
     passed = final.allocationCount == initial.allocationCount &&
              final.requestedBytes == initial.requestedBytes && final.backingBytes == initial.backingBytes && passed;
     return Check("event-overflow-transfer-clear-ledger", passed);
@@ -322,4 +322,4 @@ bool RunIdlibTests()
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

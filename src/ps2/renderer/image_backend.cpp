@@ -5,14 +5,14 @@
 // ================================================================================================
 
 #include "ps2/renderer/image_backend.h"
-#include "ps2/renderer/charset.h"
 #include "ps2/renderer/null_render.h"
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_page_image.h"
-#include "ps2/renderer/ui_paletted_image.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/authored_ui_data.h"
+#include "ps2/ui/charset.h"
+#include "ps2/ui/page_image.h"
+#include "ps2/ui/paletted_image.h"
 #include "ps2/ui/retail_assets.h"
 
 #include <idlib/precompiled.h>
@@ -21,7 +21,7 @@
 
 struct idImage::backendState_t
 {
-    ps2::tex::Handle texture;
+    ps2::renderer::tex::Handle texture;
     int storageBytes;
     ps2::ui::PagedImage * pages = nullptr;
 };
@@ -105,10 +105,10 @@ bool SupportedSampler(const idImage * image, textureFilter_t filter, textureRepe
     return (filter == TF_DEFAULT || filter == TF_NEAREST) && repeat == TR_CLAMP;
 }
 
-ps2::tex::Sampler ImageSampler(const idImage * image)
+ps2::renderer::tex::Sampler ImageSampler(const idImage * image)
 {
-    return { ps2::tex::Filter::Nearest, image == globalImages->whiteImage ? ps2::tex::Wrap::Repeat : ps2::tex::Wrap::Clamp,
-             image == globalImages->whiteImage ? ps2::tex::Wrap::Repeat : ps2::tex::Wrap::Clamp };
+    return { ps2::renderer::tex::Filter::Nearest, image == globalImages->whiteImage ? ps2::renderer::tex::Wrap::Repeat : ps2::renderer::tex::Wrap::Clamp,
+             image == globalImages->whiteImage ? ps2::renderer::tex::Wrap::Repeat : ps2::renderer::tex::Wrap::Clamp };
 }
 
 } // namespace
@@ -116,12 +116,12 @@ ps2::tex::Sampler ImageSampler(const idImage * image)
 PS2_COLD_FUNC void idImage::LoadPageImage(const ps2::ui::authored::PageResource & resource)
 {
     idImage * const image = this;
-    if (ps2::rs::FrameStarted() || image->backendState != nullptr)
+    if (ps2::renderer::FrameStarted() || image->backendState != nullptr)
     {
         ps2::FatalError("invalid native UI page load ownership");
     }
 
-    if (!s_pageCache.IsInitialized() && !s_pageCache.Init(kPageSlots, { ps2::tex::Filter::Nearest }))
+    if (!s_pageCache.IsInitialized() && !s_pageCache.Init(kPageSlots, { ps2::renderer::tex::Filter::Nearest }))
     {
         ps2::FatalError("native UI shared page budget unavailable");
     }
@@ -150,7 +150,7 @@ PS2_COLD_FUNC void idImage::LoadPageImage(const ps2::ui::authored::PageResource 
 
     // Only checked metadata is resident here. Each page is verified against the admitted table
     // before its first upload; a corrupt unread page cannot replace a valid cached page.
-    image->backendState = new (ps2::heap::Alloc(sizeof(idImage::backendState_t), TAG_RENDER))
+    image->backendState = new (ps2::system::heap::Alloc(sizeof(idImage::backendState_t), TAG_RENDER))
     idImage::backendState_t{ {}, static_cast<int>(header.pageCount * sizeof(ps2::ui::PageRecord)), pages };
     image->opts = idImageOpts();
     image->opts.width = static_cast<int>(header.width);
@@ -164,7 +164,7 @@ PS2_COLD_FUNC void idImage::LoadPageImage(const ps2::ui::authored::PageResource 
 
 PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource)
 {
-    if (!ps2::ui::retail::IsInitialized() || ps2::rs::FrameStarted() || backendState != nullptr || !IsRetailImage(this))
+    if (!ps2::ui::retail::IsInitialized() || ps2::renderer::FrameStarted() || backendState != nullptr || !IsRetailImage(this))
     {
         ps2::FatalError("invalid retail UI image load ownership");
     }
@@ -197,7 +197,7 @@ PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::retail::ImageReco
 
     // Nothing is shared between paletted images, so each reports its own pixels and tables.
     const auto stats = pages->GetStats();
-    backendState = new (ps2::heap::Alloc(sizeof(backendState_t), TAG_RENDER))
+    backendState = new (ps2::system::heap::Alloc(sizeof(backendState_t), TAG_RENDER))
     backendState_t{ {}, static_cast<int>(stats.cacheBytes + stats.metadataBytes), pages };
     opts = idImageOpts();
     opts.width = static_cast<int>(resource.width);
@@ -209,7 +209,7 @@ PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::retail::ImageReco
     usage = font ? TD_FONT : TD_DEFAULT;
 }
 
-namespace ps2::render
+namespace ps2::renderer
 {
 bool InitConsoleImages()
 {
@@ -217,8 +217,8 @@ bool InitConsoleImages()
     {
         FatalError("console images initialized twice");
     }
-    if (!rs::IsInitialized() || !tex::IsInitialized() || rs::FrameStarted() ||
-        vram::GetStats().capacityBytes < kConsoleAtlasBytes)
+    if (!renderer::IsInitialized() || !tex::IsInitialized() || renderer::FrameStarted() ||
+        gs::GetVramStats().capacityBytes < ui::fonts::kConsoleAtlasBytes)
     {
         return false;
     }
@@ -285,7 +285,7 @@ ui::PageCacheStats GetUiPageStats()
 {
     return s_pageCache.GetStats();
 }
-} // namespace ps2::render
+} // namespace ps2::renderer
 
 bool idImage::IsLoaded() const
 {
@@ -298,9 +298,9 @@ void idImage::PurgeImage()
     {
         return;
     }
-    if (!SupportedImage(this) || !ps2::tex::IsInitialized())
+    if (!SupportedImage(this) || !ps2::renderer::tex::IsInitialized())
     {
-        ps2::render::Unavailable("idImage::PurgeImage outside the console profile");
+        ps2::renderer::Unavailable("idImage::PurgeImage outside the console profile");
     }
     if (backendState->pages != nullptr)
     {
@@ -308,10 +308,10 @@ void idImage::PurgeImage()
     }
     else
     {
-        ps2::tex::Destroy(backendState->texture);
+        ps2::renderer::tex::Destroy(backendState->texture);
     }
 
-    ps2::heap::Free(backendState);
+    ps2::system::heap::Free(backendState);
     backendState = nullptr;
 }
 
@@ -323,12 +323,12 @@ int idImage::StorageSize() const
 void idImage::GenerateImage(const byte * rgba, int width, int height, textureFilter_t tf, textureRepeat_t tr, textureUsage_t tu)
 {
     const bool white = this == globalImages->whiteImage;
-    const int expectedWidth = white ? 1 : ps2::render::kConsoleAtlasSize;
-    const int expectedHeight = white ? 1 : ps2::render::kConsoleAtlasSize;
+    const int expectedWidth = white ? 1 : ps2::ui::fonts::kConsoleAtlasSize;
+    const int expectedHeight = white ? 1 : ps2::ui::fonts::kConsoleAtlasSize;
     if (this == s_fontImage || this == s_movieImage || IsRetailImage(this) || !SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
         width != expectedWidth || height != expectedHeight)
     {
-        ps2::render::Unavailable("idImage::GenerateImage outside the console profile");
+        ps2::renderer::Unavailable("idImage::GenerateImage outside the console profile");
     }
     if (rgba == nullptr)
     {
@@ -336,22 +336,22 @@ void idImage::GenerateImage(const byte * rgba, int width, int height, textureFil
     }
     if (white && (rgba[0] != 255 || rgba[1] != 255 || rgba[2] != 255 || rgba[3] != 255))
     {
-        ps2::render::Unavailable("idImage::GenerateImage nonwhite intrinsic pixels");
+        ps2::renderer::Unavailable("idImage::GenerateImage nonwhite intrinsic pixels");
     }
     const auto sampler = ImageSampler(this);
-    ps2::tex::Layout layout = {};
-    if (!ps2::tex::MakeLayout(width, height, sampler, layout))
+    ps2::renderer::tex::Layout layout = {};
+    if (!ps2::renderer::tex::MakeLayout(width, height, sampler, layout))
     {
         ps2::FatalError("invalid console image layout");
     }
     PurgeImage();
     const size_t stride = static_cast<size_t>(width) * 4U;
-    const auto texture = ps2::tex::Create(width, height, sampler, rgba, stride * static_cast<size_t>(height), stride);
+    const auto texture = ps2::renderer::tex::Create(width, height, sampler, rgba, stride * static_cast<size_t>(height), stride);
     if (texture.id == 0)
     {
         ps2::FatalError("console image allocation failed");
     }
-    backendState = new (ps2::heap::Alloc(sizeof(backendState_t), TAG_RENDER)) backendState_t{ texture, static_cast<int>(layout.bytes) };
+    backendState = new (ps2::system::heap::Alloc(sizeof(backendState_t), TAG_RENDER)) backendState_t{ texture, static_cast<int>(layout.bytes) };
     opts = idImageOpts();
     opts.width = width;
     opts.height = height;
@@ -366,7 +366,7 @@ void idImage::SetSamplerState(textureFilter_t tf, textureRepeat_t tr)
 {
     if (!SupportedSampler(this, tf, tr))
     {
-        ps2::render::Unavailable("idImage::SetSamplerState outside the console profile");
+        ps2::renderer::Unavailable("idImage::SetSamplerState outside the console profile");
     }
     // The single white texel has identical output under nearest/linear and repeat/clamp.
     filter = tf;
@@ -379,48 +379,48 @@ PS2_COLD_FUNC void idImageManager::Init()
     {
         ps2::FatalError("console image manager initialized with existing ownership");
     }
-    if (!ps2::rs::IsInitialized() || !ps2::tex::IsInitialized() || ps2::rs::FrameStarted())
+    if (!ps2::renderer::IsInitialized() || !ps2::renderer::tex::IsInitialized() || ps2::renderer::FrameStarted())
     {
-        ps2::render::Unavailable("idImageManager::Init without an idle console device");
+        ps2::renderer::Unavailable("idImageManager::Init without an idle console device");
     }
-    auto * const atlas = ps2::heap::TryAlloc(ps2::render::kConsoleAtlasBytes, TAG_RENDER);
+    auto * const atlas = ps2::system::heap::TryAlloc(ps2::ui::fonts::kConsoleAtlasBytes, TAG_RENDER);
     if (atlas == nullptr)
     {
         return;
     }
-    if (!ps2::render::MakeConsoleCharset(atlas, ps2::render::kConsoleAtlasBytes))
+    if (!ps2::ui::fonts::MakeConsoleCharset(atlas, ps2::ui::fonts::kConsoleAtlasBytes))
     {
         ps2::FatalError("authored console atlas generation failed");
     }
     static constexpr byte kWhite[4] = { 255, 255, 255, 255 };
-    const ps2::tex::Sampler whiteSampler = { ps2::tex::Filter::Nearest, ps2::tex::Wrap::Repeat, ps2::tex::Wrap::Repeat };
-    const ps2::tex::Sampler charsetSampler = {};
-    const auto whiteTexture = ps2::tex::Create(1, 1, whiteSampler, kWhite, sizeof(kWhite), sizeof(kWhite));
-    const auto charsetTexture = ps2::tex::Create(ps2::render::kConsoleAtlasSize, ps2::render::kConsoleAtlasSize,
-                                                 charsetSampler, atlas, ps2::render::kConsoleAtlasBytes,
-                                                 static_cast<size_t>(ps2::render::kConsoleAtlasSize) * 4U);
-    ps2::heap::Free(atlas);
-    auto * const whiteStorage = ps2::heap::TryAlloc(sizeof(idImage::backendState_t), TAG_RENDER);
-    auto * const charsetStorage = ps2::heap::TryAlloc(sizeof(idImage::backendState_t), TAG_RENDER);
+    const ps2::renderer::tex::Sampler whiteSampler = { ps2::renderer::tex::Filter::Nearest, ps2::renderer::tex::Wrap::Repeat, ps2::renderer::tex::Wrap::Repeat };
+    const ps2::renderer::tex::Sampler charsetSampler = {};
+    const auto whiteTexture = ps2::renderer::tex::Create(1, 1, whiteSampler, kWhite, sizeof(kWhite), sizeof(kWhite));
+    const auto charsetTexture = ps2::renderer::tex::Create(ps2::ui::fonts::kConsoleAtlasSize, ps2::ui::fonts::kConsoleAtlasSize,
+                                                 charsetSampler, atlas, ps2::ui::fonts::kConsoleAtlasBytes,
+                                                 static_cast<size_t>(ps2::ui::fonts::kConsoleAtlasSize) * 4U);
+    ps2::system::heap::Free(atlas);
+    auto * const whiteStorage = ps2::system::heap::TryAlloc(sizeof(idImage::backendState_t), TAG_RENDER);
+    auto * const charsetStorage = ps2::system::heap::TryAlloc(sizeof(idImage::backendState_t), TAG_RENDER);
     if (whiteTexture.id == 0 || charsetTexture.id == 0 || whiteStorage == nullptr || charsetStorage == nullptr)
     {
-        ps2::tex::Destroy(charsetTexture);
-        ps2::tex::Destroy(whiteTexture);
-        ps2::heap::Free(charsetStorage);
-        ps2::heap::Free(whiteStorage);
+        ps2::renderer::tex::Destroy(charsetTexture);
+        ps2::renderer::tex::Destroy(whiteTexture);
+        ps2::system::heap::Free(charsetStorage);
+        ps2::system::heap::Free(whiteStorage);
         return;
     }
     whiteImage = new (TAG_IMAGE) idImage(kWhiteName);
     s_charsetImage = new (TAG_IMAGE) idImage(kCharsetName);
-    ps2::tex::Layout whiteLayout = {};
-    if (!ps2::tex::MakeLayout(1, 1, whiteSampler, whiteLayout))
+    ps2::renderer::tex::Layout whiteLayout = {};
+    if (!ps2::renderer::tex::MakeLayout(1, 1, whiteSampler, whiteLayout))
     {
         ps2::FatalError("invalid white intrinsic layout");
     }
     whiteImage->backendState = new (whiteStorage) idImage::backendState_t{ whiteTexture, static_cast<int>(whiteLayout.bytes) };
-    s_charsetImage->backendState = new (charsetStorage) idImage::backendState_t{ charsetTexture, static_cast<int>(ps2::render::kConsoleAtlasBytes) };
+    s_charsetImage->backendState = new (charsetStorage) idImage::backendState_t{ charsetTexture, static_cast<int>(ps2::ui::fonts::kConsoleAtlasBytes) };
     whiteImage->opts.width = whiteImage->opts.height = 1;
-    s_charsetImage->opts.width = s_charsetImage->opts.height = ps2::render::kConsoleAtlasSize;
+    s_charsetImage->opts.width = s_charsetImage->opts.height = ps2::ui::fonts::kConsoleAtlasSize;
     idImage * const intrinsicImages[] = { whiteImage, s_charsetImage };
     for (idImage * image : intrinsicImages)
     {
@@ -443,7 +443,7 @@ PS2_COLD_FUNC void idImageManager::Shutdown()
     {
         return;
     }
-    if (this != globalImages || ps2::rs::FrameStarted())
+    if (this != globalImages || ps2::renderer::FrameStarted())
     {
         ps2::FatalError("console image shutdown requires idle ownership");
     }
@@ -468,7 +468,7 @@ idImage * idImageManager::GetImage(const char * name) const
 {
     if (!s_initialized || this != globalImages)
     {
-        ps2::render::Unavailable("idImageManager::GetImage outside the console profile");
+        ps2::renderer::Unavailable("idImageManager::GetImage outside the console profile");
     }
     if (IsWhiteName(name))
     {
@@ -514,7 +514,7 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
 {
     if (!s_initialized || this != globalImages)
     {
-        ps2::render::Unavailable("idImageManager::ImageFromFile");
+        ps2::renderer::Unavailable("idImageManager::ImageFromFile");
     }
 
     ps2::ui::retail::ImageRecord retail;
@@ -562,7 +562,7 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
         if ((tf != TF_DEFAULT && tf != TF_NEAREST) || tr != TR_CLAMP ||
             (tu != TD_DEFAULT && tu != TD_FONT) || cube != CF_2D)
         {
-            ps2::render::Unavailable("authored native page sampler profile");
+            ps2::renderer::Unavailable("authored native page sampler profile");
         }
         idImage * const image = new (TAG_IMAGE) idImage(resource->imageName);
         (IsFontName(name) ? s_fontImage : s_movieImage) = image;
@@ -581,7 +581,7 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
     {
         if (resource == nullptr)
         {
-            ps2::render::Unavailable("idImageManager::ImageFromFile with purged intrinsic");
+            ps2::renderer::Unavailable("idImageManager::ImageFromFile with purged intrinsic");
         }
         image->LoadPageImage(*resource);
     }

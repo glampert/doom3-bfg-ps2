@@ -31,22 +31,22 @@ static constexpr std::uint16_t kZipTag = static_cast<std::uint16_t>(EngineTag::Z
 // These typed hooks replace jmemnobs.cpp; the codec handles a null allocation through its error exit.
 void * jpeg_get_small(j_common_ptr, size_t bytes)
 {
-    return ps2::heap::TryAlloc(bytes, kJpegTag);
+    return ps2::system::heap::TryAlloc(bytes, kJpegTag);
 }
 
 void * jpeg_get_large(j_common_ptr, size_t bytes)
 {
-    return ps2::heap::TryAlloc(bytes, kJpegTag);
+    return ps2::system::heap::TryAlloc(bytes, kJpegTag);
 }
 
 void jpeg_free_small(j_common_ptr, void * pointer, size_t)
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void jpeg_free_large(j_common_ptr, void * pointer, size_t)
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 long jpeg_mem_available(j_common_ptr, long, long maximum, long)
@@ -79,12 +79,12 @@ extern "C"
         {
             return nullptr;
         }
-        return ps2::heap::TryAlloc(count * stride, kZipTag);
+        return ps2::system::heap::TryAlloc(count * stride, kZipTag);
     }
 
     void zcfree(voidpf, voidpf pointer)
     {
-        ps2::heap::Free(pointer);
+        ps2::system::heap::Free(pointer);
     }
 }
 

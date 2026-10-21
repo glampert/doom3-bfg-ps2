@@ -20,25 +20,25 @@ int main()
     // Preserve the loader's IOP and HostFs until console device bring-up is available.
     SifInitRpc(0);
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] BOOT production BEGIN\n");
-    ps2::runtime::ConfigurePresentation();
-    const auto baseline = ps2::heap::GetTotalStats();
+    ps2::system::runtime::ConfigurePresentation();
+    const auto baseline = ps2::system::heap::GetTotalStats();
     common->Init(0, nullptr, nullptr);
     if (!common->IsInitialized())
     {
         ps2::FatalError("production Common startup did not complete");
     }
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] LOOP ready; native game and %s console active\n",
-             ps2::runtime::HasPresentation() ? "visible" : "headless");
+             ps2::system::runtime::HasPresentation() ? "visible" : "headless");
     // A separate optional port config avoids executing desktop default.cfg device bindings.
     cmdSystem->BufferCommandText(CMD_EXEC_APPEND, "exec d3bfg.cfg\n");
 
-    while (!ps2::runtime::IsQuitRequested())
+    while (!ps2::system::runtime::IsQuitRequested())
     {
         const uint64 frameStart = Sys_Microseconds();
         // Process console events, commands and native game work on this thread.
         common->Frame();
         const uint64 elapsed = Sys_Microseconds() - frameStart;
-        if (!ps2::runtime::HasPresentation() && !ps2::runtime::IsQuitRequested() && elapsed < kFrameMicroseconds)
+        if (!ps2::system::runtime::HasPresentation() && !ps2::system::runtime::IsQuitRequested() && elapsed < kFrameMicroseconds)
         {
             const uint64 remaining = kFrameMicroseconds - elapsed;
             Sys_Sleep(static_cast<int>((remaining + 999U) / 1000U));
@@ -46,8 +46,8 @@ int main()
     }
 
     common->Shutdown();
-    const auto final = ps2::heap::GetTotalStats();
-    const auto arena = ps2::heap::GetArenaStats();
+    const auto final = ps2::system::heap::GetTotalStats();
+    const auto arena = ps2::system::heap::GetArenaStats();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] HEADLESS memory baseline=%zu/%zu/%zu final=%zu/%zu/%zu peak=%zu/%zu arena=%zu\n",
              baseline.requestedBytes, baseline.backingBytes, baseline.allocationCount,
              final.requestedBytes, final.backingBytes, final.allocationCount,

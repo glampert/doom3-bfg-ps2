@@ -60,11 +60,11 @@ int main()
     }
     std::fclose(input);
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] SCRIPT BEGIN %s %s\n", s_testId, mode);
-    ps2::core::Init();
-    const ps2::heap::Stats baseline = ps2::heap::GetTotalStats();
+    ps2::system::lifecycle::InitCore();
+    const ps2::system::heap::Stats baseline = ps2::system::heap::GetTotalStats();
     s_program = new idProgram;
     {
-        ps2::script::ErrorScope cleanup(Cleanup, nullptr);
+        ps2::game::script::ErrorScope cleanup(Cleanup, nullptr);
         s_program->BeginCompilation();
         if (std::strcmp(mode, "valid") == 0)
         {
@@ -79,7 +79,7 @@ int main()
                     ps2::FatalError("compiler fixture produced incorrect definitions");
                 }
                 s_program->FreeData();
-                if (s_program->NumStatements() != 0 || ps2::script::ErrorScope::IsActive() == false)
+                if (s_program->NumStatements() != 0 || ps2::game::script::ErrorScope::IsActive() == false)
                 {
                     ps2::FatalError("compiler fixture did not reset its program");
                 }
@@ -147,7 +147,7 @@ int main()
         }
         else if (std::strcmp(mode, "globals") == 0)
         {
-            ps2::script::ErrorScope::SetLocation("globals.fixture", 1);
+            ps2::game::script::ErrorScope::SetLocation("globals.fixture", 1);
             for (int index = 0; index <= MAX_GLOBALS / MAX_STRING_LEN; ++index)
             {
                 s_program->AllocDef(&type_string, "s", &def_namespace, false);
@@ -155,7 +155,7 @@ int main()
         }
         else if (std::strcmp(mode, "statements") == 0)
         {
-            ps2::script::ErrorScope::SetLocation("statements.fixture", 1);
+            ps2::game::script::ErrorScope::SetLocation("statements.fixture", 1);
             for (int index = 0; index < MAX_STATEMENTS; ++index)
             {
                 s_program->AllocStatement();
@@ -163,7 +163,7 @@ int main()
         }
         else if (std::strcmp(mode, "functions") == 0)
         {
-            ps2::script::ErrorScope::SetLocation("functions.fixture", 1);
+            ps2::game::script::ErrorScope::SetLocation("functions.fixture", 1);
             idVarDef * def = s_program->AllocDef(&type_function, "f", &def_namespace, true);
             for (int index = 0; index <= MAX_FUNCS; ++index)
             {
@@ -177,10 +177,10 @@ int main()
     }
     delete s_program;
     s_program = nullptr;
-    const ps2::heap::Stats after = ps2::heap::GetTotalStats();
+    const ps2::system::heap::Stats after = ps2::system::heap::GetTotalStats();
     const bool recovered = baseline.requestedBytes == after.requestedBytes &&
                            baseline.backingBytes == after.backingBytes && baseline.allocationCount == after.allocationCount;
-    ps2::core::Shutdown();
+    ps2::system::lifecycle::ShutdownCore();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] SCRIPT RESULT %s %s\n", s_testId, recovered ? "PASS" : "FAIL");
 
     while (true)

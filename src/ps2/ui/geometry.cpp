@@ -1,10 +1,10 @@
 // ================================================================================================
-// File: ui_geometry.cpp
+// File: geometry.cpp
 // Brief: Preserve fractional UI positions and interpolate clipped UVs without GS register wrap.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_geometry.h"
+#include "ps2/ui/geometry.h"
 
 #include <bit>
 #include <cstdint>

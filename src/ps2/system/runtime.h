@@ -6,7 +6,7 @@
 
 #pragma once
 
-namespace ps2::runtime
+namespace ps2::system::runtime
 {
 void RequestQuit();
 bool IsQuitRequested();
@@ -19,4 +19,4 @@ void BeginPresentationFrame();
 void PresentConsoleFrame(int frames);
 void UpdateScreen(bool captureToImage);
 void LogPresentationStatus(int frames);
-} // namespace ps2::runtime
+} // namespace ps2::system::runtime

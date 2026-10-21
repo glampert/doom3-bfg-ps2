@@ -6,11 +6,11 @@
 
 #pragma once
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 bool RunOfflineTests();
 bool IsCommonProbe(const char * path);
 bool RunCommonProbe(const char * path);
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

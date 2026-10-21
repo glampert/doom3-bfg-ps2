@@ -6,10 +6,10 @@
 
 #pragma once
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 bool RunInputTests();
 bool RunInputFailureProbe(const char * name);
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

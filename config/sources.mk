@@ -14,7 +14,7 @@ RENDER_STUB_CXX_SRC = \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp
 
-SIZE_OPT_CXX_SRC = ps2/ui/retail_owner.cpp ps2/ui/swf_execution.cpp ps2/ui/swf_format.cpp ps2/ui/retail_catalog.cpp ps2/ui/retail_assets.cpp ps2/ui/retail_materials.cpp ps2/renderer/ui_font_format.cpp ps2/renderer/ui_page_image.cpp ps2/renderer/gstx_format.cpp ps2/renderer/ui_paletted_image.cpp ps2/ui/authored_assets.cpp ps2/renderer/font_backend.cpp $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/cmd_buffer.cpp ps2/renderer/texture_layout.cpp ps2/renderer/vram.cpp ps2/renderer/texture.cpp ps2/renderer/capture.cpp ps2/renderer/charset.cpp ps2/renderer/image_backend.cpp
+SIZE_OPT_CXX_SRC = ps2/ui/retail_owner.cpp ps2/ui/swf_execution.cpp ps2/ui/swf_format.cpp ps2/ui/retail_catalog.cpp ps2/ui/retail_assets.cpp ps2/ui/retail_materials.cpp ps2/ui/font_format.cpp ps2/ui/page_image.cpp ps2/ui/gstx_format.cpp ps2/ui/paletted_image.cpp ps2/ui/authored_assets.cpp ps2/ui/font_backend.cpp $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/cmd_buffer.cpp ps2/renderer/texture_layout.cpp ps2/renderer/vram.cpp ps2/renderer/texture.cpp ps2/renderer/capture.cpp ps2/ui/charset.cpp ps2/renderer/image_backend.cpp
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -87,19 +87,19 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/ui/swf_runtime.cpp \
 	ps2/ui/retail_catalog.cpp \
 	ps2/ui/retail_assets.cpp \
-	ps2/renderer/ui_font_format.cpp \
+	ps2/ui/font_format.cpp \
 	ps2/system/video_mode.cpp \
 	ps2/renderer/gs.cpp \
-	ps2/renderer/ui_geometry.cpp \
-	ps2/renderer/ui_triangles.cpp \
-	ps2/renderer/ui_masks.cpp \
-	ps2/renderer/ui_page_format.cpp \
-	ps2/renderer/ui_page_geometry.cpp \
-	ps2/renderer/ui_page_image.cpp \
-	ps2/renderer/gstx_format.cpp \
-	ps2/renderer/ui_paletted_image.cpp \
-	ps2/renderer/ui_draw.cpp \
-	ps2/renderer/charset.cpp \
+	ps2/ui/geometry.cpp \
+	ps2/ui/triangles.cpp \
+	ps2/ui/masks.cpp \
+	ps2/ui/page_format.cpp \
+	ps2/ui/page_geometry.cpp \
+	ps2/ui/page_image.cpp \
+	ps2/ui/gstx_format.cpp \
+	ps2/ui/paletted_image.cpp \
+	ps2/ui/draw.cpp \
+	ps2/ui/charset.cpp \
 	ps2/renderer/image_backend.cpp \
 	ps2/renderer/texture_layout.cpp \
 	ps2/renderer/vram.cpp \
@@ -493,21 +493,21 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/ui/retail_catalog.cpp \
 	ps2/ui/retail_assets.cpp \
 	ps2/ui/retail_materials.cpp \
-	ps2/renderer/ui_font_format.cpp \
-	ps2/renderer/ui_page_format.cpp \
-	ps2/renderer/ui_page_geometry.cpp \
-	ps2/renderer/ui_page_image.cpp \
-	ps2/renderer/gstx_format.cpp \
-	ps2/renderer/ui_paletted_image.cpp \
+	ps2/ui/font_format.cpp \
+	ps2/ui/page_format.cpp \
+	ps2/ui/page_geometry.cpp \
+	ps2/ui/page_image.cpp \
+	ps2/ui/gstx_format.cpp \
+	ps2/ui/paletted_image.cpp \
 	ps2/ui/authored_assets.cpp \
-	ps2/renderer/font_backend.cpp \
+	ps2/ui/font_backend.cpp \
 	ps2/system/video_mode.cpp \
 	ps2/renderer/gs.cpp \
-	ps2/renderer/ui_geometry.cpp \
-	ps2/renderer/ui_triangles.cpp \
-	ps2/renderer/ui_masks.cpp \
-	ps2/renderer/ui_draw.cpp \
-	ps2/renderer/charset.cpp \
+	ps2/ui/geometry.cpp \
+	ps2/ui/triangles.cpp \
+	ps2/ui/masks.cpp \
+	ps2/ui/draw.cpp \
+	ps2/ui/charset.cpp \
 	ps2/renderer/image_backend.cpp \
 	ps2/renderer/texture_layout.cpp \
 	ps2/renderer/vram.cpp \

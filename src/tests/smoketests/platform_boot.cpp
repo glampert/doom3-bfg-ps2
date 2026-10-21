@@ -13,7 +13,7 @@
 #include <tamtypes.h>
 #include <timer.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -91,4 +91,4 @@ bool RunPlatformTests()
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

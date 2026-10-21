@@ -7,10 +7,10 @@
 #pragma once
 #include "ps2/renderer/gif_writer.h"
 #include "ps2/renderer/texture_layout.h"
-#include "ps2/renderer/ui_triangles.h"
 #include "ps2/system/video_mode.h"
+#include "ps2/ui/triangles.h"
 
-namespace ps2::gs
+namespace ps2::renderer::gs
 {
 enum class DrawContext : int
 {
@@ -27,7 +27,7 @@ enum class BlendMode : u8
 
 struct Config
 {
-    video::Standard standard;
+    system::video::Standard standard;
     int width;
     int height;
 };
@@ -81,4 +81,4 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
                            const ui::FixedTriangle & triangle, BlendMode blend);
 void FillRect(DrawContext context, int x, int y, int width, int height, Color color);
 void Present(DrawContext context);
-} // namespace ps2::gs
+} // namespace ps2::renderer::gs

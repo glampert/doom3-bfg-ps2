@@ -8,7 +8,7 @@
 
 #include "ps2/common.h"
 
-namespace ps2::render
+namespace ps2::renderer
 {
 // CPU model/world ownership only; no device, images, frame arenas or draw submission.
 void InitLogical(const char * defaultMaterialName);
@@ -16,4 +16,4 @@ void ShutdownLogical();
 void AdvanceLogicalFrame();
 bool IsLogicalInitialized();
 [[noreturn]] PS2_COLD_FUNC void Unavailable(const char * method);
-} // namespace ps2::render
+} // namespace ps2::renderer

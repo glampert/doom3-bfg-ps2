@@ -35,10 +35,10 @@ If you have questions concerning this license or the applicable additional terms
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #include "ps2/ui/jpeg_decoder.h"
 
-idSWF::idDecompressJPEG::idDecompressJPEG() : vinfo( ps2::jpeg::Create() ) {}
-idSWF::idDecompressJPEG::~idDecompressJPEG() { ps2::jpeg::Destroy( vinfo ); }
+idSWF::idDecompressJPEG::idDecompressJPEG() : vinfo( ps2::ui::swf::CreateJpegDecoder() ) {}
+idSWF::idDecompressJPEG::~idDecompressJPEG() { ps2::ui::swf::DestroyJpegDecoder( vinfo ); }
 byte * idSWF::idDecompressJPEG::Load( const byte * input, int inputSize, int & width, int & height ) {
-	return ps2::jpeg::Decode( vinfo, input, inputSize, width, height );
+	return ps2::ui::swf::DecodeJpeg( vinfo, input, inputSize, width, height );
 }
 #else
 /*

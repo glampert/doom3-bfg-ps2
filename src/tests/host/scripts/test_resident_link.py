@@ -156,7 +156,7 @@ class ResidentLinkTests(unittest.TestCase):
     def test_production_rejects_fixture_symbols(self):
         with tempfile.TemporaryDirectory() as temp:
             args = self.fixture(Path(temp))
-            names = (*link_resident.REGISTRATIONS, "ps2::gamefixture::Enable()")
+            names = (*link_resident.REGISTRATIONS, "ps2::tests::fixture::Enable()")
             self.assertEqual(self.link(args, registrations=names), 1)
             self.assertFalse(list(args.output.glob("*.elf*")))
 

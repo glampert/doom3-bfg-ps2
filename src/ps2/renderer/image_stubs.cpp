@@ -31,7 +31,7 @@ idRenderProgManager::~idRenderProgManager()
 {
     if (backendState != nullptr)
     {
-        ps2::render::Unavailable("idRenderProgManager::~idRenderProgManager with backend state");
+        ps2::renderer::Unavailable("idRenderProgManager::~idRenderProgManager with backend state");
     }
 }
 
@@ -60,14 +60,14 @@ void idResolutionScale::SetCurrentGPUFrameTime(int microseconds)
 {
     if (microseconds != 0)
     {
-        ps2::render::Unavailable("idResolutionScale::SetCurrentGPUFrameTime");
+        ps2::renderer::Unavailable("idResolutionScale::SetCurrentGPUFrameTime");
     }
 }
 
 #define RENDER_UNAVAILABLE(result, method, parameters) \
     PS2_COLD_FUNC result method parameters             \
     {                                                  \
-        ps2::render::Unavailable(#method);             \
+        ps2::renderer::Unavailable(#method);             \
     }
 
 RENDER_UNAVAILABLE(void, idImage::Reload, (bool))

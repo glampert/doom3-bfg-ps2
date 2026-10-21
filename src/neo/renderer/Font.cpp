@@ -30,7 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Font.h"
 // [PS2_D3BFG]: Validate bounded authored/English profiles before native font allocation and loading.
 #if defined( ID_PS2 )
-#include "ps2/renderer/font_backend.h"
+#include "ps2/ui/font_backend.h"
 #endif
 
 const char * DEFAULT_FONT = "Arial_Narrow";
@@ -191,7 +191,7 @@ bool idFont::LoadFont() {
 	idStr fontName = va( "newfonts/%s/48.dat", GetName() );
 	// [PS2_D3BFG]: Font bytes are checked before publishing an immutable native file.
 #if defined( ID_PS2 )
-	idFile * fd = ps2::fonts::OpenFontAsset( GetName() );
+	idFile * fd = ps2::ui::fonts::OpenFontAsset( GetName() );
 #else
 	idFile * fd = fileSystem->OpenFileRead( fontName );
 #endif
@@ -201,7 +201,7 @@ bool idFont::LoadFont() {
 	// [PS2_D3BFG]: Require exact bounded counts, metrics and atlas coordinates before allocation.
 #if defined( ID_PS2 )
 	static_assert( sizeof( glyphInfo_t ) == 10, "native font records require the padded layout" );
-	if ( !ps2::fonts::PreflightFont( fd, GetName() ) ) {
+	if ( !ps2::ui::fonts::PreflightFont( fd, GetName() ) ) {
 		delete fd;
 		return false;
 	}
@@ -264,7 +264,7 @@ bool idFont::LoadFont() {
 	fontInfo->material = declManager->FindMaterial( fontTextureName );
 	// [PS2_D3BFG]: Native glyph scaling dereferences the first image; retain release validation.
 #if defined( ID_PS2 )
-	ps2::fonts::ValidateFontMaterial( fontInfo->material, GetName() );
+	ps2::ui::fonts::ValidateFontMaterial( fontInfo->material, GetName() );
 #endif
 	fontInfo->material->SetSort( SS_GUI );
 
@@ -273,7 +273,7 @@ bool idFont::LoadFont() {
 	for ( int i = 0; i < 3; i++ ) {
 		int width = 0;
 		int height = 0;
-		ps2::fonts::GetFontLayout( GetName(), i, width, height );
+		ps2::ui::fonts::GetFontLayout( GetName(), i, width, height );
 		fontInfo->oldInfo[i].maxWidth = static_cast<float>( width );
 		fontInfo->oldInfo[i].maxHeight = static_cast<float>( height );
 	}

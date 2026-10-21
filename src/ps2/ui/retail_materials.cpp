@@ -74,7 +74,7 @@ PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacit
 
 PS2_COLD_FUNC void RegisterMaterials()
 {
-    if (!IsInitialized() || rs::FrameStarted())
+    if (!IsInitialized() || renderer::FrameStarted())
     {
         FatalError("invalid retail material registration ownership");
     }

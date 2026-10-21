@@ -1,12 +1,12 @@
 // ================================================================================================
-// File: ui_triangles.h
+// File: triangles.h
 // Brief: Clip colored native UI triangles before generating bounded GS position and UV fields.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #pragma once
 
-#include "ps2/renderer/ui_geometry.h"
+#include "ps2/ui/geometry.h"
 
 #include <cstdint>
 

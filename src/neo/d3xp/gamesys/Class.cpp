@@ -297,7 +297,7 @@ void idClass::FindUninitializedMemory() {
 	// [PS2_D3BFG]: Portable objects have no size prefix; scan only the object's own bytes.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 	unsigned int *ptr = reinterpret_cast<unsigned int *>( this );
-	int size = static_cast<int>( ps2::heap::GetRequestedSize( this ) );
+	int size = static_cast<int>( ps2::system::heap::GetRequestedSize( this ) );
 #else
 	unsigned long *ptr = ( ( unsigned long * )this ) - 1;
 	int size = *ptr;

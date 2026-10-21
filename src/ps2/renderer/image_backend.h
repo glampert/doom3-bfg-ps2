@@ -16,7 +16,7 @@ class PagedImage;
 struct PageCacheStats;
 } // namespace ps2::ui
 
-namespace ps2::render
+namespace ps2::renderer
 {
 // The caller owns the device. Shutdown images before shutting down the texture owner/device.
 bool InitConsoleImages();
@@ -31,4 +31,4 @@ void ValidateUiImage(const idImage * image);
 ui::PagedImage * UiPageImage(const idImage * image);
 ui::PageCacheStats GetUiPageStats();
 tex::Handle ConsoleImageTexture(const idImage * image);
-} // namespace ps2::render
+} // namespace ps2::renderer

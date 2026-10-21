@@ -39,7 +39,7 @@ void Visit(const char * name, void * context)
 
 bool Paths()
 {
-    namespace fs = ps2::filesystem;
+    namespace fs = ps2::system::filesystem;
     char path[fs::kPathCapacity] = {};
     bool passed = fs::IsRelativePath("models/a..b.md5mesh") && fs::IsRelativePath("", true) &&
                   fs::IsValidPath("host:/base/") && fs::IsValidPath("pfs0:base/file") && fs::IsOSPath("host:");
@@ -65,7 +65,7 @@ bool Paths()
 
 bool Files()
 {
-    namespace fs = ps2::filesystem;
+    namespace fs = ps2::system::filesystem;
     bool passed = fs::CreateParents("work/child/mixed.TxT");
     FILE * file = fs::Open("work/mixed.TxT", fs::OpenMode::Write);
     if (file == nullptr)
@@ -103,7 +103,7 @@ bool Files()
 
 bool Directories()
 {
-    namespace fs = ps2::filesystem;
+    namespace fs = ps2::system::filesystem;
     // Symlinks must not masquerade as regular files or directory recursion candidates.
     bool passed = symlink("mixed.TxT", "work/link.txt") == 0 && symlink("child", "work/link-dir") == 0;
     Listing files;
@@ -122,7 +122,7 @@ bool Directories()
 
 bool Times()
 {
-    namespace fs = ps2::filesystem;
+    namespace fs = ps2::system::filesystem;
     tm date = {};
     date.tm_year = 126;
     date.tm_mon = 9;

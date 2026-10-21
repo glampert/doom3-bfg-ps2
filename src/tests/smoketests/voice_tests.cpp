@@ -145,7 +145,7 @@ bool UpdateCadence()
 }
 } // namespace
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 bool RunVoiceTimelineTests()
@@ -160,4 +160,4 @@ bool RunVoiceTimelineTests()
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

@@ -12,7 +12,7 @@
 // The test uses the same native contracts as the retained campaign callers.
 #include <d3xp/Game_local.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -22,9 +22,9 @@ bool Check(const char * name, bool passed)
     return passed;
 }
 
-bool SameLedger(const heap::Stats & before)
+bool SameLedger(const system::heap::Stats & before)
 {
-    const heap::Stats after = heap::GetTotalStats();
+    const system::heap::Stats after = system::heap::GetTotalStats();
     return after.requestedBytes == before.requestedBytes && after.backingBytes == before.backingBytes &&
            after.allocationCount == before.allocationCount;
 }
@@ -55,7 +55,7 @@ bool SaveMetadataCycle()
 
 bool RunDeferredTests()
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     bool inactive = true;
     for (int cycle = 0; cycle < 3; ++cycle)
     {
@@ -80,7 +80,7 @@ bool RunDeferredTests()
 
     // Native dictionary pools retain reusable capacity; warm it before checking repeated ownership.
     bool metadata = SaveMetadataCycle();
-    const heap::Stats warmed = heap::GetTotalStats();
+    const system::heap::Stats warmed = system::heap::GetTotalStats();
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         metadata = SaveMetadataCycle() && metadata;
@@ -140,4 +140,4 @@ bool RunDeferredFailureProbe(const char * name)
     return true; // The runner rejects an unavailable operation returning normally.
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

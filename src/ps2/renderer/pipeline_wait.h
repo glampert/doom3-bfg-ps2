@@ -10,7 +10,7 @@
 #include <gs_privileged.h>
 #include <tamtypes.h>
 
-namespace ps2::gs
+namespace ps2::renderer::gs
 {
 inline u32 ReadCycles()
 {
@@ -35,4 +35,4 @@ void WaitUntil(Ready ready, const char * name)
         }
     }
 }
-} // namespace ps2::gs
+} // namespace ps2::renderer::gs

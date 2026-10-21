@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace ps2::tex
+namespace ps2::renderer::tex
 {
 
 static constexpr int kMaxDimension = 512;
@@ -69,4 +69,4 @@ bool MakeIndexedLayout(int width, int height, PixelFormat format, Layout & outpu
 bool PadRgba32(const Layout & layout, const void * source, size_t sourceBytes,
                size_t sourceStrideBytes, void * destination, size_t destinationBytes);
 
-} // namespace ps2::tex
+} // namespace ps2::renderer::tex

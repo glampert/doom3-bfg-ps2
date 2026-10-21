@@ -10,14 +10,14 @@ class idSWF;
 class idSWFScriptFunction;
 class idSWFSpriteInstance;
 
-namespace ps2::ui::retail_owner
+namespace ps2::ui::retail
 {
 // Attach before the shell's first frame executes; detach before its borrowed movie is destroyed.
-void Init(idSWF & movie, unsigned movieIndex);
+void AttachOwner(idSWF & movie, unsigned movieIndex);
 // Publish idCommonDialog's constants and the native quit confirmation before the dialog's first frame.
 void ShowQuitDialog(idSWF & movie);
-void Shutdown(idSWF & movie);
-bool IsCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie);
+void DetachOwner(idSWF & movie);
+bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie);
 void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idSWF * movie);
-void Status();
-} // namespace ps2::ui::retail_owner
+void OwnerStatus();
+} // namespace ps2::ui::retail

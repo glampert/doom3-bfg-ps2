@@ -11,13 +11,16 @@
 
 // Included after Doom's common headers and SoundVoice.h by sound/snd_local.h.
 // Logical samples/voices are usable with an explicit headless clock. Physical output remains deferred.
-class idSoundSample final
+namespace ps2::audio
+{
+
+class SoundSample final
 {
 public:
-    idSoundSample() = default;
-    ~idSoundSample();
-    idSoundSample(const idSoundSample &) = delete;
-    idSoundSample & operator=(const idSoundSample &) = delete;
+    SoundSample() = default;
+    ~SoundSample();
+    SoundSample(const SoundSample &) = delete;
+    SoundSample & operator=(const SoundSample &) = delete;
 
     void LoadResource();
     void MakeDefault();
@@ -89,12 +92,12 @@ public:
     }
 
 private:
-    friend class idSoundVoice;
+    friend class SoundVoice;
     void RetainVoice() const;
     void ReleaseVoice() const;
     void RequireLoaded(const char * operation) const;
     idStr m_name;
-    ps2::audio::PcmWave m_wave;
+    PcmWave m_wave;
     unsigned char * m_pcm = nullptr;
     ID_TIME_T m_timestamp = FILE_NOT_FOUND_TIMESTAMP;
     bool m_isDefault = false;
@@ -104,9 +107,9 @@ private:
     int m_lastPlayedTime = 0;
 };
 
-class idSoundHardware;
+class SoundHardware;
 
-class idSoundVoice final : public idSoundVoice_Base
+class SoundVoice final : public idSoundVoice_Base
 {
 public:
     void Start(int offsetMS, int flags);
@@ -116,40 +119,40 @@ public:
     bool Update();
     float GetAmplitude();
     void SetPitch(float value);
-    const idSoundSample * GetCurrentSample();
-    ps2::audio::PlaybackCursor GetPlaybackCursor();
+    const SoundSample * GetCurrentSample();
+    PlaybackCursor GetPlaybackCursor();
 
 private:
     // Pool ownership is required before any voice can exist; callers never delete voices.
-    friend class idSoundHardware;
-    explicit idSoundVoice(idSoundHardware * owner);
-    ~idSoundVoice() = default;
-    idSoundVoice(const idSoundVoice &) = delete;
-    idSoundVoice & operator=(const idSoundVoice &) = delete;
-    void Bind(const idSoundSample * leadin, const idSoundSample * looping);
+    friend class SoundHardware;
+    explicit SoundVoice(SoundHardware * owner);
+    ~SoundVoice() = default;
+    SoundVoice(const SoundVoice &) = delete;
+    SoundVoice & operator=(const SoundVoice &) = delete;
+    void Bind(const SoundSample * leadin, const SoundSample * looping);
     void Release();
     void RequireAllocated() const;
     void Sync();
-    idSoundHardware * m_owner;
-    const idSoundSample * m_leadin = nullptr;
-    const idSoundSample * m_looping = nullptr;
-    ps2::audio::VoiceTimeline m_timeline;
+    SoundHardware * m_owner;
+    const SoundSample * m_leadin = nullptr;
+    const SoundSample * m_looping = nullptr;
+    VoiceTimeline m_timeline;
     int m_flags = 0;
     bool m_allocated = false;
 };
 
-class idSoundHardware final
+class SoundHardware final
 {
 public:
     static constexpr int kHeadlessVoiceCount = MAX_HARDWARE_VOICES;
-    idSoundHardware() = default;
-    ~idSoundHardware();
-    idSoundHardware(const idSoundHardware &) = delete;
-    idSoundHardware & operator=(const idSoundHardware &) = delete;
+    SoundHardware() = default;
+    ~SoundHardware();
+    SoundHardware(const SoundHardware &) = delete;
+    SoundHardware & operator=(const SoundHardware &) = delete;
 
     // Select logical playback explicitly. Clock context must remain valid while the pool is used.
     // Shutdown releases resources; Init can recreate the pool with the same selected clock.
-    void InitHeadless(ps2::audio::VoiceClock clock);
+    void InitHeadless(VoiceClock clock);
 
     bool IsHeadlessInitialized() const
     {
@@ -159,8 +162,8 @@ public:
     void Init();
     void Shutdown();
     void Update();
-    idSoundVoice * AllocateVoice(const idSoundSample * leadin, const idSoundSample * looping);
-    void FreeVoice(idSoundVoice * voice);
+    SoundVoice * AllocateVoice(const SoundSample * leadin, const SoundSample * looping);
+    void FreeVoice(SoundVoice * voice);
 
     int GetNumZombieVoices() const
     {
@@ -170,11 +173,17 @@ public:
     int GetNumFreeVoices() const;
 
 private:
-    friend class idSoundVoice;
+    friend class SoundVoice;
     std::uint64_t Now();
     void RequireInitialized(const char * operation) const;
-    idSoundVoice * m_voices = nullptr;
-    ps2::audio::VoiceClock m_clock;
+    SoundVoice * m_voices = nullptr;
+    VoiceClock m_clock;
     std::uint64_t m_lastTime = 0;
     bool m_haveClock = false;
 };
+
+} // namespace ps2::audio
+
+// The engine names the logical backend through its original classes; sound.h aliases idSoundSample.
+using idSoundVoice = ps2::audio::SoundVoice;
+using idSoundHardware = ps2::audio::SoundHardware;

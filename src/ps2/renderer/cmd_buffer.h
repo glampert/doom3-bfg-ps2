@@ -7,24 +7,24 @@
 #pragma once
 #include "ps2/renderer/gif_writer.h"
 
-namespace ps2::cmdbuf
+namespace ps2::renderer::gs
 {
-struct Stats
+struct CommandStats
 {
     u32 peakBytes;
     u32 kicks;
     u32 drains;
 };
 
-bool Init(u32 halfBytes);
-void Shutdown();
-bool IsInitialized();
-void BeginFrame();
-void EndFrame();
+bool InitCommandBuffer(u32 halfBytes);
+void ShutdownCommandBuffer();
+bool IsCommandBufferInitialized();
+void BeginCommandFrame();
+void EndCommandFrame();
 // Every block is closed before another reservation can drain or invalidate its writer.
 GifWriter BeginDirect(int payloadQwords);
 void EndDirect(const GifWriter & writer);
 void Kick();
 void WaitIdle();
-Stats GetStats();
-} // namespace ps2::cmdbuf
+CommandStats GetCommandStats();
+} // namespace ps2::renderer::gs

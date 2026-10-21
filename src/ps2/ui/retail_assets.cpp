@@ -7,12 +7,12 @@
 #include "ps2/ui/retail_assets.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
-#include "ps2/renderer/ui_font_format.h"
-#include "ps2/renderer/ui_page_image.h"
-#include "ps2/renderer/ui_paletted_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
+#include "ps2/ui/draw.h"
+#include "ps2/ui/font_format.h"
+#include "ps2/ui/page_image.h"
+#include "ps2/ui/paletted_image.h"
 
 #include <idlib/precompiled.h>
 
@@ -24,7 +24,7 @@ static void * s_bytes = nullptr;
 static CatalogView s_catalog;
 static std::uint32_t s_profile[16] = {};
 static bool s_language = false;
-static SwfSummary s_movieSummary;
+static swf::Summary s_movieSummary;
 static bool s_executionRequested = false;
 static bool s_executionAdmitted = false;
 static bool s_renderRequested = false;
@@ -47,13 +47,13 @@ void * Snapshot(const char * path, std::uint32_t length, std::uint32_t checksum)
         FatalError("retail movie resource length mismatch: %s", path);
     }
 
-    void * const bytes = heap::Alloc(length, TAG_SWF);
+    void * const bytes = system::heap::Alloc(length, TAG_SWF);
     const bool read = source->Read(bytes, static_cast<int>(length)) == static_cast<int>(length);
     delete source;
 
     if (!read || PageChecksum(bytes, length) != checksum)
     {
-        heap::Free(bytes);
+        system::heap::Free(bytes);
         FatalError("retail movie resource checksum mismatch: %s", path);
     }
 
@@ -95,7 +95,7 @@ bool IsInitialized()
 
 PS2_COLD_FUNC void Init()
 {
-    if (IsInitialized() || !ui::IsInitialized() || rs::FrameStarted() || render::GetUiPageStats().cacheBytes != 0 ||
+    if (IsInitialized() || !ui::IsInitialized() || renderer::FrameStarted() || renderer::GetUiPageStats().cacheBytes != 0 ||
         ui::GetPaletteStats().images != 0)
     {
         FatalError("retail UI catalog requires an idle fresh image profile");
@@ -116,14 +116,14 @@ PS2_COLD_FUNC void Init()
         FatalError("retail UI catalog length invalid");
     }
 
-    void * const bytes = heap::Alloc(static_cast<size_t>(length), TAG_RENDER);
+    void * const bytes = system::heap::Alloc(static_cast<size_t>(length), TAG_RENDER);
     const bool read = source->Read(bytes, length) == length;
     delete source;
     CatalogView catalog;
 
     if (!read || !catalog.Init(bytes, static_cast<size_t>(length)))
     {
-        heap::Free(bytes);
+        system::heap::Free(bytes);
         FatalError("retail UI catalog invalid");
     }
 
@@ -141,7 +141,7 @@ PS2_COLD_FUNC void Shutdown()
         return;
     }
 
-    if (rs::FrameStarted() || render::GetUiPageStats().images != 0 || ui::GetPaletteStats().images != 0)
+    if (renderer::FrameStarted() || renderer::GetUiPageStats().images != 0 || ui::GetPaletteStats().images != 0)
     {
         FatalError("retail UI catalog shutdown with active image ownership");
     }
@@ -158,7 +158,7 @@ PS2_COLD_FUNC void Shutdown()
     s_executionAdmitted = false;
     s_renderRequested = false;
     s_renderAdmitted = false;
-    heap::Free(s_bytes);
+    system::heap::Free(s_bytes);
     s_bytes = nullptr;
     s_catalog = {};
 }
@@ -204,7 +204,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
         FatalError("retail font length mismatch: %s", admitted.family);
     }
 
-    auto * const bytes = static_cast<char *>(heap::Alloc(admitted.bytes, TAG_FONT));
+    auto * const bytes = static_cast<char *>(system::heap::Alloc(admitted.bytes, TAG_FONT));
     const bool read = source->Read(bytes, static_cast<int>(admitted.bytes)) == static_cast<int>(admitted.bytes);
     delete source;
     fonts::FontFormatSummary summary;
@@ -212,7 +212,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
     if (!read || PageChecksum(bytes, admitted.bytes) != admitted.checksum ||
         !fonts::ValidateFontBytes(bytes, admitted.bytes, image.width, image.height, summary))
     {
-        heap::Free(bytes);
+        system::heap::Free(bytes);
         FatalError("retail font content invalid: %s", admitted.family);
     }
 
@@ -226,7 +226,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
 
 PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
 {
-    if (!IsInitialized() || rs::FrameStarted() || index >= 2 || (render && !execute))
+    if (!IsInitialized() || renderer::FrameStarted() || index >= 2 || (render && !execute))
     {
         FatalError("invalid retail movie preparation ownership");
     }
@@ -267,7 +267,7 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
         {
             const unsigned offset = 8 + movie * 4;
 
-            if (s_profile[offset] < 64 || s_profile[offset] > kMaxSwfBytes || s_profile[offset + 2] == 0 ||
+            if (s_profile[offset] < 64 || s_profile[offset] > swf::kMaxBytes || s_profile[offset + 2] == 0 ||
                 s_profile[offset + 2] > 1024 || s_profile[offset + 3] >= s_profile[offset + 2])
             {
                 FatalError("retail movie profile bounds invalid");
@@ -285,15 +285,15 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
         auto * const bytes = static_cast<byte *>(Snapshot("retail/english.lang", s_profile[5], s_profile[6]));
         std::uint32_t entries = 0;
 
-        if (!ValidateEnglishBytes(bytes, s_profile[5], entries) || entries != s_profile[7])
+        if (!swf::ValidateEnglishBytes(bytes, s_profile[5], entries) || entries != s_profile[7])
         {
-            heap::Free(bytes);
+            system::heap::Free(bytes);
             FatalError("retail English dictionary structural preflight failed");
         }
 
         idLocalization::VerifyUTF8(bytes, static_cast<int>(s_profile[5]), "retail/english.lang");
         const bool loaded = idLocalization::LoadDictionary(bytes, static_cast<int>(s_profile[5]), "retail/english.lang");
-        heap::Free(bytes);
+        system::heap::Free(bytes);
 
         if (!loaded || idLocalization::GetDictionary().GetNumKeyVals() != static_cast<int>(s_profile[7]))
         {
@@ -318,28 +318,28 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
         }
     }
 
-    if (index == 2 || !s_language || rs::FrameStarted())
+    if (index == 2 || !s_language || renderer::FrameStarted())
     {
         FatalError("retail movie outside the prepared inactive profile");
     }
 
     const unsigned offset = 8 + index * 4;
     auto * const bytes = static_cast<char *>(Snapshot(kMovieFiles[index], s_profile[offset], s_profile[offset + 1]));
-    SwfSummary summary;
+    swf::Summary summary;
 
-    if (!ValidateSwfBytes(bytes, s_profile[offset], summary, MovieIdentity) ||
+    if (!swf::ValidateBytes(bytes, s_profile[offset], summary, MovieIdentity) ||
         summary.dictionary != s_profile[offset + 2] || summary.previewText != s_profile[offset + 3])
     {
-        heap::Free(bytes);
+        system::heap::Free(bytes);
         FatalError("retail movie structural preflight failed: %s", logicalPath);
     }
 
     if (s_executionRequested)
     {
-        SwfExecutionSummary execution;
-        if (!ValidateSwfExecutionBytes(bytes, s_profile[offset], execution))
+        swf::ExecutionSummary execution;
+        if (!swf::ValidateExecutionBytes(bytes, s_profile[offset], execution))
         {
-            heap::Free(bytes);
+            system::heap::Free(bytes);
             FatalError("retail movie execution preflight failed: %s", logicalPath);
         }
 
@@ -355,7 +355,7 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
             // are admitted here; the CPU bridge still rejects any non-convex mask at draw time.
             if (summary.strokes != 0 || execution.screenBlends != 0 || execution.additiveColors != 0)
             {
-                heap::Free(bytes);
+                system::heap::Free(bytes);
                 FatalError("retail movie draw features unavailable: %s strokes=%lu screen_blends=%lu additive_colors=%lu",
                            logicalPath, static_cast<unsigned long>(summary.strokes),
                            static_cast<unsigned long>(execution.screenBlends),
@@ -388,7 +388,7 @@ bool MovieRenderAdmitted()
     return MovieExecutionAdmitted() && s_renderAdmitted;
 }
 
-SwfSummary GetMovieSummary()
+swf::Summary GetMovieSummary()
 {
     return s_movieSummary;
 }

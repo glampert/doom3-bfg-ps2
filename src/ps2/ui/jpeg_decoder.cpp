@@ -12,7 +12,7 @@
 #include <cstring>
 #include <jpeg-6/jpeglib.h>
 
-namespace ps2::jpeg
+namespace ps2::ui::swf
 {
 namespace
 {
@@ -53,9 +53,9 @@ void Release(State * state)
     {
         return;
     }
-    heap::Free(state->output);
+    system::heap::Free(state->output);
     jpeg_destroy_decompress(&state->decoder);
-    heap::Free(state);
+    system::heap::Free(state);
 }
 
 [[noreturn]] PS2_COLD_FUNC void Fail(State * state, const char * reason)
@@ -112,9 +112,9 @@ void SkipInput(j_decompress_ptr decoder, long count)
 
 } // namespace
 
-void * Create()
+void * CreateJpegDecoder()
 {
-    auto * state = static_cast<State *>(heap::Alloc(sizeof(State), kImageTag));
+    auto * state = static_cast<State *>(system::heap::Alloc(sizeof(State), kImageTag));
     *state = {};
     state->error.owner = state;
     state->decoder.err = jpeg_std_error(&state->error);
@@ -124,12 +124,12 @@ void * Create()
     return state;
 }
 
-void Destroy(void * decoder)
+void DestroyJpegDecoder(void * decoder)
 {
     Release(static_cast<State *>(decoder));
 }
 
-unsigned char * Decode(void * decoder, const unsigned char * input, int inputSize, int & width, int & height)
+unsigned char * DecodeJpeg(void * decoder, const unsigned char * input, int inputSize, int & width, int & height)
 {
     auto * state = static_cast<State *>(decoder);
     width = 0;
@@ -175,7 +175,7 @@ unsigned char * Decode(void * decoder, const unsigned char * input, int inputSiz
     {
         Fail(state, "decoded image exceeds 4 MiB");
     }
-    state->output = static_cast<unsigned char *>(heap::TryAlloc(outputBytes, kImageTag));
+    state->output = static_cast<unsigned char *>(system::heap::TryAlloc(outputBytes, kImageTag));
     if (state->output == nullptr)
     {
         Fail(state, "output allocation failed");
@@ -201,4 +201,4 @@ unsigned char * Decode(void * decoder, const unsigned char * input, int inputSiz
     return output;
 }
 
-} // namespace ps2::jpeg
+} // namespace ps2::ui::swf

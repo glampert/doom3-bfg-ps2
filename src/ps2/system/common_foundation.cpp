@@ -152,7 +152,7 @@ CORE_UNSUPPORTED(void, UpdateScreen, (bool))
 void idCommonLocal::UpdateLevelLoadPacifier()
 {
     // Headless loading has no progress screen or frontend frame to submit.
-    if (!ps2::render::IsLogicalInitialized() || !IsInitialized() || WriteDemo() != nullptr)
+    if (!ps2::renderer::IsLogicalInitialized() || !IsInitialized() || WriteDemo() != nullptr)
     {
         Unsupported("UpdateLevelLoadPacifier");
     }
@@ -176,7 +176,7 @@ CORE_UNSUPPORTED(void, LaunchExternalTitle, (int, int, const lobbyConnectInfo_t 
 
 void idCommonLocal::Frame()
 {
-    ps2::lifecycle::Frame();
+    ps2::system::lifecycle::Frame();
 }
 
 void idCommonLocal::SwitchToGame(currentGame_t title)

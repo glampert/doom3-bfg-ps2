@@ -4,7 +4,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_font_format.h"
+#include "ps2/ui/font_format.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -14,8 +14,8 @@
 namespace
 {
 
-using ps2::fonts::FontFormatSummary;
-using ps2::fonts::ValidateFontBytes;
+using ps2::ui::fonts::FontFormatSummary;
+using ps2::ui::fonts::ValidateFontBytes;
 
 static constexpr FontFormatSummary kSentinel{ 101, -102, 103, 104, 105, 106, 107 };
 
@@ -140,14 +140,14 @@ static bool ValidFonts()
         return false;
     }
 
-    bytes = MakeFont(ps2::fonts::kMaxFontGlyphs);
-    for (std::uint32_t index = 0; index < ps2::fonts::kMaxFontGlyphs; ++index)
+    bytes = MakeFont(ps2::ui::fonts::kMaxFontGlyphs);
+    for (std::uint32_t index = 0; index < ps2::ui::fonts::kMaxFontGlyphs; ++index)
     {
         WriteIndex(bytes, index, 128U + index);
     }
 
     if (!Check(ValidateFontBytes(bytes.data(), bytes.size(), 640, 768, summary) &&
-               summary.glyphCount == ps2::fonts::kMaxFontGlyphs,
+               summary.glyphCount == ps2::ui::fonts::kMaxFontGlyphs,
                "maximum admitted count and complete bounded payload"))
     {
         return false;
@@ -167,7 +167,7 @@ static bool InvalidFonts()
 {
     const auto valid = MakeFont(95);
     if (!Check(Rejected(nullptr, 0) && Rejected(nullptr, valid.size()) &&
-               Rejected(valid.data(), ps2::fonts::kMaxFontBytes + 1U),
+               Rejected(valid.data(), ps2::ui::fonts::kMaxFontBytes + 1U),
                "null and excessive buffers"))
     {
         return false;

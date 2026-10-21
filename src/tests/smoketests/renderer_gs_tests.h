@@ -7,10 +7,10 @@
 #pragma once
 #include "ps2/system/video_mode.h"
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
-bool RunGsTests(video::Standard standard);
+bool RunGsTests(system::video::Standard standard);
 bool RunGsFailureProbe(const char * name);
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

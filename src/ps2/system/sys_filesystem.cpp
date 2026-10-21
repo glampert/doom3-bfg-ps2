@@ -15,7 +15,7 @@
 namespace
 {
 
-static_assert(MAX_OSPATH == ps2::filesystem::kPathCapacity);
+static_assert(MAX_OSPATH == ps2::system::filesystem::kPathCapacity);
 
 void AppendName(const char * name, void * context)
 {
@@ -26,7 +26,7 @@ void AppendName(const char * name, void * context)
 
 void Sys_Mkdir(const char * path)
 {
-    if (!ps2::filesystem::IsValidPath(path))
+    if (!ps2::system::filesystem::IsValidPath(path))
     {
         errno = EINVAL;
     }
@@ -43,7 +43,7 @@ void Sys_Mkdir(const char * path)
 
 bool Sys_Rmdir(const char * path)
 {
-    if (!ps2::filesystem::IsValidPath(path))
+    if (!ps2::system::filesystem::IsValidPath(path))
     {
         errno = EINVAL;
         return false;
@@ -54,13 +54,13 @@ bool Sys_Rmdir(const char * path)
 bool Sys_IsFileWritable(const char * path)
 {
     struct stat status = {};
-    return ps2::filesystem::IsValidPath(path) && stat(path, &status) == 0 &&
+    return ps2::system::filesystem::IsValidPath(path) && stat(path, &status) == 0 &&
            S_ISREG(status.st_mode) && (status.st_mode & S_IWUSR) != 0;
 }
 
 sysFolder_t Sys_IsFolder(const char * path)
 {
-    if (!ps2::filesystem::IsValidPath(path))
+    if (!ps2::system::filesystem::IsValidPath(path))
     {
         errno = EINVAL;
         return FOLDER_ERROR;
@@ -76,7 +76,7 @@ sysFolder_t Sys_IsFolder(const char * path)
 int Sys_ListFiles(const char * directory, const char * extension, idStrList & list)
 {
     list.Clear();
-    const int count = ps2::filesystem::List(directory, extension, AppendName, &list);
+    const int count = ps2::system::filesystem::List(directory, extension, AppendName, &list);
     if (count < 0)
     {
         list.Clear();
@@ -92,7 +92,7 @@ const char * Sys_EXEPath()
 
 const char * Sys_CWD()
 {
-    static char s_path[ps2::filesystem::kPathCapacity];
+    static char s_path[ps2::system::filesystem::kPathCapacity];
     if (getcwd(s_path, sizeof(s_path)) == nullptr)
     {
         return "";

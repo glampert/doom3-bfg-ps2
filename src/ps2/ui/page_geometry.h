@@ -1,12 +1,12 @@
 // ================================================================================================
-// File: ui_page_geometry.h
+// File: page_geometry.h
 // Brief: Split native UI triangles into bounded atlas pages without altering logical atlas UVs.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #pragma once
 
-#include "ps2/renderer/ui_triangles.h"
+#include "ps2/ui/triangles.h"
 
 namespace ps2::ui
 {

@@ -8,13 +8,13 @@
 #include "ps2/renderer/cmd_buffer.h"
 #include "ps2/renderer/gs.h"
 #include "ps2/renderer/texture.h"
-#include "ps2/renderer/ui_geometry.h"
+#include "ps2/ui/geometry.h"
 
-namespace ps2::rs
+namespace ps2::renderer
 {
 struct Config
 {
-    video::Standard standard = video::Standard::Ntsc;
+    system::video::Standard standard = system::video::Standard::Ntsc;
     u32 commandHalfBytes = 128U * 1024U;
     u32 textureVramBytes = 2U * 1024U * 1024U;
     u32 texturePixelBytes = 2U * 1024U * 1024U;
@@ -47,4 +47,4 @@ bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & 
 void EndFrame(); // Immediate completed-frame presentation; deferred mode is a later gate.
 u32 FrameCount();
 gs::DrawContext LastPresentedContext();
-} // namespace ps2::rs
+} // namespace ps2::renderer

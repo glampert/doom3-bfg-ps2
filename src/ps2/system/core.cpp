@@ -35,7 +35,7 @@ bool FixturePath(const char * input, char * output, size_t capacity)
     }
     const char * relative = idStr::Cmpn(input, "host:", 5) == 0 ? input + 5 : input;
     const size_t length = strlen(relative);
-    if (length >= MAX_OSPATH - 5 || !ps2::filesystem::IsRelativePath(relative))
+    if (length >= MAX_OSPATH - 5 || !ps2::system::filesystem::IsRelativePath(relative))
     {
         return false;
     }
@@ -57,7 +57,7 @@ public:
 
     ~CoreReadFile() override
     {
-        ps2::heap::Free(m_data);
+        ps2::system::heap::Free(m_data);
     }
 
     ID_TIME_T Timestamp() const override
@@ -103,12 +103,12 @@ public:
         {
             return -1;
         }
-        FILE * file = ps2::filesystem::Open(normalized, ps2::filesystem::OpenMode::Read);
+        FILE * file = ps2::system::filesystem::Open(normalized, ps2::system::filesystem::OpenMode::Read);
         if (file == nullptr)
         {
             return -1;
         }
-        const int length = ps2::filesystem::FileLength(file);
+        const int length = ps2::system::filesystem::FileLength(file);
         if (length < 0 || (buffer != nullptr && static_cast<size_t>(length) > kFixtureLimit))
         {
             fclose(file);
@@ -118,15 +118,15 @@ public:
         void * data = nullptr;
         if (buffer != nullptr)
         {
-            data = ps2::heap::TryAlloc(static_cast<size_t>(length) + 1, static_cast<std::uint16_t>(TAG_IDLIB));
+            data = ps2::system::heap::TryAlloc(static_cast<size_t>(length) + 1, static_cast<std::uint16_t>(TAG_IDLIB));
             if (data == nullptr)
             {
                 fclose(file);
                 return -1;
             }
-            if (!ps2::filesystem::ReadExact(file, data, static_cast<size_t>(length)))
+            if (!ps2::system::filesystem::ReadExact(file, data, static_cast<size_t>(length)))
             {
-                ps2::heap::Free(data);
+                ps2::system::heap::Free(data);
                 fclose(file);
                 return -1;
             }
@@ -134,7 +134,7 @@ public:
         }
         if (fclose(file) != 0)
         {
-            ps2::heap::Free(data);
+            ps2::system::heap::Free(data);
             return -1;
         }
         if (buffer != nullptr)
@@ -150,7 +150,7 @@ public:
 
     void FreeFile(void * buffer) override
     {
-        ps2::heap::Free(buffer);
+        ps2::system::heap::Free(buffer);
     }
 
     int GetFileLength(const char * path) override
@@ -282,17 +282,17 @@ static CoreFileSystem s_fileSystem;
 
 idFileSystem * fileSystem = &s_fileSystem;
 
-namespace ps2::core
+namespace ps2::system::lifecycle
 {
 
-void Init()
+void InitCore()
 {
     common->Init(0, nullptr, nullptr);
 }
 
-void Shutdown()
+void ShutdownCore()
 {
     common->Shutdown();
 }
 
-} // namespace ps2::core
+} // namespace ps2::system::lifecycle

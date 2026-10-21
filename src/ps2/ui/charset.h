@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-namespace ps2::render
+namespace ps2::ui::fonts
 {
 static constexpr int kConsoleAtlasSize = 256;
 static constexpr int kConsoleCellSize = 16;
@@ -22,4 +22,4 @@ static constexpr size_t kAuthoredFontAtlasBytes = 512U * 128U * 4U;
 bool MakeConsoleCharset(void * rgba, size_t capacity);
 // The same printable coverage uses wider padded cells for native idFont's half-texel UV expansion.
 bool MakeAuthoredFontCharset(void * rgba, size_t capacity);
-} // namespace ps2::render
+} // namespace ps2::ui::fonts

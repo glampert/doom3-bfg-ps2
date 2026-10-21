@@ -31,7 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 
 // [PS2_D3BFG]: Native mask lifetimes drive checked CPU clipping instead of GS stencil state.
 #ifdef ID_PS2
-#include "ps2/renderer/ui_draw.h"
+#include "ps2/ui/draw.h"
 #endif
 
 idCVar swf_timescale( "swf_timescale", "1", CVAR_FLOAT, "timescale for swf files" );

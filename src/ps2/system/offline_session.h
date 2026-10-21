@@ -6,7 +6,7 @@
 
 #pragma once
 
-namespace ps2::offline
+namespace ps2::system::session
 {
 
 void Init();
@@ -14,4 +14,4 @@ void Shutdown();
 void Frame();
 bool IsInitialized();
 
-} // namespace ps2::offline
+} // namespace ps2::system::session

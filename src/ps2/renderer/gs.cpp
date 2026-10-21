@@ -14,7 +14,7 @@
 #include <gs_psm.h>
 #include <kernel.h>
 
-namespace ps2::gs
+namespace ps2::renderer::gs
 {
 namespace
 {
@@ -155,12 +155,12 @@ FramebufferInfo GetFramebuffer(DrawContext context)
 
 PS2_COLD_FUNC bool Init(const Config & config)
 {
-    if (s_initialized || !cmdbuf::IsInitialized())
+    if (s_initialized || !IsCommandBufferInitialized())
     {
         FatalError("invalid GS initialization order");
     }
     // Narrow first device profile: all dimensions are page-aligned and fit the TV standard.
-    if (!video::IsValid(config.standard) || config.width != 512 || config.height != video::VisibleLines(config.standard))
+    if (!system::video::IsValid(config.standard) || config.width != 512 || config.height != system::video::VisibleLines(config.standard))
     {
         Log(LogLevel::Error, "unsupported GS device configuration\n");
         return false;
@@ -191,7 +191,7 @@ PS2_COLD_FUNC bool Init(const Config & config)
     s_depth.enable = DRAW_DISABLE;
     s_depth.method = ZTEST_METHOD_ALLPASS;
     s_previousImr = GsGetIMR();
-    if (graph_set_mode(GRAPH_MODE_INTERLACED, video::GraphMode(config.standard), GRAPH_MODE_FIELD, GRAPH_ENABLE) != 0)
+    if (graph_set_mode(GRAPH_MODE_INTERLACED, system::video::GraphMode(config.standard), GRAPH_MODE_FIELD, GRAPH_ENABLE) != 0)
     {
         graph_shutdown();
         GsPutIMR(s_previousImr);
@@ -222,15 +222,15 @@ PS2_COLD_FUNC bool Init(const Config & config)
         Shutdown();
         return false;
     }
-    cmdbuf::BeginFrame();
-    GifWriter writer = cmdbuf::BeginDirect(32);
+    BeginCommandFrame();
+    GifWriter writer = BeginDirect(32);
     writer.SetupEnvironment(0, s_frames[0], s_depth);
     writer.SetupEnvironment(1, s_frames[1], s_depth);
-    cmdbuf::EndDirect(writer);
+    EndDirect(writer);
     FillRect(DrawContext::Ctx0, 0, 0, s_width, s_height, { 0, 0, 0, 255 });
-    cmdbuf::EndFrame();
+    EndCommandFrame();
     Log(LogLevel::Info, "[D3BFG] GS ready %s %dx%d PSMCT16/Z16 fixed_vram=%u\n",
-        video::Name(config.standard), s_width, s_height, s_fixedVramBytes);
+        system::video::Name(config.standard), s_width, s_height, s_fixedVramBytes);
     return true;
 }
 
@@ -242,8 +242,8 @@ void Upload(const TextureBinding & binding, const void * pixels)
         FatalError("invalid GS texture upload");
     }
     // Retire queued PATH2 references before PATH3 uploads or overwrites an address.
-    cmdbuf::Kick();
-    cmdbuf::WaitIdle();
+    Kick();
+    WaitIdle();
     WaitUntil([]
               { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "texture GIF DMA idle");
     // Audited draw.c: six setup qwords and three per IMAGE/REF chunk. Preflight
@@ -327,7 +327,7 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
         return;
     }
     const int filter = binding.sampler.filter == tex::Filter::Linear ? 1 : 0;
-    GifWriter writer = cmdbuf::BeginDirect(22);
+    GifWriter writer = BeginDirect(22);
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
     writer.SetRegister(ContextReg(GS_REG_TEX0, context), TextureState(binding));
     writer.SetRegister(ContextReg(GS_REG_CLAMP, context), ClampState(binding));
@@ -345,7 +345,7 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(x0 + 2048 * 16, y0 + 2048 * 16, 0));
     writer.SetRegister(GS_REG_UV, GS_SET_UV(u1, v1));
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(x1 + 2048 * 16, y1 + 2048 * 16, 0));
-    cmdbuf::EndDirect(writer);
+    EndDirect(writer);
 }
 
 void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
@@ -377,7 +377,7 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
     const int filter = binding.sampler.filter == tex::Filter::Linear ? 1 : 0;
     // Six complete state writes and three RGBAQ/UV/XYZ2 vertices: thirty qwords.
     // A drain may alternate command halves; never depend on the previous primitive's state.
-    GifWriter writer = cmdbuf::BeginDirect(30);
+    GifWriter writer = BeginDirect(30);
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
     writer.SetRegister(ContextReg(GS_REG_TEX0, context), TextureState(binding));
     writer.SetRegister(ContextReg(GS_REG_CLAMP, context), ClampState(binding));
@@ -395,7 +395,7 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
         writer.SetRegister(GS_REG_UV, GS_SET_UV(vertex.u, vertex.v));
         writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(vertex.x + 2048 * 16, vertex.y + 2048 * 16, 0));
     }
-    cmdbuf::EndDirect(writer);
+    EndDirect(writer);
 }
 
 void FillRect(DrawContext context, int x, int y, int width, int height, Color color)
@@ -416,7 +416,7 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
     {
         return;
     }
-    GifWriter writer = cmdbuf::BeginDirect(10);
+    GifWriter writer = BeginDirect(10);
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
     const int blend = color.a == 255 ? 0 : 1;
     const u8 alpha = static_cast<u8>((static_cast<u32>(color.a) * 128U + 127U) / 255U);
@@ -424,7 +424,7 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
     writer.SetRegister(GS_REG_RGBAQ, GS_SET_RGBAQ(color.r, color.g, color.b, alpha, 0x3F800000U));
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((left + 2048) * 16, (top + 2048) * 16, 0));
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((endX + 2048) * 16, (endY + 2048) * 16, 0));
-    cmdbuf::EndDirect(writer);
+    EndDirect(writer);
 }
 
 void Present(DrawContext context)
@@ -433,7 +433,7 @@ void Present(DrawContext context)
     {
         FatalError("GS present before initialization");
     }
-    cmdbuf::WaitIdle();
+    WaitIdle();
     *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
     WaitUntil([]
               { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC");
@@ -447,7 +447,7 @@ PS2_COLD_FUNC void Shutdown()
     {
         return;
     }
-    cmdbuf::WaitIdle();
+    WaitIdle();
     dma_channel_shutdown(DMA_CHANNEL_GIF, 0);
     graph_shutdown();
     GsPutIMR(s_previousImr);
@@ -459,4 +459,4 @@ PS2_COLD_FUNC void Shutdown()
     s_fixedVramBytes = 0;
     s_initialized = false;
 }
-} // namespace ps2::gs
+} // namespace ps2::renderer::gs

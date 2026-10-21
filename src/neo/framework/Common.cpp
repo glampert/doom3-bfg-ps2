@@ -227,7 +227,7 @@ idCommonLocal::Quit
 void idCommonLocal::Quit() {
 	// [PS2_D3BFG]: Keep services alive until the production frame returns to main.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	ps2::runtime::RequestQuit();
+	ps2::system::runtime::RequestQuit();
 	return;
 #else
 	// don't try to shutdown if we are in a recursive error
@@ -1001,11 +1001,11 @@ void idCommonLocal::Init( int argc, const char * const * argv, const char *cmdli
 	}
 	(void)argv;
 	com_shuttingDown = false;
-	const ps2::lifecycle::InitResult result = ps2::lifecycle::Init( *this );
-	com_fullyInitialized = result == ps2::lifecycle::InitResult::Ready;
+	const ps2::system::lifecycle::InitResult result = ps2::system::lifecycle::Init( *this );
+	com_fullyInitialized = result == ps2::system::lifecycle::InitResult::Ready;
 	if ( !com_fullyInitialized ) {
 		Shutdown();
-		if ( result == ps2::lifecycle::InitResult::Failed ) {
+		if ( result == ps2::system::lifecycle::InitResult::Failed ) {
 			ps2::FatalError( "Common service initialization failed" );
 		}
 	}
@@ -1318,7 +1318,7 @@ void idCommonLocal::Shutdown() {
 	warningList.Clear();
 	warningCaption.Clear();
 	errorList.Clear();
-	ps2::lifecycle::Shutdown();
+	ps2::system::lifecycle::Shutdown();
 	com_fullyInitialized = false;
 	return;
 #else
@@ -1586,7 +1586,7 @@ idCommonLocal::ProcessEvent
 bool idCommonLocal::ProcessEvent( const sysEvent_t *event ) {
 	// [PS2_D3BFG]: The console has priority over the scoped native SWF; retail menus remain deferred.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	return console->ProcessEvent( event, false ) || ps2::movie::ProcessEvent( event );
+	return console->ProcessEvent( event, false ) || ps2::ui::authored::ProcessEvent( event );
 #endif
 	// hitting escape anywhere brings up the menu
 	if ( game && game->IsInGame() ) {

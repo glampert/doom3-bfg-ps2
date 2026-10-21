@@ -1,10 +1,10 @@
 // ================================================================================================
-// File: ui_triangles.cpp
+// File: triangles.cpp
 // Brief: Bound CPU triangle clipping and interpolation independently of target GS packet emission.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_triangles.h"
+#include "ps2/ui/triangles.h"
 
 #include <bit>
 #include <cstdint>

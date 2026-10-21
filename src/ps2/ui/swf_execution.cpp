@@ -7,7 +7,7 @@
 #include "ps2/ui/swf_execution.h"
 #include <cstring>
 
-namespace ps2::ui
+namespace ps2::ui::swf
 {
 namespace
 {
@@ -221,13 +221,13 @@ bool PlainAction(U32 opcode)
 class ActionValidator final
 {
 public:
-    ActionValidator(U32 frames, SwfExecutionSummary & summary) : m_frames(frames), m_summary(summary)
+    ActionValidator(U32 frames, ExecutionSummary & summary) : m_frames(frames), m_summary(summary)
     {
     }
 
     bool Run(const void * bytes, std::size_t length, U32 depth = 0, U32 registers = 4, U32 constants = 0)
     {
-        if (length > kMaxSwfActionBytes || depth > kMaxSwfFunctionDepth || ++m_summary.actionBlocks > kMaxSwfActions)
+        if (length > kMaxActionBytes || depth > kMaxFunctionDepth || ++m_summary.actionBlocks > kMaxActions)
         {
             return false;
         }
@@ -245,7 +245,7 @@ public:
             const U32 opcode = stream.Read();
             const U32 size = opcode >= 0x80 ? stream.Read(2) : 0;
             Reader body(stream.Take(size), size);
-            stream.Require(body.Valid() && ++m_summary.actions <= kMaxSwfActions);
+            stream.Require(body.Valid() && ++m_summary.actions <= kMaxActions);
 
             if (!stream.Valid())
             {
@@ -303,7 +303,7 @@ public:
                         body.Require(preloads <= childRegisters);
                     }
 
-                    body.Require(parameters <= kMaxParameters && ++m_summary.functions <= kMaxSwfFunctions);
+                    body.Require(parameters <= kMaxParameters && ++m_summary.functions <= kMaxFunctions);
 
                     for (U32 index = 0; index < parameters && body.Valid(); ++index)
                     {
@@ -487,19 +487,19 @@ private:
     }
 
     U32 m_frames;
-    SwfExecutionSummary & m_summary;
-    U8 m_boundaries[(kMaxSwfActionBytes + 1) / 8] = {};
+    ExecutionSummary & m_summary;
+    U8 m_boundaries[(kMaxActionBytes + 1) / 8] = {};
 };
 } // namespace
 
-bool ValidateSwfActions(const void * bytes, std::size_t length, U32 frames, SwfExecutionSummary & output)
+bool ValidateActions(const void * bytes, std::size_t length, U32 frames, ExecutionSummary & output)
 {
-    if (bytes == nullptr || frames == 0 || length > kMaxSwfActionBytes)
+    if (bytes == nullptr || frames == 0 || length > kMaxActionBytes)
     {
         return false;
     }
 
-    SwfExecutionSummary summary = output;
+    ExecutionSummary summary = output;
     ActionValidator validator(frames, summary);
 
     if (!validator.Run(bytes, length))
@@ -511,21 +511,21 @@ bool ValidateSwfActions(const void * bytes, std::size_t length, U32 frames, SwfE
     return true;
 }
 
-bool ValidateSwfCommand(U32 tag, const void * bytes, std::size_t length, const U8 * dictionaryTypes,
-                        U32 dictionaryCount, U32 frames, SwfExecutionSummary & output, SwfPlacement * placement)
+bool ValidateCommand(U32 tag, const void * bytes, std::size_t length, const U8 * dictionaryTypes,
+                        U32 dictionaryCount, U32 frames, ExecutionSummary & output, Placement * placement)
 {
     if (bytes == nullptr || dictionaryTypes == nullptr || dictionaryCount == 0)
     {
         return false;
     }
 
-    SwfExecutionSummary summary = output;
-    SwfPlacement result;
+    ExecutionSummary summary = output;
+    Placement result;
     Reader reader(bytes, length);
 
     if (tag == 12)
     {
-        if (!ValidateSwfActions(bytes, length, frames, summary))
+        if (!ValidateActions(bytes, length, frames, summary))
         {
             return false;
         }
@@ -584,7 +584,7 @@ bool ValidateSwfCommand(U32 tag, const void * bytes, std::size_t length, const U
         if ((flags & 64U) != 0)
         {
             result.clipDepth = static_cast<std::uint16_t>(reader.Read(2));
-            reader.Require(result.clipDepth > result.depth && result.clipDepth <= kMaxSwfDisplayDepth);
+            reader.Require(result.clipDepth > result.depth && result.clipDepth <= kMaxDisplayDepth);
             ++summary.masks;
         }
 
@@ -603,7 +603,7 @@ bool ValidateSwfCommand(U32 tag, const void * bytes, std::size_t length, const U
         return false;
     }
 
-    if (!reader.End() || (tag != 12 && (result.depth == 0 || result.depth > kMaxSwfDisplayDepth)))
+    if (!reader.End() || (tag != 12 && (result.depth == 0 || result.depth > kMaxDisplayDepth)))
     {
         return false;
     }
@@ -617,4 +617,4 @@ bool ValidateSwfCommand(U32 tag, const void * bytes, std::size_t length, const U
 
     return true;
 }
-} // namespace ps2::ui
+} // namespace ps2::ui::swf

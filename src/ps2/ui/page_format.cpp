@@ -1,10 +1,10 @@
 // ================================================================================================
-// File: ui_page_format.cpp
+// File: page_format.cpp
 // Brief: Decode UI page integers without trusting packed layouts, host endian order or file counts.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_page_format.h"
+#include "ps2/ui/page_format.h"
 
 namespace ps2::ui
 {

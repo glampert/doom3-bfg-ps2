@@ -72,11 +72,6 @@ typedef enum {
 class idImage;
 namespace ps2
 {
-namespace tex
-{
-struct Handle;
-}
-
 namespace ui
 {
 class PagedImage;
@@ -92,8 +87,13 @@ struct ImageRecord;
 }
 }
 
-namespace render
+namespace renderer
 {
+namespace tex
+{
+struct Handle;
+}
+
 tex::Handle ConsoleImageTexture(const idImage * image);
 void ValidateUiImage(const idImage * image);
 ui::PagedImage * UiPageImage(const idImage * image);
@@ -196,9 +196,9 @@ private:
 	friend class idImageManager;
 #if defined(PS2_D3BFG)
 	// [PS2_D3BFG]: The backend owns direct/paged state; adapters only obtain checked access.
-	friend ps2::tex::Handle ps2::render::ConsoleImageTexture(const idImage * image);
-	friend void ps2::render::ValidateUiImage(const idImage * image);
-	friend ps2::ui::PagedImage * ps2::render::UiPageImage(const idImage * image);
+	friend ps2::renderer::tex::Handle ps2::renderer::ConsoleImageTexture(const idImage * image);
+	friend void ps2::renderer::ValidateUiImage(const idImage * image);
+	friend ps2::ui::PagedImage * ps2::renderer::UiPageImage(const idImage * image);
 	void LoadPageImage(const ps2::ui::authored::PageResource & resource);
 	void LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource);
 #endif

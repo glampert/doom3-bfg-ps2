@@ -6,7 +6,7 @@
 
 #include "tests/smoketests/boot_stage.h"
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 void InitTestServices()
@@ -18,4 +18,4 @@ const char * RunCoreTestStage(const char *)
     return "SKIP";
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

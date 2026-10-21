@@ -4,8 +4,8 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_masks.h"
-#include "ps2/renderer/ui_triangles.h"
+#include "ps2/ui/masks.h"
+#include "ps2/ui/triangles.h"
 
 #include <bit>
 #include <cstdint>

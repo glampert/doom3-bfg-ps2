@@ -172,7 +172,7 @@ bool Check(const char * name, bool passed)
     return passed;
 }
 
-bool Same(const ps2::heap::Stats & a, const ps2::heap::Stats & b)
+bool Same(const ps2::system::heap::Stats & a, const ps2::system::heap::Stats & b)
 {
     return a.requestedBytes == b.requestedBytes && a.backingBytes == b.backingBytes && a.allocationCount == b.allocationCount;
 }
@@ -791,15 +791,15 @@ bool CollisionTests(LogicProbe & probe, int cycle)
 
 void Memory(const char * stage)
 {
-    const auto stats = ps2::heap::GetTotalStats();
-    const auto arena = ps2::heap::GetArenaStats();
+    const auto stats = ps2::system::heap::GetTotalStats();
+    const auto arena = ps2::system::heap::GetArenaStats();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_MEMORY %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu peak_backing=%zu arena=%zu\n",
              stage, stats.requestedBytes, stats.backingBytes, stats.allocationCount,
              stats.peakRequestedBytes, stats.peakBackingBytes, arena.committedBytes);
 }
 } // namespace
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 bool RunGameTests(const char * mode)
 {
@@ -836,7 +836,7 @@ bool RunGameTests(const char * mode)
     }
     // This buffer is native and deliberately heap allocated instead of consuming the EE stack.
     idUserCmdMgr * commands = new (TAG_GAME) idUserCmdMgr;
-    ps2::heap::Stats warmed{};
+    ps2::system::heap::Stats warmed{};
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         gameLocal.InitHeadlessFixture("maps/logic");
@@ -1057,12 +1057,12 @@ bool RunGameTests(const char * mode)
         passed = Check("player-command-queue", playerQueuePassed && !commands->HasUserCmdForPlayer(0) &&
                                                commands->readFrame[0] == -1 && commands->writeFrame[0] == 0) &&
                  passed;
-        passed = Check("collision-shutdown", ps2::heap::GetStats(TAG_COLLISION).allocationCount == 0 &&
-                                             ps2::heap::GetStats(TAG_PHYSICS_CLIP).allocationCount == 0 &&
-                                             ps2::heap::GetStats(TAG_PHYSICS_CLIP_ENTITY).allocationCount == 0 &&
+        passed = Check("collision-shutdown", ps2::system::heap::GetStats(TAG_COLLISION).allocationCount == 0 &&
+                                             ps2::system::heap::GetStats(TAG_PHYSICS_CLIP).allocationCount == 0 &&
+                                             ps2::system::heap::GetStats(TAG_PHYSICS_CLIP_ENTITY).allocationCount == 0 &&
                                              idClipModel::TraceModelCacheSize() == 0) &&
                  passed;
-        const auto stats = ps2::heap::GetTotalStats();
+        const auto stats = ps2::system::heap::GetTotalStats();
         if (cycle == 0)
         {
             warmed = stats;
@@ -1078,4 +1078,4 @@ bool RunGameTests(const char * mode)
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

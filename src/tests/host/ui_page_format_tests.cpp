@@ -4,7 +4,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_page_format.h"
+#include "ps2/ui/page_format.h"
 
 #include <cstddef>
 #include <cstdint>

@@ -13,7 +13,7 @@
 // This includes the real logical sound declarations and the portable backend seam.
 #include <sound/snd_local.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -23,22 +23,22 @@ std::uint64_t FixtureTime(void * context)
     return *static_cast<std::uint64_t *>(context);
 }
 
-bool LedgerMatches(const heap::Stats & before)
+bool LedgerMatches(const system::heap::Stats & before)
 {
-    const heap::Stats after = heap::GetTotalStats();
+    const system::heap::Stats after = system::heap::GetTotalStats();
     return before.requestedBytes == after.requestedBytes && before.backingBytes == after.backingBytes &&
            before.allocationCount == after.allocationCount;
 }
 
 bool PcmSamples()
 {
-    const heap::Stats before = heap::GetTotalStats();
-    const heap::Stats audioBefore = heap::GetStats(TAG_AUDIO);
+    const system::heap::Stats before = system::heap::GetTotalStats();
+    const system::heap::Stats audioBefore = system::heap::GetStats(TAG_AUDIO);
     bool passed = true;
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         {
-            idSoundSample sample;
+            audio::SoundSample sample;
             sample.SetName("audio-fixtures/mono");
             sample.SetNeverPurge();
             sample.SetLevelLoadReferenced();
@@ -50,7 +50,7 @@ bool PcmSamples()
                      sample.GetAmplitude(0) == 1.0f && sample.GetAmplitude(17) == 0.25f && sample.GetAmplitude(34) == 0.0f &&
                      sample.GetAmplitude(999) == 0.5f && sample.GetAmplitude(-1) == 0.0f &&
                      sample.GetAmplitude(1000) == 0.0f && sample.GetAmplitude(INT_MAX) == 0.0f && passed;
-            const heap::Stats mono = heap::GetStats(TAG_AUDIO);
+            const system::heap::Stats mono = system::heap::GetStats(TAG_AUDIO);
             passed = mono.requestedBytes == audioBefore.requestedBytes + 22050 &&
                      mono.allocationCount == audioBefore.allocationCount + 1 && passed;
             // SetName must release the old payload before binding new resource identity.
@@ -62,15 +62,15 @@ bool PcmSamples()
                      sample.LengthInMsec() == 500 && sample.GetAmplitude(0) == 0.5f && sample.GetAmplitude(499) == 0.5f &&
                      sample.GetAmplitude(500) == 0.0f && sample.GetNeverPurge() && sample.GetLevelLoadReferenced() &&
                      sample.GetLastPlayedTime() == 77 && passed;
-            const heap::Stats stereo = heap::GetStats(TAG_AUDIO);
+            const system::heap::Stats stereo = system::heap::GetStats(TAG_AUDIO);
             passed = stereo.requestedBytes == audioBefore.requestedBytes + 88200 &&
                      stereo.allocationCount == audioBefore.allocationCount + 1 && passed;
             sample.LoadResource(); // Reload releases its previous allocation rather than accumulating payloads.
-            passed = sample.IsLoaded() && heap::GetStats(TAG_AUDIO).requestedBytes == stereo.requestedBytes && passed;
+            passed = sample.IsLoaded() && system::heap::GetStats(TAG_AUDIO).requestedBytes == stereo.requestedBytes && passed;
             sample.FreeData();
             sample.FreeData();
             passed = !sample.IsLoaded() && !sample.IsDefault() &&
-                     heap::GetStats(TAG_AUDIO).requestedBytes == audioBefore.requestedBytes && passed;
+                     system::heap::GetStats(TAG_AUDIO).requestedBytes == audioBefore.requestedBytes && passed;
             sample.LoadResource(); // Destructor must also release a live sample.
         }
         passed = LedgerMatches(before) && passed;
@@ -81,12 +81,12 @@ bool PcmSamples()
 
 bool DefaultSamples()
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     bool passed = true;
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         {
-            idSoundSample sample;
+            audio::SoundSample sample;
             sample.SetName("_default");
             sample.LoadResource();
             sample.MakeDefault();
@@ -108,17 +108,17 @@ bool DefaultSamples()
 
 bool VoicePlayback()
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     bool passed = true;
     {
         std::uint64_t now = 0;
-        idSoundSample sample;
+        audio::SoundSample sample;
         sample.SetName("audio-fixtures/mono");
         sample.LoadResource();
-        idSoundHardware hardware;
+        audio::SoundHardware hardware;
         hardware.InitHeadless({ &now, FixtureTime });
         hardware.Init(); // Native Init is idempotent after explicit logical-mode selection.
-        idSoundVoice * voice = hardware.AllocateVoice(&sample, nullptr);
+        audio::SoundVoice * voice = hardware.AllocateVoice(&sample, nullptr);
         if (voice == nullptr)
         {
             return false;
@@ -150,7 +150,7 @@ bool VoicePlayback()
         passed = !voice->Update() && voice->GetPlaybackCursor().state == audio::VoiceState::Complete && passed;
         hardware.FreeVoice(voice);
         sample.FreeData(); // A live voice would reject this purge.
-        passed = hardware.GetNumFreeVoices() == idSoundHardware::kHeadlessVoiceCount && passed;
+        passed = hardware.GetNumFreeVoices() == audio::SoundHardware::kHeadlessVoiceCount && passed;
     }
     passed = LedgerMatches(before) && passed;
     Log(LogLevel::Info, "[D3BFG] CHECK audio/voice-playback-ledger %s\n", passed ? "PASS" : "FAIL");
@@ -159,17 +159,17 @@ bool VoicePlayback()
 
 bool VoiceLoops()
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     bool passed = true;
     {
         std::uint64_t now = 0;
-        idSoundSample leadin, loop;
+        audio::SoundSample leadin, loop;
         leadin.MakeDefault(); // 32 ms at 8 kHz.
         loop.SetName("audio-fixtures/mono");
         loop.LoadResource(); // 1 s at 11,025 Hz, same channel layout.
-        idSoundHardware hardware;
+        audio::SoundHardware hardware;
         hardware.InitHeadless({ &now, FixtureTime });
-        idSoundVoice * voice = hardware.AllocateVoice(&leadin, &loop);
+        audio::SoundVoice * voice = hardware.AllocateVoice(&leadin, &loop);
         if (voice == nullptr)
         {
             return false;
@@ -198,25 +198,25 @@ bool VoiceLoops()
 
 bool VoicePool()
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     bool passed = true;
     size_t poolBytes = 0;
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         {
             std::uint64_t now = 0;
-            idSoundSample sample;
+            audio::SoundSample sample;
             sample.MakeDefault();
-            const heap::Stats withSample = heap::GetTotalStats();
-            idSoundHardware hardware;
+            const system::heap::Stats withSample = system::heap::GetTotalStats();
+            audio::SoundHardware hardware;
             passed = !hardware.IsHeadlessInitialized() && hardware.GetNumFreeVoices() == 0 && passed;
             hardware.InitHeadless({ &now, FixtureTime });
-            const heap::Stats withPool = heap::GetTotalStats();
-            poolBytes = sizeof(idSoundVoice) * idSoundHardware::kHeadlessVoiceCount;
+            const system::heap::Stats withPool = system::heap::GetTotalStats();
+            poolBytes = sizeof(audio::SoundVoice) * audio::SoundHardware::kHeadlessVoiceCount;
             passed = withPool.requestedBytes == withSample.requestedBytes + poolBytes &&
                      withPool.allocationCount == withSample.allocationCount + 1 && passed;
-            idSoundVoice * voices[idSoundHardware::kHeadlessVoiceCount] = {};
-            for (int i = 0; i < idSoundHardware::kHeadlessVoiceCount; ++i)
+            audio::SoundVoice * voices[audio::SoundHardware::kHeadlessVoiceCount] = {};
+            for (int i = 0; i < audio::SoundHardware::kHeadlessVoiceCount; ++i)
             {
                 voices[i] = hardware.AllocateVoice(&sample, &sample);
                 if (voices[i] == nullptr)
@@ -233,7 +233,7 @@ bool VoicePool()
             hardware.FreeVoice(voices[3]);
             hardware.FreeVoice(voices[7]);
             passed = hardware.GetNumFreeVoices() == 2 && passed;
-            idSoundVoice * reused = hardware.AllocateVoice(&sample, nullptr);
+            audio::SoundVoice * reused = hardware.AllocateVoice(&sample, nullptr);
             if (reused == nullptr)
             {
                 return false;
@@ -246,7 +246,7 @@ bool VoicePool()
             sample.FreeData();
             sample.MakeDefault();
             hardware.Init(); // The explicit logical clock selection survives resource shutdown/restart.
-            idSoundVoice * restarted = hardware.AllocateVoice(&sample, nullptr);
+            audio::SoundVoice * restarted = hardware.AllocateVoice(&sample, nullptr);
             if (restarted == nullptr)
             {
                 return false;
@@ -255,7 +255,7 @@ bool VoicePool()
         }
         passed = LedgerMatches(before) && passed;
     }
-    Log(LogLevel::Info, "[D3BFG] LOGICAL_AUDIO pool_bytes=%zu voices=%d\n", poolBytes, idSoundHardware::kHeadlessVoiceCount);
+    Log(LogLevel::Info, "[D3BFG] LOGICAL_AUDIO pool_bytes=%zu voices=%d\n", poolBytes, audio::SoundHardware::kHeadlessVoiceCount);
     Log(LogLevel::Info, "[D3BFG] CHECK audio/voice-pool-ledger %s\n", passed ? "PASS" : "FAIL");
     return passed;
 }
@@ -267,9 +267,9 @@ bool VoiceFailureProbe(const char * name)
         return false;
     }
     std::uint64_t now = 100;
-    idSoundSample sample;
+    audio::SoundSample sample;
     sample.SetName("_default-pin");
-    idSoundHardware hardware;
+    audio::SoundHardware hardware;
     if (idStr::Cmp(name, "audio-voice-clock") == 0)
     {
         hardware.InitHeadless({});
@@ -290,13 +290,13 @@ bool VoiceFailureProbe(const char * name)
     sample.MakeDefault();
     if (idStr::Cmp(name, "audio-voice-format") == 0)
     {
-        idSoundSample stereo;
+        audio::SoundSample stereo;
         stereo.SetName("audio-fixtures/stereo");
         stereo.LoadResource();
         (void)hardware.AllocateVoice(&sample, &stereo);
         return true;
     }
-    idSoundVoice * voice = hardware.AllocateVoice(&sample, nullptr);
+    audio::SoundVoice * voice = hardware.AllocateVoice(&sample, nullptr);
     if (voice == nullptr)
     {
         FatalError("voice probe could not allocate its fixture");
@@ -324,7 +324,7 @@ bool VoiceFailureProbe(const char * name)
     }
     else if (idStr::Cmp(name, "audio-voice-foreign") == 0)
     {
-        idSoundHardware other;
+        audio::SoundHardware other;
         other.InitHeadless({ &now, FixtureTime });
         other.FreeVoice(voice);
     }
@@ -338,12 +338,12 @@ bool VoiceFailureProbe(const char * name)
 
 bool RunAudioTests()
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     bool passed = true;
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         {
-            idSoundSample sample;
+            audio::SoundSample sample;
             passed = passed && !sample.IsLoaded() && !sample.IsDefault() && sample.GetName()[0] == '\0' &&
                      sample.GetTimestamp() == FILE_NOT_FOUND_TIMESTAMP && !sample.GetNeverPurge() &&
                      !sample.GetLevelLoadReferenced() && sample.GetLastPlayedTime() == 0;
@@ -359,7 +359,7 @@ bool RunAudioTests()
             passed = passed && !sample.GetLevelLoadReferenced() && !sample.IsLoaded() &&
                      idStr::Cmp(sample.GetName(), name) == 0;
         }
-        const heap::Stats after = heap::GetTotalStats();
+        const system::heap::Stats after = system::heap::GetTotalStats();
         passed = passed && before.requestedBytes == after.requestedBytes && before.backingBytes == after.backingBytes &&
                  before.allocationCount == after.allocationCount;
     }
@@ -381,18 +381,18 @@ bool RunAudioFailureProbe(const char * name)
     }
     if (idStr::Cmp(name, "audio-resource") == 0)
     {
-        idSoundSample sample;
+        audio::SoundSample sample;
         sample.SetName("audio-fixtures/missing");
         sample.LoadResource();
     }
     else if (idStr::Cmp(name, "audio-duration") == 0)
     {
-        idSoundSample sample;
+        audio::SoundSample sample;
         (void)sample.LengthInMsec();
     }
     else if (idStr::Cmp(name, "audio-device") == 0)
     {
-        idSoundHardware hardware;
+        audio::SoundHardware hardware;
         hardware.Init();
     }
     else if (idStr::Cmpn(name, "audio-wave-", 11) == 0)
@@ -418,7 +418,7 @@ bool RunAudioFailureProbe(const char * name)
         {
             return false;
         }
-        idSoundSample sample;
+        audio::SoundSample sample;
         sample.SetName(file);
         sample.LoadResource();
     }
@@ -429,4 +429,4 @@ bool RunAudioFailureProbe(const char * name)
     return true; // The caller rejects an unavailable capability returning normally.
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

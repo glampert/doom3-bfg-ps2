@@ -10,7 +10,7 @@
 #include <gif_tags.h>
 #include <tamtypes.h>
 
-namespace ps2
+namespace ps2::renderer::gs
 {
 class GifWriter final
 {
@@ -77,4 +77,4 @@ private:
     qword_t * m_ptr;
     int m_capacity;
 };
-} // namespace ps2
+} // namespace ps2::renderer::gs

@@ -4,14 +4,14 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/font_backend.h"
+#include "ps2/ui/font_backend.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
-#include "ps2/renderer/ui_font_format.h"
 #include "ps2/system/log.h"
 #include "ps2/type_query.h"
 #include "ps2/ui/authored_assets.h"
+#include "ps2/ui/draw.h"
+#include "ps2/ui/font_format.h"
 #include "ps2/ui/retail_assets.h"
 #include <idlib/precompiled.h>
 #include <renderer/Font.h>
@@ -44,7 +44,7 @@ u32 ReadLittleInt(const u8 * bytes)
 }
 } // namespace
 
-namespace ps2::fonts
+namespace ps2::ui::fonts
 {
 bool IsInitialized()
 {
@@ -53,7 +53,7 @@ bool IsInitialized()
 
 PS2_COLD_FUNC void Init()
 {
-    if (s_initialized || !ui::IsInitialized() || rs::FrameStarted() || tr.fonts.Num() != 0)
+    if (s_initialized || !ui::IsInitialized() || renderer::FrameStarted() || tr.fonts.Num() != 0)
     {
         FatalError("invalid native UI font startup ownership");
     }
@@ -66,7 +66,7 @@ PS2_COLD_FUNC void Shutdown()
     {
         return;
     }
-    if (!ui::IsInitialized() || rs::FrameStarted())
+    if (!ui::IsInitialized() || renderer::FrameStarted())
     {
         FatalError("invalid native UI font shutdown ownership");
     }
@@ -114,7 +114,7 @@ idFile * OpenFontAsset(const char * name)
 
     if (IsFontName(name))
     {
-        return ui::OpenAuthoredAsset("newfonts/ps2_ascii/48.dat");
+        return ui::authored::OpenAsset("newfonts/ps2_ascii/48.dat");
     }
 
     ui::retail::FontRecord record{};
@@ -206,18 +206,18 @@ void ValidateAuthoredFontMaterial(const idMaterial * material)
         FatalError("native UI font requires one constant authored atlas material");
     }
     const shaderStage_t & stage = *material->GetStage(0);
-    if (stage.texture.image != render::AuthoredFontImage() || stage.lighting != SL_AMBIENT ||
+    if (stage.texture.image != renderer::AuthoredFontImage() || stage.lighting != SL_AMBIENT ||
         stage.texture.image == nullptr || !stage.texture.image->IsLoaded() ||
         stage.texture.image->GetUploadWidth() != 512 || stage.texture.image->GetUploadHeight() != 128)
     {
         FatalError("native UI font material does not reference the authored 512x128 atlas");
     }
 }
-} // namespace ps2::fonts
+} // namespace ps2::ui::fonts
 
 idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
 {
-    if (this != &tr || !ps2::fonts::IsInitialized() || !ps2::ui::IsInitialized() || fontName == nullptr)
+    if (this != &tr || !ps2::ui::fonts::IsInitialized() || !ps2::ui::IsInitialized() || fontName == nullptr)
     {
         ps2::FatalError("native UI font registration outside initialized ownership");
     }
@@ -258,7 +258,7 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
 
 void idRenderSystemLocal::ResetFonts()
 {
-    if (this != &tr || !ps2::fonts::IsInitialized() || ps2::rs::FrameStarted())
+    if (this != &tr || !ps2::ui::fonts::IsInitialized() || ps2::renderer::FrameStarted())
     {
         ps2::FatalError("invalid native UI font reset ownership");
     }

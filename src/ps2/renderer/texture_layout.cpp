@@ -8,7 +8,7 @@
 
 #include <limits>
 
-namespace ps2::tex
+namespace ps2::renderer::tex
 {
 namespace
 {
@@ -171,4 +171,4 @@ bool PadRgba32(const Layout & layout, const void * source, size_t sourceBytes,
     return true;
 }
 
-} // namespace ps2::tex
+} // namespace ps2::renderer::tex

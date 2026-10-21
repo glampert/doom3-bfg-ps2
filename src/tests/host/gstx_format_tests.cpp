@@ -6,7 +6,7 @@
 // ================================================================================================
 
 #include "assets/texture_convert.h"
-#include "ps2/renderer/gstx_format.h"
+#include "ps2/ui/gstx_format.h"
 
 #include <cstdint>
 #include <cstdio>

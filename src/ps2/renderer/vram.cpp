@@ -8,46 +8,46 @@
 
 #include <limits>
 
-namespace ps2::vram
+namespace ps2::renderer::gs
 {
 namespace
 {
 
-static constexpr std::uint32_t kMaxPages = kTotalBytes / kPageBytes;
-static std::uint8_t s_pages[kMaxPages]{};
-static Allocation s_allocations[kMaxAllocations]{};
+static constexpr std::uint32_t kMaxVramPages = kVramBytes / kVramPageBytes;
+static std::uint8_t s_pages[kMaxVramPages]{};
+static VramAllocation s_allocations[kMaxVramAllocations]{};
 static std::uint32_t s_beginBytes = 0;
 static std::uint32_t s_pageCount = 0;
 static std::uint32_t s_nextGeneration = 1;
-static Stats s_stats{};
+static VramStats s_stats{};
 static bool s_initialized = false;
 
 } // namespace
 
-bool Init(std::uint32_t beginBytes, std::uint32_t budgetBytes)
+bool InitVram(std::uint32_t beginBytes, std::uint32_t budgetBytes)
 {
-    if (s_initialized || (beginBytes >= kTotalBytes) || (budgetBytes == 0) ||
-        ((beginBytes % kPageBytes) != 0) || ((budgetBytes % kPageBytes) != 0) ||
-        (budgetBytes > (kTotalBytes - beginBytes)))
+    if (s_initialized || (beginBytes >= kVramBytes) || (budgetBytes == 0) ||
+        ((beginBytes % kVramPageBytes) != 0) || ((budgetBytes % kVramPageBytes) != 0) ||
+        (budgetBytes > (kVramBytes - beginBytes)))
     {
         return false;
     }
     s_beginBytes = beginBytes;
-    s_pageCount = budgetBytes / kPageBytes;
+    s_pageCount = budgetBytes / kVramPageBytes;
     s_stats = { budgetBytes, 0, 0, 0 };
     s_initialized = true;
-    Reset();
+    ResetVram();
     return true;
 }
 
-bool IsInitialized()
+bool IsVramInitialized()
 {
     return s_initialized;
 }
 
-bool Allocate(std::uint32_t bytes, Allocation & output)
+bool AllocateVram(std::uint32_t bytes, VramAllocation & output)
 {
-    if (!s_initialized || (bytes == 0) || ((bytes % kPageBytes) != 0) ||
+    if (!s_initialized || (bytes == 0) || ((bytes % kVramPageBytes) != 0) ||
         (bytes > (s_stats.capacityBytes - s_stats.usedBytes)) ||
         (s_nextGeneration == std::numeric_limits<std::uint32_t>::max()))
     {
@@ -55,7 +55,7 @@ bool Allocate(std::uint32_t bytes, Allocation & output)
     }
 
     int slot = -1;
-    for (int i = 0; i < kMaxAllocations; ++i)
+    for (int i = 0; i < kMaxVramAllocations; ++i)
     {
         if (s_allocations[i].bytes == 0)
         {
@@ -68,7 +68,7 @@ bool Allocate(std::uint32_t bytes, Allocation & output)
         return false;
     }
 
-    const std::uint32_t pages = bytes / kPageBytes;
+    const std::uint32_t pages = bytes / kVramPageBytes;
     std::uint32_t run = 0;
     for (std::uint32_t i = 0; i < s_pageCount; ++i)
     {
@@ -83,8 +83,8 @@ bool Allocate(std::uint32_t bytes, Allocation & output)
         {
             s_pages[page] = 1;
         }
-        const Allocation allocation{
-            s_beginBytes + (firstPage * kPageBytes), bytes,
+        const VramAllocation allocation{
+            s_beginBytes + (firstPage * kVramPageBytes), bytes,
             s_nextGeneration++, static_cast<std::uint16_t>(slot)
         };
         s_allocations[slot] = allocation;
@@ -100,21 +100,21 @@ bool Allocate(std::uint32_t bytes, Allocation & output)
     return false;
 }
 
-bool Release(const Allocation & allocation)
+bool ReleaseVram(const VramAllocation & allocation)
 {
-    if (!s_initialized || (allocation.slot >= kMaxAllocations) || (allocation.bytes == 0))
+    if (!s_initialized || (allocation.slot >= kMaxVramAllocations) || (allocation.bytes == 0))
     {
         return false;
     }
-    const Allocation & current = s_allocations[allocation.slot];
+    const VramAllocation & current = s_allocations[allocation.slot];
     if ((allocation.byteAddress != current.byteAddress) || (allocation.bytes != current.bytes) ||
         (allocation.generation != current.generation))
     {
         return false;
     }
 
-    const std::uint32_t firstPage = (current.byteAddress - s_beginBytes) / kPageBytes;
-    const std::uint32_t lastPage = firstPage + (current.bytes / kPageBytes);
+    const std::uint32_t firstPage = (current.byteAddress - s_beginBytes) / kVramPageBytes;
+    const std::uint32_t lastPage = firstPage + (current.bytes / kVramPageBytes);
     for (std::uint32_t page = firstPage; page < lastPage; ++page)
     {
         s_pages[page] = 0;
@@ -125,12 +125,12 @@ bool Release(const Allocation & allocation)
     return true;
 }
 
-Stats GetStats()
+VramStats GetVramStats()
 {
     return s_stats;
 }
 
-void Reset()
+void ResetVram()
 {
     for (auto & page : s_pages)
     {
@@ -144,13 +144,13 @@ void Reset()
     s_stats.allocationCount = 0;
 }
 
-void Shutdown()
+void ShutdownVram()
 {
-    Reset();
+    ResetVram();
     s_beginBytes = 0;
     s_pageCount = 0;
     s_stats = {};
     s_initialized = false;
 }
 
-} // namespace ps2::vram
+} // namespace ps2::renderer::gs

@@ -281,7 +281,7 @@ performance tests must precede replacing them with single-precision implementati
 
 Doug Lea's allocator supplies the EE's sole C/newlib arena; standard C allocation entry
 points and their reentrant variants route to it. Doom's aligned/tagged APIs and all
-standard, sized, nothrow and over-aligned C++ allocation forms use `ps2::heap` metadata.
+standard, sized, nothrow and over-aligned C++ allocation forms use `ps2::system::heap` metadata.
 The zero-initialized ledger supports registration allocations before `main`.
 
 Each allocation stores its requested size, backing size, tag and original base pointer.

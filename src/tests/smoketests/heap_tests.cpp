@@ -17,14 +17,14 @@
 #include <limits>
 #include <new>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
 
 // Models engine registration allocation before main; the heap ledger must already exist.
 static constexpr std::uint16_t kEarlyTag = 201;
-static void * s_earlyAllocation = ps2::heap::TryAlloc(23, kEarlyTag, 64);
+static void * s_earlyAllocation = ps2::system::heap::TryAlloc(23, kEarlyTag, 64);
 
 bool Check(bool condition, const char * name)
 {
@@ -36,7 +36,7 @@ bool Check(bool condition, const char * name)
 
 bool RunHeapTests()
 {
-    using namespace ps2::heap;
+    using namespace ps2::system::heap;
     bool passed = true;
     passed &= Check(s_earlyAllocation != nullptr && GetStats(kEarlyTag).requestedBytes == 23,
                     "allocation-before-main");
@@ -102,4 +102,4 @@ bool RunHeapTests()
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

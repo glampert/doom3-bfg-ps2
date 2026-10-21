@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: ui_paletted_image.h
+// File: paletted_image.h
 // Brief: Draw native UI images from converted GSTX textures: paletted pages and CLUTs stay resident,
 // and each triangle samples the placement its UV centroid lands in, clamped to that placement.
 // This source code is released under the GNU GPL-3.0-or-later license.
@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "ps2/renderer/gstx_format.h"
-#include "ps2/renderer/ui_page_image.h"
+#include "ps2/ui/gstx_format.h"
+#include "ps2/ui/page_image.h"
 
 namespace ps2::ui
 {
@@ -44,7 +44,7 @@ public:
     const gstx::Header & GetHeader() const;
     // A triangle is valid when its UV centroid lies in a placement and its mapped page UVs clip.
     bool ValidateTriangle(const Vertex (&vertices)[3]) const override;
-    bool DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend) override;
+    bool DrawTriangle(const Vertex (&vertices)[3], renderer::gs::BlendMode blend) override;
 
 private:
     bool Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes);
@@ -54,8 +54,8 @@ private:
 
     gstx::Header m_header = {};
     std::uint8_t * m_tables = nullptr;
-    tex::Handle m_pages[gstx::kMaxPages] = {};
-    tex::Handle m_cluts;
+    renderer::tex::Handle m_pages[gstx::kMaxPages] = {};
+    renderer::tex::Handle m_cluts;
     // Placement lookup: cell c lists m_cellItems[m_cellStart[c] .. m_cellStart[c + 1]).
     std::uint32_t * m_cellStart = nullptr;
     u16 * m_cellItems = nullptr;

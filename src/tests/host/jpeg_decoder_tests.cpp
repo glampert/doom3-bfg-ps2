@@ -14,11 +14,11 @@
 
 namespace
 {
-static ps2::heap::Stats s_baseline = {};
+static ps2::system::heap::Stats s_baseline = {};
 
 bool LedgerRestored()
 {
-    const ps2::heap::Stats now = ps2::heap::GetTotalStats();
+    const ps2::system::heap::Stats now = ps2::system::heap::GetTotalStats();
     return now.requestedBytes == s_baseline.requestedBytes && now.backingBytes == s_baseline.backingBytes &&
            now.allocationCount == s_baseline.allocationCount;
 }
@@ -174,17 +174,17 @@ int main(int argc, char ** argv)
         const bool closed = std::fclose(file) == 0;
         return written && closed ? 0 : 4;
     }
-    s_baseline = ps2::heap::GetTotalStats();
-    void * decoder = ps2::jpeg::Create();
+    s_baseline = ps2::system::heap::GetTotalStats();
+    void * decoder = ps2::ui::swf::CreateJpegDecoder();
     int width = -1;
     int height = -1;
     if (std::strcmp(argv[1], "valid") == 0)
     {
         for (int i = 0; i < 3; ++i)
         {
-            unsigned char * output = ps2::jpeg::Decode(decoder, data, static_cast<int>(size), width, height);
+            unsigned char * output = ps2::ui::swf::DecodeJpeg(decoder, data, static_cast<int>(size), width, height);
             const bool match = PixelsMatch(output, width, height);
-            ps2::heap::Free(output);
+            ps2::system::heap::Free(output);
             if (!match)
             {
                 return 5;
@@ -198,15 +198,15 @@ int main(int argc, char ** argv)
         {
             return 6;
         }
-        if (ps2::jpeg::Decode(decoder, tables, static_cast<int>(tableSize), width, height) != nullptr ||
+        if (ps2::ui::swf::DecodeJpeg(decoder, tables, static_cast<int>(tableSize), width, height) != nullptr ||
             width != 0 || height != 0)
         {
             return 7;
         }
-        unsigned char * output = ps2::jpeg::Decode(decoder, abbreviated, static_cast<int>(abbreviatedSize), width, height);
+        unsigned char * output = ps2::ui::swf::DecodeJpeg(decoder, abbreviated, static_cast<int>(abbreviatedSize), width, height);
         const bool match = PixelsMatch(output, width, height);
-        ps2::heap::Free(output);
-        ps2::jpeg::Destroy(decoder);
+        ps2::system::heap::Free(output);
+        ps2::ui::swf::DestroyJpegDecoder(decoder);
         if (!match || !LedgerRestored())
         {
             return 8;
@@ -216,12 +216,12 @@ int main(int argc, char ** argv)
     }
     if (std::strcmp(argv[1], "invalid") == 0)
     {
-        ps2::jpeg::Decode(decoder, nullptr, 0, width, height);
+        ps2::ui::swf::DecodeJpeg(decoder, nullptr, 0, width, height);
     }
     else if (std::strcmp(argv[1], "marker") == 0)
     {
         const unsigned char malformed[] = { 255, 0xd8, 255, 0xe1, 255, 255 };
-        ps2::jpeg::Decode(decoder, malformed, sizeof(malformed), width, height);
+        ps2::ui::swf::DecodeJpeg(decoder, malformed, sizeof(malformed), width, height);
     }
     else if (std::strcmp(argv[1], "oversize") == 0)
     {
@@ -234,16 +234,16 @@ int main(int argc, char ** argv)
                 break;
             }
         }
-        ps2::jpeg::Decode(decoder, data, static_cast<int>(size), width, height);
+        ps2::ui::swf::DecodeJpeg(decoder, data, static_cast<int>(size), width, height);
     }
     else if (std::strcmp(argv[1], "truncated") == 0)
     {
-        ps2::jpeg::Decode(decoder, data, static_cast<int>(size - 2), width, height);
+        ps2::ui::swf::DecodeJpeg(decoder, data, static_cast<int>(size - 2), width, height);
     }
     else if (std::strcmp(argv[1], "signature") == 0)
     {
         data[0] = 0;
-        ps2::jpeg::Decode(decoder, data, static_cast<int>(size), width, height);
+        ps2::ui::swf::DecodeJpeg(decoder, data, static_cast<int>(size), width, height);
     }
     return 9;
 }

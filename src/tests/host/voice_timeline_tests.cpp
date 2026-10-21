@@ -17,7 +17,7 @@ int main(int argc, char ** argv)
     }
     if (std::strcmp(argv[1], "valid") == 0)
     {
-        return ps2::smoketests::RunVoiceTimelineTests() ? 0 : 1;
+        return ps2::tests::RunVoiceTimelineTests() ? 0 : 1;
     }
     ps2::audio::VoiceTimeline voice;
     if (std::strcmp(argv[1], "unconfigured") == 0)

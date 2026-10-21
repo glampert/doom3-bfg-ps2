@@ -6,12 +6,12 @@
 
 #include "ps2/renderer/texture.h"
 #include "ps2/renderer/cmd_buffer.h"
-#include "ps2/renderer/ui_draw.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
+#include "ps2/ui/draw.h"
 #include <idlib/precompiled.h>
 
-namespace ps2::tex
+namespace ps2::renderer::tex
 {
 namespace
 {
@@ -21,13 +21,13 @@ struct Record
     Layout layout;
     Sampler sampler;
     void * pixels;
-    vram::Allocation allocation;
+    gs::VramAllocation allocation;
     u64 lastUse;
     bool resident;
     bool dirty;
 };
 
-static Record s_records[vram::kMaxAllocations] = {};
+static Record s_records[gs::kMaxVramAllocations] = {};
 static Stats s_stats = {};
 static u32 s_budget = 0;
 static u32 s_nextId = 0;
@@ -52,13 +52,13 @@ Record & Find(Handle handle)
 
 void Fence()
 {
-    cmdbuf::Kick();
-    cmdbuf::WaitIdle();
+    gs::Kick();
+    gs::WaitIdle();
 }
 
-void ReleaseVram(Record & record)
+void ReleaseResidency(Record & record)
 {
-    if (record.resident && !vram::Release(record.allocation))
+    if (record.resident && !gs::ReleaseVram(record.allocation))
     {
         FatalError("texture VRAM ownership mismatch");
     }
@@ -107,12 +107,12 @@ bool MakeResident(Record & record, const Record * keep)
         return true;
     }
 
-    if (record.layout.bytes > vram::GetStats().capacityBytes)
+    if (record.layout.bytes > gs::GetVramStats().capacityBytes)
     {
         return false;
     }
 
-    if (!vram::Allocate(record.layout.bytes, record.allocation))
+    if (!gs::AllocateVram(record.layout.bytes, record.allocation))
     {
         Fence();
 
@@ -133,9 +133,9 @@ bool MakeResident(Record & record, const Record * keep)
                 return false;
             }
 
-            ReleaseVram(*oldest);
+            ReleaseResidency(*oldest);
             ++s_stats.evictions;
-        } while (!vram::Allocate(record.layout.bytes, record.allocation));
+        } while (!gs::AllocateVram(record.layout.bytes, record.allocation));
     }
 
     record.resident = true;
@@ -176,7 +176,7 @@ PS2_COLD_FUNC bool Init(u32 vramBytes, u32 pixelBudgetBytes)
         FatalError("texture owner initialized twice");
     }
     if (!gs::IsInitialized() || pixelBudgetBytes == 0 || pixelBudgetBytes > 2U * 1024U * 1024U ||
-        !vram::Init(gs::FixedVramBytes(), vramBytes))
+        !gs::InitVram(gs::FixedVramBytes(), vramBytes))
     {
         return false;
     }
@@ -203,14 +203,14 @@ Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t 
     {
         return {};
     }
-    void * const pixels = heap::TryAlloc(layout.bytes, TAG_RENDER, 64);
+    void * const pixels = system::heap::TryAlloc(layout.bytes, TAG_RENDER, 64);
     if (pixels == nullptr)
     {
         return {};
     }
     if (!PadRgba32(layout, rgba, sourceBytes, strideBytes, pixels, layout.bytes))
     {
-        heap::Free(pixels);
+        system::heap::Free(pixels);
         return {};
     }
     return Publish(*freeRecord, layout, sampler, pixels);
@@ -239,7 +239,7 @@ Handle CreateIndexed(int width, int height, PixelFormat format, Sampler sampler,
         return {};
     }
 
-    void * const pixels = heap::TryAlloc(layout.bytes, TAG_RENDER, 64);
+    void * const pixels = system::heap::TryAlloc(layout.bytes, TAG_RENDER, 64);
 
     if (pixels == nullptr)
     {
@@ -279,8 +279,8 @@ void Destroy(Handle handle)
     ui::Flush();
     auto & record = Find(handle);
     Fence();
-    ReleaseVram(record);
-    heap::Free(record.pixels);
+    ReleaseResidency(record);
+    system::heap::Free(record.pixels);
     s_stats.pixelBytes -= static_cast<u32>(record.layout.bytes);
     --s_stats.textures;
     record = {};
@@ -326,14 +326,14 @@ PS2_COLD_FUNC void Shutdown()
     {
         if (record.handle.id != 0)
         {
-            ReleaseVram(record);
-            heap::Free(record.pixels);
+            ReleaseResidency(record);
+            system::heap::Free(record.pixels);
             record = {};
         }
     }
-    vram::Shutdown();
+    gs::ShutdownVram();
     s_stats.pixelBytes = s_stats.textures = 0;
     s_budget = 0;
     s_initialized = false;
 }
-} // namespace ps2::tex
+} // namespace ps2::renderer::tex

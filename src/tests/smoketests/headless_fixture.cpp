@@ -64,7 +64,7 @@ void ValidateBrushes(const idMapEntity & entity)
 }
 } // namespace
 
-namespace ps2::gamefixture
+namespace ps2::tests::fixture
 {
 namespace
 {
@@ -143,7 +143,7 @@ void ValidateFrame()
         {
             FatalError("invalid headless map frame state");
         }
-        ps2::render::AdvanceLogicalFrame();
+        ps2::renderer::AdvanceLogicalFrame();
         return;
     }
     const idPlayer * player = gameLocal.GetLocalPlayer();
@@ -154,11 +154,11 @@ void ValidateFrame()
         FatalError("invalid headless fixture frame state");
     }
 }
-} // namespace ps2::gamefixture
+} // namespace ps2::tests::fixture
 
 void idPlayer::SpawnHeadlessFixture()
 {
-    if (!ps2::gamefixture::IsEnabled() || entityNumber != 0 || gameLocal.entities[0] != this || gameLocal.numClients != 0 ||
+    if (!ps2::tests::fixture::IsEnabled() || entityNumber != 0 || gameLocal.entities[0] != this || gameLocal.numClients != 0 ||
         hudManager != nullptr || pdaMenu != nullptr || renderEntity.hModel != nullptr || !scriptObject.HasObject())
     {
         ps2::FatalError("invalid headless player initialization");
@@ -191,7 +191,7 @@ void idPlayer::SpawnHeadlessFixture()
 
 void idPlayer::ThinkHeadlessFixture()
 {
-    ps2::gamefixture::ValidateFrame();
+    ps2::tests::fixture::ValidateFrame();
     if (entityNumber != 0 || gameLocal.GetLocalPlayer() != this || health != 100 ||
         usercmd.rightmove != 0 || (usercmd.buttons & ~(BUTTON_JUMP | BUTTON_CROUCH)) != 0 ||
         usercmd.impulse != 0 || usercmd.impulseSequence != 0 ||
@@ -215,7 +215,7 @@ void idPlayer::ThinkHeadlessFixture()
 
 void idGameLocal::InitHeadlessFixture(const char * mapName)
 {
-    if (!ps2::gamefixture::IsEnabled() || gamestate != GAMESTATE_NOMAP ||
+    if (!ps2::tests::fixture::IsEnabled() || gamestate != GAMESTATE_NOMAP ||
         mapName == nullptr || idStr::Cmp(mapName, "maps/logic") != 0)
     {
         ps2::FatalError("invalid headless game fixture startup");

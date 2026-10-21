@@ -7,7 +7,7 @@
 #include "ps2/ui/swf_format.h"
 #include <cstring>
 
-namespace ps2::ui
+namespace ps2::ui::swf
 {
 namespace
 {
@@ -128,11 +128,11 @@ private:
 class Validator final
 {
 public:
-    Validator(const void * bytes, std::size_t length, SwfIdentityCheck identity, void * context, SwfExecutionSummary * execution = nullptr) : m_reader(bytes, length), m_identity(identity), m_context(context), m_execution(execution)
+    Validator(const void * bytes, std::size_t length, IdentityCheck identity, void * context, ExecutionSummary * execution = nullptr) : m_reader(bytes, length), m_identity(identity), m_context(context), m_execution(execution)
     {
     }
 
-    bool Run(SwfSummary & output)
+    bool Run(Summary & output)
     {
         auto & r = m_reader;
         r.Require(r.Read(4) == 0x42535710U);
@@ -302,8 +302,8 @@ private:
 
     bool Execution()
     {
-        SwfExecutionSummary summary;
-        std::uint16_t display[kMaxSwfDisplayDepth + 1];
+        ExecutionSummary summary;
+        std::uint16_t display[kMaxDisplayDepth + 1];
 
         for (U32 index = 0; index < m_spriteCount; ++index)
         {
@@ -315,9 +315,9 @@ private:
             {
                 const U32 tag = Big(sprite.descriptors + command * 8);
                 const U32 length = Big(sprite.descriptors + command * 8 + 4);
-                SwfPlacement placement;
+                Placement placement;
 
-                if (!ValidateSwfCommand(tag, sprite.buffer + used, length, m_types,
+                if (!ValidateCommand(tag, sprite.buffer + used, length, m_types,
                                         m_summary.dictionary, sprite.frames, summary, &placement))
                 {
                     return false;
@@ -383,14 +383,14 @@ private:
 
     bool Graph(U32 index, U32 depth = 1)
     {
-        if (depth > kMaxSwfSpriteDepth || m_graphState[index] == 1)
+        if (depth > kMaxSpriteDepth || m_graphState[index] == 1)
         {
             return false;
         }
 
         if (m_graphState[index] == 2)
         {
-            return depth + m_graphHeight[index] - 1 <= kMaxSwfSpriteDepth;
+            return depth + m_graphHeight[index] - 1 <= kMaxSpriteDepth;
         }
 
         m_graphState[index] = 1;
@@ -549,14 +549,14 @@ private:
     }
 
     Reader m_reader;
-    SwfIdentityCheck m_identity;
+    IdentityCheck m_identity;
     void * m_context;
-    SwfSummary m_summary;
+    Summary m_summary;
     U8 m_types[kMaxDictionary] = {};
     U32 m_fontRefs[256] = {};
     U32 m_references = 0;
     bool m_hasPreview = false;
-    SwfExecutionSummary * m_execution;
+    ExecutionSummary * m_execution;
     SpriteData m_sprites[512];
     U32 m_spriteCount = 0;
     U8 m_graphState[512] = {};
@@ -564,9 +564,9 @@ private:
 };
 } // namespace
 
-bool ValidateSwfBytes(const void * bytes, std::size_t length, SwfSummary & output, SwfIdentityCheck identity, void * context)
+bool ValidateBytes(const void * bytes, std::size_t length, Summary & output, IdentityCheck identity, void * context)
 {
-    if (bytes == nullptr || length < 64 || length > kMaxSwfBytes)
+    if (bytes == nullptr || length < 64 || length > kMaxBytes)
     {
         return false;
     }
@@ -574,15 +574,15 @@ bool ValidateSwfBytes(const void * bytes, std::size_t length, SwfSummary & outpu
     return Validator(bytes, length, identity, context).Run(output);
 }
 
-bool ValidateSwfExecutionBytes(const void * bytes, std::size_t length, SwfExecutionSummary & output)
+bool ValidateExecutionBytes(const void * bytes, std::size_t length, ExecutionSummary & output)
 {
-    if (bytes == nullptr || length < 64 || length > kMaxSwfBytes)
+    if (bytes == nullptr || length < 64 || length > kMaxBytes)
     {
         return false;
     }
 
-    SwfSummary storage;
-    SwfExecutionSummary execution;
+    Summary storage;
+    ExecutionSummary execution;
 
     if (!Validator(bytes, length, nullptr, nullptr, &execution).Run(storage))
     {
@@ -742,4 +742,4 @@ bool ValidateEnglishBytes(const void * bytes, std::size_t length, std::uint32_t 
         }
     }
 }
-} // namespace ps2::ui
+} // namespace ps2::ui::swf

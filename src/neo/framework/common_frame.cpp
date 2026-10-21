@@ -314,7 +314,7 @@ This is an out-of-sequence screen update, not the normal game rendering
 void idCommonLocal::UpdateScreen( bool captureToImage ) {
 	// [PS2_D3BFG]: Coalesce console redraws without entering desktop drawing or advancing game time.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	ps2::runtime::UpdateScreen( captureToImage );
+	ps2::system::runtime::UpdateScreen( captureToImage );
 	return;
 #endif
 	if ( insideUpdateScreen ) {
@@ -394,7 +394,7 @@ void idCommonLocal::Frame() {
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
 	FrameHeadless();
 #else
-	ps2::lifecycle::Frame();
+	ps2::system::lifecycle::Frame();
 #endif
 	return;
 #endif

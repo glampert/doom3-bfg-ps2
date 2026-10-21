@@ -658,3 +658,12 @@ the common `PagedImage` interface. Production retains **376 direct objects**, ze
 inputs/symbols and no GC. Fixed `PT_LOAD` is **11,177,957 debug / 11,614,821 release
 bytes**; core is **2,150,896 / 2,235,504**. The compiler database has **401 entries**.
 Host sanitizer tests check the target's GSTX admission against converter output.
+
+The namespace cleanup (2026-10-21) moves the UI units from `src/ps2/renderer/` to
+`src/ps2/ui/` and drops their `ui_` prefix: `draw`, `geometry`, `triangles`, `masks`,
+`page_format`, `page_geometry`, `page_image`, `paletted_image` and `font_format`, plus
+`gstx_format`, `font_backend` and `charset`. Each keeps its position, group and flags in
+the source lists, so link order is unchanged. Production retains **376 direct objects**;
+fixed `PT_LOAD` is **11,177,829 debug / 11,614,693 release bytes** (128 fewer, from
+shorter diagnostics), and core stays **2,150,896 / 2,235,504**. The compiler database
+keeps **401 entries**.

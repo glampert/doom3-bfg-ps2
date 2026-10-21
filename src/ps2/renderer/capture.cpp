@@ -14,7 +14,7 @@
 #include <kernel.h>
 #include <vif_codes.h>
 
-namespace ps2::capture
+namespace ps2::renderer::gs
 {
 namespace
 {
@@ -243,11 +243,11 @@ bool WriteFrame(std::FILE * file, const gs::FramebufferInfo & frame)
 }
 } // namespace
 
-PS2_COLD_FUNC bool WriteTga(const char * path, gs::DrawContext context)
+PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
 {
-    if (path == nullptr || path[0] == '\0' || s_active || !rs::IsInitialized() ||
-        !gs::IsInitialized() || rs::FrameStarted() || rs::FrameCount() == 0 ||
-        context != rs::LastPresentedContext())
+    if (path == nullptr || path[0] == '\0' || s_active || !renderer::IsInitialized() ||
+        !gs::IsInitialized() || renderer::FrameStarted() || renderer::FrameCount() == 0 ||
+        context != renderer::LastPresentedContext())
     {
         Log(LogLevel::Error, "GS capture requires a path and the most recently completed frame");
         return false;
@@ -284,4 +284,4 @@ void InjectReadbackTimeoutOnce()
     s_injectReadbackTimeout = true;
 }
 #endif
-} // namespace ps2::capture
+} // namespace ps2::renderer::gs

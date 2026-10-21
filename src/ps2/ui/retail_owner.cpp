@@ -281,9 +281,9 @@ private:
 static DialogOwner * s_dialog = nullptr;
 } // namespace
 
-namespace ps2::ui::retail_owner
+namespace ps2::ui::retail
 {
-void Init(idSWF & movie, unsigned movieIndex)
+void AttachOwner(idSWF & movie, unsigned movieIndex)
 {
     if (s_owner != nullptr || s_dialog != nullptr || movieIndex >= 2 || !movie.IsResourceOnly() ||
         movie.IsResourceExecution())
@@ -307,7 +307,7 @@ void ShowQuitDialog(idSWF & movie)
     s_dialog = new (TAG_SWF) DialogOwner(movie);
 }
 
-void Shutdown(idSWF & movie)
+void DetachOwner(idSWF & movie)
 {
     if (s_dialog != nullptr)
     {
@@ -334,7 +334,7 @@ void Shutdown(idSWF & movie)
     s_owner = nullptr;
 }
 
-bool IsCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
+bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
 {
     return (s_owner != nullptr && s_owner->OwnsCallback(name, function, movie)) ||
            (s_dialog != nullptr && s_dialog->OwnsCallback(name, function, movie));
@@ -355,7 +355,7 @@ void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idS
     s_owner->CheckCallbackOrigin(name, executing);
 }
 
-void Status()
+void OwnerStatus()
 {
     if (s_owner != nullptr)
     {
@@ -367,4 +367,4 @@ void Status()
         s_dialog->PrintStatus();
     }
 }
-} // namespace ps2::ui::retail_owner
+} // namespace ps2::ui::retail

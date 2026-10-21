@@ -16,6 +16,13 @@ preconditions, `ArrayLength`, and portable format/cold function macros. Preserve
 validation in release builds. Reused Quake II backend code is attributed in README.md;
 new file banners use `This source code is released under the GNU GPL-3.0-or-later license.`
 
+Backend namespaces follow `ps2::module::subsystem`, the module being the `src/ps2/` folder
+(`ps2::renderer::gs`, `ps2::system::heap`, `ps2::ui::swf`). A subsystem spread over several
+files keeps one namespace; merge related code rather than adding a namespace per file.
+Code shared within a module, or without a clear subsystem, lives at `ps2::module`, and code
+every module shares at `ps2`. UI code lives in `src/ps2/ui/`. Tests use `ps2::tests`. See
+[ps2-backend-cpp.md](.claude/rules/ps2-backend-cpp.md#naming).
+
 New C++ code, including host tools, places block braces on their own lines. Always
 brace conditional bodies and expand blocks across multiple lines, including short
 functions. Leave a blank line after a completed block before the next independent
@@ -120,7 +127,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   and holds the NTSC scene for inspection.
   Production optionally presents the real native console and authored native SWF through
   Common; retail menu/Shell providers remain pending. `ui::Init/Shutdown` explicitly own
-  native 2D capability and intrinsic images after/before the caller-owned `rs` device; low-level GS
+  native 2D capability and intrinsic images after/before the caller-owned `renderer` device; low-level GS
   readiness alone never changes `R_IsInitialized`, and OpenGL stays unavailable.
   UI collection owns 4,096 vertices, 6,144 indices and 128 ordered draw runs. Fill returned
   write-only spans before the next allocation/draw; flushing or ending a frame recycles

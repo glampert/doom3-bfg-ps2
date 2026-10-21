@@ -28,7 +28,7 @@ struct PcmWave
     size_t dataBytes = 0;
     std::uint32_t sampleRate = 0;
     std::uint32_t channels = 0;
-    std::uint32_t frames = 0; // Per channel, matching idSoundSample::NumSamples.
+    std::uint32_t frames = 0; // Per channel, matching SoundSample::NumSamples.
 };
 
 // Returns a static diagnostic on failure and clears output. Scans headers without copying the file.

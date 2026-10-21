@@ -1,12 +1,12 @@
 // ================================================================================================
-// File: ui_masks.h
+// File: masks.h
 // Brief: Admit exact convex triangle masks and clip native UI geometry without stencil storage.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #pragma once
 
-#include "ps2/renderer/ui_triangles.h"
+#include "ps2/ui/triangles.h"
 
 namespace ps2::ui
 {

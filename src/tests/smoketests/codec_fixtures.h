@@ -6,7 +6,7 @@
 
 #pragma once
 
-namespace ps2::smoketests::fixtures
+namespace ps2::tests::fixture
 {
 static constexpr unsigned char kJpeg[] = {
     0xff,
@@ -1460,4 +1460,4 @@ static constexpr unsigned char kZlibRaw[] = {
     0x16,
     0x00,
 };
-} // namespace ps2::smoketests::fixtures
+} // namespace ps2::tests::fixture

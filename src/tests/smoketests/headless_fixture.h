@@ -9,7 +9,7 @@
 class idTypeInfo;
 class idDict;
 
-namespace ps2::gamefixture
+namespace ps2::tests::fixture
 {
 
 // Explicit process-wide selection before Common/game startup; never selected by ordinary boot.
@@ -22,4 +22,4 @@ bool IsMapEnabled();
 void ValidatePlayerSpawn(const idTypeInfo & type, const idDict * args);
 void ValidateFrame();
 
-} // namespace ps2::gamefixture
+} // namespace ps2::tests::fixture

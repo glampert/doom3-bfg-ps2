@@ -61,18 +61,18 @@ bool WorldQueries(idRenderWorld & world)
 }
 } // namespace
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 bool RunMapTests()
 {
     ::game->Init();
-    ps2::render::InitLogical("textures/fixture/solid");
+    ps2::renderer::InitLogical("textures/fixture/solid");
     auto * world = renderSystem->AllocRenderWorld();
     auto * sound = soundSystem->AllocSoundWorld(world); // Empty native bookkeeping only; s_noSound is set.
     auto * commands = new (TAG_GAME) idUserCmdMgr;
     bool passed = true;
-    ps2::heap::Stats warmed{};
+    ps2::system::heap::Stats warmed{};
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         if (!world->InitFromMap("maps/headless"))
@@ -94,7 +94,7 @@ bool RunMapTests()
                                           floor.c.entityNum == ENTITYNUM_WORLD && floor.c.normal == idVec3(0.0f, 0.0f, 1.0f) &&
                                           idMath::Fabs(floor.endpos.z - CM_CLIP_EPSILON) < 0.05f) &&
                  passed;
-        passed = Check("presentation-off", ps2::render::IsLogicalInitialized() && !renderSystem->IsOpenGLRunning() &&
+        passed = Check("presentation-off", ps2::renderer::IsLogicalInitialized() && !renderSystem->IsOpenGLRunning() &&
                                            cvarSystem->GetCVarBool("s_noSound") && soundSystem->GetPlayingSoundWorld() == nullptr) &&
                  passed;
         const idVec3 start(-32.0f, 0.0f, 0.25f), goal(32.0f, 0.0f, 0.25f);
@@ -123,7 +123,7 @@ bool RunMapTests()
         passed = Check("ai-floor", ai != nullptr && ai->GetPhysics()->HasGroundContacts() &&
                                    idMath::Fabs(ai->GetPhysics()->GetOrigin().z - CM_CLIP_EPSILON) < 0.05f) &&
                  passed;
-        const auto stats = ps2::heap::GetTotalStats();
+        const auto stats = ps2::system::heap::GetTotalStats();
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] MAP_TICK cycle=%d frames=%d ai_x=%.3f ai_z=%.3f heap=%zu/%zu/%zu\n",
                  cycle, gameLocal.GetFrameNum(), static_cast<double>(ai != nullptr ? ai->GetPhysics()->GetOrigin().x : -999.0f),
                  static_cast<double>(ai != nullptr ? ai->GetPhysics()->GetOrigin().z : -999.0f),
@@ -132,7 +132,7 @@ bool RunMapTests()
         passed = Check("native-map-shutdown", gameLocal.world == nullptr && gameLocal.FindEntity("map_ai") == nullptr &&
                                               gameLocal.GameState() == GAMESTATE_NOMAP && idClipModel::TraceModelCacheSize() == 0) &&
                  passed;
-        const auto after = ps2::heap::GetTotalStats();
+        const auto after = ps2::system::heap::GetTotalStats();
         if (cycle == 1)
         {
             warmed = after;
@@ -148,13 +148,13 @@ bool RunMapTests()
     ::game->Shutdown();
     soundSystem->FreeSoundWorld(sound);
     renderSystem->FreeRenderWorld(world);
-    ps2::render::ShutdownLogical();
-    const auto stats = ps2::heap::GetTotalStats();
-    const auto arena = ps2::heap::GetArenaStats();
+    ps2::renderer::ShutdownLogical();
+    const auto stats = ps2::system::heap::GetTotalStats();
+    const auto arena = ps2::system::heap::GetArenaStats();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] MAP_MEMORY peak=%zu/%zu arena=%zu shutdown=%zu/%zu/%zu\n",
              stats.peakRequestedBytes, stats.peakBackingBytes, arena.committedBytes,
              stats.requestedBytes, stats.backingBytes, stats.allocationCount);
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

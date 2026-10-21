@@ -89,7 +89,7 @@ void Sys_Quit()
 #if PS2_D3BFG_TESTS
     Unsupported("Sys_Quit");
 #else
-    ps2::runtime::RequestQuit();
+    ps2::system::runtime::RequestQuit();
 #endif
 }
 

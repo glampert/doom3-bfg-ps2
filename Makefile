@@ -286,7 +286,7 @@ inventory:
 # A stamp is rewritten only when its compiler identity, flags or source list
 # changes. This fixes the reference's stale-object behavior after flag edits.
 $(OUTPUT_DIR)/.backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/ui/retail_assets.cpp ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/renderer/ui_draw.cpp ps2/renderer/image_backend.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/renderer_gs_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_BOOT_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/ui/retail_assets.cpp ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/ui/draw.cpp ps2/renderer/image_backend.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/renderer_gs_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_BOOT_CXX_SRC)
 
 $(OUTPUT_DIR)/.core-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CORE_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-core neo/framework/Common.cpp neo/framework/PlayerProfile.cpp neo/sys/Snapshot.cpp neo/sys/LightweightCompression.cpp neo/sys/Snapshot_Jobs.cpp neo/sys/sys_localuser.cpp neo/sys/sys_signin.cpp --sources $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC)
@@ -334,7 +334,7 @@ $(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
 $(OUTPUT_DIR)/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
-$(OUTPUT_DIR)/src/ps2/renderer/ui_page_image.o $(OUTPUT_DIR)/src/ps2/renderer/ui_paletted_image.o $(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/renderer/ui_draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
+$(OUTPUT_DIR)/src/ps2/ui/page_image.o $(OUTPUT_DIR)/src/ps2/ui/paletted_image.o $(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/ui/draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.
@@ -394,7 +394,7 @@ $(OUTPUT_DIR)/test-support/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_V
 $(OUTPUT_DIR)/core/src/neo/framework/Common.o: CORE_HEADER_FLAGS = $(FOUNDATION_HEADER_FLAGS)
 $(addprefix $(OUTPUT_DIR)/core/src/,$(filter-out neo/framework/Common.o,$(CORE_FRAMEWORK_CXX_SRC:.cpp=.o))): CORE_HEADER_FLAGS =
 $(addprefix $(OUTPUT_DIR)/core/src/,neo/framework/PlayerProfile.o neo/sys/Snapshot.o neo/sys/LightweightCompression.o neo/sys/Snapshot_Jobs.o neo/sys/sys_localuser.o neo/sys/sys_signin.o): CORE_HEADER_FLAGS = -UID_PS2_CORE
-$(addprefix $(OUTPUT_DIR)/src/,$(RENDER_STUB_CXX_SRC:.cpp=.o) ps2/ui/retail_assets.o ps2/renderer/ui_draw.o ps2/renderer/image_backend.o ps2/input/usercmd_stub.o ps2/game/multiplayer_stub.o ps2/system/save_metadata.o ps2/system/common_campaign.o ps2/renderer/model_import.o ps2/system/sys_services.o ps2/audio/sound_backend.o ps2/system/common_foundation.o ps2/system/offline_session.o): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
+$(addprefix $(OUTPUT_DIR)/src/,$(RENDER_STUB_CXX_SRC:.cpp=.o) ps2/ui/retail_assets.o ps2/ui/draw.o ps2/renderer/image_backend.o ps2/input/usercmd_stub.o ps2/game/multiplayer_stub.o ps2/system/save_metadata.o ps2/system/common_campaign.o ps2/renderer/model_import.o ps2/system/sys_services.o ps2/audio/sound_backend.o ps2/system/common_foundation.o ps2/system/offline_session.o): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
 $(OUTPUT_DIR)/src/tests/smoketests/renderer_tests.o $(OUTPUT_DIR)/src/tests/smoketests/renderer_gs_tests.o $(OUTPUT_DIR)/src/tests/smoketests/deferred_tests.o $(OUTPUT_DIR)/src/tests/smoketests/input_tests.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
 $(OUTPUT_DIR)/src/ps2/system/lifecycle.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 $(CORE_OBJS) $(CAMPAIGN_OBJS): NEO_WARNFLAGS_FOR = $(LEGACY_SHARED_WARNFLAGS)
@@ -632,9 +632,9 @@ build/tests/asset_tests: src/tests/host/asset_tests.cpp $(ASSET_LIB_SRC) $(ASSET
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/asset_tests.cpp $(ASSET_LIB_SRC) -o $@
 
 # The target's GSTX admission against files the host converter writes.
-build/tests/gstx_format_tests: src/tests/host/gstx_format_tests.cpp src/ps2/renderer/gstx_format.cpp src/ps2/renderer/gstx_format.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+build/tests/gstx_format_tests: src/tests/host/gstx_format_tests.cpp src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/gstx_format_tests.cpp src/ps2/renderer/gstx_format.cpp $(ASSET_LIB_SRC) -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/gstx_format_tests.cpp src/ps2/ui/gstx_format.cpp $(ASSET_LIB_SRC) -o $@
 
 HOST_HEAP_SOURCES = src/tests/smoketests/type_query_tests.cpp src/tests/smoketests/type_query_bridge.cpp src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/tests/smoketests/class_alloc_tests.cpp src/ps2/game/class_alloc.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 
@@ -717,28 +717,28 @@ build/tests/voice_timeline_tests_%: $(HOST_VOICE_SOURCES) src/tests/smoketests/v
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_VOICE_SOURCES) -o $@
 
-build/tests/ui_geometry_tests: src/tests/host/ui_geometry_tests.cpp src/ps2/renderer/ui_geometry.cpp src/ps2/renderer/ui_geometry.h Makefile
+build/tests/ui_geometry_tests: src/tests/host/ui_geometry_tests.cpp src/ps2/ui/geometry.cpp src/ps2/ui/geometry.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_geometry_tests.cpp src/ps2/renderer/ui_geometry.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_geometry_tests.cpp src/ps2/ui/geometry.cpp -o $@
 
-build/tests/ui_page_format_tests: src/tests/host/ui_page_format_tests.cpp src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_format.h Makefile
+build/tests/ui_page_format_tests: src/tests/host/ui_page_format_tests.cpp src/ps2/ui/page_format.cpp src/ps2/ui/page_format.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_format_tests.cpp src/ps2/renderer/ui_page_format.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_format_tests.cpp src/ps2/ui/page_format.cpp -o $@
 
-build/tests/ui_page_geometry_tests: src/tests/host/ui_page_geometry_tests.cpp src/ps2/renderer/ui_page_geometry.cpp src/ps2/renderer/ui_page_geometry.h src/ps2/renderer/ui_triangles.h Makefile
+build/tests/ui_page_geometry_tests: src/tests/host/ui_page_geometry_tests.cpp src/ps2/ui/page_geometry.cpp src/ps2/ui/page_geometry.h src/ps2/ui/triangles.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_geometry_tests.cpp src/ps2/renderer/ui_page_geometry.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_geometry_tests.cpp src/ps2/ui/page_geometry.cpp -o $@
 
-build/tests/ui_font_format_tests: src/tests/host/ui_font_format_tests.cpp src/ps2/renderer/ui_font_format.cpp src/ps2/renderer/ui_font_format.h Makefile
+build/tests/ui_font_format_tests: src/tests/host/ui_font_format_tests.cpp src/ps2/ui/font_format.cpp src/ps2/ui/font_format.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_font_format_tests.cpp src/ps2/renderer/ui_font_format.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_font_format_tests.cpp src/ps2/ui/font_format.cpp -o $@
 
-build/tests/ui_retail_catalog_tests: src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/retail_catalog.h src/ps2/renderer/gstx_format.cpp src/ps2/renderer/gstx_format.h src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_format.h src/ps2/renderer/ui_font_format.h Makefile
+build/tests/ui_retail_catalog_tests: src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/retail_catalog.h src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h src/ps2/ui/page_format.cpp src/ps2/ui/page_format.h src/ps2/ui/font_format.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/renderer/gstx_format.cpp src/ps2/renderer/ui_page_format.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/gstx_format.cpp src/ps2/ui/page_format.cpp -o $@
 
-HOST_UI_PAGE_SOURCES = src/tests/host/ui_page_image_tests.cpp src/ps2/renderer/ui_page_image.cpp src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_geometry.cpp src/ps2/renderer/texture_layout.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
-HOST_UI_PAGE_HEADERS = src/ps2/renderer/ui_page_image.h src/ps2/renderer/ui_page_format.h src/ps2/renderer/ui_page_geometry.h src/ps2/renderer/ui_triangles.h src/ps2/renderer/ui_geometry.h src/ps2/renderer/texture.h src/ps2/renderer/gs.h src/ps2/renderer/render_system.h src/ps2/renderer/cmd_buffer.h src/ps2/renderer/ui_draw.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/tests/host/ui_page_stubs/tamtypes.h src/tests/host/ui_page_stubs/ps2/renderer/gif_writer.h src/tests/host/ui_page_stubs/idlib/precompiled.h
+HOST_UI_PAGE_SOURCES = src/tests/host/ui_page_image_tests.cpp src/ps2/ui/page_image.cpp src/ps2/ui/page_format.cpp src/ps2/ui/page_geometry.cpp src/ps2/renderer/texture_layout.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
+HOST_UI_PAGE_HEADERS = src/ps2/ui/page_image.h src/ps2/ui/page_format.h src/ps2/ui/page_geometry.h src/ps2/ui/triangles.h src/ps2/ui/geometry.h src/ps2/renderer/texture.h src/ps2/renderer/gs.h src/ps2/renderer/render_system.h src/ps2/renderer/cmd_buffer.h src/ps2/ui/draw.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/tests/host/ui_page_stubs/tamtypes.h src/tests/host/ui_page_stubs/ps2/renderer/gif_writer.h src/tests/host/ui_page_stubs/idlib/precompiled.h
 
 build/tests/.ui-page-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_UI_PAGE_SOURCES)
@@ -747,13 +747,13 @@ build/tests/ui_page_image_tests_%: $(HOST_UI_PAGE_SOURCES) $(HOST_UI_PAGE_HEADER
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) -Isrc/tests/host/ui_page_stubs $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_UI_PAGE_SOURCES) -o $@
 
-build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp src/ps2/renderer/ui_masks.cpp src/ps2/renderer/ui_masks.h src/ps2/renderer/ui_triangles.h src/ps2/renderer/ui_geometry.h Makefile
+build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/ui/triangles.cpp src/ps2/ui/masks.cpp src/ps2/ui/masks.h src/ps2/ui/triangles.h src/ps2/ui/geometry.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_triangles_tests.cpp src/ps2/renderer/ui_triangles.cpp src/ps2/renderer/ui_masks.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_triangles_tests.cpp src/ps2/ui/triangles.cpp src/ps2/ui/masks.cpp -o $@
 
-build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/renderer/charset.cpp src/ps2/renderer/charset.h Makefile
+build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/ui/charset.cpp src/ps2/ui/charset.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/ps2/renderer/charset.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/ps2/ui/charset.cpp -o $@
 
 build/tests/ui_swf_format_tests: src/tests/host/ui_swf_format_tests.cpp src/ps2/ui/swf_format.cpp src/ps2/ui/swf_format.h src/ps2/ui/swf_execution.cpp src/ps2/ui/swf_execution.h Makefile
 	@mkdir -p $(dir $@)

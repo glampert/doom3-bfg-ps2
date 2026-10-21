@@ -10,8 +10,8 @@
 
 int main()
 {
-    const bool heapPassed = ps2::smoketests::RunHeapTests();
-    const bool classPassed = ps2::smoketests::RunClassAllocTests();
-    const bool typesPassed = ps2::smoketests::RunTypeQueryTests();
+    const bool heapPassed = ps2::tests::RunHeapTests();
+    const bool classPassed = ps2::tests::RunClassAllocTests();
+    const bool typesPassed = ps2::tests::RunTypeQueryTests();
     return heapPassed && classPassed && typesPassed ? 0 : 1;
 }

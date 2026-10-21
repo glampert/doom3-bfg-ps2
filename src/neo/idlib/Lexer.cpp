@@ -235,9 +235,9 @@ void idLexer::Error( const char *str, ... ) {
 		idLib::common->Warning( "file %s, line %d: %s", idLexer::filename.c_str(), idLexer::line, text );
 	} else {
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-		if ( ps2::script::ErrorScope::IsActive() ) {
-			ps2::script::ErrorScope::SetLocation( idLexer::filename.c_str(), idLexer::line );
-			ps2::script::Fail( "%s", text );
+		if ( ps2::game::script::ErrorScope::IsActive() ) {
+			ps2::game::script::ErrorScope::SetLocation( idLexer::filename.c_str(), idLexer::line );
+			ps2::game::script::Fail( "%s", text );
 		}
 #endif
 		idLib::common->Error( "file %s, line %d: %s", idLexer::filename.c_str(), idLexer::line, text );

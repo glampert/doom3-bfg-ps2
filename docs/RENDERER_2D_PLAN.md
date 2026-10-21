@@ -284,8 +284,8 @@ coverage/CLUT work remain subsequent gates.
 | `src/ps2/renderer/vram.{h,cpp}`, `texture.{h,cpp}`, `clut.h` | Q: allocation, format and CLUT mechanisms | Typed Doom texture/page storage, tagged allocator hooks, lifecycle and release-safe validation; direct RGBA and coverage formats first. |
 | `src/ps2/system/video_mode.{h,cpp}` | Q: video selection | Existing Common cvars/logging/types and explicit supported dimensions/standard; preserve headless startup. |
 | `src/ps2/renderer/capture.{h,cpp}` | Q: screenshot / GS download | Matched completed-frame selection, aligned strips, checked writes and bounded state-restoring readback. |
-| `src/ps2/renderer/ui_draw.{h,cpp}` | New Doom adapter using retained algorithms | Supply native 2D methods, bounded GUI allocations, material/state interpretation and CPU triangles. Separate hardware-facing `ps2::rs` from the native `idRenderSystem` provider. |
-| `src/ps2/renderer/image_backend.*`, `font_backend.*` (if separate providers help) | D: image/font interfaces plus Q: texture helpers | Replace only enabled stub methods, registry/intrinsic/font ownership and converted page loading; do not enable GL implementations. |
+| `src/ps2/ui/draw.{h,cpp}` | New Doom adapter using retained algorithms | Supply native 2D methods, bounded GUI allocations, material/state interpretation and CPU triangles. Separate hardware-facing `ps2::renderer` from the native `idRenderSystem` provider. |
+| `src/ps2/renderer/image_backend.*`, `src/ps2/ui/font_backend.*` (if separate providers help) | D: image/font interfaces plus Q: texture helpers | Replace only enabled stub methods, registry/intrinsic/font ownership and converted page loading; do not enable GL implementations. |
 | `src/ps2/ui/shell_stub.cpp` / a later bounded shell provider | D: shell/widgets/root/press-start algorithms | Native shell state with reviewed root screens; retire duplicate stubs, convert casts through existing checked queries, remove Classic/online/save/video startup dependencies. |
 
 Reuse the user's own Quake code under the already-authorized GPL v3-or-later terms;
@@ -310,10 +310,10 @@ flowchart TD
     A[Production Common frame] --> B[Native console or shell / SWF]
     B --> C[idRenderSystem 2D adapter]
     C --> D[Bounded CPU geometry and ordered material/state runs]
-    D --> E[ps2::rs frame, residency and fence ownership]
+    D --> E[ps2::renderer frame, residency and fence ownership]
     F[idImage backend state / cooked texture pages] --> E
-    E --> G[ps2::gs register and primitive emission]
-    G --> H[ps2::cmdbuf VIF1 DIRECT chains]
+    E --> G[ps2::renderer::gs register and primitive emission]
+    G --> H[ps2::renderer::gs VIF1 DIRECT command chains]
     H --> I[GIF PATH2 and GS framebuffer]
     I --> J[Immediate present / completed-frame capture]
 ```

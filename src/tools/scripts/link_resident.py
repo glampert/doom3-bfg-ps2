@@ -148,7 +148,7 @@ def run(args: argparse.Namespace) -> int:
             data["executable"] = struct.unpack_from("<H", header, 16)[0] == 2 and bool(segments)
             data["loaded_memory_bytes"] = sum(segment["memory_bytes"] for segment in segments)
             data["test_symbols"] = [line for line in symbols.splitlines()
-                                    if any(token in line for token in ("ps2::smoketests::", "ps2::gamefixture::", "HeadlessFixture"))]
+                                    if any(token in line for token in ("ps2::tests::", "HeadlessFixture"))]
             isolated = kind != "game" or (not data["test_inputs"] and not data["test_symbols"])
             data["passed"] = (data["executable"] and all(data["registrations"].values()) and
                               not data["missing_map_objects"] and isolated)

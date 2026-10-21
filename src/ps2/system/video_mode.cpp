@@ -8,7 +8,7 @@
 #include <graph.h>
 #include <rom0_info.h>
 
-namespace ps2::video
+namespace ps2::system::video
 {
 Standard ConsoleStandard()
 {
@@ -36,4 +36,4 @@ int GraphMode(Standard standard)
 {
     return standard == Standard::Pal ? GRAPH_MODE_PAL : GRAPH_MODE_NTSC;
 }
-} // namespace ps2::video
+} // namespace ps2::system::video

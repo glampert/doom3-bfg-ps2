@@ -8,7 +8,7 @@ renderer before treating it as a rule for this port.
 
 The logical adapters in `src/ps2/renderer/` bind native `tr` / `renderSystem`, image,
 shader, cinematic and vertex-cache interfaces. Default/headless construction creates
-metadata without GS setup or pixel/frame arenas. Explicit visible-mode `rs`/`ui`
+metadata without GS setup or pixel/frame arenas. Explicit visible-mode `renderer`/`ui`
 activation adds the separate bounded 2D capabilities described below; world submission,
 general shaders, cinematics and native vertex-cache buffers remain unavailable.
 Before explicit 2D activation, display/draw requests fail by method name. General
@@ -46,8 +46,8 @@ the original atlas's outer boundary and unused padding. Each page records a sour
 rectangle and affine global-normalized-UV to page-UV map; split/clip geometry at page
 boundaries before applying it. Native SWF RenderShape uses atlasMaterial, atlasOffset,
 image size and channelScale for bitmap fills, not dictionary.material. Dictionary
-renaming alone cannot implement paging. `ui_page_image.*` now streams compact UIPG
-images through fixed texture slots and calls `ui_page_geometry.*` for page/screen
+renaming alone cannot implement paging. `ui/page_image.*` now streams compact UIPG
+images through fixed texture slots and calls `ui/page_geometry.*` for page/screen
 splits. Native authored SWF/font images now share a `PageCache`; the bounded English
 retail font resource screen uses a separate six-slot linear profile. General retail
 movie admission and active-menu working-set acceptance remain pending.
@@ -89,8 +89,8 @@ address can be reused. Cache shutdown rejects attached images with assertions of
 
 ## Doom CPU-only device acceptance
 
-- `ps2::rs` owns a frame, `cmdbuf` owns two tagged 64-byte-aligned command halves,
-  and `gs` owns both PSMCT16 contexts and Z16 with depth writes masked. Default
+- `ps2::renderer` owns a frame, the `gs` command buffer two tagged 64-byte-aligned
+  command halves, and `gs` both PSMCT16 contexts and Z16 with depth writes masked. Default
   halves are 128 KiB each. `EndFrame` fences and immediately presents; the final
   picture requires no following frame. Production initializes this layer only for an
   explicit visible console startup policy.
@@ -131,7 +131,7 @@ not recovery from a genuinely wedged physical GS. No hardware cache claim follow
 
 ## Doom native drawing adapters
 
-Native `ui::Init` is separate from low-level `rs` readiness. Only native activation
+Native `ui::Init` is separate from low-level `renderer` readiness. Only native activation
 sets `R_IsInitialized`; `IsOpenGLRunning` remains false. Shutdown images/UI before
 the caller-owned device, without replacing logical-world ownership. The initial
 image profile owns only `_white` and `textures/bigchars`; the latter requires clamp
@@ -331,8 +331,8 @@ PCSX2 frame, with no file reads or uploads after the first frames.
 
 ## Doom paletted UI textures (GSTX)
 
-Retail UI images now load as converted GSTX textures (`ui_paletted_image.*`,
-`gstx_format.*`; layout in `src/tools/assets/gstx.h`). The debug emulator gates accepted
+Retail UI images now load as converted GSTX textures (`ui/paletted_image.*`,
+`ui/gstx_format.*`; layout in `src/tools/assets/gstx.h`). The debug emulator gates accepted
 them on 2026-10-21 (PORT_STATUS); native PCSX2 captures confirm the layouts below as far
 as noted.
 

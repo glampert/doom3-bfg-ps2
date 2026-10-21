@@ -12,7 +12,7 @@
 // The native user-command header relies on complete engine declarations.
 #include <framework/UsercmdGen.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -47,7 +47,7 @@ bool RunInputTests()
                usercmdGen->CommandStringUsercmdData("") == UB_NONE;
     bool passed = Check("native-action-table", metadata);
 
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     for (int cycle = 0; cycle < 3; ++cycle)
     {
         usercmdGen->Clear();
@@ -55,7 +55,7 @@ bool RunInputTests()
         usercmdGen->Shutdown();
         usercmdGen->Shutdown();
     }
-    const heap::Stats after = heap::GetTotalStats();
+    const system::heap::Stats after = system::heap::GetTotalStats();
     passed = Check("inactive-cleanup-ledger", usercmdGen->ButtonState(-1) == -1 &&
                                               usercmdGen->ButtonState(UB_MAX_BUTTONS) == -1 &&
                                               usercmdGen->KeyState(-1) == -1 && usercmdGen->KeyState(K_LAST_KEY) == -1 &&
@@ -135,4 +135,4 @@ bool RunInputFailureProbe(const char * name)
     }
     return true; // The runner rejects an unavailable operation returning normally.
 }
-} // namespace ps2::smoketests
+} // namespace ps2::tests

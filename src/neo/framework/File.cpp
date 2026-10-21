@@ -1167,9 +1167,9 @@ idFile_Permanent::idFile_Permanent
 // [PS2_D3BFG]: Opening a stream owns only its handle/object, never the whole file's contents.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 idFile_Permanent * idFile_Permanent::OpenPortableRead( const char * name, const char * path ) {
-	FILE * handle = ps2::filesystem::Open( path, ps2::filesystem::OpenMode::Read );
+	FILE * handle = ps2::system::filesystem::Open( path, ps2::system::filesystem::OpenMode::Read );
 	if ( handle == NULL ) { return NULL; }
-	const int length = ps2::filesystem::FileLength( handle );
+	const int length = ps2::system::filesystem::FileLength( handle );
 	if ( length < 0 ) { fclose( handle ); return NULL; }
 	idFile_Permanent * file = new (TAG_IDFILE) idFile_Permanent();
 	file->o = handle;

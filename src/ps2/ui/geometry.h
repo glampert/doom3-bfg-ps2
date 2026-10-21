@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: ui_geometry.h
+// File: geometry.h
 // Brief: Clip native virtual-space UI rectangles before producing bounded GS vertex and UV fields.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================

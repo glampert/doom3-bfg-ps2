@@ -428,9 +428,9 @@ idFileSystemLocal::OpenOSFile
 idFileHandle idFileSystemLocal::OpenOSFile( const char *fileName, fsMode_t mode ) {
 	// [PS2_D3BFG]: Portable handles are stdio streams, with actual open/append errors.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( mode == FS_READ ) { return ps2::filesystem::Open( fileName, ps2::filesystem::OpenMode::Read ); }
-	if ( mode == FS_WRITE ) { return ps2::filesystem::Open( fileName, ps2::filesystem::OpenMode::Write ); }
-	if ( mode == FS_APPEND ) { return ps2::filesystem::Open( fileName, ps2::filesystem::OpenMode::Append ); }
+	if ( mode == FS_READ ) { return ps2::system::filesystem::Open( fileName, ps2::system::filesystem::OpenMode::Read ); }
+	if ( mode == FS_WRITE ) { return ps2::system::filesystem::Open( fileName, ps2::system::filesystem::OpenMode::Write ); }
+	if ( mode == FS_APPEND ) { return ps2::system::filesystem::Open( fileName, ps2::system::filesystem::OpenMode::Append ); }
 	return NULL;
 #else
 	idFileHandle fp;
@@ -488,7 +488,7 @@ idFileSystemLocal::DirectFileLength
 int idFileSystemLocal::DirectFileLength( idFileHandle o ) {
 	// [PS2_D3BFG]: Reject oversized files and preserve the stream cursor.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	return ps2::filesystem::FileLength( o );
+	return ps2::system::filesystem::FileLength( o );
 #else
 	return GetFileSize( o, NULL );
 #endif
@@ -504,7 +504,7 @@ Creates any directories needed to store the given filename
 void idFileSystemLocal::CreateOSPath( const char *OSPath ) {
 	// [PS2_D3BFG]: Forward-slash device paths need bounded parent creation, not Windows conversion.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::CreateParents( OSPath ) ) {
+	if ( !ps2::system::filesystem::CreateParents( OSPath ) ) {
 		common->Warning( "CreateOSPath(%s) failed: %d", OSPath != NULL ? OSPath : "(null)", errno );
 	}
 #else
@@ -1432,7 +1432,7 @@ IsOSPath
 static bool IsOSPath( const char * path ) {
 	// [PS2_D3BFG]: Recognize console device prefixes, including host:.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	return ps2::filesystem::IsOSPath( path );
+	return ps2::system::filesystem::IsOSPath( path );
 #else
 	assert( path );
 
@@ -1484,8 +1484,8 @@ const char *idFileSystemLocal::BuildOSPath( const char *base, const char *game, 
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 	static char OSPath[MAX_OSPATH];
 	if ( IsOSPath( relativePath ) ) {
-		if ( ps2::filesystem::IsValidPath( relativePath ) ) { return relativePath; }
-	} else if ( ps2::filesystem::BuildPath( OSPath, sizeof( OSPath ), base, game, relativePath ) ) {
+		if ( ps2::system::filesystem::IsValidPath( relativePath ) ) { return relativePath; }
+	} else if ( ps2::system::filesystem::BuildPath( OSPath, sizeof( OSPath ), base, game, relativePath ) ) {
 		return OSPath;
 	}
 	common->FatalError( "BuildOSPath: invalid or oversized path" );
@@ -1524,7 +1524,7 @@ search paths.
 const char *idFileSystemLocal::OSPathToRelativePath( const char *OSPath ) {
 	// [PS2_D3BFG]: Bound the legacy component scan and reject traversal before conversion.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::IsValidPath( OSPath ) ) { return ""; }
+	if ( !ps2::system::filesystem::IsValidPath( OSPath ) ) { return ""; }
 #endif
 	if ( ( OSPath[0] != '/' ) && ( OSPath[0] != '\\' ) && ( idStr::FindChar( OSPath, ':' ) < 0 ) ) {
 		// No colon and it doesn't start with a slash... it must already be a relative path
@@ -1609,7 +1609,7 @@ idFileSystemLocal::RemoveFile
 void idFileSystemLocal::RemoveFile( const char *relativePath ) {
 	// [PS2_D3BFG]: Mutating logical paths cannot select a device or an absolute path.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return; }
+	if ( !ps2::system::filesystem::IsRelativePath( relativePath ) ) { return; }
 #endif
 	idStr OSPath;
 
@@ -1617,7 +1617,7 @@ void idFileSystemLocal::RemoveFile( const char *relativePath ) {
 		OSPath = BuildOSPath( fs_basepath.GetString(), gameFolder, relativePath );
 		// [PS2_D3BFG]: Report the current driver's checked removal capability.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-		if ( !ps2::filesystem::Remove( OSPath ) ) { common->Warning( "RemoveFile(%s) failed: %d", OSPath.c_str(), errno ); }
+		if ( !ps2::system::filesystem::Remove( OSPath ) ) { common->Warning( "RemoveFile(%s) failed: %d", OSPath.c_str(), errno ); }
 #else
 		::DeleteFile( OSPath );
 #endif
@@ -1626,7 +1626,7 @@ void idFileSystemLocal::RemoveFile( const char *relativePath ) {
 	OSPath = BuildOSPath( fs_savepath.GetString(), gameFolder, relativePath );
 	// [PS2_D3BFG]: ROM FILEIO removal fails explicitly if its patch was unavailable.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::Remove( OSPath ) ) { common->Warning( "RemoveFile(%s) failed: %d", OSPath.c_str(), errno ); }
+	if ( !ps2::system::filesystem::Remove( OSPath ) ) { common->Warning( "RemoveFile(%s) failed: %d", OSPath.c_str(), errno ); }
 #else
 	::DeleteFile( OSPath );
 #endif
@@ -1640,7 +1640,7 @@ idFileSystemLocal::RemoveDir
 bool idFileSystemLocal::RemoveDir( const char * relativePath ) {
 	// [PS2_D3BFG]: Keep removal inside the configured logical root.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return false; }
+	if ( !ps2::system::filesystem::IsRelativePath( relativePath ) ) { return false; }
 #endif
 	bool success = true;
 	if ( fs_savepath.GetString()[0] ) {
@@ -1836,7 +1836,7 @@ idFileSystemLocal::RenameFile
 bool idFileSystemLocal::RenameFile( const char * relativePath, const char * newName, const char * basePath ) {
 	// [PS2_D3BFG]: Rename uses logical paths; driver ENOSYS is a failure, never a copy/delete fallback.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::IsRelativePath( relativePath ) || !ps2::filesystem::IsRelativePath( newName ) ) { return false; }
+	if ( !ps2::system::filesystem::IsRelativePath( relativePath ) || !ps2::system::filesystem::IsRelativePath( newName ) ) { return false; }
 #endif
 	const char * path = cvarSystem->GetCVarString( basePath );
 	if ( !path[0] ) {
@@ -1851,7 +1851,7 @@ bool idFileSystemLocal::RenameFile( const char * relativePath, const char * newN
 	// is a race condition inside MoveFileEx...
 	// [PS2_D3BFG]: Preserve the native atomic rename result where the driver supports it.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	const bool success = ps2::filesystem::Rename( oldOSPath.c_str(), newOSPath.c_str() );
+	const bool success = ps2::system::filesystem::Rename( oldOSPath.c_str(), newOSPath.c_str() );
 	const int err = errno;
 #else
 	const bool success = ( MoveFileEx( oldOSPath.c_str(), newOSPath.c_str(), MOVEFILE_REPLACE_EXISTING ) != 0 );
@@ -1930,7 +1930,7 @@ int idFileSystemLocal::GetFileList( const char *relativePath, const idStrList &e
 	}
 	// [PS2_D3BFG]: Empty means the root; directory traversal/device paths are invalid logical listings.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::IsRelativePath( relativePath, true ) ) { return 0; }
+	if ( !ps2::system::filesystem::IsRelativePath( relativePath, true ) ) { return 0; }
 #endif
 
 	int pathLength = strlen( relativePath );
@@ -2714,7 +2714,7 @@ is resetting due to a game change
 void idFileSystemLocal::Init() {
 	// [PS2_D3BFG]: Explicit fixture startup avoids retail containers and desktop default configuration.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( ps2::gamefixture::IsEnabled() ) {
+	if ( ps2::tests::fixture::IsEnabled() ) {
 		fs_basepath.SetString( "host:" );
 		fs_savepath.SetString( "host:" );
 		fs_game.SetString( "game-fixture" );
@@ -2925,7 +2925,7 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 
 	// [PS2_D3BFG]: Reject absolute/device/dot-component paths rather than stripping their prefix.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
+	if ( !ps2::system::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
 #else
 	// qpaths are not supposed to have a leading slash
 	if ( relativePath[0] == '/' || relativePath[0] == '\\' ) {
@@ -3108,7 +3108,7 @@ idFileSystemLocal::OpenFileWrite
 idFile *idFileSystemLocal::OpenFileWrite( const char *relativePath, const char *basePath ) {
 	// [PS2_D3BFG]: Writes must remain under the configured logical root.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
+	if ( !ps2::system::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
 #endif
 
 	const char *path;
@@ -3260,7 +3260,7 @@ idFileSystemLocal::OpenFileAppend
 idFile *idFileSystemLocal::OpenFileAppend( const char *relativePath, bool sync, const char *basePath ) {
 	// [PS2_D3BFG]: Appends obey the same logical path boundary as writes.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	if ( !ps2::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
+	if ( !ps2::system::filesystem::IsRelativePath( relativePath ) ) { return NULL; }
 #endif
 
 	const char *path;

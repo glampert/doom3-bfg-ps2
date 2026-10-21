@@ -5,8 +5,8 @@
 // ================================================================================================
 
 #include "ps2/ui/retail_catalog.h"
-#include "ps2/renderer/gstx_format.h"
-#include "ps2/renderer/ui_font_format.h"
+#include "ps2/ui/font_format.h"
+#include "ps2/ui/gstx_format.h"
 
 #include <cstring>
 
@@ -346,7 +346,7 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
         candidate.GetFont(i, font);
 
         if (!Family(font.family) || font.logicalPath == nullptr || !FontPath(font.logicalPath, font.family) ||
-            !AssetPath(font.path, ".dat") || font.bytes < 26 || font.bytes > ps2::fonts::kMaxFontBytes ||
+            !AssetPath(font.path, ".dat") || font.bytes < 26 || font.bytes > ps2::ui::fonts::kMaxFontBytes ||
             (font.bytes - 12) % 14 != 0 || font.imageIndex >= images || Word(data, offset + 48) != 0 || Word(data, offset + 52) != 0)
         {
             return false;

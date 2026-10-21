@@ -10,12 +10,12 @@
 #include "ps2/ui/authored_ui_data.h"
 #include <idlib/precompiled.h>
 
-namespace ps2::ui
+namespace ps2::ui::authored
 {
-PS2_COLD_FUNC idFile * OpenAuthoredAsset(const char * path)
+PS2_COLD_FUNC idFile * OpenAsset(const char * path)
 {
-    const authored::Resource * resource = nullptr;
-    for (const auto & candidate : authored::kResources)
+    const Resource * resource = nullptr;
+    for (const auto & candidate : kResources)
     {
         if (path != nullptr && strcmp(path, candidate.path) == 0)
         {
@@ -37,12 +37,12 @@ PS2_COLD_FUNC idFile * OpenAuthoredAsset(const char * path)
         delete source;
         FatalError("authored UI asset length mismatch: %s", path);
     }
-    auto * const bytes = static_cast<char *>(heap::Alloc(resource->length, TAG_SWF));
+    auto * const bytes = static_cast<char *>(system::heap::Alloc(resource->length, TAG_SWF));
     const bool read = source->Read(bytes, static_cast<int>(resource->length)) == static_cast<int>(resource->length);
     delete source;
     if (!read || memcmp(bytes, resource->bytes, resource->length) != 0)
     {
-        heap::Free(bytes);
+        system::heap::Free(bytes);
         FatalError("authored UI asset content mismatch: %s", path);
     }
     // The parser sees the single checked snapshot, never a second mutable HostFs open.
@@ -50,4 +50,4 @@ PS2_COLD_FUNC idFile * OpenAuthoredAsset(const char * path)
     snapshot->TakeDataOwnership();
     return snapshot;
 }
-} // namespace ps2::ui
+} // namespace ps2::ui::authored

@@ -9,7 +9,7 @@
 class idFile;
 class idMaterial;
 
-namespace ps2::fonts
+namespace ps2::ui::fonts
 {
 // Fonts borrow UI images/material declarations; release them before either provider shuts down.
 void Init();
@@ -22,4 +22,4 @@ void ValidateFontMaterial(const idMaterial * material, const char * name);
 void GetFontLayout(const char * name, int index, int & width, int & height);
 bool PreflightAuthoredFont(idFile * file, const char * name);
 void ValidateAuthoredFontMaterial(const idMaterial * material);
-} // namespace ps2::fonts
+} // namespace ps2::ui::fonts

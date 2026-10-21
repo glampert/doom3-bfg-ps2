@@ -7,7 +7,7 @@
 #pragma once
 #include <tamtypes.h>
 
-namespace ps2::video
+namespace ps2::system::video
 {
 enum class Standard : u8
 {
@@ -19,4 +19,4 @@ const char * Name(Standard standard);
 int VisibleLines(Standard standard);
 int GraphMode(Standard standard);
 bool IsValid(Standard standard);
-} // namespace ps2::video
+} // namespace ps2::system::video

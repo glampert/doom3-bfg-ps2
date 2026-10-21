@@ -108,7 +108,7 @@ int main()
 {
     // Preserve the loader's IOP/host filesystem. Console device bring-up is a later stage.
     SifInitRpc(0);
-    ps2::smoketests::InitTestServices();
+    ps2::tests::InitTestServices();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE platform BEGIN\n");
     BootManifest manifest;
     const bool manifestPassed = ReadManifest(manifest);
@@ -119,13 +119,13 @@ int main()
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK manifest FAIL\n");
     }
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] RUN %s BEGIN\n", manifest.testId);
-    const bool platformPassed = ps2::smoketests::RunPlatformTests() && manifestPassed;
+    const bool platformPassed = ps2::tests::RunPlatformTests() && manifestPassed;
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE platform %s\n", platformPassed ? "PASS" : "FAIL");
 
     const char * coreStatus = "SKIP";
     if (platformPassed)
     {
-        coreStatus = ps2::smoketests::RunCoreTestStage(manifest.fixturePath);
+        coreStatus = ps2::tests::RunCoreTestStage(manifest.fixturePath);
     }
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] STAGE core %s\n", coreStatus);
     const bool resultWritten = WriteResult(manifest, manifestPassed, platformPassed, coreStatus);

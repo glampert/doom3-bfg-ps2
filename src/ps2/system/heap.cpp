@@ -16,7 +16,7 @@
     #include <dlmalloc/malloc.h>
 #endif
 
-namespace ps2::heap
+namespace ps2::system::heap
 {
 namespace
 {
@@ -211,105 +211,105 @@ void ResetPeaks()
     s_total.peakBackingBytes = s_total.backingBytes;
 }
 
-} // namespace ps2::heap
+} // namespace ps2::system::heap
 
 // Standard, sized, nothrow and over-aligned allocations share the same metadata.
 void * operator new(size_t size)
 {
-    return ps2::heap::Alloc(size, ps2::heap::kNewTag);
+    return ps2::system::heap::Alloc(size, ps2::system::heap::kNewTag);
 }
 
 void * operator new[](size_t size)
 {
-    return ps2::heap::Alloc(size, ps2::heap::kNewTag);
+    return ps2::system::heap::Alloc(size, ps2::system::heap::kNewTag);
 }
 
 void operator delete(void * pointer) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void operator delete[](void * pointer) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void operator delete(void * pointer, size_t) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void operator delete[](void * pointer, size_t) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void * operator new(size_t size, const std::nothrow_t &) noexcept
 {
-    return ps2::heap::TryAlloc(size, ps2::heap::kNewTag);
+    return ps2::system::heap::TryAlloc(size, ps2::system::heap::kNewTag);
 }
 
 void * operator new[](size_t size, const std::nothrow_t &) noexcept
 {
-    return ps2::heap::TryAlloc(size, ps2::heap::kNewTag);
+    return ps2::system::heap::TryAlloc(size, ps2::system::heap::kNewTag);
 }
 
 void operator delete(void * pointer, const std::nothrow_t &) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void operator delete[](void * pointer, const std::nothrow_t &) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void * operator new(size_t size, std::align_val_t alignment)
 {
-    return ps2::heap::Alloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment));
+    return ps2::system::heap::Alloc(size, ps2::system::heap::kNewTag, static_cast<size_t>(alignment));
 }
 
 void * operator new[](size_t size, std::align_val_t alignment)
 {
-    return ps2::heap::Alloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment));
+    return ps2::system::heap::Alloc(size, ps2::system::heap::kNewTag, static_cast<size_t>(alignment));
 }
 
 void operator delete(void * pointer, std::align_val_t) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void operator delete[](void * pointer, std::align_val_t) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void operator delete(void * pointer, size_t, std::align_val_t) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void operator delete[](void * pointer, size_t, std::align_val_t) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void * operator new(size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
 {
-    return ps2::heap::TryAlloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment));
+    return ps2::system::heap::TryAlloc(size, ps2::system::heap::kNewTag, static_cast<size_t>(alignment));
 }
 
 void * operator new[](size_t size, std::align_val_t alignment, const std::nothrow_t &) noexcept
 {
-    return ps2::heap::TryAlloc(size, ps2::heap::kNewTag, static_cast<size_t>(alignment));
+    return ps2::system::heap::TryAlloc(size, ps2::system::heap::kNewTag, static_cast<size_t>(alignment));
 }
 
 void operator delete(void * pointer, std::align_val_t, const std::nothrow_t &) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }
 
 void operator delete[](void * pointer, std::align_val_t, const std::nothrow_t &) noexcept
 {
-    ps2::heap::Free(pointer);
+    ps2::system::heap::Free(pointer);
 }

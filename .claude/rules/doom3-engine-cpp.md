@@ -194,7 +194,7 @@ math path; PS2-specific math replacement headers are a later milestone.
 ## Authored native SWF and font profile
 
 - The first visible movie uses native `idSWF` BSWF16 loading, AVM1 functions, timeline
-  instances, edit text and keyboard shortcuts. `ps2::ui::OpenAuthoredAsset` admits only
+  instances, edit text and keyboard shortcuts. `ps2::ui::authored::OpenAsset` admits only
   the generated authored resource whitelist: exact path, length and bytes. Font and
   BSWF parsing consume an owned read-only `idFile_Memory` snapshot, so a second mutable
   HostFs open cannot replace checked counts or strings. This is an exact authored
@@ -269,6 +269,10 @@ math path; PS2-specific math replacement headers are a later milestone.
   pointer types. Portable logical sound uses `ps2/audio/sound_backend.h`; desktop
   declarations remain in their original branch. The optional video-device query
   `GetIXAudio2` returns null on portable builds without importing an XAudio type.
+- The backend classes are `ps2::audio::SoundSample`, `SoundVoice` and `SoundHardware`.
+  The engine keeps its names as aliases: `sound.h` aliases `idSoundSample` (its plain
+  `class idSoundSample;` forward declaration would conflict, so that line is tagged) and
+  the backend header aliases `idSoundVoice` and `idSoundHardware`. Engine sources stay unchanged.
 - Unloaded samples can retain names, reference/purge flags and last-played metadata;
   that does not establish resource loading. Do not invent zero durations or amplitudes
   to make gameplay proceed. Unloaded queries terminate with the method name. The
@@ -295,7 +299,8 @@ math path; PS2-specific math replacement headers are a later milestone.
   Segment durations derive from frames/rate, not truncated integer milliseconds. Seek
   subtracts the lead-in before loop modulo; desktop `RestartAt` does not do this.
   Derived `SetPitch` charges the old rate up to the change instant; native callers use
-  `idSoundVoice*`, avoiding the base class's inline metadata-only setter.
+  `idSoundVoice*` (the backend `SoundVoice`), avoiding the base class's inline
+  metadata-only setter.
 - Allocated voices retain their lead-in and loop samples, including while idle, stopped
   or complete, until `FreeVoice` or hardware shutdown. Purge/reload/rename/destruction
   rejects pinned samples. Native `StopVoicesWithSample` must free voices before sample
@@ -341,7 +346,7 @@ math path; PS2-specific math replacement headers are a later milestone.
 
 ## Initial native game fixture
 
-- Explicitly select `ps2::gamefixture::Enable` before Common startup. Native filesystem
+- Explicitly select `ps2::tests::fixture::Enable` before Common startup. Native filesystem
   Init then selects only `host:game-fixture`, with matching `fs_game`/search gamedir.
   This preserves native listing/permanent streams and correct relative script paths,
   without desktop default.cfg or retail container initialization. It is separate from

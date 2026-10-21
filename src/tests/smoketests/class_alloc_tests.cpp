@@ -14,7 +14,7 @@
 #include <limits>
 #include <new>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -31,7 +31,7 @@ bool Check(bool condition, const char * name)
     return condition;
 }
 
-bool SameStats(const heap::Stats & first, const heap::Stats & second)
+bool SameStats(const system::heap::Stats & first, const system::heap::Stats & second)
 {
     return first.requestedBytes == second.requestedBytes && first.backingBytes == second.backingBytes &&
            first.allocationCount == second.allocationCount;
@@ -86,17 +86,17 @@ bool Rejected(size_t size, size_t alignment, std::uint16_t tag, int bytes, int o
 {
     const int oldBytes = bytes;
     const int oldObjects = objects;
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     void * pointer = game::TryAllocClass(size, alignment, tag, bytes, objects);
     return pointer == nullptr && bytes == oldBytes && objects == oldObjects &&
-           SameStats(before, heap::GetTotalStats());
+           SameStats(before, system::heap::GetTotalStats());
 }
 
 } // namespace
 
 bool RunClassAllocTests()
 {
-    const heap::Stats baseline = heap::GetTotalStats();
+    const system::heap::Stats baseline = system::heap::GetTotalStats();
     bool passed = true;
     for (const size_t alignment : { size_t{ 16 }, size_t{ 64 }, size_t{ 256 } })
     {
@@ -106,20 +106,20 @@ bool RunClassAllocTests()
         void * second = game::AllocClass(19, alignment, kClassTestTag, bytes, objects);
         passed &= Check(reinterpret_cast<std::uintptr_t>(first) % alignment == 0 &&
                         reinterpret_cast<std::uintptr_t>(second) % alignment == 0 &&
-                        heap::GetRequestedSize(first) == 37 && heap::GetRequestedSize(second) == 19 &&
+                        system::heap::GetRequestedSize(first) == 37 && system::heap::GetRequestedSize(second) == 19 &&
                         bytes == 56 && objects == 2,
                         "aligned-accounting");
         game::FreeClass(first, bytes, objects);
         passed &= Check(bytes == 19 && objects == 1, "out-of-order-free");
         game::FreeClass(second, bytes, objects);
         game::FreeClass(nullptr, bytes, objects);
-        passed &= Check(bytes == 0 && objects == 0 && SameStats(baseline, heap::GetTotalStats()), "ledger-recovery");
+        passed &= Check(bytes == 0 && objects == 0 && SameStats(baseline, system::heap::GetTotalStats()), "ledger-recovery");
     }
     passed &= Check(Rejected(std::numeric_limits<size_t>::max(), 16, kClassTestTag, 0, 0) &&
                     Rejected(4, 16, kClassTestTag, INT_MAX - 3, 0) &&
                     Rejected(1, 16, kClassTestTag, 0, INT_MAX) && Rejected(1, 16, kClassTestTag, -1, 0) &&
                     Rejected(1, 16, kClassTestTag, 0, -1) && Rejected(1, 3, kClassTestTag, 0, 0) &&
-                    Rejected(1, 16, heap::kTagCount, 0, 0),
+                    Rejected(1, 16, system::heap::kTagCount, 0, 0),
                     "reject-without-mutation");
 
     int bytes = INT_MAX - 8;
@@ -132,8 +132,8 @@ bool RunClassAllocTests()
     passed &= Check(bytes == INT_MAX - 8 && objects == INT_MAX - 1, "counter-limit-free");
     bytes = objects = 0;
     void * zero = game::AllocClass(0, 16, kClassTestTag, bytes, objects);
-    passed &= Check(zero != nullptr && heap::GetRequestedSize(zero) == 0 &&
-                    heap::GetRequestedSize(nullptr) == 0 && bytes == 0 && objects == 1,
+    passed &= Check(zero != nullptr && system::heap::GetRequestedSize(zero) == 0 &&
+                    system::heap::GetRequestedSize(nullptr) == 0 && bytes == 0 && objects == 1,
                     "zero-size");
     game::FreeClass(zero, bytes, objects);
 
@@ -148,9 +148,9 @@ bool RunClassAllocTests()
     delete ordinary;
     delete base;
     passed &= Check(s_destructors == 2 && s_bytes == 0 && s_objects == 0 &&
-                    SameStats(baseline, heap::GetTotalStats()),
+                    SameStats(baseline, system::heap::GetTotalStats()),
                     "factory-virtual-delete");
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

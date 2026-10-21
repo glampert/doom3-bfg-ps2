@@ -17,11 +17,11 @@
 extern "C" voidpf zcalloc(voidpf, unsigned int items, unsigned int size);
 extern "C" void zcfree(voidpf, voidpf pointer);
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
-using namespace fixtures;
+using namespace fixture;
 
 bool Check(const char * name, bool passed)
 {
@@ -29,9 +29,9 @@ bool Check(const char * name, bool passed)
     return passed;
 }
 
-bool Restored(const heap::Stats & before)
+bool Restored(const system::heap::Stats & before)
 {
-    const heap::Stats after = heap::GetTotalStats();
+    const system::heap::Stats after = system::heap::GetTotalStats();
     return before.requestedBytes == after.requestedBytes && before.backingBytes == after.backingBytes &&
            before.allocationCount == after.allocationCount;
 }
@@ -39,13 +39,13 @@ bool Restored(const heap::Stats & before)
 // Feed small independent chunks to exercise input/output suspension and sliding-window ownership.
 bool InflateFixture(const unsigned char * input, size_t bytes, int windowBits)
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     z_stream stream = {};
     if (inflateInit2(&stream, windowBits) != Z_OK)
     {
         return false;
     }
-    const bool owned = heap::GetTotalStats().allocationCount > before.allocationCount;
+    const bool owned = system::heap::GetTotalStats().allocationCount > before.allocationCount;
     unsigned char output[sizeof(kZlibMessage) + 8] = {};
     size_t supplied = 0;
     int result = Z_OK;
@@ -71,7 +71,7 @@ bool InflateFixture(const unsigned char * input, size_t bytes, int windowBits)
 
 bool DeflateRoundTrip(int windowBits)
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     z_stream stream = {};
     if (deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, windowBits, 8, Z_DEFAULT_STRATEGY) != Z_OK)
     {
@@ -90,7 +90,7 @@ bool DeflateRoundTrip(int windowBits)
 
 bool RejectedStream(const unsigned char * input, size_t bytes, int expected)
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     z_stream stream = {};
     if (inflateInit(&stream) != Z_OK)
     {
@@ -138,7 +138,7 @@ void Free(voidpf opaque, voidpf pointer)
 
 bool AllocationFailures()
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     for (unsigned int fail = 1; fail <= 5; ++fail)
     {
         FailingAllocator allocator;
@@ -210,21 +210,21 @@ bool PixelsMatch(const unsigned char * output, int width, int height)
 
 bool JpegFixture()
 {
-    const heap::Stats before = heap::GetTotalStats();
+    const system::heap::Stats before = system::heap::GetTotalStats();
     for (int cycle = 0; cycle < 3; ++cycle)
     {
-        void * decoder = jpeg::Create();
+        void * decoder = ui::swf::CreateJpegDecoder();
         int width = -1;
         int height = -1;
-        unsigned char * output = jpeg::Decode(decoder, kJpeg, sizeof(kJpeg), width, height);
+        unsigned char * output = ui::swf::DecodeJpeg(decoder, kJpeg, sizeof(kJpeg), width, height);
         bool decoded = PixelsMatch(output, width, height);
-        heap::Free(output);
-        output = jpeg::Decode(decoder, kJpegTables, sizeof(kJpegTables), width, height);
+        system::heap::Free(output);
+        output = ui::swf::DecodeJpeg(decoder, kJpegTables, sizeof(kJpegTables), width, height);
         decoded = decoded && output == nullptr && width == 0 && height == 0;
-        output = jpeg::Decode(decoder, kJpegAbbreviated, sizeof(kJpegAbbreviated), width, height);
+        output = ui::swf::DecodeJpeg(decoder, kJpegAbbreviated, sizeof(kJpegAbbreviated), width, height);
         decoded = decoded && PixelsMatch(output, width, height);
-        heap::Free(output);
-        jpeg::Destroy(decoder);
+        system::heap::Free(output);
+        ui::swf::DestroyJpegDecoder(decoder);
         if (!decoded || !Restored(before))
         {
             return false;
@@ -264,21 +264,21 @@ bool RunCodecFailureProbe(const char * name)
     {
         return false;
     }
-    void * decoder = jpeg::Create();
+    void * decoder = ui::swf::CreateJpegDecoder();
     int width = -1;
     int height = -1;
     if (std::strcmp(name, "jpeg-invalid") == 0)
     {
-        jpeg::Decode(decoder, nullptr, 0, width, height);
+        ui::swf::DecodeJpeg(decoder, nullptr, 0, width, height);
     }
     else if (std::strcmp(name, "jpeg-marker") == 0)
     {
         const unsigned char malformed[] = { 255, 0xd8, 255, 0xe1, 255, 255 };
-        jpeg::Decode(decoder, malformed, sizeof(malformed), width, height);
+        ui::swf::DecodeJpeg(decoder, malformed, sizeof(malformed), width, height);
     }
     else if (std::strcmp(name, "jpeg-truncated") == 0)
     {
-        jpeg::Decode(decoder, kJpeg, sizeof(kJpeg) - 2, width, height);
+        ui::swf::DecodeJpeg(decoder, kJpeg, sizeof(kJpeg) - 2, width, height);
     }
     else if (std::strcmp(name, "jpeg-oversize") == 0)
     {
@@ -293,20 +293,20 @@ bool RunCodecFailureProbe(const char * name)
                 break;
             }
         }
-        jpeg::Decode(decoder, oversized, sizeof(oversized), width, height);
+        ui::swf::DecodeJpeg(decoder, oversized, sizeof(oversized), width, height);
     }
     else if (std::strcmp(name, "jpeg-signature") == 0)
     {
         const unsigned char malformed[] = { 0, 0, 0, 0 };
-        jpeg::Decode(decoder, malformed, sizeof(malformed), width, height);
+        ui::swf::DecodeJpeg(decoder, malformed, sizeof(malformed), width, height);
     }
     else
     {
-        jpeg::Destroy(decoder);
+        ui::swf::DestroyJpegDecoder(decoder);
         return false;
     }
-    jpeg::Destroy(decoder);
+    ui::swf::DestroyJpegDecoder(decoder);
     return true; // The runner rejects an expected fatal returning normally.
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

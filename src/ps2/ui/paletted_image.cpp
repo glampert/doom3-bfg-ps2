@@ -1,11 +1,11 @@
 // ================================================================================================
-// File: ui_paletted_image.cpp
+// File: paletted_image.cpp
 // Brief: Draw native UI images from converted GSTX textures: paletted pages and CLUTs stay resident,
 // and each triangle samples the placement its UV centroid lands in, clamped to that placement.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_paletted_image.h"
+#include "ps2/ui/paletted_image.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
@@ -73,7 +73,7 @@ PS2_COLD_FUNC bool PalettedImage::Open(const char * path, const std::uint8_t * d
 {
     gstx::Header header = {};
 
-    if (m_open || m_tables != nullptr || path == nullptr || rs::FrameStarted() || !tex::IsInitialized() ||
+    if (m_open || m_tables != nullptr || path == nullptr || renderer::FrameStarted() || !renderer::tex::IsInitialized() ||
         !gstx::DecodeTables(descriptor, descriptorBytes, header) || header.fileBytes != fileBytes)
     {
         return Failed("invalid open state or catalog descriptor");
@@ -89,7 +89,7 @@ PS2_COLD_FUNC bool PalettedImage::Open(const char * path, const std::uint8_t * d
     const bool seeked = std::fseek(file, 0, SEEK_END) == 0;
     const long length = seeked ? std::ftell(file) : -1;
     m_header = header;
-    m_tables = static_cast<std::uint8_t *>(heap::TryAlloc(descriptorBytes, TAG_RENDER));
+    m_tables = static_cast<std::uint8_t *>(system::heap::TryAlloc(descriptorBytes, TAG_RENDER));
     bool loaded = length >= 0 && length <= INT_MAX && static_cast<u32>(length) == fileBytes && m_tables != nullptr &&
                   ReadAt(file, 0, m_tables, descriptorBytes) && std::memcmp(m_tables, descriptor, descriptorBytes) == 0;
 
@@ -108,9 +108,9 @@ PS2_COLD_FUNC bool PalettedImage::Open(const char * path, const std::uint8_t * d
             scratchBytes = page.dataBytes + page.decodedBytes > scratchBytes ? page.dataBytes + page.decodedBytes : scratchBytes;
         }
 
-        auto * scratch = static_cast<std::uint8_t *>(heap::TryAlloc(scratchBytes, TAG_RENDER, 64));
+        auto * scratch = static_cast<std::uint8_t *>(system::heap::TryAlloc(scratchBytes, TAG_RENDER, 64));
         loaded = scratch != nullptr && Load(file, scratch, scratchBytes) && BuildGrid();
-        heap::Free(scratch);
+        system::heap::Free(scratch);
     }
 
     const bool closed = std::fclose(file) == 0;
@@ -135,7 +135,7 @@ bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t
     // CLUT texture: every palette as a tile, in file order, then one upload-ready RGBA32 image.
     const u32 rows = (m_header.clutCount + 3U) / 4U * 16U;
     const u32 clutBytes = kClutTextureWidth * rows * 4U;
-    auto * texels = static_cast<std::uint8_t *>(heap::TryAlloc(clutBytes, TAG_RENDER));
+    auto * texels = static_cast<std::uint8_t *>(system::heap::TryAlloc(clutBytes, TAG_RENDER));
 
     if (texels == nullptr)
     {
@@ -162,12 +162,12 @@ bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t
 
     if (valid)
     {
-        m_cluts = tex::Create(static_cast<int>(kClutTextureWidth), static_cast<int>(rows), { tex::Filter::Nearest }, texels, clutBytes,
+        m_cluts = renderer::tex::Create(static_cast<int>(kClutTextureWidth), static_cast<int>(rows), { renderer::tex::Filter::Nearest }, texels, clutBytes,
                               kClutTextureWidth * 4U);
         valid = m_cluts.id != 0;
     }
 
-    heap::Free(texels);
+    system::heap::Free(texels);
 
     if (!valid)
     {
@@ -197,9 +197,9 @@ bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t
             return Failed("page block, encoding or checksum");
         }
 
-        const auto format = page.psm == gstx::kPsmT8 ? tex::PixelFormat::Index8 : tex::PixelFormat::Index4;
-        m_pages[index] = tex::CreateIndexed(static_cast<int>(page.width), static_cast<int>(page.height), format,
-                                            { tex::Filter::Linear }, decoded, page.decodedBytes);
+        const auto format = page.psm == gstx::kPsmT8 ? renderer::tex::PixelFormat::Index8 : renderer::tex::PixelFormat::Index4;
+        m_pages[index] = renderer::tex::CreateIndexed(static_cast<int>(page.width), static_cast<int>(page.height), format,
+                                            { renderer::tex::Filter::Linear }, decoded, page.decodedBytes);
 
         if (m_pages[index].id == 0)
         {
@@ -229,8 +229,8 @@ bool PalettedImage::BuildGrid()
 
         if (pass == 1)
         {
-            m_cellStart = static_cast<std::uint32_t *>(heap::TryAlloc((cells + 1U) * sizeof(std::uint32_t), TAG_RENDER));
-            m_cellItems = static_cast<u16 *>(heap::TryAlloc(items * sizeof(u16), TAG_RENDER));
+            m_cellStart = static_cast<std::uint32_t *>(system::heap::TryAlloc((cells + 1U) * sizeof(std::uint32_t), TAG_RENDER));
+            m_cellItems = static_cast<u16 *>(system::heap::TryAlloc(items * sizeof(u16), TAG_RENDER));
 
             if (m_cellStart == nullptr || m_cellItems == nullptr)
             {
@@ -296,15 +296,15 @@ PS2_COLD_FUNC void PalettedImage::Close()
 
     for (auto & page : m_pages)
     {
-        tex::Destroy(page);
+        renderer::tex::Destroy(page);
         page = {};
     }
 
-    tex::Destroy(m_cluts);
+    renderer::tex::Destroy(m_cluts);
     m_cluts = {};
-    heap::Free(m_tables);
-    heap::Free(m_cellStart);
-    heap::Free(m_cellItems);
+    system::heap::Free(m_tables);
+    system::heap::Free(m_cellStart);
+    system::heap::Free(m_cellItems);
     m_tables = nullptr;
     m_cellStart = nullptr;
     m_cellItems = nullptr;
@@ -372,7 +372,7 @@ bool PalettedImage::ValidateTriangle(const Vertex (&vertices)[3]) const
 {
     gstx::Placement placement = {};
 
-    if (!m_open || !rs::FrameStarted())
+    if (!m_open || !renderer::FrameStarted())
     {
         return Failed("invalid triangle validation state");
     }
@@ -391,16 +391,16 @@ bool PalettedImage::ValidateTriangle(const Vertex (&vertices)[3]) const
     const gstx::Page page = gstx::GetPage(m_tables, placement.page);
     FixedTriangle pieces[kMaxClippedTriangles] = {};
     int count = 0;
-    return MapTriangle(mapped, { gs::Width(), gs::Height() }, static_cast<int>(page.width), static_cast<int>(page.height), pieces,
+    return MapTriangle(mapped, { renderer::gs::Width(), renderer::gs::Height() }, static_cast<int>(page.width), static_cast<int>(page.height), pieces,
                        count) != Result::Invalid;
 }
 
-bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend)
+bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], renderer::gs::BlendMode blend)
 {
     gstx::Placement placement = {};
 
-    if (!m_open || !rs::FrameStarted() ||
-        (blend != gs::BlendMode::Replace && blend != gs::BlendMode::StraightAlpha && blend != gs::BlendMode::AdditiveAlpha) ||
+    if (!m_open || !renderer::FrameStarted() ||
+        (blend != renderer::gs::BlendMode::Replace && blend != renderer::gs::BlendMode::StraightAlpha && blend != renderer::gs::BlendMode::AdditiveAlpha) ||
         !Find(vertices, placement))
     {
         return Failed("invalid paletted draw state or placement");
@@ -411,7 +411,7 @@ bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blen
     const gstx::Page page = gstx::GetPage(m_tables, placement.page);
     FixedTriangle pieces[kMaxClippedTriangles] = {};
     int count = 0;
-    const Result result = MapTriangle(mapped, { gs::Width(), gs::Height() }, static_cast<int>(page.width), static_cast<int>(page.height),
+    const Result result = MapTriangle(mapped, { renderer::gs::Width(), renderer::gs::Height() }, static_cast<int>(page.width), static_cast<int>(page.height),
                                       pieces, count);
 
     if (result == Result::Invalid)
@@ -419,13 +419,13 @@ bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blen
         return Failed("paletted triangle mapping");
     }
 
-    const rs::PalettedDraw draw = { m_pages[placement.page], m_cluts, ClutBlock(placement.clut),
+    const renderer::PalettedDraw draw = { m_pages[placement.page], m_cluts, ClutBlock(placement.clut),
                                     static_cast<u16>(placement.dest.x), static_cast<u16>(placement.dest.x + placement.dest.width - 1U),
                                     static_cast<u16>(placement.dest.y), static_cast<u16>(placement.dest.y + placement.dest.height - 1U) };
 
     for (int triangle = 0; triangle < count; ++triangle)
     {
-        if (!rs::PalettedTriangleFixed(draw, pieces[triangle], blend))
+        if (!renderer::PalettedTriangleFixed(draw, pieces[triangle], blend))
         {
             return Failed("paletted draw submission");
         }

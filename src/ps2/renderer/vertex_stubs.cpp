@@ -45,7 +45,7 @@ void idVertexBuffer::FreeBufferObject()
 {
     if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0)
     {
-        ps2::render::Unavailable("idVertexBuffer::FreeBufferObject with backend state");
+        ps2::renderer::Unavailable("idVertexBuffer::FreeBufferObject with backend state");
     }
 }
 
@@ -53,7 +53,7 @@ void idIndexBuffer::FreeBufferObject()
 {
     if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0)
     {
-        ps2::render::Unavailable("idIndexBuffer::FreeBufferObject with backend state");
+        ps2::renderer::Unavailable("idIndexBuffer::FreeBufferObject with backend state");
     }
 }
 
@@ -61,7 +61,7 @@ void idJointBuffer::FreeBufferObject()
 {
     if (apiObject != nullptr || numJoints != 0 || offsetInOtherBuffer != 0)
     {
-        ps2::render::Unavailable("idJointBuffer::FreeBufferObject with backend state");
+        ps2::renderer::Unavailable("idJointBuffer::FreeBufferObject with backend state");
     }
 }
 
@@ -76,7 +76,7 @@ void ClearEmptySet(geoBufferSet_t & buffers)
         buffers.vertexMemUsed.GetValue() != 0 || buffers.indexMemUsed.GetValue() != 0 || buffers.jointMemUsed.GetValue() != 0 ||
         buffers.allocations != 0)
     {
-        ps2::render::Unavailable("idVertexCache empty cleanup with live storage");
+        ps2::renderer::Unavailable("idVertexCache empty cleanup with live storage");
     }
 }
 } // namespace
@@ -99,7 +99,7 @@ void idVertexCache::Shutdown()
 #define RENDER_UNAVAILABLE(result, method, parameters) \
     PS2_COLD_FUNC result method parameters             \
     {                                                  \
-        ps2::render::Unavailable(#method);             \
+        ps2::renderer::Unavailable(#method);             \
     }
 
 RENDER_UNAVAILABLE(void, idVertexCache::Init, (bool))

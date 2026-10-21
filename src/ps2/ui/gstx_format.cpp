@@ -5,7 +5,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/gstx_format.h"
+#include "ps2/ui/gstx_format.h"
 
 namespace ps2::ui::gstx
 {

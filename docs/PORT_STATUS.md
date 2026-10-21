@@ -3862,3 +3862,62 @@ production and the release core image build; release gates were not run. Product
 `PT_LOAD` is 11,177,957 debug / 11,614,821 release bytes (+10,880 / +10,624), with 376
 objects (`gstx_format.o` and `ui_paletted_image.o` added), no unresolved symbols and no
 fixtures; the core test image is 2,150,896 / 2,235,504 bytes.
+
+## Backend namespace cleanup (2026-10-21)
+
+Verified **2026-10-21, Australia/Sydney**, in the debug emulator matrix; by the user's
+direction release gates were not run. Every backend namespace now follows
+`ps2::module::subsystem`, the module being the `src/ps2/` folder, and UI code moved from
+`src/ps2/renderer/` to `src/ps2/ui/`. The convention is recorded in
+[AGENTS.md](../AGENTS.md) and the [backend rule](../.claude/rules/ps2-backend-cpp.md#naming).
+
+| Namespace | Holds | Was |
+| --- | --- | --- |
+| `ps2` | `Log`/`FatalError`, assertions, `CheckedCast` | unchanged |
+| `ps2::system::heap`, `filesystem`, `video`, `runtime` | allocator, file services, NTSC/PAL modes, production loop and presentation | `ps2::heap`, `filesystem`, `video`, `runtime` |
+| `ps2::system::lifecycle` | Common startup stages and the core test boot (`InitCore`/`ShutdownCore`) | `ps2::lifecycle`, `ps2::core` |
+| `ps2::system::session` | offline campaign session | `ps2::offline` |
+| `ps2::audio` | PCM, voice timelines, `SoundSample`/`SoundVoice`/`SoundHardware` | `ps2::audio`, global `idSound*` |
+| `ps2::game`, `ps2::game::script` | class allocation; script error scopes | `ps2::game`, `ps2::script` |
+| `ps2::renderer` | 2D frame owner, image backend, logical renderer | `ps2::rs`, `ps2::render` |
+| `ps2::renderer::gs` | GS device, command buffer, VRAM allocator, capture, GIF writer | `ps2::gs`, `cmdbuf`, `vram`, `capture`, `ps2::GifWriter` |
+| `ps2::renderer::tex` | texture owner and layouts | `ps2::tex` |
+| `ps2::ui` | draw collection, geometry, triangles, masks, page and paletted images | `ps2::ui` (files in `renderer/`) |
+| `ps2::ui::gstx`, `fonts`, `swf` | GSTX format; fonts and the procedural charset; SWF format/execution/runtime and its JPEG decoder | `ps2::ui::gstx`, `ps2::fonts` + charset, `ps2::ui` + `ps2::ui::swf` + `ps2::jpeg` |
+| `ps2::ui::authored`, `ps2::ui::retail` | authored assets and movie; retail resources, screen and widget owner | `ps2::ui`, `ps2::movie`; `ps2::retail_movie`, `ps2::ui::retail_owner` |
+| `ps2::tests`, `ps2::tests::fixture` | target test suites; codec data and the game fixture | `ps2::smoketests`, `ps2::smoketests::fixtures`, `ps2::gamefixture` |
+
+Merged subsystems give their functions distinct names, so an unqualified call cannot bind
+to another subsystem's function: the command buffer's `Init` became `gs::InitCommandBuffer`,
+the VRAM allocator's `Init` `gs::InitVram`, the retail screen's `Init` `retail::InitScreen`
+and the widget owner's `Init` `retail::AttachOwner`. SWF names dropped their `Swf` prefix
+(`swf::ValidateBytes`), and the JPEG decoder's entry points became
+`swf::CreateJpegDecoder`/`DecodeJpeg`. `sound.h` and the backend header alias the engine's
+`idSoundSample`, `idSoundVoice` and `idSoundHardware` names to the `ps2::audio` classes, so
+the engine sound code is unchanged; two audio diagnostics now name `SoundSample::` and
+`SoundHardware::`. One engine global needed qualifying: `session` inside
+`ps2::system::session`.
+
+The UI files dropped their `ui_` prefix (`ui/draw.cpp`, `ui/paletted_image.cpp` and so on)
+and keep their source-list positions, so link order is unchanged. Every build target
+compiles; production `PT_LOAD` is 11,177,829 debug / 11,614,693 release bytes (128 fewer,
+from shorter diagnostics) and the core test image is unchanged at 2,150,896 / 2,235,504.
+Tagged ledgers match the earlier same-day runs exactly; allocator arena commitment is 128
+bytes higher, mirroring the smaller image. `make test-host` passes 354 Python regressions
+plus the C++ harnesses.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `smoke-platform`, `smoke`, `smoke-negative` | 3 | `20261021T041805Z_smoke_a62204cbd8474ce3`, `20261021T041831Z_smoke_2873810d3bd8467a`, `20261021T041836Z_smoke_5d5ee7340cf6423f` |
+| `test-common` | 83 | `20261021T041840Z_smoke_375551c59daf407f` to `20261021T042150Z_smoke_59c1a2e1cbc44ba9` |
+| `test-renderer` | 19 | `20261021T042201Z_smoke_879b3ac16db84675` to `20261021T042322Z_smoke_3af4910178b64158` |
+| `test-game`, `test-map` | 12 | `20261021T042345Z_smoke_db9699cf01f74e64` to `20261021T042452Z_smoke_fa20c392971749bd` |
+| `test-script` | 15 | `20261021T042510Z_script_e0d11134212b4d55` to `20261021T042601Z_script_21cf3160fc1a4a4d` |
+| `test-headless`, `test-console` | 4 | `20261021T042633Z_headless_b37b58267c44` to `20261021T042659Z_console_ce96075d655f` |
+| `test-ui` | 14 | `20261021T042713Z_ui_1eaba9ff53f5` to `20261021T042849Z_ui_c8d32625acbe` |
+| `test-retail-ui` | 7 | `20261021T042856Z_retail_3bd9a0cc2511` to `20261021T042946Z_retail_62762450070c` |
+| `test-retail-movies` | 19 | `20261021T042953Z_movies_f1e774f5d480` to `20261021T043332Z_movies_2508e2b79d6e` |
+| `test-retail-boot` | 1 | `20261021T043344Z_headless_6ea7bceb7f19` |
+
+All 177 cases pass. Each gate family ran one ELF, and a rebuild from the final sources
+reproduces the tested core and production images byte for byte.

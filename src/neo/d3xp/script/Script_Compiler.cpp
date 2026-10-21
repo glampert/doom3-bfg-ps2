@@ -262,7 +262,7 @@ void idCompiler::Error( const char *message, ... ) const {
 
 	// [PS2_D3BFG]: Compiler errors terminate after releasing registered compilation resources.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	ps2::script::Fail( "%s", string );
+	ps2::game::script::Fail( "%s", string );
 #else
 	throw idCompileError( string );
 #endif
@@ -695,7 +695,7 @@ void idCompiler::NextToken() {
 	currentFileNumber = program.GetFilenum( parserPtr->GetFileName() );
 	// [PS2_D3BFG]: Preserve location before parser/program storage can be freed on failure.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	ps2::script::ErrorScope::SetLocation( parserPtr->GetFileName(), currentLineNumber );
+	ps2::game::script::ErrorScope::SetLocation( parserPtr->GetFileName(), currentLineNumber );
 #endif
 
 	if ( !parserPtr->ReadToken( &token ) ) {
@@ -1338,7 +1338,7 @@ idCompiler::GetTerm
 idVarDef *idCompiler::GetTerm() {
 	// [PS2_D3BFG]: Bound recursive descent before exhausting the EE stack.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	ps2::script::NestingScope nesting;
+	ps2::game::script::NestingScope nesting;
 #endif
 	idVarDef	*e;
 	int 		op;
@@ -1495,7 +1495,7 @@ idCompiler::GetExpression
 idVarDef *idCompiler::GetExpression( int priority ) {
 	// [PS2_D3BFG]: Bound recursive descent before exhausting the EE stack.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	ps2::script::NestingScope nesting;
+	ps2::game::script::NestingScope nesting;
 #endif
 	opcode_t		*op;
 	opcode_t		*oldop;
@@ -1966,7 +1966,7 @@ idCompiler::ParseStatement
 void idCompiler::ParseStatement() {
 	// [PS2_D3BFG]: Bound recursive descent before exhausting the EE stack.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	ps2::script::NestingScope nesting;
+	ps2::game::script::NestingScope nesting;
 #endif
 	if ( CheckToken( ";" ) ) {
 		// skip semicolons, which are harmless and ok syntax
@@ -2586,7 +2586,7 @@ Parses anything within a namespace definition
 void idCompiler::ParseNamespace( idVarDef *newScope ) {
 	// [PS2_D3BFG]: Bound recursive descent before exhausting the EE stack.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	ps2::script::NestingScope nesting;
+	ps2::game::script::NestingScope nesting;
 #endif
 	idVarDef *oldscope;
 
@@ -2622,10 +2622,10 @@ void idCompiler::CompileFile( const char *text, const char *filename, bool toCon
 
 	// [PS2_D3BFG]: Fatal syntax/type/storage errors release the parser before the program.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	ps2::script::ErrorScope cleanup( []( void *data ) {
+	ps2::game::script::ErrorScope cleanup( []( void *data ) {
 		static_cast<idParser *>( data )->FreeSource();
 	}, &parser );
-	ps2::script::ErrorScope::SetLocation( filename, 1 );
+	ps2::game::script::ErrorScope::SetLocation( filename, 1 );
 #endif
 	compile_time.Start();
 

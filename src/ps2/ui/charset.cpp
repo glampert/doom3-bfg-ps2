@@ -4,11 +4,11 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/charset.h"
+#include "ps2/ui/charset.h"
 
 #include <cstdint>
 
-namespace ps2::render
+namespace ps2::ui::fonts
 {
 namespace
 {
@@ -185,4 +185,4 @@ bool MakeAuthoredFontCharset(void * rgba, size_t capacity)
     }
     return true;
 }
-} // namespace ps2::render
+} // namespace ps2::ui::fonts

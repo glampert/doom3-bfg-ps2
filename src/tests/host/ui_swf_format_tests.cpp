@@ -30,18 +30,18 @@ bool RejectName(const char *, bool, void *)
 
 void Reject(const Bytes & bytes)
 {
-    ps2::ui::SwfSummary summary;
+    ps2::ui::swf::Summary summary;
     summary.dictionary = 0x12345678;
-    assert(!ps2::ui::ValidateSwfBytes(bytes.data(), bytes.size(), summary));
+    assert(!ps2::ui::swf::ValidateBytes(bytes.data(), bytes.size(), summary));
     assert(summary.dictionary == 0x12345678);
 }
 
 void Check(const Bytes & bytes, bool exhaustive)
 {
-    ps2::ui::SwfSummary summary;
-    assert(ps2::ui::ValidateSwfBytes(bytes.data(), bytes.size(), summary));
+    ps2::ui::swf::Summary summary;
+    assert(ps2::ui::swf::ValidateBytes(bytes.data(), bytes.size(), summary));
     assert(summary.dictionary > 0 && summary.editTexts > 0 && summary.fonts > 0);
-    assert(!ps2::ui::ValidateSwfBytes(bytes.data(), bytes.size(), summary, RejectName));
+    assert(!ps2::ui::swf::ValidateBytes(bytes.data(), bytes.size(), summary, RejectName));
     const std::size_t stride = exhaustive ? 1 : bytes.size() / 512 + 1;
 
     for (std::size_t size = 0; size < bytes.size(); size += stride)
@@ -71,8 +71,8 @@ void Check(const Bytes & bytes, bool exhaustive)
         corrupted = bytes;
         const std::size_t offset = state % bytes.size();
         corrupted[offset] ^= static_cast<unsigned char>((state >> 24) | 1U);
-        ps2::ui::SwfSummary ignored;
-        (void)ps2::ui::ValidateSwfBytes(corrupted.data(), corrupted.size(), ignored);
+        ps2::ui::swf::Summary ignored;
+        (void)ps2::ui::swf::ValidateBytes(corrupted.data(), corrupted.size(), ignored);
     }
 
     std::printf("BSWF storage validator: bytes=%zu dictionary=%u sprites=%u commands=%u fonts=%u texts=%u preview=%u\n",
@@ -82,18 +82,18 @@ void Check(const Bytes & bytes, bool exhaustive)
 
 int main(int argc, char ** argv)
 {
-    ps2::ui::SwfSummary summary;
-    assert(!ps2::ui::ValidateSwfBytes(nullptr, 0, summary));
+    ps2::ui::swf::Summary summary;
+    assert(!ps2::ui::swf::ValidateBytes(nullptr, 0, summary));
     Check(Read("src/tests/data/ui/base/generated/swf/ps2_demo.bswf"), true);
 
     const char language[] = "{\n\"#str_a\" \"Text\\nLine\"\n}\n";
     std::uint32_t entries = 99;
-    assert(ps2::ui::ValidateEnglishBytes(language, sizeof(language) - 1, entries) && entries == 1);
+    assert(ps2::ui::swf::ValidateEnglishBytes(language, sizeof(language) - 1, entries) && entries == 1);
     const char badEscape[] = "{\n\"#str_a\" \"Text\\";
-    assert(!ps2::ui::ValidateEnglishBytes(badEscape, sizeof(badEscape) - 1, entries));
+    assert(!ps2::ui::swf::ValidateEnglishBytes(badEscape, sizeof(badEscape) - 1, entries));
     assert(entries == 1);
     const char sameLine[] = "{ \"#str_a\" \"A\" \"#str_b\" \"B\" }";
-    assert(!ps2::ui::ValidateEnglishBytes(sameLine, sizeof(sameLine) - 1, entries));
+    assert(!ps2::ui::swf::ValidateEnglishBytes(sameLine, sizeof(sameLine) - 1, entries));
 
     for (int argument = 1; argument < argc; ++argument)
     {
@@ -101,7 +101,7 @@ int main(int argc, char ** argv)
 
         if (std::strstr(argv[argument], ".lang") != nullptr)
         {
-            assert(ps2::ui::ValidateEnglishBytes(bytes.data(), bytes.size(), entries));
+            assert(ps2::ui::swf::ValidateEnglishBytes(bytes.data(), bytes.size(), entries));
             std::printf("English storage validator: bytes=%zu entries=%u\n", bytes.size(), entries);
         }
         else

@@ -6,13 +6,13 @@
 
 #pragma once
 
-namespace ps2::retail_movie
+namespace ps2::ui::retail
 {
 // Presentation owns this command after fonts initialize and releases it before fonts shut down.
-void Init();
-void Shutdown();
-bool IsLoaded();
+void InitScreen();
+void ShutdownScreen();
+bool IsScreenLoaded();
 // Advance native retail timelines once per Common frame before drawing; redraws never execute them.
-void Advance(bool advance);
-void Render(bool advance);
-} // namespace ps2::retail_movie
+void AdvanceScreen(bool advance);
+void RenderScreen(bool advance);
+} // namespace ps2::ui::retail

@@ -35,15 +35,15 @@ static bool s_discardConsoleLine = false;
 
 void Status(const idCmdArgs &)
 {
-    const auto stats = ps2::heap::GetTotalStats();
+    const auto stats = ps2::system::heap::GetTotalStats();
     ps2::Log(ps2::LogLevel::Info,
              "[D3BFG] HEADLESS frames=%d game_frames=%d state=console console=%d game_nomap=%d render_device=%d sound_output=%d heap=%zu/%zu/%zu\n",
              s_frames, gameLocal.GetFrameNum(), static_cast<int>(console->Active()),
              static_cast<int>(gameLocal.GameState() == GAMESTATE_NOMAP),
-             static_cast<int>(ps2::runtime::HasPresentation()),
+             static_cast<int>(ps2::system::runtime::HasPresentation()),
              static_cast<int>(soundSystem->GetPlayingSoundWorld() != nullptr),
              stats.requestedBytes, stats.backingBytes, stats.allocationCount);
-    ps2::runtime::LogPresentationStatus(s_frames);
+    ps2::system::runtime::LogPresentationStatus(s_frames);
 }
 
 void SubmitConsoleLine()
@@ -60,7 +60,7 @@ void SubmitConsoleLine()
             consoleHistory.AddToHistory(s_consoleLine, false);
         }
         const size_t size = s_consoleLineLength + 1;
-        void * text = ps2::heap::Alloc(size, TAG_EVENTS);
+        void * text = ps2::system::heap::Alloc(size, TAG_EVENTS);
         memcpy(text, s_consoleLine, size);
         Sys_QueEvent(SE_CONSOLE, 0, 0, static_cast<int>(size), text, 0);
         // Drain each line so a file full of short commands cannot overrun the event queue.
@@ -79,12 +79,12 @@ void PollConsole()
     }
     s_lastConsolePoll = now;
     // Reopen each poll: HostFs writers may append while the engine runs, and stdio can cache EOF.
-    FILE * file = ps2::filesystem::Open("host:console.txt", ps2::filesystem::OpenMode::Read);
+    FILE * file = ps2::system::filesystem::Open("host:console.txt", ps2::system::filesystem::OpenMode::Read);
     if (file == nullptr)
     {
         return;
     }
-    const int length = ps2::filesystem::FileLength(file);
+    const int length = ps2::system::filesystem::FileLength(file);
     if (length < 0)
     {
         fclose(file);
@@ -101,7 +101,7 @@ void PollConsole()
     const size_t count = available < kConsoleReadBudget ? available : kConsoleReadBudget;
     char bytes[kConsoleReadBudget];
     const bool read = fseek(file, s_consoleOffset, SEEK_SET) == 0 &&
-                      ps2::filesystem::ReadExact(file, bytes, count);
+                      ps2::system::filesystem::ReadExact(file, bytes, count);
     const bool closed = fclose(file) == 0;
     if (!read || !closed)
     {
@@ -131,7 +131,7 @@ void PollConsole()
 }
 } // namespace
 
-namespace ps2::runtime
+namespace ps2::system::runtime
 {
 void RequestQuit()
 {
@@ -142,7 +142,7 @@ bool IsQuitRequested()
 {
     return s_quitRequested;
 }
-} // namespace ps2::runtime
+} // namespace ps2::system::runtime
 
 void idCommonLocal::InitHeadless()
 {
@@ -152,20 +152,20 @@ void idCommonLocal::InitHeadless()
         ps2::FatalError("invalid headless game startup");
     }
     // Tagged ledgers after each stage record what the startup data costs on the EE.
-    ps2::lifecycle::PrintMemory("startup-foundation");
+    ps2::system::lifecycle::PrintMemory("startup-foundation");
     idKeyInput::Init();
     console->Init();
     consoleHistory.ClearHistory();
     eventLoop->Init();
     declManager->Init();
-    ps2::lifecycle::PrintMemory("startup-decls");
+    ps2::system::lifecycle::PrintMemory("startup-decls");
     // This bootstrap never executes desktop device bindings or starts an audio device.
     cvarSystem->SetCVarBool("g_xp_bind_run_once", true);
     cvarSystem->SetCVarBool("s_noSound", true);
     soundSystem->Init();
     LoadGameDLL(); // Validates the real static game ABI and calls native idGameLocal::Init.
-    ps2::lifecycle::PrintMemory("startup-game");
-    ps2::render::InitLogical("_headless_default");
+    ps2::system::lifecycle::PrintMemory("startup-game");
+    ps2::renderer::InitLogical("_headless_default");
     renderWorld = renderSystem->AllocRenderWorld();
     soundWorld = soundSystem->AllocSoundWorld(renderWorld);
     menuSoundWorld = soundSystem->AllocSoundWorld(nullptr);
@@ -179,7 +179,7 @@ void idCommonLocal::InitHeadless()
         ps2::FatalError("native game did not reach the headless console");
     }
     s_initialized = true;
-    ps2::runtime::InitPresentation();
+    ps2::system::runtime::InitPresentation();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] HEADLESS console ready; append commands to host:console.txt\n");
     Status(idCmdArgs{});
 }
@@ -191,12 +191,12 @@ void idCommonLocal::FrameHeadless()
     {
         ps2::FatalError("invalid headless game frame");
     }
-    ps2::runtime::BeginPresentationFrame();
+    ps2::system::runtime::BeginPresentationFrame();
     PollConsole();
     Sys_GenerateEvents();
     eventLoop->RunEventLoop(false);
-    ps2::lifecycle::Frame();
-    ps2::render::AdvanceLogicalFrame();
+    ps2::system::lifecycle::Frame();
+    ps2::renderer::AdvanceLogicalFrame();
     gameReturn_t result{};
     // The native constructor omits this array, and NOMAP returns without filling the result.
     result.sessionCommand[0] = '\0';
@@ -207,11 +207,11 @@ void idCommonLocal::FrameHeadless()
     }
     ++s_frames;
     // Complete and display the last frame even when input requested quit or a capture.
-    ps2::runtime::PresentConsoleFrame(s_frames);
+    ps2::system::runtime::PresentConsoleFrame(s_frames);
     if (s_maxFrames.GetInteger() > 0 && s_frames >= s_maxFrames.GetInteger())
     {
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] HEADLESS frame limit reached frames=%d\n", s_frames);
-        ps2::runtime::RequestQuit();
+        ps2::system::runtime::RequestQuit();
     }
 }
 
@@ -222,14 +222,14 @@ void idCommonLocal::ShutdownHeadless()
         return;
     }
     Status(idCmdArgs{});
-    ps2::runtime::ShutdownPresentation(s_frames);
+    ps2::system::runtime::ShutdownPresentation(s_frames);
     UnloadGameDLL();
     soundSystem->FreeSoundWorld(menuSoundWorld);
     soundSystem->FreeSoundWorld(soundWorld);
     menuSoundWorld = soundWorld = nullptr;
     renderSystem->FreeRenderWorld(renderWorld);
     renderWorld = nullptr;
-    ps2::render::ShutdownLogical();
+    ps2::renderer::ShutdownLogical();
     soundSystem->Shutdown();
     declManager->Shutdown();
     CloseLogFile();

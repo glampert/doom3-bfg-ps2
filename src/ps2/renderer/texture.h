@@ -7,7 +7,7 @@
 #pragma once
 #include "ps2/renderer/gs.h"
 
-namespace ps2::tex
+namespace ps2::renderer::tex
 {
 struct Handle
 {
@@ -36,4 +36,4 @@ bool Bind(Handle handle, gs::TextureBinding & output);
 // Both textures resident at once (a paletted page and its CLUT texture); neither evicts the other.
 bool BindPair(Handle first, Handle second, gs::TextureBinding & firstOutput, gs::TextureBinding & secondOutput);
 Stats GetStats();
-} // namespace ps2::tex
+} // namespace ps2::renderer::tex

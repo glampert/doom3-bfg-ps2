@@ -9,7 +9,7 @@
 #include <cstdarg>
 #include <cstdio>
 
-namespace ps2::script
+namespace ps2::game::script
 {
 namespace
 {
@@ -88,4 +88,4 @@ void Fail(const char * format, ...)
     FatalError("script %s:%d: %s", file, line, message);
 }
 
-} // namespace ps2::script
+} // namespace ps2::game::script

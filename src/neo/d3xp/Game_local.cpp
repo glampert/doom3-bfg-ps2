@@ -1203,7 +1203,7 @@ void idGameLocal::InitFromNewMap( const char *mapName, idRenderWorld *renderWorl
 
 	// [PS2_D3BFG]: Authored headless map startup has no player/presentation services yet.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( !ps2::gamefixture::IsMapEnabled() )
+	if ( !ps2::tests::fixture::IsMapEnabled() )
 #endif
 	SyncPlayersWithLobbyUsers( true );
 
@@ -2003,7 +2003,7 @@ idGameLocal::SetupPlayerPVS
 void idGameLocal::SetupPlayerPVS() {
 	// [PS2_D3BFG]: The bounded simulation has no render-world topology or PVS acquisition.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( ps2::gamefixture::IsEnabled() && !ps2::gamefixture::IsMapEnabled() ) {
+	if ( ps2::tests::fixture::IsEnabled() && !ps2::tests::fixture::IsMapEnabled() ) {
 		playerPVS.i = playerConnectedAreas.i = -1;
 		return;
 	}
@@ -2294,8 +2294,8 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 
 	// [PS2_D3BFG]: Authored fixtures retain native frames with zero or one bounded player.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( ps2::gamefixture::IsEnabled() ) {
-		ps2::gamefixture::ValidateFrame();
+	if ( ps2::tests::fixture::IsEnabled() ) {
+		ps2::tests::fixture::ValidateFrame();
 	} else
 #endif
 	{
@@ -3263,8 +3263,8 @@ idEntity *idGameLocal::SpawnEntityType( const idTypeInfo &classdef, const idDict
 	idClass *obj;
 	// [PS2_D3BFG]: Reject unsupported player keys/slots before constructors or base spawning.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
-	if ( ps2::gamefixture::IsEnabled() && classdef.IsType( idPlayer::Type ) ) {
-		ps2::gamefixture::ValidatePlayerSpawn( classdef, args );
+	if ( ps2::tests::fixture::IsEnabled() && classdef.IsType( idPlayer::Type ) ) {
+		ps2::tests::fixture::ValidatePlayerSpawn( classdef, args );
 	}
 #endif
 

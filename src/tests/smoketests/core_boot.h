@@ -6,9 +6,9 @@
 
 #pragma once
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 bool RunCoreTests(const char * fixturePath);
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

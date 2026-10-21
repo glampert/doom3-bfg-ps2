@@ -13,7 +13,7 @@
 
 #include <idlib/precompiled.h>
 
-namespace ps2::lifecycle
+namespace ps2::system::lifecycle
 {
 namespace
 {
@@ -110,7 +110,7 @@ InitResult Init(idCommon & owner)
         return InitResult::Stopped;
     }
     // The campaign filesystem registers commands and reads cvars during initialization.
-    if (!filesystem::Init())
+    if (!system::filesystem::Init())
     {
         return InitResult::Failed;
     }
@@ -129,7 +129,7 @@ InitResult Init(idCommon & owner)
     {
         return InitResult::Stopped;
     }
-    offline::Init();
+    system::session::Init();
     if (Complete(Stage::Session))
     {
         return InitResult::Stopped;
@@ -149,7 +149,7 @@ void Shutdown()
         switch (stage)
         {
         case Stage::Session:
-            offline::Shutdown();
+            system::session::Shutdown();
             s_completed = Stage::Jobs;
             break;
         case Stage::Jobs:
@@ -191,13 +191,13 @@ void Frame()
     }
     ++idLib::frameNumber;
     cmdSystem->ExecuteCommandBuffer();
-    offline::Frame();
+    system::session::Frame();
 }
 
 void PrintMemory(const char * stage)
 {
-    const heap::Stats totals = heap::GetTotalStats();
-    const heap::ArenaStats arena = heap::GetArenaStats();
+    const system::heap::Stats totals = system::heap::GetTotalStats();
+    const system::heap::ArenaStats arena = system::heap::GetArenaStats();
     Log(LogLevel::Info, "[D3BFG] MEMORY %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu peak_backing=%zu\n",
         stage, totals.requestedBytes, totals.backingBytes, totals.allocationCount, totals.peakRequestedBytes,
         totals.peakBackingBytes);
@@ -206,7 +206,7 @@ void PrintMemory(const char * stage)
 
     for (std::uint16_t tag = 0; tag < static_cast<std::uint16_t>(TAG_NUM_TAGS); ++tag)
     {
-        const heap::Stats stats = heap::GetStats(tag);
+        const system::heap::Stats stats = system::heap::GetStats(tag);
 
         if (stats.allocationCount != 0 || stats.peakRequestedBytes != 0)
         {
@@ -216,4 +216,4 @@ void PrintMemory(const char * stage)
     }
 }
 
-} // namespace ps2::lifecycle
+} // namespace ps2::system::lifecycle

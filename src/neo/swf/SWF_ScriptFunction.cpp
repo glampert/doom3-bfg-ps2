@@ -288,7 +288,7 @@ namespace {
 		// [PS2_D3BFG]: Native widget updates can seek too; they cannot retire an executing descendant.
 		if ( !method && ( name == "refreshCarousel" || name == "updateCredits" ) )
 		{
-			ps2::ui::retail_owner::CheckCallbackOrigin( name, executing, owner );
+			ps2::ui::retail::CheckCallbackOrigin( name, executing, owner );
 		}
 
 		int expected = -1;

@@ -1,10 +1,10 @@
 // ================================================================================================
-// File: ui_page_geometry.cpp
+// File: page_geometry.cpp
 // Brief: Bound UV and screen clipping before a paged atlas triangle reaches the GS packet builder.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/ui_page_geometry.h"
+#include "ps2/ui/page_geometry.h"
 
 #include <bit>
 #include <cstdint>

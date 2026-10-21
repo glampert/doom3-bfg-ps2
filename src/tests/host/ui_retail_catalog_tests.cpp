@@ -4,9 +4,9 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/gstx_format.h"
-#include "ps2/renderer/ui_font_format.h"
-#include "ps2/renderer/ui_page_format.h"
+#include "ps2/ui/font_format.h"
+#include "ps2/ui/gstx_format.h"
+#include "ps2/ui/page_format.h"
 #include "ps2/ui/retail_catalog.h"
 
 #include <cstddef>
@@ -358,7 +358,7 @@ static bool InvalidRecords()
     };
 
     const Change changes[] = {
-        { kHeaderBytes, 1 }, { kHeaderBytes + 4U, 0xFFFFFFFF }, { kHeaderBytes + 8U, 0 }, { kHeaderBytes + 8U, 129 }, { kHeaderBytes + 12U, 16385 }, { kHeaderBytes + 16U, 0 }, { kHeaderBytes + 20U, descriptor + 1U }, { kHeaderBytes + 24U, 32 }, { kHeaderBytes + 24U, 0xFFFFFFFF }, { kHeaderBytes + 28U, 1 }, { descriptor, 0 }, { descriptor + 4U, 2 }, { descriptor + 8U, 0 }, { descriptor + 12U, 0 }, { descriptor + 20U, 0 }, { descriptor + 24U, 1 }, { descriptor + 28U, 1 }, { descriptor + 48U, 0 }, { descriptor + 56U, 0 }, { descriptor + 80U, 0 }, { descriptor + 100U, 0 }, { valid.fonts + 12U, 25 }, { valid.fonts + 12U, 27 }, { valid.fonts + 12U, static_cast<std::uint32_t>(ps2::fonts::kMaxFontBytes + 14U) }, { valid.fonts + 20U, 2 }, { valid.fonts + 24U, 0 }, { valid.fonts + 28U, 4097 }, { valid.fonts + 48U, 1 }, { valid.fonts + 52U, 1 }, { valid.aliases + 4U, 2 }, { valid.materials + 4U, 2 }
+        { kHeaderBytes, 1 }, { kHeaderBytes + 4U, 0xFFFFFFFF }, { kHeaderBytes + 8U, 0 }, { kHeaderBytes + 8U, 129 }, { kHeaderBytes + 12U, 16385 }, { kHeaderBytes + 16U, 0 }, { kHeaderBytes + 20U, descriptor + 1U }, { kHeaderBytes + 24U, 32 }, { kHeaderBytes + 24U, 0xFFFFFFFF }, { kHeaderBytes + 28U, 1 }, { descriptor, 0 }, { descriptor + 4U, 2 }, { descriptor + 8U, 0 }, { descriptor + 12U, 0 }, { descriptor + 20U, 0 }, { descriptor + 24U, 1 }, { descriptor + 28U, 1 }, { descriptor + 48U, 0 }, { descriptor + 56U, 0 }, { descriptor + 80U, 0 }, { descriptor + 100U, 0 }, { valid.fonts + 12U, 25 }, { valid.fonts + 12U, 27 }, { valid.fonts + 12U, static_cast<std::uint32_t>(ps2::ui::fonts::kMaxFontBytes + 14U) }, { valid.fonts + 20U, 2 }, { valid.fonts + 24U, 0 }, { valid.fonts + 28U, 4097 }, { valid.fonts + 48U, 1 }, { valid.fonts + 52U, 1 }, { valid.aliases + 4U, 2 }, { valid.materials + 4U, 2 }
     };
     for (const Change & change : changes)
     {

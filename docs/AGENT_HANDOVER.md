@@ -148,12 +148,15 @@ keyboard/pad integration and real PS2 acceptance remain 2D-8.
 | Retail resources and execution | `src/ps2/ui/retail_movie.cpp`, `retail_assets.cpp`, `retail_materials.cpp`, `retail_catalog.cpp`, `retail_owner.cpp` |
 | Storage/script guards | `src/ps2/ui/swf_format.*`, `swf_execution.*`, `swf_runtime.*` |
 | Native SWF integration | `src/neo/swf/SWF_Main.cpp`, `SWF_Render.cpp`, `SWF_SpriteInstance.cpp`, native menu/widget sources |
-| CPU geometry/masks | `src/ps2/renderer/ui_draw.*`, `ui_masks.*`, `ui_triangles.*`, `ui_geometry.*` |
-| Images/fonts/page cache | `src/ps2/renderer/image_backend.cpp`, `font_backend.cpp`, `ui_page_image.*`, `ui_page_geometry.*`, `ui_page_format.*` |
+| CPU geometry/masks | `src/ps2/ui/draw.*`, `masks.*`, `triangles.*`, `geometry.*` |
+| Images/fonts/page cache | `src/ps2/renderer/image_backend.cpp`; `src/ps2/ui/font_backend.cpp`, `page_image.*`, `page_geometry.*`, `page_format.*`, `paletted_image.*`, `gstx_format.*` |
 | GS device and fences | `src/ps2/renderer/gs.*`, `render_system.*`, `cmd_buffer.*`, `texture.*`, `vram.*`, `capture.*` |
 | Authored reference/oracles | `src/tools/scripts/build_authored_ui.py`, `ui_capture.py`, `renderer_capture.py` |
 | Native/host regressions | `src/tests/smoketests/renderer_gs_tests.cpp`, `src/tests/host/ui_triangles_tests.cpp`, `src/tests/host/scripts/` |
 | Build manifests | `config/sources.mk`, `config/source_inventory.json`, root Makefile |
+
+Backend namespaces follow `ps2::module::subsystem` (for example `ps2::renderer::gs`,
+`ps2::ui::swf`); the [backend rule](../.claude/rules/ps2-backend-cpp.md#naming) has the details.
 
 Native SWF files retain upstream style around minimal tagged PS2 edits. New backend
 and host C++ uses Allman braces, spaced blocks, explicit `static` file variables,

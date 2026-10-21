@@ -337,7 +337,7 @@ void idSWF::EnableResourceExecution()
 // [PS2_D3BFG]: Mutable script names cannot authorize an aliased native service.
 bool idSWF::IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const
 {
-	return ps2::ui::retail_owner::IsCallback( name, function, this ) ||
+	return ps2::ui::retail::IsOwnerCallback( name, function, this ) ||
 		( idStr::Cmp( name, "inhibitControl" ) == 0 && function == &scriptFunction_inhibitControl ) ||
 		( idStr::Cmp( name, "useInhibit" ) == 0 && function == &scriptFunction_useInhibit ) ||
 		( idStr::Cmp( name, "deactivate" ) == 0 && function == &scriptFunction_deactivate ) ||

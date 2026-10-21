@@ -7,11 +7,11 @@
 #include "ps2/ui/movie.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
-#include "ps2/renderer/ui_page_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "ps2/ui/authored_assets.h"
+#include "ps2/ui/draw.h"
+#include "ps2/ui/page_image.h"
 #include "ps2/ui/retail_assets.h"
 #include <idlib/precompiled.h>
 #include <swf/SWF.h>
@@ -26,12 +26,12 @@ static int s_time = 0;
 
 void Status()
 {
-    const auto pages = ps2::render::GetUiPageStats();
+    const auto pages = ps2::renderer::GetUiPageStats();
     ps2::Log(ps2::LogLevel::Info,
              "[D3BFG] UI pages images=%u slots=%u cache=%u scratch=%u metadata=%u loads=%u hits=%u evictions=%u triangles=%u\n",
              pages.images, static_cast<u32>(pages.cacheBytes / ps2::ui::kPageBytes), pages.cacheBytes, pages.scratchBytes,
              pages.metadataBytes, pages.loads, pages.hits, pages.evictions, pages.triangles);
-    const auto stats = ps2::heap::GetTotalStats();
+    const auto stats = ps2::system::heap::GetTotalStats();
     if (s_movie == nullptr)
     {
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] SWF state=unloaded cycle=%u heap=%zu/%zu/%zu\n",
@@ -65,7 +65,7 @@ void OpenConsole()
 
 void Unload(bool restoreConsole)
 {
-    if (ps2::rs::FrameStarted())
+    if (ps2::renderer::FrameStarted())
     {
         ps2::FatalError("cannot unload native SWF during drawing");
     }
@@ -80,12 +80,12 @@ void Unload(bool restoreConsole)
 
 void Load()
 {
-    if (s_movie != nullptr || ps2::rs::FrameStarted() || s_cycle == UINT_MAX || ps2::ui::retail::IsInitialized())
+    if (s_movie != nullptr || ps2::renderer::FrameStarted() || s_cycle == UINT_MAX || ps2::ui::retail::IsInitialized())
     {
         ps2::FatalError("invalid authored SWF load ownership");
     }
     // Material declarations are already indexed by native DeclManager; admit their authored text too.
-    delete ps2::ui::OpenAuthoredAsset("materials/ps2_ui.mtr");
+    delete ps2::ui::authored::OpenAsset("materials/ps2_ui.mtr");
     s_movie = new (TAG_SWF) idSWF("ps2_demo", nullptr);
     // Activation rebuilds frame-one children and executes their authored initialization actions.
     s_movie->Activate(true);
@@ -174,7 +174,7 @@ void Key(const idCmdArgs & args)
 }
 } // namespace
 
-namespace ps2::movie
+namespace ps2::ui::authored
 {
 bool IsLoaded()
 {
@@ -231,4 +231,4 @@ void Render(bool advance)
     s_movie->Render(renderSystem, s_time, false);
     ui::EndSwfDraw();
 }
-} // namespace ps2::movie
+} // namespace ps2::ui::authored

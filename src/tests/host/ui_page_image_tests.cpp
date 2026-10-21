@@ -5,10 +5,10 @@
 // ================================================================================================
 
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
-#include "ps2/renderer/ui_page_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
+#include "ps2/ui/draw.h"
+#include "ps2/ui/page_image.h"
 
 #include <idlib/precompiled.h>
 
@@ -25,7 +25,7 @@ namespace
 
 struct Texture
 {
-    ps2::tex::Handle handle;
+    ps2::renderer::tex::Handle handle;
     void * pixels = nullptr;
 };
 
@@ -38,7 +38,7 @@ static u32 s_fences = 0;
 static bool s_device = true;
 static bool s_frame = true;
 
-static Texture * Find(ps2::tex::Handle handle)
+static Texture * Find(ps2::renderer::tex::Handle handle)
 {
     for (auto & texture : s_textures)
     {
@@ -134,12 +134,12 @@ static bool Draw(ps2::ui::PageImage & image, bool second = false)
         { 80.0f, 0.0f, s1, 0.0f, 255, 255, 255, 255 },
         { 0.0f, 80.0f, s0, 1.0f, 255, 255, 255, 255 }
     };
-    return image.DrawTriangle(vertices, ps2::gs::BlendMode::Replace);
+    return image.DrawTriangle(vertices, ps2::renderer::gs::BlendMode::Replace);
 }
 
 static bool OuterFontGutters(const char * path)
 {
-    const auto baseline = ps2::heap::GetTotalStats();
+    const auto baseline = ps2::system::heap::GetTotalStats();
     ps2::ui::PageCache cache;
     ps2::ui::PageImage image;
     bool passed = Check(cache.Init(1), "outer gutter cache startup");
@@ -152,7 +152,7 @@ static bool OuterFontGutters(const char * path)
         { 10.0f, 30.0f, lowerS, 0.04f, 255, 255, 255, 255 }
     };
     passed = Check(image.ValidateTriangle(vertices) &&
-                   image.DrawTriangle(vertices, ps2::gs::BlendMode::Replace) &&
+                   image.DrawTriangle(vertices, ps2::renderer::gs::BlendMode::Replace) &&
                    s_lastPixel == 0xFF0000FFU && cache.GetStats().loads == 1,
                    "negative outer font UVs retain first page ownership") &&
              passed;
@@ -162,7 +162,7 @@ static bool OuterFontGutters(const char * path)
              passed;
     image.Close();
     cache.Shutdown();
-    const auto after = ps2::heap::GetTotalStats();
+    const auto after = ps2::system::heap::GetTotalStats();
     return Check(after.requestedBytes == baseline.requestedBytes &&
                  after.allocationCount == baseline.allocationCount && TextureCount() == 0,
                  "outer gutter cleanup") &&
@@ -173,7 +173,7 @@ static bool SharedCache(const char * firstPath, const char * secondPath, const c
 {
     using ps2::ui::PageCache;
     using ps2::ui::PageImage;
-    const auto baseline = ps2::heap::GetTotalStats();
+    const auto baseline = ps2::system::heap::GetTotalStats();
     PageCache cache;
     PageImage first;
     PageImage second;
@@ -183,7 +183,7 @@ static bool SharedCache(const char * firstPath, const char * secondPath, const c
                    corrupt.Open(corruptPath, cache),
                    "shared attachments") &&
              passed;
-    const auto warm = ps2::heap::GetTotalStats();
+    const auto warm = ps2::system::heap::GetTotalStats();
     const auto opened = cache.GetStats();
     passed = Check(opened.images == 3 && opened.metadataBytes == 32 && opened.cacheBytes == 524288 &&
                    opened.scratchBytes == 262144 && TextureCount() == 2,
@@ -216,7 +216,7 @@ static bool SharedCache(const char * firstPath, const char * secondPath, const c
                    cache.GetStats().hits == beforeBad.hits + 1,
                    "bad read preserves existing hit") &&
              passed;
-    const auto live = ps2::heap::GetTotalStats();
+    const auto live = ps2::system::heap::GetTotalStats();
     passed = Check(live.requestedBytes == warm.requestedBytes && live.allocationCount == warm.allocationCount,
                    "draws allocate no memory") &&
              passed;
@@ -247,7 +247,7 @@ static bool SharedCache(const char * firstPath, const char * secondPath, const c
              passed;
     cache.Shutdown();
     cache.Shutdown();
-    const auto after = ps2::heap::GetTotalStats();
+    const auto after = ps2::system::heap::GetTotalStats();
     return Check(after.requestedBytes == baseline.requestedBytes &&
                  after.allocationCount == baseline.allocationCount && TextureCount() == 0,
                  "shared shutdown returns baseline") &&
@@ -258,12 +258,12 @@ static bool BoundsAndFailures(const char * path)
 {
     using ps2::ui::PageCache;
     using ps2::ui::PageImage;
-    const auto baseline = ps2::heap::GetTotalStats();
+    const auto baseline = ps2::system::heap::GetTotalStats();
     PageCache cache;
     bool passed = Check(!cache.Init(0) && !cache.Init(9), "slot bounds");
-    passed = Check(!cache.Init(1, { ps2::tex::Filter::Nearest, ps2::tex::Wrap::Repeat }) &&
-                   !cache.Init(1, { ps2::tex::Filter::Linear, ps2::tex::Wrap::Clamp, ps2::tex::Wrap::Repeat }) &&
-                   !cache.Init(1, { static_cast<ps2::tex::Filter>(255) }) && TextureCount() == 0,
+    passed = Check(!cache.Init(1, { ps2::renderer::tex::Filter::Nearest, ps2::renderer::tex::Wrap::Repeat }) &&
+                   !cache.Init(1, { ps2::renderer::tex::Filter::Linear, ps2::renderer::tex::Wrap::Clamp, ps2::renderer::tex::Wrap::Repeat }) &&
+                   !cache.Init(1, { static_cast<ps2::renderer::tex::Filter>(255) }) && TextureCount() == 0,
                    "gutter pages require valid nearest or linear clamp sampling") &&
              passed;
     s_device = false;
@@ -303,7 +303,7 @@ static bool BoundsAndFailures(const char * path)
                    "standalone owned cache compatibility") &&
              passed;
     owned.Close();
-    const auto after = ps2::heap::GetTotalStats();
+    const auto after = ps2::system::heap::GetTotalStats();
     return Check(after.requestedBytes == baseline.requestedBytes &&
                  after.allocationCount == baseline.allocationCount && TextureCount() == 0,
                  "failure and bound cleanup returns baseline") &&
@@ -336,7 +336,7 @@ static bool ShutdownPrecondition(const char * path)
 
 } // namespace
 
-namespace ps2::tex
+namespace ps2::renderer::tex
 {
 
 Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes)
@@ -353,7 +353,7 @@ Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t 
     {
         if (texture.pixels == nullptr)
         {
-            texture.pixels = heap::Alloc(sourceBytes, TAG_RENDER, 64);
+            texture.pixels = system::heap::Alloc(sourceBytes, TAG_RENDER, 64);
             std::memcpy(texture.pixels, rgba, sourceBytes);
             texture.handle.id = ++s_nextTexture;
             return texture.handle;
@@ -385,13 +385,13 @@ void Destroy(Handle handle)
         FatalError("invalid stub texture destroy");
     }
 
-    heap::Free(texture->pixels);
+    system::heap::Free(texture->pixels);
     *texture = {};
 }
 
-} // namespace ps2::tex
+} // namespace ps2::renderer::tex
 
-namespace ps2::rs
+namespace ps2::renderer
 {
 
 bool IsInitialized()
@@ -404,7 +404,7 @@ bool FrameStarted()
     return s_frame;
 }
 
-bool TexturedTriangleFixed(tex::Handle handle, const ui::FixedTriangle &, gs::BlendMode)
+bool TexturedTriangleFixed(renderer::tex::Handle handle, const ui::FixedTriangle &, renderer::gs::BlendMode)
 {
     const Texture * const texture = Find(handle);
 
@@ -418,9 +418,9 @@ bool TexturedTriangleFixed(tex::Handle handle, const ui::FixedTriangle &, gs::Bl
     return true;
 }
 
-} // namespace ps2::rs
+} // namespace ps2::renderer
 
-namespace ps2::gs
+namespace ps2::renderer::gs
 {
 
 int Width()
@@ -433,7 +433,7 @@ int Height()
     return 480;
 }
 
-} // namespace ps2::gs
+} // namespace ps2::renderer::gs
 
 namespace ps2::ui
 {
@@ -444,7 +444,7 @@ void Flush()
 
 } // namespace ps2::ui
 
-namespace ps2::cmdbuf
+namespace ps2::renderer::gs
 {
 
 void Kick()
@@ -456,7 +456,7 @@ void WaitIdle()
     ++s_fences;
 }
 
-} // namespace ps2::cmdbuf
+} // namespace ps2::renderer::gs
 
 int main()
 {

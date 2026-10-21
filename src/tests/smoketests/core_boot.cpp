@@ -26,7 +26,7 @@
 
 #include <idlib/precompiled.h>
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 namespace
 {
@@ -159,13 +159,13 @@ bool CheckFixture(const char * path)
 
 bool CheckFilesystemServices()
 {
-    namespace fs = ps2::filesystem;
-    const heap::Stats baseline = heap::GetTotalStats();
+    namespace fs = ps2::system::filesystem;
+    const system::heap::Stats baseline = system::heap::GetTotalStats();
     idFile * stream = fileSystem->OpenFileRead("fs-fixtures/large.bin", false, nullptr);
     bool streamed = false;
     if (stream != nullptr)
     {
-        const heap::Stats opened = heap::GetTotalStats();
+        const system::heap::Stats opened = system::heap::GetTotalStats();
         char bytes[17] = {};
         streamed = stream->Length() == 71680 && stream->Seek(-16, FS_SEEK_END) == 0 &&
                    stream->Read(bytes, 16) == 16 && stream->Read(bytes, 1) == 0 &&
@@ -176,7 +176,7 @@ bool CheckFilesystemServices()
     void * data = reinterpret_cast<void *>(1);
     const bool boundedMemory = fileSystem->ReadFile("fs-fixtures/large.bin", &data, nullptr) == -1 && data == nullptr &&
                                fileSystem->GetFileLength("fs-fixtures/large.bin") == 71680;
-    const heap::Stats closed = heap::GetTotalStats();
+    const system::heap::Stats closed = system::heap::GetTotalStats();
     bool passed = Check("filesystem-streaming-length", streamed && boundedMemory &&
                                                        closed.requestedBytes == baseline.requestedBytes && closed.allocationCount == baseline.allocationCount);
 
@@ -269,7 +269,7 @@ bool CheckMissingAndEscapingPaths()
 
 void InitTestServices()
 {
-    ps2::filesystem::Init();
+    ps2::system::filesystem::Init();
 }
 
 const char * RunCoreTestStage(const char * fixturePath)
@@ -282,11 +282,11 @@ bool RunCoreTests(const char * fixturePath)
 {
     if (idStr::Cmp(fixturePath, "host:renderer-ntsc") == 0)
     {
-        return RunGsTests(video::Standard::Ntsc);
+        return RunGsTests(system::video::Standard::Ntsc);
     }
     if (idStr::Cmp(fixturePath, "host:renderer-pal") == 0)
     {
-        return RunGsTests(video::Standard::Pal);
+        return RunGsTests(system::video::Standard::Pal);
     }
     if (idStr::Cmpn(fixturePath, "host:probe-renderer-", 20) == 0 &&
         RunGsFailureProbe(fixturePath + 11))
@@ -297,12 +297,12 @@ bool RunCoreTests(const char * fixturePath)
     {
         return RunCommonProbe(fixturePath);
     }
-    lifecycle::PrintMemory("before-core");
+    system::lifecycle::PrintMemory("before-core");
     bool passed = RunHeapTests();
     passed = RunClassAllocTests() && passed;
-    const heap::Stats baseline = heap::GetTotalStats();
-    core::Init();
-    lifecycle::PrintMemory("initialized-core");
+    const system::heap::Stats baseline = system::heap::GetTotalStats();
+    system::lifecycle::InitCore();
+    system::lifecycle::PrintMemory("initialized-core");
     passed = Check("initialized", common->IsInitialized() && fileSystem->IsInitialized()) && passed;
     passed = RunOfflineTests() && passed;
     passed = RunAudioTests() && passed;
@@ -320,16 +320,16 @@ bool RunCoreTests(const char * fixturePath)
     passed = RunIdlibTests() && passed;
     passed = RunTypeQueryTests() && passed;
     passed = RunEngineTypeQueryTests() && passed;
-    lifecycle::PrintMemory("tested-core");
-    core::Shutdown();
-    const heap::Stats afterShutdown = heap::GetTotalStats();
+    system::lifecycle::PrintMemory("tested-core");
+    system::lifecycle::ShutdownCore();
+    const system::heap::Stats afterShutdown = system::heap::GetTotalStats();
     passed = Check("shutdown", !common->IsInitialized() && !fileSystem->IsInitialized() &&
                                baseline.requestedBytes == afterShutdown.requestedBytes &&
                                baseline.backingBytes == afterShutdown.backingBytes &&
                                baseline.allocationCount == afterShutdown.allocationCount) &&
              passed;
-    lifecycle::PrintMemory("after-core-shutdown");
+    system::lifecycle::PrintMemory("after-core-shutdown");
     return passed;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

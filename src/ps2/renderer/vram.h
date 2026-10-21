@@ -8,14 +8,14 @@
 
 #include <cstdint>
 
-namespace ps2::vram
+namespace ps2::renderer::gs
 {
 
-static constexpr std::uint32_t kPageBytes = 8192;
-static constexpr std::uint32_t kTotalBytes = 4U * 1024U * 1024U;
-static constexpr int kMaxAllocations = 64;
+static constexpr std::uint32_t kVramPageBytes = 8192;
+static constexpr std::uint32_t kVramBytes = 4U * 1024U * 1024U;
+static constexpr int kMaxVramAllocations = 64;
 
-struct Allocation
+struct VramAllocation
 {
     std::uint32_t byteAddress;
     std::uint32_t bytes;
@@ -23,7 +23,7 @@ struct Allocation
     std::uint16_t slot;
 };
 
-struct Stats
+struct VramStats
 {
     std::uint32_t capacityBytes;
     std::uint32_t usedBytes;
@@ -33,15 +33,15 @@ struct Stats
 
 // Range and allocation sizes must be nonzero whole pages entirely within GS VRAM.
 // Invalid requests fail without modifying the allocator or the output.
-bool Init(std::uint32_t beginBytes, std::uint32_t budgetBytes);
-bool IsInitialized();
-bool Allocate(std::uint32_t bytes, Allocation & output);
-bool Release(const Allocation & allocation);
-Stats GetStats();
+bool InitVram(std::uint32_t beginBytes, std::uint32_t budgetBytes);
+bool IsVramInitialized();
+bool AllocateVram(std::uint32_t bytes, VramAllocation & output);
+bool ReleaseVram(const VramAllocation & allocation);
+VramStats GetVramStats();
 
 // The owner must drain and fence every queued draw/upload before releasing or resetting its range.
-// Reset preserves the range and peak accounting; Shutdown forgets it. Both reject stale handles.
-void Reset();
-void Shutdown();
+// ResetVram preserves the range and peak accounting; ShutdownVram forgets it. Both reject stale handles.
+void ResetVram();
+void ShutdownVram();
 
-} // namespace ps2::vram
+} // namespace ps2::renderer::gs

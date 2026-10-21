@@ -52,10 +52,10 @@ int main()
     SifInitRpc(0);
     Manifest();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] RUN %s BEGIN\n[D3BFG] STAGE platform PASS\n[D3BFG] STAGE core SKIP\n[D3BFG] STAGE game BEGIN\n", s_testId);
-    const auto baseline = ps2::heap::GetTotalStats();
+    const auto baseline = ps2::system::heap::GetTotalStats();
     for (unsigned int tag = 0; tag < TAG_NUM_TAGS; ++tag)
     {
-        const auto stats = ps2::heap::GetStats(static_cast<std::uint16_t>(tag));
+        const auto stats = ps2::system::heap::GetStats(static_cast<std::uint16_t>(tag));
         if (stats.allocationCount != 0)
         {
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_TAG before %u %zu/%zu/%zu\n", tag, stats.requestedBytes, stats.backingBytes, stats.allocationCount);
@@ -63,23 +63,23 @@ int main()
     }
     if (strcmp(s_mode, "game-map") == 0)
     {
-        ps2::gamefixture::EnableMap();
+        ps2::tests::fixture::EnableMap();
     }
     else
     {
-        ps2::gamefixture::Enable();
+        ps2::tests::fixture::Enable();
     }
     common->Init(0, nullptr, nullptr);
     cvarSystem->SetCVarBool("g_xp_bind_run_once", true);
     cvarSystem->SetCVarBool("s_noSound", true);
     declManager->Init();
-    bool passed = ps2::gamefixture::IsMapEnabled() ? ps2::smoketests::RunMapTests() : ps2::smoketests::RunGameTests(s_mode);
+    bool passed = ps2::tests::fixture::IsMapEnabled() ? ps2::tests::RunMapTests() : ps2::tests::RunGameTests(s_mode);
     declManager->Shutdown();
     common->Shutdown();
-    const auto final = ps2::heap::GetTotalStats();
+    const auto final = ps2::system::heap::GetTotalStats();
     for (unsigned int tag = 0; tag < TAG_NUM_TAGS; ++tag)
     {
-        const auto stats = ps2::heap::GetStats(static_cast<std::uint16_t>(tag));
+        const auto stats = ps2::system::heap::GetStats(static_cast<std::uint16_t>(tag));
         if (stats.allocationCount != 0)
         {
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_TAG after %u %zu/%zu/%zu\n", tag, stats.requestedBytes, stats.backingBytes, stats.allocationCount);

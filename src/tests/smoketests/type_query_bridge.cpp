@@ -8,7 +8,7 @@
 
 class idFile;
 
-namespace ps2::smoketests
+namespace ps2::tests
 {
 
 const void * QueryChildTypeKeyFromOtherUnit()
@@ -26,4 +26,4 @@ QueryRoot * NewQueryChildFromOtherUnit()
     return new QueryChild;
 }
 
-} // namespace ps2::smoketests
+} // namespace ps2::tests

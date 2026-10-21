@@ -5,21 +5,21 @@
 // ================================================================================================
 
 #include "ps2/renderer/null_render.h"
-#include "ps2/renderer/ui_draw.h"
 #include "ps2/system/log.h"
+#include "ps2/ui/draw.h"
 #include <idlib/precompiled.h>
 #include <renderer/tr_local.h>
 
 // Native world declarations depend on frontend types from tr_local.h.
 #include <renderer/RenderWorld_local.h>
 
-namespace ps2::render
+namespace ps2::renderer
 {
 [[noreturn]] PS2_COLD_FUNC void Unavailable(const char * method)
 {
     FatalError("renderer capability unavailable: %s", method);
 }
-} // namespace ps2::render
+} // namespace ps2::renderer
 
 // Keep the native frontend storage and interface identity; no frame arenas or device are created.
 idRenderSystemLocal tr;
@@ -38,7 +38,7 @@ void CheckNoResources(const idRenderSystemLocal & renderer, const char * method)
         renderer.unitSquareTriangles != nullptr || renderer.zeroOneCubeTriangles != nullptr ||
         renderer.testImageTriangles != nullptr || renderer.testVideo != nullptr)
     {
-        ps2::render::Unavailable(method);
+        ps2::renderer::Unavailable(method);
     }
 }
 
@@ -47,12 +47,12 @@ void CheckDemoInactive(const char * method)
     PS2_Assert(common != nullptr);
     if (common == nullptr || common->WriteDemo() != nullptr)
     {
-        ps2::render::Unavailable(method);
+        ps2::renderer::Unavailable(method);
     }
 }
 } // namespace
 
-namespace ps2::render
+namespace ps2::renderer
 {
 bool IsLogicalInitialized()
 {
@@ -110,7 +110,7 @@ void ShutdownLogical()
     s_logicalInitialized = false;
 }
 #endif
-} // namespace ps2::render
+} // namespace ps2::renderer
 
 idRenderSystemLocal::idRenderSystemLocal()
     : registered(false), takingScreenshot(false), frameCount(0), viewCount(0), frameShaderTime(0.0f), ambientLightVector(0.0f, 0.0f, 0.0f, 0.0f), worlds(), primaryWorld(nullptr), primaryRenderView{}, primaryView(nullptr), whiteMaterial(nullptr), charSetMaterial(nullptr), defaultPointLight(nullptr), defaultProjectedLight(nullptr), defaultMaterial(nullptr), testImage(nullptr), testVideo(nullptr), testVideoStartTime(0), ambientCubeImage(nullptr), viewDef(nullptr), pc{}, identitySpace{}, renderCrops{}, currentRenderCrop(0), guiRecursionLevel(0), currentColorNativeBytesOrder(0xFFFFFFFFU), currentGLState(0), guiModel(nullptr), fonts(), gammaTable{}, unitSquareTriangles(nullptr), zeroOneCubeTriangles(nullptr), testImageTriangles(nullptr), unitSquareSurface_{}, zeroOneCubeSurface_{}, testImageSurface_{}, frontEndJobList(nullptr), timerQueryId(0)
@@ -215,7 +215,7 @@ void idRenderSystemLocal::EndAutomaticBackgroundSwaps()
 #define RENDER_UNAVAILABLE(result, method, parameters) \
     PS2_COLD_FUNC result method parameters             \
     {                                                  \
-        ps2::render::Unavailable(#method);             \
+        ps2::renderer::Unavailable(#method);             \
     }
 
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::Init, ())
@@ -306,19 +306,19 @@ RENDER_UNAVAILABLE(bool, idRenderWorldLocal::ProcessDemoCommand, (idDemoFile *, 
 #if defined(PS2_D3BFG_FOUNDATION)
 idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
 {
-    ps2::render::Unavailable("idRenderSystemLocal::AllocRenderWorld");
+    ps2::renderer::Unavailable("idRenderSystemLocal::AllocRenderWorld");
 }
 
 void idRenderSystemLocal::FreeRenderWorld(idRenderWorld *)
 {
-    ps2::render::Unavailable("idRenderSystemLocal::FreeRenderWorld");
+    ps2::renderer::Unavailable("idRenderSystemLocal::FreeRenderWorld");
 }
 #else
 idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
 {
-    if (!ps2::render::IsLogicalInitialized())
+    if (!ps2::renderer::IsLogicalInitialized())
     {
-        ps2::render::Unavailable("idRenderSystemLocal::AllocRenderWorld");
+        ps2::renderer::Unavailable("idRenderSystemLocal::AllocRenderWorld");
     }
     auto * world = new (TAG_RENDER) idRenderWorldLocal;
     worlds.Append(world);
@@ -328,9 +328,9 @@ idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
 void idRenderSystemLocal::FreeRenderWorld(idRenderWorld * world)
 {
     auto * local = static_cast<idRenderWorldLocal *>(world);
-    if (!ps2::render::IsLogicalInitialized() || local == nullptr || !worlds.Remove(local))
+    if (!ps2::renderer::IsLogicalInitialized() || local == nullptr || !worlds.Remove(local))
     {
-        ps2::render::Unavailable("idRenderSystemLocal::FreeRenderWorld");
+        ps2::renderer::Unavailable("idRenderSystemLocal::FreeRenderWorld");
     }
     if (primaryWorld == local)
     {

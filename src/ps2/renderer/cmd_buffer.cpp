@@ -15,7 +15,7 @@
 #include <packet2_utils.h>
 #include <packet2_vif.h>
 
-namespace ps2::cmdbuf
+namespace ps2::renderer::gs
 {
 namespace
 {
@@ -29,7 +29,7 @@ static bool s_frame = false;
 static bool s_inFlight = false;
 static qword_t * s_directBase = nullptr;
 static int s_directCapacity = 0;
-static Stats s_stats = {};
+static CommandStats s_stats = {};
 
 packet2_t * Current()
 {
@@ -57,14 +57,14 @@ void RecordPeak()
 }
 } // namespace
 
-bool IsInitialized()
+bool IsCommandBufferInitialized()
 {
     return s_storage != nullptr;
 }
 
-PS2_COLD_FUNC bool Init(u32 halfBytes)
+PS2_COLD_FUNC bool InitCommandBuffer(u32 halfBytes)
 {
-    if (IsInitialized())
+    if (IsCommandBufferInitialized())
     {
         FatalError("command buffer initialized twice");
     }
@@ -73,7 +73,7 @@ PS2_COLD_FUNC bool Init(u32 halfBytes)
         Log(LogLevel::Error, "invalid command half size: %u\n", halfBytes);
         return false;
     }
-    s_storage = heap::TryAlloc(static_cast<size_t>(halfBytes) * 2U, TAG_RENDER, 64);
+    s_storage = system::heap::TryAlloc(static_cast<size_t>(halfBytes) * 2U, TAG_RENDER, 64);
     if (s_storage == nullptr)
     {
         return false;
@@ -94,11 +94,11 @@ PS2_COLD_FUNC bool Init(u32 halfBytes)
     s_half = 0;
     s_kickedQwords = 0;
     s_stats = {};
-    gs::WaitUntil([]
+    WaitUntil([]
                   { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
     if (dma_channel_initialize(DMA_CHANNEL_VIF1, nullptr, 0) < 0)
     {
-        heap::Free(s_storage);
+        system::heap::Free(s_storage);
         s_storage = nullptr;
         s_packets[0] = {};
         s_packets[1] = {};
@@ -113,16 +113,16 @@ void WaitIdle()
     {
         return;
     }
-    gs::WaitUntil([]
+    WaitUntil([]
                   { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "VIF1 DMA");
-    gs::WaitUntil([]
+    WaitUntil([]
                   { return (*GS_REG_CSR & 2U) != 0; }, "GS FINISH");
     s_inFlight = false;
 }
 
-PS2_COLD_FUNC void Shutdown()
+PS2_COLD_FUNC void ShutdownCommandBuffer()
 {
-    if (!IsInitialized())
+    if (!IsCommandBufferInitialized())
     {
         return;
     }
@@ -134,7 +134,7 @@ PS2_COLD_FUNC void Shutdown()
     Kick();
     WaitIdle();
     dma_channel_shutdown(DMA_CHANNEL_VIF1, 0);
-    heap::Free(s_storage);
+    system::heap::Free(s_storage);
     s_storage = nullptr;
     s_packets[0] = {};
     s_packets[1] = {};
@@ -143,11 +143,11 @@ PS2_COLD_FUNC void Shutdown()
     s_kickedQwords = 0;
 }
 
-void BeginFrame()
+void BeginCommandFrame()
 {
-    if (!IsInitialized() || s_frame || s_directBase != nullptr || Used() != s_kickedQwords)
+    if (!IsCommandBufferInitialized() || s_frame || s_directBase != nullptr || Used() != s_kickedQwords)
     {
-        FatalError("invalid command BeginFrame state");
+        FatalError("invalid BeginCommandFrame state");
     }
     WaitIdle();
     s_half ^= 1;
@@ -205,7 +205,7 @@ void EndDirect(const GifWriter & writer)
 
 void Kick()
 {
-    if (!IsInitialized() || s_directBase != nullptr)
+    if (!IsCommandBufferInitialized() || s_directBase != nullptr)
     {
         FatalError("invalid command Kick state");
     }
@@ -237,19 +237,19 @@ void Kick()
     ++s_stats.kicks;
 }
 
-void EndFrame()
+void EndCommandFrame()
 {
     if (!s_frame || s_directBase != nullptr)
     {
-        FatalError("invalid command EndFrame state");
+        FatalError("invalid EndCommandFrame state");
     }
     Kick();
     WaitIdle();
     s_frame = false;
 }
 
-Stats GetStats()
+CommandStats GetCommandStats()
 {
     return s_stats;
 }
-} // namespace ps2::cmdbuf
+} // namespace ps2::renderer::gs

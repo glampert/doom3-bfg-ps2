@@ -5,12 +5,12 @@
 // ================================================================================================
 
 #include "ps2/renderer/capture.h"
-#include "ps2/renderer/font_backend.h"
 #include "ps2/renderer/render_system.h"
-#include "ps2/renderer/ui_draw.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
+#include "ps2/ui/draw.h"
+#include "ps2/ui/font_backend.h"
 #include "ps2/ui/movie.h"
 #include "ps2/ui/retail_movie.h"
 #include <cerrno>
@@ -34,7 +34,7 @@ static char s_captureName[64] = {};
 
 void RequireConsole(const idCmdArgs & args, int count)
 {
-    if (!ps2::runtime::HasPresentation() || args.Argc() != count)
+    if (!ps2::system::runtime::HasPresentation() || args.Argc() != count)
     {
         ps2::FatalError("%s requires a visible console and %d argument(s)", args.Argv(0), count - 1);
     }
@@ -122,36 +122,36 @@ void Capture(const idCmdArgs & args)
 
 void Present()
 {
-    if (s_drawing || ps2::rs::FrameStarted())
+    if (s_drawing || ps2::renderer::FrameStarted())
     {
         ps2::FatalError("nested native console presentation");
     }
     s_drawing = true;
-    ps2::retail_movie::Advance(s_inFrame);
-    ps2::rs::BeginFrame({ 16, 24, 40, 255 });
+    ps2::ui::retail::AdvanceScreen(s_inFrame);
+    ps2::renderer::BeginFrame({ 16, 24, 40, 255 });
     renderSystem->SetGLState(0);
     renderSystem->SetColor(colorWhite);
-    ps2::movie::Render(s_inFrame);
-    ps2::retail_movie::Render(s_inFrame);
+    ps2::ui::authored::Render(s_inFrame);
+    ps2::ui::retail::RenderScreen(s_inFrame);
     console->Draw(false);
-    ps2::rs::EndFrame();
+    ps2::renderer::EndFrame();
     if (s_captureName[0] != '\0')
     {
         char path[sizeof(s_captureName) + 5];
         idStr::snPrintf(path, static_cast<int>(sizeof(path)), "host:%s", s_captureName);
-        if (!ps2::capture::WriteTga(path, ps2::rs::LastPresentedContext()))
+        if (!ps2::renderer::gs::CaptureTga(path, ps2::renderer::LastPresentedContext()))
         {
             ps2::FatalError("native console capture failed: %s", s_captureName);
         }
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] CONSOLE capture=%s frame=%d presents=%u redraws=%u\n",
-                 s_captureName, s_frames, ps2::rs::FrameCount(), s_redraws);
+                 s_captureName, s_frames, ps2::renderer::FrameCount(), s_redraws);
         s_captureName[0] = '\0';
     }
     s_drawing = false;
 }
 } // namespace
 
-namespace ps2::runtime
+namespace ps2::system::runtime
 {
 void ConfigurePresentation()
 {
@@ -161,7 +161,7 @@ void ConfigurePresentation()
     }
     char policy[16] = {};
     errno = 0;
-    FILE * file = filesystem::Open("host:presentation.cfg", filesystem::OpenMode::Read);
+    FILE * file = system::filesystem::Open("host:presentation.cfg", system::filesystem::OpenMode::Read);
     if (file == nullptr)
     {
         // HostFs reports a missing file as -5/EIO in PCSX2; absence must keep old packages headless.
@@ -232,20 +232,20 @@ void InitPresentation()
     {
         return;
     }
-    rs::Config config;
-    config.standard = s_policy == Presentation::Pal ? video::Standard::Pal : video::Standard::Ntsc;
-    if (!rs::Init(config))
+    renderer::Config config;
+    config.standard = s_policy == Presentation::Pal ? system::video::Standard::Pal : system::video::Standard::Ntsc;
+    if (!renderer::Init(config))
     {
         FatalError("cannot initialize console display");
     }
     if (!ui::Init())
     {
-        rs::Shutdown();
+        renderer::Shutdown();
         FatalError("cannot initialize native console images");
     }
-    fonts::Init();
-    movie::Init();
-    retail_movie::Init();
+    ui::fonts::Init();
+    ui::authored::Init();
+    ui::retail::InitScreen();
     cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, "type quoted ASCII into the native console edit field");
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, "send a named native console key");
     cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, "capture the next completed console frame to a HostFs .tga basename");
@@ -309,7 +309,7 @@ void LogPresentationStatus(int frames)
         return;
     }
     Log(LogLevel::Info, "[D3BFG] CONSOLE frames=%d presents=%u redraws=%u active=%d\n",
-        frames, rs::FrameCount(), s_redraws, static_cast<int>(console->Active()));
+        frames, renderer::FrameCount(), s_redraws, static_cast<int>(console->Active()));
 }
 
 void ShutdownPresentation(int frames)
@@ -323,14 +323,14 @@ void ShutdownPresentation(int frames)
         FatalError("console shutdown with pending frame work");
     }
     Log(LogLevel::Info, "[D3BFG] CONSOLE shutdown complete frames=%d presents=%u redraws=%u\n",
-        frames, rs::FrameCount(), s_redraws);
+        frames, renderer::FrameCount(), s_redraws);
     cmdSystem->RemoveCommand("ps2_capture");
     cmdSystem->RemoveCommand("ps2_consoleKey");
     cmdSystem->RemoveCommand("ps2_consoleText");
-    movie::Shutdown();
-    retail_movie::Shutdown();
-    fonts::Shutdown();
+    ui::authored::Shutdown();
+    ui::retail::ShutdownScreen();
+    ui::fonts::Shutdown();
     ui::Shutdown();
-    rs::Shutdown();
+    renderer::Shutdown();
 }
-} // namespace ps2::runtime
+} // namespace ps2::system::runtime

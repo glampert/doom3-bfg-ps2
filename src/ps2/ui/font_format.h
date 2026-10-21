@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: ui_font_format.h
+// File: font_format.h
 // Brief: Validate the native modern font layout before glyph/index allocation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace ps2::fonts
+namespace ps2::ui::fonts
 {
 
 static constexpr std::size_t kFontHeaderBytes = 12;
@@ -38,4 +38,4 @@ struct FontFormatSummary
 bool ValidateFontBytes(const void * bytes, std::size_t length, std::uint32_t atlasWidth,
                        std::uint32_t atlasHeight, FontFormatSummary & output);
 
-} // namespace ps2::fonts
+} // namespace ps2::ui::fonts

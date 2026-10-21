@@ -44,7 +44,13 @@ const float METERS_TO_DOOM = (1.0f/DOOM_TO_METERS);	// meters to doom
 
 const float DB_SILENCE = -60.0f;
 
+// [PS2_D3BFG]: The portable logical sample lives in the PS2 audio module; keep the engine's name for it.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+namespace ps2 { namespace audio { class SoundSample; } }
+typedef ps2::audio::SoundSample idSoundSample;
+#else
 class idSoundSample;
+#endif
 
 // sound shader flags
 static const int	SSF_PRIVATE_SOUND =		BIT(0);	// only plays for the current listenerId

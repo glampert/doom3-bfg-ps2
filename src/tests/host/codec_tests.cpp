@@ -8,5 +8,5 @@
 
 int main()
 {
-    return ps2::smoketests::RunCodecTests() ? 0 : 1;
+    return ps2::tests::RunCodecTests() ? 0 : 1;
 }

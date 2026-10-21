@@ -136,7 +136,7 @@ idSWF::LoadBinary
 bool idSWF::LoadBinary( const char * bfilename, ID_TIME_T sourceTime ) {
 	// [PS2_D3BFG]: Parse one immutable preflighted snapshot, with separate executable/resource profiles.
 #if defined( ID_PS2 )
-	idFile * f = resourceOnly ? ps2::ui::retail::OpenMovie( bfilename ) : ps2::ui::OpenAuthoredAsset( bfilename );
+	idFile * f = resourceOnly ? ps2::ui::retail::OpenMovie( bfilename ) : ps2::ui::authored::OpenAsset( bfilename );
 #else
 	idFile * f = fileSystem->OpenFileReadMemory( bfilename );
 #endif

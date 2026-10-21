@@ -11,7 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace ps2::heap
+namespace ps2::system::heap
 {
 
 static constexpr std::uint16_t kTagCount = 256;
@@ -48,4 +48,4 @@ ArenaStats GetArenaStats();
 void ResetPeaks();
 [[noreturn]] PS2_COLD_FUNC void Fail(const char * reason);
 
-} // namespace ps2::heap
+} // namespace ps2::system::heap

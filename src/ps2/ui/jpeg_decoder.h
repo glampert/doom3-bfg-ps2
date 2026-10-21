@@ -6,13 +6,13 @@
 
 #pragma once
 
-namespace ps2::jpeg
+namespace ps2::ui::swf
 {
 
 // Preserve JPEG tables between SWF tags. Returned RGBA storage uses the Doom tagged heap;
 // callers transfer/free it with Mem_Free. Tables-only input returns null with zero dimensions.
-void * Create();
-void Destroy(void * decoder);
-unsigned char * Decode(void * decoder, const unsigned char * input, int inputSize, int & width, int & height);
+void * CreateJpegDecoder();
+void DestroyJpegDecoder(void * decoder);
+unsigned char * DecodeJpeg(void * decoder, const unsigned char * input, int inputSize, int & width, int & height);
 
-} // namespace ps2::jpeg
+} // namespace ps2::ui::swf

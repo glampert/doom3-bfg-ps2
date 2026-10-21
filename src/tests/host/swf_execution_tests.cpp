@@ -86,16 +86,16 @@ Bytes Function(const Bytes & code, bool included, bool second = false, U8 regist
 
 void RejectActions(const Bytes & bytes)
 {
-    ps2::ui::SwfExecutionSummary summary;
+    ps2::ui::swf::ExecutionSummary summary;
     summary.actions = 42;
-    assert(!ps2::ui::ValidateSwfActions(bytes.data(), bytes.size(), 2, summary));
+    assert(!ps2::ui::swf::ValidateActions(bytes.data(), bytes.size(), 2, summary));
     assert(summary.actions == 42);
 }
 
 void AcceptActions(const Bytes & bytes)
 {
-    ps2::ui::SwfExecutionSummary summary;
-    assert(ps2::ui::ValidateSwfActions(bytes.data(), bytes.size(), 2, summary));
+    ps2::ui::swf::ExecutionSummary summary;
+    assert(ps2::ui::swf::ValidateActions(bytes.data(), bytes.size(), 2, summary));
     assert(summary.actions != 0);
 }
 
@@ -117,8 +117,8 @@ void Actions()
         }
 
         const Bytes action = { static_cast<U8>(opcode) };
-        ps2::ui::SwfExecutionSummary summary;
-        assert(ps2::ui::ValidateSwfActions(action.data(), action.size(), 2, summary) == expected);
+        ps2::ui::swf::ExecutionSummary summary;
+        assert(ps2::ui::swf::ValidateActions(action.data(), action.size(), 2, summary) == expected);
     }
 
     AcceptActions({ 7, 0 });
@@ -187,7 +187,7 @@ void Actions()
 
     Bytes nested = body;
 
-    for (U32 depth = 0; depth < ps2::ui::kMaxSwfFunctionDepth; ++depth)
+    for (U32 depth = 0; depth < ps2::ui::swf::kMaxFunctionDepth; ++depth)
     {
         nested = Function(nested, false);
     }
@@ -215,11 +215,11 @@ void Actions()
     AcceptActions(Action(0x96, longString));
     longString.insert(longString.begin() + 1, 'a');
     RejectActions(Action(0x96, longString));
-    AcceptActions(Bytes(ps2::ui::kMaxSwfActionBytes, 7));
-    RejectActions(Bytes(ps2::ui::kMaxSwfActionBytes + 1, 7));
+    AcceptActions(Bytes(ps2::ui::swf::kMaxActionBytes, 7));
+    RejectActions(Bytes(ps2::ui::swf::kMaxActionBytes + 1, 7));
     Bytes tooManyFunctions;
 
-    for (U32 index = 0; index < ps2::ui::kMaxSwfFunctions; ++index)
+    for (U32 index = 0; index < ps2::ui::swf::kMaxFunctions; ++index)
     {
         Append(tooManyFunctions, Function({}, false));
     }
@@ -235,21 +235,21 @@ void Actions()
         random = random * 1664525U + 1013904223U;
         bad = inherited;
         bad[random % bad.size()] ^= static_cast<U8>((random >> 24) | 1U);
-        ps2::ui::SwfExecutionSummary ignored;
-        (void)ps2::ui::ValidateSwfActions(bad.data(), bad.size(), 2, ignored);
+        ps2::ui::swf::ExecutionSummary ignored;
+        (void)ps2::ui::swf::ValidateActions(bad.data(), bad.size(), 2, ignored);
     }
 }
 
-bool CommandValid(U32 tag, const Bytes & bytes, ps2::ui::SwfPlacement * placement = nullptr)
+bool CommandValid(U32 tag, const Bytes & bytes, ps2::ui::swf::Placement * placement = nullptr)
 {
-    ps2::ui::SwfExecutionSummary summary;
-    return ps2::ui::ValidateSwfCommand(tag, bytes.data(), bytes.size(), kTypes, sizeof(kTypes), 2, summary, placement);
+    ps2::ui::swf::ExecutionSummary summary;
+    return ps2::ui::swf::ValidateCommand(tag, bytes.data(), bytes.size(), kTypes, sizeof(kTypes), 2, summary, placement);
 }
 
-ps2::ui::SwfExecutionSummary CommandSummary(U32 tag, const Bytes & bytes)
+ps2::ui::swf::ExecutionSummary CommandSummary(U32 tag, const Bytes & bytes)
 {
-    ps2::ui::SwfExecutionSummary summary;
-    assert(ps2::ui::ValidateSwfCommand(tag, bytes.data(), bytes.size(), kTypes, sizeof(kTypes), 2, summary));
+    ps2::ui::swf::ExecutionSummary summary;
+    assert(ps2::ui::swf::ValidateCommand(tag, bytes.data(), bytes.size(), kTypes, sizeof(kTypes), 2, summary));
     return summary;
 }
 
@@ -278,7 +278,7 @@ void DrawFeatures()
 void Commands()
 {
     const Bytes image = { 2, 1, 0, 1, 0 };
-    ps2::ui::SwfPlacement placement;
+    ps2::ui::swf::Placement placement;
     assert(CommandValid(26, image, &placement));
     assert(placement.depth == 1 && placement.character == 1 && placement.hasCharacter && !placement.move);
     assert(CommandValid(26, { 1, 1, 0 }));
@@ -316,10 +316,10 @@ void Commands()
     assert(!CommandValid(28, { 0, 0 }));
     assert(!CommandValid(28, { 1, 0, 0 }));
 
-    ps2::ui::SwfExecutionSummary summary;
+    ps2::ui::swf::ExecutionSummary summary;
     summary.actions = 42;
     placement.depth = 42;
-    assert(!ps2::ui::ValidateSwfCommand(26, nullptr, 0, kTypes, sizeof(kTypes), 1, summary, &placement));
+    assert(!ps2::ui::swf::ValidateCommand(26, nullptr, 0, kTypes, sizeof(kTypes), 1, summary, &placement));
     assert(summary.actions == 42 && placement.depth == 42);
 }
 
@@ -429,9 +429,9 @@ Bytes Movie(const std::vector<Command> & root, const std::vector<Command> & chil
 
 void RejectMovie(const Bytes & bytes)
 {
-    ps2::ui::SwfExecutionSummary summary;
+    ps2::ui::swf::ExecutionSummary summary;
     summary.actions = 0x12345678;
-    assert(!ps2::ui::ValidateSwfExecutionBytes(bytes.data(), bytes.size(), summary));
+    assert(!ps2::ui::swf::ValidateExecutionBytes(bytes.data(), bytes.size(), summary));
     assert(summary.actions == 0x12345678);
 }
 
@@ -439,9 +439,9 @@ void Movies()
 {
     const Command image = { 26, { 2, 1, 0, 1, 0 } };
     const Command child = { 26, { 2, 2, 0, 2, 0 } };
-    ps2::ui::SwfExecutionSummary summary;
+    ps2::ui::swf::ExecutionSummary summary;
     Bytes bytes = Movie({ image, child, { 12, { 7, 0 } } });
-    assert(ps2::ui::ValidateSwfExecutionBytes(bytes.data(), bytes.size(), summary));
+    assert(ps2::ui::swf::ValidateExecutionBytes(bytes.data(), bytes.size(), summary));
     assert(summary.placements == 2 && summary.actions == 2);
 
     for (std::size_t size = 0; size < bytes.size(); ++size)
@@ -457,15 +457,15 @@ void Movies()
     RejectMovie(Movie({ { 12, { 0xff } } }));
     RejectMovie(Movie({ { 26, { 2, 1, 0, 3, 0 } } }));
     bytes = Movie({ image, { 28, { 1, 0 } }, image, { 26, { 3, 1, 0, 1, 0 } } });
-    assert(ps2::ui::ValidateSwfExecutionBytes(bytes.data(), bytes.size(), summary));
+    assert(ps2::ui::swf::ValidateExecutionBytes(bytes.data(), bytes.size(), summary));
     assert(summary.placements == 3 && summary.removals == 1);
 
     // Outline records are counted by storage admission, even on shapes no frame places.
-    ps2::ui::SwfSummary storage;
+    ps2::ui::swf::Summary storage;
     const Bytes outlined = Movie({ image }, {}, 2);
-    assert(ps2::ui::ValidateSwfBytes(outlined.data(), outlined.size(), storage) && storage.strokes == 2);
+    assert(ps2::ui::swf::ValidateBytes(outlined.data(), outlined.size(), storage) && storage.strokes == 2);
     const Bytes plain = Movie({ image }, {}, 0);
-    assert(ps2::ui::ValidateSwfBytes(plain.data(), plain.size(), storage) && storage.strokes == 0);
+    assert(ps2::ui::swf::ValidateBytes(plain.data(), plain.size(), storage) && storage.strokes == 0);
 
     unsigned random = 42;
 
@@ -474,8 +474,8 @@ void Movies()
         random = random * 1664525U + 1013904223U;
         Bytes bad = bytes;
         bad[random % bad.size()] ^= static_cast<U8>((random >> 24) | 1U);
-        ps2::ui::SwfExecutionSummary ignored;
-        (void)ps2::ui::ValidateSwfExecutionBytes(bad.data(), bad.size(), ignored);
+        ps2::ui::swf::ExecutionSummary ignored;
+        (void)ps2::ui::swf::ValidateExecutionBytes(bad.data(), bad.size(), ignored);
     }
 }
 
@@ -484,10 +484,10 @@ void CheckFile(const char * path)
     std::ifstream stream(path, std::ios::binary);
     assert(stream.good());
     const Bytes bytes{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
-    ps2::ui::SwfExecutionSummary summary;
-    assert(ps2::ui::ValidateSwfExecutionBytes(bytes.data(), bytes.size(), summary));
-    ps2::ui::SwfSummary storage;
-    assert(ps2::ui::ValidateSwfBytes(bytes.data(), bytes.size(), storage));
+    ps2::ui::swf::ExecutionSummary summary;
+    assert(ps2::ui::swf::ValidateExecutionBytes(bytes.data(), bytes.size(), summary));
+    ps2::ui::swf::Summary storage;
+    assert(ps2::ui::swf::ValidateBytes(bytes.data(), bytes.size(), storage));
     std::printf("SWF execution admission: bytes=%zu actions=%u functions=%u placements=%u removals=%u functionDepth=%u "
                 "masks=%u screenBlends=%u additiveColors=%u strokes=%u\n",
                 bytes.size(), summary.actions, summary.functions, summary.placements, summary.removals, summary.maxFunctionDepth,
@@ -497,9 +497,9 @@ void CheckFile(const char * path)
 
 int main(int argc, char ** argv)
 {
-    ps2::ui::SwfExecutionSummary summary;
-    assert(!ps2::ui::ValidateSwfActions(nullptr, 0, 1, summary));
-    assert(!ps2::ui::ValidateSwfExecutionBytes(nullptr, 0, summary));
+    ps2::ui::swf::ExecutionSummary summary;
+    assert(!ps2::ui::swf::ValidateActions(nullptr, 0, 1, summary));
+    assert(!ps2::ui::swf::ValidateExecutionBytes(nullptr, 0, summary));
     Actions();
     Commands();
     DrawFeatures();

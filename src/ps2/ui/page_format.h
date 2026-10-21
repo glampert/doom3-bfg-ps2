@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: ui_page_format.h
+// File: page_format.h
 // Brief: Validate bounded cooked UI page metadata before native file reads or allocation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
