@@ -291,7 +291,7 @@ bool ConvertTexture(const RgbaImage & image, const std::vector<PlacementRequest>
             target.height = page.height;
             target.format = format;
             texture.pages.push_back(target);
-            pageIndices.emplace_back(static_cast<std::size_t>(page.width) * static_cast<std::size_t>(page.height), 0);
+            pageIndices.emplace_back(static_cast<std::size_t>(page.width) * static_cast<std::size_t>(page.height), std::uint8_t{ 0 });
         }
 
         for (std::size_t item = 0; item < items.size(); ++item)

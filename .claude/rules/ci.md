@@ -16,7 +16,8 @@ paths:
   files as an artifact, `host-tools-windows-x64`, for 90 days. Its first run (2026-10-19,
   `232d758`) passed on all three: GCC 13.3 in 12 s, MSVC 19.51 in 34 s, and Apple clang 21
   in 20 s after ten minutes waiting for a macOS runner.
-- The jobs see different hosts. `tools.yml` gets whatever GCC `ubuntu-latest` ships, on glibc
+- The jobs see different hosts. `tools.yml` gets whatever GCC `ubuntu-latest` ships (13.3 on
+  Ubuntu 24.04 on 2026-10-21; the label moves to Ubuntu 26 from 2026-10-19), on glibc
   with `_FORTIFY_SOURCE`, which makes an ignored `fread` result an error. `ps2.yml` gets the
   image's EE GCC 15.2 with Alpine 3.24's GNU make 4.4.1 (the Mac has 3.81), Python 3.14,
   git 2.54 and BusyBox `ash` for recipes. Linux file names are case-sensitive and this Mac's
@@ -114,3 +115,22 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
   `d3xp/menus` screens and `sys/PacketProcessor.cpp` still include `idLib/precompiled.h`
   (29 files), and `renderer/BinaryImage.cpp` spells `dxt/` and `color/` for `DXT/` and
   `Color/`. Fix the case, tagged, when enabling one of them.
+- **GCC 13 and MSVC reject STL uses that clang and newer GCCs accept.** The asset library's
+  first `tools.yml` run (2026-10-21, `d086840`) failed on both. At `-O3`, GCC 13.3 reported
+  two libstdc++ false positives: `-Wstringop-overflow` filling a vector sized 16 or 256 with
+  default entries, and `-Wnull-dereference` growing an empty vector with `resize`. GCC 14.4
+  still reports the second; 15.3 and 16.2 report neither, nor does the EE GCC in LP64 mode,
+  whose libstdc++ is 15's. MSVC `/W4` reported C4244 inside the STL, where `emplace_back`
+  forwarded an `int` fill value into a `vector<uint8_t>`; GCC and clang keep quiet about
+  warnings in system headers.
+- **Compiler Explorer reproduces both exactly**, so check new tool code there before pushing
+  (an outside service; the sources are public). Its `g133` and `vcpp_v19_51_VS18_6_x64` are
+  the runners' GCC 13.3 and MSVC 14.51 toolset. It compiles one file: inline the quoted
+  `assets/` headers once each, with `#line` directives so diagnostics keep their original
+  lines, and post to `https://godbolt.org/api/compiler/<id>/compile` with
+  `allowStoreCodeDebug: false` and the CI flags. For GCC that is CMake Release's
+  `-O3 -DNDEBUG`, `-std=c++20`, `TOOL_OPTIONS` and `-Werror`, plus Ubuntu's default hardening
+  (`-D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection -fcf-protection
+  -fPIE`); for MSVC, `/O2 /Ob2 /DNDEBUG /EHsc -std:c++20 -MT /W4 /fp:precise /WX
+  -D_CRT_SECURE_NO_WARNINGS`. The fixed sources compile cleanly there on GCC 13.3, 14.4,
+  15.3 and 16.2 and on MSVC 19.51.

@@ -82,12 +82,14 @@ std::uint32_t ClutSwizzle(std::uint32_t index)
 std::vector<PaletteColor> ClutTexels(const std::vector<PaletteColor> & palette, IndexFormat format)
 {
     const std::size_t entries = static_cast<std::size_t>(PaletteSize(format));
-    std::vector<PaletteColor> texels(entries);
+    std::vector<PaletteColor> texels;
+    texels.reserve(entries);
 
-    for (std::size_t index = 0; index < entries && index < palette.size(); ++index)
+    // The CSM1 swizzle is its own inverse, so each texel reads the entry that lands on it.
+    for (std::size_t position = 0; position < entries; ++position)
     {
-        const std::size_t position = format == IndexFormat::T8 ? ClutSwizzle(static_cast<std::uint32_t>(index)) : index;
-        texels[position] = palette[index];
+        const std::size_t index = format == IndexFormat::T8 ? ClutSwizzle(static_cast<std::uint32_t>(position)) : position;
+        texels.push_back(index < palette.size() ? palette[index] : PaletteColor{});
     }
 
     return texels;

@@ -16,7 +16,10 @@ in other rule files still need verification when imported. Current backend code 
   (see [ci.md](ci.md)). For GCC-only warnings before pushing, the EE compiler in its LP64
   ABI stands in for a host GCC, `<filesystem>` included:
   `mips64r5900el-ps2-elf-g++ -mabi=64 -std=c++20 -O3 <flags> -c -o /dev/null x.cpp`.
-  Without `-mabi=64` it is a 32-bit target, where `size_t` is 32 bits.
+  Without `-mabi=64` it is a 32-bit target, where `size_t` is 32 bits. Its libstdc++ is
+  GCC 15's, so it misses the false positives CI's GCC 13 (and GCC 14) report inside the STL,
+  and no local compiler shows MSVC's warnings there: check both on Compiler Explorer
+  ([ci.md](ci.md#traps)).
 - Allocation goes through `ps2::system::heap` with Doom's `memTag_t` (stored as a checked 16-bit tag).
   Required allocation failure is fatal; `TryAlloc` returns null for checked callers.
 - `alignas(N)` is the alignment idiom, not `__attribute__((aligned))`.

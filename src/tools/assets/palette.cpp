@@ -467,9 +467,10 @@ std::vector<PaletteColor> BuildPalette(const ColorHistogram & histogram, int col
         return { PaletteColor{} };
     }
 
+    std::vector<std::size_t> members(samples.size());
+    std::iota(members.begin(), members.end(), std::size_t{ 0 });
     std::vector<Box> boxes(1);
-    boxes[0].members.resize(samples.size());
-    std::iota(boxes[0].members.begin(), boxes[0].members.end(), std::size_t{ 0 });
+    boxes[0].members = std::move(members);
     Vector4 mean{};
     BoxStatistics(samples, boxes[0].members, mean, boxes[0].sse);
 
