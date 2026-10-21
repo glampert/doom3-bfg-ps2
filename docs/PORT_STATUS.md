@@ -3874,7 +3874,7 @@ direction release gates were not run. Every backend namespace now follows
 | Namespace | Holds | Was |
 | --- | --- | --- |
 | `ps2` | `Log`/`FatalError`, assertions, `CheckedCast` | unchanged |
-| `ps2::system::heap`, `filesystem`, `video`, `runtime` | allocator, file services, NTSC/PAL modes, production loop and presentation | `ps2::heap`, `filesystem`, `video`, `runtime` |
+| `ps2::system::heap`, `fs`, `video`, `runtime` | allocator, file services, NTSC/PAL modes, production loop and presentation | `ps2::heap`, `filesystem`, `video`, `runtime` |
 | `ps2::system::lifecycle` | Common startup stages and the core test boot (`InitCore`/`ShutdownCore`) | `ps2::lifecycle`, `ps2::core` |
 | `ps2::system::session` | offline campaign session | `ps2::offline` |
 | `ps2::audio` | PCM, voice timelines, `SoundSample`/`SoundVoice`/`SoundHardware` | `ps2::audio`, global `idSound*` |
@@ -3920,4 +3920,6 @@ plus the C++ harnesses.
 | `test-retail-boot` | 1 | `20261021T043344Z_headless_6ea7bceb7f19` |
 
 All 177 cases pass. Each gate family ran one ELF, and a rebuild from the final sources
-reproduces the tested core and production images byte for byte.
+reproduces the tested core and production images byte for byte. A follow-up shortened
+`ps2::system::filesystem` to `ps2::system::fs`; every rebuilt debug/release production,
+core and game ELF is byte-identical to the tested one, so these archives still apply.

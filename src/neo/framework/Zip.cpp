@@ -1278,7 +1278,7 @@ bool idZipBuilder::GetFileTime( const idStr &filename, unsigned long *dostime ) 
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 	if ( dostime == NULL ) { return false; }
 	std::uint32_t packed = 0;
-	if ( !ps2::system::filesystem::ZipTime( filename.c_str(), packed ) ) { return false; }
+	if ( !ps2::system::fs::ZipTime( filename.c_str(), packed ) ) { return false; }
 	*dostime = packed;
 	return true;
 #else

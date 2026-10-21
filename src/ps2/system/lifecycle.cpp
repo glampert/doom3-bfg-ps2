@@ -110,7 +110,7 @@ InitResult Init(idCommon & owner)
         return InitResult::Stopped;
     }
     // The campaign filesystem registers commands and reads cvars during initialization.
-    if (!system::filesystem::Init())
+    if (!system::fs::Init())
     {
         return InitResult::Failed;
     }

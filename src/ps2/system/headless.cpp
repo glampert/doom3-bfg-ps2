@@ -79,12 +79,12 @@ void PollConsole()
     }
     s_lastConsolePoll = now;
     // Reopen each poll: HostFs writers may append while the engine runs, and stdio can cache EOF.
-    FILE * file = ps2::system::filesystem::Open("host:console.txt", ps2::system::filesystem::OpenMode::Read);
+    FILE * file = ps2::system::fs::Open("host:console.txt", ps2::system::fs::OpenMode::Read);
     if (file == nullptr)
     {
         return;
     }
-    const int length = ps2::system::filesystem::FileLength(file);
+    const int length = ps2::system::fs::FileLength(file);
     if (length < 0)
     {
         fclose(file);
@@ -101,7 +101,7 @@ void PollConsole()
     const size_t count = available < kConsoleReadBudget ? available : kConsoleReadBudget;
     char bytes[kConsoleReadBudget];
     const bool read = fseek(file, s_consoleOffset, SEEK_SET) == 0 &&
-                      ps2::system::filesystem::ReadExact(file, bytes, count);
+                      ps2::system::fs::ReadExact(file, bytes, count);
     const bool closed = fclose(file) == 0;
     if (!read || !closed)
     {

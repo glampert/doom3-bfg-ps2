@@ -76,7 +76,7 @@ void SoundSample::LoadResource()
         MakeDefault();
         return;
     }
-    if (!system::filesystem::IsRelativePath(GetName()))
+    if (!system::fs::IsRelativePath(GetName()))
     {
         FatalError("invalid sound sample path: %s", GetName());
     }
@@ -85,7 +85,7 @@ void SoundSample::LoadResource()
         FatalError("sound sample loading requires filesystem startup");
     }
     // Native LoadSample supplies an extensionless canonical path. Avoid copying a whole WAV into ReadFile's buffer.
-    char path[system::filesystem::kPathCapacity] = {};
+    char path[system::fs::kPathCapacity] = {};
     const int length = idStr::snPrintf(path, static_cast<int>(sizeof(path)), "%s.wav", GetName());
     if (length < 0 || static_cast<size_t>(length) >= sizeof(path))
     {

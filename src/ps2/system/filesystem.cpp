@@ -17,7 +17,7 @@
     #include <sbv_patches.h>
 #endif
 
-namespace ps2::system::filesystem
+namespace ps2::system::fs
 {
 namespace
 {
@@ -460,4 +460,4 @@ bool ZipTime(const char * path, std::uint32_t & packed)
     return true;
 }
 
-} // namespace ps2::system::filesystem
+} // namespace ps2::system::fs

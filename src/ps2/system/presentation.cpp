@@ -161,7 +161,7 @@ void ConfigurePresentation()
     }
     char policy[16] = {};
     errno = 0;
-    FILE * file = system::filesystem::Open("host:presentation.cfg", system::filesystem::OpenMode::Read);
+    FILE * file = system::fs::Open("host:presentation.cfg", system::fs::OpenMode::Read);
     if (file == nullptr)
     {
         // HostFs reports a missing file as -5/EIO in PCSX2; absence must keep old packages headless.

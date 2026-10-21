@@ -159,7 +159,7 @@ bool CheckFixture(const char * path)
 
 bool CheckFilesystemServices()
 {
-    namespace fs = ps2::system::filesystem;
+    namespace fs = ps2::system::fs;
     const system::heap::Stats baseline = system::heap::GetTotalStats();
     idFile * stream = fileSystem->OpenFileRead("fs-fixtures/large.bin", false, nullptr);
     bool streamed = false;
@@ -269,7 +269,7 @@ bool CheckMissingAndEscapingPaths()
 
 void InitTestServices()
 {
-    ps2::system::filesystem::Init();
+    ps2::system::fs::Init();
 }
 
 const char * RunCoreTestStage(const char * fixturePath)

@@ -35,7 +35,7 @@ bool FixturePath(const char * input, char * output, size_t capacity)
     }
     const char * relative = idStr::Cmpn(input, "host:", 5) == 0 ? input + 5 : input;
     const size_t length = strlen(relative);
-    if (length >= MAX_OSPATH - 5 || !ps2::system::filesystem::IsRelativePath(relative))
+    if (length >= MAX_OSPATH - 5 || !ps2::system::fs::IsRelativePath(relative))
     {
         return false;
     }
@@ -103,12 +103,12 @@ public:
         {
             return -1;
         }
-        FILE * file = ps2::system::filesystem::Open(normalized, ps2::system::filesystem::OpenMode::Read);
+        FILE * file = ps2::system::fs::Open(normalized, ps2::system::fs::OpenMode::Read);
         if (file == nullptr)
         {
             return -1;
         }
-        const int length = ps2::system::filesystem::FileLength(file);
+        const int length = ps2::system::fs::FileLength(file);
         if (length < 0 || (buffer != nullptr && static_cast<size_t>(length) > kFixtureLimit))
         {
             fclose(file);
@@ -124,7 +124,7 @@ public:
                 fclose(file);
                 return -1;
             }
-            if (!ps2::system::filesystem::ReadExact(file, data, static_cast<size_t>(length)))
+            if (!ps2::system::fs::ReadExact(file, data, static_cast<size_t>(length)))
             {
                 ps2::system::heap::Free(data);
                 fclose(file);
