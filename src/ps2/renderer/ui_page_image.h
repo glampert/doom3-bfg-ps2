@@ -38,6 +38,20 @@ struct PageCacheStats
     u32 images = 0;
 };
 
+// A native UI image drawn through cooked pages: streamed UIPG RGBA pages (PageImage) or resident
+// GSTX paletted pages (PalettedImage). Triangles carry native atlas-normalized UVs.
+class PagedImage
+{
+public:
+    virtual ~PagedImage() = default;
+    virtual bool IsOpen() const = 0;
+    virtual PageImageStats GetStats() const = 0;
+    virtual bool ValidateTriangle(const Vertex (&vertices)[3]) const = 0;
+    // Submission order is preserved. A required caller must handle false; a late failure does not
+    // roll back already submitted pieces. Replace, straight-alpha and alpha-weighted add are admitted.
+    virtual bool DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend) = 0;
+};
+
 class PageImage;
 
 // Initialize after rs, close every attached image, then shut down before the texture owner. All
@@ -81,25 +95,23 @@ private:
 
 // The default overload owns a private cache for standalone callers. Use an explicit PageCache to
 // bound the aggregate pixel/scratch budget independently of the number of open atlas images.
-class PageImage final
+class PageImage final : public PagedImage
 {
 public:
     PageImage() = default;
-    ~PageImage();
+    ~PageImage() override;
     PageImage(const PageImage &) = delete;
     PageImage & operator=(const PageImage &) = delete;
 
     bool Open(const char * path, u32 cacheSlots = 2);
     bool Open(const char * path, PageCache & cache, bool outerGutter = false);
     void Close();
-    bool IsOpen() const;
+    bool IsOpen() const override;
     const PageHeader & GetHeader() const;
     const PageRecord * GetRecords() const;
-    PageImageStats GetStats() const;
-    bool ValidateTriangle(const Vertex (&vertices)[3]) const;
-    // Submission order is preserved. A required caller must handle false; a late I/O failure does
-    // not roll back already submitted pieces. Replace, straight-alpha and alpha-weighted add are admitted.
-    bool DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend);
+    PageImageStats GetStats() const override;
+    bool ValidateTriangle(const Vertex (&vertices)[3]) const override;
+    bool DrawTriangle(const Vertex (&vertices)[3], gs::BlendMode blend) override;
 
 private:
     friend class PageCache;

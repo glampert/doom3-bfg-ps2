@@ -58,16 +58,18 @@ continue to reject Classic Doom inputs. Retail assets do not participate in thes
 
 ## Build gates and artifacts
 
-Host-only `make resource-unpack`, `make ui-inventory` and `make ui-cook` read local
-retail containers and publish ignored extraction/inventory/cooking output. The C++
-unpacker is built by the host-tool CMake project, `src/tools/CMakeLists.txt`, with the host
-compiler and without engine linkage; the UI pipeline uses Python's standard library.
-None adds an EE source, vendor dependency or target capability.
-The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest;
-the native UIPG reader, page splitter and fixed texture cache supply native page binding.
+Host-only `make resource-unpack`, `make asset-reexport`, `make ui-inventory` and
+`make ui-cook` read local retail containers and publish ignored extraction/inventory/
+cooking output. The C++ unpacker and texture converter are built by the host-tool CMake
+project, `src/tools/CMakeLists.txt`, with the host compiler and without engine linkage,
+on the shared `src/tools/assets` library; the UI pipeline uses Python's standard library
+and runs the converter. None adds an EE source, vendor dependency or target capability.
+The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest.
+The native UIPG reader, page splitter and fixed texture cache bind the authored pages;
+the GSTX reader and paletted image bind the converted retail textures.
 The English resource catalog, inactive retail dictionaries and opt-in bounded timeline
-execution now build on that layer. Production retains **374 direct inputs** and the
-compile database has **399 entries**. The minimal retail owner adds the original native
+execution now build on that layer. Production retains **376 direct inputs** and the
+compile database has **401 entries**. The minimal retail owner adds the original native
 Credits unit and uses the retained carousel implementation. The original dialog now
 draws in full; shell drawing and offline Shell navigation remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
 
@@ -645,3 +647,14 @@ load/presentation gates and isolated text entry retain the original parsers/layo
 a PS2-only LangDict release operation frees localization keys/pools at shutdown.
 The new host sanitizer reader checks retained BSWF storage and English grammar; it
 cannot authorize native AVM1/placement execution or replace target validation.
+
+The paletted retail texture slice adds strict `renderer/gstx_format.cpp` and
+`renderer/ui_paletted_image.cpp` to core and resident support, size-optimized like the
+other cold UI units; the paletted image takes the engine-header seam of its renderer
+neighbors in the core build. Indexed PSMT8/PSMT4 layouts, paired page/CLUT binding and
+region-clamped draws extend the existing texture owner and GS units. No upstream or
+vendor unit or target fixture is added; the tagged `Image.h` friend declaration names
+the common `PagedImage` interface. Production retains **376 direct objects**, zero test
+inputs/symbols and no GC. Fixed `PT_LOAD` is **11,177,957 debug / 11,614,821 release
+bytes**; core is **2,150,896 / 2,235,504**. The compiler database has **401 entries**.
+Host sanitizer tests check the target's GSTX admission against converter output.

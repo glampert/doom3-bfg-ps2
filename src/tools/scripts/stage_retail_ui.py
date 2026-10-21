@@ -70,7 +70,7 @@ def inspect_package(source: Path) -> tuple[dict, list[tuple[Path, dict]], Path]:
         raise ValueError("retail UI proof catalog differs from the checked cook")
     assets = {}
     for name in sorted(cooked["runtime_images"]):
-        path, identity = _asset(source, cooked["runtime_images"][name], ".uip")
+        path, identity = _asset(source, cooked["runtime_images"][name], ".gstx")
         assets[path.name] = (path, identity)
     for name in sorted(manifest["fonts"]):
         path, identity = _asset(source, cooked["assets"][name], ".dat")
@@ -122,6 +122,13 @@ def stage_retail(build: str, output: Path, standard: str, source: Path, movies: 
     output = stage(build, output, standard)
     destination = output / "base/retail/assets"
     destination.mkdir(parents=True, exist_ok=True)
+    # The package holds exactly this cook's assets; an earlier staging may have left others.
+    staged = {path.name for path, _ in assets}
+    for existing in destination.iterdir():
+        if existing.name not in staged:
+            if existing.is_symlink() or not existing.is_file():
+                raise ValueError("retail UI proof assets must be regular files")
+            existing.unlink()
     for path, _ in assets:
         target = destination / path.name
         if target.is_symlink():

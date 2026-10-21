@@ -18,6 +18,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
 import inventory_retail_ui as pipeline
+import ui_gstx
 
 
 def container(records):
@@ -51,14 +52,15 @@ class InventoryPipelineTests(unittest.TestCase):
                        "source_language": "strings/english.lang", "language_ids": ["#str_test"],
                        "material_names": ["_white"], "source_contracts": [],
                        "path_contracts": {"fixture": ["pulse", "missing"]}, "exclusions": ["no native activation"],
-                       "page_config": {"extent": 256, "gutter": 1, "pixel_cache_budget_bytes": 2097152,
-                                       "resampling": "none"}}
+                       "conversion": {"policy": json.loads((ROOT / "config/ui_retail.json").read_text())["conversion"]["policy"],
+                                      "conversion_only": []}}
         self.config_path.write_text(json.dumps(self.config))
         self.raw_swf = (ROOT / "src/tests/data/ui/base/generated/swf/ps2_demo.bswf").read_bytes()
         self.raw_font = (ROOT / "src/tests/data/ui/base/newfonts/ps2_ascii/48.dat").read_bytes()
         self.records = [("generated/swf/fixture.bswf", self.raw_swf),
                         ("newfonts/ps2_ascii/48.dat", self.raw_font),
-                        ("generated/images/generated/swf/fixture#__0200.bimage", image(4, 4)),
+                        # The authored movie's bitmap lives at (246,64) in a 272x256 atlas.
+                        ("generated/images/generated/swf/fixture#__0200.bimage", image(272, 256)),
                         ("generated/images/newfonts/ps2_ascii/48#__0400.bimage", image(512, 128, 3)),
                         ("materials/test.mtr", b"generated/swf/fixture { { map generated/swf/fixture } }\n"
                          b"newfonts/ps2_ascii/48 { { map newfonts/ps2_ascii/48 } }\n")]
@@ -94,7 +96,7 @@ class InventoryPipelineTests(unittest.TestCase):
                                                             {"path": "missing", "present_in_static_expansion": False}])
         self.assertFalse((self.output / "assets").exists())
 
-    def test_cook_copies_full_sources_and_lossless_hash_named_pages(self):
+    def test_cook_copies_full_sources_and_converted_textures(self):
         manifest = self.run_inventory(cook=True)
         saved = (self.output / "manifest.json").read_bytes()
         self.assertEqual(self.run_inventory(cook=True), manifest)
@@ -107,13 +109,41 @@ class InventoryPipelineTests(unittest.TestCase):
         files = list((self.output / "assets").iterdir())
         self.assertEqual(manifest["cooked"]["file_count"], len(files))
         self.assertEqual(manifest["cooked"]["storage_bytes"], sum(path.stat().st_size for path in files))
-        self.assertEqual(manifest["working_set"]["proposed_resident_pages"], 8)
-        for layout in manifest["cooked"]["page_layouts"].values():
-            self.assertEqual(layout["page_width"], 256)
-            for page in layout["pages"]:
-                payload = (self.output / page["path"]).read_bytes()
-                self.assertEqual(len(payload), 256 * 256 * 4)
-                self.assertEqual(hashlib.sha256(payload).hexdigest(), page["sha256"])
+        images = manifest["cooked"]["runtime_images"]
+        movie, font = images[self.records[2][0]], images[self.records[3][0]]
+        self.assertEqual(sorted(images), sorted([self.records[2][0], self.records[3][0]]))
+        for record in images.values():
+            raw = (self.output / record["path"]).read_bytes()
+            self.assertEqual(record["path"], "assets/" + hashlib.sha256(raw).hexdigest() + ".gstx")
+            texture = ui_gstx.Texture(raw)
+            self.assertEqual((record["format"], record["logical_width"], record["logical_height"], record["table_bytes"]),
+                             ("GSTX1", texture.width, texture.height, texture.table_bytes))
+        self.assertEqual((movie["logical_width"], movie["logical_height"], movie["placements"]), (272, 256, 1))
+        self.assertEqual((font["logical_width"], font["logical_height"], font["psmt8_placements"]), (512, 128, 0))
+        self.assertEqual(font["psmt4_placements"], font["placements"])
+        # Flat DXT1 green converts exactly: the movie bitmap stays green and the font stays white.
+        texture = ui_gstx.Texture((self.output / movie["path"]).read_bytes())
+        self.assertEqual(texture.sample(254.0, 72.0), (0, 255, 0, 255))
+        self.assertIsNone(texture.sample(8.0, 8.0))
+        self.assertEqual((movie["worst_rmse"], movie["worst_error"], font["worst_error"]), (0.0, 0, 0))
+        reexport = manifest["cooked"]["reexport"]
+        self.assertEqual(reexport["file_bytes"], sum(record["bytes"] for record in images.values()))
+        self.assertIn(ord("A"), reexport["english_codepoints"])
+        self.assertEqual(manifest["cooked"]["conversion_only"], {})
+        self.assertEqual(manifest["cooked"]["runtime_catalog"]["format"], "UICT2")
+
+    def test_conversion_only_movies_are_converted_but_never_admitted(self):
+        self.records += [("generated/swf/extra.bswf", self.raw_swf),
+                         ("generated/images/generated/swf/extra#__0200.bimage", image(272, 256))]
+        self.save_containers()
+        self.config["conversion"]["conversion_only"] = ["generated/swf/extra.bswf"]
+        self.config_path.write_text(json.dumps(self.config))
+        manifest = self.run_inventory(cook=True)
+        extra = manifest["cooked"]["conversion_only"]["generated/swf/extra.bswf"]
+        texture = ui_gstx.Texture((self.output / extra["path"]).read_bytes())
+        self.assertEqual((texture.width, texture.height, extra["placements"]), (272, 256, 1))
+        self.assertNotIn("generated/images/generated/swf/extra#__0200.bimage", manifest["cooked"]["runtime_images"])
+        self.assertNotIn(b"extra", (self.output / manifest["cooked"]["runtime_catalog"]["path"]).read_bytes())
 
     def test_ordered_duplicate_precedence_keeps_evidence(self):
         replacement = self.raw_swf
@@ -206,18 +236,25 @@ class InventoryPipelineTests(unittest.TestCase):
             self.run_inventory()
         self.assertFalse(self.output.exists())
 
-    def test_page_profile_and_schema_are_checked_before_publication(self):
+    def test_conversion_profile_and_schema_are_checked_before_publication(self):
         for key, value in (("schema_version", 2), ("roots", [])):
             changed = {**self.config, key: value}
             self.config_path.write_text(json.dumps(changed))
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.run_inventory()
             self.assertFalse(self.output.exists())
-        changed = {**self.config, "page_config": {**self.config["page_config"], "extent": 512}}
-        self.config_path.write_text(json.dumps(changed))
-        with self.assertRaisesRegex(ValueError, "page profile"):
-            self.run_inventory()
-        self.assertFalse(self.output.exists())
+        policy = self.config["conversion"]["policy"]
+        partial = {key: value for key, value in policy.items() if key != "alpha_levels"}
+        for conversion, pattern in (({"policy": policy}, "policy and a conversion_only"),
+                                    ({"policy": {**policy, "scale": 0}, "conversion_only": []}, "out of range: scale"),
+                                    ({"policy": {**policy, "max_page_extent": 200}, "conversion_only": []}, "multiple of 128"),
+                                    ({"policy": {**policy, "share_palettes": 1}, "conversion_only": []}, "boolean"),
+                                    ({"policy": partial, "conversion_only": []}, "must name exactly"),
+                                    ({"policy": policy, "conversion_only": ["guis/hud.gui"]}, "generated/swf")):
+            self.config_path.write_text(json.dumps({**self.config, "conversion": conversion}))
+            with self.subTest(conversion=conversion), self.assertRaisesRegex(ValueError, pattern):
+                self.run_inventory()
+            self.assertFalse(self.output.exists())
 
     def test_case_sensitive_source_contracts_and_normalized_font_aliases(self):
         source = self.root / "src/NativeCase.cpp"

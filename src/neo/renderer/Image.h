@@ -79,7 +79,7 @@ struct Handle;
 
 namespace ui
 {
-class PageImage;
+class PagedImage;
 
 namespace authored
 {
@@ -96,7 +96,7 @@ namespace render
 {
 tex::Handle ConsoleImageTexture(const idImage * image);
 void ValidateUiImage(const idImage * image);
-ui::PageImage * UiPageImage(const idImage * image);
+ui::PagedImage * UiPageImage(const idImage * image);
 }
 }
 #endif
@@ -198,7 +198,7 @@ private:
 	// [PS2_D3BFG]: The backend owns direct/paged state; adapters only obtain checked access.
 	friend ps2::tex::Handle ps2::render::ConsoleImageTexture(const idImage * image);
 	friend void ps2::render::ValidateUiImage(const idImage * image);
-	friend ps2::ui::PageImage * ps2::render::UiPageImage(const idImage * image);
+	friend ps2::ui::PagedImage * ps2::render::UiPageImage(const idImage * image);
 	void LoadPageImage(const ps2::ui::authored::PageResource & resource);
 	void LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource);
 #endif

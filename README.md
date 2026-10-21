@@ -7,7 +7,8 @@ Doom 3 campaign on the PS2.
 **The port is not playable yet.** It currently boots into a developer console, loads
 the original game's definitions and scripts, and can display test interfaces, text
 from the original game and the original quit dialog, drawn by the game's own
-interface code. Gameplay systems are being brought up
+interface code. A host tool converts the original interface art into compact paletted
+textures that stay in the PS2's graphics memory. Gameplay systems are being brought up
 with small test maps before moving on to the full campaign.
 
 - [x] PS2 startup, a sustained game loop and developer console.
@@ -60,7 +61,9 @@ pull request that changes more than the documentation, inside the ps2dev project
 to one build of it. It checks that both configurations compile and link, and keeps no ELF.
 
 The C++ host tools are a [CMake project](src/tools/CMakeLists.txt), which
-`make resource-unpack` drives. They also build on Windows with MSVC:
+`make resource-unpack` and `make asset-reexport` drive: the first extracts the original
+resource containers, the second [converts textures](src/tools/asset_reexport/README.md)
+into the paletted formats the port loads. They also build on Windows with MSVC:
 
 ```sh
 cmake -S src/tools -B build/tools

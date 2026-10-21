@@ -10,6 +10,7 @@
 #include "ps2/renderer/ui_draw.h"
 #include "ps2/renderer/ui_font_format.h"
 #include "ps2/renderer/ui_page_image.h"
+#include "ps2/renderer/ui_paletted_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
@@ -94,7 +95,8 @@ bool IsInitialized()
 
 PS2_COLD_FUNC void Init()
 {
-    if (IsInitialized() || !ui::IsInitialized() || rs::FrameStarted() || render::GetUiPageStats().cacheBytes != 0)
+    if (IsInitialized() || !ui::IsInitialized() || rs::FrameStarted() || render::GetUiPageStats().cacheBytes != 0 ||
+        ui::GetPaletteStats().images != 0)
     {
         FatalError("retail UI catalog requires an idle fresh image profile");
     }
@@ -139,7 +141,7 @@ PS2_COLD_FUNC void Shutdown()
         return;
     }
 
-    if (rs::FrameStarted() || render::GetUiPageStats().images != 0)
+    if (rs::FrameStarted() || render::GetUiPageStats().images != 0 || ui::GetPaletteStats().images != 0)
     {
         FatalError("retail UI catalog shutdown with active image ownership");
     }

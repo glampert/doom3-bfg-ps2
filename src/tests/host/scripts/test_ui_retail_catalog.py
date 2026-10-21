@@ -15,10 +15,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
+import gstx_fixture
 import ui_retail_catalog as catalog
 from ui_font import inspect_font
-from ui_pages import write_pages
-from ui_page_package import write_page_package
 
 
 class RetailCatalogTests(unittest.TestCase):
@@ -31,8 +30,8 @@ class RetailCatalogTests(unittest.TestCase):
         cls.font_asset = {"path": "assets/" + font_hash + ".dat", "bytes": len(cls.font_raw), "sha256": font_hash}
         (cls.directory / "assets").mkdir()
         (cls.directory / cls.font_asset["path"]).write_bytes(cls.font_raw)
-        layout = write_pages(512, 128, bytes([255, 255, 255, 255]) * 512 * 128, cls.directory)
-        cls.image_asset = write_page_package(layout, cls.directory)
+        cls.image_raw = gstx_fixture.alpha_texture(512, 128, bytes([255]) * 512 * 128)
+        cls.image_asset = gstx_fixture.write_asset(cls.directory, cls.image_raw)
 
     @classmethod
     def tearDownClass(cls):
@@ -69,21 +68,22 @@ class RetailCatalogTests(unittest.TestCase):
     def test_wire_layout_counts_original_font_and_independent_legacy_metrics(self):
         raw, summary = self.build()
         header = catalog.HEADER.unpack_from(raw)
-        self.assertEqual(header[:8], (catalog.MAGIC, 1, len(raw), 1, 1, 1, 5, 1))
+        descriptor_bytes = self.image_asset["table_bytes"]
+        self.assertEqual(descriptor_bytes, 48 + 32 + 16 + 32)
+        self.assertEqual(header[:8], (catalog.MAGIC, 2, len(raw), 1, 1, 1, 5, 1))
         self.assertEqual(header[8], 64)
         self.assertEqual(header[9], header[8] + 32)
         self.assertEqual(header[10], header[9] + 56)
         self.assertEqual(header[11], header[10] + 5 * 8)
         self.assertEqual(header[12], header[11] + 8)
-        self.assertEqual(header[13], header[12] + 56)
+        self.assertEqual(header[13], header[12] + descriptor_bytes)
         self.assertEqual(header[13] + header[14], len(raw))
         self.assertEqual(header[15], 0)
         image = catalog.IMAGE.unpack_from(raw, header[8])
         self.assertEqual(self.string(raw, header, image[0]), self.image_name)
         self.assertEqual(self.string(raw, header, image[1]), self.image_asset["path"])
         self.assertEqual(image[2:5], (512, 128, self.image_asset["bytes"]))
-        self.assertEqual(raw[image[5]:image[5] + image[6]],
-                         (self.directory / self.image_asset["path"]).read_bytes()[:56])
+        self.assertEqual(raw[image[5]:image[5] + image[6]], self.image_raw[:descriptor_bytes])
         font = catalog.FONT.unpack_from(raw, header[9])
         self.assertEqual(self.string(raw, header, font[0]), "ps2_ascii")
         self.assertEqual(self.string(raw, header, font[1]), self.font_name)
@@ -91,7 +91,8 @@ class RetailCatalogTests(unittest.TestCase):
         self.assertEqual(font[3:6], (len(self.font_raw), catalog.fnv1a32(self.font_raw), 0))
         self.assertEqual(font[6:12], (70, 60, 55, 54, 43, 49))
         self.assertEqual(font[12:], (0, 0))
-        self.assertEqual(summary["descriptor_bytes"], 56)
+        self.assertEqual((summary["format"], summary["page_count"], summary["descriptor_bytes"]),
+                         ("UICT2", 1, descriptor_bytes))
         self.assertEqual(summary["material_policy"],
                          "implicit-image-default only; native wrappers provide one constant image stage")
         self.assertNotIn(b".bswf", raw)
@@ -135,8 +136,9 @@ class RetailCatalogTests(unittest.TestCase):
                 self.manifest[key] = original
 
     def test_paths_lengths_hashes_and_font_metrics_checked(self):
-        for section, field, value in (("image", "path", "../escape.uip"),
+        for section, field, value in (("image", "path", "../escape.gstx"),
                                       ("image", "bytes", 10),
+                                      ("image", "logical_width", 256),
                                       ("font", "path", "assets/" + "0" * 64 + ".dat"),
                                       ("font", "bytes", catalog.MAX_FONT_BYTES + 1)):
             with self.subTest(section=section, field=field):
@@ -163,18 +165,26 @@ class RetailCatalogTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 catalog.build_catalog(manifest, self.directory)
 
-    def test_header_and_page_table_must_match_cooked_profile(self):
+    def test_changed_texture_bytes_and_strict_admission_refuse_the_catalog(self):
         source = self.directory / self.image_asset["path"]
-        original = source.read_bytes()
-        for offset, value in ((0, 0), (8, 0x1000), (32, 0)):
-            corrupted = bytearray(original)
-            struct.pack_into("<I", corrupted, offset, value)
-            try:
-                source.write_bytes(corrupted)
-                with self.subTest(offset=offset), self.assertRaisesRegex(ValueError, "image (header|table)"):
-                    self.build()
-            finally:
-                source.write_bytes(original)
+        changed = bytearray(self.image_raw)
+        changed[-1] ^= 1
+        try:
+            source.write_bytes(changed)
+            with self.assertRaisesRegex(ValueError, "SHA256"):
+                self.build()
+        finally:
+            source.write_bytes(self.image_raw)
+        # Content-addressed corruptions reach the strict reader: header, reserved, page record and pixels.
+        page_offset = struct.unpack_from("<I", self.image_raw, 48 + 8)[0]
+        for offset in (0, 8, 32, 48, page_offset):
+            corrupted = bytearray(self.image_raw)
+            corrupted[offset] ^= 0x10
+            manifest = copy.deepcopy(self.manifest)
+            manifest["cooked"]["runtime_images"][self.image_name] = {
+                **self.image_asset, **gstx_fixture.store(self.directory, bytes(corrupted))}
+            with self.subTest(offset=offset), self.assertRaisesRegex(ValueError, "GSTX"):
+                catalog.build_catalog(manifest, self.directory)
 
     def test_asset_symlink_and_corrupted_font_rejected(self):
         source = self.directory / self.font_asset["path"]

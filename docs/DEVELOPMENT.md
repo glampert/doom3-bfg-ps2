@@ -21,9 +21,9 @@ Current implementation and acceptance details live in:
 The native build uses the ps2dev EE compiler and PS2SDK, with GCC 15.2 used for current
 verification. Python 3.10 or later runs the build/report/cook scripts. Host tools and
 sanitizer tests use a C++20 host compiler (`HOST_CXX`, default `clang++`). The C++ host
-tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`: `make resource-unpack`
-configures it into `build/tools/cmake/` with `HOST_CXX`, and other hosts, Windows/MSVC
-included, build it with `cmake` directly. VU tooling is reserved for later renderer work;
+tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`: `make resource-unpack` and
+`make asset-reexport` configure it into `build/tools/cmake/` with `HOST_CXX`, and other
+hosts, Windows/MSVC included, build it with `cmake` directly. VU tooling is reserved for later renderer work;
 no VU program or vclpp dependency is built yet.
 
 GitHub Actions runs `make` and `make release` on Linux in the pinned ps2dev `ps2sdk` image,
@@ -51,6 +51,20 @@ build/tools/resource_unpack --output build/unpacked-bfg \
 
 Extracted BSWF/BIMAGE files keep their native formats. Retail extraction belongs in
 ignored local directories; it is separate from authored UI assets and target startup.
+
+## Texture re-export
+
+The [texture re-export tool](../src/tools/asset_reexport/README.md) converts retail
+textures into paletted GSTX files the GS samples directly, from a JSON job. `make ui-cook`
+writes that job for the retail UI and runs it; `UI_PREVIEWS=build/ui-previews` also writes
+an original and a converted PNG of every texture for a visual review:
+
+```sh
+make ui-cook UI_PREVIEWS=build/ui-previews
+```
+
+Both tools share the `src/tools/assets/` library, meant for every later texture
+re-export.
 
 ## Production packages and controls
 
@@ -81,8 +95,9 @@ resource screen, check `ps2_uiRetail status` and send `ps2_uiRetail load` once b
 execution; repeating `load` while already loaded is fatal.
 
 This executes the original dialog timeline while drawing isolated native English
-labels. `dialog quit` instead draws the complete dialog through native `idSWF::Render`;
-expect about 1.5 seconds per frame in PCSX2 while its atlas pages stream from HostFs.
+labels. `dialog quit` instead draws the complete dialog through native `idSWF::Render`
+from its resident converted textures, at about 60 ms per debug PCSX2 frame; the earlier
+RGBA page slice took about 1.6 seconds per frame while its pages streamed from HostFs.
 `execute shell` selects the minimal carousel/Credits owner; `movie shell|dialog|none`
 selects inactive inspection. Use `make test-retail-timelines` for the scoped execution
 gate and `make test-retail-dialog` for the full dialog. All authored startup/map/UI

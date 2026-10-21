@@ -106,8 +106,10 @@
   Four phases each run at least 120
   frames: shell, dialog, shell return and another shell load. Check native dictionary/
   font/text counts, all 9,097 English entries, source-derived integer text widths and
-  32 glyph/color probes per capture. Probes allow the existing channel tolerance of
-  eight within one projected pixel for GS raster rounding. Inspect both styles and
+  at least two glyph/color probes per label. Each probe accepts the colors the converted
+  font can produce within one texel of its projected position (sound bilinear bounds,
+  strongest first), plus the existing channel tolerance of eight within one projected
+  pixel for GS raster rounding. Inspect both styles and
   standards. Shell reload captures must match; warm dialog captures must match. Only
   the documented NTSC cold/warm final-T bottom edge admits four changed pixels with
   channel delta at most 25, within the source-derived glyph row/bounds. Source probes
@@ -117,9 +119,10 @@
   HostFs adds every non-ps2 command to history before executing the batch: clear history
   before the final unload, or the future long echo identity contributes a transient
   64-byte string to its release checkpoint.
-  Inactive inspection has seven shared images/984 metadata bytes; the native Doom 3
-  carousel cover adds a table for eight images/1,032 metadata bytes. Both use the same
-  six linear slots/scratch and keep three font pages warm without eviction. Executable
+  The `RETAIL textures` counters must equal the open converted images exactly (images,
+  pages, CLUTs, pixel and metadata bytes, computed from the cooked GSTX files): fonts
+  plus each movie atlas loaded so far, plus the Doom 3 cover once the shell executes.
+  Triangles rise, evictions stay zero and uploads stay fixed after the first phase. Executable
   phases require fresh real callback/owner traces and bounded hierarchy/work counters.
   Twelve fresh processes reject bad profile, missing movie, corrupt movie/English bytes,
   oversized counts and init actions. Count/init cases recompute FNV to reach storage
@@ -133,17 +136,20 @@
   draws the original dialog in full with Common's quit message: one 120-frame load and
   two 30-frame warm reloads. Each load needs exactly one draw admission matching the
   inventory (ten masks; no outlines, screen blends or additive color), the native quit
-  owner state and English options, dialog script dependencies, rising draw/mask
-  counters, the shared six-slot page budget, identical warm release ledgers and full
-  shutdown recovery. Two captures ten frames apart locate the looping focus highlight;
+  owner state and English options, dialog script dependencies, rising draw/mask/texture
+  triangle counters, texture counters equal to the fonts plus the dialog atlas, zero
+  evictions, the same upload count at every capture of all three loads,
+  identical warm release ledgers and full shutdown recovery. Two captures ten frames apart locate the looping focus highlight;
   every other pixel must match across all loads, and frames must show textured detail.
   The `dialog-blend` negative re-encodes a root placement as screen blend and requires
-  the specific draw-admission fatal. Sessions are slow: each frame streams most atlas
-  pages (see [gs-renderer.md](gs-renderer.md)), so the case defaults to a 1200 s timeout.
-  The window looks frozen at about 1.6 s per frame. Closing it (local settings skip the
+  the specific draw-admission fatal. Resident paletted textures draw a frame in about
+  55–60 ms in debug PCSX2 (streamed RGBA pages took about 1.6 s), so a session takes
+  under 20 s within the common 120 s timeout. Closing the window (local settings skip the
   shutdown confirmation) ends the VM cleanly; the runner reports "emulator exited with
   status 0 after N s" as the session end. That is an interrupted run, not a target fault.
-- `make test-host` also runs the real shared page-cache implementation under ASan/UBSan
+- `make test-host` builds the texture converter and runs its library tests, the target
+  GSTX admission against converter output and Python tests that drive the converter on
+  synthetic containers. It also runs the real shared page-cache implementation under ASan/UBSan
   with assertions enabled and disabled. Only GS/texture submission is stubbed. Keep
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
   allocation ledgers, partial-init cleanup and live-image shutdown guards covered.
@@ -151,10 +157,13 @@
 - After `make ui-cook`, `make test-retail-ui` and its `BUILD=release` variant each run
   NTSC/PAL plus five fresh-process resource failures in isolated PCSX2 sessions. Seven
   phases draw five native English fonts, return to the first and reload it, each for
-  at least 120 frames. Check all three legacy metric pairs, source-derived glyph
-  stroke/hole probes, stable reload captures, six-slot residency, page counters and
-  full startup-ledger recovery. Reject bad catalog headers, missing/mutated font data,
-  invalid page tables and deferred pixel corruption before a completed presentation.
+  at least 120 frames. Check all three legacy metric pairs, glyph ink/hole probes bounded
+  by what the converted font can produce within one texel, stable reload captures, the
+  `RETAIL textures` counters (exactly the five converted fonts, rising triangles, zero
+  evictions, no uploads on the warm reload) and full startup-ledger recovery. Reject bad
+  catalog headers, missing/mutated font data, a texture whose tables differ from the
+  catalog and a corrupt page block; paletted images verify every page at load, so all
+  five fail before any loaded state or presentation.
   Inspect all five fonts in both standards; proprietary captures and cooked files
   remain under ignored `build/`. This proves the resource screen, not a retail SWF,
   Shell navigation or physical PS2 performance. `make run-retail-ui` launches it;

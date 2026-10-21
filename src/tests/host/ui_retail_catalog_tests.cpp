@@ -4,7 +4,9 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "ps2/renderer/gstx_format.h"
 #include "ps2/renderer/ui_font_format.h"
+#include "ps2/renderer/ui_page_format.h"
 #include "ps2/ui/retail_catalog.h"
 
 #include <cstddef>
@@ -73,6 +75,64 @@ static std::uint32_t AppendString(Fixture & fixture, const std::string & text)
     return offset;
 }
 
+static void PutHalf(std::vector<std::uint8_t> & bytes, std::uint32_t offset, std::uint32_t value)
+{
+    bytes[offset] = static_cast<std::uint8_t>(value);
+    bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+}
+
+// A canonical GSTX header and tables: `pages` raw 128x128 PSMT4 pages, one 16-entry CLUT and one
+// placement covering the logical image. Returns the file length the tables describe.
+static std::uint32_t AppendDescriptor(std::vector<std::uint8_t> & bytes, std::uint32_t width, std::uint32_t height, std::uint32_t pages)
+{
+    namespace gstx = ps2::ui::gstx;
+    const auto start = static_cast<std::uint32_t>(bytes.size());
+    const std::uint32_t tableBytes = gstx::kHeaderBytes + pages * gstx::kPageRecordBytes + gstx::kClutRecordBytes + gstx::kPlacementRecordBytes;
+    bytes.resize(start + tableBytes, 0);
+    const std::uint32_t clutOffset = (tableBytes + 15U) & ~15U;
+    std::uint32_t end = clutOffset + 64U;
+
+    for (std::uint32_t page = 0; page < pages; ++page)
+    {
+        const std::uint32_t record = start + gstx::kHeaderBytes + page * gstx::kPageRecordBytes;
+        const std::uint32_t offset = (end + 15U) & ~15U;
+        PutHalf(bytes, record, 128);
+        PutHalf(bytes, record + 2U, 128);
+        bytes[record + 4U] = gstx::kPsmT4;
+        Put(bytes, record + 8U, offset);
+        Put(bytes, record + 12U, 8192);
+        Put(bytes, record + 16U, 8192);
+        Put(bytes, record + 20U, 0x12345678U + page);
+        end = offset + 8192U;
+    }
+
+    const std::uint32_t clut = start + gstx::kHeaderBytes + pages * gstx::kPageRecordBytes;
+    PutHalf(bytes, clut, 16);
+    Put(bytes, clut + 4U, clutOffset);
+    Put(bytes, clut + 8U, 64);
+    const std::uint32_t placement = clut + gstx::kClutRecordBytes;
+    PutHalf(bytes, placement + 4U, width);
+    PutHalf(bytes, placement + 6U, height);
+    PutHalf(bytes, placement + 12U, width);
+    PutHalf(bytes, placement + 14U, height);
+    PutHalf(bytes, placement + 20U, width < 128U ? width : 128U);
+    PutHalf(bytes, placement + 22U, height < 128U ? height : 128U);
+    const std::uint32_t fileBytes = (end + 15U) & ~15U;
+    Put(bytes, start, gstx::kMagic);
+    PutHalf(bytes, start + 4U, gstx::kVersion);
+    PutHalf(bytes, start + 6U, gstx::kHeaderBytes);
+    PutHalf(bytes, start + 8U, width);
+    PutHalf(bytes, start + 10U, height);
+    PutHalf(bytes, start + 12U, pages);
+    PutHalf(bytes, start + 14U, 1);
+    PutHalf(bytes, start + 16U, 1);
+    Put(bytes, start + 20U, tableBytes);
+    Put(bytes, start + 24U, fileBytes);
+    // The checksum covers the header and tables with its own field still zero.
+    Put(bytes, start + 28U, ps2::ui::PageChecksum(bytes.data() + start, tableBytes));
+    return fileBytes;
+}
+
 static Fixture MakeFixture(std::uint32_t imageCount = 2, bool pagePressure = false)
 {
     const std::uint32_t fonts = kHeaderBytes + imageCount * kImageBytes;
@@ -102,32 +162,20 @@ static Fixture MakeFixture(std::uint32_t imageCount = 2, bool pagePressure = fal
         const std::uint32_t offset = kHeaderBytes + index * kImageBytes;
         const std::string name = index == 0 ? "newfonts/arial_narrow/48.tga" : index == 1 ? "newfonts/chainlink_semi_bold/48.tga"
                                                                                           : "textures/extra" + std::to_string(index);
-        const std::string path = "assets/" + std::string(64, static_cast<char>('a' + index % 6U)) + ".uip";
-        const std::uint32_t width = pagePressure ? 16384U : index == 1 ? 255U
-                                                                       : 128U;
-        const std::uint32_t height = pagePressure ? 1024U : 128U;
-        const std::uint32_t pages = ((width + 253U) / 254U) * ((height + 253U) / 254U);
-        const std::uint32_t descriptorBytes = 32U + pages * 8U;
+        const std::string path = "assets/" + std::string(64, static_cast<char>('a' + index % 6U)) + ".gstx";
+        const std::uint32_t width = index == 1 ? 255U : 128U;
+        const std::uint32_t height = 128U;
+        // Sixteen pages per image, the GSTX maximum, push 17 images past the 256-page total.
+        const std::uint32_t pages = pagePressure ? 16U : 1U;
         const auto start = static_cast<std::uint32_t>(fixture.bytes.size());
-        fixture.bytes.resize(fixture.bytes.size() + descriptorBytes);
+        const std::uint32_t fileBytes = AppendDescriptor(fixture.bytes, width, height, pages);
         Put(fixture.bytes, offset, intern(name));
         Put(fixture.bytes, offset + 4U, intern(path));
         Put(fixture.bytes, offset + 8U, width);
         Put(fixture.bytes, offset + 12U, height);
-        Put(fixture.bytes, offset + 16U, descriptorBytes + pages * 262144U);
+        Put(fixture.bytes, offset + 16U, fileBytes);
         Put(fixture.bytes, offset + 20U, start);
-        Put(fixture.bytes, offset + 24U, descriptorBytes);
-        const std::uint32_t header[] = { 0x47504955, 1, width, height, 256, 1, pages, 0 };
-        for (std::uint32_t word = 0; word < 8; ++word)
-        {
-            Put(fixture.bytes, start + word * 4U, header[word]);
-        }
-
-        for (std::uint32_t page = 0; page < pages; ++page)
-        {
-            Put(fixture.bytes, start + 32U + page * 8U, descriptorBytes + page * 262144U);
-            Put(fixture.bytes, start + 36U + page * 8U, 0x12345678U + page);
-        }
+        Put(fixture.bytes, offset + 24U, static_cast<std::uint32_t>(fixture.bytes.size()) - start);
     }
 
     static constexpr const char * kFamilies[] = { "arial_narrow", "chainlink_semi_bold" };
@@ -166,7 +214,7 @@ static Fixture MakeFixture(std::uint32_t imageCount = 2, bool pagePressure = fal
     fixture.strings = static_cast<std::uint32_t>(fixture.bytes.size());
     fixture.bytes.insert(fixture.bytes.end(), strings.begin(), strings.end());
     const std::uint32_t header[] = {
-        0x54434955, 1, static_cast<std::uint32_t>(fixture.bytes.size()), 1, imageCount, 2, 5, 2,
+        0x54434955, 2, static_cast<std::uint32_t>(fixture.bytes.size()), 1, imageCount, 2, 5, 2,
         kHeaderBytes, fonts, aliases, materials, descriptors, fixture.strings, static_cast<std::uint32_t>(strings.size()), 0
     };
     for (std::uint32_t word = 0; word < 16; ++word)
@@ -206,7 +254,7 @@ static bool BaselineQueries(const CatalogView & view)
     MaterialRecord material{};
     return view.ImageCount() == 2 && view.FontCount() == 2 && view.MaterialCount() == 2 &&
            view.GetImage(1, image) && std::strcmp(image.name, "newfonts/chainlink_semi_bold/48.tga") == 0 &&
-           image.width == 255 && image.height == 128 && image.descriptorBytes == 48 &&
+           image.width == 255 && image.height == 128 && image.descriptorBytes == 128 &&
            view.GetMaterial(0, material) && material.imageIndex == 0 &&
            std::strcmp(material.name, "newfonts/arial_narrow/48") == 0 &&
            view.FindFont("Arial_Narrow", font) && std::strcmp(font.family, "arial_narrow") == 0 &&
@@ -280,7 +328,7 @@ static bool InvalidHeaders()
     };
 
     static constexpr Change kChanges[] = {
-        { 0, 0 }, { 4, 0 }, { 4, 2 }, { 8, 64 }, { 12, 0 }, { 12, 3 }, { 16, 0 }, { 16, 33 }, { 20, 0 }, { 20, 9 }, { 24, 0 }, { 24, 129 }, { 28, 65 }, { 32, 63 }, { 36, 0xFFFFFFFF }, { 40, 0 }, { 44, 0xFFFFFFFF }, { 48, 0 }, { 52, 0 }, { 52, 0xFFFFFFFF }, { 56, 0 }, { 56, 65537 }, { 60, 1 }
+        { 0, 0 }, { 4, 0 }, { 4, 1 }, { 8, 64 }, { 12, 0 }, { 12, 3 }, { 16, 0 }, { 16, 33 }, { 20, 0 }, { 20, 9 }, { 24, 0 }, { 24, 129 }, { 28, 65 }, { 32, 63 }, { 36, 0xFFFFFFFF }, { 40, 0 }, { 44, 0xFFFFFFFF }, { 48, 0 }, { 52, 0 }, { 52, 0xFFFFFFFF }, { 56, 0 }, { 56, 65537 }, { 60, 1 }
     };
     for (const Change & change : kChanges)
     {
@@ -292,7 +340,10 @@ static bool InvalidHeaders()
         }
     }
 
-    return Rejected(MakeFixture(4, true), "aggregate UIPG page count exceeds 1024 within descriptor bound");
+    CatalogView view16;
+    const Fixture sixteen = MakeFixture(16, true);
+    return Check(view16.Init(sixteen.bytes.data(), sixteen.bytes.size()), "256 GSTX pages across sixteen images") &&
+           Rejected(MakeFixture(17, true), "aggregate GSTX page count exceeds 256 within descriptor bound");
 }
 
 static bool InvalidRecords()
@@ -307,7 +358,7 @@ static bool InvalidRecords()
     };
 
     const Change changes[] = {
-        { kHeaderBytes, 1 }, { kHeaderBytes + 4U, 0xFFFFFFFF }, { kHeaderBytes + 8U, 0 }, { kHeaderBytes + 8U, 129 }, { kHeaderBytes + 12U, 16385 }, { kHeaderBytes + 16U, 0 }, { kHeaderBytes + 20U, descriptor + 1U }, { kHeaderBytes + 24U, 32 }, { kHeaderBytes + 24U, 0xFFFFFFFF }, { kHeaderBytes + 28U, 1 }, { descriptor, 0 }, { descriptor + 4U, 2 }, { descriptor + 16U, 128 }, { descriptor + 20U, 0 }, { descriptor + 24U, 1025 }, { descriptor + 28U, 1 }, { descriptor + 32U, 39 }, { valid.fonts + 12U, 25 }, { valid.fonts + 12U, 27 }, { valid.fonts + 12U, static_cast<std::uint32_t>(ps2::fonts::kMaxFontBytes + 14U) }, { valid.fonts + 20U, 2 }, { valid.fonts + 24U, 0 }, { valid.fonts + 28U, 4097 }, { valid.fonts + 48U, 1 }, { valid.fonts + 52U, 1 }, { valid.aliases + 4U, 2 }, { valid.materials + 4U, 2 }
+        { kHeaderBytes, 1 }, { kHeaderBytes + 4U, 0xFFFFFFFF }, { kHeaderBytes + 8U, 0 }, { kHeaderBytes + 8U, 129 }, { kHeaderBytes + 12U, 16385 }, { kHeaderBytes + 16U, 0 }, { kHeaderBytes + 20U, descriptor + 1U }, { kHeaderBytes + 24U, 32 }, { kHeaderBytes + 24U, 0xFFFFFFFF }, { kHeaderBytes + 28U, 1 }, { descriptor, 0 }, { descriptor + 4U, 2 }, { descriptor + 8U, 0 }, { descriptor + 12U, 0 }, { descriptor + 20U, 0 }, { descriptor + 24U, 1 }, { descriptor + 28U, 1 }, { descriptor + 48U, 0 }, { descriptor + 56U, 0 }, { descriptor + 80U, 0 }, { descriptor + 100U, 0 }, { valid.fonts + 12U, 25 }, { valid.fonts + 12U, 27 }, { valid.fonts + 12U, static_cast<std::uint32_t>(ps2::fonts::kMaxFontBytes + 14U) }, { valid.fonts + 20U, 2 }, { valid.fonts + 24U, 0 }, { valid.fonts + 28U, 4097 }, { valid.fonts + 48U, 1 }, { valid.fonts + 52U, 1 }, { valid.aliases + 4U, 2 }, { valid.materials + 4U, 2 }
     };
     for (const Change & change : changes)
     {

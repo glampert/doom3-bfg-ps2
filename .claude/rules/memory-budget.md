@@ -3,7 +3,9 @@
 Doom sections retain the measurements of their dated implementation slice. The
 latest authored UI baseline is [the convex-mask budget](#doom-convex-ui-mask-budget-2026-10-18);
 the retail boot and UI format measurements are in
-[the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20); current
+[the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20), and the
+converted textures that replaced retail page streaming in
+[the paletted UI section](#converted-retail-ui-textures-2026-10-20); current
 aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
 production sizes and live ledgers must not be used as current budgets. Quake figures
 remain separately labeled reference observations.
@@ -477,4 +479,39 @@ pages to 0.18 MB, the shell 15.7 → 1.18, HUD 1.57 → 0.10, PDA 2.36 → 0.34 
 Every screen then fits beside the framebuffers in GS memory. Quality, halving safety
 and the display simulation are in [gs-renderer.md](gs-renderer.md). Nothing is
 re-encoded yet; these are survey measurements, not runtime budgets.
+
+## Converted retail UI textures (2026-10-20)
+
+The first conversion pass halves every UI texture, fonts included, keeps only English
+glyphs and stores PSMT8/PSMT4 pages with shared CLUTs, RLE-compressed on disc. Host
+measurements from the deterministic cook, then the target ledgers:
+
+- 16 textures (the twelve admitted plus HUD, PDA, pause and loading for review) go from
+  9,095,516 bytes of BIMAGE resources to **762,608 bytes** of GSTX files, **1,980,032**
+  decoded and 1,941,504 of VRAM in whole 8 KiB pages. The admitted twelve are 562,496 on
+  disc and 1,397,760 decoded. The cook package shrinks from 158 files / 71.8 MB (UIPG and
+  raw pages) to 38 files / 2,466,069 bytes, and the UICT2 catalog is 25,032 bytes.
+- An open image keeps all its pages resident in the texture owner, which charges CLUT
+  textures in whole 8 KiB PSMCT32 pages. Owned texels: the five fonts 122,880 bytes, the
+  drawn dialog with its fonts 327,680, shell, dialog, cover and fonts together 1,277,952,
+  all beside the console's 278,528 and inside the 2 MiB owner cap. That replaces the
+  retail profile's six 256 KiB slots plus 256 KiB scratch (1,835,008 bytes) whatever the
+  screen, and nothing streams per frame.
+- `RETAIL textures` reports CLUT texels unpadded: pixels 102,400 / metadata 26,220
+  bytes for the fonts; 303,104 / 30,974 for the dialog render; 1,163,264 / 49,384 for
+  the inactive movie screens, whose shell and dialog atlases now load at open although
+  only fonts draw; 1,249,280 / 51,136 once the shell executes with the Doom 3 cover.
+  Metadata is the tables plus the placement lookup grid.
+- Loading one texture briefly holds its largest page encoded and decoded side by side
+  (at most 383,627 bytes here) plus a CLUT staging image; both are freed before the
+  image publishes.
+- Target ledgers (debug, NTSC and PAL identical, 2026-10-21), requested / backing bytes:
+  the font screen rests at 2,721,623 / 2,825,048 (4,388,939 / 4,491,628 with streamed
+  pages on 2026-10-20) and its peak is now the console's own 2,786,855 / 2,884,740
+  (arena 2,899,995). The drawn dialog rests at 4,232,661 / 4,370,244 in 3,299
+  allocations (was 5,690,707 / 5,827,180 / 3,281) and peaks at 4,412,335 / 4,516,500,
+  arena 4,710,427 (was 6,079,651 / 6,183,080 and 6,399,643). Inactive movies peak at
+  6,791,425 / 6,986,752 (was 7,363,353 / 7,557,028), executing ones at 10,657,582 /
+  11,361,276 (was 11,137,858 / 11,839,616). Every run recovers 7,424 / 7,600 / 4 at
+  full shutdown.
 

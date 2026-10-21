@@ -15,13 +15,12 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
+import gstx_fixture
 import retail_ui_capture
 import run_retail_ui as runner
 import stage_retail_ui as staging
 import ui_retail_catalog
 from ui_font import inspect_font
-from ui_pages import write_pages
-from ui_page_package import write_page_package
 
 
 def synthetic_package(directory):
@@ -41,7 +40,7 @@ def synthetic_package(directory):
     font_hash = hashlib.sha256(font).hexdigest()
     font_asset = {"path": "assets/" + font_hash + ".dat", "bytes": len(font), "sha256": font_hash}
     (directory / font_asset["path"]).write_bytes(font)
-    image_asset = write_page_package(write_pages(256, 32, bytes(rgba), directory), directory)
+    image_asset = gstx_fixture.write_asset(directory, gstx_fixture.alpha_texture(256, 32, gstx_fixture.rgba_alpha(rgba)))
     details = inspect_font(font, atlas_width=256, atlas_height=32)
     details["legacy_layout_metrics"] = [{"point_size": size, "scaled_max_advance": width, "scaled_max_height": height}
                                         for size, width, height in ((12, 48, 56), (24, 42, 48), (48, 40, 48))]
@@ -63,14 +62,15 @@ def synthetic_package(directory):
     return manifest
 
 
-def completed(manifest, standard="ntsc"):
+def completed(manifest, textures, standard="ntsc"):
     text = (f"game initialized.\nLOOP ready;\nrun_begin \nrun_ready \n[D3BFG] GS ready {standard.upper()}\n"
             "[D3BFG] UI adapters ready\n")
     for index, (name, cycle) in enumerate((("retail-f0.tga", 1), ("retail-return.tga", 1), ("retail-reload.tga", 2))):
         frame = (index + 1) * 120
         text += (f"[D3BFG] RETAIL state=loaded cycle={cycle} font=0 name=proof frames=120 heap=100/120/8\n"
-                 f"[D3BFG] RETAIL pages images=1 slots=6 cache=1572864 scratch=262144 metadata=16 "
-                 f"loads=2 hits={frame} evictions=0 triangles={frame * 10}\n")
+                 f"[D3BFG] RETAIL textures images=1 pages={textures['pages']} cluts={textures['cluts']} "
+                 f"pixels={textures['pixel_bytes']} metadata={textures['metadata_bytes']} triangles={frame * 10} "
+                 "uploads=3 evictions=0\n")
         for scale_index, (width, height) in enumerate(((12, 14), (21, 24), (40, 48))):
             text += f"[D3BFG] RETAIL metrics font=0 scale={scale_index} width={width:.2f} height={height:.2f}\n"
         text += f"[D3BFG] CONSOLE capture={name} frame={frame} presents={frame} redraws=0\n"
@@ -99,6 +99,13 @@ def tga(manifest, source, standard):
     return struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, height, 24, 0x20) + bgr
 
 
+def replace_last(text, old, new):
+    head, separator, tail = text.rpartition(old)
+    if not separator:
+        raise AssertionError("missing log text: " + old)
+    return head + new + tail
+
+
 class RetailProofTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -106,14 +113,18 @@ class RetailProofTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.source = self.root / "build/cook"
         self.manifest = synthetic_package(self.source)
+        self.textures = runner.font_textures(self.manifest, self.source)
         patcher = mock.patch.object(staging, "REPO_ROOT", self.root)
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_staging_admits_only_catalog_native_fonts_and_paged_images(self):
+    def classify(self, log, standard="ntsc"):
+        return runner.classify(log, "run", standard, self.manifest, self.textures)
+
+    def test_staging_admits_only_catalog_native_fonts_and_converted_textures(self):
         manifest, assets, catalog = staging.inspect_package(self.source)
         self.assertEqual(manifest, self.manifest)
-        self.assertEqual({path.suffix for path, _ in assets}, {".dat", ".uip"})
+        self.assertEqual({path.suffix for path, _ in assets}, {".dat", ".gstx"})
         self.assertEqual(catalog.suffix, ".uic")
         self.assertNotIn(b".bswf", catalog.read_bytes())
 
@@ -140,45 +151,58 @@ class RetailProofTests(unittest.TestCase):
             staging.inspect_package(link)
 
     def test_valid_native_log_preserves_metrics_and_budgets_in_both_standards(self):
+        self.assertEqual(self.textures, {"images": 1, "pages": 1, "cluts": 1, "pixel_bytes": 20480, "metadata_bytes": 180})
         for standard in ("ntsc", "pal"):
-            passed, reason = runner.classify(completed(self.manifest, standard), "run", standard, self.manifest)
+            passed, reason = self.classify(completed(self.manifest, self.textures, standard), standard)
             self.assertTrue(passed, reason)
 
     def test_stale_barriers_crashes_and_authored_movie_do_not_pass_retail_acceptance(self):
-        log = completed(self.manifest)
+        log = completed(self.manifest, self.textures)
         changes = (("run_ready \n", ']echo "run_ready"\n'), ("run_done ", "old_done "),
                    ("BOOT production shutdown complete", ""), ("frames=120", "frames=119"),
                    ("final=7424/7600/4", "final=7424/7600/5"))
         for old, new in changes:
             with self.subTest(old=old):
-                self.assertFalse(runner.classify(log.replace(old, new), "run", "ntsc", self.manifest)[0])
+                self.assertFalse(self.classify(log.replace(old, new))[0])
         for suffix in ("TLB Miss", "[D3BFG] FATAL unexpected", "[D3BFG] SWF state=loaded"):
-            self.assertFalse(runner.classify(log + suffix, "run", "ntsc", self.manifest)[0])
+            self.assertFalse(self.classify(log + suffix)[0])
 
-    def test_legacy_metrics_cache_growth_and_reloads_are_not_optional(self):
-        log = completed(self.manifest)
+    def test_legacy_metrics_resident_textures_and_reloads_are_not_optional(self):
+        log = completed(self.manifest, self.textures)
         changes = (("width=12.00", "width=11.00"), ("height=24.00", "height=23.00"),
-                   ("slots=6", "slots=8"), ("cache=1572864", "cache=2097152"),
-                   ("metadata=16", "metadata=32"), ("hits=240", "hits=120"),
-                   ("loads=2 hits=360", "loads=3 hits=360"), ("retail-return.tga", "retail-absent.tga"),
+                   ("images=1", "images=2"), ("pages=1 ", "pages=2 "), ("cluts=1 ", "cluts=2 "),
+                   ("pixels=20480", "pixels=20481"), ("metadata=180", "metadata=188"),
+                   ("triangles=2400", "triangles=1200"), ("evictions=0", "evictions=1"),
+                   ("uploads=3", "uploads=0"), ("retail-return.tga", "retail-absent.tga"),
                    ("state=unloaded cycle=2", "state=unloaded cycle=3"))
         for old, new in changes:
             with self.subTest(old=old):
-                self.assertFalse(runner.classify(log.replace(old, new), "run", "ntsc", self.manifest)[0])
+                self.assertFalse(self.classify(log.replace(old, new))[0])
+        # Only the warm reload must reuse the resident textures; earlier phases may upload more.
+        self.assertTrue(self.classify(log.replace("uploads=3", "uploads=2", 1))[0])
+        self.assertFalse(self.classify(replace_last(log, "uploads=3", "uploads=4"))[0])
+        self.assertFalse(self.classify(replace_last(log, "uploads=3", "uploads=2"))[0])
 
     def test_negative_checks_require_the_specific_guard_before_a_presentation(self):
-        expected = {"catalog-header": "retail UI catalog invalid", "font-missing": "retail font missing: proof",
-                    "font-mutated": "retail font content invalid: proof", "page-table": "retail UI page profile mismatch: proof",
-                    "page-pixels": "native UI paged triangle failed"}
-        for case, diagnostic in expected.items():
+        expected = {"catalog-header": ("retail UI catalog invalid", None),
+                    "font-missing": ("retail font missing: proof", None),
+                    "font-mutated": ("retail font content invalid: proof", None),
+                    "texture-table": ("retail UI texture profile mismatch: proof",
+                                      "texture length or tables differ from the catalog"),
+                    "texture-pixels": ("retail UI texture profile mismatch: proof", "page block, encoding or checksum")}
+        for case, (diagnostic, reason) in expected.items():
             log = "run_begin \n]ps2_uiRetail load\n"
-            if case == "page-pixels":
-                log += "RETAIL state=loaded\n[D3BFG] UI page image rejected: page read or checksum\n"
+            if reason is not None:
+                log += "[D3BFG] UI paletted image rejected: " + reason + "\n"
             log += "[D3BFG] FATAL " + diagnostic + "\n"
-            self.assertTrue(runner.classify_negative(log, "run", case)[0])
-            for wrong in (log.replace(diagnostic, "out of memory"), log + "BOOT production shutdown complete",
-                          log + "TLB Miss", log.replace("run_begin ", "old_begin ")):
-                self.assertFalse(runner.classify_negative(wrong, "run", case)[0])
+            self.assertTrue(runner.classify_negative(log, "run", case)[0], case)
+            wrongs = [log.replace(diagnostic, "out of memory"), log + "BOOT production shutdown complete",
+                      log + "TLB Miss", log.replace("run_begin ", "old_begin "),
+                      log.replace("]ps2_uiRetail load\n", "]ps2_uiRetail load\nRETAIL state=loaded\n")]
+            if reason is not None:
+                wrongs.append(log.replace(reason, "invalid open state or catalog descriptor"))
+            for wrong in wrongs:
+                self.assertFalse(runner.classify_negative(wrong, "run", case)[0], case)
 
     def test_capture_probes_use_local_source_ink_holes_and_all_three_size_rows(self):
         path = self.root / "capture.tga"

@@ -86,8 +86,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make test-retail-ui` checks five real native fonts at 12/24/48-point scales, full
   legacy layout metrics, source-derived pixels, 120 frames per family, return/reload,
   shutdown and five corrupt-resource cases. HostFs `ps2_uiRetail` accepts load/unload/
-  reload/status or `font INDEX` (0–4). Start in a fresh visible process; retail linear
-  pages and authored nearest pages are separate profiles. No retail SWF or Shell is
+  reload/status or `font INDEX` (0–4). Start in a fresh visible process; retail paletted
+  textures and authored nearest pages are separate profiles. No retail SWF or Shell is
   loaded by that font-only mode. The separate movie profile below admits bounded
   dictionaries, English text and timeline execution; full drawing and offline Shell
   integration remain pending.
@@ -95,7 +95,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   and the complete English dictionary under `build/<config>/ui-retail-movies/`.
   `ps2_uiRetail movie shell|dialog|none` selects inactive native dictionaries and
   isolated English text layout. `make test-retail-movies` checks native storage/layout,
-  warm reloads, shared pages, full cleanup and malformed resources in both standards.
+  warm reloads, resident textures, full cleanup and malformed resources in both standards.
   Resource-only constructors never run imported AVM1/placements; inactive inspection
   rejects Activate and timeline advancement; HandleEvent remains fatal. Native
   dictionary shutdown releases retained localization keys/pools after movies/fonts.
@@ -108,9 +108,10 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   checks inactive inspection and malformed resources. `ps2_uiRetail dialog quit` draws the
   original dialog in full through native `Render`, showing Common's quit message; full
   drawing is a third admission, only for movies without outlines, screen blends or additive
-  color (the dialog, not the shell). `make test-retail-dialog` checks it. Its atlas pages
-  stream from HostFs every frame (about 1.5 s per frame in PCSX2). Shell drawing and
-  navigation, complex masks/blends, dynamic resources and artwork residency remain pending.
+  color (the dialog, not the shell). `make test-retail-dialog` checks it. Its converted
+  pages stay resident: a debug PCSX2 frame takes about 60 ms, where streamed RGBA pages
+  took about 1.6 s. Shell drawing and navigation, complex masks/blends, dynamic
+  resources and artwork residency remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
@@ -176,20 +177,29 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   winning. Existing files require `--overwrite`. Keep retail output ignored.
   `make test-host` exercises its separate sanitizer build; this host-only tool does not
   change native asset providers or boot capability.
+- `make asset-reexport` builds `build/tools/asset_reexport`, the C++20 converter of retail
+  textures to paletted GSTX (`src/tools/assets/gstx.h`): PSMT8/PSMT4 pages, shared CLUTs,
+  RLE and placements mapping each image's logical texels. It and `resource_unpack` share
+  the `src/tools/assets/` library (resources, BIMAGE/DXT, palettes, packing, GSTX), meant
+  for every later texture re-export. Output is byte-identical on any host (contraction off).
 - `make ui-inventory` / `make ui-cook` inspect/cook the local retail shell/dialog profile
   in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
   Output must stay under `build/`. The manifest records hashes, dependencies, feature
-  gaps, full English font/language data, lossless guttered RGBA pages and compact UIPG
-  runtime images. Initial UI localization supports English only. Native authored SWF/font
-  images share a fixed `PageCache`; standalone `PageImage` callers may own a private
-  cache. The cook also emits a bounded UICT resource index. Native snapshots validate
-  its offsets/paths/English records and font counts before legacy parsing; constant UI
-  material stages are generated from admitted bindings. The retail resource profile
-  shares six linear/clamp slots (1.5 MiB), one 256 KiB scratch page and lazy image
-  tables. Font UVs may use only the outer half-texel gutter, preserving native sampling
-  without rescaling glyphs. `runtime_ready=false` is intentional: shell drawing, complex masks,
-  remaining blends/color transforms, active artwork residency and offline Shell
-  integration remain later gates. Scoped dictionary/text/timeline admission exists. See
+  gaps, full English font/language data and the converted GSTX runtime images; the
+  profile's conversion policy (first pass: everything halved, 16-level English-only
+  font glyphs) drives `asset_reexport`, and `UI_PREVIEWS=DIR` adds original/converted
+  PNGs for a visual review. Initial UI localization supports English only. Native
+  authored SWF/font images share a fixed `PageCache` of UIPG pages; standalone
+  `PageImage` callers may own a private cache. The cook also emits a bounded UICT2
+  resource index carrying each texture's GSTX header and tables. Native snapshots
+  validate its offsets/paths/English records and font counts before legacy parsing;
+  constant UI material stages are generated from admitted bindings. A retail
+  `PalettedImage` admits exactly the cataloged file, checks every CLUT and page while
+  loading and keeps them resident in the texture owner; a triangle samples the
+  placement holding its UV centroid, region-clamped. `runtime_ready=false` is
+  intentional: shell drawing, complex masks, remaining blends/color transforms, active
+  artwork residency and offline Shell integration remain later gates. Scoped
+  dictionary/text/timeline admission exists. See
   [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).

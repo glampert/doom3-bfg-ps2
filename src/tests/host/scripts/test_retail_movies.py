@@ -14,11 +14,20 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
+import build_authored_ui
+import gstx_fixture
 import run_retail_movies as runner
 import stage_retail_ui as staging
 from ui_font import inspect_language, inspect_font
 from ui_page_package import fnv1a32
 from ui_swf import Inspector, Reader, inspect_swf
+
+
+def replace_last(text, old, new):
+    head, separator, tail = text.rpartition(old)
+    if not separator:
+        raise AssertionError("missing log text: " + old)
+    return head + new + tail
 
 
 class MovieResourcesTests(unittest.TestCase):
@@ -50,9 +59,13 @@ class MovieResourcesTests(unittest.TestCase):
         swf = self.manifest["swfs"]["generated/swf/shell.bswf"]
         requested = next(entry["name"] for entry in swf["dictionary"] if entry["type"] == "font")
         self.manifest["font_resolutions"] = [{"requested": requested, "family": "ps2_ascii"}]
-        (self.source / "font.uip").write_bytes((ROOT / "src/tests/data/ui/base/textures/ps2_ascii.uipg").read_bytes())
-        self.manifest["cooked"]["runtime_images"] = {"font": {"path": "font.uip", "page_count": 3},
-            "shell": {"page_count": 1}, "dialog": {"page_count": 1}, "cover": {"page_count": 2}}
+        width, height, rgba = build_authored_ui.charset_pixels(font=True)
+        textures = {"font": gstx_fixture.alpha_texture(width, height, gstx_fixture.rgba_alpha(rgba)),
+                    "shell": gstx_fixture.solid_texture(256, 128, (40, 60, 80, 255)),
+                    "dialog": gstx_fixture.solid_texture(128, 64, (80, 60, 40, 255)),
+                    "cover": gstx_fixture.solid_texture(384, 192, (10, 20, 30, 255))}
+        self.manifest["cooked"]["runtime_images"] = {name: gstx_fixture.write_asset(self.source, raw)
+                                                     for name, raw in textures.items()}
         self.manifest["image_resolutions"] = [{"logical_image": "newfonts/ps2_ascii/48.tga", "selected": "font", "status": "resolved"},
             {"logical_image": "generated/swf/shell.tga", "selected": "shell"},
             {"logical_image": "generated/swf/dialog.tga", "selected": "dialog"},
@@ -117,9 +130,9 @@ class MovieResourcesTests(unittest.TestCase):
                 open_images.add(next(row["selected"] for row in manifest["image_resolutions"]
                                      if row["logical_image"] == "guis/assets/mainmenu/doom3_cover.tga"))
             images = len(open_images)
-            metadata = sum(manifest["cooked"]["runtime_images"][image]["page_count"] * 8 for image in open_images)
-            log += (f"[D3BFG] RETAIL pages images={images} slots=6 cache=1572864 scratch=262144 metadata={metadata} "
-                    f"loads=3 hits={(phase + 1) * 100} evictions=0 triangles={(phase + 1) * 200}\n")
+            counters = runner.texture_counters(runner.resident_textures(manifest, self.source, open_images))
+            log += ("[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={} ".format(*counters) +
+                    f"triangles={(phase + 1) * 200} uploads=3 evictions=0\n")
             frame = (phase + 1) * 120
             log += f"CONSOLE capture=movie-{name}.tga frame={frame} presents={frame} redraws=0\n"
             if execution:
@@ -136,13 +149,93 @@ class MovieResourcesTests(unittest.TestCase):
         log = self.acceptance_log(manifest)
         self.assertTrue(runner.classify(log, "run", "ntsc", manifest, self.source)[0])
         for before, after in (("width=160.00", "width=159.00"), ("final=7424", "final=7425"),
-                              ("frames=120", "frames=119"), ("cache=1572864", "cache=3145728"),
+                              ("frames=120", "frames=119"), ("evictions=0", "evictions=1"),
                               ("scripts=inactive", "scripts=active")):
             self.assertIn(before, log)
             self.assertFalse(runner.classify(log.replace(before, after), "run", "ntsc", manifest, self.source)[0])
         stale_final = log.replace("frame=481 presents=481", "frame=480 presents=480")
         stale_final = stale_final.replace("frames=481 presents=481", "frames=480 presents=480")
         self.assertFalse(runner.classify(stale_final, "run", "ntsc", manifest, self.source)[0])
+
+    def test_movie_textures_match_the_open_converted_images_and_never_upload_again(self):
+        manifest = self.label_manifest()
+        font = runner.resident_textures(manifest, self.source, {"font"})
+        # A 64x16 CLUT texture plus one 512x128 PSMT4 page; 128 table bytes, 16x4 grid cells and 64 items.
+        self.assertEqual(font, {"images": 1, "pages": 1, "cluts": 1, "pixel_bytes": 4096 + 32768,
+                                "metadata_bytes": 128 + 65 * 4 + 64 * 2})
+        for execution in (False, True):
+            log = self.acceptance_log(manifest, execution=execution)
+            accepted = lambda text: runner.classify(text, "run", "ntsc", manifest, self.source, execution=execution)[0]
+            self.assertTrue(accepted(log))
+            first = next(runner.TEXTURES_RE.finditer(log))
+            pixels, images = "pixels=" + first[4], "images=" + first[1]
+            for changed in (log.replace(first[0], first[0].replace(pixels, pixels + "1")),
+                            log.replace(first[0], first[0].replace(images, f"images={int(first[1]) + 1}")),
+                            log.replace("uploads=3", "uploads=0"), replace_last(log, "uploads=3", "uploads=4"),
+                            replace_last(log, "evictions=0", "evictions=1"),
+                            replace_last(log, "triangles=800", "triangles=600")):
+                with self.subTest(execution=execution, changed=changed):
+                    self.assertFalse(accepted(changed))
+
+    def render_log(self, manifest):
+        swf = manifest["swfs"]["generated/swf/dialog.bswf"]
+        language = inspect_language((self.source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
+        options = "|".join(language["entries"][key] for key in runner.QUIT_OPTIONS)
+        images = runner.font_images(manifest) | {"dialog"}
+        counters = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
+        textures = "[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters)
+        log = "GS ready NTSC\nrun_ready \n"
+        frame = 0
+        triangles = 0
+        for name, frames in runner.RENDER_PHASES:
+            log += f"RETAIL drawable movie=1 masks={swf['features']['masks']} strokes=0 screen_blends=0 additive_colors=0\n"
+            for kind, dependency in runner.DIALOG_DEPENDENCIES:
+                log += f"SWF dependency movie=swf/dialog.swf kind={kind} name={dependency}\n"
+            for suffix, waited, commands in (("a", frames, 7), ("b", frames + runner.RENDER_GAP, 9)):
+                frame += frames if suffix == "a" else runner.RENDER_GAP
+                triangles += 1000
+                log += (f"RETAIL movie=1 state=loaded frames={waited} dictionary={len(swf['dictionary'])} "
+                        f"texts={swf['dictionary_counts']['edittext']} preview=10 "
+                        f"english={manifest['language']['entry_count']} scripts=active heap=100/120/8\n"
+                        f"RETAIL execution movie=1 ticks={waited} root=1 sprites=2 texts=3 instructions=1000 calls=5 "
+                        f"commands={commands} depth=2 native_steps=20\n"
+                        f"RETAIL draw movie=1 full=1 triangles={triangles} flushes=10 masks={triangles // 100} "
+                        "peak_masks=2 peak_vertices=300 peak_indexes=600 peak_draws=40\n"
+                        "RETAIL dialog owner message=66 type=8 title=#str_01975 text=#str_dlg_confirm_quit "
+                        f"options={options} choices=3\n"
+                        f"{textures} triangles={triangles} uploads=5 evictions=0\n"
+                        f"CONSOLE capture=movie-{name}-{suffix}.tga frame={frame} presents={frame} redraws=0\n")
+            log += f"RETAIL released movie=1 images={len(images)} heap=80/100/4\n"
+        frame += 1
+        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
+                f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
+                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
+                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
+        return log
+
+    def test_dialog_render_requires_resident_textures_masks_owner_and_scripts(self):
+        manifest = self.label_manifest()
+        self.language += b' { "#str_swf_accept" "Accept" "#str_swf_cancel" "Cancel" "#str_swf_change_game" "Change Game" }'
+        self.language = self.language.replace(b' } {', b'')
+        self.add_asset("strings/english.lang", self.language)
+        manifest["language"] = inspect_language(self.language)
+        log = self.render_log(manifest)
+        accepted = lambda text: runner.classify_dialog_render(text, "run", "ntsc", manifest, self.source)[0]
+        self.assertTrue(accepted(log), runner.classify_dialog_render(log, "run", "ntsc", manifest, self.source)[1])
+        first = next(runner.TEXTURES_RE.finditer(log)).group(0)
+        pixels = "pixels=" + first.split("pixels=")[1].split()[0]
+        texture_rows = [match.group(0) for match in runner.TEXTURES_RE.finditer(log)]
+        stalled = log.replace(texture_rows[1], texture_rows[1].replace("triangles=2000", "triangles=1000"))
+        for changed in (log.replace(pixels, pixels + "1"), log.replace("images=2 pages", "images=3 pages"),
+                        log.replace("uploads=5", "uploads=0"), replace_last(log, "uploads=5", "uploads=6"),
+                        replace_last(log, "evictions=0", "evictions=1"), stalled,
+                        log.replace("masks=8 strokes=0", "masks=7 strokes=0"),
+                        log.replace("options=Accept|Cancel|Change Game", "options=Accept|Cancel|Quit"),
+                        replace_last(log, "SWF dependency movie=swf/dialog.swf kind=frame name=rollOn\n", ""),
+                        replace_last(log, "RETAIL released movie=1 images=2 heap=80/100/4",
+                                     "RETAIL released movie=1 images=2 heap=81/100/4")):
+            with self.subTest(changed=changed):
+                self.assertFalse(accepted(changed))
 
     def test_final_capture_requires_complete_native_dimensions_and_a_readable_file(self):
         path = self.source / "movie-quit.tga"

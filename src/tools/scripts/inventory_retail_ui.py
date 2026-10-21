@@ -16,23 +16,22 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 
-from ui_bimage import decode_level, inspect_bimage
+from ui_bimage import inspect_bimage
 from ui_font import inspect_font, inspect_old_font, inspect_language, language_coverage
 from ui_material import index_materials, resolve_material, canonical_material_name
-from ui_pages import write_pages
-from ui_page_package import write_page_package
+import ui_reexport
 from ui_retail_catalog import build_catalog
 from ui_resources import MAX_RESOURCE_BYTES, ResourceCatalog, digest, identity, logical_name
 from ui_swf import inspect_swf
 
 ROOT = Path(__file__).resolve().parents[3]
 MAX_CONFIG_BYTES = 128 * 1024
-MAX_TOTAL_PAGES = 1024
 MAX_INSPECTED_RESOURCE_BYTES = 256 * 1024 * 1024
 MAX_IMAGE_CANDIDATES = 4096
-PIXEL_CACHE_BUDGET = 2 * 1024 * 1024
+MAX_CONVERSION_ONLY = 16
 _BLOCKERS = [
     "Native masks/stencil and their nested/concave composition remain unsupported.",
     "Nonzero additive color and required special blend modes need measured 2D-6 closure.",
@@ -124,10 +123,16 @@ def _configuration(path):
         logical_name(name)
     if logical_name(config["source_language"]) != "strings/english.lang":
         raise ValueError("retail UI pipeline supports English strings/english.lang only")
-    page = config.get("page_config", {})
-    if (page.get("extent") != 256 or page.get("gutter") != 1 or
-            page.get("pixel_cache_budget_bytes") != PIXEL_CACHE_BUDGET or page.get("resampling") != "none"):
-        raise ValueError("unsupported retail UI page profile")
+    conversion = config.get("conversion")
+    if not isinstance(conversion, dict) or set(conversion) != {"policy", "conversion_only"}:
+        raise ValueError("retail UI conversion needs exactly a policy and a conversion_only list")
+    ui_reexport.validate_policy(conversion["policy"])
+    extra = conversion["conversion_only"]
+    if (not isinstance(extra, list) or len(extra) > MAX_CONVERSION_ONLY or
+            any(not isinstance(value, str) or not value.startswith("generated/swf/") or not value.endswith(".bswf") for value in extra)):
+        raise ValueError("retail UI conversion_only must list generated/swf movies")
+    for name in extra:
+        logical_name(name)
     return config, digest(raw)
 
 
@@ -227,7 +232,8 @@ def _publish(stage, output, manifest, protected_inputs):
     os.replace(stage / "manifest.json", output / "manifest.json")
 
 
-def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROOT):
+def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROOT, previews=None,
+                    tool=ui_reexport.TOOL):
     """Inspect all inputs before staging; publish manifest only after complete cooking."""
     data_root, repo_root = Path(data_root).resolve(), Path(repo_root).resolve()
     output = _validate_output(repo_root, Path(output), data_root)
@@ -388,11 +394,10 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                               "lookup_policy": "Conflicting requested definitions are unresolved; equal hashes coalesce. Editor images are not runtime dependencies.",
                               "compatibility": "inventory-only-not-native-material-validation"},
                 "issues": issues, "blockers": _BLOCKERS, "exclusions": config.get("exclusions", []),
-                "working_set": {"proposed_pixel_cache_bytes": PIXEL_CACHE_BUDGET,
-                                "rgba_page_bytes": 256 * 256 * 4, "proposed_resident_pages": 8,
-                                "source_decoded_base_bytes": sum(value["decoded_bytes"] for value in image_details.values()),
-                                "policy": "Stream bounded pages; package totals are not simultaneous EE/GS residency or a measured target budget."},
-                "cooked": {"assets": {}, "page_layouts": {}, "runtime_images": {}, "storage_bytes": 0, "file_count": 0}}
+                "working_set": {"source_decoded_base_bytes": sum(value["decoded_bytes"] for value in image_details.values()),
+                                "conversion_policy": config["conversion"]["policy"],
+                                "policy": "Paletted GSTX pages stay resident per loaded image; totals are package sizes, not a measured target budget."},
+                "cooked": {"assets": {}, "runtime_images": {}, "conversion_only": {}, "storage_bytes": 0, "file_count": 0}}
     if cook and issues:
         first_issue = issues[0]
         raise ValueError("retail UI cooking has unresolved required UI dependencies: " + first_issue["kind"] +
@@ -405,15 +410,48 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
             all_retained = {**retained, language_name: language_raw}
             for name, data in sorted(all_retained.items()):
                 manifest["cooked"]["assets"][name] = _asset(stage, data, Path(name).suffix)
-            page_count = 0
+            # One converter run covers the admitted images and the movies converted for inspection.
+            codepoints = ui_reexport.english_codepoints(language, swfs)
+            textures, runtime_outputs, extra_outputs = [], {}, {}
             for name in sorted(image_details):
-                width, height, rgba = decode_level(resource(name))
-                layout = write_pages(width, height, rgba, stage)
-                page_count += layout["page_count"]
-                if page_count > MAX_TOTAL_PAGES:
-                    raise ValueError("retail UI package exceeds 1024 total pages")
-                manifest["cooked"]["page_layouts"][name] = layout
-                manifest["cooked"]["runtime_images"][name] = write_page_package(layout, stage)
+                details = image_details[name]
+                texture = {"name": name, "source": name, "output": ui_reexport.output_name(name),
+                           "width": details["width"], "height": details["height"]}
+                atlas_swfs = [swf for swf_name, swf in swfs.items() if swf_name[:-5] + ".tga" in
+                              {entry["logical_image"] for entry in image_resolutions if entry.get("selected") == name}]
+                font_paths = [font_name for font_name in font_details
+                              if _image_resolution(font_name[:-4] + ".tga", names, True)["selected"] == name]
+                if atlas_swfs:
+                    texture["placements"] = ui_reexport.swf_placements(atlas_swfs[0])
+                elif font_paths:
+                    texture["placements"] = ui_reexport.font_placements(font_details[font_paths[0]], codepoints,
+                                                                        details["width"], details["height"])
+                textures.append(texture)
+                runtime_outputs[texture["output"]] = name
+            for swf_name in sorted(map(logical_name, config["conversion"]["conversion_only"])):
+                swf = inspect_swf(resource(swf_name))
+                image = "generated/images/" + swf_name[:-5] + "#__0200.bimage"
+                details = inspect_bimage(resource(image))
+                texture = {"name": swf_name, "source": image, "output": ui_reexport.output_name(image),
+                           "width": details["width"], "height": details["height"],
+                           "placements": ui_reexport.swf_placements(swf)}
+                textures.append(texture)
+                extra_outputs[texture["output"]] = swf_name
+            job = ui_reexport.build_job(config["conversion"]["policy"], textures)
+            converted = ui_reexport.convert(job, data_root, stage / "reexport", previews, tool)
+            reports = {entry["output"]: entry for entry in converted["report"]["textures"]}
+            for output_file, (data, texture) in sorted(converted["files"].items()):
+                record = {**_asset(stage, data, ".gstx"), **ui_reexport.summary(reports[output_file], texture)}
+                if output_file in runtime_outputs:
+                    manifest["cooked"]["runtime_images"][runtime_outputs[output_file]] = record
+                else:
+                    manifest["cooked"]["conversion_only"][extra_outputs[output_file]] = record
+            manifest["cooked"]["reexport"] = {"job": _asset(stage, converted["job"], ".json"),
+                                              "file_bytes": converted["report"]["file_bytes"],
+                                              "decoded_bytes": converted["report"]["decoded_bytes"],
+                                              "vram_bytes": converted["report"]["vram_bytes"],
+                                              "english_codepoints": sorted(codepoints)}
+            shutil.rmtree(stage / "reexport")
             catalog_bytes, catalog_summary = build_catalog(manifest, stage)
             manifest["cooked"]["runtime_catalog"] = {**catalog_summary, **_asset(stage, catalog_bytes, ".uic")}
             files = list((stage / "assets").iterdir())
@@ -429,10 +467,13 @@ def main(argv=None):
     parser.add_argument("--data-root", type=Path, default=ROOT / "gamedata/d3_bfg")
     parser.add_argument("--output", type=Path, default=ROOT / "build/ui-retail")
     parser.add_argument("--config", type=Path, default=ROOT / "config/ui_retail.json")
-    parser.add_argument("--cook", action="store_true", help="publish lossless host candidates; never activates native retail UI")
+    parser.add_argument("--cook", action="store_true", help="publish converted GSTX textures; never activates native retail UI")
+    parser.add_argument("--previews", type=Path, help="also write original/converted PNG previews here (under build/)")
     args = parser.parse_args(argv)
     try:
-        manifest = build_inventory(args.data_root, args.output, args.config, args.cook)
+        if args.previews is not None and not args.previews.resolve().is_relative_to((ROOT / "build").resolve()):
+            raise ValueError("previews must stay under build/")
+        manifest = build_inventory(args.data_root, args.output, args.config, args.cook, previews=args.previews)
     except (ValueError, OSError, TypeError) as error:
         parser.exit(1, "retail UI: " + str(error) + "\n")
     print("Retail UI " + manifest["mode"] + ": " + str(len(manifest["swfs"])) + " SWFs, " +

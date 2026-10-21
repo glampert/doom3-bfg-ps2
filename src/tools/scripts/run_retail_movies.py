@@ -26,7 +26,7 @@ from stage_headless import REPO_ROOT, boot_data, sha256
 from stage_retail_ui import inspect_package, stage_retail
 from ui_font import inspect_language
 from ui_page_package import fnv1a32
-from run_retail_ui import PAGES_RE
+from run_retail_ui import TEXTURES_RE, font_images, resident_textures, texture_counters
 
 
 LABELS = ("#str_swf_campaign", "#str_swf_settings", "#str_swf_quit")
@@ -108,27 +108,23 @@ def text_probes(manifest: dict, source: Path, movie: int, standard: str) -> list
         for ordinal, char in enumerate(word):
             glyph = glyphs[ord(char)]
             selected = 0
-            for y in range(2, glyph["height"] - 2):
-                for x in range(2, glyph["width"] - 2):
-                    alpha = [atlas.alpha(glyph["s"] + x + dx, glyph["t"] + y + dy)
-                             for dy in range(-1, 2) for dx in range(-1, 2)]
-                    if min(alpha) < 224 or max(alpha) - min(alpha) > 8:
-                        continue
-                    sx = int((pen + glyph["left"] * scale + (x + 1) * (glyph["width"] * scale + 1) / (glyph["width"] + 1)) * 512 / 640)
-                    sy = int((baseline - glyph["top"] * scale + (y + 1) * (glyph["height"] * scale + 1) / (glyph["height"] + 1)) * screen_height / 480)
-                    if not (1 <= sx < 511 and 1 <= sy < screen_height - 1):
-                        continue
-                    if any(abs(sx - probe["x"]) < 4 and abs(sy - probe["y"]) < 4 for probe in row_probes):
-                        continue
-                    opacity = sum(alpha) / (len(alpha) * 255) * color[3] / 255
-                    expected = [round(channel * opacity + backdrop * (1 - opacity))
-                                for channel, backdrop in zip(color[:3], retail_ui_capture.BACKGROUND)]
-                    row_probes.append({"label": row, "glyph": ordinal, "x": sx, "y": sy, "expected": expected})
-                    selected += 1
-                    if selected == 2:
-                        break
+            # Strongest coverage bounds first; each probe accepts what the texture can produce
+            # within one texel of its projected position.
+            for y, x, (low, high) in retail_ui_capture.glyph_candidates(atlas, glyph)["ink"]:
                 if selected == 2:
                     break
+                sx = int((pen + glyph["left"] * scale + (x + 1) * (glyph["width"] * scale + 1) / (glyph["width"] + 1)) * 512 / 640)
+                sy = int((baseline - glyph["top"] * scale + (y + 1) * (glyph["height"] * scale + 1) / (glyph["height"] + 1)) * screen_height / 480)
+                if not (1 <= sx < 511 and 1 <= sy < screen_height - 1):
+                    continue
+                if any(abs(sx - probe["x"]) < 4 and abs(sy - probe["y"]) < 4 for probe in row_probes):
+                    continue
+                darkest, brightest = retail_ui_capture.ink_interval(color[:3], low / 255 * color[3] / 255,
+                                                                    high / 255 * color[3] / 255)
+                expected = retail_ui_capture.blend(color[:3], atlas.alpha(glyph["s"] + x, glyph["t"] + y) / 255 * color[3] / 255)
+                row_probes.append({"label": row, "glyph": ordinal, "x": sx, "y": sy, "expected": list(expected),
+                                   "low": list(darkest), "high": list(brightest)})
+                selected += 1
             pen += glyph["advance"] * scale
         if len(row_probes) < 2:
             raise ValueError("source glyphs lack sufficient stable native text probes")
@@ -143,10 +139,10 @@ def verify_capture(path: Path, manifest: dict, source: Path, movie: int, standar
     probes = text_probes(manifest, source, movie, standard)
     for probe in probes:
         # One pixel around the projected center accommodates GS subpixel/raster rounding.
-        error = min(max(abs(actual - expected) for actual, expected in
-                        zip(pixels[((probe["y"] + dy) * width + probe["x"] + dx) * 3:][:3], probe["expected"]))
+        error = min(max(max(low - actual, actual - high, 0) for actual, low, high in
+                        zip(pixels[((probe["y"] + dy) * width + probe["x"] + dx) * 3:][:3], probe["low"], probe["high"]))
                     for dx in (-1, 0, 1) for dy in (-1, 0, 1))
-        if error > 8:
+        if error > retail_ui_capture.PIXEL_TOLERANCE:
             raise ValueError("native English text source pixel differs: " + str(probe))
     return {"sha256": sha256(path), "source_probes": probes}
 
@@ -231,11 +227,8 @@ def classify(log: str, identity: str, standard: str, manifest: dict, source: Pat
     image_counts = []
     previous = 0
     previous_capture = 0
-    previous_pages = None
-    open_images = set()
-    for font in manifest["fonts"]:
-        logical = font[:-4] + ".tga"
-        open_images.add(next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == logical))
+    previous_textures = None
+    open_images = font_images(manifest)
     for capture, (_, _, movie) in zip(captures, phases):
         phase_log = log[previous_capture:capture.start()]
         states = STATE.findall(phase_log)
@@ -308,19 +301,19 @@ def classify(log: str, identity: str, standard: str, manifest: dict, source: Pat
         if execution and movie == 0:
             open_images.add(next(row["selected"] for row in manifest["image_resolutions"]
                                  if row["logical_image"] == "guis/assets/mainmenu/doom3_cover.tga"))
-        page_rows = PAGES_RE.findall(phase_log)
-        if not page_rows:
-            return False, "native movie resource page accounting missing"
-        pages = tuple(map(int, page_rows[-1]))
-        metadata = sum(manifest["cooked"]["runtime_images"][image]["page_count"] * 8 for image in open_images)
-        if pages[:5] != (len(open_images), 6, 1572864, 262144, metadata):
-            return False, "native movie atlases multiplied the shared pixel budget"
-        if pages[5] == 0 or pages[6] == 0 or pages[8] == 0:
-            return False, "native movie text did not draw through the page cache"
-        if previous_pages is not None and (pages[5] != previous_pages[5] or pages[7] != previous_pages[7] or
-                                           pages[6] <= previous_pages[6] or pages[8] <= previous_pages[8]):
-            return False, "warm native text reloaded pixels or stopped drawing"
-        previous_pages = pages
+        texture_rows = TEXTURES_RE.findall(phase_log)
+        if not texture_rows:
+            return False, "native movie texture accounting missing"
+        textures = tuple(map(int, texture_rows[-1]))
+        if textures[:5] != texture_counters(resident_textures(manifest, source, open_images)):
+            return False, "native movie textures differ from the open converted images"
+        triangles, uploads, evictions = textures[5:]
+        if triangles == 0 or uploads == 0 or evictions != 0:
+            return False, "native movie text did not draw from resident textures"
+        # Images stay open across movie reloads, so later phases draw without uploading again.
+        if previous_textures is not None and (uploads != previous_textures[1] or triangles <= previous_textures[0]):
+            return False, "warm native text uploaded textures again or stopped drawing"
+        previous_textures = textures[5:]
         ledgers.append(state[6:])
         image_counts.append(len(open_images))
     if execution:
@@ -368,7 +361,7 @@ def render_capture_names() -> list[str]:
 
 
 def classify_dialog_render(log: str, identity: str, standard: str, manifest: dict, source: Path) -> tuple[bool, str]:
-    """Check the fully drawn native quit dialog: admission, owner state, scripts, masks, pages and ownership."""
+    """Check the fully drawn native quit dialog: admission, owner state, scripts, masks, textures and ownership."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native dialog crash or fatal"
     if any(marker not in log for marker in (f"GS ready {standard.upper()}", "BOOT production shutdown complete", "COMMON stage=system shutdown")):
@@ -382,11 +375,10 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
     language = inspect_language((source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
     options = tuple(language["entries"][key] for key in QUIT_OPTIONS)
     expected_owner = QUIT_DIALOG + options + ("3",)
-    images = {next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == font[:-4] + ".tga")
-              for font in manifest["fonts"]}
+    images = font_images(manifest)
     images.add(next(row["selected"] for row in manifest["image_resolutions"]
                     if row["logical_image"] == "generated/swf/dialog.tga"))
-    metadata = sum(manifest["cooked"]["runtime_images"][image]["page_count"] * 8 for image in images)
+    resident = texture_counters(resident_textures(manifest, source, images))
     loads = list(DRAWABLE.finditer(log))
     if len(loads) != len(RENDER_PHASES):
         return False, "native dialog draw admission missing or repeated"
@@ -394,6 +386,7 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
         if tuple(map(int, admission.groups())) != (swf["features"]["masks"], 0, 0, 0):
             return False, "native dialog draw admission differs from the inspected feature profile"
     previous_frame = 0
+    uploads = set()
     for phase, (_, frames) in enumerate(RENDER_PHASES):
         first, second = captures[2 * phase], captures[2 * phase + 1]
         window_end = loads[phase + 1].start() if phase + 1 < len(loads) else len(log)
@@ -402,13 +395,13 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
         rows = {}
         for name, start, end in (("a", loads[phase].end(), first.start()), ("b", first.end(), second.start())):
             window = log[start:end]
-            states, executions, draws, owners, pages = (STATE.findall(window), EXECUTION.findall(window), DRAW.findall(window),
-                                                        DIALOG_OWNER.findall(window), PAGES_RE.findall(window))
-            if not states or not executions or not draws or not owners or not pages:
+            states, executions, draws, owners, textures = (STATE.findall(window), EXECUTION.findall(window), DRAW.findall(window),
+                                                           DIALOG_OWNER.findall(window), TEXTURES_RE.findall(window))
+            if not states or not executions or not draws or not owners or not textures:
                 return False, "native dialog status missing before capture"
             rows[name] = (tuple(map(int, states[-1][:6] + states[-1][7:])), states[-1][6],
-                          tuple(map(int, executions[-1])), tuple(map(int, draws[-1])), owners[-1], tuple(map(int, pages[-1])))
-        for name, (state, scripts, execution, draw, owner, page) in rows.items():
+                          tuple(map(int, executions[-1])), tuple(map(int, draws[-1])), owners[-1], tuple(map(int, textures[-1])))
+        for name, (state, scripts, execution, draw, owner, texture) in rows.items():
             minimum = frames + (RENDER_GAP if name == "b" else 0)
             if (state[0] != 1 or state[1] < minimum or state[2] != len(swf["dictionary"]) or
                     state[3] != swf["dictionary_counts"]["edittext"] or state[5] != manifest["language"]["entry_count"] or
@@ -426,11 +419,15 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
             if (min(triangles, flushes, masks) == 0 or not 1 <= peak_masks <= 4 or not 0 < vertices <= 4096 or
                     not 0 < indexes <= 6144 or not 0 < draws_peak <= 128):
                 return False, "native dialog drawing, masks or geometry bounds differ"
-            if page[:5] != (len(images), 6, 1572864, 262144, metadata) or min(page[5], page[6], page[8]) == 0:
-                return False, "native dialog pages exceeded the shared budget or did not draw"
+            if texture[:5] != resident or min(texture[5], texture[6]) == 0 or texture[7] != 0:
+                return False, "native dialog textures differ from its converted images, did not draw or were evicted"
         if not (rows["b"][3][0] > rows["a"][3][0] and rows["b"][3][2] > rows["a"][3][2] and
-                rows["b"][2][7] > rows["a"][2][7]):
-            return False, "native dialog stopped drawing masks or running its timeline"
+                rows["b"][2][7] > rows["a"][2][7] and rows["b"][5][5] > rows["a"][5][5]):
+            return False, "native dialog stopped drawing masks, textures or running its timeline"
+        # Resident textures: once the first frames have drawn, nothing uploads again, reloads included.
+        uploads.update((rows["a"][5][6], rows["b"][5][6]))
+        if len(uploads) != 1:
+            return False, "native dialog uploaded textures again while drawing"
         dependencies = {(kind, name) for movie, kind, name in DEPENDENCY.findall(log[loads[phase].start():second.start()])
                         if movie == "swf/dialog.swf"}
         if not set(DIALOG_DEPENDENCIES).issubset(dependencies):
@@ -462,7 +459,7 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
     if (int(captures[-1][2]) <= previous_frame or
             (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
         return False, "final dialog capture was not drained before shutdown"
-    return True, "native retail quit dialog drew in full through admitted masks, blends, pages and text"
+    return True, "native retail quit dialog drew in full through admitted masks, blends, resident textures and text"
 
 
 def verify_dialog_render_captures(output: Path, standard: str) -> dict:
@@ -684,8 +681,9 @@ def run(args, standard, case="native"):
     phases = DIALOG_PHASES if case == "dialog-execution" else PHASES
     movie_command = "execute" if execution or case in EXECUTION_NEGATIVES else "movie"
     first_command = "ps2_uiRetail dialog quit" if render or case in DIALOG_NEGATIVES else f"ps2_uiRetail {movie_command} {phases[0][1]}"
-    # Full dialog drawing streams most of its atlas pages each frame, so its sessions run far longer.
-    timeout = args.timeout if args.timeout is not None else 1200 if render else 120
+    # Resident paletted textures draw the full dialog at about 60 ms per PCSX2 debug frame, so its
+    # three loads finish in under 20 s; streamed RGBA pages had needed about 1.6 s per frame.
+    timeout = args.timeout if args.timeout is not None else 120
     if case in NEGATIVES:
         mutate(output, case)
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
@@ -791,7 +789,7 @@ def main():
     parser.add_argument("--case", choices=POSITIVE_CASES + NEGATIVES)
     parser.add_argument("--emulator", type=Path, default=smoke.DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)
-    parser.add_argument("--timeout", type=float, help="seconds per session; 120 by default, 1200 for dialog-render")
+    parser.add_argument("--timeout", type=float, help="seconds per session; 120 by default")
     args = parser.parse_args()
     if args.timeout is not None and not 0 < args.timeout <= 3600:
         parser.error("timeout must be positive and at most 3600 seconds")

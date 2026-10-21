@@ -7,8 +7,10 @@ timelines can load and execute through separate admission profiles, and the orig
 dialog draws in full through a third one. The shell still shows isolated English
 labels; its drawing, event routing and offline menu navigation are not admitted.
 
-The cook keeps `runtime_ready=false` because complete drawing/resource closure and
-the active menu working set remain pending. Convex masks and additive blend 8 are
+Retail artwork and fonts are converted to paletted, RLE-compressed **GSTX** textures by
+the host tool `asset_reexport`; the target keeps each open image's pages resident instead
+of streaming RGBA pages. The cook keeps `runtime_ready=false` because complete
+drawing/resource closure and the active menu working set remain pending. Convex masks and additive blend 8 are
 implemented, while complex/stroked masks, screen blend 4 and nonzero additive color
 transforms remain feature gaps. See the [renderer roadmap](RENDERER_2D_PLAN.md) and
 [agent handover](AGENT_HANDOVER.md) for the next dialog/shell/menu gates.
@@ -24,6 +26,7 @@ integration gates in this profile use that assumption.
 ```sh
 make ui-inventory
 make ui-cook
+make ui-cook UI_PREVIEWS=build/ui-previews
 make run-retail-ui
 make CONSOLE_STANDARD=pal run-retail-ui
 make test-retail-ui
@@ -40,15 +43,18 @@ make ui-cook UI_DATA_ROOT=/path/to/bfg/base UI_COOK_OUTPUT=build/ui-retail
 inventory report alongside a cooked manifest. Output must be a descendant of this
 repository's ignored `build/` tree; retail files and generated assets stay local.
 Neither command runs the engine, emulator or AVM1 scripts, or changes the production
-package. `make ui` / `make test-ui` still use the authored native SWF.
+package. `make ui-cook` builds `build/tools/asset_reexport` first; `UI_PREVIEWS` (under
+`build/`) also writes an original and a converted PNG of every texture for visual
+review. `make ui` / `make test-ui` still use the authored native SWF.
 
 `make retail-ui` stages the same production ELF under `build/<config>/ui-retail/`;
 `run-retail-ui` displays the resource screen until quit. `UI_COOK_OUTPUT` selects the
 source cook, and `CONSOLE_STANDARD` selects NTSC/PAL. The package contains only the
-compact catalog, modern font files and UIPGs from the local cook. It does not copy
-retail SWFs, material source text, legacy font blobs or the full language dictionary.
-Use a fresh visible process: authored nearest-filter pages and the retail linear
-profile are deliberately separate startup choices.
+compact catalog, modern font files and GSTX textures from the local cook; staging
+removes any other file from its asset directory. It does not copy retail SWFs,
+material source text, legacy font blobs or the full language dictionary. Use a fresh
+visible process: authored UIPG pages and retail paletted textures are deliberately
+separate startup choices.
 
 Append commands to the running package's `console.txt`, for example:
 
@@ -99,22 +105,25 @@ callback/state validation.
 The local snapshot resolves two SWFs, five font families, twelve images and all
 **31 required localization IDs**, using 128 material files. Font coverage includes
 Arial Narrow, BankGothic, Chainlink, Microgramma and Sarasori. Full English data and
-full selected fonts are retained until dynamic reachability and subsetting are proven.
-No theme changes, downscaling or demo-mode substitutions are made.
+complete font files are retained; only the converted font textures keep just the glyphs
+English text can reach (see below). No theme changes or demo-mode substitutions are
+made; the conversion policy halves every texture for the first pass.
 
-## Page layout and ownership
+## Runtime catalog
 
-The cook additionally emits a content-addressed **UICT v1** runtime catalog, referenced
+The cook additionally emits a content-addressed **UICT v2** runtime catalog, referenced
 by `cooked.runtime_catalog`. Staging renames that checked index to `base/retail_ui.uic`;
 the EE never parses the large diagnostic JSON. Its 64-byte little-endian header gives
 exact array/string/descriptor offsets and an English-only flag. Records bind images
-to complete UIPG header/tables, fonts to immutable modern `.dat` snapshots and three
-legacy width/height pairs, aliases to canonical families, and material names to images.
-The current index is **5,236 bytes**: twelve images, five fonts, nineteen aliases and
-twelve implicit material bindings. Catalog bounds are 128 KiB, 32 images, eight fonts,
-128 aliases, 64 materials and 1,024 total pages. Native validation rejects overlapping/
-inconsistent ranges, traversal or token-injection paths, duplicate identities, invalid
-references and missing canonical self-aliases before publishing a view.
+to the complete header and tables of their GSTX texture, fonts to immutable modern
+`.dat` snapshots and three legacy width/height pairs, aliases to canonical families,
+and material names to images. The current index is **25,032 bytes**: twelve images
+(21,312 descriptor bytes, 16 pages), five fonts, nineteen aliases and twelve implicit
+material bindings. Catalog bounds are 128 KiB, 32 images, eight fonts, 128 aliases,
+64 materials, 64 KiB of descriptors and 256 total pages. Native validation rejects
+overlapping/inconsistent ranges, traversal or token-injection paths, duplicate
+identities, invalid references and missing canonical self-aliases before publishing a
+view; every descriptor must pass the same strict GSTX table check as the texture file.
 
 Each font snapshot is length/checksum checked and structurally validated before native
 `idFont` allocation: at most 2,048 glyphs, exact idf42 layout, sorted Unicode scalars,
@@ -127,31 +136,122 @@ generates their known constant blend/map/linear/clamp/vertexColor stages; origin
 retail shader text is not loaded. Explicit unsupported definitions are reported as
 omitted bindings, and cannot silently become supported target shaders.
 
-The retail resource profile reserves **six linear/clamp slots (1,572,864 bytes)** and
-one **262,144-byte** scratch page within the existing global texture budget. Five font
-images add **384 bytes** of page records; other catalog images stay unopened until
-requested. Glyphs touching atlas edges retain their original UVs: optional outer
-half-texel clipping uses the existing replicated gutters, without shrinking geometry
-or rescaling interior samples. Default authored page admission remains strictly 0..1.
-Font resources, images and the immutable catalog remain warm across preview unloads;
-full shutdown releases fonts, then images/cache, then the catalog and device.
+## Converted textures (GSTX)
 
-`--cook` publishes immutable, content-addressed files under `assets/` and references
-them from the manifest. Source SWF/font/language files retain their original bytes.
-Decoded artwork uses raw RGBA8 pages of **256 × 256 pixels**, with a one-pixel gutter
-and at most **254 × 254 source pixels** per interior. Interiors cover every source
-texel exactly once. Internal gutters copy adjacent pixels from the original atlas;
-only the full atlas boundary and unused padding clamp to the nearest outer edge.
+`--cook` describes every texture as a job for the C++ converter
+(`src/tools/asset_reexport`, built on the shared `src/tools/assets` library) and runs it
+in a private directory. `config/ui_retail.json` holds the conversion policy; its
+`conversion_only` list adds the HUD, PDA, pause and loading movies, converted for review
+and budgets but never admitted at runtime. Each texture is split into **placements**,
+the logical texels one draw may own:
 
-Each page records its source rectangle, atlas origin, SHA-256 and affine map from
-full-atlas normalized UV to page UV. Geometry must first be split/clipped to page
-boundaries before applying that map. The current native SWF renderer binds its shared
-atlas for bitmap fills; changing dictionary image names alone cannot implement paging.
+- A SWF atlas image owns its content rectangle and maps its 4-aligned block from id's
+  packer (`WriteSwfImageAtlas`), which holds at least one clamped border texel per side.
+- A font atlas keeps only the glyphs English text can reach: the dictionary, SWF literal
+  text and printable ASCII (103 codepoints, 101 glyph rectangles per font). Each glyph
+  owns its rectangle and maps it plus a one-texel ring, clamped to the atlas. Native
+  text still draws a one-texel quad for the empty space and no-break space glyphs, so
+  those own their whole ring (102–103 placements per font).
+- Any other image is one placement.
 
-The cook also writes one indexed **UIPG v1** file for each logical atlas. These
-compact files let the native page-image provider seek directly to a page; the target
-does not parse JSON or open hundreds of content-addressed page files during a draw.
-All header and record words are unsigned 32-bit little-endian integers:
+The converter decodes BIMAGE DXT1/DXT5 level zero (green-alpha fonts become white RGB
+with green as alpha), resamples each placement with premultiplied area filtering by the
+policy `scale` (0.5: the first pass halves everything, fonts included), then quantizes:
+
+- A placement gets its own palette first: variance-split boxes refined by weighted
+  Lloyd iterations over a weighted color histogram. RGB weight is the squared maximum
+  alpha of each texel's 3×3 neighborhood, so bilinear edges keep their color.
+- It becomes **PSMT4** when its 16-color palette stays within RMSE 3.0 and maximum error
+  48 (premultiplied 8-bit units), otherwise **PSMT8**. White-RGB images (fonts) share a
+  single 16-level alpha ramp and are all PSMT4.
+- Placements of one format then share palettes greedily while every member's estimated
+  RMSE stays within its limit (or its own palette's error plus a small increase) and its
+  maximum error within 48; members of a rebuilt shared palette that miss either limit
+  are split out again.
+- Palette alpha is snapped so the GS conversion `(a × 128 + 127) / 255` lands exactly
+  on the intended level.
+- Placements are packed (skyline) into pages of at most 512 × 512, widths in multiples
+  of 128 and heights in multiples of 64 (PSMT8) or 128 (PSMT4); 8-bit pages come first.
+  A page is stored RLE-compressed when that is smaller.
+
+Floating-point contraction is off in the host build, so a cook is byte-identical on any
+host; two consecutive full cooks (7.3 s each, conversion included) produce identical
+manifests. Every output is re-read by the strict C++ and Python readers before
+publication, and `report.json` keeps per-placement error statistics.
+
+GSTX v1 is documented field by field in `src/tools/assets/gstx.h`. A 48-byte header
+(magic `GSTX`, logical size, page/CLUT/placement counts, table and file bytes, FNV-1a32
+of the header and tables) is followed by page records (size, PSM, encoding, offset,
+encoded/decoded bytes, FNV-1a32 of the decoded indices), CLUT records (16 or 256 RGBA8
+entries in GS CSM1 order, straight alpha) and placement records (match, source and
+page rectangles, page, CLUT). Data blocks follow in table order at 16-byte boundaries
+with zero padding, so the header and tables identify the whole file. RLE control byte
+`n < 128` copies `n + 1` literals; `n ≥ 128` repeats the next byte `n − 125` times.
+Limits are 16 pages, 128 CLUTs, 1,024 placements, 512-texel pages, 16,384-texel logical
+extents and 16 MiB files. Placements are checked against their page, source and
+logical rectangles, and their match rectangles may not overlap.
+
+The local cook converts 16 textures from 9,095,516 bytes of source BIMAGE resources to
+**762,608 bytes** of GSTX files (**1,980,032 bytes** decoded). The admitted twelve take
+562,496 bytes on disc and 1,397,760 decoded:
+
+| Texture | Logical | GSTX bytes | Decoded bytes | Pages | CLUTs | 8-bit / 4-bit placements | Worst RMSE / error |
+| --- | --- | ---: | ---: | --- | ---: | --- | --- |
+| Dialog atlas | 1152 × 596 | 59,568 | 198,784 | 512 × 320 T8, 512 × 128 T4 | 4 | 6 / 4 | 2.65 / 37 |
+| Shell atlas | 1408 × 2320 | 309,552 | 849,472 | 3 × 512 × 512 T8, 384 × 256 T4 | 22 | 58 / 27 | 2.85 / 43 |
+| Each cover (3) | 472 × 564 | 39,328–41,824 | 82,944 | 256 × 320 T8 | 1 | 1 / 0 | 1.56–3.11 / 28–50 |
+| Each font (5) | 512 × 640 or 640 × 768 | 11,952–16,544 | 16,448 | 128 × 256 T4 | 1 | 0 / 102–103 | 4.89–5.79 / 11–12 |
+| Each cursor (2) | 24 × 24 | 1,376 | 9,216 | 128 × 64 T8 | 1 | 1 / 0 | 0.41 / 1 |
+| HUD (inspection only) | 512 × 420 | 17,904 | 52,096 | 128 × 192 T8, 384 × 128 T4 | 16 | 15 / 25 | 3.36 / 40 |
+| Pause (inspection only) | 1152 × 1172 | 134,880 | 386,496 | 512 × 512 T8, 512 × 192 T8, 256 × 128 T4 | 16 | 48 / 12 | 3.11 / 37 |
+| PDA (inspection only) | 640 × 656 | 46,992 | 135,424 | 256 × 384 T8, 256 × 256 T4 | 8 | 25 / 4 | 3.00 / 44 |
+| Loading (inspection only) | 128 × 20 | 336 | 8,256 | 128 × 128 T4 | 1 | 0 / 1 | 0 / 0 |
+
+Errors are premultiplied 8-bit units against the resampled source, so they measure
+quantization, not the halving. Font errors come from the 16-level ramp; halving also
+costs thin faces their solid stroke interior (Sarasori's converted alpha never exceeds
+243, Arial Narrow's 253). Whether art or fonts need their full resolution back is the
+visual pass's decision; `UI_PREVIEWS` writes the original and converted image of each
+texture side by side for it.
+
+On the target, each catalog image opens as a `PalettedImage`. It admits exactly the
+file whose length and tables equal the catalog descriptor, then reads every CLUT and
+page and checks its FNV-1a32 while loading, so a corrupt texture fails before the first
+presentation. The CLUTs become one 64-texel-wide PSMCT32 texture of 16 × 16 tiles (a
+16-entry CLUT uses its tile's first 8 × 2 texels), each a CSM1 CLUT at its own block;
+the pages become PSMT8/PSMT4 textures in the texture owner. The owner keeps their EE
+copy for re-upload after VRAM eviction and uploads on first use; nothing streams per
+frame. A triangle selects its placement by its UV centroid through a lookup grid (at
+most 64 × 64 cells of at least 32 texels), maps its UVs from source to page rectangle,
+and samples with the GS region clamp on that rectangle and the placement's CLUT;
+every TEX0 write reloads the CLUT. A triangle outside every placement, such as a glyph
+English text cannot reach, fails its draw with the offending UVs logged.
+`ps2_uiRetail status` prints `RETAIL textures images/pages/cluts/pixels/metadata/
+triangles/uploads/evictions` for the open set. Within the texture owner's 2 MiB pixel
+cap, the font screen holds 122,880 bytes of paletted texels, the drawn dialog 327,680
+and shell, dialog, cover and fonts together 1,277,952, besides the console's 278,528.
+The debug emulator gates accepted this path on 2026-10-21 in NTSC and PAL: the font
+screen, the inactive and executing movies and the full dialog draw, with every
+`RETAIL textures` counter equal to the cooked files and no eviction. The dialog draws a
+frame in about 60 ms in debug PCSX2, where streamed RGBA pages took about 1.6 s; see the
+[acceptance record](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21).
+
+All inputs are inspected before publication. Cooking uses a private staging tree,
+publishes checked immutable assets and replaces the manifest last. A failed inspection
+keeps the prior manifest and referenced assets intact. Later publication I/O failure
+may leave unreferenced immutable files; old assets are not automatically pruned.
+Output symlinks and source/config aliases are refused. Use a tree without concurrent
+external mutation. This is atomic manifest replacement, not a durable filesystem
+transaction or an adversarial directory sandbox.
+
+## Authored page transport (UIPG)
+
+The authored native SWF and the renderer test keep streaming lossless **UIPG v1**
+RGBA pages: **256 × 256 pixels** with a one-pixel gutter and at most **254 × 254**
+source pixels per interior. Internal gutters copy adjacent atlas pixels; only the atlas
+boundary and unused padding clamp. `build_authored_ui.py` and the renderer page fixture
+write them; the retail cook no longer does. All header and record words are unsigned
+32-bit little-endian integers:
 
 | Section | Layout |
 | --- | --- |
@@ -161,19 +261,9 @@ All header and record words are unsigned 32-bit little-endian integers:
 
 Native admission checks dimensions, inferred rows/columns, page counts, offsets and
 exact file length before allocating its bounded metadata table. Atlas axes are at
-most 16,384, logical base RGBA is at most 64 MiB, and page count is at most 1,024.
-Each streamed page is checksum-checked before replacing a cache slot. FNV checks
-catch changed/corrupt payloads; manifest SHA-256 records retain source/package
-identity. This format is a bounded page transport, not retail SWF/font admission.
-
-The current host package has **143 logical pages**, **12 UIPG files**,
-**158 unique asset files** and **71,830,304 asset bytes**, excluding its diagnostic
-manifest. This includes the **5,236-byte UICT** resource catalog, whose SHA-256 is
-`f87cf2962e9c92f431fd125d26fcf3e0312976b686cc2f7ccfe5af9e137b6f4e`.
-Original content-addressed RGBA pages and retained source assets remain available
-alongside the UIPG files; the new transport therefore duplicates page payloads on
-disk. The twelve decoded source level-zero images total **26,220,672 bytes**.
-These are host storage totals, not simultaneous EE or GS residency.
+most 16,384 and page count is at most 1,024. Each streamed page is checksum-checked
+before replacing a cache slot. This format is a bounded page transport, not SWF/font
+admission.
 
 The authored renderer scene accepted on **2026-10-16** reserves **two cache textures plus one scratch page**:
 524,288 bytes of cache pixels and 262,144 scratch bytes, plus its small page-record
@@ -183,12 +273,6 @@ Close page images before the device/texture owner shuts down. The CPU geometry h
 clips triangles against page interiors and the screen, preserving winding, RGBA and
 shared edges. Constant UVs exactly on an internal page boundary have one page owner,
 so alpha blending is not submitted twice.
-
-That fixed cache exercises the authored scene; it does not establish an actual
-retail working set. The host profile's eight-page / 2 MiB cache remains a proposal.
-Measure page references, upload pressure, font/SWF metadata and load/transition peaks
-before accepting a retail target budget; do not load the complete decoded package
-into EE memory.
 
 The **2026-10-17 authored binding implementation** connects cooked pages to native
 `idImage`, SWF bitmap fills and `idFont` drawing, accepted in debug/release NTSC/PAL.
@@ -205,16 +289,7 @@ Page admission checks the header and every table checksum against compiled autho
 descriptors, then verifies streamed pixels before replacing a cache slot. Images and
 cache contents remain warm across movie unload/reload; UI shutdown closes every image
 before releasing the shared cache and device. This establishes authored English-only
-movie binding; the separate retail resource path above now admits selected fonts and
-their legacy metrics, while retail movie binding remains pending.
-
-All inputs are inspected before publication. Cooking uses a private staging tree,
-publishes checked immutable assets and replaces the manifest last. A failed inspection
-keeps the prior manifest and referenced assets intact. Later publication I/O failure
-may leave unreferenced immutable files; old assets are not automatically pruned.
-Output symlinks and source/config aliases are refused. Use a tree without concurrent
-external mutation. This is atomic manifest replacement, not a durable filesystem
-transaction or an adversarial directory sandbox.
+movie binding; retail movies and fonts use the converted textures above.
 
 ## Inactive retail dictionaries and English text
 
@@ -274,10 +349,12 @@ and frees keys, indices and pools after movies/fonts have shut down.
 The local shell retains **618 dictionary records / 117 edit texts / 256 sprites /
 15,600 commands**; dialog retains **56 / 5 / 26 / 280**. Their selected original text
 prototypes are shell 121 (centered white, 36-point) and dialog 29 (left-aligned orange,
-34-point). Only the three label instances are drawn. Two movie atlas metadata tables
-add 600 bytes to the five font tables; all seven images share the same six linear
-slots and scratch page. Neither movie bitmap atlas streams pixels in this text-only
-screen. These are storage/text measurements, not the active menu's working set.
+34-point). Only the three label instances are drawn. At this slice's 2026-10-17
+acceptance, two movie atlas metadata tables added 600 bytes to the five font tables and
+all seven images shared six streamed RGBA page slots; neither movie atlas streamed
+pixels in the text-only screen. Opening a converted texture now loads its pages,
+so the movie atlases become resident while only the fonts draw. These are storage/text
+measurements, not the active menu's working set.
 
 Run `make test-retail-movies` and `make BUILD=release test-retail-movies` for both
 standards, four 120-frame phases, source-derived text widths and pixels, stable warm
@@ -290,7 +367,11 @@ retail files remain under ignored `build/`.
 checks and sanitizer C++ harnesses; it needs no retail installation. Coverage includes
 truncation and bounds, alias/lookup semantics, native font metrics, required labels,
 DXT interpolation/swizzles, page seams/UVs, UIPG headers/records/checksums, immutable
-output and failed-cook preservation. Standalone sanitizer geometry checks exercise
+output and failed-cook preservation. The converter's library tests cover RLE, CLUT
+order, index packing, palettes, resampling, packing and GSTX round trips; the target's
+GSTX admission is checked against converter output, refusing every corrupted table
+byte; and the Python reader, its fixture encoder and sampling bounds have their own
+tests. The cook tests run the real converter on synthetic containers. Standalone sanitizer geometry checks exercise
 UV/screen clipping, reversed shared edges, color interpolation and invalid-input
 preservation. A passing sanitizer harness exercises the real shared cache with
 `PS2_D3BFG_ASSERTS=0` and `1`, using stubbed GS submission. The existing renderer scene
@@ -300,9 +381,8 @@ native page splits, three warm reload cycles and twelve invalid-resource cases,
 including a deferred pixel checksum failure. Thirty pixel probes per capture pass;
 four page loads stay warm with zero evictions. Target measurements and inspected
 NTSC/PAL captures are in [PORT_STATUS](PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).
-Two real cooks are byte-identical; all source assets and page hashes are checked.
-Every decoded source image reconstructs exactly from its page interiors. The decoded
-shell atlas and font alpha plane were inspected locally; previews stay ignored.
+Two real cooks are byte-identical, and every converted texture is re-read and checked
+before publication. Previews stay under ignored `build/`.
 Host tests do not establish EE parser safety, menu correctness or physical PS2 behavior.
 
 The separate `make test-retail-ui` gate now passes debug/release NTSC/PAL: five native
@@ -314,9 +394,10 @@ admit a retail BSWF or activate Shell.
 
 The real shell contains 54 mask placements, 29 additive-color placements, blend modes
 0/4/8 and fifteen stroked shapes. Dialog adds ten mask placements and blend modes 0/8.
-The shared native page cache and authored SWF/font binding provide the integration
+Converted paletted textures and the authored SWF/font binding provide the integration
 foundation. Selected English font/image admission and legacy layout metrics now pass
-through the opt-in native resource path. Inactive BSWF dictionaries and isolated English text now have a bounded native path.
+through the opt-in native resource path. Inactive BSWF dictionaries and isolated
+English text now have a bounded native path.
 The scoped execution path below now adds native timeline and callback ownership for
 initial states. Native blend mode 8 now has an alpha-weighted additive GS path for
 the zero-additive-color profile, exercised by the authored native SWF. Mode 4, nonzero
@@ -328,10 +409,11 @@ which today means the dialog. Shell drawing, general dynamic resource closure an
 measured active-menu working set remain pending. This does not complete milestone
 2D-5 or activate the complete retail menu.
 
-Standalone `PageImage` callers can still own a private window. Simultaneous native
-SWF/font images use the shared cache so opening an atlas does not multiply pixel or
-scratch residency. The device's texture budget remains a global cap; the authored
-four-slot budget does not establish a retail working set.
+Standalone `PageImage` callers can still own a private window, and the authored
+SWF/font images share one cache. Retail images instead keep their converted pages
+resident; the device's texture budget (2 MiB of owned texels and of texture VRAM)
+remains the global cap, and the measured screens above do not establish the complete
+menu's working set.
 
 Offline native Shell startup follows those gates. It must explicitly gate intro/Mars
 cinematics, sound, save-indicator startup and unavailable campaign/online/save/Classic
@@ -391,7 +473,7 @@ Run `make test-retail-timelines` for executable shell/dialog reloads in NTSC/PAL
 `make test-retail-movies` for the inactive and executable gates plus corrupt-resource
 and runtime-limit failures. Select `BUILD=release` to verify checks with assertions off.
 The optional runner case `--case dialog-execution` isolates three dialog reloads.
-Archives retain native execution/owner counters, source-derived text probes, page/heap
+Archives retain native execution/owner counters, source-derived text probes, texture/heap
 ledgers, capture comparisons and matched build evidence. This extends the existing
 production acceptance mode and adds no native test fixture.
 
@@ -444,19 +526,24 @@ draws, inside the SWF draw scope and an execution scope. The visible frame shows
 dialog alone over the dark clear color, without the isolated label screen.
 `make test-retail-dialog` (also part of `make test-retail-movies`) runs the
 `dialog-render` case; see [PORT_STATUS](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice)
-for its acceptance record, page-streaming cost and memory.
+for its acceptance record, the page-streaming cost of that first slice and memory. With
+converted textures the dialog's pages stay resident, so the case now requires its
+upload count to stay fixed from the first status line through both warm reloads.
 
-## Page format survey
+## Page format survey and the first conversion pass
 
-The current cook keeps every retail page lossless RGBA32 (`"resampling": "none"`, and
-the profile's exclusions forbid downscaling). That is why the dialog streams about 51
-pages per frame. A host survey on 2026-10-20 measured the alternatives on the original
-atlases. One CLUT per atlas image with PSMT8 indices is near-lossless. Halving images
-never drawn above about 1.25× their authored size is free at the 1280×960 stage's
-on-screen scale. English-only fonts in 16-level alpha display identically. Together
-they bring each screen to 0.1–1.2 MB, which fits GS memory beside the framebuffers.
-Results and method:
+A host survey on 2026-10-20 measured the format alternatives on the original atlases,
+while the cook still kept every retail page lossless RGBA32 and the dialog streamed
+about 51 pages per frame. One CLUT per atlas image with PSMT8 indices is near-lossless.
+Halving images never drawn above about 1.25× their authored size is free at the
+1280 × 960 stage's on-screen scale. English-only fonts in 16-level alpha display
+identically. Together they bring each screen to 0.1–1.2 MB, which fits GS memory beside
+the framebuffers. Results and method:
 [PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20)
 and the [GS rule](../.claude/rules/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
-Adopting halving or a glyph subset changes the profile's exclusions and needs the
-user's agreement; the lossless cook stays the quality reference.
+
+On 2026-10-20 the user chose that direction as a first pass that accepts some quality
+loss: halve all UI, including the PDA and pause menus; English-only fonts; palettes
+shared aggressively; PSMT4 wherever it holds; RLE on disc. The cook above implements
+it and halves the fonts too, as part of all UI. A later visual pass decides which textures need their resolution or
+color depth back, using the previews; only the conversion policy changes for that.

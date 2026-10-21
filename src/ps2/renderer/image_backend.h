@@ -12,7 +12,7 @@ class idImage;
 
 namespace ps2::ui
 {
-class PageImage;
+class PagedImage;
 struct PageCacheStats;
 } // namespace ps2::ui
 
@@ -28,7 +28,7 @@ idImage * AuthoredFontImage();
 // Validation admits both direct intrinsics and cooked images. A paged image has logical atlas
 // dimensions; it never exposes a single texture handle for the whole atlas.
 void ValidateUiImage(const idImage * image);
-ui::PageImage * UiPageImage(const idImage * image);
+ui::PagedImage * UiPageImage(const idImage * image);
 ui::PageCacheStats GetUiPageStats();
 tex::Handle ConsoleImageTexture(const idImage * image);
 } // namespace ps2::render

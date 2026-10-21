@@ -1,37 +1,41 @@
 # Port status and headless acceptance
 
-## Current snapshot — 2026-10-20
+## Current snapshot — 2026-10-21
 
-The port is not playable yet. The latest rendering slice draws the
-[original dialog in full](#original-dialog-drawn-in-full-2d-6-third-slice) through
-native `idSWF::Render` (accepted 2026-10-20), after convex SWF masks (`ac9de81`,
-2026-10-18). The
-[memory budget investigation](#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20)
-followed: production now boots the retail declarations and scripts, and the retail UI
-art has measured candidate formats. `1f045d8` moved the authored fixtures into
-`src/tests/data/` without changing their bytes.
+The port is not playable yet. The latest slice converts the retail UI to
+[resident paletted textures](#paletted-retail-ui-textures-2026-10-21) (accepted in the
+debug gates on 2026-10-21), the first lever of the
+[memory budget investigation](#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20),
+which also boots production on the retail declarations and scripts. Before it, the
+[original dialog was drawn in full](#original-dialog-drawn-in-full-2d-6-third-slice)
+through native `idSWF::Render` (2026-10-20), after convex SWF masks (`ac9de81`,
+2026-10-18). `1f045d8` moved the authored fixtures into `src/tests/data/` without
+changing their bytes.
 
 | Area | Implemented and verified boundary | Remaining boundary |
 | --- | --- | --- |
 | M0–M2 / M2b | EE core startup, synchronous Common/services, retained campaign compile and resident link | Source inclusion is not campaign playability |
 | M3 game fixtures | Native startup/events/scripts; restricted player movement, jump/crouch/steps over 331-frame reloads; authored map/world/PVS/collision/AAS and one idle AI | Full campaign player, animated AI/gameplay, retail map conversion and Common map transitions |
 | Production loop | Native game initialization, console commands, sustained frames and ordered shutdown; game remains in `NOMAP` | Production map ownership and map simulation |
-| Retail data boot | Retail `_common`/`_ordered` containers, every declaration folder and the full `doom_main.script` reach `NOMAP` in a 14.5 MB heap arena, with exact shutdown | Leaves about 6.4–6.8 MB for a level; budget levers measured, not applied |
+| Retail data boot | Retail `_common`/`_ordered` containers, every declaration folder and the full `doom_main.script` reach `NOMAP` in a 14.5 MB heap arena, with exact shutdown | Leaves about 6.4–6.8 MB for a level; heap levers measured, not applied |
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
-| 2D-6 | Scoped additive blend 8, bounded convex masks, and the original dialog drawn in full with Common's quit message | Complex/holed/disconnected/stroked masks, screen blend 4, nonzero additive color transforms, and the surveyed paletted/halved page formats |
+| 2D-6 | Scoped additive blend 8, bounded convex masks, and the original dialog drawn in full with Common's quit message from resident paletted textures (debug gates) | Complex/holed/disconnected/stroked masks, screen blend 4, nonzero additive color transforms; the visual pass over the halved first conversion |
 | 2D-7–8 | Not accepted | Shell drawing, native offline menu navigation, physical input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog; other retail modes still
 show isolated native English labels. Shell drawing and SWF event routing remain gated.
-The dialog streams most of its RGBA32 atlas pages every frame, about 1.6 s per frame
-in PCSX2, which motivates the asset recompression work selected next. No world
-rendering or audible playback is implemented.
+The dialog now draws from resident paletted textures at about 60 ms per debug PCSX2
+frame; with streamed RGBA32 pages it took about 1.6 s. No world rendering or audible
+playback is implemented.
 
-The last feature acceptance (2026-10-20) drew the original dialog in full in
-debug/release NTSC/PAL, with reload-stable captures, exact warm releases, a negative
-admission case and the affected regression gates; see its
-[record](#original-dialog-drawn-in-full-2d-6-third-slice). The previous one (2026-10-18)
+The last acceptance (2026-10-21, debug only by the user's direction) moved the retail
+UI to converted paletted textures: every debug emulator gate passes in NTSC and PAL,
+with texture counters equal to the cooked files; see its
+[record](#paletted-retail-ui-textures-2026-10-21). The one before (2026-10-20) drew the
+original dialog in full in debug/release NTSC/PAL, with reload-stable captures, exact
+warm releases, a negative admission case and the affected regression gates; see its
+[record](#original-dialog-drawn-in-full-2d-6-third-slice). The 2026-10-18 one
 passed debug/release NTSC/PAL with 77 authored UI pixel checks, twelve invalid-resource
 cases, nineteen core renderer cases per build, and bounded/live-quit production
 headless regressions. The fixture-move gate also passed
@@ -44,8 +48,9 @@ on the toolchain rebuilt on 2026-10-19, including the repaired script probe.
 
 Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
 [2D roadmap](RENDERER_2D_PLAN.md). The selected work is asset recompression/re-export
-and fitting the game into the 32 MiB budget; its measurements are recorded and the
-levers are the next decision. A complete shell frame and responsive offline menu
+and fitting the game into the 32 MiB budget. Its first lever, paletted UI textures,
+passes the debug gates and awaits the user's visual pass; the heap levers are measured
+and not applied. A complete shell frame and responsive offline menu
 navigation follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
@@ -3749,3 +3754,111 @@ regressions, two of them new retail-runner checks, plus the C++ harnesses), core
 (`20261020T050802Z_headless_d0f6c5e7f049`, with the same ledgers as the measured run
 above). Release and the core and game test ELFs build; release gates were not rerun.
 Production `PT_LOAD` is 11,167,077 debug / 11,604,197 release bytes (+3,072 / +3,200).
+
+## Paletted retail UI textures (2026-10-21)
+
+Accepted **2026-10-21, Australia/Sydney**, in debug NTSC/PAL; by the user's direction
+only the debug gates ran. This is the first lever the user chose from the
+[memory budget investigation](#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20):
+retail UI images no longer cook to lossless RGBA32 UIPG pages streamed through six
+256 KiB slots, but to paletted **GSTX** textures that stay resident.
+
+The new host tool `asset_reexport` and the shared library `src/tools/assets/` (resource
+containers, BIMAGE/DXT decoding, area resampling, palettes, GS index and CLUT layouts,
+packing, RLE, GSTX, JSON and PNG; `resource_unpack` now shares its container reader)
+convert each texture by placements: SWF atlas images by their packer blocks, English
+glyphs by their rectangles plus a one-texel ring. The first-pass policy in
+`config/ui_retail.json` halves everything, PDA and pause included. Fonts keep English
+glyphs only, on a shared 16-level alpha ramp in PSMT4; art takes PSMT4 where 16 colors
+stay within the error limits and PSMT8 otherwise; palettes are shared greedily within
+those limits, and pages are RLE-compressed when that is smaller. The cook is
+byte-identical on any host, and `UI_PREVIEWS` writes original and converted PNGs. All
+16 textures shrink from 9,095,516 bytes of BIMAGE resources to 762,608 bytes of GSTX
+(1,980,032 decoded), and the cook package from 158 files / 71.8 MB to 38 files /
+2,466,069 bytes; see the [pipeline](RETAIL_UI_PIPELINE.md#converted-textures-gstx).
+
+On the target each catalog image opens as a `PalettedImage`. The UICT2 catalog carries
+its GSTX header and tables, loading checks every CLUT and page checksum, and the pages
+become PSMT8/PSMT4 textures in the texture owner beside one PSMCT32 CLUT texture per
+image. They upload on first use and never stream. A triangle takes the placement that
+holds its UV centroid, samples with region clamp on that placement's page rectangle and
+reloads its CLUT with every TEX0 (CLD 1).
+
+The first runs found two faults the host suite could not, since it stubs GS submission
+and has no `PalettedImage` harness:
+
+- The first font draw stopped at `invalid GS texture binding`
+  (`20261021T023146Z_retail_e73e2175a96d`). `gs::Upload` ran the draw-time check, which
+  requires a CLUT address inside texture VRAM, but a page uploads before any draw names
+  its CLUT. Uploads now check only the layout and address; draws still check the CLUT
+  block and the clamp region.
+- The first dialog frame stopped at its first space
+  (`20261021T023910Z_movies_f3597940d81f`). Native edit text draws a one-texel quad even
+  for an empty glyph, and the English conversion had given the space and no-break space
+  no placement. They now own the ring their quad samples (fully transparent), and the
+  lookup accepts centroids up to half a texel outside the image, because BankGothic's
+  space sits at s=0.
+
+| Scenario (debug; NTSC and PAL identical) | Images | Pages | CLUTs | Pixel bytes | Metadata bytes | Uploads |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Font screen | 5 | 5 | 5 | 102,400 | 26,220 | 12 after the five fonts, none on the warm reload |
+| Inactive shell and dialog | 7 | 11 | 31 | 1,163,264 | 49,384 | 4 |
+| Executing shell with the Doom 3 cover | 8 | 12 | 32 | 1,249,280 | 51,136 | 4 |
+| Dialog drawn in full | 6 | 7 | 9 | 303,104 | 30,974 | 7 at every capture of all three loads |
+
+Every counter equals the value the runners compute from the cooked files, and no run
+evicts a texture. Pixel bytes count CLUT texels unpadded; the texture owner charges
+each CLUT texture whole 8 KiB pages (327,680 owned bytes for the dialog's six images).
+The dialog's uploads (its two pages, its CLUT texture and one font with its CLUT) put
+229,376 bytes of paletted texels in GS memory beside the console's own textures.
+
+| Ledger (debug, NTSC = PAL; requested / backing [/ allocations]) | RGBA32 pages (2026-10-20 runs) | Paletted GSTX |
+| --- | ---: | ---: |
+| Font screen, warm | 4,388,939 / 4,491,628 | 2,721,623 / 2,825,048 |
+| Font screen peak; arena | 4,392,270 / 4,495,220; 4,736,667 | 2,786,855 / 2,884,740; 2,899,995 |
+| Inactive movies peak; arena | 7,363,353 / 7,557,028; 7,698,075 | 6,791,425 / 6,986,752; 7,012,379 |
+| Executing shell peak; arena | 11,137,858 / 11,839,616; 12,109,467 | 10,657,582 / 11,361,276; 11,456,539 |
+| Dialog at rest | 5,690,707 / 5,827,180 / 3,281 | 4,232,661 / 4,370,244 / 3,299 |
+| Every dialog release | 5,443,407 / 5,547,524 / 2,531 | 3,985,361 / 4,090,588 / 2,549 |
+| Dialog peak; arena | 6,079,651 / 6,183,080; 6,399,643 | 4,412,335 / 4,516,500; 4,710,427 |
+| Full shutdown | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The font screen's peak is now the visible console's own startup peak. The dialog draws
+about 750 triangles a frame; a frame takes about 55–60 ms in debug PCSX2 (the font
+screen holds 60 frames per second), where streamed pages took about 1.6 s, and the
+dialog's three-load session finishes in 17–18 s instead of about five minutes. Nothing
+is read or uploaded after the first frames. PCSX2 charges EE instructions and data
+moved, not GS-internal cost such as the per-triangle CLUT loads, so this is not a
+hardware frame rate.
+
+Captures were inspected in both standards. Fonts and the dialog read correctly, which
+confirms the PSMT4 nibble order and the CLUT tile mapping for tiles 0–3; the shell's 22
+CLUTs exercise the rest once it draws. Against the 2026-10-20 RGBA dialog captures, 1.8%
+of pixels differ by more than 8 levels (mean 0.62 of 255), all on the title, question and
+option text, where the halved thin glyphs are softer and up to a pixel off; the band,
+glow and masks match closely. Halved thin fonts have lost their solid stroke interior
+(Sarasori's alpha never exceeds 243, Arial Narrow's 253), so font and movie probes
+accept any value the converted texture can produce within one texel. The user's visual
+pass over `build/ui-previews` decides which images and fonts get their resolution back.
+
+| Gate (debug) | Archives |
+| --- | --- |
+| `test-retail-ui`: NTSC, PAL, five invalid resources | `20261021T025157Z_retail_69f4c9226ef6` to `20261021T025247Z_retail_7cd2782e4e31` |
+| `test-retail-movies`: inactive, executing and dialog NTSC/PAL, 13 negatives | `20261021T024604Z_movies_86c3b9c0e5f5` to `20261021T024943Z_movies_7f18542e6f71` (dialog `20261021T024819Z_movies_1c50d14daada`, `20261021T024837Z_movies_c470fd8dc332`) |
+| `test-ui`: NTSC, PAL, twelve invalid resources | `20261021T025316Z_ui_0fcebda08d23` to `20261021T025451Z_ui_2fb32179a049` |
+| `test-renderer`: 19 cases | `20261021T025457Z_smoke_c185602ec8c442f7` to `20261021T025610Z_smoke_cee14b6713814300` |
+| `test-console` | `20261021T025617Z_console_5afe9138b038`, `20261021T025623Z_console_e5d2f3ebb740` |
+| `test-headless` | `20261021T025634Z_headless_bcecd761c2a9`, `20261021T025638Z_headless_73e3eb77e606` |
+| `test-retail-boot` | `20261021T025647Z_headless_7177da50197f` |
+
+The authored UI's warm unload is 3,842,204 / 3,943,156 / 2,459, 16 requested bytes above
+the full-dialog runs, consistent with `PageImage`'s new virtual base class; the console,
+headless and retail boot ledgers are unchanged. Runs between the two fixes passed and
+are kept (`20261021T023352Z_retail_0059e786f6a7` to `20261021T023818Z_movies_99d11254575e`).
+`make test-host` passes 354 Python regressions, among them new GSTX reader, converter
+command-line and job-builder tests, plus the C++ sanitizer harnesses, which include the
+converter library and the target's GSTX admission against converter output. Release
+production and the release core image build; release gates were not run. Production
+`PT_LOAD` is 11,177,957 debug / 11,614,821 release bytes (+10,880 / +10,624), with 376
+objects (`gstx_format.o` and `ui_paletted_image.o` added), no unresolved symbols and no
+fixtures; the core test image is 2,150,896 / 2,235,504 bytes.

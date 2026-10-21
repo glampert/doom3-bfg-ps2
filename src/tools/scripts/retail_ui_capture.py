@@ -1,39 +1,70 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: retail_ui_capture.py
-# Brief: Derive conservative font ink/hole probes from local checked retail glyphs and cooked pixels.
+# Brief: Derive conservative font ink/hole probes from local checked retail glyphs and converted pixels.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
 import hashlib
 import math
 from pathlib import Path
-import struct
 
 from renderer_capture import PIXEL_TOLERANCE, read_tga
+import ui_gstx
 
 
 BACKGROUND = (16, 24, 40)
 TEXT = (240, 248, 255)
 PHRASE = "Campaign"
+# The weakest coverage an ink probe may bound: 48/255 still lifts every channel of TEXT far
+# beyond PIXEL_TOLERANCE from the background. Halved thin fonts have little solid interior.
+INK_MINIMUM = 48
 
 
 class Atlas:
+    """A converted GSTX font atlas, sampled as the target samples it (logical texel centers)."""
+
     def __init__(self, path: Path):
-        self.raw = path.read_bytes()
-        magic, version, self.width, self.height, extent, gutter, self.count, reserved = struct.unpack_from("<8I", self.raw)
-        if (magic, version, extent, gutter, reserved) != (0x47504955, 1, 256, 1, 0):
-            raise ValueError("retail capture oracle requires UIPG1")
-        self.columns = (self.width + 253) // 254
-        if len(self.raw) != 32 + self.count * 8 + self.count * 262144:
-            raise ValueError("retail capture oracle image length mismatch")
+        self.texture = ui_gstx.read_texture(path)
+        self.width, self.height = self.texture.width, self.texture.height
 
     def alpha(self, x: int, y: int) -> int:
         x, y = max(0, min(self.width - 1, x)), max(0, min(self.height - 1, y))
-        column, row = x // 254, y // 254
-        page = row * self.columns + column
-        offset, _ = struct.unpack_from("<2I", self.raw, 32 + page * 8)
-        return self.raw[offset + (((y - row * 254 + 1) * 256 + x - column * 254 + 1) * 4) + 3]
+        return self.texture.alpha(x, y)
+
+    def alpha_bounds(self, x: int, y: int):
+        """Alpha sampling can return within one texel of texel (x, y)'s center: the probe's
+        projection tolerance, independent of the target's bilinear rounding at stroke edges."""
+        return self.texture.alpha_bounds(x - 0.5, y - 0.5, x + 1.5, y + 1.5)
+
+
+def blend(ink, opacity: float, backdrop=BACKGROUND) -> tuple:
+    return tuple(round(channel * opacity + under * (1 - opacity)) for channel, under in zip(ink, backdrop))
+
+
+def ink_interval(ink, low: float, high: float, backdrop=BACKGROUND) -> tuple[tuple, tuple]:
+    """Per-channel framebuffer range for coverage between low and high (0..1)."""
+    first, second = blend(ink, low, backdrop), blend(ink, high, backdrop)
+    return tuple(map(min, first, second)), tuple(map(max, first, second))
+
+
+def glyph_candidates(atlas: Atlas, glyph: dict) -> dict:
+    """Interior texels of a glyph as ink (strongest lower bound first) or holes (no coverage)."""
+    candidates = {"ink": [], "hole": []}
+    for y in range(2, glyph["height"] - 2):
+        for x in range(2, glyph["width"] - 2):
+            bounds = atlas.alpha_bounds(glyph["s"] + x, glyph["t"] + y)
+            if bounds is None:
+                continue
+            if bounds[1] == 0:
+                candidates["hole"].append((0, y, x, bounds))
+            elif bounds[0] >= INK_MINIMUM:
+                candidates["ink"].append((-bounds[0], y, x, bounds))
+    return {kind: [entry[1:] for entry in sorted(rows)] for kind, rows in candidates.items()}
+
+
+def within(actual, probe: dict, tolerance: int = PIXEL_TOLERANCE) -> bool:
+    return all(low - tolerance <= value <= high + tolerance for value, low, high in zip(actual, probe["low"], probe["high"]))
 
 
 def _image_for_font(manifest: dict, font_path: str) -> str:
@@ -56,33 +87,30 @@ def expected_probes(manifest: dict, source: Path, font_index: int, standard: str
     atlas = Atlas(source / manifest["cooked"]["runtime_images"][_image_for_font(manifest, font_path)]["path"])
     glyphs = {glyph["codepoint"]: glyph for glyph in details["glyphs"]}
     height = 448 if standard == "ntsc" else 512
-    probes = [{"name": "background", "x": 8, "y": height - 8, "expected": BACKGROUND}]
+    probes = [{"name": "background", "x": 8, "y": height - 8, "expected": BACKGROUND, "low": BACKGROUND,
+               "high": BACKGROUND}]
     pen = 48
     for ordinal, character in enumerate(PHRASE):
         glyph = glyphs[ord(character)]
-        selected = {"ink": [], "hole": []}
-        # The full-size row preserves enough source pixels for a conservative 3x3
-        # neighborhood, independent of the target's bilinear rounding at edges.
-        for y in range(2, glyph["height"] - 2):
-            for x in range(2, glyph["width"] - 2):
-                alpha = [atlas.alpha(glyph["s"] + x + dx, glyph["t"] + y + dy)
-                         for dy in range(-1, 2) for dx in range(-1, 2)]
-                low, high = min(alpha), max(alpha)
-                kind = "ink" if low >= 192 and high - low <= 8 else "hole" if high == 0 else None
-                if kind is None or len(selected[kind]) >= 2:
-                    continue
+        # The full-size row maps each glyph texel to about one pixel. A probe accepts any color
+        # the converted texture can produce within one texel of its projected position.
+        for kind, candidates in glyph_candidates(atlas, glyph).items():
+            selected = []
+            for y, x, (low, high) in candidates:
+                if len(selected) == 2:
+                    break
                 virtual_x = pen + glyph["left"] + x + 1
                 virtual_y = 350 - glyph["top"] + y + 1
                 screen_x = int(virtual_x * 512 / 640)
                 screen_y = int(virtual_y * height / 480)
-                if any(abs(screen_x - old[0]) < 4 and abs(screen_y - old[1]) < 4 for old in selected[kind]):
+                if any(abs(screen_x - old[0]) < 4 and abs(screen_y - old[1]) < 4 for old in selected):
                     continue
-                selected[kind].append((screen_x, screen_y))
-                opacity = sum(alpha) / (len(alpha) * 255)
-                expected = tuple(round(ink * opacity + backdrop * (1 - opacity))
-                                 for ink, backdrop in zip(TEXT, BACKGROUND)) if kind == "ink" else BACKGROUND
-                probes.append({"name": f"glyph-{ordinal}-{character}-{kind}-{len(selected[kind])}",
-                               "x": screen_x, "y": screen_y, "expected": expected})
+                selected.append((screen_x, screen_y))
+                darkest, brightest = ink_interval(TEXT, low / 255, high / 255)
+                probes.append({"name": f"glyph-{ordinal}-{character}-{kind}-{len(selected)}",
+                               "x": screen_x, "y": screen_y,
+                               "expected": blend(TEXT, atlas.alpha(glyph["s"] + x, glyph["t"] + y) / 255),
+                               "low": darkest, "high": brightest})
         pen += glyph["advance"]
     if sum("-ink-" in entry["name"] for entry in probes) < 4:
         raise ValueError("retail capture has insufficient conservative source ink probes")
@@ -99,12 +127,12 @@ def verify(path: Path, manifest: dict, source: Path, font_index: int, standard: 
     for probe in expected_probes(manifest, source, font_index, standard):
         offset = (probe["y"] * width + probe["x"]) * 3
         actual = tuple(pixels[offset:offset + 3])
-        passed = all(abs(value - target) <= PIXEL_TOLERANCE for value, target in zip(actual, probe["expected"]))
+        passed = within(actual, probe)
         check = {**probe, "actual": actual, "passed": passed}
         checks.append(check)
         if not passed:
             raise ValueError(f"retail font {font_index} {probe['name']} at {probe['x']},{probe['y']}: "
-                             f"expected {probe['expected']}, got {actual}")
+                             f"expected {probe['low']}..{probe['high']}, got {actual}")
     rows = []
     for scale, baseline in ((0.25, 120), (0.5, 220), (1, 350)):
         top = max(0, int((baseline - 100 * scale) * height / 480))

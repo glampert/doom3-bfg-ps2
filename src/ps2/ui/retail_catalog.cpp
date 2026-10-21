@@ -1,12 +1,12 @@
 // ================================================================================================
 // File: retail_catalog.cpp
-// Brief: Reject malformed catalog offsets, identities and page descriptors before native allocation.
+// Brief: Reject malformed catalog offsets, identities and GSTX texture descriptors before native allocation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/ui/retail_catalog.h"
+#include "ps2/renderer/gstx_format.h"
 #include "ps2/renderer/ui_font_format.h"
-#include "ps2/renderer/ui_page_format.h"
 
 #include <cstring>
 
@@ -63,9 +63,12 @@ bool Path(const char * value)
     }
 }
 
+// "assets/" + 64 lowercase hex digits (the content's SHA-256) + suffix.
 bool AssetPath(const char * value, const char * suffix)
 {
-    if (value == nullptr || std::strlen(value) != 75 || std::strncmp(value, "assets/", 7) != 0 ||
+    const std::size_t suffixLength = std::strlen(suffix);
+
+    if (value == nullptr || std::strlen(value) != 71 + suffixLength || std::strncmp(value, "assets/", 7) != 0 ||
         std::strcmp(value + 71, suffix) != 0)
     {
         return false;
@@ -254,7 +257,7 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
     const auto aliases = Word(data, 24);
     const auto materials = Word(data, 28);
 
-    if (Word(data, 0) != 0x54434955U || Word(data, 4) != 1 || Word(data, 8) != length || Word(data, 12) != 1 ||
+    if (Word(data, 0) != 0x54434955U || Word(data, 4) != 2 || Word(data, 8) != length || Word(data, 12) != 1 ||
         Word(data, 60) != 0 || images == 0 || images > kMaxImages || fonts == 0 || fonts > kMaxFonts ||
         aliases == 0 || aliases > kMaxAliases || materials > kMaxMaterials || Word(data, 32) != kHeaderBytes ||
         Word(data, 36) != kHeaderBytes + images * kImageBytes || Word(data, 40) != Word(data, 36) + fonts * kFontBytes ||
@@ -267,7 +270,7 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
     const auto strings = Word(data, 52);
     const auto stringBytes = Word(data, 56);
 
-    if (descriptors > length || strings < descriptors || strings > length || strings - descriptors > 16384 ||
+    if (descriptors > length || strings < descriptors || strings > length || strings - descriptors > 65536 ||
         stringBytes == 0 || stringBytes > 65536 || stringBytes != length - strings || data[length - 1] != 0)
     {
         return false;
@@ -300,33 +303,20 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
         const auto start = Word(data, offset + 20);
         const auto size = Word(data, offset + 24);
 
-        if (start != next || size < kPageHeaderBytes + kPageRecordBytes || size > strings - next || Word(data, offset + 28) != 0)
+        if (start != next || size < gstx::kHeaderBytes || size > strings - next || Word(data, offset + 28) != 0)
         {
             return false;
         }
 
         ImageRecord image;
         candidate.GetImage(i, image);
-        PageHeader header;
-        std::uint8_t rawHeader[kPageHeaderBytes];
-        std::memcpy(rawHeader, image.descriptor, sizeof(rawHeader));
+        // The descriptor is the converted texture's complete header and tables.
+        gstx::Header header;
 
-        if (!Path(image.name) || !AssetPath(image.path, ".uip") || !DecodePageHeader(rawHeader, image.fileBytes, header) ||
-            header.width != image.width || header.height != image.height || size != kPageHeaderBytes + header.pageCount * kPageRecordBytes)
+        if (!Path(image.name) || !AssetPath(image.path, ".gstx") || !gstx::DecodeTables(image.descriptor, size, header) ||
+            header.fileBytes != image.fileBytes || header.logicalWidth != image.width || header.logicalHeight != image.height)
         {
             return false;
-        }
-
-        for (std::uint32_t page = 0; page < header.pageCount; ++page)
-        {
-            PageRecord record;
-            std::uint8_t rawRecord[kPageRecordBytes];
-            std::memcpy(rawRecord, image.descriptor + kPageHeaderBytes + page * kPageRecordBytes, sizeof(rawRecord));
-
-            if (!DecodePageRecord(rawRecord, header, page, record))
-            {
-                return false;
-            }
         }
 
         for (std::uint32_t prior = 0; prior < i; ++prior)
@@ -344,7 +334,7 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
         pages += header.pageCount;
     }
 
-    if (next != strings || pages > 1024)
+    if (next != strings || pages > 256)
     {
         return false;
     }

@@ -93,3 +93,8 @@ Only *implicit* conversions warn. An explicit `static_cast` is the fix almost ev
 - `-Wduplicated-branches`: `GS_PSM_32 == 0`, so `pal ? GS_PSM_32 : 0` trips it.
 - Don't include `io_common.h` in C++: it trips the "fio/fileXio directly" `#error` in the
   clangd view. Define the few `FIO_O_*` constants you need.
+- A backend unit that includes `<idlib/precompiled.h>` needs the `ENGINE_BRIDGE_INCS`
+  override in the Makefile's per-object list (beside `ui_page_image.o`), which makes the
+  engine headers system headers. Without it the core test build compiles id's headers
+  under `-Werror` and fails in `sys_types.h`/`sys_public.h`, although production builds,
+  whose resident-support group already has the seam, pass.

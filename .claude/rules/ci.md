@@ -10,8 +10,9 @@ paths:
   editor settings: the source audit, every production object and the resident link with its
   registration, map and test-isolation checks. It is a compile and link check. It keeps no
   ELF and builds no test executable; host tests and PCSX2 gates stay local.
-- **`tools.yml`** builds the C++ host tools (`src/tools/CMakeLists.txt`) alone, with GCC,
-  Apple clang and MSVC, when they or their CMake project change. It keeps the Windows `.exe`
+- **`tools.yml`** builds the C++ host tools (`src/tools/CMakeLists.txt`: the shared `assets`
+  library, `asset_reexport` and `resource_unpack`) alone, with GCC, Apple clang and MSVC, when
+  they or their CMake project change. It keeps the Windows `.exe`
   files as an artifact, `host-tools-windows-x64`, for 90 days. Its first run (2026-10-19,
   `232d758`) passed on all three: GCC 13.3 in 12 s, MSVC 19.51 in 34 s, and Apple clang 21
   in 20 s after ten minutes waiting for a macOS runner.

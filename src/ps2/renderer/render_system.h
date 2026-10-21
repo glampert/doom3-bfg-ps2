@@ -30,6 +30,20 @@ bool TexturedRect(tex::Handle texture, int x, int y, int width, int height, int 
                   gs::Color color = { 255, 255, 255, 255 });
 bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Color color, gs::BlendMode blend);
 bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triangle, gs::BlendMode blend);
+
+// One placement of a paletted page: the CLUT is a block of a separate CLUT texture, and sampling
+// clamps to the placement's texels so neighbors packed with other palettes are never read.
+struct PalettedDraw
+{
+    tex::Handle page;
+    tex::Handle cluts;
+    u32 clutBlock = 0;
+    u16 regionMinU = 0;
+    u16 regionMaxU = 0;
+    u16 regionMinV = 0;
+    u16 regionMaxV = 0;
+};
+bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & triangle, gs::BlendMode blend);
 void EndFrame(); // Immediate completed-frame presentation; deferred mode is a later gate.
 u32 FrameCount();
 gs::DrawContext LastPresentedContext();

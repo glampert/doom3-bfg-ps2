@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: texture_layout.cpp
-// Brief: Separate logical sampling extents from page-safe PSMCT32 upload storage.
+// Brief: Separate logical sampling extents from page-safe PSMCT32 storage; size paletted pages exactly.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -59,7 +59,7 @@ static bool CanonicalLayout(int width, int height, Layout & output)
 static bool IsCanonical(const Layout & layout)
 {
     Layout expected{};
-    return CanonicalLayout(layout.width, layout.height, expected) &&
+    return layout.format == PixelFormat::Rgba32 && CanonicalLayout(layout.width, layout.height, expected) &&
            (layout.potWidth == expected.potWidth) && (layout.potHeight == expected.potHeight) &&
            (layout.stridePixels == expected.stridePixels) &&
            (layout.storageHeight == expected.storageHeight) && (layout.bytes == expected.bytes) &&
@@ -99,6 +99,29 @@ bool MakeLayout(int width, int height, const Sampler & sampler, Layout & output)
         return false;
     }
     return CanonicalLayout(width, height, output);
+}
+
+bool MakeIndexedLayout(int width, int height, PixelFormat format, Layout & output)
+{
+    const int pageHeight = format == PixelFormat::Index8 ? 64 : 128;
+
+    if ((format != PixelFormat::Index8 && format != PixelFormat::Index4) || width < 128 || width > kMaxDimension ||
+        width % 128 != 0 || height < pageHeight || height > kMaxDimension || height % pageHeight != 0)
+    {
+        return false;
+    }
+
+    Layout layout{};
+    layout.width = width;
+    layout.height = height;
+    layout.potWidth = PowerOfTwoExtent(width, layout.widthLog2);
+    layout.potHeight = PowerOfTwoExtent(height, layout.heightLog2);
+    layout.stridePixels = width;
+    layout.storageHeight = height;
+    layout.bytes = static_cast<std::uint32_t>(format == PixelFormat::Index8 ? width * height : width * height / 2);
+    layout.format = format;
+    output = layout;
+    return true;
 }
 
 bool PadRgba32(const Layout & layout, const void * source, size_t sourceBytes,

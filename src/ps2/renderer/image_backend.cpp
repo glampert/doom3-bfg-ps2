@@ -9,6 +9,7 @@
 #include "ps2/renderer/null_render.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/ui_page_image.h"
+#include "ps2/renderer/ui_paletted_image.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/authored_ui_data.h"
@@ -22,7 +23,7 @@ struct idImage::backendState_t
 {
     ps2::tex::Handle texture;
     int storageBytes;
-    ps2::ui::PageImage * pages = nullptr;
+    ps2::ui::PagedImage * pages = nullptr;
 };
 
 namespace
@@ -165,57 +166,39 @@ PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::retail::ImageReco
 {
     if (!ps2::ui::retail::IsInitialized() || ps2::rs::FrameStarted() || backendState != nullptr || !IsRetailImage(this))
     {
-        ps2::FatalError("invalid retail UI page load ownership");
+        ps2::FatalError("invalid retail UI image load ownership");
     }
 
-    if (!s_pageCache.IsInitialized() && !s_pageCache.Init(6, { ps2::tex::Filter::Linear }))
-    {
-        ps2::FatalError("retail UI shared page budget unavailable");
-    }
-
-    bool outerGutter = false;
+    bool font = false;
     const auto & catalog = ps2::ui::retail::GetCatalog();
 
     for (std::uint32_t index = 0; index < catalog.FontCount(); ++index)
     {
-        ps2::ui::retail::FontRecord font;
+        ps2::ui::retail::FontRecord record;
         ps2::ui::retail::ImageRecord image;
-        catalog.GetFont(index, font);
-        catalog.GetImage(font.imageIndex, image);
-        outerGutter = outerGutter || strcmp(image.name, resource.name) == 0;
+        catalog.GetFont(index, record);
+        catalog.GetImage(record.imageIndex, image);
+        font = font || strcmp(image.name, resource.name) == 0;
     }
 
+    // The converted GSTX texture is admitted by the header and tables the catalog carries, then
+    // stays resident as paletted pages until the image is purged.
     char path[256];
     idStr::snPrintf(path, static_cast<int>(sizeof(path)), "retail/%s", resource.path);
-    auto * const pages = new (TAG_RENDER) ps2::ui::PageImage;
-    bool valid = pages->Open(fileSystem->RelativePathToOSPath(path), s_pageCache, outerGutter);
+    auto * const pages = new (TAG_RENDER) ps2::ui::PalettedImage;
+    const bool valid = pages->Open(fileSystem->RelativePathToOSPath(path), resource.descriptor, resource.descriptorBytes, resource.fileBytes);
     const auto & header = pages->GetHeader();
-    const u32 pageCount = static_cast<u32>((resource.descriptorBytes - ps2::ui::kPageHeaderBytes) / ps2::ui::kPageRecordBytes);
-    valid = valid && header.width == resource.width && header.height == resource.height &&
-            header.fileBytes == resource.fileBytes && header.pageCount == pageCount;
 
-    if (valid)
-    {
-        const auto * const records = pages->GetRecords();
-
-        for (u32 page = 0; page < pageCount; ++page)
-        {
-            std::uint8_t raw[ps2::ui::kPageRecordBytes];
-            memcpy(raw, resource.descriptor + ps2::ui::kPageHeaderBytes + page * ps2::ui::kPageRecordBytes, sizeof(raw));
-            ps2::ui::PageRecord record;
-            valid = valid && ps2::ui::DecodePageRecord(raw, header, page, record) &&
-                    record.offset == records[page].offset && record.checksum == records[page].checksum;
-        }
-    }
-
-    if (!valid)
+    if (!valid || header.logicalWidth != resource.width || header.logicalHeight != resource.height)
     {
         delete pages;
-        ps2::FatalError("retail UI page profile mismatch: %s", resource.name);
+        ps2::FatalError("retail UI texture profile mismatch: %s", resource.name);
     }
 
+    // Nothing is shared between paletted images, so each reports its own pixels and tables.
+    const auto stats = pages->GetStats();
     backendState = new (ps2::heap::Alloc(sizeof(backendState_t), TAG_RENDER))
-    backendState_t{ {}, static_cast<int>(pageCount * sizeof(ps2::ui::PageRecord)), pages };
+    backendState_t{ {}, static_cast<int>(stats.cacheBytes + stats.metadataBytes), pages };
     opts = idImageOpts();
     opts.width = static_cast<int>(resource.width);
     opts.height = static_cast<int>(resource.height);
@@ -223,7 +206,7 @@ PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::retail::ImageReco
     opts.numLevels = 1;
     filter = TF_LINEAR;
     repeat = TR_CLAMP;
-    usage = outerGutter ? TD_FONT : TD_DEFAULT;
+    usage = font ? TD_FONT : TD_DEFAULT;
 }
 
 namespace ps2::render
@@ -292,7 +275,7 @@ void ValidateUiImage(const idImage * image)
     }
 }
 
-ui::PageImage * UiPageImage(const idImage * image)
+ui::PagedImage * UiPageImage(const idImage * image)
 {
     ValidateUiImage(image);
     return image->backendState->pages;

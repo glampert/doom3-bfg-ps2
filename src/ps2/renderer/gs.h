@@ -53,6 +53,14 @@ struct TextureBinding
     u32 address;
     tex::Layout layout;
     tex::Sampler sampler;
+    // Paletted layouts: the GS word address of a CSM1 PSMCT32 CLUT (16 or 256 entries).
+    u32 clutAddress = 0;
+    // When set, sampling clamps to this texel rectangle instead of the whole layout.
+    bool region = false;
+    u16 regionMinU = 0;
+    u16 regionMaxU = 0;
+    u16 regionMinV = 0;
+    u16 regionMaxV = 0;
 };
 
 bool Init(const Config & config);
@@ -62,7 +70,8 @@ int Width();
 int Height();
 u32 FixedVramBytes();
 FramebufferInfo GetFramebuffer(DrawContext context);
-void UploadRgba32(const TextureBinding & binding, const void * pixels);
+// Uploads a binding's complete storage: padded RGBA32, or PSMT8/PSMT4 index rows.
+void Upload(const TextureBinding & binding, const void * pixels);
 void TexturedRect(DrawContext context, const TextureBinding & binding, int x, int y, int width, int height,
                   int u0, int v0, int u1, int v1, Color color);
 // Coordinates exclude XYOFFSET and are already clipped, in GS 1/16 pixel/texel units.

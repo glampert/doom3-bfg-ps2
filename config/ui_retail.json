@@ -64,16 +64,30 @@
   "exclusions": [
     "No target menu, renderer or asset-provider activation in this host pipeline.",
     "Do not execute AVM1 during inspection or claim dynamic dependency closure.",
-    "Do not downscale artwork, change the theme or select demo-mode layout.",
+    "Do not change the theme or select demo-mode layout; downscaling and palettes follow the conversion policy.",
     "Intro movies, Mars cinematics, sound playback and save-indicator startup require explicit later gating.",
     "Campaign loading, online services, saves and Classic switching remain unavailable.",
     "Physical controller layout and device input remain later integration decisions."
   ],
-  "page_config": {
-    "extent": 256,
-    "gutter": 1,
-    "pixel_cache_budget_bytes": 2097152,
-    "resampling": "none",
-    "filtering": "Preserve source texels; internal gutters sample adjacent atlas pixels."
+  "conversion": {
+    "policy": {
+      "scale": 0.5,
+      "max_page_extent": 512,
+      "t4_max_rmse": 3.0,
+      "t4_max_error": 48,
+      "share_palettes": true,
+      "group8_max_rmse": 2.5,
+      "group8_max_increase": 0.5,
+      "group4_max_rmse": 3.5,
+      "group4_max_increase": 0.75,
+      "group_max_error": 48,
+      "alpha_levels": 16
+    },
+    "conversion_only": [
+      "generated/swf/hud.bswf",
+      "generated/swf/pda.bswf",
+      "generated/swf/pause.bswf",
+      "generated/swf/loading/default.bswf"
+    ]
   }
 }

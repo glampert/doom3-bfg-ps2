@@ -36,10 +36,11 @@ general image loading, retail menus and VU output remain subsequent gates.
   at most one edge can be created per index. This preserves native edge matching and
   avoids multi-megabyte temporary allocations for tiny CPU models.
 
-## Retail host page contract
+## Authored page contract (UIPG)
 
-The 2D-5 host cooker preserves source pixels in 256×256 RGBA pages with a 254×254
-interior and one-texel gutter. Internal gutters sample neighboring full-atlas pixels;
+The authored native SWF and renderer test stream UIPG pages; the retail cook used them
+until the paletted textures below replaced them. The page cooker preserves source
+pixels in 256×256 RGBA pages with a 254×254 interior and one-texel gutter. Internal gutters sample neighboring full-atlas pixels;
 clamping each tile to its own edge changes bilinear filtering at seams. Clamp only
 the original atlas's outer boundary and unused padding. Each page records a source
 rectangle and affine global-normalized-UV to page-UV map; split/clip geometry at page
@@ -207,7 +208,7 @@ uses the full resident ELF and `run_console.py`, without importing these units i
 
 The image-allocation details in this section describe the initial 2026-10-15
 direct-texture slice. Current authored bitmap/font binding uses shared UIPG pages,
-described under Retail host page contract above; additive/convex-mask additions
+described under Authored page contract above; additive/convex-mask additions
 follow this section. Keep the initial captures as historical acceptance evidence.
 
 - Native SWF uses a bounded normal-blend scope around its existing GUI calls. The
@@ -314,17 +315,64 @@ acceptance.
 The original dialog draws through native `idSWF::Render` with the existing adapters:
 bitmap fills via the shared page cache, `guiSolid` fills over the owned white image,
 normal and scoped additive blends, convex masks and native glyph quads with text
-strokes. No new GS path was needed. Its cost is page streaming: the 1152×596 dialog
-atlas spans 15 RGBA32 pages (5×3), and two fonts add theirs, while the retail profile
-shares six linear slots. Drawing order interleaves images and glyphs, so LRU misses
-about 51 pages per frame (about 890 triangles, 736 page hits). Each miss reads and
-checks 256 KiB from HostFs, about 31 ms in PCSX2, so a frame takes about 1.6 s.
+strokes. No new GS path was needed. With RGBA32 pages its cost was page streaming: the
+1152×596 dialog atlas spans 15 RGBA32 pages (5×3), and two fonts add theirs, while the
+retail profile shared six linear slots. Drawing order interleaves images and glyphs, so
+LRU missed about 51 pages per frame (about 890 triangles, 736 page hits). Each miss read
+and checked 256 KiB from HostFs, about 31 ms in PCSX2, so a frame took about 1.6 s.
 
 More slots cannot fix this. GS memory left after the NTSC/PAL framebuffers holds about
 ten 256 KiB pages, below the dialog's working set of roughly 20. Shrinking the pages
 (paletted CLUT formats, or downscaling art the 512-wide screen cannot resolve) is the
 real fix; the shell atlas alone (60 of the profile's 143 pages) makes it mandatory.
-These are PCSX2 HostFs costs, not hardware storage or GS fill measurements.
+These are PCSX2 HostFs costs, not hardware storage or GS fill measurements. The
+paletted textures below implement that fix: about 750 triangles and 60 ms per debug
+PCSX2 frame, with no file reads or uploads after the first frames.
+
+## Doom paletted UI textures (GSTX)
+
+Retail UI images now load as converted GSTX textures (`ui_paletted_image.*`,
+`gstx_format.*`; layout in `src/tools/assets/gstx.h`). The debug emulator gates accepted
+them on 2026-10-21 (PORT_STATUS); native PCSX2 captures confirm the layouts below as far
+as noted.
+
+- **Pages** are PSMT8 or PSMT4 textures with no padding: widths in multiples of 128
+  (TBW = width/64 must be even for both), heights in whole GS pages (64 rows for PSMT8,
+  128 for PSMT4), at most 512×512. The index data is exactly the VRAM footprint and
+  uploads as one `draw_texture_transfer` rectangle; the SDK sizes PSMT8/PSMT4 transfers
+  by bits per pixel, matching the chain preflight. PSMT4 stores the even texel in the
+  low nibble, as the converter packs it: font and dialog captures confirm it.
+- **CLUTs** of one image share a 64-texel-wide PSMCT32 texture of 16×16 tiles, four per
+  row. Tile k starts at block `(k / 8) × 32 + {0, 4, 16, 20, 8, 12, 24, 28}[k % 8]`: within
+  a 64×32 PSMCT32 page the four blocks of each 16×16 tile are consecutive in the
+  `[0 1; 2 3]` order a CSM1 load reads. A 16-entry CLUT uses its tile's first 8×2 texels;
+  256-entry CLUTs are stored in CSM1 order (middle 8-entry blocks of every 32 swapped).
+  The CLUT texture goes through the RGBA path, so its alpha gets the same
+  `(a × 128 + 127) / 255` conversion; the converter snaps palette alpha so that lands
+  exactly on the intended GS level. Captures confirm tiles 0–3 (blocks 0, 4, 16, 20;
+  the dialog's two 256- and two 16-entry CLUTs); the second tile row and later CLUT
+  pages are first drawn by the shell (22 CLUTs).
+- Every textured primitive writes TEX0 with the CLUT block, CPSM PSMCT32, CSM1, CSA 0
+  and **CLD 1**, so each write reloads the CLUT; the CLUT texture can move with
+  residency. Per-triangle CLUT loads are a GS cost PCSX2 does not charge; a CBP-compare
+  mode can replace them once residency is stable.
+- A page and its CLUT texture bind together (`tex::BindPair`): neither may evict the
+  other, and both addresses are final before either upload.
+- `gs::Upload` checks only the texels' layout and address; draws add the CLUT block and
+  clamp region. A page uploads before any draw names its CLUT, so applying the draw
+  checks to uploads rejected the first paletted page on the target. Host harnesses
+  stub GS submission and never run either check.
+- A triangle picks its placement by the UV centroid, maps source to page texels and
+  samples with region clamp (CLAMP mode 2) on the placement's page rectangle, so
+  bilinear taps never reach a neighbor packed with another palette. Native half-texel
+  glyph expansion stays inside the converter's one-texel glyph ring.
+- Native edit text draws a quad for **empty glyphs** too (`glyph.width + 1.0f`): a space
+  or no-break space covers half a texel around its 0×0 glyph, and its triangle centroids
+  fall a sixth of a texel either side. Their placements match the whole ring, and the
+  lookup accepts centroids up to half a texel outside the image (BankGothic's space is at
+  s=0). Skipping empty glyphs stopped the first dialog frame at its first space.
+- Load checks the catalog's tables and every CLUT/page FNV before publication; nothing
+  streams afterwards. The owner keeps the EE copy for re-upload after VRAM eviction.
 
 ## Retail UI page format survey (2026-10-20)
 

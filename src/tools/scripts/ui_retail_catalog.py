@@ -5,12 +5,14 @@
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
-"""UICT1 contains checked image descriptors, native font identities and layout metrics.
+"""UICT2 contains checked image descriptors, native font identities and layout metrics.
 
 This is a dependency catalog for a bounded native probe. It does not authorize
 retail movies, material expressions, masks, special blends or Shell startup.
 All integer fields are little endian. String offsets are relative to the final
-NUL-terminated ASCII pool; descriptor offsets are absolute file offsets.
+NUL-terminated ASCII pool; descriptor offsets are absolute file offsets. Each image
+descriptor is the header and tables of its GSTX file, so the target admits the exact
+converted texture before reading any pixel data.
 """
 
 import hashlib
@@ -19,23 +21,24 @@ import re
 import struct
 
 from ui_font import inspect_font
+from ui_gstx import Texture, fnv1a32
 from ui_material import canonical_material_name
-from ui_page_package import fnv1a32
 from ui_resources import logical_name
 
 
 MAGIC = 0x54434955
-VERSION = 1
+VERSION = 2
 FLAG_ENGLISH = 1
 MAX_BYTES = 128 * 1024
 MAX_IMAGES = 32
 MAX_FONTS = 8
 MAX_ALIASES = 128
 MAX_MATERIALS = 64
-MAX_TOTAL_PAGES = 1024
+MAX_TOTAL_PAGES = 256
 MAX_FONT_GLYPHS = 2048
 MAX_FONT_BYTES = 12 + MAX_FONT_GLYPHS * 14
-MAX_DESCRIPTOR_BYTES = 16 * 1024
+MAX_DESCRIPTOR_BYTES = 64 * 1024
+MAX_IMAGE_BYTES = 16 * 1024 * 1024
 HEADER = struct.Struct("<16I")
 IMAGE = struct.Struct("<8I")
 FONT = struct.Struct("<14I")
@@ -84,35 +87,14 @@ def _source(directory, asset, extension, maximum):
 
 
 def _descriptor(directory, asset):
-    path, length, digest = _source(directory, asset, ".uip", 0x7FFFFFFF)
-    width = _integer(asset.get("source_width"), "image width", 1, 16384)
-    height = _integer(asset.get("source_height"), "image height", 1, 16384)
-    count = ((width + 253) // 254) * ((height + 253) // 254)
-    if width * height * 4 > 64 * 1024 * 1024 or count > MAX_TOTAL_PAGES:
-        raise ValueError("UICT image dimensions/page count exceed bound")
-    descriptor_bytes = 32 + count * 8
-    if length != descriptor_bytes + count * 262144:
-        raise ValueError("UICT image file length mismatch")
-    with path.open("rb") as stream:
-        descriptor = stream.read(descriptor_bytes)
-    if len(descriptor) != descriptor_bytes:
-        raise ValueError("UICT image descriptor truncated")
-    expected_header = (0x47504955, 1, width, height, 256, 1, count, 0)
-    if struct.unpack_from("<8I", descriptor) != expected_header:
-        raise ValueError("UICT image header differs from cooked metadata")
-    for index in range(count):
-        offset, _ = struct.unpack_from("<2I", descriptor, 32 + index * 8)
-        if offset != descriptor_bytes + index * 262144:
-            raise ValueError("UICT image table offset mismatch")
-    checksum = hashlib.sha256()
-    total = 0
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(65536), b""):
-            total += len(block)
-            checksum.update(block)
-    if total != length or checksum.hexdigest() != digest:
+    path, length, digest = _source(directory, asset, ".gstx", MAX_IMAGE_BYTES)
+    raw = path.read_bytes()
+    if len(raw) != length or hashlib.sha256(raw).hexdigest() != digest:
         raise ValueError("UICT image asset SHA256/length mismatch")
-    return width, height, length, count, descriptor
+    texture = Texture(raw)
+    if (asset.get("logical_width"), asset.get("logical_height")) != (texture.width, texture.height):
+        raise ValueError("UICT image dimensions differ from cooked metadata")
+    return texture.width, texture.height, length, len(texture.pages), texture.descriptor(raw)
 
 
 def build_catalog(manifest, directory):
@@ -268,7 +250,7 @@ def build_catalog(manifest, directory):
     alias_data = b"".join(ALIAS.pack(intern(name), index) for name, index in sorted(aliases.items()))
     material_data = b"".join(MATERIAL.pack(intern(name), index) for name, index in sorted(materials.items()))
     if len(descriptors) > MAX_DESCRIPTOR_BYTES:
-        raise ValueError("UICT image descriptors exceed 16 KiB bound")
+        raise ValueError("UICT image descriptors exceed 64 KiB bound")
     strings_offset = descriptors_offset + len(descriptors)
     total_bytes = strings_offset + len(strings)
     if total_bytes > MAX_BYTES:
@@ -277,7 +259,7 @@ def build_catalog(manifest, directory):
                          len(materials), images_offset, fonts_offset, aliases_offset, materials_offset,
                          descriptors_offset, strings_offset, len(strings), 0)
     raw = bytes(header + image_data + font_data + alias_data + material_data + descriptors + strings)
-    return raw, {"format": "UICT1", "version": VERSION, "language": "english", "image_count": len(images),
+    return raw, {"format": "UICT2", "version": VERSION, "language": "english", "image_count": len(images),
                  "font_count": len(fonts), "alias_count": len(aliases), "material_count": len(materials),
                  "page_count": page_count, "descriptor_bytes": len(descriptors), "string_bytes": len(strings),
                  "material_policy": "implicit-image-default only; native wrappers provide one constant image stage",

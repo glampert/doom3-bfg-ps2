@@ -1,7 +1,8 @@
 # ================================================================================================
 # File: CMakeLists.txt
-# Brief: The C++ host tools (resource_unpack), built with the host's own C++20 compiler on macOS,
-# Linux or Windows (MSVC). One definition of their flags serves `make`, CI and every host.
+# Brief: The C++ host tools (resource_unpack, asset_reexport) and their shared asset library, built
+# with the host's own C++20 compiler on macOS, Linux or Windows (MSVC). One definition of their
+# flags serves `make`, CI and every host.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 #
@@ -47,10 +48,13 @@ endif()
 # checks it applies to the EE build. MSVC gets /W4 and keeps its default exception and RTTI
 # settings; the sources use neither, and the other compilers enforce that. To get past a
 # warning a newer compiler adds, configure with --compile-no-warning-as-error.
+# Floating-point contraction is off on every compiler (MSVC's /fp:precise already keeps it off),
+# so converted assets come out byte-identical whichever host cooks them.
 if(MSVC)
-    set(TOOL_OPTIONS /W4)
+    set(TOOL_OPTIONS /W4 /fp:precise)
 else()
     set(TOOL_OPTIONS
+        -ffp-contract=off
         -fno-exceptions -fno-rtti -fno-threadsafe-statics
         -Wall -Wextra -Wpedantic
         -Wshadow -Wdouble-promotion -Wconversion -Wsign-conversion
@@ -62,8 +66,7 @@ else()
     endif()
 endif()
 
-function(add_tool name)
-    add_executable(${name} ${ARGN})
+function(apply_tool_options name)
     target_compile_options(${name} PRIVATE ${TOOL_OPTIONS})
     set_target_properties(${name} PROPERTIES COMPILE_WARNING_AS_ERROR ON)
     if(MSVC)
@@ -72,8 +75,36 @@ function(add_tool name)
     endif()
 endfunction()
 
+function(add_tool name)
+    add_executable(${name} ${ARGN})
+    apply_tool_options(${name})
+    target_link_libraries(${name} PRIVATE assets)
+endfunction()
+
+# ------------------------------------------------------------------------------------------------
+# Shared asset library
+# ------------------------------------------------------------------------------------------------
+
+# Retail containers, image decoding and the GS texture conversion every re-export tool shares.
+# Sources include it as "assets/<file>.h" from this directory.
+add_library(assets STATIC
+    assets/bimage.cpp
+    assets/gs_texture.cpp
+    assets/gstx.cpp
+    assets/image.cpp
+    assets/json.cpp
+    assets/palette.cpp
+    assets/png.cpp
+    assets/rect_pack.cpp
+    assets/resources.cpp
+    assets/rle.cpp
+    assets/texture_convert.cpp)
+apply_tool_options(assets)
+target_include_directories(assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ------------------------------------------------------------------------------------------------
 # Tools
 # ------------------------------------------------------------------------------------------------
 
 add_tool(resource_unpack resource_unpack/main.cpp)
+add_tool(asset_reexport asset_reexport/main.cpp)

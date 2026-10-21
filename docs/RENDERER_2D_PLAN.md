@@ -141,9 +141,15 @@ quit message through the existing adapters: paged bitmap fills, `guiSolid` fills
 normal/additive blends, convex masks and native glyphs with text strokes. Full drawing
 is a third admission, granted only to movies whose preflight finds no outlines, screen
 blends or additive color; the dialog qualifies and the shell does not. The dialog
-streams about 51 of its RGBA32 atlas/font pages per frame through six slots, about
+streamed about 51 of its RGBA32 atlas/font pages per frame through six slots, about
 1.6 s per frame in PCSX2. See the
 [acceptance record](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice).
+
+**Paletted retail UI textures pass the debug gates on 2026-10-21.** The cook converts
+every retail UI image to GSTX with `asset_reexport`, and the target keeps their PSMT8/
+PSMT4 pages and CLUTs resident in the texture owner, so nothing streams per frame. The
+dialog draws a frame in about 60 ms in debug PCSX2 and its loaded heap is 1.46 MB
+smaller. See the [acceptance record](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21).
 
 ### Next selected work
 
@@ -158,6 +164,12 @@ The user selected this order on 2026-10-20, after the first full UI picture:
    [PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20):
    PSMT8 with per-image CLUTs plus selective halving is the measured UI candidate,
    and the retail declarations and scripts take 13.5 MB of heap before any map.
+   The user then chose paletted UI textures as the first lever: the host converter
+   `asset_reexport` writes GSTX textures (everything halved for a first pass,
+   English-only PSMT4 fonts, shared CLUTs, RLE) and the target keeps their pages
+   resident; see the [pipeline](RETAIL_UI_PIPELINE.md#converted-textures-gstx). It
+   passed the debug emulator gates on 2026-10-21. A visual pass decides which halved
+   images and fonts need their resolution back; the campaign-side levers remain.
 2. Close shell complex masks/strokes, screen blend 4, nonzero additive color
    transforms and dynamic artwork bindings, then produce a complete original shell frame.
 3. Connect bounded native offline PressStart/Root/Quit ownership and Common hooks,

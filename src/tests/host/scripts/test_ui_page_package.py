@@ -150,8 +150,9 @@ class RuntimePagePackageTests(unittest.TestCase):
         from inventory_retail_ui import _configuration
         config = {"schema_version": 1, "roots": ["generated/swf/shell.bswf"],
                   "language_ids": ["#str_test"], "material_names": ["_white"],
-                  "source_language": "strings/french.lang", "page_config": {
-                      "extent": 256, "gutter": 1, "pixel_cache_budget_bytes": 2097152, "resampling": "none"}}
+                  "source_language": "strings/french.lang",
+                  "conversion": {"policy": json.loads((ROOT / "config/ui_retail.json").read_text())["conversion"]["policy"],
+                                 "conversion_only": []}}
         path = self.root / "profile.json"
         path.write_text(json.dumps(config))
         with self.assertRaisesRegex(ValueError, "English strings/english.lang only"):

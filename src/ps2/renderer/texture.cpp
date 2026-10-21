@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: texture.cpp
-// Brief: Retain RGBA payloads under an EE cap and fence dirty uploads and LRU VRAM reuse.
+// Brief: Retain RGBA and index payloads under an EE cap and fence dirty uploads and LRU VRAM reuse.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -65,6 +65,98 @@ void ReleaseVram(Record & record)
     record.resident = false;
     record.allocation = {};
 }
+
+Record * FreeRecord()
+{
+    for (auto & record : s_records)
+    {
+        if (record.handle.id == 0)
+        {
+            return &record;
+        }
+    }
+
+    return nullptr;
+}
+
+Handle Publish(Record & record, const Layout & layout, Sampler sampler, void * pixels)
+{
+    if (s_nextId == 0xFFFFFFFFU)
+    {
+        FatalError("texture handle generation exhausted");
+    }
+
+    record = { { ++s_nextId }, layout, sampler, pixels, {}, 0, false, true };
+    s_stats.pixelBytes += static_cast<u32>(layout.bytes);
+
+    if (s_stats.pixelBytes > s_stats.peakPixelBytes)
+    {
+        s_stats.peakPixelBytes = s_stats.pixelBytes;
+    }
+
+    ++s_stats.textures;
+    return record.handle;
+}
+
+// Allocates VRAM, evicting least recently used textures other than `keep` after retiring every
+// queued TEX0 address. A new allocation is dirty until its payload is uploaded.
+bool MakeResident(Record & record, const Record * keep)
+{
+    if (record.resident)
+    {
+        return true;
+    }
+
+    if (record.layout.bytes > vram::GetStats().capacityBytes)
+    {
+        return false;
+    }
+
+    if (!vram::Allocate(record.layout.bytes, record.allocation))
+    {
+        Fence();
+
+        do
+        {
+            Record * oldest = nullptr;
+
+            for (auto & candidate : s_records)
+            {
+                if (candidate.resident && &candidate != keep && (oldest == nullptr || candidate.lastUse < oldest->lastUse))
+                {
+                    oldest = &candidate;
+                }
+            }
+
+            if (oldest == nullptr)
+            {
+                return false;
+            }
+
+            ReleaseVram(*oldest);
+            ++s_stats.evictions;
+        } while (!vram::Allocate(record.layout.bytes, record.allocation));
+    }
+
+    record.resident = true;
+    record.dirty = true;
+    return true;
+}
+
+gs::TextureBinding Upload(Record & record)
+{
+    const gs::TextureBinding binding = { static_cast<u32>(record.allocation.byteAddress / 4U), record.layout, record.sampler };
+
+    if (record.dirty)
+    {
+        gs::Upload(binding, record.pixels);
+        record.dirty = false;
+        ++s_stats.uploads;
+    }
+
+    record.lastUse = ++s_use;
+    return binding;
+}
 } // namespace
 
 bool IsInitialized()
@@ -106,15 +198,7 @@ Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t 
     {
         return {};
     }
-    Record * freeRecord = nullptr;
-    for (auto & record : s_records)
-    {
-        if (record.handle.id == 0)
-        {
-            freeRecord = &record;
-            break;
-        }
-    }
+    Record * const freeRecord = FreeRecord();
     if (freeRecord == nullptr)
     {
         return {};
@@ -129,24 +213,53 @@ Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t 
         heap::Free(pixels);
         return {};
     }
-    if (s_nextId == 0xFFFFFFFFU)
+    return Publish(*freeRecord, layout, sampler, pixels);
+}
+
+Handle CreateIndexed(int width, int height, PixelFormat format, Sampler sampler, const void * indices, size_t bytes)
+{
+    if (!s_initialized)
     {
-        FatalError("texture handle generation exhausted");
+        FatalError("texture creation before initialization");
     }
-    *freeRecord = { { ++s_nextId }, layout, sampler, pixels, {}, 0, false, true };
-    s_stats.pixelBytes += static_cast<u32>(layout.bytes);
-    if (s_stats.pixelBytes > s_stats.peakPixelBytes)
+
+    Layout layout = {};
+
+    // Paletted pages clamp by region at draw time; repeat would sample across placements.
+    if (!MakeIndexedLayout(width, height, format, layout) || sampler.wrapS != Wrap::Clamp || sampler.wrapT != Wrap::Clamp ||
+        indices == nullptr || bytes != layout.bytes || layout.bytes > s_budget - s_stats.pixelBytes)
     {
-        s_stats.peakPixelBytes = s_stats.pixelBytes;
+        return {};
     }
-    ++s_stats.textures;
-    return freeRecord->handle;
+
+    Record * const freeRecord = FreeRecord();
+
+    if (freeRecord == nullptr)
+    {
+        return {};
+    }
+
+    void * const pixels = heap::TryAlloc(layout.bytes, TAG_RENDER, 64);
+
+    if (pixels == nullptr)
+    {
+        return {};
+    }
+
+    memcpy(pixels, indices, layout.bytes);
+    return Publish(*freeRecord, layout, sampler, pixels);
 }
 
 bool Update(Handle handle, const void * rgba, size_t sourceBytes, size_t strideBytes)
 {
     ui::Flush();
     auto & record = Find(handle);
+
+    if (record.layout.format != PixelFormat::Rgba32)
+    {
+        return false;
+    }
+
     // Uploads are synchronous, so the CPU payload has no outstanding DMA reader.
     // Its old VRAM contents remain usable until Bind drains and uploads the dirty version.
     if (!PadRgba32(record.layout, rgba, sourceBytes, strideBytes, record.pixels, record.layout.bytes))
@@ -176,46 +289,29 @@ void Destroy(Handle handle)
 bool Bind(Handle handle, gs::TextureBinding & output)
 {
     auto & record = Find(handle);
-    if (!record.resident)
+
+    if (!MakeResident(record, nullptr))
     {
-        if (record.layout.bytes > vram::GetStats().capacityBytes)
-        {
-            return false;
-        }
-        if (!vram::Allocate(record.layout.bytes, record.allocation))
-        {
-            // Every queued TEX0 address is retired before selecting even a frame-used victim.
-            Fence();
-            do
-            {
-                Record * oldest = nullptr;
-                for (auto & candidate : s_records)
-                {
-                    if (candidate.resident && (oldest == nullptr || candidate.lastUse < oldest->lastUse))
-                    {
-                        oldest = &candidate;
-                    }
-                }
-                if (oldest == nullptr)
-                {
-                    return false;
-                }
-                ReleaseVram(*oldest);
-                ++s_stats.evictions;
-            } while (!vram::Allocate(record.layout.bytes, record.allocation));
-        }
-        record.resident = true;
-        record.dirty = true;
+        return false;
     }
-    const gs::TextureBinding binding = { static_cast<u32>(record.allocation.byteAddress / 4U), record.layout, record.sampler };
-    if (record.dirty)
+
+    output = Upload(record);
+    return true;
+}
+
+bool BindPair(Handle first, Handle second, gs::TextureBinding & firstOutput, gs::TextureBinding & secondOutput)
+{
+    auto & firstRecord = Find(first);
+    auto & secondRecord = Find(second);
+
+    if (&firstRecord == &secondRecord || !MakeResident(firstRecord, &secondRecord) || !MakeResident(secondRecord, &firstRecord))
     {
-        gs::UploadRgba32(binding, record.pixels);
-        record.dirty = false;
-        ++s_stats.uploads;
+        return false;
     }
-    record.lastUse = ++s_use;
-    output = binding;
+
+    // Both addresses are final before either upload, so neither binding can go stale.
+    firstOutput = Upload(firstRecord);
+    secondOutput = Upload(secondRecord);
     return true;
 }
 

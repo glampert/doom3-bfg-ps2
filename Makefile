@@ -55,6 +55,7 @@
 #   make test-common             # partial-startup and offline-capability failure checks
 #   make compiledb               # compile_commands.json from real Make rules
 #   make resource-unpack         # standalone C++20 host resource reader/extractor (CMake)
+#   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
 #   make ui-inventory            # inspect local retail UI dependencies and feature gaps
 #   make smoke-platform          # run the isolated SDK platform probe
 #   make test-script             # isolated native script compiler checks
@@ -65,7 +66,8 @@
 # BUILD=debug is the default; BUILD=release selects an assertions-off build.
 # CONSOLE_STANDARD=ntsc (default) or pal selects visible package presentation.
 # PCSX2=/path/to/PCSX2 overrides the emulator executable.
-# UI_DATA_ROOT and UI_COOK_OUTPUT select the local retail installation/cook output.
+# UI_DATA_ROOT and UI_COOK_OUTPUT select the local retail installation/cook output;
+# UI_PREVIEWS=DIR (under build/) makes ui-cook also write original/converted PNG previews.
 # RETAIL_DATA_ROOT (default UI_DATA_ROOT) selects the installation retail-boot mounts.
 # Emulator test targets require an isolated PCSX2 session; run them sequentially.
 # Developer setup, controls and diagnostics: docs/DEVELOPMENT.md.
@@ -270,7 +272,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console test-console ui run-ui test-ui ui-inventory ui-cook resource-unpack platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console test-console ui run-ui test-ui ui-inventory ui-cook resource-unpack asset-reexport platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
 
 all: link-game
 release: all
@@ -332,7 +334,7 @@ $(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
 $(OUTPUT_DIR)/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
-$(OUTPUT_DIR)/src/ps2/renderer/ui_page_image.o $(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/renderer/ui_draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
+$(OUTPUT_DIR)/src/ps2/renderer/ui_page_image.o $(OUTPUT_DIR)/src/ps2/renderer/ui_paletted_image.o $(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/renderer/ui_draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.
@@ -468,16 +470,18 @@ test-common: headless-core
 test-script: script-probe
 	$(PYTHON) $(SCRIPTS)/run_script_tests.py --elf build/$(BUILD)-script/tests/script/d3bfg_tests.elf
 
-tools: inventory resource-unpack
-	@echo "Host resource unpacker: build/tools/resource_unpack; Python tools: $(SCRIPTS)/."
+tools: inventory resource-unpack asset-reexport
+	@echo "Host tools: build/tools/resource_unpack, build/tools/asset_reexport; Python tools: $(SCRIPTS)/."
 
 resource-unpack: build/tools/resource_unpack
+
+asset-reexport: build/tools/asset_reexport
 
 ui-inventory:
 	$(PYTHON) $(SCRIPTS)/inventory_retail_ui.py --data-root "$(UI_DATA_ROOT)" --output "$(UI_COOK_OUTPUT)" --config "$(UI_RETAIL_CONFIG)"
 
-ui-cook:
-	$(PYTHON) $(SCRIPTS)/inventory_retail_ui.py --data-root "$(UI_DATA_ROOT)" --output "$(UI_COOK_OUTPUT)" --config "$(UI_RETAIL_CONFIG)" --cook
+ui-cook: build/tools/asset_reexport
+	$(PYTHON) $(SCRIPTS)/inventory_retail_ui.py --data-root "$(UI_DATA_ROOT)" --output "$(UI_COOK_OUTPUT)" --config "$(UI_RETAIL_CONFIG)" --cook $(if $(UI_PREVIEWS),--previews "$(UI_PREVIEWS)")
 
 headless: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)
@@ -585,7 +589,7 @@ HOST_TEST_FLAGS = -std=c++20 -O1 -g -fno-exceptions -fno-rtti -fno-threadsafe-st
 	-fno-strict-aliasing -fsized-deallocation -fsanitize=address,undefined -fno-omit-frame-pointer \
 	$(HOST_WARNFLAGS) -Isrc -isystem src/external -DID_HOST_TEST -DPS2_D3BFG_ASSERTS=1
 
-RESOURCE_UNPACK_SRC = src/tools/resource_unpack/main.cpp
+RESOURCE_UNPACK_SRC = src/tools/resource_unpack/main.cpp src/tools/assets/resources.cpp
 
 # The C++ host tools are a CMake project (src/tools/CMakeLists.txt) that owns their flags, so
 # every host builds them alike, MSVC and CI included. Make configures it into build/tools/cmake/
@@ -606,12 +610,31 @@ $(HOST_TOOLS_CMAKE)/CMakeCache.txt: build/tools/.cmake-flags.json
 build/tools/resource_unpack: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
 	@MAKEFLAGS= cmake --build $(HOST_TOOLS_CMAKE) --parallel --target resource_unpack
 
+build/tools/asset_reexport: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
+	@MAKEFLAGS= cmake --build $(HOST_TOOLS_CMAKE) --parallel --target asset_reexport
+
 build/tests/.resource-unpack-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(RESOURCE_UNPACK_SRC)
 
-build/tests/resource_unpack: $(RESOURCE_UNPACK_SRC) build/tests/.resource-unpack-flags.json
+build/tests/resource_unpack: $(RESOURCE_UNPACK_SRC) src/tools/assets/resources.h src/tools/assets/bytes.h build/tests/.resource-unpack-flags.json
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) $(RESOURCE_UNPACK_SRC) -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -Isrc/tools $(RESOURCE_UNPACK_SRC) -o $@
+
+# The shared host asset library under sanitizers, with its unit tests.
+ASSET_LIB_SRC = $(sort $(wildcard src/tools/assets/*.cpp))
+ASSET_LIB_HEADERS = $(sort $(wildcard src/tools/assets/*.h))
+
+build/tests/.asset-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(ASSET_LIB_SRC) src/tests/host/asset_tests.cpp
+
+build/tests/asset_tests: src/tests/host/asset_tests.cpp $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/asset_tests.cpp $(ASSET_LIB_SRC) -o $@
+
+# The target's GSTX admission against files the host converter writes.
+build/tests/gstx_format_tests: src/tests/host/gstx_format_tests.cpp src/ps2/renderer/gstx_format.cpp src/ps2/renderer/gstx_format.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/gstx_format_tests.cpp src/ps2/renderer/gstx_format.cpp $(ASSET_LIB_SRC) -o $@
 
 HOST_HEAP_SOURCES = src/tests/smoketests/type_query_tests.cpp src/tests/smoketests/type_query_bridge.cpp src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/tests/smoketests/class_alloc_tests.cpp src/ps2/game/class_alloc.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 
@@ -710,9 +733,9 @@ build/tests/ui_font_format_tests: src/tests/host/ui_font_format_tests.cpp src/ps
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_font_format_tests.cpp src/ps2/renderer/ui_font_format.cpp -o $@
 
-build/tests/ui_retail_catalog_tests: src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/retail_catalog.h src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_format.h src/ps2/renderer/ui_font_format.h Makefile
+build/tests/ui_retail_catalog_tests: src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/retail_catalog.h src/ps2/renderer/gstx_format.cpp src/ps2/renderer/gstx_format.h src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_format.h src/ps2/renderer/ui_font_format.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/renderer/ui_page_format.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/renderer/gstx_format.cpp src/ps2/renderer/ui_page_format.cpp -o $@
 
 HOST_UI_PAGE_SOURCES = src/tests/host/ui_page_image_tests.cpp src/ps2/renderer/ui_page_image.cpp src/ps2/renderer/ui_page_format.cpp src/ps2/renderer/ui_page_geometry.cpp src/ps2/renderer/texture_layout.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 HOST_UI_PAGE_HEADERS = src/ps2/renderer/ui_page_image.h src/ps2/renderer/ui_page_format.h src/ps2/renderer/ui_page_geometry.h src/ps2/renderer/ui_triangles.h src/ps2/renderer/ui_geometry.h src/ps2/renderer/texture.h src/ps2/renderer/gs.h src/ps2/renderer/render_system.h src/ps2/renderer/cmd_buffer.h src/ps2/renderer/ui_draw.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/tests/host/ui_page_stubs/tamtypes.h src/tests/host/ui_page_stubs/ps2/renderer/gif_writer.h src/tests/host/ui_page_stubs/idlib/precompiled.h
@@ -744,7 +767,9 @@ build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp -o $@
 
-test-host: build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/ui_page_image_tests_1 build/tests/ui_page_image_tests_0 build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/ui_page_image_tests_1 build/tests/ui_page_image_tests_0 build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+	./build/tests/asset_tests
+	./build/tests/gstx_format_tests
 	./build/tests/swf_runtime_tests_0
 	./build/tests/swf_runtime_tests_1
 	./build/tests/swf_execution_tests

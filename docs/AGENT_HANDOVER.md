@@ -1,13 +1,15 @@
 # Agent handover
 
-Reviewed **2026-10-20, Australia/Sydney**, after the full-dialog slice and the first
-memory budget measurements, against the current source manifests. This is a continuation
+Reviewed **2026-10-21, Australia/Sydney**, after the full-dialog slice, the first
+memory budget measurements and the paletted UI conversion with its debug emulator
+acceptance, against the current source manifests. This is a continuation
 guide; [AGENTS.md](../AGENTS.md) supplies the coding, build and Git rules. Runtime
 evidence remains in [PORT_STATUS.md](PORT_STATUS.md).
 
 ## Read first
 
-1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-20) and the latest
+1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-21), the latest
+   [paletted UI acceptance](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21) and the
    [full-dialog acceptance](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice).
 2. [2D renderer roadmap](RENDERER_2D_PLAN.md), especially implementation progress,
    next selected work and required mask/blend gates.
@@ -33,7 +35,7 @@ The user's milestones are: main menu with full 2D drawing, then pad/keyboard inp
 then a level boot without the 3D view but with in-game UI, then 3D rendering. The
 original dialog now draws in full. Before the shell, the user selected asset
 recompression/re-export and fitting the game into 32 MiB; its first measurements are
-recorded (see below). Preserve the
+recorded, and its first lever, paletted UI textures, is implemented (see below). Preserve the
 headless/game fixtures. English is the only initial UI language. Sound playback, world
 rendering, save/load and animated campaign AI remain later work. Extend existing native
 renderer/UI fixtures; the user has asked to avoid adding standalone fixture programs
@@ -44,10 +46,10 @@ for each feature.
 | Production headless | Common, native console commands, NOMAP ticks, bounded/live quit and complete shutdown | No production map simulation |
 | Visible console | Native console edit/history, close/reopen, capture/final presentation in NTSC/PAL | HostFs injection; no physical input polling |
 | Authored SWF | Native loading, fonts, timeline/AVM1 focus/select, additive blend 8, convex masks, shared pages | Exact generated asset admission; no retail-menu claim |
-| Retail fonts | Five English families, native legacy metrics and shared linear pages | Font/resource screen only |
+| Retail fonts | Five English families, native legacy metrics and resident paletted textures | Font/resource screen only |
 | Retail movie inspection | Original shell/dialog dictionaries, full English dictionary and isolated native edit-text layout | Inactive imported timelines |
 | Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; HandleEvent remains fatal |
-| Retail dialog drawing | Native `Render` of the original dialog with Common's quit message; draw admission requires no outlines, screen blends or additive color | About 51 page loads and 1.6 s per frame in PCSX2; choices fail explicitly; shell not admitted |
+| Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures; draw admission requires no outlines, screen blends or additive color | About 60 ms per debug PCSX2 frame; choices fail explicitly; shell not admitted |
 | Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | 13.5 MB of heap backing before any map; no retail map or in-game UI yet |
 
 Recent implementation commits are the full-dialog slice (2026-10-20), `dd04ab0` (scoped
@@ -78,11 +80,18 @@ measurements are in
   (2.83 MB), declaration objects and names (3.0 MB), container tables (1.08 MB) and
   smoke particles (0.68 MB). Per-allocation overhead accounts for 3.32 MB of the backing.
 
-Proposed order, pending the user's choice:
+Proposed order; the user chose lever 1 first:
 
-1. Paletted UI pages: a page format with PSMT8 indices and per-image CLUTs, selective
-   halving from bounded enlargement, English-subset PSMT4 fonts. Check captures against
-   the current RGBA32 path; the dialog should stop streaming pages every frame.
+1. **Paletted UI textures — accepted in debug on 2026-10-21.** The user asked
+   for a host C++ re-export suite with a shared texture library, everything halved for
+   a first pass (PDA and pause included), English-only fonts, aggressively shared
+   palettes, PSMT4 where it holds and RLE on disc. `asset_reexport` and
+   `src/tools/assets/` convert the UI to GSTX ([pipeline](RETAIL_UI_PIPELINE.md#converted-textures-gstx)):
+   763 KB on disc, 1.98 MB decoded for all 16 textures. The target's `PalettedImage`
+   keeps pages resident. The debug emulator gates pass in NTSC and PAL; the dialog
+   draws a frame in about 60 ms in debug PCSX2 (1.6 s before) with a 1.46 MB smaller
+   loaded heap. Next: the user's visual pass over `build/ui-previews` (halved thin
+   fonts lost their solid stroke interior), and the release gates when asked.
 2. Cheap heap wins, measured by `test-retail-boot`: a smaller tagged header or
    small-block pools, heap-string container names, a PS2-sized smoke pool and script
    limits sized to the retail program.
@@ -174,8 +183,8 @@ regenerate the compile database. Third-party code belongs in `src/external/`.
   stays unavailable. Shutdown widget borrowers before movies,
   movies before fonts/localization, images before caches, caches/UI before the device.
 - Authored images share four nearest slots (1 MiB), a 256 KiB scratch page and 56-byte
-  records. Retail resources share six linear slots (1.5 MiB), a scratch page and lazy
-  image tables. Do not merge these profiles implicitly or eagerly decode the shell atlas.
+  records. Retail images are converted GSTX textures whose pages stay resident once
+  opened (the shell atlas is 860 KB of texels). Do not merge these profiles implicitly.
 - EE float math has no IEEE Inf/NaN and no hardware double. Preserve checked float
   encodings and single-precision geometry. PCSX2 does not establish EE cache or GS cost.
 
@@ -219,9 +228,8 @@ A new retail-movies package auto-loads the screen. Existing packaged configs are
 preserved: check status and issue `ps2_uiRetail load` only if not loaded; a duplicate
 load is fatal. Use `execute shell|dialog` for scoped timelines with label inspection,
 `movie shell|dialog|none` for inactive inspection, and `ps2_uiRetail status` for native
-counters. Only the dialog draws in full; expect about 1.6 s per frame in PCSX2 while
-its pages stream. HostFs commands provide input; physical keyboard attachment alone
-will not drive the game.
+counters. Only the dialog draws in full, at about 60 ms per debug PCSX2 frame. HostFs
+commands provide input; physical keyboard attachment alone will not drive the game.
 
 ## Verification and recorded baseline
 
@@ -250,22 +258,24 @@ nineteen core renderer cases per configuration and two headless cases per config
 On 2026-10-19 every regular target gate (smoke variants, renderer, Common, headless,
 console, UI, retail fonts/movies, game, map and the script probe) passed again in both
 configurations on the rebuilt toolchain, with unchanged tagged ledgers. Host regression
-count is 336 plus C++ sanitizer harnesses. Run IDs and screenshots are linked from
-PORT_STATUS; ignored `build/test-results/` archives may not exist on another machine.
+count is 354 plus C++ sanitizer harnesses (2026-10-21). Run IDs and screenshots are
+linked from PORT_STATUS; ignored `build/test-results/` archives may not exist on another
+machine.
 
-Production has 374 direct objects, no fixture inputs/symbols and no GC. The source audit
-has 458 upstream units / 282 campaign units; compile database 399 entries. Production
-PT_LOAD is 11,167,077 debug / 11,604,197 release bytes after the retail boot change
-(11,164,005 / 11,600,997 after the full-dialog slice, 11,159,013 / 11,596,133 on the SDK
-rebuilt on 2026-10-19, 11,159,397 / 11,596,517 before it); core was 2,139,184 /
-2,223,920 before the rebuild. Authored UI peak is 3,885,301 requested / 3,992,336
+Production has 376 direct objects, no fixture inputs/symbols and no GC. The source audit
+has 458 upstream units / 282 campaign units; compile database 401 entries. Production
+PT_LOAD is 11,177,957 debug / 11,614,821 release bytes after the paletted UI change
+(11,167,077 / 11,604,197 after the retail boot change, 11,164,005 / 11,600,997 after
+the full-dialog slice, 11,159,013 / 11,596,133 on the SDK rebuilt on 2026-10-19,
+11,159,397 / 11,596,517 before it); core is 2,150,896 / 2,235,504 (2,139,184 /
+2,223,920 before the rebuild). Authored UI peak is 3,885,330 requested / 3,992,352
 backing; full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are
 separate fixed/runtime measurements; do not sum tagged backing and committed arena
 twice. Retail timeline heap acceptance uses its own 16 MiB loaded ceiling and exact warm
-release baselines. The fully drawn dialog peaks at 6,079,651 requested / 6,183,080
-backing bytes (debug NTSC); the shell's drawn working set is not measured yet. The
-retail boot peaks at 10,582,854 / 13,910,756 with a 14,523,035-byte arena before any
-map.
+release baselines. The fully drawn dialog peaks at 4,412,335 requested / 4,516,500
+backing bytes (debug; 6,079,651 / 6,183,080 with streamed pages); the shell's drawn
+working set is not measured yet. The retail boot peaks at 10,582,854 / 13,910,756 with a
+14,523,035-byte arena before any map.
 
 No native target or hardware test is newly claimed by the 2026-10-19 docs audit.
 Before another implementation commit, fetch, inspect the worktree and check divergence.

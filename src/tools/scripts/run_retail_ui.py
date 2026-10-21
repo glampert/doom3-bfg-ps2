@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: run_retail_ui.py
-# Brief: Verify opt-in native English font admission, layout, shared paging and cleanup in production.
+# Brief: Verify opt-in native English font admission, layout, resident paletted textures and cleanup in production.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -18,6 +18,7 @@ import uuid
 
 import retail_ui_capture
 import run_console
+import ui_gstx
 import run_headless
 import run_pcsx2_test as smoke
 from run_ui import BASELINE, TARGET_CRASH_RE, echoed
@@ -27,11 +28,11 @@ from stage_retail_ui import inspect_package, stage_retail
 
 STATE_RE = re.compile(r"\[D3BFG\] RETAIL state=loaded cycle=(\d+) font=(\d+) name=([^ ]+) frames=(\d+) heap=(\d+)/(\d+)/(\d+)")
 UNLOADED_RE = re.compile(r"\[D3BFG\] RETAIL state=unloaded cycle=(\d+) heap=(\d+)/(\d+)/(\d+)")
-PAGES_RE = re.compile(r"\[D3BFG\] RETAIL pages images=(\d+) slots=(\d+) cache=(\d+) scratch=(\d+) metadata=(\d+) "
-                      r"loads=(\d+) hits=(\d+) evictions=(\d+) triangles=(\d+)")
+TEXTURES_RE = re.compile(r"\[D3BFG\] RETAIL textures images=(\d+) pages=(\d+) cluts=(\d+) pixels=(\d+) metadata=(\d+) "
+                         r"triangles=(\d+) uploads=(\d+) evictions=(\d+)")
 METRICS_RE = re.compile(r"\[D3BFG\] RETAIL metrics font=(\d+) scale=(\d+) width=([\d.]+) height=([\d.]+)")
 CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(retail-(?:f[0-7]|return|reload|quit)\.tga) frame=(\d+) presents=(\d+) redraws=(\d+)")
-NEGATIVES = ("catalog-header", "font-missing", "font-mutated", "page-table", "page-pixels")
+NEGATIVES = ("catalog-header", "font-missing", "font-mutated", "texture-table", "texture-pixels")
 
 
 def _font_names(manifest: dict) -> list[str]:
@@ -43,11 +44,39 @@ def _font_page(manifest: dict, index: int) -> dict:
     names = {entry["selected"] for entry in manifest["image_resolutions"]
              if entry["logical_image"] == logical and entry["status"] == "resolved"}
     if len(names) != 1:
-        raise ValueError("retail UI font page binding is ambiguous")
+        raise ValueError("retail UI font texture binding is ambiguous")
     return manifest["cooked"]["runtime_images"][names.pop()]
 
 
-def classify(log: str, identity: str, standard: str, manifest: dict) -> tuple[bool, str]:
+def resident_textures(manifest: dict, source: Path, images) -> dict:
+    """The RETAIL textures counters while exactly these runtime images are open."""
+    totals = {"images": 0, "pages": 0, "cluts": 0, "pixel_bytes": 0, "metadata_bytes": 0}
+    for image in sorted(set(images)):
+        stats = ui_gstx.runtime_stats(ui_gstx.read_texture(source / manifest["cooked"]["runtime_images"][image]["path"]))
+        totals["images"] += 1
+        for key in ("pages", "cluts", "pixel_bytes", "metadata_bytes"):
+            totals[key] += stats[key]
+    return totals
+
+
+def texture_counters(totals: dict) -> tuple:
+    return tuple(totals[key] for key in ("images", "pages", "cluts", "pixel_bytes", "metadata_bytes"))
+
+
+def font_images(manifest: dict) -> set:
+    names = set()
+    for font in manifest["fonts"]:
+        names.update(entry["selected"] for entry in manifest["image_resolutions"]
+                     if entry["logical_image"] == font[:-4] + ".tga" and entry["status"] == "resolved")
+    return names
+
+
+def font_textures(manifest: dict, source: Path) -> dict:
+    """Counters with every font's converted texture open, as the font screen holds them."""
+    return resident_textures(manifest, source, font_images(manifest))
+
+
+def classify(log: str, identity: str, standard: str, manifest: dict, expected_textures: dict) -> tuple[bool, str]:
     if smoke.CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "crash or fatal diagnostic"
     required = ("game initialized.", "LOOP ready;", f"[D3BFG] GS ready {standard.upper()}",
@@ -70,33 +99,35 @@ def classify(log: str, identity: str, standard: str, manifest: dict) -> tuple[bo
     if frames < 120 * len(phases) or frames != presents:
         return False, "retail native frame and presentation counts differ"
     previous_frame = 0
-    previous_pages = None
-    metadata = sum(_font_page(manifest, index)["page_count"] * 8 for index in range(len(fonts)))
+    previous_textures = None
+    resident = texture_counters(expected_textures)
+    if resident[0] != len(fonts):
+        return False, "retail font textures do not match the cooked font set"
     for match, (name, font_index, cycle) in zip(captures, phases):
         frame, present, redraw = map(int, match.groups()[1:])
         if not previous_frame < frame <= frames or frame != present or redraw > redraws:
             return False, "retail capture did not follow a distinct completed presentation"
         previous_frame = frame
         before = log[:match.start()]
-        states, pages = STATE_RE.findall(before), PAGES_RE.findall(before)
-        if not states or not pages:
+        states, textures = STATE_RE.findall(before), TEXTURES_RE.findall(before)
+        if not states or not textures:
             return False, "retail capture lacks preceding native state"
         state = states[-1]
         if (int(state[0]), int(state[1]), state[2]) != (cycle, font_index, fonts[font_index]) or int(state[3]) < 120:
             return False, "retail font did not complete its bounded native frame interval"
-        page_state = tuple(map(int, pages[-1]))
-        if page_state[:5] != (len(fonts), 6, 1572864, 262144, metadata):
-            return False, "retail fonts did not share the bounded linear page cache"
-        loads, hits, evictions, triangles = page_state[5:]
-        if loads == 0 or hits == 0 or triangles == 0 or evictions != max(0, loads - 6):
-            return False, "retail page demand or eviction accounting is invalid"
-        if previous_pages is not None:
-            old_loads, old_hits, old_evictions, old_triangles = previous_pages
-            if loads < old_loads or hits <= old_hits or evictions < old_evictions or triangles <= old_triangles:
-                return False, "retail page counters reset or stopped between font phases"
-            if name == "retail-reload.tga" and loads != old_loads:
-                return False, "warm retail reload reread pages"
-        previous_pages = page_state[5:]
+        texture_state = tuple(map(int, textures[-1]))
+        if texture_state[:5] != resident:
+            return False, "retail fonts do not hold exactly their converted paletted textures"
+        triangles, uploads, evictions = texture_state[5:]
+        if triangles == 0 or uploads == 0 or evictions != 0:
+            return False, "retail texture drawing, uploads or residency accounting is invalid"
+        if previous_textures is not None:
+            old_triangles, old_uploads, _ = previous_textures
+            if triangles <= old_triangles or uploads < old_uploads:
+                return False, "retail texture counters reset or stopped between font phases"
+            if name == "retail-reload.tga" and uploads != old_uploads:
+                return False, "warm retail reload uploaded textures again"
+        previous_textures = texture_state[5:]
         metrics = METRICS_RE.findall(before)
         if len(metrics) < 3:
             return False, "native retail legacy layout metrics were not reported"
@@ -116,7 +147,7 @@ def classify(log: str, identity: str, standard: str, manifest: dict) -> tuple[bo
         return False, "retail production shutdown did not recover the startup allocation ledger"
     if "]quit" not in log:
         return False, "native quit command did not execute"
-    return True, "native English fonts preserved source layout and completed bounded paged reloads"
+    return True, "native English fonts preserved source layout from resident paletted textures across reloads"
 
 
 def mutate(output: Path, manifest: dict, case: str) -> dict:
@@ -125,7 +156,7 @@ def mutate(output: Path, manifest: dict, case: str) -> dict:
     elif case.startswith("font-"):
         asset = manifest["cooked"]["assets"][sorted(manifest["fonts"])[0]]
         path = output / "base/retail" / asset["path"]
-    elif case.startswith("page-"):
+    elif case.startswith("texture-"):
         path = output / "base/retail" / _font_page(manifest, 0)["path"]
     else:
         raise ValueError("unknown retail negative case")
@@ -135,10 +166,12 @@ def mutate(output: Path, manifest: dict, case: str) -> dict:
         path.unlink()
     else:
         offset = 0 if case == "catalog-header" else len(raw) - 1
-        if case == "page-table":
+        if case == "texture-table":
+            # A reserved header byte: the file no longer equals the catalog's admitted tables.
             offset = 32
-        elif case == "page-pixels":
-            offset = 32 + struct.unpack_from("<I", raw, 24)[0] * 8
+        elif case == "texture-pixels":
+            # Inside the first page block, after its tables were admitted.
+            offset = struct.unpack_from("<I", raw, ui_gstx.HEADER_BYTES + 8)[0] + 1
         raw[offset] ^= 1
         path.write_bytes(raw)
     return {"path": str(path.relative_to(output)), "original_sha256": original,
@@ -154,15 +187,16 @@ def classify_negative(log: str, identity: str, case: str) -> tuple[bool, str]:
         return False, "invalid retail resources completed a capture or normal shutdown"
     fatals = re.findall(r"\[D3BFG\] FATAL ([^\r\n]+)", log)
     expected = {"catalog-header": "retail UI catalog invalid", "font-missing": "retail font missing:",
-                "font-mutated": "retail font content invalid:", "page-table": "retail UI page profile mismatch:",
-                "page-pixels": "native UI paged triangle failed"}[case]
+                "font-mutated": "retail font content invalid:", "texture-table": "retail UI texture profile mismatch:",
+                "texture-pixels": "retail UI texture profile mismatch:"}[case]
     if not fatals or any(expected not in diagnostic for diagnostic in fatals):
         return False, "missing or unexpected retail resource validation failure"
-    if case == "page-pixels":
-        if "RETAIL state=loaded" not in log or "page read or checksum" not in log:
-            return False, "corrupt retail pixels did not reach checked page streaming"
-    elif "RETAIL state=loaded" in log:
-        return False, "invalid retail metadata was published as a loaded proof"
+    reason = {"texture-table": "texture length or tables differ from the catalog",
+              "texture-pixels": "page block, encoding or checksum"}.get(case)
+    if reason is not None and reason not in log:
+        return False, "corrupt retail texture was not refused by its specific check"
+    if "RETAIL state=loaded" in log:
+        return False, "invalid retail resources were published as a loaded proof"
     return True, "invalid retail resources were rejected before the first completed presentation"
 
 
@@ -226,7 +260,7 @@ def run(args: argparse.Namespace, standard: str, version: str, case: str = "nati
     if not completed:
         passed, reason = False, failure
     elif case == "native":
-        passed, reason = classify(log, identity, standard, manifest)
+        passed, reason = classify(log, identity, standard, manifest, font_textures(manifest, args.source))
     else:
         passed, reason = classify_negative(log, identity, case)
     captures = {}

@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: gs.cpp
-// Brief: Own GS contexts, direct RGBA uploads and ordered CPU primitives without Quake policy or VU.
+// Brief: Own GS contexts, direct RGBA and paletted uploads and ordered CPU primitives without Quake policy or VU.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -50,20 +50,77 @@ u64 AlphaState(BlendMode blend)
     return GS_SET_ALPHA(0, subtract, 0, 1, 0x80);
 }
 
-tex::Layout ValidateBinding(const TextureBinding & binding)
+// The texels alone: an upload writes them and reads no CLUT or sampling state.
+tex::Layout ValidateStorage(const TextureBinding & binding)
 {
     tex::Layout verified = {};
     const auto & input = binding.layout;
-    if (!s_initialized || !tex::MakeLayout(input.width, input.height, binding.sampler, verified) ||
-        verified.bytes != input.bytes || verified.stridePixels != input.stridePixels ||
+    const bool made = input.format != tex::PixelFormat::Rgba32 ? tex::MakeIndexedLayout(input.width, input.height, input.format, verified)
+                                                              : tex::MakeLayout(input.width, input.height, binding.sampler, verified);
+
+    if (!s_initialized || !made || verified.bytes != input.bytes || verified.stridePixels != input.stridePixels ||
         verified.storageHeight != input.storageHeight || verified.potWidth != input.potWidth ||
         verified.potHeight != input.potHeight || verified.widthLog2 != input.widthLog2 ||
         verified.heightLog2 != input.heightLog2 || (binding.address & 2047U) != 0 ||
         binding.address < s_fixedVramBytes / 4U || binding.address > (4U * 1024U * 1024U - verified.bytes) / 4U)
     {
-        FatalError("invalid RGBA32 texture binding");
+        FatalError("invalid GS texture storage");
     }
+
     return verified;
+}
+
+tex::Layout ValidateBinding(const TextureBinding & binding)
+{
+    const auto verified = ValidateStorage(binding);
+    const bool indexed = verified.format != tex::PixelFormat::Rgba32;
+    static constexpr u32 kVramWords = 1024U * 1024U;
+    // A CLUT is a whole 256-byte block of texture VRAM: 16x16 or 8x2 PSMCT32 texels at CBP.
+    const bool clut = !indexed ? binding.clutAddress == 0
+                               : (binding.clutAddress & 63U) == 0 && binding.clutAddress >= s_fixedVramBytes / 4U &&
+                                     binding.clutAddress <= kVramWords - (verified.format == tex::PixelFormat::Index8 ? 256U : 64U);
+    const bool region = !binding.region || (binding.regionMinU <= binding.regionMaxU && binding.regionMaxU < verified.width &&
+                                            binding.regionMinV <= binding.regionMaxV && binding.regionMaxV < verified.height);
+
+    if (!clut || !region)
+    {
+        FatalError("invalid GS texture binding");
+    }
+
+    return verified;
+}
+
+int StoragePsm(const tex::Layout & layout)
+{
+    return layout.format == tex::PixelFormat::Index8 ? GS_PSM_8 : layout.format == tex::PixelFormat::Index4 ? GS_PSM_4 : GS_PSM_32;
+}
+
+u64 TextureState(const TextureBinding & binding)
+{
+    const auto & layout = binding.layout;
+
+    if (layout.format == tex::PixelFormat::Rgba32)
+    {
+        return GS_SET_TEX0(binding.address >> 6, static_cast<u32>(layout.stridePixels) >> 6, GS_PSM_32, layout.widthLog2,
+                           layout.heightLog2, 1, 0, 0, 0, 0, 0, 0);
+    }
+
+    // CSM1 PSMCT32 CLUT, reloaded with every TEX0: CLUT texels can move or change with residency.
+    return GS_SET_TEX0(binding.address >> 6, static_cast<u32>(layout.stridePixels) >> 6, StoragePsm(layout), layout.widthLog2,
+                       layout.heightLog2, 1, 0, binding.clutAddress >> 6, GS_PSM_32, 0, 0, 1);
+}
+
+u64 ClampState(const TextureBinding & binding)
+{
+    if (binding.region)
+    {
+        return GS_SET_CLAMP(2, 2, binding.regionMinU, binding.regionMaxU, binding.regionMinV, binding.regionMaxV);
+    }
+
+    const auto & layout = binding.layout;
+    const auto & sampler = binding.sampler;
+    return GS_SET_CLAMP(sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0, 0, layout.width - 1, 0,
+                        layout.height - 1);
 }
 } // namespace
 
@@ -177,12 +234,12 @@ PS2_COLD_FUNC bool Init(const Config & config)
     return true;
 }
 
-void UploadRgba32(const TextureBinding & binding, const void * pixels)
+void Upload(const TextureBinding & binding, const void * pixels)
 {
-    const auto verified = ValidateBinding(binding);
+    const auto verified = ValidateStorage(binding);
     if (pixels == nullptr || (reinterpret_cast<uiptr>(pixels) & 63U) != 0)
     {
-        FatalError("invalid RGBA32 texture upload");
+        FatalError("invalid GS texture upload");
     }
     // Retire queued PATH2 references before PATH3 uploads or overwrites an address.
     cmdbuf::Kick();
@@ -198,7 +255,7 @@ void UploadRgba32(const TextureBinding & binding, const void * pixels)
         FatalError("texture upload chain overflow");
     }
     qword_t * end = draw_texture_transfer(s_upload, const_cast<void *>(pixels), verified.stridePixels,
-                                          verified.storageHeight, GS_PSM_32, static_cast<int>(binding.address),
+                                          verified.storageHeight, StoragePsm(verified), static_cast<int>(binding.address),
                                           verified.stridePixels);
     if (end != s_upload + transferQwords)
     {
@@ -269,16 +326,11 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
     {
         return;
     }
-    const auto & layout = binding.layout;
-    const auto & sampler = binding.sampler;
-    const int filter = sampler.filter == tex::Filter::Linear ? 1 : 0;
+    const int filter = binding.sampler.filter == tex::Filter::Linear ? 1 : 0;
     GifWriter writer = cmdbuf::BeginDirect(22);
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
-    writer.SetRegister(ContextReg(GS_REG_TEX0, context), GS_SET_TEX0(binding.address >> 6,
-                                                                     static_cast<u32>(layout.stridePixels) >> 6, GS_PSM_32, layout.widthLog2, layout.heightLog2, 1, 0, 0, 0, 0, 0, 0));
-    writer.SetRegister(ContextReg(GS_REG_CLAMP, context), GS_SET_CLAMP(
-                                                          sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
-                                                          0, layout.width - 1, 0, layout.height - 1));
+    writer.SetRegister(ContextReg(GS_REG_TEX0, context), TextureState(binding));
+    writer.SetRegister(ContextReg(GS_REG_CLAMP, context), ClampState(binding));
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), AlphaState(blend));
     // A zero-alpha texel still replaces RGB in ONE/ZERO mode. Environment cutout is
     // not the native GUI contract, so disable it explicitly for every UI sprite.
@@ -322,18 +374,13 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
     {
         return;
     }
-    const auto & layout = binding.layout;
-    const auto & sampler = binding.sampler;
-    const int filter = sampler.filter == tex::Filter::Linear ? 1 : 0;
+    const int filter = binding.sampler.filter == tex::Filter::Linear ? 1 : 0;
     // Six complete state writes and three RGBAQ/UV/XYZ2 vertices: thirty qwords.
     // A drain may alternate command halves; never depend on the previous primitive's state.
     GifWriter writer = cmdbuf::BeginDirect(30);
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
-    writer.SetRegister(ContextReg(GS_REG_TEX0, context), GS_SET_TEX0(binding.address >> 6,
-                                                                     static_cast<u32>(layout.stridePixels) >> 6, GS_PSM_32, layout.widthLog2, layout.heightLog2, 1, 0, 0, 0, 0, 0, 0));
-    writer.SetRegister(ContextReg(GS_REG_CLAMP, context), GS_SET_CLAMP(
-                                                          sampler.wrapS == tex::Wrap::Clamp ? 2 : 0, sampler.wrapT == tex::Wrap::Clamp ? 2 : 0,
-                                                          0, layout.width - 1, 0, layout.height - 1));
+    writer.SetRegister(ContextReg(GS_REG_TEX0, context), TextureState(binding));
+    writer.SetRegister(ContextReg(GS_REG_CLAMP, context), ClampState(binding));
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), AlphaState(blend));
     // ONE/ZERO replaces RGB even where interpolated or texture alpha is zero.
     writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 0, 1));

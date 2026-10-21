@@ -152,6 +152,38 @@ bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Colo
     return true;
 }
 
+bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & triangle, gs::BlendMode blend)
+{
+    if (!s_frame)
+    {
+        FatalError("2D paletted triangle draw outside a frame");
+    }
+
+    ui::Flush();
+    gs::TextureBinding binding = {};
+    gs::TextureBinding cluts = {};
+
+    if (!tex::BindPair(draw.page, draw.cluts, binding, cluts))
+    {
+        return false;
+    }
+
+    // CLUT blocks are 256 bytes, 64 GS words, inside the CLUT texture's allocation.
+    if (draw.clutBlock >= cluts.layout.bytes / 256U)
+    {
+        FatalError("paletted draw CLUT block outside its texture");
+    }
+
+    binding.clutAddress = cluts.address + draw.clutBlock * 64U;
+    binding.region = true;
+    binding.regionMinU = draw.regionMinU;
+    binding.regionMaxU = draw.regionMaxU;
+    binding.regionMinV = draw.regionMinV;
+    binding.regionMaxV = draw.regionMaxV;
+    gs::TexturedTriangleFixed(s_context, binding, triangle, blend);
+    return true;
+}
+
 bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triangle, gs::BlendMode blend)
 {
     if (!s_frame)

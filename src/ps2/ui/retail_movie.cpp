@@ -5,10 +5,9 @@
 // ================================================================================================
 
 #include "ps2/ui/retail_movie.h"
-#include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/ui_draw.h"
-#include "ps2/renderer/ui_page_image.h"
+#include "ps2/renderer/ui_paletted_image.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "ps2/ui/movie.h"
@@ -65,9 +64,9 @@ void CloseResourceMovie()
     if (releasedMovie >= 0)
     {
         const auto heap = ps2::heap::GetTotalStats();
-        const auto pages = ps2::render::GetUiPageStats();
+        const auto textures = ps2::ui::GetPaletteStats();
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL released movie=%d images=%u heap=%zu/%zu/%zu\n",
-                 releasedMovie, pages.images, heap.requestedBytes, heap.backingBytes, heap.allocationCount);
+                 releasedMovie, textures.images, heap.requestedBytes, heap.backingBytes, heap.allocationCount);
     }
 }
 
@@ -179,14 +178,15 @@ void Status()
     }
 
     const auto font = CurrentFont();
-    const auto pages = ps2::render::GetUiPageStats();
+    const auto textures = ps2::ui::GetPaletteStats();
+    const auto residency = ps2::tex::GetStats();
     ps2::Log(ps2::LogLevel::Info,
              "[D3BFG] RETAIL state=loaded cycle=%u font=%u name=%s frames=%u heap=%zu/%zu/%zu\n",
              s_cycle, s_font, font.family, s_frames, heap.requestedBytes, heap.backingBytes, heap.allocationCount);
     ps2::Log(ps2::LogLevel::Info,
-             "[D3BFG] RETAIL pages images=%u slots=%u cache=%u scratch=%u metadata=%u loads=%u hits=%u evictions=%u triangles=%u\n",
-             pages.images, static_cast<u32>(pages.cacheBytes / ps2::ui::kPageBytes), pages.cacheBytes,
-             pages.scratchBytes, pages.metadataBytes, pages.loads, pages.hits, pages.evictions, pages.triangles);
+             "[D3BFG] RETAIL textures images=%u pages=%u cluts=%u pixels=%u metadata=%u triangles=%u uploads=%u evictions=%u\n",
+             textures.images, textures.pages, textures.cluts, textures.pixelBytes, textures.metadataBytes, textures.triangles,
+             residency.uploads, residency.evictions);
     for (int index = 0; index < ps2::ArrayLength(kScales); ++index)
     {
         const float scale = kScales[index];
@@ -578,7 +578,7 @@ void Render(bool advance)
     const auto font = CurrentFont();
     renderSystem->SetGLState(0);
     renderSystem->DrawSmallStringExt(48, 32, font.family, colorWhite, true);
-    renderSystem->DrawSmallStringExt(48, 52, "Native English font paging; campaign and Shell remain inactive", colorWhite, true);
+    renderSystem->DrawSmallStringExt(48, 52, "Native English paletted fonts; campaign and Shell remain inactive", colorWhite, true);
     renderSystem->SetColor(idVec4(240.0f / 255.0f, 248.0f / 255.0f, 1.0f, 1.0f));
     for (int index = 0; index < ArrayLength(kScales); ++index)
     {
