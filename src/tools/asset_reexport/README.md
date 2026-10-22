@@ -21,7 +21,9 @@ build/tools/asset_reexport ui --data gamedata/d3_bfg --job job.json \
 ```
 
 `make ui-cook` writes the job from `config/ui_retail.json`, runs the tool in a private
-directory and publishes its output; run the tool directly to try a different policy.
+directory and publishes its output; its `conversion.texture_policies` map per-image
+`policy` overrides onto the job (the console charset keeps `scale` 1.0). Run the tool
+directly to try a different policy.
 Like `resource_unpack`, it needs no SDK or engine, and any host with CMake 3.24 and a
 C++20 compiler, Windows/MSVC included, can build it from
 [`src/tools/CMakeLists.txt`](../CMakeLists.txt).

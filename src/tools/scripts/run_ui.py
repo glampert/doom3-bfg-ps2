@@ -217,7 +217,7 @@ def run(args: argparse.Namespace, standard: str, version: str, case: str = "nati
         raise ValueError("an emulator is already running; each native UI run requires an isolated session")
     smoke.check_config(args.config)
     identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_ui_" + uuid.uuid4().hex[:12]
-    output = stage(args.build, REPO_ROOT / "build/test-results" / identity, standard, include_ui=True)
+    output = stage(args.build, REPO_ROOT / "build/test-results" / identity, standard, include_ui=True, catalog=args.source)
     report = json.loads((output / "report.json").read_text())
     for name in report["flag_stamps"]:
         shutil.copy2(REPO_ROOT / name, output / Path(name).name)
@@ -334,6 +334,8 @@ def run(args: argparse.Namespace, standard: str, version: str, case: str = "nati
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", choices=("debug", "release"), default="debug")
+    parser.add_argument("--source", type=Path, default=REPO_ROOT / "build/ui-retail",
+                        help="the cooked retail UI whose catalog supplies the console charset")
     parser.add_argument("--standard", choices=("ntsc", "pal"))
     parser.add_argument("--case", choices=("native",) + NEGATIVES, help="default: both native standards and twelve invalid-data cases")
     parser.add_argument("--emulator", type=Path, default=smoke.DEFAULT_EMULATOR)

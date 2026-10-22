@@ -13,6 +13,7 @@
 #include "ps2/system/heap.h"
 #include "ps2/ui/draw.h"
 #include "ps2/ui/page_image.h"
+#include "tests/smoketests/console_charset.h"
 #include <bit>
 #include <climits>
 #include <delaythread.h>
@@ -27,6 +28,21 @@ namespace ps2::tests
 {
 namespace
 {
+// The core image has no retail catalog, so each scene installs the authored fixture charset
+// after the native UI initializes; a budget that cannot hold it leaves no ownership behind.
+bool InstallFixtureCharset()
+{
+    void * const pixels = system::heap::TryAlloc(kConsoleAtlasBytes, TAG_RENDER);
+    if (pixels == nullptr || !MakeConsoleCharset(pixels, kConsoleAtlasBytes))
+    {
+        system::heap::Free(pixels);
+        return false;
+    }
+    const bool installed = renderer::InstallConsoleCharset(pixels, kConsoleAtlasBytes);
+    system::heap::Free(pixels);
+    return installed;
+}
+
 static constexpr renderer::gs::Color kColors[] = {
     { 255, 0, 0, 255 },
     { 0, 255, 0, 255 },
@@ -78,8 +94,9 @@ bool NativeIndexed(system::video::Standard standard)
     bool passed = true;
     for (int cycle = 0; cycle < 2; ++cycle)
     {
-        if (!renderer::Init({ standard, 1024U, 1048576U, 524288U }) || !ui::Init())
+        if (!renderer::Init({ standard, 1024U, 1048576U, 524288U }) || !ui::Init() || !InstallFixtureCharset())
         {
+            ui::Shutdown();
             renderer::Shutdown();
             return false;
         }
@@ -321,25 +338,26 @@ bool NativeAdapters(system::video::Standard standard)
 {
     const auto before = system::heap::GetTotalStats();
     bool passed = !ui::IsInitialized() && !R_IsInitialized();
-    // Startup failure must not claim native capabilities or retain partial image ownership.
-    if (!renderer::Init({ standard, 1024U, 65536U, 524288U }))
+    // The white texel fits any budget; a charset the pixel or VRAM budget cannot hold installs
+    // nothing and retains no partial image ownership.
+    static constexpr u32 kSmallBudgets[2][2] = { { 65536U, 524288U }, { 1048576U, 131072U } };
+    for (const auto & budget : kSmallBudgets)
     {
-        return false;
+        if (!renderer::Init({ standard, 1024U, budget[0], budget[1] }))
+        {
+            return false;
+        }
+        passed = ui::Init() && tr.registered && renderer::ConsoleImagesInitialized() && passed;
+        passed = !InstallFixtureCharset() && renderer::ConsoleCharsetImage() == nullptr && passed;
+        ui::Shutdown();
+        renderer::Shutdown();
+        passed = SameLedger(before) && passed;
     }
-    passed = !ui::Init() && !tr.registered && !renderer::ConsoleImagesInitialized() && passed;
-    renderer::Shutdown();
-    passed = SameLedger(before) && passed;
-    if (!renderer::Init({ standard, 1024U, 1048576U, 131072U }))
-    {
-        return false;
-    }
-    passed = !ui::Init() && !tr.registered && !renderer::ConsoleImagesInitialized() && passed;
-    renderer::Shutdown();
-    passed = SameLedger(before) && passed;
     for (int cycle = 0; cycle < 2; ++cycle)
     {
-        if (!renderer::Init({ standard, 1024U, 1048576U, 524288U }) || !ui::Init())
+        if (!renderer::Init({ standard, 1024U, 1048576U, 524288U }) || !ui::Init() || !InstallFixtureCharset())
         {
+            ui::Shutdown();
             renderer::Shutdown();
             return false;
         }
@@ -745,7 +763,7 @@ bool RunGsFailureProbe(const char * name)
     }
     else
     {
-        if (!renderer::Init({ system::video::Standard::Ntsc, 1024U }) || !ui::Init())
+        if (!renderer::Init({ system::video::Standard::Ntsc, 1024U }) || !ui::Init() || !InstallFixtureCharset())
         {
             FatalError("probe UI initialization failed");
         }

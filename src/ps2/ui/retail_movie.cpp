@@ -239,10 +239,9 @@ void Load()
         ps2::FatalError("invalid native retail font proof load ownership");
     }
 
-    if (!ps2::ui::retail::IsInitialized())
+    // The catalog opened with the presentation; its fonts register on the first load and stay cached.
+    if (s_fontCount == 0)
     {
-        ps2::ui::retail::Init();
-        ps2::ui::retail::RegisterMaterials();
         const auto & catalog = ps2::ui::retail::GetCatalog();
         s_fontCount = catalog.FontCount();
         if (s_fontCount == 0 || s_fontCount > static_cast<u32>(ps2::ArrayLength(s_fonts)))

@@ -115,6 +115,26 @@ def english_codepoints(manifest_language: dict, swfs: dict) -> set:
     return (set(manifest_language["codepoints"]) | literals | ASCII_PRINTABLE) - {10, 13}
 
 
+MAX_TEXTURE_POLICIES = 64
+
+
+def validate_texture_policies(policies) -> dict:
+    """Per-image policy overrides, keyed by the image or material the profile requests (the
+    console charset keeps its full resolution). Each value names a subset of the policy fields."""
+    if not isinstance(policies, dict) or len(policies) > MAX_TEXTURE_POLICIES:
+        raise ValueError("retail UI texture_policies must map at most 64 images to policy overrides")
+    validated = {}
+    for name, override in policies.items():
+        if not isinstance(name, str) or not name or len(name) > 512:
+            raise ValueError("retail UI texture policy name is invalid")
+        if not isinstance(override, dict) or not override or set(override) - set(POLICY_FIELDS):
+            raise ValueError("retail UI texture policy must override known policy fields: " + name)
+        complete = {**{key: (bounds[0] if bounds is not None else True) for key, bounds in POLICY_FIELDS.items()}, **override}
+        validate_policy(complete)
+        validated[logical_name(name)] = dict(override)
+    return validated
+
+
 MAX_GLYPH_SETS = 8
 MAX_GLYPH_SIZES = 16
 

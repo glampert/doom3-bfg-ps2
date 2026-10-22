@@ -181,7 +181,7 @@ class MovieResourcesTests(unittest.TestCase):
         swf = manifest["swfs"]["generated/swf/dialog.bswf"]
         language = inspect_language((self.source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
         options = "|".join(language["entries"][key] for key in runner.QUIT_OPTIONS)
-        images = runner.font_images(manifest) | {"dialog"}
+        images = runner.resident_images(manifest) | {"dialog"}
         counters = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
         textures = "[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters)
         log = "GS ready NTSC\nrun_ready \n"

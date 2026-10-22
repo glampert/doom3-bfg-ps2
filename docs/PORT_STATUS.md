@@ -2,9 +2,10 @@
 
 ## Current snapshot — 2026-10-22
 
-The port is not playable yet. The latest slice draws the dialog's text from
-[pre-rendered glyphs](#pre-rendered-menu-glyphs-2026-10-22) (accepted in the debug gates
-on 2026-10-22). Before it, the retail UI moved to
+The port is not playable yet. The latest slices draw the console with the
+[original retail charset](#retail-console-charset-2026-10-22) and the dialog's text from
+[pre-rendered glyphs](#pre-rendered-menu-glyphs-2026-10-22) (both accepted in the debug
+gates on 2026-10-22). Before them, the retail UI moved to
 [resident paletted textures](#paletted-retail-ui-textures-2026-10-21) (2026-10-21), the
 first lever of the
 [memory budget investigation](#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20),
@@ -31,9 +32,12 @@ The dialog now draws from resident paletted textures, its text from pre-rendered
 glyphs, at about 40 ms per debug PCSX2 frame; with streamed RGBA32 pages it took about
 1.6 s. No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-22, debug only) drew the dialog's text from glyphs
-pre-rendered at their exact sizes: the font, movie and authored UI gates pass in NTSC
-and PAL; see its [record](#pre-rendered-menu-glyphs-2026-10-22). The one before
+The last acceptance (2026-10-22, debug only) replaced the generated console charset
+with the retail `textures/bigchars` from the catalog, which every visible package now
+stages; see its [record](#retail-console-charset-2026-10-22). Earlier that day the
+dialog's text moved to glyphs pre-rendered at their exact sizes: the font, movie and
+authored UI gates pass in NTSC and PAL; see its
+[record](#pre-rendered-menu-glyphs-2026-10-22). The one before
 (2026-10-21, debug only by the user's direction) moved the retail
 UI to converted paletted textures: every debug emulator gate passes in NTSC and PAL,
 with texture counters equal to the cooked files; see its
@@ -4006,3 +4010,97 @@ script and platform probes) build; the core test image is 2,152,816 / 2,237,424 
 Only the dialog's sizes are cooked. One GSTX texture holds at most 1,024 placements, so
 covering the shell's sizes for every font needs a denser glyph record or several images
 per set; the next screens' sizes come from the runtime log.
+
+## Retail console charset (2026-10-22)
+
+Accepted **2026-10-22, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release gates were not run. The native console used to draw a 5×7 ASCII charset generated
+in code into a 256 KiB RGBA atlas; it now draws the original `textures/bigchars`, cooked
+into the retail catalog, and the generator left production.
+
+- **Cook.** The profile requests `textures/bigchars` and keeps it at full resolution
+  through the new `conversion.texture_policies` (per-image overrides of the policy
+  fields, keyed by the requested image, material or BIMAGE name). Its retail material in
+  `gfx.mtr` is explicit (`colored`, like `guiSolid`), so the catalog binds no material;
+  the image converts to one 256×256 PSMT4 page on the fonts' 16-level alpha ramp: 19,184
+  bytes on disc, 32 KiB of VRAM, worst RMSE 4.55. The UICT3 catalog is now 52,691 bytes
+  with fourteen images (41,120 descriptor bytes, 18 pages).
+- **Target.** The presentation opens the catalog at startup (`retail::Init`,
+  `RegisterMaterials`, then `renderer::OpenConsoleCharset`, which finds the image by its
+  catalog name), before fonts register. The image manager creates only `_white`; the
+  authored movie and the retail screens now coexist in one catalog-backed image profile,
+  and the retail font screen registers its fonts on the first `ps2_uiRetail load`.
+  `DrawSmallChar`/`DrawBigChar` keep emitting the charset image directly, so each glyph
+  is two triangles through the paged path with its single placement. A small character
+  minifies its 16×16-texel cell 2.5× horizontally; a host simulation of the GS sampling
+  found the bold 3–4 texel strokes within 2% of an exact area filter, so no pre-rendered
+  console sizes were needed (see [the GS rule](../.claude/rules/gs-renderer.md#doom-console-charset-2026-10-22)).
+- **Packages.** Every visible package (`make console`, `make ui` and the retail ones)
+  stages the cooked catalog and assets from `UI_COOK_OUTPUT`; `make ui-cook` comes
+  first. Headless packages are unchanged.
+- **Fixture.** The core test image has no catalog, so the generator moved to
+  `src/tests/smoketests/console_charset.*` and the renderer scenes install it through a
+  test-only `renderer::InstallConsoleCharset` after `ui::Init`; a budget the atlas cannot
+  fit (pixel or texture VRAM) installs nothing and retains no ownership. The authored UI
+  font data is still generated on the host from the same bit patterns.
+- **Checks.** `test-console` derives 24 input-line probes from the cooked charset (the
+  strongest ink and a hole per character of `]echo pending`, half a texel of slack) plus
+  the background, border and word-gap probes; all 28 pass in both standards. The retail
+  runners count the charset among the resident textures, and a corrupt catalog header
+  now fails at presentation startup.
+
+| Debug ledger (NTSC = PAL; requested / backing [/ allocations]) | Pre-rendered glyphs (2026-10-22) | Retail charset |
+| --- | ---: | ---: |
+| Visible console peak; arena | 2,786,855 / 2,884,740; 2,900,123 | 2,408,956 / 2,507,416; 2,547,483 |
+| Authored UI warm unload | 3,842,204 / 3,943,156 / 2,459 | 3,674,447 / 3,775,752 / 2,466 |
+| Authored UI peak; arena | 3,885,330 / 3,992,352; 4,213,147 | 3,717,573 / 3,824,948; 3,890,971 |
+| Font screen warm | 2,828,948 / 2,932,868 / 2,519 | 2,608,786 / 2,713,020 / 2,525 |
+| Font screen peak; arena | 2,921,146 / 3,025,108; 3,066,267 | 2,700,984 / 2,805,260; 2,846,491 |
+| Dialog at rest | 4,339,994 / 4,478,064 / 3,308 | 4,119,832 / 4,258,216 / 3,314 |
+| Every dialog release | 4,092,694 / 4,198,408 / 2,558 | 3,872,532 / 3,978,560 / 2,564 |
+| Dialog peak; arena | 4,519,660 / 4,624,320; 4,729,243 | 4,299,498 / 4,404,472; 4,517,659 |
+| Inactive movies peak; arena | 6,898,750 / 7,094,572; 7,211,419 | 6,678,588 / 6,874,724; 6,991,643 |
+| Executing shell peak; arena | 10,764,915 / 11,469,112; 11,565,467 | 10,544,753 / 11,249,264; 11,345,691 |
+| Full shutdown | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Every visible run is 220–378 KB lighter: the 256 KiB RGBA atlas and the 256 KiB buffer it
+was generated in are gone, against the 52,691-byte catalog and the charset's 32 KiB page,
+CLUT and tables. The console and authored UI runs now hold the catalog too, which the
+seven extra allocations are. The `RETAIL textures` counters gain the charset: the font
+screen holds 7 images / 7 pages / 7 CLUTs, 192,512 pixel and 49,032 metadata bytes; the
+full dialog 8 / 9 / 11, 393,216 / 53,786, with 8 uploads at every capture; the inactive
+movies 9 / 13 / 33, 1,253,376 / 72,196; the executing shell 10 / 14 / 34, 1,339,392 /
+73,948. The dialog captures are byte-identical to the 2026-10-22 glyph runs. Headless
+ledgers are unchanged.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-console` | 2 | `20261022T121951Z_console_bf74fa31f898`, `20261022T122002Z_console_ffbf44cc398e` |
+| `test-ui` | 14 | `20261022T122018Z_ui_681615cb084c` to `20261022T122157Z_ui_f5b341c5afa4` |
+| `test-retail-ui` | 7 | `20261022T122206Z_retail_0522810b9c28` to `20261022T122259Z_retail_25499b0186e0` |
+| `test-retail-movies` | 19 | `20261022T122308Z_movies_8d9ba0bf2ca2` to `20261022T122729Z_movies_08e13143c83b` (dialog `20261022T122603Z_movies_cb306867580b`, `20261022T122615Z_movies_4c71d17d43cf`) |
+| `test-headless` | 2 | `20261022T122819Z_headless_234ca29a52bd`, `20261022T122823Z_headless_fbae803029e4` |
+| `test-renderer` | 19 | `20261022T124112Z_smoke_71ab1023f2444330` to `20261022T124225Z_smoke_be5092327dd44113` |
+
+The core renderer gate's first run (`20261022T122757Z_smoke_9e65e52d8ab5415b`) failed
+its native-adapters check: `tex::Create` charges only the EE pixel budget and VRAM is
+charged at bind time, so the fixture charset installed under a 128 KiB texture VRAM
+budget where the former intrinsic's startup pre-check had refused it. The test-only
+install now refuses an atlas larger than the texture VRAM, and the rerun passed; the
+change is inside the test-enabled block, and the stripped production images are
+byte-identical to the ones the visible gates ran.
+
+The console captures were inspected in both standards: the input line and history draw
+the bold Doom 3 charset, narrow at the console's 8-unit cell as on a 640×480 PC screen,
+with the cyan prompt and white input. `make test-host` passes 360 Python regressions
+plus the C++ harnesses, with new tests for the texture policies, the cook-derived console
+probes, the catalog staging of visible packages and the charset's place among the
+resident textures. Production `PT_LOAD` is 11,182,309 debug / 11,619,493 release bytes
+(−1,408 each, the generator), with 375 objects and no fixtures; the core test image is
+2,153,200 / 2,237,808 bytes (+384 / +384, the fixture).
+
+Limits: a visible package without a cook fails at startup (`retail UI catalog missing`),
+by design; the console's glyphs go through the paged triangle path (two 30-qword
+triangles each, where the intrinsic used one sprite), which the GIF carries easily but a
+sprite path for single-placement images could halve later; the charset's explicit
+material stays unbound, which only matters if native code ever draws `charSetMaterial`.

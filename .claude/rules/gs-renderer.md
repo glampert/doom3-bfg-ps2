@@ -133,10 +133,12 @@ not recovery from a genuinely wedged physical GS. No hardware cache claim follow
 
 Native `ui::Init` is separate from low-level `renderer` readiness. Only native activation
 sets `R_IsInitialized`; `IsOpenGLRunning` remains false. Shutdown images/UI before
-the caller-owned device, without replacing logical-world ownership. The initial
-image profile owns only `_white` and `textures/bigchars`; the latter requires clamp
-and nearest/default sampling. Its authored ASCII atlas has sixteen 16×16 cells per
-axis, 15×14 glyph coverage, native cursor bytes 10/11 and explicit fallback boxes.
+the caller-owned device, without replacing logical-world ownership. The image manager
+creates only `_white`. The console charset is the catalog's `textures/bigchars`,
+opened at presentation startup (see [the charset notes](#doom-console-charset-2026-10-22));
+the core test image, which has no catalog, installs the authored fixture atlas from
+`tests/smoketests/console_charset.*`: sixteen 16×16 cells per axis, 15×14 glyph coverage,
+native cursor bytes 10/11, explicit fallback boxes, nearest/clamp sampling.
 
 Map all console coordinates once from virtual 640×480 to GS 1/16 fixed point. Clip
 positions and interpolate UV before converting; normalized UV addresses logical image
@@ -373,6 +375,28 @@ as noted.
   s=0). Skipping empty glyphs stopped the first dialog frame at its first space.
 - Load checks the catalog's tables and every CLUT/page FNV before publication; nothing
   streams afterwards. The owner keeps the EE copy for re-upload after VRAM eviction.
+
+## Doom console charset (2026-10-22)
+
+The console draws the retail `textures/bigchars` (256×256, 16×16 cells, white with an
+antialiased alpha, one DXT5 level) as a catalog GSTX image: one placement, one 256×256
+PSMT4 page (32 KiB of VRAM), kept at full resolution by `texture_policies`.
+
+- The retail material (`gfx.mtr`) is explicit (`colored`, like `guiSolid`), so the catalog
+  binds no material for it; the backend finds the image by its catalog name
+  (`generated/images/textures/bigchars#__0200.bimage`). The PS2 text path never reads
+  `tr.charSetMaterial`: `DrawSmallChar`/`DrawBigChar` emit the charset image directly
+  through the paged triangle path, so each glyph is two triangles whose UV centroid
+  selects the single placement.
+- A small character maps a 16×16-texel cell onto 8×16 virtual units: 6.4 × 14.9 GS px in
+  NTSC, a 2.5× horizontal minification through one bilinear level. The charset's strokes
+  are 3–4 texels wide, so a host simulation of the GS sampling found the result within
+  2% (mean) of an exact area filter and never a quarter level apart; unlike the menu
+  fonts, the console needs no pre-rendered sizes. Halving it (the global policy) would
+  have magnified rows 1.9× instead.
+- `test-console` derives its input-line probes from the cooked texture: pixel centers sit
+  on integer coordinates and the quad is exact to 1/16 px, so half a texel of slack around
+  each sample is enough; the eight-level channel tolerance covers rounding.
 
 ## Doom pre-rendered glyphs (2026-10-22)
 

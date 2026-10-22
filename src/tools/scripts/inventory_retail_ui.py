@@ -124,10 +124,11 @@ def _configuration(path):
     if logical_name(config["source_language"]) != "strings/english.lang":
         raise ValueError("retail UI pipeline supports English strings/english.lang only")
     conversion = config.get("conversion")
-    if not isinstance(conversion, dict) or set(conversion) - {"glyph_sets"} != {"policy", "conversion_only"}:
-        raise ValueError("retail UI conversion needs a policy, a conversion_only list and optional glyph_sets")
+    if not isinstance(conversion, dict) or set(conversion) - {"glyph_sets", "texture_policies"} != {"policy", "conversion_only"}:
+        raise ValueError("retail UI conversion needs a policy, a conversion_only list and optional glyph_sets/texture_policies")
     ui_reexport.validate_policy(conversion["policy"])
     ui_reexport.validate_glyph_sets(conversion.get("glyph_sets", []))
+    ui_reexport.validate_texture_policies(conversion.get("texture_policies", {}))
     extra = conversion["conversion_only"]
     if (not isinstance(extra, list) or len(extra) > MAX_CONVERSION_ONLY or
             any(not isinstance(value, str) or not value.startswith("generated/swf/") or not value.endswith(".bswf") for value in extra)):
@@ -343,6 +344,19 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
     if len(image_requests) > MAX_IMAGE_CANDIDATES:
         raise ValueError("retail UI image candidate count exceeds 4096 bound")
     image_resolutions = [_image_resolution(name, names, font) for name, font in sorted(image_requests)]
+    # A texture policy names a requested image or material, or the BIMAGE resource itself; it
+    # applies to the converted texture that resolves it.
+    texture_policies = ui_reexport.validate_texture_policies(config["conversion"].get("texture_policies", {}))
+    selected_policies = {}
+    for policy_name, override in texture_policies.items():
+        selected = {entry["selected"] for entry in image_resolutions if entry["status"] == "resolved" and
+                    policy_name in (logical_name(entry["logical_image"]), entry["selected"])}
+        if len(selected) != 1:
+            raise ValueError("retail UI texture policy names an image outside the profile: " + policy_name)
+        texture_name = selected.pop()
+        if texture_name in selected_policies and selected_policies[texture_name] != override:
+            raise ValueError("retail UI texture policies conflict for one texture: " + texture_name)
+        selected_policies[texture_name] = override
     image_details = {}
     for record in image_resolutions:
         if record["status"] != "resolved":
@@ -397,6 +411,7 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                 "issues": issues, "blockers": _BLOCKERS, "exclusions": config.get("exclusions", []),
                 "working_set": {"source_decoded_base_bytes": sum(value["decoded_bytes"] for value in image_details.values()),
                                 "conversion_policy": config["conversion"]["policy"],
+                                "texture_policies": {name: selected_policies[name] for name in sorted(selected_policies)},
                                 "policy": "Paletted GSTX pages stay resident per loaded image; totals are package sizes, not a measured target budget."},
                 "cooked": {"assets": {}, "runtime_images": {}, "conversion_only": {}, "glyph_sets": {}, "storage_bytes": 0,
                            "file_count": 0}}
@@ -428,6 +443,8 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                 elif font_paths:
                     texture["placements"] = ui_reexport.font_placements(font_details[font_paths[0]], codepoints,
                                                                         details["width"], details["height"])
+                if name in selected_policies:
+                    texture["policy"] = selected_policies[name]
                 textures.append(texture)
                 runtime_outputs[texture["output"]] = name
             for swf_name in sorted(map(logical_name, config["conversion"]["conversion_only"])):

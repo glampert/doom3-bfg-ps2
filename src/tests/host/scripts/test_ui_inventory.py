@@ -145,6 +145,28 @@ class InventoryPipelineTests(unittest.TestCase):
         self.assertNotIn("generated/images/generated/swf/extra#__0200.bimage", manifest["cooked"]["runtime_images"])
         self.assertNotIn(b"extra", (self.output / manifest["cooked"]["runtime_catalog"]["path"]).read_bytes())
 
+    def test_texture_policies_override_the_conversion_of_one_image(self):
+        self.config["conversion"]["texture_policies"] = {"generated/swf/fixture.tga": {"scale": 1.0}}
+        self.config_path.write_text(json.dumps(self.config))
+        manifest = self.run_inventory(cook=True)
+        movie_name = self.records[2][0]
+        self.assertEqual(manifest["working_set"]["texture_policies"], {movie_name: {"scale": 1.0}})
+        images = manifest["cooked"]["runtime_images"]
+        movie = ui_gstx.Texture((self.output / images[movie_name]["path"]).read_bytes())
+        font = ui_gstx.Texture((self.output / images[self.records[3][0]]["path"]).read_bytes())
+        # The movie's 20x20 source block keeps its texels; the font still halves to the global policy.
+        self.assertEqual(tuple(movie.placements[0]["dest"][2:]), (20, 20))
+        self.assertLess(font.placements[0]["dest"][2], font.placements[0]["source"][2])
+        job = json.loads((self.output / manifest["cooked"]["reexport"]["job"]["path"]).read_text())
+        policies = {texture["name"]: texture.get("policy") for texture in job["textures"]}
+        self.assertEqual(policies[movie_name], {"scale": 1.0})
+        self.assertIsNone(policies[self.records[3][0]])
+        # Two overrides that resolve to one texture must agree.
+        self.config["conversion"]["texture_policies"]["generated/images/generated/swf/fixture#__0200.bimage"] = {"scale": 0.5}
+        self.config_path.write_text(json.dumps(self.config))
+        with self.assertRaisesRegex(ValueError, "conflict"):
+            self.run_inventory()
+
     def test_ordered_duplicate_precedence_keeps_evidence(self):
         replacement = self.raw_swf
         self.save_containers([("generated/swf/fixture.bswf", replacement)])
@@ -253,6 +275,13 @@ class InventoryPipelineTests(unittest.TestCase):
                                     ({"policy": partial, "conversion_only": []}, "must name exactly"),
                                     ({"policy": policy, "conversion_only": ["guis/hud.gui"]}, "generated/swf"),
                                     ({"policy": policy, "conversion_only": [], "glyph_sets": {}}, "at most 8 fonts"),
+                                    ({"policy": policy, "conversion_only": [], "texture_policies": []}, "at most 64 images"),
+                                    ({"policy": policy, "conversion_only": [],
+                                      "texture_policies": {"generated/swf/fixture.tga": {"bogus": 1}}}, "known policy fields"),
+                                    ({"policy": policy, "conversion_only": [],
+                                      "texture_policies": {"generated/swf/fixture.tga": {"scale": 2}}}, "out of range: scale"),
+                                    ({"policy": policy, "conversion_only": [],
+                                      "texture_policies": {"textures/absent.tga": {"scale": 1.0}}}, "outside the profile"),
                                     ({"policy": policy, "conversion_only": [],
                                       "glyph_sets": [{"font": "fonts/an.dat", "sizes": [glyph_size]}]}, "distinct newfonts"),
                                     ({"policy": policy, "conversion_only": [],

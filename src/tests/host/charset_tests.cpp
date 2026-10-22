@@ -1,10 +1,10 @@
 // ================================================================================================
 // File: charset_tests.cpp
-// Brief: Check native character addressing, transparent glyph margins and bounded atlas generation.
+// Brief: Check the test fixture charset's character addressing, transparent glyph margins and bounded generation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/ui/charset.h"
+#include "tests/smoketests/console_charset.h"
 
 #include <algorithm>
 #include <array>
@@ -19,8 +19,8 @@ using Buffer = std::vector<std::uint8_t>;
 
 static constexpr size_t kGuardBytes = 32;
 static constexpr std::uint8_t kGuard = 0xA5;
-static constexpr int kCell = ps2::ui::fonts::kConsoleCellSize;
-static constexpr int kAtlas = ps2::ui::fonts::kConsoleAtlasSize;
+static constexpr int kCell = ps2::tests::kConsoleCellSize;
+static constexpr int kAtlas = ps2::tests::kConsoleAtlasSize;
 
 bool Check(bool passed, const char * name)
 {
@@ -69,14 +69,14 @@ int OpaqueCount(const Buffer & pixels, int code)
 
 bool Bounds()
 {
-    Buffer guarded(ps2::ui::fonts::kConsoleAtlasBytes + kGuardBytes * 2U, kGuard);
+    Buffer guarded(ps2::tests::kConsoleAtlasBytes + kGuardBytes * 2U, kGuard);
     auto * const output = guarded.data() + kGuardBytes;
-    if (!Check(!ps2::ui::fonts::MakeConsoleCharset(nullptr, ps2::ui::fonts::kConsoleAtlasBytes), "null buffer") ||
-        !Check(!ps2::ui::fonts::MakeConsoleCharset(output, ps2::ui::fonts::kConsoleAtlasBytes - 1U), "short buffer") ||
+    if (!Check(!ps2::tests::MakeConsoleCharset(nullptr, ps2::tests::kConsoleAtlasBytes), "null buffer") ||
+        !Check(!ps2::tests::MakeConsoleCharset(output, ps2::tests::kConsoleAtlasBytes - 1U), "short buffer") ||
         !Check(std::all_of(guarded.begin(), guarded.end(), [](std::uint8_t byte)
                            { return byte == kGuard; }),
                "rejected generation changes no bytes") ||
-        !Check(ps2::ui::fonts::MakeConsoleCharset(output, ps2::ui::fonts::kConsoleAtlasBytes), "exact capacity"))
+        !Check(ps2::tests::MakeConsoleCharset(output, ps2::tests::kConsoleAtlasBytes), "exact capacity"))
     {
         return false;
     }
@@ -189,70 +189,15 @@ bool Cursors(const Buffer & pixels)
     }
     return true;
 }
-
-bool FontAtlas(const Buffer & console)
-{
-    Buffer guarded(ps2::ui::fonts::kAuthoredFontAtlasBytes + kGuardBytes * 2U, kGuard);
-    auto * const pixels = guarded.data() + kGuardBytes;
-    if (!Check(!ps2::ui::fonts::MakeAuthoredFontCharset(nullptr, ps2::ui::fonts::kAuthoredFontAtlasBytes), "null font buffer") ||
-        !Check(!ps2::ui::fonts::MakeAuthoredFontCharset(pixels, ps2::ui::fonts::kAuthoredFontAtlasBytes - 1U), "short font buffer") ||
-        !Check(std::all_of(guarded.begin(), guarded.end(), [](std::uint8_t byte)
-                           { return byte == kGuard; }),
-               "rejected font generation changes no bytes") ||
-        !Check(ps2::ui::fonts::MakeAuthoredFontCharset(pixels, ps2::ui::fonts::kAuthoredFontAtlasBytes), "exact font capacity"))
-    {
-        return false;
-    }
-    for (size_t i = 0; i < kGuardBytes; ++i)
-    {
-        if (!Check(guarded[i] == kGuard && guarded[guarded.size() - 1U - i] == kGuard, "font prefix/tail guards"))
-        {
-            return false;
-        }
-    }
-    for (int y = 0; y < ps2::ui::fonts::kAuthoredFontAtlasHeight; ++y)
-    {
-        for (int x = 0; x < ps2::ui::fonts::kAuthoredFontAtlasWidth; ++x)
-        {
-            const int code = (y / 16) * 16 + x / 32;
-            const int localX = x % 32;
-            const int localY = y % 16;
-            const std::uint8_t expected = code >= 32 && code <= 126 && localX >= 1 && localX <= 15 && localY >= 1 && localY <= 14 ? Texel(console, code, localX - 1, localY)[3] : 0;
-            const size_t offset = static_cast<size_t>(y * ps2::ui::fonts::kAuthoredFontAtlasWidth + x) * 4U;
-            if (!Check(pixels[offset] == 255 && pixels[offset + 1U] == 255 && pixels[offset + 2U] == 255 &&
-                       pixels[offset + 3U] == expected,
-                       "font matches console coverage with transparent half-texel gutters"))
-            {
-                return false;
-            }
-        }
-    }
-    for (int code = 32; code <= 126; ++code)
-    {
-        const float s = static_cast<float>((code & 15) * 32 + 1);
-        const float t = static_cast<float>((code >> 4) * 16 + 1);
-        if (!Check(s - 0.5f > 0.0f && t - 0.5f > 0.0f &&
-                   s + 15.5f < static_cast<float>(ps2::ui::fonts::kAuthoredFontAtlasWidth) &&
-                   t + 14.5f < static_cast<float>(ps2::ui::fonts::kAuthoredFontAtlasHeight),
-                   "native font expanded UVs stay inside atlas"))
-        {
-            return false;
-        }
-    }
-    Buffer reload(ps2::ui::fonts::kAuthoredFontAtlasBytes, kGuard);
-    return Check(ps2::ui::fonts::MakeAuthoredFontCharset(reload.data(), reload.size()) &&
-                 std::equal(reload.begin(), reload.end(), pixels),
-                 "font reload is deterministic");
-}
 } // namespace
 
 int main()
 {
-    Buffer pixels(ps2::ui::fonts::kConsoleAtlasBytes, kGuard);
-    Buffer reload(ps2::ui::fonts::kConsoleAtlasBytes, 0);
-    if (!Bounds() || !Check(ps2::ui::fonts::MakeConsoleCharset(pixels.data(), pixels.size()), "atlas generation") ||
-        !Pixels(pixels) || !Characters(pixels) || !Cursors(pixels) || !FontAtlas(pixels) ||
-        !Check(ps2::ui::fonts::MakeConsoleCharset(reload.data(), reload.size()) && pixels == reload, "reload is deterministic"))
+    Buffer pixels(ps2::tests::kConsoleAtlasBytes, kGuard);
+    Buffer reload(ps2::tests::kConsoleAtlasBytes, 0);
+    if (!Bounds() || !Check(ps2::tests::MakeConsoleCharset(pixels.data(), pixels.size()), "atlas generation") ||
+        !Pixels(pixels) || !Characters(pixels) || !Cursors(pixels) ||
+        !Check(ps2::tests::MakeConsoleCharset(reload.data(), reload.size()) && pixels == reload, "reload is deterministic"))
     {
         return 1;
     }

@@ -18,7 +18,9 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 import run_ui as runner
 import stage_headless as staging
+import stage_retail_ui
 import ui_capture
+from test_retail_ui_runner import synthetic_package
 
 
 def completed(standard="ntsc"):
@@ -243,16 +245,24 @@ class AuthoredUiStaging(unittest.TestCase):
             for name, key in (("d3bfg.elf", "runnable_elf_sha256"), ("d3bfg_unstripped.elf", "elf_sha256"), ("d3bfg.map", "link_map_sha256")):
                 report[key] = staging.sha256(source / name)
             (source / "report.json").write_text(json.dumps(report))
-            with mock.patch.multiple(staging, REPO_ROOT=root, BOOT_ROOT=boot, UI_ROOT=ui):
+            # A visible package also carries the cooked catalog, for the console charset.
+            cook = root / "build/cook"
+            synthetic_package(cook)
+            with mock.patch.multiple(staging, REPO_ROOT=root, BOOT_ROOT=boot, UI_ROOT=ui), \
+                    mock.patch.object(stage_retail_ui, "REPO_ROOT", root):
                 plain = staging.stage("debug", root / "plain")
                 self.assertFalse((plain / "base" / ui_capture.MOVIE_PATH).exists())
+                self.assertFalse((plain / "base/retail_ui.uic").exists())
                 headless = staging.stage("debug", root / "ui-headless", include_ui=True)
                 self.assertTrue((headless / "base" / ui_capture.MOVIE_PATH).exists())
                 self.assertNotIn("ps2_ui load", (headless / "base/d3bfg.cfg").read_text())
+                with self.assertRaisesRegex(ValueError, "cooked retail catalog"):
+                    staging.stage("debug", root / "no-catalog", "ntsc", include_ui=True)
                 for case in runner.NEGATIVES:
-                    output = staging.stage("debug", root / case, "ntsc", include_ui=True)
+                    output = staging.stage("debug", root / case, "ntsc", include_ui=True, catalog=cook)
                     self.assertEqual((output / "base/d3bfg.cfg").read_text().count("ps2_ui load\n"), 1)
-                    staging.stage("debug", output, "ntsc", include_ui=True)
+                    self.assertTrue((output / "base/retail_ui.uic").is_file())
+                    staging.stage("debug", output, "ntsc", include_ui=True, catalog=cook)
                     self.assertEqual((output / "base/d3bfg.cfg").read_text().count("ps2_ui load\n"), 1)
                     mutation = runner.mutate(output, case)
                     self.assertTrue(mutation["path"].startswith("base/"))
@@ -260,9 +270,9 @@ class AuthoredUiStaging(unittest.TestCase):
                     for relative, original in originals.items():
                         self.assertEqual((ui / "base" / relative).read_bytes(), original)
                 with self.assertRaisesRegex(ValueError, "separate package"):
-                    staging.stage("debug", ui, "ntsc", include_ui=True)
+                    staging.stage("debug", ui, "ntsc", include_ui=True, catalog=cook)
                 (plain / "base/d3bfg.cfg").write_text("user preferences\n")
-                staging.stage("debug", plain, "ntsc", include_ui=True)
+                staging.stage("debug", plain, "ntsc", include_ui=True, catalog=cook)
                 self.assertEqual((plain / "base/d3bfg.cfg").read_text(), "user preferences\n")
 
 

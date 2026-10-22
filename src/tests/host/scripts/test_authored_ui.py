@@ -342,7 +342,8 @@ class AuthoredNativeUI(unittest.TestCase):
     def test_authored_atlas_coverage_preserves_native_printable_glyphs_and_font_padding(self):
         width, _, movie = builder.charset_pixels()
         font_width, _, font = builder.authored_pixels(True)
-        # Independently dumped from MakeConsoleCharset/MakeAuthoredFontCharset with the host C++ compiler.
+        # Independently dumped from the fixture's MakeConsoleCharset (and its former authored-font
+        # variant) with the host C++ compiler.
         self.assertEqual(hashlib.sha256(movie).hexdigest(), "21e86cb9837b1c2621e3f94ccd0a7a50d12e7372f3b2ffa2a790c725ebe37451")
         self.assertEqual(hashlib.sha256(font).hexdigest(), "e0e942fb84833c257ce7a7972c7ba197911ad3dc41f3d7105d4304037a943545")
         for code in range(32, 127):

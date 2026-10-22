@@ -503,22 +503,22 @@ test-retail-boot: all
 	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2) --case retail --data-root "$(RETAIL_DATA_ROOT)"
 
 console: all
-	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD)
+	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD) --catalog "$(UI_COOK_OUTPUT)"
 
 run-console: console
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/console/d3bfg.elf
 
 test-console: all
-	$(PYTHON) $(SCRIPTS)/run_console.py --build $(BUILD) --emulator $(PCSX2)
+	$(PYTHON) $(SCRIPTS)/run_console.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
 ui: all
-	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD) --ui
+	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD) --ui --catalog "$(UI_COOK_OUTPUT)"
 
 run-ui: ui
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui/d3bfg.elf
 
 test-ui: all
-	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --emulator $(PCSX2)
+	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
 .PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines test-retail-dialog
 
@@ -751,9 +751,9 @@ build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/ui
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_triangles_tests.cpp src/ps2/ui/triangles.cpp src/ps2/ui/masks.cpp -o $@
 
-build/tests/charset_tests: src/tests/host/charset_tests.cpp src/ps2/ui/charset.cpp src/ps2/ui/charset.h Makefile
+build/tests/charset_tests: src/tests/host/charset_tests.cpp src/tests/smoketests/console_charset.cpp src/tests/smoketests/console_charset.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/ps2/ui/charset.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/charset_tests.cpp src/tests/smoketests/console_charset.cpp -o $@
 
 build/tests/ui_swf_format_tests: src/tests/host/ui_swf_format_tests.cpp src/ps2/ui/swf_format.cpp src/ps2/ui/swf_format.h src/ps2/ui/swf_execution.cpp src/ps2/ui/swf_execution.h Makefile
 	@mkdir -p $(dir $@)

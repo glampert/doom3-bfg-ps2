@@ -285,7 +285,7 @@ def build_materials():
 
 def charset_rows():
     """Keep the host's authored glyph coverage tied to the native canonical bit patterns."""
-    source = (REPO_ROOT / "src/ps2/ui/charset.cpp").read_text()
+    source = (REPO_ROOT / "src/tests/smoketests/console_charset.cpp").read_text()
     ascii_match = re.search(r"kAscii\[95\]\[7\]\s*=\s*\{(.*?)\n\};", source, re.S)
     box_match = re.search(r"kBox\[7\]\s*=\s*\{([^}]+)\}", source)
     if ascii_match is None or box_match is None:

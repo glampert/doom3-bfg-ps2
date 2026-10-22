@@ -69,6 +69,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   ledgers production prints after foundation, declaration and game startup.
   `make console` / `make run-console` stage/run the same ELF visibly under
   `build/<config>/console/`; `CONSOLE_STANDARD=ntsc` (default) or `pal` selects the mode.
+  Every visible package also stages the cooked retail catalog and assets from
+  `UI_COOK_OUTPUT` (run `make ui-cook` first): the presentation opens the catalog at
+  startup and the console draws the original `textures/bigchars` charset from it.
   Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` before Common startup;
   a missing file defaults to headless. `make test-console` checks native console drawing,
   edit/history events, close/reopen and final capture/quit in both standards.
@@ -93,8 +96,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make test-retail-ui` checks five real native fonts at 12/24/48-point scales, full
   legacy layout metrics, source-derived pixels, 120 frames per family, return/reload,
   shutdown and five corrupt-resource cases. HostFs `ps2_uiRetail` accepts load/unload/
-  reload/status or `font INDEX` (0–4). Start in a fresh visible process; retail paletted
-  textures and authored nearest pages are separate profiles. No retail SWF or Shell is
+  reload/status or `font INDEX` (0–4). Start in a fresh visible process; the retail
+  screens and the authored movie are separate screens of one catalog-backed image
+  profile. No retail SWF or Shell is
   loaded by that font-only mode. The separate movie profile below admits bounded
   dictionaries, English text and timeline execution; full drawing and offline Shell
   integration remain pending.
@@ -127,7 +131,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   and holds the NTSC scene for inspection.
   Production optionally presents the real native console and authored native SWF through
   Common; retail menu/Shell providers remain pending. `ui::Init/Shutdown` explicitly own
-  native 2D capability and intrinsic images after/before the caller-owned `renderer` device; low-level GS
+  native 2D capability and the white intrinsic after/before the caller-owned `renderer`
+  device; the console charset comes from the retail catalog in production and from the
+  authored fixture (`tests/smoketests/console_charset.*`) in the core test image. Low-level GS
   readiness alone never changes `R_IsInitialized`, and OpenGL stays unavailable.
   UI collection owns 4,096 vertices, 6,144 indices and 128 ordered draw runs. Fill returned
   write-only spans before the next allocation/draw; flushing or ending a frame recycles
@@ -196,7 +202,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   Output must stay under `build/`. The manifest records hashes, dependencies, feature
   gaps, full English font/language data and the converted GSTX runtime images; the
   profile's conversion policy (first pass: everything halved, 16-level English-only
-  font glyphs) drives `asset_reexport`, and `UI_PREVIEWS=DIR` adds original/converted
+  font glyphs; `texture_policies` keeps the console charset at full resolution) drives
+  `asset_reexport`, and `UI_PREVIEWS=DIR` adds original/converted
   PNGs for a visual review. Initial UI localization supports English only. Native
   authored SWF/font images share a fixed `PageCache` of UIPG pages; standalone
   `PageImage` callers may own a private cache. The cook also emits a bounded UICT3

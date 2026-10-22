@@ -33,6 +33,9 @@ make CONSOLE_STANDARD=pal run-retail-ui
 make test-retail-ui
 make BUILD=release test-retail-ui
 
+# The console and authored UI packages stage the same cook for the console charset:
+make ui-cook && make console
+
 # Separate reports and override the local installation location:
 make ui-inventory UI_DATA_ROOT=/path/to/bfg/base UI_COOK_OUTPUT=build/ui-inventory
 make ui-cook UI_DATA_ROOT=/path/to/bfg/base UI_COOK_OUTPUT=build/ui-retail
@@ -119,8 +122,8 @@ exact array/string/descriptor offsets and an English-only flag. Records bind ima
 to the complete header and tables of their GSTX texture, fonts to immutable modern
 `.dat` snapshots, three legacy width/height pairs and an optional
 [glyph table](#pre-rendered-glyphs), aliases to canonical families, and material names
-to images. The current index is **52,405 bytes**: thirteen images (40,992 descriptor
-bytes, 17 pages; the glyph set's descriptor alone is 19,680), five fonts, one glyph
+to images. The current index is **52,691 bytes**: fourteen images (41,120 descriptor
+bytes, 18 pages; the glyph set's descriptor alone is 19,680), five fonts, one glyph
 table (7,552 bytes, 618 entries), nineteen aliases and twelve implicit material
 bindings. Catalog bounds are 128 KiB, 32 images, eight fonts, 128 aliases, 64
 materials, 64 KiB of descriptors and 256 total pages; a glyph table holds at most 16
@@ -156,11 +159,13 @@ the logical texels one draw may own:
   owns its rectangle and maps it plus a one-texel ring, clamped to the atlas. Native
   text still draws a one-texel quad for the empty space and no-break space glyphs, so
   those own their whole ring (102–103 placements per font).
-- Any other image is one placement.
+- Any other image is one placement, the console charset included.
 
 The converter decodes BIMAGE DXT1/DXT5 level zero (green-alpha fonts become white RGB
 with green as alpha), resamples each placement with premultiplied area filtering by the
-policy `scale` (0.5: the first pass halves everything, fonts included), then quantizes:
+policy `scale` (0.5: the first pass halves everything, fonts included;
+`conversion.texture_policies` overrides policy fields per image, keyed by the requested
+image, material or BIMAGE name), then quantizes:
 
 - A placement gets its own palette first: variance-split boxes refined by weighted
   Lloyd iterations over a weighted color histogram. RGB weight is the squared maximum
@@ -210,6 +215,7 @@ The local cook converts 16 textures from 9,095,516 bytes of source BIMAGE resour
 | Pause (inspection only) | 1152 × 1172 | 134,880 | 386,496 | 512 × 512 T8, 512 × 192 T8, 256 × 128 T4 | 16 | 48 / 12 | 3.11 / 37 |
 | PDA (inspection only) | 640 × 656 | 46,992 | 135,424 | 256 × 384 T8, 256 × 256 T4 | 8 | 25 / 4 | 3.00 / 44 |
 | Loading (inspection only) | 128 × 20 | 336 | 8,256 | 128 × 128 T4 | 1 | 0 / 1 | 0 / 0 |
+| Console charset (full resolution) | 256 × 256 | 19,184 | 32,832 | 256 × 256 T4 | 1 | 0 / 1 | 4.55 / 11 |
 
 Errors are premultiplied 8-bit units against the resampled source, so they measure
 quantization, not the halving. Font errors come from the 16-level ramp; halving also
@@ -247,6 +253,23 @@ may leave unreferenced immutable files; old assets are not automatically pruned.
 Output symlinks and source/config aliases are refused. Use a tree without concurrent
 external mutation. This is atomic manifest replacement, not a durable filesystem
 transaction or an adversarial directory sandbox.
+
+## Console charset
+
+The native console draws `textures/bigchars`, a 256×256 atlas of sixteen 16×16-texel
+cells per axis indexed by the character byte, white with an antialiased alpha. The profile
+requests it as a material name; its retail definition in `gfx.mtr` is explicit
+(`colored`, like `guiSolid`), so the catalog binds no material and the backend opens the
+image by its catalog name (`generated/images/textures/bigchars#__0200.bimage`) when the
+presentation starts, before the native console draws. `texture_policies` keeps it at
+full resolution: a small console character maps one cell onto 8×16 virtual units, 2.5×
+minified horizontally on the 512-wide screen, which the bold 3–4 texel strokes survive
+under bilinear sampling; halving would have magnified its rows instead. It converts to
+one PSMT4 page on the fonts' 16-level alpha ramp (32 KiB of VRAM) and replaces the
+procedural 5×7 charset the console drew with before 2026-10-22, which survives only as
+the core renderer test's fixture (`src/tests/smoketests/console_charset.*`), since that
+image has no retail data. Every visible package therefore stages the catalog; see
+[the GS notes](../.claude/rules/gs-renderer.md#doom-console-charset-2026-10-22).
 
 ## Pre-rendered glyphs
 
@@ -461,6 +484,10 @@ NTSC/PAL captures are in [PORT_STATUS](PORT_STATUS.md#native-swf-and-font-page-b
 Two real cooks are byte-identical, and every converted texture is re-read and checked
 before publication. Previews stay under ignored `build/`.
 Host tests do not establish EE parser safety, menu correctness or physical PS2 behavior.
+
+`make test-console` derives the input line's glyph probes from the cooked charset, so
+the console gate, like the authored UI gate whose package also carries the catalog,
+needs `make ui-cook` first.
 
 The separate `make test-retail-ui` gate now passes debug/release NTSC/PAL: five native
 fonts at three scales, seven 120-frame phases, preserved legacy layout metrics,

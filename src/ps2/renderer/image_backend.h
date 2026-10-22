@@ -8,6 +8,8 @@
 
 #include "ps2/renderer/texture.h"
 
+#include <cstddef>
+
 class idImage;
 
 namespace ps2::ui
@@ -24,6 +26,12 @@ void ShutdownConsoleImages();
 bool ConsoleImagesInitialized();
 idImage * ConsoleWhiteImage();
 idImage * ConsoleCharsetImage();
+// Production opens the original charset from the retail catalog once that catalog is initialized;
+// the core test image, which has no retail data, installs the authored RGBA fixture instead.
+void OpenConsoleCharset();
+#if PS2_D3BFG_TESTS
+bool InstallConsoleCharset(const void * rgba, size_t bytes);
+#endif
 idImage * AuthoredFontImage();
 // Validation admits both direct intrinsics and cooked images. A paged image has logical atlas
 // dimensions; it never exposes a single texture handle for the whole atlas.

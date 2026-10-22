@@ -1,14 +1,15 @@
 // ================================================================================================
-// File: charset.cpp
-// Brief: Keep readable native console glyphs authored and reproducible from code.
+// File: console_charset.cpp
+// Brief: Keep the renderer tests' console glyphs authored and reproducible from code; production
+// draws the original charset from the retail catalog instead.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/ui/charset.h"
+#include "tests/smoketests/console_charset.h"
 
 #include <cstdint>
 
-namespace ps2::ui::fonts
+namespace ps2::tests
 {
 namespace
 {
@@ -157,32 +158,4 @@ bool MakeConsoleCharset(void * rgba, size_t capacity)
     }
     return true;
 }
-
-bool MakeAuthoredFontCharset(void * rgba, size_t capacity)
-{
-    if (rgba == nullptr || capacity < kAuthoredFontAtlasBytes)
-    {
-        return false;
-    }
-    auto * const pixels = static_cast<std::uint8_t *>(rgba);
-    for (size_t i = 0; i < kAuthoredFontAtlasBytes; i += 4U)
-    {
-        pixels[i + 0U] = pixels[i + 1U] = pixels[i + 2U] = 255;
-        pixels[i + 3U] = 0;
-    }
-    for (int code = 32; code <= 126; ++code)
-    {
-        const int cellX = (code & 15) * 32 + 1;
-        const int cellY = (code >> 4) * 16 + 1;
-        for (int y = 0; y < 14; ++y)
-        {
-            for (int x = 0; x < 15; ++x)
-            {
-                const size_t offset = static_cast<size_t>((cellY + y) * kAuthoredFontAtlasWidth + cellX + x) * 4U;
-                pixels[offset + 3U] = GlyphPixel(code, x, y + 1) ? 255 : 0;
-            }
-        }
-    }
-    return true;
-}
-} // namespace ps2::ui::fonts
+} // namespace ps2::tests

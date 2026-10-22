@@ -9,6 +9,7 @@ Git rules. Runtime evidence remains in [PORT_STATUS.md](PORT_STATUS.md).
 ## Read first
 
 1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-22), the latest
+   [console charset acceptance](PORT_STATUS.md#retail-console-charset-2026-10-22), the
    [pre-rendered glyph acceptance](PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22), the
    [paletted UI acceptance](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21) and the
    [full-dialog acceptance](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice).
@@ -45,7 +46,7 @@ for each feature.
 | Profile | Working behavior | Explicit limit |
 | --- | --- | --- |
 | Production headless | Common, native console commands, NOMAP ticks, bounded/live quit and complete shutdown | No production map simulation |
-| Visible console | Native console edit/history, close/reopen, capture/final presentation in NTSC/PAL | HostFs injection; no physical input polling |
+| Visible console | Native console edit/history, close/reopen, capture/final presentation in NTSC/PAL, drawn with the original `textures/bigchars` charset from the cooked catalog | HostFs injection; no physical input polling; visible packages need `make ui-cook` |
 | Authored SWF | Native loading, fonts, timeline/AVM1 focus/select, additive blend 8, convex masks, shared pages | Exact generated asset admission; no retail-menu claim |
 | Retail fonts | Five English families, native legacy metrics and resident paletted textures | Font/resource screen only |
 | Retail movie inspection | Original shell/dialog dictionaries, full English dictionary and isolated native edit-text layout | Inactive imported timelines |
@@ -93,6 +94,9 @@ Proposed order; the user chose lever 1 first:
    draws a frame in about 60 ms in debug PCSX2 (1.6 s before) with a 1.46 MB smaller
    loaded heap. Next: the user's visual pass over `build/ui-previews` (halved thin
    fonts lost their solid stroke interior), and the release gates when asked.
+   **The console** draws the original `textures/bigchars` charset from the catalog since
+   2026-10-22 (full resolution through `texture_policies`); the 5×7 generator is now only
+   the core renderer test's fixture, and every visible package stages the cook.
    **Menu text** draws from pre-rendered glyphs since 2026-10-22, at the user's choice
    after the dialog's labels aliased ([pipeline](RETAIL_UI_PIPELINE.md#pre-rendered-glyphs)):
    `conversion.glyph_sets` lists Sarasori's six dialog sizes. Each screen that draws

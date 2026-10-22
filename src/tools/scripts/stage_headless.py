@@ -55,11 +55,14 @@ def link_containers(data_root: Path, base: Path) -> None:
 
 
 def stage(build: str, output: Path, presentation: str = "headless", include_ui: bool = False,
-          retail_data: Path | None = None) -> Path:
+          retail_data: Path | None = None, catalog: Path | None = None) -> Path:
     if presentation not in PRESENTATIONS:
         raise ValueError("presentation must be headless, ntsc or pal")
     if include_ui and retail_data is not None:
         raise ValueError("the authored UI and retail boot packages are separate")
+    # A visible presentation opens the cooked retail catalog at startup for the console charset.
+    if presentation != "headless" and catalog is None:
+        raise ValueError("a visible package needs the cooked retail catalog (make ui-cook); pass its directory")
     source = REPO_ROOT / "build" / build
     report = json.loads((source / "report.json").read_text())
     if not report["passed"] or report["kind"] != "game" or report["test_inputs"] or report["test_symbols"]:
@@ -95,6 +98,10 @@ def stage(build: str, output: Path, presentation: str = "headless", include_ui: 
         target = output / path.relative_to(UI_ROOT)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
+    if presentation != "headless":
+        # Bound at call time: the retail staging module imports this one.
+        from stage_retail_ui import stage_catalog
+        stage_catalog(Path(catalog), output)
     if retail_data is not None:
         for path in sorted(path for path in RETAIL_ROOT.rglob("*") if path.is_file()):
             target = output / path.relative_to(RETAIL_ROOT)
@@ -118,12 +125,14 @@ def main() -> int:
     parser.add_argument("--presentation", choices=PRESENTATIONS, default="headless")
     parser.add_argument("--ui", action="store_true", help="include the authored native SWF and font data")
     parser.add_argument("--retail-data", type=Path, help="boot from this installation's retail containers")
+    parser.add_argument("--catalog", type=Path, default=REPO_ROOT / "build/ui-retail",
+                        help="the cooked retail UI (make ui-cook) a visible package draws the console charset from")
     args = parser.parse_args()
     try:
         package = ("retail-boot" if args.retail_data else "ui" if args.ui else
                    "headless" if args.presentation == "headless" else "console")
         output = stage(args.build, args.output or REPO_ROOT / "build" / args.build / package, args.presentation, args.ui,
-                       args.retail_data)
+                       args.retail_data, args.catalog if args.presentation != "headless" else None)
     except (OSError, ValueError, KeyError) as error:
         parser.exit(1, f"error: {error}\n")
     print(f"Production {args.presentation} package: {output}")

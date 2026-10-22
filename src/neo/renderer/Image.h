@@ -97,6 +97,9 @@ struct Handle;
 tex::Handle ConsoleImageTexture(const idImage * image);
 void ValidateUiImage(const idImage * image);
 ui::PagedImage * UiPageImage(const idImage * image);
+#if PS2_D3BFG_TESTS
+bool InstallConsoleCharset(const void * rgba, size_t bytes);
+#endif
 }
 }
 #endif
@@ -199,6 +202,10 @@ private:
 	friend ps2::renderer::tex::Handle ps2::renderer::ConsoleImageTexture(const idImage * image);
 	friend void ps2::renderer::ValidateUiImage(const idImage * image);
 	friend ps2::ui::PagedImage * ps2::renderer::UiPageImage(const idImage * image);
+#if PS2_D3BFG_TESTS
+	// [PS2_D3BFG]: The core test image installs its authored console charset without a retail catalog.
+	friend bool ps2::renderer::InstallConsoleCharset(const void * rgba, size_t bytes);
+#endif
 	void LoadPageImage(const ps2::ui::authored::PageResource & resource);
 	void LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource);
 #endif

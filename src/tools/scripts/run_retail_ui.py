@@ -22,6 +22,7 @@ import ui_gstx
 import run_headless
 import run_pcsx2_test as smoke
 from run_ui import BASELINE, TARGET_CRASH_RE, echoed
+from console_capture import charset_image
 from stage_headless import REPO_ROOT, boot_data, sha256
 from stage_retail_ui import inspect_package, stage_retail
 
@@ -63,9 +64,13 @@ def texture_counters(totals: dict) -> tuple:
     return tuple(totals[key] for key in ("images", "pages", "cluts", "pixel_bytes", "metadata_bytes"))
 
 
-def font_images(manifest: dict) -> set:
-    """Every font's converted atlas, and its pre-rendered glyph set, which loads with the font."""
+def resident_images(manifest: dict) -> set:
+    """The converted images every retail screen holds open: the console charset, which the
+    presentation opens at startup, and each font's atlas with its pre-rendered glyph set."""
     names = set()
+    charset = charset_image(manifest)
+    if charset is not None:
+        names.add(charset)
     for font in manifest["fonts"]:
         names.update(entry["selected"] for entry in manifest["image_resolutions"]
                      if entry["logical_image"] == font[:-4] + ".tga" and entry["status"] == "resolved")
@@ -75,8 +80,8 @@ def font_images(manifest: dict) -> set:
 
 
 def font_textures(manifest: dict, source: Path) -> dict:
-    """Counters with every font's converted texture open, as the font screen holds them."""
-    return resident_textures(manifest, source, font_images(manifest))
+    """Counters with the charset and every font's converted texture open, as the font screen holds them."""
+    return resident_textures(manifest, source, resident_images(manifest))
 
 
 def classify(log: str, identity: str, standard: str, manifest: dict, expected_textures: dict) -> tuple[bool, str]:
@@ -105,7 +110,8 @@ def classify(log: str, identity: str, standard: str, manifest: dict, expected_te
     previous_textures = None
     resident = texture_counters(expected_textures)
     glyph_sets = manifest["cooked"].get("glyph_sets", {})
-    if resident[0] != len(fonts) + sum(font in glyph_sets for font in manifest["fonts"]):
+    expected_images = len(fonts) + sum(font in glyph_sets for font in manifest["fonts"]) + (charset_image(manifest) is not None)
+    if resident[0] != expected_images:
         return False, "retail font textures do not match the cooked font set"
     for match, (name, font_index, cycle) in zip(captures, phases):
         frame, present, redraw = map(int, match.groups()[1:])
@@ -185,7 +191,11 @@ def mutate(output: Path, manifest: dict, case: str) -> dict:
 def classify_negative(log: str, identity: str, case: str) -> tuple[bool, str]:
     if TARGET_CRASH_RE.search(log):
         return False, "EE crash while rejecting invalid retail resources"
-    if not echoed(log, f"{identity}_begin") or "]ps2_uiRetail load" not in log:
+    if case == "catalog-header":
+        # The presentation opens the catalog at startup, before d3bfg.cfg echoes the identity.
+        if "[D3BFG] UI adapters ready" not in log or "RETAIL catalog ready" in log:
+            return False, "corrupt retail catalog was not rejected at presentation startup"
+    elif not echoed(log, f"{identity}_begin") or "]ps2_uiRetail load" not in log:
         return False, "missing retail load attempt or stale native barrier"
     if CAPTURE_RE.search(log) or "BOOT production shutdown complete" in log:
         return False, "invalid retail resources completed a capture or normal shutdown"

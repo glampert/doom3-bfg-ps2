@@ -81,7 +81,7 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
         raise ValueError("an emulator is already running; each console run requires an isolated session")
     smoke.check_config(args.config)
     identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_console_" + uuid.uuid4().hex[:12]
-    output = stage(args.build, REPO_ROOT / "build/test-results" / identity, standard)
+    output = stage(args.build, REPO_ROOT / "build/test-results" / identity, standard, catalog=args.source)
     report = json.loads((output / "report.json").read_text())
     for name in report["flag_stamps"]:
         shutil.copy2(REPO_ROOT / name, output / Path(name).name)
@@ -141,7 +141,8 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
     capture_checks = {}
     if passed:
         try:
-            capture_checks["console-edit.tga"] = console_capture.verify_edit(output / "console-edit.tga", standard)
+            manifest = json.loads((args.source / "manifest.json").read_text())
+            capture_checks["console-edit.tga"] = console_capture.verify_edit(output / "console-edit.tga", standard, manifest, args.source)
             width, height, _ = console_capture.read_tga(output / "console-quit.tga")
             expected_height = 448 if standard == "ntsc" else 512
             if (width, height) != (512, expected_height):
@@ -166,6 +167,8 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", choices=("debug", "release"), default="debug")
+    parser.add_argument("--source", type=Path, default=REPO_ROOT / "build/ui-retail",
+                        help="the cooked retail UI whose catalog supplies the console charset")
     parser.add_argument("--standard", choices=("ntsc", "pal"))
     parser.add_argument("--emulator", type=Path, default=smoke.DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)

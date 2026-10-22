@@ -62,17 +62,23 @@
 - `make test-console` / `make BUILD=release test-console` exercise the same production
   ELF visibly in NTSC and PAL. Startup policy is selected by package-root
   `presentation.cfg`; `make console` defaults to NTSC and `CONSOLE_STANDARD=pal`
-  stages PAL. The runner waits at least 120 frames, submits and replays native edit
+  stages PAL. Every visible package stages the cooked retail catalog from
+  `UI_COOK_OUTPUT` (`make ui-cook` first); the console draws the original charset from
+  it. The runner waits at least 120 frames, submits and replays native edit
   history, closes/reopens the real console, checks an edited input line, and queues
   capture plus native quit in the same batch. Require exactly one presentation per
   completed Common frame, safe redraw requests, final capture before shutdown and
-  exact startup-ledger recovery. Nineteen native edit-capture pixels check glyph
-  strokes/holes, cyan prompt/border and translucent/uncovered background. Both TGAs,
+  exact startup-ledger recovery. The edit capture checks the translucent/uncovered
+  background, the cyan border and 24 input-line probes derived from the cooked charset
+  (`console_capture.expected_probes`): the strongest ink and one hole per character of
+  `]echo pending`, each accepting the colors the converted texture can produce within
+  half a texel of its projection, plus the gap between the words. Both TGAs,
   input/config/data hashes and matched production evidence are archived. Inspect
   images as well as logs; this proves console presentation, not SWF/menu or hardware
   acceptance. Run all emulator targets sequentially in isolated sessions.
 - `make test-ui` / `make BUILD=release test-ui` exercise the authored native SWF in the
-  production ELF. Three loads each render at least 120 frames, pause two different
+  production ELF; the package also carries the cooked catalog for the console charset,
+  so `make ui-cook` comes first. Three loads each render at least 120 frames, pause two different
   timeline states (including fractional alpha), execute native Tab/Enter AVM1 focus and
   selection, and open/type/close the real console over the movie. Seventy-seven pixels
   per capture cover shapes, a skewed bitmap across a page seam, glyph strokes/holes,
@@ -168,7 +174,9 @@
   evictions, no uploads on the warm reload) and full startup-ledger recovery. Reject bad
   catalog headers, missing/mutated font data, a texture whose tables differ from the
   catalog and a corrupt page block; paletted images verify every page at load, so all
-  five fail before any loaded state or presentation.
+  five fail before any loaded state or presentation. A corrupt catalog header fails at
+  presentation startup, when the catalog opens for the console charset, before the
+  package config echoes the run identity.
   Inspect all five fonts in both standards; proprietary captures and cooked files
   remain under ignored `build/`. This proves the resource screen, not a retail SWF,
   Shell navigation or physical PS2 performance. `make run-retail-ui` launches it;

@@ -29,6 +29,7 @@
   "material_names": [
     "_white",
     "guiSolid",
+    "textures/bigchars",
     "generated/swf/shell.tga",
     "generated/swf/dialog.tga",
     "ui/assets/guicursor_arrow",
@@ -82,6 +83,11 @@
       "group4_max_increase": 0.75,
       "group_max_error": 48,
       "alpha_levels": 16
+    },
+    "texture_policies": {
+      "textures/bigchars": {
+        "scale": 1.0
+      }
     },
     "conversion_only": [
       "generated/swf/hud.bswf",

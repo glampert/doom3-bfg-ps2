@@ -10,7 +10,6 @@
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/authored_ui_data.h"
-#include "ps2/ui/charset.h"
 #include "ps2/ui/page_image.h"
 #include "ps2/ui/paletted_image.h"
 #include "ps2/ui/retail_assets.h"
@@ -38,7 +37,13 @@ static ps2::ui::PageCache s_pageCache;
 static constexpr u32 kPageSlots = 4;
 static constexpr const char * kWhiteName = "_white";
 static constexpr const char * kCharsetName = "textures/bigchars";
+// The original console charset, as the retail cook catalogs it: sixteen 16x16 cells per axis.
+static constexpr const char * kCharsetImage = "generated/images/textures/bigchars#__0200.bimage";
+static constexpr int kCharsetAtlasSize = 256;
+static constexpr size_t kCharsetAtlasBytes = 256U * 256U * 4U;
 static constexpr const char * kFontName = "textures/ps2_ascii";
+// The white texel's page: the only texture the image manager creates itself.
+static constexpr u32 kWhitePageBytes = 8192;
 
 const ps2::ui::authored::PageResource * PageResource(const char * name)
 {
@@ -218,7 +223,7 @@ bool InitConsoleImages()
         FatalError("console images initialized twice");
     }
     if (!renderer::IsInitialized() || !tex::IsInitialized() || renderer::FrameStarted() ||
-        gs::GetVramStats().capacityBytes < ui::fonts::kConsoleAtlasBytes)
+        gs::GetVramStats().capacityBytes < kWhitePageBytes)
     {
         return false;
     }
@@ -248,6 +253,74 @@ idImage * ConsoleCharsetImage()
 {
     return s_initialized ? s_charsetImage : nullptr;
 }
+
+void OpenConsoleCharset()
+{
+    if (!s_initialized || s_charsetImage != nullptr || !ui::retail::IsInitialized() || renderer::FrameStarted())
+    {
+        FatalError("console charset requires a fresh image profile and the retail catalog");
+    }
+
+    ui::retail::ImageRecord image;
+
+    // The charset has an explicit retail material (colored, like guiSolid), which the catalog does
+    // not bind, so the image is found by its own name; the console draws it without a material.
+    if (!ui::retail::GetCatalog().FindImage(kCharsetImage, image) || image.width != kCharsetAtlasSize ||
+        image.height != kCharsetAtlasSize)
+    {
+        FatalError("retail console charset missing from the UI catalog: %s", kCharsetImage);
+    }
+
+    s_charsetImage = globalImages->ImageFromFile(image.name, TF_LINEAR, TR_CLAMP, TD_FONT, CF_2D);
+
+    if (s_charsetImage == nullptr || !s_charsetImage->IsLoaded())
+    {
+        FatalError("retail console charset did not load");
+    }
+}
+
+#if PS2_D3BFG_TESTS
+bool InstallConsoleCharset(const void * rgba, size_t bytes)
+{
+    if (!s_initialized || s_charsetImage != nullptr || rgba == nullptr || bytes != kCharsetAtlasBytes || renderer::FrameStarted() ||
+        globalImages->images.Num() != 1)
+    {
+        FatalError("console charset installed outside a fresh image profile");
+    }
+
+    // Texture VRAM is charged at bind time, so an atlas the whole budget could never hold is
+    // refused here, as the former intrinsic was; the pixel budget is checked by Create.
+    if (gs::GetVramStats().capacityBytes < kCharsetAtlasBytes)
+    {
+        return false;
+    }
+
+    const tex::Sampler sampler = {};
+    const auto texture = tex::Create(kCharsetAtlasSize, kCharsetAtlasSize, sampler, rgba, bytes,
+                                     static_cast<size_t>(kCharsetAtlasSize) * 4U);
+    auto * const storage = system::heap::TryAlloc(sizeof(idImage::backendState_t), TAG_RENDER);
+
+    // A budget that cannot hold the atlas leaves no partial ownership behind.
+    if (texture.id == 0 || storage == nullptr)
+    {
+        tex::Destroy(texture);
+        system::heap::Free(storage);
+        return false;
+    }
+
+    s_charsetImage = new (TAG_IMAGE) idImage(kCharsetName);
+    s_charsetImage->backendState = new (storage) idImage::backendState_t{ texture, static_cast<int>(kCharsetAtlasBytes) };
+    s_charsetImage->opts.width = s_charsetImage->opts.height = kCharsetAtlasSize;
+    s_charsetImage->opts.format = FMT_RGBA8;
+    s_charsetImage->opts.numLevels = 1;
+    s_charsetImage->filter = TF_NEAREST;
+    s_charsetImage->repeat = TR_CLAMP;
+    s_charsetImage->usage = TD_FONT;
+    s_charsetImage->referencedOutsideLevelLoad = true;
+    globalImages->images.Append(s_charsetImage);
+    return true;
+}
+#endif
 
 idImage * AuthoredFontImage()
 {
@@ -323,8 +396,8 @@ int idImage::StorageSize() const
 void idImage::GenerateImage(const byte * rgba, int width, int height, textureFilter_t tf, textureRepeat_t tr, textureUsage_t tu)
 {
     const bool white = this == globalImages->whiteImage;
-    const int expectedWidth = white ? 1 : ps2::ui::fonts::kConsoleAtlasSize;
-    const int expectedHeight = white ? 1 : ps2::ui::fonts::kConsoleAtlasSize;
+    const int expectedWidth = white ? 1 : kCharsetAtlasSize;
+    const int expectedHeight = white ? 1 : kCharsetAtlasSize;
     if (this == s_fontImage || this == s_movieImage || IsRetailImage(this) || !SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
         width != expectedWidth || height != expectedHeight)
     {
@@ -383,57 +456,34 @@ PS2_COLD_FUNC void idImageManager::Init()
     {
         ps2::renderer::Unavailable("idImageManager::Init without an idle console device");
     }
-    auto * const atlas = ps2::system::heap::TryAlloc(ps2::ui::fonts::kConsoleAtlasBytes, TAG_RENDER);
-    if (atlas == nullptr)
-    {
-        return;
-    }
-    if (!ps2::ui::fonts::MakeConsoleCharset(atlas, ps2::ui::fonts::kConsoleAtlasBytes))
-    {
-        ps2::FatalError("authored console atlas generation failed");
-    }
+    // The white texel is the only intrinsic. The console charset comes from the retail catalog
+    // (OpenConsoleCharset) or, in the core test image, from the installed authored fixture.
     static constexpr byte kWhite[4] = { 255, 255, 255, 255 };
     const ps2::renderer::tex::Sampler whiteSampler = { ps2::renderer::tex::Filter::Nearest, ps2::renderer::tex::Wrap::Repeat, ps2::renderer::tex::Wrap::Repeat };
-    const ps2::renderer::tex::Sampler charsetSampler = {};
     const auto whiteTexture = ps2::renderer::tex::Create(1, 1, whiteSampler, kWhite, sizeof(kWhite), sizeof(kWhite));
-    const auto charsetTexture = ps2::renderer::tex::Create(ps2::ui::fonts::kConsoleAtlasSize, ps2::ui::fonts::kConsoleAtlasSize,
-                                                 charsetSampler, atlas, ps2::ui::fonts::kConsoleAtlasBytes,
-                                                 static_cast<size_t>(ps2::ui::fonts::kConsoleAtlasSize) * 4U);
-    ps2::system::heap::Free(atlas);
     auto * const whiteStorage = ps2::system::heap::TryAlloc(sizeof(idImage::backendState_t), TAG_RENDER);
-    auto * const charsetStorage = ps2::system::heap::TryAlloc(sizeof(idImage::backendState_t), TAG_RENDER);
-    if (whiteTexture.id == 0 || charsetTexture.id == 0 || whiteStorage == nullptr || charsetStorage == nullptr)
+    if (whiteTexture.id == 0 || whiteStorage == nullptr)
     {
-        ps2::renderer::tex::Destroy(charsetTexture);
         ps2::renderer::tex::Destroy(whiteTexture);
-        ps2::system::heap::Free(charsetStorage);
         ps2::system::heap::Free(whiteStorage);
         return;
     }
-    whiteImage = new (TAG_IMAGE) idImage(kWhiteName);
-    s_charsetImage = new (TAG_IMAGE) idImage(kCharsetName);
     ps2::renderer::tex::Layout whiteLayout = {};
     if (!ps2::renderer::tex::MakeLayout(1, 1, whiteSampler, whiteLayout))
     {
         ps2::FatalError("invalid white intrinsic layout");
     }
+    whiteImage = new (TAG_IMAGE) idImage(kWhiteName);
     whiteImage->backendState = new (whiteStorage) idImage::backendState_t{ whiteTexture, static_cast<int>(whiteLayout.bytes) };
-    s_charsetImage->backendState = new (charsetStorage) idImage::backendState_t{ charsetTexture, static_cast<int>(ps2::ui::fonts::kConsoleAtlasBytes) };
     whiteImage->opts.width = whiteImage->opts.height = 1;
-    s_charsetImage->opts.width = s_charsetImage->opts.height = ps2::ui::fonts::kConsoleAtlasSize;
-    idImage * const intrinsicImages[] = { whiteImage, s_charsetImage };
-    for (idImage * image : intrinsicImages)
-    {
-        image->opts.format = FMT_RGBA8;
-        image->opts.numLevels = 1;
-        image->filter = TF_NEAREST;
-        image->repeat = image == whiteImage ? TR_REPEAT : TR_CLAMP;
-        image->usage = image == whiteImage ? TD_DEFAULT : TD_FONT;
-        image->referencedOutsideLevelLoad = true;
-    }
+    whiteImage->opts.format = FMT_RGBA8;
+    whiteImage->opts.numLevels = 1;
+    whiteImage->filter = TF_NEAREST;
+    whiteImage->repeat = TR_REPEAT;
+    whiteImage->usage = TD_DEFAULT;
+    whiteImage->referencedOutsideLevelLoad = true;
     images.SetGranularity(2);
     images.Append(whiteImage);
-    images.Append(s_charsetImage);
     s_initialized = true;
 }
 
@@ -553,10 +603,6 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
 
     const auto * const resource = PageResource(name);
 
-    if (resource != nullptr && ps2::ui::retail::IsInitialized())
-    {
-        ps2::FatalError("authored pages unavailable in the retail image profile");
-    }
     if (resource != nullptr && GetImage(name) == nullptr)
     {
         if ((tf != TF_DEFAULT && tf != TF_NEAREST) || tr != TR_CLAMP ||

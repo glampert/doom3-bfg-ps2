@@ -6,7 +6,8 @@ the retail boot and UI format measurements are in
 [the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20), and the
 converted textures that replaced retail page streaming in
 [the paletted UI section](#converted-retail-ui-textures-2026-10-20), with the menu
-glyph sets added in [their own section](#pre-rendered-menu-glyphs-2026-10-22); current
+glyph sets and the console charset added in
+[their own sections](#pre-rendered-menu-glyphs-2026-10-22); current
 aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
 production sizes and live ledgers must not be used as current budgets. Quake figures
 remain separately labeled reference observations.
@@ -539,3 +540,31 @@ larger catalog. Debug ledgers, NTSC and PAL identical, requested / backing bytes
 
 Production `PT_LOAD` is 11,183,717 debug / 11,620,901 release bytes (+5,888 / +6,208),
 for the glyph lookup and draw path and the catalog's glyph table checks.
+
+## Retail console charset (2026-10-22)
+
+The console draws the catalog's `textures/bigchars` instead of a 256 KiB RGBA atlas
+generated at startup: one 256×256 PSMT4 page (32,768 bytes of VRAM plus its CLUT's
+8 KiB page), an EE copy of the same size with 128 bytes of tables and the placement grid,
+and the UICT3 catalog, now 52,691 bytes, which every visible package loads at startup.
+The generation buffer (another 262,144 bytes, freed before the first frame) is gone too.
+
+Debug ledgers, NTSC and PAL identical, requested / backing bytes:
+
+- Visible console peak 2,408,956 / 2,507,416 (was 2,786,855 / 2,884,740), arena
+  2,547,483 (was 2,900,123).
+- Authored UI warm unload 3,674,447 / 3,775,752 / 2,466 (was 3,842,204 / 3,943,156 /
+  2,459; the seven allocations are the catalog and the charset), peak 3,717,573 /
+  3,824,948, arena 3,890,971.
+- Font screen warm 2,608,786 / 2,713,020 / 2,525, peak 2,700,984 / 2,805,260, arena
+  2,846,491. Dialog at rest 4,119,832 / 4,258,216 / 3,314, every release 3,872,532 /
+  3,978,560 / 2,564, peak 4,299,498 / 4,404,472, arena 4,517,659. Inactive movies peak
+  6,678,588 / 6,874,724 (arena 6,991,643); executing ones 10,544,753 / 11,249,264
+  (arena 11,345,691). Each retail screen is about 220 KB lighter than with the glyph
+  sets alone.
+- Headless runs are unchanged (no presentation, no catalog). Full shutdown still
+  recovers 7,424 / 7,600 / 4.
+
+Production `PT_LOAD` is 11,182,309 debug / 11,619,493 release bytes (−1,408 each); the
+core test image, which now carries the charset generator as a fixture, is 2,153,200 /
+2,237,808 bytes (+384 / +384).

@@ -107,19 +107,18 @@ def movie_resources(source: Path, manifest: dict) -> tuple[bytes, list[tuple[Pat
     return struct.pack("<16I", *words), resources
 
 
-def stage_retail(build: str, output: Path, standard: str, source: Path, movies: bool = False) -> Path:
-    if standard not in ("ntsc", "pal"):
-        raise ValueError("retail UI proof requires ntsc or pal presentation")
-    source, output = _under_build(source), _under_build(output)
+def stage_catalog(source: Path, output: Path) -> tuple[dict, list[tuple[Path, dict]], Path]:
+    """Copy the checked cook's catalog and content-addressed assets into a package's base.
+
+    Every visible package stages them: the presentation opens the catalog at startup for the
+    console charset, and the retail screens take their fonts and movies from the same files."""
+    source = _under_build(source)
     if source == output or source.is_relative_to(output) or output.is_relative_to(source):
         raise ValueError("retail UI proof staging must not overlap the source cook")
     manifest, assets, catalog = inspect_package(source)
-    movie_profile, movie_assets = movie_resources(source, manifest) if movies else (None, [])
     for relative in ("base", "base/retail", "base/retail/assets", "base/retail_ui.uic"):
         if (output / relative).is_symlink():
             raise ValueError("retail UI proof output must not contain symlinks")
-    config_existed = (output / "base/d3bfg.cfg").exists()
-    output = stage(build, output, standard)
     destination = output / "base/retail/assets"
     destination.mkdir(parents=True, exist_ok=True)
     # The package holds exactly this cook's assets; an earlier staging may have left others.
@@ -135,6 +134,21 @@ def stage_retail(build: str, output: Path, standard: str, source: Path, movies: 
             raise ValueError("retail UI proof asset destination must not be a symlink")
         shutil.copy2(path, target)
     shutil.copy2(catalog, output / "base/retail_ui.uic")
+    return manifest, assets, catalog
+
+
+def stage_retail(build: str, output: Path, standard: str, source: Path, movies: bool = False) -> Path:
+    if standard not in ("ntsc", "pal"):
+        raise ValueError("retail UI proof requires ntsc or pal presentation")
+    source, output = _under_build(source), _under_build(output)
+    if source == output or source.is_relative_to(output) or output.is_relative_to(source):
+        raise ValueError("retail UI proof staging must not overlap the source cook")
+    manifest, assets, _ = inspect_package(source)
+    movie_profile, movie_assets = movie_resources(source, manifest) if movies else (None, [])
+    config_existed = (output / "base/d3bfg.cfg").exists()
+    # The visible package staging copies the catalog and assets through stage_catalog.
+    output = stage(build, output, standard, catalog=source)
+    destination = output / "base/retail/assets"
     if movies:
         for path, name in movie_assets:
             target = destination.parent / name

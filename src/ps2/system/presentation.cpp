@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/capture.h"
+#include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
@@ -12,6 +13,7 @@
 #include "ps2/ui/draw.h"
 #include "ps2/ui/font_backend.h"
 #include "ps2/ui/movie.h"
+#include "ps2/ui/retail_assets.h"
 #include "ps2/ui/retail_movie.h"
 #include <cerrno>
 #include <idlib/precompiled.h>
@@ -243,6 +245,11 @@ void InitPresentation()
         renderer::Shutdown();
         FatalError("cannot initialize native console images");
     }
+    // Every visible package stages the cooked retail catalog: the console draws the original
+    // charset from it, and the retail screens open their fonts and movies through it later.
+    ui::retail::Init();
+    ui::retail::RegisterMaterials();
+    renderer::OpenConsoleCharset();
     ui::fonts::Init();
     ui::authored::Init();
     ui::retail::InitScreen();

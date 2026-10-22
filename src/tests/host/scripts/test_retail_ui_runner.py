@@ -23,6 +23,24 @@ import ui_retail_catalog
 from ui_font import inspect_font
 
 
+CHARSET_IMAGE = "generated/images/textures/bigchars#__0200.bimage"
+
+
+def charset_alpha() -> bytes:
+    """A 256x256 console charset with one block glyph per printable byte: a 10x12 slab of ink
+    around a 4x4 hole, so every cell offers both probe kinds."""
+    alpha = bytearray(256 * 256)
+    for code in range(32, 127):
+        if code == 32:
+            continue
+        cell_x, cell_y = (code & 15) * 16, (code >> 4) * 16
+        for y in range(2, 14):
+            for x in range(3, 13):
+                if not (6 <= x < 10 and 6 <= y < 10):
+                    alpha[(cell_y + y) * 256 + cell_x + x] = 255
+    return bytes(alpha)
+
+
 def synthetic_package(directory):
     directory.mkdir(parents=True)
     (directory / "assets").mkdir()
@@ -41,6 +59,7 @@ def synthetic_package(directory):
     font_asset = {"path": "assets/" + font_hash + ".dat", "bytes": len(font), "sha256": font_hash}
     (directory / font_asset["path"]).write_bytes(font)
     image_asset = gstx_fixture.write_asset(directory, gstx_fixture.alpha_texture(256, 32, gstx_fixture.rgba_alpha(rgba)))
+    charset_asset = gstx_fixture.write_asset(directory, gstx_fixture.alpha_texture(256, 256, charset_alpha()))
     details = inspect_font(font, atlas_width=256, atlas_height=32)
     details["legacy_layout_metrics"] = [{"point_size": size, "scaled_max_advance": width, "scaled_max_height": height}
                                         for size, width, height in ((12, 48, 56), (24, 42, 48), (48, 40, 48))]
@@ -49,10 +68,12 @@ def synthetic_package(directory):
                 "fonts": {"newfonts/proof/48.dat": details},
                 "font_resolutions": [{"requested": "Proof", "family": "proof", "alias_chain": ["proof"]}],
                 "language": {"font_aliases": {"#font_": "Proof"}},
-                "image_resolutions": [{"logical_image": "newfonts/proof/48.tga", "selected": image_name, "status": "resolved"}],
+                "image_resolutions": [{"logical_image": "newfonts/proof/48.tga", "selected": image_name, "status": "resolved"},
+                                      {"logical_image": "textures/bigchars", "selected": CHARSET_IMAGE, "status": "resolved"}],
                 "materials": {"requested": {"newfonts/proof/48.tga": {"definition": "implicit-image-default",
                                                                           "map_resources": ["newfonts/proof/48"], "stage_count": 1}}},
-                "cooked": {"runtime_images": {image_name: image_asset}, "assets": {"newfonts/proof/48.dat": font_asset}}}
+                "cooked": {"runtime_images": {image_name: image_asset, CHARSET_IMAGE: charset_asset},
+                           "assets": {"newfonts/proof/48.dat": font_asset}}}
     raw, summary = ui_retail_catalog.build_catalog(manifest, directory)
     digest = hashlib.sha256(raw).hexdigest()
     descriptor = {**summary, "path": "assets/" + digest + ".uic", "bytes": len(raw), "sha256": digest}
@@ -121,6 +142,10 @@ class RetailProofTests(unittest.TestCase):
     def classify(self, log, standard="ntsc"):
         return runner.classify(log, "run", standard, self.manifest, self.textures)
 
+    def records_font_image(self):
+        return next(entry["selected"] for entry in self.manifest["image_resolutions"]
+                    if entry["logical_image"] == "newfonts/proof/48.tga")
+
     def test_staging_admits_only_catalog_native_fonts_and_converted_textures(self):
         manifest, assets, catalog = staging.inspect_package(self.source)
         self.assertEqual(manifest, self.manifest)
@@ -151,7 +176,12 @@ class RetailProofTests(unittest.TestCase):
             staging.inspect_package(link)
 
     def test_valid_native_log_preserves_metrics_and_budgets_in_both_standards(self):
-        self.assertEqual(self.textures, {"images": 1, "pages": 1, "cluts": 1, "pixel_bytes": 20480, "metadata_bytes": 180})
+        # The font atlas plus the console charset, which every visible package opens at startup.
+        font_only = runner.resident_textures(self.manifest, self.source, {self.records_font_image()})
+        self.assertEqual(font_only, {"images": 1, "pages": 1, "cluts": 1, "pixel_bytes": 20480, "metadata_bytes": 180})
+        charset = runner.resident_textures(self.manifest, self.source, {CHARSET_IMAGE})
+        self.assertEqual(self.textures, {key: font_only[key] + charset[key] for key in font_only})
+        self.assertEqual(self.textures["images"], 2)
         for standard in ("ntsc", "pal"):
             passed, reason = self.classify(completed(self.manifest, self.textures, standard), standard)
             self.assertTrue(passed, reason)
@@ -162,7 +192,7 @@ class RetailProofTests(unittest.TestCase):
         manifest["cooked"]["runtime_images"]["newfonts/proof/ps2_glyphs"] = atlas
         manifest["cooked"]["glyph_sets"] = {"newfonts/proof/48.dat": {"image": "newfonts/proof/ps2_glyphs", "sizes": []}}
         textures = runner.font_textures(manifest, self.source)
-        self.assertEqual(textures["images"], 2)
+        self.assertEqual(textures["images"], 3)
         passed, reason = runner.classify(completed(manifest, textures), "run", "ntsc", manifest, textures)
         self.assertTrue(passed, reason)
         # The target must open the glyph set with its font, and the runner must expect it.
@@ -182,9 +212,13 @@ class RetailProofTests(unittest.TestCase):
 
     def test_legacy_metrics_resident_textures_and_reloads_are_not_optional(self):
         log = completed(self.manifest, self.textures)
+        counters = self.textures
         changes = (("width=12.00", "width=11.00"), ("height=24.00", "height=23.00"),
-                   ("images=1", "images=2"), ("pages=1 ", "pages=2 "), ("cluts=1 ", "cluts=2 "),
-                   ("pixels=20480", "pixels=20481"), ("metadata=180", "metadata=188"),
+                   (f"images={counters['images']}", f"images={counters['images'] + 1}"),
+                   (f"pages={counters['pages']} ", f"pages={counters['pages'] + 1} "),
+                   (f"cluts={counters['cluts']} ", f"cluts={counters['cluts'] + 1} "),
+                   (f"pixels={counters['pixel_bytes']}", f"pixels={counters['pixel_bytes'] + 1}"),
+                   (f"metadata={counters['metadata_bytes']}", f"metadata={counters['metadata_bytes'] + 8}"),
                    ("triangles=2400", "triangles=1200"), ("evictions=0", "evictions=1"),
                    ("uploads=3", "uploads=0"), ("retail-return.tga", "retail-absent.tga"),
                    ("state=unloaded cycle=2", "state=unloaded cycle=3"))
@@ -204,14 +238,22 @@ class RetailProofTests(unittest.TestCase):
                                       "texture length or tables differ from the catalog"),
                     "texture-pixels": ("retail UI texture profile mismatch: proof", "page block, encoding or checksum")}
         for case, (diagnostic, reason) in expected.items():
-            log = "run_begin \n]ps2_uiRetail load\n"
+            if case == "catalog-header":
+                # The presentation opens the catalog at startup, before the config echoes the identity.
+                log = "[D3BFG] GS ready NTSC\n[D3BFG] UI adapters ready\n"
+            else:
+                log = "run_begin \n]ps2_uiRetail load\n"
             if reason is not None:
                 log += "[D3BFG] UI paletted image rejected: " + reason + "\n"
             log += "[D3BFG] FATAL " + diagnostic + "\n"
             self.assertTrue(runner.classify_negative(log, "run", case)[0], case)
-            wrongs = [log.replace(diagnostic, "out of memory"), log + "BOOT production shutdown complete",
-                      log + "TLB Miss", log.replace("run_begin ", "old_begin "),
-                      log.replace("]ps2_uiRetail load\n", "]ps2_uiRetail load\nRETAIL state=loaded\n")]
+            wrongs = [log.replace(diagnostic, "out of memory"), log + "BOOT production shutdown complete", log + "TLB Miss"]
+            if case == "catalog-header":
+                wrongs += [log.replace("[D3BFG] UI adapters ready\n", ""),
+                           log.replace("[D3BFG] FATAL", "[D3BFG] RETAIL catalog ready bytes=1\n[D3BFG] FATAL")]
+            else:
+                wrongs += [log.replace("run_begin ", "old_begin "),
+                           log.replace("]ps2_uiRetail load\n", "]ps2_uiRetail load\nRETAIL state=loaded\n")]
             if reason is not None:
                 wrongs.append(log.replace(reason, "invalid open state or catalog descriptor"))
             for wrong in wrongs:

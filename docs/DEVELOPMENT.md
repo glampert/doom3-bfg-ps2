@@ -63,7 +63,9 @@ an original and a converted PNG of every texture for a visual review:
 make ui-cook UI_PREVIEWS=build/ui-previews
 ```
 
-The same tool pre-renders menu fonts at the exact sizes a screen draws them, listed under
+`conversion.texture_policies` overrides policy fields for one image (the console charset
+keeps `scale` 1.0, so its 16×16 cells stay whole). The same tool pre-renders menu fonts at
+the exact sizes a screen draws them, listed under
 `conversion.glyph_sets` in `config/ui_retail.json`. A retail font drawn at a size it has
 no bitmaps for logs `[D3BFG] UI glyph size font=NAME scale=X,Y stroke=W prerendered=no`
 once; add those values to the list and cook again. See the
@@ -73,6 +75,12 @@ Both tools share the `src/tools/assets/` library, meant for every later texture
 re-export.
 
 ## Production packages and controls
+
+Every visible package, `make console` and `make ui` included, stages the cooked retail
+catalog and assets from `UI_COOK_OUTPUT` (default `build/ui-retail`) into its `base/`:
+the presentation opens the catalog at startup and draws the console with the original
+`textures/bigchars` charset. Run `make ui-cook` before staging or testing a visible
+package; headless packages need no cook.
 
 Retail UI commands and staging are described in the
 [retail pipeline guide](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).

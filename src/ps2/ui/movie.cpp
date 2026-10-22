@@ -12,7 +12,6 @@
 #include "ps2/ui/authored_assets.h"
 #include "ps2/ui/draw.h"
 #include "ps2/ui/page_image.h"
-#include "ps2/ui/retail_assets.h"
 #include <idlib/precompiled.h>
 #include <swf/SWF.h>
 
@@ -80,7 +79,7 @@ void Unload(bool restoreConsole)
 
 void Load()
 {
-    if (s_movie != nullptr || ps2::renderer::FrameStarted() || s_cycle == UINT_MAX || ps2::ui::retail::IsInitialized())
+    if (s_movie != nullptr || ps2::renderer::FrameStarted() || s_cycle == UINT_MAX)
     {
         ps2::FatalError("invalid authored SWF load ownership");
     }

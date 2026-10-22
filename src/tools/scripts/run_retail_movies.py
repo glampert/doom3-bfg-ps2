@@ -26,7 +26,7 @@ from stage_headless import REPO_ROOT, boot_data, sha256
 from stage_retail_ui import inspect_package, stage_retail
 from ui_font import inspect_language
 from ui_page_package import fnv1a32
-from run_retail_ui import TEXTURES_RE, font_images, resident_textures, texture_counters
+from run_retail_ui import TEXTURES_RE, resident_images, resident_textures, texture_counters
 
 
 LABELS = ("#str_swf_campaign", "#str_swf_settings", "#str_swf_quit")
@@ -228,7 +228,7 @@ def classify(log: str, identity: str, standard: str, manifest: dict, source: Pat
     previous = 0
     previous_capture = 0
     previous_textures = None
-    open_images = font_images(manifest)
+    open_images = resident_images(manifest)
     for capture, (_, _, movie) in zip(captures, phases):
         phase_log = log[previous_capture:capture.start()]
         states = STATE.findall(phase_log)
@@ -375,7 +375,7 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
     language = inspect_language((source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
     options = tuple(language["entries"][key] for key in QUIT_OPTIONS)
     expected_owner = QUIT_DIALOG + options + ("3",)
-    images = font_images(manifest)
+    images = resident_images(manifest)
     images.add(next(row["selected"] for row in manifest["image_resolutions"]
                     if row["logical_image"] == "generated/swf/dialog.tga"))
     resident = texture_counters(resident_textures(manifest, source, images))
