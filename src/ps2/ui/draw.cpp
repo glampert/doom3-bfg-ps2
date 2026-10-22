@@ -709,6 +709,18 @@ void EndGeometryFrame()
     Flush();
 }
 
+void DrawImageRect(float x, float y, float width, float height, float s0, float t0, float s1, float t1,
+                   const idImage * image, const idMaterial * material)
+{
+    Require(&tr, "native UI image rectangle", true);
+    const Profile profile = MaterialProfile(material, CurrentColor());
+
+    if (profile.enabled)
+    {
+        Emit({ x, y, width, height, s0, t0, s1, t1 }, image, profile.tint, profile.blend);
+    }
+}
+
 idDrawVert * AllocTrisForImage(int vertices, const u16 * indexes, int indexCount, const idImage * image, renderer::gs::BlendMode blend)
 {
     return Allocate(vertices, indexes, indexCount, { image, blend, { 255, 255, 255, 255 }, true, true });

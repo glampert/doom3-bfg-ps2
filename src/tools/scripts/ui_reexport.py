@@ -21,6 +21,7 @@ import re
 import subprocess
 
 from ui_gstx import Texture
+from ui_resources import logical_name
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TOOL = REPO_ROOT / "build/tools/asset_reexport"
@@ -112,6 +113,53 @@ def english_codepoints(manifest_language: dict, swfs: dict) -> set:
     for swf in swfs.values():
         literals.update(swf["text"]["literal_codepoints"])
     return (set(manifest_language["codepoints"]) | literals | ASCII_PRINTABLE) - {10, 13}
+
+
+MAX_GLYPH_SETS = 8
+MAX_GLYPH_SIZES = 16
+
+
+def validate_glyph_sets(glyph_sets) -> list:
+    """Fonts to pre-render at exact on-screen sizes: GS pixels per atlas texel and stroke weight."""
+    if not isinstance(glyph_sets, list) or len(glyph_sets) > MAX_GLYPH_SETS:
+        raise ValueError("retail UI glyph_sets must be a list of at most 8 fonts")
+    fonts = set()
+    for entry in glyph_sets:
+        if not isinstance(entry, dict) or set(entry) != {"font", "sizes"} or not isinstance(entry["font"], str):
+            raise ValueError("retail UI glyph set needs exactly a font and its sizes")
+        font = logical_name(entry["font"])
+        if not font.startswith("newfonts/") or not font.endswith("/48.dat") or font in fonts:
+            raise ValueError("retail UI glyph set font must be a distinct newfonts/<family>/48.dat")
+        fonts.add(font)
+        sizes = entry["sizes"]
+        if not isinstance(sizes, list) or not 1 <= len(sizes) <= MAX_GLYPH_SIZES:
+            raise ValueError("retail UI glyph set needs 1-16 sizes")
+        for size in sizes:
+            scale, weight = size.get("scale") if isinstance(size, dict) else None, size.get("stroke_weight") if isinstance(size, dict) else None
+            if (set(size) != {"scale", "stroke_weight"} or not isinstance(scale, list) or len(scale) != 2 or
+                    any(isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 4 for value in scale) or
+                    isinstance(weight, bool) or not isinstance(weight, (int, float)) or not 0 <= weight <= 16):
+                raise ValueError("retail UI glyph size needs a scale pair in (0, 4] and a stroke weight in [0, 16]")
+    return glyph_sets
+
+
+def glyph_set_texture(font: str, image: str, font_details: dict, codepoints: set, sizes: list) -> dict:
+    """The converter job for one font's pre-rendered glyphs; its output name stays distinct from the atlas."""
+    glyphs = {glyph["codepoint"]: glyph for glyph in font_details["glyphs"] if glyph.get("selected_for_codepoint", True)}
+    metrics = [{key: glyphs[codepoint][key] for key in ("codepoint", "s", "t", "width", "height", "left", "top")}
+               for codepoint in sorted(codepoints) if codepoint in glyphs]
+    return {"name": font + "#glyphs", "source": image, "output": output_name(font[:-len("/48.dat")] + "/ps2_glyphs"),
+            "glyphs": {"glyphs": metrics, "sizes": [{"scale": list(size["scale"]), "stroke_weight": size["stroke_weight"]} for size in sizes]}}
+
+
+def glyph_set_record(image_name: str, sizes: list, report_entry: dict) -> dict:
+    """Catalog input for one glyph set: the configured sizes with the converter's placements and origins."""
+    reported = report_entry.get("glyph_set")
+    if not isinstance(reported, list) or len(reported) != len(sizes):
+        raise ValueError("asset_reexport glyph set report differs from the job")
+    return {"image": image_name,
+            "sizes": [{"scale": list(size["scale"]), "stroke_weight": size["stroke_weight"], "glyphs": entry["glyphs"]}
+                      for size, entry in zip(sizes, reported)]}
 
 
 def build_job(policy: dict, textures: list) -> dict:

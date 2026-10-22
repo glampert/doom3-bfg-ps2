@@ -6,6 +6,7 @@
 // ================================================================================================
 
 #include "assets/bimage.h"
+#include "assets/glyph_set.h"
 #include "assets/json.h"
 #include "assets/png.h"
 #include "assets/resources.h"
@@ -29,6 +30,8 @@ using namespace assets;
 
 static constexpr std::size_t kMaxJobBytes = 16U * 1024U * 1024U;
 static constexpr std::size_t kMaxTextures = 256;
+static constexpr std::size_t kMaxGlyphs = 1024;
+static constexpr std::size_t kMaxGlyphSizes = 16;
 
 struct TextureJob
 {
@@ -39,6 +42,10 @@ struct TextureJob
     int height = 0;
     ConvertPolicy policy;
     std::vector<PlacementRequest> placements;
+    // A glyph set renders the source font atlas's glyphs at these sizes instead of converting it.
+    bool glyphSet = false;
+    std::vector<GlyphMetrics> glyphs;
+    std::vector<GlyphSizeRequest> glyphSizes;
 };
 
 static bool Fail(const std::string & message)
@@ -211,6 +218,63 @@ static bool ApplyPolicy(const JsonValue & object, ConvertPolicy & policy)
     return true;
 }
 
+// "glyphs": {"glyphs": [{"codepoint", "s", "t", "width", "height", "left", "top"}, ...],
+//            "sizes": [{"scale": [x, y], "stroke_weight": w}, ...]}, glyphs in codepoint order.
+static bool ParseGlyphSet(const JsonValue & object, TextureJob & texture)
+{
+    const JsonValue * glyphs = object.Find("glyphs");
+    const JsonValue * sizes = object.Find("sizes");
+
+    if (object.type != JsonValue::Type::Object || glyphs == nullptr || glyphs->type != JsonValue::Type::Array ||
+        glyphs->items.empty() || glyphs->items.size() > kMaxGlyphs || sizes == nullptr || sizes->type != JsonValue::Type::Array ||
+        sizes->items.empty() || sizes->items.size() > kMaxGlyphSizes)
+    {
+        return Fail("glyph set needs 1-1024 glyphs and 1-16 sizes: " + texture.name);
+    }
+
+    for (const JsonValue & item : glyphs->items)
+    {
+        static const char * const kFields[] = { "codepoint", "s", "t", "width", "height", "left", "top" };
+        int values[7] = {};
+
+        for (std::size_t field = 0; field < 7; ++field)
+        {
+            const JsonValue * value = item.Find(kFields[field]);
+            const int minimum = field == 0 ? 0 : (field >= 5 ? -4096 : 0);
+            const int maximum = field == 0 ? 0x10FFFF : 4096;
+
+            if (item.type != JsonValue::Type::Object || value == nullptr || !value->IsInteger(minimum, maximum))
+            {
+                return Fail(std::string("glyph field missing or out of range: ") + kFields[field] + " in " + texture.name);
+            }
+
+            values[field] = static_cast<int>(value->number);
+        }
+
+        texture.glyphs.push_back({ static_cast<std::uint32_t>(values[0]), values[1], values[2], values[3], values[4], values[5], values[6] });
+    }
+
+    for (const JsonValue & item : sizes->items)
+    {
+        const JsonValue * scale = item.Find("scale");
+        GlyphSizeRequest request;
+
+        if (item.type != JsonValue::Type::Object || scale == nullptr || scale->type != JsonValue::Type::Array || scale->items.size() != 2 ||
+            scale->items[0].type != JsonValue::Type::Number || scale->items[1].type != JsonValue::Type::Number ||
+            !GetNumber(item, "stroke_weight", 0.0, 16.0, request.strokeWeight))
+        {
+            return Fail("glyph size needs a scale pair and a stroke weight: " + texture.name);
+        }
+
+        request.scaleX = scale->items[0].number;
+        request.scaleY = scale->items[1].number;
+        texture.glyphSizes.push_back(request);
+    }
+
+    texture.glyphSet = true;
+    return true;
+}
+
 static bool ParseJob(const JsonValue & root, std::vector<std::string> & containers, std::vector<TextureJob> & textures)
 {
     const JsonValue * version = root.Find("version");
@@ -330,6 +394,14 @@ static bool ParseJob(const JsonValue & root, std::vector<std::string> & containe
             }
         }
 
+        if (const JsonValue * glyphs = item.Find("glyphs"))
+        {
+            if (!texture.placements.empty() || texture.width != 0 || texture.height != 0 || !ParseGlyphSet(*glyphs, texture))
+            {
+                return Fail("a glyph set takes no placements or dimensions: " + texture.name);
+            }
+        }
+
         textures.push_back(std::move(texture));
     }
 
@@ -436,8 +508,25 @@ static bool ConvertUi(const fs::path & data, const fs::path & jobPath, const fs:
             return Fail(job.name + ": source dimensions differ from the job");
         }
 
-        if (!ConvertTexture(image, job.placements, job.policy, result, error) || !WriteGstx(result.texture, file, sizes, error) ||
-            !ReadGstx(file, check, error))
+        GlyphSetResult glyphSet;
+
+        if (job.glyphSet)
+        {
+            if (!RenderGlyphSet(image, job.glyphs, job.glyphSizes, job.policy.maxPageExtent, glyphSet, error))
+            {
+                return Fail(job.name + ": " + error);
+            }
+
+            result.texture = glyphSet.texture;
+            result.placements = glyphSet.placements;
+            result.alphaOnly = true;
+        }
+        else if (!ConvertTexture(image, job.placements, job.policy, result, error))
+        {
+            return Fail(job.name + ": " + error);
+        }
+
+        if (!WriteGstx(result.texture, file, sizes, error) || !ReadGstx(file, check, error))
         {
             return Fail(job.name + ": " + error);
         }
@@ -451,7 +540,8 @@ static bool ConvertUi(const fs::path & data, const fs::path & jobPath, const fs:
         {
             const std::string stem = job.output.substr(0, job.output.rfind('.'));
 
-            if (!WritePng(previews / (stem + ".original.png"), MatchedSource(image, check), error) ||
+            // A glyph set's logical space is its sheet of pre-rendered bitmaps, not the source atlas.
+            if ((!job.glyphSet && !WritePng(previews / (stem + ".original.png"), MatchedSource(image, check), error)) ||
                 !WritePng(previews / (stem + ".converted.png"), RenderGstx(check), error))
             {
                 return Fail(error);
@@ -463,8 +553,8 @@ static bool ConvertUi(const fs::path & data, const fs::path & jobPath, const fs:
         int t8 = 0;
         report += index == 0 ? "\n" : ",\n";
         report += "    {\n      \"name\": " + JsonString(job.name) + ",\n      \"source\": " + JsonString(job.source) +
-                  ",\n      \"output\": " + JsonString(job.output) + ",\n      \"logical\": [" + std::to_string(image.width) + ", " +
-                  std::to_string(image.height) + "],\n      \"source_bytes\": " + std::to_string(bytes.size()) +
+                  ",\n      \"output\": " + JsonString(job.output) + ",\n      \"logical\": [" + std::to_string(check.logicalWidth) + ", " +
+                  std::to_string(check.logicalHeight) + "],\n      \"source_bytes\": " + std::to_string(bytes.size()) +
                   ",\n      \"file_bytes\": " + std::to_string(sizes.fileBytes) + ",\n      \"table_bytes\": " +
                   std::to_string(sizes.tableBytes) + ",\n      \"decoded_bytes\": " + std::to_string(sizes.decodedBytes) +
                   ",\n      \"vram_bytes\": " + std::to_string(sizes.vramBytes) + ",\n      \"alpha_only\": " +
@@ -497,8 +587,34 @@ static bool ConvertUi(const fs::path & data, const fs::path & jobPath, const fs:
                       ", \"max_error\": " + std::to_string(entry.quality.maxError) + ", \"over8\": " + Number(entry.quality.over8) + "}";
         }
 
-        report += "\n      ],\n      \"psmt4_placements\": " + std::to_string(t4) + ",\n      \"psmt8_placements\": " + std::to_string(t8) +
-                  "\n    }";
+        report += "\n      ],\n      \"psmt4_placements\": " + std::to_string(t4) + ",\n      \"psmt8_placements\": " + std::to_string(t8);
+
+        if (job.glyphSet)
+        {
+            report += ",\n      \"glyph_set\": [";
+
+            for (std::size_t size = 0; size < glyphSet.sizes.size(); ++size)
+            {
+                const GlyphSizeResult & entry = glyphSet.sizes[size];
+                report += (size == 0 ? "\n" : ",\n") + std::string("        {\"stroke_weight\": ") + Number(entry.request.strokeWeight) +
+                          ", \"glyphs\": [";
+
+                for (std::size_t glyph = 0; glyph < entry.glyphs.size(); ++glyph)
+                {
+                    const PrerenderedGlyphResult & item = entry.glyphs[glyph];
+                    report += (glyph == 0 ? "" : ", ") + std::string("{\"codepoint\": ") + std::to_string(item.codepoint) +
+                              ", \"placement\": " + (item.placement < 0 ? std::string("null") : std::to_string(item.placement)) +
+                              ", \"outline\": " + (item.outline ? "true" : "false") + ", \"origin\": [" + std::to_string(item.originX) +
+                              ", " + std::to_string(item.originY) + "]}";
+                }
+
+                report += "]}";
+            }
+
+            report += "\n      ]";
+        }
+
+        report += "\n    }";
         totalFile += sizes.fileBytes;
         totalDecoded += sizes.decodedBytes;
         totalVram += sizes.vramBytes;

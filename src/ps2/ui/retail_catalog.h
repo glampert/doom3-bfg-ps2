@@ -16,6 +16,9 @@ static constexpr std::uint32_t kMaxImages = 32;
 static constexpr std::uint32_t kMaxFonts = 8;
 static constexpr std::uint32_t kMaxAliases = 128;
 static constexpr std::uint32_t kMaxMaterials = 64;
+static constexpr std::uint32_t kMaxGlyphSizes = 16;
+static constexpr std::uint32_t kMaxGlyphEntries = 4096;
+static constexpr std::uint16_t kNoGlyphPlacement = 0xFFFF;
 
 struct ImageRecord
 {
@@ -38,6 +41,41 @@ struct FontRecord
     std::uint32_t imageIndex = 0;
     std::uint32_t maxAdvance[3] = {};
     std::uint32_t maxHeight[3] = {};
+    std::uint32_t index = 0;
+    // The font's pre-rendered glyph set: catalog offset and bytes of its table, zero without one.
+    std::uint32_t glyphTable = 0;
+    std::uint32_t glyphTableBytes = 0;
+};
+
+// A glyph set holds a font's glyphs pre-rendered at exact on-screen sizes, in one catalog image
+// whose placements map 1:1 onto its pages. Each size is a run of entries sorted by codepoint.
+struct GlyphSetRecord
+{
+    std::uint32_t imageIndex = 0;
+    std::uint32_t sizeCount = 0;
+    std::uint32_t entryCount = 0;
+};
+
+struct GlyphSize
+{
+    // GS pixels per atlas texel, and the outline's stroke weight in atlas texels (zero: none); 16.16.
+    std::uint32_t scaleX = 0;
+    std::uint32_t scaleY = 0;
+    std::uint32_t strokeWeight = 0;
+    std::uint32_t firstEntry = 0;
+    std::uint32_t entryCount = 0;
+};
+
+struct GlyphEntry
+{
+    std::uint32_t codepoint = 0;
+    // The glyph's placement (kNoGlyphPlacement: nothing to draw). With an outline, the placement
+    // holds two bitmaps of one size side by side, the glyph left and its outline right.
+    std::uint16_t placement = 0;
+    bool outline = false;
+    // The ink origin, the glyph's left edge on its baseline, in 1/16 GS pixels from a bitmap's corner.
+    std::int16_t originX = 0;
+    std::int16_t originY = 0;
 };
 
 struct MaterialRecord
@@ -60,8 +98,13 @@ public:
     bool GetMaterial(std::uint32_t index, MaterialRecord & output) const;
     bool FindImage(const char * name, ImageRecord & output) const;
     bool FindFont(const char * requested, FontRecord & output) const;
+    // False when the font has no glyph set.
+    bool GetGlyphSet(const FontRecord & font, GlyphSetRecord & output) const;
+    bool GetGlyphSize(const FontRecord & font, std::uint32_t index, GlyphSize & output) const;
+    bool GetGlyphEntry(const FontRecord & font, std::uint32_t index, GlyphEntry & output) const;
 
 private:
+    bool ValidateGlyphSet(const FontRecord & font, std::uint32_t images) const;
     const char * String(std::uint32_t offset) const;
     const std::uint8_t * m_bytes = nullptr;
 };

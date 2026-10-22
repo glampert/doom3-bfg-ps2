@@ -5,7 +5,8 @@ latest authored UI baseline is [the convex-mask budget](#doom-convex-ui-mask-bud
 the retail boot and UI format measurements are in
 [the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20), and the
 converted textures that replaced retail page streaming in
-[the paletted UI section](#converted-retail-ui-textures-2026-10-20); current
+[the paletted UI section](#converted-retail-ui-textures-2026-10-20), with the menu
+glyph sets added in [their own section](#pre-rendered-menu-glyphs-2026-10-22); current
 aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
 production sizes and live ledgers must not be used as current budgets. Quake figures
 remain separately labeled reference observations.
@@ -515,3 +516,26 @@ measurements from the deterministic cook, then the target ledgers:
   11,361,276 (was 11,137,858 / 11,839,616). Every run recovers 7,424 / 7,600 / 4 at
   full shutdown.
 
+## Pre-rendered menu glyphs (2026-10-22)
+
+The dialog's text draws from a glyph set: Sarasori's glyphs and outlines at six exact
+sizes (three per standard) in a 1,024 × 99 GSTX image with 612 placements and one
+256 × 384 PSMT4 page. It is 62,816 bytes on disc (19,680 of tables), 49,216 decoded,
+and takes 48 KiB of VRAM plus its CLUT texture's 8 KiB page; the UICT3 catalog grows from
+25,032 to 52,405 bytes (the set's GSTX descriptor and its 7,552-byte glyph table).
+
+A font's set opens with the font, so every retail screen holds it, including the font
+screen, which never draws it. Each screen's loaded heap grows by about 107 KB: the set's
+EE page and CLUT copies (57,344 bytes), its tables and placement lookup grid and the
+larger catalog. Debug ledgers, NTSC and PAL identical, requested / backing bytes:
+
+- Font screen warm 2,828,948 / 2,932,868 / 2,519 (was 2,721,623 / 2,825,048 / 2,510); its
+  peak is now above the console's own, 2,921,146 / 3,025,108 with a 3,066,267 arena.
+- Dialog at rest 4,339,994 / 4,478,064 / 3,308, every release 4,092,694 / 4,198,408 /
+  2,558, peak 4,519,660 / 4,624,320, arena 4,729,243.
+- Inactive movies peak 6,898,750 / 7,094,572 (arena 7,211,419); executing ones
+  10,764,915 / 11,469,112 (arena 11,565,467).
+- Full shutdown still recovers 7,424 / 7,600 / 4; the authored UI is unchanged.
+
+Production `PT_LOAD` is 11,183,717 debug / 11,620,901 release bytes (+5,888 / +6,208),
+for the glyph lookup and draw path and the catalog's glyph table checks.

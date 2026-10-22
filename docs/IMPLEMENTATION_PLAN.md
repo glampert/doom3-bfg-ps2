@@ -2,7 +2,7 @@
 
 ## Current position — 2026-10-21
 
-This is the campaign-level plan. [PORT_STATUS.md](PORT_STATUS.md#current-snapshot--2026-10-21)
+This is the campaign-level plan. [PORT_STATUS.md](PORT_STATUS.md#current-snapshot--2026-10-22)
 is the current capability summary; [AGENT_HANDOVER.md](AGENT_HANDOVER.md) describes
 how to continue, and [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) owns the selected UI work.
 Initial inspection tables and proposed source changes below retain their historical

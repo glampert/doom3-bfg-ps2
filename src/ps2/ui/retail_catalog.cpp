@@ -14,15 +14,37 @@ namespace ps2::ui::retail
 {
 namespace
 {
+static constexpr std::uint32_t kVersion = 3;
 static constexpr std::uint32_t kHeaderBytes = 64;
 static constexpr std::uint32_t kImageBytes = 32;
 static constexpr std::uint32_t kFontBytes = 56;
+// Glyph set table: u32 image index, size count, entry count, 0; then the sizes and the entries.
+static constexpr std::uint32_t kGlyphSetBytes = 16;
+static constexpr std::uint32_t kGlyphSizeBytes = 20;
+// u32 codepoint, u16 placement, u16 flags (bit 0: outline), s16 origin x/y.
+static constexpr std::uint32_t kGlyphEntryBytes = 12;
+static constexpr std::uint16_t kGlyphOutlineFlag = 1;
+// 16.16 bounds: a glyph drawn at most 16 GS pixels per atlas texel, outlines at most 16 texels.
+static constexpr std::uint32_t kMaxGlyphScale = 16U << 16;
+static constexpr std::uint32_t kMaxStrokeWeight = 16U << 16;
+static constexpr int kMaxGlyphOrigin = 1024 * 16;
+static constexpr std::uint32_t kMaxCodepoint = 0x10FFFF;
 
 std::uint32_t Word(const std::uint8_t * bytes, std::uint32_t offset)
 {
     const auto * p = bytes + offset;
     return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8) |
            (static_cast<std::uint32_t>(p[2]) << 16) | (static_cast<std::uint32_t>(p[3]) << 24);
+}
+
+std::uint16_t Half(const std::uint8_t * bytes, std::uint32_t offset)
+{
+    return static_cast<std::uint16_t>(bytes[offset] | (bytes[offset + 1] << 8));
+}
+
+std::int16_t SignedHalf(const std::uint8_t * bytes, std::uint32_t offset)
+{
+    return static_cast<std::int16_t>(Half(bytes, offset));
 }
 
 bool Path(const char * value)
@@ -186,8 +208,139 @@ bool CatalogView::GetFont(std::uint32_t index, FontRecord & output) const
         font.maxHeight[i] = Word(m_bytes, offset + 28 + i * 8);
     }
 
+    font.index = index;
+    font.glyphTable = Word(m_bytes, offset + 48);
+    font.glyphTableBytes = Word(m_bytes, offset + 52);
     output = font;
     return true;
+}
+
+bool CatalogView::GetGlyphSet(const FontRecord & font, GlyphSetRecord & output) const
+{
+    if (m_bytes == nullptr || font.glyphTable == 0)
+    {
+        return false;
+    }
+
+    output = { Word(m_bytes, font.glyphTable), Word(m_bytes, font.glyphTable + 4), Word(m_bytes, font.glyphTable + 8) };
+    return true;
+}
+
+bool CatalogView::GetGlyphSize(const FontRecord & font, std::uint32_t index, GlyphSize & output) const
+{
+    GlyphSetRecord set;
+
+    if (!GetGlyphSet(font, set) || index >= set.sizeCount)
+    {
+        return false;
+    }
+
+    const auto offset = font.glyphTable + kGlyphSetBytes + index * kGlyphSizeBytes;
+    output = { Word(m_bytes, offset), Word(m_bytes, offset + 4), Word(m_bytes, offset + 8), Word(m_bytes, offset + 12),
+               Word(m_bytes, offset + 16) };
+    return true;
+}
+
+bool CatalogView::GetGlyphEntry(const FontRecord & font, std::uint32_t index, GlyphEntry & output) const
+{
+    GlyphSetRecord set;
+
+    if (!GetGlyphSet(font, set) || index >= set.entryCount)
+    {
+        return false;
+    }
+
+    const auto offset = font.glyphTable + kGlyphSetBytes + set.sizeCount * kGlyphSizeBytes + index * kGlyphEntryBytes;
+    output = { Word(m_bytes, offset), Half(m_bytes, offset + 4), (Half(m_bytes, offset + 6) & kGlyphOutlineFlag) != 0,
+               SignedHalf(m_bytes, offset + 8), SignedHalf(m_bytes, offset + 10) };
+    return true;
+}
+
+bool CatalogView::ValidateGlyphSet(const FontRecord & font, std::uint32_t images) const
+{
+    if (font.glyphTableBytes < kGlyphSetBytes)
+    {
+        return false;
+    }
+
+    const auto sizes = Word(m_bytes, font.glyphTable + 4);
+    const auto entries = Word(m_bytes, font.glyphTable + 8);
+    ImageRecord image;
+    gstx::Header header;
+
+    if (sizes == 0 || sizes > kMaxGlyphSizes || entries == 0 ||
+        entries > kMaxGlyphEntries || Word(m_bytes, font.glyphTable + 12) != 0 ||
+        font.glyphTableBytes != kGlyphSetBytes + sizes * kGlyphSizeBytes + entries * kGlyphEntryBytes ||
+        Word(m_bytes, font.glyphTable) >= images || !GetImage(Word(m_bytes, font.glyphTable), image) ||
+        !gstx::DecodeTables(image.descriptor, image.descriptorBytes, header))
+    {
+        return false;
+    }
+
+    // Exact pixels need a 1:1 placement: its match is its source, and its page rectangle the same
+    // size. A glyph with an outline splits it into two halves of equal width.
+    const auto Bitmap = [&](std::uint16_t placement, bool outline)
+    {
+        if (placement == kNoGlyphPlacement)
+        {
+            return !outline;
+        }
+
+        if (placement >= header.placementCount)
+        {
+            return false;
+        }
+
+        const auto record = gstx::GetPlacement(image.descriptor, header, placement);
+        return record.match.x == record.source.x && record.match.y == record.source.y && record.match.width == record.source.width &&
+               record.match.height == record.source.height && record.dest.width == record.match.width &&
+               record.dest.height == record.match.height && (!outline || (record.match.width >= 2 && record.match.width % 2 == 0));
+    };
+
+    const auto Origin = [](std::int16_t value)
+    {
+        return value >= -kMaxGlyphOrigin && value <= kMaxGlyphOrigin;
+    };
+
+    std::uint32_t next = 0;
+
+    for (std::uint32_t index = 0; index < sizes; ++index)
+    {
+        GlyphSize size;
+        GetGlyphSize(font, index, size);
+
+        if (size.scaleX == 0 || size.scaleX > kMaxGlyphScale || size.scaleY == 0 || size.scaleY > kMaxGlyphScale ||
+            size.strokeWeight > kMaxStrokeWeight || size.firstEntry != next || size.entryCount == 0 ||
+            size.entryCount > entries - next)
+        {
+            return false;
+        }
+
+        for (std::uint32_t item = 0; item < size.entryCount; ++item)
+        {
+            GlyphEntry entry;
+            GlyphEntry previous;
+            GetGlyphEntry(font, size.firstEntry + item, entry);
+            const auto entryOffset = font.glyphTable + kGlyphSetBytes + sizes * kGlyphSizeBytes + (size.firstEntry + item) * kGlyphEntryBytes;
+
+            if (entry.codepoint > kMaxCodepoint || (Half(m_bytes, entryOffset + 6) & ~kGlyphOutlineFlag) != 0 ||
+                (item != 0 && GetGlyphEntry(font, size.firstEntry + item - 1, previous) && entry.codepoint <= previous.codepoint))
+            {
+                return false;
+            }
+
+            // Only a size with a stroke weight draws outlines.
+            if (!Bitmap(entry.placement, entry.outline) || (size.strokeWeight == 0 && entry.outline) || !Origin(entry.originX) ||
+                !Origin(entry.originY))
+            {
+                return false;
+            }
+        }
+
+        next += size.entryCount;
+    }
+
+    return next == entries;
 }
 
 bool CatalogView::GetMaterial(std::uint32_t index, MaterialRecord & output) const
@@ -257,15 +410,17 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
     const auto aliases = Word(data, 24);
     const auto materials = Word(data, 28);
 
-    if (Word(data, 0) != 0x54434955U || Word(data, 4) != 2 || Word(data, 8) != length || Word(data, 12) != 1 ||
+    // Glyph set tables, in font order, fill the space between the materials and the descriptors.
+    if (Word(data, 0) != 0x54434955U || Word(data, 4) != kVersion || Word(data, 8) != length || Word(data, 12) != 1 ||
         Word(data, 60) != 0 || images == 0 || images > kMaxImages || fonts == 0 || fonts > kMaxFonts ||
         aliases == 0 || aliases > kMaxAliases || materials > kMaxMaterials || Word(data, 32) != kHeaderBytes ||
         Word(data, 36) != kHeaderBytes + images * kImageBytes || Word(data, 40) != Word(data, 36) + fonts * kFontBytes ||
-        Word(data, 44) != Word(data, 40) + aliases * 8 || Word(data, 48) != Word(data, 44) + materials * 8)
+        Word(data, 44) != Word(data, 40) + aliases * 8 || Word(data, 48) < Word(data, 44) + materials * 8)
     {
         return false;
     }
 
+    const auto glyphSets = Word(data, 44) + materials * 8;
     const auto descriptors = Word(data, 48);
     const auto strings = Word(data, 52);
     const auto stringBytes = Word(data, 56);
@@ -339,18 +494,28 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
         return false;
     }
 
+    auto glyphCursor = glyphSets;
+
     for (std::uint32_t i = 0; i < fonts; ++i)
     {
-        const auto offset = Word(data, 36) + i * kFontBytes;
         FontRecord font;
         candidate.GetFont(i, font);
 
         if (!Family(font.family) || font.logicalPath == nullptr || !FontPath(font.logicalPath, font.family) ||
             !AssetPath(font.path, ".dat") || font.bytes < 26 || font.bytes > ps2::ui::fonts::kMaxFontBytes ||
-            (font.bytes - 12) % 14 != 0 || font.imageIndex >= images || Word(data, offset + 48) != 0 || Word(data, offset + 52) != 0)
+            (font.bytes - 12) % 14 != 0 || font.imageIndex >= images)
         {
             return false;
         }
+
+        if (font.glyphTable == 0 ? font.glyphTableBytes != 0
+                                 : font.glyphTable != glyphCursor || font.glyphTableBytes > descriptors - glyphCursor ||
+                                       !candidate.ValidateGlyphSet(font, images))
+        {
+            return false;
+        }
+
+        glyphCursor += font.glyphTableBytes;
 
         for (int scale = 0; scale < 3; ++scale)
         {
@@ -370,6 +535,11 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
                 return false;
             }
         }
+    }
+
+    if (glyphCursor != descriptors)
+    {
+        return false;
     }
 
     for (std::uint32_t i = 0; i < aliases; ++i)

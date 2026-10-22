@@ -68,7 +68,7 @@ def completed(manifest, textures, standard="ntsc"):
     for index, (name, cycle) in enumerate((("retail-f0.tga", 1), ("retail-return.tga", 1), ("retail-reload.tga", 2))):
         frame = (index + 1) * 120
         text += (f"[D3BFG] RETAIL state=loaded cycle={cycle} font=0 name=proof frames=120 heap=100/120/8\n"
-                 f"[D3BFG] RETAIL textures images=1 pages={textures['pages']} cluts={textures['cluts']} "
+                 f"[D3BFG] RETAIL textures images={textures['images']} pages={textures['pages']} cluts={textures['cluts']} "
                  f"pixels={textures['pixel_bytes']} metadata={textures['metadata_bytes']} triangles={frame * 10} "
                  "uploads=3 evictions=0\n")
         for scale_index, (width, height) in enumerate(((12, 14), (21, 24), (40, 48))):
@@ -155,6 +155,19 @@ class RetailProofTests(unittest.TestCase):
         for standard in ("ntsc", "pal"):
             passed, reason = self.classify(completed(self.manifest, self.textures, standard), standard)
             self.assertTrue(passed, reason)
+
+    def test_glyph_sets_count_as_font_textures(self):
+        manifest = json.loads(json.dumps(self.manifest))
+        atlas = next(iter(manifest["cooked"]["runtime_images"].values()))
+        manifest["cooked"]["runtime_images"]["newfonts/proof/ps2_glyphs"] = atlas
+        manifest["cooked"]["glyph_sets"] = {"newfonts/proof/48.dat": {"image": "newfonts/proof/ps2_glyphs", "sizes": []}}
+        textures = runner.font_textures(manifest, self.source)
+        self.assertEqual(textures["images"], 2)
+        passed, reason = runner.classify(completed(manifest, textures), "run", "ntsc", manifest, textures)
+        self.assertTrue(passed, reason)
+        # The target must open the glyph set with its font, and the runner must expect it.
+        self.assertFalse(runner.classify(completed(manifest, self.textures), "run", "ntsc", manifest, textures)[0])
+        self.assertFalse(runner.classify(completed(manifest, self.textures), "run", "ntsc", manifest, self.textures)[0])
 
     def test_stale_barriers_crashes_and_authored_movie_do_not_pass_retail_acceptance(self):
         log = completed(self.manifest, self.textures)

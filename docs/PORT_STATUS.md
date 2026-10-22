@@ -1,12 +1,14 @@
 # Port status and headless acceptance
 
-## Current snapshot — 2026-10-21
+## Current snapshot — 2026-10-22
 
-The port is not playable yet. The latest slice converts the retail UI to
-[resident paletted textures](#paletted-retail-ui-textures-2026-10-21) (accepted in the
-debug gates on 2026-10-21), the first lever of the
+The port is not playable yet. The latest slice draws the dialog's text from
+[pre-rendered glyphs](#pre-rendered-menu-glyphs-2026-10-22) (accepted in the debug gates
+on 2026-10-22). Before it, the retail UI moved to
+[resident paletted textures](#paletted-retail-ui-textures-2026-10-21) (2026-10-21), the
+first lever of the
 [memory budget investigation](#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20),
-which also boots production on the retail declarations and scripts. Before it, the
+which also boots production on the retail declarations and scripts. Earlier, the
 [original dialog was drawn in full](#original-dialog-drawn-in-full-2d-6-third-slice)
 through native `idSWF::Render` (2026-10-20), after convex SWF masks (`ac9de81`,
 2026-10-18). `1f045d8` moved the authored fixtures into `src/tests/data/` without
@@ -20,19 +22,22 @@ changing their bytes.
 | Retail data boot | Retail `_common`/`_ordered` containers, every declaration folder and the full `doom_main.script` reach `NOMAP` in a 14.5 MB heap arena, with exact shutdown | Leaves about 6.4–6.8 MB for a level; heap levers measured, not applied |
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
-| 2D-6 | Scoped additive blend 8, bounded convex masks, and the original dialog drawn in full with Common's quit message from resident paletted textures (debug gates) | Complex/holed/disconnected/stroked masks, screen blend 4, nonzero additive color transforms; the visual pass over the halved first conversion |
+| 2D-6 | Scoped additive blend 8, bounded convex masks, and the original dialog drawn in full with Common's quit message from resident paletted textures, its text from pre-rendered glyphs (debug gates) | Complex/holed/disconnected/stroked masks, screen blend 4, nonzero additive color transforms; the visual pass over the halved first conversion |
 | 2D-7–8 | Not accepted | Shell drawing, native offline menu navigation, physical input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog; other retail modes still
 show isolated native English labels. Shell drawing and SWF event routing remain gated.
-The dialog now draws from resident paletted textures at about 60 ms per debug PCSX2
-frame; with streamed RGBA32 pages it took about 1.6 s. No world rendering or audible
-playback is implemented.
+The dialog now draws from resident paletted textures, its text from pre-rendered
+glyphs, at about 40 ms per debug PCSX2 frame; with streamed RGBA32 pages it took about
+1.6 s. No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-21, debug only by the user's direction) moved the retail
+The last acceptance (2026-10-22, debug only) drew the dialog's text from glyphs
+pre-rendered at their exact sizes: the font, movie and authored UI gates pass in NTSC
+and PAL; see its [record](#pre-rendered-menu-glyphs-2026-10-22). The one before
+(2026-10-21, debug only by the user's direction) moved the retail
 UI to converted paletted textures: every debug emulator gate passes in NTSC and PAL,
 with texture counters equal to the cooked files; see its
-[record](#paletted-retail-ui-textures-2026-10-21). The one before (2026-10-20) drew the
+[record](#paletted-retail-ui-textures-2026-10-21). The 2026-10-20 one drew the
 original dialog in full in debug/release NTSC/PAL, with reload-stable captures, exact
 warm releases, a negative admission case and the affected regression gates; see its
 [record](#original-dialog-drawn-in-full-2d-6-third-slice). The 2026-10-18 one
@@ -49,8 +54,9 @@ on the toolchain rebuilt on 2026-10-19, including the repaired script probe.
 Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
 [2D roadmap](RENDERER_2D_PLAN.md). The selected work is asset recompression/re-export
 and fitting the game into the 32 MiB budget. Its first lever, paletted UI textures,
-passes the debug gates and awaits the user's visual pass; the heap levers are measured
-and not applied. A complete shell frame and responsive offline menu
+passes the debug gates and awaits the user's visual pass; the dialog's text now draws
+from pre-rendered glyphs, whose sizes for other screens are still to be collected; the
+heap levers are measured and not applied. A complete shell frame and responsive offline menu
 navigation follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
@@ -3923,3 +3929,80 @@ All 177 cases pass. Each gate family ran one ELF, and a rebuild from the final s
 reproduces the tested core and production images byte for byte. A follow-up shortened
 `ps2::system::filesystem` to `ps2::system::fs`; every rebuilt debug/release production,
 core and game ELF is byte-identical to the tested one, so these archives still apply.
+
+## Pre-rendered menu glyphs (2026-10-22)
+
+Accepted **2026-10-22, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release gates were not run. After the paletted conversion the user's one visible
+complaint was the dialog's text: the white question line and the option labels were
+ragged, and ACCEPT read ADDEPT. The conversion was not the cause; the RGBA and paletted
+captures showed the same text.
+
+Three causes, all native: one texel of the 48-point atlas covers 0.175–0.283 GS pixels
+horizontally, minifying it 3.5–5.7× through a single bilinear level where the PC filters
+mip chains trilinearly; `RenderEditText` grows each glyph quad by one screen unit but its
+UVs by one texel; and its outline is four black copies of the glyph offset diagonally,
+which closed the counters. The user weighed mipmapped fonts with a trilinear per-glyph
+LOD, true-size quads, a wider framebuffer and glyphs pre-rendered at the exact size. A
+host simulation, checked against a target capture, found the pre-rendered glyphs
+clearly sharpest, and the user chose them.
+
+`asset_reexport` now renders glyph sets from a font's full atlas at listed sizes (GS
+pixels per texel and outline weight): area-filtered, at the sharpest sub-pixel phase per
+glyph, with the outline baked beside each glyph in one 1:1 placement. The profile lists
+the dialog's six Sarasori sizes, which the runtime measured and logged. The catalog moves
+to UICT3 with a glyph table per font. A tagged hook in `RenderEditText` draws a matching
+glyph as two rectangles, outline then glyph, copied texel for texel at the native layout
+position rounded to whole pixels; anything else keeps the native quads, and each missing
+size is logged once. See the [pipeline](RETAIL_UI_PIPELINE.md#pre-rendered-glyphs).
+
+| Dialog drawn in full (debug; NTSC = PAL) | 2026-10-21 | Pre-rendered glyphs |
+| --- | ---: | ---: |
+| Images / pages / CLUTs | 6 / 7 / 9 | 7 / 8 / 10 |
+| Pixel / metadata bytes | 303,104 / 30,974 | 356,352 / 53,270 |
+| Triangles per frame | about 750 | about 334 |
+| Frames 120–130 of the first load | 66–70 ms each | 38–44 ms each |
+| At rest | 4,232,661 / 4,370,244 / 3,299 | 4,339,994 / 4,478,064 / 3,308 |
+| Every release | 3,985,361 / 4,090,588 / 2,549 | 4,092,694 / 4,198,408 / 2,558 |
+| Peak; arena | 4,412,335 / 4,516,500; 4,710,427 | 4,519,660 / 4,624,320; 4,729,243 |
+
+The set opens with its font on every retail screen, adding about 107 KB of loaded heap
+(its EE page and CLUT copies, tables and the larger catalog; details in the
+[memory rule](../.claude/rules/memory-budget.md#pre-rendered-menu-glyphs-2026-10-22)), one
+256 × 384 PSMT4 page of VRAM and, on the font screen, a sixth image the screen never
+draws. No `UI glyph size` line appears in the dialog runs: every Sarasori glyph drew
+from the set; the texture owner's upload count stays at 7. The dialog captures are
+byte-identical to the 2026-10-21 prototype runs (`20261021T115352Z_movies_8ada9c0de824`,
+`20261021T115406Z_movies_a7eddecca8b1`), which were inspected in both standards: every
+line is crisp and ACCEPT, CANCEL and CHANGE GAME read correctly. The font screen's
+captures, which draw no edit text, and the authored UI's movie captures are
+byte-identical to the 2026-10-21 runs, and the authored UI's ledgers are unchanged.
+PCSX2 charges EE work and data moved, not GS fill, so the frame times are not hardware
+figures.
+
+The first font-gate run (`20261022T005220Z_retail_fef3056cb6ac`) failed in its runner:
+the check that the font screen holds exactly one texture per font did not count the
+glyph set, though the target's counters matched the cooked files. The runner now counts
+glyph sets, with a host test, and the rerun passed.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-retail-ui` | 7 | `20261022T010106Z_retail_d2e5dabceb23` to `20261022T010201Z_retail_321aa6bce219` |
+| `test-retail-movies` | 19 | `20261022T005245Z_movies_2804c6661f9d` to `20261022T005843Z_movies_6d9652178374` (dialog `20261022T005510Z_movies_fb0fa9c04707`, `20261022T005540Z_movies_eea98afae81a`) |
+| `test-ui` | 14 | `20261022T005855Z_ui_6c70ab3f2f32` to `20261022T010035Z_ui_a363136f17a5` |
+
+Every gate ran one production ELF. The converter's new code compiles without warnings
+under the host tools CI's GCC 13.3 and MSVC 19.51 (and GCC 14.4), checked on Compiler
+Explorer.
+`make test-host` passes 357 Python regressions plus the C++ harnesses, adding converter
+tests (exact coverage, phases, outline pairs, determinism and rejected requests),
+catalog glyph-table tests for the C++ and Python readers, cook configuration tests and
+the runner's glyph-set count. Production `PT_LOAD` is 11,183,717 debug / 11,620,901
+release bytes (+5,888 / +6,208), with 376 objects and no fixtures.
+Release production, the release core image and every debug test image (core, game,
+script and platform probes) build; the core test image is 2,152,816 / 2,237,424 bytes
+(+1,920 each, for the new rectangle helper).
+
+Only the dialog's sizes are cooked. One GSTX texture holds at most 1,024 placements, so
+covering the shell's sizes for every font needs a denser glyph record or several images
+per set; the next screens' sizes come from the runtime log.

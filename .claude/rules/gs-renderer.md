@@ -374,6 +374,31 @@ as noted.
 - Load checks the catalog's tables and every CLUT/page FNV before publication; nothing
   streams afterwards. The owner keeps the EE copy for re-upload after VRAM eviction.
 
+## Doom pre-rendered glyphs (2026-10-22)
+
+Menu text draws from glyph bitmaps rendered at their exact on-screen size
+(`ui/font_backend.cpp`; cook and catalog in
+[RETAIL_UI_PIPELINE](../../docs/RETAIL_UI_PIPELINE.md#pre-rendered-glyphs)).
+
+- **Texel-exact copies under bilinear filtering.** GS pixel centers sit at integer window
+  coordinates and texel centers at +0.5 (GS manual 2.4.4, Figure 2-6). A rectangle that
+  spans whole texels and starts half a pixel above and left of a whole pixel samples
+  every texel at its center, where bilinear (`iu0 = int(u − 0.5)`) takes that texel alone.
+  Vertices are 1/16-pixel fixed point, so the half pixel is exact. The glyph draw needs
+  no nearest-filtering state; PCSX2 captures show crisp, unblurred glyphs in NTSC and PAL.
+- **Why not filter the atlas.** The dialog's text maps one atlas texel to 0.175–0.283 GS
+  pixels horizontally (font height / 120) and minifies the 48-point atlas 3.5–5.7× with
+  one bilinear level, so thin stems alias; mipmaps with a trilinear per-glyph LOD
+  simulated soft. Area-filtering the full atlas at the exact size, with a per-glyph
+  sub-pixel phase, gave the sharpest result in simulation and on target.
+- A glyph and its outline share one 1:1 GSTX placement, in equal halves. Each half draws
+  as its own rectangle; its UV centroid selects the pair's placement and region clamp
+  bounds it, and sampling at texel centers never reaches the other half.
+- Cost: six outlined Sarasori sizes of 103 glyphs fit one 256×384 PSMT4 page (48 KiB of
+  VRAM). Each glyph draws two rectangles (outline, then glyph) instead of the native
+  five quads (four stroke copies and the glyph): the full dialog fell from about 750
+  to about 334 triangles a frame.
+
 ## Retail UI page format survey (2026-10-20)
 
 A host survey compared GS formats for the original atlases (byte totals are in

@@ -63,6 +63,12 @@ an original and a converted PNG of every texture for a visual review:
 make ui-cook UI_PREVIEWS=build/ui-previews
 ```
 
+The same tool pre-renders menu fonts at the exact sizes a screen draws them, listed under
+`conversion.glyph_sets` in `config/ui_retail.json`. A retail font drawn at a size it has
+no bitmaps for logs `[D3BFG] UI glyph size font=NAME scale=X,Y stroke=W prerendered=no`
+once; add those values to the list and cook again. See the
+[retail pipeline guide](RETAIL_UI_PIPELINE.md#pre-rendered-glyphs).
+
 Both tools share the `src/tools/assets/` library, meant for every later texture
 re-export.
 
@@ -96,8 +102,9 @@ execution; repeating `load` while already loaded is fatal.
 
 This executes the original dialog timeline while drawing isolated native English
 labels. `dialog quit` instead draws the complete dialog through native `idSWF::Render`
-from its resident converted textures, at about 60 ms per debug PCSX2 frame; the earlier
-RGBA page slice took about 1.6 seconds per frame while its pages streamed from HostFs.
+from its resident converted textures and pre-rendered glyphs, at about 40 ms per debug
+PCSX2 frame; the earlier RGBA page slice took about 1.6 seconds per frame while its
+pages streamed from HostFs.
 `execute shell` selects the minimal carousel/Credits owner; `movie shell|dialog|none`
 selects inactive inspection. Use `make test-retail-timelines` for the scoped execution
 gate and `make test-retail-dialog` for the full dialog. All authored startup/map/UI

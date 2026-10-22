@@ -5,7 +5,7 @@
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
-"""UICT2 contains checked image descriptors, native font identities and layout metrics.
+"""UICT3 contains checked image descriptors, native font identities, layout metrics and glyph sets.
 
 This is a dependency catalog for a bounded native probe. It does not authorize
 retail movies, material expressions, masks, special blends or Shell startup.
@@ -13,6 +13,13 @@ All integer fields are little endian. String offsets are relative to the final
 NUL-terminated ASCII pool; descriptor offsets are absolute file offsets. Each image
 descriptor is the header and tables of its GSTX file, so the target admits the exact
 converted texture before reading any pixel data.
+
+A font record's last two words locate its glyph set table (zero without one). The tables follow
+the materials in font order: u32 image index, size count, entry count, 0; per size u32 scale x/y
+(GS pixels per atlas texel) and stroke weight (atlas texels), all 16.16, first entry and entry
+count; per entry u32 codepoint, u16 placement (0xFFFF: nothing to draw), u16 flags (bit 0: the
+placement holds the glyph left and its outline right, at one width) and s16 ink origin x/y in
+1/16 GS pixels. Entries of one size are sorted by codepoint.
 """
 
 import hashlib
@@ -27,7 +34,7 @@ from ui_resources import logical_name
 
 
 MAGIC = 0x54434955
-VERSION = 2
+VERSION = 3
 FLAG_ENGLISH = 1
 MAX_BYTES = 128 * 1024
 MAX_IMAGES = 32
@@ -44,6 +51,12 @@ IMAGE = struct.Struct("<8I")
 FONT = struct.Struct("<14I")
 ALIAS = struct.Struct("<2I")
 MATERIAL = struct.Struct("<2I")
+GLYPH_SET = struct.Struct("<4I")
+GLYPH_SIZE = struct.Struct("<5I")
+GLYPH_ENTRY = struct.Struct("<I2H2h")
+MAX_GLYPH_SIZES = 16
+MAX_GLYPH_ENTRIES = 4096
+NO_PLACEMENT = 0xFFFF
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _PATH = re.compile(r"[a-z0-9_./#-]+\Z")
 _FAMILY = re.compile(r"[a-z0-9_]{1,63}\Z")
@@ -94,7 +107,70 @@ def _descriptor(directory, asset):
     texture = Texture(raw)
     if (asset.get("logical_width"), asset.get("logical_height")) != (texture.width, texture.height):
         raise ValueError("UICT image dimensions differ from cooked metadata")
-    return texture.width, texture.height, length, len(texture.pages), texture.descriptor(raw)
+    return texture.width, texture.height, length, len(texture.pages), texture.descriptor(raw), texture
+
+
+def _fixed(value, name, maximum):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= maximum:
+        raise ValueError("UICT glyph set value out of range: " + name)
+    return int(round(value * 65536))
+
+
+def _glyph_table(glyph_set, image_indices, images):
+    """One font's glyph set table; every bitmap must be a 1:1 placement of the set's image."""
+    if not isinstance(glyph_set, dict) or glyph_set.get("image") not in image_indices:
+        raise ValueError("UICT glyph set image missing")
+    image_index = image_indices[glyph_set["image"]]
+    placements = images[image_index][6].placements
+    sizes = glyph_set.get("sizes")
+    if not isinstance(sizes, list) or not 1 <= len(sizes) <= MAX_GLYPH_SIZES:
+        raise ValueError("UICT glyph set size count out of range")
+
+    def bitmap(value, outline):
+        if value is None:
+            if outline:
+                raise ValueError("UICT glyph outline without a bitmap")
+            return NO_PLACEMENT
+        index = _integer(value, "glyph placement", 0, len(placements) - 1)
+        match, source, dest = placements[index]["match"], placements[index]["source"], placements[index]["dest"]
+        if tuple(match) != tuple(source) or tuple(dest[2:]) != tuple(match[2:]):
+            raise ValueError("UICT glyph bitmap is not a 1:1 placement")
+        # A glyph with an outline holds both bitmaps side by side, at one width.
+        if outline and (match[2] < 2 or match[2] % 2):
+            raise ValueError("UICT glyph outline pair has an odd width")
+        return index
+
+    def origin(value):
+        if not isinstance(value, list) or len(value) != 2:
+            raise ValueError("UICT glyph origin must be a pair")
+        return [_integer(component, "glyph origin", -1024 * 16, 1024 * 16) for component in value]
+
+    size_data, entry_data = bytearray(), bytearray()
+    entries = 0
+    for size in sizes:
+        scale, weight, glyphs = size.get("scale"), size.get("stroke_weight"), size.get("glyphs")
+        if not isinstance(scale, list) or len(scale) != 2 or not isinstance(glyphs, list) or not glyphs:
+            raise ValueError("UICT glyph size invalid")
+        scale_x, scale_y = _fixed(scale[0], "scale", 16.0), _fixed(scale[1], "scale", 16.0)
+        stroke = _fixed(weight, "stroke weight", 16.0)
+        if scale_x == 0 or scale_y == 0:
+            raise ValueError("UICT glyph size scale is zero")
+        size_data.extend(GLYPH_SIZE.pack(scale_x, scale_y, stroke, entries, len(glyphs)))
+        previous = -1
+        for glyph in glyphs:
+            codepoint = _integer(glyph.get("codepoint"), "codepoint", 0, 0x10FFFF)
+            if codepoint <= previous:
+                raise ValueError("UICT glyph entries must be sorted by codepoint")
+            previous = codepoint
+            outline = glyph.get("outline")
+            if not isinstance(outline, bool) or (stroke == 0 and outline):
+                raise ValueError("UICT glyph outline flag invalid for its size")
+            entry_data.extend(GLYPH_ENTRY.pack(codepoint, bitmap(glyph.get("placement"), outline), int(outline),
+                                               *origin(glyph.get("origin"))))
+        entries += len(glyphs)
+    if entries > MAX_GLYPH_ENTRIES:
+        raise ValueError("UICT glyph set entry count out of range")
+    return GLYPH_SET.pack(image_index, len(sizes), entries, 0) + bytes(size_data) + bytes(entry_data), entries
 
 
 def build_catalog(manifest, directory):
@@ -118,12 +194,12 @@ def build_catalog(manifest, directory):
     page_count = 0
     for name, asset in sorted(source_images.items()):
         _path(name)
-        width, height, length, count, descriptor = _descriptor(directory, asset)
+        width, height, length, count, descriptor, texture = _descriptor(directory, asset)
         page_count += count
         if page_count > MAX_TOTAL_PAGES:
             raise ValueError("UICT total page count exceeds bound")
         image_indices[name] = len(images)
-        images.append((name, asset["path"], width, height, length, descriptor))
+        images.append((name, asset["path"], width, height, length, descriptor, texture))
     resolution = {}
     for entry in manifest["image_resolutions"]:
         name = logical_name(entry["logical_image"])
@@ -233,20 +309,32 @@ def build_catalog(manifest, directory):
             strings.extend(value.encode("ascii") + b"\0")
         return string_offsets[value]
 
+    glyph_sets = cooked.get("glyph_sets", {})
+    if not isinstance(glyph_sets, dict) or any(name not in source_fonts for name in glyph_sets):
+        raise ValueError("UICT glyph set names an unknown font")
     images_offset = HEADER.size
     fonts_offset = images_offset + len(images) * IMAGE.size
     aliases_offset = fonts_offset + len(fonts) * FONT.size
     materials_offset = aliases_offset + len(aliases) * ALIAS.size
-    descriptors_offset = materials_offset + len(materials) * MATERIAL.size
+    glyph_tables = bytearray()
+    glyph_records = {}
+    glyph_entries = 0
+    for family, name, *_ in fonts:
+        if name in glyph_sets:
+            table, entries = _glyph_table(glyph_sets[name], image_indices, images)
+            glyph_records[name] = (materials_offset + len(materials) * MATERIAL.size + len(glyph_tables), len(table))
+            glyph_tables.extend(table)
+            glyph_entries += entries
+    descriptors_offset = materials_offset + len(materials) * MATERIAL.size + len(glyph_tables)
     descriptors = bytearray()
     image_data = bytearray()
-    for name, path, width, height, length, descriptor in images:
+    for name, path, width, height, length, descriptor, _ in images:
         image_data.extend(IMAGE.pack(intern(name), intern(path), width, height, length,
                                      descriptors_offset + len(descriptors), len(descriptor), 0))
         descriptors.extend(descriptor)
     font_data = bytearray()
     for family, name, path, *values in fonts:
-        font_data.extend(FONT.pack(intern(family), intern(name), intern(path), *values, 0, 0))
+        font_data.extend(FONT.pack(intern(family), intern(name), intern(path), *values, *glyph_records.get(name, (0, 0))))
     alias_data = b"".join(ALIAS.pack(intern(name), index) for name, index in sorted(aliases.items()))
     material_data = b"".join(MATERIAL.pack(intern(name), index) for name, index in sorted(materials.items()))
     if len(descriptors) > MAX_DESCRIPTOR_BYTES:
@@ -258,10 +346,11 @@ def build_catalog(manifest, directory):
     header = HEADER.pack(MAGIC, VERSION, total_bytes, FLAG_ENGLISH, len(images), len(fonts), len(aliases),
                          len(materials), images_offset, fonts_offset, aliases_offset, materials_offset,
                          descriptors_offset, strings_offset, len(strings), 0)
-    raw = bytes(header + image_data + font_data + alias_data + material_data + descriptors + strings)
-    return raw, {"format": "UICT2", "version": VERSION, "language": "english", "image_count": len(images),
+    raw = bytes(header + image_data + font_data + alias_data + material_data + glyph_tables + descriptors + strings)
+    return raw, {"format": "UICT3", "version": VERSION, "language": "english", "image_count": len(images),
                  "font_count": len(fonts), "alias_count": len(aliases), "material_count": len(materials),
                  "page_count": page_count, "descriptor_bytes": len(descriptors), "string_bytes": len(strings),
+                 "glyph_set_count": len(glyph_records), "glyph_entry_count": glyph_entries, "glyph_table_bytes": len(glyph_tables),
                  "material_policy": "implicit-image-default only; native wrappers provide one constant image stage",
                  "omitted_materials": omitted_materials,
                  "blockers": (["Explicit material declarations are omitted from target bindings; their semantics need separate admission."]

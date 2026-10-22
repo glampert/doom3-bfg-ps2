@@ -1,14 +1,15 @@
 # Agent handover
 
-Reviewed **2026-10-21, Australia/Sydney**, after the full-dialog slice, the first
-memory budget measurements and the paletted UI conversion with its debug emulator
-acceptance, against the current source manifests. This is a continuation
-guide; [AGENTS.md](../AGENTS.md) supplies the coding, build and Git rules. Runtime
-evidence remains in [PORT_STATUS.md](PORT_STATUS.md).
+Reviewed **2026-10-22, Australia/Sydney**, after the full-dialog slice, the first
+memory budget measurements, the paletted UI conversion and the pre-rendered menu
+glyphs with their debug emulator acceptance, against the current source manifests.
+This is a continuation guide; [AGENTS.md](../AGENTS.md) supplies the coding, build and
+Git rules. Runtime evidence remains in [PORT_STATUS.md](PORT_STATUS.md).
 
 ## Read first
 
-1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-21), the latest
+1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-22), the latest
+   [pre-rendered glyph acceptance](PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22), the
    [paletted UI acceptance](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21) and the
    [full-dialog acceptance](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice).
 2. [2D renderer roadmap](RENDERER_2D_PLAN.md), especially implementation progress,
@@ -49,7 +50,7 @@ for each feature.
 | Retail fonts | Five English families, native legacy metrics and resident paletted textures | Font/resource screen only |
 | Retail movie inspection | Original shell/dialog dictionaries, full English dictionary and isolated native edit-text layout | Inactive imported timelines |
 | Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; HandleEvent remains fatal |
-| Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures; draw admission requires no outlines, screen blends or additive color | About 60 ms per debug PCSX2 frame; choices fail explicitly; shell not admitted |
+| Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs; draw admission requires no outlines, screen blends or additive color | About 40 ms per debug PCSX2 frame; choices fail explicitly; shell not admitted |
 | Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | 13.5 MB of heap backing before any map; no retail map or in-game UI yet |
 
 Recent implementation commits are the full-dialog slice (2026-10-20), `dd04ab0` (scoped
@@ -92,6 +93,13 @@ Proposed order; the user chose lever 1 first:
    draws a frame in about 60 ms in debug PCSX2 (1.6 s before) with a 1.46 MB smaller
    loaded heap. Next: the user's visual pass over `build/ui-previews` (halved thin
    fonts lost their solid stroke interior), and the release gates when asked.
+   **Menu text** draws from pre-rendered glyphs since 2026-10-22, at the user's choice
+   after the dialog's labels aliased ([pipeline](RETAIL_UI_PIPELINE.md#pre-rendered-glyphs)):
+   `conversion.glyph_sets` lists Sarasori's six dialog sizes. Each screen that draws
+   more text logs its sizes once (`UI glyph size ... prerendered=no`); add them to the
+   profile as the shell starts drawing. Before the set outgrows one GSTX texture (1,024
+   placements, about nine outlined sizes) or the catalog's 64 KiB descriptor bound,
+   give glyph entries their page rectangles directly or split sets across images.
 2. Cheap heap wins, measured by `test-retail-boot`: a smaller tagged header or
    small-block pools, heap-string container names, a PS2-sized smoke pool and script
    limits sized to the retail program.

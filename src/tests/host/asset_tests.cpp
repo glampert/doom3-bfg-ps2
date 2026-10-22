@@ -7,6 +7,7 @@
 
 #include "assets/bimage.h"
 #include "assets/bytes.h"
+#include "assets/glyph_set.h"
 #include "assets/gs_texture.h"
 #include "assets/gstx.h"
 #include "assets/json.h"
@@ -452,11 +453,125 @@ static bool Json()
     return passed && Check(!ParseJson(deep, value, error), "nesting bound") && Check(JsonString("a\"\\\n") == "\"a\\\"\\\\\\u000a\"", "JSON escaping");
 }
 
+// Alpha of one bitmap (the glyph or the outline half of its placement) read back through the GSTX.
+static std::vector<int> BitmapAlpha(const GstxTexture & texture, const PrerenderedGlyphResult & glyph, bool outline, int & width, int & height)
+{
+    const GstxPlacement & placement = texture.placements[static_cast<std::size_t>(glyph.placement)];
+    width = glyph.outline ? placement.match.width / 2 : placement.match.width;
+    height = placement.match.height;
+    std::vector<int> alpha;
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            PaletteColor color;
+            SampleGstx(texture, placement.match.x + (outline ? width : 0) + x + 0.5, placement.match.y + y + 0.5, color);
+            alpha.push_back(color.a);
+        }
+    }
+
+    return alpha;
+}
+
+static bool GlyphSets()
+{
+    // A 12x24 solid block and a 4x24 bar standing on their baselines, and an empty space.
+    RgbaImage atlas;
+    atlas.Allocate(64, 64);
+
+    for (int y = 8; y < 32; ++y)
+    {
+        for (int x = 0; x < 64; ++x)
+        {
+            atlas.At(x, y)[3] = (x >= 20 && x < 32) || (x >= 40 && x < 44) ? 255 : 0;
+        }
+    }
+
+    const std::vector<GlyphMetrics> glyphs = { { 32, 60, 60, 0, 0, 1, 0 }, { 65, 20, 8, 12, 24, 1, 24 }, { 73, 40, 8, 4, 24, 1, 24 } };
+    const std::vector<GlyphSizeRequest> sizes = { { 0.25, 0.25, 0.0 }, { 0.25, 0.25, 2.0 } };
+    GlyphSetResult result;
+    GlyphSetResult again;
+    std::string error;
+    std::vector<std::uint8_t> file;
+    std::vector<std::uint8_t> repeated;
+    GstxSizes fileSizes;
+    GstxTexture read;
+    bool passed = Check(RenderGlyphSet(atlas, glyphs, sizes, 512, result, error) && WriteGstx(result.texture, file, fileSizes, error) &&
+                            ReadGstx(file, read, error),
+                        "glyph set renders, writes and reads back") &&
+                  Check(RenderGlyphSet(atlas, glyphs, sizes, 512, again, error) && WriteGstx(again.texture, repeated, fileSizes, error) &&
+                            repeated == file,
+                        "glyph set conversion is deterministic") &&
+                  Check(result.sizes.size() == 2 && result.sizes[0].glyphs.size() == 3 && result.sizes[0].glyphs[0].placement < 0 &&
+                            result.sizes[1].glyphs[0].placement < 0 && result.texture.placements.size() == 4,
+                        "an empty glyph takes no placement");
+
+    for (const GstxPlacement & placement : result.texture.placements)
+    {
+        passed = passed && Check(placement.match.x == placement.source.x && placement.match.y == placement.source.y &&
+                                     placement.match.width == placement.source.width && placement.match.height == placement.source.height &&
+                                     placement.dest.width == placement.match.width && placement.dest.height == placement.match.height,
+                                 "every glyph bitmap maps 1:1 onto its page");
+    }
+
+    if (!passed)
+    {
+        return false;
+    }
+
+    // At a quarter scale the block is exactly 3x6 pixels: the sharpest phases leave no partial pixel.
+    int width = 0;
+    int height = 0;
+    const PrerenderedGlyphResult & block = result.sizes[0].glyphs[1];
+    const std::vector<int> plain = BitmapAlpha(result.texture, block, false, width, height);
+    int opaque = 0;
+    int partial = 0;
+
+    for (const int value : plain)
+    {
+        opaque += value == 255 ? 1 : 0;
+        partial += value != 0 && value != 255 ? 1 : 0;
+    }
+
+    passed = Check(!block.outline && width == 3 && height == 6 && opaque == 18 && partial == 0 && block.originX == 0 && block.originY == 96,
+                   "phases align a whole-pixel glyph exactly, its origin on the left edge and baseline");
+    const PrerenderedGlyphResult & stroked = result.sizes[1].glyphs[1];
+    const GstxPlacement & pair = result.texture.placements[static_cast<std::size_t>(stroked.placement)];
+    int strokedWidth = 0;
+    int strokedHeight = 0;
+    int outlineWidth = 0;
+    int outlineHeight = 0;
+    const std::vector<int> glyphHalf = BitmapAlpha(result.texture, stroked, false, strokedWidth, strokedHeight);
+    const std::vector<int> outlineHalf = BitmapAlpha(result.texture, stroked, true, outlineWidth, outlineHeight);
+    long glyphInk = 0;
+    long outlineInk = 0;
+
+    for (std::size_t index = 0; index < glyphHalf.size(); ++index)
+    {
+        glyphInk += glyphHalf[index];
+        outlineInk += outlineHalf[index];
+    }
+
+    passed = passed && Check(stroked.outline && pair.match.width % 2 == 0 && strokedWidth > 3 && outlineInk > glyphInk && glyphInk > 0,
+                             "an outlined glyph pairs its bitmap with a wider outline of the same size");
+    std::vector<GlyphMetrics> unordered = glyphs;
+    std::swap(unordered[1], unordered[2]);
+    std::vector<GlyphMetrics> outside = glyphs;
+    outside[1].s = 60;
+    GlyphSetResult refused;
+    return passed && Check(!RenderGlyphSet(atlas, unordered, sizes, 512, refused, error), "glyphs out of codepoint order are refused") &&
+           Check(!RenderGlyphSet(atlas, outside, sizes, 512, refused, error), "a glyph outside the atlas is refused") &&
+           Check(!RenderGlyphSet(atlas, glyphs, { { 0.0, 0.25, 0.0 } }, 512, refused, error), "a zero scale is refused") &&
+           Check(!RenderGlyphSet(atlas, {}, sizes, 512, refused, error), "an empty glyph list is refused");
+}
+
 } // namespace
 
 int main()
 {
-    if (!RunLengths() || !Checksums() || !GsLayouts() || !Palettes() || !Resampling() || !Packing() || !Textures() || !Images() || !Json())
+    if (!RunLengths() || !Checksums() || !GsLayouts() || !Palettes() || !Resampling() || !Packing() || !Textures() || !Images() || !Json() ||
+        !GlyphSets())
     {
         return 1;
     }

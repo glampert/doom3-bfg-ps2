@@ -186,9 +186,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   change native asset providers or boot capability.
 - `make asset-reexport` builds `build/tools/asset_reexport`, the C++20 converter of retail
   textures to paletted GSTX (`src/tools/assets/gstx.h`): PSMT8/PSMT4 pages, shared CLUTs,
-  RLE and placements mapping each image's logical texels. It and `resource_unpack` share
-  the `src/tools/assets/` library (resources, BIMAGE/DXT, palettes, packing, GSTX), meant
-  for every later texture re-export. Output is byte-identical on any host (contraction off).
+  RLE and placements mapping each image's logical texels. It also renders a font's glyphs
+  at exact on-screen pixel sizes into a glyph-set texture (`assets/glyph_set.*`). It and
+  `resource_unpack` share the `src/tools/assets/` library (resources, BIMAGE/DXT, palettes,
+  packing, GSTX), meant for every later texture re-export. Output is byte-identical on any
+  host (contraction off).
 - `make ui-inventory` / `make ui-cook` inspect/cook the local retail shell/dialog profile
   in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
   Output must stay under `build/`. The manifest records hashes, dependencies, feature
@@ -197,13 +199,18 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   font glyphs) drives `asset_reexport`, and `UI_PREVIEWS=DIR` adds original/converted
   PNGs for a visual review. Initial UI localization supports English only. Native
   authored SWF/font images share a fixed `PageCache` of UIPG pages; standalone
-  `PageImage` callers may own a private cache. The cook also emits a bounded UICT2
-  resource index carrying each texture's GSTX header and tables. Native snapshots
-  validate its offsets/paths/English records and font counts before legacy parsing;
-  constant UI material stages are generated from admitted bindings. A retail
-  `PalettedImage` admits exactly the cataloged file, checks every CLUT and page while
-  loading and keeps them resident in the texture owner; a triangle samples the
-  placement holding its UV centroid, region-clamped. `runtime_ready=false` is
+  `PageImage` callers may own a private cache. The cook also emits a bounded UICT3
+  resource index carrying each texture's GSTX header and tables and each glyph set's
+  table. Native snapshots validate its offsets/paths/English records and font counts
+  before legacy parsing; constant UI material stages are generated from admitted
+  bindings. A retail `PalettedImage` admits exactly the cataloged file, checks every
+  CLUT and page while loading and keeps them resident in the texture owner; a triangle
+  samples the placement holding its UV centroid, region-clamped. The profile's
+  `glyph_sets` list sizes (pixels per atlas texel, outline weight) whose glyphs and
+  outlines are pre-rendered; a tagged `RenderEditText` hook draws them texel for texel
+  at the native layout position, keeps native quads for any other size and logs each
+  such size once (`UI glyph size ... prerendered=no`). Only the dialog's three Sarasori
+  sizes, in each standard, are cooked so far. `runtime_ready=false` is
   intentional: shell drawing, complex masks, remaining blends/color transforms, active
   artwork residency and offline Shell integration remain later gates. Scoped
   dictionary/text/timeline admission exists. See

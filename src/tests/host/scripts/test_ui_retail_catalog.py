@@ -70,7 +70,7 @@ class RetailCatalogTests(unittest.TestCase):
         header = catalog.HEADER.unpack_from(raw)
         descriptor_bytes = self.image_asset["table_bytes"]
         self.assertEqual(descriptor_bytes, 48 + 32 + 16 + 32)
-        self.assertEqual(header[:8], (catalog.MAGIC, 2, len(raw), 1, 1, 1, 5, 1))
+        self.assertEqual(header[:8], (catalog.MAGIC, 3, len(raw), 1, 1, 1, 5, 1))
         self.assertEqual(header[8], 64)
         self.assertEqual(header[9], header[8] + 32)
         self.assertEqual(header[10], header[9] + 56)
@@ -91,11 +91,51 @@ class RetailCatalogTests(unittest.TestCase):
         self.assertEqual(font[3:6], (len(self.font_raw), catalog.fnv1a32(self.font_raw), 0))
         self.assertEqual(font[6:12], (70, 60, 55, 54, 43, 49))
         self.assertEqual(font[12:], (0, 0))
-        self.assertEqual((summary["format"], summary["page_count"], summary["descriptor_bytes"]),
-                         ("UICT2", 1, descriptor_bytes))
+        self.assertEqual((summary["format"], summary["page_count"], summary["descriptor_bytes"], summary["glyph_set_count"]),
+                         ("UICT3", 1, descriptor_bytes, 0))
         self.assertEqual(summary["material_policy"],
                          "implicit-image-default only; native wrappers provide one constant image stage")
         self.assertNotIn(b".bswf", raw)
+
+    def glyph_set(self, **changes):
+        glyphs = [{"codepoint": 32, "placement": None, "outline": False, "origin": [0, 0]},
+                  {"codepoint": 65, "placement": 0, "outline": True, "origin": [20, -16]}]
+        size = {"scale": [0.175, 0.2041666], "stroke_weight": 1.75, "glyphs": glyphs}
+        return {"image": self.image_name, "sizes": [{**size, **changes}]}
+
+    def test_glyph_set_table_follows_the_materials_and_locates_from_its_font(self):
+        self.manifest["cooked"]["glyph_sets"] = {self.font_name: self.glyph_set()}
+        raw, summary = self.build()
+        header = catalog.HEADER.unpack_from(raw)
+        table = header[11] + 8
+        table_bytes = 16 + 20 + 2 * 12
+        self.assertEqual(header[12], table + table_bytes)
+        self.assertEqual(catalog.FONT.unpack_from(raw, header[9])[12:], (table, table_bytes))
+        self.assertEqual(catalog.GLYPH_SET.unpack_from(raw, table), (0, 1, 2, 0))
+        self.assertEqual(catalog.GLYPH_SIZE.unpack_from(raw, table + 16),
+                         (round(0.175 * 65536), round(0.2041666 * 65536), round(1.75 * 65536), 0, 2))
+        self.assertEqual(catalog.GLYPH_ENTRY.unpack_from(raw, table + 36), (32, catalog.NO_PLACEMENT, 0, 0, 0))
+        self.assertEqual(catalog.GLYPH_ENTRY.unpack_from(raw, table + 48), (65, 0, 1, 20, -16))
+        self.assertEqual((summary["glyph_set_count"], summary["glyph_entry_count"], summary["glyph_table_bytes"]),
+                         (1, 2, table_bytes))
+
+    def test_glyph_set_bounds_order_and_1_1_bitmaps_checked(self):
+        glyphs = self.glyph_set()["sizes"][0]["glyphs"]
+        for name, glyph_set in (("unknown image", {**self.glyph_set(), "image": "missing"}),
+                                ("no sizes", {**self.glyph_set(), "sizes": []}),
+                                ("zero scale", self.glyph_set(scale=[0, 0.2])),
+                                ("stroke weight", self.glyph_set(stroke_weight=17)),
+                                ("codepoint order", self.glyph_set(glyphs=list(reversed(glyphs)))),
+                                ("placement range", self.glyph_set(glyphs=[{**glyphs[1], "placement": 1}])),
+                                ("outline without bitmap", self.glyph_set(glyphs=[{**glyphs[0], "outline": True}])),
+                                ("outline without stroke", self.glyph_set(stroke_weight=0)),
+                                ("origin range", self.glyph_set(glyphs=[{**glyphs[1], "origin": [16385, 0]}]))):
+            self.manifest["cooked"]["glyph_sets"] = {self.font_name: glyph_set}
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.build()
+        self.manifest["cooked"]["glyph_sets"] = {"newfonts/missing/48.dat": self.glyph_set()}
+        with self.assertRaisesRegex(ValueError, "unknown font"):
+            self.build()
 
     def test_aliases_keep_case_space_normalization_and_empty_english_alias(self):
         raw, _ = self.build()

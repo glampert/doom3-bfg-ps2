@@ -151,6 +151,14 @@ PSMT4 pages and CLUTs resident in the texture owner, so nothing streams per fram
 dialog draws a frame in about 60 ms in debug PCSX2 and its loaded heap is 1.46 MB
 smaller. See the [acceptance record](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21).
 
+**Pre-rendered menu glyphs pass the debug gates on 2026-10-22.** The dialog's text draws
+from Sarasori glyphs and outlines rendered at their exact on-screen sizes and copied
+texel for texel, instead of the minified atlas with four stroke copies per glyph:
+letters stay open, stems sharp, and the dialog draws about 334 triangles a frame
+instead of about 750. Other screens' sizes are logged at runtime for later cooks. See
+the [pipeline](RETAIL_UI_PIPELINE.md#pre-rendered-glyphs) and the
+[acceptance record](PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22).
+
 ### Next selected work
 
 The user selected this order on 2026-10-20, after the first full UI picture:

@@ -22,12 +22,17 @@ namespace
 
 using ps2::ui::retail::CatalogView;
 using ps2::ui::retail::FontRecord;
+using ps2::ui::retail::GlyphEntry;
+using ps2::ui::retail::GlyphSetRecord;
+using ps2::ui::retail::GlyphSize;
 using ps2::ui::retail::ImageRecord;
 using ps2::ui::retail::MaterialRecord;
 
 static constexpr std::uint32_t kHeaderBytes = 64;
 static constexpr std::uint32_t kImageBytes = 32;
 static constexpr std::uint32_t kFontBytes = 56;
+// The fixture's glyph set: two sizes, three entries.
+static constexpr std::uint32_t kGlyphSetBytes = 16U + 2U * 20U + 3U * 12U;
 static constexpr char kSentinel[] = "unchanged";
 
 struct Fixture
@@ -36,6 +41,7 @@ struct Fixture
     std::uint32_t fonts;
     std::uint32_t aliases;
     std::uint32_t materials;
+    std::uint32_t glyphs;
     std::uint32_t descriptors;
     std::uint32_t strings;
 };
@@ -133,13 +139,49 @@ static std::uint32_t AppendDescriptor(std::vector<std::uint8_t> & bytes, std::ui
     return fileBytes;
 }
 
-static Fixture MakeFixture(std::uint32_t imageCount = 2, bool pagePressure = false)
+// Font 0's glyph set over image 0, whose single placement maps its 128x128 texels 1:1: a stroked
+// size holding a space and an outlined 'A', then an unstroked size holding a plain 'A'.
+static void PutGlyphSet(std::vector<std::uint8_t> & bytes, std::uint32_t table)
+{
+    static constexpr std::uint32_t kWords[] = {
+        0, 2, 3, 0,
+        11469, 13380, 114688, 0, 2,
+        16384, 16384, 0, 2, 1
+    };
+    for (std::uint32_t word = 0; word < 14; ++word)
+    {
+        Put(bytes, table + word * 4U, kWords[word]);
+    }
+
+    struct Entry
+    {
+        std::uint32_t codepoint;
+        std::uint32_t placement;
+        std::uint32_t flags;
+        std::uint32_t originX;
+        std::uint32_t originY;
+    };
+
+    static constexpr Entry kEntries[] = { { 32, 0xFFFF, 0, 0, 0 }, { 65, 0, 1, 20, 142 }, { 65, 0, 0, 16, 0xFFF0 } };
+    for (std::uint32_t index = 0; index < 3; ++index)
+    {
+        const std::uint32_t entry = table + 56U + index * 12U;
+        Put(bytes, entry, kEntries[index].codepoint);
+        PutHalf(bytes, entry + 4U, kEntries[index].placement);
+        PutHalf(bytes, entry + 6U, kEntries[index].flags);
+        PutHalf(bytes, entry + 8U, kEntries[index].originX);
+        PutHalf(bytes, entry + 10U, kEntries[index].originY);
+    }
+}
+
+static Fixture MakeFixture(std::uint32_t imageCount = 2, bool pagePressure = false, bool glyphSet = false)
 {
     const std::uint32_t fonts = kHeaderBytes + imageCount * kImageBytes;
     const std::uint32_t aliases = fonts + 2U * kFontBytes;
     const std::uint32_t materials = aliases + 5U * 8U;
-    const std::uint32_t descriptors = materials + 2U * 8U;
-    Fixture fixture{ std::vector<std::uint8_t>(descriptors), fonts, aliases, materials, descriptors, 0 };
+    const std::uint32_t glyphs = materials + 2U * 8U;
+    const std::uint32_t descriptors = glyphs + (glyphSet ? kGlyphSetBytes : 0U);
+    Fixture fixture{ std::vector<std::uint8_t>(descriptors), fonts, aliases, materials, glyphs, descriptors, 0 };
     std::vector<std::uint8_t> strings;
     std::map<std::string, std::uint32_t> interned;
     auto intern = [&](const std::string & value) -> std::uint32_t
@@ -211,10 +253,17 @@ static Fixture MakeFixture(std::uint32_t imageCount = 2, bool pagePressure = fal
         Put(fixture.bytes, materials + index * 8U + 4U, index);
     }
 
+    if (glyphSet)
+    {
+        PutGlyphSet(fixture.bytes, glyphs);
+        Put(fixture.bytes, fonts + 48U, glyphs);
+        Put(fixture.bytes, fonts + 52U, kGlyphSetBytes);
+    }
+
     fixture.strings = static_cast<std::uint32_t>(fixture.bytes.size());
     fixture.bytes.insert(fixture.bytes.end(), strings.begin(), strings.end());
     const std::uint32_t header[] = {
-        0x54434955, 2, static_cast<std::uint32_t>(fixture.bytes.size()), 1, imageCount, 2, 5, 2,
+        0x54434955, 3, static_cast<std::uint32_t>(fixture.bytes.size()), 1, imageCount, 2, 5, 2,
         kHeaderBytes, fonts, aliases, materials, descriptors, fixture.strings, static_cast<std::uint32_t>(strings.size()), 0
     };
     for (std::uint32_t word = 0; word < 16; ++word)
@@ -328,7 +377,7 @@ static bool InvalidHeaders()
     };
 
     static constexpr Change kChanges[] = {
-        { 0, 0 }, { 4, 0 }, { 4, 1 }, { 8, 64 }, { 12, 0 }, { 12, 3 }, { 16, 0 }, { 16, 33 }, { 20, 0 }, { 20, 9 }, { 24, 0 }, { 24, 129 }, { 28, 65 }, { 32, 63 }, { 36, 0xFFFFFFFF }, { 40, 0 }, { 44, 0xFFFFFFFF }, { 48, 0 }, { 52, 0 }, { 52, 0xFFFFFFFF }, { 56, 0 }, { 56, 65537 }, { 60, 1 }
+        { 0, 0 }, { 4, 0 }, { 4, 1 }, { 4, 2 }, { 8, 64 }, { 12, 0 }, { 12, 3 }, { 16, 0 }, { 16, 33 }, { 20, 0 }, { 20, 9 }, { 24, 0 }, { 24, 129 }, { 28, 65 }, { 32, 63 }, { 36, 0xFFFFFFFF }, { 40, 0 }, { 44, 0xFFFFFFFF }, { 48, 0 }, { 52, 0 }, { 52, 0xFFFFFFFF }, { 56, 0 }, { 56, 65537 }, { 60, 1 }
     };
     for (const Change & change : kChanges)
     {
@@ -409,6 +458,96 @@ static bool InvalidRecords()
     Fixture wrongCanonical = valid;
     Put(wrongCanonical.bytes, valid.aliases + 8U + 4U, 1);
     return Rejected(wrongCanonical, "canonical family alias must select its own font record");
+}
+
+static bool GlyphSets()
+{
+    const Fixture valid = MakeFixture(2, false, true);
+    CatalogView view;
+    FontRecord font{};
+    FontRecord other{};
+    GlyphSetRecord set{};
+    GlyphSize stroked{};
+    GlyphSize plain{};
+    GlyphEntry space{};
+    GlyphEntry outlined{};
+    GlyphEntry unstroked{};
+    GlyphSetRecord unchanged{ 7, 8, 9 };
+
+    if (!Check(view.Init(valid.bytes.data(), valid.bytes.size()) && view.GetFont(0, font) && view.GetFont(1, other) &&
+                   font.index == 0 && font.glyphTable == valid.glyphs && font.glyphTableBytes == kGlyphSetBytes &&
+                   view.GetGlyphSet(font, set) && set.imageIndex == 0 && set.sizeCount == 2 && set.entryCount == 3 &&
+                   view.GetGlyphSize(font, 0, stroked) && stroked.scaleX == 11469 && stroked.strokeWeight == 114688 &&
+                   stroked.firstEntry == 0 && stroked.entryCount == 2 && view.GetGlyphSize(font, 1, plain) &&
+                   plain.strokeWeight == 0 && plain.firstEntry == 2 && plain.entryCount == 1 && !view.GetGlyphSize(font, 2, plain) &&
+                   view.GetGlyphEntry(font, 0, space) && space.codepoint == 32 && space.placement == ps2::ui::retail::kNoGlyphPlacement &&
+                   !space.outline && view.GetGlyphEntry(font, 1, outlined) && outlined.codepoint == 65 && outlined.placement == 0 &&
+                   outlined.outline && outlined.originX == 20 && outlined.originY == 142 && view.GetGlyphEntry(font, 2, unstroked) &&
+                   !unstroked.outline && unstroked.originY == -16 && !view.GetGlyphEntry(font, 3, space) &&
+                   other.glyphTable == 0 && !view.GetGlyphSet(other, unchanged) && unchanged.imageIndex == 7,
+               "glyph set records, sizes and entries read back exactly; fonts without one report none"))
+    {
+        return false;
+    }
+
+    struct Change
+    {
+        std::uint32_t offset;
+        std::uint32_t value;
+    };
+
+    const std::uint32_t table = valid.glyphs;
+    const std::uint32_t entries = table + 56U;
+    const Change changes[] = {
+        // Set header: image, counts and the reserved word.
+        { table, 2 }, { table + 4U, 0 }, { table + 4U, 17 }, { table + 8U, 2 }, { table + 8U, 4 }, { table + 12U, 1 },
+        // Sizes: zero and excessive scales and strokes, and entry runs that skip, overlap or overrun.
+        { table + 16U, 0 }, { table + 20U, (16U << 16) + 1U }, { table + 24U, (16U << 16) + 1U }, { table + 28U, 1 },
+        { table + 32U, 0 }, { table + 32U, 3 }, { table + 48U, 1 }, { table + 52U, 2 },
+        // Entries: codepoint order and range, a missing placement, unknown flags, and outlines a size cannot draw.
+        { entries, 66 }, { entries + 12U, 32 }, { entries + 12U, 0x110000 }, { entries + 16U, 1 }, { entries + 16U, 0x00020000 },
+        { entries + 28U, 0x00010000 }, { entries + 4U, 0x00010000 | 0xFFFF },
+        // Font records: a table elsewhere, a wrong length, or a length without a table.
+        { valid.fonts + 48U, table + 4U }, { valid.fonts + 52U, kGlyphSetBytes - 12U }, { valid.fonts + kFontBytes + 52U, 4 }
+    };
+    for (const Change & change : changes)
+    {
+        Fixture invalid = valid;
+        Put(invalid.bytes, change.offset, change.value);
+        if (!Check(!view.Init(invalid.bytes.data(), invalid.bytes.size()), "malformed glyph set rejected"))
+        {
+            std::fprintf(stderr, "  change at %u to 0x%x\n", static_cast<unsigned>(change.offset), static_cast<unsigned>(change.value));
+            return false;
+        }
+    }
+
+    Fixture origin = valid;
+    PutHalf(origin.bytes, entries + 12U + 8U, 16385);
+    Fixture gap = valid;
+    Put(gap.bytes, valid.fonts + 48U, 0);
+    Put(gap.bytes, valid.fonts + 52U, 0);
+    // Image 0's placement narrowed to an odd 127 texels, its tables re-checksummed: a valid texture
+    // whose 1:1 placement cannot split into a glyph and an outline of one width.
+    const auto Narrow = [](Fixture & fixture)
+    {
+        namespace gstx = ps2::ui::gstx;
+        const std::uint32_t start = Word(fixture.bytes, kHeaderBytes + 20U);
+        const std::uint32_t placement = start + gstx::kHeaderBytes + gstx::kPageRecordBytes + gstx::kClutRecordBytes;
+        PutHalf(fixture.bytes, placement + 4U, 127);
+        PutHalf(fixture.bytes, placement + 12U, 127);
+        PutHalf(fixture.bytes, placement + 20U, 127);
+        Put(fixture.bytes, start + 28U, 0);
+        Put(fixture.bytes, start + 28U, ps2::ui::PageChecksum(fixture.bytes.data() + start, Word(fixture.bytes, start + 20U)));
+    };
+    Fixture odd = valid;
+    Narrow(odd);
+    Fixture narrowWithoutGlyphs = MakeFixture();
+    Narrow(narrowWithoutGlyphs);
+    return Check(!view.Init(origin.bytes.data(), origin.bytes.size()), "glyph origin beyond 1024 pixels rejected") &&
+           Check(view.Init(narrowWithoutGlyphs.bytes.data(), narrowWithoutGlyphs.bytes.size()) &&
+                     !view.Init(odd.bytes.data(), odd.bytes.size()),
+                 "outline pair needs an even 1:1 placement") &&
+           Check(!view.Init(gap.bytes.data(), gap.bytes.size()), "space between materials and descriptors must hold glyph tables");
 }
 
 static bool InvalidStrings()
@@ -520,6 +659,29 @@ static bool ExerciseView(const CatalogView & view)
         {
             return false;
         }
+
+        GlyphSetRecord set{};
+        if (view.GetGlyphSet(font, set))
+        {
+            for (std::uint32_t size = 0; size < set.sizeCount; ++size)
+            {
+                GlyphSize record{};
+                if (set.imageIndex >= view.ImageCount() || !view.GetGlyphSize(font, size, record) ||
+                    record.firstEntry + record.entryCount > set.entryCount)
+                {
+                    return false;
+                }
+            }
+
+            for (std::uint32_t entry = 0; entry < set.entryCount; ++entry)
+            {
+                GlyphEntry record{};
+                if (!view.GetGlyphEntry(font, entry, record))
+                {
+                    return false;
+                }
+            }
+        }
     }
 
     return UnchangedQueries(view);
@@ -527,11 +689,12 @@ static bool ExerciseView(const CatalogView & view)
 
 static bool MutationSafety()
 {
-    const Fixture valid = MakeFixture();
+    const Fixture plain = MakeFixture();
+    const Fixture glyphs = MakeFixture(2, false, true);
     std::uint32_t random = 0x7019B123;
-    for (std::uint32_t run = 0; run < 10000; ++run)
+    for (std::uint32_t run = 0; run < 20000; ++run)
     {
-        Fixture mutated = valid;
+        Fixture mutated = run % 2U == 0 ? plain : glyphs;
         for (std::uint32_t change = 0; change <= run % 4U; ++change)
         {
             random ^= random << 13U;
@@ -581,7 +744,7 @@ static bool ReadCatalog(const char * path)
 
 int main(int argc, char ** argv)
 {
-    if (!ValidCatalogs() || !InvalidHeaders() || !InvalidRecords() || !InvalidStrings() || !MutationSafety())
+    if (!ValidCatalogs() || !InvalidHeaders() || !InvalidRecords() || !GlyphSets() || !InvalidStrings() || !MutationSafety())
     {
         return 1;
     }

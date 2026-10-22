@@ -29,9 +29,11 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 #include "../renderer/tr_local.h"
 
-// [PS2_D3BFG]: Native mask lifetimes drive checked CPU clipping instead of GS stencil state.
+// [PS2_D3BFG]: Native mask lifetimes drive checked CPU clipping instead of GS stencil state, and
+// fonts with pre-rendered sizes draw exact glyph bitmaps.
 #ifdef ID_PS2
 #include "ps2/ui/draw.h"
+#include "ps2/ui/font_backend.h"
 #endif
 
 idCVar swf_timescale( "swf_timescale", "1", CVAR_FLOAT, "timescale for swf files" );
@@ -1467,6 +1469,28 @@ void idSWF::RenderEditText( idRenderSystem * gui, idSWFTextInstance * textInstan
 				gui->SetColor( textColor );
 			}
 
+#if defined( ID_PS2 )
+			// [PS2_D3BFG]: The PS2 draws menu text at a fifth of the atlas size or less, where filtered
+			// glyphs alias. Fonts with pre-rendered sizes draw exact bitmaps instead: the outline in the
+			// stroke color, then the glyph, each placed at its native layout position.
+			ps2::ui::fonts::PrerenderedGlyph prerendered;
+			const idVec2 inkOrigin = matrix.Transform( idVec2( glyphX, baseLine ) );
+			const bool usePrerendered = !textInstance->GetHasDropShadow() && matrix.xy == 0.0f && matrix.yx == 0.0f &&
+				ps2::ui::fonts::FindPrerenderedGlyph( fontInfo, glyphScale * scaleToVirtual.x, glyphScale * scaleToVirtual.y,
+					textInstance->HasStroke() ? textInstance->GetStrokeWeight() : 0.0f, character, prerendered );
+
+			if ( usePrerendered ) {
+				if ( textInstance->HasStroke() ) {
+					idVec4 strokeColor = colorBlack;
+					strokeColor.w = textInstance->GetStrokeStrength() * defaultColor.w;
+					gui->SetColor( strokeColor );
+					ps2::ui::fonts::DrawPrerenderedGlyph( prerendered, glyph.material, inkOrigin.x * scaleToVirtual.x, inkOrigin.y * scaleToVirtual.y, true );
+					gui->SetColor( textColor );
+				}
+
+				ps2::ui::fonts::DrawPrerenderedGlyph( prerendered, glyph.material, inkOrigin.x * scaleToVirtual.x, inkOrigin.y * scaleToVirtual.y, false );
+			} else
+#endif
 			if ( textInstance->GetHasDropShadow() ) {
 			
 				float dsY = glyphY + glyphScale * 2.0f;
@@ -1499,7 +1523,13 @@ void idSWF::RenderEditText( idRenderSystem * gui, idSWFTextInstance * textInstan
 				gui->SetColor( textColor );
 			}
 
+#if defined( ID_PS2 )
+			if ( !usePrerendered ) {
+				DrawStretchPic( idVec4( topl.x, topl.y, s1, t1 ), idVec4( topr.x, topr.y, s2, t1 ), idVec4( br.x, br.y, s2, t2 ), idVec4( bl.x, bl.y, s1, t2 ), glyph.material );
+			}
+#else
 			DrawStretchPic( idVec4( topl.x, topl.y, s1, t1 ), idVec4( topr.x, topr.y, s2, t1 ), idVec4( br.x, br.y, s2, t2 ), idVec4( bl.x, bl.y, s1, t2 ), glyph.material );
+#endif
 			x += glyphSkip;
 			x += extraSpace;
 			if ( cursorPos == c ) {

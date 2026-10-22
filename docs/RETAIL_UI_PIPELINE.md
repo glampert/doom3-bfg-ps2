@@ -1,10 +1,11 @@
 # Retail UI host inventory and cooking
 
 This records the **2D-5** host pipeline and its scoped native resource/timeline
-profiles. Documentation reviewed **2026-10-20**, with runtime evidence through
-**2026-10-20**. Original shell/dialog dictionaries, English text and checked native
+profiles. Documentation reviewed **2026-10-22**, with runtime evidence through
+**2026-10-22**. Original shell/dialog dictionaries, English text and checked native
 timelines can load and execute through separate admission profiles, and the original
-dialog draws in full through a third one. The shell still shows isolated English
+dialog draws in full through a third one, its text from
+[pre-rendered glyphs](#pre-rendered-glyphs). The shell still shows isolated English
 labels; its drawing, event routing and offline menu navigation are not admitted.
 
 Retail artwork and fonts are converted to paletted, RLE-compressed **GSTX** textures by
@@ -111,16 +112,19 @@ made; the conversion policy halves every texture for the first pass.
 
 ## Runtime catalog
 
-The cook additionally emits a content-addressed **UICT v2** runtime catalog, referenced
+The cook additionally emits a content-addressed **UICT v3** runtime catalog, referenced
 by `cooked.runtime_catalog`. Staging renames that checked index to `base/retail_ui.uic`;
 the EE never parses the large diagnostic JSON. Its 64-byte little-endian header gives
 exact array/string/descriptor offsets and an English-only flag. Records bind images
 to the complete header and tables of their GSTX texture, fonts to immutable modern
-`.dat` snapshots and three legacy width/height pairs, aliases to canonical families,
-and material names to images. The current index is **25,032 bytes**: twelve images
-(21,312 descriptor bytes, 16 pages), five fonts, nineteen aliases and twelve implicit
-material bindings. Catalog bounds are 128 KiB, 32 images, eight fonts, 128 aliases,
-64 materials, 64 KiB of descriptors and 256 total pages. Native validation rejects
+`.dat` snapshots, three legacy width/height pairs and an optional
+[glyph table](#pre-rendered-glyphs), aliases to canonical families, and material names
+to images. The current index is **52,405 bytes**: thirteen images (40,992 descriptor
+bytes, 17 pages; the glyph set's descriptor alone is 19,680), five fonts, one glyph
+table (7,552 bytes, 618 entries), nineteen aliases and twelve implicit material
+bindings. Catalog bounds are 128 KiB, 32 images, eight fonts, 128 aliases, 64
+materials, 64 KiB of descriptors and 256 total pages; a glyph table holds at most 16
+sizes and 4,096 entries. Native validation rejects
 overlapping/inconsistent ranges, traversal or token-injection paths, duplicate
 identities, invalid references and missing canonical self-aliases before publishing a
 view; every descriptor must pass the same strict GSTX table check as the texture file.
@@ -243,6 +247,78 @@ may leave unreferenced immutable files; old assets are not automatically pruned.
 Output symlinks and source/config aliases are refused. Use a tree without concurrent
 external mutation. This is atomic manifest replacement, not a durable filesystem
 transaction or an adversarial directory sandbox.
+
+## Pre-rendered glyphs
+
+Menu text draws far below its atlas size. For a SWF edit text of font height H (in
+1280 × 960 stage units), one texel of the 48-point atlas covers H / 120 GS pixels
+horizontally in both standards and H × lines / 46,080 vertically (448 or 512 lines), so
+the dialog's text (H = 21, 22 and 34) minifies the original atlas 3.5–5.7× horizontally. The PC
+samples the fonts' mip chains with trilinear and anisotropic filtering; the GS path
+binds one level, bilinear, so thin stems alias. Native `RenderEditText` also grows each
+glyph quad by one screen unit but its UVs by one texel, stretching small glyphs, and
+draws the outline as four black copies of the glyph offset diagonally by the stroke
+weight in atlas texels. Together they closed letters (ACCEPT read ADDEPT) whether the
+font page was RGBA or the halved PSMT4 conversion.
+
+Fonts listed under `conversion.glyph_sets` in the profile draw such text from bitmaps
+rendered at the exact on-screen size. Each entry names a font and its sizes: `scale`
+is GS pixels per atlas texel (x, y) and `stroke_weight` the outline weight in atlas
+texels, zero for none. Only the dialog is covered so far: Sarasori at heights 21 and 22
+with weight 1.75 and 34 with weight 2.0, each in NTSC and PAL, six sizes. The runtime
+supplies the values: a retail font drawn at a size its set lacks logs
+`[D3BFG] UI glyph size font=NAME scale=X,Y stroke=W prerendered=no` once per size.
+
+`asset_reexport` renders a glyph-set job (`src/tools/assets/glyph_set.*`) from the
+font's full-resolution atlas, decoded from its BIMAGE, and its glyph records:
+
+- Each pixel averages 8 × 8 samples of the atlas texels, which already hold the coverage
+  of their squares, so this is the exact area filter. The glyph's own texels and the
+  one-texel ring its native quad reaches count; atlas neighbors never leak in.
+- Each size picks one of eight baseline phases (eighths of a pixel), and each glyph one
+  of eight horizontal phases, whichever concentrates coverage most (largest sum of
+  squared coverage), so stems land on whole pixels.
+- The outline is baked as the four diagonal copies native draws, `1 − Π(1 − c)` over the
+  coverage shifted by ±weight texels on each axis.
+- Bitmaps are trimmed to their ink. A glyph and its outline share one placement, side by
+  side in equal halves; a glyph without ink (the no-break space) gets none. Placements
+  map 1:1 (match equals source, page rectangle of the same size) and share one 16-level
+  alpha CLUT. They are shelved tallest first on a 1,024-wide sheet, which the ordinary
+  GSTX path converts to PSMT4 pages.
+
+The Sarasori set is a 1,024 × 99 logical image with 612 placements in one 256 × 384
+PSMT4 page: 62,816 bytes on disc, 19,680 of them tables, and 48 KiB of VRAM; the worst
+RMSE is 5.4 (the 16-level ramp). Each glyph's placement, outline flag and ink origin,
+its left edge on its baseline in 1/16 pixel from the bitmap's corner, go to
+`cooked.glyph_sets` and the catalog.
+
+UICT3 places one glyph table per font with a set between the material records and the
+descriptors; font record words 12 and 13 give its offset and length (zero without a
+set). A table holds a 16-byte header (image index, size count, entry count, reserved),
+20-byte size records (scale x/y and outline weight in 16.16 fixed point, first entry,
+entry count) and 12-byte entries (codepoint, placement or `0xFFFF`, flags with bit 0 for
+an outline, ink origin x/y). Native validation requires exact lengths, contiguous entry
+runs, codepoints strictly increasing within a size, placements that exist and map 1:1,
+outline pairs of even width, outlines only on outlined sizes, scales in (0, 16],
+weights up to 16 and origins within ±1,024 pixels; unknown flags fail.
+
+A retail font's glyph set image opens when the font registers, like its atlas. A tagged
+hook in `idSWF::RenderEditText` converts each glyph's scale to GS pixels per texel and
+takes a size within 1% on each axis and 0.01 of the outline weight. It draws the outline
+in the stroke color, then the glyph in the text color, each as one rectangle copied
+texel for texel. The bitmap goes where its ink origin meets the native layout's glyph
+edge (pen plus left bearing, on the baseline), rounded to whole GS pixels, so each glyph
+lands within half a pixel of its native place at its sharpest phase. The rectangle
+starts half a pixel up and left of that pixel, so every pixel samples a texel center
+and bilinear filtering returns the stored values.
+Layout, alignment, colors and masks stay native. Drop shadows, rotated or sheared text,
+and sizes or glyphs a set lacks keep the native quads.
+
+Limits: only the dialog's sizes are cooked, so other screens still draw the filtered
+quads. One GSTX texture holds at most 1,024 placements, about nine outlined sizes of
+103 glyphs, and the catalog's 64 KiB descriptor bound has room for about one more set
+like this one: covering the shell's sizes for every font will need entries that carry
+their page rectangles directly, or several images per set.
 
 ## Authored page transport (UIPG)
 
@@ -368,10 +444,11 @@ checks and sanitizer C++ harnesses; it needs no retail installation. Coverage in
 truncation and bounds, alias/lookup semantics, native font metrics, required labels,
 DXT interpolation/swizzles, page seams/UVs, UIPG headers/records/checksums, immutable
 output and failed-cook preservation. The converter's library tests cover RLE, CLUT
-order, index packing, palettes, resampling, packing and GSTX round trips; the target's
-GSTX admission is checked against converter output, refusing every corrupted table
-byte; and the Python reader, its fixture encoder and sampling bounds have their own
-tests. The cook tests run the real converter on synthetic containers. Standalone sanitizer geometry checks exercise
+order, index packing, palettes, resampling, packing, GSTX round trips and glyph sets
+(exact area coverage, phases, outline pairs, determinism and rejected requests); the
+target's GSTX admission is checked against converter output, refusing every corrupted
+table byte, and its catalog reader against valid and mutated glyph tables; and the
+Python reader, its fixture encoder and sampling bounds have their own tests. The cook tests run the real converter on synthetic containers. Standalone sanitizer geometry checks exercise
 UV/screen clipping, reversed shared edges, color interpolation and invalid-input
 preservation. A passing sanitizer harness exercises the real shared cache with
 `PS2_D3BFG_ASSERTS=0` and `1`, using stubbed GS submission. The existing renderer scene

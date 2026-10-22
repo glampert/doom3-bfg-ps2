@@ -64,10 +64,13 @@ def texture_counters(totals: dict) -> tuple:
 
 
 def font_images(manifest: dict) -> set:
+    """Every font's converted atlas, and its pre-rendered glyph set, which loads with the font."""
     names = set()
     for font in manifest["fonts"]:
         names.update(entry["selected"] for entry in manifest["image_resolutions"]
                      if entry["logical_image"] == font[:-4] + ".tga" and entry["status"] == "resolved")
+        if font in manifest["cooked"].get("glyph_sets", {}):
+            names.add(manifest["cooked"]["glyph_sets"][font]["image"])
     return names
 
 
@@ -101,7 +104,8 @@ def classify(log: str, identity: str, standard: str, manifest: dict, expected_te
     previous_frame = 0
     previous_textures = None
     resident = texture_counters(expected_textures)
-    if resident[0] != len(fonts):
+    glyph_sets = manifest["cooked"].get("glyph_sets", {})
+    if resident[0] != len(fonts) + sum(font in glyph_sets for font in manifest["fonts"]):
         return False, "retail font textures do not match the cooked font set"
     for match, (name, font_index, cycle) in zip(captures, phases):
         frame, present, redraw = map(int, match.groups()[1:])

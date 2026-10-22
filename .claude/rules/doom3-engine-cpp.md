@@ -584,6 +584,24 @@ math path; PS2-specific math replacement headers are a later milestone.
   `SWF_MAX_PARMS` (16). This selected profile is not general SWF execution support;
   copied text aliases and raw default-sprite references retain upstream lifetime limits.
 
+## Native edit-text drawing
+
+- `RenderEditText` scales glyphs by `glyphScale` = post-transform font height / 48:
+  screen units per texel of the 48-point atlas. `GetScaledGlyph` grows the UVs by half a
+  texel per side, but the quad grows by a fixed 1.0 unit (`glyph.width + 1.0f`), so at
+  the PS2 dialog's 0.22–0.34 units per texel a small glyph is stretched noticeably.
+- A stroke is four black copies at (±1, ±1) × `strokeWeight` × `glyphScale`, with alpha
+  `strokeStrength` × the text alpha, drawn before the glyph. Layout adds
+  `swf_textStrokeSizeGlyphSpacer` (1.5) × weight × `glyphScale` to each advance.
+  `swf_textStrokeSize` defaults to 1.65; the dialog's scripts set 1.75 for the body and
+  options and 2.0 for the title through `_stroke*` properties. A drop shadow is one black
+  copy offset by 2 × `glyphScale`.
+- The PS2 tag in `RenderEditText` hands a glyph to `ps2::ui::fonts::FindPrerenderedGlyph`
+  when the text has no drop shadow and its matrix neither rotates nor shears. On a match,
+  `DrawPrerenderedGlyph` draws the baked outline in the stroke color and then the glyph,
+  replacing the four stroke copies and the quad. The pen, advances (stroke spacer
+  included), alignment, selection highlight and cursor stay native.
+
 ## Native BSWF atlas records
 
 BSWF16 image records interleave **width, atlas X offset, height, atlas Y offset**.

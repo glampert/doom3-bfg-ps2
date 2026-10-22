@@ -130,7 +130,7 @@ class InventoryPipelineTests(unittest.TestCase):
         self.assertEqual(reexport["file_bytes"], sum(record["bytes"] for record in images.values()))
         self.assertIn(ord("A"), reexport["english_codepoints"])
         self.assertEqual(manifest["cooked"]["conversion_only"], {})
-        self.assertEqual(manifest["cooked"]["runtime_catalog"]["format"], "UICT2")
+        self.assertEqual(manifest["cooked"]["runtime_catalog"]["format"], "UICT3")
 
     def test_conversion_only_movies_are_converted_but_never_admitted(self):
         self.records += [("generated/swf/extra.bswf", self.raw_swf),
@@ -245,12 +245,24 @@ class InventoryPipelineTests(unittest.TestCase):
             self.assertFalse(self.output.exists())
         policy = self.config["conversion"]["policy"]
         partial = {key: value for key, value in policy.items() if key != "alpha_levels"}
-        for conversion, pattern in (({"policy": policy}, "policy and a conversion_only"),
+        glyph_size = {"scale": [0.175, 0.2], "stroke_weight": 1.75}
+        for conversion, pattern in (({"policy": policy}, "policy, a conversion_only"),
                                     ({"policy": {**policy, "scale": 0}, "conversion_only": []}, "out of range: scale"),
                                     ({"policy": {**policy, "max_page_extent": 200}, "conversion_only": []}, "multiple of 128"),
                                     ({"policy": {**policy, "share_palettes": 1}, "conversion_only": []}, "boolean"),
                                     ({"policy": partial, "conversion_only": []}, "must name exactly"),
-                                    ({"policy": policy, "conversion_only": ["guis/hud.gui"]}, "generated/swf")):
+                                    ({"policy": policy, "conversion_only": ["guis/hud.gui"]}, "generated/swf"),
+                                    ({"policy": policy, "conversion_only": [], "glyph_sets": {}}, "at most 8 fonts"),
+                                    ({"policy": policy, "conversion_only": [],
+                                      "glyph_sets": [{"font": "fonts/an.dat", "sizes": [glyph_size]}]}, "distinct newfonts"),
+                                    ({"policy": policy, "conversion_only": [],
+                                      "glyph_sets": [{"font": "newfonts/an/48.dat", "sizes": []}]}, "1-16 sizes"),
+                                    ({"policy": policy, "conversion_only": [],
+                                      "glyph_sets": [{"font": "newfonts/an/48.dat",
+                                                      "sizes": [{**glyph_size, "scale": [0, 0.2]}]}]}, "scale pair"),
+                                    ({"policy": policy, "conversion_only": [],
+                                      "glyph_sets": [{"font": "newfonts/an/48.dat",
+                                                      "sizes": [{**glyph_size, "stroke_weight": True}]}]}, "stroke weight")):
             self.config_path.write_text(json.dumps({**self.config, "conversion": conversion}))
             with self.subTest(conversion=conversion), self.assertRaisesRegex(ValueError, pattern):
                 self.run_inventory()

@@ -73,13 +73,46 @@ Errors are measured in 8-bit units on premultiplied RGB plus alpha, against the
 resampled source: RMSE, the maximum, and the share of texels more than 8 off. Integer
 fields accept integers only.
 
+## Glyph sets
+
+A texture with `glyphs` renders a font's glyphs at exact on-screen sizes instead of
+converting its atlas, so the target can copy them texel for texel (see the
+[retail pipeline guide](../../../docs/RETAIL_UI_PIPELINE.md#pre-rendered-glyphs)):
+
+```json
+{
+  "name": "newfonts/sarasori_rg/48.dat#glyphs",
+  "source": "generated/images/newfonts/sarasori_rg/48#__0400.bimage",
+  "output": "newfonts_sarasori_rg_ps2_glyphs.gstx",
+  "glyphs": {
+    "glyphs": [{ "codepoint": 65, "s": 12, "t": 4, "width": 30, "height": 35, "left": 1, "top": 35 }],
+    "sizes": [{ "scale": [0.175, 0.2042], "stroke_weight": 1.75 }]
+  }
+}
+```
+
+- `glyphs` lists 1–1,024 glyphs of the 48-point font in codepoint order: the atlas
+  rectangle, the left bearing and the height above the baseline, in atlas texels.
+- `sizes` lists 1–16 sizes: GS pixels per atlas texel on each axis (at most 4) and the
+  outline's stroke weight in atlas texels (0–16; zero renders no outline).
+- The texture takes no `width`, `height` or `placements`; of the policy only
+  `max_page_extent` applies.
+
+Each pixel is area-filtered from the full-resolution atlas, at the sub-pixel phase that
+keeps the glyph sharpest. Every glyph with ink becomes one placement mapping 1:1 onto its
+page, its outline in the right half when the size has one, all on one 16-level alpha CLUT.
+`assets/glyph_set.h` describes the results.
+
 ## Output
 
 Each texture becomes one GSTX file, checked by re-reading it before it is written.
 `report.json` records, per texture, its logical size, source/file/table/decoded/VRAM
 bytes, conversion time, pages, CLUT sizes and every placement's rectangles, format and
-errors. `--previews` adds `<stem>.original.png` (the source inside the match rectangles)
-and `<stem>.converted.png` (the converted texture as the target samples it) for review.
+errors; a glyph set adds `glyph_set`, each size's stroke weight with every glyph's
+codepoint, placement (null without ink), outline flag and ink origin (its left edge on
+the baseline, in 1/16 pixel from the bitmap's corner). `--previews` adds
+`<stem>.original.png` (the source inside the match rectangles; not for a glyph set) and
+`<stem>.converted.png` (the converted texture as the target samples it) for review.
 Existing output files are replaced.
 
 Floating-point contraction is off (`/fp:precise` under MSVC), so output is byte-identical

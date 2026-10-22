@@ -124,9 +124,10 @@ def _configuration(path):
     if logical_name(config["source_language"]) != "strings/english.lang":
         raise ValueError("retail UI pipeline supports English strings/english.lang only")
     conversion = config.get("conversion")
-    if not isinstance(conversion, dict) or set(conversion) != {"policy", "conversion_only"}:
-        raise ValueError("retail UI conversion needs exactly a policy and a conversion_only list")
+    if not isinstance(conversion, dict) or set(conversion) - {"glyph_sets"} != {"policy", "conversion_only"}:
+        raise ValueError("retail UI conversion needs a policy, a conversion_only list and optional glyph_sets")
     ui_reexport.validate_policy(conversion["policy"])
+    ui_reexport.validate_glyph_sets(conversion.get("glyph_sets", []))
     extra = conversion["conversion_only"]
     if (not isinstance(extra, list) or len(extra) > MAX_CONVERSION_ONLY or
             any(not isinstance(value, str) or not value.startswith("generated/swf/") or not value.endswith(".bswf") for value in extra)):
@@ -397,7 +398,8 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                 "working_set": {"source_decoded_base_bytes": sum(value["decoded_bytes"] for value in image_details.values()),
                                 "conversion_policy": config["conversion"]["policy"],
                                 "policy": "Paletted GSTX pages stay resident per loaded image; totals are package sizes, not a measured target budget."},
-                "cooked": {"assets": {}, "runtime_images": {}, "conversion_only": {}, "storage_bytes": 0, "file_count": 0}}
+                "cooked": {"assets": {}, "runtime_images": {}, "conversion_only": {}, "glyph_sets": {}, "storage_bytes": 0,
+                           "file_count": 0}}
     if cook and issues:
         first_issue = issues[0]
         raise ValueError("retail UI cooking has unresolved required UI dependencies: " + first_issue["kind"] +
@@ -437,6 +439,16 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                            "placements": ui_reexport.swf_placements(swf)}
                 textures.append(texture)
                 extra_outputs[texture["output"]] = swf_name
+            # Glyph sets pre-render a font's English glyphs at the on-screen sizes its screens draw.
+            glyph_outputs = {}
+            for entry in config["conversion"].get("glyph_sets", []):
+                font = logical_name(entry["font"])
+                if font not in font_details:
+                    raise ValueError("retail UI glyph set font is not in the profile: " + font)
+                image = _image_resolution(font[:-4] + ".tga", names, True)["selected"]
+                texture = ui_reexport.glyph_set_texture(font, image, font_details[font], codepoints, entry["sizes"])
+                textures.append(texture)
+                glyph_outputs[texture["output"]] = (font, font[:-len("/48.dat")] + "/ps2_glyphs", entry["sizes"])
             job = ui_reexport.build_job(config["conversion"]["policy"], textures)
             converted = ui_reexport.convert(job, data_root, stage / "reexport", previews, tool)
             reports = {entry["output"]: entry for entry in converted["report"]["textures"]}
@@ -444,6 +456,10 @@ def build_inventory(data_root, output, config_path, cook=False, *, repo_root=ROO
                 record = {**_asset(stage, data, ".gstx"), **ui_reexport.summary(reports[output_file], texture)}
                 if output_file in runtime_outputs:
                     manifest["cooked"]["runtime_images"][runtime_outputs[output_file]] = record
+                elif output_file in glyph_outputs:
+                    font, image_name, sizes = glyph_outputs[output_file]
+                    manifest["cooked"]["runtime_images"][image_name] = record
+                    manifest["cooked"]["glyph_sets"][font] = ui_reexport.glyph_set_record(image_name, sizes, reports[output_file])
                 else:
                     manifest["cooked"]["conversion_only"][extra_outputs[output_file]] = record
             manifest["cooked"]["reexport"] = {"job": _asset(stage, converted["job"], ".json"),

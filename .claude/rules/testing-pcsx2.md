@@ -121,7 +121,8 @@
   64-byte string to its release checkpoint.
   The `RETAIL textures` counters must equal the open converted images exactly (images,
   pages, CLUTs, pixel and metadata bytes, computed from the cooked GSTX files): fonts
-  plus each movie atlas loaded so far, plus the Doom 3 cover once the shell executes.
+  and their glyph sets (a font's set opens with it), plus each movie atlas loaded so
+  far, plus the Doom 3 cover once the shell executes.
   Triangles rise, evictions stay zero and uploads stay fixed after the first phase. Executable
   phases require fresh real callback/owner traces and bounded hierarchy/work counters.
   Twelve fresh processes reject bad profile, missing movie, corrupt movie/English bytes,
@@ -137,18 +138,21 @@
   two 30-frame warm reloads. Each load needs exactly one draw admission matching the
   inventory (ten masks; no outlines, screen blends or additive color), the native quit
   owner state and English options, dialog script dependencies, rising draw/mask/texture
-  triangle counters, texture counters equal to the fonts plus the dialog atlas, zero
+  triangle counters, texture counters equal to the fonts, Sarasori's glyph set and the
+  dialog atlas, zero
   evictions, the same upload count at every capture of all three loads,
   identical warm release ledgers and full shutdown recovery. Two captures ten frames apart locate the looping focus highlight;
   every other pixel must match across all loads, and frames must show textured detail.
   The `dialog-blend` negative re-encodes a root placement as screen blend and requires
   the specific draw-admission fatal. Resident paletted textures draw a frame in about
   55–60 ms in debug PCSX2 (streamed RGBA pages took about 1.6 s), so a session takes
-  under 20 s within the common 120 s timeout. Closing the window (local settings skip the
+  under 20 s within the common 120 s timeout; since the dialog's text draws from
+  pre-rendered glyphs, frames take about 40 ms. Closing the window (local settings skip the
   shutdown confirmation) ends the VM cleanly; the runner reports "emulator exited with
   status 0 after N s" as the session end. That is an interrupted run, not a target fault.
-- `make test-host` builds the texture converter and runs its library tests, the target
-  GSTX admission against converter output and Python tests that drive the converter on
+- `make test-host` builds the texture converter and runs its library tests (glyph sets
+  included), the target GSTX admission against converter output, the catalog reader
+  against valid and mutated glyph tables and Python tests that drive the converter on
   synthetic containers. It also runs the real shared page-cache implementation under ASan/UBSan
   with assertions enabled and disabled. Only GS/texture submission is stubbed. Keep
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
@@ -159,7 +163,8 @@
   phases draw five native English fonts, return to the first and reload it, each for
   at least 120 frames. Check all three legacy metric pairs, glyph ink/hole probes bounded
   by what the converted font can produce within one texel, stable reload captures, the
-  `RETAIL textures` counters (exactly the five converted fonts, rising triangles, zero
+  `RETAIL textures` counters (exactly the five converted fonts and Sarasori's glyph set,
+  rising triangles, zero
   evictions, no uploads on the warm reload) and full startup-ledger recovery. Reject bad
   catalog headers, missing/mutated font data, a texture whose tables differ from the
   catalog and a corrupt page block; paletted images verify every page at load, so all

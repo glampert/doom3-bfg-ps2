@@ -89,6 +89,7 @@ endfunction()
 # Sources include it as "assets/<file>.h" from this directory.
 add_library(assets STATIC
     assets/bimage.cpp
+    assets/glyph_set.cpp
     assets/gs_texture.cpp
     assets/gstx.cpp
     assets/image.cpp

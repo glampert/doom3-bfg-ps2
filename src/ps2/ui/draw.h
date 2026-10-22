@@ -9,6 +9,7 @@
 
 class idDrawVert;
 class idImage;
+class idMaterial;
 
 namespace ps2::ui
 {
@@ -42,6 +43,10 @@ void DrawIndexed(const idDrawVert * vertices, int vertexCount, const u16 * index
 void BeginGeometryFrame();
 void EndGeometryFrame();
 void Flush();
+// Draws a virtual-screen rectangle from `image` with the tint and blend `material` takes under the
+// current color and GL state, so a font's pre-rendered glyph draws like its atlas quad would.
+void DrawImageRect(float x, float y, float width, float height, float s0, float t0, float s1, float t1,
+                   const idImage * image, const idMaterial * material);
 // Native SWF's zero-additive color transform maps its normal/add blends to straight RGBA GS draws.
 // Scope it explicitly; ordinary UI callers retain their stricter state/color2 contract.
 void BeginSwfDraw();
