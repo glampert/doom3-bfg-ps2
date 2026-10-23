@@ -71,17 +71,23 @@ def matrix(xx=1, yy=1, xy=0, yx=0, tx=0, ty=0):
     return bits.data()
 
 
-def color_transform(multipliers):
+def color_transform(multipliers, additive=None):
     bits = Bits()
-    bits.put(0, 1)  # No additive terms: the first profile uses straight color/alpha modulation.
+    bits.put(additive is not None, 1)
     bits.put(1, 1)
-    bits.signed_values(tuple(round(value * 256) for value in multipliers), 4)
+    values = tuple(round(value * 256) for value in multipliers)
+    if additive is not None:
+        values += tuple(round(value * 256) for value in additive)
+    bits.signed_values(values, 4)
     return bits.data()
 
 
-def place(depth, character=None, transform=None, name=None, color=None, move=False, blend=None, clip_depth=None):
-    if blend is not None and blend != 8:
-        raise ValueError("authored special blending supports only native additive mode 8")
+def place(depth, character=None, transform=None, name=None, color=None, move=False, blend=None, clip_depth=None,
+          additive=None):
+    if blend is not None and blend not in (4, 8):
+        raise ValueError("authored special blending supports native screen (4) and additive (8) modes")
+    if additive is not None and color is None:
+        raise ValueError("authored additive color terms need a multiplier transform")
     if clip_depth is not None and not depth < clip_depth <= 65535:
         raise ValueError("authored mask must end above its placement depth")
     flags = int(move) | (2 if character is not None else 0) | (4 if transform is not None else 0)
@@ -93,7 +99,7 @@ def place(depth, character=None, transform=None, name=None, color=None, move=Fal
     if transform is not None:
         payload += transform
     if color is not None:
-        payload += color_transform(color)
+        payload += color_transform(color, additive)
     if name is not None:
         payload += name.encode("ascii") + b"\0"
     if clip_depth is not None:
@@ -185,6 +191,31 @@ def shape(width, height, color=(255, 255, 255, 255), bitmap=None, points=None):
     return output
 
 
+def solid_shape(width, height, color, fills=None, lines=()):
+    """A shape of solid fills (vertices, triangle indices) and one-pixel outlines (vertex loops).
+
+    Native line records hold each edge as a degenerate triangle (a, a, b), as SWF_ShapeParser
+    builds them, and draw it in line mode.
+    """
+    if fills is None:
+        fills = [((0, 0, width, 0, width, height, 0, height), (0, 1, 2, 0, 2, 3))]
+    bounds = (0, 0, width, height)
+    output = be("i", 2) + be("8f", *(bounds + bounds)) + be("i", len(fills))
+    for vertices, indices in fills:
+        output += bytes((0, 3)) + bytes(color) * 2 + be("6f", 1, 1, 0, 0, 0, 0) * 2
+        output += bytes((0,)) + be("fH", 0, 65535)
+        output += be(f"i{len(vertices)}f", len(vertices) // 2, *vertices) + be("i", 0)
+        output += be(f"i{len(indices)}H", len(indices), *indices)
+    output += be("i", len(lines))
+    for line_color, loop in lines:
+        count = len(loop) // 2
+        indices = [index for edge in range(count) for index in (edge, edge, (edge + 1) % count)]
+        output += be("HH", 20, 20) + bytes(line_color) * 2
+        output += be(f"i{len(loop)}f", count, *loop) + be("i", 0)
+        output += be(f"i{len(indices)}H", len(indices), *indices)
+    return output
+
+
 def edit_text(text, width=510, height=28, font_height=960, color=(240, 248, 255, 255)):
     output = be("i4fIHH", 7, 0, 0, width, height, 8, 9, font_height) + bytes(color)
     output += be("HiHHHh", 96, 0, 0, 0, 0, 0)
@@ -236,6 +267,35 @@ def build_swf():
     ]
     dictionary.append(be("i", 4) + sprite([page_and_text]))
     dictionary.append(edit_text("A A A"))
+    # Draw features beyond fills (ids 20..28): an outline, color transform terms, screen blending
+    # and the two mask kinds the convex bridge refuses, drawn through the GS depth buffer.
+    white = (255, 255, 255, 255)
+    rectangle = (0, 0, 40, 0, 40, 30, 0, 30)
+    dictionary.extend((
+        solid_shape(40, 30, (60, 60, 60, 255), lines=[(white, rectangle)]),
+        solid_shape(40, 30, (40, 40, 40, 255)),
+        solid_shape(40, 30, (64, 128, 192, 255)),
+        solid_shape(40, 30, (255, 128, 0, 255)),
+        # A concave L: the full top bar and the left column below it.
+        solid_shape(40, 30, white, fills=[((0, 0, 40, 0, 40, 15, 15, 15, 15, 30, 0, 30),
+                                           (0, 1, 2, 0, 2, 3, 0, 3, 5, 3, 4, 5))]),
+        solid_shape(40, 30, (255, 255, 0, 255)),
+        # An outline-only mask admits exactly its one-pixel edges.
+        solid_shape(40, 30, white, fills=[], lines=[(white, rectangle)]),
+        solid_shape(50, 40, (255, 0, 255, 255)),
+    ))
+    features = [
+        place(1, 20, matrix()),
+        place(2, 21, matrix(tx=50), color=(1, 1, 1, 1), additive=(.25, .5, 0, 0)),
+        place(3, 22, matrix(tx=100)),
+        place(4, 23, matrix(tx=100), blend=4),
+        place(5, 4, matrix(xx=.5, yy=.5, ty=45), color=(.25, .25, .25, 1), additive=(.5, .25, 0, 0)),
+        place(6, 24, matrix(tx=75, ty=45), clip_depth=7),
+        place(7, 25, matrix(tx=75, ty=45)),
+        place(8, 26, matrix(tx=125, ty=45), clip_depth=9),
+        place(9, 27, matrix(tx=120, ty=40)),
+    ]
+    dictionary.append(be("i", 4) + sprite([features]))
     main = [place(1, 1, matrix()), place(2, 2, matrix(tx=32, ty=24)),
             place(3, 4, matrix(xx=.9, yy=.9, xy=-.2, yx=.2, tx=452, ty=136)),
             place(4, 6, matrix(tx=64, ty=216), "pulse"),
@@ -258,7 +318,8 @@ def build_swf():
                  place(21, 5, matrix(xx=8 / 220, yy=8 / 42, tx=52, ty=148)),
                  place(22, 16, matrix(xx=.3, yy=88 / 48, tx=300, ty=204), clip_depth=23),
                  place(23, 18, matrix(tx=300, ty=204)),
-                 place(24, 5, matrix(xx=8 / 220, yy=8 / 42, tx=288, ty=280))))
+                 place(24, 5, matrix(xx=8 / 220, yy=8 / 42, tx=288, ty=280)),
+                 place(25, 28, matrix(tx=420, ty=30))))
     main.append(main_actions())
     header = be("IqffH", 0x42535710, -1, 640, 480, 6 * 256)
     return header + sprite([main]) + be("i", len(dictionary)) + b"".join(dictionary)
@@ -413,16 +474,22 @@ def outputs():
     manifest = {
         "generator": "src/tools/scripts/build_authored_ui.py",
         "license": "GPL-3.0-or-later",
-        "profile": "BSWF16 native convex-mask authored UI; no retail data",
-        "blend_modes": [0, 8],
+        "profile": "BSWF16 native authored UI with masks, outlines, color terms and screen blending; no retail data",
+        "blend_modes": [0, 4, 8],
         "frame": {"width": 640, "height": 480, "rate": 6, "main_frames": 1, "pulse_frames": 4},
         "dictionary": ["null", "background shape", "panel shape", "ASCII A bitmap", "transformed bitmap shape",
                        "pulse shape", "pulse timeline sprite", "focus shape", "focus sprite", "ps2_ascii font",
                        "title edittext", "subtitle edittext", "status edittext", "continue edittext", "options edittext",
                        "caption edittext", "convex trapezoid mask", "mask lifecycle sprite",
-                       "masked bitmap and text sprite", "masked A edittext"],
-        "masks": {"placements": 8, "max_active": 3, "max_vertices": 4, "max_triangles": 2,
-                  "profiles": ["affine convex", "nested", "crossing clip ranges", "same-depth expiry"]},
+                       "masked bitmap and text sprite", "masked A edittext", "outlined panel shape",
+                       "additive color shape", "screen base shape", "screen shape", "concave L mask",
+                       "L mask content shape", "outline-only mask", "outline mask content shape",
+                       "draw features sprite"],
+        "masks": {"placements": 10, "max_active": 3, "max_vertices": 6, "max_triangles": 4,
+                  "profiles": ["affine convex", "nested", "crossing clip ranges", "same-depth expiry",
+                               "concave depth mask", "outline depth mask"]},
+        "strokes": 2,
+        "color_terms": ["additive gray over a solid fill", "two-pass additive over a bitmap"],
         "script": {"functions": ["focusNext", "select"], "variables": ["focusIndex", "selectCount", "selected"],
                    "actions": ["End", "Add", "Subtract", "Multiply", "GetVariable", "Push", "DefineFunction",
                                "Add2", "GetMember", "SetMember", "Increment"]},

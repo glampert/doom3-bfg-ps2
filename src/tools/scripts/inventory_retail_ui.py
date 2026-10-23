@@ -33,8 +33,8 @@ MAX_INSPECTED_RESOURCE_BYTES = 256 * 1024 * 1024
 MAX_IMAGE_CANDIDATES = 4096
 MAX_CONVERSION_ONLY = 16
 _BLOCKERS = [
-    "Native masks/stencil and their nested/concave composition remain unsupported.",
-    "Nonzero additive color and required special blend modes need measured 2D-6 closure.",
+    "Two simultaneous non-convex masks remain unsupported: convex masks clip on the CPU and one other mask uses the GS depth buffer.",
+    "Additive alpha terms and special blend modes other than add (8) and screen (4) remain unadmitted.",
     "Retail SWF/English text binding and measured active-menu page working sets remain pending; authored native SWF/font page binding is implemented.",
     "Scoped English font/image/constant-material resource admission is implemented; general retail BSWF/resource profiles remain unadmitted.",
     "Static AVM1 inventory cannot close dynamic names, callbacks or runtime-generated strings/resources.",

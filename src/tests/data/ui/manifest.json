@@ -1,9 +1,10 @@
 {
   "generator": "src/tools/scripts/build_authored_ui.py",
   "license": "GPL-3.0-or-later",
-  "profile": "BSWF16 native convex-mask authored UI; no retail data",
+  "profile": "BSWF16 native authored UI with masks, outlines, color terms and screen blending; no retail data",
   "blend_modes": [
     0,
+    4,
     8
   ],
   "frame": {
@@ -33,20 +34,36 @@
     "convex trapezoid mask",
     "mask lifecycle sprite",
     "masked bitmap and text sprite",
-    "masked A edittext"
+    "masked A edittext",
+    "outlined panel shape",
+    "additive color shape",
+    "screen base shape",
+    "screen shape",
+    "concave L mask",
+    "L mask content shape",
+    "outline-only mask",
+    "outline mask content shape",
+    "draw features sprite"
   ],
   "masks": {
-    "placements": 8,
+    "placements": 10,
     "max_active": 3,
-    "max_vertices": 4,
-    "max_triangles": 2,
+    "max_vertices": 6,
+    "max_triangles": 4,
     "profiles": [
       "affine convex",
       "nested",
       "crossing clip ranges",
-      "same-depth expiry"
+      "same-depth expiry",
+      "concave depth mask",
+      "outline depth mask"
     ]
   },
+  "strokes": 2,
+  "color_terms": [
+    "additive gray over a solid fill",
+    "two-pass additive over a bitmap"
+  ],
   "script": {
     "functions": [
       "focusNext",
@@ -73,9 +90,9 @@
   },
   "resources": {
     "generated/swf/ps2_demo.bswf": {
-      "bytes": 3413,
-      "sha256": "ac0a2310e84e6280b21dab52fff3d0659395a6c6b0e7eb0bf086983d581ebb9d",
-      "fnv1a64": "f1ecc5e24488c6a8"
+      "bytes": 5038,
+      "sha256": "f55991d9da437accc4302f80b8a309badb204036391a14825c7afc01a0344e68",
+      "fnv1a64": "bb655ed35f5814c9"
     },
     "newfonts/ps2_ascii/48.dat": {
       "bytes": 1342,

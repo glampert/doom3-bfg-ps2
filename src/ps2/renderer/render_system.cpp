@@ -15,6 +15,126 @@ static bool s_initialized = false;
 static bool s_frame = false;
 static gs::DrawContext s_context = gs::DrawContext::Ctx0;
 static u32 s_frames = 0;
+static constexpr u8 kChannelBits[] = { gs::kWriteRed, gs::kWriteGreen, gs::kWriteBlue };
+
+u8 ChannelValue(const ui::FixedVertex & vertex, int channel)
+{
+    return channel == 0 ? vertex.r : channel == 1 ? vertex.g : vertex.b;
+}
+
+gs::Color AddColor(const Shading & shading, int sign)
+{
+    u8 channels[3] = {};
+
+    for (int channel = 0; channel < 3; ++channel)
+    {
+        const int value = shading.add[channel] * sign;
+        channels[channel] = static_cast<u8>(value > 0 ? (value < 255 ? value : 255) : 0);
+    }
+
+    return { channels[0], channels[1], channels[2], 255 };
+}
+
+// Expands one primitive (triangle or line vertices) into its GS passes. emit(primitive, state,
+// channel) draws a pass; channel is the color channel a screen pass carries in alpha, else -1.
+template <typename Primitive, typename Emit>
+bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit)
+{
+    bool hasAdd = false;
+    bool hasSubtract = false;
+
+    for (const s16 value : shading.add)
+    {
+        if (value < -255 || value > 255)
+        {
+            FatalError("additive color outside one unit");
+        }
+
+        hasAdd = hasAdd || value > 0;
+        hasSubtract = hasSubtract || value < 0;
+    }
+
+    if (shading.blend == gs::BlendMode::Screen)
+    {
+        if (hasAdd || hasSubtract || shading.replaceColor)
+        {
+            FatalError("screen blending with an additive color");
+        }
+
+        // The screen source is premultiplied color: each channel's vertex color scales its alpha.
+        for (int channel = 0; channel < 3; ++channel)
+        {
+            Primitive pass = primitive;
+
+            for (auto & vertex : pass.vertices)
+            {
+                vertex.a = static_cast<u8>((static_cast<u32>(vertex.a) * ChannelValue(vertex, channel) + 127U) / 255U);
+            }
+
+            gs::DrawState state;
+            state.blend = gs::BlendMode::Screen;
+            state.masked = shading.masked;
+            state.channels = kChannelBits[channel];
+
+            if (!emit(pass, state, channel))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    if ((hasAdd || hasSubtract || shading.replaceColor) &&
+        shading.blend != gs::BlendMode::StraightAlpha && shading.blend != gs::BlendMode::AdditiveAlpha)
+    {
+        FatalError("additive color requires straight or additive blending");
+    }
+
+    gs::DrawState state;
+    state.blend = shading.blend;
+    state.masked = shading.masked;
+
+    if (shading.replaceColor)
+    {
+        if (hasSubtract)
+        {
+            FatalError("replacement color cannot subtract");
+        }
+
+        state.constantColor = true;
+        state.color = AddColor(shading, 1);
+        return emit(primitive, state, -1);
+    }
+
+    if (!emit(primitive, state, -1))
+    {
+        return false;
+    }
+
+    static constexpr int kSigns[] = { 1, -1 };
+
+    for (const int sign : kSigns)
+    {
+        if ((sign > 0 && !hasAdd) || (sign < 0 && !hasSubtract))
+        {
+            continue;
+        }
+
+        gs::DrawState extra;
+        extra.blend = sign > 0 ? gs::BlendMode::AdditiveAlpha : gs::BlendMode::SubtractAlpha;
+        extra.constantColor = true;
+        extra.color = AddColor(shading, sign);
+        extra.masked = shading.masked;
+
+        if (!emit(primitive, extra, -1))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
 } // namespace
 
 bool IsInitialized()
@@ -79,7 +199,7 @@ void BeginFrame(gs::Color clearColor)
     s_context = s_context == gs::DrawContext::Ctx0 ? gs::DrawContext::Ctx1 : gs::DrawContext::Ctx0;
     s_frame = true;
     ui::BeginGeometryFrame();
-    gs::FillRect(s_context, 0, 0, gs::Width(), gs::Height(), clearColor);
+    gs::ClearFrame(s_context, clearColor);
 }
 
 void FillRect(int x, int y, int width, int height, gs::Color color)
@@ -147,12 +267,14 @@ bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Colo
     {
         return false;
     }
+    gs::DrawState state;
+    state.blend = blend;
     gs::TexturedRectFixed(s_context, binding, rect.x0, rect.y0, rect.x1, rect.y1,
-                          rect.u0, rect.v0, rect.u1, rect.v1, color, blend);
+                          rect.u0, rect.v0, rect.u1, rect.v1, color, state);
     return true;
 }
 
-bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & triangle, gs::BlendMode blend)
+bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & triangle, const Shading & shading)
 {
     if (!s_frame)
     {
@@ -160,43 +282,118 @@ bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & 
     }
 
     ui::Flush();
-    gs::TextureBinding binding = {};
-    gs::TextureBinding cluts = {};
-
-    if (!tex::BindPair(draw.page, draw.cluts, binding, cluts))
+    const auto Emit = [&draw](const ui::FixedTriangle & pass, const gs::DrawState & state, int channel)
     {
-        return false;
-    }
+        // A screen pass samples the CLUT whose alpha carries its channel; white images need none.
+        tex::Handle cluts = draw.cluts;
 
-    // CLUT blocks are 256 bytes, 64 GS words, inside the CLUT texture's allocation.
-    if (draw.clutBlock >= cluts.layout.bytes / 256U)
-    {
-        FatalError("paletted draw CLUT block outside its texture");
-    }
+        if (channel >= 0 && !draw.white)
+        {
+            cluts = draw.channelCluts[channel];
 
-    binding.clutAddress = cluts.address + draw.clutBlock * 64U;
-    binding.region = true;
-    binding.regionMinU = draw.regionMinU;
-    binding.regionMaxU = draw.regionMaxU;
-    binding.regionMinV = draw.regionMinV;
-    binding.regionMaxV = draw.regionMaxV;
-    gs::TexturedTriangleFixed(s_context, binding, triangle, blend);
-    return true;
+            if (cluts.id == 0)
+            {
+                FatalError("paletted screen blending without channel CLUTs");
+            }
+        }
+
+        gs::TextureBinding binding = {};
+        gs::TextureBinding clutBinding = {};
+
+        if (!tex::BindPair(draw.page, cluts, binding, clutBinding))
+        {
+            return false;
+        }
+
+        // CLUT blocks are 256 bytes, 64 GS words, inside the CLUT texture's allocation.
+        if (draw.clutBlock >= clutBinding.layout.bytes / 256U)
+        {
+            FatalError("paletted draw CLUT block outside its texture");
+        }
+
+        binding.clutAddress = clutBinding.address + draw.clutBlock * 64U;
+        binding.region = true;
+        binding.regionMinU = draw.regionMinU;
+        binding.regionMaxU = draw.regionMaxU;
+        binding.regionMinV = draw.regionMinV;
+        binding.regionMaxV = draw.regionMaxV;
+        gs::TexturedTriangleFixed(s_context, binding, pass, state);
+        return true;
+    };
+
+    return ForEachPass(triangle, shading, Emit);
 }
 
-bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triangle, gs::BlendMode blend)
+bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triangle, const Shading & shading)
 {
     if (!s_frame)
     {
         FatalError("2D triangle draw outside a frame");
     }
     ui::Flush();
-    gs::TextureBinding binding = {};
-    if (!tex::Bind(texture, binding))
+    const auto Emit = [texture](const ui::FixedTriangle & pass, const gs::DrawState & state, int)
     {
-        return false;
+        gs::TextureBinding binding = {};
+
+        if (!tex::Bind(texture, binding))
+        {
+            return false;
+        }
+
+        gs::TexturedTriangleFixed(s_context, binding, pass, state);
+        return true;
+    };
+
+    return ForEachPass(triangle, shading, Emit);
+}
+
+bool LineFixed(const ui::FixedLine & line, const Shading & shading)
+{
+    if (!s_frame)
+    {
+        FatalError("2D line draw outside a frame");
     }
-    gs::TexturedTriangleFixed(s_context, binding, triangle, blend);
-    return true;
+
+    ui::Flush();
+    const auto Emit = [](const ui::FixedLine & pass, const gs::DrawState & state, int)
+    {
+        gs::LineFixed(s_context, pass, state);
+        return true;
+    };
+
+    return ForEachPass(line, shading, Emit);
+}
+
+void MaskTriangleFixed(const ui::FixedTriangle & triangle)
+{
+    if (!s_frame)
+    {
+        FatalError("2D mask draw outside a frame");
+    }
+
+    ui::Flush();
+    gs::MaskTriangleFixed(s_context, triangle);
+}
+
+void MaskLineFixed(const ui::FixedLine & line)
+{
+    if (!s_frame)
+    {
+        FatalError("2D mask draw outside a frame");
+    }
+
+    ui::Flush();
+    gs::MaskLineFixed(s_context, line);
+}
+
+void ClearMask(int x0, int y0, int x1, int y1)
+{
+    if (!s_frame)
+    {
+        FatalError("2D mask clear outside a frame");
+    }
+
+    ui::Flush();
+    gs::ClearMask(s_context, x0, y0, x1, y1);
 }
 } // namespace ps2::renderer

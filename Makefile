@@ -27,6 +27,7 @@
 #   make test-retail-movies      # inactive/executable timelines, full dialog, English layout and guards
 #   make test-retail-timelines   # only executable retail timelines (no full movie rendering)
 #   make test-retail-dialog      # the original quit dialog drawn in full through native SWF Render
+#   make test-retail-shell       # the original shell drawn in full: outlines, depth masks, screen, color terms
 #   make BUILD=release test-retail-movies # same native movie resource gate without assertions
 #   make test-retail-ui          # five fonts, layout/pixel checks, reloads and invalid resources
 #   make BUILD=release test-retail-ui # same resource checks without assertions
@@ -520,7 +521,7 @@ run-ui: ui
 test-ui: all
 	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
-.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines test-retail-dialog
+.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines test-retail-dialog test-retail-shell
 
 retail-ui: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)"
@@ -546,6 +547,9 @@ test-retail-timelines: all
 test-retail-dialog: all
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case dialog-render
 
+test-retail-shell: all
+	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case shell-render
+
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core
 
@@ -570,11 +574,11 @@ test-renderer: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-depth
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-half
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-color2
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-concave
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-nested
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-leak
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-key
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-count
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-stroke
+	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-capacity
 
 run-renderer: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ntsc --visual-wait 60 --timeout 90

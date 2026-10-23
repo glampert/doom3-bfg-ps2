@@ -35,7 +35,7 @@ Production initializes the game but stays in `NOMAP`; it does not run that map.
 
 The user's milestones are: main menu with full 2D drawing, then pad/keyboard input,
 then a level boot without the 3D view but with in-game UI, then 3D rendering. The
-original dialog now draws in full. Before the shell, the user selected asset
+original dialog and the shell's start screen now draw in full. Before the shell, the user selected asset
 recompression/re-export and fitting the game into 32 MiB; its first measurements are
 recorded, and its first lever, paletted UI textures, is implemented (see below). Preserve the
 headless/game fixtures. English is the only initial UI language. Sound playback, world
@@ -47,11 +47,12 @@ for each feature.
 | --- | --- | --- |
 | Production headless | Common, native console commands, NOMAP ticks, bounded/live quit and complete shutdown | No production map simulation |
 | Visible console | Native console edit/history, close/reopen, capture/final presentation in NTSC/PAL, drawn with the original `textures/bigchars` charset from the cooked catalog | HostFs injection; no physical input polling; visible packages need `make ui-cook` |
-| Authored SWF | Native loading, fonts, timeline/AVM1 focus/select, additive blend 8, convex masks, shared pages | Exact generated asset admission; no retail-menu claim |
+| Authored SWF | Native loading, fonts, timeline/AVM1 focus/select, additive blend 8, screen blend 4, color terms, outlines, convex and depth masks, shared pages | Exact generated asset admission; no retail-menu claim |
 | Retail fonts | Five English families, native legacy metrics and resident paletted textures | Font/resource screen only |
 | Retail movie inspection | Original shell/dialog dictionaries, full English dictionary and isolated native edit-text layout | Inactive imported timelines |
 | Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; HandleEvent remains fatal |
-| Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs; draw admission requires no outlines, screen blends or additive color | About 40 ms per debug PCSX2 frame; choices fail explicitly; shell not admitted |
+| Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs | About 40 ms per debug PCSX2 frame; choices fail explicitly |
+| Retail shell drawing | Native `Render` of the original shell's start screen: outlines, color terms, screen blends, depth masks; the native logo transition on request | 100–140 ms per debug PCSX2 frame on the fixed clock; placeholder prompts and labels; no navigation |
 | Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | 13.5 MB of heap backing before any map; no retail map or in-game UI yet |
 
 Recent implementation commits are the full-dialog slice (2026-10-20), `dd04ab0` (scoped
@@ -115,25 +116,34 @@ Proposed order; the user chose lever 1 first:
 Record measurements for each lever before and after; prune content only with the
 user's agreement.
 
-### 2. Close shell drawing requirements and capture a full shell frame
+### 2. Shell drawing: start screen drawn in full (2026-10-23)
 
-The local inventory reports 54 mask placements referencing 29 shell shapes: a
-185-point convex outline, disconnected regions, concave text outlines and holes.
-The largest fill has 198 vertices; the largest tessellation has 183 triangles.
-Masks 185 and 189 also contain opaque boundary strokes. Fourteen placements
-rotate/shear a local rectangle. The conservative all-frame display graph found at
-most one inherited/local active mask, but the authored test intentionally covers three.
+The shell's draw features have GS paths since 2026-10-23
+([GS notes](../.claude/rules/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)):
+line records draw as GS lines; RGB additive color terms in a fog-colored second pass;
+screen (mode 4, the PC's `Cd + Cd × S`) one channel per pass with channel CLUTs; masks the
+convex CPU bridge refuses go into the depth buffer, one at a time. Every primitive writes
+TEST with ZTE 1. `ps2_uiRetail draw shell` draws the original shell's start screen in full
+and `make test-retail-shell` accepts it in NTSC and PAL
+([record](PORT_STATUS.md#original-shell-drawn-in-full-2d-6-fourth-slice)).
 
-Evaluate a bounded triangulated-mask representation for the remaining fill regions;
-a 256-triangle envelope is a candidate to validate, not an implemented capability.
-Prove coverage/topology and canonical intersections across mask pieces before
-blending translucent/additive content. Merely increasing the convex capacity cannot
-handle holes or disconnected regions. Stroke coverage needs its own explicit policy.
+Open items, roughly in order:
 
-Also close screen blend 4, nonzero additive color transforms, dynamic image/material
-paths and active artwork residency. The existing six-slot retail cache has not been
-accepted against the fully drawn menu. `runtime_ready=false` must remain until its
-complete required feature/resource contract is satisfied.
+- **The native screens.** The minimal owner shows the start screen in its authored
+  state: placeholder prompts and carousel labels. Filling them is the native screens'
+  work (`idMenuScreen_Shell_PressStart`, the root menu), item 3 below.
+- **Text sizes.** The shell's text draws at sizes without pre-rendered glyphs; each logs
+  once (`UI glyph size ... prerendered=no`). Add them to `conversion.glyph_sets` as the
+  screens come up, and give glyph entries page rectangles before a set outgrows one
+  GSTX texture or the catalog's 64 KiB descriptor bound.
+- **Frame cost.** A debug PCSX2 shell frame takes 100–140 ms with one timeline step per
+  frame and about 330 ms on the real-time clock (up to ten steps per frame); it draws about
+  1,070 triangles and a dozen masks. Every triangle writes its full state and CLUT load,
+  masked content clips on the EE, and outlines draw twice as GL does. Measure release,
+  then batch state.
+- **Limits kept.** Two non-convex masks at once, additive alpha terms and blend modes
+  other than add and screen stay refused; `runtime_ready=false` until the complete
+  feature/resource contract holds.
 
 ### 3. Connect the offline native menu
 

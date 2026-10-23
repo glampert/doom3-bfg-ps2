@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: run_retail_movies.py
-# Brief: Verify native shell/dialog admission, bounded execution, English text and the fully drawn dialog.
+# Brief: Verify native shell/dialog admission, bounded execution, English text and the fully drawn movies.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -19,6 +19,7 @@ import uuid
 
 import retail_ui_capture
 import run_console
+import ui_gstx
 import run_headless
 import run_pcsx2_test as smoke
 from run_ui import BASELINE, TARGET_CRASH_RE, echoed
@@ -42,8 +43,17 @@ DIALOG_OWNER = re.compile(r"RETAIL dialog owner message=(\d+) type=(\d+) title=(
                           r"options=([^|\r\n]*)\|([^|\r\n]*)\|([^\r\n]*?) choices=(\d+)")
 DRAW = re.compile(r"RETAIL draw movie=1 full=1 triangles=(\d+) flushes=(\d+) masks=(\d+) peak_masks=(\d+) "
                   r"peak_vertices=(\d+) peak_indexes=(\d+) peak_draws=(\d+)")
+SHELL_DRAWABLE = re.compile(r"RETAIL drawable movie=0 masks=(\d+) strokes=(\d+) screen_blends=(\d+) additive_colors=(\d+)")
+SHELL_DRAW = re.compile(r"RETAIL draw movie=0 full=1 triangles=(\d+) flushes=(\d+) masks=(\d+) peak_masks=(\d+) "
+                        r"peak_vertices=(\d+) peak_indexes=(\d+) peak_draws=(\d+) depth_masks=(\d+) lines=(\d+) "
+                        r"screen=(\d+) color_terms=(\d+)")
+SHELL_EXECUTION = re.compile(r"RETAIL execution movie=0 ticks=(\d+) root=(\d+) sprites=(\d+) texts=(\d+) instructions=(\d+) "
+                             r"calls=(\d+) commands=(\d+) depth=(\d+) native_steps=(\d+) clock=(fixed|real)")
+CHANNELS = re.compile(r"RETAIL textures images=\d+ .* channel_cluts=(\d+) channel_pixels=(\d+)")
+SHELL_OWNER = re.compile(r"RETAIL owner screen=(-?\d+) next=(-?\d+) carousel_items=(\d+) carousel_slots=(\d+) "
+                         r"carousel_view=(\d+) credits=(\d+) callbacks=(\d+) logo=([01])")
 EXECUTION_NEGATIVES = ("movie-placement", "movie-opcode", "movie-branch", "movie-operand", "movie-budget", "movie-native-alias")
-DIALOG_NEGATIVES = ("dialog-blend",)
+DIALOG_NEGATIVES = ("dialog-alpha-add",)
 NEGATIVES = ("profile", "movie-missing", "movie-checksum", "movie-count", "movie-init", "english") + EXECUTION_NEGATIVES + DIALOG_NEGATIVES
 PHASES = (("shell1", "shell", 0), ("dialog", "dialog", 1), ("shell2", "shell", 0), ("shell3", "shell", 0))
 DIALOG_PHASES = (("dialog1", "dialog", 1), ("dialog2", "dialog", 1), ("dialog3", "dialog", 1))
@@ -51,7 +61,12 @@ DIALOG_PHASES = (("dialog1", "dialog", 1), ("dialog2", "dialog", 1), ("dialog3",
 RENDER_PHASES = (("render1", 120), ("render2", 30), ("render3", 30))
 # A second capture this many frames later locates the looping focus highlight, the only animation at rest.
 RENDER_GAP = 10
-POSITIVE_CASES = ("native", "execution", "dialog-execution", "dialog-render")
+# The shell draws on a fixed-step clock: its two warm reloads reach identical frames. Each load
+# captures the start screen, then rolls the logo on as the native shell does on leaving it; this many
+# frames later the logo's outlines and its screen-blended glow are drawing.
+SHELL_RENDER_PHASES = (("shell1", 120), ("shell2", 30), ("shell3", 30))
+SHELL_LOGO_GAP = 30
+POSITIVE_CASES = ("native", "execution", "dialog-execution", "dialog-render", "shell-render")
 EXECUTION_HEAP_CEILING = 16 * 1024 * 1024
 # The native quit dialog's identity from Common_dialog.h (GDM_QUIT_GAME, DIALOG_DYNAMIC) and GetDialogMsg.
 QUIT_DIALOG = ("66", "8", "#str_01975", "#str_dlg_confirm_quit")
@@ -350,14 +365,162 @@ def classify(log: str, identity: str, standard: str, manifest: dict, source: Pat
                   "native retail dictionaries and English text passed bounded inactive reloads")
 
 
-def render_commands(step: int) -> list[str]:
-    name, frames = RENDER_PHASES[step]
-    return [f"wait {frames}", "ps2_uiRetail status", f'ps2_capture "movie-{name}-a.tga"',
-            f"wait {RENDER_GAP}", "ps2_uiRetail status", f'ps2_capture "movie-{name}-b.tga"']
+def render_commands(step: int, phases=RENDER_PHASES) -> list[str]:
+    name, frames = phases[step]
+    between, gap = (["ps2_uiRetail logo on"], SHELL_LOGO_GAP) if phases is SHELL_RENDER_PHASES else ([], RENDER_GAP)
+    return [f"wait {frames}", "ps2_uiRetail status", f'ps2_capture "movie-{name}-a.tga"', *between,
+            f"wait {gap}", "ps2_uiRetail status", f'ps2_capture "movie-{name}-b.tga"']
 
 
-def render_capture_names() -> list[str]:
-    return [f"movie-{name}-{suffix}.tga" for name, _ in RENDER_PHASES for suffix in ("a", "b")] + ["movie-quit.tga"]
+def render_capture_names(phases=RENDER_PHASES) -> list[str]:
+    return [f"movie-{name}-{suffix}.tga" for name, _ in phases for suffix in ("a", "b")] + ["movie-quit.tga"]
+
+
+def screen_placements(swf: dict) -> int:
+    return sum(entry["blend_mode"] == 4 for sprite in swf["sprites"] for entry in sprite["placements"])
+
+
+def shell_images(manifest: dict) -> set:
+    """Every retail screen's resident images, the shell atlas and the carousel's Doom 3 cover."""
+    images = resident_images(manifest)
+    for logical in ("generated/swf/shell.tga", "guis/assets/mainmenu/doom3_cover.tga"):
+        images.add(next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == logical))
+    return images
+
+
+def channel_counters(manifest: dict, source: Path) -> tuple[int, int]:
+    """Screen blending's three channel CLUT textures for the shell atlas, laid out like its CLUTs."""
+    atlas = next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == "generated/swf/shell.tga")
+    texture = ui_gstx.read_texture(source / manifest["cooked"]["runtime_images"][atlas]["path"])
+    rows = (len(texture.cluts) + 3) // 4 * 16
+    return 3 * len(texture.cluts), 3 * 64 * rows * 4
+
+
+def classify_shell_render(log: str, identity: str, standard: str, manifest: dict, source: Path) -> tuple[bool, str]:
+    """Check the fully drawn native shell: admission, outlines, depth masks, screen, color terms and ownership."""
+    if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
+        return False, "native shell crash or fatal"
+    if any(marker not in log for marker in (f"GS ready {standard.upper()}", "BOOT production shutdown complete", "COMMON stage=system shutdown")):
+        return False, "incomplete native boot or shutdown"
+    if not all(echoed(log, identity + suffix) for suffix in ("_ready", "_done")):
+        return False, "stale or missing native barriers"
+    captures = list(CAPTURE.finditer(log))
+    if [match[1] for match in captures] != render_capture_names(SHELL_RENDER_PHASES):
+        return False, "missing or reordered native shell captures"
+    swf = manifest["swfs"]["generated/swf/shell.bswf"]
+    features = swf["features"]
+    expected_admission = (features["masks"], features["strokes"], screen_placements(swf), features["color_add"])
+    resident = texture_counters(resident_textures(manifest, source, shell_images(manifest)))
+    channels = channel_counters(manifest, source)
+    loads = list(SHELL_DRAWABLE.finditer(log))
+    if len(loads) != len(SHELL_RENDER_PHASES) or any(tuple(map(int, load.groups())) != expected_admission for load in loads):
+        return False, "native shell draw admission missing, repeated or different from the inspected feature profile"
+    previous_frame = 0
+    uploads = set()
+    for phase, (_, frames) in enumerate(SHELL_RENDER_PHASES):
+        first, second = captures[2 * phase], captures[2 * phase + 1]
+        window_end = loads[phase + 1].start() if phase + 1 < len(loads) else len(log)
+        if not loads[phase].end() < first.start() < second.start() < window_end:
+            return False, "native shell phase ordering differs"
+        rows = {}
+        for name, start, end in (("a", loads[phase].end(), first.start()), ("b", first.end(), second.start())):
+            window = log[start:end]
+            states, executions, draws, owners, textures, channel_rows = (
+                STATE.findall(window), SHELL_EXECUTION.findall(window), SHELL_DRAW.findall(window), SHELL_OWNER.findall(window),
+                TEXTURES_RE.findall(window), CHANNELS.findall(window))
+            if not states or not executions or not draws or not owners or not textures or not channel_rows:
+                return False, "native shell status missing before capture"
+            rows[name] = (tuple(map(int, states[-1][:6] + states[-1][7:])), states[-1][6], executions[-1], tuple(map(int, draws[-1])),
+                          owners[-1], tuple(map(int, textures[-1])), tuple(map(int, channel_rows[-1])))
+        for name, (state, scripts, execution, draw, owner, texture, channel) in rows.items():
+            minimum = frames + (SHELL_LOGO_GAP if name == "b" else 0)
+            if (state[0] != 0 or state[1] < minimum or state[2] != len(swf["dictionary"]) or
+                    state[3] != swf["dictionary_counts"]["edittext"] or state[5] != manifest["language"]["entry_count"] or
+                    scripts != "active"):
+                return False, "native shell movie state, English ownership or frame interval differs"
+            if not 0 < state[6] <= state[7] <= EXECUTION_HEAP_CEILING or state[8] == 0:
+                return False, "native shell heap exceeds its bounded profile"
+            ticks, root, sprites, texts, instructions, calls, commands, depth, steps = map(int, execution[:9])
+            if (execution[9] != "fixed" or ticks != state[1] or root < 1 or not 1 <= sprites <= 2048 or not 1 <= texts <= 512 or
+                    not 1 <= depth <= 16 or min(instructions, calls, commands) == 0 or steps <= 1):
+                return False, "native shell timeline, fixed clock or live hierarchy differs"
+            if tuple(map(int, owner)) != (0, 0, 1, 5, 0, 1, 2, 1 if name == "b" else 0):
+                return False, "native shell owner state differs from the minimal carousel, Credits owners or logo state"
+            (triangles, flushes, masks, peak_masks, vertices, indexes, draws_peak, depth_masks, lines, screen,
+             color_terms) = draw
+            # The start screen draws no outline or screen blend; the rolled-on logo draws both.
+            rolled = (lines, screen) if name == "b" or phase > 0 else (1, 1)
+            if (min(triangles, flushes, masks, depth_masks, color_terms, *rolled) == 0 or not 1 <= peak_masks <= 4 or
+                    not 0 < vertices <= 4096 or not 0 < indexes <= 6144 or not 0 < draws_peak <= 128):
+                return False, "native shell drawing, masks, outlines, screen, color terms or geometry bounds differ"
+            if texture[:5] != resident or min(texture[5], texture[6]) == 0 or texture[7] != 0 or channel != channels:
+                return False, "native shell textures differ from its converted images and channel CLUTs, or were evicted"
+        before, after = rows["a"][3], rows["b"][3]
+        if not all(after[index] > before[index] for index in (0, 2, 7, 8, 9, 10)):
+            return False, "native shell stopped drawing masks, outlines, screen blends or color terms"
+        # The channel CLUTs upload at the first screen pass, after the start screen's capture;
+        # from then on, reloads included, nothing uploads again.
+        if phase == 0:
+            if rows["b"][5][6] < rows["a"][5][6]:
+                return False, "native shell upload counter went backwards"
+        else:
+            uploads.add(rows["a"][5][6])
+        uploads.add(rows["b"][5][6])
+        if len(uploads) != 1:
+            return False, "native shell uploaded textures again while drawing"
+        frame, presents = int(second[2]), int(second[3])
+        if int(first[2]) <= previous_frame or frame <= int(first[2]) or frame != presents or int(first[2]) != int(first[3]):
+            return False, "native shell presentation/frame identity differs"
+        previous_frame = frame
+    released = list(RELEASED.finditer(log))
+    if len(released) != len(SHELL_RENDER_PHASES):
+        return False, "native shell release accounting missing or duplicated"
+    ledgers = []
+    for index, release in enumerate(released):
+        movie, open_images, requested, backing, allocations = map(int, release.groups())
+        boundary = loads[index + 1].start() if index + 1 < len(loads) else captures[-1].start()
+        if (movie != 0 or not captures[2 * index + 1].end() < release.start() < boundary or
+                not 0 < requested <= backing <= EXECUTION_HEAP_CEILING or allocations == 0):
+            return False, "native shell release identity or ordering differs"
+        ledgers.append((open_images, requested, backing, allocations))
+    if ledgers[-1] != ledgers[-2]:
+        return False, "native shell release changed the warm allocation ledger"
+    memory = run_headless.MEMORY_RE.findall(log)
+    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
+        return False, "shell shutdown leaked native ownership"
+    shutdown = run_console.SHUTDOWN_RE.findall(log)
+    minimum = sum(frames + SHELL_LOGO_GAP for _, frames in SHELL_RENDER_PHASES)
+    if len(shutdown) != 1 or int(shutdown[0][0]) < minimum or int(shutdown[0][0]) != int(shutdown[0][1]):
+        return False, "shell frame loop did not sustain one presentation per frame"
+    if (int(captures[-1][2]) <= previous_frame or
+            (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
+        return False, "final shell capture was not drained before shutdown"
+    return True, "native retail shell drew in full through outlines, depth masks, screen blends, color terms and resident textures"
+
+
+def verify_shell_render_captures(output: Path, standard: str) -> dict:
+    """The fixed clock reaches the same frames on both warm reloads: their captures must match exactly."""
+    height = 448 if standard == "ntsc" else 512
+    images = {}
+    for name in render_capture_names(SHELL_RENDER_PHASES)[:-1]:
+        width, actual_height, pixels = retail_ui_capture.read_tga(output / name)
+        if (width, actual_height) != (512, height):
+            raise ValueError("invalid native shell capture dimensions")
+        images[name] = pixels
+    for suffix in ("a", "b"):
+        second, third = images[f"movie-shell2-{suffix}.tga"], images[f"movie-shell3-{suffix}.tga"]
+        if second != third:
+            offset = next(index for index in range(0, len(second), 3) if second[index:index + 3] != third[index:index + 3])
+            raise ValueError(f"native shell warm reloads differ at x={offset // 3 % 512} y={offset // 3 // 512} ({suffix})")
+    distinct = {}
+    for name, pixels in images.items():
+        distinct[name] = len({bytes(pixels[offset:offset + 3]) for offset in range(0, len(pixels), 3)})
+        # Artwork, glows and text give hundreds of 16-bit colors; a blank or flat frame has a handful.
+        if distinct[name] < 128:
+            raise ValueError(f"native shell capture lacks artwork and text detail: {name}")
+    result = {name: {"sha256": sha256(output / name), "distinct_colors": distinct[name]} for name in images}
+    result["movie-quit.tga"] = verify_final_capture(output / "movie-quit.tga", standard)
+    return result
 
 
 def classify_dialog_render(log: str, identity: str, standard: str, manifest: dict, source: Path) -> tuple[bool, str]:
@@ -547,22 +710,22 @@ def replace_root_action(raw: bytes, replacement: bytes) -> bytearray:
     return replace_root_command(raw, 12, replacement)
 
 
-def screen_blend_dialog(raw: bytes) -> bytearray:
-    """Re-encode the dialog's first root PlaceObject2 as a PlaceObject3 using screen blend mode 4."""
+def alpha_add_dialog(raw: bytes) -> bytearray:
+    """Re-place the dialog's first root character with a color transform whose alpha add term is set."""
     placement = next((row for row in root_commands(raw) if row[0] == 26), None)
-    if placement is None or raw[placement[1]] & 0x80:
-        raise ValueError("retail dialog root lacks a plain placement to re-encode")
-    body = raw[placement[1]:placement[1] + placement[2]]
-    # PlaceObject3 inserts its second flag byte after the first; the blend byte follows every other field.
-    return replace_root_command(raw, 26, body[:1] + b"\x02" + body[1:] + b"\x04", new_tag=70)
+    if placement is None or not raw[placement[1]] & 2:
+        raise ValueError("retail dialog root lacks a character placement to re-encode")
+    depth, character = struct.unpack_from("<HH", raw, placement[1] + 1)
+    # Character and color flags; the transform has add terms only, two bits each: R, G and B zero, A one.
+    return replace_root_command(raw, 26, bytes((0x0A,)) + struct.pack("<HH", depth, character) + b"\x88\x04")
 
 
 def mutate(output: Path, case: str) -> None:
     path = output / "base/retail/shell.bswf"
     profile = output / "base/retail/movies.uim"
-    if case == "dialog-blend":
+    if case == "dialog-alpha-add":
         dialog = output / "base/retail/dialog.bswf"
-        raw = screen_blend_dialog(dialog.read_bytes())
+        raw = alpha_add_dialog(dialog.read_bytes())
         dialog.write_bytes(raw)
         descriptor = bytearray(profile.read_bytes())
         # The dialog's length/FNV words follow the shell's in the fixed movie profile.
@@ -646,8 +809,7 @@ def classify_negative(log: str, identity: str, case: str) -> tuple[bool, str]:
                 "movie-operand": "retail movie execution preflight failed:",
                 "movie-budget": "retail SWF execution rejected (swf/shell.swf): instruction budget",
                 "movie-native-alias": "retail SWF execution rejected (swf/shell.swf): native callback identity unavailable",
-                "dialog-blend": ("retail movie draw features unavailable: generated/swf/dialog.bswf "
-                                 "strokes=0 screen_blends=1 additive_colors=0"),
+                "dialog-alpha-add": "retail movie draw features unavailable: generated/swf/dialog.bswf additive_alphas=1",
                 "english": "retail movie resource checksum mismatch:"}[case]
     fatals = re.findall(r"\[D3BFG\] FATAL ([^\r\n]+)", log)
     command = ("dialog quit" if case in DIALOG_NEGATIVES else
@@ -655,7 +817,7 @@ def classify_negative(log: str, identity: str, case: str) -> tuple[bool, str]:
     valid = (echoed(log, identity + "_ready") and "]ps2_uiRetail " + command in log and fatals and
              all(expected in fatal for fatal in fatals) and not TARGET_CRASH_RE.search(log) and
              "CONSOLE capture=" not in log and not re.search(r"RETAIL movie=\d+ state=loaded", log))
-    if case in ("movie-budget", "movie-native-alias", "dialog-blend"):
+    if case in ("movie-budget", "movie-native-alias", "dialog-alpha-add"):
         valid = valid and all(fatal == expected for fatal in fatals)
     if case == "movie-native-alias":
         valid = (valid and
@@ -677,13 +839,17 @@ def run(args, standard, case="native"):
     (output / "console.txt").write_bytes(b"")
     positive = case in POSITIVE_CASES
     execution = case in ("execution", "dialog-execution")
-    render = case == "dialog-render"
+    render = case in ("dialog-render", "shell-render")
+    shell = case == "shell-render"
+    render_phases = SHELL_RENDER_PHASES if shell else RENDER_PHASES
+    draw_command = "ps2_uiRetail draw shell" if shell else "ps2_uiRetail dialog quit"
     phases = DIALOG_PHASES if case == "dialog-execution" else PHASES
     movie_command = "execute" if execution or case in EXECUTION_NEGATIVES else "movie"
-    first_command = "ps2_uiRetail dialog quit" if render or case in DIALOG_NEGATIVES else f"ps2_uiRetail {movie_command} {phases[0][1]}"
+    first_command = draw_command if render or case in DIALOG_NEGATIVES else f"ps2_uiRetail {movie_command} {phases[0][1]}"
     # Resident paletted textures draw the full dialog at about 60 ms per PCSX2 debug frame, so its
-    # three loads finish in under 20 s; streamed RGBA pages had needed about 1.6 s per frame.
-    timeout = args.timeout if args.timeout is not None else 120
+    # three loads finish in under 20 s; streamed RGBA pages had needed about 1.6 s per frame. The
+    # full shell on the fixed clock takes 100-140 ms per debug frame, under a minute for its loads.
+    timeout = args.timeout if args.timeout is not None else (300 if shell else 120)
     if case in NEGATIVES:
         mutate(output, case)
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
@@ -706,17 +872,20 @@ def run(args, standard, case="native"):
                     break
                 if phase == "startup" and echoed(log, identity + "_ready"):
                     name, movie, _ = phases[0]
-                    run_console.append_commands(output, "ps2_uiRetail load", first_command)
+                    if shell:
+                        run_console.append_commands(output, "ps2_uiRetail load", "ps2_uiRetail clock fixed", first_command)
+                    else:
+                        run_console.append_commands(output, "ps2_uiRetail load", first_command)
                     phase = "capture"
                     if render:
-                        run_console.append_commands(output, *render_commands(0))
+                        run_console.append_commands(output, *render_commands(0, render_phases))
                     elif positive:
                         run_console.append_commands(output, "wait 120", "clearHistory", "ps2_uiRetail status", f'ps2_capture "movie-{name}.tga"')
-                elif render and phase == "capture" and f"CONSOLE capture=movie-{RENDER_PHASES[step][0]}-b.tga " in log:
+                elif render and phase == "capture" and f"CONSOLE capture=movie-{render_phases[step][0]}-b.tga " in log:
                     step += 1
-                    if step < len(RENDER_PHASES):
+                    if step < len(render_phases):
                         # Clear history before the next load releases the previous movie's ownership.
-                        run_console.append_commands(output, "clearHistory", "ps2_uiRetail dialog quit", *render_commands(step))
+                        run_console.append_commands(output, "clearHistory", draw_command, *render_commands(step, render_phases))
                     else:
                         run_console.append_commands(output, "clearHistory", "ps2_uiRetail unload", f'echo "{identity}_done"',
                                                     'ps2_capture "movie-quit.tga"', "quit")
@@ -746,6 +915,8 @@ def run(args, standard, case="native"):
     log = run_headless.read_log(output)
     if not completed:
         passed, reason = False, "native watchdog, crash or early exit: " + session_end
+    elif shell:
+        passed, reason = classify_shell_render(log, identity, standard, manifest, args.source)
     elif render:
         passed, reason = classify_dialog_render(log, identity, standard, manifest, args.source)
     elif positive:
@@ -756,7 +927,7 @@ def run(args, standard, case="native"):
     reload_comparisons = {}
     if passed and render:
         try:
-            captures = verify_dialog_render_captures(output, standard)
+            captures = verify_shell_render_captures(output, standard) if shell else verify_dialog_render_captures(output, standard)
         except (OSError, ValueError) as error:
             passed, reason = False, str(error)
     elif passed and positive:
@@ -773,7 +944,7 @@ def run(args, standard, case="native"):
     (output / "summary.json").write_text(json.dumps({"passed": passed, "reason": reason, "build": args.build,
         "standard": standard, "case": case, "command": command, "boot_data": boot_data(output),
         "capture_sha256": captures, "pixel_inspection_required": positive, "scripts_active": execution,
-        "reload_comparisons": reload_comparisons, "shell_active": False, "full_draw": render,
+        "reload_comparisons": reload_comparisons, "shell_active": shell, "full_draw": render,
         "session_end": session_end, "session_seconds": round(time.monotonic() - started, 1)}, indent=2) + "\n")
     print(f"{'PASS' if passed else 'FAIL'} retail-movies-{standard}-{case}: {reason}\nArtifacts: {output}", flush=True)
     if not passed:
@@ -796,7 +967,7 @@ def main():
     try:
         smoke.check_config(args.config)
         if args.case is None or args.case in POSITIVE_CASES:
-            for case in ("native", "execution", "dialog-render") if args.case is None else (args.case,):
+            for case in ("native", "execution", "dialog-render", "shell-render") if args.case is None else (args.case,):
                 for standard in (args.standard,) if args.standard else ("ntsc", "pal"):
                     if not run(args, standard, case):
                         return 1

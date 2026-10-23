@@ -82,9 +82,10 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make ui` / `make run-ui` stage/run the same ELF with the authored native SWF under
   `build/<config>/ui/`, using `CONSOLE_STANDARD` for NTSC/PAL. `make test-ui` checks native
   loading, ASCII `idFont`, timeline color/alpha, AVM1 focus/select, capture and reloads.
-  The authored page-binding gate passes debug/release NTSC/PAL: it checks 77 pixels,
-  shared cache budgets and twelve invalid-resource cases, including deferred
-  pixel corruption. A sanitizer cache harness also exercises assertions 0/1.
+  The authored page-binding gate passes debug/release NTSC/PAL: it checks 94 pixels
+  (outlines, color terms, screen blending and depth masks among them), shared cache
+  budgets and twelve invalid-resource cases, including deferred pixel corruption. A
+  sanitizer cache harness also exercises assertions 0/1.
   `ps2_ui` controls load/unload/reload/status/pause/resume; `ps2_uiKey tab`/`enter` supply
   native SWF key events while the console is closed. Console input has priority; its
   toggle opens/closes it over the movie. The game stays in `NOMAP`. Authored assets and
@@ -117,17 +118,20 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   Callback identity, signatures and destructive ancestor seeks are checked in release too.
   `make test-retail-timelines` checks executable movies; `make test-retail-movies` also
   checks inactive inspection and malformed resources. `ps2_uiRetail dialog quit` draws the
-  original dialog in full through native `Render`, showing Common's quit message; full
-  drawing is a third admission, only for movies without outlines, screen blends or additive
-  color (the dialog, not the shell). `make test-retail-dialog` checks it. Its converted
-  pages stay resident: a debug PCSX2 frame takes about 60 ms, where streamed RGBA pages
-  took about 1.6 s. Shell drawing and navigation, complex masks/blends, dynamic
-  resources and artwork residency remain pending.
+  original dialog in full through native `Render`, showing Common's quit message, and
+  `ps2_uiRetail draw shell` draws the original shell's start screen; full drawing is a
+  third admission, refusing only additive alpha terms. `ps2_uiRetail logo on|off` plays the
+  native shell's logo transition and `ps2_uiRetail clock fixed` advances executing movies
+  1/60 s per Common frame. `make test-retail-dialog` and `make test-retail-shell` check
+  them. Converted pages stay resident: a debug PCSX2 frame takes about 60 ms for the
+  dialog and 100–140 ms for the shell on the fixed clock. Shell navigation, prompts and screens, dynamic
+  resources and artwork residency beyond the start screen remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
-  RGB/alpha, streamed UIPG pages with triangle splits and bounded cache pressure, context flips, residency/buffer pressure, reload/cleanup and seventeen
-  bounds/state/deadline failures. `make run-renderer` captures
+  RGB/alpha, additive color, screen and line passes and the depth mask, streamed UIPG pages
+  with triangle splits and bounded cache pressure, context flips, residency/buffer pressure,
+  reload/cleanup and seventeen bounds/state/deadline failures. `make run-renderer` captures
   and holds the NTSC scene for inspection.
   Production optionally presents the real native console and authored native SWF through
   Common; retail menu/Shell providers remain pending. `ui::Init/Shutdown` explicitly own
@@ -138,14 +142,16 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   UI collection owns 4,096 vertices, 6,144 indices and 128 ordered draw runs. Fill returned
   write-only spans before the next allocation/draw; flushing or ending a frame recycles
   them. Native vertex-cache/static/joint buffers remain unavailable. Half UVs are decoded
-  from checked bits, and `color2` requires exactly 128 in all four channels; the scoped
-  native SWF path also admits its zero-additive encoding of 127. Native SWF blend 8
-  maps to alpha-weighted GS addition; ordinary ONE/ONE state outside that scope stays
-  unavailable. Nonzero additive color transforms and the other special blends remain
-  unsupported. Native SWF masks collect at most 64 fill triangles into one convex
-  boundary of at most 16 points, with four active keyed masks. Flush before every mask
-  mutation; empty masks clip all content. Direct glyphs and indexed draws share CPU
-  clipping; reject concave/disconnected/holed/stroked masks and capacity violations.
+  from checked bits, and `color2` requires exactly 128 in all four channels outside the
+  scoped native SWF path, which decodes RGB color terms (127 and 128 are zero) into a
+  fog-colored second pass; additive alpha terms stay unavailable. Native SWF blend 8 maps
+  to alpha-weighted GS addition and blend 4 to the PC's `Cd + Cd × S`, one channel per pass
+  with channel CLUTs; ordinary ONE/ONE state outside that scope stays unavailable. Line
+  records draw as GS lines. Native SWF masks collect at most 64 fill triangles into one
+  convex boundary of at most 16 points, with four active keyed masks clipped on the CPU;
+  any other mask (concave, holed, disconnected, stroked, up to 256 triangles) is written to
+  the depth buffer, one at a time. Flush before every mask mutation; empty masks clip all
+  content. Every primitive writes TEST with ZTE 1, as the GS manual requires.
   Native `idImage` keeps logical atlas dimensions while SWF bitmap and
   ASCII font triangles use shared page dispatch. The authored 272×256 movie bitmap
   crosses x=254; the font retains its 512×128 atlas. Both images share one `PageCache`

@@ -130,6 +130,49 @@ PS2_COLD_FUNC bool PalettedImage::Open(const char * path, const std::uint8_t * d
     return true;
 }
 
+bool PalettedImage::ReadCluts(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes, std::uint8_t * texels,
+                              int channel)
+{
+    const u32 rows = (m_header.clutCount + 3U) / 4U * 16U;
+    std::memset(texels, 0, kClutTextureWidth * rows * 4U);
+    bool white = true;
+
+    for (u32 index = 0; index < m_header.clutCount; ++index)
+    {
+        const gstx::Clut clut = gstx::GetClut(m_tables, m_header, index);
+
+        if (clut.dataBytes > scratchBytes || !ReadAt(file, clut.dataOffset, scratch, clut.dataBytes) ||
+            PageChecksum(scratch, clut.dataBytes) != clut.checksum)
+        {
+            return false;
+        }
+
+        const u32 rowTexels = clut.entries == 256 ? 16U : 8U;
+
+        for (u32 entry = 0; entry < clut.entries; ++entry)
+        {
+            const u32 x = 16U * (index % 4U) + entry % rowTexels;
+            const u32 y = 16U * (index / 4U) + entry / rowTexels;
+            std::uint8_t * const texel = texels + (y * kClutTextureWidth + x) * 4U;
+            std::memcpy(texel, scratch + entry * 4U, 4);
+            white = white && (texel[3] == 0 || (texel[0] == 255 && texel[1] == 255 && texel[2] == 255));
+
+            // A screen pass's source is the premultiplied channel: the GS reads it as alpha.
+            if (channel >= 0)
+            {
+                texel[3] = static_cast<std::uint8_t>((static_cast<u32>(texel[channel]) * texel[3] + 127U) / 255U);
+            }
+        }
+    }
+
+    if (channel < 0)
+    {
+        m_white = white;
+    }
+
+    return true;
+}
+
 bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes)
 {
     // CLUT texture: every palette as a tile, in file order, then one upload-ready RGBA32 image.
@@ -142,23 +185,7 @@ bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t
         return Failed("CLUT staging allocation");
     }
 
-    std::memset(texels, 0, clutBytes);
-    bool valid = true;
-
-    for (u32 index = 0; valid && index < m_header.clutCount; ++index)
-    {
-        const gstx::Clut clut = gstx::GetClut(m_tables, m_header, index);
-        valid = clut.dataBytes <= scratchBytes && ReadAt(file, clut.dataOffset, scratch, clut.dataBytes) &&
-                PageChecksum(scratch, clut.dataBytes) == clut.checksum;
-        const u32 rowTexels = clut.entries == 256 ? 16U : 8U;
-
-        for (u32 entry = 0; valid && entry < clut.entries; ++entry)
-        {
-            const u32 x = 16U * (index % 4U) + entry % rowTexels;
-            const u32 y = 16U * (index / 4U) + entry / rowTexels;
-            std::memcpy(texels + (y * kClutTextureWidth + x) * 4U, scratch + entry * 4U, 4);
-        }
-    }
+    bool valid = ReadCluts(file, scratch, scratchBytes, texels, -1);
 
     if (valid)
     {
@@ -283,6 +310,76 @@ bool PalettedImage::BuildGrid()
     return true;
 }
 
+bool PalettedImage::IsWhite() const
+{
+    return m_open && m_white;
+}
+
+bool PalettedImage::SupportsScreen() const
+{
+    return m_open && (m_white || m_channelCluts[0].id != 0);
+}
+
+PS2_COLD_FUNC bool PalettedImage::EnableChannelCluts(const char * path)
+{
+    if (!m_open || path == nullptr || renderer::FrameStarted())
+    {
+        return Failed("invalid channel CLUT request");
+    }
+
+    if (m_white || m_channelCluts[0].id != 0)
+    {
+        return true;
+    }
+
+    const u32 rows = (m_header.clutCount + 3U) / 4U * 16U;
+    const u32 clutBytes = kClutTextureWidth * rows * 4U;
+    u32 scratchBytes = 0;
+
+    for (u32 index = 0; index < m_header.clutCount; ++index)
+    {
+        const gstx::Clut clut = gstx::GetClut(m_tables, m_header, index);
+        scratchBytes = clut.dataBytes > scratchBytes ? clut.dataBytes : scratchBytes;
+    }
+
+    std::FILE * file = std::fopen(path, "rb");
+    auto * const scratch = static_cast<std::uint8_t *>(system::heap::TryAlloc(scratchBytes, TAG_RENDER));
+    auto * const texels = static_cast<std::uint8_t *>(system::heap::TryAlloc(clutBytes, TAG_RENDER));
+    bool valid = file != nullptr && scratch != nullptr && texels != nullptr;
+
+    for (int channel = 0; valid && channel < 3; ++channel)
+    {
+        valid = ReadCluts(file, scratch, scratchBytes, texels, channel);
+
+        if (valid)
+        {
+            m_channelCluts[channel] = renderer::tex::Create(static_cast<int>(kClutTextureWidth), static_cast<int>(rows),
+                                                            { renderer::tex::Filter::Nearest }, texels, clutBytes, kClutTextureWidth * 4U);
+            valid = m_channelCluts[channel].id != 0;
+        }
+    }
+
+    system::heap::Free(texels);
+    system::heap::Free(scratch);
+    const bool closed = file == nullptr || std::fclose(file) == 0;
+
+    if (!valid || !closed)
+    {
+        for (auto & handle : m_channelCluts)
+        {
+            renderer::tex::Destroy(handle);
+            handle = {};
+        }
+
+        return Failed("channel CLUT block, checksum or texture");
+    }
+
+    m_channelPixelBytes = 3U * clutBytes;
+    s_stats.channelCluts += 3U * m_header.clutCount;
+    s_stats.channelPixelBytes += m_channelPixelBytes;
+    return true;
+}
+
 PS2_COLD_FUNC void PalettedImage::Close()
 {
     if (m_open)
@@ -292,6 +389,12 @@ PS2_COLD_FUNC void PalettedImage::Close()
         s_stats.cluts -= m_header.clutCount;
         s_stats.pixelBytes -= m_stats.cacheBytes;
         s_stats.metadataBytes -= m_stats.metadataBytes;
+
+        if (m_channelCluts[0].id != 0)
+        {
+            s_stats.channelCluts -= 3U * m_header.clutCount;
+            s_stats.channelPixelBytes -= m_channelPixelBytes;
+        }
     }
 
     for (auto & page : m_pages)
@@ -300,6 +403,14 @@ PS2_COLD_FUNC void PalettedImage::Close()
         page = {};
     }
 
+    for (auto & handle : m_channelCluts)
+    {
+        renderer::tex::Destroy(handle);
+        handle = {};
+    }
+
+    m_channelPixelBytes = 0;
+    m_white = false;
     renderer::tex::Destroy(m_cluts);
     m_cluts = {};
     system::heap::Free(m_tables);
@@ -395,13 +506,11 @@ bool PalettedImage::ValidateTriangle(const Vertex (&vertices)[3]) const
                        count) != Result::Invalid;
 }
 
-bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], renderer::gs::BlendMode blend)
+bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], const renderer::Shading & shading)
 {
     gstx::Placement placement = {};
 
-    if (!m_open || !renderer::FrameStarted() ||
-        (blend != renderer::gs::BlendMode::Replace && blend != renderer::gs::BlendMode::StraightAlpha && blend != renderer::gs::BlendMode::AdditiveAlpha) ||
-        !Find(vertices, placement))
+    if (!m_open || !renderer::FrameStarted() || !Find(vertices, placement))
     {
         return Failed("invalid paletted draw state or placement");
     }
@@ -419,13 +528,24 @@ bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], renderer::gs::Blen
         return Failed("paletted triangle mapping");
     }
 
-    const renderer::PalettedDraw draw = { m_pages[placement.page], m_cluts, ClutBlock(placement.clut),
-                                    static_cast<u16>(placement.dest.x), static_cast<u16>(placement.dest.x + placement.dest.width - 1U),
-                                    static_cast<u16>(placement.dest.y), static_cast<u16>(placement.dest.y + placement.dest.height - 1U) };
+    renderer::PalettedDraw draw;
+    draw.page = m_pages[placement.page];
+    draw.cluts = m_cluts;
+    draw.white = m_white;
+    draw.clutBlock = ClutBlock(placement.clut);
+    draw.regionMinU = static_cast<u16>(placement.dest.x);
+    draw.regionMaxU = static_cast<u16>(placement.dest.x + placement.dest.width - 1U);
+    draw.regionMinV = static_cast<u16>(placement.dest.y);
+    draw.regionMaxV = static_cast<u16>(placement.dest.y + placement.dest.height - 1U);
+
+    for (int channel = 0; channel < 3; ++channel)
+    {
+        draw.channelCluts[channel] = m_channelCluts[channel];
+    }
 
     for (int triangle = 0; triangle < count; ++triangle)
     {
-        if (!renderer::PalettedTriangleFixed(draw, pieces[triangle], blend))
+        if (!renderer::PalettedTriangleFixed(draw, pieces[triangle], shading))
         {
             return Failed("paletted draw submission");
         }

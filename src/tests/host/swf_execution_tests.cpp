@@ -255,7 +255,7 @@ ps2::ui::swf::ExecutionSummary CommandSummary(U32 tag, const Bytes & bytes)
 
 void DrawFeatures()
 {
-    // Screen blending is admitted for execution but counted, so full drawing can refuse it.
+    // Screen blending is counted, so full drawing can prepare its channel CLUTs.
     auto summary = CommandSummary(70, { 2, 2, 1, 0, 2, 0, 4 });
     assert(summary.screenBlends == 1 && summary.additiveColors == 0 && summary.masks == 0);
     summary = CommandSummary(70, { 2, 2, 1, 0, 2, 0, 8 });
@@ -263,7 +263,10 @@ void DrawFeatures()
 
     // Add terms follow multiply terms: add=1, mult=0, two bits, red add 1.
     summary = CommandSummary(26, { 10, 1, 0, 2, 0, 0x89, 0x00 });
-    assert(summary.additiveColors == 1);
+    assert(summary.additiveColors == 1 && summary.additiveAlphas == 0);
+    // Only the alpha add term set (RGBA order): counted twice, as additive and as alpha.
+    summary = CommandSummary(26, { 10, 1, 0, 2, 0, 0x88, 0x04 });
+    assert(summary.additiveColors == 1 && summary.additiveAlphas == 1);
     // Present but zero add terms leave the native zero-additive encoding.
     summary = CommandSummary(26, { 10, 1, 0, 2, 0, 0x88, 0x00 });
     assert(summary.additiveColors == 0);

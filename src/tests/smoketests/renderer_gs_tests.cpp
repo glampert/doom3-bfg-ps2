@@ -88,6 +88,116 @@ void IndexedQuad(idDrawVert * vertices, const idVec2 (&positions)[4], float s0, 
     IndexedVertex(vertices[3], positions[3].x, positions[3].y, s0, t1, color);
 }
 
+// The renderer's pass expansion, depth mask and lines on virtual-space geometry over the white image.
+// Coordinates are multiples of 5 (x) and 15 (y): whole physical pixels in both NTSC and PAL. The gap
+// at x 185..245 keeps the scene's background sample at (216, 400).
+bool PassQuad(float x0, float y0, float x1, float y1, renderer::gs::Color color, const renderer::Shading & shading, bool mask = false)
+{
+    const idImage * const white = renderer::ConsoleWhiteImage();
+    const ui::Vertex corners[] = { { x0, y0, 0, 0, color.r, color.g, color.b, color.a },
+                                   { x1, y0, 1, 0, color.r, color.g, color.b, color.a },
+                                   { x1, y1, 1, 1, color.r, color.g, color.b, color.a },
+                                   { x0, y1, 0, 1, color.r, color.g, color.b, color.a } };
+    const ui::Vertex triangles[2][3] = { { corners[0], corners[1], corners[2] }, { corners[0], corners[2], corners[3] } };
+    bool passed = true;
+
+    for (const auto & triangle : triangles)
+    {
+        ui::FixedTriangle pieces[ui::kMaxClippedTriangles];
+        int count = 0;
+
+        if (ui::MapTriangle(triangle, { renderer::gs::Width(), renderer::gs::Height() }, white->GetUploadWidth(), white->GetUploadHeight(),
+                            pieces, count) != ui::Result::Draw)
+        {
+            return false;
+        }
+
+        for (int piece = 0; piece < count; ++piece)
+        {
+            if (mask)
+            {
+                renderer::MaskTriangleFixed(pieces[piece]);
+            }
+            else
+            {
+                passed = renderer::TexturedTriangleFixed(renderer::ConsoleImageTexture(white), pieces[piece], shading) && passed;
+            }
+        }
+    }
+
+    return passed;
+}
+
+bool PassLine(float x0, float y0, float x1, float y1, renderer::gs::Color first, renderer::gs::Color last,
+              const renderer::Shading & shading, bool mask = false)
+{
+    const ui::Vertex ends[] = { { x0, y0, 0, 0, first.r, first.g, first.b, first.a }, { x1, y1, 0, 0, last.r, last.g, last.b, last.a } };
+    ui::FixedLine line = {};
+
+    if (ui::MapLine(ends, { renderer::gs::Width(), renderer::gs::Height() }, line) != ui::Result::Draw)
+    {
+        return false;
+    }
+
+    if (mask)
+    {
+        renderer::MaskLineFixed(line);
+        return true;
+    }
+
+    return renderer::LineFixed(line, shading);
+}
+
+// Clears the depth mask over a virtual rectangle's physical pixels.
+void ClearPassMask(float x0, float y0, float x1, float y1)
+{
+    const auto Physical = [](float value, int extent, float virtualExtent)
+    { return static_cast<int>(value * static_cast<float>(extent) / virtualExtent); };
+    renderer::ClearMask(Physical(x0, renderer::gs::Width(), 640.0f), Physical(y0, renderer::gs::Height(), 480.0f),
+                        Physical(x1, renderer::gs::Width(), 640.0f), Physical(y1, renderer::gs::Height(), 480.0f));
+}
+
+bool DrawPassBand()
+{
+    using renderer::gs::BlendMode;
+    const auto Make = [](BlendMode blend, s16 red, s16 green, s16 blue, bool replace = false, bool masked = false)
+    {
+        renderer::Shading shading;
+        shading.blend = blend;
+        shading.add[0] = red;
+        shading.add[1] = green;
+        shading.add[2] = blue;
+        shading.replaceColor = replace;
+        shading.masked = masked;
+        return shading;
+    };
+    // Additive color terms: one constant-color pass, two passes, half alpha, subtraction and mode 8.
+    bool passed = PassQuad(15, 390, 65, 420, { 0, 0, 0, 255 }, Make(BlendMode::StraightAlpha, 100, 50, 25, true));
+    passed = PassQuad(75, 390, 125, 420, { 0, 0, 0, 255 }, Make(BlendMode::StraightAlpha, 100, 50, 25)) && passed;
+    passed = PassQuad(135, 390, 185, 420, { 255, 255, 255, 128 }, Make(BlendMode::StraightAlpha, 64, 0, 0)) && passed;
+    passed = PassQuad(245, 390, 295, 420, { 255, 255, 255, 255 }, Make(BlendMode::StraightAlpha, -128, -64, 0)) && passed;
+    passed = PassQuad(305, 390, 355, 420, { 64, 32, 16, 128 }, Make(BlendMode::AdditiveAlpha, 32, 32, 32)) && passed;
+    // Screen: Cd + Cd * (vertex channel * alpha), one framebuffer channel per pass.
+    passed = PassQuad(15, 435, 125, 465, { 64, 128, 192, 255 }, Make(BlendMode::Replace, 0, 0, 0)) && passed;
+    passed = PassQuad(15, 435, 65, 465, { 255, 128, 0, 255 }, Make(BlendMode::Screen, 0, 0, 0)) && passed;
+    passed = PassQuad(75, 435, 125, 465, { 255, 128, 0, 128 }, Make(BlendMode::Screen, 0, 0, 0)) && passed;
+    // A concave L in the depth mask, content through it, then the mask cleared and drawn through again.
+    passed = PassQuad(135, 435, 175, 465, {}, {}, true) && PassQuad(175, 450, 215, 465, {}, {}, true) && passed;
+    passed = PassQuad(135, 435, 215, 465, { 255, 255, 0, 255 }, Make(BlendMode::Replace, 0, 0, 0, false, true)) && passed;
+    ClearPassMask(135, 435, 215, 465);
+    passed = PassQuad(225, 435, 265, 465, { 255, 255, 0, 255 }, Make(BlendMode::Replace, 0, 0, 0, false, true)) && passed;
+    // A line in the depth mask admits exactly its own pixels.
+    passed = PassLine(275, 450, 325, 450, {}, {}, {}, true) && passed;
+    passed = PassQuad(275, 435, 325, 465, { 0, 255, 255, 255 }, Make(BlendMode::Replace, 0, 0, 0, false, true)) && passed;
+    ClearPassMask(270, 435, 330, 465);
+    // Lines: replace, a vertical one, half alpha, mode 8 and a Gouraud gradient.
+    passed = PassLine(365, 405, 400, 405, { 255, 0, 0, 255 }, { 255, 0, 0, 255 }, Make(BlendMode::Replace, 0, 0, 0)) && passed;
+    passed = PassLine(410, 390, 410, 465, { 0, 255, 0, 255 }, { 0, 255, 0, 255 }, Make(BlendMode::Replace, 0, 0, 0)) && passed;
+    passed = PassLine(425, 420, 485, 420, { 255, 255, 255, 128 }, { 255, 255, 255, 128 }, Make(BlendMode::StraightAlpha, 0, 0, 0)) && passed;
+    passed = PassLine(425, 435, 485, 435, { 128, 64, 0, 255 }, { 128, 64, 0, 255 }, Make(BlendMode::AdditiveAlpha, 0, 0, 0)) && passed;
+    return PassLine(495, 450, 595, 450, { 255, 0, 0, 255 }, { 0, 0, 255, 255 }, Make(BlendMode::Replace, 0, 0, 0)) && passed;
+}
+
 bool NativeIndexed(system::video::Standard standard)
 {
     const auto before = system::heap::GetTotalStats();
@@ -159,6 +269,7 @@ bool NativeIndexed(system::video::Standard standard)
             IndexedVertex(vertices[1], 640, 416, 1, 0, { 0, 255, 0, 255 });
             IndexedVertex(vertices[2], 640, 448, 1, 1, { 0, 255, 0, 255 });
             ui::DrawIndexed(vertices, 3, kTriangleIndices, 3, white, renderer::gs::BlendMode::Replace);
+            passed = DrawPassBand() && passed;
             if (frame == frames - 1U)
             {
                 // Isolate each bounded pool so all three independent recycling paths are exercised.
@@ -213,8 +324,8 @@ bool PageQuad(ui::PageImage & image, const idVec2 (&positions)[4], float s0, flo
     };
     const ui::Vertex first[] = { vertices[0], vertices[1], vertices[2] };
     const ui::Vertex second[] = { vertices[0], vertices[2], vertices[3] };
-    return image.DrawTriangle(first, renderer::gs::BlendMode::StraightAlpha) &&
-           image.DrawTriangle(second, renderer::gs::BlendMode::StraightAlpha);
+    return image.DrawTriangle(first, { renderer::gs::BlendMode::StraightAlpha }) &&
+           image.DrawTriangle(second, { renderer::gs::BlendMode::StraightAlpha });
 }
 
 bool PagedScene(ui::PageImage & image)
@@ -272,7 +383,7 @@ bool NativePagedImage(system::video::Standard standard)
             { 64, 0, 0.1f, 0, 255, 255, 255, 255 },
             { 0, 64, 0, 0.1f, 255, 255, 255, 255 }
         };
-        passed = !image.DrawTriangle(corrupt, renderer::gs::BlendMode::Replace) && image.GetStats().loads == 0 && passed;
+        passed = !image.DrawTriangle(corrupt, { renderer::gs::BlendMode::Replace }) && image.GetStats().loads == 0 && passed;
         renderer::EndFrame();
         image.Close();
         image.Close();
@@ -733,9 +844,9 @@ bool RunGsFailureProbe(const char * name)
         strcmp(name, "renderer-ui-text") != 0 && strcmp(name, "renderer-ui-indices") != 0 &&
         strcmp(name, "renderer-ui-capacity") != 0 && strcmp(name, "renderer-ui-depth") != 0 &&
         strcmp(name, "renderer-ui-half") != 0 && strcmp(name, "renderer-ui-color2") != 0 &&
-        strcmp(name, "renderer-ui-mask-concave") != 0 && strcmp(name, "renderer-ui-mask-leak") != 0 &&
+        strcmp(name, "renderer-ui-mask-nested") != 0 && strcmp(name, "renderer-ui-mask-leak") != 0 &&
         strcmp(name, "renderer-ui-mask-key") != 0 && strcmp(name, "renderer-ui-mask-count") != 0 &&
-        strcmp(name, "renderer-ui-mask-stroke") != 0)
+        strcmp(name, "renderer-ui-mask-capacity") != 0)
     {
         return false;
     }
@@ -795,27 +906,47 @@ bool RunGsFailureProbe(const char * name)
         else if (idStr::Cmpn(name, "renderer-ui-mask-", 17) == 0)
         {
             const int keys[2] = { 0, 1 };
-            ui::BeginSwfDraw();
-            ui::BeginSwfMask(&keys[0]);
-            if (strcmp(name, "renderer-ui-mask-stroke") == 0)
+            // The triangulation exactly fills an L: a concave mask the depth buffer holds.
+            static constexpr triIndex_t kConcaveIndices[] = { 0, 1, 2, 0, 2, 3, 0, 3, 5, 3, 4, 5 };
+            const idVec2 concave[] = {
+                idVec2(0, 0), idVec2(64, 0), idVec2(64, 24),
+                idVec2(24, 24), idVec2(24, 64), idVec2(0, 64)
+            };
+            const auto Concave = []()
             {
-                renderSystem->SetGLState(GLS_POLYMODE_LINE);
-            }
-
-            if (strcmp(name, "renderer-ui-mask-concave") == 0)
-            {
-                // The triangulation exactly fills an L: its concavity must survive preflight.
-                static constexpr triIndex_t kConcaveIndices[] = { 0, 1, 2, 0, 2, 3, 0, 3, 5, 3, 4, 5 };
-                const idVec2 positions[] = {
-                    idVec2(0, 0), idVec2(64, 0), idVec2(64, 24),
-                    idVec2(24, 24), idVec2(24, 64), idVec2(0, 64)
-                };
                 idDrawVert * const vertices = ui::AllocTrisForImage(6, kConcaveIndices, 12,
                                                                     renderer::ConsoleWhiteImage(), renderer::gs::BlendMode::Replace);
+                return vertices;
+            };
+            ui::BeginSwfDraw();
+            ui::BeginSwfMask(&keys[0]);
+
+            if (strcmp(name, "renderer-ui-mask-capacity") == 0)
+            {
+                // More triangles than the depth mask replays: a fan of thin slivers around one point.
+                static triIndex_t fan[3 * 300] = {};
+                for (int triangle = 0; triangle < 300; ++triangle)
+                {
+                    fan[triangle * 3] = 0;
+                    fan[triangle * 3 + 1] = static_cast<triIndex_t>(triangle + 1);
+                    fan[triangle * 3 + 2] = static_cast<triIndex_t>(triangle + 2);
+                }
+
+                idDrawVert * const vertices = ui::AllocTrisForImage(302, fan, 900, renderer::ConsoleWhiteImage(),
+                                                                    renderer::gs::BlendMode::Replace);
+                IndexedVertex(vertices[0], 320, 240, 0, 0, { 255, 255, 255, 255 });
+                for (int vertex = 1; vertex < 302; ++vertex)
+                {
+                    const float x = static_cast<float>(vertex);
+                    IndexedVertex(vertices[vertex], x, (vertex & 1) != 0 ? 0.0f : 480.0f, 0, 0, { 255, 255, 255, 255 });
+                }
+            }
+            else if (strcmp(name, "renderer-ui-mask-nested") == 0)
+            {
+                idDrawVert * const vertices = Concave();
                 for (int vertex = 0; vertex < 6; ++vertex)
                 {
-                    IndexedVertex(vertices[vertex], positions[vertex].x, positions[vertex].y,
-                                  0, 0, { 255, 255, 255, 255 });
+                    IndexedVertex(vertices[vertex], concave[vertex].x, concave[vertex].y, 0, 0, { 255, 255, 255, 255 });
                 }
             }
             else
@@ -827,6 +958,20 @@ bool RunGsFailureProbe(const char * name)
             }
 
             ui::EndSwfMask();
+
+            // A second concave mask while the first holds the depth buffer.
+            if (strcmp(name, "renderer-ui-mask-nested") == 0)
+            {
+                ui::BeginSwfMask(&keys[1]);
+                idDrawVert * const vertices = Concave();
+                for (int vertex = 0; vertex < 6; ++vertex)
+                {
+                    IndexedVertex(vertices[vertex], concave[vertex].x + 100.0f, concave[vertex].y, 0, 0, { 255, 255, 255, 255 });
+                }
+
+                ui::EndSwfMask();
+            }
+
             if (strcmp(name, "renderer-ui-mask-leak") == 0)
             {
                 ui::EndSwfDraw();

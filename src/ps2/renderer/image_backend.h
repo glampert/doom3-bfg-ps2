@@ -37,6 +37,9 @@ idImage * AuthoredFontImage();
 // dimensions; it never exposes a single texture handle for the whole atlas.
 void ValidateUiImage(const idImage * image);
 ui::PagedImage * UiPageImage(const idImage * image);
+// Screen blending carries one color channel per pass in alpha: gives a loaded retail image the
+// channel CLUTs it needs. Outside a frame; white images need none.
+void EnableScreenBlending(const idImage * image);
 ui::PageCacheStats GetUiPageStats();
 tex::Handle ConsoleImageTexture(const idImage * image);
 } // namespace ps2::renderer

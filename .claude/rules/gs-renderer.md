@@ -217,9 +217,9 @@ follow this section. Keep the initial captures as historical acceptance evidence
   native GUI fragment shader multiplies texture/vertex RGBA, adds the color transform,
   then premultiplies RGB by alpha for ONE/ONE_MINUS_SRC_ALPHA blending. With the authored
   zero-additive transform, GS straight-alpha modulation produces the same intended
-  equation. Do not premultiply the CPU vertex RGB a second time. Scoped native mode 8
-  and convex masks are now supported as documented below; other special blends,
-  nonzero additive color and complex/stroked masks remain unsupported.
+  equation. Do not premultiply the CPU vertex RGB a second time. Scoped native mode 8,
+  masks, screen blending, additive color terms and outlines are supported as documented
+  below; other special blends and additive alpha terms remain unsupported.
 - Native packed zero additive color can be 127, while cleared GUI vertices use 128.
   Accept either only inside the SWF scope and treat it as zero; this does not implement
   general additive transforms or preserve the desktop shader's one-byte quantization
@@ -274,8 +274,8 @@ RGB instead would require a growing tolerance. Preserve the eight-channel thresh
 and compute the intermediate storage rounds instead.
 
 These RGB-only presentation profiles do not promise destination-alpha accumulation
-in a one-bit-alpha framebuffer. Complex masks, native screen blend 4 and nonzero additive
-color transforms remain unadmitted; a movie that needs them is refused full drawing.
+in a one-bit-alpha framebuffer. Screen blend 4, additive color terms and non-convex masks
+now have their own paths ([below](#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)).
 
 ## Doom native convex SWF masks
 
@@ -285,9 +285,11 @@ clips a new mask against its parent. Reverse interior edges cancel, one closed
 boundary remains, and all boundary points must lie inside every edge. This positive
 triangle chain proves one convex coverage region rather than merely matching an area
 or bounding box. Degenerate triangles contribute no coverage; an empty mask clips
-everything. Concave, disconnected, holed, overlapping, nonconforming and stroked
-geometry remains unavailable. The profile bounds each capture at 64 triangles and
-16 simplified boundary points, with four active masks and 64 total clip planes.
+everything. Concave, disconnected, holed, overlapping, nonconforming, stroked or larger
+geometry goes to the GS depth mask instead
+([below](#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)). The convex
+profile bounds each capture at 64 triangles and 16 simplified boundary points, with four
+active masks and 64 total clip planes.
 
 Flush completed write-only spans before every capture/add/remove. Key masks by the
 native display entry, since crossing clip-depth ranges can expire out of stack order.
@@ -308,9 +310,10 @@ for the native early skip. Do not treat a faint admitted mask as partial coverag
 The authored native SWF exercises three simultaneous masks, crossing ranges, joint
 expiry, oblique/transformed boundaries, alpha/additive content, bitmap page seams and text.
 The retail inventory has ten rectangular dialog placements, but the shell also needs
-a 185-point outline, disconnected/holed meshes and two stroked masks. Its largest fill vertex count is 198; the largest triangle count is 183. Shell drawing remains gated; the dialog's ten rectangular masks draw. PCSX2
-captures establish bounded functional clipping, not hardware fill cost or frame-rate
-acceptance.
+a 185-point outline, disconnected/holed meshes and two stroked masks. Its largest fill
+vertex count is 198; the largest triangle count is 183. The dialog's ten rectangular
+masks stay on this bridge; the shell's other masks use the depth mask. PCSX2 captures
+establish bounded functional clipping, not hardware fill cost or frame-rate acceptance.
 
 ## Doom full retail dialog drawing
 
@@ -422,6 +425,51 @@ Menu text draws from glyph bitmaps rendered at their exact on-screen size
   VRAM). Each glyph draws two rectangles (outline, then glyph) instead of the native
   five quads (four stroke copies and the glyph): the full dialog fell from about 750
   to about 334 triangles a frame.
+
+## Doom SWF outlines, color terms, screen and depth masks (2026-10-23)
+
+The shell's remaining draw features, each verified by the core renderer test's pass band
+and the authored SWF's draw-feature sprite in NTSC and PAL captures:
+
+- **Depth test enable.** The GS manual prohibits TEST.ZTE = 0 ("may cause a malfunction";
+  use ZTE 1, ZTST ALWAYS and ZBUF.ZMSK 1). The UI packets used to write ZTE 0, which
+  PCSX2 tolerates; every primitive now writes ZTE 1, and FillRect writes its TEST too.
+- **Depth-buffer mask.** The Z16 buffer, otherwise unused, holds one SWF mask.
+  `ClearFrame` writes depth 1 with the frame's clear; a mask writes depth 0 over its
+  native fill triangles and outline lines with every FBMSK bit set and ZMSK 0; masked
+  content draws at depth 0 with ZTST GEQUAL, which passes only where depth is 0; removal
+  writes depth 1 over the pixel bounds the mask wrote. The GS has only GEQUAL/GREATER
+  depth tests, so a counter (native stencil INCR/DECR with an EQUAL test) cannot be
+  emulated: two non-convex masks at once are refused. Convex masks keep the exact CPU
+  bridge and intersect with the depth mask. Coverage follows GS rasterization of the
+  native triangles, as the PC stencil follows GL's.
+- **Additive color terms.** Native GUI shading is `(texture × color + add) × alpha`. A
+  second pass with PRIM.FGE and fog coefficient 0 (XYZF2) replaces the texture
+  function's RGB by FOGCOL while keeping its alpha (At × Av), so ALPHA
+  `(Cs − 0) × As + Cd` adds `add × alpha`; the two passes sum to the premultiplied
+  result. A negative term subtracts with `(0 − Cs) × As + Cd`. The fog blend is
+  `(F × C + (255 − F) × FOGCOL) >> 8`: at F = 0, FOGCOL = term + 1 lands exactly. When
+  every vertex RGB is zero (a zero color multiply), one fog pass replaces both. Decode
+  color2 as native does, `2 × byte − 255` per unit; 127 and 128 stay zero. Additive alpha
+  terms have no path and are refused.
+- **Screen (mode 4).** Native SWF asks for DST_COLOR/ONE with `GLS_BLENDOP_SUB`, but the
+  shipped GL backend's `GL_State` never applies blend ops, so the PC result is
+  `Cd + Cd × S` (S the premultiplied source), a brightening rather than Flash's screen.
+  The GS computes it one channel per pass: ALPHA `(Cd − 0) × As + Cd` with FBMSK writing
+  that channel, and As that channel of S. The vertex channel × alpha goes into the vertex
+  alpha; the texel's comes from a channel CLUT (paletted images, derived from the file's
+  CLUTs when a drawn movie's preflight counts screen placements) or needs no change for
+  white texels (fonts, the white intrinsic). RGBA pages cannot route color into alpha
+  and are refused. FBMSK bits follow the 32-bit pixel for PSMCT16 too (R 7:3, G 15:11,
+  B 23:19, A 31); PCSX2 honors per-channel masks on the 16-bit frame.
+- **Outlines.** Native line records are degenerate `(a, a, b)` triangles drawn in GL line
+  mode, which rasterizes all three edges: each segment draws in both directions. The GS
+  LINE primitive draws its start pixel but not its end, so drawing both directions
+  covers the segment inclusively, and translucent outlines compound alpha as on PC.
+  Lines are untextured: RGB is the pixel color itself and only alpha takes 0x80 = 1.0.
+  Widths are ignored, as on PC (one pixel).
+- **Empty records.** Five shell shapes hold empty fill records; native `AllocTris` of
+  nothing draws nothing, and every SWF caller skips a null span.
 
 ## Retail UI page format survey (2026-10-20)
 

@@ -118,6 +118,31 @@ INDEXED_SCENE_PIXELS = (
     ("indexed-deferred-white-on-background", 420, 312, (136, 140, 148)),
     ("indexed-pressure-last-triangle", 632, 424, (0, 255, 0)),
     ("indexed-pressure-triangle-outside", 612, 444, (16, 24, 40)),
+    # The pass band. Every pass stores five-bit RGB and blends against that stored value. An additive
+    # color term is a fog pass at F = 0, whose (255 * FOGCOL) >> 8 lands on the term with FOGCOL + 1.
+    ("passes-replace-color", 40, 405, (99, 49, 24)),
+    ("passes-two-pass-add", 100, 405, (99, 49, 24)),
+    ("passes-gap", 70, 405, (16, 24, 41)),
+    ("passes-half-alpha-add", 160, 405, (165, 140, 148)),
+    ("passes-subtract", 270, 405, (123, 189, 255)),
+    ("passes-mode8-add", 330, 405, (57, 49, 57)),
+    # Screen adds Cd * (channel * alpha) per channel over a replaced base of 63/127/191 stored 56/120/184.
+    ("passes-screen-full", 40, 450, (115, 181, 189)),
+    ("passes-screen-base", 70, 450, (57, 123, 189)),
+    ("passes-screen-half", 100, 450, (82, 148, 189)),
+    # A concave L in the depth mask: its notch rejects content, then the cleared mask rejects all.
+    ("passes-mask-l-left", 155, 450, (255, 255, 0)),
+    ("passes-mask-l-notch", 195, 440, (16, 24, 41)),
+    ("passes-mask-l-foot", 195, 458, (255, 255, 0)),
+    ("passes-mask-cleared", 245, 450, (16, 24, 41)),
+    ("passes-mask-line", 300, 450, (0, 255, 255)),
+    ("passes-mask-line-outside", 300, 440, (16, 24, 41)),
+    ("passes-line-replace", 380, 405, (255, 0, 0)),
+    ("passes-line-replace-outside", 380, 420, (16, 24, 41)),
+    ("passes-line-vertical", 410, 420, (0, 255, 0)),
+    ("passes-line-half-alpha", 455, 420, (132, 140, 148)),
+    ("passes-line-mode8", 455, 435, (148, 90, 41)),
+    ("passes-line-gouraud", 545, 450, (127, 0, 127)),
 )
 
 

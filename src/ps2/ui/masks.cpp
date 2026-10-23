@@ -803,4 +803,96 @@ bool ClipMaskTriangle(const Vertex (&input)[3], const ConvexMask * masks, int ma
     return true;
 }
 
+bool ClipMaskLine(const Vertex (&input)[2], const ConvexMask * masks, int maskCount, Vertex (&output)[2], bool & visible)
+{
+    if (maskCount < 0 || maskCount > kMaxActiveMasks || (maskCount > 0 && masks == nullptr))
+    {
+        return false;
+    }
+
+    for (const Vertex & vertex : input)
+    {
+        if (!ValidPoint({ vertex.x, vertex.y }))
+        {
+            return false;
+        }
+    }
+
+    float enter = 0.0f;
+    float leave = 1.0f;
+    const MaskPoint first{ input[0].x, input[0].y };
+    const MaskPoint last{ input[1].x, input[1].y };
+
+    for (int i = 0; i < maskCount; ++i)
+    {
+        const ConvexMask & mask = masks[i];
+
+        if (!ValidMask(mask))
+        {
+            return false;
+        }
+
+        if (mask.count == 0)
+        {
+            enter = 1.0f;
+            leave = 0.0f;
+        }
+
+        // Inside every edge of a CCW polygon: the cross product from the edge is not negative.
+        for (int j = 0; j < mask.count; ++j)
+        {
+            const MaskPoint from = mask.points[j];
+            const MaskPoint to = mask.points[(j + 1) % mask.count];
+            const float start = Cross(from, to, first);
+            const float end = Cross(from, to, last);
+
+            if (!PortableFloat(start) || !PortableFloat(end))
+            {
+                return false;
+            }
+
+            if (start < 0.0f && end < 0.0f)
+            {
+                enter = 1.0f;
+                leave = 0.0f;
+            }
+            else if (start < 0.0f || end < 0.0f)
+            {
+                const float fraction = ClampUnit(start / (start - end));
+
+                if (start < 0.0f)
+                {
+                    enter = fraction > enter ? fraction : enter;
+                }
+                else
+                {
+                    leave = fraction < leave ? fraction : leave;
+                }
+            }
+        }
+    }
+
+    visible = enter < leave;
+
+    if (!visible)
+    {
+        return true;
+    }
+
+    const auto At = [&input](float fraction)
+    {
+        const Vertex & from = input[0];
+        const Vertex & to = input[1];
+        const auto Channel = [fraction](std::uint8_t start, std::uint8_t end)
+        {
+            return RoundColor(Interpolate(static_cast<float>(start), static_cast<float>(end), fraction));
+        };
+        return Vertex{ Interpolate(from.x, to.x, fraction), Interpolate(from.y, to.y, fraction), 0.0f, 0.0f,
+                       Channel(from.r, to.r), Channel(from.g, to.g), Channel(from.b, to.b), Channel(from.a, to.a) };
+    };
+    output[0] = enter > 0.0f ? At(enter) : input[0];
+    output[1] = leave < 1.0f ? At(leave) : input[1];
+    return true;
+}
+
 } // namespace ps2::ui

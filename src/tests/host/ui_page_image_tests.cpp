@@ -134,7 +134,7 @@ static bool Draw(ps2::ui::PageImage & image, bool second = false)
         { 80.0f, 0.0f, s1, 0.0f, 255, 255, 255, 255 },
         { 0.0f, 80.0f, s0, 1.0f, 255, 255, 255, 255 }
     };
-    return image.DrawTriangle(vertices, ps2::renderer::gs::BlendMode::Replace);
+    return image.DrawTriangle(vertices, { ps2::renderer::gs::BlendMode::Replace });
 }
 
 static bool OuterFontGutters(const char * path)
@@ -152,7 +152,7 @@ static bool OuterFontGutters(const char * path)
         { 10.0f, 30.0f, lowerS, 0.04f, 255, 255, 255, 255 }
     };
     passed = Check(image.ValidateTriangle(vertices) &&
-                   image.DrawTriangle(vertices, ps2::renderer::gs::BlendMode::Replace) &&
+                   image.DrawTriangle(vertices, { ps2::renderer::gs::BlendMode::Replace }) &&
                    s_lastPixel == 0xFF0000FFU && cache.GetStats().loads == 1,
                    "negative outer font UVs retain first page ownership") &&
              passed;
@@ -404,7 +404,7 @@ bool FrameStarted()
     return s_frame;
 }
 
-bool TexturedTriangleFixed(renderer::tex::Handle handle, const ui::FixedTriangle &, renderer::gs::BlendMode)
+bool TexturedTriangleFixed(renderer::tex::Handle handle, const ui::FixedTriangle &, const Shading &)
 {
     const Texture * const texture = Find(handle);
 

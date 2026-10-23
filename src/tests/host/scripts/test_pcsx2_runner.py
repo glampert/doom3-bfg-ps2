@@ -197,8 +197,8 @@ class CommonProbeClassifierTests(unittest.TestCase):
                 self.assertTrue(runner.classify_run("run1", probe, None, self.fatal_log(probe), None, False)[0])
 
     def test_mask_probes_require_their_first_specific_guard(self):
-        for probe in ("renderer-ui-mask-concave", "renderer-ui-mask-leak", "renderer-ui-mask-key",
-                      "renderer-ui-mask-count", "renderer-ui-mask-stroke"):
+        for probe in ("renderer-ui-mask-nested", "renderer-ui-mask-leak", "renderer-ui-mask-key",
+                      "renderer-ui-mask-count", "renderer-ui-mask-capacity"):
             with self.subTest(probe=probe):
                 expected = runner.NEGATIVE_PROBES[probe]
                 valid = self.fatal_log(probe)

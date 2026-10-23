@@ -103,9 +103,18 @@ def read_shape(reader):
             raise ValueError("invalid native fill geometry")
         fills.append({"kind": kind, "bitmap": bitmap, "vertices": vertices, "indexes": indexes,
                       "colors": colors, "matrices": matrices})
-    if reader.count(0) != 0:
-        raise ValueError("unexpected line draw")
-    return {"bounds": bounds, "fills": fills}
+    lines = []
+    for _ in range(reader.count(1)):
+        widths = reader.unpack(">HH")
+        colors = reader.take(8)
+        vertices = [reader.vectors(2) for _ in range(reader.count(16))]
+        if reader.count(0) != 0:
+            raise ValueError("unexpected morph line vertices")
+        indexes = [reader.unpack(">H") for _ in range(reader.count(24))]
+        if len(indexes) % 3 or any(index >= len(vertices) for index in indexes):
+            raise ValueError("invalid native line geometry")
+        lines.append({"widths": widths, "colors": colors, "vertices": vertices, "indexes": indexes})
+    return {"bounds": bounds, "fills": fills, "lines": lines}
 
 
 def read_swf(data):
@@ -114,7 +123,7 @@ def read_swf(data):
         raise ValueError("invalid authored BSWF16 header")
     main = read_sprite(reader)
     dictionary = []
-    for _ in range(reader.count(20)):
+    for _ in range(reader.count(29)):
         kind = reader.unpack(">i")
         if kind == 0:
             entry = {}
@@ -186,9 +195,9 @@ class AuthoredNativeUI(unittest.TestCase):
     def test_native_container_and_bitmap_references(self):
         main, dictionary = read_swf(builder.build_swf())
         self.assertEqual(main["frames"], 1)
-        self.assertEqual(len(dictionary), 20)
+        self.assertEqual(len(dictionary), 29)
         self.assertEqual([entry["kind"] for entry in dictionary],
-                         [0, 2, 2, 1, 2, 2, 4, 2, 4, 5, 7, 7, 7, 7, 7, 7, 2, 4, 4, 7])
+                         [0, 2, 2, 1, 2, 2, 4, 2, 4, 5, 7, 7, 7, 7, 7, 7, 2, 4, 4, 7, 2, 2, 2, 2, 2, 2, 2, 2, 4])
         self.assertEqual(dictionary[3]["image_size"], (16, 16))
         self.assertEqual(dictionary[3]["atlas_offset"], (246, 64))
         bitmap_fill = dictionary[4]["fills"][0]
@@ -214,10 +223,11 @@ class AuthoredNativeUI(unittest.TestCase):
     def test_additive_placements_use_native_mode_eight_without_filters(self):
         from ui_swf import inspect_swf
         movie = inspect_swf(builder.build_swf())
-        self.assertEqual(movie["features"]["blend_modes"], [0, 8])
-        self.assertEqual(movie["features"]["masks"], 8)
-        self.assertNotIn("color_add", movie["features"])
+        self.assertEqual(movie["features"]["blend_modes"], [0, 4, 8])
+        self.assertEqual(movie["features"]["masks"], 10)
+        self.assertEqual(movie["features"]["color_add"], 2)
         root = next(sprite for sprite in movie["sprites"] if sprite["dictionary_id"] is None)
+        self.assertFalse(any(entry["color"] and any(entry["color"]["add"]) for entry in root["placements"]))
         additions = [entry for entry in root["placements"] if entry["blend_mode"] == 8]
         self.assertEqual(len(additions), 6)
         self.assertEqual([entry["color"]["multiply"][3] for entry in additions], [0, .5, 1, 1, .5, .5])
@@ -232,7 +242,8 @@ class AuthoredNativeUI(unittest.TestCase):
         self.assertEqual(masks[None], [(18, 20), (22, 23)])
         self.assertEqual(masks[17], [(1, 5), (2, 7), (9, 11), (10, 11)])
         self.assertEqual(masks[18], [(2, 3), (4, 5)])
-        self.assertEqual(len(sprites[None]["placements"]), 24)
+        self.assertEqual(masks[28], [(6, 7), (8, 9)])
+        self.assertEqual(len(sprites[None]["placements"]), 25)
         _, dictionary = read_swf(builder.build_swf())
         fill = dictionary[16]["fills"][0]
         points = fill["vertices"]
@@ -245,6 +256,34 @@ class AuthoredNativeUI(unittest.TestCase):
         for depth, clip_depth in ((1, 1), (2, 1), (1, 65536)):
             with self.subTest(depth=depth, clip_depth=clip_depth), self.assertRaises(ValueError):
                 builder.place(depth, 5, clip_depth=clip_depth)
+
+    def test_draw_features_cover_outlines_color_terms_screen_and_depth_masks(self):
+        from ui_swf import inspect_swf
+        movie = inspect_swf(builder.build_swf())
+        features = next(sprite for sprite in movie["sprites"] if sprite["dictionary_id"] == 28)
+        placements = {entry["depth"]: entry for entry in features["placements"]}
+        self.assertEqual(placements[4]["blend_mode"], 4)
+        self.assertEqual(placements[2]["color"], {"multiply": [1, 1, 1, 1], "add": [.25, .5, 0, 0]})
+        self.assertEqual(placements[5]["character"], 4)  # The bitmap A: its holes weight the color term.
+        self.assertEqual(placements[5]["color"], {"multiply": [.25, .25, .25, 1], "add": [.5, .25, 0, 0]})
+        _, dictionary = read_swf(builder.build_swf())
+        # Native line records hold each edge as a degenerate (a, a, b) triangle around the loop.
+        outline = dictionary[20]["lines"][0]
+        self.assertEqual(outline["vertices"], [(0, 0), (40, 0), (40, 30), (0, 30)])
+        self.assertEqual(outline["indexes"], [0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 0])
+        self.assertEqual(outline["widths"], (20, 20))
+        self.assertEqual((dictionary[26]["fills"], len(dictionary[26]["lines"])), ([], 1))
+        # The L's triangles fill it exactly; its notch corner makes it concave.
+        concave = dictionary[24]["fills"][0]
+        self.assertEqual(concave["vertices"], [(0, 0), (40, 0), (40, 15), (15, 15), (15, 30), (0, 30)])
+        area = sum(abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2
+                   for a, b, c in (tuple(concave["vertices"][index] for index in concave["indexes"][first:first + 3])
+                                   for first in range(0, 12, 3)))
+        self.assertEqual(area, 40 * 15 + 15 * 15)
+        with self.assertRaises(ValueError):
+            builder.place(1, 5, blend=3)
+        with self.assertRaises(ValueError):
+            builder.place(1, 5, additive=(.5, 0, 0, 0))
 
     def test_native_actionscript_functions_own_focus_and_selection_state(self):
         main, _ = read_swf(builder.build_swf())
@@ -332,7 +371,7 @@ class AuthoredNativeUI(unittest.TestCase):
                          [(272, 256, 4), (512, 128, 3)])
         self.assertEqual(len(re.findall(r"static constexpr std::uint8_t kResource\d+\[\]", header)), 3)
         self.assertEqual(len(re.findall(r"static constexpr std::uint32_t kPageChecksums\d+\[\]", header)), 2)
-        self.assertLess(len(header), 70000)
+        self.assertLess(len(header), 80000)
         for page in pages:
             self.assertIn('"' + page["path"] + '"', header)
             for checksum in page["checksums"]:

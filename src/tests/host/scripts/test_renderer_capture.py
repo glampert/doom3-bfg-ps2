@@ -191,7 +191,35 @@ def indexed_scene(height=448):
     quad(((256, 272), (480, 272), (480, 352), (256, 352)), (255, 255, 255, 128))
     ui_rectangle(rgb, height, 320, 288, 64, 48, (128, 64, 64))
     triangle(((608, 416), (640, 416), (640, 448)), ((0, 255, 0, 255),) * 3)
+    pass_band(rgb, height)
     return rgb
+
+
+def pass_band(rgb, height):
+    """The pass band's stored results: color terms, screen, depth masks and one-pixel lines."""
+    def line(x0, x1, y, first, last=None):
+        row = int(y * height / 480)
+        left, right = int(x0 * 512 / 640), int(x1 * 512 / 640)
+        for x in range(left, right):
+            fraction = (x - left) / max(1, right - left - 1)
+            color = first if last is None else tuple(round(a + (b - a) * fraction) for a, b in zip(first, last))
+            rgb[(row * 512 + x) * 3:(row * 512 + x) * 3 + 3] = bytes(color)
+
+    for x, color in ((15, (99, 49, 24)), (75, (99, 49, 24)), (135, (165, 140, 148)),
+                     (245, (123, 189, 255)), (305, (57, 49, 57))):
+        ui_rectangle(rgb, height, x, 390, 50, 30, color)
+    ui_rectangle(rgb, height, 15, 435, 110, 30, (57, 123, 189))
+    ui_rectangle(rgb, height, 15, 435, 50, 30, (115, 181, 189))
+    ui_rectangle(rgb, height, 75, 435, 50, 30, (82, 148, 189))
+    ui_rectangle(rgb, height, 135, 435, 40, 30, (255, 255, 0))
+    ui_rectangle(rgb, height, 175, 450, 40, 15, (255, 255, 0))
+    line(275, 325, 450, (0, 255, 255))
+    line(365, 400, 405, (255, 0, 0))
+    for y in range(390, 465):
+        line(410, 411.25, y, (0, 255, 0))
+    line(425, 485, 420, (132, 140, 148))
+    line(425, 485, 435, (148, 90, 41))
+    line(495, 595, 450, (255, 0, 0), (0, 0, 255))
 
 
 class RendererCapture(unittest.TestCase):
@@ -360,8 +388,30 @@ class RendererCapture(unittest.TestCase):
                 result = capture.verify_indexed_scene(self.write(content), standard)
                 self.assertEqual((result["width"], result["height"]), (512, height))
                 self.assertEqual(result["sha256"], hashlib.sha256(content).hexdigest())
-                self.assertEqual(len(result["checks"]), 27)
+                self.assertEqual(len(result["checks"]), 48)
                 self.assertTrue(all(item["passed"] for item in result["checks"]))
+
+    def test_pass_band_rejects_missing_passes_masks_and_lines(self):
+        original = indexed_scene()
+        for bounds, color, failure in (
+            # A lost constant-color pass leaves the black textured pass.
+            ((15, 390, 50, 30), (0, 0, 0), "passes-replace-color"),
+            ((75, 390, 50, 30), (0, 0, 0), "passes-two-pass-add"),
+            # Screen ignored, or applied to every channel at the strongest one's strength.
+            ((15, 435, 50, 30), (57, 123, 189), "passes-screen-full"),
+            ((75, 435, 50, 30), (115, 246, 255), "passes-screen-half"),
+            # The depth mask ignored: the notch filled and the cleared mask still admitting content.
+            ((175, 435, 40, 15), (255, 255, 0), "passes-mask-l-notch"),
+            ((225, 435, 40, 30), (255, 255, 0), "passes-mask-cleared"),
+            ((275, 435, 50, 14), (0, 255, 255), "passes-mask-line-outside"),
+            # A line drawn as nothing.
+            ((365, 400, 35, 10), (16, 24, 40), "passes-line-replace"),
+        ):
+            with self.subTest(failure=failure):
+                pixels = bytearray(original)
+                ui_rectangle(pixels, 448, *bounds, color)
+                with self.assertRaisesRegex(ValueError, failure):
+                    capture.verify_indexed_scene(self.write(tga(512, 448, pixels)), "NTSC")
 
     def test_indexed_scene_requires_capture_and_native_dimensions(self):
         with self.assertRaises(FileNotFoundError):

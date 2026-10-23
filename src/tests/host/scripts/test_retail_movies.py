@@ -103,7 +103,7 @@ class MovieResourcesTests(unittest.TestCase):
         for phase, (name, movie_name, movie) in enumerate(phases):
             prototype, rows = runner.expected_labels(manifest, self.source, movie)
             mode = "active" if execution else "inactive"
-            log += (f"RETAIL movie={movie} state=loaded frames=120 dictionary=20 texts=7 preview=10 "
+            log += (f"RETAIL movie={movie} state=loaded frames=120 dictionary=29 texts=7 preview=10 "
                     f"english=3 scripts={mode} heap=100/120/8\n")
             if execution:
                 log += (f"RETAIL execution movie={movie} ticks=120 root=1 sprites=2 texts=3 "
@@ -229,13 +229,105 @@ class MovieResourcesTests(unittest.TestCase):
         for changed in (log.replace(pixels, pixels + "1"), log.replace("images=2 pages", "images=3 pages"),
                         log.replace("uploads=5", "uploads=0"), replace_last(log, "uploads=5", "uploads=6"),
                         replace_last(log, "evictions=0", "evictions=1"), stalled,
-                        log.replace("masks=8 strokes=0", "masks=7 strokes=0"),
+                        log.replace("masks=10 strokes=0", "masks=9 strokes=0"),
                         log.replace("options=Accept|Cancel|Change Game", "options=Accept|Cancel|Quit"),
                         replace_last(log, "SWF dependency movie=swf/dialog.swf kind=frame name=rollOn\n", ""),
                         replace_last(log, "RETAIL released movie=1 images=2 heap=80/100/4",
                                      "RETAIL released movie=1 images=2 heap=81/100/4")):
             with self.subTest(changed=changed):
                 self.assertFalse(accepted(changed))
+
+    def shell_render_log(self, manifest):
+        swf = manifest["swfs"]["generated/swf/shell.bswf"]
+        features = swf["features"]
+        images = runner.shell_images(manifest)
+        counters = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
+        channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
+        textures = "[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters)
+        log = "GS ready NTSC\nrun_ready \n"
+        frame = 0
+        work = 0
+        rolled = 0
+        for name, frames in runner.SHELL_RENDER_PHASES:
+            log += (f"RETAIL drawable movie=0 masks={features['masks']} strokes={features['strokes']} "
+                    f"screen_blends={runner.screen_placements(swf)} additive_colors={features['color_add']}\n")
+            for suffix, waited, commands in (("a", frames, 7), ("b", frames + runner.SHELL_LOGO_GAP, 9)):
+                frame += frames if suffix == "a" else runner.SHELL_LOGO_GAP
+                work += 1000
+                # Outlines and the screen glow draw only once the logo has rolled on.
+                rolled += 1000 if suffix == "b" else 0
+                log += (f"RETAIL movie=0 state=loaded frames={waited} dictionary={len(swf['dictionary'])} "
+                        f"texts={swf['dictionary_counts']['edittext']} preview=10 "
+                        f"english={manifest['language']['entry_count']} scripts=active heap=100/120/8\n"
+                        "RETAIL owner screen=0 next=0 carousel_items=1 carousel_slots=5 carousel_view=0 credits=1 "
+                        f"callbacks=2 logo={1 if suffix == 'b' else 0}\n"
+                        f"RETAIL execution movie=0 ticks={waited} root=1 sprites=2 texts=3 instructions=1000 calls=5 "
+                        f"commands={commands} depth=2 native_steps=20 clock=fixed\n"
+                        f"RETAIL draw movie=0 full=1 triangles={work} flushes=10 masks={work // 100} peak_masks=1 "
+                        f"peak_vertices=300 peak_indexes=600 peak_draws=40 depth_masks={work // 200} lines={rolled // 10} "
+                        f"screen={rolled // 50} color_terms={work // 20}\n"
+                        f"{textures} triangles={work} uploads=5 evictions=0 channel_cluts={channel_cluts} "
+                        f"channel_pixels={channel_pixels}\n"
+                        f"CONSOLE capture=movie-{name}-{suffix}.tga frame={frame} presents={frame} redraws=0\n")
+            log += f"RETAIL released movie=0 images={len(images)} heap=80/100/4\n"
+        frame += 1
+        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
+                f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
+                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
+                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
+        return log
+
+    def test_shell_render_requires_outlines_depth_masks_screen_color_terms_and_channel_cluts(self):
+        manifest = self.label_manifest()
+        swf = manifest["swfs"]["generated/swf/shell.bswf"]
+        # The authored stand-in carries every feature the shell needs.
+        self.assertEqual((swf["features"]["strokes"], runner.screen_placements(swf), swf["features"]["color_add"]), (2, 1, 2))
+        log = self.shell_render_log(manifest)
+        accepted = lambda text: runner.classify_shell_render(text, "run", "ntsc", manifest, self.source)[0]
+        self.assertTrue(accepted(log), runner.classify_shell_render(log, "run", "ntsc", manifest, self.source)[1])
+        # The channel CLUTs upload at the first screen pass, after the start screen's capture.
+        self.assertTrue(accepted(log.replace("uploads=5 evictions=0 channel", "uploads=2 evictions=0 channel", 1)))
+        channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
+        draw_rows = [match.group(0) for match in runner.SHELL_DRAW.finditer(log)]
+        stalled = log.replace(draw_rows[3], draw_rows[3].replace("lines=200", "lines=100"))
+        for changed in (log.replace("strokes=2 ", "strokes=1 "), log.replace("screen_blends=1 ", "screen_blends=0 "),
+                        log.replace("additive_colors=2", "additive_colors=3"), log.replace("masks=10 strokes", "masks=9 strokes"),
+                        log.replace("depth_masks=5 ", "depth_masks=0 "), log.replace("lines=100 ", "lines=0 "),
+                        log.replace("screen=20 ", "screen=0 "), log.replace("color_terms=50", "color_terms=0"),
+                        log.replace("callbacks=2 logo=1", "callbacks=2 logo=0"), replace_last(log, "logo=0", "logo=1"),
+                        log.replace(f"channel_cluts={channel_cluts} ", f"channel_cluts={channel_cluts + 1} "),
+                        log.replace(f"channel_pixels={channel_pixels}", f"channel_pixels={channel_pixels - 1}"),
+                        log.replace("clock=fixed", "clock=real"), stalled, replace_last(log, "uploads=5", "uploads=6"),
+                        log.replace("uploads=5 evictions=0 channel", "uploads=6 evictions=0 channel", 1),
+                        replace_last(log, "evictions=0", "evictions=1"), log.replace("peak_masks=1", "peak_masks=5"),
+                        log.replace("carousel_items=1", "carousel_items=2"),
+                        replace_last(log, "RETAIL released movie=0 images=", "RETAIL released movie=0 images=1"),
+                        replace_last(log, "heap=80/100/4", "heap=81/100/4")):
+            with self.subTest(changed=changed):
+                self.assertFalse(accepted(changed))
+
+    def test_shell_captures_require_identical_warm_reloads_and_detail(self):
+        detailed = bytes(value for index in range(512 * 448) for value in (index % 251, index % 241, index % 239))
+        flat = bytes((16, 24, 40)) * (512 * 448)
+        header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, 448, 24, 0x20)
+
+        def write(images):
+            for name in runner.render_capture_names(runner.SHELL_RENDER_PHASES):
+                pixels = images.get(name, detailed)
+                bgr = bytearray(pixels)
+                bgr[0::3], bgr[2::3] = pixels[2::3], pixels[0::3]
+                (self.source / name).write_bytes(header + bgr)
+
+        write({})
+        self.assertIn("movie-shell3-b.tga", runner.verify_shell_render_captures(self.source, "ntsc"))
+        changed = bytearray(detailed)
+        changed[3000] ^= 0x40
+        for images, failure in (({"movie-shell3-a.tga": bytes(changed)}, "warm reloads differ"),
+                                ({"movie-shell1-a.tga": flat}, "detail")):
+            with self.subTest(failure=failure):
+                write(images)
+                with self.assertRaisesRegex(ValueError, failure):
+                    runner.verify_shell_render_captures(self.source, "ntsc")
 
     def test_final_capture_requires_complete_native_dimensions_and_a_readable_file(self):
         path = self.source / "movie-quit.tga"
@@ -412,7 +504,7 @@ class MovieResourcesTests(unittest.TestCase):
         words = struct.unpack("<16I", raw)
         self.assertEqual(words[:5], (0x564D4955, 1, 64, 1, 2))
         self.assertEqual(words[5:8], (len(self.language), fnv1a32(self.language), 3))
-        self.assertEqual(words[8:12], (len(self.movie), fnv1a32(self.movie), 20, 10))
+        self.assertEqual(words[8:12], (len(self.movie), fnv1a32(self.movie), 29, 10))
         self.assertEqual(words[8:12], words[12:16])
         self.assertEqual([name for _, name in assets], ["english.lang", "shell.bswf", "dialog.bswf"])
         self.assertEqual(staging.movie_resources(self.source, self.manifest)[0], raw)

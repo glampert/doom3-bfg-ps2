@@ -354,6 +354,27 @@ ui::PagedImage * UiPageImage(const idImage * image)
     return image->backendState->pages;
 }
 
+void EnableScreenBlending(const idImage * image)
+{
+    ValidateUiImage(image);
+    ui::retail::ImageRecord resource;
+
+    if (!IsRetailImage(image) || renderer::FrameStarted() || !ui::retail::GetCatalog().FindImage(image->GetName(), resource))
+    {
+        FatalError("screen blending outside a loaded retail image");
+    }
+
+    // LoadRetailPageImage creates every retail image's pages as a PalettedImage.
+    auto * const pages = static_cast<ui::PalettedImage *>(UiPageImage(image));
+    char path[256];
+    idStr::snPrintf(path, static_cast<int>(sizeof(path)), "retail/%s", resource.path);
+
+    if (!pages->EnableChannelCluts(fileSystem->RelativePathToOSPath(path)))
+    {
+        FatalError("retail UI channel CLUTs unavailable: %s", resource.name);
+    }
+}
+
 ui::PageCacheStats GetUiPageStats()
 {
     return s_pageCache.GetStats();

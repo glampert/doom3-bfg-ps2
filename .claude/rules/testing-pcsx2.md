@@ -9,8 +9,9 @@
   command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
   exact tagged cleanup. GIF/oversized-DIRECT bounds, a deliberately stalled deadline,
   and active unsupported UI state, rectangle, invalid quad and oversized text must remain
-  fatal with assertions off. Five mask probes reject concavity, scope leaks, unknown keys,
-  active-count disagreement and stroke coverage. Adapter startup also rejects insufficient VRAM/pixel budgets
+  fatal with assertions off. Five mask probes reject a second non-convex (depth) mask,
+  scope leaks, unknown keys, active-count disagreement and a mask beyond the 256 replayed
+  triangles. Adapter startup also rejects insufficient VRAM/pixel budgets
   without retaining partial ownership.
   Indexed geometry adds oversized single-request, invalid local-index, nonzero-depth,
   nonfinite half-UV and additive-color failures. Run both positive standards and all
@@ -32,6 +33,12 @@
   submission-order and pool-pressure pixel checks. Require 120/four frames, identical
   primary/reload captures, all three CPU pool limits reached, command drains and exact
   ledger cleanup. This extends the existing integrated fixture; no new fixture is added.
+  Its pass band adds 21 more: fog-colored additive terms (one pass and two), half alpha,
+  subtraction and mode 8; per-channel screen at full and half alpha; a concave L in the
+  depth mask, its notch, the cleared mask and a one-line mask; replace, vertical,
+  half-alpha, mode-8 and Gouraud lines. Expected values model every pass's five-bit
+  storage (gs-renderer.md); x multiples of 5 and y multiples of 15 are whole pixels in
+  both standards.
   A timeout-injected partial file is never accepted. Preserve images/hashes and record inspection.
   `renderer-paged*.tga` adds 45 pixel probes, including 22 seam/filtering samples, over
   a cooked authored six-page atlas. Two fixed CPU texture slots and one scratch page
@@ -80,9 +87,12 @@
   production ELF; the package also carries the cooked catalog for the console charset,
   so `make ui-cook` comes first. Three loads each render at least 120 frames, pause two different
   timeline states (including fractional alpha), execute native Tab/Enter AVM1 focus and
-  selection, and open/type/close the real console over the movie. Seventy-seven pixels
+  selection, and open/type/close the real console over the movie. Ninety-four pixels
   per capture cover shapes, a skewed bitmap across a page seam, glyph strokes/holes,
-  focus and status text. Additive mode 8 uses original native PlaceObject3/RenderShape
+  focus and status text. A draw-features sprite at (420, 30) adds an outlined fill (four
+  one-pixel edges), a gray additive term over a fill, a screen-blended fill, a two-pass
+  additive term over the bitmap A whose holes stay clear, a concave L depth mask and an
+  outline-only depth mask. Additive mode 8 uses original native PlaceObject3/RenderShape
   calls for solid and paged geometry; check alpha weighting, overlap, saturation, transparent
   holes and the page seam. Convex clip-depth masks add inherited/crossing ranges,
   simultaneous expiry, transformed boundaries, masked page UVs and native text. Derive expected RGB after each five-bit framebuffer storage
@@ -149,13 +159,27 @@
   evictions, the same upload count at every capture of all three loads,
   identical warm release ledgers and full shutdown recovery. Two captures ten frames apart locate the looping focus highlight;
   every other pixel must match across all loads, and frames must show textured detail.
-  The `dialog-blend` negative re-encodes a root placement as screen blend and requires
-  the specific draw-admission fatal. Resident paletted textures draw a frame in about
+  The `dialog-alpha-add` negative re-places the first root character with an additive
+  alpha term, the one color term without a draw path, and requires the specific
+  draw-admission fatal. Resident paletted textures draw a frame in about
   55–60 ms in debug PCSX2 (streamed RGBA pages took about 1.6 s), so a session takes
   under 20 s within the common 120 s timeout; since the dialog's text draws from
   pre-rendered glyphs, frames take about 40 ms. Closing the window (local settings skip the
   shutdown confirmation) ends the VM cleanly; the runner reports "emulator exited with
   status 0 after N s" as the session end. That is an interrupted run, not a target fault.
+- `make test-retail-shell` (case `shell-render`, also part of `test-retail-movies`) draws
+  the original shell in full through `ps2_uiRetail draw shell`: one 120-frame load and two
+  30-frame warm reloads on the fixed-step clock (`ps2_uiRetail clock fixed`: 1/60 s per
+  Common frame from the native activation time), so both warm reloads reach identical
+  frames and their captures must match exactly. Each load needs a draw admission equal
+  to the inventory (masks, outlines, screen placements, additive placements), the minimal
+  carousel/Credits owner, rising triangle, mask, depth-mask, line, screen and color-term
+  counters, textures equal to the fonts, glyph set, charset, shell atlas and Doom 3 cover,
+  three channel CLUTs per atlas CLUT, zero evictions, fixed uploads, identical warm
+  release ledgers and full shutdown recovery. A debug PCSX2 frame takes 100–140 ms on the
+  fixed clock, so a session takes about 50 s within its 300 s timeout. The owner does not run the native
+  screens, so placeholder prompts and labels show: compare captures with the menu's
+  expected state, not the PC's interactive one.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

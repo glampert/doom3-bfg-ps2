@@ -31,6 +31,13 @@ struct GeometryStats
     // Completed native SWF mask captures and the most masks simultaneously clipping geometry.
     u32 masks;
     u32 peakMasks;
+    // Captures the convex bridge could not take, drawn into the GS depth buffer instead.
+    u32 depthMasks;
+    // Native line-mode segments drawn (SWF shape outlines).
+    u32 lines;
+    // Source primitives drawn with screen blending, and with a color transform's additive term.
+    u32 screen;
+    u32 colorTerms;
 };
 
 GeometryStats GetGeometryStats();
@@ -47,12 +54,15 @@ void Flush();
 // current color and GL state, so a font's pre-rendered glyph draws like its atlas quad would.
 void DrawImageRect(float x, float y, float width, float height, float s0, float t0, float s1, float t1,
                    const idImage * image, const idMaterial * material);
-// Native SWF's zero-additive color transform maps its normal/add blends to straight RGBA GS draws.
-// Scope it explicitly; ordinary UI callers retain their stricter state/color2 contract.
+// Native SWF draws: normal, additive and screen blends, color transform terms and line-mode
+// outlines map to GS passes. Scope it explicitly; ordinary UI callers retain their stricter
+// state/color2 contract.
 void BeginSwfDraw();
 void EndSwfDraw();
-// Masks collect native transformed fill triangles without drawing. A completed convex mask clips
-// subsequent geometry until its display-entry key is removed; removal need not be in stack order.
+// Masks collect native transformed fill triangles and outline segments without drawing. A completed
+// convex mask clips subsequent geometry on the CPU until its display-entry key is removed; removal
+// need not be in stack order. Any other mask (concave, holed, disconnected, stroked or large) goes
+// into the GS depth buffer, which holds one at a time beside the convex masks.
 void BeginSwfMask(const void * key);
 void EndSwfMask();
 void RemoveSwfMask(const void * key);

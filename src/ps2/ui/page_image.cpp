@@ -389,8 +389,15 @@ bool PageImage::ValidateTriangle(const Vertex (&vertices)[3]) const
                            static_cast<int>(m_header.height), 0, 0, pieces, count, m_outerGutter) != Result::Invalid;
 }
 
-bool PageImage::DrawTriangle(const Vertex (&vertices)[3], renderer::gs::BlendMode blend)
+bool PageImage::SupportsScreen() const
 {
+    return false;
+}
+
+bool PageImage::DrawTriangle(const Vertex (&vertices)[3], const renderer::Shading & shading)
+{
+    const auto blend = shading.blend;
+
     if (!IsOpen() || !renderer::FrameStarted() ||
         (blend != renderer::gs::BlendMode::Replace && blend != renderer::gs::BlendMode::StraightAlpha && blend != renderer::gs::BlendMode::AdditiveAlpha))
     {
@@ -470,7 +477,7 @@ bool PageImage::DrawTriangle(const Vertex (&vertices)[3], renderer::gs::BlendMod
 
             for (int triangle = 0; triangle < count; ++triangle)
             {
-                if (!renderer::TexturedTriangleFixed(texture, pieces[triangle], blend))
+                if (!renderer::TexturedTriangleFixed(texture, pieces[triangle], shading))
                 {
                     return Failed("page draw submission");
                 }

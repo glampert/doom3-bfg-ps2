@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/ui/retail_movie.h"
+#include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
@@ -37,6 +38,10 @@ static u32 s_executionTicks = 0;
 static u32 s_nativeSteps = 0;
 // The last timeline clock; full drawing reuses it so synchronous redraws present the same movie state.
 static int s_movieTime = 0;
+// A fixed-step clock advances each executing movie 1/60 s per Common frame from its activation time,
+// so captures at a frame count repeat whatever the frame time. It applies from the next load.
+static bool s_fixedClock = false;
+static int s_clockBase = 0;
 static constexpr const char * kLabels[] = { "#str_swf_campaign", "#str_swf_settings", "#str_swf_quit" };
 
 void CloseResourceMovie()
@@ -60,6 +65,7 @@ void CloseResourceMovie()
     s_executionTicks = 0;
     s_nativeSteps = 0;
     s_movieTime = 0;
+    s_clockBase = 0;
 
     if (releasedMovie >= 0)
     {
@@ -124,10 +130,10 @@ void ExecutionStatus()
     ps2::ui::retail::OwnerStatus();
     const auto stats = ps2::ui::swf::GetStats();
     ps2::Log(ps2::LogLevel::Info,
-             "[D3BFG] RETAIL execution movie=%d ticks=%u root=%u sprites=%u texts=%u instructions=%lu calls=%lu commands=%lu depth=%u native_steps=%u\n",
+             "[D3BFG] RETAIL execution movie=%d ticks=%u root=%u sprites=%u texts=%u instructions=%lu calls=%lu commands=%lu depth=%u native_steps=%u clock=%s\n",
              s_movieIndex, s_executionTicks, static_cast<unsigned>(root->GetCurrentFrame()), sprites, texts,
              static_cast<unsigned long>(stats.instructions), static_cast<unsigned long>(stats.calls),
-             static_cast<unsigned long>(stats.commands), depth, s_nativeSteps);
+             static_cast<unsigned long>(stats.commands), depth, s_nativeSteps, s_fixedClock ? "fixed" : "real");
     ps2::Log(ps2::LogLevel::Info,
              "[D3BFG] RETAIL execution peaks instructions=%lu calls=%lu commands=%lu call_depth=%lu visit_depth=%lu stack=%lu objects=%lu functions=%lu strings=%lu string_bytes=%lu traces=%lu\n",
              static_cast<unsigned long>(stats.peakInstructions), static_cast<unsigned long>(stats.peakCalls),
@@ -163,9 +169,10 @@ void Status()
         {
             const auto geometry = ps2::ui::GetGeometryStats();
             ps2::Log(ps2::LogLevel::Info,
-                     "[D3BFG] RETAIL draw movie=%d full=1 triangles=%u flushes=%u masks=%u peak_masks=%u peak_vertices=%u peak_indexes=%u peak_draws=%u\n",
+                     "[D3BFG] RETAIL draw movie=%d full=1 triangles=%u flushes=%u masks=%u peak_masks=%u peak_vertices=%u peak_indexes=%u peak_draws=%u depth_masks=%u lines=%u screen=%u color_terms=%u\n",
                      s_movieIndex, geometry.triangles, geometry.flushes, geometry.masks, geometry.peakMasks,
-                     geometry.peakVertices, geometry.peakIndexes, geometry.peakDraws);
+                     geometry.peakVertices, geometry.peakIndexes, geometry.peakDraws, geometry.depthMasks, geometry.lines,
+                     geometry.screen, geometry.colorTerms);
         }
 
         for (int index = 0; index < ps2::ArrayLength(s_texts) && s_texts[index] != nullptr; ++index)
@@ -184,9 +191,9 @@ void Status()
              "[D3BFG] RETAIL state=loaded cycle=%u font=%u name=%s frames=%u heap=%zu/%zu/%zu\n",
              s_cycle, s_font, font.family, s_frames, heap.requestedBytes, heap.backingBytes, heap.allocationCount);
     ps2::Log(ps2::LogLevel::Info,
-             "[D3BFG] RETAIL textures images=%u pages=%u cluts=%u pixels=%u metadata=%u triangles=%u uploads=%u evictions=%u\n",
+             "[D3BFG] RETAIL textures images=%u pages=%u cluts=%u pixels=%u metadata=%u triangles=%u uploads=%u evictions=%u channel_cluts=%u channel_pixels=%u\n",
              textures.images, textures.pages, textures.cluts, textures.pixelBytes, textures.metadataBytes, textures.triangles,
-             residency.uploads, residency.evictions);
+             residency.uploads, residency.evictions, textures.channelCluts, textures.channelPixelBytes);
     for (int index = 0; index < ps2::ArrayLength(kScales); ++index)
     {
         const float scale = kScales[index];
@@ -275,7 +282,7 @@ void Load()
 // Present draws the complete dialog movie with the native quit confirmation instead of isolated labels.
 void LoadResourceMovie(unsigned index, bool execute = false, bool present = false)
 {
-    if (!s_loaded || ps2::renderer::FrameStarted() || index >= 2 || (present && (!execute || index != 1)))
+    if (!s_loaded || ps2::renderer::FrameStarted() || index >= 2 || (present && !execute))
     {
         ps2::FatalError("retail movie requires an idle loaded resource screen");
     }
@@ -314,7 +321,7 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
 
     if (execute)
     {
-        if (present)
+        if (present && index == 1)
         {
             ps2::ui::retail::ShowQuitDialog(*s_resourceMovie);
         }
@@ -327,15 +334,30 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
         const ps2::ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
         s_resourceMovie->EnableResourceExecution();
         s_nativeSteps = 1;
+        s_clockBase = s_resourceMovie->GetResourceClock();
     }
 
     if (present)
     {
         s_resourceMovie->EnableResourceRender();
+
+        // Native idSWF names its atlas material after the binary movie; screen passes need its
+        // per-channel CLUTs before the first frame.
+        if (ps2::ui::retail::MovieUsesScreenBlending())
+        {
+            const idMaterial * const atlas = declManager->FindMaterial(index == 0 ? "generated/swf/shell.tga" : "generated/swf/dialog.tga");
+
+            if (atlas == nullptr || atlas->GetNumStages() != 1 || atlas->GetStage(0)->texture.image == nullptr)
+            {
+                ps2::FatalError("retail movie atlas image missing for screen blending");
+            }
+
+            ps2::renderer::EnableScreenBlending(atlas->GetStage(0)->texture.image);
+        }
     }
 
     s_movieIndex = static_cast<int>(index);
-    s_movieTime = Sys_Milliseconds();
+    s_movieTime = execute && s_fixedClock ? s_clockBase : Sys_Milliseconds();
     s_frames = 0;
     Status();
 }
@@ -344,10 +366,49 @@ void Control(const idCmdArgs & args)
 {
     if (!s_initialized || args.Argc() < 2 || args.Argc() > 3)
     {
-        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME, execute NAME or dialog quit");
+        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME, execute NAME, draw shell, dialog quit, clock MODE or logo on|off");
     }
 
     const char * const action = args.Argv(1);
+    if (strcmp(action, "clock") == 0)
+    {
+        if (args.Argc() != 3 || (strcmp(args.Argv(2), "fixed") != 0 && strcmp(args.Argv(2), "real") != 0) ||
+            s_resourceMovie != nullptr)
+        {
+            ps2::FatalError("ps2_uiRetail clock requires fixed or real before a movie loads");
+        }
+
+        s_fixedClock = strcmp(args.Argv(2), "fixed") == 0;
+        return;
+    }
+
+    if (strcmp(action, "logo") == 0)
+    {
+        if (args.Argc() != 3 || (strcmp(args.Argv(2), "on") != 0 && strcmp(args.Argv(2), "off") != 0) ||
+            s_resourceMovie == nullptr || s_movieIndex != 0 || !s_resourceMovie->IsResourceExecution() ||
+            ps2::renderer::FrameStarted())
+        {
+            ps2::FatalError("ps2_uiRetail logo requires on or off with the executing shell");
+        }
+
+        // The native shell plays this transition from its background update; frame actions it
+        // reaches run under the same bounded execution scope as a timeline advance.
+        const ps2::ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
+        ps2::ui::retail::ShowShellLogo(*s_resourceMovie, strcmp(args.Argv(2), "on") == 0);
+        return;
+    }
+
+    if (strcmp(action, "draw") == 0)
+    {
+        if (args.Argc() != 3 || strcmp(args.Argv(2), "shell") != 0)
+        {
+            ps2::FatalError("ps2_uiRetail draw requires shell");
+        }
+
+        LoadResourceMovie(0, true, true);
+        return;
+    }
+
     if (strcmp(action, "dialog") == 0)
     {
         if (args.Argc() != 3 || strcmp(args.Argv(2), "quit") != 0)
@@ -510,7 +571,9 @@ void AdvanceScreen(bool advance)
         FatalError("retail execution frame ownership or counter overflow");
     }
 
-    const int time = Sys_Milliseconds();
+    // The fixed clock's cumulative steps round to whole milliseconds without drifting.
+    const int time = s_fixedClock ? s_clockBase + static_cast<int>((static_cast<u64>(s_executionTicks) + 1U) * 1000U / 60U)
+                                  : Sys_Milliseconds();
     const ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
     s_nativeSteps += s_resourceMovie->AdvanceResourceExecution(time);
     s_movieTime = time;

@@ -95,9 +95,32 @@ public:
     void PrintStatus() const
     {
         ps2::Log(ps2::LogLevel::Info,
-                 "[D3BFG] RETAIL owner screen=%d next=%d carousel_items=%d carousel_slots=%d carousel_view=%d credits=1 callbacks=2\n",
+                 "[D3BFG] RETAIL owner screen=%d next=%d carousel_items=%d carousel_slots=%d carousel_view=%d credits=1 callbacks=2 logo=%d\n",
                  activeScreen, nextScreen, m_carousel->GetTotalNumberOfOptions(),
-                 m_carousel->GetNumVisibleOptions(), m_carousel->GetViewIndex());
+                 m_carousel->GetNumVisibleOptions(), m_carousel->GetViewIndex(), m_logoShowing ? 1 : 0);
+    }
+
+    // idMenuHandler_Shell::ShowLogo, which the native shell's background update calls on leaving
+    // the start screen: the logo rolls on as the background rolls off, and back.
+    void ShowLogo(bool show)
+    {
+        if (show == m_logoShowing)
+        {
+            return;
+        }
+
+        idSWFSpriteInstance * const logo = gui->GetRootObject().GetNestedSprite("logoInfo");
+        idSWFSpriteInstance * const background = gui->GetRootObject().GetNestedSprite("background");
+
+        if (logo == nullptr || background == nullptr)
+        {
+            ps2::FatalError("retail Shell logo or background sprite missing");
+        }
+
+        background->stereoDepth = STEREO_DEPTH_TYPE_MID;
+        logo->PlayFrame(show ? "rollOn" : "rollOff");
+        background->PlayFrame(show ? "rollOff" : "rollOn");
+        m_logoShowing = show;
     }
 
     void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing)
@@ -151,6 +174,7 @@ private:
     idMenuWidget_Carousel * m_carousel = nullptr;
     idSWFScriptVar m_refreshCarousel;
     idSWFScriptVar m_updateCredits;
+    bool m_logoShowing = false;
 };
 
 static Owner * s_owner = nullptr;
@@ -353,6 +377,16 @@ void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idS
     }
 
     s_owner->CheckCallbackOrigin(name, executing);
+}
+
+void ShowShellLogo(idSWF & movie, bool show)
+{
+    if (s_owner == nullptr || s_owner->GetGUI() != &movie || !movie.IsResourceExecution() || !swf::Active())
+    {
+        FatalError("retail Shell logo outside its executing owner");
+    }
+
+    s_owner->ShowLogo(show);
 }
 
 void OwnerStatus()

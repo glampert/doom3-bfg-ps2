@@ -29,6 +29,7 @@ static bool s_executionRequested = false;
 static bool s_executionAdmitted = false;
 static bool s_renderRequested = false;
 static bool s_renderAdmitted = false;
+static std::uint32_t s_screenBlends = 0;
 static constexpr const char * kMovies[] = { "generated/swf/shell.bswf", "generated/swf/dialog.bswf" };
 static constexpr const char * kMovieFiles[] = { "retail/shell.bswf", "retail/dialog.bswf" };
 
@@ -158,6 +159,7 @@ PS2_COLD_FUNC void Shutdown()
     s_executionAdmitted = false;
     s_renderRequested = false;
     s_renderAdmitted = false;
+    s_screenBlends = 0;
     system::heap::Free(s_bytes);
     s_bytes = nullptr;
     s_catalog = {};
@@ -235,6 +237,7 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
     s_executionAdmitted = false;
     s_renderRequested = render;
     s_renderAdmitted = false;
+    s_screenBlends = 0;
 
     if (s_profile[0] == 0)
     {
@@ -351,20 +354,21 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
 
         if (s_renderRequested)
         {
-            // Strokes, screen blending and nonzero additive color have no 2D backend path yet. Masks
-            // are admitted here; the CPU bridge still rejects any non-convex mask at draw time.
-            if (summary.strokes != 0 || execution.screenBlends != 0 || execution.additiveColors != 0)
+            // Outlines draw as GS lines, screen blending in per-channel passes and additive RGB in a
+            // constant-color pass; an additive alpha term has no 2D path. Masks are admitted here, and
+            // the draw path still refuses two non-convex masks at once.
+            if (execution.additiveAlphas != 0)
             {
                 system::heap::Free(bytes);
-                FatalError("retail movie draw features unavailable: %s strokes=%lu screen_blends=%lu additive_colors=%lu",
-                           logicalPath, static_cast<unsigned long>(summary.strokes),
-                           static_cast<unsigned long>(execution.screenBlends),
-                           static_cast<unsigned long>(execution.additiveColors));
+                FatalError("retail movie draw features unavailable: %s additive_alphas=%lu", logicalPath,
+                           static_cast<unsigned long>(execution.additiveAlphas));
             }
 
             s_renderAdmitted = true;
-            Log(LogLevel::Info, "[D3BFG] RETAIL drawable movie=%u masks=%lu strokes=0 screen_blends=0 additive_colors=0\n",
-                index, static_cast<unsigned long>(execution.masks));
+            s_screenBlends = execution.screenBlends;
+            Log(LogLevel::Info, "[D3BFG] RETAIL drawable movie=%u masks=%lu strokes=%lu screen_blends=%lu additive_colors=%lu\n",
+                index, static_cast<unsigned long>(execution.masks), static_cast<unsigned long>(summary.strokes),
+                static_cast<unsigned long>(execution.screenBlends), static_cast<unsigned long>(execution.additiveColors));
         }
     }
 
@@ -386,6 +390,11 @@ bool MovieExecutionAdmitted()
 bool MovieRenderAdmitted()
 {
     return MovieExecutionAdmitted() && s_renderAdmitted;
+}
+
+bool MovieUsesScreenBlending()
+{
+    return MovieRenderAdmitted() && s_screenBlends != 0;
 }
 
 swf::Summary GetMovieSummary()

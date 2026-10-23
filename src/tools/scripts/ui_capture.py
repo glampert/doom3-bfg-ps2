@@ -114,6 +114,30 @@ STATIC_PIXELS = (
     ("mask-text-third-a-clipped", 371.5, 274.5, (57, 57, 57)),
     ("mask-text-expired-before-next-child", 384, 280, (255, 123, 0)),
     ("mask-page-parent-removed", 292, 284, (255, 255, 255)),
+    # Draw features at (420, 30). Native line mode draws one-pixel outlines; x multiples of 5 and
+    # y multiples of 15 are whole pixels in both standards. White-texture modulation turns 40 into
+    # 39 and 64/128/192 into 63/127/191 before five-bit storage.
+    ("outline-fill", 440, 45, (57, 57, 57)),
+    ("outline-top", 440, 30, (255, 255, 255)),
+    ("outline-bottom", 440, 60, (255, 255, 255)),
+    ("outline-left", 420, 45, (255, 255, 255)),
+    ("outline-right", 460, 45, (255, 255, 255)),
+    # A color transform adds 63/127/0 (bytes 159/191/127) after the fill, in a fog pass.
+    ("additive-solid", 490, 45, (90, 156, 33)),
+    # Screen adds Cd * Cs per channel: the PC renderer's DST_COLOR/ONE without its ignored blend op.
+    ("screen-solid", 540, 45, (115, 181, 189)),
+    # 0.25 white plus 127/63/0, weighted by the glyph's own alpha: holes keep the panel.
+    ("additive-bitmap-leg", 426, 93, (181, 115, 57)),
+    ("additive-bitmap-crossbar", 450, 105, (181, 115, 57)),
+    ("additive-bitmap-hole", 450, 97, PANEL),
+    # A concave L in the depth mask, then an outline-only mask that admits just its edges.
+    ("depth-mask-l-bar", 528, 82, (255, 255, 0)),
+    ("depth-mask-l-column", 502, 100, (255, 255, 0)),
+    ("depth-mask-l-notch", 525, 97, PANEL),
+    ("depth-mask-outline-top", 565, 75, (255, 0, 255)),
+    ("depth-mask-outline-left", 545, 90, (255, 0, 255)),
+    ("depth-mask-outline-inside", 565, 90, PANEL),
+    ("depth-mask-outline-outside", 542, 72, PANEL),
 )
 PULSE_COLORS = {1: (0.1, 0.85, 1.0, 1.0), 2: (0.8, 0.25, 1.0, 0.4),
                 3: (1.0, 0.5, 0.1, 0.7), 4: (0.2, 1.0, 0.3, 1.0)}

@@ -159,7 +159,8 @@ void Matrix(Reader & reader)
 }
 
 // Returns whether any additive term is nonzero. Native order is multiply terms, then additive terms.
-bool Color(Reader & reader)
+// Bit 0: some additive term is nonzero; bit 1: the alpha one is (RGBA order).
+U32 Color(Reader & reader)
 {
     Bits bits(reader);
     const U32 add = bits.Read(1);
@@ -172,11 +173,14 @@ bool Color(Reader & reader)
         bits.Read(width);
     }
 
-    bool additive = false;
+    U32 additive = 0;
 
     for (U32 component = 0; component < add * 4; ++component)
     {
-        additive = bits.Read(width) != 0 || additive;
+        if (bits.Read(width) != 0)
+        {
+            additive |= component == 3 ? 3U : 1U;
+        }
     }
 
     return additive;
@@ -566,9 +570,11 @@ bool ValidateCommand(U32 tag, const void * bytes, std::size_t length, const U8 *
             Matrix(reader);
         }
 
-        if ((flags & 8U) != 0 && Color(reader))
+        if ((flags & 8U) != 0)
         {
-            ++summary.additiveColors;
+            const U32 additive = Color(reader);
+            summary.additiveColors += additive & 1U;
+            summary.additiveAlphas += (additive >> 1) & 1U;
         }
 
         if ((flags & 16U) != 0)
@@ -591,7 +597,7 @@ bool ValidateCommand(U32 tag, const void * bytes, std::size_t length, const U8 *
         if ((flags2 & 2U) != 0)
         {
             const U32 blend = reader.Read();
-            // These retail modes are structurally admitted; screen blending keeps full drawing unavailable.
+            // The retail modes: normal, layer (drawn as normal), screen and add.
             reader.Require(blend == 0 || blend == 1 || blend == 4 || blend == 8);
             summary.screenBlends += blend == 4 ? 1U : 0U;
         }

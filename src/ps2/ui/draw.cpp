@@ -28,12 +28,27 @@ static ps2::ui::ConvexMask s_masks[ps2::ui::kMaxActiveMasks] = {};
 static int s_maskCount = 0;
 static const void * s_captureMask = nullptr;
 static ps2::ui::MaskBuilder s_maskBuilder;
+// A mask the convex bridge cannot express is replayed into the GS depth buffer, one at a time.
+static constexpr int kMaxCaptureTriangles = 256;
+static constexpr int kMaxCaptureLines = 192;
+static ps2::ui::MaskPoint (*s_captureTriangles)[3] = nullptr;
+static ps2::ui::MaskPoint (*s_captureLines)[2] = nullptr;
+static int s_captureTriangleCount = 0;
+static int s_captureLineCount = 0;
+static bool s_captureOverflow = false;
+static const void * s_depthMaskKey = nullptr;
+static int s_depthBounds[4] = {};
 // The EE's native RGBA byte order is little endian; no idlib swap initialization is required.
 static_assert(std::endian::native == std::endian::little);
 static constexpr uint64 kBlendAlpha = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
 static constexpr uint64 kBlendSwf = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
 static constexpr uint64 kBlendSwfAdd = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE;
+// SWF screen asks for DST_COLOR/ONE with a subtract op; the shipped GL backend ignores blend ops,
+// so the PC result is Cd + Cd * Cs.
+static constexpr uint64 kBlendSwfScreen = GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ONE;
 static constexpr uint64 kAllowedState = GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS | GLS_DEPTHMASK | GLS_DEPTHFUNC_BITS | GLS_OVERRIDE;
+// Native SWF also draws outlines in line mode and requests the screen blend op.
+static constexpr uint64 kAllowedSwfState = kAllowedState | GLS_POLYMODE_LINE | GLS_BLENDOP_SUB;
 
 struct Profile
 {
@@ -43,6 +58,8 @@ struct Profile
     bool vertexColor;
     bool enabled;
     bool swf = false;
+    // Native line mode: each triangle draws its edges as one-pixel lines.
+    bool lines = false;
 };
 
 struct Batch
@@ -65,13 +82,102 @@ static ps2::ui::GeometryStats s_geometryStats = {};
 
 void FreeGeometry()
 {
+    ps2::system::heap::Free(s_captureLines);
+    ps2::system::heap::Free(s_captureTriangles);
     ps2::system::heap::Free(s_batches);
     ps2::system::heap::Free(s_indexes);
     ps2::system::heap::Free(s_vertices);
+    s_captureLines = nullptr;
+    s_captureTriangles = nullptr;
     s_batches = nullptr;
     s_indexes = nullptr;
     s_vertices = nullptr;
     s_vertexCount = s_indexCount = s_batchCount = 0;
+}
+
+// The pixel rectangle holding a fixed point, widened to cover every pixel a primitive may touch.
+void GrowBounds(int (&bounds)[4], int x, int y)
+{
+    const int left = x / 16;
+    const int top = y / 16;
+    const int right = Min((x + 15) / 16 + 1, ps2::renderer::gs::Width());
+    const int bottom = Min((y + 15) / 16 + 1, ps2::renderer::gs::Height());
+
+    if (bounds[0] >= bounds[2])
+    {
+        bounds[0] = left;
+        bounds[1] = top;
+        bounds[2] = right;
+        bounds[3] = bottom;
+        return;
+    }
+
+    bounds[0] = Min(bounds[0], left);
+    bounds[1] = Min(bounds[1], top);
+    bounds[2] = Max(bounds[2], right);
+    bounds[3] = Max(bounds[3], bottom);
+}
+
+// Replays a captured mask into the depth buffer and records the pixels it may cover.
+void WriteDepthMask()
+{
+    using namespace ps2::ui;
+    const Viewport viewport{ ps2::renderer::gs::Width(), ps2::renderer::gs::Height() };
+    int bounds[4] = {};
+
+    for (int index = 0; index < s_captureTriangleCount; ++index)
+    {
+        const auto & points = s_captureTriangles[index];
+        const Vertex input[3] = { { points[0].x, points[0].y, 0.0f, 0.0f, 0, 0, 0, 255 },
+                                  { points[1].x, points[1].y, 0.0f, 0.0f, 0, 0, 0, 255 },
+                                  { points[2].x, points[2].y, 0.0f, 0.0f, 0, 0, 0, 255 } };
+        FixedTriangle pieces[kMaxClippedTriangles];
+        int count = 0;
+
+        if (MapTriangle(input, viewport, 1, 1, pieces, count) == Result::Invalid)
+        {
+            ps2::FatalError("invalid native SWF mask triangle");
+        }
+
+        for (int piece = 0; piece < count; ++piece)
+        {
+            for (const auto & vertex : pieces[piece].vertices)
+            {
+                GrowBounds(bounds, vertex.x, vertex.y);
+            }
+
+            ps2::renderer::MaskTriangleFixed(pieces[piece]);
+        }
+    }
+
+    for (int index = 0; index < s_captureLineCount; ++index)
+    {
+        const auto & points = s_captureLines[index];
+        const Vertex input[2] = { { points[0].x, points[0].y, 0.0f, 0.0f, 0, 0, 0, 255 },
+                                  { points[1].x, points[1].y, 0.0f, 0.0f, 0, 0, 0, 255 } };
+        FixedLine line = {};
+        const Result result = MapLine(input, viewport, line);
+
+        if (result == Result::Invalid)
+        {
+            ps2::FatalError("invalid native SWF mask line");
+        }
+
+        if (result == Result::Draw)
+        {
+            for (const auto & vertex : line.vertices)
+            {
+                GrowBounds(bounds, vertex.x, vertex.y);
+            }
+
+            ps2::renderer::MaskLineFixed(line);
+        }
+    }
+
+    for (int i = 0; i < 4; ++i)
+    {
+        s_depthBounds[i] = bounds[i];
+    }
 }
 
 void Require(const idRenderSystemLocal * owner, const char * method, bool drawing = false)
@@ -114,11 +220,19 @@ ps2::renderer::gs::BlendMode Blend(uint64 state)
 {
     const uint64 equation = state & (GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS);
     const uint64 depth = state & GLS_DEPTHFUNC_BITS;
-    if ((state & ~kAllowedState) != 0 || (depth != GLS_DEPTHFUNC_LESS && depth != GLS_DEPTHFUNC_ALWAYS) ||
+    // The subtract op belongs only to screen blending, whose PC result ignores it.
+    const bool screen = s_swfDraw && equation == kBlendSwfScreen;
+    if ((state & ~(s_swfDraw ? kAllowedSwfState : kAllowedState)) != 0 || ((state & GLS_BLENDOP_SUB) != 0 && !screen) ||
+        (depth != GLS_DEPTHFUNC_LESS && depth != GLS_DEPTHFUNC_ALWAYS) ||
         (equation != GLS_DEFAULT && equation != kBlendAlpha &&
-         !(s_swfDraw && (equation == kBlendSwf || equation == kBlendSwfAdd))))
+         !(s_swfDraw && (equation == kBlendSwf || equation == kBlendSwfAdd || screen))))
     {
         ps2::renderer::Unavailable("native UI blend/state profile");
+    }
+
+    if (screen)
+    {
+        return ps2::renderer::gs::BlendMode::Screen;
     }
 
     if (s_swfDraw && equation == kBlendSwfAdd)
@@ -172,7 +286,9 @@ Profile MaterialProfile(const idMaterial * material, ps2::renderer::gs::Color ba
         modulated[i] = static_cast<u8>(Register(stage.color.registers[i]) * static_cast<float>(channels[i]));
     }
     ps2::renderer::ValidateUiImage(stage.texture.image);
-    return { stage.texture.image, Blend(CombinedState(stage.drawStateBits)), { modulated[0], modulated[1], modulated[2], modulated[3] }, stage.vertexColor == SVC_MODULATE, condition != 0.0f, s_swfDraw };
+    const uint64 state = CombinedState(stage.drawStateBits);
+    return { stage.texture.image, Blend(state), { modulated[0], modulated[1], modulated[2], modulated[3] }, stage.vertexColor == SVC_MODULATE,
+             condition != 0.0f, s_swfDraw, (state & GLS_POLYMODE_LINE) != 0 };
 }
 
 float DecodeHalf(halfFloat_t value)
@@ -193,27 +309,86 @@ float DecodeHalf(halfFloat_t value)
     return (bits & 32768U) != 0 ? -magnitude : magnitude;
 }
 
-ps2::ui::Vertex DecodeVertex(const idDrawVert & vertex, const Profile & profile)
+struct DecodedVertex
+{
+    ps2::ui::Vertex vertex;
+    // Native GUI shading adds color2 * 2 - 1 to the textured color: per unit, 2 * byte - 255.
+    s16 add[3];
+};
+
+DecodedVertex DecodeVertex(const idDrawVert & vertex, const Profile & profile)
 {
     if (!PortableFloat(vertex.xyz.z) || vertex.xyz.z != 0.0f)
     {
         ps2::FatalError("native UI vertex requires zero depth");
     }
+
+    DecodedVertex output = {};
+
     for (int channel = 0; channel < 4; ++channel)
     {
-        if (vertex.color2[channel] != 128 && !(profile.swf && vertex.color2[channel] == 127))
+        const u8 value = vertex.color2[channel];
+
+        // PackColor(0.5) gives 127 and a cleared vertex 128: both are the zero term. Only native
+        // SWF shading admits other color terms, and only for RGB.
+        if (value == 128 || (profile.swf && value == 127))
+        {
+            continue;
+        }
+
+        if (!profile.swf || channel == 3)
         {
             ps2::renderer::Unavailable("native UI additive vertex color");
         }
+
+        output.add[channel] = static_cast<s16>(2 * static_cast<int>(value) - 255);
     }
+
     const auto Modulate = [](u8 color, u8 tint)
     { return static_cast<u8>((static_cast<u32>(color) * tint + 127U) / 255U); };
     const auto & tint = profile.tint;
-    return { vertex.xyz.x, vertex.xyz.y, DecodeHalf(vertex.st[0]), DecodeHalf(vertex.st[1]),
-             profile.vertexColor ? Modulate(vertex.color[0], tint.r) : tint.r,
-             profile.vertexColor ? Modulate(vertex.color[1], tint.g) : tint.g,
-             profile.vertexColor ? Modulate(vertex.color[2], tint.b) : tint.b,
-             profile.vertexColor ? Modulate(vertex.color[3], tint.a) : tint.a };
+    output.vertex = { vertex.xyz.x, vertex.xyz.y, DecodeHalf(vertex.st[0]), DecodeHalf(vertex.st[1]),
+                      profile.vertexColor ? Modulate(vertex.color[0], tint.r) : tint.r,
+                      profile.vertexColor ? Modulate(vertex.color[1], tint.g) : tint.g,
+                      profile.vertexColor ? Modulate(vertex.color[2], tint.b) : tint.b,
+                      profile.vertexColor ? Modulate(vertex.color[3], tint.a) : tint.a };
+    return output;
+}
+
+// The shading of a primitive whose vertices share one native color term.
+template <size_t Count>
+ps2::renderer::Shading MakeShading(const DecodedVertex (&vertices)[Count], ps2::renderer::gs::BlendMode blend)
+{
+    ps2::renderer::Shading shading;
+    shading.blend = blend;
+    shading.masked = s_depthMaskKey != nullptr;
+    bool any = false;
+    bool negative = false;
+    bool black = true;
+
+    for (int channel = 0; channel < 3; ++channel)
+    {
+        shading.add[channel] = vertices[0].add[channel];
+        any = any || shading.add[channel] != 0;
+        negative = negative || shading.add[channel] < 0;
+    }
+
+    for (const auto & decoded : vertices)
+    {
+        for (int channel = 0; channel < 3; ++channel)
+        {
+            if (decoded.add[channel] != shading.add[channel])
+            {
+                ps2::renderer::Unavailable("native UI varying additive color");
+            }
+        }
+
+        black = black && decoded.vertex.r == 0 && decoded.vertex.g == 0 && decoded.vertex.b == 0;
+    }
+
+    // A zero color multiply leaves only the additive color, drawn in one constant-color pass.
+    shading.replaceColor = any && black && !negative;
+    return shading;
 }
 
 idDrawVert * Allocate(int vertexCount, const triIndex_t * indexes, int indexCount, const Profile & profile)
@@ -222,7 +397,7 @@ idDrawVert * Allocate(int vertexCount, const triIndex_t * indexes, int indexCoun
     if (s_flushing || vertexCount <= 0 || vertexCount > ps2::ui::kMaxVertices || indexes == nullptr ||
         indexCount <= 0 || indexCount > ps2::ui::kMaxIndexes || indexCount % 3 != 0 ||
         (profile.blend != ps2::renderer::gs::BlendMode::Replace && profile.blend != ps2::renderer::gs::BlendMode::StraightAlpha &&
-         profile.blend != ps2::renderer::gs::BlendMode::AdditiveAlpha))
+         profile.blend != ps2::renderer::gs::BlendMode::AdditiveAlpha && profile.blend != ps2::renderer::gs::BlendMode::Screen))
     {
         ps2::FatalError("invalid native UI indexed request");
     }
@@ -270,8 +445,36 @@ void CountTriangles(u32 count)
     s_geometryStats.triangles += count;
 }
 
+bool HasColorTerm(const ps2::renderer::Shading & shading)
+{
+    return shading.replaceColor || shading.add[0] != 0 || shading.add[1] != 0 || shading.add[2] != 0;
+}
+
+// Screen passes carry the source in alpha; an additive term has no place in that equation.
+void ValidateShading(const ps2::renderer::Shading & shading)
+{
+    if (shading.blend == ps2::renderer::gs::BlendMode::Screen && HasColorTerm(shading))
+    {
+        ps2::renderer::Unavailable("native SWF screen blending with an additive color term");
+    }
+}
+
+// Counts a drawn source primitive's screen blending and additive color term.
+void CountShading(const ps2::renderer::Shading & shading)
+{
+    const bool colorTerm = HasColorTerm(shading);
+
+    if (s_geometryStats.screen == UINT_MAX || s_geometryStats.colorTerms == UINT_MAX)
+    {
+        ps2::FatalError("native UI geometry counter overflow");
+    }
+
+    s_geometryStats.screen += shading.blend == ps2::renderer::gs::BlendMode::Screen ? 1U : 0U;
+    s_geometryStats.colorTerms += colorTerm ? 1U : 0U;
+}
+
 void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
-              ps2::renderer::gs::BlendMode blend, bool emit)
+              const ps2::renderer::Shading & shading, bool emit)
 {
     using namespace ps2::ui;
     FixedTriangle fixed[kMaxClippedTriangles];
@@ -283,13 +486,27 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
         ps2::FatalError("invalid native UI triangle or UV");
     }
 
+    // A screen pass reads one color channel as alpha: white texels, or a paletted channel CLUT.
+    if (shading.blend == ps2::renderer::gs::BlendMode::Screen &&
+        (pages != nullptr ? !pages->SupportsScreen() : image != ps2::renderer::ConsoleWhiteImage()))
+    {
+        ps2::renderer::Unavailable("native SWF screen blending over this image");
+    }
+
+    ValidateShading(shading);
+
+    if (emit)
+    {
+        CountShading(shading);
+    }
+
     // Most text/console geometry has no mask. Keep it on the original page/fixed path.
     if (s_maskCount == 0)
     {
         if (emit && pages != nullptr)
         {
             const u32 before = pages->GetStats().triangles;
-            if (!pages->DrawTriangle(input, blend))
+            if (!pages->DrawTriangle(input, shading))
             {
                 ps2::FatalError("native UI paged triangle failed");
             }
@@ -301,7 +518,7 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
             CountTriangles(static_cast<u32>(fixedCount));
             for (int triangle = 0; triangle < fixedCount; ++triangle)
             {
-                if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], blend))
+                if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading))
                 {
                     ps2::FatalError("native UI triangle texture residency failed");
                 }
@@ -331,7 +548,7 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
             if (emit)
             {
                 const u32 before = pages->GetStats().triangles;
-                if (!pages->DrawTriangle(piece, blend))
+                if (!pages->DrawTriangle(piece, shading))
                 {
                     ps2::FatalError("native UI paged triangle failed");
                 }
@@ -352,13 +569,55 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
                 CountTriangles(static_cast<u32>(fixedCount));
                 for (int triangle = 0; triangle < fixedCount; ++triangle)
                 {
-                    if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], blend))
+                    if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading))
                     {
                         ps2::FatalError("native UI triangle texture residency failed");
                     }
                 }
             }
         }
+    }
+}
+
+void Line(const ps2::ui::Vertex (&input)[2], const ps2::renderer::Shading & shading, bool emit)
+{
+    using namespace ps2::ui;
+    const Viewport viewport{ ps2::renderer::gs::Width(), ps2::renderer::gs::Height() };
+    FixedLine fixed = {};
+
+    // Validate the original segment even when a mask or the screen hides all of it.
+    if (MapLine(input, viewport, fixed) == Result::Invalid)
+    {
+        ps2::FatalError("invalid native UI line");
+    }
+
+    ValidateShading(shading);
+
+    Vertex visible[2] = { input[0], input[1] };
+    bool shown = true;
+
+    if (s_maskCount != 0 && !ClipMaskLine(input, s_masks, s_maskCount, visible, shown))
+    {
+        ps2::FatalError("native UI mask clipping rejects a line");
+    }
+
+    if (!emit || !shown || MapLine(visible, viewport, fixed) != Result::Draw)
+    {
+        return;
+    }
+
+    CountShading(shading);
+
+    if (s_geometryStats.lines == UINT_MAX)
+    {
+        ps2::FatalError("native UI geometry counter overflow");
+    }
+
+    ++s_geometryStats.lines;
+
+    if (!ps2::renderer::LineFixed(fixed, shading))
+    {
+        ps2::FatalError("native UI line submission failed");
     }
 }
 
@@ -397,7 +656,11 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::
         return;
     }
 
-    if (pages != nullptr || s_maskCount != 0)
+    ps2::renderer::Shading shading;
+    shading.blend = blend;
+    shading.masked = s_depthMaskKey != nullptr;
+
+    if (pages != nullptr || s_maskCount != 0 || shading.masked || blend == ps2::renderer::gs::BlendMode::Screen)
     {
         const ps2::ui::Vertex corners[] = {
             { rect.x, rect.y, rect.s0, rect.t0, color.r, color.g, color.b, color.a },
@@ -412,7 +675,7 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::
 
         for (const auto & triangle : triangles)
         {
-            Triangle(triangle, image, blend, false);
+            Triangle(triangle, image, shading, false);
         }
 
         if (result == ps2::ui::Result::Clipped)
@@ -425,7 +688,7 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::
 
         for (const auto & triangle : triangles)
         {
-            Triangle(triangle, image, blend, true);
+            Triangle(triangle, image, shading, true);
         }
 
         return;
@@ -529,7 +792,10 @@ PS2_COLD_FUNC bool Init()
     s_vertices = static_cast<idDrawVert *>(system::heap::TryAlloc(sizeof(idDrawVert) * kMaxVertices, TAG_RENDER, 16));
     s_indexes = static_cast<triIndex_t *>(system::heap::TryAlloc(sizeof(triIndex_t) * kMaxIndexes, TAG_RENDER, 16));
     s_batches = static_cast<Batch *>(system::heap::TryAlloc(sizeof(Batch) * kMaxDraws, TAG_RENDER, 16));
-    if (s_vertices == nullptr || s_indexes == nullptr || s_batches == nullptr || !renderer::InitConsoleImages())
+    s_captureTriangles = static_cast<MaskPoint(*)[3]>(system::heap::TryAlloc(sizeof(MaskPoint[3]) * kMaxCaptureTriangles, TAG_RENDER, 16));
+    s_captureLines = static_cast<MaskPoint(*)[2]>(system::heap::TryAlloc(sizeof(MaskPoint[2]) * kMaxCaptureLines, TAG_RENDER, 16));
+    if (s_vertices == nullptr || s_indexes == nullptr || s_batches == nullptr || s_captureTriangles == nullptr ||
+        s_captureLines == nullptr || !renderer::InitConsoleImages())
     {
         FreeGeometry();
         return false;
@@ -553,7 +819,7 @@ PS2_COLD_FUNC void Shutdown()
     {
         FatalError("native UI shutdown with an open frame");
     }
-    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0)
+    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
     {
         FatalError("native UI shutdown with pending geometry");
     }
@@ -574,7 +840,7 @@ GeometryStats GetGeometryStats()
 void BeginSwfDraw()
 {
     Require(&tr, "native SWF draw scope", true);
-    if (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0)
+    if (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
     {
         FatalError("nested native SWF drawing");
     }
@@ -591,7 +857,7 @@ void EndSwfDraw()
         FatalError("native SWF draw scope not active");
     }
 
-    if (s_captureMask != nullptr || s_maskCount != 0)
+    if (s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
     {
         FatalError("native SWF draw ended with outstanding mask ownership");
     }
@@ -605,7 +871,7 @@ void EndSwfDraw()
 void BeginSwfMask(const void * key)
 {
     Require(&tr, "native SWF mask capture", true);
-    if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr || s_maskCount == kMaxActiveMasks)
+    if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr || key == s_depthMaskKey)
     {
         FatalError("invalid native SWF mask begin");
     }
@@ -620,6 +886,8 @@ void BeginSwfMask(const void * key)
 
     Flush();
     s_maskBuilder.Reset();
+    s_captureTriangleCount = s_captureLineCount = 0;
+    s_captureOverflow = false;
     s_captureMask = key;
 }
 
@@ -632,20 +900,38 @@ void EndSwfMask()
     }
 
     Flush();
-    if (!s_maskBuilder.Finish(s_masks[s_maskCount]))
-    {
-        FatalError("native SWF mask requires bounded convex fill geometry");
-    }
 
-    if (s_geometryStats.masks == UINT_MAX)
+    if (s_geometryStats.masks == UINT_MAX || s_geometryStats.depthMasks == UINT_MAX)
     {
         FatalError("native UI geometry counter overflow");
     }
 
-    s_maskKeys[s_maskCount++] = s_captureMask;
+    // The convex CPU bridge keeps exact geometric clipping; outlines and any other fill topology
+    // become the one depth mask, whose coverage follows the GS rasterization of the native geometry.
+    if (s_captureLineCount == 0 && s_maskCount < kMaxActiveMasks && s_maskBuilder.Finish(s_masks[s_maskCount]))
+    {
+        s_maskKeys[s_maskCount++] = s_captureMask;
+    }
+    else
+    {
+        if (s_depthMaskKey != nullptr)
+        {
+            renderer::Unavailable("nested native SWF depth masks");
+        }
+
+        if (s_captureOverflow)
+        {
+            FatalError("native SWF mask exceeds bounded fill geometry");
+        }
+
+        WriteDepthMask();
+        s_depthMaskKey = s_captureMask;
+        ++s_geometryStats.depthMasks;
+    }
+
     s_captureMask = nullptr;
     ++s_geometryStats.masks;
-    s_geometryStats.peakMasks = Max(s_geometryStats.peakMasks, static_cast<u32>(s_maskCount));
+    s_geometryStats.peakMasks = Max(s_geometryStats.peakMasks, static_cast<u32>(s_maskCount + (s_depthMaskKey != nullptr ? 1 : 0)));
 }
 
 void RemoveSwfMask(const void * key)
@@ -654,6 +940,15 @@ void RemoveSwfMask(const void * key)
     if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr)
     {
         FatalError("invalid native SWF mask removal");
+    }
+
+    if (key == s_depthMaskKey)
+    {
+        // Only this mask wrote depth 0, and only inside its bounds: restore 1 there.
+        Flush();
+        renderer::ClearMask(s_depthBounds[0], s_depthBounds[1], s_depthBounds[2], s_depthBounds[3]);
+        s_depthMaskKey = nullptr;
+        return;
     }
 
     int index = 0;
@@ -680,8 +975,10 @@ void RemoveSwfMask(const void * key)
 
 void ValidateSwfMaskState(int activeMasks, bool capturing)
 {
+    const int active = s_maskCount + (s_depthMaskKey != nullptr ? 1 : 0);
+
     if (!s_swfDraw || s_flushing || capturing != (s_captureMask != nullptr) ||
-        activeMasks != (capturing ? 0 : s_maskCount))
+        activeMasks != (capturing ? 0 : active))
     {
         FatalError("native SWF mask state disagrees with active geometry");
     }
@@ -693,7 +990,7 @@ void BeginGeometryFrame()
     {
         return;
     }
-    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0)
+    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
     {
         FatalError("native UI geometry crossed a frame boundary");
     }
@@ -701,7 +998,7 @@ void BeginGeometryFrame()
 
 void EndGeometryFrame()
 {
-    if (s_initialized && (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0))
+    if (s_initialized && (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr))
     {
         FatalError("native UI frame ended with outstanding SWF ownership");
     }
@@ -753,7 +1050,7 @@ void Flush()
     ++s_geometryStats.flushes;
     if (s_captureMask != nullptr)
     {
-        // Mask fills are coverage, independent of UV/color or existing parent clips.
+        // Mask fills and outlines are coverage, independent of UV/color or existing parent clips.
         for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
         {
             const Batch & batch = s_batches[batchIndex];
@@ -769,7 +1066,7 @@ void Flush()
                 {
                     const int index = s_indexes[batch.firstIndex + first + corner];
                     const auto & position = s_vertices[batch.firstVertex + index].xyz;
-                    if (!PortableFloat(position.z) || position.z != 0.0f)
+                    if (!PortableFloat(position.x) || !PortableFloat(position.y) || !PortableFloat(position.z) || position.z != 0.0f)
                     {
                         FatalError("native SWF mask vertex requires zero depth");
                     }
@@ -777,10 +1074,46 @@ void Flush()
                     points[corner] = { position.x, position.y };
                 }
 
-                if (!s_maskBuilder.AddTriangle(points))
+                // A line-mode triangle covers its edges; the convex bridge takes fills only.
+                if (batch.profile.lines)
                 {
-                    FatalError("native SWF mask exceeds bounded fill geometry");
+                    for (int edge = 0; edge < 3; ++edge)
+                    {
+                        const MaskPoint from = points[edge];
+                        const MaskPoint to = points[(edge + 1) % 3];
+
+                        if (from.x == to.x && from.y == to.y)
+                        {
+                            continue;
+                        }
+
+                        if (s_captureLineCount == kMaxCaptureLines)
+                        {
+                            FatalError("native SWF mask exceeds bounded outline geometry");
+                        }
+
+                        s_captureLines[s_captureLineCount][0] = from;
+                        s_captureLines[s_captureLineCount++][1] = to;
+                    }
+
+                    continue;
                 }
+
+                // A rejected convex capture stays rejected; the depth mask still needs the triangle.
+                (void)s_maskBuilder.AddTriangle(points);
+
+                if (s_captureTriangleCount == kMaxCaptureTriangles)
+                {
+                    s_captureOverflow = true;
+                    continue;
+                }
+
+                for (int corner = 0; corner < 3; ++corner)
+                {
+                    s_captureTriangles[s_captureTriangleCount][corner] = points[corner];
+                }
+
+                ++s_captureTriangleCount;
             }
         }
 
@@ -790,14 +1123,35 @@ void Flush()
 
     const auto Visit = [](const Batch & batch, int first, bool emit)
     {
-        Vertex input[3];
+        DecodedVertex decoded[3];
         for (int corner = 0; corner < 3; ++corner)
         {
             const int index = s_indexes[batch.firstIndex + first + corner];
-            input[corner] = DecodeVertex(s_vertices[batch.firstVertex + index], batch.profile);
+            decoded[corner] = DecodeVertex(s_vertices[batch.firstVertex + index], batch.profile);
         }
 
-        Triangle(input, batch.profile.image, batch.profile.blend, emit);
+        if (batch.profile.lines)
+        {
+            // Native line mode draws all three edges, as GL does: an outline segment arrives as
+            // (a, a, b) and draws a to b in both directions, while its zero-length edge draws nothing.
+            for (int edge = 0; edge < 3; ++edge)
+            {
+                const DecodedVertex ends[2] = { decoded[edge], decoded[(edge + 1) % 3] };
+
+                if (ends[0].vertex.x == ends[1].vertex.x && ends[0].vertex.y == ends[1].vertex.y)
+                {
+                    continue;
+                }
+
+                const Vertex segment[2] = { ends[0].vertex, ends[1].vertex };
+                Line(segment, MakeShading(ends, batch.profile.blend), emit);
+            }
+
+            return;
+        }
+
+        const Vertex input[3] = { decoded[0].vertex, decoded[1].vertex, decoded[2].vertex };
+        Triangle(input, batch.profile.image, MakeShading(decoded, batch.profile.blend), emit);
     };
     // Preflight the complete collection, including clipped-away inputs, before any GS emission.
     for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
@@ -864,11 +1218,6 @@ uint32 idRenderSystemLocal::GetColor()
 void idRenderSystemLocal::SetGLState(uint64 state)
 {
     Require(this, "idRenderSystemLocal::SetGLState");
-    if (s_captureMask != nullptr && (state & GLS_POLYMODE_LINE) != 0)
-    {
-        ps2::FatalError("native SWF stroke masks unavailable");
-    }
-
     (void)Blend(state);
     currentGLState = state;
 }
@@ -941,11 +1290,14 @@ idDrawVert * idRenderSystemLocal::AllocTris(int vertices, const triIndex_t * ind
                                             const idMaterial * material, stereoDepthType_t stereo)
 {
     Require(this, "idRenderSystemLocal::AllocTris", true);
-    if (stereo != STEREO_DEPTH_TYPE_NONE)
+    // Native GUI surfaces sort by stereo depth only with stereoscopic rendering on; mono ignores it.
+    if (stereo != STEREO_DEPTH_TYPE_NONE && stereo != STEREO_DEPTH_TYPE_NEAR && stereo != STEREO_DEPTH_TYPE_MID &&
+        stereo != STEREO_DEPTH_TYPE_FAR)
     {
-        ps2::renderer::Unavailable("native UI stereo depth");
+        ps2::FatalError("invalid native UI stereo depth");
     }
-    if (material == nullptr)
+    // Native SWF shapes can hold empty fill records; their callers skip a null span.
+    if (material == nullptr || (vertices == 0 && count == 0))
     {
         return nullptr;
     }

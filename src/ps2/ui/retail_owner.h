@@ -17,6 +17,8 @@ void AttachOwner(idSWF & movie, unsigned movieIndex);
 // Publish idCommonDialog's constants and the native quit confirmation before the dialog's first frame.
 void ShowQuitDialog(idSWF & movie);
 void DetachOwner(idSWF & movie);
+// The native shell's logo transition (idMenuHandler_Shell::ShowLogo), inside an execution scope.
+void ShowShellLogo(idSWF & movie, bool show);
 bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie);
 void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idSWF * movie);
 void OwnerStatus();

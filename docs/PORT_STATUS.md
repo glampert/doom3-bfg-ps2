@@ -1,9 +1,12 @@
 # Port status and headless acceptance
 
-## Current snapshot — 2026-10-22
+## Current snapshot — 2026-10-23
 
-The port is not playable yet. The latest slices draw the console with the
-[original retail charset](#retail-console-charset-2026-10-22) and the dialog's text from
+The port is not playable yet. The latest slice draws the
+[original shell's start screen in full](#original-shell-drawn-in-full-2d-6-fourth-slice)
+(2026-10-23, debug gates), through new GS paths for SWF outlines, additive color terms,
+screen blending and non-convex masks. Before it, the console moved to the
+[original retail charset](#retail-console-charset-2026-10-22) and the dialog's text to
 [pre-rendered glyphs](#pre-rendered-menu-glyphs-2026-10-22) (both accepted in the debug
 gates on 2026-10-22). Before them, the retail UI moved to
 [resident paletted textures](#paletted-retail-ui-textures-2026-10-21) (2026-10-21), the
@@ -23,16 +26,20 @@ changing their bytes.
 | Retail data boot | Retail `_common`/`_ordered` containers, every declaration folder and the full `doom_main.script` reach `NOMAP` in a 14.5 MB heap arena, with exact shutdown | Leaves about 6.4–6.8 MB for a level; heap levers measured, not applied |
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
-| 2D-6 | Scoped additive blend 8, bounded convex masks, and the original dialog drawn in full with Common's quit message from resident paletted textures, its text from pre-rendered glyphs (debug gates) | Complex/holed/disconnected/stroked masks, screen blend 4, nonzero additive color transforms; the visual pass over the halved first conversion |
-| 2D-7–8 | Not accepted | Shell drawing, native offline menu navigation, physical input and hardware validation |
+| 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
+| 2D-7–8 | Not accepted | The shell's native screens and navigation, physical input and hardware validation |
 
-`ps2_uiRetail dialog quit` draws the complete original dialog; other retail modes still
-show isolated native English labels. Shell drawing and SWF event routing remain gated.
-The dialog now draws from resident paletted textures, its text from pre-rendered
-glyphs, at about 40 ms per debug PCSX2 frame; with streamed RGBA32 pages it took about
-1.6 s. No world rendering or audible playback is implemented.
+`ps2_uiRetail dialog quit` draws the complete original dialog and `ps2_uiRetail draw
+shell` the shell's start screen, with placeholder prompts and labels because no native
+screen runs; other retail modes still show isolated native English labels. SWF event
+routing remains gated. The dialog draws at about 40 ms per debug PCSX2 frame, the shell
+at 100–140 ms. No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-22, debug only) replaced the generated console charset
+The last acceptance (2026-10-23, debug only) passed every debug emulator gate in NTSC and
+PAL with the new draw paths, a 21-probe pass band in the core renderer test, an authored
+draw-features sprite and the new `shell-render` case; see its
+[record](#original-shell-drawn-in-full-2d-6-fourth-slice). The one before (2026-10-22,
+debug only) replaced the generated console charset
 with the retail `textures/bigchars` from the catalog, which every visible package now
 stages; see its [record](#retail-console-charset-2026-10-22). Earlier that day the
 dialog's text moved to glyphs pre-rendered at their exact sizes: the font, movie and
@@ -60,8 +67,8 @@ Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
 and fitting the game into the 32 MiB budget. Its first lever, paletted UI textures,
 passes the debug gates and awaits the user's visual pass; the dialog's text now draws
 from pre-rendered glyphs, whose sizes for other screens are still to be collected; the
-heap levers are measured and not applied. A complete shell frame and responsive offline menu
-navigation follow. Required feature/resource admission precedes each
+heap levers are measured and not applied. The shell's start screen draws in full;
+its native screens and responsive offline menu navigation follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -4104,3 +4111,114 @@ by design; the console's glyphs go through the paged triangle path (two 30-qword
 triangles each, where the intrinsic used one sprite), which the GIF carries easily but a
 sprite path for single-placement images could halve later; the charset's explicit
 material stays unbound, which only matters if native code ever draws `charSetMaterial`.
+
+## Original shell drawn in full (2D-6 fourth slice)
+
+Accepted **2026-10-23, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release builds compile and were not run. The shell's four missing draw features now have
+GS paths, and `ps2_uiRetail draw shell` draws its start screen in full through native
+`idSWF::Render`: the DOOM 3 BFG Edition logo over the animated background, from resident
+paletted textures (the [GS notes](../.claude/rules/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)
+hold the hardware details).
+
+- **Outlines.** Native line records, degenerate `(a, a, b)` triangles in GL line mode,
+  draw as GS LINE primitives along each triangle's edges, in both directions as GL does;
+  the GS draws a line's start pixel and not its end. Lines clip to the screen and to
+  convex masks on the EE.
+- **Color terms.** Color2 decodes as native does (`2 × byte − 255`; 127 and 128 stay
+  zero). An RGB term adds a second pass with fog at full strength, FOGCOL = term + 1,
+  weighted by the source alpha (subtracting for a negative term); with a zero color
+  multiply one fog pass replaces both. Additive alpha terms are refused.
+- **Screen (mode 4).** The shipped PC GL backend ignores `GLS_BLENDOP_SUB`, so the result
+  to match is `Cd + Cd × S`. The GS draws one channel per pass with FBMSK, carrying the
+  source channel in alpha: vertex color into vertex alpha, the texel's through three
+  channel CLUT textures derived from the file's CLUTs when a drawn movie's preflight
+  counts screen placements. White images need none; RGBA pages are refused.
+- **Masks.** Convex masks keep the exact CPU bridge. Any other (concave, holed,
+  disconnected, stroked or above 64 triangles, up to 256 triangles and 192 outline
+  segments) replays into the Z16 buffer, cleared to 1 with each frame: the mask writes
+  0, content inside draws with ZTST GEQUAL at 0, removal writes 1 over its bounds. The GS
+  cannot count stencil levels, so a second non-convex mask is refused.
+- **Depth test.** Every primitive now writes TEST with ZTE 1 (ALWAYS unless masked); the
+  GS manual prohibits ZTE 0, which the UI packets had written.
+- **Shell.** The draw admission refuses only additive alpha terms. `ps2_uiRetail clock
+  fixed` advances executing movies 1/60 s per Common frame from their activation time,
+  `ps2_uiRetail logo on|off` plays what `idMenuHandler_Shell::ShowLogo` plays on leaving
+  the start screen, and empty native fill records (five shell shapes) and stereo depth
+  tags (mono rendering ignores them) are accepted.
+
+**Checks.** The core renderer's indexed scene gains a 21-probe pass band (one- and
+two-pass color terms, half alpha, subtraction, mode 8, screen at two alphas, a concave
+depth mask, its cleared state, a one-line mask, five lines), with expected values from a
+model of every pass's five-bit storage; the two mask failure probes whose cases are now
+drawable became a second depth mask and a 300-triangle mask. The authored SWF gains a
+draw-features sprite (an outlined fill, an additive fill, a screen fill, a two-pass
+additive bitmap with clear holes, a concave L mask and an outline-only mask): 94 pixels
+per capture now. `make test-retail-shell` (case `shell-render`) draws the shell on the
+fixed clock: a 120-frame load and two 30-frame warm reloads, each captured on the start
+screen and 30 frames after the logo transition. It requires the inventory's admission
+(54 masks, 15 outlines, 5 screen and 29 additive placements), rising triangle, mask,
+depth-mask, line, screen and color-term counters, textures equal to the cooked images
+plus 66 channel CLUTs (73,728 bytes), fixed uploads after the first screen pass, exact
+warm releases, full shutdown recovery and pixel-identical warm reload captures. The
+`dialog-blend` negative became `dialog-alpha-add`.
+
+| Shell draw, NTSC = PAL (requested / backing / allocations) | Value |
+| --- | ---: |
+| Loaded, frame 0 | 10,159,135 / 10,836,304 / 15,300 |
+| Start screen after 120 frames | 10,403,639 / 11,102,616 / 15,794 |
+| Every release, cold or warm | 4,751,460 / 4,858,788 / 2,587 |
+| Peak; arena | 10,413,423 / 11,113,892; 11,257,179 |
+
+On the start screen the shell draws about 1,070 triangles and 12 masks a frame (eight of
+them depth masks), with two color-term primitives; after the logo transition, outlines
+(3,406 segments in its first 30 frames) and screen-blended glow join them. A debug PCSX2
+frame takes 100–140 ms with one timeline step per frame (the fixed clock; a session takes
+46 s) and about 330 ms on the real-time clock, which runs up to ten timeline steps per
+frame to keep up. Shell text at sizes without pre-rendered glyphs draws as native quads.
+
+| Debug ledger (NTSC = PAL; requested / backing [/ allocations]) | Retail charset (2026-10-22) | This slice |
+| --- | ---: | ---: |
+| Visible console peak; arena | 2,408,956 / 2,507,416; 2,547,483 | 2,418,704 / 2,517,248; 2,557,275 |
+| Authored UI warm unload | 3,674,447 / 3,775,752 / 2,466 | 3,684,195 / 3,785,584 / 2,468 |
+| Authored UI peak; arena | 3,717,573 / 3,824,948; 3,890,971 | 3,733,225 / 3,842,508; 3,908,955 |
+| Font screen warm | 2,608,786 / 2,713,020 / 2,525 | 2,618,654 / 2,722,948 / 2,527 |
+| Font screen peak; arena | 2,700,984 / 2,805,260; 2,846,491 | 2,710,852 / 2,815,188; 2,856,283 |
+| Dialog at rest | 4,119,832 / 4,258,216 / 3,314 | 4,129,720 / 4,268,160 / 3,316 |
+| Every dialog release | 3,872,532 / 3,978,560 / 2,564 | 3,882,420 / 3,988,504 / 2,566 |
+| Dialog peak; arena | 4,299,498 / 4,404,472; 4,517,659 | 4,309,366 / 4,414,400; 4,527,451 |
+| Inactive movies peak; arena | 6,678,588 / 6,874,724; 6,991,643 | 6,688,496 / 6,884,684; 7,001,435 |
+| Executing shell peak; arena | 10,544,753 / 11,249,264; 11,345,691 | 10,554,685 / 11,259,240; 11,355,483 |
+| Full shutdown | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Every visible run holds two more allocations: `ui::Init`'s mask capture buffers (256
+triangles and 192 segments, 9,216 bytes). The authored movie's draw-features sprite adds
+its dictionary and display entries. Headless runs are unchanged (no presentation).
+Production `PT_LOAD` is 11,205,157 debug / 11,642,981 release bytes (+22,848 / +23,488),
+375 objects and no fixtures; the core test image is 2,177,328 / 2,262,704 bytes.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-renderer` | 19 | `20261023T050343Z_smoke_1a19c2d43f5240b1` to `20261023T050456Z_smoke_fd2ae494d11647e5` |
+| `test-console` | 2 | `20261023T050503Z_console_7226872700a8`, `20261023T050514Z_console_08625f149aa6` |
+| `test-ui` | 14 | `20261023T045325Z_ui_fb35e20e57cf` to `20261023T045504Z_ui_3594273c508c` |
+| `test-retail-ui` | 7 | `20261023T045511Z_retail_0c5e47dfad53` to `20261023T045605Z_retail_c6adf384d5ba` |
+| `test-retail-movies` | 21 | `20261023T045613Z_movies_a68bcaa4f6cc` to `20261023T050211Z_movies_fed8abec2d35` (dialog `20261023T045910Z_movies_9efaeec32903`, `20261023T045923Z_movies_1adbae18ebf6`; shell `20261023T045937Z_movies_6a34c65c87e0`, `20261023T050024Z_movies_c723247f6a24`) |
+| `test-headless` | 2 | `20261023T050221Z_headless_1eb55b78092b`, `20261023T050225Z_headless_1e40fe4cbd88` |
+
+A source edit (a specific refusal for screen blending with a color term) landed while the
+suite ran, so the renderer and console gates were rerun on the final sources; the table
+lists the reruns, and their first runs passed too. The captures were inspected in both standards: the shell's logo, glow and background
+match the PC start screen's composition, the logo transition shows the outline flashes
+and masked reveal, and the renderer band and the authored draw-features sprite show each
+pass as modeled. `make test-host` passes 364 Python regressions plus the C++ harnesses,
+with new tests for line mapping and mask clipping, the pass band and authored content
+models, additive-alpha counting and the shell-render classifier.
+
+Limits: the minimal owner does not run the native screens, so the start screen shows its
+placeholder prompts (`PROMPT` with button icons) and carousel labels; menu navigation,
+the root screen and prompts are the offline-menu gate's. Two non-convex masks at once,
+additive alpha terms and blend modes other than add and screen stay refused. Masked
+coverage follows GS rasterization; overlapping triangles of one mask cover once, where
+the PC stencil would count them twice. Frame cost (every triangle writes its full state
+and reloads its CLUT, outlines draw twice) is unmeasured on hardware.

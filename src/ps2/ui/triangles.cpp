@@ -290,4 +290,86 @@ Result MapTriangle(const Vertex (&input)[3], Viewport viewport, int textureWidth
     return (mappedCount > 0) ? Result::Draw : Result::Clipped;
 }
 
+Result MapLine(const Vertex (&input)[2], Viewport viewport, FixedLine & output)
+{
+    if ((viewport.width < 1) || (viewport.height < 1) ||
+        (viewport.width > kViewportLimit) || (viewport.height > kViewportLimit))
+    {
+        return Result::Invalid;
+    }
+
+    ClipVertex ends[2]{};
+
+    for (int i = 0; i < 2; ++i)
+    {
+        const Vertex & v = input[i];
+
+        if (!ValidCoordinate(v.x) || !ValidCoordinate(v.y))
+        {
+            return Result::Invalid;
+        }
+
+        ends[i] = { v.x, v.y, 0.0f, 0.0f, static_cast<float>(v.r), static_cast<float>(v.g),
+                    static_cast<float>(v.b), static_cast<float>(v.a) };
+    }
+
+    // Liang-Barsky: keep the parameter interval of the segment inside every viewport edge.
+    const float dx = ends[1].x - ends[0].x;
+    const float dy = ends[1].y - ends[0].y;
+    const float deltas[] = { -dx, dx, -dy, dy };
+    const float distances[] = { ends[0].x, kVirtualWidth - ends[0].x, ends[0].y, kVirtualHeight - ends[0].y };
+    float enter = 0.0f;
+    float leave = 1.0f;
+
+    for (int edge = 0; edge < 4; ++edge)
+    {
+        if (deltas[edge] == 0.0f)
+        {
+            if (distances[edge] < 0.0f)
+            {
+                return Result::Clipped;
+            }
+
+            continue;
+        }
+
+        const float fraction = distances[edge] / deltas[edge];
+
+        if (deltas[edge] < 0.0f)
+        {
+            enter = fraction > enter ? fraction : enter;
+        }
+        else
+        {
+            leave = fraction < leave ? fraction : leave;
+        }
+    }
+
+    if (enter > leave)
+    {
+        return Result::Clipped;
+    }
+
+    const auto At = [&ends](float fraction)
+    {
+        const ClipVertex & from = ends[0];
+        const ClipVertex & to = ends[1];
+        return ClipVertex{ Interpolate(from.x, to.x, fraction), Interpolate(from.y, to.y, fraction), 0.0f, 0.0f,
+                           Interpolate(from.r, to.r, fraction), Interpolate(from.g, to.g, fraction),
+                           Interpolate(from.b, to.b, fraction), Interpolate(from.a, to.a, fraction) };
+    };
+    // Unclipped endpoints keep their exact input values.
+    const ClipVertex first = enter > 0.0f ? At(enter) : ends[0];
+    const ClipVertex last = leave < 1.0f ? At(leave) : ends[1];
+    const FixedLine line{ { MapVertex(first, viewport, 1, 1), MapVertex(last, viewport, 1, 1) } };
+
+    if ((line.vertices[0].x == line.vertices[1].x) && (line.vertices[0].y == line.vertices[1].y))
+    {
+        return Result::Clipped;
+    }
+
+    output = line;
+    return Result::Draw;
+}
+
 } // namespace ps2::ui

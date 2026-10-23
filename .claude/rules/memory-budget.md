@@ -6,7 +6,7 @@ the retail boot and UI format measurements are in
 [the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20), and the
 converted textures that replaced retail page streaming in
 [the paletted UI section](#converted-retail-ui-textures-2026-10-20), with the menu
-glyph sets and the console charset added in
+glyph sets, the console charset and the drawn shell added in
 [their own sections](#pre-rendered-menu-glyphs-2026-10-22); current
 aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
 production sizes and live ledgers must not be used as current budgets. Quake figures
@@ -568,3 +568,35 @@ Debug ledgers, NTSC and PAL identical, requested / backing bytes:
 Production `PT_LOAD` is 11,182,309 debug / 11,619,493 release bytes (−1,408 each); the
 core test image, which now carries the charset generator as a fixture, is 2,153,200 /
 2,237,808 bytes (+384 / +384).
+
+## SWF draw features and the drawn shell (2026-10-23)
+
+Outlines, color terms, screen blending and depth masks add no surface or pixel pool:
+masks use the Z16 buffer the device already owned, fog and per-channel passes are GS
+state, and lines are primitives. Two costs remain:
+
+- `ui::Init` allocates the depth-mask capture buffers, 256 triangles and 192 segments of
+  `MaskPoint` (9,216 bytes in two allocations), in every visible run.
+- A drawn movie with screen placements gets three channel CLUT textures laid out like its
+  atlas's CLUT texture: 66 tiles and 73,728 EE bytes for the shell, and 72 KiB of VRAM once
+  the first screen pass binds them (24 KiB each, whole 8 KiB pages).
+
+Debug ledgers, NTSC and PAL identical, requested / backing bytes:
+
+- Visible console peak 2,418,704 / 2,517,248 (was 2,408,956 / 2,507,416), arena
+  2,557,275. Authored UI warm unload 3,684,195 / 3,785,584 / 2,468 (was 3,674,447 /
+  3,775,752 / 2,466), peak 3,733,225 / 3,842,508, arena 3,908,955; the authored
+  draw-features sprite adds its own dictionary entries.
+- Font screen warm 2,618,654 / 2,722,948 / 2,527, peak 2,710,852 / 2,815,188, arena
+  2,856,283. Dialog at rest 4,129,720 / 4,268,160 / 3,316, every release 3,882,420 /
+  3,988,504 / 2,566, peak 4,309,366 / 4,414,400, arena 4,527,451. Inactive movies peak
+  6,688,496 / 6,884,684 (arena 7,001,435); executing shell 10,554,685 / 11,259,240
+  (arena 11,355,483).
+- Drawn shell (fixed clock): loaded 10,159,135 / 10,836,304 / 15,300; on the start screen
+  after 120 frames 10,403,639 / 11,102,616 / 15,794; every release 4,751,460 / 4,858,788 /
+  2,587; peak 10,413,423 / 11,113,892, arena 11,257,179. Its textures: 9 images, 12 pages,
+  30 CLUTs, 1,138,688 pixel and 69,194 metadata bytes, plus the channel CLUTs.
+- Full shutdown still recovers 7,424 / 7,600 / 4; headless runs are unchanged.
+
+Production `PT_LOAD` is 11,205,157 debug / 11,642,981 release bytes (+22,848 / +23,488),
+for the GS passes, lines, depth masks, mask line clipping and the shell controls.

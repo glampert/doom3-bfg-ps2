@@ -64,4 +64,8 @@ private:
 bool ClipMaskTriangle(const Vertex (&input)[3], const ConvexMask * masks, int maskCount,
                       Vertex (&output)[kMaxMaskClipVertices], int & count);
 
+// The part of a segment inside every mask, colors interpolated; UVs are ignored. Inputs follow
+// ClipMaskTriangle's bounds. False rejects invalid input; visible is false for an empty result.
+bool ClipMaskLine(const Vertex (&input)[2], const ConvexMask * masks, int maskCount, Vertex (&output)[2], bool & visible);
+
 } // namespace ps2::ui

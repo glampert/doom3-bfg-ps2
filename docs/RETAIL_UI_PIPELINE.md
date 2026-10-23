@@ -609,12 +609,14 @@ printf 'ps2_uiRetail unload\nquit\n' >> build/debug/ui-retail-movies/console.txt
 
 Drawing is admitted per movie from the target preflight, not by name. Storage
 validation counts shape outline records; execution preflight counts screen-blend
-(mode 4) placements and color transforms with any nonzero additive term. A movie is
-drawable only when all three are zero, since the 2D backend has no stroke, screen or
-additive-color path yet. Masks are admitted and each one still passes the bounded
-convex CPU bridge at draw time. The dialog qualifies with ten masks; the shell's 15
-outlines, five screen-blend and 29 additive placements keep it blocked. The target
-counters match the host inventory for both movies.
+(mode 4) placements, color transforms with any nonzero additive term and those whose
+alpha term is nonzero. Only an additive alpha term refuses drawing: outlines draw as GS
+lines, screen blending in per-channel passes and RGB color terms in a fog-colored second
+pass ([GS notes](../.claude/rules/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)).
+Convex masks clip on the CPU at draw time; any other mask uses the GS depth buffer, one
+at a time. The dialog draws with ten convex masks; the shell has 54 masks, 15 outlines,
+five screen-blend and 29 additive placements. The target counters match the host
+inventory for both movies.
 
 The dialog owner mirrors `idCommonDialog::Init` (the `DIALOG_*` constants) and
 `ShowDialog` for the root menu's quit request: `GDM_QUIT_GAME` as `DIALOG_DYNAMIC`, with
@@ -633,6 +635,36 @@ dialog alone over the dark clear color, without the isolated label screen.
 for its acceptance record, the page-streaming cost of that first slice and memory. With
 converted textures the dialog's pages stay resident, so the case now requires its
 upload count to stay fixed from the first status line through both warm reloads.
+
+## Full original shell drawing
+
+`ps2_uiRetail draw shell` loads the original shell with execution and full drawing,
+attached to the same minimal owner as `execute shell` (the five-slot carousel holding
+only the Doom 3 cover, and the Credits screen's callback). Before its first frame the
+loader gives the shell atlas three channel CLUT textures, since five placements screen
+blend over colored art; fonts and the white image need none.
+
+The owner does not run the native screens, so the frame is the shell's start screen in
+its authored state: the DOOM 3 BFG Edition logo over the animated background, with
+placeholder prompts (`PROMPT` beside the button icons) and carousel labels that the
+native start screen would fill in. `ps2_uiRetail logo on|off` plays what
+`idMenuHandler_Shell::ShowLogo` plays on leaving the start screen (the logo's `rollOn`,
+the background's `rollOff`); that transition draws the logo's twelve outlined shapes and
+its screen-blended glow. `ps2_uiRetail clock fixed` advances an executing movie 1/60 s
+per Common frame from its activation time, so captures at a frame count repeat whatever
+the frame time.
+
+```sh
+printf 'ps2_uiRetail clock fixed\nps2_uiRetail draw shell\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail logo on\n' >> build/debug/ui-retail-movies/console.txt
+```
+
+A debug PCSX2 frame takes 100–140 ms with one timeline step per frame (the fixed clock);
+the real-time clock, which runs up to ten timeline steps per frame to keep up, takes about
+330 ms. The EE builds about 1,070 triangles and a dozen masks per frame, plus the outlines
+during the logo transition. `make test-retail-shell` (also part of `make test-retail-movies`) runs the
+`shell-render` case; see [PORT_STATUS](PORT_STATUS.md) for its acceptance record. Text
+sizes without pre-rendered glyphs still draw as native quads, each size logged once.
 
 ## Page format survey and the first conversion pass
 

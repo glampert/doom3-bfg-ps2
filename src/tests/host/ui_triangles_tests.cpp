@@ -15,13 +15,16 @@
 namespace
 {
 
+using ps2::ui::ClipMaskLine;
 using ps2::ui::ClipMaskTriangle;
 using ps2::ui::ConvexMask;
+using ps2::ui::FixedLine;
 using ps2::ui::FixedTriangle;
 using ps2::ui::FixedVertex;
 using ps2::ui::kMaxClippedTriangles;
 using ps2::ui::kMaxMaskClipVertices;
 using ps2::ui::kMaxMaskTriangles;
+using ps2::ui::MapLine;
 using ps2::ui::MapTriangle;
 using ps2::ui::MaskBuilder;
 using ps2::ui::MaskPoint;
@@ -1008,13 +1011,102 @@ static bool BoundedMaskClips()
                  "all sixty-four clipping planes exercise constraint words beyond bit sixty-three");
 }
 
+static bool Lines()
+{
+    FixedLine output{};
+    const Vertex inside[2] = { { 64.0f, 48.0f, 0.5f, 0.5f, 255, 0, 0, 255 }, { 320.0f, 240.0f, 0.0f, 0.0f, 0, 255, 0, 128 } };
+
+    // NTSC maps 640x480 onto 512x448: x * 0.8, y * 448 / 480, then 1/16 fixed point. UVs are ignored.
+    if (!Check(MapLine(inside, kNtsc, output) == Result::Draw && output.vertices[0].x == 819 && output.vertices[0].y == 717 &&
+                   output.vertices[1].x == 4096 && output.vertices[1].y == 3584 && output.vertices[0].u == 0 &&
+                   output.vertices[1].v == 0 && output.vertices[0].r == 255 && output.vertices[1].a == 128,
+               "line maps endpoints and colors"))
+    {
+        return false;
+    }
+
+    // Each viewport edge clips; the clipped endpoint interpolates color and the inside one is exact.
+    const Vertex crossing[2] = { { -320.0f, 240.0f, 0, 0, 0, 0, 0, 0 }, { 320.0f, 240.0f, 0, 0, 200, 100, 50, 250 } };
+
+    if (!Check(MapLine(crossing, kIdentity, output) == Result::Draw && output.vertices[0].x == 0 && output.vertices[0].y == 3840 &&
+                   output.vertices[0].r == 100 && output.vertices[0].a == 125 && output.vertices[1].x == 5120 && output.vertices[1].r == 200,
+               "line clips at the left edge with interpolated color"))
+    {
+        return false;
+    }
+
+    const Vertex diagonal[2] = { { -100.0f, -100.0f, 0, 0, 0, 0, 0, 0 }, { 740.0f, 580.0f, 0, 0, 255, 255, 255, 255 } };
+
+    // It enters through the top edge at x = 23.53 and leaves through the bottom one at x = 616.47.
+    if (!Check(MapLine(diagonal, kIdentity, output) == Result::Draw && output.vertices[0].y == 0 && output.vertices[0].x >= 375 &&
+                   output.vertices[0].x <= 377 && output.vertices[1].y == 480 * 16 && output.vertices[1].x >= 9863 &&
+                   output.vertices[1].x <= 9865 && output.vertices[0].r == 38 && output.vertices[1].r == 218,
+               "line clips at two edges"))
+    {
+        return false;
+    }
+
+    const FixedLine sentinel{ { kSentinel, kSentinel } };
+    const Vertex outside[2] = { { -10.0f, 10.0f, 0, 0, 0, 0, 0, 0 }, { -1.0f, 400.0f, 0, 0, 0, 0, 0, 0 } };
+    const Vertex point[2] = { { 100.0f, 100.0f, 0, 0, 0, 0, 0, 0 }, { 100.01f, 100.0f, 0, 0, 0, 0, 0, 0 } };
+    const Vertex hostile[2] = { { std::numeric_limits<float>::infinity(), 0.0f, 0, 0, 0, 0, 0, 0 }, { 1.0f, 1.0f, 0, 0, 0, 0, 0, 0 } };
+    const Vertex far[2] = { { 0.0f, 0.0f, 0, 0, 0, 0, 0, 0 }, { 40000.0f, 1.0f, 0, 0, 0, 0, 0, 0 } };
+    const auto Untouched = [&sentinel](const FixedLine & line)
+    {
+        return Equal(line.vertices[0], sentinel.vertices[0]) && Equal(line.vertices[1], sentinel.vertices[1]);
+    };
+
+    output = sentinel;
+    bool passed = Check(MapLine(outside, kIdentity, output) == Result::Clipped && Untouched(output), "line outside the viewport");
+    output = sentinel;
+    passed = Check(MapLine(point, kNtsc, output) == Result::Clipped && Untouched(output), "line without fixed-point length") && passed;
+    output = sentinel;
+    passed = Check(MapLine(hostile, kNtsc, output) == Result::Invalid && Untouched(output), "line rejects infinity") && passed;
+    output = sentinel;
+    passed = Check(MapLine(far, kNtsc, output) == Result::Invalid && Untouched(output), "line coordinate bound") && passed;
+    output = sentinel;
+    return Check(MapLine(inside, { 0, 448 }, output) == Result::Invalid && Untouched(output), "line viewport bound") && passed;
+}
+
+static bool MaskLines()
+{
+    const ConvexMask mask = RectangleMask(100.0f, 100.0f, 200.0f, 200.0f);
+    const Vertex across[2] = { { 50.0f, 150.0f, 0, 0, 0, 0, 0, 0 }, { 250.0f, 150.0f, 0, 0, 200, 100, 0, 200 } };
+    Vertex output[2]{};
+    bool visible = false;
+
+    if (!Check(ClipMaskLine(across, &mask, 1, output, visible) && visible && output[0].x == 100.0f && output[1].x == 200.0f &&
+                   output[0].r == 50 && output[1].r == 150 && output[0].a == 50 && output[1].a == 150,
+               "mask clips both line ends with interpolated color"))
+    {
+        return false;
+    }
+
+    const Vertex inside[2] = { { 120.0f, 120.0f, 0, 0, 1, 2, 3, 4 }, { 180.0f, 190.0f, 0, 0, 5, 6, 7, 8 } };
+
+    if (!Check(ClipMaskLine(inside, &mask, 1, output, visible) && visible && Equal(output[0], inside[0]) && Equal(output[1], inside[1]),
+               "line inside a mask is unchanged"))
+    {
+        return false;
+    }
+
+    const Vertex outside[2] = { { 50.0f, 50.0f, 0, 0, 0, 0, 0, 0 }, { 250.0f, 90.0f, 0, 0, 0, 0, 0, 0 } };
+    const ConvexMask empty{};
+    bool passed = Check(ClipMaskLine(outside, &mask, 1, output, visible) && !visible, "line outside a mask");
+    passed = Check(ClipMaskLine(inside, &empty, 1, output, visible) && !visible, "empty mask hides a line") && passed;
+    passed = Check(ClipMaskLine(inside, nullptr, 0, output, visible) && visible && Equal(output[0], inside[0]), "no mask keeps a line") && passed;
+    const Vertex hostile[2] = { { 1.0f, std::numeric_limits<float>::quiet_NaN(), 0, 0, 0, 0, 0, 0 }, { 1.0f, 1.0f, 0, 0, 0, 0, 0, 0 } };
+    return Check(!ClipMaskLine(hostile, &mask, 1, output, visible), "mask line rejects NaN") &&
+           Check(!ClipMaskLine(inside, &mask, 5, output, visible), "mask line count bound") && passed;
+}
+
 } // namespace
 
 int main()
 {
     return Mapping() && Clipping() && SharedEdges() && Rejections() && FloatEncodings() &&
            BoundedPolygons() && MaskConstruction() && MaskTopologyRejections() && MaskClipping() &&
-           MaskClipRejections() && MaskSharedEdges() && BoundedMaskClips()
+           MaskClipRejections() && MaskSharedEdges() && BoundedMaskClips() && Lines() && MaskLines()
            ? 0
            : 1;
 }

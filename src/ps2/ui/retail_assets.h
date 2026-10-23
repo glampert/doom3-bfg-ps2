@@ -26,6 +26,8 @@ idFile * OpenFont(const FontRecord & font);
 void PrepareMovie(unsigned index, bool execute = false, bool render = false);
 bool MovieExecutionAdmitted();
 bool MovieRenderAdmitted();
+// A drawn movie with screen placements: its atlas needs channel CLUTs before the first frame.
+bool MovieUsesScreenBlending();
 idFile * OpenMovie(const char * logicalPath);
 swf::Summary GetMovieSummary();
 void RegisterMaterials();

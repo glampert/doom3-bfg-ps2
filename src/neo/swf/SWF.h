@@ -91,6 +91,11 @@ public:
 	void EnableResourceExecution();
 	bool IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const;
 	unsigned AdvanceResourceExecution( int time );
+	// [PS2_D3BFG]: A fixed-step test clock starts from the activation time the timeline recorded.
+	int GetResourceClock() const
+	{
+		return lastRenderTime;
+	}
 	// [PS2_D3BFG]: Full drawing is a separate admission; the timeline still advances only through AdvanceResourceExecution.
 	bool IsResourceRender() const
 	{
