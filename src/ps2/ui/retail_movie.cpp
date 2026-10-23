@@ -141,6 +141,12 @@ void ExecutionStatus()
     unsigned depth = 0;
     CountHierarchy(root, 1, sprites, texts, depth);
     ps2::ui::retail::OwnerStatus();
+
+    if (s_menu)
+    {
+        ps2::ui::retail::MenuInputStatus();
+    }
+
     const auto stats = ps2::ui::swf::GetStats();
     ps2::Log(ps2::LogLevel::Info,
              "[D3BFG] RETAIL execution movie=%d ticks=%u root=%u sprites=%u texts=%u instructions=%lu calls=%lu commands=%lu depth=%u native_steps=%u clock=%s\n",
@@ -400,7 +406,7 @@ void Control(const idCmdArgs & args)
 {
     if (!s_initialized || args.Argc() < 2 || args.Argc() > 3)
     {
-        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME, execute NAME, draw shell, dialog quit, menu, signin, clock MODE or logo on|off");
+        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME, execute NAME, draw shell, dialog quit, menu, key NAME, clock MODE or logo on|off");
     }
 
     const char * const action = args.Argv(1);
@@ -454,18 +460,38 @@ void Control(const idCmdArgs & args)
         return;
     }
 
-    if (strcmp(action, "signin") == 0)
+    if (strcmp(action, "key") == 0)
     {
-        // What the start screen's press does for the first local user; the next frame's session
-        // sync moves the menu to its root screen.
-        if (args.Argc() != 2 || !s_menu || ps2::renderer::FrameStarted() ||
-            session->GetSignInManager().GetMasterLocalUser() != nullptr)
+        // Keyboard keys, and the pad buttons a controller driver posts for the PS3 layout.
+        static constexpr struct
         {
-            ps2::FatalError("ps2_uiRetail signin requires the native menu and no local user");
+            const char * name;
+            int code;
+        } kKeys[] = {
+            { "enter", K_ENTER }, { "escape", K_ESCAPE }, { "up", K_UPARROW }, { "down", K_DOWNARROW },
+            { "left", K_LEFTARROW }, { "right", K_RIGHTARROW }, { "cross", K_JOY1 }, { "circle", K_JOY2 },
+            { "dpad_up", K_JOY_DPAD_UP }, { "dpad_down", K_JOY_DPAD_DOWN }, { "dpad_left", K_JOY_DPAD_LEFT },
+            { "dpad_right", K_JOY_DPAD_RIGHT }
+        };
+
+        if (args.Argc() != 3 || !s_menu || console->Active() || ps2::renderer::FrameStarted())
+        {
+            ps2::FatalError("ps2_uiRetail key requires one named key for the native menu with the console closed");
         }
 
-        session->GetSignInManager().RegisterLocalUser(0);
-        return;
+        for (const auto & key : kKeys)
+        {
+            if (strcmp(args.Argv(2), key.name) == 0)
+            {
+                // A press and a release through Common's event loop, which routes them to the menu.
+                Sys_QueEvent(SE_KEY, key.code, 1, 0, nullptr, 0);
+                Sys_QueEvent(SE_KEY, key.code, 0, 0, nullptr, 0);
+                eventLoop->RunEventLoop(false);
+                return;
+            }
+        }
+
+        ps2::FatalError("unknown ps2_uiRetail key: %s", args.Argv(2));
     }
 
     if (strcmp(action, "dialog") == 0)
@@ -592,7 +618,7 @@ void InitScreen()
 
     cmdSystem->AddCommand("ps2_uiRetail", Control, CMD_FL_SYSTEM,
                           "control English resources with load/unload/reload/status, font INDEX, movie NAME, execute NAME, draw shell, "
-                          "dialog quit, menu, signin, clock MODE or logo on|off");
+                          "dialog quit, menu, key NAME, clock MODE or logo on|off");
     s_initialized = true;
 }
 

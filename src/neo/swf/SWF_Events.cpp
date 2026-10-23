@@ -211,11 +211,11 @@ idSWF::HandleEvent
 ===================
 */
 bool idSWF::HandleEvent( const sysEvent_t * event ) {
-	// [PS2_D3BFG]: Inactive retail dictionaries do not admit callbacks or event scripts.
+	// [PS2_D3BFG]: Retail movies take admitted keys only, inside their execution scope.
 #if defined( ID_PS2 )
 	if ( resourceOnly )
 	{
-		idLib::FatalError( "resource-only SWF cannot handle events" );
+		CheckResourceEvent( event );
 	}
 #endif
 	if ( !IsLoaded() || !IsActive() || ( !inhibitControl && useInhibtControl ) ) {
@@ -314,11 +314,19 @@ bool idSWF::HandleEvent( const sysEvent_t * event ) {
 					var = object->Get( "onRelease" );
 				}
 				if ( var.IsFunction() ) {
+					// [PS2_D3BFG]: A retail key reaches only its menu's own native handlers.
+#if defined( ID_PS2 )
+					CheckResourceEventHandler( var.GetFunction() );
+#endif
 					var.GetFunction()->Call( object, eventParms );
 					return true;
 				}
 			} else if ( var.IsFunction() ) {
 				if ( event->evValue2 ) {
+					// [PS2_D3BFG]: A retail key reaches only its menu's own native handlers.
+#if defined( ID_PS2 )
+					CheckResourceEventHandler( var.GetFunction() );
+#endif
 					// anonymous functions only respond to key down events
 					var.GetFunction()->Call( NULL, eventParms );
 					return true;

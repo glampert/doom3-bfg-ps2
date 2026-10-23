@@ -2,10 +2,13 @@
 
 ## Current snapshot — 2026-10-23
 
-The port is not playable yet. The latest slice hands the shell to the
-[native menu handler](#native-shell-menu-start-and-root-screens-2026-10-23) (2026-10-23,
-debug gates): the original `idMenuHandler_Shell` drives the start screen and, after
-sign-in, the root menu. The one before drew the shell start screen's text from
+The port is not playable yet. The latest slice routes
+[key events to the native menu](#native-shell-menu-key-input-2026-10-23) (2026-10-23,
+debug gates): injected keyboard keys and pad buttons sign in, move the root menu's focus
+and return to press-start through the game's own event code. The one before handed the
+shell to the [native menu handler](#native-shell-menu-start-and-root-screens-2026-10-23):
+the original `idMenuHandler_Shell` drives the start screen and the root menu. The one
+before that drew the shell start screen's text from
 [pre-rendered glyphs](#shell-text-sizes-and-glyph-rectangles-2026-10-23), with glyph
 entries that carry their own page rectangles. Earlier that day the port drew the
 [original shell's start screen in full](#original-shell-drawn-in-full-2d-6-fourth-slice)
@@ -32,23 +35,24 @@ changing their bytes.
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
-| 2D-7–8 | The native shell handler drives the start and root screens (debug gates) | Menu input and navigation, the quit dialog through Common, the other screens, physical input and hardware validation |
+| 2D-7–8 | The native shell handler drives the start and root screens from injected keyboard and pad key events (debug gates) | The quit dialog through Common, the other screens, opening at boot, physical keyboard/pad input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog and `ps2_uiRetail draw
 shell` the shell's start screen, with placeholder prompts and labels because no native
 screen runs. `ps2_uiRetail menu` runs the native shell handler instead: its start screen
-and, after `ps2_uiRetail signin`, its root menu, with PlayStation-style prompts. Other
-retail modes still show isolated native English labels. SWF event routing remains
-gated. The dialog draws at about 40 ms per debug PCSX2 frame, the shell at 100–140 ms.
+and root menu, with PlayStation-style prompts, which `ps2_uiRetail key NAME` drives with
+keyboard keys and pad buttons. Other retail modes still show isolated native English
+labels and take no events. The dialog draws at about 40 ms per debug PCSX2 frame, the shell at 100–140 ms.
 No world rendering or audible playback is implemented.
 
 The last acceptance (2026-10-23, debug only) passed the console, font, retail movie,
-authored UI, headless, game and map gates with the native shell handler and the new
-`menu-render` case in NTSC and PAL; see its
-[record](#native-shell-menu-start-and-root-screens-2026-10-23). The one before added the
+authored UI, headless, game and map gates (60 cases) with key-driven menu captures in
+NTSC and PAL; see its [record](#native-shell-menu-key-input-2026-10-23). The one before
+passed them with the native shell handler and the new `menu-render` case; see its
+[record](#native-shell-menu-start-and-root-screens-2026-10-23). The one before that added the
 start screen's four text sizes per standard, with no unrendered size left on the start
-screen; see its [record](#shell-text-sizes-and-glyph-rectangles-2026-10-23). The one
-before that (2026-10-23, debug only) passed every debug emulator gate in NTSC and
+screen; see its [record](#shell-text-sizes-and-glyph-rectangles-2026-10-23). Earlier
+that day (debug only), another passed every debug emulator gate in NTSC and
 PAL with the new draw paths, a 21-probe pass band in the core renderer test, an authored
 draw-features sprite and the new `shell-render` case; see its
 [record](#original-shell-drawn-in-full-2d-6-fourth-slice). The one before (2026-10-22,
@@ -81,8 +85,8 @@ and fitting the game into the 32 MiB budget. Its first lever, paletted UI textur
 passes the debug gates and awaits the user's visual pass; the dialog's and the start
 screen's text draws from pre-rendered glyphs, whose sizes for later screens are still to
 be collected; the heap levers are measured and not applied. The native shell handler
-draws the start and root screens; menu input, the quit dialog and the other screens
-follow. Required feature/resource admission precedes each
+draws the start and root screens and takes injected key events; the quit dialog, the
+other screens and physical keyboard/pad input follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -4401,3 +4405,80 @@ Limits: no input reaches the menu yet (SWF HandleEvent stays fatal for retail mo
 Common's dialog movie and fails explicitly, and Campaign and Settings have no bound
 screens yet. A hidden menu cannot be shown again (no admitted screen hides it). The menu
 opens from the harness command, not yet at boot.
+
+## Native shell menu: key input (2026-10-23)
+
+Accepted **2026-10-23, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release builds compile and were not run. Key events now drive the native shell menu
+through Common's event loop, as on PC: accept signs in and shows the root screen, the
+arrows move its focus and back returns to press-start
+([pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu)).
+
+- **Routing.** Common's PS2 `ProcessEvent` gives each event to the console, then the
+  authored movie, then the menu. `ProcessMenuEvent` mirrors `MenuEvent`: the sign-in
+  manager, then `Shell_HandleGuiEvent`, inside the shell's execution scope.
+- **Admission.** Key events are a fourth admission on a retail `idSWF`, after execution
+  and drawing; only the native menu enables it. `HandleEvent` takes `SE_KEY` keyboard and
+  pad keys and refuses pointer, text and axis events and the `useFunction`, `waitInput`
+  and `focusWindow` globals. Shortcut keys and their objects are script data, so each
+  native handler a key reaches must be a `WrapWidgetSWFEvent` (a checked query on a new
+  `idSWFScriptFunction` type root) whose target is one of the handler's live widgets,
+  compared as pointers; script handlers run under the scope's budgets. Native
+  `GetChildFromIndex` accepts `Num()` as an index, so the walk uses a tagged child count.
+- **Controls.** `ps2_uiRetail key NAME` posts a press and release: keyboard `enter`,
+  `escape` and the arrows, or pad `cross`, `circle` and `dpad_*`, which the native
+  shortcut table maps to the same handlers. It replaces `ps2_uiRetail signin`. The menu's
+  status adds the root's focus and the events it received and handled.
+- **Limits.** A move into an unbound screen (Campaign, Settings) fails as `shell
+  capability unavailable: screen N` instead of leaving the menu empty; the root's Quit
+  reaches Common's dialog manager, which fails until the dialog movie is admitted.
+
+**Checks.** `make test-retail-menu` now drives each load with keys: the start screen,
+the root screen 90 frames after accept, Credits focused 30 frames after two downs and
+the start screen 90 frames after back. Keyboard keys drive the first load and pad
+buttons the warm reloads. Each capture requires the handler's screen, session and root
+focus (0/PRESS_START/0, 1/IDLE/0, 1/IDLE/2, 0/PRESS_START/2) and the menu's event counts
+(0/0, 2/1, 6/5, 8/6 received/handled: a released command bar button has no handler, a
+scroll handles both halves), besides the earlier drawing, texture, release and pixel
+checks. A key issued in the frame of a `ps2_capture` runs before that frame draws, so a
+frame separates each capture from the next key. A session takes about 115 s. Host tests
+add focus and event-count mutations and compare all four warm reload captures.
+
+The captures were inspected: Campaign focused with its help line, Credits focused with
+"The creators of Doom 3", and the press-start carousel after back, in both standards.
+
+| Debug ledger (NTSC = PAL; requested / backing [/ allocations]) | Start and root screens (2026-10-23) | This slice |
+| --- | ---: | ---: |
+| Visible console peak; arena | 2,429,342 / 2,527,888; 2,567,955 | 2,429,342 / 2,527,888; 2,565,267 |
+| Authored UI warm unload | 3,694,884 / 3,796,272 / 2,468 | 3,694,886 / 3,796,272 / 2,468 |
+| Font screen warm | 2,674,467 / 2,779,248 / 2,536 | 2,674,469 / 2,779,248 / 2,536 |
+| Dialog at rest | 4,185,525 / 4,324,460 / 3,325 | 4,185,527 / 4,324,460 / 3,325 |
+| Shell on the start screen | 10,459,452 / 11,158,932 / 15,803 | 10,459,454 / 11,158,932 / 15,803 |
+| Shell release | 4,807,273 / 4,915,104 / 2,596 | 4,807,275 / 4,915,104 / 2,596 |
+| Menu opened (frame 0) | 10,315,824 / 10,998,684 / 15,429 | 10,315,826 / 10,998,684 / 15,429 |
+| Menu start screen after 120 frames | 10,572,164 / 11,278,728 / 15,970 | 10,572,166 / 11,278,728 / 15,970 |
+| Menu root screen after sign-in (accept) | 10,589,084 / 11,298,280 / 16,030 | 10,589,086 / 11,298,280 / 16,030 |
+| Menu root with Credits focused | — | 10,586,030 / 11,294,768 / 16,020 |
+| Menu start screen after back | — | 10,590,374 / 11,298,860 / 16,013 |
+| Menu release | 4,807,273 / 4,915,104 / 2,596 | 4,807,239 / 4,915,028 / 2,595 |
+| Menu peak; arena | 10,599,180 / 11,310,272; 11,464,467 | 10,615,030 / 11,328,688; 11,478,163 |
+| Full shutdown | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The `ps2_uiRetail` help text adds two requested bytes to every retail screen. The menu
+now releases one allocation (36 requested bytes) below the drawn shell: back signs the
+local user out (`MoveToPressStart` shuts the sign-in manager down), while the drawn shell
+keeps the user signed in at startup, and the earlier stand-in sign-in left one registered.
+
+Production `PT_LOAD` is 11,258,733 debug / 11,707,757 release bytes (+2,688 / +2,560),
+379 objects and no fixtures; the core test image is unchanged at 2,177,840 / 2,263,216
+bytes. `make test-host` passes 367 tests.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-console` | 2 | `20261023T124711Z_console_579d248e6dc7`, `20261023T124723Z_console_1bb48583040a` |
+| `test-retail-ui` | 7 | `20261023T124739Z_retail_c9834b0c5086` to `20261023T124831Z_retail_6bf3b32ca5fe` |
+| `test-retail-movies` | 23 | `20261023T124840Z_movies_9cbc45c6f385` to `20261023T125811Z_movies_9e89d3962259` (menu `20261023T125332Z_movies_d05641f85538`, `20261023T125524Z_movies_08460ae35790`; shell `20261023T125201Z_movies_04754a3c8721`, `20261023T125246Z_movies_2b3efcd3033a`; dialog `20261023T125135Z_movies_10630a7a6d8a`, `20261023T125148Z_movies_bcc02644a8a5`) |
+| `test-ui` | 14 | `20261023T125822Z_ui_c26e7e8e293a` to `20261023T125957Z_ui_01dada232dd2` |
+| `test-headless` | 2 | `20261023T130006Z_headless_e90b8782f39a`, `20261023T130010Z_headless_d4b039cf31ef` |
+| `test-game` | 11 | `20261023T130022Z_smoke_f169739490b24dc6` to `20261023T130051Z_smoke_4d06bc4fc1f44e2c` |
+| `test-map` | 1 | `20261023T130059Z_smoke_a232632d38874f20` |

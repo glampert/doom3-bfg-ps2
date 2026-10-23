@@ -181,16 +181,23 @@
   screens, so placeholder prompts and labels show: compare captures with the menu's
   expected state, not the PC's interactive one.
 - `make test-retail-menu` (case `menu-render`, also part of `test-retail-movies`) opens the
-  menu through the native shell handler (`ps2_uiRetail menu`) on the fixed clock: one
-  120-frame load and two 30-frame warm reloads. Each load captures the start screen,
-  signs in (`ps2_uiRetail signin`) and captures the root screen 90 frames later. Each
-  capture needs the handler's screen and session (0 and PRESS_START, then 1 and IDLE),
-  platform 1 and five admitted callbacks, plus the shell's draw admission, textures and
-  channel CLUTs, rising draw counters, zero evictions and fixed uploads. No `UI glyph
-  size` line may appear. Warm releases must match, shutdown must recover the full
-  ledger and both warm reloads' captures must match pixel for pixel. A session takes
-  about 70 s within its 300 s timeout. The retail carousel items lack a `sel_up` frame,
-  so each load logs four native warnings; they are expected.
+  menu through the native shell handler (`ps2_uiRetail menu`) on the fixed clock and drives
+  it with key events (`ps2_uiRetail key NAME`): one 120-frame load and two 30-frame warm
+  reloads. Each load captures the start screen (a), presses accept and captures the root
+  screen 90 frames later (b), presses down twice and captures Credits focused 30 frames
+  later (c), then presses back and captures the start screen 90 frames later (d). The
+  first load uses keyboard keys (enter, down, escape), the warm reloads pad buttons
+  (cross, dpad_down, circle). Each capture needs the handler's screen, session and root
+  focus (0/PRESS_START/0, 1/IDLE/0, 1/IDLE/2, 0/PRESS_START/2), platform 1, five admitted
+  callbacks and exact menu event counts (0/0, 2/1, 6/5, 8/6 received/handled: a released
+  button has no handler, a scroll handles both halves), plus the shell's draw admission,
+  textures and channel CLUTs, rising draw counters, zero evictions and fixed uploads. No
+  `UI glyph size` line may appear. Warm releases must match, shutdown must recover the full
+  ledger and both warm reloads' captures must match pixel for pixel. A key issued in the
+  frame of a `ps2_capture` runs before that frame draws, so `wait 1` separates each capture
+  from the next key. A session takes about 115 s within its 300 s timeout. The retail
+  carousel items lack a `sel_up` frame, so native code warns on each load and focus
+  change; the warnings are expected.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

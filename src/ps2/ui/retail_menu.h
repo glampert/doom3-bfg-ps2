@@ -8,6 +8,7 @@
 
 class idMenuHandler;
 class idSWF;
+struct sysEvent_t;
 
 namespace ps2::ui::retail
 {
@@ -21,9 +22,13 @@ idSWF * OpenMenu();
 void UpdateMenu();
 // Releases the handler's widgets, screens and movie, outside any frame.
 void CloseMenu();
+// idCommonLocal::MenuEvent for the open menu, inside its movie's execution scope; false without one.
+bool ProcessMenuEvent(const sysEvent_t * event);
+// Logs the events the open menu received and handled.
+void MenuInputStatus();
 
 // Called by the native menu handlers: open only the admitted shell, and start or stop its checked
-// execution and drawing once the handler's callbacks exist.
+// execution, drawing and key events once the handler's callbacks exist.
 idSWF * CreateMenuMovie(const char * name);
 void ActivateMenuMovie(idMenuHandler & handler, bool show);
 } // namespace ps2::ui::retail

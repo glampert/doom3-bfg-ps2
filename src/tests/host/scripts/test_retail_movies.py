@@ -239,7 +239,7 @@ class MovieResourcesTests(unittest.TestCase):
 
     def shell_render_log(self, manifest, menu=False):
         swf = manifest["swfs"]["generated/swf/shell.bswf"]
-        phases, gap = (runner.MENU_RENDER_PHASES, runner.MENU_ROOT_GAP) if menu else (runner.SHELL_RENDER_PHASES, runner.SHELL_LOGO_GAP)
+        phases = runner.MENU_RENDER_PHASES if menu else runner.SHELL_RENDER_PHASES
         features = swf["features"]
         images = runner.shell_images(manifest)
         counters = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
@@ -252,13 +252,17 @@ class MovieResourcesTests(unittest.TestCase):
         for name, frames in phases:
             log += (f"RETAIL drawable movie=0 masks={features['masks']} strokes={features['strokes']} "
                     f"screen_blends={runner.screen_placements(swf)} additive_colors={features['color_add']}\n")
-            for suffix, waited, commands in (("a", frames, 7), ("b", frames + gap, 9)):
+            waited = frames
+            for index, (suffix, gap) in enumerate(runner.capture_gaps(phases).items()):
+                waited += gap
+                commands = 7 + 2 * index
                 frame += frames if suffix == "a" else gap
                 work += 1000
                 # Outlines and the screen glow draw only once the logo has rolled on.
-                rolled += 1000 if suffix == "b" else 0
-                owner = (("RETAIL menu screen=0 next=0 session=PRESS_START" if suffix == "a" else
-                          "RETAIL menu screen=1 next=1 session=IDLE") + " platform=1 callbacks=5\n" if menu else
+                rolled += 1000 if suffix != "a" else 0
+                owner = (("RETAIL menu screen={} next={} session={} platform={} callbacks={} root_focus={}\n"
+                          .format(*runner.MENU_SCREENS[suffix]) +
+                          "RETAIL menu input events={} handled={}\n".format(*runner.MENU_INPUTS[suffix])) if menu else
                          "RETAIL owner screen=0 next=0 carousel_items=1 carousel_slots=5 carousel_view=0 credits=1 "
                          f"callbacks=2 logo={1 if suffix == 'b' else 0}\n")
                 log += (f"RETAIL movie=0 state=loaded frames={waited} dictionary={len(swf['dictionary'])} "
@@ -310,17 +314,20 @@ class MovieResourcesTests(unittest.TestCase):
             with self.subTest(changed=changed):
                 self.assertFalse(accepted(changed))
 
-    def test_menu_render_requires_the_start_then_root_screen_and_prerendered_text(self):
+    def test_menu_render_requires_key_driven_screens_focus_and_prerendered_text(self):
         manifest = self.label_manifest()
         log = self.shell_render_log(manifest, menu=True)
         verdict = lambda text: runner.classify_shell_render(text, "run", "ntsc", manifest, self.source, menu=True)
-        self.assertEqual(verdict(log), (True, "native shell handler drew the start and root screens through the admitted movie"))
+        self.assertEqual(verdict(log), (True, "native shell handler drew its start and root screens, driven by keyboard and pad keys"))
         # The scaffold owner's rows cannot stand in for the native handler's, and the reverse.
         self.assertFalse(runner.classify_shell_render(log, "run", "ntsc", manifest, self.source)[0])
         self.assertFalse(verdict(self.shell_render_log(manifest))[0])
         for changed in (log.replace("screen=0 next=0 session=PRESS_START", "screen=1 next=1 session=PRESS_START", 1),
                         replace_last(log, "session=IDLE", "session=PRESS_START"),
                         log.replace("platform=1", "platform=2", 1), log.replace("callbacks=5", "callbacks=4", 1),
+                        log.replace("root_focus=2", "root_focus=1", 1), replace_last(log, "root_focus=0", "root_focus=3"),
+                        log.replace("events=2 handled=1", "events=2 handled=2", 1),
+                        replace_last(log, "events=8 handled=6", "events=10 handled=7"),
                         log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.30000,0.35000 stroke=2.000 "
                                     "prerendered=no\nrun_done"),
                         replace_last(log, "RETAIL drawable movie=0", "RETAIL undrawable movie=0"),
@@ -353,11 +360,11 @@ class MovieResourcesTests(unittest.TestCase):
 
         # The native menu's phases compare their own warm reloads.
         for name in runner.render_capture_names(runner.MENU_RENDER_PHASES):
-            pixels = bytes(changed) if name == "movie-menu3-b.tga" else detailed
+            pixels = bytes(changed) if name == "movie-menu3-d.tga" else detailed
             bgr = bytearray(pixels)
             bgr[0::3], bgr[2::3] = pixels[2::3], pixels[0::3]
             (self.source / name).write_bytes(header + bgr)
-        with self.assertRaisesRegex(ValueError, r"warm reloads differ .*\(b\)"):
+        with self.assertRaisesRegex(ValueError, r"warm reloads differ .*\(d\)"):
             runner.verify_shell_render_captures(self.source, "ntsc", runner.MENU_RENDER_PHASES)
 
     def test_final_capture_requires_complete_native_dimensions_and_a_readable_file(self):

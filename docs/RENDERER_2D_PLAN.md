@@ -166,9 +166,12 @@ spend a texture placement per bitmap
 **The native shell menu draws its start and root screens on 2026-10-23.** The original
 `idMenuHandler_Shell`, with its press-start and root screens, owns the admitted shell
 movie: the start screen shows the Doom 3 cover with a PlayStation-style SELECT prompt,
-and after sign-in the root screen lists Campaign, Settings, Credits and Quit. Input
-routing, the quit dialog through Common's dialog manager and the other screens come
-next. See the [pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu) and the
+and after sign-in the root screen lists Campaign, Settings, Credits and Quit. Key events
+drive it through Common's event loop: accept signs in, the arrows move the root's focus
+and back returns to press-start, from injected keyboard keys and pad buttons
+([record](PORT_STATUS.md#native-shell-menu-key-input-2026-10-23)). The quit dialog
+through Common's dialog manager and the other screens come next. See the
+[pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu) and the
 [acceptance record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23).
 
 ### Next selected work
@@ -554,13 +557,15 @@ localization explicitly, gate optional music/sample lookups while playback stays
 and keep save enumeration, leaderboards, online lobbies and Classic switching unavailable.
 
 Route focus/select/back/console events through native menu/console handling before
-considering pad/keyboard polling. Production currently routes events to the console
-and selected authored movie; retail full-movie event handling remains gated. Console closing/reopening now tolerates the absence of a mouse in
+considering pad/keyboard polling. Production routes events to the console, the selected
+authored movie and then the native shell menu; other retail movies take no events. Console closing/reopening now tolerates the absence of a mouse in
 production; test capability probes keep their explicit unsupported failures. HostFs
 commands deliver bounded ASCII and named native keys without introducing a physical
 input device. No desktop window, rumble or player user-command sampling is needed.
 Reuse Q: `input/pad.*` / `keyboard.*` only when the visual/input contracts are stable,
-adapting their events and IOP/module dependencies.
+adapting their events and IOP/module dependencies. Keep Q's keyboard polling policy: an
+idle keyboard is read every 250 ms and a busy one every frame, because each read is an
+IOP file round trip.
 
 ## Memory and frame ownership
 

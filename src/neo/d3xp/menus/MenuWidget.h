@@ -372,11 +372,19 @@ public:
 	*/
 	class WrapWidgetSWFEvent : public idSWFScriptFunction_RefCounted {
 	public:
+		// [PS2_D3BFG]: A retail key may reach only the event wrappers of its menu's live widgets.
+		PS2_TYPE_DERIVED( WrapWidgetSWFEvent, idSWFScriptFunction_RefCounted )
 		WrapWidgetSWFEvent( idMenuWidget * widget, const widgetEvent_t event, const int eventArg ) :
 			targetWidget( widget ),
 			targetEvent( event ),
 			targetEventArg( eventArg ) {
 		}
+#if defined( ID_PS2 )
+		const idMenuWidget * GetTargetWidget() const
+		{
+			return targetWidget;
+		}
+#endif
 
 		idSWFScriptVar Call( idSWFScriptObject * thisObject, const idSWFParmList & parms ) {
 				targetWidget->ReceiveEvent( idWidgetEvent( targetEvent, targetEventArg, thisObject, parms ) );

@@ -109,7 +109,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   isolated English text layout. `make test-retail-movies` checks native storage/layout,
   warm reloads, resident textures, full cleanup and malformed resources in both standards.
   Resource-only constructors never run imported AVM1/placements; inactive inspection
-  rejects Activate and timeline advancement; HandleEvent remains fatal. Native
+  rejects Activate and timeline advancement; only the native menu admits key events. Native
   dictionary shutdown releases retained localization keys/pools after movies/fonts.
   `ps2_uiRetail execute shell|dialog` separately admits placement/AVM1 operands and
   executes native timelines before presentation, without full movie drawing or event routing.
@@ -124,11 +124,16 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   native shell's logo transition and `ps2_uiRetail clock fixed` advances executing movies
   1/60 s per Common frame. `make test-retail-dialog` and `make test-retail-shell` check
   them. `ps2_uiRetail menu` opens the menu through the native `idMenuHandler_Shell`
-  (start, root and credits screens bound; PS3 platform layout) and `ps2_uiRetail signin`
-  signs in the first user, moving it from the start screen to the root screen;
-  `make test-retail-menu` checks it. Converted pages stay resident: a debug PCSX2 frame takes about 60 ms for the
-  dialog and 100–140 ms for the shell on the fixed clock. Menu input routing, the quit
-  dialog, the other screens, dynamic resources and artwork residency remain pending.
+  (start, root and credits screens bound; PS3 platform layout). Common routes events the
+  console and authored movie leave to it, as `MenuEvent` does; key events are a fourth
+  admission, and each native handler a key reaches must be a widget event of the menu's
+  own live widgets. `ps2_uiRetail key NAME` posts a keyboard key (enter, escape, arrows)
+  or pad button (cross, circle, dpad_*) through the event loop: accept signs in and shows
+  the root screen, the arrows move its focus and back returns to press-start. A move into
+  an unbound screen (Campaign, Settings) fails by name. `make test-retail-menu` checks it.
+  Converted pages stay resident: a debug PCSX2 frame takes about 60 ms for the
+  dialog and 100–140 ms for the shell on the fixed clock. The quit dialog, the other
+  screens, physical keyboard/pad input, dynamic resources and artwork residency remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex

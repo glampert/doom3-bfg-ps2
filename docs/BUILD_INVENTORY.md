@@ -72,8 +72,8 @@ execution now build on that layer. Production retains **379 direct inputs** and 
 compile database has **405 entries**. The native shell handler, its press-start and root
 screens and the original Credits unit drive the shell menu; the minimal retail owner
 remains for the timeline and full-draw test modes. The original dialog and the shell's
-start and root screens draw in full; input routing, the quit dialog and the other shell
-screens remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
+start and root screens draw in full, and key events drive the menu; the quit dialog and
+the other shell screens remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
 
 `make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.

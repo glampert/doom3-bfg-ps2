@@ -21,6 +21,9 @@ namespace
 // Borrowed from the shell handler, which deletes it.
 static idSWF * s_movie = nullptr;
 static bool s_opening = false;
+// Events the open menu received from Common, and those its handler reported handled.
+static u32 s_events = 0;
+static u32 s_handled = 0;
 } // namespace
 
 namespace ps2::ui::retail
@@ -39,6 +42,8 @@ idSWF * OpenMenu()
     }
 
     swf::ResetStats();
+    s_events = 0;
+    s_handled = 0;
     s_opening = true;
     ::game->Shell_CreateMenu(false);
 
@@ -85,6 +90,41 @@ void CloseMenu()
     s_movie = nullptr;
 }
 
+bool ProcessMenuEvent(const sysEvent_t * event)
+{
+    if (s_movie == nullptr)
+    {
+        return false;
+    }
+
+    if (s_opening || event == nullptr || renderer::FrameStarted() || s_events == UINT_MAX)
+    {
+        FatalError("native menu event outside an idle presentation");
+    }
+
+    ++s_events;
+
+    // idCommonLocal::MenuEvent: the sign-in manager sees every event first, then the active shell.
+    if (::session->GetSignInManager().ProcessInputEvent(event))
+    {
+        ++s_handled;
+        return true;
+    }
+
+    const swf::ExecutionScope scope("shell");
+    const bool handled = ::game->Shell_IsActive() && ::game->Shell_HandleGuiEvent(event);
+    s_handled += handled ? 1U : 0U;
+    return handled;
+}
+
+void MenuInputStatus()
+{
+    if (s_movie != nullptr)
+    {
+        Log(LogLevel::Info, "[D3BFG] RETAIL menu input events=%u handled=%u\n", s_events, s_handled);
+    }
+}
+
 idSWF * CreateMenuMovie(const char * name)
 {
     if (!s_opening || s_movie != nullptr || name == nullptr || idStr::Cmp(name, "shell") != 0)
@@ -119,10 +159,12 @@ void ActivateMenuMovie(idMenuHandler & handler, bool show)
         FatalError("native menu re-activation unavailable");
     }
 
-    // The handler installed its callbacks; admit them, then start the checked execution and drawing.
+    // The handler installed its callbacks; admit them, then start the checked execution, drawing and
+    // key events.
     AttachMenu(handler);
     movie->EnableResourceExecution();
     movie->EnableResourceRender();
+    movie->EnableResourceEvents();
 
     // Native idSWF names its atlas material after the binary movie; screen passes need its
     // per-channel CLUTs before the first frame.

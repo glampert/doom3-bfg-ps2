@@ -168,6 +168,12 @@ void idMenuHandler_Shell::Update() {
 				menuScreens[ nextScreen ]->UpdateCmds();
 				menuScreens[ nextScreen ]->ShowScreen( static_cast<mainMenuTransition_t>(transition) );			
 			}
+			// [PS2_D3BFG]: A screen outside the reviewed shell fails by name instead of leaving the menu empty.
+#if defined( ID_PS2 )
+			else {
+				idLib::FatalError( "shell capability unavailable: screen %d", nextScreen );
+			}
+#endif
 		}
 
 		transition = MENU_TRANSITION_INVALID;

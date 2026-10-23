@@ -102,6 +102,12 @@ public:
 		return resourceRender;
 	}
 	void EnableResourceRender();
+	// [PS2_D3BFG]: Key events are a fourth admission, after drawing, for the movie of a native menu.
+	bool IsResourceEvents() const
+	{
+		return resourceEvents;
+	}
+	void EnableResourceEvents();
 #else
 	idSWF( const char * filename, idSoundWorld * soundWorld = NULL );
 #endif
@@ -172,6 +178,10 @@ private:
 	bool resourceExecution;
 	// [PS2_D3BFG]: Retail movies draw only after the profile admits their complete draw features.
 	bool resourceRender;
+	// [PS2_D3BFG]: Retail movies take keys only once their native menu admits them.
+	bool resourceEvents;
+	void CheckResourceEvent( const sysEvent_t * event );
+	void CheckResourceEventHandler( idSWFScriptFunction * function );
 #endif
 	idStr			filename;
 	ID_TIME_T		timestamp;

@@ -88,8 +88,8 @@ math path; PS2-specific math replacement headers are a later milestone.
   the first frame. Inactive inspection performs storage preflight only. `execute
   shell|dialog` adds placement/AVM1 preflight and explicit `EnableResourceExecution`
   permission under a checked execution scope, allowing native timeline advancement and
-  minimal widget callbacks. Full Render needs the separate draw admission below;
-  HandleEvent remains fatal. Never clear `resourceOnly` to bypass missing
+  minimal widget callbacks. Full Render needs the separate draw admission below, and
+  HandleEvent the native menu's event admission. Never clear `resourceOnly` to bypass missing
   drawing/resource admission. See the scoped execution rules later in this file.
 - The original BSWF timestamp refers to an unstaged source SWF. Resource-only loading
   uses its preflighted immutable identity, without requiring that source timestamp;
@@ -547,7 +547,7 @@ math path; PS2-specific math replacement headers are a later milestone.
 ## Scoped retail execution
 
 - Retail origin and permission to execute are separate: a resource-only `idSWF` still
-  rejects HandleEvent after timeline admission, and Render until draw admission.
+  rejects HandleEvent until event admission, and Render until draw admission.
   Construction stays inactive; real widget callbacks must be installed before explicit
   activation. Advance once per Common frame before GS submission; synchronous redraws
   preserve movie time.
@@ -555,8 +555,16 @@ math path; PS2-specific math replacement headers are a later milestone.
   preflight refuses only additive alpha terms now (outlines, screen blends, RGB color
   terms and masks have draw paths; see the GS notes). Native `Render` then only draws a
   retail movie, without running frames, inside a draw scope plus an execution scope that
-  bounds any reachable script work. HandleEvent stays fatal. Both the dialog and the
-  shell qualify.
+  bounds any reachable script work. Both the dialog and the shell qualify.
+- Key events are a fourth admission, `EnableResourceEvents`, after drawing; only the
+  native menu enables it. `HandleEvent` then takes `SE_KEY` keyboard and pad keys inside
+  the movie's execution scope and refuses pointer, text and axis events and any
+  `useFunction`, `waitInput` or `focusWindow` global. Shortcut keys and the objects they
+  name are script data, so a native handler a key reaches must be a `WrapWidgetSWFEvent`
+  (checked query on the `idSWFScriptFunction` root) whose target is one of the menu
+  handler's live widgets, compared as pointers before anything dereferences it; script
+  handlers run under the scope's budgets. Native `idMenuHandler::GetChildFromIndex`
+  accepts `Num()` as an index, so the walk uses a tagged child count.
 - Retail `guis.mtr` defines `guiSolid` as blend/colored/map `_white`/clamp, identical
   to the implicit `_white` definition. GUI surfaces evaluate `colored` with all-one
   shader parameters (`GuiModel.cpp`) and force vertex-color modulation
@@ -612,10 +620,21 @@ math path; PS2-specific math replacement headers are a later milestone.
   prompt image sprites carry Xbox, PlayStation and PC frames). The root menu omits the
   development map list and multiplayer; the start screen's carousel holds Doom 3 alone,
   and pressing it signs in or opens the root screen.
+- Common's PS2 `ProcessEvent` gives the console, then the authored movie, then the menu
+  each event; `ProcessMenuEvent` mirrors `MenuEvent` (the sign-in manager, then
+  `Shell_HandleGuiEvent`) inside the shell's execution scope. The command bar binds
+  ENTER/JOY1 to accept and ESCAPE/BACKSPACE/JOY2 to back; `UpdateCmds` binds the arrows
+  and the native `shortcutKeys.clear` table aliases the D-pad to them. A released command
+  bar button has no `onRelease`, so accept and back handle only their press; scroll
+  buttons handle both halves. The root's back moves the session to press-start, which
+  signs the user out; the next accept signs in again. `idMenuHandler_Shell::Update` fails
+  `shell capability unavailable: screen N` for a transition into an unbound screen
+  (Campaign 3, Settings 13) instead of leaving the menu empty; the root's Quit reaches
+  Common's dialog, which fails until its movie exists.
 - Native widget callbacks, carousel and credits refreshes included, run under the same
   execution scope and seek checks as timeline scripts. The carousel's buttons ask for a
   `sel_up` frame that the retail movie's carousel items do not have, so native code
-  warns four times per load; the warning comes from the original data, not the port.
+  warns on each load and focus change; the warning comes from the original data, not the port.
 
 ## Native edit-text drawing
 

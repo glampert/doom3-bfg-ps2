@@ -32,6 +32,8 @@ If you have questions concerning this license or the applicable additional terms
 #if defined( ID_PS2 )
 #include "ps2/ui/swf_runtime.h"
 #endif
+// [PS2_D3BFG]: Checked queries identify native event handlers without compiler RTTI.
+#include "ps2/type_query.h"
 
 /*
 ========================
@@ -40,6 +42,8 @@ Interface for calling functions from script
 */
 class idSWFScriptFunction {
 public:
+	// [PS2_D3BFG]: Preserve checked hierarchy queries without compiler RTTI.
+	PS2_TYPE_ROOT( idSWFScriptFunction )
 	virtual ~idSWFScriptFunction() {};
 	// [PS2_D3BFG]: Distinguish imported script calls from native services without RTTI.
 #if defined( ID_PS2 )

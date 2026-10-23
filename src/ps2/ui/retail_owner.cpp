@@ -17,6 +17,9 @@
 namespace
 {
 static constexpr int kVisibleCarouselItems = 5;
+// The shell handler's widgets and bound screens hold about thirty widgets, two levels deep.
+static constexpr unsigned kMaxWidgetDepth = 8;
+static constexpr unsigned kMaxWidgets = 1024;
 static constexpr char kDoom3Cover[] = "guis/assets/mainmenu/doom3_cover";
 // The native callbacks the shell handler and its start, root and credits screens install.
 static constexpr const char * kMenuCallbacks[] = { "updateMenuDisplay", "activateMenus", "closeMenu", "refreshCarousel", "updateCredits" };
@@ -31,6 +34,37 @@ idSWFScriptVar PinCallback(idSWF & movie, const char * name)
     }
 
     return function;
+}
+
+// Compares pointers only, so a wrapper whose widget no longer exists is never dereferenced.
+bool ContainsWidget(const idMenuWidget * widget, const idMenuWidget * target, unsigned depth, unsigned & visited)
+{
+    if (widget == nullptr)
+    {
+        return false;
+    }
+
+    if (depth > kMaxWidgetDepth || ++visited > kMaxWidgets)
+    {
+        ps2::FatalError("retail menu widget tree exceeds admitted limits");
+    }
+
+    if (widget == target)
+    {
+        return true;
+    }
+
+    const auto & children = widget->GetChildren();
+
+    for (int index = 0; index < children.Num(); ++index)
+    {
+        if (ContainsWidget(children[index], target, depth + 1, visited))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // A carousel refresh rebinds its item sprites, and seeks the options sprite while it moves; a
@@ -232,6 +266,39 @@ public:
         return false;
     }
 
+    // Native widgets bind wrappers of their own events to shortcut keys and button objects; any other
+    // native function there was put by a script.
+    bool OwnsEventHandler(const idSWFScriptFunction * function)
+    {
+        const auto * const wrapper = ps2::CheckedCast<const idMenuWidget::WrapWidgetSWFEvent *>(function);
+
+        if (wrapper == nullptr)
+        {
+            return false;
+        }
+
+        const idMenuWidget * const target = wrapper->GetTargetWidget();
+        unsigned visited = 0;
+
+        for (int index = 0; index < m_handler.GetNumChildren(); ++index)
+        {
+            if (ContainsWidget(m_handler.GetChildFromIndex(index), target, 0, visited))
+            {
+                return true;
+            }
+        }
+
+        for (int area = 0; area < SHELL_NUM_AREAS; ++area)
+        {
+            if (ContainsWidget(m_handler.GetMenuScreen(area), target, 0, visited))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing)
     {
         const int active = m_handler.ActiveScreen();
@@ -241,9 +308,10 @@ public:
 
     void PrintStatus()
     {
-        ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL menu screen=%d next=%d session=%s platform=%d callbacks=%d\n",
+        auto * const root = ps2::CheckedCast<idMenuScreen_Shell_Root *>(m_handler.GetMenuScreen(SHELL_AREA_ROOT));
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL menu screen=%d next=%d session=%s platform=%d callbacks=%d root_focus=%d\n",
                  m_handler.ActiveScreen(), m_handler.NextScreen(), session->GetStateString(), m_handler.GetPlatform(),
-                 ps2::ArrayLength(kMenuCallbacks));
+                 ps2::ArrayLength(kMenuCallbacks), root != nullptr ? root->GetRootIndex() : -1);
     }
 
 private:
@@ -481,6 +549,11 @@ bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, co
     return (s_owner != nullptr && s_owner->OwnsCallback(name, function, movie)) ||
            (s_dialog != nullptr && s_dialog->OwnsCallback(name, function, movie)) ||
            (s_menu != nullptr && s_menu->OwnsCallback(name, function, movie));
+}
+
+bool IsEventHandler(const idSWFScriptFunction * function, const idSWF * movie)
+{
+    return s_menu != nullptr && movie == &s_menu->Movie() && function != nullptr && s_menu->OwnsEventHandler(function);
 }
 
 void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idSWF * movie)

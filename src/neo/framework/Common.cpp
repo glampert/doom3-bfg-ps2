@@ -49,6 +49,7 @@ If you have questions concerning this license or the applicable additional terms
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
 #include "ps2/system/runtime.h"
 #include "ps2/ui/movie.h"
+#include "ps2/ui/retail_menu.h"
 #endif
 // [PS2_D3BFG]: Match the static game export's C linkage.
 extern "C" gameExport_t * GetGameAPI( gameImport_t * import );
@@ -1584,9 +1585,11 @@ idCommonLocal::ProcessEvent
 ===============
 */
 bool idCommonLocal::ProcessEvent( const sysEvent_t *event ) {
-	// [PS2_D3BFG]: The console has priority over the scoped native SWF; retail menus remain deferred.
+	// [PS2_D3BFG]: The console has priority over the scoped native SWF, then the native shell menu
+	// takes the rest as MenuEvent passes it on; in-game, dialog and binding routes remain deferred.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	return console->ProcessEvent( event, false ) || ps2::ui::authored::ProcessEvent( event );
+	return console->ProcessEvent( event, false ) || ps2::ui::authored::ProcessEvent( event ) ||
+		ps2::ui::retail::ProcessMenuEvent( event );
 #endif
 	// hitting escape anywhere brings up the menu
 	if ( game && game->IsInGame() ) {

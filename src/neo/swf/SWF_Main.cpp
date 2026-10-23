@@ -60,6 +60,7 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_, bool resourceO
 	// [PS2_D3BFG]: Construction never executes or draws retail content before explicit admission.
 	resourceExecution = false;
 	resourceRender = false;
+	resourceEvents = false;
 #else
 idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 #endif
@@ -394,6 +395,54 @@ void idSWF::EnableResourceRender()
 	}
 
 	resourceRender = true;
+}
+
+// [PS2_D3BFG]: Only a native menu routes keys to its movie, once the movie executes and draws.
+void idSWF::EnableResourceEvents()
+{
+	if ( !resourceOnly || !resourceExecution || !resourceRender || resourceEvents || !ps2::ui::swf::Active() )
+	{
+		idLib::FatalError( "retail SWF events require an executing, drawn movie" );
+	}
+
+	resourceEvents = true;
+}
+
+// [PS2_D3BFG]: The admitted profile takes keyboard and pad keys inside the movie's execution scope.
+// Pointer, text and axis events, and the use-binding, wait-input and text-focus handlers they would
+// reach, are not part of it.
+void idSWF::CheckResourceEvent( const sysEvent_t * event )
+{
+	if ( !resourceEvents || !ps2::ui::swf::Active() )
+	{
+		idLib::FatalError( "resource-only SWF cannot handle events" );
+	}
+
+	if ( event->evType != SE_KEY || event->evValue < 0 || event->evValue >= K_MOUSE1 )
+	{
+		idLib::FatalError( "retail SWF event unavailable: type %d value %d", static_cast<int>( event->evType ), event->evValue );
+	}
+
+	static const char * const unavailable[] = { "useFunction", "waitInput", "focusWindow" };
+	for ( const char * name : unavailable )
+	{
+		const idSWFScriptVar handler = globals->Get( name );
+		if ( handler.IsFunction() || handler.IsObject() )
+		{
+			idLib::FatalError( "retail SWF event handler unavailable: %s", name );
+		}
+	}
+}
+
+// [PS2_D3BFG]: Shortcut keys and their objects are script data. A script handler runs under the
+// scope's budgets; a native one must be a widget event of the movie's own menu, so no script can
+// bind another native service to a key.
+void idSWF::CheckResourceEventHandler( idSWFScriptFunction * function )
+{
+	if ( resourceOnly && !function->IsScript() && !ps2::ui::retail::IsEventHandler( function, this ) )
+	{
+		idLib::FatalError( "retail SWF event handler identity unavailable" );
+	}
 }
 #endif
 

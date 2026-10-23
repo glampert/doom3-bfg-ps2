@@ -251,6 +251,10 @@ public:
 	virtual idSWF *			GetGUI() { return gui; }
 	virtual void			AddChild( idMenuWidget * widget );
 	virtual idMenuWidget *	GetChildFromIndex( int index );
+	// [PS2_D3BFG]: Retail event admission walks the live widgets; GetChildFromIndex accepts Num() itself.
+#if defined( ID_PS2 )
+	int						GetNumChildren() const { return children.Num(); }
+#endif
 	virtual int				GetPlatform( bool realPlatform = false );
 	virtual void			PlaySound( menuSounds_t type, int channel = -1 );
 	virtual void			StopSound( int channel = SCHANNEL_ANY );

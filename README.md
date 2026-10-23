@@ -7,7 +7,8 @@ Doom 3 campaign on the PS2.
 **The port is not playable yet.** It currently boots into a developer console, loads
 the original game's definitions and scripts, and can display test interfaces, text
 from the original game, the original quit dialog and the main menu's start and root
-screens, drawn and driven by the game's own interface code. A host tool converts the original interface art into compact paletted
+screens, drawn and driven by the game's own interface code; the menu can be navigated
+with key presses sent from the development computer. A host tool converts the original interface art into compact paletted
 textures that stay in the PS2's graphics memory. Gameplay systems are being brought up
 with small test maps before moving on to the full campaign.
 

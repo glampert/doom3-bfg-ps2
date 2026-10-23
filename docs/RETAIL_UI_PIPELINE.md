@@ -6,8 +6,8 @@ profiles. Documentation reviewed **2026-10-23**, with runtime evidence through
 timelines can load and execute through separate admission profiles. The original dialog
 and the shell's start screen draw in full through a third one, their text from
 [pre-rendered glyphs](#pre-rendered-glyphs), and the native shell handler drives the
-[start and root screens](#native-shell-menu). Shell event routing, the quit dialog and
-the other menu screens are not admitted.
+[start and root screens](#native-shell-menu) from key events. The quit dialog and the
+other menu screens are not admitted.
 
 Retail artwork and fonts are converted to paletted, RLE-compressed **GSTX** textures by
 the host tool `asset_reexport`; the target keeps each open image's pages resident instead
@@ -540,7 +540,8 @@ the existing native PC platform value.
 
 The opt-in execution path uses the original shell/dialog bytes, native sprite hierarchy
 and native AVM1 interpreter. It retains the resource-only rendering boundary: full
-movie drawing, movie event routing and the complete Shell handler remain unavailable.
+movie drawing, movie event routing and the complete Shell handler are separate admissions
+(see the drawn movies and the [native shell menu](#native-shell-menu) below).
 English is the only locale. The inspection screen still draws the three isolated native
 edit-text records, rather than pretending that an incomplete movie is fully rendered.
 
@@ -692,21 +693,31 @@ handler with the session and runs its update before the timeline advances.
   Credits and Quit (no development map list or multiplayer).
 - **Platform.** Handlers and movies report platform 1, the PS3 face-button layout: the
   command bar shows the PlayStation cross and circle with SELECT and BACK.
-- **Sign-in.** `ps2_uiRetail signin` does what the start screen's press does for the
-  first local user; the next session sync moves the handler to the root screen.
+- **Input.** Common routes each event the console and authored movie leave to the menu,
+  as `MenuEvent` does, inside the shell's execution scope. `ps2_uiRetail key NAME` posts a
+  press and release through the event loop: keyboard `enter`, `escape`, arrows, or pad
+  `cross`, `circle`, `dpad_*`. Accept on the start screen signs in the first local user and
+  the next session sync shows the root screen; the arrows move its focus (the help line
+  follows) and back returns to press-start, signing out. Campaign and Settings fail by
+  name (their screens are not bound) and Quit fails in Common's dialog manager.
 - **Admission.** The movie is the admitted shell with execution and drawing, as for
-  `draw shell`. Its native callbacks (`updateMenuDisplay`, `activateMenus`, `closeMenu`,
-  `refreshCarousel`, `updateCredits`) are pinned by identity before execution starts.
-  Common's dialog manager answers queries; adding a dialog still fails explicitly.
+  `draw shell`, plus key events, a fourth admission. Its native callbacks
+  (`updateMenuDisplay`, `activateMenus`, `closeMenu`, `refreshCarousel`, `updateCredits`)
+  are pinned by identity before execution starts. Events admit keyboard and pad keys only,
+  and every native handler a key reaches must be a widget event of one of the handler's
+  live widgets. Common's dialog manager answers queries; adding a dialog still fails
+  explicitly.
 - **Text.** The root screen adds Sarasori at heights 18 and 10 with a 2.0 outline (its
   options and help line); with them, no `UI glyph size` line appears on either screen.
 
 `make test-retail-menu` (also part of `make test-retail-movies`) runs the `menu-render`
-case: a 120-frame load and two 30-frame warm reloads, each captured on the start screen
-and 90 frames after sign-in on the root screen. It requires the handler's screen,
-session, platform and callbacks at each capture, no unrendered text size, the shell's
-draw admission, textures and channel CLUTs, exact warm releases, full shutdown recovery
-and pixel-identical warm reload captures. See [PORT_STATUS](PORT_STATUS.md) for its
+case: a 120-frame load and two 30-frame warm reloads, each captured on the start screen,
+on the root screen 90 frames after accept, with Credits focused 30 frames after two downs
+and on the start screen 90 frames after back. Keyboard keys drive the first load and pad
+buttons the warm reloads. It requires the handler's screen, session, root focus,
+platform, callbacks and event counts at each capture, no unrendered text size, the
+shell's draw admission, textures and channel CLUTs, exact warm releases, full shutdown
+recovery and pixel-identical warm reload captures. See [PORT_STATUS](PORT_STATUS.md) for its
 acceptance record.
 
 ## Page format survey and the first conversion pass

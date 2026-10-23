@@ -1,8 +1,9 @@
 # Agent handover
 
-Reviewed **2026-10-22, Australia/Sydney**, after the full-dialog slice, the first
-memory budget measurements, the paletted UI conversion and the pre-rendered menu
-glyphs with their debug emulator acceptance, against the current source manifests.
+Reviewed **2026-10-23, Australia/Sydney**, after the full-dialog slice, the first
+memory budget measurements, the paletted UI conversion, the pre-rendered menu glyphs,
+the fully drawn shell and the native shell menu with its key input, each with its debug
+emulator acceptance, against the current source manifests.
 This is a continuation guide; [AGENTS.md](../AGENTS.md) supplies the coding, build and
 Git rules. Runtime evidence remains in [PORT_STATUS.md](PORT_STATUS.md).
 
@@ -50,9 +51,10 @@ for each feature.
 | Authored SWF | Native loading, fonts, timeline/AVM1 focus/select, additive blend 8, screen blend 4, color terms, outlines, convex and depth masks, shared pages | Exact generated asset admission; no retail-menu claim |
 | Retail fonts | Five English families, native legacy metrics and resident paletted textures | Font/resource screen only |
 | Retail movie inspection | Original shell/dialog dictionaries, full English dictionary and isolated native edit-text layout | Inactive imported timelines |
-| Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; HandleEvent remains fatal |
+| Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; no events |
 | Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs | About 40 ms per debug PCSX2 frame; choices fail explicitly |
 | Retail shell drawing | Native `Render` of the original shell's start screen: outlines, color terms, screen blends, depth masks; the native logo transition on request | 100–140 ms per debug PCSX2 frame on the fixed clock; placeholder prompts and labels; no navigation |
+| Native shell menu | `idMenuHandler_Shell` with its start, root and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start | Quit dialog, Campaign/Settings screens, physical keyboard/pad, opening at boot |
 | Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | 13.5 MB of heap backing before any map; no retail map or in-game UI yet |
 
 Recent implementation commits are the full-dialog slice (2026-10-20), `dd04ab0` (scoped
@@ -153,18 +155,24 @@ Open items, roughly in order:
 Started 2026-10-23: the native `idMenuHandler_Shell`, with its press-start, root and
 credits screens, owns the admitted shell (`ps2_uiRetail menu`, `make test-retail-menu`;
 [record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23)). Handlers
-and movies use platform 1, the PS3 layout. Next, in order:
+and movies use platform 1, the PS3 layout. Key events reach it through Common's event
+loop (`ps2_uiRetail key NAME`; [record](PORT_STATUS.md#native-shell-menu-key-input-2026-10-23)):
+accept signs in, the arrows move the root's focus and back returns to press-start.
+Next, in order:
 
-- **Input routing.** Admit SWF key events for the menu (HandleEvent is still fatal for
-  retail movies) and route Common's events to `game->Shell_HandleGuiEvent`, so the start
-  screen's press, root navigation and back work from HostFs keys first.
 - **Quit dialog.** Initialize Common's dialog manager with the admitted dialog movie
   (`idCommonDialog::Init` opens `dialog` and `save_indicator`), so the root's Quit opens
   the native confirmation and its choices route back.
 - **Production startup.** Open the menu from the visible presentation at boot, as
   `CreateMainMenu` does, instead of only through the harness.
 - **Other screens.** Credits is already bound; Campaign and Settings come next. Enable
-  each deferred screen as a reviewed subset, with its text sizes cooked.
+  each deferred screen as a reviewed subset, with its text sizes cooked. A move into an
+  unbound screen fails by name until then.
+- **Keyboard and pad.** Post the same events from the devices. For the debug USB keyboard
+  follow `quake2-ps2`'s `src/ps2/input/keyboard.cpp`: ps2kbd raw non-blocking reads, polled
+  every 250 ms while idle and every frame only while a key is held or within 10 s of the
+  last key, with capped reads per frame. Each read is an IOP file round trip, so polling
+  every frame has a real cost on hardware.
 
 The minimal owner of the older harness modes borrows a five-slot carousel with only the
 admitted Doom 3 cover and the native Credits callback. Avoid enabling all deferred

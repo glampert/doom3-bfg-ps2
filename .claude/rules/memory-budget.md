@@ -661,3 +661,22 @@ Debug ledgers, NTSC and PAL identical, requested / backing bytes:
 Production `PT_LOAD` is 11,256,045 debug / 11,705,197 release bytes (+51,016 / +62,216),
 for the shell handler, its two screens and the menu module; the core test image is
 2,177,840 / 2,263,216 bytes.
+
+## Native shell menu key input (2026-10-23)
+
+Key routing adds no buffers: events go through Common's existing queue, and the event
+admission walks the handler's live widgets (about thirty) without allocating. The
+`ps2_uiRetail` help text grows by two bytes on every retail screen. Debug ledgers, NTSC
+and PAL identical, requested / backing / allocations:
+
+- Menu opened 10,315,826 / 10,998,684 / 15,429; start screen after 120 frames 10,572,166 /
+  11,278,728 / 15,970; root after accept 10,589,086 / 11,298,280 / 16,030; Credits focused
+  10,586,030 / 11,294,768 / 16,020; start screen after back 10,590,374 / 11,298,860 /
+  16,013; peak 10,615,030 / 11,328,688, arena 11,478,163.
+- The menu releases to 4,807,239 / 4,915,028 / 2,595, one 36-byte allocation below the
+  drawn shell's 4,807,275 / 4,915,104 / 2,596: back signs the local user out, and the
+  drawn shell keeps the user signed in at startup.
+- Full shutdown still recovers 7,424 / 7,600 / 4; the font, authored UI, dialog and shell
+  screens move by those two bytes.
+
+Production `PT_LOAD` is 11,258,733 debug / 11,707,757 release bytes (+2,688 / +2,560).
