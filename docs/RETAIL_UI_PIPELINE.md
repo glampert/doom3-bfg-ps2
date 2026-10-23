@@ -6,8 +6,8 @@ profiles. Documentation reviewed **2026-10-23**, with runtime evidence through
 timelines can load and execute through separate admission profiles. The original dialog
 and the shell's start screen draw in full through a third one, their text from
 [pre-rendered glyphs](#pre-rendered-glyphs), and the native shell handler drives the
-[start and root screens](#native-shell-menu) from key events. The quit dialog and the
-other menu screens are not admitted.
+[start and root screens](#native-shell-menu) from key events, with Common's quit
+confirmation. The other menu screens are not admitted.
 
 Retail artwork and fonts are converted to paletted, RLE-compressed **GSTX** textures by
 the host tool `asset_reexport`; the target keeps each open image's pages resident instead
@@ -605,7 +605,8 @@ all 32 source probes remain required.
 These checks cover the selected initial states and owners. They do not establish
 general AVM1 lifetime safety: copied text aliases and raw function/default-sprite
 references retain upstream limitations. General dynamic path closure, active artwork
-residency, masks/blends and PressStart → Root → Quit navigation remain later gates.
+residency and masks/blends remained later gates; the native shell menu below now
+drives PressStart → Root → Quit.
 
 ## Full original dialog drawing
 
@@ -699,14 +700,23 @@ handler with the session and runs its update before the timeline advances.
   `cross`, `circle`, `dpad_*`. Accept on the start screen signs in the first local user and
   the next session sync shows the root screen; the arrows move its focus (the help line
   follows) and back returns to press-start, signing out. Campaign and Settings fail by
-  name (their screens are not bound) and Quit fails in Common's dialog manager.
+  name (their screens are not bound).
+- **Quit.** The menu initializes Common's dialog manager, which opens the admitted dialog
+  movie inactive beside the shell. The root's Quit shows the native confirmation over the
+  menu; while shown, the dialog takes every event first. Its options take focus left to
+  right (dpad or arrows) and accept selects the focused one: Cancel closes the dialog,
+  Change Game returns to press-start and Accept quits the game through Common. The
+  manager's update runs before the GS frame; the presentation advances and draws the
+  dialog after the shell. The dialog's `<JOY1>` prompt still prints as text, since the
+  controller prompt icons are not cooked yet.
 - **Admission.** The movie is the admitted shell with execution and drawing, as for
   `draw shell`, plus key events, a fourth admission. Its native callbacks
   (`updateMenuDisplay`, `activateMenus`, `closeMenu`, `refreshCarousel`, `updateCredits`)
   are pinned by identity before execution starts. Events admit keyboard and pad keys only,
   and every native handler a key reaches must be a widget event of one of the handler's
-  live widgets. Common's dialog manager answers queries; adding a dialog still fails
-  explicitly.
+  live widgets. Admission is per movie, so the dialog's runs alongside: execution, drawing
+  and events, admitted while it is inactive. The choices each shown dialog installs are
+  pinned by identity, and the movie calls them through copies in its button properties.
 - **Text.** The root screen adds Sarasori at heights 18 and 10 with a 2.0 outline (its
   options and help line); with them, no `UI glyph size` line appears on either screen.
 
@@ -717,8 +727,9 @@ and on the start screen 90 frames after back. Keyboard keys drive the first load
 buttons the warm reloads. It requires the handler's screen, session, root focus,
 platform, callbacks and event counts at each capture, no unrendered text size, the
 shell's draw admission, textures and channel CLUTs, exact warm releases, full shutdown
-recovery and pixel-identical warm reload captures. See [PORT_STATUS](PORT_STATUS.md) for its
-acceptance record.
+recovery and pixel-identical warm reload captures. The `menu-quit` case then opens the
+quit confirmation from the root, cancels it, opens it again and accepts it, which ends the
+session through Common. See [PORT_STATUS](PORT_STATUS.md) for the acceptance records.
 
 ## Page format survey and the first conversion pass
 

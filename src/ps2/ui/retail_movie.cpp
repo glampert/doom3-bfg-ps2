@@ -74,6 +74,7 @@ void CloseResourceMovie()
     }
 
     s_resourceMovie = nullptr;
+    ps2::ui::retail::ClearMovieClock();
     s_movieIndex = -1;
     s_executionTicks = 0;
     s_nativeSteps = 0;
@@ -175,7 +176,7 @@ void Status()
 
     if (s_resourceMovie != nullptr)
     {
-        const auto summary = ps2::ui::retail::GetMovieSummary();
+        const auto summary = ps2::ui::retail::GetMovieSummary(s_movieIndex);
         ps2::Log(ps2::LogLevel::Info,
                  "[D3BFG] RETAIL movie=%d state=loaded frames=%u dictionary=%lu texts=%lu preview=%lu english=%d scripts=%s heap=%zu/%zu/%zu\n",
                  s_movieIndex, s_frames, static_cast<unsigned long>(summary.dictionary),
@@ -309,7 +310,7 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
     CloseResourceMovie();
     ps2::ui::retail::PrepareMovie(index, execute, present);
     s_resourceMovie = new (TAG_SWF) idSWF(index == 0 ? "shell" : "dialog", nullptr, true);
-    const auto summary = ps2::ui::retail::GetMovieSummary();
+    const auto summary = ps2::ui::retail::GetMovieSummary(static_cast<int>(index));
     auto * const entry = s_resourceMovie->GetDictionaryEntry(static_cast<int>(summary.previewText));
 
     if (!s_resourceMovie->IsLoaded() || entry->type != SWF_DICT_EDITTEXT || entry->edittext == nullptr)
@@ -362,7 +363,7 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
 
         // Native idSWF names its atlas material after the binary movie; screen passes need its
         // per-channel CLUTs before the first frame.
-        if (ps2::ui::retail::MovieUsesScreenBlending())
+        if (ps2::ui::retail::MovieUsesScreenBlending(static_cast<int>(index)))
         {
             const idMaterial * const atlas = declManager->FindMaterial(index == 0 ? "generated/swf/shell.tga" : "generated/swf/dialog.tga");
 
@@ -660,14 +661,26 @@ void AdvanceScreen(bool advance)
     // The fixed clock's cumulative steps round to whole milliseconds without drifting.
     const int time = s_fixedClock ? s_clockBase + static_cast<int>((static_cast<u64>(s_executionTicks) + 1U) * 1000U / 60U)
                                   : Sys_Milliseconds();
-    const ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
+    // Movies activated from here on, such as a dialog the menu shows, start on this step.
+    SetMovieClock(time);
 
-    if (s_menu)
     {
-        UpdateMenu();
+        const ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
+
+        if (s_menu)
+        {
+            UpdateMenu();
+        }
+
+        s_nativeSteps += s_resourceMovie->AdvanceResourceExecution(time);
     }
 
-    s_nativeSteps += s_resourceMovie->AdvanceResourceExecution(time);
+    // Common's dialog manager follows the menu, as idCommonLocal::Draw renders it after the shell.
+    if (s_menu)
+    {
+        UpdateMenuDialog(time);
+    }
+
     s_movieTime = time;
     ++s_executionTicks;
 }
@@ -708,6 +721,24 @@ void RenderScreen(bool advance)
         }
 
         ui::EndSwfDraw();
+
+        // A shown dialog draws over the menu.
+        idSWF * const dialog = s_menu ? MenuDialog() : nullptr;
+
+        if (dialog != nullptr && dialog->IsActive())
+        {
+            renderSystem->SetGLState(0);
+            renderSystem->SetColor(colorWhite);
+            ui::BeginSwfDraw();
+
+            {
+                const ui::swf::ExecutionScope scope(dialog->GetName());
+                dialog->Render(renderSystem, s_movieTime);
+            }
+
+            ui::EndSwfDraw();
+        }
+
         renderSystem->SetColor(colorWhite);
         return;
     }

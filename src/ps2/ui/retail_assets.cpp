@@ -24,14 +24,25 @@ static void * s_bytes = nullptr;
 static CatalogView s_catalog;
 static std::uint32_t s_profile[16] = {};
 static bool s_language = false;
-static swf::Summary s_movieSummary;
-static bool s_executionRequested = false;
-static bool s_executionAdmitted = false;
-static bool s_renderRequested = false;
-static bool s_renderAdmitted = false;
-static std::uint32_t s_screenBlends = 0;
 static constexpr const char * kMovies[] = { "generated/swf/shell.bswf", "generated/swf/dialog.bswf" };
 static constexpr const char * kMovieFiles[] = { "retail/shell.bswf", "retail/dialog.bswf" };
+// The names native idSWF gives the two movies.
+static constexpr const char * kMovieNames[] = { "swf/shell.swf", "swf/dialog.swf" };
+
+// Each movie's admission from its last preparation, so the shell and the dialog can be resident at
+// once. A preparation admits one construction.
+struct MovieAdmission
+{
+    bool prepared = false;
+    bool executionRequested = false;
+    bool executionAdmitted = false;
+    bool renderRequested = false;
+    bool renderAdmitted = false;
+    std::uint32_t screenBlends = 0;
+    swf::Summary summary;
+};
+
+static MovieAdmission s_movies[2];
 
 void * Snapshot(const char * path, std::uint32_t length, std::uint32_t checksum)
 {
@@ -154,12 +165,12 @@ PS2_COLD_FUNC void Shutdown()
     }
 
     memset(s_profile, 0, sizeof(s_profile));
-    s_movieSummary = {};
-    s_executionRequested = false;
-    s_executionAdmitted = false;
-    s_renderRequested = false;
-    s_renderAdmitted = false;
-    s_screenBlends = 0;
+
+    for (auto & movie : s_movies)
+    {
+        movie = {};
+    }
+
     system::heap::Free(s_bytes);
     s_bytes = nullptr;
     s_catalog = {};
@@ -233,11 +244,11 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
         FatalError("invalid retail movie preparation ownership");
     }
 
-    s_executionRequested = execute;
-    s_executionAdmitted = false;
-    s_renderRequested = render;
-    s_renderAdmitted = false;
-    s_screenBlends = 0;
+    auto & admission = s_movies[index];
+    admission = {};
+    admission.prepared = true;
+    admission.executionRequested = execute;
+    admission.renderRequested = render;
 
     if (s_profile[0] == 0)
     {
@@ -321,11 +332,13 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
         }
     }
 
-    if (index == 2 || !s_language || renderer::FrameStarted())
+    if (index == 2 || !s_language || !s_movies[index].prepared || renderer::FrameStarted())
     {
         FatalError("retail movie outside the prepared inactive profile");
     }
 
+    auto & movie = s_movies[index];
+    movie.prepared = false;
     const unsigned offset = 8 + index * 4;
     auto * const bytes = static_cast<char *>(Snapshot(kMovieFiles[index], s_profile[offset], s_profile[offset + 1]));
     swf::Summary summary;
@@ -337,7 +350,7 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
         FatalError("retail movie structural preflight failed: %s", logicalPath);
     }
 
-    if (s_executionRequested)
+    if (movie.executionRequested)
     {
         swf::ExecutionSummary execution;
         if (!swf::ValidateExecutionBytes(bytes, s_profile[offset], execution))
@@ -346,13 +359,13 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
             FatalError("retail movie execution preflight failed: %s", logicalPath);
         }
 
-        s_executionAdmitted = true;
+        movie.executionAdmitted = true;
         Log(LogLevel::Info,
             "[D3BFG] RETAIL executable movie=%u actions=%lu functions=%lu placements=%lu removals=%lu\n",
             index, static_cast<unsigned long>(execution.actions), static_cast<unsigned long>(execution.functions),
             static_cast<unsigned long>(execution.placements), static_cast<unsigned long>(execution.removals));
 
-        if (s_renderRequested)
+        if (movie.renderRequested)
         {
             // Outlines draw as GS lines, screen blending in per-channel passes and additive RGB in a
             // constant-color pass; an additive alpha term has no 2D path. Masks are admitted here, and
@@ -364,15 +377,15 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
                            static_cast<unsigned long>(execution.additiveAlphas));
             }
 
-            s_renderAdmitted = true;
-            s_screenBlends = execution.screenBlends;
+            movie.renderAdmitted = true;
+            movie.screenBlends = execution.screenBlends;
             Log(LogLevel::Info, "[D3BFG] RETAIL drawable movie=%u masks=%lu strokes=%lu screen_blends=%lu additive_colors=%lu\n",
                 index, static_cast<unsigned long>(execution.masks), static_cast<unsigned long>(summary.strokes),
                 static_cast<unsigned long>(execution.screenBlends), static_cast<unsigned long>(execution.additiveColors));
         }
     }
 
-    s_movieSummary = summary;
+    movie.summary = summary;
     Log(LogLevel::Info, "[D3BFG] RETAIL BSWF admitted movie=%u dictionary=%lu sprites=%lu commands=%lu fonts=%lu texts=%lu preview=%lu scripts=inactive\n",
         index, static_cast<unsigned long>(summary.dictionary), static_cast<unsigned long>(summary.sprites),
         static_cast<unsigned long>(summary.commands), static_cast<unsigned long>(summary.fonts),
@@ -382,23 +395,41 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
     return snapshot;
 }
 
-bool MovieExecutionAdmitted()
+int MovieIndex(const char * name)
 {
-    return IsInitialized() && s_language && s_executionAdmitted;
+    for (int index = 0; index < ArrayLength(kMovieNames); ++index)
+    {
+        if (name != nullptr && strcmp(name, kMovieNames[index]) == 0)
+        {
+            return index;
+        }
+    }
+
+    return -1;
 }
 
-bool MovieRenderAdmitted()
+bool MovieExecutionAdmitted(int index)
 {
-    return MovieExecutionAdmitted() && s_renderAdmitted;
+    return IsInitialized() && s_language && index >= 0 && index < ArrayLength(s_movies) && s_movies[index].executionAdmitted;
 }
 
-bool MovieUsesScreenBlending()
+bool MovieRenderAdmitted(int index)
 {
-    return MovieRenderAdmitted() && s_screenBlends != 0;
+    return MovieExecutionAdmitted(index) && s_movies[index].renderAdmitted;
 }
 
-swf::Summary GetMovieSummary()
+bool MovieUsesScreenBlending(int index)
 {
-    return s_movieSummary;
+    return MovieRenderAdmitted(index) && s_movies[index].screenBlends != 0;
+}
+
+swf::Summary GetMovieSummary(int index)
+{
+    if (index < 0 || index >= ArrayLength(s_movies))
+    {
+        FatalError("retail movie summary outside the fixed profile");
+    }
+
+    return s_movies[index].summary;
 }
 } // namespace ps2::ui::retail

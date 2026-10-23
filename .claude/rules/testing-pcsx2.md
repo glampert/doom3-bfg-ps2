@@ -197,7 +197,21 @@
   frame of a `ps2_capture` runs before that frame draws, so `wait 1` separates each capture
   from the next key. A session takes about 115 s within its 300 s timeout. The retail
   carousel items lack a `sel_up` frame, so native code warns on each load and focus
-  change; the warnings are expected.
+  change; the warnings are expected. The same target then runs `menu-quit`, one load
+  that ends through the native quit dialog: accept (cross) signs in, dpad_up wraps the
+  root's focus to Quit, cross opens Common's confirmation (d), dpad_right focuses
+  Cancel (e) and cross closes it (f), cross reopens it (g) and a final cross accepts,
+  quitting the game right after the queued final capture; the runner sends no `quit`.
+  Each capture needs the screen, session and focus plus the event counts and dialog
+  state (`dialog=1 quit=2` while shown); a dialog takes both halves of every key until a
+  choice closes it. Require one shell and one dialog draw admission, the shell, dialog
+  atlas, fonts, glyph sets, charset and cover resident with the channel CLUTs, the
+  dialog's layout services after it opens, one copied choice call each for Cancel and
+  Accept, one release after the final capture and full shutdown recovery. The dynamic
+  dialog binds neither Escape nor circle to cancel; its options take focus left to
+  right. Until controller prompt icons exist, the dialog prints its `<JOY1>` tag as
+  text, so exactly one stroke-free Sarasori size may log `prerendered=no`. A session
+  takes about 55 s.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

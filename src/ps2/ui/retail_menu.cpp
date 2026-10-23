@@ -24,6 +24,31 @@ static bool s_opening = false;
 // Events the open menu received from Common, and those its handler reported handled.
 static u32 s_events = 0;
 static u32 s_handled = 0;
+// Borrowed from Common's dialog manager, which deletes it; the open menu initializes the manager.
+static idSWF * s_dialog = nullptr;
+static bool s_dialogOpening = false;
+// The clock retail movies activate on, once the presentation advances them; real time before.
+static bool s_clockSet = false;
+static int s_clock = 0;
+
+// Native idSWF names its atlas material after the binary movie; screen passes need its
+// per-channel CLUTs before the first frame.
+void EnableMovieScreenBlending(int index, const char * atlasMaterial)
+{
+    if (!ps2::ui::retail::MovieUsesScreenBlending(index))
+    {
+        return;
+    }
+
+    const idMaterial * const atlas = declManager->FindMaterial(atlasMaterial);
+
+    if (atlas == nullptr || atlas->GetNumStages() != 1 || atlas->GetStage(0)->texture.image == nullptr)
+    {
+        ps2::FatalError("retail menu atlas image missing for screen blending: %s", atlasMaterial);
+    }
+
+    ps2::renderer::EnableScreenBlending(atlas->GetStage(0)->texture.image);
+}
 } // namespace
 
 namespace ps2::ui::retail
@@ -60,6 +85,19 @@ idSWF * OpenMenu()
         FatalError("native shell handler did not start the admitted movie");
     }
 
+    // idCommonLocal::Init then initializes Common's dialog manager, which opens the dialog movie.
+    {
+        const swf::ExecutionScope scope("dialog");
+        s_dialogOpening = true;
+        ::common->Dialog().Init();
+        s_dialogOpening = false;
+    }
+
+    if (s_dialog == nullptr || ::common->Dialog().IsDialogActive())
+    {
+        FatalError("Common's dialog manager did not open the admitted dialog movie");
+    }
+
     return s_movie;
 }
 
@@ -83,11 +121,58 @@ void CloseMenu()
         FatalError("native menu release outside an idle presentation");
     }
 
-    // The handler deletes its widgets and the movie; the game keeps a fresh empty handler.
+    // Common's dialog manager deletes the dialog movie, and the handler its widgets and the shell;
+    // the game keeps a fresh empty handler.
+    {
+        const swf::ExecutionScope scope("dialog");
+        ::common->Dialog().Shutdown();
+    }
+
+    if (s_dialog != nullptr)
+    {
+        FatalError("Common's dialog manager kept the admitted dialog movie");
+    }
+
     const swf::ExecutionScope scope("shell");
     DetachMenu(*s_movie);
     ::game->Shell_ResetMenu();
     s_movie = nullptr;
+}
+
+idSWF * MenuDialog()
+{
+    return s_dialog;
+}
+
+void UpdateMenuDialog(int time)
+{
+    if (s_dialog == nullptr || swf::Active() || renderer::FrameStarted())
+    {
+        FatalError("native menu dialog update outside an idle presentation");
+    }
+
+    // idCommonDialog::Render's state half drops cleared dialogs and shows the next one, which
+    // activates the movie on this clock; its timeline then advances as the shell's does.
+    const swf::ExecutionScope scope("dialog");
+    ::common->Dialog().Render(false);
+    s_dialog->AdvanceResourceExecution(time);
+}
+
+void SetMovieClock(int time)
+{
+    s_clock = time;
+    s_clockSet = true;
+}
+
+void ClearMovieClock()
+{
+    s_clockSet = false;
+    s_clock = 0;
+}
+
+int MovieClock()
+{
+    return s_clockSet ? s_clock : Sys_Milliseconds();
 }
 
 bool ProcessMenuEvent(const sysEvent_t * event)
@@ -103,6 +188,15 @@ bool ProcessMenuEvent(const sysEvent_t * event)
     }
 
     ++s_events;
+
+    // idCommonLocal::ProcessEvent: an active dialog takes every event before the menu.
+    if (::common->Dialog().IsDialogActive())
+    {
+        const swf::ExecutionScope scope("dialog");
+        ::common->Dialog().HandleDialogEvent(event);
+        ++s_handled;
+        return true;
+    }
 
     // idCommonLocal::MenuEvent: the sign-in manager sees every event first, then the active shell.
     if (::session->GetSignInManager().ProcessInputEvent(event))
@@ -121,7 +215,10 @@ void MenuInputStatus()
 {
     if (s_movie != nullptr)
     {
-        Log(LogLevel::Info, "[D3BFG] RETAIL menu input events=%u handled=%u\n", s_events, s_handled);
+        bool quitShown = false;
+        const bool quitQueued = ::common->Dialog().HasDialogMsg(GDM_QUIT_GAME, &quitShown);
+        Log(LogLevel::Info, "[D3BFG] RETAIL menu input events=%u handled=%u dialog=%d quit=%d\n", s_events, s_handled,
+            ::common->Dialog().IsDialogActive() ? 1 : 0, quitQueued ? (quitShown ? 2 : 1) : 0);
     }
 }
 
@@ -135,6 +232,52 @@ idSWF * CreateMenuMovie(const char * name)
     PrepareMovie(0, true, true);
     s_movie = new (TAG_SWF) idSWF("shell", nullptr, true);
     return s_movie;
+}
+
+idSWF * CreateDialogMovie()
+{
+    if (!s_dialogOpening || s_dialog != nullptr || !swf::Active() || renderer::FrameStarted())
+    {
+        FatalError("native dialog movie outside the menu's dialog manager");
+    }
+
+    // The dialog is shown on demand: its execution, drawing and key events are admitted while it
+    // stays inactive, and showing a dialog activates it.
+    PrepareMovie(1, true, true);
+    s_dialog = new (TAG_SWF) idSWF("dialog", nullptr, true);
+    s_dialog->EnableResourceExecution(false);
+    s_dialog->EnableResourceRender();
+    s_dialog->EnableResourceEvents();
+    EnableMovieScreenBlending(1, "generated/swf/dialog.tga");
+    AttachDialogChoices(*s_dialog);
+    return s_dialog;
+}
+
+void PinDialogChoices(idSWF & movie)
+{
+    if (&movie != s_dialog || !swf::Active())
+    {
+        FatalError("native dialog choices outside the menu's dialog movie");
+    }
+
+    PinShownChoices(movie);
+}
+
+void ReleaseDialogMovie(idSWF * movie)
+{
+    // The manager's Init shuts down first, with no movie yet.
+    if (movie == nullptr)
+    {
+        return;
+    }
+
+    if (movie != s_dialog || !swf::Active() || renderer::FrameStarted())
+    {
+        FatalError("native dialog movie release outside the menu's dialog manager");
+    }
+
+    DetachDialogChoices(*movie);
+    s_dialog = nullptr;
 }
 
 void ActivateMenuMovie(idMenuHandler & handler, bool show)
@@ -166,18 +309,6 @@ void ActivateMenuMovie(idMenuHandler & handler, bool show)
     movie->EnableResourceRender();
     movie->EnableResourceEvents();
 
-    // Native idSWF names its atlas material after the binary movie; screen passes need its
-    // per-channel CLUTs before the first frame.
-    if (MovieUsesScreenBlending())
-    {
-        const idMaterial * const atlas = declManager->FindMaterial("generated/swf/shell.tga");
-
-        if (atlas == nullptr || atlas->GetNumStages() != 1 || atlas->GetStage(0)->texture.image == nullptr)
-        {
-            FatalError("retail menu atlas image missing for screen blending");
-        }
-
-        renderer::EnableScreenBlending(atlas->GetStage(0)->texture.image);
-    }
+    EnableMovieScreenBlending(0, "generated/swf/shell.tga");
 }
 } // namespace ps2::ui::retail

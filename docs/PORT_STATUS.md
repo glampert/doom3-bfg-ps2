@@ -1,11 +1,14 @@
 # Port status and headless acceptance
 
-## Current snapshot — 2026-10-23
+## Current snapshot — 2026-10-24
 
-The port is not playable yet. The latest slice routes
-[key events to the native menu](#native-shell-menu-key-input-2026-10-23) (2026-10-23,
-debug gates): injected keyboard keys and pad buttons sign in, move the root menu's focus
-and return to press-start through the game's own event code. The one before handed the
+The port is not playable yet. The latest slice opens the
+[original quit confirmation through Common's dialog manager](#native-quit-dialog-through-commons-dialog-manager-2026-10-24)
+(2026-10-24, debug gates): the root menu's Quit shows it over the menu, Cancel closes it
+and Accept quits the game. The one before routed
+[key events to the native menu](#native-shell-menu-key-input-2026-10-23) (2026-10-23):
+injected keyboard keys and pad buttons sign in, move the root menu's focus and return to
+press-start through the game's own event code. The one before that handed the
 shell to the [native menu handler](#native-shell-menu-start-and-root-screens-2026-10-23):
 the original `idMenuHandler_Shell` drives the start screen and the root menu. The one
 before that drew the shell start screen's text from
@@ -35,21 +38,24 @@ changing their bytes.
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
-| 2D-7–8 | The native shell handler drives the start and root screens from injected keyboard and pad key events (debug gates) | The quit dialog through Common, the other screens, opening at boot, physical keyboard/pad input and hardware validation |
+| 2D-7–8 | The native shell handler drives the start and root screens from injected keyboard and pad key events, and Quit opens Common's native confirmation (debug gates) | Controller prompt icons, the other screens, opening at boot, physical keyboard/pad input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog and `ps2_uiRetail draw
 shell` the shell's start screen, with placeholder prompts and labels because no native
 screen runs. `ps2_uiRetail menu` runs the native shell handler instead: its start screen
 and root menu, with PlayStation-style prompts, which `ps2_uiRetail key NAME` drives with
-keyboard keys and pad buttons. Other retail modes still show isolated native English
+keyboard keys and pad buttons; its Quit opens the original confirmation, whose `<JOY1>`
+prompt still prints as text. Other retail modes still show isolated native English
 labels and take no events. The dialog draws at about 40 ms per debug PCSX2 frame, the shell at 100–140 ms.
 No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-23, debug only) passed the console, font, retail movie,
-authored UI, headless, game and map gates (60 cases) with key-driven menu captures in
-NTSC and PAL; see its [record](#native-shell-menu-key-input-2026-10-23). The one before
-passed them with the native shell handler and the new `menu-render` case; see its
-[record](#native-shell-menu-start-and-root-screens-2026-10-23). The one before that added the
+The last acceptance (2026-10-24, debug only) passed the console, font, retail movie,
+authored UI, headless, game and map gates (62 cases) with the new `menu-quit` case in
+NTSC and PAL; see its [record](#native-quit-dialog-through-commons-dialog-manager-2026-10-24).
+The one before passed them (60 cases) with key-driven menu captures; see its
+[record](#native-shell-menu-key-input-2026-10-23). The one before that passed them with
+the native shell handler and the new `menu-render` case; see its
+[record](#native-shell-menu-start-and-root-screens-2026-10-23). An earlier one added the
 start screen's four text sizes per standard, with no unrendered size left on the start
 screen; see its [record](#shell-text-sizes-and-glyph-rectangles-2026-10-23). Earlier
 that day (debug only), another passed every debug emulator gate in NTSC and
@@ -85,8 +91,9 @@ and fitting the game into the 32 MiB budget. Its first lever, paletted UI textur
 passes the debug gates and awaits the user's visual pass; the dialog's and the start
 screen's text draws from pre-rendered glyphs, whose sizes for later screens are still to
 be collected; the heap levers are measured and not applied. The native shell handler
-draws the start and root screens and takes injected key events; the quit dialog, the
-other screens and physical keyboard/pad input follow. Required feature/resource admission precedes each
+draws the start and root screens, takes injected key events and opens the native quit
+confirmation; controller prompt icons, the other screens and physical keyboard/pad input
+follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -4482,3 +4489,80 @@ bytes. `make test-host` passes 367 tests.
 | `test-headless` | 2 | `20261023T130006Z_headless_e90b8782f39a`, `20261023T130010Z_headless_d4b039cf31ef` |
 | `test-game` | 11 | `20261023T130022Z_smoke_f169739490b24dc6` to `20261023T130051Z_smoke_4d06bc4fc1f44e2c` |
 | `test-map` | 1 | `20261023T130059Z_smoke_a232632d38874f20` |
+
+## Native quit dialog through Common's dialog manager (2026-10-24)
+
+Accepted **2026-10-24, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release builds compile and were not run. The root menu's Quit now opens the original
+confirmation through Common's own dialog manager, over the menu
+([pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu)).
+
+- **Two movies.** Retail admission is now one record per movie, so the shell and the
+  dialog are resident together; each preparation admits one construction, and the
+  admission queries take the movie (`MovieIndex` maps native idSWF names).
+- **Dialog manager.** Opening the menu initializes `idCommonDialog` after the shell, as
+  `idCommonLocal::Init` does, and closing it shuts the manager down first. `Init` opens
+  the admitted dialog through `CreateDialogMovie` with execution, drawing and events
+  admitted but inactive (`EnableResourceExecution( false )`); showing a dialog activates
+  it. No save indicator movie is opened, since nothing in BFG activates it. The
+  manager's `Render` keeps its state half before the GS frame and returns before
+  drawing; the presentation advances the dialog's timeline and draws it after the shell.
+- **Clock.** Retail movies activate on the presentation's movie clock (`MovieClock`),
+  which each frame's advance sets, so a dialog shown mid-run follows the fixed test step.
+- **Events and choices.** An active dialog takes every event first, in its own execution
+  scope. `ShowDialog` pins the choices it installs: the movie copies them into button
+  properties (`func0`, `func1`) and calls them as methods without arguments, so the
+  pinned object, not the name, authorizes the call.
+- **Behavior.** The quit dialog's options take focus left to right and accept selects
+  the focused one; it binds neither Escape nor circle. Cancel closes it, Change Game
+  returns to press-start and Accept quits through Common at the frame's end. Its
+  `<JOY1>` prompt prints as text, as in the earlier dialog captures: native text replaces
+  button tags with controller icons, whose materials the PS2 port does not load yet.
+
+**Checks.** `make test-retail-menu` now also runs `menu-quit`, one load on the fixed
+clock: accept signs in, dpad_up wraps the root's focus to Quit, cross opens the
+confirmation, dpad_right focuses Cancel and cross closes it, cross reopens it and a final
+cross accepts, quitting right after the queued final capture; the runner sends no
+`quit`. Each of the seven captures requires the handler's screen, session and focus,
+the menu's event counts and the dialog state (shown, closed, shown again). The run
+requires one shell and one dialog draw admission, the dialog's layout services after it
+opens, one copied choice call each for Cancel and Accept, the shell and dialog atlases
+resident with the fonts, glyph sets, charset, cover and channel CLUTs, no eviction, one
+release after the final capture and full shutdown recovery. Only the dialog's
+stroke-free prompt size may log `prerendered=no`. `menu-render` now also expects the
+dialog atlas resident. A `menu-quit` session takes about 68 s. `make test-host` passes
+368 tests, adding the case's acceptance and thirteen rejected mutations.
+
+The captures were inspected in both standards: the dimmed root with EXIT GAME, "Are you
+sure you want to exit DOOM 3?" and ACCEPT, CANCEL, CHANGE GAME; Cancel focused; the root
+again with Quit focused and "Quit to Operating System" after cancelling.
+
+| Debug ledger (NTSC = PAL; requested / backing [/ allocations]) | Key input (2026-10-23) | This slice |
+| --- | ---: | ---: |
+| Menu opened (frame 0) | 10,315,826 / 10,998,684 / 15,429 | 10,644,048 / 11,339,800 / 15,734 |
+| Menu start screen after 120 frames | 10,572,166 / 11,278,728 / 15,970 | 10,900,388 / 11,619,844 / 16,275 |
+| Menu root screen after accept | 10,589,086 / 11,298,280 / 16,030 | 10,917,308 / 11,639,396 / 16,335 |
+| Menu release after back | 4,807,239 / 4,915,028 / 2,595 | 5,017,881 / 5,126,500 / 2,611 |
+| Menu peak; arena | 10,615,030 / 11,328,688; 11,478,163 | 10,943,252 / 11,669,804; 11,823,187 |
+| Quit confirmation shown | — | 11,058,136 / 11,802,084 / 16,831 |
+| Root after cancel | — | 11,045,000 / 11,786,756 / 16,783 |
+| Release at the dialog's quit | — | 5,017,534 / 5,125,624 / 2,598 |
+| Quit run peak; arena | — | 11,063,600 / 11,808,304; 11,958,355 |
+| Full shutdown | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The dialog movie adds 328,222 requested bytes while the menu is open, and its atlas stays
+open with the other warm images after the menu closes (11 images). The console, font,
+authored UI, dialog and shell screens' ledgers are unchanged.
+
+Production `PT_LOAD` is 11,261,869 debug / 11,710,765 release bytes (+3,136 / +3,008),
+379 objects and no fixtures.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-console` | 2 | `20261023T133235Z_console_99730351c767`, `20261023T133247Z_console_bd373b7453c9` |
+| `test-retail-ui` | 7 | `20261023T133304Z_retail_73f60947e2d8` to `20261023T133357Z_retail_46bce0f00c41` |
+| `test-retail-movies` | 25 | `20261023T133405Z_movies_d0f6827ce3f7` to `20261023T134554Z_movies_ae5bfd0f9347` (menu-quit `20261023T134243Z_movies_05e7c41af3d7`, `20261023T134351Z_movies_66b7417e1757`; menu `20261023T133856Z_movies_ab265d619286`, `20261023T134049Z_movies_b6126fb11589`; shell `20261023T133726Z_movies_e40a88dc4596`, `20261023T133811Z_movies_9906b1037610`; dialog `20261023T133700Z_movies_6fabbf51d95b`, `20261023T133712Z_movies_588c8ac74d21`) |
+| `test-ui` | 14 | `20261023T134603Z_ui_5057dfdde9ec` to `20261023T134739Z_ui_559b57a4ef56` |
+| `test-headless` | 2 | `20261023T134747Z_headless_ced8761e5d11`, `20261023T134751Z_headless_72676e274150` |
+| `test-game` | 11 | `20261023T135209Z_smoke_3ca299ca4b9040aa` to `20261023T135237Z_smoke_0638a120fd404075` |
+| `test-map` | 1 | `20261023T135245Z_smoke_ed542168d5d045c3` |

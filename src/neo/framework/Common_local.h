@@ -174,8 +174,8 @@ public:
 	virtual idSoundWorld *		MenuSW() { return menuSoundWorld; }
 	virtual idSession *			Session() { return session; }
 	virtual idCommonDialog &	Dialog() {
-		// [PS2_D3BFG]: No dialog movie exists yet. Queries and clears of the empty queue are valid
-		// (the shell asks every frame); adding a dialog fails explicitly.
+		// [PS2_D3BFG]: The native menu initializes the dialog manager with the retail dialog movie.
+		// Without it, queries and clears of the empty queue are valid; adding a dialog fails explicitly.
 		return commonDialog;
 	}
 

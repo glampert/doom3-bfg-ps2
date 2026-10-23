@@ -130,10 +130,15 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   own live widgets. `ps2_uiRetail key NAME` posts a keyboard key (enter, escape, arrows)
   or pad button (cross, circle, dpad_*) through the event loop: accept signs in and shows
   the root screen, the arrows move its focus and back returns to press-start. A move into
-  an unbound screen (Campaign, Settings) fails by name. `make test-retail-menu` checks it.
+  an unbound screen (Campaign, Settings) fails by name. The menu also initializes Common's
+  dialog manager, which opens the admitted dialog movie inactive beside the shell (retail
+  admission is per movie): the root's Quit shows the native confirmation, an active dialog
+  takes events first, its choices are pinned by identity, and accept quits through
+  Common. `make test-retail-menu` checks both (`menu-render`, `menu-quit`).
   Converted pages stay resident: a debug PCSX2 frame takes about 60 ms for the
-  dialog and 100–140 ms for the shell on the fixed clock. The quit dialog, the other
-  screens, physical keyboard/pad input, dynamic resources and artwork residency remain pending.
+  dialog and 100–140 ms for the shell on the fixed clock. Controller prompt icons in
+  text, the other screens, physical keyboard/pad input, dynamic resources and artwork
+  residency remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex

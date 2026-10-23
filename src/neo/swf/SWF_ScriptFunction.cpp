@@ -277,11 +277,15 @@ namespace {
 		ps2::ui::swf::Trace( "native-callback", name );
 		// [PS2_D3BFG]: A script can overwrite or alias every ordinary global/property slot.
 		bool identity = owner != NULL && !method && owner->IsResourceNativeFunction( name, function );
+		// [PS2_D3BFG]: The dialog copies its shown choices into button properties and calls them as
+		// methods; the pinned choice objects themselves, not those names, authorize the calls.
+		const bool choice = owner != NULL && ps2::ui::retail::IsDialogChoice( function, owner );
 		if ( method )
 		{
 			identity = ( name == "gotoAndPlay" && function == &spriteInstanceScriptObjectPrototype.scriptFunction_gotoAndPlay ) ||
 				( name == "gotoAndStop" && function == &spriteInstanceScriptObjectPrototype.scriptFunction_gotoAndStop ) ||
-				( name == "calcNumLines" && function == &textInstanceScriptObjectPrototype.scriptFunction_calcNumLines );
+				( name == "calcNumLines" && function == &textInstanceScriptObjectPrototype.scriptFunction_calcNumLines ) ||
+				choice;
 		}
 
 		ps2::ui::swf::Require( identity, "native callback identity unavailable" );
@@ -292,7 +296,12 @@ namespace {
 		}
 
 		int expected = -1;
-		if ( method )
+		if ( choice )
+		{
+			// The dialog's buttons call their copied choice without arguments.
+			expected = 0;
+		}
+		else if ( method )
 		{
 			if ( name == "gotoAndPlay" || name == "gotoAndStop" )
 			{

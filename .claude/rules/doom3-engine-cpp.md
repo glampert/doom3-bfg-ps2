@@ -570,16 +570,14 @@ math path; PS2-specific math replacement headers are a later milestone.
   shader parameters (`GuiModel.cpp`) and force vertex-color modulation
   (`tr_backend_draw.cpp`), so both reduce to one constant vertex-colored stage over the
   owned white image. The retail material hook supplies that text; no `_white` substitution.
-- Common's dialog manager has no dialog movie yet. `common->Dialog()` returns it so
-  queries and clears of its empty queue work (the shell asks `IsDialogActive` every
-  frame); adding a dialog without the movie fails explicitly instead of the native
-  silent return, which would drop its callbacks and the player's choice. The dialog
-  owner reproduces `idCommonDialog::Init` constants and `ShowDialog` globals for
-  GDM_QUIT_GAME / DIALOG_DYNAMIC. `GetDialogMsg` reads no manager state, so a
-  zero-initialized local manager supplies the native title/text keys. The three choices
-  are real refcounted function objects that fail explicitly until dialog events and
-  Common's deferred clear exist. The movie positions itself through `calcNumLines`,
-  `_y` writes and text `_stroke*` properties.
+- Outside the native menu, Common's dialog manager has no dialog movie: `common->Dialog()`
+  returns it so queries and clears of its empty queue work, and adding a dialog fails
+  explicitly instead of the native silent return, which would drop its callbacks and the
+  player's choice. The `dialog quit` test owner reproduces `idCommonDialog::Init`
+  constants and `ShowDialog` globals for GDM_QUIT_GAME / DIALOG_DYNAMIC. `GetDialogMsg`
+  reads no manager state, so a zero-initialized local manager supplies the native
+  title/text keys; that owner's choices fail explicitly. The movie positions itself
+  through `calcNumLines`, `_y` writes and text `_stroke*` properties.
 - The shell's first frame needs native `refreshCarousel` and `updateCredits` owners.
   Use their actual widgets, retain callback identity and detach the borrowed movie before
   the base menu handler cleans up. The port's minimal carousel selects Doom 3 only. The
@@ -629,8 +627,25 @@ math path; PS2-specific math replacement headers are a later milestone.
   buttons handle both halves. The root's back moves the session to press-start, which
   signs the user out; the next accept signs in again. `idMenuHandler_Shell::Update` fails
   `shell capability unavailable: screen N` for a transition into an unbound screen
-  (Campaign 3, Settings 13) instead of leaving the menu empty; the root's Quit reaches
-  Common's dialog, which fails until its movie exists.
+  (Campaign 3, Settings 13) instead of leaving the menu empty.
+- The menu initializes Common's dialog manager after the shell, as `idCommonLocal::Init`
+  does, and shuts it down first. Retail admission is per movie, so the shell and the
+  dialog are resident together; each preparation admits one construction. `Init` opens
+  the dialog through `CreateDialogMovie`, with execution, drawing and events admitted
+  but inactive (`EnableResourceExecution( false )`); showing a dialog activates it. No
+  save indicator movie is opened: nothing in BFG activates it. The manager's `Render`
+  keeps its state half (drop cleared dialogs, show the next) before the GS frame and
+  returns before drawing; the presentation advances the dialog's timeline and draws it
+  over the shell. Resource movies activate on the presentation's movie clock
+  (`MovieClock`), so a dialog shown mid-run follows the fixed test step.
+- An active dialog takes every event before the menu, inside its own execution scope.
+  `ShowDialog` pins the choices it installs; the movie copies them into button
+  properties (`func0`, `func1`) and calls them as methods without arguments, so the
+  pinned object, not the name, authorizes the call. The root's Quit dialog is
+  DIALOG_DYNAMIC: its three options take focus left to right and accept selects the
+  focused one; neither Escape nor circle cancels it. Accept quits through Common at the
+  frame's end. Its `<JOY1>` prompt prints as text: native text replaces button tags with
+  controller icons, whose materials the PS2 port does not load yet.
 - Native widget callbacks, carousel and credits refreshes included, run under the same
   execution scope and seek checks as timeline scripts. The carousel's buttons ask for a
   `sel_up` frame that the retail movie's carousel items do not have, so native code

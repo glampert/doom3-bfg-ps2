@@ -88,7 +88,8 @@ public:
 	{
 		return resourceExecution;
 	}
-	void EnableResourceExecution();
+	// [PS2_D3BFG]: A movie shown on demand, such as Common's dialog, admits execution inactive.
+	void EnableResourceExecution( bool activate = true );
 	bool IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const;
 	unsigned AdvanceResourceExecution( int time );
 	// [PS2_D3BFG]: A fixed-step test clock starts from the activation time the timeline recorded.

@@ -169,8 +169,10 @@ movie: the start screen shows the Doom 3 cover with a PlayStation-style SELECT p
 and after sign-in the root screen lists Campaign, Settings, Credits and Quit. Key events
 drive it through Common's event loop: accept signs in, the arrows move the root's focus
 and back returns to press-start, from injected keyboard keys and pad buttons
-([record](PORT_STATUS.md#native-shell-menu-key-input-2026-10-23)). The quit dialog
-through Common's dialog manager and the other screens come next. See the
+([record](PORT_STATUS.md#native-shell-menu-key-input-2026-10-23)). On 2026-10-24 the
+root's Quit opened Common's native confirmation through the dialog manager, over the menu
+([record](PORT_STATUS.md#native-quit-dialog-through-commons-dialog-manager-2026-10-24)).
+Controller prompt icons in text and the other screens come next. See the
 [pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu) and the
 [acceptance record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23).
 

@@ -27,6 +27,12 @@ void ShowShellLogo(idSWF & movie, bool show);
 bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie);
 // A native key handler: an event wrapper of one of the attached menu handler's live widgets.
 bool IsEventHandler(const idSWFScriptFunction * function, const idSWF * movie);
+// Common's dialog manager installs each shown dialog's choices as globals; pin them as it does,
+// so only those objects answer the movie's calls to them, by name or through copies.
+void AttachDialogChoices(idSWF & movie);
+void PinShownChoices(idSWF & movie);
+void DetachDialogChoices(idSWF & movie);
+bool IsDialogChoice(const idSWFScriptFunction * function, const idSWF * movie);
 void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idSWF * movie);
 void OwnerStatus();
 } // namespace ps2::ui::retail

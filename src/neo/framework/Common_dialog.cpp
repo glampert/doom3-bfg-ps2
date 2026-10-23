@@ -29,6 +29,10 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "Common_dialog.h"
+// [PS2_D3BFG]: The retail dialog movie is admitted, advanced and drawn by the presentation.
+#if defined( ID_PS2 )
+#include "ps2/ui/retail_menu.h"
+#endif
 
 idCVar popupDialog_debug( "popupDialog_debug", "0", CVAR_BOOL | CVAR_ARCHIVE, "display debug spam" );
 
@@ -448,6 +452,11 @@ void idCommonDialog::ShowDialog( const idDialogInfo & info ) {
 	dialog->SetGlobal( "opt3Txt", info.txt3.GetLocalizedString() );
 	dialog->SetGlobal( "opt4Txt", info.txt4.GetLocalizedString() );
 
+	// [PS2_D3BFG]: Only the choices installed here may answer the movie's calls to them.
+#if defined( ID_PS2 )
+	ps2::ui::retail::PinDialogChoices( *dialog );
+#endif
+
 	ActivateDialog( true );
 }
 
@@ -672,7 +681,8 @@ void idCommonDialog::Render( bool loading ) {
 	}
 
 	// Decrement the time remaining on the save indicator or turn it off
-	if ( !dialogShowingSaveIndicatorRequested && saveIndicator->IsActive() ) { 
+	// [PS2_D3BFG]: No save indicator movie exists without saves.
+	if ( !dialogShowingSaveIndicatorRequested && saveIndicator != NULL && saveIndicator->IsActive() ) { 
 		ShowSaveIndicator( false );
 	}
 
@@ -692,6 +702,12 @@ void idCommonDialog::Render( bool loading ) {
 			dialog->SetGlobal( "countdownInfo", va( txtTime.GetLocalizedString(), timeRemaining ) );
 		}
 	}
+
+	// [PS2_D3BFG]: This update runs before the GS frame; the presentation advances the movie's
+	// timeline on its own clock and draws it in the frame.
+#if defined( ID_PS2 )
+	return;
+#endif
 
 	if ( messageList.Num() > 0 && loading && ( messageList[0].renderDuringLoad == false ) ) {
 		return;
@@ -717,8 +733,15 @@ void idCommonDialog::Init() {
 
 	Shutdown();
 
+	// [PS2_D3BFG]: The dialog is the admitted retail movie, executing, drawing and taking keys only
+	// while shown. Saves are unavailable, and nothing activates the save indicator movie.
+#if defined( ID_PS2 )
+	dialog = ps2::ui::retail::CreateDialogMovie();
+	saveIndicator = NULL;
+#else
 	dialog = new (TAG_SWF) idSWF( "dialog" );
 	saveIndicator = new (TAG_SWF) idSWF( "save_indicator" );
+#endif
 
 #define BIND_DIALOG_CONSTANT( x ) dialog->SetGlobal( #x, x )
 	if ( dialog != NULL ) {
@@ -749,6 +772,10 @@ void idCommonDialog::Shutdown() {
 
 	ClearDialogs();
 
+	// [PS2_D3BFG]: The presentation stops borrowing the movie before it is destroyed.
+#if defined( ID_PS2 )
+	ps2::ui::retail::ReleaseDialogMovie( dialog );
+#endif
 	delete dialog;
 	dialog = NULL;
 
@@ -1330,7 +1357,8 @@ idCommonDialog::HandleDialogEvent
 bool idCommonDialog::HandleDialogEvent( const sysEvent_t * sev ) {
 
 	if ( dialog != NULL && dialog->IsLoaded() && dialog->IsActive() ) {
-		if ( saveIndicator->IsActive() ) {
+		// [PS2_D3BFG]: No save indicator movie exists without saves.
+		if ( saveIndicator != NULL && saveIndicator->IsActive() ) {
 			return false;
 		} else {
 			if ( dialog->HandleEvent( sev ) ) {

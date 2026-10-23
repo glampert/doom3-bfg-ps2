@@ -241,7 +241,7 @@ class MovieResourcesTests(unittest.TestCase):
         swf = manifest["swfs"]["generated/swf/shell.bswf"]
         phases = runner.MENU_RENDER_PHASES if menu else runner.SHELL_RENDER_PHASES
         features = swf["features"]
-        images = runner.shell_images(manifest)
+        images = runner.menu_images(manifest) if menu else runner.shell_images(manifest)
         counters = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
         channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
         textures = "[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters)
@@ -262,7 +262,7 @@ class MovieResourcesTests(unittest.TestCase):
                 rolled += 1000 if suffix != "a" else 0
                 owner = (("RETAIL menu screen={} next={} session={} platform={} callbacks={} root_focus={}\n"
                           .format(*runner.MENU_SCREENS[suffix]) +
-                          "RETAIL menu input events={} handled={}\n".format(*runner.MENU_INPUTS[suffix])) if menu else
+                          "RETAIL menu input events={} handled={} dialog={} quit={}\n".format(*runner.MENU_INPUTS[suffix])) if menu else
                          "RETAIL owner screen=0 next=0 carousel_items=1 carousel_slots=5 carousel_view=0 credits=1 "
                          f"callbacks=2 logo={1 if suffix == 'b' else 0}\n")
                 log += (f"RETAIL movie=0 state=loaded frames={waited} dictionary={len(swf['dictionary'])} "
@@ -332,6 +332,60 @@ class MovieResourcesTests(unittest.TestCase):
                                     "prerendered=no\nrun_done"),
                         replace_last(log, "RETAIL drawable movie=0", "RETAIL undrawable movie=0"),
                         replace_last(log, "heap=80/100/4", "heap=81/100/4"), replace_last(log, "evictions=0", "evictions=1")):
+            with self.subTest(changed=changed):
+                self.assertFalse(verdict(changed)[0])
+
+    def menu_quit_log(self, manifest):
+        shell, dialog = manifest["swfs"]["generated/swf/shell.bswf"], manifest["swfs"]["generated/swf/dialog.bswf"]
+        counters = runner.texture_counters(runner.resident_textures(manifest, self.source, runner.menu_images(manifest)))
+        channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
+        textures = ("[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters) +
+                    f" triangles=100 uploads=5 evictions=0 channel_cluts={channel_cluts} channel_pixels={channel_pixels}\n")
+        log = ("GS ready NTSC\nrun_ready \n"
+               f"RETAIL drawable movie=0 masks={shell['features']['masks']} strokes={shell['features']['strokes']} "
+               f"screen_blends={runner.screen_placements(shell)} additive_colors={shell['features']['color_add']}\n"
+               f"RETAIL drawable movie=1 masks={dialog['features']['masks']} strokes=0 screen_blends=0 additive_colors=0\n")
+        frame = 0
+        for suffix, _, gap in runner.MENU_QUIT_STEPS:
+            frame += gap + 1
+            if suffix == "d":
+                log += "".join(f"SWF dependency movie=dialog kind={kind} name={name}\n" for kind, name in runner.DIALOG_DEPENDENCIES
+                               if kind != "frame")
+                log += "[D3BFG] UI glyph size font=sarasori_rg scale=0.18333,0.21389 stroke=0.000 prerendered=no\n"
+            if suffix == "f":
+                log += "SWF dependency movie=dialog kind=native-callback name=func1\n"
+            log += ("RETAIL menu screen={} next={} session={} platform={} callbacks={} root_focus={}\n"
+                    .format(*runner.MENU_QUIT_SCREENS[suffix]) +
+                    "RETAIL menu input events={} handled={} dialog={} quit={}\n".format(*runner.MENU_QUIT_INPUTS[suffix]) +
+                    textures + f"CONSOLE capture=movie-menuquit-{suffix}.tga frame={frame} presents={frame} redraws=0\n")
+        frame += 1
+        log += ("run_done \nSWF dependency movie=dialog kind=native-callback name=func0\n"
+                f"CONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
+                "RETAIL released movie=0 images=11 heap=80/100/4\n"
+                f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
+                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
+                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
+        return log
+
+    def test_menu_quit_requires_cancel_then_accept_through_the_native_dialog(self):
+        manifest = self.label_manifest()
+        log = self.menu_quit_log(manifest)
+        verdict = lambda text: runner.classify_menu_quit(text, "run", "ntsc", manifest, self.source)
+        self.assertEqual(verdict(log), (True, "native quit dialog opened from the root, cancelled, then accepted, quitting through Common"))
+        for changed in (log.replace("root_focus=3", "root_focus=2", 1),
+                        log.replace("events=10 handled=7 dialog=0 quit=0", "events=10 handled=8 dialog=1 quit=2"),
+                        log.replace("SWF dependency movie=dialog kind=native-callback name=func1\n", ""),
+                        log.replace("name=func0", "name=func1"),
+                        log.replace("SWF dependency movie=dialog kind=method name=showMessage\n", ""),
+                        log.replace("stroke=0.000 prerendered=no", "stroke=2.000 prerendered=no"),
+                        log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.2,0.2 stroke=0.000 "
+                                    "prerendered=no\nrun_done"),
+                        log.replace("RETAIL drawable movie=1", "RETAIL undrawable movie=1"),
+                        log.replace("evictions=0", "evictions=1", 1),
+                        log.replace("final=7424/7600/4", "final=7488/7600/4"),
+                        log.replace("RETAIL released movie=0 images=11 heap=80/100/4\n", ""),
+                        log.replace("run_done \n", ""),
+                        replace_last(log, "[D3BFG] CONSOLE shutdown complete frames=", "[D3BFG] CONSOLE shutdown complete frames=9")):
             with self.subTest(changed=changed):
                 self.assertFalse(verdict(changed)[0])
 

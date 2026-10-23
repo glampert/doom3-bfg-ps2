@@ -312,7 +312,13 @@ void idSWF::Activate( bool b ) {
 
 	if ( !isActive && b ) {
 		inhibitControl = false;
+		// [PS2_D3BFG]: Retail movies start from the presentation's movie clock, which their timeline
+		// advances follow, so a fixed test step stays deterministic for movies shown mid-run.
+#if defined( ID_PS2 )
+		lastRenderTime = resourceOnly ? ps2::ui::retail::MovieClock() : Sys_Milliseconds();
+#else
 		lastRenderTime = Sys_Milliseconds();
+#endif
 
 		mainspriteInstance->FreeDisplayList();
 		mainspriteInstance->Play();
@@ -324,16 +330,20 @@ void idSWF::Activate( bool b ) {
 
 // [PS2_D3BFG]: Run original retail timelines without authorizing masks/blends or Shell rendering.
 #if defined( ID_PS2 )
-void idSWF::EnableResourceExecution()
+void idSWF::EnableResourceExecution( bool activate )
 {
 	if ( !resourceOnly || resourceExecution || !IsLoaded() ||
-		!ps2::ui::swf::Active() || !ps2::ui::retail::MovieExecutionAdmitted() )
+		!ps2::ui::swf::Active() || !ps2::ui::retail::MovieExecutionAdmitted( ps2::ui::retail::MovieIndex( filename ) ) )
 	{
 		idLib::FatalError( "retail SWF execution requires an admitted idle snapshot" );
 	}
 
 	resourceExecution = true;
-	Activate( true );
+
+	if ( activate )
+	{
+		Activate( true );
+	}
 }
 
 // [PS2_D3BFG]: Mutable script names cannot authorize an aliased native service.
@@ -389,7 +399,8 @@ unsigned idSWF::AdvanceResourceExecution( int time )
 // [PS2_D3BFG]: Drawing is authorized per movie profile, after execution, so unsupported draws stay unavailable.
 void idSWF::EnableResourceRender()
 {
-	if ( !resourceOnly || !resourceExecution || resourceRender || !ps2::ui::retail::MovieRenderAdmitted() )
+	if ( !resourceOnly || !resourceExecution || resourceRender ||
+		!ps2::ui::retail::MovieRenderAdmitted( ps2::ui::retail::MovieIndex( filename ) ) )
 	{
 		idLib::FatalError( "retail SWF drawing requires an executing movie with admitted draw features" );
 	}

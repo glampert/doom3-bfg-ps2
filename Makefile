@@ -553,6 +553,7 @@ test-retail-shell: all
 
 test-retail-menu: all
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-render
+	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-quit
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core

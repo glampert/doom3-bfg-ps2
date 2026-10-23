@@ -23,6 +23,8 @@ static constexpr unsigned kMaxWidgets = 1024;
 static constexpr char kDoom3Cover[] = "guis/assets/mainmenu/doom3_cover";
 // The native callbacks the shell handler and its start, root and credits screens install.
 static constexpr const char * kMenuCallbacks[] = { "updateMenuDisplay", "activateMenus", "closeMenu", "refreshCarousel", "updateCredits" };
+// The choices idCommonDialog::ShowDialog installs for the shown dialog.
+static constexpr const char * kDialogChoices[] = { "acceptCallBack", "cancelCallBack", "altCBOne", "altCBTwo" };
 
 idSWFScriptVar PinCallback(idSWF & movie, const char * name)
 {
@@ -341,6 +343,68 @@ private:
 
 static MenuOwner * s_menu = nullptr;
 
+// The shown dialog's native choices, pinned when Common's dialog manager installs them. The movie
+// copies them into button properties and calls them as methods, so identity, not the name,
+// authorizes a call; a later dialog's choices replace them.
+class DialogChoices final
+{
+public:
+    explicit DialogChoices(idSWF & movie) : m_movie(movie)
+    {
+    }
+
+    idSWF & Movie() const
+    {
+        return m_movie;
+    }
+
+    void Pin()
+    {
+        for (int index = 0; index < ps2::ArrayLength(kDialogChoices); ++index)
+        {
+            idSWFScriptVar choice = m_movie.GetGlobal(kDialogChoices[index]);
+            m_choices[index] = choice.IsFunction() && !choice.GetFunction()->IsScript() ? choice : idSWFScriptVar();
+        }
+    }
+
+    bool Owns(const idSWFScriptFunction * function, const idSWF * movie)
+    {
+        if (movie != &m_movie || function == nullptr)
+        {
+            return false;
+        }
+
+        for (auto & choice : m_choices)
+        {
+            if (choice.IsFunction() && choice.GetFunction() == function)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool OwnsCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
+    {
+        for (int index = 0; index < ps2::ArrayLength(kDialogChoices); ++index)
+        {
+            if (name != nullptr && idStr::Cmp(name, kDialogChoices[index]) == 0)
+            {
+                return Owns(function, movie) && m_choices[index].GetFunction() == function;
+            }
+        }
+
+        return false;
+    }
+
+private:
+    idSWF & m_movie;
+    idSWFScriptVar m_choices[static_cast<std::size_t>(ps2::ArrayLength(kDialogChoices))];
+};
+
+static DialogChoices * s_choices = nullptr;
+
 // Dialog choices exist so the movie sees native callback objects, as idCommonDialog::ShowDialog
 // supplies them. Routing a choice needs dialog events and Common's deferred clear; until then a call
 // fails explicitly, either at the interpreter's signature check or here outside a script scope.
@@ -471,8 +535,8 @@ namespace ps2::ui::retail
 {
 void AttachOwner(idSWF & movie, unsigned movieIndex)
 {
-    if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || movieIndex >= 2 || !movie.IsResourceOnly() ||
-        movie.IsResourceExecution())
+    if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || s_choices != nullptr || movieIndex >= 2 ||
+        !movie.IsResourceOnly() || movie.IsResourceExecution())
     {
         FatalError("invalid retail native widget owner startup");
     }
@@ -485,7 +549,8 @@ void AttachOwner(idSWF & movie, unsigned movieIndex)
 
 void ShowQuitDialog(idSWF & movie)
 {
-    if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || !movie.IsResourceOnly() || movie.IsResourceExecution())
+    if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || s_choices != nullptr || !movie.IsResourceOnly() ||
+        movie.IsResourceExecution())
     {
         FatalError("invalid retail dialog owner startup");
     }
@@ -548,7 +613,44 @@ bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, co
 {
     return (s_owner != nullptr && s_owner->OwnsCallback(name, function, movie)) ||
            (s_dialog != nullptr && s_dialog->OwnsCallback(name, function, movie)) ||
-           (s_menu != nullptr && s_menu->OwnsCallback(name, function, movie));
+           (s_menu != nullptr && s_menu->OwnsCallback(name, function, movie)) ||
+           (s_choices != nullptr && s_choices->OwnsCallback(name, function, movie));
+}
+
+void AttachDialogChoices(idSWF & movie)
+{
+    if (s_choices != nullptr || s_dialog != nullptr || s_owner != nullptr || !movie.IsResourceExecution())
+    {
+        FatalError("invalid retail dialog choice owner startup");
+    }
+
+    s_choices = new (TAG_SWF) DialogChoices(movie);
+}
+
+void PinShownChoices(idSWF & movie)
+{
+    if (s_choices == nullptr || &s_choices->Movie() != &movie)
+    {
+        FatalError("retail dialog choices outside their movie");
+    }
+
+    s_choices->Pin();
+}
+
+void DetachDialogChoices(idSWF & movie)
+{
+    if (s_choices == nullptr || &s_choices->Movie() != &movie)
+    {
+        FatalError("retail dialog choice owner does not own the departing movie");
+    }
+
+    delete s_choices;
+    s_choices = nullptr;
+}
+
+bool IsDialogChoice(const idSWFScriptFunction * function, const idSWF * movie)
+{
+    return s_choices != nullptr && s_choices->Owns(function, movie);
 }
 
 bool IsEventHandler(const idSWFScriptFunction * function, const idSWF * movie)

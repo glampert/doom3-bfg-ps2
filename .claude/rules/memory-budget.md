@@ -680,3 +680,21 @@ and PAL identical, requested / backing / allocations:
   screens move by those two bytes.
 
 Production `PT_LOAD` is 11,258,733 debug / 11,707,757 release bytes (+2,688 / +2,560).
+
+## Native quit dialog beside the menu (2026-10-24)
+
+The menu now initializes Common's dialog manager, which keeps the admitted dialog movie
+resident beside the shell for the menu's lifetime: its dictionary, scripts and atlas. No
+save indicator movie is opened. Debug ledgers, NTSC and PAL identical, requested /
+backing / allocations:
+
+- Menu opened 10,644,048 / 11,339,800 / 15,734 (+328,222 requested for the dialog movie);
+  start screen after 120 frames 10,900,388 / 11,619,844 / 16,275; root after accept
+  10,917,308 / 11,639,396 / 16,335; menu peak 10,943,252 / 11,669,804, arena 11,823,187.
+- Quit confirmation shown 11,058,136 / 11,802,084 / 16,831; after cancel 11,045,000 /
+  11,786,756 / 16,783; the quit run peaks at 11,063,600 / 11,808,304, arena 11,958,355.
+- The menu releases to 5,017,881 / 5,126,500 / 2,611 after back (5,017,534 / 5,125,624 /
+  2,598 at the quit): the dialog atlas stays open with the other warm images (11).
+- Full shutdown still recovers 7,424 / 7,600 / 4, including the quit through the dialog.
+
+Production `PT_LOAD` is 11,261,869 debug / 11,710,765 release bytes (+3,136 / +3,008).
