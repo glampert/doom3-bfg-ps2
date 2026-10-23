@@ -63,13 +63,15 @@ class MovieResourcesTests(unittest.TestCase):
         textures = {"font": gstx_fixture.alpha_texture(width, height, gstx_fixture.rgba_alpha(rgba)),
                     "shell": gstx_fixture.solid_texture(256, 128, (40, 60, 80, 255)),
                     "dialog": gstx_fixture.solid_texture(128, 64, (80, 60, 40, 255)),
-                    "cover": gstx_fixture.solid_texture(384, 192, (10, 20, 30, 255))}
+                    "cover": gstx_fixture.solid_texture(384, 192, (10, 20, 30, 255)),
+                    "cross": gstx_fixture.solid_texture(128, 64, (30, 90, 200, 255))}
         self.manifest["cooked"]["runtime_images"] = {name: gstx_fixture.write_asset(self.source, raw)
                                                      for name, raw in textures.items()}
         self.manifest["image_resolutions"] = [{"logical_image": "newfonts/ps2_ascii/48.tga", "selected": "font", "status": "resolved"},
             {"logical_image": "generated/swf/shell.tga", "selected": "shell"},
             {"logical_image": "generated/swf/dialog.tga", "selected": "dialog"},
-            {"logical_image": "guis/assets/mainmenu/doom3_cover.tga", "selected": "cover"}]
+            {"logical_image": "guis/assets/mainmenu/doom3_cover.tga", "selected": "cover"},
+            {"logical_image": "guis/assets/hud/controller/ps3/cross", "selected": "cross"}]
         return self.manifest
 
     def test_source_pixel_probes_reject_blank_or_wrong_color_labels(self):
@@ -181,7 +183,7 @@ class MovieResourcesTests(unittest.TestCase):
         swf = manifest["swfs"]["generated/swf/dialog.bswf"]
         language = inspect_language((self.source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
         options = "|".join(language["entries"][key] for key in runner.QUIT_OPTIONS)
-        images = runner.resident_images(manifest) | {"dialog"}
+        images = runner.resident_images(manifest) | runner.prompt_images(manifest) | {"dialog"}
         counters = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
         textures = "[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters)
         log = "GS ready NTSC\nrun_ready \n"
@@ -224,16 +226,16 @@ class MovieResourcesTests(unittest.TestCase):
         self.assertTrue(accepted(log), runner.classify_dialog_render(log, "run", "ntsc", manifest, self.source)[1])
         first = next(runner.TEXTURES_RE.finditer(log)).group(0)
         pixels = "pixels=" + first.split("pixels=")[1].split()[0]
+        images = int(first.split("images=")[1].split()[0])
         texture_rows = [match.group(0) for match in runner.TEXTURES_RE.finditer(log)]
         stalled = log.replace(texture_rows[1], texture_rows[1].replace("triangles=2000", "triangles=1000"))
-        for changed in (log.replace(pixels, pixels + "1"), log.replace("images=2 pages", "images=3 pages"),
+        for changed in (log.replace(pixels, pixels + "1"), log.replace(f"images={images} pages", f"images={images + 1} pages"),
                         log.replace("uploads=5", "uploads=0"), replace_last(log, "uploads=5", "uploads=6"),
                         replace_last(log, "evictions=0", "evictions=1"), stalled,
                         log.replace("masks=10 strokes=0", "masks=9 strokes=0"),
                         log.replace("options=Accept|Cancel|Change Game", "options=Accept|Cancel|Quit"),
                         replace_last(log, "SWF dependency movie=swf/dialog.swf kind=frame name=rollOn\n", ""),
-                        replace_last(log, "RETAIL released movie=1 images=2 heap=80/100/4",
-                                     "RETAIL released movie=1 images=2 heap=81/100/4")):
+                        replace_last(log, " heap=80/100/4", " heap=81/100/4")):
             with self.subTest(changed=changed):
                 self.assertFalse(accepted(changed))
 
@@ -351,7 +353,6 @@ class MovieResourcesTests(unittest.TestCase):
             if suffix == "d":
                 log += "".join(f"SWF dependency movie=dialog kind={kind} name={name}\n" for kind, name in runner.DIALOG_DEPENDENCIES
                                if kind != "frame")
-                log += "[D3BFG] UI glyph size font=sarasori_rg scale=0.18333,0.21389 stroke=0.000 prerendered=no\n"
             if suffix == "f":
                 log += "SWF dependency movie=dialog kind=native-callback name=func1\n"
             log += ("RETAIL menu screen={} next={} session={} platform={} callbacks={} root_focus={}\n"
@@ -377,8 +378,7 @@ class MovieResourcesTests(unittest.TestCase):
                         log.replace("SWF dependency movie=dialog kind=native-callback name=func1\n", ""),
                         log.replace("name=func0", "name=func1"),
                         log.replace("SWF dependency movie=dialog kind=method name=showMessage\n", ""),
-                        log.replace("stroke=0.000 prerendered=no", "stroke=2.000 prerendered=no"),
-                        log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.2,0.2 stroke=0.000 "
+                        log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.18333,0.21389 stroke=0.000 "
                                     "prerendered=no\nrun_done"),
                         log.replace("RETAIL drawable movie=1", "RETAIL undrawable movie=1"),
                         log.replace("evictions=0", "evictions=1", 1),

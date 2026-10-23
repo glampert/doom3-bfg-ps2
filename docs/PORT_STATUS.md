@@ -2,10 +2,12 @@
 
 ## Current snapshot — 2026-10-24
 
-The port is not playable yet. The latest slice opens the
+The port is not playable yet. The latest slice draws retail text's pad button tags as the
+[original PS3 prompt art](#pad-prompt-icons-in-retail-text-2026-10-24) (2026-10-24, debug
+gates): the quit confirmation's `<JOY1>` is the cross icon. The one before opened the
 [original quit confirmation through Common's dialog manager](#native-quit-dialog-through-commons-dialog-manager-2026-10-24)
-(2026-10-24, debug gates): the root menu's Quit shows it over the menu, Cancel closes it
-and Accept quits the game. The one before routed
+(2026-10-24): the root menu's Quit shows it over the menu, Cancel closes it
+and Accept quits the game. The one before that routed
 [key events to the native menu](#native-shell-menu-key-input-2026-10-23) (2026-10-23):
 injected keyboard keys and pad buttons sign in, move the root menu's focus and return to
 press-start through the game's own event code. The one before that handed the
@@ -38,21 +40,23 @@ changing their bytes.
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
-| 2D-7–8 | The native shell handler drives the start and root screens from injected keyboard and pad key events, and Quit opens Common's native confirmation (debug gates) | Controller prompt icons, the other screens, opening at boot, physical keyboard/pad input and hardware validation |
+| 2D-7–8 | The native shell handler drives the start and root screens from injected keyboard and pad key events, Quit opens Common's native confirmation and pad button tags draw as PS3 prompt art (debug gates) | The other screens, opening at boot, physical keyboard/pad input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog and `ps2_uiRetail draw
 shell` the shell's start screen, with placeholder prompts and labels because no native
 screen runs. `ps2_uiRetail menu` runs the native shell handler instead: its start screen
 and root menu, with PlayStation-style prompts, which `ps2_uiRetail key NAME` drives with
 keyboard keys and pad buttons; its Quit opens the original confirmation, whose `<JOY1>`
-prompt still prints as text. Other retail modes still show isolated native English
+prompt draws as the cross icon. Other retail modes still show isolated native English
 labels and take no events. The dialog draws at about 40 ms per debug PCSX2 frame, the shell at 100–140 ms.
 No world rendering or audible playback is implemented.
 
 The last acceptance (2026-10-24, debug only) passed the console, font, retail movie,
-authored UI, headless, game and map gates (62 cases) with the new `menu-quit` case in
-NTSC and PAL; see its [record](#native-quit-dialog-through-commons-dialog-manager-2026-10-24).
-The one before passed them (60 cases) with key-driven menu captures; see its
+authored UI, headless, game and map gates (62 cases) with the prompt icons drawn in the
+quit dialog in NTSC and PAL; see its [record](#pad-prompt-icons-in-retail-text-2026-10-24).
+The one before passed them with the new `menu-quit` case; see its
+[record](#native-quit-dialog-through-commons-dialog-manager-2026-10-24).
+The one before that passed them (60 cases) with key-driven menu captures; see its
 [record](#native-shell-menu-key-input-2026-10-23). The one before that passed them with
 the native shell handler and the new `menu-render` case; see its
 [record](#native-shell-menu-start-and-root-screens-2026-10-23). An earlier one added the
@@ -91,9 +95,9 @@ and fitting the game into the 32 MiB budget. Its first lever, paletted UI textur
 passes the debug gates and awaits the user's visual pass; the dialog's and the start
 screen's text draws from pre-rendered glyphs, whose sizes for later screens are still to
 be collected; the heap levers are measured and not applied. The native shell handler
-draws the start and root screens, takes injected key events and opens the native quit
-confirmation; controller prompt icons, the other screens and physical keyboard/pad input
-follow. Required feature/resource admission precedes each
+draws the start and root screens, takes injected key events, opens the native quit
+confirmation and draws its pad prompts as the PS3 art; the other screens, opening at boot
+and physical keyboard/pad input follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -4566,3 +4570,65 @@ Production `PT_LOAD` is 11,261,869 debug / 11,710,765 release bytes (+3,136 / +3
 | `test-headless` | 2 | `20261023T134747Z_headless_ced8761e5d11`, `20261023T134751Z_headless_72676e274150` |
 | `test-game` | 11 | `20261023T135209Z_smoke_3ca299ca4b9040aa` to `20261023T135237Z_smoke_0638a120fd404075` |
 | `test-map` | 1 | `20261023T135245Z_smoke_ed542168d5d045c3` |
+
+## Pad prompt icons in retail text (2026-10-24)
+
+Accepted **2026-10-24, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release builds compile and were not run. Retail text now draws pad button tags such as
+`<JOY1>` as the original PS3 prompt art instead of the literal tag
+([pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu)).
+
+- **Table.** Native `idSWF` keeps a `tooltipButtonImage` table of Xbox, PlayStation and
+  PC art per tag, which the PS2 constructor skipped. Retail movies now get the eight
+  PS3 entries (`<JOY1>`–`<JOY4>`, the triggers and bumpers) with the native drawing
+  sizes; authored movies keep none. `FindTooltipIcons` takes `psImage` on PS2.
+- **Loading.** A material found while drawing would load its image inside the GS frame,
+  which the paletted loader refuses, so `EnableResourceRender` loads the eight prompt
+  materials before any frame; the profile's `material_names` admit them and the cook
+  converts the images with the other menu art, at full resolution. No pointer art loads.
+- **Gates.** The drawn cases (`dialog-render`, `shell-render`, `menu-render`,
+  `menu-quit`) now expect the eight prompt images among the resident textures and refuse
+  any `UI glyph size ... prerendered=no` line: the stroke-free prompt size `menu-quit`
+  used to tolerate is gone, since the tag no longer lays out as text.
+
+**Checks.** The quit dialog's captures in both standards show the cross icon before
+ACCEPT, with the title, question and options unchanged; `menu-render`, `shell-render`
+and `dialog-render` match their earlier captures apart from the icon. `make test-host`
+passes its 368 tests with the prompt images in the fixture textures.
+
+| Debug ledger (NTSC = PAL; requested / backing [/ allocations]) | Quit dialog (2026-10-24) | This slice |
+| --- | ---: | ---: |
+| Menu opened (frame 0) | 10,644,048 / 11,339,800 / 15,734 | 10,789,210 / 11,490,896 / 15,856 |
+| Menu start screen after 120 frames | 10,900,388 / 11,619,844 / 16,275 | 11,045,550 / 11,770,940 / 16,397 |
+| Menu root screen after accept | 10,917,308 / 11,639,396 / 16,335 | 11,062,470 / 11,790,492 / 16,457 |
+| Menu release after back | 5,017,881 / 5,126,500 / 2,611 | 5,162,275 / 5,276,740 / 2,731 |
+| Menu peak; arena | 10,943,252 / 11,669,804; 11,823,187 | 11,088,414 / 11,820,900; 11,972,051 |
+| Quit confirmation shown | 11,058,136 / 11,802,084 / 16,831 | 11,203,298 / 11,953,180 / 16,953 |
+| Root after cancel | 11,045,000 / 11,786,756 / 16,783 | 11,190,162 / 11,937,852 / 16,905 |
+| Release at the dialog's quit | 5,017,534 / 5,125,624 / 2,598 | 5,161,928 / 5,275,864 / 2,718 |
+| Quit run peak; arena | 11,063,600 / 11,808,304; 11,958,355 | 11,208,762 / 11,959,400; 12,107,219 |
+| Full shutdown | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+The eight prompt images stay warm after a drawn movie's release, about 145 KB with their
+objects and tables (19 warm images after the menu, was 11); the dialog and shell screens
+move by the same amount and the console, font and authored UI screens by the catalog's
+2,786 bytes ([budget](../.claude/rules/memory-budget.md#pad-prompt-icons-in-retail-text-2026-10-24)).
+The menu's textures read 19 images, 23 pages, 43 CLUTs, 1,499,136 pixel and 54,388 metadata
+bytes.
+
+Production `PT_LOAD` is 11,264,557 debug / 11,718,445 release bytes (+2,688 / +7,680),
+379 objects and no fixtures.
+
+The matrix ran once; its PAL `shell-render` session ended when its emulator window was
+closed (status 0, no target fault), and the cases after it ran again separately on the
+same ELF.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-console` | 2 | `20261023T141049Z_console_769415d6b353`, `20261023T141101Z_console_ee5aae698560` |
+| `test-retail-ui` | 7 | `20261023T141117Z_retail_b8b5cbde384a` to `20261023T141210Z_retail_96bfcfb5f185` |
+| `test-retail-movies` | 25 | `20261023T141218Z_movies_61d9ff30c546` to `20261023T141539Z_movies_3e057ebd3557` (native, execution, dialog, NTSC shell), then on the same ELF PAL shell `20261023T142132Z_movies_06e4d4963e32`, menu `20261023T142218Z_movies_015adef4ec21`, `20261023T234604Z_movies_b02f5ea0c469`, menu-quit `20261023T234803Z_movies_0600b3af8775`, `20261023T234912Z_movies_3f49de1fd044` and the negatives `20261023T142119Z_movies_e7c28125c189`, `20261023T235021Z_movies_8790f6ccd431` to `20261023T235112Z_movies_e11400247e2b` |
+| `test-ui` | 14 | `20261023T141714Z_ui_0e841569716e` to `20261023T141851Z_ui_6800bbe01600` |
+| `test-headless` | 2 | `20261023T141859Z_headless_d9c6fc78b8bb`, `20261023T141904Z_headless_4f734ce42ab1` |
+| `test-game` | 11 | `20261023T141917Z_smoke_c0fd5a645b2242c9` to `20261023T141948Z_smoke_4ffe44915028443d` |
+| `test-map` | 1 | `20261023T141956Z_smoke_ddf0d58b17364c4b` |

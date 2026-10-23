@@ -135,10 +135,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   admission is per movie): the root's Quit shows the native confirmation, an active dialog
   takes events first, its choices are pinned by identity, and accept quits through
   Common. `make test-retail-menu` checks both (`menu-render`, `menu-quit`).
-  Converted pages stay resident: a debug PCSX2 frame takes about 60 ms for the
-  dialog and 100–140 ms for the shell on the fixed clock. Controller prompt icons in
-  text, the other screens, physical keyboard/pad input, dynamic resources and artwork
-  residency remain pending.
+  Retail text draws pad button tags (`<JOY1>`) as the cooked PS3 prompt art, which a
+  drawn movie loads when admitted. Converted pages stay resident: a debug PCSX2 frame
+  takes about 60 ms for the dialog and 100–140 ms for the shell on the fixed clock. The
+  other screens, physical keyboard/pad input, dynamic resources and artwork residency
+  remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex

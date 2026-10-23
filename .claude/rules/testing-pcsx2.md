@@ -209,9 +209,9 @@
   dialog's layout services after it opens, one copied choice call each for Cancel and
   Accept, one release after the final capture and full shutdown recovery. The dynamic
   dialog binds neither Escape nor circle to cancel; its options take focus left to
-  right. Until controller prompt icons exist, the dialog prints its `<JOY1>` tag as
-  text, so exactly one stroke-free Sarasori size may log `prerendered=no`. A session
-  takes about 55 s.
+  right. Its `<JOY1>` prompt draws as the PS3 cross art, and no `UI glyph size` line may
+  appear; `dialog-render` and `shell-render` require none either, and their textures
+  include the eight prompt images a drawn movie loads. A session takes about 70 s.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

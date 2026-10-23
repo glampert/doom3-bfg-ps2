@@ -171,8 +171,10 @@ drive it through Common's event loop: accept signs in, the arrows move the root'
 and back returns to press-start, from injected keyboard keys and pad buttons
 ([record](PORT_STATUS.md#native-shell-menu-key-input-2026-10-23)). On 2026-10-24 the
 root's Quit opened Common's native confirmation through the dialog manager, over the menu
-([record](PORT_STATUS.md#native-quit-dialog-through-commons-dialog-manager-2026-10-24)).
-Controller prompt icons in text and the other screens come next. See the
+([record](PORT_STATUS.md#native-quit-dialog-through-commons-dialog-manager-2026-10-24)),
+and its pad button tags drew as the PS3 prompt art
+([record](PORT_STATUS.md#pad-prompt-icons-in-retail-text-2026-10-24)). The other screens
+come next. See the
 [pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu) and the
 [acceptance record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23).
 

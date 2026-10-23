@@ -100,6 +100,7 @@ MENU_QUIT_INPUTS = {"a": ("0", "0", "0", "0"), "b": ("2", "1", "0", "0"), "c": (
                     "g": ("12", "8", "1", "2")}
 POSITIVE_CASES = ("native", "execution", "dialog-execution", "dialog-render", "shell-render", "menu-render", "menu-quit")
 EXECUTION_HEAP_CEILING = 16 * 1024 * 1024
+PROMPT_ART = "guis/assets/hud/controller/ps3/"
 # The native quit dialog's identity from Common_dialog.h (GDM_QUIT_GAME, DIALOG_DYNAMIC) and GetDialogMsg.
 QUIT_DIALOG = ("66", "8", "#str_01975", "#str_dlg_confirm_quit")
 QUIT_OPTIONS = ("#str_swf_accept", "#str_swf_cancel", "#str_swf_change_game")
@@ -425,9 +426,15 @@ def screen_placements(swf: dict) -> int:
     return sum(entry["blend_mode"] == 4 for sprite in swf["sprites"] for entry in sprite["placements"])
 
 
+def prompt_images(manifest: dict) -> set:
+    """The PS3 pad prompt art, which a drawn retail movie loads for its text's button tags."""
+    return {row["selected"] for row in manifest["image_resolutions"] if row["logical_image"].startswith(PROMPT_ART)}
+
+
 def shell_images(manifest: dict) -> set:
-    """Every retail screen's resident images, the shell atlas and the carousel's Doom 3 cover."""
-    images = resident_images(manifest)
+    """Every retail screen's resident images, the shell atlas, the carousel's Doom 3 cover and the
+    pad prompt art of the drawn shell."""
+    images = resident_images(manifest) | prompt_images(manifest)
     for logical in ("generated/swf/shell.tga", "guis/assets/mainmenu/doom3_cover.tga"):
         images.add(next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == logical))
     return images
@@ -476,8 +483,8 @@ def classify_shell_render(log: str, identity: str, standard: str, manifest: dict
     captures = list(CAPTURE.finditer(log))
     if [match[1] for match in captures] != render_capture_names(phases):
         return False, "missing or reordered native shell captures"
-    if menu and "prerendered=no" in log:
-        return False, "native menu drew text at a size without pre-rendered glyphs"
+    if UNRENDERED.search(log):
+        return False, "native shell drew text at a size without pre-rendered glyphs"
     swf = manifest["swfs"]["generated/swf/shell.bswf"]
     features = swf["features"]
     expected_admission = (features["masks"], features["strokes"], screen_placements(swf), features["color_add"])
@@ -626,10 +633,8 @@ def classify_menu_quit(log: str, identity: str, standard: str, manifest: dict, s
     if (len(shell_loads) != 1 or tuple(map(int, shell_loads[0].groups())) != expected_shell or len(dialog_loads) != 1 or
             tuple(map(int, dialog_loads[0].groups())) != (dialog["features"]["masks"], 0, 0, 0)):
         return False, "shell and dialog draw admissions missing, repeated or different from the inspected profiles"
-    # Until the controller prompt icons are admitted, the dialog prints one button tag as stroke-free text.
-    unrendered = [match for match in UNRENDERED.finditer(log)]
-    if (len(unrendered) > 1 or any(match[1] != "sarasori_rg" or match[2] != "0.000" or match.start() < captures[2].end()
-                                   for match in unrendered)):
+    # The dialog's button tags draw as prompt icons, and every other size is pre-rendered.
+    if UNRENDERED.search(log):
         return False, "native menu drew text at a size without pre-rendered glyphs"
     resident = texture_counters(resident_textures(manifest, source, menu_images(manifest)))
     channels = channel_counters(manifest, source)
@@ -698,11 +703,14 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
     captures = list(CAPTURE.finditer(log))
     if [match[1] for match in captures] != render_capture_names():
         return False, "missing or reordered native dialog captures"
+    # Button tags draw as prompt icons, and every text size is pre-rendered.
+    if UNRENDERED.search(log):
+        return False, "native dialog drew text at a size without pre-rendered glyphs"
     swf = manifest["swfs"]["generated/swf/dialog.bswf"]
     language = inspect_language((source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
     options = tuple(language["entries"][key] for key in QUIT_OPTIONS)
     expected_owner = QUIT_DIALOG + options + ("3",)
-    images = resident_images(manifest)
+    images = resident_images(manifest) | prompt_images(manifest)
     images.add(next(row["selected"] for row in manifest["image_resolutions"]
                     if row["logical_image"] == "generated/swf/dialog.tga"))
     resident = texture_counters(resident_textures(manifest, source, images))

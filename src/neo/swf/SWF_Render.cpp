@@ -1593,7 +1593,12 @@ void idSWF::FindTooltipIcons( idStr * text ) {
 			icon.startIndex = index;
 			icon.endIndex = index + idStr::Length(tooltipButtonImage[count].key);
 
+			// [PS2_D3BFG]: PS2 pads use the PS3 layout and its prompt art.
+#if defined( ID_PS2 )
+			icon.material = declManager->FindMaterial( tooltipButtonImage[count].psImage );
+#else
 			icon.material = declManager->FindMaterial( tooltipButtonImage[count].xbImage );
+#endif
 
 			if ( icon.material ) {
 				icon.imageWidth = tooltipButtonImage[count].width;

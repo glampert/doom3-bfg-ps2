@@ -36,7 +36,15 @@
     "ui/assets/guicursor_hand",
     "guis/assets/mainmenu/doom_cover.tga",
     "guis/assets/mainmenu/doom2_cover.tga",
-    "guis/assets/mainmenu/doom3_cover.tga"
+    "guis/assets/mainmenu/doom3_cover.tga",
+    "guis/assets/hud/controller/ps3/cross",
+    "guis/assets/hud/controller/ps3/circle",
+    "guis/assets/hud/controller/ps3/square",
+    "guis/assets/hud/controller/ps3/triangle",
+    "guis/assets/hud/controller/ps3/l1",
+    "guis/assets/hud/controller/ps3/r1",
+    "guis/assets/hud/controller/ps3/l2",
+    "guis/assets/hud/controller/ps3/r2"
   ],
   "path_contracts": {
     "shell": [

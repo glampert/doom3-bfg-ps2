@@ -77,6 +77,19 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 #if defined( ID_PS2 )
 	white = declManager->FindMaterial( "_white" );
 	guiCursor_arrow = guiCursor_hand = NULL;
+
+	// [PS2_D3BFG]: Retail text replaces pad button tags with the admitted PS3 prompt art, which a
+	// drawn movie loads when admitted; there is no pointer device.
+	if ( resourceOnly ) {
+		tooltipButtonImage.Append( keyButtonImages_t( "<JOY1>", "guis/assets/hud/controller/xb360/a", "guis/assets/hud/controller/ps3/cross", 37, 37, 0 ) );
+		tooltipButtonImage.Append( keyButtonImages_t( "<JOY2>", "guis/assets/hud/controller/xb360/b", "guis/assets/hud/controller/ps3/circle", 37, 37, 0 ) );
+		tooltipButtonImage.Append( keyButtonImages_t( "<JOY3>", "guis/assets/hud/controller/xb360/x", "guis/assets/hud/controller/ps3/square", 37, 37, 0 ) );
+		tooltipButtonImage.Append( keyButtonImages_t( "<JOY4>", "guis/assets/hud/controller/xb360/y", "guis/assets/hud/controller/ps3/triangle", 37, 37, 0 ) );
+		tooltipButtonImage.Append( keyButtonImages_t( "<JOY_TRIGGER2>", "guis/assets/hud/controller/xb360/rt", "guis/assets/hud/controller/ps3/r2", 64, 52, 0 ) );
+		tooltipButtonImage.Append( keyButtonImages_t( "<JOY_TRIGGER1>", "guis/assets/hud/controller/xb360/lt", "guis/assets/hud/controller/ps3/l2", 64, 52, 0 ) );
+		tooltipButtonImage.Append( keyButtonImages_t( "<JOY5>", "guis/assets/hud/controller/xb360/lb", "guis/assets/hud/controller/ps3/l1", 52, 32, 0 ) );
+		tooltipButtonImage.Append( keyButtonImages_t( "<JOY6>", "guis/assets/hud/controller/xb360/rb", "guis/assets/hud/controller/ps3/r1", 52, 32, 0 ) );
+	}
 #else
 	guiCursor_arrow = declManager->FindMaterial( "ui/assets/guicursor_arrow" );
 	guiCursor_hand = declManager->FindMaterial( "ui/assets/guicursor_hand" );
@@ -406,6 +419,12 @@ void idSWF::EnableResourceRender()
 	}
 
 	resourceRender = true;
+
+	// Native text finds a tag's prompt art while drawing, when no image may load; load it now.
+	for ( int index = 0; index < tooltipButtonImage.Num(); ++index )
+	{
+		declManager->FindMaterial( tooltipButtonImage[index].psImage );
+	}
 }
 
 // [PS2_D3BFG]: Only a native menu routes keys to its movie, once the movie executes and draws.

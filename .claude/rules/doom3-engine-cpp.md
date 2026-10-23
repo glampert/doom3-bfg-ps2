@@ -644,8 +644,13 @@ math path; PS2-specific math replacement headers are a later milestone.
   pinned object, not the name, authorizes the call. The root's Quit dialog is
   DIALOG_DYNAMIC: its three options take focus left to right and accept selects the
   focused one; neither Escape nor circle cancels it. Accept quits through Common at the
-  frame's end. Its `<JOY1>` prompt prints as text: native text replaces button tags with
-  controller icons, whose materials the PS2 port does not load yet.
+  frame's end. Its `<JOY1>` prompt is a button tag: native `FindTooltipIcons` replaces
+  tags with controller art from `tooltipButtonImage` while drawing.
+- On PS2 only retail movies get that table, with the PS3 art (platform 1), and the lookup
+  takes `psImage`; authored movies keep none. A material found while drawing would load
+  its image inside the GS frame, which the paletted loader refuses, so
+  `EnableResourceRender` loads the eight prompt materials first (native PC preloads them in
+  the constructor). The profile's `material_names` admit them; no pointer art is loaded.
 - Native widget callbacks, carousel and credits refreshes included, run under the same
   execution scope and seek checks as timeline scripts. The carousel's buttons ask for a
   `sel_up` frame that the retail movie's carousel items do not have, so native code

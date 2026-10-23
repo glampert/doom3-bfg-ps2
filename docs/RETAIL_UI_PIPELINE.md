@@ -707,8 +707,10 @@ handler with the session and runs its update before the timeline advances.
   right (dpad or arrows) and accept selects the focused one: Cancel closes the dialog,
   Change Game returns to press-start and Accept quits the game through Common. The
   manager's update runs before the GS frame; the presentation advances and draws the
-  dialog after the shell. The dialog's `<JOY1>` prompt still prints as text, since the
-  controller prompt icons are not cooked yet.
+  dialog after the shell. Its `<JOY1>` prompt draws as the PS3 cross art.
+- **Prompt art.** The profile admits the eight PS3 pad prompt images
+  (`guis/assets/hud/controller/ps3/*`), each a small PSMT8 texture. Native text replaces
+  button tags with them; a drawn movie loads all eight when admitted, before any frame.
 - **Admission.** The movie is the admitted shell with execution and drawing, as for
   `draw shell`, plus key events, a fourth admission. Its native callbacks
   (`updateMenuDisplay`, `activateMenus`, `closeMenu`, `refreshCarousel`, `updateCredits`)

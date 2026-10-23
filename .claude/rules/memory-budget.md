@@ -698,3 +698,37 @@ backing / allocations:
 - Full shutdown still recovers 7,424 / 7,600 / 4, including the quit through the dialog.
 
 Production `PT_LOAD` is 11,261,869 debug / 11,710,765 release bytes (+3,136 / +3,008).
+
+## Pad prompt icons in retail text (2026-10-24)
+
+Retail text now draws pad button tags (`<JOY1>`) as the original PS3 prompt art: eight
+small images (the four face buttons 38×34, L1/R1 52×32, L2/R2 64×52, at full resolution),
+each one 128×64 PSMT8 page with a 256-entry CLUT, 9,216 decoded bytes and 1,568–1,872 on
+disc (13,248 together). The UICT4 catalog grows from 63,329 to 66,115 bytes, which every
+visible screen pays. A drawn movie loads all eight when its drawing is admitted and the
+texture owner keeps them warm after the movie's release, so the dialog, shell and menu
+screens hold about 145 KB more: the pages and CLUT textures (98,304 pixel bytes), 1,224
+bytes of tables and lookup grids, the image and material objects, a 384-byte prompt list
+per drawn movie and the catalog. Each image also takes an 8 KiB page and an 8 KiB CLUT
+page of VRAM once uploaded. Debug ledgers, NTSC and PAL identical, requested / backing /
+allocations:
+
+- Menu opened 10,789,210 / 11,490,896 / 15,856 (+145,162 requested); start screen after 120
+  frames 11,045,550 / 11,770,940 / 16,397; root after accept 11,062,470 / 11,790,492 /
+  16,457; menu peak 11,088,414 / 11,820,900, arena 11,972,051. The menu releases to
+  5,162,275 / 5,276,740 / 2,731 after back and 5,161,928 / 5,275,864 / 2,718 at the quit;
+  19 images stay warm (was 11).
+- Quit confirmation shown 11,203,298 / 11,953,180 / 16,953; after cancel 11,190,162 /
+  11,937,852 / 16,905; the quit run peaks at 11,208,762 / 11,959,400, arena 12,107,219.
+- Drawn shell: start screen after 120 frames 10,604,232 / 11,309,600 / 15,924, every
+  release 4,951,669 / 5,065,344 / 2,716, peak 10,614,016 / 11,320,876. Dialog at rest
+  4,330,305 / 4,475,128 / 3,446, every release 4,082,621 / 4,195,044 / 2,695; its peak,
+  4,367,967 / 4,478,636, moves only by the catalog, since the atlas's load staging comes
+  before the prompts.
+- Font screen warm 2,677,255 / 2,782,032 / 2,536, visible console peak 2,432,128 /
+  2,530,672 and authored UI warm unload 3,697,672 / 3,799,056 / 2,468: the catalog's
+  bytes only, since no movie draws there.
+- Full shutdown still recovers 7,424 / 7,600 / 4; headless runs are unchanged.
+
+Production `PT_LOAD` is 11,264,557 debug / 11,718,445 release bytes (+2,688 / +7,680), for
+the prompt table, its preload and the icon lookup.
