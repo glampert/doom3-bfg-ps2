@@ -16,6 +16,7 @@
 #include "assets/rle.h"
 #include "assets/texture_convert.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <random>
@@ -453,12 +454,11 @@ static bool Json()
     return passed && Check(!ParseJson(deep, value, error), "nesting bound") && Check(JsonString("a\"\\\n") == "\"a\\\"\\\\\\u000a\"", "JSON escaping");
 }
 
-// Alpha of one bitmap (the glyph or the outline half of its placement) read back through the GSTX.
+// Alpha of one bitmap (the glyph or the outline half of its rectangle) read back through the GSTX.
 static std::vector<int> BitmapAlpha(const GstxTexture & texture, const PrerenderedGlyphResult & glyph, bool outline, int & width, int & height)
 {
-    const GstxPlacement & placement = texture.placements[static_cast<std::size_t>(glyph.placement)];
-    width = glyph.outline ? placement.match.width / 2 : placement.match.width;
-    height = placement.match.height;
+    width = glyph.outline ? glyph.rect.width / 2 : glyph.rect.width;
+    height = glyph.rect.height;
     std::vector<int> alpha;
 
     for (int y = 0; y < height; ++y)
@@ -466,12 +466,75 @@ static std::vector<int> BitmapAlpha(const GstxTexture & texture, const Prerender
         for (int x = 0; x < width; ++x)
         {
             PaletteColor color;
-            SampleGstx(texture, placement.match.x + (outline ? width : 0) + x + 0.5, placement.match.y + y + 0.5, color);
+            SampleGstx(texture, glyph.rect.x + (outline ? width : 0) + x + 0.5, glyph.rect.y + y + 0.5, color);
             alpha.push_back(color.a);
         }
     }
 
     return alpha;
+}
+
+// Every placement is one 1:1 band, one per page, and every glyph rectangle lies inside one band
+// without overlapping another glyph.
+static bool GlyphBands(const GlyphSetResult & result)
+{
+    if (result.texture.placements.size() != result.texture.pages.size())
+    {
+        return false;
+    }
+
+    for (const GstxPlacement & placement : result.texture.placements)
+    {
+        if (placement.match.x != placement.source.x || placement.match.y != placement.source.y ||
+            placement.match.width != placement.source.width || placement.match.height != placement.source.height ||
+            placement.dest.width != placement.match.width || placement.dest.height != placement.match.height)
+        {
+            return false;
+        }
+    }
+
+    std::vector<Rect> rects;
+
+    for (const GlyphSizeResult & size : result.sizes)
+    {
+        for (const PrerenderedGlyphResult & glyph : size.glyphs)
+        {
+            if (glyph.rect.width == 0)
+            {
+                continue;
+            }
+
+            const Rect & rect = glyph.rect;
+            int bands = 0;
+
+            for (const GstxPlacement & placement : result.texture.placements)
+            {
+                const Rect & band = placement.match;
+                bands += rect.x >= band.x && rect.y >= band.y && rect.x + rect.width <= band.x + band.width &&
+                                 rect.y + rect.height <= band.y + band.height
+                             ? 1
+                             : 0;
+            }
+
+            for (const Rect & other : rects)
+            {
+                if (rect.x < other.x + other.width && other.x < rect.x + rect.width && rect.y < other.y + other.height &&
+                    other.y < rect.y + rect.height)
+                {
+                    return false;
+                }
+            }
+
+            if (bands != 1)
+            {
+                return false;
+            }
+
+            rects.push_back(rect);
+        }
+    }
+
+    return true;
 }
 
 static bool GlyphSets()
@@ -503,17 +566,11 @@ static bool GlyphSets()
                   Check(RenderGlyphSet(atlas, glyphs, sizes, 512, again, error) && WriteGstx(again.texture, repeated, fileSizes, error) &&
                             repeated == file,
                         "glyph set conversion is deterministic") &&
-                  Check(result.sizes.size() == 2 && result.sizes[0].glyphs.size() == 3 && result.sizes[0].glyphs[0].placement < 0 &&
-                            result.sizes[1].glyphs[0].placement < 0 && result.texture.placements.size() == 4,
-                        "an empty glyph takes no placement");
-
-    for (const GstxPlacement & placement : result.texture.placements)
-    {
-        passed = passed && Check(placement.match.x == placement.source.x && placement.match.y == placement.source.y &&
-                                     placement.match.width == placement.source.width && placement.match.height == placement.source.height &&
-                                     placement.dest.width == placement.match.width && placement.dest.height == placement.match.height,
-                                 "every glyph bitmap maps 1:1 onto its page");
-    }
+                  Check(result.sizes.size() == 2 && result.sizes[0].glyphs.size() == 3 && result.sizes[0].glyphs[0].rect.width == 0 &&
+                            result.sizes[1].glyphs[0].rect.width == 0 && result.sizes[0].glyphs[1].rect.width != 0 &&
+                            result.texture.pages.size() == 1,
+                        "an empty glyph takes no rectangle") &&
+                  Check(GlyphBands(result), "every glyph bitmap lies in one band mapping 1:1 onto its page");
 
     if (!passed)
     {
@@ -537,7 +594,6 @@ static bool GlyphSets()
     passed = Check(!block.outline && width == 3 && height == 6 && opaque == 18 && partial == 0 && block.originX == 0 && block.originY == 96,
                    "phases align a whole-pixel glyph exactly, its origin on the left edge and baseline");
     const PrerenderedGlyphResult & stroked = result.sizes[1].glyphs[1];
-    const GstxPlacement & pair = result.texture.placements[static_cast<std::size_t>(stroked.placement)];
     int strokedWidth = 0;
     int strokedHeight = 0;
     int outlineWidth = 0;
@@ -553,8 +609,18 @@ static bool GlyphSets()
         outlineInk += outlineHalf[index];
     }
 
-    passed = passed && Check(stroked.outline && pair.match.width % 2 == 0 && strokedWidth > 3 && outlineInk > glyphInk && glyphInk > 0,
+    passed = passed && Check(stroked.outline && stroked.rect.width % 2 == 0 && strokedWidth > 3 && outlineInk > glyphInk && glyphInk > 0,
                              "an outlined glyph pairs its bitmap with a wider outline of the same size");
+    // Four times enlarged, the bitmaps outgrow one 128x128 page: each page becomes its own band.
+    GlyphSetResult large;
+    const bool spread = RenderGlyphSet(atlas, glyphs, { { 4.0, 4.0, 0.0 }, { 4.0, 4.0, 2.0 } }, 128, large, error);
+    int largeWidth = 0;
+    int largeHeight = 0;
+    const std::vector<int> largeBlock = spread ? BitmapAlpha(large.texture, large.sizes[0].glyphs[1], false, largeWidth, largeHeight)
+                                               : std::vector<int>();
+    passed = passed && Check(spread && large.texture.pages.size() >= 2 && GlyphBands(large) && largeWidth == 48 && largeHeight == 96 &&
+                                 std::count(largeBlock.begin(), largeBlock.end(), 255) == 48 * 96,
+                             "a glyph set spanning several pages keeps every bitmap whole inside one band");
     std::vector<GlyphMetrics> unordered = glyphs;
     std::swap(unordered[1], unordered[2]);
     std::vector<GlyphMetrics> outside = glyphs;

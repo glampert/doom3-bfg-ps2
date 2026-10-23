@@ -418,11 +418,14 @@ Menu text draws from glyph bitmaps rendered at their exact on-screen size
   one bilinear level, so thin stems alias; mipmaps with a trilinear per-glyph LOD
   simulated soft. Area-filtering the full atlas at the exact size, with a per-glyph
   sub-pixel phase, gave the sharpest result in simulation and on target.
-- A glyph and its outline share one 1:1 GSTX placement, in equal halves. Each half draws
-  as its own rectangle; its UV centroid selects the pair's placement and region clamp
-  bounds it, and sampling at texel centers never reaches the other half.
-- Cost: six outlined Sarasori sizes of 103 glyphs fit one 256×384 PSMT4 page (48 KiB of
-  VRAM). Each glyph draws two rectangles (outline, then glyph) instead of the native
+- A glyph and its outline share one rectangle, in equal halves. Each half draws as its
+  own rectangle. The set image has one 1:1 placement per page (a band); the UV centroid
+  selects it and region clamp bounds the whole band, so only sampling at texel centers
+  keeps out the other half and the neighbors packed flush against the bitmap. A
+  per-glyph placement (2026-10-22) cost 32 bytes of descriptor per bitmap and capped a
+  texture at 1,024; the catalog's glyph entries now carry the rectangles (2026-10-23).
+- Cost: ten Sarasori sizes of 103 glyphs (six outlined) fit one 256×512 PSMT4 page (64 KiB
+  of VRAM). Each glyph draws two rectangles (outline, then glyph) instead of the native
   five quads (four stroke copies and the glyph): the full dialog fell from about 750
   to about 334 triangles a frame.
 

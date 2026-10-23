@@ -14,15 +14,15 @@ namespace ps2::ui::retail
 {
 namespace
 {
-static constexpr std::uint32_t kVersion = 3;
+static constexpr std::uint32_t kVersion = 4;
 static constexpr std::uint32_t kHeaderBytes = 64;
 static constexpr std::uint32_t kImageBytes = 32;
 static constexpr std::uint32_t kFontBytes = 56;
 // Glyph set table: u32 image index, size count, entry count, 0; then the sizes and the entries.
 static constexpr std::uint32_t kGlyphSetBytes = 16;
 static constexpr std::uint32_t kGlyphSizeBytes = 20;
-// u32 codepoint, u16 placement, u16 flags (bit 0: outline), s16 origin x/y.
-static constexpr std::uint32_t kGlyphEntryBytes = 12;
+// u32 codepoint, u16 bitmap x/y/width/height, u16 flags (bit 0: outline), u16 zero, s16 origin x/y.
+static constexpr std::uint32_t kGlyphEntryBytes = 20;
 static constexpr std::uint16_t kGlyphOutlineFlag = 1;
 // 16.16 bounds: a glyph drawn at most 16 GS pixels per atlas texel, outlines at most 16 texels.
 static constexpr std::uint32_t kMaxGlyphScale = 16U << 16;
@@ -251,8 +251,14 @@ bool CatalogView::GetGlyphEntry(const FontRecord & font, std::uint32_t index, Gl
     }
 
     const auto offset = font.glyphTable + kGlyphSetBytes + set.sizeCount * kGlyphSizeBytes + index * kGlyphEntryBytes;
-    output = { Word(m_bytes, offset), Half(m_bytes, offset + 4), (Half(m_bytes, offset + 6) & kGlyphOutlineFlag) != 0,
-               SignedHalf(m_bytes, offset + 8), SignedHalf(m_bytes, offset + 10) };
+    output = { Word(m_bytes, offset),
+               Half(m_bytes, offset + 4),
+               Half(m_bytes, offset + 6),
+               Half(m_bytes, offset + 8),
+               Half(m_bytes, offset + 10),
+               (Half(m_bytes, offset + 12) & kGlyphOutlineFlag) != 0,
+               SignedHalf(m_bytes, offset + 16),
+               SignedHalf(m_bytes, offset + 18) };
     return true;
 }
 
@@ -272,29 +278,55 @@ bool CatalogView::ValidateGlyphSet(const FontRecord & font, std::uint32_t images
         entries > kMaxGlyphEntries || Word(m_bytes, font.glyphTable + 12) != 0 ||
         font.glyphTableBytes != kGlyphSetBytes + sizes * kGlyphSizeBytes + entries * kGlyphEntryBytes ||
         Word(m_bytes, font.glyphTable) >= images || !GetImage(Word(m_bytes, font.glyphTable), image) ||
-        !gstx::DecodeTables(image.descriptor, image.descriptorBytes, header))
+        !gstx::DecodeTables(image.descriptor, image.descriptorBytes, header) || header.placementCount == 0 ||
+        header.placementCount > kMaxGlyphBands)
     {
         return false;
     }
 
-    // Exact pixels need a 1:1 placement: its match is its source, and its page rectangle the same
-    // size. A glyph with an outline splits it into two halves of equal width.
-    const auto Bitmap = [&](std::uint16_t placement, bool outline)
+    // Exact pixels need 1:1 bands: each placement's match is its source, and its page rectangle the
+    // same size.
+    for (std::uint32_t band = 0; band < header.placementCount; ++band)
     {
-        if (placement == kNoGlyphPlacement)
+        const auto record = gstx::GetPlacement(image.descriptor, header, band);
+
+        if (record.match.x != record.source.x || record.match.y != record.source.y || record.match.width != record.source.width ||
+            record.match.height != record.source.height || record.dest.width != record.match.width ||
+            record.dest.height != record.match.height)
         {
-            return !outline;
+            return false;
+        }
+    }
+
+    // A bitmap lies inside one band. A glyph with an outline splits it into two halves of equal width.
+    const auto Bitmap = [&](const GlyphEntry & entry)
+    {
+        const std::uint32_t x = entry.x;
+        const std::uint32_t y = entry.y;
+        const std::uint32_t width = entry.width;
+        const std::uint32_t height = entry.height;
+
+        if (width == 0)
+        {
+            return x == 0 && y == 0 && height == 0 && !entry.outline;
         }
 
-        if (placement >= header.placementCount)
+        if (height == 0 || (entry.outline && width % 2 != 0))
         {
             return false;
         }
 
-        const auto record = gstx::GetPlacement(image.descriptor, header, placement);
-        return record.match.x == record.source.x && record.match.y == record.source.y && record.match.width == record.source.width &&
-               record.match.height == record.source.height && record.dest.width == record.match.width &&
-               record.dest.height == record.match.height && (!outline || (record.match.width >= 2 && record.match.width % 2 == 0));
+        for (std::uint32_t band = 0; band < header.placementCount; ++band)
+        {
+            const auto match = gstx::GetPlacement(image.descriptor, header, band).match;
+
+            if (x >= match.x && y >= match.y && x + width <= match.x + match.width && y + height <= match.y + match.height)
+            {
+                return true;
+            }
+        }
+
+        return false;
     };
 
     const auto Origin = [](std::int16_t value)
@@ -323,14 +355,15 @@ bool CatalogView::ValidateGlyphSet(const FontRecord & font, std::uint32_t images
             GetGlyphEntry(font, size.firstEntry + item, entry);
             const auto entryOffset = font.glyphTable + kGlyphSetBytes + sizes * kGlyphSizeBytes + (size.firstEntry + item) * kGlyphEntryBytes;
 
-            if (entry.codepoint > kMaxCodepoint || (Half(m_bytes, entryOffset + 6) & ~kGlyphOutlineFlag) != 0 ||
+            if (entry.codepoint > kMaxCodepoint || (Half(m_bytes, entryOffset + 12) & ~kGlyphOutlineFlag) != 0 ||
+                Half(m_bytes, entryOffset + 14) != 0 ||
                 (item != 0 && GetGlyphEntry(font, size.firstEntry + item - 1, previous) && entry.codepoint <= previous.codepoint))
             {
                 return false;
             }
 
             // Only a size with a stroke weight draws outlines.
-            if (!Bitmap(entry.placement, entry.outline) || (size.strokeWeight == 0 && entry.outline) || !Origin(entry.originX) ||
+            if (!Bitmap(entry) || (size.strokeWeight == 0 && entry.outline) || !Origin(entry.originX) ||
                 !Origin(entry.originY))
             {
                 return false;

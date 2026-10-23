@@ -212,7 +212,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `asset_reexport`, and `UI_PREVIEWS=DIR` adds original/converted
   PNGs for a visual review. Initial UI localization supports English only. Native
   authored SWF/font images share a fixed `PageCache` of UIPG pages; standalone
-  `PageImage` callers may own a private cache. The cook also emits a bounded UICT3
+  `PageImage` callers may own a private cache. The cook also emits a bounded UICT4
   resource index carrying each texture's GSTX header and tables and each glyph set's
   table. Native snapshots validate its offsets/paths/English records and font counts
   before legacy parsing; constant UI material stages are generated from admitted
@@ -222,10 +222,11 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `glyph_sets` list sizes (pixels per atlas texel, outline weight) whose glyphs and
   outlines are pre-rendered; a tagged `RenderEditText` hook draws them texel for texel
   at the native layout position, keeps native quads for any other size and logs each
-  such size once (`UI glyph size ... prerendered=no`). Only the dialog's three Sarasori
-  sizes, in each standard, are cooked so far. `runtime_ready=false` is
-  intentional: shell drawing, complex masks, remaining blends/color transforms, active
-  artwork residency and offline Shell integration remain later gates. Scoped
+  such size once (`UI glyph size ... prerendered=no`). The dialog's and the shell start
+  screen's sizes are cooked (Sarasori and Arial Narrow, in each standard). A set image
+  holds one 1:1 band placement per page; each catalog entry carries its glyph's rectangle.
+  `runtime_ready=false` is intentional: the shell's later screens, additive alpha terms,
+  active artwork residency and offline Shell integration remain later gates. Scoped
   dictionary/text/timeline admission exists. See
   [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.

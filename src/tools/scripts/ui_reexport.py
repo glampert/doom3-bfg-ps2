@@ -173,7 +173,7 @@ def glyph_set_texture(font: str, image: str, font_details: dict, codepoints: set
 
 
 def glyph_set_record(image_name: str, sizes: list, report_entry: dict) -> dict:
-    """Catalog input for one glyph set: the configured sizes with the converter's placements and origins."""
+    """Catalog input for one glyph set: the configured sizes with the converter's rectangles and origins."""
     reported = report_entry.get("glyph_set")
     if not isinstance(reported, list) or len(reported) != len(sizes):
         raise ValueError("asset_reexport glyph set report differs from the job")

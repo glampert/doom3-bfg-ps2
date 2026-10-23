@@ -32,7 +32,8 @@ static constexpr std::uint32_t kHeaderBytes = 64;
 static constexpr std::uint32_t kImageBytes = 32;
 static constexpr std::uint32_t kFontBytes = 56;
 // The fixture's glyph set: two sizes, three entries.
-static constexpr std::uint32_t kGlyphSetBytes = 16U + 2U * 20U + 3U * 12U;
+static constexpr std::uint32_t kGlyphEntryBytes = 20;
+static constexpr std::uint32_t kGlyphSetBytes = 16U + 2U * 20U + 3U * kGlyphEntryBytes;
 static constexpr char kSentinel[] = "unchanged";
 
 struct Fixture
@@ -139,8 +140,8 @@ static std::uint32_t AppendDescriptor(std::vector<std::uint8_t> & bytes, std::ui
     return fileBytes;
 }
 
-// Font 0's glyph set over image 0, whose single placement maps its 128x128 texels 1:1: a stroked
-// size holding a space and an outlined 'A', then an unstroked size holding a plain 'A'.
+// Font 0's glyph set over image 0, whose single placement is one band mapping its 128x128 texels
+// 1:1: a stroked size holding a space and an outlined 'A', then an unstroked size holding a plain 'A'.
 static void PutGlyphSet(std::vector<std::uint8_t> & bytes, std::uint32_t table)
 {
     static constexpr std::uint32_t kWords[] = {
@@ -156,21 +157,27 @@ static void PutGlyphSet(std::vector<std::uint8_t> & bytes, std::uint32_t table)
     struct Entry
     {
         std::uint32_t codepoint;
-        std::uint32_t placement;
+        std::uint32_t x;
+        std::uint32_t y;
+        std::uint32_t width;
+        std::uint32_t height;
         std::uint32_t flags;
         std::uint32_t originX;
         std::uint32_t originY;
     };
 
-    static constexpr Entry kEntries[] = { { 32, 0xFFFF, 0, 0, 0 }, { 65, 0, 1, 20, 142 }, { 65, 0, 0, 16, 0xFFF0 } };
+    static constexpr Entry kEntries[] = { { 32, 0, 0, 0, 0, 0, 0, 0 }, { 65, 8, 4, 20, 30, 1, 20, 142 }, { 65, 40, 4, 10, 30, 0, 16, 0xFFF0 } };
     for (std::uint32_t index = 0; index < 3; ++index)
     {
-        const std::uint32_t entry = table + 56U + index * 12U;
+        const std::uint32_t entry = table + 56U + index * kGlyphEntryBytes;
         Put(bytes, entry, kEntries[index].codepoint);
-        PutHalf(bytes, entry + 4U, kEntries[index].placement);
-        PutHalf(bytes, entry + 6U, kEntries[index].flags);
-        PutHalf(bytes, entry + 8U, kEntries[index].originX);
-        PutHalf(bytes, entry + 10U, kEntries[index].originY);
+        PutHalf(bytes, entry + 4U, kEntries[index].x);
+        PutHalf(bytes, entry + 6U, kEntries[index].y);
+        PutHalf(bytes, entry + 8U, kEntries[index].width);
+        PutHalf(bytes, entry + 10U, kEntries[index].height);
+        PutHalf(bytes, entry + 12U, kEntries[index].flags);
+        PutHalf(bytes, entry + 16U, kEntries[index].originX);
+        PutHalf(bytes, entry + 18U, kEntries[index].originY);
     }
 }
 
@@ -263,7 +270,7 @@ static Fixture MakeFixture(std::uint32_t imageCount = 2, bool pagePressure = fal
     fixture.strings = static_cast<std::uint32_t>(fixture.bytes.size());
     fixture.bytes.insert(fixture.bytes.end(), strings.begin(), strings.end());
     const std::uint32_t header[] = {
-        0x54434955, 3, static_cast<std::uint32_t>(fixture.bytes.size()), 1, imageCount, 2, 5, 2,
+        0x54434955, 4, static_cast<std::uint32_t>(fixture.bytes.size()), 1, imageCount, 2, 5, 2,
         kHeaderBytes, fonts, aliases, materials, descriptors, fixture.strings, static_cast<std::uint32_t>(strings.size()), 0
     };
     for (std::uint32_t word = 0; word < 16; ++word)
@@ -480,10 +487,11 @@ static bool GlyphSets()
                    view.GetGlyphSize(font, 0, stroked) && stroked.scaleX == 11469 && stroked.strokeWeight == 114688 &&
                    stroked.firstEntry == 0 && stroked.entryCount == 2 && view.GetGlyphSize(font, 1, plain) &&
                    plain.strokeWeight == 0 && plain.firstEntry == 2 && plain.entryCount == 1 && !view.GetGlyphSize(font, 2, plain) &&
-                   view.GetGlyphEntry(font, 0, space) && space.codepoint == 32 && space.placement == ps2::ui::retail::kNoGlyphPlacement &&
-                   !space.outline && view.GetGlyphEntry(font, 1, outlined) && outlined.codepoint == 65 && outlined.placement == 0 &&
-                   outlined.outline && outlined.originX == 20 && outlined.originY == 142 && view.GetGlyphEntry(font, 2, unstroked) &&
-                   !unstroked.outline && unstroked.originY == -16 && !view.GetGlyphEntry(font, 3, space) &&
+                   view.GetGlyphEntry(font, 0, space) && space.codepoint == 32 && space.width == 0 && !space.outline &&
+                   view.GetGlyphEntry(font, 1, outlined) && outlined.codepoint == 65 && outlined.x == 8 && outlined.y == 4 &&
+                   outlined.width == 20 && outlined.height == 30 && outlined.outline && outlined.originX == 20 && outlined.originY == 142 &&
+                   view.GetGlyphEntry(font, 2, unstroked) && unstroked.x == 40 && unstroked.width == 10 && !unstroked.outline &&
+                   unstroked.originY == -16 && !view.GetGlyphEntry(font, 3, space) &&
                    other.glyphTable == 0 && !view.GetGlyphSet(other, unchanged) && unchanged.imageIndex == 7,
                "glyph set records, sizes and entries read back exactly; fonts without one report none"))
     {
@@ -498,17 +506,24 @@ static bool GlyphSets()
 
     const std::uint32_t table = valid.glyphs;
     const std::uint32_t entries = table + 56U;
+    const std::uint32_t outlinedEntry = entries + kGlyphEntryBytes;
+    const std::uint32_t plainEntry = entries + 2U * kGlyphEntryBytes;
     const Change changes[] = {
         // Set header: image, counts and the reserved word.
         { table, 2 }, { table + 4U, 0 }, { table + 4U, 17 }, { table + 8U, 2 }, { table + 8U, 4 }, { table + 12U, 1 },
         // Sizes: zero and excessive scales and strokes, and entry runs that skip, overlap or overrun.
         { table + 16U, 0 }, { table + 20U, (16U << 16) + 1U }, { table + 24U, (16U << 16) + 1U }, { table + 28U, 1 },
         { table + 32U, 0 }, { table + 32U, 3 }, { table + 48U, 1 }, { table + 52U, 2 },
-        // Entries: codepoint order and range, a missing placement, unknown flags, and outlines a size cannot draw.
-        { entries, 66 }, { entries + 12U, 32 }, { entries + 12U, 0x110000 }, { entries + 16U, 1 }, { entries + 16U, 0x00020000 },
-        { entries + 28U, 0x00010000 }, { entries + 4U, 0x00010000 | 0xFFFF },
-        // Font records: a table elsewhere, a wrong length, or a length without a table.
-        { valid.fonts + 48U, table + 4U }, { valid.fonts + 52U, kGlyphSetBytes - 12U }, { valid.fonts + kFontBytes + 52U, 4 }
+        // Entries: codepoint order and range, unknown flags and a nonzero reserved half, and outlines
+        // without a bitmap or in a size that cannot draw them.
+        { entries, 66 }, { outlinedEntry, 32 }, { outlinedEntry, 0x110000 }, { outlinedEntry + 12U, 3 },
+        { outlinedEntry + 12U, 0x00010001 }, { entries + 12U, 1 }, { plainEntry + 12U, 1 },
+        // Bitmaps: an empty one with coordinates, zero height, an odd outline pair, and rectangles
+        // reaching past the band on either axis.
+        { entries + 4U, 1 }, { outlinedEntry + 8U, 20 }, { outlinedEntry + 8U, (30U << 16) | 21U },
+        { outlinedEntry + 4U, (4U << 16) | 112U }, { outlinedEntry + 4U, (100U << 16) | 8U },
+        // Font records: a table elsewhere, a table one entry short, or a length without a table.
+        { valid.fonts + 48U, table + 4U }, { valid.fonts + 52U, kGlyphSetBytes - kGlyphEntryBytes }, { valid.fonts + kFontBytes + 52U, 4 }
     };
     for (const Change & change : changes)
     {
@@ -522,31 +537,37 @@ static bool GlyphSets()
     }
 
     Fixture origin = valid;
-    PutHalf(origin.bytes, entries + 12U + 8U, 16385);
+    PutHalf(origin.bytes, outlinedEntry + 16U, 16385);
     Fixture gap = valid;
     Put(gap.bytes, valid.fonts + 48U, 0);
     Put(gap.bytes, valid.fonts + 52U, 0);
-    // Image 0's placement narrowed to an odd 127 texels, its tables re-checksummed: a valid texture
-    // whose 1:1 placement cannot split into a glyph and an outline of one width.
-    const auto Narrow = [](Fixture & fixture)
+    // Image 0's placement reshaped, its tables re-checksummed: a valid texture either way, but a
+    // band 32 texels wide leaves the plain 'A' at x=40 outside it, and a band drawn at half width
+    // no longer maps 1:1.
+    const auto Reshape = [](Fixture & fixture, std::uint32_t matchWidth, std::uint32_t destWidth)
     {
         namespace gstx = ps2::ui::gstx;
         const std::uint32_t start = Word(fixture.bytes, kHeaderBytes + 20U);
         const std::uint32_t placement = start + gstx::kHeaderBytes + gstx::kPageRecordBytes + gstx::kClutRecordBytes;
-        PutHalf(fixture.bytes, placement + 4U, 127);
-        PutHalf(fixture.bytes, placement + 12U, 127);
-        PutHalf(fixture.bytes, placement + 20U, 127);
+        PutHalf(fixture.bytes, placement + 4U, matchWidth);
+        PutHalf(fixture.bytes, placement + 12U, matchWidth);
+        PutHalf(fixture.bytes, placement + 20U, destWidth);
         Put(fixture.bytes, start + 28U, 0);
         Put(fixture.bytes, start + 28U, ps2::ui::PageChecksum(fixture.bytes.data() + start, Word(fixture.bytes, start + 20U)));
     };
-    Fixture odd = valid;
-    Narrow(odd);
+    Fixture narrow = valid;
+    Reshape(narrow, 32, 32);
+    Fixture scaled = valid;
+    Reshape(scaled, 128, 64);
     Fixture narrowWithoutGlyphs = MakeFixture();
-    Narrow(narrowWithoutGlyphs);
+    Reshape(narrowWithoutGlyphs, 32, 32);
+    Fixture scaledWithoutGlyphs = MakeFixture();
+    Reshape(scaledWithoutGlyphs, 128, 64);
     return Check(!view.Init(origin.bytes.data(), origin.bytes.size()), "glyph origin beyond 1024 pixels rejected") &&
            Check(view.Init(narrowWithoutGlyphs.bytes.data(), narrowWithoutGlyphs.bytes.size()) &&
-                     !view.Init(odd.bytes.data(), odd.bytes.size()),
-                 "outline pair needs an even 1:1 placement") &&
+                     view.Init(scaledWithoutGlyphs.bytes.data(), scaledWithoutGlyphs.bytes.size()) &&
+                     !view.Init(narrow.bytes.data(), narrow.bytes.size()) && !view.Init(scaled.bytes.data(), scaled.bytes.size()),
+                 "every bitmap lies inside one band mapping 1:1 onto its page") &&
            Check(!view.Init(gap.bytes.data(), gap.bytes.size()), "space between materials and descriptors must hold glyph tables");
 }
 

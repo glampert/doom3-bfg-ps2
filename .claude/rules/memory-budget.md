@@ -6,7 +6,7 @@ the retail boot and UI format measurements are in
 [the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20), and the
 converted textures that replaced retail page streaming in
 [the paletted UI section](#converted-retail-ui-textures-2026-10-20), with the menu
-glyph sets, the console charset and the drawn shell added in
+glyph sets, the console charset, the drawn shell and the glyph rectangles added in
 [their own sections](#pre-rendered-menu-glyphs-2026-10-22); current
 aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
 production sizes and live ledgers must not be used as current budgets. Quake figures
@@ -600,3 +600,35 @@ Debug ledgers, NTSC and PAL identical, requested / backing bytes:
 
 Production `PT_LOAD` is 11,205,157 debug / 11,642,981 release bytes (+22,848 / +23,488),
 for the GS passes, lines, depth masks, mask line clipping and the shell controls.
+
+## Glyph rectangles and the shell's text sizes (2026-10-23)
+
+Glyph sets now hold one 1:1 band placement per page, and each UICT4 glyph entry (20 bytes,
+was 12) carries its own rectangle. Adding the start screen's sizes (Sarasori 10 and 13,
+Arial Narrow 2.5 and 3, each per standard) makes 1,442 entries in two tables (29,152
+bytes, was 7,552), while the descriptors fall from 41,120 to 21,696 bytes: the catalog is
+55,009 bytes (was 52,691). The Sarasori set grows to ten sizes on one 256×512 PSMT4 page
+(64 KiB of VRAM, was 48 KiB; 51,712 bytes on disc, was 62,816) and Arial Narrow gains a
+128×128 set (8 KiB of VRAM, 992 bytes). With every retail font open, the texture counters
+read 8 images, 221,184 pixel and 27,864 metadata bytes (was 7, 192,512 and 49,032): the
+pages grow, the placement tables and lookup grids shrink.
+
+Debug ledgers, NTSC and PAL identical, requested / backing bytes:
+
+- Visible console peak 2,421,022 / 2,519,568, arena 2,557,531; authored UI warm unload
+  3,686,513 / 3,787,904 / 2,468, peak 3,735,543 / 3,844,828, arena 3,909,211. Both move
+  only by the larger catalog.
+- Font screen warm 2,632,944 / 2,737,728 / 2,536 (+14,290, nine allocations for the
+  Arial Narrow set), peak 2,749,984 / 2,854,816, arena 2,909,787. Dialog at rest
+  4,144,002 / 4,282,940 / 3,325, every release 3,896,702 / 4,003,284 / 2,575, peak
+  4,323,656 / 4,429,180, arena 4,687,451. Inactive movies peak 6,702,786 / 6,899,480
+  (arena 6,923,867); executing shell 10,568,967 / 11,274,020 (arena 11,372,123).
+- Drawn shell: loaded 10,173,425 / 10,851,100 / 15,309; start screen after 120 frames
+  10,417,929 / 11,117,412 / 15,803; every release 4,765,750 / 4,873,584 / 2,596; peak
+  10,427,713 / 11,128,688, arena 11,269,723.
+- Full shutdown still recovers 7,424 / 7,600 / 4.
+
+Arena commitment moved by allocation order, not size: the dialog's rose by 160,000 bytes
+and the inactive movies' fell by 77,568, against requested peaks within 15 KB. Production
+`PT_LOAD` is 11,205,029 debug (−128) / 11,642,981 release (unchanged) bytes; the core test
+image is 2,177,840 / 2,263,344 bytes (+512 / +640).

@@ -603,7 +603,7 @@ static bool ConvertUi(const fs::path & data, const fs::path & jobPath, const fs:
                 {
                     const PrerenderedGlyphResult & item = entry.glyphs[glyph];
                     report += (glyph == 0 ? "" : ", ") + std::string("{\"codepoint\": ") + std::to_string(item.codepoint) +
-                              ", \"placement\": " + (item.placement < 0 ? std::string("null") : std::to_string(item.placement)) +
+                              ", \"rect\": " + (item.rect.width == 0 ? std::string("null") : RectJson(item.rect)) +
                               ", \"outline\": " + (item.outline ? "true" : "false") + ", \"origin\": [" + std::to_string(item.originX) +
                               ", " + std::to_string(item.originY) + "]}";
                 }

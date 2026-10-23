@@ -146,15 +146,14 @@
   preflight. Placement/opcode/branch/operand cases reach execution preflight; a valid
   infinite loop and an alias to a different native service reach their runtime guards.
   `make test-retail-timelines` isolates executable NTSC/PAL runs. The minimal owner uses
-  the real carousel/Credits callbacks and only one Doom 3 option; shell drawing,
-  complex masks/strokes, remaining blends/color transforms, Shell navigation and
-  physical PS2 acceptance remain pending.
+  the real carousel/Credits callbacks and only one Doom 3 option; Shell navigation, the
+  shell's later screens and physical PS2 acceptance remain pending.
 - `make test-retail-dialog` (case `dialog-render`, also part of `test-retail-movies`)
   draws the original dialog in full with Common's quit message: one 120-frame load and
   two 30-frame warm reloads. Each load needs exactly one draw admission matching the
   inventory (ten masks; no outlines, screen blends or additive color), the native quit
   owner state and English options, dialog script dependencies, rising draw/mask/texture
-  triangle counters, texture counters equal to the fonts, Sarasori's glyph set and the
+  triangle counters, texture counters equal to the fonts, their glyph sets and the
   dialog atlas, zero
   evictions, the same upload count at every capture of all three loads,
   identical warm release ledgers and full shutdown recovery. Two captures ten frames apart locate the looping focus highlight;
@@ -174,10 +173,11 @@
   frames and their captures must match exactly. Each load needs a draw admission equal
   to the inventory (masks, outlines, screen placements, additive placements), the minimal
   carousel/Credits owner, rising triangle, mask, depth-mask, line, screen and color-term
-  counters, textures equal to the fonts, glyph set, charset, shell atlas and Doom 3 cover,
+  counters, textures equal to the fonts, glyph sets, charset, shell atlas and Doom 3 cover,
   three channel CLUTs per atlas CLUT, zero evictions, fixed uploads, identical warm
   release ledgers and full shutdown recovery. A debug PCSX2 frame takes 100–140 ms on the
-  fixed clock, so a session takes about 50 s within its 300 s timeout. The owner does not run the native
+  fixed clock, so a session takes about 50 s within its 300 s timeout. Every text size the
+  start screen draws is cooked, so its runs log no `UI glyph size` line. The owner does not run the native
   screens, so placeholder prompts and labels show: compare captures with the menu's
   expected state, not the PC's interactive one.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
@@ -193,7 +193,7 @@
   phases draw five native English fonts, return to the first and reload it, each for
   at least 120 frames. Check all three legacy metric pairs, glyph ink/hole probes bounded
   by what the converted font can produce within one texel, stable reload captures, the
-  `RETAIL textures` counters (exactly the five converted fonts and Sarasori's glyph set,
+  `RETAIL textures` counters (exactly the five converted fonts with their glyph sets,
   rising triangles, zero
   evictions, no uploads on the warm reload) and full startup-ledger recovery. Reject bad
   catalog headers, missing/mutated font data, a texture whose tables differ from the

@@ -132,6 +132,15 @@ def dxt1_image(width, height, color565):
             struct.pack(">5i", 0, 0, width, height, blocks * 8) + struct.pack("<HHI", color565, 0, 0) * blocks)
 
 
+def coverage_image(width, height, opaque):
+    """DXT1 with one-bit alpha: white in the opaque 4x4 blocks (column, row), transparent elsewhere."""
+    columns, rows = (width + 3) // 4, (height + 3) // 4
+    payload = b"".join(struct.pack("<HHI", 0, 0xFFFF, 0x55555555 if (column, row) in opaque else 0xFFFFFFFF)
+                       for row in range(rows) for column in range(columns))
+    return (struct.pack(">q7i", -1, 0x0A4D4942, 1, 7, 0, width, height, 1) +
+            struct.pack(">5i", 0, 0, width, height, len(payload)) + payload)
+
+
 class ConverterCommandTests(unittest.TestCase):
     def setUp(self):
         if not ui_reexport.TOOL.is_file():
@@ -139,7 +148,10 @@ class ConverterCommandTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        records = [("generated/images/flat#__0200.bimage", dxt1_image(64, 32, 0x07E0))]
+        # The font atlas holds one opaque 8x16 glyph at (4, 4), clear around it.
+        records = [("generated/images/flat#__0200.bimage", dxt1_image(64, 32, 0x07E0)),
+                   ("generated/images/font#__0400.bimage",
+                    coverage_image(64, 32, {(column, row) for column in (1, 2) for row in range(1, 5)}))]
         (self.root / "_common.resources").write_bytes(container(records))
         (self.root / "_ordered.resources").write_bytes(container([]))
 
@@ -170,6 +182,35 @@ class ConverterCommandTests(unittest.TestCase):
         self.assertIsNone(texture.sample(40.0, 16.0))
         for suffix in ("original", "converted"):
             self.assertEqual((self.root / f"previews/flat.{suffix}.png").read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_glyph_job_reports_rectangles_inside_one_to_one_bands(self):
+        glyphs = [{"codepoint": 32, "s": 40, "t": 24, "width": 0, "height": 0, "left": 0, "top": 0},
+                  {"codepoint": 65, "s": 4, "t": 4, "width": 8, "height": 16, "left": 0, "top": 16}]
+        sizes = [{"scale": [0.5, 0.5], "stroke_weight": 0}, {"scale": [0.5, 0.5], "stroke_weight": 2}]
+        result = self.run_job(self.job(source="generated/images/font#__0400.bimage", glyphs={"glyphs": glyphs, "sizes": sizes}))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        texture = ui_gstx.read_texture(self.root / "out/flat.gstx")
+        entry = json.loads((self.root / "out/report.json").read_text())["textures"][0]
+        self.assertEqual(len(texture.placements), len(texture.pages))
+        bands = [placement["match"] for placement in texture.placements]
+        for placement in texture.placements:
+            self.assertEqual((placement["source"], placement["dest"][2:]), (placement["match"], placement["match"][2:]))
+        reported = entry["glyph_set"]
+        self.assertEqual([[glyph["codepoint"] for glyph in size["glyphs"]] for size in reported], [[32, 65], [32, 65]])
+        self.assertEqual([size["glyphs"][0]["rect"] for size in reported], [None, None])
+        plain, outlined = reported[0]["glyphs"][1], reported[1]["glyphs"][1]
+        # Half scale turns the opaque 8x16 block into exactly 4x8 opaque pixels.
+        self.assertEqual((plain["rect"][2:], plain["outline"], outlined["outline"]), ([4, 8], False, True))
+        self.assertEqual(outlined["rect"][2] % 2, 0)
+        for glyph in (plain, outlined):
+            x, y, width, height = glyph["rect"]
+            self.assertTrue(any(bx <= x and by <= y and x + width <= bx + bw and y + height <= by + bh
+                                for bx, by, bw, bh in bands))
+        x, y = plain["rect"][:2]
+        self.assertEqual({texture.sample(x + column + 0.5, y + row + 0.5)[3] for column in range(4) for row in range(8)}, {255})
+        record = ui_reexport.glyph_set_record("font/ps2_glyphs", sizes, entry)
+        self.assertEqual([[glyph["rect"] for glyph in size["glyphs"]] for size in record["sizes"]],
+                         [[None, plain["rect"]], [None, outlined["rect"]]])
 
     def test_invalid_policies_names_and_sources_are_refused(self):
         cases = (({"policy": {**POLICY, "alpha_levels": 1}}, "alpha_levels"),

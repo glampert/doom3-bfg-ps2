@@ -5,7 +5,7 @@
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
-"""UICT3 contains checked image descriptors, native font identities, layout metrics and glyph sets.
+"""UICT4 contains checked image descriptors, native font identities, layout metrics and glyph sets.
 
 This is a dependency catalog for a bounded native probe. It does not authorize
 retail movies, material expressions, masks, special blends or Shell startup.
@@ -17,9 +17,11 @@ converted texture before reading any pixel data.
 A font record's last two words locate its glyph set table (zero without one). The tables follow
 the materials in font order: u32 image index, size count, entry count, 0; per size u32 scale x/y
 (GS pixels per atlas texel) and stroke weight (atlas texels), all 16.16, first entry and entry
-count; per entry u32 codepoint, u16 placement (0xFFFF: nothing to draw), u16 flags (bit 0: the
-placement holds the glyph left and its outline right, at one width) and s16 ink origin x/y in
-1/16 GS pixels. Entries of one size are sorted by codepoint.
+count; per entry u32 codepoint, u16 bitmap x/y/width/height in the image's logical texels (all
+zero: nothing to draw), u16 flags (bit 0: the bitmap holds the glyph left and its outline right,
+at one width), u16 zero and s16 ink origin x/y in 1/16 GS pixels. Entries of one size are sorted
+by codepoint. The image has one placement per page, each a band mapping 1:1 onto its page, and
+every bitmap lies inside one band.
 """
 
 import hashlib
@@ -34,7 +36,7 @@ from ui_resources import logical_name
 
 
 MAGIC = 0x54434955
-VERSION = 3
+VERSION = 4
 FLAG_ENGLISH = 1
 MAX_BYTES = 128 * 1024
 MAX_IMAGES = 32
@@ -53,10 +55,10 @@ ALIAS = struct.Struct("<2I")
 MATERIAL = struct.Struct("<2I")
 GLYPH_SET = struct.Struct("<4I")
 GLYPH_SIZE = struct.Struct("<5I")
-GLYPH_ENTRY = struct.Struct("<I2H2h")
+GLYPH_ENTRY = struct.Struct("<I6H2h")
 MAX_GLYPH_SIZES = 16
 MAX_GLYPH_ENTRIES = 4096
-NO_PLACEMENT = 0xFFFF
+MAX_GLYPH_BANDS = 16
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _PATH = re.compile(r"[a-z0-9_./#-]+\Z")
 _FAMILY = re.compile(r"[a-z0-9_]{1,63}\Z")
@@ -117,11 +119,19 @@ def _fixed(value, name, maximum):
 
 
 def _glyph_table(glyph_set, image_indices, images):
-    """One font's glyph set table; every bitmap must be a 1:1 placement of the set's image."""
+    """One font's glyph set table; every bitmap must lie inside one 1:1 band of the set's image."""
     if not isinstance(glyph_set, dict) or glyph_set.get("image") not in image_indices:
         raise ValueError("UICT glyph set image missing")
     image_index = image_indices[glyph_set["image"]]
     placements = images[image_index][6].placements
+    if not 1 <= len(placements) <= MAX_GLYPH_BANDS:
+        raise ValueError("UICT glyph set image needs 1-16 band placements")
+    bands = []
+    for placement in placements:
+        match, source, dest = placement["match"], placement["source"], placement["dest"]
+        if tuple(match) != tuple(source) or tuple(dest[2:]) != tuple(match[2:]):
+            raise ValueError("UICT glyph set band is not a 1:1 placement")
+        bands.append(tuple(match))
     sizes = glyph_set.get("sizes")
     if not isinstance(sizes, list) or not 1 <= len(sizes) <= MAX_GLYPH_SIZES:
         raise ValueError("UICT glyph set size count out of range")
@@ -130,15 +140,18 @@ def _glyph_table(glyph_set, image_indices, images):
         if value is None:
             if outline:
                 raise ValueError("UICT glyph outline without a bitmap")
-            return NO_PLACEMENT
-        index = _integer(value, "glyph placement", 0, len(placements) - 1)
-        match, source, dest = placements[index]["match"], placements[index]["source"], placements[index]["dest"]
-        if tuple(match) != tuple(source) or tuple(dest[2:]) != tuple(match[2:]):
-            raise ValueError("UICT glyph bitmap is not a 1:1 placement")
+            return 0, 0, 0, 0
+        if not isinstance(value, list) or len(value) != 4:
+            raise ValueError("UICT glyph rectangle must have four values")
+        x, y, width, height = (_integer(component, "glyph rectangle", 0, 0xFFFF) for component in value)
+        if width == 0 or height == 0:
+            raise ValueError("UICT glyph rectangle is empty")
+        if not any(bx <= x and by <= y and x + width <= bx + bw and y + height <= by + bh for bx, by, bw, bh in bands):
+            raise ValueError("UICT glyph rectangle is outside every band")
         # A glyph with an outline holds both bitmaps side by side, at one width.
-        if outline and (match[2] < 2 or match[2] % 2):
+        if outline and width % 2:
             raise ValueError("UICT glyph outline pair has an odd width")
-        return index
+        return x, y, width, height
 
     def origin(value):
         if not isinstance(value, list) or len(value) != 2:
@@ -165,7 +178,7 @@ def _glyph_table(glyph_set, image_indices, images):
             outline = glyph.get("outline")
             if not isinstance(outline, bool) or (stroke == 0 and outline):
                 raise ValueError("UICT glyph outline flag invalid for its size")
-            entry_data.extend(GLYPH_ENTRY.pack(codepoint, bitmap(glyph.get("placement"), outline), int(outline),
+            entry_data.extend(GLYPH_ENTRY.pack(codepoint, *bitmap(glyph.get("rect"), outline), int(outline), 0,
                                                *origin(glyph.get("origin"))))
         entries += len(glyphs)
     if entries > MAX_GLYPH_ENTRIES:
@@ -347,7 +360,7 @@ def build_catalog(manifest, directory):
                          len(materials), images_offset, fonts_offset, aliases_offset, materials_offset,
                          descriptors_offset, strings_offset, len(strings), 0)
     raw = bytes(header + image_data + font_data + alias_data + material_data + glyph_tables + descriptors + strings)
-    return raw, {"format": "UICT3", "version": VERSION, "language": "english", "image_count": len(images),
+    return raw, {"format": "UICT4", "version": VERSION, "language": "english", "image_count": len(images),
                  "font_count": len(fonts), "alias_count": len(aliases), "material_count": len(materials),
                  "page_count": page_count, "descriptor_bytes": len(descriptors), "string_bytes": len(strings),
                  "glyph_set_count": len(glyph_records), "glyph_entry_count": glyph_entries, "glyph_table_bytes": len(glyph_tables),

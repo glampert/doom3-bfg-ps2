@@ -101,9 +101,12 @@ converting its atlas, so the target can copy them texel for texel (see the
   `max_page_extent` applies.
 
 Each pixel is area-filtered from the full-resolution atlas, at the sub-pixel phase that
-keeps the glyph sharpest. Every glyph with ink becomes one placement mapping 1:1 onto its
-page, its outline in the right half when the size has one, all on one 16-level alpha CLUT.
-`assets/glyph_set.h` describes the results.
+keeps the glyph sharpest. The bitmaps of every glyph with ink, its outline in the right
+half when the size has one, are packed onto PSMT4 pages on one 16-level alpha CLUT. The
+logical image stacks the pages, and each page is one band: a single placement mapping it
+1:1, so the texture holds one placement per page however many glyphs it has. Every glyph
+records its own rectangle in the logical image instead. `assets/glyph_set.h` describes
+the results.
 
 ## Output
 
@@ -111,8 +114,9 @@ Each texture becomes one GSTX file, checked by re-reading it before it is writte
 `report.json` records, per texture, its logical size, source/file/table/decoded/VRAM
 bytes, conversion time, pages, CLUT sizes and every placement's rectangles, format and
 errors; a glyph set adds `glyph_set`, each size's stroke weight with every glyph's
-codepoint, placement (null without ink), outline flag and ink origin (its left edge on
-the baseline, in 1/16 pixel from the bitmap's corner). `--previews` adds
+codepoint, rectangle `[x, y, width, height]` in the logical image (null without ink),
+outline flag and ink origin (its left edge on the baseline, in 1/16 pixel from the
+bitmap's corner). `--previews` adds
 `<stem>.original.png` (the source inside the match rectangles; not for a glyph set) and
 `<stem>.converted.png` (the converted texture as the target samples it) for review.
 Existing output files are replaced.

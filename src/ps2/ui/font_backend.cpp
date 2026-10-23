@@ -42,8 +42,6 @@ struct GlyphSetState
 {
     const idFont * font = nullptr;
     const idImage * image = nullptr;
-    const std::uint8_t * descriptor = nullptr;
-    ps2::ui::gstx::Header header = {};
     float inverseWidth = 0.0f;
     float inverseHeight = 0.0f;
 };
@@ -82,6 +80,7 @@ void RegisterGlyphSet(const idFont * font, const ps2::ui::retail::FontRecord & r
     GlyphSetState & state = s_glyphSets[record.index];
     ps2::ui::retail::GlyphSetRecord set;
     ps2::ui::retail::ImageRecord image;
+    ps2::ui::gstx::Header header;
     state = {};
     state.font = font;
 
@@ -90,13 +89,12 @@ void RegisterGlyphSet(const idFont * font, const ps2::ui::retail::FontRecord & r
         return;
     }
 
-    if (!catalog.GetImage(set.imageIndex, image) || !ps2::ui::gstx::DecodeTables(image.descriptor, image.descriptorBytes, state.header))
+    if (!catalog.GetImage(set.imageIndex, image) || !ps2::ui::gstx::DecodeTables(image.descriptor, image.descriptorBytes, header))
     {
         ps2::FatalError("retail glyph set image outside the catalog: %s", record.family);
     }
 
     state.image = globalImages->ImageFromFile(image.name, TF_LINEAR, TR_CLAMP, TD_FONT);
-    state.descriptor = image.descriptor;
     state.inverseWidth = 1.0f / static_cast<float>(image.width);
     state.inverseHeight = 1.0f / static_cast<float>(image.height);
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] UI glyph set ready font=%s sizes=%lu glyphs=%lu\n", record.family,
@@ -373,7 +371,7 @@ bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float
 
                 if (entry.codepoint == codepoint)
                 {
-                    output = { index, entry.placement, entry.outline, entry.originX, entry.originY };
+                    output = { index, entry.x, entry.y, entry.width, entry.height, entry.outline, entry.originX, entry.originY };
                     return true;
                 }
 
@@ -397,22 +395,20 @@ bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float
 
 void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fontMaterial, float originX, float originY, bool outline)
 {
-    if (glyph.placement == retail::kNoGlyphPlacement || (outline && !glyph.outline))
+    if (glyph.width == 0 || (outline && !glyph.outline))
     {
         return;
     }
 
-    if (glyph.font >= retail::kMaxFonts || s_glyphSets[glyph.font].image == nullptr ||
-        glyph.placement >= s_glyphSets[glyph.font].header.placementCount)
+    if (glyph.font >= retail::kMaxFonts || s_glyphSets[glyph.font].image == nullptr)
     {
         FatalError("invalid native UI pre-rendered glyph");
     }
 
     const GlyphSetState & state = s_glyphSets[glyph.font];
-    const auto bitmap = gstx::GetPlacement(state.descriptor, state.header, glyph.placement);
-    // With an outline the placement holds the glyph on its left half and the outline on its right.
-    const std::uint32_t bitmapWidth = glyph.outline ? bitmap.match.width / 2 : bitmap.match.width;
-    const std::uint32_t bitmapX = bitmap.match.x + (outline ? bitmapWidth : 0);
+    // With an outline the rectangle holds the glyph on its left half and the outline on its right.
+    const std::uint32_t bitmapWidth = glyph.outline ? glyph.width / 2U : glyph.width;
+    const std::uint32_t bitmapX = glyph.x + (outline ? bitmapWidth : 0U);
     const float width = static_cast<float>(renderer::gs::Width());
     const float height = static_cast<float>(renderer::gs::Height());
     // The bitmap's corner lands on a whole pixel, then moves half a pixel up and left: every pixel
@@ -422,10 +418,9 @@ void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fon
     const float left = std::floor(x + 0.5f) - 0.5f;
     const float top = std::floor(y + 0.5f) - 0.5f;
     ui::DrawImageRect(left * kVirtualWidth / width, top * kVirtualHeight / height, static_cast<float>(bitmapWidth) * kVirtualWidth / width,
-                      static_cast<float>(bitmap.match.height) * kVirtualHeight / height, static_cast<float>(bitmapX) * state.inverseWidth,
-                      static_cast<float>(bitmap.match.y) * state.inverseHeight,
-                      static_cast<float>(bitmapX + bitmapWidth) * state.inverseWidth,
-                      static_cast<float>(bitmap.match.y + bitmap.match.height) * state.inverseHeight, state.image, fontMaterial);
+                      static_cast<float>(glyph.height) * kVirtualHeight / height, static_cast<float>(bitmapX) * state.inverseWidth,
+                      static_cast<float>(glyph.y) * state.inverseHeight, static_cast<float>(bitmapX + bitmapWidth) * state.inverseWidth,
+                      static_cast<float>(glyph.y + glyph.height) * state.inverseHeight, state.image, fontMaterial);
 }
 } // namespace ps2::ui::fonts
 

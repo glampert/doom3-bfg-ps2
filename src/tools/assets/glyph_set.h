@@ -44,9 +44,9 @@ struct GlyphSizeRequest
 struct PrerenderedGlyphResult
 {
     std::uint32_t codepoint = 0;
-    // Placement in the texture, -1 for a glyph without ink. With an outline the placement holds the
-    // glyph on its left half and the outline on its right half.
-    int placement = -1;
+    // The bitmap's texels in the texture's logical space, empty for a glyph without ink. With an
+    // outline the rectangle holds the glyph on its left half and the outline on its right half.
+    Rect rect;
     bool outline = false;
     // The glyph's left edge on its baseline inside a bitmap, in 1/16 GS pixels.
     int originX = 0;
@@ -62,13 +62,15 @@ struct GlyphSizeResult
 struct GlyphSetResult
 {
     GstxTexture texture;
-    // Each placement's quantization against its rendered bitmap pair.
+    // One placement per page, each a band of the logical space holding many glyph bitmaps, with
+    // its quantization against the rendered bitmaps.
     std::vector<PlacementResult> placements;
     std::vector<GlyphSizeResult> sizes;
 };
 
 // `atlas` holds the font's coverage in alpha at full resolution. Glyphs are rendered per size in
-// codepoint order; every placement maps 1:1 onto its page with one shared 16-level alpha CLUT.
+// codepoint order and packed onto PSMT4 pages; the logical space stacks the pages, each one band
+// that maps 1:1 onto its page, all on one shared 16-level alpha CLUT.
 bool RenderGlyphSet(const RgbaImage & atlas, const std::vector<GlyphMetrics> & glyphs, const std::vector<GlyphSizeRequest> & sizes,
                     int maxPageExtent, GlyphSetResult & output, std::string & error);
 

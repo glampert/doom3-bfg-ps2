@@ -2,10 +2,12 @@
 
 ## Current snapshot — 2026-10-23
 
-The port is not playable yet. The latest slice draws the
-[original shell's start screen in full](#original-shell-drawn-in-full-2d-6-fourth-slice)
+The port is not playable yet. The latest slice draws the shell start screen's text from
+[pre-rendered glyphs](#shell-text-sizes-and-glyph-rectangles-2026-10-23) (2026-10-23,
+debug gates), with glyph entries that carry their own page rectangles. The one before
+drew the [original shell's start screen in full](#original-shell-drawn-in-full-2d-6-fourth-slice)
 (2026-10-23, debug gates), through new GS paths for SWF outlines, additive color terms,
-screen blending and non-convex masks. Before it, the console moved to the
+screen blending and non-convex masks. Before them, the console moved to the
 [original retail charset](#retail-console-charset-2026-10-22) and the dialog's text to
 [pre-rendered glyphs](#pre-rendered-menu-glyphs-2026-10-22) (both accepted in the debug
 gates on 2026-10-22). Before them, the retail UI moved to
@@ -35,7 +37,11 @@ screen runs; other retail modes still show isolated native English labels. SWF e
 routing remains gated. The dialog draws at about 40 ms per debug PCSX2 frame, the shell
 at 100–140 ms. No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-23, debug only) passed every debug emulator gate in NTSC and
+The last acceptance (2026-10-23, debug only) added the start screen's four text sizes per
+standard and passed the console, font, retail movie and authored UI gates in NTSC and
+PAL, with no unrendered size left on the start screen; see its
+[record](#shell-text-sizes-and-glyph-rectangles-2026-10-23). The one before (2026-10-23,
+debug only) passed every debug emulator gate in NTSC and
 PAL with the new draw paths, a 21-probe pass band in the core renderer test, an authored
 draw-features sprite and the new `shell-render` case; see its
 [record](#original-shell-drawn-in-full-2d-6-fourth-slice). The one before (2026-10-22,
@@ -65,9 +71,9 @@ on the toolchain rebuilt on 2026-10-19, including the repaired script probe.
 Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
 [2D roadmap](RENDERER_2D_PLAN.md). The selected work is asset recompression/re-export
 and fitting the game into the 32 MiB budget. Its first lever, paletted UI textures,
-passes the debug gates and awaits the user's visual pass; the dialog's text now draws
-from pre-rendered glyphs, whose sizes for other screens are still to be collected; the
-heap levers are measured and not applied. The shell's start screen draws in full;
+passes the debug gates and awaits the user's visual pass; the dialog's and the start
+screen's text draws from pre-rendered glyphs, whose sizes for later screens are still to
+be collected; the heap levers are measured and not applied. The shell's start screen draws in full;
 its native screens and responsive offline menu navigation follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
@@ -4222,3 +4228,76 @@ additive alpha terms and blend modes other than add and screen stay refused. Mas
 coverage follows GS rasterization; overlapping triangles of one mask cover once, where
 the PC stencil would count them twice. Frame cost (every triangle writes its full state
 and reloads its CLUT, outlines draw twice) is unmeasured on hardware.
+
+## Shell text sizes and glyph rectangles (2026-10-23)
+
+Accepted **2026-10-23, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release builds compile and were not run. The shell's start screen logged four text sizes
+per standard without pre-rendered glyphs (`UI glyph size ... prerendered=no`): Sarasori at
+heights 10 and 13 for its prompts and carousel labels, and Arial Narrow at 2.5 and 3 for
+its small background text, none outlined. They are now in `conversion.glyph_sets`.
+
+Adding them to the old layout would have overflowed the catalog: every glyph bitmap was
+its own GSTX placement (32 descriptor bytes each, at most 1,024 per texture), and the
+Sarasori set alone took 19,680 of the 64 KiB descriptor bound with six sizes. Glyph sets
+now pack the bitmaps onto PSMT4 pages and stack the pages in the logical image, each page
+one band: a single placement mapping it 1:1. Each glyph entry carries its own rectangle
+(UICT4, 20-byte entries: codepoint, x/y/width/height, flags, a reserved zero, ink
+origin). Native validation requires 1–16 band placements, each 1:1, and every rectangle
+inside one band. The draw path is unchanged: the rectangle's UV centroid selects the band,
+and sampling at texel centers keeps out the neighbors packed flush against it, as it
+already did for the two halves of an outline pair.
+
+| Cook | Before | This slice |
+| --- | ---: | ---: |
+| Catalog bytes; descriptor bytes | 52,691; 41,120 | 55,009; 21,696 |
+| Glyph tables; entries | 7,552; 618 | 29,152; 1,442 |
+| Sarasori set: sizes; image; placements | 6; 1,024 × 99; 612 | 10; 256 × 512; 1 |
+| Sarasori set: disc bytes; VRAM | 62,816; 48 KiB | 51,712; 64 KiB |
+| Arial Narrow set: sizes; image; disc bytes; VRAM | none | 4; 128 × 128; 992; 8 KiB |
+
+**Checks.** The converter's host test adds a set spanning several pages, every bitmap
+whole inside one band, and a Python test drives a glyph job through `asset_reexport` and
+the cook's record. The C++ and Python catalog tests cover the new entries: rectangles
+outside the band, straddling two bands, empty or odd outline pairs, a band that is not
+1:1, seventeen bands and a nonzero reserved half all fail. On the target, the shell runs
+log no `UI glyph size` line in either standard, so every text size the start screen draws
+now comes from pre-rendered glyphs; the captures show the prompts and carousel labels
+crisp where the filtered quads had broken strokes, and the background's 2.5-pixel text as
+faint exact coverage. The dialog's text pixels moved by one to three framebuffer steps
+against the previous slice's captures: the set's 16 alpha levels are fitted to its
+content, and four of them shifted with the new sizes. Every glyph's size and ink origin
+is unchanged.
+
+| Debug ledger (NTSC = PAL; requested / backing [/ allocations]) | Drawn shell (2026-10-23) | This slice |
+| --- | ---: | ---: |
+| Visible console peak; arena | 2,418,704 / 2,517,248; 2,557,275 | 2,421,022 / 2,519,568; 2,557,531 |
+| Authored UI warm unload | 3,684,195 / 3,785,584 / 2,468 | 3,686,513 / 3,787,904 / 2,468 |
+| Font screen warm | 2,618,654 / 2,722,948 / 2,527 | 2,632,944 / 2,737,728 / 2,536 |
+| Font screen peak; arena | 2,710,852 / 2,815,188; 2,856,283 | 2,749,984 / 2,854,816; 2,909,787 |
+| Dialog at rest | 4,129,720 / 4,268,160 / 3,316 | 4,144,002 / 4,282,940 / 3,325 |
+| Dialog peak; arena | 4,309,366 / 4,414,400; 4,527,451 | 4,323,656 / 4,429,180; 4,687,451 |
+| Inactive movies peak; arena | 6,688,496 / 6,884,684; 7,001,435 | 6,702,786 / 6,899,480; 6,923,867 |
+| Shell on the start screen | 10,403,639 / 11,102,616 / 15,794 | 10,417,929 / 11,117,412 / 15,803 |
+| Shell peak; arena | 10,413,423 / 11,113,892; 11,257,179 | 10,427,713 / 11,128,688; 11,269,723 |
+| Full shutdown | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Each retail screen holds 14,290 more requested bytes: the larger Sarasori page and the
+Arial Narrow set, less the placement tables and grids. Arena commitment follows allocation
+order (the dialog's rose 160 KB, the inactive movies' fell 78 KB). Production `PT_LOAD` is
+11,205,029 debug (−128) / 11,642,981 release (unchanged) bytes; the core test image, which
+compiles the catalog reader, is 2,177,840 / 2,263,344 bytes (+512 / +640).
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-console` | 2 | `20261023T052737Z_console_d9a986b7eab3`, `20261023T052748Z_console_bb79a004df1f` |
+| `test-retail-ui` | 7 | `20261023T052814Z_retail_d01af2ee3af9` to `20261023T052907Z_retail_4132eaa7978a` |
+| `test-retail-movies` | 21 | `20261023T052925Z_movies_8c6c00f88831` to `20261023T053511Z_movies_a191b958425e` (dialog `20261023T053220Z_movies_c380fd5d8a86`, `20261023T053232Z_movies_ade2389d7872`; shell `20261023T053246Z_movies_7ca7720e3ad2`, `20261023T053331Z_movies_c1736c7c0e70`) |
+| `test-ui` | 14 | `20261023T053531Z_ui_2ca75c494825` to `20261023T053706Z_ui_a3aeb9e54bdf` |
+
+The renderer and headless gates were not rerun: neither image draws retail text or loads
+the catalog. `make test-host` passes.
+
+Limits: only the start screen's sizes are added; the shell's later screens log theirs
+as they come up. The tiny Arial Narrow text is illegible at 2.5 pixels, as it would be on
+the PC at this scale.

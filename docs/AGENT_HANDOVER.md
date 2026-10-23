@@ -100,11 +100,12 @@ Proposed order; the user chose lever 1 first:
    the core renderer test's fixture, and every visible package stages the cook.
    **Menu text** draws from pre-rendered glyphs since 2026-10-22, at the user's choice
    after the dialog's labels aliased ([pipeline](RETAIL_UI_PIPELINE.md#pre-rendered-glyphs)):
-   `conversion.glyph_sets` lists Sarasori's six dialog sizes. Each screen that draws
-   more text logs its sizes once (`UI glyph size ... prerendered=no`); add them to the
-   profile as the shell starts drawing. Before the set outgrows one GSTX texture (1,024
-   placements, about nine outlined sizes) or the catalog's 64 KiB descriptor bound,
-   give glyph entries their page rectangles directly or split sets across images.
+   `conversion.glyph_sets` lists Sarasori's six dialog sizes and four start-screen sizes,
+   and four Arial Narrow sizes for the start screen. Each screen that draws more text
+   logs its sizes once (`UI glyph size ... prerendered=no`); add them to the profile as
+   the shell's screens come up. Since 2026-10-23 a set image holds one 1:1 band
+   placement per page and each catalog entry carries its glyph's rectangle (UICT4), so a
+   set grows by 20 catalog bytes per glyph and size, up to sixteen 512×512 pages.
 2. Cheap heap wins, measured by `test-retail-boot`: a smaller tagged header or
    small-block pools, heap-string container names, a PS2-sized smoke pool and script
    limits sized to the retail program.
@@ -132,10 +133,10 @@ Open items, roughly in order:
 - **The native screens.** The minimal owner shows the start screen in its authored
   state: placeholder prompts and carousel labels. Filling them is the native screens'
   work (`idMenuScreen_Shell_PressStart`, the root menu), item 3 below.
-- **Text sizes.** The shell's text draws at sizes without pre-rendered glyphs; each logs
-  once (`UI glyph size ... prerendered=no`). Add them to `conversion.glyph_sets` as the
-  screens come up, and give glyph entries page rectangles before a set outgrows one
-  GSTX texture or the catalog's 64 KiB descriptor bound.
+- **Text sizes.** The start screen's text draws from pre-rendered glyphs since
+  2026-10-23 (two Sarasori and two Arial Narrow sizes per standard, glyph entries with
+  their own rectangles). Later screens log their missing sizes once
+  (`UI glyph size ... prerendered=no`); add them to `conversion.glyph_sets` as they come up.
 - **Frame cost.** A debug PCSX2 shell frame takes 100–140 ms with one timeline step per
   frame and about 330 ms on the real-time clock (up to ten steps per frame); it draws about
   1,070 triangles and a dozen masks. Every triangle writes its full state and CLUT load,

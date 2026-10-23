@@ -157,7 +157,11 @@ texel for texel, instead of the minified atlas with four stroke copies per glyph
 letters stay open, stems sharp, and the dialog draws about 334 triangles a frame
 instead of about 750. Other screens' sizes are logged at runtime for later cooks. See
 the [pipeline](RETAIL_UI_PIPELINE.md#pre-rendered-glyphs) and the
-[acceptance record](PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22).
+[acceptance record](PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22). On 2026-10-23
+the shell start screen's sizes joined them (two Sarasori and two Arial Narrow sizes per
+standard), with glyph entries that carry their own page rectangles so sets no longer
+spend a texture placement per bitmap
+([record](PORT_STATUS.md#shell-text-sizes-and-glyph-rectangles-2026-10-23)).
 
 ### Next selected work
 

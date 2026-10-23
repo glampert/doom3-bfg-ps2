@@ -16,6 +16,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
 import gstx_fixture
+import ui_gstx
 import ui_retail_catalog as catalog
 from ui_font import inspect_font
 
@@ -70,7 +71,7 @@ class RetailCatalogTests(unittest.TestCase):
         header = catalog.HEADER.unpack_from(raw)
         descriptor_bytes = self.image_asset["table_bytes"]
         self.assertEqual(descriptor_bytes, 48 + 32 + 16 + 32)
-        self.assertEqual(header[:8], (catalog.MAGIC, 3, len(raw), 1, 1, 1, 5, 1))
+        self.assertEqual(header[:8], (catalog.MAGIC, 4, len(raw), 1, 1, 1, 5, 1))
         self.assertEqual(header[8], 64)
         self.assertEqual(header[9], header[8] + 32)
         self.assertEqual(header[10], header[9] + 56)
@@ -92,41 +93,52 @@ class RetailCatalogTests(unittest.TestCase):
         self.assertEqual(font[6:12], (70, 60, 55, 54, 43, 49))
         self.assertEqual(font[12:], (0, 0))
         self.assertEqual((summary["format"], summary["page_count"], summary["descriptor_bytes"], summary["glyph_set_count"]),
-                         ("UICT3", 1, descriptor_bytes, 0))
+                         ("UICT4", 1, descriptor_bytes, 0))
         self.assertEqual(summary["material_policy"],
                          "implicit-image-default only; native wrappers provide one constant image stage")
         self.assertNotIn(b".bswf", raw)
 
     def glyph_set(self, **changes):
-        glyphs = [{"codepoint": 32, "placement": None, "outline": False, "origin": [0, 0]},
-                  {"codepoint": 65, "placement": 0, "outline": True, "origin": [20, -16]}]
+        glyphs = [{"codepoint": 32, "rect": None, "outline": False, "origin": [0, 0]},
+                  {"codepoint": 65, "rect": [8, 4, 20, 30], "outline": True, "origin": [20, -16]}]
         size = {"scale": [0.175, 0.2041666], "stroke_weight": 1.75, "glyphs": glyphs}
         return {"image": self.image_name, "sizes": [{**size, **changes}]}
+
+    def band_image(self, placements):
+        """Swap the font image for one with these 1:1 or scaled placements over a blank page."""
+        page = {"width": 512, "height": 128, "format": ui_gstx.PSMT4, "data": bytes(512 * 128 // 2)}
+        raw = ui_gstx.build_texture(512, 128, [page], [gstx_fixture.ALPHA_RAMP],
+                                    [{"match": match, "source": match, "dest": dest, "page": 0, "clut": 0}
+                                     for match, dest in placements])
+        self.manifest["cooked"]["runtime_images"][self.image_name] = gstx_fixture.write_asset(self.directory, raw)
 
     def test_glyph_set_table_follows_the_materials_and_locates_from_its_font(self):
         self.manifest["cooked"]["glyph_sets"] = {self.font_name: self.glyph_set()}
         raw, summary = self.build()
         header = catalog.HEADER.unpack_from(raw)
         table = header[11] + 8
-        table_bytes = 16 + 20 + 2 * 12
+        table_bytes = 16 + 20 + 2 * 20
         self.assertEqual(header[12], table + table_bytes)
         self.assertEqual(catalog.FONT.unpack_from(raw, header[9])[12:], (table, table_bytes))
         self.assertEqual(catalog.GLYPH_SET.unpack_from(raw, table), (0, 1, 2, 0))
         self.assertEqual(catalog.GLYPH_SIZE.unpack_from(raw, table + 16),
                          (round(0.175 * 65536), round(0.2041666 * 65536), round(1.75 * 65536), 0, 2))
-        self.assertEqual(catalog.GLYPH_ENTRY.unpack_from(raw, table + 36), (32, catalog.NO_PLACEMENT, 0, 0, 0))
-        self.assertEqual(catalog.GLYPH_ENTRY.unpack_from(raw, table + 48), (65, 0, 1, 20, -16))
+        self.assertEqual(catalog.GLYPH_ENTRY.unpack_from(raw, table + 36), (32, 0, 0, 0, 0, 0, 0, 0, 0))
+        self.assertEqual(catalog.GLYPH_ENTRY.unpack_from(raw, table + 56), (65, 8, 4, 20, 30, 1, 0, 20, -16))
         self.assertEqual((summary["glyph_set_count"], summary["glyph_entry_count"], summary["glyph_table_bytes"]),
                          (1, 2, table_bytes))
 
-    def test_glyph_set_bounds_order_and_1_1_bitmaps_checked(self):
+    def test_glyph_set_bounds_order_and_band_bitmaps_checked(self):
         glyphs = self.glyph_set()["sizes"][0]["glyphs"]
         for name, glyph_set in (("unknown image", {**self.glyph_set(), "image": "missing"}),
                                 ("no sizes", {**self.glyph_set(), "sizes": []}),
                                 ("zero scale", self.glyph_set(scale=[0, 0.2])),
                                 ("stroke weight", self.glyph_set(stroke_weight=17)),
                                 ("codepoint order", self.glyph_set(glyphs=list(reversed(glyphs)))),
-                                ("placement range", self.glyph_set(glyphs=[{**glyphs[1], "placement": 1}])),
+                                ("rectangle outside the band", self.glyph_set(glyphs=[{**glyphs[1], "rect": [500, 4, 20, 30]}])),
+                                ("empty rectangle", self.glyph_set(glyphs=[{**glyphs[1], "rect": [8, 4, 0, 30]}])),
+                                ("rectangle shape", self.glyph_set(glyphs=[{**glyphs[1], "rect": [8, 4, 20]}])),
+                                ("odd outline pair", self.glyph_set(glyphs=[{**glyphs[1], "rect": [8, 4, 21, 30]}])),
                                 ("outline without bitmap", self.glyph_set(glyphs=[{**glyphs[0], "outline": True}])),
                                 ("outline without stroke", self.glyph_set(stroke_weight=0)),
                                 ("origin range", self.glyph_set(glyphs=[{**glyphs[1], "origin": [16385, 0]}]))):
@@ -135,6 +147,24 @@ class RetailCatalogTests(unittest.TestCase):
                 self.build()
         self.manifest["cooked"]["glyph_sets"] = {"newfonts/missing/48.dat": self.glyph_set()}
         with self.assertRaisesRegex(ValueError, "unknown font"):
+            self.build()
+
+    def test_glyph_set_image_holds_at_most_16_one_to_one_bands(self):
+        self.manifest["cooked"]["glyph_sets"] = {self.font_name: self.glyph_set()}
+        left, right = (0, 0, 256, 128), (256, 0, 256, 128)
+        self.band_image([(left, left), (right, right)])
+        self.build()
+        straddling = self.glyph_set(glyphs=[{**self.glyph_set()["sizes"][0]["glyphs"][1], "rect": [250, 4, 20, 30]}])
+        self.manifest["cooked"]["glyph_sets"] = {self.font_name: straddling}
+        with self.assertRaisesRegex(ValueError, "outside every band"):
+            self.build()
+        self.manifest["cooked"]["glyph_sets"] = {self.font_name: self.glyph_set()}
+        whole = (0, 0, 512, 128)
+        self.band_image([(whole, (0, 0, 256, 128))])
+        with self.assertRaisesRegex(ValueError, "not a 1:1 placement"):
+            self.build()
+        self.band_image([((16 * index, 0, 16, 128), (16 * index, 0, 16, 128)) for index in range(17)])
+        with self.assertRaisesRegex(ValueError, "1-16 band placements"):
             self.build()
 
     def test_aliases_keep_case_space_normalization_and_empty_english_alias(self):

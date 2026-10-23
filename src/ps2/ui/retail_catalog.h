@@ -18,7 +18,8 @@ static constexpr std::uint32_t kMaxAliases = 128;
 static constexpr std::uint32_t kMaxMaterials = 64;
 static constexpr std::uint32_t kMaxGlyphSizes = 16;
 static constexpr std::uint32_t kMaxGlyphEntries = 4096;
-static constexpr std::uint16_t kNoGlyphPlacement = 0xFFFF;
+// A glyph set image has one placement per page, each a band mapping 1:1 onto its page.
+static constexpr std::uint32_t kMaxGlyphBands = 16;
 
 struct ImageRecord
 {
@@ -48,7 +49,7 @@ struct FontRecord
 };
 
 // A glyph set holds a font's glyphs pre-rendered at exact on-screen sizes, in one catalog image
-// whose placements map 1:1 onto its pages. Each size is a run of entries sorted by codepoint.
+// whose band placements map 1:1 onto its pages. Each size is a run of entries sorted by codepoint.
 struct GlyphSetRecord
 {
     std::uint32_t imageIndex = 0;
@@ -69,9 +70,13 @@ struct GlyphSize
 struct GlyphEntry
 {
     std::uint32_t codepoint = 0;
-    // The glyph's placement (kNoGlyphPlacement: nothing to draw). With an outline, the placement
-    // holds two bitmaps of one size side by side, the glyph left and its outline right.
-    std::uint16_t placement = 0;
+    // The bitmap's texels in the image's logical space, inside one band (zero width: nothing to
+    // draw). With an outline it holds two bitmaps of one size side by side, the glyph left and
+    // its outline right.
+    std::uint16_t x = 0;
+    std::uint16_t y = 0;
+    std::uint16_t width = 0;
+    std::uint16_t height = 0;
     bool outline = false;
     // The ink origin, the glyph's left edge on its baseline, in 1/16 GS pixels from a bitmap's corner.
     std::int16_t originX = 0;

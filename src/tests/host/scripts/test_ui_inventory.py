@@ -130,7 +130,7 @@ class InventoryPipelineTests(unittest.TestCase):
         self.assertEqual(reexport["file_bytes"], sum(record["bytes"] for record in images.values()))
         self.assertIn(ord("A"), reexport["english_codepoints"])
         self.assertEqual(manifest["cooked"]["conversion_only"], {})
-        self.assertEqual(manifest["cooked"]["runtime_catalog"]["format"], "UICT3")
+        self.assertEqual(manifest["cooked"]["runtime_catalog"]["format"], "UICT4")
 
     def test_conversion_only_movies_are_converted_but_never_admitted(self):
         self.records += [("generated/swf/extra.bswf", self.raw_swf),

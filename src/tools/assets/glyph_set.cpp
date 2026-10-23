@@ -7,6 +7,8 @@
 // ================================================================================================
 
 #include "assets/glyph_set.h"
+#include "assets/gs_texture.h"
+#include "assets/rect_pack.h"
 
 #include <algorithm>
 #include <cmath>
@@ -22,8 +24,6 @@ static constexpr int kPhases = 8;
 // Coverage samples per pixel on each axis: fewer while searching phases, more for the bitmaps kept.
 static constexpr int kSearchSamples = 4;
 static constexpr int kFinalSamples = 8;
-// Bitmaps are shelved left to right on a logical sheet this wide before conversion.
-static constexpr int kSheetWidth = 1024;
 // The engine draws a stroke as four copies of the glyph offset diagonally by the stroke weight.
 static constexpr double kStrokeOffsets[4][2] = { { -1.0, -1.0 }, { 1.0, -1.0 }, { -1.0, 1.0 }, { 1.0, 1.0 } };
 
@@ -165,13 +165,12 @@ static std::uint8_t Alpha(double coverage)
     return static_cast<std::uint8_t>(std::lround(std::clamp(coverage, 0.0, 1.0) * 255.0));
 }
 
-// A kept bitmap pair, trimmed to its ink, before it is shelved on the sheet.
+// A kept bitmap pair, trimmed to its ink, before it is packed onto a page.
 struct Pair
 {
     std::size_t size = 0;
     std::size_t glyph = 0;
     RgbaImage pixels;
-    Rect rect;
 };
 
 } // namespace
@@ -304,7 +303,6 @@ bool RenderGlyphSet(const RgbaImage & atlas, const std::vector<GlyphMetrics> & g
                     }
                 }
 
-                glyphResult.placement = static_cast<int>(pairs.size());
                 glyphResult.outline = outline;
                 glyphResult.originX = static_cast<int>(std::lround((bitmap.originX - left) * 16.0));
                 glyphResult.originY = static_cast<int>(std::lround((bitmap.originY - top) * 16.0));
@@ -323,49 +321,49 @@ bool RenderGlyphSet(const RgbaImage & atlas, const std::vector<GlyphMetrics> & g
         return false;
     }
 
-    // Shelve the pairs, tallest first, on a logical sheet; each becomes a 1:1 placement.
-    std::vector<std::size_t> order(pairs.size());
-    std::iota(order.begin(), order.end(), std::size_t{ 0 });
-    std::stable_sort(order.begin(), order.end(), [&](std::size_t first, std::size_t second)
-                     {
-                         return pairs[first].pixels.height > pairs[second].pixels.height;
-                     });
-    int shelfX = 0;
-    int shelfY = 0;
-    int shelfHeight = 0;
+    // Pack the bitmaps onto PSMT4 pages and stack the pages in the logical space. Each page is one
+    // band, converted as a single 1:1 placement, so the texture keeps one placement per page and
+    // every glyph records its own rectangle instead.
+    std::vector<PackItem> items;
 
-    for (const std::size_t index : order)
+    for (const Pair & pair : pairs)
     {
-        Pair & pair = pairs[index];
-
-        if (pair.pixels.width > kSheetWidth)
-        {
-            error = "a glyph bitmap exceeds the sheet width";
-            return false;
-        }
-
-        if (shelfX + pair.pixels.width > kSheetWidth)
-        {
-            shelfY += shelfHeight;
-            shelfX = 0;
-            shelfHeight = 0;
-        }
-
-        pair.rect = { shelfX, shelfY, pair.pixels.width, pair.pixels.height };
-        shelfX += pair.pixels.width;
-        shelfHeight = std::max(shelfHeight, pair.pixels.height);
+        items.push_back({ pair.pixels.width, pair.pixels.height });
     }
 
-    const int sheetHeight = shelfY + shelfHeight;
+    std::vector<PackedPage> bands;
+
+    if (!PackPages(items, maxPageExtent, maxPageExtent, GsPageWidth(IndexFormat::T4), GsPageHeight(IndexFormat::T4), bands))
+    {
+        error = "a glyph bitmap exceeds the page extent";
+        return false;
+    }
+
+    if (bands.size() > static_cast<std::size_t>(kGstxMaxPages))
+    {
+        error = "the glyph set needs more than " + std::to_string(kGstxMaxPages) + " pages";
+        return false;
+    }
+
+    std::vector<int> bandY;
+    int sheetWidth = 0;
+    int sheetHeight = 0;
+
+    for (const PackedPage & band : bands)
+    {
+        bandY.push_back(sheetHeight);
+        sheetWidth = std::max(sheetWidth, band.width);
+        sheetHeight += band.height;
+    }
 
     if (sheetHeight > kGstxMaxLogicalExtent)
     {
-        error = "the glyph set sheet exceeds the logical extent";
+        error = "the glyph set exceeds the logical extent";
         return false;
     }
 
     RgbaImage sheet;
-    sheet.Allocate(kSheetWidth, sheetHeight);
+    sheet.Allocate(sheetWidth, sheetHeight);
 
     for (int y = 0; y < sheet.height; ++y)
     {
@@ -376,16 +374,26 @@ bool RenderGlyphSet(const RgbaImage & atlas, const std::vector<GlyphMetrics> & g
         }
     }
 
-    std::vector<PlacementRequest> requests;
-
-    for (const Pair & pair : pairs)
+    for (std::size_t index = 0; index < pairs.size(); ++index)
     {
-        for (int y = 0; y < pair.rect.height; ++y)
+        const Pair & pair = pairs[index];
+        const PackItem & item = items[index];
+        const Rect rect = { item.x, bandY[static_cast<std::size_t>(item.page)] + item.y, pair.pixels.width, pair.pixels.height };
+
+        for (int y = 0; y < rect.height; ++y)
         {
-            std::copy(pair.pixels.At(0, y), pair.pixels.At(0, y) + pair.rect.width * 4, sheet.At(pair.rect.x, pair.rect.y + y));
+            std::copy(pair.pixels.At(0, y), pair.pixels.At(0, y) + rect.width * 4, sheet.At(rect.x, rect.y + y));
         }
 
-        requests.push_back({ pair.rect, pair.rect, 1.0 });
+        result.sizes[pair.size].glyphs[pair.glyph].rect = rect;
+    }
+
+    std::vector<PlacementRequest> requests;
+
+    for (std::size_t band = 0; band < bands.size(); ++band)
+    {
+        const Rect rect = { 0, bandY[band], bands[band].width, bands[band].height };
+        requests.push_back({ rect, rect, 1.0 });
     }
 
     ConvertPolicy policy;

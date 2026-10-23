@@ -27,11 +27,15 @@ bool PreflightAuthoredFont(idFile * file, const char * name);
 void ValidateAuthoredFontMaterial(const idMaterial * material);
 
 // One glyph of a font's pre-rendered bitmaps: exact pixels at one size, with its outline beside it
-// when the size has one, and its ink origin (left edge, baseline) in 1/16 GS pixels.
+// when the size has one, and its ink origin (left edge, baseline) in 1/16 GS pixels. The bitmap is
+// a rectangle of the glyph set image's texels; zero width draws nothing.
 struct PrerenderedGlyph
 {
     std::uint32_t font = 0;
-    std::uint16_t placement = 0;
+    std::uint16_t x = 0;
+    std::uint16_t y = 0;
+    std::uint16_t width = 0;
+    std::uint16_t height = 0;
     bool outline = false;
     std::int16_t originX = 0;
     std::int16_t originY = 0;
