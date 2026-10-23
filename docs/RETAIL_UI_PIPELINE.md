@@ -5,8 +5,9 @@ profiles. Documentation reviewed **2026-10-23**, with runtime evidence through
 **2026-10-23**. Original shell/dialog dictionaries, English text and checked native
 timelines can load and execute through separate admission profiles. The original dialog
 and the shell's start screen draw in full through a third one, their text from
-[pre-rendered glyphs](#pre-rendered-glyphs). Shell event routing and offline menu
-navigation are not admitted.
+[pre-rendered glyphs](#pre-rendered-glyphs), and the native shell handler drives the
+[start and root screens](#native-shell-menu). Shell event routing, the quit dialog and
+the other menu screens are not admitted.
 
 Retail artwork and fonts are converted to paletted, RLE-compressed **GSTX** textures by
 the host tool `asset_reexport`; the target keeps each open image's pages resident instead
@@ -676,6 +677,37 @@ during the logo transition. `make test-retail-shell` (also part of `make test-re
 `shell-render` case; see [PORT_STATUS](PORT_STATUS.md) for its acceptance record. The
 start screen's text draws from pre-rendered glyphs; a later screen's sizes without them
 draw as native quads, each size logged once.
+
+## Native shell menu
+
+`ps2_uiRetail menu` opens the menu the way `idCommonLocal::CreateMainMenu` does: the
+game's `Shell_CreateMenu(false)`, `Shell_Show(true)` and `Shell_SyncWithSession()`,
+after native `PerformGameSwitch`'s move to press-start. The real `idMenuHandler_Shell`
+owns the movie, its widgets and its screens; the harness only advances and draws it,
+on the fixed clock when `ps2_uiRetail clock fixed` came first. Each frame syncs the
+handler with the session and runs its update before the timeline advances.
+
+- **Screens.** The handler binds the start, root and credits screens. The start screen's
+  carousel holds the Doom 3 cover alone; the root screen lists Campaign, Settings,
+  Credits and Quit (no development map list or multiplayer).
+- **Platform.** Handlers and movies report platform 1, the PS3 face-button layout: the
+  command bar shows the PlayStation cross and circle with SELECT and BACK.
+- **Sign-in.** `ps2_uiRetail signin` does what the start screen's press does for the
+  first local user; the next session sync moves the handler to the root screen.
+- **Admission.** The movie is the admitted shell with execution and drawing, as for
+  `draw shell`. Its native callbacks (`updateMenuDisplay`, `activateMenus`, `closeMenu`,
+  `refreshCarousel`, `updateCredits`) are pinned by identity before execution starts.
+  Common's dialog manager answers queries; adding a dialog still fails explicitly.
+- **Text.** The root screen adds Sarasori at heights 18 and 10 with a 2.0 outline (its
+  options and help line); with them, no `UI glyph size` line appears on either screen.
+
+`make test-retail-menu` (also part of `make test-retail-movies`) runs the `menu-render`
+case: a 120-frame load and two 30-frame warm reloads, each captured on the start screen
+and 90 frames after sign-in on the root screen. It requires the handler's screen,
+session, platform and callbacks at each capture, no unrendered text size, the shell's
+draw admission, textures and channel CLUTs, exact warm releases, full shutdown recovery
+and pixel-identical warm reload captures. See [PORT_STATUS](PORT_STATUS.md) for its
+acceptance record.
 
 ## Page format survey and the first conversion pass
 

@@ -123,9 +123,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   third admission, refusing only additive alpha terms. `ps2_uiRetail logo on|off` plays the
   native shell's logo transition and `ps2_uiRetail clock fixed` advances executing movies
   1/60 s per Common frame. `make test-retail-dialog` and `make test-retail-shell` check
-  them. Converted pages stay resident: a debug PCSX2 frame takes about 60 ms for the
-  dialog and 100–140 ms for the shell on the fixed clock. Shell navigation, prompts and screens, dynamic
-  resources and artwork residency beyond the start screen remain pending.
+  them. `ps2_uiRetail menu` opens the menu through the native `idMenuHandler_Shell`
+  (start, root and credits screens bound; PS3 platform layout) and `ps2_uiRetail signin`
+  signs in the first user, moving it from the start screen to the root screen;
+  `make test-retail-menu` checks it. Converted pages stay resident: a debug PCSX2 frame takes about 60 ms for the
+  dialog and 100–140 ms for the shell on the fixed clock. Menu input routing, the quit
+  dialog, the other screens, dynamic resources and artwork residency remain pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex

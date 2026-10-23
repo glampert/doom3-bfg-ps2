@@ -322,9 +322,14 @@ namespace {
 			ps2::ui::swf::Require( parms.Num() == 1 && parms[0].IsNumeric(), "control callback signature" );
 		}
 		else if ( name == "deactivate" || name == "getPlatform" || name == "getTruePlatform" || name == "swapPS3Buttons" ||
-			name == "refreshCarousel" || name == "updateCredits" )
+			name == "refreshCarousel" || name == "updateCredits" || name == "activateMenus" || name == "closeMenu" )
 		{
 			expected = 0;
+		}
+		else if ( name == "updateMenuDisplay" )
+		{
+			expected = 1;
+			ps2::ui::swf::Require( parms.Num() == 1 && parms[0].IsNumeric(), "menu display callback signature" );
 		}
 		else if ( name == "getLocalString" )
 		{

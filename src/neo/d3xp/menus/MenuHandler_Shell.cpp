@@ -26,7 +26,10 @@ If you have questions concerning this license or the applicable additional terms
 ===========================================================================
 */
 #pragma hdrstop
-#include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Include paths match the on-disk case for case-sensitive build hosts.
+#include "../../idlib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 
@@ -181,14 +184,16 @@ void idMenuHandler_Shell::Update() {
 
 	idMenuHandler::Update();
 
+	// [PS2_D3BFG]: Lobby, leaderboard and continue screens are not part of the reviewed shell.
+#if !defined( ID_PS2 )
 	if ( activeScreen == nextScreen && activeScreen == SHELL_AREA_LEADERBOARDS ) {
-		idMenuScreen_Shell_Leaderboards * screen = dynamic_cast< idMenuScreen_Shell_Leaderboards * >( menuScreens[ SHELL_AREA_LEADERBOARDS ] );
+		idMenuScreen_Shell_Leaderboards * screen = ps2::CheckedCast< idMenuScreen_Shell_Leaderboards * >( menuScreens[ SHELL_AREA_LEADERBOARDS ] );
 		if ( screen != NULL ) {
 			screen->PumpLBCache();
 			screen->RefreshLeaderboard();
 		}
 	} else if ( activeScreen == nextScreen && activeScreen == SHELL_AREA_PARTY_LOBBY ) {
-		idMenuScreen_Shell_PartyLobby * screen = dynamic_cast< idMenuScreen_Shell_PartyLobby * >( menuScreens[ SHELL_AREA_PARTY_LOBBY ] );
+		idMenuScreen_Shell_PartyLobby * screen = ps2::CheckedCast< idMenuScreen_Shell_PartyLobby * >( menuScreens[ SHELL_AREA_PARTY_LOBBY ] );
 		if ( screen != NULL ) {
 			screen->UpdateLobby();
 		}
@@ -213,7 +218,7 @@ void idMenuHandler_Shell::Update() {
 			}
 		}
 
-		idMenuScreen_Shell_GameLobby * screen = dynamic_cast< idMenuScreen_Shell_GameLobby * >( menuScreens[ SHELL_AREA_GAME_LOBBY ] );
+		idMenuScreen_Shell_GameLobby * screen = ps2::CheckedCast< idMenuScreen_Shell_GameLobby * >( menuScreens[ SHELL_AREA_GAME_LOBBY ] );
 		if ( screen != NULL ) {
 			screen->UpdateLobby();
 		}
@@ -227,12 +232,13 @@ void idMenuHandler_Shell::Update() {
 		if ( !session->GetSaveGameManager().IsWorking() ) {
 			continueWaitForEnumerate = false;
 			common->Dialog().ClearDialog( GDM_REFRESHING );
-			idMenuScreen_Shell_Singleplayer * screen = dynamic_cast< idMenuScreen_Shell_Singleplayer * >( menuScreens[ SHELL_AREA_CAMPAIGN ] );
+			idMenuScreen_Shell_Singleplayer * screen = ps2::CheckedCast< idMenuScreen_Shell_Singleplayer * >( menuScreens[ SHELL_AREA_CAMPAIGN ] );
 			if ( screen != NULL ) {
 				screen->ContinueGame();
 			}
 		}
 	}
+#endif
 }
 
 /*
@@ -242,10 +248,15 @@ idMenuHandler_Shell::SetCanContinue
 */
 void idMenuHandler_Shell::SetCanContinue( bool valid ) {
 
-	idMenuScreen_Shell_Singleplayer * screen = dynamic_cast< idMenuScreen_Shell_Singleplayer * >( menuScreens[ SHELL_AREA_CAMPAIGN ] );
+	// [PS2_D3BFG]: The campaign screen is not part of the reviewed shell.
+#if defined( ID_PS2 )
+	idLib::FatalError( "shell capability unavailable: idMenuHandler_Shell::SetCanContinue" );
+#else
+	idMenuScreen_Shell_Singleplayer * screen = ps2::CheckedCast< idMenuScreen_Shell_Singleplayer * >( menuScreens[ SHELL_AREA_CAMPAIGN ] );
 	if ( screen != NULL ) {
 		screen->SetCanContinue( valid );
 	}
+#endif
 
 }
 
@@ -264,6 +275,8 @@ bool idMenuHandler_Shell::HandleGuiEvent( const sysEvent_t * sev ) {
 		return true;
 	}
 
+	// [PS2_D3BFG]: Only the bindings screen, outside the reviewed shell, waits for a binding.
+#if !defined( ID_PS2 )
 	if ( waitForBinding ) {
 
 		if ( sev->evType == SE_KEY && sev->evValue2 == 1 ) {
@@ -275,7 +288,7 @@ bool idMenuHandler_Shell::HandleGuiEvent( const sysEvent_t * sev ) {
 			if ( sev->evValue == K_ESCAPE ) {
 				waitForBinding = false;
 
-				idMenuScreen_Shell_Bindings * bindScreen = dynamic_cast< idMenuScreen_Shell_Bindings * >( menuScreens[ SHELL_AREA_KEYBOARD ] );
+				idMenuScreen_Shell_Bindings * bindScreen = ps2::CheckedCast< idMenuScreen_Shell_Bindings * >( menuScreens[ SHELL_AREA_KEYBOARD ] );
 				if ( bindScreen != NULL ) {
 					bindScreen->ToggleWait( false );
 					bindScreen->Update();
@@ -287,7 +300,7 @@ bool idMenuHandler_Shell::HandleGuiEvent( const sysEvent_t * sev ) {
 
 					idKeyInput::SetBinding( sev->evValue, waitBind );
 					
-					idMenuScreen_Shell_Bindings * bindScreen = dynamic_cast< idMenuScreen_Shell_Bindings * >( menuScreens[ SHELL_AREA_KEYBOARD ] );
+					idMenuScreen_Shell_Bindings * bindScreen = ps2::CheckedCast< idMenuScreen_Shell_Bindings * >( menuScreens[ SHELL_AREA_KEYBOARD ] );
 					if ( bindScreen != NULL ) {
 						bindScreen->SetBindingChanged( true );
 						bindScreen->UpdateBindingDisplay();
@@ -303,7 +316,7 @@ bool idMenuHandler_Shell::HandleGuiEvent( const sysEvent_t * sev ) {
 
 					if ( idStr::Icmp( waitBind, curBind ) == 0 ) {
 						idKeyInput::SetBinding( sev->evValue, "" );
-						idMenuScreen_Shell_Bindings * bindScreen = dynamic_cast< idMenuScreen_Shell_Bindings * >( menuScreens[ SHELL_AREA_KEYBOARD ] );
+						idMenuScreen_Shell_Bindings * bindScreen = ps2::CheckedCast< idMenuScreen_Shell_Bindings * >( menuScreens[ SHELL_AREA_KEYBOARD ] );
 						if ( bindScreen != NULL ) {
 							bindScreen->SetBindingChanged( true );
 							bindScreen->UpdateBindingDisplay();
@@ -313,7 +326,7 @@ bool idMenuHandler_Shell::HandleGuiEvent( const sysEvent_t * sev ) {
 						}
 					} else {
 
-						idMenuScreen_Shell_Bindings * bindScreen = dynamic_cast< idMenuScreen_Shell_Bindings * >( menuScreens[ SHELL_AREA_KEYBOARD ] );
+						idMenuScreen_Shell_Bindings * bindScreen = ps2::CheckedCast< idMenuScreen_Shell_Bindings * >( menuScreens[ SHELL_AREA_KEYBOARD ] );
 						if ( bindScreen != NULL ) {
 							class idSWFScriptFunction_RebindKey : public idSWFScriptFunction_RefCounted {
 							public:
@@ -356,6 +369,7 @@ bool idMenuHandler_Shell::HandleGuiEvent( const sysEvent_t * sev ) {
 
 		return true;
 	}
+#endif
 
 	return idMenuHandler::HandleGuiEvent( sev );
 
@@ -381,6 +395,18 @@ void idMenuHandler_Shell::Initialize( const char * swfFile, idSoundWorld * sw ) 
 		menuScreens[ i ] = NULL;
 	}
 
+	// [PS2_D3BFG]: The reviewed console shell binds the start, root and credits screens. The intro
+	// movies (build touches), the other screens, the in-game menu, intro and Mars cinematics and
+	// menu sounds remain unavailable.
+#if defined( ID_PS2 )
+	if ( inGame ) {
+		idLib::FatalError( "shell capability unavailable: in-game menu" );
+	}
+
+	BIND_SHELL_SCREEN( SHELL_AREA_START, idMenuScreen_Shell_PressStart, this );
+	BIND_SHELL_SCREEN( SHELL_AREA_ROOT, idMenuScreen_Shell_Root, this );
+	BIND_SHELL_SCREEN( SHELL_AREA_CREDITS, idMenuScreen_Shell_Credits, this );
+#else
 	// done for build game purposes so these get touched
 	delete new idSWF( "doomIntro", NULL );
 	delete new idSWF( "roeIntro", NULL );
@@ -436,6 +462,7 @@ void idMenuHandler_Shell::Initialize( const char * swfFile, idSoundWorld * sw ) 
 
 		marsRotation = declManager->FindMaterial( "gui/shell/mars_rotation" );
 	}
+#endif
 
 	menuBar = new (TAG_SWF) idMenuWidget_MenuBar();
 	menuBar->SetSpritePath( "pcBar" );
@@ -445,7 +472,7 @@ void idMenuHandler_Shell::Initialize( const char * swfFile, idSoundWorld * sw ) 
 	menuBar->SetButtonSpacing( 45.0f );
 	while ( menuBar->GetChildren().Num() < MAX_MENU_OPTIONS ) {
 		idMenuWidget_MenuButton * const navButton = new (TAG_SWF) idMenuWidget_MenuButton();
-		idMenuScreen_Shell_Root * rootScreen = dynamic_cast< idMenuScreen_Shell_Root * >( menuScreens[ SHELL_AREA_ROOT ] );
+		idMenuScreen_Shell_Root * rootScreen = ps2::CheckedCast< idMenuScreen_Shell_Root * >( menuScreens[ SHELL_AREA_ROOT ] );
 		if ( rootScreen != NULL ) {
 			navButton->RegisterEventObserver( rootScreen->GetHelpWidget() );
 		}
@@ -468,6 +495,8 @@ void idMenuHandler_Shell::Initialize( const char * swfFile, idSoundWorld * sw ) 
 
 	// precache sounds
 	// don't load gui music for the pause menu to save some memory
+	// [PS2_D3BFG]: Menu sounds stay unset, so PlaySound returns before touching a sound world.
+#if !defined( ID_PS2 )
 	const idSoundShader * soundShader = NULL;
 	if ( !inGame ) {
 		soundShader = declManager->FindSound( "gui/menu_music", true );
@@ -519,6 +548,7 @@ void idMenuHandler_Shell::Initialize( const char * swfFile, idSoundWorld * sw ) 
 	if ( soundShader != NULL ) {
 		sounds[ GUI_SOUND_ROLL_OUT ] = soundShader->GetName();
 	}
+#endif
 
 	class idPauseGUIClose : public idSWFScriptFunction_RefCounted {
 	public:
@@ -663,7 +693,7 @@ void idMenuHandler_Shell::SetupPCOptions() {
 
 			idMenuWidget_MenuButton * buttonWidget = NULL;
 			int index = 0;
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_DEMO0, index );
@@ -671,7 +701,7 @@ void idMenuHandler_Shell::SetupPCOptions() {
 			}
 			if ( g_demoMode.GetInteger() == 2 ) {			
 				index++;
-				buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+				buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 				if ( buttonWidget != NULL ) {
 					buttonWidget->ClearEventActions();
 					buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_DEMO1, index );
@@ -679,14 +709,14 @@ void idMenuHandler_Shell::SetupPCOptions() {
 				}
 			}
 			index++;
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_SETTINGS, index );
 				buttonWidget->SetDescription( "#str_02206" );
 			}
 			index++;
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_QUIT, index );
@@ -706,7 +736,7 @@ void idMenuHandler_Shell::SetupPCOptions() {
 			idMenuWidget_MenuButton * buttonWidget = NULL;
 			int index = 0;
 #if !defined ( ID_RETAIL ) 
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_DEV, index );
@@ -714,35 +744,35 @@ void idMenuHandler_Shell::SetupPCOptions() {
 			}
 			index++;
 #endif
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_CAMPAIGN, index );
 				buttonWidget->SetDescription( "#str_swf_campaign_desc" );
 			}
 			index++;
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_MULTIPLAYER, index );
 				buttonWidget->SetDescription( "#str_02215" );
 			}
 			index++;
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_SETTINGS, index );
 				buttonWidget->SetDescription( "#str_02206" );
 			}
 			index++;
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_CREDITS, index );
 				buttonWidget->SetDescription( "#str_02219" );
 			}
 			index++;
-			buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->ClearEventActions();
 				buttonWidget->AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, SHELL_CMD_QUIT, index );
@@ -758,7 +788,7 @@ void idMenuHandler_Shell::SetupPCOptions() {
 			menuBar->SetListHeadings( navOptions );
 			menuBar->Update();				
 			
-			idMenuScreen_Shell_Root * menu = dynamic_cast< idMenuScreen_Shell_Root * >( menuScreens[ SHELL_AREA_ROOT ] );
+			idMenuScreen_Shell_Root * menu = ps2::CheckedCast< idMenuScreen_Shell_Root * >( menuScreens[ SHELL_AREA_ROOT ] );
 			if ( menu != NULL ) {
 				const int activeIndex = menu->GetRootIndex();
 				menuBar->SetViewIndex( activeIndex );
@@ -865,7 +895,7 @@ bool idMenuHandler_Shell::HandleAction( idWidgetAction & action, const idWidgetE
 			menuBar->SetFocusIndex( index );
 			menuBar->SetViewIndex( index );
 
-			idMenuScreen_Shell_Root * menu = dynamic_cast< idMenuScreen_Shell_Root * >( menuScreens[ SHELL_AREA_ROOT ] );
+			idMenuScreen_Shell_Root * menu = ps2::CheckedCast< idMenuScreen_Shell_Root * >( menuScreens[ SHELL_AREA_ROOT ] );
 			if ( menu != NULL ) {
 				menu->SetRootIndex( index );
 			}
@@ -1028,17 +1058,22 @@ idMenuHandler_Shell::UpdateSavedGames
 ========================
 */
 void idMenuHandler_Shell::UpdateSavedGames() {
+	// [PS2_D3BFG]: Load and save screens are not part of the reviewed shell.
+#if defined( ID_PS2 )
+	idLib::FatalError( "shell capability unavailable: idMenuHandler_Shell::UpdateSavedGames" );
+#else
 	if ( activeScreen == SHELL_AREA_LOAD ) {
-		idMenuScreen_Shell_Load * screen = dynamic_cast< idMenuScreen_Shell_Load * >( menuScreens[ SHELL_AREA_LOAD ] );
+		idMenuScreen_Shell_Load * screen = ps2::CheckedCast< idMenuScreen_Shell_Load * >( menuScreens[ SHELL_AREA_LOAD ] );
 		if ( screen != NULL ) {
 			screen->UpdateSaveEnumerations();
 		}
 	} else if ( activeScreen == SHELL_AREA_SAVE ) {
-		idMenuScreen_Shell_Save * screen = dynamic_cast< idMenuScreen_Shell_Save * >( menuScreens[ SHELL_AREA_SAVE ] );
+		idMenuScreen_Shell_Save * screen = ps2::CheckedCast< idMenuScreen_Shell_Save * >( menuScreens[ SHELL_AREA_SAVE ] );
 		if ( screen != NULL ) {
 			screen->UpdateSaveEnumerations();
 		}
 	}
+#endif
 }
 
 /*
@@ -1087,10 +1122,15 @@ idMenuHandler_Shell::UpdateLeaderboard
 ========================
 */
 void idMenuHandler_Shell::UpdateLeaderboard( const idLeaderboardCallback * callback ) {
-	idMenuScreen_Shell_Leaderboards * screen = dynamic_cast< idMenuScreen_Shell_Leaderboards * >( menuScreens[ SHELL_AREA_LEADERBOARDS ] );
+	// [PS2_D3BFG]: Leaderboards are not part of the offline console shell.
+#if defined( ID_PS2 )
+	idLib::FatalError( "shell capability unavailable: idMenuHandler_Shell::UpdateLeaderboard" );
+#else
+	idMenuScreen_Shell_Leaderboards * screen = ps2::CheckedCast< idMenuScreen_Shell_Leaderboards * >( menuScreens[ SHELL_AREA_LEADERBOARDS ] );
 	if ( screen != NULL ) {
 		screen->UpdateLeaderboard( callback );
 	}
+#endif
 }
 
 /*

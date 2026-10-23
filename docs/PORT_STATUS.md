@@ -2,10 +2,13 @@
 
 ## Current snapshot — 2026-10-23
 
-The port is not playable yet. The latest slice draws the shell start screen's text from
-[pre-rendered glyphs](#shell-text-sizes-and-glyph-rectangles-2026-10-23) (2026-10-23,
-debug gates), with glyph entries that carry their own page rectangles. The one before
-drew the [original shell's start screen in full](#original-shell-drawn-in-full-2d-6-fourth-slice)
+The port is not playable yet. The latest slice hands the shell to the
+[native menu handler](#native-shell-menu-start-and-root-screens-2026-10-23) (2026-10-23,
+debug gates): the original `idMenuHandler_Shell` drives the start screen and, after
+sign-in, the root menu. The one before drew the shell start screen's text from
+[pre-rendered glyphs](#shell-text-sizes-and-glyph-rectangles-2026-10-23), with glyph
+entries that carry their own page rectangles. Earlier that day the port drew the
+[original shell's start screen in full](#original-shell-drawn-in-full-2d-6-fourth-slice)
 (2026-10-23, debug gates), through new GS paths for SWF outlines, additive color terms,
 screen blending and non-convex masks. Before them, the console moved to the
 [original retail charset](#retail-console-charset-2026-10-22) and the dialog's text to
@@ -29,19 +32,23 @@ changing their bytes.
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
-| 2D-7–8 | Not accepted | The shell's native screens and navigation, physical input and hardware validation |
+| 2D-7–8 | The native shell handler drives the start and root screens (debug gates) | Menu input and navigation, the quit dialog through Common, the other screens, physical input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog and `ps2_uiRetail draw
 shell` the shell's start screen, with placeholder prompts and labels because no native
-screen runs; other retail modes still show isolated native English labels. SWF event
-routing remains gated. The dialog draws at about 40 ms per debug PCSX2 frame, the shell
-at 100–140 ms. No world rendering or audible playback is implemented.
+screen runs. `ps2_uiRetail menu` runs the native shell handler instead: its start screen
+and, after `ps2_uiRetail signin`, its root menu, with PlayStation-style prompts. Other
+retail modes still show isolated native English labels. SWF event routing remains
+gated. The dialog draws at about 40 ms per debug PCSX2 frame, the shell at 100–140 ms.
+No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-23, debug only) added the start screen's four text sizes per
-standard and passed the console, font, retail movie and authored UI gates in NTSC and
-PAL, with no unrendered size left on the start screen; see its
-[record](#shell-text-sizes-and-glyph-rectangles-2026-10-23). The one before (2026-10-23,
-debug only) passed every debug emulator gate in NTSC and
+The last acceptance (2026-10-23, debug only) passed the console, font, retail movie,
+authored UI, headless, game and map gates with the native shell handler and the new
+`menu-render` case in NTSC and PAL; see its
+[record](#native-shell-menu-start-and-root-screens-2026-10-23). The one before added the
+start screen's four text sizes per standard, with no unrendered size left on the start
+screen; see its [record](#shell-text-sizes-and-glyph-rectangles-2026-10-23). The one
+before that (2026-10-23, debug only) passed every debug emulator gate in NTSC and
 PAL with the new draw paths, a 21-probe pass band in the core renderer test, an authored
 draw-features sprite and the new `shell-render` case; see its
 [record](#original-shell-drawn-in-full-2d-6-fourth-slice). The one before (2026-10-22,
@@ -73,8 +80,9 @@ Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
 and fitting the game into the 32 MiB budget. Its first lever, paletted UI textures,
 passes the debug gates and awaits the user's visual pass; the dialog's and the start
 screen's text draws from pre-rendered glyphs, whose sizes for later screens are still to
-be collected; the heap levers are measured and not applied. The shell's start screen draws in full;
-its native screens and responsive offline menu navigation follow. Required feature/resource admission precedes each
+be collected; the heap levers are measured and not applied. The native shell handler
+draws the start and root screens; menu input, the quit dialog and the other screens
+follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -4301,3 +4309,95 @@ the catalog. `make test-host` passes.
 Limits: only the start screen's sizes are added; the shell's later screens log theirs
 as they come up. The tiny Arial Narrow text is illegible at 2.5 pixels, as it would be on
 the PC at this scale.
+
+## Native shell menu: start and root screens (2026-10-23)
+
+Accepted **2026-10-23, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release builds compile and were not run. The original `idMenuHandler_Shell` now owns the
+admitted shell movie and drives its start and root screens, the first step of connecting
+the offline menu ([pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu)).
+
+- **Sources.** `MenuHandler_Shell.cpp` and the press-start and root screens move from the
+  deferred to the campaign inventory, their casts converted to checked queries. On PS2
+  the handler binds the start, root and credits screens only; intro build touches,
+  intro and Mars cinematics, menu sounds and the in-game menu stay out, and paths into
+  unlinked screens are compiled out or fail by method name. `shell_stub.cpp` keeps only
+  the load and save screens' enumeration calls. Production has 379 direct inputs.
+- **Movie.** `idMenuHandler::Initialize` opens the movie through the new resident
+  `retail_menu.cpp`, which admits only the shell; `ActivateMenu` pins the handler's five
+  native callbacks by identity, then enables execution and drawing. The handler's update
+  no longer renders on PS2: each frame syncs with the session, updates the handler,
+  advances the timeline, then draws in the GS frame.
+- **Platform.** Handlers and movies report platform 1, the PS3 face-button layout: the
+  command bar shows the PlayStation cross and circle with SELECT and BACK. The start
+  screen's carousel holds the Doom 3 cover alone; the root lists Campaign, Settings,
+  Credits and Quit.
+- **Session and dialog.** Opening the menu moves the session to press-start, as native
+  `PerformGameSwitch` does (the offline session signs in user 0 at startup);
+  `ps2_uiRetail signin` does what the start screen's press does. `common->Dialog()` now
+  answers queries of its empty queue, which the shell makes every frame; adding a dialog
+  fails explicitly until the dialog movie is admitted.
+- **Text.** The root screen draws Sarasori at heights 18 and 10 with a 2.0 outline; both
+  sizes are cooked per standard, so neither screen logs a `UI glyph size` line. Sarasori's
+  set now holds 14 sizes on one 384 × 512 page (96 KiB of VRAM); the catalog is 63,329
+  bytes.
+
+**Checks.** `make test-retail-menu` (case `menu-render`, also part of
+`test-retail-movies`) opens the menu on the fixed clock: a 120-frame load and two
+30-frame warm reloads. Each load captures the start screen, signs in and captures the
+root screen 90 frames later. Each capture requires the handler's screen and session
+(0 and PRESS_START, then 1 and IDLE), platform 1 and five admitted callbacks, the shell's
+draw admission, textures equal to the cooked images plus the channel CLUTs, rising draw
+counters, zero evictions, fixed uploads and no `UI glyph size` line. Warm releases must
+match, shutdown must recover the full ledger, and both warm reloads' captures match
+pixel for pixel. A session takes about 70 s. Host tests cover the menu classification
+(wrong screen, session, platform, callback count, an unrendered size, a missing draw
+admission, a changed release, an eviction) and the menu captures' warm comparison.
+
+The captures were inspected in both standards: the start screen shows the Doom 3 cover in
+the carousel and the cross with SELECT; the root screen shows the logo, Campaign
+(focused), Settings, Credits, Quit, the help line and the cross and circle with SELECT
+and BACK. The retail carousel items lack a `sel_up` frame the buttons ask for, so each
+load logs four native warnings from the original data.
+
+| Debug ledger (NTSC = PAL; requested / backing [/ allocations]) | Glyph rectangles (2026-10-23) | This slice |
+| --- | ---: | ---: |
+| Visible console peak; arena | 2,421,022 / 2,519,568; 2,557,531 | 2,429,342 / 2,527,888; 2,567,955 |
+| Authored UI warm unload | 3,686,513 / 3,787,904 / 2,468 | 3,694,884 / 3,796,272 / 2,468 |
+| Font screen warm | 2,632,944 / 2,737,728 / 2,536 | 2,674,467 / 2,779,248 / 2,536 |
+| Dialog at rest | 4,144,002 / 4,282,940 / 3,325 | 4,185,525 / 4,324,460 / 3,325 |
+| Shell on the start screen | 10,417,929 / 11,117,412 / 15,803 | 10,459,452 / 11,158,932 / 15,803 |
+| Shell and menu release | 4,765,750 / 4,873,584 / 2,596 | 4,807,273 / 4,915,104 / 2,596 |
+| Menu opened (frame 0) | — | 10,315,824 / 10,998,684 / 15,429 |
+| Menu start screen after 120 frames | — | 10,572,164 / 11,278,728 / 15,970 |
+| Menu root screen 90 frames after sign-in | — | 10,589,084 / 11,298,280 / 16,030 |
+| Menu peak; arena | — | 10,599,180 / 11,310,272; 11,464,467 |
+| Full shutdown | 7,424 / 7,600 / 4 | 7,424 / 7,600 / 4 |
+
+Each retail screen holds 41,523 more requested bytes: the larger glyph page, the
+catalog and the longer `ps2_uiRetail` help text. The native menu releases to exactly the
+drawn shell's ledger: the handler's widgets and screens free everything.
+
+Production `PT_LOAD` is 11,256,045 debug / 11,705,197 release bytes (+51,016 / +62,216),
+379 objects and no fixtures; the core test image is 2,177,840 / 2,263,216 bytes.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-console` | 2 | `20261023T065805Z_console_0ef52c0ea136`, `20261023T065818Z_console_48c4a44f62f3` |
+| `test-retail-ui` | 7 | `20261023T065851Z_retail_61477bc0c5d1` to `20261023T065953Z_retail_ac009bd38054` |
+| `test-retail-movies` | 23 | `20261023T070016Z_movies_639b06c7aad7` to `20261023T070906Z_movies_fe0dca60ae95` (menu `20261023T070529Z_movies_3909bd201767`, `20261023T070639Z_movies_080a8225546f`; shell `20261023T070354Z_movies_7d605afebac6`, `20261023T070441Z_movies_c0ede861a1bd`; dialog `20261023T070323Z_movies_0539b33c3d28`, `20261023T070338Z_movies_65ee18285abd`) |
+| `test-ui` | 14 | `20261023T070931Z_ui_69403ca792e3` to `20261023T071128Z_ui_71c065bd3859` |
+| `test-headless` | 2 | `20261023T065050Z_headless_da92d708d6a0`, `20261023T065056Z_headless_9802dd1d3925` |
+| `test-game` | 11 | `20261023T065121Z_smoke_4c63a87f8ee74dc1` to `20261023T065204Z_smoke_3e595de1119a4ad4` |
+| `test-map` | 1 | `20261023T065227Z_smoke_2b15c6043cd34eb2` |
+
+The headless, game and map gates ran before two small follow-ups (the explicit refusal
+to show a hidden menu again, and the command's help text), which their images never
+reach; the visible gates ran on the final sources. The game test image links the
+handler too, through the resident menu module. `make test-host` passes.
+
+Limits: no input reaches the menu yet (SWF HandleEvent stays fatal for retail movies);
+`ps2_uiRetail signin` stands in for the start screen's press. The root's Quit needs
+Common's dialog movie and fails explicitly, and Campaign and Settings have no bound
+screens yet. A hidden menu cannot be shown again (no admitted screen hides it). The menu
+opens from the harness command, not yet at boot.

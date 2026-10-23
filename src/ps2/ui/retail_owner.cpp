@@ -7,6 +7,7 @@
 #include "ps2/ui/retail_owner.h"
 #include "ps2/system/log.h"
 #include "ps2/ui/retail_assets.h"
+#include "ps2/ui/retail_menu.h"
 #include "ps2/ui/swf_runtime.h"
 #include <idlib/precompiled.h>
 
@@ -17,6 +18,59 @@ namespace
 {
 static constexpr int kVisibleCarouselItems = 5;
 static constexpr char kDoom3Cover[] = "guis/assets/mainmenu/doom3_cover";
+// The native callbacks the shell handler and its start, root and credits screens install.
+static constexpr const char * kMenuCallbacks[] = { "updateMenuDisplay", "activateMenus", "closeMenu", "refreshCarousel", "updateCredits" };
+
+idSWFScriptVar PinCallback(idSWF & movie, const char * name)
+{
+    auto function = movie.GetGlobal(name);
+
+    if (!function.IsFunction() || function.GetFunction()->IsScript())
+    {
+        ps2::FatalError("retail Shell native widget callback missing: %s", name);
+    }
+
+    return function;
+}
+
+// A carousel refresh rebinds its item sprites, and seeks the options sprite while it moves; a
+// credits refresh rewrites the credits screen. None may retire an executing script's ancestor,
+// even when the current function runs from a different sprite.
+void CheckRefreshTargets(idSWF & movie, const char * name, idSWFSpriteInstance * executing, idMenuWidget_Carousel * carousel,
+                         bool credits)
+{
+    ps2::ui::swf::Require(executing != nullptr && executing->sprite->GetSWF() == &movie, "widget callback movie ownership");
+    ps2::ui::swf::Trace("owner-caller", executing->GetName());
+
+    idSWFSpriteInstance * targets[kVisibleCarouselItems + 1] = {};
+
+    if (idStr::Cmp(name, "refreshCarousel") == 0)
+    {
+        ps2::ui::swf::Require(carousel != nullptr, "carousel refresh owner");
+
+        for (int index = 0; index < kVisibleCarouselItems; ++index)
+        {
+            targets[index] = movie.GetRootObject().GetNestedSprite("menuStart", "info", "options", va("item%d", index));
+        }
+
+        if (carousel->GetMoveDiff() != 0)
+        {
+            targets[kVisibleCarouselItems] = movie.GetRootObject().GetNestedSprite("menuStart", "info", "options");
+        }
+    }
+    else if (credits)
+    {
+        targets[0] = movie.GetRootObject().GetNestedSprite("menuCredits");
+    }
+
+    for (auto * const target : targets)
+    {
+        if (target != nullptr)
+        {
+            ps2::ui::swf::CheckSeek(target, "ancestor widget refresh unavailable");
+        }
+    }
+}
 
 class Owner final : public idMenuHandler
 {
@@ -24,7 +78,7 @@ public:
     explicit Owner(idSWF & movie)
     {
         gui = &movie;
-        platform = 2;
+        platform = ps2::ui::retail::kMenuPlatform;
         activeScreen = nextScreen = SHELL_AREA_START;
 
         m_carousel = new (TAG_SWF) idMenuWidget_Carousel;
@@ -125,50 +179,13 @@ public:
 
     void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing)
     {
-        ps2::ui::swf::Require(executing != nullptr && executing->sprite->GetSWF() == gui,
-                              "widget callback movie ownership");
-        ps2::ui::swf::Trace("owner-caller", executing->GetName());
-
-        idSWFSpriteInstance * targets[kVisibleCarouselItems + 1] = {};
-
-        if (idStr::Cmp(name, "refreshCarousel") == 0)
-        {
-            for (int index = 0; index < kVisibleCarouselItems; ++index)
-            {
-                targets[index] = gui->GetRootObject().GetNestedSprite("menuStart", "info", "options", va("item%d", index));
-            }
-
-            if (m_carousel->GetMoveDiff() != 0)
-            {
-                targets[kVisibleCarouselItems] = gui->GetRootObject().GetNestedSprite("menuStart", "info", "options");
-            }
-        }
-        else if (activeScreen == SHELL_AREA_CREDITS || nextScreen == SHELL_AREA_CREDITS)
-        {
-            targets[0] = gui->GetRootObject().GetNestedSprite("menuCredits");
-        }
-
-        // A refresh may retire an outer caller even when the current function uses a different sprite.
-        for (auto * const target : targets)
-        {
-            if (target != nullptr)
-            {
-                ps2::ui::swf::CheckSeek(target, "ancestor widget refresh unavailable");
-            }
-        }
+        CheckRefreshTargets(*gui, name, executing, m_carousel, activeScreen == SHELL_AREA_CREDITS || nextScreen == SHELL_AREA_CREDITS);
     }
 
 private:
     idSWFScriptVar PinCallback(const char * name)
     {
-        auto function = gui->GetGlobal(name);
-
-        if (!function.IsFunction() || function.GetFunction()->IsScript())
-        {
-            ps2::FatalError("retail Shell native widget callback missing: %s", name);
-        }
-
-        return function;
+        return ::PinCallback(*gui, name);
     }
 
     idMenuWidget_Carousel * m_carousel = nullptr;
@@ -178,6 +195,83 @@ private:
 };
 
 static Owner * s_owner = nullptr;
+
+// The native shell handler owns its widgets, screens and movie; this only records the callbacks
+// it installed, so a script cannot alias another native service under one of their names.
+class MenuOwner final
+{
+public:
+    explicit MenuOwner(idMenuHandler & handler) : m_handler(handler), m_movie(*handler.GetGUI())
+    {
+        for (int index = 0; index < ps2::ArrayLength(kMenuCallbacks); ++index)
+        {
+            m_callbacks[index] = PinCallback(m_movie, kMenuCallbacks[index]);
+        }
+    }
+
+    idSWF & Movie() const
+    {
+        return m_movie;
+    }
+
+    bool OwnsCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
+    {
+        if (movie != &m_movie || name == nullptr || function == nullptr)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < ps2::ArrayLength(kMenuCallbacks); ++index)
+        {
+            if (idStr::Cmp(name, kMenuCallbacks[index]) == 0)
+            {
+                return function == m_callbacks[index].GetFunction();
+            }
+        }
+
+        return false;
+    }
+
+    void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing)
+    {
+        const int active = m_handler.ActiveScreen();
+        const int next = m_handler.NextScreen();
+        CheckRefreshTargets(m_movie, name, executing, StartCarousel(), active == SHELL_AREA_CREDITS || next == SHELL_AREA_CREDITS);
+    }
+
+    void PrintStatus()
+    {
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL menu screen=%d next=%d session=%s platform=%d callbacks=%d\n",
+                 m_handler.ActiveScreen(), m_handler.NextScreen(), session->GetStateString(), m_handler.GetPlatform(),
+                 ps2::ArrayLength(kMenuCallbacks));
+    }
+
+private:
+    // The start screen's carousel, found among its widgets.
+    idMenuWidget_Carousel * StartCarousel()
+    {
+        idMenuScreen * const screen = m_handler.GetMenuScreen(SHELL_AREA_START);
+
+        if (screen != nullptr)
+        {
+            for (int index = 0; index < screen->GetChildren().Num(); ++index)
+            {
+                if (auto * const carousel = ps2::CheckedCast<idMenuWidget_Carousel *>(screen->GetChildren()[index]))
+                {
+                    return carousel;
+                }
+            }
+        }
+
+        return nullptr;
+    }
+
+    idMenuHandler & m_handler;
+    idSWF & m_movie;
+    idSWFScriptVar m_callbacks[static_cast<std::size_t>(ps2::ArrayLength(kMenuCallbacks))];
+};
+
+static MenuOwner * s_menu = nullptr;
 
 // Dialog choices exist so the movie sees native callback objects, as idCommonDialog::ShowDialog
 // supplies them. Routing a choice needs dialog events and Common's deferred clear; until then a call
@@ -309,7 +403,7 @@ namespace ps2::ui::retail
 {
 void AttachOwner(idSWF & movie, unsigned movieIndex)
 {
-    if (s_owner != nullptr || s_dialog != nullptr || movieIndex >= 2 || !movie.IsResourceOnly() ||
+    if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || movieIndex >= 2 || !movie.IsResourceOnly() ||
         movie.IsResourceExecution())
     {
         FatalError("invalid retail native widget owner startup");
@@ -323,12 +417,36 @@ void AttachOwner(idSWF & movie, unsigned movieIndex)
 
 void ShowQuitDialog(idSWF & movie)
 {
-    if (s_owner != nullptr || s_dialog != nullptr || !movie.IsResourceOnly() || movie.IsResourceExecution())
+    if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || !movie.IsResourceOnly() || movie.IsResourceExecution())
     {
         FatalError("invalid retail dialog owner startup");
     }
 
     s_dialog = new (TAG_SWF) DialogOwner(movie);
+}
+
+void AttachMenu(idMenuHandler & handler)
+{
+    idSWF * const movie = handler.GetGUI();
+
+    if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || movie == nullptr || !movie->IsResourceOnly() ||
+        movie->IsResourceExecution())
+    {
+        FatalError("invalid retail native menu owner startup");
+    }
+
+    s_menu = new (TAG_SWF) MenuOwner(handler);
+}
+
+void DetachMenu(idSWF & movie)
+{
+    if (s_menu == nullptr || &s_menu->Movie() != &movie)
+    {
+        FatalError("retail native menu owner does not own the departing movie");
+    }
+
+    delete s_menu;
+    s_menu = nullptr;
 }
 
 void DetachOwner(idSWF & movie)
@@ -361,13 +479,20 @@ void DetachOwner(idSWF & movie)
 bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
 {
     return (s_owner != nullptr && s_owner->OwnsCallback(name, function, movie)) ||
-           (s_dialog != nullptr && s_dialog->OwnsCallback(name, function, movie));
+           (s_dialog != nullptr && s_dialog->OwnsCallback(name, function, movie)) ||
+           (s_menu != nullptr && s_menu->OwnsCallback(name, function, movie));
 }
 
 void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idSWF * movie)
 {
     if (idStr::Cmp(name, "refreshCarousel") != 0 && idStr::Cmp(name, "updateCredits") != 0)
     {
+        return;
+    }
+
+    if (s_menu != nullptr && &s_menu->Movie() == movie)
+    {
+        s_menu->CheckCallbackOrigin(name, executing);
         return;
     }
 
@@ -399,6 +524,11 @@ void OwnerStatus()
     if (s_dialog != nullptr)
     {
         s_dialog->PrintStatus();
+    }
+
+    if (s_menu != nullptr)
+    {
+        s_menu->PrintStatus();
     }
 }
 } // namespace ps2::ui::retail

@@ -180,6 +180,17 @@
   start screen draws is cooked, so its runs log no `UI glyph size` line. The owner does not run the native
   screens, so placeholder prompts and labels show: compare captures with the menu's
   expected state, not the PC's interactive one.
+- `make test-retail-menu` (case `menu-render`, also part of `test-retail-movies`) opens the
+  menu through the native shell handler (`ps2_uiRetail menu`) on the fixed clock: one
+  120-frame load and two 30-frame warm reloads. Each load captures the start screen,
+  signs in (`ps2_uiRetail signin`) and captures the root screen 90 frames later. Each
+  capture needs the handler's screen and session (0 and PRESS_START, then 1 and IDLE),
+  platform 1 and five admitted callbacks, plus the shell's draw admission, textures and
+  channel CLUTs, rising draw counters, zero evictions and fixed uploads. No `UI glyph
+  size` line may appear. Warm releases must match, shutdown must recover the full
+  ledger and both warm reloads' captures must match pixel for pixel. A session takes
+  about 70 s within its 300 s timeout. The retail carousel items lack a `sel_up` frame,
+  so each load logs four native warnings; they are expected.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

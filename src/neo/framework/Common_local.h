@@ -174,10 +174,8 @@ public:
 	virtual idSoundWorld *		MenuSW() { return menuSoundWorld; }
 	virtual idSession *			Session() { return session; }
 	virtual idCommonDialog &	Dialog() {
-		// [PS2_D3BFG]: A foundation boot does not create a dialog renderer.
-#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-		Sys_Error( "Common dialog capability is unavailable" );
-#endif
+		// [PS2_D3BFG]: No dialog movie exists yet. Queries and clears of the empty queue are valid
+		// (the shell asks every frame); adding a dialog fails explicitly.
 		return commonDialog;
 	}
 

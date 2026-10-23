@@ -1,6 +1,7 @@
 // ================================================================================================
 // File: retail_movie.cpp
-// Brief: Own English resource screens, bounded retail timelines and the fully drawn native dialog.
+// Brief: Own English resource screens, bounded retail timelines, the fully drawn native dialog and
+// the natively driven shell menu.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -13,6 +14,7 @@
 #include "ps2/ui/movie.h"
 #include "ps2/ui/paletted_image.h"
 #include "ps2/ui/retail_assets.h"
+#include "ps2/ui/retail_menu.h"
 #include "ps2/ui/retail_owner.h"
 #include "ps2/ui/swf_runtime.h"
 #include <idlib/precompiled.h>
@@ -42,6 +44,8 @@ static int s_movieTime = 0;
 // so captures at a frame count repeat whatever the frame time. It applies from the next load.
 static bool s_fixedClock = false;
 static int s_clockBase = 0;
+// The native shell handler owns the menu movie; s_resourceMovie borrows it while s_menu is set.
+static bool s_menu = false;
 static constexpr const char * kLabels[] = { "#str_swf_campaign", "#str_swf_settings", "#str_swf_quit" };
 
 void CloseResourceMovie()
@@ -54,12 +58,21 @@ void CloseResourceMovie()
         text = nullptr;
     }
 
-    if (s_resourceMovie != nullptr && s_resourceMovie->IsResourceExecution())
+    if (s_menu)
     {
-        ps2::ui::retail::DetachOwner(*s_resourceMovie);
+        ps2::ui::retail::CloseMenu();
+        s_menu = false;
+    }
+    else
+    {
+        if (s_resourceMovie != nullptr && s_resourceMovie->IsResourceExecution())
+        {
+            ps2::ui::retail::DetachOwner(*s_resourceMovie);
+        }
+
+        delete s_resourceMovie;
     }
 
-    delete s_resourceMovie;
     s_resourceMovie = nullptr;
     s_movieIndex = -1;
     s_executionTicks = 0;
@@ -362,11 +375,32 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
     Status();
 }
 
+// The native shell menu over the loaded resource screen: the game's shell handler owns the movie,
+// which this harness advances, draws and reports like the other executing movies.
+void LoadMenu()
+{
+    if (!s_loaded || ps2::renderer::FrameStarted())
+    {
+        ps2::FatalError("retail menu requires an idle loaded resource screen");
+    }
+
+    CloseResourceMovie();
+    s_resourceMovie = ps2::ui::retail::OpenMenu();
+    s_menu = true;
+    s_movieIndex = 0;
+    s_nativeSteps = 1;
+    s_executionTicks = 0;
+    s_clockBase = s_resourceMovie->GetResourceClock();
+    s_movieTime = s_fixedClock ? s_clockBase : Sys_Milliseconds();
+    s_frames = 0;
+    Status();
+}
+
 void Control(const idCmdArgs & args)
 {
     if (!s_initialized || args.Argc() < 2 || args.Argc() > 3)
     {
-        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME, execute NAME, draw shell, dialog quit, clock MODE or logo on|off");
+        ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME, execute NAME, draw shell, dialog quit, menu, signin, clock MODE or logo on|off");
     }
 
     const char * const action = args.Argv(1);
@@ -406,6 +440,31 @@ void Control(const idCmdArgs & args)
         }
 
         LoadResourceMovie(0, true, true);
+        return;
+    }
+
+    if (strcmp(action, "menu") == 0)
+    {
+        if (args.Argc() != 2)
+        {
+            ps2::FatalError("ps2_uiRetail menu takes no arguments");
+        }
+
+        LoadMenu();
+        return;
+    }
+
+    if (strcmp(action, "signin") == 0)
+    {
+        // What the start screen's press does for the first local user; the next frame's session
+        // sync moves the menu to its root screen.
+        if (args.Argc() != 2 || !s_menu || ps2::renderer::FrameStarted() ||
+            session->GetSignInManager().GetMasterLocalUser() != nullptr)
+        {
+            ps2::FatalError("ps2_uiRetail signin requires the native menu and no local user");
+        }
+
+        session->GetSignInManager().RegisterLocalUser(0);
         return;
     }
 
@@ -532,7 +591,8 @@ void InitScreen()
     }
 
     cmdSystem->AddCommand("ps2_uiRetail", Control, CMD_FL_SYSTEM,
-                          "control English resources with load/unload/reload/status, font INDEX, movie NAME, execute NAME or dialog quit");
+                          "control English resources with load/unload/reload/status, font INDEX, movie NAME, execute NAME, draw shell, "
+                          "dialog quit, menu, signin, clock MODE or logo on|off");
     s_initialized = true;
 }
 
@@ -575,6 +635,12 @@ void AdvanceScreen(bool advance)
     const int time = s_fixedClock ? s_clockBase + static_cast<int>((static_cast<u64>(s_executionTicks) + 1U) * 1000U / 60U)
                                   : Sys_Milliseconds();
     const ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
+
+    if (s_menu)
+    {
+        UpdateMenu();
+    }
+
     s_nativeSteps += s_resourceMovie->AdvanceResourceExecution(time);
     s_movieTime = time;
     ++s_executionTicks;

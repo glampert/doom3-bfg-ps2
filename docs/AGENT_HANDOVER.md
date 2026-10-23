@@ -130,13 +130,15 @@ and `make test-retail-shell` accepts it in NTSC and PAL
 
 Open items, roughly in order:
 
-- **The native screens.** The minimal owner shows the start screen in its authored
-  state: placeholder prompts and carousel labels. Filling them is the native screens'
-  work (`idMenuScreen_Shell_PressStart`, the root menu), item 3 below.
-- **Text sizes.** The start screen's text draws from pre-rendered glyphs since
-  2026-10-23 (two Sarasori and two Arial Narrow sizes per standard, glyph entries with
-  their own rectangles). Later screens log their missing sizes once
-  (`UI glyph size ... prerendered=no`); add them to `conversion.glyph_sets` as they come up.
+- **The native screens.** Done for the start and root screens on 2026-10-23: the native
+  handler fills the prompts and the carousel (item 3 below). The minimal owner's
+  `draw shell` mode still shows the authored placeholders.
+- **Text sizes.** The start and root screens' text draws from pre-rendered glyphs since
+  2026-10-23 (Sarasori at heights 10, 13 and, outlined, 10 and 18; Arial Narrow at 2.5
+  and 3; per standard). Later screens log their missing sizes once
+  (`UI glyph size ... prerendered=no`); add them to `conversion.glyph_sets` as they come
+  up. Sarasori has 14 of a set's 16 sizes: raise the bound (converter, cook and catalog)
+  before the next screens.
 - **Frame cost.** A debug PCSX2 shell frame takes 100–140 ms with one timeline step per
   frame and about 330 ms on the real-time clock (up to ten steps per frame); it draws about
   1,070 triangles and a dozen masks. Every triangle writes its full state and CLUT load,
@@ -148,14 +150,25 @@ Open items, roughly in order:
 
 ### 3. Connect the offline native menu
 
-Bring up bounded native PressStart/Root/Quit-dialog ownership and Common startup,
-level-load and focus/select/back routing. The quit dialog already draws through a
-minimal owner that mirrors `idCommonDialog::ShowDialog`; routing its choices needs SWF
-events and Common's deferred clear, ideally by bringing up the native dialog manager.
-Current owners borrow a five-slot native carousel containing only the admitted Doom 3
-cover and the native Credits callback; they are not the complete `idMenuHandler_Shell`
-screen hierarchy. Avoid enabling all deferred menu/online/save/video paths to satisfy
-one screen.
+Started 2026-10-23: the native `idMenuHandler_Shell`, with its press-start, root and
+credits screens, owns the admitted shell (`ps2_uiRetail menu`, `make test-retail-menu`;
+[record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23)). Handlers
+and movies use platform 1, the PS3 layout. Next, in order:
+
+- **Input routing.** Admit SWF key events for the menu (HandleEvent is still fatal for
+  retail movies) and route Common's events to `game->Shell_HandleGuiEvent`, so the start
+  screen's press, root navigation and back work from HostFs keys first.
+- **Quit dialog.** Initialize Common's dialog manager with the admitted dialog movie
+  (`idCommonDialog::Init` opens `dialog` and `save_indicator`), so the root's Quit opens
+  the native confirmation and its choices route back.
+- **Production startup.** Open the menu from the visible presentation at boot, as
+  `CreateMainMenu` does, instead of only through the harness.
+- **Other screens.** Credits is already bound; Campaign and Settings come next. Enable
+  each deferred screen as a reviewed subset, with its text sizes cooked.
+
+The minimal owner of the older harness modes borrows a five-slot carousel with only the
+admitted Doom 3 cover and the native Credits callback. Avoid enabling all deferred
+menu/online/save/video paths to satisfy one screen.
 
 2D-7 requires a recognizable original root, at least 600 responsive frames, menu and
 console transitions, quit/confirmation, stable warm ledgers and full shutdown.

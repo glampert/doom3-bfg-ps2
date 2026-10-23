@@ -251,6 +251,10 @@ void idCommonDialog::AddDialog( gameDialogMessages_t msg, dialogType_t type, idS
 	idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s] msg: %s, pause: %d from: %s:%d\n", __FUNCTION__, dialogStateToString[msg], pause, location == NULL ? "NULL" : location, lineNumber );
 
 	if ( dialog == NULL ) {
+		// [PS2_D3BFG]: A dropped dialog would lose its callbacks and the player's choice.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		Sys_Error( "Common dialog movie is unavailable" );
+#endif
 		return;
 	}
 
@@ -279,6 +283,10 @@ void idCommonDialog::AddDynamicDialog( gameDialogMessages_t msg, const idStaticL
 										bool leaveOnMapHeapReset, bool waitOnAtlas, bool renderDuringLoad ) {
 	
 	if ( dialog == NULL ) {
+		// [PS2_D3BFG]: A dropped dialog would leak its callbacks and lose the player's choice.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		Sys_Error( "Common dialog movie is unavailable" );
+#endif
 		return;
 	}
 

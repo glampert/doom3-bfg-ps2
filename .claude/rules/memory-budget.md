@@ -6,7 +6,8 @@ the retail boot and UI format measurements are in
 [the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20), and the
 converted textures that replaced retail page streaming in
 [the paletted UI section](#converted-retail-ui-textures-2026-10-20), with the menu
-glyph sets, the console charset, the drawn shell and the glyph rectangles added in
+glyph sets, the console charset, the drawn shell, the glyph rectangles and the native
+shell menu added in
 [their own sections](#pre-rendered-menu-glyphs-2026-10-22); current
 aggregate status is in [PORT_STATUS.md](../../docs/PORT_STATUS.md). Earlier
 production sizes and live ledgers must not be used as current budgets. Quake figures
@@ -632,3 +633,31 @@ Arena commitment moved by allocation order, not size: the dialog's rose by 160,0
 and the inactive movies' fell by 77,568, against requested peaks within 15 KB. Production
 `PT_LOAD` is 11,205,029 debug (−128) / 11,642,981 release (unchanged) bytes; the core test
 image is 2,177,840 / 2,263,344 bytes (+512 / +640).
+
+## Native shell menu (2026-10-23)
+
+The native shell handler with its press-start, root and credits screens adds code and
+widgets but no pixel or texture storage beyond the drawn shell's: the same atlas, cover,
+fonts, glyph sets and channel CLUTs. The root screen's two outlined Sarasori sizes per
+standard grow that set to 14 sizes on one 384 × 512 PSMT4 page (96 KiB of VRAM, was
+64 KiB) and the catalog to 63,329 bytes. Every retail screen therefore holds 41,523 more
+requested bytes: the larger page, the catalog and the longer `ps2_uiRetail` help text.
+
+Debug ledgers, NTSC and PAL identical, requested / backing bytes:
+
+- Menu opened (frame 0) 10,315,824 / 10,998,684 / 15,429; start screen after 120 frames
+  10,572,164 / 11,278,728 / 15,970; root screen 90 frames after sign-in 10,589,084 /
+  11,298,280 / 16,030; every release 4,807,273 / 4,915,104 / 2,596, the same as the
+  drawn shell's; peak 10,599,180 / 11,310,272, arena 11,464,467.
+- Drawn shell: start screen after 120 frames 10,459,452 / 11,158,932 / 15,803, peak
+  10,469,236 / 11,170,208 (arena 11,312,915). Dialog at rest 4,185,525 / 4,324,460 /
+  3,325, every release 3,938,225 / 4,044,804 / 2,575, peak 4,365,179 / 4,470,700.
+  Font screen warm 2,674,467 / 2,779,248 / 2,536. Inactive movies peak 6,744,309 /
+  6,941,000; executing shell 10,610,490 / 11,315,540.
+- Visible console peak 2,429,342 / 2,527,888 (the catalog's 8,320 more bytes); authored
+  UI warm unload 3,694,884 / 3,796,272 / 2,468 (the catalog and the help text).
+- Full shutdown still recovers 7,424 / 7,600 / 4.
+
+Production `PT_LOAD` is 11,256,045 debug / 11,705,197 release bytes (+51,016 / +62,216),
+for the shell handler, its two screens and the menu module; the core test image is
+2,177,840 / 2,263,216 bytes.

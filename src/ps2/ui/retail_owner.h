@@ -6,6 +6,7 @@
 
 #pragma once
 
+class idMenuHandler;
 class idSWF;
 class idSWFScriptFunction;
 class idSWFSpriteInstance;
@@ -14,6 +15,10 @@ namespace ps2::ui::retail
 {
 // Attach before the shell's first frame executes; detach before its borrowed movie is destroyed.
 void AttachOwner(idSWF & movie, unsigned movieIndex);
+// The native shell handler owns its widgets, screens and movie. Attach once it installed its
+// callbacks and before execution starts; detach before the handler destroys the movie.
+void AttachMenu(idMenuHandler & handler);
+void DetachMenu(idSWF & movie);
 // Publish idCommonDialog's constants and the native quit confirmation before the dialog's first frame.
 void ShowQuitDialog(idSWF & movie);
 void DetachOwner(idSWF & movie);

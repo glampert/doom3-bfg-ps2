@@ -30,6 +30,10 @@ If you have questions concerning this license or the applicable additional terms
 // [PS2_D3BFG]: Include paths match the on-disk case for case-sensitive build hosts.
 #include "../../idlib/precompiled.h"
 #include "../Game_local.h"
+// [PS2_D3BFG]: Retail menus open, start and draw the admitted movie through the backend.
+#if defined( ID_PS2 )
+#include "ps2/ui/retail_menu.h"
+#endif
 
 extern idCVar in_useJoystick;
 
@@ -72,9 +76,16 @@ idMenuHandler::Initialize
 */
 void idMenuHandler::Initialize( const char * swfFile, idSoundWorld * sw ) {
 	Cleanup();
+	// [PS2_D3BFG]: Menus open only the admitted retail movie, without sounds; PS2 pads use the PS3
+	// face-button layout and prompts.
+#if defined( ID_PS2 )
+	gui = ps2::ui::retail::CreateMenuMovie( swfFile );
+	platform = ps2::ui::retail::kMenuPlatform;
+#else
 	gui = new idSWF( swfFile, sw );
 
 	platform = 2;
+#endif
 
 }
 
@@ -215,7 +226,12 @@ void idMenuHandler::ActivateMenu( bool show ) {
 	}
 
 	if ( !show ) {
+		// [PS2_D3BFG]: The admitted movie starts and stops through its checked execution.
+#if defined( ID_PS2 )
+		ps2::ui::retail::ActivateMenuMovie( *this, show );
+#else
 		gui->Activate( show );
+#endif
 		return;
 	}
 
@@ -258,7 +274,12 @@ void idMenuHandler::ActivateMenu( bool show ) {
 	gui->SetGlobal( "updateMenuDisplay", new (TAG_SWF) idSWFScriptFunction_updateMenuDisplay( gui, this ) );
 	gui->SetGlobal( "activateMenus", new (TAG_SWF) idSWFScriptFunction_activateMenu( this ) );
 	
+	// [PS2_D3BFG]: Execution starts after these callbacks exist, so the backend can admit them.
+#if defined( ID_PS2 )
+	ps2::ui::retail::ActivateMenuMovie( *this, show );
+#else
 	gui->Activate( show );
+#endif
 }
 
 /*
@@ -270,9 +291,12 @@ void idMenuHandler::Update() {
 
 	PumpWidgetActionRepeater();
 
+	// [PS2_D3BFG]: The presentation advances the timeline and draws in its own frame phases.
+#if !defined( ID_PS2 )
 	if ( gui != NULL && gui->IsActive() ) {
 		gui->Render( renderSystem, Sys_Milliseconds() );
 	}
+#endif
 }
 
 /*

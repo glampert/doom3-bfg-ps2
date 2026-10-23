@@ -39,9 +39,9 @@ in `CORE_C_SRC`, and the heap bridge imports its header through a system include
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 282 | Includes native Credits for the minimal retail widget owner; M3 runtime adaptation remains required |
+| Campaign runtime | 285 | Includes the native shell handler with its press-start, root and credits screens; M3 runtime adaptation remains required |
 | PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
-| Deferred runtime | 32 | BFG shell, multiplayer, online services and demo paths; callers still need explicit adapters |
+| Deferred runtime | 29 | Other BFG shell screens, multiplayer, online services and demo paths; callers still need explicit adapters |
 | Vendor runtime | 34 | Nine zlib streaming/CRC and 25 JPEG decompression sources; separate vendor flags, strict tagged heap hooks |
 | Optional vendor | 22 | Remaining shipped zlib/JPEG units excluded from the EE |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
@@ -68,10 +68,12 @@ The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate m
 The native UIPG reader, page splitter and fixed texture cache bind the authored pages;
 the GSTX reader and paletted image bind the converted retail textures.
 The English resource catalog, inactive retail dictionaries and opt-in bounded timeline
-execution now build on that layer. Production retains **376 direct inputs** and the
-compile database has **401 entries**. The minimal retail owner adds the original native
-Credits unit and uses the retained carousel implementation. The original dialog now
-draws in full; shell drawing and offline Shell navigation remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
+execution now build on that layer. Production retains **379 direct inputs** and the
+compile database has **405 entries**. The native shell handler, its press-start and root
+screens and the original Credits unit drive the shell menu; the minimal retail owner
+remains for the timeline and full-draw test modes. The original dialog and the shell's
+start and root screens draw in full; input routing, the quit dialog and the other shell
+screens remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
 
 `make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
@@ -362,10 +364,13 @@ Shared `save_metadata.cpp` implements native description construction/clear; nor
 copy assignment remains upstream. `saveGame_enable` defaults to zero with BOOL/ROM
 flags. A forced internal write cannot enable the session save manager. Retry dialogs
 fail explicitly; no save manager, file pipeline, storage or enumeration is constructed.
-Campaign-only `shell_stub.cpp` supplies the native shell vtable and required save/load
-screen enumeration calls. Empty shell cleanup releases list metadata; active resources,
-presentation, continuation, save enumeration and leaderboard callbacks fail explicitly.
-Shell and retry-dialog paths have compile/link acceptance, pending resident runtime tests.
+Campaign-only `shell_stub.cpp` supplied the native shell vtable and required save/load
+screen enumeration calls until 2026-10-23. `MenuHandler_Shell.cpp` and the press-start
+and root screens are now campaign units (the native shell menu); the stub keeps only the
+load and save screens' enumeration calls, which the retained save-information widget
+references, and they fail explicitly. The other shell, lobby, leaderboard and scoreboard
+screens stay deferred. Resident-support `retail_menu.cpp` supplies the handler's movie
+hooks to production and the game test image alike.
 
 The deferred game/UI slice brought the core to 20 backend and eleven smoke units.
 Three required `deferred/` markers cover inactive multiplayer lifecycle/ledger recovery, independently copied save

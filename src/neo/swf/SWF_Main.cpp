@@ -33,6 +33,7 @@ If you have questions concerning this license or the applicable additional terms
 #if defined( ID_PS2 )
 #include "ps2/ui/swf_runtime.h"
 #include "ps2/ui/retail_assets.h"
+#include "ps2/ui/retail_menu.h"
 #include "ps2/ui/retail_owner.h"
 #endif
 
@@ -582,6 +583,11 @@ idSWF::GetPlatform
 */
 int	idSWF::GetPlatform() {
 
+	// [PS2_D3BFG]: Movies match the menu handlers: PS3 face-button layout and prompts.
+#if defined( ID_PS2 )
+	forceNonPCPlatform = false;
+	return ps2::ui::retail::kMenuPlatform;
+#else
 
 	if ( in_useJoystick.GetBool() || forceNonPCPlatform ) {
 		forceNonPCPlatform = false;
@@ -589,6 +595,7 @@ int	idSWF::GetPlatform() {
 	}
 
 	return 2;
+#endif
 }
 
 /*

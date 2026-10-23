@@ -552,28 +552,31 @@ math path; PS2-specific math replacement headers are a later milestone.
   activation. Advance once per Common frame before GS submission; synchronous redraws
   preserve movie time.
 - Full drawing is a third admission, `EnableResourceRender`, after execution. The target
-  preflight must find no shape outline records, screen-blend (mode 4) placements or
-  nonzero additive color terms; masks pass and the convex CPU bridge still checks each
-  at draw time. Native `Render` then only draws a retail movie, without running frames,
-  inside a draw scope plus an execution scope that bounds any reachable script work.
-  HandleEvent stays fatal. The dialog qualifies (ten masks); the shell's 15 outlines,
-  five screen blends and 29 additive placements keep it blocked, matching the host
-  inventory.
+  preflight refuses only additive alpha terms now (outlines, screen blends, RGB color
+  terms and masks have draw paths; see the GS notes). Native `Render` then only draws a
+  retail movie, without running frames, inside a draw scope plus an execution scope that
+  bounds any reachable script work. HandleEvent stays fatal. Both the dialog and the
+  shell qualify.
 - Retail `guis.mtr` defines `guiSolid` as blend/colored/map `_white`/clamp, identical
   to the implicit `_white` definition. GUI surfaces evaluate `colored` with all-one
   shader parameters (`GuiModel.cpp`) and force vertex-color modulation
   (`tr_backend_draw.cpp`), so both reduce to one constant vertex-colored stage over the
   owned white image. The retail material hook supplies that text; no `_white` substitution.
-- Common's dialog manager stays uninitialized and `common->Dialog()` is fatal. The
-  dialog owner reproduces `idCommonDialog::Init` constants and `ShowDialog` globals for
+- Common's dialog manager has no dialog movie yet. `common->Dialog()` returns it so
+  queries and clears of its empty queue work (the shell asks `IsDialogActive` every
+  frame); adding a dialog without the movie fails explicitly instead of the native
+  silent return, which would drop its callbacks and the player's choice. The dialog
+  owner reproduces `idCommonDialog::Init` constants and `ShowDialog` globals for
   GDM_QUIT_GAME / DIALOG_DYNAMIC. `GetDialogMsg` reads no manager state, so a
   zero-initialized local manager supplies the native title/text keys. The three choices
   are real refcounted function objects that fail explicitly until dialog events and
   Common's deferred clear exist. The movie positions itself through `calcNumLines`,
-  `_y` writes and text `_stroke*` properties; native PC platform prompts are retained.
+  `_y` writes and text `_stroke*` properties.
 - The shell's first frame needs native `refreshCarousel` and `updateCredits` owners.
   Use their actual widgets, retain callback identity and detach the borrowed movie before
-  the base menu handler cleans up. The port's minimal carousel selects Doom 3 only.
+  the base menu handler cleans up. The port's minimal carousel selects Doom 3 only. The
+  native shell handler (below) now provides these owners itself; the minimal one remains
+  only for the timeline and full-draw test modes.
 - Script lookup names are mutable. Native service authorization must compare the
   resolved function object and owner, not only its name/signature. Native widget updates
   can seek too; reject callbacks/seeks that could destroy an executing descendant.
@@ -583,6 +586,36 @@ math path; PS2-specific math replacement headers are a later milestone.
   instruction/call/stack/allocation work, and cap native argument lists at
   `SWF_MAX_PARMS` (16). This selected profile is not general SWF execution support;
   copied text aliases and raw default-sprite references retain upstream lifetime limits.
+
+## Native shell menu (reviewed subset)
+
+- `idMenuHandler_Shell` and the press-start and root screens are campaign units now;
+  the other shell screens stay deferred. On PS2 the handler's `Initialize` binds the
+  start, root and credits screens only, and skips the intro movie build touches, intro
+  and Mars cinematics and menu sounds (empty sound names make `PlaySound` return early).
+  The in-game menu fails explicitly. Handler paths that reach unlinked screens (lobbies,
+  leaderboards, continue, key bindings, save enumeration) are compiled out or fail by
+  method name. `shell_stub.cpp` keeps only the load and save screens' enumeration calls,
+  which the retained save-information widget references.
+- `idMenuHandler::Initialize` opens the movie through `ps2::ui::retail::CreateMenuMovie`,
+  which admits only the shell, and `ActivateMenu` starts it through `ActivateMenuMovie`
+  once the handler installed `updateMenuDisplay` and `activateMenus`: the backend pins
+  those, `closeMenu`, `refreshCarousel` and `updateCredits` by identity, then enables
+  execution and drawing. `idMenuHandler::Update` skips `Render` on PS2: the presentation
+  updates the handler, then advances the timeline, then draws in the GS frame.
+- `ps2::ui::retail::OpenMenu` follows `idCommonLocal::CreateMainMenu`, after native
+  `PerformGameSwitch`'s move to press-start (the offline session signs in user 0 at
+  startup, as the PC session does). Every frame mirrors `GuiFrameEvents`: sync with the
+  session, then the handler's update. Signing in moves the session to IDLE and the next
+  sync shows the root screen.
+- Handlers and movies report platform 1, the PS3 face-button layout and prompt art (the
+  prompt image sprites carry Xbox, PlayStation and PC frames). The root menu omits the
+  development map list and multiplayer; the start screen's carousel holds Doom 3 alone,
+  and pressing it signs in or opens the root screen.
+- Native widget callbacks, carousel and credits refreshes included, run under the same
+  execution scope and seek checks as timeline scripts. The carousel's buttons ask for a
+  `sel_up` frame that the retail movie's carousel items do not have, so native code
+  warns four times per load; the warning comes from the original data, not the port.
 
 ## Native edit-text drawing
 

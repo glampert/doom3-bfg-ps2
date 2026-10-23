@@ -163,6 +163,14 @@ standard), with glyph entries that carry their own page rectangles so sets no lo
 spend a texture placement per bitmap
 ([record](PORT_STATUS.md#shell-text-sizes-and-glyph-rectangles-2026-10-23)).
 
+**The native shell menu draws its start and root screens on 2026-10-23.** The original
+`idMenuHandler_Shell`, with its press-start and root screens, owns the admitted shell
+movie: the start screen shows the Doom 3 cover with a PlayStation-style SELECT prompt,
+and after sign-in the root screen lists Campaign, Settings, Credits and Quit. Input
+routing, the quit dialog through Common's dialog manager and the other screens come
+next. See the [pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu) and the
+[acceptance record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23).
+
 ### Next selected work
 
 The user selected this order on 2026-10-20, after the first full UI picture:
@@ -249,8 +257,8 @@ snapshot does not change that history.
 | Materials | D: `src/neo/renderer/Material.cpp`, `Material.h`, `Image_program.cpp` | Parsing and register evaluation are retained, but real stages trigger currently unavailable image services. Start with explicit UI material profiles and evaluate time/color/alpha registers; validate every material stage before emission. |
 | SWF runtime | D: `src/neo/swf/` (21 compiled units) | Runtime, scripts, timeline, shapes, JPEG/zlib and binary/text loading compile. Active SWF execution is not yet accepted. `SWF_Render.cpp` writes indexed `idDrawVert` geometry, affine coordinates, `color` and `color2`, material and GLS state. Sprites alone cannot implement this interface. |
 | Fonts and localization | D: `src/neo/renderer/Font.{h,cpp}`, `SWF_Text*.cpp`, `framework/Common_localize.cpp`, `idlib/LangDict.cpp` | Font code is retained; `RegisterFont` remains unavailable. Font metadata uses `newfonts/<name>/48.dat` and optional `old_{12,24,48}.dat`, with a material for the atlas. Locale/font aliases and `#str_*` labels need an explicit menu package. Audit glyph/index ownership: the current font destructor deletes `fontInfo` but not its raw `glyphData` / `charIndex` allocations. |
-| Shell provider | D: `src/ps2/ui/shell_stub.cpp`; `src/neo/d3xp/menus/MenuHandler_Shell.cpp`, `MenuScreen_Shell_*.cpp` | Shell initialization, activation, updates and events fail by method name; only empty cleanup is accepted. Original shell/root/press-start units are deferred, contain unported RTTI and instantiate many more screens than the first root needs. Enable a reviewed subset, not all deferred menus. |
-| Common menu / dialog | D: `src/ps2/system/common_campaign.cpp`; `Common.cpp::CreateMainMenu`, `Common_menu.cpp`; `Common_local.h::Dialog` | `StartMenu`, `ExitMenu`, `MenuEvent` are unavailable. `CreateMainMenu` invokes declaration/render/sound/legacy-UI level-load hooks and native shell creation. `Dialog()` currently terminates on PS2. A rendered root cannot run unchanged until these contracts are bounded and meaningful. |
+| Shell provider | D: `src/ps2/ui/retail_menu.cpp`, `shell_stub.cpp`; `src/neo/d3xp/menus/MenuHandler_Shell.cpp`, `MenuScreen_Shell_*.cpp` | Since 2026-10-23 the native handler with the press-start and root screens (and Credits) is a campaign unit; its PS2 initializer binds only those, casts use checked queries, and `retail_menu.cpp` opens and starts the admitted shell. The stub keeps only save/load enumeration. Other shell screens stay deferred; enable each as a reviewed subset. |
+| Common menu / dialog | D: `src/ps2/system/common_campaign.cpp`; `Common.cpp::CreateMainMenu`, `Common_menu.cpp`; `Common_local.h::Dialog` | `StartMenu`, `ExitMenu`, `MenuEvent` are unavailable. The harness follows `CreateMainMenu`'s shell calls without its level-load hooks. `Dialog()` answers queries of its empty queue; adding a dialog fails explicitly until the dialog movie is admitted. |
 | Session / input / sound | D: `src/ps2/system/offline_session.cpp`, `input/usercmd_stub.cpp`, `audio/sound_backend.cpp`, `system/sys_services.cpp` | Offline sign-in/session states exist, but save manager and device services remain unavailable. User-command sampling, mouse capture and rumble fail. Rendering/menu events need their own input routing; do not enable player command generation or audio devices to navigate a menu. |
 | Existing verification | D: `src/tests/smoketests/renderer_tests.cpp`, `src/tools/scripts/run_headless.py`, `run_pcsx2_test.py`, `link_resident.py` | Existing renderer tests accept inactive binding/metadata behavior, not pixels. Add one integrated 2D acceptance scenario under tests; production must retain zero test inputs and fixture symbols. |
 

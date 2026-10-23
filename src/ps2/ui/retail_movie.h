@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: retail_movie.h
-// Brief: Draw an opt-in native English font proof without activating retail SWF or Shell code.
+// Brief: Own English resource screens, checked retail timelines and the natively driven shell menu.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 

@@ -26,7 +26,10 @@ If you have questions concerning this license or the applicable additional terms
 ===========================================================================
 */
 #pragma hdrstop
-#include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Include paths match the on-disk case for case-sensitive build hosts.
+#include "../../idlib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 #include "../../framework/Common_local.h"
 
@@ -96,8 +99,14 @@ void idMenuScreen_Shell_PressStart::Initialize( idMenuHandler * data ) {
 	AddEventAction( WIDGET_EVENT_SCROLL_LEFT_LSTICK_RELEASE ).Set( new (TAG_SWF) idWidgetActionHandler( this, WIDGET_ACTION_EVENT_STOP_REPEATER, WIDGET_EVENT_SCROLL_LEFT_LSTICK_RELEASE ) );
 	AddEventAction( WIDGET_EVENT_SCROLL_RIGHT_LSTICK_RELEASE ).Set( new (TAG_SWF) idWidgetActionHandler( this, WIDGET_ACTION_EVENT_STOP_REPEATER, WIDGET_EVENT_SCROLL_RIGHT_LSTICK_RELEASE ) );
 
+	// [PS2_D3BFG]: The console runs only Doom 3, whose cover is the one admitted.
+#if defined( ID_PS2 )
+	doomCover = NULL;
+	doom2Cover = NULL;
+#else
 	doomCover = declManager->FindMaterial( "guis/assets/mainmenu/doom_cover.tga" );
 	doom2Cover = declManager->FindMaterial( "guis/assets/mainmenu/doom2_cover.tga" );
+#endif
 	doom3Cover = declManager->FindMaterial( "guis/assets/mainmenu/doom3_cover.tga" );
 
 	startButton = new idMenuWidget_Button();
@@ -160,6 +169,17 @@ void idMenuScreen_Shell_PressStart::ShowScreen( const mainMenuTransition_t trans
 
 			idList<const idMaterial *> coverIcons;
 
+			// [PS2_D3BFG]: Doom 3 is the carousel's only entry.
+#if defined( ID_PS2 )
+			coverIcons.Append( doom3Cover );
+
+			if ( itemList != NULL ) {
+				itemList->SetListImages( coverIcons );
+				itemList->SetFocusIndex( 0, true );
+				itemList->SetViewIndex( 0 );
+				itemList->SetMoveToIndex( 0 );
+			}
+#else
 			coverIcons.Append( doomCover );
 			coverIcons.Append( doom3Cover );
 			coverIcons.Append( doom2Cover );
@@ -170,6 +190,7 @@ void idMenuScreen_Shell_PressStart::ShowScreen( const mainMenuTransition_t trans
 				itemList->SetViewIndex( 1 );
 				itemList->SetMoveToIndex( 1 );
 			}	
+#endif
 
 			if ( startButton != NULL ) {
 				startButton->BindSprite( root );
@@ -236,17 +257,24 @@ bool idMenuScreen_Shell_PressStart::HandleAction( idWidgetAction & action, const
 				}
 			}
 			
+			// [PS2_D3BFG]: The single entry is Doom 3; Classic games are not part of the console.
+#if defined( ID_PS2 )
+			if ( itemList->GetMoveToIndex() == 0 ) {
+#else
 			if ( itemList->GetMoveToIndex() == 0 ) {
 				common->SwitchToGame( DOOM_CLASSIC );
 			} else if ( itemList->GetMoveToIndex() == 1 ) {				
+#endif
 				if ( session->GetSignInManager().GetMasterLocalUser() == NULL ) {
 					const int device = event.parms[ 0 ].ToInteger();
 					session->GetSignInManager().RegisterLocalUser( device );
 				} else {
 					menuData->SetNextScreen( SHELL_AREA_ROOT, MENU_TRANSITION_SIMPLE );
 				}
+#if !defined( ID_PS2 )
 			} else if ( itemList->GetMoveToIndex() == 2 ) {	
 				common->SwitchToGame( DOOM2_CLASSIC );
+#endif
 			}
 
 			return true;

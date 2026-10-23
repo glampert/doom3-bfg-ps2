@@ -26,7 +26,10 @@ If you have questions concerning this license or the applicable additional terms
 ===========================================================================
 */
 #pragma hdrstop
-#include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Include paths match the on-disk case for case-sensitive build hosts.
+#include "../../idlib/precompiled.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 #include "../Game_local.h"
 
 extern idCVar g_demoMode;
@@ -146,7 +149,7 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_START_DEMO );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "Launch the demo" );
 			}
@@ -158,7 +161,7 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 				menuOptions.Append( option );
 				options->GetChildByIndex( index ).ClearEventActions();
 				options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_START_DEMO2 );
-				buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+				buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 				if ( buttonWidget != NULL ) {
 					buttonWidget->SetDescription( "Launch the press demo" );
 				}
@@ -170,7 +173,7 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_SETTINGS );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_02206" );
 			}
@@ -181,7 +184,7 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_QUIT );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_01976" );
 			}
@@ -191,12 +194,13 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 
 			idMenuWidget_Button * buttonWidget = NULL;
 
-#if !defined ( ID_RETAIL ) 
+			// [PS2_D3BFG]: The offline console has no development map list or multiplayer.
+#if !defined ( ID_RETAIL ) && !defined( ID_PS2 )
 			option.Append( "DEV" );	// DEV
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_DEV );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "View a list of maps available for play" );
 			}
@@ -208,29 +212,31 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_CAMPAIGN );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_swf_campaign_desc" );
 			}
 			index++;
 			
+#if !defined( ID_PS2 )
 			option.Clear();
 			option.Append( "#str_swf_multiplayer" );	// multiplayer
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_MULTIPLAYER );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_02215" );
 			}
 			index++;
+#endif
 			
 			option.Clear();
 			option.Append( "#str_swf_settings" );	// settings
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_SETTINGS );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_02206" );
 			}
@@ -242,7 +248,7 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_CREDITS );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_02219" );
 			}
@@ -254,7 +260,7 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 			menuOptions.Append( option );
 			options->GetChildByIndex( index ).ClearEventActions();
 			options->GetChildByIndex( index ).AddEventAction( WIDGET_EVENT_PRESS ).Set( WIDGET_ACTION_COMMAND, ROOT_CMD_QUIT );
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_01976" );
 			}
@@ -269,7 +275,7 @@ void idMenuScreen_Shell_Root::ShowScreen( const mainMenuTransition_t transitionT
 	idMenuScreen::ShowScreen( transitionType );
 
 	if ( menuData != NULL && menuData->GetPlatform() == 2 ) {
-		idMenuHandler_Shell * shell = dynamic_cast< idMenuHandler_Shell * >( menuData );
+		idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
 		if ( shell != NULL ) {
 			idMenuWidget_MenuBar * menuBar = shell->GetMenuBar();
 			if ( menuBar != NULL ) {
@@ -376,7 +382,7 @@ bool idMenuScreen_Shell_Root::HandleAction( idWidgetAction & action, const idWid
 		case WIDGET_ACTION_PRESS_FOCUSED: {
 			if ( menuData->GetPlatform() == 2 ) {
 
-				idMenuHandler_Shell * shell = dynamic_cast< idMenuHandler_Shell * >( menuData );
+				idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
 				if ( !shell ) {
 					return true;
 				}
@@ -387,7 +393,7 @@ bool idMenuScreen_Shell_Root::HandleAction( idWidgetAction & action, const idWid
 					return true;
 				}
 
-				const idMenuWidget_MenuButton * buttonWidget = dynamic_cast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( menuBar->GetFocusIndex() ) );
+				const idMenuWidget_MenuButton * buttonWidget = ps2::CheckedCast< idMenuWidget_MenuButton * >( &menuBar->GetChildByIndex( menuBar->GetFocusIndex() ) );
 				if ( !buttonWidget ) {
 					return true;
 				}
@@ -404,7 +410,7 @@ bool idMenuScreen_Shell_Root::HandleAction( idWidgetAction & action, const idWid
 				return true;
 			}
 
-			idMenuHandler_Shell * shell = dynamic_cast< idMenuHandler_Shell * >( menuData );
+			idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
 			if ( !shell ) {
 				return true;
 			}
