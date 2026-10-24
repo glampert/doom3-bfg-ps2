@@ -230,6 +230,16 @@ class ConsoleStaging(unittest.TestCase):
         headless = staging.stage("debug", self.root / "headless")
         self.assertFalse((headless / "base/retail_ui.uic").exists())
 
+    def test_menu_policy_needs_a_visible_retail_movie_package(self):
+        staging.stage("debug", self.output, "pal", catalog=self.cook, menu=True)
+        self.assertEqual((self.output / "presentation.cfg").read_text(), "pal menu\n")
+        staging.stage("debug", self.output, "pal", catalog=self.cook)
+        self.assertEqual((self.output / "presentation.cfg").read_text(), "pal\n")
+        for kwargs in ({"presentation": "headless"}, {"presentation": "ntsc", "include_ui": True}):
+            with self.assertRaisesRegex(ValueError, "menu startup policy"):
+                staging.stage("debug", self.root / "menu-invalid", catalog=self.cook, menu=True, **kwargs)
+            self.assertFalse((self.root / "menu-invalid").exists())
+
     def test_default_policy_is_explicit_headless(self):
         staging.stage("debug", self.output)
         self.assertEqual((self.output / "presentation.cfg").read_text(), "headless\n")

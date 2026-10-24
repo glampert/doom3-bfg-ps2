@@ -191,7 +191,8 @@ uses the full resident ELF and `run_console.py`, without importing these units i
 ## Doom production console frame ownership
 
 - Read package-root `presentation.cfg` before Common startup: missing means headless;
-  otherwise only bounded `headless`/`ntsc`/`pal` content is accepted. Repackaging always
+  otherwise only bounded `headless`/`ntsc`/`pal` content is accepted, the visible modes
+  optionally followed by `menu`, which opens the native menu at the end of startup. Repackaging always
   replaces the policy. `d3bfg.cfg` executes later and cannot select startup allocation.
 - One Common frame processes events/commands, advances clocks/logical and native NOMAP
   work, then calls `console->Draw(false)` inside one GS frame. GS vsync paces visible

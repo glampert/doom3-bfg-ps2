@@ -92,7 +92,7 @@ declarations, key/console and event services, CPU worlds and silent sound bookke
 precede the console loop.
 `make headless`, `make console` and `make ui` stage the same ELF with authored data separately
 from retail assets. Package-root `presentation.cfg` selects headless/NTSC/PAL before
-Common startup. `make test-headless`, `make test-console` and `make test-ui` exercise production itself.
+Common startup, and `make retail-menu` adds `menu` to boot into the native menu. `make test-headless`, `make test-console` and `make test-ui` exercise production itself.
 Visible frames call real native `console->Draw(false)` after the native `NOMAP` tick;
 `UpdateScreen` coalesces in-frame requests without advancing clocks. Native `RunFrame`
 returns at `NOMAP` until map integration exists.

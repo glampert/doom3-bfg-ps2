@@ -646,6 +646,18 @@ bool IsScreenLoaded()
     return s_loaded;
 }
 
+void OpenBootMenu()
+{
+    if (!s_initialized || s_loaded || s_fixedClock)
+    {
+        FatalError("native menu boot requires the fresh retail screen");
+    }
+
+    // Register the fonts and close the console, then open the menu as CreateMainMenu does.
+    Load();
+    LoadMenu();
+}
+
 void AdvanceScreen(bool advance)
 {
     if (!advance || s_resourceMovie == nullptr || !s_resourceMovie->IsResourceExecution())

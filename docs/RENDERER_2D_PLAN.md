@@ -173,7 +173,9 @@ and back returns to press-start, from injected keyboard keys and pad buttons
 root's Quit opened Common's native confirmation through the dialog manager, over the menu
 ([record](PORT_STATUS.md#native-quit-dialog-through-commons-dialog-manager-2026-10-24)),
 and its pad button tags drew as the PS3 prompt art
-([record](PORT_STATUS.md#pad-prompt-icons-in-retail-text-2026-10-24)). The other screens
+([record](PORT_STATUS.md#pad-prompt-icons-in-retail-text-2026-10-24)). A package policy
+now boots into the menu
+([record](PORT_STATUS.md#booting-into-the-native-menu-2026-10-24)). The other screens
 come next. See the
 [pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu) and the
 [acceptance record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23).
@@ -356,8 +358,9 @@ flowchart TD
   cannot work without a reviewed earlier configuration phase. Prefer one production
   binary with an explicit boot policy/package; keep numeric test defines unchanged.
   **Implemented:** package-root `presentation.cfg` selects `headless` (also the missing-file
-  default), `ntsc` or `pal` before Common startup; `make headless` / `make console` stage
-  the same ELF. `CONSOLE_STANDARD=pal` selects PAL packaging.
+  default), `ntsc` or `pal` before Common startup, with `menu` after a visible mode to
+  open the native menu at startup; `make headless` / `make console` / `make retail-menu`
+  stage the same ELF. `CONSOLE_STANDARD=pal` selects PAL packaging.
 - Foundation, declarations, native game, logical CPU renderer and optional 2D resources
   remain individually owned startup stages. Preserve stage-free model materials for
   headless map tests; visible intrinsic/UI materials are a separate supported profile.

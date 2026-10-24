@@ -55,9 +55,12 @@ def link_containers(data_root: Path, base: Path) -> None:
 
 
 def stage(build: str, output: Path, presentation: str = "headless", include_ui: bool = False,
-          retail_data: Path | None = None, catalog: Path | None = None) -> Path:
+          retail_data: Path | None = None, catalog: Path | None = None, menu: bool = False) -> Path:
     if presentation not in PRESENTATIONS:
         raise ValueError("presentation must be headless, ntsc or pal")
+    # The native menu opens at startup only in a visible mode, and only the retail movie package stages it.
+    if menu and (presentation == "headless" or include_ui or retail_data is not None):
+        raise ValueError("the menu startup policy needs a visible retail movie package")
     if include_ui and retail_data is not None:
         raise ValueError("the authored UI and retail boot packages are separate")
     # A visible presentation opens the cooked retail catalog at startup for the console charset.
@@ -113,7 +116,7 @@ def stage(build: str, output: Path, presentation: str = "headless", include_ui: 
         if "ps2_ui load" not in (line.strip() for line in text.splitlines()):
             config.write_text(text + ("" if text.endswith("\n") else "\n") + "ps2_ui load\n")
     # Always replace startup policy, including when reusing a formerly visible package for headless.
-    (output / "presentation.cfg").write_text(presentation + "\n")
+    (output / "presentation.cfg").write_text(presentation + (" menu" if menu else "") + "\n")
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
     return output
 

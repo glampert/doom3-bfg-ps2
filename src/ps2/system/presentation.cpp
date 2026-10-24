@@ -27,6 +27,8 @@ enum class Presentation
     Pal
 };
 static Presentation s_policy = Presentation::Headless;
+// A visible package may open the native menu at startup, as idCommonLocal::Init does.
+static bool s_bootMenu = false;
 static bool s_configured = false;
 static bool s_inFrame = false;
 static bool s_drawing = false;
@@ -196,6 +198,17 @@ void ConfigurePresentation()
         {
             policy[--end] = '\0';
         }
+        // An optional second word, "menu", opens the native menu at startup in a visible mode.
+        char * const option = strchr(policy, ' ');
+        if (option != nullptr)
+        {
+            *option = '\0';
+            if (strcmp(option + 1, "menu") != 0 || strcmp(policy, "headless") == 0)
+            {
+                FatalError("presentation.cfg accepts only ntsc menu or pal menu");
+            }
+            s_bootMenu = true;
+        }
         if (strcmp(policy, "headless") == 0)
         {
             s_policy = Presentation::Headless;
@@ -214,9 +227,10 @@ void ConfigurePresentation()
         }
     }
     s_configured = true;
-    Log(LogLevel::Info, "[D3BFG] BOOT presentation=%s\n",
+    Log(LogLevel::Info, "[D3BFG] BOOT presentation=%s menu=%d\n",
         s_policy == Presentation::Headless ? "headless" : s_policy == Presentation::Pal ? "pal"
-                                                                                        : "ntsc");
+                                                                                        : "ntsc",
+        s_bootMenu ? 1 : 0);
 }
 
 bool HasPresentation()
@@ -256,6 +270,12 @@ void InitPresentation()
     cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, "type quoted ASCII into the native console edit field");
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, "send a named native console key");
     cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, "capture the next completed console frame to a HostFs .tga basename");
+    // idCommonLocal::Init creates the main menu and starts it before the startup commands run;
+    // the menu closes the console, as StartMenu does.
+    if (s_bootMenu)
+    {
+        ui::retail::OpenBootMenu();
+    }
 }
 
 void BeginPresentationFrame()

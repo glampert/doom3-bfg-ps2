@@ -9,8 +9,10 @@ native command and cvar system. Test executables do not register production cont
 | `ps2_maxFrames` | `0` | `0` | `CVAR_SYSTEM`, `CVAR_INTEGER` | Live, unarchived completed-frame limit, clamped to 0–1,000,000. Zero runs until quit; a positive value requests shutdown once reached. Registered in `src/ps2/system/headless.cpp`. |
 
 Presentation is an early package policy, not a cvar: `presentation.cfg` beside the
-ELF contains `headless`, `ntsc` or `pal`. A missing file selects headless. The policy
-is read before Common startup and device allocation; `d3bfg.cfg` runs afterward.
+ELF contains `headless`, `ntsc` or `pal`, the visible modes optionally followed by
+`menu`, which opens the native shell menu at startup. A missing file selects headless.
+The policy is read before Common startup and device allocation; `d3bfg.cfg` runs
+afterward, after the menu has opened.
 Production registers `ps2_status` in both modes. Visible mode additionally registers
 the other `CMD_FL_SYSTEM` commands below. These commands have no debug/release
 default or archive behavior:

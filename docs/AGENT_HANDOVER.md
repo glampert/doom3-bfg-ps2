@@ -54,7 +54,7 @@ for each feature.
 | Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; no events |
 | Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs | About 40 ms per debug PCSX2 frame; choices fail explicitly |
 | Retail shell drawing | Native `Render` of the original shell's start screen: outlines, color terms, screen blends, depth masks; the native logo transition on request | 100–140 ms per debug PCSX2 frame on the fixed clock; placeholder prompts and labels; no navigation |
-| Native shell menu | `idMenuHandler_Shell` with its start, root and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start; Quit opens Common's native confirmation, whose Cancel returns and Accept quits; pad button tags draw as PS3 prompt art | Campaign/Settings screens, physical keyboard/pad, opening at boot |
+| Native shell menu | `idMenuHandler_Shell` with its start, root and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start; Quit opens Common's native confirmation, whose Cancel returns and Accept quits; pad button tags draw as PS3 prompt art; a `menu` package policy boots into it | Campaign/Settings screens, physical keyboard/pad |
 | Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | 13.5 MB of heap backing before any map; no retail map or in-game UI yet |
 
 Recent implementation commits are the full-dialog slice (2026-10-20), `dd04ab0` (scoped
@@ -161,10 +161,10 @@ accept signs in, the arrows move the root's focus and back returns to press-star
 The root's Quit opens Common's native confirmation through its dialog manager
 ([record](PORT_STATUS.md#native-quit-dialog-through-commons-dialog-manager-2026-10-24)),
 and its pad button tags draw as the PS3 prompt art
-([record](PORT_STATUS.md#pad-prompt-icons-in-retail-text-2026-10-24)). Next, in order:
+([record](PORT_STATUS.md#pad-prompt-icons-in-retail-text-2026-10-24)). A `menu` package
+policy boots into the menu (`make retail-menu`;
+[record](PORT_STATUS.md#booting-into-the-native-menu-2026-10-24)). Next, in order:
 
-- **Production startup.** Open the menu from the visible presentation at boot, as
-  `CreateMainMenu` does, instead of only through the harness.
 - **Other screens.** Credits is already bound; Campaign and Settings come next. Enable
   each deferred screen as a reviewed subset, with its text sizes cooked. A move into an
   unbound screen fails by name until then.

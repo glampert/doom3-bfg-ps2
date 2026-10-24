@@ -136,7 +136,8 @@ game/world/console shutdown followed by Common shutdown at the frame boundary.
 `src/tests/data/headless/` under `build/<config>/headless/`. It preserves an existing packaged
 `base/d3bfg.cfg` and leaves local `base/` assets alone. The package root has
 `presentation.cfg`, read before Common initialization: `headless`, `ntsc` or `pal`,
-with an optional final newline. A missing file selects headless; invalid content is
+with an optional final newline. `ntsc menu` or `pal menu` also opens the native shell
+menu at startup (`make retail-menu`). A missing file selects headless; invalid content is
 fatal. The current PCSX2 HostFs maps a missing file to `EIO`, so policy open failure
 with `ENOENT` or `EIO` warns and defaults to headless; other errors remain fatal.
 Staging always replaces this policy, so repackaging cannot retain a stale mode.

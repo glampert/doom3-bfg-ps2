@@ -732,3 +732,17 @@ allocations:
 
 Production `PT_LOAD` is 11,264,557 debug / 11,718,445 release bytes (+2,688 / +7,680), for
 the prompt table, its preload and the icon lookup.
+
+## Booting into the native menu (2026-10-24)
+
+A package whose `presentation.cfg` reads `ntsc menu` or `pal menu` opens the native menu at
+the end of startup, before the first frame, on real time. The boot adds no allocation of its
+own: the menu's ledger at frame 0 is the harness's, 10,789,210 / 11,490,896 / 15,856, which
+the startup status reports with the console closed. Driven by keys on real time (NTSC; PAL
+differs by up to 10 KB mid-run, since real-time animation leaves a varying few KB of live
+script state), the start screen after 120 frames rests at 11,076,966 / 11,806,628 / 16,491,
+the root 90 frames after enter at 11,066,934 / 11,795,500 / 16,469 and the start screen 90
+frames after escape at 11,078,790 / 11,808,200 / 16,486. The menu releases to the same 5,162,275 / 5,276,740 / 2,731 as
+the harness-opened one, the run peaks at 11,091,590 / 11,823,448 (arena 11,979,859) and full
+shutdown recovers 7,424 / 7,600 / 4. Production `PT_LOAD` is 11,264,941 debug / 11,718,829
+release bytes (+384 each), for the policy word and the boot hook.

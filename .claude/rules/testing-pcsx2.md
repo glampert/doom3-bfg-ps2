@@ -69,7 +69,7 @@
 - `make test-console` / `make BUILD=release test-console` exercise the same production
   ELF visibly in NTSC and PAL. Startup policy is selected by package-root
   `presentation.cfg`; `make console` defaults to NTSC and `CONSOLE_STANDARD=pal`
-  stages PAL. Every visible package stages the cooked retail catalog from
+  stages PAL (`ntsc menu`/`pal menu` boot into the native menu; `make retail-menu`). Every visible package stages the cooked retail catalog from
   `UI_COOK_OUTPUT` (`make ui-cook` first); the console draws the original charset from
   it. The runner waits at least 120 frames, submits and replays native edit
   history, closes/reopens the real console, checks an edited input line, and queues
@@ -212,6 +212,14 @@
   right. Its `<JOY1>` prompt draws as the PS3 cross art, and no `UI glyph size` line may
   appear; `dialog-render` and `shell-render` require none either, and their textures
   include the eight prompt images a drawn movie loads. A session takes about 70 s.
+  The same target then runs `menu-boot`: a package staged with the `menu` policy, whose
+  menu opens at startup on real time with no load or menu command sent. The runner
+  captures the start screen 120 frames after the startup echo, the root 90 frames after
+  enter and the start screen 90 frames after escape, then unloads and quits. It requires
+  `BOOT presentation=<std> menu=1`, both draw admissions before the startup echo, the
+  startup status with the console closed, `clock=real`, the handler's screen, session,
+  focus and event counts, the resident textures, no unrendered size, one release before
+  the final capture and full shutdown recovery. A session takes about 100 s.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

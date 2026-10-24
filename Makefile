@@ -28,6 +28,8 @@
 #   make test-retail-timelines   # only executable retail timelines (no full movie rendering)
 #   make test-retail-dialog      # the original quit dialog drawn in full through native SWF Render
 #   make test-retail-shell       # the original shell drawn in full: outlines, depth masks, screen, color terms
+#   make retail-menu             # stage a package that boots into the native shell menu
+#   make run-retail-menu         # boot into the original menu on the drawn shell
 #   make test-retail-menu        # the native shell handler's start and root screens on the drawn shell
 #   make BUILD=release test-retail-movies # same native movie resource gate without assertions
 #   make test-retail-ui          # five fonts, layout/pixel checks, reloads and invalid resources
@@ -522,7 +524,7 @@ run-ui: ui
 test-ui: all
 	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
-.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines test-retail-dialog test-retail-shell test-retail-menu
+.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines test-retail-dialog test-retail-shell retail-menu run-retail-menu test-retail-menu
 
 retail-ui: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)"
@@ -551,9 +553,16 @@ test-retail-dialog: all
 test-retail-shell: all
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case shell-render
 
+retail-menu: all
+	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)" --movies --menu
+
+run-retail-menu: retail-menu
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-retail-menu/d3bfg.elf
+
 test-retail-menu: all
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-render
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-quit
+	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-boot
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core

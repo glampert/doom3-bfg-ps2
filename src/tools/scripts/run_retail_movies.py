@@ -98,7 +98,15 @@ MENU_QUIT_SCREENS = {"a": ("0", "0", "PRESS_START", "1", "5", "0"), "b": ("1", "
 MENU_QUIT_INPUTS = {"a": ("0", "0", "0", "0"), "b": ("2", "1", "0", "0"), "c": ("4", "3", "0", "0"),
                     "d": ("6", "4", "1", "2"), "e": ("8", "6", "1", "2"), "f": ("10", "7", "0", "0"),
                     "g": ("12", "8", "1", "2")}
-POSITIVE_CASES = ("native", "execution", "dialog-execution", "dialog-render", "shell-render", "menu-render", "menu-quit")
+# A package whose startup policy opens the menu boots into it on real time, before the startup commands:
+# the start screen after 120 frames (a), the root screen 90 frames after accept (b) and the start screen
+# 90 frames after back (c), from keyboard keys, with no load or menu command sent.
+MENU_BOOT_STEPS = (("a", (), 120), ("b", ("enter",), 90), ("c", ("escape",), 90))
+MENU_BOOT_SCREENS = {"a": ("0", "0", "PRESS_START", "1", "5", "0"), "b": ("1", "1", "IDLE", "1", "5", "0"),
+                     "c": ("0", "0", "PRESS_START", "1", "5", "0")}
+MENU_BOOT_INPUTS = {"a": ("0", "0", "0", "0"), "b": ("2", "1", "0", "0"), "c": ("4", "2", "0", "0")}
+POSITIVE_CASES = ("native", "execution", "dialog-execution", "dialog-render", "shell-render", "menu-render", "menu-quit",
+                  "menu-boot")
 EXECUTION_HEAP_CEILING = 16 * 1024 * 1024
 PROMPT_ART = "guis/assets/hud/controller/ps3/"
 # The native quit dialog's identity from Common_dialog.h (GDM_QUIT_GAME, DIALOG_DYNAMIC) and GetDialogMsg.
@@ -456,6 +464,90 @@ def menu_quit_commands() -> list[str]:
     return commands
 
 
+def menu_boot_commands() -> list[str]:
+    commands = []
+    for suffix, presses, gap in MENU_BOOT_STEPS:
+        commands += [*(f"ps2_uiRetail key {press}" for press in presses), f"wait {gap}", "ps2_uiRetail status",
+                     f'ps2_capture "movie-menuboot-{suffix}.tga"', "wait 1"]
+    return commands
+
+
+def menu_boot_capture_names() -> list[str]:
+    return [f"movie-menuboot-{suffix}.tga" for suffix, _, _ in MENU_BOOT_STEPS] + ["movie-quit.tga"]
+
+
+def classify_menu_boot(log: str, identity: str, standard: str, manifest: dict, source: Path) -> tuple[bool, str]:
+    """Check a package that boots into the native menu: both movies admitted before the startup
+    commands run, the console closed, the menu driven by keys on real time, then released."""
+    if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
+        return False, "native menu crash or fatal"
+    if any(marker not in log for marker in (f"GS ready {standard.upper()}", f"BOOT presentation={standard} menu=1",
+                                            "BOOT production shutdown complete", "COMMON stage=system shutdown")):
+        return False, "incomplete native boot, menu startup policy or shutdown"
+    ready = re.search(re.escape(identity + "_ready") + r" +\r?\n", log)
+    if ready is None or not echoed(log, identity + "_done"):
+        return False, "stale or missing native barriers"
+    if "ps2_uiRetail load" in log or "ps2_uiRetail menu" in log:
+        return False, "the menu was opened by a command, not by the startup policy"
+    captures = list(CAPTURE.finditer(log))
+    if [match[1] for match in captures] != menu_boot_capture_names():
+        return False, "missing or reordered native menu captures"
+    shell, dialog = manifest["swfs"]["generated/swf/shell.bswf"], manifest["swfs"]["generated/swf/dialog.bswf"]
+    shell_loads, dialog_loads = list(SHELL_DRAWABLE.finditer(log)), list(DRAWABLE.finditer(log))
+    expected_shell = (shell["features"]["masks"], shell["features"]["strokes"], screen_placements(shell), shell["features"]["color_add"])
+    if (len(shell_loads) != 1 or tuple(map(int, shell_loads[0].groups())) != expected_shell or len(dialog_loads) != 1 or
+            tuple(map(int, dialog_loads[0].groups())) != (dialog["features"]["masks"], 0, 0, 0)):
+        return False, "shell and dialog draw admissions missing, repeated or different from the inspected profiles"
+    # Both movies open before the startup commands, and the menu closes the console as StartMenu does.
+    if not max(shell_loads[0].end(), dialog_loads[0].end()) < ready.start():
+        return False, "the menu did not open before the startup commands"
+    if "HEADLESS frames=0 game_frames=0 state=console console=0" not in log[:ready.start()]:
+        return False, "the console stayed open over the menu at startup"
+    if UNRENDERED.search(log):
+        return False, "native menu drew text at a size without pre-rendered glyphs"
+    resident = texture_counters(resident_textures(manifest, source, menu_images(manifest)))
+    channels = channel_counters(manifest, source)
+    start = ready.end()
+    minimum = 0
+    previous_frame = 0
+    for (suffix, _, gap), capture in zip(MENU_BOOT_STEPS, captures):
+        window = log[start:capture.start()]
+        states, executions, owners, inputs, textures, channel_rows = (
+            STATE.findall(window), SHELL_EXECUTION.findall(window), MENU.findall(window), MENU_INPUT.findall(window),
+            TEXTURES_RE.findall(window), CHANNELS.findall(window))
+        if not states or not executions or not owners or not inputs or not textures or not channel_rows:
+            return False, "native menu status missing before capture"
+        minimum += gap + 1
+        state, execution = states[-1], executions[-1]
+        if int(state[0]) != 0 or int(state[1]) < minimum - 1 or state[6] != "active":
+            return False, "native menu movie state or frame interval differs"
+        if execution[9] != "real" or int(execution[0]) < minimum - 1:
+            return False, "native menu did not advance on real time"
+        if tuple(owners[-1]) != MENU_BOOT_SCREENS[suffix] or tuple(inputs[-1]) != MENU_BOOT_INPUTS[suffix]:
+            return False, f"native menu screen, focus or key events differ at capture {suffix}"
+        texture = tuple(map(int, textures[-1]))
+        if texture[:5] != resident or texture[7] != 0 or tuple(map(int, channel_rows[-1])) != channels:
+            return False, "native menu textures differ from the shell's and dialog's converted images, or were evicted"
+        frame, presents = int(capture[2]), int(capture[3])
+        if frame <= previous_frame or frame != presents:
+            return False, "native menu presentation/frame identity differs"
+        previous_frame = frame
+        start = capture.end()
+    released = list(RELEASED.finditer(log))
+    if (len(released) != 1 or not captures[-2].end() < released[0].start() < captures[-1].start() or
+            int(released[0][1]) != 0):
+        return False, "native menu release missing, repeated or out of order"
+    memory = run_headless.MEMORY_RE.findall(log)
+    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
+        return False, "menu shutdown leaked native ownership"
+    shutdown = run_console.SHUTDOWN_RE.findall(log)
+    if (len(shutdown) != 1 or int(shutdown[0][0]) < minimum or int(shutdown[0][0]) != int(shutdown[0][1]) or
+            int(captures[-1][2]) <= previous_frame or
+            (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
+        return False, "final menu capture was not drained before shutdown"
+    return True, "native menu opened at startup from the package policy, driven by keys on real time"
+
+
 def channel_counters(manifest: dict, source: Path) -> tuple[int, int]:
     """Screen blending's three channel CLUT textures for the shell atlas, laid out like its CLUTs."""
     atlas = next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == "generated/swf/shell.tga")
@@ -678,10 +770,13 @@ def classify_menu_quit(log: str, identity: str, standard: str, manifest: dict, s
     return True, "native quit dialog opened from the root, cancelled, then accepted, quitting through Common"
 
 
-def verify_menu_quit_captures(output: Path, standard: str) -> dict:
+def verify_menu_quit_captures(output: Path, standard: str, names=None) -> dict:
+    """Every named capture shows the menu; the boot case's final capture is the reopened console."""
     height = 448 if standard == "ntsc" else 512
     result = {}
-    for name in menu_quit_capture_names():
+    if names is not None:
+        result["movie-quit.tga"] = verify_final_capture(output / "movie-quit.tga", standard)
+    for name in menu_quit_capture_names() if names is None else names[:-1]:
         width, actual_height, pixels = retail_ui_capture.read_tga(output / name)
         if (width, actual_height) != (512, height):
             raise ValueError("invalid native menu capture dimensions")
@@ -1002,7 +1097,8 @@ def run(args, standard, case="native"):
         raise ValueError("an emulator is already running; movie checks require an isolated session")
     identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_movies_" + uuid.uuid4().hex[:12]
     manifest, _, _ = inspect_package(args.source)
-    output = stage_retail(args.build, REPO_ROOT / "build/test-results" / identity, standard, args.source, True)
+    menu_boot = case == "menu-boot"
+    output = stage_retail(args.build, REPO_ROOT / "build/test-results" / identity, standard, args.source, True, menu_boot)
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
     report = json.loads((output / "report.json").read_text())
     for name in report["flag_stamps"]:
@@ -1025,7 +1121,7 @@ def run(args, standard, case="native"):
     # three loads finish in under 20 s; streamed RGBA pages had needed about 1.6 s per frame. The
     # full shell on the fixed clock takes 100-140 ms per debug frame, under a minute for its loads;
     # the native menu's four captures per load take about two minutes.
-    timeout = args.timeout if args.timeout is not None else (300 if shell or menu or menu_quit else 120)
+    timeout = args.timeout if args.timeout is not None else (300 if shell or menu or menu_quit or menu_boot else 120)
     if case in NEGATIVES:
         mutate(output, case)
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
@@ -1046,7 +1142,12 @@ def run(args, standard, case="native"):
                     session_end = "native fatal"
                     completed = not positive
                     break
-                if phase == "startup" and echoed(log, identity + "_ready") and menu_quit:
+                if phase == "startup" and echoed(log, identity + "_ready") and menu_boot:
+                    # The policy opened the menu before this echo; drive it, release it and quit.
+                    run_console.append_commands(output, *menu_boot_commands(), "clearHistory", "ps2_uiRetail unload",
+                                                f'echo "{identity}_done"', 'ps2_capture "movie-quit.tga"', "quit")
+                    phase = "quit"
+                elif phase == "startup" and echoed(log, identity + "_ready") and menu_quit:
                     # The dialog's accept ends the session; nothing follows its final capture.
                     run_console.append_commands(output, "ps2_uiRetail load", "ps2_uiRetail clock fixed", "ps2_uiRetail menu",
                                                 *menu_quit_commands(), f'echo "{identity}_done"', 'ps2_capture "movie-quit.tga"',
@@ -1099,6 +1200,8 @@ def run(args, standard, case="native"):
         passed, reason = False, "native watchdog, crash or early exit: " + session_end
     elif menu_quit:
         passed, reason = classify_menu_quit(log, identity, standard, manifest, args.source)
+    elif menu_boot:
+        passed, reason = classify_menu_boot(log, identity, standard, manifest, args.source)
     elif shell or menu:
         passed, reason = classify_shell_render(log, identity, standard, manifest, args.source, menu=menu)
     elif render:
@@ -1109,9 +1212,9 @@ def run(args, standard, case="native"):
         passed, reason = classify_negative(log, identity, case)
     captures = {}
     reload_comparisons = {}
-    if passed and menu_quit:
+    if passed and (menu_quit or menu_boot):
         try:
-            captures = verify_menu_quit_captures(output, standard)
+            captures = verify_menu_quit_captures(output, standard, menu_boot_capture_names() if menu_boot else None)
         except (OSError, ValueError) as error:
             passed, reason = False, str(error)
     elif passed and render:
@@ -1134,8 +1237,8 @@ def run(args, standard, case="native"):
     (output / "summary.json").write_text(json.dumps({"passed": passed, "reason": reason, "build": args.build,
         "standard": standard, "case": case, "command": command, "boot_data": boot_data(output),
         "capture_sha256": captures, "pixel_inspection_required": positive, "scripts_active": execution,
-        "reload_comparisons": reload_comparisons, "shell_active": shell or menu or menu_quit, "native_menu": menu or menu_quit,
-        "full_draw": render or menu_quit,
+        "reload_comparisons": reload_comparisons, "shell_active": shell or menu or menu_quit or menu_boot,
+        "native_menu": menu or menu_quit or menu_boot, "full_draw": render or menu_quit or menu_boot,
         "session_end": session_end, "session_seconds": round(time.monotonic() - started, 1)}, indent=2) + "\n")
     print(f"{'PASS' if passed else 'FAIL'} retail-movies-{standard}-{case}: {reason}\nArtifacts: {output}", flush=True)
     if not passed:
@@ -1158,7 +1261,7 @@ def main():
     try:
         smoke.check_config(args.config)
         if args.case is None or args.case in POSITIVE_CASES:
-            for case in ("native", "execution", "dialog-render", "shell-render", "menu-render", "menu-quit") if args.case is None else (args.case,):
+            for case in ("native", "execution", "dialog-render", "shell-render", "menu-render", "menu-quit", "menu-boot") if args.case is None else (args.case,):
                 for standard in (args.standard,) if args.standard else ("ntsc", "pal"):
                     if not run(args, standard, case):
                         return 1

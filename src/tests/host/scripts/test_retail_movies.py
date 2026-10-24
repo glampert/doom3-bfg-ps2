@@ -389,6 +389,61 @@ class MovieResourcesTests(unittest.TestCase):
             with self.subTest(changed=changed):
                 self.assertFalse(verdict(changed)[0])
 
+    def menu_boot_log(self, manifest):
+        shell, dialog = manifest["swfs"]["generated/swf/shell.bswf"], manifest["swfs"]["generated/swf/dialog.bswf"]
+        counters = runner.texture_counters(runner.resident_textures(manifest, self.source, runner.menu_images(manifest)))
+        channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
+        textures = ("[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters) +
+                    f" triangles=100 uploads=5 evictions=0 channel_cluts={channel_cluts} channel_pixels={channel_pixels}\n")
+        log = ("[D3BFG] BOOT presentation=ntsc menu=1\nGS ready NTSC\n"
+               f"RETAIL drawable movie=0 masks={shell['features']['masks']} strokes={shell['features']['strokes']} "
+               f"screen_blends={runner.screen_placements(shell)} additive_colors={shell['features']['color_add']}\n"
+               f"RETAIL drawable movie=1 masks={dialog['features']['masks']} strokes=0 screen_blends=0 additive_colors=0\n"
+               "[D3BFG] HEADLESS frames=0 game_frames=0 state=console console=0 game_nomap=1 render_device=1 sound_output=0 "
+               "heap=100/120/8\nrun_ready \n")
+        frame = 1
+        for suffix, _, gap in runner.MENU_BOOT_STEPS:
+            frame += gap + 1
+            log += (f"RETAIL movie=0 state=loaded frames={frame - 1} dictionary={len(shell['dictionary'])} "
+                    f"texts={shell['dictionary_counts']['edittext']} preview=10 "
+                    f"english={manifest['language']['entry_count']} scripts=active heap=100/120/8\n"
+                    "RETAIL menu screen={} next={} session={} platform={} callbacks={} root_focus={}\n"
+                    .format(*runner.MENU_BOOT_SCREENS[suffix]) +
+                    "RETAIL menu input events={} handled={} dialog={} quit={}\n".format(*runner.MENU_BOOT_INPUTS[suffix]) +
+                    f"RETAIL execution movie=0 ticks={frame - 1} root=1 sprites=2 texts=3 instructions=1000 calls=5 "
+                    f"commands=9 depth=2 native_steps=20 clock=real\n" +
+                    textures + f"CONSOLE capture=movie-menuboot-{suffix}.tga frame={frame} presents={frame} redraws=0\n")
+        log += "RETAIL released movie=0 images=19 heap=80/100/4\n"
+        frame += 1
+        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
+                f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
+                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
+                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
+        return log
+
+    def test_menu_boot_requires_the_policy_to_open_both_movies_before_the_startup_commands(self):
+        manifest = self.label_manifest()
+        log = self.menu_boot_log(manifest)
+        verdict = lambda text: runner.classify_menu_boot(text, "run", "ntsc", manifest, self.source)
+        self.assertEqual(verdict(log), (True, "native menu opened at startup from the package policy, driven by keys on real time"))
+        shell_load = log[log.index("RETAIL drawable movie=0"):log.index("RETAIL drawable movie=1")]
+        for changed in (log.replace("menu=1", "menu=0"),
+                        log.replace(shell_load, "").replace("run_ready \n", "run_ready \n" + shell_load),
+                        log.replace("run_ready \n", "run_ready \nps2_uiRetail menu\n"),
+                        log.replace("state=console console=0", "state=console console=1"),
+                        log.replace("clock=real", "clock=fixed"),
+                        log.replace("root_focus=0", "root_focus=1", 1),
+                        replace_last(log, "events=4 handled=2", "events=4 handled=3"),
+                        replace_last(log, "session=PRESS_START", "session=IDLE"),
+                        log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.30000,0.35000 stroke=2.000 "
+                                    "prerendered=no\nrun_done"),
+                        log.replace("evictions=0", "evictions=1", 1),
+                        log.replace("RETAIL released movie=0 images=19 heap=80/100/4\n", ""),
+                        log.replace("final=7424/7600/4", "final=7488/7600/4"),
+                        replace_last(log, "[D3BFG] CONSOLE shutdown complete frames=", "[D3BFG] CONSOLE shutdown complete frames=9")):
+            with self.subTest(changed=changed):
+                self.assertFalse(verdict(changed)[0])
+
     def test_shell_captures_require_identical_warm_reloads_and_detail(self):
         detailed = bytes(value for index in range(512 * 448) for value in (index % 251, index % 241, index % 239))
         flat = bytes((16, 24, 40)) * (512 * 448)

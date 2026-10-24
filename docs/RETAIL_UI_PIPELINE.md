@@ -684,7 +684,9 @@ draw as native quads, each size logged once.
 
 `ps2_uiRetail menu` opens the menu the way `idCommonLocal::CreateMainMenu` does: the
 game's `Shell_CreateMenu(false)`, `Shell_Show(true)` and `Shell_SyncWithSession()`,
-after native `PerformGameSwitch`'s move to press-start. The real `idMenuHandler_Shell`
+after native `PerformGameSwitch`'s move to press-start. A package whose
+`presentation.cfg` reads `ntsc menu` or `pal menu` (`make retail-menu`) opens it the
+same way at startup, before the first frame and the startup commands, on real time. The real `idMenuHandler_Shell`
 owns the movie, its widgets and its screens; the harness only advances and draws it,
 on the fixed clock when `ps2_uiRetail clock fixed` came first. Each frame syncs the
 handler with the session and runs its update before the timeline advances.
@@ -731,7 +733,9 @@ platform, callbacks and event counts at each capture, no unrendered text size, t
 shell's draw admission, textures and channel CLUTs, exact warm releases, full shutdown
 recovery and pixel-identical warm reload captures. The `menu-quit` case then opens the
 quit confirmation from the root, cancels it, opens it again and accepts it, which ends the
-session through Common. See [PORT_STATUS](PORT_STATUS.md) for the acceptance records.
+session through Common. The `menu-boot` case boots a `menu` package and drives the
+menu it opened with keys, with no load or menu command. See
+[PORT_STATUS](PORT_STATUS.md) for the acceptance records.
 
 ## Page format survey and the first conversion pass
 

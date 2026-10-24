@@ -611,7 +611,10 @@ math path; PS2-specific math replacement headers are a later milestone.
   updates the handler, then advances the timeline, then draws in the GS frame.
 - `ps2::ui::retail::OpenMenu` follows `idCommonLocal::CreateMainMenu`, after native
   `PerformGameSwitch`'s move to press-start (the offline session signs in user 0 at
-  startup, as the PC session does). Every frame mirrors `GuiFrameEvents`: sync with the
+  startup, as the PC session does). A package whose policy says `menu` opens it from
+  `InitPresentation`, at the end of `InitHeadless` and before the first frame executes
+  `d3bfg.cfg`, as `Init` creates and starts the menu before `AddStartupCommands`; the
+  menu closes the console, as `StartMenu` does, and runs on real time. Every frame mirrors `GuiFrameEvents`: sync with the
   session, then the handler's update. Signing in moves the session to IDLE and the next
   sync shows the root screen.
 - Handlers and movies report platform 1, the PS3 face-button layout and prompt art (the

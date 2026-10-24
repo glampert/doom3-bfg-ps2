@@ -137,9 +137,11 @@ def stage_catalog(source: Path, output: Path) -> tuple[dict, list[tuple[Path, di
     return manifest, assets, catalog
 
 
-def stage_retail(build: str, output: Path, standard: str, source: Path, movies: bool = False) -> Path:
+def stage_retail(build: str, output: Path, standard: str, source: Path, movies: bool = False, menu: bool = False) -> Path:
     if standard not in ("ntsc", "pal"):
         raise ValueError("retail UI proof requires ntsc or pal presentation")
+    if menu and not movies:
+        raise ValueError("the menu startup policy needs the retail movies")
     source, output = _under_build(source), _under_build(output)
     if source == output or source.is_relative_to(output) or output.is_relative_to(source):
         raise ValueError("retail UI proof staging must not overlap the source cook")
@@ -147,7 +149,7 @@ def stage_retail(build: str, output: Path, standard: str, source: Path, movies: 
     movie_profile, movie_assets = movie_resources(source, manifest) if movies else (None, [])
     config_existed = (output / "base/d3bfg.cfg").exists()
     # The visible package staging copies the catalog and assets through stage_catalog.
-    output = stage(build, output, standard, catalog=source)
+    output = stage(build, output, standard, catalog=source, menu=menu)
     destination = output / "base/retail/assets"
     if movies:
         for path, name in movie_assets:
@@ -160,7 +162,8 @@ def stage_retail(build: str, output: Path, standard: str, source: Path, movies: 
             raise ValueError("retail movie profile output must not be a symlink")
         profile_path.write_bytes(movie_profile)
     config = output / "base/d3bfg.cfg"
-    if not config_existed:
+    # A menu package boots into the menu with its fonts loaded; the others start on the font screen.
+    if not config_existed and not menu:
         text = config.read_text()
         commands = "ps2_uiRetail load\n" + ("ps2_uiRetail movie shell\n" if movies else "")
         config.write_text(text + ("" if text.endswith("\n") else "\n") + commands)
@@ -168,7 +171,7 @@ def stage_retail(build: str, output: Path, standard: str, source: Path, movies: 
                 "source_manifest_sha256": sha256(source / "manifest.json"),
                 "catalog": manifest["cooked"]["runtime_catalog"],
                 "assets": [identity for _, identity in assets],
-                "fonts": sorted(manifest["fonts"]), "runtime_ready": False, "inactive_movies": movies,
+                "fonts": sorted(manifest["fonts"]), "runtime_ready": False, "inactive_movies": movies, "boot_menu": menu,
                 "movie_resources": [{"path": name, "bytes": path.stat().st_size, "sha256": sha256(path)}
                                     for path, name in movie_assets]}
     (output / "retail-proof.json").write_text(json.dumps(metadata, indent=2) + "\n")
@@ -183,10 +186,11 @@ def main() -> int:
     parser.add_argument("--source", type=Path, default=REPO_ROOT / "build/ui-retail")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--movies", action="store_true", help="stage inactive shell/dialog dictionaries and English text")
+    parser.add_argument("--menu", action="store_true", help="with --movies, boot into the native shell menu")
     args = parser.parse_args()
     try:
-        output = args.output or REPO_ROOT / "build" / args.build / ("ui-retail-movies" if args.movies else "ui-retail")
-        package = stage_retail(args.build, output, args.standard, args.source, args.movies)
+        output = args.output or REPO_ROOT / "build" / args.build / ("ui-retail-menu" if args.menu else "ui-retail-movies" if args.movies else "ui-retail")
+        package = stage_retail(args.build, output, args.standard, args.source, args.movies, args.menu)
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, "error: " + str(error) + "\n")
     print("Production native English font package: " + str(package))

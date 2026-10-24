@@ -73,7 +73,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `UI_COOK_OUTPUT` (run `make ui-cook` first): the presentation opens the catalog at
   startup and the console draws the original `textures/bigchars` charset from it.
   Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` before Common startup;
-  a missing file defaults to headless. `make test-console` checks native console drawing,
+  a missing file defaults to headless, and `ntsc menu`/`pal menu` also open the native
+  menu at startup. `make test-console` checks native console drawing,
   edit/history events, close/reopen and final capture/quit in both standards.
   HostFs `ps2_consoleText`, `ps2_consoleKey` and `ps2_capture` are visible-mode controls.
   Common frames own exactly one native console presentation; `UpdateScreen` coalesces
@@ -134,7 +135,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   dialog manager, which opens the admitted dialog movie inactive beside the shell (retail
   admission is per movie): the root's Quit shows the native confirmation, an active dialog
   takes events first, its choices are pinned by identity, and accept quits through
-  Common. `make test-retail-menu` checks both (`menu-render`, `menu-quit`).
+  Common. `make retail-menu` / `make run-retail-menu` stage/run a package whose policy
+  boots into the menu, before the startup commands, on real time. `make test-retail-menu`
+  checks all three (`menu-render`, `menu-quit`, `menu-boot`).
   Retail text draws pad button tags (`<JOY1>`) as the cooked PS3 prompt art, which a
   drawn movie loads when admitted. Converted pages stay resident: a debug PCSX2 frame
   takes about 60 ms for the dialog and 100–140 ms for the shell on the fixed clock. The

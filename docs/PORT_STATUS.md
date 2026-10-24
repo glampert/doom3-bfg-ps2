@@ -2,9 +2,12 @@
 
 ## Current snapshot — 2026-10-24
 
-The port is not playable yet. The latest slice draws retail text's pad button tags as the
-[original PS3 prompt art](#pad-prompt-icons-in-retail-text-2026-10-24) (2026-10-24, debug
-gates): the quit confirmation's `<JOY1>` is the cross icon. The one before opened the
+The port is not playable yet. The latest slice
+[boots into the native menu](#booting-into-the-native-menu-2026-10-24) (2026-10-24, debug
+gates): a package policy opens the original menu at startup, before any command. The one
+before drew retail text's pad button tags as the
+[original PS3 prompt art](#pad-prompt-icons-in-retail-text-2026-10-24): the quit
+confirmation's `<JOY1>` is the cross icon. The one before that opened the
 [original quit confirmation through Common's dialog manager](#native-quit-dialog-through-commons-dialog-manager-2026-10-24)
 (2026-10-24): the root menu's Quit shows it over the menu, Cancel closes it
 and Accept quits the game. The one before that routed
@@ -40,21 +43,25 @@ changing their bytes.
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
-| 2D-7–8 | The native shell handler drives the start and root screens from injected keyboard and pad key events, Quit opens Common's native confirmation and pad button tags draw as PS3 prompt art (debug gates) | The other screens, opening at boot, physical keyboard/pad input and hardware validation |
+| 2D-7–8 | The native shell handler drives the start and root screens from injected keyboard and pad key events, Quit opens Common's native confirmation, pad button tags draw as PS3 prompt art and a package policy boots into the menu (debug gates) | The other screens, physical keyboard/pad input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog and `ps2_uiRetail draw
 shell` the shell's start screen, with placeholder prompts and labels because no native
 screen runs. `ps2_uiRetail menu` runs the native shell handler instead: its start screen
 and root menu, with PlayStation-style prompts, which `ps2_uiRetail key NAME` drives with
 keyboard keys and pad buttons; its Quit opens the original confirmation, whose `<JOY1>`
-prompt draws as the cross icon. Other retail modes still show isolated native English
+prompt draws as the cross icon. `make retail-menu` stages a package that boots into that
+menu. Other retail modes still show isolated native English
 labels and take no events. The dialog draws at about 40 ms per debug PCSX2 frame, the shell at 100–140 ms.
 No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-24, debug only) passed the console, font, retail movie,
-authored UI, headless, game and map gates (62 cases) with the prompt icons drawn in the
-quit dialog in NTSC and PAL; see its [record](#pad-prompt-icons-in-retail-text-2026-10-24).
-The one before passed them with the new `menu-quit` case; see its
+The last acceptance (2026-10-24, debug only) passed the new `menu-boot` case in NTSC and
+PAL on the prompt-icon matrix's ELF plus the boot hook; see its
+[record](#booting-into-the-native-menu-2026-10-24). The one before passed the console,
+font, retail movie, authored UI, headless, game and map gates (62 cases) with the prompt
+icons drawn in the quit dialog in NTSC and PAL; see its
+[record](#pad-prompt-icons-in-retail-text-2026-10-24).
+The one before that passed them with the new `menu-quit` case; see its
 [record](#native-quit-dialog-through-commons-dialog-manager-2026-10-24).
 The one before that passed them (60 cases) with key-driven menu captures; see its
 [record](#native-shell-menu-key-input-2026-10-23). The one before that passed them with
@@ -96,8 +103,8 @@ passes the debug gates and awaits the user's visual pass; the dialog's and the s
 screen's text draws from pre-rendered glyphs, whose sizes for later screens are still to
 be collected; the heap levers are measured and not applied. The native shell handler
 draws the start and root screens, takes injected key events, opens the native quit
-confirmation and draws its pad prompts as the PS3 art; the other screens, opening at boot
-and physical keyboard/pad input follow. Required feature/resource admission precedes each
+confirmation, draws its pad prompts as the PS3 art and opens at boot from a package
+policy; the other screens and physical keyboard/pad input follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -4632,3 +4639,44 @@ same ELF.
 | `test-headless` | 2 | `20261023T141859Z_headless_d9c6fc78b8bb`, `20261023T141904Z_headless_4f734ce42ab1` |
 | `test-game` | 11 | `20261023T141917Z_smoke_c0fd5a645b2242c9` to `20261023T141948Z_smoke_4ffe44915028443d` |
 | `test-map` | 1 | `20261023T141956Z_smoke_ddf0d58b17364c4b` |
+
+## Booting into the native menu (2026-10-24)
+
+Accepted **2026-10-24, Australia/Sydney**, in the debug `menu-boot` gate (NTSC and PAL);
+release builds compile and were not run. A visible package can now boot straight into
+the original menu, as a PC build does, instead of only through the harness's
+`ps2_uiRetail menu` ([pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu)).
+
+- **Policy.** `presentation.cfg` takes an optional second word, `menu`, after `ntsc` or
+  `pal` (`headless menu` and any other content are fatal). `BOOT presentation=... menu=1`
+  reports it. `make retail-menu` / `make run-retail-menu` stage/run such a package under
+  `build/<config>/ui-retail-menu/`, with the movies and no `ps2_uiRetail` lines in its
+  config; `stage_headless.stage(..., menu=True)` refuses headless, authored UI and retail
+  boot packages.
+- **Startup.** `InitPresentation` ends by opening the menu through `OpenBootMenu`: it
+  registers the fonts, closes the console and opens the menu as `CreateMainMenu` does,
+  at the end of `InitHeadless` and before the first frame executes `d3bfg.cfg`, as
+  `idCommonLocal::Init` creates and starts the menu before `AddStartupCommands`. The
+  startup status therefore reports the console closed, and the menu runs on real time.
+  The harness's commands still work on it (`key`, `status`, `unload`).
+
+**Checks.** `make test-retail-menu` now also runs `menu-boot`: the runner stages a `menu`
+package, sends no load or menu command, and after the startup echo captures the start
+screen 120 frames later, the root 90 frames after enter and the start screen 90 frames
+after escape, then unloads and quits. It requires the policy line, both draw admissions
+before the startup echo, the startup status with the console closed, `clock=real`,
+frame counts at least the waits, the handler's screen, session, focus and event counts,
+the resident textures with the dialog atlas and prompt art, no unrendered size, one
+release before the final capture, the console in that capture and full shutdown
+recovery. `make test-host` passes 370 tests, checking the classifier with thirteen mutations and the staging
+policy. A session takes about 100 s. The captures were inspected: the start screen, the
+root with Campaign focused and its help line, and the start screen again.
+
+Ledgers match the harness-opened menu's at frame 0 and at release
+([budget](../.claude/rules/memory-budget.md#booting-into-the-native-menu-2026-10-24));
+the real-time runs rest a few KB above the fixed clock's, NTSC and PAL differing mid-run. Production `PT_LOAD` is
+11,264,941 debug / 11,718,829 release bytes (+384 / +384).
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-retail-menu` (`menu-boot`) | 2 | `20261024T000621Z_movies_fdcbaaaaaab3` (NTSC), `20261024T000440Z_movies_141739b2484c` (PAL); the first NTSC run, `20261024T000222Z_movies_93cacc60cd32`, passed every native check and failed only the final-capture verifier, corrected before these |
