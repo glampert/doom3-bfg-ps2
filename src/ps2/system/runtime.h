@@ -19,4 +19,6 @@ void BeginPresentationFrame();
 void PresentConsoleFrame(int frames);
 void UpdateScreen(bool captureToImage);
 void LogPresentationStatus(int frames);
+// The visible presentation registers its device poll; Sys_GenerateEvents calls it each frame.
+void SetEventGenerator(void (*generator)());
 } // namespace ps2::system::runtime

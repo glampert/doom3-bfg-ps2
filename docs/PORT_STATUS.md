@@ -2,9 +2,11 @@
 
 ## Current snapshot — 2026-10-24
 
-The port is not playable yet. The latest slice binds the
-[Campaign and Settings screens](#campaign-and-settings-screens-2026-10-24) (2026-10-24,
-debug gates): both open from the root, scroll and return, with their text pre-rendered.
+The port is not playable yet. The latest slice brings up the
+[pad and the debug USB keyboard](#pad-and-debug-keyboard-devices-2026-10-24) (2026-10-24):
+both post key events into Common's queue from a visible package. The one before bound the
+[Campaign and Settings screens](#campaign-and-settings-screens-2026-10-24): both open from
+the root, scroll and return, with their text pre-rendered.
 The one before [boots into the native menu](#booting-into-the-native-menu-2026-10-24): a
 package policy opens the original menu at startup, before any command. The one before
 that drew retail text's pad button tags as the
@@ -45,7 +47,7 @@ changing their bytes.
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
-| 2D-7–8 | The native shell handler drives the start, root, Campaign and Settings screens from injected keyboard and pad key events, Quit opens Common's native confirmation, pad button tags draw as PS3 prompt art and a package policy boots into the menu (debug gates) | The screens below Campaign and Settings, physical keyboard/pad input and hardware validation |
+| 2D-7–8 | The native shell handler drives the start, root, Campaign and Settings screens from keyboard and pad key events, from HostFs and from the pad and debug USB keyboard devices; Quit opens Common's native confirmation, pad button tags draw as PS3 prompt art and a package policy boots into the menu (debug gates) | The screens below Campaign and Settings, a hands-on check of the devices and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog and `ps2_uiRetail draw
 shell` the shell's start screen, with placeholder prompts and labels because no native
@@ -4750,3 +4752,40 @@ metadata bytes. Production `PT_LOAD` is 11,279,661 debug / 11,740,461 release by
 | `test-console` | 2 | `20261024T003244Z_console_d57e40c3df14`, `20261024T003255Z_console_6340d2ed40d5` |
 | `test-retail-ui` | 7 | `20261024T003313Z_retail_b432b376f58d` to `20261024T003406Z_retail_cf86a81f4754` |
 | `test-retail-movies` | 29 | `20261024T003414Z_movies_8dc3159b673a` to `20261024T005203Z_movies_0dcb809618bf` (menu-screens again `20261024T004828Z_movies_8eb71cb30bd8`, `20261024T004948Z_movies_7f712fd5883d`) |
+
+## Pad and debug keyboard devices (2026-10-24)
+
+Built and checked on **2026-10-24, Australia/Sydney** in the debug console gate (NTSC and
+PAL); release builds compile. A visible package now brings up the physical input devices
+at presentation startup (`src/ps2/input/`), posting into the same event queue the HostFs
+commands use, so the console and the native menu take them unchanged.
+
+- **Pad** (`pad.cpp`). The ROM's SIO2MAN and PADMAN load once; libpad opens connector 1
+  with a 64-byte-aligned transfer area. A connected pad is switched to DualShock mode,
+  locked, then read every frame from padman's buffer (no IOP round trip). Each changed
+  button posts a key: cross `K_JOY1`, circle `K_JOY2`, square `K_JOY3`, triangle
+  `K_JOY4`, L1/R1 `K_JOY5`/`K_JOY6`, L3/R3 `K_JOY7`/`K_JOY8`, Start/Select
+  `K_JOY9`/`K_JOY10`, L2/R2 the triggers, the D-pad `K_JOY_DPAD_*`, and each stick past
+  half its range the engine's stick keys, as the PC's `PushButton` does. Disconnection
+  releases everything held.
+- **Keyboard** (`keyboard.cpp`). usbd and ps2kbd load from the package's `irx/` (staged
+  from the SDK by every visible package), then the driver opens in raw, non-blocking mode.
+  As `quake2-ps2`: an idle keyboard is read every 250 ms and one in use (a key held, or a
+  key within 10 s) every frame, at most 64 reads and 32 events per frame. HID usages map
+  to the engine's scan-code keys; printable keys and backspace also post `SE_CHAR` with
+  a US shift table, which the console's edit field takes. PCSX2's emulated keyboard sends
+  usage 0x34 for the host's grave key, so 0x34 and 0x35 both toggle the console.
+- **Seam.** `Sys_GenerateEvents` calls a generator the presentation registers; headless
+  runs and the test images register none, so their ledgers and probes are unchanged. The
+  rumble, usercmd and input-device boundaries stay as they were.
+
+**Checks.** `make test-console` passes in both standards on the device-enabled ELF
+(`20261024T010453Z_console_c18af25b3a8a` and the PAL run after it); its logs show `INPUT
+devices pad=1 keyboard=1`, the pad connected in analog mode and 24 idle keyboard reads
+over the first 121 frames. The host suite covers the staged modules (present in visible
+packages, replaced, absent for headless, missing from the SDK). No gate presses a key or
+button: typing into the console and driving the menu from the pad in PCSX2 still need a
+hands-on check, which is the first follow-up. `make test-host` passes 371 tests.
+
+Production `PT_LOAD` is 11,291,629 debug / 11,752,429 release bytes (+11,968 / +11,968),
+384 objects (the three input units) and no fixtures, linking libpad and libkbd.

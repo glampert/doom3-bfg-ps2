@@ -4,6 +4,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "ps2/input/devices.h"
 #include "ps2/renderer/null_render.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
@@ -44,6 +45,7 @@ void Status(const idCmdArgs &)
              static_cast<int>(soundSystem->GetPlayingSoundWorld() != nullptr),
              stats.requestedBytes, stats.backingBytes, stats.allocationCount);
     ps2::system::runtime::LogPresentationStatus(s_frames);
+    ps2::input::LogDeviceStatus();
 }
 
 void SubmitConsoleLine()

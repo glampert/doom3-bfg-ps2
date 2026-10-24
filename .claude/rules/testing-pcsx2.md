@@ -66,6 +66,13 @@
   `summary.json` records each checkpoint, the largest tags and the compiled script
   size. The run takes about 20 s (7.8 s of script compilation); `make run-retail-boot`
   stages and launches the same package until quit. Retail data never enters the repo.
+- Every visible package brings up the pad and the debug USB keyboard at presentation
+  startup and logs `[D3BFG] INPUT devices pad=N keyboard=N`, then an `INPUT` status line
+  with `ps2_status`. In PCSX2 the emulated DualShock2 connects in analog mode and the
+  `hidkbd` USB keyboard opens; the gates press nothing, so no device event reaches them,
+  and the idle keyboard is read about every 250 ms. The keyboard's modules load from the
+  package's `irx/` (staged from `$PS2SDK/iop/irx`); a module that fails only disables
+  that device.
 - `make test-console` / `make BUILD=release test-console` exercise the same production
   ELF visibly in NTSC and PAL. Startup policy is selected by package-root
   `presentation.cfg`; `make console` defaults to NTSC and `CONSOLE_STANDARD=pal`

@@ -4,6 +4,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "ps2/input/devices.h"
 #include "ps2/renderer/capture.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
@@ -270,6 +271,10 @@ void InitPresentation()
     cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, "type quoted ASCII into the native console edit field");
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, "send a named native console key");
     cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, "capture the next completed console frame to a HostFs .tga basename");
+    // The pad and the debug keyboard feed the same event queue the HostFs commands do; the
+    // package stages the keyboard driver's modules beside the ELF.
+    input::InitDevices("host:irx");
+    SetEventGenerator(input::PollDevices);
     // idCommonLocal::Init creates the main menu and starts it before the startup commands run;
     // the menu closes the console, as StartMenu does.
     if (s_bootMenu)
@@ -351,6 +356,8 @@ void ShutdownPresentation(int frames)
     }
     Log(LogLevel::Info, "[D3BFG] CONSOLE shutdown complete frames=%d presents=%u redraws=%u\n",
         frames, renderer::FrameCount(), s_redraws);
+    SetEventGenerator(nullptr);
+    input::ShutdownDevices();
     cmdSystem->RemoveCommand("ps2_capture");
     cmdSystem->RemoveCommand("ps2_consoleKey");
     cmdSystem->RemoveCommand("ps2_consoleText");

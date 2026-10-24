@@ -17,6 +17,10 @@ BOOT_ROOT = REPO_ROOT / "src/tests/data/headless"
 UI_ROOT = REPO_ROOT / "src/tests/data/ui"
 RETAIL_ROOT = REPO_ROOT / "src/tests/data/retail_boot"
 PRESENTATIONS = ("headless", "ntsc", "pal")
+# The debug keyboard's IOP modules, which a visible package carries beside the ELF; the pad uses
+# the ROM's. The SDK's own copies, so the package never carries a module from the repository.
+IRX_ROOT = Path(os.environ.get("PS2SDK", str(Path.home() / "ps2dev/ps2sdk"))) / "iop/irx"
+KEYBOARD_IRX = ("usbd.irx", "ps2kbd.irx")
 # The retail declarations, scripts and English strings; sound and per-map containers stay out.
 RETAIL_CONTAINERS = ("_common.resources", "_ordered.resources")
 RESOURCE_MAGIC = bytes.fromhex("d000000d")
@@ -32,7 +36,7 @@ def sha256(path: Path) -> str:
 
 
 def boot_data(output: Path) -> dict[str, str]:
-    paths = sorted(path for path in (output / "base").rglob("*") if path.is_file())
+    paths = sorted(path for root in ("base", "irx") for path in (output / root).rglob("*") if path.is_file())
     return {str(path.relative_to(output)): sha256(path) for path in paths + [output / "presentation.cfg"]}
 
 
@@ -52,6 +56,28 @@ def link_containers(data_root: Path, base: Path) -> None:
             os.link(source, target)
         except OSError:
             shutil.copy2(source, target)
+
+
+def stage_keyboard_modules(output: Path) -> None:
+    """Copy the keyboard driver's modules into the package's irx directory, replacing any other file there."""
+    for name in KEYBOARD_IRX:
+        source = IRX_ROOT / name
+        if not source.is_file() or source.is_symlink():
+            raise ValueError(f"the keyboard driver module is missing from the SDK: {source}")
+    destination = output / "irx"
+    if destination.is_symlink():
+        raise ValueError("the package's irx directory must not be a symlink")
+    destination.mkdir(parents=True, exist_ok=True)
+    for existing in destination.iterdir():
+        if existing.name not in KEYBOARD_IRX:
+            if existing.is_symlink() or not existing.is_file():
+                raise ValueError("the package's irx directory holds only regular module files")
+            existing.unlink()
+    for name in KEYBOARD_IRX:
+        target = destination / name
+        if target.is_symlink():
+            raise ValueError("a staged module must not be a symlink")
+        shutil.copy2(IRX_ROOT / name, target)
 
 
 def stage(build: str, output: Path, presentation: str = "headless", include_ui: bool = False,
@@ -105,6 +131,9 @@ def stage(build: str, output: Path, presentation: str = "headless", include_ui: 
         # Bound at call time: the retail staging module imports this one.
         from stage_retail_ui import stage_catalog
         stage_catalog(Path(catalog), output)
+        stage_keyboard_modules(output)
+    else:
+        shutil.rmtree(output / "irx", ignore_errors=True)
     if retail_data is not None:
         for path in sorted(path for path in RETAIL_ROOT.rglob("*") if path.is_file()):
             target = output / path.relative_to(RETAIL_ROOT)

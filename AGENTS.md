@@ -141,10 +141,14 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   boots into the menu, before the startup commands, on real time. `make test-retail-menu`
   checks all four (`menu-render`, `menu-quit`, `menu-boot`, `menu-screens`).
   Retail text draws pad button tags (`<JOY1>`) as the cooked PS3 prompt art, which a
-  drawn movie loads when admitted. Converted pages stay resident: a debug PCSX2 frame
+  drawn movie loads when admitted. A visible package also brings up the DualShock pad
+  (the ROM's SIO2MAN/PADMAN through libpad) and a debug USB keyboard (usbd and ps2kbd,
+  staged from the SDK under `irx/`), both posting key events into Common's queue: cross
+  is `K_JOY1`, the keyboard's grave key toggles the console and typed characters reach its
+  edit field. The idle keyboard is read every 250 ms, every frame only while in use. Converted pages stay resident: a debug PCSX2 frame
   takes about 60 ms for the dialog and 100–140 ms for the shell on the fixed clock. The
-  other screens, physical keyboard/pad input, dynamic resources and artwork residency
-  remain pending.
+  screens below Campaign and Settings, dynamic resources and artwork residency remain
+  pending.
 - `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
   NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex

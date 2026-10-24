@@ -205,6 +205,12 @@ class ConsoleStaging(unittest.TestCase):
         self.addCleanup(mock.patch.stopall)
         mock.patch.object(staging, "REPO_ROOT", self.root).start()
         mock.patch.object(staging, "BOOT_ROOT", self.assets).start()
+        # The keyboard driver's modules a visible package copies from the SDK.
+        self.irx = self.root / "sdk/iop/irx"
+        self.irx.mkdir(parents=True)
+        for name in staging.KEYBOARD_IRX:
+            (self.irx / name).write_bytes(b"IRX " + name.encode())
+        mock.patch.object(staging, "IRX_ROOT", self.irx).start()
         mock.patch.object(stage_retail_ui, "REPO_ROOT", self.root).start()
 
     def test_explicit_policy_replaces_stale_mode_and_preserves_user_config(self):
@@ -220,6 +226,19 @@ class ConsoleStaging(unittest.TestCase):
         staging.stage("debug", self.output, "ntsc", catalog=self.cook)
         catalog = self.output / "base/retail_ui.uic"
         self.assertTrue(catalog.is_file())
+        # The keyboard driver's modules ride beside the ELF, and only in a visible package.
+        for name in staging.KEYBOARD_IRX:
+            self.assertEqual((self.output / "irx" / name).read_bytes(), b"IRX " + name.encode())
+            self.assertIn("irx/" + name, json.loads((self.output / "boot-data.json").read_text()))
+        (self.output / "irx/stale.irx").write_bytes(b"old")
+        staging.stage("debug", self.output, "ntsc", catalog=self.cook)
+        self.assertFalse((self.output / "irx/stale.irx").exists())
+        (self.irx / staging.KEYBOARD_IRX[0]).unlink()
+        with self.assertRaisesRegex(ValueError, "keyboard driver module"):
+            staging.stage("debug", self.root / "visible-without-irx", "ntsc", catalog=self.cook)
+        (self.irx / staging.KEYBOARD_IRX[0]).write_bytes(b"IRX " + staging.KEYBOARD_IRX[0].encode())
+        staging.stage("debug", self.output, "headless")
+        self.assertFalse((self.output / "irx").exists())
         assets = sorted((self.output / "base/retail/assets").iterdir())
         self.assertEqual({path.suffix for path in assets}, {".dat", ".gstx"})
         inputs = json.loads((self.output / "boot-data.json").read_text())

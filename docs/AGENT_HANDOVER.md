@@ -170,8 +170,11 @@ policy boots into the menu (`make retail-menu`;
   them (New Game, Load, Controls, Game Options, System Options) come next, each as a
   reviewed subset with its text sizes cooked. A move into an unbound screen fails by
   name until then.
-- **Keyboard and pad.** Post the same events from the devices. For the debug USB keyboard
-  follow `quake2-ps2`'s `src/ps2/input/keyboard.cpp`: ps2kbd raw non-blocking reads, polled
+- **Keyboard and pad.** Done on 2026-10-24 (`src/ps2/input/`): the pad posts `K_JOY*` and
+  stick keys, the debug USB keyboard posts keys and characters; polled as `quake2-ps2`'s
+  keyboard is. Verified by bring-up logs in the console gate; typing and pad presses in
+  PCSX2 still need a hands-on check ([record](PORT_STATUS.md#pad-and-debug-keyboard-devices-2026-10-24)).
+  The original plan: ps2kbd raw non-blocking reads, polled
   every 250 ms while idle and every frame only while a key is held or within 10 s of the
   last key, with capped reads per frame. Each read is an IOP file round trip, so polling
   every frame has a real cost on hardware.

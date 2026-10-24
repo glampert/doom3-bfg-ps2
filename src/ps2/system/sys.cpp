@@ -681,9 +681,27 @@ void Sys_ClearEvents()
     s_eventHead = 0;
 }
 
+namespace
+{
+static void (*s_eventGenerator)() = nullptr;
+} // namespace
+
+namespace ps2::system::runtime
+{
+void SetEventGenerator(void (*generator)())
+{
+    s_eventGenerator = generator;
+}
+} // namespace ps2::system::runtime
+
 void Sys_GenerateEvents()
 {
-} // No input drivers run in the initial headless core.
+    // Headless runs and the test images register no device poll.
+    if (s_eventGenerator != nullptr)
+    {
+        s_eventGenerator();
+    }
+}
 
 ID_TIME_T Sys_FileTimeStamp(idFileHandle file)
 {

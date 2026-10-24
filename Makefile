@@ -259,7 +259,7 @@ EE_LINKFILE ?= $(PS2SDK)/ee/startup/linkfile
 EE_LDFLAGS = -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib -Wl,-zmax-page-size=128 -Wl,-Map,$(CORE_TEST_DIR)/d3bfg_tests.map
 EE_LIBS = -lkernel -lm
 RENDER_SDK_LIBS = draw graph packet2 dma
-RESIDENT_SDK_LIBS = $(RENDER_SDK_LIBS) kernel m patches
+RESIDENT_SDK_LIBS = $(RENDER_SDK_LIBS) pad kbd kernel m patches
 ifeq ($(CORE_BOOT),1)
 	EE_LIBS = $(addprefix -l,$(RESIDENT_SDK_LIBS))
 endif
