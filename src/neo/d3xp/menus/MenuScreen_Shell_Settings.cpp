@@ -26,8 +26,11 @@ If you have questions concerning this license or the applicable additional terms
 ===========================================================================
 */
 #pragma hdrstop
-#include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Include paths match the on-disk case for case-sensitive build hosts.
+#include "../../idlib/precompiled.h"
 #include "../Game_local.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 
 const static int NUM_SETTING_OPTIONS = 8;
 
@@ -99,7 +102,7 @@ void idMenuScreen_Shell_Settings::Initialize( idMenuHandler * data ) {
 
 	btnBack = new (TAG_SWF) idMenuWidget_Button();
 	btnBack->Initialize( data );	
-	idMenuHandler_Shell * handler = dynamic_cast< idMenuHandler_Shell * >( data );
+	idMenuHandler_Shell * handler = ps2::CheckedCast< idMenuHandler_Shell * >( data );
 	if ( handler != NULL && handler->GetInGame() ) {
 		btnBack->SetLabel( "#str_swf_pause_menu" );
 	} else {

@@ -219,7 +219,12 @@
   `BOOT presentation=<std> menu=1`, both draw admissions before the startup echo, the
   startup status with the console closed, `clock=real`, the handler's screen, session,
   focus and event counts, the resident textures, no unrendered size, one release before
-  the final capture and full shutdown recovery. A session takes about 100 s.
+  the final capture and full shutdown recovery. A session takes about 100 s. Last,
+  `menu-screens` opens the menu on the fixed clock and, from the root, enters Campaign (c),
+  moves its focus (d), returns (e), moves the root's focus to Settings (f), enters it (g),
+  moves its focus (h) and returns (i), capturing each: it requires screens 3 and 13 with the
+  expected focus and event counts, no `shell capability unavailable` line, no unrendered
+  size, rising draw counters, the resident textures, one release and full shutdown recovery.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

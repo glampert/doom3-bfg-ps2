@@ -455,7 +455,34 @@ bool PalettedImage::Find(const Vertex (&vertices)[3], gstx::Placement & output) 
         }
     }
 
-    return false;
+    // A native fill may address the packer's one-texel clamped border around its image, and a mask
+    // can clip such a quad to a sliver whose centroid lies on that border row or column, outside
+    // every match rectangle, where a whole quad's centroid never falls. Region clamp samples the
+    // image's edge there anyway, so take the nearest placement within one texel.
+    float best = 1.0f;
+    bool found = false;
+
+    for (u32 index = 0; index < m_header.placementCount; ++index)
+    {
+        const gstx::Placement placement = gstx::GetPlacement(m_tables, m_header, index);
+        const gstx::Rect & match = placement.match;
+        const float left = static_cast<float>(match.x);
+        const float top = static_cast<float>(match.y);
+        const float right = static_cast<float>(match.x + match.width);
+        const float bottom = static_cast<float>(match.y + match.height);
+        const float dx = x < left ? left - x : (x >= right ? x - right : 0.0f);
+        const float dy = y < top ? top - y : (y >= bottom ? y - bottom : 0.0f);
+        const float distance = dx > dy ? dx : dy;
+
+        if (distance <= best)
+        {
+            best = distance;
+            output = placement;
+            found = true;
+        }
+    }
+
+    return found;
 }
 
 void PalettedImage::Map(const Vertex (&input)[3], const gstx::Placement & placement, Vertex (&output)[3]) const

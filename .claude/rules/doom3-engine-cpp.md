@@ -595,10 +595,14 @@ math path; PS2-specific math replacement headers are a later milestone.
 
 ## Native shell menu (reviewed subset)
 
-- `idMenuHandler_Shell` and the press-start and root screens are campaign units now;
-  the other shell screens stay deferred. On PS2 the handler's `Initialize` binds the
-  start, root and credits screens only, and skips the intro movie build touches, intro
-  and Mars cinematics and menu sounds (empty sound names make `PlaySound` return early).
+- `idMenuHandler_Shell` and the press-start, root, campaign (`Singleplayer`) and
+  settings screens are campaign units now; the other shell screens stay deferred. On PS2
+  the handler's `Initialize` binds the start, root, campaign, settings and credits
+  screens only, and skips the intro movie build touches, intro and Mars cinematics and
+  menu sounds (empty sound names make `PlaySound` return early). The offline session has
+  no save game manager (`GetSaveGameManager` fails by name), so the campaign screen's
+  tags report no save to continue instead of enumerating, and `ContinueGame` fails by
+  name; New Game and Load Game move into screens that are still unbound.
   The in-game menu fails explicitly. Handler paths that reach unlinked screens (lobbies,
   leaderboards, continue, key bindings, save enumeration) are compiled out or fail by
   method name. `shell_stub.cpp` keeps only the load and save screens' enumeration calls,

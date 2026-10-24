@@ -26,8 +26,11 @@ If you have questions concerning this license or the applicable additional terms
 ===========================================================================
 */
 #pragma hdrstop
-#include "../../idLib/precompiled.h"
+// [PS2_D3BFG]: Include paths match the on-disk case for case-sensitive build hosts.
+#include "../../idlib/precompiled.h"
 #include "../Game_local.h"
+// [PS2_D3BFG]: Checked portable queries preserve the original cast rejection behavior.
+#include "ps2/type_query.h"
 
 const static int NUM_SINGLEPLAYER_OPTIONS = 8;
 /*
@@ -139,8 +142,11 @@ void idMenuScreen_Shell_Singleplayer::ShowScreen( const mainMenuTransition_t tra
 	idList< idStr > option;
 
 	canContinue = false;
+	// [PS2_D3BFG]: The offline session has no save game manager: no save can be continued.
+#if !defined( ID_PS2 )
 	const saveGameDetailsList_t & saveGameInfo = session->GetSaveGameManager().GetEnumeratedSavegames();
 	canContinue = ( saveGameInfo.Num() > 0 );
+#endif
 	if ( canContinue ) {
 		option.Append( "#str_swf_continue_game" );	// continue game
 		menuOptions.Append( option );
@@ -152,17 +158,17 @@ void idMenuScreen_Shell_Singleplayer::ShowScreen( const mainMenuTransition_t tra
 		menuOptions.Append( option );
 
 		int index = 0;
-		idMenuWidget_Button * buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+		idMenuWidget_Button * buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 		if ( buttonWidget != NULL ) {
 			buttonWidget->SetDescription( "#str_swf_continue_desc" );
 		}
 		index++;
-		buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+		buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 		if ( buttonWidget != NULL ) {
 			buttonWidget->SetDescription( "#str_02209" );
 		}
 		index++;
-		buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+		buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 		if ( buttonWidget != NULL ) {
 			buttonWidget->SetDescription( "#str_02213" );
 		}
@@ -177,12 +183,12 @@ void idMenuScreen_Shell_Singleplayer::ShowScreen( const mainMenuTransition_t tra
 
 		if ( options != NULL ) {
 			int index = 0;
-			idMenuWidget_Button * buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			idMenuWidget_Button * buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_02209" );
 			}
 			index++;
-			buttonWidget = dynamic_cast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_02213" );
 			}
@@ -211,6 +217,10 @@ idMenuScreen_Shell_Singleplayer::ContinueGame
 ========================
 */
 void idMenuScreen_Shell_Singleplayer::ContinueGame() {
+	// [PS2_D3BFG]: Continuing needs the save game manager the offline session does not have.
+#if defined( ID_PS2 )
+	idLib::FatalError( "shell capability unavailable: idMenuScreen_Shell_Singleplayer::ContinueGame" );
+#else
 	const saveGameDetailsList_t & saveGameInfo = session->GetSaveGameManager().GetEnumeratedSavegames();
 	saveGameDetailsList_t sortedSaves = saveGameInfo;
 	sortedSaves.Sort( idSort_SavesByDate() );	
@@ -234,6 +244,7 @@ void idMenuScreen_Shell_Singleplayer::ContinueGame() {
 			cmdSystem->AppendCommandText( va( "loadgame %s\n", name.c_str() ) );
 		}
 	}
+#endif
 }
 
 /*
@@ -270,8 +281,11 @@ bool idMenuScreen_Shell_Singleplayer::HandleAction( idWidgetAction & action, con
 			}			
 
 			canContinue = false;
+			// [PS2_D3BFG]: No save game manager on the offline session; the options are new and load.
+#if !defined( ID_PS2 )
 			const saveGameDetailsList_t & saveGameInfo = session->GetSaveGameManager().GetEnumeratedSavegames();
 			canContinue = ( saveGameInfo.Num() > 0 );
+#endif
 			if ( canContinue ) {
 				if ( selectionIndex == 0 ) {
 					ContinueGame();

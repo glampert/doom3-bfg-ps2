@@ -54,7 +54,7 @@ for each feature.
 | Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; no events |
 | Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs | About 40 ms per debug PCSX2 frame; choices fail explicitly |
 | Retail shell drawing | Native `Render` of the original shell's start screen: outlines, color terms, screen blends, depth masks; the native logo transition on request | 100–140 ms per debug PCSX2 frame on the fixed clock; placeholder prompts and labels; no navigation |
-| Native shell menu | `idMenuHandler_Shell` with its start, root and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start; Quit opens Common's native confirmation, whose Cancel returns and Accept quits; pad button tags draw as PS3 prompt art; a `menu` package policy boots into it | Campaign/Settings screens, physical keyboard/pad |
+| Native shell menu | `idMenuHandler_Shell` with its start, root, campaign, settings and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start; Quit opens Common's native confirmation, whose Cancel returns and Accept quits; pad button tags draw as PS3 prompt art; a `menu` package policy boots into it | The screens below Campaign and Settings, physical keyboard/pad |
 | Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | 13.5 MB of heap backing before any map; no retail map or in-game UI yet |
 
 Recent implementation commits are the full-dialog slice (2026-10-20), `dd04ab0` (scoped
@@ -165,9 +165,11 @@ and its pad button tags draw as the PS3 prompt art
 policy boots into the menu (`make retail-menu`;
 [record](PORT_STATUS.md#booting-into-the-native-menu-2026-10-24)). Next, in order:
 
-- **Other screens.** Credits is already bound; Campaign and Settings come next. Enable
-  each deferred screen as a reviewed subset, with its text sizes cooked. A move into an
-  unbound screen fails by name until then.
+- **Other screens.** Credits, Campaign and Settings are bound
+  ([record](PORT_STATUS.md#campaign-and-settings-screens-2026-10-24)); the screens below
+  them (New Game, Load, Controls, Game Options, System Options) come next, each as a
+  reviewed subset with its text sizes cooked. A move into an unbound screen fails by
+  name until then.
 - **Keyboard and pad.** Post the same events from the devices. For the debug USB keyboard
   follow `quake2-ps2`'s `src/ps2/input/keyboard.cpp`: ps2kbd raw non-blocking reads, polled
   every 250 ms while idle and every frame only while a key is held or within 10 s of the

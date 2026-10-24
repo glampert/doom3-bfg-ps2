@@ -130,14 +130,16 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   admission, and each native handler a key reaches must be a widget event of the menu's
   own live widgets. `ps2_uiRetail key NAME` posts a keyboard key (enter, escape, arrows)
   or pad button (cross, circle, dpad_*) through the event loop: accept signs in and shows
-  the root screen, the arrows move its focus and back returns to press-start. A move into
-  an unbound screen (Campaign, Settings) fails by name. The menu also initializes Common's
+  the root screen, the arrows move its focus and back returns to press-start. The
+  Campaign (New Game, Load Game; no save to continue) and Settings (Controls, Game
+  Options, System) screens open from the root and return to it; a move into any screen
+  below them fails by name. The menu also initializes Common's
   dialog manager, which opens the admitted dialog movie inactive beside the shell (retail
   admission is per movie): the root's Quit shows the native confirmation, an active dialog
   takes events first, its choices are pinned by identity, and accept quits through
   Common. `make retail-menu` / `make run-retail-menu` stage/run a package whose policy
   boots into the menu, before the startup commands, on real time. `make test-retail-menu`
-  checks all three (`menu-render`, `menu-quit`, `menu-boot`).
+  checks all four (`menu-render`, `menu-quit`, `menu-boot`, `menu-screens`).
   Retail text draws pad button tags (`<JOY1>`) as the cooked PS3 prompt art, which a
   drawn movie loads when admitted. Converted pages stay resident: a debug PCSX2 frame
   takes about 60 ms for the dialog and 100–140 ms for the shell on the fixed clock. The

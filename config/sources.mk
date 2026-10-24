@@ -223,6 +223,8 @@ CAMPAIGN_CXX_SRC = \
 	neo/d3xp/menus/MenuScreen_PDA_VideoDisks.cpp \
 	neo/d3xp/menus/MenuScreen_Shell_PressStart.cpp \
 	neo/d3xp/menus/MenuScreen_Shell_Root.cpp \
+	neo/d3xp/menus/MenuScreen_Shell_Settings.cpp \
+	neo/d3xp/menus/MenuScreen_Shell_Singleplayer.cpp \
 	neo/d3xp/menus/MenuWidget.cpp \
 	neo/d3xp/menus/MenuWidget_Button.cpp \
 	neo/d3xp/menus/MenuWidget_Carousel.cpp \

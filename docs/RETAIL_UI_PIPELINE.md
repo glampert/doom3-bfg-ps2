@@ -691,9 +691,13 @@ owns the movie, its widgets and its screens; the harness only advances and draws
 on the fixed clock when `ps2_uiRetail clock fixed` came first. Each frame syncs the
 handler with the session and runs its update before the timeline advances.
 
-- **Screens.** The handler binds the start, root and credits screens. The start screen's
-  carousel holds the Doom 3 cover alone; the root screen lists Campaign, Settings,
-  Credits and Quit (no development map list or multiplayer).
+- **Screens.** The handler binds the start, root, campaign, settings and credits screens.
+  The start screen's carousel holds the Doom 3 cover alone; the root screen lists
+  Campaign, Settings, Credits and Quit (no development map list or multiplayer). Campaign
+  offers New Game and Load Game (the offline session has no save game manager, so
+  nothing can be continued) and Settings offers Controls, Game Options and System (the
+  PS2 renderer reports no stereoscopic mode); their back returns to the root, and the
+  screens below them fail by name.
 - **Platform.** Handlers and movies report platform 1, the PS3 face-button layout: the
   command bar shows the PlayStation cross and circle with SELECT and BACK.
 - **Input.** Common routes each event the console and authored movie leave to the menu,
@@ -722,7 +726,14 @@ handler with the session and runs its update before the timeline advances.
   and events, admitted while it is inactive. The choices each shown dialog installs are
   pinned by identity, and the movie calls them through copies in its button properties.
 - **Text.** The root screen adds Sarasori at heights 18 and 10 with a 2.0 outline (its
-  options and help line); with them, no `UI glyph size` line appears on either screen.
+  options and help line), and the Campaign and Settings screens their headings (0.35 per
+  texel, 1.75 outline) and options (0.2, 2.0 outline): 18 sizes on two PSMT4 pages. With
+  them, no `UI glyph size` line appears on any bound screen.
+- **Border slivers.** A native fill may address the packer's one-texel clamped border
+  around an atlas image, and the Campaign and Settings lists sit under a mask: a quad
+  clipped to a sliver along that edge has its UV centroid on the border row, outside
+  every placement. The paletted lookup then takes the nearest placement within one
+  texel, whose region clamp samples that edge row anyway.
 
 `make test-retail-menu` (also part of `make test-retail-movies`) runs the `menu-render`
 case: a 120-frame load and two 30-frame warm reloads, each captured on the start screen,
@@ -734,7 +745,9 @@ shell's draw admission, textures and channel CLUTs, exact warm releases, full sh
 recovery and pixel-identical warm reload captures. The `menu-quit` case then opens the
 quit confirmation from the root, cancels it, opens it again and accepts it, which ends the
 session through Common. The `menu-boot` case boots a `menu` package and drives the
-menu it opened with keys, with no load or menu command. See
+menu it opened with keys, with no load or menu command. The `menu-screens` case enters
+Campaign from the root, scrolls it, returns, enters Settings, scrolls it and returns,
+capturing each state on the fixed clock. See
 [PORT_STATUS](PORT_STATUS.md) for the acceptance records.
 
 ## Page format survey and the first conversion pass

@@ -401,9 +401,9 @@ void idMenuHandler_Shell::Initialize( const char * swfFile, idSoundWorld * sw ) 
 		menuScreens[ i ] = NULL;
 	}
 
-	// [PS2_D3BFG]: The reviewed console shell binds the start, root and credits screens. The intro
-	// movies (build touches), the other screens, the in-game menu, intro and Mars cinematics and
-	// menu sounds remain unavailable.
+	// [PS2_D3BFG]: The reviewed console shell binds the start, root, campaign, settings and credits
+	// screens. The intro movies (build touches), the other screens, the in-game menu, intro and
+	// Mars cinematics and menu sounds remain unavailable.
 #if defined( ID_PS2 )
 	if ( inGame ) {
 		idLib::FatalError( "shell capability unavailable: in-game menu" );
@@ -411,6 +411,8 @@ void idMenuHandler_Shell::Initialize( const char * swfFile, idSoundWorld * sw ) 
 
 	BIND_SHELL_SCREEN( SHELL_AREA_START, idMenuScreen_Shell_PressStart, this );
 	BIND_SHELL_SCREEN( SHELL_AREA_ROOT, idMenuScreen_Shell_Root, this );
+	BIND_SHELL_SCREEN( SHELL_AREA_CAMPAIGN, idMenuScreen_Shell_Singleplayer, this );
+	BIND_SHELL_SCREEN( SHELL_AREA_SETTINGS, idMenuScreen_Shell_Settings, this );
 	BIND_SHELL_SCREEN( SHELL_AREA_CREDITS, idMenuScreen_Shell_Credits, this );
 #else
 	// done for build game purposes so these get touched

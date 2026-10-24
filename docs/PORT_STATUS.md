@@ -2,10 +2,12 @@
 
 ## Current snapshot — 2026-10-24
 
-The port is not playable yet. The latest slice
-[boots into the native menu](#booting-into-the-native-menu-2026-10-24) (2026-10-24, debug
-gates): a package policy opens the original menu at startup, before any command. The one
-before drew retail text's pad button tags as the
+The port is not playable yet. The latest slice binds the
+[Campaign and Settings screens](#campaign-and-settings-screens-2026-10-24) (2026-10-24,
+debug gates): both open from the root, scroll and return, with their text pre-rendered.
+The one before [boots into the native menu](#booting-into-the-native-menu-2026-10-24): a
+package policy opens the original menu at startup, before any command. The one before
+that drew retail text's pad button tags as the
 [original PS3 prompt art](#pad-prompt-icons-in-retail-text-2026-10-24): the quit
 confirmation's `<JOY1>` is the cross icon. The one before that opened the
 [original quit confirmation through Common's dialog manager](#native-quit-dialog-through-commons-dialog-manager-2026-10-24)
@@ -43,21 +45,23 @@ changing their bytes.
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
-| 2D-7–8 | The native shell handler drives the start and root screens from injected keyboard and pad key events, Quit opens Common's native confirmation, pad button tags draw as PS3 prompt art and a package policy boots into the menu (debug gates) | The other screens, physical keyboard/pad input and hardware validation |
+| 2D-7–8 | The native shell handler drives the start, root, Campaign and Settings screens from injected keyboard and pad key events, Quit opens Common's native confirmation, pad button tags draw as PS3 prompt art and a package policy boots into the menu (debug gates) | The screens below Campaign and Settings, physical keyboard/pad input and hardware validation |
 
 `ps2_uiRetail dialog quit` draws the complete original dialog and `ps2_uiRetail draw
 shell` the shell's start screen, with placeholder prompts and labels because no native
-screen runs. `ps2_uiRetail menu` runs the native shell handler instead: its start screen
-and root menu, with PlayStation-style prompts, which `ps2_uiRetail key NAME` drives with
-keyboard keys and pad buttons; its Quit opens the original confirmation, whose `<JOY1>`
-prompt draws as the cross icon. `make retail-menu` stages a package that boots into that
+screen runs. `ps2_uiRetail menu` runs the native shell handler instead: its start screen,
+root menu, Campaign and Settings screens, with PlayStation-style prompts, which
+`ps2_uiRetail key NAME` drives with keyboard keys and pad buttons; its Quit opens the
+original confirmation, whose `<JOY1>` prompt draws as the cross icon. `make retail-menu` stages a package that boots into that
 menu. Other retail modes still show isolated native English
 labels and take no events. The dialog draws at about 40 ms per debug PCSX2 frame, the shell at 100–140 ms.
 No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-24, debug only) passed the new `menu-boot` case in NTSC and
-PAL on the prompt-icon matrix's ELF plus the boot hook; see its
-[record](#booting-into-the-native-menu-2026-10-24). The one before passed the console,
+The last acceptance (2026-10-24, debug only) passed the new `menu-screens` case in NTSC
+and PAL, then the console, font and retail movie gates on the recooked catalog; see its
+[record](#campaign-and-settings-screens-2026-10-24). The one before passed the new
+`menu-boot` case in NTSC and PAL on the prompt-icon matrix's ELF plus the boot hook; see
+its [record](#booting-into-the-native-menu-2026-10-24). The one before that passed the console,
 font, retail movie, authored UI, headless, game and map gates (62 cases) with the prompt
 icons drawn in the quit dialog in NTSC and PAL; see its
 [record](#pad-prompt-icons-in-retail-text-2026-10-24).
@@ -103,8 +107,9 @@ passes the debug gates and awaits the user's visual pass; the dialog's and the s
 screen's text draws from pre-rendered glyphs, whose sizes for later screens are still to
 be collected; the heap levers are measured and not applied. The native shell handler
 draws the start and root screens, takes injected key events, opens the native quit
-confirmation, draws its pad prompts as the PS3 art and opens at boot from a package
-policy; the other screens and physical keyboard/pad input follow. Required feature/resource admission precedes each
+confirmation, draws its pad prompts as the PS3 art, opens at boot from a package policy
+and reaches the Campaign and Settings screens; the screens below them and physical
+keyboard/pad input follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -4680,3 +4685,68 @@ the real-time runs rest a few KB above the fixed clock's, NTSC and PAL differing
 | Gate (debug) | Cases | Archives |
 | --- | ---: | --- |
 | `test-retail-menu` (`menu-boot`) | 2 | `20261024T000621Z_movies_fdcbaaaaaab3` (NTSC), `20261024T000440Z_movies_141739b2484c` (PAL); the first NTSC run, `20261024T000222Z_movies_93cacc60cd32`, passed every native check and failed only the final-capture verifier, corrected before these |
+
+## Campaign and Settings screens (2026-10-24)
+
+Accepted **2026-10-24, Australia/Sydney**, in the debug emulator gates (NTSC and PAL);
+release builds compile and were not run. The native shell handler now binds the Campaign
+(`idMenuScreen_Shell_Singleplayer`) and Settings screens beside start, root and credits
+([pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu)).
+
+- **Screens.** Campaign offers New Game and Load Game: the offline session has no save
+  game manager (`GetSaveGameManager` fails by name), so tagged PS2 branches report no
+  save to continue instead of enumerating, and `ContinueGame` fails by name. Settings
+  offers Controls, Game Options and System; the PS2 renderer reports no stereoscopic
+  mode, so that entry is absent, as on PC without it. Both screens' back returns to the
+  root, which keeps the focus the move left it with; the screens below them (New Game,
+  Load, Controls, Game Options, System Options) are still unbound and fail by name. The
+  two sources move from the deferred inventory to the campaign one, with checked casts.
+- **Glyph sizes.** A set may hold 32 sizes (was 16; `09c7f37`). The two screens add
+  Sarasori headings at 0.35 per texel with a 1.75 outline and options at 0.2 with a 2.0
+  outline, per standard: 18 sizes on two PSMT4 pages (512×512 and 128×128; 136 KiB of
+  VRAM, was 96 KiB) and a 74,499-byte UICT4 catalog with 2,266 glyph entries (was 66,115
+  and 1,854). Every bound screen now draws without an unrendered size.
+- **Border slivers.** The first Campaign frame failed `invalid native UI masked page
+  geometry`: a shell atlas fill addresses the packer's one-texel clamped border, and the
+  screen's masked list clipped that quad to a sliver whose UV centroid sat on the border
+  row, 1.08 texels above its placement, where no whole quad's centroid falls. The paletted
+  lookup now takes the nearest placement within one texel when none holds the centroid;
+  region clamp samples the image's edge row there anyway
+  ([GS notes](../.claude/rules/gs-renderer.md#doom-paletted-ui-textures-gstx)).
+
+**Checks.** `make test-retail-menu` now also runs `menu-screens`, one load on the fixed
+clock: accept signs in (b), enter opens Campaign (c), down moves its focus (d), escape
+returns (e), down moves the root's focus to Settings (f), enter opens it (g), down moves
+its focus (h) and escape returns (i). Each capture requires the handler's screen (3, 13),
+session, focus and event counts (accept and back handle their press only, a scroll both
+halves), the fixed clock, rising draw counters, the resident textures with the channel
+CLUTs and no eviction; the run requires both draw admissions, no `shell capability
+unavailable` line, no unrendered size, one release before the final capture and full
+shutdown recovery. `make test-host` passes 371 tests. A session takes about 80 s.
+The captures were inspected in both standards: CAMPAIGN with New Game focused and its
+help line, Load Game focused; SETTINGS with Controls focused, Game Options focused; the
+root again with Settings focused.
+
+| Debug ledger (NTSC = PAL; requested / backing / allocations) | Value |
+| --- | ---: |
+| Menu opened (frame 0) | 10,938,718 / 11,646,016 / 15,984 |
+| Start screen after 120 frames | 11,195,058 / 11,926,060 / 16,525 |
+| Root after accept | 11,211,978 / 11,945,612 / 16,585 |
+| Campaign | 11,233,850 / 11,970,928 / 16,660 |
+| Settings | 11,266,366 / 12,006,908 / 16,737 |
+| Menu release | 5,212,391 / 5,326,988 / 2,733 |
+| Run peak; arena | 11,304,182 / 12,050,964; 12,206,803 |
+| Full shutdown | 7,424 / 7,600 / 4 |
+
+The larger glyph set and catalog raise every retail screen by about 150 KB
+([budget](../.claude/rules/memory-budget.md#campaign-and-settings-screens-2026-10-24));
+the menu's textures read 19 images, 24 pages, 43 CLUTs, 1,540,096 pixel and 55,124
+metadata bytes. Production `PT_LOAD` is 11,279,661 debug / 11,740,461 release bytes
+(+14,720 / +21,632), 381 objects and no fixtures.
+
+| Gate (debug) | Cases | Archives |
+| --- | ---: | --- |
+| `test-retail-menu` (`menu-screens`) | 2 | `20261024T002930Z_movies_ce277dbedf17` (NTSC), `20261024T003050Z_movies_8da1948775f2` (PAL) |
+| `test-console` | 2 | `20261024T003244Z_console_d57e40c3df14`, `20261024T003255Z_console_6340d2ed40d5` |
+| `test-retail-ui` | 7 | `20261024T003313Z_retail_b432b376f58d` to `20261024T003406Z_retail_cf86a81f4754` |
+| `test-retail-movies` | 29 | `20261024T003414Z_movies_8dc3159b673a` to `20261024T005203Z_movies_0dcb809618bf` (menu-screens again `20261024T004828Z_movies_8eb71cb30bd8`, `20261024T004948Z_movies_7f712fd5883d`) |

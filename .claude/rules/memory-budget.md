@@ -746,3 +746,34 @@ frames after escape at 11,078,790 / 11,808,200 / 16,486. The menu releases to th
 the harness-opened one, the run peaks at 11,091,590 / 11,823,448 (arena 11,979,859) and full
 shutdown recovers 7,424 / 7,600 / 4. Production `PT_LOAD` is 11,264,941 debug / 11,718,829
 release bytes (+384 each), for the policy word and the boot hook.
+
+## Campaign and Settings screens (2026-10-24)
+
+The two screens' text sizes grow the Sarasori glyph set from 14 to 18 sizes on two PSMT4
+pages (512×512 and 128×128: 136 KiB of VRAM, was 96 KiB; 128,208 bytes on disc, 139,328
+decoded) and the UICT4 catalog from 66,115 to 74,499 bytes (2,266 glyph entries, 45,792
+bytes of tables). Every retail screen pays the catalog and the set's larger EE copy, about
+150 KB; the menu's textures read 19 images, 24 pages, 43 CLUTs, 1,540,096 pixel and 55,124
+metadata bytes (was 23 pages, 1,499,136 and 54,388). The screens themselves add widgets
+and list data only. Debug ledgers, NTSC and PAL identical, requested / backing / allocations:
+
+- Menu opened 10,938,718 / 11,646,016 / 15,984 (was 10,789,210 / 11,490,896 / 15,856);
+  start screen after 120 frames 11,195,058 / 11,926,060 / 16,525; root after accept
+  11,211,978 / 11,945,612 / 16,585; Campaign 11,233,850 / 11,970,928 / 16,660; Settings
+  11,266,366 / 12,006,908 / 16,737; peak 11,304,182 / 12,050,964, arena 12,206,803.
+- The menu releases to 5,212,391 / 5,326,988 / 2,733 (was 5,162,275 / 5,276,740 / 2,731):
+  the set and catalog, plus 36 bytes in one allocation the two screens retain after
+  their first show.
+- Visible console peak 2,440,512 / 2,539,056 (the catalog's 8,384 bytes); font screen warm
+  2,727,335 / 2,832,204 / 2,537 (+50,080: the catalog and the set's larger copy and tables).
+  Dialog at rest 4,380,385 / 4,525,300 / 3,447, every release 4,132,701 / 4,245,216 / 2,696,
+  peak 4,418,047 / 4,528,808. Drawn shell: start screen after 120 frames 10,648,968 /
+  11,353,944 / 15,914 (at its logo capture), every release 5,001,749 / 5,115,516 / 2,717,
+  peak 10,664,096 / 11,371,048. Harness-opened menu: opened 10,939,230 / 11,646,572 /
+  15,985 on the warm reloads, every release 5,212,355 / 5,326,912 / 2,732, peak 11,237,858 /
+  11,975,912; quit run peak 11,358,206 / 12,114,412, release at the quit 5,212,008 /
+  5,326,036 / 2,719; boot run peak 11,241,034 / 11,978,460.
+- Full shutdown still recovers 7,424 / 7,600 / 4.
+
+Production `PT_LOAD` is 11,279,661 debug / 11,740,461 release bytes (+14,720 / +21,632),
+for the two screens and the placement fallback.

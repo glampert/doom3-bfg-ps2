@@ -370,7 +370,11 @@ as noted.
   stub GS submission and never run either check.
 - A triangle picks its placement by the UV centroid, maps source to page texels and
   samples with region clamp (CLAMP mode 2) on the placement's page rectangle, so
-  bilinear taps never reach a neighbor packed with another palette. Native half-texel
+  bilinear taps never reach a neighbor packed with another palette. When no placement
+  holds the centroid, the nearest within one texel is taken: a fill may address the
+  packer's one-texel clamped border, and a mask can clip such a quad to a sliver whose
+  centroid sits on that border row (the Campaign screen's masked list did this on
+  2026-10-24); the region clamp samples the image's edge there anyway. Native half-texel
   glyph expansion stays inside the converter's one-texel glyph ring.
 - Native edit text draws a quad for **empty glyphs** too (`glyph.width + 1.0f`): a space
   or no-break space covers half a texel around its 0×0 glyph, and its triangle centroids
