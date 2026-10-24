@@ -31,7 +31,7 @@ using namespace assets;
 static constexpr std::size_t kMaxJobBytes = 16U * 1024U * 1024U;
 static constexpr std::size_t kMaxTextures = 256;
 static constexpr std::size_t kMaxGlyphs = 1024;
-static constexpr std::size_t kMaxGlyphSizes = 16;
+static constexpr std::size_t kMaxGlyphSizes = 32;
 
 struct TextureJob
 {
@@ -229,7 +229,7 @@ static bool ParseGlyphSet(const JsonValue & object, TextureJob & texture)
         glyphs->items.empty() || glyphs->items.size() > kMaxGlyphs || sizes == nullptr || sizes->type != JsonValue::Type::Array ||
         sizes->items.empty() || sizes->items.size() > kMaxGlyphSizes)
     {
-        return Fail("glyph set needs 1-1024 glyphs and 1-16 sizes: " + texture.name);
+        return Fail("glyph set needs 1-1024 glyphs and 1-32 sizes: " + texture.name);
     }
 
     for (const JsonValue & item : glyphs->items)

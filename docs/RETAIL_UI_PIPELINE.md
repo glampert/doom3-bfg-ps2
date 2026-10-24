@@ -128,7 +128,7 @@ to images. The current index is **55,009 bytes**: fifteen images (21,696 descrip
 bytes, 19 pages; each glyph set's descriptor is 128 bytes), five fonts, two glyph
 tables (29,152 bytes, 1,442 entries), nineteen aliases and twelve implicit material
 bindings. Catalog bounds are 128 KiB, 32 images, eight fonts, 128 aliases, 64
-materials, 64 KiB of descriptors and 256 total pages; a glyph table holds at most 16
+materials, 64 KiB of descriptors and 256 total pages; a glyph table holds at most 32
 sizes and 4,096 entries, over an image of at most 16 band placements. Native validation rejects
 overlapping/inconsistent ranges, traversal or token-injection paths, duplicate
 identities, invalid references and missing canonical self-aliases before publishing a

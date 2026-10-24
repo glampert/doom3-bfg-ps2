@@ -16,7 +16,7 @@ static constexpr std::uint32_t kMaxImages = 32;
 static constexpr std::uint32_t kMaxFonts = 8;
 static constexpr std::uint32_t kMaxAliases = 128;
 static constexpr std::uint32_t kMaxMaterials = 64;
-static constexpr std::uint32_t kMaxGlyphSizes = 16;
+static constexpr std::uint32_t kMaxGlyphSizes = 32;
 static constexpr std::uint32_t kMaxGlyphEntries = 4096;
 // A glyph set image has one placement per page, each a band mapping 1:1 onto its page.
 static constexpr std::uint32_t kMaxGlyphBands = 16;

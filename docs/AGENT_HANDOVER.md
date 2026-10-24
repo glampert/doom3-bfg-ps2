@@ -139,8 +139,8 @@ Open items, roughly in order:
   2026-10-23 (Sarasori at heights 10, 13 and, outlined, 10 and 18; Arial Narrow at 2.5
   and 3; per standard). Later screens log their missing sizes once
   (`UI glyph size ... prerendered=no`); add them to `conversion.glyph_sets` as they come
-  up. Sarasori has 14 of a set's 16 sizes: raise the bound (converter, cook and catalog)
-  before the next screens.
+  up. A set holds at most 32 sizes (raised from 16 on 2026-10-24, before the next
+  screens; Sarasori has 14) and its image at most 16 page bands.
 - **Frame cost.** A debug PCSX2 shell frame takes 100–140 ms with one timeline step per
   frame and about 330 ms on the real-time clock (up to ten steps per frame); it draws about
   1,070 triangles and a dozen masks. Every triangle writes its full state and CLUT load,

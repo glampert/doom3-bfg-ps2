@@ -285,7 +285,7 @@ class InventoryPipelineTests(unittest.TestCase):
                                     ({"policy": policy, "conversion_only": [],
                                       "glyph_sets": [{"font": "fonts/an.dat", "sizes": [glyph_size]}]}, "distinct newfonts"),
                                     ({"policy": policy, "conversion_only": [],
-                                      "glyph_sets": [{"font": "newfonts/an/48.dat", "sizes": []}]}, "1-16 sizes"),
+                                      "glyph_sets": [{"font": "newfonts/an/48.dat", "sizes": []}]}, "1-32 sizes"),
                                     ({"policy": policy, "conversion_only": [],
                                       "glyph_sets": [{"font": "newfonts/an/48.dat",
                                                       "sizes": [{**glyph_size, "scale": [0, 0.2]}]}]}, "scale pair"),

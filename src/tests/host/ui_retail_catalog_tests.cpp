@@ -510,7 +510,7 @@ static bool GlyphSets()
     const std::uint32_t plainEntry = entries + 2U * kGlyphEntryBytes;
     const Change changes[] = {
         // Set header: image, counts and the reserved word.
-        { table, 2 }, { table + 4U, 0 }, { table + 4U, 17 }, { table + 8U, 2 }, { table + 8U, 4 }, { table + 12U, 1 },
+        { table, 2 }, { table + 4U, 0 }, { table + 4U, 33 }, { table + 8U, 2 }, { table + 8U, 4 }, { table + 12U, 1 },
         // Sizes: zero and excessive scales and strokes, and entry runs that skip, overlap or overrun.
         { table + 16U, 0 }, { table + 20U, (16U << 16) + 1U }, { table + 24U, (16U << 16) + 1U }, { table + 28U, 1 },
         { table + 32U, 0 }, { table + 32U, 3 }, { table + 48U, 1 }, { table + 52U, 2 },

@@ -136,7 +136,7 @@ def validate_texture_policies(policies) -> dict:
 
 
 MAX_GLYPH_SETS = 8
-MAX_GLYPH_SIZES = 16
+MAX_GLYPH_SIZES = 32
 
 
 def validate_glyph_sets(glyph_sets) -> list:
@@ -153,7 +153,7 @@ def validate_glyph_sets(glyph_sets) -> list:
         fonts.add(font)
         sizes = entry["sizes"]
         if not isinstance(sizes, list) or not 1 <= len(sizes) <= MAX_GLYPH_SIZES:
-            raise ValueError("retail UI glyph set needs 1-16 sizes")
+            raise ValueError("retail UI glyph set needs 1-32 sizes")
         for size in sizes:
             scale, weight = size.get("scale") if isinstance(size, dict) else None, size.get("stroke_weight") if isinstance(size, dict) else None
             if (set(size) != {"scale", "stroke_weight"} or not isinstance(scale, list) or len(scale) != 2 or
