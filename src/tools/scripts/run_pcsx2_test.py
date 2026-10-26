@@ -117,7 +117,7 @@ REQUIRED_MAP_CHECKS = frozenset("map/" + name for name in (
     "native-startup", "world-areas", "world-model", "model-trace", "world-portal",
     "pvs-open", "pvs-closed", "pvs-reopened", "aas-route", "native-ai-ticks",
     "ai-floor", "ai-aas-binding", "native-map-shutdown", "collision-floor", "presentation-off"))
-SCENARIOS = ("game-map", "game", *GAME_FAILURES, "platform", "core", "core-missing-fixture", "renderer-ntsc", "renderer-pal") + tuple(
+SCENARIOS = ("game-map", "game", *GAME_FAILURES, "platform", "core", "renderer-ntsc", "renderer-pal") + tuple(
     "lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
 CRASH_RE = re.compile(r"TLB Miss|\[D3BFG\] FATAL|Assertion failed|Bus error", re.IGNORECASE)
 VERSION_RE = re.compile(
@@ -544,14 +544,13 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
             return False, "invalid or stale result identity"
         if result.get("manifest") != "PASS" or result.get("platform") != "PASS":
             return False, "manifest or platform failed"
-        expected_core = "SKIP" if scenario == "platform" else "FAIL" if scenario == "core-missing-fixture" else "PASS"
+        expected_core = "SKIP" if scenario == "platform" else "PASS"
         if result.get("core") != expected_core:
             return False, "unexpected core result"
-        expected_status = "FAIL" if scenario == "core-missing-fixture" else "PASS"
         expected_markers = (
             "[D3BFG] STAGE platform PASS",
             f"[D3BFG] STAGE core {expected_core}",
-            f"[D3BFG] RESULT {test_id} {expected_status}",
+            f"[D3BFG] RESULT {test_id} PASS",
         )
         if not all(marker in log for marker in expected_markers):
             return False, "missing stage or completion marker"
@@ -599,15 +598,13 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
         elif scenario != "platform":
             checks = CHECK_RE.findall(log)
             names = {name for name, _ in checks}
-            failures = {name for name, status in checks if status == "FAIL"}
             if not REQUIRED_CORE_CHECKS.issubset(names):
                 return False, "missing core checks"
-            expected_failures = {"core/filesystem-lexer-fixture"} if scenario == "core-missing-fixture" else set()
-            if failures != expected_failures:
+            if any(status == "FAIL" for _, status in checks):
                 return False, "unexpected core check failure"
         if returncode not in (None, 0):
             return False, f"emulator exited with status {returncode}"
-        return True, "expected failure observed" if expected_status == "FAIL" else "completed"
+        return True, "completed"
     if returncode is not None:
         return False, f"emulator exited before structured result (status {returncode})"
     return False, "missing structured result"
@@ -848,11 +845,10 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                      if args.scenario in ("renderer-ntsc", "renderer-pal") else {})
 
     fixture = output / "fixture.txt"
-    if args.scenario != "core-missing-fixture":
-        if args.fixture:
-            shutil.copy2(args.fixture, fixture)
-        else:
-            fixture.write_text("D3BFG core fixture\n", encoding="ascii")
+    if args.fixture:
+        shutil.copy2(args.fixture, fixture)
+    else:
+        fixture.write_text("D3BFG core fixture\n", encoding="ascii")
     smoke_config = output / "smoke.cfg"
     if args.scenario != "platform" and not game_scenario:
         smoke_config.write_text("set ps2_smoke_config 37\nps2_smoke_command 77\n", encoding="ascii")

@@ -280,8 +280,8 @@
   Build and run platform/core variants separately so archived flag stamps match.
 - `make smoke-platform` stages an isolated
   manifest, ELF/symbols, logs and result under `build/test-results/<UTC-run-id>/`.
-  Use `--scenario core` for the foundation bootstrap and `core-missing-fixture` for
-  its negative fixture test. Build the matching ELF before each scenario.
+  Use `--scenario core` for the foundation bootstrap. Build the matching ELF before
+  each scenario.
 - The runner refuses an already-running PCSX2, verifies HostFs and IOP/file logging
   read-only, uses `-logfile` to avoid the normal emulog path, and stops its own process
   after completion or timeout. A pass requires matching run identity, stage markers
@@ -301,7 +301,7 @@
   `20261008T070310Z_smoke_88ff01f3485548c6` checks timer progress/conversion,
   64-byte static/stack buffer alignment, scalar vector math and the EE FPU's finite
   divide-by-zero behavior. This does not establish EE cache coherency or GS timing.
-- Latest debug/release core and missing-fixture runs passed on 2026-10-10. Run identities,
+- Latest debug/release core runs passed on 2026-10-10. Run identities,
   memory measurements and the precise foundation boundary are recorded in
   [PORT_STATUS.md](../../docs/PORT_STATUS.md). `make test-host` also runs runner
   regressions, including synthetic watchdog failures whose printed FAIL is expected.
@@ -412,7 +412,7 @@
   with the expected fatal on the EE. Host sanitizer checks also verify full decoder/output
   cleanup before fatal. Codec memory uses the same heap through native JPG/ZIP tags.
 
-- `make link-game` passes the retained compile/link gate in debug/release: all 363 production inputs,
+- The production link (`make`, `make release`) is the retained compile/link gate: all 363 production inputs,
   every required game/class/cvar registration root and map input are retained without
   unresolved symbols, duplicates, Classic imports or GC. The campaign test entry separately requires
   an explicit authored fixture manifest. Do not reuse an older resident ELF after a failed attempt.

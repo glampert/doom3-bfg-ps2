@@ -190,14 +190,12 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   fonts, close every page image before its cache, and release images/cache before the device.
   The device owns tagged command halves/pixels and uses `draw`, `graph`, `packet2`, `dma`.
   Preserve release preflight/deadlines, VIF/GIF ownership and immediate final presentation.
-- `make compile-core` checks the explicit scalar idlib/framework source set.
-  `make headless-core` links staged foundation startup/tests as
+- `make headless-core` links staged foundation startup/tests as
   `build/<config>/tests/core/d3bfg_tests.elf`; production links no test code.
   `make test-common` checks partial shutdown and expected failures in fresh emulator
   processes (`make test-renderer` runs the GS failure probes); Common startup is one-shot after static CVar registration.
-  `make compile-game` is the separate M2b campaign compile gate. `make link-game`
-  validates the retained-object resident link, registrations and map coverage under
-  `build/<config>/`. `make headless-game` separately builds
+  The production `make` link validates the retained objects, registrations and map
+  coverage under `build/<config>/`. `make headless-game` separately builds
   `build/<config>/tests/game/d3bfg_tests.elf`;
   `make test-game` checks native startup, entity/script ticks, bounded native `idPlayer`
   startup/commands and reloads, plus missing-map, script-error, restricted geometry/material
@@ -265,8 +263,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   files in `PS2_CXX_SRC` or the relevant core group; cold sources also go in
   `SIZE_OPT_CXX_SRC`. Run `make compiledb` after changing source lists. Flag stamps
   invalidate affected object groups automatically.
-- `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly by
-  `compile-game`; `RESIDENT_SUPPORT_CXX_SRC` supplies strict shared providers;
+- `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly into
+  production; `RESIDENT_SUPPORT_CXX_SRC` supplies strict shared providers;
   `PS2_CXX_SRC` owns production entry, `CORE_TEST_DRIVER_CXX_SRC` and `GAME_TEST_CXX_SRC`
   own test entries/adapters. `PLATFORM_TEST_CXX_SRC` supplies the SDK-only core-stage
   skip provider. Make selects test stages through source lists; `PS2_D3BFG_TESTS` is

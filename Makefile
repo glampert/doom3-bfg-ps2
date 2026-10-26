@@ -44,14 +44,10 @@
 #   make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes
 #   make run-renderer            # native capture plus a 60-second inspection hold; F8 also saves a capture
 #   make platform-probe          # SDK/timer/alignment probe
-#   make compile-core            # compile the scalar idlib/framework source set
-#   make compile-game            # compile the retained campaign source set
-#   make link-game               # production campaign link, registrations and test-isolation gate
 #   make test-game               # native game/player/tick/reload and failure checks in PCSX2
 #   make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
 #   make test-host               # host format/logic/runner tests and ASan/UBSan harnesses
 #   make smoke                   # core smoke run in PCSX2 (BUILD=release without asserts)
-#   make smoke-negative          # expected missing-fixture failure
 #   make test-common             # partial-startup and expected-failure checks
 #   make smoke-platform          # run the isolated SDK platform probe
 #   make test-script             # isolated native script compiler checks
@@ -94,11 +90,11 @@ endif
 
 # Keep the SDK-only probe and Doom foundation explicit in both builds and reports.
 ifneq ($(filter platform-probe smoke-platform,$(MAKECMDGOALS)),)
-	ifneq ($(filter headless-core smoke smoke-negative,$(MAKECMDGOALS)),)
+	ifneq ($(filter headless-core smoke,$(MAKECMDGOALS)),)
 		$(error platform-probe and headless-core must run separately)
 	endif
 	CORE_BOOT := 0
-else ifneq ($(filter headless-core smoke smoke-negative,$(MAKECMDGOALS)),)
+else ifneq ($(filter headless-core smoke,$(MAKECMDGOALS)),)
 	CORE_BOOT := 1
 else
 	CORE_BOOT ?= 1
@@ -121,10 +117,8 @@ ifeq ($(SCRIPT_PROBE),1)
 	ifneq ($(CORE_BOOT),1)
 		$(error SCRIPT_PROBE requires CORE_BOOT=1)
 	endif
-endif
-ifneq ($(filter link-game,$(MAKECMDGOALS)),)
-	ifeq ($(SCRIPT_PROBE),1)
-		$(error link-game requires the ordinary campaign object tree, not SCRIPT_PROBE=1)
+	ifneq ($(filter all release,$(or $(MAKECMDGOALS),all)),)
+		$(error the production link requires the ordinary campaign object tree, not SCRIPT_PROBE=1)
 	endif
 endif
 OUTPUT_DIR = build/$(BUILD)$(if $(filter 1,$(SCRIPT_PROBE)),-script,)
@@ -143,7 +137,6 @@ TEST_ELF = $(CORE_TEST_DIR)/d3bfg_tests.elf
 GAME_ELF = $(OUTPUT_DIR)/d3bfg.elf
 GAME_TEST_DIR = $(OUTPUT_DIR)/tests/game
 GAME_TEST_ELF = $(GAME_TEST_DIR)/d3bfg_tests.elf
-CORE_ARCHIVE = $(OUTPUT_DIR)/libd3bfg_core.a
 SCRIPTS = src/tools/scripts
 
 ifeq ($(BUILD),release)
@@ -265,9 +258,8 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console ui run-ui test-ui ui-inventory ui-cook resource-unpack asset-reexport platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console ui run-ui test-ui ui-inventory ui-cook resource-unpack asset-reexport platform-probe headless-core headless-game test-map test-game test-renderer run-renderer inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-platform core-tests clean FORCE
 
-all: link-game
 release: all
 platform-probe: core-tests
 headless-core: core-tests
@@ -409,26 +401,11 @@ $(CORE_TEST_DIR)/.source-identity.json: FORCE $(LINK_OBJS) $(SCRIPTS)/build_meta
 $(CORE_TEST_DIR)/build-report.json: $(EE_BIN) $(TEST_ELF) $(REPORT_FLAGS) $(CORE_TEST_DIR)/.source-identity.json $(SCRIPTS)/build_metadata.py
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py report --elf $(EE_BIN) --runnable-elf $(TEST_ELF) --identity $(CORE_TEST_DIR)/.source-identity.json --output $(CORE_TEST_DIR)/build-report --compiler $(EE_CXX) --configuration $(BUILD) --milestone $(MILESTONE) --flags $(REPORT_FLAGS) --sources $(addprefix src/,$(LINK_SOURCES))
 
-# The shared logger is used by both the SDK-only probe and the core adapters.
-$(CORE_ARCHIVE): $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS) $(OUTPUT_DIR)/src/ps2/system/log.o
-	@rm -f $@.tmp
-	$(EE_AR) rcs $@.tmp $^
-	mv -f $@.tmp $@
-	@$(EE_TOOL_PREFIX)size -A $@ > $(OUTPUT_DIR)/core-sections.txt
-
-compile-core: inventory $(CORE_ARCHIVE)
-	@echo "Core compile gate: $(words $(CORE_OBJS)) EE units; archive only, no engine boot claim."
-
-# This is deliberately separate from compile-core: it uses the real campaign
-# header boundary and reports the remaining M2b portability blockers.
-compile-game: inventory $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
-	@echo "Campaign compile gate: $(words $(CAMPAIGN_OBJS)) retained EE units; replacements remain listed in the inventory."
-
 # Production retained-object link with no test sources or fixture hooks. Failed gates remove stale ELFs.
 $(OUTPUT_DIR)/.resident-sdk-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib $(addprefix -l,$(RESIDENT_SDK_LIBS))
 
-link-game: inventory $(RESIDENT_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
+all: inventory $(RESIDENT_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
 	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR) --kind game --name d3bfg --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
 
 # The same retained campaign is compiled with fixture hooks into a separate native executable.
@@ -537,9 +514,6 @@ run-retail-menu: retail-menu
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core
-
-smoke-negative: headless-core
-	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core-missing-fixture
 
 smoke-platform: platform-probe
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario platform

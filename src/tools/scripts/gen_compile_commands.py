@@ -3,7 +3,7 @@
 """Generate a compile database from a successful EE Makefile dry run.
 
     make compiledb
-    make -Bnk all compile-core compile-game | python3 src/tools/scripts/gen_compile_commands.py --stdin
+    make -Bnk all headless-core headless-game | python3 src/tools/scripts/gen_compile_commands.py --stdin
 
 The subprocess mode checks Make's exit status and preserves an existing database
 on failure. Entries use argument arrays so paths and quoting remain exact.
@@ -58,7 +58,7 @@ def main() -> int:
             transcript = sys.stdin.read()
         else:
             transcripts = []
-            for goals in (["all", "headless-core", "headless-game", "compile-core"], ["SCRIPT_PROBE=1", "core-tests"], ["platform-probe"]):
+            for goals in (["all", "headless-core", "headless-game"], ["SCRIPT_PROBE=1", "core-tests"], ["platform-probe"]):
                 result = subprocess.run([args.make, "--no-print-directory", "-Bnk", f"BUILD={args.build}", *goals],
                                         text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
                 if result.returncode:

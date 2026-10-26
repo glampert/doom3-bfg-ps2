@@ -4831,3 +4831,10 @@ inspected. The UI gate went from 52 launches (about 21 min) to 34 (19 min), and
 381 tests. Production is unchanged; the core test image's `PT_LOAD` is 2,175,856 bytes
 debug (−1,984).
 
+
+**Retired build and smoke targets.** `compile-core`, `compile-game` and `smoke-negative`
+are gone, and `link-game` is now just `all`: the production link compiles every campaign,
+backend and codec unit and checks registrations and map inputs, and `headless-core` and
+`headless-game` compile the core and test sets. `smoke-negative` only showed that the core
+smoke fails its lexer check without its fixture file; the runner's `core-missing-fixture`
+scenario went with it. The compile database keeps its 410 entries.

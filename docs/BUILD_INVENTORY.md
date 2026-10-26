@@ -97,7 +97,7 @@ Visible frames call real native `console->Draw(false)` after the native `NOMAP` 
 `UpdateScreen` coalesces in-frame requests without advancing clocks. Native `RunFrame`
 returns at `NOMAP` until map integration exists.
 
-`make compile-core` compiles the scalar idlib subset and the initial command/CVar/file
+The core source set holds the scalar idlib subset and the initial command/CVar/file
 foundation. Its upstream list contains 52 idlib units: all 55 from `idlib.vcxproj` except
 `Simd_SSE.cpp`, `win_thread.cpp`, and the precompiled-header placeholder. The root build
 also declares ten framework/session support units and their heap/platform support separately.
@@ -107,19 +107,17 @@ profiles and lookup helpers. Common embeds snapshot values, so `Snapshot.cpp`,
 `LightweightCompression.cpp` and `Snapshot_Jobs.cpp` retain their constructors and whole-
 object link dependencies. This does not enable networking. These six support units moved
 from PS2 replacement to campaign runtime; no previously selected runtime unit was removed.
-`build/<config>/libd3bfg_core.a` is a compilation artifact, not a boot proof.
-It also includes the shared logger, which both the core adapters and SDK-only probe use.
+The shared logger links into both the core adapters and the SDK-only probe.
 The game class allocator is linked into the core for focused adapter tests; the
 campaign's `idClass` hierarchy and `idGameLocal` are not yet part of that executable.
 
 `make headless-core` explicitly selects the same core bootstrap/test sources and links
-all core objects directly, without garbage collection. Debug/release core and expected
-missing-fixture runs have passed in PCSX2; see [PORT_STATUS.md](PORT_STATUS.md).
+all core objects directly, without garbage collection. Debug/release core runs have
+passed in PCSX2; see [PORT_STATUS.md](PORT_STATUS.md).
 
-`make compile-game` independently compiles all 282 intended runtime units with the
-campaign header boundary. Both configurations pass. It does not select the reduced
-core precompiled header or establish a resident game link; replacement services and
-registrations still need that separate gate.
+All 282 intended runtime units compile with the campaign header boundary, not the
+reduced core precompiled header, in both configurations. The production link below
+is their gate, with the replacement services and registrations.
 
 Each successful core/platform/script test link writes:
 
@@ -188,7 +186,7 @@ The campaign manifest retains 281 units; all compile in both configurations.
 
 ## Campaign diagnostics and JPEG adapter
 
-`GAME_BACKEND_CXX_SRC` lists required campaign backend objects. `compile-game`
+`GAME_BACKEND_CXX_SRC` lists required campaign backend objects. The production build
 compiles them with strict backend warnings and their own flag stamp, alongside the
 281-unit campaign manifest. The adapters supply bounded SWF JPEG decoding, lifecycle
 tracking, offline session services and the portable audio boundary. Lifecycle, offline
@@ -284,12 +282,12 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 
 ## Resident campaign link gate
 
-`make link-game` / `make BUILD=release link-game` attempt the actual EE link with
+`make` / `make release` perform the actual EE link with
 all 281 campaign objects, eighteen campaign backend objects, seven shared support
 objects, two production entry/lifecycle units, dlmalloc and 34 codec objects: 343 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
-substitutes. `SCRIPT_PROBE=1 link-game` is rejected explicitly.
+substitutes. `SCRIPT_PROBE=1` with the production link is rejected explicitly.
 
 `link_resident.py` records the compiler/link command, flags, source/dependency/object
 hashes, actual linker status, unique demangled symbols and requesting objects in
@@ -439,8 +437,8 @@ Codec integration recorded 358 compile-database entries, 23 foundation backend u
 and 13 smoke units. The first M3 PCM slice recorded 359 entries and 24 foundation backend
 units. The voice slice added shared timeline and smoke units: 361 entries,
 25 foundation backend units and 14 core smoke units. The initial game fixture adds
-two resident-only units, bringing the compile database to 363 entries. `compile-game`
-also builds the 34 audited codec units. The core test ELF runs core/codec/audio fixtures;
+two resident-only units, bringing the compile database to 363 entries. The production build
+also compiles the 34 audited codec units. The core test ELF runs core/codec/audio fixtures;
 the separate resident ELF runs the authored game fixture.
 
 ## Initial headless game fixture

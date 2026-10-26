@@ -189,8 +189,6 @@ Base the root Makefile on the working Quake configuration. Provide separate sour
 
 - `make` and `make release`: production `build/<config>/d3bfg.elf` and `d3bfg_unstripped.elf`, with no test fixtures linked.
 - Native test variants use `d3bfg_tests.elf` under `build/<config>/tests/{platform,core,game}/`; the isolated compiler probe uses `build/<config>-script/tests/script/`.
-- `make compile-core`: compile the portable idlib/framework subset.
-- `make compile-game`: compile the intended campaign engine/game source set, even while only a smaller boot executable is runnable. Report exactly which subsystems remain replaced or excluded.
 - `make test-host`, `make smoke`, `make smoke-render`, `make tools`, `make compiledb`: tests and tooling with explicit outputs and exit status.
 - Always emit a link map, section totals, largest symbols, compiler version and source/config identity. Stripping debug symbols reduces file size, not loaded code/data/BSS memory.
 - Use C++20 with `-fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing` for target C++.
@@ -424,7 +422,7 @@ Work in small commits; each implementation commit states its behavior change and
 | **M0: structure and build inventory** | Mechanical `neo` move; root Makefile/tool discovery; style/config docs; source inclusion/replacement/deletion inventory; reuse provenance | Reproducible source lists; correct tool/version report; no classic source in any new target; no implementation hidden in the move commit |
 | **M1: core EE portability and compilation** | Header/platform split; scalar idlib; heap/error/RTTI changes required by core; platform services; explicit campaign compile manifest | Core EE objects compile with required language restrictions; new code passes strict warnings; linkable platform probe plus explicit remaining game blockers; this is partial engine compilation |
 | **M2: platform and core headless boot** | Runtime entry/IOP/logging; timer/heap tests; synchronous jobs; staged Common init; test runner and fixture root | PCSX2 emits distinct platform/core PASS results; real Doom command/CVar/filesystem services exercised; bounded run and useful negative-test failures; recorded image/startup memory |
-| **M2b: campaign source compile and resident link** | Complete no-exception/no-RTTI conversion for the intended runtime manifest, including game/script and required UI interfaces; supply declared subsystem replacements | `make compile-game` passes for every intended runtime unit; link the game-fixture ELF with no unresolved symbols or desktop/classic dependencies; verify class/CVar registrations and retained code in its map; explicitly list replacements and deferred source-import/editor features |
+| **M2b: campaign source compile and resident link** | Complete no-exception/no-RTTI conversion for the intended runtime manifest, including game/script and required UI interfaces; supply declared subsystem replacements | Every intended runtime unit compiles; link the game-fixture ELF with no unresolved symbols or desktop/classic dependencies; verify class/CVar registrations and retained code in its map; explicitly list replacements and deferred source-import/editor features |
 | **M3: headless game fixture** | Native decl/script/event/game startup first; authored map, then collision/AAS and gameplay; render/sound integration deferred | Boot/entity/script events, fixed world collision, native monster/player movement/jump/crouch physics, restricted native `idPlayer` startup/ticks with injected commands and stable reloads pass; native authored map/world/PVS/AAS/idle-AI startup now passes; full M3 still requires campaign player, animated AI/gameplay and broader map startup |
 | **M4: GS primitives and capture** | Reused GS/VRAM/packet layer; CPU triangle path; image readback and host comparison | Captured color grid, textured/depth-tested geometry, clipping/alpha/CLUT fixtures pass; readback failure restores state; captures are visually inspected |
 | **M5: inventory/converter and one campaign map** | Asset inventory, first versioned formats, bounded resource loader; first real map headless, then static textured world | Conversion report and hashes reproducible; map scripts/collision/portals load within budget; captured fixed-camera views have correct geometry/material placement |
@@ -492,7 +490,7 @@ start/seek/pause/loop/completion timing with fractional pitch, pre-gain peak que
 a bounded 48-slot pool that pins sample lifetimes. It requires an explicit monotonic
 headless clock; native sound-world/channel integration, compressed retail samples and
 physical audio remain pending.
-`make link-game` now passes the M2b retained-object gate in both configurations: all
+The production link (`make`) now passes the M2b retained-object gate in both configurations: all
 345 inputs, 11 game/class/cvar registration roots and map inputs are present, without
 unresolved symbols, duplicates, Classic/desktop imports or garbage collection. Bundled
 JPEG/zlib dependencies are under `src/external/`, explicitly selected with separate

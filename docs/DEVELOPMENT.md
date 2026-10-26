@@ -327,7 +327,6 @@ process it started. It does not edit emulator settings.
 ```sh
 python3 src/tools/scripts/run_pcsx2_test.py --scenario platform
 python3 src/tools/scripts/run_pcsx2_test.py --scenario core
-python3 src/tools/scripts/run_pcsx2_test.py --scenario core-missing-fixture
 make test-common
 make BUILD=release test-common
 make test-game

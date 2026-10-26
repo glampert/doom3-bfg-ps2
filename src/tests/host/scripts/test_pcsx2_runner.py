@@ -27,14 +27,12 @@ runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
 
 
-def complete_log(test_id: str = "run1", core: str = "SKIP", status: str = "PASS") -> str:
+def complete_log(test_id: str = "run1", core: str = "SKIP") -> str:
     checks = ""
     if core != "SKIP":
-        checks = "".join(f"[D3BFG] CHECK {name} " +
-                         ("FAIL" if core == "FAIL" and name == "core/filesystem-lexer-fixture" else "PASS") + "\n"
-                         for name in sorted(runner.REQUIRED_CORE_CHECKS))
+        checks = "".join(f"[D3BFG] CHECK {name} PASS\n" for name in sorted(runner.REQUIRED_CORE_CHECKS))
     return (checks + f"[D3BFG] STAGE platform PASS\n[D3BFG] STAGE core {core}\n"
-            f"[D3BFG] RESULT {test_id} {status}\n")
+            f"[D3BFG] RESULT {test_id} PASS\n")
 
 
 def complete_result(test_id: str = "run1", core: str = "SKIP") -> dict:
@@ -62,26 +60,10 @@ class ClassifierTests(unittest.TestCase):
                 self.assertEqual(runner.classify_run("run1", "core", complete_result(core="PASS"),
                                                     log, None, False), (False, "missing core checks"))
 
-    def test_expected_missing_fixture_failure(self):
-        self.assertEqual(runner.classify_run("run1", "core-missing-fixture", complete_result(core="FAIL"),
-                                            complete_log(core="FAIL", status="FAIL"), None, False),
-                         (True, "expected failure observed"))
-
-    def test_wrong_negative_stage_cannot_pass(self):
-        result = complete_result(core="FAIL")
-        result["platform"] = "FAIL"
-        self.assertFalse(runner.classify_run("run1", "core-missing-fixture", result,
-                                            complete_log(core="FAIL", status="FAIL"), None, False)[0])
-
-    def test_unrelated_negative_failure_rejected(self):
-        log = complete_log(core="FAIL", status="FAIL").replace("CHECK core/shutdown PASS", "CHECK core/shutdown FAIL")
-        self.assertEqual(runner.classify_run("run1", "core-missing-fixture", complete_result(core="FAIL"),
-                                            log, None, False), (False, "unexpected core check failure"))
-
-    def test_missing_negative_checks_rejected(self):
-        log = complete_log(core="FAIL", status="FAIL").replace("[D3BFG] CHECK core/shutdown PASS\n", "")
-        self.assertEqual(runner.classify_run("run1", "core-missing-fixture", complete_result(core="FAIL"),
-                                            log, None, False), (False, "missing core checks"))
+    def test_failed_core_check_rejected(self):
+        log = complete_log(core="PASS").replace("CHECK core/shutdown PASS", "CHECK core/shutdown FAIL")
+        self.assertEqual(runner.classify_run("run1", "core", complete_result(core="PASS"), log, None, False),
+                         (False, "unexpected core check failure"))
 
     def test_clean_process_exit_without_result(self):
         self.assertFalse(runner.classify_run("run1", "platform", None, complete_log(), 0, False)[0])
@@ -279,18 +261,17 @@ class ProcessTests(unittest.TestCase):
             else:
                 core = 'SKIP'
                 status = 'PASS'
-                if {mode!r} == 'negative':
-                    core, status = 'FAIL', 'FAIL'
+                if {mode!r} == 'core':
+                    core = 'PASS'
                 result = {{'schema': 1, 'test_id': test_id, 'manifest': 'PASS', 'platform': 'PASS', 'core': core}}
                 Path('result.json').write_text(json.dumps(result))
                 if {mode!r} == 'missing-marker':
                     log.write_text('fixture without target markers\\n')
                 else:
                     checks = ''
-                    if {mode!r} == 'negative':
+                    if {mode!r} == 'core':
                         for name in {sorted(runner.REQUIRED_CORE_CHECKS)!r}:
-                            check_status = 'FAIL' if name == 'core/filesystem-lexer-fixture' else 'PASS'
-                            checks += f'[D3BFG] CHECK {{name}} {{check_status}}\\n'
+                            checks += f'[D3BFG] CHECK {{name}} PASS\\n'
                     log.write_text(checks + f'[D3BFG] STAGE platform PASS\\n[D3BFG] STAGE core {{core}}\\n'
                                    f'[D3BFG] RESULT {{test_id}} {{status}}\\n')
             while True:
@@ -335,13 +316,13 @@ class ProcessTests(unittest.TestCase):
         self.assertFalse(passed)
         self.assertEqual(json.loads((output / "summary.json").read_text())["reason"], "watchdog timeout")
 
-    def test_expected_failure_stages_no_fixture(self):
-        passed, output = self.run_fixture("negative", "core-missing-fixture")
+    def test_core_run_stages_fixtures(self):
+        passed, output = self.run_fixture("core", "core")
         self.assertTrue(passed)
-        self.assertFalse((output / "fixture.txt").exists())
+        self.assertEqual((output / "fixture.txt").read_text(), "D3BFG core fixture\n")
         self.assertEqual((output / "smoke.cfg").read_text(), "set ps2_smoke_config 37\nps2_smoke_command 77\n")
         self.assertEqual(json.loads((output / "run.json").read_text())["smoke_config_sha256"], runner.sha256(output / "smoke.cfg"))
-        self.assertEqual(json.loads((output / "summary.json").read_text())["reason"], "expected failure observed")
+        self.assertEqual(json.loads((output / "summary.json").read_text())["reason"], "completed")
         metadata = json.loads((output / "run.json").read_text())
         self.assertEqual((output / "fs-fixtures/large.bin").read_bytes(), b"Z" * 71680)
         self.assertTrue((output / "fs-fixtures/child").is_dir())
