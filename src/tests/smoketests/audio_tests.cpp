@@ -390,11 +390,6 @@ bool RunAudioFailureProbe(const char * name)
         audio::SoundSample sample;
         (void)sample.LengthInMsec();
     }
-    else if (idStr::Cmp(name, "audio-device") == 0)
-    {
-        audio::SoundHardware hardware;
-        hardware.Init();
-    }
     else if (idStr::Cmpn(name, "audio-wave-", 11) == 0)
     {
         const char * file = nullptr;

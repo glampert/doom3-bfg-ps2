@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: run_retail_ui.py
-# Brief: Verify opt-in native English font admission, layout, resident paletted textures and cleanup in production.
+# Brief: Drive and check the English font step of the merged UI session; run its invalid-resource cases.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -21,7 +21,7 @@ import run_console
 import ui_gstx
 import run_headless
 import run_pcsx2_test as smoke
-from run_ui import BASELINE, TARGET_CRASH_RE, echoed
+from run_ui import TARGET_CRASH_RE, echoed
 from console_capture import charset_image
 from stage_headless import REPO_ROOT, boot_data, sha256
 from stage_retail_ui import inspect_package, stage_retail
@@ -84,38 +84,45 @@ def font_textures(manifest: dict, source: Path) -> dict:
     return resident_textures(manifest, source, resident_images(manifest))
 
 
-def classify(log: str, identity: str, standard: str, manifest: dict, expected_textures: dict) -> tuple[bool, str]:
+def font_phases(manifest: dict) -> list[tuple[str, str, int]]:
+    """Each font capture: its name, the command selecting it and the font it shows."""
+    phases = [(f"retail-f{index}.tga", f"ps2_uiRetail font {index}", index) for index in range(len(_font_names(manifest)))]
+    return phases + [("retail-return.tga", "ps2_uiRetail font 0", 0), ("retail-reload.tga", "ps2_uiRetail reload", 0)]
+
+
+def driver(manifest: dict, begin: str, end: str):
+    """Yield each command batch with the condition, over this step's log, that ends its wait."""
+    for step, (name, select, _) in enumerate(font_phases(manifest)):
+        first = [f'echo "{begin}"', "ps2_uiRetail load"] if step == 0 else []
+        yield ([*first, select, "wait 120", "ps2_uiRetail status", f'ps2_capture "{name}"'],
+               lambda log, name=name: f"CONSOLE capture={name} " in log)
+    # HostFs queues the whole batch into history before execution; clear it before the release.
+    yield ["clearHistory", "ps2_uiRetail unload", f'echo "{end}"'], lambda log: echoed(log, end)
+
+
+def classify(log: str, manifest: dict, source: Path, warm: set = frozenset()) -> tuple[bool, str]:
+    """Check the font step's log. Images other screens opened earlier in the session stay warm: the
+    counters hold those plus the charset and every font's texture and glyph set."""
     if smoke.CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "crash or fatal diagnostic"
-    required = ("game initialized.", "LOOP ready;", f"[D3BFG] GS ready {standard.upper()}",
-                "[D3BFG] UI adapters ready", "------------ Game Shutdown", "COMMON stage=system shutdown",
-                "BOOT production shutdown complete")
-    if any(marker not in log for marker in required) or not all(echoed(log, f"{identity}_{suffix}") for suffix in ("begin", "ready", "done")):
-        return False, "incomplete native retail boot/shutdown or stale command barriers"
     if "[D3BFG] SWF state=loaded" in log:
-        return False, "authored movie was loaded during the separate retail resource proof"
+        return False, "authored movie was loaded during the retail font screen"
     fonts = _font_names(manifest)
-    phases = [(f"retail-f{index}.tga", index, 1) for index in range(len(fonts))]
-    phases += [("retail-return.tga", 0, 1), ("retail-reload.tga", 0, 2)]
+    phases = [(name, index, 0 if name != "retail-reload.tga" else 1) for name, _, index in font_phases(manifest)]
     captures = list(CAPTURE_RE.finditer(log))
-    if [match[1] for match in captures] != [name for name, _, _ in phases] + ["retail-quit.tga"]:
+    if [match[1] for match in captures] != [name for name, _, _ in phases]:
         return False, "missing, duplicate or reordered retail captures"
-    shutdown = run_console.SHUTDOWN_RE.findall(log)
-    if len(shutdown) != 1:
-        return False, "missing or duplicate retail presentation shutdown"
-    frames, presents, redraws = map(int, shutdown[0])
-    if frames < 120 * len(phases) or frames != presents:
-        return False, "retail native frame and presentation counts differ"
+    states = STATE_RE.findall(log)
+    if not states:
+        return False, "retail capture lacks preceding native state"
+    # The cycle counts every retail screen load of the session; this step loads once, then reloads.
+    first_cycle = int(states[0][0])
     previous_frame = 0
     previous_textures = None
-    resident = texture_counters(expected_textures)
-    glyph_sets = manifest["cooked"].get("glyph_sets", {})
-    expected_images = len(fonts) + sum(font in glyph_sets for font in manifest["fonts"]) + (charset_image(manifest) is not None)
-    if resident[0] != expected_images:
-        return False, "retail font textures do not match the cooked font set"
-    for match, (name, font_index, cycle) in zip(captures, phases):
-        frame, present, redraw = map(int, match.groups()[1:])
-        if not previous_frame < frame <= frames or frame != present or redraw > redraws:
+    resident = texture_counters(resident_textures(manifest, source, set(warm) | resident_images(manifest)))
+    for match, (name, font_index, reload) in zip(captures, phases):
+        frame, present, _ = map(int, match.groups()[1:])
+        if not previous_frame < frame or frame != present:
             return False, "retail capture did not follow a distinct completed presentation"
         previous_frame = frame
         before = log[:match.start()]
@@ -123,7 +130,7 @@ def classify(log: str, identity: str, standard: str, manifest: dict, expected_te
         if not states or not textures:
             return False, "retail capture lacks preceding native state"
         state = states[-1]
-        if (int(state[0]), int(state[1]), state[2]) != (cycle, font_index, fonts[font_index]) or int(state[3]) < 120:
+        if (int(state[0]), int(state[1]), state[2]) != (first_cycle + reload, font_index, fonts[font_index]) or int(state[3]) < 120:
             return False, "retail font did not complete its bounded native frame interval"
         texture_state = tuple(map(int, textures[-1]))
         if texture_state[:5] != resident:
@@ -147,17 +154,21 @@ def classify(log: str, identity: str, standard: str, manifest: dict, expected_te
                     float(row[2]) != expected[index]["scaled_max_advance"] * scale or
                     float(row[3]) != expected[index]["scaled_max_height"] * scale):
                 return False, "native retail font layout differs from full source legacy metrics"
-    if int(captures[-1][2]) != frames or int(captures[-1][3]) != presents:
-        return False, "retail quit capture was not drained by the final presentation"
-    unloaded = UNLOADED_RE.findall(log)
-    if [int(row[0]) for row in unloaded] != [1, 2]:
+    # The reload unloads between the last two captures; the step's release follows the last.
+    unloaded = list(UNLOADED_RE.finditer(log))
+    if ([int(row[1]) for row in unloaded] != [first_cycle, first_cycle + 1] or
+            not captures[-2].end() < unloaded[0].start() < captures[-1].start() or unloaded[1].start() < captures[-1].end()):
         return False, "retail reload/unload sequence did not complete"
-    memory = run_headless.MEMORY_RE.findall(log)
-    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
-        return False, "retail production shutdown did not recover the startup allocation ledger"
-    if "]quit" not in log:
-        return False, "native quit command did not execute"
     return True, "native English fonts preserved source layout from resident paletted textures across reloads"
+
+
+def verify_captures(output: Path, manifest: dict, source: Path, standard: str) -> dict:
+    captures = {}
+    for name, _, index in font_phases(manifest):
+        captures[name] = retail_ui_capture.verify(output / name, manifest, source, index, standard)
+    if len({captures[name]["sha256"] for name in ("retail-f0.tga", "retail-return.tga", "retail-reload.tga")}) != 1:
+        raise ValueError("retail font capture changed after eviction or warm reload")
+    return captures
 
 
 def mutate(output: Path, manifest: dict, case: str) -> dict:
@@ -214,25 +225,24 @@ def classify_negative(log: str, identity: str, case: str) -> tuple[bool, str]:
     return True, "invalid retail resources were rejected before the first completed presentation"
 
 
-def run(args: argparse.Namespace, standard: str, version: str, case: str = "native") -> bool:
+def run(args: argparse.Namespace, version: str, case: str) -> bool:
+    """One invalid-resource case in a fresh process: each ends in its expected fatal."""
     if smoke.emulator_is_running(args.emulator):
         raise ValueError("an emulator is already running; retail UI checks require an isolated session")
     smoke.check_config(args.config)
     manifest, _, _ = inspect_package(args.source)
     identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_retail_" + uuid.uuid4().hex[:12]
-    output = stage_retail(args.build, REPO_ROOT / "build/test-results" / identity, standard, args.source)
+    output = stage_retail(args.build, REPO_ROOT / "build/test-results" / identity, "ntsc", args.source)
     report = json.loads((output / "report.json").read_text())
     for name in report["flag_stamps"]:
         shutil.copy2(REPO_ROOT / name, output / Path(name).name)
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
     (output / "base/d3bfg.cfg").write_text(f'echo "{identity}_begin"\nps2_maxFrames 0\necho "{identity}_ready"\n')
-    mutation = mutate(output, manifest, case) if case != "native" else None
+    mutation = mutate(output, manifest, case)
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
     (output / "console.txt").write_bytes(b"")
     command = [str(args.emulator), "-batch", "-elf", str(output / "d3bfg.elf"), "-logfile", str(output / "emulog.txt")]
-    phases = [(f"retail-f{index}.tga", f"ps2_uiRetail font {index}", index) for index in range(len(_font_names(manifest)))]
-    phases += [("retail-return.tga", "ps2_uiRetail font 0", 0), ("retail-reload.tga", "ps2_uiRetail reload", 0)]
-    phase, step, completed, failure = "startup", 0, False, "watchdog timeout"
+    loading, completed, failure = False, False, "watchdog timeout"
     started = time.monotonic()
     with (output / "stdout.txt").open("wb") as stdout:
         process = subprocess.Popen(command, cwd=output, stdout=stdout, stderr=subprocess.STDOUT)
@@ -240,64 +250,33 @@ def run(args: argparse.Namespace, standard: str, version: str, case: str = "nati
             while time.monotonic() - started < args.timeout:
                 log = run_headless.read_log(output)
                 if TARGET_CRASH_RE.search(log):
-                    failure = "EE crash during the native retail resource proof"
+                    failure = "EE crash while rejecting invalid retail resources"
                     break
                 if "[D3BFG] FATAL" in log:
-                    completed = case != "native"
-                    failure = "unexpected fatal diagnostic"
-                    break
-                if phase == "startup" and echoed(log, f"{identity}_ready"):
-                    run_console.append_commands(output, "ps2_uiRetail load")
-                    if case == "native":
-                        name, select, _ = phases[step]
-                        run_console.append_commands(output, select, "wait 120", "ps2_uiRetail status", f'ps2_capture "{name}"')
-                    phase = "captures"
-                elif case == "native" and phase == "captures" and f"CONSOLE capture={phases[step][0]} " in log:
-                    step += 1
-                    if step < len(phases):
-                        name, select, _ = phases[step]
-                        run_console.append_commands(output, select, "wait 120", "ps2_uiRetail status", f'ps2_capture "{name}"')
-                    else:
-                        run_console.append_commands(output, "clearHistory", "ps2_uiRetail unload", f'echo "{identity}_done"',
-                                                     'ps2_capture "retail-quit.tga"', "quit")
-                        phase = "quit"
-                if "BOOT production shutdown complete" in log:
                     completed = True
                     break
+                if not loading and echoed(log, f"{identity}_ready"):
+                    run_console.append_commands(output, "ps2_uiRetail load")
+                    loading = True
+                if "BOOT production shutdown complete" in log:
+                    failure = "invalid retail resources reached a normal shutdown"
+                    break
                 if process.poll() is not None:
-                    failure = "emulator exited before native retail completion"
+                    failure = "emulator exited before the expected failure"
                     break
                 time.sleep(0.05)
         finally:
             smoke.stop_owned_process(process)
     log = run_headless.read_log(output)
-    if not completed:
-        passed, reason = False, failure
-    elif case == "native":
-        passed, reason = classify(log, identity, standard, manifest, font_textures(manifest, args.source))
-    else:
-        passed, reason = classify_negative(log, identity, case)
-    captures = {}
-    if passed and case == "native":
-        try:
-            for name, _, index in phases:
-                captures[name] = retail_ui_capture.verify(output / name, manifest, args.source, index, standard)
-            if len({captures[name]["sha256"] for name in ("retail-f0.tga", "retail-return.tga", "retail-reload.tga")}) != 1:
-                raise ValueError("retail font capture changed after eviction or warm reload")
-            width, height, _ = retail_ui_capture.read_tga(output / "retail-quit.tga")
-            if (width, height) != (512, 448 if standard == "ntsc" else 512):
-                raise ValueError("retail quit capture has incorrect dimensions")
-        except (OSError, ValueError) as error:
-            passed, reason = False, str(error)
+    passed, reason = classify_negative(log, identity, case) if completed else (False, failure)
     if process.returncode != 0:
         passed, reason = False, f"emulator exited with status {process.returncode}"
-    summary = {"passed": passed, "reason": reason, "configuration": args.build, "standard": standard, "case": case,
+    summary = {"passed": passed, "reason": reason, "configuration": args.build, "standard": "ntsc", "case": case,
                "command": command, "emulator_version": version, "elapsed_seconds": time.monotonic() - started,
                "emulator_returncode": process.returncode, "boot_data": boot_data(output), "mutation": mutation,
-               "source_manifest_sha256": sha256(args.source / "manifest.json"), "capture_checks": captures,
-               "pixel_inspection_required": case == "native", "retail_swf_and_shell_active": False}
+               "source_manifest_sha256": sha256(args.source / "manifest.json")}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-    print(f"{'PASS' if passed else 'FAIL'} retail-ui-{standard}-{case}: {reason}\nArtifacts: {output}", flush=True)
+    print(f"{'PASS' if passed else 'FAIL'} retail-ui-{case}: {reason}\nArtifacts: {output}", flush=True)
     if not passed:
         print(log[-6000:], flush=True)
     return passed
@@ -307,12 +286,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", choices=("debug", "release"), default="debug")
     parser.add_argument("--source", type=Path, default=REPO_ROOT / "build/ui-retail")
-    parser.add_argument("--standard", choices=("ntsc", "pal"))
-    parser.add_argument("--case", choices=("native",) + NEGATIVES,
-                        help="default: both native standards and five invalid-resource checks")
+    parser.add_argument("--case", choices=NEGATIVES, help="default: all five invalid-resource cases")
     parser.add_argument("--emulator", type=Path, default=smoke.DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)
-    parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument("--timeout", type=float, default=60.0)
     args = parser.parse_args()
     if not 0 < args.timeout <= 3600:
         parser.error("timeout must be positive and at most 3600 seconds")
@@ -321,12 +298,8 @@ def main() -> int:
             raise ValueError("an emulator is already running; close it before starting isolated retail UI runs")
         smoke.check_config(args.config)
         version = smoke.emulator_version(args.emulator)
-        if args.case is None or args.case == "native":
-            for standard in (args.standard,) if args.standard else ("ntsc", "pal"):
-                if not run(args, standard, version):
-                    return 1
-        for case in NEGATIVES if args.case is None else (() if args.case == "native" else (args.case,)):
-            if not run(args, args.standard or "ntsc", version, case):
+        for case in (args.case,) if args.case else NEGATIVES:
+            if not run(args, version, case):
                 return 1
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         parser.exit(2, "error: " + str(error) + "\n")

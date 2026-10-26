@@ -10,6 +10,5 @@ namespace ps2::tests
 {
 
 bool RunDeferredTests();
-bool RunDeferredFailureProbe(const char * name);
 
 } // namespace ps2::tests

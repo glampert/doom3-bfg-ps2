@@ -32,8 +32,8 @@ make ui-cook
 make ui-cook UI_PREVIEWS=build/ui-previews
 make run-retail-ui
 make CONSOLE_STANDARD=pal run-retail-ui
-make test-retail-ui
-make BUILD=release test-retail-ui
+make test-ui
+make BUILD=release test-ui
 
 # The console and authored UI packages stage the same cook for the console charset:
 make ui-cook && make console
@@ -51,7 +51,8 @@ repository's ignored `build/` tree; retail files and generated assets stay local
 Neither command runs the engine, emulator or AVM1 scripts, or changes the production
 package. `make ui-cook` builds `build/tools/asset_reexport` first; `UI_PREVIEWS` (under
 `build/`) also writes an original and a converted PNG of every texture for visual
-review. `make ui` / `make test-ui` still use the authored native SWF.
+review. `make ui` uses the authored native SWF; `make test-ui` runs it in its own
+session beside the merged retail session.
 
 `make retail-ui` stages the same production ELF under `build/<config>/ui-retail/`;
 `run-retail-ui` displays the resource screen until quit. `UI_COOK_OUTPUT` selects the
@@ -466,9 +467,9 @@ pixels in the text-only screen. Opening a converted texture now loads its pages,
 so the movie atlases become resident while only the fonts draw. These are storage/text
 measurements, not the active menu's working set.
 
-Run `make test-retail-movies` and `make BUILD=release test-retail-movies` for both
-standards, four 120-frame phases, source-derived text widths and pixels, stable warm
-reloads, full shutdown recovery and six malformed-resource cases. Captures and all
+The `inactive` step of `make test-ui` (and `BUILD=release`) covers both standards, four
+120-frame phases, source-derived text widths and pixels, stable warm
+reloads, full shutdown recovery at the session's end and the malformed-resource cases. Captures and all
 retail files remain under ignored `build/`.
 
 ## Validation and remaining gates
@@ -487,7 +488,7 @@ UV/screen clipping, reversed shared edges, color interpolation and invalid-input
 preservation. A passing sanitizer harness exercises the real shared cache with
 `PS2_D3BFG_ASSERTS=0` and `1`, using stubbed GS submission. The existing renderer scene
 extends this with authored paged triangles, cache eviction, reload/cleanup and failure
-paths. The passing production `make test-ui` gate checks shared movie/font residency,
+paths. The authored session of `make test-ui` checks shared movie/font residency,
 native page splits, three warm reload cycles and twelve invalid-resource cases,
 including a deferred pixel checksum failure. Thirty pixel probes per capture pass;
 four page loads stay warm with zero evictions. Target measurements and inspected
@@ -496,11 +497,11 @@ Two real cooks are byte-identical, and every converted texture is re-read and ch
 before publication. Previews stay under ignored `build/`.
 Host tests do not establish EE parser safety, menu correctness or physical PS2 behavior.
 
-`make test-console` derives the input line's glyph probes from the cooked charset, so
-the console gate, like the authored UI gate whose package also carries the catalog,
-needs `make ui-cook` first.
+The console step of `make test-ui` derives the input line's glyph probes from the cooked
+charset, so it, like the authored session whose package also carries the catalog, needs
+`make ui-cook` first.
 
-The separate `make test-retail-ui` gate now passes debug/release NTSC/PAL: five native
+The retail font gate (now the `fonts` step of `make test-ui`) passed debug/release NTSC/PAL: five native
 fonts at three scales, seven 120-frame phases, preserved legacy layout metrics,
 source-derived glyph probes, warm reloads and full shutdown recovery. Five fresh-process
 invalid-resource cases pass in each build. See the [resource acceptance record](PORT_STATUS.md#native-english-retail-font-resources-2d-5-slice)
@@ -585,10 +586,9 @@ Native seeks and widget callbacks reject destructive ancestor reentry against ev
 active script source and receiver, including outer callers hidden by a nested call.
 Their bounded ancestor snapshots remain live until each call returns.
 
-Run `make test-retail-timelines` for executable shell/dialog reloads in NTSC/PAL, or
-`make test-retail-movies` for the inactive and executable gates plus corrupt-resource
-and runtime-limit failures. Select `BUILD=release` to verify checks with assertions off.
-The optional runner case `--case dialog-execution` isolates three dialog reloads.
+The `execution` step of `make test-ui` runs executable shell/dialog reloads in NTSC/PAL;
+`run_retail_movies.py` runs the corrupt-resource and runtime-limit failures. Select
+`BUILD=release` to verify checks with assertions off.
 Archives retain native execution/owner counters, source-derived text probes, texture/heap
 ledgers, capture comparisons and matched build evidence. This extends the existing
 production acceptance mode and adds no native test fixture.
@@ -643,8 +643,7 @@ which is how native GUI surfaces evaluate them.
 The timeline still advances once per Common frame before the GS frame; `Render` only
 draws, inside the SWF draw scope and an execution scope. The visible frame shows the
 dialog alone over the dark clear color, without the isolated label screen.
-`make test-retail-dialog` (also part of `make test-retail-movies`) runs the
-`dialog-render` case; see [PORT_STATUS](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice)
+The `dialog` step of `make test-ui` draws it; see [PORT_STATUS](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice)
 for its acceptance record, the page-streaming cost of that first slice and memory. With
 converted textures the dialog's pages stay resident, so the case now requires its
 upload count to stay fixed from the first status line through both warm reloads.
@@ -675,8 +674,7 @@ printf 'ps2_uiRetail logo on\n' >> build/debug/ui-retail-movies/console.txt
 A debug PCSX2 frame takes 100–140 ms with one timeline step per frame (the fixed clock);
 the real-time clock, which runs up to ten timeline steps per frame to keep up, takes about
 330 ms. The EE builds about 1,070 triangles and a dozen masks per frame, plus the outlines
-during the logo transition. `make test-retail-shell` (also part of `make test-retail-movies`) runs the
-`shell-render` case; see [PORT_STATUS](PORT_STATUS.md) for its acceptance record. The
+during the logo transition. The `shell` step of `make test-ui` draws it; see [PORT_STATUS](PORT_STATUS.md) for its acceptance record. The
 start screen's text draws from pre-rendered glyphs; a later screen's sizes without them
 draw as native quads, each size logged once.
 
@@ -735,19 +733,18 @@ handler with the session and runs its update before the timeline advances.
   every placement. The paletted lookup then takes the nearest placement within one
   texel, whose region clamp samples that edge row anyway.
 
-`make test-retail-menu` (also part of `make test-retail-movies`) runs the `menu-render`
-case: a 120-frame load and two 30-frame warm reloads, each captured on the start screen,
+The `menu` step of `make test-ui` opens the menu three times: a 120-frame load and two 30-frame warm reloads, each captured on the start screen,
 on the root screen 90 frames after accept, with Credits focused 30 frames after two downs
 and on the start screen 90 frames after back. Keyboard keys drive the first load and pad
 buttons the warm reloads. It requires the handler's screen, session, root focus,
 platform, callbacks and event counts at each capture, no unrendered text size, the
 shell's draw admission, textures and channel CLUTs, exact warm releases, full shutdown
-recovery and pixel-identical warm reload captures. The `menu-quit` case then opens the
-quit confirmation from the root, cancels it, opens it again and accepts it, which ends the
-session through Common. The `menu-boot` case boots a `menu` package and drives the
-menu it opened with keys, with no load or menu command. The `menu-screens` case enters
-Campaign from the root, scrolls it, returns, enters Settings, scrolls it and returns,
-capturing each state on the fixed clock. See
+and pixel-identical warm reload captures. The session's first step, `boot`, drives the
+menu its `menu` package opened at startup with keys, with no load or menu command. The
+`screens` step enters Campaign from the root, scrolls it, returns, enters Settings,
+scrolls it and returns, capturing each state on the fixed clock. The last step, `quit`,
+opens the quit confirmation from the root, cancels it, opens it again and accepts it,
+which ends the session through Common. See
 [PORT_STATUS](PORT_STATUS.md) for the acceptance records.
 
 ## Page format survey and the first conversion pass

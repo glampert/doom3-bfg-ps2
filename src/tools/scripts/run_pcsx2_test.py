@@ -56,29 +56,9 @@ NEGATIVE_PROBES = {
     "jpeg-marker": "SWF JPEG: marker extends past input",
     "jpeg-truncated": "SWF JPEG: truncated input",
     "jpeg-signature": "SWF JPEG: Not a JPEG file",
-    "input-init": "input capability unavailable: idUsercmdGen::Init",
-    "input-map": "input capability unavailable: idUsercmdGen::InitForNewMap",
-    "input-build": "input capability unavailable: idUsercmdGen::BuildCurrentUsercmd",
-    "input-current": "input capability unavailable: idUsercmdGen::GetCurrentUsercmd",
-    "input-inhibit": "input capability unavailable: idUsercmdGen::InhibitUsercmd",
-    "input-mouse": "input capability unavailable: idUsercmdGen::MouseState",
-    "input-button": "input capability unavailable: idUsercmdGen::ButtonState",
-    "input-key": "input capability unavailable: idUsercmdGen::KeyState",
-    "input-null-command": "input command string must not be null",
-    "input-forced-enable": "input capability unavailable: idUsercmdGen::BuildCurrentUsercmd",
-    "input-rumble": "platform capability unavailable: Sys_SetRumble",
-    "multiplayer-run": "multiplayer capability unavailable: idMultiplayerGame::Run",
-    "multiplayer-chat": "multiplayer capability unavailable: idMultiplayerGame::AddChatLine",
-    "multiplayer-snapshot": "multiplayer capability unavailable: idMultiplayerGame::WriteToSnapshot",
-    "multiplayer-scoreboard": "multiplayer capability unavailable: idMultiplayerGame::SetScoreboardActive",
-    "multiplayer-modes": "multiplayer capability unavailable: idMultiplayerGame::GetGameModes",
-    "save-forced-enable": "save game manager capability is unavailable",
     "online-flags": "online/stats/party match flags",
     "no-user": "match requires local user",
     "bad-load-order": "loading completion state",
-    "network": "FindOrCreateMatch",
-    "classic": "Classic title switching",
-    "save-manager": "save game manager capability is unavailable",
     "bad-device": "only input device zero is supported",
     "audio-resource": "sound sample load failed: audio-fixtures/missing (WAV file not found)",
     "audio-duration": "sound sample query requires loaded data: SoundSample::LengthInMsec",
@@ -86,7 +66,6 @@ NEGATIVE_PROBES = {
     "audio-wave-truncated": "sound sample load failed: audio-fixtures/truncated (RIFF length mismatch)",
     "audio-wave-chunk": "sound sample load failed: audio-fixtures/chunk (chunk exceeds RIFF)",
     "audio-wave-budget": "sound sample load failed: audio-fixtures/budget (PCM data exceeds fixture budget)",
-    "audio-device": "audio capability unavailable: SoundHardware::Init",
     "audio-voice-clock": "logical audio requires a clock callback",
     "audio-voice-backwards": "logical audio clock moved backwards",
     "audio-voice-unloaded": "logical voice allocation requires loaded samples",
@@ -97,19 +76,7 @@ NEGATIVE_PROBES = {
     "audio-voice-foreign": "logical voice does not belong to this pool",
     "audio-voice-format": "logical voice samples require matching channels",
     "audio-voice-flags": "logical voice received unknown sound flags",
-    "platform-launch": "platform capability unavailable: Sys_Launch",
     "platform-negative-duration": "Sys_SecToStr requires a nonnegative duration",
-    "model-ase": "source-model import unavailable: ASE_Load",
-    "model-lwo": "source-model import unavailable: lwGetObject",
-    "model-ma": "source-model import unavailable: MA_Load",
-    "renderer-init": "renderer capability unavailable: idRenderSystemLocal::Init",
-    "renderer-width": "renderer capability unavailable: idRenderSystemLocal::GetWidth",
-    "renderer-draw": "renderer capability unavailable: idRenderSystemLocal::DrawStretchPic",
-    "renderer-image": "renderer capability unavailable: idImageManager::ImageFromFile",
-    "renderer-vertices": "renderer capability unavailable: idVertexCache::ActuallyAlloc",
-    "renderer-shader": "renderer capability unavailable: idRenderProgManager::FindGLSLProgram",
-    "renderer-cinematic": "renderer capability unavailable: idCinematic::Alloc",
-    "renderer-demo": "renderer capability unavailable: idRenderSystemLocal::WriteDemoPics",
 }
 GAME_FAILURES = {
     "game-missing-map": "headless game fixture map is missing or oversized",
@@ -668,7 +635,13 @@ def check_config(path: Path) -> None:
             raise ValueError(f"{path}: [{section}] {option} must already be true; settings were not changed")
 
 
+_VERSIONS: dict[Path, str] = {}
+
+
 def emulator_version(emulator: Path) -> str:
+    """Query an emulator's version once per process: each query launches PCSX2."""
+    if emulator in _VERSIONS:
+        return _VERSIONS[emulator]
     version = subprocess.run([str(emulator), "-version"], capture_output=True,
                              text=True, timeout=10, check=False)
     output = "\n".join(part.strip() for part in (version.stdout, version.stderr) if part.strip())
@@ -676,6 +649,7 @@ def emulator_version(emulator: Path) -> str:
     # commands. Status 1 is accepted only with the anchored version line.
     if version.returncode not in (0, 1) or VERSION_RE.search(output) is None:
         raise ValueError(f"PCSX2 -version failed validation (status {version.returncode})")
+    _VERSIONS[emulator] = output
     return output
 
 

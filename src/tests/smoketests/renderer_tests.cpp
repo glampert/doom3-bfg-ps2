@@ -82,46 +82,4 @@ bool RunRendererTests()
     return passed;
 }
 
-bool RunRendererFailureProbe(const char * name)
-{
-    if (idStr::Cmp(name, "renderer-init") == 0)
-    {
-        renderSystem->Init();
-    }
-    else if (idStr::Cmp(name, "renderer-width") == 0)
-    {
-        (void)renderSystem->GetWidth();
-    }
-    else if (idStr::Cmp(name, "renderer-draw") == 0)
-    {
-        renderSystem->DrawStretchPic(0.0f, 0.0f, 16.0f, 16.0f, 0.0f, 0.0f, 1.0f, 1.0f, nullptr);
-    }
-    else if (idStr::Cmp(name, "renderer-image") == 0)
-    {
-        (void)globalImages->ImageFromFile("fixture/render/unimplemented", TF_DEFAULT, TR_REPEAT, TD_DEFAULT);
-    }
-    else if (idStr::Cmp(name, "renderer-vertices") == 0)
-    {
-        idDrawVert vertex{};
-        (void)vertexCache.AllocVertex(&vertex, static_cast<int>(sizeof(vertex)));
-    }
-    else if (idStr::Cmp(name, "renderer-shader") == 0)
-    {
-        (void)renderProgManager.FindGLSLProgram("fixture/render/unimplemented", -1, -1);
-    }
-    else if (idStr::Cmp(name, "renderer-cinematic") == 0)
-    {
-        (void)idCinematic::Alloc();
-    }
-    else if (idStr::Cmp(name, "renderer-demo") == 0)
-    {
-        renderSystem->WriteDemoPics();
-    }
-    else
-    {
-        return false;
-    }
-    return true; // The runner rejects an unavailable operation returning normally.
-}
-
 } // namespace ps2::tests

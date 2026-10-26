@@ -73,25 +73,44 @@
   and the idle keyboard is read about every 250 ms. The keyboard's modules load from the
   package's `irx/` (staged from `$PS2SDK/iop/irx`); a module that fails only disables
   that device.
-- `make test-console` / `make BUILD=release test-console` exercise the same production
-  ELF visibly in NTSC and PAL. Startup policy is selected by package-root
+- `make test-ui` / `make BUILD=release test-ui` run every UI screen in four emulator
+  sessions plus the invalid-resource processes. `run_ui_session.py` launches one
+  production session per standard from a package whose `presentation.cfg` reads `ntsc menu`
+  or `pal menu`, and drives ten steps through HostFs: `boot` (the menu the policy opened),
+  `console`, `fonts`, `inactive` and `execution` (the movies), `dialog`, `shell`, `menu`
+  (three handler loads), `screens` (Campaign and Settings) and `quit`, whose dialog accept
+  ends the session right after the final capture. Each step opens with an
+  `echo <id>_<step>_begin` barrier and ends with `_end`; its checks read only its slice of
+  the log (boot from the log's start, quit to its end), and each step has its own watchdog.
+  Images a step opens stay warm for the rest of the session, so later steps'
+  `RETAIL textures` counters include them: after the boot, every step sees the menu's
+  images. Session checks span the slices: the boot policy, barrier order, one presentation
+  per Common frame, no unreviewed screen, no unrendered glyph size outside the
+  `inactive`/`execution` steps (their isolated English labels draw at the movie's largest
+  text height through native quads, and a size logs once per session), the final capture
+  drained by the dialog's quit and exact startup-ledger recovery. A debug NTSC session
+  takes about 470 s: boot 93, console 5, fonts 15, inactive 11, execution 62, dialog 8,
+  shell 40, menu 107, screens 63 and quit 53. `summary.json` records
+  each step's verdict, captures and duration. The authored SWF needs its own texture
+  budget (its 1 MiB page cache stays until UI shutdown, and the retail images stay warm
+  under the same 2 MiB), so `run_ui.py` runs it in its own session per standard; then
+  `run_ui.py`, `run_retail_ui.py` and `run_retail_movies.py` run their 12, 5 and 13
+  invalid-resource cases, each ending in its expected fatal in a fresh process.
+- The console step exercises the production ELF visibly in NTSC and PAL. Startup policy is selected by package-root
   `presentation.cfg`; `make console` defaults to NTSC and `CONSOLE_STANDARD=pal`
   stages PAL (`ntsc menu`/`pal menu` boot into the native menu; `make retail-menu`). Every visible package stages the cooked retail catalog from
   `UI_COOK_OUTPUT` (`make ui-cook` first); the console draws the original charset from
-  it. The runner waits at least 120 frames, submits and replays native edit
-  history, closes/reopens the real console, checks an edited input line, and queues
-  capture plus native quit in the same batch. Require exactly one presentation per
-  completed Common frame, safe redraw requests, final capture before shutdown and
-  exact startup-ledger recovery. The edit capture checks the translucent/uncovered
+  it. Once the boot step has released the menu, the step submits and replays native edit
+  history, closes/reopens the real console and checks an edited input line, with
+  redraw-only requests for each Enter. The edit capture checks the translucent/uncovered
   background, the cyan border and 24 input-line probes derived from the cooked charset
   (`console_capture.expected_probes`): the strongest ink and one hole per character of
   `]echo pending`, each accepting the colors the converted texture can produce within
-  half a texel of its projection, plus the gap between the words. Both TGAs,
+  half a texel of its projection, plus the gap between the words. The TGA,
   input/config/data hashes and matched production evidence are archived. Inspect
   images as well as logs; this proves console presentation, not SWF/menu or hardware
   acceptance. Run all emulator targets sequentially in isolated sessions.
-- `make test-ui` / `make BUILD=release test-ui` exercise the authored native SWF in the
-  production ELF; the package also carries the cooked catalog for the console charset,
+- The authored session exercises the authored native SWF in the production ELF; the package also carries the cooked catalog for the console charset,
   so `make ui-cook` comes first. Three loads each render at least 120 frames, pause two different
   timeline states (including fractional alpha), execute native Tab/Enter AVM1 focus and
   selection, and open/type/close the real console over the movie. Ninety-four pixels
@@ -124,10 +143,10 @@
   framebuffer tolerance. Inspect native captures; this is authored UI, not retail shell
   or physical PS2 acceptance. `make ui` / `run-ui` stage/launch the same ELF and opt-in
   assets, with `CONSOLE_STANDARD=ntsc` or `pal`.
-- `make test-retail-movies` / `make BUILD=release test-retail-movies` check inactive
-  dictionaries and executable native shell/dialog timelines in separate production runs.
-  Four phases each run at least 120
-  frames: shell, dialog, shell return and another shell load. Check native dictionary/
+- The `inactive` and `execution` steps check inactive dictionaries and executable
+  native shell/dialog timelines. Each has four phases, which each run at least 120
+  frames: shell, dialog, shell return and another shell load; captures are named
+  `movie-<step>-<phase>.tga`. Check native dictionary/
   font/text counts, all 9,097 English entries, source-derived integer text widths and
   at least two glyph/color probes per label. Each probe accepts the colors the converted
   font can produce within one texel of its projected position (sound bilinear bounds,
@@ -145,50 +164,45 @@
   The `RETAIL textures` counters must equal the open converted images exactly (images,
   pages, CLUTs, pixel and metadata bytes, computed from the cooked GSTX files): fonts
   and their glyph sets (a font's set opens with it), plus each movie atlas loaded so
-  far, plus the Doom 3 cover once the shell executes.
+  far, plus the Doom 3 cover once the shell executes, plus what earlier steps left warm.
   Triangles rise, evictions stay zero and uploads stay fixed after the first phase. Executable
   phases require fresh real callback/owner traces and bounded hierarchy/work counters.
   Twelve fresh processes reject bad profile, missing movie, corrupt movie/English bytes,
   oversized counts and init actions. Count/init cases recompute FNV to reach storage
   preflight. Placement/opcode/branch/operand cases reach execution preflight; a valid
   infinite loop and an alias to a different native service reach their runtime guards.
-  `make test-retail-timelines` isolates executable NTSC/PAL runs. The minimal owner uses
+  The minimal owner uses
   the real carousel/Credits callbacks and only one Doom 3 option; Shell navigation, the
   shell's later screens and physical PS2 acceptance remain pending.
-- `make test-retail-dialog` (case `dialog-render`, also part of `test-retail-movies`)
-  draws the original dialog in full with Common's quit message: one 120-frame load and
+- The `dialog` step draws the original dialog in full with Common's quit message: one 120-frame load and
   two 30-frame warm reloads. Each load needs exactly one draw admission matching the
   inventory (ten masks; no outlines, screen blends or additive color), the native quit
   owner state and English options, dialog script dependencies, rising draw/mask/texture
   triangle counters, texture counters equal to the fonts, their glyph sets and the
-  dialog atlas, zero
+  dialog atlas (with what earlier steps left warm), zero
   evictions, the same upload count at every capture of all three loads,
-  identical warm release ledgers and full shutdown recovery. Two captures ten frames apart locate the looping focus highlight;
+  identical warm release ledgers. Two captures ten frames apart locate the looping focus highlight;
   every other pixel must match across all loads, and frames must show textured detail.
   The `dialog-alpha-add` negative re-places the first root character with an additive
   alpha term, the one color term without a draw path, and requires the specific
   draw-admission fatal. Resident paletted textures draw a frame in about
-  55–60 ms in debug PCSX2 (streamed RGBA pages took about 1.6 s), so a session takes
-  under 20 s within the common 120 s timeout; since the dialog's text draws from
-  pre-rendered glyphs, frames take about 40 ms. Closing the window (local settings skip the
+  55–60 ms in debug PCSX2 (streamed RGBA pages took about 1.6 s); since the dialog's text
+  draws from pre-rendered glyphs, frames take about 40 ms. Closing the window (local settings skip the
   shutdown confirmation) ends the VM cleanly; the runner reports "emulator exited with
   status 0 after N s" as the session end. That is an interrupted run, not a target fault.
-- `make test-retail-shell` (case `shell-render`, also part of `test-retail-movies`) draws
-  the original shell in full through `ps2_uiRetail draw shell`: one 120-frame load and two
+- The `shell` step draws the original shell in full through `ps2_uiRetail draw shell`: one 120-frame load and two
   30-frame warm reloads on the fixed-step clock (`ps2_uiRetail clock fixed`: 1/60 s per
   Common frame from the native activation time), so both warm reloads reach identical
   frames and their captures must match exactly. Each load needs a draw admission equal
   to the inventory (masks, outlines, screen placements, additive placements), the minimal
   carousel/Credits owner, rising triangle, mask, depth-mask, line, screen and color-term
   counters, textures equal to the fonts, glyph sets, charset, shell atlas and Doom 3 cover,
-  three channel CLUTs per atlas CLUT, zero evictions, fixed uploads, identical warm
-  release ledgers and full shutdown recovery. A debug PCSX2 frame takes 100–140 ms on the
-  fixed clock, so a session takes about 50 s within its 300 s timeout. Every text size the
+  three channel CLUTs per atlas CLUT, zero evictions, fixed uploads and identical warm
+  release ledgers. A debug PCSX2 frame takes 100–140 ms on the fixed clock. Every text size the
   start screen draws is cooked, so its runs log no `UI glyph size` line. The owner does not run the native
   screens, so placeholder prompts and labels show: compare captures with the menu's
   expected state, not the PC's interactive one.
-- `make test-retail-menu` (case `menu-render`, also part of `test-retail-movies`) opens the
-  menu through the native shell handler (`ps2_uiRetail menu`) on the fixed clock and drives
+- The `menu` step opens the menu through the native shell handler (`ps2_uiRetail menu`) on the fixed clock and drives
   it with key events (`ps2_uiRetail key NAME`): one 120-frame load and two 30-frame warm
   reloads. Each load captures the start screen (a), presses accept and captures the root
   screen 90 frames later (b), presses down twice and captures Credits focused 30 frames
@@ -199,13 +213,12 @@
   callbacks and exact menu event counts (0/0, 2/1, 6/5, 8/6 received/handled: a released
   button has no handler, a scroll handles both halves), plus the shell's draw admission,
   textures and channel CLUTs, rising draw counters, zero evictions and fixed uploads. No
-  `UI glyph size` line may appear. Warm releases must match, shutdown must recover the full
-  ledger and both warm reloads' captures must match pixel for pixel. A key issued in the
-  frame of a `ps2_capture` runs before that frame draws, so `wait 1` separates each capture
-  from the next key. A session takes about 115 s within its 300 s timeout. The retail
-  carousel items lack a `sel_up` frame, so native code warns on each load and focus
-  change; the warnings are expected. The same target then runs `menu-quit`, one load
-  that ends through the native quit dialog: accept (cross) signs in, dpad_up wraps the
+  `UI glyph size` line may appear. Warm releases must match and both warm reloads'
+  captures must match pixel for pixel. A key issued in the frame of a `ps2_capture` runs
+  before that frame draws, so `wait 1` separates each capture from the next key. The
+  retail carousel items lack a `sel_up` frame, so native code warns on each load and focus
+  change; the warnings are expected. The last step, `quit`, is one load that ends the
+  session through the native quit dialog: accept (cross) signs in, dpad_up wraps the
   root's focus to Quit, cross opens Common's confirmation (d), dpad_right focuses
   Cancel (e) and cross closes it (f), cross reopens it (g) and a final cross accepts,
   quitting the game right after the queued final capture; the runner sends no `quit`.
@@ -214,24 +227,24 @@
   choice closes it. Require one shell and one dialog draw admission, the shell, dialog
   atlas, fonts, glyph sets, charset and cover resident with the channel CLUTs, the
   dialog's layout services after it opens, one copied choice call each for Cancel and
-  Accept, one release after the final capture and full shutdown recovery. The dynamic
+  Accept and one release after the final capture. The dynamic
   dialog binds neither Escape nor circle to cancel; its options take focus left to
   right. Its `<JOY1>` prompt draws as the PS3 cross art, and no `UI glyph size` line may
-  appear; `dialog-render` and `shell-render` require none either, and their textures
-  include the eight prompt images a drawn movie loads. A session takes about 70 s.
-  The same target then runs `menu-boot`: a package staged with the `menu` policy, whose
-  menu opens at startup on real time with no load or menu command sent. The runner
-  captures the start screen 120 frames after the startup echo, the root 90 frames after
-  enter and the start screen 90 frames after escape, then unloads and quits. It requires
-  `BOOT presentation=<std> menu=1`, both draw admissions before the startup echo, the
-  startup status with the console closed, `clock=real`, the handler's screen, session,
-  focus and event counts, the resident textures, no unrendered size, one release before
-  the final capture and full shutdown recovery. A session takes about 100 s. Last,
-  `menu-screens` opens the menu on the fixed clock and, from the root, enters Campaign (c),
+  appear; the dialog and shell steps require none either, and their textures
+  include the eight prompt images a drawn movie loads. The first step, `boot`, drives the
+  menu the package's `menu` policy opened at startup on real time, with no load or menu
+  command sent: it captures the start screen 120 frames after the startup echo, the root
+  90 frames after enter and the start screen 90 frames after escape, then unloads. It
+  requires `BOOT presentation=<std> menu=1`, both draw admissions before the startup
+  echo, the startup status with the console closed, `clock=real`, the handler's screen,
+  session, focus and event counts, the resident textures, no unrendered size and one
+  release after its last capture. The `screens` step opens the menu on the fixed clock
+  and, from the root, enters Campaign (c),
   moves its focus (d), returns (e), moves the root's focus to Settings (f), enters it (g),
   moves its focus (h) and returns (i), capturing each: it requires screens 3 and 13 with the
   expected focus and event counts, no `shell capability unavailable` line, no unrendered
-  size, rising draw counters, the resident textures, one release and full shutdown recovery.
+  size, rising draw counters, the resident textures and one release. The menu is warm by
+  the `screens` and `quit` steps, so their start screens wait 30 frames, not 120.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on
@@ -240,14 +253,14 @@
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
   allocation ledgers, partial-init cleanup and live-image shutdown guards covered.
   These checks supplement strict EE compilation and native captures.
-- After `make ui-cook`, `make test-retail-ui` and its `BUILD=release` variant each run
-  NTSC/PAL plus five fresh-process resource failures in isolated PCSX2 sessions. Seven
-  phases draw five native English fonts, return to the first and reload it, each for
+- The `fonts` step (after `make ui-cook`) and five fresh-process resource failures
+  check the retail fonts. Seven phases draw five native English fonts, return to the first and reload it, each for
   at least 120 frames. Check all three legacy metric pairs, glyph ink/hole probes bounded
   by what the converted font can produce within one texel, stable reload captures, the
-  `RETAIL textures` counters (exactly the five converted fonts with their glyph sets,
-  rising triangles, zero
-  evictions, no uploads on the warm reload) and full startup-ledger recovery. Reject bad
+  `RETAIL textures` counters (the five converted fonts with their glyph sets plus what
+  earlier steps left warm, rising triangles, zero evictions, no uploads on the warm
+  reload); the retail cycle counts every load of the session, so the step's are relative
+  to its first. Reject bad
   catalog headers, missing/mutated font data, a texture whose tables differ from the
   catalog and a corrupt page block; paletted images verify every page at load, so all
   five fail before any loaded state or presentation. A corrupt catalog header fails at
@@ -327,28 +340,25 @@
   Removal's observed PCSX2 error is documented in [ps2-platform.md](ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 83 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 33 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Seventy-six negative probes (every `NEGATIVE_PROBES` entry,
-  including the seventeen renderer failures `test-renderer` also runs and five JPEG
-  rejections) require matching run/begin identities and
-  the expected fatal diagnostic: online flags, absent user, loading out of order, network
-  matchmaking, Classic switching, absent save manager, unsupported input device, audio
-  missing WAVs, unloaded duration queries, audio device initialization, invalid WAV
+  uses a fresh process. Twenty-six negative probes (the `NEGATIVE_PROBES` entries but the
+  seventeen GS failures, which `test-renderer` runs) require matching run/begin identities
+  and the expected fatal diagnostic: online flags, absent user, loading out of order,
+  unsupported input device, audio missing WAVs, unloaded duration queries, invalid WAV
   formats/truncation/chunk bounds/payload budgets; absent/backward voice clocks, unloaded
   voice samples, negative seeks, invalid pitch, pinned sample mutation, double/foreign
-  free, channel mismatch and unknown sound flags; process launch,
-  negative duration input, ASE/LWO/Maya source-model import, renderer initialization,
-  dimensions, draw submission, image/vertex/shader loading, cinematics and render demos,
-  multiplayer ticks/chat/snapshot output/scoreboard activation/mode enumeration and
-  save-manager access after forcing the disabled save cvar on; input initialization/map
-  preparation, command building/access, inhibition, mouse/button/key sampling, null
-  command strings and forced controller/rumble values.
-  The first fatal line must match the expected diagnostic with a name boundary;
-  InitForNewMap cannot satisfy an Init probe, and later messages cannot hide a wrong
-  initial fatal. A watchdog, TLB/bus error, unexpected return or unrelated fatal fails.
+  free, channel mismatch and unknown sound flags; negative duration input and five JPEG
+  rejections. The probes that only confirmed a deferred capability fails by name (input
+  sampling, multiplayer, save manager, network matchmaking, Classic switching, audio
+  device, process launch, source-model import and the renderer's world/image/vertex/
+  shader/cinematic/demo entry points) were retired on 2026-10-26; those stubs still fail
+  by method name.
+  The first fatal line must match the expected diagnostic with a name boundary, and later
+  messages cannot hide a wrong initial fatal. A watchdog, TLB/bus error, unexpected return
+  or unrelated fatal fails.
 - Regular core smoke requires nine `offline/` markers covering the real Common
   identity and `com_smp=0`/ROM policy, local user/profile/achievement state, unavailable
   persistence, copied match parameters, explicit loading completion, stable reload
@@ -379,8 +389,7 @@
 - Three required `renderer/` markers check inactive native interface identity, unloaded
   image/buffer construction and exact scoped ledger recovery, and disabled resolution
   policy/cvar registration. No world is allocated or rendered. Dimensions, loading and
-  submission fail by method name; the eight renderer probes verify those failures in
-  fresh processes with assertions enabled and disabled.
+  submission fail by method name.
 
 - Three required `deferred/` markers check empty native multiplayer lifecycle and ledger
   recovery, save-description copy/clear ownership with warmed native dictionary pools,
@@ -390,9 +399,7 @@
 - Three required `input/` markers check the full native action table and exact lookup
   (including case and impulse-prefix collisions), repeated empty cleanup and native
   invalid-index results, and read-only controller/rumble preferences. The input provider
-  acquires no devices or sampling buffers and publishes no player commands. Eleven
-  input probes verify unavailable methods, null-string validation and forced preferences;
-  changing an archived cvar cannot turn the boundary into an input source.
+  acquires no devices or sampling buffers and publishes no player commands.
 
 - The additional GS failure probes cover release-safe GIF bounds, oversized DIRECT
   reservations and a stalled deadline; they do not claim Common or UI startup.

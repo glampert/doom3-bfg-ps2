@@ -402,7 +402,7 @@ PSMT4 page (32 KiB of VRAM), kept at full resolution by `texture_policies`.
   2% (mean) of an exact area filter and never a quarter level apart; unlike the menu
   fonts, the console needs no pre-rendered sizes. Halving it (the global policy) would
   have magnified rows 1.9× instead.
-- `test-console` derives its input-line probes from the cooked texture: pixel centers sit
+- The console step of `test-ui` derives its input-line probes from the cooked texture: pixel centers sit
   on integer coordinates and the quad is exact to 1/16 px, so half a texel of slack around
   each sample is enough; the eight-level channel tolerance covers rounding.
 

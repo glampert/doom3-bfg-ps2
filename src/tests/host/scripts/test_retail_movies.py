@@ -99,7 +99,8 @@ class MovieResourcesTests(unittest.TestCase):
                 runner.verify_capture(path, manifest, self.source, 0, standard)
 
     def acceptance_log(self, manifest, execution=False, phases=runner.PHASES):
-        log = "GS ready NTSC\nrun_ready \n"
+        """An inactive or executing movie step's slice of a session log."""
+        log = ""
         open_images = {next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == font[:-4] + ".tga")
                        for font in manifest["fonts"]}
         for phase, (name, movie_name, movie) in enumerate(phases):
@@ -136,28 +137,21 @@ class MovieResourcesTests(unittest.TestCase):
             log += ("[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={} ".format(*counters) +
                     f"triangles={(phase + 1) * 200} uploads=3 evictions=0\n")
             frame = (phase + 1) * 120
-            log += f"CONSOLE capture=movie-{name}.tga frame={frame} presents={frame} redraws=0\n"
+            capture = runner.movie_capture_name("execution" if execution else "inactive", name)
+            log += f"CONSOLE capture={capture} frame={frame} presents={frame} redraws=0\n"
             if execution:
                 log += f"RETAIL released movie={movie} images={images} heap=80/100/4\n"
-        final = len(phases) * 120 + 1
-        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={final} presents={final} redraws=0\n"
-                f"[D3BFG] CONSOLE shutdown complete frames={final} presents={final} redraws=0\n"
-                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
-                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
         return log
 
     def test_native_acceptance_checks_layout_warm_ownership_frames_and_full_cleanup(self):
         manifest = self.label_manifest()
         log = self.acceptance_log(manifest)
-        self.assertTrue(runner.classify(log, "run", "ntsc", manifest, self.source)[0])
-        for before, after in (("width=160.00", "width=159.00"), ("final=7424", "final=7425"),
+        self.assertTrue(runner.classify(log, manifest, self.source)[0])
+        for before, after in (("width=160.00", "width=159.00"),
                               ("frames=120", "frames=119"), ("evictions=0", "evictions=1"),
                               ("scripts=inactive", "scripts=active")):
             self.assertIn(before, log)
-            self.assertFalse(runner.classify(log.replace(before, after), "run", "ntsc", manifest, self.source)[0])
-        stale_final = log.replace("frame=481 presents=481", "frame=480 presents=480")
-        stale_final = stale_final.replace("frames=481 presents=481", "frames=480 presents=480")
-        self.assertFalse(runner.classify(stale_final, "run", "ntsc", manifest, self.source)[0])
+            self.assertFalse(runner.classify(log.replace(before, after), manifest, self.source)[0])
 
     def test_movie_textures_match_the_open_converted_images_and_never_upload_again(self):
         manifest = self.label_manifest()
@@ -167,7 +161,7 @@ class MovieResourcesTests(unittest.TestCase):
                                 "metadata_bytes": 128 + 65 * 4 + 64 * 2})
         for execution in (False, True):
             log = self.acceptance_log(manifest, execution=execution)
-            accepted = lambda text: runner.classify(text, "run", "ntsc", manifest, self.source, execution=execution)[0]
+            accepted = lambda text: runner.classify(text, manifest, self.source, execution=execution)[0]
             self.assertTrue(accepted(log))
             first = next(runner.TEXTURES_RE.finditer(log))
             pixels, images = "pixels=" + first[4], "images=" + first[1]
@@ -179,6 +173,23 @@ class MovieResourcesTests(unittest.TestCase):
                 with self.subTest(execution=execution, changed=changed):
                     self.assertFalse(accepted(changed))
 
+    def test_images_earlier_steps_opened_stay_in_the_counters(self):
+        manifest = self.label_manifest()
+        # The session opened the cover at boot; this inactive step keeps it in its counters.
+        warm = {"cover"}
+        plain = self.acceptance_log(manifest)
+        self.assertTrue(runner.classify(plain, manifest, self.source)[0])
+        self.assertFalse(runner.classify(plain, manifest, self.source, warm=warm)[0])
+        fonts = {next(row["selected"] for row in manifest["image_resolutions"] if row["logical_image"] == font[:-4] + ".tga")
+                 for font in manifest["fonts"]}
+        with_cover = plain
+        for images in (fonts | {"shell"}, fonts | {"shell", "dialog"}):
+            before = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
+            after = runner.texture_counters(runner.resident_textures(manifest, self.source, images | warm))
+            with_cover = with_cover.replace("images={} pages={} cluts={} pixels={} metadata={} ".format(*before),
+                                            "images={} pages={} cluts={} pixels={} metadata={} ".format(*after))
+        self.assertTrue(runner.classify(with_cover, manifest, self.source, warm=warm)[0])
+
     def render_log(self, manifest):
         swf = manifest["swfs"]["generated/swf/dialog.bswf"]
         language = inspect_language((self.source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
@@ -186,7 +197,7 @@ class MovieResourcesTests(unittest.TestCase):
         images = runner.resident_images(manifest) | runner.prompt_images(manifest) | {"dialog"}
         counters = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
         textures = "[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters)
-        log = "GS ready NTSC\nrun_ready \n"
+        log = ""
         frame = 0
         triangles = 0
         for name, frames in runner.RENDER_PHASES:
@@ -208,11 +219,6 @@ class MovieResourcesTests(unittest.TestCase):
                         f"{textures} triangles={triangles} uploads=5 evictions=0\n"
                         f"CONSOLE capture=movie-{name}-{suffix}.tga frame={frame} presents={frame} redraws=0\n")
             log += f"RETAIL released movie=1 images={len(images)} heap=80/100/4\n"
-        frame += 1
-        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
-                f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
-                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
-                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
         return log
 
     def test_dialog_render_requires_resident_textures_masks_owner_and_scripts(self):
@@ -222,8 +228,8 @@ class MovieResourcesTests(unittest.TestCase):
         self.add_asset("strings/english.lang", self.language)
         manifest["language"] = inspect_language(self.language)
         log = self.render_log(manifest)
-        accepted = lambda text: runner.classify_dialog_render(text, "run", "ntsc", manifest, self.source)[0]
-        self.assertTrue(accepted(log), runner.classify_dialog_render(log, "run", "ntsc", manifest, self.source)[1])
+        accepted = lambda text: runner.classify_dialog_render(text, manifest, self.source)[0]
+        self.assertTrue(accepted(log), runner.classify_dialog_render(log, manifest, self.source)[1])
         first = next(runner.TEXTURES_RE.finditer(log)).group(0)
         pixels = "pixels=" + first.split("pixels=")[1].split()[0]
         images = int(first.split("images=")[1].split()[0])
@@ -247,7 +253,7 @@ class MovieResourcesTests(unittest.TestCase):
         counters = runner.texture_counters(runner.resident_textures(manifest, self.source, images))
         channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
         textures = "[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters)
-        log = "GS ready NTSC\nrun_ready \n"
+        log = ""
         frame = 0
         work = 0
         rolled = 0
@@ -280,11 +286,6 @@ class MovieResourcesTests(unittest.TestCase):
                         f"channel_pixels={channel_pixels}\n"
                         f"CONSOLE capture=movie-{name}-{suffix}.tga frame={frame} presents={frame} redraws=0\n")
             log += f"RETAIL released movie=0 images={len(images)} heap=80/100/4\n"
-        frame += 1
-        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
-                f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
-                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
-                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
         return log
 
     def test_shell_render_requires_outlines_depth_masks_screen_color_terms_and_channel_cluts(self):
@@ -293,8 +294,8 @@ class MovieResourcesTests(unittest.TestCase):
         # The authored stand-in carries every feature the shell needs.
         self.assertEqual((swf["features"]["strokes"], runner.screen_placements(swf), swf["features"]["color_add"]), (2, 1, 2))
         log = self.shell_render_log(manifest)
-        accepted = lambda text: runner.classify_shell_render(text, "run", "ntsc", manifest, self.source)[0]
-        self.assertTrue(accepted(log), runner.classify_shell_render(log, "run", "ntsc", manifest, self.source)[1])
+        accepted = lambda text: runner.classify_shell_render(text, manifest, self.source)[0]
+        self.assertTrue(accepted(log), runner.classify_shell_render(log, manifest, self.source)[1])
         # The channel CLUTs upload at the first screen pass, after the start screen's capture.
         self.assertTrue(accepted(log.replace("uploads=5 evictions=0 channel", "uploads=2 evictions=0 channel", 1)))
         channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
@@ -319,10 +320,10 @@ class MovieResourcesTests(unittest.TestCase):
     def test_menu_render_requires_key_driven_screens_focus_and_prerendered_text(self):
         manifest = self.label_manifest()
         log = self.shell_render_log(manifest, menu=True)
-        verdict = lambda text: runner.classify_shell_render(text, "run", "ntsc", manifest, self.source, menu=True)
+        verdict = lambda text: runner.classify_shell_render(text, manifest, self.source, menu=True)
         self.assertEqual(verdict(log), (True, "native shell handler drew its start and root screens, driven by keyboard and pad keys"))
         # The scaffold owner's rows cannot stand in for the native handler's, and the reverse.
-        self.assertFalse(runner.classify_shell_render(log, "run", "ntsc", manifest, self.source)[0])
+        self.assertFalse(runner.classify_shell_render(log, manifest, self.source)[0])
         self.assertFalse(verdict(self.shell_render_log(manifest))[0])
         for changed in (log.replace("screen=0 next=0 session=PRESS_START", "screen=1 next=1 session=PRESS_START", 1),
                         replace_last(log, "session=IDLE", "session=PRESS_START"),
@@ -330,8 +331,8 @@ class MovieResourcesTests(unittest.TestCase):
                         log.replace("root_focus=2", "root_focus=1", 1), replace_last(log, "root_focus=0", "root_focus=3"),
                         log.replace("events=2 handled=1", "events=2 handled=2", 1),
                         replace_last(log, "events=8 handled=6", "events=10 handled=7"),
-                        log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.30000,0.35000 stroke=2.000 "
-                                    "prerendered=no\nrun_done"),
+                        log + "[D3BFG] UI glyph size font=sarasori_rg scale=0.30000,0.35000 stroke=2.000 "
+                                    "prerendered=no\n",
                         replace_last(log, "RETAIL drawable movie=0", "RETAIL undrawable movie=0"),
                         replace_last(log, "heap=80/100/4", "heap=81/100/4"), replace_last(log, "evictions=0", "evictions=1")):
             with self.subTest(changed=changed):
@@ -343,8 +344,7 @@ class MovieResourcesTests(unittest.TestCase):
         channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
         textures = ("[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters) +
                     f" triangles=100 uploads=5 evictions=0 channel_cluts={channel_cluts} channel_pixels={channel_pixels}\n")
-        log = ("GS ready NTSC\nrun_ready \n"
-               f"RETAIL drawable movie=0 masks={shell['features']['masks']} strokes={shell['features']['strokes']} "
+        log = (f"RETAIL drawable movie=0 masks={shell['features']['masks']} strokes={shell['features']['strokes']} "
                f"screen_blends={runner.screen_placements(shell)} additive_colors={shell['features']['color_add']}\n"
                f"RETAIL drawable movie=1 masks={dialog['features']['masks']} strokes=0 screen_blends=0 additive_colors=0\n")
         frame = 0
@@ -371,20 +371,18 @@ class MovieResourcesTests(unittest.TestCase):
     def test_menu_quit_requires_cancel_then_accept_through_the_native_dialog(self):
         manifest = self.label_manifest()
         log = self.menu_quit_log(manifest)
-        verdict = lambda text: runner.classify_menu_quit(text, "run", "ntsc", manifest, self.source)
+        verdict = lambda text: runner.classify_menu_quit(text, manifest, self.source)
         self.assertEqual(verdict(log), (True, "native quit dialog opened from the root, cancelled, then accepted, quitting through Common"))
         for changed in (log.replace("root_focus=3", "root_focus=2", 1),
                         log.replace("events=10 handled=7 dialog=0 quit=0", "events=10 handled=8 dialog=1 quit=2"),
                         log.replace("SWF dependency movie=dialog kind=native-callback name=func1\n", ""),
                         log.replace("name=func0", "name=func1"),
                         log.replace("SWF dependency movie=dialog kind=method name=showMessage\n", ""),
-                        log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.18333,0.21389 stroke=0.000 "
-                                    "prerendered=no\nrun_done"),
+                        log + "[D3BFG] UI glyph size font=sarasori_rg scale=0.18333,0.21389 stroke=0.000 "
+                                    "prerendered=no\n",
                         log.replace("RETAIL drawable movie=1", "RETAIL undrawable movie=1"),
                         log.replace("evictions=0", "evictions=1", 1),
-                        log.replace("final=7424/7600/4", "final=7488/7600/4"),
                         log.replace("RETAIL released movie=0 images=11 heap=80/100/4\n", ""),
-                        log.replace("run_done \n", ""),
                         replace_last(log, "[D3BFG] CONSOLE shutdown complete frames=", "[D3BFG] CONSOLE shutdown complete frames=9")):
             with self.subTest(changed=changed):
                 self.assertFalse(verdict(changed)[0])
@@ -413,13 +411,7 @@ class MovieResourcesTests(unittest.TestCase):
                     f"RETAIL execution movie=0 ticks={frame - 1} root=1 sprites=2 texts=3 instructions=1000 calls=5 "
                     f"commands=9 depth=2 native_steps=20 clock=real\n" +
                     textures + f"CONSOLE capture=movie-menuboot-{suffix}.tga frame={frame} presents={frame} redraws=0\n")
-        log += "RETAIL released movie=0 images=19 heap=80/100/4\n"
-        frame += 1
-        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
-                f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
-                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
-                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
-        return log
+        return log + "RETAIL released movie=0 images=19 heap=80/100/4\n"
 
     def test_menu_boot_requires_the_policy_to_open_both_movies_before_the_startup_commands(self):
         manifest = self.label_manifest()
@@ -435,12 +427,11 @@ class MovieResourcesTests(unittest.TestCase):
                         log.replace("root_focus=0", "root_focus=1", 1),
                         replace_last(log, "events=4 handled=2", "events=4 handled=3"),
                         replace_last(log, "session=PRESS_START", "session=IDLE"),
-                        log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.30000,0.35000 stroke=2.000 "
-                                    "prerendered=no\nrun_done"),
+                        log + "[D3BFG] UI glyph size font=sarasori_rg scale=0.30000,0.35000 stroke=2.000 "
+                                    "prerendered=no\n",
                         log.replace("evictions=0", "evictions=1", 1),
                         log.replace("RETAIL released movie=0 images=19 heap=80/100/4\n", ""),
-                        log.replace("final=7424/7600/4", "final=7488/7600/4"),
-                        replace_last(log, "[D3BFG] CONSOLE shutdown complete frames=", "[D3BFG] CONSOLE shutdown complete frames=9")):
+                        log.replace("RETAIL drawable movie=0", "RETAIL undrawable movie=0")):
             with self.subTest(changed=changed):
                 self.assertFalse(verdict(changed)[0])
 
@@ -450,8 +441,7 @@ class MovieResourcesTests(unittest.TestCase):
         channel_cluts, channel_pixels = runner.channel_counters(manifest, self.source)
         textures = ("[D3BFG] RETAIL textures images={} pages={} cluts={} pixels={} metadata={}".format(*counters) +
                     f" triangles=100 uploads=5 evictions=0 channel_cluts={channel_cluts} channel_pixels={channel_pixels}\n")
-        log = ("GS ready NTSC\nrun_ready \n"
-               f"RETAIL drawable movie=0 masks={shell['features']['masks']} strokes={shell['features']['strokes']} "
+        log = (f"RETAIL drawable movie=0 masks={shell['features']['masks']} strokes={shell['features']['strokes']} "
                f"screen_blends={runner.screen_placements(shell)} additive_colors={shell['features']['color_add']}\n"
                f"RETAIL drawable movie=1 masks={dialog['features']['masks']} strokes=0 screen_blends=0 additive_colors=0\n")
         frame = 0
@@ -471,18 +461,12 @@ class MovieResourcesTests(unittest.TestCase):
                     f"peak_vertices=300 peak_indexes=600 peak_draws=40 depth_masks={work // 200} lines={work // 10} "
                     f"screen={work // 50} color_terms={work // 20}\n" +
                     textures + f"CONSOLE capture=movie-menuscreens-{suffix}.tga frame={frame} presents={frame} redraws=0\n")
-        log += "RETAIL released movie=0 images=19 heap=80/100/4\n"
-        frame += 1
-        log += (f"run_done \nCONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
-                f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
-                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
-                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
-        return log
+        return log + "RETAIL released movie=0 images=19 heap=80/100/4\n"
 
     def test_menu_screens_require_campaign_and_settings_reached_scrolled_and_left(self):
         manifest = self.label_manifest()
         log = self.menu_screens_log(manifest)
-        verdict = lambda text: runner.classify_menu_screens(text, "run", "ntsc", manifest, self.source)
+        verdict = lambda text: runner.classify_menu_screens(text, manifest, self.source)
         self.assertEqual(verdict(log), (True, "native campaign and settings screens opened from the root, scrolled and returned, "
                                               "with pre-rendered text"))
         for changed in (log.replace("screen=3 next=3", "screen=1 next=1", 1),
@@ -490,14 +474,13 @@ class MovieResourcesTests(unittest.TestCase):
                         replace_last(log, "root_focus=1", "root_focus=0"),
                         log.replace("events=6 handled=4", "events=6 handled=3"),
                         log.replace("clock=fixed", "clock=real", 1),
-                        log.replace("run_done", "shell capability unavailable: screen 5\nrun_done"),
-                        log.replace("run_done", "[D3BFG] UI glyph size font=sarasori_rg scale=0.35000,0.40833 stroke=1.750 "
-                                    "prerendered=no\nrun_done"),
+                        log + "shell capability unavailable: screen 5\n",
+                        log + "[D3BFG] UI glyph size font=sarasori_rg scale=0.35000,0.40833 stroke=1.750 "
+                                    "prerendered=no\n",
                         replace_last(log, "triangles=9000 flushes", "triangles=8000 flushes"),
                         log.replace("evictions=0", "evictions=1", 1),
                         log.replace("RETAIL released movie=0 images=19 heap=80/100/4\n", ""),
-                        log.replace("final=7424/7600/4", "final=7488/7600/4"),
-                        replace_last(log, "[D3BFG] CONSOLE shutdown complete frames=", "[D3BFG] CONSOLE shutdown complete frames=9")):
+                        log.replace("RETAIL drawable movie=0", "RETAIL undrawable movie=0")):
             with self.subTest(changed=changed):
                 self.assertFalse(verdict(changed)[0])
 
@@ -551,10 +534,10 @@ class MovieResourcesTests(unittest.TestCase):
     def test_execution_acceptance_requires_active_scripts_live_hierarchy_and_native_work(self):
         manifest = self.label_manifest()
         log = self.acceptance_log(manifest, execution=True)
-        self.assertTrue(runner.classify(log, "run", "ntsc", manifest, self.source, execution=True)[0])
-        self.assertFalse(runner.classify(log, "run", "ntsc", manifest, self.source)[0])
+        self.assertTrue(runner.classify(log, manifest, self.source, execution=True)[0])
+        self.assertFalse(runner.classify(log, manifest, self.source)[0])
         inactive = self.acceptance_log(manifest)
-        self.assertFalse(runner.classify(inactive, "run", "ntsc", manifest, self.source, execution=True)[0])
+        self.assertFalse(runner.classify(inactive, manifest, self.source, execution=True)[0])
         for before, after in (("scripts=active", "scripts=inactive"), ("ticks=120", "ticks=119"),
                               ("ticks=120", "ticks=121"), ("root=1", "root=0"), ("root=1", "root=65536"),
                               ("frames=120", "frames=121"),
@@ -564,13 +547,12 @@ class MovieResourcesTests(unittest.TestCase):
                               ("instructions=1000", "instructions=0"), ("calls=5", "calls=0"),
                               ("commands=7", "commands=0"), ("native_steps=20", "native_steps=0"),
                               ("native_steps=20", "native_steps=1"),
-                              ("final=7424", "final=7425"),
                               ("carousel_items=1", "carousel_items=0"), ("carousel_slots=5", "carousel_slots=3"),
                               ("credits=1", "credits=0"), ("callbacks=2", "callbacks=1"),
                               ("owner screen=0", "owner screen=1"), ("heap=100/120/8", "heap=121/120/8"),
                               ("heap=100/120/8", "heap=100/16777217/8"), ("heap=100/120/8", "heap=100/120/0")):
             with self.subTest(before=before, after=after):
-                self.assertFalse(runner.classify(log.replace(before, after), "run", "ntsc", manifest,
+                self.assertFalse(runner.classify(log.replace(before, after), manifest,
                                                  self.source, execution=True)[0])
 
     def test_execution_acceptance_rejects_stale_or_wrong_movie_status(self):
@@ -579,28 +561,28 @@ class MovieResourcesTests(unittest.TestCase):
         dialog = next(row.group(0) for row in runner.EXECUTION.finditer(log) if row[1] == "1")
         for changed in (log.replace(dialog, ""), log.replace(dialog, dialog.replace("movie=1", "movie=0")),
                         log.replace("RETAIL movie=1 state=loaded", "RETAIL movie=1 state=stale")):
-            self.assertFalse(runner.classify(changed, "run", "ntsc", manifest, self.source, execution=True)[0])
+            self.assertFalse(runner.classify(changed, manifest, self.source, execution=True)[0])
         inactive = self.acceptance_log(manifest)
         self.assertFalse(runner.classify(inactive.replace("RETAIL movie=1 state=loaded", "RETAIL movie=1 state=stale"),
-                                         "run", "ntsc", manifest, self.source)[0])
+                                         manifest, self.source)[0])
         injected = inactive.replace("RETAIL movie=1 state=loaded", dialog + "\nRETAIL movie=1 state=loaded")
-        self.assertFalse(runner.classify(injected, "run", "ntsc", manifest, self.source)[0])
+        self.assertFalse(runner.classify(injected, manifest, self.source)[0])
 
     def test_shell_execution_requires_fresh_native_owner_and_releases_it_for_dialog(self):
         manifest = self.label_manifest()
         log = self.acceptance_log(manifest, execution=True)
         owner = list(runner.OWNER.finditer(log))[-1].group(0)
         prefix, suffix = log.rsplit(owner, 1)
-        self.assertFalse(runner.classify(prefix + suffix, "run", "ntsc", manifest, self.source, execution=True)[0])
+        self.assertFalse(runner.classify(prefix + suffix, manifest, self.source, execution=True)[0])
         leaked = log.replace("RETAIL movie=1 state=loaded", owner + "\nRETAIL movie=1 state=loaded")
-        self.assertFalse(runner.classify(leaked, "run", "ntsc", manifest, self.source, execution=True)[0])
+        self.assertFalse(runner.classify(leaked, manifest, self.source, execution=True)[0])
         inactive = self.acceptance_log(manifest)
-        self.assertFalse(runner.classify(owner + "\n" + inactive, "run", "ntsc", manifest, self.source)[0])
+        self.assertFalse(runner.classify(owner + "\n" + inactive, manifest, self.source)[0])
 
     def test_execution_requires_actual_native_callback_traces_in_every_loaded_movie(self):
         manifest = self.label_manifest()
         log = self.acceptance_log(manifest, execution=True)
-        accepted = lambda text: runner.classify(text, "run", "ntsc", manifest, self.source, execution=True)[0]
+        accepted = lambda text: runner.classify(text, manifest, self.source, execution=True)[0]
         for movie, kind, name in (("shell", "native-callback", "refreshCarousel"),
                                   ("shell", "native-callback", "updateCredits"),
                                   ("shell", "owner-caller", "options"),
@@ -621,33 +603,15 @@ class MovieResourcesTests(unittest.TestCase):
         final = next(runner.EXECUTION.finditer(log)).group(0)
         earlier = final.replace("ticks=120", "ticks=60").replace("instructions=1000", "instructions=500")
         log = log.replace(final, earlier + "\n" + final)
-        self.assertTrue(runner.classify(log, "run", "ntsc", manifest, self.source, execution=True)[0])
+        self.assertTrue(runner.classify(log, manifest, self.source, execution=True)[0])
         for before, after in (("ticks=60", "ticks=121"), ("instructions=500", "instructions=1001")):
-            self.assertFalse(runner.classify(log.replace(before, after), "run", "ntsc", manifest,
+            self.assertFalse(runner.classify(log.replace(before, after), manifest,
                                              self.source, execution=True)[0])
-
-    def test_dialog_execution_proves_three_sustained_reloads_without_shell_admission(self):
-        manifest = self.label_manifest()
-        log = self.acceptance_log(manifest, execution=True, phases=runner.DIALOG_PHASES)
-        accepted = lambda text: runner.classify(text, "run", "ntsc", manifest, self.source,
-                                               execution=True, phases=runner.DIALOG_PHASES)[0]
-        self.assertTrue(accepted(log))
-        self.assertNotIn("RETAIL movie=0", log)
-        self.assertIn("frames=361", log)
-        for before, after in (("movie-dialog2.tga", "movie-shell2.tga"),
-                              ("ticks=120", "ticks=119"), ("scripts=active", "scripts=inactive"),
-                              ("RETAIL execution movie=1", "RETAIL execution movie=0"),
-                              ("images=2", "images=3"), ("final=7424", "final=7425")):
-            with self.subTest(before=before):
-                self.assertFalse(accepted(log.replace(before, after)))
-        prefix, suffix = log.rsplit("heap=100/120/8", 1)
-        self.assertTrue(accepted(prefix + "heap=101/120/8" + suffix))
-        self.assertFalse(runner.classify(log, "run", "ntsc", manifest, self.source, execution=True)[0])
 
     def test_execution_releases_exact_warm_ownership_despite_different_live_animation_allocations(self):
         manifest = self.label_manifest()
         log = self.acceptance_log(manifest, execution=True)
-        accepted = lambda text: runner.classify(text, "run", "ntsc", manifest, self.source, execution=True)[0]
+        accepted = lambda text: runner.classify(text, manifest, self.source, execution=True)[0]
         prefix, suffix = log.rsplit("heap=100/120/8", 1)
         varied = prefix + "heap=11128409/11828856/15842" + suffix
         self.assertTrue(accepted(varied))
@@ -662,7 +626,8 @@ class MovieResourcesTests(unittest.TestCase):
             with self.subTest(release=changed):
                 self.assertFalse(accepted(prefix + changed + suffix))
         moved = log.replace(final, "", 1)
-        moved = moved.replace("CONSOLE capture=movie-shell1.tga", final + "\nCONSOLE capture=movie-shell1.tga")
+        moved = moved.replace("CONSOLE capture=movie-execution-shell1.tga", final + "\nCONSOLE capture=movie-execution-shell1.tga")
+        self.assertNotEqual(moved, log.replace(final, "", 1))
         self.assertFalse(accepted(moved))
 
     def test_dialog_reload_tolerance_is_limited_to_measured_cold_final_glyph_edge(self):
@@ -678,12 +643,14 @@ class MovieResourcesTests(unittest.TestCase):
                 pixels[(y * 512 + x + index) * 3] += delta
             return pixels
 
-        def compare(first, second=baseline, third=baseline, standard="ntsc", phases=runner.DIALOG_PHASES):
+        dialog_phases = tuple(("dialog" + str(index), "dialog", 1) for index in (1, 2, 3))
+
+        def compare(first, second=baseline, third=baseline, standard="ntsc", phases=dialog_phases):
             captures = {}
             for (name, _, _), rgb in zip(phases, (first, second, third)):
                 bgr = bytearray(rgb)
                 bgr[0::3], bgr[2::3] = rgb[2::3], rgb[0::3]
-                path = self.source / ("movie-" + name + ".tga")
+                path = self.source / runner.movie_capture_name("inactive", name)
                 path.write_bytes(header + bgr)
                 captures[path.name] = {"sha256": runner.sha256(path)}
             return runner.verify_reload_captures(self.source, phases, captures, manifest, self.source, standard)

@@ -209,23 +209,23 @@ class CommonProbeClassifierTests(unittest.TestCase):
                     self.assertFalse(runner.classify_run("run1", probe, None, log, None, False)[0])
                 self.assertFalse(runner.classify_run("run1", probe, complete_result(), valid, None, False)[0])
 
-    def test_input_method_prefix_and_later_message_cannot_pass(self):
-        expected = runner.NEGATIVE_PROBES["input-init"]
-        wrong_method = self.fatal_log("input-init").replace(expected, runner.NEGATIVE_PROBES["input-map"])
-        later_message = self.fatal_log("input-init").replace(expected, "unrelated input failure\n" + expected)
-        for log in (wrong_method, later_message):
+    def test_other_diagnostic_and_later_message_cannot_pass(self):
+        expected = runner.NEGATIVE_PROBES["audio-voice-clock"]
+        wrong_check = self.fatal_log("audio-voice-clock").replace(expected, runner.NEGATIVE_PROBES["audio-voice-backwards"])
+        later_message = self.fatal_log("audio-voice-clock").replace(expected, "unrelated audio failure\n" + expected)
+        for log in (wrong_check, later_message):
             with self.subTest(log=log):
-                self.assertFalse(runner.classify_run("run1", "input-init", None, log, None, False)[0])
+                self.assertFalse(runner.classify_run("run1", "audio-voice-clock", None, log, None, False)[0])
 
     def test_wrong_fatal_watchdog_and_tlb_fail(self):
-        for log, timeout in [(self.fatal_log("network") + "TLB Miss", False),
-                             (self.fatal_log("network"), True),
-                             (self.fatal_log("network").replace("FindOrCreateMatch", "another failure"), False)]:
-            self.assertFalse(runner.classify_run("run1", "network", None, log, None, timeout)[0])
+        for log, timeout in [(self.fatal_log("no-user") + "TLB Miss", False),
+                             (self.fatal_log("no-user"), True),
+                             (self.fatal_log("no-user").replace("match requires local user", "another failure"), False)]:
+            self.assertFalse(runner.classify_run("run1", "no-user", None, log, None, timeout)[0])
 
     def test_stale_fatal_identity_and_return_are_rejected(self):
-        self.assertFalse(runner.classify_run("old", "network", None, self.fatal_log("network"), None, False)[0])
-        self.assertFalse(runner.classify_run("run1", "network", complete_result(), self.fatal_log("network"), None, False)[0])
+        self.assertFalse(runner.classify_run("old", "no-user", None, self.fatal_log("no-user"), None, False)[0])
+        self.assertFalse(runner.classify_run("run1", "no-user", complete_result(), self.fatal_log("no-user"), None, False)[0])
 
     def test_missing_offline_check_cannot_pass(self):
         log = complete_log(core="PASS").replace("[D3BFG] CHECK offline/match-reload-ledger PASS\n", "")
@@ -384,10 +384,22 @@ class ProcessTests(unittest.TestCase):
 
 
 class VersionTests(unittest.TestCase):
+    def setUp(self):
+        runner._VERSIONS.clear()
+        self.addCleanup(runner._VERSIONS.clear)
+
     def version_result(self, status: int, output: str) -> str:
         result = subprocess.CompletedProcess([], status, stdout=output, stderr="")
         with mock.patch.object(runner.subprocess, "run", return_value=result):
             return runner.emulator_version(Path("pcsx2"))
+
+    def test_each_emulator_is_queried_once_per_process(self):
+        result = subprocess.CompletedProcess([], 1, stdout="PCSX2 v2.6.3\n", stderr="")
+        with mock.patch.object(runner.subprocess, "run", return_value=result) as query:
+            for _ in range(3):
+                self.assertEqual(runner.emulator_version(Path("pcsx2")), "PCSX2 v2.6.3")
+            runner.emulator_version(Path("other"))
+        self.assertEqual(query.call_count, 2)
 
     def test_status_zero_with_version(self):
         self.assertEqual(self.version_result(0, "PCSX2 v2.6.3\n"), "PCSX2 v2.6.3")

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: run_common_tests.py
-# Brief: Run isolated Common startup/shutdown and deferred capability failure probes in PCSX2.
+# Brief: Run isolated Common startup/shutdown and expected-failure probes in PCSX2.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
-"""Each probe gets a fresh process because Doom static CVar registration is one-shot."""
+"""Each probe gets a fresh process because Doom static CVar registration is one-shot.
+The GS failure probes run under make test-renderer instead."""
 
 import argparse
 from pathlib import Path
@@ -27,7 +28,8 @@ def main() -> int:
         parser.error("timeout must be greater than zero and at most 3600 seconds")
     args.symbols = None
     args.fixture = None
-    scenarios = tuple("lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(NEGATIVE_PROBES)
+    scenarios = tuple("lifecycle-" + stage for stage in LIFECYCLE_STAGES) + tuple(
+        probe for probe in NEGATIVE_PROBES if not probe.startswith("renderer-"))
     try:
         for scenario in scenarios:
             args.scenario = scenario

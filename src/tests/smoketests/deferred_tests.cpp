@@ -96,48 +96,4 @@ bool RunDeferredTests()
     return passed;
 }
 
-bool RunDeferredFailureProbe(const char * name)
-{
-    if (idStr::Cmp(name, "save-forced-enable") == 0)
-    {
-        // The native programmatic API bypasses ROM. It must not bypass the capability boundary.
-        cvarSystem->SetCVarBool("saveGame_enable", true);
-        (void)session->GetSaveGameManager();
-    }
-    else
-    {
-        idMultiplayerGame multiplayer;
-        if (idStr::Cmp(name, "multiplayer-run") == 0)
-        {
-            multiplayer.Run();
-        }
-        else if (idStr::Cmp(name, "multiplayer-chat") == 0)
-        {
-            multiplayer.AddChatLine("fixture chat %d", 42);
-        }
-        else if (idStr::Cmp(name, "multiplayer-snapshot") == 0)
-        {
-            byte bytes[64] = {};
-            idBitMsg message;
-            message.InitWrite(bytes, static_cast<int>(sizeof(bytes)));
-            multiplayer.WriteToSnapshot(message);
-        }
-        else if (idStr::Cmp(name, "multiplayer-scoreboard") == 0)
-        {
-            multiplayer.SetScoreboardActive(true);
-        }
-        else if (idStr::Cmp(name, "multiplayer-modes") == 0)
-        {
-            const char ** modes = nullptr;
-            const char ** display = nullptr;
-            (void)multiplayer.GetGameModes(&modes, &display);
-        }
-        else
-        {
-            return false;
-        }
-    }
-    return true; // The runner rejects an unavailable operation returning normally.
-}
-
 } // namespace ps2::tests

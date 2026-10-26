@@ -74,15 +74,16 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   startup and the console draws the original `textures/bigchars` charset from it.
   Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` before Common startup;
   a missing file defaults to headless, and `ntsc menu`/`pal menu` also open the native
-  menu at startup. `make test-console` checks native console drawing,
-  edit/history events, close/reopen and final capture/quit in both standards.
+  menu at startup. The console step of `make test-ui` checks native console drawing,
+  edit/history events and close/reopen in both standards.
   HostFs `ps2_consoleText`, `ps2_consoleKey` and `ps2_capture` are visible-mode controls.
   Common frames own exactly one native console presentation; `UpdateScreen` coalesces
   redraw requests during a frame and never advances simulation. Finish queued capture
   and final presentation before UI/device shutdown; visible vsync adds no headless sleep.
   `make ui` / `make run-ui` stage/run the same ELF with the authored native SWF under
-  `build/<config>/ui/`, using `CONSOLE_STANDARD` for NTSC/PAL. `make test-ui` checks native
-  loading, ASCII `idFont`, timeline color/alpha, AVM1 focus/select, capture and reloads.
+  `build/<config>/ui/`, using `CONSOLE_STANDARD` for NTSC/PAL. The authored session of
+  `make test-ui` checks native loading, ASCII `idFont`, timeline color/alpha, AVM1
+  focus/select, capture and reloads.
   The authored page-binding gate passes debug/release NTSC/PAL: it checks 94 pixels
   (outlines, color terms, screen blending and depth masks among them), shared cache
   budgets and twelve invalid-resource cases, including deferred pixel corruption. A
@@ -95,20 +96,21 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   are compiled too, and streamed page pixels are checked before cache replacement.
   `make retail-ui` / `make run-retail-ui` stage/run the opt-in English retail font
   screen from the local `make ui-cook` output, using `CONSOLE_STANDARD` and `BUILD`.
-  `make test-retail-ui` checks five real native fonts at 12/24/48-point scales, full
-  legacy layout metrics, source-derived pixels, 120 frames per family, return/reload,
-  shutdown and five corrupt-resource cases. HostFs `ps2_uiRetail` accepts load/unload/
-  reload/status or `font INDEX` (0–4). Start in a fresh visible process; the retail
-  screens and the authored movie are separate screens of one catalog-backed image
-  profile. No retail SWF or Shell is
+  The font step of `make test-ui` checks five real native fonts at 12/24/48-point scales,
+  full legacy layout metrics, source-derived pixels, 120 frames per family and
+  return/reload; five corrupt-resource cases run in fresh processes. HostFs `ps2_uiRetail`
+  accepts load/unload/reload/status or `font INDEX` (0–4). The authored movie and the
+  retail screens cannot share a session: the authored page cache (1 MiB) stays until UI
+  shutdown and retail images stay warm after their screens unload, under one 2 MiB
+  texture budget. No retail SWF or Shell is
   loaded by that font-only mode. The separate movie profile below admits bounded
   dictionaries, English text and timeline execution; full drawing and offline Shell
   integration remain pending.
   `make retail-movies` / `make run-retail-movies` stage/run original shell/dialog BSWFs
   and the complete English dictionary under `build/<config>/ui-retail-movies/`.
   `ps2_uiRetail movie shell|dialog|none` selects inactive native dictionaries and
-  isolated English text layout. `make test-retail-movies` checks native storage/layout,
-  warm reloads, resident textures, full cleanup and malformed resources in both standards.
+  isolated English text layout. The session's inactive step checks native storage/layout,
+  warm reloads and resident textures; malformed resources fail in fresh processes.
   Resource-only constructors never run imported AVM1/placements; inactive inspection
   rejects Activate and timeline advancement; only the native menu admits key events. Native
   dictionary shutdown releases retained localization keys/pools after movies/fonts.
@@ -117,14 +119,13 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   The shell borrows a minimal native widget owner: the original carousel has five slots
   with only the admitted Doom 3 cover, and the original Credits screen owns its callback.
   Callback identity, signatures and destructive ancestor seeks are checked in release too.
-  `make test-retail-timelines` checks executable movies; `make test-retail-movies` also
-  checks inactive inspection and malformed resources. `ps2_uiRetail dialog quit` draws the
+  The session's execution step checks executable movies. `ps2_uiRetail dialog quit` draws the
   original dialog in full through native `Render`, showing Common's quit message, and
   `ps2_uiRetail draw shell` draws the original shell's start screen; full drawing is a
   third admission, refusing only additive alpha terms. `ps2_uiRetail logo on|off` plays the
   native shell's logo transition and `ps2_uiRetail clock fixed` advances executing movies
-  1/60 s per Common frame. `make test-retail-dialog` and `make test-retail-shell` check
-  them. `ps2_uiRetail menu` opens the menu through the native `idMenuHandler_Shell`
+  1/60 s per Common frame. The session's dialog and shell steps check them.
+  `ps2_uiRetail menu` opens the menu through the native `idMenuHandler_Shell`
   (start, root and credits screens bound; PS3 platform layout). Common routes events the
   console and authored movie leave to it, as `MenuEvent` does; key events are a fourth
   admission, and each native handler a key reaches must be a widget event of the menu's
@@ -138,8 +139,14 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   admission is per movie): the root's Quit shows the native confirmation, an active dialog
   takes events first, its choices are pinned by identity, and accept quits through
   Common. `make retail-menu` / `make run-retail-menu` stage/run a package whose policy
-  boots into the menu, before the startup commands, on real time. `make test-retail-menu`
-  checks all four (`menu-render`, `menu-quit`, `menu-boot`, `menu-screens`).
+  boots into the menu, before the startup commands, on real time. `make test-ui` runs
+  every UI screen in few launches: one session per standard boots such a package into
+  the menu and drives, step by step, the console, the fonts, inactive and executing
+  movies, the drawn dialog and shell, the menu's reloads, the Campaign and Settings
+  screens and last the quit dialog, whose accept ends the session. Each step is checked on
+  its slice of the log between echo barriers; images earlier steps opened stay warm in
+  later steps' counters. The authored movie has its own session per standard, and each
+  invalid-resource case (12 authored, 5 font, 13 movie) its own process.
   Retail text draws pad button tags (`<JOY1>`) as the cooked PS3 prompt art, which a
   drawn movie loads when admitted. A visible package also brings up the DualShock pad
   (the ROM's SIO2MAN/PADMAN through libpad) and a debug USB keyboard (usbd and ps2kbd,
@@ -186,8 +193,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `make compile-core` checks the explicit scalar idlib/framework source set.
   `make headless-core` links staged foundation startup/tests as
   `build/<config>/tests/core/d3bfg_tests.elf`; production links no test code.
-  `make test-common` checks partial shutdown and offline capability failures in fresh
-  emulator processes; Common startup is one-shot after static CVar registration.
+  `make test-common` checks partial shutdown and expected failures in fresh emulator
+  processes (`make test-renderer` runs the GS failure probes); Common startup is one-shot after static CVar registration.
   `make compile-game` is the separate M2b campaign compile gate. `make link-game`
   validates the retained-object resident link, registrations and map coverage under
   `build/<config>/`. `make headless-game` separately builds

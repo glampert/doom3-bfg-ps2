@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: run_retail_movies.py
-# Brief: Verify native shell/dialog admission, bounded execution, English text and the fully drawn movies.
+# Brief: Drive and check the retail movie steps of the merged UI session; run their invalid-resource cases.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -22,9 +22,9 @@ import run_console
 import ui_gstx
 import run_headless
 import run_pcsx2_test as smoke
-from run_ui import BASELINE, TARGET_CRASH_RE, echoed
+from run_ui import TARGET_CRASH_RE, echoed
 from stage_headless import REPO_ROOT, boot_data, sha256
-from stage_retail_ui import inspect_package, stage_retail
+from stage_retail_ui import stage_retail
 from ui_font import inspect_language
 from ui_page_package import fnv1a32
 from run_retail_ui import TEXTURES_RE, resident_images, resident_textures, texture_counters
@@ -59,7 +59,6 @@ EXECUTION_NEGATIVES = ("movie-placement", "movie-opcode", "movie-branch", "movie
 DIALOG_NEGATIVES = ("dialog-alpha-add",)
 NEGATIVES = ("profile", "movie-missing", "movie-checksum", "movie-count", "movie-init", "english") + EXECUTION_NEGATIVES + DIALOG_NEGATIVES
 PHASES = (("shell1", "shell", 0), ("dialog", "dialog", 1), ("shell2", "shell", 0), ("shell3", "shell", 0))
-DIALOG_PHASES = (("dialog1", "dialog", 1), ("dialog2", "dialog", 1), ("dialog3", "dialog", 1))
 # The first full dialog load sustains 120 frames; warm reloads prove ownership with shorter runs.
 RENDER_PHASES = (("render1", 120), ("render2", 30), ("render3", 30))
 # A second capture this many frames later locates the looping focus highlight, the only animation at rest.
@@ -88,8 +87,9 @@ MENU_INPUTS = {"a": ("0", "0", "0", "0"), "b": ("2", "1", "0", "0"), "c": ("6", 
 # The native quit confirmation, on one load: sign in, wrap the root's focus up to Quit and open the
 # dialog (d). Its three options take focus left to right and accept selects the focused one: move to
 # Cancel (e) and select it (f), open the dialog again (g), then accept it, which quits the game through
-# Common right after the final capture.
-MENU_QUIT_STEPS = (("a", (), 120), ("b", ("cross",), 90), ("c", ("dpad_up",), 30), ("d", ("cross",), 60),
+# Common right after the final capture. The session opened the menu at boot, so its start screen is
+# warm: 30 frames, as the warm reloads of the drawn movies.
+MENU_QUIT_STEPS = (("a", (), 30), ("b", ("cross",), 90), ("c", ("dpad_up",), 30), ("d", ("cross",), 60),
                    ("e", ("dpad_right",), 30), ("f", ("cross",), 60), ("g", ("cross",), 60))
 MENU_QUIT_SCREENS = {"a": ("0", "0", "PRESS_START", "1", "5", "0"), "b": ("1", "1", "IDLE", "1", "5", "0"),
                      **{name: ("1", "1", "IDLE", "1", "5", "3") for name in "cdefg"}}
@@ -108,8 +108,9 @@ MENU_BOOT_INPUTS = {"a": ("0", "0", "0", "0"), "b": ("2", "1", "0", "0"), "c": (
 # The Campaign and Settings screens, on one load: sign in (b), enter Campaign (c), move its focus
 # down (d), back to the root (e), move the root's focus to Settings (f), enter it (g), move its focus
 # down (h) and back to the root (i). Accept and back handle their press only; a scroll handles both
-# halves. Campaign is screen 3 and Settings 13; the root keeps the focus the move left it with.
-MENU_SCREENS_STEPS = (("a", (), 120), ("b", ("enter",), 90), ("c", ("enter",), 60), ("d", ("down",), 10),
+# halves. Campaign is screen 3 and Settings 13; the root keeps the focus the move left it with. The
+# start screen is warm, as for the quit steps above.
+MENU_SCREENS_STEPS = (("a", (), 30), ("b", ("enter",), 90), ("c", ("enter",), 60), ("d", ("down",), 10),
                       ("e", ("escape",), 60), ("f", ("down",), 10), ("g", ("enter",), 60), ("h", ("down",), 10),
                       ("i", ("escape",), 60))
 MENU_SCREENS_SCREENS = {"a": ("0", "0", "PRESS_START", "1", "5", "0"), "b": ("1", "1", "IDLE", "1", "5", "0"),
@@ -120,8 +121,6 @@ MENU_SCREENS_SCREENS = {"a": ("0", "0", "PRESS_START", "1", "5", "0"), "b": ("1"
 MENU_SCREENS_INPUTS = {"a": ("0", "0", "0", "0"), "b": ("2", "1", "0", "0"), "c": ("4", "2", "0", "0"),
                        "d": ("6", "4", "0", "0"), "e": ("8", "5", "0", "0"), "f": ("10", "7", "0", "0"),
                        "g": ("12", "8", "0", "0"), "h": ("14", "10", "0", "0"), "i": ("16", "11", "0", "0")}
-POSITIVE_CASES = ("native", "execution", "dialog-execution", "dialog-render", "shell-render", "menu-render", "menu-quit",
-                  "menu-boot", "menu-screens")
 EXECUTION_HEAP_CEILING = 16 * 1024 * 1024
 PROMPT_ART = "guis/assets/hud/controller/ps3/"
 # The native quit dialog's identity from Common_dialog.h (GDM_QUIT_GAME, DIALOG_DYNAMIC) and GetDialogMsg.
@@ -249,11 +248,11 @@ def dialog_rounding_row(manifest: dict, source: Path) -> tuple[int, int, int]:
     return math.floor(x1), math.ceil(x2), math.floor(bottom)
 
 
-def verify_reload_captures(output: Path, phases: tuple, captures: dict,
-                           manifest: dict, source: Path, standard: str) -> dict:
+def verify_reload_captures(output: Path, phases: tuple, captures: dict, manifest: dict, source: Path, standard: str,
+                           prefix: str = "inactive") -> dict:
     comparisons = {}
     for movie in sorted({entry[2] for entry in phases}):
-        names = ["movie-" + name + ".tga" for name, _, index in phases if index == movie]
+        names = [movie_capture_name(prefix, name) for name, _, index in phases if index == movie]
         if len(names) < 2:
             continue
         hashes = [captures[name]["sha256"] for name in names]
@@ -283,23 +282,37 @@ def verify_reload_captures(output: Path, phases: tuple, captures: dict,
     return comparisons
 
 
-def classify(log: str, identity: str, standard: str, manifest: dict, source: Path,
-             execution: bool = False, phases: tuple = PHASES) -> tuple[bool, str]:
+def movie_capture_name(prefix: str, name: str) -> str:
+    return f"movie-{prefix}-{name}.tga"
+
+
+def movies_driver(begin: str, end: str, execution: bool, phases: tuple = PHASES):
+    """Load each movie in turn, inactive or executing, for 120 frames before its capture."""
+    prefix, command = ("execution", "execute") if execution else ("inactive", "movie")
+    for step, (name, movie, _) in enumerate(phases):
+        first = [f'echo "{begin}"', "ps2_uiRetail load"] if step == 0 else []
+        capture = movie_capture_name(prefix, name)
+        yield ([*first, f"ps2_uiRetail {command} {movie}", "wait 120", "clearHistory", "ps2_uiRetail status",
+                f'ps2_capture "{capture}"'], lambda log, capture=capture: f"CONSOLE capture={capture} " in log)
+    # HostFs queues the whole batch into history before execution; clear it before the release.
+    yield ["clearHistory", "ps2_uiRetail unload", f'echo "{end}"'], lambda log: echoed(log, end)
+
+
+def classify(log: str, manifest: dict, source: Path, execution: bool = False, phases: tuple = PHASES,
+             warm: set = frozenset()) -> tuple[bool, str]:
+    """Check an inactive or executing movie step's log; warm holds the images earlier steps left open."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native movie resource crash or fatal"
-    if any(marker not in log for marker in (f"GS ready {standard.upper()}", "BOOT production shutdown complete", "COMMON stage=system shutdown")):
-        return False, "incomplete native boot or shutdown"
-    if not all(echoed(log, identity + suffix) for suffix in ("_ready", "_done")):
-        return False, "stale or missing native barriers"
+    prefix = "execution" if execution else "inactive"
     captures = list(CAPTURE.finditer(log))
-    if [match[1] for match in captures] != ["movie-" + name + ".tga" for name, _, _ in phases] + ["movie-quit.tga"]:
+    if [match[1] for match in captures] != [movie_capture_name(prefix, name) for name, _, _ in phases]:
         return False, "missing or reordered native movie resource captures"
     ledgers = []
     image_counts = []
     previous = 0
     previous_capture = 0
     previous_textures = None
-    open_images = resident_images(manifest)
+    open_images = set(warm) | resident_images(manifest)
     for capture, (_, _, movie) in zip(captures, phases):
         phase_log = log[previous_capture:capture.start()]
         states = STATE.findall(phase_log)
@@ -394,8 +407,9 @@ def classify(log: str, identity: str, standard: str, manifest: dict, source: Pat
         release_ledgers = []
         for index, (release, (_, _, movie)) in enumerate(zip(released, phases)):
             released_movie, images, requested, backing, allocations = map(int, release.groups())
+            boundary = captures[index + 1].start() if index + 1 < len(captures) else len(log)
             if (released_movie != movie or images != image_counts[index] or
-                    not captures[index].end() < release.start() < captures[index + 1].start()):
+                    not captures[index].end() < release.start() < boundary):
                 return False, "native movie release identity, retained images or ordering differs"
             if not 0 < requested <= backing <= EXECUTION_HEAP_CEILING or allocations == 0:
                 return False, "native movie release heap exceeds its bounded profile"
@@ -408,15 +422,6 @@ def classify(log: str, identity: str, standard: str, manifest: dict, source: Pat
     # released ownership above after transient sprite/text state has been destroyed.
     elif len(ledgers) < 2 or phases[-2][2] != phases[-1][2] or ledgers[-2] != ledgers[-1]:
         return False, "native dictionary reload changed the warm allocation ledger"
-    memory = run_headless.MEMORY_RE.findall(log)
-    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
-        return False, "movie resource shutdown leaked native ownership"
-    shutdown = run_console.SHUTDOWN_RE.findall(log)
-    if len(shutdown) != 1 or int(shutdown[0][0]) < 120 * len(phases) or int(shutdown[0][0]) != int(shutdown[0][1]):
-        return False, "movie resource frame loop did not sustain one presentation per frame"
-    if (int(captures[-1][2]) <= previous or
-            (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
-        return False, "final movie capture was not drained before shutdown"
     return True, ("native retail timelines, scripts and English text passed bounded execution reloads" if execution else
                   "native retail dictionaries and English text passed bounded inactive reloads")
 
@@ -442,7 +447,18 @@ def capture_gaps(phases=RENDER_PHASES) -> dict:
 
 
 def render_capture_names(phases=RENDER_PHASES) -> list[str]:
-    return [f"movie-{name}-{suffix}.tga" for name, _ in phases for suffix in capture_gaps(phases)] + ["movie-quit.tga"]
+    return [f"movie-{name}-{suffix}.tga" for name, _ in phases for suffix in capture_gaps(phases)]
+
+
+def render_driver(begin: str, end: str, draw: str, clock: str, phases=RENDER_PHASES):
+    """Draw the dialog, the shell or the native menu three times, each load replacing the last."""
+    last = list(capture_gaps(phases))[-1]
+    for step, (name, _) in enumerate(phases):
+        # Clear history before the next load releases the previous movie's ownership.
+        first = [f'echo "{begin}"', "ps2_uiRetail load", f"ps2_uiRetail clock {clock}"] if step == 0 else ["clearHistory"]
+        capture = f"movie-{name}-{last}.tga"
+        yield [*first, draw, *render_commands(step, phases)], lambda log, capture=capture: f"CONSOLE capture={capture} " in log
+    yield ["clearHistory", "ps2_uiRetail unload", f'echo "{end}"'], lambda log: echoed(log, end)
 
 
 def screen_placements(swf: dict) -> int:
@@ -492,7 +508,12 @@ def menu_boot_commands() -> list[str]:
 
 
 def menu_boot_capture_names() -> list[str]:
-    return [f"movie-menuboot-{suffix}.tga" for suffix, _, _ in MENU_BOOT_STEPS] + ["movie-quit.tga"]
+    return [f"movie-menuboot-{suffix}.tga" for suffix, _, _ in MENU_BOOT_STEPS]
+
+
+def menu_boot_driver(end: str):
+    """The package policy opened the menu before the startup commands: drive it, then release it."""
+    yield [*menu_boot_commands(), "clearHistory", "ps2_uiRetail unload", f'echo "{end}"'], lambda log: echoed(log, end)
 
 
 def menu_screens_commands() -> list[str]:
@@ -500,18 +521,19 @@ def menu_screens_commands() -> list[str]:
 
 
 def menu_screens_capture_names() -> list[str]:
-    return [f"movie-menuscreens-{suffix}.tga" for suffix, _, _ in MENU_SCREENS_STEPS] + ["movie-quit.tga"]
+    return [f"movie-menuscreens-{suffix}.tga" for suffix, _, _ in MENU_SCREENS_STEPS]
 
 
-def classify_menu_screens(log: str, identity: str, standard: str, manifest: dict, source: Path) -> tuple[bool, str]:
+def menu_screens_driver(begin: str, end: str):
+    yield ([f'echo "{begin}"', "ps2_uiRetail load", "ps2_uiRetail clock fixed", "ps2_uiRetail menu", *menu_screens_commands(),
+            "clearHistory", "ps2_uiRetail unload", f'echo "{end}"'], lambda log: echoed(log, end))
+
+
+def classify_menu_screens(log: str, manifest: dict, source: Path, warm: set = frozenset()) -> tuple[bool, str]:
     """Check the Campaign and Settings screens: reached from the root by keys on the fixed clock, their
     lists scrolled, left by back, every text size pre-rendered, then released."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native menu crash or fatal"
-    if any(marker not in log for marker in (f"GS ready {standard.upper()}", "BOOT production shutdown complete", "COMMON stage=system shutdown")):
-        return False, "incomplete native boot or shutdown"
-    if not all(echoed(log, identity + suffix) for suffix in ("_ready", "_done")):
-        return False, "stale or missing native barriers"
     captures = list(CAPTURE.finditer(log))
     if [match[1] for match in captures] != menu_screens_capture_names():
         return False, "missing or reordered native menu captures"
@@ -525,7 +547,7 @@ def classify_menu_screens(log: str, identity: str, standard: str, manifest: dict
         return False, "a screen outside the reviewed shell was reached"
     if UNRENDERED.search(log):
         return False, "native menu drew text at a size without pre-rendered glyphs"
-    resident = texture_counters(resident_textures(manifest, source, menu_images(manifest)))
+    resident = texture_counters(resident_textures(manifest, source, set(warm) | menu_images(manifest)))
     channels = channel_counters(manifest, source)
     start = shell_loads[0].end()
     minimum = 0
@@ -558,30 +580,21 @@ def classify_menu_screens(log: str, identity: str, standard: str, manifest: dict
         previous_frame = frame
         start = capture.end()
     released = list(RELEASED.finditer(log))
-    if (len(released) != 1 or not captures[-2].end() < released[0].start() < captures[-1].start() or
-            int(released[0][1]) != 0):
+    if len(released) != 1 or released[0].start() < captures[-1].end() or int(released[0][1]) != 0:
         return False, "native menu release missing, repeated or out of order"
-    memory = run_headless.MEMORY_RE.findall(log)
-    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
-        return False, "menu shutdown leaked native ownership"
-    shutdown = run_console.SHUTDOWN_RE.findall(log)
-    if (len(shutdown) != 1 or int(shutdown[0][0]) < minimum or int(shutdown[0][0]) != int(shutdown[0][1]) or
-            int(captures[-1][2]) <= previous_frame or
-            (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
-        return False, "final menu capture was not drained before shutdown"
     return True, "native campaign and settings screens opened from the root, scrolled and returned, with pre-rendered text"
 
 
-def classify_menu_boot(log: str, identity: str, standard: str, manifest: dict, source: Path) -> tuple[bool, str]:
+def classify_menu_boot(log: str, identity: str, standard: str, manifest: dict, source: Path,
+                       warm: set = frozenset()) -> tuple[bool, str]:
     """Check a package that boots into the native menu: both movies admitted before the startup
     commands run, the console closed, the menu driven by keys on real time, then released."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native menu crash or fatal"
-    if any(marker not in log for marker in (f"GS ready {standard.upper()}", f"BOOT presentation={standard} menu=1",
-                                            "BOOT production shutdown complete", "COMMON stage=system shutdown")):
-        return False, "incomplete native boot, menu startup policy or shutdown"
+    if any(marker not in log for marker in (f"GS ready {standard.upper()}", f"BOOT presentation={standard} menu=1")):
+        return False, "incomplete native boot or menu startup policy"
     ready = re.search(re.escape(identity + "_ready") + r" +\r?\n", log)
-    if ready is None or not echoed(log, identity + "_done"):
+    if ready is None:
         return False, "stale or missing native barriers"
     if "ps2_uiRetail load" in log or "ps2_uiRetail menu" in log:
         return False, "the menu was opened by a command, not by the startup policy"
@@ -601,7 +614,7 @@ def classify_menu_boot(log: str, identity: str, standard: str, manifest: dict, s
         return False, "the console stayed open over the menu at startup"
     if UNRENDERED.search(log):
         return False, "native menu drew text at a size without pre-rendered glyphs"
-    resident = texture_counters(resident_textures(manifest, source, menu_images(manifest)))
+    resident = texture_counters(resident_textures(manifest, source, set(warm) | menu_images(manifest)))
     channels = channel_counters(manifest, source)
     start = ready.end()
     minimum = 0
@@ -630,17 +643,8 @@ def classify_menu_boot(log: str, identity: str, standard: str, manifest: dict, s
         previous_frame = frame
         start = capture.end()
     released = list(RELEASED.finditer(log))
-    if (len(released) != 1 or not captures[-2].end() < released[0].start() < captures[-1].start() or
-            int(released[0][1]) != 0):
+    if len(released) != 1 or released[0].start() < captures[-1].end() or int(released[0][1]) != 0:
         return False, "native menu release missing, repeated or out of order"
-    memory = run_headless.MEMORY_RE.findall(log)
-    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
-        return False, "menu shutdown leaked native ownership"
-    shutdown = run_console.SHUTDOWN_RE.findall(log)
-    if (len(shutdown) != 1 or int(shutdown[0][0]) < minimum or int(shutdown[0][0]) != int(shutdown[0][1]) or
-            int(captures[-1][2]) <= previous_frame or
-            (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
-        return False, "final menu capture was not drained before shutdown"
     return True, "native menu opened at startup from the package policy, driven by keys on real time"
 
 
@@ -652,8 +656,8 @@ def channel_counters(manifest: dict, source: Path) -> tuple[int, int]:
     return 3 * len(texture.cluts), 3 * 64 * rows * 4
 
 
-def classify_shell_render(log: str, identity: str, standard: str, manifest: dict, source: Path,
-                          menu: bool = False) -> tuple[bool, str]:
+def classify_shell_render(log: str, manifest: dict, source: Path, menu: bool = False,
+                          warm: set = frozenset()) -> tuple[bool, str]:
     """Check the fully drawn native shell: admission, outlines, depth masks, screen, color terms and ownership.
 
     With menu set, the native shell handler owns the movie and key events drive it: each load must
@@ -664,10 +668,6 @@ def classify_shell_render(log: str, identity: str, standard: str, manifest: dict
     names = tuple(gaps)
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native shell crash or fatal"
-    if any(marker not in log for marker in (f"GS ready {standard.upper()}", "BOOT production shutdown complete", "COMMON stage=system shutdown")):
-        return False, "incomplete native boot or shutdown"
-    if not all(echoed(log, identity + suffix) for suffix in ("_ready", "_done")):
-        return False, "stale or missing native barriers"
     captures = list(CAPTURE.finditer(log))
     if [match[1] for match in captures] != render_capture_names(phases):
         return False, "missing or reordered native shell captures"
@@ -676,7 +676,8 @@ def classify_shell_render(log: str, identity: str, standard: str, manifest: dict
     swf = manifest["swfs"]["generated/swf/shell.bswf"]
     features = swf["features"]
     expected_admission = (features["masks"], features["strokes"], screen_placements(swf), features["color_add"])
-    resident = texture_counters(resident_textures(manifest, source, menu_images(manifest) if menu else shell_images(manifest)))
+    images = set(warm) | (menu_images(manifest) if menu else shell_images(manifest))
+    resident = texture_counters(resident_textures(manifest, source, images))
     channels = channel_counters(manifest, source)
     loads = list(SHELL_DRAWABLE.finditer(log))
     if len(loads) != len(phases) or any(tuple(map(int, load.groups())) != expected_admission for load in loads):
@@ -752,23 +753,13 @@ def classify_shell_render(log: str, identity: str, standard: str, manifest: dict
     ledgers = []
     for index, release in enumerate(released):
         movie, open_images, requested, backing, allocations = map(int, release.groups())
-        boundary = loads[index + 1].start() if index + 1 < len(loads) else captures[-1].start()
+        boundary = loads[index + 1].start() if index + 1 < len(loads) else len(log)
         if (movie != 0 or not captures[len(names) * (index + 1) - 1].end() < release.start() < boundary or
                 not 0 < requested <= backing <= EXECUTION_HEAP_CEILING or allocations == 0):
             return False, "native shell release identity or ordering differs"
         ledgers.append((open_images, requested, backing, allocations))
     if ledgers[-1] != ledgers[-2]:
         return False, "native shell release changed the warm allocation ledger"
-    memory = run_headless.MEMORY_RE.findall(log)
-    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
-        return False, "shell shutdown leaked native ownership"
-    shutdown = run_console.SHUTDOWN_RE.findall(log)
-    minimum = sum(frames + sum(gaps.values()) for _, frames in phases)
-    if len(shutdown) != 1 or int(shutdown[0][0]) < minimum or int(shutdown[0][0]) != int(shutdown[0][1]):
-        return False, "shell frame loop did not sustain one presentation per frame"
-    if (int(captures[-1][2]) <= previous_frame or
-            (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
-        return False, "final shell capture was not drained before shutdown"
     if menu:
         return True, "native shell handler drew its start and root screens, driven by keyboard and pad keys"
     return True, "native retail shell drew in full through outlines, depth masks, screen blends, color terms and resident textures"
@@ -778,7 +769,7 @@ def verify_shell_render_captures(output: Path, standard: str, phases=SHELL_RENDE
     """The fixed clock reaches the same frames on both warm reloads: their captures must match exactly."""
     height = 448 if standard == "ntsc" else 512
     images = {}
-    for name in render_capture_names(phases)[:-1]:
+    for name in render_capture_names(phases):
         width, actual_height, pixels = retail_ui_capture.read_tga(output / name)
         if (width, actual_height) != (512, height):
             raise ValueError("invalid native shell capture dimensions")
@@ -794,24 +785,25 @@ def verify_shell_render_captures(output: Path, standard: str, phases=SHELL_RENDE
         # Artwork, glows and text give hundreds of 16-bit colors; a blank or flat frame has a handful.
         if distinct[name] < 128:
             raise ValueError(f"native shell capture lacks artwork and text detail: {name}")
-    result = {name: {"sha256": sha256(output / name), "distinct_colors": distinct[name]} for name in images}
-    result["movie-quit.tga"] = verify_final_capture(output / "movie-quit.tga", standard)
-    return result
+    return {name: {"sha256": sha256(output / name), "distinct_colors": distinct[name]} for name in images}
 
 
 def menu_quit_capture_names() -> list[str]:
     return [f"movie-menuquit-{suffix}.tga" for suffix, _, _ in MENU_QUIT_STEPS] + ["movie-quit.tga"]
 
 
-def classify_menu_quit(log: str, identity: str, standard: str, manifest: dict, source: Path) -> tuple[bool, str]:
+def menu_quit_driver(begin: str, end: str):
+    """The session's last step: the dialog's accept quits the game right after the queued final capture."""
+    yield ([f'echo "{begin}"', "ps2_uiRetail load", "ps2_uiRetail clock fixed", "ps2_uiRetail menu", *menu_quit_commands(),
+            f'echo "{end}"', 'ps2_capture "movie-quit.tga"', "ps2_uiRetail key cross"],
+           lambda log: "BOOT production shutdown complete" in log)
+
+
+def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = frozenset()) -> tuple[bool, str]:
     """Check the native quit confirmation: opened from the root's Quit through Common's dialog manager,
     cancelled, opened again and accepted, which quits the game right after the final capture."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native menu crash or fatal"
-    if any(marker not in log for marker in (f"GS ready {standard.upper()}", "BOOT production shutdown complete", "COMMON stage=system shutdown")):
-        return False, "incomplete native boot or shutdown"
-    if not all(echoed(log, identity + suffix) for suffix in ("_ready", "_done")):
-        return False, "stale or missing native barriers"
     captures = list(CAPTURE.finditer(log))
     if [match[1] for match in captures] != menu_quit_capture_names():
         return False, "missing or reordered native menu captures"
@@ -824,7 +816,7 @@ def classify_menu_quit(log: str, identity: str, standard: str, manifest: dict, s
     # The dialog's button tags draw as prompt icons, and every other size is pre-rendered.
     if UNRENDERED.search(log):
         return False, "native menu drew text at a size without pre-rendered glyphs"
-    resident = texture_counters(resident_textures(manifest, source, menu_images(manifest)))
+    resident = texture_counters(resident_textures(manifest, source, set(warm) | menu_images(manifest)))
     channels = channel_counters(manifest, source)
     start = shell_loads[0].end()
     for (suffix, _, _), capture in zip(MENU_QUIT_STEPS, captures):
@@ -855,24 +847,17 @@ def classify_menu_quit(log: str, identity: str, standard: str, manifest: dict, s
     released = list(RELEASED.finditer(log))
     if len(released) != 1 or released[0].start() < captures[-1].end() or int(released[0][1]) != 0:
         return False, "native menu release missing, repeated or before the dialog's quit"
-    memory = run_headless.MEMORY_RE.findall(log)
-    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
-        return False, "menu shutdown leaked native ownership"
     shutdown = run_console.SHUTDOWN_RE.findall(log)
-    minimum = sum(gap + 1 for _, _, gap in MENU_QUIT_STEPS)
-    if (len(shutdown) != 1 or int(shutdown[0][0]) < minimum or int(shutdown[0][0]) != int(shutdown[0][1]) or
-            (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
+    if len(shutdown) != 1 or (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2])):
         return False, "the dialog's quit did not end the frame loop after the final capture"
     return True, "native quit dialog opened from the root, cancelled, then accepted, quitting through Common"
 
 
-def verify_menu_quit_captures(output: Path, standard: str, names=None) -> dict:
-    """Every named capture shows the menu; the boot case's final capture is the reopened console."""
+def verify_menu_captures(output: Path, standard: str, names) -> dict:
+    """Every named capture shows the menu's artwork and text."""
     height = 448 if standard == "ntsc" else 512
     result = {}
-    if names is not None:
-        result["movie-quit.tga"] = verify_final_capture(output / "movie-quit.tga", standard)
-    for name in menu_quit_capture_names() if names is None else names[:-1]:
+    for name in names:
         width, actual_height, pixels = retail_ui_capture.read_tga(output / name)
         if (width, actual_height) != (512, height):
             raise ValueError("invalid native menu capture dimensions")
@@ -883,14 +868,10 @@ def verify_menu_quit_captures(output: Path, standard: str, names=None) -> dict:
     return result
 
 
-def classify_dialog_render(log: str, identity: str, standard: str, manifest: dict, source: Path) -> tuple[bool, str]:
-    """Check the fully drawn native quit dialog: admission, owner state, scripts, masks, textures and ownership."""
+def classify_dialog_render(log: str, manifest: dict, source: Path, warm: set = frozenset()) -> tuple[bool, str]:
+    """Check the fully drawn native quit dialog step: admission, owner state, scripts, masks, textures and ownership."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native dialog crash or fatal"
-    if any(marker not in log for marker in (f"GS ready {standard.upper()}", "BOOT production shutdown complete", "COMMON stage=system shutdown")):
-        return False, "incomplete native boot or shutdown"
-    if not all(echoed(log, identity + suffix) for suffix in ("_ready", "_done")):
-        return False, "stale or missing native barriers"
     captures = list(CAPTURE.finditer(log))
     if [match[1] for match in captures] != render_capture_names():
         return False, "missing or reordered native dialog captures"
@@ -901,7 +882,7 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
     language = inspect_language((source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
     options = tuple(language["entries"][key] for key in QUIT_OPTIONS)
     expected_owner = QUIT_DIALOG + options + ("3",)
-    images = resident_images(manifest) | prompt_images(manifest)
+    images = set(warm) | resident_images(manifest) | prompt_images(manifest)
     images.add(next(row["selected"] for row in manifest["image_resolutions"]
                     if row["logical_image"] == "generated/swf/dialog.tga"))
     resident = texture_counters(resident_textures(manifest, source, images))
@@ -968,23 +949,13 @@ def classify_dialog_render(log: str, identity: str, standard: str, manifest: dic
     ledgers = []
     for index, release in enumerate(released):
         movie, open_images, requested, backing, allocations = map(int, release.groups())
-        boundary = loads[index + 1].start() if index + 1 < len(loads) else captures[-1].start()
+        boundary = loads[index + 1].start() if index + 1 < len(loads) else len(log)
         if (movie != 1 or open_images != len(images) or not captures[2 * index + 1].end() < release.start() < boundary or
                 not 0 < requested <= backing <= EXECUTION_HEAP_CEILING or allocations == 0):
             return False, "native dialog release identity, retained images or ordering differs"
         ledgers.append((open_images, requested, backing, allocations))
     if ledgers[-1] != ledgers[-2]:
         return False, "native dialog release changed the warm allocation ledger"
-    memory = run_headless.MEMORY_RE.findall(log)
-    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
-        return False, "dialog shutdown leaked native ownership"
-    shutdown = run_console.SHUTDOWN_RE.findall(log)
-    minimum = sum(frames + RENDER_GAP for _, frames in RENDER_PHASES)
-    if len(shutdown) != 1 or int(shutdown[0][0]) < minimum or int(shutdown[0][0]) != int(shutdown[0][1]):
-        return False, "dialog frame loop did not sustain one presentation per frame"
-    if (int(captures[-1][2]) <= previous_frame or
-            (int(captures[-1][2]), int(captures[-1][3])) != tuple(map(int, shutdown[0][:2]))):
-        return False, "final dialog capture was not drained before shutdown"
     return True, "native retail quit dialog drew in full through admitted masks, blends, resident textures and text"
 
 
@@ -992,7 +963,7 @@ def verify_dialog_render_captures(output: Path, standard: str) -> dict:
     """Locate the looping focus highlight within each load, then require reloads to match everywhere else."""
     height = 448 if standard == "ntsc" else 512
     images = {}
-    for name in render_capture_names()[:-1]:
+    for name in render_capture_names():
         width, actual_height, pixels = retail_ui_capture.read_tga(output / name)
         if (width, actual_height) != (512, height):
             raise ValueError("invalid native dialog capture dimensions")
@@ -1023,7 +994,6 @@ def verify_dialog_render_captures(output: Path, standard: str) -> dict:
     if len(colors) < 128:
         raise ValueError("native dialog capture lacks textured and text detail")
     result = {name: {"sha256": sha256(output / name)} for name in images}
-    result["movie-quit.tga"] = verify_final_capture(output / "movie-quit.tga", standard)
     result["comparison"] = {"animated_region": region, "animated_pixels": len(animated),
                             "static_pixels_compared": compared, "distinct_colors": len(colors)}
     return result
@@ -1188,108 +1158,44 @@ def classify_negative(log: str, identity: str, case: str) -> tuple[bool, str]:
     return bool(valid), "expected native movie admission guard" if valid else "missing specific movie admission failure"
 
 
-def run(args, standard, case="native"):
+def run(args, case):
+    """One invalid-resource case in a fresh process: each ends in its expected admission failure."""
     if smoke.emulator_is_running(args.emulator):
         raise ValueError("an emulator is already running; movie checks require an isolated session")
     identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_movies_" + uuid.uuid4().hex[:12]
-    manifest, _, _ = inspect_package(args.source)
-    menu_boot = case == "menu-boot"
-    menu_screens = case == "menu-screens"
-    output = stage_retail(args.build, REPO_ROOT / "build/test-results" / identity, standard, args.source, True, menu_boot)
+    output = stage_retail(args.build, REPO_ROOT / "build/test-results" / identity, "ntsc", args.source, True)
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
     report = json.loads((output / "report.json").read_text())
     for name in report["flag_stamps"]:
         shutil.copy2(REPO_ROOT / name, output / Path(name).name)
     (output / "base/d3bfg.cfg").write_text(f'echo "{identity}_ready"\nps2_maxFrames 0\n')
     (output / "console.txt").write_bytes(b"")
-    positive = case in POSITIVE_CASES
-    execution = case in ("execution", "dialog-execution")
-    render = case in ("dialog-render", "shell-render", "menu-render")
-    shell = case == "shell-render"
-    menu = case == "menu-render"
-    menu_quit = case == "menu-quit"
-    render_phases = MENU_RENDER_PHASES if menu else SHELL_RENDER_PHASES if shell else RENDER_PHASES
-    draw_command = "ps2_uiRetail menu" if menu else "ps2_uiRetail draw shell" if shell else "ps2_uiRetail dialog quit"
-    last_capture = list(capture_gaps(render_phases))[-1]
-    phases = DIALOG_PHASES if case == "dialog-execution" else PHASES
-    movie_command = "execute" if execution or case in EXECUTION_NEGATIVES else "movie"
-    first_command = draw_command if render or case in DIALOG_NEGATIVES else f"ps2_uiRetail {movie_command} {phases[0][1]}"
-    # Resident paletted textures draw the full dialog at about 60 ms per PCSX2 debug frame, so its
-    # three loads finish in under 20 s; streamed RGBA pages had needed about 1.6 s per frame. The
-    # full shell on the fixed clock takes 100-140 ms per debug frame, under a minute for its loads;
-    # the native menu's four captures per load take about two minutes.
-    timeout = args.timeout if args.timeout is not None else (300 if shell or menu or menu_quit or menu_boot or menu_screens else 120)
-    if case in NEGATIVES:
-        mutate(output, case)
+    command = ("dialog quit" if case in DIALOG_NEGATIVES else
+               "execute shell" if case in EXECUTION_NEGATIVES else "movie shell")
+    mutate(output, case)
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
-    command = [str(args.emulator), "-batch", "-elf", str(output / "d3bfg.elf"), "-logfile", str(output / "emulog.txt")]
+    emulator = [str(args.emulator), "-batch", "-elf", str(output / "d3bfg.elf"), "-logfile", str(output / "emulog.txt")]
     started = time.monotonic()
-    phase, step, completed = "startup", 0, False
+    loading, completed = False, False
     # Record why the session ended, separately from the target verdict, for unexpected stops.
     session_end = "timeout"
     with (output / "stdout.txt").open("wb") as stdout:
-        process = subprocess.Popen(command, cwd=output, stdout=stdout, stderr=subprocess.STDOUT)
+        process = subprocess.Popen(emulator, cwd=output, stdout=stdout, stderr=subprocess.STDOUT)
         try:
-            while time.monotonic() - started < timeout:
+            while time.monotonic() - started < args.timeout:
                 log = run_headless.read_log(output)
                 if TARGET_CRASH_RE.search(log):
                     session_end = "target crash text"
                     break
                 if "[D3BFG] FATAL" in log:
                     session_end = "native fatal"
-                    completed = not positive
+                    completed = True
                     break
-                if phase == "startup" and echoed(log, identity + "_ready") and menu_screens:
-                    run_console.append_commands(output, "ps2_uiRetail load", "ps2_uiRetail clock fixed", "ps2_uiRetail menu",
-                                                *menu_screens_commands(), "clearHistory", "ps2_uiRetail unload",
-                                                f'echo "{identity}_done"', 'ps2_capture "movie-quit.tga"', "quit")
-                    phase = "quit"
-                elif phase == "startup" and echoed(log, identity + "_ready") and menu_boot:
-                    # The policy opened the menu before this echo; drive it, release it and quit.
-                    run_console.append_commands(output, *menu_boot_commands(), "clearHistory", "ps2_uiRetail unload",
-                                                f'echo "{identity}_done"', 'ps2_capture "movie-quit.tga"', "quit")
-                    phase = "quit"
-                elif phase == "startup" and echoed(log, identity + "_ready") and menu_quit:
-                    # The dialog's accept ends the session; nothing follows its final capture.
-                    run_console.append_commands(output, "ps2_uiRetail load", "ps2_uiRetail clock fixed", "ps2_uiRetail menu",
-                                                *menu_quit_commands(), f'echo "{identity}_done"', 'ps2_capture "movie-quit.tga"',
-                                                "ps2_uiRetail key cross")
-                    phase = "quit"
-                elif phase == "startup" and echoed(log, identity + "_ready"):
-                    name, movie, _ = phases[0]
-                    if shell or menu:
-                        run_console.append_commands(output, "ps2_uiRetail load", "ps2_uiRetail clock fixed", first_command)
-                    else:
-                        run_console.append_commands(output, "ps2_uiRetail load", first_command)
-                    phase = "capture"
-                    if render:
-                        run_console.append_commands(output, *render_commands(0, render_phases))
-                    elif positive:
-                        run_console.append_commands(output, "wait 120", "clearHistory", "ps2_uiRetail status", f'ps2_capture "movie-{name}.tga"')
-                elif render and phase == "capture" and f"CONSOLE capture=movie-{render_phases[step][0]}-{last_capture}.tga " in log:
-                    step += 1
-                    if step < len(render_phases):
-                        # Clear history before the next load releases the previous movie's ownership.
-                        run_console.append_commands(output, "clearHistory", draw_command, *render_commands(step, render_phases))
-                    else:
-                        run_console.append_commands(output, "clearHistory", "ps2_uiRetail unload", f'echo "{identity}_done"',
-                                                    'ps2_capture "movie-quit.tga"', "quit")
-                        phase = "quit"
-                elif positive and not render and phase == "capture" and f"CONSOLE capture=movie-{phases[step][0]}.tga " in log:
-                    step += 1
-                    if step < len(phases):
-                        name, movie, _ = phases[step]
-                        run_console.append_commands(output, "ps2_uiRetail " + movie_command + " " + movie, "wait 120", "clearHistory",
-                                                    "ps2_uiRetail status", f'ps2_capture "movie-{name}.tga"')
-                    else:
-                        # HostFs queues the whole batch into history before execution. Clear the
-                        # future echo's storage before taking the final released-ownership checkpoint.
-                        run_console.append_commands(output, "clearHistory", "ps2_uiRetail unload", f'echo "{identity}_done"',
-                                                    'ps2_capture "movie-quit.tga"', "quit")
-                        phase = "quit"
+                if not loading and echoed(log, identity + "_ready"):
+                    run_console.append_commands(output, "ps2_uiRetail load", "ps2_uiRetail " + command)
+                    loading = True
                 if "BOOT production shutdown complete" in log:
                     session_end = "native shutdown"
-                    completed = True
                     break
                 if process.poll() is not None:
                     session_end = f"emulator exited with status {process.returncode} after {time.monotonic() - started:.1f} s"
@@ -1298,54 +1204,13 @@ def run(args, standard, case="native"):
         finally:
             smoke.stop_owned_process(process)
     log = run_headless.read_log(output)
-    if not completed:
-        passed, reason = False, "native watchdog, crash or early exit: " + session_end
-    elif menu_quit:
-        passed, reason = classify_menu_quit(log, identity, standard, manifest, args.source)
-    elif menu_boot:
-        passed, reason = classify_menu_boot(log, identity, standard, manifest, args.source)
-    elif menu_screens:
-        passed, reason = classify_menu_screens(log, identity, standard, manifest, args.source)
-    elif shell or menu:
-        passed, reason = classify_shell_render(log, identity, standard, manifest, args.source, menu=menu)
-    elif render:
-        passed, reason = classify_dialog_render(log, identity, standard, manifest, args.source)
-    elif positive:
-        passed, reason = classify(log, identity, standard, manifest, args.source, execution=execution, phases=phases)
-    else:
-        passed, reason = classify_negative(log, identity, case)
-    captures = {}
-    reload_comparisons = {}
-    if passed and (menu_quit or menu_boot or menu_screens):
-        try:
-            captures = verify_menu_quit_captures(output, standard, menu_boot_capture_names() if menu_boot else
-                                                 menu_screens_capture_names() if menu_screens else None)
-        except (OSError, ValueError) as error:
-            passed, reason = False, str(error)
-    elif passed and render:
-        try:
-            captures = (verify_shell_render_captures(output, standard, render_phases) if shell or menu else
-                        verify_dialog_render_captures(output, standard))
-        except (OSError, ValueError) as error:
-            passed, reason = False, str(error)
-    elif passed and positive:
-        try:
-            for name, _, movie in phases:
-                path = output / ("movie-" + name + ".tga")
-                captures[path.name] = verify_capture(path, manifest, args.source, movie, standard)
-            reload_comparisons = verify_reload_captures(output, phases, captures, manifest, args.source, standard)
-            captures["movie-quit.tga"] = verify_final_capture(output / "movie-quit.tga", standard)
-        except (OSError, ValueError) as error:
-            passed, reason = False, str(error)
+    passed, reason = classify_negative(log, identity, case) if completed else (False, "no expected failure: " + session_end)
     if process.returncode != 0:
         passed, reason = False, "emulator exited with status " + str(process.returncode)
     (output / "summary.json").write_text(json.dumps({"passed": passed, "reason": reason, "build": args.build,
-        "standard": standard, "case": case, "command": command, "boot_data": boot_data(output),
-        "capture_sha256": captures, "pixel_inspection_required": positive, "scripts_active": execution,
-        "reload_comparisons": reload_comparisons, "shell_active": shell or menu or menu_quit or menu_boot or menu_screens,
-        "native_menu": menu or menu_quit or menu_boot or menu_screens, "full_draw": render or menu_quit or menu_boot or menu_screens,
-        "session_end": session_end, "session_seconds": round(time.monotonic() - started, 1)}, indent=2) + "\n")
-    print(f"{'PASS' if passed else 'FAIL'} retail-movies-{standard}-{case}: {reason}\nArtifacts: {output}", flush=True)
+        "standard": "ntsc", "case": case, "command": emulator, "boot_data": boot_data(output), "session_end": session_end,
+        "session_seconds": round(time.monotonic() - started, 1)}, indent=2) + "\n")
+    print(f"{'PASS' if passed else 'FAIL'} retail-movies-{case}: {reason}\nArtifacts: {output}", flush=True)
     if not passed:
         print(log[-6000:], flush=True)
     return passed
@@ -1355,23 +1220,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", choices=("debug", "release"), default="debug")
     parser.add_argument("--source", type=Path, default=REPO_ROOT / "build/ui-retail")
-    parser.add_argument("--standard", choices=("ntsc", "pal"))
-    parser.add_argument("--case", choices=POSITIVE_CASES + NEGATIVES)
+    parser.add_argument("--case", choices=NEGATIVES, help="default: every invalid-resource case")
     parser.add_argument("--emulator", type=Path, default=smoke.DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)
-    parser.add_argument("--timeout", type=float, help="seconds per session; 120 by default")
+    parser.add_argument("--timeout", type=float, default=120.0, help="seconds per session")
     args = parser.parse_args()
-    if args.timeout is not None and not 0 < args.timeout <= 3600:
+    if not 0 < args.timeout <= 3600:
         parser.error("timeout must be positive and at most 3600 seconds")
     try:
         smoke.check_config(args.config)
-        if args.case is None or args.case in POSITIVE_CASES:
-            for case in ("native", "execution", "dialog-render", "shell-render", "menu-render", "menu-quit", "menu-boot", "menu-screens") if args.case is None else (args.case,):
-                for standard in (args.standard,) if args.standard else ("ntsc", "pal"):
-                    if not run(args, standard, case):
-                        return 1
-        for case in NEGATIVES if args.case is None else (() if args.case in POSITIVE_CASES else (args.case,)):
-            if not run(args, args.standard or "ntsc", case):
+        for case in (args.case,) if args.case else NEGATIVES:
+            if not run(args, case):
                 return 1
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         parser.exit(2, "error: " + str(error) + "\n")

@@ -12,17 +12,11 @@
 #include "ps2/system/offline_session.h"
 #include "tests/smoketests/audio_tests.h"
 #include "tests/smoketests/codec_tests.h"
-#include "tests/smoketests/deferred_tests.h"
-#include "tests/smoketests/input_tests.h"
 #include <cstring>
 #include <idlib/precompiled.h>
 
 // Common_local.h relies on the complete engine precompiled header.
-#include "tests/smoketests/renderer_tests.h"
 #include <framework/Common_local.h>
-#include <renderer/Model_ase.h>
-#include <renderer/Model_lwo.h>
-#include <renderer/Model_ma.h>
 
 namespace ps2::tests
 {
@@ -227,46 +221,15 @@ bool RunCommonProbe(const char * path)
     {
         session->LoadingFinished();
     }
-    else if (idStr::Cmp(name, "network") == 0)
-    {
-        session->FindOrCreateMatch(parms);
-    }
-    else if (idStr::Cmp(name, "classic") == 0)
-    {
-        common->SwitchToGame(DOOM_CLASSIC);
-    }
-    else if (idStr::Cmp(name, "save-manager") == 0)
-    {
-        (void)session->GetSaveGameManager();
-    }
     else if (idStr::Cmp(name, "bad-device") == 0)
     {
         session->GetSignInManager().RegisterLocalUser(1);
-    }
-    else if (idStr::Cmp(name, "platform-launch") == 0)
-    {
-        idCmdArgs arguments;
-        Sys_Launch("ignored", arguments, nullptr, 0);
     }
     else if (idStr::Cmp(name, "platform-negative-duration") == 0)
     {
         (void)Sys_SecToStr(-1);
     }
-    else if (idStr::Cmp(name, "model-ase") == 0)
-    {
-        (void)ASE_Load("fixture/source.ase");
-    }
-    else if (idStr::Cmp(name, "model-lwo") == 0)
-    {
-        unsigned int failId = 0;
-        int failPosition = 0;
-        (void)lwGetObject("fixture/source.lwo", &failId, &failPosition);
-    }
-    else if (idStr::Cmp(name, "model-ma") == 0)
-    {
-        (void)MA_Load("fixture/source.ma");
-    }
-    else if (!RunRendererFailureProbe(name) && !RunAudioFailureProbe(name) && !RunDeferredFailureProbe(name) && !RunInputFailureProbe(name) && !RunCodecFailureProbe(name))
+    else if (!RunAudioFailureProbe(name) && !RunCodecFailureProbe(name))
     {
         FatalError("invalid Common negative probe");
     }

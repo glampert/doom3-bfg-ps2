@@ -127,7 +127,7 @@ line records draw as GS lines; RGB additive color terms in a fog-colored second 
 screen (mode 4, the PC's `Cd + Cd × S`) one channel per pass with channel CLUTs; masks the
 convex CPU bridge refuses go into the depth buffer, one at a time. Every primitive writes
 TEST with ZTE 1. `ps2_uiRetail draw shell` draws the original shell's start screen in full
-and `make test-retail-shell` accepts it in NTSC and PAL
+and its gate (now the `shell` step of `make test-ui`) accepts it in NTSC and PAL
 ([record](PORT_STATUS.md#original-shell-drawn-in-full-2d-6-fourth-slice)).
 
 Open items, roughly in order:
@@ -153,7 +153,7 @@ Open items, roughly in order:
 ### 3. Connect the offline native menu
 
 Started 2026-10-23: the native `idMenuHandler_Shell`, with its press-start, root and
-credits screens, owns the admitted shell (`ps2_uiRetail menu`, `make test-retail-menu`;
+credits screens, owns the admitted shell (`ps2_uiRetail menu`, the `menu` step of `make test-ui`;
 [record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23)). Handlers
 and movies use platform 1, the PS3 layout. Key events reach it through Common's event
 loop (`ps2_uiRetail key NAME`; [record](PORT_STATUS.md#native-shell-menu-key-input-2026-10-23)):
@@ -293,8 +293,8 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Change | Relevant existing gates |
 | --- | --- |
 | Geometry/GS/mask work | `make test-host`, `make test-renderer`, `make test-ui`; repeat target gates with `BUILD=release` |
-| Retail resources/timelines/menu | Host guards plus `make test-retail-ui`, `make test-retail-movies` or scoped `make test-retail-timelines` / `make test-retail-dialog`, as affected, in debug/release |
-| Common/frame/presentation ownership | `make test-headless`, `make test-console`, `make test-ui`, debug/release |
+| Retail resources/timelines/menu | Host guards plus `make test-ui` (one retail session per standard, the authored session and every invalid-resource case), debug/release |
+| Common/frame/presentation ownership | `make test-headless`, `make test-ui`, debug/release |
 | Heap, declarations, scripts or containers | `make test-retail-boot` (its startup ledgers), plus `make test-headless` |
 | Game/map behavior | Existing `make test-game` / `make test-map`, debug/release; not a reason to resume standalone movement-fixture expansion |
 | Documentation/path-only changes | Local links/targets, source inventory, authored `--check`; fixture moves also use host tests and package staging |

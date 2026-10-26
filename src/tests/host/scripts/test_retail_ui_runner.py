@@ -83,10 +83,11 @@ def synthetic_package(directory):
     return manifest
 
 
-def completed(manifest, textures, standard="ntsc"):
-    text = (f"game initialized.\nLOOP ready;\nrun_begin \nrun_ready \n[D3BFG] GS ready {standard.upper()}\n"
-            "[D3BFG] UI adapters ready\n")
-    for index, (name, cycle) in enumerate((("retail-f0.tga", 1), ("retail-return.tga", 1), ("retail-reload.tga", 2))):
+def completed(manifest, textures, first_cycle=1):
+    """The font step's slice of a session log; earlier screens have already loaded first_cycle - 1 times."""
+    text = ""
+    phases = (("retail-f0.tga", first_cycle), ("retail-return.tga", first_cycle), ("retail-reload.tga", first_cycle + 1))
+    for index, (name, cycle) in enumerate(phases):
         frame = (index + 1) * 120
         text += (f"[D3BFG] RETAIL state=loaded cycle={cycle} font=0 name=proof frames=120 heap=100/120/8\n"
                  f"[D3BFG] RETAIL textures images={textures['images']} pages={textures['pages']} cluts={textures['cluts']} "
@@ -96,13 +97,8 @@ def completed(manifest, textures, standard="ntsc"):
             text += f"[D3BFG] RETAIL metrics font=0 scale={scale_index} width={width:.2f} height={height:.2f}\n"
         text += f"[D3BFG] CONSOLE capture={name} frame={frame} presents={frame} redraws=0\n"
         if index == 1:
-            text += "[D3BFG] RETAIL state=unloaded cycle=1 heap=80/96/4\n"
-    text += ("[D3BFG] RETAIL state=unloaded cycle=2 heap=80/96/4\nrun_done \n]quit\n"
-             "[D3BFG] CONSOLE capture=retail-quit.tga frame=361 presents=361 redraws=0\n"
-             "[D3BFG] CONSOLE shutdown complete frames=361 presents=361 redraws=0\n------------ Game Shutdown\n"
-             "COMMON stage=system shutdown\nHEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=10000/12000 arena=16384\n"
-             "BOOT production shutdown complete\n")
-    return text
+            text += f"[D3BFG] RETAIL state=unloaded cycle={first_cycle} heap=80/96/4\n"
+    return text + f"[D3BFG] RETAIL state=unloaded cycle={first_cycle + 1} heap=80/96/4\n"
 
 
 def tga(manifest, source, standard):
@@ -139,8 +135,8 @@ class RetailProofTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def classify(self, log, standard="ntsc"):
-        return runner.classify(log, "run", standard, self.manifest, self.textures)
+    def classify(self, log, warm=frozenset()):
+        return runner.classify(log, self.manifest, self.source, warm)
 
     def records_font_image(self):
         return next(entry["selected"] for entry in self.manifest["image_resolutions"]
@@ -182,9 +178,11 @@ class RetailProofTests(unittest.TestCase):
         charset = runner.resident_textures(self.manifest, self.source, {CHARSET_IMAGE})
         self.assertEqual(self.textures, {key: font_only[key] + charset[key] for key in font_only})
         self.assertEqual(self.textures["images"], 2)
-        for standard in ("ntsc", "pal"):
-            passed, reason = self.classify(completed(self.manifest, self.textures, standard), standard)
-            self.assertTrue(passed, reason)
+        passed, reason = self.classify(completed(self.manifest, self.textures))
+        self.assertTrue(passed, reason)
+        # The session's earlier screens loaded the retail screen before: cycles count from there.
+        passed, reason = self.classify(completed(self.manifest, self.textures, 5))
+        self.assertTrue(passed, reason)
 
     def test_glyph_sets_count_as_font_textures(self):
         manifest = json.loads(json.dumps(self.manifest))
@@ -193,17 +191,24 @@ class RetailProofTests(unittest.TestCase):
         manifest["cooked"]["glyph_sets"] = {"newfonts/proof/48.dat": {"image": "newfonts/proof/ps2_glyphs", "sizes": []}}
         textures = runner.font_textures(manifest, self.source)
         self.assertEqual(textures["images"], 3)
-        passed, reason = runner.classify(completed(manifest, textures), "run", "ntsc", manifest, textures)
+        passed, reason = runner.classify(completed(manifest, textures), manifest, self.source)
         self.assertTrue(passed, reason)
         # The target must open the glyph set with its font, and the runner must expect it.
-        self.assertFalse(runner.classify(completed(manifest, self.textures), "run", "ntsc", manifest, textures)[0])
-        self.assertFalse(runner.classify(completed(manifest, self.textures), "run", "ntsc", manifest, self.textures)[0])
+        self.assertFalse(runner.classify(completed(manifest, self.textures), manifest, self.source)[0])
 
-    def test_stale_barriers_crashes_and_authored_movie_do_not_pass_retail_acceptance(self):
+    def test_images_earlier_screens_opened_stay_in_the_counters(self):
+        warm = {"newfonts/proof/ps2_warm"}
+        manifest = json.loads(json.dumps(self.manifest))
+        manifest["cooked"]["runtime_images"]["newfonts/proof/ps2_warm"] = next(iter(manifest["cooked"]["runtime_images"].values()))
+        textures = runner.resident_textures(manifest, self.source, runner.resident_images(manifest) | warm)
+        self.assertTrue(runner.classify(completed(manifest, textures), manifest, self.source, warm)[0])
+        self.assertFalse(runner.classify(completed(manifest, self.textures), manifest, self.source, warm)[0])
+        self.assertFalse(runner.classify(completed(manifest, textures), manifest, self.source)[0])
+
+    def test_short_intervals_crashes_and_authored_movie_do_not_pass_retail_acceptance(self):
         log = completed(self.manifest, self.textures)
-        changes = (("run_ready \n", ']echo "run_ready"\n'), ("run_done ", "old_done "),
-                   ("BOOT production shutdown complete", ""), ("frames=120", "frames=119"),
-                   ("final=7424/7600/4", "final=7424/7600/5"))
+        changes = (("frames=120", "frames=119"), ("cycle=2 font=0", "cycle=1 font=0"),
+                   ("frame=240 presents=240", "frame=240 presents=241"))
         for old, new in changes:
             with self.subTest(old=old):
                 self.assertFalse(self.classify(log.replace(old, new))[0])

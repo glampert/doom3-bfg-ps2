@@ -92,7 +92,7 @@ declarations, key/console and event services, CPU worlds and silent sound bookke
 precede the console loop.
 `make headless`, `make console` and `make ui` stage the same ELF with authored data separately
 from retail assets. Package-root `presentation.cfg` selects headless/NTSC/PAL before
-Common startup, and `make retail-menu` adds `menu` to boot into the native menu. `make test-headless`, `make test-console` and `make test-ui` exercise production itself.
+Common startup, and `make retail-menu` adds `menu` to boot into the native menu. `make test-headless` and `make test-ui` exercise production itself.
 Visible frames call real native `console->Draw(false)` after the native `NOMAP` tick;
 `UpdateScreen` coalesces in-frame requests without advancing clocks. Native `RunFrame`
 returns at `NOMAP` until map integration exists.
@@ -243,8 +243,8 @@ no game object or game initialization stage. The resident link supplies typed su
 boundaries; full container filesystem, active render/sound, UI/dialog and save behavior
 remain pending.
 
-`make test-common` runs seven partial-startup cleanup probes and fifty-nine expected-fatal
-capability/precondition probes, each in a fresh process. `BUILD=release` selects the
+`make test-common` runs seven partial-startup cleanup probes and twenty-six expected-fatal
+precondition probes, each in a fresh process. `BUILD=release` selects the
 assertions-disabled matrix. The regular core smoke also checks copied match parameters,
 explicit loading completion, transient stats/achievement bits, user-handle invalidation
 and stable accounting over three reloads after warming native string-pool capacity.
@@ -614,7 +614,7 @@ providers and does not link the movie, native Font/SWF or authored resource snap
 At the authored 2D-4 checkpoint production had 360 direct inputs, zero test inputs/symbols and no GC. Debug/release
 `PT_LOAD` is 11,018,214 / 11,435,878 bytes; the compile database has 385 entries.
 `make ui` packages authored data separately from the existing console/headless packages;
-`make test-ui` exercises the production movie and its failure boundaries. Retail menu
+`make test-ui` exercises the production movie, the retail screens and their failure boundaries. Retail menu
 dependencies, general material/image/font loading and the offline shell remain pending.
 
 The 2D-5 page foundation adds strict `ui_page_format.cpp`, `ui_page_geometry.cpp` and

@@ -1,8 +1,10 @@
 # Port status and headless acceptance
 
-## Current snapshot — 2026-10-24
+## Current snapshot — 2026-10-26
 
-The port is not playable yet. The latest slice brings up the
+The port is not playable yet. The latest change [merges the UI gates](#fewer-emulator-launches-for-the-ui-and-common-gates-2026-10-26)
+(2026-10-26): `make test-ui` visits every retail screen in one session per standard, and
+the probes that only confirmed a deferred capability fails were retired. The slice before it brings up the
 [pad and the debug USB keyboard](#pad-and-debug-keyboard-devices-2026-10-24) (2026-10-24):
 both post key events into Common's queue from a visible package. The one before bound the
 [Campaign and Settings screens](#campaign-and-settings-screens-2026-10-24): both open from
@@ -4789,3 +4791,43 @@ hands-on check, which is the first follow-up. `make test-host` passes 371 tests.
 
 Production `PT_LOAD` is 11,291,629 debug / 11,752,429 release bytes (+11,968 / +11,968),
 384 objects (the three input units) and no fixtures, linking libpad and libkbd.
+
+## Fewer emulator launches for the UI and Common gates (2026-10-26)
+
+Checked on **2026-10-26, Australia/Sydney** in debug. Most of the gate matrix's emulator
+launches were short failure probes, and every UI screen had its own session. Three changes
+cut the launches without dropping a check:
+
+- **One version query per run.** `run_pcsx2_test.run()` started PCSX2 a second time
+  (`-version`, about 1.6 s) before every scenario; the result is now cached per emulator.
+- **Merged UI sessions.** `make test-ui` replaces `test-console`, `test-retail-ui`,
+  `test-retail-movies` and its timeline, dialog, shell and menu subsets. `run_ui_session.py`
+  boots a `menu` package and drives ten steps in one session per standard: `boot`,
+  `console`, `fonts`, `inactive`, `execution`, `dialog`, `shell`, `menu`, `screens` and
+  `quit`, whose dialog accept ends the session. Each step is checked on its slice of the
+  log between echo barriers, with its own watchdog; the session checks the boot policy,
+  barrier order, one presentation per frame, the final capture and full ledger recovery.
+  Images stay warm between steps, so each step's texture counters include its
+  predecessors'. The authored SWF keeps its own session per standard: its 1 MiB page
+  cache stays until UI shutdown and cannot share the 2 MiB texture budget with the warm
+  retail images. The 30 invalid-resource cases keep a process each.
+- **Retired probes.** 33 `test-common` probes only confirmed that a deferred capability
+  fails by method name (input sampling, multiplayer, save manager, network, Classic,
+  audio device, process launch, source-model import, renderer entry points); they and
+  their target code are gone, while the stubs still fail by name. `test-common` no longer
+  repeats the 17 GS failure probes `test-renderer` runs: it runs 7 lifecycle and 26
+  failure probes.
+
+**Checks.** `make test-ui` passes: sessions `20261026T044304Z_session_d5e74cb6f49e` (NTSC,
+468 s) and `20261026T045053Z_session_3d95bba1f1e6` (PAL, 482 s), every step passing its
+classifier and capture checks; the authored SWF in both standards and all 30 failure
+cases. Steps take (NTSC) boot 93 s, console 5, fonts 15, inactive 11, execution 62,
+dialog 8, shell 40, menu 107, screens 63 and quit 53; the warm screens and quit steps
+wait 30 frames on the start screen instead of 120. The inactive step's isolated labels
+draw at a size without pre-rendered glyphs by design, so the session's glyph check skips
+the two movie-label steps; every drawn screen still checks its own slice. Captures were
+inspected. The UI gate went from 52 launches (about 21 min) to 34 (19 min), and
+`test-common` from 83 launches to 33 (64 s). `make smoke` passes; `make test-host` passes
+381 tests. Production is unchanged; the core test image's `PT_LOAD` is 2,175,856 bytes
+debug (−1,984).
+

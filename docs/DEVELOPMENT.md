@@ -114,8 +114,8 @@ from its resident converted textures and pre-rendered glyphs, at about 40 ms per
 PCSX2 frame; the earlier RGBA page slice took about 1.6 seconds per frame while its
 pages streamed from HostFs.
 `execute shell` selects the minimal carousel/Credits owner; `movie shell|dialog|none`
-selects inactive inspection. Use `make test-retail-timelines` for the scoped execution
-gate and `make test-retail-dialog` for the full dialog. All authored startup/map/UI
+selects inactive inspection. `make test-ui` checks both, with the full dialog, in its
+merged retail session (`run_ui_session.py`). All authored startup/map/UI
 fixtures live under `src/tests/data/`; generated packages and captures stay in `build/`.
 
 Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,

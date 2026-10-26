@@ -11,29 +11,21 @@
 #   make console                 # package the same production ELF with visible NTSC console
 #   make CONSOLE_STANDARD=pal console # select PAL presentation
 #   make run-console             # run the visible console package in PCSX2
-#   make test-console            # native console/edit/history/capture/quit checks in NTSC/PAL
-#   make BUILD=release test-console # same production presentation checks without assertions
 #   make ui                      # package the authored native SWF with visible NTSC presentation
 #   make CONSOLE_STANDARD=pal ui # select PAL for the authored UI package
 #   make run-ui                  # run the authored native SWF in PCSX2
-#   make test-ui                 # native SWF/font/timeline/focus/reload/capture checks in NTSC/PAL
-#   make BUILD=release test-ui   # same authored UI checks without assertions
+#   make test-ui                 # every UI screen: one retail session per standard (boot menu, console,
+#                                #   fonts, movies, dialog, shell, menu screens, quit dialog), the authored
+#                                #   SWF and the invalid-resource cases
+#   make BUILD=release test-ui   # same UI checks without assertions
 #   make ui-cook                 # cook the ignored local retail English resource package
 #   make retail-ui               # stage native retail fonts in build/debug/ui-retail/
 #   make run-retail-ui           # display the native English font resource screen
 #   make BUILD=release CONSOLE_STANDARD=pal run-retail-ui # release PAL resource screen
 #   make retail-movies           # stage inactive retail SWFs and the English dictionary
 #   make run-retail-movies       # draw English labels using original native SWF text records
-#   make test-retail-movies      # inactive/executable timelines, full dialog, English layout and guards
-#   make test-retail-timelines   # only executable retail timelines (no full movie rendering)
-#   make test-retail-dialog      # the original quit dialog drawn in full through native SWF Render
-#   make test-retail-shell       # the original shell drawn in full: outlines, depth masks, screen, color terms
 #   make retail-menu             # stage a package that boots into the native shell menu
 #   make run-retail-menu         # boot into the original menu on the drawn shell
-#   make test-retail-menu        # the native shell handler's start and root screens on the drawn shell
-#   make BUILD=release test-retail-movies # same native movie resource gate without assertions
-#   make test-retail-ui          # five fonts, layout/pixel checks, reloads and invalid resources
-#   make BUILD=release test-retail-ui # same resource checks without assertions
 #   make test-headless           # 120 frames, live console commands and shutdown in PCSX2
 #   make BUILD=release test-headless # same production checks without assertions
 #   make retail-boot             # package production with the local retail containers
@@ -56,7 +48,7 @@
 #   make smoke                   # core smoke run in PCSX2
 #   make BUILD=release smoke     # release core smoke run
 #   make smoke-negative          # expected missing-fixture failure
-#   make test-common             # partial-startup and offline-capability failure checks
+#   make test-common             # partial-startup and expected-failure checks
 #   make compiledb               # compile_commands.json from real Make rules
 #   make resource-unpack         # standalone C++20 host resource reader/extractor (CMake)
 #   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
@@ -276,7 +268,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console test-console ui run-ui test-ui ui-inventory ui-cook resource-unpack asset-reexport platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console ui run-ui test-ui ui-inventory ui-cook resource-unpack asset-reexport platform-probe headless-core compile-core compile-game headless-game test-map test-game test-renderer run-renderer link-game inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-negative smoke-platform core-tests clean FORCE
 
 all: link-game
 release: all
@@ -512,19 +504,21 @@ console: all
 run-console: console
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/console/d3bfg.elf
 
-test-console: all
-	$(PYTHON) $(SCRIPTS)/run_console.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
-
 ui: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD) --ui --catalog "$(UI_COOK_OUTPUT)"
 
 run-ui: ui
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui/d3bfg.elf
 
+# One session per standard boots into the retail menu and visits every retail screen; the authored
+# movie needs its own texture budget, and each invalid-resource case ends its process in a fatal.
 test-ui: all
+	$(PYTHON) $(SCRIPTS)/run_ui_session.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
+	$(PYTHON) $(SCRIPTS)/run_retail_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
+	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
-.PHONY: retail-ui run-retail-ui test-retail-ui retail-movies run-retail-movies test-retail-movies test-retail-timelines test-retail-dialog test-retail-shell retail-menu run-retail-menu test-retail-menu
+.PHONY: retail-ui run-retail-ui retail-movies run-retail-movies retail-menu run-retail-menu
 
 retail-ui: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)"
@@ -532,38 +526,17 @@ retail-ui: all
 run-retail-ui: retail-ui
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-retail/d3bfg.elf
 
-test-retail-ui: all
-	$(PYTHON) $(SCRIPTS)/run_retail_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
-
 retail-movies: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)" --movies
 
 run-retail-movies: retail-movies
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-retail-movies/d3bfg.elf
 
-test-retail-movies: all
-	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
-
-test-retail-timelines: all
-	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case execution
-
-test-retail-dialog: all
-	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case dialog-render
-
-test-retail-shell: all
-	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case shell-render
-
 retail-menu: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)" --movies --menu
 
 run-retail-menu: retail-menu
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-retail-menu/d3bfg.elf
-
-test-retail-menu: all
-	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-render
-	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-quit
-	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-boot
-	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2) --case menu-screens
 
 smoke: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core

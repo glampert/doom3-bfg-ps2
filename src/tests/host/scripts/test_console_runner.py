@@ -23,18 +23,17 @@ import stage_retail_ui
 from test_retail_ui_runner import synthetic_package
 
 
-def completed(standard="ntsc"):
+def completed():
+    """The console step's slice of a session log, as PCSX2's file log stamps it."""
     status = "[D3BFG] CONSOLE frames={frame} presents={frame} redraws={redraws} active={active}\n"
-    log = f"game initialized.\nLOOP ready;\nrun_begin\nrun_ready\n[D3BFG] GS ready {standard.upper()} 512x448\n[D3BFG] UI adapters ready\n"
-    log += status.format(frame=0, redraws=0, active=1)
+    log = status.format(frame=500, redraws=4, active=1)
     log += "]echo native_console_run\nnative_console_run \n]echo native_console_run\nnative_console_run \n"
-    log += status.format(frame=120, redraws=2, active=0)
-    log += status.format(frame=121, redraws=2, active=1)
-    log += "[D3BFG] CONSOLE capture=console-edit.tga frame=122 presents=122 redraws=2\n"
-    log += "]history\n]quit\n[D3BFG] CONSOLE capture=console-quit.tga frame=123 presents=123 redraws=3\n"
-    log += status.format(frame=123, redraws=3, active=1)
-    log += "------------ Game Shutdown\n[D3BFG] CONSOLE shutdown complete frames=123 presents=123 redraws=3\n"
-    log += "COMMON stage=system shutdown\nHEADLESS memory baseline=1/2/3 final=1/2/3 peak=10/20 arena=30\nBOOT production shutdown complete\n"
+    log += status.format(frame=520, redraws=6, active=0)
+    log += status.format(frame=521, redraws=6, active=1)
+    log += "[D3BFG] CONSOLE capture=console-edit.tga frame=582 presents=582 redraws=6\n"
+    log += status.format(frame=582, redraws=6, active=1)
+    log += "]history\n"
+    log += status.format(frame=583, redraws=6, active=1)
     return "".join("[    1.0000] " + line for line in log.splitlines(keepends=True))
 
 
@@ -82,34 +81,33 @@ def tga(height, pixels):
 
 
 class ConsoleAcceptance(unittest.TestCase):
-    def test_complete_ntsc_and_pal(self):
-        for standard in ("ntsc", "pal"):
-            self.assertTrue(runner.classify(completed(standard), "run", standard)[0])
+    def test_complete_console_step(self):
+        self.assertTrue(runner.classify(completed(), "run")[0], runner.classify(completed(), "run")[1])
 
-    def test_crash_and_stale_identity_override_completion(self):
-        for log in (completed() + "[D3BFG] FATAL failure", completed() + "TLB Miss, pc=0x1000 addr=0x0 [load]", completed().replace("run_begin", "old_begin")):
-            self.assertFalse(runner.classify(log, "run", "ntsc")[0])
+    def test_crash_and_stale_identity_fail(self):
+        for log in (completed() + "[D3BFG] FATAL failure", completed() + "TLB Miss, pc=0x1000 addr=0x0 [load]",
+                    completed().replace("native_console_run", "native_console_old")):
+            self.assertFalse(runner.classify(log, "run")[0])
 
     def test_native_frames_and_redraw_only_requests(self):
-        for old, new in (("presents=123", "presents=124"), ("redraws=3", "redraws=1"), ("frames=123", "frames=119")):
+        for old, new in (("frames=520 presents=520", "frames=520 presents=521"), ("redraws=6", "redraws=5"),
+                         ("frames=583", "frames=499")):
             with self.subTest(field=old):
-                self.assertFalse(runner.classify(completed().replace(old, new), "run", "ntsc")[0])
+                self.assertFalse(runner.classify(completed().replace(old, new), "run")[0])
 
-    def test_native_history_toggle_and_quit_are_required(self):
-        for old, new in (("]echo native_console_run\n", ""), ("native_console_run \n", ""), ("active=0", "active=1"), ("]history\n", ""), ("]quit\n", "")):
+    def test_native_history_and_toggle_are_required(self):
+        for old, new in (("]echo native_console_run\n", ""), ("native_console_run \n", ""), ("active=0", "active=1"),
+                         ("]history\n", "")):
             with self.subTest(field=old):
-                self.assertFalse(runner.classify(completed().replace(old, new), "run", "ntsc")[0])
+                self.assertFalse(runner.classify(completed().replace(old, new), "run")[0])
 
-    def test_capture_must_be_completed_and_final_quit_must_drain_it(self):
-        for old, new in (("console-edit.tga", "missing.tga"), ("frame=122 presents=122", "frame=119 presents=119"),
-                         ("frame=123 presents=123", "frame=122 presents=122"), ("frame=122 presents=122", "frame=122 presents=123")):
+    def test_capture_must_follow_a_completed_presentation(self):
+        for old, new in (("console-edit.tga", "missing.tga"), ("frame=582 presents=582", "frame=582 presents=583"),
+                         ("frame=582 presents=582", "frame=400 presents=400")):
             with self.subTest(field=old):
-                self.assertFalse(runner.classify(completed().replace(old, new), "run", "ntsc")[0])
-
-    def test_shutdown_and_recovery_are_required(self):
-        for log in (completed().replace("BOOT production shutdown complete", ""), completed().replace("final=1/2/3", "final=1/2/4"),
-                    completed() + "[D3BFG] CONSOLE shutdown complete frames=123 presents=123 redraws=3\n"):
-            self.assertFalse(runner.classify(log, "run", "ntsc")[0])
+                self.assertFalse(runner.classify(completed().replace(old, new), "run")[0])
+        duplicate = completed() + "[    1.0000] [D3BFG] CONSOLE capture=console-edit.tga frame=590 presents=590 redraws=6\n"
+        self.assertFalse(runner.classify(duplicate, "run")[0])
 
 
 class ConsolePixels(unittest.TestCase):
