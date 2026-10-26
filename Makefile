@@ -3,61 +3,58 @@
 # The default ELF is the game loop; native smoketest executables are built separately.
 # =================================================================================================
 #
-# Build, packaging and test commands (run from the repository root):
+# Build, packaging and test commands (run from the repository root).
+#
+# Game:
 #   make                         # production d3bfg.elf, debug
 #   make release                 # production d3bfg.elf, release
+#
+# Tooling:
+#   make tools                   # audit sources and build the host resource unpacker
+#   make resource-unpack         # standalone C++20 host resource reader/extractor (CMake)
+#   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
+#
+# Other:
+#   make clean                   # remove generated build/test artifacts
+#   make compiledb               # compile_commands.json from real Make rules
+#   make inventory               # audit explicit source lists and exclusions
+#   make ui-inventory            # inspect local retail UI dependencies and feature gaps
+#
+# Host tests/smoke tests:
 #   make headless                # package production with authored console boot data
 #   make run-headless            # run the headless package in PCSX2, until quit
-#   make console                 # package the same production ELF with visible NTSC console
-#   make CONSOLE_STANDARD=pal console # select PAL presentation
+#   make test-headless           # 120 frames, live console commands and shutdown in PCSX2
+#   make headless-core           # scalar Doom foundation and integration tests
+#   make headless-game           # native campaign test executable
+#   make console                 # package the same production ELF with visible NTSC console (CONSOLE_STANDARD=pal for PAL)
 #   make run-console             # run the visible console package in PCSX2
-#   make ui                      # package the authored native SWF with visible NTSC presentation
-#   make CONSOLE_STANDARD=pal ui # select PAL for the authored UI package
+#   make ui                      # package the authored native SWF with visible NTSC presentation (CONSOLE_STANDARD=pal for PAL)
 #   make run-ui                  # run the authored native SWF in PCSX2
-#   make test-ui                 # every UI screen: one retail session per standard (boot menu, console,
-#                                #   fonts, movies, dialog, shell, menu screens, quit dialog), the authored
-#                                #   SWF and the invalid-resource cases
-#   make BUILD=release test-ui   # same UI checks without assertions
+#   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog), the authored SWF and the invalid-resource cases (BUILD=release without asserts)
 #   make ui-cook                 # cook the ignored local retail English resource package
 #   make retail-ui               # stage native retail fonts in build/debug/ui-retail/
-#   make run-retail-ui           # display the native English font resource screen
-#   make BUILD=release CONSOLE_STANDARD=pal run-retail-ui # release PAL resource screen
+#   make run-retail-ui           # display the native English font resource screen (BUILD=release CONSOLE_STANDARD=pal for release PAL resource screen)
 #   make retail-movies           # stage inactive retail SWFs and the English dictionary
 #   make run-retail-movies       # draw English labels using original native SWF text records
 #   make retail-menu             # stage a package that boots into the native shell menu
 #   make run-retail-menu         # boot into the original menu on the drawn shell
-#   make test-headless           # 120 frames, live console commands and shutdown in PCSX2
-#   make BUILD=release test-headless # same production checks without assertions
 #   make retail-boot             # package production with the local retail containers
 #   make run-retail-boot         # boot the retail declarations and scripts headless, until quit
 #   make test-retail-boot        # retail startup ledgers, 120 frames and shutdown in PCSX2
 #   make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes
-#   make BUILD=release test-renderer # same device checks without assertions
 #   make run-renderer            # native capture plus a 60-second inspection hold; F8 also saves a capture
 #   make platform-probe          # SDK/timer/alignment probe
-#   make headless-core           # scalar Doom foundation and integration tests
 #   make compile-core            # compile the scalar idlib/framework source set
 #   make compile-game            # compile the retained campaign source set
 #   make link-game               # production campaign link, registrations and test-isolation gate
-#   make headless-game           # native campaign test executable
 #   make test-game               # native game/player/tick/reload and failure checks in PCSX2
-#   make BUILD=release test-game # same game checks with assertions disabled
 #   make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
-#   make BUILD=release test-map  # same map checks with assertions disabled
 #   make test-host               # host format/logic/runner tests and ASan/UBSan harnesses
-#   make smoke                   # core smoke run in PCSX2
-#   make BUILD=release smoke     # release core smoke run
+#   make smoke                   # core smoke run in PCSX2 (BUILD=release without asserts)
 #   make smoke-negative          # expected missing-fixture failure
 #   make test-common             # partial-startup and expected-failure checks
-#   make compiledb               # compile_commands.json from real Make rules
-#   make resource-unpack         # standalone C++20 host resource reader/extractor (CMake)
-#   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
-#   make ui-inventory            # inspect local retail UI dependencies and feature gaps
 #   make smoke-platform          # run the isolated SDK platform probe
 #   make test-script             # isolated native script compiler checks
-#   make inventory               # audit explicit source lists and exclusions
-#   make tools                   # audit sources and build the host resource unpacker
-#   make clean                   # remove generated build/test artifacts
 #
 # BUILD=debug is the default; BUILD=release selects an assertions-off build.
 # CONSOLE_STANDARD=ntsc (default) or pal selects visible package presentation.
