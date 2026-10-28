@@ -75,7 +75,7 @@ void idMenuWidget_PDA_VideoInfo::Update() {
 }
 
 void idMenuWidget_PDA_VideoInfo::ObserveEvent( const idMenuWidget & widget, const idWidgetEvent & event ) {
-	const idMenuWidget_Button * const button = ps2::CheckedCast< const idMenuWidget_Button * >( &widget );
+	const idMenuWidget_Button * const button = ps2::DynCast< const idMenuWidget_Button * >( &widget );
 	if ( button == NULL ) {
 		return;
 	}
@@ -88,7 +88,7 @@ void idMenuWidget_PDA_VideoInfo::ObserveEvent( const idMenuWidget & widget, cons
 
 	switch ( event.type ) {
 		case WIDGET_EVENT_FOCUS_ON: {
-			const idMenuWidget_DynamicList * const list = ps2::CheckedCast< const idMenuWidget_DynamicList * const >( listWidget );
+			const idMenuWidget_DynamicList * const list = ps2::DynCast< const idMenuWidget_DynamicList * const >( listWidget );
 			videoIndex = list->GetViewIndex();
 
 			idPlayer * player = gameLocal.GetLocalPlayer();
@@ -106,7 +106,7 @@ void idMenuWidget_PDA_VideoInfo::ObserveEvent( const idMenuWidget & widget, cons
 			}			
 
 			if ( GetParent() != NULL ) {
-				idMenuScreen_PDA_VideoDisks * screen = ps2::CheckedCast< idMenuScreen_PDA_VideoDisks * const >( GetParent() );
+				idMenuScreen_PDA_VideoDisks * screen = ps2::DynCast< idMenuScreen_PDA_VideoDisks * const >( GetParent() );
 				if ( screen != NULL ) {
 					screen->Update();
 				}

@@ -101,7 +101,7 @@ idMenuWidget_Help::ObserveEvent
 ========================
 */
 void idMenuWidget_Help::ObserveEvent( const idMenuWidget & widget, const idWidgetEvent & event ) {
-	const idMenuWidget_Button * const button = ps2::CheckedCast< const idMenuWidget_Button * >( &widget );
+	const idMenuWidget_Button * const button = ps2::DynCast< const idMenuWidget_Button * >( &widget );
 	if ( button == NULL ) {
 		return;
 	}

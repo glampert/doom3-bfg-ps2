@@ -23,19 +23,22 @@ const void * TypeKey()
 // Source must be a public, unambiguous ancestor (or descendant) of Target. The
 // compiler rejects sibling/cross casts; these interfaces all use single inheritance.
 template<typename Target, typename Source>
-std::remove_cv_t<Target> CheckedCast(Source * source)
+std::remove_cv_t<Target> DynCast(Source * source)
 {
     static_assert(std::is_pointer_v<Target>);
+
 #if defined(ID_PS2) || defined(PS2_D3BFG) || defined(ID_HOST_TEST)
     using Type = std::remove_cv_t<std::remove_pointer_t<Target> >;
+
     // Inheriting a parent's hook is enough for queries to that parent, but a newly
     // queried derived type must declare its own hook instead of always rejecting itself.
-    static_assert(std::is_same_v<typename Type::PortableType, Type>,
-                  "Queried types must declare their own portable type hook");
+    static_assert(std::is_same_v<typename Type::PortableType, Type>, "Queried types must declare their own portable type hook");
+
     if (source == nullptr || !source->IsType(TypeKey<Type>()))
     {
         return nullptr;
     }
+
     return static_cast<std::remove_cv_t<Target> >(source);
 #else
     return dynamic_cast<Target>(source);

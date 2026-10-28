@@ -100,7 +100,7 @@ idRenderModel *idRenderModelPrt::InstantiateDynamicModel( const struct renderEnt
 	if ( cachedModel != NULL ) {
 
 		// [PS2_D3BFG]: A rejected cached model must not be dereferenced in release.
-		if ( ps2::CheckedCast<idRenderModelStatic *>( cachedModel ) == NULL ) {
+		if ( ps2::DynCast<idRenderModelStatic *>( cachedModel ) == NULL ) {
 			common->Error( "Cached model '%s' is not a static model", cachedModel->Name() );
 			return NULL;
 		}

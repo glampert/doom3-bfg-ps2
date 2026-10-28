@@ -71,7 +71,7 @@ void idMenuScreen_PDA_UserEmails::Initialize( idMenuHandler * data ) {
 
 		for ( int i = 0; i < pdaInbox.GetEmailList()->GetChildren().Num(); ++i ) {
 			idMenuWidget & child = pdaInbox.GetEmailList()->GetChildByIndex( i );
-			idMenuWidget_Button * const button = ps2::CheckedCast< idMenuWidget_Button * >( &child );
+			idMenuWidget_Button * const button = ps2::DynCast< idMenuWidget_Button * >( &child );
 			if ( button != NULL ) {
 				button->RegisterEventObserver( &emailInfo );
 			}
@@ -165,7 +165,7 @@ void idMenuScreen_PDA_UserEmails::Update() {
 			return;
 		}
 
-		idMenuWidget_CommandBar * cmdBar = ps2::CheckedCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
+		idMenuWidget_CommandBar * cmdBar = ps2::DynCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
 		if ( cmdBar != NULL ) {
 			cmdBar->ClearAllButtons();
 			idMenuWidget_CommandBar::buttonInfo_t * buttonInfo;
@@ -183,7 +183,7 @@ void idMenuScreen_PDA_UserEmails::Update() {
 				}
 				buttonInfo->action.Set( WIDGET_ACTION_GO_BACK );								
 
-				idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+				idMenuWidget_DynamicList * pdaList = ps2::DynCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 				if ( pdaList != NULL ) {
 					int pdaIndex = pdaList->GetViewIndex();
 					idPlayer * player = gameLocal.GetLocalPlayer();
@@ -251,7 +251,7 @@ idMenuScreen_PDA_UserEmails::UpdateEmail
 ========================
 */
 void idMenuScreen_PDA_UserEmails::UpdateEmail() {
-	idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+	idMenuWidget_DynamicList * pdaList = ps2::DynCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 	if ( pdaList != NULL ) {
 
 		int pdaIndex = pdaList->GetViewIndex();
@@ -315,7 +315,7 @@ bool idMenuScreen_PDA_UserEmails::ScrollCorrectList( idWidgetAction & action, co
 			handled = true;
 		}
 	} else if ( menuData != NULL ) {
-		idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * const >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+		idMenuWidget_DynamicList * pdaList = ps2::DynCast< idMenuWidget_DynamicList * const >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 		if ( pdaList != NULL ) {
 			pdaList->HandleAction( action, event, pdaList );
 			handled = true;
@@ -370,7 +370,7 @@ void idMenuScreen_PDA_UserEmails::ShowEmail( bool show ) {
 				pdaSprite->PlayFrame( "rollOn" );
 			
 				if ( menuData != NULL ) {
-					idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * const >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+					idMenuWidget_DynamicList * pdaList = ps2::DynCast< idMenuWidget_DynamicList * const >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 					if ( pdaList != NULL ) {
 						pdaList->SetFocusIndex( pdaList->GetFocusIndex() );
 					}
@@ -422,7 +422,7 @@ bool idMenuScreen_PDA_UserEmails::HandleAction( idWidgetAction & action, const i
 		case WIDGET_ACTION_PDA_SELECT_EMAIL: {
 
 			if ( widget->GetParent() != NULL ) {
-				idMenuWidget_DynamicList * emailList = ps2::CheckedCast< idMenuWidget_DynamicList * >( widget->GetParent() );
+				idMenuWidget_DynamicList * emailList = ps2::DynCast< idMenuWidget_DynamicList * >( widget->GetParent() );
 				int index = parms[0].ToInteger();
 				if ( emailList != NULL ) {
 					emailList->SetViewIndex( emailList->GetViewOffset() + index );
@@ -461,7 +461,7 @@ void idMenuScreen_PDA_UserEmails::ObserveEvent( const idMenuWidget & widget, con
 		return;
 	}
 
-	const idMenuWidget_Button * const button = ps2::CheckedCast< const idMenuWidget_Button * >( &widget );
+	const idMenuWidget_Button * const button = ps2::DynCast< const idMenuWidget_Button * >( &widget );
 	if ( button == NULL ) {
 		return;
 	}

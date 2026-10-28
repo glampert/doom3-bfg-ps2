@@ -97,7 +97,7 @@ void idMenuScreen_PDA_VideoDisks::Update() {
 	idPlayer * player = gameLocal.GetLocalPlayer();
 	
 	if ( menuData != NULL ) {
-		idMenuWidget_CommandBar * cmdBar = ps2::CheckedCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
+		idMenuWidget_CommandBar * cmdBar = ps2::DynCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
 		if ( cmdBar != NULL ) {
 			cmdBar->ClearAllButtons();
 			idMenuWidget_CommandBar::buttonInfo_t * buttonInfo;
@@ -241,7 +241,7 @@ void idMenuScreen_PDA_VideoDisks::SelectedVideoToPlay( int index ) {
 
 	player->EndVideoDisk();		
 	if ( menuData != NULL ) {
-		idMenuHandler_PDA * pdaHandler = ps2::CheckedCast< idMenuHandler_PDA * const >( menuData );
+		idMenuHandler_PDA * pdaHandler = ps2::DynCast< idMenuHandler_PDA * const >( menuData );
 		pdaHandler->ClearVideoPlaying();
 	}
 

@@ -348,7 +348,7 @@ The complete resident game link and game-fixture boot remain pending.
 
 ## Checked hierarchy queries without RTTI
 
-The 104 casts in the retained campaign sources now use `ps2::CheckedCast`. Portable
+The 104 casts in the retained campaign sources now use `ps2::DynCast`. Portable
 menu, GUI-variable, file and model declarations provide virtual type queries that
 recognize their own type and public single-inheritance ancestors. One zero-initialized
 token per type supplies identity across translation units without allocation or guarded
@@ -3935,7 +3935,7 @@ direction release gates were not run. Every backend namespace now follows
 
 | Namespace | Holds | Was |
 | --- | --- | --- |
-| `ps2` | `Log`/`FatalError`, assertions, `CheckedCast` | unchanged |
+| `ps2` | `Log`/`FatalError`, assertions, `DynCast` | unchanged |
 | `ps2::system::heap`, `fs`, `video`, `runtime` | allocator, file services, NTSC/PAL modes, production loop and presentation | `ps2::heap`, `filesystem`, `video`, `runtime` |
 | `ps2::system::lifecycle` | Common startup stages and the core test boot (`InitCore`/`ShutdownCore`) | `ps2::lifecycle`, `ps2::core` |
 | `ps2::system::session` | offline campaign session | `ps2::offline` |

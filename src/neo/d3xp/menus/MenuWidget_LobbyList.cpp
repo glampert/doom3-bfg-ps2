@@ -82,7 +82,7 @@ idMenuWidget_LobbyList::PrepareListElement
 */
 bool idMenuWidget_LobbyList::PrepareListElement( idMenuWidget & widget, const int childIndex ) {
 
-	idMenuWidget_LobbyButton * const button = ps2::CheckedCast< idMenuWidget_LobbyButton * >( &widget );
+	idMenuWidget_LobbyButton * const button = ps2::DynCast< idMenuWidget_LobbyButton * >( &widget );
 	if ( button == NULL ) {
 		return false;
 	}
@@ -119,7 +119,7 @@ void idMenuWidget_LobbyList::SetEntryData( int index, idStr name, voiceStateDisp
 	}
 
 	idMenuWidget & child = GetChildByIndex( index );
-	idMenuWidget_LobbyButton * const button = ps2::CheckedCast< idMenuWidget_LobbyButton * >( &child );
+	idMenuWidget_LobbyButton * const button = ps2::DynCast< idMenuWidget_LobbyButton * >( &child );
 
 	if ( button == NULL ) {
 		return;

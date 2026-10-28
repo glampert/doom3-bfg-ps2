@@ -237,7 +237,7 @@ void idMenuScreen_PDA_Inventory::Update() {
 	}	
 	
 	if ( menuData != NULL ) {
-		idMenuWidget_CommandBar * cmdBar = ps2::CheckedCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
+		idMenuWidget_CommandBar * cmdBar = ps2::DynCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
 		if ( cmdBar != NULL ) {
 			cmdBar->ClearAllButtons();
 			idMenuWidget_CommandBar::buttonInfo_t * buttonInfo;

@@ -449,7 +449,7 @@ void idResourceContainer::WriteResourceFile( const char *manifestName, const idS
 			ent.offset = 0;
 
 			idFile *file = fileSystem->OpenFileReadMemory( ent.filename, false );
-			idFile_Memory *fm = ps2::CheckedCast< idFile_Memory* >( file );
+			idFile_Memory *fm = ps2::DynCast< idFile_Memory* >( file );
 			if ( fm == NULL ) {
 				// [PS2_D3BFG]: A rejected memory-file query must release the opened file.
 				if ( file != NULL ) { fileSystem->CloseFile( file ); }

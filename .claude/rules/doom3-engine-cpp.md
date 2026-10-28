@@ -173,7 +173,7 @@ math path; PS2-specific math replacement headers are a later milestone.
 - EOF inside an unfinished block and constant integer remainder by zero must report
   script errors. Parser-to-lexer diagnostics pass formatted strings via `"%s"`, with
   bounded buffers, so token percent signs cannot be interpreted a second time.
-- Retained menu/GUI/file/model casts use `ps2::CheckedCast` on public single-inheritance
+- Retained menu/GUI/file/model casts use `ps2::DynCast` on public single-inheritance
   interfaces. Register each queried derived type with its own `PS2_TYPE_DERIVED` hook;
   inheriting a parent's alias is intentionally insufficient. Null/rejected queries remain
   null, and const removal/cross casts are compile errors. Writable zero-initialized type

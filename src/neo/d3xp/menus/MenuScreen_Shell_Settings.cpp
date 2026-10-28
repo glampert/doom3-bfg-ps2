@@ -102,7 +102,7 @@ void idMenuScreen_Shell_Settings::Initialize( idMenuHandler * data ) {
 
 	btnBack = new (TAG_SWF) idMenuWidget_Button();
 	btnBack->Initialize( data );	
-	idMenuHandler_Shell * handler = ps2::CheckedCast< idMenuHandler_Shell * >( data );
+	idMenuHandler_Shell * handler = ps2::DynCast< idMenuHandler_Shell * >( data );
 	if ( handler != NULL && handler->GetInGame() ) {
 		btnBack->SetLabel( "#str_swf_pause_menu" );
 	} else {

@@ -158,17 +158,17 @@ void idMenuScreen_Shell_Singleplayer::ShowScreen( const mainMenuTransition_t tra
 		menuOptions.Append( option );
 
 		int index = 0;
-		idMenuWidget_Button * buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+		idMenuWidget_Button * buttonWidget = ps2::DynCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 		if ( buttonWidget != NULL ) {
 			buttonWidget->SetDescription( "#str_swf_continue_desc" );
 		}
 		index++;
-		buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+		buttonWidget = ps2::DynCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 		if ( buttonWidget != NULL ) {
 			buttonWidget->SetDescription( "#str_02209" );
 		}
 		index++;
-		buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+		buttonWidget = ps2::DynCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 		if ( buttonWidget != NULL ) {
 			buttonWidget->SetDescription( "#str_02213" );
 		}
@@ -183,12 +183,12 @@ void idMenuScreen_Shell_Singleplayer::ShowScreen( const mainMenuTransition_t tra
 
 		if ( options != NULL ) {
 			int index = 0;
-			idMenuWidget_Button * buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			idMenuWidget_Button * buttonWidget = ps2::DynCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_02209" );
 			}
 			index++;
-			buttonWidget = ps2::CheckedCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
+			buttonWidget = ps2::DynCast< idMenuWidget_Button * >( &options->GetChildByIndex( index ) );
 			if ( buttonWidget != NULL ) {
 				buttonWidget->SetDescription( "#str_02213" );
 			}

@@ -83,7 +83,7 @@ idMenuScreen_PDA_UserData::Update
 void idMenuScreen_PDA_UserData::Update() {
 
 	if ( menuData != NULL ) {
-		idMenuWidget_CommandBar * cmdBar = ps2::CheckedCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
+		idMenuWidget_CommandBar * cmdBar = ps2::DynCast< idMenuWidget_CommandBar * const >( menuData->GetChildFromIndex( PDA_WIDGET_CMD_BAR ) );
 		if ( cmdBar != NULL ) {
 			cmdBar->ClearAllButtons();
 			idMenuWidget_CommandBar::buttonInfo_t * buttonInfo;
@@ -100,7 +100,7 @@ void idMenuScreen_PDA_UserData::Update() {
 			buttonInfo->action.Set( WIDGET_ACTION_GO_BACK );
 
 			idPlayer * player = gameLocal.GetLocalPlayer();
-			idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+			idMenuWidget_DynamicList * pdaList = ps2::DynCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 			if ( pdaList != NULL && player != NULL ) {
 				int pdaIndex = pdaList->GetViewIndex();
 				if ( pdaIndex < player->GetInventory().pdas.Num() ) {
@@ -153,7 +153,7 @@ void idMenuScreen_PDA_UserData::ShowScreen( const mainMenuTransition_t transitio
 	idMenuScreen::ShowScreen( transitionType );
 
 	if ( menuData != NULL) {
-		idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+		idMenuWidget_DynamicList * pdaList = ps2::DynCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 		if ( pdaList != NULL ) {
 			pdaList->SetFocusIndex( pdaList->GetFocusIndex() );			
 		}
@@ -200,7 +200,7 @@ bool idMenuScreen_PDA_UserData::HandleAction( idWidgetAction & action, const idW
 	switch ( actionType ) {
 		case WIDGET_ACTION_PRESS_FOCUSED: {
 
-			idMenuWidget_DynamicList * pdaList = ps2::CheckedCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
+			idMenuWidget_DynamicList * pdaList = ps2::DynCast< idMenuWidget_DynamicList * >( menuData->GetChildFromIndex( PDA_WIDGET_PDA_LIST ) );
 			if ( pdaList == NULL ) {
 				return true;
 			}
@@ -216,7 +216,7 @@ bool idMenuScreen_PDA_UserData::HandleAction( idWidgetAction & action, const idW
 			} else {
 				if ( menuData != NULL && pdaAudioFiles.GetChildren().Num() > 0 ) {
 					int index = pdaAudioFiles.GetChildByIndex( 0 ).GetFocusIndex();					
-					idMenuHandler_PDA * pdaHandler = ps2::CheckedCast< idMenuHandler_PDA * const >( menuData );
+					idMenuHandler_PDA * pdaHandler = ps2::DynCast< idMenuHandler_PDA * const >( menuData );
 					if ( pdaHandler != NULL ) {
 						pdaHandler->PlayPDAAudioLog( pdaIndex, index );
 					}

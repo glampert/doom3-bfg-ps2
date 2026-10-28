@@ -33,13 +33,13 @@ class TypeQueryCompileTests(unittest.TestCase):
             self.assertIn("type_query.h", result.stderr)
 
     def test_unregistered_target_rejected(self):
-        self.reject("Unregistered * Query(Root * p) { return ps2::CheckedCast<Unregistered *>(p); }")
+        self.reject("Unregistered * Query(Root * p) { return ps2::DynCast<Unregistered *>(p); }")
 
     def test_const_removal_rejected(self):
-        self.reject("Child * Query(const Root * p) { return ps2::CheckedCast<Child *>(p); }")
+        self.reject("Child * Query(const Root * p) { return ps2::DynCast<Child *>(p); }")
 
     def test_cross_cast_rejected(self):
-        self.reject("Sibling * Query(Child * p) { return ps2::CheckedCast<Sibling *>(p); }")
+        self.reject("Sibling * Query(Child * p) { return ps2::DynCast<Sibling *>(p); }")
 
     def test_desktop_rtti_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -50,10 +50,10 @@ int main() {
     Child child;
     Root * base = &child;
     const Root * constant = base;
-    return !(ps2::CheckedCast<Child *>(base) == &child &&
-             ps2::CheckedCast<const Child *>(constant) == &child &&
-             ps2::CheckedCast<Sibling *>(base) == nullptr &&
-             ps2::CheckedCast<Child *>(static_cast<Root *>(nullptr)) == nullptr);
+    return !(ps2::DynCast<Child *>(base) == &child &&
+             ps2::DynCast<const Child *>(constant) == &child &&
+             ps2::DynCast<Sibling *>(base) == nullptr &&
+             ps2::DynCast<Child *>(static_cast<Root *>(nullptr)) == nullptr);
 }
 ''')
             subprocess.run(["clang++", "-std=c++20", "-Wall", "-Wextra", "-Werror",

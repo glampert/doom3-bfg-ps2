@@ -236,7 +236,7 @@ bool PreflightFont(idFile * file, const char * name)
 
     ui::retail::FontRecord record{};
     ui::retail::ImageRecord image{};
-    const auto * const memory = CheckedCast<const idFile_Memory *>(file);
+    const auto * const memory = DynCast<const idFile_Memory *>(file);
     if (!s_initialized || memory == nullptr || memory->Tell() != 0 || !ui::retail::FindFont(name, record) ||
         memory->Length() != static_cast<int>(record.bytes) ||
         !ui::retail::GetCatalog().GetImage(record.imageIndex, image))

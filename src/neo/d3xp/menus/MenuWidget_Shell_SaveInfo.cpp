@@ -117,7 +117,7 @@ idMenuWidget_Help::ObserveEvent
 ========================
 */
 void idMenuWidget_Shell_SaveInfo::ObserveEvent( const idMenuWidget & widget, const idWidgetEvent & event ) {
-	const idMenuWidget_Button * const button = ps2::CheckedCast< const idMenuWidget_Button * >( &widget );
+	const idMenuWidget_Button * const button = ps2::DynCast< const idMenuWidget_Button * >( &widget );
 	if ( button == NULL ) {
 		return;
 	}
@@ -130,7 +130,7 @@ void idMenuWidget_Shell_SaveInfo::ObserveEvent( const idMenuWidget & widget, con
 
 	switch ( event.type ) {
 		case WIDGET_EVENT_FOCUS_ON: {
-			const idMenuWidget_DynamicList * const list = ps2::CheckedCast< const idMenuWidget_DynamicList * const >( listWidget );
+			const idMenuWidget_DynamicList * const list = ps2::DynCast< const idMenuWidget_DynamicList * const >( listWidget );
 			loadIndex = list->GetViewIndex();
 
 			const saveGameDetailsList_t & detailList = session->GetSaveGameManager().GetEnumeratedSavegames();
@@ -148,12 +148,12 @@ void idMenuWidget_Shell_SaveInfo::ObserveEvent( const idMenuWidget & widget, con
 
 			Update();
 
-			idMenuScreen_Shell_Load * loadScreen = ps2::CheckedCast< idMenuScreen_Shell_Load * >( GetParent() );
+			idMenuScreen_Shell_Load * loadScreen = ps2::DynCast< idMenuScreen_Shell_Load * >( GetParent() );
 			if ( loadScreen ) {
 				loadScreen->UpdateSaveEnumerations();
 			}
 
-			idMenuScreen_Shell_Save * saveScreen = ps2::CheckedCast< idMenuScreen_Shell_Save * >( GetParent() );
+			idMenuScreen_Shell_Save * saveScreen = ps2::DynCast< idMenuScreen_Shell_Save * >( GetParent() );
 			if ( saveScreen ) {
 				saveScreen->UpdateSaveEnumerations();
 			}

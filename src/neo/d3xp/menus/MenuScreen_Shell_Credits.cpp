@@ -734,7 +734,7 @@ void idMenuScreen_Shell_Credits::Update() {
 		if ( cmdBar != NULL ) {
 			cmdBar->ClearAllButtons();
 
-			idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
+			idMenuHandler_Shell * shell = ps2::DynCast< idMenuHandler_Shell * >( menuData );
 			bool complete = false;
 			if ( shell != NULL ) {
 				complete = shell->GetGameComplete();
@@ -781,7 +781,7 @@ idMenuScreen_Shell_Credits::ShowScreen
 void idMenuScreen_Shell_Credits::ShowScreen( const mainMenuTransition_t transitionType ) {
 
 	if ( menuData != NULL ) {
-		idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
+		idMenuHandler_Shell * shell = ps2::DynCast< idMenuHandler_Shell * >( menuData );
 		bool complete = false;
 		if ( shell != NULL ) {
 			complete = shell->GetGameComplete();
@@ -825,7 +825,7 @@ bool idMenuScreen_Shell_Credits::HandleAction( idWidgetAction & action, const id
 	switch ( actionType ) {
 		case WIDGET_ACTION_GO_BACK: {
 
-			idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
+			idMenuHandler_Shell * shell = ps2::DynCast< idMenuHandler_Shell * >( menuData );
 			bool complete = false;
 			if ( shell != NULL ) {
 				complete = shell->GetGameComplete();
@@ -860,7 +860,7 @@ void idMenuScreen_Shell_Credits::UpdateCredits() {
 	}
 
 	if ( creditIndex >= creditList.Num() + NUM_CREDIT_LINES ) {
-		idMenuHandler_Shell * shell = ps2::CheckedCast< idMenuHandler_Shell * >( menuData );
+		idMenuHandler_Shell * shell = ps2::DynCast< idMenuHandler_Shell * >( menuData );
 			bool complete = false;
 			if ( shell != NULL ) {
 				complete = shell->GetGameComplete();

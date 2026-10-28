@@ -152,7 +152,7 @@ idMenuHandler_HUD::GetHud
 ========================
 */
 idMenuScreen_HUD * idMenuHandler_HUD::GetHud() {
-	idMenuScreen_HUD * screen = ps2::CheckedCast< idMenuScreen_HUD * >( menuScreens[ HUD_AREA_PLAYING ] );
+	idMenuScreen_HUD * screen = ps2::DynCast< idMenuScreen_HUD * >( menuScreens[ HUD_AREA_PLAYING ] );
 	return screen;
 }
 

@@ -272,7 +272,7 @@ public:
     // native function there was put by a script.
     bool OwnsEventHandler(const idSWFScriptFunction * function)
     {
-        const auto * const wrapper = ps2::CheckedCast<const idMenuWidget::WrapWidgetSWFEvent *>(function);
+        const auto * const wrapper = ps2::DynCast<const idMenuWidget::WrapWidgetSWFEvent *>(function);
 
         if (wrapper == nullptr)
         {
@@ -310,7 +310,7 @@ public:
 
     void PrintStatus()
     {
-        auto * const root = ps2::CheckedCast<idMenuScreen_Shell_Root *>(m_handler.GetMenuScreen(SHELL_AREA_ROOT));
+        auto * const root = ps2::DynCast<idMenuScreen_Shell_Root *>(m_handler.GetMenuScreen(SHELL_AREA_ROOT));
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] RETAIL menu screen=%d next=%d session=%s platform=%d callbacks=%d root_focus=%d\n",
                  m_handler.ActiveScreen(), m_handler.NextScreen(), session->GetStateString(), m_handler.GetPlatform(),
                  ps2::ArrayLength(kMenuCallbacks), root != nullptr ? root->GetRootIndex() : -1);
@@ -326,7 +326,7 @@ private:
         {
             for (int index = 0; index < screen->GetChildren().Num(); ++index)
             {
-                if (auto * const carousel = ps2::CheckedCast<idMenuWidget_Carousel *>(screen->GetChildren()[index]))
+                if (auto * const carousel = ps2::DynCast<idMenuWidget_Carousel *>(screen->GetChildren()[index]))
                 {
                     return carousel;
                 }

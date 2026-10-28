@@ -992,12 +992,12 @@ void idWindow::Transition() {
 	for ( i = 0; i < c; i++ ) {
 		idTransitionData *data = &transitions[i];
 		idWinRectangle *r = NULL;
-		idWinVec4 *v4 = ps2::CheckedCast<idWinVec4*>(data->data);
+		idWinVec4 *v4 = ps2::DynCast<idWinVec4*>(data->data);
 		idWinFloat* val = NULL;
 		if (v4 == NULL) {
-			r = ps2::CheckedCast<idWinRectangle*>(data->data);
+			r = ps2::DynCast<idWinRectangle*>(data->data);
 			if ( r == NULL ) {
-				val = ps2::CheckedCast<idWinFloat*>(data->data);
+				val = ps2::DynCast<idWinFloat*>(data->data);
 			}
 		}
 		if ( data->interp.IsDone( gui->GetTime() ) && data->data) {
@@ -2742,7 +2742,7 @@ int idWindow::ParseTerm( idTokenParser *src,	idWinVar *var, int component ) {
 		//assert(dynamic_cast<idWinVec4*>(var));
 		var->Init(token, this);
 		b = component;
-		if (ps2::CheckedCast<idWinVec4*>(var)) {
+		if (ps2::DynCast<idWinVec4*>(var)) {
 			if (src->ReadToken(&token)) {
 				if (token == "[") {
 					b = ParseExpression(src);
@@ -2752,13 +2752,13 @@ int idWindow::ParseTerm( idTokenParser *src,	idWinVar *var, int component ) {
 				}
 			}
 			return EmitOp(a, b, WOP_TYPE_VAR);
-		} else if (ps2::CheckedCast<idWinFloat*>(var)) {
+		} else if (ps2::DynCast<idWinFloat*>(var)) {
 			return EmitOp(a, b, WOP_TYPE_VARF);
-		} else if (ps2::CheckedCast<idWinInt*>(var)) {
+		} else if (ps2::DynCast<idWinInt*>(var)) {
 			return EmitOp(a, b, WOP_TYPE_VARI);
-		} else if (ps2::CheckedCast<idWinBool*>(var)) {
+		} else if (ps2::DynCast<idWinBool*>(var)) {
 			return EmitOp(a, b, WOP_TYPE_VARB);
-		} else if (ps2::CheckedCast<idWinStr*>(var)) {
+		} else if (ps2::DynCast<idWinStr*>(var)) {
 			return EmitOp(a, b, WOP_TYPE_VARS);
 		} else {
 			src->Warning("Var expression not vec4, float or int '%s'", token.c_str());
@@ -3317,7 +3317,7 @@ void idWindow::ReadSaveGameTransition( idTransitionData &trans, idFile *savefile
 		if ( winName.Length() ) {
 			idWinStr *strVar = new (TAG_OLD_UI) idWinStr();
 			strVar->Set( winName );
-			trans.data = ps2::CheckedCast< idWinVar* >( strVar );
+			trans.data = ps2::DynCast< idWinVar* >( strVar );
 		}
 	}
 }

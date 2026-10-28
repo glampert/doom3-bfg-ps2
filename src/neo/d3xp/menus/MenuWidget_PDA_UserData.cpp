@@ -127,7 +127,7 @@ idMenuWidget_Help::ObserveEvent
 ========================
 */
 void idMenuWidget_PDA_UserData::ObserveEvent( const idMenuWidget & widget, const idWidgetEvent & event ) {
-	const idMenuWidget_Button * const button = ps2::CheckedCast< const idMenuWidget_Button * >( &widget );
+	const idMenuWidget_Button * const button = ps2::DynCast< const idMenuWidget_Button * >( &widget );
 	if ( button == NULL ) {
 		return;
 	}
@@ -140,7 +140,7 @@ void idMenuWidget_PDA_UserData::ObserveEvent( const idMenuWidget & widget, const
 
 	switch ( event.type ) {
 		case WIDGET_EVENT_FOCUS_ON: {
-			const idMenuWidget_DynamicList * const list = ps2::CheckedCast< const idMenuWidget_DynamicList * const >( listWidget );
+			const idMenuWidget_DynamicList * const list = ps2::DynCast< const idMenuWidget_DynamicList * const >( listWidget );
 			pdaIndex = list->GetViewIndex();
 			if ( GetParent() != NULL && menuData != NULL && menuData->ActiveScreen() == PDA_AREA_USER_DATA ) {
 				GetParent()->Update();
@@ -156,13 +156,13 @@ void idMenuWidget_PDA_UserData::ObserveEvent( const idMenuWidget & widget, const
 			break;
 		}
 		case WIDGET_EVENT_ROLL_OVER: {
-			const idMenuWidget_DynamicList * const list = ps2::CheckedCast< const idMenuWidget_DynamicList * const >( listWidget );
+			const idMenuWidget_DynamicList * const list = ps2::DynCast< const idMenuWidget_DynamicList * const >( listWidget );
 			pdaIndex = list->GetViewIndex();
 			Update();
 			break;
 		}
 		case WIDGET_EVENT_ROLL_OUT: {
-			const idMenuWidget_DynamicList * const list = ps2::CheckedCast< const idMenuWidget_DynamicList * const >( listWidget );
+			const idMenuWidget_DynamicList * const list = ps2::DynCast< const idMenuWidget_DynamicList * const >( listWidget );
 			pdaIndex = list->GetViewIndex();
 			Update();
 			break;

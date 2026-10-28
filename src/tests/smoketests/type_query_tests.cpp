@@ -25,23 +25,23 @@ bool RunTypeQueryTests()
     QueryRoot root;
     QueryRoot * base = &child;
     const QueryRoot * constant = &child;
-    const QueryChild * const qualified = CheckedCast<const QueryChild * const>(constant);
-    bool passed = Check(CheckedCast<QueryChild *>(base) == &child &&
-                        CheckedCast<QueryGrandchild *>(base) == &child &&
-                        CheckedCast<QueryRoot *>(&child) == base &&
-                        CheckedCast<const QueryChild *>(constant) == &child &&
+    const QueryChild * const qualified = DynCast<const QueryChild * const>(constant);
+    bool passed = Check(DynCast<QueryChild *>(base) == &child &&
+                        DynCast<QueryGrandchild *>(base) == &child &&
+                        DynCast<QueryRoot *>(&child) == base &&
+                        DynCast<const QueryChild *>(constant) == &child &&
                         qualified != nullptr && qualified->value == 42,
                         "inherited-const");
-    passed &= Check(CheckedCast<QueryChild *>(&root) == nullptr &&
-                    CheckedCast<QueryChild *>(static_cast<QueryRoot *>(&sibling)) == nullptr &&
-                    CheckedCast<QuerySibling *>(base) == nullptr &&
-                    CheckedCast<QueryChild *>(static_cast<QueryRoot *>(nullptr)) == nullptr,
+    passed &= Check(DynCast<QueryChild *>(&root) == nullptr &&
+                    DynCast<QueryChild *>(static_cast<QueryRoot *>(&sibling)) == nullptr &&
+                    DynCast<QuerySibling *>(base) == nullptr &&
+                    DynCast<QueryChild *>(static_cast<QueryRoot *>(nullptr)) == nullptr,
                     "rejected-null-sibling");
     QueryRoot * otherUnit = NewQueryChildFromOtherUnit();
-    QueryChild * queried = CheckedCast<QueryChild *>(otherUnit);
+    QueryChild * queried = DynCast<QueryChild *>(otherUnit);
     passed &= Check(QueryChildTypeKeyFromOtherUnit() == TypeKey<QueryChild>() &&
                     TypeKey<QueryChild>() != TypeKey<QuerySibling>() && queried != nullptr &&
-                    queried->value == 42 && CheckedCast<QuerySibling *>(otherUnit) == nullptr,
+                    queried->value == 42 && DynCast<QuerySibling *>(otherUnit) == nullptr,
                     "translation-unit-identity");
     delete otherUnit;
     return passed;

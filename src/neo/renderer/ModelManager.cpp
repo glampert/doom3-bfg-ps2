@@ -400,7 +400,7 @@ void idRenderModelManagerLocal::FreeModel( idRenderModel *model ) {
 	if ( !model ) {
 		return;
 	}
-	if ( !ps2::CheckedCast<idRenderModelStatic *>( model ) ) {
+	if ( !ps2::DynCast<idRenderModelStatic *>( model ) ) {
 		common->Error( "idRenderModelManager::FreeModel: model '%s' is not a static model", model->Name() );
 		return;
 	}

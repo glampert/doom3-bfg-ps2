@@ -339,7 +339,7 @@ bool idMenuWidget_GameBrowserList::PrepareListElement( idMenuWidget & widget, co
 		return false;
 	}
 
-	idMenuWidget_ServerButton * const button = ps2::CheckedCast< idMenuWidget_ServerButton * >( &widget );
+	idMenuWidget_ServerButton * const button = ps2::DynCast< idMenuWidget_ServerButton * >( &widget );
 	if ( button == NULL ) {
 		return false;
 	}

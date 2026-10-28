@@ -118,7 +118,7 @@ void idRegister::GetFromRegs( float *registers ) {
 	
 	switch( type ) {
 		case VEC4: {
-			*ps2::CheckedCast<idWinVec4*>(var) = v;
+			*ps2::DynCast<idWinVec4*>(var) = v;
 			break;
 		}
 		case RECTANGLE: {

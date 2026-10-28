@@ -127,7 +127,7 @@ bool idMenuWidget_MenuBar::PrepareListElement( idMenuWidget & widget, const int 
 		return false;
 	}
 
-	idMenuWidget_MenuButton * const button = ps2::CheckedCast< idMenuWidget_MenuButton * >( &widget );
+	idMenuWidget_MenuButton * const button = ps2::DynCast< idMenuWidget_MenuButton * >( &widget );
 	if ( button == NULL || button->GetSprite() == NULL ) {
 		return false;
 	}

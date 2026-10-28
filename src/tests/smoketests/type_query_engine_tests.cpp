@@ -49,10 +49,10 @@ bool RunEngineTypeQueryTests()
         idFile file;
         idFile_Memory memory;
         idFile * base = &memory;
-        passed &= Check(CheckedCast<idFile_Memory *>(base) == &memory &&
-                        CheckedCast<const idFile_Memory *>(static_cast<const idFile *>(base)) == &memory &&
-                        CheckedCast<idFile_Memory *>(&file) == nullptr &&
-                        CheckedCast<idFile_Permanent *>(base) == nullptr &&
+        passed &= Check(DynCast<idFile_Memory *>(base) == &memory &&
+                        DynCast<const idFile_Memory *>(static_cast<const idFile *>(base)) == &memory &&
+                        DynCast<idFile_Memory *>(&file) == nullptr &&
+                        DynCast<idFile_Permanent *>(base) == nullptr &&
                         memory.IsType(FileTypeKeyFromOtherUnit()),
                         "real-file-objects");
     }

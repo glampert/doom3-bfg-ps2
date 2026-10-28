@@ -71,7 +71,7 @@ void idMenuWidget_NavBar::Update() {
 
 	for ( int index = 0; index < GetTotalNumberOfOptions(); ++index ) {
 		idMenuWidget & child = GetChildByIndex( index );
-		idMenuWidget_NavButton * const button = ps2::CheckedCast< idMenuWidget_NavButton * >( &child );
+		idMenuWidget_NavButton * const button = ps2::DynCast< idMenuWidget_NavButton * >( &child );
 		button->SetLabel( "" );
 	}
 
@@ -141,7 +141,7 @@ bool idMenuWidget_NavBar::PrepareListElement( idMenuWidget & widget, const int n
 		return false;
 	}
 
-	idMenuWidget_NavButton * const button = ps2::CheckedCast< idMenuWidget_NavButton * >( &widget );
+	idMenuWidget_NavButton * const button = ps2::DynCast< idMenuWidget_NavButton * >( &widget );
 	if ( button == NULL || button->GetSprite() == NULL ) {
 		return false;
 	}

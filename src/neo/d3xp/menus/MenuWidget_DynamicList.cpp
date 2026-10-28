@@ -128,7 +128,7 @@ idMenuWidget_DynamicList::PrepareListElement
 */
 bool idMenuWidget_DynamicList::PrepareListElement( idMenuWidget & widget, const int childIndex ) {
 
-	idMenuWidget_ScoreboardButton * const sbButton = ps2::CheckedCast< idMenuWidget_ScoreboardButton * >( &widget );
+	idMenuWidget_ScoreboardButton * const sbButton = ps2::DynCast< idMenuWidget_ScoreboardButton * >( &widget );
 	if ( sbButton != NULL ) {
 		return true;
 	}
@@ -141,7 +141,7 @@ bool idMenuWidget_DynamicList::PrepareListElement( idMenuWidget & widget, const 
 		return false;
 	}
 
-	idMenuWidget_Button * const button = ps2::CheckedCast< idMenuWidget_Button * >( &widget );
+	idMenuWidget_Button * const button = ps2::DynCast< idMenuWidget_Button * >( &widget );
 	if ( button != NULL ) {
 		button->SetIgnoreColor( ignoreColor );
 		button->SetValues( listItemInfo[ childIndex ] );

@@ -47,7 +47,7 @@ in other rule files still need verification when imported. Current backend code 
   related code into an existing subsystem before adding one. Code shared within a module,
   or without a clear subsystem, lives at `ps2::module` (`ps2::renderer::BeginFrame`,
   `ps2::audio::SoundSample`); code every module shares lives at `ps2` (`ps2::Log`,
-  `ps2::CheckedCast`). Test code uses `ps2::tests` and `ps2::tests::fixture`. UI code lives
+  `ps2::DynCast`). Test code uses `ps2::tests` and `ps2::tests::fixture`. UI code lives
   in `src/ps2/ui/` even when it implements renderer interfaces.
 - Merging namespaces can hide or rebind names. A subsystem named like an engine global
   hides it inside the module (`session` in `ps2::system::session`: write `::session`), and
