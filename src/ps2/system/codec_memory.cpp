@@ -95,9 +95,8 @@ extern "C"
     va_start(args, format);
     ps2::FatalErrorV(format, args);
 }
-PS2_PRINTF_FUNC(1, 2)
 
-void jpg_Printf(const char * format, ...)
+PS2_COLD_FUNC PS2_PRINTF_FUNC(1, 2) void jpg_Printf(const char * format, ...)
 {
     va_list args;
     va_start(args, format);

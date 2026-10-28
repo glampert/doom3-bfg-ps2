@@ -7,7 +7,6 @@
 #pragma once
 
 #include "ps2/common.h"
-
 #include <cstddef>
 #include <cstdint>
 
@@ -16,6 +15,16 @@ namespace ps2::system::heap
 
 static constexpr std::uint16_t kTagCount = 256;
 static constexpr std::uint16_t kNewTag = 3; // Doom's TAG_NEW; verified by the engine adapter.
+
+// Invalid sizes, alignments or tags fail without changing the ledger.
+void * TryAlloc(size_t size, std::uint16_t tag, size_t alignment = 16);
+void * Alloc(size_t size, std::uint16_t tag, size_t alignment = 16);
+void Free(void * pointer);
+
+[[noreturn]] PS2_COLD_FUNC void Fail(const char * reason);
+
+// Like Free, requires a live allocation from this heap (or nullptr, which reports zero).
+size_t GetRequestedSize(const void * pointer);
 
 struct Stats
 {
@@ -26,6 +35,9 @@ struct Stats
     size_t peakBackingBytes;
 };
 
+Stats GetStats(std::uint16_t tag);
+Stats GetTotalStats();
+
 struct ArenaStats
 {
     bool available;
@@ -35,17 +47,8 @@ struct ArenaStats
     size_t peakCommittedBytes;
 };
 
-// Invalid sizes, alignments or tags fail without changing the ledger.
-void * TryAlloc(size_t size, std::uint16_t tag, size_t alignment = 16);
-void * Alloc(size_t size, std::uint16_t tag, size_t alignment = 16);
-void Free(void * pointer);
-// Like Free, requires a live allocation from this heap (or nullptr, which reports zero).
-size_t GetRequestedSize(const void * pointer);
-Stats GetStats(std::uint16_t tag);
-Stats GetTotalStats();
 // Includes untagged C/newlib allocations and allocator overhead on the EE.
 ArenaStats GetArenaStats();
 void ResetPeaks();
-[[noreturn]] PS2_COLD_FUNC void Fail(const char * reason);
 
 } // namespace ps2::system::heap

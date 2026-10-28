@@ -68,8 +68,7 @@ const gstx::Header & PalettedImage::GetHeader() const
     return m_header;
 }
 
-PS2_COLD_FUNC bool PalettedImage::Open(const char * path, const std::uint8_t * descriptor, std::uint32_t descriptorBytes,
-                                       std::uint32_t fileBytes)
+PS2_COLD_FUNC bool PalettedImage::Open(const char * path, const std::uint8_t * descriptor, std::uint32_t descriptorBytes, std::uint32_t fileBytes)
 {
     gstx::Header header = {};
 

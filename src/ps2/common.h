@@ -10,12 +10,13 @@
 #include <cstddef>
 
 #if defined(__GNUC__) || defined(__clang__)
-    #define PS2_COLD_FUNC __attribute__((cold))
+    // Rarely called functions: Init/shutdown/error handlers - optimize for size aggressively (Oz), never inline.
+    #define PS2_COLD_FUNC __attribute__((cold, noinline, optimize("Oz")))
     #define PS2_PRINTF_FUNC(fmtIndex, varIndex) __attribute__((format(printf, fmtIndex, varIndex)))
-#else
+#else // __GNUC__ || __clang__
     #define PS2_COLD_FUNC
     #define PS2_PRINTF_FUNC(fmtIndex, varIndex)
-#endif
+#endif // __GNUC__ || __clang__
 
 namespace ps2
 {
@@ -50,7 +51,7 @@ constexpr int ArrayLength(const T (&)[N])
                 ps2::FatalError("Assert Failed: %s: %s (%s:%d)", #cond, (message), __FILE__, __LINE__); \
             }                                                                                           \
         } while (0)
-#else
-    #define PS2_Assert(cond) (void)sizeof(cond)
+#else // PS2_D3BFG_ASSERTS
+    #define PS2_Assert(cond)             (void)sizeof(cond)
     #define PS2_AssertMsg(cond, message) (void)sizeof(cond)
-#endif
+#endif // PS2_D3BFG_ASSERTS

@@ -94,8 +94,7 @@ PS2_COLD_FUNC bool InitCommandBuffer(u32 halfBytes)
     s_half = 0;
     s_kickedQwords = 0;
     s_stats = {};
-    WaitUntil([]
-                  { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
+    WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
     if (dma_channel_initialize(DMA_CHANNEL_VIF1, nullptr, 0) < 0)
     {
         system::heap::Free(s_storage);

@@ -99,7 +99,7 @@ void Remove(Stats & stats, const Header & header)
 
 } // namespace
 
-[[noreturn]] void Fail(const char * reason)
+[[noreturn]] PS2_COLD_FUNC void Fail(const char * reason)
 {
     // Uses no C++ allocation, including when invoked before main or during OOM.
     ps2::FatalError("heap: %s", reason);

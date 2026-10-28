@@ -49,7 +49,7 @@ void Log(LogLevel level, const char * format, ...)
     va_end(arguments);
 }
 
-[[noreturn]] void FatalErrorV(const char * format, va_list arguments)
+[[noreturn]] PS2_COLD_FUNC void FatalErrorV(const char * format, va_list arguments)
 {
     LogV(LogLevel::Fatal, format, arguments);
     // TODO: Add on-screen fatal/crash reporting when the emergency GS text renderer is available.
@@ -61,7 +61,7 @@ void Log(LogLevel level, const char * format, ...)
 #endif
 }
 
-[[noreturn]] void FatalError(const char * format, ...)
+[[noreturn]] PS2_COLD_FUNC void FatalError(const char * format, ...)
 {
     va_list arguments;
     va_start(arguments, format);
