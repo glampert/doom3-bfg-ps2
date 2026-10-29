@@ -27,7 +27,14 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../idlib/precompiled.h"
-#include "external/zlib/zlib.h" // [PS2_D3BFG]: codec dependencies live under src/external.
+// [PS2_D3BFG]: No zlib is linked. Only cooked BSWF movies load, so source SWF data never
+// needs inflating; compressed resource packs will bring miniz, which can serve this too.
+#if defined( ID_PS2 )
+bool idSWF::Inflate( const byte * input, int inputSize, byte * output, int outputSize ) {
+	idLib::FatalError( "SWF inflation unavailable; cooked BSWF movies are required" );
+}
+#else
+#include "../framework/zlib/zlib.h"
 
 /*
 ========================
@@ -57,3 +64,4 @@ bool idSWF::Inflate( const byte * input, int inputSize, byte * output, int outpu
 
 	return success;
 }
+#endif // [PS2_D3BFG]: preserve the desktop inflater.

@@ -1,6 +1,7 @@
 // ================================================================================================
 // File: save_metadata.cpp
-// Brief: Preserve native save-description ownership without enabling storage or retry dialogs.
+// Brief: Preserve native save-description ownership without enabling storage, compression or
+//        retry dialogs.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -28,4 +29,46 @@ void idSaveGameDetails::Clear()
 void idSaveGameManager::ShowRetySaveDialog(const char *, const int64)
 {
     ps2::FatalError("save capability unavailable: idSaveGameManager::ShowRetySaveDialog");
+}
+
+// id's File_SaveGame.cpp streams saves through zlib, which is not linked. Compressed saves return
+// with miniz; until then only the members the campaign code names exist, and each one fails.
+[[noreturn]] static PS2_COLD_FUNC void SaveFileUnavailable(const char * method)
+{
+    ps2::FatalError("save capability unavailable: idFile_SaveGamePipelined::%s", method);
+}
+
+idFile_SaveGamePipelined::idFile_SaveGamePipelined()
+{
+    SaveFileUnavailable("idFile_SaveGamePipelined");
+}
+
+idFile_SaveGamePipelined::~idFile_SaveGamePipelined()
+{
+    SaveFileUnavailable("~idFile_SaveGamePipelined");
+}
+
+bool idFile_SaveGamePipelined::OpenForReading(idFile *)
+{
+    SaveFileUnavailable("OpenForReading");
+}
+
+bool idFile_SaveGamePipelined::OpenForWriting(idFile *)
+{
+    SaveFileUnavailable("OpenForWriting");
+}
+
+void idFile_SaveGamePipelined::Finish()
+{
+    SaveFileUnavailable("Finish");
+}
+
+int idFile_SaveGamePipelined::Read(void *, int)
+{
+    SaveFileUnavailable("Read");
+}
+
+int idFile_SaveGamePipelined::Write(const void *, int)
+{
+    SaveFileUnavailable("Write");
 }

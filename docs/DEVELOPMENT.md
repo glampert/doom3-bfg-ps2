@@ -252,7 +252,7 @@ on-screen fatal reporting remains a TODO. `src/ps2/common.h` provides `PS2_Asser
 The fixture adapter streams loose files through real `idFile_Permanent` objects;
 explicit bulk/memory reads stay bounded to 64 KiB. It rejects parent, absolute and
 other-device paths. Shared system services supply directory filters, parent creation,
-write/append and ZIP timestamp packing. The one-time ROM FILEIO patch protects
+and write/append. The one-time ROM FILEIO patch protects
 getstat/dread DMA and removal fallthrough without resetting the loader's IOP. Native
 rename reports `ENOSYS`; PCSX2 removal reports `ENODEV` despite deleting the file,
 and the wrapper preserves that error. Foundation-level listing/write/resource APIs

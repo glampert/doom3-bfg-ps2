@@ -1,5 +1,5 @@
 # Builds the production d3bfg.elf on Linux the way `make` and `make release` build it on a
-# development machine: the source-list audit, every retained campaign, backend and codec object
+# development machine: the source-list audit, every retained campaign and backend object
 # under its warning policy, and the whole-object resident link with its registration, map and
 # test-isolation checks. It runs inside ghcr.io/ps2dev/ps2sdk, the ps2dev project's Alpine image
 # of the EE, IOP and dvp toolchains and the PS2SDK. The image is pinned by digest, so a new

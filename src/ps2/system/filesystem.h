@@ -10,7 +10,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <ctime>
 
 namespace ps2::system::fs
 {
@@ -44,10 +43,5 @@ bool Rename(const char * oldPath, const char * newPath);
 
 // extension "/" selects directories; null/empty selects all regular files. No symlink traversal.
 int List(const char * directory, const char * extension, void (*visit)(const char *, void *), void * context);
-
-// Host ZIP times use UTC, two-second resolution, clamped to 1980..2107. EE uses 1980-01-01
-// until driver timestamps are validated; missing stat still fails on both platforms.
-std::uint32_t PackZipTime(const tm & utc);
-bool ZipTime(const char * path, std::uint32_t & packed);
 
 } // namespace ps2::system::fs

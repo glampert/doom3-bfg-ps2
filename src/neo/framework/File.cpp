@@ -34,8 +34,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "ps2/system/filesystem.h"
 #endif
 
-// [PS2_D3BFG]: initial core reads loose fixtures; ZIP containers are not linked yet.
-#if !defined( ID_PS2_CORE ) || !ID_PS2_CORE
+// [PS2_D3BFG]: PS2 reads loose files and resource containers; no ZIP or zlib is linked.
+#if !defined( ID_PS2 )
 #include "Unzip.h"
 #endif
 
@@ -1562,8 +1562,8 @@ idFile_InZip
 idFile_InZip::idFile_InZip
 =================
 */
-// [PS2_D3BFG]: ZIP implementations are excluded only from the loose-file core milestone.
-#if !defined( ID_PS2_CORE ) || !ID_PS2_CORE
+// [PS2_D3BFG]: ZIP files are not readable on PS2; nothing constructs idFile_InZip.
+#if !defined( ID_PS2 )
 idFile_InZip::idFile_InZip() {
 	name = "invalid";
 	zipFilePos = 0;
@@ -1692,7 +1692,7 @@ int idFile_InZip::Seek( long offset, fsOrigin_t origin ) {
 	return -1;
 }
 
-#endif // loose-file core
+#endif // [PS2_D3BFG]: desktop ZIP files
 
 #if 1
 

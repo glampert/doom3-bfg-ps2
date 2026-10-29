@@ -48,10 +48,10 @@ void R_LoadImage( const char *name, byte **pic, int *width, int *height, bool ma
  * You may also wish to include "jerror.h".
  */
 
-#include "external/jpeg-6/jpeglib.h" // [PS2_D3BFG]: codec dependencies live under src/external.
-
-// [PS2_D3BFG]: shared typed codec hooks live in ps2/system/codec_memory.cpp.
+// [PS2_D3BFG]: PS2 links no JPEG decoder; textures arrive converted by the asset pipeline.
 #if !defined(PS2_D3BFG)
+#include "jpeg-6/jpeglib.h"
+
 // hooks from jpeg lib to our system
 
 void jpg_Error( const char *fmt, ... ) {
@@ -396,7 +396,7 @@ LoadJPG
 =============
 */
 static void LoadJPG( const char *filename, unsigned char **pic, int *width, int *height, ID_TIME_T *timestamp ) {
-#if defined(PS2_D3BFG) // [PS2_D3BFG]: the legacy memory source cannot enforce encoded-input bounds.
+#if defined(PS2_D3BFG) // [PS2_D3BFG]: no JPEG decoder is linked; source images are converted offline.
 	common->FatalError( "source JPEG loading unavailable: %s; converted textures are required", filename );
 #else
   /* This struct contains the JPEG decompression parameters and pointers to
@@ -566,7 +566,7 @@ static void LoadJPG( const char *filename, unsigned char **pic, int *width, int 
    */
 
   /* And we're done! */
-#endif // [PS2_D3BFG]: bounded SWF decoding is supplied separately.
+#endif // [PS2_D3BFG]: preserve the desktop JPEG loader.
 }
 
 //===================================================================

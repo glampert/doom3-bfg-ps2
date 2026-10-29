@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: test_source_inventory.py
-# Brief: Preserve upstream manifest coverage while rejecting unreviewed or missing relocated codecs.
+# Brief: Preserve upstream manifest coverage while rejecting unreviewed sources or removed trees.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -26,22 +26,23 @@ class SourceInventoryTests(unittest.TestCase):
             (root / "config" / name).write_text((repository / "config" / name).read_text())
         return root
 
-    def test_relocated_vendor_units_keep_original_project_coverage(self):
+    def test_removed_codec_trees_keep_original_project_coverage(self):
         summary, errors = audit_sources.audit(ROOT)
         self.assertEqual(errors, [])
-        self.assertEqual(summary["source_count"], 458)
-        self.assertEqual(summary["categories"]["vendor_runtime"], 34)
-        self.assertEqual(summary["target_lists"]["VENDOR_C_SRC"], 9)
-        self.assertEqual(summary["target_lists"]["VENDOR_CXX_SRC"], 25)
+        self.assertEqual(summary["source_count"], 393)
+        self.assertEqual(summary["upstream_projects"]["external.vcxproj"], 56)
+        self.assertEqual(summary["removed_upstream_units"],
+                         {"neo/framework/zlib/": 12, "neo/renderer/jpeg-6/": 44})
+        self.assertEqual(summary["categories"]["compression_deferred"], 3)
 
-    def test_excluded_codec_cannot_enter_runtime_list(self):
+    def test_deferred_compression_cannot_enter_campaign_list(self):
         with tempfile.TemporaryDirectory() as temp:
             root = self.fixture(Path(temp))
             manifest = root / "config/sources.mk"
-            manifest.write_text(manifest.read_text().replace("VENDOR_C_SRC =", "VENDOR_C_SRC = external/zlib/gzio.c"))
+            manifest.write_text(manifest.read_text().replace("CAMPAIGN_CXX_SRC = \\\n", "CAMPAIGN_CXX_SRC = \\\n\tneo/framework/Zip.cpp \\\n", 1))
             _, errors = audit_sources.audit(root)
             self.assertTrue(any("excluded/replaced source" in error for error in errors), errors)
-            self.assertTrue(any("reviewed runtime disposition" in error for error in errors), errors)
+            self.assertTrue(any("reviewed campaign disposition" in error for error in errors), errors)
 
     def test_production_list_rejects_test_sources(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -53,16 +54,17 @@ class SourceInventoryTests(unittest.TestCase):
             _, errors = audit_sources.audit(root)
             self.assertTrue(any("test source in production" in error for error in errors), errors)
 
-    def test_lost_relocation_is_detected(self):
+    def test_unrecorded_removed_tree_is_detected(self):
         with tempfile.TemporaryDirectory() as temp:
             root = self.fixture(Path(temp))
             path = root / "config/source_inventory.json"
             inventory = json.loads(path.read_text())
-            del inventory["source_relocations"]["neo/renderer/jpeg-6/"]
+            del inventory["removed_upstream_trees"]["neo/renderer/jpeg-6/"]
+            inventory["removed_upstream_trees"]["neo/renderer/png/"] = "fixture"
             path.write_text(json.dumps(inventory))
             _, errors = audit_sources.audit(root)
-            self.assertTrue(any("Inventory source no longer exists" in error for error in errors), errors)
-            self.assertTrue(any("names missing source" in error for error in errors), errors)
+            self.assertTrue(any("names missing source: neo/renderer/jpeg-6/" in error for error in errors), errors)
+            self.assertTrue(any("names no manifest unit: neo/renderer/png/" in error for error in errors), errors)
 
 
 if __name__ == "__main__":

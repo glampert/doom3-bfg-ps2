@@ -140,7 +140,7 @@ Thanks to id Software for the original game source code and the ps2dev community
 
 This project derives its PS2 backend code from [Quake II PS2](https://github.com/glampert/quake2-ps2).
 
-Bundled dependencies also include zlib, jpeg-6 and Doug Lea's allocator (dlmalloc);
+Bundled dependencies also include Doug Lea's allocator (dlmalloc);
 see the [reuse inventory](docs/REUSE.md) for provenance and individual notices.
 
 ## License

@@ -22,8 +22,6 @@ namespace ps2::system::fs
 namespace
 {
 
-static constexpr std::uint32_t kZipEpoch = 1u << 21 | 1u << 16;
-
 #if !defined(ID_HOST_TEST)
 static bool s_initialized = false;
 static bool s_fileIoPatched = false;
@@ -458,52 +456,6 @@ int List(const char * directory, const char * extension, void (*visit)(const cha
     }
 
     return closed == 0 ? count : -1;
-}
-
-std::uint32_t PackZipTime(const tm & utc)
-{
-    if (utc.tm_year < 80)
-    {
-        return kZipEpoch;
-    }
-    if (utc.tm_year > 207)
-    {
-        return 127u << 25 | 12u << 21 | 31u << 16 | 23u << 11 | 59u << 5 | 29u;
-    }
-    return static_cast<std::uint32_t>(utc.tm_year - 80) << 25 |
-           static_cast<std::uint32_t>(utc.tm_mon + 1) << 21 | static_cast<std::uint32_t>(utc.tm_mday) << 16 |
-           static_cast<std::uint32_t>(utc.tm_hour) << 11 | static_cast<std::uint32_t>(utc.tm_min) << 5 |
-           static_cast<std::uint32_t>(utc.tm_sec / 2);
-}
-
-bool ZipTime(const char * path, std::uint32_t & packed)
-{
-    packed = 0;
-    if (!IsValidPath(path)) [[unlikely]]
-    {
-        errno = EINVAL;
-        return false;
-    }
-
-    struct stat status = {};
-    if (stat(path, &status) != 0)
-    {
-        return false;
-    }
-
-#if defined(ID_HOST_TEST)
-    tm utc = {};
-    if (gmtime_r(&status.st_mtime, &utc) == nullptr)
-    {
-        return false;
-    }
-    packed = PackZipTime(utc);
-#else // ID_HOST_TEST
-    // fio dates are unzoned; PCSX2 and libcglue disagree on their year encoding. Do not publish a false date.
-    packed = kZipEpoch;
-#endif // ID_HOST_TEST
-
-    return true;
 }
 
 } // namespace ps2::system::fs

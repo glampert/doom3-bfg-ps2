@@ -28,7 +28,10 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __FILE_SAVEGAME_H__
 #define __FILE_SAVEGAME_H__
 
-#include "external/zlib/zlib.h" // [PS2_D3BFG]: codec dependencies live under src/external.
+// [PS2_D3BFG]: No zlib is linked; ps2/system/save_metadata.cpp stubs the pipelined save file.
+#if !defined( ID_PS2 )
+#include "zlib/zlib.h"
+#endif
 
 // Listing of the types of files within a savegame package
 enum saveGameType_t {
@@ -202,7 +205,9 @@ private:
 	// These variables are used by CompressBlock() and DecompressBlock().
 	//------------------------
 
+#if !defined( ID_PS2 ) // [PS2_D3BFG]: save compression returns with miniz.
 	z_stream				zStream;
+#endif
 	int						zLibFlushType;		// Z_NO_FLUSH or Z_FINISH
 	bool					zStreamEndHit;
 	int						numChecksums;

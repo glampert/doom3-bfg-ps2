@@ -195,18 +195,16 @@ GAME_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/game-backend/src/,$(GAME_SIZE_OPT
 RESIDENT_SUPPORT_OBJS = $(addprefix $(OUTPUT_DIR)/resident-support/src/,$(RESIDENT_SUPPORT_CXX_SRC:.cpp=.o) $(PS2_CXX_SRC:.cpp=.o))
 RESIDENT_SIZE_OPT_CXX_SRC = $(filter $(SIZE_OPT_CXX_SRC),$(RESIDENT_SUPPORT_CXX_SRC) $(PS2_CXX_SRC))
 RESIDENT_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/resident-support/src/,$(RESIDENT_SIZE_OPT_CXX_SRC:.cpp=.o))
-CODEC_C_OBJS = $(addprefix $(OUTPUT_DIR)/codecs/src/,$(VENDOR_C_SRC:.c=.o))
-CODEC_CXX_OBJS = $(addprefix $(OUTPUT_DIR)/codecs/src/,$(VENDOR_CXX_SRC:.cpp=.o))
-RESIDENT_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(PS2_CXX_SRC) $(CORE_C_SRC) $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
-RESIDENT_LINK_OBJS = $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(RESIDENT_SUPPORT_OBJS) $(CORE_C_OBJS) $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
+RESIDENT_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(PS2_CXX_SRC) $(CORE_C_SRC)
+RESIDENT_LINK_OBJS = $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(RESIDENT_SUPPORT_OBJS) $(CORE_C_OBJS)
 
 TEST_CAMPAIGN_OBJS = $(addprefix $(OUTPUT_DIR)/test-campaign/src/,$(CAMPAIGN_CXX_SRC:.cpp=.o))
 TEST_BACKEND_OBJS = $(addprefix $(OUTPUT_DIR)/test-backend/src/,$(GAME_BACKEND_CXX_SRC:.cpp=.o))
 TEST_SUPPORT_OBJS = $(addprefix $(OUTPUT_DIR)/test-support/src/,$(RESIDENT_SUPPORT_CXX_SRC:.cpp=.o) $(GAME_TEST_CXX_SRC:.cpp=.o))
 TEST_SUPPORT_SIZE_OPT_CXX_SRC = $(filter $(SIZE_OPT_CXX_SRC),$(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC))
 TEST_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/test-backend/src/,$(GAME_SIZE_OPT_CXX_SRC:.cpp=.o)) $(addprefix $(OUTPUT_DIR)/test-support/src/,$(TEST_SUPPORT_SIZE_OPT_CXX_SRC:.cpp=.o))
-GAME_TEST_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC) $(CORE_C_SRC) $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
-GAME_TEST_LINK_OBJS = $(TEST_CAMPAIGN_OBJS) $(TEST_BACKEND_OBJS) $(TEST_SUPPORT_OBJS) $(CORE_C_OBJS) $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
+GAME_TEST_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC) $(CORE_C_SRC)
+GAME_TEST_LINK_OBJS = $(TEST_CAMPAIGN_OBJS) $(TEST_BACKEND_OBJS) $(TEST_SUPPORT_OBJS) $(CORE_C_OBJS)
 
 ifeq ($(CORE_BOOT),1)
 	BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
@@ -214,9 +212,6 @@ ifeq ($(CORE_BOOT),1)
 	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC)
 	MILESTONE = build-core
 	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(CORE_TEST_DIR)/.link-flags.json
-	LINK_OBJS += $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
-	LINK_SOURCES += $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
-	REPORT_FLAGS += $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json
 else
 	BOOT_OBJS =
 	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS)
@@ -278,22 +273,6 @@ $(OUTPUT_DIR)/.campaign-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile 
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CAMPAIGN_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --sources $(CAMPAIGN_CXX_SRC)
 
 VENDOR_CFLAGS = -D_EE -G0 $(OPTFLAGS) $(DBGFLAGS) -std=gnu11 -fno-strict-aliasing -Wall -Wextra $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
-CODEC_CFLAGS = $(VENDOR_CFLAGS) -DMY_ZCALLOC
-CODEC_CXXFLAGS = $(NEO_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS)
-
-$(OUTPUT_DIR)/.codec-c-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CC) $(CODEC_CFLAGS) --sources $(VENDOR_C_SRC)
-
-$(OUTPUT_DIR)/.codec-cxx-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CODEC_CXXFLAGS) --sources $(VENDOR_CXX_SRC)
-
-$(CODEC_C_OBJS): $(OUTPUT_DIR)/codecs/src/%.o: src/%.c $(OUTPUT_DIR)/.codec-c-flags.json
-	@mkdir -p $(dir $@)
-	$(EE_CC) $(CODEC_CFLAGS) -c $< -o $@
-
-$(CODEC_CXX_OBJS): $(OUTPUT_DIR)/codecs/src/%.o: src/%.cpp $(OUTPUT_DIR)/.codec-cxx-flags.json
-	@mkdir -p $(dir $@)
-	$(EE_CXX) $(CODEC_CXXFLAGS) -c $< -o $@
 
 $(OUTPUT_DIR)/.vendor-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CC) $(VENDOR_CFLAGS) --sources $(CORE_C_SRC)
@@ -404,11 +383,11 @@ $(OUTPUT_DIR)/.resident-sdk-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makef
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib $(addprefix -l,$(RESIDENT_SDK_LIBS))
 
 all: audit-sources $(RESIDENT_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
-	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR) --kind game --name d3bfg --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
+	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR) --kind game --name d3bfg --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
 
 # The same retained campaign is compiled with fixture hooks into a separate native executable.
 build-game: audit-sources $(GAME_TEST_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
-	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(GAME_TEST_DIR) --kind tests --name d3bfg_tests --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(GAME_TEST_LINK_SOURCES)) --objects $(GAME_TEST_LINK_OBJS) --flags $(OUTPUT_DIR)/.test-campaign-flags.json $(OUTPUT_DIR)/.test-backend-flags.json $(OUTPUT_DIR)/.test-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
+	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(GAME_TEST_DIR) --kind tests --name d3bfg_tests --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(GAME_TEST_LINK_SOURCES)) --objects $(GAME_TEST_LINK_OBJS) --flags $(OUTPUT_DIR)/.test-campaign-flags.json $(OUTPUT_DIR)/.test-backend-flags.json $(OUTPUT_DIR)/.test-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
 
 test-map: build-game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-map
@@ -609,41 +588,6 @@ build/tests/common_tests_%: $(HOST_COMMON_SOURCES) $(HOST_COMMON_HEADERS) build/
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_COMMON_SOURCES) -o $@
 
-HOST_JPEG_FLAGS = $(filter-out -Werror,$(HOST_TEST_FLAGS)) -Wno-register -Wno-writable-strings -Isrc/neo
-HOST_JPEG_OBJS = $(addprefix build/tests/jpeg/,$(patsubst %.cpp,%.o,$(filter-out external/jpeg-6/jmemnobs.cpp,$(JPEG_TEST_CXX_SRC))))
-HOST_JPEG_PROJECT_SOURCES = src/tests/host/jpeg_decoder_tests.cpp src/ps2/ui/jpeg_decoder.cpp src/ps2/system/codec_memory.cpp src/ps2/system/heap.cpp
-
-build/tests/.jpeg-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_JPEG_FLAGS) $(HOST_TEST_FLAGS) --sources $(JPEG_TEST_CXX_SRC) $(HOST_JPEG_PROJECT_SOURCES)
-
-$(HOST_JPEG_OBJS): build/tests/jpeg/%.o: src/%.cpp build/tests/.jpeg-flags.json
-	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_JPEG_FLAGS) -MMD -MP -c $< -o $@
-
-build/tests/jpeg_decoder_tests: $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) src/ps2/ui/jpeg_decoder.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/external/jpeg-6/jpeglib.h src/neo/idlib/sys/sys_alloc_tags.h build/tests/.jpeg-flags.json
-	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) -DID_PS2_CORE=1 -isystem src/neo $(HOST_JPEG_PROJECT_SOURCES) $(HOST_JPEG_OBJS) -o $@
-
-HOST_CC ?= clang
-HOST_ZLIB_FLAGS = -std=gnu11 -O1 -g -fno-strict-aliasing -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -DMY_ZCALLOC
-HOST_ZLIB_OBJS = $(addprefix build/tests/zlib/,$(VENDOR_C_SRC:.c=.o))
-HOST_CODEC_JPEG_OBJS = $(addprefix build/tests/jpeg/,$(VENDOR_CXX_SRC:.cpp=.o))
-HOST_CODEC_SOURCES = src/tests/host/codec_tests.cpp src/tests/smoketests/codec_tests.cpp src/ps2/ui/jpeg_decoder.cpp src/ps2/system/codec_memory.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
-
-build/tests/.zlib-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CC) $(HOST_ZLIB_FLAGS) --sources $(VENDOR_C_SRC)
-
-$(HOST_ZLIB_OBJS): build/tests/zlib/%.o: src/%.c build/tests/.zlib-flags.json
-	@mkdir -p $(dir $@)
-	$(HOST_CC) $(HOST_ZLIB_FLAGS) -MMD -MP -c $< -o $@
-
-build/tests/.codec-test-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_CODEC_SOURCES)
-
-build/tests/codec_tests: $(HOST_CODEC_SOURCES) $(HOST_ZLIB_OBJS) $(HOST_CODEC_JPEG_OBJS) src/tests/smoketests/codec_fixtures.h src/tests/smoketests/codec_tests.h build/tests/.codec-test-flags.json
-	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) -isystem src/neo $(HOST_CODEC_SOURCES) $(HOST_ZLIB_OBJS) $(HOST_CODEC_JPEG_OBJS) -o $@
-
 HOST_FILESYSTEM_SOURCES = src/tests/host/filesystem_tests.cpp src/ps2/system/filesystem.cpp src/ps2/system/log.cpp
 
 build/tests/.filesystem-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
@@ -707,7 +651,7 @@ build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp -o $@
 
-test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/filesystem_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
 	./build/tests/asset_tests
 	./build/tests/gstx_format_tests
 	./build/tests/swf_runtime_tests_0
@@ -723,7 +667,7 @@ test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_f
 	./build/tests/heap_tests
 	$(PYTHON) -m unittest discover -s src/tests/host/scripts -p 'test_*.py'
 
--include $(HOST_JPEG_OBJS:.o=.d) $(HOST_ZLIB_OBJS:.o=.d) $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d) $(TEST_CAMPAIGN_OBJS:.o=.d) $(TEST_BACKEND_OBJS:.o=.d) $(TEST_SUPPORT_OBJS:.o=.d) $(CODEC_C_OBJS:.o=.d) $(CODEC_CXX_OBJS:.o=.d)
+-include $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d) $(TEST_CAMPAIGN_OBJS:.o=.d) $(TEST_BACKEND_OBJS:.o=.d) $(TEST_SUPPORT_OBJS:.o=.d)
 
 clean:
 	rm -rf build/debug build/release build/tests

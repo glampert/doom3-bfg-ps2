@@ -73,8 +73,8 @@ file keeps only what most engine edits need.
 Core portability findings (cvars, jobs, polynomial, memory files); Retail UI format findings
 (fonts, DeclManager names, containers); Inactive retail SWF resources; Retail containers and
 declaration residency; Campaign portability findings (headers, class factories, script
-compiler, casts, JPEG); Native SWF and font loading; Staged Common and offline profiles;
-Portable logical sound; Resident link findings (JPEG/zlib, renderSystem binding); Initial
+compiler, casts); Native SWF and font loading; Staged Common and offline profiles;
+Portable logical sound; Resident link findings (removed JPEG/zlib, renderSystem binding); Initial
 native game fixture; Native collision fixture; Native player-physics fixture; Bounded native
 player fixture; Scoped retail execution; Native shell menu; Native edit-text drawing; Native
 BSWF atlas records.

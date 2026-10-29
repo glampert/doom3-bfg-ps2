@@ -11,7 +11,6 @@
 #include "ps2/system/log.h"
 #include "ps2/system/offline_session.h"
 #include "tests/smoketests/audio_tests.h"
-#include "tests/smoketests/codec_tests.h"
 #include <cstring>
 #include <idlib/precompiled.h>
 
@@ -229,7 +228,7 @@ bool RunCommonProbe(const char * path)
     {
         (void)Sys_SecToStr(-1);
     }
-    else if (!RunAudioFailureProbe(name) && !RunCodecFailureProbe(name))
+    else if (!RunAudioFailureProbe(name))
     {
         FatalError("invalid Common negative probe");
     }

@@ -120,28 +120,6 @@ bool Directories()
     return Check("directories-errors", passed);
 }
 
-bool Times()
-{
-    namespace fs = ps2::system::fs;
-    tm date = {};
-    date.tm_year = 126;
-    date.tm_mon = 9;
-    date.tm_mday = 9;
-    date.tm_hour = 13;
-    date.tm_min = 14;
-    date.tm_sec = 15;
-    bool passed = fs::PackZipTime(date) == (46u << 25 | 10u << 21 | 9u << 16 | 13u << 11 | 14u << 5 | 7u);
-    std::uint32_t packed = 0;
-    passed = fs::ZipTime("timestamp", packed) && packed == fs::PackZipTime(date) && passed;
-    date.tm_year = 70;
-    passed = fs::PackZipTime(date) == (1u << 21 | 1u << 16) && passed;
-    date.tm_year = 208;
-    passed = fs::PackZipTime(date) == (127u << 25 | 12u << 21 | 31u << 16 | 23u << 11 | 59u << 5 | 29u) && passed;
-    packed = 1;
-    passed = !fs::ZipTime("missing", packed) && packed == 0 && passed;
-    return Check("zip-utc", passed);
-}
-
 } // namespace
 
 int main()
@@ -149,6 +127,5 @@ int main()
     bool passed = Paths();
     passed = Files() && passed;
     passed = Directories() && passed;
-    passed = Times() && passed;
     return passed ? 0 : 1;
 }

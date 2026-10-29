@@ -25,11 +25,11 @@ class ResidentLinkTests(unittest.TestCase):
             "ld: build/a.o: in function `first':\n"
             "first.cpp:1: undefined reference to `renderSystem'\n"
             "ld: build/b.o: undefined reference to `renderSystem'\n"
-            "ld: build/a.o: undefined reference to `crc32'\n"
+            "ld: build/a.o: undefined reference to `ASE_Load'\n"
             "ld: build/c.o: multiple definition of `game'; build/a.o: first defined here\n")
         self.assertEqual(duplicate, ["game"])
         self.assertEqual(missing, [
-            {"symbol": "crc32", "category": "codecs", "requestors": ["build/a.o"]},
+            {"symbol": "ASE_Load", "category": "source-model-import", "requestors": ["build/a.o"]},
             {"symbol": "renderSystem", "category": "renderer", "requestors": ["build/a.o", "build/b.o"]},
         ])
 

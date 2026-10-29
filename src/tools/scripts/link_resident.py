@@ -29,8 +29,6 @@ REGISTRATIONS = (
 
 
 def category(symbol: str) -> str:
-    if symbol.startswith(("jpeg_", "inflate", "deflate", "crc32")):
-        return "codecs"
     if symbol.startswith(("ASE_", "MA_", "lwGetObject", "lwFreeObject")):
         return "source-model-import"
     if symbol.startswith(("Sys_", "sys_", "in_", "usercmdGen", "userCmdStrings")):

@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 PROJECTS = ("idlib.vcxproj", "doomexe.vcxproj", "game-d3xp.vcxproj", "external.vcxproj")
 SOURCE_SUFFIXES = {".c", ".cpp", ".cc"}
 EE_LISTS = ("PS2_CXX_SRC", "CORE_TEST_DRIVER_CXX_SRC", "PLATFORM_TEST_CXX_SRC", "GAME_TEST_CXX_SRC", "CORE_CXX_SRC", "CORE_FRAMEWORK_CXX_SRC", "CORE_BACKEND_CXX_SRC", "CORE_C_SRC", "CORE_BOOT_CXX_SRC",
-            "CAMPAIGN_CXX_SRC", "VENDOR_C_SRC", "VENDOR_CXX_SRC", "SCRIPT_CXX_SRC", "SCRIPT_BOOT_CXX_SRC", "GAME_BACKEND_CXX_SRC", "RESIDENT_SUPPORT_CXX_SRC", "RENDER_STUB_CXX_SRC", "JPEG_TEST_CXX_SRC")
+            "CAMPAIGN_CXX_SRC", "SCRIPT_CXX_SRC", "SCRIPT_BOOT_CXX_SRC", "GAME_BACKEND_CXX_SRC", "RESIDENT_SUPPORT_CXX_SRC", "RENDER_STUB_CXX_SRC")
 
 
 def read_make_lists(path: Path) -> dict[str, list[str]]:
@@ -34,11 +34,6 @@ def audit(root: Path) -> tuple[dict, list[str]]:
     neo = root / "src/neo"
     actual = {"neo/" + str(path.relative_to(neo)) for path in neo.rglob("*")
               if path.is_file() and path.suffix in SOURCE_SUFFIXES}
-    relocations = inventory.get("source_relocations", {})
-    for destination in relocations.values():
-        tree = root / "src" / destination
-        actual.update(str(path.relative_to(root / "src")) for path in tree.rglob("*")
-                      if path.is_file() and path.suffix in SOURCE_SUFFIXES)
     canonical = {path.casefold(): path for path in actual}
     errors = []
     if len(actual) != len(canonical):
@@ -54,6 +49,13 @@ def audit(root: Path) -> tuple[dict, list[str]]:
     for source in sorted(dispositions.keys() - actual):
         errors.append(f"Inventory source no longer exists: {source}")
 
+    # Upstream manifests still name the units of these deleted trees; count them, never resolve them.
+    removed_trees = inventory.get("removed_upstream_trees", {})
+    for tree in removed_trees:
+        if (root / "src" / tree).exists():
+            errors.append(f"Removed upstream tree is present again: {tree}")
+    removed_units = Counter()
+
     project_counts = {}
     ns = {"ms": "http://schemas.microsoft.com/developer/msbuild/2003"}
     for project in PROJECTS:
@@ -62,10 +64,11 @@ def audit(root: Path) -> tuple[dict, list[str]]:
             if "Include" not in node.attrib:
                 continue
             source = "neo/" + node.attrib["Include"].replace("\\", "/")
-            for original, destination in relocations.items():
-                if source.casefold().startswith(original.casefold()):
-                    source = destination + source[len(original):]
-                    break
+            tree = next((tree for tree in removed_trees if source.casefold().startswith(tree.casefold())), None)
+            if tree is not None:
+                removed_units[tree] += 1
+                units.append(source)
+                continue
             actual_source = canonical.get(source.casefold())
             if actual_source is None:
                 errors.append(f"{project} names missing source: {source}")
@@ -74,6 +77,8 @@ def audit(root: Path) -> tuple[dict, list[str]]:
                 if actual_source not in dispositions:
                     errors.append(f"{project} unit has no disposition: {actual_source}")
         project_counts[project] = len(units)
+    for tree in sorted(removed_trees.keys() - removed_units.keys()):
+        errors.append(f"Removed upstream tree names no manifest unit: {tree}")
     if project_counts != inventory["upstream_projects"]:
         errors.append("Upstream project counts changed; review and update the source inventory")
 
@@ -87,29 +92,23 @@ def audit(root: Path) -> tuple[dict, list[str]]:
                 errors.append(f"Classic Doom source present in {name}: {source}")
             if not (root / "src" / source).is_file():
                 errors.append(f"{name} source missing: {source}")
-            if source in dispositions and dispositions[source] != "campaign_runtime" and not (
-                    name == "JPEG_TEST_CXX_SRC" and source.startswith("external/jpeg-6/") and
-                    dispositions.get(source) in ("vendor_optional", "source_only_excluded")):
-                if not (name in ("VENDOR_C_SRC", "VENDOR_CXX_SRC", "JPEG_TEST_CXX_SRC") and
-                        dispositions[source] == "vendor_runtime"):
-                    errors.append(f"{name} enables an excluded/replaced source: {source}")
+            if source in dispositions and dispositions[source] != "campaign_runtime":
+                errors.append(f"{name} enables an excluded/replaced source: {source}")
             elif source.startswith("neo/") and source not in dispositions:
                 errors.append(f"{name} enables an unclassified source: {source}")
-    for name in ("PS2_CXX_SRC", "CAMPAIGN_CXX_SRC", "GAME_BACKEND_CXX_SRC", "RESIDENT_SUPPORT_CXX_SRC", "CORE_C_SRC", "VENDOR_C_SRC", "VENDOR_CXX_SRC"):
+    for name in ("PS2_CXX_SRC", "CAMPAIGN_CXX_SRC", "GAME_BACKEND_CXX_SRC", "RESIDENT_SUPPORT_CXX_SRC", "CORE_C_SRC"):
         for source in lists[name]:
             if "tests" in Path(source).parts:
                 errors.append(f"{name} enables a test source in production: {source}")
     intended = set(inventory["categories"]["campaign_runtime"]["sources"])
     if set(lists["CAMPAIGN_CXX_SRC"]) != intended:
         errors.append("CAMPAIGN_CXX_SRC differs from the reviewed campaign disposition")
-    vendor = set(inventory["categories"].get("vendor_runtime", {}).get("sources", []))
-    if set(lists["VENDOR_C_SRC"] + lists["VENDOR_CXX_SRC"]) != vendor:
-        errors.append("Vendor source lists differ from the reviewed runtime disposition")
     classic_count = sum(1 for path in (root / "doomclassic").rglob("*")
                         if path.is_file() and path.suffix in SOURCE_SUFFIXES)
     summary = {
         "upstream_projects": project_counts,
         "source_count": len(actual),
+        "removed_upstream_units": dict(sorted(removed_units.items())),
         "categories": dict(Counter(dispositions.values())),
         "target_lists": {name: len(sources) for name, sources in lists.items()},
         "classic_units_excluded": classic_count,

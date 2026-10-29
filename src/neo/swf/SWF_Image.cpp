@@ -29,18 +29,17 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 #include "../renderer/Image.h"
 //#include "../../renderer/ImageTools/ImageProcess.h"
-#include "external/jpeg-6/jpeglib.h" // [PS2_D3BFG]: codec dependencies live under src/external.
-
-// [PS2_D3BFG]: Bounded JPEG input and explicit owned-state cleanup replace exception recovery.
+// [PS2_D3BFG]: No JPEG decoder is linked. Only cooked BSWF movies load, and their images
+// are atlases converted offline, so the source-SWF JPEG tags are never parsed.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-#include "ps2/ui/jpeg_decoder.h"
-
-idSWF::idDecompressJPEG::idDecompressJPEG() : vinfo( ps2::ui::swf::CreateJpegDecoder() ) {}
-idSWF::idDecompressJPEG::~idDecompressJPEG() { ps2::ui::swf::DestroyJpegDecoder( vinfo ); }
+idSWF::idDecompressJPEG::idDecompressJPEG() : vinfo( NULL ) {}
+idSWF::idDecompressJPEG::~idDecompressJPEG() {}
 byte * idSWF::idDecompressJPEG::Load( const byte * input, int inputSize, int & width, int & height ) {
-	return ps2::ui::swf::DecodeJpeg( vinfo, input, inputSize, width, height );
+	idLib::FatalError( "SWF JPEG decoding unavailable; cooked BSWF movies are required" );
 }
 #else
+#include "../renderer/jpeg-6/jpeglib.h"
+
 /*
 ========================
 idSWF::idDecompressJPEG

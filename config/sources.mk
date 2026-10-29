@@ -14,7 +14,7 @@ RENDER_STUB_CXX_SRC = \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp
 
-SIZE_OPT_CXX_SRC = ps2/ui/owner.cpp ps2/ui/menu.cpp ps2/ui/swf_execution.cpp ps2/ui/swf_format.cpp ps2/ui/catalog.cpp ps2/ui/assets.cpp ps2/ui/materials.cpp ps2/ui/font_format.cpp ps2/ui/page_image.cpp ps2/ui/gstx_format.cpp ps2/ui/paletted_image.cpp ps2/ui/font_backend.cpp $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_tests_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/cmd_buffer.cpp ps2/renderer/texture_layout.cpp ps2/renderer/vram.cpp ps2/renderer/texture.cpp ps2/renderer/capture.cpp tests/smoketests/console_charset.cpp ps2/renderer/image_backend.cpp
+SIZE_OPT_CXX_SRC = ps2/ui/owner.cpp ps2/ui/menu.cpp ps2/ui/swf_execution.cpp ps2/ui/swf_format.cpp ps2/ui/catalog.cpp ps2/ui/assets.cpp ps2/ui/materials.cpp ps2/ui/font_format.cpp ps2/ui/page_image.cpp ps2/ui/gstx_format.cpp ps2/ui/paletted_image.cpp ps2/ui/font_backend.cpp $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_tests_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/cmd_buffer.cpp ps2/renderer/texture_layout.cpp ps2/renderer/vram.cpp ps2/renderer/texture.cpp ps2/renderer/capture.cpp tests/smoketests/console_charset.cpp ps2/renderer/image_backend.cpp
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -106,8 +106,6 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/renderer/render_system.cpp \
 	ps2/audio/voice_timeline.cpp \
 	ps2/audio/pcm_wave.cpp \
-	ps2/system/codec_memory.cpp \
-	ps2/ui/jpeg_decoder.cpp \
 	ps2/input/usercmd_stub.cpp \
 	ps2/game/multiplayer_stub.cpp \
 	ps2/system/save_metadata.cpp \
@@ -134,7 +132,6 @@ CORE_BOOT_CXX_SRC = \
 	tests/smoketests/renderer_gs_tests.cpp \
 	tests/smoketests/console_charset.cpp \
 	tests/smoketests/voice_tests.cpp \
-	tests/smoketests/codec_tests.cpp \
 	tests/smoketests/input_tests.cpp \
 	tests/smoketests/deferred_tests.cpp \
 	tests/smoketests/renderer_tests.cpp \
@@ -291,12 +288,9 @@ CAMPAIGN_CXX_SRC = \
 	neo/framework/FileSystem.cpp \
 	neo/framework/File_Manifest.cpp \
 	neo/framework/File_Resource.cpp \
-	neo/framework/File_SaveGame.cpp \
 	neo/framework/KeyInput.cpp \
 	neo/framework/PlayerProfile.cpp \
 	neo/framework/TokenParser.cpp \
-	neo/framework/Unzip.cpp \
-	neo/framework/Zip.cpp \
 	neo/framework/common_frame.cpp \
 	neo/idlib/Base64.cpp \
 	neo/idlib/BitMsg.cpp \
@@ -437,44 +431,6 @@ CAMPAIGN_CXX_SRC = \
 	neo/ui/Window.cpp \
 	neo/ui/Winvar.cpp
 
-# Audited streaming zlib and JPEG decompression; no gzip I/O, JPEG encoder or raw source reader.
-VENDOR_C_SRC = \
-	external/zlib/compress.c \
-	external/zlib/adler32.c \
-	external/zlib/crc32.c \
-	external/zlib/deflate.c \
-	external/zlib/inffast.c \
-	external/zlib/inflate.c \
-	external/zlib/inftrees.c \
-	external/zlib/trees.c \
-	external/zlib/zutil.c
-VENDOR_CXX_SRC = \
-	external/jpeg-6/jcomapi.cpp \
-	external/jpeg-6/jdapimin.cpp \
-	external/jpeg-6/jdapistd.cpp \
-	external/jpeg-6/jdcoefct.cpp \
-	external/jpeg-6/jdcolor.cpp \
-	external/jpeg-6/jddctmgr.cpp \
-	external/jpeg-6/jdhuff.cpp \
-	external/jpeg-6/jdinput.cpp \
-	external/jpeg-6/jdmainct.cpp \
-	external/jpeg-6/jdmarker.cpp \
-	external/jpeg-6/jdmaster.cpp \
-	external/jpeg-6/jdmerge.cpp \
-	external/jpeg-6/jdphuff.cpp \
-	external/jpeg-6/jdpostct.cpp \
-	external/jpeg-6/jdsample.cpp \
-	external/jpeg-6/jdtrans.cpp \
-	external/jpeg-6/jerror.cpp \
-	external/jpeg-6/jidctflt.cpp \
-	external/jpeg-6/jidctfst.cpp \
-	external/jpeg-6/jidctint.cpp \
-	external/jpeg-6/jidctred.cpp \
-	external/jpeg-6/jmemmgr.cpp \
-	external/jpeg-6/jquant1.cpp \
-	external/jpeg-6/jquant2.cpp \
-	external/jpeg-6/jutils.cpp
-
 # Isolated compiler probe; these remain required in the campaign manifest as well.
 SCRIPT_CXX_SRC = \
 	neo/d3xp/script/Script_Compiler.cpp \
@@ -485,7 +441,7 @@ SCRIPT_BOOT_CXX_SRC = \
 	tests/smoketests/script_boot.cpp
 
 # Required portable campaign support; compiled strictly without claiming a resident link.
-GAME_BACKEND_CXX_SRC = ps2/audio/voice_timeline.cpp ps2/audio/pcm_wave.cpp ps2/system/codec_memory.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/ui/jpeg_decoder.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
+GAME_BACKEND_CXX_SRC = ps2/audio/voice_timeline.cpp ps2/audio/pcm_wave.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp
 
 # Shared providers for production and campaign tests; no test source belongs here.
 RESIDENT_SUPPORT_CXX_SRC = \
@@ -522,55 +478,6 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/system/sys.cpp \
 	ps2/game/class_alloc.cpp \
 	ps2/game/script_error.cpp
-
-# Existing upstream JPEG sources, used only by the host decoder harness at this stage.
-JPEG_TEST_CXX_SRC = \
-	external/jpeg-6/jcapimin.cpp \
-	external/jpeg-6/jcapistd.cpp \
-	external/jpeg-6/jccoefct.cpp \
-	external/jpeg-6/jccolor.cpp \
-	external/jpeg-6/jcdctmgr.cpp \
-	external/jpeg-6/jchuff.cpp \
-	external/jpeg-6/jcinit.cpp \
-	external/jpeg-6/jcmainct.cpp \
-	external/jpeg-6/jcmarker.cpp \
-	external/jpeg-6/jcmaster.cpp \
-	external/jpeg-6/jcomapi.cpp \
-	external/jpeg-6/jcparam.cpp \
-	external/jpeg-6/jcphuff.cpp \
-	external/jpeg-6/jcprepct.cpp \
-	external/jpeg-6/jcsample.cpp \
-	external/jpeg-6/jctrans.cpp \
-	external/jpeg-6/jdapimin.cpp \
-	external/jpeg-6/jdapistd.cpp \
-	external/jpeg-6/jdatadst.cpp \
-	external/jpeg-6/jdatasrc.cpp \
-	external/jpeg-6/jdcoefct.cpp \
-	external/jpeg-6/jdcolor.cpp \
-	external/jpeg-6/jddctmgr.cpp \
-	external/jpeg-6/jdhuff.cpp \
-	external/jpeg-6/jdinput.cpp \
-	external/jpeg-6/jdmainct.cpp \
-	external/jpeg-6/jdmarker.cpp \
-	external/jpeg-6/jdmaster.cpp \
-	external/jpeg-6/jdmerge.cpp \
-	external/jpeg-6/jdphuff.cpp \
-	external/jpeg-6/jdpostct.cpp \
-	external/jpeg-6/jdsample.cpp \
-	external/jpeg-6/jdtrans.cpp \
-	external/jpeg-6/jerror.cpp \
-	external/jpeg-6/jfdctflt.cpp \
-	external/jpeg-6/jfdctfst.cpp \
-	external/jpeg-6/jfdctint.cpp \
-	external/jpeg-6/jidctflt.cpp \
-	external/jpeg-6/jidctfst.cpp \
-	external/jpeg-6/jidctint.cpp \
-	external/jpeg-6/jidctred.cpp \
-	external/jpeg-6/jmemmgr.cpp \
-	external/jpeg-6/jmemnobs.cpp \
-	external/jpeg-6/jquant1.cpp \
-	external/jpeg-6/jquant2.cpp \
-	external/jpeg-6/jutils.cpp
 
 # Production entry and isolated campaign-test entry/adapters.
 PS2_CXX_SRC = ps2/ui/movie.cpp ps2/system/main.cpp ps2/system/headless.cpp ps2/system/presentation.cpp ps2/input/devices.cpp ps2/input/keyboard.cpp ps2/input/pad.cpp

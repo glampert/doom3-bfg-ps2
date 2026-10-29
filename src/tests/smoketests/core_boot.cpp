@@ -13,7 +13,6 @@
 #include "tests/smoketests/audio_tests.h"
 #include "tests/smoketests/boot_stage.h"
 #include "tests/smoketests/class_alloc_tests.h"
-#include "tests/smoketests/codec_tests.h"
 #include "tests/smoketests/core_boot.h"
 #include "tests/smoketests/deferred_tests.h"
 #include "tests/smoketests/heap_tests.h"
@@ -240,14 +239,9 @@ bool CheckFilesystemServices()
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] FILESYSTEM parents=%d rename_unsupported=%d remove=%d errno=%d kind=%d absent=%d\n",
                  parents ? 1 : 0, noRename ? 1 : 0, removed ? 1 : 0, removeError, static_cast<int>(removedKind), absent ? 1 : 0);
     }
-    passed = Check("filesystem-parents-driver-errors", fs::Init() && parents && noRename && removalResult &&
-                                                       removedKind == FOLDER_ERROR && absent) &&
-             passed;
-
-    std::uint32_t time = 0;
-    const bool timestamp = fs::ZipTime("host:fs-fixtures/mixed.TxT", time) && time == (1u << 21 | 1u << 16) &&
-                           !fs::ZipTime("host:fs-fixtures/missing", time) && time == 0;
-    return Check("filesystem-zip-timestamp", timestamp) && passed;
+    return Check("filesystem-parents-driver-errors", fs::Init() && parents && noRename && removalResult &&
+                                                     removedKind == FOLDER_ERROR && absent) &&
+           passed;
 }
 
 bool CheckMissingAndEscapingPaths()
@@ -309,7 +303,6 @@ bool RunCoreTests(const char * fixturePath)
     passed = RunRendererTests() && passed;
     passed = RunDeferredTests() && passed;
     passed = RunInputTests() && passed;
-    passed = RunCodecTests() && passed;
     passed = CheckCommands() && passed;
     passed = CheckCVars() && passed;
     passed = CheckPlatformServices() && passed;

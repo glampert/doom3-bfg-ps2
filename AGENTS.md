@@ -43,12 +43,14 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
   SDK's C sources, for checking what a library really does, are under
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
-- Imported third-party dependencies live in `src/external/`, currently `dlmalloc`, the bundled engine-modified JPEG 6, and zlib 1.2.3.
-  Codec sources use separate explicit vendor groups and tagged backend allocator hooks.
+- Imported third-party dependencies live in `src/external/`, currently only `dlmalloc`.
+  No JPEG or zlib is linked: images arrive converted by the asset pipeline, ZIP files are
+  unsupported, and source-SWF inflation and pipelined save compression fail by name.
+  Compressed resource packs will import `src/external/miniz`, whose zlib-compatible API
+  can then restore save compression.
   Planned VU/tool dependencies from the reference are `src/external/vclpp` (and its
-  nested `external/parse-utils`), `src/external/vu-checker`, and possibly
-  `src/external/miniz`.
-  These VU/tool dependencies are not imported or pinned yet. When VU code is added,
+  nested `external/parse-utils`) and `src/external/vu-checker`.
+  These dependencies are not imported or pinned yet. When VU code is added,
   build the pinned vclpp into `build/tools/vclpp` instead of relying on a copy on `PATH`.
 
 ## Build and verify
@@ -253,9 +255,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   own test entries/adapters. `PLATFORM_TEST_CXX_SRC` supplies the SDK-only core-stage
   skip provider. Make selects test stages through source lists; `PS2_D3BFG_TESTS` is
   the sole test-enable define. Keep fixture hooks behind it and separate
-  campaign/test object trees. The production link rejects test inputs and symbols. `VENDOR_C_SRC` / `VENDOR_CXX_SRC` enable only audited relocated codec units. The source
-  inventory maps their original upstream project paths. Host fixture lists cannot enable
-  additional vendor sources in an EE runtime target.
+  campaign/test object trees. The production link rejects test inputs and symbols. The source
+  inventory records the deleted upstream JPEG/zlib trees, whose units id's project files
+  still name.
 - Emulator and host test rules are in [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md);
   each gate's detailed acceptance and the Quake reference are in `docs/testing/`.
 - CI: `.github/workflows/ps2.yml` runs `make` and `make release` on Linux, in the ps2dev

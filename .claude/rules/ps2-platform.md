@@ -29,11 +29,8 @@ of both file and directory. Do not generalize this behavior to other drivers.
 Portable paths are bounded to 256 bytes, retain forward slashes and recognize device
 prefixes. Logical paths reject absolute/device names and dot components; they do not
 perform case-folded OS lookups or resolve symlink targets. Directory lists exclude
-symlinks. Host ZIP dates encode stat time as UTC at two-second resolution, clamped to
-1980..2107. EE ZIP dates are explicitly fixed to 1980-01-01 until driver timestamps
-are validated; absent stat still fails. SDK `io_to_posix_time` expects a two-byte full
-year and does not initialize all `tm` fields; PCSX2's
-[host stat conversion](https://github.com/PCSX2/pcsx2/blob/v2.6.3/pcsx2/IopBios.cpp#L183)
+symlinks. SDK `io_to_posix_time` expects a two-byte full year and does not initialize
+all `tm` fields; PCSX2's [host stat conversion](https://github.com/PCSX2/pcsx2/blob/v2.6.3/pcsx2/IopBios.cpp#L183)
 writes `tm_year` into one byte. Do not infer wall-clock accuracy from successful stat
 or the current `Sys_FileTimeStamp` bridge. Validate the storage/time policy before
 using timestamps for cache invalidation or save metadata.

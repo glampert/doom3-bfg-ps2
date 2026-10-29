@@ -4883,3 +4883,46 @@ On the same day the make targets were renamed to one pattern (`build-<image>`,
 (and their `run-` forms) are `stage-ui-fonts`/`stage-ui-movies`/`stage-ui-menu`; `inventory`
 is `audit-sources`. Package directories follow the names: `headless-retail`, `ui-fonts`,
 `ui-movies`, `ui-menu`.
+
+## JPEG and zlib removal (2026-10-29)
+
+No JPEG or zlib is linked any more, and `src/external/jpeg-6/` and `src/external/zlib/` are
+deleted. Neither was reachable on the console: images arrive converted by the asset
+pipeline, and only cooked BSWF movies load, whose JPEG and zlib tags are parsed solely from
+source SWF. No host tool decodes JPEG (the PNG writer uses stored deflate blocks).
+
+- `idSWF::idDecompressJPEG` holds no decoder state (it allocated one per movie) and fails by
+  name if asked to decode; `idSWF::Inflate` and `LoadJPG` fail by name too.
+- `Zip.cpp`, `Unzip.cpp` and `File_SaveGame.cpp` leave the campaign list for a
+  `compression_deferred` disposition; `idFile_InZip` is excluded and `Zip.cpp`, `Zip.h`
+  and `Unzip.h` return to upstream. `ps2/system/save_metadata.cpp` stubs the
+  `idFile_SaveGamePipelined` members campaign code names (each fails by name), so the
+  `sgf_*` cvars and the `TestSaveGameFile`/`TestCompressionSpeeds` commands are gone.
+  Saves were already disabled (`saveGame_enable` is ROM 0).
+- Gone with them: `ui/jpeg_decoder.*`, `system/codec_memory.cpp`, the four `codecs/` core
+  checks, the five `jpeg-*` Common probes, the host JPEG and codec harnesses, and the
+  filesystem's ZIP timestamp packing (`fs::ZipTime`/`PackZipTime`, used only by
+  `Zip.cpp`) with its core and host checks.
+- The source inventory drops the vendor categories; `removed_upstream_trees` counts the
+  56 units `external.vcxproj` still names.
+
+Compressed resource packs will import miniz, whose zlib-compatible API can restore save
+compression and SWF inflation.
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release` | Resident link passed, 341 objects (380 before); `PT_LOAD` 11,133,165 debug / 11,564,269 release bytes, release 158,592 below the previous HEAD |
+| `make build-core`, `make build-game`, `make audit-sources` | Passed; core test image 2,062,960 bytes (debug); 393 classified units; 366 compile-database entries |
+| `make test-host` | Passed (327 Python regressions and the sanitizer harnesses) |
+| `make test-core` (debug) | Passed, `20261029T074133Z_smoke_89cd0532166e405c` |
+| `make test-common` (debug) | 28 of 28 passed (7 stops, 21 expected fatals), from `20261029T074145Z` |
+| `make test-game`, `make test-map` (debug) | 11 of 11 and 1 of 1 passed, from `20261029T075415Z` |
+| `make test-headless`, `make test-headless-retail` (debug) | Runner failed on the missing `BOOT production shutdown complete` marker that commit 48d1f3c reworded; both logs show a complete run and exact 7,424/7,600/4 shutdown |
+
+Retail startup ledgers are 2,460 requested / 3,544 backing bytes and 26 allocations below
+the last passing retail run (2026-10-21), the same at every stage, so the difference
+arises at foundation (the four `sgf_*` cvars and two commands, plus other changes since
+then): 10,145,958 / 13,469,672 bytes in 75,722 allocations at `startup-game`
+(`20261029T074741Z_headless_fcc4cfe1fbc9`). `make test-ui` was not run (its runner has the
+same marker gap), nor were release gates.
+

@@ -95,30 +95,28 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   null/sibling rejection, separate-unit identity, actual menu/GUI/model declarations,
   and real file objects. Shared query tests also run with host ASan/UBSan. Four host
   compiler regressions reject unsafe queries and verify the desktop RTTI fallback.
-  The host suite includes shared PCM/voice timing, codec, source
-  relocation audit, real JPEG
-  and filesystem sanitizer fixtures.
+  The host suite includes shared PCM/voice timing, the source inventory audit and
+  filesystem sanitizer fixtures.
 
-- Core smoke now also requires six filesystem-service markers. The runner stages
+- Core smoke now also requires five filesystem-service markers. The runner stages
   authored directory/text/70 KiB binary fixtures and archives their hashes even in
   the missing-main-fixture scenario. Checks exercise real permanent streams, memory
   bounds and cursor/EOF, directory/extension filters, device/path rejection, write/
-  append/short reads, parent directories and native driver errors, and ZIP timestamps.
+  append/short reads, parent directories and native driver errors.
   Removal's observed PCSX2 error is documented in [ps2-platform.md](../../.claude/rules/ps2-platform.md);
   the test verifies error propagation and side effects, not successful driver removal.
 
-- `make test-common` / `make BUILD=release test-common` run 33 isolated probes. Seven
+- `make test-common` / `make BUILD=release test-common` run 28 isolated probes. Seven
   stop real Common after system, idlib, commands, cvars, filesystem, jobs or session;
   acceptance requires exactly those startup stages, reverse shutdown, idempotent cleanup
   and exact tagged-ledger recovery. Static CVar registration is one-shot, so each stop
-  uses a fresh process. Twenty-six negative probes (the `NEGATIVE_PROBES` entries but the
+  uses a fresh process. Twenty-one negative probes (the `NEGATIVE_PROBES` entries but the
   seventeen GS failures, which `test-renderer` runs) require matching run/begin identities
   and the expected fatal diagnostic: online flags, absent user, loading out of order,
   unsupported input device, audio missing WAVs, unloaded duration queries, invalid WAV
   formats/truncation/chunk bounds/payload budgets; absent/backward voice clocks, unloaded
   voice samples, negative seeks, invalid pitch, pinned sample mutation, double/foreign
-  free, channel mismatch and unknown sound flags; negative duration input and five JPEG
-  rejections. The probes that only confirmed a deferred capability fails by name (input
+  free, channel mismatch and unknown sound flags; and negative duration input. The probes that only confirmed a deferred capability fails by name (input
   sampling, multiplayer, save manager, network matchmaking, Classic switching, audio
   device, process launch, source-model import and the renderer's world/image/vertex/
   shader/cinematic/demo entry points) were retired on 2026-10-26; those stubs still fail
@@ -171,15 +169,7 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
 - The additional GS failure probes cover release-safe GIF bounds, oversized DIRECT
   reservations and a stalled deadline; they do not claim Common or UI startup.
 
-- Four required `codecs/` markers check the known CRC vector, independent wrapped/raw
-  streams with chunked input/output and compression round trips, checksum/truncation and
-  partial allocator failures, and RGBA JPEG/full/table/abbreviated reuse. All scopes
-  recover exact requested/backing/count ledgers. Five JPEG failure probes reject invalid
-  input, an overlong marker, truncation, an invalid signature and dimensions over 1024
-  with the expected fatal on the EE. Host sanitizer checks also verify full decoder/output
-  cleanup before fatal. Codec memory uses the same heap through native JPG/ZIP tags.
-
-- The production link (`make`, `make release`) is the retained compile/link gate: all 363 production inputs,
+- The production link (`make`, `make release`) is the retained compile/link gate: all 341 production inputs,
   every required game/class/cvar registration root and map input are retained without
   unresolved symbols, duplicates, Classic imports or GC. The campaign test entry separately requires
   an explicit authored fixture manifest. Do not reuse an older resident ELF after a failed attempt.

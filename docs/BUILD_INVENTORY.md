@@ -6,8 +6,8 @@ of every shipped BFG C/C++ unit. `make audit-sources` fails when a source is add
 duplicated, left unclassified, or enabled despite an exclusion. Source discovery is used
 for auditing only; it never selects files for compilation.
 
-Current source audit, reviewed **2026-10-19**: 458 upstream units, 282 retained
-campaign units, 48 core backend sources, 34 resident support sources and 399 compile
+Current source audit, reviewed **2026-10-29**: 393 shipped units, 284 retained
+campaign units, 45 core backend sources, 33 resident support sources and 366 compile
 database entries. The last runtime acceptance is the 2026-10-18 convex-mask slice in
 [PORT_STATUS.md](PORT_STATUS.md#native-convex-swf-masks-2d-6-second-slice). Later
 sections retain dated source/size snapshots; their earlier counts are historical.
@@ -22,31 +22,33 @@ sections retain dated source/size snapshots; their earlier counts are historical
 | `external.vcxproj` | 56 |
 | Total project units | 440 |
 
-There are 458 shipped C/C++ source files across `src/neo/` and the relocated codec
-trees in `src/external/`: the 440 project units plus 18 files outside those manifests.
-The audit maps the original codec paths in the unchanged Windows reference projects
-through `source_relocations`; compilation uses only current explicit paths. The obsolete `game.vcxproj` names the absent
+There are 393 shipped C/C++ source files in `src/neo/`: 384 of the project units plus
+9 files outside those manifests. The other 56 project units, every one in
+`external.vcxproj`, belonged to the JPEG 6 and zlib trees deleted on 2026-10-29; the
+inventory's `removed_upstream_trees` counts them toward their unchanged Windows project
+without resolving them, and the audit fails if either tree returns or stops being named.
+The obsolete `game.vcxproj` names the absent
 `game/` tree and is excluded from this audit. `d3xp/` is the BFG campaign game source.
 The Windows project spells `renderer/OpenGL/gl_Image.cpp` as `gl_image.cpp`; the audit
 matches project paths without case and records the actual on-disk filename so the
 inventory works on hosts with either filesystem behavior.
 
-Third-party dependencies imported for the port live under `src/external/`.
-The current core uses `src/external/dlmalloc/`, JPEG 6 and zlib 1.2.3. dlmalloc is listed
-in `CORE_C_SRC`, and the heap bridge imports its header through a system include path.
+Third-party dependencies imported for the port live under `src/external/`, currently
+only `src/external/dlmalloc/`. dlmalloc is listed in `CORE_C_SRC`, and the heap bridge
+imports its header through a system include path. No JPEG or zlib is linked; compressed
+resource packs will import miniz.
 
 ## Source dispositions
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 285 | Includes the native shell handler with its press-start, root and credits screens; M3 runtime adaptation remains required |
+| Campaign runtime | 284 | Includes the native shell handler with its press-start, root and credits screens; M3 runtime adaptation remains required |
 | PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
-| Deferred runtime | 29 | Other BFG shell screens, multiplayer, online services and demo paths; callers still need explicit adapters |
-| Vendor runtime | 34 | Nine zlib streaming/CRC and 25 JPEG decompression sources; separate vendor flags, strict tagged heap hooks |
-| Optional vendor | 22 | Remaining shipped zlib/JPEG units excluded from the EE |
+| Deferred runtime | 27 | Other BFG shell screens, multiplayer, online services and demo paths; callers still need explicit adapters |
+| Compression deferred | 3 | `Zip.cpp`, `Unzip.cpp` and `File_SaveGame.cpp` need zlib; `save_metadata.cpp` stubs the pipelined save file until miniz |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
 | PCH excluded | 3 | Visual Studio precompiled-header translation units |
-| Outside project manifests | 18 | Kept for inspection; never silently enabled |
+| Outside project manifests | 9 | Kept for inspection; never silently enabled |
 
 These are source inclusion decisions, not claims that replacement APIs exist. Essential
 HUD/PDA menus, GUI/SWF, campaign physics/scripts/AI, collision, renderer frontend and
@@ -687,3 +689,19 @@ format, execution and runtime helpers stay in `ps2::ui::swf`. The catalog's
 `Init`/`Shutdown`/`IsInitialized` become `InitCatalog`/`ShutdownCatalog`/
 `IsCatalogInitialized`, distinct from the UI device's own. Each unit keeps its position,
 group and flags in the source lists; the host catalog test is now `ui_catalog_tests`.
+
+The codec removal (2026-10-29) drops JPEG 6 and zlib from every target and deletes
+`src/external/jpeg-6/` and `src/external/zlib/`. Nothing on the console decoded either:
+images arrive converted by the asset pipeline, and only cooked BSWF movies load, whose
+JPEG/zlib tags are parsed solely from source SWF. `VENDOR_C_SRC`, `VENDOR_CXX_SRC`,
+`JPEG_TEST_CXX_SRC`, the `codecs/` object tree, `ui/jpeg_decoder.*`,
+`system/codec_memory.cpp`, the codec smoketests and the host JPEG/codec harnesses go.
+`Zip.cpp`, `Unzip.cpp` and `File_SaveGame.cpp` leave the campaign list for a new
+`compression_deferred` disposition (`Zip.cpp`, `Zip.h` and `Unzip.h` return to upstream);
+`idFile_InZip`, `idSWF::Inflate` and the SWF JPEG decoder fail by name, and
+`save_metadata.cpp` stubs the `idFile_SaveGamePipelined` members campaign code calls. The
+filesystem's ZIP timestamp packing, used only by `Zip.cpp`, is removed with its checks.
+Production retains **341 direct objects**, zero test inputs/symbols and no GC; fixed
+`PT_LOAD` is **11,133,165 debug / 11,564,269 release bytes** (release 158,592 below HEAD
+before the change), and the core test image is **2,062,960** (debug). The compiler
+database has **366 entries**.

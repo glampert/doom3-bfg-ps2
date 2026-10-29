@@ -174,11 +174,6 @@ before touching that subsystem.
 - Portable `idCommonLocal::Error`/`FatalError` use the primitive terminating log sink,
   including before CVar initialization. They do not run desktop dialogs, `Stop`,
   renderer/session shutdown or exception recovery. Recoverable loading remains pending.
-- The shipped JPEG source has four-byte RGB rows and supports only the float DCT
-  configuration. Its encoder copied 256 Huffman values from shorter standard arrays;
-  copy the symbol count instead. Portable SWF decoding preserves tables across tags,
-  rejects source exhaustion/oversized images, and frees owned output and codec state
-  before a fatal diagnostic. Host codec tests do not establish target JPEG execution.
 
 ## Native SWF and font loading
 
@@ -294,19 +289,20 @@ its BSWF and font remain host-test stand-ins). These findings carry over to reta
 
 ## Resident link findings
 
-- Bundled JPEG 6/zlib 1.2.3 live in `src/external/`; the inventory remaps original
-  Windows reference-project paths without editing those manifests. Target vendor lists
-  are explicit and audited separately from campaign sources. JPEG's RGBA layout and
-  C++ ABI are engine modifications; a stock libjpeg is not a drop-in replacement.
-- JPEG's `jdatasrc.cpp` has no encoded length and blindly refills 4096 bytes. Exclude
-  that source on the EE and fail portable source `LoadJPG` explicitly. The bounded SWF
-  adapter supplies its own complete-memory source, limits dimensions/output, and keeps
-  table-only/abbreviated images within a decoder lifetime. `jmemsys.h` requires the
-  private declarations established by `jpeglib.h`; preserve their include order.
-- `MY_ZCALLOC` excludes zutil.c's unchecked malloc/free product. Supply typed C-linkage
-  defaults through the tagged heap and preserve caller-provided stream allocators.
-  `deflate.c` references `compressBound`, so `compress.c` is required even without
-  application calls to the one-shot compress API. Gzip stdio is not a dependency.
+- No JPEG or zlib is linked (removed 2026-10-29, saving 158,592 bytes of release
+  `PT_LOAD`). PS2 loads only cooked BSWF movies and converted images, so the source-SWF
+  JPEG tags, `idSWF::Inflate` and `LoadJPG` fail by name, and `idDecompressJPEG` holds no
+  decoder state. `Zip.cpp`, `Unzip.cpp` and `idFile_InZip` are excluded (nothing opens
+  ZIP files), and `ps2/system/save_metadata.cpp` stubs the `idFile_SaveGamePipelined`
+  members campaign code names; `File_SaveGame.cpp` and its `sgf_*` cvars are not built.
+- id's project files still name the deleted `renderer/jpeg-6` and `framework/zlib`
+  units; the inventory's `removed_upstream_trees` counts them without resolving them.
+- Compressed resource packs will import miniz. Its zlib-compatible API (`z_stream`,
+  `deflateInit2`/`inflateInit2` with raw `-15` window bits, `Z_SYNC_FLUSH`) covers what
+  `File_SaveGame.cpp` and `SWF_Zlib.cpp` call, so both can return close to unchanged;
+  check the allocator callback types against miniz's `size_t` signatures.
+- The removed JPEG 6 was engine-modified (four-byte RGB rows, float DCT only, a C++
+  ABI); a stock libjpeg is not a drop-in replacement for id's desktop decoder code.
 
 - Campaign code embeds `idAchievementManager`; it is not solely an online service.
   Retain native `d3xp/Achievements.cpp` and gate only Classic header/evaluation on

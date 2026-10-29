@@ -41,8 +41,11 @@ If you have questions concerning this license or the applicable additional terms
 // [PS2_D3BFG]: Length validation also protects len+1 on desktop builds.
 #include <limits.h>
 
+// [PS2_D3BFG]: No ZIP or zlib is linked; the filesystem uses neither header.
+#if !defined( ID_PS2 )
 #include "Unzip.h"
 #include "Zip.h"
+#endif
 
 #ifdef WIN32
 	#include <io.h>	// for _read
