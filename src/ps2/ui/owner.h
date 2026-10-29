@@ -30,18 +30,26 @@ PS2_COLD_FUNC void DetachOwner(idSWF & movie);
 
 // The native shell's logo transition (idMenuHandler_Shell::ShowLogo), inside an execution scope.
 void ShowShellLogo(idSWF & movie, bool show);
+
+// Assertion builds authorize native callbacks and key handlers by identity, and check that widget
+// refreshes cannot retire an executing script's ancestor.
+#if PS2_D3BFG_ASSERTS
 bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie);
 
 // A native key handler: an event wrapper of one of the attached menu handler's live widgets.
 bool IsEventHandler(const idSWFScriptFunction * function, const idSWF * movie);
+#endif // PS2_D3BFG_ASSERTS
 
 // Common's dialog manager installs each shown dialog's choices as globals; pin them as it does,
 // so only those objects answer the movie's calls to them, by name or through copies.
 PS2_COLD_FUNC void AttachDialogChoices(idSWF & movie);
 void PinShownChoices(idSWF & movie);
 PS2_COLD_FUNC void DetachDialogChoices(idSWF & movie);
+
+#if PS2_D3BFG_ASSERTS
 bool IsDialogChoice(const idSWFScriptFunction * function, const idSWF * movie);
 void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idSWF * movie);
+#endif // PS2_D3BFG_ASSERTS
 PS2_COLD_FUNC void OwnerStatus();
 
 } // namespace ps2::ui

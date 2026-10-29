@@ -52,12 +52,13 @@ file keeps only what most engine edits need.
   `EnableResourceRender` (native `Render` draws without running frames, inside draw plus
   execution scopes), `EnableResourceEvents` (`SE_KEY` keyboard/pad only; pointer, text,
   axis, `useFunction`, `waitInput`, `focusWindow` refused; only the native menu enables it).
-- Callbacks and seeks are authorized by identity: compare the resolved function object and
-  owner, not a mutable name. A handler a key reaches must be a `WrapWidgetSWFEvent` whose
-  target is one of the menu handler's live widgets. Reject callbacks/seeks that could
+- Assertion builds authorize callbacks and seeks by identity: compare the resolved function
+  object and owner, not a mutable name. A handler a key reaches must be a `WrapWidgetSWFEvent`
+  whose target is one of the menu handler's live widgets. Reject callbacks/seeks that could
   destroy an executing descendant; check every active script source and receiver.
-- Static validation does not bound dynamic work: keep release-mode instruction, call,
-  stack and allocation budgets, and cap argument lists at `SWF_MAX_PARMS` (16).
+- Static validation does not bound dynamic work: assertion builds keep instruction, call,
+  stack and allocation budgets and cap argument lists at `SWF_MAX_PARMS` (16). Release builds
+  rely on the load-time preflight and debug runs of the same retail scripts, and accept UB.
 - Install real widget callbacks before activation; call `Activate(true)` before querying
   frame-one children. Advance once per Common frame before GS submission; redraws reuse
   the previous movie time.

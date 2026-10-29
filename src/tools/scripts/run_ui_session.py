@@ -134,8 +134,9 @@ def classify_session(log: str, identity: str, standard: str) -> tuple[bool, str]
     return True, "native UI session completed"
 
 
-def classify_steps(log: str, identity: str, standard: str, manifest: dict, source: Path) -> dict:
-    """Each step's verdict on its own slice of the log; warm images accumulate in step order."""
+def classify_steps(log: str, identity: str, standard: str, manifest: dict, source: Path, traces: bool = True) -> dict:
+    """Each step's verdict on its own slice of the log; warm images accumulate in step order.
+    traces is false for a release build, which logs no SWF dependency lines."""
     sliced = windows(log, identity)
     images = {"boot": movies.menu_images(manifest), "fonts": fonts.resident_images(manifest),
               "shell": movies.shell_images(manifest), "menu": movies.menu_images(manifest),
@@ -145,12 +146,12 @@ def classify_steps(log: str, identity: str, standard: str, manifest: dict, sourc
         "console": lambda window, warm: run_console.classify(window, identity),
         "fonts": lambda window, warm: fonts.classify(window, manifest, source, warm),
         "inactive": lambda window, warm: movies.classify(window, manifest, source, False, movies.PHASES, warm),
-        "execution": lambda window, warm: movies.classify(window, manifest, source, True, movies.PHASES, warm),
-        "dialog": lambda window, warm: movies.classify_dialog_render(window, manifest, source, warm),
+        "execution": lambda window, warm: movies.classify(window, manifest, source, True, movies.PHASES, warm, traces),
+        "dialog": lambda window, warm: movies.classify_dialog_render(window, manifest, source, warm, traces),
         "shell": lambda window, warm: movies.classify_shell_render(window, manifest, source, False, warm),
         "menu": lambda window, warm: movies.classify_shell_render(window, manifest, source, True, warm),
         "screens": lambda window, warm: movies.classify_menu_screens(window, manifest, source, warm),
-        "quit": lambda window, warm: movies.classify_menu_quit(window, manifest, source, warm),
+        "quit": lambda window, warm: movies.classify_menu_quit(window, manifest, source, warm, traces),
     }
     warm = set()
     results = {}
@@ -263,7 +264,7 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
             smoke.stop_owned_process(process)
     log = run_headless.read_log(output)
     passed, reason = classify_session(log, identity, standard) if completed else (False, failure)
-    results = classify_steps(log, identity, standard, manifest, args.source)
+    results = classify_steps(log, identity, standard, manifest, args.source, args.build != "release")
     steps_summary = {}
     for step in order:
         step_passed, step_reason = results[step]

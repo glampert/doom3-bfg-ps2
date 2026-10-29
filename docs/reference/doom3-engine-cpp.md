@@ -539,8 +539,8 @@ its BSWF and font remain host-test stand-ins). These findings carry over to reta
   `useFunction`, `waitInput` or `focusWindow` global. Shortcut keys and the objects they
   name are script data, so a native handler a key reaches must be a `WrapWidgetSWFEvent`
   (checked query on the `idSWFScriptFunction` root) whose target is one of the menu
-  handler's live widgets, compared as pointers before anything dereferences it; script
-  handlers run under the scope's budgets. Native `idMenuHandler::GetChildFromIndex`
+  handler's live widgets, compared as pointers before anything dereferences it (assertion
+  builds); script handlers run under the scope's budgets there. Native `idMenuHandler::GetChildFromIndex`
   accepts `Num()` as an index, so the walk uses a tagged child count.
 - Retail `guis.mtr` defines `guiSolid` as blend/colored/map `_white`/clamp, identical
   to the implicit `_white` definition. GUI surfaces evaluate `colored` with all-one
@@ -565,9 +565,9 @@ its BSWF and font remain host-test stand-ins). These findings carry over to reta
   can seek too; reject callbacks/seeks that could destroy an executing descendant.
   Check every active script source and receiver, not just the innermost caller: a
   descendant can call a function on root while its outer action is still running.
-- Static command/action validation does not bound dynamic work. Keep release checks for
-  instruction/call/stack/allocation work, and cap native argument lists at
-  `SWF_MAX_PARMS` (16). This selected profile is not general SWF execution support;
+- Static command/action validation does not bound dynamic work. Assertion builds check
+  instruction/call/stack/allocation work and cap native argument lists at `SWF_MAX_PARMS`
+  (16); release builds keep only the execution scope and its work counters (2026-10-29). This selected profile is not general SWF execution support;
   copied text aliases and raw default-sprite references retain upstream lifetime limits.
 
 ## Native shell menu (reviewed subset)

@@ -90,7 +90,9 @@ public:
 	}
 	// [PS2_D3BFG]: A movie shown on demand, such as Common's dialog, admits execution inactive.
 	void EnableResourceExecution( bool activate = true );
+#if PS2_D3BFG_ASSERTS
 	bool IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const;
+#endif
 	unsigned AdvanceResourceExecution( int time );
 	// [PS2_D3BFG]: A fixed-step test clock starts from the activation time the timeline recorded.
 	int GetResourceClock() const
@@ -181,8 +183,10 @@ private:
 	bool resourceRender;
 	// [PS2_D3BFG]: Retail movies take keys only once their native menu admits them.
 	bool resourceEvents;
+#if PS2_D3BFG_ASSERTS
 	void CheckResourceEvent( const sysEvent_t * event );
 	void CheckResourceEventHandler( idSWFScriptFunction * function );
+#endif
 #endif
 	idStr			filename;
 	ID_TIME_T		timestamp;

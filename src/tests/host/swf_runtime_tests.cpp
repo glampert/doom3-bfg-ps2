@@ -1,6 +1,7 @@
 // ================================================================================================
 // File: swf_runtime_tests.cpp
-// Brief: Prove scoped script budgets fail in release and lifetime accounting spans separate ticks.
+// Brief: Prove scoped script budgets fail in assertion builds, compile out of release, and that
+//        lifetime accounting spans separate ticks.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -266,12 +267,19 @@ int main()
     }
 
     const auto stats = runtime::GetStats();
-    bool passed = stats.scopes == 2 && stats.instructions == 3 && stats.commands == 2 &&
-                  stats.calls == 3 && stats.allocations == 3 && stats.traces == 1 &&
-                  stats.peakInstructions == 2 && stats.peakCommands == 1 && stats.peakCalls == 3 &&
-                  stats.peakDepth == 3 && stats.peakVisitDepth == 4 && stats.peakStack == 4096 &&
-                  stats.peakObjects == 2 && stats.peakFunctions == 2 && stats.peakProperties == 5 &&
-                  stats.peakStrings == 2 && stats.peakStringBytes == 12;
+    bool passed = stats.scopes == 2 && stats.instructions == 3 && stats.commands == 2 && stats.calls == 3;
+
+#if PS2_D3BFG_ASSERTS
+    passed = passed && stats.allocations == 3 && stats.traces == 1 &&
+             stats.peakInstructions == 2 && stats.peakCommands == 1 && stats.peakCalls == 3 &&
+             stats.peakDepth == 3 && stats.peakVisitDepth == 4 && stats.peakStack == 4096 &&
+             stats.peakObjects == 2 && stats.peakFunctions == 2 && stats.peakProperties == 5 &&
+             stats.peakStrings == 2 && stats.peakStringBytes == 12;
+#else // PS2_D3BFG_ASSERTS
+    // Release builds count work only: no ledger, peak or trace.
+    passed = passed && stats.allocations == 0 && stats.traces == 0 && stats.peakInstructions == 0 &&
+             stats.peakDepth == 0 && stats.peakStack == 0 && stats.peakObjects == 0 && stats.peakStringBytes == 0;
+#endif // PS2_D3BFG_ASSERTS
     runtime::TrackObject(false);
     runtime::TrackFunction(false);
     runtime::TrackString(false, 4);
@@ -301,9 +309,12 @@ int main()
         Origins(31);
     }
 
+    // Release builds keep only the cold reset check; every budget, ledger and origin case runs through.
     for (unsigned mode = 0; mode < 22; ++mode)
     {
-        if (!Rejects(mode))
+        const bool expected = PS2_D3BFG_ASSERTS != 0 || mode == 14;
+
+        if (Rejects(mode) != expected)
         {
             std::fprintf(stderr, "SWF runtime guard failed case %u\n", mode);
             passed = false;

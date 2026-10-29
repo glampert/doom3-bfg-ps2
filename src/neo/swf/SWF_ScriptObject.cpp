@@ -29,7 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 
 // [PS2_D3BFG]: Native property writes cannot acquire undeclared media or silently ignore mutations.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 namespace
 {
 	void CheckNativeWrite( idSWFScriptObject * receiver, idSWFScriptNativeVariable * native, const char * name, const idSWFScriptVar & value )
@@ -374,7 +374,7 @@ void idSWFScriptObject::Set( const char * name, const idSWFScriptVar & value ) {
 	swfNamedVar_t * variable = GetVariable( name, true );
 	if ( variable->native ) {
 		// [PS2_D3BFG]: Shared setter policy also covers numeric access to a named native field.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 		CheckNativeWrite( this, variable->native, variable->name, value );
 #endif
 		variable->native->Set( this, value );
@@ -410,7 +410,7 @@ void idSWFScriptObject::Set( int index, const idSWFScriptVar & value ) {
 	swfNamedVar_t * variable = GetVariable( index, true );
 	if ( variable->native ) {
 		// [PS2_D3BFG]: Shared setter policy also covers numeric access to a named native field.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 		CheckNativeWrite( this, variable->native, variable->name, value );
 #endif
 		variable->native->Set( this, value );
@@ -500,8 +500,8 @@ idSWFScriptObject::GetVariable
 ========================
 */
 idSWFScriptObject::swfNamedVar_t * idSWFScriptObject::GetVariable( int index, bool create ) {
-	// [PS2_D3BFG]: Prototype cycles cannot recurse indefinitely in release retail execution.
-#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Prototype cycles cannot recurse indefinitely in retail execution.
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	ps2::ui::swf::VisitScope propertyLookup;
 #endif
 	for ( int i = 0; i < variables.Num(); i++ ) {
@@ -534,11 +534,9 @@ idSWFScriptObject::GetVariable
 ========================
 */
 idSWFScriptObject::swfNamedVar_t * idSWFScriptObject::GetVariable( const char * name, bool create ) {
-	// [PS2_D3BFG]: Prototype cycles cannot recurse indefinitely in release retail execution.
-#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Prototype cycles cannot recurse indefinitely in retail execution.
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	ps2::ui::swf::VisitScope propertyLookup;
-#endif
-#if defined( ID_PS2 )
 	ps2::ui::swf::Require( name != NULL, "property name" );
 	if ( ps2::ui::swf::Active() )
 	{

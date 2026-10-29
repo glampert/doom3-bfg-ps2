@@ -42,6 +42,7 @@ PS2_COLD_FUNC idSWFScriptVar PinCallback(idSWF & movie, const char * name)
     return function;
 }
 
+#if PS2_D3BFG_ASSERTS
 // Compares pointers only, so a wrapper whose widget no longer exists is never dereferenced.
 bool ContainsWidget(const idMenuWidget * widget, const idMenuWidget * target, unsigned depth, unsigned & visited)
 {
@@ -111,6 +112,7 @@ void CheckRefreshTargets(idSWF & movie, const char * name, idSWFSpriteInstance *
         }
     }
 }
+#endif // PS2_D3BFG_ASSERTS
 
 class Owner final : public idMenuHandler
 {
@@ -175,6 +177,7 @@ public:
         gui = nullptr;
     }
 
+#if PS2_D3BFG_ASSERTS
     bool OwnsCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
     {
         if (movie != gui || name == nullptr || function == nullptr)
@@ -185,6 +188,7 @@ public:
         return (idStr::Cmp(name, "refreshCarousel") == 0 && function == m_refreshCarousel.GetFunction()) ||
                (idStr::Cmp(name, "updateCredits") == 0 && function == m_updateCredits.GetFunction());
     }
+#endif // PS2_D3BFG_ASSERTS
 
     void PrintStatus() const
     {
@@ -217,10 +221,12 @@ public:
         m_logoShowing = show;
     }
 
+#if PS2_D3BFG_ASSERTS
     void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing)
     {
         CheckRefreshTargets(*gui, name, executing, m_carousel, activeScreen == SHELL_AREA_CREDITS || nextScreen == SHELL_AREA_CREDITS);
     }
+#endif // PS2_D3BFG_ASSERTS
 
 private:
     idSWFScriptVar PinCallback(const char * name)
@@ -254,6 +260,7 @@ public:
         return m_movie;
     }
 
+#if PS2_D3BFG_ASSERTS
     bool OwnsCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
     {
         if (movie != &m_movie || name == nullptr || function == nullptr)
@@ -311,6 +318,7 @@ public:
         const int next = m_handler.NextScreen();
         CheckRefreshTargets(m_movie, name, executing, StartCarousel(), active == SHELL_AREA_CREDITS || next == SHELL_AREA_CREDITS);
     }
+#endif // PS2_D3BFG_ASSERTS
 
     void PrintStatus()
     {
@@ -371,6 +379,7 @@ public:
         }
     }
 
+#if PS2_D3BFG_ASSERTS
     bool Owns(const idSWFScriptFunction * function, const idSWF * movie)
     {
         if (movie != &m_movie || function == nullptr)
@@ -401,6 +410,7 @@ public:
 
         return false;
     }
+#endif // PS2_D3BFG_ASSERTS
 
 private:
     idSWF & m_movie;
@@ -502,6 +512,7 @@ public:
         return m_movie;
     }
 
+#if PS2_D3BFG_ASSERTS
     bool OwnsCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
     {
         if (movie != &m_movie || name == nullptr || function == nullptr)
@@ -513,6 +524,7 @@ public:
                (idStr::Cmp(name, "cancelCallBack") == 0 && function == m_cancel.GetFunction()) ||
                (idStr::Cmp(name, "altCBOne") == 0 && function == m_alternate.GetFunction());
     }
+#endif // PS2_D3BFG_ASSERTS
 
     void PrintStatus() const
     {
@@ -615,6 +627,7 @@ PS2_COLD_FUNC void DetachOwner(idSWF & movie)
     s_owner = nullptr;
 }
 
+#if PS2_D3BFG_ASSERTS
 bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie)
 {
     return (s_owner != nullptr && s_owner->OwnsCallback(name, function, movie)) ||
@@ -622,6 +635,7 @@ bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, co
            (s_menu != nullptr && s_menu->OwnsCallback(name, function, movie)) ||
            (s_choices != nullptr && s_choices->OwnsCallback(name, function, movie));
 }
+#endif // PS2_D3BFG_ASSERTS
 
 PS2_COLD_FUNC void AttachDialogChoices(idSWF & movie)
 {
@@ -654,6 +668,7 @@ PS2_COLD_FUNC void DetachDialogChoices(idSWF & movie)
     s_choices = nullptr;
 }
 
+#if PS2_D3BFG_ASSERTS
 bool IsDialogChoice(const idSWFScriptFunction * function, const idSWF * movie)
 {
     return s_choices != nullptr && s_choices->Owns(function, movie);
@@ -684,14 +699,12 @@ void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idS
 
     s_owner->CheckCallbackOrigin(name, executing);
 }
+#endif // PS2_D3BFG_ASSERTS
 
 void ShowShellLogo(idSWF & movie, bool show)
 {
-    if (s_owner == nullptr || s_owner->GetGUI() != &movie || !movie.IsResourceExecution() || !swf::Active()) [[unlikely]]
-    {
-        FatalError("retail Shell logo outside its executing owner");
-    }
-
+    PS2_AssertMsg(s_owner != nullptr && s_owner->GetGUI() == &movie && movie.IsResourceExecution() && swf::Active(),
+                  "retail Shell logo outside its executing owner");
     s_owner->ShowLogo(show);
 }
 

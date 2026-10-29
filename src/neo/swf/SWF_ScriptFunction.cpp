@@ -113,7 +113,7 @@ idSWFScriptFunction_Script::Call
 */
 idSWFScriptVar idSWFScriptFunction_Script::Call( idSWFScriptObject * thisObject, const idSWFParmList & parms ) {
 	// [PS2_D3BFG]: Validate dynamic call setup before indexing native fixed-size argument/register arrays.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	ps2::ui::swf::CheckCount( "function arguments", parms.Num(), SWF_MAX_PARMS );
 	ps2::ui::swf::Require( scope.Num() > 0 && scope.Num() <= 64, "function scope" );
 	unsigned preloadCount = 1;
@@ -253,14 +253,14 @@ idSWFScriptVar idSWFScriptFunction_Script::Call( idSWFScriptObject * thisObject,
 ========================
 */
 // [PS2_D3BFG]: Compare immutable callback object identities, independently of script lookup names.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 extern idSWFScriptObject_SpriteInstancePrototype spriteInstanceScriptObjectPrototype;
 extern idSWFScriptObject_TextInstancePrototype textInstanceScriptObjectPrototype;
 #endif
 
 namespace {
 // [PS2_D3BFG]: Timeline execution admits real scoped services, never placeholder Shell callbacks.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	// [PS2_D3BFG]: Opaque origin snapshots keep the budget layer independent of engine types.
 	static const void * ScriptOriginParent( const void * origin )
 	{
@@ -511,11 +511,13 @@ idSWFScriptFunction_Script::Run
 */
 idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, idSWFStack & stack, idSWFBitStream & bitstream ) {
 	static int callstackLevel = -1;
-	// [PS2_D3BFG]: Function and with-block recursion share one release-safe call budget.
+	// [PS2_D3BFG]: Function and with-block recursion share one call budget in assertion builds.
 #if defined( ID_PS2 )
 	ps2::ui::swf::CallScope executionCall;
-	ps2::ui::swf::Require( thisObject != NULL, "script receiver" );
+#endif
 	// [PS2_D3BFG]: Nested calls cannot discard an outer script's source or borrowed receiver.
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
+	ps2::ui::swf::Require( thisObject != NULL, "script receiver" );
 	ps2::ui::swf::OriginScope executionOrigin( defaultSprite, thisObject->GetSprite(), ScriptOriginParent );
 #endif
 	idSWFSpriteInstance * thisSprite = thisObject->GetSprite();
@@ -597,7 +599,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				int frameNum = bitstream.ReadU16() + 1;
 				if ( verify( currentTarget != NULL ) ) {
 					// [PS2_D3BFG]: Direct frame opcodes share native method lifetime guards.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 					ps2::ui::swf::CheckSeek( currentTarget, "ancestor timeline seek unavailable" );
 #endif
 					currentTarget->RunTo( frameNum );
@@ -699,7 +701,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				break;
 			case Action_StringAdd:
 				// [PS2_D3BFG]: Reject exponential string growth before allocating the concatenation.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 				if ( ps2::ui::swf::Active() )
 				{
 					ps2::ui::swf::CheckString( stack.B().ToString().Length() + stack.A().ToString().Length() );
@@ -848,7 +850,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				stack.Pop( 1 );
 
 				idSWFParmList parms;
-				// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries even in release builds.
+				// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries; assertion builds bound the dynamic count.
 				const int argumentCount = stack.A().ToInteger();
 #if defined( ID_PS2 )
 				ps2::ui::swf::CheckCount( "dynamic argument count", argumentCount, SWF_MAX_PARMS );
@@ -862,12 +864,12 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				}
 
 				// [PS2_D3BFG]: Required retail callbacks cannot silently become an undefined return value.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 				ps2::ui::swf::Require( function.IsFunction() && object != NULL, va( "unresolved function %s", functionName.c_str() ) );
 #endif
 				if ( function.IsFunction() && verify( object ) ) {
 					// [PS2_D3BFG]: Native services have an explicit bounded signature and capability profile.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 					CheckNativeCall( functionName, function.GetFunction(), object, parms, false, defaultSprite != NULL ? defaultSprite->sprite->GetSWF() : NULL, thisSprite );
 #endif
 					stack.Alloc() = function.GetFunction()->Call( object, parms );
@@ -903,7 +905,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				stack.Pop( 2 );
 
 				idSWFParmList parms;
-				// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries even in release builds.
+				// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries; assertion builds bound the dynamic count.
 				const int argumentCount = stack.A().ToInteger();
 #if defined( ID_PS2 )
 				ps2::ui::swf::CheckCount( "dynamic argument count", argumentCount, SWF_MAX_PARMS );
@@ -917,12 +919,12 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				}
 
 				// [PS2_D3BFG]: Missing methods require an explicit provider before the scope can run.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 				ps2::ui::swf::Require( function.IsFunction() && object != NULL, va( "unresolved method %s", functionName.c_str() ) );
 #endif
 				if ( function.IsFunction() ) {
 					// [PS2_D3BFG]: Native methods must resolve their actual sprite/text receiver and signature.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 					CheckNativeCall( functionName, function.GetFunction(), object, parms, true, defaultSprite != NULL ? defaultSprite->sprite->GetSWF() : NULL, thisSprite );
 #endif
 					stack.Alloc() = function.GetFunction()->Call( object, parms );
@@ -1195,7 +1197,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 					// object prototype is not set here because it will be auto created from Object later
 				} else {
 					idSWFParmList parms;
-					// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries even in release builds.
+					// [PS2_D3BFG]: idSWFParmList has exactly SWF_MAX_PARMS entries; assertion builds bound the dynamic count.
 				const int argumentCount = stack.A().ToInteger();
 #if defined( ID_PS2 )
 				ps2::ui::swf::CheckCount( "dynamic argument count", argumentCount, SWF_MAX_PARMS );
@@ -1291,7 +1293,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 			case Action_Add2: {
 				if ( stack.A().IsString() || stack.B().IsString() ) {
 					// [PS2_D3BFG]: Reject exponential string growth before allocating the concatenation.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 					if ( ps2::ui::swf::Active() )
 					{
 						ps2::ui::swf::CheckString( stack.B().ToString().Length() + stack.A().ToString().Length() );
@@ -1376,7 +1378,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 			}
 			case Action_StoreRegister: {
 				uint8 registerNumber = bitstream.ReadU8();
-				// [PS2_D3BFG]: StoreRegister keeps native release accesses within the active register list.
+				// [PS2_D3BFG]: StoreRegister keeps native accesses within the active register list.
 #if defined( ID_PS2 )
 				ps2::ui::swf::Require( registerNumber < registers.Num(), "store register index" );
 #endif
@@ -1416,7 +1418,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 			case Action_SetTarget2:
 			case Action_NewMethod:
 			default:
-				// [PS2_D3BFG]: Unsupported actions are a release failure in explicit retail execution.
+				// [PS2_D3BFG]: Unsupported actions fail explicit retail execution; the load-time preflight rejects them first.
 #if defined( ID_PS2 )
 				ps2::ui::swf::Require( false, "unsupported action" );
 #endif

@@ -106,13 +106,15 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   isolated English text layout. The session's inactive step checks native storage/layout,
   warm reloads and resident textures; malformed resources fail in fresh processes.
   Resource-only constructors never run imported AVM1/placements; inactive inspection
-  rejects Activate and timeline advancement; only the native menu admits key events. Native
+  rejects Activate (and, in assertion builds, timeline advancement); only the native menu
+  admits key events. Native
   dictionary shutdown releases retained localization keys/pools after movies/fonts.
   `ps2_uiRetail execute shell|dialog` separately admits placement/AVM1 operands and
   executes native timelines before presentation, without full movie drawing or event routing.
   The shell borrows a minimal native widget owner: the original carousel has five slots
   with only the admitted Doom 3 cover, and the original Credits screen owns its callback.
-  Callback identity, signatures and destructive ancestor seeks are checked in release too.
+  Assertion builds check callback identity, signatures, destructive ancestor seeks and the
+  script work budgets; release builds trust the load-time preflight and only count work.
   The session's execution step checks executable movies. `ps2_uiRetail dialog quit` draws the
   original dialog in full through native `Render`, showing Common's quit message, and
   `ps2_uiRetail draw shell` draws the original shell's start screen; full drawing is a
@@ -140,7 +142,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   screens and last the quit dialog, whose accept ends the session. Each step is checked on
   its slice of the log between echo barriers; images earlier steps opened stay warm in
   later steps' counters. Each invalid-resource case (5 font, 13 movie) runs in its own
-  process.
+  process; release skips the two movie cases that fail at run time (budget, native alias).
   Retail text draws pad button tags (`<JOY1>`) as the cooked PS3 prompt art, which a
   drawn movie loads when admitted. A visible package also brings up the DualShock pad
   (the ROM's SIO2MAN/PADMAN through libpad) and a debug USB keyboard (usbd and ps2kbd,

@@ -56,6 +56,9 @@ MENU = re.compile(r"RETAIL menu screen=(-?\d+) next=(-?\d+) session=(\w+) platfo
 MENU_INPUT = re.compile(r"RETAIL menu input events=(\d+) handled=(\d+) dialog=([01]) quit=([0-2])")
 UNRENDERED = re.compile(r"UI glyph size font=(\S+) scale=\S+ stroke=(\S+) prerendered=no")
 EXECUTION_NEGATIVES = ("movie-placement", "movie-opcode", "movie-branch", "movie-operand", "movie-budget", "movie-native-alias")
+# Script budgets, callback identity and dependency traces are assertion-build checks: release builds
+# have no runtime rejection to observe and log no SWF dependency lines.
+ASSERTION_NEGATIVES = ("movie-budget", "movie-native-alias")
 DIALOG_NEGATIVES = ("dialog-alpha-add",)
 NEGATIVES = ("profile", "movie-missing", "movie-checksum", "movie-count", "movie-init", "english") + EXECUTION_NEGATIVES + DIALOG_NEGATIVES
 PHASES = (("shell1", "shell", 0), ("dialog", "dialog", 1), ("shell2", "shell", 0), ("shell3", "shell", 0))
@@ -299,8 +302,9 @@ def movies_driver(begin: str, end: str, execution: bool, phases: tuple = PHASES)
 
 
 def classify(log: str, manifest: dict, source: Path, execution: bool = False, phases: tuple = PHASES,
-             warm: set = frozenset()) -> tuple[bool, str]:
-    """Check an inactive or executing movie step's log; warm holds the images earlier steps left open."""
+             warm: set = frozenset(), traces: bool = True) -> tuple[bool, str]:
+    """Check an inactive or executing movie step's log; warm holds the images earlier steps left open.
+    traces is false for a release build, which logs no SWF dependency lines."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native movie resource crash or fatal"
     prefix = "execution" if execution else "inactive"
@@ -366,7 +370,7 @@ def classify(log: str, manifest: dict, source: Path, execution: bool = False, ph
                             (("function", "getLocalString"), ("native-callback", "getLocalString"),
                              ("method", "calcNumLines"), ("native-callback", "calcNumLines"),
                              ("function", "getPlatform"), ("native-callback", "getPlatform"))}
-            if not required.issubset(dependencies):
+            if traces and not required.issubset(dependencies):
                 return False, "native movie required callback work was not observed in this load"
         elif execution_rows:
             return False, "inactive native movie unexpectedly executed scripts"
@@ -799,7 +803,7 @@ def menu_quit_driver(begin: str, end: str):
            lambda log: run_headless.SHUTDOWN_COMPLETE in log)
 
 
-def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = frozenset()) -> tuple[bool, str]:
+def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = frozenset(), traces: bool = True) -> tuple[bool, str]:
     """Check the native quit confirmation: opened from the root's Quit through Common's dialog manager,
     cancelled, opened again and accepted, which quits the game right after the final capture."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
@@ -835,14 +839,14 @@ def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = froze
     # Traces are recorded once per kind and name, and the shell plays rollOn frames first.
     dependencies = set(DEPENDENCY.findall(log[captures[2].end():captures[3].start()]))
     services = {dependency for dependency in DIALOG_DEPENDENCIES if dependency[0] != "frame"}
-    if not services.issubset({(kind, name) for movie, kind, name in dependencies if movie == "dialog"}):
+    if traces and not services.issubset({(kind, name) for movie, kind, name in dependencies if movie == "dialog"}):
         return False, "native quit dialog services missing"
     # Each button calls its pinned choice through a copied property: Cancel's after the focus move,
     # Accept's after the dialog reopens (traces are recorded once per name).
     choices = [match for match in DEPENDENCY.finditer(log) if match[1] == "dialog" and match[2] == "native-callback" and
                re.fullmatch(r"func\d*", match[3])]
-    if (len(choices) != 2 or choices[0][3] == choices[1][3] or not captures[4].end() < choices[0].start() < captures[5].start() or
-            not captures[6].end() < choices[1].start()):
+    if traces and (len(choices) != 2 or choices[0][3] == choices[1][3] or
+                   not captures[4].end() < choices[0].start() < captures[5].start() or not captures[6].end() < choices[1].start()):
         return False, "native dialog choices were not called once to cancel and once to accept"
     released = list(RELEASED.finditer(log))
     if len(released) != 1 or released[0].start() < captures[-1].end() or int(released[0][1]) != 0:
@@ -868,7 +872,7 @@ def verify_menu_captures(output: Path, standard: str, names) -> dict:
     return result
 
 
-def classify_dialog_render(log: str, manifest: dict, source: Path, warm: set = frozenset()) -> tuple[bool, str]:
+def classify_dialog_render(log: str, manifest: dict, source: Path, warm: set = frozenset(), traces: bool = True) -> tuple[bool, str]:
     """Check the fully drawn native quit dialog step: admission, owner state, scripts, masks, textures and ownership."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native dialog crash or fatal"
@@ -937,7 +941,7 @@ def classify_dialog_render(log: str, manifest: dict, source: Path, warm: set = f
             return False, "native dialog uploaded textures again while drawing"
         dependencies = {(kind, name) for movie, kind, name in DEPENDENCY.findall(log[loads[phase].start():second.start()])
                         if movie == "swf/dialog.swf"}
-        if not set(DIALOG_DEPENDENCIES).issubset(dependencies):
+        if traces and not set(DIALOG_DEPENDENCIES).issubset(dependencies):
             return False, "native dialog required script work was not observed in this load"
         frame, presents = int(second[2]), int(second[3])
         if int(first[2]) <= previous_frame or frame <= int(first[2]) or frame != presents or int(first[2]) != int(first[3]):
@@ -1229,7 +1233,11 @@ def main():
         parser.error("timeout must be positive and at most 3600 seconds")
     try:
         smoke.check_config(args.config)
-        for case in (args.case,) if args.case else NEGATIVES:
+        if args.build == "release" and args.case in ASSERTION_NEGATIVES:
+            parser.error(f"{args.case} is an assertion-build case")
+        cases = (args.case,) if args.case else tuple(case for case in NEGATIVES
+                                                     if args.build != "release" or case not in ASSERTION_NEGATIVES)
+        for case in cases:
             if not run(args, case):
                 return 1
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:

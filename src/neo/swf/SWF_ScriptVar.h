@@ -117,7 +117,7 @@ public:
 	bool	ToBool() const;
 	int32	ToInteger() const;
 
-	// [PS2_D3BFG]: Native accessors cannot reinterpret the wrong union member in scoped release execution.
+	// [PS2_D3BFG]: Native accessors cannot reinterpret the wrong union member in scoped assertion-build execution.
 	idSWFScriptObject * GetObject()
 	{
 #if defined( ID_PS2 )
@@ -134,7 +134,7 @@ public:
 		assert( type == SWF_VAR_OBJECT );
 		return value.object;
 	}
-	// [PS2_D3BFG]: Native accessors cannot reinterpret the wrong union member in scoped release execution.
+	// [PS2_D3BFG]: Native accessors cannot reinterpret the wrong union member in scoped assertion-build execution.
 	idSWFScriptFunction * GetFunction()
 	{
 #if defined( ID_PS2 )

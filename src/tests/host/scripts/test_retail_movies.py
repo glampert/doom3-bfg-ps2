@@ -555,6 +555,16 @@ class MovieResourcesTests(unittest.TestCase):
                 self.assertFalse(runner.classify(log.replace(before, after), manifest,
                                                  self.source, execution=True)[0])
 
+    def test_release_builds_log_no_dependency_traces(self):
+        manifest = self.label_manifest()
+        untraced = lambda text: "".join(line for line in text.splitlines(True) if not line.startswith("SWF dependency "))
+        execution = untraced(self.acceptance_log(manifest, execution=True))
+        self.assertFalse(runner.classify(execution, manifest, self.source, execution=True)[0])
+        self.assertTrue(runner.classify(execution, manifest, self.source, execution=True, traces=False)[0])
+        quit = untraced(self.menu_quit_log(manifest))
+        self.assertFalse(runner.classify_menu_quit(quit, manifest, self.source)[0])
+        self.assertTrue(runner.classify_menu_quit(quit, manifest, self.source, traces=False)[0])
+
     def test_execution_acceptance_rejects_stale_or_wrong_movie_status(self):
         manifest = self.label_manifest()
         log = self.acceptance_log(manifest, execution=True)

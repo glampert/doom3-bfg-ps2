@@ -55,7 +55,9 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   shell 40, menu 107, screens 63 and quit 53. `summary.json` records
   each step's verdict, captures and duration. Then `run_retail_ui.py` and
   `run_retail_movies.py` run their 5 and 13 invalid-resource cases, each ending in its
-  expected fatal in a fresh process. (The placeholder authored SWF session and its 12
+  expected fatal in a fresh process. Release runs 11 movie cases: `movie-budget` and
+  `movie-native-alias` fail through run-time script checks, which only assertion builds
+  have, and release logs no `SWF dependency` traces, so the steps skip those checks. (The placeholder authored SWF session and its 12
   cases were removed with the authored UI on 2026-10-29.)
 - The console step exercises the production ELF visibly in NTSC and PAL. Startup policy is selected by package-root
   `presentation.cfg`; `make stage-console` defaults to NTSC and `CONSOLE_STANDARD=pal`

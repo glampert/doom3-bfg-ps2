@@ -212,7 +212,7 @@ idSWF::HandleEvent
 */
 bool idSWF::HandleEvent( const sysEvent_t * event ) {
 	// [PS2_D3BFG]: Retail movies take admitted keys only, inside their execution scope.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	if ( resourceOnly )
 	{
 		CheckResourceEvent( event );
@@ -315,7 +315,7 @@ bool idSWF::HandleEvent( const sysEvent_t * event ) {
 				}
 				if ( var.IsFunction() ) {
 					// [PS2_D3BFG]: A retail key reaches only its menu's own native handlers.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 					CheckResourceEventHandler( var.GetFunction() );
 #endif
 					var.GetFunction()->Call( object, eventParms );
@@ -324,7 +324,7 @@ bool idSWF::HandleEvent( const sysEvent_t * event ) {
 			} else if ( var.IsFunction() ) {
 				if ( event->evValue2 ) {
 					// [PS2_D3BFG]: A retail key reaches only its menu's own native handlers.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 					CheckResourceEventHandler( var.GetFunction() );
 #endif
 					// anonymous functions only respond to key down events

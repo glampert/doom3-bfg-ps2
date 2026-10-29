@@ -28,7 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __SWF_SCRIPTFUNCTION_H__
 #define __SWF_SCRIPTFUNCTION_H__
 
-// [PS2_D3BFG]: Scoped retail execution validates operands in release builds too.
+// [PS2_D3BFG]: Scoped retail execution charges its work; assertion builds also validate operands.
 #if defined( ID_PS2 )
 #include "ps2/ui/swf_runtime.h"
 #endif
@@ -150,8 +150,8 @@ The idSWFStack class is just a helper routine for treating an idList like a stac
 */
 class idSWFStack : public idList< idSWFScriptVar > {
 public:
-// [PS2_D3BFG]: Operand accesses, pops and allocation retain their checks in scoped release execution.
-#if defined( ID_PS2 )
+// [PS2_D3BFG]: Operand accesses, pops and allocation are checked in scoped assertion-build execution.
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	idSWFScriptVar & A()
 	{
 		ps2::ui::swf::Require( Num() >= 1, "operand stack underflow" );

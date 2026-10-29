@@ -27,10 +27,12 @@ If you have questions concerning this license or the applicable additional terms
 */
 #pragma hdrstop
 #include "../idlib/precompiled.h"
-// [PS2_D3BFG]: Release-safe hierarchy and work limits apply only inside admitted retail execution.
+// [PS2_D3BFG]: Hierarchy and work limits apply only inside admitted retail execution, in assertion builds.
 #if defined( ID_PS2 )
 #include "ps2/ui/swf_runtime.h"
+#endif
 
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 namespace
 {
 static void CountResourceInstances( idSWFSpriteInstance * instance, unsigned & sprites, unsigned & texts, unsigned level )
@@ -93,7 +95,7 @@ idSWFSpriteInstance::Init
 */
 void idSWFSpriteInstance::Init( idSWFSprite * _sprite, idSWFSpriteInstance * _parent, int _depth )  {
 // [PS2_D3BFG]: Reject recursive placement graphs before another native instance is allocated.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	if ( ps2::ui::swf::Active() )
 	{
 		unsigned level = 1;
@@ -200,7 +202,7 @@ idSWFSpriteInstance::AddDisplayEntry
 */
 swfDisplayEntry_t * idSWFSpriteInstance::AddDisplayEntry( int depth, int characterID ) {
 	// [PS2_D3BFG]: Bound live hierarchy growth before insertion or nested frame-one placement.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	if ( ps2::ui::swf::Active() )
 	{
 		idSWFSpriteInstance * root = this;
@@ -298,7 +300,7 @@ idSWFSpriteInstance::Run
 */
 bool idSWFSpriteInstance::Run() {
 	// [PS2_D3BFG]: Recursive traversal cannot escape the admitted execution scope.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	ps2::ui::swf::VisitScope visit;
 	if ( sprite->GetSWF()->IsResourceOnly() &&
 		( !sprite->GetSWF()->IsResourceExecution() || !ps2::ui::swf::Active() ) )
@@ -344,7 +346,7 @@ idSWFSpriteInstance::RunActions
 */
 bool idSWFSpriteInstance::RunActions() {
 	// [PS2_D3BFG]: Recursive traversal cannot escape the admitted execution scope.
-#if defined( ID_PS2 )
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	ps2::ui::swf::VisitScope visit;
 	if ( sprite->GetSWF()->IsResourceOnly() &&
 		( !sprite->GetSWF()->IsResourceExecution() || !ps2::ui::swf::Active() ) )
@@ -448,15 +450,14 @@ idSWFSpriteInstance::RunTo
 */
 void idSWFSpriteInstance::RunTo( int targetFrame ) {
 	// [PS2_D3BFG]: Storage-only admission never authorizes placement decoding or imported scripts.
-#if defined( ID_PS2 )
+// A script can re-enter RunTo through gotoAndPlay/gotoAndStop.
+#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 	if ( sprite->GetSWF()->IsResourceOnly() &&
 		( !sprite->GetSWF()->IsResourceExecution() || !ps2::ui::swf::Active() ) )
 	{
 		idLib::FatalError( "resource-only SWF cannot advance a timeline" );
 	}
-#endif
-// [PS2_D3BFG]: A script can re-enter RunTo through gotoAndPlay/gotoAndStop.
-#if defined( ID_PS2 )
+
 	ps2::ui::swf::VisitScope visit;
 #endif
 

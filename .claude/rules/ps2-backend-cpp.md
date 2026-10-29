@@ -60,8 +60,13 @@ in other rule files still need verification when imported. Current backend code 
   handlers and functions reached only at load, boot, shutdown or from console commands are
   `PS2_COLD_FUNC`, on the header declaration too. It optimizes for size and forbids inlining:
   never put it on per-frame code.
-- Retail SWF script execution (`ui::swf` budgets, callback identity and seek checks in id's SWF
-  code) and audio/session API checks still enforce their limits in release.
+- Retail SWF execution follows the same split: the load-time preflight (`swf_execution.cpp`)
+  admits operands and opcodes in every build, while per-frame budgets, live ledgers, callback
+  identity, seek and event-handler checks and dependency traces are assertion-only. Release keeps
+  the execution scope and its instruction/call/command counters. Gate checks in id's SWF code
+  with `#if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS` when their arguments do work (`va`,
+  `ToString`, out-of-line calls); the release `ui::swf` hooks are inline no-ops.
+- Audio and session API checks still enforce their limits in release.
 
 ## Naming
 

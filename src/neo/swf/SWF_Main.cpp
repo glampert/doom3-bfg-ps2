@@ -360,6 +360,7 @@ void idSWF::EnableResourceExecution( bool activate )
 }
 
 // [PS2_D3BFG]: Mutable script names cannot authorize an aliased native service.
+#if PS2_D3BFG_ASSERTS
 bool idSWF::IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const
 {
 	return ps2::ui::IsOwnerCallback( name, function, this ) ||
@@ -371,13 +372,16 @@ bool idSWF::IsResourceNativeFunction( const char * name, const idSWFScriptFuncti
 		( idStr::Cmp( name, "swapPS3Buttons" ) == 0 && function == &scriptFunction_swapPS3Buttons ) ||
 		( idStr::Cmp( name, "getLocalString" ) == 0 && function == &scriptFunction_getLocalString );
 }
+#endif
 
 unsigned idSWF::AdvanceResourceExecution( int time )
 {
+#if PS2_D3BFG_ASSERTS
 	if ( !resourceOnly || !resourceExecution || !ps2::ui::swf::Active() || time < lastRenderTime )
 	{
 		idLib::FatalError( "invalid retail SWF execution clock or ownership" );
 	}
+#endif
 
 	if ( !IsActive() )
 	{
@@ -438,6 +442,7 @@ void idSWF::EnableResourceEvents()
 	resourceEvents = true;
 }
 
+#if PS2_D3BFG_ASSERTS
 // [PS2_D3BFG]: The admitted profile takes keyboard and pad keys inside the movie's execution scope.
 // Pointer, text and axis events, and the use-binding, wait-input and text-focus handlers they would
 // reach, are not part of it.
@@ -474,6 +479,7 @@ void idSWF::CheckResourceEventHandler( idSWFScriptFunction * function )
 		idLib::FatalError( "retail SWF event handler identity unavailable" );
 	}
 }
+#endif
 #endif
 
 /*

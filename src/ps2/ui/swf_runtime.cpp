@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: swf_runtime.cpp
-// Brief: Enforce retail script work, recursion, live allocation and diagnostic bounds in release too.
+// Brief: Scope retail script execution; assertion builds bound its work, recursion, live allocations and traces.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -13,11 +13,14 @@
 
 namespace ps2::ui::swf
 {
+
+const char * g_executingMovie = nullptr;
+Stats g_stats;
+
+#if PS2_D3BFG_ASSERTS
 namespace
 {
 
-static const char * s_movie = nullptr;
-static Stats s_stats;
 static std::uint32_t s_instructions = 0;
 static std::uint32_t s_calls = 0;
 static std::uint32_t s_commands = 0;
@@ -52,11 +55,11 @@ void Increment(std::uint32_t & value)
 
 void Allocation()
 {
-    if (s_movie != nullptr)
+    if (Active())
     {
         Require(s_allocations < 32768, "allocation work budget");
         ++s_allocations;
-        Increment(s_stats.allocations);
+        Increment(g_stats.allocations);
     }
 }
 
@@ -78,35 +81,61 @@ void Live(std::uint32_t & count, bool created, std::uint32_t limit, std::uint32_
         --count;
     }
 
-    if (s_movie != nullptr)
+    if (Active())
     {
         peak = std::max(peak, count);
     }
 }
 
 } // namespace
+#endif // PS2_D3BFG_ASSERTS
 
 ExecutionScope::ExecutionScope(const char * movie)
 {
-    if (s_movie != nullptr || movie == nullptr || movie[0] == '\0') [[unlikely]]
-    {
-        FatalError("invalid retail SWF execution ownership");
-    }
+    PS2_AssertMsg(!Active() && movie != nullptr && movie[0] != '\0', "invalid retail SWF execution ownership");
+    g_executingMovie = movie;
 
-    s_movie = movie;
+#if PS2_D3BFG_ASSERTS
     s_instructions = s_calls = s_commands = s_allocations = 0;
     s_depth = s_visitDepth = s_originDepth = 0;
-    Increment(s_stats.scopes);
+    Increment(g_stats.scopes);
+#else // PS2_D3BFG_ASSERTS
+    ++g_stats.scopes;
+#endif // PS2_D3BFG_ASSERTS
 }
 
 ExecutionScope::~ExecutionScope()
 {
+#if PS2_D3BFG_ASSERTS
     Require(s_depth == 0 && s_visitDepth == 0 && s_originDepth == 0, "unbalanced execution scope");
-    s_stats.peakInstructions = std::max(s_stats.peakInstructions, s_instructions);
-    s_stats.peakCalls = std::max(s_stats.peakCalls, s_calls);
-    s_stats.peakCommands = std::max(s_stats.peakCommands, s_commands);
-    s_movie = nullptr;
+    g_stats.peakInstructions = std::max(g_stats.peakInstructions, s_instructions);
+    g_stats.peakCalls = std::max(g_stats.peakCalls, s_calls);
+    g_stats.peakCommands = std::max(g_stats.peakCommands, s_commands);
+#endif // PS2_D3BFG_ASSERTS
+
+    g_executingMovie = nullptr;
 }
+
+PS2_COLD_FUNC void ResetStats()
+{
+    if (Active()) [[unlikely]]
+    {
+        FatalError("cannot reset active retail SWF execution");
+    }
+
+    g_stats = {};
+
+#if PS2_D3BFG_ASSERTS
+    std::memset(s_traceHashes, 0, sizeof(s_traceHashes));
+#endif // PS2_D3BFG_ASSERTS
+}
+
+const Stats & GetStats()
+{
+    return g_stats;
+}
+
+#if PS2_D3BFG_ASSERTS
 
 CallScope::CallScope() : m_active(Active())
 {
@@ -115,8 +144,8 @@ CallScope::CallScope() : m_active(Active())
         Require(s_depth < 32 && s_calls < 4096, "script call budget");
         ++s_depth;
         ++s_calls;
-        Increment(s_stats.calls);
-        s_stats.peakDepth = std::max(s_stats.peakDepth, s_depth);
+        Increment(g_stats.calls);
+        g_stats.peakDepth = std::max(g_stats.peakDepth, s_depth);
     }
 }
 
@@ -171,7 +200,7 @@ VisitScope::VisitScope() : m_active(Active())
     {
         Require(s_visitDepth < 64, "sprite traversal depth");
         ++s_visitDepth;
-        s_stats.peakVisitDepth = std::max(s_stats.peakVisitDepth, s_visitDepth);
+        g_stats.peakVisitDepth = std::max(g_stats.peakVisitDepth, s_visitDepth);
     }
 }
 
@@ -184,32 +213,11 @@ VisitScope::~VisitScope()
     }
 }
 
-bool Active()
-{
-    return s_movie != nullptr;
-}
-
-PS2_COLD_FUNC void ResetStats()
-{
-    if (Active()) [[unlikely]]
-    {
-        FatalError("cannot reset active retail SWF execution");
-    }
-
-    s_stats = {};
-    std::memset(s_traceHashes, 0, sizeof(s_traceHashes));
-}
-
-const Stats & GetStats()
-{
-    return s_stats;
-}
-
 void Require(bool condition, const char * reason)
 {
     if (Active() && !condition) [[unlikely]]
     {
-        FatalError("retail SWF execution rejected (%s): %s", s_movie, reason);
+        FatalError("retail SWF execution rejected (%s): %s", g_executingMovie, reason);
     }
 }
 
@@ -224,7 +232,7 @@ void CheckStack(int count)
 
     if (Active())
     {
-        s_stats.peakStack = std::max(s_stats.peakStack, static_cast<std::uint32_t>(count));
+        g_stats.peakStack = std::max(g_stats.peakStack, static_cast<std::uint32_t>(count));
     }
 }
 
@@ -259,7 +267,7 @@ void ChargeInstruction()
     {
         Require(s_instructions < 65536, "instruction budget");
         ++s_instructions;
-        Increment(s_stats.instructions);
+        Increment(g_stats.instructions);
     }
 }
 
@@ -269,18 +277,18 @@ void ChargeCommand()
     {
         Require(s_commands < 32768, "timeline command budget");
         ++s_commands;
-        Increment(s_stats.commands);
+        Increment(g_stats.commands);
     }
 }
 
 void TrackObject(bool created)
 {
-    Live(s_objects, created, 8192, s_stats.peakObjects);
+    Live(s_objects, created, 8192, g_stats.peakObjects);
 }
 
 void TrackFunction(bool created)
 {
-    Live(s_functions, created, 8192, s_stats.peakFunctions);
+    Live(s_functions, created, 8192, g_stats.peakFunctions);
 }
 
 void TrackProperties(int change)
@@ -304,7 +312,7 @@ void TrackProperties(int change)
 
     if (Active())
     {
-        s_stats.peakProperties = std::max(s_stats.peakProperties, s_properties);
+        g_stats.peakProperties = std::max(g_stats.peakProperties, s_properties);
     }
 }
 
@@ -332,11 +340,11 @@ void TrackString(bool created, std::size_t bytes)
         s_stringBytes -= static_cast<std::uint32_t>(bytes);
     }
 
-    Live(s_strings, created, 16384, s_stats.peakStrings);
+    Live(s_strings, created, 16384, g_stats.peakStrings);
 
     if (Active())
     {
-        s_stats.peakStringBytes = std::max(s_stats.peakStringBytes, s_stringBytes);
+        g_stats.peakStringBytes = std::max(g_stats.peakStringBytes, s_stringBytes);
     }
 }
 
@@ -363,7 +371,7 @@ void Trace(const char * kind, const char * name)
 
     hash = hash == 0 ? 1 : hash;
 
-    for (std::uint32_t index = 0; index < s_stats.traces; ++index)
+    for (std::uint32_t index = 0; index < g_stats.traces; ++index)
     {
         if (s_traceHashes[index] == hash)
         {
@@ -371,8 +379,8 @@ void Trace(const char * kind, const char * name)
         }
     }
 
-    Require(s_stats.traces < 512, "unique dependency trace budget");
-    s_traceHashes[s_stats.traces++] = hash;
+    Require(g_stats.traces < 512, "unique dependency trace budget");
+    s_traceHashes[g_stats.traces++] = hash;
     char label[161] = {};
     std::size_t index = 0;
 
@@ -382,7 +390,8 @@ void Trace(const char * kind, const char * name)
         label[index] = c >= 32 && c <= 126 ? name[index] : '?';
     }
 
-    Log(LogLevel::Info, "SWF dependency movie=%s kind=%s name=%s%s\n", s_movie, kind, label, name[index] != '\0' ? "..." : "");
+    Log(LogLevel::Info, "SWF dependency movie=%s kind=%s name=%s%s\n", g_executingMovie, kind, label, name[index] != '\0' ? "..." : "");
 }
+#endif // PS2_D3BFG_ASSERTS
 
 } // namespace ps2::ui::swf
