@@ -796,7 +796,7 @@ def menu_quit_driver(begin: str, end: str):
     """The session's last step: the dialog's accept quits the game right after the queued final capture."""
     yield ([f'echo "{begin}"', "ps2_uiRetail load", "ps2_uiRetail clock fixed", "ps2_uiRetail menu", *menu_quit_commands(),
             f'echo "{end}"', 'ps2_capture "movie-quit.tga"', "ps2_uiRetail key cross"],
-           lambda log: "BOOT production shutdown complete" in log)
+           lambda log: run_headless.SHUTDOWN_COMPLETE in log)
 
 
 def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = frozenset()) -> tuple[bool, str]:
@@ -1194,7 +1194,7 @@ def run(args, case):
                 if not loading and echoed(log, identity + "_ready"):
                     run_console.append_commands(output, "ps2_uiRetail load", "ps2_uiRetail " + command)
                     loading = True
-                if "BOOT production shutdown complete" in log:
+                if run_headless.SHUTDOWN_COMPLETE in log:
                     session_end = "native shutdown"
                     break
                 if process.poll() is not None:

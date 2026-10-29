@@ -4926,3 +4926,23 @@ then): 10,145,958 / 13,469,672 bytes in 75,722 allocations at `startup-game`
 (`20261029T074741Z_headless_fcc4cfe1fbc9`). `make test-ui` was not run (its runner has the
 same marker gap), nor were release gates.
 
+
+## Production log markers in the runners (2026-10-29)
+
+The cleanup pass (48d1f3c) reworded production's boot, main-loop, memory and shutdown
+lines in `src/ps2/system/main.cpp`, which every headless and UI runner matched by their
+old text. The runners now take them from one place, `run_headless.py`'s `BOOT_BEGIN`,
+`LOOP_READY`, `SHUTDOWN_COMPLETE` and `MEMORY_RE`, and `main.cpp` notes beside each line
+that the scripts depend on its exact text. The host fixture logs use the new wording.
+
+| Check | Result |
+| --- | --- |
+| `make test-host` | Passed (327 Python regressions) |
+| `make test-headless` (debug) | Bounded and console cases passed |
+| `make test-headless-retail` (debug) | Passed; startup 10,145,958 / 13,469,672 bytes in 75,722 allocations |
+| UI sessions (debug) | NTSC passed (`20261029T092723Z_session_0060c245bd5b`); PAL passed on rerun (`20261029T094405Z_session_ff5c811d248b`) |
+| Font and movie failure cases (debug) | 5 of 5 and 13 of 13 passed |
+
+The first PAL session failed at its boot step because two keystrokes from the attached
+host keyboard reached the menu (`keyboard_events=2`, no pad events); keep the PCSX2 window
+free of typing during UI sessions. Release gates were not rerun.

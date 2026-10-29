@@ -18,8 +18,13 @@ import uuid
 import run_pcsx2_test as smoke
 from stage_headless import REPO_ROOT, boot_data, sha256, stage
 
+# Production boot/shutdown markers printed by src/ps2/system/main.cpp; every runner matches
+# these, so rewording a line there must update it here too.
+BOOT_BEGIN = "======== PS2 Game boot begin ========"
+LOOP_READY = "Main loop ready;"
+SHUTDOWN_COMPLETE = "======== Shutdown complete ========"
 STATUS_RE = re.compile(r"\[D3BFG\] HEADLESS frames=(\d+) game_frames=0 state=console console=1 game_nomap=1 render_device=0 sound_output=0 heap=(\d+)/(\d+)/(\d+)")
-MEMORY_RE = re.compile(r"HEADLESS memory baseline=(\d+)/(\d+)/(\d+) final=(\d+)/(\d+)/(\d+) peak=(\d+)/(\d+) arena=(\d+)")
+MEMORY_RE = re.compile(r"Memory baseline=(\d+)/(\d+)/(\d+) final=(\d+)/(\d+)/(\d+) peak=(\d+)/(\d+) arena=(\d+)")
 STARTUP_STAGES = ("startup-foundation", "startup-decls", "startup-game")
 STARTUP_RE = re.compile(r"\[D3BFG\] MEMORY (startup-\w+) requested=(\d+) backing=(\d+) allocations=(\d+)")
 STARTUP_TAG_RE = re.compile(r"\[D3BFG\] TAG startup-game (\w+) requested=(\d+) backing=(\d+) allocations=(\d+)")
@@ -57,7 +62,7 @@ def read_log(output: Path) -> str:
     # PCSX2 mirrors IOP lines to both streams. Count native markers once, but reject crashes in either.
     if smoke.CRASH_RE.search(stdout) or "[D3BFG] FATAL" in stdout:
         return console + "\n" + stdout
-    return console if "[D3BFG] BOOT production BEGIN" in console else stdout
+    return console if BOOT_BEGIN in console else stdout
 
 
 def classify(log: str, case: str, identity: str) -> tuple[bool, str]:
@@ -65,8 +70,8 @@ def classify(log: str, case: str, identity: str) -> tuple[bool, str]:
         return False, "crash or fatal diagnostic"
     if "[D3BFG] GS ready" in log:
         return False, "headless run initialized a GS device"
-    required = ("game initialized.", "HEADLESS console ready;", "LOOP ready;",
-                "------------ Game Shutdown", "COMMON stage=system shutdown", "BOOT production shutdown complete")
+    required = ("game initialized.", "HEADLESS console ready;", LOOP_READY,
+                "------------ Game Shutdown", "COMMON stage=system shutdown", SHUTDOWN_COMPLETE)
     if any(marker not in log for marker in required):
         return False, "incomplete native boot/shutdown"
     if f"{identity}_begin" not in log:
@@ -139,7 +144,7 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
                         with (output / "console.txt").open("ab") as stream:
                             stream.write(b"\nquit " + b"x" * 1100 + b"\nquit\x00\nps2_status\nhistory\nquit\n")
                         submitted = True
-                if "BOOT production shutdown complete" in log:
+                if SHUTDOWN_COMPLETE in log:
                     completed = True
                     break
                 if process.poll() is not None:

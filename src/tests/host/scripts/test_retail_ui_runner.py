@@ -252,7 +252,7 @@ class RetailProofTests(unittest.TestCase):
                 log += "[D3BFG] UI paletted image rejected: " + reason + "\n"
             log += "[D3BFG] FATAL " + diagnostic + "\n"
             self.assertTrue(runner.classify_negative(log, "run", case)[0], case)
-            wrongs = [log.replace(diagnostic, "out of memory"), log + "BOOT production shutdown complete", log + "TLB Miss"]
+            wrongs = [log.replace(diagnostic, "out of memory"), log + "======== Shutdown complete ========", log + "TLB Miss"]
             if case == "catalog-header":
                 wrongs += [log.replace("[D3BFG] UI adapters ready\n", ""),
                            log.replace("[D3BFG] FATAL", "[D3BFG] RETAIL catalog ready bytes=1\n[D3BFG] FATAL")]

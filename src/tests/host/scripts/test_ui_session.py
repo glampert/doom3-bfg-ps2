@@ -38,8 +38,8 @@ def session_log(standard="ntsc"):
     return log + (f"[D3BFG] CONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=1\n"
                   f"------------ Game Shutdown\n[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=1\n"
                   "COMMON stage=system shutdown\n"
-                  "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=10/20 arena=30\n"
-                  "BOOT production shutdown complete\n")
+                  "Memory baseline=7424/7600/4 final=7424/7600/4 peak=10/20 arena=30\n"
+                  "======== Shutdown complete ========\n")
 
 
 class SessionAcceptance(unittest.TestCase):
@@ -56,7 +56,7 @@ class SessionAcceptance(unittest.TestCase):
         for changed in (log.replace("menu=1", "menu=0"), log.replace("run_ready \n", ""),
                         log.replace("run_fonts_begin \n", ""), log.replace("run_quit_end \n", ""),
                         log.replace("run_console_begin \n", "").replace("run_fonts_end \n", "run_fonts_end \nrun_console_begin \n"),
-                        log.replace("BOOT production shutdown complete\n", ""),
+                        log.replace("======== Shutdown complete ========\n", ""),
                         log + "[D3BFG] FATAL unexpected\n", log + "TLB Miss, pc=0x1000 addr=0x0 [load]\n"):
             with self.subTest(changed=changed):
                 self.assertFalse(self.verdict(changed)[0])
@@ -107,7 +107,7 @@ class SessionSlices(unittest.TestCase):
         self.assertEqual(sliced["fonts"].count("CONSOLE capture="), 1)
         self.assertIn("fonts-a.tga", sliced["fonts"])
         # The quit dialog ends the session: its slice runs to the end of the log.
-        self.assertTrue(sliced["quit"].endswith("BOOT production shutdown complete\n"))
+        self.assertTrue(sliced["quit"].endswith("======== Shutdown complete ========\n"))
         self.assertIn("movie-quit.tga", sliced["quit"])
 
     def test_a_step_without_both_barriers_did_not_run(self):

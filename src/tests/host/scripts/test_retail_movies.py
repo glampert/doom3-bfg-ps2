@@ -364,8 +364,8 @@ class MovieResourcesTests(unittest.TestCase):
                 f"CONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=0\n"
                 "RETAIL released movie=0 images=11 heap=80/100/4\n"
                 f"[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=0\n"
-                "HEADLESS memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
-                "COMMON stage=system shutdown\nBOOT production shutdown complete\n")
+                "Memory baseline=7424/7600/4 final=7424/7600/4 peak=100/120 arena=200\n"
+                "COMMON stage=system shutdown\n======== Shutdown complete ========\n")
         return log
 
     def test_menu_quit_requires_cancel_then_accept_through_the_native_dialog(self):

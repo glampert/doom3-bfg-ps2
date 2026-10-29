@@ -89,7 +89,7 @@ def classify_session(log: str, identity: str, standard: str) -> tuple[bool, str]
         return False, "crash or fatal diagnostic"
     required = (f"[D3BFG] BOOT presentation={standard} menu=1", f"[D3BFG] GS ready {standard.upper()}",
                 "[D3BFG] UI adapters ready", "------------ Game Shutdown", "COMMON stage=system shutdown",
-                "BOOT production shutdown complete")
+                run_headless.SHUTDOWN_COMPLETE)
     if any(marker not in log for marker in required):
         return False, "incomplete native menu boot or shutdown"
     markers = [identity + "_ready"] + [barrier(identity, step, edge) for step, _ in STEPS for edge in ("begin", "end")
@@ -236,7 +236,7 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
                 if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
                     failure = f"crash or fatal diagnostic during {order[index] if index >= 0 else 'startup'}"
                     break
-                if "BOOT production shutdown complete" in log:
+                if run_headless.SHUTDOWN_COMPLETE in log:
                     completed = True
                     if index >= 0:
                         timings[order[index]] = time.monotonic() - step_started[order[index]]

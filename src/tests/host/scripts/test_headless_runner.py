@@ -28,7 +28,7 @@ RETAIL_STARTUP = ("Loaded resource file _common.resources\nLoaded resource file 
 def completed(case="bounded"):
     status = "[D3BFG] HEADLESS frames={frame} game_frames=0 state=console console=1 game_nomap=1 render_device=0 sound_output=0 heap=10/20/3\n"
     log = RETAIL_STARTUP if case == "retail" else ""
-    log += "game initialized.\nHEADLESS console ready;\nLOOP ready;\nrun_begin\n"
+    log += "game initialized.\nHEADLESS console ready;\nMain loop ready;\nrun_begin\n"
     log += status.format(frame=0) + status.format(frame=120)
     if case in ("bounded", "retail"):
         log += "HEADLESS frame limit reached frames=120\n"
@@ -36,7 +36,7 @@ def completed(case="bounded"):
         log += ']echo "run_command"\n]history\n]quit\n'
         log += "discarding invalid or oversized headless console line\n" * 2
     log += "------------ Game Shutdown\nHEADLESS shutdown complete frames=120\n"
-    log += "COMMON stage=system shutdown\nHEADLESS memory baseline=1/2/3 final=1/2/3 peak=10/20 arena=30\nBOOT production shutdown complete\n"
+    log += "COMMON stage=system shutdown\nMemory baseline=1/2/3 final=1/2/3 peak=10/20 arena=30\n======== Shutdown complete ========\n"
     return log
 
 
@@ -60,7 +60,7 @@ class HeadlessAcceptance(unittest.TestCase):
                 self.assertFalse(runner.classify(completed().replace(old, new), "bounded", "run")[0])
 
     def test_missing_or_duplicate_shutdown(self):
-        for log in (completed().replace("BOOT production shutdown complete", ""), completed() + "HEADLESS shutdown complete frames=120\n"):
+        for log in (completed().replace("======== Shutdown complete ========", ""), completed() + "HEADLESS shutdown complete frames=120\n"):
             self.assertFalse(runner.classify(log, "bounded", "run")[0])
 
     def test_frame_count_and_memory_recovery(self):
@@ -98,7 +98,7 @@ class HeadlessAcceptance(unittest.TestCase):
     def test_mirrored_logs_and_secondary_crash(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
-            log = "[D3BFG] BOOT production BEGIN\n" + completed()
+            log = "======== PS2 Game boot begin ========\n" + completed()
             (output / "emulog.txt").write_text(log)
             (output / "stdout.txt").write_text(log)
             self.assertEqual(runner.read_log(output), log)

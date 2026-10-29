@@ -206,7 +206,7 @@ def classify_negative(log: str, identity: str, case: str) -> tuple[bool, str]:
             return False, "corrupt retail catalog was not rejected at presentation startup"
     elif not echoed(log, f"{identity}_begin") or "]ps2_uiRetail load" not in log:
         return False, "missing retail load attempt or stale native barrier"
-    if CAPTURE_RE.search(log) or "BOOT production shutdown complete" in log:
+    if CAPTURE_RE.search(log) or run_headless.SHUTDOWN_COMPLETE in log:
         return False, "invalid retail resources completed a capture or normal shutdown"
     fatals = re.findall(r"\[D3BFG\] FATAL ([^\r\n]+)", log)
     expected = {"catalog-header": "retail UI catalog invalid", "font-missing": "retail font missing:",
@@ -256,7 +256,7 @@ def run(args: argparse.Namespace, version: str, case: str) -> bool:
                 if not loading and echoed(log, f"{identity}_ready"):
                     run_console.append_commands(output, "ps2_uiRetail load")
                     loading = True
-                if "BOOT production shutdown complete" in log:
+                if run_headless.SHUTDOWN_COMPLETE in log:
                     failure = "invalid retail resources reached a normal shutdown"
                     break
                 if process.poll() is not None:

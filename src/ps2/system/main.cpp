@@ -13,11 +13,15 @@
 
 static constexpr uint64 kFrameMicroseconds = 1000000U / 60U;
 
+// The emulator test runners recognize a run by the exact text of the boot, main-loop, memory
+// and shutdown lines below (markers in src/tools/scripts/run_headless.py). Rewording, reordering
+// or dropping one fails every headless and UI gate, so change those markers in the same commit.
 int main()
 {
     // Preserve the loader's IOP and HostFs until console device bring-up is available.
     SifInitRpc(0);
 
+    // Runner marker BOOT_BEGIN: selects which mirrored log stream to read.
     ps2::Log(ps2::LogLevel::Info, "======== PS2 Game boot begin ========\n");
     ps2::system::runtime::ConfigurePresentation();
 
@@ -29,6 +33,7 @@ int main()
         ps2::FatalError("Common startup did not complete!");
     }
 
+    // Runner marker LOOP_READY: startup reached the frame loop.
     ps2::Log(ps2::LogLevel::Info, "Main loop ready; native game and %s console active\n",
              ps2::system::runtime::HasPresentation() ? "visible" : "headless");
 
@@ -55,11 +60,13 @@ int main()
     const auto final = ps2::system::heap::GetTotalStats();
     const auto arena = ps2::system::heap::GetArenaStats();
 
+    // Runner MEMORY_RE parses these fields; full shutdown must recover the baseline exactly.
     ps2::Log(ps2::LogLevel::Info, "Memory baseline=%zu/%zu/%zu final=%zu/%zu/%zu peak=%zu/%zu arena=%zu\n",
              baseline.requestedBytes, baseline.backingBytes, baseline.allocationCount,
              final.requestedBytes, final.backingBytes, final.allocationCount,
              final.peakRequestedBytes, final.peakBackingBytes, arena.peakCommittedBytes);
 
+    // Runner marker SHUTDOWN_COMPLETE: the process completed its ordered shutdown.
     ps2::Log(ps2::LogLevel::Info, "======== Shutdown complete ========\n");
     return 0;
 }
