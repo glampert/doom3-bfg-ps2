@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
-# File: test_authored_ui.py
-# Brief: Check the authored native SWF container, AVM1 payloads and font ABI before target loading.
+# File: test_swf_fixture.py
+# Brief: Check the host SWF fixture's native container, AVM1 payloads and font ABI.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -10,7 +10,6 @@ import importlib.util
 import math
 import os
 from pathlib import Path
-import re
 import struct
 import subprocess
 import sys
@@ -19,9 +18,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
-from ui_page_package import fnv1a32
 
-SPEC = importlib.util.spec_from_file_location("build_authored_ui", ROOT / "src/tools/scripts/build_authored_ui.py")
+SPEC = importlib.util.spec_from_file_location("swf_fixture", ROOT / "src/tests/host/scripts/swf_fixture.py")
 builder = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(builder)
 
@@ -165,32 +163,11 @@ def actions(data):
     return result
 
 
-class AuthoredNativeUI(unittest.TestCase):
-    def test_generated_header_uses_formatter_stable_cpp_layout(self):
-        header = builder.header({"test/data": bytes((0, 127, 255))}).decode("ascii")
-        expected = ("\n{\n"
-                    "static constexpr std::uint8_t kResource0[] = {\n"
-                    "    0x00,\n    0x7f,\n    0xff,\n};\n\n"
-                    "struct Resource\n{\n"
-                    "    const char * path;\n"
-                    "    const std::uint8_t * bytes;\n"
-                    "    std::size_t length;\n};\n\n"
-                    "static constexpr Resource kResources[] = {\n"
-                    '    { "test/data", kResource0, sizeof(kResource0) },\n'
-                    "};\n} // namespace ps2::ui::authored\n")
-        self.assertEqual(header.split("namespace ps2::ui::authored", 1)[1], expected)
-        self.assertEqual(builder.header({"test/data": bytes((0, 127, 255))}).decode("ascii"), header)
-
-    def test_tracked_resources_and_compiled_whitelist_are_reproducible(self):
+class SwfFixture(unittest.TestCase):
+    def test_tracked_resources_are_reproducible(self):
         for relative, expected in builder.outputs().items():
             with self.subTest(path=str(relative)):
                 self.assertEqual((ROOT / relative).read_bytes(), expected)
-        assets = builder.outputs()
-        header = assets[builder.HEADER_PATH].decode("ascii")
-        arrays = re.findall(r"static constexpr std::uint8_t kResource\d+\[\] = \{(.*?)\};", header, re.S)
-        for array, path in zip(arrays, (builder.SWF_PATH, builder.FONT_PATH, builder.MATERIAL_PATH), strict=True):
-            self.assertEqual(bytes(int(value, 16) for value in re.findall(r"0x([0-9a-f]{2})", array)),
-                             assets[builder.ASSET_ROOT / "base" / path])
 
     def test_native_container_and_bitmap_references(self):
         main, dictionary = read_swf(builder.build_swf())
@@ -325,62 +302,9 @@ class AuthoredNativeUI(unittest.TestCase):
             self.assertLess(t + height, 128)
         self.assertEqual(struct.unpack("<95I", font[962:]), tuple(range(32, 127)))
 
-    def test_materials_only_reference_white_and_admitted_authored_pages(self):
-        materials = builder.build_materials().decode("ascii")
-        self.assertEqual(re.findall(r"        map (\S+)", materials), ["_white", "_white", "textures/ps2_movie", "textures/ps2_ascii"])
-        self.assertEqual(materials.count("blend blend"), 4)
-        self.assertNotRegex(materials, r"(?i)(\.dds|\.png|\.jpg|ui/assets|guis/assets)")
-
-    def test_cooked_pages_reconstruct_identical_logical_atlases_and_neighbor_gutters(self):
-        assets, pages = builder.page_assets()
-        for font, page in zip((False, True), pages, strict=True):
-            with self.subTest(path=page["path"]):
-                width, height, pixels = builder.authored_pixels(font)
-                data = assets[page["path"]]
-                columns, rows = (width + 253) // 254, (height + 253) // 254
-                self.assertEqual(struct.unpack_from("<8I", data), (0x47504955, 1, width, height, 256, 1, columns * rows, 0))
-                self.assertEqual(len(data), 32 + columns * rows * (8 + 262144))
-                self.assertEqual(page["file_bytes"], len(data))
-                self.assertEqual(page["source_sha256"], hashlib.sha256(pixels).hexdigest())
-                self.assertEqual(page["sha256"], hashlib.sha256(data).hexdigest())
-                for index in range(columns * rows):
-                    offset, checksum = struct.unpack_from("<II", data, 32 + index * 8)
-                    payload = data[offset:offset + 262144]
-                    self.assertEqual(offset, 32 + columns * rows * 8 + index * 262144)
-                    self.assertEqual(checksum, fnv1a32(payload))
-                    self.assertEqual(checksum, page["checksums"][index])
-                    origin_x, origin_y = index % columns * 254, index // columns * 254
-                    for y in range(min(254, height - origin_y)):
-                        source = ((origin_y + y) * width + origin_x) * 4
-                        target = ((y + 1) * 256 + 1) * 4
-                        length = min(254, width - origin_x) * 4
-                        self.assertEqual(payload[target:target + length], pixels[source:source + length])
-                    for x, y in ((0, 0), (0, 128), (128, 0), (255, 0), (0, 255), (255, 255), (255, 128), (128, 255)):
-                        source_x = min(width - 1, max(0, origin_x + x - 1))
-                        source_y = min(height - 1, max(0, origin_y + y - 1))
-                        source = (source_y * width + source_x) * 4
-                        target = (y * 256 + x) * 4
-                        self.assertEqual(payload[target:target + 4], pixels[source:source + 4])
-
-    def test_page_admission_header_has_only_compact_descriptors_and_existing_legacy_whitelist(self):
-        outputs = builder.outputs()
-        header = outputs[builder.HEADER_PATH].decode("ascii")
-        assets, pages = builder.page_assets()
-        self.assertEqual([page["image_name"] for page in pages], ["textures/ps2_movie", "textures/ps2_ascii"])
-        self.assertEqual([(page["width"], page["height"], page["page_count"]) for page in pages],
-                         [(272, 256, 4), (512, 128, 3)])
-        self.assertEqual(len(re.findall(r"static constexpr std::uint8_t kResource\d+\[\]", header)), 3)
-        self.assertEqual(len(re.findall(r"static constexpr std::uint32_t kPageChecksums\d+\[\]", header)), 2)
-        self.assertLess(len(header), 80000)
-        for page in pages:
-            self.assertIn('"' + page["path"] + '"', header)
-            for checksum in page["checksums"]:
-                self.assertIn(f"0x{checksum:08x}", header)
-            self.assertEqual(outputs[builder.ASSET_ROOT / "base" / page["path"]], assets[page["path"]])
-
-    def test_authored_atlas_coverage_preserves_native_printable_glyphs_and_font_padding(self):
+    def test_atlas_coverage_preserves_native_printable_glyphs_and_font_padding(self):
         width, _, movie = builder.charset_pixels()
-        font_width, _, font = builder.authored_pixels(True)
+        font_width, _, font = builder.charset_pixels(True)
         # Independently dumped from the fixture's MakeConsoleCharset (and its former authored-font
         # variant) with the host C++ compiler.
         self.assertEqual(hashlib.sha256(movie).hexdigest(), "21e86cb9837b1c2621e3f94ccd0a7a50d12e7372f3b2ffa2a790c725ebe37451")
@@ -395,21 +319,6 @@ class AuthoredNativeUI(unittest.TestCase):
             for x, y in ((target_x - 1, target_y), (target_x + 15, target_y),
                           (target_x, target_y - 1), (target_x, target_y + 14)):
                 self.assertEqual(font[(y * font_width + x) * 4 + 3], 0)
-
-    def test_native_movie_bitmap_crosses_a_page_seam_without_changing_its_source_pixels(self):
-        source_width, source_height, source = builder.charset_pixels()
-        width, height, movie = builder.authored_pixels()
-        self.assertEqual((source_width, source_height, width, height), (256, 256, 272, 256))
-        self.assertLess(246, 254)
-        self.assertGreater(246 + 16, 254)
-        for y in range(16):
-            origin = ((64 + y) * source_width + 16) * 4
-            target = ((64 + y) * width + 246) * 4
-            self.assertEqual(movie[target:target + 16 * 4], source[origin:origin + 16 * 4])
-        _, dictionary = read_swf(builder.build_swf())
-        self.assertEqual(dictionary[3]["image_size"], (16, 16))
-        self.assertEqual(dictionary[3]["atlas_offset"], (246, 64))
-        self.assertEqual(dictionary[4]["fills"][0]["vertices"], [(0, 0), (128, 0), (128, 128), (0, 128)])
 
     def test_container_truncation_and_count_corruption_are_detected(self):
         data = builder.build_swf()
@@ -430,13 +339,12 @@ class AuthoredNativeUI(unittest.TestCase):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(content)
-            command = [sys.executable, str(ROOT / "src/tools/scripts/build_authored_ui.py"), "--root", str(root), "--check"]
-            # An empty PATH proves header generation/checking needs only Python,
-            # including on a machine without clang-format or the PS2 toolchain.
+            command = [sys.executable, str(ROOT / "src/tests/host/scripts/swf_fixture.py"), "--root", str(root), "--check"]
+            # An empty PATH proves generation/checking needs only Python, without the PS2 toolchain.
             environment = {**os.environ, "PATH": ""}
             self.assertEqual(subprocess.run(command, capture_output=True, env=environment).returncode, 0)
-            for relative in (builder.HEADER_PATH, builder.ASSET_ROOT / "base" / builder.SWF_PATH,
-                             builder.ASSET_ROOT / "base" / builder.MOVIE_IMAGE_PATH):
+            for relative in (builder.ASSET_ROOT / "base" / builder.SWF_PATH,
+                             builder.ASSET_ROOT / "base" / builder.FONT_PATH):
                 with self.subTest(path=str(relative)):
                     path = root / relative
                     original = path.read_bytes()

@@ -141,7 +141,7 @@ bool PalettedImage::ReadCluts(std::FILE * file, std::uint8_t * scratch, std::uin
         const gstx::Clut clut = gstx::GetClut(m_tables, m_header, index);
 
         if (clut.dataBytes > scratchBytes || !ReadAt(file, clut.dataOffset, scratch, clut.dataBytes) ||
-            PageChecksum(scratch, clut.dataBytes) != clut.checksum)
+            gstx::Checksum(scratch, clut.dataBytes) != clut.checksum)
         {
             return false;
         }
@@ -218,7 +218,7 @@ bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t
             std::memcpy(decoded, encoded, page.decodedBytes);
         }
 
-        if (!unpacked || PageChecksum(decoded, page.decodedBytes) != page.checksum)
+        if (!unpacked || gstx::Checksum(decoded, page.decodedBytes) != page.checksum)
         {
             return Failed("page block, encoding or checksum");
         }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: stage_headless.py
-# Brief: Package production with authored or retail startup data and an explicit headless or visible console policy.
+# Brief: Package production with authored boot data or retail containers and an explicit headless or visible console policy.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -14,7 +14,6 @@ import shutil
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BOOT_ROOT = REPO_ROOT / "src/tests/data/headless"
-UI_ROOT = REPO_ROOT / "src/tests/data/ui"
 RETAIL_ROOT = REPO_ROOT / "src/tests/data/retail_boot"
 PRESENTATIONS = ("headless", "ntsc", "pal")
 # The debug keyboard's IOP modules, which a visible package carries beside the ELF; the pad uses
@@ -80,15 +79,13 @@ def stage_keyboard_modules(output: Path) -> None:
         shutil.copy2(IRX_ROOT / name, target)
 
 
-def stage(build: str, output: Path, presentation: str = "headless", include_ui: bool = False,
-          retail_data: Path | None = None, catalog: Path | None = None, menu: bool = False) -> Path:
+def stage(build: str, output: Path, presentation: str = "headless", retail_data: Path | None = None,
+          catalog: Path | None = None, menu: bool = False) -> Path:
     if presentation not in PRESENTATIONS:
         raise ValueError("presentation must be headless, ntsc or pal")
     # The native menu opens at startup only in a visible mode, and only the retail movie package stages it.
-    if menu and (presentation == "headless" or include_ui or retail_data is not None):
+    if menu and (presentation == "headless" or retail_data is not None):
         raise ValueError("the menu startup policy needs a visible retail movie package")
-    if include_ui and retail_data is not None:
-        raise ValueError("the authored UI and retail boot packages are separate")
     # A visible presentation opens the cooked retail catalog at startup for the console charset.
     if presentation != "headless" and catalog is None:
         raise ValueError("a visible package needs the cooked retail catalog (make ui-cook); pass its directory")
@@ -102,15 +99,10 @@ def stage(build: str, output: Path, presentation: str = "headless", include_ui: 
     for name, expected in report["flag_stamps"].items():
         if json.loads((REPO_ROOT / name).read_text()) != expected:
             raise ValueError(f"production report does not match {name}; rebuild before staging")
-    ui_files = sorted(path for path in (UI_ROOT / "base").rglob("*") if path.is_file()) if include_ui else []
-    if include_ui and not ui_files:
-        raise ValueError("UI staging requires authored src/tests/data/ui/base data")
     output = output.resolve()
-    roots = (BOOT_ROOT, UI_ROOT, RETAIL_ROOT) + ((retail_data,) if retail_data is not None else ())
+    roots = (BOOT_ROOT, RETAIL_ROOT) + ((retail_data,) if retail_data is not None else ())
     if output == source.resolve() or any(output.is_relative_to(root.resolve()) or root.resolve().is_relative_to(output) for root in roots):
         raise ValueError("headless staging must use a separate package directory")
-    config = output / "base/d3bfg.cfg"
-    config_existed = config.exists()
     output.mkdir(parents=True, exist_ok=True)
     for name in ("d3bfg.elf", "d3bfg_unstripped.elf", "d3bfg.map", "report.json", "report.txt", "objects.rsp"):
         shutil.copy2(source / name, output / name)
@@ -123,10 +115,6 @@ def stage(build: str, output: Path, presentation: str = "headless", include_ui: 
         # Preserve the user's port settings across rebuilds of the runnable package.
         if path.name != "d3bfg.cfg" or not target.exists():
             shutil.copy2(path, target)
-    for path in ui_files:
-        target = output / path.relative_to(UI_ROOT)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, target)
     if presentation != "headless":
         # Bound at call time: the retail staging module imports this one.
         from stage_retail_ui import stage_catalog
@@ -140,10 +128,6 @@ def stage(build: str, output: Path, presentation: str = "headless", include_ui: 
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, target)
         link_containers(retail_data, output / "base")
-    if include_ui and presentation != "headless" and not config_existed:
-        text = config.read_text()
-        if "ps2_ui load" not in (line.strip() for line in text.splitlines()):
-            config.write_text(text + ("" if text.endswith("\n") else "\n") + "ps2_ui load\n")
     # Always replace startup policy, including when reusing a formerly visible package for headless.
     (output / "presentation.cfg").write_text(presentation + (" menu" if menu else "") + "\n")
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
@@ -155,15 +139,14 @@ def main() -> int:
     parser.add_argument("--build", choices=("debug", "release"), default="debug")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--presentation", choices=PRESENTATIONS, default="headless")
-    parser.add_argument("--ui", action="store_true", help="include the authored native SWF and font data")
     parser.add_argument("--retail-data", type=Path, help="boot from this installation's retail containers")
     parser.add_argument("--catalog", type=Path, default=REPO_ROOT / "build/ui-retail",
                         help="the cooked retail UI (make ui-cook) a visible package draws the console charset from")
     args = parser.parse_args()
     try:
-        package = ("retail-boot" if args.retail_data else "ui" if args.ui else
+        package = ("retail-boot" if args.retail_data else
                    "headless" if args.presentation == "headless" else "console")
-        output = stage(args.build, args.output or REPO_ROOT / "build" / args.build / package, args.presentation, args.ui,
+        output = stage(args.build, args.output or REPO_ROOT / "build" / args.build / package, args.presentation,
                        args.retail_data, args.catalog if args.presentation != "headless" else None)
     except (OSError, ValueError, KeyError) as error:
         parser.exit(1, f"error: {error}\n")

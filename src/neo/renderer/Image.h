@@ -76,11 +76,6 @@ namespace ui
 {
 class PagedImage;
 
-namespace authored
-{
-struct PageResource;
-}
-
 namespace retail
 {
 struct ImageRecord;
@@ -203,10 +198,9 @@ private:
 	friend void ps2::renderer::ValidateUiImage(const idImage * image);
 	friend ps2::ui::PagedImage * ps2::renderer::UiPageImage(const idImage * image);
 #if PS2_D3BFG_TESTS
-	// [PS2_D3BFG]: The core test image installs its authored console charset without a retail catalog.
+	// [PS2_D3BFG]: The core test image installs its generated console charset without a retail catalog.
 	friend bool ps2::renderer::InstallConsoleCharset(const void * rgba, size_t bytes);
 #endif
-	void LoadPageImage(const ps2::ui::authored::PageResource & resource);
 	void LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource);
 #endif
 

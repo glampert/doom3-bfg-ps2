@@ -205,14 +205,14 @@ class RetailProofTests(unittest.TestCase):
         self.assertFalse(runner.classify(completed(manifest, self.textures), manifest, self.source, warm)[0])
         self.assertFalse(runner.classify(completed(manifest, textures), manifest, self.source)[0])
 
-    def test_short_intervals_crashes_and_authored_movie_do_not_pass_retail_acceptance(self):
+    def test_short_intervals_and_crashes_do_not_pass_retail_acceptance(self):
         log = completed(self.manifest, self.textures)
         changes = (("frames=120", "frames=119"), ("cycle=2 font=0", "cycle=1 font=0"),
                    ("frame=240 presents=240", "frame=240 presents=241"))
         for old, new in changes:
             with self.subTest(old=old):
                 self.assertFalse(self.classify(log.replace(old, new))[0])
-        for suffix in ("TLB Miss", "[D3BFG] FATAL unexpected", "[D3BFG] SWF state=loaded"):
+        for suffix in ("TLB Miss", "[D3BFG] FATAL unexpected"):
             self.assertFalse(self.classify(log + suffix)[0])
 
     def test_legacy_metrics_resident_textures_and_reloads_are_not_optional(self):

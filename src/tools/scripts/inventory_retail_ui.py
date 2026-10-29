@@ -7,7 +7,7 @@
 
 """Host-only retail UI inventory/cooking. Proprietary outputs stay under build/.
 
-The resulting package is deliberately not admitted by the native authored loader.
+The native loader admits only the compact runtime files the cook publishes, not this report.
 Static script evidence is conservative; it cannot establish runtime reachability.
 """
 
@@ -35,7 +35,7 @@ MAX_CONVERSION_ONLY = 16
 _BLOCKERS = [
     "Two simultaneous non-convex masks remain unsupported: convex masks clip on the CPU and one other mask uses the GS depth buffer.",
     "Additive alpha terms and special blend modes other than add (8) and screen (4) remain unadmitted.",
-    "Retail SWF/English text binding and measured active-menu page working sets remain pending; authored native SWF/font page binding is implemented.",
+    "Retail SWF/English text binding and measured active-menu page working sets remain pending.",
     "Scoped English font/image/constant-material resource admission is implemented; general retail BSWF/resource profiles remain unadmitted.",
     "Static AVM1 inventory cannot close dynamic names, callbacks or runtime-generated strings/resources.",
     "Native offline PressStart/Root/Quit-dialog startup, input policy and optional media gating remain pending.",

@@ -86,7 +86,7 @@ private:
 
 bool Active();
 void ResetStats();
-Stats GetStats();
+const Stats & GetStats();
 void Require(bool condition, const char * reason);
 void CheckCount(const char * kind, int count, int maximum);
 void CheckStack(int count);

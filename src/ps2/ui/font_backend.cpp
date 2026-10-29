@@ -10,7 +10,6 @@
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/log.h"
 #include "ps2/type_query.h"
-#include "ps2/ui/authored_assets.h"
 #include "ps2/ui/draw.h"
 #include "ps2/ui/font_format.h"
 #include "ps2/ui/gstx_format.h"
@@ -23,12 +22,6 @@
 namespace
 {
 
-static constexpr char kFontName[] = "ps2_ascii";
-static constexpr int kGlyphCount = 95;
-static constexpr int kHeaderBytes = 12;
-static constexpr int kGlyphBytes = 10;
-static constexpr int kFileBytes = kHeaderBytes + kGlyphCount * (kGlyphBytes + 4);
-static constexpr int kMaxCachedFonts = 9;
 static constexpr float kVirtualWidth = 640.0f;
 static constexpr float kVirtualHeight = 480.0f;
 
@@ -130,21 +123,6 @@ void LogGlyphSize(const idFont * font, float scaleX, float scaleY, float strokeW
              static_cast<double>(scaleX), static_cast<double>(scaleY), static_cast<double>(strokeWeight));
 }
 
-bool IsFontName(const char * name)
-{
-    return name != nullptr && (strcmp(name, kFontName) == 0 || strcmp(name, "fonts/ps2_ascii") == 0);
-}
-
-u16 ReadLittleShort(const u8 * bytes)
-{
-    return static_cast<u16>(static_cast<u16>(bytes[0]) | (static_cast<u16>(bytes[1]) << 8));
-}
-
-u32 ReadLittleInt(const u8 * bytes)
-{
-    return static_cast<u32>(bytes[0]) | (static_cast<u32>(bytes[1]) << 8) |
-           (static_cast<u32>(bytes[2]) << 16) | (static_cast<u32>(bytes[3]) << 24);
-}
 } // namespace
 
 namespace ps2::ui::fonts
@@ -180,51 +158,11 @@ PS2_COLD_FUNC void Shutdown()
     s_initialized = false;
 }
 
-bool PreflightAuthoredFont(idFile * file, const char * name)
-{
-    if (!s_initialized || file == nullptr || !IsFontName(name) || file->Length() != kFileBytes || file->Tell() != 0)
-    {
-        return false;
-    }
-
-    u8 bytes[kFileBytes] = {};
-    if (file->Read(bytes, kFileBytes) != kFileBytes)
-    {
-        return false;
-    }
-
-    // Native glyphInfo_t stores a zero padding byte before the little-endian atlas coordinates.
-    static constexpr u8 kHeader[kHeaderBytes] = { 'i', 'd', 'f', 42, 0, 48, 0, 14, 0, 0, 0, 95 };
-    if (memcmp(bytes, kHeader, sizeof(kHeader)) != 0)
-    {
-        return false;
-    }
-
-    for (int i = 0; i < kGlyphCount; ++i)
-    {
-        const int code = i + 32;
-        const auto * const glyph = bytes + kHeaderBytes + i * kGlyphBytes;
-        if (glyph[0] != 15 || glyph[1] != 14 || glyph[2] != 14 || glyph[3] != 0 || glyph[4] != 16 || glyph[5] != 0 ||
-            ReadLittleShort(glyph + 6) != (code & 15) * 32 + 1 || ReadLittleShort(glyph + 8) != (code >> 4) * 16 + 1 ||
-            ReadLittleInt(bytes + kHeaderBytes + kGlyphCount * kGlyphBytes + i * 4) != static_cast<u32>(code))
-        {
-            return false;
-        }
-    }
-
-    return file->Seek(0, FS_SEEK_SET) == 0;
-}
-
 idFile * OpenFontAsset(const char * name)
 {
     if (!s_initialized)
     {
         FatalError("native UI font opened before font startup");
-    }
-
-    if (IsFontName(name))
-    {
-        return ui::authored::OpenAsset("newfonts/ps2_ascii/48.dat");
     }
 
     ui::retail::FontRecord record{};
@@ -238,11 +176,6 @@ idFile * OpenFontAsset(const char * name)
 
 bool PreflightFont(idFile * file, const char * name)
 {
-    if (IsFontName(name))
-    {
-        return PreflightAuthoredFont(file, name);
-    }
-
     ui::retail::FontRecord record{};
     ui::retail::ImageRecord image{};
     const auto * const memory = DynCast<const idFile_Memory *>(file);
@@ -259,12 +192,6 @@ bool PreflightFont(idFile * file, const char * name)
 
 void ValidateFontMaterial(const idMaterial * material, const char * name)
 {
-    if (IsFontName(name))
-    {
-        ValidateAuthoredFontMaterial(material);
-        return;
-    }
-
     ui::retail::FontRecord record{};
     ui::retail::ImageRecord image{};
     if (!s_initialized || material == nullptr || material->GetNumStages() != 1 ||
@@ -291,13 +218,6 @@ void GetFontLayout(const char * name, int index, int & width, int & height)
         FatalError("invalid native UI font layout query");
     }
 
-    if (IsFontName(name))
-    {
-        width = 16;
-        height = 14;
-        return;
-    }
-
     ui::retail::FontRecord record{};
     if (!ui::retail::FindFont(name, record))
     {
@@ -306,22 +226,6 @@ void GetFontLayout(const char * name, int index, int & width, int & height)
 
     width = static_cast<int>(record.maxAdvance[static_cast<u32>(index)]);
     height = static_cast<int>(record.maxHeight[static_cast<u32>(index)]);
-}
-
-void ValidateAuthoredFontMaterial(const idMaterial * material)
-{
-    if (!s_initialized || material == nullptr || material->GetNumStages() != 1 ||
-        material->ConstantRegisters() == nullptr || material->TestMaterialFlag(MF_DEFAULTED | MF_POLYGONOFFSET))
-    {
-        FatalError("native UI font requires one constant authored atlas material");
-    }
-    const shaderStage_t & stage = *material->GetStage(0);
-    if (stage.texture.image != renderer::AuthoredFontImage() || stage.lighting != SL_AMBIENT ||
-        stage.texture.image == nullptr || !stage.texture.image->IsLoaded() ||
-        stage.texture.image->GetUploadWidth() != 512 || stage.texture.image->GetUploadHeight() != 128)
-    {
-        FatalError("native UI font material does not reference the authored 512x128 atlas");
-    }
 }
 
 bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float strokeWeight, std::uint32_t codepoint,
@@ -339,7 +243,7 @@ bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float
         ++index;
     }
 
-    // Authored fonts have no catalog record.
+    // Only fonts RegisterFont admitted have a glyph set slot.
     if (index == retail::kMaxFonts)
     {
         return false;
@@ -444,17 +348,12 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
     ps2::ui::retail::FontRecord record{};
     idStr request(fontName);
     request.Replace("fonts/", "");
-    const char * canonical = kFontName;
-
-    if (!IsFontName(request))
+    if (!ps2::ui::retail::FindFont(request, record))
     {
-        if (!ps2::ui::retail::FindFont(request, record))
-        {
-            ps2::FatalError("native UI font is outside the admitted English profile: %s", fontName);
-        }
-
-        canonical = record.family;
+        ps2::FatalError("native UI font is outside the admitted English profile: %s", fontName);
     }
+
+    const char * const canonical = record.family;
 
     for (int index = 0; index < fonts.Num(); ++index)
     {
@@ -465,7 +364,7 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
         }
     }
 
-    if (fonts.Num() >= kMaxCachedFonts)
+    if (fonts.Num() >= static_cast<int>(ps2::ui::retail::kMaxFonts))
     {
         ps2::FatalError("native UI font cache exceeded the bounded English profile");
     }
@@ -474,11 +373,7 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
     fonts.Append(font);
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] UI font ready name=%s cached=%d\n", canonical, fonts.Num());
 
-    if (!IsFontName(canonical))
-    {
-        RegisterGlyphSet(font, record);
-    }
-
+    RegisterGlyphSet(font, record);
     return font;
 }
 

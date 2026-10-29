@@ -1,7 +1,7 @@
 {
-  "generator": "src/tools/scripts/build_authored_ui.py",
+  "generator": "src/tests/host/scripts/swf_fixture.py",
   "license": "GPL-3.0-or-later",
-  "profile": "BSWF16 native authored UI with masks, outlines, color terms and screen blending; no retail data",
+  "profile": "BSWF16 host fixture with masks, outlines, color terms and screen blending; no retail data",
   "blend_modes": [
     0,
     4,
@@ -98,44 +98,6 @@
       "bytes": 1342,
       "sha256": "b47b288f5a8d7d2a8d07e3a1ee50b68706cf9f9edb032dc4df568e9c0345915b",
       "fnv1a64": "7288f58d36cb48a8"
-    },
-    "materials/ps2_ui.mtr": {
-      "bytes": 675,
-      "sha256": "161471f4b5d663fc9f18cc16eb35c79f4b627f83c844c88a4c2f2c300348777e",
-      "fnv1a64": "ac95845e3278d2af"
     }
-  },
-  "page_resources": [
-    {
-      "image_name": "textures/ps2_movie",
-      "path": "textures/ps2_movie.uipg",
-      "width": 272,
-      "height": 256,
-      "file_bytes": 1048640,
-      "page_count": 4,
-      "checksums": [
-        4284339541,
-        2423363397,
-        2367909317,
-        3828679125
-      ],
-      "sha256": "92fb00edcb9013747f1fe7f0dd5affce605993ab00cb877ea5352dd93af72b16",
-      "source_sha256": "599687870c5f0170d26cfbec1207592675e28d96c2eae4a4b338206a765f0508"
-    },
-    {
-      "image_name": "textures/ps2_ascii",
-      "path": "textures/ps2_ascii.uipg",
-      "width": 512,
-      "height": 128,
-      "file_bytes": 786488,
-      "page_count": 3,
-      "checksums": [
-        1721070757,
-        164603909,
-        373595589
-      ],
-      "sha256": "1c28196232bf42466778d81c09b28dce6fe5014a6f4f8de2fd36c332445c85ed",
-      "source_sha256": "e0e942fb84833c257ce7a7972c7ba197911ad3dc41f3d7105d4304037a943545"
-    }
-  ]
+  }
 }

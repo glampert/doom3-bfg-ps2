@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: image_backend.cpp
-// Brief: Attach bounded texture ownership to native white and authored console image declarations.
+// Brief: Attach bounded texture ownership to the native white intrinsic, console charset and retail images.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -9,8 +9,6 @@
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
-#include "ps2/ui/authored_ui_data.h"
-#include "ps2/ui/page_image.h"
 #include "ps2/ui/paletted_image.h"
 #include "ps2/ui/retail_assets.h"
 
@@ -28,7 +26,6 @@ struct idImage::backendState_t
 namespace
 {
 
-static constexpr u32 kPageSlots = 4;
 static constexpr const char * kWhiteName = "_white";
 static constexpr const char * kCharsetName = "textures/bigchars";
 
@@ -36,31 +33,14 @@ static constexpr const char * kCharsetName = "textures/bigchars";
 static constexpr const char * kCharsetImage = "generated/images/textures/bigchars#__0200.bimage";
 static constexpr int kCharsetAtlasSize = 256;
 static constexpr size_t kCharsetAtlasBytes = 256U * 256U * 4U;
-static constexpr const char * kFontName = "textures/ps2_ascii";
 
 // The white texel's page: the only texture the image manager creates itself.
 static constexpr u32 kWhitePageBytes = 8192;
 
 static bool s_initialized = false;
 static idImage * s_charsetImage = nullptr;
-static idImage * s_fontImage = nullptr;
-static idImage * s_movieImage = nullptr;
 static idImage * s_retailImages[ps2::ui::retail::kMaxImages] = {};
 static u32 s_retailImageCount = 0;
-static ps2::ui::PageCache s_pageCache;
-
-const ps2::ui::authored::PageResource * PageResource(const char * name)
-{
-    for (const auto & resource : ps2::ui::authored::kPageResources)
-    {
-        if (name != nullptr && idStr::Icmp(name, resource.imageName) == 0)
-        {
-            return &resource;
-        }
-    }
-
-    return nullptr;
-}
 
 bool IsWhiteName(const char * name)
 {
@@ -70,11 +50,6 @@ bool IsWhiteName(const char * name)
 bool IsCharsetName(const char * name)
 {
     return name != nullptr && idStr::Icmp(name, kCharsetName) == 0;
-}
-
-bool IsFontName(const char * name)
-{
-    return name != nullptr && idStr::Icmp(name, kFontName) == 0;
 }
 
 bool IsRetailImage(const idImage * image)
@@ -92,7 +67,7 @@ bool IsRetailImage(const idImage * image)
 
 bool SupportedImage(const idImage * image)
 {
-    return s_initialized && image != nullptr && (image == globalImages->whiteImage || image == s_charsetImage || image == s_fontImage || image == s_movieImage || IsRetailImage(image));
+    return s_initialized && image != nullptr && (image == globalImages->whiteImage || image == s_charsetImage || IsRetailImage(image));
 }
 
 bool SupportedSampler(const idImage * image, textureFilter_t filter, textureRepeat_t repeat)
@@ -121,55 +96,6 @@ ps2::renderer::tex::Sampler ImageSampler(const idImage * image)
 }
 
 } // namespace
-
-PS2_COLD_FUNC void idImage::LoadPageImage(const ps2::ui::authored::PageResource & resource)
-{
-    idImage * const image = this;
-    if (ps2::renderer::FrameStarted() || image->backendState != nullptr) [[unlikely]]
-    {
-        ps2::FatalError("invalid native UI page load ownership");
-    }
-
-    if (!s_pageCache.IsInitialized() && !s_pageCache.Init(kPageSlots, { ps2::renderer::tex::Filter::Nearest })) [[unlikely]]
-    {
-        ps2::FatalError("native UI shared page budget unavailable");
-    }
-
-    auto * const pages = new (TAG_RENDER) ps2::ui::PageImage;
-    bool valid = pages->Open(fileSystem->RelativePathToOSPath(resource.path), s_pageCache);
-    const auto & header = pages->GetHeader();
-    valid = valid && header.width == resource.width && header.height == resource.height &&
-            header.fileBytes == resource.fileBytes && header.pageCount == resource.pageCount;
-
-    if (valid)
-    {
-        const auto * const records = pages->GetRecords();
-
-        for (u32 page = 0; page < header.pageCount; ++page)
-        {
-            valid = valid && records[page].checksum == resource.checksums[page];
-        }
-    }
-
-    if (!valid) [[unlikely]]
-    {
-        delete pages;
-        ps2::FatalError("authored UI page profile mismatch: %s", resource.path);
-    }
-
-    // Only checked metadata is resident here. Each page is verified against the admitted table
-    // before its first upload; a corrupt unread page cannot replace a valid cached page.
-    image->backendState = new (ps2::system::heap::Alloc(sizeof(idImage::backendState_t), TAG_RENDER))
-    idImage::backendState_t{ {}, static_cast<int>(header.pageCount * sizeof(ps2::ui::PageRecord)), pages };
-    image->opts = idImageOpts();
-    image->opts.width = static_cast<int>(header.width);
-    image->opts.height = static_cast<int>(header.height);
-    image->opts.format = FMT_RGBA8;
-    image->opts.numLevels = 1;
-    image->filter = TF_NEAREST;
-    image->repeat = TR_CLAMP;
-    image->usage = TD_FONT;
-}
 
 PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource)
 {
@@ -341,18 +267,13 @@ PS2_COLD_FUNC bool InstallConsoleCharset(const void * rgba, size_t bytes)
 }
 #endif // PS2_D3BFG_TESTS
 
-idImage * AuthoredFontImage()
-{
-    return s_initialized ? s_fontImage : nullptr;
-}
-
 void ValidateUiImage(const idImage * image)
 {
 #if PS2_D3BFG_ASSERTS
     if (!SupportedImage(image) || image->backendState == nullptr ||
         (image->backendState->pages != nullptr ? !image->backendState->pages->IsOpen() : image->backendState->texture.id == 0)) [[unlikely]]
     {
-        FatalError("native UI image outside the loaded authored profile");
+        FatalError("native UI image outside the loaded console/retail profile");
     }
 #endif // PS2_D3BFG_ASSERTS
 
@@ -384,11 +305,6 @@ void EnableScreenBlending(const idImage * image)
     {
         FatalError("retail UI channel CLUTs unavailable: %s", resource.name);
     }
-}
-
-ui::PageCacheStats GetUiPageStats()
-{
-    return s_pageCache.GetStats();
 }
 
 } // namespace ps2::renderer
@@ -432,7 +348,7 @@ void idImage::GenerateImage(const byte * rgba, int width, int height, textureFil
     const int expectedWidth  = white ? 1 : kCharsetAtlasSize;
     const int expectedHeight = white ? 1 : kCharsetAtlasSize;
 
-    if (this == s_fontImage || this == s_movieImage || IsRetailImage(this) || !SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
+    if (IsRetailImage(this) || !SupportedSampler(this, tf, tr) || (tu != TD_DEFAULT && (white || tu != TD_FONT)) ||
         width != expectedWidth || height != expectedHeight) [[unlikely]]
     {
         ps2::FatalError("idImage::GenerateImage outside the console profile");
@@ -496,7 +412,7 @@ PS2_COLD_FUNC void idImageManager::Init()
     }
 
     // The white texel is the only intrinsic. The console charset comes from the retail catalog
-    // (OpenConsoleCharset) or, in the core test image, from the installed authored fixture.
+    // (OpenConsoleCharset) or, in the core test image, from the installed generated fixture.
     static constexpr byte kWhite[4] = { 255, 255, 255, 255 };
     const ps2::renderer::tex::Sampler whiteSampler = { ps2::renderer::tex::Filter::Nearest, ps2::renderer::tex::Wrap::Repeat, ps2::renderer::tex::Wrap::Repeat };
     const auto whiteTexture = ps2::renderer::tex::Create(1, 1, whiteSampler, kWhite, sizeof(kWhite), sizeof(kWhite));
@@ -543,14 +459,11 @@ PS2_COLD_FUNC void idImageManager::Shutdown()
         images[i]->PurgeImage();
     }
 
-    s_pageCache.Shutdown();
     ps2::ui::retail::Shutdown();
     images.DeleteContents(true);
     imageHash.Clear();
     whiteImage = nullptr;
     s_charsetImage = nullptr;
-    s_fontImage = nullptr;
-    s_movieImage = nullptr;
     memset(s_retailImages, 0, sizeof(s_retailImages));
     s_retailImageCount = 0;
     s_initialized = false;
@@ -569,14 +482,6 @@ idImage * idImageManager::GetImage(const char * name) const
     if (IsCharsetName(name))
     {
         return s_charsetImage;
-    }
-    if (IsFontName(name))
-    {
-        return s_fontImage;
-    }
-    if (s_movieImage != nullptr && PageResource(name) != nullptr)
-    {
-        return s_movieImage;
     }
 
     for (u32 i = 0; i < s_retailImageCount; ++i)
@@ -643,38 +548,17 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
         return image;
     }
 
-    const auto * const resource = PageResource(name);
-
-    if (resource != nullptr && GetImage(name) == nullptr)
-    {
-        if ((tf != TF_DEFAULT && tf != TF_NEAREST) || tr != TR_CLAMP ||
-            (tu != TD_DEFAULT && tu != TD_FONT) || cube != CF_2D) [[unlikely]]
-        {
-            ps2::FatalError("authored native page sampler profile");
-        }
-
-        idImage * const image = new (TAG_IMAGE) idImage(resource->imageName);
-        (IsFontName(name) ? s_fontImage : s_movieImage) = image;
-        images.Append(image);
-        image->referencedOutsideLevelLoad = true;
-        image->LoadPageImage(*resource);
-    }
-
     idImage * const image = GetImageWithParameters(name, tf, tr, tu, cube);
     if (image == nullptr) [[unlikely]]
     {
-        ps2::FatalError("idImageManager::ImageFromFile outside the authored UI profile name=%s filter=%d repeat=%d usage=%d cube=%d",
+        ps2::FatalError("idImageManager::ImageFromFile outside the console/retail UI profile name=%s filter=%d repeat=%d usage=%d cube=%d",
                         name != nullptr ? name : "<null>", static_cast<int>(tf), static_cast<int>(tr),
                         static_cast<int>(tu), static_cast<int>(cube));
     }
 
-    if (!image->IsLoaded())
+    if (!image->IsLoaded()) [[unlikely]]
     {
-        if (resource == nullptr) [[unlikely]]
-        {
-            ps2::FatalError("idImageManager::ImageFromFile with purged intrinsic");
-        }
-        image->LoadPageImage(*resource);
+        ps2::FatalError("idImageManager::ImageFromFile with purged intrinsic");
     }
 
     image->AddReference();

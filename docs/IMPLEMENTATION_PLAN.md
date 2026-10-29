@@ -13,7 +13,7 @@ context; they do not reopen completed portability work.
 | M0–M2 | Complete: layout/manifests, EE portability, staged core/Common boot |
 | M2b | Complete: retained campaign compilation and resident link; currently 282 campaign units |
 | M3 | Partial: native game/player fixtures and one authored map/PVS/collision/AAS/idle-AI fixture; full campaign player, animated AI and retail maps pending |
-| M4 / 2D-1–4 | Bounded GS 2D device, capture, console, indexed UI, fonts and authored native SWF accepted; world/depth/CLUT/VU scope remains later |
+| M4 / 2D-1–4 | Bounded GS 2D device, capture, console, indexed UI and fonts accepted (the placeholder authored native SWF was a bring-up step, removed 2026-10-29); world/depth/CLUT/VU scope remains later |
 | 2D-5–6 | Retail cooking, English resources and scoped timeline execution accepted within their profiles; additive blend 8 and convex masks accepted; the original dialog draws in full from resident paletted textures; shell feature/resource closure pending |
 | 2D-7–8 | Native offline menu navigation, physical input and hardware acceptance pending |
 | M5–M8 | Host extraction/UI conversion foundation exists; campaign-map conversion, world rendering, sound, streaming, saves and campaign sweep remain pending |
@@ -137,7 +137,7 @@ src/
   neo/                          # Engine/game sources moved intact before portability edits
   ps2/                          # System, logical game/audio/input and bounded renderer/UI adapters
   tests/
-    data/                       # headless/, headless_map/, ui/ authored fixture assets
+    data/                       # headless/, headless_map/, ui/ host-only SWF/font fixtures
     host/                       # C++ host harnesses, stubs and scripts/ Python tests
     smoketests/                 # Separate native test entries and integrated fixtures
   tools/                        # Host resource tool, build/cook/test scripts, editor support
@@ -250,7 +250,7 @@ Stage 2 should branch deliberately within the Common startup lifecycle after the
 Production and fixture executables are separate. Production now initializes the native
 game and console with authored `src/tests/data/headless/` data and sustains Common/native
 `NOMAP` frames until quit or a frame limit. It has live HostFs console commands and
-ordered shutdown, while menu SWF, campaign map transitions and retail startup resources
+ordered shutdown, while retail menu screens beyond those admitted, campaign map transitions and retail startup resources
 remain pending. Tests continue to load and tick the authored map independently; the
 next production gate connects map ownership and simulation to this Common loop.
 
@@ -434,7 +434,7 @@ M2b is required before M3. M4 and the host asset inventory can proceed independe
 
 The selected work is the GS-backed 2D renderer and native offline main menu.
 [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) expands this work into device,
-texture/capture, console, SWF and menu gates. 2D-1–4 now pass, and bounded retail
+texture/capture, console, SWF and menu gates. 2D-1–4 passed (the placeholder authored SWF used to prove them was removed 2026-10-29, replaced by the retail sessions), and bounded retail
 resource/timeline profiles, additive blend 8, convex masks and the fully drawn original
 dialog are accepted. Asset recompression and the 32 MiB budget are in progress (first
 measurements recorded; resident paletted UI textures accepted in the debug emulator gates),

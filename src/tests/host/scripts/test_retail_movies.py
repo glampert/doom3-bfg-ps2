@@ -14,12 +14,12 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
-import build_authored_ui
+import swf_fixture
 import gstx_fixture
 import run_retail_movies as runner
 import stage_retail_ui as staging
 from ui_font import inspect_language, inspect_font
-from ui_page_package import fnv1a32
+from ui_gstx import fnv1a32
 from ui_swf import Inspector, Reader, inspect_swf
 
 
@@ -59,7 +59,7 @@ class MovieResourcesTests(unittest.TestCase):
         swf = self.manifest["swfs"]["generated/swf/shell.bswf"]
         requested = next(entry["name"] for entry in swf["dictionary"] if entry["type"] == "font")
         self.manifest["font_resolutions"] = [{"requested": requested, "family": "ps2_ascii"}]
-        width, height, rgba = build_authored_ui.charset_pixels(font=True)
+        width, height, rgba = swf_fixture.charset_pixels(font=True)
         textures = {"font": gstx_fixture.alpha_texture(width, height, gstx_fixture.rgba_alpha(rgba)),
                     "shell": gstx_fixture.solid_texture(256, 128, (40, 60, 80, 255)),
                     "dialog": gstx_fixture.solid_texture(128, 64, (80, 60, 40, 255)),
@@ -291,7 +291,7 @@ class MovieResourcesTests(unittest.TestCase):
     def test_shell_render_requires_outlines_depth_masks_screen_color_terms_and_channel_cluts(self):
         manifest = self.label_manifest()
         swf = manifest["swfs"]["generated/swf/shell.bswf"]
-        # The authored stand-in carries every feature the shell needs.
+        # The fixture stand-in carries every feature the shell needs.
         self.assertEqual((swf["features"]["strokes"], runner.screen_placements(swf), swf["features"]["color_add"]), (2, 1, 2))
         log = self.shell_render_log(manifest)
         accepted = lambda text: runner.classify_shell_render(text, manifest, self.source)[0]

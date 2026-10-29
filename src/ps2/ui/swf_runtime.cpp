@@ -200,7 +200,7 @@ void ResetStats()
     std::memset(s_traceHashes, 0, sizeof(s_traceHashes));
 }
 
-Stats GetStats()
+const Stats & GetStats()
 {
     return s_stats;
 }

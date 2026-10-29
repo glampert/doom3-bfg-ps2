@@ -11,7 +11,6 @@
 #include "ps2/system/log.h"
 #include "ps2/ui/draw.h"
 #include "ps2/ui/font_format.h"
-#include "ps2/ui/page_image.h"
 #include "ps2/ui/paletted_image.h"
 
 #include <idlib/precompiled.h>
@@ -65,7 +64,7 @@ void * Snapshot(const char * path, std::uint32_t length, std::uint32_t checksum)
     const bool read = source->Read(bytes, static_cast<int>(length)) == static_cast<int>(length);
     delete source;
 
-    if (!read || PageChecksum(bytes, length) != checksum)
+    if (!read || gstx::Checksum(bytes, length) != checksum)
     {
         system::heap::Free(bytes);
         FatalError("retail movie resource checksum mismatch: %s", path);
@@ -110,8 +109,7 @@ bool IsInitialized()
 
 PS2_COLD_FUNC void Init()
 {
-    if (IsInitialized() || !ui::IsInitialized() || renderer::FrameStarted() || renderer::GetUiPageStats().cacheBytes != 0 ||
-        ui::GetPaletteStats().images != 0)
+    if (IsInitialized() || !ui::IsInitialized() || renderer::FrameStarted() || ui::GetPaletteStats().images != 0)
     {
         FatalError("retail UI catalog requires an idle fresh image profile");
     }
@@ -156,7 +154,7 @@ PS2_COLD_FUNC void Shutdown()
         return;
     }
 
-    if (renderer::FrameStarted() || renderer::GetUiPageStats().images != 0 || ui::GetPaletteStats().images != 0)
+    if (renderer::FrameStarted() || ui::GetPaletteStats().images != 0)
     {
         FatalError("retail UI catalog shutdown with active image ownership");
     }
@@ -225,7 +223,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
     delete source;
     fonts::FontFormatSummary summary;
 
-    if (!read || PageChecksum(bytes, admitted.bytes) != admitted.checksum ||
+    if (!read || gstx::Checksum(bytes, admitted.bytes) != admitted.checksum ||
         !fonts::ValidateFontBytes(bytes, admitted.bytes, image.width, image.height, summary))
     {
         system::heap::Free(bytes);

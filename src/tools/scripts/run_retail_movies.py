@@ -22,11 +22,11 @@ import run_console
 import ui_gstx
 import run_headless
 import run_pcsx2_test as smoke
-from run_ui import TARGET_CRASH_RE, echoed
+from run_console import TARGET_CRASH_RE, echoed
 from stage_headless import REPO_ROOT, boot_data, sha256
 from stage_retail_ui import stage_retail
 from ui_font import inspect_language
-from ui_page_package import fnv1a32
+from ui_gstx import fnv1a32
 from run_retail_ui import TEXTURES_RE, resident_images, resident_textures, texture_counters
 
 

@@ -12,7 +12,6 @@
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/draw.h"
-#include "ps2/ui/page_image.h"
 #include "tests/smoketests/console_charset.h"
 #include <bit>
 #include <climits>
@@ -313,138 +312,6 @@ bool NativeIndexed(system::video::Standard standard)
     return passed;
 }
 
-bool PageQuad(ui::PageImage & image, const idVec2 (&positions)[4], float s0, float t0,
-              float s1, float t1, u8 alpha = 255)
-{
-    const ui::Vertex vertices[] = {
-        { positions[0].x, positions[0].y, s0, t0, 255, 255, 255, alpha },
-        { positions[1].x, positions[1].y, s1, t0, 255, 255, 255, alpha },
-        { positions[2].x, positions[2].y, s1, t1, 255, 255, 255, alpha },
-        { positions[3].x, positions[3].y, s0, t1, 255, 255, 255, alpha }
-    };
-    const ui::Vertex first[] = { vertices[0], vertices[1], vertices[2] };
-    const ui::Vertex second[] = { vertices[0], vertices[2], vertices[3] };
-    return image.DrawTriangle(first, { renderer::gs::BlendMode::StraightAlpha }) &&
-           image.DrawTriangle(second, { renderer::gs::BlendMode::StraightAlpha });
-}
-
-bool PagedScene(ui::PageImage & image)
-{
-    const idVec2 full[] = { idVec2(20, 32), idVec2(620, 32), idVec2(620, 224), idVec2(20, 224) };
-    const idVec2 vertical[] = { idVec2(64, 256), idVec2(576, 256), idVec2(576, 304), idVec2(64, 304) };
-    const idVec2 horizontal[] = { idVec2(64, 320), idVec2(576, 320), idVec2(576, 368), idVec2(64, 368) };
-    const idVec2 rotated[] = { idVec2(-24, 392), idVec2(136, 376), idVec2(160, 456), idVec2(0, 472) };
-    const idVec2 under[] = { idVec2(224, 392), idVec2(416, 392), idVec2(416, 456), idVec2(224, 456) };
-    const idVec2 over[] = { idVec2(320, 408), idVec2(512, 408), idVec2(512, 472), idVec2(320, 472) };
-    return PageQuad(image, full, 0, 0, 1, 1) &&
-           PageQuad(image, vertical, 246.0f / 600.0f, 120.0f / 320.0f, 262.0f / 600.0f, 136.0f / 320.0f) &&
-           PageQuad(image, horizontal, 300.0f / 600.0f, 246.0f / 320.0f, 316.0f / 600.0f, 262.0f / 320.0f) &&
-           PageQuad(image, rotated, 0, 0, 1, 1) &&
-           PageQuad(image, under, 0, 0, 1, 1) &&
-           PageQuad(image, over, 550.0f / 600.0f, 100.0f / 320.0f,
-                    550.0f / 600.0f, 100.0f / 320.0f, 128);
-}
-
-bool NativePagedImage(system::video::Standard standard)
-{
-    const auto baseline = system::heap::GetTotalStats();
-    bool passed = true;
-
-    for (int cycle = 0; cycle < 2; ++cycle)
-    {
-        // Two CPU cache slots compete for one VRAM page. Reusing both ownership levels must fence
-        // prior pieces of this same frame, including triangles not yet submitted to the GS.
-        if (!renderer::Init({ standard, 1024U, 262144U, 524288U }))
-        {
-            return false;
-        }
-
-        const auto device = system::heap::GetTotalStats();
-        ui::PageImage image;
-        char longPath[257];
-        memset(longPath, 'x', sizeof(longPath) - 1);
-        longPath[sizeof(longPath) - 1] = '\0';
-        passed = !image.Open(nullptr) && !image.Open(longPath) &&
-                 !image.Open("host:renderer-pages.uip", 0) && !image.Open("host:renderer-pages.uip", 9) &&
-                 !image.Open("host:renderer-pages-bad-header.uip") &&
-                 !image.Open("host:renderer-pages-bad-table.uip") &&
-                 !image.Open("host:renderer-pages-truncated.uip") &&
-                 !image.Open("host:renderer-pages.uip", 3) && SameLedger(device) && passed;
-
-        if (!image.Open("host:renderer-pages-bad-pixel.uip", 1))
-        {
-            renderer::Shutdown();
-            return false;
-        }
-
-        renderer::BeginFrame({ 16, 24, 40, 255 });
-        const ui::Vertex corrupt[] = {
-            { 0, 0, 0, 0, 255, 255, 255, 255 },
-            { 64, 0, 0.1f, 0, 255, 255, 255, 255 },
-            { 0, 64, 0, 0.1f, 255, 255, 255, 255 }
-        };
-        passed = !image.DrawTriangle(corrupt, { renderer::gs::BlendMode::Replace }) && image.GetStats().loads == 0 && passed;
-        renderer::EndFrame();
-        image.Close();
-        image.Close();
-        passed = SameLedger(device) && passed;
-
-        if (!image.Open("host:renderer-pages.uip"))
-        {
-            renderer::Shutdown();
-            return false;
-        }
-
-        const auto warm = system::heap::GetTotalStats();
-        const u32 frames = cycle == 0 ? 120U : 4U;
-
-        for (u32 frame = 0; frame < frames; ++frame)
-        {
-            renderer::BeginFrame({ 16, 24, 40, 255 });
-            if (frame % 30U == 0 || frame == frames - 1U)
-            {
-                // Periodic six-page sweeps exercise eviction; intervening frames keep a two-page
-                // working set hot rather than benchmarking repeated HostFs reads of the full atlas.
-                passed = PagedScene(image) && passed;
-            }
-            else
-            {
-                const idVec2 left[] = { idVec2(32, 32), idVec2(256, 32), idVec2(256, 224), idVec2(32, 224) };
-                const idVec2 right[] = { idVec2(320, 32), idVec2(544, 32), idVec2(544, 224), idVec2(320, 224) };
-
-                for (int draw = 0; draw < 4; ++draw)
-                {
-                    passed = PageQuad(image, left, 0.1f, 0.1f, 0.2f, 0.5f) &&
-                             PageQuad(image, right, 0.5f, 0.1f, 0.7f, 0.5f) && passed;
-                }
-            }
-
-            renderer::EndFrame();
-            passed = SameLedger(warm) && passed;
-        }
-
-        passed = renderer::gs::CaptureTga(cycle == 0 ? "host:renderer-paged.tga" : "host:renderer-paged-reload.tga",
-                                   renderer::LastPresentedContext()) &&
-                 passed;
-        const auto stats = image.GetStats();
-        const auto textures = renderer::tex::GetStats();
-        passed = image.GetHeader().pageCount == 6 && stats.loads > 6 && stats.evictions > 0 &&
-                 stats.triangles > frames * 12U && stats.cacheBytes == 524288U &&
-                 stats.scratchBytes == 262144U && stats.metadataBytes == 48U &&
-                 textures.pixelBytes == 524288U && textures.evictions > 0 && passed;
-        Log(LogLevel::Info, "[D3BFG] UI paged cycle=%d frames=%u pages=%u slots=2 cache=%u scratch=%u metadata=%u loads=%u hits=%u evictions=%u triangles=%u\n",
-            cycle, frames, static_cast<u32>(image.GetHeader().pageCount), stats.cacheBytes,
-            stats.scratchBytes, stats.metadataBytes, stats.loads, stats.hits, stats.evictions, stats.triangles);
-        image.Close();
-        image.Close();
-        passed = SameLedger(device) && passed;
-        renderer::Shutdown();
-        passed = SameLedger(baseline) && passed;
-    }
-
-    return passed;
-}
-
 bool NativeAdapters(system::video::Standard standard)
 {
     const auto before = system::heap::GetTotalStats();
@@ -739,7 +606,6 @@ bool RunGsTests(system::video::Standard standard)
     passed = Check("split-upload", SplitUpload(standard)) && passed;
     passed = Check("native-adapters", NativeAdapters(standard)) && passed;
     passed = Check("native-indexed", NativeIndexed(standard)) && passed;
-    passed = Check("native-paged", NativePagedImage(standard)) && passed;
     bool contexts = true;
     bool bounds = true;
     bool pressure = true;

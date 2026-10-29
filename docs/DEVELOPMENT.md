@@ -50,7 +50,7 @@ build/tools/resource_unpack --output build/unpacked-bfg \
 ```
 
 Extracted BSWF/BIMAGE files keep their native formats. Retail extraction belongs in
-ignored local directories; it is separate from authored UI assets and target startup.
+ignored local directories; it is separate from the host SWF fixtures and target startup.
 
 ## Texture re-export
 
@@ -76,7 +76,7 @@ re-export.
 
 ## Production packages and controls
 
-Every visible package, `make console` and `make ui` included, stages the cooked retail
+Every visible package, `make console` included, stages the cooked retail
 catalog and assets from `UI_COOK_OUTPUT` (default `build/ui-retail`) into its `base/`:
 the presentation opens the catalog at startup and draws the console with the original
 `textures/bigchars` charset. Run `make ui-cook` before staging or testing a visible
@@ -193,28 +193,6 @@ package root. A capture queued with `quit` completes after the final native
 draw and before UI/device shutdown. Visible `ps2_status` also reports presentation
 and redraw-request counts. These three controls are available only in visible mode;
 `ps2_maxFrames` and the ordinary command stream work in either mode.
-
-`make ui` stages the same production ELF with the resources from `src/tests/data/ui/base/`
-under `build/<config>/ui/`. It uses `CONSOLE_STANDARD=ntsc` or `pal` and adds
-`ps2_ui load` to a newly created packaged `base/d3bfg.cfg`. Existing packaged settings
-are preserved; append that command manually if an older configuration does not load
-the scene. The native game remains in `NOMAP` while the authored movie runs.
-
-```sh
-printf 'ps2_uiKey tab\nps2_uiKey enter\nps2_ui status\n' >> build/debug/ui/console.txt
-printf 'ps2_capture "ui-selected.tga"\n' >> build/debug/ui/console.txt
-printf 'ps2_consoleKey toggle\n' >> build/debug/ui/console.txt
-```
-
-`ps2_ui` takes one of `load`, `unload`, `reload`, `status`, `pause` or `resume`.
-Loading closes the console; unloading reopens it. Reloading resets the authored
-focus and selection state. `ps2_uiKey tab` and `ps2_uiKey enter` deliver native key
-events to the loaded movie while the console is closed. The authored AVM1 functions
-move focus, select an item and update the status text. Native console input has
-priority: `ps2_consoleKey toggle` opens it over the movie, and toggling again restores
-movie input. UI commands are visible-mode controls registered as ordinary system
-commands; no physical input device is enabled. `ps2_capture` and queued final capture
-before `quit` work with either console or movie drawing.
 
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 `d3bfg_tests.map`. `make headless-core` writes `build/<config>/tests/core/`,

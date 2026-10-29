@@ -48,7 +48,6 @@ for each feature.
 | --- | --- | --- |
 | Production headless | Common, native console commands, NOMAP ticks, bounded/live quit and complete shutdown | No production map simulation |
 | Visible console | Native console edit/history, close/reopen, capture/final presentation in NTSC/PAL, drawn with the original `textures/bigchars` charset from the cooked catalog | HostFs injection; no physical input polling; visible packages need `make ui-cook` |
-| Authored SWF | Native loading, fonts, timeline/AVM1 focus/select, additive blend 8, screen blend 4, color terms, outlines, convex and depth masks, shared pages | Exact generated asset admission; no retail-menu claim |
 | Retail fonts | Five English families, native legacy metrics and resident paletted textures | Font/resource screen only |
 | Retail movie inspection | Original shell/dialog dictionaries, full English dictionary and isolated native edit-text layout | Inactive imported timelines |
 | Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; no events |
@@ -193,14 +192,13 @@ keyboard/pad integration and real PS2 acceptance remain 2D-8.
 | Work | Entry points |
 | --- | --- |
 | Production loop/presentation | `src/ps2/system/main.cpp`, `headless.cpp`, `presentation.cpp`, `common_campaign.cpp` |
-| Authored movie | `src/ps2/ui/movie.cpp`, `authored_assets.cpp`, `authored_ui_data.h` |
 | Retail resources and execution | `src/ps2/ui/retail_movie.cpp`, `retail_assets.cpp`, `retail_materials.cpp`, `retail_catalog.cpp`, `retail_owner.cpp` |
 | Storage/script guards | `src/ps2/ui/swf_format.*`, `swf_execution.*`, `swf_runtime.*` |
 | Native SWF integration | `src/neo/swf/SWF_Main.cpp`, `SWF_Render.cpp`, `SWF_SpriteInstance.cpp`, native menu/widget sources |
 | CPU geometry/masks | `src/ps2/ui/draw.*`, `masks.*`, `triangles.*`, `geometry.*` |
-| Images/fonts/page cache | `src/ps2/renderer/image_backend.cpp`; `src/ps2/ui/font_backend.cpp`, `page_image.*`, `page_geometry.*`, `page_format.*`, `paletted_image.*`, `gstx_format.*` |
+| Images/fonts/pages | `src/ps2/renderer/image_backend.cpp`; `src/ps2/ui/font_backend.cpp`, `page_image.h`, `page_geometry.*`, `paletted_image.*`, `gstx_format.*` |
 | GS device and fences | `src/ps2/renderer/gs.*`, `render_system.*`, `cmd_buffer.*`, `texture.*`, `vram.*`, `capture.*` |
-| Authored reference/oracles | `src/tools/scripts/build_authored_ui.py`, `ui_capture.py`, `renderer_capture.py` |
+| Reference/oracles | `src/tests/host/scripts/swf_fixture.py` (host BSWF/font stand-ins), `src/tools/scripts/renderer_capture.py`, `retail_ui_capture.py` |
 | Native/host regressions | `src/tests/smoketests/renderer_gs_tests.cpp`, `src/tests/host/ui_triangles_tests.cpp`, `src/tests/host/scripts/` |
 | Build manifests | `config/sources.mk`, `config/source_inventory.json`, root Makefile |
 
@@ -234,9 +232,9 @@ regenerate the compile database. Third-party code belongs in `src/external/`.
   color in the preflight counts, and retail `Render` never runs frames. Event routing
   stays unavailable. Shutdown widget borrowers before movies,
   movies before fonts/localization, images before caches, caches/UI before the device.
-- Authored images share four nearest slots (1 MiB), a 256 KiB scratch page and 56-byte
-  records. Retail images are converted GSTX textures whose pages stay resident once
-  opened (the shell atlas is 860 KB of texels). Do not merge these profiles implicitly.
+- Retail images are converted GSTX textures whose pages stay resident once opened (the
+  shell atlas is 860 KB of texels). The placeholder authored SWF and its streamed UIPG
+  pages were removed on 2026-10-29; every native movie is a retail resource.
 - EE float math has no IEEE Inf/NaN and no hardware double. Preserve checked float
   encodings and single-precision geometry. PCSX2 does not establish EE cache or GS cost.
 
@@ -244,7 +242,7 @@ regenerate the compile database. Third-party code belongs in `src/external/`.
 
 All commands run from the repository root. Tracked authored inputs are
 `src/tests/data/headless/`, `headless_map/` and `ui/`; Python tests are under
-`src/tests/host/scripts/`. Update the generator, never only its generated BSWF/header.
+`src/tests/host/scripts/`. Update the generator (`swf_fixture.py`), never only its generated BSWF/font.
 Retail data is local/ignored under `base/` or `gamedata/`. Make defaults to
 `UI_DATA_ROOT=gamedata/d3_bfg`; override it to the directory containing the expected
 containers and English language file. Cooked output must stay under `build/`.
@@ -256,9 +254,8 @@ make
 make release
 make inventory
 make compiledb
-python3 src/tools/scripts/build_authored_ui.py --check
+python3 src/tests/host/scripts/swf_fixture.py --check
 make test-host
-make run-ui
 make ui-cook
 make run-retail-movies
 make test-retail-boot
@@ -269,8 +266,7 @@ GitHub Actions builds production debug/release on Linux in the pinned ps2sdk ima
 (`tools.yml`). Both are compile/link checks; host tests and emulator gates stay local.
 Linux file names are case-sensitive: [ci.md](../.claude/rules/ci.md) has the Mac reproduction.
 
-`run-ui` shows the authored scene. To draw the original quit dialog in full in the
-separate retail package, while it is running with the resource screen loaded:
+To draw the original quit dialog in full in the retail movies package, while it is running with the resource screen loaded:
 
 ```sh
 printf 'ps2_uiRetail dialog quit\n' >> build/debug/ui-retail-movies/console.txt
@@ -293,11 +289,11 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Change | Relevant existing gates |
 | --- | --- |
 | Geometry/GS/mask work | `make test-host`, `make test-renderer`, `make test-ui`; repeat target gates with `BUILD=release` |
-| Retail resources/timelines/menu | Host guards plus `make test-ui` (one retail session per standard, the authored session and every invalid-resource case), debug/release |
+| Retail resources/timelines/menu | Host guards plus `make test-ui` (one retail session per standard and every invalid-resource case), debug/release |
 | Common/frame/presentation ownership | `make test-headless`, `make test-ui`, debug/release |
 | Heap, declarations, scripts or containers | `make test-retail-boot` (its startup ledgers), plus `make test-headless` |
 | Game/map behavior | Existing `make test-game` / `make test-map`, debug/release; not a reason to resume standalone movement-fixture expansion |
-| Documentation/path-only changes | Local links/targets, source inventory, authored `--check`; fixture moves also use host tests and package staging |
+| Documentation/path-only changes | Local links/targets, source inventory, fixture `--check`; fixture moves also use host tests and package staging |
 | Include/Makefile paths, toolchain or CI | `make`, `make release`, plus the case-sensitive Linux check in [ci.md](../.claude/rules/ci.md) |
 
 Latest (2026-10-20, debug only by the user's direction): the retail boot and its
@@ -320,8 +316,8 @@ PT_LOAD is 11,177,957 debug / 11,614,821 release bytes after the paletted UI cha
 (11,167,077 / 11,604,197 after the retail boot change, 11,164,005 / 11,600,997 after
 the full-dialog slice, 11,159,013 / 11,596,133 on the SDK rebuilt on 2026-10-19,
 11,159,397 / 11,596,517 before it); core is 2,150,896 / 2,235,504 (2,139,184 /
-2,223,920 before the rebuild). Authored UI peak is 3,885,330 requested / 3,992,352
-backing; full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are
+2,223,920 before the rebuild). The removed authored UI peaked at 3,885,330 requested /
+3,992,352 backing; full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are
 separate fixed/runtime measurements; do not sum tagged backing and committed arena
 twice. Retail timeline heap acceptance uses its own 16 MiB loaded ceiling and exact warm
 release baselines. The fully drawn dialog peaks at 4,412,335 requested / 4,516,500

@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: image_backend.h
-// Brief: Own console intrinsics and native UI images borrowing one bounded page cache.
+// Brief: Own console intrinsics and the retail UI's resident paletted images.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -15,7 +15,6 @@ class idImage;
 namespace ps2::ui
 {
 class PagedImage;
-struct PageCacheStats;
 } // namespace ps2::ui
 
 namespace ps2::renderer
@@ -30,14 +29,12 @@ idImage * ConsoleCharsetImage();
 tex::Handle ConsoleImageTexture(const idImage * image);
 
 // Production opens the original charset from the retail catalog once that catalog is initialized;
-// the core test image, which has no retail data, installs the authored RGBA fixture instead.
+// the core test image, which has no retail data, installs the generated RGBA fixture instead.
 void OpenConsoleCharset();
 
 #if PS2_D3BFG_TESTS
 PS2_COLD_FUNC bool InstallConsoleCharset(const void * rgba, size_t bytes);
 #endif // PS2_D3BFG_TESTS
-
-idImage * AuthoredFontImage();
 
 // Validation admits both direct intrinsics and cooked images. A paged image has logical atlas
 // dimensions; it never exposes a single texture handle for the whole atlas.
@@ -47,6 +44,5 @@ ui::PagedImage * UiPageImage(const idImage * image);
 // Screen blending carries one color channel per pass in alpha: gives a loaded retail image the
 // channel CLUTs it needs. Outside a frame; white images need none.
 void EnableScreenBlending(const idImage * image);
-ui::PageCacheStats GetUiPageStats();
 
 } // namespace ps2::renderer

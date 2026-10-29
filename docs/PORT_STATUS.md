@@ -1,8 +1,9 @@
 # Port status and headless acceptance
 
-## Current snapshot — 2026-10-26
+## Current snapshot — 2026-10-29
 
-The port is not playable yet. The latest change [merges the UI gates](#fewer-emulator-launches-for-the-ui-and-common-gates-2026-10-26)
+The port is not playable yet. The latest change [removes the authored placeholder UI](#authored-ui-and-uipg-removal-2026-10-29)
+(2026-10-29) and has no emulator measurements yet. The one before it [merges the UI gates](#fewer-emulator-launches-for-the-ui-and-common-gates-2026-10-26)
 (2026-10-26): `make test-ui` visits every retail screen in one session per standard, and
 the probes that only confirmed a deferred capability fails were retired. The slice before it brings up the
 [pad and the debug USB keyboard](#pad-and-debug-keyboard-devices-2026-10-24) (2026-10-24):
@@ -46,7 +47,7 @@ changing their bytes.
 | M3 game fixtures | Native startup/events/scripts; restricted player movement, jump/crouch/steps over 331-frame reloads; authored map/world/PVS/collision/AAS and one idle AI | Full campaign player, animated AI/gameplay, retail map conversion and Common map transitions |
 | Production loop | Native game initialization, console commands, sustained frames and ordered shutdown; game remains in `NOMAP` | Production map ownership and map simulation |
 | Retail data boot | Retail `_common`/`_ordered` containers, every declaration folder and the full `doom_main.script` reach `NOMAP` in a 14.5 MB heap arena, with exact shutdown | Leaves about 6.4–6.8 MB for a level; heap levers measured, not applied |
-| 2D-1–4 | GS device/textures/capture, real console, indexed UI, native fonts and an interactive authored SWF | Physical PS2/performance acceptance |
+| 2D-1–4 | GS device/textures/capture, real console, indexed UI and native fonts (an interactive authored SWF was the bring-up step, removed 2026-10-29) | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
 | 2D-7–8 | The native shell handler drives the start, root, Campaign and Settings screens from keyboard and pad key events, from HostFs and from the pad and debug USB keyboard devices; Quit opens Common's native confirmation, pad button tags draw as PS3 prompt art and a package policy boots into the menu (debug gates) | The screens below Campaign and Settings, a hands-on check of the devices and hardware validation |
@@ -66,7 +67,7 @@ and PAL, then the console, font and retail movie gates on the recooked catalog; 
 [record](#campaign-and-settings-screens-2026-10-24). The one before passed the new
 `menu-boot` case in NTSC and PAL on the prompt-icon matrix's ELF plus the boot hook; see
 its [record](#booting-into-the-native-menu-2026-10-24). The one before that passed the console,
-font, retail movie, authored UI, headless, game and map gates (62 cases) with the prompt
+font, retail movie, authored UI (since removed), headless, game and map gates (62 cases) with the prompt
 icons drawn in the quit dialog in NTSC and PAL; see its
 [record](#pad-prompt-icons-in-retail-text-2026-10-24).
 The one before that passed them with the new `menu-quit` case; see its
@@ -3590,7 +3591,7 @@ each with its runner's complete case set:
 | `test-renderer` | NTSC/PAL scenes and 17 expected fatals |
 | `test-common` | 7 lifecycle stops and 76 negative probes |
 | `test-headless`, `test-console` | Bounded and live-quit runs; NTSC/PAL console |
-| `test-ui` | NTSC/PAL authored movie and 12 invalid resources |
+| `test-ui` | Historical (2026-10-19): NTSC/PAL authored movie and 12 invalid resources; since 2026-10-29 the retail session per standard plus the 5 font and 13 movie failure cases |
 | `test-retail-ui` | NTSC/PAL English fonts and 5 invalid resources |
 | `test-retail-movies` | Inactive and executable NTSC/PAL movies and 12 guards |
 | `test-game`, `test-map` | Game fixture and 10 expected fatals; authored map |
@@ -3946,7 +3947,7 @@ direction release gates were not run. Every backend namespace now follows
 | `ps2::renderer::tex` | texture owner and layouts | `ps2::tex` |
 | `ps2::ui` | draw collection, geometry, triangles, masks, page and paletted images | `ps2::ui` (files in `renderer/`) |
 | `ps2::ui::gstx`, `fonts`, `swf` | GSTX format; fonts and the procedural charset; SWF format/execution/runtime and its JPEG decoder | `ps2::ui::gstx`, `ps2::fonts` + charset, `ps2::ui` + `ps2::ui::swf` + `ps2::jpeg` |
-| `ps2::ui::authored`, `ps2::ui::retail` | authored assets and movie; retail resources, screen and widget owner | `ps2::ui`, `ps2::movie`; `ps2::retail_movie`, `ps2::ui::retail_owner` |
+| `ps2::ui::authored`, `ps2::ui::retail` | authored assets and movie (removed 2026-10-29); retail resources, screen and widget owner | `ps2::ui`, `ps2::movie`; `ps2::retail_movie`, `ps2::ui::retail_owner` |
 | `ps2::tests`, `ps2::tests::fixture` | target test suites; codec data and the game fixture | `ps2::smoketests`, `ps2::smoketests::fixtures`, `ps2::gamefixture` |
 
 Merged subsystems give their functions distinct names, so an unqualified call cannot bind
@@ -4838,3 +4839,31 @@ backend and codec unit and checks registrations and map inputs, and `headless-co
 `headless-game` compile the core and test sets. `smoke-negative` only showed that the core
 smoke fails its lexer check without its fixture file; the runner's `core-missing-fixture`
 scenario went with it. The compile database keeps its 410 entries.
+
+## Authored UI and UIPG removal (2026-10-29)
+
+The authored placeholder UI is removed from production, with the UIPG streamed RGBA page
+format. Gone: the `ps2::ui::authored` movie owner and its `ps2_ui` / `ps2_uiKey` commands,
+`authored_assets.*` and its generated admission header, `page_format.*`, the `PageImage` /
+shared `PageCache` implementation (`page_image.h` keeps the abstract `PagedImage` interface
+that the retail `PalettedImage` implements; `page_geometry` stays for GSTX), the
+`textures/ps2_movie` and `textures/ps2_ascii` images, the `ps2_ascii` font admission (the
+font cache bound is now the retail 8) and the `ps2_ui.mtr` material. `idSWF::LoadBinary`
+on the EE now fatals for any executable non-retail movie, Common's event chain is console
+then native menu, and presentation no longer initializes, renders or shuts down a movie.
+`make ui` / `make run-ui` are gone.
+
+Test coverage moved, not dropped: `make test-ui` is the retail session per standard plus
+the 5 font and 13 movie failure cases (the authored session and its 12 invalid-resource
+cases, `run_ui.py`, are removed). The core renderer test lost its UIPG paged scene
+(`native-paged`, `renderer-paged*.tga`, 45 pixel probes). Removed host tests: the UIPG
+format and `PageCache` sanitizer harnesses and the page package, page and runner scripts;
+the FNV-1a32 vectors moved into `gstx_format_tests` (`PageChecksum` is now
+`ps2::ui::gstx::Checksum`). `ps2_demo.bswf` and `newfonts/ps2_ascii/48.dat` remain as
+host-only fixtures, generated by `src/tests/host/scripts/swf_fixture.py` (moved from
+`build_authored_ui.py`), as redistributable stand-ins for the retail pipeline's host tests;
+no target image loads them. Also in this change: `system/core.h` includes `ps2/common.h`
+and `gs.o` joins the engine-bridge object list for the core test image.
+
+No emulator run was made for this change, so no ledger, `PT_LOAD` or gate result is
+recorded; the entries above describing the authored UI stay as dated history.

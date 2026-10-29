@@ -35,7 +35,7 @@ make CONSOLE_STANDARD=pal run-retail-ui
 make test-ui
 make BUILD=release test-ui
 
-# The console and authored UI packages stage the same cook for the console charset:
+# Every visible package stages the same cook for the console charset:
 make ui-cook && make console
 
 # Separate reports and override the local installation location:
@@ -51,8 +51,7 @@ repository's ignored `build/` tree; retail files and generated assets stay local
 Neither command runs the engine, emulator or AVM1 scripts, or changes the production
 package. `make ui-cook` builds `build/tools/asset_reexport` first; `UI_PREVIEWS` (under
 `build/`) also writes an original and a converted PNG of every texture for visual
-review. `make ui` uses the authored native SWF; `make test-ui` runs it in its own
-session beside the merged retail session.
+review.
 
 `make retail-ui` stages the same production ELF under `build/<config>/ui-retail/`;
 `run-retail-ui` displays the resource screen until quit. `UI_COOK_OUTPUT` selects the
@@ -60,8 +59,7 @@ source cook, and `CONSOLE_STANDARD` selects NTSC/PAL. The package contains only 
 compact catalog, modern font files and GSTX textures from the local cook; staging
 removes any other file from its asset directory. It does not copy retail SWFs,
 material source text, legacy font blobs or the full language dictionary. Use a fresh
-visible process: authored UIPG pages and retail paletted textures are deliberately
-separate startup choices.
+visible process.
 
 Append commands to the running package's `console.txt`, for example:
 
@@ -355,52 +353,14 @@ holds up to sixteen 512 × 512 pages, far more than the English glyphs of any li
 need. Entries cost 20 catalog bytes per glyph and size: the 128 KiB catalog bound leaves
 room for about 3,800 more, roughly 37 sizes of 103 glyphs.
 
-## Authored page transport (UIPG)
+## Removed authored page transport (UIPG)
 
-The authored native SWF and the renderer test keep streaming lossless **UIPG v1**
-RGBA pages: **256 × 256 pixels** with a one-pixel gutter and at most **254 × 254**
-source pixels per interior. Internal gutters copy adjacent atlas pixels; only the atlas
-boundary and unused padding clamp. `build_authored_ui.py` and the renderer page fixture
-write them; the retail cook no longer does. All header and record words are unsigned
-32-bit little-endian integers:
-
-| Section | Layout |
-| --- | --- |
-| 32-byte header | ASCII `UIPG`, version `1`, logical atlas width/height, page extent `256`, gutter `1`, page count, reserved `0`. |
-| 8-byte record per page | Absolute payload offset followed by FNV-1a32 of that page's raw RGBA8 bytes. Records and payloads are in row-major page order. |
-| Payload | Exactly `256 × 256 × 4` bytes per page. The file must end immediately after its last payload. |
-
-Native admission checks dimensions, inferred rows/columns, page counts, offsets and
-exact file length before allocating its bounded metadata table. Atlas axes are at
-most 16,384 and page count is at most 1,024. Each streamed page is checksum-checked
-before replacing a cache slot. This format is a bounded page transport, not SWF/font
-admission.
-
-The authored renderer scene accepted on **2026-10-16** reserves **two cache textures plus one scratch page**:
-524,288 bytes of cache pixels and 262,144 scratch bytes, plus its small page-record
-table. It streams into those existing slots without allocating during drawing,
-uses linear/clamp sampling, and fences queued texture references before replacement.
-Close page images before the device/texture owner shuts down. The CPU geometry helper
-clips triangles against page interiors and the screen, preserving winding, RGBA and
-shared edges. Constant UVs exactly on an internal page boundary have one page owner,
-so alpha blending is not submitted twice.
-
-The **2026-10-17 authored binding implementation** connects cooked pages to native
-`idImage`, SWF bitmap fills and `idFont` drawing, accepted in debug/release NTSC/PAL.
-Images retain their logical atlas dimensions while the draw adapter splits their
-triangles into page coordinates. Two authored images share one `PageCache`: four
-nearest/clamp texture slots (**1,048,576 bytes**), one **262,144-byte** scratch page
-and **56 bytes** of page records. Cache slots are keyed by image and page; drawing
-allocates no new storage. The movie's **272 × 256** atlas places its transformed
-bitmap across the x = 254 interior boundary. The ASCII font keeps its **512 × 128**
-atlas and native half-texel glyph UV expansion.
-
-BSWF/font/material admission still uses the compiled exact-byte authored profile.
-Page admission checks the header and every table checksum against compiled authored
-descriptors, then verifies streamed pixels before replacing a cache slot. Images and
-cache contents remain warm across movie unload/reload; UI shutdown closes every image
-before releasing the shared cache and device. This establishes authored English-only
-movie binding; retail movies and fonts use the converted textures above.
+Until 2026-10-29 a placeholder authored SWF/font and the renderer test streamed lossless
+**UIPG v1** RGBA pages (256 × 256 with a one-pixel gutter) through a shared slot cache;
+the retail cook moved to the resident paletted GSTX textures above first. The format,
+its cache and the authored movie are gone; the surviving lessons on page splitting and
+atlas UVs are in [gs-renderer.md](../.claude/rules/gs-renderer.md#native-atlas-pages).
+The authored BSWF and font remain host-test stand-ins (`src/tests/data/ui/`).
 
 ## Inactive retail dictionaries and English text
 
@@ -477,7 +437,7 @@ retail files remain under ignored `build/`.
 `make test-host` runs the synthetic format/cook regressions alongside existing host
 checks and sanitizer C++ harnesses; it needs no retail installation. Coverage includes
 truncation and bounds, alias/lookup semantics, native font metrics, required labels,
-DXT interpolation/swizzles, page seams/UVs, UIPG headers/records/checksums, immutable
+DXT interpolation/swizzles, page seams/UVs, immutable
 output and failed-cook preservation. The converter's library tests cover RLE, CLUT
 order, index packing, palettes, resampling, packing, GSTX round trips and glyph sets
 (exact area coverage, phases, outline pairs, determinism and rejected requests); the
@@ -485,21 +445,12 @@ target's GSTX admission is checked against converter output, refusing every corr
 table byte, and its catalog reader against valid and mutated glyph tables; and the
 Python reader, its fixture encoder and sampling bounds have their own tests. The cook tests run the real converter on synthetic containers. Standalone sanitizer geometry checks exercise
 UV/screen clipping, reversed shared edges, color interpolation and invalid-input
-preservation. A passing sanitizer harness exercises the real shared cache with
-`PS2_D3BFG_ASSERTS=0` and `1`, using stubbed GS submission. The existing renderer scene
-extends this with authored paged triangles, cache eviction, reload/cleanup and failure
-paths. The authored session of `make test-ui` checks shared movie/font residency,
-native page splits, three warm reload cycles and twelve invalid-resource cases,
-including a deferred pixel checksum failure. Thirty pixel probes per capture pass;
-four page loads stay warm with zero evictions. Target measurements and inspected
-NTSC/PAL captures are in [PORT_STATUS](PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).
-Two real cooks are byte-identical, and every converted texture is re-read and checked
+preservation. Two real cooks are byte-identical, and every converted texture is re-read and checked
 before publication. Previews stay under ignored `build/`.
 Host tests do not establish EE parser safety, menu correctness or physical PS2 behavior.
 
 The console step of `make test-ui` derives the input line's glyph probes from the cooked
-charset, so it, like the authored session whose package also carries the catalog, needs
-`make ui-cook` first.
+charset, so it needs `make ui-cook` first.
 
 The retail font gate (now the `fonts` step of `make test-ui`) passed debug/release NTSC/PAL: five native
 fonts at three scales, seven 120-frame phases, preserved legacy layout metrics,
@@ -510,24 +461,22 @@ admit a retail BSWF or activate Shell.
 
 The real shell contains 54 mask placements, 29 additive-color placements, blend modes
 0/4/8 and fifteen stroked shapes. Dialog adds ten mask placements and blend modes 0/8.
-Converted paletted textures and the authored SWF/font binding provide the integration
+Converted paletted textures and the native SWF/font binding provide the integration
 foundation. Selected English font/image admission and legacy layout metrics now pass
 through the opt-in native resource path. Inactive BSWF dictionaries and isolated
 English text now have a bounded native path.
 The scoped execution path below now adds native timeline and callback ownership for
 initial states. Native blend mode 8 now has an alpha-weighted additive GS path for
-the zero-additive-color profile, exercised by the authored native SWF. Mode 4, nonzero
+the zero-additive-color profile. Mode 4, nonzero
 additive color transforms, complex masks and strokes are still explicit feature gaps.
-A bounded native convex-mask path now exists for authored geometry; it does not
+A bounded native convex-mask path now exists for simple geometry; it does not
 admit the shell's holed/disconnected meshes, 185-point outline or stroked masks. Full
 drawing is admitted only for a movie without outlines, screen blends or additive color,
 which today means the dialog. Shell drawing, general dynamic resource closure and a
 measured active-menu working set remain pending. This does not complete milestone
 2D-5 or activate the complete retail menu.
 
-Standalone `PageImage` callers can still own a private window, and the authored
-SWF/font images share one cache. Retail images instead keep their converted pages
-resident; the device's texture budget (2 MiB of owned texels and of texture VRAM)
+Retail images keep their converted pages resident; the device's texture budget (2 MiB of owned texels and of texture VRAM)
 remains the global cap, and the measured screens above do not establish the complete
 menu's working set.
 
@@ -561,7 +510,7 @@ printf 'ps2_uiRetail unload\nquit\n' >> build/debug/ui-retail-movies/console.txt
 placement/action preflight before activation. That pass checks command operands,
 dictionary references, display mutations, sprite cycles/depth, constant pools, function
 headers/registers and branches to actual instruction boundaries. Only the 32 action
-families observed across the selected retail movies and authored demo are admitted.
+families reviewed for the selected retail movies (and the former authored demo) are admitted.
 Unused interpreter APIs, including construction/inheritance, are not enabled by this
 profile. Source checksums do not replace structural and runtime checks.
 
@@ -698,7 +647,7 @@ handler with the session and runs its update before the timeline advances.
   screens below them fail by name.
 - **Platform.** Handlers and movies report platform 1, the PS3 face-button layout: the
   command bar shows the PlayStation cross and circle with SELECT and BACK.
-- **Input.** Common routes each event the console and authored movie leave to the menu,
+- **Input.** Common routes each event the console leaves to the menu,
   as `MenuEvent` does, inside the shell's execution scope. `ps2_uiRetail key NAME` posts a
   press and release through the event loop: keyboard `enter`, `escape`, arrows, or pad
   `cross`, `circle`, `dpad_*`. Accept on the start screen signs in the first local user and

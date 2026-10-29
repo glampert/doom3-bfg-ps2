@@ -14,7 +14,7 @@ RENDER_STUB_CXX_SRC = \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp
 
-SIZE_OPT_CXX_SRC = ps2/ui/retail_owner.cpp ps2/ui/retail_menu.cpp ps2/ui/swf_execution.cpp ps2/ui/swf_format.cpp ps2/ui/retail_catalog.cpp ps2/ui/retail_assets.cpp ps2/ui/retail_materials.cpp ps2/ui/font_format.cpp ps2/ui/page_image.cpp ps2/ui/gstx_format.cpp ps2/ui/paletted_image.cpp ps2/ui/authored_assets.cpp ps2/ui/font_backend.cpp $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/cmd_buffer.cpp ps2/renderer/texture_layout.cpp ps2/renderer/vram.cpp ps2/renderer/texture.cpp ps2/renderer/capture.cpp tests/smoketests/console_charset.cpp ps2/renderer/image_backend.cpp
+SIZE_OPT_CXX_SRC = ps2/ui/retail_owner.cpp ps2/ui/retail_menu.cpp ps2/ui/swf_execution.cpp ps2/ui/swf_format.cpp ps2/ui/retail_catalog.cpp ps2/ui/retail_assets.cpp ps2/ui/retail_materials.cpp ps2/ui/font_format.cpp ps2/ui/page_image.cpp ps2/ui/gstx_format.cpp ps2/ui/paletted_image.cpp ps2/ui/font_backend.cpp $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/system/codec_memory.cpp ps2/ui/jpeg_decoder.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_main.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/core.cpp ps2/system/filesystem.cpp ps2/system/sys_filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/cmd_buffer.cpp ps2/renderer/texture_layout.cpp ps2/renderer/vram.cpp ps2/renderer/texture.cpp ps2/renderer/capture.cpp tests/smoketests/console_charset.cpp ps2/renderer/image_backend.cpp
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \
@@ -93,9 +93,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/ui/geometry.cpp \
 	ps2/ui/triangles.cpp \
 	ps2/ui/masks.cpp \
-	ps2/ui/page_format.cpp \
 	ps2/ui/page_geometry.cpp \
-	ps2/ui/page_image.cpp \
 	ps2/ui/gstx_format.cpp \
 	ps2/ui/paletted_image.cpp \
 	ps2/ui/draw.cpp \
@@ -500,12 +498,9 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/ui/retail_assets.cpp \
 	ps2/ui/retail_materials.cpp \
 	ps2/ui/font_format.cpp \
-	ps2/ui/page_format.cpp \
 	ps2/ui/page_geometry.cpp \
-	ps2/ui/page_image.cpp \
 	ps2/ui/gstx_format.cpp \
 	ps2/ui/paletted_image.cpp \
-	ps2/ui/authored_assets.cpp \
 	ps2/ui/font_backend.cpp \
 	ps2/system/video_mode.cpp \
 	ps2/renderer/gs.cpp \
@@ -578,7 +573,7 @@ JPEG_TEST_CXX_SRC = \
 	external/jpeg-6/jutils.cpp
 
 # Production entry and isolated campaign-test entry/adapters.
-PS2_CXX_SRC = ps2/ui/retail_movie.cpp ps2/system/main.cpp ps2/system/headless.cpp ps2/system/presentation.cpp ps2/ui/movie.cpp ps2/input/devices.cpp ps2/input/keyboard.cpp ps2/input/pad.cpp
+PS2_CXX_SRC = ps2/ui/retail_movie.cpp ps2/system/main.cpp ps2/system/headless.cpp ps2/system/presentation.cpp ps2/input/devices.cpp ps2/input/keyboard.cpp ps2/input/pad.cpp
 GAME_TEST_CXX_SRC = \
 	tests/smoketests/game_main.cpp \
 	tests/smoketests/headless_fixture.cpp \

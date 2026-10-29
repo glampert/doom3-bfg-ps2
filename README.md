@@ -129,7 +129,7 @@ and command-file input are described in the [developer guide](docs/DEVELOPMENT.m
 |   |-- neo/            # Original Doom 3 BFG engine and game code
 |   |-- ps2/            # PlayStation 2 backend
 |   |-- tests/          # Host tests and separate native test executables
-|   |   `-- data/       # Authored boot, map and interface fixtures
+|   |   `-- data/       # Authored boot and map fixtures, host SWF/font stand-ins
 |   `-- tools/          # Host resource tools and build/test scripts
 `-- Makefile
 ```

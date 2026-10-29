@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # ================================================================================================
-# File: build_authored_ui.py
-# Brief: Author a small native BSWF16 timeline and ASCII font without any retail game assets.
+# File: swf_fixture.py
+# Brief: Author a small native BSWF16 movie and ASCII font, the retail UI pipeline's host stand-ins.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
+
+"""Host tests of the retail UI pipeline (inventory, cook, BSWF inspection and execution checks)
+read these redistributable files in place of retail movies and fonts. No target image loads them."""
 
 import argparse
 import hashlib
@@ -11,19 +14,11 @@ import json
 from pathlib import Path
 import re
 import struct
-import tempfile
 
-from ui_pages import write_pages
-from ui_page_package import HEADER, RECORD, write_page_package
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 ASSET_ROOT = Path("src/tests/data/ui")
-HEADER_PATH = Path("src/ps2/ui/authored_ui_data.h")
 SWF_PATH = "generated/swf/ps2_demo.bswf"
 FONT_PATH = "newfonts/ps2_ascii/48.dat"
-MATERIAL_PATH = "materials/ps2_ui.mtr"
-MOVIE_IMAGE_PATH = "textures/ps2_movie.uipg"
-FONT_IMAGE_PATH = "textures/ps2_ascii.uipg"
 
 
 def be(format_string, *values):
@@ -332,18 +327,6 @@ def build_font():
     return output + b"".join(struct.pack("<I", code) for code in range(32, 127))
 
 
-def build_materials():
-    materials = []
-    for name, image in (("_white", "_white"), ("guiSolid", "_white"),
-                        ("generated/swf/ps2_demo.tga", "textures/ps2_movie"),
-                        ("newfonts/ps2_ascii/48.tga", "textures/ps2_ascii")):
-        materials.append(f"{name}\n{{\n    {{\n        blend blend\n        map {image}\n"
-                         "        nearest\n        clamp\n        vertexColor\n    }\n}\n")
-    return ("// This source code is released under the GNU GPL-3.0-or-later license.\n"
-            "// Authored native SWF materials use backend-owned white and cooked movie/font pages.\n\n"
-            + "\n".join(materials)).encode("ascii")
-
-
 def charset_rows():
     """Keep the host's authored glyph coverage tied to the native canonical bit patterns."""
     source = (REPO_ROOT / "src/tests/smoketests/console_charset.cpp").read_text()
@@ -385,44 +368,6 @@ def charset_pixels(font=False):
     return width, height, bytes(pixels)
 
 
-def authored_pixels(font=False):
-    width, height, source = charset_pixels(font)
-    if font:
-        return width, height, source
-    # Native RenderShape now samples an identical A across the x=254 page split.
-    # Keep its displayed 16x16 image/transform unchanged while exercising two pages.
-    width = 272
-    pixels = bytearray(bytes((255, 255, 255, 0)) * (width * height))
-    for y in range(height):
-        pixels[y * width * 4:(y * width + 256) * 4] = source[y * 256 * 4:(y + 1) * 256 * 4]
-    for y in range(16):
-        origin = ((64 + y) * 256 + 16) * 4
-        target = ((64 + y) * width + 246) * 4
-        pixels[target:target + 16 * 4] = source[origin:origin + 16 * 4]
-    return width, height, bytes(pixels)
-
-
-def page_assets():
-    """Use the same lossless page writers as the retail cook without embedding their pixels."""
-    assets, descriptors = {}, []
-    with tempfile.TemporaryDirectory(prefix="d3bfg-authored-ui-") as temporary:
-        directory = Path(temporary)
-        for path, image_name, font in ((MOVIE_IMAGE_PATH, "textures/ps2_movie", False),
-                                       (FONT_IMAGE_PATH, "textures/ps2_ascii", True)):
-            width, height, pixels = authored_pixels(font)
-            layout = write_pages(width, height, pixels, directory)
-            package = write_page_package(layout, directory)
-            data = (directory / package["path"]).read_bytes()
-            checksums = [RECORD.unpack_from(data, HEADER.size + index * RECORD.size)[1]
-                         for index in range(package["page_count"])]
-            assets[path] = data
-            descriptors.append({"image_name": image_name, "path": path, "width": width, "height": height,
-                                "file_bytes": len(data), "page_count": len(checksums), "checksums": checksums,
-                                "sha256": hashlib.sha256(data).hexdigest(),
-                                "source_sha256": hashlib.sha256(pixels).hexdigest()})
-    return assets, descriptors
-
-
 def fnv1a64(data):
     value = 0xCBF29CE484222325
     for byte in data:
@@ -430,51 +375,12 @@ def fnv1a64(data):
     return f"{value:016x}"
 
 
-def header(assets, pages=()):
-    text = ("// ================================================================================================\n"
-            "// File: authored_ui_data.h\n"
-            "// Brief: Exact authored native UI resources admitted before unchecked legacy parsing.\n"
-            "// This source code is released under the GNU GPL-3.0-or-later license.\n"
-            "// Generated by src/tools/scripts/build_authored_ui.py; edit the generator.\n"
-            "// ================================================================================================\n\n"
-            "#pragma once\n#include <cstddef>\n#include <cstdint>\n\nnamespace ps2::ui::authored\n{\n")
-    entries = []
-    for index, (path, data) in enumerate(assets.items()):
-        name = f"kResource{index}"
-        text += f"static constexpr std::uint8_t {name}[] = {{\n"
-        # One byte per line is already a fixed point of the repository formatter;
-        # generation and --check do not depend on an installed C++ formatter.
-        for byte in data:
-            text += f"    0x{byte:02x},\n"
-        text += "};\n\n"
-        entries.append(f'    {{ "{path}", {name}, sizeof({name}) }},')
-    text += ("struct Resource\n{\n    const char * path;\n    const std::uint8_t * bytes;\n"
-             "    std::size_t length;\n};\n\nstatic constexpr Resource kResources[] = {\n"
-             + "\n".join(entries) + "\n};\n")
-    if pages:
-        for index, page in enumerate(pages):
-            text += f"\nstatic constexpr std::uint32_t kPageChecksums{index}[] = {{\n"
-            text += "".join(f"    0x{checksum:08x},\n" for checksum in page["checksums"])
-            text += "};\n"
-        text += ("\nstruct PageResource\n{\n    const char * imageName;\n    const char * path;\n"
-                 "    std::uint32_t width;\n    std::uint32_t height;\n    std::uint32_t fileBytes;\n"
-                 "    const std::uint32_t * checksums;\n    std::size_t pageCount;\n};\n\n"
-                 "static constexpr PageResource kPageResources[] = {\n")
-        for index, page in enumerate(pages):
-            text += (f'    {{ "{page["image_name"]}", "{page["path"]}", {page["width"]}, {page["height"]}, '
-                     f'{page["file_bytes"]}, kPageChecksums{index}, {page["page_count"]} }},\n')
-        text += "};\n"
-    text += "} // namespace ps2::ui::authored\n"
-    return text.encode("ascii")
-
-
 def outputs():
-    assets = {SWF_PATH: build_swf(), FONT_PATH: build_font(), MATERIAL_PATH: build_materials()}
-    image_assets, pages = page_assets()
+    assets = {SWF_PATH: build_swf(), FONT_PATH: build_font()}
     manifest = {
-        "generator": "src/tools/scripts/build_authored_ui.py",
+        "generator": "src/tests/host/scripts/swf_fixture.py",
         "license": "GPL-3.0-or-later",
-        "profile": "BSWF16 native authored UI with masks, outlines, color terms and screen blending; no retail data",
+        "profile": "BSWF16 host fixture with masks, outlines, color terms and screen blending; no retail data",
         "blend_modes": [0, 4, 8],
         "frame": {"width": 640, "height": 480, "rate": 6, "main_frames": 1, "pulse_frames": 4},
         "dictionary": ["null", "background shape", "panel shape", "ASCII A bitmap", "transformed bitmap shape",
@@ -495,12 +401,9 @@ def outputs():
                                "Add2", "GetMember", "SetMember", "Increment"]},
         "resources": {path: {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "fnv1a64": fnv1a64(data)}
                       for path, data in assets.items()},
-        "page_resources": pages,
     }
     result = {ASSET_ROOT / "base" / path: data for path, data in assets.items()}
-    result.update({ASSET_ROOT / "base" / path: data for path, data in image_assets.items()})
     result[ASSET_ROOT / "manifest.json"] = (json.dumps(manifest, indent=2) + "\n").encode("ascii")
-    result[HEADER_PATH] = header(assets, pages)
     return result
 
 
@@ -519,8 +422,8 @@ def main():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
     if args.check and changed:
-        parser.exit(1, "Authored UI outputs are stale: " + ", ".join(changed) + "\n")
-    print("Authored UI outputs verified." if args.check else "Authored UI outputs generated.")
+        parser.exit(1, "SWF fixture outputs are stale: " + ", ".join(changed) + "\n")
+    print("SWF fixture outputs verified." if args.check else "SWF fixture outputs generated.")
     return 0
 
 

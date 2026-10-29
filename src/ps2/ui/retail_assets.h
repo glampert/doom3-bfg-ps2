@@ -14,7 +14,7 @@ class idFile;
 namespace ps2::ui::retail
 {
 
-// Opt in while the device/UI are idle, before any authored paged images or fonts are loaded.
+// Opt in while the device/UI are idle, before any paletted images or fonts are loaded.
 // Close movies, fonts and images before Shutdown. Retail construction is inactive; execution requires separate command/action admission.
 void Init();
 void Shutdown();

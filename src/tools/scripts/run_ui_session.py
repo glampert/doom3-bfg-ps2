@@ -27,7 +27,7 @@ import run_headless
 import run_pcsx2_test as smoke
 import run_retail_movies as movies
 import run_retail_ui as fonts
-from run_ui import BASELINE, TARGET_CRASH_RE, echoed
+from run_console import BASELINE, TARGET_CRASH_RE, echoed
 from stage_headless import REPO_ROOT, boot_data, sha256
 from stage_retail_ui import inspect_package, stage_retail
 

@@ -25,8 +25,6 @@ idFile * OpenFontAsset(const char * name);
 bool PreflightFont(idFile * file, const char * name);
 void ValidateFontMaterial(const idMaterial * material, const char * name);
 void GetFontLayout(const char * name, int index, int & width, int & height);
-bool PreflightAuthoredFont(idFile * file, const char * name);
-void ValidateAuthoredFontMaterial(const idMaterial * material);
 
 // One glyph of a font's pre-rendered bitmaps: exact pixels at one size, with its outline beside it
 // when the size has one, and its ink origin (left edge, baseline) in 1/16 GS pixels. The bitmap is

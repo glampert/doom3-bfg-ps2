@@ -23,7 +23,6 @@ import struct
 import subprocess
 import sys
 import renderer_capture
-import renderer_page_fixture
 import time
 import uuid
 
@@ -126,7 +125,7 @@ VERSION_RE = re.compile(
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
     "inactive-start", "rejected-partial-init", "device-init", "context-frames",
-    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters", "native-indexed", "native-paged"))
+    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters", "native-indexed"))
 REQUIRED_CORE_CHECKS = frozenset({
     "codecs/crc-known-vector", "codecs/zlib-streaming-ledger", "codecs/zlib-error-cleanup",
     "codecs/jpeg-rgba-tables-ledger",
@@ -588,13 +587,6 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                         int(flushes) <= int(frames) or int(triangles) <= 3200 or int(drains) <= 0
                         for _, frames, vertices, indices, draws, flushes, triangles, drains in indexed)):
                 return False, "invalid native indexed geometry accounting"
-            paged = re.findall(r"UI paged cycle=(\d+) frames=(\d+) pages=(\d+) slots=(\d+) cache=(\d+) scratch=(\d+) metadata=(\d+) loads=(\d+) hits=(\d+) evictions=(\d+) triangles=(\d+)", log)
-            cycles = [(int(values[0]), int(values[1])) for values in paged]
-            if (cycles not in ([(0, 120), (1, 4)], [(0, 120), (1, 4), (0, 120), (1, 4)]) or
-                    any((int(pages), int(slots), int(cache), int(scratch), int(metadata)) != (6, 2, 524288, 262144, 48) or
-                        int(loads) <= 6 or int(hits) <= 0 or int(evictions) <= 0 or int(triangles) <= int(frames) * 12
-                        for _, frames, pages, slots, cache, scratch, metadata, loads, hits, evictions, triangles in paged)):
-                return False, "invalid native paged image/cache accounting"
         elif scenario != "platform":
             checks = CHECK_RE.findall(log)
             names = {name for name, _ in checks}
@@ -841,9 +833,6 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
         stage_game_fixtures(output / "game-fixture", args.scenario)
         (output / "game.manifest").write_text(f"D3BFG_GAME_1\n{test_id}\n{args.scenario}\n")
 
-    page_fixtures = (renderer_page_fixture.stage(output)
-                     if args.scenario in ("renderer-ntsc", "renderer-pal") else {})
-
     fixture = output / "fixture.txt"
     if args.fixture:
         shutil.copy2(args.fixture, fixture)
@@ -886,7 +875,6 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
             for path in sorted((output / "game-fixture").rglob("*")) if path.is_file()
         },
         "game_manifest_sha256": sha256(output / "game.manifest") if game_scenario else None,
-        "renderer_page_fixtures": page_fixtures,
         "build_artifact_sha256": build_artifacts,
         "config_sha256": sha256(args.config), "emulator": str(emulator),
         "emulator_version": version, "command": command,
@@ -958,10 +946,6 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 capture_checks[name] = renderer_capture.verify_indexed_scene(output / name, standard)
             if capture_checks["renderer-indexed.tga"]["sha256"] != capture_checks["renderer-indexed-reload.tga"]["sha256"]:
                 raise ValueError("native indexed geometry reload changed the authored image")
-            for name in ("renderer-paged.tga", "renderer-paged-reload.tga"):
-                capture_checks[name] = renderer_capture.verify_paged_scene(output / name, standard)
-            if capture_checks["renderer-paged.tga"]["sha256"] != capture_checks["renderer-paged-reload.tga"]["sha256"]:
-                raise ValueError("native paged image reload changed the authored image")
             for name in ("renderer-pressure.tga", "renderer-pressure-reload.tga"):
                 width, height, pixels = renderer_capture.read_tga(output / name)
                 if (width, height) != (512, 512 if standard == "PAL" else 448):

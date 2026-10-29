@@ -133,11 +133,24 @@ static bool Admission()
     return passed;
 }
 
+static bool Checksums()
+{
+    static constexpr char kA[] = "a";
+    static constexpr char kFoobar[] = "foobar";
+    static constexpr char kHello[] = "hello";
+    return Check(gstx::Checksum(nullptr, 0) == 0x811C9DC5, "empty FNV-1a32 basis") &&
+           Check(gstx::Checksum(kA, sizeof(kA) - 1U) == 0xE40C292C, "FNV-1a32 a vector") &&
+           Check(gstx::Checksum(kFoobar, sizeof(kFoobar) - 1U) == 0xBF9CF968, "FNV-1a32 foobar vector") &&
+           Check(gstx::Checksum(kHello, sizeof(kHello) - 1U) == 0x4F9F2CAB, "FNV-1a32 hello vector");
+}
+
 } // namespace
 
 int main()
 {
-    if (!Admission())
+    const bool checksums = Checksums();
+
+    if (!Admission() || !checksums)
     {
         return 1;
     }

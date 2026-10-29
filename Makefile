@@ -28,9 +28,7 @@
 #   make headless-game           # native campaign test executable
 #   make console                 # package the same production ELF with visible NTSC console (CONSOLE_STANDARD=pal for PAL)
 #   make run-console             # run the visible console package in PCSX2
-#   make ui                      # package the authored native SWF with visible NTSC presentation (CONSOLE_STANDARD=pal for PAL)
-#   make run-ui                  # run the authored native SWF in PCSX2
-#   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog), the authored SWF and the invalid-resource cases (BUILD=release without asserts)
+#   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog) and the invalid-resource cases (BUILD=release without asserts)
 #   make ui-cook                 # cook the ignored local retail English resource package
 #   make retail-ui               # stage native retail fonts in build/debug/ui-retail/
 #   make run-retail-ui           # display the native English font resource screen (BUILD=release CONSOLE_STANDARD=pal for release PAL resource screen)
@@ -258,7 +256,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console ui run-ui test-ui ui-inventory ui-cook resource-unpack asset-reexport platform-probe headless-core headless-game test-map test-game test-renderer run-renderer inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-platform core-tests clean FORCE
+.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console test-ui ui-inventory ui-cook resource-unpack asset-reexport platform-probe headless-core headless-game test-map test-game test-renderer run-renderer inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-platform core-tests clean FORCE
 
 release: all
 platform-probe: core-tests
@@ -319,7 +317,7 @@ $(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
 $(OUTPUT_DIR)/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
-$(OUTPUT_DIR)/src/ps2/ui/page_image.o $(OUTPUT_DIR)/src/ps2/ui/paletted_image.o $(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/ui/draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
+$(OUTPUT_DIR)/src/ps2/ui/paletted_image.o $(OUTPUT_DIR)/src/ps2/renderer/gs.o $(OUTPUT_DIR)/src/ps2/renderer/cmd_buffer.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/ui/draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.
@@ -478,17 +476,10 @@ console: all
 run-console: console
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/console/d3bfg.elf
 
-ui: all
-	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD) --ui --catalog "$(UI_COOK_OUTPUT)"
-
-run-ui: ui
-	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui/d3bfg.elf
-
-# One session per standard boots into the retail menu and visits every retail screen; the authored
-# movie needs its own texture budget, and each invalid-resource case ends its process in a fatal.
+# One session per standard boots into the retail menu and visits every retail screen; each
+# invalid-resource case ends its process in a fatal.
 test-ui: all
 	$(PYTHON) $(SCRIPTS)/run_ui_session.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
-	$(PYTHON) $(SCRIPTS)/run_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 	$(PYTHON) $(SCRIPTS)/run_retail_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
@@ -684,10 +675,6 @@ build/tests/ui_geometry_tests: src/tests/host/ui_geometry_tests.cpp src/ps2/ui/g
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_geometry_tests.cpp src/ps2/ui/geometry.cpp -o $@
 
-build/tests/ui_page_format_tests: src/tests/host/ui_page_format_tests.cpp src/ps2/ui/page_format.cpp src/ps2/ui/page_format.h Makefile
-	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_format_tests.cpp src/ps2/ui/page_format.cpp -o $@
-
 build/tests/ui_page_geometry_tests: src/tests/host/ui_page_geometry_tests.cpp src/ps2/ui/page_geometry.cpp src/ps2/ui/page_geometry.h src/ps2/ui/triangles.h Makefile
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_page_geometry_tests.cpp src/ps2/ui/page_geometry.cpp -o $@
@@ -696,19 +683,9 @@ build/tests/ui_font_format_tests: src/tests/host/ui_font_format_tests.cpp src/ps
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_font_format_tests.cpp src/ps2/ui/font_format.cpp -o $@
 
-build/tests/ui_retail_catalog_tests: src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/retail_catalog.h src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h src/ps2/ui/page_format.cpp src/ps2/ui/page_format.h src/ps2/ui/font_format.h Makefile
+build/tests/ui_retail_catalog_tests: src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/retail_catalog.h src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h src/ps2/ui/font_format.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/gstx_format.cpp src/ps2/ui/page_format.cpp -o $@
-
-HOST_UI_PAGE_SOURCES = src/tests/host/ui_page_image_tests.cpp src/ps2/ui/page_image.cpp src/ps2/ui/page_format.cpp src/ps2/ui/page_geometry.cpp src/ps2/renderer/texture_layout.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
-HOST_UI_PAGE_HEADERS = src/ps2/ui/page_image.h src/ps2/ui/page_format.h src/ps2/ui/page_geometry.h src/ps2/ui/triangles.h src/ps2/ui/geometry.h src/ps2/renderer/texture.h src/ps2/renderer/gs.h src/ps2/renderer/render_system.h src/ps2/renderer/cmd_buffer.h src/ps2/ui/draw.h src/ps2/system/heap.h src/ps2/system/log.h src/ps2/common.h src/tests/host/ui_page_stubs/tamtypes.h src/tests/host/ui_page_stubs/ps2/renderer/gif_writer.h src/tests/host/ui_page_stubs/idlib/precompiled.h
-
-build/tests/.ui-page-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(HOST_UI_PAGE_SOURCES)
-
-build/tests/ui_page_image_tests_%: $(HOST_UI_PAGE_SOURCES) $(HOST_UI_PAGE_HEADERS) build/tests/.ui-page-flags.json
-	@mkdir -p $(dir $@)
-	$(HOST_CXX) -Isrc/tests/host/ui_page_stubs $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* $(HOST_UI_PAGE_SOURCES) -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/gstx_format.cpp -o $@
 
 build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/ui/triangles.cpp src/ps2/ui/masks.cpp src/ps2/ui/masks.h src/ps2/ui/triangles.h src/ps2/ui/geometry.h Makefile
 	@mkdir -p $(dir $@)
@@ -730,7 +707,7 @@ build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp -o $@
 
-test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_format_tests build/tests/ui_page_geometry_tests build/tests/ui_page_image_tests_1 build/tests/ui_page_image_tests_0 build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
 	./build/tests/asset_tests
 	./build/tests/gstx_format_tests
 	./build/tests/swf_runtime_tests_0
@@ -739,10 +716,7 @@ test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_f
 	./build/tests/ui_swf_format_tests
 	./build/tests/ui_font_format_tests
 	./build/tests/ui_retail_catalog_tests
-	./build/tests/ui_page_format_tests
 	./build/tests/ui_page_geometry_tests
-	./build/tests/ui_page_image_tests_1
-	./build/tests/ui_page_image_tests_0
 	./build/tests/ui_triangles_tests
 	./build/tests/charset_tests
 	./build/tests/ui_geometry_tests

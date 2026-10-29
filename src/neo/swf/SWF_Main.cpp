@@ -52,7 +52,7 @@ extern idCVar in_useJoystick;
 idSWF::idSWF
 ===================
 */
-// [PS2_D3BFG]: Keep inactive retail resources separate from executable authored movies.
+// [PS2_D3BFG]: Retail resources load inactive; execution, drawing and events are separate admissions.
 #if defined( ID_PS2 )
 idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_, bool resourceOnly_ )
 {
@@ -73,7 +73,7 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 	random.SetSeed( Sys_Milliseconds() );
 
 	guiSolid = declManager->FindMaterial( "guiSolid" );
-	// [PS2_D3BFG]: Keyboard-only authored UI does not preload unused retail cursor/controller media.
+	// [PS2_D3BFG]: Keyboard and pad UI does not preload unused cursor media.
 #if defined( ID_PS2 )
 	white = declManager->FindMaterial( "_white" );
 	guiCursor_arrow = guiCursor_hand = NULL;

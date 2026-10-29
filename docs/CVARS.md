@@ -23,15 +23,12 @@ default or archive behavior:
 | `ps2_consoleText` | One quoted printable ASCII argument, delivered to the active native console edit field. |
 | `ps2_consoleKey` | One named native console key; `toggle` opens/closes the console over an active movie. |
 | `ps2_capture` | One checked `.tga` basename; capture the next completed presentation, including before queued quit. |
-| `ps2_ui` | One of `load`, `unload`, `reload`, `status`, `pause`, `resume`; controls the authored native SWF. Load closes the console; unload reopens it. |
-| `ps2_uiKey` | `tab` or `enter`; queue native SWF key events for the loaded movie while the console is closed. |
 | `ps2_uiRetail` | `load`, `unload`, `reload`, `status`, `font INDEX`, `movie shell\|dialog\|none`, `execute shell\|dialog`, `dialog quit`, `draw shell`, `menu`, `key NAME`, `clock fixed\|real` or `logo on\|off`; opt-in native English font/movie resource screen. The local catalog must be staged before loading, using a fresh visible process. Font indices 0–4 select the cooked English families. Movie inspection/execution requires `make retail-movies` staging and a loaded resource screen. `movie` keeps timelines inactive; `execute` enables checked native timeline/AVM1 work with minimal widget owners. `dialog quit` and `draw shell` draw the original dialog and shell in full. `menu` opens the native shell handler's menu; `key` then posts a keyboard key (`enter`, `escape`, `up`, `down`, `left`, `right`) or pad button (`cross`, `circle`, `dpad_up`, `dpad_down`, `dpad_left`, `dpad_right`) through Common's event loop while the console is closed. `clock fixed` (before a load) advances executing movies 1/60 s per frame; `logo` plays the drawn shell's logo transition. |
 
-`ps2_ui` and `ps2_uiKey` are registered in `src/ps2/ui/movie.cpp`, `ps2_uiRetail` in
-`src/ps2/ui/retail_movie.cpp`, and the console/capture controls in
-`src/ps2/system/presentation.cpp`. Native console input takes
-priority over SWF input. The UI package selects startup loading with a `ps2_ui load`
-command in its packaged `d3bfg.cfg`; there is no UI-enable cvar. See
+`ps2_uiRetail` is registered in `src/ps2/ui/retail_movie.cpp` and the console/capture
+controls in `src/ps2/system/presentation.cpp`. Native console input takes priority over
+SWF input. Package-root `presentation.cfg` selects visible startup and the startup menu;
+there is no UI-enable cvar. See
 [developer guide](DEVELOPMENT.md#production-packages-and-controls) for complete argument limits and usage.
 
 The following engine cvars have PS2-specific policies:
@@ -56,8 +53,8 @@ do not enable a service. Other imported engine cvars retain their upstream defau
 Production console startup forces `com_allowConsole=1`, `s_noSound=1` and
 `g_xp_bind_run_once=1` before game initialization; these are startup policy overrides,
 not changed declarations/defaults. They open the native console, keep playback inactive
-and avoid executing desktop control bindings. The authored SWF is an explicit visible-mode
-command; retail menu startup and physical input devices remain inactive.
+and avoid executing desktop control bindings. The retail screens are explicit visible-mode
+commands, and the native menu opens at startup only under a `menu` presentation policy.
 The test bootstrap may register temporary fixture cvars; those are test inputs rather than user-facing backend controls.
 
 When a cvar is added to `src/ps2/`, record its name, debug and release defaults, flags,
@@ -73,7 +70,7 @@ in both core and campaign builds. Native defaults, declared flags, numeric bound
 completion handlers are preserved. They remain live cvars under the engine's cheat
 policy; neither changing them nor setting a skip flag initializes the renderer.
 World drawing, general image/shader loading and native vertex-cache allocation remain
-unavailable. The separate console/authored-SWF paths use their bounded 2D providers;
+unavailable. The separate console and retail UI paths use their bounded 2D providers;
 these retained frontend cvar registrations do not initialize a GS device or select UI presentation.
 
 | Name | Debug default | Release default | Declaration flags | Bounds / metadata |

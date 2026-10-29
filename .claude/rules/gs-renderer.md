@@ -21,8 +21,8 @@ submission still fail by method name. The separate CPU-only GS device layer now 
 solid and direct RGBA 2D frames. Explicit native UI activation now supplies a bounded
 white/ASCII image and axis-quad/text profile. Production now optionally draws the real
 native console through Common. Bounded indexed GUI collection and CPU triangles now
-extend the native adapter. The authored native SWF/font path now passes debug/release NTSC/PAL;
-general image loading, retail menus and VU output remain subsequent gates.
+extend the native adapter, and the retail screens and native menu draw through it;
+general image loading and VU output remain subsequent gates.
 
 - Start the logical renderer frame counter above zero and advance it with game ticks.
   Native `R_EntityDefDynamicModel` compares the definition stamp to `tr.frameCount`;
@@ -36,56 +36,32 @@ general image loading, retail menus and VU output remain subsequent gates.
   at most one edge can be created per index. This preserves native edge matching and
   avoids multi-megabyte temporary allocations for tiny CPU models.
 
-## Authored page contract (UIPG)
+## Native atlas pages
 
-The authored native SWF and renderer test stream UIPG pages; the retail cook used them
-until the paletted textures below replaced them. The page cooker preserves source
-pixels in 256×256 RGBA pages with a 254×254 interior and one-texel gutter. Internal gutters sample neighboring full-atlas pixels;
-clamping each tile to its own edge changes bilinear filtering at seams. Clamp only
-the original atlas's outer boundary and unused padding. Each page records a source
-rectangle and affine global-normalized-UV to page-UV map; split/clip geometry at page
-boundaries before applying it. Native SWF RenderShape uses atlasMaterial, atlasOffset,
-image size and channelScale for bitmap fills, not dictionary.material. Dictionary
-renaming alone cannot implement paging. `ui/page_image.*` now streams compact UIPG
-images through fixed texture slots and calls `ui/page_geometry.*` for page/screen
-splits. Native authored SWF/font images now share a `PageCache`; the bounded English
-retail font resource screen uses a separate six-slot linear profile. General retail
-movie admission and active-menu working-set acceptance remain pending.
+A native UI image is drawn through cooked pages (`ui/page_image.h`'s `PagedImage`, now only
+the resident GSTX `PalettedImage` below). The first slice streamed UIPG RGBA pages through
+a shared slot cache for a placeholder authored SWF; both were removed on 2026-10-29, but
+these findings still hold for any paged atlas:
 
-Page intersections must be reconstructed from the canonical original triangle and
-shared boundary constraints. Chaining interpolation through different preceding
-page clips produced a real one-sixteenth-pixel shared-edge mismatch. Track original
-edge/plane provenance, mark vertices already on a plane, preserve constant components
-and coalesce exactly equivalent constraints for rank-one UV mappings. Merely sorting
-the traversed edge endpoints is insufficient. A rounded fixed UV at a page border can
-also be a nearby interior vertex; compare genuine shared constraints in seam tests.
-Keep this math single precision on EE; guards and exact integer significand products
-handle degenerate constraints without software-double operations.
-
-UIPG v1 stores a checked 32-byte little-endian header and eight-byte offset/FNV1a32
-records, followed by fixed 262,144-byte raw RGBA pages. Validate exact file length,
-dimensions, inferred grid/count and every offset before reserving cache ownership;
-verify each complete page before updating a texture slot. The scratch buffer is
-separate from texture pixels. Reuse follows existing Update/Bind/Upload fences, so
-queued pieces from this frame retire before their texture contents change. Close
-images before their cache and the device. Standalone renderer probes use linear/clamp;
-the authored native SWF/font profile shares four nearest/clamp slots. Keep the sampler
-fixed per cache and reject repeat/unknown sampling before allocating.
-
-Native `idImage` dimensions remain the full atlas dimensions. `SWF_Render` derives
-global UVs from the atlas material, and `idFont::GetScaledGlyph` expands glyph UVs by
-half a texel. Preserve those UVs through page splitting; publishing 256×256 as the
-logical dimensions scales both incorrectly. The authored font leaves padding for
-that expansion. Retail fonts contain edge glyphs: the opt-in `outerGutter` mode admits
-only [-0.5/width, 1+0.5/width] and its height equivalent. Extend only the atlas's outer
-clip planes; map against the original page origin plus its one-texel gutter. This
-preserves native glyph geometry and interior samples. Default page admission remains
-strictly 0..1. Do not clamp the glyph UVs or rescale the complete texture to fit.
-Validate the entire queued native collection before emitting packets; paged emission
-must run under the collector's reentry guard because page Update/Bind also flushes it.
-Direct glyph quads flush older indexed bitmap runs before touching the shared cache.
-Closing an image flushes/fences queued references and invalidates its keys before its
-address can be reused. Cache shutdown rejects attached images with assertions off too.
+- Native SWF RenderShape uses atlasMaterial, atlasOffset, image size and channelScale for
+  bitmap fills, not dictionary.material. Dictionary renaming alone cannot implement paging.
+  Split/clip geometry at page boundaries (`ui/page_geometry.*`) before mapping UVs.
+- Page intersections must be reconstructed from the canonical original triangle and
+  shared boundary constraints. Chaining interpolation through different preceding
+  page clips produced a real one-sixteenth-pixel shared-edge mismatch. Track original
+  edge/plane provenance, mark vertices already on a plane, preserve constant components
+  and coalesce exactly equivalent constraints for rank-one UV mappings. Merely sorting
+  the traversed edge endpoints is insufficient. A rounded fixed UV at a page border can
+  also be a nearby interior vertex; compare genuine shared constraints in seam tests.
+  Keep this math single precision on EE; guards and exact integer significand products
+  handle degenerate constraints without software-double operations.
+- Native `idImage` dimensions remain the full atlas dimensions. `SWF_Render` derives
+  global UVs from the atlas material, and `idFont::GetScaledGlyph` expands glyph UVs by
+  half a texel. Preserve those UVs through page splitting; publishing one page's size as
+  the logical dimensions scales both incorrectly. Do not clamp glyph UVs or rescale the
+  complete texture to fit.
+- Validate the entire queued native collection before emitting packets; paged emission
+  must run under the collector's reentry guard because page Update/Bind also flushes it.
 
 ## Doom CPU-only device acceptance
 
@@ -207,16 +183,14 @@ uses the full resident ELF and `run_console.py`, without importing these units i
   history writes and physical device polling remain unavailable; production console
   close tolerates the absence of mouse capture. Test capability failures stay explicit.
 
-## Doom authored native SWF profile
+## Doom native SWF draw scope
 
-The image-allocation details in this section describe the initial 2026-10-15
-direct-texture slice. Current authored bitmap/font binding uses shared UIPG pages,
-described under Authored page contract above; additive/convex-mask additions
-follow this section. Keep the initial captures as historical acceptance evidence.
+The first visible movie was a placeholder authored SWF (2026-10-15, removed 2026-10-29);
+these scope rules now serve the retail movies.
 
 - Native SWF uses a bounded normal-blend scope around its existing GUI calls. The
   native GUI fragment shader multiplies texture/vertex RGBA, adds the color transform,
-  then premultiplies RGB by alpha for ONE/ONE_MINUS_SRC_ALPHA blending. With the authored
+  then premultiplies RGB by alpha for ONE/ONE_MINUS_SRC_ALPHA blending. With a
   zero-additive transform, GS straight-alpha modulation produces the same intended
   equation. Do not premultiply the CPU vertex RGB a second time. Scoped native mode 8,
   masks, screen blending, additive color terms and outlines are supported as documented
@@ -227,26 +201,13 @@ follow this section. Keep the initial captures as historical acceptance evidence
   bias. Preserve the initial strict 128-only contract outside the scope. Flush before
   entering/leaving the scope and restore saved native state/color so console drawing
   cannot inherit SWF state. A scope must not cross a frame or shutdown boundary.
-- Keep `_white` and the 256×256 console charset as the two initial images. Only an
-  explicit `textures/ps2_ascii` request creates the third owned font image lazily.
-  It is 512×128 RGBA8, nearest/default filtering and clamp, with TD_FONT/TD_DEFAULT
-  usage. Each printable ASCII glyph copies the existing 15×14 coverage to a padded
-  32×16 cell at `s=(code&15)*32+1`, `t=(code>>4)*16+1`. Other pixels stay transparent.
-  The image manager owns purge, explicit `ImageFromFile` regeneration and shutdown.
-- Native `GetScaledGlyph` expands UVs by half a texel on every side. Console cells
-  beginning at x=0 would yield a negative UV for glyphs in column zero; the padded
-  font atlas keeps all expanded printable glyph UVs strictly inside 512×128. Preserve
-  this gutter instead of clamping transformed UVs and changing their interpolation.
-  Font records stay 10 bytes each and the authored font file stays 1,342 bytes.
+- Native `GetScaledGlyph` expands UVs by half a texel on every side. A glyph cell at
+  an atlas edge would yield a UV outside the atlas; keep a gutter around glyphs instead
+  of clamping transformed UVs and changing their interpolation.
 - Movie rendering precedes the real console in the same production frame. Shutdown
   destroys the movie, then cached fonts, then UI geometry/images and the caller-owned
   device. Font/image warm caches may survive a movie unload; repeated warm unloads
   and full Common shutdown are separate ownership checks.
-- Debug/release NTSC/PAL production runs on 2026-10-15 each completed three authored
-  movie load/unload cycles, 28 native pixel checks per capture, console overlays, native
-  Tab/Enter actions, stable warm ledgers and exact full pre-boot ledger recovery. Six
-  fresh malformed/missing asset probes pass in both builds. See PORT_STATUS for matched
-  archives; this does not establish retail SWFs, world rendering or hardware behavior.
 
 ## Doom native SWF additive blending
 
@@ -267,7 +228,7 @@ the SDK environment, so overflowing sums saturate.
 
 Model framebuffer storage after every blend when deriving expected pixels. With
 dithering disabled, PSMCT16 truncates each RGB result to five bits; capture then
-expands those five bits to eight. For example, the authored panel stores 24/40/56.
+expands those five bits to eight. For example, the former authored panel stored 24/40/56.
 Native PackColor(.5/.25/.125) yields 127/63/31, and half source alpha contributes
 63/31/15. The first sum stores 80/64/64 (captured 82/66/66); adding it again stores
 136/88/72 (captured 140/90/74). Comparing repeated sums with ideal floating-point
@@ -308,7 +269,7 @@ through existing screen/page clipping. Native fill-style alpha does not weight m
 coverage: the material override uses placement/inherited color-transform alpha only
 for the native early skip. Do not treat a faint admitted mask as partial coverage.
 
-The authored native SWF exercises three simultaneous masks, crossing ranges, joint
+The removed authored SWF exercised three simultaneous masks, crossing ranges, joint
 expiry, oblique/transformed boundaries, alpha/additive content, bitmap page seams and text.
 The retail inventory has ten rectangular dialog placements, but the shell also needs
 a 185-point outline, disconnected/holed meshes and two stroked masks. Its largest fill
@@ -319,7 +280,7 @@ establish bounded functional clipping, not hardware fill cost or frame-rate acce
 ## Doom full retail dialog drawing
 
 The original dialog draws through native `idSWF::Render` with the existing adapters:
-bitmap fills via the shared page cache, `guiSolid` fills over the owned white image,
+bitmap fills via the image's pages, `guiSolid` fills over the owned white image,
 normal and scoped additive blends, convex masks and native glyph quads with text
 strokes. No new GS path was needed. With RGBA32 pages its cost was page streaming: the
 1152×596 dialog atlas spans 15 RGBA32 pages (5×3), and two fonts add theirs, while the
@@ -437,7 +398,7 @@ Menu text draws from glyph bitmaps rendered at their exact on-screen size
 ## Doom SWF outlines, color terms, screen and depth masks (2026-10-23)
 
 The shell's remaining draw features, each verified by the core renderer test's pass band
-and the authored SWF's draw-feature sprite in NTSC and PAL captures:
+in NTSC and PAL captures (and, until its removal, the authored SWF's draw-feature sprite):
 
 - **Depth test enable.** The GS manual prohibits TEST.ZTE = 0 ("may cause a malfunction";
   use ZTE 1, ZTST ALWAYS and ZBUF.ZMSK 1). The UI packets used to write ZTE 0, which

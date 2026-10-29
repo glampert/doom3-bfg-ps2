@@ -92,4 +92,8 @@ Placement GetPlacement(const std::uint8_t * tables, const Header & header, std::
 // Decodes exactly outputBytes, consuming every input byte; false otherwise.
 bool RleDecode(const std::uint8_t * input, std::size_t inputBytes, std::uint8_t * output, std::size_t outputBytes);
 
+// Standard FNV-1a32, which pages, CLUTs and the catalog's admitted files record; zero length does
+// not access the buffer.
+std::uint32_t Checksum(const void * bytes, std::size_t length);
+
 } // namespace ps2::ui::gstx

@@ -32,9 +32,8 @@ If you have questions concerning this license or the applicable additional terms
 #pragma warning(disable: 4355) // 'this' : used in base member initializer list
 
 #define BSWF_VERSION 16		// bumped to 16 for storing atlas image dimensions for unbuffered loads
-// [PS2_D3BFG]: The first native UI profile admits exact authored snapshots before legacy parsing.
+// [PS2_D3BFG]: Native UI admits exact retail snapshots before legacy parsing.
 #if defined( ID_PS2 )
-#include "ps2/ui/authored_assets.h"
 #include "ps2/ui/retail_assets.h"
 #endif
 
@@ -134,9 +133,12 @@ idSWF::LoadBinary
 ===================
 */
 bool idSWF::LoadBinary( const char * bfilename, ID_TIME_T sourceTime ) {
-	// [PS2_D3BFG]: Parse one immutable preflighted snapshot, with separate executable/resource profiles.
+	// [PS2_D3BFG]: Parse one immutable preflighted retail snapshot; no other movie profile exists.
 #if defined( ID_PS2 )
-	idFile * f = resourceOnly ? ps2::ui::retail::OpenMovie( bfilename ) : ps2::ui::authored::OpenAsset( bfilename );
+	if ( !resourceOnly ) {
+		idLib::FatalError( "native SWF outside the admitted retail profile: %s", bfilename );
+	}
+	idFile * f = ps2::ui::retail::OpenMovie( bfilename );
 #else
 	idFile * f = fileSystem->OpenFileReadMemory( bfilename );
 #endif

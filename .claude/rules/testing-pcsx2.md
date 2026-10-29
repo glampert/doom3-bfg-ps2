@@ -40,13 +40,6 @@
   storage (gs-renderer.md); x multiples of 5 and y multiples of 15 are whole pixels in
   both standards.
   A timeout-injected partial file is never accepted. Preserve images/hashes and record inspection.
-  `renderer-paged*.tga` adds 45 pixel probes, including 22 seam/filtering samples, over
-  a cooked authored six-page atlas. Two fixed CPU texture slots and one scratch page
-  preserve warm ledgers across 120/four frames; periodic six-page sweeps force reuse,
-  while intervening frames exercise a two-page working set. One VRAM page forces
-  queued-reference retirement. Reject bad headers/tables/lengths, insufficient cache
-  budgets and corrupt pixels without retaining ownership. Primary/reload captures
-  must match. This tests page mechanics, not a measured retail-menu working set.
   Acceptance run identities and measured budgets are in PORT_STATUS; no physical PS2
   or cache-coherency claim.
 
@@ -73,7 +66,7 @@
   and the idle keyboard is read about every 250 ms. The keyboard's modules load from the
   package's `irx/` (staged from `$PS2SDK/iop/irx`); a module that fails only disables
   that device.
-- `make test-ui` / `make BUILD=release test-ui` run every UI screen in four emulator
+- `make test-ui` / `make BUILD=release test-ui` run every UI screen in two emulator
   sessions plus the invalid-resource processes. `run_ui_session.py` launches one
   production session per standard from a package whose `presentation.cfg` reads `ntsc menu`
   or `pal menu`, and drives ten steps through HostFs: `boot` (the menu the policy opened),
@@ -91,11 +84,10 @@
   drained by the dialog's quit and exact startup-ledger recovery. A debug NTSC session
   takes about 470 s: boot 93, console 5, fonts 15, inactive 11, execution 62, dialog 8,
   shell 40, menu 107, screens 63 and quit 53. `summary.json` records
-  each step's verdict, captures and duration. The authored SWF needs its own texture
-  budget (its 1 MiB page cache stays until UI shutdown, and the retail images stay warm
-  under the same 2 MiB), so `run_ui.py` runs it in its own session per standard; then
-  `run_ui.py`, `run_retail_ui.py` and `run_retail_movies.py` run their 12, 5 and 13
-  invalid-resource cases, each ending in its expected fatal in a fresh process.
+  each step's verdict, captures and duration. Then `run_retail_ui.py` and
+  `run_retail_movies.py` run their 5 and 13 invalid-resource cases, each ending in its
+  expected fatal in a fresh process. (The placeholder authored SWF session and its 12
+  cases were removed with the authored UI on 2026-10-29.)
 - The console step exercises the production ELF visibly in NTSC and PAL. Startup policy is selected by package-root
   `presentation.cfg`; `make console` defaults to NTSC and `CONSOLE_STANDARD=pal`
   stages PAL (`ntsc menu`/`pal menu` boot into the native menu; `make retail-menu`). Every visible package stages the cooked retail catalog from
@@ -110,39 +102,6 @@
   input/config/data hashes and matched production evidence are archived. Inspect
   images as well as logs; this proves console presentation, not SWF/menu or hardware
   acceptance. Run all emulator targets sequentially in isolated sessions.
-- The authored session exercises the authored native SWF in the production ELF; the package also carries the cooked catalog for the console charset,
-  so `make ui-cook` comes first. Three loads each render at least 120 frames, pause two different
-  timeline states (including fractional alpha), execute native Tab/Enter AVM1 focus and
-  selection, and open/type/close the real console over the movie. Ninety-four pixels
-  per capture cover shapes, a skewed bitmap across a page seam, glyph strokes/holes,
-  focus and status text. A draw-features sprite at (420, 30) adds an outlined fill (four
-  one-pixel edges), a gray additive term over a fill, a screen-blended fill, a two-pass
-  additive term over the bitmap A whose holes stay clear, a concave L depth mask and an
-  outline-only depth mask. Additive mode 8 uses original native PlaceObject3/RenderShape
-  calls for solid and paged geometry; check alpha weighting, overlap, saturation, transparent
-  holes and the page seam. Convex clip-depth masks add inherited/crossing ranges,
-  simultaneous expiry, transformed boundaries, masked page UVs and native text. Derive expected RGB after each five-bit framebuffer storage
-  round; keep the existing eight-channel tolerance. Require two images sharing four nearest/clamp slots (1 MiB),
-  one 256 KiB scratch page and 56 bytes of page records. Captures must show exactly
-  four loads, increasing hits/triangles and zero evictions across all movie reloads.
-  Animation probes vary their bounded frame waits; a fixed wait can alias the same
-  four-frame pulse when rendering slows. Still require a different fractional-alpha
-  phase within twelve probes, without changing the watchdog or accepting a frozen timeline.
-  Require stable warm unload ledgers, full startup recovery, one presentation per normal
-  frame, coalesced redraws and final capture/quit. Twelve fresh processes exercise
-  invalid resources. BSWF/font cases reject missing, truncated, oversized or mutated
-  BSWF and missing/mutated font data before publication.
-  Page cases reject missing movie/font packages, truncated movie pages and bad header/
-  table metadata before load publication. A corrupt pixel page fails on the first
-  streamed checksum after publication, before any completed movie presentation/capture;
-  require its specific checksum diagnostic and fatal, never a generic allocation failure.
-  The runner uses actual native Echo output as a wait barrier: HostFs submission logs
-  alone precede command execution. Animation waits must exceed the 6 Hz authored
-  timeline interval; repeatedly pausing earlier resets its partial interval. Select
-  glyph probes inside stroke row centers at both 448 and 512 lines, keeping the existing
-  framebuffer tolerance. Inspect native captures; this is authored UI, not retail shell
-  or physical PS2 acceptance. `make ui` / `run-ui` stage/launch the same ELF and opt-in
-  assets, with `CONSOLE_STANDARD=ntsc` or `pal`.
 - The `inactive` and `execution` steps check inactive dictionaries and executable
   native shell/dialog timelines. Each has four phases, which each run at least 120
   frames: shell, dialog, shell return and another shell load; captures are named

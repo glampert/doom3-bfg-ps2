@@ -1,33 +1,34 @@
-# Authored native UI data
+# Host SWF fixture data
 
-These resources exercise the engine's native `idSWF`, AVM1 script interpreter and `idFont`
-on the PS2 backend. They contain no retail Doom assets. The artwork comes from the port's
-procedural ASCII glyphs, solid geometry and authored timeline commands; the files are
-released under GPL-3.0-or-later.
+These resources stand in for retail movies and fonts in the host tests of the retail UI
+pipeline: the BSWF inspector and execution validator (`ui_swf_format_tests`,
+`swf_execution_tests`, `test_ui_swf.py`), the inventory/cook (`test_ui_inventory.py`), the
+catalog (`test_ui_retail_catalog.py`) and the retail movie runner (`test_retail_movies.py`).
+No target image loads them. They contain no retail Doom assets: the glyphs come from the
+core test's procedural ASCII charset, the rest is solid geometry and authored timeline
+commands. The files are released under GPL-3.0-or-later.
 
-Regenerate all tracked outputs from the repository root:
+They began as the placeholder native SWF that brought up the PS2 UI; that movie, its
+material and its UIPG atlas pages were removed from production on 2026-10-29.
+
+Regenerate the tracked outputs from the repository root:
 
 ```sh
-python3 src/tools/scripts/build_authored_ui.py
-python3 src/tools/scripts/build_authored_ui.py --check
-python3 -m unittest discover -s src/tests/host/scripts -p test_authored_ui.py
+python3 src/tests/host/scripts/swf_fixture.py
+python3 src/tests/host/scripts/swf_fixture.py --check
+python3 -m unittest discover -s src/tests/host/scripts -p test_swf_fixture.py
 ```
 
-The generator writes the following package-relative files beneath `base/`:
+The generator writes these package-relative files beneath `base/`:
 
 | Path | Purpose |
 | --- | --- |
 | `generated/swf/ps2_demo.bswf` | Native BSWF version 16, 640 × 480, six timeline frames per second. |
 | `newfonts/ps2_ascii/48.dat` | Native 48-point font metrics for ASCII codepoints 32 through 126. |
-| `materials/ps2_ui.mtr` | Four materials referring to the white intrinsic and paged movie/font images. |
-| `textures/ps2_movie.uipg` | 272 × 256 bitmap atlas; its A cell crosses the x = 254 page boundary. |
-| `textures/ps2_ascii.uipg` | 512 × 128 font atlas preserving the native half-texel glyph expansion. |
 
-`manifest.json` records the generated resource sizes, hashes and scene inventory.
-`src/ps2/ui/authored_ui_data.h` contains the same resource bytes as an explicit admission
-profile, plus compact expected dimensions and page checksums for the UIPG files. Edit the
-generator rather than either generated copy. `--check` reports missing
-or changed outputs without overwriting them.
+`manifest.json` records the generated resource sizes, hashes and scene inventory. Edit
+the generator rather than the generated files. `--check` reports missing or changed
+outputs without overwriting them.
 
 The movie has one main frame and 20 dictionary entries. It draws solid background and
 panel shapes, an affine-transformed bitmap letter, seven read-only native text instances,
@@ -40,9 +41,7 @@ functions use native property access and arithmetic:
 - `select` increments `selectCount`, copies `focusIndex` into `selected`, and writes
   `SELECTED 0` or `SELECTED 1` to the status text.
 
-The production adapter binds Tab and Enter to these functions through the native SWF
-shortcut table. Loading or reloading the movie resets focus to 0, selection to -1 and the
-selection count to 0. Six original lower-right PlaceObject3 records select native additive blend
+Six original lower-right PlaceObject3 records select native additive blend
 mode 8. The lower-right patches check zero/half/full alpha, overlap and saturation;
 the second bitmap A checks transparent holes and the same page seam under additive
 blending. A seventh additive placement checks a masked strip in the upper panel.
@@ -52,8 +51,8 @@ The generator includes no loops, imports, sound actions, dynamic
 calls, line draws, gradients, morphs or nonzero additive color transforms.
 Mask probes cover transformed trapezoids, inherited/nested intersections, crossing clip
 ranges, simultaneous expiry, alpha/additive strips, paged bitmap UVs and native text. Mode 8
-is its only special blend; other modes are rejected by the generator. This is an authored
-bring-up scene; it does not implement the retail BFG menu.
+is its only special blend; other modes are rejected by the generator. It is a synthetic
+scene; it does not implement the retail BFG menu.
 
 The BSWF format follows the original engine writer: most scalar fields are big endian,
 native `idFile` string lengths are little endian, and PlaceObject2/3 and AVM1 command streams
@@ -64,21 +63,5 @@ atlas leaves room for the native font renderer's half-texel UV expansion. BSWF i
 records interleave width, atlas X offset, height and atlas Y offset. The transformed
 bitmap retains its screen geometry while sampling the copied A at (246, 64).
 
-BSWF and font loading currently admit only these exact bounded resources. The backend
-reads each file once, compares its bytes against the compiled profile and supplies an
-owned, read-only memory snapshot to the legacy binary parser. Missing, changed or
-unknown resources fail before unchecked allocation counts or strings are parsed.
-DeclManager indexes material text at startup; the movie separately checks the current
-material file, and every draw validates its native material/state profile. Material
-parsing uses DeclManager's cached text, rather than the checked binary snapshots.
-This admission path is specific to the authored profile; general conversion and
-validation belong to the later asset pipeline. The snapshots are transient; the movie,
-font cache and renderer own their parsed objects and image storage through shutdown.
-The two images share four nearest/clamp page slots (1 MiB), one 256 KiB scratch page
-and 56 bytes of page records. Opening checks the compiled metadata profile; streaming
-verifies a complete page before it can replace a cached page. These pixel checksums
-are integrity checks, not a general retail parser admission scheme. Movie unloads keep
-the image cache warm; UI shutdown closes both files before releasing the cache/device.
-
 Local retail data remains under the ignored repository-root `base/` folder. Do not copy
-it into this authored tree or replace these generated resources with retail binaries.
+it into this fixture tree or replace these generated resources with retail binaries.

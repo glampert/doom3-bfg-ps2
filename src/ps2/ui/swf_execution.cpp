@@ -190,7 +190,7 @@ U32 Color(Reader & reader)
 
 bool PlainAction(U32 opcode)
 {
-    // Exact action-family union observed in the authored demo and selected retail shell/dialog.
+    // Reviewed action families admitted for the selected retail shell/dialog.
     // Admitting another interpreter API requires its own semantic/runtime review first.
     switch (opcode)
     {

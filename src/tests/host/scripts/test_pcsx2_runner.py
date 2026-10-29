@@ -95,8 +95,6 @@ class RendererClassifierTests(unittest.TestCase):
                 "GS chains half=1024 peak=1024 kicks=230 drains=224\n"
                 "UI indexed cycle=0 frames=120 vertices=4096 indices=6144 draws=128 flushes=365 triangles=4527 drains=150\n"
                 "UI indexed cycle=1 frames=4 vertices=4096 indices=6144 draws=128 flushes=17 triangles=3251 drains=120\n"
-                "UI paged cycle=0 frames=120 pages=6 slots=2 cache=524288 scratch=262144 metadata=48 loads=2400 hits=480 evictions=2398 triangles=4800\n"
-                "UI paged cycle=1 frames=4 pages=6 slots=2 cache=524288 scratch=262144 metadata=48 loads=80 hits=16 evictions=78 triangles=160\n"
                 "GS memory baseline=1/2/3 final=1/2/3\n" + complete_log(core="PASS"))
 
     def classify(self, log):
@@ -129,19 +127,6 @@ class RendererClassifierTests(unittest.TestCase):
                 self.assertFalse(self.classify(self.log().replace(old, new)))
         self.assertFalse(self.classify(self.log().replace(
             "UI indexed cycle=1 frames=4 vertices=4096 indices=6144 draws=128 flushes=17 triangles=3251 drains=120\n", "")))
-
-    def test_paged_scene_requires_bounded_cache_reload_pressure_and_page_splits(self):
-        for old, new in (("native-paged PASS", "native-paged FAIL"),
-                         ("UI paged cycle=0 frames=120", "UI paged cycle=0 frames=119"),
-                         ("pages=6 slots=2", "pages=5 slots=2"), ("pages=6 slots=2", "pages=6 slots=3"),
-                         ("cache=524288", "cache=786432"), ("scratch=262144", "scratch=0"),
-                         ("metadata=48", "metadata=56"), ("loads=2400", "loads=6"),
-                         ("hits=480", "hits=0"), ("evictions=2398", "evictions=0"),
-                         ("triangles=4800", "triangles=1440")):
-            with self.subTest(field=old):
-                self.assertFalse(self.classify(self.log().replace(old, new)))
-        self.assertFalse(self.classify(self.log().replace(
-            "UI paged cycle=1 frames=4 pages=6 slots=2 cache=524288 scratch=262144 metadata=48 loads=80 hits=16 evictions=78 triangles=160\n", "")))
 
 
 class CommonProbeClassifierTests(unittest.TestCase):

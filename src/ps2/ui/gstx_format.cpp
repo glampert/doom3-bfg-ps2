@@ -267,4 +267,17 @@ bool RleDecode(const std::uint8_t * input, std::size_t inputBytes, std::uint8_t 
     return written == outputBytes;
 }
 
+std::uint32_t Checksum(const void * bytes, std::size_t length)
+{
+    const auto * const data = static_cast<const std::uint8_t *>(bytes);
+    std::uint32_t hash = 2166136261U;
+
+    for (std::size_t index = 0; index < length; ++index)
+    {
+        hash = (hash ^ data[index]) * 16777619U;
+    }
+
+    return hash;
+}
+
 } // namespace ps2::ui::gstx

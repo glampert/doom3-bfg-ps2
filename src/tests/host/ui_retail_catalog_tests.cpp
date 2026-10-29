@@ -6,7 +6,6 @@
 
 #include "ps2/ui/font_format.h"
 #include "ps2/ui/gstx_format.h"
-#include "ps2/ui/page_format.h"
 #include "ps2/ui/retail_catalog.h"
 
 #include <cstddef>
@@ -136,7 +135,7 @@ static std::uint32_t AppendDescriptor(std::vector<std::uint8_t> & bytes, std::ui
     Put(bytes, start + 20U, tableBytes);
     Put(bytes, start + 24U, fileBytes);
     // The checksum covers the header and tables with its own field still zero.
-    Put(bytes, start + 28U, ps2::ui::PageChecksum(bytes.data() + start, tableBytes));
+    Put(bytes, start + 28U, ps2::ui::gstx::Checksum(bytes.data() + start, tableBytes));
     return fileBytes;
 }
 
@@ -553,7 +552,7 @@ static bool GlyphSets()
         PutHalf(fixture.bytes, placement + 12U, matchWidth);
         PutHalf(fixture.bytes, placement + 20U, destWidth);
         Put(fixture.bytes, start + 28U, 0);
-        Put(fixture.bytes, start + 28U, ps2::ui::PageChecksum(fixture.bytes.data() + start, Word(fixture.bytes, start + 20U)));
+        Put(fixture.bytes, start + 28U, ps2::ui::gstx::Checksum(fixture.bytes.data() + start, Word(fixture.bytes, start + 20U)));
     };
     Fixture narrow = valid;
     Reshape(narrow, 32, 32);

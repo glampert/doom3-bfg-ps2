@@ -45,8 +45,8 @@ struct Placement
     bool remove = false;
 };
 
-// Counts accumulate into output only on success. This admits the action-family union used by the
-// authored demo and selected retail shell/dialog, with checked references/operands. It does not
+// Counts accumulate into output only on success. This admits the reviewed action families of the
+// selected retail shell/dialog, with checked references/operands. It does not
 // enable the interpreter's other APIs. Runtime stack/call/instruction limits remain mandatory. Function
 // bodies may use the legacy native encoding outside ActionLength, but cannot be branch targets.
 bool ValidateActions(const void * bytes, std::size_t length, std::uint32_t frames,

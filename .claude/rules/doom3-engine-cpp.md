@@ -21,9 +21,7 @@ math path; PS2-specific math replacement headers are a later milestone.
   alphabetical include sorting otherwise moves Game_local ahead of it and breaks
   the EE type-query test build. The 2026-10-16 formatting pass broke the script
   probe's `script_boot.cpp` this way until 2026-10-19; CI builds neither test
-  target, so build them after a formatter pass. Generated authored admission
-  headers emit the approved formatter layout directly, so `--check` works without
-  clang-format.
+  target, so build them after a formatter pass.
 - `idCVar`'s old default-constructor RTTI assertion compared a pointer type with a value
   type and was always true. `idInternalCVar` needs this constructor. Portable builds keep
   it without RTTI; deleting the constructor would break real cvar registration.
@@ -92,8 +90,8 @@ math path; PS2-specific math replacement headers are a later milestone.
   HandleEvent the native menu's event admission. Never clear `resourceOnly` to bypass missing
   drawing/resource admission. See the scoped execution rules later in this file.
 - The original BSWF timestamp refers to an unstaged source SWF. Resource-only loading
-  uses its preflighted immutable identity, without requiring that source timestamp;
-  authored executable loading preserves its existing check. Isolated text reuses the
+  uses its preflighted immutable identity, without requiring that source timestamp.
+  PS2 admits no other movie: `LoadBinary` refuses a non-resource movie. Isolated text reuses the
   native edit-text record's metrics, alignment and color via RenderResourceText.
   GetTextLength caches an int even though it returns float; source oracles must retain
   native truncation rather than compare an unrounded floating glyph sum.
@@ -191,39 +189,31 @@ math path; PS2-specific math replacement headers are a later milestone.
   rejects source exhaustion/oversized images, and frees owned output and codec state
   before a fatal diagnostic. Host codec tests do not establish target JPEG execution.
 
-## Authored native SWF and font profile
+## Native SWF and font loading
 
-- The first visible movie uses native `idSWF` BSWF16 loading, AVM1 functions, timeline
-  instances, edit text and keyboard shortcuts. `ps2::ui::authored::OpenAsset` admits only
-  the generated authored resource whitelist: exact path, length and bytes. Font and
-  BSWF parsing consume an owned read-only `idFile_Memory` snapshot, so a second mutable
-  HostFs open cannot replace checked counts or strings. This is an exact authored
-  profile, not validation of arbitrary BSWF/font files or retail menu compatibility.
-  The authored material text is checked too; native DeclManager owns its indexed text.
+The first visible movie was a placeholder authored SWF/ASCII font (removed 2026-10-29;
+its BSWF and font remain host-test stand-ins). These findings carry over to retail:
+
+- Font and BSWF parsing consume an owned read-only `idFile_Memory` snapshot of the
+  checked bytes, so a second mutable HostFs open cannot replace checked counts or strings.
 - PS2 SWF construction has no source-SWF inflate/cache-write fallback and does not
-  preload unused retail cursor/controller media. `_white` remains the owned RGBA
-  intrinsic: `R_ParseImageProgram_r` otherwise rewrites it to a desktop YCoCg disk path
+  preload unused cursor media. `_white` remains the owned RGBA intrinsic:
+  `R_ParseImageProgram_r` otherwise rewrites it to a desktop YCoCg disk path
   (`guis/assets/white`), outside this image profile. Do not add a permissive image alias
-  to hide that remap or a missing authored material declaration.
-- Call `idSWF::Activate(true)` before querying frame-one children or binding authored
-  functions to shortcut keys. Activation frees/rebuilds the display list and runs its
-  initialization actions; child pointers obtained beforehand can become invalid.
-  Focus/select commands pass native key events to the authored AVM1 functions.
+  to hide that remap or a missing material declaration.
+- Call `idSWF::Activate(true)` before querying frame-one children or binding functions to
+  shortcut keys. Activation frees/rebuilds the display list and runs its initialization
+  actions; child pointers obtained beforehand can become invalid.
 - Native `idSWF::Render` uses its caller's time on PS2. A Common frame advances the
   movie clock; a redraw uses the previous value and cannot tick the timeline again.
-  Native `Pause`/`Resume` retain their timeline behavior. HostFs input and a rendered
-  movie do not establish controller input, sound playback or campaign/menu startup.
-- The authored profile registers `ps2_ascii` (also accepted through
-  `fonts/ps2_ascii`). The separate English retail profile admits eight canonical font
-  families at most, giving a total cache bound of nine; its selected package has five.
-  Literal `fonts/` stripping and catalog aliases precede canonical cache lookup.
-  General localization/fallback remains unavailable. The authored
-  `newfonts/ps2_ascii/48.dat` is 1,342 bytes: 12-byte big-endian `idf*`/48-point header,
-  95 native padded 10-byte glyph records and 95 little-endian ASCII codepoints 32..126.
-  Records have width/height 15/14, top 14, left 0 and advance 16; the native structure
-  inserts a zero byte before its little-endian 16-bit atlas coordinates. Validate the
-  complete profile before native allocation and validate the material's loaded first
-  image before native glyph scaling dereferences it.
+  Native `Pause`/`Resume` retain their timeline behavior.
+- The English retail profile admits eight canonical font families at most, which bounds
+  the font cache; its selected package has five. Literal `fonts/` stripping and catalog
+  aliases precede canonical cache lookup. General localization/fallback remains
+  unavailable. Native glyph records are 10 bytes with a zero byte before the
+  little-endian 16-bit atlas coordinates. Validate the complete font before native
+  allocation and the material's loaded first image before native glyph scaling
+  dereferences it.
 - Native `idFont` separately allocates `glyphData` and `charIndex`; deleting only its
   `fontInfo` leaks both. The PS2 destructor frees those arrays. Movie dictionaries
   borrow cached fonts, and fonts borrow material/image declarations: destroy the movie,
@@ -625,8 +615,7 @@ math path; PS2-specific math replacement headers are a later milestone.
   prompt image sprites carry Xbox, PlayStation and PC frames). The root menu omits the
   development map list and multiplayer; the start screen's carousel holds Doom 3 alone,
   and pressing it signs in or opens the root screen.
-- Common's PS2 `ProcessEvent` gives the console, then the authored movie, then the menu
-  each event; `ProcessMenuEvent` mirrors `MenuEvent` (the sign-in manager, then
+- Common's PS2 `ProcessEvent` gives the console, then the menu each event; `ProcessMenuEvent` mirrors `MenuEvent` (the sign-in manager, then
   `Shell_HandleGuiEvent`) inside the shell's execution scope. The command bar binds
   ENTER/JOY1 to accept and ESCAPE/BACKSPACE/JOY2 to back; `UpdateCmds` binds the arrows
   and the native `shortcutKeys.clear` table aliases the D-pad to them. A released command
@@ -654,7 +643,7 @@ math path; PS2-specific math replacement headers are a later milestone.
   frame's end. Its `<JOY1>` prompt is a button tag: native `FindTooltipIcons` replaces
   tags with controller art from `tooltipButtonImage` while drawing.
 - On PS2 only retail movies get that table, with the PS3 art (platform 1), and the lookup
-  takes `psImage`; authored movies keep none. A material found while drawing would load
+  takes `psImage`. A material found while drawing would load
   its image inside the GS frame, which the paletted loader refuses, so
   `EnableResourceRender` loads the eight prompt materials first (native PC preloads them in
   the constructor). The profile's `material_names` admit them; no pointer art is loaded.
@@ -685,7 +674,7 @@ math path; PS2-specific math replacement headers are a later milestone.
 
 BSWF16 image records interleave **width, atlas X offset, height, atlas Y offset**.
 The writer/loader loops over axes; four consecutive integers are not a size pair
-followed by an offset pair. The authored seam probe uses `(16,246,16,64)` for a
+followed by an offset pair. The host SWF fixture's seam probe uses `(16,246,16,64)` for a
 16×16 bitmap at (246,64). A wrong tuple can still render plausible pixels because
 native size factors cancel, while never crossing the intended page boundary.
 Check semantic dimensions/offsets in host readers and require actual page-load

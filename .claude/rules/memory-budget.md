@@ -1,8 +1,9 @@
 # Memory budget (32 MB EE RAM)
 
 Doom sections retain the measurements of their dated implementation slice. The
-latest authored UI baseline is [the convex-mask budget](#doom-convex-ui-mask-budget-2026-10-18);
-the retail boot and UI format measurements are in
+authored UI sections are historical: that movie and its page cache were removed on
+2026-10-29 ([note](#authored-ui-removal-2026-10-29)). The latest retail ledgers are in the
+sections after the 2026-10-20 one; the retail boot and UI format measurements are in
 [the 2026-10-20 budget section](#retail-boot-and-ui-formats-2026-10-20), and the
 converted textures that replaced retail page streaming in
 [the paletted UI section](#converted-retail-ui-textures-2026-10-20), with the menu
@@ -777,3 +778,11 @@ and list data only. Debug ledgers, NTSC and PAL identical, requested / backing /
 
 Production `PT_LOAD` is 11,279,661 debug / 11,740,461 release bytes (+14,720 / +21,632),
 for the two screens and the placement fallback.
+
+## Authored UI removal (2026-10-29)
+
+The authored placeholder movie is gone from production, with the UIPG page format. Its
+1 MiB four-slot page cache, 256 KiB scratch page and page records no longer exist, and the
+2 MiB texture budget the retail images share no longer has to hold them. Production
+`PT_LOAD`, the visible-console ledgers and every "authored UI" line above were measured
+before the removal and have not been re-measured.

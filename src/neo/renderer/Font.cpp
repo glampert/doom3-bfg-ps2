@@ -28,7 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "../idlib/precompiled.h"
 #include "Font.h"
-// [PS2_D3BFG]: Validate bounded authored/English profiles before native font allocation and loading.
+// [PS2_D3BFG]: Validate the bounded English profile before native font allocation and loading.
 #if defined( ID_PS2 )
 #include "ps2/ui/font_backend.h"
 #endif

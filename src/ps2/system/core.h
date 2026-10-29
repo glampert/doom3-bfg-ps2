@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "ps2/common.h"
+
 namespace ps2::system::lifecycle
 {
 

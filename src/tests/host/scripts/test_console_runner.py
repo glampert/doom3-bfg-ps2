@@ -252,7 +252,7 @@ class ConsoleStaging(unittest.TestCase):
         self.assertEqual((self.output / "presentation.cfg").read_text(), "pal menu\n")
         staging.stage("debug", self.output, "pal", catalog=self.cook)
         self.assertEqual((self.output / "presentation.cfg").read_text(), "pal\n")
-        for kwargs in ({"presentation": "headless"}, {"presentation": "ntsc", "include_ui": True}):
+        for kwargs in ({"presentation": "headless"}, {"presentation": "ntsc", "retail_data": self.root / "retail"}):
             with self.assertRaisesRegex(ValueError, "menu startup policy"):
                 staging.stage("debug", self.root / "menu-invalid", catalog=self.cook, menu=True, **kwargs)
             self.assertFalse((self.root / "menu-invalid").exists())

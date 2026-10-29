@@ -13,7 +13,7 @@ import shutil
 import struct
 
 from ui_font import inspect_language
-from ui_page_package import fnv1a32
+from ui_gstx import fnv1a32
 from ui_swf import inspect_swf
 
 from stage_headless import REPO_ROOT, boot_data, sha256, stage

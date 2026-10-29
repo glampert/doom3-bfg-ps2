@@ -11,7 +11,6 @@
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "ps2/ui/draw.h"
-#include "ps2/ui/movie.h"
 #include "ps2/ui/paletted_image.h"
 #include "ps2/ui/retail_assets.h"
 #include "ps2/ui/retail_menu.h"
@@ -266,7 +265,7 @@ void Unload(bool restoreConsole)
 
 void Load()
 {
-    if (s_loaded || ps2::ui::authored::IsLoaded() || ps2::renderer::FrameStarted() || s_cycle == UINT_MAX)
+    if (s_loaded || ps2::renderer::FrameStarted() || s_cycle == UINT_MAX)
     {
         ps2::FatalError("invalid native retail font proof load ownership");
     }
@@ -710,7 +709,7 @@ void RenderScreen(bool advance)
         return;
     }
 
-    if (!ui::IsInitialized() || !renderer::FrameStarted() || ui::authored::IsLoaded())
+    if (!ui::IsInitialized() || !renderer::FrameStarted())
     {
         FatalError("invalid native retail font proof presentation ownership");
     }

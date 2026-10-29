@@ -50,7 +50,14 @@ The unscaled [NTSC](images/renderer-2d-4-ntsc.png) and
 [PAL](images/renderer-2d-4-pal.png) captures show this indexed slice; target acceptance
 and measurements are recorded in [PORT_STATUS](PORT_STATUS.md#indexed-native-ui-geometry-2d-4-first-slice).
 
-**2D-4 is accepted in PCSX2 in debug and release on 2026-10-15.** It now loads one reproducible authored native BSWF,
+**Authored UI removal (2026-10-29).** The authored placeholder SWF, its UIPG page format
+and `PageCache`, and the paged renderer scene described in the 2D-4 to 2D-6 entries below
+were bring-up steps. They are removed from production and the tests; the retail
+sessions (`make test-ui`) and the retail cook's paletted GSTX images replaced them, and
+`ps2_demo.bswf` and the ASCII font survive as host-only fixtures. The entries keep their
+dated history. See the [removal record](PORT_STATUS.md#authored-ui-and-uipg-removal-2026-10-29).
+
+**2D-4 was accepted in PCSX2 in debug and release on 2026-10-15.** It loaded one reproducible authored native BSWF,
 uses native `idFont` metrics and a guttered ASCII atlas, runs timeline/AVM1 actions and
 routes injected Tab/Enter through native SWF events. The production owner supports
 load/unload/reload and console overlays; native redraws preserve timeline time. Only
@@ -70,14 +77,14 @@ twelve images into 143 logical pages. See [RETAIL_UI_PIPELINE.md](RETAIL_UI_PIPE
 and the [host acceptance record](PORT_STATUS.md#retail-ui-host-inventory-and-cooking-2d-5).
 This is a candidate package with `runtime_ready=false`; actual resident working-set
 measurement, native retail admission/binding and dynamic dependency closure remain open.
-The page slice adds compact UIPG output, fixed native page slots and page/screen triangle
+The page slice (since removed, see above) added compact UIPG output, fixed native page slots and page/screen triangle
 splitting in the existing authored renderer scene. English is the only initial UI
 language; alternative-language resources and font handling are outside this scope.
 See the [page acceptance record](PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
 and inspected [NTSC](images/renderer-paged-2d-5-ntsc.png) /
 [PAL](images/renderer-paged-2d-5-pal.png) captures.
 
-**The 2026-10-17 authored SWF/font page binding passes debug/release NTSC/PAL.**
+**The 2026-10-17 authored SWF/font page binding passed debug/release NTSC/PAL (removed 2026-10-29).**
 Native images retain logical atlas dimensions and dispatch bitmap/glyph
 triangles through one shared `PageCache`. The two images share four nearest/clamp slots
 (1 MiB), one 256 KiB scratch page and 56 bytes of page records. The movie's 272×256
@@ -564,8 +571,8 @@ localization explicitly, gate optional music/sample lookups while playback stays
 and keep save enumeration, leaderboards, online lobbies and Classic switching unavailable.
 
 Route focus/select/back/console events through native menu/console handling before
-considering pad/keyboard polling. Production routes events to the console, the selected
-authored movie and then the native shell menu; other retail movies take no events. Console closing/reopening now tolerates the absence of a mouse in
+considering pad/keyboard polling. Production routes events to the console and then the
+native shell menu (the authored movie hop was removed 2026-10-29); other retail movies take no events. Console closing/reopening now tolerates the absence of a mouse in
 production; test capability probes keep their explicit unsupported failures. HostFs
 commands deliver bounded ASCII and named native keys without introducing a physical
 input device. No desktop window, rumble or player user-command sampling is needed.
@@ -630,7 +637,7 @@ calendar estimates. Each slice must leave a reviewable build and preserve headle
 | **2D-1: device and solid primitives** | Minimal audited GS/video/GIF/command-buffer/frame import; owned buffers; explicit SDK link/report integration. No textures, native GUI or VU programs yet. | Debug/release EE build; alternating drawing contexts; solid color grid, borders and translucent fills; first/last frame visibly presented; finite DMA/GS waits and clean shutdown. Add/reuse one integrated rendering test mode, not a fixture for each API. |
 | **2D-2: textures, alpha and capture** | Direct RGBA textures, sampler/stride/POT metadata, residency and hazards; bounded framebuffer capture. | Authored NPOT/edge/sampler images, overlapping textured alpha layers, clipped sprites, dirty upload/eviction pressure and chunk overflow; inspect target captures and compare expected pixel regions. A printed PASS alone is insufficient. |
 | **2D-3: native visible console** | Doom display/color/state/quad/text providers, intrinsic white + authored charset, safe Common presentation/UpdateScreen integration. | Real `console->Draw` displays existing native text, input line and translucent background for at least 120 frames; live HostFs `echo`, `history` and quit continue to work; capture-before-quit displays the last frame. Headless `test-headless` still allocates no device pools. |
-| **2D-4: indexed UI and authored SWF** | Bounded GUI collection/CPU handles and triangle emission; fonts, basic materials, native timeline/script runtime and input transforms. | One authored mask-free native SWF with a rotated/skewed textured quad, indexed solid shapes, text, focus/select and an animated alpha/color multiplier. Verify geometry/index limits, half-float UV decoding, ordering and warm reload cleanup. This proves the interface, not the retail shell. |
+| **2D-4: indexed UI and authored SWF** (the authored SWF was removed 2026-10-29) | Bounded GUI collection/CPU handles and triangle emission; fonts, basic materials, native timeline/script runtime and input transforms. | One authored mask-free native SWF with a rotated/skewed textured quad, indexed solid shapes, text, focus/select and an animated alpha/color multiplier. Verify geometry/index limits, half-float UV decoding, ordering and warm reload cleanup. This proves the interface, not the retail shell. |
 | **2D-5: retail UI inventory and cooking** | Reproducible container/dependency/feature inventory; DXT/green-alpha decoding, atlas paging/remap, English font/localization scope and compact cooked runtime indices. Can progress in parallel with 2D-3/4. | Bounded shell/dialog/fonts package with hashes, estimated/actual resident working set and explicit unsupported feature list. No proprietary output committed. Repeated conversion is deterministic; wrong/truncated/oversized input fails before publishing ownership. |
 | **2D-6: required SWF feature closure** | Actual shell-required masks, nonzero additive color, blends, morphs/gradient/stroke and page splits; choose measured exact/native adaptation/composition per feature. Depends on 2D-4/5. | Target captures against CPU/reference expected regions for nested/concave required clips, alpha/color transforms and page boundaries; no silently dropped masks or substitute normal blends. Feature inventory has no unresolved essential root/dialog draw requirement. |
 | **2D-7: native offline main menu** | Bounded native shell/root/press-start/dialog providers, Common menu/level-load hooks, localization, optional silent cue policy and focus/console routing. | Production reaches a recognizable native BFG root, remains responsive for at least 600 frames, handles focus/select/back, visible console and quit/confirmation, and has no unexpected unavailable-capability fatal. Menu/console/reload loops have stable warm ledgers; full shutdown returns to baseline. Unsupported campaign/network/save/video actions are explicit. |
@@ -688,17 +695,17 @@ That slice proved video setup, command ownership and solid GS pixels in PCSX2.
 2D-2 adds direct textures, residency fences and native capture. Accepted 2D-3 now
 supplies intrinsic images, native display/draw methods and `console->Draw` through
 an explicit production display policy and safe Common frame/`UpdateScreen` lifecycle.
-The current **2D-4** implementation supplies bounded indexed UI, authored materials,
-native fonts and one interactive authored native SWF. The host retail UI
-inventory/cook foundation (**2D-5**) is now available. The authored native SWF/font page
-binding passes with a shared budget. Native English font/image/material resources and
+The **2D-4** implementation supplies bounded indexed UI and native fonts; the interactive
+authored native SWF that proved the interface was removed on 2026-10-29. The host retail UI
+inventory/cook foundation (**2D-5**) is now available. The authored SWF/font UIPG page
+binding passed with a shared budget and has since been replaced by resident paletted textures. Native English font/image/material resources and
 legacy layout metrics now pass their separate opt-in resource screen. Bounded native
 retail timeline/placement execution now has a separate opt-in path with minimal native
 widget owners. Next close required drawing features and dynamic state/resource paths,
 then measure the actual menu bitmap working set. Inactive BSWF and English edit-text
 inspection provide the storage/layout foundation for required SWF feature closure
-(**2D-6**) and native offline shell startup (**2D-7**). The authored movie establishes
-the interface; native BFG menu and world-rendering acceptance remain separate gates.
+(**2D-6**) and native offline shell startup (**2D-7**). The authored movie established
+the interface (it is removed); native BFG menu and world-rendering acceptance remain separate gates.
 The first **2D-6** slices add scoped native mode-8 blending and bounded convex mask
 clipping. Complex shell masks, strokes, screen mode 4 and nonzero additive color
 transforms still precede full retail drawing.

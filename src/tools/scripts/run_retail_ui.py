@@ -21,7 +21,7 @@ import run_console
 import ui_gstx
 import run_headless
 import run_pcsx2_test as smoke
-from run_ui import TARGET_CRASH_RE, echoed
+from run_console import TARGET_CRASH_RE, echoed
 from console_capture import charset_image
 from stage_headless import REPO_ROOT, boot_data, sha256
 from stage_retail_ui import inspect_package, stage_retail
@@ -105,8 +105,6 @@ def classify(log: str, manifest: dict, source: Path, warm: set = frozenset()) ->
     counters hold those plus the charset and every font's texture and glyph set."""
     if smoke.CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "crash or fatal diagnostic"
-    if "[D3BFG] SWF state=loaded" in log:
-        return False, "authored movie was loaded during the retail font screen"
     fonts = _font_names(manifest)
     phases = [(name, index, 0 if name != "retail-reload.tga" else 1) for name, _, index in font_phases(manifest)]
     captures = list(CAPTURE_RE.finditer(log))

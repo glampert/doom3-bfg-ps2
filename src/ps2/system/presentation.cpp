@@ -13,7 +13,6 @@
 #include "ps2/system/runtime.h"
 #include "ps2/ui/draw.h"
 #include "ps2/ui/font_backend.h"
-#include "ps2/ui/movie.h"
 #include "ps2/ui/retail_assets.h"
 #include "ps2/ui/retail_movie.h"
 
@@ -154,7 +153,6 @@ void Present()
     {
         renderSystem->SetGLState(0);
         renderSystem->SetColor(colorWhite);
-        ps2::ui::authored::Render(s_inFrame);
         ps2::ui::retail::RenderScreen(s_inFrame);
         console->Draw(false);
     }
@@ -305,7 +303,6 @@ PS2_COLD_FUNC void InitPresentation()
     ui::retail::RegisterMaterials();
     renderer::OpenConsoleCharset();
     ui::fonts::Init();
-    ui::authored::Init();
     ui::retail::InitScreen();
 
     cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, "type quoted ASCII into the native console edit field");
@@ -411,7 +408,6 @@ PS2_COLD_FUNC void ShutdownPresentation(int frames)
     cmdSystem->RemoveCommand("ps2_capture");
     cmdSystem->RemoveCommand("ps2_consoleKey");
     cmdSystem->RemoveCommand("ps2_consoleText");
-    ui::authored::Shutdown();
     ui::retail::ShutdownScreen();
     ui::fonts::Shutdown();
     ui::Shutdown();

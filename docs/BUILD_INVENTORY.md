@@ -65,8 +65,7 @@ project, `src/tools/CMakeLists.txt`, with the host compiler and without engine l
 on the shared `src/tools/assets` library; the UI pipeline uses Python's standard library
 and runs the converter. None adds an EE source, vendor dependency or target capability.
 The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest.
-The native UIPG reader, page splitter and fixed texture cache bind the authored pages;
-the GSTX reader and paletted image bind the converted retail textures.
+The page splitter, GSTX reader and paletted image bind the converted retail textures.
 The English resource catalog, inactive retail dictionaries and opt-in bounded timeline
 execution now build on that layer. Production retains **379 direct inputs** and the
 compile database has **405 entries**. The native shell handler, its press-start and root
@@ -90,7 +89,7 @@ presentation and movie providers. Production links 374 direct objects, retaining
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.
-`make headless`, `make console` and `make ui` stage the same ELF with authored data separately
+`make headless` and `make console` stage the same ELF with authored boot data separately
 from retail assets. Package-root `presentation.cfg` selects headless/NTSC/PAL before
 Common startup, and `make retail-menu` adds `menu` to boot into the native menu. `make test-headless` and `make test-ui` exercise production itself.
 Visible frames call real native `console->Draw(false)` after the native `NOMAP` tick;
@@ -670,3 +669,14 @@ the source lists, so link order is unchanged. Production retains **376 direct ob
 fixed `PT_LOAD` is **11,177,829 debug / 11,614,693 release bytes** (128 fewer, from
 shorter diagnostics), and core stays **2,150,896 / 2,235,504**. The compiler database
 keeps **401 entries**.
+
+The authored UI removal (2026-10-29) drops the placeholder movie and the UIPG page path
+from every target: `ui/authored_assets.cpp`, `ui/page_format.cpp` and `ui/page_image.cpp`
+leave core and resident support, `ui/movie.cpp` leaves `PS2_CXX_SRC`, and the generated
+`ui/authored_ui_data.h` is gone. `page_image.h` keeps only the `PagedImage` interface the
+paletted image implements; `page_geometry` stays. The host UIPG format and page-cache
+harnesses go too. No upstream, vendor or fixture unit is added. Production retains
+**380 direct objects**, zero test inputs/symbols and no GC; fixed `PT_LOAD` is
+**11,273,709 debug / 11,722,989 release bytes**, and the core test image is **2,167,536**
+(debug). The compiler database has **406 entries**. The core test image now also compiles
+`renderer/gs.o` with the engine-header seam, since that unit includes `idlib/precompiled.h`.

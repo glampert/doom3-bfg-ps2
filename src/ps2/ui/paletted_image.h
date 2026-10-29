@@ -10,6 +10,8 @@
 #include "ps2/ui/gstx_format.h"
 #include "ps2/ui/page_image.h"
 
+#include <cstdio>
+
 namespace ps2::ui
 {
 

@@ -11,7 +11,12 @@
 
 #if defined(__GNUC__) || defined(__clang__)
     // Rarely called functions: Init/shutdown/error handlers - optimize for size aggressively (Oz), never inline.
-    #define PS2_COLD_FUNC __attribute__((cold, noinline, optimize("Oz")))
+    // Clang (the host test compiler) has no optimize attribute.
+    #if defined(__clang__)
+        #define PS2_COLD_FUNC __attribute__((cold, noinline))
+    #else // __clang__
+        #define PS2_COLD_FUNC __attribute__((cold, noinline, optimize("Oz")))
+    #endif // __clang__
     #define PS2_PRINTF_FUNC(fmtIndex, varIndex) __attribute__((format(printf, fmtIndex, varIndex)))
 #else // __GNUC__ || __clang__
     #define PS2_COLD_FUNC
