@@ -319,7 +319,8 @@ and vertex formats, lexer/string behavior and synchronous job ordering. Core ser
 also exercise command/cvar registration and fixture I/O.
 
 The full scenario lists and accepted debug/release runs are maintained in
-[PORT_STATUS](PORT_STATUS.md) and the [PCSX2 testing procedures](../.claude/rules/testing-pcsx2.md).
+[PORT_STATUS](PORT_STATUS.md), the [PCSX2 testing rules](../.claude/rules/testing-pcsx2.md) and the
+[per-gate procedures](testing/).
 The runner checks the installed HostFs/logging configuration; optional USB keyboard
 attachment does not enable game-side keyboard polling, which remains pending.
 

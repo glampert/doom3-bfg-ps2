@@ -9,7 +9,7 @@ Git rules. Runtime evidence remains in [PORT_STATUS.md](PORT_STATUS.md).
 
 ## Read first
 
-1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-22), the latest
+1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-29), the latest
    [console charset acceptance](PORT_STATUS.md#retail-console-charset-2026-10-22), the
    [pre-rendered glyph acceptance](PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22), the
    [paletted UI acceptance](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21) and the
@@ -77,7 +77,7 @@ measurements are in
   texels). PSMT4 suits only the alpha-only fonts, which need 98 English glyphs each.
   Candidate per-screen sets are 0.1–1.2 MB and fit GS memory beside the framebuffers,
   against 1.6–15.7 MB of RGBA32 pages now. Facts and method:
-  [gs-renderer.md](../.claude/rules/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
+  [gs-renderer.md](reference/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
 - **Retail boot.** `make test-headless-retail` reaches `NOMAP` with every retail
   declaration and the full `doom_main.script`: 13.5 MB of heap backing (14.5 MB arena)
   before any map, leaving 6.4–6.8 MB. The owners are declaration text (4.76 MB), script
@@ -121,7 +121,7 @@ user's agreement.
 ### 2. Shell drawing: start screen drawn in full (2026-10-23)
 
 The shell's draw features have GS paths since 2026-10-23
-([GS notes](../.claude/rules/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)):
+([GS notes](reference/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)):
 line records draw as GS lines; RGB additive color terms in a fog-colored second pass;
 screen (mode 4, the PC's `Cd + Cd × S`) one channel per pass with channel CLUTs; masks the
 convex CPU bridge refuses go into the depth buffer, one at a time. Every primitive writes

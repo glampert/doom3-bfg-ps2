@@ -3377,7 +3377,7 @@ reload cycles. The unscaled [NTSC](images/swf-additive-2d-6-ntsc.png) and
 [PAL](images/swf-additive-2d-6-pal.png) captures were inspected for readable original
 text, intact status/console interaction, complete glyphs and clean additive regions.
 Expected additive RGB includes each five-bit framebuffer storage round; the existing
-eight-channel tolerance is unchanged. See [the GS arithmetic notes](../.claude/rules/gs-renderer.md#doom-native-swf-additive-blending).
+eight-channel tolerance is unchanged. See [the GS arithmetic notes](reference/gs-renderer.md#doom-native-swf-additive-blending).
 
 | Configuration | Authored UI NTSC archive | Authored UI PAL archive |
 | --- | --- | --- |
@@ -3493,7 +3493,7 @@ debug `20261018T002805Z_headless_0396520fe5b4` /
 The CPU mask state occupies **4,404 fixed resident bytes**, with no new pixel/VRAM
 allocation. GCC reports 7,440 bytes of clipping scratch and a 1,888-byte dispatcher
 frame; individual stack frames and the 128 KiB reserve are recorded in the
-[memory notes](../.claude/rules/memory-budget.md#doom-convex-ui-mask-budget-2026-10-18).
+[memory notes](reference/memory-budget.md#doom-convex-ui-mask-budget-2026-10-18).
 The twenty-entry movie peaks at **3,885,301 requested / 3,992,336 backing bytes**;
 arena commitment is **4,212,891 debug / 4,214,043 release**. Warm unload remains
 **3,842,175 / 3,943,140 / 2,459**, and full shutdown **7,424 / 7,600 / 4**.
@@ -4025,7 +4025,7 @@ size is logged once. See the [pipeline](RETAIL_UI_PIPELINE.md#pre-rendered-glyph
 
 The set opens with its font on every retail screen, adding about 107 KB of loaded heap
 (its EE page and CLUT copies, tables and the larger catalog; details in the
-[memory rule](../.claude/rules/memory-budget.md#pre-rendered-menu-glyphs-2026-10-22)), one
+[memory rule](reference/memory-budget.md#pre-rendered-menu-glyphs-2026-10-22)), one
 256 × 384 PSMT4 page of VRAM and, on the font screen, a sixth image the screen never
 draws. No `UI glyph size` line appears in the dialog runs: every Sarasori glyph drew
 from the set; the texture owner's upload count stays at 7. The dialog captures are
@@ -4087,7 +4087,7 @@ into the retail catalog, and the generator left production.
   is two triangles through the paged path with its single placement. A small character
   minifies its 16×16-texel cell 2.5× horizontally; a host simulation of the GS sampling
   found the bold 3–4 texel strokes within 2% of an exact area filter, so no pre-rendered
-  console sizes were needed (see [the GS rule](../.claude/rules/gs-renderer.md#doom-console-charset-2026-10-22)).
+  console sizes were needed (see [the GS rule](reference/gs-renderer.md#doom-console-charset-2026-10-22)).
 - **Packages.** Every visible package (`make console`, `make ui` and the retail ones)
   stages the cooked catalog and assets from `UI_COOK_OUTPUT`; `make ui-cook` comes
   first. Headless packages are unchanged.
@@ -4164,7 +4164,7 @@ Accepted **2026-10-23, Australia/Sydney**, in the debug emulator gates (NTSC and
 release builds compile and were not run. The shell's four missing draw features now have
 GS paths, and `ps2_uiRetail draw shell` draws its start screen in full through native
 `idSWF::Render`: the DOOM 3 BFG Edition logo over the animated background, from resident
-paletted textures (the [GS notes](../.claude/rules/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)
+paletted textures (the [GS notes](reference/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)
 hold the hardware details).
 
 - **Outlines.** Native line records, degenerate `(a, a, b)` triangles in GL line mode,
@@ -4629,7 +4629,7 @@ passes its 368 tests with the prompt images in the fixture textures.
 The eight prompt images stay warm after a drawn movie's release, about 145 KB with their
 objects and tables (19 warm images after the menu, was 11); the dialog and shell screens
 move by the same amount and the console, font and authored UI screens by the catalog's
-2,786 bytes ([budget](../.claude/rules/memory-budget.md#pad-prompt-icons-in-retail-text-2026-10-24)).
+2,786 bytes ([budget](reference/memory-budget.md#pad-prompt-icons-in-retail-text-2026-10-24)).
 The menu's textures read 19 images, 23 pages, 43 CLUTs, 1,499,136 pixel and 54,388 metadata
 bytes.
 
@@ -4683,7 +4683,7 @@ policy. A session takes about 100 s. The captures were inspected: the start scre
 root with Campaign focused and its help line, and the start screen again.
 
 Ledgers match the harness-opened menu's at frame 0 and at release
-([budget](../.claude/rules/memory-budget.md#booting-into-the-native-menu-2026-10-24));
+([budget](reference/memory-budget.md#booting-into-the-native-menu-2026-10-24));
 the real-time runs rest a few KB above the fixed clock's, NTSC and PAL differing mid-run. Production `PT_LOAD` is
 11,264,941 debug / 11,718,829 release bytes (+384 / +384).
 
@@ -4717,7 +4717,7 @@ release builds compile and were not run. The native shell handler now binds the 
   row, 1.08 texels above its placement, where no whole quad's centroid falls. The paletted
   lookup now takes the nearest placement within one texel when none holds the centroid;
   region clamp samples the image's edge row there anyway
-  ([GS notes](../.claude/rules/gs-renderer.md#doom-paletted-ui-textures-gstx)).
+  ([GS notes](reference/gs-renderer.md#doom-paletted-ui-textures-gstx)).
 
 **Checks.** `make test-retail-menu` now also runs `menu-screens`, one load on the fixed
 clock: accept signs in (b), enter opens Campaign (c), down moves its focus (d), escape
@@ -4744,7 +4744,7 @@ root again with Settings focused.
 | Full shutdown | 7,424 / 7,600 / 4 |
 
 The larger glyph set and catalog raise every retail screen by about 150 KB
-([budget](../.claude/rules/memory-budget.md#campaign-and-settings-screens-2026-10-24));
+([budget](reference/memory-budget.md#campaign-and-settings-screens-2026-10-24));
 the menu's textures read 19 images, 24 pages, 43 CLUTs, 1,540,096 pixel and 55,124
 metadata bytes. Production `PT_LOAD` is 11,279,661 debug / 11,740,461 release bytes
 (+14,720 / +21,632), 381 objects and no fixtures.

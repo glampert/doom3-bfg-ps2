@@ -256,8 +256,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   campaign/test object trees. The production link rejects test inputs and symbols. `VENDOR_C_SRC` / `VENDOR_CXX_SRC` enable only audited relocated codec units. The source
   inventory maps their original upstream project paths. Host fixture lists cannot enable
   additional vendor sources in an EE runtime target.
-- Doom smoke procedures and the separately labeled Quake reference are in
-  [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md).
+- Emulator and host test rules are in [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md);
+  each gate's detailed acceptance and the Quake reference are in `docs/testing/`.
 - CI: `.github/workflows/ps2.yml` runs `make` and `make release` on Linux, in the ps2dev
   `ps2sdk` image pinned by digest, for every change but docs. It keeps no ELF and runs no
   test executable, host test or emulator gate. `tools.yml` builds the host tools with GCC,
@@ -292,18 +292,21 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 ## Rules index (`.claude/rules/`)
 
 When a finding is durable (a hardware fact, a toolchain trap, a measured Doom baseline, a
-test recipe), record it in the matching rule file below. Preserve Quake measurements as
-reference observations until reproduced on this port.
+test recipe), record it in the matching rule file below. Rule files load into every session,
+so keep them to what most tasks need: put a broadly useful rule there and its details,
+dated measurements and acceptance history in the matching `docs/reference/` or
+`docs/testing/` file it links to. Preserve Quake measurements as reference observations
+until reproduced on this port.
 
 | File | Loaded for | Covers |
 | --- | --- | --- |
-| [testing-pcsx2.md](.claude/rules/testing-pcsx2.md) | always | PCSX2 setup and logs, scripted sessions, built-in tests, crash triage, the known TLB flake, host harnesses |
+| [testing-pcsx2.md](.claude/rules/testing-pcsx2.md) | always | PCSX2 setup and logs, runner pass rules, crash triage, the known TLB flake, host harnesses; per-gate detail in `docs/testing/` |
 | [ps2-backend-cpp.md](.claude/rules/ps2-backend-cpp.md) | `ps2`, host tools | naming, types, file style, passing the strict `-Werror` set |
 | [ps2-platform.md](.claude/rules/ps2-platform.md) | `ps2` | ps2sdk traps, EE FPU, SIF DMA, IOP modules, ROM FILEIO, memory card |
-| [gs-renderer.md](.claude/rules/gs-renderer.md) | `ps2/renderer` | GS/libdraw facts, frame model, CLUTs, VRAM blocks, mipmaps, ST scaling |
+| [gs-renderer.md](.claude/rules/gs-renderer.md) | `ps2/renderer` | GS/libdraw traps, Doom 2D path invariants, paletted pages, SWF draw scope; history in `docs/reference/gs-renderer.md` |
 | [vu-microprograms.md](.claude/rules/vu-microprograms.md) | VU sources, vu-checker | openvcl/dvp-as/vclpp traps, VU0 inline asm, VCL comment style, runtime probes |
 | [performance.md](.claude/rules/performance.md) | `ps2`, frame-log scripts | EE codegen facts, what PCSX2 can measure, capture/A-B/asm-test recipes |
-| [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md) | id's C++ | editing rules, engine quirks and bugs |
-| [memory-budget.md](.claude/rules/memory-budget.md) | heap, VRAM, assets, MapCycle | the 32 MB picture, map-transition peak, measured budgets |
+| [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md) | id's C++ | editing rules, portability traps, retail SWF admission model; subsystem findings in `docs/reference/doom3-engine-cpp.md` |
+| [memory-budget.md](.claude/rules/memory-budget.md) | heap, VRAM, assets, MapCycle | how to measure, the current 32 MB picture, recurring lessons; dated budgets in `docs/reference/memory-budget.md` |
 | [vclpp-submodule.md](.claude/rules/vclpp-submodule.md) | `external/vclpp` | vclpp/parse-utils conventions, verification recipes, CI, MASP mode, tyra |
 | [ci.md](.claude/rules/ci.md) | `.github` | the two workflows, the pinned ps2sdk image and moving it, checking a Linux build without Docker, runner traps |

@@ -270,7 +270,7 @@ one PSMT4 page on the fonts' 16-level alpha ramp (32 KiB of VRAM) and replaces t
 procedural 5×7 charset the console drew with before 2026-10-22, which survives only as
 the core renderer test's fixture (`src/tests/smoketests/console_charset.*`), since that
 image has no retail data. Every visible package therefore stages the catalog; see
-[the GS notes](../.claude/rules/gs-renderer.md#doom-console-charset-2026-10-22).
+[the GS notes](reference/gs-renderer.md#doom-console-charset-2026-10-22).
 
 ## Pre-rendered glyphs
 
@@ -574,7 +574,7 @@ validation counts shape outline records; execution preflight counts screen-blend
 (mode 4) placements, color transforms with any nonzero additive term and those whose
 alpha term is nonzero. Only an additive alpha term refuses drawing: outlines draw as GS
 lines, screen blending in per-channel passes and RGB color terms in a fog-colored second
-pass ([GS notes](../.claude/rules/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)).
+pass ([GS notes](reference/gs-renderer.md#doom-swf-outlines-color-terms-screen-and-depth-masks-2026-10-23)).
 Convex masks clip on the CPU at draw time; any other mask uses the GS depth buffer, one
 at a time. The dialog draws with ten convex masks; the shell has 54 masks, 15 outlines,
 five screen-blend and 29 additive placements. The target counters match the host
@@ -706,7 +706,7 @@ Halving images never drawn above about 1.25× their authored size is free at the
 identically. Together they bring each screen to 0.1–1.2 MB, which fits GS memory beside
 the framebuffers. Results and method:
 [PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20)
-and the [GS rule](../.claude/rules/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
+and the [GS rule](reference/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
 
 On 2026-10-20 the user chose that direction as a first pass that accepts some quality
 loss: halve all UI, including the PDA and pause menus; English-only fonts; palettes
