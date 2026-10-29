@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: main.cpp
+// File: core_tests_main.cpp
 // Brief: Stage platform/core smoke boot and persist its result before the runner stops the emulator.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================

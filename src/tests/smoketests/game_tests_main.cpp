@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: game_main.cpp
+// File: game_tests_main.cpp
 // Brief: Boot and tick an explicitly selected authored game fixture, then persist its matched result.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================

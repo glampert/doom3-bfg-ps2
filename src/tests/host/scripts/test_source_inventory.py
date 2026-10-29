@@ -49,7 +49,7 @@ class SourceInventoryTests(unittest.TestCase):
             manifest = root / "config/sources.mk"
             text = manifest.read_text()
             self.assertIn("PS2_CXX_SRC = ", text)
-            manifest.write_text(text.replace("PS2_CXX_SRC = ", "PS2_CXX_SRC = tests/smoketests/game_main.cpp ", 1))
+            manifest.write_text(text.replace("PS2_CXX_SRC = ", "PS2_CXX_SRC = tests/smoketests/game_tests_main.cpp ", 1))
             _, errors = audit_sources.audit(root)
             self.assertTrue(any("test source in production" in error for error in errors), errors)
 

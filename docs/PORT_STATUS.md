@@ -2133,8 +2133,8 @@ mismatch: `AddGameDirectory` unconditionally removed the last character even whe
 `BuildOSPath` returned no trailing slash. The tagged portable path now strips only
 an actual slash, and production logs confirm scanning `host:/base`.
 
-Core/platform drivers moved to `src/tests/smoketests/main.cpp`, and the campaign
-entry to `game_main.cpp`. Fixture helpers moved from `src/ps2/game/` into
+Core/platform drivers moved to `src/tests/smoketests/core_tests_main.cpp`, and the campaign
+entry to `game_tests_main.cpp`. Fixture helpers moved from `src/ps2/game/` into
 `src/tests/smoketests/headless_fixture.*`. Tagged engine fixture hooks and fixture
 method declarations compile only with `PS2_D3BFG_TESTS=1`; production uses `0`.
 Separate campaign/test object and flag trees prevent either variant from reusing

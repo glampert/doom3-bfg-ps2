@@ -138,7 +138,7 @@ class ResidentLinkTests(unittest.TestCase):
     def test_production_rejects_test_source_before_link(self):
         with tempfile.TemporaryDirectory() as temp:
             args = self.fixture(Path(temp))
-            args.sources = ["src/tests/smoketests/game_main.cpp"]
+            args.sources = ["src/tests/smoketests/game_tests_main.cpp"]
             with self.assertRaisesRegex(ValueError, "test source/object"):
                 link_resident.run(args)
             args.kind = "tests"

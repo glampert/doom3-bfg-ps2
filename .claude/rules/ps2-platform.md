@@ -3,7 +3,7 @@
 ## Verified Doom foundation
 
 Production boots in PCSX2 with `src/ps2/system/main.cpp`; the core test driver is
-`src/tests/smoketests/main.cpp`. Both preserve the loader's
+`src/tests/smoketests/core_tests_main.cpp`. Both preserve the loader's
 IOP/HostFs, initializes SIF RPC and uses SDK bus-clock reads. Target fixtures verify
 timer conversion/progress, 64-byte buffers and finite EE divide-by-zero behavior.
 The dlmalloc wrapper pins 4 KiB pages and checks the `size_t`/`ptrdiff_t` sbrk boundary.
