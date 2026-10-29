@@ -34,7 +34,7 @@ If you have questions concerning this license or the applicable additional terms
 #define BSWF_VERSION 16		// bumped to 16 for storing atlas image dimensions for unbuffered loads
 // [PS2_D3BFG]: Native UI admits exact retail snapshots before legacy parsing.
 #if defined( ID_PS2 )
-#include "ps2/ui/retail_assets.h"
+#include "ps2/ui/assets.h"
 #endif
 
 #define BSWF_MAGIC ( ( 'B' << 24 ) | ( 'S' << 16 ) | ( 'W' << 8 ) | BSWF_VERSION )
@@ -138,7 +138,7 @@ bool idSWF::LoadBinary( const char * bfilename, ID_TIME_T sourceTime ) {
 	if ( !resourceOnly ) {
 		idLib::FatalError( "native SWF outside the admitted retail profile: %s", bfilename );
 	}
-	idFile * f = ps2::ui::retail::OpenMovie( bfilename );
+	idFile * f = ps2::ui::OpenMovie( bfilename );
 #else
 	idFile * f = fileSystem->OpenFileReadMemory( bfilename );
 #endif

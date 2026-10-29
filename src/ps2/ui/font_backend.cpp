@@ -13,7 +13,7 @@
 #include "ps2/ui/draw.h"
 #include "ps2/ui/font_format.h"
 #include "ps2/ui/gstx_format.h"
-#include "ps2/ui/retail_assets.h"
+#include "ps2/ui/assets.h"
 #include <cmath>
 #include <idlib/precompiled.h>
 #include <renderer/Font.h>
@@ -49,7 +49,7 @@ struct LoggedGlyphSize
     s32 strokeWeight = 0;
 };
 
-static GlyphSetState s_glyphSets[ps2::ui::retail::kMaxFonts] = {};
+static GlyphSetState s_glyphSets[ps2::ui::kMaxFonts] = {};
 static LoggedGlyphSize s_loggedSizes[kMaxLoggedGlyphSizes] = {};
 static u32 s_loggedSizeCount = 0;
 
@@ -69,12 +69,12 @@ void ClearGlyphSets()
 }
 
 // Loads the glyph set image when a retail font registers, outside any frame like its atlas.
-void RegisterGlyphSet(const idFont * font, const ps2::ui::retail::FontRecord & record)
+void RegisterGlyphSet(const idFont * font, const ps2::ui::FontRecord & record)
 {
-    const auto & catalog = ps2::ui::retail::GetCatalog();
+    const auto & catalog = ps2::ui::GetCatalog();
     GlyphSetState & state = s_glyphSets[record.index];
-    ps2::ui::retail::GlyphSetRecord set;
-    ps2::ui::retail::ImageRecord image;
+    ps2::ui::GlyphSetRecord set;
+    ps2::ui::ImageRecord image;
     ps2::ui::gstx::Header header;
     state = {};
     state.font = font;
@@ -165,23 +165,23 @@ idFile * OpenFontAsset(const char * name)
         FatalError("native UI font opened before font startup");
     }
 
-    ui::retail::FontRecord record{};
-    if (!ui::retail::FindFont(name, record))
+    ui::FontRecord record{};
+    if (!ui::FindFont(name, record))
     {
         FatalError("native UI font outside the admitted English profile: %s", name != nullptr ? name : "<null>");
     }
 
-    return ui::retail::OpenFont(record);
+    return ui::OpenFont(record);
 }
 
 bool PreflightFont(idFile * file, const char * name)
 {
-    ui::retail::FontRecord record{};
-    ui::retail::ImageRecord image{};
+    ui::FontRecord record{};
+    ui::ImageRecord image{};
     const auto * const memory = DynCast<const idFile_Memory *>(file);
-    if (!s_initialized || memory == nullptr || memory->Tell() != 0 || !ui::retail::FindFont(name, record) ||
+    if (!s_initialized || memory == nullptr || memory->Tell() != 0 || !ui::FindFont(name, record) ||
         memory->Length() != static_cast<int>(record.bytes) ||
-        !ui::retail::GetCatalog().GetImage(record.imageIndex, image))
+        !ui::GetCatalog().GetImage(record.imageIndex, image))
     {
         return false;
     }
@@ -192,11 +192,11 @@ bool PreflightFont(idFile * file, const char * name)
 
 void ValidateFontMaterial(const idMaterial * material, const char * name)
 {
-    ui::retail::FontRecord record{};
-    ui::retail::ImageRecord image{};
+    ui::FontRecord record{};
+    ui::ImageRecord image{};
     if (!s_initialized || material == nullptr || material->GetNumStages() != 1 ||
         material->ConstantRegisters() == nullptr || material->TestMaterialFlag(MF_DEFAULTED | MF_POLYGONOFFSET) ||
-        !ui::retail::FindFont(name, record) || !ui::retail::GetCatalog().GetImage(record.imageIndex, image))
+        !ui::FindFont(name, record) || !ui::GetCatalog().GetImage(record.imageIndex, image))
     {
         FatalError("native English font requires one admitted constant atlas material");
     }
@@ -218,8 +218,8 @@ void GetFontLayout(const char * name, int index, int & width, int & height)
         FatalError("invalid native UI font layout query");
     }
 
-    ui::retail::FontRecord record{};
-    if (!ui::retail::FindFont(name, record))
+    ui::FontRecord record{};
+    if (!ui::FindFont(name, record))
     {
         FatalError("native UI font layout outside the admitted English profile");
     }
@@ -231,20 +231,20 @@ void GetFontLayout(const char * name, int index, int & width, int & height)
 bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float strokeWeight, std::uint32_t codepoint,
                           PrerenderedGlyph & output)
 {
-    if (!s_initialized || font == nullptr || !retail::IsInitialized())
+    if (!s_initialized || font == nullptr || !ui::IsCatalogInitialized())
     {
         return false;
     }
 
     std::uint32_t index = 0;
 
-    while (index < retail::kMaxFonts && s_glyphSets[index].font != font)
+    while (index < kMaxFonts && s_glyphSets[index].font != font)
     {
         ++index;
     }
 
     // Only fonts RegisterFont admitted have a glyph set slot.
-    if (index == retail::kMaxFonts)
+    if (index == kMaxFonts)
     {
         return false;
     }
@@ -252,15 +252,15 @@ bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float
     // Virtual-screen units to GS pixels, as every UI quad maps them.
     const float pixelX = scaleX * static_cast<float>(renderer::gs::Width()) / kVirtualWidth;
     const float pixelY = scaleY * static_cast<float>(renderer::gs::Height()) / kVirtualHeight;
-    const auto & catalog = retail::GetCatalog();
-    retail::FontRecord record;
-    retail::GlyphSetRecord set;
+    const auto & catalog = GetCatalog();
+    FontRecord record;
+    GlyphSetRecord set;
 
     if (s_glyphSets[index].image != nullptr && catalog.GetFont(index, record) && catalog.GetGlyphSet(record, set))
     {
         for (std::uint32_t sizeIndex = 0; sizeIndex < set.sizeCount; ++sizeIndex)
         {
-            retail::GlyphSize size;
+            GlyphSize size;
             catalog.GetGlyphSize(record, sizeIndex, size);
             const float sizeX = static_cast<float>(size.scaleX) / 65536.0f;
             const float sizeY = static_cast<float>(size.scaleY) / 65536.0f;
@@ -279,7 +279,7 @@ bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float
             while (low < high)
             {
                 const std::uint32_t middle = low + (high - low) / 2;
-                retail::GlyphEntry entry;
+                GlyphEntry entry;
                 catalog.GetGlyphEntry(record, middle, entry);
 
                 if (entry.codepoint == codepoint)
@@ -313,7 +313,7 @@ void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fon
         return;
     }
 
-    if (glyph.font >= retail::kMaxFonts || s_glyphSets[glyph.font].image == nullptr)
+    if (glyph.font >= kMaxFonts || s_glyphSets[glyph.font].image == nullptr)
     {
         FatalError("invalid native UI pre-rendered glyph");
     }
@@ -345,10 +345,10 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
         ps2::FatalError("native UI font registration outside initialized ownership");
     }
 
-    ps2::ui::retail::FontRecord record{};
+    ps2::ui::FontRecord record{};
     idStr request(fontName);
     request.Replace("fonts/", "");
-    if (!ps2::ui::retail::FindFont(request, record))
+    if (!ps2::ui::FindFont(request, record))
     {
         ps2::FatalError("native UI font is outside the admitted English profile: %s", fontName);
     }
@@ -364,7 +364,7 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
         }
     }
 
-    if (fonts.Num() >= static_cast<int>(ps2::ui::retail::kMaxFonts))
+    if (fonts.Num() >= static_cast<int>(ps2::ui::kMaxFonts))
     {
         ps2::FatalError("native UI font cache exceeded the bounded English profile");
     }

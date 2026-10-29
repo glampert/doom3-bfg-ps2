@@ -1,24 +1,24 @@
 // ================================================================================================
-// File: retail_assets.h
+// File: assets.h
 // Brief: Own checked English fonts, localization and movie snapshots through UI use.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #pragma once
 
-#include "ps2/ui/retail_catalog.h"
+#include "ps2/ui/catalog.h"
 #include "ps2/ui/swf_format.h"
 
 class idFile;
 
-namespace ps2::ui::retail
+namespace ps2::ui
 {
 
 // Opt in while the device/UI are idle, before any paletted images or fonts are loaded.
 // Close movies, fonts and images before Shutdown. Retail construction is inactive; execution requires separate command/action admission.
-void Init();
-void Shutdown();
-bool IsInitialized();
+void InitCatalog();
+void ShutdownCatalog();
+bool IsCatalogInitialized();
 
 const CatalogView & GetCatalog();
 bool FindFont(const char * requested, FontRecord & output);
@@ -42,4 +42,4 @@ swf::Summary GetMovieSummary(int index);
 void RegisterMaterials();
 bool MaterialText(const char * name, char * output, std::size_t capacity);
 
-} // namespace ps2::ui::retail
+} // namespace ps2::ui

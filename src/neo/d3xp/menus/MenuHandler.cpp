@@ -32,7 +32,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "../Game_local.h"
 // [PS2_D3BFG]: Retail menus open, start and draw the admitted movie through the backend.
 #if defined( ID_PS2 )
-#include "ps2/ui/retail_menu.h"
+#include "ps2/ui/menu.h"
 #endif
 
 extern idCVar in_useJoystick;
@@ -79,8 +79,8 @@ void idMenuHandler::Initialize( const char * swfFile, idSoundWorld * sw ) {
 	// [PS2_D3BFG]: Menus open only the admitted retail movie, without sounds; PS2 pads use the PS3
 	// face-button layout and prompts.
 #if defined( ID_PS2 )
-	gui = ps2::ui::retail::CreateMenuMovie( swfFile );
-	platform = ps2::ui::retail::kMenuPlatform;
+	gui = ps2::ui::CreateMenuMovie( swfFile );
+	platform = ps2::ui::kMenuPlatform;
 #else
 	gui = new idSWF( swfFile, sw );
 
@@ -228,7 +228,7 @@ void idMenuHandler::ActivateMenu( bool show ) {
 	if ( !show ) {
 		// [PS2_D3BFG]: The admitted movie starts and stops through its checked execution.
 #if defined( ID_PS2 )
-		ps2::ui::retail::ActivateMenuMovie( *this, show );
+		ps2::ui::ActivateMenuMovie( *this, show );
 #else
 		gui->Activate( show );
 #endif
@@ -276,7 +276,7 @@ void idMenuHandler::ActivateMenu( bool show ) {
 	
 	// [PS2_D3BFG]: Execution starts after these callbacks exist, so the backend can admit them.
 #if defined( ID_PS2 )
-	ps2::ui::retail::ActivateMenuMovie( *this, show );
+	ps2::ui::ActivateMenuMovie( *this, show );
 #else
 	gui->Activate( show );
 #endif

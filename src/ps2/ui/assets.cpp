@@ -1,10 +1,10 @@
 // ================================================================================================
-// File: retail_assets.cpp
+// File: assets.cpp
 // Brief: Publish checked English resources and separately admit retail movie storage and execution.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/ui/retail_assets.h"
+#include "ps2/ui/assets.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/heap.h"
@@ -15,7 +15,7 @@
 
 #include <idlib/precompiled.h>
 
-namespace ps2::ui::retail
+namespace ps2::ui
 {
 namespace
 {
@@ -102,14 +102,14 @@ bool MovieIdentity(const char * name, bool font, void *)
 
 } // namespace
 
-bool IsInitialized()
+bool IsCatalogInitialized()
 {
     return s_bytes != nullptr;
 }
 
-PS2_COLD_FUNC void Init()
+PS2_COLD_FUNC void InitCatalog()
 {
-    if (IsInitialized() || !ui::IsInitialized() || renderer::FrameStarted() || ui::GetPaletteStats().images != 0)
+    if (IsCatalogInitialized() || !ui::IsInitialized() || renderer::FrameStarted() || ui::GetPaletteStats().images != 0)
     {
         FatalError("retail UI catalog requires an idle fresh image profile");
     }
@@ -147,9 +147,9 @@ PS2_COLD_FUNC void Init()
         static_cast<unsigned long>(catalog.MaterialCount()));
 }
 
-PS2_COLD_FUNC void Shutdown()
+PS2_COLD_FUNC void ShutdownCatalog()
 {
-    if (!IsInitialized())
+    if (!IsCatalogInitialized())
     {
         return;
     }
@@ -179,7 +179,7 @@ PS2_COLD_FUNC void Shutdown()
 
 const CatalogView & GetCatalog()
 {
-    if (!IsInitialized())
+    if (!IsCatalogInitialized())
     {
         FatalError("retail UI catalog unavailable");
     }
@@ -189,7 +189,7 @@ const CatalogView & GetCatalog()
 
 bool FindFont(const char * requested, FontRecord & output)
 {
-    return IsInitialized() && s_catalog.FindFont(requested, output);
+    return IsCatalogInitialized() && s_catalog.FindFont(requested, output);
 }
 
 PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
@@ -240,7 +240,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
 
 PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
 {
-    if (!IsInitialized() || renderer::FrameStarted() || index >= 2 || (render && !execute))
+    if (!IsCatalogInitialized() || renderer::FrameStarted() || index >= 2 || (render && !execute))
     {
         FatalError("invalid retail movie preparation ownership");
     }
@@ -411,7 +411,7 @@ int MovieIndex(const char * name)
 
 bool MovieExecutionAdmitted(int index)
 {
-    return IsInitialized() && s_language && index >= 0 && index < ArrayLength(s_movies) && s_movies[index].executionAdmitted;
+    return IsCatalogInitialized() && s_language && index >= 0 && index < ArrayLength(s_movies) && s_movies[index].executionAdmitted;
 }
 
 bool MovieRenderAdmitted(int index)
@@ -434,4 +434,4 @@ swf::Summary GetMovieSummary(int index)
     return s_movies[index].summary;
 }
 
-} // namespace ps2::ui::retail
+} // namespace ps2::ui

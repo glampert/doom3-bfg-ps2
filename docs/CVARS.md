@@ -25,7 +25,7 @@ default or archive behavior:
 | `ps2_capture` | One checked `.tga` basename; capture the next completed presentation, including before queued quit. |
 | `ps2_uiRetail` | `load`, `unload`, `reload`, `status`, `font INDEX`, `movie shell\|dialog\|none`, `execute shell\|dialog`, `dialog quit`, `draw shell`, `menu`, `key NAME`, `clock fixed\|real` or `logo on\|off`; opt-in native English font/movie resource screen. The local catalog must be staged before loading, using a fresh visible process. Font indices 0–4 select the cooked English families. Movie inspection/execution requires `make retail-movies` staging and a loaded resource screen. `movie` keeps timelines inactive; `execute` enables checked native timeline/AVM1 work with minimal widget owners. `dialog quit` and `draw shell` draw the original dialog and shell in full. `menu` opens the native shell handler's menu; `key` then posts a keyboard key (`enter`, `escape`, `up`, `down`, `left`, `right`) or pad button (`cross`, `circle`, `dpad_up`, `dpad_down`, `dpad_left`, `dpad_right`) through Common's event loop while the console is closed. `clock fixed` (before a load) advances executing movies 1/60 s per frame; `logo` plays the drawn shell's logo transition. |
 
-`ps2_uiRetail` is registered in `src/ps2/ui/retail_movie.cpp` and the console/capture
+`ps2_uiRetail` is registered in `src/ps2/ui/movie.cpp` and the console/capture
 controls in `src/ps2/system/presentation.cpp`. Native console input takes priority over
 SWF input. Package-root `presentation.cfg` selects visible startup and the startup menu;
 there is no UI-enable cvar. See

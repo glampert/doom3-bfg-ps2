@@ -29,7 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 // [PS2_D3BFG]: Native widget callbacks retain their own timeline lifetime restrictions.
 #if defined( ID_PS2 )
-#include "ps2/ui/retail_owner.h"
+#include "ps2/ui/owner.h"
 #endif
 
 idCVar swf_debug( "swf_debug", "0", CVAR_INTEGER|CVAR_ARCHIVE, "debug swf scripts.  1 shows traces/errors.  2 also shows warnings.  3 also shows disassembly.  4 shows parameters in the disassembly." );
@@ -279,7 +279,7 @@ namespace {
 		bool identity = owner != NULL && !method && owner->IsResourceNativeFunction( name, function );
 		// [PS2_D3BFG]: The dialog copies its shown choices into button properties and calls them as
 		// methods; the pinned choice objects themselves, not those names, authorize the calls.
-		const bool choice = owner != NULL && ps2::ui::retail::IsDialogChoice( function, owner );
+		const bool choice = owner != NULL && ps2::ui::IsDialogChoice( function, owner );
 		if ( method )
 		{
 			identity = ( name == "gotoAndPlay" && function == &spriteInstanceScriptObjectPrototype.scriptFunction_gotoAndPlay ) ||
@@ -292,7 +292,7 @@ namespace {
 		// [PS2_D3BFG]: Native widget updates can seek too; they cannot retire an executing descendant.
 		if ( !method && ( name == "refreshCarousel" || name == "updateCredits" ) )
 		{
-			ps2::ui::retail::CheckCallbackOrigin( name, executing, owner );
+			ps2::ui::CheckCallbackOrigin( name, executing, owner );
 		}
 
 		int expected = -1;

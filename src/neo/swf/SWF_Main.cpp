@@ -32,9 +32,9 @@ If you have questions concerning this license or the applicable additional terms
 // [PS2_D3BFG]: Retail execution has an explicit bounded scope, independent of rendering.
 #if defined( ID_PS2 )
 #include "ps2/ui/swf_runtime.h"
-#include "ps2/ui/retail_assets.h"
-#include "ps2/ui/retail_menu.h"
-#include "ps2/ui/retail_owner.h"
+#include "ps2/ui/assets.h"
+#include "ps2/ui/menu.h"
+#include "ps2/ui/owner.h"
 #endif
 
 #pragma warning(disable: 4355) // 'this' : used in base member initializer list
@@ -328,7 +328,7 @@ void idSWF::Activate( bool b ) {
 		// [PS2_D3BFG]: Retail movies start from the presentation's movie clock, which their timeline
 		// advances follow, so a fixed test step stays deterministic for movies shown mid-run.
 #if defined( ID_PS2 )
-		lastRenderTime = resourceOnly ? ps2::ui::retail::MovieClock() : Sys_Milliseconds();
+		lastRenderTime = resourceOnly ? ps2::ui::MovieClock() : Sys_Milliseconds();
 #else
 		lastRenderTime = Sys_Milliseconds();
 #endif
@@ -346,7 +346,7 @@ void idSWF::Activate( bool b ) {
 void idSWF::EnableResourceExecution( bool activate )
 {
 	if ( !resourceOnly || resourceExecution || !IsLoaded() ||
-		!ps2::ui::swf::Active() || !ps2::ui::retail::MovieExecutionAdmitted( ps2::ui::retail::MovieIndex( filename ) ) )
+		!ps2::ui::swf::Active() || !ps2::ui::MovieExecutionAdmitted( ps2::ui::MovieIndex( filename ) ) )
 	{
 		idLib::FatalError( "retail SWF execution requires an admitted idle snapshot" );
 	}
@@ -362,7 +362,7 @@ void idSWF::EnableResourceExecution( bool activate )
 // [PS2_D3BFG]: Mutable script names cannot authorize an aliased native service.
 bool idSWF::IsResourceNativeFunction( const char * name, const idSWFScriptFunction * function ) const
 {
-	return ps2::ui::retail::IsOwnerCallback( name, function, this ) ||
+	return ps2::ui::IsOwnerCallback( name, function, this ) ||
 		( idStr::Cmp( name, "inhibitControl" ) == 0 && function == &scriptFunction_inhibitControl ) ||
 		( idStr::Cmp( name, "useInhibit" ) == 0 && function == &scriptFunction_useInhibit ) ||
 		( idStr::Cmp( name, "deactivate" ) == 0 && function == &scriptFunction_deactivate ) ||
@@ -413,7 +413,7 @@ unsigned idSWF::AdvanceResourceExecution( int time )
 void idSWF::EnableResourceRender()
 {
 	if ( !resourceOnly || !resourceExecution || resourceRender ||
-		!ps2::ui::retail::MovieRenderAdmitted( ps2::ui::retail::MovieIndex( filename ) ) )
+		!ps2::ui::MovieRenderAdmitted( ps2::ui::MovieIndex( filename ) ) )
 	{
 		idLib::FatalError( "retail SWF drawing requires an executing movie with admitted draw features" );
 	}
@@ -469,7 +469,7 @@ void idSWF::CheckResourceEvent( const sysEvent_t * event )
 // bind another native service to a key.
 void idSWF::CheckResourceEventHandler( idSWFScriptFunction * function )
 {
-	if ( resourceOnly && !function->IsScript() && !ps2::ui::retail::IsEventHandler( function, this ) )
+	if ( resourceOnly && !function->IsScript() && !ps2::ui::IsEventHandler( function, this ) )
 	{
 		idLib::FatalError( "retail SWF event handler identity unavailable" );
 	}
@@ -665,7 +665,7 @@ int	idSWF::GetPlatform() {
 	// [PS2_D3BFG]: Movies match the menu handlers: PS3 face-button layout and prompts.
 #if defined( ID_PS2 )
 	forceNonPCPlatform = false;
-	return ps2::ui::retail::kMenuPlatform;
+	return ps2::ui::kMenuPlatform;
 #else
 
 	if ( in_useJoystick.GetBool() || forceNonPCPlatform ) {

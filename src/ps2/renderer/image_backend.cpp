@@ -10,7 +10,7 @@
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/paletted_image.h"
-#include "ps2/ui/retail_assets.h"
+#include "ps2/ui/assets.h"
 
 #include <idlib/precompiled.h>
 #include <renderer/Image.h>
@@ -39,7 +39,7 @@ static constexpr u32 kWhitePageBytes = 8192;
 
 static bool s_initialized = false;
 static idImage * s_charsetImage = nullptr;
-static idImage * s_retailImages[ps2::ui::retail::kMaxImages] = {};
+static idImage * s_retailImages[ps2::ui::kMaxImages] = {};
 static u32 s_retailImageCount = 0;
 
 bool IsWhiteName(const char * name)
@@ -97,20 +97,20 @@ ps2::renderer::tex::Sampler ImageSampler(const idImage * image)
 
 } // namespace
 
-PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::retail::ImageRecord & resource)
+PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::ImageRecord & resource)
 {
-    if (!ps2::ui::retail::IsInitialized() || ps2::renderer::FrameStarted() || backendState != nullptr || !IsRetailImage(this)) [[unlikely]]
+    if (!ps2::ui::IsCatalogInitialized() || ps2::renderer::FrameStarted() || backendState != nullptr || !IsRetailImage(this)) [[unlikely]]
     {
         ps2::FatalError("invalid retail UI image load ownership");
     }
 
     bool font = false;
-    const auto & catalog = ps2::ui::retail::GetCatalog();
+    const auto & catalog = ps2::ui::GetCatalog();
 
     for (std::uint32_t index = 0; index < catalog.FontCount(); ++index)
     {
-        ps2::ui::retail::FontRecord record;
-        ps2::ui::retail::ImageRecord image;
+        ps2::ui::FontRecord record;
+        ps2::ui::ImageRecord image;
         catalog.GetFont(index, record);
         catalog.GetImage(record.imageIndex, image);
         font = font || strcmp(image.name, resource.name) == 0;
@@ -201,16 +201,16 @@ tex::Handle ConsoleImageTexture(const idImage * image)
 
 void OpenConsoleCharset()
 {
-    if (!s_initialized || s_charsetImage != nullptr || !ui::retail::IsInitialized() || renderer::FrameStarted()) [[unlikely]]
+    if (!s_initialized || s_charsetImage != nullptr || !ui::IsCatalogInitialized() || renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("console charset requires a fresh image profile and the retail catalog");
     }
 
-    ui::retail::ImageRecord image;
+    ui::ImageRecord image;
 
     // The charset has an explicit retail material (colored, like guiSolid), which the catalog does
     // not bind, so the image is found by its own name; the console draws it without a material.
-    if (!ui::retail::GetCatalog().FindImage(kCharsetImage, image) || image.width != kCharsetAtlasSize ||
+    if (!ui::GetCatalog().FindImage(kCharsetImage, image) || image.width != kCharsetAtlasSize ||
         image.height != kCharsetAtlasSize) [[unlikely]]
     {
         FatalError("retail console charset missing from the UI catalog: %s", kCharsetImage);
@@ -289,9 +289,9 @@ ui::PagedImage * UiPageImage(const idImage * image)
 void EnableScreenBlending(const idImage * image)
 {
     ValidateUiImage(image);
-    ui::retail::ImageRecord resource;
+    ui::ImageRecord resource;
 
-    if (!IsRetailImage(image) || renderer::FrameStarted() || !ui::retail::GetCatalog().FindImage(image->GetName(), resource)) [[unlikely]]
+    if (!IsRetailImage(image) || renderer::FrameStarted() || !ui::GetCatalog().FindImage(image->GetName(), resource)) [[unlikely]]
     {
         FatalError("screen blending outside a loaded retail image");
     }
@@ -459,7 +459,7 @@ PS2_COLD_FUNC void idImageManager::Shutdown()
         images[i]->PurgeImage();
     }
 
-    ps2::ui::retail::Shutdown();
+    ps2::ui::ShutdownCatalog();
     images.DeleteContents(true);
     imageHash.Clear();
     whiteImage = nullptr;
@@ -514,9 +514,9 @@ idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, t
         ps2::FatalError("idImageManager::ImageFromFile");
     }
 
-    ps2::ui::retail::ImageRecord retail;
+    ps2::ui::ImageRecord retail;
 
-    if (ps2::ui::retail::IsInitialized() && ps2::ui::retail::GetCatalog().FindImage(name, retail))
+    if (ps2::ui::IsCatalogInitialized() && ps2::ui::GetCatalog().FindImage(name, retail))
     {
         if ((tf != TF_DEFAULT && tf != TF_LINEAR) || tr != TR_CLAMP || cube != CF_2D ||
             (tu != TD_DEFAULT && tu != TD_FONT)) [[unlikely]]

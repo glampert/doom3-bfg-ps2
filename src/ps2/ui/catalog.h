@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: retail_catalog.h
+// File: catalog.h
 // Brief: Validate a compact English UI resource index before publishing borrowed bounded records.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace ps2::ui::retail
+namespace ps2::ui
 {
 
 static constexpr std::size_t kMaxCatalogBytes = 128U * 1024U;
@@ -115,4 +115,4 @@ private:
     const std::uint8_t * m_bytes = nullptr;
 };
 
-} // namespace ps2::ui::retail
+} // namespace ps2::ui

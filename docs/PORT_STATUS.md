@@ -3947,7 +3947,7 @@ direction release gates were not run. Every backend namespace now follows
 | `ps2::renderer::tex` | texture owner and layouts | `ps2::tex` |
 | `ps2::ui` | draw collection, geometry, triangles, masks, page and paletted images | `ps2::ui` (files in `renderer/`) |
 | `ps2::ui::gstx`, `fonts`, `swf` | GSTX format; fonts and the procedural charset; SWF format/execution/runtime and its JPEG decoder | `ps2::ui::gstx`, `ps2::fonts` + charset, `ps2::ui` + `ps2::ui::swf` + `ps2::jpeg` |
-| `ps2::ui::authored`, `ps2::ui::retail` | authored assets and movie (removed 2026-10-29); retail resources, screen and widget owner | `ps2::ui`, `ps2::movie`; `ps2::retail_movie`, `ps2::ui::retail_owner` |
+| `ps2::ui::authored`, `ps2::ui::retail` | authored assets and movie (removed 2026-10-29); retail resources, screen and widget owner (merged into `ps2::ui` 2026-10-29) | `ps2::ui`, `ps2::movie`; `ps2::retail_movie`, `ps2::ui::retail_owner` |
 | `ps2::tests`, `ps2::tests::fixture` | target test suites; codec data and the game fixture | `ps2::smoketests`, `ps2::smoketests::fixtures`, `ps2::gamefixture` |
 
 Merged subsystems give their functions distinct names, so an unqualified call cannot bind
@@ -4867,3 +4867,8 @@ and `gs.o` joins the engine-bridge object list for the core test image.
 
 No emulator run was made for this change, so no ledger, `PT_LOAD` or gate result is
 recorded; the entries above describing the authored UI stay as dated history.
+
+The same day `ps2::ui::retail` merged into `ps2::ui` and its units dropped the `retail_`
+prefix (`assets`, `catalog`, `materials`, `menu`, `movie`, `owner`); the catalog's startup
+functions are `InitCatalog`/`ShutdownCatalog`/`IsCatalogInitialized`. Earlier entries keep
+the names of their time.

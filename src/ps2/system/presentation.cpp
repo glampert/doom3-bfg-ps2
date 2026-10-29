@@ -13,8 +13,8 @@
 #include "ps2/system/runtime.h"
 #include "ps2/ui/draw.h"
 #include "ps2/ui/font_backend.h"
-#include "ps2/ui/retail_assets.h"
-#include "ps2/ui/retail_movie.h"
+#include "ps2/ui/assets.h"
+#include "ps2/ui/movie.h"
 
 #include <cerrno>
 #include <idlib/precompiled.h>
@@ -148,12 +148,12 @@ void Present()
 
     s_drawing = true;
 
-    ps2::ui::retail::AdvanceScreen(s_inFrame);
+    ps2::ui::AdvanceScreen(s_inFrame);
     ps2::renderer::BeginFrame({ 16, 24, 40, 255 });
     {
         renderSystem->SetGLState(0);
         renderSystem->SetColor(colorWhite);
-        ps2::ui::retail::RenderScreen(s_inFrame);
+        ps2::ui::RenderScreen(s_inFrame);
         console->Draw(false);
     }
     ps2::renderer::EndFrame();
@@ -299,11 +299,11 @@ PS2_COLD_FUNC void InitPresentation()
 
     // Every visible package stages the cooked retail catalog: the console draws the original
     // charset from it, and the retail screens open their fonts and movies through it later.
-    ui::retail::Init();
-    ui::retail::RegisterMaterials();
+    ui::InitCatalog();
+    ui::RegisterMaterials();
     renderer::OpenConsoleCharset();
     ui::fonts::Init();
-    ui::retail::InitScreen();
+    ui::InitScreen();
 
     cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, "type quoted ASCII into the native console edit field");
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, "send a named native console key");
@@ -318,7 +318,7 @@ PS2_COLD_FUNC void InitPresentation()
     // the menu closes the console, as StartMenu does.
     if (s_bootMenu)
     {
-        ui::retail::OpenBootMenu();
+        ui::OpenBootMenu();
     }
 }
 
@@ -408,7 +408,7 @@ PS2_COLD_FUNC void ShutdownPresentation(int frames)
     cmdSystem->RemoveCommand("ps2_capture");
     cmdSystem->RemoveCommand("ps2_consoleKey");
     cmdSystem->RemoveCommand("ps2_consoleText");
-    ui::retail::ShutdownScreen();
+    ui::ShutdownScreen();
     ui::fonts::Shutdown();
     ui::Shutdown();
     renderer::Shutdown();

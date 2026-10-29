@@ -597,13 +597,13 @@ its BSWF and font remain host-test stand-ins). These findings carry over to reta
   leaderboards, continue, key bindings, save enumeration) are compiled out or fail by
   method name. `shell_stub.cpp` keeps only the load and save screens' enumeration calls,
   which the retained save-information widget references.
-- `idMenuHandler::Initialize` opens the movie through `ps2::ui::retail::CreateMenuMovie`,
+- `idMenuHandler::Initialize` opens the movie through `ps2::ui::CreateMenuMovie`,
   which admits only the shell, and `ActivateMenu` starts it through `ActivateMenuMovie`
   once the handler installed `updateMenuDisplay` and `activateMenus`: the backend pins
   those, `closeMenu`, `refreshCarousel` and `updateCredits` by identity, then enables
   execution and drawing. `idMenuHandler::Update` skips `Render` on PS2: the presentation
   updates the handler, then advances the timeline, then draws in the GS frame.
-- `ps2::ui::retail::OpenMenu` follows `idCommonLocal::CreateMainMenu`, after native
+- `ps2::ui::OpenMenu` follows `idCommonLocal::CreateMainMenu`, after native
   `PerformGameSwitch`'s move to press-start (the offline session signs in user 0 at
   startup, as the PC session does). A package whose policy says `menu` opens it from
   `InitPresentation`, at the end of `InitHeadless` and before the first frame executes

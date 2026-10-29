@@ -1,13 +1,13 @@
 // ================================================================================================
-// File: retail_owner.cpp
+// File: owner.cpp
 // Brief: Bind real Shell widget owners and native dialog state without online, save or Classic startup.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/ui/retail_owner.h"
+#include "ps2/ui/owner.h"
 #include "ps2/system/log.h"
-#include "ps2/ui/retail_assets.h"
-#include "ps2/ui/retail_menu.h"
+#include "ps2/ui/assets.h"
+#include "ps2/ui/menu.h"
 #include "ps2/ui/swf_runtime.h"
 #include <idlib/precompiled.h>
 
@@ -118,7 +118,7 @@ public:
     explicit Owner(idSWF & movie)
     {
         gui = &movie;
-        platform = ps2::ui::retail::kMenuPlatform;
+        platform = ps2::ui::kMenuPlatform;
         activeScreen = nextScreen = SHELL_AREA_START;
 
         m_carousel = new (TAG_SWF) idMenuWidget_Carousel;
@@ -135,7 +135,7 @@ public:
         // Preserve the original five-slot layout, with Doom 3 as the only carousel entry.
         char admittedDefinition[1024];
 
-        if (!ps2::ui::retail::MaterialText(kDoom3Cover, admittedDefinition, sizeof(admittedDefinition)))
+        if (!ps2::ui::MaterialText(kDoom3Cover, admittedDefinition, sizeof(admittedDefinition)))
         {
             ps2::FatalError("retail Shell cover is outside the admitted material catalog");
         }
@@ -536,7 +536,7 @@ static DialogOwner * s_dialog = nullptr;
 
 } // namespace
 
-namespace ps2::ui::retail
+namespace ps2::ui
 {
 
 void AttachOwner(idSWF & movie, unsigned movieIndex)
@@ -713,4 +713,4 @@ void OwnerStatus()
     }
 }
 
-} // namespace ps2::ui::retail
+} // namespace ps2::ui

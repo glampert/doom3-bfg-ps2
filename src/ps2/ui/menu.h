@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: retail_menu.h
+// File: menu.h
 // Brief: Open, update and close the native shell menu, whose handler owns the admitted shell movie.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
@@ -10,7 +10,7 @@ class idMenuHandler;
 class idSWF;
 struct sysEvent_t;
 
-namespace ps2::ui::retail
+namespace ps2::ui
 {
 
 // PS2 pads use the PS3 face-button layout and prompt art.
@@ -58,4 +58,4 @@ idSWF * CreateDialogMovie();
 void ReleaseDialogMovie(idSWF * movie);
 void PinDialogChoices(idSWF & movie);
 
-} // namespace ps2::ui::retail
+} // namespace ps2::ui

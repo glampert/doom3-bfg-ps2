@@ -1,12 +1,12 @@
 // ================================================================================================
-// File: ui_retail_catalog_tests.cpp
+// File: ui_catalog_tests.cpp
 // Brief: Exercise native catalog admission, safe lookups and transactional failure with owned data.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/ui/font_format.h"
 #include "ps2/ui/gstx_format.h"
-#include "ps2/ui/retail_catalog.h"
+#include "ps2/ui/catalog.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -19,13 +19,13 @@
 namespace
 {
 
-using ps2::ui::retail::CatalogView;
-using ps2::ui::retail::FontRecord;
-using ps2::ui::retail::GlyphEntry;
-using ps2::ui::retail::GlyphSetRecord;
-using ps2::ui::retail::GlyphSize;
-using ps2::ui::retail::ImageRecord;
-using ps2::ui::retail::MaterialRecord;
+using ps2::ui::CatalogView;
+using ps2::ui::FontRecord;
+using ps2::ui::GlyphEntry;
+using ps2::ui::GlyphSetRecord;
+using ps2::ui::GlyphSize;
+using ps2::ui::ImageRecord;
+using ps2::ui::MaterialRecord;
 
 static constexpr std::uint32_t kHeaderBytes = 64;
 static constexpr std::uint32_t kImageBytes = 32;
@@ -345,9 +345,9 @@ static bool ValidCatalogs()
         return false;
     }
 
-    const Fixture maximumImages = MakeFixture(ps2::ui::retail::kMaxImages);
+    const Fixture maximumImages = MakeFixture(ps2::ui::kMaxImages);
     return Check(view.Init(maximumImages.bytes.data(), maximumImages.bytes.size()) &&
-                 view.ImageCount() == ps2::ui::retail::kMaxImages,
+                 view.ImageCount() == ps2::ui::kMaxImages,
                  "maximum image count with contiguous descriptors");
 }
 
@@ -356,7 +356,7 @@ static bool InvalidHeaders()
     const Fixture valid = MakeFixture();
     CatalogView view;
     if (!Check(!view.Init(nullptr, 0) && !view.Init(nullptr, valid.bytes.size()) &&
-               !view.Init(valid.bytes.data(), ps2::ui::retail::kMaxCatalogBytes + 1U),
+               !view.Init(valid.bytes.data(), ps2::ui::kMaxCatalogBytes + 1U),
                "null and excessive buffers"))
     {
         return false;
@@ -745,7 +745,7 @@ static bool ReadCatalog(const char * path)
 
     const bool seek = std::fseek(file, 0, SEEK_END) == 0;
     const long length = seek ? std::ftell(file) : -1;
-    if (length <= 0 || static_cast<unsigned long>(length) > ps2::ui::retail::kMaxCatalogBytes ||
+    if (length <= 0 || static_cast<unsigned long>(length) > ps2::ui::kMaxCatalogBytes ||
         std::fseek(file, 0, SEEK_SET) != 0)
     {
         std::fclose(file);

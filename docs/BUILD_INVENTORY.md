@@ -366,7 +366,7 @@ screen enumeration calls until 2026-10-23. `MenuHandler_Shell.cpp` and the press
 and root screens are now campaign units (the native shell menu); the stub keeps only the
 load and save screens' enumeration calls, which the retained save-information widget
 references, and they fail explicitly. The other shell, lobby, leaderboard and scoreboard
-screens stay deferred. Resident-support `retail_menu.cpp` supplies the handler's movie
+screens stay deferred. Resident-support `menu.cpp` (then `retail_menu.cpp`) supplies the handler's movie
 hooks to production and the game test image alike.
 
 The deferred game/UI slice brought the core to 20 backend and eleven smoke units.
@@ -680,3 +680,10 @@ harnesses go too. No upstream, vendor or fixture unit is added. Production retai
 **11,273,709 debug / 11,722,989 release bytes**, and the core test image is **2,167,536**
 (debug). The compiler database has **406 entries**. The core test image now also compiles
 `renderer/gs.o` with the engine-header seam, since that unit includes `idlib/precompiled.h`.
+
+The same day the UI units drop their `retail_` prefix and the `ps2::ui::retail` namespace
+merges into `ps2::ui`: `assets`, `catalog`, `materials`, `menu`, `movie` and `owner`. SWF
+format, execution and runtime helpers stay in `ps2::ui::swf`. The catalog's
+`Init`/`Shutdown`/`IsInitialized` become `InitCatalog`/`ShutdownCatalog`/
+`IsCatalogInitialized`, distinct from the UI device's own. Each unit keeps its position,
+group and flags in the source lists; the host catalog test is now `ui_catalog_tests`.

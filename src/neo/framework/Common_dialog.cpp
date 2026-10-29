@@ -31,7 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Common_dialog.h"
 // [PS2_D3BFG]: The retail dialog movie is admitted, advanced and drawn by the presentation.
 #if defined( ID_PS2 )
-#include "ps2/ui/retail_menu.h"
+#include "ps2/ui/menu.h"
 #endif
 
 idCVar popupDialog_debug( "popupDialog_debug", "0", CVAR_BOOL | CVAR_ARCHIVE, "display debug spam" );
@@ -454,7 +454,7 @@ void idCommonDialog::ShowDialog( const idDialogInfo & info ) {
 
 	// [PS2_D3BFG]: Only the choices installed here may answer the movie's calls to them.
 #if defined( ID_PS2 )
-	ps2::ui::retail::PinDialogChoices( *dialog );
+	ps2::ui::PinDialogChoices( *dialog );
 #endif
 
 	ActivateDialog( true );
@@ -736,7 +736,7 @@ void idCommonDialog::Init() {
 	// [PS2_D3BFG]: The dialog is the admitted retail movie, executing, drawing and taking keys only
 	// while shown. Saves are unavailable, and nothing activates the save indicator movie.
 #if defined( ID_PS2 )
-	dialog = ps2::ui::retail::CreateDialogMovie();
+	dialog = ps2::ui::CreateDialogMovie();
 	saveIndicator = NULL;
 #else
 	dialog = new (TAG_SWF) idSWF( "dialog" );
@@ -774,7 +774,7 @@ void idCommonDialog::Shutdown() {
 
 	// [PS2_D3BFG]: The presentation stops borrowing the movie before it is destroyed.
 #if defined( ID_PS2 )
-	ps2::ui::retail::ReleaseDialogMovie( dialog );
+	ps2::ui::ReleaseDialogMovie( dialog );
 #endif
 	delete dialog;
 	dialog = NULL;

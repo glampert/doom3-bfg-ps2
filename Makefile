@@ -269,7 +269,7 @@ inventory:
 # A stamp is rewritten only when its compiler identity, flags or source list
 # changes. This fixes the reference's stale-object behavior after flag edits.
 $(OUTPUT_DIR)/.backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/ui/retail_assets.cpp ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/ui/draw.cpp ps2/renderer/image_backend.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/renderer_gs_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_BOOT_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/ui/assets.cpp ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/ui/draw.cpp ps2/renderer/image_backend.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/renderer_gs_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_BOOT_CXX_SRC)
 
 $(OUTPUT_DIR)/.core-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CORE_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-core neo/framework/Common.cpp neo/framework/PlayerProfile.cpp neo/sys/Snapshot.cpp neo/sys/LightweightCompression.cpp neo/sys/Snapshot_Jobs.cpp neo/sys/sys_localuser.cpp neo/sys/sys_signin.cpp --sources $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC)
@@ -377,7 +377,7 @@ $(OUTPUT_DIR)/test-support/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_V
 $(OUTPUT_DIR)/core/src/neo/framework/Common.o: CORE_HEADER_FLAGS = $(FOUNDATION_HEADER_FLAGS)
 $(addprefix $(OUTPUT_DIR)/core/src/,$(filter-out neo/framework/Common.o,$(CORE_FRAMEWORK_CXX_SRC:.cpp=.o))): CORE_HEADER_FLAGS =
 $(addprefix $(OUTPUT_DIR)/core/src/,neo/framework/PlayerProfile.o neo/sys/Snapshot.o neo/sys/LightweightCompression.o neo/sys/Snapshot_Jobs.o neo/sys/sys_localuser.o neo/sys/sys_signin.o): CORE_HEADER_FLAGS = -UID_PS2_CORE
-$(addprefix $(OUTPUT_DIR)/src/,$(RENDER_STUB_CXX_SRC:.cpp=.o) ps2/ui/retail_assets.o ps2/ui/draw.o ps2/renderer/image_backend.o ps2/input/usercmd_stub.o ps2/game/multiplayer_stub.o ps2/system/save_metadata.o ps2/system/common_campaign.o ps2/renderer/model_import.o ps2/system/sys_services.o ps2/audio/sound_backend.o ps2/system/common_foundation.o ps2/system/offline_session.o): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
+$(addprefix $(OUTPUT_DIR)/src/,$(RENDER_STUB_CXX_SRC:.cpp=.o) ps2/ui/assets.o ps2/ui/draw.o ps2/renderer/image_backend.o ps2/input/usercmd_stub.o ps2/game/multiplayer_stub.o ps2/system/save_metadata.o ps2/system/common_campaign.o ps2/renderer/model_import.o ps2/system/sys_services.o ps2/audio/sound_backend.o ps2/system/common_foundation.o ps2/system/offline_session.o): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
 $(OUTPUT_DIR)/src/tests/smoketests/renderer_tests.o $(OUTPUT_DIR)/src/tests/smoketests/renderer_gs_tests.o $(OUTPUT_DIR)/src/tests/smoketests/deferred_tests.o $(OUTPUT_DIR)/src/tests/smoketests/input_tests.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
 $(OUTPUT_DIR)/src/ps2/system/lifecycle.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 $(CORE_OBJS) $(CAMPAIGN_OBJS): NEO_WARNFLAGS_FOR = $(LEGACY_SHARED_WARNFLAGS)
@@ -683,9 +683,9 @@ build/tests/ui_font_format_tests: src/tests/host/ui_font_format_tests.cpp src/ps
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_font_format_tests.cpp src/ps2/ui/font_format.cpp -o $@
 
-build/tests/ui_retail_catalog_tests: src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/retail_catalog.h src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h src/ps2/ui/font_format.h Makefile
+build/tests/ui_catalog_tests: src/tests/host/ui_catalog_tests.cpp src/ps2/ui/catalog.cpp src/ps2/ui/catalog.h src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h src/ps2/ui/font_format.h Makefile
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_retail_catalog_tests.cpp src/ps2/ui/retail_catalog.cpp src/ps2/ui/gstx_format.cpp -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_catalog_tests.cpp src/ps2/ui/catalog.cpp src/ps2/ui/gstx_format.cpp -o $@
 
 build/tests/ui_triangles_tests: src/tests/host/ui_triangles_tests.cpp src/ps2/ui/triangles.cpp src/ps2/ui/masks.cpp src/ps2/ui/masks.h src/ps2/ui/triangles.h src/ps2/ui/geometry.h Makefile
 	@mkdir -p $(dir $@)
@@ -707,7 +707,7 @@ build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp -o $@
 
-test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_retail_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/jpeg_decoder_tests build/tests/filesystem_tests build/tests/codec_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
 	./build/tests/asset_tests
 	./build/tests/gstx_format_tests
 	./build/tests/swf_runtime_tests_0
@@ -715,7 +715,7 @@ test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_f
 	./build/tests/swf_execution_tests
 	./build/tests/ui_swf_format_tests
 	./build/tests/ui_font_format_tests
-	./build/tests/ui_retail_catalog_tests
+	./build/tests/ui_catalog_tests
 	./build/tests/ui_page_geometry_tests
 	./build/tests/ui_triangles_tests
 	./build/tests/charset_tests

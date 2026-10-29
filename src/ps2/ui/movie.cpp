@@ -1,20 +1,20 @@
 // ================================================================================================
-// File: retail_movie.cpp
+// File: movie.cpp
 // Brief: Own English resource screens, bounded retail timelines, the fully drawn native dialog and
 // the natively driven shell menu.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/ui/retail_movie.h"
+#include "ps2/ui/movie.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "ps2/ui/draw.h"
 #include "ps2/ui/paletted_image.h"
-#include "ps2/ui/retail_assets.h"
-#include "ps2/ui/retail_menu.h"
-#include "ps2/ui/retail_owner.h"
+#include "ps2/ui/assets.h"
+#include "ps2/ui/menu.h"
+#include "ps2/ui/owner.h"
 #include "ps2/ui/swf_runtime.h"
 
 #include <idlib/precompiled.h>
@@ -27,7 +27,7 @@ namespace
 static constexpr float kScales[] = { 0.25f, 0.5f, 1.0f };
 static constexpr float kBaselines[] = { 120.0f, 220.0f, 350.0f };
 static constexpr char kText[] = "Campaign";
-static idFont * s_fonts[ps2::ui::retail::kMaxFonts] = {};
+static idFont * s_fonts[ps2::ui::kMaxFonts] = {};
 static bool s_initialized = false;
 static bool s_loaded = false;
 static u32 s_fontCount = 0;
@@ -64,21 +64,21 @@ void CloseResourceMovie()
 
     if (s_menu)
     {
-        ps2::ui::retail::CloseMenu();
+        ps2::ui::CloseMenu();
         s_menu = false;
     }
     else
     {
         if (s_resourceMovie != nullptr && s_resourceMovie->IsResourceExecution())
         {
-            ps2::ui::retail::DetachOwner(*s_resourceMovie);
+            ps2::ui::DetachOwner(*s_resourceMovie);
         }
 
         delete s_resourceMovie;
     }
 
     s_resourceMovie = nullptr;
-    ps2::ui::retail::ClearMovieClock();
+    ps2::ui::ClearMovieClock();
     s_movieIndex = -1;
     s_executionTicks = 0;
     s_nativeSteps = 0;
@@ -94,10 +94,10 @@ void CloseResourceMovie()
     }
 }
 
-ps2::ui::retail::FontRecord CurrentFont()
+ps2::ui::FontRecord CurrentFont()
 {
-    ps2::ui::retail::FontRecord record;
-    if (!ps2::ui::retail::GetCatalog().GetFont(s_font, record) || s_font >= s_fontCount || s_fonts[s_font] == nullptr)
+    ps2::ui::FontRecord record;
+    if (!ps2::ui::GetCatalog().GetFont(s_font, record) || s_font >= s_fontCount || s_fonts[s_font] == nullptr)
     {
         ps2::FatalError("native retail font proof ownership changed");
     }
@@ -145,11 +145,11 @@ void ExecutionStatus()
     unsigned texts = 0;
     unsigned depth = 0;
     CountHierarchy(root, 1, sprites, texts, depth);
-    ps2::ui::retail::OwnerStatus();
+    ps2::ui::OwnerStatus();
 
     if (s_menu)
     {
-        ps2::ui::retail::MenuInputStatus();
+        ps2::ui::MenuInputStatus();
     }
 
     const auto stats = ps2::ui::swf::GetStats();
@@ -180,7 +180,7 @@ void Status()
 
     if (s_resourceMovie != nullptr)
     {
-        const auto summary = ps2::ui::retail::GetMovieSummary(s_movieIndex);
+        const auto summary = ps2::ui::GetMovieSummary(s_movieIndex);
         ps2::Log(ps2::LogLevel::Info,
                  "[D3BFG] RETAIL movie=%d state=loaded frames=%u dictionary=%lu texts=%lu preview=%lu english=%d scripts=%s heap=%zu/%zu/%zu\n",
                  s_movieIndex, s_frames, static_cast<unsigned long>(summary.dictionary),
@@ -273,7 +273,7 @@ void Load()
     // The catalog opened with the presentation; its fonts register on the first load and stay cached.
     if (s_fontCount == 0)
     {
-        const auto & catalog = ps2::ui::retail::GetCatalog();
+        const auto & catalog = ps2::ui::GetCatalog();
         s_fontCount = catalog.FontCount();
         if (s_fontCount == 0 || s_fontCount > static_cast<u32>(ps2::ArrayLength(s_fonts)))
         {
@@ -282,7 +282,7 @@ void Load()
 
         for (u32 index = 0; index < s_fontCount; ++index)
         {
-            ps2::ui::retail::FontRecord font;
+            ps2::ui::FontRecord font;
             if (!catalog.GetFont(index, font))
             {
                 ps2::FatalError("retail font proof catalog record missing");
@@ -312,9 +312,9 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
     }
 
     CloseResourceMovie();
-    ps2::ui::retail::PrepareMovie(index, execute, present);
+    ps2::ui::PrepareMovie(index, execute, present);
     s_resourceMovie = new (TAG_SWF) idSWF(index == 0 ? "shell" : "dialog", nullptr, true);
-    const auto summary = ps2::ui::retail::GetMovieSummary(static_cast<int>(index));
+    const auto summary = ps2::ui::GetMovieSummary(static_cast<int>(index));
     auto * const entry = s_resourceMovie->GetDictionaryEntry(static_cast<int>(summary.previewText));
 
     if (!s_resourceMovie->IsLoaded() || entry->type != SWF_DICT_EDITTEXT || entry->edittext == nullptr)
@@ -347,11 +347,11 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
     {
         if (present && index == 1)
         {
-            ps2::ui::retail::ShowQuitDialog(*s_resourceMovie);
+            ps2::ui::ShowQuitDialog(*s_resourceMovie);
         }
         else
         {
-            ps2::ui::retail::AttachOwner(*s_resourceMovie, index);
+            ps2::ui::AttachOwner(*s_resourceMovie, index);
         }
 
         ps2::ui::swf::ResetStats();
@@ -367,7 +367,7 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
 
         // Native idSWF names its atlas material after the binary movie; screen passes need its
         // per-channel CLUTs before the first frame.
-        if (ps2::ui::retail::MovieUsesScreenBlending(static_cast<int>(index)))
+        if (ps2::ui::MovieUsesScreenBlending(static_cast<int>(index)))
         {
             const idMaterial * const atlas = declManager->FindMaterial(index == 0 ? "generated/swf/shell.tga" : "generated/swf/dialog.tga");
 
@@ -396,7 +396,7 @@ void LoadMenu()
     }
 
     CloseResourceMovie();
-    s_resourceMovie = ps2::ui::retail::OpenMenu();
+    s_resourceMovie = ps2::ui::OpenMenu();
     s_menu = true;
     s_movieIndex = 0;
     s_nativeSteps = 1;
@@ -439,7 +439,7 @@ void Control(const idCmdArgs & args)
         // The native shell plays this transition from its background update; frame actions it
         // reaches run under the same bounded execution scope as a timeline advance.
         const ps2::ui::swf::ExecutionScope scope(s_resourceMovie->GetName());
-        ps2::ui::retail::ShowShellLogo(*s_resourceMovie, strcmp(args.Argv(2), "on") == 0);
+        ps2::ui::ShowShellLogo(*s_resourceMovie, strcmp(args.Argv(2), "on") == 0);
         return;
     }
 
@@ -612,7 +612,7 @@ void DrawText(idFont * font, float scale, float baseline)
 }
 } // namespace
 
-namespace ps2::ui::retail
+namespace ps2::ui
 {
 
 PS2_COLD_FUNC void InitScreen()
@@ -790,4 +790,4 @@ void RenderScreen(bool advance)
     renderSystem->SetColor(colorWhite);
 }
 
-} // namespace ps2::ui::retail
+} // namespace ps2::ui

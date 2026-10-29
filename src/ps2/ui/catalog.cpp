@@ -1,16 +1,16 @@
 // ================================================================================================
-// File: retail_catalog.cpp
+// File: catalog.cpp
 // Brief: Reject malformed catalog offsets, identities and GSTX texture descriptors before native allocation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/ui/retail_catalog.h"
+#include "ps2/ui/catalog.h"
 #include "ps2/ui/font_format.h"
 #include "ps2/ui/gstx_format.h"
 
 #include <cstring>
 
-namespace ps2::ui::retail
+namespace ps2::ui
 {
 namespace
 {
@@ -638,4 +638,4 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
     return true;
 }
 
-} // namespace ps2::ui::retail
+} // namespace ps2::ui

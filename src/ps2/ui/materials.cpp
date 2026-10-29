@@ -1,5 +1,5 @@
 // ================================================================================================
-// File: retail_materials.cpp
+// File: materials.cpp
 // Brief: Generate only cataloged constant UI stages instead of reading general retail declarations.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
@@ -7,18 +7,18 @@
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/log.h"
-#include "ps2/ui/retail_assets.h"
+#include "ps2/ui/assets.h"
 
 #include <idlib/precompiled.h>
 #include <renderer/Image.h>
 #include <renderer/Material.h>
 
-namespace ps2::ui::retail
+namespace ps2::ui
 {
 
 PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacity)
 {
-    if (!IsInitialized() || name == nullptr || output == nullptr || capacity == 0)
+    if (!IsCatalogInitialized() || name == nullptr || output == nullptr || capacity == 0)
     {
         return false;
     }
@@ -75,7 +75,7 @@ PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacit
 
 PS2_COLD_FUNC void RegisterMaterials()
 {
-    if (!IsInitialized() || renderer::FrameStarted())
+    if (!IsCatalogInitialized() || renderer::FrameStarted())
     {
         FatalError("invalid retail material registration ownership");
     }
@@ -106,4 +106,4 @@ PS2_COLD_FUNC void RegisterMaterials()
     }
 }
 
-} // namespace ps2::ui::retail
+} // namespace ps2::ui

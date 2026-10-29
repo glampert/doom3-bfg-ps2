@@ -192,7 +192,7 @@ keyboard/pad integration and real PS2 acceptance remain 2D-8.
 | Work | Entry points |
 | --- | --- |
 | Production loop/presentation | `src/ps2/system/main.cpp`, `headless.cpp`, `presentation.cpp`, `common_campaign.cpp` |
-| Retail resources and execution | `src/ps2/ui/retail_movie.cpp`, `retail_assets.cpp`, `retail_materials.cpp`, `retail_catalog.cpp`, `retail_owner.cpp` |
+| Retail resources and execution | `src/ps2/ui/movie.cpp`, `assets.cpp`, `materials.cpp`, `catalog.cpp`, `owner.cpp`, `menu.cpp` |
 | Storage/script guards | `src/ps2/ui/swf_format.*`, `swf_execution.*`, `swf_runtime.*` |
 | Native SWF integration | `src/neo/swf/SWF_Main.cpp`, `SWF_Render.cpp`, `SWF_SpriteInstance.cpp`, native menu/widget sources |
 | CPU geometry/masks | `src/ps2/ui/draw.*`, `masks.*`, `triangles.*`, `geometry.*` |
