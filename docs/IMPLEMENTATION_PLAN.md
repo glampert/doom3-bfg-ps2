@@ -23,7 +23,7 @@ map used by the separate test executable. The real dialog now draws in full. Its
 streaming showed that RGBA32 UI pages cannot hold a menu's working set, so the selected
 next work is asset recompression/re-export and fitting the campaign into the 32 MiB
 budget, before the shell frame and interactive offline menu. Production now boots the
-retail declarations and scripts (`make test-retail-boot`), using 13.5 MB of heap
+retail declarations and scripts (`make test-headless-retail`), using 13.5 MB of heap
 before any map; the UI format and heap levers are measured in
 [PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20),
 and the first lever converts the retail UI to resident paletted textures
@@ -189,7 +189,7 @@ Base the root Makefile on the working Quake configuration. Provide separate sour
 
 - `make` and `make release`: production `build/<config>/d3bfg.elf` and `d3bfg_unstripped.elf`, with no test fixtures linked.
 - Native test variants use `d3bfg_tests.elf` under `build/<config>/tests/{platform,core,game}/`; the isolated compiler probe uses `build/<config>-script/tests/script/`.
-- `make test-host`, `make smoke`, `make smoke-render`, `make tools`, `make compiledb`: tests and tooling with explicit outputs and exit status.
+- `make test-host`, `make test-core`, `make test-renderer`, `make tools`, `make compiledb`: tests and tooling with explicit outputs and exit status.
 - Always emit a link map, section totals, largest symbols, compiler version and source/config identity. Stripping debug symbols reduces file size, not loaded code/data/BSS memory.
 - Use C++20 with `-fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing` for target C++.
 - Reuse the reference's `-Wall -Wextra -Werror` plus shadow, conversion/sign-conversion, format, undef, pointer, alignment, virtual, VLA and GCC logic/duplication diagnostics for new code. Apply compiler-supported equivalents on host Clang.

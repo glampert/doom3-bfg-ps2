@@ -51,13 +51,13 @@
   production link evidence, matched images, config/input hashes and both PCSX2 streams.
   PCSX2 mirrors IOP lines into stdout and emulog; count native markers from one stream
   while checking both for crashes. Seven host regressions reject false acceptance.
-- `make test-retail-boot` runs the production ELF headless with the local retail
+- `make test-headless-retail` runs the production ELF headless with the local retail
   `_common`/`_ordered` containers hard-linked into its package (`RETAIL_DATA_ROOT`,
   default `gamedata/d3_bfg`; symlinks are skipped by the native listing). It requires
   both container mounts, the full `doom_main.script` compile, the three startup
   memory checkpoints in order, 120 `NOMAP` frames and exact startup-ledger recovery.
   `summary.json` records each checkpoint, the largest tags and the compiled script
-  size. The run takes about 20 s (7.8 s of script compilation); `make run-retail-boot`
+  size. The run takes about 20 s (7.8 s of script compilation); `make run-headless-retail`
   stages and launches the same package until quit. Retail data never enters the repo.
 - Every visible package brings up the pad and the debug USB keyboard at presentation
   startup and logs `[D3BFG] INPUT devices pad=N keyboard=N`, then an `INPUT` status line
@@ -89,8 +89,8 @@
   expected fatal in a fresh process. (The placeholder authored SWF session and its 12
   cases were removed with the authored UI on 2026-10-29.)
 - The console step exercises the production ELF visibly in NTSC and PAL. Startup policy is selected by package-root
-  `presentation.cfg`; `make console` defaults to NTSC and `CONSOLE_STANDARD=pal`
-  stages PAL (`ntsc menu`/`pal menu` boot into the native menu; `make retail-menu`). Every visible package stages the cooked retail catalog from
+  `presentation.cfg`; `make stage-console` defaults to NTSC and `CONSOLE_STANDARD=pal`
+  stages PAL (`ntsc menu`/`pal menu` boot into the native menu; `make stage-ui-menu`). Every visible package stages the cooked retail catalog from
   `UI_COOK_OUTPUT` (`make ui-cook` first); the console draws the original charset from
   it. Once the boot step has released the menu, the step submits and replays native edit
   history, closes/reopens the real console and checks an edited input line, with
@@ -227,17 +227,17 @@
   package config echoes the run identity.
   Inspect all five fonts in both standards; proprietary captures and cooked files
   remain under ignored `build/`. This proves the resource screen, not a retail SWF,
-  Shell navigation or physical PS2 performance. `make run-retail-ui` launches it;
+  Shell navigation or physical PS2 performance. `make run-ui-fonts` launches it;
   append `ps2_uiRetail font 0` through `font 4`, `status` or `quit` to its console.txt.
 
 - `make` / `make release` build production, without smoke fixtures. Build tests
-  explicitly with `make platform-probe`, `make headless-core` or `make headless-game`.
+  explicitly with `make build-platform`, `make build-core` or `make build-game`.
   All native test variants are named `d3bfg_tests.elf` under `build/<config>/tests/`.
   Match `--elf` and `--symbols` when passing a nondefault configuration to the runner.
 - `PS2_D3BFG_TESTS` is the sole test-enable define. Make's `CORE_BOOT` selector
   chooses the real core stage or the SDK-only skip provider through source lists.
   Build and run platform/core variants separately so archived flag stamps match.
-- `make smoke-platform` stages an isolated
+- `make test-platform` stages an isolated
   manifest, ELF/symbols, logs and result under `build/test-results/<UTC-run-id>/`.
   Use `--scenario core` for the foundation bootstrap. Build the matching ELF before
   each scenario.
@@ -274,7 +274,7 @@
   checks require allocation rejection and counter underflow to remain fatal with
   assertions disabled. These test the adapter, not a linked `idGameLocal` fixture.
 
-- `make script-probe` / `make test-script` select the isolated real script compiler and
+- `make build-script` / `make test-script` select the isolated real script compiler and
   program, with an empty native-event registry. `make BUILD=release test-script` verifies
   the same matrix with assertions disabled. This target has its own `-script` artifact
   directory and linker-GC boundary; it is not a resident game-link gate.
@@ -379,7 +379,7 @@
   Nine host regressions reject test inputs/headers/symbols, stale images, nonzero links, missing registrations/map
   inputs, non-executables and ignored undefined diagnostics.
 
-- `make headless-game` builds `build/<config>/tests/game/d3bfg_tests.elf`. `make test-game`
+- `make build-game` builds `build/<config>/tests/game/d3bfg_tests.elf`. `make test-game`
   runs `game`, `game-missing-map`, `game-syntax`, `game-geometry`, `game-material`,
   `game-player-args`, `game-player-script`, `game-player-command`, `game-player-state`,
   `game-ceiling-geometry` and `game-step-geometry`

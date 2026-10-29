@@ -32,7 +32,7 @@ host tests and PCSX2 gates still run locally. Linux file names are case-sensitiv
 the default macOS volume; [ci.md](../.claude/rules/ci.md) describes reproducing the Linux
 build on a Mac.
 
-Native source lists are explicit in `config/sources.mk`. Run `make inventory` to audit
+Native source lists are explicit in `config/sources.mk`. Run `make audit-sources` to audit
 them and `make compiledb` after source-list changes. No source discovery enables
 extra engine/vendor files. The copied Quake II reference Makefile has been removed;
 use the external `quake2-ps2` checkout when comparing build policies.
@@ -76,7 +76,7 @@ re-export.
 
 ## Production packages and controls
 
-Every visible package, `make console` included, stages the cooked retail
+Every visible package, `make stage-console` included, stages the cooked retail
 catalog and assets from `UI_COOK_OUTPUT` (default `build/ui-retail`) into its `base/`:
 the presentation opens the catalog at startup and draws the console with the original
 `textures/bigchars` charset. Run `make ui-cook` before staging or testing a visible
@@ -93,7 +93,7 @@ original-game resources:
 
 ```sh
 make ui-cook
-make run-retail-movies
+make run-ui-movies
 ```
 
 A newly created retail-movies package automatically loads its resource screen
@@ -101,7 +101,7 @@ and selects inactive shell inspection. With that package running, append command
 from another terminal:
 
 ```sh
-printf 'ps2_uiRetail execute dialog\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail execute dialog\n' >> build/debug/ui-movies/console.txt
 ```
 
 Existing packaged settings are preserved. If an older package did not load the
@@ -132,12 +132,12 @@ input remain pending. Startup checks `base/default.cfg` for existence and option
 `base/d3bfg.cfg`; desktop bindings are not executed. `quit` / `exit` request ordered
 game/world/console shutdown followed by Common shutdown at the frame boundary.
 
-`make headless` packages the production ELF and small authored boot data from
+`make stage-headless` packages the production ELF and small authored boot data from
 `src/tests/data/headless/` under `build/<config>/headless/`. It preserves an existing packaged
 `base/d3bfg.cfg` and leaves local `base/` assets alone. The package root has
 `presentation.cfg`, read before Common initialization: `headless`, `ntsc` or `pal`,
 with an optional final newline. `ntsc menu` or `pal menu` also opens the native shell
-menu at startup (`make retail-menu`). A missing file selects headless; invalid content is
+menu at startup (`make stage-ui-menu`). A missing file selects headless; invalid content is
 fatal. The current PCSX2 HostFs maps a missing file to `EIO`, so policy open failure
 with `ENOENT` or `EIO` warns and defaults to headless; other errors remain fatal.
 Staging always replaces this policy, so repackaging cannot retain a stale mode.
@@ -157,18 +157,18 @@ History stays in memory. Set `ps2_maxFrames 120` in the packaged `base/d3bfg.cfg
 bounded run; its default `0` keeps running until a quit command. `ps2_status` reports
 completed frames, native `NOMAP`/console state and the tagged heap ledger.
 
-`make retail-boot` stages the same ELF under `build/<config>/retail-boot/` with the
+`make stage-headless-retail` stages the same ELF under `build/<config>/headless-retail/` with the
 retail `_common.resources` and `_ordered.resources` of `RETAIL_DATA_ROOT` (default
 `gamedata/d3_bfg`) hard-linked into its `base/` (copied across volumes; the native
 listing skips symlinks). Only the authored configuration and the port's
 `_headless_default` material come from `src/tests/data/`; every retail declaration and
-the full retail `doom_main.script` load from the containers. `make run-retail-boot`
+the full retail `doom_main.script` load from the containers. `make run-headless-retail`
 launches it with the same `console.txt` controls. Every production startup prints
 `[D3BFG] MEMORY`, `ARENA` and per-tag `TAG` ledgers after `startup-foundation`,
-`startup-decls` and `startup-game`; `make test-retail-boot` checks and records them.
+`startup-decls` and `startup-game`; `make test-headless-retail` checks and records them.
 Retail packages stay under ignored `build/`.
 
-`make console` stages the same ELF and authored boot data under
+`make stage-console` stages the same ELF and authored boot data under
 `build/<config>/console/`; `CONSOLE_STANDARD` defaults to `ntsc`. It opens the native
 half-height console over a dark background. Use its `console.txt` for commands, or
 send ASCII and named keys to the native edit field:
@@ -195,9 +195,9 @@ and redraw-request counts. These three controls are available only in visible mo
 `ps2_maxFrames` and the ordinary command stream work in either mode.
 
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
-`d3bfg_tests.map`. `make headless-core` writes `build/<config>/tests/core/`,
-`make platform-probe` writes `build/<config>/tests/platform/`, and
-`make headless-game` writes `build/<config>/tests/game/`. The isolated compiler probe
+`d3bfg_tests.map`. `make build-core` writes `build/<config>/tests/core/`,
+`make build-platform` writes `build/<config>/tests/platform/`, and
+`make build-game` writes `build/<config>/tests/game/`. The isolated compiler probe
 uses `build/<config>-script/tests/script/`. Core/platform/script reports are named
 `build-report.{json,txt}`; campaign test reports are `report.{json,txt}`. All smoke
 commands select these test images explicitly. Campaign tests have their own object

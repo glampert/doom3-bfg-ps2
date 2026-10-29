@@ -144,7 +144,7 @@ def main() -> int:
                         help="the cooked retail UI (make ui-cook) a visible package draws the console charset from")
     args = parser.parse_args()
     try:
-        package = ("retail-boot" if args.retail_data else
+        package = ("headless-retail" if args.retail_data else
                    "headless" if args.presentation == "headless" else "console")
         output = stage(args.build, args.output or REPO_ROOT / "build" / args.build / package, args.presentation,
                        args.retail_data, args.catalog if args.presentation != "headless" else None)

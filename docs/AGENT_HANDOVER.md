@@ -78,7 +78,7 @@ measurements are in
   Candidate per-screen sets are 0.1–1.2 MB and fit GS memory beside the framebuffers,
   against 1.6–15.7 MB of RGBA32 pages now. Facts and method:
   [gs-renderer.md](../.claude/rules/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
-- **Retail boot.** `make test-retail-boot` reaches `NOMAP` with every retail
+- **Retail boot.** `make test-headless-retail` reaches `NOMAP` with every retail
   declaration and the full `doom_main.script`: 13.5 MB of heap backing (14.5 MB arena)
   before any map, leaving 6.4–6.8 MB. The owners are declaration text (4.76 MB), script
   (2.83 MB), declaration objects and names (3.0 MB), container tables (1.08 MB) and
@@ -107,7 +107,7 @@ Proposed order; the user chose lever 1 first:
    the shell's screens come up. Since 2026-10-23 a set image holds one 1:1 band
    placement per page and each catalog entry carries its glyph's rectangle (UICT4), so a
    set grows by 20 catalog bytes per glyph and size, up to sixteen 512×512 pages.
-2. Cheap heap wins, measured by `test-retail-boot`: a smaller tagged header or
+2. Cheap heap wins, measured by `test-headless-retail`: a smaller tagged header or
    small-block pools, heap-string container names, a PS2-sized smoke pool and script
    limits sized to the retail program.
 3. Declaration text on demand from the containers (keep an index), or a pruned
@@ -161,7 +161,7 @@ The root's Quit opens Common's native confirmation through its dialog manager
 ([record](PORT_STATUS.md#native-quit-dialog-through-commons-dialog-manager-2026-10-24)),
 and its pad button tags draw as the PS3 prompt art
 ([record](PORT_STATUS.md#pad-prompt-icons-in-retail-text-2026-10-24)). A `menu` package
-policy boots into the menu (`make retail-menu`;
+policy boots into the menu (`make stage-ui-menu`;
 [record](PORT_STATUS.md#booting-into-the-native-menu-2026-10-24)). Next, in order:
 
 - **Other screens.** Credits, Campaign and Settings are bound
@@ -252,13 +252,13 @@ contain only redistributable authored assets.
 ```sh
 make
 make release
-make inventory
+make audit-sources
 make compiledb
 python3 src/tests/host/scripts/swf_fixture.py --check
 make test-host
 make ui-cook
-make run-retail-movies
-make test-retail-boot
+make run-ui-movies
+make test-headless-retail
 ```
 
 GitHub Actions builds production debug/release on Linux in the pinned ps2sdk image
@@ -269,7 +269,7 @@ Linux file names are case-sensitive: [ci.md](../.claude/rules/ci.md) has the Mac
 To draw the original quit dialog in full in the retail movies package, while it is running with the resource screen loaded:
 
 ```sh
-printf 'ps2_uiRetail dialog quit\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail dialog quit\n' >> build/debug/ui-movies/console.txt
 ```
 
 A new retail-movies package auto-loads the screen. Existing packaged configs are
@@ -291,7 +291,7 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Geometry/GS/mask work | `make test-host`, `make test-renderer`, `make test-ui`; repeat target gates with `BUILD=release` |
 | Retail resources/timelines/menu | Host guards plus `make test-ui` (one retail session per standard and every invalid-resource case), debug/release |
 | Common/frame/presentation ownership | `make test-headless`, `make test-ui`, debug/release |
-| Heap, declarations, scripts or containers | `make test-retail-boot` (its startup ledgers), plus `make test-headless` |
+| Heap, declarations, scripts or containers | `make test-headless-retail` (its startup ledgers), plus `make test-headless` |
 | Game/map behavior | Existing `make test-game` / `make test-map`, debug/release; not a reason to resume standalone movement-fixture expansion |
 | Documentation/path-only changes | Local links/targets, source inventory, fixture `--check`; fixture moves also use host tests and package staging |
 | Include/Makefile paths, toolchain or CI | `make`, `make release`, plus the case-sensitive Linux check in [ci.md](../.claude/rules/ci.md) |

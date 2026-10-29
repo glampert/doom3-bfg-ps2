@@ -189,7 +189,7 @@ def main() -> int:
     parser.add_argument("--menu", action="store_true", help="with --movies, boot into the native shell menu")
     args = parser.parse_args()
     try:
-        output = args.output or REPO_ROOT / "build" / args.build / ("ui-retail-menu" if args.menu else "ui-retail-movies" if args.movies else "ui-retail")
+        output = args.output or REPO_ROOT / "build" / args.build / ("ui-menu" if args.menu else "ui-movies" if args.movies else "ui-fonts")
         package = stage_retail(args.build, output, args.standard, args.source, args.movies, args.menu)
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, "error: " + str(error) + "\n")

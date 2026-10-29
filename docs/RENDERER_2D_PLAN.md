@@ -366,7 +366,7 @@ flowchart TD
   binary with an explicit boot policy/package; keep numeric test defines unchanged.
   **Implemented:** package-root `presentation.cfg` selects `headless` (also the missing-file
   default), `ntsc` or `pal` before Common startup, with `menu` after a visible mode to
-  open the native menu at startup; `make headless` / `make console` / `make retail-menu`
+  open the native menu at startup; `make stage-headless` / `make stage-console` / `make stage-ui-menu`
   stage the same ELF. `CONSOLE_STANDARD=pal` selects PAL packaging.
 - Foundation, declarations, native game, logical CPU renderer and optional 2D resources
   remain individually owned startup stages. Preserve stage-free model materials for

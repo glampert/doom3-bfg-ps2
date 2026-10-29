@@ -87,7 +87,7 @@ Stage a package before launching so the ELF has its data alongside it. For the
 current visible developer console:
 
 ```sh
-make console
+make stage-console
 PCSX2 -batch -elf "$PWD/build/debug/console/d3bfg.elf"
 ```
 

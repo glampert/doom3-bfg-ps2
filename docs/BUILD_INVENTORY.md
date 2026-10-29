@@ -2,7 +2,7 @@
 
 The build uses explicit lists in [`config/sources.mk`](../config/sources.mk).
 [`config/source_inventory.json`](../config/source_inventory.json) records the disposition
-of every shipped BFG C/C++ unit. `make inventory` fails when a source is added, removed,
+of every shipped BFG C/C++ unit. `make audit-sources` fails when a source is added, removed,
 duplicated, left unclassified, or enabled despite an exclusion. Source discovery is used
 for auditing only; it never selects files for compilation.
 
@@ -76,8 +76,8 @@ Common's native confirmation; the other shell screens remain pending. See [the e
 
 `make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
-`make headless-core` links asset-free foundation tests into
-`build/<config>/tests/core/d3bfg_tests.elf`; `make platform-probe` selects the separate
+`make build-core` links asset-free foundation tests into
+`build/<config>/tests/core/d3bfg_tests.elf`; `make build-platform` selects the separate
 SDK-only test variant. Both use `PS2_D3BFG_TESTS=1`; Make source selection supplies
 the core stage or the `PLATFORM_TEST_CXX_SRC` skip provider. The platform link has no
 Doom core services. The core test initializes retained foundation services and
@@ -89,9 +89,9 @@ presentation and movie providers. Production links 374 direct objects, retaining
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.
-`make headless` and `make console` stage the same ELF with authored boot data separately
+`make stage-headless` and `make stage-console` stage the same ELF with authored boot data separately
 from retail assets. Package-root `presentation.cfg` selects headless/NTSC/PAL before
-Common startup, and `make retail-menu` adds `menu` to boot into the native menu. `make test-headless` and `make test-ui` exercise production itself.
+Common startup, and `make stage-ui-menu` adds `menu` to boot into the native menu. `make test-headless` and `make test-ui` exercise production itself.
 Visible frames call real native `console->Draw(false)` after the native `NOMAP` tick;
 `UpdateScreen` coalesces in-frame requests without advancing clocks. Native `RunFrame`
 returns at `NOMAP` until map integration exists.
@@ -110,7 +110,7 @@ The shared logger links into both the core adapters and the SDK-only probe.
 The game class allocator is linked into the core for focused adapter tests; the
 campaign's `idClass` hierarchy and `idGameLocal` are not yet part of that executable.
 
-`make headless-core` explicitly selects the same core bootstrap/test sources and links
+`make build-core` explicitly selects the same core bootstrap/test sources and links
 all core objects directly, without garbage collection. Debug/release core runs have
 passed in PCSX2; see [PORT_STATUS.md](PORT_STATUS.md).
 
@@ -159,7 +159,7 @@ historical copied reference Makefile was removed; compare with the external
 
 ## Isolated script compiler probe
 
-`make script-probe` builds the real `Script_Compiler.cpp` and `Script_Program.cpp`
+`make build-script` builds the real `Script_Compiler.cpp` and `Script_Program.cpp`
 against foundation services, into `build/<config>-script/`. `make test-script` runs
 its positive/expected-fatal PCSX2 matrix; select release with `BUILD=release`.
 The probe provides an explicitly empty native-event registry and can omit the retail
@@ -296,7 +296,7 @@ definitions; each emits matched stripped/unstripped resident ELFs. Compiler nonz
 Successful links also require a MIPS executable/load segment, every input in the map,
 static game interfaces, three native class registration roots and the static CVar
 registry. Stale ELF/report files are cleared before attempts. The production entry now pumps Common frames and shuts down at a quit boundary.
-`make headless-game` separately links 345 inputs under `build/<config>/tests/game/`,
+`make build-game` separately links 345 inputs under `build/<config>/tests/game/`,
 including four test entries/adapters, with `PS2_D3BFG_TESTS=1` in isolated object trees.
 Production uses `0`; its gate rejects test sources, transitive headers and fixture
 symbols. Test runtime gates remain `make test-game` and `make test-map`.
@@ -442,7 +442,7 @@ the separate resident ELF runs the authored game fixture.
 
 ## Initial headless game fixture
 
-`make headless-game` selects the whole-object resident link above. `make test-game`
+`make build-game` selects the whole-object resident link above. `make test-game`
 runs positive native startup/ticks/reloads, missing-map and malformed-script scenarios
 in fresh PCSX2 processes; `BUILD=release` verifies the same behavior without asserts.
 The strict, cold `tests/smoketests/headless_fixture.cpp` is a campaign test unit;

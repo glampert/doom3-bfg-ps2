@@ -30,13 +30,13 @@ integration gates in this profile use that assumption.
 make ui-inventory
 make ui-cook
 make ui-cook UI_PREVIEWS=build/ui-previews
-make run-retail-ui
-make CONSOLE_STANDARD=pal run-retail-ui
+make run-ui-fonts
+make CONSOLE_STANDARD=pal run-ui-fonts
 make test-ui
 make BUILD=release test-ui
 
 # Every visible package stages the same cook for the console charset:
-make ui-cook && make console
+make ui-cook && make stage-console
 
 # Separate reports and override the local installation location:
 make ui-inventory UI_DATA_ROOT=/path/to/bfg/base UI_COOK_OUTPUT=build/ui-inventory
@@ -53,8 +53,8 @@ package. `make ui-cook` builds `build/tools/asset_reexport` first; `UI_PREVIEWS`
 `build/`) also writes an original and a converted PNG of every texture for visual
 review.
 
-`make retail-ui` stages the same production ELF under `build/<config>/ui-retail/`;
-`run-retail-ui` displays the resource screen until quit. `UI_COOK_OUTPUT` selects the
+`make stage-ui-fonts` stages the same production ELF under `build/<config>/ui-fonts/`;
+`run-ui-fonts` displays the resource screen until quit. `UI_COOK_OUTPUT` selects the
 source cook, and `CONSOLE_STANDARD` selects NTSC/PAL. The package contains only the
 compact catalog, modern font files and GSTX textures from the local cook; staging
 removes any other file from its asset directory. It does not copy retail SWFs,
@@ -64,9 +64,9 @@ visible process.
 Append commands to the running package's `console.txt`, for example:
 
 ```sh
-echo 'ps2_uiRetail font 3' >> build/debug/ui-retail/console.txt
-echo 'ps2_uiRetail status' >> build/debug/ui-retail/console.txt
-echo 'quit' >> build/debug/ui-retail/console.txt
+echo 'ps2_uiRetail font 3' >> build/debug/ui-fonts/console.txt
+echo 'ps2_uiRetail status' >> build/debug/ui-fonts/console.txt
+echo 'quit' >> build/debug/ui-fonts/console.txt
 ```
 
 Font indices are Arial Narrow (0), BankGothic (1), Chainlink (2), Microgramma (3)
@@ -364,18 +364,18 @@ The authored BSWF and font remain host-test stand-ins (`src/tests/data/ui/`).
 
 ## Inactive retail dictionaries and English text
 
-`make retail-movies` stages the original shell/dialog BSWF files and complete English
-language source beside the same checked font/image catalog. `make run-retail-movies`
+`make stage-ui-movies` stages the original shell/dialog BSWF files and complete English
+language source beside the same checked font/image catalog. `make run-ui-movies`
 launches the production ELF with the shell text resource screen; select PAL with
 `CONSOLE_STANDARD=pal`, or release with `BUILD=release`. The separate package is
-`build/<config>/ui-retail-movies/`. Its controls are:
+`build/<config>/ui-movies/`. Its controls are:
 
 ```sh
-echo 'ps2_uiRetail movie dialog' >> build/debug/ui-retail-movies/console.txt
-echo 'ps2_uiRetail movie shell' >> build/debug/ui-retail-movies/console.txt
-echo 'ps2_uiRetail movie none' >> build/debug/ui-retail-movies/console.txt
-echo 'ps2_uiRetail status' >> build/debug/ui-retail-movies/console.txt
-echo 'quit' >> build/debug/ui-retail-movies/console.txt
+echo 'ps2_uiRetail movie dialog' >> build/debug/ui-movies/console.txt
+echo 'ps2_uiRetail movie shell' >> build/debug/ui-movies/console.txt
+echo 'ps2_uiRetail movie none' >> build/debug/ui-movies/console.txt
+echo 'ps2_uiRetail status' >> build/debug/ui-movies/console.txt
+echo 'quit' >> build/debug/ui-movies/console.txt
 ```
 
 `movie none` returns to the font screen. `unload` closes the active dictionary and
@@ -495,15 +495,15 @@ movie drawing, movie event routing and the complete Shell handler are separate a
 English is the only locale. The inspection screen still draws the three isolated native
 edit-text records, rather than pretending that an incomplete movie is fully rendered.
 
-After staging with `make retail-movies` and launching `make run-retail-movies`, append
+After staging with `make stage-ui-movies` and launching `make run-ui-movies`, append
 commands to the package's HostFs input file:
 
 ```sh
-printf 'ps2_uiRetail execute shell\n' >> build/debug/ui-retail-movies/console.txt
-printf 'ps2_uiRetail status\n' >> build/debug/ui-retail-movies/console.txt
-printf 'ps2_uiRetail execute dialog\n' >> build/debug/ui-retail-movies/console.txt
-printf 'ps2_uiRetail movie shell\n' >> build/debug/ui-retail-movies/console.txt
-printf 'ps2_uiRetail unload\nquit\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail execute shell\n' >> build/debug/ui-movies/console.txt
+printf 'ps2_uiRetail status\n' >> build/debug/ui-movies/console.txt
+printf 'ps2_uiRetail execute dialog\n' >> build/debug/ui-movies/console.txt
+printf 'ps2_uiRetail movie shell\n' >> build/debug/ui-movies/console.txt
+printf 'ps2_uiRetail unload\nquit\n' >> build/debug/ui-movies/console.txt
 ```
 
 `movie` preserves inactive inspection; `execute` requests an additional target-side
@@ -564,9 +564,9 @@ separate admission: full drawing through native `idSWF::Render`. With the retail
 package running:
 
 ```sh
-printf 'ps2_uiRetail dialog quit\n' >> build/debug/ui-retail-movies/console.txt
-printf 'ps2_uiRetail status\n' >> build/debug/ui-retail-movies/console.txt
-printf 'ps2_uiRetail unload\nquit\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail dialog quit\n' >> build/debug/ui-movies/console.txt
+printf 'ps2_uiRetail status\n' >> build/debug/ui-movies/console.txt
+printf 'ps2_uiRetail unload\nquit\n' >> build/debug/ui-movies/console.txt
 ```
 
 Drawing is admitted per movie from the target preflight, not by name. Storage
@@ -616,8 +616,8 @@ per Common frame from its activation time, so captures at a frame count repeat w
 the frame time.
 
 ```sh
-printf 'ps2_uiRetail clock fixed\nps2_uiRetail draw shell\n' >> build/debug/ui-retail-movies/console.txt
-printf 'ps2_uiRetail logo on\n' >> build/debug/ui-retail-movies/console.txt
+printf 'ps2_uiRetail clock fixed\nps2_uiRetail draw shell\n' >> build/debug/ui-movies/console.txt
+printf 'ps2_uiRetail logo on\n' >> build/debug/ui-movies/console.txt
 ```
 
 A debug PCSX2 frame takes 100–140 ms with one timeline step per frame (the fixed clock);
@@ -632,7 +632,7 @@ draw as native quads, each size logged once.
 `ps2_uiRetail menu` opens the menu the way `idCommonLocal::CreateMainMenu` does: the
 game's `Shell_CreateMenu(false)`, `Shell_Show(true)` and `Shell_SyncWithSession()`,
 after native `PerformGameSwitch`'s move to press-start. A package whose
-`presentation.cfg` reads `ntsc menu` or `pal menu` (`make retail-menu`) opens it the
+`presentation.cfg` reads `ntsc menu` or `pal menu` (`make stage-ui-menu`) opens it the
 same way at startup, before the first frame and the startup commands, on real time. The real `idMenuHandler_Shell`
 owns the movie, its widgets and its screens; the harness only advances and draws it,
 on the fixed clock when `ps2_uiRetail clock fixed` came first. Each frame syncs the

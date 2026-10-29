@@ -3,59 +3,59 @@
 # The default ELF is the game loop; native smoketest executables are built separately.
 # =================================================================================================
 #
-# Build, packaging and test commands (run from the repository root).
+# Build, packaging and test commands (run from the repository root). Targets follow one
+# pattern: build-<image> builds a test image, stage-<package> stages a runnable package,
+# run-<package> launches it in PCSX2, and test-<area> runs automated checks.
 #
 # Game:
 #   make                         # production d3bfg.elf, debug
 #   make release                 # production d3bfg.elf, release
 #
+# Test images (build/<config>/tests/<image>/d3bfg_tests.elf):
+#   make build-core              # scalar Doom foundation and integration tests
+#   make build-platform          # SDK/timer/alignment probe
+#   make build-game              # native campaign with the game and map fixtures
+#   make build-script            # isolated native script compiler
+#
+# Packages (build/<config>/<package>/, each the production ELF):
+#   make stage-headless          # authored boot data, headless
+#   make stage-headless-retail   # the local retail containers, headless
+#   make stage-console           # visible console (CONSOLE_STANDARD=ntsc or pal)
+#   make stage-ui-fonts          # the English font resource screen
+#   make stage-ui-movies         # inactive shell/dialog SWFs and the English dictionary
+#   make stage-ui-menu           # boots into the native shell menu
+#   make run-<package>           # stage and launch any of these, until quit (make run = run-headless)
+#
+# Tests:
+#   make test-host               # host format/logic/runner tests and ASan/UBSan harnesses
+#   make test-platform           # the SDK platform probe in PCSX2
+#   make test-core               # core smoke run in PCSX2
+#   make test-common             # partial-startup and expected-failure checks
+#   make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes
+#   make run-renderer            # the renderer scene plus a 60-second inspection hold; F8 also saves a capture
+#   make test-script             # isolated native script compiler checks
+#   make test-game               # native game/player/tick/reload and failure checks
+#   make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
+#   make test-headless           # 120 frames, live console commands and shutdown
+#   make test-headless-retail    # retail startup ledgers, 120 frames and shutdown
+#   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog) and the invalid-resource cases
+#
 # Tooling:
-#   make tools                   # audit sources and build the host resource unpacker
+#   make tools                   # audit sources and build the host tools
 #   make resource-unpack         # standalone C++20 host resource reader/extractor (CMake)
 #   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
-#
-# Other:
-#   make clean                   # remove generated build/test artifacts
-#   make compiledb               # compile_commands.json from real Make rules
-#   make inventory               # audit explicit source lists and exclusions
 #   make ui-inventory            # inspect local retail UI dependencies and feature gaps
-#
-# Host tests/smoke tests:
-#   make headless                # package production with authored console boot data
-#   make run-headless            # run the headless package in PCSX2, until quit
-#   make test-headless           # 120 frames, live console commands and shutdown in PCSX2
-#   make headless-core           # scalar Doom foundation and integration tests
-#   make headless-game           # native campaign test executable
-#   make console                 # package the same production ELF with visible NTSC console (CONSOLE_STANDARD=pal for PAL)
-#   make run-console             # run the visible console package in PCSX2
-#   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog) and the invalid-resource cases (BUILD=release without asserts)
 #   make ui-cook                 # cook the ignored local retail English resource package
-#   make retail-ui               # stage native retail fonts in build/debug/ui-retail/
-#   make run-retail-ui           # display the native English font resource screen (BUILD=release CONSOLE_STANDARD=pal for release PAL resource screen)
-#   make retail-movies           # stage inactive retail SWFs and the English dictionary
-#   make run-retail-movies       # draw English labels using original native SWF text records
-#   make retail-menu             # stage a package that boots into the native shell menu
-#   make run-retail-menu         # boot into the original menu on the drawn shell
-#   make retail-boot             # package production with the local retail containers
-#   make run-retail-boot         # boot the retail declarations and scripts headless, until quit
-#   make test-retail-boot        # retail startup ledgers, 120 frames and shutdown in PCSX2
-#   make test-renderer           # NTSC/PAL sprites/indexed UI, native pixels, reload and failure probes
-#   make run-renderer            # native capture plus a 60-second inspection hold; F8 also saves a capture
-#   make platform-probe          # SDK/timer/alignment probe
-#   make test-game               # native game/player/tick/reload and failure checks in PCSX2
-#   make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
-#   make test-host               # host format/logic/runner tests and ASan/UBSan harnesses
-#   make smoke                   # core smoke run in PCSX2 (BUILD=release without asserts)
-#   make test-common             # partial-startup and expected-failure checks
-#   make smoke-platform          # run the isolated SDK platform probe
-#   make test-script             # isolated native script compiler checks
+#   make audit-sources           # audit explicit source lists and exclusions
+#   make compiledb               # compile_commands.json from real Make rules
+#   make clean                   # remove generated build/test artifacts
 #
 # BUILD=debug is the default; BUILD=release selects an assertions-off build.
 # CONSOLE_STANDARD=ntsc (default) or pal selects visible package presentation.
 # PCSX2=/path/to/PCSX2 overrides the emulator executable.
 # UI_DATA_ROOT and UI_COOK_OUTPUT select the local retail installation/cook output;
 # UI_PREVIEWS=DIR (under build/) makes ui-cook also write original/converted PNG previews.
-# RETAIL_DATA_ROOT (default UI_DATA_ROOT) selects the installation retail-boot mounts.
+# RETAIL_DATA_ROOT (default UI_DATA_ROOT) selects the installation stage-headless-retail mounts.
 # Emulator test targets require an isolated PCSX2 session; run them sequentially.
 # Developer setup, controls and diagnostics: docs/DEVELOPMENT.md.
 
@@ -87,12 +87,12 @@ ifeq ($(filter $(BUILD),debug release),)
 endif
 
 # Keep the SDK-only probe and Doom foundation explicit in both builds and reports.
-ifneq ($(filter platform-probe smoke-platform,$(MAKECMDGOALS)),)
-	ifneq ($(filter headless-core smoke,$(MAKECMDGOALS)),)
-		$(error platform-probe and headless-core must run separately)
+ifneq ($(filter build-platform test-platform,$(MAKECMDGOALS)),)
+	ifneq ($(filter build-core test-core,$(MAKECMDGOALS)),)
+		$(error build-platform and build-core must run separately)
 	endif
 	CORE_BOOT := 0
-else ifneq ($(filter headless-core smoke,$(MAKECMDGOALS)),)
+else ifneq ($(filter build-core test-core,$(MAKECMDGOALS)),)
 	CORE_BOOT := 1
 else
 	CORE_BOOT ?= 1
@@ -212,7 +212,7 @@ ifeq ($(CORE_BOOT),1)
 	BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
 	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS)
 	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC)
-	MILESTONE = headless-core
+	MILESTONE = build-core
 	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(CORE_TEST_DIR)/.link-flags.json
 	LINK_OBJS += $(CODEC_C_OBJS) $(CODEC_CXX_OBJS)
 	LINK_SOURCES += $(VENDOR_C_SRC) $(VENDOR_CXX_SRC)
@@ -221,7 +221,7 @@ else
 	BOOT_OBJS =
 	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS)
 	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC)
-	MILESTONE = platform-probe
+	MILESTONE = build-platform
 	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(CORE_TEST_DIR)/.link-flags.json
 endif
 
@@ -229,7 +229,7 @@ ifeq ($(SCRIPT_PROBE),1)
 	SCRIPT_OBJS = $(addprefix $(OUTPUT_DIR)/script/src/,$(SCRIPT_CXX_SRC:.cpp=.o))
 	LINK_OBJS += $(SCRIPT_OBJS)
 	LINK_SOURCES += $(SCRIPT_CXX_SRC)
-	MILESTONE = script-compiler-probe
+	MILESTONE = build-script
 	REPORT_FLAGS += $(OUTPUT_DIR)/.script-flags.json
 endif
 
@@ -256,14 +256,14 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release headless run-headless test-headless retail-boot run-retail-boot test-retail-boot console run-console test-ui ui-inventory ui-cook resource-unpack asset-reexport platform-probe headless-core headless-game test-map test-game test-renderer run-renderer inventory compiledb tools run script-probe test-script test-common test-host smoke smoke-platform core-tests clean FORCE
+.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui ui-inventory ui-cook resource-unpack asset-reexport build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image clean FORCE
 
 release: all
-platform-probe: core-tests
-headless-core: core-tests
-core-tests: inventory $(TEST_ELF) $(CORE_TEST_DIR)/build-report.json
+build-platform: core-test-image
+build-core: core-test-image
+core-test-image: audit-sources $(TEST_ELF) $(CORE_TEST_DIR)/build-report.json
 
-inventory:
+audit-sources:
 	@$(PYTHON) $(SCRIPTS)/audit_sources.py
 
 # A stamp is rewritten only when its compiler identity, flags or source list
@@ -403,17 +403,17 @@ $(CORE_TEST_DIR)/build-report.json: $(EE_BIN) $(TEST_ELF) $(REPORT_FLAGS) $(CORE
 $(OUTPUT_DIR)/.resident-sdk-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib $(addprefix -l,$(RESIDENT_SDK_LIBS))
 
-all: inventory $(RESIDENT_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
+all: audit-sources $(RESIDENT_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
 	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(OUTPUT_DIR) --kind game --name d3bfg --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(RESIDENT_LINK_SOURCES)) --objects $(RESIDENT_LINK_OBJS) --flags $(OUTPUT_DIR)/.campaign-flags.json $(OUTPUT_DIR)/.game-backend-flags.json $(OUTPUT_DIR)/.resident-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
 
 # The same retained campaign is compiled with fixture hooks into a separate native executable.
-headless-game: inventory $(GAME_TEST_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
+build-game: audit-sources $(GAME_TEST_LINK_OBJS) $(OUTPUT_DIR)/.resident-sdk-flags.json
 	@$(PYTHON) $(SCRIPTS)/link_resident.py --compiler $(EE_CXX) --configuration $(BUILD) --output $(GAME_TEST_DIR) --kind tests --name d3bfg_tests --linkfile $(EE_LINKFILE) --sdk-lib $(PS2SDK)/ee/lib --libraries $(RESIDENT_SDK_LIBS) --sources $(addprefix src/,$(GAME_TEST_LINK_SOURCES)) --objects $(GAME_TEST_LINK_OBJS) --flags $(OUTPUT_DIR)/.test-campaign-flags.json $(OUTPUT_DIR)/.test-backend-flags.json $(OUTPUT_DIR)/.test-support-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(OUTPUT_DIR)/.codec-c-flags.json $(OUTPUT_DIR)/.codec-cxx-flags.json $(OUTPUT_DIR)/.resident-sdk-flags.json
 
-test-map: headless-game
+test-map: build-game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-map
 
-test-game: headless-game
+test-game: build-game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-missing-map
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --elf $(GAME_TEST_ELF) --scenario game-syntax
@@ -429,16 +429,16 @@ test-game: headless-game
 compiledb:
 	@$(PYTHON) $(SCRIPTS)/gen_compile_commands.py --make $(MAKE) --build $(BUILD)
 
-script-probe:
-	$(MAKE) --no-print-directory BUILD=$(BUILD) SCRIPT_PROBE=1 core-tests
+build-script:
+	$(MAKE) --no-print-directory BUILD=$(BUILD) SCRIPT_PROBE=1 core-test-image
 
-test-common: headless-core
+test-common: build-core
 	$(PYTHON) $(SCRIPTS)/run_common_tests.py --emulator $(PCSX2) --elf $(TEST_ELF)
 
-test-script: script-probe
+test-script: build-script
 	$(PYTHON) $(SCRIPTS)/run_script_tests.py --elf build/$(BUILD)-script/tests/script/d3bfg_tests.elf
 
-tools: inventory resource-unpack asset-reexport
+tools: audit-sources resource-unpack asset-reexport
 	@echo "Host tools: build/tools/resource_unpack, build/tools/asset_reexport; Python tools: $(SCRIPTS)/."
 
 resource-unpack: build/tools/resource_unpack
@@ -451,29 +451,29 @@ ui-inventory:
 ui-cook: build/tools/asset_reexport
 	$(PYTHON) $(SCRIPTS)/inventory_retail_ui.py --data-root "$(UI_DATA_ROOT)" --output "$(UI_COOK_OUTPUT)" --config "$(UI_RETAIL_CONFIG)" --cook $(if $(UI_PREVIEWS),--previews "$(UI_PREVIEWS)")
 
-headless: all
+stage-headless: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)
 
 run: run-headless
-run-headless: headless
+run-headless: stage-headless
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/headless/d3bfg.elf
 
 test-headless: all
 	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2)
 
-retail-boot: all
+stage-headless-retail: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --retail-data "$(RETAIL_DATA_ROOT)"
 
-run-retail-boot: retail-boot
-	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/retail-boot/d3bfg.elf
+run-headless-retail: stage-headless-retail
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/headless-retail/d3bfg.elf
 
-test-retail-boot: all
+test-headless-retail: all
 	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2) --case retail --data-root "$(RETAIL_DATA_ROOT)"
 
-console: all
+stage-console: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD) --catalog "$(UI_COOK_OUTPUT)"
 
-run-console: console
+run-console: stage-console
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/console/d3bfg.elf
 
 # One session per standard boots into the retail menu and visits every retail screen; each
@@ -483,33 +483,33 @@ test-ui: all
 	$(PYTHON) $(SCRIPTS)/run_retail_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
-.PHONY: retail-ui run-retail-ui retail-movies run-retail-movies retail-menu run-retail-menu
+.PHONY: stage-ui-fonts run-ui-fonts stage-ui-movies run-ui-movies stage-ui-menu run-ui-menu
 
-retail-ui: all
+stage-ui-fonts: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)"
 
-run-retail-ui: retail-ui
-	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-retail/d3bfg.elf
+run-ui-fonts: stage-ui-fonts
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-fonts/d3bfg.elf
 
-retail-movies: all
+stage-ui-movies: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)" --movies
 
-run-retail-movies: retail-movies
-	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-retail-movies/d3bfg.elf
+run-ui-movies: stage-ui-movies
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-movies/d3bfg.elf
 
-retail-menu: all
+stage-ui-menu: all
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)" --movies --menu
 
-run-retail-menu: retail-menu
-	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-retail-menu/d3bfg.elf
+run-ui-menu: stage-ui-menu
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-menu/d3bfg.elf
 
-smoke: headless-core
+test-core: build-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario core
 
-smoke-platform: platform-probe
+test-platform: build-platform
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario platform
 
-test-renderer: headless-core
+test-renderer: build-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ntsc
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-pal
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-gif-overflow
@@ -530,7 +530,7 @@ test-renderer: headless-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-count
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-capacity
 
-run-renderer: headless-core
+run-renderer: build-core
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ntsc --visual-wait 60 --timeout 90
 
 HOST_CXX ?= clang++

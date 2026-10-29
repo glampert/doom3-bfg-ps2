@@ -451,7 +451,7 @@ count GS memory can hold and the bytes each miss moves.
 
 ## Retail boot and UI formats (2026-10-20)
 
-`make test-retail-boot` boots production with the retail `_common`/`_ordered`
+`make test-headless-retail` boots production with the retail `_common`/`_ordered`
 containers: every declaration folder, the full `doom_main.script`, `NOMAP` for 120
 frames and exact shutdown. Production prints `[D3BFG] MEMORY`/`ARENA`/`TAG` ledgers
 after `startup-foundation`, `startup-decls` and `startup-game`; an allocation failure

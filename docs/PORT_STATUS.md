@@ -4872,3 +4872,14 @@ The same day `ps2::ui::retail` merged into `ps2::ui` and its units dropped the `
 prefix (`assets`, `catalog`, `materials`, `menu`, `movie`, `owner`); the catalog's startup
 functions are `InitCatalog`/`ShutdownCatalog`/`IsCatalogInitialized`. Earlier entries keep
 the names of their time.
+
+On the same day the make targets were renamed to one pattern (`build-<image>`,
+`stage-<package>`, `run-<package>`, `test-<area>`); earlier entries keep the old names:
+`headless-core`/`platform-probe`/`headless-game`/`script-probe` are `build-core`/
+`build-platform`/`build-game`/`build-script`; `smoke`/`smoke-platform` are `test-core`/
+`test-platform`; `headless`/`console` are `stage-headless`/`stage-console`;
+`retail-boot`/`run-retail-boot`/`test-retail-boot` are `stage-headless-retail`/
+`run-headless-retail`/`test-headless-retail`; `retail-ui`/`retail-movies`/`retail-menu`
+(and their `run-` forms) are `stage-ui-fonts`/`stage-ui-movies`/`stage-ui-menu`; `inventory`
+is `audit-sources`. Package directories follow the names: `headless-retail`, `ui-fonts`,
+`ui-movies`, `ui-menu`.
