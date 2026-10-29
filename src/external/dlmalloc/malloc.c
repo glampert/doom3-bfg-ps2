@@ -2577,12 +2577,16 @@ static void malloc_init_state(av) mstate av;
 
 #if __STD_C
 static Void_t * sYSMALLOc(INTERNAL_SIZE_T, mstate);
+#ifndef MORECORE_CANNOT_TRIM
 static int sYSTRIm(size_t, mstate);
+#endif
 static void malloc_consolidate(mstate);
 static Void_t ** iALLOc(size_t, size_t *, int, Void_t **);
 #else
 static Void_t * sYSMALLOc();
+#ifndef MORECORE_CANNOT_TRIM
 static int sYSTRIm();
+#endif
 static void malloc_consolidate();
 static Void_t ** iALLOc();
 #endif
@@ -3389,6 +3393,8 @@ mstate av;
     return 0;
 }
 
+/* Doom PS2 adaptation: MORECORE_CANNOT_TRIM compiles out every caller of sYSTRIm. */
+#ifndef MORECORE_CANNOT_TRIM
 /*
   sYSTRIm is an inverse of sorts to sYSMALLOc.  It gives memory back
   to the system (via negative arguments to sbrk) if there is unused
@@ -3459,6 +3465,7 @@ mstate av;
     }
     return 0;
 }
+#endif /* MORECORE_CANNOT_TRIM */
 
 /*
   ------------------------------ malloc ------------------------------
@@ -4809,6 +4816,8 @@ int mTRIm(pad) size_t pad;
 #ifndef MORECORE_CANNOT_TRIM
     return sYSTRIm(pad, av);
 #else
+    /* Doom PS2 adaptation: pad only sizes a trim, which this configuration never does. */
+    (void)pad;
     return 0;
 #endif
 }
