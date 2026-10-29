@@ -33,10 +33,7 @@ alignas(64) static qword_t s_upload[128] = {};
 ID_FORCE_INLINE int Index(DrawContext context)
 {
     const int index = static_cast<int>(context);
-    if (index < 0 || index > 1) [[unlikely]]
-    {
-        FatalError("invalid GS drawing context");
-    }
+    PS2_AssertMsg(index >= 0 && index <= 1, "invalid GS drawing context");
     return index;
 }
 
@@ -172,6 +169,7 @@ ID_FORCE_INLINE bool FixedPointInside(int x, int y)
     return x >= 0 && y >= 0 && x <= s_width * 16 && y <= s_height * 16;
 }
 
+#if PS2_D3BFG_ASSERTS
 // The texels alone: an upload writes them and reads no CLUT or sampling state.
 tex::Layout ValidateStorage(const TextureBinding & binding)
 {
@@ -180,7 +178,6 @@ tex::Layout ValidateStorage(const TextureBinding & binding)
     const bool made = input.format != tex::PixelFormat::Rgba32 ? tex::MakeIndexedLayout(input.width, input.height, input.format, verified)
                                                                : tex::MakeLayout(input.width, input.height, binding.sampler, verified);
 
-#if PS2_D3BFG_ASSERTS
     if (!s_initialized || !made || verified.bytes != input.bytes || verified.stridePixels != input.stridePixels ||
         verified.storageHeight != input.storageHeight || verified.potWidth != input.potWidth ||
         verified.potHeight != input.potHeight || verified.widthLog2 != input.widthLog2 ||
@@ -189,13 +186,10 @@ tex::Layout ValidateStorage(const TextureBinding & binding)
     {
         FatalError("invalid GS texture storage");
     }
-#endif // PS2_D3BFG_ASSERTS
 
-    (void)made;
     return verified;
 }
 
-#if PS2_D3BFG_ASSERTS
 tex::Layout ValidateBinding(const TextureBinding & binding)
 {
     const auto verified = ValidateStorage(binding);
@@ -254,7 +248,7 @@ u64 ClampState(const TextureBinding & binding)
 
 PS2_COLD_FUNC bool Init(const Config & config)
 {
-    if (s_initialized || !IsCommandBufferInitialized())
+    if (s_initialized || !IsCommandBufferInitialized()) [[unlikely]]
     {
         FatalError("invalid GS initialization order");
     }
@@ -392,20 +386,13 @@ u32 FixedVramBytes()
 
 FramebufferInfo GetFramebuffer(DrawContext context)
 {
-    if (!s_initialized) [[unlikely]]
-    {
-        FatalError("framebuffer query before GS initialization");
-    }
-
+    PS2_AssertMsg(s_initialized, "framebuffer query before GS initialization");
     return { s_frames[Index(context)].address, s_width, s_height, GS_PSM_16 };
 }
 
 void Present(DrawContext context)
 {
-    if (!s_initialized) [[unlikely]]
-    {
-        FatalError("GS present before initialization");
-    }
+    PS2_AssertMsg(s_initialized, "GS present before initialization");
 
     WaitIdle();
     *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
@@ -417,33 +404,31 @@ void Present(DrawContext context)
 
 void Upload(const TextureBinding & binding, const void * pixels)
 {
-    const auto verified = ValidateStorage(binding);
-    if (pixels == nullptr || (reinterpret_cast<uiptr>(pixels) & 63U) != 0) [[unlikely]]
-    {
-        FatalError("invalid GS texture upload");
-    }
+    const auto & layout = binding.layout;
+
+    // Audited draw.c: six setup qwords and three per IMAGE/REF chunk. The largest 512x512 layout
+    // MakeLayout admits fits s_upload; assertion builds check the chain before and after the SDK.
+#if PS2_D3BFG_ASSERTS
+    (void)ValidateStorage(binding);
+    PS2_AssertMsg(pixels != nullptr && (reinterpret_cast<uiptr>(pixels) & 63U) == 0, "invalid GS texture upload");
+
+    const u32 chunks = (layout.bytes / 16U + GIF_BLOCK_SIZE - 1U) / GIF_BLOCK_SIZE;
+    const u32 transferQwords = 6U + 3U * chunks;
+    PS2_AssertMsg(transferQwords + 4U <= static_cast<u32>(ArrayLength(s_upload)), "texture upload chain overflow");
+#endif // PS2_D3BFG_ASSERTS
 
     // Retire queued PATH2 references before PATH3 uploads or overwrites an address.
     Kick();
     WaitIdle();
     WaitUntil([] { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "texture GIF DMA idle");
 
-    // Audited draw.c: six setup qwords and three per IMAGE/REF chunk. Preflight
-    // the maximum 512x512 layout before calling the SDK, rather than postchecking only.
-    const u32 chunks = (verified.bytes / 16U + GIF_BLOCK_SIZE - 1U) / GIF_BLOCK_SIZE;
-    const u32 transferQwords = 6U + 3U * chunks;
-    if (transferQwords + 4U > static_cast<u32>(ArrayLength(s_upload))) [[unlikely]]
-    {
-        FatalError("texture upload chain overflow");
-    }
+    qword_t * end = draw_texture_transfer(s_upload, const_cast<void *>(pixels), layout.stridePixels,
+                                          layout.storageHeight, StoragePsm(layout), static_cast<int>(binding.address),
+                                          layout.stridePixels);
 
-    qword_t * end = draw_texture_transfer(s_upload, const_cast<void *>(pixels), verified.stridePixels,
-                                          verified.storageHeight, StoragePsm(verified), static_cast<int>(binding.address),
-                                          verified.stridePixels);
-    if (end != s_upload + transferQwords) [[unlikely]]
-    {
-        FatalError("unexpected SDK texture packet size");
-    }
+#if PS2_D3BFG_ASSERTS
+    PS2_AssertMsg(end == s_upload + transferQwords, "unexpected SDK texture packet size");
+#endif // PS2_D3BFG_ASSERTS
 
     DMATAG_END(end, 3, 0, 0, 0);
     ++end;

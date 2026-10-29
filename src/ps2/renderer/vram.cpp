@@ -56,9 +56,10 @@ bool IsVramInitialized()
 
 bool AllocateVram(std::uint32_t bytes, VramAllocation & output)
 {
-    if (!s_initialized || (bytes == 0) || ((bytes % kVramPageBytes) != 0) ||
-        (bytes > (s_stats.capacityBytes - s_stats.usedBytes)) ||
-        (s_nextGeneration == std::numeric_limits<std::uint32_t>::max())) [[unlikely]]
+    PS2_AssertMsg(s_initialized && bytes != 0 && (bytes % kVramPageBytes) == 0, "invalid VRAM allocation request");
+    PS2_AssertMsg(s_nextGeneration != std::numeric_limits<std::uint32_t>::max(), "VRAM allocation generations exhausted");
+
+    if (bytes > (s_stats.capacityBytes - s_stats.usedBytes))
     {
         return false;
     }
@@ -113,19 +114,14 @@ bool AllocateVram(std::uint32_t bytes, VramAllocation & output)
     return false;
 }
 
-bool ReleaseVram(const VramAllocation & allocation)
+void ReleaseVram(const VramAllocation & allocation)
 {
-    if (!s_initialized || (allocation.slot >= kMaxVramAllocations) || (allocation.bytes == 0)) [[unlikely]]
-    {
-        return false;
-    }
+    PS2_AssertMsg(s_initialized && allocation.slot < kMaxVramAllocations && allocation.bytes != 0, "invalid VRAM release");
 
     const VramAllocation & current = s_allocations[allocation.slot];
-    if ((allocation.byteAddress != current.byteAddress) || (allocation.bytes != current.bytes) ||
-        (allocation.generation != current.generation)) [[unlikely]]
-    {
-        return false;
-    }
+    PS2_AssertMsg(allocation.byteAddress == current.byteAddress && allocation.bytes == current.bytes &&
+                      allocation.generation == current.generation,
+                  "texture VRAM ownership mismatch");
 
     const std::uint32_t firstPage = (current.byteAddress - s_beginBytes) / kVramPageBytes;
     const std::uint32_t lastPage = firstPage + (current.bytes / kVramPageBytes);
@@ -138,8 +134,6 @@ bool ReleaseVram(const VramAllocation & allocation)
     s_stats.usedBytes -= current.bytes;
     --s_stats.allocationCount;
     s_allocations[allocation.slot] = {};
-
-    return true;
 }
 
 void ResetVram()

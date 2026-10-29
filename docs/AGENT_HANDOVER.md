@@ -207,7 +207,8 @@ Backend namespaces follow `ps2::module::subsystem` (for example `ps2::renderer::
 
 Native SWF files retain upstream style around minimal tagged PS2 edits. New backend
 and host C++ uses Allman braces, spaced blocks, explicit `static` file variables,
-shared logging and runtime release validation. Register new units explicitly and
+shared logging, load-time validation in every build and assertion-only render-time checks
+(see the backend rules' Validation section). Register new units explicitly and
 regenerate the compile database. Third-party code belongs in `src/external/`.
 
 ## Invariants to preserve

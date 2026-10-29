@@ -1054,7 +1054,7 @@ idProfileMgr::idProfileMgr()
 
 idProfileMgr::~idProfileMgr() = default;
 
-void idProfileMgr::Init(idLocalUser * localUser)
+PS2_COLD_FUNC void idProfileMgr::Init(idLocalUser * localUser)
 {
     user = localUser;
     handle = 0;

@@ -69,7 +69,7 @@ Stage CompletedStage()
 
 void StopAfterForTest(Stage stage)
 {
-    if (s_everStarted)
+    if (s_everStarted) [[unlikely]]
     {
         FatalError("Common startup stop must be selected before initialization");
     }
@@ -78,7 +78,7 @@ void StopAfterForTest(Stage stage)
 
 PS2_COLD_FUNC InitResult Init(idCommon & owner)
 {
-    if (s_everStarted || common != &owner)
+    if (s_everStarted || common != &owner) [[unlikely]]
     {
         FatalError("invalid/repeated Common initialization");
     }

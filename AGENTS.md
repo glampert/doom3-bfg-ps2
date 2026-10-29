@@ -12,8 +12,12 @@ File-scoped backend variables and constants with internal linkage always use an 
 `static`, including inside anonymous namespaces (e.g. `static constexpr` for constants).
 Backend diagnostics go through `ps2::Log` / `LogV`; fatal failures use `FatalError` /
 `FatalErrorV`. `src/ps2/common.h` provides `PS2_Assert` / `PS2_AssertMsg` for new
-preconditions, `ArrayLength`, and portable format/cold function macros. Preserve runtime
-validation in release builds. Reused Quake II backend code is attributed in README.md;
+preconditions, `ArrayLength`, and portable format/cold function macros. Validate and fail
+gracefully at load/init time in every build; render-time checks are assertions only
+(`PS2_Assert`/`PS2_AssertMsg` or `#if PS2_D3BFG_ASSERTS`), so release builds accept crashes/UB
+there. Fatal branches are `[[unlikely]]`; error handlers and load/boot-only functions are
+`PS2_COLD_FUNC`. See [Validation](.claude/rules/ps2-backend-cpp.md#validation-and-error-handling).
+Reused Quake II backend code is attributed in README.md;
 new file banners use `This source code is released under the GNU GPL-3.0-or-later license.`
 
 Backend namespaces follow `ps2::module::subsystem`, the module being the `src/ps2/` folder
@@ -151,7 +155,7 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
   RGB/alpha, additive color, screen and line passes and the depth mask, context flips,
   residency/buffer pressure,
-  reload/cleanup and seventeen bounds/state/deadline failures. `make run-renderer` captures
+  reload/cleanup and, in assertion builds, seventeen bounds/state/deadline failures. `make run-renderer` captures
   and holds the NTSC scene for inspection.
   Production optionally presents the real native console and the retail screens and menu
   through Common. `ui::Init/Shutdown` explicitly own
@@ -176,7 +180,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   dispatch through the image's resident paletted pages. Images remain warm across movie
   unload/reload. Shut down movies before fonts and release images before the device.
   The device owns tagged command halves/pixels and uses `draw`, `graph`, `packet2`, `dma`.
-  Preserve release preflight/deadlines, VIF/GIF ownership and immediate final presentation.
+  Preserve VIF/GIF ownership and immediate final presentation; packet preflight and wait
+  deadlines are assertion-build checks.
 - `make build-core` links staged foundation startup/tests as
   `build/<config>/tests/core/d3bfg_tests.elf`; production links no test code.
   `make test-common` checks partial shutdown and expected failures in fresh emulator
@@ -303,7 +308,7 @@ until reproduced on this port.
 | File | Loaded for | Covers |
 | --- | --- | --- |
 | [testing-pcsx2.md](.claude/rules/testing-pcsx2.md) | always | PCSX2 setup and logs, runner pass rules, crash triage, the known TLB flake, host harnesses; per-gate detail in `docs/testing/` |
-| [ps2-backend-cpp.md](.claude/rules/ps2-backend-cpp.md) | `ps2`, host tools | naming, types, file style, passing the strict `-Werror` set |
+| [ps2-backend-cpp.md](.claude/rules/ps2-backend-cpp.md) | `ps2`, host tools | naming, types, file style, load-time vs render-time validation, passing the strict `-Werror` set |
 | [ps2-platform.md](.claude/rules/ps2-platform.md) | `ps2` | ps2sdk traps, EE FPU, SIF DMA, IOP modules, ROM FILEIO, memory card |
 | [gs-renderer.md](.claude/rules/gs-renderer.md) | `ps2/renderer` | GS/libdraw traps, Doom 2D path invariants, paletted pages, SWF draw scope; history in `docs/reference/gs-renderer.md` |
 | [vu-microprograms.md](.claude/rules/vu-microprograms.md) | VU sources, vu-checker | openvcl/dvp-as/vclpp traps, VU0 inline asm, VCL comment style, runtime probes |

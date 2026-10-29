@@ -25,7 +25,7 @@ idRenderProgManager::idRenderProgManager()
 
 idRenderProgManager::~idRenderProgManager()
 {
-    if (backendState != nullptr)
+    if (backendState != nullptr) [[unlikely]]
     {
         ps2::FatalError("idRenderProgManager::~idRenderProgManager with backend state");
     }
@@ -54,7 +54,7 @@ void idResolutionScale::GetConsoleText(idStr & text)
 
 void idResolutionScale::SetCurrentGPUFrameTime(int microseconds)
 {
-    if (microseconds != 0)
+    if (microseconds != 0) [[unlikely]]
     {
         ps2::FatalError("idResolutionScale::SetCurrentGPUFrameTime");
     }

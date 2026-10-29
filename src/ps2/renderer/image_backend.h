@@ -30,19 +30,19 @@ tex::Handle ConsoleImageTexture(const idImage * image);
 
 // Production opens the original charset from the retail catalog once that catalog is initialized;
 // the core test image, which has no retail data, installs the generated RGBA fixture instead.
-void OpenConsoleCharset();
+PS2_COLD_FUNC void OpenConsoleCharset();
 
 #if PS2_D3BFG_TESTS
 PS2_COLD_FUNC bool InstallConsoleCharset(const void * rgba, size_t bytes);
 #endif // PS2_D3BFG_TESTS
 
-// Validation admits both direct intrinsics and cooked images. A paged image has logical atlas
-// dimensions; it never exposes a single texture handle for the whole atlas.
+// Assertion builds check that an image is a loaded direct intrinsic or cooked image. A paged image
+// has logical atlas dimensions; it never exposes a single texture handle for the whole atlas.
 void ValidateUiImage(const idImage * image);
 ui::PagedImage * UiPageImage(const idImage * image);
 
 // Screen blending carries one color channel per pass in alpha: gives a loaded retail image the
 // channel CLUTs it needs. Outside a frame; white images need none.
-void EnableScreenBlending(const idImage * image);
+PS2_COLD_FUNC void EnableScreenBlending(const idImage * image);
 
 } // namespace ps2::renderer

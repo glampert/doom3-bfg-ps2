@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "ps2/common.h"
+
 class idMenuHandler;
 class idSWF;
 class idSWFScriptFunction;
@@ -15,16 +17,16 @@ namespace ps2::ui
 {
 
 // Attach before the shell's first frame executes; detach before its borrowed movie is destroyed.
-void AttachOwner(idSWF & movie, unsigned movieIndex);
+PS2_COLD_FUNC void AttachOwner(idSWF & movie, unsigned movieIndex);
 
 // The native shell handler owns its widgets, screens and movie. Attach once it installed its
 // callbacks and before execution starts; detach before the handler destroys the movie.
-void AttachMenu(idMenuHandler & handler);
-void DetachMenu(idSWF & movie);
+PS2_COLD_FUNC void AttachMenu(idMenuHandler & handler);
+PS2_COLD_FUNC void DetachMenu(idSWF & movie);
 
 // Publish idCommonDialog's constants and the native quit confirmation before the dialog's first frame.
-void ShowQuitDialog(idSWF & movie);
-void DetachOwner(idSWF & movie);
+PS2_COLD_FUNC void ShowQuitDialog(idSWF & movie);
+PS2_COLD_FUNC void DetachOwner(idSWF & movie);
 
 // The native shell's logo transition (idMenuHandler_Shell::ShowLogo), inside an execution scope.
 void ShowShellLogo(idSWF & movie, bool show);
@@ -35,11 +37,11 @@ bool IsEventHandler(const idSWFScriptFunction * function, const idSWF * movie);
 
 // Common's dialog manager installs each shown dialog's choices as globals; pin them as it does,
 // so only those objects answer the movie's calls to them, by name or through copies.
-void AttachDialogChoices(idSWF & movie);
+PS2_COLD_FUNC void AttachDialogChoices(idSWF & movie);
 void PinShownChoices(idSWF & movie);
-void DetachDialogChoices(idSWF & movie);
+PS2_COLD_FUNC void DetachDialogChoices(idSWF & movie);
 bool IsDialogChoice(const idSWFScriptFunction * function, const idSWF * movie);
 void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idSWF * movie);
-void OwnerStatus();
+PS2_COLD_FUNC void OwnerStatus();
 
 } // namespace ps2::ui

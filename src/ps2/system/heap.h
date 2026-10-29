@@ -49,6 +49,6 @@ struct ArenaStats
 
 // Includes untagged C/newlib allocations and allocator overhead on the EE.
 ArenaStats GetArenaStats();
-void ResetPeaks();
+PS2_COLD_FUNC void ResetPeaks();
 
 } // namespace ps2::system::heap

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "ps2/common.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -95,7 +96,7 @@ struct MaterialRecord
 class CatalogView final
 {
 public:
-    bool Init(const void * bytes, std::size_t length);
+    PS2_COLD_FUNC bool Init(const void * bytes, std::size_t length);
     std::uint32_t ImageCount() const;
     std::uint32_t FontCount() const;
     std::uint32_t MaterialCount() const;

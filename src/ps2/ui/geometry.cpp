@@ -16,6 +16,8 @@ namespace
 
 static constexpr float kVirtualWidth = 640.0f;
 static constexpr float kVirtualHeight = 480.0f;
+
+#if PS2_D3BFG_ASSERTS
 static constexpr float kCoordinateLimit = 32768.0f;
 static constexpr float kTexelLimit = 1023.0f;
 static constexpr int kViewportLimit = 1024;
@@ -41,6 +43,7 @@ static bool ValidUv(float begin, float end, int textureExtent)
     return PortableFloat(begin) && PortableFloat(end) && (begin >= 0.0f) &&
            (end >= begin) && (end <= normalizedLimit);
 }
+#endif // PS2_D3BFG_ASSERTS
 
 static float Clamp(float value, float lower, float upper)
 {
@@ -68,6 +71,7 @@ static float ClipUv(float coordinate, float origin, float size, float begin, flo
 Result MapRect(const Rect & rect, Viewport viewport, int textureWidth, int textureHeight,
                FixedRect & output)
 {
+#if PS2_D3BFG_ASSERTS
     if ((viewport.width < 1) || (viewport.height < 1) ||
         (viewport.width > kViewportLimit) || (viewport.height > kViewportLimit) ||
         (textureWidth < 1) || (textureHeight < 1) ||
@@ -80,6 +84,7 @@ Result MapRect(const Rect & rect, Viewport viewport, int textureWidth, int textu
     {
         return Result::Invalid;
     }
+#endif // PS2_D3BFG_ASSERTS
 
     const float left = Clamp(rect.x, 0.0f, kVirtualWidth);
     const float top = Clamp(rect.y, 0.0f, kVirtualHeight);

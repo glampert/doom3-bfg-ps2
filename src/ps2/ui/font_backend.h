@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "ps2/common.h"
 #include <cstdint>
 
 class idFile;
@@ -21,10 +22,10 @@ void Shutdown();
 bool IsInitialized();
 
 // Validate the native on-disk profile before its loader trusts counts, records or material names.
-idFile * OpenFontAsset(const char * name);
+PS2_COLD_FUNC idFile * OpenFontAsset(const char * name);
 bool PreflightFont(idFile * file, const char * name);
-void ValidateFontMaterial(const idMaterial * material, const char * name);
-void GetFontLayout(const char * name, int index, int & width, int & height);
+PS2_COLD_FUNC void ValidateFontMaterial(const idMaterial * material, const char * name);
+PS2_COLD_FUNC void GetFontLayout(const char * name, int index, int & width, int & height);
 
 // One glyph of a font's pre-rendered bitmaps: exact pixels at one size, with its outline beside it
 // when the size has one, and its ink origin (left edge, baseline) in 1/16 GS pixels. The bitmap is

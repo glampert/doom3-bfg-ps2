@@ -141,10 +141,7 @@ PS2_COLD_FUNC void Capture(const idCmdArgs & args)
 
 void Present()
 {
-    if (s_drawing || ps2::renderer::FrameStarted()) [[unlikely]]
-    {
-        ps2::FatalError("nested native console presentation");
-    }
+    PS2_AssertMsg(!s_drawing && !ps2::renderer::FrameStarted(), "nested native console presentation");
 
     s_drawing = true;
 
@@ -163,7 +160,7 @@ void Present()
         char path[sizeof(s_captureName) + 5];
         idStr::snPrintf(path, static_cast<int>(sizeof(path)), "host:%s", s_captureName);
 
-        if (!ps2::renderer::gs::CaptureTga(path, ps2::renderer::LastPresentedContext()))
+        if (!ps2::renderer::gs::CaptureTga(path, ps2::renderer::LastPresentedContext())) [[unlikely]]
         {
             ps2::FatalError("native console capture failed: %s", s_captureName);
         }
@@ -182,7 +179,7 @@ void Present()
 namespace ps2::system::runtime
 {
 
-void ConfigurePresentation()
+PS2_COLD_FUNC void ConfigurePresentation()
 {
     if (s_configured) [[unlikely]]
     {
@@ -328,10 +325,7 @@ void BeginPresentationFrame()
     {
         return;
     }
-    if (s_inFrame || s_drawing) [[unlikely]]
-    {
-        FatalError("nested console Common frame");
-    }
+    PS2_AssertMsg(!s_inFrame && !s_drawing, "nested console Common frame");
     s_inFrame = true;
 }
 
@@ -341,10 +335,7 @@ void PresentConsoleFrame(int frames)
     {
         return;
     }
-    if (!s_inFrame || frames <= s_frames) [[unlikely]]
-    {
-        FatalError("invalid console frame boundary");
-    }
+    PS2_AssertMsg(s_inFrame && frames > s_frames, "invalid console frame boundary");
 
     s_frames = frames;
     Present();
@@ -353,20 +344,14 @@ void PresentConsoleFrame(int frames)
 
 void UpdateScreen(bool captureToImage)
 {
-    if (captureToImage) [[unlikely]]
-    {
-        FatalError("console offscreen image capture unavailable; use ps2_capture");
-    }
+    PS2_AssertMsg(!captureToImage, "console offscreen image capture unavailable; use ps2_capture");
 
     if (!HasPresentation() || s_drawing)
     {
         return;
     }
 
-    if (s_redraws == UINT_MAX) [[unlikely]]
-    {
-        FatalError("console redraw counter overflow");
-    }
+    PS2_AssertMsg(s_redraws != UINT_MAX, "console redraw counter overflow");
     ++s_redraws;
 
     // Every Common frame presents. Enter/refresh-on-print requests coalesce into its final draw.
@@ -395,7 +380,7 @@ PS2_COLD_FUNC void ShutdownPresentation(int frames)
         return;
     }
 
-    if (s_inFrame || s_drawing || s_captureName[0] != '\0')
+    if (s_inFrame || s_drawing || s_captureName[0] != '\0') [[unlikely]]
     {
         FatalError("console shutdown with pending frame work");
     }

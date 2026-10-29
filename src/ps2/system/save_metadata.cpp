@@ -48,12 +48,12 @@ idFile_SaveGamePipelined::~idFile_SaveGamePipelined()
     SaveFileUnavailable("~idFile_SaveGamePipelined");
 }
 
-bool idFile_SaveGamePipelined::OpenForReading(idFile *)
+PS2_COLD_FUNC bool idFile_SaveGamePipelined::OpenForReading(idFile *)
 {
     SaveFileUnavailable("OpenForReading");
 }
 
-bool idFile_SaveGamePipelined::OpenForWriting(idFile *)
+PS2_COLD_FUNC bool idFile_SaveGamePipelined::OpenForWriting(idFile *)
 {
     SaveFileUnavailable("OpenForWriting");
 }

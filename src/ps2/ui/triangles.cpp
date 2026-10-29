@@ -16,11 +16,14 @@ namespace
 
 static constexpr float kVirtualWidth = 640.0f;
 static constexpr float kVirtualHeight = 480.0f;
-static constexpr float kCoordinateLimit = 32768.0f;
 static constexpr float kTexelLimit = 1023.0f;
+static constexpr int kClipCapacity = 8;
+
+#if PS2_D3BFG_ASSERTS
+static constexpr float kCoordinateLimit = 32768.0f;
 static constexpr int kViewportLimit = 1024;
 static constexpr int kTextureLimit = 512;
-static constexpr int kClipCapacity = 8;
+#endif // PS2_D3BFG_ASSERTS
 
 struct ClipVertex
 {
@@ -42,6 +45,7 @@ enum class Edge
     Bottom
 };
 
+#if PS2_D3BFG_ASSERTS
 static bool PortableFloat(float value)
 {
     const std::uint32_t bits = std::bit_cast<std::uint32_t>(value);
@@ -61,6 +65,7 @@ static bool ValidUv(float value, int extent)
     return PortableFloat(value) && (value >= 0.0f) &&
            (value <= kTexelLimit / static_cast<float>(extent));
 }
+#endif // PS2_D3BFG_ASSERTS
 
 static float Clamp(float value, float lower, float upper)
 {
@@ -216,6 +221,7 @@ static bool Degenerate(const FixedTriangle & triangle)
 Result MapTriangle(const Vertex (&input)[3], Viewport viewport, int textureWidth, int textureHeight,
                    FixedTriangle (&output)[kMaxClippedTriangles], int & triangleCount)
 {
+#if PS2_D3BFG_ASSERTS
     if ((viewport.width < 1) || (viewport.height < 1) ||
         (viewport.width > kViewportLimit) || (viewport.height > kViewportLimit) ||
         (textureWidth < 1) || (textureHeight < 1) ||
@@ -223,15 +229,18 @@ Result MapTriangle(const Vertex (&input)[3], Viewport viewport, int textureWidth
     {
         return Result::Invalid;
     }
+#endif // PS2_D3BFG_ASSERTS
     ClipVertex scratch[2][kClipCapacity]{};
     for (int i = 0; i < 3; ++i)
     {
         const Vertex & v = input[i];
+#if PS2_D3BFG_ASSERTS
         if (!ValidCoordinate(v.x) || !ValidCoordinate(v.y) ||
             !ValidUv(v.s, textureWidth) || !ValidUv(v.t, textureHeight))
         {
             return Result::Invalid;
         }
+#endif // PS2_D3BFG_ASSERTS
         scratch[0][i] = {
             v.x, v.y, v.s, v.t, static_cast<float>(v.r), static_cast<float>(v.g),
             static_cast<float>(v.b), static_cast<float>(v.a)
@@ -292,11 +301,13 @@ Result MapTriangle(const Vertex (&input)[3], Viewport viewport, int textureWidth
 
 Result MapLine(const Vertex (&input)[2], Viewport viewport, FixedLine & output)
 {
+#if PS2_D3BFG_ASSERTS
     if ((viewport.width < 1) || (viewport.height < 1) ||
         (viewport.width > kViewportLimit) || (viewport.height > kViewportLimit))
     {
         return Result::Invalid;
     }
+#endif // PS2_D3BFG_ASSERTS
 
     ClipVertex ends[2]{};
 
@@ -304,10 +315,12 @@ Result MapLine(const Vertex (&input)[2], Viewport viewport, FixedLine & output)
     {
         const Vertex & v = input[i];
 
+#if PS2_D3BFG_ASSERTS
         if (!ValidCoordinate(v.x) || !ValidCoordinate(v.y))
         {
             return Result::Invalid;
         }
+#endif // PS2_D3BFG_ASSERTS
 
         ends[i] = { v.x, v.y, 0.0f, 0.0f, static_cast<float>(v.r), static_cast<float>(v.g),
                     static_cast<float>(v.b), static_cast<float>(v.a) };

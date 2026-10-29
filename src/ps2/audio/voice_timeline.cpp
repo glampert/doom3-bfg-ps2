@@ -18,7 +18,7 @@ std::uint64_t SampleLength(ps2::audio::SampleTiming sample)
 {
     if (sample.sampleRate < 8000 || sample.sampleRate > 48000 || sample.frames == 0 ||
         sample.frames > ps2::audio::kMaxPcmBytes / 2 ||
-        static_cast<std::uint64_t>(sample.frames) * 1000 < sample.sampleRate)
+        static_cast<std::uint64_t>(sample.frames) * 1000 < sample.sampleRate) [[unlikely]]
     {
         ps2::FatalError("invalid logical voice sample timing");
     }
@@ -46,7 +46,7 @@ void VoiceTimeline::Configure(SampleTiming leadin, SampleTiming looping)
 
 void VoiceTimeline::CheckClock(std::uint64_t now)
 {
-    if (m_haveClock && now < m_lastTime)
+    if (m_haveClock && now < m_lastTime) [[unlikely]]
     {
         FatalError("logical audio clock moved backwards");
     }
@@ -56,11 +56,11 @@ void VoiceTimeline::CheckClock(std::uint64_t now)
 
 void VoiceTimeline::Start(int offsetMS, std::uint64_t now)
 {
-    if (m_leadinLength == 0)
+    if (m_leadinLength == 0) [[unlikely]]
     {
         FatalError("logical voice requires configured samples");
     }
-    if (offsetMS < 0)
+    if (offsetMS < 0) [[unlikely]]
     {
         FatalError("logical voice start offset is negative");
     }
@@ -147,7 +147,7 @@ void VoiceTimeline::Stop(std::uint64_t now)
 
 void VoiceTimeline::SetPitch(float pitch, std::uint64_t now)
 {
-    if (!(pitch >= 0.0f && pitch <= 8.0f))
+    if (!(pitch >= 0.0f && pitch <= 8.0f)) [[unlikely]]
     {
         FatalError("logical voice pitch must be between 0 and 8");
     }

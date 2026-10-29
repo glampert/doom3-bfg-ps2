@@ -149,7 +149,7 @@ namespace ps2::renderer
 
 PS2_COLD_FUNC bool InitConsoleImages()
 {
-    if (s_initialized)
+    if (s_initialized) [[unlikely]]
     {
         FatalError("console images initialized twice");
     }
@@ -190,16 +190,11 @@ idImage * ConsoleCharsetImage()
 tex::Handle ConsoleImageTexture(const idImage * image)
 {
     ValidateUiImage(image);
-
-    if (image->backendState->pages != nullptr) [[unlikely]]
-    {
-        FatalError("single texture requested for a paged native UI image");
-    }
-
+    PS2_AssertMsg(image->backendState->pages == nullptr, "single texture requested for a paged native UI image");
     return image->backendState->texture;
 }
 
-void OpenConsoleCharset()
+PS2_COLD_FUNC void OpenConsoleCharset()
 {
     if (!s_initialized || s_charsetImage != nullptr || !ui::IsCatalogInitialized() || renderer::FrameStarted()) [[unlikely]]
     {
@@ -228,7 +223,7 @@ void OpenConsoleCharset()
 PS2_COLD_FUNC bool InstallConsoleCharset(const void * rgba, size_t bytes)
 {
     if (!s_initialized || s_charsetImage != nullptr || rgba == nullptr || bytes != kCharsetAtlasBytes || renderer::FrameStarted() ||
-        globalImages->images.Num() != 1)
+        globalImages->images.Num() != 1) [[unlikely]]
     {
         FatalError("console charset installed outside a fresh image profile");
     }
@@ -286,7 +281,7 @@ ui::PagedImage * UiPageImage(const idImage * image)
     return image->backendState->pages;
 }
 
-void EnableScreenBlending(const idImage * image)
+PS2_COLD_FUNC void EnableScreenBlending(const idImage * image)
 {
     ValidateUiImage(image);
     ui::ImageRecord resource;
@@ -314,7 +309,7 @@ bool idImage::IsLoaded() const
     return backendState != nullptr;
 }
 
-void idImage::PurgeImage()
+PS2_COLD_FUNC void idImage::PurgeImage()
 {
     if (backendState == nullptr)
     {
@@ -342,7 +337,7 @@ int idImage::StorageSize() const
     return backendState != nullptr ? backendState->storageBytes : 0;
 }
 
-void idImage::GenerateImage(const byte * rgba, int width, int height, textureFilter_t tf, textureRepeat_t tr, textureUsage_t tu)
+PS2_COLD_FUNC void idImage::GenerateImage(const byte * rgba, int width, int height, textureFilter_t tf, textureRepeat_t tr, textureUsage_t tu)
 {
     const bool white = this == globalImages->whiteImage;
     const int expectedWidth  = white ? 1 : kCharsetAtlasSize;
@@ -388,7 +383,7 @@ void idImage::GenerateImage(const byte * rgba, int width, int height, textureFil
     usage = tu;
 }
 
-void idImage::SetSamplerState(textureFilter_t tf, textureRepeat_t tr)
+PS2_COLD_FUNC void idImage::SetSamplerState(textureFilter_t tf, textureRepeat_t tr)
 {
     if (!SupportedSampler(this, tf, tr)) [[unlikely]]
     {
@@ -402,11 +397,11 @@ void idImage::SetSamplerState(textureFilter_t tf, textureRepeat_t tr)
 
 PS2_COLD_FUNC void idImageManager::Init()
 {
-    if (s_initialized || this != globalImages || images.Num() != 0)
+    if (s_initialized || this != globalImages || images.Num() != 0) [[unlikely]]
     {
         ps2::FatalError("console image manager initialized with existing ownership");
     }
-    if (!ps2::renderer::IsInitialized() || !ps2::renderer::tex::IsInitialized() || ps2::renderer::FrameStarted())
+    if (!ps2::renderer::IsInitialized() || !ps2::renderer::tex::IsInitialized() || ps2::renderer::FrameStarted()) [[unlikely]]
     {
         ps2::FatalError("idImageManager::Init without an idle console device");
     }
@@ -425,7 +420,7 @@ PS2_COLD_FUNC void idImageManager::Init()
     }
 
     ps2::renderer::tex::Layout whiteLayout = {};
-    if (!ps2::renderer::tex::MakeLayout(1, 1, whiteSampler, whiteLayout))
+    if (!ps2::renderer::tex::MakeLayout(1, 1, whiteSampler, whiteLayout)) [[unlikely]]
     {
         ps2::FatalError("invalid white intrinsic layout");
     }
@@ -450,7 +445,7 @@ PS2_COLD_FUNC void idImageManager::Shutdown()
     {
         return;
     }
-    if (this != globalImages || ps2::renderer::FrameStarted())
+    if (this != globalImages || ps2::renderer::FrameStarted()) [[unlikely]]
     {
         ps2::FatalError("console image shutdown requires idle ownership");
     }
@@ -494,7 +489,7 @@ idImage * idImageManager::GetImage(const char * name) const
     return nullptr;
 }
 
-idImage * idImageManager::GetImageWithParameters(const char * name, textureFilter_t tf, textureRepeat_t tr,
+PS2_COLD_FUNC idImage * idImageManager::GetImageWithParameters(const char * name, textureFilter_t tf, textureRepeat_t tr,
                                                  textureUsage_t tu, cubeFiles_t cube) const
 {
     idImage * const image = GetImage(name);
@@ -506,7 +501,7 @@ idImage * idImageManager::GetImageWithParameters(const char * name, textureFilte
     return image;
 }
 
-idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, textureRepeat_t tr,
+PS2_COLD_FUNC idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, textureRepeat_t tr,
                                         textureUsage_t tu, cubeFiles_t cube)
 {
     if (!s_initialized || this != globalImages) [[unlikely]]

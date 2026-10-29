@@ -41,31 +41,31 @@ idJointBuffer::~idJointBuffer()
     FreeBufferObject();
 }
 
-void idVertexBuffer::FreeBufferObject()
+PS2_COLD_FUNC void idVertexBuffer::FreeBufferObject()
 {
-    if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0)
+    if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0) [[unlikely]]
     {
         ps2::renderer::Unavailable("idVertexBuffer::FreeBufferObject with backend state");
     }
 }
 
-void idIndexBuffer::FreeBufferObject()
+PS2_COLD_FUNC void idIndexBuffer::FreeBufferObject()
 {
-    if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0)
+    if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0) [[unlikely]]
     {
         ps2::renderer::Unavailable("idIndexBuffer::FreeBufferObject with backend state");
     }
 }
 
-void idJointBuffer::FreeBufferObject()
+PS2_COLD_FUNC void idJointBuffer::FreeBufferObject()
 {
-    if (apiObject != nullptr || numJoints != 0 || offsetInOtherBuffer != 0)
+    if (apiObject != nullptr || numJoints != 0 || offsetInOtherBuffer != 0) [[unlikely]]
     {
         ps2::renderer::Unavailable("idJointBuffer::FreeBufferObject with backend state");
     }
 }
 
-static void ClearEmptySet(geoBufferSet_t & buffers)
+static PS2_COLD_FUNC void ClearEmptySet(geoBufferSet_t & buffers)
 {
     buffers.vertexBuffer.FreeBufferObject();
     buffers.indexBuffer.FreeBufferObject();
@@ -73,19 +73,19 @@ static void ClearEmptySet(geoBufferSet_t & buffers)
 
     if (buffers.mappedVertexBase != nullptr || buffers.mappedIndexBase != nullptr || buffers.mappedJointBase != nullptr ||
         buffers.vertexMemUsed.GetValue() != 0 || buffers.indexMemUsed.GetValue() != 0 || buffers.jointMemUsed.GetValue() != 0 ||
-        buffers.allocations != 0)
+        buffers.allocations != 0) [[unlikely]]
     {
         ps2::renderer::Unavailable("idVertexCache empty cleanup with live storage");
     }
 }
 
-void idVertexCache::FreeStaticData()
+PS2_COLD_FUNC void idVertexCache::FreeStaticData()
 {
     ClearEmptySet(staticData);
     mostUsedVertex = mostUsedIndex = mostUsedJoint = 0;
 }
 
-void idVertexCache::Shutdown()
+PS2_COLD_FUNC void idVertexCache::Shutdown()
 {
     FreeStaticData();
     for (geoBufferSet_t & buffers : frameData)

@@ -45,21 +45,14 @@ bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit
 
     for (const s16 value : shading.add)
     {
-        if (value < -255 || value > 255) [[unlikely]]
-        {
-            FatalError("additive color outside one unit");
-        }
-
+        PS2_AssertMsg(value >= -255 && value <= 255, "additive color outside one unit");
         hasAdd = hasAdd || value > 0;
         hasSubtract = hasSubtract || value < 0;
     }
 
     if (shading.blend == gs::BlendMode::Screen)
     {
-        if (hasAdd || hasSubtract || shading.replaceColor) [[unlikely]]
-        {
-            FatalError("screen blending with an additive color");
-        }
+        PS2_AssertMsg(!hasAdd && !hasSubtract && !shading.replaceColor, "screen blending with an additive color");
 
         // The screen source is premultiplied color: each channel's vertex color scales its alpha.
         for (int channel = 0; channel < 3; ++channel)
@@ -85,11 +78,9 @@ bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit
         return true;
     }
 
-    if ((hasAdd || hasSubtract || shading.replaceColor) &&
-        shading.blend != gs::BlendMode::StraightAlpha && shading.blend != gs::BlendMode::AdditiveAlpha) [[unlikely]]
-    {
-        FatalError("additive color requires straight or additive blending");
-    }
+    PS2_AssertMsg((!hasAdd && !hasSubtract && !shading.replaceColor) || shading.blend == gs::BlendMode::StraightAlpha ||
+                      shading.blend == gs::BlendMode::AdditiveAlpha,
+                  "additive color requires straight or additive blending");
 
     gs::DrawState state;
     state.blend = shading.blend;
@@ -97,10 +88,7 @@ bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit
 
     if (shading.replaceColor)
     {
-        if (hasSubtract) [[unlikely]]
-        {
-            FatalError("replacement color cannot subtract");
-        }
+        PS2_AssertMsg(!hasSubtract, "replacement color cannot subtract");
 
         state.constantColor = true;
         state.color = AddColor(shading, 1);
@@ -155,16 +143,13 @@ u32 FrameCount()
 
 gs::DrawContext LastPresentedContext()
 {
-    if (s_frame || s_frames == 0) [[unlikely]]
-    {
-        FatalError("no completed GS frame");
-    }
+    PS2_AssertMsg(!s_frame && s_frames != 0, "no completed GS frame");
     return s_context;
 }
 
 PS2_COLD_FUNC bool Init(const Config & config)
 {
-    if (s_initialized)
+    if (s_initialized) [[unlikely]]
     {
         FatalError("render system initialized twice");
     }
@@ -213,10 +198,7 @@ PS2_COLD_FUNC void Shutdown()
 
 void BeginFrame(gs::Color clearColor)
 {
-    if (!s_initialized || s_frame || clearColor.a != 255) [[unlikely]]
-    {
-        FatalError("invalid 2D BeginFrame state");
-    }
+    PS2_AssertMsg(s_initialized && !s_frame && clearColor.a == 255, "invalid 2D BeginFrame state");
 
     gs::BeginCommandFrame();
 
@@ -293,11 +275,7 @@ bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & 
         if (channel >= 0 && !draw.white)
         {
             cluts = draw.channelCluts[channel];
-
-            if (cluts.id == 0) [[unlikely]]
-            {
-                FatalError("paletted screen blending without channel CLUTs");
-            }
+            PS2_AssertMsg(cluts.id != 0, "paletted screen blending without channel CLUTs");
         }
 
         gs::TextureBinding binding = {};
@@ -309,10 +287,7 @@ bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & 
         }
 
         // CLUT blocks are 256 bytes, 64 GS words, inside the CLUT texture's allocation.
-        if (draw.clutBlock >= clutBinding.layout.bytes / 256U) [[unlikely]]
-        {
-            FatalError("paletted draw CLUT block outside its texture");
-        }
+        PS2_AssertMsg(draw.clutBlock < clutBinding.layout.bytes / 256U, "paletted draw CLUT block outside its texture");
 
         binding.clutAddress = clutBinding.address + draw.clutBlock * 64U;
         binding.region = true;

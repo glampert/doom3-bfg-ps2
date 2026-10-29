@@ -37,7 +37,7 @@ static int s_clock = 0;
 
 // Native idSWF names its atlas material after the binary movie; screen passes need its
 // per-channel CLUTs before the first frame.
-void EnableMovieScreenBlending(int index, const char * atlasMaterial)
+PS2_COLD_FUNC void EnableMovieScreenBlending(int index, const char * atlasMaterial)
 {
     if (!ps2::ui::MovieUsesScreenBlending(index))
     {
@@ -46,7 +46,7 @@ void EnableMovieScreenBlending(int index, const char * atlasMaterial)
 
     const idMaterial * const atlas = declManager->FindMaterial(atlasMaterial);
 
-    if (atlas == nullptr || atlas->GetNumStages() != 1 || atlas->GetStage(0)->texture.image == nullptr)
+    if (atlas == nullptr || atlas->GetNumStages() != 1 || atlas->GetStage(0)->texture.image == nullptr) [[unlikely]]
     {
         ps2::FatalError("retail menu atlas image missing for screen blending: %s", atlasMaterial);
     }
@@ -58,9 +58,9 @@ void EnableMovieScreenBlending(int index, const char * atlasMaterial)
 namespace ps2::ui
 {
 
-idSWF * OpenMenu()
+PS2_COLD_FUNC idSWF * OpenMenu()
 {
-    if (s_movie != nullptr || s_opening || renderer::FrameStarted() || ::game == nullptr)
+    if (s_movie != nullptr || s_opening || renderer::FrameStarted() || ::game == nullptr) [[unlikely]]
     {
         FatalError("native menu requires an idle presentation without a menu");
     }
@@ -85,7 +85,7 @@ idSWF * OpenMenu()
 
     s_opening = false;
 
-    if (s_movie == nullptr || !s_movie->IsResourceRender() || !::game->Shell_IsActive())
+    if (s_movie == nullptr || !s_movie->IsResourceRender() || !::game->Shell_IsActive()) [[unlikely]]
     {
         FatalError("native shell handler did not start the admitted movie");
     }
@@ -98,7 +98,7 @@ idSWF * OpenMenu()
         s_dialogOpening = false;
     }
 
-    if (s_dialog == nullptr || ::common->Dialog().IsDialogActive())
+    if (s_dialog == nullptr || ::common->Dialog().IsDialogActive()) [[unlikely]]
     {
         FatalError("Common's dialog manager did not open the admitted dialog movie");
     }
@@ -108,10 +108,7 @@ idSWF * OpenMenu()
 
 void UpdateMenu()
 {
-    if (s_movie == nullptr || !swf::Active() || renderer::FrameStarted())
-    {
-        FatalError("native menu update outside its execution scope");
-    }
+    PS2_AssertMsg(s_movie != nullptr && swf::Active() && !renderer::FrameStarted(), "native menu update outside its execution scope");
 
     // idCommonLocal::GuiFrameEvents, then the handler's update. Its Render half is the
     // presentation's: the timeline advances after this, and drawing happens in the GS frame.
@@ -119,9 +116,9 @@ void UpdateMenu()
     ::game->Shell_Render();
 }
 
-void CloseMenu()
+PS2_COLD_FUNC void CloseMenu()
 {
-    if (s_movie == nullptr || renderer::FrameStarted())
+    if (s_movie == nullptr || renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("native menu release outside an idle presentation");
     }
@@ -133,7 +130,7 @@ void CloseMenu()
         ::common->Dialog().Shutdown();
     }
 
-    if (s_dialog != nullptr)
+    if (s_dialog != nullptr) [[unlikely]]
     {
         FatalError("Common's dialog manager kept the admitted dialog movie");
     }
@@ -151,10 +148,8 @@ idSWF * MenuDialog()
 
 void UpdateMenuDialog(int time)
 {
-    if (s_dialog == nullptr || swf::Active() || renderer::FrameStarted())
-    {
-        FatalError("native menu dialog update outside an idle presentation");
-    }
+    PS2_AssertMsg(s_dialog != nullptr && !swf::Active() && !renderer::FrameStarted(),
+                  "native menu dialog update outside an idle presentation");
 
     // idCommonDialog::Render's state half drops cleared dialogs and shows the next one, which
     // activates the movie on this clock; its timeline then advances as the shell's does.
@@ -187,10 +182,8 @@ bool ProcessMenuEvent(const sysEvent_t * event)
         return false;
     }
 
-    if (s_opening || event == nullptr || renderer::FrameStarted() || s_events == UINT_MAX)
-    {
-        FatalError("native menu event outside an idle presentation");
-    }
+    PS2_AssertMsg(!s_opening && event != nullptr && !renderer::FrameStarted() && s_events != UINT_MAX,
+                  "native menu event outside an idle presentation");
 
     ++s_events;
 
@@ -216,7 +209,7 @@ bool ProcessMenuEvent(const sysEvent_t * event)
     return handled;
 }
 
-void MenuInputStatus()
+PS2_COLD_FUNC void MenuInputStatus()
 {
     if (s_movie != nullptr)
     {
@@ -227,9 +220,9 @@ void MenuInputStatus()
     }
 }
 
-idSWF * CreateMenuMovie(const char * name)
+PS2_COLD_FUNC idSWF * CreateMenuMovie(const char * name)
 {
-    if (!s_opening || s_movie != nullptr || name == nullptr || idStr::Cmp(name, "shell") != 0)
+    if (!s_opening || s_movie != nullptr || name == nullptr || idStr::Cmp(name, "shell") != 0) [[unlikely]]
     {
         FatalError("native menu movie outside the admitted shell profile: %s", name != nullptr ? name : "(null)");
     }
@@ -239,9 +232,9 @@ idSWF * CreateMenuMovie(const char * name)
     return s_movie;
 }
 
-idSWF * CreateDialogMovie()
+PS2_COLD_FUNC idSWF * CreateDialogMovie()
 {
-    if (!s_dialogOpening || s_dialog != nullptr || !swf::Active() || renderer::FrameStarted())
+    if (!s_dialogOpening || s_dialog != nullptr || !swf::Active() || renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("native dialog movie outside the menu's dialog manager");
     }
@@ -260,7 +253,7 @@ idSWF * CreateDialogMovie()
 
 void PinDialogChoices(idSWF & movie)
 {
-    if (&movie != s_dialog || !swf::Active())
+    if (&movie != s_dialog || !swf::Active()) [[unlikely]]
     {
         FatalError("native dialog choices outside the menu's dialog movie");
     }
@@ -268,7 +261,7 @@ void PinDialogChoices(idSWF & movie)
     PinShownChoices(movie);
 }
 
-void ReleaseDialogMovie(idSWF * movie)
+PS2_COLD_FUNC void ReleaseDialogMovie(idSWF * movie)
 {
     // The manager's Init shuts down first, with no movie yet.
     if (movie == nullptr)
@@ -276,7 +269,7 @@ void ReleaseDialogMovie(idSWF * movie)
         return;
     }
 
-    if (movie != s_dialog || !swf::Active() || renderer::FrameStarted())
+    if (movie != s_dialog || !swf::Active() || renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("native dialog movie release outside the menu's dialog manager");
     }
@@ -289,7 +282,7 @@ void ActivateMenuMovie(idMenuHandler & handler, bool show)
 {
     idSWF * const movie = handler.GetGUI();
 
-    if (s_movie == nullptr || movie != s_movie || !swf::Active() || renderer::FrameStarted())
+    if (s_movie == nullptr || movie != s_movie || !swf::Active() || renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("native menu activation outside the admitted shell");
     }
@@ -302,7 +295,7 @@ void ActivateMenuMovie(idMenuHandler & handler, bool show)
 
     // Showing a hidden menu again installs fresh callbacks, which would need pinning anew; no
     // admitted screen hides the menu yet.
-    if (movie->IsResourceExecution())
+    if (movie->IsResourceExecution()) [[unlikely]]
     {
         FatalError("native menu re-activation unavailable");
     }

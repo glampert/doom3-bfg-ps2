@@ -30,11 +30,11 @@ static constexpr const char * kMenuCallbacks[] = { "updateMenuDisplay", "activat
 // The choices idCommonDialog::ShowDialog installs for the shown dialog.
 static constexpr const char * kDialogChoices[] = { "acceptCallBack", "cancelCallBack", "altCBOne", "altCBTwo" };
 
-idSWFScriptVar PinCallback(idSWF & movie, const char * name)
+PS2_COLD_FUNC idSWFScriptVar PinCallback(idSWF & movie, const char * name)
 {
     auto function = movie.GetGlobal(name);
 
-    if (!function.IsFunction() || function.GetFunction()->IsScript())
+    if (!function.IsFunction() || function.GetFunction()->IsScript()) [[unlikely]]
     {
         ps2::FatalError("retail Shell native widget callback missing: %s", name);
     }
@@ -50,7 +50,7 @@ bool ContainsWidget(const idMenuWidget * widget, const idMenuWidget * target, un
         return false;
     }
 
-    if (depth > kMaxWidgetDepth || ++visited > kMaxWidgets)
+    if (depth > kMaxWidgetDepth || ++visited > kMaxWidgets) [[unlikely]]
     {
         ps2::FatalError("retail menu widget tree exceeds admitted limits");
     }
@@ -135,7 +135,7 @@ public:
         // Preserve the original five-slot layout, with Doom 3 as the only carousel entry.
         char admittedDefinition[1024];
 
-        if (!ps2::ui::MaterialText(kDoom3Cover, admittedDefinition, sizeof(admittedDefinition)))
+        if (!ps2::ui::MaterialText(kDoom3Cover, admittedDefinition, sizeof(admittedDefinition))) [[unlikely]]
         {
             ps2::FatalError("retail Shell cover is outside the admitted material catalog");
         }
@@ -143,7 +143,7 @@ public:
         // Catalog definitions are generated lazily when native DeclManager first creates the material.
         const idMaterial * const cover = declManager->FindMaterial(kDoom3Cover);
 
-        if (cover == nullptr || cover->GetState() == DS_DEFAULTED)
+        if (cover == nullptr || cover->GetState() == DS_DEFAULTED) [[unlikely]]
         {
             ps2::FatalError("retail Shell owner requires its admitted Doom 3 cover material");
         }
@@ -206,7 +206,7 @@ public:
         idSWFSpriteInstance * const logo = gui->GetRootObject().GetNestedSprite("logoInfo");
         idSWFSpriteInstance * const background = gui->GetRootObject().GetNestedSprite("background");
 
-        if (logo == nullptr || background == nullptr)
+        if (logo == nullptr || background == nullptr) [[unlikely]]
         {
             ps2::FatalError("retail Shell logo or background sprite missing");
         }
@@ -466,7 +466,7 @@ public:
 
         for (int option = 0; option < 3; ++option)
         {
-            if (m_options[option].IsEmpty())
+            if (m_options[option].IsEmpty()) [[unlikely]]
             {
                 ps2::FatalError("retail quit dialog option text missing: %d", option);
             }
@@ -539,10 +539,10 @@ static DialogOwner * s_dialog = nullptr;
 namespace ps2::ui
 {
 
-void AttachOwner(idSWF & movie, unsigned movieIndex)
+PS2_COLD_FUNC void AttachOwner(idSWF & movie, unsigned movieIndex)
 {
     if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || s_choices != nullptr || movieIndex >= 2 ||
-        !movie.IsResourceOnly() || movie.IsResourceExecution())
+        !movie.IsResourceOnly() || movie.IsResourceExecution()) [[unlikely]]
     {
         FatalError("invalid retail native widget owner startup");
     }
@@ -553,10 +553,10 @@ void AttachOwner(idSWF & movie, unsigned movieIndex)
     }
 }
 
-void ShowQuitDialog(idSWF & movie)
+PS2_COLD_FUNC void ShowQuitDialog(idSWF & movie)
 {
     if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || s_choices != nullptr || !movie.IsResourceOnly() ||
-        movie.IsResourceExecution())
+        movie.IsResourceExecution()) [[unlikely]]
     {
         FatalError("invalid retail dialog owner startup");
     }
@@ -564,12 +564,12 @@ void ShowQuitDialog(idSWF & movie)
     s_dialog = new (TAG_SWF) DialogOwner(movie);
 }
 
-void AttachMenu(idMenuHandler & handler)
+PS2_COLD_FUNC void AttachMenu(idMenuHandler & handler)
 {
     idSWF * const movie = handler.GetGUI();
 
     if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || movie == nullptr || !movie->IsResourceOnly() ||
-        movie->IsResourceExecution())
+        movie->IsResourceExecution()) [[unlikely]]
     {
         FatalError("invalid retail native menu owner startup");
     }
@@ -577,9 +577,9 @@ void AttachMenu(idMenuHandler & handler)
     s_menu = new (TAG_SWF) MenuOwner(handler);
 }
 
-void DetachMenu(idSWF & movie)
+PS2_COLD_FUNC void DetachMenu(idSWF & movie)
 {
-    if (s_menu == nullptr || &s_menu->Movie() != &movie)
+    if (s_menu == nullptr || &s_menu->Movie() != &movie) [[unlikely]]
     {
         FatalError("retail native menu owner does not own the departing movie");
     }
@@ -588,11 +588,11 @@ void DetachMenu(idSWF & movie)
     s_menu = nullptr;
 }
 
-void DetachOwner(idSWF & movie)
+PS2_COLD_FUNC void DetachOwner(idSWF & movie)
 {
     if (s_dialog != nullptr)
     {
-        if (&s_dialog->Movie() != &movie)
+        if (&s_dialog->Movie() != &movie) [[unlikely]]
         {
             FatalError("retail dialog owner does not own the departing movie");
         }
@@ -606,7 +606,7 @@ void DetachOwner(idSWF & movie)
         return;
     }
 
-    if (s_owner->GetGUI() != &movie)
+    if (s_owner->GetGUI() != &movie) [[unlikely]]
     {
         FatalError("retail native widgets do not own the departing movie");
     }
@@ -623,9 +623,9 @@ bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, co
            (s_choices != nullptr && s_choices->OwnsCallback(name, function, movie));
 }
 
-void AttachDialogChoices(idSWF & movie)
+PS2_COLD_FUNC void AttachDialogChoices(idSWF & movie)
 {
-    if (s_choices != nullptr || s_dialog != nullptr || s_owner != nullptr || !movie.IsResourceExecution())
+    if (s_choices != nullptr || s_dialog != nullptr || s_owner != nullptr || !movie.IsResourceExecution()) [[unlikely]]
     {
         FatalError("invalid retail dialog choice owner startup");
     }
@@ -635,7 +635,7 @@ void AttachDialogChoices(idSWF & movie)
 
 void PinShownChoices(idSWF & movie)
 {
-    if (s_choices == nullptr || &s_choices->Movie() != &movie)
+    if (s_choices == nullptr || &s_choices->Movie() != &movie) [[unlikely]]
     {
         FatalError("retail dialog choices outside their movie");
     }
@@ -643,9 +643,9 @@ void PinShownChoices(idSWF & movie)
     s_choices->Pin();
 }
 
-void DetachDialogChoices(idSWF & movie)
+PS2_COLD_FUNC void DetachDialogChoices(idSWF & movie)
 {
-    if (s_choices == nullptr || &s_choices->Movie() != &movie)
+    if (s_choices == nullptr || &s_choices->Movie() != &movie) [[unlikely]]
     {
         FatalError("retail dialog choice owner does not own the departing movie");
     }
@@ -677,7 +677,7 @@ void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idS
         return;
     }
 
-    if (s_owner == nullptr || s_owner->GetGUI() != movie)
+    if (s_owner == nullptr || s_owner->GetGUI() != movie) [[unlikely]]
     {
         FatalError("retail widget callback owner missing");
     }
@@ -687,7 +687,7 @@ void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idS
 
 void ShowShellLogo(idSWF & movie, bool show)
 {
-    if (s_owner == nullptr || s_owner->GetGUI() != &movie || !movie.IsResourceExecution() || !swf::Active())
+    if (s_owner == nullptr || s_owner->GetGUI() != &movie || !movie.IsResourceExecution() || !swf::Active()) [[unlikely]]
     {
         FatalError("retail Shell logo outside its executing owner");
     }
@@ -695,7 +695,7 @@ void ShowShellLogo(idSWF & movie, bool show)
     s_owner->ShowLogo(show);
 }
 
-void OwnerStatus()
+PS2_COLD_FUNC void OwnerStatus()
 {
     if (s_owner != nullptr)
     {

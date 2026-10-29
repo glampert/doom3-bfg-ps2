@@ -63,7 +63,7 @@ ID_FORCE_INLINE void RecordPeak()
 
 PS2_COLD_FUNC bool InitCommandBuffer(u32 halfBytes)
 {
-    if (IsCommandBufferInitialized())
+    if (IsCommandBufferInitialized()) [[unlikely]]
     {
         FatalError("command buffer initialized twice");
     }
@@ -119,7 +119,7 @@ PS2_COLD_FUNC void ShutdownCommandBuffer()
         return;
     }
 
-    if (s_directBase != nullptr)
+    if (s_directBase != nullptr) [[unlikely]]
     {
         FatalError("command shutdown with an open DIRECT payload");
     }
@@ -145,10 +145,8 @@ bool IsCommandBufferInitialized()
 
 void BeginCommandFrame()
 {
-    if (!IsCommandBufferInitialized() || s_frame || s_directBase != nullptr || Used() != s_kickedQwords) [[unlikely]]
-    {
-        FatalError("invalid BeginCommandFrame state");
-    }
+    PS2_AssertMsg(IsCommandBufferInitialized() && !s_frame && s_directBase == nullptr && Used() == s_kickedQwords,
+                  "invalid BeginCommandFrame state");
 
     WaitIdle();
     s_half ^= 1;
@@ -159,10 +157,7 @@ void BeginCommandFrame()
 
 void EndCommandFrame()
 {
-    if (!s_frame || s_directBase != nullptr) [[unlikely]]
-    {
-        FatalError("invalid EndCommandFrame state");
-    }
+    PS2_AssertMsg(s_frame && s_directBase == nullptr, "invalid EndCommandFrame state");
 
     Kick();
     WaitIdle();
@@ -171,18 +166,12 @@ void EndCommandFrame()
 
 GifWriter BeginDirect(int payloadQwords)
 {
-    if (!s_frame || s_directBase != nullptr || payloadQwords < 0) [[unlikely]]
-    {
-        FatalError("invalid DIRECT reservation state");
-    }
+    PS2_AssertMsg(s_frame && s_directBase == nullptr && payloadQwords >= 0, "invalid DIRECT reservation state");
 
     const int capacity = Current()->max_qwords_count - kTerminatorQwords;
 
     // One CNT tag and one final EOP qword belong to this block.
-    if (payloadQwords > capacity - 2) [[unlikely]]
-    {
-        FatalError("DIRECT request exceeds command half capacity");
-    }
+    PS2_AssertMsg(payloadQwords <= capacity - 2, "DIRECT request exceeds command half capacity");
 
     const int request = payloadQwords + 2;
 
@@ -208,10 +197,8 @@ GifWriter BeginDirect(int payloadQwords)
 
 void EndDirect(const GifWriter & writer)
 {
-    if (s_directBase == nullptr || writer.Base() != s_directBase || writer.QwordCount() > s_directCapacity) [[unlikely]]
-    {
-        FatalError("closing a foreign or oversized DIRECT payload");
-    }
+    PS2_AssertMsg(s_directBase != nullptr && writer.Base() == s_directBase && writer.QwordCount() <= s_directCapacity,
+                  "closing a foreign or oversized DIRECT payload");
 
     packet2_t * const packet = Current();
     packet->next = writer.Cursor();
@@ -231,10 +218,7 @@ void EndDirect(const GifWriter & writer)
 
 void Kick()
 {
-    if (!IsCommandBufferInitialized() || s_directBase != nullptr) [[unlikely]]
-    {
-        FatalError("invalid command Kick state");
-    }
+    PS2_AssertMsg(IsCommandBufferInitialized() && s_directBase == nullptr, "invalid command Kick state");
 
     if (Used() == s_kickedQwords)
     {

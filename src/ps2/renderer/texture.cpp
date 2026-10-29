@@ -37,10 +37,7 @@ static bool s_initialized = false;
 
 Record & Find(Handle handle)
 {
-    if (!s_initialized || handle.id == 0) [[unlikely]]
-    {
-        FatalError("invalid texture handle");
-    }
+    PS2_AssertMsg(s_initialized && handle.id != 0, "invalid texture handle");
 
     for (auto & record : s_records)
     {
@@ -50,7 +47,11 @@ Record & Find(Handle handle)
         }
     }
 
+#if PS2_D3BFG_ASSERTS
     FatalError("stale texture handle: %u", handle.id);
+#else // PS2_D3BFG_ASSERTS
+    __builtin_unreachable();
+#endif // PS2_D3BFG_ASSERTS
 }
 
 void Fence()
@@ -61,16 +62,16 @@ void Fence()
 
 void ReleaseResidency(Record & record)
 {
-    if (record.resident && !gs::ReleaseVram(record.allocation)) [[unlikely]]
+    if (record.resident)
     {
-        FatalError("texture VRAM ownership mismatch");
+        gs::ReleaseVram(record.allocation);
     }
 
     record.resident = false;
     record.allocation = {};
 }
 
-Record * FreeRecord()
+PS2_COLD_FUNC Record * FreeRecord()
 {
     for (auto & record : s_records)
     {
@@ -83,7 +84,7 @@ Record * FreeRecord()
     return nullptr;
 }
 
-Handle Publish(Record & record, const Layout & layout, Sampler sampler, void * pixels)
+PS2_COLD_FUNC Handle Publish(Record & record, const Layout & layout, Sampler sampler, void * pixels)
 {
     if (s_nextId == 0xFFFFFFFFU) [[unlikely]]
     {
@@ -176,7 +177,7 @@ const Stats & GetStats()
 
 PS2_COLD_FUNC bool Init(u32 vramBytes, u32 pixelBudgetBytes)
 {
-    if (s_initialized)
+    if (s_initialized) [[unlikely]]
     {
         FatalError("texture owner initialized twice");
     }
@@ -219,7 +220,7 @@ PS2_COLD_FUNC void Shutdown()
     s_initialized = false;
 }
 
-Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes)
+PS2_COLD_FUNC Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes)
 {
     if (!s_initialized) [[unlikely]]
     {
@@ -253,7 +254,7 @@ Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t 
     return Publish(*freeRecord, layout, sampler, pixels);
 }
 
-Handle CreateIndexed(int width, int height, PixelFormat format, Sampler sampler, const void * indices, size_t bytes)
+PS2_COLD_FUNC Handle CreateIndexed(int width, int height, PixelFormat format, Sampler sampler, const void * indices, size_t bytes)
 {
     if (!s_initialized) [[unlikely]]
     {
@@ -306,7 +307,7 @@ bool Update(Handle handle, const void * rgba, size_t sourceBytes, size_t strideB
     return true;
 }
 
-void Destroy(Handle handle)
+PS2_COLD_FUNC void Destroy(Handle handle)
 {
     if (handle.id == 0)
     {

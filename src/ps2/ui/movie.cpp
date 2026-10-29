@@ -52,7 +52,7 @@ static int s_clockBase = 0;
 static bool s_menu = false;
 static constexpr const char * kLabels[] = { "#str_swf_campaign", "#str_swf_settings", "#str_swf_quit" };
 
-void CloseResourceMovie()
+PS2_COLD_FUNC void CloseResourceMovie()
 {
     const int releasedMovie = s_movieIndex;
 
@@ -97,17 +97,14 @@ void CloseResourceMovie()
 ps2::ui::FontRecord CurrentFont()
 {
     ps2::ui::FontRecord record;
-    if (!ps2::ui::GetCatalog().GetFont(s_font, record) || s_font >= s_fontCount || s_fonts[s_font] == nullptr)
-    {
-        ps2::FatalError("native retail font proof ownership changed");
-    }
-
+    const bool found = ps2::ui::GetCatalog().GetFont(s_font, record);
+    PS2_AssertMsg(found && s_font < s_fontCount && s_fonts[s_font] != nullptr, "native retail font proof ownership changed");
     return record;
 }
 
 void CountHierarchy(const idSWFSpriteInstance * instance, unsigned level, unsigned & sprites, unsigned & texts, unsigned & depth)
 {
-    if (instance == nullptr || level > ps2::ui::swf::kMaxHierarchyDepth || ++sprites > ps2::ui::swf::kMaxSprites)
+    if (instance == nullptr || level > ps2::ui::swf::kMaxHierarchyDepth || ++sprites > ps2::ui::swf::kMaxSprites) [[unlikely]]
     {
         ps2::FatalError("retail execution hierarchy exceeds admitted limits");
     }
@@ -121,14 +118,14 @@ void CountHierarchy(const idSWFSpriteInstance * instance, unsigned level, unsign
             CountHierarchy(entry.spriteInstance, level + 1, sprites, texts, depth);
         }
 
-        if (entry.textInstance != nullptr && ++texts > ps2::ui::swf::kMaxTexts)
+        if (entry.textInstance != nullptr && ++texts > ps2::ui::swf::kMaxTexts) [[unlikely]]
         {
             ps2::FatalError("retail execution text instances exceed admitted limits");
         }
     }
 }
 
-void ExecutionStatus()
+PS2_COLD_FUNC void ExecutionStatus()
 {
     if (!s_resourceMovie->IsResourceExecution())
     {
@@ -136,7 +133,7 @@ void ExecutionStatus()
     }
 
     auto * const root = s_resourceMovie->GetRootObject().GetSprite();
-    if (root == nullptr)
+    if (root == nullptr) [[unlikely]]
     {
         ps2::FatalError("retail execution root instance missing");
     }
@@ -168,7 +165,7 @@ void ExecutionStatus()
              static_cast<unsigned long>(stats.traces));
 }
 
-void Status()
+PS2_COLD_FUNC void Status()
 {
     const auto heap = ps2::system::heap::GetTotalStats();
     if (!s_loaded)
@@ -224,7 +221,7 @@ void Status()
         const float width = s_fonts[s_font]->GetMaxCharWidth(scale);
         const float height = s_fonts[s_font]->GetLineHeight(scale);
         if (width != scale * static_cast<float>(font.maxAdvance[index]) ||
-            height != scale * static_cast<float>(font.maxHeight[index]))
+            height != scale * static_cast<float>(font.maxHeight[index])) [[unlikely]]
         {
             ps2::FatalError("native retail font legacy metrics differ from the admitted source");
         }
@@ -234,21 +231,21 @@ void Status()
     }
 }
 
-void OpenConsole()
+PS2_COLD_FUNC void OpenConsole()
 {
     if (!console->Active())
     {
         const sysEvent_t open{ SE_KEY, K_GRAVE, 1, 0, nullptr, 0 };
-        if (!console->ProcessEvent(&open, false))
+        if (!console->ProcessEvent(&open, false)) [[unlikely]]
         {
             ps2::FatalError("cannot reopen native console after the retail font proof");
         }
     }
 }
 
-void Unload(bool restoreConsole)
+PS2_COLD_FUNC void Unload(bool restoreConsole)
 {
-    if (ps2::renderer::FrameStarted())
+    if (ps2::renderer::FrameStarted()) [[unlikely]]
     {
         ps2::FatalError("cannot unload the retail font proof during drawing");
     }
@@ -263,9 +260,9 @@ void Unload(bool restoreConsole)
     Status();
 }
 
-void Load()
+PS2_COLD_FUNC void Load()
 {
-    if (s_loaded || ps2::renderer::FrameStarted() || s_cycle == UINT_MAX)
+    if (s_loaded || ps2::renderer::FrameStarted() || s_cycle == UINT_MAX) [[unlikely]]
     {
         ps2::FatalError("invalid native retail font proof load ownership");
     }
@@ -275,7 +272,7 @@ void Load()
     {
         const auto & catalog = ps2::ui::GetCatalog();
         s_fontCount = catalog.FontCount();
-        if (s_fontCount == 0 || s_fontCount > static_cast<u32>(ps2::ArrayLength(s_fonts)))
+        if (s_fontCount == 0 || s_fontCount > static_cast<u32>(ps2::ArrayLength(s_fonts))) [[unlikely]]
         {
             ps2::FatalError("retail font proof requires a bounded nonempty font catalog");
         }
@@ -283,13 +280,13 @@ void Load()
         for (u32 index = 0; index < s_fontCount; ++index)
         {
             ps2::ui::FontRecord font;
-            if (!catalog.GetFont(index, font))
+            if (!catalog.GetFont(index, font)) [[unlikely]]
             {
                 ps2::FatalError("retail font proof catalog record missing");
             }
 
             s_fonts[index] = renderSystem->RegisterFont(font.family);
-            if (s_fonts[index] == nullptr)
+            if (s_fonts[index] == nullptr) [[unlikely]]
             {
                 ps2::FatalError("retail font proof native registration failed");
             }
@@ -304,9 +301,9 @@ void Load()
 }
 
 // Present draws the complete dialog movie with the native quit confirmation instead of isolated labels.
-void LoadResourceMovie(unsigned index, bool execute = false, bool present = false)
+PS2_COLD_FUNC void LoadResourceMovie(unsigned index, bool execute = false, bool present = false)
 {
-    if (!s_loaded || ps2::renderer::FrameStarted() || index >= 2 || (present && !execute))
+    if (!s_loaded || ps2::renderer::FrameStarted() || index >= 2 || (present && !execute)) [[unlikely]]
     {
         ps2::FatalError("retail movie requires an idle loaded resource screen");
     }
@@ -317,7 +314,7 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
     const auto summary = ps2::ui::GetMovieSummary(static_cast<int>(index));
     auto * const entry = s_resourceMovie->GetDictionaryEntry(static_cast<int>(summary.previewText));
 
-    if (!s_resourceMovie->IsLoaded() || entry->type != SWF_DICT_EDITTEXT || entry->edittext == nullptr)
+    if (!s_resourceMovie->IsLoaded() || entry->type != SWF_DICT_EDITTEXT || entry->edittext == nullptr) [[unlikely]]
     {
         ps2::FatalError("retail movie text prototype missing after native loading");
     }
@@ -325,14 +322,14 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
     auto * const font = s_resourceMovie->FindDictionaryEntry(entry->edittext->fontID, SWF_DICT_FONT);
 
     if (font == nullptr || font->font == nullptr || font->font->fontID == nullptr ||
-        font->font->fontID->GetAscender(1.0f) <= 0.0f)
+        font->font->fontID->GetAscender(1.0f) <= 0.0f) [[unlikely]]
     {
         ps2::FatalError("retail movie text requires a positive native ascender");
     }
 
     for (int label = 0; label < ps2::ArrayLength(s_texts) && !present; ++label)
     {
-        if (idLocalization::FindString(kLabels[label]) == nullptr)
+        if (idLocalization::FindString(kLabels[label]) == nullptr) [[unlikely]]
         {
             ps2::FatalError("required retail English label missing: %s", kLabels[label]);
         }
@@ -371,7 +368,7 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
         {
             const idMaterial * const atlas = declManager->FindMaterial(index == 0 ? "generated/swf/shell.tga" : "generated/swf/dialog.tga");
 
-            if (atlas == nullptr || atlas->GetNumStages() != 1 || atlas->GetStage(0)->texture.image == nullptr)
+            if (atlas == nullptr || atlas->GetNumStages() != 1 || atlas->GetStage(0)->texture.image == nullptr) [[unlikely]]
             {
                 ps2::FatalError("retail movie atlas image missing for screen blending");
             }
@@ -388,9 +385,9 @@ void LoadResourceMovie(unsigned index, bool execute = false, bool present = fals
 
 // The native shell menu over the loaded resource screen: the game's shell handler owns the movie,
 // which this harness advances, draws and reports like the other executing movies.
-void LoadMenu()
+PS2_COLD_FUNC void LoadMenu()
 {
-    if (!s_loaded || ps2::renderer::FrameStarted())
+    if (!s_loaded || ps2::renderer::FrameStarted()) [[unlikely]]
     {
         ps2::FatalError("retail menu requires an idle loaded resource screen");
     }
@@ -407,9 +404,9 @@ void LoadMenu()
     Status();
 }
 
-void Control(const idCmdArgs & args)
+PS2_COLD_FUNC void Control(const idCmdArgs & args)
 {
-    if (!s_initialized || args.Argc() < 2 || args.Argc() > 3)
+    if (!s_initialized || args.Argc() < 2 || args.Argc() > 3) [[unlikely]]
     {
         ps2::FatalError("ps2_uiRetail requires load, unload, reload, status, font INDEX, movie NAME, execute NAME, draw shell, dialog quit, menu, key NAME, clock MODE or logo on|off");
     }
@@ -418,7 +415,7 @@ void Control(const idCmdArgs & args)
     if (strcmp(action, "clock") == 0)
     {
         if (args.Argc() != 3 || (strcmp(args.Argv(2), "fixed") != 0 && strcmp(args.Argv(2), "real") != 0) ||
-            s_resourceMovie != nullptr)
+            s_resourceMovie != nullptr) [[unlikely]]
         {
             ps2::FatalError("ps2_uiRetail clock requires fixed or real before a movie loads");
         }
@@ -431,7 +428,7 @@ void Control(const idCmdArgs & args)
     {
         if (args.Argc() != 3 || (strcmp(args.Argv(2), "on") != 0 && strcmp(args.Argv(2), "off") != 0) ||
             s_resourceMovie == nullptr || s_movieIndex != 0 || !s_resourceMovie->IsResourceExecution() ||
-            ps2::renderer::FrameStarted())
+            ps2::renderer::FrameStarted()) [[unlikely]]
         {
             ps2::FatalError("ps2_uiRetail logo requires on or off with the executing shell");
         }
@@ -445,7 +442,7 @@ void Control(const idCmdArgs & args)
 
     if (strcmp(action, "draw") == 0)
     {
-        if (args.Argc() != 3 || strcmp(args.Argv(2), "shell") != 0)
+        if (args.Argc() != 3 || strcmp(args.Argv(2), "shell") != 0) [[unlikely]]
         {
             ps2::FatalError("ps2_uiRetail draw requires shell");
         }
@@ -456,7 +453,7 @@ void Control(const idCmdArgs & args)
 
     if (strcmp(action, "menu") == 0)
     {
-        if (args.Argc() != 2)
+        if (args.Argc() != 2) [[unlikely]]
         {
             ps2::FatalError("ps2_uiRetail menu takes no arguments");
         }
@@ -479,7 +476,7 @@ void Control(const idCmdArgs & args)
             { "dpad_right", K_JOY_DPAD_RIGHT }
         };
 
-        if (args.Argc() != 3 || !s_menu || console->Active() || ps2::renderer::FrameStarted())
+        if (args.Argc() != 3 || !s_menu || console->Active() || ps2::renderer::FrameStarted()) [[unlikely]]
         {
             ps2::FatalError("ps2_uiRetail key requires one named key for the native menu with the console closed");
         }
@@ -501,7 +498,7 @@ void Control(const idCmdArgs & args)
 
     if (strcmp(action, "dialog") == 0)
     {
-        if (args.Argc() != 3 || strcmp(args.Argv(2), "quit") != 0)
+        if (args.Argc() != 3 || strcmp(args.Argv(2), "quit") != 0) [[unlikely]]
         {
             ps2::FatalError("ps2_uiRetail dialog requires quit");
         }
@@ -512,7 +509,7 @@ void Control(const idCmdArgs & args)
 
     if (strcmp(action, "movie") == 0 || strcmp(action, "execute") == 0)
     {
-        if (args.Argc() != 3)
+        if (args.Argc() != 3) [[unlikely]]
         {
             ps2::FatalError("ps2_uiRetail movie requires shell, dialog or none");
         }
@@ -527,7 +524,7 @@ void Control(const idCmdArgs & args)
         }
         else if (strcmp(args.Argv(2), "none") == 0)
         {
-            if (strcmp(action, "execute") == 0)
+            if (strcmp(action, "execute") == 0) [[unlikely]]
             {
                 ps2::FatalError("ps2_uiRetail execute requires shell or dialog");
             }
@@ -548,7 +545,7 @@ void Control(const idCmdArgs & args)
     {
         const char * const index = args.Argv(2);
         if (!s_loaded || args.Argc() != 3 || index[0] < '0' || index[0] > '7' ||
-            index[1] != '\0' || static_cast<u32>(index[0] - '0') >= s_fontCount || ps2::renderer::FrameStarted())
+            index[1] != '\0' || static_cast<u32>(index[0] - '0') >= s_fontCount || ps2::renderer::FrameStarted()) [[unlikely]]
         {
             ps2::FatalError("ps2_uiRetail font requires one admitted font index while loaded");
         }
@@ -560,7 +557,7 @@ void Control(const idCmdArgs & args)
         return;
     }
 
-    if (args.Argc() != 2)
+    if (args.Argc() != 2) [[unlikely]]
     {
         ps2::FatalError("ps2_uiRetail action has unexpected arguments");
     }
@@ -595,10 +592,7 @@ void DrawText(idFont * font, float scale, float baseline)
     {
         scaledGlyphInfo_t glyph;
         font->GetScaledGlyph(scale, static_cast<u32>(kText[index]), glyph);
-        if (glyph.material == nullptr)
-        {
-            ps2::FatalError("retail font proof glyph is unavailable");
-        }
+        PS2_AssertMsg(glyph.material != nullptr, "retail font proof glyph is unavailable");
 
         if (glyph.width > 0.0f && glyph.height > 0.0f)
         {
@@ -617,7 +611,7 @@ namespace ps2::ui
 
 PS2_COLD_FUNC void InitScreen()
 {
-    if (s_initialized || !ui::IsInitialized())
+    if (s_initialized || !ui::IsInitialized()) [[unlikely]]
     {
         FatalError("invalid native retail font proof startup");
     }
@@ -651,9 +645,9 @@ bool IsScreenLoaded()
     return s_loaded;
 }
 
-void OpenBootMenu()
+PS2_COLD_FUNC void OpenBootMenu()
 {
-    if (!s_initialized || s_loaded || s_fixedClock)
+    if (!s_initialized || s_loaded || s_fixedClock) [[unlikely]]
     {
         FatalError("native menu boot requires the fresh retail screen");
     }
@@ -670,10 +664,8 @@ void AdvanceScreen(bool advance)
         return;
     }
 
-    if (renderer::FrameStarted() || s_executionTicks == UINT_MAX || s_nativeSteps > UINT_MAX - 10)
-    {
-        FatalError("retail execution frame ownership or counter overflow");
-    }
+    PS2_AssertMsg(!renderer::FrameStarted() && s_executionTicks != UINT_MAX && s_nativeSteps <= UINT_MAX - 10,
+                  "retail execution frame ownership or counter overflow");
 
     // The fixed clock's cumulative steps round to whole milliseconds without drifting.
     const int time = s_fixedClock ? s_clockBase + static_cast<int>((static_cast<u64>(s_executionTicks) + 1U) * 1000U / 60U)
@@ -709,18 +701,11 @@ void RenderScreen(bool advance)
         return;
     }
 
-    if (!ui::IsInitialized() || !renderer::FrameStarted())
-    {
-        FatalError("invalid native retail font proof presentation ownership");
-    }
+    PS2_AssertMsg(ui::IsInitialized() && renderer::FrameStarted(), "invalid native retail font proof presentation ownership");
 
     if (advance)
     {
-        if (s_frames == UINT_MAX)
-        {
-            FatalError("retail font proof frame counter overflow");
-        }
-
+        PS2_AssertMsg(s_frames != UINT_MAX, "retail font proof frame counter overflow");
         ++s_frames;
     }
 

@@ -676,19 +676,24 @@ bool MaskBuilder::Finish(ConvexMask & output) const
 bool ClipMaskTriangle(const Vertex (&input)[3], const ConvexMask * masks, int maskCount,
                       Vertex (&output)[kMaxMaskClipVertices], int & count)
 {
+#if PS2_D3BFG_ASSERTS
     if (maskCount < 0 || maskCount > kMaxActiveMasks || (maskCount > 0 && masks == nullptr))
     {
         return false;
     }
+#endif // PS2_D3BFG_ASSERTS
 
     ClipVertex original[3]{};
     for (int i = 0; i < 3; ++i)
     {
         const Vertex & vertex = input[i];
+
+#if PS2_D3BFG_ASSERTS
         if (!ValidPoint({ vertex.x, vertex.y }) || !Bounded(vertex.s, kUvLimit) || !Bounded(vertex.t, kUvLimit))
         {
             return false;
         }
+#endif // PS2_D3BFG_ASSERTS
 
         original[i] = {
             vertex.x, vertex.y, vertex.s, vertex.t, static_cast<float>(vertex.r), static_cast<float>(vertex.g), static_cast<float>(vertex.b), static_cast<float>(vertex.a), {}
@@ -703,10 +708,14 @@ bool ClipMaskTriangle(const Vertex (&input)[3], const ConvexMask * masks, int ma
     for (int i = 0; i < maskCount; ++i)
     {
         const ConvexMask & mask = masks[i];
+
+#if PS2_D3BFG_ASSERTS
+        // MaskBuilder::Finish published only valid masks; assertion builds recheck the caller's array.
         if (!ValidMask(mask))
         {
             return false;
         }
+#endif // PS2_D3BFG_ASSERTS
 
         empty = empty || mask.count == 0;
         for (int j = 0; j < mask.count; ++j)
@@ -805,6 +814,7 @@ bool ClipMaskTriangle(const Vertex (&input)[3], const ConvexMask * masks, int ma
 
 bool ClipMaskLine(const Vertex (&input)[2], const ConvexMask * masks, int maskCount, Vertex (&output)[2], bool & visible)
 {
+#if PS2_D3BFG_ASSERTS
     if (maskCount < 0 || maskCount > kMaxActiveMasks || (maskCount > 0 && masks == nullptr))
     {
         return false;
@@ -817,6 +827,7 @@ bool ClipMaskLine(const Vertex (&input)[2], const ConvexMask * masks, int maskCo
             return false;
         }
     }
+#endif // PS2_D3BFG_ASSERTS
 
     float enter = 0.0f;
     float leave = 1.0f;
@@ -827,10 +838,12 @@ bool ClipMaskLine(const Vertex (&input)[2], const ConvexMask * masks, int maskCo
     {
         const ConvexMask & mask = masks[i];
 
+#if PS2_D3BFG_ASSERTS
         if (!ValidMask(mask))
         {
             return false;
         }
+#endif // PS2_D3BFG_ASSERTS
 
         if (mask.count == 0)
         {

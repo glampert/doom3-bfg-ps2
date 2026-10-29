@@ -45,11 +45,11 @@ struct MovieAdmission
 
 static MovieAdmission s_movies[2];
 
-void * Snapshot(const char * path, std::uint32_t length, std::uint32_t checksum)
+PS2_COLD_FUNC void * Snapshot(const char * path, std::uint32_t length, std::uint32_t checksum)
 {
     idFile * const source = fileSystem->OpenFileRead(path);
 
-    if (source == nullptr)
+    if (source == nullptr) [[unlikely]]
     {
         FatalError("retail movie resource missing: %s", path);
     }
@@ -109,14 +109,14 @@ bool IsCatalogInitialized()
 
 PS2_COLD_FUNC void InitCatalog()
 {
-    if (IsCatalogInitialized() || !ui::IsInitialized() || renderer::FrameStarted() || ui::GetPaletteStats().images != 0)
+    if (IsCatalogInitialized() || !ui::IsInitialized() || renderer::FrameStarted() || ui::GetPaletteStats().images != 0) [[unlikely]]
     {
         FatalError("retail UI catalog requires an idle fresh image profile");
     }
 
     idFile * const source = fileSystem->OpenFileRead("retail_ui.uic");
 
-    if (source == nullptr)
+    if (source == nullptr) [[unlikely]]
     {
         FatalError("retail UI catalog missing");
     }
@@ -154,7 +154,7 @@ PS2_COLD_FUNC void ShutdownCatalog()
         return;
     }
 
-    if (renderer::FrameStarted() || ui::GetPaletteStats().images != 0)
+    if (renderer::FrameStarted() || ui::GetPaletteStats().images != 0) [[unlikely]]
     {
         FatalError("retail UI catalog shutdown with active image ownership");
     }
@@ -179,11 +179,7 @@ PS2_COLD_FUNC void ShutdownCatalog()
 
 const CatalogView & GetCatalog()
 {
-    if (!IsCatalogInitialized())
-    {
-        FatalError("retail UI catalog unavailable");
-    }
-
+    PS2_AssertMsg(IsCatalogInitialized(), "retail UI catalog unavailable");
     return s_catalog;
 }
 
@@ -198,7 +194,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
     ImageRecord image;
 
     if (!FindFont(font.family, admitted) || font.path != admitted.path || font.bytes != admitted.bytes ||
-        font.checksum != admitted.checksum || !s_catalog.GetImage(admitted.imageIndex, image))
+        font.checksum != admitted.checksum || !s_catalog.GetImage(admitted.imageIndex, image)) [[unlikely]]
     {
         FatalError("retail font outside the active catalog");
     }
@@ -207,7 +203,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
     idStr::snPrintf(path, static_cast<int>(sizeof(path)), "retail/%s", admitted.path);
     idFile * const source = fileSystem->OpenFileRead(path);
 
-    if (source == nullptr)
+    if (source == nullptr) [[unlikely]]
     {
         FatalError("retail font missing: %s", admitted.family);
     }
@@ -240,7 +236,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
 
 PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
 {
-    if (!IsCatalogInitialized() || renderer::FrameStarted() || index >= 2 || (render && !execute))
+    if (!IsCatalogInitialized() || renderer::FrameStarted() || index >= 2 || (render && !execute)) [[unlikely]]
     {
         FatalError("invalid retail movie preparation ownership");
     }
@@ -258,7 +254,7 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
         const bool read = profile != nullptr && profile->Length() == 64 && profile->Read(raw, 64) == 64;
         delete profile;
 
-        if (!read)
+        if (!read) [[unlikely]]
         {
             FatalError("retail movie profile missing or truncated");
         }
@@ -273,7 +269,7 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
 
         if (s_profile[0] != 0x564d4955U || s_profile[1] != 1 || s_profile[2] != 64 ||
             s_profile[3] != 1 || s_profile[4] != 2 || s_profile[5] == 0 || s_profile[5] > 1024 * 1024 ||
-            s_profile[7] == 0 || s_profile[7] > 16384)
+            s_profile[7] == 0 || s_profile[7] > 16384) [[unlikely]]
         {
             FatalError("retail movie profile invalid");
         }
@@ -283,7 +279,7 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
             const unsigned offset = 8 + movie * 4;
 
             if (s_profile[offset] < 64 || s_profile[offset] > swf::kMaxBytes || s_profile[offset + 2] == 0 ||
-                s_profile[offset + 2] > 1024 || s_profile[offset + 3] >= s_profile[offset + 2])
+                s_profile[offset + 2] > 1024 || s_profile[offset + 3] >= s_profile[offset + 2]) [[unlikely]]
             {
                 FatalError("retail movie profile bounds invalid");
             }
@@ -292,7 +288,7 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
 
     if (!s_language)
     {
-        if (idLocalization::GetDictionary().GetNumKeyVals() != 0)
+        if (idLocalization::GetDictionary().GetNumKeyVals() != 0) [[unlikely]]
         {
             FatalError("retail English dictionary requires exclusive localization ownership");
         }
@@ -310,7 +306,7 @@ PS2_COLD_FUNC void PrepareMovie(unsigned index, bool execute, bool render)
         const bool loaded = idLocalization::LoadDictionary(bytes, static_cast<int>(s_profile[5]), "retail/english.lang");
         system::heap::Free(bytes);
 
-        if (!loaded || idLocalization::GetDictionary().GetNumKeyVals() != static_cast<int>(s_profile[7]))
+        if (!loaded || idLocalization::GetDictionary().GetNumKeyVals() != static_cast<int>(s_profile[7])) [[unlikely]]
         {
             FatalError("retail English dictionary entry count invalid");
         }
@@ -333,7 +329,7 @@ PS2_COLD_FUNC idFile * OpenMovie(const char * logicalPath)
         }
     }
 
-    if (index == 2 || !s_language || !s_movies[index].prepared || renderer::FrameStarted())
+    if (index == 2 || !s_language || !s_movies[index].prepared || renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("retail movie outside the prepared inactive profile");
     }
@@ -426,7 +422,7 @@ bool MovieUsesScreenBlending(int index)
 
 swf::Summary GetMovieSummary(int index)
 {
-    if (index < 0 || index >= ArrayLength(s_movies))
+    if (index < 0 || index >= ArrayLength(s_movies)) [[unlikely]]
     {
         FatalError("retail movie summary outside the fixed profile");
     }

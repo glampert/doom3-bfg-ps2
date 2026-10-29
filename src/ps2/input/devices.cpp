@@ -22,7 +22,7 @@ static u32 s_polls = 0;
 
 PS2_COLD_FUNC void InitDevices(const char * irxDirectory)
 {
-    if (s_initialized)
+    if (s_initialized) [[unlikely]]
     {
         FatalError("input devices initialized twice");
     }

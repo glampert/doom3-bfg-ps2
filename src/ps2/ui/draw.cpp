@@ -141,11 +141,8 @@ void WriteDepthMask()
                                   { points[2].x, points[2].y, 0.0f, 0.0f, 0, 0, 0, 255 } };
         FixedTriangle pieces[kMaxClippedTriangles];
         int count = 0;
-
-        if (MapTriangle(input, viewport, 1, 1, pieces, count) == Result::Invalid) [[unlikely]]
-        {
-            ps2::FatalError("invalid native SWF mask triangle");
-        }
+        const Result mapped = MapTriangle(input, viewport, 1, 1, pieces, count);
+        PS2_AssertMsg(mapped != Result::Invalid, "invalid native SWF mask triangle");
 
         for (int piece = 0; piece < count; ++piece)
         {
@@ -165,11 +162,7 @@ void WriteDepthMask()
                                   { points[1].x, points[1].y, 0.0f, 0.0f, 0, 0, 0, 255 } };
         FixedLine line = {};
         const Result result = MapLine(input, viewport, line);
-
-        if (result == Result::Invalid) [[unlikely]]
-        {
-            ps2::FatalError("invalid native SWF mask line");
-        }
+        PS2_AssertMsg(result != Result::Invalid, "invalid native SWF mask line");
 
         if (result == Result::Draw)
         {
@@ -192,7 +185,7 @@ void WriteDepthMask()
 void Require(const idRenderSystemLocal * owner, const char * method, bool drawing = false)
 {
     PS2_Assert(owner != nullptr);
-    if (!s_initialized || owner != &tr || !ps2::renderer::IsInitialized() || (drawing && !ps2::renderer::FrameStarted()))
+    if (!s_initialized || owner != &tr || !ps2::renderer::IsInitialized() || (drawing && !ps2::renderer::FrameStarted())) [[unlikely]]
     {
         ps2::renderer::Unavailable(method);
     }
@@ -291,20 +284,9 @@ Profile MaterialProfile(const idMaterial * material, ps2::renderer::gs::Color ba
     const int registers = material->GetNumRegisters();
     const auto Register = [registers, material](int index)
     {
-        if (index < 0 || index >= registers) [[unlikely]]
-        {
-            ps2::FatalError("native UI material register outside bounds");
-        }
-
+        PS2_AssertMsg(index >= 0 && index < registers, "native UI material register outside bounds");
         const float value = material->ConstantRegisters()[index];
-
-        #if PS2_D3BFG_ASSERTS
-        if (!UnitValue(value)) [[unlikely]]
-        {
-            ps2::FatalError("native UI material register outside unit range");
-        }
-        #endif // PS2_D3BFG_ASSERTS
-
+        PS2_AssertMsg(UnitValue(value), "native UI material register outside unit range");
         return value;
     };
 
@@ -366,25 +348,30 @@ DecodedVertex DecodeVertex(const idDrawVert & vertex, const Profile & profile)
     }
 #endif // PS2_D3BFG_ASSERTS
 
-    DecodedVertex output = {};
+    // PackColor(0.5) gives 127 and a cleared vertex 128: both are the zero term. Only native
+    // SWF shading admits other color terms, and only for RGB.
+    const auto ZeroTerm = [&profile](u8 value) { return value == 128 || (profile.swf && value == 127); };
 
+#if PS2_D3BFG_ASSERTS
     for (int channel = 0; channel < 4; ++channel)
     {
-        const u8 value = vertex.color2[channel];
-
-        // PackColor(0.5) gives 127 and a cleared vertex 128: both are the zero term. Only native
-        // SWF shading admits other color terms, and only for RGB.
-        if (value == 128 || (profile.swf && value == 127))
-        {
-            continue;
-        }
-
-        if (!profile.swf || channel == 3) [[unlikely]]
+        if (!ZeroTerm(vertex.color2[channel]) && (!profile.swf || channel == 3)) [[unlikely]]
         {
             ps2::renderer::Unavailable("native UI additive vertex color");
         }
+    }
+#endif // PS2_D3BFG_ASSERTS
 
-        output.add[channel] = static_cast<s16>(2 * static_cast<int>(value) - 255);
+    DecodedVertex output = {};
+
+    for (int channel = 0; channel < 3; ++channel)
+    {
+        const u8 value = vertex.color2[channel];
+
+        if (!ZeroTerm(value))
+        {
+            output.add[channel] = static_cast<s16>(2 * static_cast<int>(value) - 255);
+        }
     }
 
     const auto Modulate = [](u8 color, u8 tint) { return static_cast<u8>((static_cast<u32>(color) * tint + 127U) / 255U); };
@@ -418,6 +405,7 @@ ps2::renderer::Shading MakeShading(const DecodedVertex (&vertices)[Count], ps2::
 
     for (const auto & decoded : vertices)
     {
+#if PS2_D3BFG_ASSERTS
         for (int channel = 0; channel < 3; ++channel)
         {
             if (decoded.add[channel] != shading.add[channel]) [[unlikely]]
@@ -425,6 +413,7 @@ ps2::renderer::Shading MakeShading(const DecodedVertex (&vertices)[Count], ps2::
                 ps2::renderer::Unavailable("native UI varying additive color");
             }
         }
+#endif // PS2_D3BFG_ASSERTS
 
         black = black && decoded.vertex.r == 0 && decoded.vertex.g == 0 && decoded.vertex.b == 0;
     }
@@ -489,11 +478,7 @@ idDrawVert * Allocate(int vertexCount, const triIndex_t * indexes, int indexCoun
 
 void CountTriangles(u32 count)
 {
-    if (s_geometryStats.triangles > UINT_MAX - count) [[unlikely]]
-    {
-        ps2::FatalError("native UI geometry counter overflow");
-    }
-
+    PS2_AssertMsg(s_geometryStats.triangles <= UINT_MAX - count, "native UI geometry counter overflow");
     s_geometryStats.triangles += count;
 }
 
@@ -506,7 +491,7 @@ bool HasColorTerm(const ps2::renderer::Shading & shading)
 // Screen passes carry the source in alpha; an additive term has no place in that equation.
 void ValidateShading(const ps2::renderer::Shading & shading)
 {
-    if (shading.blend == ps2::renderer::gs::BlendMode::Screen && HasColorTerm(shading))
+    if (shading.blend == ps2::renderer::gs::BlendMode::Screen && HasColorTerm(shading)) [[unlikely]]
     {
         ps2::renderer::Unavailable("native SWF screen blending with an additive color term");
     }
@@ -517,11 +502,7 @@ void ValidateShading(const ps2::renderer::Shading & shading)
 void CountShading(const ps2::renderer::Shading & shading)
 {
     const bool colorTerm = HasColorTerm(shading);
-
-    if (s_geometryStats.screen == UINT_MAX || s_geometryStats.colorTerms == UINT_MAX) [[unlikely]]
-    {
-        ps2::FatalError("native UI geometry counter overflow");
-    }
+    PS2_AssertMsg(s_geometryStats.screen != UINT_MAX && s_geometryStats.colorTerms != UINT_MAX, "native UI geometry counter overflow");
 
     s_geometryStats.screen += shading.blend == ps2::renderer::gs::BlendMode::Screen ? 1U : 0U;
     s_geometryStats.colorTerms += colorTerm ? 1U : 0U;
@@ -536,12 +517,19 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
     auto * const pages = ps2::renderer::UiPageImage(image);
     int fixedCount = 0;
 
-    // Validate the original input too: an empty/offscreen mask must never hide malformed UVs.
-    if (pages != nullptr ? !pages->ValidateTriangle(input) : MapTriangle(input, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() }, image->GetUploadWidth(), image->GetUploadHeight(), fixed, fixedCount) == Result::Invalid) [[unlikely]]
+    // Assertion builds validate the original input too: an empty/offscreen mask must never hide malformed UVs.
+    if (pages == nullptr)
     {
-        ps2::FatalError("invalid native UI triangle or UV");
+        const Result mapped = MapTriangle(input, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() }, image->GetUploadWidth(),
+                                          image->GetUploadHeight(), fixed, fixedCount);
+        PS2_AssertMsg(mapped != Result::Invalid, "invalid native UI triangle or UV");
+    }
+    else
+    {
+        PS2_AssertMsg(pages->ValidateTriangle(input), "invalid native UI triangle or UV");
     }
 
+#if PS2_D3BFG_ASSERTS
     // A screen pass reads one color channel as alpha: white texels, or a paletted channel CLUT.
     if (shading.blend == ps2::renderer::gs::BlendMode::Screen &&
         (pages != nullptr ? !pages->SupportsScreen() : image != ps2::renderer::ConsoleWhiteImage())) [[unlikely]]
@@ -549,7 +537,6 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
         ps2::renderer::Unavailable("native SWF screen blending over this image");
     }
 
-#if PS2_D3BFG_ASSERTS
     ValidateShading(shading);
 #endif // PS2_D3BFG_ASSERTS
 
@@ -564,11 +551,8 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
         if (emit && pages != nullptr)
         {
             const u32 before = pages->GetStats().triangles;
-            if (!pages->DrawTriangle(input, shading)) [[unlikely]]
-            {
-                ps2::FatalError("native UI paged triangle failed");
-            }
-
+            const bool drawn = pages->DrawTriangle(input, shading);
+            PS2_AssertMsg(drawn, "native UI paged triangle failed");
             CountTriangles(pages->GetStats().triangles - before);
         }
         else if (emit)
@@ -576,10 +560,8 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
             CountTriangles(static_cast<u32>(fixedCount));
             for (int triangle = 0; triangle < fixedCount; ++triangle)
             {
-                if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading)) [[unlikely]]
-                {
-                    ps2::FatalError("native UI triangle texture residency failed");
-                }
+                const bool drawn = ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading);
+                PS2_AssertMsg(drawn, "native UI triangle texture residency failed");
             }
         }
 
@@ -588,10 +570,8 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
 
     Vertex clipped[kMaxMaskClipVertices];
     int count = 0;
-    if (!ClipMaskTriangle(input, s_masks, s_maskCount, clipped, count)) [[unlikely]]
-    {
-        ps2::FatalError("native UI mask clipping exceeds bounded geometry");
-    }
+    const bool clippedValid = ClipMaskTriangle(input, s_masks, s_maskCount, clipped, count);
+    PS2_AssertMsg(clippedValid, "native UI mask clipping exceeds bounded geometry");
 
     for (int i = 1; i + 1 < count; ++i)
     {
@@ -608,31 +588,25 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
             if (emit)
             {
                 const u32 before = pages->GetStats().triangles;
-                if (!pages->DrawTriangle(piece, shading)) [[unlikely]]
-                {
-                    ps2::FatalError("native UI paged triangle failed");
-                }
-
+                const bool drawn = pages->DrawTriangle(piece, shading);
+                PS2_AssertMsg(drawn, "native UI paged triangle failed");
                 CountTriangles(pages->GetStats().triangles - before);
             }
         }
         else
         {
-            if (MapTriangle(piece, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() }, image->GetUploadWidth(),
-                            image->GetUploadHeight(), fixed, fixedCount) == Result::Invalid) [[unlikely]]
-            {
-                ps2::FatalError("invalid native UI masked triangle");
-            }
+            fixedCount = 0;
+            const Result mapped = MapTriangle(piece, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() }, image->GetUploadWidth(),
+                                              image->GetUploadHeight(), fixed, fixedCount);
+            PS2_AssertMsg(mapped != Result::Invalid, "invalid native UI masked triangle");
 
             if (emit)
             {
                 CountTriangles(static_cast<u32>(fixedCount));
                 for (int triangle = 0; triangle < fixedCount; ++triangle)
                 {
-                    if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading)) [[unlikely]]
-                    {
-                        ps2::FatalError("native UI triangle texture residency failed");
-                    }
+                    const bool drawn = ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading);
+                    PS2_AssertMsg(drawn, "native UI triangle texture residency failed");
                 }
             }
         }
@@ -646,22 +620,23 @@ void Line(const ps2::ui::Vertex (&input)[2], const ps2::renderer::Shading & shad
     const Viewport viewport{ ps2::renderer::gs::Width(), ps2::renderer::gs::Height() };
     FixedLine fixed = {};
 
+#if PS2_D3BFG_ASSERTS
     // Validate the original segment even when a mask or the screen hides all of it.
     if (MapLine(input, viewport, fixed) == Result::Invalid) [[unlikely]]
     {
         ps2::FatalError("invalid native UI line");
     }
 
-#if PS2_D3BFG_ASSERTS
     ValidateShading(shading);
 #endif // PS2_D3BFG_ASSERTS
 
     Vertex visible[2] = { input[0], input[1] };
     bool shown = true;
 
-    if (s_maskCount != 0 && !ClipMaskLine(input, s_masks, s_maskCount, visible, shown)) [[unlikely]]
+    if (s_maskCount != 0)
     {
-        ps2::FatalError("native UI mask clipping rejects a line");
+        const bool clippedValid = ClipMaskLine(input, s_masks, s_maskCount, visible, shown);
+        PS2_AssertMsg(clippedValid, "native UI mask clipping rejects a line");
     }
 
     if (!emit || !shown || MapLine(visible, viewport, fixed) != Result::Draw)
@@ -670,20 +645,11 @@ void Line(const ps2::ui::Vertex (&input)[2], const ps2::renderer::Shading & shad
     }
 
     CountShading(shading);
-
-#if PS2_D3BFG_ASSERTS
-    if (s_geometryStats.lines == UINT_MAX) [[unlikely]]
-    {
-        ps2::FatalError("native UI geometry counter overflow");
-    }
-#endif // PS2_D3BFG_ASSERTS
-
+    PS2_AssertMsg(s_geometryStats.lines != UINT_MAX, "native UI geometry counter overflow");
     ++s_geometryStats.lines;
 
-    if (!ps2::renderer::LineFixed(fixed, shading)) [[unlikely]]
-    {
-        ps2::FatalError("native UI line submission failed");
-    }
+    const bool drawn = ps2::renderer::LineFixed(fixed, shading);
+    PS2_AssertMsg(drawn, "native UI line submission failed");
 }
 
 void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::Color color, ps2::renderer::gs::BlendMode blend)
@@ -715,13 +681,7 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::
     const auto result = ps2::ui::MapRect(validation, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() },
                                          pages != nullptr ? 1 : image->GetUploadWidth(),
                                          pages != nullptr ? 1 : image->GetUploadHeight(), fixed);
-
-#if PS2_D3BFG_ASSERTS
-    if (result == ps2::ui::Result::Invalid) [[unlikely]]
-    {
-        ps2::FatalError("invalid native UI rectangle or UV");
-    }
-#endif // PS2_D3BFG_ASSERTS
+    PS2_AssertMsg(result != ps2::ui::Result::Invalid, "invalid native UI rectangle or UV");
 
     if (result == ps2::ui::Result::Clipped && pages == nullptr)
     {
@@ -745,10 +705,12 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::
             { corners[0], corners[2], corners[3] }
         };
 
+#if PS2_D3BFG_ASSERTS
         for (const auto & triangle : triangles)
         {
             Triangle(triangle, image, shading, false);
         }
+#endif // PS2_D3BFG_ASSERTS
 
         if (result == ps2::ui::Result::Clipped)
         {
@@ -766,10 +728,8 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::
         return;
     }
 
-    if (!ps2::renderer::TexturedRectFixed(ps2::renderer::ConsoleImageTexture(image), fixed, color, blend)) [[unlikely]]
-    {
-        ps2::FatalError("native UI texture residency failed");
-    }
+    const bool drawn = ps2::renderer::TexturedRectFixed(ps2::renderer::ConsoleImageTexture(image), fixed, color, blend);
+    PS2_AssertMsg(drawn, "native UI texture residency failed");
 }
 
 void Character(int x, int y, int character, bool big)
@@ -863,7 +823,7 @@ namespace ps2::ui
 
 PS2_COLD_FUNC bool Init()
 {
-    if (s_initialized || tr.registered || tr.guiModel != nullptr || renderer::ConsoleImagesInitialized())
+    if (s_initialized || tr.registered || tr.guiModel != nullptr || renderer::ConsoleImagesInitialized()) [[unlikely]]
     {
         FatalError("native UI initialized with existing ownership");
     }
@@ -903,12 +863,12 @@ PS2_COLD_FUNC void Shutdown()
         return;
     }
 
-    if (renderer::FrameStarted())
+    if (renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("native UI shutdown with an open frame");
     }
 
-    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
+    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr) [[unlikely]]
     {
         FatalError("native UI shutdown with pending geometry");
     }
@@ -1004,11 +964,7 @@ void EndSwfMask()
 #endif // PS2_D3BFG_ASSERTS
 
     Flush();
-
-    if (s_geometryStats.masks == UINT_MAX || s_geometryStats.depthMasks == UINT_MAX) [[unlikely]]
-    {
-        FatalError("native UI geometry counter overflow");
-    }
+    PS2_AssertMsg(s_geometryStats.masks != UINT_MAX && s_geometryStats.depthMasks != UINT_MAX, "native UI geometry counter overflow");
 
     // The convex CPU bridge keeps exact geometric clipping; outlines and any other fill topology
     // become the one depth mask, whose coverage follows the GS rasterization of the native geometry.
@@ -1018,15 +974,15 @@ void EndSwfMask()
     }
     else
     {
+#if PS2_D3BFG_ASSERTS
         if (s_depthMaskKey != nullptr) [[unlikely]]
         {
-            FatalError("nested native SWF depth masks");
+            renderer::Unavailable("nested native SWF depth masks");
         }
+#endif // PS2_D3BFG_ASSERTS
 
-        if (s_captureOverflow) [[unlikely]]
-        {
-            FatalError("native SWF mask exceeds bounded fill geometry");
-        }
+        // A capture past either bound replays only its first triangles and lines.
+        PS2_AssertMsg(!s_captureOverflow, "native SWF mask exceeds bounded fill geometry");
 
         WriteDepthMask();
         s_depthMaskKey = s_captureMask;
@@ -1063,10 +1019,7 @@ void RemoveSwfMask(const void * key)
         ++index;
     }
 
-    if (index == s_maskCount) [[unlikely]]
-    {
-        FatalError("unknown native SWF mask key");
-    }
+    PS2_AssertMsg(index != s_maskCount, "unknown native SWF mask key");
 
     Flush();
     for (int i = index; i + 1 < s_maskCount; ++i)
@@ -1216,7 +1169,8 @@ void Flush()
 
                         if (s_captureLineCount == kMaxCaptureLines) [[unlikely]]
                         {
-                            FatalError("native SWF mask exceeds bounded outline geometry");
+                            s_captureOverflow = true;
+                            continue;
                         }
 
                         s_captureLines[s_captureLineCount][0] = from;
@@ -1281,6 +1235,7 @@ void Flush()
         Triangle(input, batch.profile.image, MakeShading(decoded, batch.profile.blend), emit);
     };
 
+#if PS2_D3BFG_ASSERTS
     // Preflight the complete collection, including clipped-away inputs, before any GS emission.
     for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
     {
@@ -1291,6 +1246,7 @@ void Flush()
             Visit(batch, index, false);
         }
     }
+#endif // PS2_D3BFG_ASSERTS
 
     s_flushing = true;
     for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
@@ -1492,6 +1448,7 @@ void idRenderSystemLocal::DrawStretchTri(const idVec2 & p1, const idVec2 & p2, c
     const idVec2 positions[] = { p1, p2, p3 };
     const idVec2 coords[] = { t1, t2, t3 };
 
+#if PS2_D3BFG_ASSERTS
     ps2::ui::Vertex input[3];
     for (int corner = 0; corner < 3; ++corner)
     {
@@ -1508,6 +1465,7 @@ void idRenderSystemLocal::DrawStretchTri(const idVec2 & p1, const idVec2 & p2, c
     {
         ps2::FatalError("invalid native UI triangle or UV");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     idDrawVert * const vertices = Allocate(3, kIndexes, 3, profile);
     for (int corner = 0; corner < 3; ++corner)

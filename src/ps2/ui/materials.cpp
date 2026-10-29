@@ -31,7 +31,7 @@ PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacit
         const int length = idStr::snPrintf(output, static_cast<int>(capacity),
                                            "material %s\n{\n{\nblend blend\nmap \"_white\"\nclamp\nvertexColor\n}\n}\n", name);
 
-        if (length <= 0 || static_cast<size_t>(length) >= capacity)
+        if (length <= 0 || static_cast<size_t>(length) >= capacity) [[unlikely]]
         {
             FatalError("retail material definition exceeds bounded text");
         }
@@ -53,7 +53,7 @@ PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacit
 
         ImageRecord image;
 
-        if (!catalog.GetImage(material.imageIndex, image))
+        if (!catalog.GetImage(material.imageIndex, image)) [[unlikely]]
         {
             FatalError("retail material image missing");
         }
@@ -62,7 +62,7 @@ PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacit
                                            "material %s\n{\n{\nblend blend\nmap \"%s\"\nlinear\nclamp\nvertexColor\n}\n}\n",
                                            material.name, image.name);
 
-        if (length <= 0 || static_cast<size_t>(length) >= capacity)
+        if (length <= 0 || static_cast<size_t>(length) >= capacity) [[unlikely]]
         {
             FatalError("retail material definition exceeds bounded text");
         }
@@ -75,7 +75,7 @@ PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacit
 
 PS2_COLD_FUNC void RegisterMaterials()
 {
-    if (!IsCatalogInitialized() || renderer::FrameStarted())
+    if (!IsCatalogInitialized() || renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("invalid retail material registration ownership");
     }
@@ -99,7 +99,7 @@ PS2_COLD_FUNC void RegisterMaterials()
             found = found || (strcmp(material.name, expected.c_str()) == 0 && material.imageIndex == font.imageIndex);
         }
 
-        if (!found)
+        if (!found) [[unlikely]]
         {
             FatalError("retail font material binding missing: %s", font.family);
         }

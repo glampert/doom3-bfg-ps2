@@ -58,16 +58,16 @@ coordinates; CLUTs; VRAM and mipmaps.
   `ps2_capture` finishes before shutdown.
 - **Device:** reset/claim VIF1 and GIF along with the GS (CSR reset alone stalled PATH2 DIRECT).
   All packet reservations leave room for the final EOP and four-qword FINISH/END terminator;
-  DMA, FINISH and VSYNC polls use wrap-safe COP0 Count deadlines in both builds. Keep release
-  preflight and deadlines.
+  DMA, FINISH and VSYNC polls use wrap-safe COP0 Count deadlines in assertion builds; release
+  spins. Packet bounds and state preflight are assertions too ([ps2-backend-cpp.md](ps2-backend-cpp.md#validation-and-error-handling)).
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,
   eviction, destruction and image close drain/FINISH (flush queued UI references) before
   overwriting or releasing VRAM. Uploads retire PATH2 before synchronous PATH3 chains.
 - **Shutdown order:** movies, then fonts, then UI images/geometry, then the caller-owned device.
 - **UI collection** owns 4,096 vertices, 6,144 indices and 128 runs; fill each returned span before
-  the next allocation; invalid requests fail before flushing. Half UVs are decoded from bits
-  (reject exponent 31). `color2` must be exactly 128 outside the SWF scope. Reject unsupported
-  blend/mask/depth state instead of normalizing it. Console coordinates map once from 640x480 to GS 1/16.
+  the next allocation; invalid requests are asserted before flushing. Half UVs are decoded from bits
+  (assert exponent below 31). `color2` must be exactly 128 outside the SWF scope. Assertion builds
+  reject unsupported blend/mask/depth state instead of normalizing it. Console coordinates map once from 640x480 to GS 1/16.
 - Textured triangles reserve 30 qwords and write TEX1/TEX0/CLAMP/ALPHA/TEST/PRIM every time, so
   command-half drains cannot inherit state. Degenerate triangles are skipped.
 - **Native atlas pages / `idImage`:** native `idImage` keeps the full logical atlas dimensions;
@@ -80,7 +80,7 @@ coordinates; CLUTs; VRAM and mipmaps.
 Retail UI draws only resident GSTX images (`PalettedImage`); the streamed UIPG page cache was
 removed. The surviving rules: split geometry at page boundaries from the canonical original
 triangle and shared constraints (chaining clips gave a 1/16-pixel seam mismatch), keep that math
-single precision on the EE, and validate the whole queued collection before emitting packets under
+single precision on the EE, and (assertion builds) validate the whole queued collection before emitting packets under
 the collector's reentry guard. Full text: reference, "Native atlas pages".
 
 ## Paletted GSTX images

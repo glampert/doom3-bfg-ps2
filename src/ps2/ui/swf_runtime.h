@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "ps2/common.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -85,7 +86,7 @@ private:
 };
 
 bool Active();
-void ResetStats();
+PS2_COLD_FUNC void ResetStats();
 const Stats & GetStats();
 void Require(bool condition, const char * reason);
 void CheckCount(const char * kind, int count, int maximum);

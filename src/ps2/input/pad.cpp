@@ -103,7 +103,7 @@ void ReleaseAll()
 
 PS2_COLD_FUNC bool Init()
 {
-    if (s_status != Status::Unavailable)
+    if (s_status != Status::Unavailable) [[unlikely]]
     {
         FatalError("pad initialized twice");
     }

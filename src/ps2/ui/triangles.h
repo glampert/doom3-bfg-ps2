@@ -51,14 +51,15 @@ static constexpr int kMaxClippedTriangles = 5;
 
 // Clip to 640x480, preserving either winding and interpolating UVs and RGBA before fixed rounding.
 // Limits match MapRect, except UVs may run in either direction. Positions/UVs accept normal/zero
-// float representations only. Invalid leaves both outputs untouched; Clipped only sets count to 0.
+// float representations only; assertion builds return Invalid outside these limits, as any build
+// does for unclippable geometry. Invalid leaves both outputs untouched; Clipped only sets count to 0.
 // Draw writes count triangles, with 1/16 screen pixel/texel coordinates and unscaled byte colors.
 Result MapTriangle(const Vertex (&input)[3], Viewport viewport, int textureWidth, int textureHeight,
                    FixedTriangle (&output)[kMaxClippedTriangles], int & triangleCount);
 
 // Clip a segment to 640x480, interpolating RGBA, then map it to 1/16 screen pixels. UVs are ignored.
-// Positions accept normal/zero floats within +/-32768. A segment with no length after mapping is
-// Clipped; Invalid leaves the output untouched.
+// Positions accept normal/zero floats within +/-32768, checked by assertion builds (Invalid leaves
+// the output untouched). A segment with no length after mapping is Clipped.
 Result MapLine(const Vertex (&input)[2], Viewport viewport, FixedLine & output);
 
 } // namespace ps2::ui

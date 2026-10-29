@@ -28,7 +28,7 @@ int main()
     const auto baseline = ps2::system::heap::GetTotalStats();
 
     common->Init(0, nullptr, nullptr);
-    if (!common->IsInitialized())
+    if (!common->IsInitialized()) [[unlikely]]
     {
         ps2::FatalError("Common startup did not complete!");
     }

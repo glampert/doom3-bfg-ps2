@@ -6,16 +6,18 @@
 
 #pragma once
 
+#include "ps2/common.h"
+
 namespace ps2::ui
 {
 
 // Presentation owns this command after fonts initialize and releases it before fonts shut down.
-void InitScreen();
-void ShutdownScreen();
+PS2_COLD_FUNC void InitScreen();
+PS2_COLD_FUNC void ShutdownScreen();
 bool IsScreenLoaded();
 
 // The package's startup policy opens the native menu before the first frame, on real time.
-void OpenBootMenu();
+PS2_COLD_FUNC void OpenBootMenu();
 
 // Advance native retail timelines once per Common frame before drawing; redraws never execute them.
 void AdvanceScreen(bool advance);

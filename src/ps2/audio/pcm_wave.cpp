@@ -157,7 +157,7 @@ const char * InspectWave(const WaveReader & reader, PcmWave & output)
 
 int DurationMsec(const PcmWave & wave)
 {
-    if (!ValidPcm(wave))
+    if (!ValidPcm(wave)) [[unlikely]]
     {
         FatalError("invalid logical PCM metadata");
     }
@@ -166,7 +166,7 @@ int DurationMsec(const PcmWave & wave)
 
 float PeakAmplitude(const PcmWave & wave, const unsigned char * pcm, int timeMS)
 {
-    if (!ValidPcm(wave) || pcm == nullptr)
+    if (!ValidPcm(wave) || pcm == nullptr) [[unlikely]]
     {
         FatalError("invalid logical PCM payload");
     }

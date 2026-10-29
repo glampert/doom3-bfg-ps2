@@ -166,7 +166,7 @@ bool IsQuitRequested()
 PS2_COLD_FUNC void idCommonLocal::InitHeadless()
 {
     PS2_Assert(IsInitialized());
-    if (!IsInitialized() || s_initialized)
+    if (!IsInitialized() || s_initialized) [[unlikely]]
     {
         ps2::FatalError("invalid headless game startup");
     }
@@ -202,7 +202,7 @@ PS2_COLD_FUNC void idCommonLocal::InitHeadless()
     consoleUsed = true;
 
     const sysEvent_t open{ SE_KEY, K_GRAVE, 1, 0, nullptr, 0 };
-    if (!console->ProcessEvent(&open, false) || !console->Active() || gameLocal.GameState() != GAMESTATE_NOMAP)
+    if (!console->ProcessEvent(&open, false) || !console->Active() || gameLocal.GameState() != GAMESTATE_NOMAP) [[unlikely]]
     {
         ps2::FatalError("native game did not reach the headless console");
     }
@@ -215,11 +215,7 @@ PS2_COLD_FUNC void idCommonLocal::InitHeadless()
 
 void idCommonLocal::FrameHeadless()
 {
-    PS2_Assert(s_initialized);
-    if (!s_initialized || s_frames == INT_MAX || idLib::frameNumber == INT_MAX) [[unlikely]]
-    {
-        ps2::FatalError("invalid headless game frame");
-    }
+    PS2_AssertMsg(s_initialized && s_frames != INT_MAX && idLib::frameNumber != INT_MAX, "invalid headless game frame");
 
     ps2::system::runtime::BeginPresentationFrame();
     PollConsole();

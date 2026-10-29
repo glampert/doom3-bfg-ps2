@@ -434,7 +434,7 @@ bool CatalogView::FindFont(const char * requested, FontRecord & output) const
     return false;
 }
 
-bool CatalogView::Init(const void * bytes, std::size_t length)
+PS2_COLD_FUNC bool CatalogView::Init(const void * bytes, std::size_t length)
 {
     if (bytes == nullptr || length < kHeaderBytes || length > kMaxCatalogBytes)
     {

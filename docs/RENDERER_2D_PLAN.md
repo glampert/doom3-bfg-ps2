@@ -314,10 +314,10 @@ coverage/CLUT work remain subsequent gates.
 | First-pass destination | Start from | Required adaptation |
 | --- | --- | --- |
 | `src/ps2/renderer/gs.{h,cpp}` | Q: GS | Keep device/context setup and primitive/register helpers; detach palette/intensity/splash/VU includes; add explicit drain/shutdown and format/config validation. |
-| `src/ps2/renderer/gif_writer.h` | Q: GIF writer | Preserve non-owning cursor; release-safe preflight bounds and audited libdraw emission sizes, including terminators. |
+| `src/ps2/renderer/gif_writer.h` | Q: GIF writer | Preserve non-owning cursor; assertion-build preflight bounds and audited libdraw emission sizes, including terminators. |
 | `src/ps2/renderer/cmd_buffer.{h,cpp}` | Q: command chain | Renderer-owned aligned halves, runtime capacities, DIRECT-only emission, completion/error policy and statistics; no world loader borrowing. |
 | `src/ps2/renderer/render_system.{h,cpp}` | Q: `ps2::rs` frame/residency/2D portions | CPU 2D frame owner, ordered commands, immediate presentation first, replay state after drains; omit VU batches. |
-| `src/ps2/renderer/vram.{h,cpp}`, `texture.{h,cpp}`, `clut.h` | Q: allocation, format and CLUT mechanisms | Typed Doom texture/page storage, tagged allocator hooks, lifecycle and release-safe validation; direct RGBA and coverage formats first. |
+| `src/ps2/renderer/vram.{h,cpp}`, `texture.{h,cpp}`, `clut.h` | Q: allocation, format and CLUT mechanisms | Typed Doom texture/page storage, tagged allocator hooks, lifecycle, load-time validation and assertion-only render-time checks; direct RGBA and coverage formats first. |
 | `src/ps2/system/video_mode.{h,cpp}` | Q: video selection | Existing Common cvars/logging/types and explicit supported dimensions/standard; preserve headless startup. |
 | `src/ps2/renderer/capture.{h,cpp}` | Q: screenshot / GS download | Matched completed-frame selection, aligned strips, checked writes and bounded state-restoring readback. |
 | `src/ps2/ui/draw.{h,cpp}` | New Doom adapter using retained algorithms | Supply native 2D methods, bounded GUI allocations, material/state interpretation and CPU triangles. Separate hardware-facing `ps2::renderer` from the native `idRenderSystem` provider. |

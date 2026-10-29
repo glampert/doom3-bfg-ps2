@@ -218,7 +218,7 @@ ArenaStats GetArenaStats()
 #endif // _EE
 }
 
-void ResetPeaks()
+PS2_COLD_FUNC void ResetPeaks()
 {
     for (auto & stats : s_tags)
     {

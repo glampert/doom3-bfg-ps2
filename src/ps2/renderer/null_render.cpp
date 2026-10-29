@@ -39,7 +39,7 @@ void CheckNoResources(const idRenderSystemLocal & renderer, const char * method)
 {
     if (s_logicalInitialized || renderer.registered || renderer.worlds.Num() != 0 || renderer.fonts.Num() != 0 || renderer.guiModel != nullptr ||
         renderer.unitSquareTriangles != nullptr || renderer.zeroOneCubeTriangles != nullptr ||
-        renderer.testImageTriangles != nullptr || renderer.testVideo != nullptr)
+        renderer.testImageTriangles != nullptr || renderer.testVideo != nullptr) [[unlikely]]
     {
         ps2::renderer::Unavailable(method);
     }
@@ -48,7 +48,7 @@ void CheckNoResources(const idRenderSystemLocal & renderer, const char * method)
 void CheckDemoInactive(const char * method)
 {
     PS2_Assert(common != nullptr);
-    if (common == nullptr || common->WriteDemo() != nullptr)
+    if (common == nullptr || common->WriteDemo() != nullptr) [[unlikely]]
     {
         ps2::renderer::Unavailable(method);
     }
@@ -90,14 +90,14 @@ PS2_COLD_FUNC void ShutdownLogical()
 PS2_COLD_FUNC void InitLogical(const char * defaultMaterialName)
 {
     PS2_Assert(defaultMaterialName != nullptr);
-    if (s_logicalInitialized || !common->IsInitialized() || defaultMaterialName == nullptr || defaultMaterialName[0] == '\0')
+    if (s_logicalInitialized || !common->IsInitialized() || defaultMaterialName == nullptr || defaultMaterialName[0] == '\0') [[unlikely]]
     {
         Unavailable("invalid logical renderer startup");
     }
 
     CheckNoResources(tr, "logical renderer startup with live resources");
     tr.defaultMaterial = declManager->FindMaterial(defaultMaterialName, false);
-    if (tr.defaultMaterial == nullptr || tr.defaultMaterial->GetNumStages() != 0)
+    if (tr.defaultMaterial == nullptr || tr.defaultMaterial->GetNumStages() != 0) [[unlikely]]
     {
         Unavailable("logical renderer requires a stage-free default material");
     }
@@ -111,7 +111,7 @@ PS2_COLD_FUNC void InitLogical(const char * defaultMaterialName)
 
 PS2_COLD_FUNC void ShutdownLogical()
 {
-    if (!s_logicalInitialized || tr.worlds.Num() != 0)
+    if (!s_logicalInitialized || tr.worlds.Num() != 0) [[unlikely]]
     {
         Unavailable("logical renderer shutdown with live worlds");
     }
@@ -209,7 +209,7 @@ bool idRenderSystemLocal::AreAutomaticBackgroundSwapsRunning(autoRenderIconType_
     return false;
 }
 
-void idRenderSystemLocal::Shutdown()
+PS2_COLD_FUNC void idRenderSystemLocal::Shutdown()
 {
     if (this == &tr)
     {
@@ -218,7 +218,7 @@ void idRenderSystemLocal::Shutdown()
     Clear();
 }
 
-void idRenderSystemLocal::ShutdownOpenGL()
+PS2_COLD_FUNC void idRenderSystemLocal::ShutdownOpenGL()
 {
     CheckNoResources(*this, "idRenderSystemLocal::ShutdownOpenGL");
 }
@@ -327,7 +327,7 @@ idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
     ps2::renderer::Unavailable("idRenderSystemLocal::AllocRenderWorld");
 }
 
-void idRenderSystemLocal::FreeRenderWorld(idRenderWorld *)
+PS2_COLD_FUNC void idRenderSystemLocal::FreeRenderWorld(idRenderWorld *)
 {
     ps2::renderer::Unavailable("idRenderSystemLocal::FreeRenderWorld");
 }
@@ -336,7 +336,7 @@ void idRenderSystemLocal::FreeRenderWorld(idRenderWorld *)
 
 idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
 {
-    if (!ps2::renderer::IsLogicalInitialized())
+    if (!ps2::renderer::IsLogicalInitialized()) [[unlikely]]
     {
         ps2::renderer::Unavailable("idRenderSystemLocal::AllocRenderWorld");
     }
@@ -345,10 +345,10 @@ idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
     return world;
 }
 
-void idRenderSystemLocal::FreeRenderWorld(idRenderWorld * world)
+PS2_COLD_FUNC void idRenderSystemLocal::FreeRenderWorld(idRenderWorld * world)
 {
     auto * local = static_cast<idRenderWorldLocal *>(world);
-    if (!ps2::renderer::IsLogicalInitialized() || local == nullptr || !worlds.Remove(local))
+    if (!ps2::renderer::IsLogicalInitialized() || local == nullptr || !worlds.Remove(local)) [[unlikely]]
     {
         ps2::renderer::Unavailable("idRenderSystemLocal::FreeRenderWorld");
     }

@@ -82,7 +82,7 @@ these findings still hold for any paged atlas:
   this does not identify a particular loader-state bit or establish hardware behavior.
 - All packet reservations leave space for the final EOP and four-qword FINISH/END
   terminator. SDK environment emission is preflighted for sixteen qwords. DMA,
-  FINISH and VSYNC polls use a wrap-safe COP0 Count deadline in both builds.
+  FINISH and VSYNC polls use a wrap-safe COP0 Count deadline in assertion builds (release spins).
 - Debug/release NTSC 512×448 and PAL 512×512 solid/alpha scenes, context flips,
   128 KiB and 1 KiB pressure, repeated teardown and exact tagged ledger recovery
   pass on 2026-10-14. Captures are visually inspected; see PORT_STATUS. These are
@@ -263,7 +263,7 @@ native display entry, since crossing clip-depth ranges can expire out of stack o
 After `RemoveIndexFast`, revisit the swapped entry when several masks expire together.
 Compare native inherited/local mask counts against the backend set before translating
 SWF state; arbitrary stencil GLS bits remain unsupported. Reject outstanding mask
-ownership at scope, frame and shutdown boundaries in release too.
+ownership at scope and frame boundaries in assertion builds, and at shutdown in every build.
 
 Clip indexed runs and direct rectangle/font paths alike. Preserve original triangle
 edges and mask-plane constraints, reconstruct intersections canonically, keep UV/RGBA

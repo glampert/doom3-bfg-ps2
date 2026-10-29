@@ -20,13 +20,13 @@ PS2_COLD_FUNC bool Init(u32 vramBytes, u32 pixelBudgetBytes);
 PS2_COLD_FUNC void Shutdown();
 bool IsInitialized();
 
-Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes);
+PS2_COLD_FUNC Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes);
 
 // Copies exactly MakeIndexedLayout's bytes of GS index data (PSMT4: even texel in the low nibble).
-Handle CreateIndexed(int width, int height, PixelFormat format, Sampler sampler, const void * indices, size_t bytes);
+PS2_COLD_FUNC Handle CreateIndexed(int width, int height, PixelFormat format, Sampler sampler, const void * indices, size_t bytes);
 
 bool Update(Handle handle, const void * rgba, size_t sourceBytes, size_t strideBytes);
-void Destroy(Handle handle);
+PS2_COLD_FUNC void Destroy(Handle handle);
 
 // Binding can synchronously drain pending draws, evict and upload. No address may survive that fence.
 bool Bind(Handle handle, gs::TextureBinding & output);

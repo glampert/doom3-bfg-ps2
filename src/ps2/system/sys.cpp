@@ -225,7 +225,7 @@ idSys * sys = &s_sys;
 
 PS2_COLD_FUNC void Sys_Init()
 {
-    if (s_initialized)
+    if (s_initialized) [[unlikely]]
     {
         Sys_Error("Sys_Init called twice");
     }
@@ -353,9 +353,9 @@ const char * Sys_FPU_GetState()
     return "scalar core: fixed EE precision and rounding";
 }
 
-void Sys_FPU_EnableExceptions(int exceptions)
+PS2_COLD_FUNC void Sys_FPU_EnableExceptions(int exceptions)
 {
-    if (exceptions != 0)
+    if (exceptions != 0) [[unlikely]]
     {
         Sys_Error("EE floating point exception traps are unavailable");
     }
@@ -363,7 +363,7 @@ void Sys_FPU_EnableExceptions(int exceptions)
 
 void Sys_FPU_SetPrecision(int precision)
 {
-    if (precision != FPU_PRECISION_SINGLE)
+    if (precision != FPU_PRECISION_SINGLE) [[unlikely]]
     {
         Sys_Error("EE floating point precision is fixed to single");
     }
@@ -371,7 +371,7 @@ void Sys_FPU_SetPrecision(int precision)
 
 void Sys_FPU_SetRounding(int rounding)
 {
-    if (rounding != FPU_ROUNDING_TO_ZERO)
+    if (rounding != FPU_ROUNDING_TO_ZERO) [[unlikely]]
     {
         Sys_Error("EE floating point rounding is fixed toward zero");
     }
@@ -379,7 +379,7 @@ void Sys_FPU_SetRounding(int rounding)
 
 void Sys_FPU_SetFTZ(bool enabled)
 {
-    if (!enabled)
+    if (!enabled) [[unlikely]]
     {
         Sys_Error("EE denormal flushing cannot be disabled");
     }
@@ -387,7 +387,7 @@ void Sys_FPU_SetFTZ(bool enabled)
 
 void Sys_FPU_SetDAZ(bool enabled)
 {
-    if (!enabled)
+    if (!enabled) [[unlikely]]
     {
         Sys_Error("EE denormal operands cannot be enabled");
     }
@@ -405,7 +405,7 @@ bool Sys_UnlockMemory(void * pointer, int bytes)
 
 void Sys_GetCallStack(address_t * stack, int size)
 {
-    if (size < 0 || (stack == nullptr && size != 0))
+    if (size < 0 || (stack == nullptr && size != 0)) [[unlikely]]
     {
         Sys_Error("Invalid call stack buffer");
     }
@@ -427,11 +427,11 @@ const char * Sys_GetCallStackCurStr(int)
     return "call stack unavailable; symbolize ELF addresses offline";
 }
 
-void Sys_ShutdownSymbols()
+PS2_COLD_FUNC void Sys_ShutdownSymbols()
 {
 }
 
-int Sys_DLL_Load(const char *)
+PS2_COLD_FUNC int Sys_DLL_Load(const char *)
 {
     return 0;
 }
@@ -441,9 +441,9 @@ void * Sys_DLL_GetProcAddress(int, const char *)
     return nullptr;
 }
 
-void Sys_DLL_Unload(int handle)
+PS2_COLD_FUNC void Sys_DLL_Unload(int handle)
 {
-    if (handle != 0)
+    if (handle != 0) [[unlikely]]
     {
         Sys_Error("Dynamic libraries are unavailable in the resident core");
     }
@@ -454,22 +454,22 @@ uintptr_t Sys_GetCurrentThreadID()
     return 1;
 }
 
-uintptr_t Sys_CreateThread(xthread_t, void *, xthreadPriority, const char *, core_t, int, bool)
+PS2_COLD_FUNC uintptr_t Sys_CreateThread(xthread_t, void *, xthreadPriority, const char *, core_t, int, bool)
 {
     Sys_Error("Worker threads are unavailable in the synchronous core");
 }
 
 void Sys_WaitForThread(uintptr_t handle)
 {
-    if (handle != 0)
+    if (handle != 0) [[unlikely]]
     {
         Sys_Error("Waiting for a worker is unavailable in the synchronous core");
     }
 }
 
-void Sys_DestroyThread(uintptr_t handle)
+PS2_COLD_FUNC void Sys_DestroyThread(uintptr_t handle)
 {
-    if (handle != 0)
+    if (handle != 0) [[unlikely]]
     {
         Sys_Error("Destroying a worker is unavailable in the synchronous core");
     }
@@ -506,14 +506,14 @@ void Sys_SignalClear(signalHandle_t & handle)
 
 bool Sys_SignalWait(signalHandle_t & handle, int timeout)
 {
-    if (timeout < -1)
+    if (timeout < -1) [[unlikely]]
     {
         Sys_Error("Invalid signal timeout");
     }
 
     if (!handle.signaled)
     {
-        if (timeout == -1)
+        if (timeout == -1) [[unlikely]]
         {
             Sys_Error("An unsignaled infinite wait cannot progress on the sole core thread");
         }
@@ -541,7 +541,7 @@ void Sys_MutexCreate(mutexHandle_t & handle)
 
 void Sys_MutexDestroy(mutexHandle_t & handle)
 {
-    if (handle != 0)
+    if (handle != 0) [[unlikely]]
     {
         Sys_Error("Destroying an invalid or locked mutex");
     }
@@ -551,7 +551,7 @@ void Sys_MutexDestroy(mutexHandle_t & handle)
 bool Sys_MutexLock(mutexHandle_t & handle, bool)
 {
     // Windows critical sections are recursive; the sole thread can always acquire its own lock.
-    if (handle < 0 || handle == INT_MAX)
+    if (handle < 0 || handle == INT_MAX) [[unlikely]]
     {
         Sys_Error("Invalid mutex or recursive lock overflow");
     }
@@ -561,7 +561,7 @@ bool Sys_MutexLock(mutexHandle_t & handle, bool)
 
 void Sys_MutexUnlock(mutexHandle_t & handle)
 {
-    if (handle <= 0)
+    if (handle <= 0) [[unlikely]]
     {
         Sys_Error("Unlocking an invalid or unlocked mutex");
     }

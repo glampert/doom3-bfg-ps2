@@ -62,7 +62,7 @@ SoundSample::~SoundSample()
 
 void SoundSample::SetName(const char * name)
 {
-    if (name == nullptr)
+    if (name == nullptr) [[unlikely]]
     {
         FatalError("sound sample name is null");
     }
@@ -70,7 +70,7 @@ void SoundSample::SetName(const char * name)
     m_name = name;
 }
 
-void SoundSample::LoadResource()
+PS2_COLD_FUNC void SoundSample::LoadResource()
 {
     FreeData();
     if (idStr::Icmpn(GetName(), "_default", 8) == 0)
@@ -78,18 +78,18 @@ void SoundSample::LoadResource()
         MakeDefault();
         return;
     }
-    if (!system::fs::IsRelativePath(GetName()))
+    if (!system::fs::IsRelativePath(GetName())) [[unlikely]]
     {
         FatalError("invalid sound sample path: %s", GetName());
     }
-    if (!fileSystem->IsInitialized())
+    if (!fileSystem->IsInitialized()) [[unlikely]]
     {
         FatalError("sound sample loading requires filesystem startup");
     }
     // Native LoadSample supplies an extensionless canonical path. Avoid copying a whole WAV into ReadFile's buffer.
     char path[system::fs::kPathCapacity] = {};
     const int length = idStr::snPrintf(path, static_cast<int>(sizeof(path)), "%s.wav", GetName());
-    if (length < 0 || static_cast<size_t>(length) >= sizeof(path))
+    if (length < 0 || static_cast<size_t>(length) >= sizeof(path)) [[unlikely]]
     {
         FatalError("sound sample path is too long");
     }
@@ -156,9 +156,9 @@ void SoundSample::MakeDefault()
     m_isDefault = true;
 }
 
-void SoundSample::FreeData()
+PS2_COLD_FUNC void SoundSample::FreeData()
 {
-    if (m_voiceReferences != 0)
+    if (m_voiceReferences != 0) [[unlikely]]
     {
         FatalError("sound sample still referenced by logical voices: %s", GetName());
     }
@@ -172,7 +172,7 @@ void SoundSample::FreeData()
 void SoundSample::RetainVoice() const
 {
     RequireLoaded("logical voice allocation");
-    if (m_voiceReferences == UINT_MAX)
+    if (m_voiceReferences == UINT_MAX) [[unlikely]]
     {
         FatalError("logical voice sample reference overflow");
     }
@@ -181,7 +181,7 @@ void SoundSample::RetainVoice() const
 
 void SoundSample::ReleaseVoice() const
 {
-    if (m_voiceReferences == 0)
+    if (m_voiceReferences == 0) [[unlikely]]
     {
         FatalError("logical voice sample reference underflow");
     }
@@ -190,7 +190,7 @@ void SoundSample::ReleaseVoice() const
 
 void SoundSample::RequireLoaded(const char * operation) const
 {
-    if (!IsLoaded())
+    if (!IsLoaded()) [[unlikely]]
     {
         FatalError("sound sample query requires loaded data: %s", operation);
     }
@@ -245,7 +245,7 @@ SoundVoice::SoundVoice(SoundHardware * owner) : m_owner(owner)
 
 void SoundVoice::RequireAllocated() const
 {
-    if (!m_allocated)
+    if (!m_allocated) [[unlikely]]
     {
         FatalError("logical voice is not allocated");
     }
@@ -302,7 +302,7 @@ void SoundVoice::Start(int offsetMS, int flags)
     RequireAllocated();
     static constexpr int kNativeFlags = SSF_PRIVATE_SOUND | SSF_ANTI_PRIVATE_SOUND | SSF_NO_OCCLUSION | SSF_GLOBAL |
                                         SSF_OMNIDIRECTIONAL | SSF_LOOPING | SSF_PLAY_ONCE | SSF_UNCLAMPED | SSF_NO_FLICKER | SSF_NO_DUPS | SSF_VO | SSF_MUSIC;
-    if ((flags & ~kNativeFlags) != 0)
+    if ((flags & ~kNativeFlags) != 0) [[unlikely]]
     {
         FatalError("logical voice received unknown sound flags");
     }
@@ -390,7 +390,7 @@ std::uint64_t SoundHardware::Now()
 {
     PS2_Assert(m_clock.nowUsec != nullptr);
     const std::uint64_t now = m_clock.nowUsec(m_clock.context);
-    if (m_haveClock && now < m_lastTime)
+    if (m_haveClock && now < m_lastTime) [[unlikely]]
     {
         FatalError("logical audio clock moved backwards");
     }
@@ -399,13 +399,13 @@ std::uint64_t SoundHardware::Now()
     return now;
 }
 
-void SoundHardware::InitHeadless(VoiceClock clock)
+PS2_COLD_FUNC void SoundHardware::InitHeadless(VoiceClock clock)
 {
-    if (m_voices != nullptr)
+    if (m_voices != nullptr) [[unlikely]]
     {
         FatalError("logical audio clock cannot change while initialized");
     }
-    if (clock.nowUsec == nullptr)
+    if (clock.nowUsec == nullptr) [[unlikely]]
     {
         FatalError("logical audio requires a clock callback");
     }
@@ -413,7 +413,7 @@ void SoundHardware::InitHeadless(VoiceClock clock)
     Init();
 }
 
-void SoundHardware::Init()
+PS2_COLD_FUNC void SoundHardware::Init()
 {
     if (m_clock.nowUsec == nullptr)
     {
@@ -432,7 +432,7 @@ void SoundHardware::Init()
     }
 }
 
-void SoundHardware::Shutdown()
+PS2_COLD_FUNC void SoundHardware::Shutdown()
 {
     if (m_voices == nullptr)
     {
@@ -471,11 +471,11 @@ SoundVoice * SoundHardware::AllocateVoice(const SoundSample * leadin, const Soun
     {
         return nullptr;
     } // Preserve the native allocator's absent-sample result.
-    if (!leadin->IsLoaded() || (looping != nullptr && !looping->IsLoaded()))
+    if (!leadin->IsLoaded() || (looping != nullptr && !looping->IsLoaded())) [[unlikely]]
     {
         FatalError("logical voice allocation requires loaded samples");
     }
-    if (looping != nullptr && leadin->NumChannels() != looping->NumChannels())
+    if (looping != nullptr && leadin->NumChannels() != looping->NumChannels()) [[unlikely]]
     {
         FatalError("logical voice samples require matching channels");
     }

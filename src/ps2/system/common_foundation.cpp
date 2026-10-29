@@ -151,7 +151,7 @@ void idCommonLocal::FlushRedirect()
     m_redirectBuffer[0] = '\0';
 }
 
-void idCommonLocal::UpdateLevelLoadPacifier()
+PS2_COLD_FUNC void idCommonLocal::UpdateLevelLoadPacifier()
 {
     // Headless loading has no progress screen or frontend frame to submit.
     if (!ps2::renderer::IsLogicalInitialized() || !IsInitialized() || WriteDemo() != nullptr) [[unlikely]]
@@ -195,7 +195,7 @@ int idGameThread::Run()
     Unsupported("game worker before game fixture startup");
 }
 
-void idCommonLocal::PrintWarnings()
+PS2_COLD_FUNC void idCommonLocal::PrintWarnings()
 {
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] WARNINGS count=%u\n", m_warningCount);
 }
@@ -213,7 +213,7 @@ void idCommonLocal::SetRefreshOnPrint(bool refresh)
     }
 }
 
-void idCommonLocal::StartupVariable(const char *)
+PS2_COLD_FUNC void idCommonLocal::StartupVariable(const char *)
 {
 }
 

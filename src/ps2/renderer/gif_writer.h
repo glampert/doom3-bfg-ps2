@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: gif_writer.h
-// Brief: Write GIF data into a reserved DIRECT payload, checking bounds before SDK helpers write.
+// Brief: Write GIF data into a reserved DIRECT payload; assertion builds check bounds before each write.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -19,10 +19,7 @@ class GifWriter final
 public:
     GifWriter(qword_t * base, int capacity) : m_base(base), m_ptr(base), m_capacity(capacity)
     {
-        if (base == nullptr || capacity < 0 || (reinterpret_cast<uiptr>(base) & 15U) != 0) [[unlikely]]
-        {
-            FatalError("invalid GIF payload storage");
-        }
+        PS2_AssertMsg(base != nullptr && capacity >= 0 && (reinterpret_cast<uiptr>(base) & 15U) == 0, "invalid GIF payload storage");
     }
 
     qword_t * Base() const
@@ -42,10 +39,14 @@ public:
 
     void EnsureSpace(int count) const
     {
+#if PS2_D3BFG_ASSERTS
         if (count < 0 || count > m_capacity - QwordCount()) [[unlikely]]
         {
             FatalError("GIF payload overflow: used=%d request=%d capacity=%d", QwordCount(), count, m_capacity);
         }
+#else // PS2_D3BFG_ASSERTS
+        (void)count;
+#endif // PS2_D3BFG_ASSERTS
     }
 
     void SetRegister(u64 reg, u64 data)

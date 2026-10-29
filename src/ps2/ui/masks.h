@@ -57,15 +57,15 @@ private:
     bool m_valid = true;
 };
 
-// All inputs are checked before clipping: normal/zero floats, positions within +/-32768 and UVs
-// within +/-1023. Each mask is empty or a convex CCW polygon. Invalid leaves both outputs untouched;
-// successful empty coverage only sets count to zero. Zero masks preserves the original triangle.
+// Inputs must be normal/zero floats, positions within +/-32768 and UVs within +/-1023, and each mask
+// empty or a convex CCW polygon; assertion builds check them before clipping. Invalid input or
+// geometry leaves both outputs untouched; successful empty coverage only sets count to zero. Zero masks preserves the original triangle.
 // Original edge / mask plane constraints reconstruct intersections without chained RGBA rounding.
 bool ClipMaskTriangle(const Vertex (&input)[3], const ConvexMask * masks, int maskCount,
                       Vertex (&output)[kMaxMaskClipVertices], int & count);
 
 // The part of a segment inside every mask, colors interpolated; UVs are ignored. Inputs follow
-// ClipMaskTriangle's bounds. False rejects invalid input; visible is false for an empty result.
+// ClipMaskTriangle's bounds. False rejects invalid geometry; visible is false for an empty result.
 bool ClipMaskLine(const Vertex (&input)[2], const ConvexMask * masks, int maskCount, Vertex (&output)[2], bool & visible);
 
 } // namespace ps2::ui

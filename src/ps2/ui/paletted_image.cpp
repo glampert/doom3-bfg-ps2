@@ -30,7 +30,7 @@ static constexpr u32 kMaxGridItems = 65536;
 
 static PaletteStats s_stats = {};
 
-static bool Failed(const char * reason)
+static PS2_COLD_FUNC bool Failed(const char * reason)
 {
     Log(LogLevel::Warning, "[D3BFG] UI paletted image rejected: %s\n", reason);
     return false;
@@ -41,7 +41,7 @@ static u32 ClutBlock(u32 index)
     return (index / 8U) * 32U + kTileBlocks[index % 8U];
 }
 
-static bool ReadAt(std::FILE * file, u32 offset, void * output, u32 bytes)
+static PS2_COLD_FUNC bool ReadAt(std::FILE * file, u32 offset, void * output, u32 bytes)
 {
     return std::fseek(file, static_cast<long>(offset), SEEK_SET) == 0 && std::fread(output, 1, bytes, file) == bytes;
 }
@@ -129,7 +129,7 @@ PS2_COLD_FUNC bool PalettedImage::Open(const char * path, const std::uint8_t * d
     return true;
 }
 
-bool PalettedImage::ReadCluts(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes, std::uint8_t * texels,
+PS2_COLD_FUNC bool PalettedImage::ReadCluts(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes, std::uint8_t * texels,
                               int channel)
 {
     const u32 rows = (m_header.clutCount + 3U) / 4U * 16U;
@@ -172,7 +172,7 @@ bool PalettedImage::ReadCluts(std::FILE * file, std::uint8_t * scratch, std::uin
     return true;
 }
 
-bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes)
+PS2_COLD_FUNC bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes)
 {
     // CLUT texture: every palette as a tile, in file order, then one upload-ready RGBA32 image.
     const u32 rows = (m_header.clutCount + 3U) / 4U * 16U;
@@ -540,11 +540,13 @@ bool PalettedImage::ValidateTriangle(const Vertex (&vertices)[3]) const
 
 bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], const renderer::Shading & shading)
 {
+    PS2_AssertMsg(m_open && renderer::FrameStarted(), "invalid paletted draw state");
     gstx::Placement placement = {};
 
-    if (!m_open || !renderer::FrameStarted() || !Find(vertices, placement))
+    // ValidateTriangle logs the UVs of a miss in assertion builds; release draws nothing.
+    if (!Find(vertices, placement)) [[unlikely]]
     {
-        return Failed("invalid paletted draw state or placement");
+        return false;
     }
 
     Vertex mapped[3];
@@ -554,11 +556,7 @@ bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], const renderer::Sh
     int count = 0;
     const Result result = MapTriangle(mapped, { renderer::gs::Width(), renderer::gs::Height() }, static_cast<int>(page.width), static_cast<int>(page.height),
                                       pieces, count);
-
-    if (result == Result::Invalid)
-    {
-        return Failed("paletted triangle mapping");
-    }
+    PS2_AssertMsg(result != Result::Invalid, "paletted triangle mapping");
 
     renderer::PalettedDraw draw;
     draw.page = m_pages[placement.page];
@@ -577,10 +575,8 @@ bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], const renderer::Sh
 
     for (int triangle = 0; triangle < count; ++triangle)
     {
-        if (!renderer::PalettedTriangleFixed(draw, pieces[triangle], shading))
-        {
-            return Failed("paletted draw submission");
-        }
+        const bool drawn = renderer::PalettedTriangleFixed(draw, pieces[triangle], shading);
+        PS2_AssertMsg(drawn, "paletted draw submission");
 
         ++m_stats.triangles;
         ++s_stats.triangles;

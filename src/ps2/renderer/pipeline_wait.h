@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: pipeline_wait.h
-// Brief: Keep hardware waits bounded in release as well as debug, independently of engine clocks.
+// Brief: Spin on GS/DMA completion; assertion builds bound each wait, independently of engine clocks.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -24,6 +24,7 @@ inline u32 ReadCycles()
 template<typename Ready>
 void WaitUntil(Ready ready, const char * name)
 {
+#if PS2_D3BFG_ASSERTS
     // One second is comfortably below Count's wrap period. Unsigned subtraction also
     // handles a wait that crosses the wrap; no timer service must be alive for cleanup.
     constexpr u32 kTimeoutCycles = 294912000U;
@@ -36,6 +37,13 @@ void WaitUntil(Ready ready, const char * name)
                        name, *R_EE_D1_CHCR, *R_EE_D1_TADR, *R_EE_VIF1_STAT, *R_EE_VIF1_CODE, *R_EE_GIF_STAT, *GS_REG_CSR);
         }
     }
+#else // PS2_D3BFG_ASSERTS
+    // A hung GS or DMA channel hangs a release build here.
+    (void)name;
+    while (!ready())
+    {
+    }
+#endif // PS2_D3BFG_ASSERTS
 }
 
 } // namespace ps2::renderer::gs

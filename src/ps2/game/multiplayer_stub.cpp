@@ -82,7 +82,7 @@ void idMultiplayerGame::Precache()
     RequireOffline("idMultiplayerGame::Precache");
 }
 
-void idMultiplayerGame::Shutdown()
+PS2_COLD_FUNC void idMultiplayerGame::Shutdown()
 {
     Clear();
 }
@@ -129,12 +129,12 @@ bool idMultiplayerGame::IsFlagMsgOn()
 
 // Campaign lifecycle can register zero online boards. No map/mode enumeration,
 // title-storage query, leaderboard definition or remote request is performed.
-void LeaderboardLocal_Init()
+PS2_COLD_FUNC void LeaderboardLocal_Init()
 {
     RequireOffline("LeaderboardLocal_Init");
 }
 
-void LeaderboardLocal_Shutdown()
+PS2_COLD_FUNC void LeaderboardLocal_Shutdown()
 {
     RequireOffline("LeaderboardLocal_Shutdown");
 }

@@ -42,7 +42,7 @@ static std::uint32_t s_traceHashes[512] = {};
 
 void Increment(std::uint32_t & value)
 {
-    if (value == std::numeric_limits<std::uint32_t>::max())
+    if (value == std::numeric_limits<std::uint32_t>::max()) [[unlikely]]
     {
         FatalError("retail SWF runtime counter overflow");
     }
@@ -70,7 +70,7 @@ void Live(std::uint32_t & count, bool created, std::uint32_t limit, std::uint32_
     }
     else
     {
-        if (count == 0)
+        if (count == 0) [[unlikely]]
         {
             FatalError("retail SWF runtime allocation ledger underflow");
         }
@@ -88,7 +88,7 @@ void Live(std::uint32_t & count, bool created, std::uint32_t limit, std::uint32_
 
 ExecutionScope::ExecutionScope(const char * movie)
 {
-    if (s_movie != nullptr || movie == nullptr || movie[0] == '\0')
+    if (s_movie != nullptr || movie == nullptr || movie[0] == '\0') [[unlikely]]
     {
         FatalError("invalid retail SWF execution ownership");
     }
@@ -189,9 +189,9 @@ bool Active()
     return s_movie != nullptr;
 }
 
-void ResetStats()
+PS2_COLD_FUNC void ResetStats()
 {
-    if (Active())
+    if (Active()) [[unlikely]]
     {
         FatalError("cannot reset active retail SWF execution");
     }
@@ -207,7 +207,7 @@ const Stats & GetStats()
 
 void Require(bool condition, const char * reason)
 {
-    if (Active() && !condition)
+    if (Active() && !condition) [[unlikely]]
     {
         FatalError("retail SWF execution rejected (%s): %s", s_movie, reason);
     }
@@ -294,7 +294,7 @@ void TrackProperties(int change)
     {
         const auto count = static_cast<std::uint32_t>(-change);
 
-        if (count > s_properties)
+        if (count > s_properties) [[unlikely]]
         {
             FatalError("retail SWF property ledger underflow");
         }
@@ -315,7 +315,7 @@ void TrackString(bool created, std::size_t bytes)
         CheckString(bytes);
         Require(bytes <= 2U * 1024U * 1024U && s_stringBytes <= 2U * 1024U * 1024U - bytes, "live string byte budget");
 
-        if (bytes > std::numeric_limits<std::uint32_t>::max() - s_stringBytes)
+        if (bytes > std::numeric_limits<std::uint32_t>::max() - s_stringBytes) [[unlikely]]
         {
             FatalError("retail SWF string ledger overflow");
         }
@@ -324,7 +324,7 @@ void TrackString(bool created, std::size_t bytes)
     }
     else
     {
-        if (bytes > s_stringBytes)
+        if (bytes > s_stringBytes) [[unlikely]]
         {
             FatalError("retail SWF string ledger underflow");
         }

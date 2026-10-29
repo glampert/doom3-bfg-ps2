@@ -187,7 +187,7 @@ PS2_COLD_FUNC bool StartModule(const char * irxDirectory, const char * name, boo
 
 PS2_COLD_FUNC bool Init(const char * irxDirectory)
 {
-    if (s_available || irxDirectory == nullptr)
+    if (s_available || irxDirectory == nullptr) [[unlikely]]
     {
         FatalError("keyboard initialized twice or without an IRX directory");
     }

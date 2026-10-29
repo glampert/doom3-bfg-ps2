@@ -7,19 +7,19 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
 ## Renderer
 
 - `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
-  executable for the integrated GS/native-adapter scenes in NTSC/PAL, then seventeen expected-fatal probes.
+  executable for the integrated GS/native-adapter scenes in NTSC/PAL, then (debug only) seventeen expected-fatal probes.
   They do not initialize real Console/Common presentation or link fixtures into production. Fourteen GS
   markers require 120 presented frames, alternating contexts, a reload with smaller
   command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
   exact tagged cleanup. GIF/oversized-DIRECT bounds, a deliberately stalled deadline,
-  and active unsupported UI state, rectangle, invalid quad and oversized text must remain
-  fatal with assertions off. Five mask probes reject a second non-convex (depth) mask,
+  and active unsupported UI state, rectangle, invalid quad and oversized text are render-time
+  assertions: fatal in assertion builds, compiled out of release, which runs only the two scenes. Five mask probes reject a second non-convex (depth) mask,
   scope leaks, unknown keys, active-count disagreement and a mask beyond the 256 replayed
   triangles. Adapter startup also rejects insufficient VRAM/pixel budgets
   without retaining partial ownership.
   Indexed geometry adds oversized single-request, invalid local-index, nonzero-depth,
   nonfinite half-UV and additive-color failures. Run both positive standards and all
-  seventeen failures sequentially: nineteen isolated emulator sessions per configuration.
+  seventeen failures sequentially: nineteen isolated emulator sessions in debug, two in release.
 - `make run-renderer` holds the completed NTSC picture for 60 seconds; PCSX2's configured
   F8 saves a framebuffer screenshot. `--scenario renderer-pal --visual-wait 60 --timeout 90`
   selects PAL when invoking the runner directly with the matching `--elf`. The native
@@ -166,7 +166,7 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   invalid-index results, and read-only controller/rumble preferences. The input provider
   acquires no devices or sampling buffers and publishes no player commands.
 
-- The additional GS failure probes cover release-safe GIF bounds, oversized DIRECT
+- The additional GS failure probes cover assertion-build GIF bounds, oversized DIRECT
   reservations and a stalled deadline; they do not claim Common or UI startup.
 
 - The production link (`make`, `make release`) is the retained compile/link gate: all 341 production inputs,

@@ -24,7 +24,8 @@ memory figures in [memory-budget.md](memory-budget.md).
   real core stage or the SDK-only skip provider through source lists; build and run
   platform/core variants separately so archived flag stamps match.
 - Run emulator gates sequentially, one PCSX2 at a time, in debug and, when asked, with
-  `BUILD=release` (assertions off; release-only validation must still fail). `make test-ui`
+  `BUILD=release` (assertions off: load-time validation must still fail; render-time checks are
+  assertions, so their expected-fatal probes run in debug only). `make test-ui`
   takes about 8 minutes per standard: say so before starting a long session.
 - Runners stage an isolated archive under `build/test-results/<UTC-run-id>/` (manifest,
   matched ELF/symbols/map, inputs and their hashes, both PCSX2 streams, `summary.json`).

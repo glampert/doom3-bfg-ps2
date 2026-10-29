@@ -99,7 +99,7 @@ public:
 
     int CommandStringUsercmdData(const char * command) override
     {
-        if (command == nullptr)
+        if (command == nullptr) [[unlikely]]
         {
             ps2::FatalError("input command string must not be null");
         }

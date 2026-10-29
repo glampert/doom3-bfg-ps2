@@ -135,12 +135,12 @@ void Sys_SetPhysicalWorkMemory(int, int)
     Unsupported("Sys_SetPhysicalWorkMemory");
 }
 
-int Sys_GetDriveFreeSpace(const char *)
+PS2_COLD_FUNC int Sys_GetDriveFreeSpace(const char *)
 {
     Unsupported("Sys_GetDriveFreeSpace");
 }
 
-int64 Sys_GetDriveFreeSpaceInBytes(const char *)
+PS2_COLD_FUNC int64 Sys_GetDriveFreeSpaceInBytes(const char *)
 {
     Unsupported("Sys_GetDriveFreeSpaceInBytes");
 }

@@ -28,9 +28,40 @@ in other rule files still need verification when imported. Current backend code 
   `system::heap::Fail` delegates there. The sink currently uses synchronous stdout; on-screen
   fatal reporting remains a TODO. Data-file writes are separate from diagnostics.
 - `common.h` provides `ArrayLength`, portable `PS2_PRINTF_FUNC` / `PS2_COLD_FUNC`, and
-  `PS2_Assert` / `PS2_AssertMsg` for future preconditions. Assertions follow
+  `PS2_Assert` / `PS2_AssertMsg` for preconditions. Assertions follow
   `PS2_D3BFG_ASSERTS`; disabled assertions do not evaluate conditions or messages.
-  Runtime input validation and required failures must still work in release builds.
+  Which checks survive release builds is set by [Validation](#validation-and-error-handling).
+
+## Validation and error handling
+
+- **Load and init time** (boot, subsystem `Init`, catalog/image/font/movie loads, console
+  commands): validate fully in every build. Handle failures gracefully (return false or null and
+  release partial ownership), or fail by name with `FatalError` when nothing can recover.
+- **Render and frame time** (draws, GS packets, texture binds and residency uploads, geometry
+  mapping and clipping, frame/scope ownership, per-frame menu and presentation state): checks for
+  unexpected states, invalid data and caller bugs are assertions only. Use `PS2_Assert` /
+  `PS2_AssertMsg`, or a `#if PS2_D3BFG_ASSERTS` block for formatted details or extra work,
+  including whole validation-only passes such as the UI flush preflight. Release builds accept
+  crashes and UB there to keep the code slim; debug builds carry the checks. Assert liberally:
+  preconditions, invalid arguments, counters, ownership.
+- Control flow is not validation. A clipped primitive, a non-convex mask taking the depth path or
+  `tex::Bind` returning false for a texture that cannot become resident stays an ordinary branch
+  in every build (the UI then asserts that its draw succeeded).
+- Keep a call whose result is only checked outside the assertion:
+  `const bool drawn = Draw(...); PS2_AssertMsg(drawn, "...");`. A variable only an assertion
+  reads belongs inside `#if PS2_D3BFG_ASSERTS` (the disabled macro still names its condition).
+- Render-time helpers that report `false` or `Result::Invalid` (`MapRect`/`MapTriangle`/`MapLine`,
+  mask clipping, `ValidateTriangle`) check their input limits only in assertion builds; the
+  limits are caller preconditions, documented in the header.
+- `gs::WaitUntil` deadlines exist only in assertion builds; a hung release build spins.
+- Expected-fatal emulator probes of render-time checks run only in assertion builds
+  (`make BUILD=release test-renderer` skips them).
+- Every branch that takes a fatal error or an unexpected failure is `[[unlikely]]`. Error
+  handlers and functions reached only at load, boot, shutdown or from console commands are
+  `PS2_COLD_FUNC`, on the header declaration too. It optimizes for size and forbids inlining:
+  never put it on per-frame code.
+- Retail SWF script execution (`ui::swf` budgets, callback identity and seek checks in id's SWF
+  code) and audio/session API checks still enforce their limits in release.
 
 ## Naming
 

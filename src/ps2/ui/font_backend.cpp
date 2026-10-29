@@ -58,7 +58,7 @@ s32 Fixed(float value)
     return static_cast<s32>(std::floor(value * 65536.0f + 0.5f));
 }
 
-void ClearGlyphSets()
+PS2_COLD_FUNC void ClearGlyphSets()
 {
     for (auto & state : s_glyphSets)
     {
@@ -69,7 +69,7 @@ void ClearGlyphSets()
 }
 
 // Loads the glyph set image when a retail font registers, outside any frame like its atlas.
-void RegisterGlyphSet(const idFont * font, const ps2::ui::FontRecord & record)
+PS2_COLD_FUNC void RegisterGlyphSet(const idFont * font, const ps2::ui::FontRecord & record)
 {
     const auto & catalog = ps2::ui::GetCatalog();
     GlyphSetState & state = s_glyphSets[record.index];
@@ -84,7 +84,7 @@ void RegisterGlyphSet(const idFont * font, const ps2::ui::FontRecord & record)
         return;
     }
 
-    if (!catalog.GetImage(set.imageIndex, image) || !ps2::ui::gstx::DecodeTables(image.descriptor, image.descriptorBytes, header))
+    if (!catalog.GetImage(set.imageIndex, image) || !ps2::ui::gstx::DecodeTables(image.descriptor, image.descriptorBytes, header)) [[unlikely]]
     {
         ps2::FatalError("retail glyph set image outside the catalog: %s", record.family);
     }
@@ -135,7 +135,7 @@ bool IsInitialized()
 
 PS2_COLD_FUNC void Init()
 {
-    if (s_initialized || !ui::IsInitialized() || renderer::FrameStarted() || tr.fonts.Num() != 0)
+    if (s_initialized || !ui::IsInitialized() || renderer::FrameStarted() || tr.fonts.Num() != 0) [[unlikely]]
     {
         FatalError("invalid native UI font startup ownership");
     }
@@ -148,7 +148,7 @@ PS2_COLD_FUNC void Shutdown()
     {
         return;
     }
-    if (!ui::IsInitialized() || renderer::FrameStarted())
+    if (!ui::IsInitialized() || renderer::FrameStarted()) [[unlikely]]
     {
         FatalError("invalid native UI font shutdown ownership");
     }
@@ -158,15 +158,15 @@ PS2_COLD_FUNC void Shutdown()
     s_initialized = false;
 }
 
-idFile * OpenFontAsset(const char * name)
+PS2_COLD_FUNC idFile * OpenFontAsset(const char * name)
 {
-    if (!s_initialized)
+    if (!s_initialized) [[unlikely]]
     {
         FatalError("native UI font opened before font startup");
     }
 
     ui::FontRecord record{};
-    if (!ui::FindFont(name, record))
+    if (!ui::FindFont(name, record)) [[unlikely]]
     {
         FatalError("native UI font outside the admitted English profile: %s", name != nullptr ? name : "<null>");
     }
@@ -190,13 +190,13 @@ bool PreflightFont(idFile * file, const char * name)
     return ValidateFontBytes(memory->GetDataPtr(), record.bytes, image.width, image.height, summary);
 }
 
-void ValidateFontMaterial(const idMaterial * material, const char * name)
+PS2_COLD_FUNC void ValidateFontMaterial(const idMaterial * material, const char * name)
 {
     ui::FontRecord record{};
     ui::ImageRecord image{};
     if (!s_initialized || material == nullptr || material->GetNumStages() != 1 ||
         material->ConstantRegisters() == nullptr || material->TestMaterialFlag(MF_DEFAULTED | MF_POLYGONOFFSET) ||
-        !ui::FindFont(name, record) || !ui::GetCatalog().GetImage(record.imageIndex, image))
+        !ui::FindFont(name, record) || !ui::GetCatalog().GetImage(record.imageIndex, image)) [[unlikely]]
     {
         FatalError("native English font requires one admitted constant atlas material");
     }
@@ -205,21 +205,21 @@ void ValidateFontMaterial(const idMaterial * material, const char * name)
     if (stage.texture.image == nullptr || stage.texture.image != globalImages->GetImage(image.name) ||
         stage.lighting != SL_AMBIENT || !stage.texture.image->IsLoaded() ||
         stage.texture.image->GetUploadWidth() != static_cast<int>(image.width) ||
-        stage.texture.image->GetUploadHeight() != static_cast<int>(image.height))
+        stage.texture.image->GetUploadHeight() != static_cast<int>(image.height)) [[unlikely]]
     {
         FatalError("native English font material does not reference its admitted atlas: %s", record.family);
     }
 }
 
-void GetFontLayout(const char * name, int index, int & width, int & height)
+PS2_COLD_FUNC void GetFontLayout(const char * name, int index, int & width, int & height)
 {
-    if (!s_initialized || index < 0 || index >= 3)
+    if (!s_initialized || index < 0 || index >= 3) [[unlikely]]
     {
         FatalError("invalid native UI font layout query");
     }
 
     ui::FontRecord record{};
-    if (!ui::FindFont(name, record))
+    if (!ui::FindFont(name, record)) [[unlikely]]
     {
         FatalError("native UI font layout outside the admitted English profile");
     }
@@ -313,11 +313,7 @@ void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fon
         return;
     }
 
-    if (glyph.font >= kMaxFonts || s_glyphSets[glyph.font].image == nullptr)
-    {
-        FatalError("invalid native UI pre-rendered glyph");
-    }
-
+    PS2_AssertMsg(glyph.font < kMaxFonts && s_glyphSets[glyph.font].image != nullptr, "invalid native UI pre-rendered glyph");
     const GlyphSetState & state = s_glyphSets[glyph.font];
     // With an outline the rectangle holds the glyph on its left half and the outline on its right.
     const std::uint32_t bitmapWidth = glyph.outline ? glyph.width / 2U : glyph.width;
@@ -338,9 +334,9 @@ void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fon
 
 } // namespace ps2::ui::fonts
 
-idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
+PS2_COLD_FUNC idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
 {
-    if (this != &tr || !ps2::ui::fonts::IsInitialized() || !ps2::ui::IsInitialized() || fontName == nullptr)
+    if (this != &tr || !ps2::ui::fonts::IsInitialized() || !ps2::ui::IsInitialized() || fontName == nullptr) [[unlikely]]
     {
         ps2::FatalError("native UI font registration outside initialized ownership");
     }
@@ -348,7 +344,7 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
     ps2::ui::FontRecord record{};
     idStr request(fontName);
     request.Replace("fonts/", "");
-    if (!ps2::ui::FindFont(request, record))
+    if (!ps2::ui::FindFont(request, record)) [[unlikely]]
     {
         ps2::FatalError("native UI font is outside the admitted English profile: %s", fontName);
     }
@@ -364,7 +360,7 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
         }
     }
 
-    if (fonts.Num() >= static_cast<int>(ps2::ui::kMaxFonts))
+    if (fonts.Num() >= static_cast<int>(ps2::ui::kMaxFonts)) [[unlikely]]
     {
         ps2::FatalError("native UI font cache exceeded the bounded English profile");
     }
@@ -377,9 +373,9 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
     return font;
 }
 
-void idRenderSystemLocal::ResetFonts()
+PS2_COLD_FUNC void idRenderSystemLocal::ResetFonts()
 {
-    if (this != &tr || !ps2::ui::fonts::IsInitialized() || ps2::renderer::FrameStarted())
+    if (this != &tr || !ps2::ui::fonts::IsInitialized() || ps2::renderer::FrameStarted()) [[unlikely]]
     {
         ps2::FatalError("invalid native UI font reset ownership");
     }
