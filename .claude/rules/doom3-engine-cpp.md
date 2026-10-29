@@ -11,6 +11,10 @@ file keeps only what most engine edits need.
 - Keep id's code as close to unchanged as possible. Platform work belongs in `ps2`
   behind a seam. When an engine change is unavoidable, keep it minimal and tag it:
   `// [PS2_D3BFG]: <why>`.
+- id's code builds without warnings in every configuration. `LEGACY_SHARED_WARNFLAGS`
+  turns off only reviewed categories (listed by reason in the Makefile, engine objects
+  only). Treat any new engine warning as a possible defect: fix it in the source, and
+  extend the list only for a category reviewed as style or a false positive.
 - **No double FPU on the EE.** Unsuffixed constants in the legacy target are made float by
   `-fsingle-precision-constant`. Explicit upstream double arithmetic remains software
   floating point; its current units are listed in the

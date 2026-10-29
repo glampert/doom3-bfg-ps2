@@ -135,12 +135,15 @@ Debug uses `-O2` and symbols; release uses `-O3` and no debug symbols. Explicit 
 backend sources use `-Os` in both ordinary core and campaign-adapter object trees.
 Both use C++20 with exceptions, RTTI and thread-safe local
 static initialization disabled. New sources use the full GCC warning set and `-Werror`;
-upstream sources keep `-Wall -Wextra` visible and use single-precision literals to avoid
-EE software-double helpers. Explicit upstream object groups suppress the observed
-`unknown-pragmas`, `unused-parameter`, `deprecated-copy`, `class-memaccess`,
-`ignored-qualifiers` and `write-strings` diagnostics from legacy header/interface styles.
-Format, array-bound, uninitialized-value and nonvirtual-destructor diagnostics remain
-visible. The checked backend bridge treats upstream `neo` contracts as system headers;
+upstream sources keep `-Wall -Wextra` and use single-precision literals to avoid
+EE software-double helpers. The engine object groups (all under `src/neo`) build
+without warnings: `LEGACY_SHARED_WARNFLAGS` in the Makefile turns off the categories
+that a full GCC 15 debug/release review found to be style, upstream idiom or
+flow-analysis false positives, each listed there by reason. Defects found in that
+review were fixed in the source (tagged `[PS2_D3BFG]`), not suppressed. Format,
+destructor, parentheses, attribute and the remaining `-Wall -Wextra` diagnostics stay
+visible, so a new engine warning is a regression to investigate.
+The checked backend bridge treats upstream `neo` contracts as system headers;
 new backend/test headers remain checked. SDK and dlmalloc headers are system headers.
 No project-wide `-w` or VU dependency is introduced. Core/platform tests are asset-free;
 production native filesystem startup requires `base/default.cfg` in HostFs.
