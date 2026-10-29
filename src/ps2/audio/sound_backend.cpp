@@ -15,6 +15,7 @@
 
 namespace
 {
+
 [[noreturn]] PS2_COLD_FUNC void Unsupported(const char * operation)
 {
     ps2::FatalError("audio capability unavailable: %s", operation);
@@ -27,6 +28,7 @@ bool ReadAt(void * context, size_t offset, void * output, size_t size)
     return offset <= INT_MAX && size <= INT_MAX && file->Seek(static_cast<long>(offset), FS_SEEK_SET) == 0 &&
            file->Read(output, static_cast<int>(size)) == static_cast<int>(size);
 }
+
 } // namespace
 
 // Preserve native control defaults without importing the desktop surround implementation or its cvars.

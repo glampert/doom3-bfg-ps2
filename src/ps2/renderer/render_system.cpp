@@ -45,7 +45,7 @@ bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit
 
     for (const s16 value : shading.add)
     {
-        if (value < -255 || value > 255)
+        if (value < -255 || value > 255) [[unlikely]]
         {
             FatalError("additive color outside one unit");
         }
@@ -56,7 +56,7 @@ bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit
 
     if (shading.blend == gs::BlendMode::Screen)
     {
-        if (hasAdd || hasSubtract || shading.replaceColor)
+        if (hasAdd || hasSubtract || shading.replaceColor) [[unlikely]]
         {
             FatalError("screen blending with an additive color");
         }
@@ -86,7 +86,7 @@ bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit
     }
 
     if ((hasAdd || hasSubtract || shading.replaceColor) &&
-        shading.blend != gs::BlendMode::StraightAlpha && shading.blend != gs::BlendMode::AdditiveAlpha)
+        shading.blend != gs::BlendMode::StraightAlpha && shading.blend != gs::BlendMode::AdditiveAlpha) [[unlikely]]
     {
         FatalError("additive color requires straight or additive blending");
     }
@@ -97,7 +97,7 @@ bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit
 
     if (shading.replaceColor)
     {
-        if (hasSubtract)
+        if (hasSubtract) [[unlikely]]
         {
             FatalError("replacement color cannot subtract");
         }
@@ -135,6 +135,7 @@ bool ForEachPass(const Primitive & primitive, const Shading & shading, Emit emit
 
     return true;
 }
+
 } // namespace
 
 bool IsInitialized()
@@ -154,7 +155,7 @@ u32 FrameCount()
 
 gs::DrawContext LastPresentedContext()
 {
-    if (s_frame || s_frames == 0)
+    if (s_frame || s_frames == 0) [[unlikely]]
     {
         FatalError("no completed GS frame");
     }
@@ -167,77 +168,29 @@ PS2_COLD_FUNC bool Init(const Config & config)
     {
         FatalError("render system initialized twice");
     }
+
     // Both sixteen-qword environments plus chain terminators must fit the first half.
     if (!system::video::IsValid(config.standard) || config.commandHalfBytes < 640U || !gs::InitCommandBuffer(config.commandHalfBytes))
     {
         return false;
     }
+
     if (!gs::Init({ config.standard, 512, system::video::VisibleLines(config.standard) }))
     {
         gs::ShutdownCommandBuffer();
         return false;
     }
+
     if (!tex::Init(config.textureVramBytes, config.texturePixelBytes))
     {
         gs::ShutdownCommandBuffer();
         gs::Shutdown();
         return false;
     }
+
     s_context = gs::DrawContext::Ctx0;
     s_frames = 0;
     s_initialized = true;
-    return true;
-}
-
-void BeginFrame(gs::Color clearColor)
-{
-    if (!s_initialized || s_frame || clearColor.a != 255)
-    {
-        FatalError("invalid 2D BeginFrame state");
-    }
-    gs::BeginCommandFrame();
-    s_context = s_context == gs::DrawContext::Ctx0 ? gs::DrawContext::Ctx1 : gs::DrawContext::Ctx0;
-    s_frame = true;
-    ui::BeginGeometryFrame();
-    gs::ClearFrame(s_context, clearColor);
-}
-
-void FillRect(int x, int y, int width, int height, gs::Color color)
-{
-    if (!s_frame)
-    {
-        FatalError("2D fill outside a frame");
-    }
-    ui::Flush();
-    gs::FillRect(s_context, x, y, width, height, color);
-}
-
-void EndFrame()
-{
-    if (!s_frame)
-    {
-        FatalError("2D EndFrame without BeginFrame");
-    }
-    ui::EndGeometryFrame();
-    gs::EndCommandFrame();
-    gs::Present(s_context);
-    s_frame = false;
-    ++s_frames;
-}
-
-bool TexturedRect(tex::Handle texture, int x, int y, int width, int height, int u0, int v0, int u1, int v1, gs::Color color)
-{
-    if (!s_frame)
-    {
-        FatalError("2D texture draw outside a frame");
-    }
-    ui::Flush();
-    gs::TextureBinding binding = {};
-    if (!tex::Bind(texture, binding))
-    {
-        return false;
-    }
-    gs::TexturedRect(s_context, binding, x, y, width, height, u0, v0, u1, v1, color);
     return true;
 }
 
@@ -247,26 +200,79 @@ PS2_COLD_FUNC void Shutdown()
     {
         EndFrame();
     }
+
     tex::Shutdown();
+
     // Partial startup and repeated shutdown both leave no DMA references or heap ownership.
     gs::ShutdownCommandBuffer();
     gs::Shutdown();
+
     s_initialized = false;
     s_frames = 0;
 }
 
-bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Color color, gs::BlendMode blend)
+void BeginFrame(gs::Color clearColor)
 {
-    if (!s_frame)
+    if (!s_initialized || s_frame || clearColor.a != 255) [[unlikely]]
     {
-        FatalError("2D fixed texture draw outside a frame");
+        FatalError("invalid 2D BeginFrame state");
     }
+
+    gs::BeginCommandFrame();
+
+    s_context = s_context == gs::DrawContext::Ctx0 ? gs::DrawContext::Ctx1 : gs::DrawContext::Ctx0;
+    s_frame = true;
+
+    ui::BeginGeometryFrame();
+    gs::ClearFrame(s_context, clearColor);
+}
+
+void EndFrame()
+{
+    PS2_AssertMsg(s_frame, "2D EndFrame without BeginFrame");
+
+    ui::EndGeometryFrame();
+    gs::EndCommandFrame();
+    gs::Present(s_context);
+
+    s_frame = false;
+    ++s_frames;
+}
+
+void FillRect(int x, int y, int width, int height, gs::Color color)
+{
+    PS2_AssertMsg(s_frame, "2D fill outside a frame");
+
+    ui::Flush();
+    gs::FillRect(s_context, x, y, width, height, color);
+}
+
+bool TexturedRect(tex::Handle texture, int x, int y, int width, int height, int u0, int v0, int u1, int v1, gs::Color color)
+{
+    PS2_AssertMsg(s_frame, "2D texture draw outside a frame");
+
     ui::Flush();
     gs::TextureBinding binding = {};
     if (!tex::Bind(texture, binding))
     {
         return false;
     }
+
+    gs::TexturedRect(s_context, binding, x, y, width, height, u0, v0, u1, v1, color);
+    return true;
+}
+
+bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Color color, gs::BlendMode blend)
+{
+    PS2_AssertMsg(s_frame, "2D fixed texture draw outside a frame");
+
+    ui::Flush();
+    gs::TextureBinding binding = {};
+    if (!tex::Bind(texture, binding))
+    {
+        return false;
+    }
+
     gs::DrawState state;
     state.blend = blend;
     gs::TexturedRectFixed(s_context, binding, rect.x0, rect.y0, rect.x1, rect.y1,
@@ -276,10 +282,7 @@ bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Colo
 
 bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & triangle, const Shading & shading)
 {
-    if (!s_frame)
-    {
-        FatalError("2D paletted triangle draw outside a frame");
-    }
+    PS2_AssertMsg(s_frame, "2D paletted triangle draw outside a frame");
 
     ui::Flush();
     const auto Emit = [&draw](const ui::FixedTriangle & pass, const gs::DrawState & state, int channel)
@@ -291,7 +294,7 @@ bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & 
         {
             cluts = draw.channelCluts[channel];
 
-            if (cluts.id == 0)
+            if (cluts.id == 0) [[unlikely]]
             {
                 FatalError("paletted screen blending without channel CLUTs");
             }
@@ -306,7 +309,7 @@ bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & 
         }
 
         // CLUT blocks are 256 bytes, 64 GS words, inside the CLUT texture's allocation.
-        if (draw.clutBlock >= clutBinding.layout.bytes / 256U)
+        if (draw.clutBlock >= clutBinding.layout.bytes / 256U) [[unlikely]]
         {
             FatalError("paletted draw CLUT block outside its texture");
         }
@@ -326,10 +329,8 @@ bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & 
 
 bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triangle, const Shading & shading)
 {
-    if (!s_frame)
-    {
-        FatalError("2D triangle draw outside a frame");
-    }
+    PS2_AssertMsg(s_frame, "2D triangle draw outside a frame");
+
     ui::Flush();
     const auto Emit = [texture](const ui::FixedTriangle & pass, const gs::DrawState & state, int)
     {
@@ -349,10 +350,7 @@ bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triang
 
 bool LineFixed(const ui::FixedLine & line, const Shading & shading)
 {
-    if (!s_frame)
-    {
-        FatalError("2D line draw outside a frame");
-    }
+    PS2_AssertMsg(s_frame, "2D line draw outside a frame");
 
     ui::Flush();
     const auto Emit = [](const ui::FixedLine & pass, const gs::DrawState & state, int)
@@ -366,10 +364,7 @@ bool LineFixed(const ui::FixedLine & line, const Shading & shading)
 
 void MaskTriangleFixed(const ui::FixedTriangle & triangle)
 {
-    if (!s_frame)
-    {
-        FatalError("2D mask draw outside a frame");
-    }
+    PS2_AssertMsg(s_frame, "2D mask draw outside a frame");
 
     ui::Flush();
     gs::MaskTriangleFixed(s_context, triangle);
@@ -377,10 +372,7 @@ void MaskTriangleFixed(const ui::FixedTriangle & triangle)
 
 void MaskLineFixed(const ui::FixedLine & line)
 {
-    if (!s_frame)
-    {
-        FatalError("2D mask draw outside a frame");
-    }
+    PS2_AssertMsg(s_frame, "2D mask draw outside a frame");
 
     ui::Flush();
     gs::MaskLineFixed(s_context, line);
@@ -388,12 +380,10 @@ void MaskLineFixed(const ui::FixedLine & line)
 
 void ClearMask(int x0, int y0, int x1, int y1)
 {
-    if (!s_frame)
-    {
-        FatalError("2D mask clear outside a frame");
-    }
+    PS2_AssertMsg(s_frame, "2D mask clear outside a frame");
 
     ui::Flush();
     gs::ClearMask(s_context, x0, y0, x1, y1);
 }
+
 } // namespace ps2::renderer

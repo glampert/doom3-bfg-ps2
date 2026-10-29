@@ -14,16 +14,20 @@ namespace ps2::ui::retail
 {
 namespace
 {
+
 static constexpr std::uint32_t kVersion = 4;
 static constexpr std::uint32_t kHeaderBytes = 64;
 static constexpr std::uint32_t kImageBytes = 32;
 static constexpr std::uint32_t kFontBytes = 56;
+
 // Glyph set table: u32 image index, size count, entry count, 0; then the sizes and the entries.
 static constexpr std::uint32_t kGlyphSetBytes = 16;
 static constexpr std::uint32_t kGlyphSizeBytes = 20;
+
 // u32 codepoint, u16 bitmap x/y/width/height, u16 flags (bit 0: outline), u16 zero, s16 origin x/y.
 static constexpr std::uint32_t kGlyphEntryBytes = 20;
 static constexpr std::uint16_t kGlyphOutlineFlag = 1;
+
 // 16.16 bounds: a glyph drawn at most 16 GS pixels per atlas texel, outlines at most 16 texels.
 static constexpr std::uint32_t kMaxGlyphScale = 16U << 16;
 static constexpr std::uint32_t kMaxStrokeWeight = 16U << 16;
@@ -633,4 +637,5 @@ bool CatalogView::Init(const void * bytes, std::size_t length)
     *this = candidate;
     return true;
 }
+
 } // namespace ps2::ui::retail

@@ -27,6 +27,7 @@ enum class Filter : std::uint8_t
     Nearest,
     Linear
 };
+
 enum class Wrap : std::uint8_t
 {
     Clamp,

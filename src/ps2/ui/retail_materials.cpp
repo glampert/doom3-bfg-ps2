@@ -15,6 +15,7 @@
 
 namespace ps2::ui::retail
 {
+
 PS2_COLD_FUNC bool MaterialText(const char * name, char * output, size_t capacity)
 {
     if (!IsInitialized() || name == nullptr || output == nullptr || capacity == 0)
@@ -104,4 +105,5 @@ PS2_COLD_FUNC void RegisterMaterials()
         }
     }
 }
+
 } // namespace ps2::ui::retail

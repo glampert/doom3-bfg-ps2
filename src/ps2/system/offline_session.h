@@ -6,12 +6,14 @@
 
 #pragma once
 
+#include "ps2/common.h"
+
 namespace ps2::system::session
 {
 
-void Init();
-void Shutdown();
-void Frame();
+PS2_COLD_FUNC void Init();
+PS2_COLD_FUNC void Shutdown();
 bool IsInitialized();
+void Frame();
 
 } // namespace ps2::system::session

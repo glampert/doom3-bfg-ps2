@@ -11,7 +11,7 @@
 
 #if defined(_EE)
     #include <kernel.h>
-#endif
+#endif // _EE
 
 namespace ps2
 {

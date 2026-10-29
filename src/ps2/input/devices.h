@@ -6,13 +6,18 @@
 
 #pragma once
 
+#include "ps2/common.h"
+
 namespace ps2::input
 {
+
 // Brings the pad and the keyboard up; either failing only leaves that device silent. The IRX
 // directory holds the keyboard driver's modules (usbd, ps2kbd).
-void InitDevices(const char * irxDirectory);
-void ShutdownDevices();
+PS2_COLD_FUNC void InitDevices(const char * irxDirectory);
+PS2_COLD_FUNC void ShutdownDevices();
+PS2_COLD_FUNC void LogDeviceStatus();
+
 // Sys_GenerateEvents: polls both devices into the event queue, once per Common frame.
 void PollDevices();
-void LogDeviceStatus();
+
 } // namespace ps2::input

@@ -5,7 +5,6 @@
 // ================================================================================================
 
 #include "ps2/renderer/vram.h"
-
 #include <limits>
 
 namespace ps2::renderer::gs
@@ -24,7 +23,7 @@ static bool s_initialized = false;
 
 } // namespace
 
-bool InitVram(std::uint32_t beginBytes, std::uint32_t budgetBytes)
+PS2_COLD_FUNC bool InitVram(std::uint32_t beginBytes, std::uint32_t budgetBytes)
 {
     if (s_initialized || (beginBytes >= kVramBytes) || (budgetBytes == 0) ||
         ((beginBytes % kVramPageBytes) != 0) || ((budgetBytes % kVramPageBytes) != 0) ||
@@ -32,12 +31,22 @@ bool InitVram(std::uint32_t beginBytes, std::uint32_t budgetBytes)
     {
         return false;
     }
+
     s_beginBytes = beginBytes;
     s_pageCount = budgetBytes / kVramPageBytes;
     s_stats = { budgetBytes, 0, 0, 0 };
     s_initialized = true;
     ResetVram();
     return true;
+}
+
+PS2_COLD_FUNC void ShutdownVram()
+{
+    ResetVram();
+    s_beginBytes = 0;
+    s_pageCount = 0;
+    s_stats = {};
+    s_initialized = false;
 }
 
 bool IsVramInitialized()
@@ -49,7 +58,7 @@ bool AllocateVram(std::uint32_t bytes, VramAllocation & output)
 {
     if (!s_initialized || (bytes == 0) || ((bytes % kVramPageBytes) != 0) ||
         (bytes > (s_stats.capacityBytes - s_stats.usedBytes)) ||
-        (s_nextGeneration == std::numeric_limits<std::uint32_t>::max()))
+        (s_nextGeneration == std::numeric_limits<std::uint32_t>::max())) [[unlikely]]
     {
         return false;
     }
@@ -83,51 +92,54 @@ bool AllocateVram(std::uint32_t bytes, VramAllocation & output)
         {
             s_pages[page] = 1;
         }
+
         const VramAllocation allocation{
             s_beginBytes + (firstPage * kVramPageBytes), bytes,
             s_nextGeneration++, static_cast<std::uint16_t>(slot)
         };
+
         s_allocations[slot] = allocation;
         s_stats.usedBytes += bytes;
         if (s_stats.usedBytes > s_stats.peakBytes)
         {
             s_stats.peakBytes = s_stats.usedBytes;
         }
+
         ++s_stats.allocationCount;
         output = allocation;
         return true;
     }
+
     return false;
 }
 
 bool ReleaseVram(const VramAllocation & allocation)
 {
-    if (!s_initialized || (allocation.slot >= kMaxVramAllocations) || (allocation.bytes == 0))
+    if (!s_initialized || (allocation.slot >= kMaxVramAllocations) || (allocation.bytes == 0)) [[unlikely]]
     {
         return false;
     }
+
     const VramAllocation & current = s_allocations[allocation.slot];
     if ((allocation.byteAddress != current.byteAddress) || (allocation.bytes != current.bytes) ||
-        (allocation.generation != current.generation))
+        (allocation.generation != current.generation)) [[unlikely]]
     {
         return false;
     }
 
     const std::uint32_t firstPage = (current.byteAddress - s_beginBytes) / kVramPageBytes;
     const std::uint32_t lastPage = firstPage + (current.bytes / kVramPageBytes);
+
     for (std::uint32_t page = firstPage; page < lastPage; ++page)
     {
         s_pages[page] = 0;
     }
+
     s_stats.usedBytes -= current.bytes;
     --s_stats.allocationCount;
     s_allocations[allocation.slot] = {};
-    return true;
-}
 
-VramStats GetVramStats()
-{
-    return s_stats;
+    return true;
 }
 
 void ResetVram()
@@ -144,13 +156,9 @@ void ResetVram()
     s_stats.allocationCount = 0;
 }
 
-void ShutdownVram()
+const VramStats & GetVramStats()
 {
-    ResetVram();
-    s_beginBytes = 0;
-    s_pageCount = 0;
-    s_stats = {};
-    s_initialized = false;
+    return s_stats;
 }
 
 } // namespace ps2::renderer::gs

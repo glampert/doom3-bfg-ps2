@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <limits>
 #include <zlib/zlib.h>
+
 #define JPEG_INTERNALS
 #include <jpeg-6/jpeglib.h>
 
@@ -18,14 +19,17 @@
 
 namespace
 {
+
 enum class EngineTag : std::uint16_t
 {
 #define MEM_TAG(x) x,
 #include <idlib/sys/sys_alloc_tags.h>
 #undef MEM_TAG
 };
+
 static constexpr std::uint16_t kJpegTag = static_cast<std::uint16_t>(EngineTag::JPG);
-static constexpr std::uint16_t kZipTag = static_cast<std::uint16_t>(EngineTag::ZIP);
+static constexpr std::uint16_t kZipTag  = static_cast<std::uint16_t>(EngineTag::ZIP);
+
 } // namespace
 
 // These typed hooks replace jmemnobs.cpp; the codec handles a null allocation through its error exit.

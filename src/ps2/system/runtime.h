@@ -8,8 +8,10 @@
 
 namespace ps2::system::runtime
 {
+
 void RequestQuit();
 bool IsQuitRequested();
+
 // The package selects headless/ntsc/pal before Common creates any device resources.
 void ConfigurePresentation();
 void InitPresentation();
@@ -19,6 +21,8 @@ void BeginPresentationFrame();
 void PresentConsoleFrame(int frames);
 void UpdateScreen(bool captureToImage);
 void LogPresentationStatus(int frames);
+
 // The visible presentation registers its device poll; Sys_GenerateEvents calls it each frame.
 void SetEventGenerator(void (*generator)());
+
 } // namespace ps2::system::runtime

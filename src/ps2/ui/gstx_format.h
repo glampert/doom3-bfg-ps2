@@ -26,8 +26,7 @@ static constexpr std::uint32_t kMaxPlacements = 1024;
 static constexpr std::uint32_t kMaxPageExtent = 512;
 static constexpr std::uint32_t kMaxLogicalExtent = 16384;
 static constexpr std::uint32_t kMaxFileBytes = 16U * 1024U * 1024U;
-static constexpr std::uint32_t kMaxTableBytes =
-    kHeaderBytes + kMaxPages * kPageRecordBytes + kMaxCluts * kClutRecordBytes + kMaxPlacements * kPlacementRecordBytes;
+static constexpr std::uint32_t kMaxTableBytes = kHeaderBytes + kMaxPages * kPageRecordBytes + kMaxCluts * kClutRecordBytes + kMaxPlacements * kPlacementRecordBytes;
 static constexpr std::uint8_t kPsmT8 = 0x13;
 static constexpr std::uint8_t kPsmT4 = 0x14;
 

@@ -10,10 +10,14 @@
 #include <libpad.h>
 #include <loadfile.h>
 
+namespace ps2::input::pad
+{
 namespace
 {
+
 static constexpr int kPort = 0;
 static constexpr int kSlot = 0;
+
 // A stick past half its range from the center presses the engine's stick key, as the PC does.
 static constexpr int kStickCenter = 128;
 static constexpr int kStickThreshold = 64;
@@ -30,8 +34,10 @@ static Status s_status = Status::Unavailable;
 static bool s_modulesLoaded = false;
 static bool s_padStarted = false;
 static ps2::input::pad::Stats s_stats;
+
 // Every key this pad has pressed since the last poll: buttons and the stick directions.
 static bool s_pressed[K_JOY_DPAD_RIGHT + 1 - K_JOY1] = {};
+
 // libpad's transfer area: 256 bytes, 64-byte aligned.
 alignas(64) static char s_padArea[256];
 
@@ -43,10 +49,10 @@ struct ButtonKey
 
 // The PS3 layout the menus report: cross accepts (K_JOY1) and circle backs (K_JOY2).
 static constexpr ButtonKey kButtonKeys[] = {
-    { PAD_CROSS, K_JOY1 },       { PAD_CIRCLE, K_JOY2 },      { PAD_SQUARE, K_JOY3 },
-    { PAD_TRIANGLE, K_JOY4 },    { PAD_L1, K_JOY5 },          { PAD_R1, K_JOY6 },
-    { PAD_L3, K_JOY7 },          { PAD_R3, K_JOY8 },          { PAD_START, K_JOY9 },
-    { PAD_SELECT, K_JOY10 },     { PAD_L2, K_JOY_TRIGGER1 },  { PAD_R2, K_JOY_TRIGGER2 },
+    { PAD_CROSS, K_JOY1 },       { PAD_CIRCLE, K_JOY2 },        { PAD_SQUARE, K_JOY3 },
+    { PAD_TRIANGLE, K_JOY4 },    { PAD_L1, K_JOY5 },            { PAD_R1, K_JOY6 },
+    { PAD_L3, K_JOY7 },          { PAD_R3, K_JOY8 },            { PAD_START, K_JOY9 },
+    { PAD_SELECT, K_JOY10 },     { PAD_L2, K_JOY_TRIGGER1 },    { PAD_R2, K_JOY_TRIGGER2 },
     { PAD_UP, K_JOY_DPAD_UP },   { PAD_DOWN, K_JOY_DPAD_DOWN }, { PAD_LEFT, K_JOY_DPAD_LEFT },
     { PAD_RIGHT, K_JOY_DPAD_RIGHT },
 };
@@ -56,7 +62,7 @@ bool Connected(int state)
     return state == PAD_STATE_STABLE || state == PAD_STATE_FINDCTP1;
 }
 
-bool LoadRomModule(const char * path)
+PS2_COLD_FUNC bool LoadRomModule(const char * path)
 {
     int moduleResult = 0;
     const int id = SifLoadStartModule(path, 0, nullptr, &moduleResult);
@@ -92,11 +98,10 @@ void ReleaseAll()
         SetKey(key, false);
     }
 }
+
 } // namespace
 
-namespace ps2::input::pad
-{
-bool Init()
+PS2_COLD_FUNC bool Init()
 {
     if (s_status != Status::Unavailable)
     {
@@ -140,7 +145,7 @@ bool Init()
     return true;
 }
 
-void Shutdown()
+PS2_COLD_FUNC void Shutdown()
 {
     if (s_status == Status::Unavailable)
     {
@@ -149,6 +154,7 @@ void Shutdown()
 
     ReleaseAll();
     padPortClose(kPort, kSlot);
+
     s_status = Status::Unavailable;
     s_stats.available = false;
     s_stats.ready = false;
@@ -226,18 +232,19 @@ void Poll()
                     SetKey(entry.key, (buttons & entry.button) != 0);
                 }
 
-                const int leftX = s_stats.analog ? data.ljoy_h - kStickCenter : 0;
-                const int leftY = s_stats.analog ? data.ljoy_v - kStickCenter : 0;
+                const int leftX  = s_stats.analog ? data.ljoy_h - kStickCenter : 0;
+                const int leftY  = s_stats.analog ? data.ljoy_v - kStickCenter : 0;
                 const int rightX = s_stats.analog ? data.rjoy_h - kStickCenter : 0;
                 const int rightY = s_stats.analog ? data.rjoy_v - kStickCenter : 0;
-                SetKey(K_JOY_STICK1_UP, leftY < -kStickThreshold);
-                SetKey(K_JOY_STICK1_DOWN, leftY > kStickThreshold);
-                SetKey(K_JOY_STICK1_LEFT, leftX < -kStickThreshold);
-                SetKey(K_JOY_STICK1_RIGHT, leftX > kStickThreshold);
-                SetKey(K_JOY_STICK2_UP, rightY < -kStickThreshold);
-                SetKey(K_JOY_STICK2_DOWN, rightY > kStickThreshold);
-                SetKey(K_JOY_STICK2_LEFT, rightX < -kStickThreshold);
-                SetKey(K_JOY_STICK2_RIGHT, rightX > kStickThreshold);
+
+                SetKey(K_JOY_STICK1_UP,    leftY  < -kStickThreshold);
+                SetKey(K_JOY_STICK1_DOWN,  leftY  >  kStickThreshold);
+                SetKey(K_JOY_STICK1_LEFT,  leftX  < -kStickThreshold);
+                SetKey(K_JOY_STICK1_RIGHT, leftX  >  kStickThreshold);
+                SetKey(K_JOY_STICK2_UP,    rightY < -kStickThreshold);
+                SetKey(K_JOY_STICK2_DOWN,  rightY >  kStickThreshold);
+                SetKey(K_JOY_STICK2_LEFT,  rightX < -kStickThreshold);
+                SetKey(K_JOY_STICK2_RIGHT, rightX >  kStickThreshold);
             }
 
             break;
@@ -249,8 +256,9 @@ void Poll()
     s_stats.ready = s_status == Status::Ready;
 }
 
-Stats GetStats()
+const Stats & GetStats()
 {
     return s_stats;
 }
+
 } // namespace ps2::input::pad

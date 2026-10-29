@@ -8,13 +8,17 @@
 
 namespace ps2::ui::retail
 {
+
 // Presentation owns this command after fonts initialize and releases it before fonts shut down.
 void InitScreen();
 void ShutdownScreen();
 bool IsScreenLoaded();
+
 // The package's startup policy opens the native menu before the first frame, on real time.
 void OpenBootMenu();
+
 // Advance native retail timelines once per Common frame before drawing; redraws never execute them.
 void AdvanceScreen(bool advance);
 void RenderScreen(bool advance);
+
 } // namespace ps2::ui::retail

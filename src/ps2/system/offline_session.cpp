@@ -7,21 +7,21 @@
 #include "ps2/system/offline_session.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
+
 #include <climits>
 #include <idlib/precompiled.h>
 
 namespace
 {
 
-[[noreturn]] void Unsupported(const char * operation)
+[[noreturn]] PS2_COLD_FUNC void Unsupported(const char * operation)
 {
     ps2::FatalError("unsupported offline session operation: %s", operation);
 }
 
-void Require(bool condition, const char * operation)
+PS2_COLD_FUNC void Require(bool condition, const char * operation)
 {
-    PS2_AssertMsg(condition, operation);
-    if (!condition)
+    if (!condition) [[unlikely]]
     {
         ps2::FatalError("invalid offline session operation: %s", operation);
     }
@@ -465,6 +465,7 @@ public:
     {
         return true;
     }
+
     OFFLINE_UNSUPPORTED(void, SendReliable, (int, idBitMsg &, bool, peerMask_t))
     OFFLINE_UNSUPPORTED(void, SendReliableToLobbyUser, (lobbyUserID_t, int, idBitMsg &))
     OFFLINE_UNSUPPORTED(void, SendReliableToHost, (int, idBitMsg &))
@@ -864,7 +865,8 @@ public:
     }
 
     void UpdateRichPresence() override
-    { /* No platform presence exists for offline users. */
+    {
+        // No platform presence exists for offline users.
     }
 
     int GetInputRouting(int routing[MAX_INPUT_DEVICES]) override
@@ -963,6 +965,7 @@ public:
     void OnLocalUserProfileLoaded(idLocalUser *) override
     {
     }
+
     OFFLINE_UNSUPPORTED(void, FindOrCreateMatch, (const idMatchParameters &))
     OFFLINE_UNSUPPORTED(void, CreateGameStateLobby, (const idMatchParameters &))
     OFFLINE_UNSUPPORTED(void, MatchFinished, ())
@@ -1014,7 +1017,7 @@ public:
     OFFLINE_UNSUPPORTED(void, SetDiscSwapMPInvite, (void *))
 
 private:
-    void Validate(const idMatchParameters & parms) const
+    PS2_COLD_FUNC void Validate(const idMatchParameters & parms) const
     {
         Require(m_initialized && m_signIn.GetNumLocalUsers() == 1, "match requires local user");
         Require(parms.gameMode == GAME_MODE_SINGLEPLAYER && parms.gameMap == GAME_MAP_SINGLEPLAYER && parms.numSlots == 1,
@@ -1034,6 +1037,7 @@ private:
 };
 
 #undef OFFLINE_UNSUPPORTED
+
 static OfflineSession s_session;
 
 } // namespace
@@ -1072,6 +1076,7 @@ void idProfileMgr::Pump()
     {
         return;
     }
+
     if (profile->GetRequestedState() == idPlayerProfile::LOAD_REQUESTED)
     {
         profile->SetDefaults();
@@ -1094,14 +1099,20 @@ void idAchievementSystem::SyncAchievementBits(idLocalUser *)
 
 namespace ps2::system::session
 {
-void Init()
+
+PS2_COLD_FUNC void Init()
 {
     ::session->Initialize();
 }
 
-void Shutdown()
+PS2_COLD_FUNC void Shutdown()
 {
     ::session->Shutdown();
+}
+
+bool IsInitialized()
+{
+    return s_session.Initialized();
 }
 
 void Frame()
@@ -1110,8 +1121,4 @@ void Frame()
     ::session->Pump();
 }
 
-bool IsInitialized()
-{
-    return s_session.Initialized();
-}
 } // namespace ps2::system::session

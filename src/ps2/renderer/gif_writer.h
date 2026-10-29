@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #pragma once
+
 #include "ps2/common.h"
 #include <draw.h>
 #include <gif_tags.h>
@@ -12,12 +13,13 @@
 
 namespace ps2::renderer::gs
 {
+
 class GifWriter final
 {
 public:
     GifWriter(qword_t * base, int capacity) : m_base(base), m_ptr(base), m_capacity(capacity)
     {
-        if (base == nullptr || capacity < 0 || (reinterpret_cast<uiptr>(base) & 15U) != 0)
+        if (base == nullptr || capacity < 0 || (reinterpret_cast<uiptr>(base) & 15U) != 0) [[unlikely]]
         {
             FatalError("invalid GIF payload storage");
         }
@@ -40,7 +42,7 @@ public:
 
     void EnsureSpace(int count) const
     {
-        if (count < 0 || count > m_capacity - QwordCount())
+        if (count < 0 || count > m_capacity - QwordCount()) [[unlikely]]
         {
             FatalError("GIF payload overflow: used=%d request=%d capacity=%d", QwordCount(), count, m_capacity);
         }
@@ -59,22 +61,26 @@ public:
     {
         // Audited ps2sdk draw.c: one tag and fifteen A+D writes. Re-audit on SDK changes.
         constexpr int kEnvironmentQwords = 16;
-        if (context < 0 || context > 1)
+        if (context < 0 || context > 1) [[unlikely]]
         {
             FatalError("invalid GS drawing context");
         }
+
         EnsureSpace(kEnvironmentQwords);
         qword_t * const end = draw_setup_environment(m_ptr, context, &frame, &depth);
-        if (end != m_ptr + kEnvironmentQwords)
+
+        if (end != m_ptr + kEnvironmentQwords) [[unlikely]]
         {
             FatalError("unexpected SDK environment packet size");
         }
+
         m_ptr = end;
     }
 
 private:
-    qword_t * m_base;
+    qword_t * const m_base;
     qword_t * m_ptr;
-    int m_capacity;
+    const int m_capacity;
 };
+
 } // namespace ps2::renderer::gs

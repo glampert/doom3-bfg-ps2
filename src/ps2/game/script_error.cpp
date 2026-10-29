@@ -13,11 +13,13 @@ namespace ps2::game::script
 {
 namespace
 {
+
 static ErrorScope * s_scope = nullptr;
 static char s_file[512] = {};
 static int s_line = 0;
 static int s_depth = 0;
 static constexpr int kMaxDepth = 64;
+
 } // namespace
 
 ErrorScope::ErrorScope(Cleanup cleanup, void * data)
@@ -62,7 +64,7 @@ void ErrorScope::CleanupAll()
 
 NestingScope::NestingScope()
 {
-    if (s_depth >= kMaxDepth)
+    if (s_depth >= kMaxDepth) [[unlikely]]
     {
         Fail("compiler nesting exceeds %d calls", kMaxDepth);
     }
@@ -80,10 +82,12 @@ void Fail(const char * format, ...)
     char file[sizeof(s_file)];
     const int line = s_line;
     std::snprintf(file, sizeof(file), "%s", s_file[0] != '\0' ? s_file : "<script>");
+
     va_list args;
     va_start(args, format);
     std::vsnprintf(message, sizeof(message), format, args);
     va_end(args);
+
     ErrorScope::CleanupAll();
     FatalError("script %s:%d: %s", file, line, message);
 }

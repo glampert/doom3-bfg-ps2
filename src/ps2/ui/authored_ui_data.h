@@ -6,11 +6,13 @@
 // ================================================================================================
 
 #pragma once
+
 #include <cstddef>
 #include <cstdint>
 
 namespace ps2::ui::authored
 {
+
 static constexpr std::uint8_t kResource0[] = {
     0x42,
     0x53,
@@ -7116,4 +7118,5 @@ static constexpr PageResource kPageResources[] = {
     { "textures/ps2_movie", "textures/ps2_movie.uipg", 272, 256, 1048640, kPageChecksums0, 4 },
     { "textures/ps2_ascii", "textures/ps2_ascii.uipg", 512, 128, 786488, kPageChecksums1, 3 },
 };
+
 } // namespace ps2::ui::authored

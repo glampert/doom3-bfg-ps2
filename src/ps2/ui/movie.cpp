@@ -17,6 +17,7 @@
 
 namespace
 {
+
 static idSWF * s_movie = nullptr;
 static bool s_initialized = false;
 static u32 s_cycle = 0;
@@ -30,6 +31,7 @@ void Status()
              "[D3BFG] UI pages images=%u slots=%u cache=%u scratch=%u metadata=%u loads=%u hits=%u evictions=%u triangles=%u\n",
              pages.images, static_cast<u32>(pages.cacheBytes / ps2::ui::kPageBytes), pages.cacheBytes, pages.scratchBytes,
              pages.metadataBytes, pages.loads, pages.hits, pages.evictions, pages.triangles);
+
     const auto stats = ps2::system::heap::GetTotalStats();
     if (s_movie == nullptr)
     {
@@ -37,12 +39,14 @@ void Status()
                  s_cycle, stats.requestedBytes, stats.backingBytes, stats.allocationCount);
         return;
     }
+
     auto & root = s_movie->GetRootObject();
     idSWFSpriteInstance * const pulse = root.GetNestedSprite("pulse");
     if (pulse == nullptr)
     {
         ps2::FatalError("authored SWF pulse instance missing");
     }
+
     ps2::Log(ps2::LogLevel::Info,
              "[D3BFG] SWF state=loaded cycle=%u frames=%u pulse=%d focus=%d selected=%d selects=%d heap=%zu/%zu/%zu\n",
              s_cycle, s_frames, static_cast<int>(pulse->GetCurrentFrame()), root.Get("focusIndex").ToInteger(),
@@ -68,12 +72,15 @@ void Unload(bool restoreConsole)
     {
         ps2::FatalError("cannot unload native SWF during drawing");
     }
+
     delete s_movie;
     s_movie = nullptr;
+
     if (restoreConsole)
     {
         OpenConsole();
     }
+
     Status();
 }
 
@@ -83,9 +90,11 @@ void Load()
     {
         ps2::FatalError("invalid authored SWF load ownership");
     }
+
     // Material declarations are already indexed by native DeclManager; admit their authored text too.
     delete ps2::ui::authored::OpenAsset("materials/ps2_ui.mtr");
     s_movie = new (TAG_SWF) idSWF("ps2_demo", nullptr);
+
     // Activation rebuilds frame-one children and executes their authored initialization actions.
     s_movie->Activate(true);
     s_movie->ForceInhibitControl(true);
@@ -93,15 +102,18 @@ void Load()
     const auto focus = root.Get("focusNext");
     const auto select = root.Get("select");
     auto keys = s_movie->GetGlobal("shortcutKeys");
+
     if (!s_movie->IsLoaded() || !focus.IsFunction() || !select.IsFunction() || !keys.IsObject() ||
         root.GetNestedSprite("pulse") == nullptr || root.GetNestedText("status") == nullptr)
     {
         ps2::FatalError("authored SWF native timeline or script contract missing");
     }
+
     // Native HandleEvent invokes the authored AVM1 functions; no host-side substitute handles focus.
     keys.GetObject()->Set("TAB", focus);
     keys.GetObject()->Set("ENTER", select);
     console->Close();
+
     ++s_cycle;
     s_frames = 0;
     s_time = Sys_Milliseconds();
@@ -114,6 +126,7 @@ void Control(const idCmdArgs & args)
     {
         ps2::FatalError("ps2_ui requires load, unload, reload, status, pause or resume");
     }
+
     const char * const action = args.Argv(1);
     if (strcmp(action, "status") == 0)
     {
@@ -154,6 +167,7 @@ void Key(const idCmdArgs & args)
     {
         ps2::FatalError("ps2_uiKey requires an active focused SWF and one named key");
     }
+
     int code = 0;
     if (strcmp(args.Argv(1), "tab") == 0)
     {
@@ -167,20 +181,23 @@ void Key(const idCmdArgs & args)
     {
         ps2::FatalError("unknown authored SWF key: %s", args.Argv(1));
     }
+
     Sys_QueEvent(SE_KEY, code, 1, 0, nullptr, 0);
     Sys_QueEvent(SE_KEY, code, 0, 0, nullptr, 0);
     eventLoop->RunEventLoop(false);
 }
+
 } // namespace
 
 namespace ps2::ui::authored
 {
+
 bool IsLoaded()
 {
     return s_movie != nullptr;
 }
 
-void Init()
+PS2_COLD_FUNC void Init()
 {
     if (s_initialized || !ui::IsInitialized())
     {
@@ -191,7 +208,7 @@ void Init()
     s_initialized = true;
 }
 
-void Shutdown()
+PS2_COLD_FUNC void Shutdown()
 {
     if (!s_initialized)
     {
@@ -230,4 +247,5 @@ void Render(bool advance)
     s_movie->Render(renderSystem, s_time, false);
     ui::EndSwfDraw();
 }
+
 } // namespace ps2::ui::authored

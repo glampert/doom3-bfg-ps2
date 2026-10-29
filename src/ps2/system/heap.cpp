@@ -14,7 +14,7 @@
 #if defined(_EE)
     #define USE_DL_PREFIX 1
     #include <dlmalloc/malloc.h>
-#endif
+#endif // _EE
 
 namespace ps2::system::heap
 {
@@ -40,10 +40,12 @@ Header * GetHeader(const void * pointer)
 {
     const auto address = reinterpret_cast<std::uintptr_t>(pointer);
     auto * header = static_cast<Header *>(reinterpret_cast<void *>(address - sizeof(Header)));
-    if (header->magic != kAllocationMagic || header->tag >= kTagCount)
+
+    if (header->magic != kAllocationMagic || header->tag >= kTagCount) [[unlikely]]
     {
         Fail("invalid allocation header");
     }
+
     return header;
 }
 
@@ -52,10 +54,12 @@ void Add(Stats & stats, size_t requested, size_t backing)
     stats.requestedBytes += requested;
     stats.backingBytes += backing;
     ++stats.allocationCount;
+
     if (stats.requestedBytes > stats.peakRequestedBytes)
     {
         stats.peakRequestedBytes = stats.requestedBytes;
     }
+
     if (stats.backingBytes > stats.peakBackingBytes)
     {
         stats.peakBackingBytes = stats.backingBytes;
@@ -65,10 +69,11 @@ void Add(Stats & stats, size_t requested, size_t backing)
 void Remove(Stats & stats, const Header & header)
 {
     if (stats.requestedBytes < header.requested || stats.backingBytes < header.backing ||
-        stats.allocationCount == 0)
+        stats.allocationCount == 0) [[unlikely]]
     {
         Fail("heap ledger underflow");
     }
+
     stats.requestedBytes -= header.requested;
     stats.backingBytes -= header.backing;
     --stats.allocationCount;
@@ -107,51 +112,62 @@ void Remove(Stats & stats, const Header & header)
 
 void * TryAlloc(size_t size, std::uint16_t tag, size_t alignment)
 {
-    if (tag >= kTagCount || alignment == 0 || (alignment & (alignment - 1)) != 0)
+    if (tag >= kTagCount || alignment == 0 || (alignment & (alignment - 1)) != 0) [[unlikely]]
     {
         return nullptr;
     }
+
     if (alignment < 16)
     {
         alignment = 16;
     }
+
     constexpr size_t kMax = static_cast<size_t>(std::numeric_limits<ptrdiff_t>::max());
-    if (alignment > kMax - sizeof(Header) || size > kMax - sizeof(Header) - alignment)
+
+    if (alignment > kMax - sizeof(Header) || size > kMax - sizeof(Header) - alignment) [[unlikely]]
     {
         return nullptr;
     }
+
     const size_t reserved = (size == 0 ? 1 : size) + sizeof(Header) + alignment - 1;
+
 #if defined(_EE)
     void * base = dlmalloc(reserved);
-#else
+#else // _EE
     void * base = std::malloc(reserved);
-#endif
-    if (base == nullptr)
+#endif // _EE
+
+    if (base == nullptr) [[unlikely]]
     {
         return nullptr;
     }
+
 #if defined(_EE)
     const size_t backing = dlmalloc_usable_size(base);
-#else
+#else // _EE
     const size_t backing = reserved;
-#endif
+#endif // _EE
+
     const std::uintptr_t start = reinterpret_cast<std::uintptr_t>(base) + sizeof(Header);
     const std::uintptr_t address = (start + alignment - 1) & ~(alignment - 1);
     void * pointer = reinterpret_cast<void *>(address);
     auto * header = static_cast<Header *>(reinterpret_cast<void *>(address - sizeof(Header)));
     *header = { base, size, backing, kAllocationMagic, tag };
+
     Add(s_tags[tag], size, backing);
     Add(s_total, size, backing);
+
     return pointer;
 }
 
 void * Alloc(size_t size, std::uint16_t tag, size_t alignment)
 {
     void * pointer = TryAlloc(size, tag, alignment);
-    if (pointer == nullptr)
+    if (pointer == nullptr) [[unlikely]]
     {
         FailAllocation(size, tag, alignment);
     }
+
     return pointer;
 }
 
@@ -161,16 +177,18 @@ void Free(void * pointer)
     {
         return;
     }
+
     Header * header = GetHeader(pointer);
     Remove(s_tags[header->tag], *header);
     Remove(s_total, *header);
     void * base = header->base;
     header->magic = 0;
+
 #if defined(_EE)
     dlfree(base);
-#else
+#else // _EE
     std::free(base);
-#endif
+#endif // _EE
 }
 
 size_t GetRequestedSize(const void * pointer)
@@ -195,9 +213,9 @@ ArenaStats GetArenaStats()
     // This ABI uses signed int fields, safe within the EE's 32 MiB addressable RAM.
     return { true, static_cast<size_t>(info.arena), static_cast<size_t>(info.uordblks),
              static_cast<size_t>(info.fordblks), static_cast<size_t>(info.usmblks) };
-#else
+#else // _EE
     return {};
-#endif
+#endif // _EE
 }
 
 void ResetPeaks()
@@ -205,10 +223,11 @@ void ResetPeaks()
     for (auto & stats : s_tags)
     {
         stats.peakRequestedBytes = stats.requestedBytes;
-        stats.peakBackingBytes = stats.backingBytes;
+        stats.peakBackingBytes   = stats.backingBytes;
     }
+
     s_total.peakRequestedBytes = s_total.requestedBytes;
-    s_total.peakBackingBytes = s_total.backingBytes;
+    s_total.peakBackingBytes   = s_total.backingBytes;
 }
 
 } // namespace ps2::system::heap

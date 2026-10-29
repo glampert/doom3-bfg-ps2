@@ -10,6 +10,7 @@
 
 namespace ps2::audio
 {
+
 struct VoiceClock
 {
     void * context = nullptr;
@@ -29,6 +30,7 @@ enum class VoiceState
     Paused,
     Complete
 };
+
 enum class VoiceSegment
 {
     None,
@@ -71,4 +73,5 @@ private:
     VoiceSegment m_segment = VoiceSegment::None;
     bool m_haveClock = false;
 };
+
 } // namespace ps2::audio

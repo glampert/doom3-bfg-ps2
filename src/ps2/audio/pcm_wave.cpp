@@ -10,6 +10,7 @@
 
 namespace
 {
+
 std::uint32_t Little16(const unsigned char * bytes)
 {
     return static_cast<std::uint32_t>(bytes[0]) | (static_cast<std::uint32_t>(bytes[1]) << 8);
@@ -27,10 +28,12 @@ bool ValidPcm(const ps2::audio::PcmWave & wave)
            wave.dataBytes == static_cast<size_t>(wave.frames) * wave.channels * 2 &&
            static_cast<std::uint64_t>(wave.frames) * 1000 >= wave.sampleRate;
 }
+
 } // namespace
 
 namespace ps2::audio
 {
+
 const char * InspectWave(const WaveReader & reader, PcmWave & output)
 {
     output = {};
@@ -187,4 +190,5 @@ float PeakAmplitude(const PcmWave & wave, const unsigned char * pcm, int timeMS)
     }
     return static_cast<float>(peak) / 32768.0f;
 }
+
 } // namespace ps2::audio

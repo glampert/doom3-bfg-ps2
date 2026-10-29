@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "ps2/common.h"
+
 class idCommon;
 
 namespace ps2::system::lifecycle
@@ -22,6 +24,7 @@ enum class Stage
     Jobs,
     Session
 };
+
 enum class InitResult
 {
     Ready,
@@ -30,13 +33,15 @@ enum class InitResult
 };
 
 // Startup is process-wide and one-shot: static CVar registration cannot be repeated after shutdown.
-InitResult Init(idCommon & owner);
-void Shutdown();
+PS2_COLD_FUNC InitResult Init(idCommon & owner);
+PS2_COLD_FUNC void Shutdown();
+
 void Frame();
 Stage CompletedStage();
 const char * StageName(Stage stage);
 void StopAfterForTest(Stage stage);
+
 // Totals, allocator arena and every tag with live or peak bytes, labeled with the stage.
-void PrintMemory(const char * stage);
+PS2_COLD_FUNC void PrintMemory(const char * stage);
 
 } // namespace ps2::system::lifecycle

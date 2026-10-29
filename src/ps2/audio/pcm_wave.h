@@ -11,6 +11,7 @@
 
 namespace ps2::audio
 {
+
 // Initial headless fixture limits, not a retail sound-cache or streaming budget.
 static constexpr size_t kMaxPcmBytes = 256 * 1024;
 static constexpr size_t kMaxWaveBytes = kMaxPcmBytes + 65536;
@@ -33,9 +34,12 @@ struct PcmWave
 
 // Returns a static diagnostic on failure and clears output. Scans headers without copying the file.
 const char * InspectWave(const WaveReader & reader, PcmWave & output);
+
 // Require an inspected wave (or generated PCM with the same invariants).
 int DurationMsec(const PcmWave & wave);
+
 // Peak absolute PCM value in the containing 1/60-second window, over all channels.
 // Times outside the frame range return zero; PCM bytes remain little-endian on both host and EE.
 float PeakAmplitude(const PcmWave & wave, const unsigned char * pcm, int timeMS);
+
 } // namespace ps2::audio

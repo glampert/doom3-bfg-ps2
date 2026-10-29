@@ -7,7 +7,6 @@
 #pragma once
 
 #include "ps2/ui/geometry.h"
-
 #include <cstdint>
 
 namespace ps2::ui

@@ -10,6 +10,7 @@
 
 namespace ps2::system::video
 {
+
 Standard ConsoleStandard()
 {
     char romName[16] = {};
@@ -36,4 +37,5 @@ int GraphMode(Standard standard)
 {
     return standard == Standard::Pal ? GRAPH_MODE_PAL : GRAPH_MODE_NTSC;
 }
+
 } // namespace ps2::system::video

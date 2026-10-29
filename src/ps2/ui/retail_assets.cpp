@@ -20,10 +20,12 @@ namespace ps2::ui::retail
 {
 namespace
 {
+
 static void * s_bytes = nullptr;
 static CatalogView s_catalog;
 static std::uint32_t s_profile[16] = {};
 static bool s_language = false;
+
 static constexpr const char * kMovies[] = { "generated/swf/shell.bswf", "generated/swf/dialog.bswf" };
 static constexpr const char * kMovieFiles[] = { "retail/shell.bswf", "retail/dialog.bswf" };
 // The names native idSWF gives the two movies.
@@ -98,6 +100,7 @@ bool MovieIdentity(const char * name, bool font, void *)
 
     return false;
 }
+
 } // namespace
 
 bool IsInitialized()
@@ -432,4 +435,5 @@ swf::Summary GetMovieSummary(int index)
 
     return s_movies[index].summary;
 }
+
 } // namespace ps2::ui::retail

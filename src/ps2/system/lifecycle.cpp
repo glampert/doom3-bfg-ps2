@@ -76,12 +76,13 @@ void StopAfterForTest(Stage stage)
     s_stopAfter = stage;
 }
 
-InitResult Init(idCommon & owner)
+PS2_COLD_FUNC InitResult Init(idCommon & owner)
 {
     if (s_everStarted || common != &owner)
     {
         FatalError("invalid/repeated Common initialization");
     }
+
     s_everStarted = true;
     idLib::sys = sys;
     idLib::common = &owner;
@@ -93,27 +94,32 @@ InitResult Init(idCommon & owner)
     {
         return InitResult::Stopped;
     }
+
     idLib::Init();
     if (Complete(Stage::Idlib))
     {
         return InitResult::Stopped;
     }
+
     cmdSystem->Init();
     if (Complete(Stage::Commands))
     {
         return InitResult::Stopped;
     }
+
     cvarSystem->Init();
     idCVar::RegisterStaticVars();
     if (Complete(Stage::Cvars))
     {
         return InitResult::Stopped;
     }
+
     // The campaign filesystem registers commands and reads cvars during initialization.
     if (!system::fs::Init())
     {
         return InitResult::Failed;
     }
+
     fileSystem->Init();
     if (!fileSystem->IsInitialized())
     {
@@ -124,24 +130,28 @@ InitResult Init(idCommon & owner)
     {
         return InitResult::Stopped;
     }
+
     parallelJobManager->Init();
     if (Complete(Stage::Jobs))
     {
         return InitResult::Stopped;
     }
+
     system::session::Init();
     if (Complete(Stage::Session))
     {
         return InitResult::Stopped;
     }
+
     s_ready = true;
     Log(LogLevel::Info, "[D3BFG] COMMON foundation ready; game/presentation/save capabilities deferred\n");
     return InitResult::Ready;
 }
 
-void Shutdown()
+PS2_COLD_FUNC void Shutdown()
 {
     s_ready = false;
+
     // Use the exact reverse dependency order. A service is never shut down before its Init completes.
     while (s_completed != Stage::None)
     {
@@ -185,22 +195,25 @@ void Shutdown()
 
 void Frame()
 {
-    if (!s_ready || !common->IsInitialized())
+    if (!s_ready || !common->IsInitialized()) [[unlikely]]
     {
         FatalError("Common frame before completed initialization");
     }
+
     ++idLib::frameNumber;
     cmdSystem->ExecuteCommandBuffer();
     system::session::Frame();
 }
 
-void PrintMemory(const char * stage)
+PS2_COLD_FUNC void PrintMemory(const char * stage)
 {
     const system::heap::Stats totals = system::heap::GetTotalStats();
     const system::heap::ArenaStats arena = system::heap::GetArenaStats();
+
     Log(LogLevel::Info, "[D3BFG] MEMORY %s requested=%zu backing=%zu allocations=%zu peak_requested=%zu peak_backing=%zu\n",
         stage, totals.requestedBytes, totals.backingBytes, totals.allocationCount, totals.peakRequestedBytes,
         totals.peakBackingBytes);
+
     Log(LogLevel::Info, "[D3BFG] ARENA %s available=%d committed=%zu used=%zu free=%zu peak_committed=%zu\n", stage,
         arena.available ? 1 : 0, arena.committedBytes, arena.usedBytes, arena.freeBytes, arena.peakCommittedBytes);
 

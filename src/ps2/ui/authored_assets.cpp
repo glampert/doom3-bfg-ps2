@@ -12,6 +12,7 @@
 
 namespace ps2::ui::authored
 {
+
 PS2_COLD_FUNC idFile * OpenAsset(const char * path)
 {
     const Resource * resource = nullptr;
@@ -27,6 +28,7 @@ PS2_COLD_FUNC idFile * OpenAsset(const char * path)
     {
         FatalError("UI asset outside authored profile: %s", path != nullptr ? path : "<null>");
     }
+
     idFile * const source = fileSystem->OpenFileRead(path);
     if (source == nullptr)
     {
@@ -37,17 +39,21 @@ PS2_COLD_FUNC idFile * OpenAsset(const char * path)
         delete source;
         FatalError("authored UI asset length mismatch: %s", path);
     }
+
     auto * const bytes = static_cast<char *>(system::heap::Alloc(resource->length, TAG_SWF));
     const bool read = source->Read(bytes, static_cast<int>(resource->length)) == static_cast<int>(resource->length);
     delete source;
+
     if (!read || memcmp(bytes, resource->bytes, resource->length) != 0)
     {
         system::heap::Free(bytes);
         FatalError("authored UI asset content mismatch: %s", path);
     }
+
     // The parser sees the single checked snapshot, never a second mutable HostFs open.
     auto * const snapshot = new (TAG_SWF) idFile_Memory(path, static_cast<const char *>(bytes), static_cast<int>(resource->length));
     snapshot->TakeDataOwnership();
     return snapshot;
 }
+
 } // namespace ps2::ui::authored

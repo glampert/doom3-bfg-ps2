@@ -11,6 +11,7 @@
 
 namespace ps2::ui::swf
 {
+
 static constexpr std::uint32_t kMaxActionBytes = 65535;
 static constexpr std::uint32_t kMaxActions = 65536;
 static constexpr std::uint32_t kMaxFunctions = 256;
@@ -26,6 +27,7 @@ struct ExecutionSummary
     std::uint32_t placements = 0;
     std::uint32_t removals = 0;
     std::uint32_t maxFunctionDepth = 0;
+
     // Draw features: screen blending needs channel CLUTs, and an additive alpha term has no 2D path.
     std::uint32_t masks = 0;
     std::uint32_t screenBlends = 0;
@@ -57,4 +59,5 @@ bool ValidateCommand(std::uint32_t tag, const void * bytes, std::size_t length,
                         const std::uint8_t * dictionaryTypes, std::uint32_t dictionaryCount,
                         std::uint32_t frames, ExecutionSummary & output,
                         Placement * placement = nullptr);
+
 } // namespace ps2::ui::swf

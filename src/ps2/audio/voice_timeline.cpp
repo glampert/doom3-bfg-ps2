@@ -10,6 +10,7 @@
 
 namespace
 {
+
 static constexpr std::uint64_t kPitchScale = 65536;
 static constexpr std::uint64_t kUnitsPerSecond = 1000000 * kPitchScale;
 
@@ -24,16 +25,19 @@ std::uint64_t SampleLength(ps2::audio::SampleTiming sample)
     // Round only at 1/65536 microsecond resolution, never at the native integer-millisecond duration.
     return (static_cast<std::uint64_t>(sample.frames) * kUnitsPerSecond + sample.sampleRate - 1) / sample.sampleRate;
 }
+
 } // namespace
 
 namespace ps2::audio
 {
+
 void VoiceTimeline::Configure(SampleTiming leadin, SampleTiming looping)
 {
     const std::uint64_t leadinLength = SampleLength(leadin);
     const bool hasLoop = looping.frames != 0 || looping.sampleRate != 0;
     const std::uint64_t loopLength = hasLoop ? SampleLength(looping) : 0;
     *this = {};
+
     m_leadin = leadin;
     m_looping = looping;
     m_leadinLength = leadinLength;
@@ -167,4 +171,5 @@ float VoiceTimeline::GetPitch() const
 {
     return static_cast<float>(m_pitch) / static_cast<float>(kPitchScale);
 }
+
 } // namespace ps2::audio

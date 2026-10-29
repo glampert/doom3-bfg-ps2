@@ -11,8 +11,10 @@ namespace ps2::ui::swf
 {
 namespace
 {
+
 using U32 = std::uint32_t;
-using U8 = std::uint8_t;
+using U8  = std::uint8_t;
+
 static constexpr U32 kMaxDictionary = 1024;
 static constexpr U32 kMaxItems = 65536;
 
@@ -562,6 +564,7 @@ private:
     U8 m_graphState[512] = {};
     U8 m_graphHeight[512] = {};
 };
+
 } // namespace
 
 bool ValidateBytes(const void * bytes, std::size_t length, Summary & output, IdentityCheck identity, void * context)
@@ -742,4 +745,5 @@ bool ValidateEnglishBytes(const void * bytes, std::size_t length, std::uint32_t 
         }
     }
 }
+
 } // namespace ps2::ui::swf

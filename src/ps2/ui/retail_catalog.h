@@ -11,6 +11,7 @@
 
 namespace ps2::ui::retail
 {
+
 static constexpr std::size_t kMaxCatalogBytes = 128U * 1024U;
 static constexpr std::uint32_t kMaxImages = 32;
 static constexpr std::uint32_t kMaxFonts = 8;
@@ -113,4 +114,5 @@ private:
     const char * String(std::uint32_t offset) const;
     const std::uint8_t * m_bytes = nullptr;
 };
+
 } // namespace ps2::ui::retail

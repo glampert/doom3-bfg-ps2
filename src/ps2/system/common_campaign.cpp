@@ -12,15 +12,18 @@
 
 namespace
 {
+
 [[noreturn]] PS2_COLD_FUNC void Unsupported(const char * method)
 {
     ps2::FatalError("Common campaign capability unavailable: %s", method);
 }
+
 } // namespace
 
 // Preserve values referenced by retained frame code; they never enable network services.
 idCVar net_clientMaxPrediction("net_clientMaxPrediction", "5000", CVAR_SYSTEM | CVAR_INTEGER | CVAR_NOCHEAT,
                                "maximum client prediction in milliseconds; online services are unavailable");
+
 idCVar net_ucmdRate("net_ucmdRate", "40", CVAR_SYSTEM | CVAR_INTEGER,
                     "usercmd send interval in milliseconds; online services are unavailable");
 
@@ -50,10 +53,12 @@ void idCommonLocal::ResetNetworkingState()
     snapRate = 100000;
     optimalTimeBuffered = optimalTimeBufferedWindow = 0.0f;
     optimalPCTBuffer = 0.5f;
+
     for (int index = 0; index < receivedSnaps.Num(); ++index)
     {
         receivedSnaps[index].Clear();
     }
+
     userCmdMgr.SetDefaults();
     snapCurrent.localTime = snapPrevious.localTime = -1;
     snapCurrent.serverTime = snapPrevious.serverTime = -1;

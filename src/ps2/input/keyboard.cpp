@@ -10,12 +10,16 @@
 #include <libkbd.h>
 #include <loadfile.h>
 
+namespace ps2::input::keyboard
+{
 namespace
 {
+
 // A frame reads at most this many raw keys and posts at most this many events: the driver sends
 // two per keystroke and does not repeat in raw mode, so only a long stall fills them.
 static constexpr int kMaxReadsPerFrame = 64;
 static constexpr int kMaxEventsPerFrame = 32;
+
 // Every read is an IOP file round trip, and the driver cannot say whether a keyboard is attached.
 // An idle keyboard is read every kIdlePollMsec; one in use every frame, until kActiveMsec after
 // the last raw key and for as long as any key is held.
@@ -26,12 +30,12 @@ static constexpr u32 kUsageCount = 256;
 static bool s_available = false;
 static bool s_usbdStarted = false;
 static bool s_kbdStarted = false;
-static ps2::input::keyboard::Stats s_stats;
 static bool s_held[kUsageCount] = {};
 static bool s_keySeen = false;
+static bool s_shift = false;
 static int s_lastKeyMsec = 0;
 static int s_lastPollMsec = 0;
-static bool s_shift = false;
+static ps2::input::keyboard::Stats s_stats = {};
 
 struct UsageKey
 {
@@ -108,8 +112,11 @@ static constexpr UsageKey kUsageKeys[] = {
 };
 
 // Engine keys are scan codes in QWERTY order; HID letters are alphabetical.
-static constexpr u8 kLetterKeys[26] = { K_A, K_B, K_C, K_D, K_E, K_F, K_G, K_H, K_I, K_J, K_K, K_L, K_M,
-                                        K_N, K_O, K_P, K_Q, K_R, K_S, K_T, K_U, K_V, K_W, K_X, K_Y, K_Z };
+static constexpr u8 kLetterKeys[26] = {
+    K_A, K_B, K_C, K_D, K_E, K_F, K_G, K_H, K_I, K_J, K_K, K_L, K_M,
+    K_N, K_O, K_P, K_Q, K_R, K_S, K_T, K_U, K_V, K_W, K_X, K_Y, K_Z
+};
+
 static constexpr char kDigitShifted[9] = { '!', '@', '#', '$', '%', '^', '&', '*', '(' };
 
 struct KeyTable
@@ -121,7 +128,7 @@ struct KeyTable
 
 static KeyTable s_table;
 
-void BuildKeyTable()
+PS2_COLD_FUNC void BuildKeyTable()
 {
     s_table = KeyTable();
 
@@ -152,7 +159,7 @@ void BuildKeyTable()
     }
 }
 
-bool StartModule(const char * irxDirectory, const char * name, bool & started)
+PS2_COLD_FUNC bool StartModule(const char * irxDirectory, const char * name, bool & started)
 {
     if (started)
     {
@@ -161,6 +168,7 @@ bool StartModule(const char * irxDirectory, const char * name, bool & started)
 
     char path[128];
     idStr::snPrintf(path, static_cast<int>(sizeof(path)), "%s/%s.irx", irxDirectory, name);
+
     int moduleResult = 0;
     const int id = SifLoadStartModule(path, 0, nullptr, &moduleResult);
 
@@ -174,11 +182,10 @@ bool StartModule(const char * irxDirectory, const char * name, bool & started)
     started = true;
     return true;
 }
+
 } // namespace
 
-namespace ps2::input::keyboard
-{
-bool Init(const char * irxDirectory)
+PS2_COLD_FUNC bool Init(const char * irxDirectory)
 {
     if (s_available || irxDirectory == nullptr)
     {
@@ -214,7 +221,7 @@ bool Init(const char * irxDirectory)
     return true;
 }
 
-void Shutdown()
+PS2_COLD_FUNC void Shutdown()
 {
     if (s_available)
     {
@@ -224,9 +231,10 @@ void Shutdown()
 
     s_stats.available = false;
     s_stats.held = 0;
-    memset(static_cast<void *>(s_held), 0, sizeof(s_held));
     s_keySeen = false;
     s_shift = false;
+
+    memset(static_cast<void *>(s_held), 0, sizeof(s_held));
 }
 
 void Poll(int nowMsec)
@@ -296,8 +304,9 @@ void Poll(int nowMsec)
     s_stats.events += static_cast<u32>(events);
 }
 
-Stats GetStats()
+const Stats & GetStats()
 {
     return s_stats;
 }
+
 } // namespace ps2::input::keyboard

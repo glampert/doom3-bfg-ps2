@@ -5,17 +5,24 @@
 // ================================================================================================
 
 #include "ps2/system/log.h"
+
 #if !PS2_D3BFG_TESTS
     #include "ps2/system/runtime.h"
-#endif
+#endif // PS2_D3BFG_TESTS
+
 #include <idlib/precompiled.h>
 
 namespace
 {
+
 static constexpr const char * kLanguages[] = {
-    ID_LANG_ENGLISH, ID_LANG_FRENCH, ID_LANG_ITALIAN, ID_LANG_GERMAN, ID_LANG_SPANISH, ID_LANG_JAPANESE, nullptr
+    ID_LANG_ENGLISH, ID_LANG_FRENCH, ID_LANG_ITALIAN,
+    ID_LANG_GERMAN, ID_LANG_SPANISH, ID_LANG_JAPANESE,
+    nullptr
 };
+
 static constexpr int kLanguageCount = static_cast<int>(ps2::ArrayLength(kLanguages)) - 1;
+
 static char s_seconds[64];
 static char s_timestamp[64];
 
@@ -23,6 +30,7 @@ static char s_timestamp[64];
 {
     ps2::FatalError("platform capability unavailable: %s", method);
 }
+
 } // namespace
 
 idCVar sys_lang("sys_lang", ID_LANG_ENGLISH, CVAR_SYSTEM | CVAR_INIT, "language identifier for resource lookup");
@@ -44,15 +52,17 @@ const char * Sys_DefaultLanguage()
 
 const char * Sys_SecToStr(int seconds)
 {
-    if (seconds < 0)
+    if (seconds < 0) [[unlikely]]
     {
         ps2::FatalError("Sys_SecToStr requires a nonnegative duration");
     }
-    const int weeks = seconds / 604800;
-    const int days = seconds / 86400 % 7;
-    const int hours = seconds / 3600 % 24;
-    const int minutes = seconds / 60 % 60;
+
+    const int weeks     = seconds / 604800;
+    const int days      = seconds / 86400 % 7;
+    const int hours     = seconds / 3600 % 24;
+    const int minutes   = seconds / 60 % 60;
     const int remaining = seconds % 60;
+
     if (weeks != 0)
     {
         idStr::snPrintf(s_seconds, static_cast<int>(sizeof(s_seconds)), "%dw, %dd, %d:%02d:%02d", weeks, days, hours, minutes, remaining);
@@ -65,6 +75,7 @@ const char * Sys_SecToStr(int seconds)
     {
         idStr::snPrintf(s_seconds, static_cast<int>(sizeof(s_seconds)), "%d:%02d:%02d", hours, minutes, remaining);
     }
+
     return s_seconds;
 }
 
@@ -76,21 +87,23 @@ const char * Sys_TimeStampToStr(ID_TIME_T timestamp)
     {
         return "timestamp unavailable";
     }
+
     const tm * calendar = gmtime(&value);
     if (calendar == nullptr || strftime(s_timestamp, sizeof(s_timestamp), "%Y-%m-%d %H:%M UTC", calendar) == 0)
     {
         return "timestamp unavailable";
     }
+
     return s_timestamp;
 }
 
-void Sys_Quit()
+PS2_COLD_FUNC void Sys_Quit()
 {
 #if PS2_D3BFG_TESTS
     Unsupported("Sys_Quit");
-#else
+#else // PS2_D3BFG_TESTS
     ps2::system::runtime::RequestQuit();
-#endif
+#endif // PS2_D3BFG_TESTS
 }
 
 void Sys_Launch(const char *, idCmdArgs &, void *, unsigned int)
@@ -107,9 +120,9 @@ void Sys_GrabMouseCursor(bool)
 {
 #if PS2_D3BFG_TESTS
     Unsupported("Sys_GrabMouseCursor");
-#else
+#else // PS2_D3BFG_TESTS
     // The native console toggles capture; this console has no desktop cursor or mouse device.
-#endif
+#endif // PS2_D3BFG_TESTS
 }
 
 void Sys_SetRumble(int, int, int)

@@ -17,10 +17,10 @@
 #if defined(ID_HOST_TEST)
     #include <chrono>
     #include <thread>
-#else
+#else // ID_HOST_TEST
     #include <kernel.h>
     #include <timer.h>
-#endif
+#endif // ID_HOST_TEST
 
 #include <idlib/precompiled.h>
 
@@ -29,33 +29,35 @@ namespace
 
 static constexpr size_t kEventCapacity = 64;
 static constexpr std::uint64_t kMicrosecondsPerSecond = 1000000;
+
 #if !defined(ID_HOST_TEST)
 static constexpr unsigned int kBusTicksPerSecond = 147456000;
-#endif
+#endif // ID_HOST_TEST
+
 static sysEvent_t s_events[kEventCapacity] = {};
 static size_t s_eventHead = 0;
 static size_t s_eventCount = 0;
 static std::uint64_t s_startTicks = 0;
 static bool s_initialized = false;
 
-std::uint64_t ReadTicks()
+inline std::uint64_t ReadTicks()
 {
 #if defined(ID_HOST_TEST)
     return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
                                       std::chrono::steady_clock::now().time_since_epoch())
                                       .count());
-#else
+#else // ID_HOST_TEST
     return GetTimerSystemTime();
-#endif
+#endif // ID_HOST_TEST
 }
 
-int WrapAdd(int value, int increment)
+inline int WrapAdd(int value, int increment)
 {
     const std::uint32_t result = static_cast<std::uint32_t>(value) + static_cast<std::uint32_t>(increment);
     return std::bit_cast<int>(result);
 }
 
-int WrapSub(int value, int decrement)
+inline int WrapSub(int value, int decrement)
 {
     const std::uint32_t result = static_cast<std::uint32_t>(value) - static_cast<std::uint32_t>(decrement);
     return std::bit_cast<int>(result);
@@ -73,7 +75,7 @@ void FreeEvent(sysEvent_t & event)
 class CoreSys final : public idSys
 {
 public:
-    void DebugPrintf(const char * format, ...) override
+    PS2_COLD_FUNC void DebugPrintf(const char * format, ...) override
     {
         va_list args;
         va_start(args, format);
@@ -81,7 +83,7 @@ public:
         va_end(args);
     }
 
-    void DebugVPrintf(const char * format, va_list args) override
+    PS2_COLD_FUNC void DebugVPrintf(const char * format, va_list args) override
     {
         Sys_DebugVPrintf(format, args);
     }
@@ -183,10 +185,11 @@ public:
 
     sysEvent_t GenerateMouseButtonEvent(int button, bool down) override
     {
-        if (button < 1 || button > 8)
+        if (button < 1 || button > 8) [[unlikely]]
         {
             Sys_Error("Mouse button is outside the engine key range");
         }
+
         sysEvent_t event = {};
         event.evType = SE_KEY;
         event.evValue = K_MOUSE1 + button - 1;
@@ -220,24 +223,25 @@ static CoreSys s_sys;
 
 idSys * sys = &s_sys;
 
-void Sys_Init()
+PS2_COLD_FUNC void Sys_Init()
 {
     if (s_initialized)
     {
         Sys_Error("Sys_Init called twice");
     }
+
     s_startTicks = ReadTicks();
     s_initialized = true;
     Sys_ClearEvents();
 }
 
-void Sys_Shutdown()
+PS2_COLD_FUNC void Sys_Shutdown()
 {
     Sys_ClearEvents();
     s_initialized = false;
 }
 
-void Sys_Printf(const char * format, ...)
+PS2_COLD_FUNC void Sys_Printf(const char * format, ...)
 {
     va_list args;
     va_start(args, format);
@@ -245,12 +249,12 @@ void Sys_Printf(const char * format, ...)
     va_end(args);
 }
 
-void Sys_DebugVPrintf(const char * format, va_list args)
+PS2_COLD_FUNC void Sys_DebugVPrintf(const char * format, va_list args)
 {
     ps2::LogV(ps2::LogLevel::Info, format, args);
 }
 
-void Sys_DebugPrintf(const char * format, ...)
+PS2_COLD_FUNC void Sys_DebugPrintf(const char * format, ...)
 {
     va_list args;
     va_start(args, format);
@@ -258,7 +262,7 @@ void Sys_DebugPrintf(const char * format, ...)
     va_end(args);
 }
 
-void Sys_Error(const char * format, ...)
+PS2_COLD_FUNC void Sys_Error(const char * format, ...)
 {
     va_list args;
     va_start(args, format);
@@ -268,14 +272,15 @@ void Sys_Error(const char * format, ...)
 uint64 Sys_Microseconds()
 {
     const std::uint64_t ticks = ReadTicks() - s_startTicks;
+
 #if defined(ID_HOST_TEST)
     return static_cast<uint64>(ticks);
-#else
+#else // ID_HOST_TEST
     u32 seconds = 0;
     u32 microseconds = 0;
     TimerBusClock2USec(ticks, &seconds, &microseconds);
     return static_cast<uint64>(seconds) * kMicrosecondsPerSecond + microseconds;
-#endif
+#endif // ID_HOST_TEST
 }
 
 int Sys_Milliseconds()
@@ -295,27 +300,28 @@ double Sys_ClockTicksPerSecond()
 {
 #if defined(ID_HOST_TEST)
     return static_cast<double>(kMicrosecondsPerSecond);
-#else
+#else // ID_HOST_TEST
     return static_cast<double>(kBusTicksPerSecond);
-#endif
+#endif // ID_HOST_TEST
 }
 
 void Sys_Sleep(int milliseconds)
 {
-    if (milliseconds < 0)
+    if (milliseconds < 0) [[unlikely]]
     {
         Sys_Error("Negative sleep duration");
     }
+
 #if defined(ID_HOST_TEST)
     std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-#else
+#else // ID_HOST_TEST
     const uint64 start = Sys_Microseconds();
     const uint64 duration = static_cast<uint64>(milliseconds) * 1000U;
     while (Sys_Microseconds() - start < duration)
     {
-        __asm__ volatile("" ::: "memory");
+        asm volatile("" ::: "memory");
     }
-#endif
+#endif // ID_HOST_TEST
 }
 
 cpuid_t Sys_GetProcessorId()
@@ -336,7 +342,7 @@ void Sys_CPUCount(int & physical, int & logical, int & packages)
 bool Sys_FPU_StackIsEmpty()
 {
     return true;
-} // COP1 has registers rather than an x87 stack.
+}
 
 void Sys_FPU_ClearStack()
 {
@@ -403,6 +409,8 @@ void Sys_GetCallStack(address_t * stack, int size)
     {
         Sys_Error("Invalid call stack buffer");
     }
+
+    // TODO: implement stack trace.
     for (int index = 0; index < size; ++index)
     {
         stack[index] = 0;
@@ -473,7 +481,7 @@ void Sys_SetCurrentThreadName(const char *)
 
 void Sys_Yield()
 {
-    __asm__ volatile("" ::: "memory");
+    asm volatile("" ::: "memory");
 }
 
 void Sys_SignalCreate(signalHandle_t & handle, bool manualReset)
@@ -502,6 +510,7 @@ bool Sys_SignalWait(signalHandle_t & handle, int timeout)
     {
         Sys_Error("Invalid signal timeout");
     }
+
     if (!handle.signaled)
     {
         if (timeout == -1)
@@ -517,6 +526,7 @@ bool Sys_SignalWait(signalHandle_t & handle, int timeout)
             return false;
         }
     }
+
     if (!handle.manualReset)
     {
         handle.signaled = false;
@@ -621,30 +631,33 @@ void Sys_FlushCacheLine(const void * pointer, int offset)
 #if defined(ID_HOST_TEST)
     (void)pointer;
     (void)offset;
-#else
-    if (pointer == nullptr || offset < 0)
+#else // ID_HOST_TEST
+    if (pointer == nullptr || offset < 0) [[unlikely]]
     {
         Sys_Error("Invalid cache flush address");
     }
+
     constexpr uintptr_t kLineMask = 63;
     const uintptr_t address = reinterpret_cast<uintptr_t>(pointer);
     const uintptr_t relative = static_cast<uintptr_t>(offset);
-    if (address > UINTPTR_MAX - relative - 64U)
+    if (address > UINTPTR_MAX - relative - 64U) [[unlikely]]
     {
         Sys_Error("Cache flush address overflow");
     }
+
     const uintptr_t start = (address + relative) & ~kLineMask;
     SyncDCache(reinterpret_cast<void *>(start), reinterpret_cast<void *>(start + 64U));
-#endif
+#endif // ID_HOST_TEST
 }
 
 void Sys_QueEvent(sysEventType_t type, int value, int value2, int ptrLength, void * pointer, int device)
 {
-    if (type <= SE_NONE || type > SE_CONSOLE || ptrLength < 0 || (pointer == nullptr && ptrLength != 0))
+    if (type <= SE_NONE || type > SE_CONSOLE || ptrLength < 0 || (pointer == nullptr && ptrLength != 0)) [[unlikely]]
     {
         Sys_Error("Invalid queued event");
     }
-    if (s_eventCount == kEventCapacity)
+
+    if (s_eventCount == kEventCapacity) [[unlikely]]
     {
         // Queue ownership includes the displaced payload; dequeue transfers it to the caller.
         FreeEvent(s_events[s_eventHead]);
@@ -652,6 +665,7 @@ void Sys_QueEvent(sysEventType_t type, int value, int value2, int ptrLength, voi
         --s_eventCount;
         Sys_Printf("[D3BFG] EVENT queue overflow: dropped oldest event\n");
     }
+
     const size_t tail = (s_eventHead + s_eventCount) % kEventCapacity;
     s_events[tail] = { type, value, value2, ptrLength, pointer, device };
     ++s_eventCount;
@@ -663,6 +677,7 @@ sysEvent_t Sys_GetEvent()
     {
         return {};
     }
+
     const sysEvent_t event = s_events[s_eventHead];
     s_events[s_eventHead] = {};
     s_eventHead = (s_eventHead + 1) % kEventCapacity;
@@ -681,25 +696,24 @@ void Sys_ClearEvents()
     s_eventHead = 0;
 }
 
-namespace
-{
-static void (*s_eventGenerator)() = nullptr;
-} // namespace
-
 namespace ps2::system::runtime
 {
+
+static void (*s_eventGenerator)() = nullptr;
+
 void SetEventGenerator(void (*generator)())
 {
     s_eventGenerator = generator;
 }
+
 } // namespace ps2::system::runtime
 
 void Sys_GenerateEvents()
 {
     // Headless runs and the test images register no device poll.
-    if (s_eventGenerator != nullptr)
+    if (ps2::system::runtime::s_eventGenerator != nullptr)
     {
-        s_eventGenerator();
+        ps2::system::runtime::s_eventGenerator();
     }
 }
 
@@ -709,12 +723,14 @@ ID_TIME_T Sys_FileTimeStamp(idFileHandle file)
     {
         return -1;
     }
+
     struct stat status = {};
     const int descriptor = fileno(file);
     if (descriptor < 0 || fstat(descriptor, &status) != 0)
     {
         return -1;
     }
+
     return static_cast<ID_TIME_T>(status.st_mtime);
 }
 

@@ -7,6 +7,7 @@
 #include "ps2/renderer/capture.h"
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/renderer/render_system.h"
+
 #include <cstdio>
 #include <dma.h>
 #include <gs_gp.h>
@@ -18,6 +19,9 @@ namespace ps2::renderer::gs
 {
 namespace
 {
+
+// TODO: Make this debug only; holds large static buffers - not needed besides dev/testing.
+// Also switch to using heap-allocated temp buffers rather than always allocated static buffers.
 static constexpr int kWidth = 512;
 static constexpr int kStripRows = 32;
 static constexpr u32 kDmaStart = 1U << 8;
@@ -36,9 +40,10 @@ alignas(64) static u8 s_bgr[kWidth * kStripRows * 3];
 alignas(64) static u64 s_request[16];
 alignas(64) static u32 s_restorePath3[16];
 static bool s_active = false;
+
 #if PS2_D3BFG_TESTS
 static bool s_injectReadbackTimeout = false;
-#endif
+#endif // PS2_D3BFG_TESTS
 
 template<typename Ready>
 bool TryWait(Ready ready, const char * name)
@@ -72,7 +77,7 @@ void RestoreDirection(const SavedPipeline & saved)
     EE_SYNCL();
 }
 
-void RecoverPipeline(const SavedPipeline & saved)
+PS2_COLD_FUNC void RecoverPipeline(const SavedPipeline & saved)
 {
     // ps2sdk's MPEG path suspends the DMAC before clearing an active channel's STR.
     // Keep other channels' global suspend and interrupt state intact around that operation.
@@ -103,9 +108,10 @@ void RecoverPipeline(const SavedPipeline & saved)
     EE_SYNCP();
 }
 
-bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
+PS2_COLD_FUNC bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
 {
     PS2_Assert(y >= 0 && rows > 0 && rows <= kStripRows && y + rows <= frame.height);
+
     // The profile uses full, aligned rows, so neither the request nor target shares a
     // cache line with unrelated data. Both DMA channels must already have drained.
     if (frame.width != kWidth || frame.pixelFormat != GS_PSM_16 || y < 0 || rows <= 0 ||
@@ -122,8 +128,10 @@ bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
         GsGetIMR(), *GS_REG_BUSDIR & 1U, *R_EE_VIF1_STAT & kVifDirection,
         *R_EE_D1_CHCR, *R_EE_GIF_MODE
     };
+
     const int bytes = frame.width * rows * static_cast<int>(sizeof(u16));
     u32 * const codes = static_cast<u32 *>(static_cast<void *>(s_request));
+
     codes[0] = VIF_CODE(0, 0, VIF_CMD_NOP, 0);
     codes[1] = VIF_CODE(0x8000, 0, VIF_CMD_MSKPATH3, 0);
     codes[2] = VIF_CODE(0, 0, VIF_CMD_FLUSHA, 0);
@@ -146,12 +154,9 @@ bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
     GsPutIMR(saved.imr | kFinishMask);
     *GS_REG_CSR = kFinish;
     const bool requested = dma_channel_send_normal(DMA_CHANNEL_VIF1, s_request, 7, 0, 0) == 0 &&
-                           TryWait([]
-                                   { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "request DMA") &&
-                           TryWait([]
-                                   { return (*GS_REG_CSR & kFinish) != 0; }, "request FINISH") &&
-                           TryWait([]
-                                   { return (*R_EE_VIF1_STAT & kVifFifoCount) == 0; }, "request FIFO");
+                           TryWait([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "request DMA") &&
+                           TryWait([] { return (*GS_REG_CSR & kFinish) != 0; }, "request FINISH") &&
+                           TryWait([] { return (*R_EE_VIF1_STAT & kVifFifoCount) == 0; }, "request FIFO");
     if (!requested)
     {
         RecoverPipeline(saved);
@@ -164,39 +169,40 @@ bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
     void * const end = static_cast<u8 *>(static_cast<void *>(s_pixels)) + bytes;
     SyncDCache(s_pixels, end);
     bool injected = false;
+
 #if PS2_D3BFG_TESTS
     injected = s_injectReadbackTimeout;
     s_injectReadbackTimeout = false;
-#endif
+#endif // PS2_D3BFG_TESTS
+
     const bool received = dma_channel_receive_normal(DMA_CHANNEL_VIF1, s_pixels, bytes, 0, 0) == 0 &&
-                          TryWait([injected]
-                                  { return !injected && (*R_EE_D1_CHCR & kDmaStart) == 0; }, "receive DMA");
+                          TryWait([injected] { return !injected && (*R_EE_D1_CHCR & kDmaStart) == 0; }, "receive DMA");
     if (!received)
     {
         RecoverPipeline(saved);
         return false;
     }
+
     InvalidDCache(s_pixels, end);
     RestoreDirection(saved);
     *GS_REG_CSR = kFinish;
+
     const bool restored = dma_channel_send_normal(DMA_CHANNEL_VIF1, s_restorePath3, 1, 0, 0) == 0 &&
-                          TryWait([]
-                                  { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "PATH3 restore DMA") &&
-                          TryWait([]
-                                  { return (*R_EE_GIF_STAT & kPath3VifMask) == 0; }, "PATH3 restore") &&
-                          TryWait([]
-                                  { return (*R_EE_VIF1_STAT & kVifFifoCount) == 0; }, "PATH3 restore FIFO");
+                          TryWait([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "PATH3 restore DMA") &&
+                          TryWait([] { return (*R_EE_GIF_STAT & kPath3VifMask) == 0; }, "PATH3 restore") &&
+                          TryWait([] { return (*R_EE_VIF1_STAT & kVifFifoCount) == 0; }, "PATH3 restore FIFO");
     if (!restored)
     {
         RecoverPipeline(saved);
         return false;
     }
+
     *R_EE_D1_CHCR = saved.channelControl;
     GsPutIMR(saved.imr);
     return true;
 }
 
-void ToBgr(int count)
+PS2_COLD_FUNC void ToBgr(int count)
 {
     for (int i = 0; i < count; ++i)
     {
@@ -210,7 +216,7 @@ void ToBgr(int count)
     }
 }
 
-bool WriteFrame(std::FILE * file, const gs::FramebufferInfo & frame)
+PS2_COLD_FUNC bool WriteFrame(std::FILE * file, const gs::FramebufferInfo & frame)
 {
     u8 header[18] = {};
     header[2] = 2;
@@ -220,10 +226,12 @@ bool WriteFrame(std::FILE * file, const gs::FramebufferInfo & frame)
     header[15] = static_cast<u8>(frame.height >> 8);
     header[16] = 24;
     header[17] = 0x20; // Top-down rows, matching native GS coordinates.
+
     if (std::fwrite(header, 1, sizeof(header), file) != sizeof(header))
     {
         return false;
     }
+
     for (int y = 0; y < frame.height; y += kStripRows)
     {
         const int rows = frame.height - y < kStripRows ? frame.height - y : kStripRows;
@@ -231,16 +239,20 @@ bool WriteFrame(std::FILE * file, const gs::FramebufferInfo & frame)
         {
             return false;
         }
+
         const int count = frame.width * rows;
         ToBgr(count);
+
         const size_t bytes = static_cast<size_t>(count) * 3U;
         if (std::fwrite(s_bgr, 1, bytes, file) != bytes)
         {
             return false;
         }
     }
+
     return std::ferror(file) == 0;
 }
+
 } // namespace
 
 PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
@@ -252,18 +264,21 @@ PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
         Log(LogLevel::Error, "GS capture requires a path and the most recently completed frame");
         return false;
     }
+
     const gs::FramebufferInfo frame = gs::GetFramebuffer(context);
     if (frame.width != kWidth || frame.height <= 0 || frame.height > 512 || frame.pixelFormat != GS_PSM_16)
     {
         Log(LogLevel::Error, "GS capture supports only the fixed PSMCT16 device profile");
         return false;
     }
+
     std::FILE * const file = std::fopen(path, "wb");
     if (file == nullptr)
     {
         Log(LogLevel::Error, "GS capture could not open %s", path);
         return false;
     }
+
     s_active = true;
     bool written = WriteFrame(file, frame);
     if (std::fclose(file) != 0)
@@ -271,6 +286,7 @@ PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
         written = false;
     }
     s_active = false;
+
     if (!written)
     {
         Log(LogLevel::Error, "GS capture failed: %s", path);
@@ -279,9 +295,10 @@ PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
 }
 
 #if PS2_D3BFG_TESTS
-void InjectReadbackTimeoutOnce()
+PS2_COLD_FUNC void InjectReadbackTimeoutOnce()
 {
     s_injectReadbackTimeout = true;
 }
-#endif
+#endif // PS2_D3BFG_TESTS
+
 } // namespace ps2::renderer::gs

@@ -10,15 +10,17 @@
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>
 
-namespace
-{
-static bool s_initialized = false;
-static u32 s_polls = 0;
-} // namespace
-
 namespace ps2::input
 {
-void InitDevices(const char * irxDirectory)
+namespace
+{
+    
+static bool s_initialized = false;
+static u32 s_polls = 0;
+
+} // namespace
+
+PS2_COLD_FUNC void InitDevices(const char * irxDirectory)
 {
     if (s_initialized)
     {
@@ -27,12 +29,13 @@ void InitDevices(const char * irxDirectory)
 
     s_initialized = true;
     s_polls = 0;
+
     const bool padUp = pad::Init();
     const bool keyboardUp = keyboard::Init(irxDirectory);
     Log(LogLevel::Info, "[D3BFG] INPUT devices pad=%d keyboard=%d\n", padUp ? 1 : 0, keyboardUp ? 1 : 0);
 }
 
-void ShutdownDevices()
+PS2_COLD_FUNC void ShutdownDevices()
 {
     if (!s_initialized)
     {
@@ -41,7 +44,24 @@ void ShutdownDevices()
 
     keyboard::Shutdown();
     pad::Shutdown();
+
     s_initialized = false;
+}
+
+PS2_COLD_FUNC void LogDeviceStatus()
+{
+    if (!s_initialized)
+    {
+        return;
+    }
+
+    const pad::Stats padStats = pad::GetStats();
+    const keyboard::Stats keyboardStats = keyboard::GetStats();
+
+    Log(LogLevel::Info,
+        "[D3BFG] INPUT frames=%u pad=%d ready=%d analog=%d buttons=0x%04x pad_events=%u keyboard=%d polls=%u keys=%u held=%u keyboard_events=%u\n",
+        s_polls, padStats.available ? 1 : 0, padStats.ready ? 1 : 0, padStats.analog ? 1 : 0, padStats.buttons, padStats.events,
+        keyboardStats.available ? 1 : 0, keyboardStats.polls, keyboardStats.rawKeys, keyboardStats.held, keyboardStats.events);
 }
 
 void PollDevices()
@@ -56,18 +76,4 @@ void PollDevices()
     keyboard::Poll(Sys_Milliseconds());
 }
 
-void LogDeviceStatus()
-{
-    if (!s_initialized)
-    {
-        return;
-    }
-
-    const pad::Stats padStats = pad::GetStats();
-    const keyboard::Stats keyboardStats = keyboard::GetStats();
-    Log(LogLevel::Info,
-        "[D3BFG] INPUT frames=%u pad=%d ready=%d analog=%d buttons=0x%04x pad_events=%u keyboard=%d polls=%u keys=%u held=%u keyboard_events=%u\n",
-        s_polls, padStats.available ? 1 : 0, padStats.ready ? 1 : 0, padStats.analog ? 1 : 0, padStats.buttons, padStats.events,
-        keyboardStats.available ? 1 : 0, keyboardStats.polls, keyboardStats.rawKeys, keyboardStats.held, keyboardStats.events);
-}
 } // namespace ps2::input

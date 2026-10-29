@@ -6,14 +6,16 @@
 
 #pragma once
 
+#include "ps2/common.h"
 #include <tamtypes.h>
 
 namespace ps2::input::pad
 {
+
 // Loads the ROM's SIO2MAN and PADMAN once, starts libpad and opens connector 1. False leaves the
 // pad silent for the process; connection and the analog mode switch complete over later polls.
-bool Init();
-void Shutdown();
+PS2_COLD_FUNC bool Init();
+PS2_COLD_FUNC void Shutdown();
 
 // Advances the connection state and, once ready, reads the pad: every changed button posts a key
 // event (cross is K_JOY1, as on the PS3 layout the menus use), and each stick past half its range
@@ -29,5 +31,6 @@ struct Stats
     u32 events = 0;
 };
 
-Stats GetStats();
+const Stats & GetStats();
+
 } // namespace ps2::input::pad

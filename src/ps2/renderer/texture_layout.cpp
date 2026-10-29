@@ -5,7 +5,6 @@
 // ================================================================================================
 
 #include "ps2/renderer/texture_layout.h"
-
 #include <limits>
 
 namespace ps2::renderer::tex
@@ -17,12 +16,12 @@ static constexpr int kPageWidth = 64;
 static constexpr int kPageHeight = 32;
 static constexpr size_t kPixelBytes = 4;
 
-static bool IsPowerOfTwo(int value)
+bool IsPowerOfTwo(int value)
 {
     return (value > 0) && ((value & (value - 1)) == 0);
 }
 
-static int PowerOfTwoExtent(int value, std::uint8_t & exponent)
+int PowerOfTwoExtent(int value, std::uint8_t & exponent)
 {
     int extent = 1;
     exponent = 0;
@@ -34,7 +33,7 @@ static int PowerOfTwoExtent(int value, std::uint8_t & exponent)
     return extent;
 }
 
-static bool CanonicalLayout(int width, int height, Layout & output)
+bool CanonicalLayout(int width, int height, Layout & output)
 {
     if ((width < 1) || (height < 1) || (width > kMaxDimension) || (height > kMaxDimension))
     {
@@ -56,7 +55,7 @@ static bool CanonicalLayout(int width, int height, Layout & output)
     return true;
 }
 
-static bool IsCanonical(const Layout & layout)
+bool IsCanonical(const Layout & layout)
 {
     Layout expected{};
     return layout.format == PixelFormat::Rgba32 && CanonicalLayout(layout.width, layout.height, expected) &&
@@ -66,15 +65,15 @@ static bool IsCanonical(const Layout & layout)
            (layout.widthLog2 == expected.widthLog2) && (layout.heightLog2 == expected.heightLog2);
 }
 
-static bool ValidSampler(const Sampler & sampler)
+bool ValidSampler(const Sampler & sampler)
 {
     return ((sampler.filter == Filter::Nearest) || (sampler.filter == Filter::Linear)) &&
            ((sampler.wrapS == Wrap::Clamp) || (sampler.wrapS == Wrap::Repeat)) &&
            ((sampler.wrapT == Wrap::Clamp) || (sampler.wrapT == Wrap::Repeat));
 }
 
-static bool DisjointBuffers(const void * source, size_t sourceBytes,
-                            const void * destination, size_t destinationBytes)
+bool DisjointBuffers(const void * source, size_t sourceBytes,
+                     const void * destination, size_t destinationBytes)
 {
     const auto sourceBegin = reinterpret_cast<std::uintptr_t>(source);
     const auto destinationBegin = reinterpret_cast<std::uintptr_t>(destination);
@@ -141,6 +140,7 @@ bool PadRgba32(const Layout & layout, const void * source, size_t sourceBytes,
     {
         return false;
     }
+
     const size_t requiredSourceBytes = (priorRows * sourceStrideBytes) + rowBytes;
     if ((sourceBytes < requiredSourceBytes) ||
         !DisjointBuffers(source, requiredSourceBytes, destination, static_cast<size_t>(layout.bytes)))
@@ -168,6 +168,7 @@ bool PadRgba32(const Layout & layout, const void * source, size_t sourceBytes,
             ((static_cast<std::uint32_t>(pixel[3]) * 128U) + 127U) / 255U);
         }
     }
+
     return true;
 }
 

@@ -16,13 +16,17 @@
 
 namespace
 {
+
 static constexpr int kVisibleCarouselItems = 5;
+
 // The shell handler's widgets and bound screens hold about thirty widgets, two levels deep.
 static constexpr unsigned kMaxWidgetDepth = 8;
 static constexpr unsigned kMaxWidgets = 1024;
 static constexpr char kDoom3Cover[] = "guis/assets/mainmenu/doom3_cover";
+
 // The native callbacks the shell handler and its start, root and credits screens install.
 static constexpr const char * kMenuCallbacks[] = { "updateMenuDisplay", "activateMenus", "closeMenu", "refreshCarousel", "updateCredits" };
+
 // The choices idCommonDialog::ShowDialog installs for the shown dialog.
 static constexpr const char * kDialogChoices[] = { "acceptCallBack", "cancelCallBack", "altCBOne", "altCBTwo" };
 
@@ -529,10 +533,12 @@ private:
 };
 
 static DialogOwner * s_dialog = nullptr;
+
 } // namespace
 
 namespace ps2::ui::retail
 {
+
 void AttachOwner(idSWF & movie, unsigned movieIndex)
 {
     if (s_owner != nullptr || s_dialog != nullptr || s_menu != nullptr || s_choices != nullptr || movieIndex >= 2 ||
@@ -706,4 +712,5 @@ void OwnerStatus()
         s_menu->PrintStatus();
     }
 }
+
 } // namespace ps2::ui::retail

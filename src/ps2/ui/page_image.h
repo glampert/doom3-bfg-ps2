@@ -48,8 +48,10 @@ public:
     virtual bool IsOpen() const = 0;
     virtual PageImageStats GetStats() const = 0;
     virtual bool ValidateTriangle(const Vertex (&vertices)[3]) const = 0;
+
     // Screen blending needs each color channel's coverage as alpha (white or channel CLUTs).
     virtual bool SupportsScreen() const = 0;
+
     // Submission order is preserved. A required caller must handle false; a late failure does not
     // roll back already submitted pieces. Each piece draws every pass of the shading in turn.
     virtual bool DrawTriangle(const Vertex (&vertices)[3], const renderer::Shading & shading) = 0;

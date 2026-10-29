@@ -12,6 +12,7 @@
 
 namespace
 {
+
 [[noreturn]] PS2_COLD_FUNC void Unsupported(const char * method)
 {
     ps2::FatalError("multiplayer capability unavailable: %s", method);
@@ -24,6 +25,7 @@ void RequireOffline(const char * method)
         Unsupported(method);
     }
 }
+
 } // namespace
 
 idMultiplayerGame::idMultiplayerGame()

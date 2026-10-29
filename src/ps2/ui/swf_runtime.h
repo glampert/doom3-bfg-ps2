@@ -11,6 +11,7 @@
 
 namespace ps2::ui::swf
 {
+
 // The original shell frame-one hierarchy has 1,855 sprites, 485 texts and nine levels.
 static constexpr unsigned kMaxSprites = 2048;
 static constexpr unsigned kMaxTexts = 512;
@@ -98,4 +99,5 @@ void TrackFunction(bool created);
 void TrackProperties(int change);
 void TrackString(bool created, std::size_t bytes);
 void Trace(const char * kind, const char * name);
+
 } // namespace ps2::ui::swf

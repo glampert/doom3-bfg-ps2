@@ -5,15 +5,18 @@
 // ================================================================================================
 
 #pragma once
+
 #include "ps2/renderer/gs.h"
 
 namespace ps2::renderer::gs
 {
+
 // Only the most recently presented frame may be captured, between frames. A failed capture
 // can leave a partial file; callers must publish success only when this returns true.
-bool CaptureTga(const char * path, DrawContext context);
+PS2_COLD_FUNC bool CaptureTga(const char * path, DrawContext context);
 
 #if PS2_D3BFG_TESTS
-void InjectReadbackTimeoutOnce();
-#endif
+PS2_COLD_FUNC void InjectReadbackTimeoutOnce();
+#endif // PS2_D3BFG_TESTS
+
 } // namespace ps2::renderer::gs

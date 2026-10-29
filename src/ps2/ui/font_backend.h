@@ -14,10 +14,12 @@ class idMaterial;
 
 namespace ps2::ui::fonts
 {
+
 // Fonts borrow UI images/material declarations; release them before either provider shuts down.
 void Init();
 void Shutdown();
 bool IsInitialized();
+
 // Validate the native on-disk profile before its loader trusts counts, records or material names.
 idFile * OpenFontAsset(const char * name);
 bool PreflightFont(idFile * file, const char * name);
@@ -44,9 +46,10 @@ struct PrerenderedGlyph
 // Finds `codepoint` among the font's pre-rendered sizes at the glyph's virtual-screen scale (units
 // per atlas texel) and outline weight (zero without an outline). Each retail size without bitmaps
 // is logged once, so the screens that draw it can have it cooked.
-bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float strokeWeight, std::uint32_t codepoint,
-                          PrerenderedGlyph & output);
+bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float strokeWeight, std::uint32_t codepoint, PrerenderedGlyph & output);
+
 // Draws the glyph or its outline in the current color, with the tint and blend of the font's own
 // material, its ink origin at the virtual-screen point rounded to whole GS pixels.
 void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fontMaterial, float originX, float originY, bool outline);
+
 } // namespace ps2::ui::fonts

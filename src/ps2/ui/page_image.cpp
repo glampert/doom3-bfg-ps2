@@ -20,7 +20,7 @@ namespace ps2::ui
 namespace
 {
 
-static bool Failed(const char * reason)
+PS2_COLD_FUNC static bool Failed(const char * reason)
 {
     Log(LogLevel::Warning, "[D3BFG] UI page image rejected: %s\n", reason);
     return false;

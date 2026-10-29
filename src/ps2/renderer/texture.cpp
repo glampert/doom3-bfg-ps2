@@ -15,6 +15,7 @@ namespace ps2::renderer::tex
 {
 namespace
 {
+
 struct Record
 {
     Handle handle;
@@ -36,10 +37,11 @@ static bool s_initialized = false;
 
 Record & Find(Handle handle)
 {
-    if (!s_initialized || handle.id == 0)
+    if (!s_initialized || handle.id == 0) [[unlikely]]
     {
         FatalError("invalid texture handle");
     }
+
     for (auto & record : s_records)
     {
         if (record.handle.id == handle.id)
@@ -47,6 +49,7 @@ Record & Find(Handle handle)
             return record;
         }
     }
+
     FatalError("stale texture handle: %u", handle.id);
 }
 
@@ -58,10 +61,11 @@ void Fence()
 
 void ReleaseResidency(Record & record)
 {
-    if (record.resident && !gs::ReleaseVram(record.allocation))
+    if (record.resident && !gs::ReleaseVram(record.allocation)) [[unlikely]]
     {
         FatalError("texture VRAM ownership mismatch");
     }
+
     record.resident = false;
     record.allocation = {};
 }
@@ -81,7 +85,7 @@ Record * FreeRecord()
 
 Handle Publish(Record & record, const Layout & layout, Sampler sampler, void * pixels)
 {
-    if (s_nextId == 0xFFFFFFFFU)
+    if (s_nextId == 0xFFFFFFFFU) [[unlikely]]
     {
         FatalError("texture handle generation exhausted");
     }
@@ -157,6 +161,7 @@ gs::TextureBinding Upload(Record & record)
     record.lastUse = ++s_use;
     return binding;
 }
+
 } // namespace
 
 bool IsInitialized()
@@ -164,7 +169,7 @@ bool IsInitialized()
     return s_initialized;
 }
 
-Stats GetStats()
+const Stats & GetStats()
 {
     return s_stats;
 }
@@ -175,11 +180,13 @@ PS2_COLD_FUNC bool Init(u32 vramBytes, u32 pixelBudgetBytes)
     {
         FatalError("texture owner initialized twice");
     }
+
     if (!gs::IsInitialized() || pixelBudgetBytes == 0 || pixelBudgetBytes > 2U * 1024U * 1024U ||
         !gs::InitVram(gs::FixedVramBytes(), vramBytes))
     {
         return false;
     }
+
     s_stats = {};
     s_budget = pixelBudgetBytes;
     s_use = 0;
@@ -187,38 +194,68 @@ PS2_COLD_FUNC bool Init(u32 vramBytes, u32 pixelBudgetBytes)
     return true;
 }
 
-Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes)
+PS2_COLD_FUNC void Shutdown()
 {
     if (!s_initialized)
     {
+        return;
+    }
+
+    Fence();
+
+    for (auto & record : s_records)
+    {
+        if (record.handle.id != 0)
+        {
+            ReleaseResidency(record);
+            system::heap::Free(record.pixels);
+            record = {};
+        }
+    }
+
+    gs::ShutdownVram();
+    s_stats.pixelBytes = s_stats.textures = 0;
+    s_budget = 0;
+    s_initialized = false;
+}
+
+Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes)
+{
+    if (!s_initialized) [[unlikely]]
+    {
         FatalError("texture creation before initialization");
     }
+
     Layout layout = {};
-    if (!MakeLayout(width, height, sampler, layout) || layout.bytes > s_budget - s_stats.pixelBytes)
+    if (!MakeLayout(width, height, sampler, layout) || layout.bytes > s_budget - s_stats.pixelBytes) [[unlikely]]
     {
         return {};
     }
+
     Record * const freeRecord = FreeRecord();
-    if (freeRecord == nullptr)
+    if (freeRecord == nullptr) [[unlikely]]
     {
         return {};
     }
+
     void * const pixels = system::heap::TryAlloc(layout.bytes, TAG_RENDER, 64);
-    if (pixels == nullptr)
+    if (pixels == nullptr) [[unlikely]]
     {
         return {};
     }
-    if (!PadRgba32(layout, rgba, sourceBytes, strideBytes, pixels, layout.bytes))
+
+    if (!PadRgba32(layout, rgba, sourceBytes, strideBytes, pixels, layout.bytes)) [[unlikely]]
     {
         system::heap::Free(pixels);
         return {};
     }
+
     return Publish(*freeRecord, layout, sampler, pixels);
 }
 
 Handle CreateIndexed(int width, int height, PixelFormat format, Sampler sampler, const void * indices, size_t bytes)
 {
-    if (!s_initialized)
+    if (!s_initialized) [[unlikely]]
     {
         FatalError("texture creation before initialization");
     }
@@ -227,21 +264,19 @@ Handle CreateIndexed(int width, int height, PixelFormat format, Sampler sampler,
 
     // Paletted pages clamp by region at draw time; repeat would sample across placements.
     if (!MakeIndexedLayout(width, height, format, layout) || sampler.wrapS != Wrap::Clamp || sampler.wrapT != Wrap::Clamp ||
-        indices == nullptr || bytes != layout.bytes || layout.bytes > s_budget - s_stats.pixelBytes)
+        indices == nullptr || bytes != layout.bytes || layout.bytes > s_budget - s_stats.pixelBytes) [[unlikely]]
     {
         return {};
     }
 
     Record * const freeRecord = FreeRecord();
-
-    if (freeRecord == nullptr)
+    if (freeRecord == nullptr) [[unlikely]]
     {
         return {};
     }
 
     void * const pixels = system::heap::TryAlloc(layout.bytes, TAG_RENDER, 64);
-
-    if (pixels == nullptr)
+    if (pixels == nullptr) [[unlikely]]
     {
         return {};
     }
@@ -266,6 +301,7 @@ bool Update(Handle handle, const void * rgba, size_t sourceBytes, size_t strideB
     {
         return false;
     }
+
     record.dirty = true;
     return true;
 }
@@ -276,13 +312,17 @@ void Destroy(Handle handle)
     {
         return;
     }
+
     ui::Flush();
+
     auto & record = Find(handle);
     Fence();
     ReleaseResidency(record);
     system::heap::Free(record.pixels);
+
     s_stats.pixelBytes -= static_cast<u32>(record.layout.bytes);
     --s_stats.textures;
+
     record = {};
 }
 
@@ -301,7 +341,7 @@ bool Bind(Handle handle, gs::TextureBinding & output)
 
 bool BindPair(Handle first, Handle second, gs::TextureBinding & firstOutput, gs::TextureBinding & secondOutput)
 {
-    auto & firstRecord = Find(first);
+    auto & firstRecord  = Find(first);
     auto & secondRecord = Find(second);
 
     if (&firstRecord == &secondRecord || !MakeResident(firstRecord, &secondRecord) || !MakeResident(secondRecord, &firstRecord))
@@ -310,30 +350,9 @@ bool BindPair(Handle first, Handle second, gs::TextureBinding & firstOutput, gs:
     }
 
     // Both addresses are final before either upload, so neither binding can go stale.
-    firstOutput = Upload(firstRecord);
+    firstOutput  = Upload(firstRecord);
     secondOutput = Upload(secondRecord);
     return true;
 }
 
-PS2_COLD_FUNC void Shutdown()
-{
-    if (!s_initialized)
-    {
-        return;
-    }
-    Fence();
-    for (auto & record : s_records)
-    {
-        if (record.handle.id != 0)
-        {
-            ReleaseResidency(record);
-            system::heap::Free(record.pixels);
-            record = {};
-        }
-    }
-    gs::ShutdownVram();
-    s_stats.pixelBytes = s_stats.textures = 0;
-    s_budget = 0;
-    s_initialized = false;
-}
 } // namespace ps2::renderer::tex

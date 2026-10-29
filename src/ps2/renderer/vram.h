@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "ps2/common.h"
 #include <cstdint>
 
 namespace ps2::renderer::gs
@@ -15,6 +16,12 @@ static constexpr std::uint32_t kVramPageBytes = 8192;
 static constexpr std::uint32_t kVramBytes = 4U * 1024U * 1024U;
 static constexpr int kMaxVramAllocations = 64;
 
+// Range and allocation sizes must be nonzero whole pages entirely within GS VRAM.
+// Invalid requests fail without modifying the allocator or the output.
+PS2_COLD_FUNC bool InitVram(std::uint32_t beginBytes, std::uint32_t budgetBytes);
+PS2_COLD_FUNC void ShutdownVram();
+bool IsVramInitialized();
+
 struct VramAllocation
 {
     std::uint32_t byteAddress;
@@ -22,6 +29,13 @@ struct VramAllocation
     std::uint32_t generation;
     std::uint16_t slot;
 };
+
+bool AllocateVram(std::uint32_t bytes, VramAllocation & output);
+bool ReleaseVram(const VramAllocation & allocation);
+
+// The owner must drain and fence every queued draw/upload before releasing or resetting its range.
+// ResetVram preserves the range and peak accounting; ShutdownVram forgets it. Both reject stale handles.
+void ResetVram();
 
 struct VramStats
 {
@@ -31,17 +45,6 @@ struct VramStats
     std::uint32_t allocationCount;
 };
 
-// Range and allocation sizes must be nonzero whole pages entirely within GS VRAM.
-// Invalid requests fail without modifying the allocator or the output.
-bool InitVram(std::uint32_t beginBytes, std::uint32_t budgetBytes);
-bool IsVramInitialized();
-bool AllocateVram(std::uint32_t bytes, VramAllocation & output);
-bool ReleaseVram(const VramAllocation & allocation);
-VramStats GetVramStats();
-
-// The owner must drain and fence every queued draw/upload before releasing or resetting its range.
-// ResetVram preserves the range and peak accounting; ShutdownVram forgets it. Both reject stale handles.
-void ResetVram();
-void ShutdownVram();
+const VramStats & GetVramStats();
 
 } // namespace ps2::renderer::gs

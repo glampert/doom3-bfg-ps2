@@ -14,27 +14,30 @@ namespace ps2::game
 
 void * TryAllocClass(size_t size, size_t alignment, std::uint16_t tag, int & bytes, int & objects)
 {
-    if (bytes < 0 || objects < 0 || objects == INT_MAX || size > static_cast<size_t>(INT_MAX - bytes))
+    if (bytes < 0 || objects < 0 || objects == INT_MAX || size > static_cast<size_t>(INT_MAX - bytes)) [[unlikely]]
     {
         return nullptr;
     }
+
     void * pointer = system::heap::TryAlloc(size, tag, alignment);
-    if (pointer != nullptr)
+    if (pointer != nullptr) [[likely]]
     {
         bytes += static_cast<int>(size);
         ++objects;
     }
+
     return pointer;
 }
 
 void * AllocClass(size_t size, size_t alignment, std::uint16_t tag, int & bytes, int & objects)
 {
     void * pointer = TryAllocClass(size, alignment, tag, bytes, objects);
-    if (pointer == nullptr)
+    if (pointer == nullptr) [[unlikely]]
     {
         FatalError("idClass allocation failed: size=%zu alignment=%zu tag=%u bytes=%d objects=%d",
                    size, alignment, static_cast<unsigned int>(tag), bytes, objects);
     }
+
     return pointer;
 }
 
@@ -44,13 +47,16 @@ void FreeClass(void * pointer, int & bytes, int & objects)
     {
         return;
     }
+
     const size_t size = system::heap::GetRequestedSize(pointer);
-    if (bytes < 0 || objects <= 0 || size > static_cast<size_t>(bytes))
+    if (bytes < 0 || objects <= 0 || size > static_cast<size_t>(bytes)) [[unlikely]]
     {
         FatalError("idClass allocation counters underflow");
     }
+
     bytes -= static_cast<int>(size);
     --objects;
+
     system::heap::Free(pointer);
 }
 

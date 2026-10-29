@@ -497,6 +497,7 @@ void PalettedImage::Map(const Vertex (&input)[3], const gstx::Placement & placem
                   (input[corner].s * static_cast<float>(m_header.logicalWidth) - static_cast<float>(placement.source.x)) * scaleX;
         float v = static_cast<float>(placement.dest.y) +
                   (input[corner].t * static_cast<float>(m_header.logicalHeight) - static_cast<float>(placement.source.y)) * scaleY;
+    
         // Native half-texel glyph expansion may reach past a page edge; the region clamp decides sampling.
         u = u < 0.0f ? 0.0f : (u > static_cast<float>(page.width) ? static_cast<float>(page.width) : u);
         v = v < 0.0f ? 0.0f : (v > static_cast<float>(page.height) ? static_cast<float>(page.height) : v);
@@ -507,14 +508,15 @@ void PalettedImage::Map(const Vertex (&input)[3], const gstx::Placement & placem
 
 bool PalettedImage::ValidateTriangle(const Vertex (&vertices)[3]) const
 {
+#if PS2_D3BFG_ASSERTS
     gstx::Placement placement = {};
 
-    if (!m_open || !renderer::FrameStarted())
+    if (!m_open || !renderer::FrameStarted()) [[unlikely]]
     {
         return Failed("invalid triangle validation state");
     }
 
-    if (!Find(vertices, placement))
+    if (!Find(vertices, placement)) [[unlikely]]
     {
         Log(LogLevel::Error, "[D3BFG] UI paletted triangle outside converted placements: uv=%d/%d,%d/%d,%d/%d (1/1000)\n",
             static_cast<int>(vertices[0].s * 1000.0f), static_cast<int>(vertices[0].t * 1000.0f),
@@ -528,8 +530,12 @@ bool PalettedImage::ValidateTriangle(const Vertex (&vertices)[3]) const
     const gstx::Page page = gstx::GetPage(m_tables, placement.page);
     FixedTriangle pieces[kMaxClippedTriangles] = {};
     int count = 0;
-    return MapTriangle(mapped, { renderer::gs::Width(), renderer::gs::Height() }, static_cast<int>(page.width), static_cast<int>(page.height), pieces,
-                       count) != Result::Invalid;
+
+    return MapTriangle(mapped, { renderer::gs::Width(), renderer::gs::Height() }, static_cast<int>(page.width), static_cast<int>(page.height), pieces, count) != Result::Invalid;
+#else // PS2_D3BFG_ASSERTS
+    (void)vertices;
+    return true;
+#endif // PS2_D3BFG_ASSERTS
 }
 
 bool PalettedImage::DrawTriangle(const Vertex (&vertices)[3], const renderer::Shading & shading)

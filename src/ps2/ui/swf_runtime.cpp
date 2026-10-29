@@ -15,6 +15,7 @@ namespace ps2::ui::swf
 {
 namespace
 {
+
 static const char * s_movie = nullptr;
 static Stats s_stats;
 static std::uint32_t s_instructions = 0;
@@ -82,6 +83,7 @@ void Live(std::uint32_t & count, bool created, std::uint32_t limit, std::uint32_
         peak = std::max(peak, count);
     }
 }
+
 } // namespace
 
 ExecutionScope::ExecutionScope(const char * movie)
@@ -382,4 +384,5 @@ void Trace(const char * kind, const char * name)
 
     Log(LogLevel::Info, "SWF dependency movie=%s kind=%s name=%s%s\n", s_movie, kind, label, name[index] != '\0' ? "..." : "");
 }
+
 } // namespace ps2::ui::swf

@@ -19,6 +19,7 @@ class SoundSample final
 public:
     SoundSample() = default;
     ~SoundSample();
+
     SoundSample(const SoundSample &) = delete;
     SoundSample & operator=(const SoundSample &) = delete;
 
@@ -147,6 +148,7 @@ public:
     static constexpr int kHeadlessVoiceCount = MAX_HARDWARE_VOICES;
     SoundHardware() = default;
     ~SoundHardware();
+
     SoundHardware(const SoundHardware &) = delete;
     SoundHardware & operator=(const SoundHardware &) = delete;
 

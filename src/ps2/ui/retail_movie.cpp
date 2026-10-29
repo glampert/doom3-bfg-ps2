@@ -17,12 +17,14 @@
 #include "ps2/ui/retail_menu.h"
 #include "ps2/ui/retail_owner.h"
 #include "ps2/ui/swf_runtime.h"
+
 #include <idlib/precompiled.h>
 #include <renderer/Font.h>
 #include <swf/SWF.h>
 
 namespace
 {
+
 static constexpr float kScales[] = { 0.25f, 0.5f, 1.0f };
 static constexpr float kBaselines[] = { 120.0f, 220.0f, 350.0f };
 static constexpr char kText[] = "Campaign";
@@ -38,12 +40,15 @@ static idSWFTextInstance * s_texts[3] = {};
 static int s_movieIndex = -1;
 static u32 s_executionTicks = 0;
 static u32 s_nativeSteps = 0;
+
 // The last timeline clock; full drawing reuses it so synchronous redraws present the same movie state.
 static int s_movieTime = 0;
+
 // A fixed-step clock advances each executing movie 1/60 s per Common frame from its activation time,
 // so captures at a frame count repeat whatever the frame time. It applies from the next load.
 static bool s_fixedClock = false;
 static int s_clockBase = 0;
+
 // The native shell handler owns the menu movie; s_resourceMovie borrows it while s_menu is set.
 static bool s_menu = false;
 static constexpr const char * kLabels[] = { "#str_swf_campaign", "#str_swf_settings", "#str_swf_quit" };
@@ -610,7 +615,8 @@ void DrawText(idFont * font, float scale, float baseline)
 
 namespace ps2::ui::retail
 {
-void InitScreen()
+
+PS2_COLD_FUNC void InitScreen()
 {
     if (s_initialized || !ui::IsInitialized())
     {
@@ -623,7 +629,7 @@ void InitScreen()
     s_initialized = true;
 }
 
-void ShutdownScreen()
+PS2_COLD_FUNC void ShutdownScreen()
 {
     if (!s_initialized)
     {
@@ -784,4 +790,5 @@ void RenderScreen(bool advance)
 
     renderSystem->SetColor(colorWhite);
 }
+
 } // namespace ps2::ui::retail

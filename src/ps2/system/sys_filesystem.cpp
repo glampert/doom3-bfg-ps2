@@ -65,11 +65,13 @@ sysFolder_t Sys_IsFolder(const char * path)
         errno = EINVAL;
         return FOLDER_ERROR;
     }
+
     struct stat status = {};
     if (stat(path, &status) != 0)
     {
         return FOLDER_ERROR;
     }
+
     return S_ISDIR(status.st_mode) ? FOLDER_YES : FOLDER_NO;
 }
 
@@ -87,7 +89,7 @@ int Sys_ListFiles(const char * directory, const char * extension, idStrList & li
 // The current bootstrap has no saved loader argv. Do not invent an executable filename.
 const char * Sys_EXEPath()
 {
-    return "";
+    return ""; // FIXME.
 }
 
 const char * Sys_CWD()
@@ -103,5 +105,5 @@ const char * Sys_CWD()
 // The loader's HostFs root is the only launch root currently preserved by this bootstrap.
 const char * Sys_LaunchPath()
 {
-    return "host:";
+    return "host:"; // FIXME: support usb/hdd.
 }

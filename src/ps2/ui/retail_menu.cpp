@@ -18,15 +18,19 @@
 
 namespace
 {
+
 // Borrowed from the shell handler, which deletes it.
 static idSWF * s_movie = nullptr;
 static bool s_opening = false;
+
 // Events the open menu received from Common, and those its handler reported handled.
 static u32 s_events = 0;
 static u32 s_handled = 0;
+
 // Borrowed from Common's dialog manager, which deletes it; the open menu initializes the manager.
 static idSWF * s_dialog = nullptr;
 static bool s_dialogOpening = false;
+
 // The clock retail movies activate on, once the presentation advances them; real time before.
 static bool s_clockSet = false;
 static int s_clock = 0;
@@ -53,6 +57,7 @@ void EnableMovieScreenBlending(int index, const char * atlasMaterial)
 
 namespace ps2::ui::retail
 {
+
 idSWF * OpenMenu()
 {
     if (s_movie != nullptr || s_opening || renderer::FrameStarted() || ::game == nullptr)
@@ -311,4 +316,5 @@ void ActivateMenuMovie(idMenuHandler & handler, bool show)
 
     EnableMovieScreenBlending(0, "generated/swf/shell.tga");
 }
+
 } // namespace ps2::ui::retail

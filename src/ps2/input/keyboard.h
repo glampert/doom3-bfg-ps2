@@ -6,15 +6,17 @@
 
 #pragma once
 
+#include "ps2/common.h"
 #include <tamtypes.h>
 
 namespace ps2::input::keyboard
 {
+
 // Starts usbd and ps2kbd from the package's IRX directory and opens the driver in raw mode. False
 // leaves the keyboard silent for the process; true means the driver runs, not that a keyboard is
 // attached, which the driver cannot tell.
-bool Init(const char * irxDirectory);
-void Shutdown();
+PS2_COLD_FUNC bool Init(const char * irxDirectory);
+PS2_COLD_FUNC void Shutdown();
 
 // Drains the driver's queue into Common's event queue: one key event per transition, plus a
 // character event for a printable key or backspace. Each read is an IOP file round trip, so an
@@ -31,5 +33,6 @@ struct Stats
     u32 held = 0;
 };
 
-Stats GetStats();
+const Stats & GetStats();
+
 } // namespace ps2::input::keyboard

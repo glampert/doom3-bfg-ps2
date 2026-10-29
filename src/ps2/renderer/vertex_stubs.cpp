@@ -65,13 +65,12 @@ void idJointBuffer::FreeBufferObject()
     }
 }
 
-namespace
-{
-void ClearEmptySet(geoBufferSet_t & buffers)
+static void ClearEmptySet(geoBufferSet_t & buffers)
 {
     buffers.vertexBuffer.FreeBufferObject();
     buffers.indexBuffer.FreeBufferObject();
     buffers.jointBuffer.FreeBufferObject();
+
     if (buffers.mappedVertexBase != nullptr || buffers.mappedIndexBase != nullptr || buffers.mappedJointBase != nullptr ||
         buffers.vertexMemUsed.GetValue() != 0 || buffers.indexMemUsed.GetValue() != 0 || buffers.jointMemUsed.GetValue() != 0 ||
         buffers.allocations != 0)
@@ -79,7 +78,6 @@ void ClearEmptySet(geoBufferSet_t & buffers)
         ps2::renderer::Unavailable("idVertexCache empty cleanup with live storage");
     }
 }
-} // namespace
 
 void idVertexCache::FreeStaticData()
 {
@@ -99,7 +97,7 @@ void idVertexCache::Shutdown()
 #define RENDER_UNAVAILABLE(result, method, parameters) \
     PS2_COLD_FUNC result method parameters             \
     {                                                  \
-        ps2::renderer::Unavailable(#method);             \
+        ps2::renderer::Unavailable(#method);           \
     }
 
 RENDER_UNAVAILABLE(void, idVertexCache::Init, (bool))
@@ -109,7 +107,6 @@ RENDER_UNAVAILABLE(bool, idVertexCache::GetVertexBuffer, (vertCacheHandle_t, idV
 RENDER_UNAVAILABLE(bool, idVertexCache::GetIndexBuffer, (vertCacheHandle_t, idIndexBuffer *))
 RENDER_UNAVAILABLE(bool, idVertexCache::GetJointBuffer, (vertCacheHandle_t, idJointBuffer *))
 RENDER_UNAVAILABLE(void, idVertexCache::BeginBackEnd, ())
-
 RENDER_UNAVAILABLE(bool, idVertexBuffer::AllocBufferObject, (const void *, int))
 RENDER_UNAVAILABLE(void, idVertexBuffer::Reference, (const idVertexBuffer &))
 RENDER_UNAVAILABLE(void, idVertexBuffer::Reference, (const idVertexBuffer &, int, int))

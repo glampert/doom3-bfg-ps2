@@ -22,6 +22,7 @@
 
 namespace
 {
+
 static constexpr char kFontName[] = "ps2_ascii";
 static constexpr int kGlyphCount = 95;
 static constexpr int kHeaderBytes = 12;
@@ -30,6 +31,7 @@ static constexpr int kFileBytes = kHeaderBytes + kGlyphCount * (kGlyphBytes + 4)
 static constexpr int kMaxCachedFonts = 9;
 static constexpr float kVirtualWidth = 640.0f;
 static constexpr float kVirtualHeight = 480.0f;
+
 // A size matches a request within 1% on each axis; layout keeps native positions, so a glyph off
 // by that much is still placed exactly.
 static constexpr float kGlyphScaleTolerance = 0.01f;
@@ -97,6 +99,7 @@ void RegisterGlyphSet(const idFont * font, const ps2::ui::retail::FontRecord & r
     state.image = globalImages->ImageFromFile(image.name, TF_LINEAR, TR_CLAMP, TD_FONT);
     state.inverseWidth = 1.0f / static_cast<float>(image.width);
     state.inverseHeight = 1.0f / static_cast<float>(image.height);
+
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] UI glyph set ready font=%s sizes=%lu glyphs=%lu\n", record.family,
              static_cast<unsigned long>(set.sizeCount), static_cast<unsigned long>(set.entryCount));
 }
@@ -146,6 +149,7 @@ u32 ReadLittleInt(const u8 * bytes)
 
 namespace ps2::ui::fonts
 {
+
 bool IsInitialized()
 {
     return s_initialized;
@@ -170,6 +174,7 @@ PS2_COLD_FUNC void Shutdown()
     {
         FatalError("invalid native UI font shutdown ownership");
     }
+
     tr.fonts.DeleteContents(true);
     ClearGlyphSets();
     s_initialized = false;
@@ -181,17 +186,20 @@ bool PreflightAuthoredFont(idFile * file, const char * name)
     {
         return false;
     }
+
     u8 bytes[kFileBytes] = {};
     if (file->Read(bytes, kFileBytes) != kFileBytes)
     {
         return false;
     }
+
     // Native glyphInfo_t stores a zero padding byte before the little-endian atlas coordinates.
     static constexpr u8 kHeader[kHeaderBytes] = { 'i', 'd', 'f', 42, 0, 48, 0, 14, 0, 0, 0, 95 };
     if (memcmp(bytes, kHeader, sizeof(kHeader)) != 0)
     {
         return false;
     }
+
     for (int i = 0; i < kGlyphCount; ++i)
     {
         const int code = i + 32;
@@ -203,6 +211,7 @@ bool PreflightAuthoredFont(idFile * file, const char * name)
             return false;
         }
     }
+
     return file->Seek(0, FS_SEEK_SET) == 0;
 }
 
@@ -422,6 +431,7 @@ void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fon
                       static_cast<float>(glyph.y) * state.inverseHeight, static_cast<float>(bitmapX + bitmapWidth) * state.inverseWidth,
                       static_cast<float>(glyph.y + glyph.height) * state.inverseHeight, state.image, fontMaterial);
 }
+
 } // namespace ps2::ui::fonts
 
 idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
@@ -435,6 +445,7 @@ idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
     idStr request(fontName);
     request.Replace("fonts/", "");
     const char * canonical = kFontName;
+
     if (!IsFontName(request))
     {
         if (!ps2::ui::retail::FindFont(request, record))
@@ -477,6 +488,7 @@ void idRenderSystemLocal::ResetFonts()
     {
         ps2::FatalError("invalid native UI font reset ownership");
     }
+
     fonts.DeleteContents(true);
     ClearGlyphSets();
 }

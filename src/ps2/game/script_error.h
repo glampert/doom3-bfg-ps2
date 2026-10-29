@@ -12,14 +12,17 @@ namespace ps2::game::script
 {
 
 // Single EE thread only. Cleanup callbacks must not allocate or report another error.
-class ErrorScope
+class ErrorScope final
 {
 public:
     using Cleanup = void (*)(void *);
+
     ErrorScope(Cleanup cleanup, void * data);
     ~ErrorScope();
+
     ErrorScope(const ErrorScope &) = delete;
     ErrorScope & operator=(const ErrorScope &) = delete;
+
     static void SetLocation(const char * file, int line);
     static bool IsActive();
     static void CleanupAll();
@@ -31,11 +34,12 @@ private:
 };
 
 // Recursive-descent calls share a bounded depth, independently of source length.
-class NestingScope
+class NestingScope final
 {
 public:
     NestingScope();
     ~NestingScope();
+
     NestingScope(const NestingScope &) = delete;
     NestingScope & operator=(const NestingScope &) = delete;
 };

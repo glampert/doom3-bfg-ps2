@@ -13,20 +13,26 @@ class idSWFSpriteInstance;
 
 namespace ps2::ui::retail
 {
+
 // Attach before the shell's first frame executes; detach before its borrowed movie is destroyed.
 void AttachOwner(idSWF & movie, unsigned movieIndex);
+
 // The native shell handler owns its widgets, screens and movie. Attach once it installed its
 // callbacks and before execution starts; detach before the handler destroys the movie.
 void AttachMenu(idMenuHandler & handler);
 void DetachMenu(idSWF & movie);
+
 // Publish idCommonDialog's constants and the native quit confirmation before the dialog's first frame.
 void ShowQuitDialog(idSWF & movie);
 void DetachOwner(idSWF & movie);
+
 // The native shell's logo transition (idMenuHandler_Shell::ShowLogo), inside an execution scope.
 void ShowShellLogo(idSWF & movie, bool show);
 bool IsOwnerCallback(const char * name, const idSWFScriptFunction * function, const idSWF * movie);
+
 // A native key handler: an event wrapper of one of the attached menu handler's live widgets.
 bool IsEventHandler(const idSWFScriptFunction * function, const idSWF * movie);
+
 // Common's dialog manager installs each shown dialog's choices as globals; pin them as it does,
 // so only those objects answer the movie's calls to them, by name or through copies.
 void AttachDialogChoices(idSWF & movie);
@@ -35,4 +41,5 @@ void DetachDialogChoices(idSWF & movie);
 bool IsDialogChoice(const idSWFScriptFunction * function, const idSWF * movie);
 void CheckCallbackOrigin(const char * name, idSWFSpriteInstance * executing, idSWF * movie);
 void OwnerStatus();
+
 } // namespace ps2::ui::retail

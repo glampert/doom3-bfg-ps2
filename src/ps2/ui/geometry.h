@@ -50,7 +50,6 @@ enum class Result
 // The first profile accepts normal/zero floats, nonnegative sizes/UVs and increasing UV endpoints.
 // Coordinates/sizes are bounded to 32768, viewport axes to 1024, textures to 512 and UVs to 1023 texels.
 // Invalid and fully clipped rectangles leave output untouched.
-Result MapRect(const Rect & rect, Viewport viewport, int textureWidth, int textureHeight,
-               FixedRect & output);
+Result MapRect(const Rect & rect, Viewport viewport, int textureWidth, int textureHeight, FixedRect & output);
 
 } // namespace ps2::ui

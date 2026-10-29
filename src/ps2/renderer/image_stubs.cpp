@@ -9,11 +9,7 @@
 #include <renderer/ResolutionScale.h>
 #include <renderer/tr_local.h>
 
-namespace
-{
 static idImageManager s_imageManager;
-} // namespace
-
 idImageManager * globalImages = &s_imageManager;
 idRenderProgManager renderProgManager;
 idResolutionScale resolutionScale;
@@ -31,7 +27,7 @@ idRenderProgManager::~idRenderProgManager()
 {
     if (backendState != nullptr)
     {
-        ps2::renderer::Unavailable("idRenderProgManager::~idRenderProgManager with backend state");
+        ps2::FatalError("idRenderProgManager::~idRenderProgManager with backend state");
     }
 }
 
@@ -60,14 +56,14 @@ void idResolutionScale::SetCurrentGPUFrameTime(int microseconds)
 {
     if (microseconds != 0)
     {
-        ps2::renderer::Unavailable("idResolutionScale::SetCurrentGPUFrameTime");
+        ps2::FatalError("idResolutionScale::SetCurrentGPUFrameTime");
     }
 }
 
 #define RENDER_UNAVAILABLE(result, method, parameters) \
     PS2_COLD_FUNC result method parameters             \
     {                                                  \
-        ps2::renderer::Unavailable(#method);             \
+        ps2::renderer::Unavailable(#method);           \
     }
 
 RENDER_UNAVAILABLE(void, idImage::Reload, (bool))

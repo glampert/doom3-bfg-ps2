@@ -5,13 +5,16 @@
 // ================================================================================================
 
 #pragma once
+
 struct sysEvent_t;
 
 namespace ps2::ui::authored
 {
+
 void Init();
 void Shutdown();
 bool IsLoaded();
 bool ProcessEvent(const sysEvent_t * event);
 void Render(bool advance);
+
 } // namespace ps2::ui::authored

@@ -14,12 +14,14 @@
 
 namespace
 {
+
 static constexpr size_t kPrintCapacity = 2048;
 
-[[noreturn]] void Unsupported(const char * operation)
+[[noreturn]] PS2_COLD_FUNC void Unsupported(const char * operation)
 {
     ps2::FatalError("unsupported Common foundation operation: %s", operation);
 }
+
 } // namespace
 
 #define CORE_UNSUPPORTED(result, method, parameters) \
@@ -28,7 +30,7 @@ static constexpr size_t kPrintCapacity = 2048;
         Unsupported(#method);                        \
     }
 
-void idCommonLocal::Printf(const char * format, ...)
+PS2_COLD_FUNC void idCommonLocal::Printf(const char * format, ...)
 {
     va_list arguments;
     va_start(arguments, format);
@@ -36,13 +38,14 @@ void idCommonLocal::Printf(const char * format, ...)
     va_end(arguments);
 }
 
-void idCommonLocal::VPrintf(const char * format, va_list arguments)
+PS2_COLD_FUNC void idCommonLocal::VPrintf(const char * format, va_list arguments)
 {
     if (m_redirectBuffer == nullptr)
     {
         ps2::LogV(ps2::LogLevel::Info, format, arguments);
         return;
     }
+
     char message[kPrintCapacity] = {};
     idStr::vsnPrintf(message, static_cast<int>(sizeof(message)), format, arguments);
     for (const char * cursor = message; *cursor != '\0'; ++cursor)
@@ -79,19 +82,20 @@ void idCommonLocal::EndRedirect()
     }
 }
 
-void idCommonLocal::DPrintf(const char * format, ...)
+PS2_COLD_FUNC void idCommonLocal::DPrintf(const char * format, ...)
 {
     if (!cvarSystem->IsInitialized() || !cvarSystem->GetCVarBool("developer"))
     {
         return;
     }
+
     va_list arguments;
     va_start(arguments, format);
     VPrintf(format, arguments);
     va_end(arguments);
 }
 
-void idCommonLocal::Warning(const char * format, ...)
+PS2_COLD_FUNC void idCommonLocal::Warning(const char * format, ...)
 {
     ++m_warningCount;
     va_list arguments;
@@ -100,39 +104,41 @@ void idCommonLocal::Warning(const char * format, ...)
     va_end(arguments);
 }
 
-void idCommonLocal::DWarning(const char * format, ...)
+PS2_COLD_FUNC void idCommonLocal::DWarning(const char * format, ...)
 {
     if (!cvarSystem->IsInitialized() || !cvarSystem->GetCVarBool("developer"))
     {
         return;
     }
+
     va_list arguments;
     va_start(arguments, format);
     VWarning(format, arguments);
     va_end(arguments);
 }
 
-void idCommonLocal::Error(const char * format, ...)
+PS2_COLD_FUNC void idCommonLocal::Error(const char * format, ...)
 {
     va_list arguments;
     va_start(arguments, format);
     ps2::FatalErrorV(format, arguments);
 }
 
-void idCommonLocal::FatalError(const char * format, ...)
+PS2_COLD_FUNC void idCommonLocal::FatalError(const char * format, ...)
 {
     va_list arguments;
     va_start(arguments, format);
     ps2::FatalErrorV(format, arguments);
 }
 
-void idCommonLocal::VWarning(const char * format, va_list arguments)
+PS2_COLD_FUNC void idCommonLocal::VWarning(const char * format, va_list arguments)
 {
     if (m_redirectBuffer == nullptr)
     {
         ps2::LogV(ps2::LogLevel::Warning, format, arguments);
         return;
     }
+
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] WARNING ");
     VPrintf(format, arguments);
     ps2::Log(ps2::LogLevel::Info, "\n");
@@ -145,34 +151,14 @@ void idCommonLocal::FlushRedirect()
     m_redirectBuffer[0] = '\0';
 }
 
-CORE_UNSUPPORTED(void, CreateMainMenu, ())
-CORE_UNSUPPORTED(void, Quit, ())
-CORE_UNSUPPORTED(void, UpdateScreen, (bool))
-
 void idCommonLocal::UpdateLevelLoadPacifier()
 {
     // Headless loading has no progress screen or frontend frame to submit.
-    if (!ps2::renderer::IsLogicalInitialized() || !IsInitialized() || WriteDemo() != nullptr)
+    if (!ps2::renderer::IsLogicalInitialized() || !IsInitialized() || WriteDemo() != nullptr) [[unlikely]]
     {
         Unsupported("UpdateLevelLoadPacifier");
     }
 }
-CORE_UNSUPPORTED(const char *, KeysFromBinding, (const char *))
-CORE_UNSUPPORTED(const char *, BindingFromKey, (const char *))
-CORE_UNSUPPORTED(int, ButtonState, (int))
-CORE_UNSUPPORTED(int, KeyState, (int))
-CORE_UNSUPPORTED(bool, ProcessEvent, (const sysEvent_t *))
-CORE_UNSUPPORTED(bool, LoadGame, (const char *))
-CORE_UNSUPPORTED(bool, SaveGame, (const char *))
-CORE_UNSUPPORTED(void, OnSaveCompleted, (idSaveLoadParms &))
-CORE_UNSUPPORTED(void, OnLoadCompleted, (idSaveLoadParms &))
-CORE_UNSUPPORTED(void, OnLoadFilesCompleted, (idSaveLoadParms &))
-CORE_UNSUPPORTED(void, OnEnumerationCompleted, (idSaveLoadParms &))
-CORE_UNSUPPORTED(void, OnDeleteCompleted, (idSaveLoadParms &))
-CORE_UNSUPPORTED(void, TriggerScreenWipe, (const char *, bool))
-CORE_UNSUPPORTED(void, LaunchExternalTitle, (int, int, const lobbyConnectInfo_t * const))
-
-#undef CORE_UNSUPPORTED
 
 void idCommonLocal::Frame()
 {
@@ -235,3 +221,23 @@ void idCommonLocal::WriteConfigToFile(const char *)
 {
     Unsupported("config file persistence");
 }
+
+CORE_UNSUPPORTED(void, CreateMainMenu, ())
+CORE_UNSUPPORTED(void, Quit, ())
+CORE_UNSUPPORTED(void, UpdateScreen, (bool))
+CORE_UNSUPPORTED(const char *, KeysFromBinding, (const char *))
+CORE_UNSUPPORTED(const char *, BindingFromKey, (const char *))
+CORE_UNSUPPORTED(int, ButtonState, (int))
+CORE_UNSUPPORTED(int, KeyState, (int))
+CORE_UNSUPPORTED(bool, ProcessEvent, (const sysEvent_t *))
+CORE_UNSUPPORTED(bool, LoadGame, (const char *))
+CORE_UNSUPPORTED(bool, SaveGame, (const char *))
+CORE_UNSUPPORTED(void, OnSaveCompleted, (idSaveLoadParms &))
+CORE_UNSUPPORTED(void, OnLoadCompleted, (idSaveLoadParms &))
+CORE_UNSUPPORTED(void, OnLoadFilesCompleted, (idSaveLoadParms &))
+CORE_UNSUPPORTED(void, OnEnumerationCompleted, (idSaveLoadParms &))
+CORE_UNSUPPORTED(void, OnDeleteCompleted, (idSaveLoadParms &))
+CORE_UNSUPPORTED(void, TriggerScreenWipe, (const char *, bool))
+CORE_UNSUPPORTED(void, LaunchExternalTitle, (int, int, const lobbyConnectInfo_t * const))
+
+#undef CORE_UNSUPPORTED

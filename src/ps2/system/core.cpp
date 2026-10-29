@@ -15,7 +15,7 @@ namespace
 
 static constexpr size_t kFixtureLimit = 65536;
 
-[[noreturn]] void Unsupported(const char * operation)
+[[noreturn]] PS2_COLD_FUNC void Unsupported(const char * operation)
 {
     ps2::FatalError("unsupported headless core operation: %s", operation);
 }
@@ -33,17 +33,21 @@ bool FixturePath(const char * input, char * output, size_t capacity)
     {
         return false;
     }
+
     const char * relative = idStr::Cmpn(input, "host:", 5) == 0 ? input + 5 : input;
     const size_t length = strlen(relative);
+
     if (length >= MAX_OSPATH - 5 || !ps2::system::fs::IsRelativePath(relative))
     {
         return false;
     }
+
 #if defined(ID_HOST_TEST)
     const int written = idStr::snPrintf(output, static_cast<int>(capacity), "%s", relative);
-#else
+#else // ID_HOST_TEST
     const int written = idStr::snPrintf(output, static_cast<int>(capacity), "host:%s", relative);
-#endif
+#endif // ID_HOST_TEST
+
     return written > 0 && static_cast<size_t>(written) < capacity;
 }
 
@@ -98,22 +102,26 @@ public:
         {
             *timestamp = FILE_NOT_FOUND_TIMESTAMP;
         }
+
         char normalized[MAX_OSPATH] = {};
         if (!m_initialized || !FixturePath(path, normalized, sizeof(normalized)))
         {
             return -1;
         }
+
         FILE * file = ps2::system::fs::Open(normalized, ps2::system::fs::OpenMode::Read);
         if (file == nullptr)
         {
             return -1;
         }
+
         const int length = ps2::system::fs::FileLength(file);
         if (length < 0 || (buffer != nullptr && static_cast<size_t>(length) > kFixtureLimit))
         {
             fclose(file);
             return -1;
         }
+
         const ID_TIME_T fileTime = Sys_FileTimeStamp(file);
         void * data = nullptr;
         if (buffer != nullptr)
@@ -132,11 +140,13 @@ public:
             }
             static_cast<char *>(data)[static_cast<size_t>(length)] = '\0';
         }
+
         if (fclose(file) != 0)
         {
             ps2::system::heap::Free(data);
             return -1;
         }
+
         if (buffer != nullptr)
         {
             *buffer = data;
@@ -145,6 +155,7 @@ public:
         {
             *timestamp = fileTime;
         }
+
         return static_cast<int>(length);
     }
 
@@ -228,7 +239,7 @@ public:
 
     const char * RelativePathToOSPath(const char * path, const char *) override
     {
-        if (!FixturePath(path, m_path, sizeof(m_path)))
+        if (!FixturePath(path, m_path, sizeof(m_path))) [[unlikely]]
         {
             Unsupported("script source path outside fixture root");
         }
@@ -285,12 +296,12 @@ idFileSystem * fileSystem = &s_fileSystem;
 namespace ps2::system::lifecycle
 {
 
-void InitCore()
+PS2_COLD_FUNC void InitCore()
 {
     common->Init(0, nullptr, nullptr);
 }
 
-void ShutdownCore()
+PS2_COLD_FUNC void ShutdownCore()
 {
     common->Shutdown();
 }

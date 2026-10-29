@@ -15,10 +15,12 @@
 
 namespace ps2::renderer
 {
+
 [[noreturn]] PS2_COLD_FUNC void Unavailable(const char * method)
 {
     FatalError("renderer capability unavailable: %s", method);
 }
+
 } // namespace ps2::renderer
 
 // Keep the native frontend storage and interface identity; no frame arenas or device are created.
@@ -30,6 +32,7 @@ idGuiModel * tr_guiModel = nullptr;
 
 namespace
 {
+
 static bool s_logicalInitialized = false;
 
 void CheckNoResources(const idRenderSystemLocal & renderer, const char * method)
@@ -50,10 +53,12 @@ void CheckDemoInactive(const char * method)
         ps2::renderer::Unavailable(method);
     }
 }
+
 } // namespace
 
 namespace ps2::renderer
 {
+
 bool IsLogicalInitialized()
 {
     return s_logicalInitialized;
@@ -61,55 +66,65 @@ bool IsLogicalInitialized()
 
 void AdvanceLogicalFrame()
 {
-    if (!s_logicalInitialized || tr.frameCount == INT_MAX)
+    if (!s_logicalInitialized || tr.frameCount == INT_MAX) [[unlikely]]
     {
         Unavailable("invalid logical renderer frame");
     }
     ++tr.frameCount;
 }
+
 #if defined(PS2_D3BFG_FOUNDATION)
-void InitLogical(const char *)
+
+PS2_COLD_FUNC void InitLogical(const char *)
 {
     Unavailable("logical renderer requires the resident campaign target");
 }
 
-void ShutdownLogical()
+PS2_COLD_FUNC void ShutdownLogical()
 {
     Unavailable("logical renderer requires the resident campaign target");
 }
-#else
-void InitLogical(const char * defaultMaterialName)
+
+#else // PS2_D3BFG_FOUNDATION
+
+PS2_COLD_FUNC void InitLogical(const char * defaultMaterialName)
 {
     PS2_Assert(defaultMaterialName != nullptr);
     if (s_logicalInitialized || !common->IsInitialized() || defaultMaterialName == nullptr || defaultMaterialName[0] == '\0')
     {
         Unavailable("invalid logical renderer startup");
     }
+
     CheckNoResources(tr, "logical renderer startup with live resources");
     tr.defaultMaterial = declManager->FindMaterial(defaultMaterialName, false);
     if (tr.defaultMaterial == nullptr || tr.defaultMaterial->GetNumStages() != 0)
     {
         Unavailable("logical renderer requires a stage-free default material");
     }
+
     renderModelManager->Init();
     s_logicalInitialized = true;
+
     // Native model queries cache by renderer frame; zero is the uninitialized definition stamp.
     AdvanceLogicalFrame();
 }
 
-void ShutdownLogical()
+PS2_COLD_FUNC void ShutdownLogical()
 {
     if (!s_logicalInitialized || tr.worlds.Num() != 0)
     {
         Unavailable("logical renderer shutdown with live worlds");
     }
+
     renderModelManager->Shutdown();
     cmdSystem->RemoveFlaggedCommands(CMD_FL_RENDERER);
     tr.worlds.Clear();
     tr.defaultMaterial = nullptr;
     s_logicalInitialized = false;
 }
-#endif
+
+#endif // PS2_D3BFG_FOUNDATION
+
 } // namespace ps2::renderer
 
 idRenderSystemLocal::idRenderSystemLocal()
@@ -215,7 +230,7 @@ void idRenderSystemLocal::EndAutomaticBackgroundSwaps()
 #define RENDER_UNAVAILABLE(result, method, parameters) \
     PS2_COLD_FUNC result method parameters             \
     {                                                  \
-        ps2::renderer::Unavailable(#method);             \
+        ps2::renderer::Unavailable(#method);           \
     }
 
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::Init, ())
@@ -228,10 +243,6 @@ RENDER_UNAVAILABLE(void, idRenderSystemLocal::EndLevelLoad, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::LoadLevelImages, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::Preload, (const idPreloadManifest &, const char *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::BeginAutomaticBackgroundSwaps, (autoRenderIconType_t))
-#if defined(PS2_D3BFG_FOUNDATION)
-RENDER_UNAVAILABLE(idFont *, idRenderSystemLocal::RegisterFont, (const char *))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::ResetFonts, ())
-#endif
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::PrintMemInfo, (MemInfo_t *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::WriteDemoPics, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::DrawDemoPics, ())
@@ -247,6 +258,11 @@ RENDER_UNAVAILABLE(void, idRenderSystemLocal::UnCrop, ())
 RENDER_UNAVAILABLE(bool, idRenderSystemLocal::UploadImage, (const char *, const byte *, int, int))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::GetCroppedViewport, (idScreenRect *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::PerformResolutionScaling, (int &, int &))
+
+#if defined(PS2_D3BFG_FOUNDATION)
+RENDER_UNAVAILABLE(idFont *, idRenderSystemLocal::RegisterFont, (const char *))
+RENDER_UNAVAILABLE(void, idRenderSystemLocal::ResetFonts, ())
+#endif // PS2_D3BFG_FOUNDATION
 
 RENDER_UNAVAILABLE(void, R_AddDrawViewCmd, (viewDef_t *, bool))
 RENDER_UNAVAILABLE(void, R_AddDrawPostProcess, (viewDef_t *))
@@ -298,12 +314,14 @@ void idRenderWorldLocal::StopWritingDemo()
 {
     CheckDemoInactive("idRenderWorldLocal::StopWritingDemo");
 }
+
 RENDER_UNAVAILABLE(void, idRenderWorldLocal::StartWritingDemo, (idDemoFile *))
 RENDER_UNAVAILABLE(bool, idRenderWorldLocal::ProcessDemoCommand, (idDemoFile *, renderView_t *, int *))
 
 #undef RENDER_UNAVAILABLE
 
 #if defined(PS2_D3BFG_FOUNDATION)
+
 idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
 {
     ps2::renderer::Unavailable("idRenderSystemLocal::AllocRenderWorld");
@@ -313,7 +331,9 @@ void idRenderSystemLocal::FreeRenderWorld(idRenderWorld *)
 {
     ps2::renderer::Unavailable("idRenderSystemLocal::FreeRenderWorld");
 }
-#else
+
+#else // PS2_D3BFG_FOUNDATION
+
 idRenderWorld * idRenderSystemLocal::AllocRenderWorld()
 {
     if (!ps2::renderer::IsLogicalInitialized())
@@ -338,4 +358,5 @@ void idRenderSystemLocal::FreeRenderWorld(idRenderWorld * world)
     }
     delete local;
 }
-#endif
+
+#endif // PS2_D3BFG_FOUNDATION

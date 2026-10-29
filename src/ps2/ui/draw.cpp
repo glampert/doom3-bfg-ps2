@@ -12,6 +12,7 @@
 #include "ps2/system/log.h"
 #include "ps2/ui/masks.h"
 #include "ps2/ui/page_image.h"
+
 #include <bit>
 #include <cstdint>
 #include <idlib/precompiled.h>
@@ -19,6 +20,7 @@
 
 namespace
 {
+
 static bool s_initialized = false;
 static bool s_swfDraw = false;
 static uint64 s_savedSwfState = 0;
@@ -28,6 +30,7 @@ static ps2::ui::ConvexMask s_masks[ps2::ui::kMaxActiveMasks] = {};
 static int s_maskCount = 0;
 static const void * s_captureMask = nullptr;
 static ps2::ui::MaskBuilder s_maskBuilder;
+
 // A mask the convex bridge cannot express is replayed into the GS depth buffer, one at a time.
 static constexpr int kMaxCaptureTriangles = 256;
 static constexpr int kMaxCaptureLines = 192;
@@ -38,15 +41,18 @@ static int s_captureLineCount = 0;
 static bool s_captureOverflow = false;
 static const void * s_depthMaskKey = nullptr;
 static int s_depthBounds[4] = {};
+
 // The EE's native RGBA byte order is little endian; no idlib swap initialization is required.
 static_assert(std::endian::native == std::endian::little);
 static constexpr uint64 kBlendAlpha = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
 static constexpr uint64 kBlendSwf = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
 static constexpr uint64 kBlendSwfAdd = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE;
+
 // SWF screen asks for DST_COLOR/ONE with a subtract op; the shipped GL backend ignores blend ops,
 // so the PC result is Cd + Cd * Cs.
 static constexpr uint64 kBlendSwfScreen = GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ONE;
 static constexpr uint64 kAllowedState = GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS | GLS_DEPTHMASK | GLS_DEPTHFUNC_BITS | GLS_OVERRIDE;
+
 // Native SWF also draws outlines in line mode and requests the screen blend op.
 static constexpr uint64 kAllowedSwfState = kAllowedState | GLS_POLYMODE_LINE | GLS_BLENDOP_SUB;
 
@@ -80,13 +86,14 @@ static int s_batchCount = 0;
 static bool s_flushing = false;
 static ps2::ui::GeometryStats s_geometryStats = {};
 
-void FreeGeometry()
+PS2_COLD_FUNC void FreeGeometry()
 {
     ps2::system::heap::Free(s_captureLines);
     ps2::system::heap::Free(s_captureTriangles);
     ps2::system::heap::Free(s_batches);
     ps2::system::heap::Free(s_indexes);
     ps2::system::heap::Free(s_vertices);
+
     s_captureLines = nullptr;
     s_captureTriangles = nullptr;
     s_batches = nullptr;
@@ -99,8 +106,8 @@ void FreeGeometry()
 void GrowBounds(int (&bounds)[4], int x, int y)
 {
     const int left = x / 16;
-    const int top = y / 16;
-    const int right = Min((x + 15) / 16 + 1, ps2::renderer::gs::Width());
+    const int top  = y / 16;
+    const int right  = Min((x + 15) / 16 + 1, ps2::renderer::gs::Width());
     const int bottom = Min((y + 15) / 16 + 1, ps2::renderer::gs::Height());
 
     if (bounds[0] >= bounds[2])
@@ -122,6 +129,7 @@ void GrowBounds(int (&bounds)[4], int x, int y)
 void WriteDepthMask()
 {
     using namespace ps2::ui;
+
     const Viewport viewport{ ps2::renderer::gs::Width(), ps2::renderer::gs::Height() };
     int bounds[4] = {};
 
@@ -134,7 +142,7 @@ void WriteDepthMask()
         FixedTriangle pieces[kMaxClippedTriangles];
         int count = 0;
 
-        if (MapTriangle(input, viewport, 1, 1, pieces, count) == Result::Invalid)
+        if (MapTriangle(input, viewport, 1, 1, pieces, count) == Result::Invalid) [[unlikely]]
         {
             ps2::FatalError("invalid native SWF mask triangle");
         }
@@ -158,7 +166,7 @@ void WriteDepthMask()
         FixedLine line = {};
         const Result result = MapLine(input, viewport, line);
 
-        if (result == Result::Invalid)
+        if (result == Result::Invalid) [[unlikely]]
         {
             ps2::FatalError("invalid native SWF mask line");
         }
@@ -180,6 +188,7 @@ void WriteDepthMask()
     }
 }
 
+#if PS2_D3BFG_ASSERTS
 void Require(const idRenderSystemLocal * owner, const char * method, bool drawing = false)
 {
     PS2_Assert(owner != nullptr);
@@ -188,28 +197,32 @@ void Require(const idRenderSystemLocal * owner, const char * method, bool drawin
         ps2::renderer::Unavailable(method);
     }
 }
+#endif // PS2_D3BFG_ASSERTS
 
-bool PortableFloat(float value)
+inline bool PortableFloat(float value)
 {
     const auto bits = std::bit_cast<std::uint32_t>(value) & 0x7FFFFFFFU;
     return bits < 0x7F800000U && (bits == 0 || bits >= 0x00800000U);
 }
 
-bool UnitValue(float value)
+inline bool UnitValue(float value)
 {
     return PortableFloat(value) && value >= 0.0f && value <= 1.0f;
 }
 
-u8 ByteColor(float value)
+inline u8 ByteColor(float value)
 {
-    if (!UnitValue(value))
+#if PS2_D3BFG_ASSERTS
+    if (!UnitValue(value)) [[unlikely]]
     {
         ps2::FatalError("invalid native UI color");
     }
+#endif // PS2_D3BFG_ASSERTS
+
     return static_cast<u8>(value * 255.0f); // Match native PackColor/Ftob truncation.
 }
 
-ps2::renderer::gs::Color CurrentColor()
+inline ps2::renderer::gs::Color CurrentColor()
 {
     const uint32 packed = tr.currentColorNativeBytesOrder;
     return { static_cast<u8>(packed & 255U), static_cast<u8>((packed >> 8) & 255U),
@@ -219,16 +232,21 @@ ps2::renderer::gs::Color CurrentColor()
 ps2::renderer::gs::BlendMode Blend(uint64 state)
 {
     const uint64 equation = state & (GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS);
-    const uint64 depth = state & GLS_DEPTHFUNC_BITS;
+
     // The subtract op belongs only to screen blending, whose PC result ignores it.
     const bool screen = s_swfDraw && equation == kBlendSwfScreen;
+
+#if PS2_D3BFG_ASSERTS
+    const uint64 depth = state & GLS_DEPTHFUNC_BITS;
+
     if ((state & ~(s_swfDraw ? kAllowedSwfState : kAllowedState)) != 0 || ((state & GLS_BLENDOP_SUB) != 0 && !screen) ||
         (depth != GLS_DEPTHFUNC_LESS && depth != GLS_DEPTHFUNC_ALWAYS) ||
         (equation != GLS_DEFAULT && equation != kBlendAlpha &&
-         !(s_swfDraw && (equation == kBlendSwf || equation == kBlendSwfAdd || screen))))
+         !(s_swfDraw && (equation == kBlendSwf || equation == kBlendSwfAdd || screen)))) [[unlikely]]
     {
         ps2::renderer::Unavailable("native UI blend/state profile");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     if (screen)
     {
@@ -250,42 +268,59 @@ uint64 CombinedState(uint64 stageState)
 
 Profile MaterialProfile(const idMaterial * material, ps2::renderer::gs::Color base)
 {
-    if (material == nullptr || material->GetNumStages() != 1 || material->ConstantRegisters() == nullptr ||
+    PS2_Assert(material != nullptr);
+    const shaderStage_t & stage = *material->GetStage(0);
+
+#if PS2_D3BFG_ASSERTS
+    if (material->GetNumStages() != 1 || material->ConstantRegisters() == nullptr ||
         material->TestMaterialFlag(MF_DEFAULTED | MF_POLYGONOFFSET) || material->HasSubview() || material->Deform() != DFRM_NONE ||
-        material->GetNumRegisters() < 1 || material->GetNumRegisters() > MAX_EXPRESSION_REGISTERS)
+        material->GetNumRegisters() < 1 || material->GetNumRegisters() > MAX_EXPRESSION_REGISTERS) [[unlikely]]
     {
         ps2::renderer::Unavailable("native UI requires one constant material stage");
     }
-    const shaderStage_t & stage = *material->GetStage(0);
+
     if (stage.lighting != SL_AMBIENT || stage.hasAlphaTest || stage.newStage != nullptr ||
         stage.texture.texgen != TG_EXPLICIT || stage.texture.hasMatrix || stage.texture.cinematic != nullptr ||
         stage.texture.dynamic != DI_STATIC || stage.privatePolygonOffset != 0.0f || stage.ignoreAlphaTest ||
-        (stage.vertexColor != SVC_IGNORE && stage.vertexColor != SVC_MODULATE))
+        (stage.vertexColor != SVC_IGNORE && stage.vertexColor != SVC_MODULATE)) [[unlikely]]
     {
         ps2::renderer::Unavailable("native UI material stage profile");
     }
+#endif // PS2_D3BFG_ASSERTS
+
     const int registers = material->GetNumRegisters();
     const auto Register = [registers, material](int index)
     {
-        if (index < 0 || index >= registers)
+        if (index < 0 || index >= registers) [[unlikely]]
         {
             ps2::FatalError("native UI material register outside bounds");
         }
+
         const float value = material->ConstantRegisters()[index];
-        if (!UnitValue(value))
+
+        #if PS2_D3BFG_ASSERTS
+        if (!UnitValue(value)) [[unlikely]]
         {
             ps2::FatalError("native UI material register outside unit range");
         }
+        #endif // PS2_D3BFG_ASSERTS
+
         return value;
     };
+
     const float condition = Register(stage.conditionRegister);
     const u8 channels[] = { base.r, base.g, base.b, base.a };
     u8 modulated[4] = {};
+
     for (int i = 0; i < 4; ++i)
     {
         modulated[i] = static_cast<u8>(Register(stage.color.registers[i]) * static_cast<float>(channels[i]));
     }
+
+#if PS2_D3BFG_ASSERTS
     ps2::renderer::ValidateUiImage(stage.texture.image);
+#endif // PS2_D3BFG_ASSERTS
+
     const uint64 state = CombinedState(stage.drawStateBits);
     return { stage.texture.image, Blend(state), { modulated[0], modulated[1], modulated[2], modulated[3] }, stage.vertexColor == SVC_MODULATE,
              condition != 0.0f, s_swfDraw, (state & GLS_POLYMODE_LINE) != 0 };
@@ -296,15 +331,20 @@ float DecodeHalf(halfFloat_t value)
     const u32 bits = value;
     const u32 exponent = (bits >> 10) & 31U;
     const u32 mantissa = bits & 1023U;
-    if (exponent == 31U)
+
+#if PS2_D3BFG_ASSERTS
+    if (exponent == 31U) [[unlikely]]
     {
         ps2::FatalError("native UI half UV is not finite");
     }
+#endif //PS2_D3BFG_ASSERTS
+
     // Native F16toF32 uses powf and maps Inf/NaN to small numbers. Decode checked bits directly.
     if (exponent != 0)
     {
         return std::bit_cast<float>(((bits & 32768U) << 16) | ((exponent + 112U) << 23) | (mantissa << 13));
     }
+
     const float magnitude = static_cast<float>(mantissa) * (1.0f / 16777216.0f);
     return (bits & 32768U) != 0 ? -magnitude : magnitude;
 }
@@ -312,16 +352,19 @@ float DecodeHalf(halfFloat_t value)
 struct DecodedVertex
 {
     ps2::ui::Vertex vertex;
+
     // Native GUI shading adds color2 * 2 - 1 to the textured color: per unit, 2 * byte - 255.
     s16 add[3];
 };
 
 DecodedVertex DecodeVertex(const idDrawVert & vertex, const Profile & profile)
 {
-    if (!PortableFloat(vertex.xyz.z) || vertex.xyz.z != 0.0f)
+#if PS2_D3BFG_ASSERTS
+    if (!PortableFloat(vertex.xyz.z) || vertex.xyz.z != 0.0f) [[unlikely]]
     {
         ps2::FatalError("native UI vertex requires zero depth");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     DecodedVertex output = {};
 
@@ -336,7 +379,7 @@ DecodedVertex DecodeVertex(const idDrawVert & vertex, const Profile & profile)
             continue;
         }
 
-        if (!profile.swf || channel == 3)
+        if (!profile.swf || channel == 3) [[unlikely]]
         {
             ps2::renderer::Unavailable("native UI additive vertex color");
         }
@@ -344,9 +387,9 @@ DecodedVertex DecodeVertex(const idDrawVert & vertex, const Profile & profile)
         output.add[channel] = static_cast<s16>(2 * static_cast<int>(value) - 255);
     }
 
-    const auto Modulate = [](u8 color, u8 tint)
-    { return static_cast<u8>((static_cast<u32>(color) * tint + 127U) / 255U); };
+    const auto Modulate = [](u8 color, u8 tint) { return static_cast<u8>((static_cast<u32>(color) * tint + 127U) / 255U); };
     const auto & tint = profile.tint;
+
     output.vertex = { vertex.xyz.x, vertex.xyz.y, DecodeHalf(vertex.st[0]), DecodeHalf(vertex.st[1]),
                       profile.vertexColor ? Modulate(vertex.color[0], tint.r) : tint.r,
                       profile.vertexColor ? Modulate(vertex.color[1], tint.g) : tint.g,
@@ -377,7 +420,7 @@ ps2::renderer::Shading MakeShading(const DecodedVertex (&vertices)[Count], ps2::
     {
         for (int channel = 0; channel < 3; ++channel)
         {
-            if (decoded.add[channel] != shading.add[channel])
+            if (decoded.add[channel] != shading.add[channel]) [[unlikely]]
             {
                 ps2::renderer::Unavailable("native UI varying additive color");
             }
@@ -393,33 +436,41 @@ ps2::renderer::Shading MakeShading(const DecodedVertex (&vertices)[Count], ps2::
 
 idDrawVert * Allocate(int vertexCount, const triIndex_t * indexes, int indexCount, const Profile & profile)
 {
+#if PS2_D3BFG_ASSERTS
     Require(&tr, "native UI indexed allocation", true);
+
     if (s_flushing || vertexCount <= 0 || vertexCount > ps2::ui::kMaxVertices || indexes == nullptr ||
         indexCount <= 0 || indexCount > ps2::ui::kMaxIndexes || indexCount % 3 != 0 ||
         (profile.blend != ps2::renderer::gs::BlendMode::Replace && profile.blend != ps2::renderer::gs::BlendMode::StraightAlpha &&
-         profile.blend != ps2::renderer::gs::BlendMode::AdditiveAlpha && profile.blend != ps2::renderer::gs::BlendMode::Screen))
+         profile.blend != ps2::renderer::gs::BlendMode::AdditiveAlpha && profile.blend != ps2::renderer::gs::BlendMode::Screen)) [[unlikely]]
     {
         ps2::FatalError("invalid native UI indexed request");
     }
+
     ps2::renderer::ValidateUiImage(profile.image);
+
     for (int index = 0; index < indexCount; ++index)
     {
-        if (indexes[index] >= vertexCount)
+        if (indexes[index] >= vertexCount) [[unlikely]]
         {
             ps2::FatalError("native UI index outside vertex span");
         }
     }
+#endif // PS2_D3BFG_ASSERTS
+
     // Prior callers have completed their write-only spans; reject oversized requests before any flush.
     if (vertexCount > ps2::ui::kMaxVertices - s_vertexCount || indexCount > ps2::ui::kMaxIndexes - s_indexCount ||
         s_batchCount == ps2::ui::kMaxDraws)
     {
         ps2::ui::Flush();
     }
+
     idDrawVert * const output = s_vertices + s_vertexCount;
     s_batches[s_batchCount++] = { profile, s_vertexCount, vertexCount, s_indexCount, indexCount };
     memcpy(s_indexes + s_indexCount, indexes, static_cast<size_t>(indexCount) * sizeof(*indexes));
     s_vertexCount += vertexCount;
     s_indexCount += indexCount;
+
     if (static_cast<u32>(s_vertexCount) > s_geometryStats.peakVertices)
     {
         s_geometryStats.peakVertices = static_cast<u32>(s_vertexCount);
@@ -432,12 +483,13 @@ idDrawVert * Allocate(int vertexCount, const triIndex_t * indexes, int indexCoun
     {
         s_geometryStats.peakDraws = static_cast<u32>(s_batchCount);
     }
+
     return output;
 }
 
 void CountTriangles(u32 count)
 {
-    if (s_geometryStats.triangles > UINT_MAX - count)
+    if (s_geometryStats.triangles > UINT_MAX - count) [[unlikely]]
     {
         ps2::FatalError("native UI geometry counter overflow");
     }
@@ -450,6 +502,7 @@ bool HasColorTerm(const ps2::renderer::Shading & shading)
     return shading.replaceColor || shading.add[0] != 0 || shading.add[1] != 0 || shading.add[2] != 0;
 }
 
+#if PS2_D3BFG_ASSERTS
 // Screen passes carry the source in alpha; an additive term has no place in that equation.
 void ValidateShading(const ps2::renderer::Shading & shading)
 {
@@ -458,13 +511,14 @@ void ValidateShading(const ps2::renderer::Shading & shading)
         ps2::renderer::Unavailable("native SWF screen blending with an additive color term");
     }
 }
+#endif // PS2_D3BFG_ASSERTS
 
 // Counts a drawn source primitive's screen blending and additive color term.
 void CountShading(const ps2::renderer::Shading & shading)
 {
     const bool colorTerm = HasColorTerm(shading);
 
-    if (s_geometryStats.screen == UINT_MAX || s_geometryStats.colorTerms == UINT_MAX)
+    if (s_geometryStats.screen == UINT_MAX || s_geometryStats.colorTerms == UINT_MAX) [[unlikely]]
     {
         ps2::FatalError("native UI geometry counter overflow");
     }
@@ -477,23 +531,27 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
               const ps2::renderer::Shading & shading, bool emit)
 {
     using namespace ps2::ui;
+
     FixedTriangle fixed[kMaxClippedTriangles];
     auto * const pages = ps2::renderer::UiPageImage(image);
     int fixedCount = 0;
+
     // Validate the original input too: an empty/offscreen mask must never hide malformed UVs.
-    if (pages != nullptr ? !pages->ValidateTriangle(input) : MapTriangle(input, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() }, image->GetUploadWidth(), image->GetUploadHeight(), fixed, fixedCount) == Result::Invalid)
+    if (pages != nullptr ? !pages->ValidateTriangle(input) : MapTriangle(input, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() }, image->GetUploadWidth(), image->GetUploadHeight(), fixed, fixedCount) == Result::Invalid) [[unlikely]]
     {
         ps2::FatalError("invalid native UI triangle or UV");
     }
 
     // A screen pass reads one color channel as alpha: white texels, or a paletted channel CLUT.
     if (shading.blend == ps2::renderer::gs::BlendMode::Screen &&
-        (pages != nullptr ? !pages->SupportsScreen() : image != ps2::renderer::ConsoleWhiteImage()))
+        (pages != nullptr ? !pages->SupportsScreen() : image != ps2::renderer::ConsoleWhiteImage())) [[unlikely]]
     {
         ps2::renderer::Unavailable("native SWF screen blending over this image");
     }
 
+#if PS2_D3BFG_ASSERTS
     ValidateShading(shading);
+#endif // PS2_D3BFG_ASSERTS
 
     if (emit)
     {
@@ -506,7 +564,7 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
         if (emit && pages != nullptr)
         {
             const u32 before = pages->GetStats().triangles;
-            if (!pages->DrawTriangle(input, shading))
+            if (!pages->DrawTriangle(input, shading)) [[unlikely]]
             {
                 ps2::FatalError("native UI paged triangle failed");
             }
@@ -518,7 +576,7 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
             CountTriangles(static_cast<u32>(fixedCount));
             for (int triangle = 0; triangle < fixedCount; ++triangle)
             {
-                if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading))
+                if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading)) [[unlikely]]
                 {
                     ps2::FatalError("native UI triangle texture residency failed");
                 }
@@ -530,7 +588,7 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
 
     Vertex clipped[kMaxMaskClipVertices];
     int count = 0;
-    if (!ClipMaskTriangle(input, s_masks, s_maskCount, clipped, count))
+    if (!ClipMaskTriangle(input, s_masks, s_maskCount, clipped, count)) [[unlikely]]
     {
         ps2::FatalError("native UI mask clipping exceeds bounded geometry");
     }
@@ -540,15 +598,17 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
         const Vertex piece[3] = { clipped[0], clipped[i], clipped[i + 1] };
         if (pages != nullptr)
         {
-            if (!pages->ValidateTriangle(piece))
+            #if PS2_D3BFG_ASSERTS
+            if (!pages->ValidateTriangle(piece)) [[unlikely]]
             {
                 ps2::FatalError("invalid native UI masked page geometry");
             }
+            #endif //PS2_D3BFG_ASSERTS
 
             if (emit)
             {
                 const u32 before = pages->GetStats().triangles;
-                if (!pages->DrawTriangle(piece, shading))
+                if (!pages->DrawTriangle(piece, shading)) [[unlikely]]
                 {
                     ps2::FatalError("native UI paged triangle failed");
                 }
@@ -559,7 +619,7 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
         else
         {
             if (MapTriangle(piece, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() }, image->GetUploadWidth(),
-                            image->GetUploadHeight(), fixed, fixedCount) == Result::Invalid)
+                            image->GetUploadHeight(), fixed, fixedCount) == Result::Invalid) [[unlikely]]
             {
                 ps2::FatalError("invalid native UI masked triangle");
             }
@@ -569,7 +629,7 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
                 CountTriangles(static_cast<u32>(fixedCount));
                 for (int triangle = 0; triangle < fixedCount; ++triangle)
                 {
-                    if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading))
+                    if (!ps2::renderer::TexturedTriangleFixed(ps2::renderer::ConsoleImageTexture(image), fixed[triangle], shading)) [[unlikely]]
                     {
                         ps2::FatalError("native UI triangle texture residency failed");
                     }
@@ -582,21 +642,24 @@ void Triangle(const ps2::ui::Vertex (&input)[3], const idImage * image,
 void Line(const ps2::ui::Vertex (&input)[2], const ps2::renderer::Shading & shading, bool emit)
 {
     using namespace ps2::ui;
+
     const Viewport viewport{ ps2::renderer::gs::Width(), ps2::renderer::gs::Height() };
     FixedLine fixed = {};
 
     // Validate the original segment even when a mask or the screen hides all of it.
-    if (MapLine(input, viewport, fixed) == Result::Invalid)
+    if (MapLine(input, viewport, fixed) == Result::Invalid) [[unlikely]]
     {
         ps2::FatalError("invalid native UI line");
     }
 
+#if PS2_D3BFG_ASSERTS
     ValidateShading(shading);
+#endif // PS2_D3BFG_ASSERTS
 
     Vertex visible[2] = { input[0], input[1] };
     bool shown = true;
 
-    if (s_maskCount != 0 && !ClipMaskLine(input, s_masks, s_maskCount, visible, shown))
+    if (s_maskCount != 0 && !ClipMaskLine(input, s_masks, s_maskCount, visible, shown)) [[unlikely]]
     {
         ps2::FatalError("native UI mask clipping rejects a line");
     }
@@ -608,14 +671,16 @@ void Line(const ps2::ui::Vertex (&input)[2], const ps2::renderer::Shading & shad
 
     CountShading(shading);
 
-    if (s_geometryStats.lines == UINT_MAX)
+#if PS2_D3BFG_ASSERTS
+    if (s_geometryStats.lines == UINT_MAX) [[unlikely]]
     {
         ps2::FatalError("native UI geometry counter overflow");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     ++s_geometryStats.lines;
 
-    if (!ps2::renderer::LineFixed(fixed, shading))
+    if (!ps2::renderer::LineFixed(fixed, shading)) [[unlikely]]
     {
         ps2::FatalError("native UI line submission failed");
     }
@@ -623,14 +688,17 @@ void Line(const ps2::ui::Vertex (&input)[2], const ps2::renderer::Shading & shad
 
 void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::Color color, ps2::renderer::gs::BlendMode blend)
 {
-    if (s_captureMask != nullptr)
+#if PS2_D3BFG_ASSERTS
+    if (s_captureMask != nullptr) [[unlikely]]
     {
         ps2::FatalError("native SWF mask requires indexed fill geometry");
     }
-    if (image == nullptr || !image->IsLoaded())
+    if (image == nullptr || !image->IsLoaded()) [[unlikely]]
     {
-        ps2::renderer::Unavailable("native UI unloaded image");
+        ps2::FatalError("native UI unloaded image");
     }
+#endif // PS2_D3BFG_ASSERTS
+
     auto * const pages = ps2::renderer::UiPageImage(image);
 
     // PageImage validates full-atlas UVs, including the admitted retail font's outer half texel.
@@ -647,10 +715,14 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::
     const auto result = ps2::ui::MapRect(validation, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() },
                                          pages != nullptr ? 1 : image->GetUploadWidth(),
                                          pages != nullptr ? 1 : image->GetUploadHeight(), fixed);
-    if (result == ps2::ui::Result::Invalid)
+
+#if PS2_D3BFG_ASSERTS
+    if (result == ps2::ui::Result::Invalid) [[unlikely]]
     {
         ps2::FatalError("invalid native UI rectangle or UV");
     }
+#endif // PS2_D3BFG_ASSERTS
+
     if (result == ps2::ui::Result::Clipped && pages == nullptr)
     {
         return;
@@ -694,7 +766,7 @@ void Emit(const ps2::ui::Rect & rect, const idImage * image, ps2::renderer::gs::
         return;
     }
 
-    if (!ps2::renderer::TexturedRectFixed(ps2::renderer::ConsoleImageTexture(image), fixed, color, blend))
+    if (!ps2::renderer::TexturedRectFixed(ps2::renderer::ConsoleImageTexture(image), fixed, color, blend)) [[unlikely]]
     {
         ps2::FatalError("native UI texture residency failed");
     }
@@ -707,10 +779,12 @@ void Character(int x, int y, int character, bool big)
     {
         return;
     }
+
     const int width = big ? BIGCHAR_WIDTH : SMALLCHAR_WIDTH;
     const int height = SMALLCHAR_HEIGHT;
     const float s = static_cast<float>(ch & 15) / 16.0f;
     const float t = static_cast<float>(ch >> 4) / 16.0f;
+
     Emit({ static_cast<float>(x), static_cast<float>(y), static_cast<float>(width), static_cast<float>(height),
            s, t, s + 0.0625f, t + 0.0625f },
          ps2::renderer::ConsoleCharsetImage(), CurrentColor(), Blend(CombinedState(kBlendAlpha)));
@@ -718,19 +792,25 @@ void Character(int x, int y, int character, bool big)
 
 void String(idRenderSystemLocal * owner, int x, int y, const char * string, const idVec4 & color, bool forceColor, bool big)
 {
-    if (string == nullptr)
+    const int advance = big ? BIGCHAR_WIDTH : SMALLCHAR_WIDTH;
+
+#if PS2_D3BFG_ASSERTS
+    if (string == nullptr) [[unlikely]]
     {
         ps2::FatalError("native UI text is null");
     }
+
     int bytes = 0;
     while (bytes < MAX_STRING_CHARS && string[bytes] != '\0')
     {
         ++bytes;
     }
-    if (bytes == MAX_STRING_CHARS || x < -32768 || x > 32768 || y < -32768 || y > 32768)
+
+    if (bytes == MAX_STRING_CHARS || x < -32768 || x > 32768 || y < -32768 || y > 32768) [[unlikely]]
     {
         ps2::FatalError("native UI text exceeds bounded input profile");
     }
+
     int glyphs = 0;
     for (int i = 0; i < bytes; ++i)
     {
@@ -743,14 +823,17 @@ void String(idRenderSystemLocal * owner, int x, int y, const char * string, cons
             ++glyphs;
         }
     }
-    const int advance = big ? BIGCHAR_WIDTH : SMALLCHAR_WIDTH;
-    if (glyphs > (32768 - x) / advance)
+
+    if (glyphs > (32768 - x) / advance) [[unlikely]]
     {
         ps2::FatalError("native UI text coordinate overflow");
     }
+#endif // PS2_D3BFG_ASSERTS
+
     owner->SetColor(color);
     const auto * cursor = reinterpret_cast<const unsigned char *>(string);
     int pen = x;
+
     while (*cursor != 0)
     {
         if (idStr::IsColor(reinterpret_cast<const char *>(cursor)))
@@ -764,20 +847,19 @@ void String(idRenderSystemLocal * owner, int x, int y, const char * string, cons
             cursor += 2;
             continue;
         }
+
         Character(pen, y, *cursor, big);
         pen += advance;
         ++cursor;
     }
+
     owner->SetColor(colorWhite);
 }
+
 } // namespace
 
 namespace ps2::ui
 {
-bool IsInitialized()
-{
-    return s_initialized;
-}
 
 PS2_COLD_FUNC bool Init()
 {
@@ -785,26 +867,31 @@ PS2_COLD_FUNC bool Init()
     {
         FatalError("native UI initialized with existing ownership");
     }
+
     if (!renderer::IsInitialized() || renderer::FrameStarted())
     {
         return false;
     }
+
     s_vertices = static_cast<idDrawVert *>(system::heap::TryAlloc(sizeof(idDrawVert) * kMaxVertices, TAG_RENDER, 16));
     s_indexes = static_cast<triIndex_t *>(system::heap::TryAlloc(sizeof(triIndex_t) * kMaxIndexes, TAG_RENDER, 16));
     s_batches = static_cast<Batch *>(system::heap::TryAlloc(sizeof(Batch) * kMaxDraws, TAG_RENDER, 16));
     s_captureTriangles = static_cast<MaskPoint(*)[3]>(system::heap::TryAlloc(sizeof(MaskPoint[3]) * kMaxCaptureTriangles, TAG_RENDER, 16));
     s_captureLines = static_cast<MaskPoint(*)[2]>(system::heap::TryAlloc(sizeof(MaskPoint[2]) * kMaxCaptureLines, TAG_RENDER, 16));
+
     if (s_vertices == nullptr || s_indexes == nullptr || s_batches == nullptr || s_captureTriangles == nullptr ||
         s_captureLines == nullptr || !renderer::InitConsoleImages())
     {
         FreeGeometry();
         return false;
     }
+
     s_geometryStats = {};
     tr.registered = true;
     tr.currentGLState = 0;
     tr.currentColorNativeBytesOrder = 0xFFFFFFFFU;
     s_initialized = true;
+
     Log(LogLevel::Info, "[D3BFG] UI adapters ready virtual=640x480 physical=%dx%d\n", renderer::gs::Width(), renderer::gs::Height());
     return true;
 }
@@ -815,14 +902,17 @@ PS2_COLD_FUNC void Shutdown()
     {
         return;
     }
+
     if (renderer::FrameStarted())
     {
         FatalError("native UI shutdown with an open frame");
     }
+
     if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
     {
         FatalError("native UI shutdown with pending geometry");
     }
+
     FreeGeometry();
     renderer::ShutdownConsoleImages();
     tr.whiteMaterial = tr.charSetMaterial = nullptr;
@@ -832,18 +922,26 @@ PS2_COLD_FUNC void Shutdown()
     s_initialized = false;
 }
 
-GeometryStats GetGeometryStats()
+bool IsInitialized()
+{
+    return s_initialized;
+}
+
+const GeometryStats & GetGeometryStats()
 {
     return s_geometryStats;
 }
 
 void BeginSwfDraw()
 {
+#if PS2_D3BFG_ASSERTS
     Require(&tr, "native SWF draw scope", true);
-    if (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
+    if (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr) [[unlikely]]
     {
         FatalError("nested native SWF drawing");
     }
+#endif // PS2_D3BFG_ASSERTS
+
     Flush();
     s_savedSwfState = tr.currentGLState;
     s_savedSwfColor = tr.currentColorNativeBytesOrder;
@@ -852,15 +950,17 @@ void BeginSwfDraw()
 
 void EndSwfDraw()
 {
-    if (!s_swfDraw)
+#if PS2_D3BFG_ASSERTS
+    if (!s_swfDraw) [[unlikely]]
     {
         FatalError("native SWF draw scope not active");
     }
 
-    if (s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
+    if (s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr) [[unlikely]]
     {
         FatalError("native SWF draw ended with outstanding mask ownership");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     Flush();
     s_swfDraw = false;
@@ -870,19 +970,21 @@ void EndSwfDraw()
 
 void BeginSwfMask(const void * key)
 {
+#if PS2_D3BFG_ASSERTS
     Require(&tr, "native SWF mask capture", true);
-    if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr || key == s_depthMaskKey)
+    if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr || key == s_depthMaskKey) [[unlikely]]
     {
         FatalError("invalid native SWF mask begin");
     }
 
     for (int i = 0; i < s_maskCount; ++i)
     {
-        if (s_maskKeys[i] == key)
+        if (s_maskKeys[i] == key) [[unlikely]]
         {
             FatalError("duplicate native SWF mask key");
         }
     }
+#endif // PS2_D3BFG_ASSERTS
 
     Flush();
     s_maskBuilder.Reset();
@@ -893,15 +995,17 @@ void BeginSwfMask(const void * key)
 
 void EndSwfMask()
 {
+#if PS2_D3BFG_ASSERTS
     Require(&tr, "native SWF mask completion", true);
-    if (!s_swfDraw || s_flushing || s_captureMask == nullptr)
+    if (!s_swfDraw || s_flushing || s_captureMask == nullptr) [[unlikely]]
     {
         FatalError("native SWF mask capture not active");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     Flush();
 
-    if (s_geometryStats.masks == UINT_MAX || s_geometryStats.depthMasks == UINT_MAX)
+    if (s_geometryStats.masks == UINT_MAX || s_geometryStats.depthMasks == UINT_MAX) [[unlikely]]
     {
         FatalError("native UI geometry counter overflow");
     }
@@ -914,12 +1018,12 @@ void EndSwfMask()
     }
     else
     {
-        if (s_depthMaskKey != nullptr)
+        if (s_depthMaskKey != nullptr) [[unlikely]]
         {
-            renderer::Unavailable("nested native SWF depth masks");
+            FatalError("nested native SWF depth masks");
         }
 
-        if (s_captureOverflow)
+        if (s_captureOverflow) [[unlikely]]
         {
             FatalError("native SWF mask exceeds bounded fill geometry");
         }
@@ -936,11 +1040,13 @@ void EndSwfMask()
 
 void RemoveSwfMask(const void * key)
 {
+#if PS2_D3BFG_ASSERTS
     Require(&tr, "native SWF mask removal", true);
-    if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr)
+    if (!s_swfDraw || s_flushing || s_captureMask != nullptr || key == nullptr) [[unlikely]]
     {
         FatalError("invalid native SWF mask removal");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     if (key == s_depthMaskKey)
     {
@@ -957,7 +1063,7 @@ void RemoveSwfMask(const void * key)
         ++index;
     }
 
-    if (index == s_maskCount)
+    if (index == s_maskCount) [[unlikely]]
     {
         FatalError("unknown native SWF mask key");
     }
@@ -975,13 +1081,18 @@ void RemoveSwfMask(const void * key)
 
 void ValidateSwfMaskState(int activeMasks, bool capturing)
 {
+#if PS2_D3BFG_ASSERTS
     const int active = s_maskCount + (s_depthMaskKey != nullptr ? 1 : 0);
 
     if (!s_swfDraw || s_flushing || capturing != (s_captureMask != nullptr) ||
-        activeMasks != (capturing ? 0 : active))
+        activeMasks != (capturing ? 0 : active)) [[unlikely]]
     {
         FatalError("native SWF mask state disagrees with active geometry");
     }
+#endif // PS2_D3BFG_ASSERTS
+
+    (void)activeMasks;
+    (void)capturing;
 }
 
 void BeginGeometryFrame()
@@ -990,18 +1101,23 @@ void BeginGeometryFrame()
     {
         return;
     }
-    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)
+
+#if PS2_D3BFG_ASSERTS
+    if (s_batchCount != 0 || s_flushing || s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr) [[unlikely]]
     {
         FatalError("native UI geometry crossed a frame boundary");
     }
+#endif // PS2_D3BFG_ASSERTS
 }
 
 void EndGeometryFrame()
 {
-    if (s_initialized && (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr))
+#if PS2_D3BFG_ASSERTS
+    if (s_initialized && (s_swfDraw || s_captureMask != nullptr || s_maskCount != 0 || s_depthMaskKey != nullptr)) [[unlikely]]
     {
         FatalError("native UI frame ended with outstanding SWF ownership");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     Flush();
 }
@@ -1009,9 +1125,11 @@ void EndGeometryFrame()
 void DrawImageRect(float x, float y, float width, float height, float s0, float t0, float s1, float t1,
                    const idImage * image, const idMaterial * material)
 {
+#if PS2_D3BFG_ASSERTS
     Require(&tr, "native UI image rectangle", true);
-    const Profile profile = MaterialProfile(material, CurrentColor());
+#endif // PS2_D3BFG_ASSERTS
 
+    const Profile profile = MaterialProfile(material, CurrentColor());
     if (profile.enabled)
     {
         Emit({ x, y, width, height, s0, t0, s1, t1 }, image, profile.tint, profile.blend);
@@ -1026,10 +1144,13 @@ idDrawVert * AllocTrisForImage(int vertices, const u16 * indexes, int indexCount
 void DrawIndexed(const idDrawVert * vertices, int vertexCount, const u16 * indexes, int indexCount,
                  const idImage * image, renderer::gs::BlendMode blend)
 {
-    if (vertices == nullptr)
+#if PS2_D3BFG_ASSERTS
+    if (vertices == nullptr) [[unlikely]]
     {
         FatalError("native UI indexed vertices are null");
     }
+#endif // PS2_D3BFG_ASSERTS
+
     idDrawVert * const output = AllocTrisForImage(vertexCount, indexes, indexCount, image, blend);
     memmove(static_cast<void *>(output), vertices, static_cast<size_t>(vertexCount) * sizeof(*vertices));
 }
@@ -1040,12 +1161,15 @@ void Flush()
     {
         return;
     }
+
+#if PS2_D3BFG_ASSERTS
     Require(&tr, "native UI geometry flush", true);
     PS2_Assert(s_vertexCount > 0 && s_indexCount > 0);
-    if (s_geometryStats.flushes == UINT_MAX)
+    if (s_geometryStats.flushes == UINT_MAX) [[unlikely]]
     {
         FatalError("native UI geometry counter overflow");
     }
+#endif // PS2_D3BFG_ASSERTS
 
     ++s_geometryStats.flushes;
     if (s_captureMask != nullptr)
@@ -1066,10 +1190,13 @@ void Flush()
                 {
                     const int index = s_indexes[batch.firstIndex + first + corner];
                     const auto & position = s_vertices[batch.firstVertex + index].xyz;
-                    if (!PortableFloat(position.x) || !PortableFloat(position.y) || !PortableFloat(position.z) || position.z != 0.0f)
+
+                    #if PS2_D3BFG_ASSERTS
+                    if (!PortableFloat(position.x) || !PortableFloat(position.y) || !PortableFloat(position.z) || position.z != 0.0f) [[unlikely]]
                     {
                         FatalError("native SWF mask vertex requires zero depth");
                     }
+                    #endif // PS2_D3BFG_ASSERTS
 
                     points[corner] = { position.x, position.y };
                 }
@@ -1087,7 +1214,7 @@ void Flush()
                             continue;
                         }
 
-                        if (s_captureLineCount == kMaxCaptureLines)
+                        if (s_captureLineCount == kMaxCaptureLines) [[unlikely]]
                         {
                             FatalError("native SWF mask exceeds bounded outline geometry");
                         }
@@ -1153,6 +1280,7 @@ void Flush()
         const Vertex input[3] = { decoded[0].vertex, decoded[1].vertex, decoded[2].vertex };
         Triangle(input, batch.profile.image, MakeShading(decoded, batch.profile.blend), emit);
     };
+
     // Preflight the complete collection, including clipped-away inputs, before any GS emission.
     for (int batchIndex = 0; batchIndex < s_batchCount; ++batchIndex)
     {
@@ -1178,32 +1306,46 @@ void Flush()
             Visit(batch, index, true);
         }
     }
+
     s_vertexCount = s_indexCount = s_batchCount = 0;
     s_flushing = false;
 }
+
 } // namespace ps2::ui
 
 int idRenderSystemLocal::GetWidth() const
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::GetWidth");
+#endif // PS2_D3BFG_ASSERTS
+
     return ps2::renderer::gs::Width();
 }
 
 int idRenderSystemLocal::GetHeight() const
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::GetHeight");
+#endif // PS2_D3BFG_ASSERTS
+
     return ps2::renderer::gs::Height();
 }
 
 float idRenderSystemLocal::GetPixelAspect() const
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::GetPixelAspect");
+#endif // PS2_D3BFG_ASSERTS
+
     return 4.0f * static_cast<float>(ps2::renderer::gs::Height()) / (3.0f * static_cast<float>(ps2::renderer::gs::Width()));
 }
 
 void idRenderSystemLocal::SetColor(const idVec4 & color)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::SetColor");
+#endif // PS2_D3BFG_ASSERTS
+
     const uint32 packed = static_cast<uint32>(ByteColor(color[0])) | (static_cast<uint32>(ByteColor(color[1])) << 8) |
                           (static_cast<uint32>(ByteColor(color[2])) << 16) | (static_cast<uint32>(ByteColor(color[3])) << 24);
     currentColorNativeBytesOrder = packed;
@@ -1211,20 +1353,29 @@ void idRenderSystemLocal::SetColor(const idVec4 & color)
 
 uint32 idRenderSystemLocal::GetColor()
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::GetColor");
+#endif // PS2_D3BFG_ASSERTS
+
     return currentColorNativeBytesOrder;
 }
 
 void idRenderSystemLocal::SetGLState(uint64 state)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::SetGLState");
+#endif // PS2_D3BFG_ASSERTS
+
     (void)Blend(state);
     currentGLState = state;
 }
 
 void idRenderSystemLocal::DrawFilled(const idVec4 & color, float x, float y, float width, float height)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::DrawFilled", true);
+#endif // PS2_D3BFG_ASSERTS
+
     SetColor(color);
     Emit({ x, y, width, height, 0.0f, 0.0f, 1.0f, 1.0f }, ps2::renderer::ConsoleWhiteImage(), CurrentColor(), Blend(CombinedState(kBlendAlpha)));
 }
@@ -1232,29 +1383,37 @@ void idRenderSystemLocal::DrawFilled(const idVec4 & color, float x, float y, flo
 void idRenderSystemLocal::DrawStretchPic(float x, float y, float width, float height,
                                          float s0, float t0, float s1, float t1, const idMaterial * material)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::DrawStretchPic", true);
+#endif // PS2_D3BFG_ASSERTS
+
     const Profile profile = MaterialProfile(material, CurrentColor());
     if (!profile.enabled)
     {
         return;
     }
+
     Emit({ x, y, width, height, s0, t0, s1, t1 }, profile.image, profile.tint, profile.blend);
 }
 
 void idRenderSystemLocal::DrawStretchPic(const idVec4 & tl, const idVec4 & trCorner, const idVec4 & br, const idVec4 & bl, const idMaterial * material)
 {
-    Require(this, "idRenderSystemLocal::DrawStretchPic", true);
     const idVec4 * const corners[] = { &tl, &trCorner, &br, &bl };
+
+#if PS2_D3BFG_ASSERTS
+    Require(this, "idRenderSystemLocal::DrawStretchPic", true);
     for (const auto * corner : corners)
     {
         for (int i = 0; i < 4; ++i)
         {
-            if (!PortableFloat((*corner)[i]) || (*corner)[i] < -32768.0f || (*corner)[i] > 32768.0f)
+            if (!PortableFloat((*corner)[i]) || (*corner)[i] < -32768.0f || (*corner)[i] > 32768.0f) [[unlikely]]
             {
                 ps2::FatalError("invalid native UI quad coordinate");
             }
         }
     }
+#endif // PS2_D3BFG_ASSERTS
+
     if (tl.y == trCorner.y && bl.y == br.y && tl.x == bl.x && trCorner.x == br.x &&
         tl.z == bl.z && trCorner.z == br.z && tl.w == trCorner.w && bl.w == br.w &&
         trCorner.x >= tl.x && bl.y >= tl.y && trCorner.x - tl.x <= 32768.0f && bl.y - tl.y <= 32768.0f &&
@@ -1263,18 +1422,24 @@ void idRenderSystemLocal::DrawStretchPic(const idVec4 & tl, const idVec4 & trCor
         DrawStretchPic(tl.x, tl.y, trCorner.x - tl.x, bl.y - tl.y, tl.z, tl.w, br.z, br.w, material);
         return;
     }
+
     static constexpr triIndex_t kQuadIndexes[] = { 0, 1, 2, 0, 2, 3 };
     const Profile profile = MaterialProfile(material, CurrentColor());
+
+#if PS2_D3BFG_ASSERTS
     const bool paged = ps2::renderer::UiPageImage(profile.image) != nullptr;
+
     for (const auto * corner : corners)
     {
         if (!paged && (corner->z < 0.0f || corner->w < 0.0f ||
                        corner->z > 1023.0f / static_cast<float>(profile.image->GetUploadWidth()) ||
-                       corner->w > 1023.0f / static_cast<float>(profile.image->GetUploadHeight())))
+                       corner->w > 1023.0f / static_cast<float>(profile.image->GetUploadHeight()))) [[unlikely]]
         {
             ps2::FatalError("invalid native UI triangle or UV");
         }
     }
+#endif // PS2_D3BFG_ASSERTS
+
     idDrawVert * const vertices = Allocate(4, kQuadIndexes, 6, profile);
     for (int corner = 0; corner < 4; ++corner)
     {
@@ -1289,47 +1454,61 @@ void idRenderSystemLocal::DrawStretchPic(const idVec4 & tl, const idVec4 & trCor
 idDrawVert * idRenderSystemLocal::AllocTris(int vertices, const triIndex_t * indexes, int count,
                                             const idMaterial * material, stereoDepthType_t stereo)
 {
+    (void)stereo;
+
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::AllocTris", true);
     // Native GUI surfaces sort by stereo depth only with stereoscopic rendering on; mono ignores it.
-    if (stereo != STEREO_DEPTH_TYPE_NONE && stereo != STEREO_DEPTH_TYPE_NEAR && stereo != STEREO_DEPTH_TYPE_MID &&
-        stereo != STEREO_DEPTH_TYPE_FAR)
+    if (stereo != STEREO_DEPTH_TYPE_NONE && stereo != STEREO_DEPTH_TYPE_NEAR &&
+        stereo != STEREO_DEPTH_TYPE_MID  && stereo != STEREO_DEPTH_TYPE_FAR) [[unlikely]]
     {
         ps2::FatalError("invalid native UI stereo depth");
     }
+#endif // PS2_D3BFG_ASSERTS
+
     // Native SWF shapes can hold empty fill records; their callers skip a null span.
     if (material == nullptr || (vertices == 0 && count == 0))
     {
         return nullptr;
     }
+
     return Allocate(vertices, indexes, count, MaterialProfile(material, { 255, 255, 255, 255 }));
 }
 
 void idRenderSystemLocal::DrawStretchTri(const idVec2 & p1, const idVec2 & p2, const idVec2 & p3,
                                          const idVec2 & t1, const idVec2 & t2, const idVec2 & t3, const idMaterial * material)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::DrawStretchTri", true);
+#endif // PS2_D3BFG_ASSERTS
+
     if (material == nullptr)
     {
         return;
     }
+
     static constexpr triIndex_t kIndexes[] = { 1, 0, 2 };
     const Profile profile = MaterialProfile(material, CurrentColor());
     const idVec2 positions[] = { p1, p2, p3 };
     const idVec2 coords[] = { t1, t2, t3 };
+
     ps2::ui::Vertex input[3];
     for (int corner = 0; corner < 3; ++corner)
     {
         input[corner] = { positions[corner].x, positions[corner].y, coords[corner].x, coords[corner].y, 255, 255, 255, 255 };
     }
+
     ps2::ui::FixedTriangle output[ps2::ui::kMaxClippedTriangles];
     int count = 0;
     auto * const pages = ps2::renderer::UiPageImage(profile.image);
+
     if (pages != nullptr ? !pages->ValidateTriangle(input)
                          : ps2::ui::MapTriangle(input, { ps2::renderer::gs::Width(), ps2::renderer::gs::Height() }, profile.image->GetUploadWidth(),
-                                                profile.image->GetUploadHeight(), output, count) == ps2::ui::Result::Invalid)
+                                                profile.image->GetUploadHeight(), output, count) == ps2::ui::Result::Invalid) [[unlikely]]
     {
         ps2::FatalError("invalid native UI triangle or UV");
     }
+
     idDrawVert * const vertices = Allocate(3, kIndexes, 3, profile);
     for (int corner = 0; corner < 3; ++corner)
     {
@@ -1343,24 +1522,36 @@ void idRenderSystemLocal::DrawStretchTri(const idVec2 & p1, const idVec2 & p2, c
 
 void idRenderSystemLocal::DrawSmallChar(int x, int y, int ch)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::DrawSmallChar", true);
+#endif // PS2_D3BFG_ASSERTS
+
     Character(x, y, ch, false);
 }
 
 void idRenderSystemLocal::DrawBigChar(int x, int y, int ch)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::DrawBigChar", true);
+#endif // PS2_D3BFG_ASSERTS
+
     Character(x, y, ch, true);
 }
 
 void idRenderSystemLocal::DrawSmallStringExt(int x, int y, const char * text, const idVec4 & color, bool forceColor)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::DrawSmallStringExt", true);
+#endif // PS2_D3BFG_ASSERTS
+
     String(this, x, y, text, color, forceColor, false);
 }
 
 void idRenderSystemLocal::DrawBigStringExt(int x, int y, const char * text, const idVec4 & color, bool forceColor)
 {
+#if PS2_D3BFG_ASSERTS
     Require(this, "idRenderSystemLocal::DrawBigStringExt", true);
+#endif // PS2_D3BFG_ASSERTS
+
     String(this, x, y, text, color, forceColor, true);
 }

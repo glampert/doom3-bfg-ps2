@@ -69,11 +69,13 @@ static_assert(ps2::ArrayLength(userCmdStrings) == UB_MAX_BUTTONS);
 
 idCVar in_useJoystick("in_useJoystick", "0", CVAR_ARCHIVE | CVAR_BOOL | CVAR_ROM,
                       "controller input is unavailable; changing this preference cannot enable sampling");
+
 idCVar in_joystickRumble("in_joystickRumble", "0", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_BOOL | CVAR_ROM,
                          "controller rumble is unavailable; changing this preference cannot enable it");
 
 namespace
 {
+
 [[noreturn]] PS2_COLD_FUNC void Unsupported(const char * method)
 {
     ps2::FatalError("input capability unavailable: %s", method);
@@ -166,6 +168,7 @@ public:
 };
 
 static UsercmdGen s_usercmdGen;
+
 } // namespace
 
 idUsercmdGen * usercmdGen = &s_usercmdGen;

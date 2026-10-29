@@ -11,8 +11,10 @@ namespace ps2::ui::swf
 {
 namespace
 {
-using U8 = std::uint8_t;
+
+using U8  = std::uint8_t;
 using U32 = std::uint32_t;
+
 static constexpr U32 kMaxStringBytes = 4096;
 static constexpr U32 kMaxConstants = 1024;
 static constexpr U32 kMaxParameters = 16;
@@ -494,6 +496,7 @@ private:
     ExecutionSummary & m_summary;
     U8 m_boundaries[(kMaxActionBytes + 1) / 8] = {};
 };
+
 } // namespace
 
 bool ValidateActions(const void * bytes, std::size_t length, U32 frames, ExecutionSummary & output)
@@ -623,4 +626,5 @@ bool ValidateCommand(U32 tag, const void * bytes, std::size_t length, const U8 *
 
     return true;
 }
+
 } // namespace ps2::ui::swf
