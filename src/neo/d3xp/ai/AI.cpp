@@ -2832,7 +2832,8 @@ idAI::SlideMove
 */
 void idAI::SlideMove() {
 	idVec3				goalPos;
-	idVec3				delta;
+	// [PS2_D3BFG]: Compared before any assignment below; its result is otherwise unused.
+	idVec3				delta = vec3_zero;
 	idVec3				goalDelta;
 	float				goalDist;
 	monsterMoveResult_t	moveResult;

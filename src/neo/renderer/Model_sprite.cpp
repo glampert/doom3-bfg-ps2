@@ -57,7 +57,7 @@ dynamicModel_t idRenderModelSprite::IsDynamicModel() const {
 idRenderModelSprite::IsLoaded
 ===============
 */
-bool idRenderModelSprite::IsLoaded() const {
+bool idRenderModelSprite::IsLoaded() {
 	return true;
 }
 

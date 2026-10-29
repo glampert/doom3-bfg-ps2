@@ -495,7 +495,8 @@ void idRenderModelDecal::CreateDecal( const idRenderModel *model, const decalPro
 				} else {
 					for ( int j = 0; j < 3; j++ ) {
 						const idVec3 dir = verts[j]->xyz - localParms.projectionOrigin;
-						float scale;
+						// [PS2_D3BFG]: A ray parallel to the plane leaves scale untouched; keep the vertex then.
+						float scale = 0.0f;
 						localParms.boundingPlanes[NUM_DECAL_BOUNDING_PLANES - 1].RayIntersection( verts[j]->xyz, dir, scale );
 						const idVec3 intersection = verts[j]->xyz + scale * dir;
 

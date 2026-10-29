@@ -415,7 +415,8 @@ void idLight::Spawn() {
 			}
 		}
 
-		GetPhysics()->SetContents( spawnArgs.GetBool( "nonsolid" ) ? 0 : CONTENTS_SOLID );
+		// [PS2_D3BFG]: Both arms are int; -Wextra has no separate switch for an enum arm.
+		GetPhysics()->SetContents( spawnArgs.GetBool( "nonsolid" ) ? 0 : (int)CONTENTS_SOLID );
 	
 		// make sure the collision model gets cached
 		idClipModel::CheckModel( brokenModel );

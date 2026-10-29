@@ -351,7 +351,8 @@ public:
 	PS2_TYPE_DERIVED( idRenderModelBeam, idRenderModelStatic )
 	virtual dynamicModel_t		IsDynamicModel() const;
 	virtual bool				SupportsBinaryModel() { return false; }
-	virtual bool				IsLoaded() const;
+	// [PS2_D3BFG]: Non-const, so this overrides idRenderModel::IsLoaded instead of hiding it.
+	virtual bool				IsLoaded();
 	virtual idRenderModel *		InstantiateDynamicModel( const struct renderEntity_s *ent, const viewDef_t *view, idRenderModel *cachedModel );
 	virtual idBounds			Bounds( const struct renderEntity_s *ent ) const;
 
@@ -391,7 +392,8 @@ public:
 
 	virtual dynamicModel_t		IsDynamicModel() const;
 	virtual bool				SupportsBinaryModel() { return false; }
-	virtual bool				IsLoaded() const;
+	// [PS2_D3BFG]: Non-const, so this overrides idRenderModel::IsLoaded instead of hiding it.
+	virtual bool				IsLoaded();
 	virtual idRenderModel *		InstantiateDynamicModel( const struct renderEntity_s *ent, const viewDef_t *view, idRenderModel *cachedModel );
 	virtual idBounds			Bounds( const struct renderEntity_s *ent ) const;
 
@@ -420,7 +422,8 @@ public:
 	PS2_TYPE_DERIVED( idRenderModelLightning, idRenderModelStatic )
 	virtual dynamicModel_t		IsDynamicModel() const;
 	virtual bool				SupportsBinaryModel() { return false; }
-	virtual bool				IsLoaded() const;
+	// [PS2_D3BFG]: Non-const, so this overrides idRenderModel::IsLoaded instead of hiding it.
+	virtual bool				IsLoaded();
 	virtual idRenderModel *		InstantiateDynamicModel( const struct renderEntity_s *ent, const viewDef_t *view, idRenderModel *cachedModel );
 	virtual idBounds			Bounds( const struct renderEntity_s *ent ) const;
 
@@ -444,7 +447,8 @@ public:
 	PS2_TYPE_DERIVED( idRenderModelSprite, idRenderModelStatic )
 	virtual	dynamicModel_t		IsDynamicModel() const;
 	virtual bool				SupportsBinaryModel() { return false; }
-	virtual	bool				IsLoaded() const;
+	// [PS2_D3BFG]: Non-const, so this overrides idRenderModel::IsLoaded instead of hiding it.
+	virtual	bool				IsLoaded();
 	virtual	idRenderModel *		InstantiateDynamicModel( const struct renderEntity_s *ent, const viewDef_t *view, idRenderModel *cachedModel );
 	virtual	idBounds			Bounds( const struct renderEntity_s *ent ) const;
 

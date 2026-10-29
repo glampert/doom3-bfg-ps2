@@ -1812,9 +1812,10 @@ int idStr::snPrintf( char *dest, int size, const char *fmt, ...) {
 	char buffer[32000];	// big, but small enough to fit in PPC stack
 
 	va_start( argptr, fmt );
-	len = vsprintf( buffer, fmt, argptr );
+	// [PS2_D3BFG]: Bounded; vsprintf overran the stack buffer before the check below could fire.
+	len = idStr::vsnPrintf( buffer, sizeof( buffer ), fmt, argptr );
 	va_end( argptr );
-	if ( len >= sizeof( buffer ) ) {
+	if ( len >= (int)sizeof( buffer ) ) {
 		idLib::common->Error( "idStr::snPrintf: overflowed buffer" );
 	}
 	if ( len >= size ) {

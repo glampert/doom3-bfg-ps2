@@ -939,10 +939,14 @@ void idAnim::CallFrameCommands( idEntity *ent, int from, int to ) const {
 						idStr particle = command.string->Right(command.string->Length() - index - 1);
 						ent->ProcessEvent( &AI_StartEmitter, name.c_str(), modelDef->GetJointName( command.index ), particle.c_str() );
 					}
+					// [PS2_D3BFG]: Missing break: a started emitter fell through to stop at once and play a footstep.
+					break;
 				}
 
 				case FC_STOP_EMITTER: {
 					ent->ProcessEvent( &AI_StopEmitter, command.string->c_str() );
+					// [PS2_D3BFG]: Missing break: stopping an emitter also played a footstep.
+					break;
 				}
 				case FC_FOOTSTEP : {
 					ent->ProcessEvent( &EV_Footstep );

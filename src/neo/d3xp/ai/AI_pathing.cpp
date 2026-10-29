@@ -426,6 +426,8 @@ int GetObstacles( const idPhysics *physics, const idAAS *aas, const idEntity *ig
 
 		lastVerts[0] = lastVerts[1] = 0;
 		lastEdgeNormal.Zero();
+		// [PS2_D3BFG]: A single wall edge ending at vertex 0 read this before any assignment.
+		nextEdgeNormal.Zero();
 		nextVerts[0] = nextVerts[1] = 0;
 		for ( i = 0; i < numWallEdges && numObstacles < MAX_OBSTACLES; i++ ) {
             aas->GetEdge( wallEdges[i], start, end );

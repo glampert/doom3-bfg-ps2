@@ -193,6 +193,10 @@ void idLib::FatalError( const char *fmt, ... ) {
 	va_end( argptr );
 
 	common->FatalError( "%s", text );
+	// [PS2_D3BFG]: idCommonLocal ends in ps2::FatalErrorV, which never returns; the virtual call hides that.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	__builtin_unreachable();
+#endif
 }
 
 /*
@@ -209,6 +213,10 @@ void idLib::Error( const char *fmt, ... ) {
 	va_end( argptr );
 
 	common->Error( "%s", text );
+	// [PS2_D3BFG]: idCommonLocal ends in ps2::FatalErrorV, which never returns; the virtual call hides that.
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+	__builtin_unreachable();
+#endif
 }
 
 /*
