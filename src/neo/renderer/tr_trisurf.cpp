@@ -1558,7 +1558,11 @@ void R_TestDegenerateTextureSpace( srfTriangles_t *tri ) {
 		const idDrawVert &b = tri->verts[tri->indexes[i+1]];
 		const idDrawVert &c = tri->verts[tri->indexes[i+2]];
 
-		if ( a.st == b.st || b.st == c.st || c.st == a.st ) {
+		// [PS2_D3BFG]: st is a halfFloat_t array; compare its elements, not the array addresses.
+		const bool abSame = a.st[0] == b.st[0] && a.st[1] == b.st[1];
+		const bool bcSame = b.st[0] == c.st[0] && b.st[1] == c.st[1];
+		const bool caSame = c.st[0] == a.st[0] && c.st[1] == a.st[1];
+		if ( abSame || bcSame || caSame ) {
 			c_degenerate++;
 		}
 	}

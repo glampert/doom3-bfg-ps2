@@ -289,6 +289,8 @@ ID_INLINE void idPlane::SetDist( const float dist ) {
 ID_INLINE bool idPlane::FromPoints( const idVec3 &p1, const idVec3 &p2, const idVec3 &p3, bool fixDegenerate ) {
 	Normal() = (p1 - p2).Cross( p3 - p2 );
 	if ( Normalize( fixDegenerate ) == 0.0f ) {
+		// [PS2_D3BFG]: Callers ignore the result; leave a defined distance, not an uninitialized one.
+		d = 0.0f;
 		return false;
 	}
 	d = -( Normal() * p2 );
@@ -298,6 +300,8 @@ ID_INLINE bool idPlane::FromPoints( const idVec3 &p1, const idVec3 &p2, const id
 ID_INLINE bool idPlane::FromVecs( const idVec3 &dir1, const idVec3 &dir2, const idVec3 &p, bool fixDegenerate ) {
 	Normal() = dir1.Cross( dir2 );
 	if ( Normalize( fixDegenerate ) == 0.0f ) {
+		// [PS2_D3BFG]: Callers ignore the result; leave a defined distance, not an uninitialized one.
+		d = 0.0f;
 		return false;
 	}
 	d = -( Normal() * p );

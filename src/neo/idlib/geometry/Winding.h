@@ -362,7 +362,8 @@ ID_INLINE idFixedWinding::idFixedWinding( const idWinding &winding ) {
 	numPoints = winding.GetNumPoints();
 }
 
-ID_INLINE idFixedWinding::idFixedWinding( const idFixedWinding &winding ) {
+// [PS2_D3BFG]: Name the base explicitly; the body copies the points.
+ID_INLINE idFixedWinding::idFixedWinding( const idFixedWinding &winding ) : idWinding() {
 	int i;
 
 	p = data;

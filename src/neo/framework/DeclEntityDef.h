@@ -45,7 +45,8 @@ public:
 	virtual const char *	DefaultDefinition() const;
 	virtual bool			Parse( const char *text, const int textLength, bool allowBinaryVersion );
 	virtual void			FreeData();
-	virtual void			Print();
+	// [PS2_D3BFG]: const, so it overrides idDecl::Print instead of hiding it.
+	virtual void			Print() const;
 };
 
 #endif /* !__DECLENTITYDEF_H__ */

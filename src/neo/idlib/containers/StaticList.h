@@ -46,7 +46,8 @@ public:
 
 						idStaticList();
 						idStaticList( const idStaticList<type,size> &other );
-						~idStaticList<type,size>();
+						// [PS2_D3BFG]: C++20 rejects a template-id on a destructor declaration.
+						~idStaticList();
 
 	void				Clear();										// marks the list as empty.  does not deallocate or intialize data.
 	int					Num() const;									// returns number of elements in list

@@ -99,7 +99,7 @@ int idWinding::Split( const idPlane &plane, const float epsilon, idWinding **fro
 	idWinding *		f, *b;
 	int				maxpts;
 
-	assert( this );
+	// [PS2_D3BFG]: assert( this ) removed; this is never null in a member call.
 
 	dists = (float *) _alloca( (numPoints+4) * sizeof( float ) );
 	sides = (byte *) _alloca( (numPoints+4) * sizeof( byte ) );
@@ -242,7 +242,7 @@ idWinding *idWinding::Clip( const idPlane &plane, const float epsilon, const boo
 	idVec5		mid;
 	int			maxpts;
 
-	assert( this );
+	// [PS2_D3BFG]: assert( this ) removed; this is never null in a member call.
 
 	dists = (float *) _alloca( (numPoints+4) * sizeof( float ) );
 	sides = (byte *) _alloca( (numPoints+4) * sizeof( byte ) );
@@ -357,7 +357,7 @@ bool idWinding::ClipInPlace( const idPlane &plane, const float epsilon, const bo
 	idVec5		mid;
 	int			maxpts;
 
-	assert( this );
+	// [PS2_D3BFG]: assert( this ) removed; this is never null in a member call.
 
 	dists = (float *) _alloca( (numPoints+4) * sizeof( float ) );
 	sides = (byte *) _alloca( (numPoints+4) * sizeof( byte ) );

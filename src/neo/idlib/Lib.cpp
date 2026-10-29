@@ -403,7 +403,8 @@ RESULTS
    Reverses the byte order in each of elcount elements.
 ===================================================================== */
 void RevBytesSwap( void *bp, int elsize, int elcount ) {
-	register unsigned char *p, *q;
+	// [PS2_D3BFG]: C++17 removed the register storage class.
+	unsigned char *p, *q;
 
 	p = ( unsigned char * ) bp;
 

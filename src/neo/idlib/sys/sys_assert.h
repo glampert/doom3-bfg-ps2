@@ -69,7 +69,8 @@ bool AssertFailed( const char *file, int line, const char *expression );
 #define assert( x )		idassert( x )
 #endif
 
-#define verify( x )		( ( x ) ? true : ( AssertFailed( __FILE__, __LINE__, #x ), false ) )
+// [PS2_D3BFG]: Short-circuit form; GCC flags the unused `true` operand of the original conditional.
+#define verify( x )		( ( x ) || ( AssertFailed( __FILE__, __LINE__, #x ), false ) )
 
 
 #else // _DEBUG
@@ -82,7 +83,9 @@ bool AssertFailed( const char *file, int line, const char *expression );
 
 #define assert( x )		idassert( x )
 
-#define verify( x )		( ( x ) ? true : false )
+// [PS2_D3BFG]: A call keeps statement uses free of unused-value warnings; x is still evaluated.
+inline bool idVerifyValue( bool value ) { return value; }
+#define verify( x )		idVerifyValue( ( x ) )
 
 #endif // _DEBUG
 
@@ -103,12 +106,8 @@ bool AssertFailed( const char *file, int line, const char *expression );
 
 #if !defined( __TYPEINFOGEN__ ) && !defined( _lint )	// pcLint has problems with assert_offsetof()
 
-template<bool> struct compile_time_assert_failed;
-template<> struct compile_time_assert_failed<true> {};
-template<int x> struct compile_time_assert_test {};
-#define compile_time_assert_join2( a, b )	a##b
-#define compile_time_assert_join( a, b )	compile_time_assert_join2(a,b)
-#define compile_time_assert( x )			typedef compile_time_assert_test<sizeof(compile_time_assert_failed<(bool)(x)>)> compile_time_assert_join(compile_time_assert_typedef_, __LINE__)
+// [PS2_D3BFG]: static_assert replaces the typedef trick, whose unused local typedefs warn.
+#define compile_time_assert( x )			static_assert( ( x ), #x )
 
 #define assert_sizeof( type, size )						compile_time_assert( sizeof( type ) == size )
 #define assert_sizeof_8_byte_multiple( type )			compile_time_assert( ( sizeof( type ) &  7 ) == 0 )

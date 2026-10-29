@@ -2513,7 +2513,8 @@ void idGameLocal::BuildReturnValue( gameReturn_t & ret ) {
 
 	// see if a target_sessionCommand has forced a changelevel
 	if ( sessionCommand.Length() ) {
-		strncpy( ret.sessionCommand, sessionCommand, sizeof( ret.sessionCommand ) );
+		// [PS2_D3BFG]: Copynz always terminates; strncpy left a full-length command unterminated.
+		idStr::Copynz( ret.sessionCommand, sessionCommand, sizeof( ret.sessionCommand ) );
 		sessionCommand.Clear();	// Fixes a double loading bug for the e3 demo.  Since we run the game thread in SMP mode, we could run this twice and re-set the ret.sessionCommand to a stale sessionCommand (since that doesn't get cleared until LoadMap is called!)
 	}
 }

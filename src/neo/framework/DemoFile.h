@@ -49,8 +49,9 @@ public:
 					idDemoFile();
 					~idDemoFile();
 
-	const char *	GetName() { return (f?f->GetName():""); }
-	const char *	GetFullPath() { return (f?f->GetFullPath():""); }
+	// [PS2_D3BFG]: const, so these override idFile's accessors instead of hiding them.
+	const char *	GetName() const { return (f?f->GetName():""); }
+	const char *	GetFullPath() const { return (f?f->GetFullPath():""); }
 
 	void			SetLog( bool b, const char *p );
 	void			Log( const char *p );

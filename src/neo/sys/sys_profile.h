@@ -61,8 +61,9 @@ private:
 	void				OnSaveSettingsCompleted( idSaveLoadParms * parms );
 
 private:
-	std::auto_ptr< idSaveGameProcessorSaveProfile >	profileSaveProcessor;
-	std::auto_ptr< idSaveGameProcessorLoadProfile >	profileLoadProcessor;
+	// [PS2_D3BFG]: auto_ptr is deprecated; the processors are never copied.
+	std::unique_ptr< idSaveGameProcessorSaveProfile >	profileSaveProcessor;
+	std::unique_ptr< idSaveGameProcessorLoadProfile >	profileLoadProcessor;
 
 	idLocalUser *						user;					// reference passed in
 	idPlayerProfile *					profile;				

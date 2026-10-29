@@ -2872,7 +2872,8 @@ idFile * idFileSystemLocal::GetResourceFile( const char *fileName, bool memFile 
 			idLib::Printf( "RES: loading file %s\n", rc.filename.c_str() );
 		}
 		idFile_InnerResource *file = new idFile_InnerResource( rc.filename, resourceFiles[ rc.containerIndex ]->resourceFile, rc.offset, rc.length );
-		if ( file != NULL && ( memFile || rc.length <= resourceBufferAvailable ) || rc.length < 8 * 1024 * 1024 ) {
+		// [PS2_D3BFG]: Parenthesized as the compiler already groups it.
+		if ( ( file != NULL && ( memFile || rc.length <= resourceBufferAvailable ) ) || rc.length < 8 * 1024 * 1024 ) {
 			byte *buf = NULL;
 			if ( rc.length < resourceBufferAvailable ) {
 				buf = resourceBufferPtr;

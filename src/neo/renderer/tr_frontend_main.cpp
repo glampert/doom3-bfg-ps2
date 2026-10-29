@@ -262,15 +262,16 @@ static void R_SortDrawSurfs( drawSurf_t ** drawSurfs, const int numDrawSurfs ) {
 	int64 hi[MAX_LEVELS];
 
 	// Keep the top of the stack in registers to avoid load-hit-stores.
-	register int64 st_lo = 0;
-	register int64 st_hi = numDrawSurfs - 1;
-	register int64 level = 0;
+	// [PS2_D3BFG]: C++17 removed the register storage class; these stay ordinary locals.
+	int64 st_lo = 0;
+	int64 st_hi = numDrawSurfs - 1;
+	int64 level = 0;
 
 	for ( ; ; ) {
-		register int64 i = st_lo;
-		register int64 j = st_hi;
+		int64 i = st_lo;
+		int64 j = st_hi;
 		if ( j - i >= 4 && level < MAX_LEVELS - 1 ) {
-			register uint64 pivot = indices[( i + j ) / 2];
+			uint64 pivot = indices[( i + j ) / 2];
 			do {
 				while ( indices[i] > pivot ) i++;
 				while ( indices[j] < pivot ) j--;
@@ -289,7 +290,7 @@ static void R_SortDrawSurfs( drawSurf_t ** drawSurfs, const int numDrawSurfs ) {
 			level++;
 		} else {
 			for( ; i < j; j-- ) {
-				register int64 m = i;
+				int64 m = i;
 				for ( int64 k = i + 1; k <= j; k++ ) {
 					if ( indices[k] < indices[m] ) {
 						m = k;

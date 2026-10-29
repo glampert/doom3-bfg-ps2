@@ -113,7 +113,8 @@ ID_INLINE idSurface_Patch::idSurface_Patch( int maxPatchWidth, int maxPatchHeigh
 idSurface_Patch::idSurface_Patch
 =================
 */
-ID_INLINE idSurface_Patch::idSurface_Patch( const idSurface_Patch &patch ) {
+// [PS2_D3BFG]: Name the base explicitly; the assignment below copies its state.
+ID_INLINE idSurface_Patch::idSurface_Patch( const idSurface_Patch &patch ) : idSurface() {
 	(*this) = patch;
 }
 
