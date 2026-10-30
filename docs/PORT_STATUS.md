@@ -4946,3 +4946,37 @@ that the scripts depend on its exact text. The host fixture logs use the new wor
 The first PAL session failed at its boot step because two keystrokes from the attached
 host keyboard reached the menu (`keyboard_events=2`, no pad events); keep the PCSX2 window
 free of typing during UI sessions. Release gates were not rerun.
+
+
+## Executable size (2026-10-30)
+
+The stripped ELFs were over 6 MB and fixed `PT_LOAD` 11.45 MB debug / 11.91 MB release,
+about 95% of the code in id's engine. Four changes, measured in
+[the memory reference](reference/memory-budget.md#executable-size-2026-10-30):
+
+- Every object is compiled with `-ffunction-sections -fdata-sections`. `link_resident.py`
+  keeps the whole-object link (no GC) as the gate: unresolved symbols, duplicates, all 11
+  registration roots, map coverage and test isolation. Only after it passes does it relink
+  the same objects with `--gc-sections` for the runnable, which must keep every statically
+  registered root (`GetGameAPI`, an entry point the game test image never calls, may go).
+  The SDK linker script `KEEP`s `.ctors`, so static registration survives collection.
+  `report.json` records both links; the runnable strips `.pdr` and `.comment`.
+- Release builds at `-O2` like debug; `-O3` cost about 0.7 MB of loaded code.
+- The 113 id sources in `ENGINE_SIZE_OPT_CXX_SRC` (load, declaration parsing, files, save,
+  console commands, menu glue, SWF loading, AAS/collision loading) build at `-Os`; the
+  audit requires each to be a campaign source. `-Oz` is byte-identical to `-Os` here.
+- Release builds compile out id's 71 development `CONSOLE_COMMAND`s through id's own
+  retail mechanism (tagged in `CmdSystem.h`), without the rest of `ID_RETAIL`'s policy.
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release` | Gate and runnable links passed; `PT_LOAD` **9,739,884 debug / 9,120,172 release** (gate 10,375,212 / 9,860,844); stripped ELFs 4,485,284 / 4,003,876 bytes |
+| `make build-core`, `build-game`, `build-script` (both) | Passed; game test runnable 9,728,500 / 9,113,012 |
+| `make test-host` | Passed (331 Python regressions and the sanitizer harnesses) |
+| `make test-headless`, `test-headless-retail` (debug) | Passed; retail startup 10,145,958 / 13,469,672 bytes in 75,722 allocations, unchanged (`20261030T012217Z_headless_344d25d6d3dc`) |
+| `make test-headless`, `test-headless-retail` (release) | Passed; retail startup 10,143,424 / 13,462,660 in 75,611 allocations (`20261030T012445Z_headless_af98be6c20c1`) |
+| `make test-core`, `test-script`, `test-game`, `test-map` (debug) | Passed: 1, 15 of 15, 11 of 11, 1 of 1 |
+| `make test-ui` (debug) | NTSC and PAL sessions passed (`20261030T012638Z_session_c00cfe5f3078`, `20261030T013427Z_session_1b6e9168260a`); font and movie failure cases 5 of 5 and 13 of 13 |
+
+`make test-common`, `make test-renderer` and the release UI gates were not rerun; the core
+test image keeps its whole-object link and changed only by section flags and `-Os` objects.

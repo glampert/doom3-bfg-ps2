@@ -207,8 +207,10 @@ lists; `CORE_BOOT` remains a Make selector, not a compiler define.
 
 Reports distinguish fixed ELF load-segment residency from runtime allocation.
 Flag/compiler/source-list stamps invalidate affected objects automatically. Debug
-uses `-O2` with asserts; release uses `-O3` without debug-only checks. Explicit cold
-backend code uses `-Os`.
+uses `-O2` with asserts; release uses `-O2` without debug-only checks. Explicit cold
+backend code (`SIZE_OPT_CXX_SRC`) and id's load/init/command-time sources
+(`ENGINE_SIZE_OPT_CXX_SRC`) use `-Os`. The resident links gate on a whole-object link
+and run a `--gc-sections` relink of the same objects; see `link_resident.py`.
 
 All target C++ uses C++20 without exceptions, RTTI or thread-safe local statics. New
 backend/tests pass the full strict GCC warning set with `-Werror`. Legacy style warning

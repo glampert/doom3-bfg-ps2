@@ -40,26 +40,34 @@ class ResidentLinkTests(unittest.TestCase):
             compiler="ee-g++", configuration="debug", output=root / "out", linkfile=root / "linkfile",
             sdk_lib=root, objects=[str(obj)], sources=["src/ps2/system/main.cpp"])
 
-    def link(self, args, *, status=0, log="", registrations=None, mapped=True, executable=True, identity=None):
+    def link(self, args, *, status=0, log="", registrations=None, mapped=True, executable=True, identity=None,
+             gc_status=0, gc_log="", gc_registrations=None):
+        self.commands = []
         def compiler(command, **kwargs):
             if command[0] == args.compiler:
+                self.commands.append(command)
+                collected = "-Wl,--gc-sections" in command
                 candidate = Path(command[command.index("-o") + 1])
                 header = struct.pack("<16sHHIIIIIHHHHHH", b"\x7fELF\x01\x01" + b"\0" * 10,
                                      2 if executable else 1, 8, 1, 0x100000, 52, 0, 0, 52, 32, 1, 0, 0, 0)
-                candidate.write_bytes(header + struct.pack("<IIIIIIII", 1, 0, 0x100000, 0x100000, 84, 128, 7, 128))
-                (args.output / "d3bfg.map").write_text(args.objects[0] if mapped else "unrelated.o")
-                return subprocess.CompletedProcess(command, status, stdout=log)
+                size = 96 if collected else 128
+                candidate.write_bytes(header + struct.pack("<IIIIIIII", 1, 0, 0x100000, 0x100000, 84, size, 7, 128))
+                link_map = next(Path(arg.removeprefix("-Wl,-Map,")) for arg in command if arg.startswith("-Wl,-Map,"))
+                link_map.write_text(args.objects[0] if mapped else "unrelated.o")
+                return subprocess.CompletedProcess(command, gc_status if collected else status,
+                                                   stdout=gc_log if collected else log)
             if command[0] == "ee-strip":
                 Path(command[command.index("-o") + 1]).write_bytes(b"stripped")
                 return subprocess.CompletedProcess(command, 0)
             self.fail(f"unexpected process: {command}")
 
         names = link_resident.REGISTRATIONS if registrations is None else registrations
+        gc_names = names if gc_registrations is None else gc_registrations
         def output(command, **kwargs):
             if command[0] == "ee-c++filt":
                 return kwargs["input"]
             if command[0] == "ee-nm":
-                return "\n".join(f"00100000 B {name}" for name in names)
+                return "\n".join(f"00100000 B {name}" for name in (gc_names if ".gc." in command[-1] else names))
             self.fail(f"unexpected query: {command}")
 
         with patch.object(link_resident.subprocess, "run", side_effect=compiler), \
@@ -100,9 +108,39 @@ class ResidentLinkTests(unittest.TestCase):
             self.assertEqual(self.link(args), 0)
             report = json.loads((args.output / "report.json").read_text())
             self.assertTrue(report["passed"])
-            self.assertEqual(report["loaded_memory_bytes"], 128)
+            self.assertEqual(report["gate_loaded_memory_bytes"], 128)
+            self.assertEqual(report["loaded_memory_bytes"], 96)
             self.assertTrue((args.output / "d3bfg.elf").is_file())
-            self.assertNotIn("--gc-sections", " ".join(report["command"]))
+            self.assertNotIn("--gc-sections", " ".join(report["gate_command"]))
+            self.assertIn("-Wl,--gc-sections", report["command"])
+            self.assertFalse(report["gate_garbage_collection"])
+            self.assertTrue(report["garbage_collection"])
+
+    def test_failed_gate_never_runs_the_collected_link(self):
+        for options in ({"status": 1}, {"log": "ld: a.o: undefined reference to `unknownService'"},
+                        {"registrations": ["gameLocal"]}, {"mapped": False}):
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as temp:
+                args = self.fixture(Path(temp))
+                self.assertEqual(self.link(args, **options), 1)
+                self.assertEqual(len(self.commands), 1)
+                self.assertNotIn("-Wl,--gc-sections", self.commands[0])
+
+    def test_collected_link_failure_or_lost_registration_fails(self):
+        for options in ({"gc_status": 1}, {"gc_log": "ld: a.o: multiple definition of `game'"},
+                        {"gc_registrations": ["gameLocal"]}):
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as temp:
+                args = self.fixture(Path(temp))
+                self.assertEqual(self.link(args, **options), 1)
+                self.assertFalse(json.loads((args.output / "report.json").read_text())["passed"])
+                self.assertFalse(list(args.output.glob("*.elf*")))
+
+    def test_collection_may_drop_only_the_unused_game_entry_point(self):
+        with tempfile.TemporaryDirectory() as temp:
+            args = self.fixture(Path(temp))
+            self.assertEqual(self.link(args, gc_registrations=link_resident.COLLECTED_REGISTRATIONS), 0)
+            report = json.loads((args.output / "report.json").read_text())
+            self.assertTrue(report["registrations"]["GetGameAPI"])
+            self.assertNotIn("GetGameAPI", report["runnable_registrations"])
 
     def test_renderer_sdk_libraries_are_linked_and_recorded_in_order(self):
         with tempfile.TemporaryDirectory() as temp:

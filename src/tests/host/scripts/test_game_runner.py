@@ -565,7 +565,8 @@ class GameRunnerTests(unittest.TestCase):
                 (source / name).write_text(name)
             stamp = root / "flags.json"
             stamp.write_text('{"flags": "original"}')
-            report = {"passed": True, "garbage_collection": False, "registrations": {"gameLocal": True},
+            report = {"passed": True, "garbage_collection": True, "gate_garbage_collection": False,
+                      "registrations": {"gameLocal": True}, "runnable_registrations": {"gameLocal": True},
                       "object_count": 344, "unresolved": [], "duplicate_definitions": [], "missing_map_objects": [],
                       "elf_sha256": runner.sha256(symbols), "runnable_elf_sha256": runner.sha256(elf),
                       "link_map_sha256": runner.sha256(source / "d3bfg_tests.map"),
@@ -574,8 +575,11 @@ class GameRunnerTests(unittest.TestCase):
             destination.mkdir()
             (source / "report.json").write_text(json.dumps(report))
             self.assertIn("d3bfg_tests.map", runner.archive_resident_artifacts(elf, elf, symbols, destination))
-            for name in ("elf_sha256", "runnable_elf_sha256", "link_map_sha256", "registrations", "passed"):
-                changed = dict(report, **{name: False if name == "passed" else {} if name == "registrations" else "stale"})
+            for name in ("elf_sha256", "runnable_elf_sha256", "link_map_sha256", "registrations",
+                         "runnable_registrations", "passed", "gate_garbage_collection"):
+                changed = dict(report, **{name: {} if name.endswith("registrations") else
+                                          True if name == "gate_garbage_collection" else
+                                          False if name == "passed" else "stale"})
                 (source / "report.json").write_text(json.dumps(changed))
                 with self.assertRaises(ValueError):
                     runner.archive_resident_artifacts(elf, elf, symbols, destination)

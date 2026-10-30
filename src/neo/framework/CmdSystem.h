@@ -109,7 +109,8 @@ created using the CONSOLE_COMMAND_SHIP macro.
 ================================================
 */
 
-#if defined ( ID_RETAIL ) && !defined( ID_RETAIL_INTERNAL )
+// [PS2_D3BFG]: release builds strip development commands as retail builds do, without the rest of ID_RETAIL's policy.
+#if ( defined ( ID_RETAIL ) && !defined( ID_RETAIL_INTERNAL ) ) || ( defined( ID_PS2 ) && !PS2_D3BFG_DEBUG )
 #define CONSOLE_COMMAND_SHIP			CONSOLE_COMMAND_COMPILE
 #define CONSOLE_COMMAND					CONSOLE_COMMAND_NO_COMPILE
 // We need to disable this warning to get commands that were made friends

@@ -680,8 +680,9 @@ def archive_build_artifacts(elf: Path, staged_elf: Path, staged_symbols: Path, o
 def archive_resident_artifacts(elf: Path, staged_elf: Path, symbols: Path, output: Path) -> dict:
     source = elf.parent
     report = json.loads((source / "report.json").read_text())
-    if (report.get("passed") is not True or report.get("garbage_collection") is not False or
+    if (report.get("passed") is not True or report.get("gate_garbage_collection") is not False or
             not report.get("registrations") or not all(report["registrations"].values()) or
+            not report.get("runnable_registrations") or not all(report["runnable_registrations"].values()) or
             report.get("object_count", 0) <= 0 or report.get("unresolved") != [] or
             report.get("duplicate_definitions") != [] or report.get("missing_map_objects") != [] or
             report.get("elf_sha256") != sha256(symbols) or

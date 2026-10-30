@@ -39,14 +39,18 @@ have not been re-measured.
 
 - Retail boot (debug, 2026-10-20): startup ends at 10,148,418 requested / 13,473,216
   backing bytes in 75,748 allocations; peak 10,582,854 / 13,910,756, arena 14,523,035.
-  With the kernel's first MiB and 11.17 / 11.60 MB of `PT_LOAD` then (11.28 / 11.74 MB
-  now), 6.8 MB debug / 6.4 MB release remained before any map, stacks and load peaks.
+  With the kernel's first MiB and 11.17 / 11.60 MB of `PT_LOAD` then, 6.8 MB debug /
+  6.4 MB release remained before any map, stacks and load peaks; at today's 9.74 / 9.12 MB
+  `PT_LOAD` that is about 8.2 / 8.9 MB (startup ledgers unchanged, 2026-10-30).
 - Boot owners (backing): compressed declaration text 4.76 MB (kept resident by
   `USE_COMPRESSED_DECLS`, 11,947 declarations), script 2.83 MB, declaration objects
   1.78 MB, strings 1.23 MB, container file tables 1.08 MB, smoke particles 0.68 MB,
   event callbacks 0.64 MB.
-- Production `PT_LOAD` (2026-10-24, before the authored-UI removal): 11,279,661 debug /
-  11,740,461 release bytes.
+- Production `PT_LOAD` (2026-10-30): 9,739,884 debug / 9,120,172 release bytes, from the
+  `--gc-sections` runnable link, `-O2` release and `-Os` engine cold sources (11.45 / 11.91 MB
+  before). `.text` is 4.08 / 3.65 MB and `.bss` 5.26 / 5.12 MB, 3.5 MB of it the script
+  program's fixed arrays (retail uses 95,386 of 131,072 statements). `report.json` keeps
+  the gate link's `PT_LOAD` too; compare the runnable figure.
 - Latest UI ledgers (debug, NTSC = PAL; requested / backing / allocations, 2026-10-24):
   menu opened 10,938,718 / 11,646,016 / 15,984; Settings screen 11,266,366 / 12,006,908 /
   16,737; menu peak 11,304,182 / 12,050,964 (arena 12,206,803); menu release 5,212,391 /
@@ -114,4 +118,5 @@ heading:
 | SWF draw features, Glyph rectangles, Native shell menu (+ key input) | 2026-10-23 |
 | Quit dialog, Pad prompt icons, Booting into the menu, Campaign and Settings | 2026-10-24 |
 | Authored UI removal | 2026-10-29 |
+| Executable size | section GC, `-O2`/`-Os` experiments, remaining code/BSS levers (2026-10-30) |
 | Quake II reference | allocator and accounting notes |

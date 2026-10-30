@@ -103,6 +103,8 @@ ifeq ($(filter $(CORE_BOOT),0 1),)
 endif
 
 STRIP_ELF ?= 1
+# .pdr (MIPS procedure descriptors) and .comment are never loaded; the unstripped ELF keeps them.
+STRIP_FLAGS = --strip-all -R .pdr -R .comment
 ifeq ($(filter $(STRIP_ELF),0 1),)
 	$(error STRIP_ELF must be 0 or 1)
 endif
@@ -137,8 +139,9 @@ GAME_TEST_DIR = $(OUTPUT_DIR)/tests/game
 GAME_TEST_ELF = $(GAME_TEST_DIR)/d3bfg_tests.elf
 SCRIPTS = src/tools/scripts
 
+# Release matches debug's -O2: -O3 added about 0.7 MB of loaded code for no measured gain.
 ifeq ($(BUILD),release)
-	OPTFLAGS = -O3
+	OPTFLAGS = -O2
 	DBGFLAGS =
 	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=0 -DPS2_D3BFG_ASSERTS=0 -DPS2_D3BFG_PROFILE=0 -DNDEBUG
 else
@@ -153,7 +156,9 @@ SDK_INCS = -isystem $(PS2SDK)/ee/include -isystem $(PS2SDK)/common/include
 PROJECT_INCS = -Isrc -Isrc/neo -isystem src/external
 HEAP_VENDOR_INCS = -isystem src/external
 ENGINE_BRIDGE_INCS = -isystem src/neo
-COMMON_CXXFLAGS = -D_EE -G0 $(OPTFLAGS) $(DBGFLAGS) $(LANGFLAGS) $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
+# One section per function and object lets the resident runnable link discard unreferenced code.
+SECTIONFLAGS = -ffunction-sections -fdata-sections
+COMMON_CXXFLAGS = -D_EE -G0 $(OPTFLAGS) $(SECTIONFLAGS) $(DBGFLAGS) $(LANGFLAGS) $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
 
 # Apply the complete GCC diagnostics to every new project source. SDK headers
 # are system headers; project headers remain checked.
@@ -208,6 +213,9 @@ CORE_C_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_C_SRC:.c=.o))
 CAMPAIGN_OBJS = $(addprefix $(OUTPUT_DIR)/campaign/src/,$(CAMPAIGN_CXX_SRC:.cpp=.o))
 GAME_BACKEND_OBJS = $(addprefix $(OUTPUT_DIR)/game-backend/src/,$(GAME_BACKEND_CXX_SRC:.cpp=.o))
 SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(SIZE_OPT_CXX_SRC:.cpp=.o))
+ENGINE_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/core/src/,$(patsubst %.cpp,%.o,$(filter $(ENGINE_SIZE_OPT_CXX_SRC),$(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC)))) \
+	$(addprefix $(OUTPUT_DIR)/campaign/src/,$(ENGINE_SIZE_OPT_CXX_SRC:.cpp=.o)) \
+	$(addprefix $(OUTPUT_DIR)/test-campaign/src/,$(ENGINE_SIZE_OPT_CXX_SRC:.cpp=.o))
 GAME_SIZE_OPT_CXX_SRC = $(filter $(SIZE_OPT_CXX_SRC),$(GAME_BACKEND_CXX_SRC))
 GAME_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/game-backend/src/,$(GAME_SIZE_OPT_CXX_SRC:.cpp=.o))
 RESIDENT_SUPPORT_OBJS = $(addprefix $(OUTPUT_DIR)/resident-support/src/,$(RESIDENT_SUPPORT_CXX_SRC:.cpp=.o) $(PS2_CXX_SRC:.cpp=.o))
@@ -260,7 +268,7 @@ endif
 # are deliberately absent. Never use this gate as evidence of a resident game link.
 ifeq ($(SCRIPT_PROBE),1)
 	EE_LDFLAGS += -Wl,--gc-sections
-	SCRIPT_CXXFLAGS = $(GAME_TEST_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS) -ffunction-sections -fdata-sections
+	SCRIPT_CXXFLAGS = $(GAME_TEST_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS)
 $(OUTPUT_DIR)/.script-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(SCRIPT_CXXFLAGS) --sources $(SCRIPT_CXX_SRC)
 $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-flags.json
@@ -285,12 +293,12 @@ $(OUTPUT_DIR)/.backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile c
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/ui/assets.cpp ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/ui/draw.cpp ps2/renderer/image_backend.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/renderer_gs_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_BOOT_CXX_SRC)
 
 $(OUTPUT_DIR)/.core-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CORE_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-core neo/framework/Common.cpp neo/framework/PlayerProfile.cpp neo/sys/Snapshot.cpp neo/sys/LightweightCompression.cpp neo/sys/Snapshot_Jobs.cpp neo/sys/sys_localuser.cpp neo/sys/sys_signin.cpp --sources $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CORE_CXXFLAGS) --cold-sources $(ENGINE_SIZE_OPT_CXX_SRC) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-core neo/framework/Common.cpp neo/framework/PlayerProfile.cpp neo/sys/Snapshot.cpp neo/sys/LightweightCompression.cpp neo/sys/Snapshot_Jobs.cpp neo/sys/sys_localuser.cpp neo/sys/sys_signin.cpp --sources $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC)
 
 $(OUTPUT_DIR)/.campaign-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CAMPAIGN_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --sources $(CAMPAIGN_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CAMPAIGN_CXXFLAGS) --cold-sources $(ENGINE_SIZE_OPT_CXX_SRC) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --sources $(CAMPAIGN_CXX_SRC)
 
-VENDOR_CFLAGS = -D_EE -G0 $(OPTFLAGS) $(DBGFLAGS) -std=gnu11 -fno-strict-aliasing -Wall -Wextra $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
+VENDOR_CFLAGS = -D_EE -G0 $(OPTFLAGS) $(SECTIONFLAGS) $(DBGFLAGS) -std=gnu11 -fno-strict-aliasing -Wall -Wextra $(COMMON_DEFS) $(SDK_INCS) $(PROJECT_INCS) -MD -MP
 
 $(OUTPUT_DIR)/.vendor-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CC) $(VENDOR_CFLAGS) --sources $(CORE_C_SRC)
@@ -299,7 +307,7 @@ $(CORE_TEST_DIR)/.link-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile c
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(OPTFLAGS) $(EE_LDFLAGS) $(EE_LIBS) --objects $(LINK_OBJS) --milestone $(MILESTONE)
 
 $(CORE_TEST_DIR)/.strip-flags.json: FORCE $(SCRIPTS)/build_metadata.py
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) STRIP_ELF=$(STRIP_ELF) STRIP=$(EE_STRIP)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) STRIP_ELF=$(STRIP_ELF) STRIP=$(EE_STRIP) $(STRIP_FLAGS)
 
 $(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_BACKEND_OBJS): $(OUTPUT_DIR)/src/%.o: src/%.cpp $(OUTPUT_DIR)/.backend-flags.json
 	@mkdir -p $(dir $@)
@@ -309,7 +317,7 @@ $(CORE_C_OBJS): $(OUTPUT_DIR)/src/%.o: src/%.c $(OUTPUT_DIR)/.vendor-flags.json
 	@mkdir -p $(dir $@)
 	$(EE_CC) $(VENDOR_CFLAGS) -c $< -o $@
 
-$(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT_OBJS): CXX_OPTFLAGS_FOR = -Os
+$(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT_OBJS) $(ENGINE_SIZE_OPT_OBJS): CXX_OPTFLAGS_FOR = -Os
 
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
@@ -325,11 +333,11 @@ $(OUTPUT_DIR)/src/tests/smoketests/type_query_engine_tests.o $(OUTPUT_DIR)/src/t
 
 $(CORE_OBJS): $(OUTPUT_DIR)/core/src/%.o: src/%.cpp $(OUTPUT_DIR)/.core-flags.json
 	@mkdir -p $(dir $@)
-	$(EE_CXX) $(CORE_CXXFLAGS) $(CORE_HEADER_FLAGS) $(NEO_WARNFLAGS_FOR) -c $< -o $@
+	$(EE_CXX) $(CORE_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(CORE_HEADER_FLAGS) $(NEO_WARNFLAGS_FOR) -c $< -o $@
 
 $(CAMPAIGN_OBJS): $(OUTPUT_DIR)/campaign/src/%.o: src/%.cpp $(OUTPUT_DIR)/.campaign-flags.json
 	@mkdir -p $(dir $@)
-	$(EE_CXX) $(CAMPAIGN_CXXFLAGS) $(NEO_WARNFLAGS_FOR) -c $< -o $@
+	$(EE_CXX) $(CAMPAIGN_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(NEO_WARNFLAGS_FOR) -c $< -o $@
 
 $(OUTPUT_DIR)/.game-backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(GAME_RUNTIME_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(GAME_SIZE_OPT_CXX_SRC) --sources $(GAME_BACKEND_CXX_SRC)
@@ -348,11 +356,11 @@ $(RESIDENT_SUPPORT_OBJS): $(OUTPUT_DIR)/resident-support/src/%.o: src/%.cpp $(OU
 $(OUTPUT_DIR)/resident-support/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
 
 $(OUTPUT_DIR)/.test-campaign-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(GAME_TEST_CXXFLAGS) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --sources $(CAMPAIGN_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(GAME_TEST_CXXFLAGS) --cold-sources $(ENGINE_SIZE_OPT_CXX_SRC) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --sources $(CAMPAIGN_CXX_SRC)
 
 $(TEST_CAMPAIGN_OBJS): $(OUTPUT_DIR)/test-campaign/src/%.o: src/%.cpp $(OUTPUT_DIR)/.test-campaign-flags.json
 	@mkdir -p $(dir $@)
-	$(EE_CXX) $(GAME_TEST_CXXFLAGS) $(LEGACY_SHARED_WARNFLAGS) -c $< -o $@
+	$(EE_CXX) $(GAME_TEST_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(LEGACY_SHARED_WARNFLAGS) -c $< -o $@
 
 $(OUTPUT_DIR)/.test-backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(GAME_SIZE_OPT_CXX_SRC) --sources $(GAME_BACKEND_CXX_SRC)
@@ -385,7 +393,7 @@ $(EE_BIN): $(LINK_OBJS) $(CORE_TEST_DIR)/.link-flags.json
 
 $(TEST_ELF): $(EE_BIN) $(CORE_TEST_DIR)/.strip-flags.json
 ifeq ($(STRIP_ELF),1)
-	$(EE_STRIP) --strip-all -o $@ $<
+	$(EE_STRIP) $(STRIP_FLAGS) -o $@ $<
 else
 	cp -f $< $@
 endif

@@ -52,8 +52,8 @@ rendering-performance baseline. Quake timings below are not Doom measurements.
 
 - Baseline: `make release`, then snapshot `build/release/src/ps2/**/*.o` to the scratchpad.
 - Take the exact compile line from `make -n <obj>` (or `make -n -W <file>`).
-  `SIZE_OPT_CXX_SRC` objects get **`-Os` per object**, and an ad-hoc `-O3` shows dozens of
-  spurious diffs. Always build a **control** set with unmodified headers first and require
+  `SIZE_OPT_CXX_SRC` and `ENGINE_SIZE_OPT_CXX_SRC` objects get **`-Os` per object**, so
+  one ad-hoc `-O` level for every object shows dozens of spurious diffs. Always build a **control** set with unmodified headers first and require
   zero diffs against the baseline.
 - To shadow a header, put the modified copy at `<dir>/ps2/math/vec_mat.h` and pass `-I<dir>`
   *before* `-Isrc`.

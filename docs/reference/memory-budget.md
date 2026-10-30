@@ -792,3 +792,43 @@ The authored placeholder movie is gone from production, with the UIPG page forma
 2 MiB texture budget the retail images share no longer has to hold them. Production
 `PT_LOAD`, the visible-console ledgers and every "authored UI" line above were measured
 before the removal and have not been re-measured.
+
+## Executable size (2026-10-30)
+
+Before this change both stripped ELFs were over 6 MB and fixed `PT_LOAD` was 11.45 MB debug /
+11.91 MB release (`.text` 5.36 / 5.80 MB, `.bss` 5.26 / 5.33 MB). id's engine was about 95%
+of the code: d3xp 2.58 MB, idlib 0.76, framework 0.61, renderer 0.48, GUI 0.40, SWF 0.34,
+collision 0.17, newlib 0.14; the backend about 0.19 MB. The stripped file also carried
+387 KB of unloaded `.pdr`. Release-build experiments, all sections compiled with
+`-ffunction-sections -fdata-sections` (`.text` + `.rodata` / `PT_LOAD`):
+
+| Variant | Code | `PT_LOAD` |
+| --- | --- | --- |
+| previous release (`-O3`, no GC) | 6.16 MB | 11.53 MB |
+| `-O3`, `--gc-sections` | 5.19 MB | 10.47 MB |
+| `-O2`, `--gc-sections` | 4.47 MB | 9.75 MB |
+| `-Os` everywhere, `--gc-sections` | 3.26 MB | 8.54 MB |
+
+`-Oz` produced byte-identical objects to `-Os` on GCC 15 for the EE. Adopted: GC'd
+runnable link (gated by the whole-object link), `-O2` release, `-Os` for the 113 id sources
+in `ENGINE_SIZE_OPT_CXX_SRC` (load, decl parsing, files, save, console commands, menu glue,
+SWF loading/shape parsing, AAS/collision loading), and release builds compile out id's
+71 development `CONSOLE_COMMAND`s (138 command handlers remain linked, 185 in debug). Production `PT_LOAD` is **9,739,884 debug /
+9,120,172 release bytes** (−1.71 / −2.79 MB); `.text` 4.08 / 3.65 MB, `.bss` 5.26 /
+5.12 MB; stripped ELFs 4.49 / 4.00 MB. Tagged startup ledgers are unchanged (retail
+`startup-game` 10,145,958 / 13,469,672 bytes in 75,722 allocations, debug).
+
+Remaining levers, measured but not taken:
+
+- `-Os` on the per-frame code still at `-O2` would save about 0.7 MB more (Physics_AF
+  52 KB, Player 46 KB, Entity 41 KB, MatX 34 KB, Window 32 KB, ...); it needs a frame-time
+  baseline first.
+- BSS: the script program's fixed arrays are 3.5 MB. Retail `doom_main.script` uses 95,386
+  of 131,072 statements (20 bytes each), 3,070 of 3,584 functions and 206,536 of 296,608
+  global bytes (allocated twice), about 0.95 MB of headroom. Map scripts compile into the
+  same program, so any new limit needs the campaign-wide maximum. Others: the console
+  buffer 445 KB, `idEventDef`/event pool 164 KB, four 64 KB `va`/`idStr` scratch buffers,
+  `commonLocal` 55 KB, the arcade GUI pools 56 KB.
+- `.rodata`: the credits list is 240 KB of strings in `MenuScreen_Shell_Credits.o`.
+- newlib is 134 KB, about 60 KB of it printf/scanf/strtod; `libc_nano.a` is installed
+  but untested with ps2sdk's glue and needs float formatting kept.

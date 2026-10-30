@@ -131,8 +131,11 @@ Each successful core/platform/script test link writes:
 The load-segment total measures fixed ELF residency. Runtime heap allocations and
 thread stacks need separate measurements before drawing a total EE memory budget.
 
-Debug uses `-O2` and symbols; release uses `-O3` and no debug symbols. Explicit cold
-backend sources use `-Os` in both ordinary core and campaign-adapter object trees.
+Debug uses `-O2` and symbols; release uses `-O2` and no debug symbols (`-O3` added about
+0.7 MB of loaded code). Explicit cold backend sources use `-Os` in both ordinary core and
+campaign-adapter object trees, and id's load/init/command-time sources listed in
+`ENGINE_SIZE_OPT_CXX_SRC` use `-Os` in the core, campaign and campaign-test trees. Every
+object is compiled with `-ffunction-sections -fdata-sections`.
 Both use C++20 with exceptions, RTTI and thread-safe local
 static initialization disabled. New sources use the full GCC warning set and `-Werror`;
 upstream sources keep `-Wall -Wextra` and use single-precision literals to avoid
@@ -708,3 +711,13 @@ Production retains **341 direct objects**, zero test inputs/symbols and no GC; f
 `PT_LOAD` is **11,133,165 debug / 11,564,269 release bytes** (release 158,592 below HEAD
 before the change), and the core test image is **2,062,960** (debug). The compiler
 database has **366 entries**.
+
+## Executable size checkpoint (2026-10-30)
+
+All objects carry function/data sections. The resident gate links every object without GC;
+the runnable `d3bfg.elf`/`d3bfg_unstripped.elf`/`d3bfg.map` come from a `--gc-sections`
+relink of the same objects (`d3bfg_gate.map` is the gate's map), stripped of `.pdr` and
+`.comment`. Release is `-O2`; `ENGINE_SIZE_OPT_CXX_SRC` lists 113 cold id sources built at
+`-Os`; release compiles out development `CONSOLE_COMMAND`s. Production retains 341 direct
+objects, zero test inputs/symbols; runnable `PT_LOAD` is **9,739,884 debug / 9,120,172
+release bytes** (gate 10,375,212 / 9,860,844).

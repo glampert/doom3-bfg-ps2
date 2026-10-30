@@ -311,7 +311,8 @@ count is 354 plus C++ sanitizer harnesses (2026-10-21). Run IDs and screenshots 
 linked from PORT_STATUS; ignored `build/test-results/` archives may not exist on another
 machine.
 
-Production has 376 direct objects, no fixture inputs/symbols and no GC. The source audit
+Production has 376 direct objects and no fixture inputs/symbols; since 2026-10-30 the
+whole-object link (no GC) is the gate and the runnable is a `--gc-sections` relink. The source audit
 has 458 upstream units / 282 campaign units; compile database 401 entries. Production
 PT_LOAD is 11,177,957 debug / 11,614,821 release bytes after the paletted UI change
 (11,167,077 / 11,604,197 after the retail boot change, 11,164,005 / 11,600,997 after

@@ -189,7 +189,10 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `make test-common` checks partial shutdown and expected failures in fresh emulator
   processes (`make test-renderer` runs the GS failure probes); Common startup is one-shot after static CVar registration.
   The production `make` link validates the retained objects, registrations and map
-  coverage under `build/<config>/`. `make build-game` separately builds
+  coverage under `build/<config>/` with a whole-object gate link (no GC); only then is
+  the runnable relinked with `--gc-sections` (every object has function/data sections)
+  and stripped of `.pdr`/`.comment`. Release dev `CONSOLE_COMMAND`s compile out as in
+  id's retail builds; only `CONSOLE_COMMAND_SHIP` and registered commands remain. `make build-game` separately builds
   `build/<config>/tests/game/d3bfg_tests.elf`;
   `make test-game` checks native startup, entity/script ticks, bounded native `idPlayer`
   startup/commands and reloads, plus missing-map, script-error, restricted geometry/material
@@ -254,7 +257,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend
   files in `PS2_CXX_SRC` or the relevant core group; cold sources also go in
-  `SIZE_OPT_CXX_SRC`. Run `make compiledb` after changing source lists. Flag stamps
+  `SIZE_OPT_CXX_SRC`. Both configurations build at `-O2`; id's load/init/command-time
+  sources listed in `ENGINE_SIZE_OPT_CXX_SRC` build at `-Os` (`-Oz` is identical on the EE). Run `make compiledb` after changing source lists. Flag stamps
   invalidate affected object groups automatically.
 - `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly into
   production; `RESIDENT_SUPPORT_CXX_SRC` supplies strict shared providers;

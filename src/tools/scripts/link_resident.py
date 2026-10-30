@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: link_resident.py
-# Brief: Preserve a real whole-object campaign link attempt and its unresolved dependency evidence.
+# Brief: Gate a real whole-object campaign link, then emit the runnable from a section-collected link.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
-"""A failed link stays a failed gate. No garbage collection or unresolved-symbol suppression."""
+"""A failed link stays a failed gate. The gate links every object without garbage collection or
+unresolved-symbol suppression; only after it passes is the runnable linked again with --gc-sections."""
 
 import argparse
 from collections import Counter
@@ -21,11 +22,17 @@ import sys
 from build_metadata import load_segments, source_identity, write_if_changed
 
 
+# .pdr (MIPS procedure descriptors) and .comment are never loaded; the unstripped ELF keeps them.
+STRIP_FLAGS = ("--strip-all", "-R", ".pdr", "-R", ".comment")
+
 REGISTRATIONS = (
     "GetGameAPI", "gameLocal", "game", "gameEdit", "idCVar::staticVars",
     "idClass::Type", "idEntity::Type", "idPlayer::Type",
     "declManager", "collisionModelManager", "AASFileManager",
 )
+# Section collection must keep every statically registered root. GetGameAPI is an entry point
+# that only production calls, so collection rightly drops it from test images.
+COLLECTED_REGISTRATIONS = tuple(name for name in REGISTRATIONS if name != "GetGameAPI")
 
 
 def category(symbol: str) -> str:
@@ -67,6 +74,18 @@ def diagnostics(log: str) -> tuple[list[dict], list[str]]:
              for name, requestors in sorted(unresolved.items())], sorted(duplicates))
 
 
+def registered(prefix: str, elf: Path, roots: tuple[str, ...]) -> tuple[dict, str]:
+    symbols = subprocess.check_output([prefix + "nm", "-g", "--defined-only", "-C", str(elf)], text=True)
+    names = {line.split(maxsplit=2)[-1] for line in symbols.splitlines() if len(line.split(maxsplit=2)) == 3}
+    return {name: name in names for name in roots}, symbols
+
+
+def executable(elf: Path) -> bool:
+    with elf.open("rb") as stream:
+        header = stream.read(52)
+    return struct.unpack_from("<H", header, 16)[0] == 2 and bool(load_segments(elf))
+
+
 def run(args: argparse.Namespace) -> int:
     args.output.mkdir(parents=True, exist_ok=True)
     name = getattr(args, "name", "d3bfg")
@@ -75,8 +94,9 @@ def run(args: argparse.Namespace) -> int:
         raise ValueError("invalid resident executable name")
     elf = args.output / (name + "_unstripped.elf")
     candidate = elf.with_suffix(".elf.tmp")
+    collected = elf.with_suffix(".elf.gc.tmp")
     runnable = args.output / (name + ".elf")
-    for path in (elf, candidate, runnable, args.output / "report.json", args.output / "report.txt"):
+    for path in (elf, candidate, collected, runnable, args.output / "report.json", args.output / "report.txt"):
         path.unlink(missing_ok=True)
     if len(args.sources) != len(args.objects) or not args.objects:
         raise ValueError("one explicit source is required for each resident object")
@@ -91,17 +111,24 @@ def run(args: argparse.Namespace) -> int:
             raise ValueError(f"missing resident object: {path}")
     response = args.output / "objects.rsp"
     response.write_text("\n".join(shlex.quote(path) for path in args.objects) + "\n")
+    gate_map = args.output / (name + "_gate.map")
     link_map = args.output / (name + ".map")
+    gate_map.unlink(missing_ok=True)
     link_map.unlink(missing_ok=True)
     libraries = getattr(args, "libraries", ("kernel", "m", "patches"))
     if (not libraries or len(set(libraries)) != len(libraries) or
             any(name not in ("draw", "graph", "packet2", "dma", "pad", "kbd", "kernel", "m", "patches") for name in libraries) or
             not {"kernel", "m", "patches"}.issubset(libraries)):
         raise ValueError("invalid resident SDK library list")
-    command = [args.compiler, "-o", str(candidate), "@" + str(response),
-               "-T" + str(args.linkfile), "-L" + str(args.sdk_lib), "-Wl,-zmax-page-size=128",
-               "-Wl,--demangle=gnu-v3", "-Wl,-Map," + str(link_map), *["-l" + name for name in libraries]]
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
+
+    def link_command(output: Path, map_path: Path, *extra: str) -> list[str]:
+        return [args.compiler, "-o", str(output), "@" + str(response),
+                "-T" + str(args.linkfile), "-L" + str(args.sdk_lib), "-Wl,-zmax-page-size=128",
+                "-Wl,--demangle=gnu-v3", "-Wl,-Map," + str(map_path), *extra, *["-l" + name for name in libraries]]
+
+    gate_command = link_command(candidate, gate_map)
+    command = link_command(collected, link_map, "-Wl,--gc-sections")
+    result = subprocess.run(gate_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
     (args.output / "link.log").write_text(result.stdout)
     unresolved, duplicates = diagnostics(result.stdout)
     prefix = args.compiler.removesuffix("g++")
@@ -117,13 +144,15 @@ def run(args: argparse.Namespace) -> int:
     data = {
         "schema_version": 1, "configuration": args.configuration, "milestone": "resident-link", "kind": kind,
         "linker_returncode": result.returncode, "passed": False, "command": command,
-        "object_count": len(args.objects), "garbage_collection": False,
+        "gate_command": gate_command, "gate_garbage_collection": False, "runnable_linker_returncode": None,
+        "object_count": len(args.objects), "garbage_collection": True,
         "inputs": [{"source": source, "object": obj,
                     "sha256": hashlib.sha256(Path(obj).read_bytes()).hexdigest()}
                    for source, obj in zip(args.sources, args.objects)],
         "unresolved": unresolved, "duplicate_definitions": duplicates,
         "categories": dict(sorted(Counter(item["category"] for item in unresolved).items())),
-        "registrations": None, "loaded_memory_bytes": None,
+        "registrations": None, "runnable_registrations": None, "gate_loaded_memory_bytes": None,
+        "loaded_memory_bytes": None,
         "flag_stamps": {path: json.loads(Path(path).read_text()) for path in getattr(args, "flags", [])},
         "source_identity": source_identity(args.sources, [str(Path(p).with_suffix(".d")) for p in args.objects],
                                            ["Makefile", "config/sources.mk", "config/source_inventory.json",
@@ -135,24 +164,30 @@ def run(args: argparse.Namespace) -> int:
     if result.returncode == 0 and not unresolved and not duplicates:
         # A resident gate must retain the actual game hierarchy and registration roots.
         try:
-            symbols = subprocess.check_output([prefix + "nm", "-g", "--defined-only", "-C", str(candidate)], text=True)
-            names = {line.split(maxsplit=2)[-1] for line in symbols.splitlines() if len(line.split(maxsplit=2)) == 3}
-            data["registrations"] = {name: name in names for name in REGISTRATIONS}
-            map_text = link_map.read_text()
+            data["registrations"], symbols = registered(prefix, candidate, REGISTRATIONS)
+            map_text = gate_map.read_text()
             data["missing_map_objects"] = [obj for obj in args.objects if obj not in map_text]
-            segments = load_segments(candidate)
-            with candidate.open("rb") as stream:
-                header = stream.read(52)
-            data["executable"] = struct.unpack_from("<H", header, 16)[0] == 2 and bool(segments)
-            data["loaded_memory_bytes"] = sum(segment["memory_bytes"] for segment in segments)
+            data["executable"] = executable(candidate)
+            data["gate_loaded_memory_bytes"] = sum(segment["memory_bytes"] for segment in load_segments(candidate))
+            data["gate_link_map_sha256"] = hashlib.sha256(gate_map.read_bytes()).hexdigest()
             data["test_symbols"] = [line for line in symbols.splitlines()
                                     if any(token in line for token in ("ps2::tests::", "HeadlessFixture"))]
             isolated = kind != "game" or (not data["test_inputs"] and not data["test_symbols"])
-            data["passed"] = (data["executable"] and all(data["registrations"].values()) and
-                              not data["missing_map_objects"] and isolated)
+            gated = (data["executable"] and all(data["registrations"].values()) and
+                     not data["missing_map_objects"] and isolated)
+            if gated:
+                # Collection runs only after the gate resolved every object, so it cannot hide undefined references.
+                collection = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                            check=False)
+                (args.output / "link_gc.log").write_text(collection.stdout)
+                data["runnable_linker_returncode"] = collection.returncode
+                if collection.returncode == 0 and diagnostics(collection.stdout) == ([], []):
+                    data["runnable_registrations"], _ = registered(prefix, collected, COLLECTED_REGISTRATIONS)
+                    data["loaded_memory_bytes"] = sum(segment["memory_bytes"] for segment in load_segments(collected))
+                    data["passed"] = executable(collected) and all(data["runnable_registrations"].values())
             if data["passed"]:
-                subprocess.run([prefix + "strip", "--strip-all", "-o", str(runnable), str(candidate)], check=True)
-                candidate.replace(elf)
+                subprocess.run([prefix + "strip", *STRIP_FLAGS, "-o", str(runnable), str(collected)], check=True)
+                collected.replace(elf)
                 data["elf_sha256"] = hashlib.sha256(elf.read_bytes()).hexdigest()
                 data["runnable_elf_sha256"] = hashlib.sha256(runnable.read_bytes()).hexdigest()
                 data["link_map_sha256"] = hashlib.sha256(link_map.read_bytes()).hexdigest()
@@ -161,15 +196,18 @@ def run(args: argparse.Namespace) -> int:
             data["verification_error"] = str(error)
             runnable.unlink(missing_ok=True)
     candidate.unlink(missing_ok=True)
+    collected.unlink(missing_ok=True)
     write_if_changed(args.output / "report.json", json.dumps(data, indent=2) + "\n")
     summary = [f"Resident campaign link: {'PASS' if data['passed'] else 'FAIL'} ({args.configuration})",
-               f"Objects: {len(args.objects)}; linker exit: {result.returncode}; GC: disabled",
+               f"Objects: {len(args.objects)}; gate linker exit: {result.returncode} (no GC); "
+               f"runnable linker exit: {data['runnable_linker_returncode']} (--gc-sections)",
+               f"PT_LOAD bytes: gate {data['gate_loaded_memory_bytes']}, runnable {data['loaded_memory_bytes']}",
                f"Unresolved symbols: {len(unresolved)}; duplicate definitions: {len(duplicates)}"]
     summary += [f"  {name}: {count}" for name, count in data["categories"].items()]
     summary += ["", *[f"{item['category']}: {item['symbol']}\n  " + ", ".join(item["requestors"])
                       for item in unresolved]]
     write_if_changed(args.output / "report.txt", "\n".join(summary) + "\n")
-    print("\n".join(summary[:3]))
+    print("\n".join(summary[:4]))
     print(f"Evidence: {args.output / 'report.json'}; {args.output / 'link.log'}")
     return 0 if data["passed"] else 1
 
