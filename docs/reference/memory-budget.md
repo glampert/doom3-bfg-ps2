@@ -832,3 +832,27 @@ Remaining levers, measured but not taken:
 - `.rodata`: the credits list is 240 KB of strings in `MenuScreen_Shell_Credits.o`.
 - newlib is 134 KB, about 60 KB of it printf/scanf/strtod; `libc_nano.a` is installed
   but untested with ps2sdk's glue and needs float formatting kept.
+
+## Script program storage on the heap (2026-10-30)
+
+`idProgram`'s fixed arrays (`variables`, `variableDefaults`, `functions`, `statements`) were
+3,515,932 bytes of BSS inside `gameLocal`. On PS2 they are now
+`ps2::game::script::HeapStaticList`s, which keep `idStaticList`'s interface over storage
+allocated zeroed on the `TAG_SCRIPT` heap by `BeginCompilation` (game init) and released by
+`FreeData` (game shutdown, failed compilation). `sizeof( idProgram )` is 240 bytes, and the
+capacities are unchanged.
+
+Production `PT_LOAD` is **6,219,692 debug / 5,599,724 release bytes** (−3,520,192 each);
+`.bss` is 1.74 / 1.60 MB. Retail `startup-game` (debug) rises by exactly the four
+allocations: `SCRIPT` 4,891,528 requested / 6,344,552 backing in 33,714 allocations (was
+1,375,816 / 2,828,664 / 33,710), startup 13,661,626 / 16,985,396 in 75,723 allocations
+(`20261030T035155Z_headless_3afab68abbe6`); release 13,658,776 / 16,977,468 in 75,597.
+Totals against the 32 MB are unchanged: the bytes move from `PT_LOAD` to the arena, and
+full shutdown recovers them. The same run's `STRING`/`SYSTEM` foundation tags are 3
+allocations and 44 bytes lower than the morning's run because commit aec1682 removed id's
+`exit` command, not because of this change.
+
+The bounded headless boot (no retail script) also allocates the storage at game init:
+4,924,276 / 5,017,712 bytes in 2,288 allocations (debug). Later options: allocate
+`variableDefaults` at its compiled size in `FinishCompilation` (about 90 KB on retail), and
+shrink the capacities once the campaign-wide map-script maximum is measured.

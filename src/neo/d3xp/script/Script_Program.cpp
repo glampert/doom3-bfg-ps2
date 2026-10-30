@@ -1364,14 +1364,19 @@ idVarDef *idProgram::AllocDef( idTypeDef *type, const char *name, idVarDef *scop
 		//
 		// [PS2_D3BFG]: Validate the range before pointer arithmetic or signed counter mutation.
 		const int bytes = def->TypeDef()->Size();
-		if ( bytes < 0 || bytes > static_cast<int>( sizeof( variables ) ) - numVariables ) {
+		if ( bytes < 0 || bytes > MAX_GLOBALS - numVariables ) {
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 			ps2::game::script::Fail( "Exceeded global memory size (%d bytes)", MAX_GLOBALS );
 #else
 			throw idCompileError( va( "Exceeded global memory size (%d bytes)", MAX_GLOBALS ) );
 #endif
 		}
+#if defined( ID_PS2 )
+		// [PS2_D3BFG]: The heap storage's base; a full global space may take a zero-size def at its end.
+		def->value.bytePtr = variables.Ptr() + numVariables;
+#else
 		def->value.bytePtr = &variables[ numVariables ];
+#endif
 		numVariables += bytes;
 
 		memset( def->value.bytePtr, 0, def->TypeDef()->Size() );
@@ -1665,6 +1670,15 @@ void idProgram::BeginCompilation() {
 
 	FreeData();
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Allocate the fixed program storage zeroed on the TAG_SCRIPT heap; FreeData releases it.
+	variables.Allocate( TAG_SCRIPT );
+	variables.SetNum( MAX_GLOBALS );
+	variableDefaults.Allocate( TAG_SCRIPT );
+	functions.Allocate( TAG_SCRIPT );
+	statements.Allocate( TAG_SCRIPT );
+#endif
+
 	// [PS2_D3BFG]: Desktop keeps recoverable exceptions; target errors use explicit fatal cleanup.
 #if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
 	try
@@ -1830,7 +1844,7 @@ void idProgram::CompileStats() {
 
 	memused += statements.MemoryUsed();
 	memused += functions.MemoryUsed();	// name and filename of functions are shared, so no need to include them
-	memused += sizeof( variables );
+	memused += MAX_GLOBALS;	// [PS2_D3BFG]: The heap storage's size; sizeof( variables ) is the list object's on the target.
 
 	common->Printf( "\nMemory usage:\n" );
 	common->Printf( "     Strings: %d, %d bytes\n", fileList.Num(), stringspace );
@@ -1983,7 +1997,10 @@ void idProgram::FreeData() {
 	filenum = 0;
 
 	numVariables = 0;
+	// [PS2_D3BFG]: The heap storage is released below; BeginCompilation allocates it zeroed again.
+#if !defined( ID_PS2 )
 	memset( variables, 0, sizeof( variables ) );
+#endif
 
 	// clear all the strings in the functions so that it doesn't look like we're leaking memory.
 	for( i = 0; i < functions.Num(); i++ ) {
@@ -1994,6 +2011,12 @@ void idProgram::FreeData() {
 	fileList.Clear();
 	statements.Clear();
 	functions.Clear();
+#if defined( ID_PS2 )
+	variables.Release();
+	variableDefaults.Release();
+	functions.Release();
+	statements.Release();
+#endif
 
 	top_functions	= 0;
 	top_statements	= 0;

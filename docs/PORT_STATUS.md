@@ -4980,3 +4980,24 @@ about 95% of the code in id's engine. Four changes, measured in
 
 `make test-common`, `make test-renderer` and the release UI gates were not rerun; the core
 test image keeps its whole-object link and changed only by section flags and `-Os` objects.
+
+
+## Script program storage on the heap (2026-10-30)
+
+`idProgram`'s fixed script arrays moved from BSS to `TAG_SCRIPT` heap storage, allocated by
+`BeginCompilation` and released by `FreeData`, through a PS2 `HeapStaticList` with
+`idStaticList`'s interface (`src/ps2/game/script_storage.h`; tagged edits in
+`Script_Program.h/.cpp`). The Makefile now also includes the script probe's dependency files,
+which it never had: header edits left `Script_Compiler.o` stale in `build/<config>-script/`
+and the probe's valid case asserted on the old layout until that object was rebuilt.
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release` | Passed; `PT_LOAD` **6,219,692 debug / 5,599,724 release** (−3,520,192); stripped ELFs 4,480,804 / 3,999,268 bytes |
+| `make build-core`, `build-game`, `build-script` (both) | Passed |
+| `make test-script` (both) | 15 of 15, including the globals/statements/functions limits and the probe's exact heap recovery |
+| `make test-headless`, `test-headless-retail` (debug) | Passed; retail startup 13,661,626 / 16,985,396 bytes in 75,723 allocations, `SCRIPT` +4 allocations / +3,515,712 bytes (`20261030T035155Z_headless_3afab68abbe6`) |
+| `make test-headless`, `test-headless-retail` (release) | Passed; retail startup 13,658,776 / 16,977,468 in 75,597 allocations |
+| `make test-game`, `make test-map` (debug) | 11 of 11 and 1 of 1 passed |
+
+`make test-ui` was not rerun.

@@ -29,6 +29,11 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __SCRIPT_PROGRAM_H__
 #define __SCRIPT_PROGRAM_H__
 
+// [PS2_D3BFG]: The program's fixed arrays live on the tagged heap instead of in BSS.
+#if defined( ID_PS2 )
+#include "ps2/game/script_storage.h"
+#endif
+
 class idScriptObject;
 class idEventDef;
 class idVarDef;
@@ -440,10 +445,18 @@ private:
 	int											filenum;
 
 	int											numVariables;
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: TAG_SCRIPT heap storage from BeginCompilation to FreeData, counted in the heap ledger rather than the ELF.
+	ps2::game::script::HeapStaticList<byte,MAX_GLOBALS>				variables;
+	ps2::game::script::HeapStaticList<byte,MAX_GLOBALS>				variableDefaults;
+	ps2::game::script::HeapStaticList<function_t,MAX_FUNCS>			functions;
+	ps2::game::script::HeapStaticList<statement_t,MAX_STATEMENTS>	statements;
+#else
 	byte										variables[ MAX_GLOBALS ];
 	idStaticList<byte,MAX_GLOBALS>				variableDefaults;
 	idStaticList<function_t,MAX_FUNCS>			functions;
 	idStaticList<statement_t,MAX_STATEMENTS>	statements;
+#endif
 	idList<idTypeDef *, TAG_SCRIPT>				types;
 	idHashIndex									typesHash;
 	idList<idVarDefName *, TAG_SCRIPT>			varDefNames;

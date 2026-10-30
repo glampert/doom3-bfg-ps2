@@ -703,4 +703,4 @@ clean:
 
 FORCE:
 
--include $(CORE_TEST_DRIVER_OBJS:.o=.d) $(BOOT_OBJS:.o=.d) $(CORE_OBJS:.o=.d) $(CORE_BACKEND_OBJS:.o=.d) $(CORE_C_OBJS:.o=.d) $(CAMPAIGN_OBJS:.o=.d)
+-include $(CORE_TEST_DRIVER_OBJS:.o=.d) $(BOOT_OBJS:.o=.d) $(CORE_OBJS:.o=.d) $(CORE_BACKEND_OBJS:.o=.d) $(CORE_C_OBJS:.o=.d) $(CAMPAIGN_OBJS:.o=.d) $(SCRIPT_OBJS:.o=.d)
