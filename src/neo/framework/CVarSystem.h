@@ -29,6 +29,15 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __CVARSYSTEM_H__
 #define __CVARSYSTEM_H__
 
+// [PS2_D3BFG]: CVar descriptions are console help text only; the PS2 drops them to save memory.
+#ifndef ID_CVAR_WITH_DESC
+	#if defined( ID_PS2 )
+		#define ID_CVAR_WITH_DESC 0
+	#else
+		#define ID_CVAR_WITH_DESC 1
+	#endif
+#endif
+
 /*
 ===============================================================================
 
@@ -132,7 +141,12 @@ public:
 
 	const char *			GetName() const { return internalVar->name; }
 	int						GetFlags() const { return internalVar->flags; }
+#if ID_CVAR_WITH_DESC
 	const char *			GetDescription() const { return internalVar->description; }
+#else
+	// [PS2_D3BFG]: Descriptions are compiled out (ID_CVAR_WITH_DESC).
+	const char *			GetDescription() const { return ""; }
+#endif
 	float					GetMinValue() const { return internalVar->valueMin; }
 	float					GetMaxValue() const { return internalVar->valueMax; }
 	const char **			GetValueStrings() const { return valueStrings; }
@@ -160,7 +174,9 @@ public:
 protected:
 	const char *			name;					// name
 	const char *			value;					// value
+#if ID_CVAR_WITH_DESC	// [PS2_D3BFG]
 	const char *			description;			// description
+#endif
 	int						flags;					// CVAR_? flags
 	float					valueMin;				// minimum value
 	float					valueMax;				// maximum value
@@ -172,8 +188,14 @@ protected:
 	idCVar *				next;					// next statically declared cvar
 
 private:
+#if ID_CVAR_WITH_DESC
 	void					Init( const char *name, const char *value, int flags, const char *description,
 									float valueMin, float valueMax, const char **valueStrings, argCompletion_t valueCompletion );
+#else
+	// [PS2_D3BFG]: Init takes no description, so an out-of-line Init does not keep the literal alive.
+	void					Init( const char *name, const char *value, int flags,
+									float valueMin, float valueMax, const char **valueStrings, argCompletion_t valueCompletion );
+#endif
 
 	virtual void			InternalSetString( const char *newValue ) {}
 	virtual void			InternalSetBool( const bool newValue ) {}
@@ -190,17 +212,29 @@ ID_INLINE idCVar::idCVar( const char *name, const char *value, int flags, const 
 	if ( !valueCompletion && ( flags & CVAR_BOOL ) ) {
 		valueCompletion = idCmdSystem::ArgCompletion_Boolean;
 	}
+#if ID_CVAR_WITH_DESC
 	Init( name, value, flags, description, 1, -1, NULL, valueCompletion );
+#else
+	Init( name, value, flags, 1, -1, NULL, valueCompletion );	// [PS2_D3BFG]
+#endif
 }
 
 ID_INLINE idCVar::idCVar( const char *name, const char *value, int flags, const char *description,
 							float valueMin, float valueMax, argCompletion_t valueCompletion ) {
+#if ID_CVAR_WITH_DESC
 	Init( name, value, flags, description, valueMin, valueMax, NULL, valueCompletion );
+#else
+	Init( name, value, flags, valueMin, valueMax, NULL, valueCompletion );	// [PS2_D3BFG]
+#endif
 }
 
 ID_INLINE idCVar::idCVar( const char *name, const char *value, int flags, const char *description,
 							const char **valueStrings, argCompletion_t valueCompletion ) {
+#if ID_CVAR_WITH_DESC
 	Init( name, value, flags, description, 1, -1, valueStrings, valueCompletion );
+#else
+	Init( name, value, flags, 1, -1, valueStrings, valueCompletion );	// [PS2_D3BFG]
+#endif
 }
 
 
@@ -282,12 +316,20 @@ extern idCVarSystem *		cvarSystem;
 ===============================================================================
 */
 
+#if ID_CVAR_WITH_DESC
 ID_INLINE void idCVar::Init( const char *name, const char *value, int flags, const char *description,
 							float valueMin, float valueMax, const char **valueStrings, argCompletion_t valueCompletion ) {
+#else
+// [PS2_D3BFG]: No description parameter (ID_CVAR_WITH_DESC).
+ID_INLINE void idCVar::Init( const char *name, const char *value, int flags,
+							float valueMin, float valueMax, const char **valueStrings, argCompletion_t valueCompletion ) {
+#endif
 	this->name = name;
 	this->value = value;
 	this->flags = flags;
+#if ID_CVAR_WITH_DESC	// [PS2_D3BFG]
 	this->description = description;
+#endif
 	this->flags = flags | CVAR_STATIC;
 	this->valueMin = valueMin;
 	this->valueMax = valueMax;

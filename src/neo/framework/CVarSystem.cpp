@@ -60,7 +60,9 @@ private:
 	idStr					nameString;				// name
 	idStr					resetString;			// resetting will change to this value
 	idStr					valueString;			// value
+#if ID_CVAR_WITH_DESC	// [PS2_D3BFG]
 	idStr					descriptionString;		// description
+#endif
 
 	virtual const char *	InternalGetResetString() const;
 
@@ -90,8 +92,10 @@ idInternalCVar::idInternalCVar( const char *newName, const char *newValue, int n
 	valueString = newValue;
 	value = valueString.c_str();
 	resetString = newValue;
+#if ID_CVAR_WITH_DESC	// [PS2_D3BFG]
 	descriptionString = "";
 	description = descriptionString.c_str();
+#endif
 	flags = ( newFlags & ~CVAR_STATIC ) | CVAR_MODIFIED;
 	valueMin = 1;
 	valueMax = -1;
@@ -113,8 +117,10 @@ idInternalCVar::idInternalCVar( const idCVar *cvar ) {
 	valueString = cvar->GetString();
 	value = valueString.c_str();
 	resetString = cvar->GetString();
+#if ID_CVAR_WITH_DESC	// [PS2_D3BFG]
 	descriptionString = cvar->GetDescription();
 	description = descriptionString.c_str();
+#endif
 	flags = cvar->GetFlags() | CVAR_MODIFIED;
 	valueMin = cvar->GetMinValue();
 	valueMax = cvar->GetMaxValue();
@@ -195,8 +201,10 @@ void idInternalCVar::Update( const idCVar *cvar ) {
 
 		// the code is now specifying a variable that the user already set a value for, take the new value as the reset value
 		resetString = cvar->GetString();
+#if ID_CVAR_WITH_DESC	// [PS2_D3BFG]
 		descriptionString = cvar->GetDescription();
 		description = descriptionString.c_str();
+#endif
 		valueMin = cvar->GetMinValue();
 		valueMax = cvar->GetMaxValue();
 		Mem_Free( valueStrings );
