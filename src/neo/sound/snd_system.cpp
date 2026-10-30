@@ -144,9 +144,12 @@ void idSoundSystemLocal::Init() {
 		InitStreamBuffers();
 	}
 
-	cmdSystem->AddCommand( "testSound", TestSound_f, 0, "tests a sound", idCmdSystem::ArgCompletion_SoundName );
-	cmdSystem->AddCommand( "s_restart", RestartSound_f, 0, "restart sound system" );
-	cmdSystem->AddCommand( "listSamples", ListSamples_f, 0, "lists all loaded sound samples" );
+	// [PS2_D3BFG]: Sound test and listing tools are debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+	cmdSystem->AddCommand( "testSound", TestSound_f, 0, CMD_DESC( "tests a sound" ), idCmdSystem::ArgCompletion_SoundName );
+	cmdSystem->AddCommand( "s_restart", RestartSound_f, 0, CMD_DESC( "restart sound system" ) );
+	cmdSystem->AddCommand( "listSamples", ListSamples_f, 0, CMD_DESC( "lists all loaded sound samples" ) );
+#endif
 
 	idLib::Printf( "sound system initialized.\n" );
 	idLib::Printf( "--------------------------------------\n" );

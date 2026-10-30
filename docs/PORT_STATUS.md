@@ -5055,3 +5055,23 @@ the UI session's warm-ledger checks need it. Sizes per step and what stays for s
 | `make test-ui` (release) | NTSC and PAL sessions passed after the `clearHistory` fix (`20261030T111755Z_session_4d2112a02581`, `20261030T112113Z_session_53cd49e1eef8`); 5 of 5 font and 11 of 11 movie failure cases. The first release session failed its warm-ledger checks on `Unknown command 'clearHistory'` (`20261030T111249Z_session_cf29cb10822e`) |
 | `make test-host` | Passed |
 
+
+## Release console commands and descriptions (2026-10-30)
+
+`AddCommand` descriptions go through `CMD_DESC`, empty on the PS2, so no command help text
+remains. Developer commands registered through `AddCommand` (listings, file/resource,
+declaration and model tools, sound tests, game cheats and test/editing commands) are
+debug-only, and chat is gone with multiplayer; release keeps the config, cvar, binding,
+`centerview`, map/save/quit, `clearHistory` and `ps2_*` test commands. The console holds
+200 lines. Details are in
+[the memory reference](reference/memory-budget.md#release-console-commands-and-descriptions-2026-10-30).
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release`; every test image (both) | Passed without warnings; `PT_LOAD` **5,017,324 debug / 4,441,260 release** (−43,776 / −139,776) |
+| `make test-headless`, `test-headless-retail` (debug) | Passed; retail startup 13,600,490 / 16,900,424 bytes in 75,110 allocations (`20261030T115908Z_headless_fd195319de86`) |
+| `make test-headless`, `test-headless-retail` (release) | Passed; retail startup 13,595,086 / 16,881,000 in 74,774 allocations (`20261030T122748Z_headless_9b89fad99edc`) |
+| `make test-platform`, `test-core`, `test-renderer`, `test-common`, `test-script`, `test-game`, `test-map` (both) | Passed |
+| `make test-ui` (debug) | NTSC and PAL sessions passed (`20261030T121025Z_session_bd729133fb01`, `20261030T121816Z_session_4f0037b64596`); 18 of 18 failure cases |
+| `make test-ui` (release) | NTSC and PAL sessions passed (`20261030T123520Z_session_aa8fb773543f`, `20261030T123838Z_session_023be76025ba`); 16 of 16 failure cases |
+

@@ -326,8 +326,11 @@ void idGameLocal::Init() {
 	declManager->RegisterDeclFolder( "af",				".af",				DECL_AF );
 	declManager->RegisterDeclFolder( "newpdas",			".pda",				DECL_PDA );
 
-	cmdSystem->AddCommand( "listModelDefs", idListDecls_f<DECL_MODELDEF>, CMD_FL_SYSTEM|CMD_FL_GAME, "lists model defs" );
-	cmdSystem->AddCommand( "printModelDefs", idPrintDecls_f<DECL_MODELDEF>, CMD_FL_SYSTEM|CMD_FL_GAME, "prints a model def", idCmdSystem::ArgCompletion_Decl<DECL_MODELDEF> );
+	// [PS2_D3BFG]: Model definition listings are debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+	cmdSystem->AddCommand( "listModelDefs", idListDecls_f<DECL_MODELDEF>, CMD_FL_SYSTEM|CMD_FL_GAME, CMD_DESC( "lists model defs" ) );
+	cmdSystem->AddCommand( "printModelDefs", idPrintDecls_f<DECL_MODELDEF>, CMD_FL_SYSTEM|CMD_FL_GAME, CMD_DESC( "prints a model def" ), idCmdSystem::ArgCompletion_Decl<DECL_MODELDEF> );
+#endif
 
 	Clear();
 

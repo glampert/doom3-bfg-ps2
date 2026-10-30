@@ -863,7 +863,7 @@ Fixed engine buffers that were sized for desktop debugging, before → after (by
 
 | Symbol | Before | After | Change |
 | --- | ---: | ---: | --- |
-| `localConsole` | 445,372 | 72,892 | `CON_TEXTSIZE` 0x30000 → 0x8000 cells (about 420 lines), 8 edit-history fields instead of 64 (they were only ever initialized; the real history is `idConsoleHistory`) |
+| `localConsole` | 445,372 | 72,892 | `CON_TEXTSIZE` 0x30000 → 0x8000 cells (about 420 lines; 200 lines of 70 cells, 35,356 bytes, since the command strip below), 8 edit-history fields instead of 64 (they were only ever initialized; the real history is `idConsoleHistory`) |
 | `com_consoleLines` | 73,856 | 4 | a heap array of exactly the lines the arguments form, released at shutdown; production passes no arguments, so none is allocated |
 | `cmdSystemLocal` | 67,932 | 18,780 | `MAX_CMD_BUFFER` 64 KB → 16 KB; retail configs are at most 1,413 bytes, UI sessions peaked at 993 bytes; overflow drops text with a warning |
 | `va()` slots | 65,536 | 4,096 | 4 × 1 KB, now bounded (`vsnPrintf`; upstream was an unbounded `vsprintf`), debug builds warn on truncation; measured peak 62 bytes |
@@ -947,4 +947,24 @@ Kept on purpose: the `si_*` server-info cvars (`gameLocal.serverInfo` is written
 decompression) and the `idMultiplayerGame` stub (map startup calls `Reset`/`Precache`).
 Demo record/playback is not multiplayer and stays; the command ring's player dimension is
 on the backlog above.
+
+## Release console commands and descriptions (2026-10-30)
+
+Every `AddCommand` description goes through `CMD_DESC( text )`, which is `NULL` when
+`ID_CMD_WITH_DESC` is 0 (every PS2 build), and `CONSOLE_COMMAND` uses it too. Developer
+commands registered through `AddCommand` are debug-only on the PS2, as id's
+`CONSOLE_COMMAND`s already were in release: command/cvar/bind listings, `parse`, the
+console `clear`/`conDump`, file and resource-pack tools, declaration and model listings and
+reloads, sound tests, and the game's listings, cheats, test and editing commands. Chat
+(`say`, `sayTeam`, `addChatLine`) is multiplayer and gone from every PS2 build. Release keeps
+`exec`, `vstr`, `echo`, `wait`, the cvar `set` family, `toggle`, `reset`, `cvarAdd`,
+`cvar_restart`, `bind`/`unbind`/`unbindall`/`bindunbindtwo`, `centerview`, the
+`CONSOLE_COMMAND_SHIP` map/save/quit commands, `clearHistory` and the `ps2_*` test drivers.
+The console scrollback is 200 lines of 70 cells (14,000 cells, 37,536 bytes less `.bss`).
+
+Production `PT_LOAD` falls to **5,017,324 debug / 4,441,260 release** (−43,776 / −139,776):
+release `.text` −84,368, `.rodata` −17,488, `.bss` −37,760.
+Fewer registered commands also shrink the retail startup heap: release 13,595,086 /
+16,881,000 bytes in 74,774 allocations (−3,912 / −14,288 / −248), debug 13,600,490 /
+16,900,424 in 75,110.
 

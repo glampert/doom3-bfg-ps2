@@ -32,18 +32,19 @@ If you have questions concerning this license or the applicable additional terms
 #include "../renderer/ResolutionScale.h"
 #include "Common_local.h"
 
-// [PS2_D3BFG]: A debug aid on the PS2: 32K cells (about 420 lines) and 8 edit lines, not 384 KB and 50 KB.
+// [PS2_D3BFG]: A debug aid on the PS2: 200 lines of 70 cells and 4 edit lines, not 384 KB and 50 KB.
 #if defined( ID_PS2 )
-#define	CON_TEXTSIZE			0x8000
+#define	CON_TEXTSIZE			( 200 * 70 )
 #else
 #define	CON_TEXTSIZE			0x30000
 #endif
+
 #define	NUM_CON_TIMES			4
 #define CONSOLE_FIRSTREPEAT		200
 #define CONSOLE_REPEAT			100
 
 #if defined( ID_PS2 )
-#define	COMMAND_HISTORY			8
+#define	COMMAND_HISTORY			4
 #else
 #define	COMMAND_HISTORY			64
 #endif
@@ -306,6 +307,8 @@ float idConsoleLocal::DrawMemoryUsage( float y ) {
 
 //=========================================================================
 
+// [PS2_D3BFG]: The console clear and dump commands are debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 /*
 ==============
 Con_Clear_f
@@ -333,6 +336,7 @@ static void Con_Dump_f( const idCmdArgs &args ) {
 
 	localConsole.Dump( fileName.c_str() );
 }
+#endif
 
 /*
 ==============
@@ -365,8 +369,10 @@ void idConsoleLocal::Init() {
 		historyEditLines[i].SetWidthInChars( LINE_WIDTH );
 	}
 
-	cmdSystem->AddCommand( "clear", Con_Clear_f, CMD_FL_SYSTEM, "clears the console" );
-	cmdSystem->AddCommand( "conDump", Con_Dump_f, CMD_FL_SYSTEM, "dumps the console text to a file" );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
+	cmdSystem->AddCommand( "clear", Con_Clear_f, CMD_FL_SYSTEM, CMD_DESC( "clears the console" ) );
+	cmdSystem->AddCommand( "conDump", Con_Dump_f, CMD_FL_SYSTEM, CMD_DESC( "dumps the console text to a file" ) );
+#endif
 }
 
 /*
@@ -375,8 +381,10 @@ idConsoleLocal::Shutdown
 ==============
 */
 void idConsoleLocal::Shutdown() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	cmdSystem->RemoveCommand( "clear" );
 	cmdSystem->RemoveCommand( "conDump" );
+#endif
 
 	debugGraphs.DeleteContents( true );
 }

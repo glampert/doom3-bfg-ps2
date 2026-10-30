@@ -302,9 +302,9 @@ PS2_COLD_FUNC void InitPresentation()
     ui::fonts::Init();
     ui::InitScreen();
 
-    cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, "type quoted ASCII into the native console edit field");
-    cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, "send a named native console key");
-    cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, "capture the next completed console frame to a HostFs .tga basename");
+    cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, CMD_DESC("type quoted ASCII into the native console edit field"));
+    cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, CMD_DESC("send a named native console key"));
+    cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, CMD_DESC("capture the next completed console frame to a HostFs .tga basename"));
 
     // The pad and the debug keyboard feed the same event queue the HostFs commands do; the
     // package stages the keyboard driver's modules beside the ELF.

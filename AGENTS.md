@@ -192,7 +192,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   coverage under `build/<config>/` with a whole-object gate link (no GC); only then is
   the runnable relinked with `--gc-sections` (every object has function/data sections)
   and stripped of `.pdr`/`.comment`. Release dev `CONSOLE_COMMAND`s compile out as in
-  id's retail builds; only `CONSOLE_COMMAND_SHIP` and registered commands remain. `make build-game` separately builds
+  id's retail builds, and `AddCommand` registrations of developer commands are debug-only;
+  release keeps config, binding, map/save/quit and `ps2_*` test commands. `AddCommand`
+  descriptions go through `CMD_DESC`, empty on the PS2. `make build-game` separately builds
   `build/<config>/tests/game/d3bfg_tests.elf`;
   `make test-game` checks native startup, entity/script ticks, bounded native `idPlayer`
   startup/commands and reloads, plus missing-map, script-error, restricted geometry/material

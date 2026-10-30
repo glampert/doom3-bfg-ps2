@@ -2686,18 +2686,21 @@ void idFileSystemLocal::Startup() {
 	}
 
 	// add our commands
-	cmdSystem->AddCommand( "dir", Dir_f, CMD_FL_SYSTEM, "lists a folder", idCmdSystem::ArgCompletion_FileName );
-	cmdSystem->AddCommand( "dirtree", DirTree_f, CMD_FL_SYSTEM, "lists a folder with subfolders" );
-	cmdSystem->AddCommand( "path", Path_f, CMD_FL_SYSTEM, "lists search paths" );
-	cmdSystem->AddCommand( "touchFile", TouchFile_f, CMD_FL_SYSTEM, "touches a file" );
-	cmdSystem->AddCommand( "touchFileList", TouchFileList_f, CMD_FL_SYSTEM, "touches a list of files" );
+	// [PS2_D3BFG]: File listing and resource-building tools are debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+	cmdSystem->AddCommand( "dir", Dir_f, CMD_FL_SYSTEM, CMD_DESC( "lists a folder" ), idCmdSystem::ArgCompletion_FileName );
+	cmdSystem->AddCommand( "dirtree", DirTree_f, CMD_FL_SYSTEM, CMD_DESC( "lists a folder with subfolders" ) );
+	cmdSystem->AddCommand( "path", Path_f, CMD_FL_SYSTEM, CMD_DESC( "lists search paths" ) );
+	cmdSystem->AddCommand( "touchFile", TouchFile_f, CMD_FL_SYSTEM, CMD_DESC( "touches a file" ) );
+	cmdSystem->AddCommand( "touchFileList", TouchFileList_f, CMD_FL_SYSTEM, CMD_DESC( "touches a list of files" ) );
 
-	cmdSystem->AddCommand( "buildGame", BuildGame_f, CMD_FL_SYSTEM, "builds game pak files" );
-	cmdSystem->AddCommand( "writeResourceFile", WriteResourceFile_f, CMD_FL_SYSTEM, "writes a .resources file from a supplied manifest" );
-	cmdSystem->AddCommand( "extractResourceFile", ExtractResourceFile_f, CMD_FL_SYSTEM, "extracts to the supplied resource file to the supplied path" );
-	cmdSystem->AddCommand( "updateResourceFile", UpdateResourceFile_f, CMD_FL_SYSTEM, "updates or appends the supplied files in the supplied resource file" );
+	cmdSystem->AddCommand( "buildGame", BuildGame_f, CMD_FL_SYSTEM, CMD_DESC( "builds game pak files" ) );
+	cmdSystem->AddCommand( "writeResourceFile", WriteResourceFile_f, CMD_FL_SYSTEM, CMD_DESC( "writes a .resources file from a supplied manifest" ) );
+	cmdSystem->AddCommand( "extractResourceFile", ExtractResourceFile_f, CMD_FL_SYSTEM, CMD_DESC( "extracts to the supplied resource file to the supplied path" ) );
+	cmdSystem->AddCommand( "updateResourceFile", UpdateResourceFile_f, CMD_FL_SYSTEM, CMD_DESC( "updates or appends the supplied files in the supplied resource file" ) );
 
-	cmdSystem->AddCommand( "generateResourceCRCs", GenerateResourceCRCs_f, CMD_FL_SYSTEM, "Generates CRC checksums for all the resource files." );
+	cmdSystem->AddCommand( "generateResourceCRCs", GenerateResourceCRCs_f, CMD_FL_SYSTEM, CMD_DESC( "Generates CRC checksums for all the resource files." ) );
+#endif
 
 	// print the current search paths
 	Path_f( idCmdArgs() );
@@ -2791,10 +2794,12 @@ void idFileSystemLocal::Shutdown( bool reloading ) {
 	resourceFiles.DeleteContents();
 
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug-only commands.
 	cmdSystem->RemoveCommand( "path" );
 	cmdSystem->RemoveCommand( "dir" );
 	cmdSystem->RemoveCommand( "dirtree" );
 	cmdSystem->RemoveCommand( "touchFile" );
+#endif
 }
 
 /*

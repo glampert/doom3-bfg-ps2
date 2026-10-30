@@ -210,10 +210,13 @@ idRenderModelManagerLocal::Init
 =================
 */
 void idRenderModelManagerLocal::Init() {
-	cmdSystem->AddCommand( "listModels", ListModels_f, CMD_FL_RENDERER, "lists all models" );
-	cmdSystem->AddCommand( "printModel", PrintModel_f, CMD_FL_RENDERER, "prints model info", idCmdSystem::ArgCompletion_ModelName );
-	cmdSystem->AddCommand( "reloadModels", ReloadModels_f, CMD_FL_RENDERER|CMD_FL_CHEAT, "reloads models" );
-	cmdSystem->AddCommand( "touchModel", TouchModel_f, CMD_FL_RENDERER, "touches a model", idCmdSystem::ArgCompletion_ModelName );
+	// [PS2_D3BFG]: Model listing and reload tools are debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+	cmdSystem->AddCommand( "listModels", ListModels_f, CMD_FL_RENDERER, CMD_DESC( "lists all models" ) );
+	cmdSystem->AddCommand( "printModel", PrintModel_f, CMD_FL_RENDERER, CMD_DESC( "prints model info" ), idCmdSystem::ArgCompletion_ModelName );
+	cmdSystem->AddCommand( "reloadModels", ReloadModels_f, CMD_FL_RENDERER|CMD_FL_CHEAT, CMD_DESC( "reloads models" ) );
+	cmdSystem->AddCommand( "touchModel", TouchModel_f, CMD_FL_RENDERER, CMD_DESC( "touches a model" ), idCmdSystem::ArgCompletion_ModelName );
+#endif
 
 	insideLevelLoad = false;
 

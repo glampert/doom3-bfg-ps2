@@ -38,6 +38,13 @@ If you have questions concerning this license or the applicable additional terms
 	#endif
 #endif
 
+// [PS2_D3BFG]: Wraps an AddCommand description, so builds without descriptions do not keep the text.
+#if ID_CMD_WITH_DESC
+	#define CMD_DESC( text ) text
+#else
+	#define CMD_DESC( text ) NULL
+#endif
+
 /*
 ===============================================================================
 
@@ -144,18 +151,11 @@ created using the CONSOLE_COMMAND_SHIP macro.
 // I can't figure out how to disable this just around CONSOLE_COMMAND, so it must stay disabled everywhere,
 // which is a shame.
 //lint -e1568
-#if ID_CMD_WITH_DESC
+// [PS2_D3BFG]: CMD_DESC drops the comment here, so the out-of-line idCommandLink constructor does not keep it alive.
 #define CONSOLE_COMMAND_COMPILE( name, comment, completion ) \
 	void name ## _f( const idCmdArgs &args ); \
-	idCommandLink name ## _v( #name, name ## _f, comment, completion  ); \
+	idCommandLink name ## _v( #name, name ## _f, CMD_DESC( comment ), completion  ); \
 	void name ## _f( const idCmdArgs &args )
-#else
-// [PS2_D3BFG]: Drop the comment here, so the out-of-line idCommandLink constructor does not keep it alive.
-#define CONSOLE_COMMAND_COMPILE( name, comment, completion ) \
-	void name ## _f( const idCmdArgs &args ); \
-	idCommandLink name ## _v( #name, name ## _f, NULL, completion  ); \
-	void name ## _f( const idCmdArgs &args )
-#endif
 
 class idCmdSystem {
 public:

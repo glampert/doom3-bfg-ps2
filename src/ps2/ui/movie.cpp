@@ -617,8 +617,8 @@ PS2_COLD_FUNC void InitScreen()
     }
 
     cmdSystem->AddCommand("ps2_uiRetail", Control, CMD_FL_SYSTEM,
-                          "control English resources with load/unload/reload/status, font INDEX, movie NAME, execute NAME, draw shell, "
-                          "dialog quit, menu, key NAME, clock MODE or logo on|off");
+                          CMD_DESC("control English resources with load/unload/reload/status, font INDEX, movie NAME, execute NAME, "
+                                   "draw shell, dialog quit, menu, key NAME, clock MODE or logo on|off"));
     s_initialized = true;
 }
 

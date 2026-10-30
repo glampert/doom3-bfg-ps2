@@ -782,11 +782,13 @@ void idKeyInput::Init() {
 	keys = new (TAG_SYSTEM) idKey[K_LAST_KEY];
 
 	// register our functions
-	cmdSystem->AddCommand( "bind", Key_Bind_f, CMD_FL_SYSTEM, "binds a command to a key", idKeyInput::ArgCompletion_KeyName );
-	cmdSystem->AddCommand( "bindunbindtwo", Key_BindUnBindTwo_f, CMD_FL_SYSTEM, "binds a key but unbinds it first if there are more than two binds" );
-	cmdSystem->AddCommand( "unbind", Key_Unbind_f, CMD_FL_SYSTEM, "unbinds any command from a key", idKeyInput::ArgCompletion_KeyName );
-	cmdSystem->AddCommand( "unbindall", Key_Unbindall_f, CMD_FL_SYSTEM, "unbinds any commands from all keys" );
-	cmdSystem->AddCommand( "listBinds", Key_ListBinds_f, CMD_FL_SYSTEM, "lists key bindings" );
+	cmdSystem->AddCommand( "bind", Key_Bind_f, CMD_FL_SYSTEM, CMD_DESC( "binds a command to a key" ), idKeyInput::ArgCompletion_KeyName );
+	cmdSystem->AddCommand( "bindunbindtwo", Key_BindUnBindTwo_f, CMD_FL_SYSTEM, CMD_DESC( "binds a key but unbinds it first if there are more than two binds" ) );
+	cmdSystem->AddCommand( "unbind", Key_Unbind_f, CMD_FL_SYSTEM, CMD_DESC( "unbinds any command from a key" ), idKeyInput::ArgCompletion_KeyName );
+	cmdSystem->AddCommand( "unbindall", Key_Unbindall_f, CMD_FL_SYSTEM, CMD_DESC( "unbinds any commands from all keys" ) );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer listing, debug-only on the PS2.
+	cmdSystem->AddCommand( "listBinds", Key_ListBinds_f, CMD_FL_SYSTEM, CMD_DESC( "lists key bindings" ) );
+#endif
 }
 
 /*

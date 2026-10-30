@@ -197,7 +197,7 @@ PS2_COLD_FUNC void idCommonLocal::InitHeadless()
     soundWorld = soundSystem->AllocSoundWorld(renderWorld);
     menuSoundWorld = soundSystem->AllocSoundWorld(nullptr);
     userCmdMgr.SetDefaults();
-    cmdSystem->AddCommand("ps2_status", Status, CMD_FL_SYSTEM, "print headless startup state and completed frame counts");
+    cmdSystem->AddCommand("ps2_status", Status, CMD_FL_SYSTEM, CMD_DESC("print headless startup state and completed frame counts"));
     cvarSystem->SetCVarBool("com_allowConsole", true);
     consoleUsed = true;
 

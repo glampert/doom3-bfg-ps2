@@ -582,16 +582,18 @@ void idCVarSystemLocal::Init() {
 
 	modifiedFlags = 0;
 
-	cmdSystem->AddCommand( "toggle", Toggle_f, CMD_FL_SYSTEM, "toggles a cvar" );
-	cmdSystem->AddCommand( "set", Set_f, CMD_FL_SYSTEM, "sets a cvar" );
-	cmdSystem->AddCommand( "seta", Set_f, CMD_FL_SYSTEM, "sets a cvar" );
-	cmdSystem->AddCommand( "sets", Set_f, CMD_FL_SYSTEM, "sets a cvar" );
-	cmdSystem->AddCommand( "sett", Set_f, CMD_FL_SYSTEM, "sets a cvar" );
-	cmdSystem->AddCommand( "setu", Set_f, CMD_FL_SYSTEM, "sets a cvar" );
-	cmdSystem->AddCommand( "reset", Reset_f, CMD_FL_SYSTEM, "resets a cvar" );
-	cmdSystem->AddCommand( "listCvars", List_f, CMD_FL_SYSTEM, "lists cvars" );
-	cmdSystem->AddCommand( "cvar_restart", Restart_f, CMD_FL_SYSTEM, "restart the cvar system" );
-	cmdSystem->AddCommand( "cvarAdd", CvarAdd_f, CMD_FL_SYSTEM, "adds a value to a numeric cvar" );
+	cmdSystem->AddCommand( "toggle", Toggle_f, CMD_FL_SYSTEM, CMD_DESC( "toggles a cvar" ) );
+	cmdSystem->AddCommand( "set", Set_f, CMD_FL_SYSTEM, CMD_DESC( "sets a cvar" ) );
+	cmdSystem->AddCommand( "seta", Set_f, CMD_FL_SYSTEM, CMD_DESC( "sets a cvar" ) );
+	cmdSystem->AddCommand( "sets", Set_f, CMD_FL_SYSTEM, CMD_DESC( "sets a cvar" ) );
+	cmdSystem->AddCommand( "sett", Set_f, CMD_FL_SYSTEM, CMD_DESC( "sets a cvar" ) );
+	cmdSystem->AddCommand( "setu", Set_f, CMD_FL_SYSTEM, CMD_DESC( "sets a cvar" ) );
+	cmdSystem->AddCommand( "reset", Reset_f, CMD_FL_SYSTEM, CMD_DESC( "resets a cvar" ) );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer listing, debug-only on the PS2.
+	cmdSystem->AddCommand( "listCvars", List_f, CMD_FL_SYSTEM, CMD_DESC( "lists cvars" ) );
+#endif
+	cmdSystem->AddCommand( "cvar_restart", Restart_f, CMD_FL_SYSTEM, CMD_DESC( "restart the cvar system" ) );
+	cmdSystem->AddCommand( "cvarAdd", CvarAdd_f, CMD_FL_SYSTEM, CMD_DESC( "adds a value to a numeric cvar" ) );
 
 	initialized = true;
 }

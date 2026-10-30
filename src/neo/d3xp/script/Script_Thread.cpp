@@ -1028,7 +1028,9 @@ idThread::Event_Say
 ================
 */
 void idThread::Event_Say( const char *text ) {
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: Chat is multiplayer; single player only refused it.
 	cmdSystem->BufferCommandText( CMD_EXEC_NOW, va( "say \"%s\"", text ) );
+#endif
 }
 
 /*

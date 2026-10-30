@@ -345,29 +345,32 @@ idCmdSystemLocal::Init
 */
 void idCmdSystemLocal::Init() {
 
-	AddCommand( "listCmds", List_f, CMD_FL_SYSTEM, "lists commands" );
-	AddCommand( "listSystemCmds", SystemList_f, CMD_FL_SYSTEM, "lists system commands" );
-	AddCommand( "listRendererCmds", RendererList_f, CMD_FL_SYSTEM, "lists renderer commands" );
-	AddCommand( "listSoundCmds", SoundList_f, CMD_FL_SYSTEM, "lists sound commands" );
-	AddCommand( "listGameCmds", GameList_f, CMD_FL_SYSTEM, "lists game commands" );
-	AddCommand( "listToolCmds", ToolList_f, CMD_FL_SYSTEM, "lists tool commands" );
-	AddCommand( "exec", Exec_f, CMD_FL_SYSTEM, "executes a config file", ArgCompletion_ConfigName );
-	AddCommand( "vstr", Vstr_f, CMD_FL_SYSTEM, "inserts the current value of a cvar as command text" );
-	AddCommand( "echo", Echo_f, CMD_FL_SYSTEM, "prints text" );
-	AddCommand( "parse", Parse_f, CMD_FL_SYSTEM, "prints tokenized string" );
-	AddCommand( "wait", Wait_f, CMD_FL_SYSTEM, "delays remaining buffered commands one or more frames" );
+	// [PS2_D3BFG]: Developer listings and the token printer are debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+	AddCommand( "listCmds", List_f, CMD_FL_SYSTEM, CMD_DESC( "lists commands" ) );
+	AddCommand( "listSystemCmds", SystemList_f, CMD_FL_SYSTEM, CMD_DESC( "lists system commands" ) );
+	AddCommand( "listRendererCmds", RendererList_f, CMD_FL_SYSTEM, CMD_DESC( "lists renderer commands" ) );
+	AddCommand( "listSoundCmds", SoundList_f, CMD_FL_SYSTEM, CMD_DESC( "lists sound commands" ) );
+	AddCommand( "listGameCmds", GameList_f, CMD_FL_SYSTEM, CMD_DESC( "lists game commands" ) );
+	AddCommand( "listToolCmds", ToolList_f, CMD_FL_SYSTEM, CMD_DESC( "lists tool commands" ) );
+	AddCommand( "parse", Parse_f, CMD_FL_SYSTEM, CMD_DESC( "prints tokenized string" ) );
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+
+	AddCommand( "exec", Exec_f, CMD_FL_SYSTEM, CMD_DESC( "executes a config file" ), ArgCompletion_ConfigName );
+	AddCommand( "vstr", Vstr_f, CMD_FL_SYSTEM, CMD_DESC( "inserts the current value of a cvar as command text" ) );
+	AddCommand( "echo", Echo_f, CMD_FL_SYSTEM, CMD_DESC( "prints text" ) );
+	AddCommand( "wait", Wait_f, CMD_FL_SYSTEM, CMD_DESC( "delays remaining buffered commands one or more frames" ) );
 
 	// link in all the commands declared with static idCommandLink variables or CONSOLE_COMMAND macros
 	for ( idCommandLink * link = CommandLinks(); link != NULL; link = link->next ) {
 #if ID_CMD_WITH_DESC
 		AddCommand( link->cmdName_, link->function_, CMD_FL_SYSTEM, link->description_, link->argCompletion_ );
 #else
-		AddCommand( link->cmdName_, link->function_, CMD_FL_SYSTEM, NULL, link->argCompletion_ );	// [PS2_D3BFG]
+		AddCommand( link->cmdName_, link->function_, CMD_FL_SYSTEM, NULL, link->argCompletion_ ); // [PS2_D3BFG]: no command desc.
 #endif
 	}
 
 	completionString = "*";
-
 	textLength = 0;
 }
 
