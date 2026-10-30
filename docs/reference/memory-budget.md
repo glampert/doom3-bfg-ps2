@@ -226,7 +226,9 @@ stack accounting remains separate; tagged backing is part of the arena.
 Accepted 2D-2 production `PT_LOAD` is 10,978,470 debug / 11,396,518 release bytes,
 including approximately 80 KiB of persistent aligned capture strips/control storage.
 That BSS remains resident in headless mode; the headless loop still allocates no device
-command/pixel pools. Default device caps are two 128 KiB command halves, 2 MiB owned
+command/pixel pools. Since 2026-10-30 the 80 KiB strip pair is a `TAG_RENDER` heap
+allocation held only while a capture runs (a failed allocation fails the capture before
+opening its file); only 192 bytes of request/restore storage stay in BSS. Default device caps are two 128 KiB command halves, 2 MiB owned
 RGBA pixels and 2 MiB texture VRAM. PSMCT16 color contexts plus Z16 consume 1,376,256
 NTSC / 1,572,864 PAL bytes. Direct RGBA storage charges whole 64×32/8192-byte pages,
 including deterministic padding, rather than logical width×height bytes.

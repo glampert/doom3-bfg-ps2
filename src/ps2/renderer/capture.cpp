@@ -7,7 +7,9 @@
 #include "ps2/renderer/capture.h"
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/renderer/render_system.h"
+#include "ps2/system/heap.h"
 
+#include <idlib/precompiled.h>
 #include <cstdio>
 #include <dma.h>
 #include <gs_gp.h>
@@ -20,8 +22,6 @@ namespace ps2::renderer::gs
 namespace
 {
 
-// TODO: Make this debug only; holds large static buffers - not needed besides dev/testing.
-// Also switch to using heap-allocated temp buffers rather than always allocated static buffers.
 static constexpr int kWidth = 512;
 static constexpr int kStripRows = 32;
 static constexpr u32 kDmaStart = 1U << 8;
@@ -33,10 +33,16 @@ static constexpr u64 kFinish = 1U << 1;
 static constexpr u64 kFinishMask = 1U << 9;
 static constexpr u32 kTimeoutCycles = 294912000U;
 
-// Complete cache lines remain owned even after a stalled receive. Never release a target
-// to the heap while the DMA engine might still address it. PSMCT16 plus BGR costs 80 KiB.
-alignas(64) static u16 s_pixels[kWidth * kStripRows];
-alignas(64) static u8 s_bgr[kWidth * kStripRows * 3];
+// Strips live on the heap only while a capture runs (80 KiB). The receive target fills
+// whole cache lines, and a stalled receive is stopped by RecoverPipeline before release.
+struct alignas(64) Strip
+{
+    u16 pixels[kWidth * kStripRows];
+    u8 bgr[kWidth * kStripRows * 3];
+};
+
+static_assert(sizeof(Strip::pixels) % 64 == 0 && sizeof(Strip) % 64 == 0);
+
 alignas(64) static u64 s_request[16];
 alignas(64) static u32 s_restorePath3[16];
 static bool s_active = false;
@@ -108,7 +114,7 @@ PS2_COLD_FUNC void RecoverPipeline(const SavedPipeline & saved)
     EE_SYNCP();
 }
 
-PS2_COLD_FUNC bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
+PS2_COLD_FUNC bool ReadRows(Strip & strip, const gs::FramebufferInfo & frame, int y, int rows)
 {
     PS2_Assert(y >= 0 && rows > 0 && rows <= kStripRows && y + rows <= frame.height);
 
@@ -166,8 +172,8 @@ PS2_COLD_FUNC bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
     *R_EE_VIF1_STAT = kVifDirection;
     *GS_REG_BUSDIR = GS_SET_BUSDIR(1);
     EE_SYNCL();
-    void * const end = static_cast<u8 *>(static_cast<void *>(s_pixels)) + bytes;
-    SyncDCache(s_pixels, end);
+    void * const end = static_cast<u8 *>(static_cast<void *>(strip.pixels)) + bytes;
+    SyncDCache(strip.pixels, end);
     bool injected = false;
 
 #if PS2_D3BFG_TESTS
@@ -175,7 +181,7 @@ PS2_COLD_FUNC bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
     s_injectReadbackTimeout = false;
 #endif // PS2_D3BFG_TESTS
 
-    const bool received = dma_channel_receive_normal(DMA_CHANNEL_VIF1, s_pixels, bytes, 0, 0) == 0 &&
+    const bool received = dma_channel_receive_normal(DMA_CHANNEL_VIF1, strip.pixels, bytes, 0, 0) == 0 &&
                           TryWait([injected] { return !injected && (*R_EE_D1_CHCR & kDmaStart) == 0; }, "receive DMA");
     if (!received)
     {
@@ -183,7 +189,7 @@ PS2_COLD_FUNC bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
         return false;
     }
 
-    InvalidDCache(s_pixels, end);
+    InvalidDCache(strip.pixels, end);
     RestoreDirection(saved);
     *GS_REG_CSR = kFinish;
 
@@ -202,21 +208,21 @@ PS2_COLD_FUNC bool ReadRows(const gs::FramebufferInfo & frame, int y, int rows)
     return true;
 }
 
-PS2_COLD_FUNC void ToBgr(int count)
+PS2_COLD_FUNC void ToBgr(Strip & strip, int count)
 {
     for (int i = 0; i < count; ++i)
     {
-        const u32 r = s_pixels[i] & 31U;
-        const u32 g = (s_pixels[i] >> 5) & 31U;
-        const u32 b = (s_pixels[i] >> 10) & 31U;
+        const u32 r = strip.pixels[i] & 31U;
+        const u32 g = (strip.pixels[i] >> 5) & 31U;
+        const u32 b = (strip.pixels[i] >> 10) & 31U;
         // Repeat the upper bits when expanding RGB5, so the maximum remains 255.
-        s_bgr[i * 3] = static_cast<u8>((b << 3) | (b >> 2));
-        s_bgr[i * 3 + 1] = static_cast<u8>((g << 3) | (g >> 2));
-        s_bgr[i * 3 + 2] = static_cast<u8>((r << 3) | (r >> 2));
+        strip.bgr[i * 3] = static_cast<u8>((b << 3) | (b >> 2));
+        strip.bgr[i * 3 + 1] = static_cast<u8>((g << 3) | (g >> 2));
+        strip.bgr[i * 3 + 2] = static_cast<u8>((r << 3) | (r >> 2));
     }
 }
 
-PS2_COLD_FUNC bool WriteFrame(std::FILE * file, const gs::FramebufferInfo & frame)
+PS2_COLD_FUNC bool WriteFrame(std::FILE * file, Strip & strip, const gs::FramebufferInfo & frame)
 {
     u8 header[18] = {};
     header[2] = 2;
@@ -235,16 +241,16 @@ PS2_COLD_FUNC bool WriteFrame(std::FILE * file, const gs::FramebufferInfo & fram
     for (int y = 0; y < frame.height; y += kStripRows)
     {
         const int rows = frame.height - y < kStripRows ? frame.height - y : kStripRows;
-        if (!ReadRows(frame, y, rows))
+        if (!ReadRows(strip, frame, y, rows))
         {
             return false;
         }
 
         const int count = frame.width * rows;
-        ToBgr(count);
+        ToBgr(strip, count);
 
         const size_t bytes = static_cast<size_t>(count) * 3U;
-        if (std::fwrite(s_bgr, 1, bytes, file) != bytes)
+        if (std::fwrite(strip.bgr, 1, bytes, file) != bytes)
         {
             return false;
         }
@@ -272,20 +278,30 @@ PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
         return false;
     }
 
+    // Allocate before opening, so running out of memory leaves no partial file behind.
+    auto * const strip = static_cast<Strip *>(system::heap::TryAlloc(sizeof(Strip), TAG_RENDER, alignof(Strip)));
+    if (strip == nullptr)
+    {
+        Log(LogLevel::Error, "GS capture could not allocate %u bytes of strip storage", static_cast<u32>(sizeof(Strip)));
+        return false;
+    }
+
     std::FILE * const file = std::fopen(path, "wb");
     if (file == nullptr)
     {
+        system::heap::Free(strip);
         Log(LogLevel::Error, "GS capture could not open %s", path);
         return false;
     }
 
     s_active = true;
-    bool written = WriteFrame(file, frame);
+    bool written = WriteFrame(file, *strip, frame);
     if (std::fclose(file) != 0)
     {
         written = false;
     }
     s_active = false;
+    system::heap::Free(strip);
 
     if (!written)
     {
