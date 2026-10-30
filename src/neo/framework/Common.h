@@ -255,9 +255,9 @@ public:
 	// CVars and commands are checked differently in multiplayer mode.
 #if defined( ID_PS2 )
 	// [PS2_D3BFG]: There is only the local player, so the compiler can fold these.
-	bool						IsMultiplayer() { return false; }
-	bool						IsServer() { return false; }
-	bool						IsClient() { return false; }
+	static constexpr bool		IsMultiplayer() { return false; }
+	static constexpr bool		IsServer() { return false; }
+	static constexpr bool		IsClient() { return false; }
 #else
 	virtual bool				IsMultiplayer() = 0;
 	virtual bool				IsServer() = 0;
