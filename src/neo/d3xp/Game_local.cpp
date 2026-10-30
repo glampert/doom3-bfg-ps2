@@ -2484,7 +2484,9 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 	// [PS2_D3BFG]: Presentation diagnostics require a render world.
 	if ( gameRenderWorld != NULL ) {
 		RunDebugInfo();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug lines exist in debug builds only.
 		D_DrawDebugLines();
+#endif
 	}
 
 	if ( g_recordTrace.GetBool() ) {

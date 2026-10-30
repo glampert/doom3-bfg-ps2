@@ -941,6 +941,7 @@ const char *idWindow::HandleEvent(const sysEvent_t *event, bool *updateVisuals) 
 	return gui->GetReturnCmd();
 }
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: See Window.h; no gui_debug overlay.
 /*
 ================
 idWindow::DebugDraw
@@ -979,6 +980,7 @@ void idWindow::DebugDraw(int time, float x, float y) {
 		dc->EnableClipping(true);
 	}
 }
+#endif
 
 /*
 ================
@@ -1255,9 +1257,11 @@ void idWindow::Redraw(float x, float y, bool hud) {
 		Draw(time, x, y);
 	}
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No gui_debug overlay.
 	if ( gui_debug.GetInteger() ) {
 		DebugDraw(time, x, y);
 	}
+#endif
 
 	int c = drawWindows.Num();
 	for ( int i = 0; i < c; i++ ) {

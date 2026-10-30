@@ -417,7 +417,12 @@ idStr::FloatArrayToString
 */
 const char *idStr::FloatArrayToString( const float *array, const int length, const int precision ) {
 	static int index = 0;
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: 1 KB slots (an idMat6 needs about 400 bytes); snPrintf truncates beyond them.
+	static char str[4][1024];
+#else
 	static char str[4][16384];	// in case called by nested functions
+#endif
 	int i, n;
 	char format[16], *s;
 
@@ -447,17 +452,14 @@ const char *idStr::FloatArrayToString( const float *array, const int length, con
 idStr::CStyleQuote
 ========================
 */
-const char *idStr::CStyleQuote( const char *str ) {
-	static int index = 0;
-	static char buffers[4][16384];	// in case called by nested functions
-	unsigned int i;
-	char *buf;
+// [PS2_D3BFG]: The caller passes the buffer (at least 4 bytes); four 16 KB static buffers served only .ini lines.
+// The bound leaves room for a two-byte escape plus the closing quote and terminator (upstream overran by one).
+const char *idStr::CStyleQuote( const char *str, char *buf, int bufSize ) {
+	int i;
 
-	buf = buffers[index];
-	index = ( index + 1 ) & 3;
-
+	assert( bufSize >= 4 );
 	buf[0] = '\"';
-	for ( i = 1; i < sizeof( buffers[0] ) - 2; i++ ) {
+	for ( i = 1; i < bufSize - 3; i++ ) {
 		int c = *str++;
 		switch( c ) {
 			case '\0': buf[i++] = '\"'; buf[i] = '\0'; return buf;
@@ -485,21 +487,17 @@ const char *idStr::CStyleQuote( const char *str ) {
 idStr::CStyleUnQuote
 ========================
 */
-const char *idStr::CStyleUnQuote( const char *str ) {
+// [PS2_D3BFG]: The caller passes the buffer (at least 2 bytes), as CStyleQuote does.
+const char *idStr::CStyleUnQuote( const char *str, char *buf, int bufSize ) {
 	if ( str[0] != '\"' ) {
 		return str;
 	}
 
-	static int index = 0;
-	static char buffers[4][16384];	// in case called by nested functions
-	unsigned int i;
-	char *buf;
+	int i;
 
-	buf = buffers[index];
-	index = ( index + 1 ) & 3;
-
+	assert( bufSize >= 2 );
 	str++;
-	for ( i = 0; i < sizeof( buffers[0] ) - 1; i++ ) {
+	for ( i = 0; i < bufSize - 1; i++ ) {
 		int c = *str++;
 		if ( c == '\0' ) {
 			break;
@@ -521,6 +519,11 @@ const char *idStr::CStyleUnQuote( const char *str ) {
 		} else {
 			buf[i] = c;
 		}
+	}
+	// [PS2_D3BFG]: A lone opening quote leaves nothing to strip; never write before the buffer.
+	if ( i == 0 ) {
+		buf[0] = '\0';
+		return buf;
 	}
 	assert( buf[i-1] == '\"' );
 	buf[i-1] = '\0';
@@ -1917,14 +1920,30 @@ NOTE: not thread safe
 char *va( const char *fmt, ... ) {
 	va_list argptr;
 	static int index = 0;
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Bounded 1 KB slots; retail boot, maps and UI sessions peaked at 62 bytes.
+	static char string[4][1024];
+#else
 	static char string[4][16384];	// in case called by nested functions
+#endif
 	char *buf;
 
 	buf = string[index];
 	index = (index + 1) & 3;
 
 	va_start( argptr, fmt );
+#if defined( ID_PS2 )
+	const int length = idStr::vsnPrintf( buf, sizeof( string[0] ), fmt, argptr );
+#if PS2_D3BFG_ASSERTS
+	if ( length < 0 ) {
+		idLib::Warning( "va: output truncated to %d bytes, format \"%s\"", (int)sizeof( string[0] ) - 1, fmt );
+	}
+#else
+	(void)length;
+#endif
+#else
 	vsprintf( buf, fmt, argptr );
+#endif
 	va_end( argptr );
 
 	return buf;

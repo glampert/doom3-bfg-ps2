@@ -1082,7 +1082,9 @@ void idGameLocal::ClientRunFrame( idUserCmdMgr & cmdMgr, bool lastPredictFrame, 
 	// show any debug info for this frame
 	if ( isNewFrame ) {
 		RunDebugInfo();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug lines exist in debug builds only.
 		D_DrawDebugLines();
+#endif
 	}
 
 	BuildReturnValue( ret );

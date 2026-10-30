@@ -86,7 +86,12 @@ public:
 	commandDef_t *			GetCommands() const { return commands; }
 
 private:
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: 16 KB; retail configs are under 1.5 KB and UI sessions peaked at 993 bytes.
+	static const int		MAX_CMD_BUFFER = 0x4000;
+#else
 	static const int		MAX_CMD_BUFFER = 0x10000;
+#endif
 
 	commandDef_t *			commands;
 

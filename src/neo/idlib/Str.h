@@ -302,8 +302,9 @@ public:
 	static void			StripMediaName( const char *name, idStr &mediaName );
 	static bool			CheckExtension( const char *name, const char *ext );
 	static const char *	FloatArrayToString( const float *array, const int length, const int precision );
-	static const char *	CStyleQuote( const char *str );
-	static const char *	CStyleUnQuote( const char *str );
+	// [PS2_D3BFG]: The caller supplies the output buffer; the result may be str itself when unquoted.
+	static const char *	CStyleQuote( const char *str, char *buf, int bufSize );
+	static const char *	CStyleUnQuote( const char *str, char *buf, int bufSize );
 
 	// hash keys
 	static int			Hash( const char *string );

@@ -729,7 +729,9 @@ void idDict::WriteToIniFile( idFile * f ) const {
 			prefixIndex[i] = 0;
 
 			// output all the prefix-less first
-			idStr str = va( "%s=%s\n", kv->GetKey().c_str(), idStr::CStyleQuote( kv->GetValue() ) );
+			// [PS2_D3BFG]: A stack buffer for the quoted value; with the key it must fit one va() slot.
+			char quoted[512];
+			idStr str = va( "%s=%s\n", kv->GetKey().c_str(), idStr::CStyleQuote( kv->GetValue(), quoted, sizeof( quoted ) ) );
 			f->Write( (void *)str.c_str(), str.Length() );
 
 			skipFirstLine = "\n";
@@ -755,7 +757,8 @@ void idDict::WriteToIniFile( idFile * f ) const {
 		}
 
 		const idKeyValue * kv = &sortedArgs[i];
-		idStr str = va( "%s=%s\n", kv->GetKey().c_str() + prefixLength, idStr::CStyleQuote( kv->GetValue() ) );
+		char quoted[512];	// [PS2_D3BFG]: As above.
+		idStr str = va( "%s=%s\n", kv->GetKey().c_str() + prefixLength, idStr::CStyleQuote( kv->GetValue(), quoted, sizeof( quoted ) ) );
 		f->Write( (void *)str.c_str(), str.Length() );
 	}
 }
@@ -815,7 +818,8 @@ bool idDict::ReadFromIniFile( idFile * f ) {
 		success = success && parser.ExpectTokenType( TT_PUNCTUATION, P_ASSIGN, &token2 );
 		success = success && ( parser.ParseRestOfLine( valueStr ) != NULL );
 
-		valueStr = idStr::CStyleUnQuote( valueStr );
+		char unquoted[MAX_STRING_CHARS];	// [PS2_D3BFG]: A stack buffer for the unquoted value.
+		valueStr = idStr::CStyleUnQuote( valueStr, unquoted, sizeof( unquoted ) );
 
 		idStr key = va( "%s%s", prefix.c_str(), token.c_str() );
 		if ( FindKey( key.c_str() ) ) {

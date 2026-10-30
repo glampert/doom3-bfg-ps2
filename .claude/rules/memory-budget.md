@@ -44,17 +44,19 @@ have not been re-measured.
   With the kernel's first MiB and 11.17 / 11.60 MB of `PT_LOAD` then, 6.8 MB debug /
   6.4 MB release remained before any map, stacks and load peaks; at today's `PT_LOAD` that is
   about 8.2 / 8.9 MB. Since the script storage moved to the heap (2026-10-30), retail
-  `startup-game` is 13,661,626 / 16,985,396 bytes in 75,723 allocations (debug).
+  `startup-game` is 13,621,818 / 16,932,580 bytes in 75,383 allocations (debug).
 - Boot owners (backing): compressed declaration text 4.76 MB (kept resident by
   `USE_COMPRESSED_DECLS`, 11,947 declarations), script 6.34 MB (3.52 MB of it the fixed
   program storage), declaration objects
   1.78 MB, strings 1.23 MB, container file tables 1.08 MB, smoke particles 0.68 MB,
   event callbacks 0.64 MB.
-- Production `PT_LOAD` (2026-10-30): 6,219,692 debug / 5,599,724 release bytes, from the
-  `--gc-sections` runnable link, `-O2` release, `-Os` engine cold sources and heap script
-  storage (11.45 / 11.91 MB before). `.text` is 4.08 / 3.64 MB and `.bss` 1.74 / 1.60 MB.
-  Retail scripts use 95,386 of 131,072 statements. `report.json` keeps the gate link's
-  `PT_LOAD` too; compare the runnable figure.
+- Production `PT_LOAD` (2026-10-30): 5,429,420 debug / 4,935,532 release bytes, from the
+  `--gc-sections` runnable link, `-O2` release, `-Os` engine cold sources, heap script
+  storage and smaller console/command/scratch buffers (11.45 / 11.91 MB before). `.text`
+  is 4.07 / 3.64 MB and `.bss` 0.97 / 0.96 MB. Retail scripts use 95,386 of 131,072
+  statements. `report.json` keeps the gate link's `PT_LOAD` too; compare the runnable
+  figure. Buffers still waiting on measurements (entity, event, input-device and GUI
+  register capacities) are listed in the reference's "Smaller static buffers" section.
 - Latest UI ledgers (debug, NTSC = PAL; requested / backing / allocations, 2026-10-24):
   menu opened 10,938,718 / 11,646,016 / 15,984; Settings screen 11,266,366 / 12,006,908 /
   16,737; menu peak 11,304,182 / 12,050,964 (arena 12,206,803); menu release 5,212,391 /
@@ -122,5 +124,5 @@ heading:
 | SWF draw features, Glyph rectangles, Native shell menu (+ key input) | 2026-10-23 |
 | Quit dialog, Pad prompt icons, Booting into the menu, Campaign and Settings | 2026-10-24 |
 | Authored UI removal | 2026-10-29 |
-| Executable size, Script program storage on the heap | section GC, `-O2`/`-Os` experiments, remaining levers; script arrays moved to `TAG_SCRIPT` (2026-10-30) |
+| Executable size, Script program storage on the heap, Smaller static buffers | section GC, `-O2`/`-Os` experiments; script arrays moved to `TAG_SCRIPT`; console/command/scratch buffers and the measurement backlog (2026-10-30) |
 | Quake II reference | allocator and accounting notes |

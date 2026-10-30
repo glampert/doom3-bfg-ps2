@@ -258,7 +258,12 @@ doom set test blah + map test
 
 #define		MAX_CONSOLE_LINES	32
 int			com_numConsoleLines;
+#if defined( ID_PS2 )
+// [PS2_D3BFG]: Exactly the lines the arguments form, on the heap until shutdown; none without arguments.
+idCmdArgs *	com_consoleLines = NULL;
+#else
 idCmdArgs	com_consoleLines[MAX_CONSOLE_LINES];
+#endif
 
 /*
 ==================
@@ -270,6 +275,20 @@ void idCommonLocal::ParseCommandLine( int argc, const char * const * argv ) {
 
 	com_numConsoleLines = 0;
 	current_count = 0;
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Count the lines the loop below forms; production passes no arguments.
+	delete[] com_consoleLines;
+	com_consoleLines = NULL;
+	int lineCount = 0;
+	for ( i = 0; i < argc; i++ ) {
+		if ( argv[ i ][ 0 ] == '+' || lineCount == 0 ) {
+			lineCount++;
+		}
+	}
+	if ( lineCount > 0 ) {
+		com_consoleLines = new (TAG_SYSTEM) idCmdArgs[ lineCount ];
+	}
+#endif
 	// API says no program path
 	for ( i = 0; i < argc; i++ ) {
 		if ( idStr::Icmp( argv[ i ], "+connect_lobby" ) == 0 ) {
@@ -1310,6 +1329,12 @@ void idCommonLocal::Shutdown() {
 	// [PS2_D3BFG]: Release game/console ownership while foundation services are still alive.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
 	ShutdownHeadless();
+#endif
+	// [PS2_D3BFG]: StartupVariable may read the startup command lines until now (foundation has none).
+#if defined( ID_PS2 ) && !defined( PS2_D3BFG_FOUNDATION )
+	delete[] com_consoleLines;
+	com_consoleLines = NULL;
+	com_numConsoleLines = 0;
 #endif
 	// [PS2_D3BFG]: Release retained diagnostics before lifecycle shutdown tears down idlib.
 	warningList.Clear();

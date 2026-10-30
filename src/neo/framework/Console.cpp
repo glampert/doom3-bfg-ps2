@@ -32,12 +32,21 @@ If you have questions concerning this license or the applicable additional terms
 #include "../renderer/ResolutionScale.h"
 #include "Common_local.h"
 
+// [PS2_D3BFG]: A debug aid on the PS2: 32K cells (about 420 lines) and 8 edit lines, not 384 KB and 50 KB.
+#if defined( ID_PS2 )
+#define	CON_TEXTSIZE			0x8000
+#else
 #define	CON_TEXTSIZE			0x30000
+#endif
 #define	NUM_CON_TIMES			4
 #define CONSOLE_FIRSTREPEAT		200
 #define CONSOLE_REPEAT			100
 
+#if defined( ID_PS2 )
+#define	COMMAND_HISTORY			8
+#else
 #define	COMMAND_HISTORY			64
+#endif
 
 struct overlayText_t {
 	idStr			text;

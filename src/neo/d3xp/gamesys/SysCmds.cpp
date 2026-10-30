@@ -34,6 +34,8 @@ If you have questions concerning this license or the applicable additional terms
 
 // [PS2_D3BFG]: No command here uses the absent generated TypeInfo.h diagnostics.
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Only the debug-line commands read float arguments.
+
 /*
 ==================
 Cmd_GetFloatArg
@@ -45,6 +47,8 @@ float Cmd_GetFloatArg( const idCmdArgs &args, int &argNum ) {
 	value = args.Argv( argNum++ );
 	return atof( value );
 }
+
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 
 /*
 ===================
@@ -1094,7 +1098,15 @@ void Cmd_TestFx_f( const idCmdArgs &args ) {
 	gameLocal.testFx = ( idEntityFx * )gameLocal.SpawnEntityType( idEntityFx::Type, &dict );
 }
 
-#define MAX_DEBUGLINES	128
+// [PS2_D3BFG]: Debug lines are a development aid: debug builds only, with half the slots;
+// release builds have no storage, commands or per-frame draw (see SysCmds.h).
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+
+#if defined( ID_PS2 )
+	#define MAX_DEBUGLINES	64
+#else
+	#define MAX_DEBUGLINES	128
+#endif
 
 typedef struct {
 	bool used;
@@ -1104,7 +1116,7 @@ typedef struct {
 	bool arrow;
 } gameDebugLine_t;
 
-gameDebugLine_t debugLines[MAX_DEBUGLINES];
+static gameDebugLine_t debugLines[MAX_DEBUGLINES];
 
 /*
 ==================
@@ -1301,6 +1313,8 @@ void D_DrawDebugLines() {
 		}
 	}
 }
+
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 
 /*
 ==================
@@ -2322,11 +2336,15 @@ void idGameLocal::InitConsoleCommands() {
 	cmdSystem->AddCommand( "killMonsters",			Cmd_KillMonsters_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"removes all monsters" );
 	cmdSystem->AddCommand( "killMoveables",			Cmd_KillMovables_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"removes all moveables" );
 	cmdSystem->AddCommand( "killRagdolls",			Cmd_KillRagdolls_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"removes all ragdolls" );
+
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug lines exist in debug builds only.
 	cmdSystem->AddCommand( "addline",				Cmd_AddDebugLine_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"adds a debug line" );
 	cmdSystem->AddCommand( "addarrow",				Cmd_AddDebugLine_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"adds a debug arrow" );
 	cmdSystem->AddCommand( "removeline",			Cmd_RemoveDebugLine_f,		CMD_FL_GAME|CMD_FL_CHEAT,	"removes a debug line" );
 	cmdSystem->AddCommand( "blinkline",				Cmd_BlinkDebugLine_f,		CMD_FL_GAME|CMD_FL_CHEAT,	"blinks a debug line" );
 	cmdSystem->AddCommand( "listLines",				Cmd_ListDebugLines_f,		CMD_FL_GAME|CMD_FL_CHEAT,	"lists all debug lines" );
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+
 	cmdSystem->AddCommand( "playerModel",			Cmd_PlayerModel_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"sets the given model on the player", idCmdSystem::ArgCompletion_Decl<DECL_MODELDEF> );
 	cmdSystem->AddCommand( "testFx",				Cmd_TestFx_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"tests an FX system", idCmdSystem::ArgCompletion_Decl<DECL_FX> );
 	cmdSystem->AddCommand( "testBoneFx",			Cmd_TestBoneFx_f,			CMD_FL_GAME|CMD_FL_CHEAT,	"tests an FX system bound to a joint", idCmdSystem::ArgCompletion_Decl<DECL_FX> );
@@ -2371,6 +2389,8 @@ void idGameLocal::InitConsoleCommands() {
 	cmdSystem->AddCommand( "showViewNotes",			Cmd_ShowViewNotes_f,		CMD_FL_GAME|CMD_FL_CHEAT,	"show any view notes for the current map, successive calls will cycle to the next note" );
 	cmdSystem->AddCommand( "closeViewNotes",		Cmd_CloseViewNotes_f,		CMD_FL_GAME|CMD_FL_CHEAT,	"close the view showing any notes for this map" );
 
+	// [PS2_D3BFG]: No MP on the PS2.
+#if !defined( ID_PS2 )
 	// multiplayer client commands ( replaces old impulses stuff )
 	//cmdSystem->AddCommand( "clientDropWeapon",		idMultiplayerGame::DropWeapon_f, CMD_FL_GAME,			"drop current weapon" );
 	cmdSystem->AddCommand( "clientMessageMode",		idMultiplayerGame::MessageMode_f, CMD_FL_GAME,			"ingame gui message mode" );
@@ -2382,6 +2402,7 @@ void idGameLocal::InitConsoleCommands() {
 
 	// multiplayer server commands
 	cmdSystem->AddCommand( "serverMapRestart",		idGameLocal::MapRestart_f,	CMD_FL_GAME,				"restart the current game" );
+#endif // !defined( ID_PS2 )
 
 	// localization help commands
 	cmdSystem->AddCommand( "nextGUI",				Cmd_NextGUI_f,				CMD_FL_GAME|CMD_FL_CHEAT,	"teleport the player to the next func_static with a gui" );

@@ -232,7 +232,10 @@ public:
 	void SetFont();
 	void SetInitialState(const char *_name);
 	void AddChild(idWindow *win);
+	// [PS2_D3BFG]: The gui_debug overlay and its 16 KB text buffer are not built for the PS2.
+#if !defined( ID_PS2 )
 	void DebugDraw(int time, float x, float y);
+#endif
 	void CalcClientRect(float xofs, float yofs);
 	void CommonInit();
 	void CleanUp();

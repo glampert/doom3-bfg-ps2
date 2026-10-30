@@ -856,3 +856,46 @@ The bounded headless boot (no retail script) also allocates the storage at game 
 4,924,276 / 5,017,712 bytes in 2,288 allocations (debug). Later options: allocate
 `variableDefaults` at its compiled size in `FinishCompilation` (about 90 KB on retail), and
 shrink the capacities once the campaign-wide map-script maximum is measured.
+
+## Smaller static buffers (2026-10-30)
+
+Fixed engine buffers that were sized for desktop debugging, before → after (bytes):
+
+| Symbol | Before | After | Change |
+| --- | ---: | ---: | --- |
+| `localConsole` | 445,372 | 72,892 | `CON_TEXTSIZE` 0x30000 → 0x8000 cells (about 420 lines), 8 edit-history fields instead of 64 (they were only ever initialized; the real history is `idConsoleHistory`) |
+| `com_consoleLines` | 73,856 | 4 | a heap array of exactly the lines the arguments form, released at shutdown; production passes no arguments, so none is allocated |
+| `cmdSystemLocal` | 67,932 | 18,780 | `MAX_CMD_BUFFER` 64 KB → 16 KB; retail configs are at most 1,413 bytes, UI sessions peaked at 993 bytes; overflow drops text with a warning |
+| `va()` slots | 65,536 | 4,096 | 4 × 1 KB, now bounded (`vsnPrintf`; upstream was an unbounded `vsprintf`), debug builds warn on truncation; measured peak 62 bytes |
+| `FloatArrayToString` slots | 65,536 | 4,096 | 4 × 1 KB; `snPrintf` truncates; no call in the measured runs, an `idMat6` needs about 400 bytes |
+| `CStyleQuote`/`CStyleUnQuote` buffers (debug only) | 131,072 | 0 | callers pass a stack buffer (512 / 1,024 bytes in `idDict`'s `.ini` reader and writer); the quote bound now leaves room for a two-byte escape (upstream overran by one) |
+| `idWindow::DebugDraw` buffer | 16,384 | 0 | the `gui_debug` overlay is not built on PS2 |
+| `debugLines` (debug only) | 4,608 | 2,304 | 64 slots, and the storage, five commands, `D_DrawDebugLines` and its per-frame calls exist in debug builds only |
+
+`.bss` is 967,596 debug / 957,932 release bytes (1,735,724 / 1,597,292 before); production
+`PT_LOAD` is **5,429,420 debug / 4,935,532 release** (−790,272 / −664,192). The 56 dropped
+console edit fields also owned small heap strings: startup heap falls by 39,808 bytes and
+340 allocations (retail debug 13,621,818 / 16,932,580 in 75,383 allocations).
+
+The `va()`, `FloatArrayToString` and command-buffer peaks came from a temporary,
+reverted instrumentation run over the retail boot, headless, game and map fixtures and a
+full NTSC UI session. Campaign maps were not part of it; a debug `va` truncation warning
+names the format if a later slice exceeds 1 KB.
+
+### Later work: sizes that need measurements first
+
+| Symbol | Bytes | Sized by | Measure |
+| --- | ---: | --- | --- |
+| `gameLocal.push` | 114,696 | `MAX_GENTITIES` (4096) | peak pushed entities per move on campaign maps |
+| `gameLocal` spawn-spot lists | 196,792 | `MAX_GENTITIES` | spawn spots per map; filled on every map load from deathmatch spawn entities |
+| `gameLocal.entities` / `spawnIds` | 16,384 each | `MAX_GENTITIES` | peak entity count on the largest campaign map |
+| `EventPool` | 147,456 | `MAX_EVENTS` (4096 × 36) | peak queued events in campaign play |
+| `idEventDef::eventDefList` | 16,384 | `MAX_EVENTS` | registered event definitions (fixed per build; filled by static constructors) |
+| `commonLocal.userCmdMgr`, `playerProfiles` | 45,120 + 3,392 | `MAX_INPUT_DEVICES` | the device indexes that reach them in a menu-to-map session |
+| `idWindow::EvalRegs::regs`, `registerIsTemporary` | 16,384 + 4,096 | `MAX_EXPRESSION_REGISTERS` | largest register count over every `.gui` the PS2 loads |
+| SSD arcade pools | about 56,000 | 64 objects each | whether a `gameSSDDef` window is ever parsed in a campaign run (if not, compile it out) |
+| script program storage (heap) | 3,515,712 | `MAX_STATEMENTS` etc. | the campaign-wide maximum including map scripts; `variableDefaults` can also be sized at `FinishCompilation` (about 90 KB) |
+
+Left as is after review: the collision trace scratch (`tw`, 13,092 × 2, used by every
+trace and too large for the stack), the `huffmanCodes` tables (declaration compression),
+returned-pointer statics bounded by `MAX_STRING_CHARS`, and ps2sdk's own buffers.

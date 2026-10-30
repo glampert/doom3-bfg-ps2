@@ -29,6 +29,9 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __SYS_CMDS_H__
 #define __SYS_CMDS_H__
 
+// [PS2_D3BFG]: Debug lines exist in debug builds only.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 void	D_DrawDebugLines();
+#endif
 
 #endif /* !__SYS_CMDS_H__ */

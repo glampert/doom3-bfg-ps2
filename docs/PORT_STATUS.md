@@ -5001,3 +5001,29 @@ and the probe's valid case asserted on the old layout until that object was rebu
 | `make test-game`, `make test-map` (debug) | 11 of 11 and 1 of 1 passed |
 
 `make test-ui` was not rerun.
+
+
+## Smaller static buffers (2026-10-30)
+
+Desktop-sized engine buffers shrank or left release builds: the console scrollback (32K
+cells) and its edit history (8), the startup command lines (a heap array sized to the
+arguments, none in production), the command buffer (16 KB), `va()` (bounded 1 KB slots) and
+`FloatArrayToString` (1 KB slots), `CStyleQuote`/`CStyleUnQuote` (caller stack buffers, with
+upstream's one-byte overrun fixed), the `gui_debug` window overlay (not built) and the debug
+lines (64, debug builds only; release has no storage, commands or per-frame draw). Sizes,
+measurements and the backlog of capacities that need measuring are in
+[the memory reference](reference/memory-budget.md#smaller-static-buffers-2026-10-30). An
+independent review (five adversarial reviewers, one skeptic per finding) cleared each
+change group; its only finding was the `CStyleQuote` overrun.
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release`; `build-core`, `build-game`, `build-script` (both) | Passed; `PT_LOAD` **5,429,420 debug / 4,935,532 release** (−790,272 / −664,192); `.bss` 967,596 / 957,932; no debug-line or `DebugDraw` symbols in release |
+| `make test-headless`, `test-headless-retail` (debug) | Passed; retail startup 13,621,818 / 16,932,580 bytes in 75,383 allocations (`20261030T061255Z_headless_27f4fc1df705`) |
+| `make test-headless`, `test-headless-retail` (release) | Passed; retail startup 13,618,700 / 16,923,784 in 75,242 allocations (`20261030T061418Z_headless_0170e61c0342`) |
+| `make test-core`, `test-common`, `test-script` (debug); `test-script` (release) | Passed; 28 of 28 Common cases, 15 of 15 script cases |
+| `make test-game`, `make test-map` (debug) | 11 of 11 and 1 of 1 passed |
+| `make test-ui` (debug) | NTSC and PAL sessions passed (`20261030T055325Z_session_14cfaf655841`, `20261030T060114Z_session_88b55dc540b0`); 5 of 5 font and 13 of 13 movie failure cases |
+
+`test-core`, `test-common`, `test-script` and `test-ui` ran before the last two edits (debug
+lines out of release, the quote bound); the headless, game and map gates ran after them.
