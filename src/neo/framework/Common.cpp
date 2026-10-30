@@ -573,9 +573,6 @@ Com_Quit_f
 CONSOLE_COMMAND_SHIP( quit, "quits the game", NULL ) {
 	commonLocal.Quit();
 }
-CONSOLE_COMMAND_SHIP( exit, "exits the game", NULL ) {
-	commonLocal.Quit();
-}
 
 /*
 ===============
@@ -1794,7 +1791,7 @@ CONSOLE_COMMAND( writePrecache, "writes precache commands", NULL ) {
 Common_Disconnect_f
 ================
 */
-CONSOLE_COMMAND_SHIP( disconnect, "disconnects from a game", NULL ) {
+CONSOLE_COMMAND( disconnect, "disconnects from a game", NULL ) {
 	session->QuitMatch();
 }
 

@@ -179,7 +179,7 @@ void idConsoleHistory::ClearHistory() {
 history
 ========================
 */
-CONSOLE_COMMAND_SHIP( history, "Displays the console command history", 0 ) {
+CONSOLE_COMMAND( history, "Displays the console command history", 0 ) {
 	consoleHistory.PrintHistory();
 }
 
@@ -188,6 +188,6 @@ CONSOLE_COMMAND_SHIP( history, "Displays the console command history", 0 ) {
 clearHistory
 ========================
 */
-CONSOLE_COMMAND_SHIP( clearHistory, "Clears the console history", 0 ) {
+CONSOLE_COMMAND( clearHistory, "Clears the console history", 0 ) {
 	consoleHistory.ClearHistory();
 }

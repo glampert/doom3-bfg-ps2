@@ -1165,7 +1165,7 @@ Common_DevMap_f
 Restart the server on a different map in developer mode
 ==================
 */
-CONSOLE_COMMAND_SHIP( devmap, "loads a map in developer mode", idCmdSystem::ArgCompletion_MapName ) {
+CONSOLE_COMMAND( devmap, "loads a map in developer mode", idCmdSystem::ArgCompletion_MapName ) {
 	commonLocal.StartNewGame( args.Argv(1), true, GAME_MODE_SINGLEPLAYER );
 }
 
@@ -1176,7 +1176,7 @@ Common_NetMap_f
 Restart the server on a different map in multiplayer mode
 ==================
 */
-CONSOLE_COMMAND_SHIP( netmap, "loads a map in multiplayer mode", idCmdSystem::ArgCompletion_MapName ) {
+CONSOLE_COMMAND( netmap, "loads a map in multiplayer mode", idCmdSystem::ArgCompletion_MapName ) {
 	int gameMode = 0; // Default to deathmatch
 	if ( args.Argc() > 2 ) {
 		gameMode = atoi( args.Argv(2) );
