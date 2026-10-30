@@ -53,7 +53,9 @@ idCommandLink::idCommandLink( const char *cmdName, cmdFunction_t function,
 		CommandLinks( this );
 		cmdName_ = cmdName;
 		function_ = function;
+#if ID_CMD_WITH_DESC	// [PS2_D3BFG]
 		description_ = description;
+#endif
 		argCompletion_ = argCompletion;
 }
 

@@ -29,6 +29,15 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __CMDSYSTEM_H__
 #define __CMDSYSTEM_H__
 
+// [PS2_D3BFG]: Command descriptions are console help text only; the PS2 drops them to save memory.
+#ifndef ID_CMD_WITH_DESC
+	#if defined( ID_PS2 )
+		#define ID_CMD_WITH_DESC 0
+	#else
+		#define ID_CMD_WITH_DESC 1
+	#endif
+#endif
+
 /*
 ===============================================================================
 
@@ -86,7 +95,9 @@ public:
 	idCommandLink *	next;
 	const char *	cmdName_;
 	cmdFunction_t	function_;
+#if ID_CMD_WITH_DESC	// [PS2_D3BFG]
 	const char *	description_;
+#endif
 	argCompletion_t argCompletion_;
 };
 
@@ -133,10 +144,18 @@ created using the CONSOLE_COMMAND_SHIP macro.
 // I can't figure out how to disable this just around CONSOLE_COMMAND, so it must stay disabled everywhere,
 // which is a shame.
 //lint -e1568
+#if ID_CMD_WITH_DESC
 #define CONSOLE_COMMAND_COMPILE( name, comment, completion ) \
 	void name ## _f( const idCmdArgs &args ); \
 	idCommandLink name ## _v( #name, name ## _f, comment, completion  ); \
 	void name ## _f( const idCmdArgs &args )
+#else
+// [PS2_D3BFG]: Drop the comment here, so the out-of-line idCommandLink constructor does not keep it alive.
+#define CONSOLE_COMMAND_COMPILE( name, comment, completion ) \
+	void name ## _f( const idCmdArgs &args ); \
+	idCommandLink name ## _v( #name, name ## _f, NULL, completion  ); \
+	void name ## _f( const idCmdArgs &args )
+#endif
 
 class idCmdSystem {
 public:

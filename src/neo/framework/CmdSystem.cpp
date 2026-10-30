@@ -49,7 +49,9 @@ typedef struct commandDef_s {
 	cmdFunction_t			function;
 	argCompletion_t			argCompletion;
 	int						flags;
+#if ID_CMD_WITH_DESC	// [PS2_D3BFG]
 	char *					description;
+#endif
 } commandDef_t;
 
 /*
@@ -174,7 +176,11 @@ void idCmdSystemLocal::ListByFlags( const idCmdArgs &args, cmdFlags_t flags ) {
 	for ( i = 0; i < cmdList.Num(); i++ ) {
 		cmd = cmdList[i];
 
+#if ID_CMD_WITH_DESC
 		common->Printf( "  %-21s %s\n", cmd->name, cmd->description );
+#else
+		common->Printf( "  %s\n", cmd->name );	// [PS2_D3BFG]: no descriptions
+#endif
 	}
 
 	common->Printf( "%i commands\n", cmdList.Num() );
@@ -350,7 +356,11 @@ void idCmdSystemLocal::Init() {
 
 	// link in all the commands declared with static idCommandLink variables or CONSOLE_COMMAND macros
 	for ( idCommandLink * link = CommandLinks(); link != NULL; link = link->next ) {
+#if ID_CMD_WITH_DESC
 		AddCommand( link->cmdName_, link->function_, CMD_FL_SYSTEM, link->description_, link->argCompletion_ );
+#else
+		AddCommand( link->cmdName_, link->function_, CMD_FL_SYSTEM, NULL, link->argCompletion_ );	// [PS2_D3BFG]
+#endif
 	}
 
 	completionString = "*";
@@ -369,7 +379,9 @@ void idCmdSystemLocal::Shutdown() {
 	for ( cmd = commands; cmd; cmd = commands ) {
 		commands = commands->next;
 		Mem_Free( cmd->name );
+#if ID_CMD_WITH_DESC	// [PS2_D3BFG]
 		Mem_Free( cmd->description );
+#endif
 		delete cmd;
 	}
 
@@ -402,7 +414,9 @@ void idCmdSystemLocal::AddCommand( const char *cmdName, cmdFunction_t function, 
 	cmd->function = function;
 	cmd->argCompletion = argCompletion;
 	cmd->flags = flags;
+#if ID_CMD_WITH_DESC	// [PS2_D3BFG]
 	cmd->description = Mem_CopyString( description );
+#endif
 	cmd->next = commands;
 	commands = cmd;
 }
@@ -419,7 +433,9 @@ void idCmdSystemLocal::RemoveCommand( const char *cmdName ) {
 		if ( idStr::Cmp( cmdName, cmd->name ) == 0 ) {
 			*last = cmd->next;
 			Mem_Free( cmd->name );
+#if ID_CMD_WITH_DESC	// [PS2_D3BFG]
 			Mem_Free( cmd->description );
+#endif
 			delete cmd;
 			return;
 		}
@@ -439,7 +455,9 @@ void idCmdSystemLocal::RemoveFlaggedCommands( int flags ) {
 		if ( cmd->flags & flags ) {
 			*last = cmd->next;
 			Mem_Free( cmd->name );
+#if ID_CMD_WITH_DESC	// [PS2_D3BFG]
 			Mem_Free( cmd->description );
+#endif
 			delete cmd;
 			continue;
 		}
