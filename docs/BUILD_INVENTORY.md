@@ -104,10 +104,9 @@ foundation. Its upstream list contains 52 idlib units: all 55 from `idlib.vcxpro
 also declares ten framework/session support units and their heap/platform support separately.
 `Common.cpp` now provides the real Common constructor and staged Init/Shutdown. Native
 `PlayerProfile.cpp`, `sys_localuser.cpp` and `sys_signin.cpp` supply transient offline
-profiles and lookup helpers. Common embeds snapshot values, so `Snapshot.cpp`,
-`LightweightCompression.cpp` and `Snapshot_Jobs.cpp` retain their constructors and whole-
-object link dependencies. This does not enable networking. These six support units moved
-from PS2 replacement to campaign runtime; no previously selected runtime unit was removed.
+profiles and lookup helpers. Common holds no snapshot values on the PS2, so `Snapshot.cpp`,
+`LightweightCompression.cpp` and `Snapshot_Jobs.cpp` are not built (deferred runtime).
+These support units moved from PS2 replacement to campaign runtime.
 The shared logger links into both the core adapters and the SDK-only probe.
 The game class allocator is linked into the core for focused adapter tests; the
 campaign's `idClass` hierarchy and `idGameLocal` are not yet part of that executable.

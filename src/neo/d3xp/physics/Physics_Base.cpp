@@ -224,6 +224,8 @@ bool idPhysics_Base::Evaluate( int timeStepMSec, int endTimeMSec ) {
 	return false;
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPhysics_Base::Interpolate
@@ -241,6 +243,7 @@ idPhysics_Base::ResetInterpolationState
 void idPhysics_Base::ResetInterpolationState( const idVec3 & origin, const idMat3 & axis ) {
 
 }
+#endif
 
 /*
 ================
@@ -838,6 +841,8 @@ void idPhysics_Base::DrawVelocity( int id, float linearScale, float angularScale
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPhysics_Base::WriteToSnapshot
@@ -853,3 +858,4 @@ idPhysics_Base::ReadFromSnapshot
 */
 void idPhysics_Base::ReadFromSnapshot( const idBitMsg &msg ) {
 }
+#endif

@@ -111,6 +111,8 @@ void idPlayerStart::Restore( idRestoreGame *savefile ) {
 	savefile->ReadInt( teleportStage );
 }
 
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPlayerStart::ClientReceiveEvent
@@ -133,6 +135,7 @@ bool idPlayerStart::ClientReceiveEvent( int event, int time, const idBitMsg &msg
 		}
 	}
 }
+#endif
 
 /*
 ===============
@@ -785,6 +788,8 @@ void idForceField::Toggle() {
 
 
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idForceField::Think
@@ -797,6 +802,7 @@ void idForceField::ClientThink( const int curTime, const float fraction, const b
 
 	Present();
 }
+#endif
 
 /*
 ================
@@ -1625,6 +1631,8 @@ void idStaticEntity::Event_Activate( idEntity *activator ) {
 	BecomeActive( TH_UPDATEVISUALS );
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idStaticEntity::WriteToSnapshot
@@ -1662,6 +1670,7 @@ void idStaticEntity::ReadFromSnapshot( const idBitMsg &msg ) {
 		UpdateVisuals();
 	}
 }
+#endif
 
 
 /*
@@ -1736,6 +1745,8 @@ void idFuncEmitter::Event_Activate( idEntity *activator ) {
 	UpdateVisuals();
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idFuncEmitter::WriteToSnapshot
@@ -1760,6 +1771,7 @@ void idFuncEmitter::ReadFromSnapshot( const idBitMsg &msg ) {
 		UpdateVisuals();
 	}
 }
+#endif
 
 /*
 ===============================================================================
@@ -1890,6 +1902,8 @@ void idFuncShootProjectile::Event_Activate( idEntity *activator ) {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idFuncShootProjectile::WriteToSnapshot
@@ -1914,6 +1928,7 @@ void idFuncShootProjectile::ReadFromSnapshot( const idBitMsg &msg ) {
 	// 		UpdateVisuals();
 	// 	}
 }
+#endif
 
 
 /*
@@ -2496,6 +2511,8 @@ void idBeam::Event_Activate( idEntity *activator ) {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idBeam::WriteToSnapshot
@@ -2526,6 +2543,7 @@ void idBeam::ReadFromSnapshot( const idBitMsg &msg ) {
 		UpdateVisuals();
 	}
 }
+#endif
 
 
 /*

@@ -124,9 +124,6 @@ ENGINE_SIZE_OPT_CXX_SRC = \
 	neo/swf/SWF_ShapeParser.cpp \
 	neo/swf/SWF_Shapes.cpp \
 	neo/swf/SWF_Zlib.cpp \
-	neo/sys/LightweightCompression.cpp \
-	neo/sys/Snapshot.cpp \
-	neo/sys/Snapshot_Jobs.cpp \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp \
 	neo/ui/BindWindow.cpp \
@@ -194,9 +191,6 @@ CORE_FRAMEWORK_CXX_SRC = \
 	neo/framework/File.cpp \
 	neo/framework/Common.cpp \
 	neo/framework/PlayerProfile.cpp \
-	neo/sys/Snapshot.cpp \
-	neo/sys/LightweightCompression.cpp \
-	neo/sys/Snapshot_Jobs.cpp \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp
 CORE_BACKEND_CXX_SRC = \
@@ -297,7 +291,6 @@ CAMPAIGN_CXX_SRC = \
 	neo/d3xp/Moveable.cpp \
 	neo/d3xp/Mover.cpp \
 	neo/d3xp/Player.cpp \
-	neo/d3xp/PlayerIcon.cpp \
 	neo/d3xp/PlayerView.cpp \
 	neo/d3xp/Projectile.cpp \
 	neo/d3xp/Pvs.cpp \
@@ -525,9 +518,6 @@ CAMPAIGN_CXX_SRC = \
 	neo/swf/SWF_Text.cpp \
 	neo/swf/SWF_TextInstance.cpp \
 	neo/swf/SWF_Zlib.cpp \
-	neo/sys/LightweightCompression.cpp \
-	neo/sys/Snapshot.cpp \
-	neo/sys/Snapshot_Jobs.cpp \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp \
 	neo/ui/BindWindow.cpp \

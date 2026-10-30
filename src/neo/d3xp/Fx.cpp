@@ -737,6 +737,8 @@ idEntityFx *idEntityFx::StartFx( const char *fx, const idVec3 *useOrigin, const 
 	return nfx;
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 =================
 idEntityFx::WriteToSnapshot
@@ -778,7 +780,10 @@ void idEntityFx::ReadFromSnapshot( const idBitMsg &msg ) {
 		Start( start_time );
 	}
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 =================
 idEntityFx::ClientThink
@@ -793,7 +798,10 @@ void idEntityFx::ClientThink( const int curTime, const float fraction, const boo
 	InterpolatePhysics( fraction );
 	Present();
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer client prediction does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 =================
 idEntityFx::ClientPredictionThink
@@ -806,6 +814,7 @@ void idEntityFx::ClientPredictionThink() {
 	RunPhysics();
 	Present();
 }
+#endif
 
 /*
 ===============================================================================

@@ -5027,3 +5027,31 @@ change group; its only finding was the `CStyleQuote` overrun.
 
 `test-core`, `test-common`, `test-script` and `test-ui` ran before the last two edits (debug
 lines out of release, the quote bound); the headless, game and map gates ran after them.
+
+
+## Multiplayer code compiled out (2026-10-30)
+
+Multiplayer and network-only code is compiled out of every PS2 build under `!ID_PS2`
+without restructuring the single-player loop: the role queries are constant (no
+multiplayer, no server or client, the local player always local), and the network game
+code, the entity and physics network virtuals, remote-player handling, spectating, player
+icons, multiplayer HUD, CTF classes, projectile prediction, the multiplayer session/lobby
+and Common interface methods, multiplayer cvars and dead menu/dialog cases are gone. The
+snapshot sources and `PlayerIcon.cpp` are no longer built. Each change group was built in
+both configurations before the next; an adversarial review (three lenses, one skeptic per
+finding) confirmed no defects. Release builds also keep the `clearHistory` console
+command again: compiling development commands out of release (e49b7bb) had removed it, and
+the UI session's warm-ledger checks need it. Sizes per step and what stays for saves are in
+[the memory reference](reference/memory-budget.md#multiplayer-code-compiled-out-2026-10-30).
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release`; every test image (both) | Passed; `PT_LOAD` **5,061,100 debug / 4,581,036 release** (−365,632 / −353,472); `.bss` 767,084 / 757,804 |
+| `make test-headless`, `test-headless-retail` (debug) | Passed; retail startup 13,600,574 / 16,900,752 bytes in 75,116 allocations (`20261030T104317Z_headless_29457ecbee3b`) |
+| `make test-headless`, `test-headless-retail` (release) | Passed; retail startup 13,598,998 / 16,895,288 in 75,022 allocations (`20261030T110515Z_headless_cebae2176b36`) |
+| `make test-platform`, `test-core`, `test-renderer`, `test-common`, `test-script` (both) | Passed; 28 of 28 Common probes |
+| `make test-game`, `make test-map` (both) | Passed |
+| `make test-ui` (debug) | NTSC and PAL sessions passed (`20261030T104729Z_session_bcb154f79d51`, `20261030T105522Z_session_aa3641316442`); 5 of 5 font and 13 of 13 movie failure cases |
+| `make test-ui` (release) | NTSC and PAL sessions passed after the `clearHistory` fix (`20261030T111755Z_session_4d2112a02581`, `20261030T112113Z_session_53cd49e1eef8`); 5 of 5 font and 11 of 11 movie failure cases. The first release session failed its warm-ledger checks on `Unknown command 'clearHistory'` (`20261030T111249Z_session_cf29cb10822e`) |
+| `make test-host` | Passed |
+

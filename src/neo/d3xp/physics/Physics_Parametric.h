@@ -107,7 +107,10 @@ public:	// common physics interface
 	const idBounds &		GetAbsBounds( int id = -1 ) const;
 
 	bool					Evaluate( int timeStepMSec, int endTimeMSec );
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	bool					Interpolate( const float fraction );
+#endif
 	void					UpdateTime( int endTimeMSec );
 	int						GetTime() const;
 
@@ -148,8 +151,11 @@ public:	// common physics interface
 	int						GetLinearEndTime() const;
 	int						GetAngularEndTime() const;
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					WriteToSnapshot( idBitMsg &msg ) const;
 	void					ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 private:
 	// parametric physics state

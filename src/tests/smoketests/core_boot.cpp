@@ -71,7 +71,7 @@ bool CheckCVars()
     cvarSystem->SetCVarInteger("ps2_smoke_dynamic", 7);
     cmdSystem->BufferCommandText(CMD_EXEC_NOW, "set ps2_smoke_dynamic 19\n");
     const bool changed = cvarSystem->GetCVarInteger("ps2_smoke_dynamic") == 19;
-    idCVar * registered = cvarSystem->Find("net_allowCheats");
+    idCVar * registered = cvarSystem->Find("com_productionMode");
     const bool staticRegistered = registered != nullptr && registered->GetBool() == false;
     idCVar bounded("ps2_smoke_bounded", "2", CVAR_INTEGER | CVAR_NOCHEAT,
                    "synthetic range fixture", 0.0f, 5.0f);

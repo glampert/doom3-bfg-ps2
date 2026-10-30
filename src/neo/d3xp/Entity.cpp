@@ -1384,6 +1384,8 @@ bool idEntity::PhysicsTeamInPVS( pvsHandle_t pvsHandle ) {
 	return false;
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ==============
 idEntity::BecomeReplicated
@@ -1396,6 +1398,7 @@ void idEntity::BecomeReplicated() {
 		GetPhysics()->ResetInterpolationState( GetPhysics()->GetOrigin(), GetPhysics()->GetAxis() );
 	}
 }
+#endif
 
 /*
 ==============
@@ -2763,6 +2766,8 @@ bool idEntity::RunPhysics() {
 	return true;
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idEntity::InterpolatePhysics
@@ -2923,6 +2928,7 @@ void idEntity::InterpolatePhysicsOnly( const float fraction, bool updateTeam ) {
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -4923,6 +4929,8 @@ void idEntity::Event_GuiNamedEvent(int guiNum, const char *event) {
 	
 ***********************************************************************/
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idEntity::ClientThink
@@ -4932,7 +4940,10 @@ void idEntity::ClientThink( const int curTime, const float fraction, const bool 
 	InterpolatePhysics( fraction );
 	Present();
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer client prediction and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idEntity::ClientPredictionThink
@@ -5114,7 +5125,10 @@ void idEntity::FlagNewSnapshot() {
 	}
 	}
 }
+#endif
 
+// [PS2_D3BFG]: Network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idEntity::ServerSendEvent
@@ -5155,9 +5169,12 @@ void idEntity::ServerSendEvent( int eventId, const idBitMsg *msg, bool saveEvent
 	}
 	lobby.SendReliable( GAME_RELIABLE_MESSAGE_EVENT, outMsg, false, peerMask );
 
+// [PS2_D3BFG]: Network entity events are not saved on the PS2.
+#if !defined( ID_PS2 )
 	if ( saveEvent ) {
 		gameLocal.SaveEntityNetworkEvent( this, eventId, msg );
 	}
+#endif
 }
 
 /*
@@ -5193,6 +5210,10 @@ void idEntity::ClientSendEvent( int eventId, const idBitMsg *msg ) const {
 	session->GetActingGameStateLobbyBase().SendReliableToHost( GAME_RELIABLE_MESSAGE_EVENT, outMsg );
 }
 
+#endif
+
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idEntity::ServerReceiveEvent
@@ -5247,6 +5268,7 @@ bool idEntity::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) {
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -5406,6 +5428,8 @@ void idAnimatedEntity::Restore( idRestoreGame *savefile ) {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer client prediction and client interpolation do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idAnimatedEntity::ClientPredictionThink
@@ -5427,6 +5451,7 @@ void idAnimatedEntity::ClientThink( const int curTime, const float fraction, con
 	UpdateAnimation();
 	Present();
 }
+#endif
 
 /*
 ================
@@ -5726,6 +5751,8 @@ void idAnimatedEntity::UpdateDamageEffects() {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idAnimatedEntity::ClientReceiveEvent
@@ -5757,6 +5784,7 @@ bool idAnimatedEntity::ClientReceiveEvent( int event, int time, const idBitMsg &
 		}
 	}
 }
+#endif
 
 /*
 ================

@@ -995,6 +995,8 @@ bool idPhysics_RigidBody::Evaluate( int timeStepMSec, int endTimeMSec ) {
 	return true;
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPhysics_RigidBody::Interpolate
@@ -1030,6 +1032,7 @@ void idPhysics_RigidBody::ResetInterpolationState( const idVec3 & origin, const 
 	previous = current;
 	next = current;
 }
+#endif
 
 /*
 ================
@@ -1472,6 +1475,8 @@ void idPhysics_RigidBody::SetMaster( idEntity *master, const bool orientated ) {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 const float	RB_VELOCITY_MAX				= 16000;
 const int	RB_VELOCITY_TOTAL_BITS		= 16;
 const int	RB_VELOCITY_EXPONENT_BITS	= idMath::BitsForInteger( idMath::BitsForFloat( RB_VELOCITY_MAX ) ) + 1;
@@ -1537,3 +1542,4 @@ void idPhysics_RigidBody::ReadFromSnapshot( const idBitMsg &msg ) {
 		clipModel->Link( gameLocal.clip, self, clipModel->GetId(), next.i.position, next.i.orientation );
 	}
 }
+#endif

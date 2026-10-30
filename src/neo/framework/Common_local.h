@@ -144,17 +144,22 @@ public:
 	virtual const char *		KeysFromBinding( const char *bind );
 	virtual const char *		BindingFromKey( const char *key );
 
+#if !defined( ID_PS2 ) // [PS2_D3BFG]: Constant in idCommon.
 	virtual bool				IsMultiplayer();
 	virtual bool				IsServer();
 	virtual bool				IsClient();
+#endif
 
 	virtual bool				GetConsoleUsed() { return consoleUsed; }
 
+// [PS2_D3BFG]: Multiplayer entry points do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int					GetSnapRate();
 
 	virtual void				NetReceiveReliable( int peer, int type, idBitMsg & msg );
 	virtual void				NetReceiveSnapshot( class idSnapShot & ss );
 	virtual void				NetReceiveUsercmds( int peer, idBitMsg & msg );
+#endif
 	void						NetReadUsercmds( int clientNum, idBitMsg & msg );
 
 	virtual bool				ProcessEvent( const sysEvent_t *event );
@@ -186,15 +191,21 @@ public:
 	virtual void				OnDeleteCompleted( idSaveLoadParms & parms );
 	virtual void				TriggerScreenWipe( const char * _wipeMaterial, bool hold );
 
+// [PS2_D3BFG]: Multiplayer entry points do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				OnStartHosting( idMatchParameters & parms );
+#endif
 
 	virtual int					GetGameFrame() { return gameFrame; }
 
+// [PS2_D3BFG]: Multiplayer entry points do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				LaunchExternalTitle( int titleIndex,
 													 int device,
 													 const lobbyConnectInfo_t * const connectInfo ); // For handling invitations. NULL if no invitation used.
 
 	virtual void				InitializeMPMapsModes();
+#endif
 	virtual const idStrList &			GetModeList() const { return mpGameModes; }
 	virtual const idStrList &			GetModeDisplayList() const { return mpDisplayGameModes; }
 	virtual const idList<mpMap_t> &		GetMapList() const { return mpGameMaps; }
@@ -322,7 +333,10 @@ private:
 	int					nextUsercmdSendTime;	// Next time to send usercmds
 	int					nextSnapshotSendTime;	// Next time to send a snapshot
 
+// [PS2_D3BFG]: Snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	idSnapShot			lastSnapShot;		// last snapshot we received from the server
+#endif
 	struct reliableMsg_t {
 		int	client;
 		int type;
@@ -333,17 +347,23 @@ private:
 
 
 	// Snapshot interpolation
+// [PS2_D3BFG]: Snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	idSnapShot		oldss;				// last local snapshot
 										// (ie on server this is the last "master" snapshot  we created)
 										// (on clients this is the last received snapshot)
 										// used for comparisons with the new snapshot for com_drawSnapshot
+#endif
 
 	// This is ultimately controlled by net_maxBufferedSnapshots by running double speed, but this is the hard max before seeing visual popping
 	static const int RECEIVE_SNAPSHOT_BUFFER_SIZE = 16;			
 
 	int				readSnapshotIndex;
 	int				writeSnapshotIndex;
+// [PS2_D3BFG]: Snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	idArray<idSnapShot,RECEIVE_SNAPSHOT_BUFFER_SIZE>	receivedSnaps;
+#endif
 
 	float			optimalPCTBuffer;
 	float			optimalTimeBuffered;
@@ -483,7 +503,10 @@ private:
 
 
 	// Snapshot interpolation
+// [PS2_D3BFG]: Snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void	ProcessSnapshot( idSnapShot & ss );
+#endif
 	int		CalcSnapTimeBuffered( int & totalBufferedTime, int & totalRecvTime  );
 	void	ProcessNextSnapshot();
 	void	InterpolateSnapshot( netTimes_t & prev, netTimes_t & next, float fraction, bool predict );

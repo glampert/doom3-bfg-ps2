@@ -1697,6 +1697,8 @@ public:
 };
 
 
+// [PS2_D3BFG]: There is no party or friends invite on the PS2.
+#if !defined( ID_PS2 )
 /*
 ========================
 InvitePartyOrFriends
@@ -1713,5 +1715,6 @@ inline void InvitePartyOrFriends() {
 		session->InviteFriends();
 	}
 }
+#endif
 
 #endif

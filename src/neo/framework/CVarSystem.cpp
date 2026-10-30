@@ -31,7 +31,10 @@ If you have questions concerning this license or the applicable additional terms
 
 idCVar * idCVar::staticVars = NULL;
 
+// [PS2_D3BFG]: Multiplayer cheat gate does not exist on the PS2.
+#if !defined( ID_PS2 )
 extern idCVar net_allowCheats;
+#endif
 
 /*
 ===============================================================================
@@ -315,6 +318,8 @@ idInternalCVar::Set
 ============
 */
 void idInternalCVar::Set( const char *newValue, bool force, bool fromServer ) {
+	// [PS2_D3BFG]: There are no multiplayer restrictions on cvars on the PS2.
+#if !defined( ID_PS2 )
 	if ( common->IsMultiplayer() && !fromServer ) {
 #ifndef ID_TYPEINFO
 		if ( ( flags & CVAR_NETWORKSYNC ) && common->IsClient() ) {
@@ -327,6 +332,7 @@ void idInternalCVar::Set( const char *newValue, bool force, bool fromServer ) {
 			return;
 		}	
 	}
+#endif
 
 	if ( !newValue ) {
 		newValue = resetString.c_str();

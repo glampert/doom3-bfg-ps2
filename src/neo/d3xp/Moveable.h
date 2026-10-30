@@ -53,7 +53,10 @@ public:
 	void					Restore( idRestoreGame *savefile );
 
 	virtual void			Think();
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	virtual void			Hide();
 	virtual void			Show();
 
@@ -61,8 +64,11 @@ public:
 	void					EnableDamage( bool enable, float duration );
 	virtual bool			Collide( const trace_t &collision, const idVec3 &velocity );
 	virtual void			Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 	void					SetAttacker( idEntity *ent );
 	const idEntity *		GetAttacker() { return attacker; }
@@ -122,7 +128,10 @@ public:
 	void					BarrelThink();
 	virtual void			Think();
 	virtual bool			GetPhysicsToVisualTransform( idVec3 &origin, idMat3 &axis );
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	
 private:
 	float					radius;					// radius of barrel
@@ -161,15 +170,21 @@ public:
 	void					StartBurning();
 	void					StopBurning();
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	virtual void			Think();
 	virtual void			Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, 
 								const char *damageDefName, const float damageScale, const int location );
 	virtual void			Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
 	enum {
 		EVENT_EXPLODE = idEntity::EVENT_MAXEVENTS,

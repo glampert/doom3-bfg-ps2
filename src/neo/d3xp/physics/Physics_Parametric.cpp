@@ -656,6 +656,8 @@ bool idPhysics_Parametric::Evaluate( int timeStepMSec, int endTimeMSec ) {
 	return ( current.origin != oldOrigin || current.axis != oldAxis );
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 Sets the currentInterpolated state based on previous, next, and the fraction.
@@ -680,6 +682,7 @@ bool idPhysics_Parametric::Interpolate( const float fraction ) {
 
 	return hasChanged;
 }
+#endif
 
 /*
 ================
@@ -1052,6 +1055,8 @@ int idPhysics_Parametric::GetAngularEndTime() const {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPhysics_Parametric::WriteToSnapshot
@@ -1084,3 +1089,4 @@ void idPhysics_Parametric::ReadFromSnapshot( const idBitMsg &msg ) {
 		previous.axis = next.axis;
 	}
 }
+#endif

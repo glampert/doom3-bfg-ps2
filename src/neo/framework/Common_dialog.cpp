@@ -861,6 +861,8 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_dlg_signin_changed";
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_SERVER_NOT_AVAILABLE: {
 			message.Append( "game_server_unavailable" );
 			break;
@@ -917,6 +919,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_dlg_banned";
 			break;
 		}
+#endif
 		case GDM_SAVING: {
 			title = "#str_save_dialog_heading";
 			message.Append( "saving" );
@@ -975,6 +978,8 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message.Append( "overlay_disabled" );
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_BECAME_HOST_PARTY: {
 			message = "#str_dlg_became_host_party";
 			break;
@@ -1035,6 +1040,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_online_host_migration_relaunching";
 			break;
 		}
+#endif
 		case GDM_DIRECT_MAP_CHANGE: {
 			message = "#str_dlg_direct_map_change";
 			break;
@@ -1043,6 +1049,8 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message.Append( "delete_autosave" );
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_MULTI_RETRY: {
 			message = "#str_online_confirm_retry";
 			break;
@@ -1059,6 +1067,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_online_confirm_coop_quit_game_generic";
 			break;
 		}
+#endif
 		case GDM_LOADING_PROFILE: {
 			message = "#str_dlg_loading_profile";
 			title = "#str_dlg_updating_profile";
@@ -1084,15 +1093,20 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message.Append( "profile_save_error" );
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_LOBBY_FULL: {
 			message.Append( "lobby_full" );
 			break;
 		}
+#endif
 		case GDM_QUIT_GAME: {
 			title = "#str_01975";	// EXIT GAME
 			message = "#str_dlg_confirm_quit";
 			break;
 							}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_CONNECTION_PROBLEMS: {
 			message = "#str_online_connection_problems";
 			break;
@@ -1101,6 +1115,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message.Append( "voice_restricted" );
 			break;
 		}
+#endif
 		case GDM_MUST_SIGNIN: {
 			message.Append( "must_signin" );
 			break;
@@ -1125,14 +1140,19 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message.Append( "dlc_error_content_missing_generic" );
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_CONNECTION_LOST_NO_LEADERBOARD: {
 			message.Append( "online_connection_lost_no_leaderboard" );
 			break;
 		}
+#endif
 		case GDM_SP_SIGNIN_CHANGE_POST: {
 			message.Append( "signin_changed_post" );
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_MIGRATING_FAILED_CONNECTION: {
 			message = "#str_online_host_migration_failed";
 			break;
@@ -1157,6 +1177,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_dlg_failed_join_local_session";
 			break;
 		}
+#endif
 		case GDM_DELETE_CORRUPT_SAVEGAME:
 			message = "#str_dlg_delete_corrupt_savegame";
 			break;
@@ -1169,6 +1190,8 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 		case GDM_BINDINGS_RESTORE:
 			message = "#str_dlg_bind_restore";
 			break;
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_HOST_RETURNED_TO_LOBBY: {
 			message.Append( "host_quit_to_lobby" );
 			break;
@@ -1181,6 +1204,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message.Append( "new_host" );
 			break;
 		}
+#endif
 		case GDM_DISC_SWAP: {
 			message = "#str_dlg_disc_swap";
 			break;
@@ -1209,6 +1233,8 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_dlg_confirm_discard";
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_LEAVE_LOBBY: {
 			message = "#str_online_leave_game_lobby_alt_02";
 			break;
@@ -1217,6 +1243,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_online_party_leave_game";
 			break;
 		}
+#endif
 		case GDM_CONTROLLER_DISCONNECTED_0:
 		case GDM_CONTROLLER_DISCONNECTED_1:
 		case GDM_CONTROLLER_DISCONNECTED_2:
@@ -1231,6 +1258,8 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_dlg_game_install_message";
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_ERROR_JOIN_TWO_PROFILES_ONE_BOX: {
 			message.Append( "online_join_error_two_profiles_one_box" );
 			break;
@@ -1243,10 +1272,13 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_online_confirm_coop_quit_game";
 			break;
 		}
+#endif
 		case GDM_CORRUPT_CONTINUE: {
 			message = "#str_corrupt_save_load";
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_MULTI_VDM_QUIT_LOSE_LEADERBOARDS: {
 			message = "#str_online_confirm_quit_game";
 			break;
@@ -1255,6 +1287,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_online_cr_custom_game_no_stats";
 			break;
 		}
+#endif
 		case GDM_NO_GUEST_SUPPORT: {
 			message = "#str_dlg_ps3_incorrect_online_permissions";
 			break;
@@ -1267,6 +1300,8 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message.Append( "error_loading_profile" );
 			break;
 		}
+// [PS2_D3BFG]: Multiplayer dialogs are never shown on the PS2.
+#if !defined( ID_PS2 )
 		case GDM_CANNOT_INVITE_LOBBY_FULL: {
 			message = "#str_online_join_error_full";
 			break;
@@ -1279,6 +1314,7 @@ idStr idCommonDialog::GetDialogMsg( gameDialogMessages_t msg, idStr & message, i
 			message = "#str_online_connection_error_03";
 			break;
 		}
+#endif
 		case GDM_INCOMPATIBLE_NEWER_SAVE: {
 			message = "#str_dlg_newer_incompatible_savegame";
 			break;

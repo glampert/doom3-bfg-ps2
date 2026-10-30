@@ -293,11 +293,6 @@ public:
         return m_active ? 1 : 0;
     }
 
-    int GetNumActiveLobbyUsers() const override
-    {
-        return GetNumLobbyUsers();
-    }
-
     bool IsLobbyUserConnected(int index) const override
     {
         return m_active && index == 0;
@@ -306,11 +301,6 @@ public:
     lobbyUserID_t GetLobbyUserIdByOrdinal(int index) const override
     {
         return index == 0 ? UserId() : lobbyUserID_t();
-    }
-
-    int GetLobbyUserIndexFromLobbyUserID(lobbyUserID_t id) const override
-    {
-        return Valid(id) ? 0 : -1;
     }
 
     const char * GetLobbyUserName(lobbyUserID_t id) const override
@@ -328,17 +318,6 @@ public:
         return Valid(id) && m_loaded;
     }
 
-    bool LobbyUserHasFirstFullSnap(lobbyUserID_t id) const override
-    {
-        return Valid(id) && m_loaded;
-    }
-
-    int GetLobbyUserSkinIndex(lobbyUserID_t id) const override
-    {
-        Require(Valid(id), "skin query");
-        return 0;
-    }
-
     bool GetLobbyUserWeaponAutoReload(lobbyUserID_t id) const override
     {
         Require(Valid(id), "auto reload query");
@@ -349,35 +328,6 @@ public:
     {
         Require(Valid(id), "auto switch query");
         return true;
-    }
-
-    int GetLobbyUserLevel(lobbyUserID_t id) const override
-    {
-        Require(Valid(id), "level query");
-        return 0;
-    }
-
-    int GetLobbyUserQoS(lobbyUserID_t id) const override
-    {
-        Require(Valid(id), "QoS query");
-        return QOS_RESULT_GREAT;
-    }
-
-    int GetLobbyUserTeam(lobbyUserID_t id) const override
-    {
-        Require(Valid(id), "team query");
-        return 0;
-    }
-
-    bool SetLobbyUserTeam(lobbyUserID_t id, int team) override
-    {
-        return Valid(id) && team == 0;
-    }
-
-    int GetLobbyUserPartyToken(lobbyUserID_t id) const override
-    {
-        Require(Valid(id), "party token query");
-        return 0;
     }
 
     idLocalUser * GetLocalUserFromLobbyUser(lobbyUserID_t id) override
@@ -391,29 +341,9 @@ public:
         return user == nullptr ? nullptr : user->GetProfile();
     }
 
-    int GetNumLobbyUsersOnTeam(int team) const override
-    {
-        return team == 0 ? GetNumLobbyUsers() : 0;
-    }
-
     int PeerIndexFromLobbyUser(lobbyUserID_t) const override
     {
         return -1;
-    }
-
-    int PeerIndexForHost() const override
-    {
-        return -1;
-    }
-
-    bool GetLobbyUserIsBot(lobbyUserID_t) const override
-    {
-        return false;
-    }
-
-    const char * GetHostUserName() const override
-    {
-        return m_active ? "Local player" : "";
     }
 
     const idMatchParameters & GetMatchParms() const override
@@ -421,65 +351,11 @@ public:
         return m_parms;
     }
 
-    bool IsLobbyFull() const override
-    {
-        return m_active;
-    }
-
-    bool EnsureAllPeersHaveBaseState() override
-    {
-        return true;
-    }
-
-    bool AllPeersInGame() const override
-    {
-        return true;
-    }
-
     int GetNumConnectedPeers() const override
     {
         return 0;
     }
 
-    int GetNumConnectedPeersInGame() const override
-    {
-        return 0;
-    }
-
-    int PeerIndexOnHost() const override
-    {
-        return -1;
-    }
-
-    bool IsPeerDisconnected(int) const override
-    {
-        return true;
-    }
-
-    bool AllPeersHaveStaleSnapObj(int) override
-    {
-        return true;
-    }
-
-    bool AllPeersHaveExpectedSnapObj(int) override
-    {
-        return true;
-    }
-
-    OFFLINE_UNSUPPORTED(void, SendReliable, (int, idBitMsg &, bool, peerMask_t))
-    OFFLINE_UNSUPPORTED(void, SendReliableToLobbyUser, (lobbyUserID_t, int, idBitMsg &))
-    OFFLINE_UNSUPPORTED(void, SendReliableToHost, (int, idBitMsg &))
-    OFFLINE_UNSUPPORTED(void, KickLobbyUser, (lobbyUserID_t))
-    OFFLINE_UNSUPPORTED(void, EnableSnapshotsForLobbyUser, (lobbyUserID_t))
-    OFFLINE_UNSUPPORTED(int, GetPeerTimeSinceLastPacket, (int) const)
-    OFFLINE_UNSUPPORTED(lobbyUserID_t, AllocLobbyUserSlotForBot, (const char *))
-    OFFLINE_UNSUPPORTED(void, RemoveBotFromLobbyUserList, (lobbyUserID_t))
-    OFFLINE_UNSUPPORTED(void, RefreshSnapObj, (int))
-    OFFLINE_UNSUPPORTED(void, MarkSnapObjDeleted, (int))
-    OFFLINE_UNSUPPORTED(void, AddSnapObjTemplate, (int, idBitMsg &))
-    OFFLINE_UNSUPPORTED(void, DrawDebugNetworkHUD, () const)
-    OFFLINE_UNSUPPORTED(void, DrawDebugNetworkHUD2, () const)
-    OFFLINE_UNSUPPORTED(void, DrawDebugNetworkHUD_ServerSnapshotMetrics, (bool))
 
 private:
     byte m_type;
@@ -563,13 +439,6 @@ public:
         m_game.Open(parms);
     }
 
-    void UpdatePartyParms(const idMatchParameters & parms) override
-    {
-        Validate(parms);
-        Require(m_state == PARTY_LOBBY, "update party state");
-        m_party.Open(parms);
-    }
-
     void StartMatch() override
     {
         Require(m_state == GAME_LOBBY && m_loadingId != INT_MAX, "start match state/loading ID");
@@ -628,46 +497,9 @@ public:
         return m_state == PRESS_START ? PRESS_START : IDLE;
     }
 
-    bool IsCurrentLobbyMigrating() const override
-    {
-        return false;
-    }
-
-    bool IsLosingConnectionToHost() const override
-    {
-        return false;
-    }
-
-    bool WasMigrationGame() const override
-    {
-        return false;
-    }
-
-    bool ShouldRelaunchMigrationGame() const override
-    {
-        return false;
-    }
-
-    bool WasGameLobbyCoalesced() const override
-    {
-        return false;
-    }
-
-    bool GetMatchParamUpdate(int & peer, int & message) override
-    {
-        peer = -1;
-        message = -1;
-        return false;
-    }
-
     void Pump() override
     {
         Require(m_initialized, "pump before session initialization");
-    }
-
-    bool IsPlatformPartyInLobby() override
-    {
-        return false;
     }
 
     idLobbyBase & GetPartyLobbyBase() override
@@ -690,12 +522,6 @@ public:
         return m_state == PARTY_LOBBY ? m_party : m_game;
     }
 
-    idLobbyBase & GetLobbyFromLobbyUserID(lobbyUserID_t id) override
-    {
-        Require(id.GetLobbyType() <= 1, "lobby type query");
-        return id.GetLobbyType() == 0 ? m_party : m_game;
-    }
-
     idPlayerProfile * GetProfileFromMasterLocalUser() override
     {
         idLocalUser * user = m_signIn.GetMasterLocalUser();
@@ -705,21 +531,6 @@ public:
     bool ProcessInputEvent(const sysEvent_t *) override
     {
         return false;
-    }
-
-    float GetUpstreamDropRate() override
-    {
-        return 0.0f;
-    }
-
-    float GetUpstreamQueueRate() override
-    {
-        return 0.0f;
-    }
-
-    int GetQueuedBytes() override
-    {
-        return 0;
     }
 
     int GetLoadingID() override
@@ -763,21 +574,6 @@ public:
         }
     }
 
-    int NumServers() const override
-    {
-        return 0;
-    }
-
-    const serverInfo_t * ServerInfo(int) const override
-    {
-        return nullptr;
-    }
-
-    const idList<idStr> * ServerPlayerList(int) override
-    {
-        return nullptr;
-    }
-
     void EnumerateDownloadableContent() override
     {
         Unsupported("downloadable content enumeration");
@@ -791,11 +587,6 @@ public:
     int GetContentPackageIndexForID(int) const override
     {
         return -1;
-    }
-
-    bool GetSystemMarketplaceHasNewContent() const override
-    {
-        return false;
     }
 
     float GetTitleStorageFloat(const char *, float fallback) const override
@@ -864,11 +655,6 @@ public:
         return false;
     }
 
-    void UpdateRichPresence() override
-    {
-        // No platform presence exists for offline users.
-    }
-
     int GetInputRouting(int routing[MAX_INPUT_DEVICES]) override
     {
         for (int index = 0; index < MAX_INPUT_DEVICES; ++index)
@@ -912,34 +698,6 @@ public:
         return VOICECHAT_DISPLAY_NONE;
     }
 
-    float GetIncomingByteRate() override
-    {
-        return 0.0f;
-    }
-
-    void ClearBootableInvite() override
-    {
-    }
-
-    void ClearPendingInvite() override
-    {
-    }
-
-    bool HasPendingBootableInvite() override
-    {
-        return false;
-    }
-
-    void * GetDiscSwapMPInviteParms() override
-    {
-        return nullptr;
-    }
-
-    bool IsDiscSwapMPInviteRequested() const override
-    {
-        return false;
-    }
-
     void OnLocalUserSignin(idLocalUser * user) override
     {
         m_achievements.RegisterLocalUser(user);
@@ -966,33 +724,8 @@ public:
     {
     }
 
-    OFFLINE_UNSUPPORTED(void, FindOrCreateMatch, (const idMatchParameters &))
-    OFFLINE_UNSUPPORTED(void, CreateGameStateLobby, (const idMatchParameters &))
-    OFFLINE_UNSUPPORTED(void, MatchFinished, ())
-    OFFLINE_UNSUPPORTED(void, SetSessionOption, (sessionOption_t))
-    OFFLINE_UNSUPPORTED(void, ClearSessionOption, (sessionOption_t))
-    OFFLINE_UNSUPPORTED(bool, GetMigrationGameData, (idBitMsg &, bool))
-    OFFLINE_UNSUPPORTED(bool, GetMigrationGameDataUser, (lobbyUserID_t, idBitMsg &, bool))
-    OFFLINE_UNSUPPORTED(void, ProcessSnapAckQueue, ())
-    OFFLINE_UNSUPPORTED(void, InviteFriends, ())
-    OFFLINE_UNSUPPORTED(void, InviteParty, ())
-    OFFLINE_UNSUPPORTED(void, ShowPartySessions, ())
-    OFFLINE_UNSUPPORTED(void, ListServers, (const idCallback &))
-    OFFLINE_UNSUPPORTED(void, CancelListServers, ())
-    OFFLINE_UNSUPPORTED(void, ConnectToServer, (int))
-    OFFLINE_UNSUPPORTED(void, ShowServerGamerCardUI, (int))
-    OFFLINE_UNSUPPORTED(void, ShowOnlineSignin, ())
-    OFFLINE_UNSUPPORTED(void, DropClient, (int, int))
-    OFFLINE_UNSUPPORTED(void, JoinAfterSwap, (void *))
     OFFLINE_UNSUPPORTED(int, GetContentPackageID, (int) const)
     OFFLINE_UNSUPPORTED(const char *, GetContentPackagePath, (int) const)
-    OFFLINE_UNSUPPORTED(void, ShowSystemMarketplaceUI, () const)
-    OFFLINE_UNSUPPORTED(void, SetSystemMarketplaceHasNewContent, (bool))
-    OFFLINE_UNSUPPORTED(void, LeaderboardUpload, (lobbyUserID_t, const leaderboardDefinition_t *, const column_t *, const idFile_Memory *))
-    OFFLINE_UNSUPPORTED(void, LeaderboardDownload, (int, const leaderboardDefinition_t *, int, int, const idLeaderboardCallback &))
-    OFFLINE_UNSUPPORTED(void, LeaderboardDownloadAttachment, (int, const leaderboardDefinition_t *, int64))
-    OFFLINE_UNSUPPORTED(void, LeaderboardFlush, ())
-    OFFLINE_UNSUPPORTED(void, SetLobbyUserRelativeScore, (lobbyUserID_t, int, int))
     OFFLINE_UNSUPPORTED(saveGameHandle_t, SaveGameSync, (const char *, const saveFileEntryList_t &, const idSaveGameDetails &))
     OFFLINE_UNSUPPORTED(saveGameHandle_t, SaveGameAsync, (const char *, const saveFileEntryList_t &, const idSaveGameDetails &))
     OFFLINE_UNSUPPORTED(saveGameHandle_t, LoadGameSync, (const char *, saveFileEntryList_t &))
@@ -1002,19 +735,6 @@ public:
     OFFLINE_UNSUPPORTED(saveGameHandle_t, DeleteSaveGameAsync, (const char *))
     OFFLINE_UNSUPPORTED(void, CancelSaveGameWithHandle, (const saveGameHandle_t &))
     OFFLINE_UNSUPPORTED(bool, LoadGameCheckDiscNumber, (idSaveLoadParms &))
-    OFFLINE_UNSUPPORTED(void, ShowLobbyUserGamerCardUI, (lobbyUserID_t))
-    OFFLINE_UNSUPPORTED(void, SendUsercmds, (idBitMsg &))
-    OFFLINE_UNSUPPORTED(void, SendSnapshot, (class idSnapShot &))
-    OFFLINE_UNSUPPORTED(void, ToggleLobbyUserVoiceMute, (lobbyUserID_t))
-    OFFLINE_UNSUPPORTED(void, SetActiveChatGroup, (int))
-    OFFLINE_UNSUPPORTED(void, CheckVoicePrivileges, ())
-    OFFLINE_UNSUPPORTED(void, SetVoiceGroupsToTeams, ())
-    OFFLINE_UNSUPPORTED(void, ClearVoiceGroups, ())
-    OFFLINE_UNSUPPORTED(bool, StartOrContinueBandwidthChallenge, (bool))
-    OFFLINE_UNSUPPORTED(void, DebugSetPeerSnaprate, (int, int))
-    OFFLINE_UNSUPPORTED(void, HandleBootableInvite, (int64))
-    OFFLINE_UNSUPPORTED(void, HandleExitspawnInvite, (const lobbyConnectInfo_t &))
-    OFFLINE_UNSUPPORTED(void, SetDiscSwapMPInvite, (void *))
 
 private:
     PS2_COLD_FUNC void Validate(const idMatchParameters & parms) const

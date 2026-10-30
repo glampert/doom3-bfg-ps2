@@ -252,7 +252,10 @@ public:
 	void					BecomeActive( int flags );
 	void					BecomeInactive( int flags );
 	void					UpdatePVSAreas( const idVec3 &pos );
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					BecomeReplicated();
+#endif
 
 	// visuals
 	virtual void			Present();
@@ -333,10 +336,13 @@ public:
 	void					RestorePhysics( idPhysics *phys );
 							// run the physics for this entity
 	bool					RunPhysics();
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 							// Interpolates the physics, used on MP clients.
 	void					InterpolatePhysics( const float fraction );
 							// InterpolatePhysics actually calls evaluate, this version doesn't.
 	void					InterpolatePhysicsOnly( const float fraction, bool updateTeam = false );
+#endif
 							// set the origin of the physics object (relative to bindMaster if not NULL)
 	void					SetOrigin( const idVec3 &org );
 							// set the axis of the physics object (relative to bindMaster if not NULL)
@@ -415,26 +421,40 @@ public:
 		EVENT_MAXEVENTS
 	};
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	// Called on clients in an MP game, does the actual interpolation for the entity.
 	// This function will eventually replace ClientPredictionThink completely.
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 
+// [PS2_D3BFG]: Multiplayer client prediction, snapshots and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientPredictionThink();
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	void					ReadFromSnapshot_Ex( const idBitMsg &msg );
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
 	virtual bool			ServerReceiveEvent( int event, int time, const idBitMsg &msg );
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					WriteBindToSnapshot( idBitMsg &msg ) const;
 	void					ReadBindFromSnapshot( const idBitMsg &msg );
 	void					WriteColorToSnapshot( idBitMsg &msg ) const;
 	void					ReadColorFromSnapshot( const idBitMsg &msg );
 	void					WriteGUIToSnapshot( idBitMsg &msg ) const;
 	void					ReadGUIFromSnapshot( const idBitMsg &msg );
+#endif
 
+// [PS2_D3BFG]: Network events do not exist on the PS2; the callers are dead code.
+#if defined( ID_PS2 )
+	void					ServerSendEvent( int, const idBitMsg *, bool, lobbyUserID_t = lobbyUserID_t() ) const {}
+#else
 	void					ServerSendEvent( int eventId, const idBitMsg *msg, bool saveEvent, lobbyUserID_t excluding = lobbyUserID_t() ) const;
 	void					ClientSendEvent( int eventId, const idBitMsg *msg ) const;
+#endif
 
 	void					SetUseClientInterpolation( bool use ) { useClientInterpolation = use; }
 
@@ -447,7 +467,10 @@ public:
 	uint32					GetPredictedKey() { return predictionKey; }
 	void					SetPredictedKey( uint32 key_ ) { predictionKey = key_; }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					FlagNewSnapshot();
+#endif
 
 	idEntity*				GetTeamChain() { return teamChain; }
 
@@ -614,8 +637,11 @@ public:
 	void					Save( idSaveGame *savefile ) const;
 	void					Restore( idRestoreGame *savefile );
 
+// [PS2_D3BFG]: Multiplayer client prediction and client interpolation do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientPredictionThink();
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	virtual void			Think();
 
 	void					UpdateAnimation();
@@ -631,7 +657,10 @@ public:
 	void					AddLocalDamageEffect( jointHandle_t jointNum, const idVec3 &localPoint, const idVec3 &localNormal, const idVec3 &localDir, const idDeclEntityDef *def, const idMaterial *collisionMaterial );
 	void					UpdateDamageEffects();
 
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
 	enum {
 		EVENT_ADD_DAMAGE_EFFECT = idEntity::EVENT_MAXEVENTS,

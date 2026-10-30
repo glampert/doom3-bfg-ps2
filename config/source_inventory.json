@@ -43,7 +43,6 @@
         "neo/d3xp/Moveable.cpp",
         "neo/d3xp/Mover.cpp",
         "neo/d3xp/Player.cpp",
-        "neo/d3xp/PlayerIcon.cpp",
         "neo/d3xp/PlayerView.cpp",
         "neo/d3xp/Projectile.cpp",
         "neo/d3xp/Pvs.cpp",
@@ -272,9 +271,6 @@
         "neo/swf/SWF_Text.cpp",
         "neo/swf/SWF_TextInstance.cpp",
         "neo/swf/SWF_Zlib.cpp",
-        "neo/sys/LightweightCompression.cpp",
-        "neo/sys/Snapshot.cpp",
-        "neo/sys/Snapshot_Jobs.cpp",
         "neo/sys/sys_localuser.cpp",
         "neo/sys/sys_signin.cpp",
         "neo/ui/BindWindow.cpp",
@@ -310,6 +306,7 @@
       "sources": [
         "neo/d3xp/Leaderboards.cpp",
         "neo/d3xp/MultiplayerGame.cpp",
+        "neo/d3xp/PlayerIcon.cpp",
         "neo/d3xp/menus/MenuHandler_Scoreboard.cpp",
         "neo/d3xp/menus/MenuScreen_Scoreboard.cpp",
         "neo/d3xp/menus/MenuScreen_Shell_Bindings.cpp",
@@ -334,7 +331,10 @@
         "neo/d3xp/menus/MenuScreen_Shell_Stereoscopics.cpp",
         "neo/d3xp/menus/MenuScreen_Shell_SystemOptions.cpp",
         "neo/framework/Common_demos.cpp",
-        "neo/renderer/RenderWorld_demo.cpp"
+        "neo/renderer/RenderWorld_demo.cpp",
+        "neo/sys/LightweightCompression.cpp",
+        "neo/sys/Snapshot.cpp",
+        "neo/sys/Snapshot_Jobs.cpp"
       ]
     },
     "host_conversion": {

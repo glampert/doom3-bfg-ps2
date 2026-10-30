@@ -253,19 +253,29 @@ public:
 
 	// Returns true if a multiplayer game is running.
 	// CVars and commands are checked differently in multiplayer mode.
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: There is only the local player, so the compiler can fold these.
+	bool						IsMultiplayer() { return false; }
+	bool						IsServer() { return false; }
+	bool						IsClient() { return false; }
+#else
 	virtual bool				IsMultiplayer() = 0;
 	virtual bool				IsServer() = 0;
 	virtual bool				IsClient() = 0;
+#endif
 
 	// Returns true if the player has ever enabled the console
 	virtual bool				GetConsoleUsed() = 0;
 
+// [PS2_D3BFG]: Multiplayer entry points do not exist on the PS2.
+#if !defined( ID_PS2 )
 	// Returns the rate (in ms between snaps) that we want to generate snapshots
 	virtual int					GetSnapRate() = 0;
 
 	virtual void				NetReceiveReliable( int peer, int type, idBitMsg & msg ) = 0;
 	virtual void				NetReceiveSnapshot( class idSnapShot & ss ) = 0;
 	virtual void				NetReceiveUsercmds( int peer, idBitMsg & msg ) = 0;
+#endif
 
 	// Processes the given event.
 	virtual	bool				ProcessEvent( const sysEvent_t * event ) = 0;
@@ -290,13 +300,19 @@ public:
 	virtual void				OnDeleteCompleted( idSaveLoadParms & parms ) = 0;
 	virtual void				TriggerScreenWipe( const char * _wipeMaterial, bool hold ) = 0;
 
+// [PS2_D3BFG]: Multiplayer entry points do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				OnStartHosting( idMatchParameters & parms ) = 0;
+#endif
 
 	virtual int					GetGameFrame() = 0;
 
+// [PS2_D3BFG]: Multiplayer entry points do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				LaunchExternalTitle( int titleIndex, int device, const lobbyConnectInfo_t * const connectInfo ) = 0;
 
 	virtual void				InitializeMPMapsModes() = 0;
+#endif
 	virtual const idStrList &			GetModeList() const = 0;
 	virtual const idStrList &			GetModeDisplayList() const = 0;
 	virtual const idList<mpMap_t> &		GetMapList() const = 0;

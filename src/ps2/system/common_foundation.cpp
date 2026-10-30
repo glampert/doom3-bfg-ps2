@@ -238,6 +238,5 @@ CORE_UNSUPPORTED(void, OnLoadFilesCompleted, (idSaveLoadParms &))
 CORE_UNSUPPORTED(void, OnEnumerationCompleted, (idSaveLoadParms &))
 CORE_UNSUPPORTED(void, OnDeleteCompleted, (idSaveLoadParms &))
 CORE_UNSUPPORTED(void, TriggerScreenWipe, (const char *, bool))
-CORE_UNSUPPORTED(void, LaunchExternalTitle, (int, int, const lobbyConnectInfo_t * const))
 
 #undef CORE_UNSUPPORTED

@@ -213,6 +213,8 @@ void idAchievementManager::EventCompletesAchievement( const achievement_t eventI
 	idLocalUser * localUser = GetLocalUser();
 	if ( localUser == NULL || localUser->GetProfile() == NULL ) {
 
+		// [PS2_D3BFG]: There are no remote users to message on the PS2.
+#if !defined( ID_PS2 )
 		// Send a Reliable Message to the User that needs to unlock this. 
 		if ( owner != NULL ) {
 			int playerId = owner->entityNumber;
@@ -229,6 +231,7 @@ void idAchievementManager::EventCompletesAchievement( const achievement_t eventI
 			session->GetActingGameStateLobbyBase().SendReliableToLobbyUser( gameLocal.lobbyUserIDs[ owner->entityNumber ], GAME_RELIABLE_MESSAGE_ACHIEVEMENT_UNLOCK, msg );
 		}
 
+#endif
 		return; // Remote user or build game
 	}
 

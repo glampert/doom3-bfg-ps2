@@ -527,6 +527,8 @@ void idMover::FindGuiTargets() {
    	gameLocal.GetTargets( spawnArgs, guiTargets, "guiTarget" );
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ==============================
 idMover::ClientThink
@@ -551,6 +553,7 @@ void idMover::ClientThink( const int curTime, const float fraction, const bool p
 
 	Present();
 }
+#endif
 
 /*
 ==============================
@@ -1512,6 +1515,8 @@ void idMover::Event_IsRotating() {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idMover::WriteToSnapshot
@@ -1550,6 +1555,7 @@ void idMover::ReadFromSnapshot( const idBitMsg &msg ) {
 		UpdateVisuals();
 	}
 }
+#endif
 
 /*
 ================
@@ -3077,6 +3083,8 @@ idEntity *idMover_Binary::GetActivator() const {
 	return activatedBy.GetEntity();
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idMover_Binary::WriteToSnapshot
@@ -3108,6 +3116,7 @@ void idMover_Binary::ReadFromSnapshot( const idBitMsg &msg ) {
 		UpdateVisuals();
 	}
 }
+#endif
 
 /*
 ================
@@ -3383,6 +3392,8 @@ void idDoor::Spawn() {
 	blocked = false;
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idDoor::Think
@@ -3406,6 +3417,7 @@ void idDoor::ClientThink( const int curTime, const float fraction, const bool pr
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -4282,6 +4294,8 @@ void idPlat::RunPhysics_NoBlocking() {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPlat::ClientThink
@@ -4315,6 +4329,7 @@ void idPlat::ClientThink( const int curTime, const float fraction, const bool pr
 	}
 	*/
 }
+#endif
 
 /*
 ================
@@ -4543,6 +4558,8 @@ void idMover_Periodic::Event_PartBlocked( idEntity *blockingEntity ) {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idMover_Periodic::WriteToSnapshot
@@ -4566,6 +4583,7 @@ void idMover_Periodic::ReadFromSnapshot( const idBitMsg &msg ) {
 		UpdateVisuals();
 	}
 }
+#endif
 
 
 /*

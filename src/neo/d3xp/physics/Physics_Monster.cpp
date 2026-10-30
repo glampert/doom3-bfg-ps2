@@ -757,6 +757,8 @@ void idPhysics_Monster::SetMaster( idEntity *master, const bool orientated ) {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 const float	MONSTER_VELOCITY_MAX			= 4000;
 const int	MONSTER_VELOCITY_TOTAL_BITS		= 16;
 const int	MONSTER_VELOCITY_EXPONENT_BITS	= idMath::BitsForInteger( idMath::BitsForFloat( MONSTER_VELOCITY_MAX ) ) + 1;
@@ -805,3 +807,4 @@ void idPhysics_Monster::ReadFromSnapshot( const idBitMsg &msg ) {
 	current.atRest = msg.ReadLong();
 	current.onGround = msg.ReadBits( 1 ) != 0;
 }
+#endif

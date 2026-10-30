@@ -287,6 +287,8 @@ private:
 	void				Event_Trigger( idEntity *activator );
 };
 
+// [PS2_D3BFG]: Capture the flag is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============================================================================
 
@@ -309,5 +311,7 @@ private:
 
 	void				Event_Touch( idEntity *other, trace_t *trace );
 };
+
+#endif
 
 #endif /* !__GAME_TRIGGER_H__ */

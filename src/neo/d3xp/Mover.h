@@ -54,9 +54,12 @@ public:
 	void					Restore( idRestoreGame *savefile );
 
 	virtual void			Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
+// [PS2_D3BFG]: Multiplayer client interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 	virtual void			Hide();
 	virtual void			Show();
@@ -312,8 +315,11 @@ public:
 	bool					IsBlocked();
 	idEntity *				GetActivator() const;
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 	void					SetPortalState( bool open );
 
@@ -382,7 +388,10 @@ public:
 	void					Save( idSaveGame *savefile ) const;
 	void					Restore( idRestoreGame *savefile );
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	virtual void			Think();
 	virtual void			PreBind();
 	virtual void			PostBind();
@@ -452,7 +461,10 @@ public:
 	void					Save( idSaveGame *savefile ) const;
 	void					Restore( idRestoreGame *savefile );
 	void					RunPhysics_NoBlocking();
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	virtual void			Think();
 	virtual void			PreBind();
 	virtual void			PostBind();
@@ -492,8 +504,11 @@ public:
 
 	virtual void			Think();
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 protected:
 	idPhysics_Parametric	physicsObj;

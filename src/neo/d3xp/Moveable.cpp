@@ -308,9 +308,12 @@ bool idMoveable::Collide( const trace_t &collision, const idVec3 &velocity ) {
 					}
 				} else if ( hasDamage ) {
 					// in multiplayer, scale damage wrt mass of object
+// [PS2_D3BFG]: There is no multiplayer damage scaling on the PS2.
+#if !defined( ID_PS2 )
 					if ( common->IsMultiplayer() ) {
 						f *= GetPhysics()->GetMass() * g_moveableDamageScale.GetFloat();
 					}
+#endif
 
 					if ( attacker ) {
 						ent->Damage( this, attacker, dir, damage, f, INVALID_JOINT );
@@ -454,6 +457,8 @@ bool idMoveable::FollowInitialSplinePath() {
 	return false;
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idMoveable::ClientThink
@@ -463,6 +468,7 @@ void idMoveable::ClientThink( const int curTime, const float fraction, const boo
 	InterpolatePhysicsOnly( fraction );
 	Present();
 }
+#endif
 
 /*
 ================
@@ -493,6 +499,8 @@ const idMaterial *idMoveable::GetRenderModelMaterial() const {
 	return NULL;
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idMoveable::WriteToSnapshot
@@ -513,6 +521,7 @@ void idMoveable::ReadFromSnapshot( const idBitMsg &msg ) {
 		UpdateVisuals();
 	}
 }
+#endif
 
 /*
 ================
@@ -779,6 +788,8 @@ void idBarrel::Spawn() {
 	fl.networkSync = true;
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idBarrel::ClientThink
@@ -788,6 +799,7 @@ void idBarrel::ClientThink( const int curTime, const float fraction, const bool 
 	InterpolatePhysics( fraction );
 	Present();
 }
+#endif
 
 
 /*
@@ -945,6 +957,8 @@ void idExplodingBarrel::UpdateLight() {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idExplodingBarrel::ClientThink
@@ -955,6 +969,7 @@ void idExplodingBarrel::ClientThink( const int curTime, const float fraction, co
 	InterpolatePhysics( fraction );
 	Present();
 }
+#endif
 
 /*
 ================
@@ -1309,6 +1324,8 @@ void idExplodingBarrel::Event_Activate( idEntity *activator ) {
 	Killed( activator, activator, 0, vec3_origin, 0 );
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idMoveable::WriteToSnapshot
@@ -1353,3 +1370,4 @@ bool idExplodingBarrel::ClientReceiveEvent( int event, int time, const idBitMsg 
 		}
 	}
 }
+#endif

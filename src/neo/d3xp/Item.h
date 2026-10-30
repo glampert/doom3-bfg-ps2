@@ -86,13 +86,22 @@ public:
 		EVENT_MAXEVENTS
 	};
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
+// [PS2_D3BFG]: Multiplayer client prediction and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientPredictionThink();
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	// networking
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 protected:
 	int						GetPredictPickupMilliseconds() const { return clientPredictPickupMilliseconds; }
@@ -189,15 +198,21 @@ public:
 
 	void					Spawn();
 	virtual void			Think();
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	virtual bool			Collide( const trace_t &collision, const idVec3 &velocity );
 	virtual bool			Pickup( idPlayer *player );
 
 	static void				DropItems( idAnimatedEntity *ent, const char *type, idList<idEntity *> *list );
 	static idEntity	*		DropItem( const char *classname, const idVec3 &origin, const idMat3 &axis, const idVec3 &velocity, int activateDelay, int removeDelay );
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 protected:
 	idPhysics_RigidBody		physicsObj;
@@ -214,6 +229,8 @@ protected:
 	void					Event_Gib( const char *damageDefName );
 };
 
+// [PS2_D3BFG]: Capture the flag is a multiplayer feature.
+#if !defined( ID_PS2 )
 class idItemTeam : public idMoveableItem {
 public:
     CLASS_PROTOTYPE( idItemTeam );
@@ -223,7 +240,10 @@ public:
 
     void                    Spawn();
 	virtual bool			Pickup( idPlayer *player );
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );    
+#endif
 	virtual void			Think(void );
 
 	void					Drop( bool death = false );	// was the drop caused by death of carrier?
@@ -233,9 +253,12 @@ public:
 	virtual void			FreeLightDef();
 	virtual void			Present();
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	// networking
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 public:
     int                     team;
@@ -275,6 +298,7 @@ private:
 	void					SpawnNugget( idVec3 pos );
     void                    UpdateGuis();
 };
+#endif
 
 class idMoveablePDAItem : public idMoveableItem {
 public:

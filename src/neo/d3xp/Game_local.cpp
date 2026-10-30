@@ -72,7 +72,10 @@ const char *idGameLocal::sufaceTypeNames[ MAX_SURFACE_TYPES ] = {
 	"ricochet", "surftype10", "surftype11", "surftype12", "surftype13", "surftype14", "surftype15"
 };
 
+// [PS2_D3BFG]: Usercmd timing debug has no readers on the PS2.
+#if !defined( ID_PS2 )
 idCVar net_usercmd_timing_debug( "net_usercmd_timing_debug", "0", CVAR_BOOL, "Print messages about usercmd timing." );
+#endif
 
 
 // List of all defs used by the player that will stay on the fast timeline
@@ -263,8 +266,11 @@ void idGameLocal::Clear() {
 	lastGUIEnt = NULL;
 	lastGUI = 0;
 
+// [PS2_D3BFG]: Multiplayer event queues does not exist on the PS2.
+#if !defined( ID_PS2 )
 	eventQueue.Init();
 	savedEventQueue.Init();
+#endif
 	
 	shellHandler = NULL;
 	selectedGroup = 0;
@@ -1031,6 +1037,8 @@ void idGameLocal::LoadMap( const char * mapName, int randseed ) {
 	}
 }
 
+// [PS2_D3BFG]: Map restart is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===================
 idGameLocal::LocalMapRestart
@@ -1049,8 +1057,11 @@ void idGameLocal::LocalMapRestart( ) {
 		}
 	}
 
+// [PS2_D3BFG]: Multiplayer event queues does not exist on the PS2.
+#if !defined( ID_PS2 )
 	eventQueue.Shutdown();
 	savedEventQueue.Shutdown();
+#endif
 
 	MapClear( false );
 
@@ -1131,6 +1142,7 @@ void idGameLocal::MapRestart_f( const idCmdArgs &args ) {
 
 	gameLocal.MapRestart( );
 }
+#endif
 
 /*
 ===================
@@ -1149,7 +1161,10 @@ void idGameLocal::MapPopulate() {
 	SpreadLocations();
 
 	// prepare the list of randomized initial spawn spots
+// [PS2_D3BFG]: Multiplayer spawn spots does not exist on the PS2.
+#if !defined( ID_PS2 )
 	RandomizeInitialSpawns();
+#endif
 
 	// spawnCount - 1 is the number of entities spawned into the map, their indexes started at MAX_CLIENTS (included)
 	// mapSpawnCount is used as the max index of map entities, it's the first index of non-map entities
@@ -1604,6 +1619,8 @@ float idGameLocal::GetAimAssistSensitivity() {
 	return aimAssist->GetFrictionScalar();
 }
 
+// [PS2_D3BFG]: There are no network peers on the PS2.
+#if !defined( ID_PS2 )
 /*
 ========================
 idGameLocal::MapPeerToClient
@@ -1620,6 +1637,7 @@ int idGameLocal::MapPeerToClient( int peer ) const {
 
 	return -1;
 }
+#endif
 
 /*
 ========================
@@ -1921,7 +1939,10 @@ void idGameLocal::SpawnPlayer( int clientNum ) {
 	if ( !ent->IsType( idPlayer::Type ) ) {
 		Error( "'%s' spawned the player as a '%s'.  Player spawnclass must be a subclass of idPlayer.", args.GetString( "classname" ), ent->GetClassname() );
 	}
+	// [PS2_D3BFG]: Multiplayer game state does not exist on the PS2.
+#if !defined( ID_PS2 )
 	mpGame.SpawnPlayer( clientNum );
+#endif
 }
 
 /*
@@ -1939,6 +1960,8 @@ idPlayer *idGameLocal::GetClientByNum( int current ) const {
 	return NULL;
 }
 
+// [PS2_D3BFG]: Only multiplayer spectating cycles through clients.
+#if !defined( ID_PS2 )
 /*
 ================
 idGameLocal::GetNextClientNum
@@ -1957,6 +1980,7 @@ int idGameLocal::GetNextClientNum( int _current ) const {
 
 	return current;
 }
+#endif
 
 /*
 ================
@@ -2210,6 +2234,8 @@ void idGameLocal::SortActiveEntityList() {
 
 
 
+// [PS2_D3BFG]: There is no snapshot interpolation on the PS2.
+#if !defined( ID_PS2 )
 /*
 ========================
 idGameLocal::SetInterpolation
@@ -2222,6 +2248,7 @@ void idGameLocal::SetInterpolation( const float fraction, const int serverGameMS
 	netInterpolationInfo.ssStartTime = ssStartTime;
 	netInterpolationInfo.ssEndTime = ssEndTime;
 }
+#endif
 
 
 /*
@@ -2304,7 +2331,10 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 		}
 		SyncPlayersWithLobbyUsers( false );
 	}
+	// [PS2_D3BFG]: There are no clients to synchronize cvars with.
+#if !defined( ID_PS2 )
 	ServerSendNetworkSyncCvars();
+#endif
 
 	player = GetLocalPlayer();
 
@@ -2366,7 +2396,10 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 		smokeParticles->FreeSmokes();
 
 		// process events on the server
+		// [PS2_D3BFG]: There is no network event queue on the PS2.
+#if !defined( ID_PS2 )
 		ServerProcessEntityNetworkEventQueue();
+#endif
 
 		// update our gravity vector if needed.
 		UpdateGravity();
@@ -2466,9 +2499,12 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 		FreePlayerPVS();
 
 		// do multiplayer related stuff
+		// [PS2_D3BFG]: Multiplayer game state does not exist on the PS2.
+#if !defined( ID_PS2 )
 		if ( common->IsMultiplayer() ) {
 			mpGame.Run();
 		}
+#endif
 
 		// display how long it took to calculate the current game frame
 		if ( g_frametime.GetBool() ) {
@@ -2537,6 +2573,8 @@ void idGameLocal::RunSingleUserCmd( usercmd_t & cmd, idPlayer & player ) {
 	// at 120Hz, we need to set the script's GAME_FPS value to the client's effective rate.
 	// (I'd like to just fix the script to use milliseconds, but we don't want to change assets
 	// at this point.)
+// [PS2_D3BFG]: Multiplayer remote players does not exist on the PS2.
+#if !defined( ID_PS2 )
 	if ( !player.IsLocallyControlled() ) {
 		const float usercmdMillisecondDelta = player.usercmd.clientGameMilliseconds - player.oldCmd.clientGameMilliseconds;
 		const float clientEngineHz = 1000.0f / usercmdMillisecondDelta;
@@ -2545,6 +2583,7 @@ void idGameLocal::RunSingleUserCmd( usercmd_t & cmd, idPlayer & player ) {
 		const float forcedClientEngineHz = ( clientEngineHz < 90.0f ) ? 60.0f : 120.0f;
 		SetScriptFPS( forcedClientEngineHz );
 	}
+#endif
 
 	if ( !common->IsMultiplayer() || common->IsServer() ) {
 		player.Think();
@@ -2552,8 +2591,11 @@ void idGameLocal::RunSingleUserCmd( usercmd_t & cmd, idPlayer & player ) {
 		// Keep track of the client time of the usercmd we just ran. We will send this back to clients
 		// in a snapshot so they know when they can stop predicting certain things.
 		usercmdLastClientMilliseconds[ player.GetEntityNumber() ] = cmd.clientGameMilliseconds;
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	} else {
 		player.ClientThink( netInterpolationInfo.serverGameMs, netInterpolationInfo.pct, true );
+#endif
 	}
 
 	// Since the client is authoritative on its position, we have to update the usercmd
@@ -2590,10 +2632,13 @@ void idGameLocal::RunAllUserCmdsForPlayer( idUserCmdMgr & cmdMgr, const int play
 	// of each other instead of spread out in time.
 	if ( player.IsLocallyControlled() ) {
 		if ( cmdMgr.HasUserCmdForPlayer( playerNumber ) ) {
+// [PS2_D3BFG]: Usercmd timing debug does not exist on the PS2.
+#if !defined( ID_PS2 )
 			if ( net_usercmd_timing_debug.GetBool() ) {
 					idLib::Printf( "[%d]Running local cmd for player %d, %d buffered.\n",
 								   common->GetGameFrame(), playerNumber, cmdMgr.GetNumUnreadFrames( playerNumber ) );
 			}
+#endif
 			RunSingleUserCmd( cmdMgr.GetWritableUserCmdForPlayer( playerNumber ), player );
 		} else {
 			RunSingleUserCmd( player.usercmd, player );
@@ -2601,6 +2646,8 @@ void idGameLocal::RunAllUserCmdsForPlayer( idUserCmdMgr & cmdMgr, const int play
 		return;
 	}
 
+// [PS2_D3BFG]: Multiplayer remote players does not exist on the PS2.
+#if !defined( ID_PS2 )
 	// Only the server runs remote commands.
 	if ( common->IsClient() ) {
 		return;
@@ -2690,6 +2737,7 @@ void idGameLocal::RunAllUserCmdsForPlayer( idUserCmdMgr & cmdMgr, const int play
 	// Reset the script FPS in case it was changed to accomodate an MP client
 	// running at a different framerate.
 	SetScriptFPS( com_engineHz_latched );
+#endif
 
 //idLib::Printf( "\n" );//!@#
 }
@@ -3162,11 +3210,14 @@ idGameLocal::CheatsOk
 ==================
 */
 bool idGameLocal::CheatsOk( bool requirePlayer ) {
+// [PS2_D3BFG]: There is no multiplayer cheat gate on the PS2.
+#if !defined( ID_PS2 )
 	extern idCVar net_allowCheats;
 	if ( common->IsMultiplayer() && !net_allowCheats.GetBool() ) {
 		Printf( "Not allowed in multiplayer.\n" );
 		return false;
 	}
+#endif
 
 	if ( developer.GetBool() ) {
 		return true;
@@ -4369,6 +4420,8 @@ void idGameLocal::SetPortalState( qhandle_t portal, int blockingBits ) {
 	gameRenderWorld->SetPortalState( portal, blockingBits );
 }
 
+// [PS2_D3BFG]: Multiplayer spawn spot lists does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ============
 idGameLocal::sortSpawnPoints
@@ -4504,6 +4557,8 @@ void idGameLocal::RandomizeInitialSpawns() {
 	teamCurrentInitialSpot[1] = 0;
 }
 
+#endif
+
 /*
 ===========
 idGameLocal::SelectInitialSpawnPoint
@@ -4514,6 +4569,17 @@ upon map restart, initial spawns are used (randomized ordered list of spawns fla
 ============
 */
 idEntity *idGameLocal::SelectInitialSpawnPoint( idPlayer *player ) {
+// [PS2_D3BFG]: Only the single player start exists on the PS2.
+#if defined( ID_PS2 )
+	( void )player;
+
+	idEntity *ent = FindEntityUsingDef( NULL, "info_player_start" );
+	if ( !ent ) {
+		Error( "No info_player_start on map.\n" );
+	}
+	return ent;
+}
+#else
 	int				i, j, which;
 	spawnSpot_t		spot;
 	idVec3			pos;
@@ -4633,6 +4699,7 @@ idEntity *idGameLocal::SelectInitialSpawnPoint( idPlayer *player ) {
 	}
 	return spot.ent;
 }
+#endif
 
 /*
 ================
@@ -4814,6 +4881,8 @@ void idGameLocal::QuickSlowmoReset() {
 }
 
 
+// [PS2_D3BFG]: There are no multiplayer game modes or client stats on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idGameLocal::GetClientStats
@@ -4831,6 +4900,7 @@ idGameLocal::GetMPGameModes
 int idGameLocal::GetMPGameModes( const char *** gameModes, const char *** gameModesDisplay ) {
 	return mpGame.GetGameModes( gameModes, gameModesDisplay );
 }
+#endif
 
 /*
 ========================
@@ -5083,6 +5153,8 @@ void idGameLocal::Shell_SetCanContinue( bool valid ) {
 	}
 }
 
+// [PS2_D3BFG]: There is no client countdown on the PS2.
+#if !defined( ID_PS2 )
 /*
 ========================
 idGameLocal::Shell_SetState_GameLobby
@@ -5093,6 +5165,7 @@ void idGameLocal::Shell_UpdateClientCountdown( int countdown ) {
 		shellHandler->SetTimeRemaining( countdown );
 	}
 }
+#endif
 
 /*
 ========================
@@ -5105,6 +5178,8 @@ void idGameLocal::Shell_UpdateLeaderboard( const idLeaderboardCallback * callbac
 	}
 }
 
+// [PS2_D3BFG]: Catching up projectiles on a server is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ========================
 idGameLocal::SimulateProjectiles
@@ -5137,3 +5212,4 @@ bool idGameLocal::SimulateProjectiles() {
 	
 	return moreProjectiles;
 }
+#endif

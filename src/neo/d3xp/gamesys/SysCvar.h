@@ -56,7 +56,10 @@ extern idCVar	g_debugTriggers;
 extern idCVar	g_debugCinematic;
 extern idCVar	g_stopTime;
 extern idCVar	g_armorProtection;
+// [PS2_D3BFG]: Multiplayer cvar.
+#if !defined( ID_PS2 )
 extern idCVar	g_armorProtectionMP;
+#endif
 extern idCVar	g_damageScale;
 extern idCVar	g_useDynamicProtection;
 extern idCVar	g_healthTakeTime;
@@ -210,7 +213,10 @@ extern idCVar	g_viewNodalZ;
 extern idCVar	g_fov;
 extern idCVar	g_testDeath;
 extern idCVar	g_skipViewEffects;
+// [PS2_D3BFG]: Multiplayer cvar.
+#if !defined( ID_PS2 )
 extern idCVar   g_mpWeaponAngleScale;
+#endif
 
 extern idCVar	g_testParticle;
 extern idCVar	g_testParticleName;
@@ -227,7 +233,10 @@ extern idCVar	g_slowmoStepRate;
 extern idCVar	g_testFullscreenFX;
 extern idCVar	g_testHelltimeFX;
 extern idCVar	g_testMultiplayerFX;
+// [PS2_D3BFG]: Multiplayer cvar.
+#if !defined( ID_PS2 )
 extern idCVar	g_moveableDamageScale;
+#endif
 extern idCVar	g_testBloomIntensity;
 extern idCVar	g_testBloomNumPasses;
 
@@ -250,7 +259,10 @@ extern idCVar	aas_randomPullPlayer;
 extern idCVar	aas_goalArea;
 extern idCVar	aas_showPushIntoArea;
 
+// [PS2_D3BFG]: Multiplayer cvar.
+#if !defined( ID_PS2 )
 extern idCVar	net_clientPredictGUI;
+#endif
 
 extern idCVar	si_timeLimit;
 extern idCVar	si_fragLimit;
@@ -259,6 +271,8 @@ extern idCVar	si_spectators;
 extern idCVar si_flagDropTimeLimit;
 extern idCVar si_midnight;
 
+// [PS2_D3BFG]: CTF flag carrying does not exist on the PS2.
+#if !defined( ID_PS2 )
 extern idCVar g_flagAttachJoint;
 extern idCVar g_flagAttachOffsetX;
 extern idCVar g_flagAttachOffsetY;
@@ -266,9 +280,16 @@ extern idCVar g_flagAttachOffsetZ;
 extern idCVar g_flagAttachAngleX;
 extern idCVar g_flagAttachAngleY;
 extern idCVar g_flagAttachAngleZ;
+#endif
 
+// [PS2_D3BFG]: Multiplayer cvar.
+#if !defined( ID_PS2 )
 extern idCVar g_CTFArrows;
+#endif
 
+// [PS2_D3BFG]: Multiplayer cvar.
+#if !defined( ID_PS2 )
 extern idCVar	net_clientSelfSmoothing;
+#endif
 
 #endif /* !__SYS_CVAR_H__ */

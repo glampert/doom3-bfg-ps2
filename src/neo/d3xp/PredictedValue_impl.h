@@ -60,9 +60,12 @@ idPredictedValue::UpdatePredictionTime
 */
 template< class type_ >
 void idPredictedValue< type_ >::UpdatePredictionTime() {
+	// [PS2_D3BFG]: Prediction times are only compared against multiplayer snapshots.
+#if !defined( ID_PS2 )
 	if ( gameLocal.GetLocalPlayer() != NULL ) {
 		clientPredictedMilliseconds = gameLocal.GetLocalPlayer()->usercmd.clientGameMilliseconds;
 	}
+#endif
 }
 
 /*

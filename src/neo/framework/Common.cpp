@@ -96,7 +96,10 @@ idCVar com_japaneseCensorship( "com_japaneseCensorship", "0", CVAR_NOCHEAT, "Ena
 
 idCVar preload_CommonAssets( "preload_CommonAssets", "1", CVAR_SYSTEM | CVAR_BOOL, "preload common assets" );
 
+// [PS2_D3BFG]: Lobby privacy cvar has no readers on the PS2.
+#if !defined( ID_PS2 )
 idCVar net_inviteOnly( "net_inviteOnly", "1", CVAR_BOOL | CVAR_ARCHIVE, "whether or not the private server you create allows friends to join or invite only" );
+#endif
 
 extern idCVar g_demoMode;
 

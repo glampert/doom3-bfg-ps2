@@ -90,6 +90,8 @@ void idMenuHandler_Shell::Update() {
 			}
 			transition = MENU_TRANSITION_SIMPLE;
 			state = nextState;
+// [PS2_D3BFG]: There are no lobbies on the PS2.
+#if !defined( ID_PS2 )
 		} else if ( nextState == SHELL_STATE_PARTY_LOBBY ) {
 			HidePacifier();
 			nextScreen = SHELL_AREA_PARTY_LOBBY;
@@ -111,6 +113,7 @@ void idMenuHandler_Shell::Update() {
 
 				state = nextState;
 			}
+#endif
 		} else if ( nextState == SHELL_STATE_PAUSED ) {
 			HidePacifier();
 			transition = MENU_TRANSITION_SIMPLE;
@@ -886,12 +889,15 @@ bool idMenuHandler_Shell::HandleAction( idWidgetAction & action, const idWidgetE
 
 			int cmd = parms[0].ToInteger();
 
+// [PS2_D3BFG]: There are no lobbies on the PS2.
+#if !defined( ID_PS2 )
 			if ( ( activeScreen == SHELL_AREA_GAME_LOBBY || activeScreen == SHELL_AREA_MATCH_SETTINGS ) && cmd != SHELL_CMD_QUIT && cmd != SHELL_CMD_MULTIPLAYER ) {
 				session->Cancel();
 				session->Cancel();
 			} else if ( ( activeScreen == SHELL_AREA_PARTY_LOBBY || activeScreen == SHELL_AREA_LEADERBOARDS || activeScreen == SHELL_AREA_BROWSER || activeScreen == SHELL_AREA_MODE_SELECT ) && cmd != SHELL_CMD_QUIT && cmd != SHELL_CMD_MULTIPLAYER ) {
 				session->Cancel();
 			}
+#endif
 
 			if ( cmd != SHELL_CMD_QUIT && ( nextScreen == SHELL_AREA_STEREOSCOPICS || nextScreen == SHELL_AREA_SYSTEM_OPTIONS || nextScreen == SHELL_AREA_GAME_OPTIONS || 
 				nextScreen == SHELL_AREA_GAMEPAD || nextScreen == SHELL_AREA_MATCH_SETTINGS ) ) {
@@ -927,12 +933,15 @@ bool idMenuHandler_Shell::HandleAction( idWidgetAction & action, const idWidgetE
 					transition = MENU_TRANSITION_SIMPLE;
 					break;
 				}
+// [PS2_D3BFG]: There are no lobbies on the PS2.
+#if !defined( ID_PS2 )
 				case SHELL_CMD_MULTIPLAYER: {
 					idMatchParameters matchParameters;
 					matchParameters.matchFlags = DefaultPartyFlags;
 					session->CreatePartyLobby( matchParameters );
 					break;
 				}
+#endif
 				case SHELL_CMD_SETTINGS: {
 					nextScreen = SHELL_AREA_SETTINGS;
 					transition = MENU_TRANSITION_SIMPLE;

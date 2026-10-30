@@ -79,7 +79,10 @@ idCVar com_sleepGame( "com_sleepGame", "0", CVAR_SYSTEM | CVAR_INTEGER, "intenti
 idCVar com_sleepDraw( "com_sleepDraw", "0", CVAR_SYSTEM | CVAR_INTEGER, "intentionally add a sleep in the draw time" );
 idCVar com_sleepRender( "com_sleepRender", "0", CVAR_SYSTEM | CVAR_INTEGER, "intentionally add a sleep in the render time" );
 
+// [PS2_D3BFG]: Network debug HUD does not exist on the PS2.
+#if !defined( ID_PS2 )
 idCVar net_drawDebugHud( "net_drawDebugHud", "0", CVAR_SYSTEM | CVAR_INTEGER, "0 = None, 1 = Hud 1, 2 = Hud 2, 3 = Snapshots" );
+#endif
 
 idCVar timescale( "timescale", "1", CVAR_SYSTEM | CVAR_FLOAT, "Number of game frames to run per render frame", 0.001f, 100.0f );
 
@@ -107,6 +110,8 @@ int idGameThread::Run() {
 		ret = gameReturn_t();
 	}
 
+	// [PS2_D3BFG]: There is no client prediction on the PS2.
+#if !defined( ID_PS2 )
 	if ( isClient ) {
 		// run the game logic
 		for ( int i = 0; i < numGameFrames; i++ ) {
@@ -118,7 +123,9 @@ int idGameThread::Run() {
 				break;
 			}
 		}
-	} else {
+	} else
+#endif
+	{
 		// run the game logic
 		for ( int i = 0; i < numGameFrames; i++ ) {
 			SCOPED_PROFILE_EVENT( "GameTic" );
@@ -586,7 +593,10 @@ void idCommonLocal::Frame() {
 		// Update session and syncronize to the new session state after sleeping
 		session->UpdateSignInManager();
 		session->Pump();
+		// [PS2_D3BFG]: There are no snapshots to acknowledge on the PS2.
+#if !defined( ID_PS2 )
 		session->ProcessSnapAckQueue();
+#endif
 
 		if ( session->GetState() == idSession::LOADING ) {
 			// If the session reports we should be loading a map, load it!
@@ -706,6 +716,8 @@ void idCommonLocal::Frame() {
 		// process the game return for map changes, etc
 		ProcessGameReturn( ret );
 
+		// [PS2_D3BFG]: Network debug HUD does not exist on the PS2.
+#if !defined( ID_PS2 )
 		idLobbyBase & lobby = session->GetActivePlatformLobbyBase();
 		if ( lobby.HasActivePeers() ) {
 			if ( net_drawDebugHud.GetInteger() == 1 ) {
@@ -716,6 +728,7 @@ void idCommonLocal::Frame() {
 			}
 			lobby.DrawDebugNetworkHUD_ServerSnapshotMetrics( net_drawDebugHud.GetInteger() == 3 );
 		}
+#endif
 
 		// report timing information
 		if ( com_speeds.GetBool() ) {

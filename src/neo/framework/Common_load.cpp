@@ -48,6 +48,8 @@ extern idCVar g_demoMode;
 // This is for the dirty hack to get a dialog to show up before we capture the screen for autorender.
 const int NumScreenUpdatesToShowDialog = 25;
 
+// [PS2_D3BFG]: There is no external title launch on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idCommonLocal::LaunchExternalTitle
@@ -95,6 +97,8 @@ void idCommonLocal::LaunchExternalTitle( int titleIndex, int device, const lobby
 
 	Sys_Launch(  launchingExecutablePath.c_str() , cmdArgs, const_cast< lobbyConnectInfo_t * const >( connectInfo ), launchDataSize );
 }
+
+#endif
 
 /*
 ================
@@ -566,9 +570,13 @@ void idCommonLocal::ExecuteMapChange() {
 		for ( int playerIndex = 0; playerIndex < MAX_PLAYERS; ++playerIndex ) {
 			emptyCommandManager.PutUserCmdForPlayer( playerIndex, usercmd_t() );
 		}
+		// [PS2_D3BFG]: There is no client prediction on the PS2.
+#if !defined( ID_PS2 )
 		if ( IsClient() ) {
 			game->ClientRunFrame( emptyCommandManager, false, emptyGameReturn );
-		} else {
+		} else
+#endif
+		{
 			game->RunFrame( emptyCommandManager, emptyGameReturn );
 		}
 	}
@@ -683,7 +691,10 @@ void idCommonLocal::UpdateLevelLoadPacifier() {
 
 		session->UpdateSignInManager();
 		session->Pump();
+		// [PS2_D3BFG]: There are no snapshots to acknowledge on the PS2.
+#if !defined( ID_PS2 )
 		session->ProcessSnapAckQueue();
+#endif
 	}
 
 	if ( autoswapsRunning ) {

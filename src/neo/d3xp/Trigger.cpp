@@ -1251,6 +1251,8 @@ void idTrigger_Touch::Disable() {
 	BecomeInactive( TH_THINK );
 }
 
+// [PS2_D3BFG]: Capture the flag is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============================================================================
 
@@ -1360,3 +1362,4 @@ void idTrigger_Flag::Event_Touch( idEntity *other, trace_t *trace ) {
 		idTrigger_Multi::Event_Touch( other, trace );
 	}
 }
+#endif

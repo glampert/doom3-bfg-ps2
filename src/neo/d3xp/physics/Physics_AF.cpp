@@ -7906,6 +7906,8 @@ void idPhysics_AF::SetMaster( idEntity *master, const bool orientated ) {
 }
 
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 const float	AF_VELOCITY_MAX				= 16000;
 const int	AF_VELOCITY_TOTAL_BITS		= 16;
 const int	AF_VELOCITY_EXPONENT_BITS	= idMath::BitsForInteger( idMath::BitsForFloat( AF_VELOCITY_MAX ) ) + 1;
@@ -8011,3 +8013,4 @@ void idPhysics_AF::ReadFromSnapshot( const idBitMsg &msg ) {
 
 	UpdateClipModels();
 }
+#endif

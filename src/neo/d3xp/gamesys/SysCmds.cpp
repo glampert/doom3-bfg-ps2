@@ -621,6 +621,8 @@ static void Cmd_Say( bool team, const idCmdArgs &args ) {
         }
 	}
 
+// [PS2_D3BFG]: There are no network clients on the PS2.
+#if !defined( ID_PS2 )
 	if ( common->IsClient() ) {
 		idBitMsg	outMsg;
 		byte		msgBuf[ 256 ];
@@ -628,7 +630,9 @@ static void Cmd_Say( bool team, const idCmdArgs &args ) {
 		outMsg.WriteString( name );
 		outMsg.WriteString( text, -1, false );
 		session->GetActingGameStateLobbyBase().SendReliableToHost( team ? GAME_RELIABLE_MESSAGE_TCHAT : GAME_RELIABLE_MESSAGE_CHAT, outMsg );
-	} else {
+	} else
+#endif
+	{
 		gameLocal.mpGame.ProcessChatMessage( gameLocal.GetLocalClientNum(), team, name, text, NULL );
 	}
 }

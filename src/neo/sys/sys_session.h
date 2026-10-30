@@ -288,67 +288,121 @@ public:
 	virtual bool						IsPeer() const = 0;
 	virtual bool						HasActivePeers() const = 0;
 	virtual int							GetNumLobbyUsers() const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int							GetNumActiveLobbyUsers() const = 0;
+#endif
 	virtual bool						IsLobbyUserConnected( int index ) const = 0;
 	
 	virtual lobbyUserID_t				GetLobbyUserIdByOrdinal( int userIndex ) const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual	int							GetLobbyUserIndexFromLobbyUserID( lobbyUserID_t lobbyUserID ) const = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void						SendReliable( int type, idBitMsg & msg, bool callReceiveReliable = true, peerMask_t sessionUserMask = MAX_UNSIGNED_TYPE( peerMask_t ) ) = 0;
 	virtual void						SendReliableToLobbyUser( lobbyUserID_t lobbyUserID, int type, idBitMsg & msg ) = 0;
 	virtual void						SendReliableToHost( int type, idBitMsg & msg ) = 0;
+#endif
 
 	// Lobby user access
 	virtual const char *				GetLobbyUserName( lobbyUserID_t lobbyUserID ) const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void						KickLobbyUser( lobbyUserID_t lobbyUserID ) = 0;
+#endif
 	virtual bool						IsLobbyUserValid( lobbyUserID_t lobbyUserID ) const = 0;
 	virtual bool						IsLobbyUserLoaded( lobbyUserID_t lobbyUserID ) const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool						LobbyUserHasFirstFullSnap( lobbyUserID_t lobbyUserID ) const = 0;
 	virtual void						EnableSnapshotsForLobbyUser( lobbyUserID_t lobbyUserID ) = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int							GetLobbyUserSkinIndex( lobbyUserID_t lobbyUserID ) const = 0;
+#endif
 	virtual bool						GetLobbyUserWeaponAutoReload( lobbyUserID_t lobbyUserID ) const = 0;
 	virtual bool						GetLobbyUserWeaponAutoSwitch( lobbyUserID_t lobbyUserID ) const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int							GetLobbyUserLevel( lobbyUserID_t lobbyUserID ) const = 0;
 	virtual int							GetLobbyUserQoS( lobbyUserID_t lobbyUserID ) const = 0;
 	virtual int							GetLobbyUserTeam( lobbyUserID_t lobbyUserID ) const = 0;
 	virtual bool						SetLobbyUserTeam( lobbyUserID_t lobbyUserID, int teamNumber ) = 0;
 	virtual int							GetLobbyUserPartyToken( lobbyUserID_t lobbyUserID ) const = 0;
+#endif
 	virtual idPlayerProfile *			GetProfileFromLobbyUser( lobbyUserID_t lobbyUserID ) = 0;
 	virtual idLocalUser *				GetLocalUserFromLobbyUser( lobbyUserID_t lobbyUserID ) = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int							GetNumLobbyUsersOnTeam( int teamNumber ) const = 0;
+#endif
 
 	virtual int							PeerIndexFromLobbyUser( lobbyUserID_t lobbyUserID ) const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int							GetPeerTimeSinceLastPacket( int peerIndex ) const = 0;
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int							PeerIndexForHost() const = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual lobbyUserID_t				AllocLobbyUserSlotForBot( const char * botName ) = 0;
 	virtual void						RemoveBotFromLobbyUserList( lobbyUserID_t lobbyUserID ) = 0;
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool						GetLobbyUserIsBot( lobbyUserID_t lobbyUserID ) const = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual const char *				GetHostUserName() const = 0;
+#endif
 	virtual const idMatchParameters &	GetMatchParms() const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool						IsLobbyFull() const = 0;
+#endif
 
 	// Peer access
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool						EnsureAllPeersHaveBaseState() = 0;
 	virtual bool						AllPeersInGame() const = 0;
+#endif
 	virtual int							GetNumConnectedPeers() const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int							GetNumConnectedPeersInGame() const = 0;
 	virtual int							PeerIndexOnHost() const = 0;
 	virtual bool						IsPeerDisconnected( int peerIndex ) const = 0;
+#endif
 
 	// Snapshots
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool						AllPeersHaveStaleSnapObj( int objId ) = 0;
 	virtual bool						AllPeersHaveExpectedSnapObj( int objId ) = 0;
 	virtual void						RefreshSnapObj( int objId ) = 0;
 	virtual void						MarkSnapObjDeleted( int objId ) = 0;
 	virtual void						AddSnapObjTemplate( int objID, idBitMsg & msg ) = 0;
+#endif
 
 	// Debugging
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void						DrawDebugNetworkHUD() const = 0;
 	virtual void						DrawDebugNetworkHUD2() const = 0;
 	virtual void						DrawDebugNetworkHUD_ServerSnapshotMetrics( bool draw ) = 0;
+#endif
 };
 
 /*
@@ -394,42 +448,75 @@ public:
 	// Lobby management 
 	//=====================================================================================================
 	virtual void			CreatePartyLobby( const idMatchParameters & parms_ ) = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			FindOrCreateMatch( const idMatchParameters & parms_ ) = 0;
+#endif
 	virtual void			CreateMatch( const idMatchParameters & parms_ ) = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			CreateGameStateLobby( const idMatchParameters & parms_ ) = 0;
+#endif
 	virtual void			UpdateMatchParms( const idMatchParameters & parms_ ) = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			UpdatePartyParms( const idMatchParameters & parms_ ) = 0;
+#endif
 	virtual void			StartMatch() = 0;
 	virtual void			EndMatch( bool premature=false ) = 0;	// Meant for host to end match gracefully, go back to lobby, tally scores, etc
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			MatchFinished() = 0;					// this is for when the game is over before we go back to lobby. Need this incase the host leaves during this time
+#endif
 	virtual void			QuitMatch() = 0;						// Meant for host or peer to quit the match before it ends, will instigate host migration, etc
 	virtual void			QuitMatchToTitle() = 0;					// Will forcefully quit the match and return to the title screen.
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual	void			SetSessionOption( sessionOption_t option ) = 0;
 	virtual	void			ClearSessionOption( sessionOption_t option ) = 0;
+#endif
 	virtual sessionState_t	GetBackState() = 0;
 	virtual void			Cancel() = 0;
 	virtual void			MoveToPressStart() = 0;
 	virtual void			FinishDisconnect() = 0;
 	virtual void			LoadingFinished() = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool			IsCurrentLobbyMigrating() const = 0;
 	virtual bool			IsLosingConnectionToHost() const = 0;
 	virtual bool			WasMigrationGame() const = 0;
 	virtual bool			ShouldRelaunchMigrationGame() const = 0;
 	virtual bool			WasGameLobbyCoalesced() const = 0;
+#endif
 	
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool			GetMigrationGameData( idBitMsg & msg, bool reading ) = 0;
 	virtual bool			GetMigrationGameDataUser( lobbyUserID_t lobbyUserID, idBitMsg & msg, bool reading ) = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool			GetMatchParamUpdate( int & peer, int & msg ) = 0;
+#endif
 
 	virtual void			Pump() = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ProcessSnapAckQueue() = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			InviteFriends() = 0;
 	virtual void			InviteParty() = 0;
 	virtual void			ShowPartySessions() = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool			IsPlatformPartyInLobby() = 0;
+#endif
 
 	// Lobby user/peer access
 	// The party and game lobby are the two platform lobbies that notify the backends (Steam/PSN/LIVE of changes)
@@ -445,14 +532,20 @@ public:
 	// This function is generally used for menus, in-game code should refer to GetActingGameStateLobby
 	virtual idLobbyBase &	GetActivePlatformLobbyBase() = 0;
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual idLobbyBase &	GetLobbyFromLobbyUserID( lobbyUserID_t lobbyUserID ) = 0;
+#endif
 
 	virtual idPlayerProfile * 	GetProfileFromMasterLocalUser() = 0;
 
 	virtual bool			ProcessInputEvent( const sysEvent_t * ev ) = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual float			GetUpstreamDropRate() = 0;
 	virtual float			GetUpstreamQueueRate() = 0;
 	virtual int				GetQueuedBytes() = 0;
+#endif
 
 	virtual	int				GetLoadingID() = 0;
 	virtual bool			IsAboutToLoad() const = 0;
@@ -462,19 +555,40 @@ public:
 	virtual sessionState_t	GetState() const = 0;
 	virtual const char *	GetStateString() const = 0;
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual int				NumServers() const = 0;
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ListServers( const idCallback & callback ) = 0;
 	virtual void			CancelListServers() = 0;
 	virtual void			ConnectToServer( int i ) = 0;
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual const serverInfo_t * ServerInfo( int i ) const = 0;
 	virtual const idList< idStr > * ServerPlayerList( int i ) = 0;
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ShowServerGamerCardUI( int i ) = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ShowOnlineSignin() = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			DropClient( int peerNum, int lobbyType ) = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			JoinAfterSwap( void * joinID ) = 0;
+#endif
 
 	//=====================================================================================================
 	//	Downloadable Content
@@ -485,9 +599,12 @@ public:
 	virtual const char *	GetContentPackagePath( int contentIndex ) const = 0;
 	virtual int				GetContentPackageIndexForID( int contentID ) const = 0;
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ShowSystemMarketplaceUI() const = 0;
 	virtual bool			GetSystemMarketplaceHasNewContent() const = 0;
 	virtual void			SetSystemMarketplaceHasNewContent( bool hasNewContent ) = 0;
+#endif
 
 	//=====================================================================================================
 	// Title Storage Vars
@@ -507,15 +624,21 @@ public:
 	//=====================================================================================================
 	// Leaderboard
 	//=====================================================================================================
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			LeaderboardUpload( lobbyUserID_t lobbyUserID, const leaderboardDefinition_t * leaderboard, const column_t * stats, const idFile_Memory * attachment = NULL ) = 0;
 	virtual void			LeaderboardDownload( int sessionUserIndex, const leaderboardDefinition_t * leaderboard, int startingRank, int numRows, const idLeaderboardCallback & callback ) = 0;
 	virtual void			LeaderboardDownloadAttachment( int sessionUserIndex, const leaderboardDefinition_t * leaderboard, int64 attachmentID ) = 0;
 	virtual void			LeaderboardFlush() = 0;
+#endif
 
 	//=====================================================================================================
 	// Scoring (currently just for TrueSkill)
 	//=====================================================================================================
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			SetLobbyUserRelativeScore( lobbyUserID_t lobbyUserID, int relativeScore, int team ) = 0;
+#endif
 
 
 	//=====================================================================================================
@@ -556,13 +679,22 @@ public:
 	//	GamerCard UI
 	//=====================================================================================================
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				ShowLobbyUserGamerCardUI( lobbyUserID_t lobbyUserID ) = 0;
+#endif
 
 	//=====================================================================================================
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				UpdateRichPresence() = 0;
+#endif
 
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				SendUsercmds( idBitMsg & msg ) = 0;
 	virtual void				SendSnapshot( class idSnapShot & ss ) = 0;
+#endif
 
 	virtual int					GetInputRouting( int inputRouting[ MAX_INPUT_DEVICES ] );
 
@@ -589,30 +721,51 @@ public:
 	//=====================================================================================================
 	virtual voiceState_t		GetLobbyUserVoiceState( lobbyUserID_t lobbyUserID ) = 0;
 	virtual voiceStateDisplay_t	GetDisplayStateFromVoiceState( voiceState_t voiceState ) const = 0;
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				ToggleLobbyUserVoiceMute( lobbyUserID_t lobbyUserID ) = 0;
 	virtual void				SetActiveChatGroup( int groupIndex ) = 0;
 	virtual void				CheckVoicePrivileges() = 0;
 	virtual void				SetVoiceGroupsToTeams() = 0;
 	virtual void				ClearVoiceGroups() = 0;
+#endif
 
 	//=====================================================================================================
 	//	Bandwidth / QoS checking
 	//=====================================================================================================
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool				StartOrContinueBandwidthChallenge( bool forceStart ) = 0;
 	virtual void				DebugSetPeerSnaprate( int peerIndex, int snapRateMS ) = 0;
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual float				GetIncomingByteRate() = 0;
+#endif
 
 	//=====================================================================================================
 	// Invites
 	//=====================================================================================================
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				HandleBootableInvite( int64 lobbyId = 0 ) = 0;
 	virtual void				HandleExitspawnInvite( const lobbyConnectInfo_t & connectInfo ) {}
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				ClearBootableInvite() = 0;
 	virtual void				ClearPendingInvite() = 0;
 	virtual bool				HasPendingBootableInvite() = 0;
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				SetDiscSwapMPInvite( void * parm ) = 0;
+#endif
+// [PS2_D3BFG]: Multiplayer session interface does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void *				GetDiscSwapMPInviteParms() = 0;
 	virtual bool				IsDiscSwapMPInviteRequested() const = 0;
+#endif
 
 	//=====================================================================================================
 	// Notifications

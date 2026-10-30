@@ -79,7 +79,10 @@ public:
 	void				Save( idSaveGame *savefile ) const;
 	void				Restore( idRestoreGame *savefile );
 
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool		ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
 private:
 	int					teleportStage;
@@ -240,7 +243,10 @@ public:
 	void				Spawn();
 
 	virtual void		Think();
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void		ClientThink( const int curTime, const float fraction, const bool predict ) ;
+#endif
 private:
 	idForce_Field		forceField;
 
@@ -323,8 +329,11 @@ public:
 	void				Fade( const idVec4 &to, float fadeTime );
 	virtual void		Think();
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void		WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void		ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 private:
 	void				Event_Activate( idEntity *activator );
@@ -359,8 +368,11 @@ public:
 	void				Spawn();
 	void				Event_Activate( idEntity *activator );
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void		WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void		ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 private:
 	bool				hidden;
@@ -390,8 +402,11 @@ public:
 
 	virtual void				Think();
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void				ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 private:
 	int							mRespawnDelay;
@@ -561,8 +576,11 @@ public:
 
 	virtual void		Show();
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void		WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void		ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 private:
 	void				Event_MatchTarget();

@@ -107,11 +107,14 @@ public:	// common physics interface
 	virtual const idBounds &	GetAbsBounds( int id = -1 ) const = 0;
 								// evaluate the physics with the given time step, returns true if the object moved
 	virtual bool				Evaluate( int timeStepMSec, int endTimeMSec ) = 0;
+// [PS2_D3BFG]: Multiplayer client interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 								// Interpolate between the two known snapshots with the given fraction, used for MP clients.
 								// returns true if the object moved.
 	virtual bool				Interpolate( const float fraction ) = 0;
 								// resets the prev and next states to the parameters.
 	virtual void				ResetInterpolationState( const idVec3 & origin, const idMat3 & axis ) = 0;
+#endif
 								// update the time without moving
 	virtual void				UpdateTime( int endTimeMSec ) = 0;
 								// get the last physics update time
@@ -180,9 +183,12 @@ public:	// common physics interface
 								// movement end times in msec for reached events at the end of predefined motion
 	virtual int					GetLinearEndTime() const = 0;
 	virtual int					GetAngularEndTime() const = 0;
+// [PS2_D3BFG]: Multiplayer client interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 								// networking
 	virtual void				WriteToSnapshot( idBitMsg &msg ) const = 0;
 	virtual void				ReadFromSnapshot( const idBitMsg &msg ) = 0;
+#endif
 };
 
 #endif /* !__PHYSICS_H__ */

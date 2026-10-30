@@ -55,7 +55,10 @@ public:
 
 	virtual void	UpdateChangeableSpawnArgs( const idDict *source );
 	virtual void	Think();
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void	ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	virtual void	FreeLightDef();
 	virtual bool	GetPhysicsToSoundTransform( idVec3 &origin, idMat3 &axis );
 	void			Present();
@@ -90,10 +93,13 @@ public:
 		EVENT_MAXEVENTS
 	};
 
+// [PS2_D3BFG]: Multiplayer client prediction, snapshots and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void	ClientPredictionThink();
 	virtual void	WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void	ReadFromSnapshot( const idBitMsg &msg );
 	virtual bool	ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
 private:
 	renderLight_t	renderLight;				// light presented to the renderer

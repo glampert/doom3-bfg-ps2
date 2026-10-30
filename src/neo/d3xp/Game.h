@@ -120,6 +120,8 @@ public:
 
 	virtual bool				HandlePlayerGuiEvent( const sysEvent_t * ev ) = 0;
 
+// [PS2_D3BFG]: Snapshots, reliable messages and client prediction do not exist on the PS2.
+#if !defined( ID_PS2 )
 	// Writes a snapshot of the server game state.
 	virtual void				ServerWriteSnapshot( idSnapShot & ss ) = 0;
 
@@ -133,20 +135,27 @@ public:
 
 	// Runs prediction on entities at the client.
 	virtual void				ClientRunFrame( idUserCmdMgr & cmdMgr, bool lastPredictFrame, gameReturn_t & ret ) = 0;
+#endif
 
 	// Used to manage divergent time-lines
 	virtual int					GetTimeGroupTime( int timeGroup ) = 0;
 
+// [PS2_D3BFG]: There are no multiplayer game modes or client stats on the PS2.
+#if !defined( ID_PS2 )
 	// Returns a list of available multiplayer game modes
 	virtual int					GetMPGameModes( const char *** gameModes, const char *** gameModesDisplay ) = 0;
 
 	// Returns a summary of stats for a given client
 	virtual void				GetClientStats( int clientNum, char *data, const int len ) = 0;
+#endif
 
 	virtual bool				IsInGame() const = 0;
 
+// [PS2_D3BFG]: There are no network peers on the PS2.
+#if !defined( ID_PS2 )
 	// Get the player entity number for a network peer.
 	virtual int					MapPeerToClient( int peer ) const = 0;
+#endif
 
 	// Get the player entity number of the local player.
 	virtual int					GetLocalClientNum() const = 0;
@@ -177,7 +186,10 @@ public:
 	virtual void				Shell_SyncWithSession() = 0;
 	virtual void				Shell_UpdateSavedGames() = 0;
 	virtual void				Shell_SetCanContinue( bool valid ) = 0;
+// [PS2_D3BFG]: There is no client countdown on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				Shell_UpdateClientCountdown( int countdown ) = 0;
+#endif
 	virtual void				Shell_UpdateLeaderboard( const idLeaderboardCallback * callback ) = 0;
 	virtual void				Shell_SetGameComplete() = 0;
 };

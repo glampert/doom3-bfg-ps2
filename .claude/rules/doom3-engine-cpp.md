@@ -46,6 +46,20 @@ file keeps only what most engine edits need.
 - Abstract bases with virtual destructors only; disabling RTTI does not make deleting
   through a nonvirtual base safe.
 
+## No multiplayer on the PS2
+
+- `common->IsMultiplayer()`/`IsServer()`/`IsClient()` are inline `false` and
+  `idPlayer::IsLocallyControlled()` is `true` under `ID_PS2`; one local player, client 0.
+- The network virtual families (`ClientThink`, `ClientPredictionThink`, `Write`/`ReadFromSnapshot`,
+  `Client`/`ServerReceiveEvent`, `InterpolatePhysics`, physics `Interpolate`/snapshots), the
+  `idGame` network virtuals, the session/lobby multiplayer methods, the CTF classes and the
+  snapshot sources don't exist on PS2. Don't add callers; guard id code that needs them.
+- id declares overrides without `override`: removing a base virtual leaves each override a
+  new virtual that keeps its code. Guard a family completely (base, overrides, callers).
+- Kept for saves and SP: `si_*` cvars (`serverInfo`), `FullscreenFX_Multiplayer`, CTF event
+  definitions, entity snapshot members, the `idMultiplayerGame` stub. Details are in
+  [memory-budget reference](../../docs/reference/memory-budget.md#multiplayer-code-compiled-out-2026-10-30).
+
 ## Retail SWF admission model
 
 - Retail movies construct resource-only: `idSWF(..., nullptr, true)` loads the dictionary

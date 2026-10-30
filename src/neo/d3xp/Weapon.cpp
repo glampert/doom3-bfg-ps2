@@ -2627,6 +2627,8 @@ void idWeapon::ExitCinematic() {
 	RaiseWeapon();
 }
 
+// [PS2_D3BFG]: Weapon net catchup is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ================
 idWeapon::NetCatchup
@@ -2638,6 +2640,7 @@ void idWeapon::NetCatchup() {
 		thread->Execute();
 	}
 }
+#endif
 
 /*
 ================
@@ -2870,6 +2873,8 @@ int idWeapon::AmmoCount() const {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idWeapon::WriteToSnapshot
@@ -2966,6 +2971,7 @@ bool idWeapon::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) {
 		}
 	}
 }
+#endif
 
 /***********************************************************************
 
@@ -3626,6 +3632,8 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 				ent->Unbind();
 				projectileEnt = NULL;
 			} else {
+				// [PS2_D3BFG]: Projectile replication is a multiplayer feature.
+#if !defined( ID_PS2 )
 				if ( common->IsClient() ) {
 					// This is predicted on a client, don't replicate.
 					// Must be set before spawn, so that the entity can be spawned into the correct area of the entities array.
@@ -3633,6 +3641,7 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 				} else {
 					projectileDict.SetBool( "net_skip_replication", false );
 				}
+#endif
 				gameLocal.SpawnEntityDef( projectileDict, &ent, false );
 			}
 
@@ -3642,6 +3651,8 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 				return;
 			}
 
+			// [PS2_D3BFG]: Projectile prediction and synchronization are multiplayer features.
+#if !defined( ID_PS2 )
 			int predictedKey = idEntity::INVALID_PREDICTION_KEY;
 
 			if ( projectileDict.GetBool( "net_instanthit" ) ) {
@@ -3655,6 +3666,7 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 				predictedKey = gameLocal.GeneratePredictionKey( this, owner, -1 );
 				ent->SetPredictedKey( predictedKey );
 			}
+#endif
 
 			proj = static_cast<idProjectile *>(ent);
 			proj->Create( owner, muzzleOrigin, dir );
@@ -3673,6 +3685,10 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 				muzzle_pos = tr.endpos;
 			}
 
+			// [PS2_D3BFG]: Server catch-up of remote client projectiles is a multiplayer feature.
+#if defined( ID_PS2 )
+			proj->Launch( muzzle_pos, dir, pushVelocity, fuseOffset, launchPower, dmgPower );
+#else
 			// If this is the server simulating a remote client, the client has spawned the projectile in the past.
 			// The server will catch-up the projectile so that its position will be as if the projectile had spawned
 			// when the client fired it.
@@ -3695,6 +3711,7 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 				// Normal launch
 				proj->Launch( muzzle_pos, dir, pushVelocity, fuseOffset, launchPower, dmgPower );
 			}
+#endif
 		}
 
 		// toss the brass
@@ -4171,6 +4188,8 @@ void idWeapon::Event_IsInvisible() {
 	idThread::ReturnFloat( owner->PowerUpActive( INVISIBILITY ) ? 1 : 0 );
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ===============
 idWeapon::ClientThink
@@ -4179,7 +4198,10 @@ idWeapon::ClientThink
 void idWeapon::ClientThink( const int curTime, const float fraction, const bool predict ) {
 	UpdateAnimation();	
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer client prediction does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ===============
 idWeapon::ClientPredictionThink
@@ -4188,6 +4210,7 @@ idWeapon::ClientPredictionThink
 void idWeapon::ClientPredictionThink() {
 	UpdateAnimation();	
 }
+#endif
 
 
 void idWeapon::ForceAmmoInClip() {

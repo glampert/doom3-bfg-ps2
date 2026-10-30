@@ -394,6 +394,8 @@ bool idPhysics_StaticMulti::Evaluate( int timeStepMSec, int endTimeMSec ) {
 	return false;
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPhysics_StaticMulti::Interpolate
@@ -417,6 +419,7 @@ bool idPhysics_StaticMulti::Interpolate( const float fraction ) {
 
 	return true;
 }
+#endif
 
 /*
 ================
@@ -1030,6 +1033,8 @@ int idPhysics_StaticMulti::GetAngularEndTime() const {
 	return 0;
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPhysics_StaticMulti::WriteToSnapshot
@@ -1080,3 +1085,4 @@ void idPhysics_StaticMulti::ReadFromSnapshot( const idBitMsg &msg ) {
 		next[i] = ReadStaticInterpolatePStateFromSnapshot( msg );
 	}
 }
+#endif

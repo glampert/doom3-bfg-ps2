@@ -120,8 +120,11 @@ public:	// common physics interface
 
 	void					SetMaster( idEntity *master, const bool orientated = true );
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					WriteToSnapshot( idBitMsg &msg ) const;
 	void					ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 private:
 	// monster physics state

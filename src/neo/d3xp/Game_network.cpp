@@ -33,6 +33,8 @@ If you have questions concerning this license or the applicable additional terms
 // [PS2_D3BFG]: Include paths must work on the target compiler's Unix host.
 #include "../framework/Common_local.h"
 
+// [PS2_D3BFG]: Snapshot object numbers are used only by the multiplayer snapshot code.
+#if !defined( ID_PS2 )
 static const int SNAP_GAMESTATE = 0;
 static const int SNAP_SHADERPARMS = 1;
 static const int SNAP_PORTALS = 2;
@@ -42,6 +44,7 @@ static const int SNAP_ENTITIES = SNAP_PLAYERSTATE_END;
 static const int SNAP_ENTITIES_END = SNAP_ENTITIES + MAX_GENTITIES;
 static const int SNAP_LAST_CLIENT_FRAME = SNAP_ENTITIES_END;
 static const int SNAP_LAST_CLIENT_FRAME_END = SNAP_LAST_CLIENT_FRAME + MAX_PLAYERS;
+#endif
 
 /*
 ===============================================================================
@@ -53,12 +56,17 @@ static const int SNAP_LAST_CLIENT_FRAME_END = SNAP_LAST_CLIENT_FRAME + MAX_PLAYE
 ===============================================================================
 */
 
+// [PS2_D3BFG]: Client smoothing and prediction cvars have no readers on the PS2.
+#if !defined( ID_PS2 )
 idCVar net_clientSmoothing( "net_clientSmoothing", "0.8", CVAR_GAME | CVAR_FLOAT, "smooth other clients angles and position.", 0.0f, 0.95f );
 idCVar net_clientSelfSmoothing( "net_clientSelfSmoothing", "0.6", CVAR_GAME | CVAR_FLOAT, "smooth self position if network causes prediction error.", 0.0f, 0.95f );
 extern idCVar net_clientMaxPrediction;
 
 idCVar cg_predictedSpawn_debug( "cg_predictedSpawn_debug", "0", CVAR_BOOL, "Debug predictive spawning of presentables" );
+#endif
+#if !defined( ID_PS2 ) // [PS2_D3BFG]: Client firing checks do not exist on the PS2.
 idCVar g_clientFire_checkLineOfSightDebug( "g_clientFire_checkLineOfSightDebug", "0", CVAR_BOOL, "" );
+#endif
 
 
 /*
@@ -67,15 +75,23 @@ idGameLocal::InitAsyncNetwork
 ================
 */
 void idGameLocal::InitAsyncNetwork() {
+// [PS2_D3BFG]: Multiplayer event queues do not exist on the PS2.
+#if !defined( ID_PS2 )
 	eventQueue.Init();
 	savedEventQueue.Init();
+#endif
 
 	entityDefBits = -( idMath::BitsForInteger( declManager->GetNumDecls( DECL_ENTITYDEF ) ) + 1 );
 	realClientTime = 0;
 	fast.Set( 0, 0, 0 );
 	slow.Set( 0, 0, 0 );
 	isNewFrame = true;
+	// [PS2_D3BFG]: Keep the saved value of the removed net_clientSmoothing default.
+#if defined( ID_PS2 )
+	clientSmoothing = 0.8f;
+#else
 	clientSmoothing = net_clientSmoothing.GetFloat();
+#endif
 
 	lastCmdRunTimeOnClient.Zero();
 	lastCmdRunTimeOnServer.Zero();
@@ -88,8 +104,11 @@ idGameLocal::ShutdownAsyncNetwork
 ================
 */
 void idGameLocal::ShutdownAsyncNetwork() {
+// [PS2_D3BFG]: Multiplayer event queues do not exist on the PS2.
+#if !defined( ID_PS2 )
 	eventQueue.Shutdown();
 	savedEventQueue.Shutdown();
+#endif
 }
 
 /*
@@ -167,6 +186,8 @@ void idGameLocal::SyncPlayersWithLobbyUsers( bool initial ) {
 		
 		lobbyUserID_t lobbyUserID = lobbyUserIDs[i];
 		
+		// [PS2_D3BFG]: The local player never disconnects and has no snapshots.
+#if !defined( ID_PS2 )
 		if ( !lobby.IsLobbyUserValid( lobbyUserID ) ) {
 			delete entities[ i ];
 			mpGame.DisconnectClient( i );
@@ -175,6 +196,7 @@ void idGameLocal::SyncPlayersWithLobbyUsers( bool initial ) {
 		}
 
 		lobby.EnableSnapshotsForLobbyUser( lobbyUserID );
+#endif
 	}
 
 	while ( newLobbyUsers.Num() > 0 ) {
@@ -194,7 +216,9 @@ void idGameLocal::SyncPlayersWithLobbyUsers( bool initial ) {
 		lobbyUserID_t lobbyUserID = newLobbyUsers[0];
 		newLobbyUsers.RemoveIndex( 0 );
 
+#if !defined( ID_PS2 ) // [PS2_D3BFG]: Multiplayer game state does not exist on the PS2.
 		mpGame.ServerClientConnect( freePlayerDataIndex );
+#endif
 		Printf( "client %d connected.\n", freePlayerDataIndex );
 
 		lobbyUserIDs[ freePlayerDataIndex ] = lobbyUserID;
@@ -210,10 +234,14 @@ void idGameLocal::SyncPlayersWithLobbyUsers( bool initial ) {
 
 		common->UpdateLevelLoadPacifier();
 
+#if !defined( ID_PS2 ) // [PS2_D3BFG]: There are no clients to send initial messages to.
 		ServerWriteInitialReliableMessages( freePlayerDataIndex, lobbyUserID );
+#endif
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer replication does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idGameLocal::ServerSendNetworkSyncCvars
@@ -1136,7 +1164,10 @@ idEntity *  idGameLocal::FindPredictedEntity( uint32 predictedKey, idTypeInfo * 
 	}
 	return NULL;
 }
+#endif
 
+// [PS2_D3BFG]: Projectile prediction keys are a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ========================
 idGameLocal::GeneratePredictionKey
@@ -1186,7 +1217,10 @@ uint32  idGameLocal::GeneratePredictionKey( idWeapon * weapon, idPlayer * player
 	predictedKey |= ( peerIndex << 28 );
 	return predictedKey;
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer event queues do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ===============
 idEventQueue::Alloc
@@ -1329,3 +1363,4 @@ void idEventQueue::Enqueue( entityNetEvent_t *event, outOfOrderBehaviour_t behav
 	}
 	end = event;
 }
+#endif

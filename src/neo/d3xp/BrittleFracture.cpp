@@ -1321,6 +1321,8 @@ void idBrittleFracture::Event_Touch( idEntity *other, trace_t *trace ) {
 	Shatter( point, impulse, gameLocal.time );
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idBrittleFracture::ClientThink
@@ -1335,7 +1337,10 @@ void idBrittleFracture::ClientThink( const int curTime, const float fraction, co
 
 	Think();
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer client prediction and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idBrittleFracture::ClientPredictionThink
@@ -1384,3 +1389,4 @@ bool idBrittleFracture::ClientReceiveEvent( int event, int time, const idBitMsg 
 		}
 	}
 }
+#endif

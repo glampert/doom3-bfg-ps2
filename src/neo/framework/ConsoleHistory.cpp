@@ -188,6 +188,11 @@ CONSOLE_COMMAND( history, "Displays the console command history", 0 ) {
 clearHistory
 ========================
 */
+// [PS2_D3BFG]: Kept in release builds: UI sessions clear the history before each ledger checkpoint.
+#if defined( ID_PS2 )
+CONSOLE_COMMAND_SHIP( clearHistory, "Clears the console history", 0 ) {
+#else
 CONSOLE_COMMAND( clearHistory, "Clears the console history", 0 ) {
+#endif
 	consoleHistory.ClearHistory();
 }

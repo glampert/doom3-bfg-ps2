@@ -212,10 +212,13 @@ public:
 	int						GetInventoryAmmoForType( const int ammoType ) const;
 	int						GetClipAmmoForWeapon( const int weapon ) const;
 	
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					WriteAmmoToSnapshot( idBitMsg & msg ) const;
 	void					ReadAmmoFromSnapshot( const idBitMsg & msg, int ownerEntityNumber );
 
 	void					SetRemoteClientAmmo( const int ownerEntityNumber );
+#endif
 
 	int						nextItemPickup;
 	int						nextItemNum;
@@ -442,8 +445,11 @@ public:
 	virtual void			Show();
 
 	void					Init();
+// [PS2_D3BFG]: Map restart is a multiplayer feature.
+#if !defined( ID_PS2 )
 	void					PrepareForRestart();
 	virtual void			Restart();
+#endif
 	void					LinkScriptVariables();
 	void					SetupWeaponEntity();
 	void					SelectInitialSpawnPoint( idVec3 &origin, idAngles &angles );
@@ -490,7 +496,10 @@ public:
 							// use exitEntityNum to specify a teleport with private camera view and delayed exit
 	virtual void			Teleport( const idVec3 &origin, const idAngles &angles, idEntity *destination );
 
+// [PS2_D3BFG]: Kill is only called by multiplayer game code.
+#if !defined( ID_PS2 )
 	void					Kill( bool delayRespawn, bool nodamage );
+#endif
 	virtual void			Killed( idEntity *inflictor, idEntity *attacker, int damage, const idVec3 &dir, int location );
 	void					StartFxOnBone(const char *fx, const char *bone);
 
@@ -498,9 +507,12 @@ public:
 	void					CalculateRenderView();	// called every tic by player code
 	void					CalculateFirstPersonView();
 
+// [PS2_D3BFG]: Multiplayer chat and spectator HUD do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					AddChatMessage( int index, int alpha, const idStr & message );
 	void					UpdateSpectatingText();
 	void					ClearChatMessage( int index );
+#endif
 
 	void					DrawHUD( idMenuHandler_HUD * hudManager );
 
@@ -585,7 +597,10 @@ public:
 
 	bool					HandleGuiEvents( const sysEvent_t * ev );
 	void					PerformImpulse( int impulse );
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 	void					Spectate( bool spectate, bool force = false );
+#endif
 	void					TogglePDA();
 	void					RouteGuiMouse( idUserInterface *gui );
 	void					UpdateHud();
@@ -600,7 +615,10 @@ public:
 	idCamera *				GetPrivateCameraView() const { return privateCameraView; }
 	void					StartFxFov( float duration  );
 	void					UpdateHudWeapon( bool flashWeapon = true );
+// [PS2_D3BFG]: Multiplayer chat and spectator HUD do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					UpdateChattingHud();
+#endif
 	void					UpdateHudStats( idMenuHandler_HUD * hudManager );
 	void					Event_StopAudioLog();
 	bool					IsSoundChannelPlaying( const s_channelType channel = SND_CHANNEL_ANY );
@@ -609,6 +627,8 @@ public:
 	bool					IsTipVisible() { return tipUp; };
 	void					HideObjective();
 
+// [PS2_D3BFG]: Multiplayer client interpolation, snapshots and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
@@ -616,11 +636,15 @@ public:
 	void					ReadPlayerStateFromSnapshot( const idBitMsg &msg );
 
 	virtual bool			ServerReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
 	virtual bool			GetPhysicsToVisualTransform( idVec3 &origin, idMat3 &axis );
 	virtual bool			GetPhysicsToSoundTransform( idVec3 &origin, idMat3 &axis );
 
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 	bool					IsRespawning();
 	bool					IsInTeleport();
 
@@ -630,8 +654,11 @@ public:
 	const idMaterial		*GetInfluenceMaterial() { return influenceMaterial; };
 	float					GetInfluenceRadius() { return influenceRadius; };
 
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 	// server side work for in/out of spectate. takes care of spawning it into the world as well
 	void					ServerSpectate( bool spectate );
+#endif
 	// for very specific usage. != GetPhysics()
 	idPhysics				*GetPlayerPhysics();
 	void					TeleportDeath( int killer );
@@ -642,10 +669,13 @@ public:
 
 	bool					OnLadder() const;
 
+// [PS2_D3BFG]: Player icons are a multiplayer feature.
+#if !defined( ID_PS2 )
 	virtual	void			UpdatePlayerIcons();
 	virtual	void			DrawPlayerIcons();
 	virtual	void			HidePlayerIcons();
 	bool					NeedsIcon();
+#endif
 
 	void					StartHealthRecharge(int speed);
 	void					StopHealthRecharge();
@@ -660,9 +690,12 @@ public:
 	void					StopHelltime( bool quick = true );
 	void					PlayHelltimeStopSound();
 
+// [PS2_D3BFG]: CTF flag carrying and player icons are multiplayer features.
+#if !defined( ID_PS2 )
 	void					DropFlag();	// drop CTF item
 	void					ReturnFlag();
 	virtual void			FreeModelDef();
+#endif
 
 	bool					SelfSmooth();
 	void					SetSelfSmooth( bool b );
@@ -680,10 +713,18 @@ public:
 	int						GetClientFireCount() const { return clientFireCount; }
 	void					IncrementFireCount() { ++clientFireCount; }
 	
+// [PS2_D3BFG]: The respawn hud message is a multiplayer feature.
+#if !defined( ID_PS2 )
 	void					ShowRespawnHudMessage();
+#endif
 	void					HideRespawnHudMessage();
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: The single local player is always controlled locally.
+	bool					IsLocallyControlled() const { return true; }
+#else
 	bool					IsLocallyControlled() const { return entityNumber == gameLocal.GetLocalClientNum(); }
+#endif
 
 	gameExpansionType_t		GetExpansionType() const;
 
@@ -810,7 +851,10 @@ private:
 	int						serverOverridePositionTime;
 	int						clientFireCount;
 	
+// [PS2_D3BFG]: Player icons are a multiplayer feature.
+#if !defined( ID_PS2 )
 	idPlayerIcon			playerIcon;
+#endif
 
 	bool					selfSmooth;
 
@@ -827,9 +871,12 @@ private:
 	void					UpdateFlashlight();
 	void					FlashlightOn();
 	void					FlashlightOff();
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 	void					UpdateSpectating();
 	void					SpectateFreeFly( bool force );	// ignore the timeout to force when followed spec is no longer valid
 	void					SpectateCycle();
+#endif
 	idAngles				GunTurningOffset();
 	idVec3					GunAcceleratingOffset();
 
@@ -843,13 +890,25 @@ private:
 	void					InitAASLocation();
 	void					SetAASLocation();
 	void					Move();
+// [PS2_D3BFG]: Multiplayer client physics correction does not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					Move_Interpolated( float fraction );
+#endif
+// [PS2_D3BFG]: Multiplayer client physics correction does not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					RunPhysics_RemoteClientCorrection();
+#endif
 	void					UpdatePowerUps();
 	void					UpdateDeathSkin( bool state_hitch );
 	void					ClearPowerup( int i );
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 	void					SetSpectateOrigin();
+#endif
+// [PS2_D3BFG]: Multiplayer client physics correction does not exist on the PS2.
+#if !defined( ID_PS2 )
 	bool					AllowClientAuthPhysics();
+#endif
 	virtual int				GetPhysicsTimeStep() const;
 
 	void					ClearFocus();

@@ -111,7 +111,10 @@ public:
 
 public:	// common physics interface
 	bool					Evaluate( int timeStepMSec, int endTimeMSec );
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	bool					Interpolate( const float fraction );
+#endif
 	void					UpdateTime( int endTimeMSec );
 	int						GetTime() const;
 
@@ -133,7 +136,10 @@ public:	// common physics interface
 
 	const idVec3 &			GetLinearVelocity( int id = 0 ) const;
 
+// [PS2_D3BFG]: Multiplayer client physics correction does not exist on the PS2.
+#if !defined( ID_PS2 )
 	bool					ClientPusherLocked( bool & justBecameUnlocked );
+#endif
 	void					SetPushed( int deltaTime );
 	void					SetPushedWithAbnormalVelocityHack( int deltaTime );
 	const idVec3 &			GetPushedLinearVelocity( const int id = 0 ) const;
@@ -141,8 +147,11 @@ public:	// common physics interface
 
 	void					SetMaster( idEntity *master, const bool orientated = true );
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					WriteToSnapshot( idBitMsg &msg ) const;
 	void					ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 	void					SnapToNextState() { current = next; previous = current; }
 

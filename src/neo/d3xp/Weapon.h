@@ -151,7 +151,10 @@ public:
 	void					UpdateScript();
 	void					EnterCinematic();
 	void					ExitCinematic();
+	// [PS2_D3BFG]: Weapon net catchup is a multiplayer feature.
+#if !defined( ID_PS2 )
 	void					NetCatchup();
+#endif
 
 	// Visual presentation
 	void					PresentWeapon( bool showViewModel );
@@ -180,8 +183,11 @@ public:
 	// Flashlight
 	idAnimatedEntity *		GetWorldModel() { return worldModel.GetEntity(); }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
 
 	enum {
 		EVENT_RELOAD = idEntity::EVENT_MAXEVENTS,
@@ -189,10 +195,16 @@ public:
 		EVENT_CHANGESKIN,
 		EVENT_MAXEVENTS
 	};
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
+// [PS2_D3BFG]: Multiplayer client prediction and client interpolation do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientPredictionThink();
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
 	void					MuzzleFlashLight();
 	void					RemoveMuzzleFlashlight();
 

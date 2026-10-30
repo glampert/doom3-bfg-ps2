@@ -80,13 +80,21 @@ public :
 	bool					GetLaunchedFromGrabber() { return launchedFromGrabber; }
 
 	static void				DefaultDamageEffect( idEntity *soundEnt, const idDict &projectileDef, const trace_t &collision, const idVec3 &velocity );
+// [PS2_D3BFG]: Client projectile prediction is a multiplayer feature.
+#if !defined( ID_PS2 )
 	static bool				ClientPredictionCollide( idEntity *soundEnt, const idDict &projectileDef, const trace_t &collision, const idVec3 &velocity, bool addDamageEffect );
+#endif
+// [PS2_D3BFG]: Multiplayer client prediction, client interpolation, snapshots and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientPredictionThink();
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
 	virtual bool			ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
+// [PS2_D3BFG]: Catching up projectiles on a server is a multiplayer feature.
+#if !defined( ID_PS2 )
 	void					QueueToSimulate( int startTime );
 	virtual void			SimulateProjectileFrame( int msec, int endTime );
 	virtual void			PostSimulate( int endTime );
@@ -101,6 +109,7 @@ public :
 
 	// This list is used to "catch up" client projectiles to the current time on the server
 	static idArray< simulatedProjectile_t, MAX_SIMULATED_PROJECTILES >	projectilesToSimulate;
+#endif
 
 protected:
 	idEntityPtr<idEntity>	owner;

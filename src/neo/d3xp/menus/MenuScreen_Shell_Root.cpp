@@ -467,6 +467,8 @@ bool idMenuScreen_Shell_Root::HandleAction( idWidgetAction & action, const idWid
 					menuData->SetNextScreen( SHELL_AREA_CAMPAIGN, MENU_TRANSITION_SIMPLE );
 					break;
 				}
+// [PS2_D3BFG]: The multiplayer entry is never added to the root menu on the PS2.
+#if !defined( ID_PS2 )
 				case ROOT_CMD_MULTIPLAYER: {
 					const idLocalUser * masterUser = session->GetSignInManager().GetMasterLocalUser();
 
@@ -503,6 +505,7 @@ bool idMenuScreen_Shell_Root::HandleAction( idWidgetAction & action, const idWid
 					}
 					break;
 				}
+#endif
 				case ROOT_CMD_PLAYSTATION: {
 					menuData->SetNextScreen( SHELL_AREA_PLAYSTATION, MENU_TRANSITION_SIMPLE );
 					break;

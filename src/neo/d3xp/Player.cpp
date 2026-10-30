@@ -47,19 +47,31 @@ idCVar flashlight_batteryFlickerPercent( "flashlight_batteryFlickerPercent", ".1
 idCVar ui_showGun( "ui_showGun", "1", CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL, "show gun" );
 
 // Client-authoritative stuff
+// [PS2_D3BFG]: Client-authoritative physics does not exist on the PS2.
+#if !defined( ID_PS2 )
 idCVar pm_clientAuthoritative_debug( "pm_clientAuthoritative_debug", "0", CVAR_BOOL, "" );
+#endif
 idCVar pm_controllerShake_damageMaxMag( "pm_controllerShake_damageMaxMag", "60.0f", CVAR_FLOAT, "" );
 idCVar pm_controllerShake_damageMaxDur( "pm_controllerShake_damageMaxDur", "60.0f", CVAR_FLOAT, "" );
 
+// [PS2_D3BFG]: Client-authoritative physics does not exist on the PS2.
+#if !defined( ID_PS2 )
 idCVar pm_clientAuthoritative_warnDist( "pm_clientAuthoritative_warnDist", "100.0f", CVAR_FLOAT, "" );
 idCVar pm_clientAuthoritative_minDistZ( "pm_clientAuthoritative_minDistZ", "1.0f", CVAR_FLOAT, "" );
 idCVar pm_clientAuthoritative_minDist( "pm_clientAuthoritative_minDist", "-1.0f", CVAR_FLOAT, "" );
 idCVar pm_clientAuthoritative_Lerp( "pm_clientAuthoritative_Lerp", "0.9f", CVAR_FLOAT, "" );
 
 idCVar pm_clientAuthoritative_Divergence( "pm_clientAuthoritative_Divergence", "200.0f", CVAR_FLOAT, "" );
+#endif
+// [PS2_D3BFG]: Multiplayer physics interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 idCVar pm_clientInterpolation_Divergence( "pm_clientInterpolation_Divergence", "5000.0f", CVAR_FLOAT, "" );
+#endif
 
+// [PS2_D3BFG]: Client-authoritative physics does not exist on the PS2.
+#if !defined( ID_PS2 )
 idCVar pm_clientAuthoritative_minSpeedSquared( "pm_clientAuthoritative_minSpeedSquared", "1000.0f", CVAR_FLOAT, "" );
+#endif
 
 extern idCVar g_demoMode;
 
@@ -1218,6 +1230,8 @@ int	idInventory::GetInventoryAmmoForType( const int ammoType ) const {
 	return ammo[ammoType].Get();
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ===============
 idInventory::WriteAmmoToSnapshot
@@ -1260,6 +1274,7 @@ void idInventory::SetRemoteClientAmmo( const int ownerEntityNumber ) {
 		ammo[i].UpdateFromSnapshot( 999, ownerEntityNumber );
 	}
 }
+#endif
 
 /*
 ==============
@@ -1861,10 +1876,13 @@ void idPlayer::Spawn() {
 		objectiveSystemOpen = false;
 	} 
 
+	// [PS2_D3BFG]: Multiplayer chat does not exist on the PS2.
+#if !defined( ID_PS2 )
 	if ( common->IsMultiplayer() && mpMessages == NULL ) {
 		mpMessages = new idSWF( "mp_messages", common->SW() );
 		mpMessages->Activate( true );
 	}
+#endif
 
 	SetLastHitTime( 0 );
 
@@ -2051,10 +2069,13 @@ idPlayer::~idPlayer() {
 	if ( enviroSuitLight.IsValid() ) {
 		enviroSuitLight.GetEntity()->ProcessEvent( &EV_Remove );
 	}
+	// [PS2_D3BFG]: CTF flag carrying is a multiplayer feature.
+#if !defined( ID_PS2 )
 	// have to do this here, idMultiplayerGame::DisconnectClient() is too late
 	if ( common->IsMultiplayer() && gameLocal.mpGame.IsGametypeFlagBased() ) { 
 		ReturnFlag();
 	}
+#endif
 
 	delete hudManager;
 	hudManager = NULL;
@@ -2665,6 +2686,8 @@ void idPlayer::Restore( idRestoreGame *savefile ) {
 
 }
 
+// [PS2_D3BFG]: Map restart is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::PrepareForRestart
@@ -2693,7 +2716,10 @@ void idPlayer::PrepareForRestart() {
 	// the sound world is going to be cleared, don't keep references to emitters
 	FreeSoundEmitter( false );
 }
+#endif
 
+// [PS2_D3BFG]: Map restart is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::Restart
@@ -2719,7 +2745,10 @@ void idPlayer::Restart() {
 	useInitialSpawns = true;
 	UpdateSkinSetup();
 }
+#endif
 
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::ServerSpectate
@@ -2761,6 +2790,7 @@ void idPlayer::ServerSpectate( bool spectate ) {
 		DropFlag();
 	}
 }
+#endif
 
 /*
 ===========
@@ -2984,6 +3014,8 @@ void idPlayer::UpdateSkinSetup() {
 		return;
 	}
 
+// [PS2_D3BFG]: Multiplayer skins do not exist on the PS2.
+#if !defined( ID_PS2 )
 	if ( gameLocal.mpGame.IsGametypeTeamBased() ) { /* CTF */
 		skinIndex = team + 1;
 	} else {
@@ -3007,6 +3039,7 @@ void idPlayer::UpdateSkinSetup() {
 		spawnArgs.GetString( "skin_invisibility", "", &invisibleSkin );
 		powerUpSkin = declManager->FindSkin( invisibleSkin );
 	}
+#endif
 }
 
 /*
@@ -3028,6 +3061,8 @@ void idPlayer::UpdateHudStats( idMenuHandler_HUD * _hudManager ) {
 			inventory.weaponPulse = false;
 		}
 
+		// [PS2_D3BFG]: CTF flag and team HUD state is a multiplayer feature.
+#if !defined( ID_PS2 )
 		if ( gameLocal.mpGame.IsGametypeFlagBased() )
 		{
 			hud->SetFlagState( 0, gameLocal.mpGame.GetFlagStatus( 0 ) );
@@ -3038,6 +3073,7 @@ void idPlayer::UpdateHudStats( idMenuHandler_HUD * _hudManager ) {
 
 			hud->SetTeam( team );
 		}
+#endif
 
 	}
 }
@@ -3066,6 +3102,8 @@ void idPlayer::UpdateHudWeapon( bool flashWeapon ) {
 	curDisplay->UpdateWeaponStates( p, flashWeapon );
 }
 
+// [PS2_D3BFG]: Multiplayer chat and spectator HUD do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::UpdateHudWeapon
@@ -3089,8 +3127,11 @@ void idPlayer::UpdateChattingHud() {
 
 	curDisplay->UpdateChattingHud( p );
 }
+#endif
 
 
+// [PS2_D3BFG]: Multiplayer chat and spectator HUD do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ========================
 idMenuScreen_Scoreboard::UpdateSpectating
@@ -3135,7 +3176,10 @@ void idPlayer::UpdateSpectatingText() {
 		txtVal->SetStrokeInfo( true, 0.75f, 1.75f );
 	}
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer chat and spectator HUD do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::UpdateMpMessages
@@ -3173,7 +3217,10 @@ void idPlayer::AddChatMessage( int index, int alpha, const idStr & message ) {
 	}
 
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer chat and spectator HUD do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::UpdateMpMessages
@@ -3198,6 +3245,7 @@ void idPlayer::ClearChatMessage( int index ) {
 	}
 
 }
+#endif
 
 /*
 ===============
@@ -3211,10 +3259,13 @@ void idPlayer::DrawHUD( idMenuHandler_HUD * _hudManager ) {
 		return;
 	} 
 	
+	// [PS2_D3BFG]: Multiplayer chat and spectator HUD do not exist on the PS2.
+#if !defined( ID_PS2 )
 	if ( common->IsMultiplayer() ) {
 		UpdateChattingHud();
 		UpdateSpectatingText();
 	}
+#endif
 
 	// Always draw the local client's messages so that chat works correctly while spectating another player.
 	idPlayer * localPlayer = static_cast< idPlayer * >( gameLocal.entities[ gameLocal.GetLocalClientNum() ] );
@@ -4862,6 +4913,8 @@ void idPlayer::Weapon_Combat() {
 	}
 
 	if (  idealWeapon != currentWeapon &&  idealWeapon.Get() < MAX_WEAPONS ) {
+		// [PS2_D3BFG]: Weapon catch-up on clients is a multiplayer feature.
+#if !defined( ID_PS2 )
 		if ( weaponCatchup ) {
 			assert( common->IsClient() );
 
@@ -4878,7 +4931,9 @@ void idPlayer::Weapon_Combat() {
 				UpdateScript();
 			}
 			weaponCatchup = false;			
-		} else {
+		} else
+#endif
+		{
 			if ( weapon.GetEntity()->IsReady() ) {
 				weapon.GetEntity()->PutAway();
 			}
@@ -5010,9 +5065,12 @@ void idPlayer::Weapon_GUI() {
 	}
 
 	// disable click prediction for the GUIs. handy to check the state sync does the right thing
+// [PS2_D3BFG]: There are no network clients on the PS2.
+#if !defined( ID_PS2 )
 	if ( common->IsClient() && !net_clientPredictGUI.GetBool() ) {
 		return;
 	}
+#endif
 
 	bool wasDown = ( oldButtons & (BUTTON_ATTACK|BUTTON_USE) ) != 0;
 	bool isDown = ( usercmd.buttons & (BUTTON_ATTACK|BUTTON_USE) ) != 0;
@@ -5254,6 +5312,8 @@ void idPlayer::FlashlightOff() {
 	flashlight->FlashlightOff();
 }
 
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::SpectateFreeFly
@@ -5321,7 +5381,10 @@ void idPlayer::SpectateFreeFly( bool force ) {
 
 	
 }
+#endif
 
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::SpectateCycle
@@ -5343,7 +5406,10 @@ void idPlayer::SpectateCycle() {
 		lastSpectateChange = gameLocal.time + 500;
 	}
 }
+#endif
 
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::UpdateSpectating
@@ -5368,6 +5434,7 @@ void idPlayer::UpdateSpectating() {
 		wantSpectate = false;
 	}
 }
+#endif
 
 /*
 ===============
@@ -5577,6 +5644,8 @@ void idPlayer::UpdateFocus() {
 	start = GetEyePosition();
 	end = start + firstPersonViewAxis[0] * 80.0f;
 
+	// [PS2_D3BFG]: Player identification on the HUD is a multiplayer feature.
+#if !defined( ID_PS2 )
 	// player identification -> names to the hud
 	if ( common->IsMultiplayer() && IsLocallyControlled() ) {
 		idVec3 end = start + viewAngles.ToForward() * 768.0f;
@@ -5591,6 +5660,7 @@ void idPlayer::UpdateFocus() {
 			lastMPAimTime = gameLocal.realClientTime;
 		}
 	}
+#endif
 
 	idBounds bounds( start );
 	bounds.AddPoint( end );
@@ -6415,6 +6485,8 @@ void idPlayer::TogglePDA() {
 	}
 }
 
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ==============
 idPlayer::Spectate
@@ -6453,6 +6525,7 @@ void idPlayer::Spectate( bool spectate, bool force ) {
 	}
 	SetClipModel();
 }
+#endif
 
 /*
 ==============
@@ -6571,13 +6644,18 @@ void idPlayer::PerformImpulse( int impulse ) {
 #if !defined(ID_RETAIL) && !defined(ID_RETAIL_INTERNAL)
 				}
 #endif
-			} else {
+			}
+// [PS2_D3BFG]: The scoreboard and multiplayer impulses do not exist on the PS2.
+#if !defined( ID_PS2 )
+			else {
 				if ( IsLocallyControlled() ) {
 					gameLocal.mpGame.SetScoreboardActive( true );
 				}
 			}
+#endif
 			break;
 		}
+#if !defined( ID_PS2 )
 		case IMPULSE_22: {
 			if ( common->IsClient() || IsLocallyControlled() ) {
 				gameLocal.mpGame.ToggleSpectate();
@@ -6621,6 +6699,7 @@ void idPlayer::PerformImpulse( int impulse ) {
 			}
 			break;
 		}
+#endif
 		 //Hack so the chainsaw will work in MP
 		case IMPULSE_27: {
 			SelectWeapon(18, false);
@@ -6656,9 +6735,12 @@ void idPlayer::EvaluateControls() {
 		PerformImpulse( usercmd.impulse );
 	}
 
+	// [PS2_D3BFG]: The scoreboard is a multiplayer feature.
+#if !defined( ID_PS2 )
 	if ( forceScoreBoard ) {
 		gameLocal.mpGame.SetScoreboardActive( true );
 	}
+#endif
 
 	oldImpulseSequence = usercmd.impulseSequence;
 
@@ -6908,6 +6990,8 @@ void idPlayer::GetAASLocation( idAAS *aas, idVec3 &pos, int &areaNum ) const {
 	pos = physicsObj.GetOrigin();
 }
 
+// [PS2_D3BFG]: Multiplayer client physics correction does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ==============
 idPlayer::Move_Interpolated
@@ -7017,6 +7101,7 @@ void idPlayer::Move_Interpolated( float fraction ) {
 	CrashLand( oldOrigin, oldVelocity );
 
 }
+#endif
 
 /*
 ==============
@@ -7153,6 +7238,8 @@ void idPlayer::Move() {
 	CrashLand( oldOrigin, oldVelocity );
 }
 
+// [PS2_D3BFG]: Multiplayer client physics correction does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ========================
 idPlayer::AllowClientAuthPhysics
@@ -7163,7 +7250,10 @@ bool idPlayer::AllowClientAuthPhysics() {
 	// TODO: I don't think doom 3 will need to care about the respawn count.
 	return ( usercmd.serverGameMilliseconds > serverOverridePositionTime && commonLocal.GetUCmdMgr().HasUserCmdForPlayer( entityNumber ) );
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer client physics correction does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ========================
 idPlayer::RunPhysics_RemoteClientCorrection
@@ -7261,6 +7351,7 @@ void idPlayer::RunPhysics_RemoteClientCorrection() {
 		}
 	}
 }
+#endif
 
 /*
 ========================
@@ -7281,6 +7372,8 @@ int idPlayer::GetPhysicsTimeStep() const {
 	}
 }
 
+// [PS2_D3BFG]: The respawn hud message is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ==============
 idPlayer::ShowRespawnHudMessage
@@ -7302,6 +7395,7 @@ void idPlayer::ShowRespawnHudMessage() {
 		session->GetActingGameStateLobbyBase().SendReliableToLobbyUser( gameLocal.lobbyUserIDs[entityNumber], GAME_RELIABLE_MESSAGE_RESPAWN_AVAILABLE, outMsg );
 	}
 }
+#endif
 
 /*
 ==============
@@ -7363,6 +7457,8 @@ void idPlayer::UpdateHud() {
 		}
 	}
 
+	// [PS2_D3BFG]: Player identification and lag on the HUD are multiplayer features.
+#if !defined( ID_PS2 )
 	if ( gameLocal.realClientTime == lastMPAimTime ) {
 		if ( MPAim != -1 && gameLocal.mpGame.IsGametypeTeamBased() /* CTF */
 			&& gameLocal.entities[ MPAim ] && gameLocal.entities[ MPAim ]->IsType( idPlayer::Type )
@@ -7398,6 +7494,7 @@ void idPlayer::UpdateHud() {
 		//}
 
 	}
+#endif
 }
 
 /*
@@ -7550,7 +7647,10 @@ void idPlayer::Think() {
 
 	aimAssist.Update();
 
+	// [PS2_D3BFG]: Player icons are a multiplayer feature.
+#if !defined( ID_PS2 )
 	UpdatePlayerIcons();
+#endif
 
 	UpdateSkinSetup();
 
@@ -7628,6 +7728,10 @@ void idPlayer::Think() {
 		CopyJointsFromBodyToHead();
 	}
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: The single local player is never corrected as a remote client.
+	Move();
+#else
 	if ( IsLocallyControlled() ) {
 		// Local player on the server. Do normal movement.
 		Move();
@@ -7638,6 +7742,7 @@ void idPlayer::Think() {
 		// ...then correct if needed.
 		RunPhysics_RemoteClientCorrection();
 	}
+#endif
 
 	if ( !g_stopTime.GetBool() ) {
 
@@ -7688,11 +7793,18 @@ void idPlayer::Think() {
 
 	inventory.UpdateArmor();
 
+	// [PS2_D3BFG]: Spectating is a multiplayer feature, so single player never spectates.
+#if defined( ID_PS2 )
+	if ( health > 0 ) {
+		UpdateWeapon();
+	}
+#else
 	if ( spectating ) {
 		UpdateSpectating();
 	} else if ( health > 0 ) {
 		UpdateWeapon();
 	}
+#endif
 
 	UpdateFlashlight();
 
@@ -7707,7 +7819,10 @@ void idPlayer::Think() {
 	UpdateDeathSkin( false );
 
 	if ( common->IsMultiplayer() ) {
+		// [PS2_D3BFG]: Player icons are a multiplayer feature.
+#if !defined( ID_PS2 )
 		DrawPlayerIcons();
+#endif
 
 		if ( enviroSuitLight.IsValid() ) {
 			idAngles lightAng = firstPersonViewAxis.ToAngles();
@@ -7804,6 +7919,8 @@ void idPlayer::Think() {
 	// stereo rendering laser sight that replaces the crosshair
 	UpdateLaserSight();
 
+	// [PS2_D3BFG]: The respawn hud message is a multiplayer feature.
+#if !defined( ID_PS2 )
 	// Show the respawn hud message if necessary.
 	if ( common->IsMultiplayer() && ( minRespawnTime != maxRespawnTime ) ) {
 		if ( gameLocal.previousTime < minRespawnTime && minRespawnTime <= gameLocal.time ) {
@@ -7811,8 +7928,11 @@ void idPlayer::Think() {
 			ShowRespawnHudMessage();
 		}
 	}
+#endif
 
 	// Make sure voice groups are set to the right team
+// [PS2_D3BFG]: There are no voice groups on the PS2.
+#if !defined( ID_PS2 )
 	if ( common->IsMultiplayer() && session->GetState() >= idSession::INGAME && entityNumber < MAX_CLIENTS ) {		// The entityNumber < MAX_CLIENTS seems to quiet the static analyzer
 		// Make sure we're on the right team (at the lobby level)
 		const int voiceTeam = spectating ? LOBBY_SPECTATE_TEAM_FOR_VOICE_CHAT : team;
@@ -7825,6 +7945,7 @@ void idPlayer::Think() {
 		// Update voice groups to match in case something changed
 		session->SetVoiceGroupsToTeams();
 	}
+#endif
 }
 
 /*
@@ -8005,6 +8126,8 @@ void idPlayer::LookAtKiller( idEntity *inflictor, idEntity *attacker ) {
 	SetViewAngles( ang );
 }
 
+// [PS2_D3BFG]: Kill is only called by multiplayer game code.
+#if !defined( ID_PS2 )
 /*
 ==============
 idPlayer::Kill
@@ -8030,6 +8153,7 @@ void idPlayer::Kill( bool delayRespawn, bool nodamage ) {
 		}
 	}
 }
+#endif
 
 /*
 ==================
@@ -8099,10 +8223,13 @@ void idPlayer::Killed( idEntity *inflictor, idEntity *attacker, int damage, cons
 	// drop the weapon as an item
 	DropWeapon( true );
 
+	// [PS2_D3BFG]: CTF flag carrying is a multiplayer feature.
+#if !defined( ID_PS2 )
 	// drop the flag if player was carrying it
 	if ( common->IsMultiplayer() && gameLocal.mpGame.IsGametypeFlagBased() && carryingFlag ) {
 		DropFlag();
 	}
+#endif
 
 	if ( !g_testDeath.GetBool() ) {
 		LookAtKiller( inflictor, attacker );
@@ -8252,7 +8379,12 @@ void idPlayer::CalcDamagePoints( idEntity *inflictor, idEntity *attacker, const 
 	if ( !damageDef->GetBool( "noArmor" ) ) {
 		float armor_protection;
 
+// [PS2_D3BFG]: There is no multiplayer armor protection on the PS2.
+#if defined( ID_PS2 )
+		armor_protection = g_armorProtection.GetFloat();
+#else
 		armor_protection = ( common->IsMultiplayer() ) ? g_armorProtectionMP.GetFloat() : g_armorProtection.GetFloat();
+#endif
 
 		armorSave = ceil( damage * armor_protection );
 		if ( armorSave >= inventory.armor ) {
@@ -8567,7 +8699,10 @@ void idPlayer::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
 	if ( !common->IsMultiplayer() || common->IsServer() ) {
 		// Server will deal his damage normally
 		ServerDealDamage( finalDamage, *inflictor, *attacker, dir, damageDefName, location );
-	} else if ( attacker->GetEntityNumber() == gameLocal.GetLocalClientNum() ) {
+	}
+// [PS2_D3BFG]: There are no network clients on the PS2.
+#if !defined( ID_PS2 )
+	else if ( attacker->GetEntityNumber() == gameLocal.GetLocalClientNum() ) {
 		// Clients send a reliable message to the server with the parameters of the hit. The
 		// server should make sure the client still has line-of-sight to its target before
 		// actually applying the damage.
@@ -8588,6 +8723,7 @@ void idPlayer::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
 		idLobbyBase & lobby = session->GetActingGameStateLobbyBase();
 		lobby.SendReliableToHost( GAME_RELIABLE_MESSAGE_CLIENT_HITSCAN_HIT, msg );
 	}
+#endif
 
 	lastDamageDef = damageDef->Index();
 	lastDamageDir = dir;
@@ -8849,11 +8985,15 @@ void idPlayer::CalculateViewWeaponPos( idVec3 &origin, idMat3 &axis ) {
 	angles.pitch	= xyspeed * bobfracsin * 0.005f;
 
 	// gun angles from turning
+// [PS2_D3BFG]: There is no multiplayer weapon sway on the PS2.
+#if !defined( ID_PS2 )
 	if ( common->IsMultiplayer() ) {
 		idAngles offset = GunTurningOffset();
 		offset *= g_mpWeaponAngleScale.GetFloat();
 		angles += offset;
-	} else {
+	} else
+#endif
+	{
 		angles += GunTurningOffset();
 	}
 
@@ -9193,6 +9333,8 @@ void idPlayer::SetLastHitTime( int time ) {
 		hud->CombatCursorFlash();
 	}
 
+	// [PS2_D3BFG]: Player identification on the HUD is a multiplayer feature.
+#if !defined( ID_PS2 )
 	if ( MPAim != -1 ) {
 		if ( gameLocal.entities[ MPAim ] && gameLocal.entities[ MPAim ]->IsType( idPlayer::Type ) ) {
 			aimed = static_cast< idPlayer * >( gameLocal.entities[ MPAim ] );
@@ -9226,6 +9368,7 @@ void idPlayer::SetLastHitTime( int time ) {
 		MPAimHighlight = false;
 		MPAimFadeTime = gameLocal.realClientTime;
 	}
+#endif
 }
 
 /*
@@ -9648,6 +9791,8 @@ void idPlayer::Event_ExitTeleporter() {
 	teleportEntity = NULL;
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPlayer::ClientThink
@@ -9703,9 +9848,12 @@ void idPlayer::ClientThink( const int curTime, const float fraction, const bool 
 		}
 	}
 
+	// [PS2_D3BFG]: The scoreboard is a multiplayer feature.
+#if !defined( ID_PS2 )
 	if ( forceScoreBoard ) {
 		gameLocal.mpGame.SetScoreboardActive( true );
 	}
+#endif
 
 	AdjustSpeed();
 
@@ -9869,6 +10017,7 @@ void idPlayer::ClientThink( const int curTime, const float fraction, const bool 
 		session->SetVoiceGroupsToTeams();
 	}
 }
+#endif
 
 /*
 ================
@@ -9883,6 +10032,8 @@ bool idPlayer::GetPhysicsToVisualTransform( idVec3 &origin, idMat3 &axis ) {
 
 	// smoothen the rendered origin and angles of other clients
 	// smooth self origin if snapshots are telling us prediction is off
+// [PS2_D3BFG]: There are no network clients to smooth on the PS2.
+#if !defined( ID_PS2 )
 	if ( common->IsClient() && gameLocal.framenum >= smoothedFrame && ( !IsLocallyControlled() || selfSmooth ) ) {
 		// render origin and axis
 		idMat3 renderAxis = viewAxis * GetPhysics()->GetAxis();
@@ -9909,7 +10060,9 @@ bool idPlayer::GetPhysicsToVisualTransform( idVec3 &origin, idMat3 &axis ) {
 		axis = idAngles( 0.0f, viewAngles.yaw, 0.0f ).ToMat3();
 		origin = ( smoothedOrigin - GetPhysics()->GetOrigin() ) * axis.Transpose();
 
-	} else {
+	} else
+#endif
+	{
 
 		axis = viewAxis;
 		origin = modelOffset;
@@ -9959,6 +10112,8 @@ void idPlayer::HandleUserCmds( const usercmd_t & newcmd ) {
 	usercmd = newcmd;
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPlayer::WriteToSnapshot
@@ -10334,6 +10489,7 @@ bool idPlayer::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) {
 	}
 //	return false;
 }
+#endif
 
 /*
 ================
@@ -10451,6 +10607,8 @@ void idPlayer::Event_StopAudioLog() {
 	//EndAudioLog();
 }
 
+// [PS2_D3BFG]: Spectating is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ===============
 idPlayer::SetSpectateOrigin
@@ -10464,6 +10622,7 @@ void idPlayer::SetSpectateOrigin() {
 	neworig[ 2 ] += SPECTATE_RAISE;
 	SetOrigin( neworig );
 }
+#endif
 
 /*
 ===============
@@ -10544,6 +10703,8 @@ void idPlayer::Event_Gibbed() {
 	// do nothing
 }
 
+// [PS2_D3BFG]: Player icons and CTF flag carrying are multiplayer features.
+#if !defined( ID_PS2 )
 extern idCVar net_clientMaxPrediction;
 
 /*
@@ -10552,9 +10713,12 @@ idPlayer::UpdatePlayerIcons
 ===============
 */
 void idPlayer::UpdatePlayerIcons() {
+// [PS2_D3BFG]: There is no network lag to query on the PS2.
+#if !defined( ID_PS2 )
 	idLobbyBase & lobby = session->GetActingGameStateLobbyBase();
 	int lastPacketTime = lobby.GetPeerTimeSinceLastPacket( lobby.PeerIndexFromLobbyUser( gameLocal.lobbyUserIDs[entityNumber] ) );
 	isLagged = ( lastPacketTime > net_clientMaxPrediction.GetInteger() );
+#endif
 	//isChatting = ( ( usercmd.buttons & BUTTON_CHATTING ) && ( health > 0 ) );
 }
 
@@ -10638,6 +10802,7 @@ void idPlayer::FreeModelDef() {
 	if ( common->IsMultiplayer() && gameLocal.mpGame.IsGametypeFlagBased() )
 		playerIcon.FreeIcon();
 }
+#endif
 
 /*
 ========================

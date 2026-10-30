@@ -67,7 +67,10 @@ const int PMF_ALL_TIMES			= (PMF_TIME_WATERJUMP|PMF_TIME_LAND|PMF_TIME_KNOCKBACK
 
 int c_pmove = 0;
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 extern idCVar pm_clientInterpolation_Divergence;
+#endif
 
 /*
 ============
@@ -1743,6 +1746,8 @@ bool idPhysics_Player::Evaluate( int timeStepMSec, int endTimeMSec ) {
 	return true; //( current.origin != oldOrigin );
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idPhysics_Player::Interpolate
@@ -1794,6 +1799,7 @@ bool idPhysics_Player::Interpolate( const float fraction ) {
 	
 	return true;
 }
+#endif
 
 /*
 ================
@@ -2057,6 +2063,8 @@ void idPhysics_Player::ClearPushedVelocity() {
 }
 
 
+// [PS2_D3BFG]: Multiplayer client physics correction does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ========================
 idPhysics_Player::ClientPusherLocked
@@ -2100,6 +2108,7 @@ bool idPhysics_Player::ClientPusherLocked( bool & justBecameUnlocked ) {
 
 	return clientPusherLocked;
 }
+#endif
 
 /*
 ================
@@ -2129,6 +2138,8 @@ void idPhysics_Player::SetMaster( idEntity *master, const bool orientated ) {
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 const float	PLAYER_VELOCITY_MAX				= 4000;
 const int	PLAYER_VELOCITY_TOTAL_BITS		= 16;
 const int	PLAYER_VELOCITY_EXPONENT_BITS	= idMath::BitsForInteger( idMath::BitsForFloat( PLAYER_VELOCITY_MAX ) ) + 1;
@@ -2175,4 +2186,4 @@ void idPhysics_Player::ReadFromSnapshot( const idBitMsg &msg ) {
 	}
 
 }
-
+#endif

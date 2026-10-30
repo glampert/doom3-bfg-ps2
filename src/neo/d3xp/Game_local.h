@@ -160,6 +160,8 @@ typedef struct {
 
 //============================================================================
 
+// [PS2_D3BFG]: Multiplayer event queues do not exist on the PS2.
+#if !defined( ID_PS2 )
 class idEventQueue {
 public:
 	typedef enum {
@@ -186,6 +188,7 @@ private:
 	entityNetEvent_t *					end;
 	idBlockAlloc<entityNetEvent_t,32>	eventAllocator;
 };
+#endif
 
 //============================================================================
 
@@ -331,7 +334,10 @@ public:
 	void					QuickSlowmoReset();
 
 
+// [PS2_D3BFG]: Only the multiplayer reliable messages tokenize lists.
+#if !defined( ID_PS2 )
 	void					Tokenize( idStrList &out, const char *in );
+#endif
 
 	// ---------------------- Public idGame Interface -------------------
 
@@ -361,19 +367,28 @@ public:
 	void					RunEntityThink( idEntity & ent, idUserCmdMgr & userCmdMgr );
 	virtual bool			Draw( int clientNum );
 	virtual bool			HandlePlayerGuiEvent( const sysEvent_t * ev );
+// [PS2_D3BFG]: Snapshots, reliable messages and client prediction do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ServerWriteSnapshot( idSnapShot & ss );
 	virtual void			ProcessReliableMessage( int clientNum, int type, const idBitMsg &msg );
 	virtual void			ClientReadSnapshot( const idSnapShot & ss );
 	virtual void			ClientRunFrame( idUserCmdMgr & cmdMgr, bool lastPredictFrame, gameReturn_t & ret  );
+#endif
 	void					BuildReturnValue( gameReturn_t & ret );
 
+// [PS2_D3BFG]: There are no multiplayer game modes or client stats on the PS2.
+#if !defined( ID_PS2 )
 	virtual int				GetMPGameModes( const char *** gameModes, const char *** gameModesDisplay );
 
 	virtual void			GetClientStats( int clientNum, char *data, const int len );
+#endif
 
 	virtual bool			IsInGame() const { return GameState() == GAMESTATE_ACTIVE; }
 
+// [PS2_D3BFG]: There are no network peers on the PS2.
+#if !defined( ID_PS2 )
 	virtual int				MapPeerToClient( int peer ) const;
+#endif
 	virtual int				GetLocalClientNum() const;
 
 	virtual void			GetAimAssistAngles( idAngles & angles );
@@ -390,9 +405,12 @@ public:
 							// Initializes all map variables common to both save games and spawned games
 	void					LoadMap( const char *mapName, int randseed );
 
+// [PS2_D3BFG]: Map restart is a multiplayer feature.
+#if !defined( ID_PS2 )
 	void					LocalMapRestart();
 	void					MapRestart();
 	static void				MapRestart_f( const idCmdArgs &args );
+#endif
 
 	idMapFile *				GetLevelMap();
 	const char *			GetMapName() const;
@@ -462,7 +480,10 @@ public:
 	int						GetFrameNum() const { return framenum; };
 	int						GetTime() const { return time; };
 
+// [PS2_D3BFG]: Only multiplayer spectating cycles through clients.
+#if !defined( ID_PS2 )
 	int						GetNextClientNum( int current ) const;
+#endif
 	idPlayer *				GetClientByNum( int current ) const;
 
 	idPlayer *				GetLocalPlayer() const;
@@ -472,10 +493,15 @@ public:
 	idEntity *				SelectInitialSpawnPoint( idPlayer *player );
 
 	void					SetPortalState( qhandle_t portal, int blockingBits );
+// [PS2_D3BFG]: Network entity events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					SaveEntityNetworkEvent( const idEntity *ent, int event, const idBitMsg *msg );
+#endif
 	int						ServerRemapDecl( int clientNum, declType_t type, int index );
 	int						ClientRemapDecl( declType_t type, int index );
 	void					SyncPlayersWithLobbyUsers( bool initial );
+// [PS2_D3BFG]: There are no clients to send messages to on the PS2.
+#if !defined( ID_PS2 )
 	void					ServerWriteInitialReliableMessages( int clientNum, lobbyUserID_t lobbyUserID );
 	void					ServerSendNetworkSyncCvars();
 
@@ -483,6 +509,7 @@ public:
 
 	void					ServerProcessReliableMessage( int clientNum, int type, const idBitMsg &msg );
 	void					ClientProcessReliableMessage( int type, const idBitMsg &msg );
+#endif
 
 	// Snapshot times - track exactly what times we are interpolating from and to
 	int						GetSSEndTime() const { return netInterpolationInfo.ssEndTime; }
@@ -491,8 +518,14 @@ public:
 	virtual void			SetServerGameTimeMs( const int time );
 	virtual int				GetServerGameTimeMs() const;
 
+// [PS2_D3BFG]: Predicted entities do not exist on the PS2.
+#if !defined( ID_PS2 )
 	idEntity *				FindPredictedEntity( uint32 predictedKey, idTypeInfo * type );
+#endif
+	// [PS2_D3BFG]: Projectile prediction keys are a multiplayer feature.
+#if !defined( ID_PS2 )
 	uint32					GeneratePredictionKey( idWeapon * weapon, idPlayer * playerAttacker, int overrideKey );
+#endif
 
 	int						GetLastClientUsercmdMilliseconds( int playerIndex ) const { return usercmdLastClientMilliseconds[ playerIndex ]; }
 
@@ -523,7 +556,10 @@ public:
 	virtual void					Shell_SyncWithSession() ;
 	virtual void					Shell_SetCanContinue( bool valid );
 	virtual void					Shell_UpdateSavedGames();
+// [PS2_D3BFG]: There is no client countdown on the PS2.
+#if !defined( ID_PS2 )
 	virtual void					Shell_UpdateClientCountdown( int countdown );
+#endif
 	virtual void					Shell_UpdateLeaderboard( const idLeaderboardCallback * callback );
 	virtual void					Shell_SetGameComplete();
 
@@ -567,9 +603,14 @@ private:
 	bool					influenceActive;		// true when a phantasm is happening
 	int						nextGibTime;
 
+// [PS2_D3BFG]: Multiplayer event queues do not exist on the PS2.
+#if !defined( ID_PS2 )
 	idEventQueue			eventQueue;
 	idEventQueue			savedEventQueue;
+#endif
 
+// [PS2_D3BFG]: Multiplayer spawn spots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	idStaticList<spawnSpot_t, MAX_GENTITIES> spawnSpots;
 	idStaticList<idEntity *, MAX_GENTITIES> initialSpots;
 	int						currentInitialSpot;
@@ -577,6 +618,7 @@ private:
 	idStaticList<spawnSpot_t, MAX_GENTITIES> teamSpawnSpots[2];
 	idStaticList<idEntity *, MAX_GENTITIES> teamInitialSpots[2];
 	int						teamCurrentInitialSpot[2];
+#endif
 
 	struct netInterpolationInfo_t {		// Was in GameTimeManager.h in id5, needed common place to put this.
 		netInterpolationInfo_t()
@@ -627,15 +669,24 @@ private:
 
 	void					InitAsyncNetwork();
 	void					ShutdownAsyncNetwork();
+// [PS2_D3BFG]: There is no network event queue on the PS2.
+#if !defined( ID_PS2 )
 	void					NetworkEventWarning( const entityNetEvent_t *event, VERIFY_FORMAT_STRING const char *fmt, ... );
 	void					ServerProcessEntityNetworkEventQueue();
 	void					ClientProcessEntityNetworkEventQueue();
+#endif
 							// call after any change to serverInfo. Will update various quick-access flags
 	void					UpdateServerInfoFlags();
+// [PS2_D3BFG]: Multiplayer spawn spots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	void					RandomizeInitialSpawns();
 	static int				sortSpawnPoints( const void *ptr1, const void *ptr2 );
+#endif
 
+// [PS2_D3BFG]: Catching up projectiles on a server is a multiplayer feature.
+#if !defined( ID_PS2 )
 	bool					SimulateProjectiles();
+#endif
 };
 
 //============================================================================
@@ -795,7 +846,10 @@ const int	CINEMATIC_SKIP_DELAY	= SEC2MS( 2.0f );
 #include "WorldSpawn.h"
 #include "Item.h"
 #include "PlayerView.h"
+// [PS2_D3BFG]: Player icons are a multiplayer feature.
+#if !defined( ID_PS2 )
 #include "PlayerIcon.h"
+#endif
 #include "Achievements.h"
 #include "AimAssist.h"
 #include "Player.h"

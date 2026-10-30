@@ -20,28 +20,6 @@ namespace
 
 } // namespace
 
-// Preserve values referenced by retained frame code; they never enable network services.
-idCVar net_clientMaxPrediction("net_clientMaxPrediction", "5000", CVAR_SYSTEM | CVAR_INTEGER | CVAR_NOCHEAT,
-                               "maximum client prediction in milliseconds; online services are unavailable");
-
-idCVar net_ucmdRate("net_ucmdRate", "40", CVAR_SYSTEM | CVAR_INTEGER,
-                    "usercmd send interval in milliseconds; online services are unavailable");
-
-bool idCommonLocal::IsMultiplayer()
-{
-    return false;
-}
-
-bool idCommonLocal::IsServer()
-{
-    return false;
-}
-
-bool idCommonLocal::IsClient()
-{
-    return false;
-}
-
 void idCommonLocal::ResetNetworkingState()
 {
     // A local map reload still owns snapshot/interpolation and user-command storage.
@@ -54,15 +32,9 @@ void idCommonLocal::ResetNetworkingState()
     optimalTimeBuffered = optimalTimeBufferedWindow = 0.0f;
     optimalPCTBuffer = 0.5f;
 
-    for (int index = 0; index < receivedSnaps.Num(); ++index)
-    {
-        receivedSnaps[index].Clear();
-    }
-
     userCmdMgr.SetDefaults();
     snapCurrent.localTime = snapPrevious.localTime = -1;
     snapCurrent.serverTime = snapPrevious.serverTime = -1;
-    oldss.Clear();
     gameFrame = clientPrediction = nextUsercmdSendTime = nextSnapshotSendTime = 0;
 }
 
@@ -89,12 +61,6 @@ void idCommonLocal::StopRecordingRenderDemo()
         Unsupported(#method);                            \
     }
 
-CAMPAIGN_UNSUPPORTED(int, GetSnapRate, ())
-CAMPAIGN_UNSUPPORTED(void, NetReceiveReliable, (int, int, idBitMsg &))
-CAMPAIGN_UNSUPPORTED(void, NetReceiveSnapshot, (idSnapShot &))
-CAMPAIGN_UNSUPPORTED(void, NetReceiveUsercmds, (int, idBitMsg &))
-CAMPAIGN_UNSUPPORTED(void, OnStartHosting, (idMatchParameters &))
-CAMPAIGN_UNSUPPORTED(void, InitializeMPMapsModes, ())
 CAMPAIGN_UNSUPPORTED(void, StartMenu, (bool))
 CAMPAIGN_UNSUPPORTED(void, ExitMenu, ())
 CAMPAIGN_UNSUPPORTED(bool, MenuEvent, (const sysEvent_t *))

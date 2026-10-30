@@ -46,7 +46,10 @@ idCVar g_projectileDebug( "g_projectileDebug", "0", CVAR_BOOL, "Debug projectile
 // This is used in MP to simulate frames to catchup a projectile's state. Similiar to how players work much lighter weight.
 
 // This is used in MP to simulate frames to catchup a projectile's state. Similiar to how players work much lighter weight.
+// [PS2_D3BFG]: Catching up projectiles on a server is a multiplayer feature.
+#if !defined( ID_PS2 )
 idArray< idProjectile::simulatedProjectile_t, idProjectile::MAX_SIMULATED_PROJECTILES >	idProjectile::projectilesToSimulate;
+#endif
 
 static const int BFG_DAMAGE_FREQUENCY			= 333;
 static const float BOUNCE_SOUND_MIN_VELOCITY	= 200.0f;
@@ -565,6 +568,8 @@ bool idProjectile::Collide( const trace_t &collision, const idVec3 &velocity ) {
 	
 	const bool isHitscan = spawnArgs.GetBool( "net_instanthit" );
 
+	// [PS2_D3BFG]: Client projectile prediction is a multiplayer feature.
+#if !defined( ID_PS2 )
 	// hanlde slow projectiles here.
 	if ( common->IsClient() && !isHitscan ) {
 
@@ -575,6 +580,7 @@ bool idProjectile::Collide( const trace_t &collision, const idVec3 &velocity ) {
 		}
 
 	}
+#endif
 
 	// remove projectile when a 'noimpact' surface is hit
 	if ( ( collision.c.material != NULL ) && ( collision.c.material->GetSurfaceFlags() & SURF_NOIMPACT ) ) {
@@ -772,6 +778,8 @@ void idProjectile::AddDefaultDamageEffect( const trace_t &collision, const idVec
 
 	DefaultDamageEffect( this, spawnArgs, collision, velocity );
 
+	// [PS2_D3BFG]: Replicating damage effects is a multiplayer feature.
+#if !defined( ID_PS2 )
 	if ( common->IsServer() && fl.networkSync ) {
 		idBitMsg	msg;
 		byte		msgBuf[MAX_EVENT_PARAM_SIZE];
@@ -793,6 +801,7 @@ void idProjectile::AddDefaultDamageEffect( const trace_t &collision, const idVec
 		msg.WriteFloat( velocity[2], 5, 10 );
 		ServerSendEvent( EVENT_DAMAGE_EFFECT, &msg, false, excluding );
 	}
+#endif
 }
 
 /*
@@ -1211,10 +1220,13 @@ void idProjectile::Event_Touch( idEntity *other, trace_t *trace ) {
 		return;
 	}
 
+	// [PS2_D3BFG]: Capture the flag is a multiplayer feature.
+#if !defined( ID_PS2 )
 	// Projectiles do not collide with flags
 	if ( other->IsType( idItemTeam::Type ) ) {
 		return;
 	}
+#endif
 
 	if ( other != owner.GetEntity() ) {
 		trace_t collision;
@@ -1296,6 +1308,8 @@ void idProjectile::Event_SetGravity( float gravity ) {
 	physicsObj.SetGravity(gravVec * gravity);
 }
 
+// [PS2_D3BFG]: Client projectile prediction is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 =================
 idProjectile::ClientPredictionCollide
@@ -1340,7 +1354,10 @@ bool idProjectile::ClientPredictionCollide( idEntity *soundEnt, const idDict &pr
 	}
 	return true;
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idProjectile::ClientThink
@@ -1358,7 +1375,10 @@ void idProjectile::ClientThink( const int curTime, const float fraction, const b
 		AddParticlesAndLight();
 	}
 }
+#endif
 
+// [PS2_D3BFG]: Multiplayer client prediction, snapshots and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idProjectile::ClientPredictionThink
@@ -1472,8 +1492,11 @@ bool idProjectile::ClientReceiveEvent( int event, int time, const idBitMsg &msg 
 		}
 	}
 }
+#endif
 
 
+// [PS2_D3BFG]: Catching up projectiles on a server is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ========================
 idProjectile::QueueToSimulate
@@ -1496,7 +1519,10 @@ void idProjectile::QueueToSimulate( int startTime ) {
 	
 	idLib::Warning("Unable to simulate more projectiles this frame");
 }
+#endif
 
+// [PS2_D3BFG]: Catching up projectiles on a server is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ========================
 idProjectile::SimulateProjectileFrame
@@ -1515,7 +1541,10 @@ void idProjectile::SimulateProjectileFrame( int msec, int endTime ) {
 		//clientGame->renderWorld->DebugLine( idColor::colorYellow, oldOrigin, GetPhysics()->GetOrigin(), 5000 );
 	}
 }
+#endif
 
+// [PS2_D3BFG]: Catching up projectiles on a server is a multiplayer feature.
+#if !defined( ID_PS2 )
 /*
 ========================
 idProjectile::PostSimulate
@@ -1530,6 +1559,7 @@ void idProjectile::PostSimulate( int endTime ) {
 		CreateDeltasFromOldOriginAndAxis( launchOrigin, launchAxis );
 	}
 }
+#endif
 
 
 

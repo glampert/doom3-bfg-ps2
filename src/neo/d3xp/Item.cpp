@@ -298,8 +298,13 @@ void idItem::Spawn() {
 		PostEventMS( &EV_Touch, 0, ent, NULL );
 	}
 
+	// [PS2_D3BFG]: Multiplayer always spins items (except capture the flag's); single player only on request.
+#if defined( ID_PS2 )
+	if ( spawnArgs.GetBool( "spin" ) ) {
+#else
 	// idItemTeam does not rotate and bob
 	if ( spawnArgs.GetBool( "spin" ) || (common->IsMultiplayer() && !this->IsType( idItemTeam::Type ) ) ) {
+#endif
 		spin = true;
 		BecomeActive( TH_THINK );
     }
@@ -425,6 +430,8 @@ bool idItem::Pickup( idPlayer *player ) {
 	return true;
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /* 
 ================
 idItem::ClientThink
@@ -438,8 +445,11 @@ void idItem::ClientThink( const int curTime, const float fraction, const bool pr
 	}
 	Think();
 }
+#endif
 
 
+// [PS2_D3BFG]: Multiplayer client prediction, snapshots and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idItem::ClientPredictionThink
@@ -502,6 +512,7 @@ bool idItem::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) {
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -675,6 +686,8 @@ const idEventDef EV_TakeFlag( "takeflag", "e" );
 const idEventDef EV_DropFlag( "dropflag", "d" );
 const idEventDef EV_FlagCapture( "flagcapture" );
 
+// [PS2_D3BFG]: Capture the flag is a multiplayer feature. The event definitions above stay so event numbering is unchanged.
+#if !defined( ID_PS2 )
 CLASS_DECLARATION( idItem, idItemTeam )
 	EVENT( EV_FlagReturn,  idItemTeam::Event_FlagReturn )
 	EVENT( EV_TakeFlag,    idItemTeam::Event_TakeFlag )
@@ -869,6 +882,8 @@ bool idItemTeam::Pickup( idPlayer *player ) {
 	return false;
 }
 
+// [PS2_D3BFG]: Multiplayer network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ===============
 idItemTeam::ClientReceiveEvent
@@ -918,6 +933,7 @@ bool idItemTeam::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) 
 
     return false;
 }
+#endif
 
 /*
 ================
@@ -1280,6 +1296,8 @@ void idItemTeam::SpawnNugget( idVec3 pos ) {
 
 
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idItemTeam::Event_FlagCapture
@@ -1293,8 +1311,11 @@ void idItemTeam::WriteToSnapshot( idBitMsg &msg ) const {
 
 	idMoveableItem::WriteToSnapshot( msg );
 }
+#endif
 
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idItemTeam::ReadFromSnapshot
@@ -1318,6 +1339,7 @@ void idItemTeam::ReadFromSnapshot( const idBitMsg &msg ) {
 
 	idMoveableItem::ReadFromSnapshot( msg );
 }
+#endif
 
 /*
 ================
@@ -1361,6 +1383,7 @@ void idItemTeam::Present() {
 
 	idEntity::Present();
 }
+#endif
 
 /*
 ===============================================================================
@@ -1691,6 +1714,8 @@ void idMoveableItem::Spawn() {
 	repeatSmoke = spawnArgs.GetBool( "repeatSmoke", "0" );
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /* 
 ================
 idItem::ClientThink
@@ -1707,6 +1732,7 @@ void idMoveableItem::ClientThink( const int curTime, const float fraction, const
 
 	Present();
 }
+#endif
 
 /*
 ================
@@ -1885,6 +1911,8 @@ void idMoveableItem::DropItems( idAnimatedEntity  *ent, const char *type, idList
 	}
 }
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ======================
 idMoveableItem::WriteToSnapshot
@@ -1918,6 +1946,7 @@ void idMoveableItem::ReadFromSnapshot( const idBitMsg &msg ) {
 		UpdateVisuals();
 	}
 }
+#endif
 
 /*
 ============

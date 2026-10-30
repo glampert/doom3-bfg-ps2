@@ -801,6 +801,8 @@ void idLight::Think() {
 	Present();
 }
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idLight::ClientThink
@@ -818,6 +820,7 @@ void idLight::ClientThink( const int curTime, const float fraction, const bool p
 
 	Present();
 }
+#endif
 
 /*
 ================
@@ -1050,6 +1053,8 @@ void idLight::Event_FadeIn( float time ) {
 	FadeIn( time );
 }
 
+// [PS2_D3BFG]: Multiplayer client prediction, snapshots and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 /*
 ================
 idLight::ClientPredictionThink
@@ -1181,3 +1186,4 @@ bool idLight::ClientReceiveEvent( int event, int time, const idBitMsg &msg ) {
 		}
 	}
 }
+#endif

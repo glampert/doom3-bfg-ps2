@@ -81,9 +81,15 @@ public:
 		EVENT_MAXEVENTS
 	};
 
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
+// [PS2_D3BFG]: Multiplayer client prediction and network events do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void				ClientPredictionThink();
 	virtual bool				ClientReceiveEvent( int event, int time, const idBitMsg &msg );
+#endif
 
 private:
 	// setttings

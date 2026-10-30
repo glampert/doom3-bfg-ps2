@@ -887,11 +887,10 @@ names the format if a later slice exceeds 1 KB.
 | Symbol | Bytes | Sized by | Measure |
 | --- | ---: | --- | --- |
 | `gameLocal.push` | 114,696 | `MAX_GENTITIES` (4096) | peak pushed entities per move on campaign maps |
-| `gameLocal` spawn-spot lists | 196,792 | `MAX_GENTITIES` | spawn spots per map; filled on every map load from deathmatch spawn entities |
 | `gameLocal.entities` / `spawnIds` | 16,384 each | `MAX_GENTITIES` | peak entity count on the largest campaign map |
 | `EventPool` | 147,456 | `MAX_EVENTS` (4096 × 36) | peak queued events in campaign play |
 | `idEventDef::eventDefList` | 16,384 | `MAX_EVENTS` | registered event definitions (fixed per build; filled by static constructors) |
-| `commonLocal.userCmdMgr`, `playerProfiles` | 45,120 + 3,392 | `MAX_INPUT_DEVICES` | the device indexes that reach them in a menu-to-map session |
+| `commonLocal.userCmdMgr`, `playerProfiles` | 45,120 + 3,392 | `MAX_INPUT_DEVICES`; the command ring is 128 frames × 8 players | the device indexes that reach them in a menu-to-map session, and the peak queued commands per player (one player on the PS2) |
 | `idWindow::EvalRegs::regs`, `registerIsTemporary` | 16,384 + 4,096 | `MAX_EXPRESSION_REGISTERS` | largest register count over every `.gui` the PS2 loads |
 | SSD arcade pools | about 56,000 | 64 objects each | whether a `gameSSDDef` window is ever parsed in a campaign run (if not, compile it out) |
 | script program storage (heap) | 3,515,712 | `MAX_STATEMENTS` etc. | the campaign-wide maximum including map scripts; `variableDefaults` can also be sized at `FinishCompilation` (about 90 KB) |
@@ -899,3 +898,53 @@ names the format if a later slice exceeds 1 KB.
 Left as is after review: the collision trace scratch (`tw`, 13,092 × 2, used by every
 trace and too large for the stack), the `huffmanCodes` tables (declaration compression),
 returned-pointer statics bounded by `MAX_STRING_CHARS`, and ps2sdk's own buffers.
+
+The spawn-spot lists left the backlog when the multiplayer code was compiled out (below).
+
+## Multiplayer code compiled out (2026-10-30)
+
+Everything multiplayer or network-only is under `!defined( ID_PS2 )`, with the single-player
+loop unchanged. `idCommon::IsMultiplayer`/`IsServer`/`IsClient` are inline `false` on the
+PS2 and `idPlayer::IsLocallyControlled` is `true`, so the compiler drops the multiplayer
+arms of live functions without hand guards. Compiled out by hand:
+
+- `Game_network.cpp`'s snapshot, reliable-message, network-event and client-frame code, the
+  `idGame` network virtuals, the map-restart path, prediction keys and the event queues;
+- the entity network virtuals (`ClientThink`, `ClientPredictionThink`, `Write`/`ReadFromSnapshot`,
+  `Client`/`ServerReceiveEvent`, `InterpolatePhysics`) and the physics snapshot and network
+  interpolation virtuals, each family with every override;
+- remote-player command handling and correction, spectating, player icons, multiplayer chat
+  and respawn HUD, the CTF classes `idItemTeam`/`idTrigger_Flag` and flag carrying,
+  projectile prediction and server catch-up, deathmatch spawn selection;
+- 96 `idSession`/`idLobbyBase` and 7 `idCommon` multiplayer virtuals with their offline
+  stubs, the multiplayer cvars, and the dead multiplayer menu and dialog cases;
+- `Snapshot.cpp`, `Snapshot_Jobs.cpp`, `LightweightCompression.cpp` and `PlayerIcon.cpp`
+  (no longer built).
+
+Production `PT_LOAD` by step (debug / release bytes, from 5,426,732 / 4,934,508 at 136ec9c):
+
+| Step | Debug | Release |
+| --- | ---: | ---: |
+| single-player fatal guards, constant role queries | 5,356,076 | 4,870,124 |
+| `Game_network.cpp` and the `idGame` network virtuals | 5,338,860 | 4,854,700 |
+| entity network virtuals | 5,307,820 | 4,823,980 |
+| physics network virtuals, server-side game code, spawn-spot lists | 5,095,148 | 4,612,908 |
+| player, weapon, projectile, HUD and CTF code | 5,078,380 | 4,597,484 |
+| cvars, menus and dialogs, session/Common interfaces, snapshot sources | **5,061,100** | **4,580,908** |
+
+In total −365,632 debug / −353,600 release: `.text` −147,864 / −137,552, `.rodata` −17,464 /
+−15,968 and `.bss` −200,128 in both. `gameLocal` fell from 347,308 to 150,608 bytes, 196,700
+of it the six unsaved deathmatch spawn-spot lists.
+Keeping the `clearHistory` console command in release builds (the UI session clears the
+history before each ledger checkpoint) adds 128 bytes: release `PT_LOAD` **4,581,036**.
+Retail startup (debug) is 13,600,574 / 16,900,752 bytes in 75,116 allocations (−21,244 /
+−31,828 / −267), release 13,598,998 / 16,895,288 in 75,022.
+
+Kept on purpose: the `si_*` server-info cvars (`gameLocal.serverInfo` is written into saves),
+`FullscreenFX_Multiplayer` (its slot is in the save stream), the CTF event definitions
+(event numbering), the entity snapshot/prediction members (layout), `net_errorSmoothing*`
+(single-player projectiles decay their origin delta), `BitMsg.cpp` (declaration
+decompression) and the `idMultiplayerGame` stub (map startup calls `Reset`/`Precache`).
+Demo record/playback is not multiplayer and stays; the command ring's player dimension is
+on the backlog above.
+

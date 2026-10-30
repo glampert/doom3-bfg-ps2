@@ -73,10 +73,19 @@ public:
 	const char *			Joint();
 	const bool				Done();
 
+// [PS2_D3BFG]: Multiplayer snapshots do not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			WriteToSnapshot( idBitMsg &msg ) const;
 	virtual void			ReadFromSnapshot( const idBitMsg &msg );
+#endif
+// [PS2_D3BFG]: Multiplayer client interpolation does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientThink( const int curTime, const float fraction, const bool predict );
+#endif
+// [PS2_D3BFG]: Multiplayer client prediction does not exist on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ClientPredictionThink();
+#endif
 
 	static idEntityFx *		StartFx( const char *fx, const idVec3 *useOrigin, const idMat3 *useAxis, idEntity *ent, bool bind );
 
