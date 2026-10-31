@@ -60,6 +60,15 @@ file keeps only what most engine edits need.
   definitions, entity snapshot members, the `idMultiplayerGame` stub. Details are in
   [memory-budget reference](../../docs/reference/memory-budget.md#multiplayer-code-compiled-out-2026-10-30).
 
+## Debug-only code
+
+- Developer support (debug drawing, test/edit tools, debug-cvar branches) goes under
+  `#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG`; developer prints use `DEV_PRINT( common->DPrintf( ... ) )`
+  (`Common.h`). Both compile out of PS2 release builds with their strings and arguments.
+- Debug virtuals (AAS show/test, collision draw, physics `DebugDraw`) are guarded in the
+  interface, every implementation and every caller; the render world's debug primitives
+  stay in the interface and draw nothing in release.
+
 ## Retail SWF admission model
 
 - Retail movies construct resource-only: `idSWF(..., nullptr, true)` loads the dictionary

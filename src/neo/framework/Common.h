@@ -112,6 +112,14 @@ typedef enum {
 	EDITOR_MATERIAL				= BIT(12)
 } toolFlag_t;
 
+// [PS2_D3BFG]: Wraps a developer-only print call (DPrintf/DWarning). PS2 release builds compile
+// out the call with its format string and arguments; other builds evaluate it unchanged.
+#if defined( ID_PS2 ) && !PS2_D3BFG_DEBUG
+	#define DEV_PRINT( ... ) ( (void)0 )
+#else
+	#define DEV_PRINT( ... ) __VA_ARGS__
+#endif
+
 #define STRTABLE_ID				"#str_"
 #define STRTABLE_ID_LENGTH		5
 

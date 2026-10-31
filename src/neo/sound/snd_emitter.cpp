@@ -850,9 +850,11 @@ void idSoundEmitterLocal::StopSound( const s_channelType channel ) {
 		if ( channel != SCHANNEL_ANY && chan->logicalChannel != channel ) {
 			continue;
 		}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( s_showStartSound.GetBool() ) {
 			idLib::Printf( "%dms: StopSound(%d:%d): %s\n", soundWorld->GetSoundTime(), index, channel, chan->soundShader->GetName() );
 		}
+#endif
 
 		// This forces CheckForCompletion to return true
 		chan->endTime = 1;
@@ -886,9 +888,11 @@ void idSoundEmitterLocal::ModifySound( const s_channelType channel, const soundS
 		if ( channel != SCHANNEL_ANY && chan->logicalChannel != channel ) {
 			continue;
 		}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( s_showStartSound.GetBool() ) {
 			idLib::Printf( "%dms: ModifySound(%d:%d): %s\n", soundWorld->GetSoundTime(), index, channel, chan->soundShader->GetName() );
 		}
+#endif
 		OverrideParms( &chan->parms, parms, &chan->parms );
 	}
 }
@@ -919,9 +923,11 @@ void idSoundEmitterLocal::FadeSound( const s_channelType channel, float to, floa
 		if ( channel != SCHANNEL_ANY && chan->logicalChannel != channel ) {
 			continue;
 		}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( s_showStartSound.GetBool() ) {
 			idLib::Printf( "%dms: FadeSound(%d:%d): %s to %.2fdb over %.2f seconds\n", soundWorld->GetSoundTime(), index, channel, chan->soundShader->GetName(), to, over );
 		}
+#endif
 
 		// fade it
 		chan->volumeFade.Fade( to - chan->parms.volume, overMSec, soundWorld->GetSoundTime() );

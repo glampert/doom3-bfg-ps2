@@ -1817,11 +1817,11 @@ void idProgram::CompileStats() {
 	int	i;
 
 	common->Printf( "---------- Compile stats ----------\n" );
-	common->DPrintf( "Files loaded:\n" );
+	DEV_PRINT( common->DPrintf( "Files loaded:\n" ) );	// [PS2_D3BFG]
 
 	stringspace = 0;
 	for( i = 0; i < fileList.Num(); i++ ) {
-		common->DPrintf( "   %s\n", fileList[ i ].c_str() );
+		DEV_PRINT( common->DPrintf( "   %s\n", fileList[ i ].c_str() ) );	// [PS2_D3BFG]
 		stringspace += fileList[ i ].Allocated();
 	}
 	stringspace += fileList.Size();
@@ -1932,9 +1932,11 @@ const function_t *idProgram::CompileFunction( const char *functionName, const ch
 
 	result = CompileText( functionName, text, false );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_disasm.GetBool() ) {
 		Disassemble();
 	}
+#endif
 
 	if ( !result ) {
 		gameLocal.Error( "Compile failed." );
@@ -1964,9 +1966,11 @@ void idProgram::CompileFile( const char *filename ) {
 
 	fileSystem->FreeFile( src );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_disasm.GetBool() ) {
 		Disassemble();
 	}
+#endif
 
 	if ( !result ) {
 		gameLocal.Error( "Compile failed in file %s.", filename );

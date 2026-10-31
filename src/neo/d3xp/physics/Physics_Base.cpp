@@ -794,6 +794,7 @@ bool idPhysics_Base::IsOutsideWorld() const {
 	return false;
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idPhysics_Base::DrawVelocity
@@ -840,6 +841,7 @@ void idPhysics_Base::DrawVelocity( int id, float linearScale, float angularScale
 		gameRenderWorld->DebugArrow( colorBlue, start, end, 1 );
 	}
 }
+#endif
 
 // [PS2_D3BFG]: Multiplayer physics interpolation and snapshots do not exist on the PS2.
 #if !defined( ID_PS2 )

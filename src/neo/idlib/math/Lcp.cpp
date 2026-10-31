@@ -2239,17 +2239,21 @@ bool idLCP_Square::Solve( const idMatX &o_m, idVecX &o_x, const idVecX &o_b, con
 
 #ifdef IGNORE_UNSATISFIABLE_VARIABLES
 	if ( numIgnored ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( lcp_showFailures.GetBool() ) {
 			idLib::Printf( "idLCP_Square::Solve: %d of %d bounded variables ignored\n", numIgnored, m.GetNumRows() - numUnbounded );
 		}
+#endif
 	}
 #endif
 
 	// if failed clear remaining forces
 	if ( failed.Length() ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( lcp_showFailures.GetBool() ) {
 			idLib::Printf( "idLCP_Square::Solve: %s (%d of %d bounded variables ignored)\n", failed.c_str(), numIgnored, m.GetNumRows() - numUnbounded );
 		}
+#endif
 	}
 
 #if defined(_DEBUG) && 0
@@ -2925,17 +2929,21 @@ bool idLCP_Symmetric::Solve( const idMatX &o_m, idVecX &o_x, const idVecX &o_b, 
 
 #ifdef IGNORE_UNSATISFIABLE_VARIABLES
 	if ( numIgnored ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( lcp_showFailures.GetBool() ) {
 			idLib::Printf( "idLCP_Symmetric::Solve: %d of %d bounded variables ignored\n", numIgnored, m.GetNumRows() - numUnbounded );
 		}
+#endif
 	}
 #endif
 
 	// if failed clear remaining forces
 	if ( failed.Length() ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( lcp_showFailures.GetBool() ) {
 			idLib::Printf( "idLCP_Symmetric::Solve: %s (%d of %d bounded variables ignored)\n", failed.c_str(), numIgnored, m.GetNumRows() - numUnbounded );
 		}
+#endif
 	}
 
 #if defined(_DEBUG) && 0

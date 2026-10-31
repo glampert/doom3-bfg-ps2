@@ -825,9 +825,11 @@ void idAI::Event_MeleeAttackToJoint( const char *jointname, const char *meleeDef
 	end = physicsObj.GetOrigin() + ( end + modelOffset ) * viewAxis * physicsObj.GetGravityAxis();
 	start = GetEyePosition();
 	
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugLine( colorYellow, start, end, 1 );
 	}
+#endif
 
 	gameLocal.clip.TranslationEntities( trace, start, end, NULL, mat3_identity, MASK_SHOT_BOUNDINGBOX, this );
 	if ( trace.fraction < 1.0f ) {
@@ -1788,10 +1790,12 @@ void idAI::Event_TestChargeAttack() {
 
 	idAI::PredictPath( this, aas, physicsObj.GetOrigin(), end - physicsObj.GetOrigin(), 1000, 1000, ( move.moveType == MOVETYPE_FLY ) ? SE_BLOCKED : ( SE_ENTER_OBSTACLE | SE_BLOCKED | SE_ENTER_LEDGE_AREA ), path );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugLine( colorGreen, physicsObj.GetOrigin(), end, 1 );
 		gameRenderWorld->DebugBounds( path.endEvent == 0 ? colorYellow : colorRed, physicsObj.GetBounds(), end, 1 );
 	}
+#endif
 
 	if ( ( path.endEvent == 0 ) || ( path.blockingEntity == enemyEnt ) ) {
 		idVec3 delta = end - physicsObj.GetOrigin();
@@ -1823,7 +1827,7 @@ void idAI::Event_TestAnimMoveTowardEnemy( const char *animname ) {
 
 	anim = GetAnim( ANIMCHANNEL_LEGS, animname );
 	if ( !anim ) {
-		gameLocal.DWarning( "missing '%s' animation on '%s' (%s)", animname, name.c_str(), GetEntityDefName() );
+		DEV_PRINT( gameLocal.DWarning( "missing '%s' animation on '%s' (%s)", animname, name.c_str(), GetEntityDefName() ) );	// [PS2_D3BFG]
 		idThread::ReturnInt( false );
 		return;
 	}
@@ -1834,10 +1838,12 @@ void idAI::Event_TestAnimMoveTowardEnemy( const char *animname ) {
 	moveVec = animator.TotalMovementDelta( anim ) * idAngles( 0.0f, yaw, 0.0f ).ToMat3() * physicsObj.GetGravityAxis();
 	idAI::PredictPath( this, aas, physicsObj.GetOrigin(), moveVec, 1000, 1000, ( move.moveType == MOVETYPE_FLY ) ? SE_BLOCKED : ( SE_ENTER_OBSTACLE | SE_BLOCKED | SE_ENTER_LEDGE_AREA ), path );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugLine( colorGreen, physicsObj.GetOrigin(), physicsObj.GetOrigin() + moveVec, 1 );
 		gameRenderWorld->DebugBounds( path.endEvent == 0 ? colorYellow : colorRed, physicsObj.GetBounds(), physicsObj.GetOrigin() + moveVec, 1 );
 	}
+#endif
 
 	idThread::ReturnInt( path.endEvent == 0 );
 }
@@ -1854,7 +1860,7 @@ void idAI::Event_TestAnimMove( const char *animname ) {
 
 	anim = GetAnim( ANIMCHANNEL_LEGS, animname );
 	if ( !anim ) {
-		gameLocal.DWarning( "missing '%s' animation on '%s' (%s)", animname, name.c_str(), GetEntityDefName() );
+		DEV_PRINT( gameLocal.DWarning( "missing '%s' animation on '%s' (%s)", animname, name.c_str(), GetEntityDefName() ) );	// [PS2_D3BFG]
 		idThread::ReturnInt( false );
 		return;
 	}
@@ -1862,10 +1868,12 @@ void idAI::Event_TestAnimMove( const char *animname ) {
 	moveVec = animator.TotalMovementDelta( anim ) * idAngles( 0.0f, ideal_yaw, 0.0f ).ToMat3() * physicsObj.GetGravityAxis();
 	idAI::PredictPath( this, aas, physicsObj.GetOrigin(), moveVec, 1000, 1000, ( move.moveType == MOVETYPE_FLY ) ? SE_BLOCKED : ( SE_ENTER_OBSTACLE | SE_BLOCKED | SE_ENTER_LEDGE_AREA ), path );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugLine( colorGreen, physicsObj.GetOrigin(), physicsObj.GetOrigin() + moveVec, 1 );
 		gameRenderWorld->DebugBounds( path.endEvent == 0 ? colorYellow : colorRed, physicsObj.GetBounds(), physicsObj.GetOrigin() + moveVec, 1 );
 	}
+#endif
 
 	idThread::ReturnInt( path.endEvent == 0 );
 }
@@ -1880,6 +1888,7 @@ void idAI::Event_TestMoveToPosition( const idVec3 &position ) {
 
 	idAI::PredictPath( this, aas, physicsObj.GetOrigin(), position - physicsObj.GetOrigin(), 1000, 1000, ( move.moveType == MOVETYPE_FLY ) ? SE_BLOCKED : ( SE_ENTER_OBSTACLE | SE_BLOCKED | SE_ENTER_LEDGE_AREA ), path );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugLine( colorGreen, physicsObj.GetOrigin(), position, 1 );
 		gameRenderWorld->DebugBounds( colorYellow, physicsObj.GetBounds(), position, 1 );
@@ -1887,6 +1896,7 @@ void idAI::Event_TestMoveToPosition( const idVec3 &position ) {
 			gameRenderWorld->DebugBounds( colorRed, physicsObj.GetBounds(), path.endPos, 1 );
 		}
 	}
+#endif
 
 	idThread::ReturnInt( path.endEvent == 0 );
 }
@@ -1912,7 +1922,7 @@ void idAI::Event_TestAnimAttack( const char *animname ) {
 
 	anim = GetAnim( ANIMCHANNEL_LEGS, animname );
 	if ( !anim ) {
-		gameLocal.DWarning( "missing '%s' animation on '%s' (%s)", animname, name.c_str(), GetEntityDefName() );
+		DEV_PRINT( gameLocal.DWarning( "missing '%s' animation on '%s' (%s)", animname, name.c_str(), GetEntityDefName() ) );	// [PS2_D3BFG]
 		idThread::ReturnInt( false );
 		return;
 	}

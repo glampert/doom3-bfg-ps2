@@ -3497,12 +3497,14 @@ void idPlayer::FireWeapon() {
 		return;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Entity editing is debug-only on the PS2.
 	if ( g_editEntityMode.GetInteger() ) {
 		GetViewPos( muzzle, axis );
 		if ( gameLocal.editEntities->SelectEntity( muzzle, axis[0], this ) ) {
 			return;
 		}
 	}
+#endif
 
 	if ( !hiddenWeapon && weapon.GetEntity()->IsReady() ) {
 		if ( g_infiniteAmmo.GetBool() || weapon.GetEntity()->AmmoInClip() || weapon.GetEntity()->AmmoAvailable() ) {
@@ -4784,7 +4786,7 @@ void idPlayer::DropWeapon( bool died ) {
 	// used to be an assertion check, but it still happens in edge cases
 
 	if ( ( ammoavailable != -1 ) && ( ammoavailable < 0 ) ) {
-		common->DPrintf( "idPlayer::DropWeapon: bad ammo setup\n" );
+		DEV_PRINT( common->DPrintf( "idPlayer::DropWeapon: bad ammo setup\n" ) );	// [PS2_D3BFG]
 		return;
 	}
 	idEntity *item = NULL;
@@ -4849,7 +4851,7 @@ void idPlayer::StealWeapon( idPlayer *player ) {
 
 	if ( ( ammoavailable != -1 ) && ( ammoavailable < 0 ) ) {
 		// see DropWeapon
-		common->DPrintf( "idPlayer::StealWeapon: bad ammo setup\n" );
+		DEV_PRINT( common->DPrintf( "idPlayer::StealWeapon: bad ammo setup\n" ) );	// [PS2_D3BFG]
 		// we still steal the weapon, so let's use the default ammo levels
 		inclip = -1;
 		const idDeclEntityDef *decl = gameLocal.FindEntityDef( weapon_classname );
@@ -5147,11 +5149,15 @@ void idPlayer::UpdateWeapon() {
 		HideTip();
 	}
 	
+	// [PS2_D3BFG]: Entity dragging is debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 	if ( g_dragEntity.GetBool() ) {
 		StopFiring();
 		weapon.GetEntity()->LowerWeapon();
 		dragEntity.Update( this );
-	} else if ( ActiveGui() ) {
+	} else
+#endif
+	if ( ActiveGui() ) {
 		// gui handling overrides weapon use
 		Weapon_GUI();
 	} else 	if ( focusCharacter && ( focusCharacter->health > 0 ) ) {
@@ -7891,6 +7897,7 @@ void idPlayer::Think() {
 		gameLocal.Printf( "player %d not thinking?\n", entityNumber );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_showEnemies.GetBool() ) {
 		idActor *ent;
 		int num = 0;
@@ -7901,6 +7908,7 @@ void idPlayer::Think() {
 		}
 		gameLocal.Printf( "%d: enemies\n", num );
 	}
+#endif
 
 	inventory.RechargeAmmo(this);
 
@@ -8676,9 +8684,11 @@ void idPlayer::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &di
 		}
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugDamage.GetInteger() ) {
 		gameLocal.Printf( "client:%02d\tdamage type:%s\t\thealth:%03d\tdamage:%03d\tarmor:%03d\n", entityNumber, damageDef->GetName(), health, damage, armorSave );
 	}
+#endif
 
 	if ( common->IsMultiplayer() && IsLocallyControlled() ) {
 		ControllerShakeFromDamage( damage );
@@ -9248,9 +9258,11 @@ void idPlayer::CalculateRenderView() {
 		common->Error( "renderView->fov_y == 0" );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_showviewpos.GetBool() ) {
 		gameLocal.Printf( "%s : %s\n", renderView->vieworg.ToString(), renderView->viewaxis.ToAngles().ToString() );
 	}
+#endif
 }
 
 /*
@@ -9754,7 +9766,7 @@ void idPlayer::Event_ExitTeleporter() {
 	// verify and setup
 	exitEnt = teleportEntity.GetEntity();
 	if ( !exitEnt ) {
-		common->DPrintf( "Event_ExitTeleporter player %d while not being teleported\n", entityNumber );
+		DEV_PRINT( common->DPrintf( "Event_ExitTeleporter player %d while not being teleported\n", entityNumber ) );	// [PS2_D3BFG]
 		return;
 	}
 

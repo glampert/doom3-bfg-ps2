@@ -1379,6 +1379,7 @@ void idAI::SetAAS() {
 	gameLocal.Printf( "WARNING: %s has no AAS file\n", name.c_str() );
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 =====================
 idAI::DrawRoute
@@ -1393,6 +1394,7 @@ void idAI::DrawRoute() const {
 		}
 	}
 }
+#endif
 
 /*
 =====================
@@ -1504,10 +1506,12 @@ float idAI::TravelDistance( const idVec3 &start, const idVec3 &end ) const {
 		delta = end.ToVec2() - start.ToVec2();
 		dist = delta.LengthFast();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_debugMove.GetBool() ) {
 			gameRenderWorld->DebugLine( colorBlue, start, end, 1, false );
 			gameRenderWorld->DrawText( va( "%d", ( int )dist ), ( start + end ) * 0.5f, 0.1f, colorWhite, gameLocal.GetLocalPlayer()->viewAngles.ToMat3() );
 		}
+#endif
 
 		return dist;
 	}
@@ -1525,10 +1529,12 @@ float idAI::TravelDistance( const idVec3 &start, const idVec3 &end ) const {
 		delta = end.ToVec2() - start.ToVec2();
 		dist = delta.LengthFast();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_debugMove.GetBool() ) {
 			gameRenderWorld->DebugLine( colorBlue, start, end, 1, false );
 			gameRenderWorld->DrawText( va( "%d", ( int )dist ), ( start + end ) * 0.5f, 0.1f, colorWhite, gameLocal.GetLocalPlayer()->viewAngles.ToMat3() );
 		}
+#endif
 
 		return dist;
 	}
@@ -1539,6 +1545,7 @@ float idAI::TravelDistance( const idVec3 &start, const idVec3 &end ) const {
 		return -1;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		if ( move.moveType == MOVETYPE_FLY ) {
 			aas->ShowFlyPath( start, toArea, end );
@@ -1546,6 +1553,7 @@ float idAI::TravelDistance( const idVec3 &start, const idVec3 &end ) const {
 			aas->ShowWalkPath( start, toArea, end );
 		}
 	}
+#endif
 
 	return travelTime;
 }
@@ -2338,9 +2346,11 @@ bool idAI::GetMovePos( idVec3 &seekPos ) {
 		}
 
 		seekPos = org + move.moveDir * 2048.0f;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_debugMove.GetBool() ) {
 			gameRenderWorld->DebugLine( colorYellow, org, seekPos, 1, true );
 		}
+#endif
 	} else {
 		AI_DEST_UNREACHABLE = false;
 	}
@@ -2487,12 +2497,14 @@ void idAI::Turn() {
 
 	viewAxis = idAngles( 0, current_yaw, 0 ).ToMat3();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		const idVec3 &org = physicsObj.GetOrigin();
 		gameRenderWorld->DebugLine( colorRed, org, org + idAngles( 0, ideal_yaw, 0 ).ToForward() * 64, 1 );
 		gameRenderWorld->DebugLine( colorGreen, org, org + idAngles( 0, current_yaw, 0 ).ToForward() * 48, 1 );
 		gameRenderWorld->DebugLine( colorYellow, org, org + idAngles( 0, current_yaw + turnVel, 0 ).ToForward() * 32, 1 );
 	}
+#endif
 }
 
 /*
@@ -2617,10 +2629,12 @@ void idAI::CheckObstacleAvoidance( const idVec3 &goalPos, idVec3 &newPos ) {
 	obstacle = NULL;
 	AI_OBSTACLE_IN_PATH = false;
 	foundPath = FindPathAroundObstacles( &physicsObj, aas, enemy.GetEntity(), origin, goalPos, path );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_showObstacleAvoidance.GetBool() ) {
 		gameRenderWorld->DebugLine( colorBlue, goalPos + idVec3( 1.0f, 1.0f, 0.0f ), goalPos + idVec3( 1.0f, 1.0f, 64.0f ), 1 );
 		gameRenderWorld->DebugLine( foundPath ? colorYellow : colorRed, path.seekPos, path.seekPos + idVec3( 0.0f, 0.0f, 64.0f ), 1 );
 	}
+#endif
 
 	if ( !foundPath ) {
 		// couldn't get around obstacles
@@ -2776,9 +2790,11 @@ void idAI::AnimMove() {
 
 	RunPhysics();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugLine( colorCyan, oldorigin, physicsObj.GetOrigin(), 5000 );
 	}
+#endif
 
 	moveResult = physicsObj.GetMoveResult();
 	if ( !af_push_moveables && attack.Length() && TestMelee() ) {
@@ -2799,12 +2815,14 @@ void idAI::AnimMove() {
 		TouchTriggers();
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugBounds( colorMagenta, physicsObj.GetBounds(), org, 1 );
 		gameRenderWorld->DebugBounds( colorMagenta, physicsObj.GetBounds(), move.moveDest, 1 );
 		gameRenderWorld->DebugLine( colorYellow, org + EyeOffset(), org + EyeOffset() + viewAxis[ 0 ] * physicsObj.GetGravityAxis() * 16.0f, 1, true );
 		DrawRoute();
 	}
+#endif
 }
 
 /*
@@ -2906,9 +2924,11 @@ void idAI::SlideMove() {
 	}
 	Turn();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugLine( colorCyan, oldorigin, physicsObj.GetOrigin(), 5000 );
 	}
+#endif
 
 	moveResult = physicsObj.GetMoveResult();
 	if ( !af_push_moveables && attack.Length() && TestMelee() ) {
@@ -2929,12 +2949,14 @@ void idAI::SlideMove() {
 		TouchTriggers();
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugBounds( colorMagenta, physicsObj.GetBounds(), org, 1 );
 		gameRenderWorld->DebugBounds( colorMagenta, physicsObj.GetBounds(), move.moveDest, 1 );
 		gameRenderWorld->DebugLine( colorYellow, org + EyeOffset(), org + EyeOffset() + viewAxis[ 0 ] * physicsObj.GetGravityAxis() * 16.0f, 1, true );
 		DrawRoute();
 	}
+#endif
 }
 
 /*
@@ -2993,10 +3015,12 @@ void idAI::AddFlyBob( idVec3 &vel ) {
 		t = MS2SEC( gameLocal.time + entityNumber * 497 );
 		fly_bob_add = ( viewAxis[ 1 ] * idMath::Sin16( t * fly_bob_horz ) + viewAxis[ 2 ] * idMath::Sin16( t * fly_bob_vert ) ) * fly_bob_strength;
 		vel += fly_bob_add * MS2SEC( gameLocal.time - gameLocal.previousTime );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_debugMove.GetBool() ) {
 			const idVec3 &origin = physicsObj.GetOrigin();
 			gameRenderWorld->DebugArrow( colorOrange, origin, origin + fly_bob_add, 0 );
 		}
+#endif
 	}
 }
 
@@ -3026,9 +3050,11 @@ void idAI::AdjustFlyHeight( idVec3 &vel, const idVec3 &goalPos ) {
 			goLower = true;
 		}
         
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_debugMove.GetBool() ) {
 			gameRenderWorld->DebugBounds( goLower ? colorRed : colorGreen, physicsObj.GetBounds(), path.endPos, 1 );
 		}
+#endif
 	}
 
 	if ( !goLower ) {
@@ -3119,9 +3145,11 @@ void idAI::FlyMove() {
 		StopMove( MOVE_STATUS_DONE );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameLocal.Printf( "%d: %s: %s, vel = %.2f, sp = %.2f, maxsp = %.2f\n", gameLocal.time, name.c_str(), moveCommandString[ move.moveCommand ], physicsObj.GetLinearVelocity().Length(), move.speed, fly_speed );
 	}
+#endif
 
 	if ( move.moveCommand != MOVE_TO_POSITION_DIRECT ) {
 		idVec3 vel = physicsObj.GetLinearVelocity();
@@ -3176,6 +3204,7 @@ void idAI::FlyMove() {
 		TouchTriggers();
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugLine( colorCyan, oldorigin, physicsObj.GetOrigin(), 4000 );
 		gameRenderWorld->DebugBounds( colorOrange, physicsObj.GetBounds(), org, 1 );
@@ -3185,6 +3214,7 @@ void idAI::FlyMove() {
 		gameRenderWorld->DebugLine( colorYellow, org + EyeOffset(), org + EyeOffset() + viewAxis[ 0 ] * physicsObj.GetGravityAxis() * 16.0f, 1, true );
 		DrawRoute();
 	}
+#endif
 }
 
 /*
@@ -3217,12 +3247,14 @@ void idAI::StaticMove() {
 		DirectDamage( attack, enemyEnt );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		const idVec3 &org = physicsObj.GetOrigin();
 		gameRenderWorld->DebugBounds( colorMagenta, physicsObj.GetBounds(), org, 1 );
 		gameRenderWorld->DebugLine( colorBlue, org, move.moveDest, 1, true );
 		gameRenderWorld->DebugLine( colorYellow, org + EyeOffset(), org + EyeOffset() + viewAxis[ 0 ] * physicsObj.GetGravityAxis() * 16.0f, 1, true );
 	}
+#endif
 }
 
 /***********************************************************************
@@ -3393,10 +3425,12 @@ void idAI::Killed( idEntity *inflictor, idEntity *attacker, int damage, const id
 	// make sure the monster is activated
 	EndAttack();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugDamage.GetBool() ) {
 		gameLocal.Printf( "Damage: joint: '%s', zone '%s'\n", animator.GetJointName( ( jointHandle_t )location ), 
 			GetDamageGroup( location ) );
 	}
+#endif
 
 	if ( inflictor ) {
 		AI_SPECIAL_DAMAGE = inflictor->spawnArgs.GetInt( "special_damage" );
@@ -3515,9 +3549,11 @@ void idAI::PlayCinematic() {
 	const char *animname;
 
 	if ( current_cinematic >= num_cinematics ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( g_debugCinematic.GetBool() ) {
 			gameLocal.Printf( "%d: '%s' stop\n", gameLocal.framenum, GetName() );
 		}
+#endif
 		if ( !spawnArgs.GetBool( "cinematic_no_hide" ) ) {
 			Hide();
 		}
@@ -3539,9 +3575,11 @@ void idAI::PlayCinematic() {
 		return;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugCinematic.GetBool() ) {
 		gameLocal.Printf( "%d: '%s' start '%s'\n", gameLocal.framenum, GetName(), animname );
 	}
+#endif
 
 	headAnim.animBlendFrames = 0;
 	headAnim.lastAnimBlendFrames = 0;
@@ -3914,10 +3952,12 @@ void idAI::UpdateEnemyPosition() {
 		}
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugBounds( colorLtGrey, enemyEnt->GetPhysics()->GetBounds(), lastReachableEnemyPos, 1 );
 		gameRenderWorld->DebugBounds( colorWhite, enemyEnt->GetPhysics()->GetBounds(), lastVisibleReachableEnemyPos, 1 );
 	}
+#endif
 }
 
 /*
@@ -4423,9 +4463,11 @@ bool idAI::TestMelee() const {
 	idBounds enemyBounds = enemyEnt->GetPhysics()->GetBounds();
 	enemyBounds.TranslateSelf( enemyOrg );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugMove.GetBool() ) {
 		gameRenderWorld->DebugBounds( colorYellow, bounds, vec3_zero, 1 );
 	}
+#endif
 
 	if ( !bounds.IntersectsBounds( enemyBounds ) ) {
 		return false;
@@ -4984,9 +5026,11 @@ bool idAI::UpdateAnimationControllers() {
 			GetJointWorldTransform( focusJoint, gameLocal.time, eyepos, axis );
 		}
 		eyeOffset.z = eyepos.z - physicsObj.GetOrigin().z;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_debugMove.GetBool() ) {
 			gameRenderWorld->DebugLine( colorRed, eyepos, eyepos + orientationJointAxis[ 0 ] * 32.0f, 1 );
 		}
+#endif
 	} else {
 		eyepos = GetEyePosition();
 	}

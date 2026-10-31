@@ -829,7 +829,9 @@ Remaining levers, measured but not taken:
   same program, so any new limit needs the campaign-wide maximum. Others: the console
   buffer 445 KB, `idEventDef`/event pool 164 KB, four 64 KB `va`/`idStr` scratch buffers,
   `commonLocal` 55 KB, the arcade GUI pools 56 KB.
-- `.rodata`: the credits list is 240 KB of strings in `MenuScreen_Shell_Credits.o`.
+- `.rodata`: string literals are about 160–195 KB (7,700 strings). The link map credits all
+  merged strings to the first object that contributes one (`MenuScreen_Shell_Credits.o`); the
+  credits list itself is only about 32 KB of code and strings.
 - newlib is 134 KB, about 60 KB of it printf/scanf/strtod; `libc_nano.a` is installed
   but untested with ps2sdk's glue and needs float formatting kept.
 
@@ -967,4 +969,35 @@ release `.text` −84,368, `.rodata` −17,488, `.bss` −37,760.
 Fewer registered commands also shrink the retail startup heap: release 13,595,086 /
 16,881,000 bytes in 74,774 allocations (−3,912 / −14,288 / −248), debug 13,600,490 /
 16,900,424 in 75,110.
+
+## Debug-only tools and developer prints (2026-10-31)
+
+PS2 release builds (`PS2_D3BFG_DEBUG` 0) compile out developer support that id kept in
+retail, under `#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG`:
+
+- `idGameLocal::RunDebugInfo` and `ShowTargets` (the per-frame `g_show*` drawing), entity
+  editing selection and dragging in `idPlayer`, the `idTestModel` entity class;
+- the debug interfaces of AAS (`Stats`, `Test`, `ShowWalkPath`/`ShowFlyPath`, all of
+  `AAS_debug.cpp`) and collision (`DebugOutput`, `DrawModel` and its helpers), every
+  physics `DebugDraw`/`DrawVelocity`, `idAI::DrawRoute` and `idClip::DrawClipModels`;
+- 107 debug-cvar blocks in live functions (`ai_debug*`, `ai_show*`, `g_debug*`, `af_show*`,
+  `rb_show*`, `ik_debug`, `cm_debugCollision`, `lcp_showFailures`, `swf_debug*`, `fs_debug*`,
+  `s_showStartSound`, `s_drawSounds`, `decl_show`, `r_showSkel`, `g_timeentities`, ...);
+- the render world's debug primitives (`DebugLine` ... `DrawText`) keep their interface but
+  draw nothing.
+
+`DEV_PRINT( call )` (`Common.h`) wraps the 42 developer-only `DPrintf`/`DWarning` calls; release
+builds drop the call, its format string and its arguments. The HUD menu screens and the old
+GUI's form widgets (choice, edit, field, list, slider and render windows, `ListGUI`, `RegExp`)
+joined `ENGINE_SIZE_OPT_CXX_SRC`; the arcade windows, the other menus and the static/md3
+model loaders were already there. `Model_md5.cpp` stays at `-O2`: its skinning is per frame.
+
+| | `HEAD` (d50e8b1) | After | Change |
+| --- | ---: | ---: | ---: |
+| Release ELF file | 3,725,476 | 3,579,940 | −145,536 |
+| Release `PT_LOAD` | 4,441,644 | 4,295,020 | −146,624 (`.text` −137,352, `.rodata` −8,056) |
+| Debug ELF file | 4,288,036 | 4,243,748 | −44,288 (the `-Os` list only) |
+| Debug `PT_LOAD` | 5,013,740 | 4,969,452 | −44,288 |
+
+Retail release startup is 13,588,967 / 16,874,592 bytes in 74,768 allocations.
 

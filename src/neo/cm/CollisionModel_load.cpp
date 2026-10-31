@@ -3746,10 +3746,10 @@ void idCollisionModelManagerLocal::LoadMap( const idMapFile *mapFile ) {
 	if ( loaded ) {
 		if ( mapName.Icmp( mapFile->GetName() ) == 0 ) {
 			if ( mapFile->GetFileTime() == mapFileTime ) {
-				common->DPrintf( "Using loaded version\n" );
+				DEV_PRINT( common->DPrintf( "Using loaded version\n" ) );	// [PS2_D3BFG]
 				return;
 			}
-			common->DPrintf( "Reloading modified map\n" );
+			DEV_PRINT( common->DPrintf( "Reloading modified map\n" ) );	// [PS2_D3BFG]
 		}
 		FreeMap();
 	}

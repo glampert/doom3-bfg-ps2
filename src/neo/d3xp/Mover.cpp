@@ -716,9 +716,11 @@ void idMover::Event_UpdateMove() {
 			break;
 		}
 		case FINISHED_STAGE: {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 			if ( g_debugMover.GetBool() ) {
 				gameLocal.Printf( "%d: '%s' move done\n", gameLocal.slow.time, name.c_str() );
 			}
+#endif
 			DoneMoving();
 			break;
 		}
@@ -920,9 +922,11 @@ void idMover::Event_UpdateRotation() {
 				physicsObj.SetAngularExtrapolation( extrapolation_t(EXTRAPOLATION_LINEAR|EXTRAPOLATION_NOSTOP), gameLocal.slow.time, 0, ang, rot.rot, ang_zero );
 			}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 			if ( g_debugMover.GetBool() ) {
 				gameLocal.Printf( "%d: '%s' rotation done\n", gameLocal.slow.time, name.c_str() );
 			}
+#endif
 
 			DoneRotating();
 			break;
@@ -1015,9 +1019,11 @@ idMover::Event_TeamBlocked
 ===============
 */
 void idMover::Event_TeamBlocked( idEntity *blockedEntity, idEntity *blockingEntity ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugMover.GetBool() ) {
 		gameLocal.Printf( "%d: '%s' stopped due to team member '%s' blocked by '%s'\n", gameLocal.slow.time, name.c_str(), blockedEntity->name.c_str(), blockingEntity->name.c_str() );
 	}
+#endif
 }
 
 /*
@@ -1029,9 +1035,11 @@ void idMover::Event_PartBlocked( idEntity *blockingEntity ) {
 	if ( damage > 0.0f ) {
 		blockingEntity->Damage( this, this, vec3_origin, "damage_moverCrush", damage, INVALID_JOINT );
 	}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugMover.GetBool() ) {
 		gameLocal.Printf( "%d: '%s' blocked by '%s'\n", gameLocal.slow.time, name.c_str(), blockingEntity->name.c_str() );
 	}
+#endif
 }
 
 /*

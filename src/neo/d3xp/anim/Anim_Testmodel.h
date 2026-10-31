@@ -37,6 +37,8 @@ If you have questions concerning this license or the applicable additional terms
 ==============================================================================================
 */
 
+// [PS2_D3BFG]: The model test entity is debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 class idTestModel : public idAnimatedEntity {
 public:
 	CLASS_PROTOTYPE( idTestModel );
@@ -91,5 +93,7 @@ private:
 
 	void					Event_Footstep();
 };
+
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 
 #endif /* !__ANIM_TESTMODEL_H__*/

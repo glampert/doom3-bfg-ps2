@@ -355,9 +355,11 @@ void idSecurityCamera::Think() {
 	float travel;
 
 	if ( thinkFlags & TH_THINK ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( g_showEntityInfo.GetBool() ) {
 			DrawFov();
 		}
+#endif
 
 		if (health <= 0) {
 			BecomeInactive( TH_THINK );

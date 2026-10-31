@@ -767,6 +767,7 @@ void idCollisionModelManagerLocal::Translation( trace_t *results, const idVec3 &
 #ifdef _DEBUG
 	bool startsolid = false;
 	// test whether or not stuck to begin with
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( cm_debugCollision.GetBool() ) {
 		if ( !entered && !idCollisionModelManagerLocal::getContacts ) {
 			entered = 1;
@@ -777,6 +778,7 @@ void idCollisionModelManagerLocal::Translation( trace_t *results, const idVec3 &
 			entered = 0;
 		}
 	}
+#endif
 #endif
 
 	idCollisionModelManagerLocal::checkCount++;
@@ -1067,6 +1069,7 @@ void idCollisionModelManagerLocal::Translation( trace_t *results, const idVec3 &
 
 #ifdef _DEBUG
 	// test for missed collisions
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( cm_debugCollision.GetBool() ) {
 		if ( !entered && !idCollisionModelManagerLocal::getContacts ) {
 			entered = 1;
@@ -1082,5 +1085,6 @@ void idCollisionModelManagerLocal::Translation( trace_t *results, const idVec3 &
 			entered = 0;
 		}
 	}
+#endif
 #endif
 }

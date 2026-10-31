@@ -304,7 +304,9 @@ public:
 
 							// stats and debug drawing
 	void					PrintStatistics();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	void					DrawClipModels( const idVec3 &eye, const float radius, const idEntity *passEntity );
+#endif
 	bool					DrawModelContactFeature( const contactInfo_t &contact, const idClipModel *clipModel, int lifetime ) const;
 
 private:

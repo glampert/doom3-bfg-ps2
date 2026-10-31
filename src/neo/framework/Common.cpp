@@ -908,7 +908,7 @@ void idCommonLocal::LoadGameDLL() {
 		common->FatalError( "couldn't find game dynamic library" );
 		return;
 	}
-	common->DPrintf( "Loading game DLL: '%s'\n", dllPath );
+	DEV_PRINT( common->DPrintf( "Loading game DLL: '%s'\n", dllPath ) );	// [PS2_D3BFG]
 	gameDLL = sys->DLL_Load( dllPath );
 	if ( !gameDLL ) {
 		common->FatalError( "couldn't load game dynamic library" );

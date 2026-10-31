@@ -500,7 +500,7 @@ const idKeyValue *idDict::FindKey( const char *key ) const {
 	int i, hash;
 
 	if ( key == NULL || key[0] == '\0' ) {
-		idLib::common->DWarning( "idDict::FindKey: empty key" );
+		DEV_PRINT( idLib::common->DWarning( "idDict::FindKey: empty key" ) );	// [PS2_D3BFG]
 		return NULL;
 	}
 
@@ -522,7 +522,7 @@ idDict::FindKeyIndex
 int idDict::FindKeyIndex( const char *key ) const {
 
 	if ( key == NULL || key[0] == '\0' ) {
-		idLib::common->DWarning( "idDict::FindKeyIndex: empty key" );
+		DEV_PRINT( idLib::common->DWarning( "idDict::FindKeyIndex: empty key" ) );	// [PS2_D3BFG]
 		return 0;
 	}
 

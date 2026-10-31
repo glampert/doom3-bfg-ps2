@@ -2500,12 +2500,14 @@ void idAFEntity_VehicleAutomated::Think() {
 	}
 
 	// DEBUG
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_vehicleDebug.GetBool() ) {
 		gameRenderWorld->DebugBounds( colorRed, idBounds(idVec3(-4,-4,-4),idVec3(4,4,4)), vehicle_origin );
 		gameRenderWorld->DebugBounds( colorRed, idBounds(idVec3(-4,-4,-4),idVec3(4,4,4)), waypoint_origin );
 		gameRenderWorld->DrawText( waypoint->name.c_str(), waypoint_origin + idVec3(0,0,16), 0.25f, colorYellow, gameLocal.GetLocalPlayer()->viewAxis );
 		gameRenderWorld->DebugArrow( colorWhite, vehicle_origin, waypoint_origin, 12.f );
 	}
+#endif
 
 	// Set the final steerAngle for the vehicle
 	steerAngle = currentSteering;

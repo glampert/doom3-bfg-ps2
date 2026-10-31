@@ -82,7 +82,7 @@ bool idAASLocal::Init( const idStr &mapName, unsigned int mapFileCRC ) {
 
 		file = AASFileManager->LoadAAS( mapName, mapFileCRC );
 		if ( !file ) {
-			common->DWarning( "Couldn't load AAS file: '%s'", mapName.c_str() );
+			DEV_PRINT( common->DWarning( "Couldn't load AAS file: '%s'", mapName.c_str() ) );	// [PS2_D3BFG]
 			return false;
 		}
 		SetupRouting();
@@ -104,6 +104,7 @@ void idAASLocal::Shutdown() {
 	}
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: AAS debug tools are debug-only on the PS2.
 /*
 ============
 idAASLocal::Stats
@@ -117,6 +118,7 @@ void idAASLocal::Stats() const {
 	file->PrintInfo();
 	RoutingStats();
 }
+#endif
 
 /*
 ============

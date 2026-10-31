@@ -890,7 +890,7 @@ void idGameBustOutWindow::LoadBoardFiles() {
 
 		if ( pic != NULL ) {
 			if ( w != 9 || h != 12 ) {
-				common->DWarning( "Hell Bust-Out level image not correct dimensions! (%d x %d)", w, h );
+				DEV_PRINT( common->DWarning( "Hell Bust-Out level image not correct dimensions! (%d x %d)", w, h ) );	// [PS2_D3BFG]
 			}
 
 			memcpy( currentBoard, pic, boardSize );

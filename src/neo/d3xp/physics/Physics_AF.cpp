@@ -212,6 +212,7 @@ void idAFConstraint::GetCenter( idVec3 &center ) {
 	center.Zero();
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint::DebugDraw
@@ -219,6 +220,7 @@ idAFConstraint::DebugDraw
 */
 void idAFConstraint::DebugDraw() {
 }
+#endif
 
 /*
 ================
@@ -408,6 +410,7 @@ void idAFConstraint_Fixed::GetCenter( idVec3 &center ) {
 	center = body1->GetWorldOrigin();
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_Fixed::DebugDraw
@@ -424,6 +427,7 @@ void idAFConstraint_Fixed::DebugDraw() {
 		gameRenderWorld->DebugLine( colorRed, body1->GetWorldOrigin(), vec3_origin );
 	}
 }
+#endif
 
 /*
 ================
@@ -749,6 +753,7 @@ void idAFConstraint_BallAndSocketJoint::GetCenter( idVec3 &center ) {
 	center = body1->GetWorldOrigin() + anchor1 * body1->GetWorldAxis();
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_BallAndSocketJoint::DebugDraw
@@ -769,6 +774,7 @@ void idAFConstraint_BallAndSocketJoint::DebugDraw() {
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -1285,6 +1291,7 @@ void idAFConstraint_UniversalJoint::GetCenter( idVec3 &center ) {
 	center = body1->GetWorldOrigin() + anchor1 * body1->GetWorldAxis();
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_UniversalJoint::DebugDraw
@@ -1340,6 +1347,7 @@ void idAFConstraint_UniversalJoint::DebugDraw() {
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -1547,6 +1555,7 @@ void idAFConstraint_CylindricalJoint::Rotate( const idRotation &rotation ) {
 	assert( 0 );	// FIXME: implement
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_CylindricalJoint::DebugDraw
@@ -1555,6 +1564,7 @@ idAFConstraint_CylindricalJoint::DebugDraw
 void idAFConstraint_CylindricalJoint::DebugDraw() {
 	assert( 0 );	// FIXME: implement
 }
+#endif
 
 
 //===============================================================
@@ -1921,6 +1931,7 @@ void idAFConstraint_Hinge::GetCenter( idVec3 &center ) {
 	center = body1->GetWorldOrigin() + anchor1 * body1->GetWorldAxis();
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_Hinge::DebugDraw
@@ -1942,6 +1953,7 @@ void idAFConstraint_Hinge::DebugDraw() {
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -2402,6 +2414,7 @@ void idAFConstraint_Slider::GetCenter( idVec3 &center ) {
 	}
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_Slider::DebugDraw
@@ -2420,6 +2433,7 @@ void idAFConstraint_Slider::DebugDraw() {
 	}
 	gameRenderWorld->DebugLine( colorGreen, ofs, ofs + axis * body1->GetWorldAxis() );
 }
+#endif
 
 /*
 ================
@@ -2497,6 +2511,7 @@ void idAFConstraint_Line::Rotate( const idRotation &rotation ) {
 	assert( 0 );	// FIXME: implement
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_Line::DebugDraw
@@ -2505,6 +2520,7 @@ idAFConstraint_Line::DebugDraw
 void idAFConstraint_Line::DebugDraw() {
 	assert( 0 );	// FIXME: implement
 }
+#endif
 
 
 //===============================================================
@@ -2619,6 +2635,7 @@ void idAFConstraint_Plane::Rotate( const idRotation &rotation ) {
 	}
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_Plane::DebugDraw
@@ -2646,6 +2663,7 @@ void idAFConstraint_Plane::DebugDraw() {
 	gameRenderWorld->DebugLine( colorCyan, a1 - up, a1 + up );
 	gameRenderWorld->DebugArrow( colorCyan, a1, a1 + normal, 1 );
 }
+#endif
 
 /*
 ================
@@ -2879,6 +2897,7 @@ void idAFConstraint_Spring::GetCenter( idVec3 &center ) {
 	center = ( a1 + a2 ) * 0.5f;
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_Spring::DebugDraw
@@ -2925,6 +2944,7 @@ void idAFConstraint_Spring::DebugDraw() {
 		gameRenderWorld->DebugCircle( colorRed, mid - maxLength * 0.5f * dir, dir, 2.0f, 10 );
 	}
 }
+#endif
 
 /*
 ================
@@ -3134,6 +3154,7 @@ void idAFConstraint_Contact::GetCenter( idVec3 &center ) {
 	center = contact.point;
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_Contact::DebugDraw
@@ -3146,6 +3167,7 @@ void idAFConstraint_Contact::DebugDraw() {
 	gameRenderWorld->DebugLine( colorWhite, contact.point - 2.0f * x, contact.point + 2.0f * x );
 	gameRenderWorld->DebugLine( colorWhite, contact.point - 2.0f * y, contact.point + 2.0f * y );
 }
+#endif
 
 
 //===============================================================
@@ -3329,6 +3351,7 @@ idAFConstraint_ContactFriction::Rotate
 void idAFConstraint_ContactFriction::Rotate( const idRotation &rotation ) {
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_ContactFriction::DebugDraw
@@ -3336,6 +3359,7 @@ idAFConstraint_ContactFriction::DebugDraw
 */
 void idAFConstraint_ContactFriction::DebugDraw() {
 }
+#endif
 
 
 //===============================================================
@@ -3516,6 +3540,7 @@ void idAFConstraint_ConeLimit::Rotate( const idRotation &rotation ) {
 	}
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_ConeLimit::DebugDraw
@@ -3554,6 +3579,7 @@ void idAFConstraint_ConeLimit::DebugDraw() {
 		start = end;
 	}
 }
+#endif
 
 /*
 ================
@@ -3787,6 +3813,7 @@ void idAFConstraint_PyramidLimit::Rotate( const idRotation &rotation ) {
 	}
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_PyramidLimit::DebugDraw
@@ -3836,6 +3863,7 @@ void idAFConstraint_PyramidLimit::DebugDraw() {
 		gameRenderWorld->DebugLine( colorMagenta, p[i], p[(i+1)&3] );
 	}
 }
+#endif
 
 /*
 ================
@@ -4099,6 +4127,7 @@ idAFConstraint_Suspension::Rotate
 void idAFConstraint_Suspension::Rotate( const idRotation &rotation ) {
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFConstraint_Suspension::DebugDraw
@@ -4124,6 +4153,7 @@ void idAFConstraint_Suspension::DebugDraw() {
 		gameRenderWorld->DebugLine( colorWhite, origin - 2.0f * axis[1], origin + 2.0f * axis[1] );
 	}
 }
+#endif
 
 
 //===============================================================
@@ -4834,6 +4864,7 @@ void idAFTree::SortBodies() {
 	SortBodies_r( sortedBodies, body );
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idAFTree::DebugDraw
@@ -4848,6 +4879,7 @@ void idAFTree::DebugDraw( const idVec4 &color ) const {
 		gameRenderWorld->DebugArrow( color, body->parent->current->worldOrigin, body->current->worldOrigin, 1 );
 	}
 }
+#endif
 
 
 //===============================================================
@@ -6251,7 +6283,9 @@ bool idPhysics_AF::Evaluate( int timeStepMSec, int endTimeMSec ) {
 
 	// if the simulation is suspended because the figure is at rest
 	if ( current.atRest >= 0 || timeStep <= 0.0f ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 		DebugDraw();
+#endif
 		return false;
 	}
 
@@ -6318,7 +6352,9 @@ bool idPhysics_AF::Evaluate( int timeStepMSec, int endTimeMSec ) {
 	Evolve( timeStep );
 
 	// debug graphics
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	DebugDraw();
+#endif
 
 	// clear external forces on all bodies
 	ClearExternalForce();
@@ -6377,6 +6413,7 @@ bool idPhysics_AF::Evaluate( int timeStepMSec, int endTimeMSec ) {
 #ifdef AF_TIMINGS
 	timer_total.Stop();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( af_showTimings.GetInteger() == 1 ) {
 		gameLocal.Printf( "%12s: t %1.4f pc %2d, %1.4f ac %2d %1.4f lcp %1.4f cd %1.4f\n",
 						self->name.c_str(),
@@ -6396,6 +6433,7 @@ bool idPhysics_AF::Evaluate( int timeStepMSec, int endTimeMSec ) {
 							timer_lcp.Milliseconds(), timer_collision.Milliseconds() );
 		}
 	}
+#endif
 
 	if ( endTimeMSec > lastTimerReset ) {
 		lastTimerReset = endTimeMSec;
@@ -6449,6 +6487,7 @@ void DrawTraceModelSilhouette( const idVec3 &projectionOrigin, const idClipModel
 	}
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idPhysics_AF::DebugDraw
@@ -6582,6 +6621,7 @@ void idPhysics_AF::DebugDraw() {
 		}
 	}
 }
+#endif
 
 /*
 ================

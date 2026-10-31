@@ -219,7 +219,9 @@ private:
 	void					DropToFloorAndRest();
 	bool					TestIfAtRest() const;
 	void					Rest();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	void					DebugDraw();
+#endif
 };
 
 #endif /* !__PHYSICS_RIGIDBODY_H__ */

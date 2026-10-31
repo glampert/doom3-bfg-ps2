@@ -437,6 +437,7 @@ void idSoundWorldLocal::Update() {
 		console->PrintOverlay( handle, JUSTIFY_LEFT, showVoiceTable.c_str() );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( s_drawSounds.GetBool() && renderWorld != NULL ) {
 		for ( int e = 0; e < emitters.Num(); e++ ) {
 			idSoundEmitterLocal * emitter = emitters[e];
@@ -484,6 +485,7 @@ void idSoundWorldLocal::Update() {
 			}
 		}
 	}
+#endif
 }
 
 /*

@@ -166,9 +166,11 @@ void idAnimState::SetState( const char *statename, int blendFrames ) {
 	disabled = false;
 	idleAnim = false;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugScript.GetInteger() == self->entityNumber ) {
 		gameLocal.Printf( "%d: %s: Animstate: %s\n", gameLocal.time, self->name.c_str(), state.c_str() );
 	}
+#endif
 }
 
 /*
@@ -303,11 +305,13 @@ bool idAnimState::UpdateState() {
 		return false;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugScript.GetInteger() == self->entityNumber ) {
 		thread->EnableDebugInfo();
 	} else {
 		thread->DisableDebugInfo();
 	}
+#endif
 
 	thread->Execute();
 
@@ -1337,9 +1341,11 @@ void idActor::SetState( const function_t *newState ) {
 		return;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugScript.GetInteger() == entityNumber ) {
 		gameLocal.Printf( "%d: %s: State: %s\n", gameLocal.time, name.c_str(), newState->Name() );
 	}
+#endif
 
 	state = newState;
 	idealState = state;
@@ -1366,11 +1372,13 @@ idActor::UpdateScript
 void idActor::UpdateScript() {
 	int	i;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_debugScript.GetInteger() == entityNumber ) {
 		scriptThread->EnableDebugInfo();
 	} else {
 		scriptThread->DisableDebugInfo();
 	}
+#endif
 
 	// a series of state changes can happen in a single frame.
 	// this loop limits them in case we've entered an infinite loop.
@@ -2435,10 +2443,12 @@ bool idActor::Pain( idEntity *inflictor, idEntity *attacker, int damage, const i
 		painAnim = "pain";
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugDamage.GetBool() ) {
 		gameLocal.Printf( "Damage: joint: '%s', zone '%s', anim '%s'\n", animator.GetJointName( ( jointHandle_t )location ), 
 			damageGroup.c_str(), painAnim.c_str() );
 	}
+#endif
 
 	return true;
 }
@@ -2721,9 +2731,9 @@ void idActor::Event_PlayAnim( int channel, const char *animname ) {
 	anim = GetAnim( channel, animname );
 	if ( !anim ) {
 		if ( ( channel == ANIMCHANNEL_HEAD ) && head.GetEntity() ) {
-			gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), spawnArgs.GetString( "def_head", "" ) );
+			DEV_PRINT( gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), spawnArgs.GetString( "def_head", "" ) ) );	// [PS2_D3BFG]
 		} else {
-			gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), GetEntityDefName() );
+			DEV_PRINT( gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), GetEntityDefName() ) );	// [PS2_D3BFG]
 		}
 		idThread::ReturnInt( 0 );
 		return;
@@ -2800,9 +2810,9 @@ void idActor::Event_PlayCycle( int channel, const char *animname ) {
 	anim = GetAnim( channel, animname );
 	if ( !anim ) {
 		if ( ( channel == ANIMCHANNEL_HEAD ) && head.GetEntity() ) {
-			gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), spawnArgs.GetString( "def_head", "" ) );
+			DEV_PRINT( gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), spawnArgs.GetString( "def_head", "" ) ) );	// [PS2_D3BFG]
 		} else {
-			gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), GetEntityDefName() );
+			DEV_PRINT( gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), GetEntityDefName() ) );	// [PS2_D3BFG]
 		}
 		idThread::ReturnInt( false );
 		return;
@@ -2873,9 +2883,9 @@ void idActor::Event_IdleAnim( int channel, const char *animname ) {
 	anim = GetAnim( channel, animname );	
 	if ( !anim ) {
 		if ( ( channel == ANIMCHANNEL_HEAD ) && head.GetEntity() ) {
-			gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), spawnArgs.GetString( "def_head", "" ) );
+			DEV_PRINT( gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), spawnArgs.GetString( "def_head", "" ) ) );	// [PS2_D3BFG]
 		} else {
-			gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), GetEntityDefName() );
+			DEV_PRINT( gameLocal.DPrintf( "missing '%s' animation on '%s' (%s)\n", animname, name.c_str(), GetEntityDefName() ) );	// [PS2_D3BFG]
 		}
 
 		switch( channel ) {

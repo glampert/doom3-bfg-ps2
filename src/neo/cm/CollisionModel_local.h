@@ -341,11 +341,13 @@ public:
 	int				Contacts( contactInfo_t *contacts, const int maxContacts, const idVec3 &start, const idVec6 &dir, const float depth,
 								const idTraceModel *trm, const idMat3 &trmAxis, int contentMask,
 								cmHandle_t model, const idVec3 &modelOrigin, const idMat3 &modelAxis );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Collision debug drawing is debug-only on the PS2.
 	// test collision detection
 	void			DebugOutput( const idVec3 &origin );
 	// draw a model
 	void			DrawModel( cmHandle_t model, const idVec3 &origin, const idMat3 &axis,
 											const idVec3 &viewOrigin, const float radius );
+#endif
 	// print model information, use -1 handle for accumulated model info
 	void			ModelInfo( cmHandle_t model );
 	// list all loaded models
@@ -505,11 +507,13 @@ private:			// CollisionMap_files.cpp
 private:			// CollisionMap_debug
 	int				ContentsFromString( const char *string ) const;
 	const char *	StringFromContents( const int contents ) const;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	void			DrawEdge( cm_model_t *model, int edgeNum, const idVec3 &origin, const idMat3 &axis );
 	void			DrawPolygon( cm_model_t *model, cm_polygon_t *p, const idVec3 &origin, const idMat3 &axis,
 								const idVec3 &viewOrigin );
 	void			DrawNodePolygons( cm_model_t *model, cm_node_t *node, const idVec3 &origin, const idMat3 &axis,
 								const idVec3 &viewOrigin, const float radius );
+#endif
 
 private:			// collision map data
 	idStr			mapName;

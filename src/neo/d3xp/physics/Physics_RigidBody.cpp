@@ -366,8 +366,8 @@ void idPhysics_RigidBody::DropToFloorAndRest() {
 		testSolid = false;
 
 		if ( gameLocal.clip.Contents( current.i.position, clipModel, current.i.orientation, clipMask, self ) ) {
-			gameLocal.DWarning( "rigid body in solid for entity '%s' type '%s' at (%s)",
-								self->name.c_str(), self->GetType()->classname, current.i.position.ToString(0) );
+			DEV_PRINT( gameLocal.DWarning( "rigid body in solid for entity '%s' type '%s' at (%s)",
+								self->name.c_str(), self->GetType()->classname, current.i.position.ToString(0) ) );	// [PS2_D3BFG]
 			Rest();
 			dropToFloor = false;
 			return;
@@ -385,8 +385,8 @@ void idPhysics_RigidBody::DropToFloorAndRest() {
 		// test if we are really at rest
 		EvaluateContacts();
 		if ( !TestIfAtRest() ) {
-			gameLocal.DWarning( "rigid body not at rest for entity '%s' type '%s' at (%s)",
-								self->name.c_str(), self->GetType()->classname, current.i.position.ToString(0) );
+			DEV_PRINT( gameLocal.DWarning( "rigid body not at rest for entity '%s' type '%s' at (%s)",
+								self->name.c_str(), self->GetType()->classname, current.i.position.ToString(0) ) );	// [PS2_D3BFG]
 		}
 		Rest();
 		dropToFloor = false;
@@ -398,6 +398,7 @@ void idPhysics_RigidBody::DropToFloorAndRest() {
 	}
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ================
 idPhysics_RigidBody::DebugDraw
@@ -426,6 +427,7 @@ void idPhysics_RigidBody::DebugDraw() {
 		DrawVelocity( clipModel->GetId(), 0.1f, 4.0f );
 	}
 }
+#endif
 
 /*
 ================
@@ -629,8 +631,8 @@ void idPhysics_RigidBody::SetClipModel( idClipModel *model, const float density,
 	inertiaScale[2][2] = inertiaTensor[2][2] / inertiaTensor[minIndex][minIndex];
 
 	if ( inertiaScale[0][0] > MAX_INERTIA_SCALE || inertiaScale[1][1] > MAX_INERTIA_SCALE || inertiaScale[2][2] > MAX_INERTIA_SCALE ) {
-		gameLocal.DWarning( "idPhysics_RigidBody::SetClipModel: unbalanced inertia tensor for entity '%s' type '%s'",
-							self->name.c_str(), self->GetType()->classname );
+		DEV_PRINT( gameLocal.DWarning( "idPhysics_RigidBody::SetClipModel: unbalanced inertia tensor for entity '%s' type '%s'",
+							self->name.c_str(), self->GetType()->classname ) );	// [PS2_D3BFG]
 		float min = inertiaTensor[minIndex][minIndex] * MAX_INERTIA_SCALE;
 		inertiaScale[(minIndex+1)%3][(minIndex+1)%3] = min / inertiaTensor[(minIndex+1)%3][(minIndex+1)%3];
 		inertiaScale[(minIndex+2)%3][(minIndex+2)%3] = min / inertiaTensor[(minIndex+2)%3][(minIndex+2)%3];
@@ -863,7 +865,9 @@ bool idPhysics_RigidBody::Evaluate( int timeStepMSec, int endTimeMSec ) {
 
 	// if the body is at rest
 	if ( current.atRest >= 0 || timeStep <= 0.0f ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 		DebugDraw();
+#endif
 		return false;
 	}
 
@@ -914,7 +918,9 @@ bool idPhysics_RigidBody::Evaluate( int timeStepMSec, int endTimeMSec ) {
 	// update the position of the clip model
 	clipModel->Link( gameLocal.clip, self, clipModel->GetId(), current.i.position, current.i.orientation );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	DebugDraw();
+#endif
 
 	if ( !noContact ) {
 

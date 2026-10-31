@@ -78,10 +78,12 @@ public:
 	virtual						~idAAS() = 0;
 								// Initialize for the given map.
 	virtual bool				Init( const idStr &mapName, unsigned int mapFileCRC ) = 0;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: AAS debug tools are debug-only on the PS2.
 								// Print AAS stats.
 	virtual void				Stats() const = 0;
 								// Test from the given origin.
 	virtual void				Test( const idVec3 &origin ) = 0;
+#endif
 								// Get the AAS settings.
 	virtual const idAASSettings *GetSettings() const = 0;
 								// Returns the number of the area the origin is in.
@@ -130,10 +132,12 @@ public:
 	virtual bool				FlyPathToGoal( aasPath_t &path, int areaNum, const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin, int travelFlags ) const = 0;
 								// Returns true if one can fly along a straight line from the origin to the goal origin.
 	virtual bool				FlyPathValid( int areaNum, const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin, int travelFlags, idVec3 &endPos, int &endAreaNum ) const = 0;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 								// Show the walk path from the origin towards the area.
 	virtual void				ShowWalkPath( const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin ) const = 0;
 								// Show the fly path from the origin towards the area.
 	virtual void				ShowFlyPath( const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin ) const = 0;
+#endif
 								// Find the nearest goal which satisfies the callback.
 	virtual bool				FindNearestGoal( aasGoal_t &goal, int areaNum, const idVec3 origin, const idVec3 &target, int travelFlags, aasObstacle_t *obstacles, int numObstacles, idAASCallback &callback ) const = 0;
 };

@@ -106,7 +106,9 @@ public:
 	const idVecX &			GetMultiplier();
 	virtual void			SetBody1( idAFBody *body );
 	virtual void			SetBody2( idAFBody *body );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			GetForce( idAFBody *body, idVec6 &force );
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
@@ -159,7 +161,9 @@ public:
 	void					SetRelativeAxis( const idMat3 &axis ) { this->relAxis = axis; }
 	virtual void			SetBody1( idAFBody *body );
 	virtual void			SetBody2( idAFBody *body );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 	virtual void			GetCenter( idVec3 &center );
@@ -192,7 +196,9 @@ public:
 	void					SetLimitEpsilon( const float e );
 	void					SetFriction( const float f ) { friction = f; }
 	float					GetFriction() const;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			GetForce( idAFBody *body, idVec6 &force );
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
@@ -249,7 +255,9 @@ public:
 	void					SetLimitEpsilon( const float e );
 	void					SetFriction( const float f ) { friction = f; }
 	float					GetFriction() const;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			GetForce( idAFBody *body, idVec6 &force );
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
@@ -298,7 +306,9 @@ class idAFConstraint_CylindricalJoint : public idAFConstraint {
 
 public:
 							idAFConstraint_CylindricalJoint( const idStr &name, idAFBody *body1, idAFBody *body2 );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 
@@ -329,7 +339,9 @@ public:
 	void					SetSteerSpeed( const float speed );
 	void					SetFriction( const float f ) { friction = f; }
 	float					GetFriction() const;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			GetForce( idAFBody *body, idVec6 &force );
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
@@ -405,7 +417,9 @@ class idAFConstraint_Slider : public idAFConstraint {
 public:
 							idAFConstraint_Slider( const idStr &name, idAFBody *body1, idAFBody *body2 );
 	void					SetAxis( const idVec3 &ax );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 	virtual void			GetCenter( idVec3 &center );
@@ -428,7 +442,9 @@ class idAFConstraint_Line : public idAFConstraint {
 
 public:
 							idAFConstraint_Line( const idStr &name, idAFBody *body1, idAFBody *body2 );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 
@@ -446,7 +462,9 @@ class idAFConstraint_Plane : public idAFConstraint {
 public:
 							idAFConstraint_Plane( const idStr &name, idAFBody *body1, idAFBody *body2 );
 	void					SetPlane( const idVec3 &normal, const idVec3 &anchor );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 	virtual void			Save( idSaveGame *saveFile ) const;
@@ -471,7 +489,9 @@ public:
 	void					SetAnchor( const idVec3 &worldAnchor1, const idVec3 &worldAnchor2 );
 	void					SetSpring( const float stretch, const float compress, const float damping, const float restLength );
 	void					SetLimit( const float minLength, const float maxLength );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 	virtual void			GetCenter( idVec3 &center );
@@ -501,7 +521,9 @@ public:
 							~idAFConstraint_Contact();
 	void					Setup( idAFBody *b1, idAFBody *b2, contactInfo_t &c );
 	const contactInfo_t &	GetContact() const { return contact; }
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 	virtual void			GetCenter( idVec3 &center );
@@ -522,7 +544,9 @@ public:
 							idAFConstraint_ContactFriction();
 	void					Setup( idAFConstraint_Contact *cc );
 	bool					Add( idPhysics_AF *phys, float invTimeStep );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 
@@ -545,7 +569,9 @@ public:
 	void					SetBody1Axis( const idVec3 &body1Axis );
 	void					SetEpsilon( const float e ) { epsilon = e; }
 	bool					Add( idPhysics_AF *phys, float invTimeStep );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 	virtual void			Save( idSaveGame *saveFile ) const;
@@ -577,7 +603,9 @@ public:
 	void					SetBody1Axis( const idVec3 &body1Axis );
 	void					SetEpsilon( const float e ) { epsilon = e; }
 	bool					Add( idPhysics_AF *phys, float invTimeStep );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 	virtual void			Save( idSaveGame *saveFile ) const;
@@ -613,7 +641,9 @@ public:
 	void					SetEpsilon( const float e ) { epsilon = e; }
 	const idVec3			GetWheelOrigin() const;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void			DebugDraw();
+#endif
 	virtual void			Translate( const idVec3 &translation );
 	virtual void			Rotate( const idRotation &rotation );
 
@@ -782,7 +812,9 @@ public:
 	void					SetMaxSubTreeAuxiliaryIndex();
 	void					SortBodies();
 	void					SortBodies_r( idList<idAFBody*>&sortedList, idAFBody *body );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	void					DebugDraw( const idVec4 &color ) const;
+#endif
 
 private:
 	idList<idAFBody *, TAG_IDLIB_LIST_PHYSICS>		sortedBodies;
@@ -1044,7 +1076,9 @@ private:
 	bool					TestIfAtRest( float timeStep );
 	void					Rest();
 	void					AddPushVelocity( const idVec6 &pushVelocity );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	void					DebugDraw();
+#endif
 };
 
 #endif /* !__PHYSICS_AF_H__ */

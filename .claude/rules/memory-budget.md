@@ -51,11 +51,11 @@ have not been re-measured.
   program storage), declaration objects
   1.78 MB, strings 1.23 MB, container file tables 1.08 MB, smoke particles 0.68 MB,
   event callbacks 0.64 MB.
-- Production `PT_LOAD` (2026-10-30): 5,017,324 debug / 4,441,260 release bytes, from the
+- Production `PT_LOAD` (2026-10-31): 4,969,452 debug / 4,295,020 release bytes, from the
   `--gc-sections` runnable link, `-O2` release, `-Os` engine cold sources, heap script
-  storage, smaller console/command/scratch buffers, no multiplayer code and no developer
-  commands in release (11.45 / 11.91 MB before). `.text` is 3.92 / 3.41 MB and `.bss`
-  0.73 / 0.72 MB. Retail scripts use 95,386 of 131,072
+  storage, smaller console/command/scratch buffers, no multiplayer code, and no developer
+  commands, debug drawing or developer prints in release (11.45 / 11.91 MB before). `.text`
+  is 3.88 / 3.28 MB and `.bss` 0.73 / 0.72 MB; stripped ELFs 4.24 / 3.58 MB. Retail scripts use 95,386 of 131,072
   statements. `report.json` keeps the gate link's `PT_LOAD` too; compare the runnable
   figure. Buffers still waiting on measurements (entity, event, input-device and GUI
   register capacities) are listed in the reference's "Smaller static buffers" section.
@@ -126,5 +126,5 @@ heading:
 | SWF draw features, Glyph rectangles, Native shell menu (+ key input) | 2026-10-23 |
 | Quit dialog, Pad prompt icons, Booting into the menu, Campaign and Settings | 2026-10-24 |
 | Authored UI removal | 2026-10-29 |
-| Executable size, Script program storage on the heap, Smaller static buffers, Multiplayer code compiled out, Release console commands | section GC, `-O2`/`-Os` experiments; script arrays moved to `TAG_SCRIPT`; console/command/scratch buffers and the measurement backlog; multiplayer strip by step; release command set (2026-10-30) |
+| Executable size, Script program storage on the heap, Smaller static buffers, Multiplayer code compiled out, Release console commands, Debug-only tools | section GC, `-O2`/`-Os` experiments; script arrays moved to `TAG_SCRIPT`; console/command/scratch buffers and the measurement backlog; multiplayer strip by step; release command set (2026-10-30); debug-only tools and developer prints (2026-10-31) |
 | Quake II reference | allocator and accounting notes |

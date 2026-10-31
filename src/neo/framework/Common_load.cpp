@@ -1062,7 +1062,7 @@ void idCommonLocal::OnLoadFilesCompleted( idSaveLoadParms & parms ) {
 			// if this isn't a savegame for the correct game, abort loadgame
 			common->Warning( "Attempted to load an invalid savegame" );
 		} else {
-			common->DPrintf( "loading savegame\n" );
+			DEV_PRINT( common->DPrintf( "loading savegame\n" ) );	// [PS2_D3BFG]
 
 			mapSpawnData.savegameFile->ReadBool( consoleUsed );
 			consoleUsed = consoleUsed || com_allowConsole.GetBool();

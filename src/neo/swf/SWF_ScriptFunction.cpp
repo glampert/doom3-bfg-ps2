@@ -380,6 +380,7 @@ namespace {
 		return "";
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Only the swf_debug trace uses action names.
 	const char *GetSwfActionName(swfAction_t code)
 	{
 		switch (code)
@@ -502,6 +503,7 @@ namespace {
 			return "UNKNOWN CODE";
 		}
 	}
+#endif
 }
 
 /*
@@ -540,6 +542,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 			recordLength = bitstream.ReadU16();
 		}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( swf_debug.GetInteger() >= 3 ) {
 			// stack[0] is always 0 so don't read it
 			if ( swf_debug.GetInteger() >= 4 ) {
@@ -556,6 +559,7 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 
 			idLib::Printf( "SWF%d: code %s\n", callstackLevel, GetSwfActionName(code) );
 		}
+#endif
 
 		switch ( code ) {
 			case Action_Return: 
@@ -1274,9 +1278,11 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 					scope.SetNum( scope.Num() - 1 );
 					withObject->Release();
 				} else {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 					if ( swf_debug.GetInteger() > 0 ) {
 						idLib::Printf( "SWF: with() invalid object specified\n" );
 					}
+#endif
 					stack.Pop( 1 );
 				}
 				break;
@@ -1396,17 +1402,21 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				break;
 			}
 			case Action_Delete: {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 				if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: Delete ignored\n" );
 				}
+#endif
 				// We no longer support deleting variables because the performance cost of updating the hash tables is not worth it
 				stack.Pop( 2 );
 				break;
 			}
 			case Action_Delete2: {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 				if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: Delete2 ignored\n" );
 				}
+#endif
 				// We no longer support deleting variables because the performance cost of updating the hash tables is not worth it
 				stack.Pop( 1 );
 				break;
@@ -1442,9 +1452,11 @@ void idSWF::Invoke( const char * functionName, const idSWFParmList & parms ) {
 	idSWFScriptObject * obj = mainspriteInstance->GetScriptObject();
 	idSWFScriptVar scriptVar = obj->Get( functionName );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( swf_debugInvoke.GetBool() ) {
 		idLib::Printf( "SWF: Invoke %s with %d parms (%s)\n", functionName, parms.Num(), GetName() );
 	}
+#endif
 
 	if ( scriptVar.IsFunction() ) {
 		scriptVar.GetFunction()->Call( NULL, parms );
@@ -1479,9 +1491,11 @@ void idSWF::Invoke( const char *  functionName, const idSWFParmList & parms, boo
 	idSWFScriptObject * obj = mainspriteInstance->GetScriptObject();
 	idSWFScriptVar scriptVar = obj->Get( functionName );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( swf_debugInvoke.GetBool() ) {
 		idLib::Printf( "SWF: Invoke %s with %d parms (%s)\n", functionName, parms.Num(), GetName() );
 	}
+#endif
 
 	if ( scriptVar.IsFunction() ) {
 		scriptVar.GetFunction()->Call( NULL, parms );

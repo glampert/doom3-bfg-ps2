@@ -945,10 +945,12 @@ bool idClass::ProcessEventArgPtr( const idEventDef *ev, int *data ) {
 		ts.PushState( ent->timeGroup );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugTriggers.GetBool() && ( ev == &EV_Activate ) && IsType( idEntity::Type ) ) {
 		const idEntity *ent = *reinterpret_cast<idEntity **>( data );
 		gameLocal.Printf( "%d: '%s' activated by '%s'\n", gameLocal.framenum, static_cast<idEntity *>( this )->GetName(), ent ? ent->GetName() : "NULL" );
 	}
+#endif
 
 	c = GetType();
 	num = ev->GetEventNum();

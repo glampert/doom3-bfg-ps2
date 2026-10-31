@@ -585,7 +585,7 @@ bool idProjectile::Collide( const trace_t &collision, const idVec3 &velocity ) {
 	// remove projectile when a 'noimpact' surface is hit
 	if ( ( collision.c.material != NULL ) && ( collision.c.material->GetSurfaceFlags() & SURF_NOIMPACT ) ) {
 		PostEventMS( &EV_Remove, 0 );
-		common->DPrintf( "Projectile collision no impact\n" );
+		DEV_PRINT( common->DPrintf( "Projectile collision no impact\n" ) );	// [PS2_D3BFG]
 		return true;
 	}
 

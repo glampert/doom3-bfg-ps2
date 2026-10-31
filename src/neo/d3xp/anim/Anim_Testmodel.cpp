@@ -54,6 +54,9 @@ move around it to view it from different angles.
 
 #include "../Game_local.h"
 
+// [PS2_D3BFG]: The model test entity is debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+
 CLASS_DECLARATION( idAnimatedEntity, idTestModel )
 	EVENT( EV_FootstepLeft,			idTestModel::Event_Footstep )
 	EVENT( EV_FootstepRight,		idTestModel::Event_Footstep )	
@@ -899,3 +902,5 @@ void idTestModel::TestModelPrevFrame_f( const idCmdArgs &args ) {
 
 	gameLocal.testmodel->PrevFrame( args );
 }
+
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG

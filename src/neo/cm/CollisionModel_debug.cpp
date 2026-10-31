@@ -145,6 +145,9 @@ const char *idCollisionModelManagerLocal::StringFromContents( const int contents
 	return contentsString;
 }
 
+// [PS2_D3BFG]: Collision debug drawing and tests are debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
+
 /*
 ================
 idCollisionModelManagerLocal::DrawEdge
@@ -487,3 +490,5 @@ void idCollisionModelManagerLocal::DebugOutput( const idVec3 &origin ) {
 	Mem_Free( testend );
 	testend = NULL;
 }
+
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG

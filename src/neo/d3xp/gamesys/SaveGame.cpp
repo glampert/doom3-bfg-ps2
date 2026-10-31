@@ -387,7 +387,7 @@ void idSaveGame::WriteObject( const idClass *obj ) {
 
 	index = objects.FindIndex( obj );
 	if ( index < 0 ) {
-		gameLocal.DPrintf( "idSaveGame::WriteObject - WriteObject FindIndex failed\n" );
+		DEV_PRINT( gameLocal.DPrintf( "idSaveGame::WriteObject - WriteObject FindIndex failed\n" ) );	// [PS2_D3BFG]
 
 		// Use the NULL index
 		index = 0;

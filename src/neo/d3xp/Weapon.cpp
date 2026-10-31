@@ -1948,9 +1948,11 @@ void idWeapon::SetState( const char *statename, int blendFrames ) {
 	state = statename;
 
 	animBlendFrames = blendFrames;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugWeapon.GetBool() ) {
 		gameLocal.Printf( "%d: weapon state : %s\n", gameLocal.time, statename );
 	}
+#endif
 
 	idealState = "";
 }
@@ -2222,10 +2224,12 @@ void idWeapon::AlertMonsters() {
 	idVec3 end = muzzleFlash.origin + muzzleFlash.axis * muzzleFlash.target;
 
 	gameLocal.clip.TracePoint( tr, muzzleFlash.origin, end, CONTENTS_OPAQUE | MASK_SHOT_RENDERMODEL | CONTENTS_FLASHLIGHT_TRIGGER, owner );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugWeapon.GetBool() ) {
 		gameRenderWorld->DebugLine( colorYellow, muzzleFlash.origin, end, 0 );
 		gameRenderWorld->DebugArrow( colorGreen, muzzleFlash.origin, tr.endpos, 2, 0 );
 	}
+#endif
 
 	if ( tr.fraction < 1.0f ) {
 		ent = gameLocal.GetTraceEntity( tr );
@@ -2241,10 +2245,12 @@ void idWeapon::AlertMonsters() {
 	end += muzzleFlash.axis * muzzleFlash.right * idMath::Sin16( MS2SEC( gameLocal.time ) * 31.34f );
 	end += muzzleFlash.axis * muzzleFlash.up * idMath::Sin16( MS2SEC( gameLocal.time ) * 12.17f );
 	gameLocal.clip.TracePoint( tr, muzzleFlash.origin, end, CONTENTS_OPAQUE | MASK_SHOT_RENDERMODEL | CONTENTS_FLASHLIGHT_TRIGGER, owner );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugWeapon.GetBool() ) {
 		gameRenderWorld->DebugLine( colorYellow, muzzleFlash.origin, end, 0 );
 		gameRenderWorld->DebugArrow( colorGreen, muzzleFlash.origin, tr.endpos, 2, 0 );
 	}
+#endif
 
 	if ( tr.fraction < 1.0f ) {
 		ent = gameLocal.GetTraceEntity( tr );
@@ -4005,12 +4011,14 @@ void idWeapon::Event_Melee() {
 			ent = NULL;
 		}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( g_debugWeapon.GetBool() ) {
 			gameRenderWorld->DebugLine( colorYellow, start, end, 100 );
 			if ( ent != NULL ) {
 				gameRenderWorld->DebugBounds( colorRed, ent->GetPhysics()->GetBounds(), ent->GetPhysics()->GetOrigin(), 100 );
 			}
 		}
+#endif
 
 		bool hit = false;
 		const char *hitSound = meleeDef->dict.GetString( "snd_miss" );

@@ -167,7 +167,9 @@ protected:
 							// returns true if the whole physics object is outside the world bounds
 	bool					IsOutsideWorld() const;
 							// draw linear and angular velocity
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	void					DrawVelocity( int id, float linearScale, float angularScale ) const;
+#endif
 };
 
 /*

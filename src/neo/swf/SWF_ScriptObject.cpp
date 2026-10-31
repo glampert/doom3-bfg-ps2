@@ -395,9 +395,11 @@ void idSWFScriptObject::Set( int index, const idSWFScriptVar & value ) {
 #endif
 	if ( index < 0 ) {
 		extern idCVar swf_debug;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( swf_debug.GetBool() ) {
 			idLib::Printf( "SWF: Trying to set a negative array index.\n" );
 		}
+#endif
 		return;
 	}
 	if ( objectType == SWF_OBJECT_ARRAY ) {

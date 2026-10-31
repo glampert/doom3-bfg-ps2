@@ -623,7 +623,7 @@ int idDeclFile::LoadAndParse() {
 	bool		reparse;
 
 	// load the text
-	common->DPrintf( "...loading '%s'\n", fileName.c_str() );
+	DEV_PRINT( common->DPrintf( "...loading '%s'\n", fileName.c_str() ) );	// [PS2_D3BFG]
 	length = fileSystem->ReadFile( fileName, (void **)&buffer, &timestamp );
 	if ( length == -1 ) {
 		common->FatalError( "couldn't load %s", fileName.c_str() );
@@ -1745,9 +1745,11 @@ idDeclLocal *idDeclManagerLocal::FindTypeWithoutParsing( declType_t type, const 
 	for ( i = hashTables[typeIndex].First( hash ); i >= 0; i = hashTables[typeIndex].Next( i ) ) {
 		if ( linearLists[typeIndex][i]->name.Icmp( canonicalName ) == 0 ) {
 			// only print these when decl_show is set to 2, because it can be a lot of clutter
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 			if ( decl_show.GetInteger() > 1 ) {
 				MediaPrint( "referencing %s %s\n", declTypes[ type ]->typeName.c_str(), name );
 			}
+#endif
 			return linearLists[typeIndex][i];
 		}
 	}

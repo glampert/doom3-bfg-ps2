@@ -1694,6 +1694,7 @@ void idClip::PrintStatistics() {
 	numRotations = numTranslations = numMotions = numRenderModelTraces = numContents = numContacts = 0;
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 /*
 ============
 idClip::DrawClipModels
@@ -1721,6 +1722,7 @@ void idClip::DrawClipModels( const idVec3 &eye, const float radius, const idEnti
 		}
 	}
 }
+#endif
 
 /*
 ============

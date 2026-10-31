@@ -5075,3 +5075,21 @@ debug-only, and chat is gone with multiplayer; release keeps the config, cvar, b
 | `make test-ui` (debug) | NTSC and PAL sessions passed (`20261030T121025Z_session_bd729133fb01`, `20261030T121816Z_session_4f0037b64596`); 18 of 18 failure cases |
 | `make test-ui` (release) | NTSC and PAL sessions passed (`20261030T123520Z_session_aa8fb773543f`, `20261030T123838Z_session_023be76025ba`); 16 of 16 failure cases |
 
+
+## Debug-only tools and developer prints (2026-10-31)
+
+Release builds compile out the remaining developer support: per-frame debug drawing
+(`RunDebugInfo`, AAS, collision and physics debug draws, 107 debug-cvar blocks), entity
+editing and dragging, the `idTestModel` class and, through the new `DEV_PRINT` macro, 42
+developer `DPrintf`/`DWarning` calls; render-world debug primitives draw nothing. The HUD
+menus and the old GUI's form widgets build at `-Os`. Details are in
+[the memory reference](reference/memory-budget.md#debug-only-tools-and-developer-prints-2026-10-31).
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release`; `build-core`, `build-game`, `build-script` (both) | Passed without warnings; `PT_LOAD` **4,969,452 debug / 4,295,020 release** (−44,288 / −146,624); stripped ELFs 4,243,748 / 3,579,940 bytes |
+| `make test-headless-retail` (release) | Passed; retail startup 13,588,967 / 16,874,592 bytes in 74,768 allocations (`20261031T001734Z_headless_b94079c563bb`) |
+| `make test-game`, `make test-map` (debug and release) | 11 of 11 and 1 of 1 passed in each |
+
+A reduced set by request; the UI sessions were not rerun.
+

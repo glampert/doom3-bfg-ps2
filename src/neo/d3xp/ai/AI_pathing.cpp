@@ -390,6 +390,7 @@ int GetObstacles( const idPhysics *physics, const idAAS *aas, const idEntity *ig
 			obstacle.winding.AddPoint( silVerts[j].ToVec2() );
 		}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_showObstacleAvoidance.GetBool() ) {
 			for ( j = 0; j < numVerts; j++ ) {
 				silVerts[j].z = startPos.z;
@@ -398,6 +399,7 @@ int GetObstacles( const idPhysics *physics, const idAAS *aas, const idEntity *ig
 				gameRenderWorld->DebugArrow( colorWhite, silVerts[j], silVerts[(j+1)%numVerts], 4 );
 			}
 		}
+#endif
 
 		// expand the 2D winding for collision with a 2D box
 		obstacle.winding.ExpandForAxialBox( expBounds );
@@ -470,6 +472,7 @@ int GetObstacles( const idPhysics *physics, const idAAS *aas, const idEntity *ig
 	}
 
 	// show obstacles
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_showObstacleAvoidance.GetBool() ) {
 		for ( i = 0; i < numObstacles; i++ ) {
 			obstacle_t &obstacle = obstacles[i];
@@ -482,6 +485,7 @@ int GetObstacles( const idPhysics *physics, const idAAS *aas, const idEntity *ig
 			}
 		}
 	}
+#endif
 
 	return numObstacles;
 }
@@ -911,6 +915,7 @@ bool FindOptimalPath( const pathNode_t *root, const obstacle_t *obstacles, int n
 			seekPos.ToVec2() = optimizedPath[1];
 		}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_showObstacleAvoidance.GetBool() ) {
 			idVec3 start, end;
 			start.z = end.z = height + 4.0f;
@@ -921,6 +926,7 @@ bool FindOptimalPath( const pathNode_t *root, const obstacle_t *obstacles, int n
 				gameRenderWorld->DebugArrow( colorCyan, start, end, 1 );
 			}
 		}
+#endif
 	}
 
 	return pathToGoalExists;
@@ -986,9 +992,11 @@ bool idAI::FindPathAroundObstacles( const idPhysics *physics, const idAAS *aas, 
 	root = BuildPathTree( obstacles, numObstacles, clipBounds, path.startPosOutsideObstacles.ToVec2(), path.seekPosOutsideObstacles.ToVec2(), path );
 
 	// draw the path tree
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( ai_showObstacleAvoidance.GetBool() ) {
 		DrawPathTree( root, physics->GetOrigin().z );
 	}
+#endif
 
 	// prune the tree
 	PrunePathTree( root, path.seekPosOutsideObstacles.ToVec2() );
@@ -1086,9 +1094,11 @@ bool PathTrace( const idEntity *ent, const idAAS *aas, const idVec3 &start, cons
 						path.endEvent = SE_ENTER_LEDGE_AREA;
 						path.blockingEntity = trace.blockingEntity;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 						if ( ai_debugMove.GetBool() ) {
 							gameRenderWorld->DebugLine( colorRed, start, aasTrace.endpos );
 						}
+#endif
 						return true;
 					}
 				}
@@ -1099,9 +1109,11 @@ bool PathTrace( const idEntity *ent, const idAAS *aas, const idVec3 &start, cons
 						path.endEvent = SE_ENTER_OBSTACLE;
 						path.blockingEntity = trace.blockingEntity;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 						if ( ai_debugMove.GetBool() ) {
 							gameRenderWorld->DebugLine( colorRed, start, aasTrace.endpos );
 						}
+#endif
 						return true;
 					}
 				}
@@ -1201,9 +1213,11 @@ bool idAI::PredictPath( const idEntity *ent, const idAAS *aas, const idVec3 &sta
 							path.endPos = lastEnd;
 							path.endEvent = SE_BLOCKED;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 							if ( ai_debugMove.GetBool() ) {
 								gameRenderWorld->DebugLine( colorRed, lineStart, lastEnd );
 							}
+#endif
 
 							return true;
 						}
@@ -1234,9 +1248,11 @@ bool idAI::PredictPath( const idEntity *ent, const idAAS *aas, const idVec3 &sta
 				curStart = trace.endPos;
 			}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 			if ( ai_debugMove.GetBool() ) {
 				gameRenderWorld->DebugLine( colorRed, lineStart, curStart );
 			}
+#endif
 
 			if ( trace.fraction >= 1.0f ) {
 				break;
@@ -1511,6 +1527,7 @@ bool idAI::PredictTrajectory( const idVec3 &firePos, const idVec3 &target, float
 
 		zVel = projectileSpeed * dir[i].z;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ai_debugTrajectory.GetBool() ) {
 			t = ballistics[i].time / 100.0f;
 			velocity = dir[i] * projectileSpeed;
@@ -1523,6 +1540,7 @@ bool idAI::PredictTrajectory( const idVec3 &firePos, const idVec3 &target, float
 				lastPos = pos;
 			}
 		}
+#endif
 
 		if ( TestTrajectory( firePos, target, zVel, projGravity[2], ballistics[i].time, firePos.z + max_height, clip, clipmask, ignore, targetEntity, drawtime ) ) {
 			aimDir = dir[i];

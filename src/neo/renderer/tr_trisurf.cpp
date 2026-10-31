@@ -704,7 +704,7 @@ void R_IdentifySilEdges( srfTriangles_t *tri, bool omitCoplanarEdges ) {
 	}
 
 	if ( c_duplicatedEdges || c_tripledEdges ) {
-		common->DWarning( "%i duplicated edge directions, %i tripled edges", c_duplicatedEdges, c_tripledEdges );
+		DEV_PRINT( common->DWarning( "%i duplicated edge directions, %i tripled edges", c_duplicatedEdges, c_tripledEdges ) );	// [PS2_D3BFG]
 	}
 
 	// if we know that the vertexes aren't going

@@ -507,7 +507,7 @@ void idRenderModelManagerLocal::ReloadModels( bool forceAll ) {
 			}
 		}
 
-		common->DPrintf( "reloading %s.\n", model->Name() );
+		DEV_PRINT( common->DPrintf( "reloading %s.\n", model->Name() ) );	// [PS2_D3BFG]
 
 		model->LoadModel();
 	}

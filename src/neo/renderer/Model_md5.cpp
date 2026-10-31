@@ -1197,7 +1197,7 @@ idRenderModel *idRenderModelMD5::InstantiateDynamicModel( const struct renderEnt
 	}
 
 	if ( purged ) {
-		common->DWarning( "model %s instantiated while purged", Name() );
+		DEV_PRINT( common->DWarning( "model %s instantiated while purged", Name() ) );	// [PS2_D3BFG]
 		LoadModel();
 	}
 
@@ -1229,6 +1229,7 @@ idRenderModel *idRenderModelMD5::InstantiateDynamicModel( const struct renderEnt
 
 	staticModel->bounds.Clear();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( r_showSkel.GetInteger() ) {
 		if ( ( view != NULL ) && ( !r_skipSuppress.GetBool() || !ent->suppressSurfaceInViewID || ( ent->suppressSurfaceInViewID != view->renderView.viewID ) ) ) {
 			// only draw the skeleton
@@ -1241,6 +1242,7 @@ idRenderModel *idRenderModelMD5::InstantiateDynamicModel( const struct renderEnt
 			return staticModel;
 		}
 	}
+#endif
 
 	// update the GPU joints array
 	const int numInvertedJoints = SIMD_ROUND_JOINTS( joints.Num() );

@@ -484,7 +484,9 @@ protected:
 	float					TravelDistance( const idVec3 &start, const idVec3 &end ) const;
 	int						PointReachableAreaNum( const idVec3 &pos, const float boundsScale = 2.0f ) const;
 	bool					PathToGoal( aasPath_t &path, int areaNum, const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin ) const;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	void					DrawRoute() const;
+#endif
 	bool					GetMovePos( idVec3 &seekPos );
 	bool					MoveDone() const;
 	bool					EntityCanSeePos( idActor *actor, const idVec3 &actorOrigin, const idVec3 &pos );

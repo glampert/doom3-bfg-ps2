@@ -504,8 +504,8 @@ static void LoadJPG( const char *filename, unsigned char **pic, int *width, int 
   row_stride = cinfo.output_width * cinfo.output_components;
 
   if (cinfo.output_components!=4) {
-		common->DWarning( "JPG %s is unsupported color depth (%d)", 
-			filename, cinfo.output_components);
+		DEV_PRINT( common->DWarning( "JPG %s is unsupported color depth (%d)", 
+			filename, cinfo.output_components) );	// [PS2_D3BFG]
   }
   out = (byte *)R_StaticAlloc(cinfo.output_width*cinfo.output_height*4, TAG_IMAGE);
 

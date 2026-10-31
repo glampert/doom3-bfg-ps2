@@ -630,6 +630,7 @@ void idIK_Walk::Evaluate() {
 		gameLocal.clip.Translation( results, start, end, footModel, mat3_identity, CONTENTS_SOLID|CONTENTS_IKCLIP, self );
 		floorHeights[i] = results.endpos * normal;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ik_debug.GetBool() && footModel ) {
 			idFixedWinding w;
 			for ( int j = 0; j < footModel->GetTraceModel()->numVerts; j++ ) {
@@ -637,6 +638,7 @@ void idIK_Walk::Evaluate() {
 			}
 			gameRenderWorld->DebugWinding( colorRed, w, results.endpos, results.endAxis );
 		}
+#endif
 	}
 
 	const idPhysics *phys = self->GetPhysics();
@@ -744,12 +746,14 @@ void idIK_Walk::Evaluate() {
 		// solve IK and calculate knee position
 		SolveTwoBones( hipOrigin, jointOrigins[i], kneeDir, upperLegLength[i], lowerLegLength[i], kneeOrigin );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ik_debug.GetBool() ) {
 			gameRenderWorld->DebugLine( colorCyan, hipOrigin, kneeOrigin );
 			gameRenderWorld->DebugLine( colorRed, kneeOrigin, jointOrigins[i] );
 			gameRenderWorld->DebugLine( colorYellow, kneeOrigin, kneeOrigin + hipDir );
 			gameRenderWorld->DebugLine( colorGreen, kneeOrigin, kneeOrigin + kneeDir );
 		}
+#endif
 
 		// get the axis for the hip joint
 		GetBoneAxis( hipOrigin, kneeOrigin, hipDir, axis );
@@ -1082,12 +1086,14 @@ void idIK_Reach::Evaluate() {
 		// solve IK and calculate elbow position
 		SolveTwoBones( shoulderOrigin, handOrigin, elbowDir, upperArmLength[i], lowerArmLength[i], elbowOrigin );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( ik_debug.GetBool() ) {
 			gameRenderWorld->DebugLine( colorCyan, shoulderOrigin, elbowOrigin );
 			gameRenderWorld->DebugLine( colorRed, elbowOrigin, handOrigin );
 			gameRenderWorld->DebugLine( colorYellow, elbowOrigin, elbowOrigin + elbowDir );
 			gameRenderWorld->DebugLine( colorGreen, elbowOrigin, elbowOrigin + shoulderDir );
 		}
+#endif
 
 		// get the axis for the shoulder joint
 		GetBoneAxis( shoulderOrigin, elbowOrigin, shoulderDir, axis );

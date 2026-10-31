@@ -1635,6 +1635,7 @@ void idCollisionModelManagerLocal::Rotation( trace_t *results, const idVec3 &sta
 #ifdef _DEBUG
 	bool startsolid = false;
 	// test whether or not stuck to begin with
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( cm_debugCollision.GetBool() ) {
 		if ( !entered ) {
 			entered = 1;
@@ -1645,6 +1646,7 @@ void idCollisionModelManagerLocal::Rotation( trace_t *results, const idVec3 &sta
 			entered = 0;
 		}
 	}
+#endif
 #endif
 
 	if ( rotation.GetAngle() >= 180.0f || rotation.GetAngle() <= -180.0f) {
@@ -1676,6 +1678,7 @@ void idCollisionModelManagerLocal::Rotation( trace_t *results, const idVec3 &sta
 
 #ifdef _DEBUG
 	// test for missed collisions
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( cm_debugCollision.GetBool() ) {
 		if ( !entered ) {
 			entered = 1;
@@ -1691,5 +1694,6 @@ void idCollisionModelManagerLocal::Rotation( trace_t *results, const idVec3 &sta
 			entered = 0;
 		}
 	}
+#endif
 #endif
 }

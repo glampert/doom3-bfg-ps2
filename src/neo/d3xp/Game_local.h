@@ -657,8 +657,10 @@ private:
 	void					FreePlayerPVS();
 	void					UpdateGravity();
 	void					SortActiveEntityList();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
 	void					ShowTargets();
 	void					RunDebugInfo();
+#endif
 
 	void					InitScriptForMap();
 	void					SetScriptFPS( const float com_engineHz );

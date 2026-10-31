@@ -89,8 +89,10 @@ public:
 	virtual						~idAASLocal();
 	virtual bool				Init( const idStr &mapName, unsigned int mapFileCRC );
 	virtual void				Shutdown();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: AAS debug tools are debug-only on the PS2.
 	virtual void				Stats() const;
 	virtual void				Test( const idVec3 &origin );
+#endif
 	virtual const idAASSettings *GetSettings() const;
 	virtual int					PointAreaNum( const idVec3 &origin ) const;
 	virtual int					PointReachableAreaNum( const idVec3 &origin, const idBounds &searchBounds, const int areaFlags ) const;
@@ -115,8 +117,10 @@ public:
 	virtual bool				WalkPathValid( int areaNum, const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin, int travelFlags, idVec3 &endPos, int &endAreaNum ) const;
 	virtual bool				FlyPathToGoal( aasPath_t &path, int areaNum, const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin, int travelFlags ) const;
 	virtual bool				FlyPathValid( int areaNum, const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin, int travelFlags, idVec3 &endPos, int &endAreaNum ) const;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	virtual void				ShowWalkPath( const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin ) const;
 	virtual void				ShowFlyPath( const idVec3 &origin, int goalAreaNum, const idVec3 &goalOrigin ) const;
+#endif
 	virtual bool				FindNearestGoal( aasGoal_t &goal, int areaNum, const idVec3 origin, const idVec3 &target, int travelFlags, aasObstacle_t *obstacles, int numObstacles, idAASCallback &callback ) const;
 
 private:
@@ -148,7 +152,9 @@ private:	// routing
 	void						DeleteClusterCache( int clusterNum );
 	void						DeletePortalCache();
 	void						ShutdownRoutingCache();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 	void						RoutingStats() const;
+#endif
 	void						LinkCache( idRoutingCache *cache ) const;
 	void						UnlinkCache( idRoutingCache *cache ) const;
 	void						DeleteOldestCache() const;
@@ -171,6 +177,7 @@ private:	// pathing
 	idVec3						SubSampleWalkPath( int areaNum, const idVec3 &origin, const idVec3 &start, const idVec3 &end, int travelFlags, int &endAreaNum ) const;
 	idVec3						SubSampleFlyPath( int areaNum, const idVec3 &origin, const idVec3 &start, const idVec3 &end, int travelFlags, int &endAreaNum ) const;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]
 private:	// debug
 	const idBounds &			DefaultSearchBounds() const;
 	void						DrawCone( const idVec3 &origin, const idVec3 &dir, float radius, const idVec4 &color ) const;
@@ -184,6 +191,7 @@ private:	// debug
 	bool						PullPlayer( const idVec3 &origin, int toAreaNum ) const;
 	void						RandomPullPlayer( const idVec3 &origin ) const;
 	void						ShowPushIntoArea( const idVec3 &origin ) const;
+#endif
 };
 
 #endif /* !__AAS_LOCAL_H__ */

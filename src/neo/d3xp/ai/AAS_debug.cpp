@@ -32,6 +32,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "AAS_local.h"
 #include "../Game_local.h"		// for cvars and debug drawing
 
+// [PS2_D3BFG]: AAS debug drawing and test tools are debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 
 /*
 ============
@@ -506,3 +508,5 @@ void idAASLocal::Test( const idVec3 &origin ) {
 		ShowPushIntoArea( origin );
 	}
 }
+
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG

@@ -36,9 +36,11 @@ ENGINE_SIZE_OPT_CXX_SRC = \
 	neo/d3xp/gamesys/SysCmds.cpp \
 	neo/d3xp/gamesys/SysCvar.cpp \
 	neo/d3xp/menus/MenuHandler.cpp \
+	neo/d3xp/menus/MenuHandler_HUD.cpp \
 	neo/d3xp/menus/MenuHandler_PDA.cpp \
 	neo/d3xp/menus/MenuHandler_Shell.cpp \
 	neo/d3xp/menus/MenuScreen.cpp \
+	neo/d3xp/menus/MenuScreen_HUD.cpp \
 	neo/d3xp/menus/MenuScreen_PDA_Inventory.cpp \
 	neo/d3xp/menus/MenuScreen_PDA_UserData.cpp \
 	neo/d3xp/menus/MenuScreen_PDA_UserEmails.cpp \
@@ -127,9 +129,17 @@ ENGINE_SIZE_OPT_CXX_SRC = \
 	neo/sys/sys_localuser.cpp \
 	neo/sys/sys_signin.cpp \
 	neo/ui/BindWindow.cpp \
+	neo/ui/ChoiceWindow.cpp \
+	neo/ui/EditWindow.cpp \
+	neo/ui/FieldWindow.cpp \
 	neo/ui/GameBearShootWindow.cpp \
 	neo/ui/GameBustOutWindow.cpp \
-	neo/ui/GameSSDWindow.cpp
+	neo/ui/GameSSDWindow.cpp \
+	neo/ui/ListGUI.cpp \
+	neo/ui/ListWindow.cpp \
+	neo/ui/RegExp.cpp \
+	neo/ui/RenderWindow.cpp \
+	neo/ui/SliderWindow.cpp
 
 CORE_CXX_SRC = \
 	neo/idlib/bv/Bounds.cpp \

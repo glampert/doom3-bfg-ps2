@@ -3933,6 +3933,7 @@ bool idAnimator::GetBounds( int currentTime, idBounds &bounds ) {
 
 	bounds.TranslateSelf( modelDef->GetVisualOffset() );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugBounds.GetBool() ) {
 		if ( bounds[1][0] - bounds[0][0] > 2048 || bounds[1][1] - bounds[0][1] > 2048 ) {
 			if ( entity ) {
@@ -3942,6 +3943,7 @@ bool idAnimator::GetBounds( int currentTime, idBounds &bounds ) {
 			}
 		}
 	}
+#endif
 
 	frameBounds = bounds;
 

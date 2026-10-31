@@ -517,7 +517,7 @@ void idFileSystemLocal::CreateOSPath( const char *OSPath ) {
 	// FIXME: what about c: ?
 	if ( strstr( OSPath, ".." ) || strstr( OSPath, "::" ) ) {
 #ifdef _DEBUG		
-		common->DPrintf( "refusing to create relative path \"%s\"\n", OSPath );
+		DEV_PRINT( common->DPrintf( "refusing to create relative path \"%s\"\n", OSPath ) );	// [PS2_D3BFG]
 #endif
 		return;
 	}
@@ -1707,7 +1707,7 @@ int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIM
 		if ( eventLoop && eventLoop->JournalLevel() == 2 ) {
 			int		r;
 
-			common->DPrintf( "Loading %s from journal file.\n", relativePath );
+			DEV_PRINT( common->DPrintf( "Loading %s from journal file.\n", relativePath ) );	// [PS2_D3BFG]
 			len = 0;
 			r = eventLoop->com_journalDataFile->Read( &len, sizeof( len ) );
 			// [PS2_D3BFG]: Reject corrupt lengths before allocation; metadata-only reads still consume the record.
@@ -1774,7 +1774,7 @@ int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIM
 
 	// if we are journalling and it is a config file, write it to the journal file
 	if ( isConfig && eventLoop && eventLoop->JournalLevel() == 1 ) {
-		common->DPrintf( "Writing %s to journal file.\n", relativePath );
+		DEV_PRINT( common->DPrintf( "Writing %s to journal file.\n", relativePath ) );	// [PS2_D3BFG]
 		eventLoop->com_journalDataFile->Write( &len, sizeof( len ) );
 		eventLoop->com_journalDataFile->Write( buf, len );
 		eventLoop->com_journalDataFile->Flush();
@@ -2873,9 +2873,11 @@ idFile * idFileSystemLocal::GetResourceFile( const char *fileName, bool memFile 
 
 	static idResourceCacheEntry rc;
 	if ( GetResourceCacheEntry( fileName, rc ) ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( fs_debugResources.GetBool() ) {
 			idLib::Printf( "RES: loading file %s\n", rc.filename.c_str() );
 		}
+#endif
 		idFile_InnerResource *file = new idFile_InnerResource( rc.filename, resourceFiles[ rc.containerIndex ]->resourceFile, rc.offset, rc.length );
 		// [PS2_D3BFG]: Parenthesized as the compiler already groups it.
 		if ( ( file != NULL && ( memFile || rc.length <= resourceBufferAvailable ) ) || rc.length < 8 * 1024 * 1024 ) {
@@ -2954,9 +2956,11 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 		return NULL;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( fs_debug.GetBool() ) {
 		idLib::Printf( "FILE DEBUG: opening %s\n", relativePath );
 	}
+#endif
 
 	if ( resourceFiles.Num() > 0 && fs_resourceLoadPriority.GetInteger() ==  1 ) {
 		idFile * rf = GetResourceFile( relativePath, ( searchFlags & FSFLAG_RETURN_FILE_MEM ) != 0 );
@@ -2990,9 +2994,11 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 			file->fileSize = DirectFileLength( file->o );
 			// [PS2_D3BFG]: Close an unmeasurable or oversized stream before publishing it.
 			if ( file->fileSize < 0 ) { delete file; continue; }
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 			if ( fs_debug.GetInteger() ) {
 				common->Printf( "idFileSystem::OpenFileRead: %s (found in '%s/%s')\n", relativePath, searchPaths[sp].path.c_str(), searchPaths[sp].gamedir.c_str() );
 			}
+#endif
 
 			// if fs_copyfiles is set
 			if ( allowCopyFiles ) {
@@ -3135,11 +3141,13 @@ idFile *idFileSystemLocal::OpenFileWrite( const char *relativePath, const char *
 
 	OSpath = BuildOSPath( path, gameFolder, relativePath );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( fs_debug.GetInteger() ) {
 		common->Printf( "idFileSystem::OpenFileWrite: %s\n", OSpath.c_str() );
 	}
+#endif
 
-	common->DPrintf( "writing to: %s\n", OSpath.c_str() );
+	DEV_PRINT( common->DPrintf( "writing to: %s\n", OSpath.c_str() ) );	// [PS2_D3BFG]
 	CreateOSPath( OSpath );
 
 	f = new (TAG_IDFILE) idFile_Permanent();
@@ -3169,9 +3177,11 @@ idFile *idFileSystemLocal::OpenExplicitFileRead( const char *OSPath ) {
 		common->FatalError( "Filesystem call made without initialization\n" );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( fs_debug.GetInteger() ) {
 		common->Printf( "idFileSystem::OpenExplicitFileRead: %s\n", OSPath );
 	}
+#endif
 
 	//common->DPrintf( "idFileSystem::OpenExplicitFileRead - reading from: %s\n", OSPath );
 
@@ -3239,11 +3249,13 @@ idFile *idFileSystemLocal::OpenExplicitFileWrite( const char *OSPath ) {
 		common->FatalError( "Filesystem call made without initialization\n" );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( fs_debug.GetInteger() ) {
 		common->Printf( "idFileSystem::OpenExplicitFileWrite: %s\n", OSPath );
 	}
+#endif
 
-	common->DPrintf( "writing to: %s\n", OSPath );
+	DEV_PRINT( common->DPrintf( "writing to: %s\n", OSPath ) );	// [PS2_D3BFG]
 	CreateOSPath( OSPath );
 
 	f = new (TAG_IDFILE) idFile_Permanent();
@@ -3288,9 +3300,11 @@ idFile *idFileSystemLocal::OpenFileAppend( const char *relativePath, bool sync, 
 	OSpath = BuildOSPath( path, gameFolder, relativePath );
 	CreateOSPath( OSpath );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( fs_debug.GetInteger() ) {
 		common->Printf( "idFileSystem::OpenFileAppend: %s\n", OSpath.c_str() );
 	}
+#endif
 
 	f = new (TAG_IDFILE) idFile_Permanent();
 	f->o = OpenOSFile( OSpath, FS_APPEND );

@@ -127,15 +127,19 @@ idCameraView::Event_Activate
 void idCameraView::Event_Activate( idEntity *activator ) {
 	if (spawnArgs.GetBool("trigger")) {
 		if (gameLocal.GetCamera() != this) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 			if ( g_debugCinematic.GetBool() ) {
 				gameLocal.Printf( "%d: '%s' start\n", gameLocal.framenum, GetName() );
 			}
+#endif
 
 			gameLocal.SetCamera(this);
 		} else {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 			if ( g_debugCinematic.GetBool() ) {
 				gameLocal.Printf( "%d: '%s' stop\n", gameLocal.framenum, GetName() );
 			}
+#endif
 			gameLocal.SetCamera(NULL);
 		}
 	}
@@ -147,9 +151,11 @@ idCameraView::Stop
 =====================
 */
 void idCameraView::Stop() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugCinematic.GetBool() ) {
 		gameLocal.Printf( "%d: '%s' stop\n", gameLocal.framenum, GetName() );
 	}
+#endif
 	gameLocal.SetCamera(NULL);
 	ActivateTargets( gameLocal.GetLocalPlayer() );
 }
@@ -413,9 +419,11 @@ void idCameraAnim::Start() {
 		cycle = 1;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugCinematic.GetBool() ) {
 		gameLocal.Printf( "%d: '%s' start\n", gameLocal.framenum, GetName() );
 	}
+#endif
 
 	starttime = gameLocal.time;
 	gameLocal.SetCamera( this );
@@ -434,9 +442,11 @@ idCameraAnim::Stop
 */
 void idCameraAnim::Stop() {
 	if ( gameLocal.GetCamera() == this ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( g_debugCinematic.GetBool() ) {
 			gameLocal.Printf( "%d: '%s' stop\n", gameLocal.framenum, GetName() );
 		}
+#endif
 
 		BecomeInactive( TH_THINK );
 		gameLocal.SetCamera( NULL );
@@ -500,6 +510,7 @@ void idCameraAnim::GetViewParms( renderView_t *view ) {
 		cut++;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugCinematic.GetBool() ) {
 		int prevFrameTime	= ( gameLocal.previousTime - starttime ) * frameRate;
 		int prevFrame		= prevFrameTime / 1000;
@@ -518,6 +529,7 @@ void idCameraAnim::GetViewParms( renderView_t *view ) {
 			gameLocal.Printf( "%d: '%s' cut %d\n", gameLocal.framenum, GetName(), cut );
 		}
 	}
+#endif
 
 	// clamp to the first frame.  also check if this is a one frame anim.  one frame anims would end immediately,
 	// but since they're mainly used for static cams anyway, just stay on it infinitely.
@@ -584,9 +596,11 @@ void idCameraAnim::GetViewParms( renderView_t *view ) {
 	}
 #endif
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_showcamerainfo.GetBool() ) {
 		gameLocal.Printf( "^5Frame: ^7%d/%d\n\n\n", realFrame + 1, camera.Num() - cameraCuts.Num() );
 	}
+#endif
 }
 
 /*

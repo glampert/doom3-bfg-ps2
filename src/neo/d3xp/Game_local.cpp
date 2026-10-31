@@ -2417,6 +2417,7 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 		timer_think.Start();
 
 		// let entities think
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Entity think timing is debug-only on the PS2.
 		if ( g_timeentities.GetFloat() ) {
 			num = 0;
 			for( ent = activeEntities.Next(); ent != NULL; ent = ent->activeNode.Next() ) {
@@ -2434,7 +2435,9 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 				}
 				num++;
 			}
-		} else {
+		} else
+#endif
+		{
 			if ( inCinematic ) {
 				num = 0;
 				for( ent = activeEntities.Next(); ent != NULL; ent = ent->activeNode.Next() ) {
@@ -2521,12 +2524,12 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 
 	// show any debug info for this frame
 	// [PS2_D3BFG]: Presentation diagnostics require a render world.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug drawing and debug lines are debug-only on the PS2.
 	if ( gameRenderWorld != NULL ) {
 		RunDebugInfo();
-#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug lines exist in debug builds only.
 		D_DrawDebugLines();
-#endif
 	}
+#endif
 
 	if ( g_recordTrace.GetBool() ) {
 		EndTraceRecording();
@@ -2894,7 +2897,11 @@ void idGameLocal::CallObjectFrameCommand( idEntity *ent, const char *frameComman
 
 	func = ent->scriptObject.GetFunction( frameCommand );
 	if ( !func ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: The model test entity is debug-only on the PS2.
 		if ( !ent->IsType( idTestModel::Type ) ) {
+#else
+		{
+#endif
 			Error( "Unknown function '%s' called for frame command on entity '%s'", frameCommand, ent->name.c_str() );
 		}
 	} else {
@@ -2903,6 +2910,8 @@ void idGameLocal::CallObjectFrameCommand( idEntity *ent, const char *frameComman
 	}
 }
 
+// [PS2_D3BFG]: Debug drawing is debug-only on the PS2.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 /*
 ================
 idGameLocal::ShowTargets
@@ -3101,6 +3110,7 @@ void idGameLocal::RunDebugInfo() {
 	// collision map debug output
 	collisionModelManager->DebugOutput( player->GetEyePosition() );
 }
+#endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 
 /*
 ==================
@@ -4311,7 +4321,7 @@ void idGameLocal::SetCamera( idCamera *cam ) {
 				}
 
 				// remove it
-				DPrintf( "removing '%s' for cinematic\n", ent->GetName() );
+				DEV_PRINT( DPrintf( "removing '%s' for cinematic\n", ent->GetName() ) );	// [PS2_D3BFG]
 				ent->PostEventMS( &EV_Remove, 0 );
 			}
 		}

@@ -1727,7 +1727,9 @@ idRenderWorldLocal::DebugLine
 ====================
 */
 void idRenderWorldLocal::DebugLine( const idVec4 &color, const idVec3 &start, const idVec3 &end, const int lifetime, const bool depthTest ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	RB_AddDebugLine( color, start, end, lifetime, depthTest );
+#endif
 }
 
 /*
@@ -1736,6 +1738,7 @@ idRenderWorldLocal::DebugArrow
 ================
 */
 void idRenderWorldLocal::DebugArrow( const idVec4 &color, const idVec3 &start, const idVec3 &end, int size, const int lifetime ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	idVec3 forward, right, up, v1, v2;
 	float a, s;
 	int i;
@@ -1778,6 +1781,7 @@ void idRenderWorldLocal::DebugArrow( const idVec4 &color, const idVec3 &start, c
 		DebugLine( color, v1, end, lifetime );
 		DebugLine( color, v1, v2, lifetime );
 	}
+#endif
 }
 
 /*
@@ -1786,6 +1790,7 @@ idRenderWorldLocal::DebugWinding
 ====================
 */
 void idRenderWorldLocal::DebugWinding( const idVec4 &color, const idWinding &w, const idVec3 &origin, const idMat3 &axis, const int lifetime, const bool depthTest ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	int i;
 	idVec3 point, lastPoint;
 
@@ -1799,6 +1804,7 @@ void idRenderWorldLocal::DebugWinding( const idVec4 &color, const idWinding &w, 
 		DebugLine( color, lastPoint, point, lifetime, depthTest );
 		lastPoint = point;
 	}
+#endif
 }
 
 /*
@@ -1807,6 +1813,7 @@ idRenderWorldLocal::DebugCircle
 ====================
 */
 void idRenderWorldLocal::DebugCircle( const idVec4 &color, const idVec3 &origin, const idVec3 &dir, const float radius, const int numSteps, const int lifetime, const bool depthTest ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	int i;
 	float a;
 	idVec3 left, up, point, lastPoint;
@@ -1821,6 +1828,7 @@ void idRenderWorldLocal::DebugCircle( const idVec4 &color, const idVec3 &origin,
 		DebugLine( color, lastPoint, point, lifetime, depthTest );
 		lastPoint = point;
 	}
+#endif
 }
 
 /*
@@ -1829,6 +1837,7 @@ idRenderWorldLocal::DebugSphere
 ============
 */
 void idRenderWorldLocal::DebugSphere( const idVec4 &color, const idSphere &sphere, const int lifetime, const bool depthTest /*_D3XP*/ ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	int i, j, n, num;
 	float s, c;
 	idVec3 p, lastp, *lastArray;
@@ -1858,6 +1867,7 @@ void idRenderWorldLocal::DebugSphere( const idVec4 &color, const idSphere &spher
 			lastp = p;
 		}
 	}
+#endif
 }
 
 /*
@@ -1866,6 +1876,7 @@ idRenderWorldLocal::DebugBounds
 ====================
 */
 void idRenderWorldLocal::DebugBounds( const idVec4 &color, const idBounds &bounds, const idVec3 &org, const int lifetime ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	int i;
 	idVec3 v[8];
 
@@ -1883,6 +1894,7 @@ void idRenderWorldLocal::DebugBounds( const idVec4 &color, const idBounds &bound
 		DebugLine( color, v[4+i], v[4+((i+1)&3)], lifetime );
 		DebugLine( color, v[i], v[4+i], lifetime );
 	}
+#endif
 }
 
 /*
@@ -1891,6 +1903,7 @@ idRenderWorldLocal::DebugBox
 ====================
 */
 void idRenderWorldLocal::DebugBox( const idVec4 &color, const idBox &box, const int lifetime ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	int i;
 	idVec3 v[8];
 
@@ -1900,6 +1913,7 @@ void idRenderWorldLocal::DebugBox( const idVec4 &color, const idBox &box, const 
 		DebugLine( color, v[4+i], v[4+((i+1)&3)], lifetime );
 		DebugLine( color, v[i], v[4+i], lifetime );
 	}
+#endif
 }
 
 /*
@@ -1912,6 +1926,7 @@ idRenderWorldLocal::DebugCone
 ============
 */
 void idRenderWorldLocal::DebugCone( const idVec4 &color, const idVec3 &apex, const idVec3 &dir, float radius1, float radius2, const int lifetime ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	int i;
 	idMat3 axis;
 	idVec3 top, p1, p2, lastp1, lastp2, d;
@@ -1945,6 +1960,7 @@ void idRenderWorldLocal::DebugCone( const idVec4 &color, const idVec3 &apex, con
 			lastp2 = p2;
 		}
 	}
+#endif
 }
 
 /*
@@ -1953,6 +1969,7 @@ idRenderWorldLocal::DebugAxis
 ================
 */
 void idRenderWorldLocal::DebugAxis( const idVec3 &origin, const idMat3 &axis ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	idVec3 start = origin;
 	idVec3 end = start + axis[0] * 20.0f;
 	DebugArrow( colorWhite, start, end, 2 );
@@ -1966,6 +1983,7 @@ void idRenderWorldLocal::DebugAxis( const idVec3 &origin, const idMat3 &axis ) {
 	DebugArrow( colorBlue, start, end, 2 );
 	end = start + axis[2] * -20.0f;
 	DebugArrow( colorBlue, start, end, 2 );
+#endif
 }
 
 /*
@@ -1983,7 +2001,9 @@ idRenderWorldLocal::DebugPolygon
 ====================
 */
 void idRenderWorldLocal::DebugPolygon( const idVec4 &color, const idWinding &winding, const int lifeTime, const bool depthTest ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	RB_AddDebugPolygon( color, winding, lifeTime, depthTest );
+#endif
 }
 
 /*
@@ -1992,6 +2012,7 @@ idRenderWorldLocal::DebugScreenRect
 ================
 */
 void idRenderWorldLocal::DebugScreenRect( const idVec4 &color, const idScreenRect &rect, const viewDef_t *viewDef, const int lifetime ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	int i;
 	float centerx, centery, dScale, hScale, vScale;
 	idBounds bounds;
@@ -2019,6 +2040,7 @@ void idRenderWorldLocal::DebugScreenRect( const idVec4 &color, const idScreenRec
 	for ( i = 0; i < 4; i++ ) {
 		DebugLine( color, p[i], p[(i+1)&3], false );
 	}
+#endif
 }
 
 /*
@@ -2041,7 +2063,9 @@ idRenderWorldLocal::DrawText
 ================
 */
 void idRenderWorldLocal::DrawText( const char *text, const idVec3 &origin, float scale, const idVec4 &color, const idMat3 &viewAxis, const int align, const int lifetime, const bool depthTest ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug primitives draw nothing in PS2 release builds.
 	RB_AddDebugText( text, origin, scale, color, viewAxis, align, lifetime, depthTest );
+#endif
 }
 
 /*

@@ -548,7 +548,7 @@ void idEntity::Spawn() {
 	if ( !common->IsClient() ) {
 		// common->DPrintf( "NET: DBG %s - %s is synced: %s\n", spawnArgs.GetString( "classname", "" ), GetType()->classname, fl.networkSync ? "true" : "false" );
 		if ( spawnArgs.GetString( "classname", "" )[ 0 ] == '\0' && !fl.networkSync ) {
-			common->DPrintf( "NET: WRN %s entity, no classname, and no networkSync?\n", GetType()->classname );
+			DEV_PRINT( common->DPrintf( "NET: WRN %s entity, no classname, and no networkSync?\n", GetType()->classname ) );	// [PS2_D3BFG]
 		}
 	}
 #endif
@@ -3764,7 +3764,7 @@ bool idEntity::HandleGuiCommands( idEntity *entityGui, const char *cmds ) {
 
 				if ( i == c ) {
 					// not handled
-					common->DPrintf( "idEntity::HandleGuiCommands: '%s' not handled\n", token.c_str() );
+					DEV_PRINT( common->DPrintf( "idEntity::HandleGuiCommands: '%s' not handled\n", token.c_str() ) );	// [PS2_D3BFG]
 					src.ReadToken( &token );
 				}
 			}
@@ -5496,7 +5496,7 @@ void idAnimatedEntity::UpdateAnimation() {
 	// get the latest frame bounds
 	animator.GetBounds( gameLocal.time, renderEntity.bounds );
 	if ( renderEntity.bounds.IsCleared() && !fl.hidden ) {
-		gameLocal.DPrintf( "%d: inside out bounds\n", gameLocal.time );
+		DEV_PRINT( gameLocal.DPrintf( "%d: inside out bounds\n", gameLocal.time ) );	// [PS2_D3BFG]
 	}
 
 	// update the renderEntity

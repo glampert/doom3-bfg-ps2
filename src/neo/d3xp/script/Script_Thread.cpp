@@ -264,9 +264,11 @@ idThread::idThread
 idThread::idThread() {
 	Init();
 	SetThreadName( va( "thread_%d", threadIndex ) );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugScript.GetBool() ) {
 		gameLocal.Printf( "%d: create thread (%d) '%s'\n", gameLocal.time, threadNum, threadName.c_str() );
 	}
+#endif
 }
 
 /*
@@ -280,9 +282,11 @@ idThread::idThread( idEntity *self, const function_t *func ) {
 	Init();
 	SetThreadName( self->name );
 	interpreter.EnterObjectFunction( self, func, false );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugScript.GetBool() ) {
 		gameLocal.Printf( "%d: create thread (%d) '%s'\n", gameLocal.time, threadNum, threadName.c_str() );
 	}
+#endif
 }
 
 /*
@@ -296,9 +300,11 @@ idThread::idThread( const function_t *func ) {
 	Init();
 	SetThreadName( func->Name() );
 	interpreter.EnterFunction( func, false );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugScript.GetBool() ) {
 		gameLocal.Printf( "%d: create thread (%d) '%s'\n", gameLocal.time, threadNum, threadName.c_str() );
 	}
+#endif
 }
 
 /*
@@ -309,9 +315,11 @@ idThread::idThread
 idThread::idThread( idInterpreter *source, const function_t *func, int args ) {
 	Init();
 	interpreter.ThreadCall( source, func, args );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugScript.GetBool() ) {
 		gameLocal.Printf( "%d: create thread (%d) '%s'\n", gameLocal.time, threadNum, threadName.c_str() );
 	}
+#endif
 }
 
 /*
@@ -325,9 +333,11 @@ idThread::idThread( idInterpreter *source, idEntity *self, const function_t *fun
 	Init();
 	SetThreadName( self->name );
 	interpreter.ThreadCall( source, func, args );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugScript.GetBool() ) {
 		gameLocal.Printf( "%d: create thread (%d) '%s'\n", gameLocal.time, threadNum, threadName.c_str() );
 	}
+#endif
 }
 
 /*
@@ -340,9 +350,11 @@ idThread::~idThread() {
 	int			i;
 	int			n;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugScript.GetBool() ) {
 		gameLocal.Printf( "%d: end thread (%d) '%s'\n", gameLocal.time, threadNum, threadName.c_str() );
 	}
+#endif
 	threadList.Remove( this );
 	n = threadList.Num();
 	for( i = 0; i < n; i++ ) {
@@ -994,10 +1006,12 @@ void idThread::Event_WaitForThread( int num ) {
 
 	thread = GetThread( num );
 	if ( !thread ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( g_debugScript.GetBool() ) {
 			// just print a warning and continue executing
 			Warning( "Thread %d not running", num );
 		}
+#endif
 	} else {
 		Pause();
 		waitingForThread = thread;

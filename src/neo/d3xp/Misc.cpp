@@ -1162,9 +1162,11 @@ void idAnimated::PlayNextAnim() {
 		return;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugCinematic.GetBool() ) {
 		gameLocal.Printf( "%d: '%s' start anim '%s'\n", gameLocal.framenum, GetName(), animname );
 	}
+#endif
 		
 	spawnArgs.GetInt( "cycle", "1", cycle );
 	if ( ( current_anim_index == num_anims ) && spawnArgs.GetBool( "loop_last_anim" ) ) {
@@ -1203,10 +1205,12 @@ idAnimated::Event_AnimDone
 ================
 */
 void idAnimated::Event_AnimDone( int animindex ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( g_debugCinematic.GetBool() ) {
 		const idAnim *animPtr = animator.GetAnim( anim );
 		gameLocal.Printf( "%d: '%s' end anim '%s'\n", gameLocal.framenum, GetName(), animPtr ? animPtr->Name() : "" );
 	}
+#endif
 
 	if ( ( animindex >= num_anims ) && spawnArgs.GetBool( "remove" ) ) {
 		Hide();
@@ -1276,10 +1280,12 @@ void idAnimated::Event_Start() {
 	}
 
 	if ( anim ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 		if ( g_debugCinematic.GetBool() ) {
 			const idAnim *animPtr = animator.GetAnim( anim );
 			gameLocal.Printf( "%d: '%s' start anim '%s'\n", gameLocal.framenum, GetName(), animPtr ? animPtr->Name() : "" );
 		}
+#endif
 		spawnArgs.GetInt( "cycle", "1", cycle );
 		animator.CycleAnim( ANIMCHANNEL_ALL, anim, gameLocal.time, FRAME2MS( blendFrames ) );
 		animator.CurrentAnim( ANIMCHANNEL_ALL )->SetCycleCount( cycle );

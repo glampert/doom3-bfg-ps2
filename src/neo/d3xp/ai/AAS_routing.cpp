@@ -303,6 +303,7 @@ void idAASLocal::ShutdownRouting() {
 	ShutdownRoutingCache();
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: AAS debug tools are debug-only on the PS2.
 /*
 ============
 idAASLocal::RoutingStats
@@ -332,6 +333,7 @@ void idAASLocal::RoutingStats() const {
 	gameLocal.Printf( "%6d area cache entries (%d KB)\n", areaCacheIndexSize, ( areaCacheIndexSize * sizeof( idRoutingCache * ) ) >> 10 );
 	gameLocal.Printf( "%6d portal cache entries (%d KB)\n", portalCacheIndexSize, ( portalCacheIndexSize * sizeof( idRoutingCache * ) ) >> 10 );
 }
+#endif
 
 /*
 ============
