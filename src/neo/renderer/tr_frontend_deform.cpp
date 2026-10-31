@@ -774,10 +774,12 @@ static drawSurf_t * R_ParticleDeform( drawSurf_t *surf, bool useArea ) {
 	const idDeclParticle * particleSystem = (const idDeclParticle *)surf->material->GetDeformDecl();
 	const srfTriangles_t * srcTri = surf->frontEndGeo;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_skipParticles.GetBool() ) {
 		return NULL;
 	}
 
+#endif
 	//
 	// calculate the area of all the triangles
 	//

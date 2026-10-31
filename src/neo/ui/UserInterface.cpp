@@ -34,7 +34,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Window.h"
 #include "UserInterfaceLocal.h"
 
-extern idCVar r_skipGuiShaders;		// 1 = don't render any gui elements on surfaces
+DEV_CVAR( extern idCVar r_skipGuiShaders );		// 1 = don't render any gui elements on surfaces
 
 idUserInterfaceManagerLocal	uiManagerLocal;
 idUserInterfaceManager *	uiManager = &uiManagerLocal;
@@ -425,9 +425,11 @@ void idUserInterfaceLocal::HandleNamedEvent ( const char* eventName ) {
 }
 
 void idUserInterfaceLocal::Redraw( int _time, bool hud ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_skipGuiShaders.GetInteger() > 5 ) {
 		return;
 	}
+#endif
 	if ( !loading && desktop ) {
 		time = _time;
 		dc->PushClipRect( uiManagerLocal.screenRect );

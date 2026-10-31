@@ -3451,10 +3451,12 @@ bool idAFConstraint_ConeLimit::Add( idPhysics_AF *phys, float invTimeStep ) {
 	idQuat q;
 	idAFBody *master;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( af_skipLimits.GetBool() ) {
 		lm.Zero();	// constraint exerts no force
 		return false;
 	}
+#endif
 
 	physics = phys;
 
@@ -3712,10 +3714,12 @@ bool idAFConstraint_PyramidLimit::Add( idPhysics_AF *phys, float invTimeStep ) {
 	idQuat q;
 	idAFBody *master;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( af_skipLimits.GetBool() ) {
 		lm.Zero();	// constraint exerts no force
 		return false;
 	}
+#endif
 
 	physics = phys;
 	master = body2 ? body2 : physics->GetMasterBody();
@@ -5007,9 +5011,11 @@ void idPhysics_AF::ApplyFriction( float timeStep, float endTimeMSec ) {
 	int i;
 	float invTimeStep;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( af_skipFriction.GetBool() ) {
 		return;
 	}
+#endif
 
 	if ( jointFrictionDentStart < MS2SEC( endTimeMSec ) && jointFrictionDentEnd > MS2SEC( endTimeMSec ) ) {
 		float halfTime = ( jointFrictionDentEnd - jointFrictionDentStart ) * 0.5f;
@@ -5502,7 +5508,11 @@ idEntity *idPhysics_AF::SetupCollisionForBody( idAFBody *body ) const {
 
 	passEntity = NULL;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !selfCollision || !body->fl.selfCollision || af_skipSelfCollision.GetBool() ) {
+#else
+	if ( !selfCollision || !body->fl.selfCollision ) {
+#endif
 
 		// disable all bodies
 		for ( i = 0; i < bodies.Num(); i++ ) {
@@ -6254,8 +6264,10 @@ bool idPhysics_AF::Evaluate( int timeStepMSec, int endTimeMSec ) {
 
 	if ( timeScaleRampStart < MS2SEC( endTimeMSec ) && timeScaleRampEnd > MS2SEC( endTimeMSec ) ) {
 		timeStep = MS2SEC( timeStepMSec ) * ( MS2SEC( endTimeMSec ) - timeScaleRampStart ) / ( timeScaleRampEnd - timeScaleRampStart );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	} else if ( af_timeScale.GetFloat() != 1.0f ) {
 		timeStep = MS2SEC( timeStepMSec ) * af_timeScale.GetFloat();
+#endif
 	} else {
 		timeStep = MS2SEC( timeStepMSec ) * timeScale;
 	}
@@ -6380,7 +6392,11 @@ bool idPhysics_AF::Evaluate( int timeStepMSec, int endTimeMSec ) {
 	SwapStates();
 
 	// make sure all clip models are disabled in case they were enabled for self collision
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( selfCollision && !af_skipSelfCollision.GetBool() ) {
+#else
+	if ( selfCollision ) {
+#endif
 		DisableClip();
 	}
 

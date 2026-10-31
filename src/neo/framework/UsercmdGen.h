@@ -258,10 +258,18 @@ public:
 	// Temp fix for usercmds overflowing  Correct fix is to process usercmds as they come in (like q3), rather then buffer them up.
 	static const int USERCMD_BUFFER_SIZE = 128;
 	
+	// [PS2_D3BFG]: The PS2 has one local player (client 0), so the ring keeps one column
+	// instead of MAX_PLAYERS (39 KB less in commonLocal and in each map-load manager).
+#if defined( ID_PS2 )
+	static const int USERCMD_MAX_PLAYERS = 1;
+#else
+	static const int USERCMD_MAX_PLAYERS = MAX_PLAYERS;
+#endif
+
 	//usercmd_t	cmdBuffer[ USERCMD_BUFFER_SIZE ][ MAX_PLAYERS ];
-	id2DArray< usercmd_t, USERCMD_BUFFER_SIZE, MAX_PLAYERS >::type	cmdBuffer;
-	idArray< int, MAX_PLAYERS >			writeFrame;	//"where we write to next"
-	idArray< int, MAX_PLAYERS >			readFrame;	//"the last frame we read"	
+	id2DArray< usercmd_t, USERCMD_BUFFER_SIZE, USERCMD_MAX_PLAYERS >::type	cmdBuffer;	// [PS2_D3BFG]: USERCMD_MAX_PLAYERS
+	idArray< int, USERCMD_MAX_PLAYERS >			writeFrame;	//"where we write to next"
+	idArray< int, USERCMD_MAX_PLAYERS >			readFrame;	//"the last frame we read"	
 	
 	void PutUserCmdForPlayer( int playerIndex, const usercmd_t & cmd ) {
 		cmdBuffer[ writeFrame[ playerIndex ] % USERCMD_BUFFER_SIZE ][ playerIndex ] = cmd;		

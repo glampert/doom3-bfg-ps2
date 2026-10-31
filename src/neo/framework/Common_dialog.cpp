@@ -37,6 +37,7 @@ If you have questions concerning this license or the applicable additional terms
 idCVar popupDialog_debug( "popupDialog_debug", "0", CVAR_BOOL | CVAR_ARCHIVE, "display debug spam" );
 
 extern idCVar g_demoMode;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 
 static const char * dialogStateToString[ GDM_MAX + 1 ] = {
 	ASSERT_ENUM_STRING( GDM_INVALID, 0 ),
@@ -180,6 +181,7 @@ static const char * dialogStateToString[ GDM_MAX + 1 ] = {
 	ASSERT_ENUM_STRING( GDM_GAME_RESTART_REQUIRED, 138 ),
 	ASSERT_ENUM_STRING( GDM_MAX, 139 )
 };
+#endif
 
 idCVar dialog_saveClearLevel( "dialog_saveClearLevel", "1000", CVAR_INTEGER, "Time required to show long message" );
 
@@ -252,7 +254,9 @@ void idCommonDialog::AddDialog( gameDialogMessages_t msg, dialogType_t type, idS
 	// TODO_D3_PORT:
 	//sys->ClearEvents();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s] msg: %s, pause: %d from: %s:%d\n", __FUNCTION__, dialogStateToString[msg], pause, location == NULL ? "NULL" : location, lineNumber );
+#endif
 
 	if ( dialog == NULL ) {
 		// [PS2_D3BFG]: A dropped dialog would lose its callbacks and the player's choice.
@@ -370,7 +374,9 @@ void idCommonDialog::AddDialogInternal( idDialogInfo & info ) {
 		}
 
 		if ( messageList.Num() > 0 ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s] msg: %s new dialog added over old\n", __FUNCTION__, dialogStateToString[info.msg] );
+#endif
 
 			dialog->Activate( false );
 			messageList.Insert( info, 0 );
@@ -400,8 +406,10 @@ idCommonDialog::ShowDialog
 ================================================
 */
 void idCommonDialog::ShowDialog( const idDialogInfo & info ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s] msg: %s, m.clear = %d, m.waitClear = %d, m.killTime = %d\n", 
 		__FUNCTION__, dialogStateToString[info.msg], info.clear, info.waitClear, info.killTime );
+#endif
 
 	// here instead of add dialog to make sure we meet the TCR, otherwise it has a chance to be visible for less than 1 second
 	if ( DialogMsgShouldWait( info.msg ) && !dialogInUse ) {
@@ -481,7 +489,9 @@ idCommonDialog::ShowSaveIndicator
 ================================================
 */
 void idCommonDialog::ShowSaveIndicator( bool show ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s]\n", __FUNCTION__ );
+#endif
 
 	if ( show ) {
 		idStr msg = idStrId( "#str_dlg_pc_saving" ).GetLocalizedString();
@@ -598,10 +608,12 @@ void idCommonDialog::ClearDialog( gameDialogMessages_t msg, const char * locatio
 				}
 			}
 			assert( info.msg >= GDM_INVALID && info.msg < GDM_MAX );	// not sure why /analyze complains about this
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s] msg: %s, from: %s:%d, topMessageCleared = %d, m.clear = %d, m.waitClear = %d, m.killTime = %d\n", 
 				__FUNCTION__, dialogStateToString[info.msg], location == NULL ? "NULL" : location, lineNumber,
 				topMessageCleared, messageList[index].clear,
 				messageList[index].waitClear, messageList[index].killTime );
+#endif
 			break;
 		}
 	}
@@ -659,7 +671,9 @@ void idCommonDialog::Render( bool loading ) {
 	bool pauseCheck = false;
 	for ( int index = 0; index < messageList.Num(); ++index ) {
 		if ( messageList[index].clear ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s] removing %s\n", __FUNCTION__, dialogStateToString[messageList[index].msg] );
+#endif
 			ReleaseCallBacks( index );
 			messageList.RemoveIndex( index );
 			index--;
@@ -729,7 +743,9 @@ idCommonDialog::Init
 */
 void idCommonDialog::Init() {
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s]\n", __FUNCTION__ );
+#endif
 
 	Shutdown();
 
@@ -768,7 +784,9 @@ idCommonDialog::Shutdown
 ================================================
 */
 void idCommonDialog::Shutdown() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( popupDialog_debug.GetBool(), "[%s]\n", __FUNCTION__ );
+#endif
 
 	ClearDialogs();
 

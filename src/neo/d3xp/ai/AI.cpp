@@ -754,10 +754,12 @@ void idAI::Spawn() {
 	idVec3				local_dir;
 	bool				talks;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !g_monsters.GetBool() ) {
 		PostEventMS( &EV_Remove, 0 );
 		return;
 	}
+#endif
 
 	spawnArgs.GetInt(	"team",					"1",		team );
 	spawnArgs.GetInt(	"rank",					"0",		rank );
@@ -1100,16 +1102,18 @@ void idAI::DormantEnd() {
 idAI::Think
 =====================
 */
-idCVar ai_think( "ai_think", "1", CVAR_BOOL, "for testing.." );
+DEV_CVAR( idCVar ai_think( "ai_think", "1", CVAR_BOOL, "for testing.." ) );	// [PS2_D3BFG]
 void idAI::Think() {
 	// if we are completely closed off from the player, don't do anything at all
 	if ( CheckDormant() ) {
 		return;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !ai_think.GetBool() ) {
 		return;
 	}
+#endif
 
 	if ( thinkFlags & TH_THINK ) {
 		// clear out the enemy when he dies or is hidden
@@ -1211,10 +1215,12 @@ void idAI::Think() {
 	UpdateDamageEffects();
 	LinkCombat();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if(ai_showHealth.GetBool()) {
 		idVec3 aboveHead(0,0,20);
 		gameRenderWorld->DrawText( va( "%d", ( int )health), this->GetEyePosition()+aboveHead, 0.5f, colorWhite, gameLocal.GetLocalPlayer()->viewAngles.ToMat3() );
 	}
+#endif
 }
 
 /***********************************************************************
@@ -2355,9 +2361,11 @@ bool idAI::GetMovePos( idVec3 &seekPos ) {
 		AI_DEST_UNREACHABLE = false;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( result && ( ai_debugMove.GetBool() ) ) {
 		gameRenderWorld->DebugLine( colorCyan, physicsObj.GetOrigin(), seekPos );
 	}
+#endif
 
 	return result;
 }
@@ -4159,7 +4167,11 @@ bool idAI::GetAimDir( const idVec3 &firePos, idEntity *aimAtEnt, const idEntity 
 	// try aiming for chest
 	delta = firePos - targetPos1;
 	max_height = delta.LengthFast() * projectile_height_to_distance_ratio;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	result = PredictTrajectory( firePos, targetPos1, projectileSpeed, projectileGravity, projectileClipModel, MASK_SHOT_RENDERMODEL, max_height, ignore, aimAtEnt, ai_debugTrajectory.GetBool() ? 1000 : 0, aimDir );
+#else
+	result = PredictTrajectory( firePos, targetPos1, projectileSpeed, projectileGravity, projectileClipModel, MASK_SHOT_RENDERMODEL, max_height, ignore, aimAtEnt, 0, aimDir );
+#endif
 	if ( result || !aimAtEnt->IsType( idActor::Type ) ) {
 		return result;
 	}
@@ -4167,7 +4179,11 @@ bool idAI::GetAimDir( const idVec3 &firePos, idEntity *aimAtEnt, const idEntity 
 	// try aiming for head
 	delta = firePos - targetPos2;
 	max_height = delta.LengthFast() * projectile_height_to_distance_ratio;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	result = PredictTrajectory( firePos, targetPos2, projectileSpeed, projectileGravity, projectileClipModel, MASK_SHOT_RENDERMODEL, max_height, ignore, aimAtEnt, ai_debugTrajectory.GetBool() ? 1000 : 0, aimDir );
+#else
+	result = PredictTrajectory( firePos, targetPos2, projectileSpeed, projectileGravity, projectileClipModel, MASK_SHOT_RENDERMODEL, max_height, ignore, aimAtEnt, 0, aimDir );
+#endif
 
 	return result;
 }

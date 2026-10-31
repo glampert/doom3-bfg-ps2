@@ -734,7 +734,7 @@ int idFile_Memory::Read( void *buffer, int len ) {
 	return len;
 }
 
-idCVar memcpyImpl( "memcpyImpl", "0", 0, "Which implementation of memcpy to use for idFile_Memory::Write() [0/1 - standard (1 eliminates branch misprediction), 2 - auto-vectorized]" );
+DEV_CVAR( idCVar memcpyImpl( "memcpyImpl", "0", 0, "Which implementation of memcpy to use for idFile_Memory::Write() [0/1 - standard (1 eliminates branch misprediction), 2 - auto-vectorized]" ) );	// [PS2_D3BFG]
 void * memcpy2( void * __restrict b, const void * __restrict a, size_t n ) {
 	char * s1 = (char *)b;
 	const char * s2 = (const char *)a;

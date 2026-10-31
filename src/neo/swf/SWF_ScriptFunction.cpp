@@ -33,7 +33,7 @@ If you have questions concerning this license or the applicable additional terms
 #endif
 
 idCVar swf_debug( "swf_debug", "0", CVAR_INTEGER|CVAR_ARCHIVE, "debug swf scripts.  1 shows traces/errors.  2 also shows warnings.  3 also shows disassembly.  4 shows parameters in the disassembly." );
-idCVar swf_debugInvoke( "swf_debugInvoke", "0", CVAR_INTEGER, "debug swf functions being called from game." );
+DEV_CVAR( idCVar swf_debugInvoke( "swf_debugInvoke", "0", CVAR_INTEGER, "debug swf functions being called from game." ) );	// [PS2_D3BFG]
 
 idSWFConstantPool::idSWFConstantPool() {
 }
@@ -571,29 +571,37 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 			case Action_NextFrame:
 				if ( verify( currentTarget != NULL ) ) {
 					currentTarget->NextFrame();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for nextFrame\n" );
+#endif
 				}
 				break;
 			case Action_PrevFrame:
 				if ( verify( currentTarget != NULL ) ) {
 					currentTarget->PrevFrame();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for prevFrame\n" );
+#endif
 				}
 				break;
 			case Action_Play:
 				if ( verify( currentTarget != NULL ) ) {
 					currentTarget->Play();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for play\n" );
+#endif
 				}
 				break;
 			case Action_Stop:
 				if ( verify( currentTarget != NULL ) ) {
 					currentTarget->Stop();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for stop\n" );
+#endif
 				}
 				break;
 			case Action_ToggleQuality: break;
@@ -607,8 +615,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 					ps2::ui::swf::CheckSeek( currentTarget, "ancestor timeline seek unavailable" );
 #endif
 					currentTarget->RunTo( frameNum );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for runTo %d\n", frameNum );
+#endif
 				}
 				break;
 			}
@@ -616,8 +626,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				const char * targetName = (const char *)bitstream.ReadData( recordLength );
 				if ( verify( thisSprite != NULL ) ) {
 					currentTarget = thisSprite->ResolveTarget( targetName );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for setTarget %s\n", targetName );
+#endif
 				}
 				break;
 			}
@@ -625,8 +637,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				const char * targetName = (const char *)bitstream.ReadData( recordLength );
 				if ( verify( currentTarget != NULL ) ) {
 					currentTarget->RunTo( currentTarget->FindFrame( targetName ) );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for runTo %s\n", targetName );
+#endif
 				}
 				break;
 			}
@@ -754,9 +768,11 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 						break;
 					}
 				}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				if ( stack.A().IsUndefined() && swf_debug.GetInteger() > 1 ) {
 					idLib::Printf( "SWF: unknown variable %s\n", variableName.c_str() );
 				}
+#endif
 				break;
 			}
 			case Action_SetVariable: {
@@ -795,12 +811,14 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 						thisSprite->Stop();
 					}
 					thisSprite->RunTo( frameNum );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					if ( ( flags & 1 ) != 0 ){
 						idLib::Printf( "SWF: no target movie clip for gotoAndPlay\n" );
 					} else {
 						idLib::Printf( "SWF: no target movie clip for gotoAndStop\n" );
 					}
+#endif
 				}
 				stack.Pop( 1 );
 				break;
@@ -809,8 +827,10 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				if ( verify( thisSprite != NULL ) ) {
 					idSWFSpriteInstance * target = thisSprite->ResolveTarget( stack.B().ToString() );
 					stack.B() = target->scriptObject->Get( GetPropertyName( stack.A().ToInteger() ) );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for getProperty\n" );
+#endif
 				}
 				stack.Pop( 1 );
 				break;
@@ -819,14 +839,18 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				if ( verify( thisSprite != NULL ) ) {
 					idSWFSpriteInstance * target = thisSprite->ResolveTarget( stack.C().ToString() );
 					target->scriptObject->Set( GetPropertyName( stack.B().ToInteger() ), stack.A() );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				} else if ( swf_debug.GetInteger() > 0 ) {
 					idLib::Printf( "SWF: no target movie clip for setProperty\n" );
+#endif
 				}
 				stack.Pop( 3 );
 				break;
 			}
 			case Action_Trace:
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				idLib::PrintfIf( swf_debug.GetInteger() > 0, "SWF Trace: %s\n", stack.A().ToString().c_str() );
+#endif
 				stack.Pop( 1 );
 				break;
 			case Action_GetTime:
@@ -878,7 +902,9 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 #endif
 					stack.Alloc() = function.GetFunction()->Call( object, parms );
 				} else {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 					idLib::PrintfIf( swf_debug.GetInteger() > 0, "SWF: unknown function %s\n", functionName.c_str() );
+#endif
 					stack.Alloc().SetUndefined();
 				}
 
@@ -899,11 +925,13 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				if ( stack.B().IsObject() ) {
 					object = stack.B().GetObject();
 					function = object->Get( functionName );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 					if ( !function.IsFunction() ) {
 						idLib::PrintfIf( swf_debug.GetInteger() > 1, "SWF: unknown method %s on %s\n", functionName.c_str(), object->DefaultValue( true ).ToString().c_str() );
 					}
 				} else {
 					idLib::PrintfIf( swf_debug.GetInteger() > 1, "SWF: NULL object for method %s\n", functionName.c_str() );
+#endif
 				}
 
 				stack.Pop( 2 );
@@ -1060,9 +1088,11 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 				break;
 			}
 			case Action_GetMember: {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				if ( ( stack.B().IsUndefined() || stack.B().IsNULL() ) && swf_debug.GetInteger() > 1 ) {
 					idLib::Printf( "SWF: tried to get member %s on an invalid object in sprite '%s'\n", stack.A().ToString().c_str(), thisSprite != NULL ? thisSprite->GetName() : "" );
 				}
+#endif
 				if ( stack.B().IsObject() ) {
 					idSWFScriptObject * object = stack.B().GetObject();
 					if ( stack.A().IsNumeric() ) {
@@ -1070,9 +1100,11 @@ idSWFScriptVar idSWFScriptFunction_Script::Run( idSWFScriptObject * thisObject, 
 					} else {
 						stack.B() = object->Get( stack.A().ToString() );
 					}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 					if ( stack.B().IsUndefined() && swf_debug.GetInteger() > 1 ) {
 						idLib::Printf( "SWF: unknown member %s\n", stack.A().ToString().c_str() );
 					}
+#endif
 				} else if ( stack.B().IsString() ) {
 					idStr propertyName = stack.A().ToString();
 					if ( propertyName.Cmp( "length" ) == 0 ) {

@@ -37,8 +37,8 @@ If you have questions concerning this license or the applicable additional terms
 #define LAUNCH_TITLE_DOOM2_EXECUTABLE		"doom2.exe"
 
 idCVar com_wipeSeconds( "com_wipeSeconds", "1", CVAR_SYSTEM, "" );
-idCVar com_disableAutoSaves( "com_disableAutoSaves", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
-idCVar com_disableAllSaves( "com_disableAllSaves", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
+DEV_CVAR( idCVar com_disableAutoSaves( "com_disableAutoSaves", "0", CVAR_SYSTEM | CVAR_BOOL, "" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar com_disableAllSaves( "com_disableAllSaves", "0", CVAR_SYSTEM | CVAR_BOOL, "" ) );	// [PS2_D3BFG]
 
 
 extern idCVar sys_lang;
@@ -567,7 +567,7 @@ void idCommonLocal::ExecuteMapChange() {
 		// run a single frame to catch any resources that are referenced by events posted in spawn
 		idUserCmdMgr emptyCommandManager;
 		gameReturn_t emptyGameReturn;
-		for ( int playerIndex = 0; playerIndex < MAX_PLAYERS; ++playerIndex ) {
+		for ( int playerIndex = 0; playerIndex < idUserCmdMgr::USERCMD_MAX_PLAYERS; ++playerIndex ) {	// [PS2_D3BFG]: USERCMD_MAX_PLAYERS
 			emptyCommandManager.PutUserCmdForPlayer( playerIndex, usercmd_t() );
 		}
 		// [PS2_D3BFG]: There is no client prediction on the PS2.
@@ -594,7 +594,7 @@ void idCommonLocal::ExecuteMapChange() {
 		idUserCmdMgr emptyCommandManager;
 		gameReturn_t emptyGameReturn;
 		for ( int i = 0; i < 100; i++ ) {
-			for ( int playerIndex = 0; playerIndex < MAX_PLAYERS; ++playerIndex ) {
+			for ( int playerIndex = 0; playerIndex < idUserCmdMgr::USERCMD_MAX_PLAYERS; ++playerIndex ) {	// [PS2_D3BFG]: USERCMD_MAX_PLAYERS
 				emptyCommandManager.PutUserCmdForPlayer( playerIndex, usercmd_t() );
 			}
 			game->RunFrame( emptyCommandManager, emptyGameReturn );
@@ -789,9 +789,11 @@ bool idCommonLocal::SaveGame( const char * saveName ) {
 		return false;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( com_disableAllSaves.GetBool() || ( com_disableAutoSaves.GetBool() && ( idStr::Icmp( saveName, "autosave" ) == 0 ) ) ) {
 		return false;
 	}
+#endif
 
 	if ( IsMultiplayer() ) {
 		common->Printf( "Can't save during net play.\n" );

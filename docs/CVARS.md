@@ -64,7 +64,10 @@ until implemented and tested.
 ## Retained renderer frontend controls
 
 The 42 controls below are registered by [render_cvars.cpp](../src/ps2/renderer/render_cvars.cpp)
-in both core and campaign builds. Native defaults, declared flags, numeric bounds and
+in both core and campaign builds. The 24 developer controls (isolation, skip, show and joint-name
+toggles) are `DEV_CVAR`s: PS2 release builds compile them out with every reader, behaving as
+their defaults, so their release default reads "absent". The archived `r_debugArrowStep`
+stays registered in release so a saved value survives, but release code never reads it. Native defaults, declared flags, numeric bounds and
 completion handlers are preserved. They remain live cvars under the engine's cheat
 policy; neither changing them nor setting a skip flag initializes the renderer.
 World drawing, general image/shader loading and native vertex-cache allocation remain
@@ -74,44 +77,44 @@ these retained frontend cvar registrations do not initialize a GS device or sele
 | Name | Debug default | Release default | Declaration flags | Bounds / metadata |
 | --- | --- | --- | --- | --- |
 | `r_useLightPortalFlow` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_checkBounds` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_checkBounds` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useConstantMaterials` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useSilRemap` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useNodeCommonChildren` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useShadowSurfaceScissor` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useCachedDynamicModels` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_znear` | `3` | `3` | `CVAR_RENDERER`, `CVAR_FLOAT` | Clamped to 0.001–200. |
-| `r_jitter` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_skipSuppress` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_jitter` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_skipSuppress` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_skipDeforms` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_skipFrontEnd` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_skipUpdates` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_skipDecals` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_skipOverlays` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_skipSubviews` | `0` | `0` | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
-| `r_skipGuiShaders` | `0` | `0` | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–3; integer completion. |
-| `r_skipParticles` | `0` | `0` | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–1; integer completion. |
+| `r_skipFrontEnd` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_skipUpdates` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_skipDecals` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_skipOverlays` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_skipSubviews` | `0` | absent | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
+| `r_skipGuiShaders` | `0` | absent | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–3; integer completion. |
+| `r_skipParticles` | `0` | absent | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–1; integer completion. |
 | `r_useLightPortalCulling` | `1` | `1` | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–2; integer completion. |
 | `r_useLightAreaCulling` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useLightScissors` | `3` | `3` | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–3; integer completion. |
 | `r_useEntityPortalCulling` | `1` | `1` | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–2; integer completion. |
-| `r_subviewOnly` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_subviewOnly` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_flareSize` | `1` | `1` | `CVAR_RENDERER`, `CVAR_FLOAT` | Native frontend control. |
-| `r_skipPrelightShadows` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_skipPrelightShadows` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useShadowDepthBounds` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_screenFraction` | `100` | `100` | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
+| `r_screenFraction` | `100` | absent | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
 | `r_usePortals` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_singleLight` | `-1` | `-1` | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
-| `r_singleEntity` | `-1` | `-1` | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
-| `r_singleSurface` | `-1` | `-1` | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
-| `r_singleArea` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_lightAllBackFaces` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_showUpdates` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_showLightScissors` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_singleLight` | `-1` | absent | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
+| `r_singleEntity` | `-1` | absent | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
+| `r_singleSurface` | `-1` | absent | `CVAR_RENDERER`, `CVAR_INTEGER` | Native frontend control. |
+| `r_singleArea` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_lightAllBackFaces` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_showUpdates` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
+| `r_showLightScissors` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useEntityCallbacks` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_showSkel` | `0` | `0` | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–2; integer completion. |
-| `r_jointNameScale` | `0.02` | `0.02` | `CVAR_RENDERER`, `CVAR_FLOAT` | Native frontend control. |
-| `r_jointNameOffset` | `0.5` | `0.5` | `CVAR_RENDERER`, `CVAR_FLOAT` | Native frontend control. |
+| `r_showSkel` | `0` | absent | `CVAR_RENDERER`, `CVAR_INTEGER` | Clamped to 0–2; integer completion. |
+| `r_jointNameScale` | `0.02` | absent | `CVAR_RENDERER`, `CVAR_FLOAT` | Native frontend control. |
+| `r_jointNameOffset` | `0.5` | absent | `CVAR_RENDERER`, `CVAR_FLOAT` | Native frontend control. |
 | `r_debugArrowStep` | `120` | `120` | `CVAR_RENDERER`, `CVAR_ARCHIVE`, `CVAR_INTEGER` | Clamped to 0–120. |
-| `r_materialOverride` | empty string | empty string | `CVAR_RENDERER` | Native material-name completion; world-material override drawing remains unavailable. |
+| `r_materialOverride` | empty string | absent | `CVAR_RENDERER` | Native material-name completion; world-material override drawing remains unavailable. |
 | `stereoRender_swapEyes` | `0` | `0` | `CVAR_BOOL`, `CVAR_ARCHIVE` | Native frontend control. |

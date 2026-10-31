@@ -237,7 +237,11 @@ void idDragEntity::Update( idPlayer *player ) {
 					axis = phys->GetAxis( id );
 					localEntityPoint = ( trace.c.point - origin ) * axis.Transpose();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 					cursor->drag.Init( g_dragDamping.GetFloat() );
+#else
+					cursor->drag.Init( 0.5f );
+#endif
 					cursor->drag.SetPhysics( phys, id, localEntityPoint );
 					cursor->Show();
 
@@ -278,6 +282,7 @@ void idDragEntity::Update( idPlayer *player ) {
 		}
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// if there is a selected entity
 	if ( selected.GetEntity() && g_dragShowSelection.GetBool() ) {
 		// draw the bbox of the selected entity
@@ -286,6 +291,7 @@ void idDragEntity::Update( idPlayer *player ) {
 			gameRenderWorld->DebugBox( colorYellow, idBox( renderEntity->bounds, renderEntity->origin, renderEntity->axis ) );
 		}
 	}
+#endif
 }
 
 /*
@@ -424,7 +430,11 @@ bool idEditEntities::SelectEntity( const idVec3 &origin, const idVec3 &dir, cons
 	idVec3		end;
 	idEntity	*ent;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !g_editEntityMode.GetInteger() || selectableEntityClasses.Num() == 0 ) {
+#else
+	if ( selectableEntityClasses.Num() == 0 ) {
+#endif
 		return false;
 	}
 
@@ -530,6 +540,7 @@ idEditEntities::DisplayEntities
 =============
 */
 void idEditEntities::DisplayEntities() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idEntity *ent;
 
 	if ( !gameLocal.GetLocalPlayer() ) {
@@ -653,6 +664,7 @@ void idEditEntities::DisplayEntities() {
 			}
 		}
 	}
+#endif
 }
 
 

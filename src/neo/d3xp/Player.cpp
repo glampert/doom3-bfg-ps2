@@ -1068,9 +1068,11 @@ idInventory::UseAmmo
 ===============
 */
 bool idInventory::UseAmmo( ammo_t type, int amount ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_infiniteAmmo.GetBool() ) {
 		return true;
 	}
+#endif
 
 	if ( !HasAmmo( type, amount ) ) {
 		return false;
@@ -1720,7 +1722,11 @@ void idPlayer::Init() {
 		hud->UpdateCursorState();
 	} 
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( ( common->IsMultiplayer() || g_testDeath.GetBool() ) && skin ) {
+#else
+	if ( common->IsMultiplayer() && skin ) {
+#endif
 		SetSkin( skin );
 		renderEntity.shaderParms[6] = 0.0f;
 	} else if ( spawnArgs.GetString( "spawn_skin", NULL, &value ) ) {
@@ -3487,7 +3493,7 @@ void idPlayer::StopFiring() {
 idPlayer::FireWeapon
 ===============
 */
-idCVar g_infiniteAmmo( "g_infiniteAmmo", "0", CVAR_GAME | CVAR_BOOL, "infinite ammo" );
+DEV_CVAR( idCVar g_infiniteAmmo( "g_infiniteAmmo", "0", CVAR_GAME | CVAR_BOOL, "infinite ammo" ) );	// [PS2_D3BFG]
 extern idCVar ui_autoSwitch;
 void idPlayer::FireWeapon() {
 	idMat3 axis;
@@ -3507,7 +3513,11 @@ void idPlayer::FireWeapon() {
 #endif
 
 	if ( !hiddenWeapon && weapon.GetEntity()->IsReady() ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( g_infiniteAmmo.GetBool() || weapon.GetEntity()->AmmoInClip() || weapon.GetEntity()->AmmoAvailable() ) {
+#else
+		if ( weapon.GetEntity()->AmmoInClip() || weapon.GetEntity()->AmmoAvailable() ) {
+#endif
 			AI_ATTACK_HELD = true;
 			weapon.GetEntity()->BeginAttack();
 			if ( ( weapon_soulcube >= 0 ) && ( currentWeapon == weapon_soulcube ) ) {
@@ -6721,7 +6731,11 @@ idPlayer::EvaluateControls
 */
 void idPlayer::EvaluateControls() {
 	// check for respawning
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( health <= 0 && !g_testDeath.GetBool() ) {
+#else
+	if ( health <= 0 ) {
+#endif
 		if ( common->IsMultiplayer() ) {
 			// in MP, idMultiplayerGame decides spawns
 			if ( ( gameLocal.time > minRespawnTime ) && ( usercmd.buttons & BUTTON_ATTACK ) ) {
@@ -7047,7 +7061,9 @@ void idPlayer::Move_Interpolated( float fraction ) {
 		physicsObj.SetClipMask( MASK_PLAYERSOLID );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	physicsObj.SetDebugLevel( g_debugMove.GetBool() );
+#endif
 
 	{
 		idVec3	org;
@@ -7157,7 +7173,9 @@ void idPlayer::Move() {
 		physicsObj.SetClipMask( MASK_PLAYERSOLID );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	physicsObj.SetDebugLevel( g_debugMove.GetBool() );
+#endif
 
 	{
 		idVec3	org;
@@ -7509,7 +7527,11 @@ idPlayer::UpdateDeathSkin
 ==============
 */
 void idPlayer::UpdateDeathSkin( bool state_hitch ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !( common->IsMultiplayer() || g_testDeath.GetBool() ) ) {
+#else
+	if ( !common->IsMultiplayer() ) {
+#endif
 		return;
 	}
 	if ( health <= 0 ) {
@@ -7750,7 +7772,10 @@ void idPlayer::Think() {
 	}
 #endif
 
-	if ( !g_stopTime.GetBool() ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
+	if ( !g_stopTime.GetBool() )
+#endif
+	{
 
 		if ( !noclip && !spectating && ( health > 0 ) && !IsHidden() ) {
 			TouchTriggers();
@@ -7881,7 +7906,10 @@ void idPlayer::Think() {
 		headRenderEnt->suppressShadowInLightID = LIGHTID_VIEW_MUZZLE_FLASH + entityNumber;
 	}
 
-	if ( !g_stopTime.GetBool() ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
+	if ( !g_stopTime.GetBool() )
+#endif
+	{
 		UpdateAnimation();
 
         Present();
@@ -8187,7 +8215,11 @@ void idPlayer::Killed( idEntity *inflictor, idEntity *attacker, int damage, cons
 	heartInfo.Init( 0, 0, 0, BASE_HEARTRATE );
 	AdjustHeartRate( DEAD_HEARTRATE, 10.0f, 0.0f, true );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !g_testDeath.GetBool() && !common->IsMultiplayer() ) {
+#else
+	if ( !common->IsMultiplayer() ) {
+#endif
 		playerView.Fade( colorBlack, 3000 );
 	}
 
@@ -8239,11 +8271,20 @@ void idPlayer::Killed( idEntity *inflictor, idEntity *attacker, int damage, cons
 	}
 #endif
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !g_testDeath.GetBool() ) {
 		LookAtKiller( inflictor, attacker );
 	}
+#else
+	LookAtKiller( inflictor, attacker );
+#endif
 
-	if ( common->IsMultiplayer() || g_testDeath.GetBool() ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
+	if ( common->IsMultiplayer() || g_testDeath.GetBool() )
+#else
+	if ( common->IsMultiplayer() )
+#endif
+	{
 		idPlayer *killer = NULL;
 		// no gibbing in MP. Event_Gib will early out in MP
 		if ( attacker->IsType( idPlayer::Type ) ) {
@@ -8551,9 +8592,13 @@ void idPlayer::ServerDealDamage( int damage, idEntity & inflictor, idEntity & at
 			lastDmgTime = gameLocal.time;
 			Killed( &inflictor, &attacker, damage, dir, location );
 		} else {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			if ( !g_testDeath.GetBool() ) {
 				lastDmgTime = gameLocal.time;
 			}
+#else
+			lastDmgTime = gameLocal.time;
+#endif
 		}
 	} else {
 		// don't accumulate impulses
@@ -9228,6 +9273,7 @@ void idPlayer::CalculateRenderView() {
 			gameLocal.GetCamera()->GetViewParms( renderView );
 		}
 	} else {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( g_stopTime.GetBool() ) {
 			renderView->vieworg = firstPersonViewOrigin;
 			renderView->viewaxis = firstPersonViewAxis;
@@ -9237,7 +9283,9 @@ void idPlayer::CalculateRenderView() {
 				// allow the right player view weapons
 				renderView->viewID = entityNumber + 1;
 			}
-		} else if ( pm_thirdPerson.GetBool() ) {
+		} else
+#endif
+		if ( pm_thirdPerson.GetBool() ) {
 			OffsetThirdPersonView( pm_thirdPersonAngle.GetFloat(), pm_thirdPersonRange.GetFloat(), pm_thirdPersonHeight.GetFloat(), pm_thirdPersonClip.GetBool() );
 		} else if ( pm_thirdPersonDeath.GetBool() ) {
 			range = gameLocal.time < minRespawnTime ? ( gameLocal.time + RAGDOLL_DEATH_TIME - minRespawnTime ) * ( 120.0f / RAGDOLL_DEATH_TIME ) : 120.0f;
@@ -9894,7 +9942,10 @@ void idPlayer::ClientThink( const int curTime, const float fraction, const bool 
 		}
 	}
 
-	if ( !g_stopTime.GetBool() ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
+	if ( !g_stopTime.GetBool() )
+#endif
+	{
 		if ( !noclip && !spectating && ( health > 0 ) && !IsHidden() ) {
 			TouchTriggers();
 		}

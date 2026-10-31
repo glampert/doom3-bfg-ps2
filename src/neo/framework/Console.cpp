@@ -1142,12 +1142,14 @@ void idConsoleLocal::Draw( bool forceFullScreen ) {
 	float lefty = LOCALSAFE_TOP;
 	float righty = LOCALSAFE_TOP;
 	float centery = LOCALSAFE_TOP;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( com_showFPS.GetBool() ) {
 		righty = DrawFPS( righty );
 	}
 	if ( com_showMemoryUsage.GetBool() ) {
 		righty = DrawMemoryUsage( righty );
 	}
+#endif
 	DrawOverlayText( lefty, righty, centery );
 	DrawDebugGraphs();
 }

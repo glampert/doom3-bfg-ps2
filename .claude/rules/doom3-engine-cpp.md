@@ -68,6 +68,11 @@ file keeps only what most engine edits need.
 - Debug virtuals (AAS show/test, collision draw, physics `DebugDraw`) are guarded in the
   interface, every implementation and every caller; the render world's debug primitives
   stay in the interface and draw nothing in release.
+- Developer cvars wrap their definition and every `extern` in `DEV_CVAR( ... )`
+  (`CVarSystem.h`); every release reader goes under the debug guard, with an `#else` that
+  folds in the default when the read is an expression. Release then behaves as the default.
+  Archived cvars stay registered (readers still guarded) so a saved value survives a
+  release run, as do cvars named in retail data, scripts, test runners or string lookups.
 
 ## Retail SWF admission model
 

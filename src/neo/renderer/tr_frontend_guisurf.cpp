@@ -129,11 +129,13 @@ call the GUI generator to create quads for it.
 static void R_RenderGuiSurf( idUserInterface *gui, const drawSurf_t *drawSurf ) {
 	SCOPED_PROFILE_EVENT( "R_RenderGuiSurf" );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// for testing the performance hit
 	if ( r_skipGuiShaders.GetInteger() == 1 ) {
 		return;
 	}
 
+#endif
 	// don't allow an infinite recursion loop
 	if ( tr.guiRecursionLevel == 4 ) {
 		return;

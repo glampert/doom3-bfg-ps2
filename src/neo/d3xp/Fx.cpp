@@ -598,9 +598,11 @@ idEntityFx::Spawn
 */
 void idEntityFx::Spawn() {
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_skipFX.GetBool() ) {
 		return;
 	}
+#endif
 
 	const char *fx;
 	nextTriggerTime = 0;
@@ -624,9 +626,11 @@ idEntityFx::Think
 ================
 */
 void idEntityFx::Think() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_skipFX.GetBool() ) {
 		return;
 	}
+#endif
 
 	if ( thinkFlags & TH_THINK ) {
 		Run( gameLocal.time );
@@ -645,9 +649,11 @@ idEntityFx::Event_ClearFx
 */
 void idEntityFx::Event_ClearFx() {
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_skipFX.GetBool() ) {
 		return;
 	}
+#endif
 
 	Stop();
 	CleanUp();
@@ -675,9 +681,11 @@ idEntityFx::Event_Trigger
 */
 void idEntityFx::Event_Trigger( idEntity *activator ) {
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_skipFX.GetBool() ) {
 		return;
 	}
+#endif
 
 	float		fxActionDelay;
 	const char *fx;
@@ -711,7 +719,11 @@ idEntityFx::StartFx
 */
 idEntityFx *idEntityFx::StartFx( const char *fx, const idVec3 *useOrigin, const idMat3 *useAxis, idEntity *ent, bool bind ) {
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_skipFX.GetBool() || !fx || !*fx ) {
+#else
+	if ( !fx || !*fx ) {
+#endif
 		return NULL;
 	}
 

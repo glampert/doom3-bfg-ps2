@@ -405,12 +405,16 @@ void R_RenderView( viewDef_t *parms ) {
 	R_SortDrawSurfs( tr.viewDef->drawSurfs, tr.viewDef->numDrawSurfs );
 
 	// generate any subviews (mirrors, cameras, etc) before adding this view
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( R_GenerateSubViews( tr.viewDef->drawSurfs, tr.viewDef->numDrawSurfs ) ) {
 		// if we are debugging subviews, allow the skipping of the main view draw
 		if ( r_subviewOnly.GetBool() ) {
 			return;
 		}
 	}
+#else
+	R_GenerateSubViews( tr.viewDef->drawSurfs, tr.viewDef->numDrawSurfs );
+#endif
 
 	// write everything needed to the demo file
 	if ( common->WriteDemo() ) {

@@ -464,7 +464,7 @@ void idCommonLocal::RunNetworkSnapshotFrame() {
 		clientTimeResidual += idMath::ClampInt( 0, 50, currentTime - lastTime );
 		lastTime = currentTime;
 
-		extern idCVar com_fixedTic;
+		DEV_CVAR( extern idCVar com_fixedTic );	// [PS2_D3BFG]
 		if ( com_fixedTic.GetBool() ) {
 			clientTimeResidual = 0;
 		}

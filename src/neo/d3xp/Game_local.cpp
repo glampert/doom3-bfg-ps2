@@ -51,7 +51,7 @@ idAASFileManager *			AASFileManager = NULL;
 idCollisionModelManager *	collisionModelManager = NULL;
 idCVar *					idCVar::staticVars = NULL;
 
-idCVar com_forceGenericSIMD( "com_forceGenericSIMD", "0", CVAR_BOOL|CVAR_SYSTEM, "force generic platform independent SIMD" );
+DEV_CVAR( idCVar com_forceGenericSIMD( "com_forceGenericSIMD", "0", CVAR_BOOL|CVAR_SYSTEM, "force generic platform independent SIMD" ) );	// [PS2_D3BFG]
 
 #endif
 
@@ -452,7 +452,7 @@ void idGameLocal::Shutdown() {
 #endif
 }
 
-idCVar g_recordSaveGameTrace( "g_recordSaveGameTrace", "0", CVAR_BOOL, "" );
+DEV_CVAR( idCVar g_recordSaveGameTrace( "g_recordSaveGameTrace", "0", CVAR_BOOL, "" ) );	// [PS2_D3BFG]
 
 /*
 ===========
@@ -468,12 +468,14 @@ void idGameLocal::SaveGame( idFile *f, idFile *strings ) {
 	idEntity *link;
 
 	int startTimeMs = Sys_Milliseconds();
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_recordSaveGameTrace.GetBool() ) {
 		bool result = BeginTraceRecording( "e:\\savegame_trace.pix2" );
 		if ( !result ) {
 			//idLib::Printf( "BeginTraceRecording: error %d\n", GetLastError() );
 		}
 	}
+#endif
 
 	idSaveGame savegame( f, strings, BUILD_NUMBER );
 
@@ -651,10 +653,12 @@ void idGameLocal::SaveGame( idFile *f, idFile *strings ) {
 	int endTimeMs = Sys_Milliseconds();
 	idLib::Printf( "Save time: %dms\n", ( endTimeMs - startTimeMs ) );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_recordSaveGameTrace.GetBool() ) {
 		EndTraceRecording();
 		g_recordSaveGameTrace.SetBool( false );
 	}
+#endif
 }
 
 /*
@@ -2293,7 +2297,7 @@ void idGameLocal::RunEntityThink( idEntity & ent, idUserCmdMgr & userCmdMgr ) {
 	}
 }
 
-idCVar g_recordTrace( "g_recordTrace", "0", CVAR_BOOL, "" );
+DEV_CVAR( idCVar g_recordTrace( "g_recordTrace", "0", CVAR_BOOL, "" ) );	// [PS2_D3BFG]
 
 /*
 ================
@@ -2309,12 +2313,14 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 	idPlayer	*player;
 	const renderView_t *view;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_recordTrace.GetBool() ) {
 		bool result = BeginTraceRecording( "e:\\gametrace.pix2" );
 		if ( !result ) {
 			//idLib::Printf( "BeginTraceRecording: error %d\n", GetLastError() );
 		}
 	}
+#endif
 
 #ifdef _DEBUG
 	if ( common->IsMultiplayer() ) {
@@ -2341,6 +2347,7 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 
 	player = GetLocalPlayer();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !common->IsMultiplayer() && g_stopTime.GetBool() ) {
 		// clear any debug lines from a previous frame
 		// [PS2_D3BFG]: A logic fixture has no debug drawing world.
@@ -2352,7 +2359,9 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 			cmdMgr.MakeReadPtrCurrentForPlayer( GetLocalClientNum() );
 			player->Think();
 		}
-	} else {
+	} else
+#endif
+	{
 		// update the game time
 		framenum++;
 		fast.previousTime = FRAME_TO_MSEC( framenum - 1 );
@@ -2512,12 +2521,16 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 		}
 #endif
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		// display how long it took to calculate the current game frame
 		if ( g_frametime.GetBool() ) {
 			Printf( "game %d: all:%.1f th:%.1f ev:%.1f %d ents \n",
 				time, timer_think.Milliseconds() + timer_events.Milliseconds(),
 				timer_think.Milliseconds(), timer_events.Milliseconds(), num );
 		}
+#else
+		(void)num;
+#endif
 
 		BuildReturnValue( ret );
 	}
@@ -2531,10 +2544,12 @@ void idGameLocal::RunFrame( idUserCmdMgr & cmdMgr, gameReturn_t & ret ) {
 	}
 #endif
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_recordTrace.GetBool() ) {
 		EndTraceRecording();
 		g_recordTrace.SetBool( false );
 	}
+#endif
 }
 
 /*
@@ -4816,9 +4831,11 @@ void idGameLocal::ComputeSlowScale() {
 	if ( player != NULL && player->PowerUpActive( HELLTIME ) ) {
 		powerupOn = true;
 	}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	else if ( g_enableSlowmo.GetBool() ) {
 		powerupOn = true;
 	}
+#endif
 
 	// determine proper slowmo state
 	if ( powerupOn && slowmoState == SLOWMO_STATE_OFF ) {

@@ -970,9 +970,11 @@ bool idAF::TestSolid() const {
 		return false;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !af_testSolid.GetBool() ) {
 		return false;
 	}
+#endif
 
 	solid = false;
 

@@ -30,8 +30,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "snd_local.h"
 
-idCVar s_lockListener( "s_lockListener", "0", CVAR_BOOL, "lock listener updates" );
-idCVar s_constantAmplitude( "s_constantAmplitude", "-1", CVAR_FLOAT, "" );
+DEV_CVAR( idCVar s_lockListener( "s_lockListener", "0", CVAR_BOOL, "lock listener updates" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar s_constantAmplitude( "s_constantAmplitude", "-1", CVAR_FLOAT, "" ) );	// [PS2_D3BFG]
 idCVar s_maxEmitterChannels( "s_maxEmitterChannels", "48", CVAR_INTEGER, "Can be set lower than the absolute max of MAX_HARDWARE_VOICES" );
 idCVar s_cushionFadeChannels( "s_cushionFadeChannels", "2", CVAR_INTEGER, "Ramp currentCushionDB so this many emitter channels should be silent" );
 idCVar s_cushionFadeRate( "s_cushionFadeRate", "60", CVAR_FLOAT, "DB / second change to currentCushionDB" );
@@ -39,8 +39,8 @@ idCVar s_cushionFadeLimit( "s_cushionFadeLimit", "-30", CVAR_FLOAT, "Never cushi
 idCVar s_cushionFadeOver( "s_cushionFadeOver", "10", CVAR_FLOAT, "DB above s_cushionFadeLimit to start ramp to silence" );
 idCVar s_unpauseFadeInTime( "s_unpauseFadeInTime", "250", CVAR_INTEGER, "When unpausing a sound world, milliseconds to fade sounds in over" );
 idCVar s_doorDistanceAdd( "s_doorDistanceAdd", "150", CVAR_FLOAT, "reduce sound volume with this distance when going through a door" );
-idCVar s_drawSounds( "s_drawSounds", "0", CVAR_INTEGER, "", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
-idCVar s_showVoices( "s_showVoices", "0", CVAR_BOOL, "show active voices" );
+DEV_CVAR( idCVar s_drawSounds( "s_drawSounds", "0", CVAR_INTEGER, "", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar s_showVoices( "s_showVoices", "0", CVAR_BOOL, "show active voices" ) );	// [PS2_D3BFG]
 idCVar s_volume_dB( "s_volume_dB", "0", CVAR_ARCHIVE | CVAR_FLOAT, "volume in dB" );
 extern idCVar s_noSound;
 
@@ -141,9 +141,11 @@ idSoundWorldLocal::CurrentShakeAmplitude
 ========================
 */
 float idSoundWorldLocal::CurrentShakeAmplitude() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( s_constantAmplitude.GetFloat() >= 0.0f ) {
 		return s_constantAmplitude.GetFloat();
 	}
+#endif
 	return shakeAmp;
 }
 
@@ -161,9 +163,11 @@ void idSoundWorldLocal::PlaceListener( const idVec3 & origin, const idMat3 & axi
 		writeDemo->WriteInt( id );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( s_lockListener.GetBool() ) {
 		return;
 	}
+#endif
 
 	listener.axis = axis;
 	listener.pos = origin;
@@ -399,6 +403,7 @@ void idSoundWorldLocal::Update() {
 	// ------------------
 	shakeAmp = 0.0f;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idStr showVoiceTable;
 	bool showVoices = s_showVoices.GetBool();
 	if ( showVoices ) {
@@ -406,10 +411,12 @@ void idSoundWorldLocal::Update() {
 			soundSystemLocal.hardware.GetNumFreeVoices(), soundSystemLocal.hardware.GetNumZombieVoices(),
 			soundSystemLocal.activeStreamBufferContexts.Num(), soundSystemLocal.freeStreamBufferContexts.Num() );
 	}
+#endif
 	for ( int i = 0; i < activeEmitterChannels.Num(); i++ ) {
 		idSoundChannel * chan = activeEmitterChannels[i].channel;
 		chan->UpdateHardware( 0.0f, currentTime );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( showVoices ) {
 			idStr voiceLine;
 			voiceLine.Format( "%5.1f db [%3i:%2i] %s", chan->volumeDB, chan->emitter->index, chan->logicalChannel, chan->CanMute() ? "" : " <CANT MUTE>\n" );
@@ -424,6 +431,7 @@ void idSoundWorldLocal::Update() {
 			}
 			showVoiceTable += voiceLine;
 		}
+#endif
 
 		// Calculate shakes
 		if ( chan->hardwareVoice == NULL ) {
@@ -432,10 +440,12 @@ void idSoundWorldLocal::Update() {
 
 		shakeAmp += chan->parms.shakes * chan->hardwareVoice->GetGain() * chan->currentAmplitude;
 	}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( showVoices ) {
 		static idOverlayHandle handle;
 		console->PrintOverlay( handle, JUSTIFY_LEFT, showVoiceTable.c_str() );
 	}
+#endif
 
 #if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Debug visualization is debug-only on the PS2.
 	if ( s_drawSounds.GetBool() && renderWorld != NULL ) {

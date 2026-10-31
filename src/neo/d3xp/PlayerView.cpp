@@ -450,7 +450,11 @@ void idPlayerView::SingleView( const renderView_t *view, idMenuHandler_HUD * hud
 	}
 
 	// draw screen blobs
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !pm_thirdPerson.GetBool() && !g_skipViewEffects.GetBool() ) {
+#else
+	if ( !pm_thirdPerson.GetBool() ) {
+#endif
 		if ( !player->spectating ) {
 			for ( int i = 0 ; i < MAX_SCREEN_BLOBS ; i++ ) {
 				screenBlob_t	*blob = &screenBlobs[i];
@@ -487,11 +491,15 @@ void idPlayerView::SingleView( const renderView_t *view, idMenuHandler_HUD * hud
 
 		// tunnel vision
 		float health = 0.0f;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( g_testHealthVision.GetFloat() != 0.0f ) {
 			health = g_testHealthVision.GetFloat();
 		} else {
 			health = player->health;
 		}
+#else
+		health = player->health;
+#endif
 		float alpha = health / 100.0f;
 		if ( alpha < 0.0f ) {
 			alpha = 0.0f;
@@ -512,6 +520,7 @@ void idPlayerView::SingleView( const renderView_t *view, idMenuHandler_HUD * hud
 		
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// test a single material drawn over everything
 	if ( g_testPostProcess.GetString()[0] ) {
 		const idMaterial *mtr = declManager->FindMaterial( g_testPostProcess.GetString(), false );
@@ -523,6 +532,7 @@ void idPlayerView::SingleView( const renderView_t *view, idMenuHandler_HUD * hud
 			renderSystem->DrawStretchPic( 0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT, 0.0f, 0.0f, 1.0f, 1.0f, mtr );
 		}
 	}
+#endif
 }
 
 
@@ -892,12 +902,14 @@ FullscreenFX_Helltime::DetermineLevel
 ==================
 */
 int FullscreenFX_Helltime::DetermineLevel() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	int testfx = g_testHelltimeFX.GetInteger();
 
 	// for testing purposes
 	if ( testfx >= 0 && testfx < 3 ) {
 		return testfx;
 	}
+#endif
 
 	idPlayer * player = fxman->GetPlayer();
 
@@ -1009,12 +1021,14 @@ FullscreenFX_Multiplayer::DetermineLevel
 ==================
 */
 int FullscreenFX_Multiplayer::DetermineLevel() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	int testfx = g_testMultiplayerFX.GetInteger();
 
 	// for testing purposes
 	if ( testfx >= 0 && testfx < 3 ) {
 		return testfx;
 	}
+#endif
 
 	idPlayer * player = fxman->GetPlayer();
 
@@ -1038,7 +1052,11 @@ FullscreenFX_Multiplayer::Active
 */
 bool FullscreenFX_Multiplayer::Active() {
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !common->IsMultiplayer() && g_testMultiplayerFX.GetInteger() == -1 ) {
+#else
+	if ( !common->IsMultiplayer() ) {
+#endif
 		return false;
 	}
 
@@ -1479,7 +1497,11 @@ void FullscreenFX_Bloom::HighQuality() {
 	renderSystem->SetColor4( 1.0f, 1.0f, 1.0f, 1.0f );
 
 	// if intensity value is different, start the blend
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	targetIntensity = g_testBloomIntensity.GetFloat();
+#else
+	targetIntensity = -0.01f;
+#endif
 
 	if ( player != NULL && player->bloomEnabled ) {
 		targetIntensity = player->bloomIntensity;
@@ -1497,7 +1519,11 @@ void FullscreenFX_Bloom::HighQuality() {
 	}
 
 	// draw the blends
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	int num = g_testBloomNumPasses.GetInteger();
+#else
+	int num = 30;
+#endif
 
 	for ( int i = 0; i < num; i++ ) {
 		float s1 = 0.0f, t1 = 0.0f, s2 = 1.0f, t2 = 1.0f;
@@ -1709,12 +1735,16 @@ FullscreenFXManager::Process
 ==================
 */
 void FullscreenFXManager::Process( const renderView_t *view ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	bool allpass = false;
+#endif
 	bool atLeastOneFX = false;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_testFullscreenFX.GetInteger() == -2 ) {
 		allpass = true;
 	}
+#endif
 
 	// do the first render
 	gameRenderWorld->RenderScene( view );
@@ -1732,7 +1762,11 @@ void FullscreenFXManager::Process( const renderView_t *view ) {
 		bool drawIt = false;
 
 		// determine if we need to draw
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( pfx->Active() || g_testFullscreenFX.GetInteger() == i || allpass ) {
+#else
+		if ( pfx->Active() ) {
+#endif
 			drawIt = pfx->SetTriggerState( true );
 		} else {
 			drawIt = pfx->SetTriggerState( false );

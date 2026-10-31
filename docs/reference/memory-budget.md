@@ -891,15 +891,13 @@ names the format if a later slice exceeds 1 KB.
 | `gameLocal.push` | 114,696 | `MAX_GENTITIES` (4096) | peak pushed entities per move on campaign maps |
 | `gameLocal.entities` / `spawnIds` | 16,384 each | `MAX_GENTITIES` | peak entity count on the largest campaign map |
 | `EventPool` | 147,456 | `MAX_EVENTS` (4096 × 36) | peak queued events in campaign play |
-| `idEventDef::eventDefList` | 16,384 | `MAX_EVENTS` | registered event definitions (fixed per build; filled by static constructors) |
-| `commonLocal.userCmdMgr`, `playerProfiles` | 45,120 + 3,392 | `MAX_INPUT_DEVICES`; the command ring is 128 frames × 8 players | the device indexes that reach them in a menu-to-map session, and the peak queued commands per player (one player on the PS2) |
+| `commonLocal.userCmdMgr`, `playerProfiles` | 5,640 + 3,392 | `MAX_INPUT_DEVICES`; the command ring is 128 frames × 1 player since 2026-10-31 | the device indexes that reach them in a menu-to-map session, and the peak queued commands |
 | `idWindow::EvalRegs::regs`, `registerIsTemporary` | 16,384 + 4,096 | `MAX_EXPRESSION_REGISTERS` | largest register count over every `.gui` the PS2 loads |
-| SSD arcade pools | about 56,000 | 64 objects each | whether a `gameSSDDef` window is ever parsed in a campaign run (if not, compile it out) |
 | script program storage (heap) | 3,515,712 | `MAX_STATEMENTS` etc. | the campaign-wide maximum including map scripts; `variableDefaults` can also be sized at `FinishCompilation` (about 90 KB) |
 
-Left as is after review: the collision trace scratch (`tw`, 13,092 × 2, used by every
-trace and too large for the stack), the `huffmanCodes` tables (declaration compression),
-returned-pointer statics bounded by `MAX_STRING_CHARS`, and ps2sdk's own buffers.
+Left as is after review: returned-pointer statics bounded by `MAX_STRING_CHARS` and
+ps2sdk's own buffers. The event-definition list, command ring, SSD pools, collision trace
+scratch and Huffman codes were cut on 2026-10-31 (below).
 
 The spawn-spot lists left the backlog when the multiplayer code was compiled out (below).
 
@@ -1001,3 +999,48 @@ model loaders were already there. `Model_md5.cpp` stays at `-O2`: its skinning i
 
 Retail release startup is 13,588,967 / 16,874,592 bytes in 74,768 allocations.
 
+
+## BSS cuts, event maps and developer cvars (2026-10-31)
+
+Fixed storage cut without measuring game content (release `.bss`, bytes):
+
+| Symbol | Before | After | Change |
+| --- | ---: | ---: | --- |
+| `commonLocal.userCmdMgr` (and each map-load `emptyCommandManager` on the stack) | 45,120 | 5,640 | the ring keeps one player column on the PS2 (`USERCMD_MAX_PLAYERS`); every caller passes client 0 |
+| SSD arcade pools | 56,036 | 24 | six pointers; the pools are zero-filled heap arrays from the first `idGameSSDWindow` to the last |
+| collision trace work area | 26,184 | 13,092 | `Translation` and `Rotation180` share `cm_sharedTraceWork`; they never nest and each sets every field it reads |
+| `idEventDef::eventDefList` | 16,384 | 4,096 | `MAX_EVENTDEFS` 1024 on the PS2 (535 registered); overflow stays a named error in `idEvent::Init` |
+| `huffmanCodes` | 9,216 | 3,072 | 64-bit codes; the fixed frequency table yields at most 22 bits (computed offline), `BuildHuffmanCode_r` asserts the bound |
+
+Per-class event callback maps hold a 16-bit index per event into one pool of every
+class's callbacks (`idTypeInfo::eventCallbackPool`, index 0 null) instead of an eight-byte
+callback per event. Retail startup reports 126,438 bytes for event callbacks instead of
+483,640, across 155 classes and 535 event definitions.
+
+The credits list is a static `{ type, entry }` table (635 entries) instead of 635
+`Append` calls, and both configurations build without code alignment padding
+(`ALIGNFLAGS`; 36 KB of release code measured on its own).
+
+179 developer cvars are `DEV_CVAR`s: release compiles out their definitions,
+registrations and readers, and runs each reader's default. They are the `g_debug*`,
+`g_show*`, `g_test*`, `ai_debug*`/`ai_show*`, `aas_*` debug, `af_show*`/`af_skip*`,
+`rb_show*`, `cm_draw*`, `com_sleep*`/`com_speeds`/`com_fixedTic`, `fs_debug*`, `s_show*`,
+`swf_` trace and timing, `gui_debug`/`gui_edit`, renderer `r_skip*`/`r_single*`/`r_show*`
+and similar controls. Found by a reference scan of every preprocessed release
+translation unit, the retail containers' text resources and the test runners; each was
+classified and then checked by a second reviewer. Kept: settings, gameplay tuning, `si_*`,
+renderer path toggles, `s_useOcclusion`, `ai_blockedFailSafe`, `r_mergeModelSurfaces`,
+anything named in data, and the six archived developer cvars (`com_showFPS`,
+`g_showcamerainfo`, `g_showProjectilePct`, `popupDialog_debug`, `r_debugArrowStep`,
+`swf_debug`), whose readers are guarded but whose registration preserves a saved value.
+
+| | `HEAD` (862e439) | After the five cuts, event maps, credits and alignment | After developer cvars | Change |
+| --- | ---: | ---: | ---: | ---: |
+| Release ELF file | 3,579,940 | 3,520,420 | 3,483,044 | −96,896 |
+| Release `PT_LOAD` | 4,295,020 | 4,109,740 | 4,063,468 | −231,552 (`.text` −88,920, `.rodata` −8,056, `.bss` −134,656) |
+| Debug ELF file | 4,243,748 | | 4,180,004 | −63,744 |
+| Debug `PT_LOAD` | 4,969,452 | | 4,779,884 | −189,568 |
+
+Retail startup (`startup-game`): release 13,204,286 / 16,482,064 bytes in 74,564
+allocations (13,588,967 / 16,874,592 in 74,768 before); debug 13,240,094 / 16,541,204 in
+75,111.

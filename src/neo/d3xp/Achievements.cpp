@@ -36,7 +36,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "..\..\doomclassic\doom\doomdef.h"
 #endif
 
-idCVar achievements_Verbose( "achievements_Verbose", "1", CVAR_BOOL, "debug spam" );
+DEV_CVAR( idCVar achievements_Verbose( "achievements_Verbose", "1", CVAR_BOOL, "debug spam" ) );	// [PS2_D3BFG]
 idCVar g_demoMode( "g_demoMode", "0", CVAR_INTEGER, "this is a demo" );
 
 bool idAchievementManager::cheatingDialogShown = false;

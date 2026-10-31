@@ -40,6 +40,11 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "CollisionModel_local.h"
 
+// [PS2_D3BFG]: The work area Translation and Rotation180 share.
+#if defined( ID_PS2 )
+ALIGN16( cm_traceWork_t cm_sharedTraceWork );
+#endif
+
 /*
 ===============================================================================
 
@@ -741,7 +746,11 @@ void idCollisionModelManagerLocal::Translation( trace_t *results, const idVec3 &
 	cm_trmPolygon_t *poly;
 	cm_trmEdge_t *edge;
 	cm_trmVertex_t *vert;
+#if defined( ID_PS2 )
+	cm_traceWork_t &tw = cm_sharedTraceWork;	// [PS2_D3BFG]: Shared by the translation and rotation traces.
+#else
 	ALIGN16( static cm_traceWork_t tw );
+#endif
 
 	assert( ((byte *)&start) < ((byte *)results) || ((byte *)&start) >= (((byte *)results) + sizeof( trace_t )) );
 	assert( ((byte *)&end) < ((byte *)results) || ((byte *)&end) >= (((byte *)results) + sizeof( trace_t )) );

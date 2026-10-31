@@ -239,10 +239,12 @@ visible entities
 int c_callbackUpdate;
 
 void idRenderWorldLocal::UpdateEntityDef( qhandle_t entityHandle, const renderEntity_t *re ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_skipUpdates.GetBool() ) {
 		return;
 	}
 
+#endif
 	tr.pc.c_entityUpdates++;
 
 	if ( !re->hModel && !re->callback ) {
@@ -421,10 +423,12 @@ Does not write to the demo file, which will only be done for visible lights
 =================
 */
 void idRenderWorldLocal::UpdateLightDef( qhandle_t lightHandle, const renderLight_t *rlight ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_skipUpdates.GetBool() ) {
 		return;
 	}
 
+#endif
 	tr.pc.c_lightUpdates++;
 
 	// create new slots if needed
@@ -786,12 +790,14 @@ void idRenderWorldLocal::RenderScene( const renderView_t *renderView ) {
 
 	renderView_t copy = *renderView;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// skip front end rendering work, which will result
 	// in only gui drawing
 	if ( r_skipFrontEnd.GetBool() ) {
 		return;
 	}
 
+#endif
 	SCOPED_PROFILE_EVENT( "RenderWorld::RenderScene" );
 
 	if ( renderView->fov_x <= 0 || renderView->fov_y <= 0 ) {
@@ -816,11 +822,13 @@ void idRenderWorldLocal::RenderScene( const renderView_t *renderView ) {
 	int windowHeight = tr.GetHeight();
 	tr.PerformResolutionScaling( windowWidth, windowHeight );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// screenFraction is just for quickly testing fill rate limitations
 	if ( r_screenFraction.GetInteger() != 100 ) {
 		windowWidth = ( windowWidth * r_screenFraction.GetInteger() ) / 100;
 		windowHeight = ( windowHeight * r_screenFraction.GetInteger() ) / 100;
 	}
+#endif
 	tr.CropRenderSize( windowWidth, windowHeight );
 	tr.GetCroppedViewport( &parms->viewport );
 
@@ -2094,10 +2102,12 @@ bool R_GlobalShaderOverride( const idMaterial **shader ) {
 		return true;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_materialOverride.GetString()[0] != '\0' ) {
 		*shader = declManager->FindMaterial( r_materialOverride.GetString() );
 		return true;
 	}
+#endif
 	
 	return false;
 }

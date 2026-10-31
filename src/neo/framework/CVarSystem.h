@@ -38,6 +38,15 @@ If you have questions concerning this license or the applicable additional terms
 	#endif
 #endif
 
+// [PS2_D3BFG]: Wraps a developer-only cvar's definition or extern declaration. PS2 release
+// builds compile out the cvar with its name, default and registration; every reader of it
+// must be debug-only too. Other builds keep the declaration unchanged.
+#if defined( ID_PS2 ) && !PS2_D3BFG_DEBUG
+	#define DEV_CVAR( ... )
+#else
+	#define DEV_CVAR( ... ) __VA_ARGS__
+#endif
+
 /*
 ===============================================================================
 

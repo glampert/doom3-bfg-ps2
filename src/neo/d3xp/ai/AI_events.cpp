@@ -1357,7 +1357,11 @@ void idAI::Event_GetJumpVelocity( const idVec3 &pos, float speed, float max_heig
 		end -= dir * 16.0f;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	result = PredictTrajectory( start, end, speed, physicsObj.GetGravity(), physicsObj.GetClipModel(), MASK_MONSTERSOLID, max_height, this, enemyEnt, ai_debugMove.GetBool() ? 4000 : 0, dir );
+#else
+	result = PredictTrajectory( start, end, speed, physicsObj.GetGravity(), physicsObj.GetClipModel(), MASK_MONSTERSOLID, max_height, this, enemyEnt, 0, dir );
+#endif
 	if ( result ) {
 		idThread::ReturnVector( dir * speed );
 	} else {

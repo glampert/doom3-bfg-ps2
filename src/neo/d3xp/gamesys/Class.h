@@ -290,7 +290,15 @@ public:
 	void						( idClass::*Restore )( idRestoreGame *savefile );
 
 	idEventFunc<idClass> *		eventCallbacks;
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Each event indexes eventCallbackPool (0: no callback) instead of holding an
+	// eight-byte callback, which took 4 KB in each of about 110 class tables.
+	unsigned short *			eventMap;
+	int							eventCallbackBase;		// pool index of eventCallbacks[ 0 ]
+	static eventCallback_t *	eventCallbackPool;		// every class's callbacks, after a null entry
+#else
 	eventCallback_t *			eventMap;
+#endif
 	idTypeInfo *				super;
 	idTypeInfo *				next;
 	bool						freeEventMap;

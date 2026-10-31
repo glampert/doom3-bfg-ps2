@@ -424,8 +424,8 @@ protected:
 
 	idUserInterfaceLocal *gui;
 
-	static idCVar gui_debug;
-	static idCVar gui_edit;
+	DEV_CVAR( static idCVar gui_debug );	// [PS2_D3BFG]
+	DEV_CVAR( static idCVar gui_edit );	// [PS2_D3BFG]
 
 	idGuiScriptList *scripts[SCRIPT_COUNT];
 	bool *saveTemps;

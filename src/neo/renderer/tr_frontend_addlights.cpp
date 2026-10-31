@@ -33,7 +33,7 @@ If you have questions concerning this license or the applicable additional terms
 
 extern idCVar r_useAreasConnectedForShadowCulling;
 extern idCVar r_useParallelAddShadows;
-extern idCVar r_forceShadowCaps;
+DEV_CVAR( extern idCVar r_forceShadowCaps );	// [PS2_D3BFG]
 extern idCVar r_useShadowPreciseInsideTest;
 
 idCVar r_useAreasConnectedForShadowCulling( "r_useAreasConnectedForShadowCulling", "2", CVAR_RENDERER | CVAR_INTEGER, "cull entities cut off by doors" );
@@ -112,7 +112,11 @@ static void R_AddSingleLight( viewLight_t * vLight ) {
 	SCOPED_PROFILE_EVENT( lightShader->GetName() );
 
 	// see if we are suppressing the light in this view
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !r_skipSuppress.GetBool() ) {
+#else
+	{
+#endif
 		if ( light->parms.suppressLightInViewID && light->parms.suppressLightInViewID == viewDef->renderView.viewID ) {
 			return;
 		}
@@ -334,7 +338,11 @@ static void R_AddSingleLight( viewLight_t * vLight ) {
 				continue;
 			}
 			// if we are suppressing its shadow in this view (player shadows, etc), skip
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			if ( !r_skipSuppress.GetBool() ) {
+#else
+			{
+#endif
 				if ( eParms.suppressShadowInViewID && eParms.suppressShadowInViewID == renderViewID ) {
 					continue;
 				}
@@ -357,11 +365,13 @@ static void R_AddSingleLight( viewLight_t * vLight ) {
 				continue;
 			}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			// debug tool to allow viewing of only one entity at a time
 			if ( r_singleEntity.GetInteger() >= 0 && r_singleEntity.GetInteger() != edef->index ) {
 				continue;
 			}
 
+#endif
 			// we do need it for shadows
 			vLight->entityInteractionState[ edef->index ] = viewLight_t::INTERACTION_YES;
 
@@ -404,7 +414,11 @@ static void R_AddSingleLight( viewLight_t * vLight ) {
 		shadowDrawSurf->scissorRect = vLight->scissorRect;		// default to the light scissor and light depth bounds
 		shadowDrawSurf->shadowVolumeState = SHADOWVOLUME_DONE;	// assume the shadow volume is done in case r_skipPrelightShadows is set
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( !r_skipPrelightShadows.GetBool() ) {
+#else
+		{
+#endif
 			preLightShadowVolumeParms_t * shadowParms = (preLightShadowVolumeParms_t *)R_FrameAlloc( sizeof( shadowParms[0] ), FRAME_ALLOC_SHADOW_VOLUME_PARMS );
 
 			shadowParms->verts = tri->preLightShadowVertexes;
@@ -418,7 +432,11 @@ static void R_AddSingleLight( viewLight_t * vLight ) {
 			shadowParms->zNear = r_znear.GetFloat();
 			shadowParms->lightZMin = vLight->scissorRect.zmin;
 			shadowParms->lightZMax = vLight->scissorRect.zmax;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			shadowParms->forceShadowCaps = r_forceShadowCaps.GetBool();
+#else
+			shadowParms->forceShadowCaps = false;
+#endif
 			shadowParms->useShadowPreciseInsideTest = r_useShadowPreciseInsideTest.GetBool();
 			shadowParms->useShadowDepthBounds = r_useShadowDepthBounds.GetBool();
 			shadowParms->numShadowIndices = & shadowDrawSurf->numIndexes;
@@ -495,9 +513,11 @@ void R_AddLights() {
 			R_SetEntityDefViewEntity( shadEnt->edef );
 		}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( r_showLightScissors.GetBool() ) {
 			R_ShowColoredScreenRect( vLight->scissorRect, vLight->lightDef->index );
 		}
+#endif
 	}
 
 	//-------------------------------------------------

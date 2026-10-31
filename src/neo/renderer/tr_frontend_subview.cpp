@@ -414,11 +414,13 @@ R_GenerateSurfaceSubview
 ==================
 */
 bool R_GenerateSurfaceSubview( const drawSurf_t *drawSurf ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// for testing the performance hit
 	if ( r_skipSubviews.GetBool() ) {
 		return false;
 	}
 
+#endif
 	idBounds ndcBounds;
 	if ( R_PreciseCullSurface( drawSurf, ndcBounds ) ) {
 		return false;
@@ -512,11 +514,13 @@ would change tr.viewCount.
 bool R_GenerateSubViews( const drawSurf_t * const drawSurfs[], const int numDrawSurfs ) {
 	SCOPED_PROFILE_EVENT( "R_GenerateSubViews" );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// for testing the performance hit
 	if ( r_skipSubviews.GetBool() ) {
 		return false;
 	}
 
+#endif
 	// scan the surfaces until we either find a subview, or determine
 	// there are no more subview surfaces.
 	bool subviews = false;

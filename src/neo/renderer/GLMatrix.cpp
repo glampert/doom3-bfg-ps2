@@ -384,13 +384,14 @@ R_SetupProjectionMatrix
 This uses the "infinite far z" trick
 ======================
 */
-idCVar r_centerX( "r_centerX", "0", CVAR_FLOAT, "projection matrix center adjust" );
-idCVar r_centerY( "r_centerY", "0", CVAR_FLOAT, "projection matrix center adjust" );
+DEV_CVAR( idCVar r_centerX( "r_centerX", "0", CVAR_FLOAT, "projection matrix center adjust" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar r_centerY( "r_centerY", "0", CVAR_FLOAT, "projection matrix center adjust" ) );	// [PS2_D3BFG]
 
 void R_SetupProjectionMatrix( viewDef_t *viewDef ) {
 	// random jittering is usefull when multiple
 	// frames are going to be blended together
 	// for motion blurred anti-aliasing
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	float jitterx, jittery;
 	if ( r_jitter.GetBool() ) {
 		static idRandom random;
@@ -400,6 +401,9 @@ void R_SetupProjectionMatrix( viewDef_t *viewDef ) {
 		jitterx = 0.0f;
 		jittery = 0.0f;
 	}
+#else
+	float jitterx = 0.0f, jittery = 0.0f;
+#endif
 
 	//
 	// set up projection matrix
@@ -419,13 +423,17 @@ void R_SetupProjectionMatrix( viewDef_t *viewDef ) {
 	const int viewHeight = viewDef->viewport.y2 - viewDef->viewport.y1 + 1;
 
 	jitterx = jitterx * width / viewWidth;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	jitterx += r_centerX.GetFloat();
+#endif
 	jitterx += viewDef->renderView.stereoScreenSeparation;
 	xmin += jitterx * width;
 	xmax += jitterx * width;
 
 	jittery = jittery * height / viewHeight;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	jittery += r_centerY.GetFloat();
+#endif
 	ymin += jittery * height;
 	ymax += jittery * height;
 

@@ -284,6 +284,12 @@ typedef struct cm_traceWork_s {
 	idVec3 polygonRotationOriginCache[CM_MAX_POLYGON_EDGES];
 } cm_traceWork_t;
 
+// [PS2_D3BFG]: Translation and rotation traces never nest, so they share one work area
+// instead of keeping a 13 KB static each.
+#if defined( ID_PS2 )
+extern cm_traceWork_t cm_sharedTraceWork;
+#endif
+
 /*
 ===============================================================================
 
@@ -540,4 +546,4 @@ private:			// collision map data
 };
 
 // for debugging
-extern idCVar cm_debugCollision;
+DEV_CVAR( extern idCVar cm_debugCollision );	// [PS2_D3BFG]

@@ -3384,8 +3384,13 @@ void idPhantomObjects::Think() {
 		}
 
 		if ( time < 0.0f ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			idAI::PredictTrajectory( entPhys->GetOrigin(), lastTargetPos[ i ], speed, entPhys->GetGravity(), 
 				entPhys->GetClipModel(), entPhys->GetClipMask(), 256.0f, ent, targetEnt, ai_debugTrajectory.GetBool() ? 1 : 0, vel );
+#else
+			idAI::PredictTrajectory( entPhys->GetOrigin(), lastTargetPos[ i ], speed, entPhys->GetGravity(), 
+				entPhys->GetClipModel(), entPhys->GetClipMask(), 256.0f, ent, targetEnt, 0, vel );
+#endif
 			vel *= speed;
 			entPhys->SetLinearVelocity( vel );
 			if ( !end_time ) {
@@ -3557,9 +3562,11 @@ void idShockwave::Think() {
 		end = pos + idVec3( -newSize, -newSize, -zVal );
 		bounds.AddPoint( end );
 		
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if(g_debugShockwave.GetBool()) {
 			gameRenderWorld->DebugBounds(colorRed,  bounds, vec3_origin);
 		}
+#endif
 
 		listedClipModels = gameLocal.clip.ClipModelsTouchingBounds( bounds, -1, clipModelList, MAX_GENTITIES );
 

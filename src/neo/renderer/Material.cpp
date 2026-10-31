@@ -74,7 +74,7 @@ typedef struct mtrParsingData_s {
 	bool			forceOverlays;
 } mtrParsingData_t;
 
-idCVar r_forceSoundOpAmplitude( "r_forceSoundOpAmplitude", "0", CVAR_FLOAT, "Don't call into the sound system for amplitudes" );
+DEV_CVAR( idCVar r_forceSoundOpAmplitude( "r_forceSoundOpAmplitude", "0", CVAR_FLOAT, "Don't call into the sound system for amplitudes" ) );	// [PS2_D3BFG]
 
 /*
 =============
@@ -2541,9 +2541,13 @@ void idMaterial::EvaluateRegisters(
 			}
 			break;
 		case OP_TYPE_SOUND:
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			if ( r_forceSoundOpAmplitude.GetFloat() > 0 ) {
 				registers[op->c] = r_forceSoundOpAmplitude.GetFloat();
 			} else if ( soundEmitter ) {
+#else
+			if ( soundEmitter ) {
+#endif
 				registers[op->c] = soundEmitter->CurrentAmplitude();
 			} else {
 				registers[op->c] = 0;

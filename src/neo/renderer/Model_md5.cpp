@@ -1038,6 +1038,7 @@ idBounds idRenderModelMD5::Bounds( const renderEntity_t *ent ) const {
 	return ent->bounds;
 }
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 /*
 ====================
 idRenderModelMD5::DrawJoints
@@ -1084,6 +1085,8 @@ void idRenderModelMD5::DrawJoints( const renderEntity_t *ent, const viewDef_t *v
 		}
 	}
 }
+
+#endif
 
 /*
 ====================

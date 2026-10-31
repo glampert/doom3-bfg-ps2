@@ -1882,6 +1882,7 @@ void idMoveableItem::DropItems( idAnimatedEntity  *ent, const char *type, idList
 				origin = ent->GetPhysics()->GetOrigin();
 				axis = ent->GetPhysics()->GetAxis();
 			}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			if ( g_dropItemRotation.GetString()[0] ) {
 				angles.Zero();
 				sscanf( g_dropItemRotation.GetString(), "%f %f %f", &angles.pitch, &angles.yaw, &angles.roll );
@@ -1890,6 +1891,11 @@ void idMoveableItem::DropItems( idAnimatedEntity  *ent, const char *type, idList
 				key += "Rotation";
 				ent->spawnArgs.GetAngles( key, "0 0 0", angles );
 			}
+#else
+			key = kv->GetKey().c_str() + 4;
+			key += "Rotation";
+			ent->spawnArgs.GetAngles( key, "0 0 0", angles );
+#endif
 			axis = angles.ToMat3() * axis;
 
 			origin += ent->spawnArgs.GetVector( key2, "0 0 0" );

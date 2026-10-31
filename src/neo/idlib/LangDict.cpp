@@ -31,7 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 // This is the default language dict that the entire system uses, but you can instantiate your own idLangDict classes to manipulate a language dictionary in a tool
 idLangDict	idLocalization::languageDict;
 
-idCVar lang_maskLocalizedStrings( "lang_maskLocalizedStrings", "0", CVAR_BOOL, "Masks all localized strings to help debugging.  When set will replace strings with an equal length of W's and ending in an X.  Note: The masking occurs at string table load time." );
+DEV_CVAR( idCVar lang_maskLocalizedStrings( "lang_maskLocalizedStrings", "0", CVAR_BOOL, "Masks all localized strings to help debugging.  When set will replace strings with an equal length of W's and ending in an X.  Note: The masking occurs at string table load time." ) );	// [PS2_D3BFG]
 
 /*
 ========================
@@ -254,6 +254,7 @@ bool idLangDict::Load( const byte * buffer, const int bufferLen, const char *nam
 			if ( valEnd < valStart ) {
 				idLib::FatalError( "%s File ended while reading value at line %d", name, line );
 			}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			if ( lang_maskLocalizedStrings.GetBool() && tempVal.Length() > 0 && tempKey.Find( "#font_" ) == -1 ) {
 				int len = tempVal.Length();
 				if ( len > 0 ) {
@@ -263,6 +264,7 @@ bool idLangDict::Load( const byte * buffer, const int bufferLen, const char *nam
 				}
 				tempVal.Append( 'X' );
 			}
+#endif
 			AddKeyVal( tempKey, tempVal );
 			numStrings++;
 		}

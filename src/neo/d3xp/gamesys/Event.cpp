@@ -47,7 +47,7 @@ Event are used for scheduling tasks and for linking script commands.
 
 ***********************************************************************/
 
-idEventDef *idEventDef::eventDefList[MAX_EVENTS];
+idEventDef *idEventDef::eventDefList[MAX_EVENTDEFS];	// [PS2_D3BFG]: MAX_EVENTDEFS
 int idEventDef::numEventDefs = 0;
 
 static bool eventError = false;
@@ -158,9 +158,9 @@ idEventDef::idEventDef( const char *command, const char *formatspec, char return
 
 	ev = this;
 
-	if ( numEventDefs >= MAX_EVENTS ) {
+	if ( numEventDefs >= MAX_EVENTDEFS ) {	// [PS2_D3BFG]: MAX_EVENTDEFS
 		eventError = true;
-		sprintf( eventErrorMsg, "numEventDefs >= MAX_EVENTS" );
+		sprintf( eventErrorMsg, "numEventDefs >= MAX_EVENTDEFS" );	// [PS2_D3BFG]
 		return;
 	}
 	eventDefList[numEventDefs] = ev;

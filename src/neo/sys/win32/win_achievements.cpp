@@ -31,7 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "win_achievements.h"
 #include "../sys_session_local.h"
 
-extern idCVar achievements_Verbose;
+DEV_CVAR( extern idCVar achievements_Verbose );	// [PS2_D3BFG]
 
 #define STEAM_ACHIEVEMENT_PREFIX		"ach_"
 

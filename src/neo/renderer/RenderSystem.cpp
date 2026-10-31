@@ -74,11 +74,13 @@ static void R_PerformanceCounters() {
 		common->Printf( "viewEntities:%i  shadowEntities:%i  viewLights:%i\n", tr.pc.c_visibleViewEntities,
 			tr.pc.c_shadowViewEntities, tr.pc.c_viewLights );
 	}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_showUpdates.GetBool() ) {
 		common->Printf( "entityUpdates:%i  entityRefs:%i  lightUpdates:%i  lightRefs:%i\n", 
 			tr.pc.c_entityUpdates, tr.pc.c_entityReferences,
 			tr.pc.c_lightUpdates, tr.pc.c_lightReferences );
 	}
+#endif
 	if ( r_showMemory.GetBool() ) {
 		common->Printf( "frameData: %i (%i)\n", frameData->frameMemoryAllocated.GetValue(), frameData->highWaterAllocated );
 	}

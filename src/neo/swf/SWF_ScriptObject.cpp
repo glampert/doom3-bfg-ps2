@@ -76,7 +76,7 @@ namespace
 }
 #endif
 
-idCVar swf_debugShowAddress( "swf_debugShowAddress", "0", CVAR_BOOL, "shows addresses along with object types when they are serialized" );
+DEV_CVAR( idCVar swf_debugShowAddress( "swf_debugShowAddress", "0", CVAR_BOOL, "shows addresses along with object types when they are serialized" ) );	// [PS2_D3BFG]
 
 
 /*
@@ -465,17 +465,25 @@ idSWFScriptVar idSWFScriptObject::DefaultValue( bool stringHint ) {
 	}
 	switch ( objectType ) {
 	case SWF_OBJECT_OBJECT:
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( swf_debugShowAddress.GetBool() ) {
 			return idSWFScriptVar( va( "[object:%p]", this ) );
 		} else {
 			return idSWFScriptVar( "[object]" );
 		}
+#else
+		return idSWFScriptVar( "[object]" );
+#endif
 	case SWF_OBJECT_ARRAY:
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( swf_debugShowAddress.GetBool() ) {
 			return idSWFScriptVar( va( "[array:%p]", this ) );
 		} else {
 			return idSWFScriptVar( "[array]" );
 		}
+#else
+		return idSWFScriptVar( "[array]" );
+#endif
 	case SWF_OBJECT_SPRITE:
 		if ( data.sprite != NULL ) {
 			if ( data.sprite->parent == NULL ) {
@@ -487,11 +495,15 @@ idSWFScriptVar idSWFScriptObject::DefaultValue( bool stringHint ) {
 			return idSWFScriptVar( "[NULL]" );
 		}
 	case SWF_OBJECT_TEXT:
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( swf_debugShowAddress.GetBool() ) {
 			return idSWFScriptVar( va( "[edittext:%p]", this ) );
 		} else {
 			return idSWFScriptVar( "[edittext]" );
 		}
+#else
+		return idSWFScriptVar( "[edittext]" );
+#endif
 	}
 	return idSWFScriptVar( "[unknown]" );
 }

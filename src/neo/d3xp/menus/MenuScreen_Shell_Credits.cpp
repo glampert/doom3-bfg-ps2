@@ -60,642 +60,653 @@ void idMenuScreen_Shell_Credits::SetupCreditList() {
 	}
 
 
+	// [PS2_D3BFG]: The credits are a data table instead of 635 Append calls (about 23 KB of
+	// code); a type of -1 with an empty entry is the default creditInfo_t spacer.
+	static const struct {
+		int				type;
+		const char *	entry;
+	} creditEntries[] = {
+		{ 3,	"DOOM 3 BFG EDITION"									},
+		{ -1,	"" },
+		{ 2,	"DEVELOPMENT TEAM"										},
+		{ -1,	"" },
+		{ 1,	"Executive Producer"									},
+		{ 0,	"Eric Webb"												},
+		{ -1,	"" },
+		{ 1,	"Lead Programmer"										},
+		{ 0,	"Brian Harris"											},
+		{ -1,	"" },
+		{ 1,	"Lead Designer"											},
+		{ 0,	"Jerry Keehan"											},
+		{ -1,	"" },
+		{ 1,	"Programming"											},
+		{ 0,	"Curtis Arink"											},
+		{ 0,	"Robert Duffy"											},
+		{ 0,	"Jeff Farrand"											},
+		{ 0,	"Ryan Gerleve"											},
+		{ 0,	"Billy Khan"											},
+		{ 0,	"Gloria Kennickell"										},
+		{ 0,	"Mike Maynard"											},
+		{ 0,	"John Roberts"											},
+		{ 0,	"Steven Serafin"										},
+		{ 0,	"Jan Paul Van Waveren"									},
+		{ -1,	"" },
+		{ 1,	"Design"												},
+		{ 0,	"Steve Rescoe"											},
+		{ 0,	"Chris Voss"											},
+		{ 0,	"David Vargo"											},
+		{ -1,	"" },
+		{ 1,	"Art"													},
+		{ 0,	"Kevin Cloud"											},
+		{ 0,	"Andy Chang"											},
+		{ 0,	"Pat Duffy"												},
+		{ -1,	"" },
+		{ 1,	"Audio"													},
+		{ 0,	"Christian Antkow"										},
+		{ 0,	"Chris Hite"											},
+		{ -1,	"" },
+		{ 1,	"Additional Support"									},
+		{ 0,	"Roger Berrones"										},
+		{ 0,	"Brad Bramlett"											},
+		{ 0,	"John Casey"											},
+		{ 0,	"Jeremy Cook"											},
+		{ 0,	"Chris Hays"											},
+		{ 0,	"Matt Hooper"											},
+		{ 0,	"Danny Keys"											},
+		{ 0,	"Jason Kim"												},
+		{ 0,	"Brian Kowalczyk"										},
+		{ 0,	"Dustin Land"											},
+		{ 0,	"Stephane Lebrun"										},
+		{ 0,	"Matt Nelson"											},
+		{ 0,	"John Pollard"											},
+		{ 0,	"Alan Rogers"											},
+		{ 0,	"Jah Raphael"											},
+		{ 0,	"Jarrod Showers"										},
+		{ 0,	"Shale Williams"										},
+		{ -1,	"" },
+		{ 1,	"Studio Director"										},
+		{ 0,	"Tim Willits"											},
+		{ -1,	"" },
+		{ 1,	"Studio President"										},
+		{ 0,	"Todd Hollenshead"										},
+		{ -1,	"" },
+		{ 1,	"Technical Director"									},
+		{ 0,	"John Carmack"											},
+		{ -1,	"" },
+		{ 1,	"Human Resources"										},
+		{ 0,	"Carrie Barcroft"										},
+		{ -1,	"" },
+		{ 1,	"id Mom"												},
+		{ 0,	"Donna Jackson"											},
+		{ -1,	"" },
+		{ 1,	"id Software IT"										},
+		{ 0,	"Duncan Welch"											},
+		{ 0,	"Michael Cave"											},
+		{ 0,	"Josh Shoemate"											},
+		{ 0,	"Michael Musick"										},
+		{ 0,	"Alex Brandt"											},
+		{ -1,	"" },
+		{ 3,	"DOOM 3 DEVELOPED BY"									},
+		{ -1,	"" },
+		{ 2,	"id Software"											},
+		{ -1,	"" },
+		{ 1,	"Technical Director "									},
+		{ 0,	"John Carmack"											},
+		{ -1,	"" },
+		{ 1,	"Lead Programmer"										},
+		{ 0,	"Robert A. Duffy"										},
+		{ -1,	"" },
+		{ 1,	"Lead Designer"											},
+		{ 0,	"Tim Willits"											},
+		{ -1,	"" },
+		{ 1,	"Lead Artist"											},
+		{ 0,	"Kenneth Scott"											},
+		{ -1,	"" },
+		{ 1,	"Animation"												},
+		{ 0,	"James Houska"											},
+		{ 0,	"Fredrik Nilsson"										},
+		{ 0,	"Eric Webb"												},
+		{ -1,	"" },
+		{ 1,	"Art"													},
+		{ 0,	"Adrian Carmack"										},
+		{ 0,	"Andy Chang"											},
+		{ 0,	"Kevin Cloud"											},
+		{ 0,	"Seneca Menard"											},
+		{ 0,	"Patrick Thomas"										},
+		{ -1,	"" },
+		{ 1,	"Design"												},
+		{ 0,	"Mal Blackwell"											},
+		{ 0,	"Matt Hooper"											},
+		{ 0,	"Jerry Keehan"											},
+		{ 0,	"Steve Rescoe"											},
+		{ -1,	"" },
+		{ 1,	"UI Artist"												},
+		{ 0,	"Pat Duffy"												},
+		{ -1,	"" },
+		{ 1,	"Programming"											},
+		{ 0,	"Timothee Besset"										},
+		{ 0,	"Jim Dose"												},
+		{ 0,	"Jan Paul van Waveren"									},
+		{ 0,	"Jonathan Wright"										},
+		{ 0,	"Brian Harris"											},
+		{ -1,	"" },
+		{ 1,	"Sound Design "											},
+		{ 0,	"Christian Antkow"										},
+		{ -1,	"" },
+		{ 1,	"Dir. Business Development"								},
+		{ 0,	"Marty Stratton"										},
+		{ -1,	"" },
+		{ 1,	"Development Assistant"									},
+		{ 0,	"Eric Webb"												},
+		{ -1,	"" },
+		{ 2,	"3rd PARTY"												},
+		{ -1,	"" },
+		{ 1,	"DOOM 3: Ressurection of Evil Developed by"				},
+		{ 0,	"Nerve Software"										},
+		{ -1,	"" },
+		{ 1,	"Additional Sound Design"								},
+		{ 0,	"Ed Lima"												},
+		{ 0,	"Danetracks, Inc."										},
+		{ 0,	"Defacto Sound"											},
+		{ -1,	"" },
+		{ 1,	"Theme for DOOM 3 Produced by"							},
+		{ 0,	"Chris Vrenna"											},
+		{ -1,	"" },
+		{ 1,	"Theme for DOOM 3 Composed by"							},
+		{ 0,	"Clint Walsh"											},
+		{ -1,	"" },
+		{ 1,	"Additional Story and Dialog"							},
+		{ 0,	"Matthew J. Costello"									},
+		{ -1,	"" },
+		{ 1,	"Casting and Voice Direction"							},
+		{ 0,	"Margaret Tang - Womb Music"							},
+		{ -1,	"" },
+		{ 1,	"Voice Editorial and Post"								},
+		{ 0,	"Rik Schaffer - Womb Music"								},
+		{ -1,	"" },
+		{ 1,	"Voice Recording"										},
+		{ 0,	"Womb Music"											},
+		{ -1,	"" },
+		{ 1,	"Voice Performers"										},
+		{ 0,	"Paul Eiding"											},
+		{ 0,	"Jim Cummings"											},
+		{ 0,	"Liam O'Brien"											},
+		{ 0,	"Nicholas Guest"										},
+		{ 0,	"Vanessa Marshall"										},
+		{ 0,	"Neill Ross"											},
+		{ 0,	"Phillip Clarke"										},
+		{ 0,	"Andy Chanley"											},
+		{ 0,	"Charles Dennis"										},
+		{ 0,	"Grey Delisle"											},
+		{ 0,	"Jennifer Hale"											},
+		{ 0,	"Grant Albrecht"										},
+		{ 0,	"Dee Baker"												},
+		{ 0,	"Michael Bell"											},
+		{ 0,	"Steve Blum"											},
+		{ 0,	"S. Scott Bullock"										},
+		{ 0,	"Cam Clarke"											},
+		{ 0,	"Robin Atkin Downes"									},
+		{ 0,	"Keith Ferguson"										},
+		{ 0,	"Jay Gordon"											},
+		{ 0,	"Michael Gough"											},
+		{ 0,	"Bill Harper"											},
+		{ 0,	"Nick Jameson"											},
+		{ 0,	"David Kaye"											},
+		{ 0,	"Phil La Marr"											},
+		{ 0,	"Scott Menville"										},
+		{ 0,	"Jim Meskimen"											},
+		{ 0,	"Matt Morton"											},
+		{ 0,	"Daran Norris"											},
+		{ 0,	"Rob Paulsen"											},
+		{ 0,	"Phil Proctor"											},
+		{ 0,	"Rino Romoano"											},
+		{ 0,	"Andre Sogliuzzo"										},
+		{ 0,	"Jim Ward"												},
+		{ 0,	"Wally Wingert"											},
+		{ 0,	"Edward Yin"											},
+		{ 0,	"Keone Young"											},
+		{ 0,	"Ryun Yu"												},
+		{ -1,	"" },
+		{ 1,	"Additional User Interface"								},
+		{ 0,	"Double-Action Design"									},
+		{ -1,	"" },
+		{ 1,	"Motion Capture Services"								},
+		{ 0,	"Janimation"											},
+		{ -1,	"" },
+		{ 1,	"UAC Promotional Videos"								},
+		{ 0,	"Six Foot Studios"										},
+		{ -1,	"" },
+		{ 1,	"Additional Multiplayer Design"							},
+		{ 0,	"Splash Damage, Ltd."									},
+		{ -1,	"" },
+		{ 1,	"Additional Programming"								},
+		{ 0,	"Graeme Devine"											},
+		{ -1,	"" },
+		{ 1,	"Localization Services"									},
+		{ 0,	"Synthesis"												},
+		{ -1,	"" },
+		{ -1,	"" },
+		{ 3,	"BETHESDA SOFTWORKS"									},
+		{ -1,	"" },
+		{ 1,	"Senior Producer"										},
+		{ 0,	"Laffy Taylor"											},
+		{ -1,	"" },
+		{ 1,	"Sr. Producer, Submissions"								},
+		{ 0,	"Timothy Beggs"											},
+		{ -1,	"" },
+		{ 1,	"VP, Product Development"								},
+		{ 0,	"Todd Vaughn"											},
+		{ -1,	"" },
+		{ 1,	"External Technical Director"							},
+		{ 0,	"Jonathan Williams"										},
+		{ -1,	"" },
+		{ 1,	"President"												},
+		{ 0,	"Vlatko Andonov"										},
+		{ -1,	"" },
+		{ 1,	"VP, Public Relations and Marketing"					},
+		{ 0,	"Pete Hines"											},
+		{ -1,	"" },
+		{ 1,	"Director of Global Marketing"							},
+		{ 0,	"Steve Perkins"											},
+		{ -1,	"" },
+		{ 1,	"Director of Global PR"									},
+		{ 0,	"Tracey Thompson"										},
+		{ -1,	"" },
+		{ 1,	"Senior Brand Manager"									},
+		{ 0,	"Rakhi Gupta"											},
+		{ -1,	"" },
+		{ 1,	"Associate Brand Manager"								},
+		{ 0,	"David Clayman"											},
+		{ -1,	"" },
+		{ 1,	"Event and Trade Show Director"							},
+		{ 0,	"Henry Mobley"											},
+		{ -1,	"" },
+		{ 1,	"Senior Community Manager"								},
+		{ 0,	"Matthew Grandstaff"									},
+		{ -1,	"" },
+		{ 1,	"Community Manager"										},
+		{ 0,	"Nick Breckon"											},
+		{ -1,	"" },
+		{ 1,	"Senior PR Coordinator"									},
+		{ 0,	"Angela Ramsey-Chapman"									},
+		{ -1,	"" },
+		{ 1,	"Marketing Assistant"									},
+		{ 0,	"Jenny McWhorter"										},
+		{ -1,	"" },
+		{ 1,	"Video Production"										},
+		{ 0,	"Matt Killmon"											},
+		{ 0,	"Sal Goldenburg"										},
+		{ -1,	"" },
+		{ 1,	"Graphic Design"										},
+		{ 0,	"Michael Wagner"										},
+		{ 0,	"Lindsay Westcott"										},
+		{ -1,	"" },
+		{ 1,	"VP, Sales"												},
+		{ 0,	"Ron Seger"												},
+		{ -1,	"" },
+		{ 1,	"Operations Director"									},
+		{ 0,	"Todd Curtis"											},
+		{ -1,	"" },
+		{ 1,	"Sales and Operations Manager"							},
+		{ 0,	"Jill Bralove"											},
+		{ -1,	"" },
+		{ 1,	"Sales Account Manager"									},
+		{ 0,	"Michelle Ferrara"										},
+		{ -1,	"" },
+		{ 1,	"Regional Sales Manager"								},
+		{ 0,	"Michael Donnellan"										},
+		{ -1,	"" },
+		{ 1,	"Channel Marketing Manager"								},
+		{ 0,	"Michelle Burgess"										},
+		{ -1,	"" },
+		{ 1,	"Sales Assistants"										},
+		{ 0,	"Sara Simpson"											},
+		{ 0,	"Jason Snead"											},
+		{ 0,	"Jessica Williams"										},
+		{ -1,	"" },
+		{ 1,	"Operations Assistant"									},
+		{ 0,	"Scott Mills"											},
+		{ -1,	"" },
+		{ 1,	"Director of Quality Assurance"							},
+		{ 0,	"Darren Manes"											},
+		{ -1,	"" },
+		{ 1,	"Quality Assurance Manager"								},
+		{ 0,	"Rob Gray"												},
+		{ -1,	"" },
+		{ 1,	"Quality Assurance Leads"								},
+		{ 0,	"Terry Dunn"											},
+		{ 0,	"Matt Weil"												},
+		{ -1,	"" },
+		{ 1,	"Quality Assurance"										},
+		{ 0,	"Dan Silva"												},
+		{ 0,	"Alan Webb"												},
+		{ 0,	"Cory Andrews"											},
+		{ 0,	"George Churchill"										},
+		{ 0,	"Jonathan DeVriendt"									},
+		{ 0,	"Spencer Gottlieb"										},
+		{ 0,	"Gary Powell"											},
+		{ 0,	"Samuel Papke"											},
+		{ 0,	"Amanda Sheehan"										},
+		{ 0,	"Philip Spangrud"										},
+		{ 0,	"Larry Waldman"											},
+		{ 0,	"Donald Anderson"										},
+		{ 0,	"James Audet"											},
+		{ 0,	"Hunter Calvert"										},
+		{ 0,	"Max Cameron"											},
+		{ 0,	"Donald Harris"											},
+		{ 0,	"Peter Garcia"											},
+		{ 0,	"Joseph Lopatta"										},
+		{ 0,	"Scott LoPresti"										},
+		{ 0,	"Collin Mackett"										},
+		{ 0,	"Gerard Nagy"											},
+		{ 0,	"William Pegus"											},
+		{ 0,	"Angela Rupinen"										},
+		{ 0,	"Gabriel Scaringello"									},
+		{ 0,	"Drew Slotkin"											},
+		{ 0,	"Kyle Wallace"											},
+		{ 0,	"Patrick Walsh"											},
+		{ 0,	"John Welkner"											},
+		{ 0,	"Jason Wilkin"											},
+		{ 0,	"John Benoit"											},
+		{ 0,	"Jacob Clayman"											},
+		{ 0,	"Colin McInerney"										},
+		{ -1,	"" },
+		{ 1,	"Additional QA"											},
+		{ 0,	"James Costantino"										},
+		{ 0,	"Chris Krietz"											},
+		{ 0,	"Joseph Mueller"										},
+		{ 0,	"Andrew Scharf"											},
+		{ 0,	"Jen Tonon"												},
+		{ 0,	"Justin McSweeney"										},
+		{ 0,	"Sean Palomino"											},
+		{ 0,	"Erica Stead"											},
+		{ 0,	"Wil Cookman"											},
+		{ 0,	"Garrett Hohl"											},
+		{ 0,	"Tim Hartgrave"											},
+		{ 0,	"Heath Hollenshead"										},
+		{ 0,	"Brandon Korbel"										},
+		{ 0,	"Daniel Korecki"										},
+		{ 0,	"Max Morrison"											},
+		{ 0,	"Doug Ransley"											},
+		{ 0,	"Mauricio Rivera"										},
+		{ 0,	"Aaron Walsh"											},
+		{ 0,	"Daniel Wathen"											},
+		{ -1,	"" },
+		{ 1,	"Special Thanks"										},
+		{ 0,	"Jason Bergman"											},
+		{ 0,	"Darren Chukitus"										},
+		{ 0,	"Matt Dickenson"										},
+		{ 0,	"Will Noble"											},
+		{ -1,	"" },
+		{ -1,	"" },
+		{ 3,	"ZENIMAX MEDIA"											},
+		{ -1,	"" },
+		{ 1,	"Chairman & CEO"										},
+		{ 0,	"Robert Altman"											},
+		{ -1,	"" },
+		{ 1,	"President"												},
+		{ 0,	"Ernie Del"												},
+		{ -1,	"" },
+		{ 1,	"EVP & COO"												},
+		{ 0,	"Jamie Leder"											},
+		{ -1,	"" },
+		{ 1,	"EVP & CFO"												},
+		{ 0,	"Cindy Tallent"											},
+		{ -1,	"" },
+		{ 1,	"EVP Legal & Secretary"									},
+		{ 0,	"Grif Lesher"											},
+		{ -1,	"" },
+		{ 1,	"SVP Finance & Controller"								},
+		{ 0,	"Denise Kidd"											},
+		{ -1,	"" },
+		{ 1,	"Legal Lead"											},
+		{ 0,	"Joshua Gillespie"										},
+		{ -1,	"" },
+		{ 1,	"Legal"													},
+		{ 0,	"Diana Bender"											},
+		{ 0,	"Adam Carter"											},
+		{ 0,	"Candice Garner-Groves"									},
+		{ 0,	"Marcia Mitnick"										},
+		{ 0,	"Amy Yeung"												},
+		{ -1,	"" },
+		{ 1,	"VP, Information Technology"							},
+		{ 0,	"Steve Bloom"											},
+		{ -1,	"" },
+		{ 1,	"Information Technology"								},
+		{ 0,	"Rob Havlovick"											},
+		{ 0,	"Nicholas Lea"											},
+		{ 0,	"Drew McCartney"										},
+		{ 0,	"Josh Mosby"											},
+		{ 0,	"Joseph Owens"											},
+		{ 0,	"Paul Tuttle"											},
+		{ 0,	"Keelian Wardle"										},
+		{ -1,	"" },
+		{ 1,	"Director of Global HR"									},
+		{ 0,	"Tammy Boyd-Shumway"									},
+		{ -1,	"" },
+		{ 1,	"Human Resources"										},
+		{ 0,	"Michelle Cool"											},
+		{ 0,	"Andrea Glinski"										},
+		{ 0,	"Katrina Lang"											},
+		{ 0,	"Valery Ridore"											},
+		{ -1,	"" },
+		{ 1,	"Administration"										},
+		{ 0,	"Melissa Ayala"											},
+		{ 0,	"Brittany Bezawada-Joseph"								},
+		{ 0,	"Rosanna Campanile  "									},
+		{ 0,	"Katherine Edwards"										},
+		{ 0,	"Douglas Fredrick    "									},
+		{ 0,	"Jon Freund"											},
+		{ 0,	"Ken Garcia "											},
+		{ 0,	"Gerard Garnica"										},
+		{ 0,	"Betty Kouatelay"										},
+		{ 0,	"Ho Joong Lee"											},
+		{ 0,	"Barb Manning"											},
+		{ 0,	"Stephane Marquis"										},
+		{ 0,	"Michael Masciola"										},
+		{ 0,	"Tanuja Mistry"											},
+		{ 0,	"Rissa Monzano"											},
+		{ 0,	"Patrick Nolan "										},
+		{ 0,	"Patti Pulupa"											},
+		{ 0,	"Dave Rasmussen "										},
+		{ 0,	"Heather Spurrier"										},
+		{ 0,	"Claudia Umana"											},
+		{ 0,	"Melissa Washabaugh"									},
+		{ 0,	"Eric Weis"												},
+		{ -1,	"" },
+		{ 1,	"Administrative Assistants"								},
+		{ 0,	"Bernice Guice"											},
+		{ 0,	"Paula Kasey"											},
+		{ 0,	"Shana Reed"											},
+		{ -1,	"" },
+		{ 1,	"Executive Chef"										},
+		{ 0,	"Kenny McDonald"										},
+		{ -1,	"" },
+		{ 3,	"ZENIMAX EUROPE"										},
+		{ -1,	"" },
+		{ 1,	"European Managing Director"							},
+		{ 0,	"Sean Brennan"											},
+		{ -1,	"" },
+		{ 1,	"European Marketing & PR Director"						},
+		{ 0,	"Sarah Seaby"											},
+		{ -1,	"" },
+		{ 1,	"European Sales Director"								},
+		{ 0,	"Paul Oughton"											},
+		{ -1,	"" },
+		{ 1,	"Sales Director"										},
+		{ 0,	"Greg Baverstock"										},
+		{ -1,	"" },
+		{ 1,	"Finance Director"										},
+		{ 0,	"Robert Ford"											},
+		{ -1,	"" },
+		{ 1,	"European Brand Marketing Manager"						},
+		{ 0,	"Thach Quach"											},
+		{ -1,	"" },
+		{ 1,	"European Brand Marketing Manager"						},
+		{ 0,	"Alex Price"											},
+		{ -1,	"" },
+		{ 1,	"European PR Manager"									},
+		{ 0,	"Alistair Hatch"										},
+		{ -1,	"" },
+		{ 1,	"European Assistant PR Manager"							},
+		{ 0,	"Nicholas Heller"										},
+		{ -1,	"" },
+		{ 1,	"International Marketing Manager"						},
+		{ 0,	"Rosemarie Dalton"										},
+		{ -1,	"" },
+		{ 1,	"Manager Trade Shows/Events"							},
+		{ 0,	"Gareth Swann"											},
+		{ -1,	"" },
+		{ 1,	"UK Marketing Manager"									},
+		{ 0,	"Gregory Weller"										},
+		{ -1,	"" },
+		{ 1,	"UK Sales Manager"										},
+		{ 0,	"Gethyn Deakins"										},
+		{ -1,	"" },
+		{ 1,	"Creative Services Artist"								},
+		{ 0,	"Morgan Gibbons"										},
+		{ -1,	"" },
+		{ 1,	"Legal Counsel"											},
+		{ 0,	"Adam Carter"											},
+		{ -1,	"" },
+		{ 1,	"Localisation Director"									},
+		{ 0,	"Harald Simon"											},
+		{ -1,	"" },
+		{ 1,	"Localisation Project Manager"							},
+		{ 0,	"Ruth Granados Garcia"									},
+		{ -1,	"" },
+		{ 1,	"Sales Administrator"									},
+		{ 0,	"Heather Clarke"										},
+		{ -1,	"" },
+		{ 1,	"Operations Manager"									},
+		{ 0,	"Isabelle Midrouillet"									},
+		{ -1,	"" },
+		{ 1,	"Operations Coordinator"								},
+		{ 0,	"David Gordon"											},
+		{ -1,	"" },
+		{ 1,	"Financial Controller"									},
+		{ 0,	"Paul New"												},
+		{ -1,	"" },
+		{ 1,	"Accounts Assistant"									},
+		{ 0,	"Charlotte Ovens"										},
+		{ -1,	"" },
+		{ 1,	"Contracts Administrator/Paralegal"						},
+		{ 0,	"Katie Brooks"											},
+		{ -1,	"" },
+		{ 1,	"IT Manager"											},
+		{ 0,	"Joseph Owens"											},
+		{ -1,	"" },
+		{ 1,	"Office Manager"										},
+		{ 0,	"Angela Clement"										},
+		{ -1,	"" },
+		{ 3,	"ZENIMAX FRANCE"										},
+		{ -1,	"" },
+		{ 1,	"General Manager"										},
+		{ 0,	"Julie Chalmette"										},
+		{ -1,	"" },
+		{ 1,	"Sales Manager"											},
+		{ 0,	"Yvan Rault"											},
+		{ -1,	"" },
+		{ 1,	"Key Account Manager"									},
+		{ 0,	"Gaelle Gombert"										},
+		{ -1,	"" },
+		{ 1,	"Trade Marketing Manager"								},
+		{ 0,	"Laurent Chatain"										},
+		{ -1,	"" },
+		{ 1,	"Marketing Manager"										},
+		{ 0,	"Geraldine Mazot"										},
+		{ -1,	"" },
+		{ 1,	"PR Manager"											},
+		{ 0,	"Jerome Firon"											},
+		{ -1,	"" },
+		{ 1,	"Finance Manager"										},
+		{ 0,	"Cecile De Freitas"										},
+		{ -1,	"" },
+		{ 1,	"Finance Assistant"										},
+		{ 0,	"Adeline Nonis"											},
+		{ -1,	"" },
+		{ 3,	"ZENIMAX GERMANY"										},
+		{ -1,	"" },
+		{ 1,	"Managing Director"										},
+		{ 0,	"Frank Matzke"											},
+		{ -1,	"" },
+		{ 1,	"Sales Director"										},
+		{ 0,	"Thomas Huber"											},
+		{ -1,	"" },
+		{ 1,	"Head of Marketing & PR"								},
+		{ 0,	"Marcel Jung"											},
+		{ -1,	"" },
+		{ 1,	"Product Marketing Manager"								},
+		{ 0,	"Stefan Dettmering"										},
+		{ -1,	"" },
+		{ 1,	"PR Manager"											},
+		{ 0,	"Peter Langhofer"										},
+		{ -1,	"" },
+		{ 1,	"Trade Marketing Manager"								},
+		{ 0,	"Andrea Reuth"											},
+		{ -1,	"" },
+		{ 1,	"Key Account Manager"									},
+		{ 0,	"Juergen Pahl"											},
+		{ -1,	"" },
+		{ 1,	"Finance Manager"										},
+		{ 0,	"Joern Hoehling"										},
+		{ -1,	"" },
+		{ 1,	"Sales and Office Administrator"						},
+		{ 0,	"Christiane Jauss"										},
+		{ -1,	"" },
+		{ 3,	"ZENIMAX BENELUX"										},
+		{ -1,	"" },
+		{ 1,	"General Manager"										},
+		{ 0,	"Menno Eijck"											},
+		{ -1,	"" },
+		{ 1,	"Sales Manager"											},
+		{ 0,	"Stefan Koppers"										},
+		{ -1,	"" },
+		{ 1,	"Marketing Manager"										},
+		{ 0,	"Jurgen Stirnweis"										},
+		{ -1,	"" },
+		{ 1,	"PR Manager"											},
+		{ 0,	"Maikel van Dijk"										},
+		{ -1,	"" },
+		{ 1,	"Sales and Marketing Administrator"						},
+		{ 0,	"Pam van Griethuysen"									},
+		{ -1,	"" },
+		{ -1,	"" },
+		{ 3,	"ZENIMAX ASIA"											},
+		{ -1,	"" },
+		{ 1,	"General Manager"										},
+		{ 0,	"Tetsu Takahashi"										},
+		{ -1,	"" },
+		{ 1,	"Localization Producer "								},
+		{ 0,	"Kei Iwamoto"											},
+		{ -1,	"" },
+		{ 1,	"Associate Producer "									},
+		{ 0,	"Takayuki Tanaka"										},
+		{ -1,	"" },
+		{ 1,	"Product Manager "										},
+		{ 0,	"Seigen Ko"												},
+		{ -1,	"" },
+		{ 1,	"Localization Programmer"								},
+		{ 0,	"Masayuki Nagahashi"									},
+		{ -1,	"" },
+		{ 1,	"Marketing and PR Manager "								},
+		{ 0,	"Eiichi Yaji"											},
+		{ -1,	"" },
+		{ 1,	"Sales Manager"											},
+		{ 0,	"Hiroaki Yanagiguchi"									},
+		{ -1,	"" },
+		{ 1,	"Office Manager"										},
+		{ 0,	"Myongsuk Rim"											},
+		{ -1,	"" },
+		{ 1,	"Web Director"											},
+		{ 0,	"Tanaka Keisuke"										},
+		{ 0,	"Kosuke Fujita"											},
+	};
+
 	creditList.Clear();
-	creditList.Append( creditInfo_t( 3,	"DOOM 3 BFG EDITION"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 2,	"DEVELOPMENT TEAM"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Executive Producer"									) );
-	creditList.Append( creditInfo_t( 0,	"Eric Webb"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Lead Programmer"										) );
-	creditList.Append( creditInfo_t( 0,	"Brian Harris"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Lead Designer"											) );
-	creditList.Append( creditInfo_t( 0,	"Jerry Keehan"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Programming"											) );
-	creditList.Append( creditInfo_t( 0,	"Curtis Arink"											) );
-	creditList.Append( creditInfo_t( 0,	"Robert Duffy"											) );
-	creditList.Append( creditInfo_t( 0,	"Jeff Farrand"											) );
-	creditList.Append( creditInfo_t( 0,	"Ryan Gerleve"											) );
-	creditList.Append( creditInfo_t( 0,	"Billy Khan"											) );
-	creditList.Append( creditInfo_t( 0,	"Gloria Kennickell"										) );
-	creditList.Append( creditInfo_t( 0,	"Mike Maynard"											) );
-	creditList.Append( creditInfo_t( 0,	"John Roberts"											) );
-	creditList.Append( creditInfo_t( 0,	"Steven Serafin"										) );
-	creditList.Append( creditInfo_t( 0,	"Jan Paul Van Waveren"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Design"												) );
-	creditList.Append( creditInfo_t( 0,	"Steve Rescoe"											) );
-	creditList.Append( creditInfo_t( 0,	"Chris Voss"											) );
-	creditList.Append( creditInfo_t( 0,	"David Vargo"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Art"													) );
-	creditList.Append( creditInfo_t( 0,	"Kevin Cloud"											) );
-	creditList.Append( creditInfo_t( 0,	"Andy Chang"											) );
-	creditList.Append( creditInfo_t( 0,	"Pat Duffy"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Audio"													) );
-	creditList.Append( creditInfo_t( 0,	"Christian Antkow"										) );
-	creditList.Append( creditInfo_t( 0,	"Chris Hite"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Additional Support"									) );
-	creditList.Append( creditInfo_t( 0,	"Roger Berrones"										) );
-	creditList.Append( creditInfo_t( 0,	"Brad Bramlett"											) );
-	creditList.Append( creditInfo_t( 0,	"John Casey"											) );
-	creditList.Append( creditInfo_t( 0,	"Jeremy Cook"											) );
-	creditList.Append( creditInfo_t( 0,	"Chris Hays"											) );
-	creditList.Append( creditInfo_t( 0,	"Matt Hooper"											) );
-	creditList.Append( creditInfo_t( 0,	"Danny Keys"											) );
-	creditList.Append( creditInfo_t( 0,	"Jason Kim"												) );
-	creditList.Append( creditInfo_t( 0,	"Brian Kowalczyk"										) );
-	creditList.Append( creditInfo_t( 0,	"Dustin Land"											) );
-	creditList.Append( creditInfo_t( 0,	"Stephane Lebrun"										) );
-	creditList.Append( creditInfo_t( 0,	"Matt Nelson"											) );
-	creditList.Append( creditInfo_t( 0,	"John Pollard"											) );
-	creditList.Append( creditInfo_t( 0,	"Alan Rogers"											) );
-	creditList.Append( creditInfo_t( 0,	"Jah Raphael"											) );
-	creditList.Append( creditInfo_t( 0,	"Jarrod Showers"										) );
-	creditList.Append( creditInfo_t( 0,	"Shale Williams"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Studio Director"										) );
-	creditList.Append( creditInfo_t( 0,	"Tim Willits"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Studio President"										) );
-	creditList.Append( creditInfo_t( 0,	"Todd Hollenshead"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Technical Director"									) );
-	creditList.Append( creditInfo_t( 0,	"John Carmack"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Human Resources"										) );
-	creditList.Append( creditInfo_t( 0,	"Carrie Barcroft"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"id Mom"												) );
-	creditList.Append( creditInfo_t( 0,	"Donna Jackson"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"id Software IT"										) );
-	creditList.Append( creditInfo_t( 0,	"Duncan Welch"											) );
-	creditList.Append( creditInfo_t( 0,	"Michael Cave"											) );
-	creditList.Append( creditInfo_t( 0,	"Josh Shoemate"											) );
-	creditList.Append( creditInfo_t( 0,	"Michael Musick"										) );
-	creditList.Append( creditInfo_t( 0,	"Alex Brandt"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 3,	"DOOM 3 DEVELOPED BY"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 2,	"id Software"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Technical Director "									) );
-	creditList.Append( creditInfo_t( 0,	"John Carmack"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Lead Programmer"										) );	
-	creditList.Append( creditInfo_t( 0,	"Robert A. Duffy"										) );	
-	creditList.Append( creditInfo_t() );	
-	creditList.Append( creditInfo_t( 1,	"Lead Designer"											) );
-	creditList.Append( creditInfo_t( 0,	"Tim Willits"											) );	
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Lead Artist"											) );	
-	creditList.Append( creditInfo_t( 0,	"Kenneth Scott"											) );	
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Animation"												) );
-	creditList.Append( creditInfo_t( 0,	"James Houska"											) );
-	creditList.Append( creditInfo_t( 0,	"Fredrik Nilsson"										) );
-	creditList.Append( creditInfo_t( 0,	"Eric Webb"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Art"													) );
-	creditList.Append( creditInfo_t( 0,	"Adrian Carmack"										) );
-	creditList.Append( creditInfo_t( 0,	"Andy Chang"											) );
-	creditList.Append( creditInfo_t( 0,	"Kevin Cloud"											) );
-	creditList.Append( creditInfo_t( 0,	"Seneca Menard"											) );
-	creditList.Append( creditInfo_t( 0,	"Patrick Thomas"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Design"												) );
-	creditList.Append( creditInfo_t( 0,	"Mal Blackwell"											) );
-	creditList.Append( creditInfo_t( 0,	"Matt Hooper"											) );
-	creditList.Append( creditInfo_t( 0,	"Jerry Keehan"											) );
-	creditList.Append( creditInfo_t( 0,	"Steve Rescoe"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"UI Artist"												) );
-	creditList.Append( creditInfo_t( 0,	"Pat Duffy"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Programming"											) );
-	creditList.Append( creditInfo_t( 0,	"Timothee Besset"										) );
-	creditList.Append( creditInfo_t( 0,	"Jim Dose"												) );
-	creditList.Append( creditInfo_t( 0,	"Jan Paul van Waveren"									) );
-	creditList.Append( creditInfo_t( 0,	"Jonathan Wright"										) );
-	creditList.Append( creditInfo_t( 0,	"Brian Harris"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sound Design "											) );
-	creditList.Append( creditInfo_t( 0,	"Christian Antkow"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Dir. Business Development"								) );
-	creditList.Append( creditInfo_t( 0,	"Marty Stratton"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Development Assistant"									) );
-	creditList.Append( creditInfo_t( 0,	"Eric Webb"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 2,	"3rd PARTY"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"DOOM 3: Ressurection of Evil Developed by"				) );
-	creditList.Append( creditInfo_t( 0,	"Nerve Software"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Additional Sound Design"								) );
-	creditList.Append( creditInfo_t( 0,	"Ed Lima"												) );
-	creditList.Append( creditInfo_t( 0,	"Danetracks, Inc."										) );
-	creditList.Append( creditInfo_t( 0,	"Defacto Sound"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Theme for DOOM 3 Produced by"							) );
-	creditList.Append( creditInfo_t( 0,	"Chris Vrenna"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Theme for DOOM 3 Composed by"							) );
-	creditList.Append( creditInfo_t( 0,	"Clint Walsh"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Additional Story and Dialog"							) );
-	creditList.Append( creditInfo_t( 0,	"Matthew J. Costello"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Casting and Voice Direction"							) );
-	creditList.Append( creditInfo_t( 0,	"Margaret Tang - Womb Music"							) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Voice Editorial and Post"								) );
-	creditList.Append( creditInfo_t( 0,	"Rik Schaffer - Womb Music"								) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Voice Recording"										) );
-	creditList.Append( creditInfo_t( 0,	"Womb Music"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Voice Performers"										) );
-	creditList.Append( creditInfo_t( 0,	"Paul Eiding"											) );
-	creditList.Append( creditInfo_t( 0,	"Jim Cummings"											) );
-	creditList.Append( creditInfo_t( 0,	"Liam O'Brien"											) );
-	creditList.Append( creditInfo_t( 0,	"Nicholas Guest"										) );
-	creditList.Append( creditInfo_t( 0,	"Vanessa Marshall"										) );
-	creditList.Append( creditInfo_t( 0,	"Neill Ross"											) );
-	creditList.Append( creditInfo_t( 0,	"Phillip Clarke"										) );
-	creditList.Append( creditInfo_t( 0,	"Andy Chanley"											) );
-	creditList.Append( creditInfo_t( 0,	"Charles Dennis"										) );
-	creditList.Append( creditInfo_t( 0,	"Grey Delisle"											) );
-	creditList.Append( creditInfo_t( 0,	"Jennifer Hale"											) );
-	creditList.Append( creditInfo_t( 0,	"Grant Albrecht"										) );
-	creditList.Append( creditInfo_t( 0,	"Dee Baker"												) );
-	creditList.Append( creditInfo_t( 0,	"Michael Bell"											) );
-	creditList.Append( creditInfo_t( 0,	"Steve Blum"											) );
-	creditList.Append( creditInfo_t( 0,	"S. Scott Bullock"										) );
-	creditList.Append( creditInfo_t( 0,	"Cam Clarke"											) );
-	creditList.Append( creditInfo_t( 0,	"Robin Atkin Downes"									) );
-	creditList.Append( creditInfo_t( 0,	"Keith Ferguson"										) );
-	creditList.Append( creditInfo_t( 0,	"Jay Gordon"											) );
-	creditList.Append( creditInfo_t( 0,	"Michael Gough"											) );
-	creditList.Append( creditInfo_t( 0,	"Bill Harper"											) );
-	creditList.Append( creditInfo_t( 0,	"Nick Jameson"											) );
-	creditList.Append( creditInfo_t( 0,	"David Kaye"											) );
-	creditList.Append( creditInfo_t( 0,	"Phil La Marr"											) );
-	creditList.Append( creditInfo_t( 0,	"Scott Menville"										) );
-	creditList.Append( creditInfo_t( 0,	"Jim Meskimen"											) );
-	creditList.Append( creditInfo_t( 0,	"Matt Morton"											) );
-	creditList.Append( creditInfo_t( 0,	"Daran Norris"											) );
-	creditList.Append( creditInfo_t( 0,	"Rob Paulsen"											) );
-	creditList.Append( creditInfo_t( 0,	"Phil Proctor"											) );
-	creditList.Append( creditInfo_t( 0,	"Rino Romoano"											) );
-	creditList.Append( creditInfo_t( 0,	"Andre Sogliuzzo"										) );
-	creditList.Append( creditInfo_t( 0,	"Jim Ward"												) );
-	creditList.Append( creditInfo_t( 0,	"Wally Wingert"											) );
-	creditList.Append( creditInfo_t( 0,	"Edward Yin"											) );
-	creditList.Append( creditInfo_t( 0,	"Keone Young"											) );
-	creditList.Append( creditInfo_t( 0,	"Ryun Yu"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Additional User Interface"								) );
-	creditList.Append( creditInfo_t( 0,	"Double-Action Design"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Motion Capture Services"								) );
-	creditList.Append( creditInfo_t( 0,	"Janimation"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"UAC Promotional Videos"								) );	
-	creditList.Append( creditInfo_t( 0,	"Six Foot Studios"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Additional Multiplayer Design"							) );
-	creditList.Append( creditInfo_t( 0,	"Splash Damage, Ltd."									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Additional Programming"								) );
-	creditList.Append( creditInfo_t( 0,	"Graeme Devine"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Localization Services"									) );
-	creditList.Append( creditInfo_t( 0,	"Synthesis"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 3,	"BETHESDA SOFTWORKS"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Senior Producer"										) );
-	creditList.Append( creditInfo_t( 0,	"Laffy Taylor"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sr. Producer, Submissions"								) );
-	creditList.Append( creditInfo_t( 0,	"Timothy Beggs"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"VP, Product Development"								) );
-	creditList.Append( creditInfo_t( 0,	"Todd Vaughn"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"External Technical Director"							) );
-	creditList.Append( creditInfo_t( 0,	"Jonathan Williams"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"President"												) );
-	creditList.Append( creditInfo_t( 0,	"Vlatko Andonov"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"VP, Public Relations and Marketing"					) );
-	creditList.Append( creditInfo_t( 0,	"Pete Hines"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Director of Global Marketing"							) );
-	creditList.Append( creditInfo_t( 0,	"Steve Perkins"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Director of Global PR"									) );
-	creditList.Append( creditInfo_t( 0,	"Tracey Thompson"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Senior Brand Manager"									) );
-	creditList.Append( creditInfo_t( 0,	"Rakhi Gupta"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Associate Brand Manager"								) );
-	creditList.Append( creditInfo_t( 0,	"David Clayman"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Event and Trade Show Director"							) );
-	creditList.Append( creditInfo_t( 0,	"Henry Mobley"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Senior Community Manager"								) );
-	creditList.Append( creditInfo_t( 0,	"Matthew Grandstaff"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Community Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Nick Breckon"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Senior PR Coordinator"									) );
-	creditList.Append( creditInfo_t( 0,	"Angela Ramsey-Chapman"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Marketing Assistant"									) );
-	creditList.Append( creditInfo_t( 0,	"Jenny McWhorter"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Video Production"										) );
-	creditList.Append( creditInfo_t( 0,	"Matt Killmon"											) );
-	creditList.Append( creditInfo_t( 0,	"Sal Goldenburg"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Graphic Design"										) );
-	creditList.Append( creditInfo_t( 0,	"Michael Wagner"										) );
-	creditList.Append( creditInfo_t( 0,	"Lindsay Westcott"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"VP, Sales"												) );
-	creditList.Append( creditInfo_t( 0,	"Ron Seger"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Operations Director"									) );
-	creditList.Append( creditInfo_t( 0,	"Todd Curtis"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales and Operations Manager"							) );
-	creditList.Append( creditInfo_t( 0,	"Jill Bralove"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales Account Manager"									) );
-	creditList.Append( creditInfo_t( 0,	"Michelle Ferrara"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Regional Sales Manager"								) );
-	creditList.Append( creditInfo_t( 0,	"Michael Donnellan"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Channel Marketing Manager"								) );
-	creditList.Append( creditInfo_t( 0,	"Michelle Burgess"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales Assistants"										) );
-	creditList.Append( creditInfo_t( 0,	"Sara Simpson"											) );
-	creditList.Append( creditInfo_t( 0,	"Jason Snead"											) );
-	creditList.Append( creditInfo_t( 0,	"Jessica Williams"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Operations Assistant"									) );
-	creditList.Append( creditInfo_t( 0,	"Scott Mills"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Director of Quality Assurance"							) );
-	creditList.Append( creditInfo_t( 0,	"Darren Manes"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Quality Assurance Manager"								) );
-	creditList.Append( creditInfo_t( 0,	"Rob Gray"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Quality Assurance Leads"								) );
-	creditList.Append( creditInfo_t( 0,	"Terry Dunn"											) );
-	creditList.Append( creditInfo_t( 0,	"Matt Weil"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Quality Assurance"										) );
-	creditList.Append( creditInfo_t( 0,	"Dan Silva"												) );
-	creditList.Append( creditInfo_t( 0,	"Alan Webb"												) );
-	creditList.Append( creditInfo_t( 0,	"Cory Andrews"											) );
-	creditList.Append( creditInfo_t( 0,	"George Churchill"										) );
-	creditList.Append( creditInfo_t( 0,	"Jonathan DeVriendt"									) );
-	creditList.Append( creditInfo_t( 0,	"Spencer Gottlieb"										) );
-	creditList.Append( creditInfo_t( 0,	"Gary Powell"											) );
-	creditList.Append( creditInfo_t( 0,	"Samuel Papke"											) );
-	creditList.Append( creditInfo_t( 0,	"Amanda Sheehan"										) );
-	creditList.Append( creditInfo_t( 0,	"Philip Spangrud"										) );
-	creditList.Append( creditInfo_t( 0,	"Larry Waldman"											) );
-	creditList.Append( creditInfo_t( 0,	"Donald Anderson"										) );
-	creditList.Append( creditInfo_t( 0,	"James Audet"											) );
-	creditList.Append( creditInfo_t( 0,	"Hunter Calvert"										) );
-	creditList.Append( creditInfo_t( 0,	"Max Cameron"											) );
-	creditList.Append( creditInfo_t( 0,	"Donald Harris"											) );
-	creditList.Append( creditInfo_t( 0,	"Peter Garcia"											) );
-	creditList.Append( creditInfo_t( 0,	"Joseph Lopatta"										) );
-	creditList.Append( creditInfo_t( 0,	"Scott LoPresti"										) );
-	creditList.Append( creditInfo_t( 0,	"Collin Mackett"										) );
-	creditList.Append( creditInfo_t( 0,	"Gerard Nagy"											) );
-	creditList.Append( creditInfo_t( 0,	"William Pegus"											) );
-	creditList.Append( creditInfo_t( 0,	"Angela Rupinen"										) );
-	creditList.Append( creditInfo_t( 0,	"Gabriel Scaringello"									) );
-	creditList.Append( creditInfo_t( 0,	"Drew Slotkin"											) );
-	creditList.Append( creditInfo_t( 0,	"Kyle Wallace"											) );
-	creditList.Append( creditInfo_t( 0,	"Patrick Walsh"											) );
-	creditList.Append( creditInfo_t( 0,	"John Welkner"											) );
-	creditList.Append( creditInfo_t( 0,	"Jason Wilkin"											) );
-	creditList.Append( creditInfo_t( 0,	"John Benoit"											) );
-	creditList.Append( creditInfo_t( 0,	"Jacob Clayman"											) );
-	creditList.Append( creditInfo_t( 0,	"Colin McInerney"										) );	
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Additional QA"											) );
-	creditList.Append( creditInfo_t( 0,	"James Costantino"										) );
-	creditList.Append( creditInfo_t( 0,	"Chris Krietz"											) );
-	creditList.Append( creditInfo_t( 0,	"Joseph Mueller"										) );
-	creditList.Append( creditInfo_t( 0,	"Andrew Scharf"											) );
-	creditList.Append( creditInfo_t( 0,	"Jen Tonon"												) );
-	creditList.Append( creditInfo_t( 0,	"Justin McSweeney"										) );
-	creditList.Append( creditInfo_t( 0,	"Sean Palomino"											) );
-	creditList.Append( creditInfo_t( 0,	"Erica Stead"											) );
-	creditList.Append( creditInfo_t( 0,	"Wil Cookman"											) );
-	creditList.Append( creditInfo_t( 0,	"Garrett Hohl"											) );
-	creditList.Append( creditInfo_t( 0,	"Tim Hartgrave"											) );
-	creditList.Append( creditInfo_t( 0,	"Heath Hollenshead"										) );
-	creditList.Append( creditInfo_t( 0,	"Brandon Korbel"										) );
-	creditList.Append( creditInfo_t( 0,	"Daniel Korecki"										) );
-	creditList.Append( creditInfo_t( 0,	"Max Morrison"											) );
-	creditList.Append( creditInfo_t( 0,	"Doug Ransley"											) );
-	creditList.Append( creditInfo_t( 0,	"Mauricio Rivera"										) );
-	creditList.Append( creditInfo_t( 0,	"Aaron Walsh"											) );
-	creditList.Append( creditInfo_t( 0,	"Daniel Wathen"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Special Thanks"										) );
-	creditList.Append( creditInfo_t( 0,	"Jason Bergman"											) );
-	creditList.Append( creditInfo_t( 0,	"Darren Chukitus"										) );
-	creditList.Append( creditInfo_t( 0,	"Matt Dickenson"										) );
-	creditList.Append( creditInfo_t( 0,	"Will Noble"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 3,	"ZENIMAX MEDIA"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Chairman & CEO"										) );
-	creditList.Append( creditInfo_t( 0,	"Robert Altman"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"President"												) );
-	creditList.Append( creditInfo_t( 0,	"Ernie Del"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"EVP & COO"												) );
-	creditList.Append( creditInfo_t( 0,	"Jamie Leder"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"EVP & CFO"												) );
-	creditList.Append( creditInfo_t( 0,	"Cindy Tallent"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"EVP Legal & Secretary"									) );
-	creditList.Append( creditInfo_t( 0,	"Grif Lesher"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"SVP Finance & Controller"								) );
-	creditList.Append( creditInfo_t( 0,	"Denise Kidd"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Legal Lead"											) );
-	creditList.Append( creditInfo_t( 0,	"Joshua Gillespie"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Legal"													) );
-	creditList.Append( creditInfo_t( 0,	"Diana Bender"											) );
-	creditList.Append( creditInfo_t( 0,	"Adam Carter"											) );
-	creditList.Append( creditInfo_t( 0,	"Candice Garner-Groves"									) );
-	creditList.Append( creditInfo_t( 0,	"Marcia Mitnick"										) );
-	creditList.Append( creditInfo_t( 0,	"Amy Yeung"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"VP, Information Technology"							) );
-	creditList.Append( creditInfo_t( 0,	"Steve Bloom"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Information Technology"								) );
-	creditList.Append( creditInfo_t( 0,	"Rob Havlovick"											) );
-	creditList.Append( creditInfo_t( 0,	"Nicholas Lea"											) );
-	creditList.Append( creditInfo_t( 0,	"Drew McCartney"										) );
-	creditList.Append( creditInfo_t( 0,	"Josh Mosby"											) );
-	creditList.Append( creditInfo_t( 0,	"Joseph Owens"											) );
-	creditList.Append( creditInfo_t( 0,	"Paul Tuttle"											) );
-	creditList.Append( creditInfo_t( 0,	"Keelian Wardle"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Director of Global HR"									) );
-	creditList.Append( creditInfo_t( 0,	"Tammy Boyd-Shumway"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Human Resources"										) );
-	creditList.Append( creditInfo_t( 0,	"Michelle Cool"											) );
-	creditList.Append( creditInfo_t( 0,	"Andrea Glinski"										) );
-	creditList.Append( creditInfo_t( 0,	"Katrina Lang"											) );
-	creditList.Append( creditInfo_t( 0,	"Valery Ridore"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Administration"										) );
-	creditList.Append( creditInfo_t( 0,	"Melissa Ayala"											) );
-	creditList.Append( creditInfo_t( 0,	"Brittany Bezawada-Joseph"								) );
-	creditList.Append( creditInfo_t( 0,	"Rosanna Campanile  "									) );
-	creditList.Append( creditInfo_t( 0,	"Katherine Edwards"										) );
-	creditList.Append( creditInfo_t( 0,	"Douglas Fredrick    "									) );
-	creditList.Append( creditInfo_t( 0,	"Jon Freund"											) );
-	creditList.Append( creditInfo_t( 0,	"Ken Garcia "											) );
-	creditList.Append( creditInfo_t( 0,	"Gerard Garnica"										) );
-	creditList.Append( creditInfo_t( 0,	"Betty Kouatelay"										) );
-	creditList.Append( creditInfo_t( 0,	"Ho Joong Lee"											) );
-	creditList.Append( creditInfo_t( 0,	"Barb Manning"											) );
-	creditList.Append( creditInfo_t( 0,	"Stephane Marquis"										) );
-	creditList.Append( creditInfo_t( 0,	"Michael Masciola"										) );
-	creditList.Append( creditInfo_t( 0,	"Tanuja Mistry"											) );
-	creditList.Append( creditInfo_t( 0,	"Rissa Monzano"											) );
-	creditList.Append( creditInfo_t( 0,	"Patrick Nolan "										) );
-	creditList.Append( creditInfo_t( 0,	"Patti Pulupa"											) );
-	creditList.Append( creditInfo_t( 0,	"Dave Rasmussen "										) );
-	creditList.Append( creditInfo_t( 0,	"Heather Spurrier"										) );
-	creditList.Append( creditInfo_t( 0,	"Claudia Umana"											) );
-	creditList.Append( creditInfo_t( 0,	"Melissa Washabaugh"									) );
-	creditList.Append( creditInfo_t( 0,	"Eric Weis"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Administrative Assistants"								) );
-	creditList.Append( creditInfo_t( 0,	"Bernice Guice"											) );
-	creditList.Append( creditInfo_t( 0,	"Paula Kasey"											) );
-	creditList.Append( creditInfo_t( 0,	"Shana Reed"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Executive Chef"										) );
-	creditList.Append( creditInfo_t( 0,	"Kenny McDonald"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 3,	"ZENIMAX EUROPE"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"European Managing Director"							) );
-	creditList.Append( creditInfo_t( 0,	"Sean Brennan"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"European Marketing & PR Director"						) );
-	creditList.Append( creditInfo_t( 0,	"Sarah Seaby"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"European Sales Director"								) );
-	creditList.Append( creditInfo_t( 0,	"Paul Oughton"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales Director"										) );
-	creditList.Append( creditInfo_t( 0,	"Greg Baverstock"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Finance Director"										) );
-	creditList.Append( creditInfo_t( 0,	"Robert Ford"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"European Brand Marketing Manager"						) );
-	creditList.Append( creditInfo_t( 0,	"Thach Quach"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"European Brand Marketing Manager"						) );
-	creditList.Append( creditInfo_t( 0,	"Alex Price"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"European PR Manager"									) );
-	creditList.Append( creditInfo_t( 0,	"Alistair Hatch"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"European Assistant PR Manager"							) );
-	creditList.Append( creditInfo_t( 0,	"Nicholas Heller"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"International Marketing Manager"						) );
-	creditList.Append( creditInfo_t( 0,	"Rosemarie Dalton"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Manager Trade Shows/Events"							) );
-	creditList.Append( creditInfo_t( 0,	"Gareth Swann"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"UK Marketing Manager"									) );
-	creditList.Append( creditInfo_t( 0,	"Gregory Weller"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"UK Sales Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Gethyn Deakins"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Creative Services Artist"								) );
-	creditList.Append( creditInfo_t( 0,	"Morgan Gibbons"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Legal Counsel"											) );
-	creditList.Append( creditInfo_t( 0,	"Adam Carter"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Localisation Director"									) );
-	creditList.Append( creditInfo_t( 0,	"Harald Simon"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Localisation Project Manager"							) );
-	creditList.Append( creditInfo_t( 0,	"Ruth Granados Garcia"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales Administrator"									) );
-	creditList.Append( creditInfo_t( 0,	"Heather Clarke"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Operations Manager"									) );
-	creditList.Append( creditInfo_t( 0,	"Isabelle Midrouillet"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Operations Coordinator"								) );
-	creditList.Append( creditInfo_t( 0,	"David Gordon"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Financial Controller"									) );
-	creditList.Append( creditInfo_t( 0,	"Paul New"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Accounts Assistant"									) );
-	creditList.Append( creditInfo_t( 0,	"Charlotte Ovens"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Contracts Administrator/Paralegal"						) );
-	creditList.Append( creditInfo_t( 0,	"Katie Brooks"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"IT Manager"											) );
-	creditList.Append( creditInfo_t( 0,	"Joseph Owens"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Office Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Angela Clement"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 3,	"ZENIMAX FRANCE"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"General Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Julie Chalmette"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales Manager"											) );
-	creditList.Append( creditInfo_t( 0,	"Yvan Rault"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Key Account Manager"									) );
-	creditList.Append( creditInfo_t( 0,	"Gaelle Gombert"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Trade Marketing Manager"								) );
-	creditList.Append( creditInfo_t( 0,	"Laurent Chatain"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Marketing Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Geraldine Mazot"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"PR Manager"											) );
-	creditList.Append( creditInfo_t( 0,	"Jerome Firon"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Finance Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Cecile De Freitas"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Finance Assistant"										) );
-	creditList.Append( creditInfo_t( 0,	"Adeline Nonis"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 3,	"ZENIMAX GERMANY"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Managing Director"										) );
-	creditList.Append( creditInfo_t( 0,	"Frank Matzke"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales Director"										) );
-	creditList.Append( creditInfo_t( 0,	"Thomas Huber"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Head of Marketing & PR"								) );
-	creditList.Append( creditInfo_t( 0,	"Marcel Jung"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Product Marketing Manager"								) );
-	creditList.Append( creditInfo_t( 0,	"Stefan Dettmering"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"PR Manager"											) );
-	creditList.Append( creditInfo_t( 0,	"Peter Langhofer"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Trade Marketing Manager"								) );
-	creditList.Append( creditInfo_t( 0,	"Andrea Reuth"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Key Account Manager"									) );
-	creditList.Append( creditInfo_t( 0,	"Juergen Pahl"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Finance Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Joern Hoehling"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales and Office Administrator"						) );
-	creditList.Append( creditInfo_t( 0,	"Christiane Jauss"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 3,	"ZENIMAX BENELUX"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"General Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Menno Eijck"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales Manager"											) );
-	creditList.Append( creditInfo_t( 0,	"Stefan Koppers"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Marketing Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Jurgen Stirnweis"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"PR Manager"											) );
-	creditList.Append( creditInfo_t( 0,	"Maikel van Dijk"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales and Marketing Administrator"						) );
-	creditList.Append( creditInfo_t( 0,	"Pam van Griethuysen"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 3,	"ZENIMAX ASIA"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"General Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Tetsu Takahashi"										) );
-	creditList.Append( creditInfo_t());
-	creditList.Append( creditInfo_t( 1,	"Localization Producer "								) );
-	creditList.Append( creditInfo_t( 0,	"Kei Iwamoto"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Associate Producer "									) );
-	creditList.Append( creditInfo_t( 0,	"Takayuki Tanaka"										) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Product Manager "										) );
-	creditList.Append( creditInfo_t( 0,	"Seigen Ko"												) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Localization Programmer"								) );
-	creditList.Append( creditInfo_t( 0,	"Masayuki Nagahashi"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Marketing and PR Manager "								) );
-	creditList.Append( creditInfo_t( 0,	"Eiichi Yaji"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Sales Manager"											) );
-	creditList.Append( creditInfo_t( 0,	"Hiroaki Yanagiguchi"									) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Office Manager"										) );
-	creditList.Append( creditInfo_t( 0,	"Myongsuk Rim"											) );
-	creditList.Append( creditInfo_t() );
-	creditList.Append( creditInfo_t( 1,	"Web Director"											) );
-	creditList.Append( creditInfo_t( 0,	"Tanaka Keisuke"										) );
-	creditList.Append( creditInfo_t( 0,	"Kosuke Fujita"											) );		 
+	for ( int i = 0; i < sizeof( creditEntries ) / sizeof( creditEntries[0] ); i++ ) {
+		creditList.Append( creditInfo_t( creditEntries[i].type, creditEntries[i].entry ) );
+	}
 };
 
 /*

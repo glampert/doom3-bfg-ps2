@@ -231,9 +231,11 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 
 	// Do this to touch any external references (like sounds)
 	// But disable script warnings because many globals won't have been created yet
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	extern idCVar swf_debug;
 	int debug = swf_debug.GetInteger();
 	swf_debug.SetInteger( 0 );
+#endif
 
 	// [PS2_D3BFG]: Resource-only snapshots do not instantiate placements or execute their AVM1.
 #if defined( ID_PS2 )
@@ -247,7 +249,9 @@ idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_ ) {
 	}
 #endif
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	swf_debug.SetInteger( debug );
+#endif
 
 	if ( mouseX == -1 ) {
 		mouseX = ( frameWidth / 2 );

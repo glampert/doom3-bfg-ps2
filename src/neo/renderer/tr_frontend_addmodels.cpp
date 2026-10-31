@@ -32,14 +32,14 @@ If you have questions concerning this license or the applicable additional terms
 #include "tr_local.h"
 #include "Model_local.h"
 
-idCVar r_skipStaticShadows( "r_skipStaticShadows", "0", CVAR_RENDERER | CVAR_BOOL, "skip static shadows" );
-idCVar r_skipDynamicShadows( "r_skipDynamicShadows", "0", CVAR_RENDERER | CVAR_BOOL, "skip dynamic shadows" );
+DEV_CVAR( idCVar r_skipStaticShadows( "r_skipStaticShadows", "0", CVAR_RENDERER | CVAR_BOOL, "skip static shadows" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar r_skipDynamicShadows( "r_skipDynamicShadows", "0", CVAR_RENDERER | CVAR_BOOL, "skip dynamic shadows" ) );	// [PS2_D3BFG]
 idCVar r_useParallelAddModels( "r_useParallelAddModels", "1", CVAR_RENDERER | CVAR_BOOL, "add all models in parallel with jobs" );
 idCVar r_useParallelAddShadows( "r_useParallelAddShadows", "1", CVAR_RENDERER | CVAR_INTEGER, "0 = off, 1 = threaded", 0, 1 );
 idCVar r_useShadowPreciseInsideTest( "r_useShadowPreciseInsideTest", "1", CVAR_RENDERER | CVAR_BOOL, "use a precise and more expensive test to determine whether the view is inside a shadow volume" );
 idCVar r_cullDynamicShadowTriangles( "r_cullDynamicShadowTriangles", "1", CVAR_RENDERER | CVAR_BOOL, "cull occluder triangles that are outside the light frustum so they do not contribute to the dynamic shadow volume" );
 idCVar r_cullDynamicLightTriangles( "r_cullDynamicLightTriangles", "1", CVAR_RENDERER | CVAR_BOOL, "cull surface triangles that are outside the light frustum so they do not get rendered for interactions" );
-idCVar r_forceShadowCaps( "r_forceShadowCaps", "0", CVAR_RENDERER | CVAR_BOOL, "0 = skip rendering shadow caps if view is outside shadow volume, 1 = always render shadow caps" );
+DEV_CVAR( idCVar r_forceShadowCaps( "r_forceShadowCaps", "0", CVAR_RENDERER | CVAR_BOOL, "0 = skip rendering shadow caps if view is outside shadow volume, 1 = always render shadow caps" ) );	// [PS2_D3BFG]
 
 static const float CHECK_BOUNDS_EPSILON = 1.0f;
 
@@ -122,8 +122,10 @@ R_IssueEntityDefCallback
 ==================
 */
 bool R_IssueEntityDefCallback( idRenderEntityLocal *def ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idBounds oldBounds = def->localReferenceBounds;
 
+#endif
 	def->archived = false;		// will need to be written to the demo file
 
 	bool update;
@@ -138,6 +140,7 @@ bool R_IssueEntityDefCallback( idRenderEntityLocal *def ) {
 		common->Error( "R_IssueEntityDefCallback: dynamic entity callback didn't set model" );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_checkBounds.GetBool() ) {
 		if (	oldBounds[0][0] > def->localReferenceBounds[0][0] + CHECK_BOUNDS_EPSILON ||
 				oldBounds[0][1] > def->localReferenceBounds[0][1] + CHECK_BOUNDS_EPSILON ||
@@ -148,6 +151,8 @@ bool R_IssueEntityDefCallback( idRenderEntityLocal *def ) {
 			common->Printf( "entity %i callback extended reference bounds\n", def->index );
 		}
 	}
+
+#endif
 
 	return update;
 }
@@ -203,6 +208,7 @@ idRenderModel *R_EntityDefDynamicModel( idRenderEntityLocal *def ) {
 		// instantiate the snapshot of the dynamic model, possibly reusing memory from the cached snapshot
 		def->cachedDynamicModel = model->InstantiateDynamicModel( &def->parms, tr.viewDef, def->cachedDynamicModel );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( def->cachedDynamicModel != NULL && r_checkBounds.GetBool() ) {
 			idBounds b = def->cachedDynamicModel->Bounds();
 			if (	b[0][0] < def->localReferenceBounds[0][0] - CHECK_BOUNDS_EPSILON ||
@@ -214,6 +220,8 @@ idRenderModel *R_EntityDefDynamicModel( idRenderEntityLocal *def ) {
 				common->Printf( "entity %i dynamic model exceeded reference bounds\n", def->index );
 			}
 		}
+
+#endif
 
 		def->dynamicModel = def->cachedDynamicModel;
 		def->dynamicModelFrameCount = tr.frameCount;
@@ -443,7 +451,11 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 	if ( modelIsVisible ) {
 		assert( !vEntity->scissorRect.IsEmpty() );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( entityDef->decals != NULL && !r_skipDecals.GetBool() ) {
+#else
+		if ( entityDef->decals != NULL ) {
+#endif
 			entityDef->decals->CreateDeferredDecals( model );
 
 			unsigned int numDrawSurfs = entityDef->decals->GetNumDecalDrawSurfs();
@@ -457,7 +469,11 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 			}
 		}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( entityDef->overlays != NULL && !r_skipOverlays.GetBool() ) {
+#else
+		if ( entityDef->overlays != NULL ) {
+#endif
 			entityDef->overlays->CreateDeferredOverlays( model );
 
 			unsigned int numDrawSurfs = entityDef->overlays->GetNumOverlayDrawSurfs();
@@ -504,11 +520,13 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 	for ( int surfaceNum = 0; surfaceNum < model->NumSurfaces(); surfaceNum++ ) {
 		const modelSurface_t *surf = model->Surface( surfaceNum );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		// for debugging, only show a single surface at a time
 		if ( r_singleSurface.GetInteger() >= 0 && surfaceNum != r_singleSurface.GetInteger() ) {
 			continue;
 		}
 
+#endif
 		srfTriangles_t * tri = surf->geometry;
 		if ( tri == NULL ) {
 			continue;
@@ -549,6 +567,7 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 
 		SCOPED_PROFILE_EVENT( shader->GetName() );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		// debugging tool to make sure we have the correct pre-calculated bounds
 		if ( r_checkBounds.GetBool() ) {
 			for ( int j = 0; j < tri->numVerts; j++ ) {
@@ -570,6 +589,7 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 				}
 			}
 		}
+#endif
 
 		// view frustum culling for the precise surface bounds, which is tighter
 		// than the entire entity reference bounds
@@ -810,7 +830,11 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 			}
 
 			if ( lightDef->parms.prelightModel && lightDef->lightHasMoved == false &&
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 					entityDef->parms.hModel->IsStaticWorldModel() && !r_skipPrelightShadows.GetBool() ) {
+#else
+					entityDef->parms.hModel->IsStaticWorldModel() ) {
+#endif
 				// static light / world model shadow interacitons
 				// are always captured in the prelight shadow volume
 				continue;
@@ -819,7 +843,11 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 			// If the shadow is drawn (or translucent), but the model isn't, we must include the shadow caps
 			// because we may be able to see into the shadow volume even though the view is outside it.
 			// This happens for the player world weapon and possibly some animations in multiplayer.
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			const bool forceShadowCaps = !addInteractions || r_forceShadowCaps.GetBool();
+#else
+			const bool forceShadowCaps = !addInteractions;
+#endif
 
 			drawSurf_t * shadowDrawSurf = (drawSurf_t *)R_FrameAlloc( sizeof( *shadowDrawSurf ), FRAME_ALLOC_DRAW_SURFACE );
 
@@ -830,7 +858,11 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 				shadowDrawSurf->scissorRect = vLight->scissorRect;		// default to the light scissor and light depth bounds
 				shadowDrawSurf->shadowVolumeState = SHADOWVOLUME_DONE;	// assume the shadow volume is done in case r_skipStaticShadows is set
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				if ( !r_skipStaticShadows.GetBool() ) {
+#else
+				{
+#endif
 					staticShadowVolumeParms_t * staticShadowParms = (staticShadowVolumeParms_t *)R_FrameAlloc( sizeof( staticShadowParms[0] ), FRAME_ALLOC_SHADOW_VOLUME_PARMS );
 
 					staticShadowParms->verts = tri->staticShadowVertexes;
@@ -883,7 +915,11 @@ void R_AddSingleModel( viewEntity_t * vEntity ) {
 				shadowDrawSurf->shadowVolumeState = SHADOWVOLUME_DONE;	// assume the shadow volume is done in case the index cache allocation failed
 
 				// if the index cache was successfully allocated then setup the parms to create a shadow volume in parallel
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				if ( vertexCache.CacheIsCurrent( shadowDrawSurf->indexCache ) && !r_skipDynamicShadows.GetBool() ) {
+#else
+				if ( vertexCache.CacheIsCurrent( shadowDrawSurf->indexCache ) ) {
+#endif
 
 					// if the parms were not already allocated for culling interaction triangles to the light frustum
 					if ( dynamicShadowParms == NULL ) {

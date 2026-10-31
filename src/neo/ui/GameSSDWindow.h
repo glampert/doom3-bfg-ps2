@@ -28,6 +28,14 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __GAME_SSD_WINDOW_H__
 #define __GAME_SSD_WINDOW_H__
 
+// [PS2_D3BFG]: The PS2 allocates the SSD object pools (56 KB) only while an SSD window
+// exists, instead of keeping them in BSS for the whole run.
+#if defined( ID_PS2 )
+	#define SSD_DECLARE_POOL( type, pool, count )	friend class idGameSSDWindow; static type * pool
+#else
+	#define SSD_DECLARE_POOL( type, pool, count )	static type pool[count]
+#endif
+
 class idGameSSDWindow;
 
 class SSDCrossHair {
@@ -187,7 +195,7 @@ public:
 
 	
 protected:
-	static SSDAsteroid	asteroidPool[MAX_ASTEROIDS];
+	SSD_DECLARE_POOL( SSDAsteroid, asteroidPool, MAX_ASTEROIDS );	// [PS2_D3BFG]
 	
 };
 
@@ -219,7 +227,7 @@ public:
 	static void				ReadAstronauts(idFile* savefile, idGameSSDWindow* _game);
 
 protected:
-	static SSDAstronaut	astronautPool[MAX_ASTRONAUT];
+	SSD_DECLARE_POOL( SSDAstronaut, astronautPool, MAX_ASTRONAUT );	// [PS2_D3BFG]
 
 };
 
@@ -265,7 +273,7 @@ public:
 	static void				ReadExplosions(idFile* savefile, idGameSSDWindow* _game);
 
 protected:
-	static SSDExplosion	explosionPool[MAX_EXPLOSIONS];
+	SSD_DECLARE_POOL( SSDExplosion, explosionPool, MAX_EXPLOSIONS );	// [PS2_D3BFG]
 };
 
 #define MAX_POINTS 16
@@ -300,7 +308,7 @@ public:
 	static void			ReadPoints(idFile* savefile, idGameSSDWindow* _game);
 
 protected:
-	static SSDPoints	pointsPool[MAX_POINTS];
+	SSD_DECLARE_POOL( SSDPoints, pointsPool, MAX_POINTS );	// [PS2_D3BFG]
 };
 
 #define MAX_PROJECTILES 64
@@ -330,7 +338,7 @@ public:
 	static void				ReadProjectiles(idFile* savefile, idGameSSDWindow* _game);
 
 protected:
-	static SSDProjectile	projectilePool[MAX_PROJECTILES];
+	SSD_DECLARE_POOL( SSDProjectile, projectilePool, MAX_PROJECTILES );	// [PS2_D3BFG]
 };
 
 
@@ -395,7 +403,7 @@ public:
 	static void			ReadPowerups(idFile* savefile, idGameSSDWindow* _game);
 
 protected:
-	static SSDPowerup	powerupPool[MAX_POWERUPS];
+	SSD_DECLARE_POOL( SSDPowerup, powerupPool, MAX_POWERUPS );	// [PS2_D3BFG]
 
 };
 
@@ -513,6 +521,12 @@ public:
 	int					ssdTime;
 	
 private:
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Allocate the shared object pools for the first window, free them after the last.
+	static void			AllocatePools();
+	static void			FreePools();
+#endif
+
 	
 	//Initialization
 	virtual bool		ParseInternalVar(const char *name, idTokenParser *src);

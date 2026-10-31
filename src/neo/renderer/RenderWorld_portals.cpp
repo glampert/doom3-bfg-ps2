@@ -204,16 +204,22 @@ void idRenderWorldLocal::AddAreaViewEntities( int areaNum, const portalStack_t *
 	for ( areaReference_t * ref = area->entityRefs.areaNext; ref != &area->entityRefs; ref = ref->areaNext ) {
 		idRenderEntityLocal	* entity = ref->entity;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		// debug tool to allow viewing of only one entity at a time
 		if ( r_singleEntity.GetInteger() >= 0 && r_singleEntity.GetInteger() != entity->index ) {
 			continue;
 		}
 
+#endif
 		// remove decals that are completely faded away
 		R_FreeEntityDefFadedDecals( entity, tr.viewDef->renderView.time[0] );
 
 		// check for completely suppressing the model
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( !r_skipSuppress.GetBool() ) {
+#else
+		{
+#endif
 			if ( entity->parms.suppressSurfaceInViewID
 					&& entity->parms.suppressSurfaceInViewID == tr.viewDef->renderView.viewID ) {
 				continue;
@@ -324,11 +330,13 @@ void idRenderWorldLocal::AddAreaViewLights( int areaNum, const portalStack_t *ps
 	for ( areaReference_t * lref = area->lightRefs.areaNext; lref != &area->lightRefs; lref = lref->areaNext ) {
 		idRenderLightLocal * light = lref->light;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		// debug tool to allow viewing of only one light at a time
 		if ( r_singleLight.GetInteger() >= 0 && r_singleLight.GetInteger() != light->index ) {
 			continue;
 		}
 
+#endif
 		// check for being closed off behind a door
 		// a light that doesn't cast shadows will still light even if it is behind a door
 		if ( r_useLightAreaCulling.GetBool() && !light->LightCastsShadows()
@@ -688,6 +696,7 @@ void idRenderWorldLocal::FindViewLightsAndEntities() {
 	BuildConnectedAreas();
 
 	// flow through all the portals and add models / lights
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_singleArea.GetBool() ) {
 		// if debugging, only mark this area
 		// if we are outside the world, don't draw anything
@@ -713,6 +722,12 @@ void idRenderWorldLocal::FindViewLightsAndEntities() {
 		// may have the viewOrigin in a solid/invalid area
 		FlowViewThroughPortals( tr.viewDef->renderView.vieworg, 5, tr.viewDef->frustum );
 	}
+#else
+	// note that the center of projection for flowing through portals may
+	// be a different point than initialViewAreaOrigin for subviews that
+	// may have the viewOrigin in a solid/invalid area
+	FlowViewThroughPortals( tr.viewDef->renderView.vieworg, 5, tr.viewDef->frustum );
+#endif
 }
 
 /*

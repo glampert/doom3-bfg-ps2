@@ -126,9 +126,9 @@ typedef enum {
 extern idCVar		com_version;
 extern idCVar		com_developer;
 extern idCVar		com_allowConsole;
-extern idCVar		com_speeds;
+DEV_CVAR( extern idCVar		com_speeds );	// [PS2_D3BFG]
 extern idCVar		com_showFPS;
-extern idCVar		com_showMemoryUsage;
+DEV_CVAR( extern idCVar		com_showMemoryUsage );	// [PS2_D3BFG]
 extern idCVar		com_updateLoadSize;
 extern idCVar		com_productionMode;
 

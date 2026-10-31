@@ -84,11 +84,13 @@ idRenderModel *idRenderModelPrt::InstantiateDynamicModel( const struct renderEnt
 		return NULL;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_skipParticles.GetBool() ) {
 		delete cachedModel;
 		return NULL;
 	}
 
+#endif
 	/*
 	// if the entire system has faded out
 	if ( renderEntity->shaderParms[SHADERPARM_PARTICLE_STOPTIME] && viewDef->renderView.time * 0.001f >= renderEntity->shaderParms[SHADERPARM_PARTICLE_STOPTIME] ) {

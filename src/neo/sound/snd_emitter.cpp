@@ -31,8 +31,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "snd_local.h"
 
-idCVar s_singleEmitter( "s_singleEmitter", "0", CVAR_INTEGER, "mute all sounds but this emitter" );
-idCVar s_showStartSound( "s_showStartSound", "0", CVAR_BOOL, "print a message every time a sound starts/stops" );
+DEV_CVAR( idCVar s_singleEmitter( "s_singleEmitter", "0", CVAR_INTEGER, "mute all sounds but this emitter" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar s_showStartSound( "s_showStartSound", "0", CVAR_BOOL, "print a message every time a sound starts/stops" ) );	// [PS2_D3BFG]
 idCVar s_useOcclusion( "s_useOcclusion", "1", CVAR_BOOL, "Attenuate sounds based on walls" );
 idCVar s_centerFractionVO( "s_centerFractionVO", "0.75", CVAR_FLOAT, "Portion of VO sounds routed to the center channel" );
 
@@ -497,9 +497,11 @@ void idSoundEmitterLocal::Update( int currentTime ) {
 		channels[i]->volumeDB = DB_SILENCE;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( s_singleEmitter.GetInteger() > 0 && s_singleEmitter.GetInteger() != index ) {
 		return;
 	}
+#endif
 	if ( soundWorld->listener.area == -1 ) {
 		// listener is outside the world
 		return;
@@ -658,7 +660,11 @@ int idSoundEmitterLocal::StartSound( const idSoundShader * shader, const s_chann
 
 	int currentTime = soundWorld->GetSoundTime();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	bool showStartSound = s_showStartSound.GetBool();
+#else
+	const bool showStartSound = false;
+#endif
 	if ( showStartSound ) {
 		idLib::Printf( "%dms: StartSound(%d:%d): %s: ", currentTime, index, channel, shader->GetName() );
 	}

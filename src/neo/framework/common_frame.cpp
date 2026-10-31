@@ -66,18 +66,18 @@ which should also be nicely contained.
 
 idCVar com_deltaTimeClamp( "com_deltaTimeClamp", "50", CVAR_INTEGER, "don't process more than this time in a single frame" );
 
-idCVar com_fixedTic( "com_fixedTic", DEFAULT_FIXED_TIC, CVAR_BOOL, "run a single game frame per render frame" );
-idCVar com_noSleep( "com_noSleep", DEFAULT_NO_SLEEP, CVAR_BOOL, "don't sleep if the game is running too fast" );
+DEV_CVAR( idCVar com_fixedTic( "com_fixedTic", DEFAULT_FIXED_TIC, CVAR_BOOL, "run a single game frame per render frame" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar com_noSleep( "com_noSleep", DEFAULT_NO_SLEEP, CVAR_BOOL, "don't sleep if the game is running too fast" ) );	// [PS2_D3BFG]
 // [PS2_D3BFG]: com_smp is registered by Common.cpp, including the foundation boot.
 extern idCVar com_smp;
-idCVar com_aviDemoSamples( "com_aviDemoSamples", "16", CVAR_SYSTEM, "" );
-idCVar com_aviDemoWidth( "com_aviDemoWidth", "256", CVAR_SYSTEM, "" );
-idCVar com_aviDemoHeight( "com_aviDemoHeight", "256", CVAR_SYSTEM, "" );
-idCVar com_skipGameDraw( "com_skipGameDraw", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
+DEV_CVAR( idCVar com_aviDemoSamples( "com_aviDemoSamples", "16", CVAR_SYSTEM, "" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar com_aviDemoWidth( "com_aviDemoWidth", "256", CVAR_SYSTEM, "" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar com_aviDemoHeight( "com_aviDemoHeight", "256", CVAR_SYSTEM, "" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar com_skipGameDraw( "com_skipGameDraw", "0", CVAR_SYSTEM | CVAR_BOOL, "" ) );	// [PS2_D3BFG]
 
-idCVar com_sleepGame( "com_sleepGame", "0", CVAR_SYSTEM | CVAR_INTEGER, "intentionally add a sleep in the game time" );
-idCVar com_sleepDraw( "com_sleepDraw", "0", CVAR_SYSTEM | CVAR_INTEGER, "intentionally add a sleep in the draw time" );
-idCVar com_sleepRender( "com_sleepRender", "0", CVAR_SYSTEM | CVAR_INTEGER, "intentionally add a sleep in the render time" );
+DEV_CVAR( idCVar com_sleepGame( "com_sleepGame", "0", CVAR_SYSTEM | CVAR_INTEGER, "intentionally add a sleep in the game time" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar com_sleepDraw( "com_sleepDraw", "0", CVAR_SYSTEM | CVAR_INTEGER, "intentionally add a sleep in the draw time" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar com_sleepRender( "com_sleepRender", "0", CVAR_SYSTEM | CVAR_INTEGER, "intentionally add a sleep in the render time" ) );	// [PS2_D3BFG]
 
 // [PS2_D3BFG]: Network debug HUD does not exist on the PS2.
 #if !defined( ID_PS2 )
@@ -100,10 +100,12 @@ be called directly in the foreground thread for comparison.
 int idGameThread::Run() {
 	commonLocal.frameTiming.startGameTime = Sys_Microseconds();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// debugging tool to test frame dropping behavior
 	if ( com_sleepGame.GetInteger() ) {
 		Sys_Sleep( com_sleepGame.GetInteger() );
 	}
+#endif
 
 	if ( numGameFrames == 0 ) {
 		// Ensure there's no stale gameReturn data from a paused game
@@ -232,10 +234,12 @@ idCommonLocal::Draw
 ===============
 */
 void idCommonLocal::Draw() {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// debugging tool to test frame dropping behavior
 	if ( com_sleepDraw.GetInteger() ) {
 		Sys_Sleep( com_sleepDraw.GetInteger() );
 	}
+#endif
 
 	if ( loadGUI != NULL ) {
 		loadGUI->Render( renderSystem, Sys_Milliseconds() );
@@ -275,7 +279,11 @@ void idCommonLocal::Draw() {
 	} else if ( mapSpawned ) {
 		bool gameDraw = false;
 		// normal drawing for both single and multi player
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( !com_skipGameDraw.GetBool() && Game()->GetLocalClientNum() >= 0 ) {
+#else
+		if ( Game()->GetLocalClientNum() >= 0 ) {
+#endif
 			// draw the game view
 			int	start = Sys_Milliseconds();
 			if ( game ) {
@@ -388,7 +396,7 @@ void idCommonLocal::ProcessGameReturn( const gameReturn_t & ret ) {
 	}
 }
 
-extern idCVar com_forceGenericSIMD;
+DEV_CVAR( extern idCVar com_forceGenericSIMD );	// [PS2_D3BFG]
 
 /*
 =================
@@ -416,11 +424,13 @@ void idCommonLocal::Frame() {
 		// This is the only place this is incremented
 		idLib::frameNumber++;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		// allow changing SIMD usage on the fly
 		if ( com_forceGenericSIMD.IsModified() ) {
 			idSIMD::InitProcessor( "doom", com_forceGenericSIMD.GetBool() );
 			com_forceGenericSIMD.ClearModified();
 		}
+#endif
 
 		// Do the actual switch between Doom 3 and the classics here so
 		// that things don't get confused in the middle of the frame.
@@ -453,6 +463,7 @@ void idCommonLocal::Frame() {
 
 		const bool pauseGame = ( !mapSpawned || ( !IsMultiplayer() && ( Dialog().IsDialogPausing() || session->IsSystemUIShowing() || ( game && game->Shell_IsActive() ) ) ) ) && !IsPlayingDoomClassic();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		// save the screenshot and audio from the last draw if needed
 		if ( aviCaptureMode ) {
 			idStr name = va("demos/%s/%s_%05i.tga", aviDemoShortName.c_str(), aviDemoShortName.c_str(), aviDemoFrameCount++ );
@@ -464,6 +475,7 @@ void idCommonLocal::Frame() {
 			// this will call Draw, possibly multiple times if com_aviDemoSamples is > 1
 			renderSystem->TakeScreenshot( com_aviDemoWidth.GetInteger(), com_aviDemoHeight.GetInteger(), name, com_aviDemoSamples.GetInteger(), NULL );
 		}
+#endif
 
 		//--------------------------------------------
 		// wait for the GPU to finish drawing
@@ -533,6 +545,7 @@ void idCommonLocal::Frame() {
 				break;
 			}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			// debug cvar to force multiple game tics
 			if ( com_fixedTic.GetInteger() > 0 ) {
 				numGameFrames = com_fixedTic.GetInteger();
@@ -540,6 +553,7 @@ void idCommonLocal::Frame() {
 				gameTimeResidual = 0;
 				break;
 			}
+#endif
 
 			if ( syncNextGameFrame ) {
 				// don't sleep at all
@@ -568,6 +582,7 @@ void idCommonLocal::Frame() {
 				break;
 			}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			// if we are vsyncing, we always want to run at least one game
 			// frame and never sleep, which might happen due to scheduling issues
 			// if we were just looking at real time.
@@ -577,6 +592,7 @@ void idCommonLocal::Frame() {
 				gameTimeResidual = 0;
 				break;
 			}
+#endif
 
 			// not enough time has passed to run a frame, as might happen if
 			// we don't have vsync on, or the monitor is running at 120hz while
@@ -685,10 +701,12 @@ void idCommonLocal::Frame() {
 		//----------------------------------------
 		frameTiming.startRenderTime = Sys_Microseconds();
 		renderSystem->RenderCommandBuffers( renderCommands );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( com_sleepRender.GetInteger() > 0 ) {
 			// debug tool to test frame adaption
 			Sys_Sleep( com_sleepRender.GetInteger() );
 		}
+#endif
 		frameTiming.finishRenderTime = Sys_Microseconds();
 
 		// make sure the game / draw thread has completed
@@ -730,6 +748,7 @@ void idCommonLocal::Frame() {
 		}
 #endif
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		// report timing information
 		if ( com_speeds.GetBool() ) {
 			static int lastTime = Sys_Milliseconds();
@@ -740,6 +759,7 @@ void idCommonLocal::Frame() {
 			time_gameFrame = 0;
 			time_gameDraw = 0;
 		}
+#endif
 
 		// the FPU stack better be empty at this point or some bad code or compiler bug left values on the stack
 		if ( !Sys_FPU_StackIsEmpty() ) {

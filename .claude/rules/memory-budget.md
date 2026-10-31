@@ -45,17 +45,19 @@ have not been re-measured.
   6.4 MB release remained before any map, stacks and load peaks; at today's `PT_LOAD` that is
   about 8.6 / 9.4 MB. With the script storage on the heap and the multiplayer code gone
   (2026-10-30), retail `startup-game` is 13,600,574 / 16,900,752 bytes in 75,116
-  allocations (debug).
+  allocations (debug); with 16-bit event maps and no developer cvars (2026-10-31) it is
+  13,240,094 / 16,541,204 in 75,111 debug and 13,204,286 / 16,482,064 in 74,564 release.
 - Boot owners (backing): compressed declaration text 4.76 MB (kept resident by
   `USE_COMPRESSED_DECLS`, 11,947 declarations), script 6.34 MB (3.52 MB of it the fixed
   program storage), declaration objects
-  1.78 MB, strings 1.23 MB, container file tables 1.08 MB, smoke particles 0.68 MB,
-  event callbacks 0.64 MB.
-- Production `PT_LOAD` (2026-10-31): 4,969,452 debug / 4,295,020 release bytes, from the
-  `--gc-sections` runnable link, `-O2` release, `-Os` engine cold sources, heap script
-  storage, smaller console/command/scratch buffers, no multiplayer code, and no developer
-  commands, debug drawing or developer prints in release (11.45 / 11.91 MB before). `.text`
-  is 3.88 / 3.28 MB and `.bss` 0.73 / 0.72 MB; stripped ELFs 4.24 / 3.58 MB. Retail scripts use 95,386 of 131,072
+  1.78 MB, strings 1.23 MB, container file tables 1.08 MB, smoke particles 0.68 MB;
+  event callback maps 126 KB (0.64 MB before they became 16-bit pool indexes).
+- Production `PT_LOAD` (2026-10-31): 4,779,884 debug / 4,063,468 release bytes, from the
+  `--gc-sections` runnable link, `-O2` without alignment padding, `-Os` engine cold sources,
+  heap script storage, smaller console/command/scratch buffers, no multiplayer code, and no
+  developer commands, debug drawing, developer prints or developer cvars in release
+  (11.45 / 11.91 MB before). `.text` is 3.81 / 3.19 MB and `.bss` 0.60 / 0.58 MB; stripped
+  ELFs 4.18 / 3.48 MB. Retail scripts use 95,386 of 131,072
   statements. `report.json` keeps the gate link's `PT_LOAD` too; compare the runnable
   figure. Buffers still waiting on measurements (entity, event, input-device and GUI
   register capacities) are listed in the reference's "Smaller static buffers" section.
@@ -126,5 +128,5 @@ heading:
 | SWF draw features, Glyph rectangles, Native shell menu (+ key input) | 2026-10-23 |
 | Quit dialog, Pad prompt icons, Booting into the menu, Campaign and Settings | 2026-10-24 |
 | Authored UI removal | 2026-10-29 |
-| Executable size, Script program storage on the heap, Smaller static buffers, Multiplayer code compiled out, Release console commands, Debug-only tools | section GC, `-O2`/`-Os` experiments; script arrays moved to `TAG_SCRIPT`; console/command/scratch buffers and the measurement backlog; multiplayer strip by step; release command set (2026-10-30); debug-only tools and developer prints (2026-10-31) |
+| Executable size, Script program storage on the heap, Smaller static buffers, Multiplayer code compiled out, Release console commands, Debug-only tools, BSS cuts and developer cvars | section GC, `-O2`/`-Os` experiments; script arrays moved to `TAG_SCRIPT`; console/command/scratch buffers and the measurement backlog; multiplayer strip by step; release command set (2026-10-30); debug-only tools and developer prints, BSS cuts, event maps and developer cvars (2026-10-31) |
 | Quake II reference | allocator and accounting notes |

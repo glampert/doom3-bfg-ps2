@@ -5093,3 +5093,21 @@ menus and the old GUI's form widgets build at `-Os`. Details are in
 
 A reduced set by request; the UI sessions were not rerun.
 
+
+## BSS cuts, event maps and developer cvars (2026-10-31)
+
+Fixed storage that needed no game-content measurement shrank: the user-command ring keeps
+one player, the SSD arcade pools exist only while an SSD window does, the collision traces
+share one work area, the event-definition list holds 1024 entries and the Huffman codes 64
+bits. Per-class event callback maps became 16-bit indexes into one callback pool. The
+credits are a data table, alignment padding is off, and 179 developer cvars compile out of
+release through `DEV_CVAR` with every reader. Details are in
+[the memory reference](reference/memory-budget.md#bss-cuts-event-maps-and-developer-cvars-2026-10-31).
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release`; `build-core`, `build-game`, `build-script`, `build-platform` (both) | Passed without warnings; `PT_LOAD` **4,779,884 debug / 4,063,468 release** (−189,568 / −231,552); stripped ELFs 4,180,004 / 3,483,044 bytes |
+| Debug matrix: `test-host`, `test-headless`, `test-headless-retail`, `test-platform`, `test-core`, `test-renderer`, `test-common`, `test-script`, `test-game`, `test-map`, `test-ui` | All passed; retail startup 13,240,094 / 16,541,204 bytes in 75,111 allocations (`20261031T051733Z_headless_d7bcd5ebbd98`) |
+| Release `test-headless`, `test-headless-retail`, `test-game`, `test-map`, `test-ui` | All passed; retail startup 13,204,286 / 16,482,064 bytes in 74,564 allocations, event callbacks 126,438 bytes (`20261031T055719Z_headless_918e9c931bb3`) |
+
+Release `test-platform`, `test-core`, `test-renderer`, `test-common` and `test-script` were not rerun.

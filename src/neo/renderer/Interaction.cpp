@@ -182,7 +182,11 @@ static srfTriangles_t *R_CreateInteractionLightTris( const idRenderEntityLocal *
 	indexes = NULL;
 
 	// it is debatable if non-shadowing lights should light back faces. we aren't at the moment
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_lightAllBackFaces.GetBool() || light->lightShader->LightEffectsBackSides()
+#else
+	if ( light->lightShader->LightEffectsBackSides()
+#endif
 			|| shader->ReceivesLightingOnBackSides() || ent->parms.noSelfShadow || ent->parms.noShadow  ) {
 		includeBackFaces = true;
 	} else {
@@ -727,7 +731,11 @@ void idInteraction::CreateStaticInteraction() {
 		if ( HasShadows() && shader->SurfaceCastsShadow() && tri->silEdges != NULL ) {
 
 			// if the light has an optimized shadow volume, don't create shadows for any models that are part of the base areas
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			if ( lightDef->parms.prelightModel == NULL || !model->IsStaticWorldModel() || r_skipPrelightShadows.GetBool() ) {
+#else
+			if ( lightDef->parms.prelightModel == NULL || !model->IsStaticWorldModel() ) {
+#endif
 				srfTriangles_t * shadowTris = R_CreateInteractionShadowVolume( entityDef, tri, lightDef );
 				if ( shadowTris != NULL ) {
 					// make a static index cache

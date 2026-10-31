@@ -2789,11 +2789,15 @@ int idWeapon::AmmoAvailable() const {
 	if ( owner ) {
 		return owner->inventory.HasAmmo( ammoType, ammoRequired );
 	} else {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( g_infiniteAmmo.GetBool() ) {
 			return 10;	// arbitrary number, just so whatever's calling thinks there's sufficient ammo...
 		} else {
 			return 0;
 		}
+#else
+		return 0;
+#endif
 	}
 }
 
@@ -3045,7 +3049,9 @@ idWeapon::Event_WeaponReady
 */
 void idWeapon::Event_WeaponReady() {
 	status = WP_READY;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( g_debugWeapon.GetBool(), "Weapon Status WP_READY \n" );
+#endif
 	if ( isLinked ) {
 		WEAPON_RAISEWEAPON = false;
 	}
@@ -3062,7 +3068,9 @@ idWeapon::Event_WeaponOutOfAmmo
 */
 void idWeapon::Event_WeaponOutOfAmmo() {
 	status = WP_OUTOFAMMO;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( g_debugWeapon.GetBool(), "Weapon Status WP_OUTOFAMMO \n" );
+#endif
 	if ( isLinked ) {
 		WEAPON_RAISEWEAPON = false;
 	}
@@ -3075,7 +3083,9 @@ idWeapon::Event_WeaponReloading
 */
 void idWeapon::Event_WeaponReloading() {
 	status = WP_RELOAD;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( g_debugWeapon.GetBool(), "Weapon Status WP_RELOAD \n" );
+#endif
 }
 
 /*
@@ -3085,7 +3095,9 @@ idWeapon::Event_WeaponHolstered
 */
 void idWeapon::Event_WeaponHolstered() {
 	status = WP_HOLSTERED;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( g_debugWeapon.GetBool(), "Weapon Status WP_HOLSTERED \n" );
+#endif
 	if ( isLinked ) {
 		WEAPON_LOWERWEAPON = false;
 	}
@@ -3098,7 +3110,9 @@ idWeapon::Event_WeaponRising
 */
 void idWeapon::Event_WeaponRising() {
 	status = WP_RISING;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( g_debugWeapon.GetBool(), "Weapon Status WP_RISING \n" );
+#endif
 	if ( isLinked ) {
 		WEAPON_LOWERWEAPON = false;
 	}
@@ -3112,7 +3126,9 @@ idWeapon::Event_WeaponLowering
 */
 void idWeapon::Event_WeaponLowering() {
 	status = WP_LOWERING;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	idLib::PrintfIf( g_debugWeapon.GetBool(), "Weapon Status WP_LOWERING \n" );
+#endif
 	if ( isLinked ) {
 		WEAPON_RAISEWEAPON = false;
 	}
@@ -3581,7 +3597,11 @@ void idWeapon::Event_LaunchProjectiles( int num_projectiles, float spread, float
 			owner->inventory.UseAmmo( ammoType, ( powerAmmo ) ? dmgPower : ammoRequired );
 		}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( clipSize && ammoRequired && !g_infiniteAmmo.GetBool() ) {
+#else
+		if ( clipSize && ammoRequired ) {
+#endif
 			ammoClip -= powerAmmo ? dmgPower : ammoRequired;
 		}
 	}

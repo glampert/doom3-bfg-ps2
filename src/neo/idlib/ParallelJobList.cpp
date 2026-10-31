@@ -127,7 +127,7 @@ idParallelJobList_Threads
 ================================================================================================
 */
 
-static idCVar jobs_longJobMicroSec( "jobs_longJobMicroSec", "10000", CVAR_INTEGER, "print a warning for jobs that take more than this number of microseconds" );
+DEV_CVAR( static idCVar jobs_longJobMicroSec( "jobs_longJobMicroSec", "10000", CVAR_INTEGER, "print a warning for jobs that take more than this number of microseconds" ) );	// [PS2_D3BFG]
 
 
 const static int		MAX_THREADS	= 32;
@@ -642,6 +642,7 @@ int idParallelJobList_Threads::RunJobsInternal( unsigned int threadNum, threadJo
 			deferredThreadStats.threadExecTime[threadNum] += jobEnd - jobStart;
 
 #ifndef _DEBUG
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			if ( jobs_longJobMicroSec.GetInteger() > 0 ) {
 				if ( jobEnd - jobStart > jobs_longJobMicroSec.GetInteger()
 					&& GetId() != JOBLIST_UTILITY ) {
@@ -653,6 +654,7 @@ int idParallelJobList_Threads::RunJobsInternal( unsigned int threadNum, threadJo
 					idLib::Printf( "%1.1f milliseconds for a single '%s' job from job list %s on thread %d\n", longJobTime, jobName, jobListName, threadNum );
 				}
 			}
+#endif
 #endif
 		}
 
@@ -918,7 +920,7 @@ struct threadJobList_t {
 	int							version;
 };
 
-static idCVar jobs_prioritize( "jobs_prioritize", "1", CVAR_BOOL | CVAR_NOCHEAT, "prioritize job lists" );
+DEV_CVAR( static idCVar jobs_prioritize( "jobs_prioritize", "1", CVAR_BOOL | CVAR_NOCHEAT, "prioritize job lists" ) );	// [PS2_D3BFG]
 
 class idJobThread : public idSysThread {
 public:
@@ -1038,7 +1040,11 @@ int idJobThread::Run() {
 
 		// if the priority is high then try to run through the whole list to reduce the overhead
 		// otherwise run a single job and re-evaluate priorities for the next job
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		bool singleJob = ( priority == JOBLIST_PRIORITY_HIGH ) ? false : jobs_prioritize.GetBool();
+#else
+		bool singleJob = ( priority != JOBLIST_PRIORITY_HIGH );
+#endif
 
 		// try running one or more jobs from the current job list
 		int result = threadJobListState[currentJobList].jobList->RunJobs( threadNum, threadJobListState[currentJobList], singleJob );

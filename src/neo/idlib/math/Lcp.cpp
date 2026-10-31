@@ -34,7 +34,7 @@ If you have questions concerning this license or the applicable additional terms
 // the code is correct, it can't be a NULL pointer
 //lint -e613
 
-static idCVar lcp_showFailures( "lcp_showFailures", "0", CVAR_BOOL, "show LCP solver failures" );
+DEV_CVAR( static idCVar lcp_showFailures( "lcp_showFailures", "0", CVAR_BOOL, "show LCP solver failures" ) );	// [PS2_D3BFG]
 
 const float LCP_BOUND_EPSILON			= 1e-5f;
 const float LCP_ACCEL_EPSILON			= 1e-5f;

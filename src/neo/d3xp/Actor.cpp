@@ -2199,10 +2199,14 @@ Bleeding wounds and surface overlays are applied in the collision code that
 calls Damage()
 ============
 */
-idCVar actor_noDamage(		"actor_noDamage",			"0",		CVAR_BOOL, "actors don't take damage -- for testing" );
+DEV_CVAR( idCVar actor_noDamage(		"actor_noDamage",			"0",		CVAR_BOOL, "actors don't take damage -- for testing" ) );	// [PS2_D3BFG]
 void idActor::Damage( idEntity *inflictor, idEntity *attacker, const idVec3 &dir, 
 					  const char *damageDefName, const float damageScale, const int location ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !fl.takedamage || actor_noDamage.GetBool() ) {
+#else
+	if ( !fl.takedamage ) {
+#endif
 		return;
 	}
 

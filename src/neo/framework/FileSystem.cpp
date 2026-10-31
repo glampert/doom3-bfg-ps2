@@ -239,14 +239,14 @@ private:
 	int						loadStack;			// total files in memory
 	idStr					gameFolder;			// this will be a single name without separators
 
-	static idCVar			fs_debug;
-	static idCVar			fs_debugResources;
+	DEV_CVAR( static idCVar			fs_debug );	// [PS2_D3BFG]
+	DEV_CVAR( static idCVar			fs_debugResources );	// [PS2_D3BFG]
 	static idCVar			fs_copyfiles;
 	static idCVar			fs_buildResources;
 	static idCVar			fs_game;
 	static idCVar			fs_game_base;
 	static idCVar			fs_enableBGL;
-	static idCVar			fs_debugBGL;
+	DEV_CVAR( static idCVar			fs_debugBGL );	// [PS2_D3BFG]
 
 	idStr					manifestName;
 	idStrList				fileManifest;
@@ -291,10 +291,10 @@ private:
 	void					ReOpenCacheFiles();
 };
 
-idCVar	idFileSystemLocal::fs_debug( "fs_debug", "0", CVAR_SYSTEM | CVAR_INTEGER, "", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
-idCVar	idFileSystemLocal::fs_debugResources( "fs_debugResources", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
+DEV_CVAR( idCVar	idFileSystemLocal::fs_debug( "fs_debug", "0", CVAR_SYSTEM | CVAR_INTEGER, "", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar	idFileSystemLocal::fs_debugResources( "fs_debugResources", "0", CVAR_SYSTEM | CVAR_BOOL, "" ) );	// [PS2_D3BFG]
 idCVar	idFileSystemLocal::fs_enableBGL( "fs_enableBGL", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
-idCVar	idFileSystemLocal::fs_debugBGL( "fs_debugBGL", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
+DEV_CVAR( idCVar	idFileSystemLocal::fs_debugBGL( "fs_debugBGL", "0", CVAR_SYSTEM | CVAR_BOOL, "" ) );	// [PS2_D3BFG]
 idCVar	idFileSystemLocal::fs_copyfiles( "fs_copyfiles", "0", CVAR_SYSTEM | CVAR_INIT | CVAR_BOOL, "Copy every file touched to fs_savepath" );
 idCVar	idFileSystemLocal::fs_buildResources( "fs_buildresources", "0", CVAR_SYSTEM | CVAR_BOOL | CVAR_INIT, "Copy every file touched to a resource file" );
 idCVar	idFileSystemLocal::fs_game( "fs_game", "", CVAR_SYSTEM | CVAR_INIT | CVAR_SERVERINFO, "mod path" );
@@ -2886,9 +2886,11 @@ idFile * idFileSystemLocal::GetResourceFile( const char *fileName, bool memFile 
 				buf = resourceBufferPtr;
 				resourceBufferAvailable = 0;
 			} else {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( fs_debugResources.GetBool() ) {
 				idLib::Printf( "MEM: Allocating %05d bytes for a resource load\n", rc.length );
 }
+#endif
 				buf = ( byte * )Mem_Alloc( rc.length, TAG_TEMP );
 			}
 			file->Read( (void*)buf, rc.length );
@@ -3090,9 +3092,11 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 		}
 	}
 	
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( fs_debug.GetInteger( ) ) {
 		common->Printf( "Can't find %s\n", relativePath );
 	}
+#endif
 	
 	return NULL;
 }

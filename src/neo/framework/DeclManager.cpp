@@ -242,7 +242,7 @@ private:
 	int							indent;			// for MediaPrint
 	bool						insideLevelLoad;
 
-	static idCVar				decl_show;
+	DEV_CVAR( static idCVar				decl_show );	// [PS2_D3BFG]
 
 private:
 	static void					ListDecls_f( const idCmdArgs &args );
@@ -250,7 +250,7 @@ private:
 	static void					TouchDecl_f( const idCmdArgs &args );
 };
 
-idCVar idDeclManagerLocal::decl_show( "decl_show", "0", CVAR_SYSTEM, "set to 1 to print parses, 2 to also print references", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
+DEV_CVAR( idCVar idDeclManagerLocal::decl_show( "decl_show", "0", CVAR_SYSTEM, "set to 1 to print parses, 2 to also print references", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> ) );	// [PS2_D3BFG]
 
 idDeclManagerLocal	declManagerLocal;
 idDeclManager *		declManager = &declManagerLocal;
@@ -273,7 +273,13 @@ typedef struct huffmanNode_s {
 } huffmanNode_t;
 
 typedef struct huffmanCode_s {
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: The fixed frequency table below yields codes of at most 22 bits, so 64 bits
+	// leave ample margin; BuildHuffmanCode_r asserts the bound.
+	unsigned long			bits[2];
+#else
 	unsigned long			bits[8];
+#endif
 	int						numBits;
 } huffmanCode_t;
 
@@ -1502,6 +1508,7 @@ This is just used to nicely indent media caching prints
 ===================
 */
 void idDeclManagerLocal::MediaPrint( const char *fmt, ... ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !decl_show.GetInteger() ) {
 		return;
 	}
@@ -1516,6 +1523,9 @@ void idDeclManagerLocal::MediaPrint( const char *fmt, ... ) {
 	buffer[sizeof(buffer)-1] = '\0';
 
 	common->Printf( "%s", buffer );
+#else
+	( void )fmt;
+#endif
 }
 
 /*

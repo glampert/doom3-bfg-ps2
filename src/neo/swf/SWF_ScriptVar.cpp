@@ -28,7 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "../idlib/precompiled.h"
 
-extern idCVar swf_debugShowAddress;
+DEV_CVAR( extern idCVar swf_debugShowAddress );	// [PS2_D3BFG]
 
 /*
 ========================
@@ -218,11 +218,15 @@ idStr idSWFScriptVar::ToString() const {
 		case SWF_VAR_UNDEF:		return "[undefined]";
 		case SWF_VAR_OBJECT:	return value.object->DefaultValue( true ).ToString();
 		case SWF_VAR_FUNCTION:	
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			if ( swf_debugShowAddress.GetBool() ) {
 				return va( "[function:%p]", value.function );
 			} else {
 				return "[function]";
 			}
+#else
+			return "[function]";
+#endif
 		default:				assert( false ); return "";
 	}
 }

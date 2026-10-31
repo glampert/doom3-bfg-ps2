@@ -982,7 +982,7 @@ ID_INLINE void idPlayer::SetSelfSmooth( bool b ) {
 	selfSmooth = b;
 }
 
-extern idCVar g_infiniteAmmo;
+DEV_CVAR( extern idCVar g_infiniteAmmo );	// [PS2_D3BFG]
 
 #endif /* !__GAME_PLAYER_H__ */
 

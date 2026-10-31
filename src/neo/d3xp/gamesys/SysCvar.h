@@ -34,27 +34,27 @@ extern idCVar	developer;
 extern idCVar	g_cinematic;
 extern idCVar	g_cinematicMaxSkipTime;
 
-extern idCVar	g_monsters;
+DEV_CVAR( extern idCVar	g_monsters );	// [PS2_D3BFG]
 extern idCVar	g_decals;
 extern idCVar	g_knockback;
 extern idCVar	g_skill;
 extern idCVar	g_gravity;
-extern idCVar	g_skipFX;
+DEV_CVAR( extern idCVar	g_skipFX );	// [PS2_D3BFG]
 extern idCVar	g_bloodEffects;
 extern idCVar	g_projectileLights;
 extern idCVar	g_muzzleFlash;
 
-extern idCVar	g_disasm;
-extern idCVar	g_debugBounds;
-extern idCVar	g_debugAnim;
-extern idCVar	g_debugMove;
-extern idCVar	g_debugDamage;
-extern idCVar	g_debugWeapon;
-extern idCVar	g_debugScript;
-extern idCVar	g_debugMover;
-extern idCVar	g_debugTriggers;
-extern idCVar	g_debugCinematic;
-extern idCVar	g_stopTime;
+DEV_CVAR( extern idCVar	g_disasm );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugBounds );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugAnim );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugMove );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugDamage );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugWeapon );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugScript );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugMover );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugTriggers );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugCinematic );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_stopTime );	// [PS2_D3BFG]
 extern idCVar	g_armorProtection;
 // [PS2_D3BFG]: Multiplayer cvar.
 #if !defined( ID_PS2 )
@@ -66,32 +66,32 @@ extern idCVar	g_healthTakeTime;
 extern idCVar	g_healthTakeAmt;
 extern idCVar	g_healthTakeLimit;
 
-extern idCVar	g_showPVS;
-extern idCVar	g_showTargets;
-extern idCVar	g_showTriggers;
-extern idCVar	g_showCollisionWorld;
-extern idCVar	g_showCollisionModels;
-extern idCVar	g_showCollisionTraces;
-extern idCVar	g_maxShowDistance;
-extern idCVar	g_showEntityInfo;
-extern idCVar	g_showviewpos;
+DEV_CVAR( extern idCVar	g_showPVS );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showTargets );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showTriggers );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showCollisionWorld );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showCollisionModels );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showCollisionTraces );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_maxShowDistance );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showEntityInfo );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showviewpos );	// [PS2_D3BFG]
 extern idCVar	g_showcamerainfo;
-extern idCVar	g_showTestModelFrame;
-extern idCVar	g_showActiveEntities;
-extern idCVar	g_showEnemies;
+DEV_CVAR( extern idCVar	g_showTestModelFrame );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showActiveEntities );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_showEnemies );	// [PS2_D3BFG]
 
-extern idCVar	g_frametime;
-extern idCVar	g_timeentities;
+DEV_CVAR( extern idCVar	g_frametime );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_timeentities );	// [PS2_D3BFG]
 
-extern idCVar	ai_debugScript;
-extern idCVar	ai_debugMove;
-extern idCVar	ai_debugTrajectory;
-extern idCVar	ai_testPredictPath;
-extern idCVar	ai_showCombatNodes;
-extern idCVar	ai_showPaths;
-extern idCVar	ai_showObstacleAvoidance;
+DEV_CVAR( extern idCVar	ai_debugScript );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	ai_debugMove );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	ai_debugTrajectory );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	ai_testPredictPath );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	ai_showCombatNodes );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	ai_showPaths );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	ai_showObstacleAvoidance );	// [PS2_D3BFG]
 extern idCVar	ai_blockedFailSafe;
-extern idCVar	ai_showHealth;
+DEV_CVAR( extern idCVar	ai_showHealth );	// [PS2_D3BFG]
 
 extern idCVar	g_dvTime;
 extern idCVar	g_dvAmplitude;
@@ -102,12 +102,12 @@ extern idCVar	g_kickAmplitude;
 extern idCVar	g_blobTime;
 extern idCVar	g_blobSize;
 
-extern idCVar	g_testHealthVision;
-extern idCVar	g_editEntityMode;
-extern idCVar	g_dragEntity;
-extern idCVar	g_dragDamping;
-extern idCVar	g_dragShowSelection;
-extern idCVar	g_dropItemRotation;
+DEV_CVAR( extern idCVar	g_testHealthVision );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_editEntityMode );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_dragEntity );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_dragDamping );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_dragShowSelection );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_dropItemRotation );	// [PS2_D3BFG]
 
 extern idCVar	g_vehicleVelocity;
 extern idCVar	g_vehicleForce;
@@ -116,50 +116,50 @@ extern idCVar	g_vehicleSuspensionDown;
 extern idCVar	g_vehicleSuspensionKCompress;
 extern idCVar	g_vehicleSuspensionDamping;
 extern idCVar	g_vehicleTireFriction;
-extern idCVar	g_vehicleDebug;
-extern idCVar	g_debugShockwave;
+DEV_CVAR( extern idCVar	g_vehicleDebug );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_debugShockwave );	// [PS2_D3BFG]
 extern idCVar	g_enablePortalSky;
 
 extern idCVar	ik_enable;
-extern idCVar	ik_debug;
+DEV_CVAR( extern idCVar	ik_debug );	// [PS2_D3BFG]
 
 extern idCVar	af_useLinearTime;
 extern idCVar	af_useImpulseFriction;
 extern idCVar	af_useJointImpulseFriction;
 extern idCVar	af_useSymmetry;
-extern idCVar	af_skipSelfCollision;
-extern idCVar	af_skipLimits;
-extern idCVar	af_skipFriction;
+DEV_CVAR( extern idCVar	af_skipSelfCollision );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_skipLimits );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_skipFriction );	// [PS2_D3BFG]
 extern idCVar	af_forceFriction;
 extern idCVar	af_maxLinearVelocity;
 extern idCVar	af_maxAngularVelocity;
-extern idCVar	af_timeScale;
+DEV_CVAR( extern idCVar	af_timeScale );	// [PS2_D3BFG]
 extern idCVar	af_jointFrictionScale;
 extern idCVar	af_contactFrictionScale;
-extern idCVar	af_highlightBody;
-extern idCVar	af_highlightConstraint;
-extern idCVar	af_showTimings;
-extern idCVar	af_showConstraints;
-extern idCVar	af_showConstraintNames;
-extern idCVar	af_showConstrainedBodies;
-extern idCVar	af_showPrimaryOnly;
-extern idCVar	af_showTrees;
-extern idCVar	af_showLimits;
-extern idCVar	af_showBodies;
-extern idCVar	af_showBodyNames;
-extern idCVar	af_showMass;
-extern idCVar	af_showTotalMass;
-extern idCVar	af_showInertia;
-extern idCVar	af_showVelocity;
-extern idCVar	af_showActive;
-extern idCVar	af_testSolid;
+DEV_CVAR( extern idCVar	af_highlightBody );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_highlightConstraint );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showTimings );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showConstraints );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showConstraintNames );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showConstrainedBodies );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showPrimaryOnly );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showTrees );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showLimits );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showBodies );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showBodyNames );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showMass );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showTotalMass );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showInertia );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showVelocity );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_showActive );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	af_testSolid );	// [PS2_D3BFG]
 
-extern idCVar	rb_showTimings;
-extern idCVar	rb_showBodies;
-extern idCVar	rb_showMass;
-extern idCVar	rb_showInertia;
-extern idCVar	rb_showVelocity;
-extern idCVar	rb_showActive;
+DEV_CVAR( extern idCVar	rb_showTimings );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	rb_showBodies );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	rb_showMass );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	rb_showInertia );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	rb_showVelocity );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	rb_showActive );	// [PS2_D3BFG]
 
 extern idCVar	pm_jumpheight;
 extern idCVar	pm_stepsize;
@@ -211,34 +211,34 @@ extern idCVar	g_gunScale;
 extern idCVar	g_viewNodalX;
 extern idCVar	g_viewNodalZ;
 extern idCVar	g_fov;
-extern idCVar	g_testDeath;
-extern idCVar	g_skipViewEffects;
+DEV_CVAR( extern idCVar	g_testDeath );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_skipViewEffects );	// [PS2_D3BFG]
 // [PS2_D3BFG]: Multiplayer cvar.
 #if !defined( ID_PS2 )
 extern idCVar   g_mpWeaponAngleScale;
 #endif
 
-extern idCVar	g_testParticle;
-extern idCVar	g_testParticleName;
+DEV_CVAR( extern idCVar	g_testParticle );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_testParticleName );	// [PS2_D3BFG]
 
-extern idCVar	g_testPostProcess;
+DEV_CVAR( extern idCVar	g_testPostProcess );	// [PS2_D3BFG]
 
-extern idCVar	g_testModelRotate;
-extern idCVar	g_testModelAnimate;
-extern idCVar	g_testModelBlend;
+DEV_CVAR( extern idCVar	g_testModelRotate );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_testModelAnimate );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_testModelBlend );	// [PS2_D3BFG]
 extern idCVar	g_flushSave;
 
-extern idCVar	g_enableSlowmo;
+DEV_CVAR( extern idCVar	g_enableSlowmo );	// [PS2_D3BFG]
 extern idCVar	g_slowmoStepRate;
-extern idCVar	g_testFullscreenFX;
-extern idCVar	g_testHelltimeFX;
-extern idCVar	g_testMultiplayerFX;
+DEV_CVAR( extern idCVar	g_testFullscreenFX );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_testHelltimeFX );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_testMultiplayerFX );	// [PS2_D3BFG]
 // [PS2_D3BFG]: Multiplayer cvar.
 #if !defined( ID_PS2 )
 extern idCVar	g_moveableDamageScale;
 #endif
-extern idCVar	g_testBloomIntensity;
-extern idCVar	g_testBloomNumPasses;
+DEV_CVAR( extern idCVar	g_testBloomIntensity );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	g_testBloomNumPasses );	// [PS2_D3BFG]
 
 extern idCVar	g_grabberHoldSeconds;
 extern idCVar	g_grabberEnableShake;
@@ -248,16 +248,16 @@ extern idCVar	g_grabberDamping;
 
 extern idCVar	g_xp_bind_run_once;
 
-extern idCVar	aas_test;
-extern idCVar	aas_showAreas;
-extern idCVar	aas_showPath;
-extern idCVar	aas_showFlyPath;
-extern idCVar	aas_showWallEdges;
-extern idCVar	aas_showHideArea;
-extern idCVar	aas_pullPlayer;
-extern idCVar	aas_randomPullPlayer;
-extern idCVar	aas_goalArea;
-extern idCVar	aas_showPushIntoArea;
+DEV_CVAR( extern idCVar	aas_test );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_showAreas );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_showPath );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_showFlyPath );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_showWallEdges );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_showHideArea );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_pullPlayer );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_randomPullPlayer );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_goalArea );	// [PS2_D3BFG]
+DEV_CVAR( extern idCVar	aas_showPushIntoArea );	// [PS2_D3BFG]
 
 // [PS2_D3BFG]: Multiplayer cvar.
 #if !defined( ID_PS2 )

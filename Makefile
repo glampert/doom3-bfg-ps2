@@ -140,12 +140,16 @@ GAME_TEST_ELF = $(GAME_TEST_DIR)/d3bfg_tests.elf
 SCRIPTS = src/tools/scripts
 
 # Release matches debug's -O2: -O3 added about 0.7 MB of loaded code for no measured gain.
+# Code alignment padding is off in both configurations, so they keep one code layout (about
+# 36 KB of release code): PCSX2 cannot show its effect on EE instruction fetch, so only a
+# hardware measurement could justify it.
+ALIGNFLAGS = -fno-align-functions -fno-align-jumps -fno-align-loops -fno-align-labels
 ifeq ($(BUILD),release)
-	OPTFLAGS = -O2
+	OPTFLAGS = -O2 $(ALIGNFLAGS)
 	DBGFLAGS =
 	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=0 -DPS2_D3BFG_ASSERTS=0 -DPS2_D3BFG_PROFILE=0 -DNDEBUG
 else
-	OPTFLAGS = -O2
+	OPTFLAGS = -O2 $(ALIGNFLAGS)
 	DBGFLAGS = -gdwarf-2 -gz
 	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=1 -DPS2_D3BFG_ASSERTS=1 -DPS2_D3BFG_PROFILE=1 -D_DEBUG=1
 endif

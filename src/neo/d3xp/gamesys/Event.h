@@ -47,6 +47,14 @@ Event are used for scheduling tasks and for linking script commands.
 
 #define MAX_EVENTS					4096
 
+// [PS2_D3BFG]: The event definitions are fixed per build (535 today); the PS2 sizes their
+// list apart from the queued event pool.
+#if defined( ID_PS2 )
+#define MAX_EVENTDEFS				1024
+#else
+#define MAX_EVENTDEFS				MAX_EVENTS
+#endif
+
 class idClass;
 class idTypeInfo;
 
@@ -62,7 +70,7 @@ private:
 	int							eventnum;
 	const idEventDef *			next;
 
-	static idEventDef *			eventDefList[MAX_EVENTS];
+	static idEventDef *			eventDefList[MAX_EVENTDEFS];	// [PS2_D3BFG]: MAX_EVENTDEFS
 	static int					numEventDefs;
 
 public:

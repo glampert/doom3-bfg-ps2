@@ -33,6 +33,13 @@ If you have questions concerning this license or the applicable additional terms
 #include "UserInterfaceLocal.h"
 #include "GameSSDWindow.h"
 
+// [PS2_D3BFG]: Pool storage, allocated by idGameSSDWindow::AllocatePools on the PS2.
+#if defined( ID_PS2 )
+	#define SSD_DEFINE_POOL( type, pool, count )	type * type::pool = NULL
+#else
+	#define SSD_DEFINE_POOL( type, pool, count )	type type::pool[count]
+#endif
+
 
 #define Z_NEAR 100.0f
 #define Z_FAR  4000.0f
@@ -390,7 +397,7 @@ void SSDMover::EntityUpdate() {
 ****************************************************************************
 */
 
-SSDAsteroid	SSDAsteroid::asteroidPool[MAX_ASTEROIDS];
+SSD_DEFINE_POOL( SSDAsteroid, asteroidPool, MAX_ASTEROIDS );	// [PS2_D3BFG]
 
 #define ASTEROID_MATERIAL "game/SSD/asteroid"
 
@@ -488,7 +495,7 @@ void SSDAsteroid::ReadAsteroids( idFile* savefile, idGameSSDWindow* _game) {
 ****************************************************************************
 */
 
-SSDAstronaut	SSDAstronaut::astronautPool[MAX_ASTRONAUT];
+SSD_DEFINE_POOL( SSDAstronaut, astronautPool, MAX_ASTRONAUT );	// [PS2_D3BFG]
 
 #define ASTRONAUT_MATERIAL "game/SSD/astronaut"
 
@@ -579,7 +586,7 @@ void SSDAstronaut::ReadAstronauts(idFile* savefile, idGameSSDWindow* _game) {
 ****************************************************************************
 */
 
-SSDExplosion SSDExplosion::explosionPool[MAX_EXPLOSIONS];
+SSD_DEFINE_POOL( SSDExplosion, explosionPool, MAX_EXPLOSIONS );	// [PS2_D3BFG]
 
 
 //#define EXPLOSION_MATERIAL "game/SSD/fball"
@@ -741,7 +748,7 @@ void SSDExplosion::ReadExplosions(idFile* savefile, idGameSSDWindow* _game) {
 ****************************************************************************
 */
 
-SSDPoints	SSDPoints::pointsPool[MAX_POINTS];
+SSD_DEFINE_POOL( SSDPoints, pointsPool, MAX_POINTS );	// [PS2_D3BFG]
 
 SSDPoints::SSDPoints() {
 	type = SSD_ENTITY_POINTS;
@@ -888,7 +895,7 @@ void SSDPoints::ReadPoints(idFile* savefile, idGameSSDWindow* _game) {
 ****************************************************************************
 */
 
-SSDProjectile SSDProjectile::projectilePool[MAX_PROJECTILES];
+SSD_DEFINE_POOL( SSDProjectile, projectilePool, MAX_PROJECTILES );	// [PS2_D3BFG]
 
 #define PROJECTILE_MATERIAL "game/SSD/fball"
 
@@ -1016,7 +1023,7 @@ const char* powerupMaterials[][2] = {
 
 #define POWERUP_MATERIAL_COUNT 6
 
-SSDPowerup	SSDPowerup::powerupPool[MAX_POWERUPS];
+SSD_DEFINE_POOL( SSDPowerup, powerupPool, MAX_POWERUPS );	// [PS2_D3BFG]
 
 SSDPowerup::SSDPowerup() {
 	
@@ -1199,13 +1206,74 @@ void SSDPowerup::ReadPowerups(idFile* savefile, idGameSSDWindow* _game) {
 
 idRandom idGameSSDWindow::random;
 
+#if defined( ID_PS2 )
+/*
+================
+[PS2_D3BFG]: SSD pool lifetime
+
+The pools start zeroed and then constructed, as the static arrays they replace did: the
+entity constructors leave some members to that zero initialization.
+================
+*/
+static int ssdPoolUsers = 0;
+
+template< class T >
+static T * SSD_AllocatePool( const int count ) {
+	T * pool = static_cast< T * >( Mem_ClearedAlloc( static_cast< int >( sizeof( T ) ) * count, TAG_OLD_UI ) );
+	for ( int i = 0; i < count; i++ ) {
+		new ( &pool[i] ) T;
+	}
+	return pool;
+}
+
+template< class T >
+static void SSD_FreePool( T * & pool, const int count ) {
+	for ( int i = 0; i < count; i++ ) {
+		pool[i].~T();
+	}
+	Mem_Free( pool );
+	pool = NULL;
+}
+
+void idGameSSDWindow::AllocatePools() {
+	if ( ssdPoolUsers++ > 0 ) {
+		return;
+	}
+	SSDAsteroid::asteroidPool = SSD_AllocatePool< SSDAsteroid >( MAX_ASTEROIDS );
+	SSDAstronaut::astronautPool = SSD_AllocatePool< SSDAstronaut >( MAX_ASTRONAUT );
+	SSDExplosion::explosionPool = SSD_AllocatePool< SSDExplosion >( MAX_EXPLOSIONS );
+	SSDPoints::pointsPool = SSD_AllocatePool< SSDPoints >( MAX_POINTS );
+	SSDProjectile::projectilePool = SSD_AllocatePool< SSDProjectile >( MAX_PROJECTILES );
+	SSDPowerup::powerupPool = SSD_AllocatePool< SSDPowerup >( MAX_POWERUPS );
+}
+
+void idGameSSDWindow::FreePools() {
+	assert( ssdPoolUsers > 0 );
+	if ( --ssdPoolUsers > 0 ) {
+		return;
+	}
+	SSD_FreePool( SSDAsteroid::asteroidPool, MAX_ASTEROIDS );
+	SSD_FreePool( SSDAstronaut::astronautPool, MAX_ASTRONAUT );
+	SSD_FreePool( SSDExplosion::explosionPool, MAX_EXPLOSIONS );
+	SSD_FreePool( SSDPoints::pointsPool, MAX_POINTS );
+	SSD_FreePool( SSDProjectile::projectilePool, MAX_PROJECTILES );
+	SSD_FreePool( SSDPowerup::powerupPool, MAX_POWERUPS );
+}
+#endif
+
 idGameSSDWindow::idGameSSDWindow(idUserInterfaceLocal *g) : idWindow(g) {
+#if defined( ID_PS2 )
+	AllocatePools();	// [PS2_D3BFG]: before CommonInit, which can reach the pools
+#endif
 	gui = g;
 	CommonInit();
 }
 
 idGameSSDWindow::~idGameSSDWindow() {
 	ResetGameStats();
+#if defined( ID_PS2 )
+	FreePools();	// [PS2_D3BFG]: after ResetGameStats, which returns entities to the pools
+#endif
 }
 
 void idGameSSDWindow::WriteToSaveGame( idFile *savefile ) {

@@ -177,6 +177,7 @@ void R_CreateEntityRefs( idRenderEntityLocal *entity ) {
 		return;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_showUpdates.GetBool() && 
 			( entity->localReferenceBounds[1][0] - entity->localReferenceBounds[0][0] > 1024.0f ||
 				entity->localReferenceBounds[1][1] - entity->localReferenceBounds[0][1] > 1024.0f ) ) {
@@ -184,6 +185,7 @@ void R_CreateEntityRefs( idRenderEntityLocal *entity ) {
 						entity->localReferenceBounds[1][1] - entity->localReferenceBounds[0][1] );
 	}
 
+#endif
 	// derive entity data
 	R_DeriveEntityData( entity );
 

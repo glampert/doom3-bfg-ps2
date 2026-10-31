@@ -81,7 +81,7 @@ private:
 	bool			log;
 	idStr			logStr;
 
-	static idCVar	com_logDemos;
+	DEV_CVAR( static idCVar	com_logDemos );	// [PS2_D3BFG]
 	static idCVar	com_compressDemos;
 	static idCVar	com_preloadDemos;
 };

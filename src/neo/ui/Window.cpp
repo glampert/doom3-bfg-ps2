@@ -50,12 +50,12 @@ bool idWindow::registerIsTemporary[MAX_EXPRESSION_REGISTERS];		// statics to ass
 //float idWindow::shaderRegisters[MAX_EXPRESSION_REGISTERS];
 //wexpOp_t idWindow::shaderOps[MAX_EXPRESSION_OPS];
 
-idCVar idWindow::gui_debug( "gui_debug", "0", CVAR_GUI | CVAR_BOOL, "" );
-idCVar idWindow::gui_edit( "gui_edit", "0", CVAR_GUI | CVAR_BOOL, "" );
+DEV_CVAR( idCVar idWindow::gui_debug( "gui_debug", "0", CVAR_GUI | CVAR_BOOL, "" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar idWindow::gui_edit( "gui_edit", "0", CVAR_GUI | CVAR_BOOL, "" ) );	// [PS2_D3BFG]
 
 idCVar hud_titlesafe( "hud_titlesafe", "0.0", CVAR_GUI | CVAR_FLOAT, "fraction of the screen to leave around hud for titlesafe area" );
 
-extern idCVar r_skipGuiShaders;		// 1 = don't render any gui elements on surfaces
+DEV_CVAR( extern idCVar r_skipGuiShaders );		// 1 = don't render any gui elements on surfaces
 
 //  made RegisterVars a member of idWindow
 const idRegEntry idWindow::RegisterVars[] = {
@@ -323,12 +323,14 @@ void idWindow::Draw( int time, float x, float y ) {
 	}
 	dc->DrawText( text, textScale, textAlign, foreColor, textRect, !( flags & WIN_NOWRAP ), -1 );
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( gui_edit.GetBool() ) {
 		dc->EnableClipping( false );
 		dc->DrawText( va( "x: %i  y: %i", ( int )rect.x(), ( int )rect.y() ), 0.25, 0, dc->colorWhite, idRectangle( rect.x(), rect.y() - 15, 100, 20 ), false );
 		dc->DrawText( va( "w: %i  h: %i", ( int )rect.w(), ( int )rect.h() ), 0.25, 0, dc->colorWhite, idRectangle( rect.x() + rect.w(), rect.w() + rect.h() + 5, 100, 20 ), false );
 		dc->EnableClipping( true );
 	}
+#endif
 
 }
 
@@ -756,7 +758,11 @@ const char *idWindow::HandleEvent(const sysEvent_t *event, bool *updateVisuals) 
 							if (event->evValue2) {
 								SetFocus(child);
 								bool capture = true;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 								if (capture && ((child->flags & WIN_MOVABLE) || gui_edit.GetBool())) {
+#else
+								if (capture && (child->flags & WIN_MOVABLE)) {
+#endif
 									SetCapture(child);
 								}
 								return "";
@@ -787,7 +793,11 @@ const char *idWindow::HandleEvent(const sysEvent_t *event, bool *updateVisuals) 
 							SetFocus(child);
 						}
 						if (child->Contains(child->clientRect,gui->CursorX(), gui->CursorY()) || GetCaptureChild() == child) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 							if ((gui_edit.GetBool() && (child->flags & WIN_SELECTED)) || (!gui_edit.GetBool() && (child->flags & WIN_MOVABLE))) {
+#else
+							if (child->flags & WIN_MOVABLE) {
+#endif
 								SetCapture(child);
 							}
 							const char *childRet = child->HandleEvent(event, updateVisuals);
@@ -801,6 +811,7 @@ const char *idWindow::HandleEvent(const sysEvent_t *event, bool *updateVisuals) 
 					}
 				}
 			} else if (event->evValue == K_MOUSE3) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 				if (gui_edit.GetBool()) {
 					int c = children.Num();
 					for (int i = 0; i < c; i++) {
@@ -815,6 +826,7 @@ const char *idWindow::HandleEvent(const sysEvent_t *event, bool *updateVisuals) 
 						}
 					}
 				}
+#endif
 			} else if (event->evValue == K_TAB && event->evValue2) {
 				if (GetFocusedChild()) {
 					const char *childRet = GetFocusedChild()->HandleEvent(event, updateVisuals);
@@ -1190,19 +1202,29 @@ idWindow::Redraw
 void idWindow::Redraw(float x, float y, bool hud) {
 	idStr str;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if (r_skipGuiShaders.GetInteger() == 1 || dc == NULL ) {
+#else
+	if ( dc == NULL ) {
+#endif
 		return;
 	}
 	
 	int time = gui->GetTime();
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( flags & WIN_DESKTOP && r_skipGuiShaders.GetInteger() != 3 ) {
+#else
+	if ( flags & WIN_DESKTOP ) {
+#endif
 		RunTimeEvents( time );
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_skipGuiShaders.GetInteger() == 2 ) {
 		return;
 	}
+#endif
 
 	if ( flags & WIN_SHOWTIME ) {
 		dc->DrawText(va(" %0.1f seconds\n%s", (float)(time - timeLine) / 1000, gui->State().GetString("name")), 0.35f, 0, dc->colorWhite, idRectangle(100, 0, 80, 80), false);
@@ -1253,9 +1275,13 @@ void idWindow::Redraw(float x, float y, bool hud) {
 		dc->PushClipRect(clientRect);
 	} 
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( r_skipGuiShaders.GetInteger() < 5 ) {
 		Draw(time, x, y);
 	}
+#else
+	Draw(time, x, y);
+#endif
 
 #if !defined( ID_PS2 )	// [PS2_D3BFG]: No gui_debug overlay.
 	if ( gui_debug.GetInteger() ) {
@@ -1279,11 +1305,16 @@ void idWindow::Redraw(float x, float y, bool hud) {
 		dc->PopClipRect();
 	} 
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if (gui_edit.GetBool()  || (flags & WIN_DESKTOP && !( flags & WIN_NOCURSOR )  && !hideCursor && (gui->Active() || ( flags & WIN_MENUGUI ) ))) {
+#else
+	if (flags & WIN_DESKTOP && !( flags & WIN_NOCURSOR )  && !hideCursor && (gui->Active() || ( flags & WIN_MENUGUI ) )) {
+#endif
 		dc->SetTransformInfo(vec3_origin, mat3_identity);
 		gui->DrawCursor();
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if (gui_debug.GetInteger() && flags & WIN_DESKTOP) {
 		dc->EnableClipping(false);
 		sprintf(str, "x: %1.f y: %1.f",  gui->CursorX(), gui->CursorY());
@@ -1291,6 +1322,7 @@ void idWindow::Redraw(float x, float y, bool hud) {
 		dc->DrawText(gui->GetSourceFile(), 0.25, 0, dc->colorWhite, idRectangle(0, 20, 300, 20), false);
 		dc->EnableClipping(true);
 	}
+#endif
 
 	drawRect.Offset(-x, -y);
 	clientRect.Offset(-x, -y);

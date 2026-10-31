@@ -843,14 +843,14 @@ extern idCVar r_offsetUnits;				// polygon offset parameter
 extern idCVar r_singleTriangle;				// only draw a single triangle per primitive
 extern idCVar r_logFile;					// number of frames to emit GL logs
 extern idCVar r_clear;						// force screen clear every frame
-extern idCVar r_subviewOnly;				// 1 = don't render main view, allowing subviews to be debugged
+DEV_CVAR( extern idCVar r_subviewOnly );				// 1 = don't render main view, allowing subviews to be debugged
 extern idCVar r_lightScale;					// all light intensities are multiplied by this, which is normally 2
 extern idCVar r_flareSize;					// scale the flare deforms from the material def
 
 extern idCVar r_gamma;						// changes gamma tables
 extern idCVar r_brightness;					// changes gamma tables
 
-extern idCVar r_checkBounds;				// compare all surface bounds with precalculated ones
+DEV_CVAR( extern idCVar r_checkBounds );				// compare all surface bounds with precalculated ones
 extern idCVar r_maxAnisotropicFiltering;	// texture filtering parameter
 extern idCVar r_useTrilinearFiltering;		// Extra quality filtering
 extern idCVar r_lodBias;					// lod bias
@@ -864,22 +864,22 @@ extern idCVar r_useLightPortalCulling;		// 0 = none, 1 = box, 2 = exact clip of 
 extern idCVar r_useLightAreaCulling;		// 0 = off, 1 = on
 extern idCVar r_useLightScissors;			// 1 = use custom scissor rectangle for each light
 extern idCVar r_useEntityPortalCulling;		// 0 = none, 1 = box
-extern idCVar r_skipPrelightShadows;		// 1 = skip the dmap generated static shadow volumes
+DEV_CVAR( extern idCVar r_skipPrelightShadows );		// 1 = skip the dmap generated static shadow volumes
 extern idCVar r_useCachedDynamicModels;		// 1 = cache snapshots of dynamic models
 extern idCVar r_useScissor;					// 1 = scissor clip as portals and lights are processed
 extern idCVar r_usePortals;					// 1 = use portals to perform area culling, otherwise draw everything
 extern idCVar r_useStateCaching;			// avoid redundant state changes in GL_*() calls
 extern idCVar r_useEntityCallbacks;			// if 0, issue the callback immediately at update time, rather than defering
-extern idCVar r_lightAllBackFaces;			// light all the back faces, even when they would be shadowed
+DEV_CVAR( extern idCVar r_lightAllBackFaces );			// light all the back faces, even when they would be shadowed
 extern idCVar r_useLightDepthBounds;		// use depth bounds test on lights to reduce both shadow and interaction fill
 extern idCVar r_useShadowDepthBounds;		// use depth bounds test on individual shadows to reduce shadow fill
 
 extern idCVar r_skipStaticInteractions;		// skip interactions created at level load
 extern idCVar r_skipDynamicInteractions;	// skip interactions created after level load
 extern idCVar r_skipPostProcess;			// skip all post-process renderings
-extern idCVar r_skipSuppress;				// ignore the per-view suppressions
+DEV_CVAR( extern idCVar r_skipSuppress );				// ignore the per-view suppressions
 extern idCVar r_skipInteractions;			// skip all light/surface interaction drawing
-extern idCVar r_skipFrontEnd;				// bypasses all front end work, but 2D gui rendering still draws
+DEV_CVAR( extern idCVar r_skipFrontEnd );				// bypasses all front end work, but 2D gui rendering still draws
 extern idCVar r_skipBackEnd;				// don't draw anything
 extern idCVar r_skipCopyTexture;			// do all rendering, but don't actually copyTexSubImage2D
 extern idCVar r_skipRender;					// skip 3D rendering, but pass 2D
@@ -889,26 +889,26 @@ extern idCVar r_skipAmbient;				// bypasses all non-interaction drawing
 extern idCVar r_skipNewAmbient;				// bypasses all vertex/fragment program ambients
 extern idCVar r_skipBlendLights;			// skip all blend lights
 extern idCVar r_skipFogLights;				// skip all fog lights
-extern idCVar r_skipSubviews;				// 1 = don't render any mirrors / cameras / etc
-extern idCVar r_skipGuiShaders;				// 1 = don't render any gui elements on surfaces
-extern idCVar r_skipParticles;				// 1 = don't render any particles
-extern idCVar r_skipUpdates;				// 1 = don't accept any entity or light updates, making everything static
+DEV_CVAR( extern idCVar r_skipSubviews );				// 1 = don't render any mirrors / cameras / etc
+DEV_CVAR( extern idCVar r_skipGuiShaders );				// 1 = don't render any gui elements on surfaces
+DEV_CVAR( extern idCVar r_skipParticles );				// 1 = don't render any particles
+DEV_CVAR( extern idCVar r_skipUpdates );				// 1 = don't accept any entity or light updates, making everything static
 extern idCVar r_skipDeforms;				// leave all deform materials in their original state
 extern idCVar r_skipDynamicTextures;		// don't dynamically create textures
 extern idCVar r_skipBump;					// uses a flat surface instead of the bump map
 extern idCVar r_skipSpecular;				// use black for specular
 extern idCVar r_skipDiffuse;				// use black for diffuse
-extern idCVar r_skipDecals;					// skip decal surfaces
-extern idCVar r_skipOverlays;				// skip overlay surfaces
+DEV_CVAR( extern idCVar r_skipDecals );					// skip decal surfaces
+DEV_CVAR( extern idCVar r_skipOverlays );				// skip overlay surfaces
 extern idCVar r_skipShadows;				// disable shadows
 
 extern idCVar r_ignoreGLErrors;
 
-extern idCVar r_screenFraction;				// for testing fill rate, the resolution of the entire screen can be changed
+DEV_CVAR( extern idCVar r_screenFraction );				// for testing fill rate, the resolution of the entire screen can be changed
 extern idCVar r_showUnsmoothedTangents;		// highlight geometry rendered with unsmoothed tangents
 extern idCVar r_showSilhouette;				// highlight edges that are casting shadow planes
 extern idCVar r_showVertexColor;			// draws all triangles with the solid vertex color
-extern idCVar r_showUpdates;				// report entity and light updates and ref counts
+DEV_CVAR( extern idCVar r_showUpdates );				// report entity and light updates and ref counts
 extern idCVar r_showDemo;					// report reads and writes to the demo file
 extern idCVar r_showDynamic;				// report stats on dynamic surface generation
 extern idCVar r_showIntensity;				// draw the screen colors based on intensity, red = 0, green = 128, blue = 255
@@ -926,29 +926,29 @@ extern idCVar r_showTextureVectors;			// draw each triangles texture (tangent) v
 extern idCVar r_showLights;					// 1 = print light info, 2 = also draw volumes
 extern idCVar r_showLightCount;				// colors surfaces based on light count
 extern idCVar r_showShadows;				// visualize the stencil shadow volumes
-extern idCVar r_showLightScissors;			// show light scissor rectangles
+DEV_CVAR( extern idCVar r_showLightScissors );			// show light scissor rectangles
 extern idCVar r_showMemory;					// print frame memory utilization
 extern idCVar r_showCull;					// report sphere and box culling stats
 extern idCVar r_showAddModel;				// report stats from tr_addModel
 extern idCVar r_showSurfaces;				// report surface/light/shadow counts
 extern idCVar r_showPrimitives;				// report vertex/index/draw counts
 extern idCVar r_showPortals;				// draw portal outlines in color based on passed / not passed
-extern idCVar r_showSkel;					// draw the skeleton when model animates
+DEV_CVAR( extern idCVar r_showSkel );					// draw the skeleton when model animates
 extern idCVar r_showOverDraw;				// show overdraw
-extern idCVar r_jointNameScale;				// size of joint names when r_showskel is set to 1
-extern idCVar r_jointNameOffset;			// offset of joint names when r_showskel is set to 1
+DEV_CVAR( extern idCVar r_jointNameScale );				// size of joint names when r_showskel is set to 1
+DEV_CVAR( extern idCVar r_jointNameOffset );			// offset of joint names when r_showskel is set to 1
 
 extern idCVar r_testGamma;					// draw a grid pattern to test gamma levels
 extern idCVar r_testGammaBias;				// draw a grid pattern to test gamma levels
 
-extern idCVar r_singleLight;				// suppress all but one light
-extern idCVar r_singleEntity;				// suppress all but one entity
-extern idCVar r_singleArea;					// only draw the portal area the view is actually in
-extern idCVar r_singleSurface;				// suppress all but one surface on each entity
+DEV_CVAR( extern idCVar r_singleLight );				// suppress all but one light
+DEV_CVAR( extern idCVar r_singleEntity );				// suppress all but one entity
+DEV_CVAR( extern idCVar r_singleArea );					// only draw the portal area the view is actually in
+DEV_CVAR( extern idCVar r_singleSurface );				// suppress all but one surface on each entity
 extern idCVar r_shadowPolygonOffset;		// bias value added to depth test for stencil shadow drawing
 extern idCVar r_shadowPolygonFactor;		// scale value for stencil shadow drawing
 
-extern idCVar r_jitter;						// randomly subpixel jitter the projection matrix
+DEV_CVAR( extern idCVar r_jitter );						// randomly subpixel jitter the projection matrix
 extern idCVar r_orderIndexes;				// perform index reorganization to optimize vertex use
 
 extern idCVar r_debugLineDepthTest;			// perform depth test on debug lines
@@ -956,7 +956,7 @@ extern idCVar r_debugLineWidth;				// width of debug lines
 extern idCVar r_debugArrowStep;				// step size of arrow cone line rotation in degrees
 extern idCVar r_debugPolygonFilled;
 
-extern idCVar r_materialOverride;			// override all materials
+DEV_CVAR( extern idCVar r_materialOverride );			// override all materials
 
 extern idCVar r_debugRenderToTexture;
 

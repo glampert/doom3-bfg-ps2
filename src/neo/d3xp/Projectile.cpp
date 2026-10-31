@@ -40,7 +40,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 
-idCVar g_projectileDebug( "g_projectileDebug", "0", CVAR_BOOL, "Debug projectiles" );
+DEV_CVAR( idCVar g_projectileDebug( "g_projectileDebug", "0", CVAR_BOOL, "Debug projectiles" ) );	// [PS2_D3BFG]
 
 
 // This is used in MP to simulate frames to catchup a projectile's state. Similiar to how players work much lighter weight.
@@ -977,11 +977,15 @@ void idProjectile::Explode( const trace_t &collision, idEntity *ignore ) {
 
 	// change the model, usually to a PRT
 	fxname = NULL;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( g_testParticle.GetInteger() == TEST_PARTICLE_IMPACT ) {
 		fxname = g_testParticleName.GetString();
 	} else {
 		fxname = spawnArgs.GetString( "model_detonate" );
 	}
+#else
+	fxname = spawnArgs.GetString( "model_detonate" );
+#endif
 
 	int surfaceType = collision.c.material != NULL ? collision.c.material->GetSurfaceType() : SURFTYPE_METAL;
 	if ( !( fxname != NULL && *fxname != NULL ) ) {

@@ -37,10 +37,10 @@ If you have questions concerning this license or the applicable additional terms
 
 idCVar com_logFile( "logFile", "0", CVAR_SYSTEM | CVAR_NOCHEAT, "1 = buffer log, 2 = flush after each print", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
 idCVar com_logFileName( "logFileName", "qconsole.log", CVAR_SYSTEM | CVAR_NOCHEAT, "name of log file, if empty, qconsole.log will be used" );
-idCVar com_timestampPrints( "com_timestampPrints", "0", CVAR_SYSTEM, "print time with each console print, 1 = msec, 2 = sec", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
+DEV_CVAR( idCVar com_timestampPrints( "com_timestampPrints", "0", CVAR_SYSTEM, "print time with each console print, 1 = msec, 2 = sec", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> ) );	// [PS2_D3BFG]
 
 #ifndef ID_RETAIL
-idCVar com_printFilter( "com_printFilter", "", CVAR_SYSTEM, "only print lines that contain this, add multiple filters with a ; delimeter");
+DEV_CVAR( idCVar com_printFilter( "com_printFilter", "", CVAR_SYSTEM, "only print lines that contain this, add multiple filters with a ; delimeter") );	// [PS2_D3BFG]
 #endif
 
 /*
@@ -119,6 +119,7 @@ void idCommonLocal::VPrintf( const char *fmt, va_list args ) {
 	int timeLength = 0;
 	char msg[MAX_PRINT_MSG_SIZE];
 	msg[ 0 ] = '\0';
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( com_timestampPrints.GetInteger() ) {
 		int	t = Sys_Milliseconds();
 		if ( com_timestampPrints.GetInteger() == 1 ) {
@@ -127,6 +128,7 @@ void idCommonLocal::VPrintf( const char *fmt, va_list args ) {
 			sprintf( msg, "[%i]", t );
 		}
 	} 
+#endif
 	timeLength = strlen( msg );
 	// don't overflow
 	if ( idStr::vsnPrintf( msg+timeLength, MAX_PRINT_MSG_SIZE-timeLength-1, fmt, args ) < 0 ) {
@@ -143,6 +145,7 @@ void idCommonLocal::VPrintf( const char *fmt, va_list args ) {
 		return;
 	}
 #ifndef ID_RETAIL
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( com_printFilter.GetString() != NULL && com_printFilter.GetString()[ 0 ] != '\0' ) {
 		idStrStatic< 4096 > filterBuf = com_printFilter.GetString();
 		idStrStatic< 4096 > msgBuf = msg;
@@ -161,6 +164,7 @@ void idCommonLocal::VPrintf( const char *fmt, va_list args ) {
 			return;
 		}
 	}
+#endif
 #endif
 	if ( !idLib::IsMainThread() ) {
 		// [PS2_D3BFG]: Non-main-thread output also follows the platform logging sink.

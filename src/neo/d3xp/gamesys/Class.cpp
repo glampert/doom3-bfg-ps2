@@ -60,6 +60,10 @@ static idTypeInfo				*typelist = NULL;
 static idHierarchy<idTypeInfo>	classHierarchy;
 static int						eventCallbackMemory	= 0;
 
+#if defined( ID_PS2 )
+eventCallback_t *				idTypeInfo::eventCallbackPool = NULL;	// [PS2_D3BFG]
+#endif
+
 /*
 ================
 idTypeInfo::idClassType()
@@ -81,6 +85,9 @@ idTypeInfo::idTypeInfo( const char *classname, const char *superclass, idEventFu
 	this->superclass		= superclass;
 	this->eventCallbacks	= eventCallbacks;
 	this->eventMap			= NULL;
+#if defined( ID_PS2 )
+	this->eventCallbackBase	= 0;	// [PS2_D3BFG]
+#endif
 	this->Spawn				= Spawn;
 	this->Save				= Save;
 	this->Restore			= Restore;
@@ -174,9 +181,16 @@ void idTypeInfo::Init() {
 	// are events.  NOTE: could save some space by keeping track of the maximum
 	// event that the class responds to and doing range checking.
 	num = idEventDef::NumEventCommands();
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Pool indexes; idClass::Init assigned each class's eventCallbackBase.
+	eventMap = new (TAG_SYSTEM) unsigned short[ num ];
+	memset( eventMap, 0, sizeof( unsigned short ) * num );
+	eventCallbackMemory += sizeof( unsigned short ) * num;
+#else
 	eventMap = new (TAG_SYSTEM) eventCallback_t[ num ];
 	memset( eventMap, 0, sizeof( eventCallback_t ) * num );
 	eventCallbackMemory += sizeof( eventCallback_t ) * num;
+#endif
 
 	// allocate temporary memory for flags so that the subclass's event callbacks
 	// override the superclass's event callback
@@ -200,7 +214,11 @@ void idTypeInfo::Init() {
 				continue;
 			}
 			set[ ev ] = true;
+#if defined( ID_PS2 )
+			eventMap[ ev ] = static_cast< unsigned short >( c->eventCallbackBase + i );	// [PS2_D3BFG]
+#else
 			eventMap[ ev ] = def[ i ].function;
+#endif
 		}
 	}
 
@@ -400,6 +418,32 @@ void idClass::Init() {
 		return;
 	}
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Copy every class's callbacks into one pool that the per-class event maps
+	// index with 16 bits; entry 0 stays null for events a class does not handle.
+	{
+		int numCallbacks = 1;
+		for( c = typelist; c != NULL; c = c->next ) {
+			c->eventCallbackBase = numCallbacks;
+			for( int i = 0; c->eventCallbacks != NULL && c->eventCallbacks[ i ].event != NULL; i++ ) {
+				numCallbacks++;
+			}
+		}
+		if ( numCallbacks > 0xFFFF ) {
+			gameLocal.Error( "idClass::Init: %d event callbacks exceed the 16-bit event map", numCallbacks );
+		}
+
+		idTypeInfo::eventCallbackPool = new (TAG_SYSTEM) eventCallback_t[ numCallbacks ];
+		idTypeInfo::eventCallbackPool[ 0 ] = NULL;
+		for( c = typelist; c != NULL; c = c->next ) {
+			for( int i = 0; c->eventCallbacks != NULL && c->eventCallbacks[ i ].event != NULL; i++ ) {
+				idTypeInfo::eventCallbackPool[ c->eventCallbackBase + i ] = c->eventCallbacks[ i ].function;
+			}
+		}
+		eventCallbackMemory += sizeof( eventCallback_t ) * numCallbacks;
+	}
+#endif
+
 	// init the event callback tables for all the classes
 	for( c = typelist; c != NULL; c = c->next ) {
 		c->Init();
@@ -444,6 +488,10 @@ void idClass::Shutdown() {
 	for( c = typelist; c != NULL; c = c->next ) {
 		c->Shutdown();
 	}
+#if defined( ID_PS2 )
+	delete[] idTypeInfo::eventCallbackPool;	// [PS2_D3BFG]
+	idTypeInfo::eventCallbackPool = NULL;
+#endif
 	types.Clear();
 	typenums.Clear();
 
@@ -959,7 +1007,11 @@ bool idClass::ProcessEventArgPtr( const idEventDef *ev, int *data ) {
 		return false;
 	}
 
+#if defined( ID_PS2 )
+	callback = idTypeInfo::eventCallbackPool[ c->eventMap[ num ] ];	// [PS2_D3BFG]
+#else
 	callback = c->eventMap[ num ];
+#endif
 
 #if !CPU_EASYARGS
 

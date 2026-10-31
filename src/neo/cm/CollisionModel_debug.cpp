@@ -87,13 +87,13 @@ int cm_contentsFlagByIndex[] = {
 	0
 };
 
-idCVar cm_drawMask(			"cm_drawMask",			"none",		CVAR_GAME,				"collision mask", cm_contentsNameByIndex, idCmdSystem::ArgCompletion_String<cm_contentsNameByIndex> );
-idCVar cm_drawColor(		"cm_drawColor",			"1 0 0 .5",	CVAR_GAME,				"color used to draw the collision models" );
-idCVar cm_drawFilled(		"cm_drawFilled",		"0",		CVAR_GAME | CVAR_BOOL,	"draw filled polygons" );
-idCVar cm_drawInternal(		"cm_drawInternal",		"1",		CVAR_GAME | CVAR_BOOL,	"draw internal edges green" );
-idCVar cm_drawNormals(		"cm_drawNormals",		"0",		CVAR_GAME | CVAR_BOOL,	"draw polygon and edge normals" );
-idCVar cm_backFaceCull(		"cm_backFaceCull",		"0",		CVAR_GAME | CVAR_BOOL,	"cull back facing polygons" );
-idCVar cm_debugCollision(	"cm_debugCollision",	"0",		CVAR_GAME | CVAR_BOOL,	"debug the collision detection" );
+DEV_CVAR( idCVar cm_drawMask(			"cm_drawMask",			"none",		CVAR_GAME,				"collision mask", cm_contentsNameByIndex, idCmdSystem::ArgCompletion_String<cm_contentsNameByIndex> ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar cm_drawColor(		"cm_drawColor",			"1 0 0 .5",	CVAR_GAME,				"color used to draw the collision models" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar cm_drawFilled(		"cm_drawFilled",		"0",		CVAR_GAME | CVAR_BOOL,	"draw filled polygons" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar cm_drawInternal(		"cm_drawInternal",		"1",		CVAR_GAME | CVAR_BOOL,	"draw internal edges green" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar cm_drawNormals(		"cm_drawNormals",		"0",		CVAR_GAME | CVAR_BOOL,	"draw polygon and edge normals" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar cm_backFaceCull(		"cm_backFaceCull",		"0",		CVAR_GAME | CVAR_BOOL,	"cull back facing polygons" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar cm_debugCollision(	"cm_debugCollision",	"0",		CVAR_GAME | CVAR_BOOL,	"debug the collision detection" ) );	// [PS2_D3BFG]
 
 static idVec4 cm_color;
 

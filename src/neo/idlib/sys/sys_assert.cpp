@@ -34,7 +34,7 @@ Contains the AssertMacro implementation.
 ================================================================================================
 */
 
-idCVar com_assertOutOfDebugger( "com_assertOutOfDebugger", "0", CVAR_BOOL, "by default, do not assert while not running under the debugger" );
+DEV_CVAR( idCVar com_assertOutOfDebugger( "com_assertOutOfDebugger", "0", CVAR_BOOL, "by default, do not assert while not running under the debugger" ) );	// [PS2_D3BFG]
 
 struct skippedAssertion_t {
 					skippedAssertion_t() :

@@ -36,12 +36,12 @@ If you have questions concerning this license or the applicable additional terms
 #include "ps2/ui/font_backend.h"
 #endif
 
-idCVar swf_timescale( "swf_timescale", "1", CVAR_FLOAT, "timescale for swf files" );
-idCVar swf_stopat( "swf_stopat", "0", CVAR_FLOAT, "stop at a specific frame" );
+DEV_CVAR( idCVar swf_timescale( "swf_timescale", "1", CVAR_FLOAT, "timescale for swf files" ) );	// [PS2_D3BFG]
+DEV_CVAR( idCVar swf_stopat( "swf_stopat", "0", CVAR_FLOAT, "stop at a specific frame" ) );	// [PS2_D3BFG]
 
 idCVar swf_titleSafe( "swf_titleSafe", "0.005", CVAR_FLOAT, "space between UI elements and screen edge", 0.0f, 0.075f );
 
-idCVar swf_forceAlpha( "swf_forceAlpha", "0", CVAR_FLOAT, "force an alpha value on all elements, useful to show invisible animating elements", 0.0f, 1.0f );
+DEV_CVAR( idCVar swf_forceAlpha( "swf_forceAlpha", "0", CVAR_FLOAT, "force an alpha value on all elements, useful to show invisible animating elements", 0.0f, 1.0f ) );	// [PS2_D3BFG]
 
 extern idCVar swf_textStrokeSize;
 extern idCVar swf_textStrokeSizeGlyphSpacer;
@@ -94,11 +94,13 @@ void idSWF::Render( idRenderSystem * gui, int time, bool isSplitscreen ) {
 	if ( !IsActive() ) {
 		return;
 	}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( swf_stopat.GetInteger() > 0 ) {
 		if ( mainspriteInstance->currentFrame == swf_stopat.GetInteger() ) {
 			swf_timescale.SetFloat( 0.0f );
 		}
 	}
+#endif
 
 	// [PS2_D3BFG]: The caller owns timeline time so redraws can preserve the current frame.
 #if defined( ID_PS2 )
@@ -118,7 +120,11 @@ void idSWF::Render( idRenderSystem * gui, int time, bool isSplitscreen ) {
 	}
 
 #if defined( ID_PS2 )
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( swf_timescale.GetFloat() > 0.0f && !resourceOnly ) {
+#else
+	if ( !resourceOnly ) {
+#endif
 #else
 	if ( swf_timescale.GetFloat() > 0.0f ) {
 #endif
@@ -127,7 +133,11 @@ void idSWF::Render( idRenderSystem * gui, int time, bool isSplitscreen ) {
 			framesToRun = 1;
 		} else {
 			float deltaTime = ( currentTime - lastRenderTime );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 			float fr = ( (float)frameRate / 256.0f ) * swf_timescale.GetFloat();
+#else
+			float fr = ( (float)frameRate / 256.0f );
+#endif
 			framesToRun = idMath::Ftoi( ( fr * deltaTime ) / 1000.0f );
 			lastRenderTime += ( framesToRun * ( 1000.0f / fr ) );
 			if ( framesToRun > 10 ) {
@@ -249,7 +259,11 @@ void idSWF::RenderSprite( idRenderSystem * gui, idSWFSpriteInstance * spriteInst
 	if ( !spriteInstance->isVisible ) {
 		return;
 	}
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( ( ( renderState.cxf.mul.w + renderState.cxf.add.w ) <= ALPHA_EPSILON ) && ( swf_forceAlpha.GetFloat() <= 0.0f ) ) {
+#else
+	if ( ( renderState.cxf.mul.w + renderState.cxf.add.w ) <= ALPHA_EPSILON ) {
+#endif
 		return;
 	}
 
@@ -509,10 +523,12 @@ void idSWF::RenderMorphShape( idRenderSystem * gui, const idSWFShape * shape, co
 			material = guiSolid;
 		}
 		color = color.Multiply( renderState.cxf );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( swf_forceAlpha.GetFloat() > 0.0f ) {
 			color.mul.w = swf_forceAlpha.GetFloat();
 			color.add.w = 0.0f;
 		}
+#endif
 		if ( ( color.mul.w + color.add.w ) <= ALPHA_EPSILON ) {
 			continue;
 		}
@@ -619,10 +635,12 @@ void idSWF::RenderShape( idRenderSystem * gui, const idSWFShape * shape, const s
 			material = guiSolid;
 		}
 		color = color.Multiply( renderState.cxf );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( swf_forceAlpha.GetFloat() > 0.0f ) {
 			color.mul.w = swf_forceAlpha.GetFloat();
 			color.add.w = 0.0f;
 		}
+#endif
 		if ( ( color.mul.w + color.add.w ) <= ALPHA_EPSILON ) {
 			continue;
 		}
@@ -693,10 +711,12 @@ void idSWF::RenderShape( idRenderSystem * gui, const idSWFShape * shape, const s
 		swfColorXform_t color;
 		color.mul = line.style.startColor.ToVec4();
 		color = color.Multiply( renderState.cxf );
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 		if ( swf_forceAlpha.GetFloat() > 0.0f ) {
 			color.mul.w = swf_forceAlpha.GetFloat();
 			color.add.w = 0.0f;
 		}
+#endif
 		if ( ( color.mul.w + color.add.w ) <= ALPHA_EPSILON ) {
 			continue;
 		}
@@ -856,9 +876,11 @@ void idSWF::RenderEditText( idRenderSystem * gui, idSWFTextInstance * textInstan
 
 	idVec4 defaultColor = textInstance->color.ToVec4();
 	defaultColor = defaultColor.Multiply( renderState.cxf.mul ) + renderState.cxf.add;
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( swf_forceAlpha.GetFloat() > 0.0f ) {
 		defaultColor.w = swf_forceAlpha.GetFloat();
 	}
+#endif
 	if ( defaultColor.w <= ALPHA_EPSILON ) {
 		return;
 	}

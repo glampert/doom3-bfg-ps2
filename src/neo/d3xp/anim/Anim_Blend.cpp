@@ -4277,13 +4277,17 @@ bool idAnimator::CreateFrame( int currentTime, bool force ) {
 	const jointMod_t *	jointMod;
 	const idJointQuat *	defaultPose;
 
-	static idCVar		r_showSkel( "r_showSkel", "0", CVAR_RENDERER | CVAR_INTEGER, "", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
+	DEV_CVAR( static idCVar		r_showSkel( "r_showSkel", "0", CVAR_RENDERER | CVAR_INTEGER, "", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> ) );	// [PS2_D3BFG]
 
 	if ( !modelDef || !modelDef->ModelHandle() ) {
 		return false;
 	}
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( !force && !r_showSkel.GetInteger() ) {
+#else
+	if ( !force ) {
+#endif
 		if ( lastTransformTime == currentTime ) {
 			return false;
 		}
@@ -4295,6 +4299,7 @@ bool idAnimator::CreateFrame( int currentTime, bool force ) {
 	lastTransformTime = currentTime;
 	stoppedAnimatingUpdate = false;
 
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	if ( entity && ( ( g_debugAnim.GetInteger() == entity->entityNumber ) || ( g_debugAnim.GetInteger() == -2 ) ) ) {
 		debugInfo = true;
 		gameLocal.Printf( "---------------\n%d: entity '%s':\n", gameLocal.time, entity->GetName() );
@@ -4302,6 +4307,9 @@ bool idAnimator::CreateFrame( int currentTime, bool force ) {
 	} else {
 		debugInfo = false;
 	}
+#else
+	debugInfo = false;
+#endif
 
 	// init the joint buffer
 	if ( AFPoseJoints.Num() ) {
