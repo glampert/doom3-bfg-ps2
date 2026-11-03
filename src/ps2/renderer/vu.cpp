@@ -33,10 +33,10 @@ struct Entry
     MicroCode code;
     u32 instructions; // rounded up to even: MPG moves whole qwords
     bool resident;
+    bool loaded;
     qword_t * chain;  // REF tags + RET, 64-byte aligned
     u32 chainQwords;
     MicroAddr address; // resident address, or where the swap region last placed it
-    bool loaded;
 };
 
 static Entry s_entries[static_cast<int>(Program::Count)] = {};
@@ -105,6 +105,7 @@ PS2_COLD_FUNC bool Init()
     u32 residentEnd = 0;
     u32 largestSwappable = 0;
     u32 chainQwords = 0;
+
     for (int index = 0; index < static_cast<int>(Program::Count); ++index)
     {
         const Source source = SourceOf(static_cast<Program>(index));
@@ -134,7 +135,7 @@ PS2_COLD_FUNC bool Init()
         }
     }
 
-    if (residentEnd + largestSwappable > kMicroMemInstructions)
+    if (residentEnd + largestSwappable > kMicroMemInstructions) [[unlikely]]
     {
         Log(LogLevel::Error, "VU1 programs do not fit micro memory: resident %u + largest swappable %u\n", residentEnd, largestSwappable);
         return false;
@@ -250,7 +251,7 @@ void EmitFrameConstants(dma::DisplayList & list)
     PS2_AssertMsg(s_initialized, "VU1 frame constants before initialization");
 
     // STCYCL 1,1 then one absolute V4-32 unpack: the null GIF tag passthrough kicks as its drain guard.
-    qword_t * const payload = list.Cnt(1U, dma::VifStcycl(1U, 1U), dma::VifUnpack(dma::UnpackFormat::V4_32, 1U, kNullGifTagAddr, false, false));
+    qword_t * const payload = list.Cnt(1U, dma::VifStcycl(1U, 1U), dma::VifUnpack(dma::UnpackFormat::V4_32, 1U, kVuNullGifTagAddr, false, false));
     PACK_GIFTAG(payload, GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 0), 0);
 }
 

@@ -87,7 +87,7 @@ bool RunRendererTests()
     // and the -j boilerplate amount to, and the upper word of some instruction carries the E
     // bit that ends the program. An unchecked object or a dropped section fails here, not on
     // the first MSCAL.
-    const renderer::vu::MicroCode passthrough = passthrough_Code();
+    const renderer::vu::MicroCode passthrough = renderer::vu::passthrough_Code();
     const u32 instructions = passthrough.InstructionCount();
     bool endBit = false;
     for (const u32 * upper = passthrough.start + 1; upper < passthrough.end; upper += 2)

@@ -579,8 +579,8 @@ Build: the quake2-ps2 rule (`vclpp -I vu1progs -Wundef -Werror -j`, then `openvc
 `openvcl -c` for the source names, then `dvp-as`, then `check_vu_code.py`) is adopted verbatim into the Makefile (done 2026-11-03), with vclpp and
 vu-checker imported under `src/external/` and vclpp built into `build/tools/vclpp`.
 `PS2_DECLARE_VU_MICROPROGRAM` and the instruction-count helper come from `vu1.h` into
-`ps2/renderer/vu.h`; the code lands in `.vutext`, and `vu1progs/vu_memory.i` mirrors the
-data memory map above.
+`ps2/renderer/vu.h`; the code lands in `.vutext`, and `vu1progs/vu_memory.h` holds the
+data memory map above, included by both the programs and `vu.h`.
 
 ### 7.4 Program skeleton
 

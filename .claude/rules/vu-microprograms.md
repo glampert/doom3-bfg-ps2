@@ -10,8 +10,9 @@ to `quake2-ps2`, and the hardware/toolchain behaviour transfers.
 regalloc check) → `dvp-as` → `check_vu_code.py` (vu-checker submodule), which deletes the
 `.o` on failure, then a `.d` for the link reports. The output is config-independent and lives
 in `build/vu/`; `make vu` builds it alone. Doom's programs are listed in `config/sources.mk`
-(`VCL_FILES`) under `src/ps2/renderer/vu1progs/`, with `vu_memory.i` mirroring the data memory
-map in `ps2/renderer/vu.h`; the reference has `textured_triangles.vcl` and `particles.vcl` with
+(`VCL_FILES`) under `src/ps2/renderer/vu1progs/`, with the data memory map in `vu_memory.h`,
+shared with C++ through `ps2/renderer/vu.h` (plain `#define`s and `//` comments only, names
+prefixed `kVu`); the reference has `textured_triangles.vcl` and `particles.vcl` with
 shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directive's section);
 `.vudata` is empty, whatever the reference's comments say.
 

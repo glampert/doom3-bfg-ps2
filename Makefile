@@ -252,7 +252,7 @@ GAME_TEST_LINK_OBJS = $(TEST_CAMPAIGN_OBJS) $(TEST_BACKEND_OBJS) $(TEST_SUPPORT_
 VCL_PATH = src/ps2/renderer/vu1progs
 VCL_SRC  = $(addprefix ps2/renderer/vu1progs/,$(VCL_FILES))
 VU_OBJS  = $(addprefix build/vu/,$(VCL_FILES:.vcl=.o))
-VCL_INCS = $(wildcard $(VCL_PATH)/*.i)
+VCL_INCS = $(wildcard $(VCL_PATH)/*.i $(VCL_PATH)/*.h)
 VU_CHECK = src/external/vu-checker/check_vu_code.py
 VCLPP_PATH        = src/external/vclpp
 VCLPP_PARSE_UTILS = $(VCLPP_PATH)/external/parse-utils

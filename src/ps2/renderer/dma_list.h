@@ -10,7 +10,6 @@
 #pragma once
 
 #include "ps2/common.h"
-
 #include <tamtypes.h>
 
 namespace ps2::renderer::dma
@@ -102,10 +101,12 @@ struct ChainRing
     u32 bytes;
 };
 
-class DisplayList
+class DisplayList final
 {
 public:
     constexpr DisplayList() = default;
+    DisplayList(const DisplayList & other) = delete;
+    DisplayList & operator=(const DisplayList & other) = delete;
 
     // Start writing at 'offsetBytes' into 'ring' (0 at a frame start; a mid-frame kick continues
     // where the previous chain ended). Any earlier list must have been Flush()ed.

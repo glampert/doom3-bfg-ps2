@@ -1,4 +1,4 @@
-;--------------------------------------------------------------------
+; =================================================================================================
 ; passthrough.vcl
 ;
 ; The smallest VU1 microprogram: kicks the GIF packet the EE unpacked
@@ -23,16 +23,18 @@
 ; and the ordinary double buffer is protection enough.
 ;
 ;   qword * packet = xtop();
-;   xgkick(packet);                        // asynchronous
-;   xgkick(&vuMem[kNullGifTagAddr]);       // stalls until the kick above has drained
-;--------------------------------------------------------------------
+;   xgkick(packet);                    // asynchronous
+;   xgkick(&vuMem[kVuNullGifTagAddr]); // stalls until the kick above has drained
+;
+; This source code is released under the GNU GPL-3.0-or-later license.
+; =================================================================================================
 
-#include "vu_memory.i"
+#include "vu_memory.h"
 
 #vuprog passthrough
     xtop   iPacket
     xgkick iPacket
 
-    iaddiu iNullTag, vi00, kNullGifTagAddr
+    iaddiu iNullTag, vi00, kVuNullGifTagAddr
     xgkick iNullTag
 #endvuprog
