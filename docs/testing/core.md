@@ -16,7 +16,9 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   assertions: fatal in assertion builds, compiled out of release, which runs only the two scenes. Five mask probes reject a second non-convex (depth) mask,
   scope leaks, unknown keys, active-count disagreement and a mask beyond the 256 replayed
   triangles. Adapter startup also rejects insufficient VRAM/pixel budgets
-  without retaining partial ownership.
+  without retaining partial ownership. The core checks include
+  `renderer/passthrough-microprogram`: the VU rule's `passthrough.o` reached the link with
+  whole-qword, 16-byte-aligned code of 4 to 16 instructions and an E bit (2026-11-03).
   Indexed geometry adds oversized single-request, invalid local-index, nonzero-depth,
   nonfinite half-UV and additive-color failures. Run both positive standards and all
   seventeen failures sequentially: nineteen isolated emulator sessions in debug, two in release.

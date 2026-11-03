@@ -484,7 +484,7 @@ reference, stage enable) per frame.
 | `shadow_planar` | SK-R / WA positions | squash matrix, A-bit mask emit | flat | 150 |
 | `particles` | centre, colour, size, rotation | billboard to a SPRITE or two triangles, soft fade by depth | 5 qw per particle | 120 (quake2's 90) |
 | `ui_2d` | 16-byte packed 2D vertex | 640x480 to 1/16 px, UV page mapping, per-run tags | ST/RGBAQ/XYZ2 | 80 (Black's 47) |
-| `passthrough` | GIF packet | `xgkick` only, for SIGNAL/LABEL fences and A+D blocks that must be ordered with PATH1 | | 8 |
+| `passthrough` | GIF packet | `xgkick` of the input half, then `xgkick` of the null GIF tag at qword 8 so the program ends only once its packet has drained (an XGKICK stalls while the previous PATH1 transfer runs); for SIGNAL/LABEL fences and A+D blocks that must be ordered with PATH1 | | 6 (built) |
 
 The kernel, `world_lm` and `passthrough` (about 1,110 instructions) stay resident during
 gameplay. The remaining 940 slots are one swap region that holds one or two programs at a
@@ -500,7 +500,8 @@ frame (world, then rigid models, then skinned, then effects), never per batch. E
 qword     world_lm (S = 3, N = 88, I = 1.3 N indices)       model_skin4 (K = 24 joints, N = 40, strips)
 0..7      frame constants: MVP rows, GS scale/offset,       same
           clip scale, fog params
-8..23     per-pass GIF tag and A+D templates (2 passes x 8) same
+8..23     per-pass GIF tag and A+D templates (2 passes x 8); same
+          qword 8 is a null GIF tag (NLOOP 0, EOP 1)
 24..39    per-draw constants: lightmap and layer scales,    same
           material UV matrix, specular parameters,
           the projected light's four planes (4 qw)
@@ -566,10 +567,11 @@ one `CALL` into that chain. The kernel's entry addresses are fixed; programs cal
 `bal`, and the checker's `branches` check confirms every target.
 
 Build: the quake2-ps2 rule (`vclpp -I vu1progs -Wundef -Werror -j`, then `openvcl`, then
-`openvcl -c` for the source names, then `dvp-as`, then `check_vu_code.py`) is adopted verbatim into the Makefile, with vclpp and
-vu-checker imported under `src/external/` as planned in AGENTS.md and vclpp built into
-`build/tools/vclpp`. The `.vudata` section, `PS2_DECLARE_VU_MICROPROGRAM` and the
-instruction-count helpers come from `vu1.h`.
+`openvcl -c` for the source names, then `dvp-as`, then `check_vu_code.py`) is adopted verbatim into the Makefile (done 2026-11-03), with vclpp and
+vu-checker imported under `src/external/` and vclpp built into `build/tools/vclpp`.
+`PS2_DECLARE_VU_MICROPROGRAM` and the instruction-count helper come from `vu1.h` into
+`ps2/renderer/vu.h`; the code lands in `.vutext`, and `vu1progs/vu_memory.i` mirrors the
+data memory map above.
 
 ### 7.4 Program skeleton
 

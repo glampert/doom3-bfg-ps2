@@ -236,10 +236,31 @@ TEST_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/test-backend/src/,$(GAME_SIZE_OPT
 GAME_TEST_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC) $(CORE_C_SRC)
 GAME_TEST_LINK_OBJS = $(TEST_CAMPAIGN_OBJS) $(TEST_BACKEND_OBJS) $(TEST_SUPPORT_OBJS) $(CORE_C_OBJS)
 
+# VU1 microprograms: vclpp -> openvcl -> dvp-as, checked by vu-checker (the rule is with the
+# host tools below). Each .vcl assembles into .vutext with <name>_CodeStart/_CodeEnd link
+# symbols (PS2_DECLARE_VU_MICROPROGRAM in ps2/renderer/vu.h); until vu::Init references
+# them, --gc-sections drops the code from the runnable and only the gate link carries it. No EE compiler flag reaches
+# this toolchain, so the output is identical in both configurations: it is built once into
+# build/vu/ and linked into the production, game test and core test images. The VU rule
+# writes a .d beside each object, so the link reports hash the .vcl and its includes like
+# any compiled source.
+VCL_PATH = src/ps2/renderer/vu1progs
+VCL_SRC  = $(addprefix ps2/renderer/vu1progs/,$(VCL_FILES))
+VU_OBJS  = $(addprefix build/vu/,$(VCL_FILES:.vcl=.o))
+VCL_INCS = $(wildcard $(VCL_PATH)/*.i)
+VU_CHECK = src/external/vu-checker/check_vu_code.py
+VCLPP_PATH        = src/external/vclpp
+VCLPP_PARSE_UTILS = $(VCLPP_PATH)/external/parse-utils
+VCLPP             = build/tools/vclpp
+RESIDENT_LINK_SOURCES += $(VCL_SRC)
+RESIDENT_LINK_OBJS += $(VU_OBJS)
+GAME_TEST_LINK_SOURCES += $(VCL_SRC)
+GAME_TEST_LINK_OBJS += $(VU_OBJS)
+
 ifeq ($(CORE_BOOT),1)
 	BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
-	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS)
-	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC)
+	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(CORE_C_OBJS) $(VU_OBJS)
+	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_C_SRC) $(VCL_SRC)
 	MILESTONE = build-core
 	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(OUTPUT_DIR)/.vendor-flags.json $(CORE_TEST_DIR)/.link-flags.json
 else
@@ -281,7 +302,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui ui-inventory ui-cook resource-unpack asset-reexport build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image clean FORCE
+.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui ui-inventory ui-cook resource-unpack asset-reexport build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
 
 release: all
 build-platform: core-test-image
@@ -579,6 +600,49 @@ build/tools/resource_unpack: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
 build/tools/asset_reexport: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
 	@MAKEFLAGS= cmake --build $(HOST_TOOLS_CMAKE) --parallel --target asset_reexport
 
+# VU microprograms. vclpp comes in as a git submodule (src/external/vclpp, with its own
+# parse-utils submodule) and is built by its own Makefile, so every VU build runs the pinned
+# version rather than whatever is on PATH: an older vclpp silently mangles macro bodies that
+# have comments in them. That Makefile recompiles on every run, so the up-to-date check is
+# made here: it runs again only when the submodule's sources or Makefile change, as checking
+# out a new commit does. BIN_TARGET puts the binary under build/tools/ rather than in the
+# submodule's work tree, where git would report it as untracked content. Every VU program
+# depends on the binary, so a new vclpp rebuilds them all.
+$(VCLPP): $(wildcard $(VCLPP_PATH)/Makefile $(VCLPP_PATH)/src/*.cpp $(VCLPP_PATH)/src/*.hpp $(VCLPP_PARSE_UTILS)/*.hpp)
+	@test -f $(VCLPP_PATH)/Makefile && test -f $(VCLPP_PARSE_UTILS)/lexer.hpp || \
+		{ echo "$(VCLPP_PATH) is incomplete - run 'git submodule update --init --recursive'"; exit 1; }
+	@mkdir -p $(dir $@)
+	@$(MAKE) --no-print-directory -C $(VCLPP_PATH) CXX=$(HOST_CXX) BIN_TARGET=$(abspath $@)
+
+# The vu-checker submodule needs no build step, so this rule only runs when the script is
+# missing: an uninitialized submodule. Every VU program depends on it, so a new vu-checker
+# checks them all again.
+$(VU_CHECK):
+	@echo "$(patsubst %/,%,$(dir $@)) is incomplete - run 'git submodule update --init --recursive'"; exit 1
+
+# The checks in check_vu_code.py are not optional; every one exists because the toolchain
+# fails silently. openvcl allocates VI registers by liveness and gets it wrong on control flow
+# past a single counted loop (it hands a live register to a temporary, with no diagnostic, and
+# the microprogram runs away or reads garbage); it pads a clip flag or Q read for latency only
+# within a basic block; dvp-as truncates an immediate that does not fit its field and says
+# nothing. All of them reach the screen rather than the build log. The register allocation
+# check needs a second openvcl run with -c for the source names, and the branch check reads
+# the object, so the checks run once dvp-as is done, and a failure deletes the object:
+# otherwise the next make would take the bad object as up to date. dvp-as's 'operand out of
+# range' warnings are expected (branch offsets are 11 bits and VU1 micro memory is exactly 2048
+# instructions, so the PC wraps; the branches check proves each target). The .d written last
+# lets the link reports hash the program's inputs like a compiled source's.
+vu: $(VU_OBJS)
+
+build/vu/%.o: $(VCL_PATH)/%.vcl $(VCL_INCS) $(VCLPP) $(VU_CHECK)
+	@mkdir -p $(dir $@)
+	$(VCLPP) -I $(VCL_PATH) -Wundef -Werror -j $< $(basename $@).pp.vcl
+	openvcl -o $(basename $@).vsm $(basename $@).pp.vcl
+	@openvcl -c -o $(basename $@).c.vsm $(basename $@).pp.vcl
+	dvp-as $(basename $@).vsm -o $@
+	@$(PYTHON) $(VU_CHECK) $@ || { rm -f $@; exit 1; }
+	@printf '%s: %s\n' '$@' '$< $(VCL_INCS)' > $(basename $@).d
+
 build/tests/.resource-unpack-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(RESOURCE_UNPACK_SRC)
 
@@ -703,7 +767,7 @@ test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_f
 -include $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d) $(TEST_CAMPAIGN_OBJS:.o=.d) $(TEST_BACKEND_OBJS:.o=.d) $(TEST_SUPPORT_OBJS:.o=.d)
 
 clean:
-	rm -rf build/debug build/release build/tests
+	rm -rf build/debug build/release build/tests build/vu
 
 FORCE:
 

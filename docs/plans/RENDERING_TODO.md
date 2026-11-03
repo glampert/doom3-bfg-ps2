@@ -23,12 +23,16 @@ production link free of test inputs. Section numbers in parentheses point into t
       `src/external/`; record both in `REUSE.md` and the pins in
       [vclpp-submodule.md](../../.claude/rules/vclpp-submodule.md); CI checks out submodules
       (2026-11-03).
-- [ ] Build the pinned vclpp into `build/tools/vclpp` from the Makefile (the reference's
-      out-of-tree `BIN_TARGET` rule, rebuilt when the submodule's sources change).
-- [ ] Add the Makefile VU rule (`vclpp -I ... -Wundef -Werror -j`, `openvcl`, `openvcl -c`,
+- [x] Build the pinned vclpp into `build/tools/vclpp` from the Makefile (the reference's
+      out-of-tree `BIN_TARGET` rule, rebuilt when the submodule's sources change)
+      (2026-11-03).
+- [x] Add the Makefile VU rule (`vclpp -I ... -Wundef -Werror -j`, `openvcl`, `openvcl -c`,
       `dvp-as`, `check_vu_code.py`, delete the object on failure), a `VCL_FILES` list and the
-      `.vudata` link; confirm the pinned CI ps2sdk image has `openvcl` and `dvp-as`
-      ([ci.md](../../.claude/rules/ci.md)).
+      `.vutext` link into every image; CI installs `g++` for vclpp, and the image's `openvcl`
+      and `dvp-as` are proven by quake2-ps2's build on the same digest
+      ([ci.md](../../.claude/rules/ci.md)). `passthrough.vcl` (6 instructions, with a
+      null-tag drain guard) and `vu.h` are the first program and header; the core gate's
+      `renderer/passthrough-microprogram` check reads them (2026-11-03).
 - [ ] Import `qwords.h`, `math/vec_mat.{h,cpp}` and `PS2_DECLARE_VU_MICROPROGRAM` from
       quake2-ps2 with `REUSE.md` rows; prove the VU0 asm with the scratchpad test-ELF recipe.
 - [ ] `ps2::renderer::dma`: `DisplayList` in the scratchpad (two 8 KiB halves, `fromSPR`

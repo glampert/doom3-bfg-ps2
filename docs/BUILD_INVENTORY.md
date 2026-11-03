@@ -147,7 +147,11 @@ destructor, parentheses, attribute and the remaining `-Wall -Wextra` diagnostics
 visible, so a new engine warning is a regression to investigate.
 The checked backend bridge treats upstream `neo` contracts as system headers;
 new backend/test headers remain checked. SDK and dlmalloc headers are system headers.
-No project-wide `-w` or VU dependency is introduced. Core/platform tests are asset-free;
+No project-wide `-w` is introduced. The VU microprograms in `config/sources.mk`'s
+`VCL_FILES` (`src/ps2/renderer/vu1progs/`) assemble once into `build/vu/` through the
+quake2-ps2 rule (pinned `build/tools/vclpp`, `openvcl`, `dvp-as`, `check_vu_code.py`, a
+`.d` for the reports) and link into every image as `.vutext`; `passthrough.vcl` is the
+first (2026-11-03). Core/platform tests are asset-free;
 production native filesystem startup requires `base/default.cfg` in HostFs.
 
 Compiler/flag/source-list stamps rebuild affected object groups when configuration

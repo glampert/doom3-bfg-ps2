@@ -5,8 +5,10 @@
 // ================================================================================================
 
 #include "tests/smoketests/renderer_tests.h"
+#include "ps2/renderer/vu.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
+#include <cstdint>
 #include <idlib/precompiled.h>
 #include <renderer/ResolutionScale.h>
 #include <renderer/tr_local.h>
@@ -78,6 +80,23 @@ bool RunRendererTests()
     passed = Check("disabled-resolution-cvars", x == 1.0f && y == 1.0f && idStr::Cmp(text, "rendering unavailable") == 0 &&
                                                 nearPlane != nullptr && nearPlane->GetFloat() == 3.0f && (nearPlane->GetFlags() & (CVAR_RENDERER | CVAR_FLOAT)) == (CVAR_RENDERER | CVAR_FLOAT) &&
                                                 dynamicModels != nullptr && dynamicModels->GetBool()) &&
+             passed;
+
+    // The VU rule's product reached the link: the passthrough program's .vutext symbols bracket
+    // whole qwords (MPG uploads qwords), the count is the handful of instructions the source
+    // and the -j boilerplate amount to, and the upper word of some instruction carries the E
+    // bit that ends the program. An unchecked object or a dropped section fails here, not on
+    // the first MSCAL.
+    const renderer::vu::MicroCode passthrough = passthrough_Code();
+    const u32 instructions = passthrough.InstructionCount();
+    bool endBit = false;
+    for (const u32 * upper = passthrough.start + 1; upper < passthrough.end; upper += 2)
+    {
+        endBit = endBit || ((*upper & (1u << 30)) != 0u);
+    }
+
+    passed = Check("passthrough-microprogram", instructions >= 4u && instructions <= 16u && (instructions % 2u) == 0u &&
+                                               (reinterpret_cast<uintptr_t>(passthrough.start) % 16u) == 0u && endBit) &&
              passed;
     return passed;
 }

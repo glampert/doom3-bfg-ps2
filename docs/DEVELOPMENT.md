@@ -25,8 +25,9 @@ tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`: `make resource-unpa
 `make asset-reexport` configure it into `build/tools/cmake/` with `HOST_CXX`, and other
 hosts, Windows/MSVC included, build it with `cmake` directly. The VU tools `vclpp` (with
 `parse-utils`) and `vu-checker` are pinned submodules under `src/external/`
-(`git submodule update --init --recursive`); no VU program is built yet, so the Makefile
-does not build them.
+(`git submodule update --init --recursive`); `make` builds vclpp with `HOST_CXX` into
+`build/tools/vclpp` and assembles the `VCL_FILES` programs into `build/vu/` with the
+toolchain's `openvcl` and `dvp-as`, checked by `check_vu_code.py`.
 
 GitHub Actions runs `make` and `make release` on Linux in the pinned ps2dev `ps2sdk` image,
 and builds the host tools with GCC, Apple clang and MSVC. These are compile and link checks;

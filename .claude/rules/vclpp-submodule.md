@@ -4,9 +4,9 @@ Doom imports the same submodules quake2-ps2 uses, at the same pins (2026-11-03):
 `src/external/vclpp` at `95911cd` (vclpp 2 with MASP mode), its nested
 `external/parse-utils` at `4fd3fcd`, and `src/external/vu-checker` at `3917e1b`. The
 reference keeps them under `src/tools/`, so the `src/tools/vclpp` paths below describe
-the reference checkout; read `src/external/vclpp` here. The VU build rule and the
-reference's byte-identical verification recipe below are quake2-ps2's until Doom has
-its own VU programs.
+the reference checkout; read `src/external/vclpp` here. Doom's Makefile builds vclpp
+into `build/tools/vclpp` with the same out-of-tree `BIN_TARGET` rule; the byte-identical
+verification recipe below is still quake2-ps2's (its VU programs are the larger corpus).
 
 vclpp (`src/tools/vclpp`, github.com/glampert/vclpp) preprocesses the VU programs. vclpp 2
 is token-based, built on the lexer of parse-utils (nested submodule

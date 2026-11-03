@@ -58,9 +58,10 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   can then restore save compression.
   The VU tool dependencies are pinned submodules: `src/external/vclpp` (with its nested
   `external/parse-utils`) and `src/external/vu-checker`, at the commits quake2-ps2 uses
-  (`git submodule update --init --recursive` after cloning). The VU build rule is not
-  written yet; when it is, build the pinned vclpp into `build/tools/vclpp` instead of
-  relying on a copy on `PATH`.
+  (`git submodule update --init --recursive` after cloning). `make` builds the pinned vclpp
+  into `build/tools/vclpp` with `HOST_CXX` (never a copy on `PATH`) and assembles the
+  programs in `config/sources.mk`'s `VCL_FILES` (`src/ps2/renderer/vu1progs/`) into
+  `build/vu/` through the quake2-ps2 rule; `ps2/renderer/vu.h` declares their symbols.
 
 ## Build and verify
 

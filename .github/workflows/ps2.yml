@@ -48,7 +48,9 @@ jobs:
       # would otherwise download a tarball with no repository in it; the link report
       # records the commit.
       - name: Install the host build tools
-        run: apk add --no-cache make python3 git gmp mpfr4 mpc1
+        # g++ builds vclpp (src/external/vclpp) for the VU rule; the image has openvcl and
+        # dvp-as, as quake2-ps2's VU build on the same image digest proves.
+        run: apk add --no-cache make python3 git gmp mpfr4 mpc1 g++
       # The VU tool submodules (src/external/vclpp with its nested parse-utils, and
       # vu-checker) come with the checkout, so the VU build rule finds them.
       - uses: actions/checkout@v5
@@ -59,6 +61,6 @@ jobs:
       - name: Trust the checkout for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Build debug
-        run: make -j"$(nproc)"
+        run: make HOST_CXX=g++ -j"$(nproc)"
       - name: Build release
-        run: make release -j"$(nproc)"
+        run: make release HOST_CXX=g++ -j"$(nproc)"

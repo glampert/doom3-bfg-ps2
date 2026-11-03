@@ -125,6 +125,7 @@ REQUIRED_CORE_CHECKS = frozenset({
     "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
     "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/disabled-resolution-cvars",
+    "renderer/passthrough-microprogram",
     "offline/common-idle-demo-ledger",
     "core/platform-language-duration-utc",
     "audio/sample-metadata-ledger",

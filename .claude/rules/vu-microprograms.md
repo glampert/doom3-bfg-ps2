@@ -1,14 +1,19 @@
-# VU microprograms and VU0 inline asm: Quake II reference
+# VU microprograms and VU0 inline asm
 
-The VU programs, memory layout, names and tests below belong to `quake2-ps2`.
-Hardware/toolchain behavior may transfer, but this port has no VU program yet.
+Doom's VU build (the rule, `vu.h`, `vu1progs/`) is in place since 2026-11-03 with one program,
+`passthrough.vcl`; the memory layout, program names, VU0 asm sites and tests below still belong
+to `quake2-ps2`, and the hardware/toolchain behaviour transfers.
 
 ## Pipeline (Makefile rule `build/vu/%.o`)
 
 `vclpp -I vu1progs -Wundef -Werror -j` → `openvcl` → `openvcl -c` (source names, for the
 regalloc check) → `dvp-as` → `check_vu_code.py` (vu-checker submodule), which deletes the
-`.o` on failure. The output is config-independent and lives in `build/vu/`. There are two
-programs, `textured_triangles.vcl` and `particles.vcl`, with shared `vu_common.i`/`vu_clip.i`.
+`.o` on failure, then a `.d` for the link reports. The output is config-independent and lives
+in `build/vu/`; `make vu` builds it alone. Doom's programs are listed in `config/sources.mk`
+(`VCL_FILES`) under `src/ps2/renderer/vu1progs/`, with `vu_memory.i` mirroring the data memory
+map in `ps2/renderer/vu.h`; the reference has `textured_triangles.vcl` and `particles.vcl` with
+shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directive's section);
+`.vudata` is empty, whatever the reference's comments say.
 
 - **A failed VU build is easy to miss.** openvcl's messages don't match `error:`. Check
   `make`'s exit status. If a VU change seems not to take effect, compare the `.vsm` mtime
@@ -45,9 +50,15 @@ programs, `textured_triangles.vcl` and `particles.vcl`, with shared `vu_common.i
 - vclpp is the pinned submodule build. An old vclpp on `PATH` mangles macro bodies that
   contain comments.
 - `#vuprog NAME` → `.name NAME` → openvcl emits `NAME_CodeStart`/`NAME_CodeEnd`. Declare
-  those with `PS2_DECLARE_VU_MICROPROGRAM` at namespace scope. An `extern "C"` inside an
-  anonymous namespace gets internal linkage and won't resolve against `.vudata`. Use
-  `u32`/`unsigned int` for the symbol types, not `uint32_t`.
+  those with `PS2_DECLARE_VU_MICROPROGRAM` (`ps2/renderer/vu.h`) at global scope. An
+  `extern "C"` inside an anonymous namespace gets internal linkage and won't resolve against
+  the VU object. Use `u32`/`unsigned int` for the symbol types, not `uint32_t`. Nothing keeps
+  `.vutext` through `--gc-sections` but a reference from linked code: the core test reads
+  the symbols, production will through `vu::Init`.
+- A program that kicks its input half directly must not end before the kick drains:
+  MSCAL waits for the program's E bit, not for PATH1, and the unpack after next overwrites
+  the half under the GIF. `passthrough.vcl` kicks a null GIF tag (NLOOP 0, EOP 1, which
+  outputs nothing) second, since an XGKICK stalls until the previous PATH1 transfer ends.
 - Since vclpp 2, `#define`s nest and `#macro`s may invoke each other (recursion is an error).
   Label-placing macros take one prefix and paste it (`lbl##Loop`, `lbl##NoWarp`). Constant
   expressions are folded only with `-x`, which the Makefile doesn't pass, so openvcl gets

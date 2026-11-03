@@ -108,7 +108,9 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
   unknown commit.
 - **Checkout fetches the submodules** (`submodules: recursive`, since 2026-11-03): the VU
   tool submodules under `src/external/` must be present for the VU build rule. A new
-  gitlink must point at a published commit or the checkout fails.
+  gitlink must point at a published commit or the checkout fails. The job installs `g++`
+  and passes `HOST_CXX=g++` so `make` can build vclpp; `openvcl` and `dvp-as` are in the
+  image (quake2-ps2 builds its VU programs on the same digest).
 - **Mark the workspace safe for git after checkout.** The container runs as root while the
   runner's user owns the workspace, so git stops with "detected dubious ownership". Checkout
   adds `safe.directory` only to its own temporary global configuration. `build_metadata.py`
