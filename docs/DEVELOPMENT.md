@@ -8,8 +8,8 @@ boundaries and diagnostics; it does not imply that the campaign is playable.
 Current implementation and acceptance details live in:
 
 - [Port status](PORT_STATUS.md): verified capabilities, limitations, captures and measurements.
-- [Implementation plan](IMPLEMENTATION_PLAN.md): campaign milestones.
-- [2D renderer roadmap](RENDERER_2D_PLAN.md): UI/menu bring-up and remaining rendering work.
+- [Implementation plan](plans/IMPLEMENTATION_PLAN.md): campaign milestones.
+- [2D renderer roadmap](plans/RENDERER_2D_PLAN.md): UI/menu bring-up and remaining rendering work.
 - [Retail UI pipeline](RETAIL_UI_PIPELINE.md): local cooking, fonts, dictionary/text inspection and scoped timeline execution.
 - [Agent handover](AGENT_HANDOVER.md): current boundaries, next work and verification recipes.
 - [Build inventory](BUILD_INVENTORY.md): explicit sources, portability changes and warning policy.
@@ -88,7 +88,9 @@ Retail UI commands and staging are described in the
 `ps2_uiRetail execute shell|dialog` runs admitted native timelines and the minimal
 widget owners while retaining the separate text inspection screen.
 `ps2_uiRetail dialog quit` draws the original dialog in full with Common's quit
-message. Shell drawing and menu navigation remain pending. To inspect the current
+message. `ps2_uiRetail draw shell` draws the original shell's start screen, and
+`ps2_uiRetail menu` / `key NAME` open and drive the native menu (`make stage-ui-menu`);
+screens below Campaign and Settings remain pending. To inspect the current
 original-game resources:
 
 ```sh
@@ -110,25 +112,28 @@ execution; repeating `load` while already loaded is fatal.
 
 This executes the original dialog timeline while drawing isolated native English
 labels. `dialog quit` instead draws the complete dialog through native `idSWF::Render`
-from its resident converted textures and pre-rendered glyphs, at about 40 ms per debug
+from its resident converted textures and pre-rendered glyphs, at about 60 ms per debug
 PCSX2 frame; the earlier RGBA page slice took about 1.6 seconds per frame while its
 pages streamed from HostFs.
 `execute shell` selects the minimal carousel/Credits owner; `movie shell|dialog|none`
-selects inactive inspection. `make test-ui` checks both, with the full dialog, in its
-merged retail session (`run_ui_session.py`). All authored startup/map/UI
+selects inactive inspection. `make test-ui` checks both and the rest of the UI (console,
+fonts, drawn dialog and shell, menu, Campaign and Settings, quit dialog) in one session per
+standard (`run_ui_session.py`), plus the invalid-resource cases in fresh processes
+(`run_retail_ui.py`, `run_retail_movies.py`). All authored startup/map/UI
 fixtures live under `src/tests/data/`; generated packages and captures stay in `build/`.
 
 Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,
 `d3bfg.map` and `report.{json,txt}`. This executable links the full retained campaign
-without sources or headers under `src/tests/`, fixture symbols or linker GC. Its
+without sources or headers under `src/tests/` or fixture symbols; the gate link keeps every
+object and the runnable is relinked with `--gc-sections`. Its
 `main()` preserves the loader's IOP and initializes Common, native declarations,
 key/console events, the static game API and `idGameLocal::Init`, plus CPU render-world
 and silent sound bookkeeping. Common processes console events, commands, offline
 services and native `RunFrame` on the calling thread. Headless mode retains approximately
 60 Hz idle pacing; visible mode presents once per completed Common frame and uses GS
 vsync without an additional sleep. The game remains in `NOMAP`, whose native frame
-returns without advancing map simulation. Retail main-menu SWF, map transitions and physical
-input remain pending. Startup checks `base/default.cfg` for existence and optionally executes
+returns without advancing map simulation. Visible packages bring up the native shell menu, the DualShock pad and a debug USB
+keyboard; map transitions remain pending. Startup checks `base/default.cfg` for existence and optionally executes
 `base/d3bfg.cfg`; desktop bindings are not executed. `quit` / `exit` request ordered
 game/world/console shutdown followed by Common shutdown at the frame boundary.
 
@@ -182,8 +187,8 @@ printf 'ps2_capture console.tga\nquit\n' >> build/debug/console/console.txt
 `ps2_consoleText` requires an active console and one quoted argument of at most 255
 printable ASCII characters, excluding grave and tilde. `ps2_consoleKey` accepts
 `enter`, `up`, `down`, `left`, `right`, `toggle`, `escape`, `home`, `end`, `delete` and
-`backspace`. These deliver native character/key events; physical keyboard/pad polling
-is not enabled. Native Enter adds to RAM history; persistent history writes remain
+`backspace`. These deliver native character/key events; visible packages also poll the
+DualShock pad and a debug USB keyboard, which post the same native events. Native Enter adds to RAM history; persistent history writes remain
 disabled. Host `ps2_` control messages do not replace edit-field history.
 `ps2_capture` accepts one pending ASCII alphanumeric/dash/underscore basename ending
 in `.tga` (at most 63 bytes including the suffix). Quote names containing a dash,
@@ -305,18 +310,17 @@ PCSX2 session is running. It selects a separate log with `-logfile` and stops on
 process it started. It does not edit emulator settings.
 
 ```sh
-python3 src/tools/scripts/run_pcsx2_test.py --scenario platform
-python3 src/tools/scripts/run_pcsx2_test.py --scenario core
+make test-platform
+make test-core
 make test-common
 make BUILD=release test-common
 make test-game
 make BUILD=release test-game
 ```
 
-Build the corresponding probe, core or resident ELF first. A pass requires the fresh run identity,
+Build the corresponding test image (`make build-platform`, `build-core` or `build-game`) first. A pass requires the fresh run identity,
 scenario-specific stage markers and a closed structured result; process exit alone cannot
-pass. A watchdog or crash diagnostic fails the run. The negative scenario requires the
-core to reject a missing fixture. Tests cover heap alignment/accounting, scalar matrix
+pass. A watchdog or crash diagnostic fails the run. Negative probes require their specific first fatal. Tests cover heap alignment/accounting, scalar matrix
 and vertex formats, lexer/string behavior and synchronous job ordering. Core services
 also exercise command/cvar registration and fixture I/O.
 
@@ -324,7 +328,7 @@ The full scenario lists and accepted debug/release runs are maintained in
 [PORT_STATUS](PORT_STATUS.md), the [PCSX2 testing rules](../.claude/rules/testing-pcsx2.md) and the
 [per-gate procedures](testing/).
 The runner checks the installed HostFs/logging configuration; optional USB keyboard
-attachment does not enable game-side keyboard polling, which remains pending.
+attachment (`[USB1] Type = hidkbd`) is read by visible packages only.
 
 For a reported EE address, use the symbols from the exact production or test build:
 

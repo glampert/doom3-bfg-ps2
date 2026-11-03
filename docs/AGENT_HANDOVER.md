@@ -1,21 +1,23 @@
 # Agent handover
 
-Reviewed **2026-10-23, Australia/Sydney**, after the full-dialog slice, the first
-memory budget measurements, the paletted UI conversion, the pre-rendered menu glyphs,
-the fully drawn shell and the native shell menu with its key input, each with its debug
-emulator acceptance, against the current source manifests.
+Reviewed **2026-11-02**, after the pad and debug USB keyboard, the Campaign and
+Settings screens, the merged UI gates, the removal of the authored placeholder UI, the
+target rename, and the memory and release-stripping work of 2026-10-30/31 (release ELF
+3.48 MB), each against the current source manifests.
 This is a continuation guide; [AGENTS.md](../AGENTS.md) supplies the coding, build and
 Git rules. Runtime evidence remains in [PORT_STATUS.md](PORT_STATUS.md).
 
 ## Read first
 
-1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-29), the latest
+1. [Current status](PORT_STATUS.md#current-snapshot--2026-10-31), the latest
    [console charset acceptance](PORT_STATUS.md#retail-console-charset-2026-10-22), the
    [pre-rendered glyph acceptance](PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22), the
    [paletted UI acceptance](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21) and the
    [full-dialog acceptance](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice).
-2. [2D renderer roadmap](RENDERER_2D_PLAN.md), especially implementation progress,
-   next selected work and required mask/blend gates.
+2. [2D renderer roadmap](plans/RENDERER_2D_PLAN.md), especially implementation progress,
+   next selected work and required mask/blend gates, and the
+   [3D rendering architecture plan](plans/RENDERING_ARCHITECTURE.md), which owns the
+   world renderer, VU1 programs, lighting, shadows, skinning and the asset re-export.
 3. [Retail UI pipeline](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution) and
    [developer controls](DEVELOPMENT.md#production-packages-and-controls).
 4. Applicable [.claude rules](../AGENTS.md#rules-index-clauderules),
@@ -47,18 +49,20 @@ for each feature.
 | Profile | Working behavior | Explicit limit |
 | --- | --- | --- |
 | Production headless | Common, native console commands, NOMAP ticks, bounded/live quit and complete shutdown | No production map simulation |
-| Visible console | Native console edit/history, close/reopen, capture/final presentation in NTSC/PAL, drawn with the original `textures/bigchars` charset from the cooked catalog | HostFs injection; no physical input polling; visible packages need `make ui-cook` |
+| Visible console | Native console edit/history, close/reopen, capture/final presentation in NTSC/PAL, drawn with the original `textures/bigchars` charset from the cooked catalog | HostFs injection, the DualShock pad and the debug USB keyboard (hands-on check pending); visible packages need `make ui-cook` |
 | Retail fonts | Five English families, native legacy metrics and resident paletted textures | Font/resource screen only |
 | Retail movie inspection | Original shell/dialog dictionaries, full English dictionary and isolated native edit-text layout | Inactive imported timelines |
 | Retail timeline execution | Checked placement/AVM1 work; minimal carousel/Credits owners | Draws isolated labels; no events |
-| Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs | About 40 ms per debug PCSX2 frame; choices fail explicitly |
+| Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs | About 60 ms per debug PCSX2 frame; choices fail explicitly |
 | Retail shell drawing | Native `Render` of the original shell's start screen: outlines, color terms, screen blends, depth masks; the native logo transition on request | 100–140 ms per debug PCSX2 frame on the fixed clock; placeholder prompts and labels; no navigation |
-| Native shell menu | `idMenuHandler_Shell` with its start, root, campaign, settings and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start; Quit opens Common's native confirmation, whose Cancel returns and Accept quits; pad button tags draw as PS3 prompt art; a `menu` package policy boots into it | The screens below Campaign and Settings, physical keyboard/pad |
-| Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | 13.5 MB of heap backing before any map; no retail map or in-game UI yet |
+| Native shell menu | `idMenuHandler_Shell` with its start, root, campaign, settings and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start; Quit opens Common's native confirmation, whose Cancel returns and Accept quits; pad button tags draw as PS3 prompt art; a `menu` package policy boots into it | The screens below Campaign and Settings; a hands-on pad/keyboard check in PCSX2 |
+| Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | About 13.2 MB requested / 16.5 MB heap backing before any map (see memory-budget.md); no retail map or in-game UI yet |
 
-Recent implementation commits are the full-dialog slice (2026-10-20), `dd04ab0` (scoped
-native timelines/widget owners), `ec0df7a` (additive blending), `ac9de81` (convex masks)
-and `1f045d8` (fixture consolidation). Later README cleanup is preserved. `6843948`
+Recent implementation: the 2026-10-24 menu and device slices (`ea039bf`, `75b25f7`,
+`b3ec5e3`), the UI gate merge (`76ca5bf`), the placeholder-UI removal (`1559a2a`) and the
+2026-10-30/31 size work (`e49b7bb`, `8a2ce5b`, `7fe5df0`, `862e439`, `6565ac7`). Earlier:
+`dd04ab0` (scoped native timelines/widget owners), `ec0df7a` (additive blending),
+`ac9de81` (convex masks) and `1f045d8` (fixture consolidation). Later README cleanup is preserved. `6843948`
 removed the copied Quake II Makefile; do not restore or link to
 `docs/reference/quake2.Makefile`. The build does not require a sibling checkout. The
 external Quake II repository remains a reuse/reference source when available.
@@ -78,11 +82,13 @@ measurements are in
   Candidate per-screen sets are 0.1–1.2 MB and fit GS memory beside the framebuffers,
   against 1.6–15.7 MB of RGBA32 pages now. Facts and method:
   [gs-renderer.md](reference/gs-renderer.md#retail-ui-page-format-survey-2026-10-20).
-- **Retail boot.** `make test-headless-retail` reaches `NOMAP` with every retail
+- **Retail boot.** At 2026-10-20: `make test-headless-retail` reaches `NOMAP` with every retail
   declaration and the full `doom_main.script`: 13.5 MB of heap backing (14.5 MB arena)
   before any map, leaving 6.4–6.8 MB. The owners are declaration text (4.76 MB), script
   (2.83 MB), declaration objects and names (3.0 MB), container tables (1.08 MB) and
   smoke particles (0.68 MB). Per-allocation overhead accounts for 3.32 MB of the backing.
+  Current ledgers (script arrays on the heap, multiplayer and developer code compiled out)
+  are in [memory-budget.md](../.claude/rules/memory-budget.md).
 
 Proposed order; the user chose lever 1 first:
 
@@ -107,7 +113,9 @@ Proposed order; the user chose lever 1 first:
    the shell's screens come up. Since 2026-10-23 a set image holds one 1:1 band
    placement per page and each catalog entry carries its glyph's rectangle (UICT4), so a
    set grows by 20 catalog bytes per glyph and size, up to sixteen 512×512 pages.
-2. Cheap heap wins, measured by `test-headless-retail`: a smaller tagged header or
+2. Partly done on 2026-10-30/31 (smaller buffers, 16-bit event maps, BSS cuts; see
+   [memory-budget.md](../.claude/rules/memory-budget.md)). Remaining, measured by
+   `test-headless-retail`: a smaller tagged header or
    small-block pools, heap-string container names, a PS2-sized smoke pool and script
    limits sized to the retail program.
 3. Declaration text on demand from the containers (keep an index), or a pruned
@@ -133,7 +141,7 @@ Open items, roughly in order:
 
 - **The native screens.** Done for the start and root screens on 2026-10-23: the native
   handler fills the prompts and the carousel (item 3 below). The minimal owner's
-  `draw shell` mode still shows the authored placeholders.
+  `draw shell` mode borrows only the admitted carousel cover and the Credits callback.
 - **Text sizes.** The start and root screens' text draws from pre-rendered glyphs since
   2026-10-23 (Sarasori at heights 10, 13 and, outlined, 10 and 18; Arial Narrow at 2.5
   and 3; per standard). Later screens log their missing sizes once
@@ -185,7 +193,7 @@ menu/online/save/video paths to satisfy one screen.
 2D-7 requires a recognizable original root, at least 600 responsive frames, menu and
 console transitions, quit/confirmation, stable warm ledgers and full shutdown.
 Unavailable campaign/network/save/video actions must be explicit. Physical
-keyboard/pad integration and real PS2 acceptance remain 2D-8.
+keyboard/pad hands-on verification and real PS2 acceptance remain 2D-8.
 
 ## Code entry points and ownership
 
@@ -217,7 +225,7 @@ regenerate the compile database. Third-party code belongs in `src/external/`.
   advances simulation or scripts. Complete queued capture/final draw before teardown.
 - Fill returned GUI spans before another allocation/draw. Flush before mask changes,
   image/cache mutation or span recycling. Scope/frame/shutdown ownership checks are
-  required with assertions disabled too.
+  render-time assertions; load-time validation stays in every build.
 - Masks currently admit 64 input triangles, sixteen convex boundary points, four
   keyed active masks and 64 clip planes. Empty masks clip everything. Removal is not
   stack-only; simultaneous expiry revisits swapped entries. Direct glyphs clip too.
@@ -230,8 +238,9 @@ regenerate the compile database. Third-party code belongs in `src/external/`.
 - Scripts/callbacks need storage, operand, work, hierarchy and destructive-ancestor
   checks. `resourceExecution` is a separate permission from `resourceOnly`, and
   `resourceRender` a third one: drawing requires no outlines, screen blends or additive
-  color in the preflight counts, and retail `Render` never runs frames. Event routing
-  stays unavailable. Shutdown widget borrowers before movies,
+  color in the preflight counts, and retail `Render` never runs frames. `resourceEvents` is a
+  fourth admission (SE_KEY only; pointer, text and axis events refused) that only the
+  native menu enables. Shutdown widget borrowers before movies,
   movies before fonts/localization, images before caches, caches/UI before the device.
 - Retail images are converted GSTX textures whose pages stay resident once opened (the
   shell atlas is 860 KB of texels). The placeholder authored SWF and its streamed UIPG
@@ -277,8 +286,9 @@ A new retail-movies package auto-loads the screen. Existing packaged configs are
 preserved: check status and issue `ps2_uiRetail load` only if not loaded; a duplicate
 load is fatal. Use `execute shell|dialog` for scoped timelines with label inspection,
 `movie shell|dialog|none` for inactive inspection, and `ps2_uiRetail status` for native
-counters. Only the dialog draws in full, at about 60 ms per debug PCSX2 frame. HostFs
-commands provide input; physical keyboard attachment alone will not drive the game.
+counters. The dialog (about 60 ms per debug PCSX2 frame) and the shell start
+screen (100-140 ms) draw in full. HostFs commands and, in visible packages, the pad and
+debug USB keyboard provide input.
 
 ## Verification and recorded baseline
 
@@ -297,11 +307,16 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Documentation/path-only changes | Local links/targets, source inventory, fixture `--check`; fixture moves also use host tests and package staging |
 | Include/Makefile paths, toolchain or CI | `make`, `make release`, plus the case-sensitive Linux check in [ci.md](../.claude/rules/ci.md) |
 
-Latest (2026-10-20, debug only by the user's direction): the retail boot and its
+Current gates: `make test-ui`, `test-headless-retail`, `test-renderer`, `test-core`,
+`test-platform`, `test-common`, `test-game`, `test-map`, `test-script` and `test-host`.
+Run IDs are in PORT_STATUS "Current snapshot". The 2026-10-30/31 size work has build and
+ledger checks and no emulator-gate sweep recorded here.
+
+Previous (2026-10-20, debug only by the user's direction): the retail boot and its
 startup ledgers, with host, core smoke, headless and console gates. Last feature
 acceptance (2026-10-20): the original dialog drawn in full in debug/release NTSC/PAL
-(`test-retail-dialog`, also inside `test-retail-movies`), plus retail fonts, authored
-UI, renderer, console, headless and host regressions. Previous (2026-10-18): 77
+(then `test-retail-dialog`, now the `dialog` step of `make test-ui`), plus the font step,
+renderer, console, headless and host regressions. Previous (2026-10-18): 77
 authored pixel checks, three reload/input cycles, twelve malformed-resource cases,
 nineteen core renderer cases per configuration and two headless cases per configuration.
 On 2026-10-19 every regular target gate (smoke variants, renderer, Common, headless,
@@ -311,22 +326,18 @@ count is 354 plus C++ sanitizer harnesses (2026-10-21). Run IDs and screenshots 
 linked from PORT_STATUS; ignored `build/test-results/` archives may not exist on another
 machine.
 
-Production has 376 direct objects and no fixture inputs/symbols; since 2026-10-30 the
+Production has 337 direct objects and no fixture inputs/symbols; since 2026-10-30 the
 whole-object link (no GC) is the gate and the runnable is a `--gc-sections` relink. The source audit
-has 458 upstream units / 282 campaign units; compile database 401 entries. Production
-PT_LOAD is 11,177,957 debug / 11,614,821 release bytes after the paletted UI change
-(11,167,077 / 11,604,197 after the retail boot change, 11,164,005 / 11,600,997 after
-the full-dialog slice, 11,159,013 / 11,596,133 on the SDK rebuilt on 2026-10-19,
-11,159,397 / 11,596,517 before it); core is 2,150,896 / 2,235,504 (2,139,184 /
-2,223,920 before the rebuild). The removed authored UI peaked at 3,885,330 requested /
+classifies 393 upstream units (280 campaign units); compile database 362 entries. Production
+PT_LOAD is 4,779,884 debug / 4,063,468 release bytes (runnable link, 2026-10-31; see
+[memory-budget.md](../.claude/rules/memory-budget.md)). Earlier (2026-10-20) it was about 11.2 MB. The removed authored UI peaked at 3,885,330 requested /
 3,992,352 backing; full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are
 separate fixed/runtime measurements; do not sum tagged backing and committed arena
 twice. Retail timeline heap acceptance uses its own 16 MiB loaded ceiling and exact warm
 release baselines. The fully drawn dialog peaks at 4,412,335 requested / 4,516,500
-backing bytes (debug; 6,079,651 / 6,183,080 with streamed pages); the shell's drawn
-working set is not measured yet. The retail boot peaks at 10,582,854 / 13,910,756 with a
-14,523,035-byte arena before any map.
+backing bytes (debug); the shell's drawn working set is not measured yet. The retail
+boot ledger is now in memory-budget.md (startup-game 13,240,094 / 16,541,204 debug).
 
-No native target or hardware test is newly claimed by the 2026-10-19 docs audit.
+No native target or hardware test is newly claimed by the 2026-11-02 docs audit.
 Before another implementation commit, fetch, inspect the worktree and check divergence.
 Commit directly on `main`, use a sentence ending in a period, and push only when asked.

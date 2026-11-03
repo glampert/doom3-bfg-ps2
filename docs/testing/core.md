@@ -8,7 +8,7 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
 
 - `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
   executable for the integrated GS/native-adapter scenes in NTSC/PAL, then (debug only) seventeen expected-fatal probes.
-  They do not initialize real Console/Common presentation or link fixtures into production. Fourteen GS
+  They do not initialize real Console/Common presentation or link fixtures into production. Thirteen GS
   markers require 120 presented frames, alternating contexts, a reload with smaller
   command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
   exact tagged cleanup. GIF/oversized-DIRECT bounds, a deliberately stalled deadline,
@@ -163,13 +163,13 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
 
 - Three required `input/` markers check the full native action table and exact lookup
   (including case and impulse-prefix collisions), repeated empty cleanup and native
-  invalid-index results, and read-only controller/rumble preferences. The input provider
-  acquires no devices or sampling buffers and publishes no player commands.
+  invalid-index results, and read-only controller/rumble preferences. The core test image's input provider
+  acquires no devices or sampling buffers and publishes no player commands; the pad and USB keyboard exist only in production visible mode (see production.md).
 
 - The additional GS failure probes cover assertion-build GIF bounds, oversized DIRECT
   reservations and a stalled deadline; they do not claim Common or UI startup.
 
-- The production link (`make`, `make release`) is the retained compile/link gate: all 341 production inputs,
+- The production link (`make`, `make release`) is the retained compile/link gate: all 337 production inputs,
   every required game/class/cvar registration root and map input are retained without
   unresolved symbols, duplicates, Classic imports or GC. The campaign test entry separately requires
   an explicit authored fixture manifest. Do not reuse an older resident ELF after a failed attempt.

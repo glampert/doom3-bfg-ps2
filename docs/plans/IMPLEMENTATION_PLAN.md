@@ -1,9 +1,9 @@
 # Doom 3 BFG for PlayStation 2: implementation plan
 
-## Current position — 2026-10-21
+## Current position — 2026-11-02
 
-This is the campaign-level plan. [PORT_STATUS.md](PORT_STATUS.md#current-snapshot--2026-10-29)
-is the current capability summary; [AGENT_HANDOVER.md](AGENT_HANDOVER.md) describes
+This is the campaign-level plan. [PORT_STATUS.md](../PORT_STATUS.md#current-snapshot--2026-10-31)
+is the current capability summary; [AGENT_HANDOVER.md](../AGENT_HANDOVER.md) describes
 how to continue, and [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) owns the selected UI work.
 Initial inspection tables and proposed source changes below retain their historical
 context; they do not reopen completed portability work.
@@ -11,24 +11,27 @@ context; they do not reopen completed portability work.
 | Milestone | Current acceptance |
 | --- | --- |
 | M0–M2 | Complete: layout/manifests, EE portability, staged core/Common boot |
-| M2b | Complete: retained campaign compilation and resident link; currently 282 campaign units |
+| M2b | Complete: retained campaign compilation and resident link; currently 280 campaign units |
 | M3 | Partial: native game/player fixtures and one authored map/PVS/collision/AAS/idle-AI fixture; full campaign player, animated AI and retail maps pending |
 | M4 / 2D-1–4 | Bounded GS 2D device, capture, console, indexed UI and fonts accepted (the placeholder authored native SWF was a bring-up step, removed 2026-10-29); world/depth/CLUT/VU scope remains later |
-| 2D-5–6 | Retail cooking, English resources and scoped timeline execution accepted within their profiles; additive blend 8 and convex masks accepted; the original dialog draws in full from resident paletted textures; shell feature/resource closure pending |
-| 2D-7–8 | Native offline menu navigation, physical input and hardware acceptance pending |
+| 2D-5–6 | Retail cooking, English resources and scoped timeline execution accepted within their profiles; additive blend 8 and convex masks accepted; the original dialog draws in full from resident paletted textures; the shell start screen draws in full; additive alpha terms, two simultaneous non-convex masks and dynamic artwork residency remain |
+| 2D-7–8 | Native shell menu through the start, root, Campaign and Settings screens with the Quit dialog and boot-into-menu policy, driven by key events, HostFs, the DualShock pad and a debug USB keyboard (debug gates); screens below Campaign/Settings, a hands-on device check and hardware validation pending |
 | M5–M8 | Host extraction/UI conversion foundation exists; campaign-map conversion, world rendering, sound, streaming, saves and campaign sweep remain pending |
 
 Production stays in `NOMAP`; its game loop does not yet load or simulate the authored
-map used by the separate test executable. The real dialog now draws in full. Its page
-streaming showed that RGBA32 UI pages cannot hold a menu's working set, so the selected
-next work is asset recompression/re-export and fitting the campaign into the 32 MiB
-budget, before the shell frame and interactive offline menu. Production now boots the
-retail declarations and scripts (`make test-headless-retail`), using 13.5 MB of heap
-before any map; the UI format and heap levers are measured in
-[PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20),
+map used by the separate test executable. The real dialog draws in full. Its page
+streaming showed that RGBA32 UI pages cannot hold a menu's working set. UI recompression
+and the 32 MiB cuts are done through 2026-10-31 (release `PT_LOAD` 4.06 MB), and the shell
+and menu run natively through Campaign and Settings with the pad and a debug USB keyboard.
+The selected next work is the 3D rendering architecture
+([plans/RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md)), retail map conversion
+and Common map transitions. Production boots the
+retail declarations and scripts (`make test-headless-retail`), using about 13.2 MB requested
+(16.5 MB backing) of heap before any map; the UI format and heap levers are measured in
+[PORT_STATUS](../PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20),
 and the first lever converts the retail UI to resident paletted textures
-([pipeline](RETAIL_UI_PIPELINE.md#converted-textures-gstx), accepted in the
-[debug emulator gates](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21)). Preserve headless behavior
+([pipeline](../RETAIL_UI_PIPELINE.md#converted-textures-gstx), accepted in the
+[debug emulator gates](../PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21)). Preserve headless behavior
 and extend existing fixtures.
 
 ## 1. Objective and scope
@@ -52,7 +55,7 @@ Scope decisions for this plan:
 The initial M0–M2 foundation is implemented, with partial M3 authored-map/player
 acceptance and a separate production headless console loop. Current acceptance results,
 memory measurements and remaining campaign integration work are recorded in
-[PORT_STATUS.md](PORT_STATUS.md). The inspection below predates implementation;
+[PORT_STATUS.md](../PORT_STATUS.md). The inspection below predates implementation;
 its `neo/` paths now live under `src/neo/`. The historical copied Quake II Makefile
 was removed in `6843948`; the active Doom Makefile and external Quake II checkout
 are the current build references.
@@ -137,7 +140,7 @@ src/
   neo/                          # Engine/game sources moved intact before portability edits
   ps2/                          # System, logical game/audio/input and bounded renderer/UI adapters
   tests/
-    data/                       # headless/, headless_map/, ui/ host-only SWF/font fixtures
+    data/                       # headless/, headless_map/, retail_boot/ and ui/ (host-only SWF/font) fixtures
     host/                       # C++ host harnesses, stubs and scripts/ Python tests
     smoketests/                 # Separate native test entries and integrated fixtures
   tools/                        # Host resource tool, build/cook/test scripts, editor support
@@ -194,7 +197,7 @@ Base the root Makefile on the working Quake configuration. Provide separate sour
 - Use C++20 with `-fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing` for target C++.
 - Reuse the reference's `-Wall -Wextra -Werror` plus shadow, conversion/sign-conversion, format, undef, pointer, alignment, virtual, VLA and GCC logic/duplication diagnostics for new code. Apply compiler-supported equivalents on host Clang.
 - Permit documented, source-specific suppressions for legacy code and system-header treatment for SDK/vendor headers. Keep new project headers checked. Do not use project-wide `-w` to hide problems introduced by the port.
-- Begin with debug `-O2` and release `-O3` as in Quake; use `-Os` for measured cold paths. Evaluate function/data sections and linker garbage collection with checks for static game-class/CVar registration. Do not let dead stripping manufacture a misleading “game compiled” claim.
+- Both configurations build at `-O2`; `ENGINE_SIZE_OPT_CXX_SRC` and `SIZE_OPT_CXX_SRC` sources build at `-Os`. The production link validates registrations with a whole-object gate link, then relinks the runnable with `--gc-sections`. Do not let dead stripping manufacture a misleading “game compiled” claim.
 - Add configuration/flag stamps so changing flags rebuilds affected objects; the reference warns that its existing build does not track these changes.
 - Use a host compiler without EE SDK include paths for host logic tests. EE builds remain the authority for target ABI, warnings, alignment, intrinsics and linkability.
 
@@ -250,7 +253,7 @@ Stage 2 should branch deliberately within the Common startup lifecycle after the
 Production and fixture executables are separate. Production now initializes the native
 game and console with authored `src/tests/data/headless/` data and sustains Common/native
 `NOMAP` frames until quit or a frame limit. It has live HostFs console commands and
-ordered shutdown, while retail menu screens beyond those admitted, campaign map transitions and retail startup resources
+ordered shutdown, while retail menu screens beyond those admitted, campaign map transitions
 remain pending. Tests continue to load and tick the authored map independently; the
 next production gate connects map ownership and simulation to this Common loop.
 
@@ -295,6 +298,8 @@ If resident collision, navigation, scripts and necessary game state exceed the e
 
 ## 8. Renderer adaptation
 
+The 3D rendering architecture (frame pipeline, VU1 programs, seam into the engine, lighting, shadows, materials, skinning, asset re-export, budgets and milestones) is planned in [docs/plans/RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md); it supersedes the renderer rows of section 8 below.
+
 Keep Doom's scene/entity/light/material contracts and progressively port the useful parts of the front end. Introduce a PS2 submission layer below those contracts; do not emulate OpenGL or preserve the desktop GPU-buffer architecture.
 
 | Doom area | Plan |
@@ -325,7 +330,7 @@ Start with scalar EE transformations and a simple GS packet path that can be com
 
 ## 9. Asset conversion and loading
 
-Create host tools under `src/tools/host` and shared fixed-width disk-format definitions.
+Host tools live under `src/tools/` (`resource_unpack`, `asset_reexport` and the shared `assets/` library), with fixed-width disk-format definitions shared with the target.
 Conversion consumes `gamedata/d3_bfg/`, writes to a separate output directory, and never
 edits the source installation. Keep proprietary input/output assets out of commits.
 
@@ -395,7 +400,7 @@ Tests cover both debug and release at milestone boundaries. First cover host sto
 
 ### Capturing the renderer without desktop screenshot permissions
 
-The installed SDK supplies `ee/include/screenshot.h` and source `ee/debug/src/screenshot.c` with `ps2_screenshot` and `ps2_screenshot_file`. It reads GS memory through reverse VIF1 DMA and can write TGA. The Quake port does not already contain a framebuffer capture feature.
+The installed SDK supplies `ee/include/screenshot.h` and source `ee/debug/src/screenshot.c` with `ps2_screenshot` and `ps2_screenshot_file`. It reads GS memory through reverse VIF1 DMA and can write TGA. The Quake port does not already contain a framebuffer capture feature. This is implemented here as `src/ps2/renderer/capture.*` and the `ps2_capture` command; the requirements below record the acceptance rules.
 
 Use this as a source reference for a debug-only `ps2/renderer/capture.*` implementation and a deterministic `ps2_capture`/test capture request. The stock helper is not robust enough to call blindly: its file function returns zero for success and failure, ignores write results, omits truncation, assumes width-derived pitch, and its readback has unbounded waits and an early-exit state-restoration hazard.
 
@@ -436,11 +441,10 @@ The selected work is the GS-backed 2D renderer and native offline main menu.
 [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) expands this work into device,
 texture/capture, console, SWF and menu gates. 2D-1–4 passed (the placeholder authored SWF used to prove them was removed 2026-10-29, replaced by the retail sessions), and bounded retail
 resource/timeline profiles, additive blend 8, convex masks and the fully drawn original
-dialog are accepted. Asset recompression and the 32 MiB budget are in progress (first
-measurements recorded; resident paletted UI textures accepted in the debug emulator gates),
-then complex
-masks/strokes, remaining color/blend semantics, dynamic artwork residency and shell
-drawing before offline menu navigation. Sound output and world rendering remain later
+dialog are accepted. Asset recompression and the 32 MiB budget landed
+(resident paletted UI textures accepted in the debug emulator gates). The shell and offline
+menu navigation through Campaign and Settings are accepted; remaining 2D work is the screens
+below them, additive alpha terms, dynamic artwork residency and hardware validation. Sound output and world rendering remain later
 work.
 
 Preserve the completed headless path and pause further standalone movement fixtures.
@@ -462,7 +466,7 @@ Split each further if it mixes independent fixes. Classic deletion and changes t
 
 ## 13. Open inputs and decision points
 
-- **Current scope:** M0–M2 and M2b compile/link passed. M3 boot/ticks/events, bounded collision/physics, restricted native player ticks and authored native map/world/PVS/AAS/idle-AI startup pass; campaign player, animated AI/gameplay and broader maps remain pending. The user approved the 2D renderer/main-menu roadmap; console/authored SWF, resource/timeline profiles, additive blend 8, convex masks and the fully drawn original dialog now pass in PCSX2. Asset recompression and the 32 MiB budget are in progress: production boots the retail declarations and scripts, the UI format candidates are measured, and the retail UI converts to resident paletted GSTX textures (debug emulator gates pass). Shell drawing and navigation remain pending. Preserve headless simulation during subsequent rendering work.
+- **Current scope:** M0–M2 and M2b compile/link passed. M3 boot/ticks/events, bounded collision/physics, restricted native player ticks and authored native map/world/PVS/AAS/idle-AI startup pass; campaign player, animated AI/gameplay and broader maps remain pending. The user approved the 2D renderer/main-menu roadmap; console/authored SWF, resource/timeline profiles, additive blend 8, convex masks and the fully drawn original dialog now pass in PCSX2. Asset recompression and the 32 MiB cuts landed through 2026-10-31: production boots the retail declarations and scripts and the retail UI converts to resident paletted GSTX textures (debug emulator gates pass). Shell drawing and navigation through Campaign and Settings are accepted (debug gates); the lower menu screens and world rendering remain pending. Preserve headless simulation during subsequent rendering work.
 - **Retail data:** the user supplied BFG assets in `gamedata/d3_bfg/` and separate RoE reference assets in `gamedata/d3_roe/`. Inventory the BFG resource containers and resolve logical runtime paths before a campaign initialization claim. Core and synthetic tests remain independent of them.
 - **Reuse notices:** the user authorizes GPL v3 reuse of reference code they own. Preserve third-party notices and record each import in `docs/REUSE.md`.
 - **Hardware:** establish access and the preferred transfer/storage method before requiring physical-console acceptance. PCSX2 can support the initial milestones.
@@ -474,13 +478,13 @@ M2b slice supplies campaign portability, explicit error/type handling, typed sub
 replacements. M3 logical sound samples and explicit headless voices
 are supplied as standalone services; the game fixture now boots and ticks native
 entities/scripts and a restricted native player with exact reload/shutdown accounting. Progress
-and acceptance evidence are recorded in [PORT_STATUS.md](PORT_STATUS.md).
+and acceptance evidence are recorded in [PORT_STATUS.md](../PORT_STATUS.md).
 The current core runs real `idCommonLocal::Init` / `Shutdown` through completed-stage
 tracking for system, idlib, commands, cvars, fixture filesystem, synchronous jobs and
 one offline user/session. Game/presentation/save stages are deliberately deferred.
 Classic framebuffer residency and portable startup/frame references are removed; the
 static game API import path is exercised by the resident fixture during native game initialization.
-The campaign gate now compiles all 281 retained units in debug and release, including
+The campaign gate compiles all retained units (280 at the 2026-11-02 audit) in debug and release, including
 campaign achievements with Classic evaluation gated. The logical sound header uses
 `ps2/audio/sound_backend.*` for portable sample/voice/device contracts.
 The first M3 service slice implements bounded loose PCM WAV sample loading, duration,
@@ -492,7 +496,7 @@ headless clock; native sound-world/channel integration, compressed retail sample
 physical audio remain pending.
 The production link (`make`) now passes the M2b retained-object gate in both configurations: all
 345 inputs, 11 game/class/cvar registration roots and map inputs are present, without
-unresolved symbols, duplicates, Classic/desktop imports or garbage collection. No JPEG
+unresolved symbols, duplicates or Classic/desktop imports; this whole-object gate link uses no garbage collection, and the runnable is then relinked with `--gc-sections`. No JPEG
 or zlib is linked (removed 2026-10-29): images arrive converted offline, ZIP files are
 unsupported and pipelined save compression waits for the miniz that compressed resource
 packs will bring. The linked entry requires an explicit authored game manifest.
@@ -545,8 +549,7 @@ imports, typed renderer/input interfaces and deferred game/UI providers are supp
 Renderer initialization, resource loading, queries requiring
 live state and drawing fail explicitly. Offline multiplayer lifecycle and native save
 description ownership are tested. Native input action metadata is supplied, but sampling
-and player-command generation fail explicitly. Shell, multiplayer, physical input and
-physical saves remain unavailable.
+and player-command generation fail explicitly. Physical saves remain unavailable. The native shell menu and the pad and debug USB keyboard now exist, and multiplayer code is compiled out of the PS2 build.
 The new `game-map` scenario takes a separate path through native `InitFromNewMap`
 and `MapPopulate`, using native CPU world/model ownership and real PVS/AAS data.
 A tagged seam omits automatic lobby-player spawning only for this selected map mode;

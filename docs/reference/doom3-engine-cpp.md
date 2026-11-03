@@ -218,7 +218,7 @@ its BSWF and font remain host-test stand-ins). These findings carry over to reta
   layout. Full-header bridge units must include `idlib/precompiled.h` before
   `Common_local.h` or `UsercmdGen.h`. Use a separate commented include group so
   clang-format cannot move the dependent native header ahead of the precompiled header.
-  All portable objects omit the Classic framebuffer/material; the physical Classic tree remains excluded, pending its separate deletion gate.
+  All portable objects omit the Classic framebuffer/material; the `doomclassic/` tree has been removed and the source-list guards reject Classic inputs.
 - Portable `com_smp` defaults to zero with ROM flags. Init creates no game worker and
   `RunGameAndDraw` calls `Run` synchronously regardless of forced cvar writes. The
   foundation test frame pumps commands and offline users only. Static game API
@@ -337,8 +337,7 @@ its BSWF and font remain host-test stand-ins). These findings carry over to reta
 - `InitHeadlessFixture` accepts only the bounded worldspawn map with five fixed axial
   collision brushes, validates every plane/material before collision conversion,
   rejects resource/physics keys and runs native `InitScriptForMap`/`SpawnMapEntities`.
-  It does not call regular `InitFromNewMap`, whose AAS/PVS/player/resource setup
-  remains pending. Only explicit fixture mode permits native `RunFrame` with a null
+  It does not call regular `InitFromNewMap`; the separate map fixture (`make test-map`) does, with a logical world, PVS and AAS. Full campaign player startup and general maps remain later gates. Only explicit fixture mode permits native `RunFrame` with a null
   render world and initially no clients, suppressing player synchronization/debug drawing while
   retaining native clocks, entity Think, interpreter and event service loops.
 - Worldspawn's thread `DelayedStart(0)` at game time zero schedules execution for at

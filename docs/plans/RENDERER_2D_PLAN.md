@@ -3,10 +3,11 @@
 This is the reference inventory and implementation roadmap for the first GS-backed
 Doom 2D renderer. Inspection and approval date: **2026-10-14, Australia/Sydney**.
 The inventories retain that original source snapshot; implementation progress is recorded
-below, reviewed on **2026-10-20, Australia/Sydney**, against runtime acceptance
-through **2026-10-20**. [AGENT_HANDOVER.md](AGENT_HANDOVER.md) is the continuation
+below, reviewed on **2026-11-02, Australia/Sydney**, against runtime acceptance
+through **2026-10-29**. [AGENT_HANDOVER.md](../AGENT_HANDOVER.md) is the continuation
 guide. Uncompleted gates, budgets and destinations remain proposed.
-It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+It expands the 2D portion of M4 in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). The 3D
+renderer that follows it is planned in [plans/RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md).
 
 ## Implementation progress
 
@@ -22,18 +23,18 @@ The production executable links no fixtures. The original device scenes use a se
 core test ELF; native image/draw adapters and production console integration now build
 on this layer.
 
-See [PORT_STATUS.md](PORT_STATUS.md#cpu-only-gs-bring-up-2d-1) for measurements and run
-identities. The [2D-2 NTSC](images/renderer-2d-2-ntsc.png) and
-[PAL](images/renderer-2d-2-pal.png) images are native unscaled readback, with 24 scene
-pixel checks plus upload/pressure checks. See the [2D-2 acceptance record](PORT_STATUS.md#rgba-textures-and-native-capture-2d-2).
+See [PORT_STATUS.md](../PORT_STATUS.md#cpu-only-gs-bring-up-2d-1) for measurements and run
+identities. The [2D-2 NTSC](../images/renderer-2d-2-ntsc.png) and
+[PAL](../images/renderer-2d-2-pal.png) images are native unscaled readback, with 24 scene
+pixel checks plus upload/pressure checks. See the [2D-2 acceptance record](../PORT_STATUS.md#rgba-textures-and-native-capture-2d-2).
 **2D-3 is accepted in PCSX2 in debug and release on 2026-10-15:** intrinsic white/ASCII
 images and native display/color/state/axis-quad/text adapters are verified through the
 existing scene. Production selects headless/NTSC/PAL before Common initialization,
 calls `console->Draw(false)` once per visible frame and safely coalesces `UpdateScreen`
 requests. Live native edit/history input, close/reopen and queued final capture use
-production commands. See the [adapter acceptance record](PORT_STATUS.md#native-console-drawing-adapters-2d-3-first-slice)
-and [production-console acceptance](PORT_STATUS.md#production-native-visible-console-2d-3).
-The unscaled [NTSC](images/console-2d-3-ntsc.png) and [PAL](images/console-2d-3-pal.png)
+production commands. See the [adapter acceptance record](../PORT_STATUS.md#native-console-drawing-adapters-2d-3-first-slice)
+and [production-console acceptance](../PORT_STATUS.md#production-native-visible-console-2d-3).
+The unscaled [NTSC](../images/console-2d-3-ntsc.png) and [PAL](../images/console-2d-3-pal.png)
 captures show the real console edit field, with nineteen native pixel checks per run.
 Live echo/history/close/reopen/final capture and both headless modes pass; production
 continues to link zero test inputs and fixture symbols.
@@ -46,16 +47,16 @@ order across sprite/triangle changes, clips UV/RGBA with geometry, decodes nativ
 UV bits directly and interpolates per-vertex color/alpha. This first slice preceded native
 SWF execution, fonts and the authored mask-free interactive SWF described below. It
 does not activate desktop vertex-cache handles, general materials or additive color.
-The unscaled [NTSC](images/renderer-2d-4-ntsc.png) and
-[PAL](images/renderer-2d-4-pal.png) captures show this indexed slice; target acceptance
-and measurements are recorded in [PORT_STATUS](PORT_STATUS.md#indexed-native-ui-geometry-2d-4-first-slice).
+The unscaled [NTSC](../images/renderer-2d-4-ntsc.png) and
+[PAL](../images/renderer-2d-4-pal.png) captures show this indexed slice; target acceptance
+and measurements are recorded in [PORT_STATUS](../PORT_STATUS.md#indexed-native-ui-geometry-2d-4-first-slice).
 
 **Authored UI removal (2026-10-29).** The authored placeholder SWF, its UIPG page format
 and `PageCache`, and the paged renderer scene described in the 2D-4 to 2D-6 entries below
 were bring-up steps. They are removed from production and the tests; the retail
 sessions (`make test-ui`) and the retail cook's paletted GSTX images replaced them, and
 `ps2_demo.bswf` and the ASCII font survive as host-only fixtures. The entries keep their
-dated history. See the [removal record](PORT_STATUS.md#authored-ui-and-uipg-removal-2026-10-29).
+dated history. See the [removal record](../PORT_STATUS.md#authored-ui-and-uipg-removal-2026-10-29).
 
 **2D-4 was accepted in PCSX2 in debug and release on 2026-10-15.** It loaded one reproducible authored native BSWF,
 uses native `idFont` metrics and a guttered ASCII atlas, runs timeline/AVM1 actions and
@@ -63,9 +64,9 @@ routes injected Tab/Enter through native SWF events. The production owner suppor
 load/unload/reload and console overlays; native redraws preserve timeline time. Only
 the generated BSWF/font/material bytes are admitted before legacy parsing. This is an
 explicit authored profile, not a general retail loader. Its acceptance record is
-[PORT_STATUS](PORT_STATUS.md#authored-native-swf-and-fonts-2d-4).
-The inspected unscaled [NTSC](images/swf-2d-4-ntsc.png) and
-[PAL](images/swf-2d-4-pal.png) captures show native text, geometry, animated alpha and
+[PORT_STATUS](../PORT_STATUS.md#authored-native-swf-and-fonts-2d-4).
+The inspected unscaled [NTSC](../images/swf-2d-4-ntsc.png) and
+[PAL](../images/swf-2d-4-pal.png) captures show native text, geometry, animated alpha and
 script-driven selection. Retail shell and physical PS2 acceptance remain later gates.
 
 **2D-5 has a host inventory/cooking foundation on 2026-10-16.** A standalone C++
@@ -73,16 +74,16 @@ resource unpacker and checked Python format readers inventory the scoped retail
 shell/dialog, fonts, localization, materials and images. The reproducible host cook
 retains native data and pages decoded artwork losslessly, with hashes, gutters and UV
 transforms. The local profile resolves 31 required labels, five font families and
-twelve images into 143 logical pages. See [RETAIL_UI_PIPELINE.md](RETAIL_UI_PIPELINE.md)
-and the [host acceptance record](PORT_STATUS.md#retail-ui-host-inventory-and-cooking-2d-5).
+twelve images into 143 logical pages. See [RETAIL_UI_PIPELINE.md](../RETAIL_UI_PIPELINE.md)
+and the [host acceptance record](../PORT_STATUS.md#retail-ui-host-inventory-and-cooking-2d-5).
 This is a candidate package with `runtime_ready=false`; actual resident working-set
 measurement, native retail admission/binding and dynamic dependency closure remain open.
 The page slice (since removed, see above) added compact UIPG output, fixed native page slots and page/screen triangle
 splitting in the existing authored renderer scene. English is the only initial UI
 language; alternative-language resources and font handling are outside this scope.
-See the [page acceptance record](PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
-and inspected [NTSC](images/renderer-paged-2d-5-ntsc.png) /
-[PAL](images/renderer-paged-2d-5-pal.png) captures.
+See the [page acceptance record](../PORT_STATUS.md#streamed-page-images-and-triangle-splits-2d-5-slice)
+and inspected [NTSC](../images/renderer-paged-2d-5-ntsc.png) /
+[PAL](../images/renderer-paged-2d-5-pal.png) captures.
 
 **The 2026-10-17 authored SWF/font page binding passed debug/release NTSC/PAL (removed 2026-10-29).**
 Native images retain logical atlas dimensions and dispatch bitmap/glyph
@@ -94,18 +95,18 @@ and streamed pixels are checked before cache replacement. Movie unload retains t
 warm image cache; UI shutdown closes images before cache/device teardown. Host cache
 checks cover assertions enabled/disabled. Production captures pass 30 pixel probes,
 three reloads, four warm page loads without eviction and twelve corrupt-resource cases;
-see the [binding record](PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).
+see the [binding record](../PORT_STATUS.md#native-swf-and-font-page-binding-2d-5-slice).
 The subsequent **2026-10-17 English resource slice** admits a compact UICT catalog,
 native modern fonts, preserved legacy metrics and constant image material bindings.
 The opt-in production screen draws all five families at three sizes through six shared
 linear page slots. It opens five font atlases lazily and preserves their half-texel
 outer-edge sampling. This measures the bounded font screen; executable retail BSWF/menu
 binding and the active menu's residency remain open. See the
-[resource acceptance record](PORT_STATUS.md#native-english-retail-font-resources-2d-5-slice).
+[resource acceptance record](../PORT_STATUS.md#native-english-retail-font-resources-2d-5-slice).
 The following resource-only slice loads original shell/dialog dictionaries and the full
 English dictionary, then draws selected labels through native SWF edit-text layout.
 It validates retained storage before native allocation and never executes imported
-AVM1 or placement commands; see the [dictionary/text acceptance record](PORT_STATUS.md#inactive-retail-dictionaries-and-english-text-2d-5-slice).
+AVM1 or placement commands; see the [dictionary/text acceptance record](../PORT_STATUS.md#inactive-retail-dictionaries-and-english-text-2d-5-slice).
 Full movie rendering, active-menu resource closure and
 2D-6 masks/blends still precede 2D-7 offline Shell startup.
 
@@ -117,8 +118,8 @@ Doom 3. Native callback identity, argument, work and hierarchy checks remain ena
 release builds. Full movie rendering/events remain unavailable: the visible output is
 still the isolated English text inspection screen. This establishes initial timeline
 and widget ownership, not a navigable Shell or a measured bitmap working set. See the
-[execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution) and
-[acceptance record](PORT_STATUS.md#scoped-retail-timelines-and-native-widget-owners-2d-5-slice).
+[execution contract](../RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution) and
+[acceptance record](../PORT_STATUS.md#scoped-retail-timelines-and-native-widget-owners-2d-5-slice).
 
 **The first 2D-6 slice passes debug/release NTSC/PAL on 2026-10-18: native additive blend mode 8.** Both retail
 movies require it. Its zero-additive-color profile maps the native premultiplied
@@ -128,9 +129,9 @@ the existing device scene adds texture/vertex alpha, saturation and state-restor
 coverage. There are no new native fixtures or pixel buffers. The convex-mask slice
 below follows this gate; complex masks, screen mode 4, nonzero additive color
 transforms and full retail movie rendering remain pending.
-See the [acceptance record](PORT_STATUS.md#native-swf-additive-blending-2d-6-first-slice)
-and unscaled [NTSC](images/swf-additive-2d-6-ntsc.png) /
-[PAL](images/swf-additive-2d-6-pal.png) authored captures.
+See the [acceptance record](../PORT_STATUS.md#native-swf-additive-blending-2d-6-first-slice)
+and unscaled [NTSC](../images/swf-additive-2d-6-ntsc.png) /
+[PAL](../images/swf-additive-2d-6-pal.png) authored captures.
 
 **The second 2D-6 slice passes debug/release NTSC/PAL on 2026-10-18: native convex masks.**
 The existing authored movie now has twenty dictionary entries and eight mask
@@ -139,8 +140,8 @@ three load/input/reload cycles. Checked native mask lifetimes, arbitrary-order
 removal, simultaneous expiry and direct glyph/page clipping share the CPU path.
 Limits are 64 input triangles, sixteen simplified convex boundary points and four
 active masks. Complex masks and strokes still fail explicitly. See the
-[acceptance record](PORT_STATUS.md#native-convex-swf-masks-2d-6-second-slice) and
-[NTSC](images/swf-masks-2d-6-ntsc.png) / [PAL](images/swf-masks-2d-6-pal.png) captures.
+[acceptance record](../PORT_STATUS.md#native-convex-swf-masks-2d-6-second-slice) and
+[NTSC](../images/swf-masks-2d-6-ntsc.png) / [PAL](../images/swf-masks-2d-6-pal.png) captures.
 
 **The third 2D-6 slice passes debug/release NTSC/PAL on 2026-10-20: the original
 dialog drawn in full.** Native `idSWF::Render` now draws `dialog.bswf` with Common's
@@ -150,25 +151,25 @@ is a third admission, granted only to movies whose preflight finds no outlines, 
 blends or additive color; the dialog qualifies and the shell does not. The dialog
 streamed about 51 of its RGBA32 atlas/font pages per frame through six slots, about
 1.6 s per frame in PCSX2. See the
-[acceptance record](PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice).
+[acceptance record](../PORT_STATUS.md#original-dialog-drawn-in-full-2d-6-third-slice).
 
 **Paletted retail UI textures pass the debug gates on 2026-10-21.** The cook converts
 every retail UI image to GSTX with `asset_reexport`, and the target keeps their PSMT8/
 PSMT4 pages and CLUTs resident in the texture owner, so nothing streams per frame. The
 dialog draws a frame in about 60 ms in debug PCSX2 and its loaded heap is 1.46 MB
-smaller. See the [acceptance record](PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21).
+smaller. See the [acceptance record](../PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21).
 
 **Pre-rendered menu glyphs pass the debug gates on 2026-10-22.** The dialog's text draws
 from Sarasori glyphs and outlines rendered at their exact on-screen sizes and copied
 texel for texel, instead of the minified atlas with four stroke copies per glyph:
 letters stay open, stems sharp, and the dialog draws about 334 triangles a frame
 instead of about 750. Other screens' sizes are logged at runtime for later cooks. See
-the [pipeline](RETAIL_UI_PIPELINE.md#pre-rendered-glyphs) and the
-[acceptance record](PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22). On 2026-10-23
+the [pipeline](../RETAIL_UI_PIPELINE.md#pre-rendered-glyphs) and the
+[acceptance record](../PORT_STATUS.md#pre-rendered-menu-glyphs-2026-10-22). On 2026-10-23
 the shell start screen's sizes joined them (two Sarasori and two Arial Narrow sizes per
 standard), with glyph entries that carry their own page rectangles so sets no longer
 spend a texture placement per bitmap
-([record](PORT_STATUS.md#shell-text-sizes-and-glyph-rectangles-2026-10-23)).
+([record](../PORT_STATUS.md#shell-text-sizes-and-glyph-rectangles-2026-10-23)).
 
 **The native shell menu draws its start and root screens on 2026-10-23.** The original
 `idMenuHandler_Shell`, with its press-start and root screens, owns the admitted shell
@@ -176,18 +177,18 @@ movie: the start screen shows the Doom 3 cover with a PlayStation-style SELECT p
 and after sign-in the root screen lists Campaign, Settings, Credits and Quit. Key events
 drive it through Common's event loop: accept signs in, the arrows move the root's focus
 and back returns to press-start, from injected keyboard keys and pad buttons
-([record](PORT_STATUS.md#native-shell-menu-key-input-2026-10-23)). On 2026-10-24 the
+([record](../PORT_STATUS.md#native-shell-menu-key-input-2026-10-23)). On 2026-10-24 the
 root's Quit opened Common's native confirmation through the dialog manager, over the menu
-([record](PORT_STATUS.md#native-quit-dialog-through-commons-dialog-manager-2026-10-24)),
+([record](../PORT_STATUS.md#native-quit-dialog-through-commons-dialog-manager-2026-10-24)),
 and its pad button tags drew as the PS3 prompt art
-([record](PORT_STATUS.md#pad-prompt-icons-in-retail-text-2026-10-24)). A package policy
+([record](../PORT_STATUS.md#pad-prompt-icons-in-retail-text-2026-10-24)). A package policy
 now boots into the menu
-([record](PORT_STATUS.md#booting-into-the-native-menu-2026-10-24)). The other screens
+([record](../PORT_STATUS.md#booting-into-the-native-menu-2026-10-24)). The other screens
 come next. See the
-[pipeline](RETAIL_UI_PIPELINE.md#native-shell-menu) and the
-[acceptance record](PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23).
+[pipeline](../RETAIL_UI_PIPELINE.md#native-shell-menu) and the
+[acceptance record](../PORT_STATUS.md#native-shell-menu-start-and-root-screens-2026-10-23).
 
-### Next selected work
+### Selected work (order chosen 2026-10-20)
 
 The user selected this order on 2026-10-20, after the first full UI picture:
 
@@ -197,21 +198,29 @@ The user selected this order on 2026-10-20, after the first full UI picture:
    heap working sets; for the campaign it means the declaration, script, collision,
    AAS and entity state a retail level needs alongside the in-game UI. The first
    measurements are recorded in
-   [PORT_STATUS](PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20):
+   [PORT_STATUS](../PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20):
    PSMT8 with per-image CLUTs plus selective halving is the measured UI candidate,
    and the retail declarations and scripts take 13.5 MB of heap before any map.
    The user then chose paletted UI textures as the first lever: the host converter
    `asset_reexport` writes GSTX textures (everything halved for a first pass,
    English-only PSMT4 fonts, shared CLUTs, RLE) and the target keeps their pages
-   resident; see the [pipeline](RETAIL_UI_PIPELINE.md#converted-textures-gstx). It
+   resident; see the [pipeline](../RETAIL_UI_PIPELINE.md#converted-textures-gstx). It
    passed the debug emulator gates on 2026-10-21. A visual pass decides which halved
    images and fonts need their resolution back; the campaign-side levers remain.
 2. Close shell complex masks/strokes, screen blend 4, nonzero additive color
    transforms and dynamic artwork bindings, then produce a complete original shell frame.
+   (Status: done for masks, strokes, blend 4 and RGB color terms; additive alpha terms
+   and dynamic artwork residency remain.)
 3. Connect bounded native offline PressStart/Root/Quit ownership and Common hooks,
    including dialog event routing; verify at least 600 responsive frames,
    focus/select/back, console and shutdown.
-4. Add physical device input and PS2 hardware acceptance as 2D-8.
+4. Physical input (DualShock pad and debug USB keyboard) exists since 2026-10-24; the
+   physical-PS2 acceptance check remains as 2D-8.
+
+Status on 2026-11-02: item 1 done (GSTX); item 2 done except additive alpha terms and
+dynamic artwork residency; item 3 done (native menu, quit dialog, key routing;
+`make test-ui`); item 4 split: the DualShock pad and debug USB keyboard exist, the
+physical-PS2 acceptance check (2D-8) remains.
 
 Extend the current renderer/UI gates; no additional native fixture program is
 planned for these slices. Campaign simulation, sound output and world rendering
@@ -251,12 +260,12 @@ current capabilities and remaining gates are summarized above.
 | Renderer/UI source dispositions | 38 renderer, 21 SWF and 29 menu/widget units in `campaign_runtime`; 20 renderer units in `ps2_replacement`; 29 menu/scoreboard units in `deferred_runtime` |
 | Toolchain / SDK | Existing GCC 15.2 EE build; ps2sdk `graph`, `draw`, `packet2`, `dma` are the Quake renderer's low-level dependencies |
 | Retail data | `gamedata/d3_bfg/` contains 64 `.resources` files; root `base/` has no loose SWF/font/bimage resources |
-| Current runtime evidence | Prior debug/release headless boot, 120-frame/live-quit checks and authored map/player regressions are recorded in [PORT_STATUS.md](PORT_STATUS.md); no build, emulator or hardware checks were rerun for this documentation pass |
+| Current runtime evidence | Prior debug/release headless boot, 120-frame/live-quit checks and authored map/player regressions are recorded in [PORT_STATUS.md](../PORT_STATUS.md); no build, emulator or hardware checks were rerun for this documentation pass |
 
 Paths prefixed **D:** refer to the Doom checkout; **Q:** refer to the Quake checkout at
 the commits above. These are source-inspection facts, not a claim that Quake's behavior,
 capacities or performance measurements have been reproduced by Doom. Existing reused
-files retain their earlier provenance in [REUSE.md](REUSE.md); this newer reference
+files retain their earlier provenance in [REUSE.md](../REUSE.md); this newer reference
 snapshot does not change that history.
 
 ## Doom renderer and UI inventory
@@ -273,7 +282,7 @@ snapshot does not change that history.
 | Materials | D: `src/neo/renderer/Material.cpp`, `Material.h`, `Image_program.cpp` | Parsing and register evaluation are retained, but real stages trigger currently unavailable image services. Start with explicit UI material profiles and evaluate time/color/alpha registers; validate every material stage before emission. |
 | SWF runtime | D: `src/neo/swf/` (21 compiled units) | Runtime, scripts, timeline, shapes and binary/text loading compile; source-SWF JPEG/zlib decoding fails by name (no codec is linked). Active SWF execution is not yet accepted. `SWF_Render.cpp` writes indexed `idDrawVert` geometry, affine coordinates, `color` and `color2`, material and GLS state. Sprites alone cannot implement this interface. |
 | Fonts and localization | D: `src/neo/renderer/Font.{h,cpp}`, `SWF_Text*.cpp`, `framework/Common_localize.cpp`, `idlib/LangDict.cpp` | Font code is retained; `RegisterFont` remains unavailable. Font metadata uses `newfonts/<name>/48.dat` and optional `old_{12,24,48}.dat`, with a material for the atlas. Locale/font aliases and `#str_*` labels need an explicit menu package. Audit glyph/index ownership: the current font destructor deletes `fontInfo` but not its raw `glyphData` / `charIndex` allocations. |
-| Shell provider | D: `src/ps2/ui/menu.cpp`, `shell_stub.cpp`; `src/neo/d3xp/menus/MenuHandler_Shell.cpp`, `MenuScreen_Shell_*.cpp` | Since 2026-10-23 the native handler with the press-start and root screens (and Credits) is a campaign unit; its PS2 initializer binds only those, casts use checked queries, and `retail_menu.cpp` opens and starts the admitted shell. The stub keeps only save/load enumeration. Other shell screens stay deferred; enable each as a reviewed subset. |
+| Shell provider | D: `src/ps2/ui/menu.cpp`, `shell_stub.cpp`; `src/neo/d3xp/menus/MenuHandler_Shell.cpp`, `MenuScreen_Shell_*.cpp` | Since 2026-10-23 the native handler with the press-start and root screens (and Credits) is a campaign unit; its PS2 initializer binds only those, casts use `ps2::DynCast`, and `menu.cpp` opens and starts the admitted shell. The stub keeps only save/load enumeration. Other shell screens stay deferred; enable each as a reviewed subset. |
 | Common menu / dialog | D: `src/ps2/system/common_campaign.cpp`; `Common.cpp::CreateMainMenu`, `Common_menu.cpp`; `Common_local.h::Dialog` | `StartMenu`, `ExitMenu`, `MenuEvent` are unavailable. The harness follows `CreateMainMenu`'s shell calls without its level-load hooks. `Dialog()` answers queries of its empty queue; adding a dialog fails explicitly until the dialog movie is admitted. |
 | Session / input / sound | D: `src/ps2/system/offline_session.cpp`, `input/usercmd_stub.cpp`, `audio/sound_backend.cpp`, `system/sys_services.cpp` | Offline sign-in/session states exist, but save manager and device services remain unavailable. User-command sampling, mouse capture and rumble fail. Rendering/menu events need their own input routing; do not enable player command generation or audio devices to navigate a menu. |
 | Existing verification | D: `src/tests/smoketests/renderer_tests.cpp`, `src/tools/scripts/run_headless.py`, `run_pcsx2_test.py`, `link_resident.py` | Existing renderer tests accept inactive binding/metadata behavior, not pixels. Add one integrated 2D acceptance scenario under tests; production must retain zero test inputs and fixture symbols. |
@@ -308,8 +317,9 @@ No VU tool/submodule import is required for this CPU 2D roadmap.
 ## Reuse and adaptation map
 
 Original proposed destinations are relative to D:. Device, direct RGBA texture,
-capture and authored/native English font/image providers now exist. Retail BSWF admission and
-coverage/CLUT work remain subsequent gates.
+capture, native English font providers and the retail catalog/GSTX paletted image providers
+now exist, and retail BSWF movies are admitted. The screens below Campaign/Settings,
+additive alpha terms and artwork residency remain later gates.
 
 | First-pass destination | Start from | Required adaptation |
 | --- | --- | --- |
@@ -326,7 +336,7 @@ coverage/CLUT work remain subsequent gates.
 
 Reuse the user's own Quake code under the already-authorized GPL v3-or-later terms;
 new banners and diagnostics follow AGENTS.md. Record imported paths/commit/adaptations
-in README's attribution section and [REUSE.md](REUSE.md). Preserve third-party notices
+in README's attribution section and [REUSE.md](../REUSE.md). Preserve third-party notices
 where present. Quake embedded `builtin/` artwork/palettes are game data generated by
 `imgdump`, not automatically reusable engine code; use authored or separately licensed
 bootstrap graphics. Proprietary Doom input and converted output remain local/ignored.
@@ -416,7 +426,8 @@ UV/RGBA before nearest rounding to GS 1/16 pixel/texel fields. Half UV decoding 
 exponent 31 before EE arithmetic. The initial indexed additive-color boundary required
 exact `color2={128,128,128,128}`. The explicit SWF drawing scope also admits 127, matching
 native `PackColor(0.5)` truncation, with a one-byte neutral encoding difference. Outside
-that scope the original 128 requirement remains. Nonzero additive transforms remain unavailable.
+that scope the original 128 requirement remains. Inside it, RGB color terms draw as a
+fog-colored second pass; additive alpha terms remain unavailable.
 
 Texture updates/destruction flush queued UI geometry before modifying pixels or VRAM.
 The resource fence therefore covers both collected CPU triangles and emitted GS work.
@@ -448,7 +459,7 @@ Three reference gaps are mandatory gates:
    `gui.vertex` decodes `color2` from packed biased values. Straight-alpha GS blending can
    match the zero-additive profile using straight texture/color data, but simply copying
    packed `color2` or the Quake blend equation does not implement full SWF color transforms.
-   Nonzero additive transforms and alpha-affecting transforms need host-baked/static
+   Nonzero RGB additive terms now draw as a second fog-colored pass in the SWF scope. Additive alpha terms and alpha-affecting transforms need host-baked/static
    variants or a bounded, measured composition path. Do not discard `color2` silently.
 3. GS cannot express every GLS multiply/min/max/subtract combination in one ordinary
    texture blend pass. Inventory actual shell use, classify exact supported equations,
@@ -477,8 +488,8 @@ The convex implementation captures native transformed fill triangles and proves 
 convex boundary by cancelling matching interior edges. It admits up to 64 input
 triangles, 16 boundary points and four simultaneous keyed masks; empty masks clip all
 content. It clips both indexed geometry and direct glyph quads, preserving original
-edge/plane constraints through interpolation. Unsupported topology, strokes and
-capacity violations fail in release too.
+edge/plane constraints through interpolation. Any other mask (concave, holed, disconnected, stroked, up to 256 triangles) is written to
+the Z16 depth buffer, one at a time; a second simultaneous depth mask is refused.
 Rectangles currently use the same CPU polygon path; a GS scissor fast path can follow
 after equivalent pixel/UV coverage is verified.
 
@@ -489,9 +500,8 @@ Fourteen shell placements transform the local rectangular mask with rotation/she
 Conservative all-frame display graphs show at most one inherited/local mask active
 in either movie, although the authored path deliberately exercises three. The
 largest fill has 198 vertices and the largest mesh 183 triangles. These complex
-shapes remain outside the first convex admission profile; subsequent work should
-evaluate a bounded triangle-mesh representation and preserve exact shared-edge
-coverage before enabling the retail movie.
+shapes lie outside the convex admission profile and take the depth-buffer mask path
+described above; the shell start and root screens draw with it.
 
 
 ## UI assets and menu dependencies
@@ -574,9 +584,9 @@ Route focus/select/back/console events through native menu/console handling befo
 considering pad/keyboard polling. Production routes events to the console and then the
 native shell menu (the authored movie hop was removed 2026-10-29); other retail movies take no events. Console closing/reopening now tolerates the absence of a mouse in
 production; test capability probes keep their explicit unsupported failures. HostFs
-commands deliver bounded ASCII and named native keys without introducing a physical
-input device. No desktop window, rumble or player user-command sampling is needed.
-Reuse Q: `input/pad.*` / `keyboard.*` only when the visual/input contracts are stable,
+commands deliver bounded ASCII and named native keys; since 2026-10-24 a DualShock pad
+and a debug USB keyboard also post key events into Common's queue. No desktop window, rumble or player user-command sampling is needed.
+Q's `input/pad.*` / `keyboard.*` were reused as `src/ps2/input/pad.*` and `keyboard.*` (2026-10-24),
 adapting their events and IOP/module dependencies. Keep Q's keyboard polling policy: an
 idle keyboard is read every 250 ms and a busy one every frame, because each read is an
 IOP file round trip.
@@ -585,9 +595,11 @@ IOP file round trip.
 
 ### Recorded baseline and proposed starting envelopes
 
-Prior production measurements are fixed `PT_LOAD` 10,863,078 debug / 11,282,726 release
+Early production measurements were fixed `PT_LOAD` 10,863,078 debug / 11,282,726 release
 bytes, tagged ready backing 1,942,752 bytes and arena peaks 1,957,402 / 1,959,642 bytes.
-These are the headless baseline in [PORT_STATUS.md](PORT_STATUS.md), not new measurements.
+They are superseded: `PT_LOAD` is now 4,779,884 debug / 4,063,468 release (2026-10-31) and
+retail `startup-game` is about 13.2 MB requested; see
+[memory-budget.md](../../.claude/rules/memory-budget.md).
 Do not add tagged backing to arena commitment again; kernel, stacks and later UI assets
 need separate accounting.
 
@@ -598,8 +610,10 @@ need separate accounting.
 | Command chains | Two owned, 64-byte-aligned halves; start at **128 KiB each** and support validated chunk/drain overflow. Quake's 768 KiB × 2 is reference capacity, not a Doom default. |
 | GUI geometry | Two bounded pools, initially 4,096 native vertices and 12,288 16-bit indices each: 128 KiB + 24 KiB per half, plus aligned surfaces/state metadata. Stay below 16-bit index limits; flush completed runs or fail an oversized request. |
 | Upload / capture staging | Small reusable upload packet and at most 32-row aligned capture strips; no whole-frame RGB readback allocation. |
-| Texture formats | RGBA32 for correctness and smooth alpha; Alpha8 plus a stable coverage CLUT for fonts when ready. Indexed color/per-page palettes and 16-bit UI color are later measured trade-offs. |
+| Texture formats | RGBA32 for correctness and smooth alpha; Alpha8 plus a stable coverage CLUT for fonts when ready. Retail UI images ship as paletted GSTX (PSMT8/PSMT4, shared CLUTs); RGBA32 remains for the owned direct textures of the device tests. 16-bit UI color is still an open trade-off. |
 | UI pixel working set | Initial cap proposal: 2 MiB decoded EE pixels, with measured GS residency and no eager full shell atlas. Pages outside the working set load from cooked storage on demand. Scene/script/font allocations have separate limits. |
+
+Shipped (2026-10): one UI collection of 4,096 vertices, 6,144 indices and 128 ordered runs (146,944 bytes); retail UI images are paletted GSTX pages resident in one 2 MiB texture owner, with a 2 MiB cap on owned RGBA pixels; command halves stay 128 KiB each. The proposal rows stay as history.
 
 The example geometry + chain pools total about **560 KiB**, before metadata, upload,
 capture staging and UI pixels. Native `idDrawVert` is 32 bytes; `triIndex_t` is 16-bit
@@ -641,7 +655,7 @@ calendar estimates. Each slice must leave a reviewable build and preserve headle
 | **2D-5: retail UI inventory and cooking** | Reproducible container/dependency/feature inventory; DXT/green-alpha decoding, atlas paging/remap, English font/localization scope and compact cooked runtime indices. Can progress in parallel with 2D-3/4. | Bounded shell/dialog/fonts package with hashes, estimated/actual resident working set and explicit unsupported feature list. No proprietary output committed. Repeated conversion is deterministic; wrong/truncated/oversized input fails before publishing ownership. |
 | **2D-6: required SWF feature closure** | Actual shell-required masks, nonzero additive color, blends, morphs/gradient/stroke and page splits; choose measured exact/native adaptation/composition per feature. Depends on 2D-4/5. | Target captures against CPU/reference expected regions for nested/concave required clips, alpha/color transforms and page boundaries; no silently dropped masks or substitute normal blends. Feature inventory has no unresolved essential root/dialog draw requirement. |
 | **2D-7: native offline main menu** | Bounded native shell/root/press-start/dialog providers, Common menu/level-load hooks, localization, optional silent cue policy and focus/console routing. | Production reaches a recognizable native BFG root, remains responsive for at least 600 frames, handles focus/select/back, visible console and quit/confirmation, and has no unexpected unavailable-capability fatal. Menu/console/reload loops have stable warm ledgers; full shutdown returns to baseline. Unsupported campaign/network/save/video actions are explicit. |
-| **2D-8: device input and hardware check** | Scoped Quake pad/keyboard reuse or current PS2 input services; correct event mapping and presentation pacing. | Navigate and quit on the intended input device; no unintended input consumption or reconnect crash. Verify at least one physical PS2 capture/view for cache/DMA, video/alpha/font readability and NTSC/PAL behavior before calling this hardware-accepted. PCSX2 is the regression gate, not an EE cache or GS cost measurement. |
+| **2D-8: device input and hardware check** | Pad and debug USB keyboard exist (2026-10-24); remaining work is the physical-PS2 acceptance check, event mapping on real hardware and presentation pacing. | Navigate and quit on the intended input device; no unintended input consumption or reconnect crash. Verify at least one physical PS2 capture/view for cache/DMA, video/alpha/font readability and NTSC/PAL behavior before calling this hardware-accepted. PCSX2 is the regression gate, not an EE cache or GS cost measurement. |
 
 Validation stays focused: extend the current renderer test coverage with **one integrated
 2D scene/input scenario** and reusable authored assets/captures, plus production console
@@ -661,11 +675,11 @@ shared contracts change, not for every documentation or isolated GS edit.
 
 | Decision / risk | Recommendation and resolution gate |
 | --- | --- |
-| Native BFG shell versus a simpler PS2 menu | Target a scoped native BFG root after authored SWF acceptance. A simplified theme/menu is an explicit product choice if retail feature or residency costs prove unacceptable; do not substitute it silently. |
+| Native BFG shell versus a simpler PS2 menu | Resolved: the scoped native BFG shell (press-start, root, Campaign, Settings, Credits, quit dialog) runs on retail movies and the authored SWF was removed 2026-10-29. A simplified theme/menu is an explicit product choice if retail feature or residency costs prove unacceptable; do not substitute it silently. |
 | Oversized shell/font atlases | Paging/repacking is mandatory; do not load 13 MB of shell RGBA to discover the limit at runtime. Decide page size, filtering/downscale and scene working-set policy after the host inventory/captures. |
 | Stencil mask mismatch | Gate retail UI on its real masks. Rectangular/convex clips first; select bounded composition or UI adaptation only with measured visual equivalence. |
 | Additive color / special blends | Default to exact supported subset, with explicit converter/runtime classification. Bake only genuinely static transforms; animated transforms cannot be folded once at conversion. |
-| GS texture ownership | Use one allocator/frame owner. RGBA correctness first; per-page color CLUTs need a separate palette-cache/lifetime design before indexed retail artwork. |
+| GS texture ownership | Use one allocator/frame owner. Resolved 2026-10-21: one allocator/frame owner; GSTX pages and their CLUTs bind together (`tex::BindPair`) and stay resident in the texture owner. |
 | Renderer init and headless coexistence | Choose explicit capabilities before startup allocations; keep headless behavior and CPU world queries. Do not revive desktop OpenGL/frame/thread initialization. |
 | Native GUI overflow / masks expanding geometry | Bounded request validation and completed-run drains. Reprofile limits with real UI; increasing buffers is not an alternative to input checks. |
 | Font/SWF loader lifetime and expansion | Audit font glyph/index frees, alias ownership, binary counts/offsets and raw SWF expansion/cache writes before active target loads. |
@@ -701,11 +715,13 @@ inventory/cook foundation (**2D-5**) is now available. The authored SWF/font UIP
 binding passed with a shared budget and has since been replaced by resident paletted textures. Native English font/image/material resources and
 legacy layout metrics now pass their separate opt-in resource screen. Bounded native
 retail timeline/placement execution now has a separate opt-in path with minimal native
-widget owners. Next close required drawing features and dynamic state/resource paths,
-then measure the actual menu bitmap working set. Inactive BSWF and English edit-text
+widget owners. Drawing features and the menu working set were closed and measured afterwards (see
+Implementation progress); additive alpha terms, the screens below Campaign/Settings and
+artwork residency remain. Inactive BSWF and English edit-text
 inspection provide the storage/layout foundation for required SWF feature closure
 (**2D-6**) and native offline shell startup (**2D-7**). The authored movie established
 the interface (it is removed); native BFG menu and world-rendering acceptance remain separate gates.
-The first **2D-6** slices add scoped native mode-8 blending and bounded convex mask
-clipping. Complex shell masks, strokes, screen mode 4 and nonzero additive color
-transforms still precede full retail drawing.
+The **2D-6** slices added scoped native mode-8 blending, bounded convex masks, depth-buffer
+masks, line records, screen mode 4 and RGB color terms, and the original dialog and shell
+start and root screens draw in full. Additive alpha terms, the screens below
+Campaign/Settings and artwork residency remain open.

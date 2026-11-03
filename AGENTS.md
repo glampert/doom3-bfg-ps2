@@ -32,8 +32,11 @@ brace conditional bodies and expand blocks across multiple lines, including shor
 functions. Leave a blank line after a completed block before the next independent
 statement or block; keep the code visually spaced rather than densely packed.
 
-[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) describes the proposed milestones and
-source changes. [README.md](README.md) records current project status; expand it as the
+[IMPLEMENTATION_PLAN.md](docs/plans/IMPLEMENTATION_PLAN.md) describes the proposed milestones and
+source changes; [docs/plans/RENDERING_ARCHITECTURE.md](docs/plans/RENDERING_ARCHITECTURE.md)
+is the 3D rendering architecture plan (frame pipeline, VU1 programs, seam, lighting, shadows,
+skinning, asset re-export, budgets and milestones), with its step-by-step
+[RENDERING_TODO.md](docs/plans/RENDERING_TODO.md); all plans live under `docs/plans/`. [README.md](README.md) records current project status; expand it as the
 port develops. [AGENT_HANDOVER.md](docs/AGENT_HANDOVER.md) is the current continuation guide.
 [CVARS.md](docs/CVARS.md) lists implemented backend cvars; add each one with
 its debug/release defaults and flags when it exists in code. The files in

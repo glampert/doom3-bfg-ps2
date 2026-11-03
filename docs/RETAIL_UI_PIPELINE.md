@@ -1,13 +1,13 @@
 # Retail UI host inventory and cooking
 
 This records the **2D-5** host pipeline and its scoped native resource/timeline
-profiles. Documentation reviewed **2026-10-23**, with runtime evidence through
-**2026-10-23**. Original shell/dialog dictionaries, English text and checked native
+profiles. Documentation reviewed **2026-11-02**, with runtime evidence through
+**2026-10-24**. Original shell/dialog dictionaries, English text and checked native
 timelines can load and execute through separate admission profiles. The original dialog
 and the shell's start screen draw in full through a third one, their text from
 [pre-rendered glyphs](#pre-rendered-glyphs), and the native shell handler drives the
 [start and root screens](#native-shell-menu) from key events, with Common's quit
-confirmation. The other menu screens are not admitted.
+confirmation. The Campaign and Settings screens are bound too; the screens below them are not admitted.
 
 Retail artwork and fonts are converted to paletted, RLE-compressed **GSTX** textures by
 the host tool `asset_reexport`; the target keeps each open image's pages resident instead
@@ -15,7 +15,7 @@ of streaming RGBA pages. The cook keeps `runtime_ready=false` because complete
 drawing/resource closure and the active menu working set remain pending. Masks (convex
 ones on the CPU, any other one at a time in the GS depth buffer), additive blend 8, screen
 blend 4, outlines and RGB color terms are implemented; additive alpha terms and a second
-simultaneous non-convex mask remain refused. See the [renderer roadmap](RENDERER_2D_PLAN.md) and
+simultaneous non-convex mask remain refused. See the [renderer roadmap](plans/RENDERER_2D_PLAN.md) and
 [agent handover](AGENT_HANDOVER.md) for the next dialog/shell/menu gates.
 
 ## Commands and local data
@@ -123,7 +123,7 @@ exact array/string/descriptor offsets and an English-only flag. Records bind ima
 to the complete header and tables of their GSTX texture, fonts to immutable modern
 `.dat` snapshots, three legacy width/height pairs and an optional
 [glyph table](#pre-rendered-glyphs), aliases to canonical families, and material names
-to images. The current index is **55,009 bytes**: fifteen images (21,696 descriptor
+to images. The current index is **74,499 bytes** with 2,266 glyph entries; the image, page and descriptor counts that follow must be re-read from a fresh `make ui-cook` manifest (the 55,009-byte figures are from 2026-10-23): fifteen images (21,696 descriptor
 bytes, 19 pages; each glyph set's descriptor is 128 bytes), five fonts, two glyph
 tables (29,152 bytes, 1,442 entries), nineteen aliases and twelve implicit material
 bindings. Catalog bounds are 128 KiB, 32 images, eight fonts, 128 aliases, 64
@@ -201,7 +201,7 @@ Limits are 16 pages, 128 CLUTs, 1,024 placements, 512-texel pages, 16,384-texel 
 extents and 16 MiB files. Placements are checked against their page, source and
 logical rectangles, and their match rectangles may not overlap.
 
-The local cook converts 16 textures from 9,095,516 bytes of source BIMAGE resources to
+As of the 2026-10-21 cook, the local cook converts 16 textures from 9,095,516 bytes of source BIMAGE resources to
 **762,608 bytes** of GSTX files (**1,980,032 bytes** decoded). The admitted twelve take
 562,496 bytes on disc and 1,397,760 decoded:
 
@@ -288,10 +288,10 @@ font page was RGBA or the halved PSMT4 conversion.
 Fonts listed under `conversion.glyph_sets` in the profile draw such text from bitmaps
 rendered at the exact on-screen size. Each entry names a font and its sizes: `scale`
 is GS pixels per atlas texel (x, y) and `stroke_weight` the outline weight in atlas
-texels, zero for none. The dialog and the shell's start screen are covered, each size in
+texels, zero for none. The dialog and the shell's start, root, Campaign and Settings screens are covered, each size in
 NTSC and PAL. Sarasori has the dialog's heights 21 and 22 with weight 1.75 and 34 with
 weight 2.0, plus the start screen's prompts and carousel labels at heights 10 and 13
-without an outline: ten sizes. Arial Narrow has the start screen's small background text
+without an outline, the root screen's options and help line at heights 18 and 10 with a 2.0 outline, and the Campaign and Settings headings (0.35 per texel, 1.75 outline) and options (0.2, 2.0 outline): 18 sizes. Arial Narrow has the start screen's small background text
 at heights 2.5 and 3: four sizes. The runtime supplies the values: a retail font drawn at
 a size its set lacks logs
 `[D3BFG] UI glyph size font=NAME scale=X,Y stroke=W prerendered=no` once per size.
@@ -315,8 +315,7 @@ font's full-resolution atlas, decoded from its BIMAGE, and its glyph records:
   texture therefore holds one placement per page, and each glyph records its own
   rectangle instead.
 
-The Sarasori set is a 256 × 512 logical image, one band on one PSMT4 page: 51,712 bytes
-on disc, 128 of them tables, and 64 KiB of VRAM. The Arial Narrow set is 128 × 128:
+The Sarasori set holds 18 sizes. The cooked glyph-set images are two PSMT4 pages (512 × 512 and 128 × 128), 136 KiB of VRAM in all; re-read the per-set disc sizes from the manifest. (The Arial Narrow figures in the next sentence also need re-reading.) The Arial Narrow set is 128 × 128:
 992 bytes and 8 KiB of VRAM. Each glyph's rectangle, outline flag and ink origin, its
 left edge on its baseline in 1/16 pixel from the bitmap's corner, go to
 `cooked.glyph_sets` and the catalog.
@@ -347,11 +346,10 @@ kept the two halves of an outline pair apart.
 Layout, alignment, colors and masks stay native. Drop shadows, rotated or sheared text,
 and sizes or glyphs a set lacks keep the native quads.
 
-Limits: only the dialog's and the start screen's sizes are cooked, so the shell's other
-screens still draw the filtered quads and log their sizes as they are reached. A set
+Limits: only the sizes of the dialog and the bound shell screens (start, root, Campaign, Settings) are cooked, so any screen below them would draw the filtered quads and log its sizes as they are reached. A set
 holds up to sixteen 512 × 512 pages, far more than the English glyphs of any listed size
 need. Entries cost 20 catalog bytes per glyph and size: the 128 KiB catalog bound leaves
-room for about 3,800 more, roughly 37 sizes of 103 glyphs.
+room for about 2,800 more, roughly 27 sizes of 103 glyphs (a set holds at most 32 sizes).
 
 ## Removed authored page transport (UIPG)
 
@@ -466,25 +464,14 @@ foundation. Selected English font/image admission and legacy layout metrics now 
 through the opt-in native resource path. Inactive BSWF dictionaries and isolated
 English text now have a bounded native path.
 The scoped execution path below now adds native timeline and callback ownership for
-initial states. Native blend mode 8 now has an alpha-weighted additive GS path for
-the zero-additive-color profile. Mode 4, nonzero
-additive color transforms, complex masks and strokes are still explicit feature gaps.
-A bounded native convex-mask path now exists for simple geometry; it does not
-admit the shell's holed/disconnected meshes, 185-point outline or stroked masks. Full
-drawing is admitted only for a movie without outlines, screen blends or additive color,
-which today means the dialog. Shell drawing, general dynamic resource closure and a
-measured active-menu working set remain pending. This does not complete milestone
+initial states. Native blend modes 4 and 8, outlines, RGB color terms, convex CPU masks and a single GS depth mask are implemented; additive alpha terms and a second simultaneous non-convex mask remain refused. Full drawing is admitted per movie from the target preflight (the dialog and the shell). General dynamic resource closure and a measured active-menu working set remain pending. This does not complete milestone
 2D-5 or activate the complete retail menu.
 
 Retail images keep their converted pages resident; the device's texture budget (2 MiB of owned texels and of texture VRAM)
 remains the global cap, and the measured screens above do not establish the complete
 menu's working set.
 
-Offline native Shell startup follows those gates. It must explicitly gate intro/Mars
-cinematics, sound, save-indicator startup and unavailable campaign/online/save/Classic
-operations. The minimal owner below selects Doom 3 only. PC `pcBar` versus controller
-layout remains a later input/presentation decision; the current execution proof keeps
-the existing native PC platform value.
+The native menu now opens the shell offline ([native shell menu](#native-shell-menu)). Handlers and movies report platform 1, the PS3 face-button layout, and the minimal owner selects Doom 3 only.
 
 ## Scoped retail timeline execution
 
@@ -554,8 +541,8 @@ all 32 source probes remain required.
 These checks cover the selected initial states and owners. They do not establish
 general AVM1 lifetime safety: copied text aliases and raw function/default-sprite
 references retain upstream limitations. General dynamic path closure, active artwork
-residency and masks/blends remained later gates; the native shell menu below now
-drives PressStart → Root → Quit.
+residency remain later gates; the native shell menu below now
+drives PressStart → Root → Campaign/Settings and Quit.
 
 ## Full original dialog drawing
 
@@ -583,9 +570,8 @@ inventory for both movies.
 The dialog owner mirrors `idCommonDialog::Init` (the `DIALOG_*` constants) and
 `ShowDialog` for the root menu's quit request: `GDM_QUIT_GAME` as `DIALOG_DYNAMIC`, with
 title/text keys from native `GetDialogMsg` and ACCEPT / CANCEL / CHANGE GAME options
-from the English dictionary. Common's own dialog manager stays uninitialized. The three
-choices are native callback objects that fail explicitly when called; dialog event
-routing and Common's deferred clear belong to the offline menu gate. Retail `guiSolid`
+from the English dictionary. In this isolated command Common's own dialog manager stays uninitialized and the three
+choices fail explicitly when called; the [native shell menu](#native-shell-menu) initializes the manager and routes dialog events and Common's deferred clear. Retail `guiSolid`
 and `_white` resolve to one constant vertex-colored stage over the owned white image,
 which is how native GUI surfaces evaluate them.
 
@@ -652,8 +638,8 @@ handler with the session and runs its update before the timeline advances.
   press and release through the event loop: keyboard `enter`, `escape`, arrows, or pad
   `cross`, `circle`, `dpad_*`. Accept on the start screen signs in the first local user and
   the next session sync shows the root screen; the arrows move its focus (the help line
-  follows) and back returns to press-start, signing out. Campaign and Settings fail by
-  name (their screens are not bound).
+  follows) and back returns to press-start, signing out. Campaign and Settings open from the root; the screens below them fail by
+  name.
 - **Quit.** The menu initializes Common's dialog manager, which opens the admitted dialog
   movie inactive beside the shell. The root's Quit shows the native confirmation over the
   menu; while shown, the dialog takes every event first. Its options take focus left to

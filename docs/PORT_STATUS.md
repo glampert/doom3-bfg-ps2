@@ -1,9 +1,11 @@
 # Port status and headless acceptance
 
-## Current snapshot — 2026-10-29
+## Current snapshot — 2026-10-31
 
-The port is not playable yet. The latest change [removes the authored placeholder UI](#authored-ui-and-uipg-removal-2026-10-29)
-(2026-10-29) and has no emulator measurements yet. The one before it [merges the UI gates](#fewer-emulator-launches-for-the-ui-and-common-gates-2026-10-26)
+The port is not playable yet. Release `PT_LOAD` is 4,063,468 bytes (debug 4,779,884) and the stripped release ELF 3.48 MB, with multiplayer code and developer tools compiled out of release and the script arrays on the `TAG_SCRIPT` heap; see [Executable size](#executable-size-2026-10-30) and [BSS cuts, event maps and developer cvars](#bss-cuts-event-maps-and-developer-cvars-2026-10-31).
+
+The latest change is the 2026-10-31 release-size work ([BSS cuts, event maps and developer cvars](#bss-cuts-event-maps-and-developer-cvars-2026-10-31)), which passed the debug emulator matrix. The one before it [removed the authored placeholder UI](#authored-ui-and-uipg-removal-2026-10-29)
+(2026-10-29). The one before it [merges the UI gates](#fewer-emulator-launches-for-the-ui-and-common-gates-2026-10-26)
 (2026-10-26): `make test-ui` visits every retail screen in one session per standard, and
 the probes that only confirmed a deferred capability fails were retired. The slice before it brings up the
 [pad and the debug USB keyboard](#pad-and-debug-keyboard-devices-2026-10-24) (2026-10-24):
@@ -46,7 +48,7 @@ changing their bytes.
 | M0–M2 / M2b | EE core startup, synchronous Common/services, retained campaign compile and resident link | Source inclusion is not campaign playability |
 | M3 game fixtures | Native startup/events/scripts; restricted player movement, jump/crouch/steps over 331-frame reloads; authored map/world/PVS/collision/AAS and one idle AI | Full campaign player, animated AI/gameplay, retail map conversion and Common map transitions |
 | Production loop | Native game initialization, console commands, sustained frames and ordered shutdown; game remains in `NOMAP` | Production map ownership and map simulation |
-| Retail data boot | Retail `_common`/`_ordered` containers, every declaration folder and the full `doom_main.script` reach `NOMAP` in a 14.5 MB heap arena, with exact shutdown | Leaves about 6.4–6.8 MB for a level; heap levers measured, not applied |
+| Retail data boot | Retail `_common`/`_ordered` containers, every declaration folder and the full `doom_main.script` reach `NOMAP` with exact shutdown (2026-10-31 debug `startup-game`: 13,240,094 requested / 16,541,204 backing bytes in 75,111 allocations) | Leaves about 8.6 / 9.4 MB (debug/release) before any map, stacks and load peaks; several heap levers applied (see [Executable size](#executable-size-2026-10-30)) |
 | 2D-1–4 | GS device/textures/capture, real console, indexed UI and native fonts (an interactive authored SWF was the bring-up step, removed 2026-10-29) | Physical PS2/performance acceptance |
 | 2D-5 | Retail inventory/cook, English fonts/layout, bounded original dictionaries/text and scoped timeline/AVM1 execution with minimal native widgets | General dynamic resource closure and active artwork working set |
 | 2D-6 | Blends 8 (add) and 4 (screen), RGB color terms, outlines, convex CPU masks plus one depth-buffer mask; the original dialog and the shell's start screen drawn in full from resident paletted textures (debug gates) | Two non-convex masks at once, additive alpha terms; the visual pass over the halved first conversion |
@@ -57,12 +59,12 @@ shell` the shell's start screen, with placeholder prompts and labels because no 
 screen runs. `ps2_uiRetail menu` runs the native shell handler instead: its start screen,
 root menu, Campaign and Settings screens, with PlayStation-style prompts, which
 `ps2_uiRetail key NAME` drives with keyboard keys and pad buttons; its Quit opens the
-original confirmation, whose `<JOY1>` prompt draws as the cross icon. `make retail-menu` stages a package that boots into that
+original confirmation, whose `<JOY1>` prompt draws as the cross icon. `make stage-ui-menu` stages a package that boots into that
 menu. Other retail modes still show isolated native English
-labels and take no events. The dialog draws at about 40 ms per debug PCSX2 frame, the shell at 100–140 ms.
+labels and take no events. The dialog draws at about 60 ms per debug PCSX2 frame, the shell at 100–140 ms.
 No world rendering or audible playback is implemented.
 
-The last acceptance (2026-10-24, debug only) passed the new `menu-screens` case in NTSC
+The last acceptance (2026-10-31) passed the full debug matrix and the release headless, retail headless, game, map and UI gates; see its [record](#bss-cuts-event-maps-and-developer-cvars-2026-10-31). The merged UI sessions of 2026-10-26 are recorded [here](#fewer-emulator-launches-for-the-ui-and-common-gates-2026-10-26). The one before that (2026-10-24, debug only) passed the new `menu-screens` case in NTSC
 and PAL, then the console, font and retail movie gates on the recooked catalog; see its
 [record](#campaign-and-settings-screens-2026-10-24). The one before passed the new
 `menu-boot` case in NTSC and PAL on the prompt-icon matrix's ELF plus the boot hook; see
@@ -106,15 +108,15 @@ regular target gate [passed again](#script-probe-repair-and-the-rebuilt-toolchai
 on the toolchain rebuilt on 2026-10-19, including the repaired script probe.
 
 Continue with [AGENT_HANDOVER.md](AGENT_HANDOVER.md) and the
-[2D roadmap](RENDERER_2D_PLAN.md). The selected work is asset recompression/re-export
+[2D roadmap](plans/RENDERER_2D_PLAN.md). The selected work is asset recompression/re-export
 and fitting the game into the 32 MiB budget. Its first lever, paletted UI textures,
 passes the debug gates and awaits the user's visual pass; the dialog's and the start
 screen's text draws from pre-rendered glyphs, whose sizes for later screens are still to
-be collected; the heap levers are measured and not applied. The native shell handler
+be collected; the heap and size levers in [Executable size](#executable-size-2026-10-30) are applied, and the remaining buffer cuts wait on measurements. The native shell handler
 draws the start and root screens, takes injected key events, opens the native quit
 confirmation, draws its pad prompts as the PS3 art, opens at boot from a package policy
-and reaches the Campaign and Settings screens; the screens below them and physical
-keyboard/pad input follow. Required feature/resource admission precedes each
+and reaches the Campaign and Settings screens; the screens below them and a hands-on
+check of the pad and keyboard devices follow. Required feature/resource admission precedes each
 milestone. Preserve headless simulation and extend existing fixtures; further
 standalone movement fixtures are paused.
 
@@ -2369,7 +2371,7 @@ Durable findings and recipes are in the GS/platform/testing rules.
 
 Next is 2D-2: RGBA textures, sampler/stride/POT handling, smooth textured alpha,
 residency hazards and bounded on-target capture. Sound, native UI and world rendering
-remain subsequent gates in [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md).
+remain subsequent gates in [RENDERER_2D_PLAN.md](plans/RENDERER_2D_PLAN.md).
 
 ## RGBA textures and native capture (2D-2)
 

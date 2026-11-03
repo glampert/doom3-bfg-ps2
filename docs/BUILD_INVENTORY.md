@@ -6,10 +6,10 @@ of every shipped BFG C/C++ unit. `make audit-sources` fails when a source is add
 duplicated, left unclassified, or enabled despite an exclusion. Source discovery is used
 for auditing only; it never selects files for compilation.
 
-Current source audit, reviewed **2026-10-29**: 393 shipped units, 284 retained
-campaign units, 45 core backend sources, 33 resident support sources and 366 compile
-database entries. The last runtime acceptance is the 2026-10-18 convex-mask slice in
-[PORT_STATUS.md](PORT_STATUS.md#native-convex-swf-masks-2d-6-second-slice). Later
+Current source audit, reviewed **2026-11-02**: 393 shipped units, 280 retained
+campaign units, 45 core backend sources, 33 resident support sources and 362 compile
+database entries. The current acceptance state is the "Current snapshot" section of
+[PORT_STATUS.md](PORT_STATUS.md#current-snapshot--2026-10-31). Later
 sections retain dated source/size snapshots; their earlier counts are historical.
 
 ## Reviewed upstream projects
@@ -42,9 +42,9 @@ resource packs will import miniz.
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 284 | Includes the native shell handler with its press-start, root and credits screens; M3 runtime adaptation remains required |
+| Campaign runtime | 280 | Includes the native shell handler with its press-start, root, Campaign, Settings and credits screens; M3 runtime adaptation remains required |
 | PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
-| Deferred runtime | 27 | Other BFG shell screens, multiplayer, online services and demo paths; callers still need explicit adapters |
+| Deferred runtime | 31 | Other BFG shell screens, multiplayer, online services and demo paths; callers still need explicit adapters |
 | Compression deferred | 3 | `Zip.cpp`, `Unzip.cpp` and `File_SaveGame.cpp` need zlib; `save_metadata.cpp` stubs the pipelined save file until miniz |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
 | PCH excluded | 3 | Visual Studio precompiled-header translation units |
@@ -69,12 +69,12 @@ and runs the converter. None adds an EE source, vendor dependency or target capa
 The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest.
 The page splitter, GSTX reader and paletted image bind the converted retail textures.
 The English resource catalog, inactive retail dictionaries and opt-in bounded timeline
-execution now build on that layer. Production retains **379 direct inputs** and the
-compile database has **405 entries**. The native shell handler, its press-start and root
+execution now build on that layer. Production retains **337 direct inputs** and the
+compile database has **362 entries**. The native shell handler, its press-start, root, Campaign and Settings
 screens and the original Credits unit drive the shell menu; the minimal retail owner
 remains for the timeline and full-draw test modes. The original dialog and the shell's
 start and root screens draw in full, key events drive the menu and its Quit opens
-Common's native confirmation; the other shell screens remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
+Common's native confirmation; the screens below Campaign and Settings remain pending. See [the execution contract](RETAIL_UI_PIPELINE.md#scoped-retail-timeline-execution).
 
 `make` / `make release` link the production native console loop as
 `build/<config>/d3bfg.elf`, with the full retained campaign source set and no test inputs.
@@ -87,7 +87,7 @@ does not initialize the campaign game. `CORE_BOOT` controls this selection only 
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
 `PS2_CXX_SRC` owns production entry, the Common loop provider and the strict optional
-presentation and movie providers. Production links 374 direct objects, retaining all eleven
+presentation and movie providers. Production links 337 direct objects, retaining all eleven
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.
@@ -115,7 +115,7 @@ campaign's `idClass` hierarchy and `idGameLocal` are not yet part of that execut
 all core objects directly, without garbage collection. Debug/release core runs have
 passed in PCSX2; see [PORT_STATUS.md](PORT_STATUS.md).
 
-All 282 intended runtime units compile with the campaign header boundary, not the
+All 280 intended runtime units compile with the campaign header boundary, not the
 reduced core precompiled header, in both configurations. The production link below
 is their gate, with the replacement services and registrations.
 
@@ -187,29 +187,17 @@ declarations with `ID_PS2_CORE` undefined while linking only inline hierarchy qu
 and real foundation file objects. It does not link a menu/model runtime or discard
 selected core objects. These test sources remain explicit in `CORE_BOOT_CXX_SRC`.
 
-The campaign manifest retains 281 units; all compile in both configurations.
+The campaign manifest retains 280 units; all compile in both configurations.
 [PORT_STATUS.md](PORT_STATUS.md) records the sound boundary and resident-link work.
 
-## Campaign diagnostics and JPEG adapter
+## Campaign diagnostics
 
 `GAME_BACKEND_CXX_SRC` lists required campaign backend objects. The production build
 compiles them with strict backend warnings and their own flag stamp, alongside the
-281-unit campaign manifest. The adapters supply bounded SWF JPEG decoding, lifecycle
-tracking, offline session services and the portable audio boundary. Lifecycle, offline
-session and audio support also link into the foundation; the JPEG decoder remains
-also linked in the foundation for target decoding and cleanup probes.
-
-`JPEG_TEST_CXX_SRC` is an explicit host-only list of the shipped legacy JPEG sources.
-The separate target lists select only audited decompression/streaming units. Host codec
-objects retain visible legacy warnings without `-Werror`; Clang's removed `register`
-and writable-string diagnostics are suppressed only there. The new decoder/test units
-retain strict warnings and ASan/UBSan. The source audit allows this host fixture list
-without allowing additional excluded vendor/editor code into target groups.
-
-The codecs now live under `src/external/`, with target decode/runtime acceptance and
-a passing resident link. The original IJG terms are restored as `README.ijg`. A tagged fix bounds the
-shipped encoder's Huffman-value copy; the authored fixture generator exposed its
-256-byte read from 12/162-byte standard tables under ASan.
+280-unit campaign manifest. The adapters supply lifecycle tracking, offline session
+services and the portable audio boundary, which also link into the foundation. No JPEG
+or zlib code remains (see the codec removal paragraph below); SWF JPEG decoding fails
+by name.
 
 ## Portable filesystem services
 
@@ -217,9 +205,9 @@ shipped encoder's Huffman-value copy; the authored fixture generator exposed its
 `sys_filesystem.cpp`; both cold units use `-Os`. The foundation opens real permanent
 streams, while explicit whole-file fixture reads keep their 64 KiB limit. The full
 campaign `FileSystem.cpp` is retained in the resident link and now initializes an
-explicit native loose-file search root for the authored game fixture. Retail container
-startup remains pending. It uses checked stdio handles, paths and directory services;
-`Zip.cpp` uses a documented timestamp policy and `KeyInput.cpp` keeps the engine label table.
+explicit native loose-file search root for the authored game fixture, and production mounts
+the retail `_common`/`_ordered` containers. It uses checked stdio handles, paths and directory
+services; `KeyInput.cpp` keeps the engine label table.
 Removed `std::auto_ptr` owners use `std::unique_ptr`.
 
 Core links ps2sdk's `libpatches` for one-time ROM FILEIO repair; the platform-only
@@ -244,10 +232,9 @@ The ordinary foundation links every selected object without GC. The portable Com
 class omits Classic material/framebuffer storage and creates no game worker. Its static
 `GetGameAPI` import compiles separately in the campaign object, but the foundation has
 no game object or game initialization stage. The resident link supplies typed subsystem
-boundaries; full container filesystem, active render/sound, UI/dialog and save behavior
-remain pending.
+boundaries; active world render/sound and save behavior remain pending.
 
-`make test-common` runs seven partial-startup cleanup probes and twenty-six expected-fatal
+`make test-common` runs seven partial-startup cleanup probes and twenty-one expected-fatal
 precondition probes, each in a fresh process. `BUILD=release` selects the
 assertions-disabled matrix. The regular core smoke also checks copied match parameters,
 explicit loading completion, transient stats/achievement bits, user-handle invalidation
@@ -289,8 +276,7 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 ## Resident campaign link gate
 
 `make` / `make release` perform the actual EE link with
-all 281 campaign objects, eighteen campaign backend objects, seven shared support
-objects, two production entry/lifecycle units, dlmalloc and 34 codec objects: 343 direct inputs, without GC or archives hiding undefined
+all 280 campaign objects, the 16 campaign backend objects, 33 resident support objects, the 7 production entry and device units and dlmalloc: 337 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1` with the production link is rejected explicitly.
@@ -303,7 +289,7 @@ definitions; each emits matched stripped/unstripped resident ELFs. Compiler nonz
 Successful links also require a MIPS executable/load segment, every input in the map,
 static game interfaces, three native class registration roots and the static CVar
 registry. Stale ELF/report files are cleared before attempts. The production entry now pumps Common frames and shuts down at a quit boundary.
-`make build-game` separately links 345 inputs under `build/<config>/tests/game/`,
+`make build-game` separately links 334 inputs under `build/<config>/tests/game/`,
 including four test entries/adapters, with `PS2_D3BFG_TESTS=1` in isolated object trees.
 Production uses `0`; its gate rejects test sources, transitive headers and fixture
 symbols. Test runtime gates remain `make test-game` and `make test-map`.
@@ -328,7 +314,7 @@ object trees. No vendor/data import is added.
 ## Renderer interface stubs
 
 The active 2D bring-up proposal and Quake II reuse inventory are in
-[RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md). Its destinations and budgets are proposed;
+[RENDERER_2D_PLAN.md](plans/RENDERER_2D_PLAN.md). Its destinations and budgets are proposed;
 the renderer slices below record the existing implementation history.
 
 Four explicit `RENDER_STUB_CXX_SRC` units also appear in the core/campaign backend
@@ -400,10 +386,11 @@ map preparation, inhibition, mouse state and command building/access fail by met
 No neutral commands or connected device are fabricated. `in_useJoystick` and
 `in_joystickRumble` retain native archive flags, add ROM and default to zero in both
 builds. Forced controller writes cannot enable sampling; forced rumble writes still
-encounter the existing unavailable `Sys_SetRumble` provider. No SDK input module, event
-poller, device buffer or additional upstream unit is enabled. The resident game fixture
-now injects synthetic commands directly into native `idUserCmdMgr` for its player-physics
-probe; physical controls remain a later runtime gate.
+encounter the existing unavailable `Sys_SetRumble` provider. This provider itself enables no SDK input module. Production brings up the DualShock pad
+and a debug USB keyboard separately (`ps2/input/pad.cpp`, `keyboard.cpp`, `devices.cpp`),
+which post key events into Common's queue for the console and menu. The resident game
+fixture injects synthetic commands directly into native `idUserCmdMgr` for its
+player-physics probe; mapping devices to gameplay usercmds remains a later gate.
 
 At the input-interface slice, the core contained 21 backend and twelve smoke units. Three required `input/`
 markers verify native table order/extent and independent command names/prefix handling,
@@ -412,7 +399,7 @@ controller cvar policy. Eleven fresh-process probes cover every unavailable inpu
 null command validation and forced controller/rumble values with asserts enabled and
 disabled. That slice retained all 305 inputs and left only 17 codec symbols unresolved.
 Source dispositions stayed unchanged; source audit and the compile database covered the new
-strict full-header units. The input link group is closed; physical input acceptance remains a later gate.
+strict full-header units. The input link group is closed; pad and keyboard key events were accepted later for the console and menu, and gameplay usercmd mapping remains a later gate.
 
 The negative-probe classifier matches only the first fatal line and requires a name
 boundary after the expected text. A new host regression rejects InitForNewMap under
@@ -420,7 +407,9 @@ an Init probe and a later matching message after an unrelated failure. The curre
 host suite at that slice contained 62 Python regressions plus the shared ASan/UBSan fixtures.
 
 
-## Codec integration and M2b link acceptance
+## Codec integration and M2b link acceptance (historical, removed 2026-10-29)
+
+Removed on 2026-10-29; see the codec removal paragraph below.
 
 `VENDOR_C_SRC` selects nine zlib 1.2.3 C sources with C11 vendor flags and
 `MY_ZCALLOC`; `VENDOR_CXX_SRC` selects 25 engine-modified JPEG 6 decompression sources
@@ -617,7 +606,7 @@ providers and does not link the movie, native Font/SWF or authored resource snap
 
 At the authored 2D-4 checkpoint production had 360 direct inputs, zero test inputs/symbols and no GC. Debug/release
 `PT_LOAD` is 11,018,214 / 11,435,878 bytes; the compile database has 385 entries.
-`make ui` packages authored data separately from the existing console/headless packages;
+`make ui` (since removed; the stage-ui-* targets replace it) packages authored data separately from the existing console/headless packages;
 `make test-ui` exercises the production movie, the retail screens and their failure boundaries. Retail menu
 dependencies, general material/image/font loading and the offline shell remain pending.
 

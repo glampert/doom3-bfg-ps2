@@ -13,7 +13,8 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   input and exact startup ledger recovery after ordered shutdown. Archives include
   production link evidence, matched images, config/input hashes and both PCSX2 streams.
   PCSX2 mirrors IOP lines into stdout and emulog; count native markers from one stream
-  while checking both for crashes. Seven host regressions reject false acceptance.
+  while checking both for crashes. Host regressions in `test_headless_runner.py` reject
+  false acceptance.
 - `make test-headless-retail` runs the production ELF headless with the local retail
   `_common`/`_ordered` containers hard-linked into its package (`RETAIL_DATA_ROOT`,
   default `gamedata/d3_bfg`; symlinks are skipped by the native listing). It requires
@@ -102,8 +103,9 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   preflight. Placement/opcode/branch/operand cases reach execution preflight; a valid
   infinite loop and an alias to a different native service reach their runtime guards.
   The minimal owner uses
-  the real carousel/Credits callbacks and only one Doom 3 option; Shell navigation, the
-  shell's later screens and physical PS2 acceptance remain pending.
+  the real carousel/Credits callbacks and only one Doom 3 option; shell navigation is
+  covered by the `menu`, `screens` and `quit` steps below, while the screens below
+  Campaign and Settings and physical PS2 acceptance remain pending.
 - The `dialog` step draws the original dialog in full with Common's quit message: one 120-frame load and
   two 30-frame warm reloads. Each load needs exactly one draw admission matching the
   inventory (ten masks; no outlines, screen blends or additive color), the native quit

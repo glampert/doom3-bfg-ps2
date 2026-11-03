@@ -75,8 +75,8 @@ Detailed acceptance for `make test-game` and `make test-map` on the game test im
   checks require real player identity/clip shape, native command delivery, script
   execution, movement and linked conditions/empty resources. Map shutdown invalidates
   the player handle and name/client-slot lookup. This uses bounded player setup and
-  Think methods; regular campaign Init/SpawnToPoint, weapons, models, HUD and AAS/PVS
-  remain pending. Missing, duplicate, incorrect or unconsumed traces fail even with PASS markers.
+  Think methods; regular campaign Init/SpawnToPoint, weapons, models, HUD
+  remain pending for the player phase (AAS and PVS are covered only by `test-map`). Missing, duplicate, incorrect or unconsumed traces fail even with PASS markers.
   `GAME_PLAYER_STATE` adds 96 native-player traces per cycle on frames 100–195.
   Jump stays held through frame 140, releases on 141 and takes off again on 142.
   Floor contacts on 135/177 precede velocity settling; soft-landing flags span
@@ -121,8 +121,8 @@ Detailed acceptance for `make test-game` and `make test-map` on the game test im
   and resident archive identity; target debug/release runs are required too.
 - This is bounded logic-map/player acceptance: native entity thinking, script `waitFrame`
   scheduling, monster/player physics, restricted native player ticks with injected commands and map teardown run,
-  while AAS/PVS, full campaign player behavior, device input, sound/
-  render worlds and regular campaign map loading remain pending. Sound and rendering
+  while full campaign player behavior, physical device input (the pad and USB keyboard exist only in production visible mode), sound/
+  render worlds and regular campaign map loading remain pending; AAS and PVS are covered separately by `make test-map` below. Sound and rendering
   integration are deferred while the headless gameplay fixture grows.
 
 ## Doom authored native map procedure

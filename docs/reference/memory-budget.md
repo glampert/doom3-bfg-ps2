@@ -17,6 +17,8 @@ shell menu added in
 aggregate status is in [PORT_STATUS.md](../PORT_STATUS.md). Earlier
 production sizes and live ledgers must not be used as current budgets. Quake figures
 remain separately labeled reference observations.
+The newest startup ledgers and `PT_LOAD` figures are in
+[the 2026-10-31 section](#bss-cuts-event-maps-and-developer-cvars-2026-10-31).
 
 Debug `PT_LOAD` depends on where the SDK is installed: asserts in ps2sdk's inline
 `packet2_chain.h` and `packet2_vif.h` embed its absolute path through `__FILE__`. The same
@@ -199,7 +201,7 @@ measurements cover bounded native stepping, not general stairs/slopes or campaig
 
 Kernel reservation, stacks, full game state, assets, GS VRAM and transition peaks remain
 unmeasured. The initial core does not establish campaign feasibility. See
-[IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md#7-memory-feasibility-and-budgets).
+[IMPLEMENTATION_PLAN.md](../plans/IMPLEMENTATION_PLAN.md#7-memory-feasibility-and-budgets).
 
 ## Doom authored native map baseline
 

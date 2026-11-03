@@ -39,7 +39,7 @@ The following engine cvars have PS2-specific policies:
 | `com_smp` | `0` | `0` | `CVAR_BOOL`, `CVAR_SYSTEM`, `CVAR_NOCHEAT`, `CVAR_ROM` | Synchronous game/draw dispatch; portable startup creates no game worker. Registered in `src/neo/framework/Common.cpp`, including the foundation. Production calls native `RunFrame` on the caller and stays in `NOMAP`. |
 | `sys_lang` | `english` | `english` | `CVAR_SYSTEM`, `CVAR_INIT` | Resource language identifier; six engine language names are exposed, but the current UI resource provider admits English only. Restart policy follows `CVAR_INIT`. Registered in `src/ps2/system/sys_services.cpp`. |
 | `saveGame_enable` | `0` | `0` | `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled save policy in both core and campaign builds; neither live nor restart changes enable storage. Forced internal writes still encounter the unavailable session save manager. Registered in `src/ps2/system/save_metadata.cpp`. |
-| `in_useJoystick` | `0` | `0` | `CVAR_ARCHIVE`, `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled controller preference in both configurations. Neither live nor restart changes create an input source; forced internal writes still fail at sampling. Registered in `src/ps2/input/usercmd_stub.cpp`. |
+| `in_useJoystick` | `0` | `0` | `CVAR_ARCHIVE`, `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled gameplay-controller preference in both configurations. Usercmd sampling stays unavailable and forced internal writes still fail at sampling; the visible-mode pad and debug keyboard post menu and console key events regardless of this cvar. Registered in `src/ps2/input/usercmd_stub.cpp`. |
 | `in_joystickRumble` | `0` | `0` | `CVAR_SYSTEM`, `CVAR_ARCHIVE`, `CVAR_BOOL`, `CVAR_ROM` | Read-only disabled rumble preference; forced writes cannot enable `Sys_SetRumble`. Registered in `src/ps2/input/usercmd_stub.cpp`. |
 
 `jobs_numThreads` is not archived. Its init flag rejects direct cvar console commands;
@@ -58,7 +58,7 @@ The test bootstrap may register temporary fixture cvars; those are test inputs r
 When a cvar is added to `src/ps2/`, record its name, debug and release defaults, flags,
 whether it changes live or needs a restart, and the source that registers it. Keep
 archived cvars registered in both configurations so an alternate build does not discard
-the saved value. Proposed controls remain in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+the saved value. Proposed controls remain in [IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md)
 until implemented and tested.
 
 ## Retained renderer frontend controls

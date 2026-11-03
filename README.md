@@ -5,22 +5,24 @@ built with the free ps2dev toolchain and SDK. The goal is a playable single-play
 Doom 3 campaign on the PS2.
 
 **The port is not playable yet.** It currently boots into a developer console, loads
-the original game's definitions and scripts, and can display test interfaces, text
-from the original game, the original quit dialog and the main menu's start and root
-screens, drawn and driven by the game's own interface code; the menu can be navigated,
-and the game quit through its confirmation, with key presses sent from the development
-computer. A host tool converts the original interface art into compact paletted
+the original game's definitions and scripts, and can display text
+from the original game, the original quit dialog and the main menu's start, root,
+Campaign and Settings screens, drawn and driven by the game's own interface code; the menu can be navigated,
+and the game quit through its confirmation, with the controller, a USB keyboard or key
+presses sent from the development computer. A host tool converts the original interface art into compact paletted
 textures that stay in the PS2's graphics memory. Gameplay systems are being brought up
 with small test maps before moving on to the full campaign.
 
 - [x] PS2 startup, a sustained game loop and developer console.
 - [x] Basic 2D graphics, fonts and interface foundations.
 - [x] Initial map loading, movement, collision and AI tests.
-- [ ] Main menu and complete single-player campaign loading.
-- [ ] 3D graphics, lighting, animation and effects.
-- [ ] Controller input, sound, and saving/loading progress.
+- [x] Native main menu: start, root, Campaign and Settings screens.
+- [ ] Remaining menu screens and complete single-player campaign loading.
+- [ ] 3D graphics, lighting, animation and effects ([rendering architecture plan](docs/plans/RENDERING_ARCHITECTURE.md)).
+- [x] Controller and keyboard input for the console and menu.
+- [ ] Gameplay input, sound, and saving/loading progress.
 
-See the [roadmap](docs/IMPLEMENTATION_PLAN.md) and [port status](docs/PORT_STATUS.md)
+See the [roadmap](docs/plans/IMPLEMENTATION_PLAN.md) and [port status](docs/PORT_STATUS.md)
 for detailed progress and current limitations. Original game data is not included;
 retail-data tools require your own Doom 3 BFG Edition installation.
 
@@ -83,8 +85,9 @@ Contributors continuing the port should start with the [handover notes](docs/AGE
 
 ## Running in PCSX2
 
-Stage a package before launching so the ELF has its data alongside it. For the
-current visible developer console:
+Stage a package before launching so the ELF has its data alongside it. Visible
+packages also stage the cooked retail UI catalog, so run `make ui-cook` first (it
+needs your own Doom 3 BFG Edition data). For the current visible developer console:
 
 ```sh
 make stage-console
@@ -107,13 +110,14 @@ EnableIOPConsole = true   ; the game's stdout goes through the IOP
 EnableFileLogging = true  ; ...and into logs/emulog.txt
 
 [USB1]
-Type = hidkbd             ; optional: a USB keyboard that passes host keystrokes through
+Type = hidkbd             ; optional: a USB keyboard the game reads (grave key toggles the console)
 ```
 
 On macOS the configuration is normally at
 `~/Library/Application Support/PCSX2/inis/PCSX2.ini`, with logs in the sibling `logs/`
-directory. Game-side keyboard/controller polling is still pending; attaching an
-emulated keyboard alone does not enable input in this port. Current console controls
+directory. Visible packages poll the DualShock pad and a debug USB keyboard and post their key
+events into Common's queue (cross is `K_JOY1`, the grave key toggles the console).
+With `[USB1] Type = hidkbd`, PCSX2 passes host keystrokes to that keyboard. Current console controls
 and command-file input are described in the [developer guide](docs/DEVELOPMENT.md#production-packages-and-controls).
 
 ## Source layout

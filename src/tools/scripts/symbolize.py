@@ -15,8 +15,8 @@
 # banner lines, prefixes, surrounding noise and all. Anything shaped like a
 # "#N 0xADDR" frame line is picked out and everything else is ignored.
 #
-# Adapted from quake2-ps2's symbolize.py. The original GNU GPL v2 notice is retained;
-# see GPL-2.0.txt in this directory.
+# Adapted from quake2-ps2's symbolize.py, whose GNU GPL v2 notice is retained above;
+# docs/REUSE.md records the provenance.
 # ================================================================================================
 
 import argparse

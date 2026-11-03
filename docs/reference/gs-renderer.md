@@ -185,7 +185,9 @@ uses the full resident ELF and `run_console.py`, without importing these units i
   quit command must finish a queued capture before shutdown, even when both arrive in
   one HostFs batch. Release intrinsic UI images before the caller-owned GS device.
 - Native ASCII/key commands drive the retained edit field and RAM history. Persistent
-  history writes and physical device polling remain unavailable; production console
+  history writes remain unavailable. Visible packages bring up the DualShock pad and a
+  debug USB keyboard, which post key events into Common's queue (the grave key toggles the
+  console, typed characters reach the edit field). Production console
   close tolerates the absence of mouse capture. Test capability failures stay explicit.
 
 ## Doom native SWF draw scope
