@@ -215,6 +215,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/ui/assets.cpp \
 	ps2/ui/font_format.cpp \
 	ps2/system/video_mode.cpp \
+	ps2/math/vec_mat.cpp \
 	ps2/renderer/gs.cpp \
 	ps2/ui/geometry.cpp \
 	ps2/ui/triangles.cpp \
@@ -255,6 +256,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/system/sys.cpp
 CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
+	tests/smoketests/math_tests.cpp \
 	tests/smoketests/renderer_gs_tests.cpp \
 	tests/smoketests/console_charset.cpp \
 	tests/smoketests/voice_tests.cpp \
@@ -581,6 +583,7 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/ui/paletted_image.cpp \
 	ps2/ui/font_backend.cpp \
 	ps2/system/video_mode.cpp \
+	ps2/math/vec_mat.cpp \
 	ps2/renderer/gs.cpp \
 	ps2/ui/geometry.cpp \
 	ps2/ui/triangles.cpp \

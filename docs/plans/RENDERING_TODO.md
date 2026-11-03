@@ -33,8 +33,10 @@ production link free of test inputs. Section numbers in parentheses point into t
       ([ci.md](../../.claude/rules/ci.md)). `passthrough.vcl` (6 instructions, with a
       null-tag drain guard) and `vu.h` are the first program and header; the core gate's
       `renderer/passthrough-microprogram` check reads them (2026-11-03).
-- [ ] Import `qwords.h`, `math/vec_mat.{h,cpp}` and `PS2_DECLARE_VU_MICROPROGRAM` from
-      quake2-ps2 with `REUSE.md` rows; prove the VU0 asm with the scratchpad test-ELF recipe.
+- [x] Import `qwords.h`, `math/vec_mat.{h,cpp}` and `PS2_DECLARE_VU_MICROPROGRAM` from
+      quake2-ps2 with `REUSE.md` rows; the VU0 asm and the qword copies are proven against
+      scalar references by the core gate's `math/*` checks rather than a one-off test ELF
+      (2026-11-03).
 - [ ] `ps2::renderer::dma`: `DisplayList` in the scratchpad (two 8 KiB halves, `fromSPR`
       drains, CNT/REF/CALL tags with TTE VIFcodes, END, one NEXT per ring wrap) and two
       384 KiB chain rings; a mechanical commit first moves `cmd_buffer.*` under it (12.1,

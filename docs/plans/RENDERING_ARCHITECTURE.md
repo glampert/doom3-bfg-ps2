@@ -1458,7 +1458,7 @@ src/ps2/renderer/
   vu1progs/ kernel.i vu_common.i vu_clip.i world_lm.vcl world_lit.vcl model_rigid.vcl
             model_skin2.vcl model_skin4.vcl shadow_volume.vcl shadow_planar.vcl
             particles.vcl ui_2d.vcl passthrough.vcl
-src/ps2/math/ vec_mat.{h,cpp} qwords.h               (imported from quake2-ps2)
+src/ps2/math/ math.h vec_mat.{h,cpp}; src/ps2/qwords.h  (imported from quake2-ps2, 2026-11-03)
 src/tools/asset_reexport/ world.cpp model.cpp anim.cpp lightmap.cpp materials.cpp
 src/tools/assets/ bimage_ycocg.cpp bimage_normal.cpp gstx2.{h,cpp} stripper.{h,cpp}
                   joint_batcher.{h,cpp} lightmap_baker.{h,cpp} material_compiler.{h,cpp}

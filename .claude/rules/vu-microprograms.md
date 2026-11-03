@@ -101,5 +101,8 @@ in a row on one bug, and two probes settled it:
   for the whole divide. Pass `"f"(t)` and `mfc1` inside the asm after the loads.
 - One LerpTo-style asm per qword serializes on FMAC latency. Fusing N qwords into one block
   lets the subtracts issue back to back, and the results stay bit-identical.
-- vec_mat.h's VU0 asm has no host fallback. Prove rewrites with the test-ELF recipe in
+- `ps2/math/vec_mat.h` and `ps2/qwords.h` (imported 2026-11-03) have no host fallback. The
+  core gate's `math/qword-copies` and `math/vu0-*` checks (`tests/smoketests/math_tests.cpp`)
+  compare them with scalar references on target; keep them passing after any edit to an asm
+  block or constraint list. For a rewrite's codegen, use the test-ELF recipe in
   [performance.md](performance.md).

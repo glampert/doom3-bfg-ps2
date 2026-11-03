@@ -18,6 +18,7 @@
 #include "tests/smoketests/heap_tests.h"
 #include "tests/smoketests/idlib_tests.h"
 #include "tests/smoketests/input_tests.h"
+#include "tests/smoketests/math_tests.h"
 #include "tests/smoketests/offline_tests.h"
 #include "tests/smoketests/renderer_gs_tests.h"
 #include "tests/smoketests/renderer_tests.h"
@@ -300,6 +301,7 @@ bool RunCoreTests(const char * fixturePath)
     passed = Check("initialized", common->IsInitialized() && fileSystem->IsInitialized()) && passed;
     passed = RunOfflineTests() && passed;
     passed = RunAudioTests() && passed;
+    passed = RunMathTests() && passed;
     passed = RunRendererTests() && passed;
     passed = RunDeferredTests() && passed;
     passed = RunInputTests() && passed;

@@ -19,6 +19,11 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   without retaining partial ownership. The core checks include
   `renderer/passthrough-microprogram`: the VU rule's `passthrough.o` reached the link with
   whole-qword, 16-byte-aligned code of 4 to 16 instructions and an E bit (2026-11-03).
+  Five `math/*` checks (`qword-copies`, `vu0-transform`, `vu0-lerp`, `vu0-matrix-multiply`,
+  `vu0-backface-cull`) compare `ps2/qwords.h` and the VU0 macro-mode asm in
+  `ps2/math/vec_mat.h` with scalar EE references on xorshift inputs: guarded buffers for the
+  copies, exact results where the arithmetic is exact (identity transforms, t = 0), a 1e-4
+  relative tolerance elsewhere, and matching cull verdicts away from the plane (2026-11-03).
   Indexed geometry adds oversized single-request, invalid local-index, nonzero-depth,
   nonfinite half-UV and additive-color failures. Run both positive standards and all
   seventeen failures sequentially: nineteen isolated emulator sessions in debug, two in release.

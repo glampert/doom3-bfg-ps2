@@ -6,9 +6,9 @@ of every shipped BFG C/C++ unit. `make audit-sources` fails when a source is add
 duplicated, left unclassified, or enabled despite an exclusion. Source discovery is used
 for auditing only; it never selects files for compilation.
 
-Current source audit, reviewed **2026-11-02**: 393 shipped units, 280 retained
-campaign units, 45 core backend sources, 33 resident support sources and 362 compile
-database entries. The current acceptance state is the "Current snapshot" section of
+Current source audit, reviewed **2026-11-03**: 393 shipped units, 280 retained
+campaign units, 46 core backend sources, 34 resident support sources, one VU microprogram
+and 364 compile database entries. The current acceptance state is the "Current snapshot" section of
 [PORT_STATUS.md](PORT_STATUS.md#current-snapshot--2026-10-31). Later
 sections retain dated source/size snapshots; their earlier counts are historical.
 
@@ -69,8 +69,8 @@ and runs the converter. None adds an EE source, vendor dependency or target capa
 The [pipeline guide](RETAIL_UI_PIPELINE.md) describes bounds and the candidate manifest.
 The page splitter, GSTX reader and paletted image bind the converted retail textures.
 The English resource catalog, inactive retail dictionaries and opt-in bounded timeline
-execution now build on that layer. Production retains **337 direct inputs** and the
-compile database has **362 entries**. The native shell handler, its press-start, root, Campaign and Settings
+execution now build on that layer. Production retains **339 direct inputs** (338 objects
+and the VU object) and the compile database has **364 entries**. The native shell handler, its press-start, root, Campaign and Settings
 screens and the original Credits unit drive the shell menu; the minimal retail owner
 remains for the timeline and full-draw test modes. The original dialog and the shell's
 start and root screens draw in full, key events drive the menu and its Quit opens
@@ -87,7 +87,7 @@ does not initialize the campaign game. `CORE_BOOT` controls this selection only 
 Make; `ID_PS2_CORE` and `PS2_D3BFG_FOUNDATION` still control engine header boundaries.
 
 `PS2_CXX_SRC` owns production entry, the Common loop provider and the strict optional
-presentation and movie providers. Production links 337 direct objects, retaining all eleven
+presentation and movie providers. Production links 339 direct inputs, retaining all eleven
 registration roots with no test inputs or fixture symbols. Native game initialization,
 declarations, key/console and event services, CPU worlds and silent sound bookkeeping
 precede the console loop.
@@ -151,7 +151,9 @@ No project-wide `-w` is introduced. The VU microprograms in `config/sources.mk`'
 `VCL_FILES` (`src/ps2/renderer/vu1progs/`) assemble once into `build/vu/` through the
 quake2-ps2 rule (pinned `build/tools/vclpp`, `openvcl`, `dvp-as`, `check_vu_code.py`, a
 `.d` for the reports) and link into every image as `.vutext`; `passthrough.vcl` is the
-first (2026-11-03). Core/platform tests are asset-free;
+first (2026-11-03). `ps2/math/vec_mat.cpp` (VU0 macro-mode matrix math, with `ps2/qwords.h`
+and `ps2/math/math.h`) is a shared resident unit proven by the core gate's `math/*` checks.
+Core/platform tests are asset-free;
 production native filesystem startup requires `base/default.cfg` in HostFs.
 
 Compiler/flag/source-list stamps rebuild affected object groups when configuration
@@ -280,7 +282,7 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 ## Resident campaign link gate
 
 `make` / `make release` perform the actual EE link with
-all 280 campaign objects, the 16 campaign backend objects, 33 resident support objects, the 7 production entry and device units and dlmalloc: 337 direct inputs, without GC or archives hiding undefined
+all 280 campaign objects, the 16 campaign backend objects, 34 resident support objects, the 7 production entry and device units, dlmalloc and the VU object: 339 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1` with the production link is rejected explicitly.

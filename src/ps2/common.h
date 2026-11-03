@@ -18,9 +18,13 @@
         #define PS2_COLD_FUNC __attribute__((cold, noinline, optimize("Oz")))
     #endif // __clang__
     #define PS2_PRINTF_FUNC(fmtIndex, varIndex) __attribute__((format(printf, fmtIndex, varIndex)))
+    // Hot helpers that must vanish into their caller even at -Os: the qword copies, whose asm
+    // only pays off when the loads and stores schedule into the caller's loop.
+    #define PS2_ALWAYS_INLINE inline __attribute__((always_inline))
 #else // __GNUC__ || __clang__
     #define PS2_COLD_FUNC
     #define PS2_PRINTF_FUNC(fmtIndex, varIndex)
+    #define PS2_ALWAYS_INLINE inline
 #endif // __GNUC__ || __clang__
 
 namespace ps2

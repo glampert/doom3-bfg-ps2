@@ -77,7 +77,7 @@ in other rule files still need verification when imported. Current backend code 
 - File-scoped variables and constants with internal linkage always spell out `static`,
   even inside an anonymous namespace. File-scoped `constexpr` constants use `static constexpr`.
 - Namespaces are lowercase and follow `ps2::module::subsystem`. The module is the `src/ps2/`
-  folder (`audio`, `game`, `input`, `renderer`, `system`, `ui`); the subsystem is a cohesive
+  folder (`audio`, `game`, `input`, `math`, `renderer`, `system`, `ui`); the subsystem is a cohesive
   unit inside it (`ps2::renderer::gs`, `ps2::system::heap`, `ps2::ui::swf`). A subsystem
   spread over several files keeps one namespace: don't open a namespace per file, and merge
   related code into an existing subsystem before adding one. Code shared within a module,

@@ -326,9 +326,9 @@ count is 354 plus C++ sanitizer harnesses (2026-10-21). Run IDs and screenshots 
 linked from PORT_STATUS; ignored `build/test-results/` archives may not exist on another
 machine.
 
-Production has 337 direct objects and no fixture inputs/symbols; since 2026-10-30 the
+Production has 339 direct inputs (338 objects and the VU object) and no fixture inputs/symbols; since 2026-10-30 the
 whole-object link (no GC) is the gate and the runnable is a `--gc-sections` relink. The source audit
-classifies 393 upstream units (280 campaign units); compile database 362 entries. Production
+classifies 393 upstream units (280 campaign units); compile database 364 entries. Production
 PT_LOAD is 4,779,884 debug / 4,063,468 release bytes (runnable link, 2026-10-31; see
 [memory-budget.md](../.claude/rules/memory-budget.md)). Earlier (2026-10-20) it was about 11.2 MB. The removed authored UI peaked at 3,885,330 requested /
 3,992,352 backing; full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are
