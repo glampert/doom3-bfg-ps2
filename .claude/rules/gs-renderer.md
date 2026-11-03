@@ -57,6 +57,9 @@ coordinates; CLUTs; VRAM and mipmaps.
   out-of-frame redraw never advances simulation; guard against recursive Begin/End. A queued
   `ps2_capture` finishes before shutdown.
 - **Device:** reset/claim VIF1 and GIF along with the GS (CSR reset alone stalled PATH2 DIRECT).
+  The display list (`dma::DisplayList`, `dma_list.h`) is built in the 16 KiB scratchpad and
+  drained by channel 8 (fromSPR) into a per-frame chain ring the EE never writes, so a kick
+  needs no `FlushCache`; a full ring kicks, waits and restarts at offset 0 (a `drains` stat).
   All packet reservations leave room for the final EOP and four-qword FINISH/END terminator;
   DMA, FINISH and VSYNC polls use wrap-safe COP0 Count deadlines in assertion builds; release
   spins. Packet bounds and state preflight are assertions too ([ps2-backend-cpp.md](ps2-backend-cpp.md#validation-and-error-handling)).

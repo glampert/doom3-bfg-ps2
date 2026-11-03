@@ -17,7 +17,7 @@ namespace ps2::renderer
 struct Config
 {
     system::video::Standard standard = system::video::Standard::Ntsc;
-    u32 commandHalfBytes  = 128U * 1024U;
+    u32 chainRingBytes    = 128U * 1024U; // per in-flight frame; the list is built in the scratchpad
     u32 textureVramBytes  = 2U * 1024U * 1024U;
     u32 texturePixelBytes = 2U * 1024U * 1024U;
 };

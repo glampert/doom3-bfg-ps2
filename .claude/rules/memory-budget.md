@@ -71,7 +71,8 @@ have not been re-measured.
   reloads about 2.22 MB requested; no retail map transition peak is established. mars_city1
   `.map` is 5.48 MB (4.85 MB brush/patch text), its container holds 5.4 MB of binary
   collision and 2 MB of AAS.
-- Device/UI caps: two 128 KiB GS command halves, 2 MiB owned RGBA pixels and 2 MiB texture
+- Device/UI caps: two 128 KiB chain rings (one per in-flight frame, `chainRingBytes`; the list
+  itself is built in the scratchpad), 2 MiB owned RGBA pixels and 2 MiB texture
   VRAM by default; one 2 MiB texture owner for converted retail images (images keep all
   pages resident, nothing streams per frame; CLUT textures charged in 8 KiB PSMCT32 pages).
   PSMCT16 color plus Z16 take 1,376,256 NTSC / 1,572,864 PAL bytes. UI collection owns 4,096

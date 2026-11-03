@@ -34,7 +34,7 @@ RESULT_LIMIT = 4096
 LIFECYCLE_STAGES = ("system", "idlib", "commands", "cvars", "filesystem", "jobs", "session")
 NEGATIVE_PROBES = {
     "renderer-gif-overflow": "GIF payload overflow:",
-    "renderer-direct-overflow": "DIRECT request exceeds command half capacity",
+    "renderer-direct-overflow": "DIRECT request exceeds chain ring capacity",
     "renderer-wait-timeout": "GS pipeline timeout: injected wait;",
     "renderer-ui-state": "renderer capability unavailable: native UI blend/state profile",
     "renderer-ui-bounds": "invalid native UI rectangle or UV",

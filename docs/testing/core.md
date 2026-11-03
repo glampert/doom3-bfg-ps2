@@ -10,7 +10,9 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   executable for the integrated GS/native-adapter scenes in NTSC/PAL, then (debug only) seventeen expected-fatal probes.
   They do not initialize real Console/Common presentation or link fixtures into production. Thirteen GS
   markers require 120 presented frames, alternating contexts, a reload with smaller
-  command halves, texture dirty/eviction hazards, capture recovery, pressure/drains and
+  chain rings (1 KiB: 573 kicks and 562 ring restarts over four frames on 2026-11-03, against
+  135 kicks and 3 restarts at 128 KiB over 120), texture dirty/eviction hazards, capture
+  recovery, pressure/drains and
   exact tagged cleanup. GIF/oversized-DIRECT bounds, a deliberately stalled deadline,
   and active unsupported UI state, rectangle, invalid quad and oversized text are render-time
   assertions: fatal in assertion builds, compiled out of release, which runs only the two scenes. Five mask probes reject a second non-convex (depth) mask,

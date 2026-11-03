@@ -154,8 +154,8 @@ PS2_COLD_FUNC bool Init(const Config & config)
         FatalError("render system initialized twice");
     }
 
-    // Both sixteen-qword environments plus chain terminators must fit the first half.
-    if (!system::video::IsValid(config.standard) || config.commandHalfBytes < 640U || !dma::Init(config.commandHalfBytes))
+    // Both sixteen-qword environments plus the chain terminator must fit one ring.
+    if (!system::video::IsValid(config.standard) || config.chainRingBytes < 640U || !dma::Init(config.chainRingBytes))
     {
         return false;
     }

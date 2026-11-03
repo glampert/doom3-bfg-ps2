@@ -230,6 +230,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/renderer/texture.cpp \
 	ps2/renderer/capture.cpp \
 	ps2/renderer/dma.cpp \
+	ps2/renderer/dma_list.cpp \
 	ps2/renderer/render_system.cpp \
 	ps2/audio/voice_timeline.cpp \
 	ps2/audio/pcm_wave.cpp \
@@ -595,6 +596,7 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/renderer/texture.cpp \
 	ps2/renderer/capture.cpp \
 	ps2/renderer/dma.cpp \
+	ps2/renderer/dma_list.cpp \
 	ps2/renderer/render_system.cpp \
 	ps2/system/log.cpp \
 	ps2/system/heap.cpp \

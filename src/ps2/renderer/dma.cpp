@@ -1,115 +1,123 @@
 // ================================================================================================
 // File: dma.cpp
-// Brief: Submit bounded CPU GIF chains through VIF1 DIRECT without VU programs or world-loader
-//        scratch ownership; the first form of the display list system.
+// Brief: The display list system over the scratchpad DisplayList: per-frame chain rings, DIRECT
+//        blocks for the CPU 2D path, the FINISH fence and the VIF1 kick. The rings are written by
+//        the fromSPR DMA alone, so a kick needs no cache writeback; the EE writes the scratchpad.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/renderer/dma.h"
+#include "ps2/renderer/dma_list.h"
 #include "ps2/renderer/pipeline_wait.h"
+#include "ps2/qwords.h"
 #include "ps2/system/heap.h"
+#include "ps2/system/log.h"
 
-#include <idlib/precompiled.h>
+#include <idlib/precompiled.h> // memTag_t for the ring allocation
 #include <dma.h>
+#include <dma_tags.h>
+#include <ee_regs.h>
+#include <gif_tags.h>
 #include <gs_gp.h>
+#include <gs_privileged.h>
 #include <kernel.h>
-#include <packet2_chain.h>
-#include <packet2_utils.h>
-#include <packet2_vif.h>
+
+#include <algorithm>
 
 namespace ps2::renderer::dma
 {
 namespace
 {
 
-static constexpr int kTerminatorQwords = 4;
+// Every chain ends with CNT { FLUSH, DIRECT 2 } + GIF tag + FINISH, then END: four qwords that
+// every reservation leaves room for.
+static constexpr u32 kTerminatorQwords = 4U;
+
+// A DIRECT block is its CNT tag, the payload and one closing EOP GIF tag.
+static constexpr u32 kDirectOverheadQwords = 2U;
 static constexpr u32 kDmaStart = 1U << 8;
 
-static packet2_t s_packets[2] = {};
+static DisplayList s_list;
+static ChainRing s_rings[2] = {};
 static void * s_storage = nullptr;
-static int s_half = 0;
-static int s_kickedQwords = 0;
+static u32 s_ringBytes = 0;
+static int s_ring = 0;
+static u32 s_chainStart = 0; // ring offset of the chain the next Kick sends
 static bool s_frame = false;
 static bool s_inFlight = false;
+static qword_t * s_directTag = nullptr;
 static qword_t * s_directBase = nullptr;
 static int s_directCapacity = 0;
 static Stats s_stats = {};
 
-ID_FORCE_INLINE packet2_t * Current()
+inline u32 PhysicalAddress(const void * pointer)
 {
-    return &s_packets[s_half];
+    return static_cast<u32>(reinterpret_cast<uiptr>(pointer) & 0x0FFFFFFFU);
 }
 
-ID_FORCE_INLINE int Used()
+inline void RecordPeak()
 {
-    return static_cast<int>(packet2_get_qw_count(Current()));
+    s_stats.peakBytes = std::max(s_stats.peakBytes, s_list.RingUsedBytes());
 }
 
-ID_FORCE_INLINE void Reset()
+// The ring is full: the chain queued so far must run before the ring is written over.
+void RestartRing()
 {
-    packet2_reset(Current(), 0);
-    s_kickedQwords = 0;
-}
-
-ID_FORCE_INLINE void RecordPeak()
-{
-    const u32 bytes = packet2_get_qw_count(Current()) * 16U;
-    if (bytes > s_stats.peakBytes)
-    {
-        s_stats.peakBytes = bytes;
-    }
+    Kick();
+    WaitIdle();
+    s_list.Begin(s_rings[s_ring], 0);
+    s_chainStart = 0;
+    ++s_stats.drains;
 }
 
 } // namespace
 
-PS2_COLD_FUNC bool Init(u32 halfBytes)
+PS2_COLD_FUNC bool Init(u32 ringBytes)
 {
     if (IsInitialized()) [[unlikely]]
     {
-        FatalError("command buffer initialized twice");
+        FatalError("display list system initialized twice");
     }
 
-    if (halfBytes < 256U || (halfBytes & 63U) != 0 || halfBytes / 16U > 65535U)
+    if (ringBytes < 256U || (ringBytes & 63U) != 0)
     {
-        Log(LogLevel::Error, "invalid command half size: %u\n", halfBytes);
+        Log(LogLevel::Error, "invalid chain ring size: %u\n", ringBytes);
         return false;
     }
 
-    s_storage = system::heap::TryAlloc(static_cast<size_t>(halfBytes) * 2U, TAG_RENDER, 64);
+    s_storage = system::heap::TryAlloc(static_cast<size_t>(ringBytes) * 2U, TAG_RENDER, 64);
     if (s_storage == nullptr)
     {
         return false;
     }
 
+    // The rings are DMA territory from here on: write back and drop whatever the cache holds of
+    // them, so no later writeback lands on top of DMA'd chain bytes.
     u8 * const bytes = static_cast<u8 *>(s_storage);
-    for (int half = 0; half < 2; ++half)
+    SyncDCache(bytes, bytes + static_cast<size_t>(ringBytes) * 2U);
+    for (int ring = 0; ring < 2; ++ring)
     {
-        // Own the packet headers directly too: packet2_create_from would malloc them.
-        void * const address = bytes + static_cast<size_t>(half) * halfBytes;
-        s_packets[half] = {};
-        s_packets[half].max_qwords_count = static_cast<u16>(halfBytes / 16U);
-        s_packets[half].type = P2_TYPE_NORMAL;
-        s_packets[half].mode = P2_MODE_CHAIN;
-        s_packets[half].tte = 1;
-        s_packets[half].base = static_cast<qword_t *>(address);
-        packet2_reset(&s_packets[half], 0);
+        s_rings[ring] = { bytes + static_cast<size_t>(ring) * ringBytes, ringBytes };
     }
 
-    s_half = 0;
-    s_kickedQwords = 0;
+    s_ringBytes = ringBytes;
+    s_ring = 0;
+    s_chainStart = 0;
     s_stats = {};
 
     gs::WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
+    gs::WaitUntil([] { return (*R_EE_D8_CHCR & kDmaStart) == 0; }, "initial fromSPR DMA");
 
-    if (dma_channel_initialize(DMA_CHANNEL_VIF1, nullptr, 0) < 0)
+    if (dma_channel_initialize(DMA_CHANNEL_VIF1, nullptr, 0) < 0 || dma_channel_initialize(DMA_CHANNEL_fromSPR, nullptr, 0) < 0)
     {
         system::heap::Free(s_storage);
         s_storage = nullptr;
-        s_packets[0] = {};
-        s_packets[1] = {};
+        s_rings[0] = {};
+        s_rings[1] = {};
         return false;
     }
 
+    s_list.Begin(s_rings[s_ring], 0);
     return true;
 }
 
@@ -120,23 +128,24 @@ PS2_COLD_FUNC void Shutdown()
         return;
     }
 
-    if (s_directBase != nullptr) [[unlikely]]
+    if (s_directTag != nullptr) [[unlikely]]
     {
-        FatalError("command shutdown with an open DIRECT payload");
+        FatalError("display list shutdown with an open DIRECT payload");
     }
 
     // Preserve any completed work even during partial frame teardown.
     Kick();
     WaitIdle();
+    dma_channel_shutdown(DMA_CHANNEL_fromSPR, 0);
     dma_channel_shutdown(DMA_CHANNEL_VIF1, 0);
 
     system::heap::Free(s_storage);
     s_storage = nullptr;
-    s_packets[0] = {};
-    s_packets[1] = {};
+    s_rings[0] = {};
+    s_rings[1] = {};
     s_frame = false;
-    s_half = 0;
-    s_kickedQwords = 0;
+    s_ring = 0;
+    s_chainStart = 0;
 }
 
 bool IsInitialized()
@@ -146,19 +155,20 @@ bool IsInitialized()
 
 void BeginFrame()
 {
-    PS2_AssertMsg(IsInitialized() && !s_frame && s_directBase == nullptr && Used() == s_kickedQwords,
+    PS2_AssertMsg(IsInitialized() && !s_frame && s_directTag == nullptr && s_list.RingUsedBytes() == s_chainStart,
                   "invalid BeginFrame state");
 
+    // Synchronous for now: the previous frame has run before its ring's twin is reused.
     WaitIdle();
-    s_half ^= 1;
-
-    Reset();
+    s_ring ^= 1;
+    s_list.Begin(s_rings[s_ring], 0);
+    s_chainStart = 0;
     s_frame = true;
 }
 
 void EndFrame()
 {
-    PS2_AssertMsg(s_frame && s_directBase == nullptr, "invalid EndFrame state");
+    PS2_AssertMsg(s_frame && s_directTag == nullptr, "invalid EndFrame state");
 
     Kick();
     WaitIdle();
@@ -167,30 +177,20 @@ void EndFrame()
 
 gs::GifWriter BeginDirect(int payloadQwords)
 {
-    PS2_AssertMsg(s_frame && s_directBase == nullptr && payloadQwords >= 0, "invalid DIRECT reservation state");
+    PS2_AssertMsg(s_frame && s_directTag == nullptr && payloadQwords >= 0, "invalid DIRECT reservation state");
 
-    const int capacity = Current()->max_qwords_count - kTerminatorQwords;
+    // The block must fit one scratchpad half and leave the ring its terminator.
+    const u32 largest = std::min(kHalfQwords, s_ringBytes / 16U - kTerminatorQwords) - kDirectOverheadQwords;
+    PS2_AssertMsg(static_cast<u32>(payloadQwords) <= largest, "DIRECT request exceeds chain ring capacity");
 
-    // One CNT tag and one final EOP qword belong to this block.
-    PS2_AssertMsg(payloadQwords <= capacity - 2, "DIRECT request exceeds command half capacity");
-
-    const int request = payloadQwords + 2;
-
-    if (Used() > capacity - request)
+    const u32 request = static_cast<u32>(payloadQwords) + kDirectOverheadQwords;
+    if (!s_list.Fits(request + kTerminatorQwords))
     {
-        Kick();
-        WaitIdle();
-        s_half ^= 1;
-        Reset();
-        ++s_stats.drains;
+        RestartRing();
     }
 
-    packet2_t * const packet = Current();
-    packet2_chain_open_cnt(packet, 0, 0, 0);
-    packet2_vif_nop(packet, 0);
-    packet2_vif_open_direct(packet, 0);
-
-    s_directBase = packet->next;
+    s_directTag = s_list.Reserve(request);
+    s_directBase = s_directTag + 1;
     s_directCapacity = payloadQwords;
 
     return gs::GifWriter(s_directBase, payloadQwords);
@@ -198,19 +198,18 @@ gs::GifWriter BeginDirect(int payloadQwords)
 
 void EndDirect(const gs::GifWriter & writer)
 {
-    PS2_AssertMsg(s_directBase != nullptr && writer.Base() == s_directBase && writer.QwordCount() <= s_directCapacity,
+    PS2_AssertMsg(s_directTag != nullptr && writer.Base() == s_directBase && writer.QwordCount() <= s_directCapacity,
                   "closing a foreign or oversized DIRECT payload");
 
-    packet2_t * const packet = Current();
-    packet->next = writer.Cursor();
-
     // Close every GIF packet even if the payload was empty. No competing PATH3 writer.
-    PACK_GIFTAG(packet->next, GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
-    ++packet->next;
+    qword_t * const eop = writer.Cursor();
+    PACK_GIFTAG(eop, GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
 
-    packet2_vif_close_direct_manual(packet, static_cast<u32>(writer.QwordCount() + 1));
-    packet2_chain_close_tag(packet);
+    const u32 qwords = static_cast<u32>(writer.QwordCount()) + 1U;
+    StoreQword(s_directTag, DMATAG(qwords, 0, DMA_TAG_CNT, 0, 0, 0), static_cast<u64>(kVifNop) | (static_cast<u64>(VifDirect(qwords)) << 32));
+    s_list.Release(eop + 1);
 
+    s_directTag = nullptr;
     s_directBase = nullptr;
     s_directCapacity = 0;
 
@@ -219,42 +218,32 @@ void EndDirect(const gs::GifWriter & writer)
 
 void Kick()
 {
-    PS2_AssertMsg(IsInitialized() && s_directBase == nullptr, "invalid command Kick state");
+    PS2_AssertMsg(IsInitialized() && s_directTag == nullptr, "invalid display list Kick state");
 
-    if (Used() == s_kickedQwords)
+    if (s_list.RingUsedBytes() == s_chainStart)
     {
         return;
     }
 
     WaitIdle();
 
-    PS2_Assert(Current()->tag_opened_at == nullptr && Current()->vif_code_opened_at == nullptr);
-    packet2_t * const packet = Current();
-
-    // Reserved ahead of every writer: CNT + FINISH tag/data + END = four qwords.
-    packet2_chain_open_cnt(packet, 0, 0, 0);
-    packet2_vif_flush(packet, 0);
-    packet2_vif_open_direct(packet, 0);
-
-    PACK_GIFTAG(packet->next, GIF_SET_TAG(1, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
-    ++packet->next;
-    PACK_GIFTAG(packet->next, 1, GS_REG_FINISH);
-    ++packet->next;
-
-    packet2_vif_close_direct_manual(packet, 2);
-    packet2_chain_close_tag(packet);
-    packet2_utils_vu_add_end_tag(packet);
+    // FLUSH waits for the microprogram and PATH1/PATH2, then FINISH marks the chain's end in CSR.
+    qword_t * const fence = s_list.Cnt(2U, kVifFlush, VifDirect(2U));
+    PACK_GIFTAG(fence, GIF_SET_TAG(1, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
+    PACK_GIFTAG((fence + 1), 1, GS_REG_FINISH);
+    s_list.End(kVifNop, kVifNop);
 
     RecordPeak();
-    FlushCache(0); // SDK chain send uses qwc=0, so its implicit writeback is insufficient.
+    s_list.Flush();
 
-    void * const segment = reinterpret_cast<void *>(reinterpret_cast<uiptr>(packet->base + s_kickedQwords) & 0x0FFFFFFFU);
     *GS_REG_CSR = 2; // Clear only FINISH: all event bits are write-one-to-clear.
-    dma_channel_send_chain(DMA_CHANNEL_VIF1, segment, 0, DMA_FLAG_TRANSFERTAG, 0);
+    dma_channel_send_chain(DMA_CHANNEL_VIF1, reinterpret_cast<void *>(PhysicalAddress(s_rings[s_ring].base + s_chainStart)), 0,
+                           DMA_FLAG_TRANSFERTAG, 0);
 
-    s_kickedQwords = Used();
+    s_chainStart = s_list.RingUsedBytes();
     s_inFlight = true;
     ++s_stats.kicks;
+    s_stats.sprDrains = s_list.SprDrains();
 }
 
 void WaitIdle()

@@ -616,8 +616,8 @@ bool RunGsTests(system::video::Standard standard)
     bool recovered = true;
     for (int cycle = 0; cycle < 2; ++cycle)
     {
-        const u32 halfBytes = cycle == 0 ? 128U * 1024U : 1024U;
-        if (!renderer::Init({ standard, halfBytes, 64U * 1024U, 128U * 1024U }))
+        const u32 ringBytes = cycle == 0 ? 128U * 1024U : 1024U;
+        if (!renderer::Init({ standard, ringBytes, 64U * 1024U, 128U * 1024U }))
         {
             return Check("device-init", false);
         }
@@ -676,9 +676,9 @@ bool RunGsTests(system::video::Standard standard)
         renderer::tex::Destroy(s_textures[0]);
         renderer::EndFrame();
         const auto stats = renderer::dma::GetStats();
-        pressure = pressure && stats.drains > 0 && stats.kicks > frames + 1U && stats.peakBytes <= halfBytes;
+        pressure = pressure && stats.drains > 0 && stats.kicks > frames + 1U && stats.peakBytes <= ringBytes;
         Log(LogLevel::Info, "[D3BFG] GS chains half=%u peak=%u kicks=%u drains=%u\n",
-            halfBytes, stats.peakBytes, stats.kicks, stats.drains);
+            ringBytes, stats.peakBytes, stats.kicks, stats.drains);
         const auto live = system::heap::GetTotalStats();
         const auto arena = system::heap::GetArenaStats();
         Log(LogLevel::Info, "[D3BFG] GS heap cycle=%d live=%zu/%zu/%zu peak=%zu/%zu arena_peak=%zu\n",

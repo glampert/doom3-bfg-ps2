@@ -1147,8 +1147,11 @@ private:
 ```
 
 - CNT, REF and CALL carry the content, so the drained list is position-independent and
-  needs no address patching; the chain ends with END, program sub-chains end with RET, and
-  one NEXT at the end of the ring wraps it.
+  needs no address patching; the chain ends with END and program sub-chains end with RET.
+  Implemented 2026-11-03 (`dma_list.{h,cpp}`, `dma.cpp`): each frame's chain starts at
+  offset 0 of its own ring and a ring that fills mid-frame kicks, waits and restarts at 0
+  (the `drains` statistic) instead of wrapping through a NEXT tag, so the two rings need no
+  wrap tag and an overflow is a counted restart rather than silent corruption.
 - The ring is written by DMA, never by the EE, so no D-cache flush is needed per frame; the
   EE writes only to the scratchpad (uncached). Dynamic per-frame data (joint palettes,
   light blocks, particle vertices) is written into CNT payload in the scratchpad rather than
@@ -1530,6 +1533,7 @@ R0 and R1 use the test executable's authored map until then.
 | Dynamic lights | Four per batch on VU1, additive; projected ones through destination alpha | Per-pixel through CLUT relight everywhere | Budget; CLUT relight is a spike for weapons and flashlight |
 | Normal maps | Cavity bake into the diffuse | Emboss; CLUT relight | Zero run-time cost; keeps detail under the baked key light |
 | Shadows | L0 baked + planar/blob; L1 flashlight texture; L2 counter stencil as stretch | Full parity | BFG's own default has no weapon-light shadows; counter cost unmeasured |
+| Chain rings (2026-11-03) | Each frame's chain starts at offset 0 of its ring; a full ring kicks, waits and restarts at 0 | A continuous ring wrapped by one NEXT tag | Two full-size rings make the wrap pointless; a restart is a counted, debuggable event and the DIRECT path keeps its drain statistic |
 | Skinning | VU1 palettes of 24 joints, 40 vertices, three weight kernels | VU0 skinning streamed through SPR | Double-buffered palettes ride with the vertices; simulated duplication 1.4 to 1.6x, to be re-run at the 40 cap |
 | Lightmap density | 16 units per luxel for Q1 and Q2 (lighting report's chart measurement), 32 for Q3 | the asset report's 16/32/64 | the measured charts give 0.29 MiB at 16 u, cheap enough to keep |
 | Video materials | cooked still frames until a converted-video path exists | Bink or RoQ decode | no cinematic decoder is linked; the PDA and screens must not block the campaign |
