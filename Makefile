@@ -144,12 +144,17 @@ SCRIPTS = src/tools/scripts
 # 36 KB of release code): PCSX2 cannot show its effect on EE instruction fetch, so only a
 # hardware measurement could justify it.
 ALIGNFLAGS = -fno-align-functions -fno-align-jumps -fno-align-loops -fno-align-labels
+# The subset of -ffast-math that keeps results exact on the EE FPU, which never traps and has
+# no NaN: -fno-signed-zeros lets GCC emit the R5900's min.s/max.s for min/max selections
+# (about 440 sites, each replacing a compare/branch/move triple). Reassociation and
+# reciprocal math stay off so scalar references remain bit-exact against the VU0 paths.
+MATHFLAGS = -fno-math-errno -fno-trapping-math -fno-signed-zeros
 ifeq ($(BUILD),release)
-	OPTFLAGS = -O2 $(ALIGNFLAGS)
+	OPTFLAGS = -O2 $(ALIGNFLAGS) $(MATHFLAGS)
 	DBGFLAGS =
 	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=0 -DPS2_D3BFG_ASSERTS=0 -DPS2_D3BFG_PROFILE=0 -DNDEBUG
 else
-	OPTFLAGS = -O2 $(ALIGNFLAGS)
+	OPTFLAGS = -O2 $(ALIGNFLAGS) $(MATHFLAGS)
 	DBGFLAGS = -gdwarf-2 -gz
 	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=1 -DPS2_D3BFG_ASSERTS=1 -DPS2_D3BFG_PROFILE=1 -D_DEBUG=1
 endif

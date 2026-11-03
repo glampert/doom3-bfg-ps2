@@ -26,6 +26,19 @@ rendering-performance baseline. Quake timings below are not Doom measurements.
   rejected, because asm memory operands push register-promoted locals back to memory (+56%
   instructions in `DrawAliasMD2Entity`). The reasons are recorded in `vec_mat.h`'s header.
 - `__builtin_ctz/clz` are libgcc calls on the EE. A per-batch ctz cost TexChains +9%.
+- **Most of `-ffast-math` is already the target's default.** The r5900 GCC inlines `sqrtf`,
+  `fabsf` and `1/sqrtf` as `sqrt.s`/`abs.s`/`rsqrt.s`, and folds `x != x` to false, under plain
+  `-O2` (no NaN on this FPU). `floorf`, `ceilf`, `sinf`, `cosf`, `powf` stay libm calls either way.
+  Measured on the release ELF (2026-11-03): `-ffast-math` is -0.46% static instructions, -3.2% FPU
+  instructions, -11% `div.s`, -14 KB `.text`; `-fno-math-errno -fno-trapping-math` alone is -0.07%.
+  The win is **`-fno-signed-zeros`**, which lets GCC emit the R5900's `min.s`/`max.s` (about 440
+  sites, replacing `c.lt.s`/`bc1t`/`mov.s` triples in bounds, projection and UI clipping code:
+  `idRenderMatrix::ProjectedBounds` 317→151, `ps2::ui::MapRect` 222→133). `-fassociative-math`
+  and `-freciprocal-math` add the remaining 0.04%. The Makefile's `MATHFLAGS` adopts
+  `-fno-math-errno -fno-trapping-math -fno-signed-zeros` in both configurations (2026-11-03);
+  reassociation and reciprocal math stay off so scalar references remain bit-exact against the
+  VU0 paths and the UI's 1/16 fixed-point mapping keeps its rounding. Static counts only: no
+  hardware or dynamic measurement yet.
 
 ## What a PCSX2 capture can and can't show
 
