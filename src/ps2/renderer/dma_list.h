@@ -44,6 +44,56 @@ constexpr u32 VifMscal(u32 instructionAddress)
     return VifCode(0x14U, 0U, instructionAddress);
 }
 
+// STCYCL: CL and WL cycle lengths (1, 1 for a plain unpack). BASE and OFFSET: the VU data memory
+// double buffer TOPS alternates between (qword addresses).
+constexpr u32 VifStcycl(u32 cl, u32 wl)
+{
+    return VifCode(0x01U, 0U, (cl & 0xFFU) | ((wl & 0xFFU) << 8));
+}
+
+constexpr u32 VifBase(u32 qwordAddress)
+{
+    return VifCode(0x03U, 0U, qwordAddress);
+}
+
+constexpr u32 VifOffset(u32 qwords)
+{
+    return VifCode(0x02U, 0U, qwords);
+}
+
+// MPG: 'count' 64-bit instructions (256 encodes as 0) to micro memory at 'instructionAddress'.
+// VIF1 waits for the running microprogram to end first.
+constexpr u32 VifMpg(u32 count, u32 instructionAddress)
+{
+    return VifCode(0x4AU, count, instructionAddress);
+}
+
+// UNPACK formats: the low nibble of the VIFcode command (V4-32 is 0xC; 0x60 is the UNPACK group).
+enum class UnpackFormat : u32
+{
+    S32  = 0x0U,
+    S16  = 0x1U,
+    S8   = 0x2U,
+    V2_32 = 0x4U,
+    V2_16 = 0x5U,
+    V2_8  = 0x6U,
+    V3_32 = 0x8U,
+    V3_16 = 0x9U,
+    V3_8  = 0xAU,
+    V4_32 = 0xCU,
+    V4_16 = 0xDU,
+    V4_8  = 0xEU,
+    V4_5  = 0xFU
+};
+
+// UNPACK 'count' vectors to 'qwordAddress'; 'relativeToTops' adds the double buffer's TOPS;
+// 'unsignedExtend' zero-extends the 16- and 8-bit formats instead of sign-extending them.
+constexpr u32 VifUnpack(UnpackFormat format, u32 count, u32 qwordAddress, bool relativeToTops, bool unsignedExtend)
+{
+    const u32 immediate = (qwordAddress & 0x3FFU) | (unsignedExtend ? 1U << 14 : 0U) | (relativeToTops ? 1U << 15 : 0U);
+    return VifCode(0x60U | static_cast<u32>(format), count, immediate);
+}
+
 // A main-RAM destination of the list: one per in-flight frame, 64-byte aligned, written only by
 // the fromSPR DMA and read only by the VIF1 DMA.
 struct ChainRing

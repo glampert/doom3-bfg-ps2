@@ -120,7 +120,8 @@ VERSION_RE = re.compile(
 CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
     "inactive-start", "rejected-partial-init", "device-init", "context-frames",
-    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters", "native-indexed"))
+    "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters", "native-indexed",
+    "pipelined-present", "vu-passthrough"))
 REQUIRED_CORE_CHECKS = frozenset({
     "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
@@ -934,6 +935,15 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 if any(abs(actual - wanted) > 8 for actual, wanted in zip(pixels[offset:offset + 3], expected)):
                     raise ValueError(f"split upload capture lost texture data at {x},{y}")
             capture_checks["renderer-upload.tga"] = {"sha256": sha256(output / "renderer-upload.tga"), "quadrants": "PASS"}
+            width, height, pixels = renderer_capture.read_tga(output / "renderer-vu.tga")
+            if (width, height) != (512, 512 if standard == "PAL" else 448):
+                raise ValueError("incorrect VU passthrough capture dimensions")
+            for x, y, expected in ((128, 96, (255, 0, 0)), (66, 66, (255, 0, 0)), (190, 126, (255, 0, 0)),
+                                   (32, 96, (0, 0, 0)), (128, 200, (0, 0, 0)), (320, 300, (0, 0, 0))):
+                offset = (y * width + x) * 3
+                if any(abs(actual - wanted) > 8 for actual, wanted in zip(pixels[offset:offset + 3], expected)):
+                    raise ValueError(f"VU passthrough capture wrong at {x},{y}")
+            capture_checks["renderer-vu.tga"] = {"sha256": sha256(output / "renderer-vu.tga"), "sprite": "PASS"}
             for name in ("renderer-ui.tga", "renderer-ui-reload.tga"):
                 capture_checks[name] = renderer_capture.verify_ui_scene(output / name, standard)
             if capture_checks["renderer-ui.tga"]["sha256"] != capture_checks["renderer-ui-reload.tga"]["sha256"]:

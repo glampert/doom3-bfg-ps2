@@ -55,6 +55,10 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   the VU object. Use `u32`/`unsigned int` for the symbol types, not `uint32_t`. Nothing keeps
   `.vutext` through `--gc-sections` but a reference from linked code: the core test reads
   the symbols, production will through `vu::Init`.
+- Doom's manager (`ps2/renderer/vu.{h,cpp}`): `vu::Bind(dma::List(), Program)` returns the
+  MSCAL address and emits the program's prebuilt MPG chain (one CALL tag) only when it is not
+  loaded; call `dma::Ensure` for the qwords first. `vu::EmitFrameConstants` writes the shared
+  data memory constants each frame; `vu::Invalidate` after anything else touches micro memory.
 - A program that kicks its input half directly must not end before the kick drains:
   MSCAL waits for the program's E bit, not for PATH1, and the unpack after next overwrites
   the half under the GIF. `passthrough.vcl` kicks a null GIF tag (NLOOP 0, EOP 1, which

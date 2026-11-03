@@ -44,11 +44,16 @@ production link free of test inputs. Section numbers in parentheses point into t
       (`renderer::Config::chainRingBytes`, 128 KiB today; a full ring restarts at 0 rather
       than wrapping through NEXT, see 20.1); the 2D DIRECT path runs on it with the GS scene
       captures unchanged and no `FlushCache` per kick (2026-11-03).
-- [ ] Asynchronous frame: build chain N+1 while N runs, FINISH fence at the frame boundary,
-      flip on the second field for 30/25 fps; `com_engineHz 50` on PAL (4.1, 4.2).
-- [ ] `ps2::renderer::vu`: program table, fixed kernel region, 940-slot swap region,
-      `Bind` emitting MPG chains only on a change, `SwapsThisFrame`; `kernel.i` with
-      quake2-ps2's clipper and window macros, `passthrough.vcl` (7.1, 7.3).
+- [x] Asynchronous frame: `dma::EndFrame` kicks without waiting and `Kick` fences on the
+      previous chain, `gs::Present(..., Pipelined)` flips at an EVEN field for 30/25 fps, and a
+      PAL presentation sets `com_engineHz` 50; the GS gate's `pipelined-present` check drives
+      the raw frame model (4.1, 4.2) (2026-11-03). The 2D path keeps its immediate present.
+- [x] `ps2::renderer::vu`: program table, resident region and swap region laid out from the
+      measured programs, prebuilt MPG chains (REF pieces of 256 instructions plus RET), `Bind`
+      emitting one CALL only on a change, `Invalidate`, `EmitFrameConstants`, upload and
+      eviction statistics; the GS gate's `vu-passthrough` draws the first PATH1 sprite
+      (2026-11-03). `kernel.i` (quake2-ps2's clipper and window macros) is imported with its
+      first consumer, `world_lm.vcl`, at R1, so nothing unverified sits in the tree.
 - [ ] Register new units in `config/sources.mk` (`RESIDENT_SUPPORT_CXX_SRC`,
       `CORE_BACKEND_CXX_SRC`, cold units in `SIZE_OPT_CXX_SRC`); `make compiledb`.
 - [ ] Gate: `make` builds and checks a VU object; the existing 2D scene draws through the

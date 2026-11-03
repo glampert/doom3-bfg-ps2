@@ -288,6 +288,17 @@ PS2_COLD_FUNC void InitPresentation()
         FatalError("cannot initialize console display");
     }
 
+    // PAL runs the engine at 50 Hz, so a 40 ms frame is two ticks as a 33 ms NTSC frame is two
+    // at 60 (RENDERING_ARCHITECTURE.md 4.2). Both the cvar, which every map load latches from,
+    // and the values already latched change. A console's standard never changes, so the archived
+    // value is right for it.
+    if (config.standard == system::video::Standard::Pal)
+    {
+        cvarSystem->SetCVarFloat("com_engineHz", 50.0f);
+        com_engineHz_latched = 50.0f;
+        com_engineHz_denominator = 100LL * 50LL;
+    }
+
     if (!ui::Init()) [[unlikely]]
     {
         renderer::Shutdown();

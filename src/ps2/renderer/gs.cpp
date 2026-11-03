@@ -390,13 +390,29 @@ FramebufferInfo GetFramebuffer(DrawContext context)
     return { s_frames[Index(context)].address, s_width, s_height, GS_PSM_16 };
 }
 
-void Present(DrawContext context)
+void Present(DrawContext context, PresentMode mode)
 {
     PS2_AssertMsg(s_initialized, "GS present before initialization");
 
-    dma::WaitIdle();
+    if (mode == PresentMode::Immediate)
+    {
+        dma::WaitIdle();
+    }
+    else
+    {
+        PS2_AssertMsg(!dma::InFlight(), "pipelined present while a chain is still queued");
+    }
+
     *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
     WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC");
+
+    // CSR.FIELD (bit 13) is the field now being displayed. A flip at the start of the EVEN field
+    // shows the whole frame for two fields; one that lands on ODD waits for the next vsync.
+    while (mode == PresentMode::Pipelined && (*GS_REG_CSR & (1U << 13)) != 0U)
+    {
+        *GS_REG_CSR = 8;
+        WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC (even field)");
+    }
 
     graph_set_framebuffer_filtered(static_cast<int>(s_frames[Index(context)].address), s_width, GS_PSM_16, 0, 0);
     graph_enable_output();

@@ -18,6 +18,7 @@ PS2_COLD_FUNC bool Init(u32 ringBytes);
 PS2_COLD_FUNC void Shutdown();
 bool IsInitialized();
 
+// BeginFrame picks the other ring; EndFrame kicks the frame's chain without waiting for it.
 void BeginFrame();
 void EndFrame();
 
@@ -30,6 +31,13 @@ void EndDirect(const gs::GifWriter & writer);
 // start a new chain in the same ring. WaitIdle: the kicked chain has run and the GS has finished.
 void Kick();
 void WaitIdle();
+bool InFlight(); // a kicked chain has not been waited for yet
+
+// The frame's list, for emitters that write their own tags (VU uploads, batches). Call Ensure
+// first with the qwords about to be reserved: a ring without that room kicks, waits and restarts.
+class DisplayList;
+DisplayList & List();
+void Ensure(u32 qwords);
 
 struct Stats
 {

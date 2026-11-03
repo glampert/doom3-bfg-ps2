@@ -160,14 +160,22 @@ PS2_COLD_FUNC bool Init(const Config & config)
         return false;
     }
 
+    if (!vu::Init())
+    {
+        dma::Shutdown();
+        return false;
+    }
+
     if (!gs::Init({ config.standard, 512, system::video::VisibleLines(config.standard) }))
     {
+        vu::Shutdown();
         dma::Shutdown();
         return false;
     }
 
     if (!tex::Init(config.textureVramBytes, config.texturePixelBytes))
     {
+        vu::Shutdown();
         dma::Shutdown();
         gs::Shutdown();
         return false;
@@ -189,6 +197,7 @@ PS2_COLD_FUNC void Shutdown()
     tex::Shutdown();
 
     // Partial startup and repeated shutdown both leave no DMA references or heap ownership.
+    vu::Shutdown();
     dma::Shutdown();
     gs::Shutdown();
 

@@ -158,8 +158,8 @@ void BeginFrame()
     PS2_AssertMsg(IsInitialized() && !s_frame && s_directTag == nullptr && s_list.RingUsedBytes() == s_chainStart,
                   "invalid BeginFrame state");
 
-    // Synchronous for now: the previous frame has run before its ring's twin is reused.
-    WaitIdle();
+    // No wait: Kick ran the chain before the last one to completion before it sent the last one,
+    // so the ring about to be reused (two frames back) is free while the last chain still runs.
     s_ring ^= 1;
     s_list.Begin(s_rings[s_ring], 0);
     s_chainStart = 0;
@@ -170,9 +170,27 @@ void EndFrame()
 {
     PS2_AssertMsg(s_frame && s_directTag == nullptr, "invalid EndFrame state");
 
+    // The chain is sent, not awaited: the EE may build the next frame while it runs. An immediate
+    // present (gs::Present) or WaitIdle fences on it.
     Kick();
-    WaitIdle();
     s_frame = false;
+}
+
+DisplayList & List()
+{
+    PS2_AssertMsg(s_frame && s_directTag == nullptr, "display list access outside a frame or inside a DIRECT block");
+    return s_list;
+}
+
+void Ensure(u32 qwords)
+{
+    PS2_AssertMsg(s_frame && s_directTag == nullptr && qwords * 16U + kTerminatorQwords * 16U <= s_ringBytes,
+                  "display list reservation exceeds the chain ring");
+
+    if (!s_list.Fits(qwords + kTerminatorQwords))
+    {
+        RestartRing();
+    }
 }
 
 gs::GifWriter BeginDirect(int payloadQwords)
@@ -257,6 +275,11 @@ void WaitIdle()
     gs::WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "GS FINISH");
 
     s_inFlight = false;
+}
+
+bool InFlight()
+{
+    return s_inFlight;
 }
 
 const Stats & GetStats()

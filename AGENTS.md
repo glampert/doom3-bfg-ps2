@@ -80,7 +80,8 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   `doom_main.script` reaching `NOMAP`, and records the tagged `[D3BFG] MEMORY startup-*`
   ledgers production prints after foundation, declaration and game startup.
   `make stage-console` / `make run-console` stage/run the same ELF visibly under
-  `build/<config>/console/`; `CONSOLE_STANDARD=ntsc` (default) or `pal` selects the mode.
+  `build/<config>/console/`; `CONSOLE_STANDARD=ntsc` (default) or `pal` selects the mode. A PAL
+  presentation sets `com_engineHz` 50 at startup (two ticks per 40 ms frame).
   Every visible package also stages the cooked retail catalog and assets from
   `UI_COOK_OUTPUT` (run `make ui-cook` first): the presentation opens the catalog at
   startup and the console draws the original `textures/bigchars` charset from it.

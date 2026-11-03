@@ -191,7 +191,11 @@ faces when a pass needs them).
 
 - One frame of latency: while the EE builds chain N+1 it never waits for the GS except at
   the frame boundary, where it waits for chain N's FINISH before flipping and before
-  reusing N's chain ring and dynamic buffers.
+  reusing N's chain ring and dynamic buffers. Implemented at the dma/gs level on 2026-11-03:
+  `dma::EndFrame` kicks without waiting, `dma::Kick` waits for the previous chain before
+  sending, and the frame loop waits for N, presents N (`gs::PresentMode::Pipelined`), then
+  kicks N+1, so N+1 never draws into the buffer still on display. The 2D path keeps
+  `PresentMode::Immediate`.
 - Two chain rings (N, N+1) of 384 KiB each in main RAM, two frame buffers in VRAM.
 - **Order inside a chain:** VU program and constant uploads, texture uploads for this frame
   (section 10.5), the depth and base pass of the world, the lit passes, entities,
@@ -217,7 +221,8 @@ faces when a pass needs them).
   never to a single field, so animation timing stays even. NTSC keeps `com_engineHz` 60
   and draws every second tick; PAL runs `com_engineHz` 50 so a 40 ms frame is also two
   ticks (id's game time is derived from the latched engine Hz; gate R1 verifies that no
-  gameplay code assumes 60).
+  gameplay code assumes 60). The even-field flip (`CSR.FIELD`) and the PAL 50 Hz policy
+  (`presentation.cpp`) exist since 2026-11-03.
 - Display mode stays interlaced FIELD mode with a full-height 512x448 (NTSC) or 512x512
   (PAL) buffer, as the 2D path uses today. FRAME mode with a half-height buffer is the
   fallback if flicker on thin lit edges proves worse than the resolution loss; gate R1
@@ -562,9 +567,13 @@ namespace ps2::renderer::vu
 ```
 
 Each program's assembled code is one pre-built MPG chain in main memory (REF tags of up to
-256 instructions each, as Black's `.vutext` chains), so a swap costs one `CNT FLUSH` plus
-one `CALL` into that chain. The kernel's entry addresses are fixed; programs call it with
-`bal`, and the checker's `branches` check confirms every target.
+256 instructions each, as Black's `.vutext` chains), so a swap costs one `CALL` into that
+chain (MPG itself waits for the running program to end, so no FLUSH precedes it). The
+kernel's entry addresses are fixed; programs call it with `bal`, and the checker's
+`branches` check confirms every target. Implemented 2026-11-03 (`vu.{h,cpp}`): residents
+upload on their first `Bind` after `Init` or `Invalidate`, swappable programs bump-allocate
+the swap region and evict it whole when they do not fit, and `EmitFrameConstants` uploads
+the shared data memory constants once per frame.
 
 Build: the quake2-ps2 rule (`vclpp -I vu1progs -Wundef -Werror -j`, then `openvcl`, then
 `openvcl -c` for the source names, then `dvp-as`, then `check_vu_code.py`) is adopted verbatim into the Makefile (done 2026-11-03), with vclpp and

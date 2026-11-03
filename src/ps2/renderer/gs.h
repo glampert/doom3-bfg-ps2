@@ -105,7 +105,17 @@ int Height();
 u32 FixedVramBytes();
 FramebufferInfo GetFramebuffer(DrawContext context);
 
-void Present(DrawContext context);
+// Immediate: wait for the queued chain, then flip at the next vsync (the 2D path, which needs
+// no following frame). Pipelined: the context's chain already ran (the caller waited before
+// kicking the next frame); flip at the next vsync that starts an EVEN field, so the frame
+// displays for two fields and the pace is 30/25 fps.
+enum class PresentMode : u8
+{
+    Immediate,
+    Pipelined
+};
+
+void Present(DrawContext context, PresentMode mode = PresentMode::Immediate);
 
 // Uploads a binding's complete storage: padded RGBA32, or PSMT8/PSMT4 index rows.
 void Upload(const TextureBinding & binding, const void * pixels);

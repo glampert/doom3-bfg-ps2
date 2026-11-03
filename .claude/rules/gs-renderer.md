@@ -52,7 +52,10 @@ coordinates; CLUTs; VRAM and mipmaps.
   `tr.frameCount`). Stage-free materials are not drawn; CPU `ModelTrace` needs the `collision` flag.
 - **Frame ownership:** package-root `presentation.cfg` (missing = headless) is read before Common
   startup. One Common frame = events/commands, clocks and NOMAP work, then movie/menu/console draw
-  in one GS frame. `EndFrame` fences and presents immediately; no following frame is needed. GS
+  in one GS frame. `EndFrame` fences and presents immediately (`gs::PresentMode::Immediate`); no
+  following frame is needed. `dma::EndFrame` itself only kicks: a chain runs while the EE builds the
+  next frame, `Kick` waits for the previous chain before sending, and the 3D path presents the
+  completed frame with `PresentMode::Pipelined` (flip at an EVEN field, 30/25 fps) before kicking. GS
   vsync paces visible mode (no headless sleep). `UpdateScreen` coalesces in-frame redraws, and an
   out-of-frame redraw never advances simulation; guard against recursive Begin/End. A queued
   `ps2_capture` finishes before shutdown.

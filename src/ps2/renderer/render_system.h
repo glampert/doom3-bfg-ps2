@@ -9,6 +9,7 @@
 #include "ps2/renderer/dma.h"
 #include "ps2/renderer/gs.h"
 #include "ps2/renderer/texture.h"
+#include "ps2/renderer/vu.h"
 #include "ps2/ui/geometry.h"
 
 namespace ps2::renderer
