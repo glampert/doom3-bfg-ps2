@@ -131,7 +131,7 @@ idRotation::Normalize180
 ============
 */
 void idRotation::Normalize180() {
-	angle -= floor( angle / 360.0f ) * 360.0f;
+	angle -= idMath::Floor( angle / 360.0f ) * 360.0f;	// [PS2_D3BFG]: idMath wrapper.
 	if ( angle > 180.0f ) {
 		angle -= 360.0f;
 	}
@@ -146,7 +146,7 @@ idRotation::Normalize360
 ============
 */
 void idRotation::Normalize360() {
-	angle -= floor( angle / 360.0f ) * 360.0f;
+	angle -= idMath::Floor( angle / 360.0f ) * 360.0f;	// [PS2_D3BFG]: idMath wrapper.
 	if ( angle > 360.0f ) {
 		angle -= 360.0f;
 	}

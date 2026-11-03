@@ -73,16 +73,16 @@ static void ComputeAxisBase( const idVec3 &normal, idVec3 &texS, idVec3 &texT ) 
 	n[1] = ( idMath::Fabs( normal[1] ) < 1e-6f ) ? 0.0f : normal[1];
 	n[2] = ( idMath::Fabs( normal[2] ) < 1e-6f ) ? 0.0f : normal[2];
 
-	RotY = -atan2( n[2], idMath::Sqrt( n[1] * n[1] + n[0] * n[0]) );
-	RotZ = atan2( n[1], n[0] );
+	RotY = -idMath::ATan( n[2], idMath::Sqrt( n[1] * n[1] + n[0] * n[0]) );	// [PS2_D3BFG]: idMath wrapper.
+	RotZ = idMath::ATan( n[1], n[0] );	// [PS2_D3BFG]: idMath wrapper.
 	// rotate (0,1,0) and (0,0,1) to compute texS and texT
-	texS[0] = -sin(RotZ);
-	texS[1] = cos(RotZ);
+	texS[0] = -idMath::Sin(RotZ);	// [PS2_D3BFG]: idMath wrapper.
+	texS[1] = idMath::Cos(RotZ);	// [PS2_D3BFG]: idMath wrapper.
 	texS[2] = 0;
 	// the texT vector is along -Z ( T texture coorinates axis )
-	texT[0] = -sin(RotY) * cos(RotZ);
-	texT[1] = -sin(RotY) * sin(RotZ);
-	texT[2] = -cos(RotY);
+	texT[0] = -idMath::Sin(RotY) * idMath::Cos(RotZ);	// [PS2_D3BFG]: idMath wrapper.
+	texT[1] = -idMath::Sin(RotY) * idMath::Sin(RotZ);	// [PS2_D3BFG]: idMath wrapper.
+	texT[2] = -idMath::Cos(RotY);	// [PS2_D3BFG]: idMath wrapper.
 }
 
 /*

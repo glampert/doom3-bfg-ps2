@@ -359,8 +359,8 @@ idDxtDecoder::UnRotateNormals
 void UnRotateNormals( const byte *block, float *normals, byte c0, byte c1 ) {
 	int rotation = c0;
 	float angle = -( rotation / 255.0f ) * idMath::PI;
-	float s = sin( angle );
-	float c = cos( angle );
+	float s = idMath::Sin( angle );	// [PS2_D3BFG]: idMath wrapper.
+	float c = idMath::Cos( angle );	// [PS2_D3BFG]: idMath wrapper.
 
 	int scale = ( c1 >> 3 ) + 1;
 	for ( int i = 0; i < 16; i++ ) {

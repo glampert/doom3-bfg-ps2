@@ -54,7 +54,7 @@ void idAASLocal::DrawCone( const idVec3 &origin, const idVec3 &dir, float radius
 	lastp = center + radius * axis[1];
 
 	for ( i = 20; i <= 360; i += 20 ) {
-		p = center + sin( DEG2RAD(i) ) * radius * axis[0] + cos( DEG2RAD(i) ) * radius * axis[1];
+		p = center + idMath::Sin( DEG2RAD(i) ) * radius * axis[0] + idMath::Cos( DEG2RAD(i) ) * radius * axis[1];	// [PS2_D3BFG]: idMath wrapper.
 		gameRenderWorld->DebugLine( color, lastp, p, 0 );
 		gameRenderWorld->DebugLine( color, p, top, 0 );
 		lastp = p;

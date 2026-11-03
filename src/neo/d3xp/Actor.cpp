@@ -1415,7 +1415,7 @@ idActor::setFov
 =====================
 */
 void idActor::SetFOV( float fov ) {
-	fovDot = (float)cos( DEG2RAD( fov * 0.5f ) );
+	fovDot = (float)idMath::Cos( DEG2RAD( fov * 0.5f ) );	// [PS2_D3BFG]: idMath wrapper.
 }
 
 /*
@@ -2528,7 +2528,7 @@ int idActor::GetDamageForLocation( int damage, int location ) {
 		return damage;
 	}
 
-	return (int)ceil( damage * damageScale[ location ] );
+	return (int)idMath::Ceil( damage * damageScale[ location ] );	// [PS2_D3BFG]: idMath wrapper.
 }
 
 /*

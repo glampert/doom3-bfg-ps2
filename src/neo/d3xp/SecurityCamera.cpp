@@ -143,7 +143,7 @@ void idSecurityCamera::Spawn() {
 	negativeSweep = ( sweepAngle < 0 ) ? true : false;
 	sweepAngle = abs( sweepAngle );
 
-	scanFovCos = cos( scanFov * idMath::PI / 360.0f );
+	scanFovCos = idMath::Cos( scanFov * idMath::PI / 360.0f );	// [PS2_D3BFG]: idMath wrapper.
 
 	angle = GetPhysics()->GetAxis().ToAngles().yaw;
 	StartSweep();
@@ -195,7 +195,7 @@ void idSecurityCamera::Event_AddLight() {
 	dir.NormalVectors( right, up );
 	target = GetPhysics()->GetOrigin() + dir * scanDist;
 		
-	radius = tan( scanFov * idMath::PI / 360.0f );
+	radius = idMath::Tan( scanFov * idMath::PI / 360.0f );	// [PS2_D3BFG]: idMath wrapper.
 	up = dir + up * radius;
 	up.Normalize();
 	up = GetPhysics()->GetOrigin() + up * scanDist;
@@ -234,7 +234,7 @@ void idSecurityCamera::DrawFov() {
 	idVec3 dir = GetAxis();
 	dir.NormalVectors( right, up );
 
-	radius = tan( scanFov * idMath::PI / 360.0f );
+	radius = idMath::Tan( scanFov * idMath::PI / 360.0f );	// [PS2_D3BFG]: idMath wrapper.
 	halfRadius = radius * 0.5f;
 	lastPoint = dir + up * radius;
 	lastPoint.Normalize();

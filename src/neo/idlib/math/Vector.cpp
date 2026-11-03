@@ -87,7 +87,7 @@ float idVec3::ToYaw() const {
 	if ( ( y == 0.0f ) && ( x == 0.0f ) ) {
 		yaw = 0.0f;
 	} else {
-		yaw = RAD2DEG( atan2( y, x ) );
+		yaw = RAD2DEG( idMath::ATan( y, x ) );	// [PS2_D3BFG]: idMath wrapper.
 		if ( yaw < 0.0f ) {
 			yaw += 360.0f;
 		}
@@ -113,7 +113,7 @@ float idVec3::ToPitch() const {
 		}
 	} else {
 		forward = ( float )idMath::Sqrt( x * x + y * y );
-		pitch = RAD2DEG( atan2( z, forward ) );
+		pitch = RAD2DEG( idMath::ATan( z, forward ) );	// [PS2_D3BFG]: idMath wrapper.
 		if ( pitch < 0.0f ) {
 			pitch += 360.0f;
 		}
@@ -140,13 +140,13 @@ idAngles idVec3::ToAngles() const {
 			pitch = 270.0f;
 		}
 	} else {
-		yaw = RAD2DEG( atan2( y, x ) );
+		yaw = RAD2DEG( idMath::ATan( y, x ) );	// [PS2_D3BFG]: idMath wrapper.
 		if ( yaw < 0.0f ) {
 			yaw += 360.0f;
 		}
 
 		forward = ( float )idMath::Sqrt( x * x + y * y );
-		pitch = RAD2DEG( atan2( z, forward ) );
+		pitch = RAD2DEG( idMath::ATan( z, forward ) );	// [PS2_D3BFG]: idMath wrapper.
 		if ( pitch < 0.0f ) {
 			pitch += 360.0f;
 		}
@@ -173,13 +173,13 @@ idPolar3 idVec3::ToPolar() const {
 			pitch = 270.0f;
 		}
 	} else {
-		yaw = RAD2DEG( atan2( y, x ) );
+		yaw = RAD2DEG( idMath::ATan( y, x ) );	// [PS2_D3BFG]: idMath wrapper.
 		if ( yaw < 0.0f ) {
 			yaw += 360.0f;
 		}
 
 		forward = ( float )idMath::Sqrt( x * x + y * y );
-		pitch = RAD2DEG( atan2( z, forward ) );
+		pitch = RAD2DEG( idMath::ATan( z, forward ) );	// [PS2_D3BFG]: idMath wrapper.
 		if ( pitch < 0.0f ) {
 			pitch += 360.0f;
 		}
@@ -262,10 +262,10 @@ void idVec3::SLerp( const idVec3 &v1, const idVec3 &v2, const float t ) {
 
 	cosom = v1 * v2;
 	if ( ( 1.0f - cosom ) > LERP_DELTA ) {
-		omega = acos( cosom );
-		sinom = sin( omega );
-		scale0 = sin( ( 1.0f - t ) * omega ) / sinom;
-		scale1 = sin( t * omega ) / sinom;
+		omega = idMath::ACos( cosom );	// [PS2_D3BFG]: idMath wrapper.
+		sinom = idMath::Sin( omega );	// [PS2_D3BFG]: idMath wrapper.
+		scale0 = idMath::Sin( ( 1.0f - t ) * omega ) / sinom;	// [PS2_D3BFG]: idMath wrapper.
+		scale1 = idMath::Sin( t * omega ) / sinom;	// [PS2_D3BFG]: idMath wrapper.
 	} else {
 		scale0 = 1.0f - t;
 		scale1 = t;

@@ -1292,7 +1292,7 @@ void idCollisionModelManagerLocal::Rotation180( trace_t *results, const idVec3 &
 	tw.quickExit = false;
 	tw.angle = endAngle - startAngle;
 	assert( tw.angle > -180.0f && tw.angle < 180.0f );
-	tw.maxTan = initialTan = idMath::Fabs( tan( ( idMath::PI / 360.0f ) * tw.angle ) );
+	tw.maxTan = initialTan = idMath::Fabs( idMath::Tan( ( idMath::PI / 360.0f ) * tw.angle ) );	// [PS2_D3BFG]: idMath wrapper.
 	tw.model = idCollisionModelManagerLocal::models[model];
 	tw.start = start - modelOrigin;
 	// rotation axis, axis is assumed to be normalized
@@ -1382,7 +1382,7 @@ void idCollisionModelManagerLocal::Rotation180( trace_t *results, const idVec3 &
 		if ( tw.maxTan == initialTan ) {
 			results->fraction = 1.0f;
 		} else {
-			results->fraction = idMath::Fabs( atan( tw.maxTan ) * ( 2.0f * 180.0f / idMath::PI ) / tw.angle );
+			results->fraction = idMath::Fabs( idMath::ATan( tw.maxTan ) * ( 2.0f * 180.0f / idMath::PI ) / tw.angle );	// [PS2_D3BFG]: idMath wrapper.
 		}
 		assert( results->fraction <= 1.0f );
 		endRotation.Set( rorg, axis, startAngle + (endAngle-startAngle) * results->fraction );
@@ -1592,7 +1592,7 @@ void idCollisionModelManagerLocal::Rotation180( trace_t *results, const idVec3 &
 	if ( tw.maxTan == initialTan ) {
 		results->fraction = 1.0f;
 	} else {
-		results->fraction = idMath::Fabs( atan( tw.maxTan ) * ( 2.0f * 180.0f / idMath::PI ) / tw.angle );
+		results->fraction = idMath::Fabs( idMath::ATan( tw.maxTan ) * ( 2.0f * 180.0f / idMath::PI ) / tw.angle );	// [PS2_D3BFG]: idMath wrapper.
 	}
 	assert( results->fraction <= 1.0f );
 	endRotation.Set( rorg, axis, startAngle + (endAngle-startAngle) * results->fraction );

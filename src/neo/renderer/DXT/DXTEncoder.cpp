@@ -2366,8 +2366,8 @@ void idDxtEncoder::RotateNormalsDXT1( byte *block ) const {
 	for ( int i = 0; i < 32; i += 1 ) {
 		int r = ( i << 3 ) | ( i >> 2 );
 		float angle = ( r / 255.0f ) * idMath::PI;
-		float s = sin( angle );
-		float c = cos( angle );
+		float s = idMath::Sin( angle );	// [PS2_D3BFG]: idMath wrapper.
+		float c = idMath::Cos( angle );	// [PS2_D3BFG]: idMath wrapper.
 
 		for ( int j = 0; j < 16; j++ ) {
 			float x = block[j*4+0] / 255.0f * 2.0f - 1.0f;
@@ -2386,8 +2386,8 @@ void idDxtEncoder::RotateNormalsDXT1( byte *block ) const {
 	}
 
 	float angle = ( bestRotation / 255.0f ) * idMath::PI;
-	float s = sin( angle );
-	float c = cos( angle );
+	float s = idMath::Sin( angle );	// [PS2_D3BFG]: idMath wrapper.
+	float c = idMath::Cos( angle );	// [PS2_D3BFG]: idMath wrapper.
 
 	for ( int j = 0; j < 16; j++ ) {
 		float x = block[j*4+0] / 255.0f * 2.0f - 1.0f;
@@ -2620,8 +2620,8 @@ void idDxtEncoder::RotateNormalsDXT5( byte *block ) const {
 	for ( int i = 0; i < 32; i += 1 ) {
 		int r = ( i << 3 ) | ( i >> 2 );
 		float angle = ( r / 255.0f ) * idMath::PI;
-		float s = sin( angle );
-		float c = cos( angle );
+		float s = idMath::Sin( angle );	// [PS2_D3BFG]: idMath wrapper.
+		float c = idMath::Cos( angle );	// [PS2_D3BFG]: idMath wrapper.
 
 		for ( int j = 0; j < 16; j++ ) {
 			float x = block[j*4+3] / 255.0f * 2.0f - 1.0f;
@@ -2667,8 +2667,8 @@ void idDxtEncoder::RotateNormalsDXT5( byte *block ) const {
 	}
 
 	float angle = ( bestRotation / 255.0f ) * idMath::PI;
-	float s = sin( angle );
-	float c = cos( angle );
+	float s = idMath::Sin( angle );	// [PS2_D3BFG]: idMath wrapper.
+	float c = idMath::Cos( angle );	// [PS2_D3BFG]: idMath wrapper.
 
 	for ( int j = 0; j < 16; j++ ) {
 		float x = block[j*4+3] / 255.0f * 2.0f - 1.0f;
@@ -3812,11 +3812,11 @@ ID_INLINE void idDxtEncoder::InsetYCoCgBBox( byte *minColor, byte *maxColor ) co
 		maxf[i] = ( maxf[i] >= inset[i] ) ? maxf[i] - inset[i] : 0;
 	}
 
-	minColor[0] = ((int)floor( minf[0] * 31 )) & ( ( 1 << 5 ) - 1 );
-	minColor[1] = ((int)floor( minf[1] * 63 )) & ( ( 1 << 6 ) - 1 );
+	minColor[0] = ((int)idMath::Floor( minf[0] * 31 )) & ( ( 1 << 5 ) - 1 );	// [PS2_D3BFG]: idMath wrapper.
+	minColor[1] = ((int)idMath::Floor( minf[1] * 63 )) & ( ( 1 << 6 ) - 1 );	// [PS2_D3BFG]: idMath wrapper.
 
-	maxColor[0] = ((int)ceil( maxf[0] * 31 )) & ( ( 1 << 5 ) - 1 );
-	maxColor[1] = ((int)ceil( maxf[1] * 63 )) & ( ( 1 << 6 ) - 1 );
+	maxColor[0] = ((int)idMath::Ceil( maxf[0] * 31 )) & ( ( 1 << 5 ) - 1 );	// [PS2_D3BFG]: idMath wrapper.
+	maxColor[1] = ((int)idMath::Ceil( maxf[1] * 63 )) & ( ( 1 << 6 ) - 1 );	// [PS2_D3BFG]: idMath wrapper.
 
 	minColor[0] = ( minColor[0] << 3 ) | ( minColor[0] >> 2 );
 	minColor[1] = ( minColor[1] << 2 ) | ( minColor[1] >> 4 );
@@ -3824,8 +3824,8 @@ ID_INLINE void idDxtEncoder::InsetYCoCgBBox( byte *minColor, byte *maxColor ) co
 	maxColor[0] = ( maxColor[0] << 3 ) | ( maxColor[0] >> 2 );
 	maxColor[1] = ( maxColor[1] << 2 ) | ( maxColor[1] >> 4 );
 
-	minColor[3] = (int)floor( minf[3] * 255.0f );
-	maxColor[3] = (int)ceil( maxf[3] * 255.0f );
+	minColor[3] = (int)idMath::Floor( minf[3] * 255.0f );	// [PS2_D3BFG]: idMath wrapper.
+	maxColor[3] = (int)idMath::Ceil( maxf[3] * 255.0f );	// [PS2_D3BFG]: idMath wrapper.
 
 #elif 0
 

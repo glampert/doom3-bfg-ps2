@@ -44,6 +44,31 @@ before touching that subsystem.
   Cvar direct commands enforce ROM/INIT flags; `set` and programmatic setters explicitly
   force writes. Test both paths instead of treating the forced setter as a restriction.
 
+### Scalar transcendentals through `ps2::math` (2026-11-03)
+
+- Inventory before the change (release ELF, after inlining): 267 libm call sites, of which
+  `floorf` 60, `powf` 54, `cosf` 50, `sinf` 48, `atan2f` 14, `fabsf` 12, `tanf` 8, `acosf` 8,
+  `ceilf` 6, `atanf` 5, double `sqrt` 4 (the `CollisionModel_rotate.cpp` solvers), `asinf` 1,
+  `logf` 1. `sqrtf`, `fabsf` and `1/sqrtf` were already `sqrt.s`, `abs.s` and `rsqrt.s`. The
+  `powf` sites were all `F16toF32` inlined into the tangent-space derivation and
+  `idBrittleFracture::CreateFractures`.
+- `ps2/math/math.h` replaced its turn-fraction cosine with the Cephes sinf/cosf scheme (octant
+  reduction by a three-constant split of pi/4, degree-7/8 polynomials; `SinCosf` shares one
+  reduction) and gained `Tanf` (sine over cosine), `ATanf`/`ATan2f` (Cephes atanf folds,
+  degree-9 odd polynomial), `ASinf`/`ACosf` (Cephes asinf fold at 1/2) and `Floorf`/`Ceilf`
+  (`cvt.w.s` truncation with a sign fix; values of magnitude 2^23 or more return unchanged,
+  which also keeps the conversion in range). The turn-fraction version failed the game
+  fixture: `Sinf(0)` was about 6e-8, and `idAngles::ToVectors` at yaw 0 then gave the player
+  a nonzero sideways velocity where the check, like id's code, compares exactly. The octant
+  reduction leaves r = 0 for x = 0 and libm's residue at the float values of pi/2 and pi.
+  Measured on target against newlib under round-toward-zero: `Sinf` 1.2e-7 and `Cosf` 6e-8
+  over [-8, 8), `Tanf` 4.8e-7 for |x| <= 1.2, `ATanf` 1.2e-7, `ATan2f` 2.4e-7, `ASinf` 1.2e-7,
+  `ACosf` 2.4e-7; `Floorf`/`Ceilf` exact; sine and cosine exact at the cardinal angles.
+- `idMath` forwards under `ID_PS2` (`Math.h` includes `ps2/math/math.h`; `ID_HOST_TEST`
+  builds keep libm). `F16toF32` assembles the float's bits on the PS2 (same values as the
+  `powf` expression). 113 direct call sites in 34 files were rewritten to the wrappers; the
+  `idMath::ATan( y, x )` assertion on both arguments being tiny now covers those callers.
+
 ## Retail UI format findings
 
 - Native binary fonts have a big-endian header, little-endian ten-byte glyph records

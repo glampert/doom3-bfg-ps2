@@ -410,10 +410,10 @@ void R_SetupProjectionMatrix( viewDef_t *viewDef ) {
 	//
 	const float zNear = ( viewDef->renderView.cramZNear ) ? ( r_znear.GetFloat() * 0.25f ) : r_znear.GetFloat();
 
-	float ymax = zNear * tan( viewDef->renderView.fov_y * idMath::PI / 360.0f );
+	float ymax = zNear * idMath::Tan( viewDef->renderView.fov_y * idMath::PI / 360.0f );	// [PS2_D3BFG]: idMath wrapper.
 	float ymin = -ymax;
 
-	float xmax = zNear * tan( viewDef->renderView.fov_x * idMath::PI / 360.0f );
+	float xmax = zNear * idMath::Tan( viewDef->renderView.fov_x * idMath::PI / 360.0f );	// [PS2_D3BFG]: idMath wrapper.
 	float xmin = -xmax;
 
 	const float width = xmax - xmin;

@@ -218,8 +218,8 @@ ID_INLINE void idVec2::Clamp( const idVec2 &min, const idVec2 &max ) {
 }
 
 ID_INLINE void idVec2::Snap() {
-	x = floor( x + 0.5f );
-	y = floor( y + 0.5f );
+	x = idMath::Floor( x + 0.5f );	// [PS2_D3BFG]: idMath wrapper.
+	y = idMath::Floor( y + 0.5f );	// [PS2_D3BFG]: idMath wrapper.
 }
 
 ID_INLINE void idVec2::SnapInt() {
@@ -693,9 +693,9 @@ ID_INLINE void idVec3::Clamp( const idVec3 &min, const idVec3 &max ) {
 }
 
 ID_INLINE void idVec3::Snap() {
-	x = floor( x + 0.5f );
-	y = floor( y + 0.5f );
-	z = floor( z + 0.5f );
+	x = idMath::Floor( x + 0.5f );	// [PS2_D3BFG]: idMath wrapper.
+	y = idMath::Floor( y + 0.5f );	// [PS2_D3BFG]: idMath wrapper.
+	z = idMath::Floor( z + 0.5f );	// [PS2_D3BFG]: idMath wrapper.
 }
 
 ID_INLINE void idVec3::SnapInt() {

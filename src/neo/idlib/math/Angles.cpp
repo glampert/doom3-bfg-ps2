@@ -46,7 +46,7 @@ idAngles& idAngles::Normalize360() {
 
 	for ( i = 0; i < 3; i++ ) {
 		if ( ( (*this)[i] >= 360.0f ) || ( (*this)[i] < 0.0f ) ) {
-			(*this)[i] -= floor( (*this)[i] / 360.0f ) * 360.0f;
+			(*this)[i] -= idMath::Floor( (*this)[i] / 360.0f ) * 360.0f;	// [PS2_D3BFG]: idMath wrapper.
 
 			if ( (*this)[i] >= 360.0f ) {
 				(*this)[i] -= 360.0f;

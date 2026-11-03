@@ -63,7 +63,7 @@ void R_SurfaceToTextureAxis( const srfTriangles_t *tri, idVec3 &origin, idVec3 a
 	// use the floor of the midpoint as the origin of the
 	// surface, which will prevent a slight misalignment
 	// from throwing it an entire cycle off
-	const idVec2 boundsOrg( floor( ( boundsMin.x + boundsMax.x ) * 0.5f ), floor( ( boundsMin.y + boundsMax.y ) * 0.5f ) );
+	const idVec2 boundsOrg( idMath::Floor( ( boundsMin.x + boundsMax.x ) * 0.5f ), idMath::Floor( ( boundsMin.y + boundsMax.y ) * 0.5f ) );	// [PS2_D3BFG]: idMath wrapper.
 
 	// determine the world S and T vectors from the first drawSurf triangle
 	const idJointMat * joints = ( tri->staticModelWithJoints != NULL && r_useGPUSkinning.GetBool() ) ? tri->staticModelWithJoints->jointsInverted : NULL;

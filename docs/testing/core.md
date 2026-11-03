@@ -30,6 +30,15 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   `ps2/math/vec_mat.h` with scalar EE references on xorshift inputs: guarded buffers for the
   copies, exact results where the arithmetic is exact (identity transforms, t = 0), a 1e-4
   relative tolerance elsewhere, and matching cull verdicts away from the plane (2026-11-03).
+  `math/transcendentals` compares the polynomial `Sinf`/`Cosf`/`SinCosf`/`Tanf`/`ATanf`/
+  `ATan2f`/`ASinf`/`ACosf` of `ps2/math/math.h` (which `idMath` forwards to under `ID_PS2`)
+  with newlib on 4,096 xorshift inputs plus the axes and clamp edges, logging each function's
+  largest error against its bound (5e-7 for sine/cosine over [-8, 8), 1e-5 for tangent with
+  |x| <= 1.2, 1e-6 to 2e-6 for the inverse functions), requires sine and cosine to equal libm
+  exactly at 0 (id's code compares axes built from zero angles exactly) and within 1e-9 of libm's
+  rounding residue at +-pi/2, +-pi and 2 pi,
+  and requires `Floorf`/`Ceilf` to equal `floorf`/`ceilf` exactly, including at 2^23 and past
+  the cvt.w.s range (2026-11-03).
   Indexed geometry adds oversized single-request, invalid local-index, nonzero-depth,
   nonfinite half-UV and additive-color failures. Run both positive standards and all
   seventeen failures sequentially: nineteen isolated emulator sessions in debug, two in release.

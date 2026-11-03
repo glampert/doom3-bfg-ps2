@@ -645,7 +645,7 @@ float	CalculateWorldSeparation(
 	const float fov_x_degrees ) {
 
 	const float fovRadians = DEG2RAD( fov_x_degrees );
-	const float screen = tan( fovRadians * 0.5f ) * fabs( screenSeparation );
+	const float screen = idMath::Tan( fovRadians * 0.5f ) * fabs( screenSeparation );	// [PS2_D3BFG]: idMath wrapper.
 	const float worldSeparation = screen * convergenceDistance / 0.5f;
 
 	return worldSeparation;
@@ -1363,7 +1363,7 @@ void FullscreenFX_DoubleVision::HighQuality() {
 	if ( scale > 0.5f ) {
 		scale = 0.5f;
 	}
-	float shift = scale * sin( sqrtf( (float)offset ) * g_dvFrequency.GetFloat() );
+	float shift = scale * idMath::Sin( sqrtf( (float)offset ) * g_dvFrequency.GetFloat() );	// [PS2_D3BFG]: idMath wrapper.
 	shift = fabs( shift );
 
 	// carry red tint if in berserk mode

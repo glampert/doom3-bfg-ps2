@@ -186,10 +186,10 @@ idQuat &idQuat::Slerp( const idQuat &from, const idQuat &to, float t ) {
 
 	if ( ( 1.0f - cosom ) > 1e-6f ) {
 #if 0
-		omega = acos( cosom );
-		sinom = 1.0f / sin( omega );
-		scale0 = sin( ( 1.0f - t ) * omega ) * sinom;
-		scale1 = sin( t * omega ) * sinom;
+		omega = idMath::ACos( cosom );	// [PS2_D3BFG]: idMath wrapper.
+		sinom = 1.0f / idMath::Sin( omega );	// [PS2_D3BFG]: idMath wrapper.
+		scale0 = idMath::Sin( ( 1.0f - t ) * omega ) * sinom;	// [PS2_D3BFG]: idMath wrapper.
+		scale1 = idMath::Sin( t * omega ) * sinom;	// [PS2_D3BFG]: idMath wrapper.
 #else
 		scale0 = 1.0f - cosom * cosom;
 		sinom = idMath::InvSqrt( scale0 );

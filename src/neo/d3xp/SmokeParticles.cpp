@@ -224,11 +224,11 @@ bool idSmokeParticles::EmitSmoke( const idDeclParticle *smoke, const int systemS
 				prevCount = stage->totalParticles;
 			}
 		} else {
-			nowCount = floor( ( (float)deltaMsec / finalParticleTime ) * stage->totalParticles );
+			nowCount = idMath::Floor( ( (float)deltaMsec / finalParticleTime ) * stage->totalParticles );	// [PS2_D3BFG]: idMath wrapper.
 			if ( nowCount >= stage->totalParticles ) {
 				nowCount = stage->totalParticles-1;
 			}
-			prevCount = floor( ((float)( deltaMsec - ( gameLocal.time - gameLocal.previousTime ) ) / finalParticleTime) * stage->totalParticles );
+			prevCount = idMath::Floor( ((float)( deltaMsec - ( gameLocal.time - gameLocal.previousTime ) ) / finalParticleTime) * stage->totalParticles );	// [PS2_D3BFG]: idMath wrapper.
 			if ( prevCount < -1 ) {
 				prevCount = -1;
 			}

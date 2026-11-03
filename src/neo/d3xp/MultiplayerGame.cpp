@@ -481,7 +481,7 @@ void idMultiplayerGame::UpdateScoreboard( idMenuHandler_Scoreboard * scoreboard,
 	idStr gameInfo;
 	if ( gameState == GAMEREVIEW ) {		
 		int timeRemaining = nextStateSwitch - gameLocal.serverTime;
-		int ms = (int) ceilf( timeRemaining / 1000.0f );
+		int ms = (int) idMath::Ceil( timeRemaining / 1000.0f );	// [PS2_D3BFG]: idMath wrapper.
 		if ( ms == 1 ) {
 			gameInfo = idLocalization::GetString( "#str_online_game_starts_in_second" );
 			gameInfo.Replace( "<DNT_VAL>", idStr( ms ) );

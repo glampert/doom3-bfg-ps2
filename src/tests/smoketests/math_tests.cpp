@@ -4,15 +4,19 @@
 //        The asm in ps2/qwords.h and ps2/math/vec_mat.h has no host fallback, so this is the only
 //        place a GCC upgrade or an edit to a constraint list is caught before a renderer draws
 //        with it. Scalar references run on the EE FPU; VU0 results are compared within a tolerance
-//        where the FMAC's rounding may differ, and exactly where the arithmetic is exact.
+//        where the FMAC's rounding may differ, and exactly where the arithmetic is exact. The
+//        polynomial transcendentals of ps2/math/math.h, which idMath forwards to, are compared
+//        with newlib on the same FPU, so their error bounds hold under round-toward-zero.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "tests/smoketests/math_tests.h"
+#include "ps2/math/math.h"
 #include "ps2/math/vec_mat.h"
 #include "ps2/qwords.h"
 #include "ps2/system/log.h"
 
+#include <cmath>
 #include <cstring>
 
 namespace ps2::tests
@@ -275,6 +279,138 @@ bool CheckBackFaceCull()
     return passed && judged >= 200;
 }
 
+// Largest |actual - expected| over the inputs, with the bound it must stay under, logged so a
+// polynomial change shows its real error even when it passes.
+struct ErrorBound
+{
+    const char * name;
+    float        bound;
+    float        worst = 0.0f;
+
+    void Observe(float actual, float expected)
+    {
+        worst = math::Maxf(worst, math::Fabsf(actual - expected));
+    }
+
+    bool Report() const
+    {
+        Log(LogLevel::Info, "[D3BFG] math/transcendental %s max error %.3g (bound %.3g)\n", name, static_cast<double>(worst), static_cast<double>(bound));
+        return worst <= bound;
+    }
+};
+
+bool CheckTranscendentals()
+{
+    Random     rng;
+    ErrorBound sine{ "Sinf", 5.0e-7f };
+    ErrorBound cosine{ "Cosf", 5.0e-7f };
+    ErrorBound tangent{ "Tanf (|x| <= 1.2)", 1.0e-5f };
+    ErrorBound arcTangent{ "ATanf", 1.0e-6f };
+    ErrorBound arcTangent2{ "ATan2f", 1.5e-6f };
+    ErrorBound arcSine{ "ASinf", 2.0e-6f };
+    ErrorBound arcCosine{ "ACosf", 2.0e-6f };
+
+    for (int i = 0; i < 4096; ++i)
+    {
+        const float x = rng.Float(); // [-8, 8): about 1.3 turns either side of zero
+        const float y = rng.Float();
+        float       s;
+        float       c;
+        math::SinCosf(x, s, c);
+        sine.Observe(s, sinf(x));
+        cosine.Observe(c, cosf(x));
+        sine.Observe(math::Sinf(x), sinf(x));
+        cosine.Observe(math::Cosf(x), cosf(x));
+        arcTangent.Observe(math::ATanf(x), atanf(x));
+        arcTangent2.Observe(math::ATan2f(y, x), atan2f(y, x));
+
+        const float t = x * 0.15f;
+        tangent.Observe(math::Tanf(t), tanf(t));
+
+        const float u = x * 0.125f; // [-1, 1)
+        arcSine.Observe(math::ASinf(u), asinf(u));
+        arcCosine.Observe(math::ACosf(u), acosf(u));
+    }
+
+    // Axes and the clamp edges, where the folds and libm's conventions must agree.
+    static constexpr float kAxes[] = { 0.0f, 1.0f, -1.0f, 0.5f, -0.5f, 1.0e-3f, -1.0e-3f, 2.0e3f, -2.0e3f };
+
+    for (const float y : kAxes)
+    {
+        for (const float x : kAxes)
+        {
+            arcTangent2.Observe(math::ATan2f(y, x), atan2f(y, x));
+        }
+
+        arcTangent.Observe(math::ATanf(y), atanf(y));
+    }
+
+    static constexpr float kUnit[] = { -1.0f, -0.999f, -0.5f, -0.4999f, 0.0f, 0.4999f, 0.5f, 0.999f, 1.0f };
+
+    for (const float u : kUnit)
+    {
+        arcSine.Observe(math::ASinf(u), asinf(u));
+        arcCosine.Observe(math::ACosf(u), acosf(u));
+    }
+
+    // id's code compares axes built from zero angles exactly, so zero must give exactly 0 and 1. At
+    // the float values of pi/2, pi and 2 pi the true result is that constant's rounding residue
+    // (4e-8 to 9e-8): sign and magnitude must match libm's, to well under the residue itself.
+    float s0;
+    float c0;
+    math::SinCosf(0.0f, s0, c0);
+    bool exactCardinals = math::Sinf(0.0f) == 0.0f && math::Cosf(0.0f) == 1.0f && s0 == 0.0f && c0 == 1.0f;
+    static constexpr float kCardinal[] = { 1.5707963267948966f, -1.5707963267948966f, 3.1415926535897932f, -3.1415926535897932f, 6.2831853071795865f };
+
+    for (const float a : kCardinal)
+    {
+        float s;
+        float c;
+        math::SinCosf(a, s, c);
+        exactCardinals = exactCardinals && math::Fabsf(math::Sinf(a) - sinf(a)) <= 1.0e-9f && math::Fabsf(math::Cosf(a) - cosf(a)) <= 1.0e-9f &&
+                         math::Fabsf(s - sinf(a)) <= 1.0e-9f && math::Fabsf(c - cosf(a)) <= 1.0e-9f;
+    }
+
+    if (!exactCardinals)
+    {
+        Log(LogLevel::Error, "[D3BFG] math/transcendental Sinf/Cosf differ from libm at a cardinal angle\n");
+    }
+
+    bool passed = sine.Report() && exactCardinals;
+    passed = cosine.Report() && passed;
+    passed = tangent.Report() && passed;
+    passed = arcTangent.Report() && passed;
+    passed = arcTangent2.Report() && passed;
+    passed = arcSine.Report() && passed;
+    passed = arcCosine.Report() && passed;
+
+    // Floor and ceil must match libm exactly: integers, halves, negative fractions, the 2^23
+    // integral threshold and values past the cvt.w.s range.
+    static constexpr float kRounding[] = { 0.0f,        0.5f,          -0.5f,       1.0f,        -1.0f,        2.75f,
+                                           -2.75f,      1.0e-7f,       -1.0e-7f,    8388607.5f,  -8388607.5f,  8388608.0f,
+                                           -8388608.0f, 16777217.0f,   -1.0e7f,     1.0e7f,      3.0e9f,       -3.0e9f,
+                                           1.0e30f,     -1.0e30f,      255.9999f,   -255.9999f,  65535.5f,     -65535.5f };
+    bool exact = true;
+
+    for (const float v : kRounding)
+    {
+        exact = exact && (math::Floorf(v) == floorf(v)) && (math::Ceilf(v) == ceilf(v));
+    }
+
+    for (int i = 0; i < 4096; ++i)
+    {
+        const float v = rng.Float() * 1000.0f;
+        exact = exact && (math::Floorf(v) == floorf(v)) && (math::Ceilf(v) == ceilf(v));
+    }
+
+    if (!exact)
+    {
+        Log(LogLevel::Error, "[D3BFG] math/transcendental Floorf/Ceilf differ from libm\n");
+    }
+
+    return passed && exact;
+}
+
 } // namespace
 
 bool RunMathTests()
@@ -284,6 +420,7 @@ bool RunMathTests()
     passed = Check("vu0-lerp", CheckLerp()) && passed;
     passed = Check("vu0-matrix-multiply", CheckMatrixMultiply()) && passed;
     passed = Check("vu0-backface-cull", CheckBackFaceCull()) && passed;
+    passed = Check("transcendentals", CheckTranscendentals()) && passed;
     return passed;
 }
 

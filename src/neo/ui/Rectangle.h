@@ -86,8 +86,8 @@ public:
 		p2.Set(Right(), y, 0);
 		p4.Set(x, Bottom(), 0);
 		if (a) {
-			s = sin( DEG2RAD( a ) );
-			c = cos( DEG2RAD( a ) );
+			s = idMath::Sin( DEG2RAD( a ) );	// [PS2_D3BFG]: idMath wrapper.
+			c = idMath::Cos( DEG2RAD( a ) );	// [PS2_D3BFG]: idMath wrapper.
 		}
 		else {
 			s = c = 0;

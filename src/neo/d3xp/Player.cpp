@@ -6046,7 +6046,7 @@ void idPlayer::BobCycle( const idVec3 &pushVelocity ) {
 		old = bobCycle;
 		bobCycle = (int)( old + bobmove * ( gameLocal.time - gameLocal.previousTime ) ) & 255;
 		bobFoot = ( bobCycle & 128 ) >> 7;
-		bobfracsin = idMath::Fabs( sin( ( bobCycle & 127 ) / 127.0 * idMath::PI ) );
+		bobfracsin = idMath::Fabs( idMath::Sin( ( bobCycle & 127 ) / 127.0 * idMath::PI ) );	// [PS2_D3BFG]: idMath wrapper.
 	}
 
 	// calculate angles for view bobbing
@@ -8435,7 +8435,7 @@ void idPlayer::CalcDamagePoints( idEntity *inflictor, idEntity *attacker, const 
 		armor_protection = ( common->IsMultiplayer() ) ? g_armorProtectionMP.GetFloat() : g_armorProtection.GetFloat();
 #endif
 
-		armorSave = ceil( damage * armor_protection );
+		armorSave = idMath::Ceil( damage * armor_protection );	// [PS2_D3BFG]: idMath wrapper.
 		if ( armorSave >= inventory.armor ) {
 			armorSave = inventory.armor;
 		}
@@ -8887,7 +8887,7 @@ float idPlayer::CalcFov( bool honorZoom ) {
 	float fov;
 
 	if ( fxFov ) {
-		return DefaultFov() + 10.0f + cos( ( gameLocal.time + 2000 ) * 0.01 ) * 10.0f;
+		return DefaultFov() + 10.0f + idMath::Cos( ( gameLocal.time + 2000 ) * 0.01 ) * 10.0f;	// [PS2_D3BFG]: idMath wrapper.
 	}
 
 	if ( influenceFov ) {
@@ -8996,7 +8996,7 @@ idVec3	idPlayer::GunAcceleratingOffset() {
 		}
 
 		f = t / weaponOffsetTime;
-		f = ( cos( f * 2.0f * idMath::PI ) - 1.0f ) * 0.5f;
+		f = ( idMath::Cos( f * 2.0f * idMath::PI ) - 1.0f ) * 0.5f;	// [PS2_D3BFG]: idMath wrapper.
 		ofs += f * weaponOffsetScale * acc->dir;
 	}
 
@@ -9064,7 +9064,7 @@ void idPlayer::CalculateViewWeaponPos( idVec3 &origin, idMat3 &axis ) {
 
 	// speed sensitive idle drift
 	scale = xyspeed + 40.0f;
-	fracsin = scale * sin( MS2SEC( gameLocal.time ) ) * 0.01f;
+	fracsin = scale * idMath::Sin( MS2SEC( gameLocal.time ) ) * 0.01f;	// [PS2_D3BFG]: idMath wrapper.
 	angles.roll		+= fracsin;
 	angles.yaw		+= fracsin;
 	angles.pitch	+= fracsin;
@@ -9141,7 +9141,7 @@ void idPlayer::OffsetThirdPersonView( float angle, float range, float height, bo
 		focusDist = 1.0f;	// should never happen
 	}
 
-	angles.pitch = - RAD2DEG( atan2( focusPoint.z, focusDist ) );
+	angles.pitch = - RAD2DEG( idMath::ATan( focusPoint.z, focusDist ) );	// [PS2_D3BFG]: idMath wrapper.
 	angles.yaw -= angle;
 
 	renderView->vieworg = view;

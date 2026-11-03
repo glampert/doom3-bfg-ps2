@@ -1925,7 +1925,7 @@ lwSurface *lwGetSurface5( idFile *fp, int cksize, lwObject *obj )
             break;
 
          case ID_GLOS:
-            surf->glossiness.val = ( float ) logf( ( float) getU2( fp )) / 20.7944f;
+            surf->glossiness.val = ( float ) idMath::Log( ( float) getU2( fp )) / 20.7944f;	// [PS2_D3BFG]: idMath wrapper.
             break;
 
          case ID_SMAN:

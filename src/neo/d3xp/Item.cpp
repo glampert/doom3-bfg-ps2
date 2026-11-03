@@ -161,7 +161,7 @@ bool idItem::UpdateRenderEntity( renderEntity_s *renderEntity, const renderView_
 	} else {
 		if ( inView ) {
 			inView = false;
-			lastCycle = ceil( cycle );
+			lastCycle = idMath::Ceil( cycle );	// [PS2_D3BFG]: idMath wrapper.
 		}
 	}
 
@@ -227,7 +227,7 @@ void idItem::Think() {
 			float scale = 0.005f + entityNumber * 0.00001f;
 			
 			org = orgOrigin;
-			org.z += 4.0f + cos( ( gameLocal.time + 2000 ) * scale ) * 4.0f;
+			org.z += 4.0f + idMath::Cos( ( gameLocal.time + 2000 ) * scale ) * 4.0f;	// [PS2_D3BFG]: idMath wrapper.
 			SetOrigin( org );
 		}
 	}

@@ -563,7 +563,7 @@ void idMenuScreen_Shell_GameLobby::UpdateLobby() {
 					if ( timeRemaining < 0 ) {
 						timeRemaining = 0;
 					}
-					ms = (int) ceilf( timeRemaining / 1000.0f );
+					ms = (int) idMath::Ceil( timeRemaining / 1000.0f );	// [PS2_D3BFG]: idMath wrapper.
 					handler->SetTimeRemaining( timeRemaining );
 				} else if ( session->GetActivePlatformLobbyBase().GetNumLobbyUsers() > 1 ) {
 					int timeRemaining = longCountdown - Sys_Milliseconds();
@@ -576,7 +576,7 @@ void idMenuScreen_Shell_GameLobby::UpdateLobby() {
 					if ( timeRemaining < 0 ) {
 						timeRemaining = 0;
 					}
-					ms = (int) ceilf( timeRemaining / 1000.0f );
+					ms = (int) idMath::Ceil( timeRemaining / 1000.0f );	// [PS2_D3BFG]: idMath wrapper.
 					handler->SetTimeRemaining( timeRemaining );
 				} else {
 					ms = 0;
@@ -590,7 +590,7 @@ void idMenuScreen_Shell_GameLobby::UpdateLobby() {
 			if ( menuData != NULL ) {
 				idMenuHandler_Shell * handler = dynamic_cast< idMenuHandler_Shell * const >( menuData );
 				if ( handler != NULL ) {
-					ms = (int) ceilf( handler->GetTimeRemaining() / 1000.0f );
+					ms = (int) idMath::Ceil( handler->GetTimeRemaining() / 1000.0f );	// [PS2_D3BFG]: idMath wrapper.
 				}
 			}
 		}

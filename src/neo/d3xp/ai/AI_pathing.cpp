@@ -1339,8 +1339,8 @@ int Ballistics( const idVec3 &start, const idVec3 &end, float speed, float gravi
 			continue;
 		}
 		d = idMath::Sqrt( p[i] );
-		bal[n].angle = atan2( 0.5f * ( 2.0f * y * p[i] - gravity ) / d, d * x );
-		bal[n].time = x / ( cos( bal[n].angle ) * speed );
+		bal[n].angle = idMath::ATan( 0.5f * ( 2.0f * y * p[i] - gravity ) / d, d * x );	// [PS2_D3BFG]: idMath wrapper.
+		bal[n].time = x / ( idMath::Cos( bal[n].angle ) * speed );	// [PS2_D3BFG]: idMath wrapper.
 		bal[n].angle = idMath::AngleNormalize180( RAD2DEG( bal[n].angle ) );
 		n++;
 	}

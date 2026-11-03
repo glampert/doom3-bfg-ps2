@@ -102,9 +102,9 @@ struct shortBounds_t {
 	void SetFromReferenceBounds( const idBounds & set ) {
 		// the maxs are stored negated
 		for ( int i = 0 ; i < 3 ; i++ ) {
-			int minv = floor( set[0][i] );
+			int minv = idMath::Floor( set[0][i] );	// [PS2_D3BFG]: idMath wrapper.
 			b[0][i] = std::max( -32768, minv );
-			int maxv = -ceil( set[1][i] );
+			int maxv = -idMath::Ceil( set[1][i] );	// [PS2_D3BFG]: idMath wrapper.
 			b[1][i] = std::min( 32767, maxv );
 		}
 		b[0][3] = b[1][3] = 0;

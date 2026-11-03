@@ -36,6 +36,12 @@ If you have questions concerning this license or the applicable additional terms
 #include <float.h>
 #endif
 
+#if defined( ID_PS2 )
+// [PS2_D3BFG]: idMath's trig, inverse trig, floor and ceil forward to the backend's polynomial and
+// cvt.w.s implementations instead of newlib calls. Scalar host tests keep libm.
+#include "ps2/math/math.h"
+#endif
+
 /*
 ===============================================================================
 
@@ -522,7 +528,7 @@ idMath::Frac
 ========================
 */
 ID_INLINE float idMath::Frac( float f ) {
-	return f - floorf( f );
+	return f - Floor( f );	// [PS2_D3BFG]: through Floor, so the PS2 avoids the libm call.
 }
 
 /*
@@ -531,7 +537,11 @@ idMath::Sin
 ========================
 */
 ID_INLINE float idMath::Sin( float a ) {
+#if defined( ID_PS2 )
+	return ps2::math::Sinf( a );	// [PS2_D3BFG]: polynomial sine, no libm call.
+#else
 	return sinf( a );
+#endif
 }
 
 /*
@@ -543,7 +553,7 @@ ID_INLINE float idMath::Sin16( float a ) {
 	float s;
 
 	if ( ( a < 0.0f ) || ( a >= TWO_PI ) ) {
-		a -= floorf( a * ONEOVER_TWOPI ) * TWO_PI;
+		a -= Floor( a * ONEOVER_TWOPI ) * TWO_PI;	// [PS2_D3BFG]: through Floor, so the PS2 avoids the libm call.
 	}
 #if 1
 	if ( a < PI ) {
@@ -573,7 +583,11 @@ idMath::Cos
 ========================
 */
 ID_INLINE float idMath::Cos( float a ) {
+#if defined( ID_PS2 )
+	return ps2::math::Cosf( a );	// [PS2_D3BFG]: polynomial cosine, no libm call.
+#else
 	return cosf( a );
+#endif
 }
 
 /*
@@ -585,7 +599,7 @@ ID_INLINE float idMath::Cos16( float a ) {
 	float s, d;
 
 	if ( ( a < 0.0f ) || ( a >= TWO_PI ) ) {
-		a -= floorf( a * ONEOVER_TWOPI ) * TWO_PI;
+		a -= Floor( a * ONEOVER_TWOPI ) * TWO_PI;	// [PS2_D3BFG]: through Floor, so the PS2 avoids the libm call.
 	}
 #if 1
 	if ( a < PI ) {
@@ -632,6 +646,8 @@ ID_INLINE void idMath::SinCos( float a, float &s, float &c ) {
 		fstp	dword ptr [ecx]
 		fstp	dword ptr [edx]
 	}
+#elif defined( ID_PS2 )
+	ps2::math::SinCosf( a, s, c );	// [PS2_D3BFG]: polynomial sine and cosine, no libm calls.
 #else
 	s = sinf( a );
 	c = cosf( a );
@@ -647,7 +663,7 @@ ID_INLINE void idMath::SinCos16( float a, float &s, float &c ) {
 	float t, d;
 
 	if ( ( a < 0.0f ) || ( a >= TWO_PI ) ) {
-		a -= floorf( a * ONEOVER_TWOPI ) * TWO_PI;
+		a -= Floor( a * ONEOVER_TWOPI ) * TWO_PI;	// [PS2_D3BFG]: through Floor, so the PS2 avoids the libm call.
 	}
 #if 1
 	if ( a < PI ) {
@@ -686,7 +702,11 @@ idMath::Tan
 ========================
 */
 ID_INLINE float idMath::Tan( float a ) {
+#if defined( ID_PS2 )
+	return ps2::math::Tanf( a );	// [PS2_D3BFG]: polynomial tangent, no libm call.
+#else
 	return tanf( a );
+#endif
 }
 
 /*
@@ -699,7 +719,7 @@ ID_INLINE float idMath::Tan16( float a ) {
 	bool reciprocal;
 
 	if ( ( a < 0.0f ) || ( a >= PI ) ) {
-		a -= floorf( a * ONEOVER_PI ) * PI;
+		a -= Floor( a * ONEOVER_PI ) * PI;	// [PS2_D3BFG]: through Floor, so the PS2 avoids the libm call.
 	}
 #if 1
 	if ( a < HALF_PI ) {
@@ -748,7 +768,11 @@ ID_INLINE float idMath::ASin( float a ) {
 	if ( a >= 1.0f ) {
 		return HALF_PI;
 	}
+#if defined( ID_PS2 )
+	return ps2::math::ASinf( a );	// [PS2_D3BFG]: polynomial arc sine, no libm call.
+#else
 	return asinf( a );
+#endif
 }
 
 /*
@@ -783,7 +807,11 @@ ID_INLINE float idMath::ACos( float a ) {
 	if ( a >= 1.0f ) {
 		return 0.0f;
 	}
+#if defined( ID_PS2 )
+	return ps2::math::ACosf( a );	// [PS2_D3BFG]: polynomial arc cosine, no libm call.
+#else
 	return acosf( a );
+#endif
 }
 
 /*
@@ -812,7 +840,11 @@ idMath::ATan
 ========================
 */
 ID_INLINE float idMath::ATan( float a ) {
+#if defined( ID_PS2 )
+	return ps2::math::ATanf( a );	// [PS2_D3BFG]: polynomial arc tangent, no libm call.
+#else
 	return atanf( a );
+#endif
 }
 
 /*
@@ -846,7 +878,11 @@ idMath::ATan
 */
 ID_INLINE float idMath::ATan( float y, float x ) {
 	assert( fabs( y ) > idMath::FLT_SMALLEST_NON_DENORMAL || fabs( x ) > idMath::FLT_SMALLEST_NON_DENORMAL );
+#if defined( ID_PS2 )
+	return ps2::math::ATan2f( y, x );	// [PS2_D3BFG]: polynomial four-quadrant arc tangent, no libm call.
+#else
 	return atan2f( y, x );
+#endif
 }
 
 /*
@@ -1127,7 +1163,11 @@ idMath::Floor
 ========================
 */
 ID_INLINE float idMath::Floor( float f ) {
+#if defined( ID_PS2 )
+	return ps2::math::Floorf( f );	// [PS2_D3BFG]: cvt.w.s truncation with a sign fix, no libm call.
+#else
 	return floorf( f );
+#endif
 }
 
 /*
@@ -1136,7 +1176,11 @@ idMath::Ceil
 ========================
 */
 ID_INLINE float idMath::Ceil( float f ) {
+#if defined( ID_PS2 )
+	return ps2::math::Ceilf( f );	// [PS2_D3BFG]: cvt.w.s truncation with a sign fix, no libm call.
+#else
 	return ceilf( f );
+#endif
 }
 
 /*
@@ -1145,7 +1189,7 @@ idMath::Rint
 ========================
 */
 ID_INLINE float idMath::Rint( float f ) {
-	return floorf( f + 0.5f );
+	return Floor( f + 0.5f );	// [PS2_D3BFG]: through Floor, so the PS2 avoids the libm call.
 }
 
 
@@ -1325,7 +1369,7 @@ idMath::AngleNormalize360
 */
 ID_INLINE float idMath::AngleNormalize360( float angle ) {
 	if ( ( angle >= 360.0f ) || ( angle < 0.0f ) ) {
-		angle -= floorf( angle * ( 1.0f / 360.0f ) ) * 360.0f;
+		angle -= Floor( angle * ( 1.0f / 360.0f ) ) * 360.0f;	// [PS2_D3BFG]: through Floor, so the PS2 avoids the libm call.
 	}
 	return angle;
 }

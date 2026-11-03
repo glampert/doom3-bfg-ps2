@@ -20,6 +20,13 @@ file keeps only what most engine edits need.
   floating point; its current units are listed in the
   [developer guide](../../docs/DEVELOPMENT.md#foundation-test-boundary). Don't introduce new double
   math in hot paths, or change precision without a target regression test.
+- **Transcendentals go through `idMath`.** Under `ID_PS2`, `idMath::Sin/Cos/SinCos/Tan/ASin/ACos/
+  ATan/Floor/Ceil` forward to the polynomial and `cvt.w.s` implementations in `ps2/math/math.h`,
+  and `Rint`, `Frac`, the `*16` range reductions and `F16toF32` no longer call libm. Never call
+  `sinf`, `floorf`, `atan2f` and friends directly in id's code (the 2026-11-03 sweep replaced
+  113 such sites, tagged `idMath wrapper`); the core gate's `math/transcendentals` check
+  bounds the polynomials against newlib on target. `Pow`, `Exp` and `Log` still call libm.
+  Double-typed sites (`CollisionModel_rotate.cpp` solvers, `Model_lwo.cpp`) were left alone.
 
 ## Portability traps
 

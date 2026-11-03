@@ -572,8 +572,8 @@ void idTraceModel::SetupCylinder( const idBounds &cylBounds, const int numSides 
 	for ( i = 0; i < n; i++ ) {
 		// verts
 		angle = idMath::TWO_PI * i / n;
-		verts[i].x = cos( angle ) * halfSize.x + offset.x;
-		verts[i].y = sin( angle ) * halfSize.y + offset.y;
+		verts[i].x = idMath::Cos( angle ) * halfSize.x + offset.x;	// [PS2_D3BFG]: idMath wrapper.
+		verts[i].y = idMath::Sin( angle ) * halfSize.y + offset.y;	// [PS2_D3BFG]: idMath wrapper.
 		verts[i].z = -halfSize.z + offset.z;
 		verts[n+i].x = verts[i].x;
 		verts[n+i].y = verts[i].y;
@@ -686,8 +686,8 @@ void idTraceModel::SetupCone( const idBounds &coneBounds, const int numSides ) {
 	for ( i = 0; i < n; i++ ) {
 		// verts
 		angle = idMath::TWO_PI * i / n;
-		verts[i].x = cos( angle ) * halfSize.x + offset.x;
-		verts[i].y = sin( angle ) * halfSize.y + offset.y;
+		verts[i].x = idMath::Cos( angle ) * halfSize.x + offset.x;	// [PS2_D3BFG]: idMath wrapper.
+		verts[i].y = idMath::Sin( angle ) * halfSize.y + offset.y;	// [PS2_D3BFG]: idMath wrapper.
 		verts[i].z = -halfSize.z + offset.z;
 		// edges
 		ii = i + 1;

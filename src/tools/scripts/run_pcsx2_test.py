@@ -128,6 +128,7 @@ REQUIRED_CORE_CHECKS = frozenset({
     "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/disabled-resolution-cvars",
     "renderer/passthrough-microprogram",
     "math/qword-copies", "math/vu0-transform", "math/vu0-lerp", "math/vu0-matrix-multiply", "math/vu0-backface-cull",
+    "math/transcendentals",
     "offline/common-idle-demo-ledger",
     "core/platform-language-duration-utc",
     "audio/sample-metadata-ledger",

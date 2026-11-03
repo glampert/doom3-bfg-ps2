@@ -2358,11 +2358,11 @@ void idWeapon::PresentWeapon( bool showViewModel ) {
 		viewWeaponOrigin = playerViewOrigin;
 		viewWeaponAxis = playerViewAxis;
 
-		fraccos = cos( ( gameLocal.framenum & 255 ) / 127.0f * idMath::PI );
+		fraccos = idMath::Cos( ( gameLocal.framenum & 255 ) / 127.0f * idMath::PI );	// [PS2_D3BFG]: idMath wrapper.
 
 		static unsigned int divisor = 32;
 		unsigned int val = ( gameLocal.framenum + gameLocal.framenum / divisor ) & 255;
-		fraccos2 = cos( val / 127.0f * idMath::PI );
+		fraccos2 = idMath::Cos( val / 127.0f * idMath::PI );	// [PS2_D3BFG]: idMath wrapper.
 
 		static idVec3 baseAdjustPos = idVec3( -8.0f, -20.0f, -10.0f );		// rt, fwd, up
 		static float pscale = 0.5f;

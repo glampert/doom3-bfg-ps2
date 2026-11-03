@@ -14,7 +14,7 @@
 #include "ps2/ui/font_format.h"
 #include "ps2/ui/gstx_format.h"
 #include "ps2/ui/assets.h"
-#include <cmath>
+#include "ps2/math/math.h"
 #include <idlib/precompiled.h>
 #include <renderer/Font.h>
 #include <renderer/tr_local.h>
@@ -55,7 +55,7 @@ static u32 s_loggedSizeCount = 0;
 
 s32 Fixed(float value)
 {
-    return static_cast<s32>(std::floor(value * 65536.0f + 0.5f));
+    return static_cast<s32>(ps2::math::Floorf(value * 65536.0f + 0.5f));
 }
 
 PS2_COLD_FUNC void ClearGlyphSets()
@@ -266,8 +266,8 @@ bool FindPrerenderedGlyph(const idFont * font, float scaleX, float scaleY, float
             const float sizeY = static_cast<float>(size.scaleY) / 65536.0f;
             const float stroke = static_cast<float>(size.strokeWeight) / 65536.0f;
 
-            if (std::fabs(pixelX - sizeX) > kGlyphScaleTolerance * sizeX || std::fabs(pixelY - sizeY) > kGlyphScaleTolerance * sizeY ||
-                std::fabs(strokeWeight - stroke) > kStrokeWeightTolerance)
+            if (ps2::math::Fabsf(pixelX - sizeX) > kGlyphScaleTolerance * sizeX || ps2::math::Fabsf(pixelY - sizeY) > kGlyphScaleTolerance * sizeY ||
+                ps2::math::Fabsf(strokeWeight - stroke) > kStrokeWeightTolerance)
             {
                 continue;
             }
@@ -324,8 +324,8 @@ void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fon
     // samples a texel center, so bilinear filtering returns the pre-rendered texels exactly.
     const float x = originX * width / kVirtualWidth - static_cast<float>(glyph.originX) / 16.0f;
     const float y = originY * height / kVirtualHeight - static_cast<float>(glyph.originY) / 16.0f;
-    const float left = std::floor(x + 0.5f) - 0.5f;
-    const float top = std::floor(y + 0.5f) - 0.5f;
+    const float left = ps2::math::Floorf(x + 0.5f) - 0.5f;
+    const float top = ps2::math::Floorf(y + 0.5f) - 0.5f;
     ui::DrawImageRect(left * kVirtualWidth / width, top * kVirtualHeight / height, static_cast<float>(bitmapWidth) * kVirtualWidth / width,
                       static_cast<float>(glyph.height) * kVirtualHeight / height, static_cast<float>(bitmapX) * state.inverseWidth,
                       static_cast<float>(glyph.y) * state.inverseHeight, static_cast<float>(bitmapX + bitmapWidth) * state.inverseWidth,

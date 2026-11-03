@@ -1606,7 +1606,7 @@ void R_SetColorMappings() {
 
 	float j = 0.0f;
 	for ( int i = 0; i < 256; i++, j += b ) {
-		int inf = idMath::Ftoi( 0xffff * pow( j / 255.0f, invg ) + 0.5f );
+		int inf = idMath::Ftoi( 0xffff * idMath::Pow( j / 255.0f, invg ) + 0.5f );	// [PS2_D3BFG]: idMath wrapper.
 		tr.gammaTable[i] = idMath::ClampInt( 0, 0xFFFF, inf );
 	}
 

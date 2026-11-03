@@ -904,7 +904,7 @@ void Cmd_TestLight_f( const idCmdArgs &args ) {
 
 	renderView_t	*rv = player->GetRenderView();
 
-	float fov = tan( idMath::M_DEG2RAD * rv->fov_x / 2 );
+	float fov = idMath::Tan( idMath::M_DEG2RAD * rv->fov_x / 2 );	// [PS2_D3BFG]: idMath wrapper.
 
 
 	dict.SetMatrix( "rotation", mat3_default );

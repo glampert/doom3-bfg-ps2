@@ -3103,8 +3103,8 @@ void idGameLocal::RunDebugInfo() {
 				idVec3 velocity;
 				predictedPath_t path;
 
-				velocity.x = cos( DEG2RAD( player->viewAngles.yaw ) ) * 100.0f;
-				velocity.y = sin( DEG2RAD( player->viewAngles.yaw ) ) * 100.0f;
+				velocity.x = idMath::Cos( DEG2RAD( player->viewAngles.yaw ) ) * 100.0f;	// [PS2_D3BFG]: idMath wrapper.
+				velocity.y = idMath::Sin( DEG2RAD( player->viewAngles.yaw ) ) * 100.0f;	// [PS2_D3BFG]: idMath wrapper.
 				velocity.z = 0.0f;
 				idAI::PredictPath( player, aas, origin, velocity, 1000, 100, SE_ENTER_OBSTACLE | SE_BLOCKED | SE_ENTER_LEDGE_AREA, path );
 			}

@@ -67,12 +67,25 @@ ID_INLINE float F16toF32( halfFloat_t x ) {
 	int m = HF_MANTISSA( x );
 	int s = HF_SIGN( x );
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Assemble the float's bits instead of calling powf for every component: a normal
+	// half rebiases its exponent (e - 15 + 127) and shifts its mantissa up 13 bits; a denormal or
+	// out-of-range half is m * 2^-24, exact in a float. Same values as the libm expression below.
+	if ( 0 < e && e < 31 ) {
+		const unsigned int bits = ( ( unsigned int )( x & 32768 ) << 16 ) | ( ( unsigned int )( e + 112 ) << 23 ) | ( ( unsigned int )m << 13 );
+		float f;
+		memcpy( &f, &bits, sizeof( f ) );
+		return f;
+	}
+	return s * ( float )m * ( 1.0f / 16777216.0f );
+#else
 	if ( 0 < e && e < 31 ) {
 		return s * powf( 2.0f, ( e - 15.0f ) ) * ( 1 + m / 1024.0f );
 	} else if ( m == 0 ) {
         return s * 0.0f;
 	}
     return s * powf( 2.0f, -14.0f ) * ( m / 1024.0f );
+#endif
 }
 
 /*

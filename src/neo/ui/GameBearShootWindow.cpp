@@ -561,7 +561,7 @@ void idGameBearShootWindow::UpdateTurret() {
 
 	dot = pt * right;
 
-	angle = RAD2DEG( acosf( dot ) );
+	angle = RAD2DEG( idMath::ACos( dot ) );	// [PS2_D3BFG]: idMath wrapper.
 
 	turretAngle = idMath::ClampFloat( 0.f, 90.f, angle );
 }
@@ -638,7 +638,7 @@ void idGameBearShootWindow::UpdateBear() {
 	dir = bear->velocity;
 	dir.NormalizeFast();
 
-	angle = RAD2DEG( atan2( dir.x, dir.y ) );
+	angle = RAD2DEG( idMath::ATan( dir.x, dir.y ) );	// [PS2_D3BFG]: idMath wrapper.
 	bear->rotation = angle - 90;
 
 	// Update Bear scale

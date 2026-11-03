@@ -3399,9 +3399,9 @@ void idAFConstraint_ConeLimit::Setup( idAFBody *b1, idAFBody *b2, const idVec3 &
 	this->coneAnchor = coneAnchor;
 	this->body1Axis = body1Axis;
 	this->body1Axis.Normalize();
-	this->cosAngle = (float) cos( DEG2RAD( coneAngle * 0.5f ) );
-	this->sinHalfAngle = (float) sin( DEG2RAD( coneAngle * 0.25f ) );
-	this->cosHalfAngle = (float) cos( DEG2RAD( coneAngle * 0.25f ) );
+	this->cosAngle = (float) idMath::Cos( DEG2RAD( coneAngle * 0.5f ) );	// [PS2_D3BFG]: idMath wrapper.
+	this->sinHalfAngle = (float) idMath::Sin( DEG2RAD( coneAngle * 0.25f ) );	// [PS2_D3BFG]: idMath wrapper.
+	this->cosHalfAngle = (float) idMath::Cos( DEG2RAD( coneAngle * 0.25f ) );	// [PS2_D3BFG]: idMath wrapper.
 }
 
 /*
@@ -3575,7 +3575,7 @@ void idAFConstraint_ConeLimit::DebugDraw() {
 	z = anchor + ax * size * cosAngle;
 	start = x + z;
 	for ( a = 0.0f; a < 360.0f; a += 45.0f ) {
-		end = x * (float) cos( DEG2RAD(a + 45.0f) ) + y * (float) sin( DEG2RAD(a + 45.0f) ) + z;
+		end = x * (float) idMath::Cos( DEG2RAD(a + 45.0f) ) + y * (float) idMath::Sin( DEG2RAD(a + 45.0f) ) + z;	// [PS2_D3BFG]: idMath wrapper.
 		gameRenderWorld->DebugLine( colorMagenta, anchor, start );
 		gameRenderWorld->DebugLine( colorMagenta, start, end );
 		start = end;
@@ -3655,12 +3655,12 @@ void idAFConstraint_PyramidLimit::Setup( idAFBody *b1, idAFBody *b2, const idVec
 	// pyramid top
 	this->pyramidAnchor = pyramidAnchor;
 	// angles
-	cosAngle[0] = (float) cos( DEG2RAD( pyramidAngle1 * 0.5f ) );
-	cosAngle[1] = (float) cos( DEG2RAD( pyramidAngle2 * 0.5f ) );
-	sinHalfAngle[0] = (float) sin( DEG2RAD( pyramidAngle1 * 0.25f ) );
-	sinHalfAngle[1] = (float) sin( DEG2RAD( pyramidAngle2 * 0.25f ) );
-	cosHalfAngle[0] = (float) cos( DEG2RAD( pyramidAngle1 * 0.25f ) );
-	cosHalfAngle[1] = (float) cos( DEG2RAD( pyramidAngle2 * 0.25f ) );
+	cosAngle[0] = (float) idMath::Cos( DEG2RAD( pyramidAngle1 * 0.5f ) );	// [PS2_D3BFG]: idMath wrapper.
+	cosAngle[1] = (float) idMath::Cos( DEG2RAD( pyramidAngle2 * 0.5f ) );	// [PS2_D3BFG]: idMath wrapper.
+	sinHalfAngle[0] = (float) idMath::Sin( DEG2RAD( pyramidAngle1 * 0.25f ) );	// [PS2_D3BFG]: idMath wrapper.
+	sinHalfAngle[1] = (float) idMath::Sin( DEG2RAD( pyramidAngle2 * 0.25f ) );	// [PS2_D3BFG]: idMath wrapper.
+	cosHalfAngle[0] = (float) idMath::Cos( DEG2RAD( pyramidAngle1 * 0.25f ) );	// [PS2_D3BFG]: idMath wrapper.
+	cosHalfAngle[1] = (float) idMath::Cos( DEG2RAD( pyramidAngle2 * 0.25f ) );	// [PS2_D3BFG]: idMath wrapper.
 
 	this->body1Axis = body1Axis;
 }

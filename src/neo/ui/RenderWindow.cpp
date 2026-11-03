@@ -154,7 +154,7 @@ void idRenderWindow::Draw(int time, float x, float y) {
 	refdef.shaderParms[3] = 1;
 
 	refdef.fov_x = 90;
-	refdef.fov_y = 2 * atan((float)drawRect.h / drawRect.w) * idMath::M_RAD2DEG;
+	refdef.fov_y = 2 * idMath::ATan((float)drawRect.h / drawRect.w) * idMath::M_RAD2DEG;	// [PS2_D3BFG]: idMath wrapper.
 
 	refdef.time[0] = time;
 	refdef.time[1] = time;

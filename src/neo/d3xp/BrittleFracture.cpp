@@ -712,8 +712,8 @@ void idBrittleFracture::ProjectDecal( const idVec3 &point, const idVec3 &dir, co
 	}
 
 	a = gameLocal.random.RandomFloat() * idMath::TWO_PI;
-	c = cos( a );
-	s = -sin( a );
+	c = idMath::Cos( a );	// [PS2_D3BFG]: idMath wrapper.
+	s = -idMath::Sin( a );	// [PS2_D3BFG]: idMath wrapper.
 
 	axis[2] = -dir;
 	axis[2].Normalize();
@@ -1045,8 +1045,8 @@ void idBrittleFracture::Fracture_r( idFixedWinding &w, idRandom2 & random ) {
 		else {
 			a = random.RandomFloat() * idMath::TWO_PI;
 		}
-		c = cos( a );
-		s = -sin( a );
+		c = idMath::Cos( a );	// [PS2_D3BFG]: idMath wrapper.
+		s = -idMath::Sin( a );	// [PS2_D3BFG]: idMath wrapper.
 		axis[2].NormalVectors( axistemp[0], axistemp[1] );
 		axis[0] = axistemp[ 0 ] * c + axistemp[ 1 ] * s;
 		axis[1] = axistemp[ 0 ] * s + axistemp[ 1 ] * -c;
