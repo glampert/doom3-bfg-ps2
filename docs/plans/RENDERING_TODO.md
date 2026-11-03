@@ -19,9 +19,12 @@ production link free of test inputs. Section numbers in parentheses point into t
 
 ## R0: toolchain, display list, frame model
 
-- [ ] Import `vclpp` (with nested `parse-utils`) and `vu-checker` as pinned submodules under
-      `src/external/`; build vclpp into `build/tools/vclpp`; record both in `REUSE.md` and
-      the pins in [vclpp-submodule.md](../../.claude/rules/vclpp-submodule.md).
+- [x] Import `vclpp` (with nested `parse-utils`) and `vu-checker` as pinned submodules under
+      `src/external/`; record both in `REUSE.md` and the pins in
+      [vclpp-submodule.md](../../.claude/rules/vclpp-submodule.md); CI checks out submodules
+      (2026-11-03).
+- [ ] Build the pinned vclpp into `build/tools/vclpp` from the Makefile (the reference's
+      out-of-tree `BIN_TARGET` rule, rebuilt when the submodule's sources change).
 - [ ] Add the Makefile VU rule (`vclpp -I ... -Wundef -Werror -j`, `openvcl`, `openvcl -c`,
       `dvp-as`, `check_vu_code.py`, delete the object on failure), a `VCL_FILES` list and the
       `.vudata` link; confirm the pinned CI ps2sdk image has `openvcl` and `dvp-as`

@@ -49,7 +49,11 @@ jobs:
       # records the commit.
       - name: Install the host build tools
         run: apk add --no-cache make python3 git gmp mpfr4 mpc1
+      # The VU tool submodules (src/external/vclpp with its nested parse-utils, and
+      # vu-checker) come with the checkout, so the VU build rule finds them.
       - uses: actions/checkout@v5
+        with:
+          submodules: recursive
       # The workspace belongs to the runner's user, not the container's root, so git refuses
       # the repository ("dubious ownership") once checkout's temporary configuration is gone.
       - name: Trust the checkout for git

@@ -50,15 +50,17 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
   SDK's C sources, for checking what a library really does, are under
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
-- Imported third-party dependencies live in `src/external/`, currently only `dlmalloc`.
+- Imported third-party dependencies live in `src/external/`: `dlmalloc` and the VU tool
+  submodules below.
   No JPEG or zlib is linked: images arrive converted by the asset pipeline, ZIP files are
   unsupported, and source-SWF inflation and pipelined save compression fail by name.
   Compressed resource packs will import `src/external/miniz`, whose zlib-compatible API
   can then restore save compression.
-  Planned VU/tool dependencies from the reference are `src/external/vclpp` (and its
-  nested `external/parse-utils`) and `src/external/vu-checker`.
-  These dependencies are not imported or pinned yet. When VU code is added,
-  build the pinned vclpp into `build/tools/vclpp` instead of relying on a copy on `PATH`.
+  The VU tool dependencies are pinned submodules: `src/external/vclpp` (with its nested
+  `external/parse-utils`) and `src/external/vu-checker`, at the commits quake2-ps2 uses
+  (`git submodule update --init --recursive` after cloning). The VU build rule is not
+  written yet; when it is, build the pinned vclpp into `build/tools/vclpp` instead of
+  relying on a copy on `PATH`.
 
 ## Build and verify
 
@@ -287,8 +289,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   only when asked.
 - `git fetch` first. The user sometimes commits on GitHub directly; check for divergence
   before committing and fast-forward only when the working tree can be preserved safely.
-- If the planned vclpp submodules are imported and changed, publish nested submodule
-  commits before a parent gitlink. This repository has no such gitlinks yet.
+- The `src/external/vclpp` (with nested `parse-utils`) and `src/external/vu-checker`
+  gitlinks point at published upstream commits. When a submodule changes, publish the
+  nested commit first (parse-utils, then vclpp), then bump the gitlink here.
 - Commit subjects are one sentence ending in a period, often prefixed with the area:
   `Sound: stream the soundtrack from loose SPU2 ADPCM files.`,
   `vclpp: back to C++17, so GCC 9 builds it; CI on GitHub.`

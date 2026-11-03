@@ -23,8 +23,10 @@ verification. Python 3.10 or later runs the build/report/cook scripts. Host tool
 sanitizer tests use a C++20 host compiler (`HOST_CXX`, default `clang++`). The C++ host
 tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`: `make resource-unpack` and
 `make asset-reexport` configure it into `build/tools/cmake/` with `HOST_CXX`, and other
-hosts, Windows/MSVC included, build it with `cmake` directly. VU tooling is reserved for later renderer work;
-no VU program or vclpp dependency is built yet.
+hosts, Windows/MSVC included, build it with `cmake` directly. The VU tools `vclpp` (with
+`parse-utils`) and `vu-checker` are pinned submodules under `src/external/`
+(`git submodule update --init --recursive`); no VU program is built yet, so the Makefile
+does not build them.
 
 GitHub Actions runs `make` and `make release` on Linux in the pinned ps2dev `ps2sdk` image,
 and builds the host tools with GCC, Apple clang and MSVC. These are compile and link checks;

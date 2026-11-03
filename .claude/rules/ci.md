@@ -106,6 +106,9 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
 - **Install git before `actions/checkout`.** Without git 2.18 or newer on `PATH`, it downloads
   a tarball through the REST API instead, with no `.git`, and the link report records an
   unknown commit.
+- **Checkout fetches the submodules** (`submodules: recursive`, since 2026-11-03): the VU
+  tool submodules under `src/external/` must be present for the VU build rule. A new
+  gitlink must point at a published commit or the checkout fails.
 - **Mark the workspace safe for git after checkout.** The container runs as root while the
   runner's user owns the workspace, so git stops with "detected dubious ownership". Checkout
   adds `safe.directory` only to its own temporary global configuration. `build_metadata.py`

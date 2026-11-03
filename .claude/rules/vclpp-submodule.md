@@ -1,9 +1,12 @@
-# vclpp and parse-utils (Quake II reference submodules)
+# vclpp and parse-utils (submodules shared with the Quake II reference)
 
-The submodules, gitlinks and VU build below belong to `quake2-ps2`; none is imported
-here yet. Apply these notes if the Doom port later adopts that toolchain. Doom's
-dependency location will be `src/external/vclpp/`, with parse-utils nested beneath
-it; the `src/tools/vclpp` paths below describe the reference checkout.
+Doom imports the same submodules quake2-ps2 uses, at the same pins (2026-11-03):
+`src/external/vclpp` at `95911cd` (vclpp 2 with MASP mode), its nested
+`external/parse-utils` at `4fd3fcd`, and `src/external/vu-checker` at `3917e1b`. The
+reference keeps them under `src/tools/`, so the `src/tools/vclpp` paths below describe
+the reference checkout; read `src/external/vclpp` here. The VU build rule and the
+reference's byte-identical verification recipe below are quake2-ps2's until Doom has
+its own VU programs.
 
 vclpp (`src/tools/vclpp`, github.com/glampert/vclpp) preprocesses the VU programs. vclpp 2
 is token-based, built on the lexer of parse-utils (nested submodule

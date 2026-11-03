@@ -154,8 +154,8 @@ without source edits. File tables below retain the original `neo/...` inspection
 their implementation destinations are `src/neo/...`. The source tree above is current; additional subsystem directories are created only
 when implemented. M0–M2/M2b, partial M3 and bounded 2D work are accepted as summarized
 at the top of this plan. Third-party dependencies
-imported for this port live in `src/external/`, including future vclpp/vu-checker
-tool dependencies.
+imported for this port live in `src/external/`, including the pinned vclpp/vu-checker
+tool submodules (2026-11-03).
 
 The `neo` move was committed mechanically before portability edits. Continue to audit project-relative paths, external includes, debugger configuration and data lookup after structural changes. Keep runtime paths independent of the source tree. The separate `doomclassic/` removal is complete; retained upstream Classic interfaces remain disabled or replaced in the PS2 build.
 
