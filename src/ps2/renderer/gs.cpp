@@ -5,7 +5,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/gs.h"
-#include "ps2/renderer/cmd_buffer.h"
+#include "ps2/renderer/dma.h"
 #include "ps2/renderer/pipeline_wait.h"
 
 #include <idlib/precompiled.h>
@@ -248,7 +248,7 @@ u64 ClampState(const TextureBinding & binding)
 
 PS2_COLD_FUNC bool Init(const Config & config)
 {
-    if (s_initialized || !IsCommandBufferInitialized()) [[unlikely]]
+    if (s_initialized || !dma::IsInitialized()) [[unlikely]]
     {
         FatalError("invalid GS initialization order");
     }
@@ -327,15 +327,15 @@ PS2_COLD_FUNC bool Init(const Config & config)
         return false;
     }
 
-    BeginCommandFrame();
+    dma::BeginFrame();
     {
-        GifWriter writer = BeginDirect(32);
+        GifWriter writer = dma::BeginDirect(32);
         writer.SetupEnvironment(0, s_frames[0], s_depth);
         writer.SetupEnvironment(1, s_frames[1], s_depth);
-        EndDirect(writer);
+        dma::EndDirect(writer);
         ClearFrame(DrawContext::Ctx0, { 0, 0, 0, 255 });
     }
-    EndCommandFrame();
+    dma::EndFrame();
 
     Log(LogLevel::Info, "[D3BFG] GS ready %s %dx%d PSMCT16/Z16 fixed_vram=%u\n",
         system::video::Name(config.standard), s_width, s_height, s_fixedVramBytes);
@@ -350,7 +350,7 @@ PS2_COLD_FUNC void Shutdown()
         return;
     }
 
-    WaitIdle();
+    dma::WaitIdle();
     dma_channel_shutdown(DMA_CHANNEL_GIF, 0);
     graph_shutdown();
     GsPutIMR(s_previousImr);
@@ -394,7 +394,7 @@ void Present(DrawContext context)
 {
     PS2_AssertMsg(s_initialized, "GS present before initialization");
 
-    WaitIdle();
+    dma::WaitIdle();
     *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
     WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC");
 
@@ -418,8 +418,8 @@ void Upload(const TextureBinding & binding, const void * pixels)
 #endif // PS2_D3BFG_ASSERTS
 
     // Retire queued PATH2 references before PATH3 uploads or overwrites an address.
-    Kick();
-    WaitIdle();
+    dma::Kick();
+    dma::WaitIdle();
     WaitUntil([] { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "texture GIF DMA idle");
 
     qword_t * end = draw_texture_transfer(s_upload, const_cast<void *>(pixels), layout.stridePixels,
@@ -510,7 +510,7 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
 
     const int filter = binding.sampler.filter == tex::Filter::Linear ? 1 : 0;
 
-    GifWriter writer = BeginDirect(30);
+    GifWriter writer = dma::BeginDirect(30);
     BeginPass(writer, context, state);
 
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
@@ -529,7 +529,7 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
     Position(writer, state, x1, y1);
 
     EndPass(writer, context, state);
-    EndDirect(writer);
+    dma::EndDirect(writer);
 }
 
 void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
@@ -563,7 +563,7 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
 
     // Complete state and three RGBAQ/UV/XYZ2 vertices: at most eighteen registers, thirty-six qwords.
     // A drain may alternate command halves; never depend on the previous primitive's state.
-    GifWriter writer = BeginDirect(36);
+    GifWriter writer = dma::BeginDirect(36);
     BeginPass(writer, context, state);
 
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
@@ -583,7 +583,7 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
     }
 
     EndPass(writer, context, state);
-    EndDirect(writer);
+    dma::EndDirect(writer);
 }
 
 void LineFixed(DrawContext context, const ui::FixedLine & line, const DrawState & state)
@@ -607,7 +607,7 @@ void LineFixed(DrawContext context, const ui::FixedLine & line, const DrawState 
     }
 
     // Untextured RGB is the pixel color itself; only alpha takes the 0x80 = 1.0 scale.
-    GifWriter writer = BeginDirect(24);
+    GifWriter writer = dma::BeginDirect(24);
     BeginPass(writer, context, state);
 
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_LINE, PRIM_SHADE_GOURAUD, 0, state.constantColor ? 1 : 0,
@@ -620,7 +620,7 @@ void LineFixed(DrawContext context, const ui::FixedLine & line, const DrawState 
     }
 
     EndPass(writer, context, state);
-    EndDirect(writer);
+    dma::EndDirect(writer);
 }
 
 void FillRect(DrawContext context, int x, int y, int width, int height, Color color)
@@ -646,7 +646,7 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
         return;
     }
 
-    GifWriter writer = BeginDirect(12);
+    GifWriter writer = dma::BeginDirect(12);
 
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
     writer.SetRegister(ContextReg(GS_REG_TEST, context), TestState(false));
@@ -659,7 +659,7 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((left + 2048) * 16, (top + 2048) * 16, 0));
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((endX + 2048) * 16, (endY + 2048) * 16, 0));
 
-    EndDirect(writer);
+    dma::EndDirect(writer);
 }
 
 void ClearFrame(DrawContext context, Color color)
@@ -674,7 +674,7 @@ void ClearFrame(DrawContext context, Color color)
 #endif // PS2_D3BFG_ASSERTS
 
     // One sprite writes the color and depth 1, outside every mask; then depth writes stop again.
-    GifWriter writer = BeginDirect(16);
+    GifWriter writer = dma::BeginDirect(16);
 
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(true));
     writer.SetRegister(ContextReg(GS_REG_TEST, context), TestState(false));
@@ -684,7 +684,7 @@ void ClearFrame(DrawContext context, Color color)
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((2048 + s_width) * 16, (2048 + s_height) * 16, 1));
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(false));
 
-    EndDirect(writer);
+    dma::EndDirect(writer);
 }
 
 void MaskTriangleFixed(DrawContext context, const ui::FixedTriangle & triangle)
@@ -712,7 +712,7 @@ void MaskTriangleFixed(DrawContext context, const ui::FixedTriangle & triangle)
         return;
     }
 
-    GifWriter writer = BeginDirect(20);
+    GifWriter writer = dma::BeginDirect(20);
     BeginMaskWrite(writer, context);
 
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_TRIANGLE, 0, 0, 0, 0, 0, 1, Index(context), 0));
@@ -722,7 +722,7 @@ void MaskTriangleFixed(DrawContext context, const ui::FixedTriangle & triangle)
     }
 
     EndMaskWrite(writer, context);
-    EndDirect(writer);
+    dma::EndDirect(writer);
 }
 
 void MaskLineFixed(DrawContext context, const ui::FixedLine & line)
@@ -744,7 +744,7 @@ void MaskLineFixed(DrawContext context, const ui::FixedLine & line)
         return;
     }
 
-    GifWriter writer = BeginDirect(18);
+    GifWriter writer = dma::BeginDirect(18);
     BeginMaskWrite(writer, context);
 
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_LINE, 0, 0, 0, 0, 0, 1, Index(context), 0));
@@ -752,7 +752,7 @@ void MaskLineFixed(DrawContext context, const ui::FixedLine & line)
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(second.x + 2048 * 16, second.y + 2048 * 16, 0));
 
     EndMaskWrite(writer, context);
-    EndDirect(writer);
+    dma::EndDirect(writer);
 }
 
 void ClearMask(DrawContext context, int x0, int y0, int x1, int y1)
@@ -771,7 +771,7 @@ void ClearMask(DrawContext context, int x0, int y0, int x1, int y1)
         return;
     }
 
-    GifWriter writer = BeginDirect(18);
+    GifWriter writer = dma::BeginDirect(18);
     BeginMaskWrite(writer, context);
 
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_SPRITE, 0, 0, 0, 0, 0, 1, Index(context), 0));
@@ -779,7 +779,7 @@ void ClearMask(DrawContext context, int x0, int y0, int x1, int y1)
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((2048 + x1) * 16, (2048 + y1) * 16, 1));
 
     EndMaskWrite(writer, context);
-    EndDirect(writer);
+    dma::EndDirect(writer);
 }
 
 } // namespace ps2::renderer::gs

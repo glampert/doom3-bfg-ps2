@@ -5,7 +5,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/texture.h"
-#include "ps2/renderer/cmd_buffer.h"
+#include "ps2/renderer/dma.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/draw.h"
@@ -56,8 +56,8 @@ Record & Find(Handle handle)
 
 void Fence()
 {
-    gs::Kick();
-    gs::WaitIdle();
+    dma::Kick();
+    dma::WaitIdle();
 }
 
 void ReleaseResidency(Record & record)

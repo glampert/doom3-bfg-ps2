@@ -295,7 +295,7 @@ bool NativeIndexed(system::video::Standard standard)
         passed = renderer::gs::CaptureTga(cycle == 0 ? "host:renderer-indexed.tga" : "host:renderer-indexed-reload.tga",
                                    renderer::LastPresentedContext()) &&
                  passed;
-        const auto chains = renderer::gs::GetCommandStats();
+        const auto chains = renderer::dma::GetStats();
         const auto geometry = ui::GetGeometryStats();
         passed = chains.drains > 0 && chains.peakBytes <= 1024U &&
                  geometry.peakVertices == 4096U && geometry.peakIndexes == 6144U && geometry.peakDraws == 128U &&
@@ -597,12 +597,12 @@ bool HoldPresentedScene(system::video::Standard standard)
 bool RunGsTests(system::video::Standard standard)
 {
     const auto baseline = system::heap::GetTotalStats();
-    bool passed = Check("inactive-start", !renderer::IsInitialized() && !renderer::gs::IsInitialized() && !renderer::gs::IsCommandBufferInitialized());
+    bool passed = Check("inactive-start", !renderer::IsInitialized() && !renderer::gs::IsInitialized() && !renderer::dma::IsInitialized());
     renderer::Shutdown();
-    const bool invalid = !renderer::Init({ static_cast<system::video::Standard>(99), 128U * 1024U }) && !renderer::gs::InitCommandBuffer(65);
-    const bool partial = renderer::gs::InitCommandBuffer(1024) && !renderer::gs::Init({ standard, 640, system::video::VisibleLines(standard) });
+    const bool invalid = !renderer::Init({ static_cast<system::video::Standard>(99), 128U * 1024U }) && !renderer::dma::Init(65);
+    const bool partial = renderer::dma::Init(1024) && !renderer::gs::Init({ standard, 640, system::video::VisibleLines(standard) });
     renderer::Shutdown();
-    passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !renderer::gs::IsCommandBufferInitialized()) && passed;
+    passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !renderer::dma::IsInitialized()) && passed;
     passed = Check("split-upload", SplitUpload(standard)) && passed;
     passed = Check("native-adapters", NativeAdapters(standard)) && passed;
     passed = Check("native-indexed", NativeIndexed(standard)) && passed;
@@ -675,7 +675,7 @@ bool RunGsTests(system::video::Standard standard)
         textures = renderer::TexturedRect(s_textures[0], 0, 0, 148, 76, 0, 0, 37, 19) && textures;
         renderer::tex::Destroy(s_textures[0]);
         renderer::EndFrame();
-        const auto stats = renderer::gs::GetCommandStats();
+        const auto stats = renderer::dma::GetStats();
         pressure = pressure && stats.drains > 0 && stats.kicks > frames + 1U && stats.peakBytes <= halfBytes;
         Log(LogLevel::Info, "[D3BFG] GS chains half=%u peak=%u kicks=%u drains=%u\n",
             halfBytes, stats.peakBytes, stats.kicks, stats.drains);
@@ -686,7 +686,7 @@ bool RunGsTests(system::video::Standard standard)
             live.peakRequestedBytes, live.peakBackingBytes, arena.peakCommittedBytes);
         renderer::Shutdown();
         renderer::Shutdown();
-        cleanup = cleanup && !renderer::IsInitialized() && !renderer::gs::IsInitialized() && !renderer::gs::IsCommandBufferInitialized() && SameLedger(baseline);
+        cleanup = cleanup && !renderer::IsInitialized() && !renderer::gs::IsInitialized() && !renderer::dma::IsInitialized() && SameLedger(baseline);
     }
     passed = Check("device-init", bounds) && passed;
     passed = Check("context-frames", contexts) && passed;
@@ -726,12 +726,12 @@ bool RunGsFailureProbe(const char * name)
     }
     else if (strcmp(name, "renderer-direct-overflow") == 0)
     {
-        if (!renderer::gs::InitCommandBuffer(1024))
+        if (!renderer::dma::Init(1024))
         {
             FatalError("probe command initialization failed");
         }
-        renderer::gs::BeginCommandFrame();
-        (void)renderer::gs::BeginDirect(INT_MAX);
+        renderer::dma::BeginFrame();
+        (void)renderer::dma::BeginDirect(INT_MAX);
     }
     else if (strcmp(name, "renderer-wait-timeout") == 0)
     {

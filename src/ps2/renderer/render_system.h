@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "ps2/renderer/cmd_buffer.h"
+#include "ps2/renderer/dma.h"
 #include "ps2/renderer/gs.h"
 #include "ps2/renderer/texture.h"
 #include "ps2/ui/geometry.h"

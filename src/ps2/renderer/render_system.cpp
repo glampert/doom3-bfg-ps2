@@ -155,20 +155,20 @@ PS2_COLD_FUNC bool Init(const Config & config)
     }
 
     // Both sixteen-qword environments plus chain terminators must fit the first half.
-    if (!system::video::IsValid(config.standard) || config.commandHalfBytes < 640U || !gs::InitCommandBuffer(config.commandHalfBytes))
+    if (!system::video::IsValid(config.standard) || config.commandHalfBytes < 640U || !dma::Init(config.commandHalfBytes))
     {
         return false;
     }
 
     if (!gs::Init({ config.standard, 512, system::video::VisibleLines(config.standard) }))
     {
-        gs::ShutdownCommandBuffer();
+        dma::Shutdown();
         return false;
     }
 
     if (!tex::Init(config.textureVramBytes, config.texturePixelBytes))
     {
-        gs::ShutdownCommandBuffer();
+        dma::Shutdown();
         gs::Shutdown();
         return false;
     }
@@ -189,7 +189,7 @@ PS2_COLD_FUNC void Shutdown()
     tex::Shutdown();
 
     // Partial startup and repeated shutdown both leave no DMA references or heap ownership.
-    gs::ShutdownCommandBuffer();
+    dma::Shutdown();
     gs::Shutdown();
 
     s_initialized = false;
@@ -200,7 +200,7 @@ void BeginFrame(gs::Color clearColor)
 {
     PS2_AssertMsg(s_initialized && !s_frame && clearColor.a == 255, "invalid 2D BeginFrame state");
 
-    gs::BeginCommandFrame();
+    dma::BeginFrame();
 
     s_context = s_context == gs::DrawContext::Ctx0 ? gs::DrawContext::Ctx1 : gs::DrawContext::Ctx0;
     s_frame = true;
@@ -214,7 +214,7 @@ void EndFrame()
     PS2_AssertMsg(s_frame, "2D EndFrame without BeginFrame");
 
     ui::EndGeometryFrame();
-    gs::EndCommandFrame();
+    dma::EndFrame();
     gs::Present(s_context);
 
     s_frame = false;

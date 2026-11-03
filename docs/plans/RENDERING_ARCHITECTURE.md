@@ -1424,8 +1424,8 @@ singleton systems, classes for reusable components.
 
 | Namespace | Kind | Owns |
 | --- | --- | --- |
-| `ps2::renderer::gs` | system (exists; owns the VRAM allocator, capture and the command buffer today) | device, present, register builders (grows `MakeTex0/Tex1/MipTbp/Alpha/Test/Zbuf`), VRAM pages and block footprints (`gs::VramArena`), capture |
-| `ps2::renderer::dma` | system + `DisplayList` class | scratchpad builder, chain rings, fences, kick; absorbs `cmd_buffer.*` in a mechanical move first |
+| `ps2::renderer::gs` | system (exists; owns the VRAM allocator and capture today) | device, present, register builders (grows `MakeTex0/Tex1/MipTbp/Alpha/Test/Zbuf`), VRAM pages and block footprints (`gs::VramArena`), capture |
+| `ps2::renderer::dma` | system + `DisplayList` class | scratchpad builder, chain rings, fences, kick; `cmd_buffer.*` moved into it as `dma.{h,cpp}` on 2026-11-03 |
 | `ps2::renderer::vu` | system | program table, residency, `Bind`, MPG chains |
 | `ps2::renderer::tex` | system (exists) | textures, CLUTs, residency, streaming, GSTX v2 loading |
 | `ps2::renderer::scene` | system | `RenderView`, draw list build, sort, per-frame bump allocator |
@@ -1450,7 +1450,7 @@ constructed by its owning system, testable on the host where it has no hardware 
 
 ```
 src/ps2/renderer/
-  dma_list.{h,cpp}         vu_programs.{h,cpp}        scene.{h,cpp}
+  dma.{h,cpp} dma_list.{h,cpp}  vu.{h,cpp}             scene.{h,cpp}
   world.{h,cpp}            world_format.h             lightmaps.{h,cpp}
   model.{h,cpp}            model_format.h             skinning.{h,cpp}
   lights.{h,cpp}           shadows.{h,cpp}            materials.{h,cpp}

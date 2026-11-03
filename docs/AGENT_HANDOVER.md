@@ -205,7 +205,7 @@ keyboard/pad hands-on verification and real PS2 acceptance remain 2D-8.
 | Native SWF integration | `src/neo/swf/SWF_Main.cpp`, `SWF_Render.cpp`, `SWF_SpriteInstance.cpp`, native menu/widget sources |
 | CPU geometry/masks | `src/ps2/ui/draw.*`, `masks.*`, `triangles.*`, `geometry.*` |
 | Images/fonts/pages | `src/ps2/renderer/image_backend.cpp`; `src/ps2/ui/font_backend.cpp`, `page_image.h`, `page_geometry.*`, `paletted_image.*`, `gstx_format.*` |
-| GS device and fences | `src/ps2/renderer/gs.*`, `render_system.*`, `cmd_buffer.*`, `texture.*`, `vram.*`, `capture.*` |
+| GS device and fences | `src/ps2/renderer/gs.*`, `render_system.*`, `dma.*`, `texture.*`, `vram.*`, `capture.*` |
 | Reference/oracles | `src/tests/host/scripts/swf_fixture.py` (host BSWF/font stand-ins), `src/tools/scripts/renderer_capture.py`, `retail_ui_capture.py` |
 | Native/host regressions | `src/tests/smoketests/renderer_gs_tests.cpp`, `src/tests/host/ui_triangles_tests.cpp`, `src/tests/host/scripts/` |
 | Build manifests | `config/sources.mk`, `config/source_inventory.json`, root Makefile |

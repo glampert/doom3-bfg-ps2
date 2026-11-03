@@ -37,10 +37,11 @@ production link free of test inputs. Section numbers in parentheses point into t
       quake2-ps2 with `REUSE.md` rows; the VU0 asm and the qword copies are proven against
       scalar references by the core gate's `math/*` checks rather than a one-off test ELF
       (2026-11-03).
+- [x] Mechanical move of `cmd_buffer.*` to `dma.{h,cpp}` under `ps2::renderer::dma`
+      (`dma::Init/BeginFrame/BeginDirect/Kick/WaitIdle/GetStats`) (2026-11-03).
 - [ ] `ps2::renderer::dma`: `DisplayList` in the scratchpad (two 8 KiB halves, `fromSPR`
       drains, CNT/REF/CALL tags with TTE VIFcodes, END, one NEXT per ring wrap) and two
-      384 KiB chain rings; a mechanical commit first moves `cmd_buffer.*` under it (12.1,
-      18.1).
+      384 KiB chain rings (12.1, 18.1).
 - [ ] Asynchronous frame: build chain N+1 while N runs, FINISH fence at the frame boundary,
       flip on the second field for 30/25 fps; `com_engineHz 50` on PAL (4.1, 4.2).
 - [ ] `ps2::renderer::vu`: program table, fixed kernel region, 940-slot swap region,

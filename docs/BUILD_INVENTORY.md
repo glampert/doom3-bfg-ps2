@@ -504,7 +504,7 @@ and retail assets remain later gates.
 
 ## CPU-only GS device foundation (2D-1)
 
-Four strict backend sources now supply `video_mode`, `gs`, `cmd_buffer` and the
+Four strict backend sources now supply `video_mode`, `gs`, the command buffer (`cmd_buffer`, moved to `dma` as `ps2::renderer::dma` on 2026-11-03) and the
 backend `render_system`. `gif_writer.h` reserves before SDK environment writes;
 `pipeline_wait.h` uses wrap-safe COP0 Count deadlines for DMA, FINISH and VSYNC
 in both configurations. The command recorder owns tagged, 64-byte-aligned halves

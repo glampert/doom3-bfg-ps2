@@ -1,10 +1,11 @@
 // ================================================================================================
-// File: cmd_buffer.cpp
-// Brief: Submit bounded CPU GIF chains without VU programs or world-loader scratch ownership.
+// File: dma.cpp
+// Brief: Submit bounded CPU GIF chains through VIF1 DIRECT without VU programs or world-loader
+//        scratch ownership; the first form of the display list system.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/cmd_buffer.h"
+#include "ps2/renderer/dma.h"
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/system/heap.h"
 
@@ -16,7 +17,7 @@
 #include <packet2_utils.h>
 #include <packet2_vif.h>
 
-namespace ps2::renderer::gs
+namespace ps2::renderer::dma
 {
 namespace
 {
@@ -32,7 +33,7 @@ static bool s_frame = false;
 static bool s_inFlight = false;
 static qword_t * s_directBase = nullptr;
 static int s_directCapacity = 0;
-static CommandStats s_stats = {};
+static Stats s_stats = {};
 
 ID_FORCE_INLINE packet2_t * Current()
 {
@@ -61,9 +62,9 @@ ID_FORCE_INLINE void RecordPeak()
 
 } // namespace
 
-PS2_COLD_FUNC bool InitCommandBuffer(u32 halfBytes)
+PS2_COLD_FUNC bool Init(u32 halfBytes)
 {
-    if (IsCommandBufferInitialized()) [[unlikely]]
+    if (IsInitialized()) [[unlikely]]
     {
         FatalError("command buffer initialized twice");
     }
@@ -98,7 +99,7 @@ PS2_COLD_FUNC bool InitCommandBuffer(u32 halfBytes)
     s_kickedQwords = 0;
     s_stats = {};
 
-    WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
+    gs::WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
 
     if (dma_channel_initialize(DMA_CHANNEL_VIF1, nullptr, 0) < 0)
     {
@@ -112,9 +113,9 @@ PS2_COLD_FUNC bool InitCommandBuffer(u32 halfBytes)
     return true;
 }
 
-PS2_COLD_FUNC void ShutdownCommandBuffer()
+PS2_COLD_FUNC void Shutdown()
 {
-    if (!IsCommandBufferInitialized())
+    if (!IsInitialized())
     {
         return;
     }
@@ -138,15 +139,15 @@ PS2_COLD_FUNC void ShutdownCommandBuffer()
     s_kickedQwords = 0;
 }
 
-bool IsCommandBufferInitialized()
+bool IsInitialized()
 {
     return s_storage != nullptr;
 }
 
-void BeginCommandFrame()
+void BeginFrame()
 {
-    PS2_AssertMsg(IsCommandBufferInitialized() && !s_frame && s_directBase == nullptr && Used() == s_kickedQwords,
-                  "invalid BeginCommandFrame state");
+    PS2_AssertMsg(IsInitialized() && !s_frame && s_directBase == nullptr && Used() == s_kickedQwords,
+                  "invalid BeginFrame state");
 
     WaitIdle();
     s_half ^= 1;
@@ -155,16 +156,16 @@ void BeginCommandFrame()
     s_frame = true;
 }
 
-void EndCommandFrame()
+void EndFrame()
 {
-    PS2_AssertMsg(s_frame && s_directBase == nullptr, "invalid EndCommandFrame state");
+    PS2_AssertMsg(s_frame && s_directBase == nullptr, "invalid EndFrame state");
 
     Kick();
     WaitIdle();
     s_frame = false;
 }
 
-GifWriter BeginDirect(int payloadQwords)
+gs::GifWriter BeginDirect(int payloadQwords)
 {
     PS2_AssertMsg(s_frame && s_directBase == nullptr && payloadQwords >= 0, "invalid DIRECT reservation state");
 
@@ -192,10 +193,10 @@ GifWriter BeginDirect(int payloadQwords)
     s_directBase = packet->next;
     s_directCapacity = payloadQwords;
 
-    return GifWriter(s_directBase, payloadQwords);
+    return gs::GifWriter(s_directBase, payloadQwords);
 }
 
-void EndDirect(const GifWriter & writer)
+void EndDirect(const gs::GifWriter & writer)
 {
     PS2_AssertMsg(s_directBase != nullptr && writer.Base() == s_directBase && writer.QwordCount() <= s_directCapacity,
                   "closing a foreign or oversized DIRECT payload");
@@ -218,7 +219,7 @@ void EndDirect(const GifWriter & writer)
 
 void Kick()
 {
-    PS2_AssertMsg(IsCommandBufferInitialized() && s_directBase == nullptr, "invalid command Kick state");
+    PS2_AssertMsg(IsInitialized() && s_directBase == nullptr, "invalid command Kick state");
 
     if (Used() == s_kickedQwords)
     {
@@ -263,15 +264,15 @@ void WaitIdle()
         return;
     }
 
-    WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "VIF1 DMA");
-    WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "GS FINISH");
+    gs::WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "VIF1 DMA");
+    gs::WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "GS FINISH");
 
     s_inFlight = false;
 }
 
-const CommandStats & GetCommandStats()
+const Stats & GetStats()
 {
     return s_stats;
 }
 
-} // namespace ps2::renderer::gs
+} // namespace ps2::renderer::dma
