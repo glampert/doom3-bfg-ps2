@@ -1,0 +1,16 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+// Graybox materials: collision only until the world cook compiles material passes (gate R2);
+// the cook job gives each one its base colour.
+textures/graybox/floor_light { solid collision }
+textures/graybox/floor_dark { solid collision }
+textures/graybox/wall { solid collision }
+textures/graybox/ceiling { solid collision }
+textures/graybox/trim { solid collision }
+textures/graybox/red { solid collision }
+textures/graybox/green { solid collision }
+textures/graybox/blue { solid collision }
+textures/graybox/yellow { solid collision }
+textures/graybox/orange { solid collision }
+textures/graybox/cyan { solid collision }
+textures/graybox/magenta { solid collision }
+textures/graybox/white { solid collision }

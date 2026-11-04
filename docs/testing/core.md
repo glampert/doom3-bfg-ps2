@@ -79,6 +79,14 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
   allocation ledgers, partial-init cleanup and live-image shutdown guards covered.
   These checks supplement strict EE compilation and native captures.
+- `build/tests/world_tests` checks the world cook: the `.proc` parser and its refusals,
+  greedy strips against their source triangles, D3WD byte-exact round trips, flipped bytes
+  and semantic corruptions, and every batch of the graybox map (both topologies) and of
+  large or distant synthetic grids unpacked by an independent VIF model: inside one
+  306-qword input half, drawing exactly the source triangles, UVs and shaded colours.
+  `test_graybox_fixture.py` checks that the graybox files are current and that their
+  winding, areas, portal facing, area nodes and edges (no T-junctions) are what id's
+  loader and view flood expect.
 
 ## Platform, core smoke, script and Common
 

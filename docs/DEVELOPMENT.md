@@ -55,10 +55,12 @@ build/tools/resource_unpack --output build/unpacked-bfg \
 Extracted BSWF/BIMAGE files keep their native formats. Retail extraction belongs in
 ignored local directories; it is separate from the host SWF fixtures and target startup.
 
-## Texture re-export
+## Asset re-export
 
-The [texture re-export tool](../src/tools/asset_reexport/README.md) converts retail
-textures into paletted GSTX files the GS samples directly, from a JSON job. `make ui-cook`
+The [asset re-export tool](../src/tools/asset_reexport/README.md) converts retail
+textures into paletted GSTX files the GS samples directly, from a JSON job. Its `world`
+command cooks a map's `.proc` into a D3WD world file; `make world-cook` cooks the authored
+graybox map (`src/tests/data/graybox_map/`) into `build/world/`. `make ui-cook`
 writes that job for the retail UI and runs it; `UI_PREVIEWS=build/ui-previews` also writes
 an original and a converted PNG of every texture for a visual review:
 

@@ -251,8 +251,9 @@ regenerate the compile database. Third-party code belongs in `src/external/`.
 ## Data and commands
 
 All commands run from the repository root. Tracked authored inputs are
-`src/tests/data/headless/`, `headless_map/` and `ui/`; Python tests are under
-`src/tests/host/scripts/`. Update the generator (`swf_fixture.py`), never only its generated BSWF/font.
+`src/tests/data/headless/`, `headless_map/`, `graybox_map/` and `ui/`; Python tests are under
+`src/tests/host/scripts/`. Update the generators (`swf_fixture.py`, `graybox_fixture.py`), never
+only their generated files.
 Retail data is local/ignored under `base/` or `gamedata/`. Make defaults to
 `UI_DATA_ROOT=gamedata/d3_bfg`; override it to the directory containing the expected
 containers and English language file. Cooked output must stay under `build/`.
@@ -265,6 +266,7 @@ make release
 make audit-sources
 make compiledb
 python3 src/tests/host/scripts/swf_fixture.py --check
+python3 src/tests/host/scripts/graybox_fixture.py --check
 make test-host
 make ui-cook
 make run-ui-movies

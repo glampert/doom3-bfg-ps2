@@ -1,7 +1,8 @@
-# Texture re-export
+# Asset re-export
 
-`asset_reexport` is a standalone C++20 host tool that converts Doom 3 BFG textures into
-forms the PS2 GS samples directly. Its `ui` command turns the interface images a job
+`asset_reexport` is a standalone C++20 host tool that converts Doom 3 BFG assets into
+forms the PS2 consumes directly. Its `world` command cooks a map's render geometry into a
+**D3WD** world file ([below](#world-cook)). Its `ui` command turns the interface images a job
 file lists into paletted **GSTX** textures: PSMT8/PSMT4 index pages, shared CLUTs, RLE
 on disc, and placements that map each image's logical texels onto the pages. The format
 is documented field by field in [`assets/gstx.h`](../assets/gstx.h); the retail UI cook
@@ -128,3 +129,55 @@ not commit them.
 `make test-host` runs the library's sanitizer tests (`build/tests/asset_tests`), checks
 the target's GSTX admission against this tool's output (`build/tests/gstx_format_tests`)
 and runs Python tests that invoke the tool on synthetic containers.
+
+## World cook
+
+```sh
+make world-cook          # the authored graybox map into build/world/
+build/tools/asset_reexport world --data src/tests/data/graybox_map \
+    --job src/tests/data/graybox_map/graybox_world.json --output build/world
+```
+
+`world` reads `<data>/<map>.proc`, the text render geometry dmap writes (`mapProcFile003`,
+parsed by [`assets/proc.h`](../assets/proc.h) as strictly as id's loader would need), and
+writes `<name>.d3wd` and `<name>.report.json` to `--output`. The format is documented field
+by field in [`assets/world.h`](../assets/world.h); the design is section 6 of the
+[rendering plan](../../../docs/plans/RENDERING_ARCHITECTURE.md#6-scene-data-on-the-ps2).
+Retail maps ship binary `.bproc` files instead, which the cook does not read yet.
+
+```json
+{
+  "version": 1,
+  "map": "maps/graybox",
+  "topology": "hybrid",
+  "shading": { "light": [0.35, 0.25, 0.9], "ambient": 0.45 },
+  "default_color": [0.5, 0.5, 0.5],
+  "materials": { "textures/graybox/red": [0.8, 0.22, 0.18] }
+}
+```
+
+- `map` is the path below `--data` without `.proc`.
+- `topology` is `hybrid` (unique vertices plus a strip index stream, the default) or
+  `strips` (vertices repeated in strip order), the comparison gate R1 measures on VU1.
+- Until lightmaps exist, each vertex colour is the material's base colour (`materials`,
+  else `default_color`, each channel 0–2 with 1.0 written as the GS's 0x80) times
+  `ambient + (1 - ambient) * max(0, N.L)` for the `shading` light direction.
+
+Every `_areaN` model becomes an area of surfaces (in `.proc` order) and each surface a
+run of batches, each the VIF packet one VU1 input half receives: at most 88 unique
+vertices and 306 qwords including its two header qwords and the index stream. Batches
+follow a breadth-first walk over shared edges, so each is a compact piece of the surface,
+and greedy strips (the longest of the start triangle's three rotations) order the
+triangles. Positions are `s16` with a per-batch power-of-two step and an offset snapped
+to it, so map-grid coordinates stay exact; UVs are 4.12 around a whole-number offset,
+coarser only when a batch's range needs it. The CPU mirror keeps every source triangle on
+`s16` positions per area. Portals and area nodes are copied unchanged; other models
+(entity brush models) are counted in the report and skipped.
+
+The report records counts (areas, surfaces, batches, strips, triangles), vertices
+transformed and emitted per triangle, packet and file bytes, the largest position and UV
+quantization errors and each area's bounds. The file is re-read with the full validation
+(`ReadD3wd`, packet VIFcodes included) before it is written. `build/tests/world_tests`
+checks the parser, the strips, byte-exact round trips, corruption and, through an
+independent VIF model, that every graybox batch unpacks inside one input half and draws
+exactly its source triangles.

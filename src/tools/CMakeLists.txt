@@ -96,10 +96,12 @@ add_library(assets STATIC
     assets/json.cpp
     assets/palette.cpp
     assets/png.cpp
+    assets/proc.cpp
     assets/rect_pack.cpp
     assets/resources.cpp
     assets/rle.cpp
-    assets/texture_convert.cpp)
+    assets/texture_convert.cpp
+    assets/world.cpp)
 apply_tool_options(assets)
 target_include_directories(assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

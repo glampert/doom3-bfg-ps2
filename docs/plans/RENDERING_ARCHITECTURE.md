@@ -389,10 +389,10 @@ with NOP) exactly as the VIF consumes it, REF'd from the display list:
 ```
 batch packet (REF'd from the display list, never copied by the EE)
   STCYCL cl=1 wl=1
-  UNPACK V4-32 num=2  addr=0 +TOPS        ; qw0: pos offset xyz | flags ; qw1: pos scale, uv scale
-  UNPACK V4-8  num=I/4 addr=2 +TOPS       ; strip index stream, four u8 indices per qword
+  UNPACK V4-32 num=2  addr=0 +TOPS        ; qw0: pos offset xyz | index count ; qw1: pos scale, uv scale, uv offset st
+  UNPACK V4-8  num=I/4 addr=2 +TOPS       ; strip index stream, four u8 indices per qword (bit 7: ADC)
   STCYCL cl=S wl=1                        ; vertex stride S qwords (3 for lightmapped world)
-  UNPACK V4-16 num=N  addr=2+I/4   +TOPS  ; position xyz (s16) + w: strip restart flag
+  UNPACK V4-16 num=N  addr=2+I/4   +TOPS  ; position xyz (s16) + w: ADC flag 0x8000 (plain strips only)
   UNPACK V4-16 num=N  addr=3+I/4   +TOPS  ; uv0 (4.12) and lightmap uv (4.12)
   UNPACK V4-8  num=N  addr=4+I/4   +TOPS  ; rgba chroma (0x80 = 1.0)
   [UNPACK V3-8 num=N addr=5+I/4 +TOPS]    ; normal (lit variants)
@@ -429,6 +429,10 @@ world (50,332 triangles, 1,791 surfaces):
 The hybrid is the default: VU1 transforms each unique vertex once, then emits the GS packet
 by walking a byte index stream of strips (`lq` by index), so output traffic is the strip
 cost and input traffic the unique cost (about 1.3 emitted vertices per unique vertex).
+Each index byte names the vertex in its low 7 bits; bit 7 is the GS ADC flag, set on the
+first two entries of every strip, which close no triangle. Strip triangle `k` is
+`(k, k+1, k+2)` in id's winding for even `k` and `(k+1, k, k+2)` for odd `k`, so a later
+culling path can recover each triangle's facing.
 A better stripper (the greedy one averages three triangles per strip) improves it further.
 The simulations ran at caps of 48 to 96 vertices (2,626 to 2,094 batches); the 88 cap of
 section 7.2 lands near 2,150 batches for the whole level. Gate R1 measures the VU1 cycle cost of the index
@@ -459,6 +463,17 @@ static_assert(sizeof(BatchHeader) == 64);
 
 The level loader places every batch packet in a 64-byte-aligned DMA arena that is written
 once (then `SyncDCache`d) and never touched by the EE again. The display list only `REF`s it.
+
+Implemented in the host cook on 2026-11-04 (`src/tools/assets/world.{h,cpp}`, the `world`
+command of `asset_reexport`): D3WD v1 holds this header per batch, the packets in one
+64-byte-aligned section, the areas, surfaces, portals and nodes, and the compact CPU mirror
+(5.4); `world.h` documents every field. Positions take a per-batch power-of-two step with
+the offset snapped to it, so map-grid coordinates stay exact; UVs are 4.12 around a
+whole-number offset and coarsen only when a batch's range needs it. The packet ends with
+`ITOP N; MSCNT`, so it is independent of where the program sits in micro memory; the first
+batch after a `vu::Bind` needs the program's `MSCAL` entry once. The graybox map (two
+rooms, 1,516 triangles) cooks into 26 batches: 3.8 triangles per strip, 0.94 vertices
+transformed and 1.53 emitted per triangle, 33 KB of packets in a 53 KB file.
 
 ### 6.3 Material pass tables
 
@@ -1272,7 +1287,7 @@ retail .resources ──▶ resource catalog (later containers win)
      │
      ├─ materials (.mtr) ──▶ material compiler ──▶ pass tables (.d3mt) + texture job list
      ├─ textures (.bimage) ──▶ decode, bake cavity/gloss, palettise, mip, pack ──▶ .gstx v2
-     ├─ world (.bproc, .map, .bcm) ──▶ areas/portals/nodes copy, surface → chart → batch,
+     ├─ world (.bproc or text .proc, .map, .bcm) ──▶ areas/portals/nodes copy, surface → chart → batch,
      │        light classification, lightmap bake, chroma subdivision ──▶ .d3wd (+ .gstx lightmaps)
      ├─ static models (.blwo/.base/.bma) ──▶ batches + CPU mirror + baked vertex colour ──▶ .d3md
      ├─ skinned models (.bmd5mesh) ──▶ weight classes, joint-set sort, palettes ──▶ .d3sk
@@ -1471,11 +1486,12 @@ src/ps2/renderer/
             model_skin2.vcl model_skin4.vcl shadow_volume.vcl shadow_planar.vcl
             particles.vcl ui_2d.vcl passthrough.vcl
 src/ps2/math/ math.h vec_mat.{h,cpp}; src/ps2/qwords.h  (imported from quake2-ps2, 2026-11-03)
-src/tools/asset_reexport/ world.cpp model.cpp anim.cpp lightmap.cpp materials.cpp
-src/tools/assets/ bimage_ycocg.cpp bimage_normal.cpp gstx2.{h,cpp} stripper.{h,cpp}
+src/tools/asset_reexport/ main.cpp (ui, world) model.cpp anim.cpp lightmap.cpp materials.cpp
+src/tools/assets/ proc.{h,cpp} world.{h,cpp} (D3WD, strips; 2026-11-04) bimage_ycocg.cpp bimage_normal.cpp gstx2.{h,cpp}
                   joint_batcher.{h,cpp} lightmap_baker.{h,cpp} material_compiler.{h,cpp}
 src/external/vclpp/ (submodule, nested parse-utils)   src/external/vu-checker/ (submodule)
-src/tests/smoketests/ renderer_world_tests.cpp ...   src/tests/host/ cook_*_tests.cpp
+src/tests/smoketests/ renderer_world_tests.cpp ...   src/tests/host/ world_tests.cpp cook_*_tests.cpp
+src/tests/data/graybox_map/ (generated by src/tests/host/scripts/graybox_fixture.py)
 ```
 
 New units register in `config/sources.mk` (`RESIDENT_SUPPORT_CXX_SRC` and
@@ -1525,7 +1541,8 @@ are taken on measurements.
 Before R1 can draw, the production frame must call the game's draw path: the existing
 headless `Frame` gains a `RenderScene` step inside the presentation bracket, and `Common`
 must own a loaded map, which is M3 work in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
-R0 and R1 use the test executable's authored map until then.
+R0 and R1 use the test executable's authored map until then: the graybox map
+(`src/tests/data/graybox_map/`, two rooms with basic shapes joined by a doorway portal).
 
 ---
 
@@ -1543,6 +1560,9 @@ R0 and R1 use the test executable's authored map until then.
 | Normal maps | Cavity bake into the diffuse | Emboss; CLUT relight | Zero run-time cost; keeps detail under the baked key light |
 | Shadows | L0 baked + planar/blob; L1 flashlight texture; L2 counter stencil as stretch | Full parity | BFG's own default has no weapon-light shadows; counter cost unmeasured |
 | Chain rings (2026-11-03) | Each frame's chain starts at offset 0 of its ring; a full ring kicks, waits and restarts at 0 | A continuous ring wrapped by one NEXT tag | Two full-size rings make the wrap pointless; a restart is a counted, debuggable event and the DIRECT path keeps its drain statistic |
+| First level (2026-11-04) | An authored graybox map generated with its `.proc` (`graybox_fixture.py`) | The `headless_map` fixture's `.proc` | That one is two floor quads without walls or shapes, and its portal winding faces area 1, so the view flood would pass it from neither side; it stays as `make test-map`'s fixture |
+| Strip restarts (2026-11-04) | Bit 7 of each index byte is the GS ADC flag (first two entries of each strip); 7-bit vertex indices | A restart marker byte | The VU writes the flag straight into XYZ2, and 88 vertices fit 7 bits |
+| Batch packet tail (2026-11-04) | `ITOP N; MSCNT` in the cooked packet | `MSCAL` with a cooked address | Packets stay valid whatever the micro memory layout `vu::Init` measures |
 | Skinning | VU1 palettes of 24 joints, 40 vertices, three weight kernels | VU0 skinning streamed through SPR | Double-buffered palettes ride with the vertices; simulated duplication 1.4 to 1.6x, to be re-run at the 40 cap |
 | Lightmap density | 16 units per luxel for Q1 and Q2 (lighting report's chart measurement), 32 for Q3 | the asset report's 16/32/64 | the measured charts give 0.29 MiB at 16 u, cheap enough to keep |
 | Video materials | cooked still frames until a converted-video path exists | Bink or RoQ decode | no cinematic decoder is linked; the PDA and screens must not block the campaign |

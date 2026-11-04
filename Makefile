@@ -44,6 +44,7 @@
 #   make tools                   # audit sources and build the host tools
 #   make resource-unpack         # standalone C++20 host resource reader/extractor (CMake)
 #   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
+#   make world-cook              # cook the authored graybox map into a D3WD world file
 #   make ui-inventory            # inspect local retail UI dependencies and feature gaps
 #   make ui-cook                 # cook the ignored local retail English resource package
 #   make audit-sources           # audit explicit source lists and exclusions
@@ -70,6 +71,9 @@ UI_DATA_ROOT ?= gamedata/d3_bfg
 RETAIL_DATA_ROOT ?= $(UI_DATA_ROOT)
 UI_COOK_OUTPUT ?= build/ui-retail
 UI_RETAIL_CONFIG ?= config/ui_retail.json
+WORLD_DATA_ROOT ?= src/tests/data/graybox_map
+WORLD_COOK_JOB ?= $(WORLD_DATA_ROOT)/graybox_world.json
+WORLD_COOK_OUTPUT ?= build/world
 PYTHON ?= python3
 EE_TOOL_PREFIX ?= $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-
 
@@ -307,7 +311,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui ui-inventory ui-cook resource-unpack asset-reexport build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
+.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui ui-inventory ui-cook resource-unpack asset-reexport world-cook build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
 
 release: all
 build-platform: core-test-image
@@ -485,6 +489,9 @@ ui-inventory:
 
 ui-cook: build/tools/asset_reexport
 	$(PYTHON) $(SCRIPTS)/inventory_retail_ui.py --data-root "$(UI_DATA_ROOT)" --output "$(UI_COOK_OUTPUT)" --config "$(UI_RETAIL_CONFIG)" --cook $(if $(UI_PREVIEWS),--previews "$(UI_PREVIEWS)")
+
+world-cook: build/tools/asset_reexport
+	build/tools/asset_reexport world --data "$(WORLD_DATA_ROOT)" --job "$(WORLD_COOK_JOB)" --output "$(WORLD_COOK_OUTPUT)"
 
 stage-headless: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)
@@ -671,6 +678,11 @@ build/tests/gstx_format_tests: src/tests/host/gstx_format_tests.cpp src/ps2/ui/g
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/gstx_format_tests.cpp src/ps2/ui/gstx_format.cpp $(ASSET_LIB_SRC) -o $@
 
+# The world cook (proc reader, strips, D3WD) against the graybox fixture and synthetic grids.
+build/tests/world_tests: src/tests/host/world_tests.cpp $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/world_tests.cpp $(ASSET_LIB_SRC) -o $@
+
 HOST_HEAP_SOURCES = src/tests/smoketests/type_query_tests.cpp src/tests/smoketests/type_query_bridge.cpp src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/tests/smoketests/class_alloc_tests.cpp src/ps2/game/class_alloc.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 
 build/tests/.heap-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
@@ -753,9 +765,10 @@ build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp -o $@
 
-test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/filesystem_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/world_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/filesystem_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
 	./build/tests/asset_tests
 	./build/tests/gstx_format_tests
+	./build/tests/world_tests
 	./build/tests/swf_runtime_tests_0
 	./build/tests/swf_runtime_tests_1
 	./build/tests/swf_execution_tests

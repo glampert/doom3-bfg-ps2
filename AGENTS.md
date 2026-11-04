@@ -236,7 +236,10 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   at exact on-screen pixel sizes into a glyph-set texture (`assets/glyph_set.*`). It and
   `resource_unpack` share the `src/tools/assets/` library (resources, BIMAGE/DXT, palettes,
   packing, GSTX), meant for every later texture re-export. Output is byte-identical on any
-  host (contraction off).
+  host (contraction off). Its `world` command cooks a text `.proc` into a D3WD world file
+  (`assets/world.h`: areas, portals, nodes, VU1 batch packets, CPU mirror); `make
+  world-cook` cooks the authored graybox map, generated with its `.map`/`.proc` by
+  `src/tests/host/scripts/graybox_fixture.py` (update the generator, never the outputs).
 - `make ui-inventory` / `make ui-cook` inspect/cook the local retail shell/dialog profile
   in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
   Output must stay under `build/`. The manifest records hashes, dependencies, feature

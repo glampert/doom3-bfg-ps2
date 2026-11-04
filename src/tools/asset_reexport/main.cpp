@@ -1,7 +1,8 @@
 // ================================================================================================
 // File: main.cpp
-// Brief: Re-export retail Doom 3 BFG textures in PS2-native form. The `ui` command converts the
-// interface images a job file lists into paletted GSTX textures, with a report and previews.
+// Brief: Re-export Doom 3 BFG assets in PS2-native form. The `ui` command converts the interface
+// images a job file lists into paletted GSTX textures, with a report and previews; the `world`
+// command cooks a map's .proc render geometry into a D3WD world file and its report.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -11,8 +12,10 @@
 #include "assets/png.h"
 #include "assets/resources.h"
 #include "assets/texture_convert.h"
+#include "assets/world.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
@@ -628,13 +631,246 @@ static bool ConvertUi(const fs::path & data, const fs::path & jobPath, const fs:
     return WriteFile(output / "report.json", report.data(), report.size());
 }
 
+// ------------------------------------------------------------------------------------------------
+// World
+// ------------------------------------------------------------------------------------------------
+
+static constexpr std::size_t kMaxProcBytes = 256U * 1024U * 1024U;
+
+static bool GetColor(const JsonValue * value, std::array<float, 3> & output)
+{
+    if (value == nullptr || value->type != JsonValue::Type::Array || value->items.size() != 3)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < 3; ++index)
+    {
+        const JsonValue & item = value->items[index];
+
+        if (item.type != JsonValue::Type::Number || item.number < 0.0 || item.number > 2.0)
+        {
+            return false;
+        }
+
+        output[index] = static_cast<float>(item.number);
+    }
+
+    return true;
+}
+
+static bool ParseWorldJob(const JsonValue & root, std::string & map, WorldPolicy & policy)
+{
+    const JsonValue * version = root.Find("version");
+
+    if (root.type != JsonValue::Type::Object || version == nullptr || !version->IsInteger(1, 1))
+    {
+        return Fail("world job must be an object with version 1");
+    }
+
+    for (const std::string & key : root.keys)
+    {
+        if (key != "version" && key != "map" && key != "topology" && key != "shading" && key != "default_color" && key != "materials")
+        {
+            return Fail("unknown world job field: " + key);
+        }
+    }
+
+    const JsonValue * name = root.Find("map");
+
+    // A relative path below --data, without its extension.
+    if (name == nullptr || name->type != JsonValue::Type::String || name->text.empty() || name->text.size() > 128 ||
+        name->text.find("..") != std::string::npos || name->text.front() == '/' || name->text.find('\\') != std::string::npos)
+    {
+        return Fail("map must be a relative path without '..'");
+    }
+
+    map = name->text;
+
+    if (const JsonValue * topology = root.Find("topology"))
+    {
+        if (topology->type != JsonValue::Type::String || (topology->text != "hybrid" && topology->text != "strips"))
+        {
+            return Fail("topology must be \"hybrid\" or \"strips\"");
+        }
+
+        policy.topology = topology->text == "strips" ? WorldTopology::Strips : WorldTopology::IndexedStrips;
+    }
+
+    if (const JsonValue * shading = root.Find("shading"))
+    {
+        const JsonValue * ambient = shading->type == JsonValue::Type::Object ? shading->Find("ambient") : nullptr;
+
+        if (shading->type != JsonValue::Type::Object || shading->keys.size() != 2 || !GetColor(shading->Find("light"), policy.light) ||
+            ambient == nullptr || ambient->type != JsonValue::Type::Number || ambient->number < 0.0 || ambient->number > 1.0)
+        {
+            return Fail("shading must hold a light direction and an ambient level in [0, 1]");
+        }
+
+        policy.ambient = static_cast<float>(ambient->number);
+    }
+
+    if (root.Find("default_color") != nullptr && !GetColor(root.Find("default_color"), policy.defaultColor))
+    {
+        return Fail("default_color must be three numbers in [0, 2]");
+    }
+
+    if (const JsonValue * materials = root.Find("materials"))
+    {
+        if (materials->type != JsonValue::Type::Object)
+        {
+            return Fail("materials must map names to colours");
+        }
+
+        for (std::size_t index = 0; index < materials->keys.size(); ++index)
+        {
+            WorldMaterialColor entry;
+            entry.material = materials->keys[index];
+
+            if (!GetColor(&materials->items[index], entry.color))
+            {
+                return Fail("bad colour for material " + entry.material);
+            }
+
+            policy.colors.push_back(std::move(entry));
+        }
+    }
+
+    return true;
+}
+
+static std::string Real(float value)
+{
+    char text[32];
+    std::snprintf(text, sizeof(text), "%.6g", static_cast<double>(value));
+    return text;
+}
+
+static std::string Bounds(const WorldBounds & bounds)
+{
+    return "[" + Real(bounds.min[0]) + ", " + Real(bounds.min[1]) + ", " + Real(bounds.min[2]) + ", " + Real(bounds.max[0]) + ", " +
+           Real(bounds.max[1]) + ", " + Real(bounds.max[2]) + "]";
+}
+
+static std::string Ratio(std::size_t numerator, std::size_t denominator)
+{
+    return Number(denominator == 0 ? 0.0 : static_cast<double>(numerator) / static_cast<double>(denominator));
+}
+
+static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const fs::path & output)
+{
+    std::string jobText;
+    JsonValue root;
+    std::string error;
+    std::string map;
+    WorldPolicy policy;
+
+    if (!ReadFile(jobPath, kMaxJobBytes, jobText))
+    {
+        return false;
+    }
+
+    if (!ParseJson(jobText, root, error))
+    {
+        return Fail(jobPath.string() + ": " + error);
+    }
+
+    if (!ParseWorldJob(root, map, policy))
+    {
+        return false;
+    }
+
+    const fs::path procPath = data / (map + ".proc");
+    std::string procText;
+    ProcFile proc;
+
+    if (!ReadFile(procPath, kMaxProcBytes, procText))
+    {
+        return false;
+    }
+
+    if (!ParseProc(procText, proc, error))
+    {
+        return Fail(procPath.string() + ": " + error);
+    }
+
+    World world;
+    WorldCookStats stats;
+    std::vector<std::uint8_t> file;
+    World check;
+
+    if (!CookWorld(proc, policy, world, stats, error) || !WriteD3wd(world, file, error))
+    {
+        return Fail(procPath.string() + ": " + error);
+    }
+
+    // The target admits exactly what the reader admits; never publish a file it would refuse.
+    if (!ReadD3wd(file, check, error))
+    {
+        return Fail("cooked world fails validation: " + error);
+    }
+
+    std::error_code status;
+    fs::create_directories(output, status);
+
+    if (status)
+    {
+        return Fail("cannot create " + output.string());
+    }
+
+    const std::string stem = fs::path(map).filename().string();
+
+    if (!WriteFile(output / (stem + ".d3wd"), file.data(), file.size()))
+    {
+        return false;
+    }
+
+    std::string report = "{\n  \"map\": " + JsonString(map) + ",\n  \"topology\": \"" +
+                         (policy.topology == WorldTopology::Strips ? std::string("strips") : std::string("hybrid")) + "\",\n";
+    report += "  \"areas\": " + std::to_string(world.areas.size()) + ",\n  \"surfaces\": " + std::to_string(world.surfaces.size()) +
+              ",\n  \"materials\": " + std::to_string(world.materials.size()) + ",\n  \"portals\": " + std::to_string(world.portals.size()) +
+              ",\n  \"nodes\": " + std::to_string(world.nodes.size()) + ",\n  \"skipped_models\": " + std::to_string(stats.skippedModels) +
+              ",\n  \"triangles\": " + std::to_string(stats.triangles) + ",\n  \"batches\": " + std::to_string(stats.batches) +
+              ",\n  \"strips\": " + std::to_string(stats.strips) + ",\n  \"transformed_vertices\": " + std::to_string(stats.transformedVertices) +
+              ",\n  \"emitted_vertices\": " + std::to_string(stats.emittedVertices) +
+              ",\n  \"triangles_per_strip\": " + Ratio(stats.triangles, stats.strips) +
+              ",\n  \"transformed_per_triangle\": " + Ratio(stats.transformedVertices, stats.triangles) +
+              ",\n  \"emitted_per_triangle\": " + Ratio(stats.emittedVertices, stats.triangles) +
+              ",\n  \"triangles_per_batch\": " + Ratio(stats.triangles, stats.batches) +
+              ",\n  \"packet_bytes\": " + std::to_string(stats.packetBytes) + ",\n  \"file_bytes\": " + std::to_string(file.size()) +
+              ",\n  \"max_position_error\": " + Real(stats.maxPositionError) + ",\n  \"max_uv_error\": " + Real(stats.maxUvError) +
+              ",\n  \"area_list\": [";
+
+    for (std::size_t index = 0; index < world.areas.size(); ++index)
+    {
+        const WorldArea & area = world.areas[index];
+        std::size_t triangles = 0;
+
+        for (std::uint32_t surface = area.firstSurface; surface < area.firstSurface + area.surfaceCount; ++surface)
+        {
+            triangles += world.surfaces[surface].indexCount / 3;
+        }
+
+        report += std::string(index == 0 ? "" : ",") + "\n    { \"surfaces\": " + std::to_string(area.surfaceCount) + ", \"batches\": " +
+                  std::to_string(area.batchCount) + ", \"triangles\": " + std::to_string(triangles) + ", \"bounds\": " + Bounds(area.bounds) + " }";
+    }
+
+    report += "\n  ]\n}\n";
+    std::cout << stem << ".d3wd: " << world.areas.size() << " areas, " << stats.triangles << " triangles in " << stats.batches << " batches, "
+              << file.size() << " bytes\n";
+    return WriteFile(output / (stem + ".report.json"), report.data(), report.size());
+}
+
 static void Usage()
 {
     std::cout << "Usage: asset_reexport ui --data DIR --job FILE.json --output DIR [--previews DIR]\n"
-                 "Converts the retail interface textures a job lists into paletted GSTX files.\n"
+                 "       asset_reexport world --data DIR --job FILE.json --output DIR\n"
+                 "ui converts the retail interface textures a job lists into paletted GSTX files.\n"
                  "--data names the retail installation holding the job's .resources containers.\n"
                  "--output receives one file per texture and report.json; existing files are replaced.\n"
-                 "--previews also writes <output>.original.png and <output>.converted.png per texture.\n";
+                 "--previews also writes <output>.original.png and <output>.converted.png per texture.\n"
+                 "world cooks <data>/<map>.proc, the map the job names, into <output>/<name>.d3wd and\n"
+                 "<name>.report.json.\n";
 }
 
 static int Run(int argc, char ** argv)
@@ -645,9 +881,11 @@ static int Run(int argc, char ** argv)
         return argc < 2 ? 2 : 0;
     }
 
-    if (std::string(argv[1]) != "ui")
+    const std::string command(argv[1]);
+
+    if (command != "ui" && command != "world")
     {
-        Fail("unknown command: " + std::string(argv[1]));
+        Fail("unknown command: " + command);
         return 2;
     }
 
@@ -659,11 +897,11 @@ static int Run(int argc, char ** argv)
     for (int index = 2; index < argc; ++index)
     {
         const std::string argument(argv[index]);
-        fs::path * target = argument == "--data"       ? &data
-                            : argument == "--job"      ? &job
-                            : argument == "--output"   ? &output
-                            : argument == "--previews" ? &previews
-                                                       : nullptr;
+        fs::path * target = argument == "--data"                         ? &data
+                            : argument == "--job"                        ? &job
+                            : argument == "--output"                     ? &output
+                            : argument == "--previews" && command == "ui" ? &previews
+                                                                         : nullptr;
 
         if (target == nullptr || index + 1 >= argc || !target->empty())
         {
@@ -678,6 +916,11 @@ static int Run(int argc, char ** argv)
     {
         Usage();
         return 2;
+    }
+
+    if (command == "world")
+    {
+        return CookWorldFile(data, job, output) ? 0 : 1;
     }
 
     return ConvertUi(data, job, output, previews) ? 0 : 1;
