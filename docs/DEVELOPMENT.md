@@ -228,6 +228,59 @@ suppressions and the narrow system-header treatment of upstream contracts are li
 in the build inventory. Format, array bounds and uninitialized-value warnings remain
 visible. A host runtime test does not replace the EE compile/link check.
 
+## Third-party dependencies
+
+- Imported third-party dependencies live in `src/external/`: `dlmalloc` and the VU tool
+  submodules below.
+  No JPEG or zlib is linked: images arrive converted by the asset pipeline, ZIP files are
+  unsupported, and source-SWF inflation and pipelined save compression fail by name.
+  Compressed resource packs will import `src/external/miniz`, whose zlib-compatible API
+  can then restore save compression.
+  The VU tool dependencies are pinned submodules: `src/external/vclpp` (with its nested
+  `external/parse-utils`) and `src/external/vu-checker`, at the commits quake2-ps2 uses
+  (`git submodule update --init --recursive` after cloning). `make` builds the pinned vclpp
+  into `build/tools/vclpp` with `HOST_CXX` (never a copy on `PATH`) and assembles the
+  programs in `config/sources.mk`'s `VCL_FILES` (`src/ps2/renderer/vu1progs/`) into
+  `build/vu/` through the quake2-ps2 rule; `ps2/renderer/vu.h` declares their symbols.
+
+## Host tools, source groups and link policy
+
+- `make resource-unpack` builds the standalone C++20 host extractor at
+  `build/tools/resource_unpack`, using the native resource layout without engine/SDK
+  linkage. The host tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`, which owns
+  their flags on every host (MSVC included); make configures it into `build/tools/cmake/`
+  and starts that tree afresh when `HOST_CXX` changes. `--list` validates metadata;
+  `--output DIR` streams a merged directory tree, with later input containers/records
+  winning. Existing files require `--overwrite`. Keep retail output ignored.
+  `make test-host` exercises its separate sanitizer build; this host-only tool does not
+  change native asset providers or boot capability.
+- `make asset-reexport` builds `build/tools/asset_reexport`, the C++20 converter of retail
+  textures to paletted GSTX (`src/tools/assets/gstx.h`): PSMT8/PSMT4 pages, shared CLUTs,
+  RLE and placements mapping each image's logical texels. It also renders a font's glyphs
+  at exact on-screen pixel sizes into a glyph-set texture (`assets/glyph_set.*`). It and
+  `resource_unpack` share the `src/tools/assets/` library (resources, BIMAGE/DXT, palettes,
+  packing, GSTX), meant for every later texture re-export. Output is byte-identical on any
+  host (contraction off). Its `world` command cooks a text `.proc` into a D3WD world file
+  (`assets/world.h`: areas, portals, nodes, VU1 batch packets, CPU mirror); `make
+  world-cook` cooks the authored graybox map, generated with its `.map`/`.proc` by
+  `src/tests/host/scripts/graybox_fixture.py` (update the generator, never the outputs).
+- `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
+  Test them with `#if`, never `#ifdef` (`-Wundef` is on).
+- Source lists in `config/sources.mk` are explicit and audited. Register new backend
+  files in `PS2_CXX_SRC` or the relevant core group; cold sources also go in
+  `SIZE_OPT_CXX_SRC`. Both configurations build at `-O2`; id's load/init/command-time
+  sources listed in `ENGINE_SIZE_OPT_CXX_SRC` build at `-Os` (`-Oz` is identical on the EE). Run `make compiledb` after changing source lists. Flag stamps
+  invalidate affected object groups automatically.
+- `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly into
+  production; `RESIDENT_SUPPORT_CXX_SRC` supplies strict shared providers;
+  `PS2_CXX_SRC` owns production entry, `CORE_TEST_DRIVER_CXX_SRC` and `GAME_TEST_CXX_SRC`
+  own test entries/adapters. `PLATFORM_TEST_CXX_SRC` supplies the SDK-only core-stage
+  skip provider. Make selects test stages through source lists; `PS2_D3BFG_TESTS` is
+  the sole test-enable define. Keep fixture hooks behind it and separate
+  campaign/test object trees. The production link rejects test inputs and symbols. The source
+  inventory records the deleted upstream JPEG/zlib trees, whose units id's project files
+  still name.
+
 ## Foundation test boundary
 
 The separate foundation test executable links every selected scalar idlib object

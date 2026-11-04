@@ -145,3 +145,35 @@ Detailed acceptance for `make test-game` and `make test-map` on the game test im
 - Debug/release final map runs on 2026-10-11:
   `20261011T085646Z_smoke_00b8de4c38964b7c` /
   `20261011T085653Z_smoke_ff579fc1a6344ce1`. Current memory evidence is in PORT_STATUS.
+
+## Test image overview
+
+Summary of the core and game test images, the production link gate and the game/map gates.
+
+- `make build-core` links staged foundation startup/tests as
+  `build/<config>/tests/core/d3bfg_tests.elf`; production links no test code.
+  `make test-common` checks partial shutdown and expected failures in fresh emulator
+  processes (`make test-renderer` runs the GS failure probes); Common startup is one-shot after static CVar registration.
+  The production `make` link validates the retained objects, registrations and map
+  coverage under `build/<config>/` with a whole-object gate link (no GC); only then is
+  the runnable relinked with `--gc-sections` (every object has function/data sections)
+  and stripped of `.pdr`/`.comment`. Release dev `CONSOLE_COMMAND`s compile out as in
+  id's retail builds, and `AddCommand` registrations of developer commands are debug-only;
+  release keeps config, binding, map/save/quit and `ps2_*` test commands. `AddCommand`
+  descriptions go through `CMD_DESC`, empty on the PS2. `make build-game` separately builds
+  `build/<config>/tests/game/d3bfg_tests.elf`;
+  `make test-game` checks native startup, entity/script ticks, bounded native `idPlayer`
+  startup/commands and reloads, plus missing-map, script-error, restricted geometry/material
+  and player spawn/script/command/state failures in fresh emulator processes.
+  Fixed floor/wall/low-roof/step collision and native physics wall-stop, gravity, floor-rest and
+  grounded-sliding probes are covered, along with native player physics driven by
+  explicitly injected user commands, including jumping/landing, jump release and
+  crouch/standing collision shapes. The native `idPlayer` also covers jump/crouch
+  commands, crouch speed/view interpolation, authored actor-state transitions,
+  low-ceiling passage, blocked standing restoration and bounded step-up/high-rise blocking;
+  `make test-map` uses native `InitFromNewMap` with one authored floor, logical
+  world/model/PVS queries, AAS routing and one idle native AI over three 60-frame
+  reloads. Rendering and playback stay inactive; a native empty sound world provides
+  startup bookkeeping. Full campaign player startup, animated AI and general campaign
+  maps remain later gates. Preserve headless simulation while the selected 2D renderer/
+  console/menu roadmap progresses; sound and world rendering follow later.

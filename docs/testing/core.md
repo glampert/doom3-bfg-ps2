@@ -215,3 +215,42 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   The default runnable ELF is the production Common loop; the runner uses only test images.
   Nine host regressions reject test inputs/headers/symbols, stale images, nonzero links, missing registrations/map
   inputs, non-executables and ignored undefined diagnostics.
+
+## Renderer and 2D path overview
+
+Summary of `make test-renderer` and the native 2D path it covers.
+
+- `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
+  NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
+  native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
+  RGB/alpha, additive color, screen and line passes and the depth mask, context flips,
+  residency/buffer pressure,
+  reload/cleanup, the cooked graybox world (`make world-cook`) drawn through `world_lm.vcl` from
+  four cameras with near-plane and guard band clipping, and, in assertion builds, seventeen
+  bounds/state/deadline failures. `make run-renderer` captures
+  and holds the NTSC scene for inspection.
+  Production optionally presents the real native console and the retail screens and menu
+  through Common. `ui::Init/Shutdown` explicitly own
+  native 2D capability and the white intrinsic after/before the caller-owned `renderer`
+  device; the console charset comes from the retail catalog in production and from the
+  generated fixture (`tests/smoketests/console_charset.*`) in the core test image. Low-level GS
+  readiness alone never changes `R_IsInitialized`, and OpenGL stays unavailable.
+  UI collection owns 4,096 vertices, 6,144 indices and 128 ordered draw runs. Fill returned
+  write-only spans before the next allocation/draw; flushing or ending a frame recycles
+  them. Native vertex-cache/static/joint buffers remain unavailable. Half UVs are decoded
+  from checked bits, and `color2` requires exactly 128 in all four channels outside the
+  scoped native SWF path, which decodes RGB color terms (127 and 128 are zero) into a
+  fog-colored second pass; additive alpha terms stay unavailable. Native SWF blend 8 maps
+  to alpha-weighted GS addition and blend 4 to the PC's `Cd + Cd × S`, one channel per pass
+  with channel CLUTs; ordinary ONE/ONE state outside that scope stays unavailable. Line
+  records draw as GS lines. Native SWF masks collect at most 64 fill triangles into one
+  convex boundary of at most 16 points, with four active keyed masks clipped on the CPU;
+  any other mask (concave, holed, disconnected, stroked, up to 256 triangles) is written to
+  the depth buffer, one at a time. Flush before every mask mutation; empty masks clip all
+  content. Every primitive writes TEST with ZTE 1, as the GS manual requires.
+  Native `idImage` keeps logical atlas dimensions while SWF bitmap and font triangles
+  dispatch through the image's resident paletted pages. Images remain warm across movie
+  unload/reload. Shut down movies before fonts and release images before the device.
+  The device owns tagged command halves/pixels and uses `draw`, `graph`, `packet2`, `dma`.
+  Preserve VIF/GIF ownership and immediate final presentation; packet preflight and wait
+  deadlines are assertion-build checks.

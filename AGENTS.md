@@ -32,16 +32,23 @@ brace conditional bodies and expand blocks across multiple lines, including shor
 functions. Leave a blank line after a completed block before the next independent
 statement or block; keep the code visually spaced rather than densely packed.
 
-[IMPLEMENTATION_PLAN.md](docs/plans/IMPLEMENTATION_PLAN.md) describes the proposed milestones and
-source changes; [docs/plans/RENDERING_ARCHITECTURE.md](docs/plans/RENDERING_ARCHITECTURE.md)
-is the 3D rendering architecture plan (frame pipeline, VU1 programs, seam, lighting, shadows,
-skinning, asset re-export, budgets and milestones), with its step-by-step
-[RENDERING_TODO.md](docs/plans/RENDERING_TODO.md); all plans live under `docs/plans/`. [README.md](README.md) records current project status; expand it as the
-port develops. [AGENT_HANDOVER.md](docs/AGENT_HANDOVER.md) is the current continuation guide.
-[CVARS.md](docs/CVARS.md) lists implemented backend cvars; add each one with
-its debug/release defaults and flags when it exists in code. The files in
-[.claude/rules/](.claude/rules/) include Quake II PS2 reference notes. Their Quake source
-paths, test results and runtime behavior are not yet Doom 3 implementation facts.
+## Where things are written down
+
+- [README.md](README.md): current project status; expand it as the port develops.
+- [docs/AGENT_HANDOVER.md](docs/AGENT_HANDOVER.md): the current continuation guide.
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): toolchain, host tools, packages and their
+  HostFs controls, source groups and link policy.
+- [docs/testing/](docs/testing/): each gate's acceptance ([core.md](docs/testing/core.md),
+  [production.md](docs/testing/production.md), [game.md](docs/testing/game.md)).
+- [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md): the retail UI cook, catalog,
+  glyph sets and the movie admissions.
+- [docs/plans/](docs/plans/): [IMPLEMENTATION_PLAN.md](docs/plans/IMPLEMENTATION_PLAN.md)
+  (milestones), [RENDERING_ARCHITECTURE.md](docs/plans/RENDERING_ARCHITECTURE.md) (3D
+  rendering) and its step-by-step [RENDERING_TODO.md](docs/plans/RENDERING_TODO.md).
+- [docs/CVARS.md](docs/CVARS.md): implemented backend cvars; add each one with its
+  debug/release defaults and flags when it exists in code.
+- [.claude/rules/](.claude/rules/) (index below) includes Quake II PS2 reference notes. Their
+  Quake source paths, test results and runtime behavior are not yet Doom 3 implementation facts.
 
 ## Toolchain
 
@@ -50,245 +57,41 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
 - `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
   SDK's C sources, for checking what a library really does, are under
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
-- Imported third-party dependencies live in `src/external/`: `dlmalloc` and the VU tool
-  submodules below.
-  No JPEG or zlib is linked: images arrive converted by the asset pipeline, ZIP files are
-  unsupported, and source-SWF inflation and pipelined save compression fail by name.
-  Compressed resource packs will import `src/external/miniz`, whose zlib-compatible API
-  can then restore save compression.
-  The VU tool dependencies are pinned submodules: `src/external/vclpp` (with its nested
-  `external/parse-utils`) and `src/external/vu-checker`, at the commits quake2-ps2 uses
-  (`git submodule update --init --recursive` after cloning). `make` builds the pinned vclpp
-  into `build/tools/vclpp` with `HOST_CXX` (never a copy on `PATH`) and assembles the
-  programs in `config/sources.mk`'s `VCL_FILES` (`src/ps2/renderer/vu1progs/`) into
-  `build/vu/` through the quake2-ps2 rule; `ps2/renderer/vu.h` declares their symbols.
+- Third-party code lives in `src/external/`: `dlmalloc` and the pinned VU tool submodules
+  `vclpp` (with nested `parse-utils`) and `vu-checker` (`git submodule update --init
+  --recursive` after cloning). `make` builds vclpp into `build/tools/vclpp` with `HOST_CXX`
+  (never a copy on `PATH`) and the `VCL_FILES` programs into `build/vu/`. No JPEG or zlib is
+  linked; see [DEVELOPMENT.md](docs/DEVELOPMENT.md#third-party-dependencies).
 
 ## Build and verify
 
-- `make` compiles and links the production native console with the real EE compiler.
-  `make release` selects release; the artifacts are `build/<config>/d3bfg.elf` and
-  matching `d3bfg_unstripped.elf`, map and resident `report.{json,txt}`. The active Makefile owns the Doom source lists; the historical copied Quake II
-  Makefile was removed. Use the external Quake II checkout for build comparisons.
-- `make stage-headless` packages production with authored data under `build/<config>/headless/`;
-  `make run` / `make run-headless` launch it. The native game stays in `NOMAP` while Common
-  pumps console commands and native frames. `console.txt` accepts append-only lines via
-  HostFs; `ps2_maxFrames=0` runs until quit. `make test-headless` checks 120 frames,
-  live command input and full shutdown without linking fixtures into production.
-  `make stage-headless-retail` / `make run-headless-retail` stage/run the same ELF with the local retail
-  `_common`/`_ordered` containers hard-linked from `RETAIL_DATA_ROOT` (symlinks are not
-  listed). `make test-headless-retail` checks every retail declaration and the full
-  `doom_main.script` reaching `NOMAP`, and records the tagged `[D3BFG] MEMORY startup-*`
-  ledgers production prints after foundation, declaration and game startup.
-  `make stage-console` / `make run-console` stage/run the same ELF visibly under
-  `build/<config>/console/`; `CONSOLE_STANDARD=ntsc` (default) or `pal` selects the mode. A PAL
-  presentation sets `com_engineHz` 50 at startup (two ticks per 40 ms frame).
-  Every visible package also stages the cooked retail catalog and assets from
-  `UI_COOK_OUTPUT` (run `make ui-cook` first): the presentation opens the catalog at
-  startup and the console draws the original `textures/bigchars` charset from it.
-  Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` before Common startup;
-  a missing file defaults to headless, and `ntsc menu`/`pal menu` also open the native
-  menu at startup. The console step of `make test-ui` checks native console drawing,
-  edit/history events and close/reopen in both standards.
-  HostFs `ps2_consoleText`, `ps2_consoleKey` and `ps2_capture` are visible-mode controls.
-  Common frames own exactly one native console presentation; `UpdateScreen` coalesces
-  redraw requests during a frame and never advances simulation. Finish queued capture
-  and final presentation before UI/device shutdown; visible vsync adds no headless sleep.
-  Every native movie is a retail resource: `idSWF::LoadBinary` refuses any other movie
-  by name. The placeholder authored SWF and its streamed UIPG pages that brought the
-  native SWF up were removed on 2026-10-29; their BSWF and font remain host-test
-  stand-ins only (`src/tests/data/ui/`, generated by `src/tests/host/scripts/swf_fixture.py`).
-  `make stage-ui-fonts` / `make run-ui-fonts` stage/run the opt-in English retail font
-  screen from the local `make ui-cook` output, using `CONSOLE_STANDARD` and `BUILD`.
-  The font step of `make test-ui` checks five real native fonts at 12/24/48-point scales,
-  full legacy layout metrics, source-derived pixels, 120 frames per family and
-  return/reload; five corrupt-resource cases run in fresh processes. HostFs `ps2_uiRetail`
-  accepts load/unload/reload/status or `font INDEX` (0–4). Retail images stay warm after
-  their screens unload, under one 2 MiB texture budget. No retail SWF or Shell is
-  loaded by that font-only mode. The separate movie profile below admits bounded
-  dictionaries, English text and timeline execution; full drawing and offline Shell
-  integration remain pending.
-  `make stage-ui-movies` / `make run-ui-movies` stage/run original shell/dialog BSWFs
-  and the complete English dictionary under `build/<config>/ui-movies/`.
-  `ps2_uiRetail movie shell|dialog|none` selects inactive native dictionaries and
-  isolated English text layout. The session's inactive step checks native storage/layout,
-  warm reloads and resident textures; malformed resources fail in fresh processes.
-  Resource-only constructors never run imported AVM1/placements; inactive inspection
-  rejects Activate (and, in assertion builds, timeline advancement); only the native menu
-  admits key events. Native
-  dictionary shutdown releases retained localization keys/pools after movies/fonts.
-  `ps2_uiRetail execute shell|dialog` separately admits placement/AVM1 operands and
-  executes native timelines before presentation, without full movie drawing or event routing.
-  The shell borrows a minimal native widget owner: the original carousel has five slots
-  with only the admitted Doom 3 cover, and the original Credits screen owns its callback.
-  Assertion builds check callback identity, signatures, destructive ancestor seeks and the
-  script work budgets; release builds trust the load-time preflight and only count work.
-  The session's execution step checks executable movies. `ps2_uiRetail dialog quit` draws the
-  original dialog in full through native `Render`, showing Common's quit message, and
-  `ps2_uiRetail draw shell` draws the original shell's start screen; full drawing is a
-  third admission, refusing only additive alpha terms. `ps2_uiRetail logo on|off` plays the
-  native shell's logo transition and `ps2_uiRetail clock fixed` advances executing movies
-  1/60 s per Common frame. The session's dialog and shell steps check them.
-  `ps2_uiRetail menu` opens the menu through the native `idMenuHandler_Shell`
-  (start, root and credits screens bound; PS3 platform layout). Common routes events the
-  console leaves to it, as `MenuEvent` does; key events are a fourth
-  admission, and each native handler a key reaches must be a widget event of the menu's
-  own live widgets. `ps2_uiRetail key NAME` posts a keyboard key (enter, escape, arrows)
-  or pad button (cross, circle, dpad_*) through the event loop: accept signs in and shows
-  the root screen, the arrows move its focus and back returns to press-start. The
-  Campaign (New Game, Load Game; no save to continue) and Settings (Controls, Game
-  Options, System) screens open from the root and return to it; a move into any screen
-  below them fails by name. The menu also initializes Common's
-  dialog manager, which opens the admitted dialog movie inactive beside the shell (retail
-  admission is per movie): the root's Quit shows the native confirmation, an active dialog
-  takes events first, its choices are pinned by identity, and accept quits through
-  Common. `make stage-ui-menu` / `make run-ui-menu` stage/run a package whose policy
-  boots into the menu, before the startup commands, on real time. `make test-ui` runs
-  every UI screen in few launches: one session per standard boots such a package into
-  the menu and drives, step by step, the console, the fonts, inactive and executing
-  movies, the drawn dialog and shell, the menu's reloads, the Campaign and Settings
-  screens and last the quit dialog, whose accept ends the session. Each step is checked on
-  its slice of the log between echo barriers; images earlier steps opened stay warm in
-  later steps' counters. Each invalid-resource case (5 font, 13 movie) runs in its own
-  process; release skips the two movie cases that fail at run time (budget, native alias).
-  Retail text draws pad button tags (`<JOY1>`) as the cooked PS3 prompt art, which a
-  drawn movie loads when admitted. A visible package also brings up the DualShock pad
-  (the ROM's SIO2MAN/PADMAN through libpad) and a debug USB keyboard (usbd and ps2kbd,
-  staged from the SDK under `irx/`), both posting key events into Common's queue: cross
-  is `K_JOY1`, the keyboard's grave key toggles the console and typed characters reach its
-  edit field. The idle keyboard is read every 250 ms, every frame only while in use. Converted pages stay resident: a debug PCSX2 frame
-  takes about 60 ms for the dialog and 100–140 ms for the shell on the fixed clock. The
-  screens below Campaign and Settings, dynamic resources and artwork residency remain
-  pending.
-- `make test-renderer` checks the CPU-only GS device in the separate core test ELF:
-  NTSC/PAL solid/textured alpha frames, native TGA pixels and timeout recovery,
-  native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
-  RGB/alpha, additive color, screen and line passes and the depth mask, context flips,
-  residency/buffer pressure,
-  reload/cleanup, the cooked graybox world (`make world-cook`) drawn through `world_lm.vcl` from
-  four cameras with near-plane and guard band clipping, and, in assertion builds, seventeen
-  bounds/state/deadline failures. `make run-renderer` captures
-  and holds the NTSC scene for inspection.
-  Production optionally presents the real native console and the retail screens and menu
-  through Common. `ui::Init/Shutdown` explicitly own
-  native 2D capability and the white intrinsic after/before the caller-owned `renderer`
-  device; the console charset comes from the retail catalog in production and from the
-  generated fixture (`tests/smoketests/console_charset.*`) in the core test image. Low-level GS
-  readiness alone never changes `R_IsInitialized`, and OpenGL stays unavailable.
-  UI collection owns 4,096 vertices, 6,144 indices and 128 ordered draw runs. Fill returned
-  write-only spans before the next allocation/draw; flushing or ending a frame recycles
-  them. Native vertex-cache/static/joint buffers remain unavailable. Half UVs are decoded
-  from checked bits, and `color2` requires exactly 128 in all four channels outside the
-  scoped native SWF path, which decodes RGB color terms (127 and 128 are zero) into a
-  fog-colored second pass; additive alpha terms stay unavailable. Native SWF blend 8 maps
-  to alpha-weighted GS addition and blend 4 to the PC's `Cd + Cd × S`, one channel per pass
-  with channel CLUTs; ordinary ONE/ONE state outside that scope stays unavailable. Line
-  records draw as GS lines. Native SWF masks collect at most 64 fill triangles into one
-  convex boundary of at most 16 points, with four active keyed masks clipped on the CPU;
-  any other mask (concave, holed, disconnected, stroked, up to 256 triangles) is written to
-  the depth buffer, one at a time. Flush before every mask mutation; empty masks clip all
-  content. Every primitive writes TEST with ZTE 1, as the GS manual requires.
-  Native `idImage` keeps logical atlas dimensions while SWF bitmap and font triangles
-  dispatch through the image's resident paletted pages. Images remain warm across movie
-  unload/reload. Shut down movies before fonts and release images before the device.
-  The device owns tagged command halves/pixels and uses `draw`, `graph`, `packet2`, `dma`.
-  Preserve VIF/GIF ownership and immediate final presentation; packet preflight and wait
-  deadlines are assertion-build checks.
-- `make build-core` links staged foundation startup/tests as
-  `build/<config>/tests/core/d3bfg_tests.elf`; production links no test code.
-  `make test-common` checks partial shutdown and expected failures in fresh emulator
-  processes (`make test-renderer` runs the GS failure probes); Common startup is one-shot after static CVar registration.
-  The production `make` link validates the retained objects, registrations and map
-  coverage under `build/<config>/` with a whole-object gate link (no GC); only then is
-  the runnable relinked with `--gc-sections` (every object has function/data sections)
-  and stripped of `.pdr`/`.comment`. Release dev `CONSOLE_COMMAND`s compile out as in
-  id's retail builds, and `AddCommand` registrations of developer commands are debug-only;
-  release keeps config, binding, map/save/quit and `ps2_*` test commands. `AddCommand`
-  descriptions go through `CMD_DESC`, empty on the PS2. `make build-game` separately builds
-  `build/<config>/tests/game/d3bfg_tests.elf`;
-  `make test-game` checks native startup, entity/script ticks, bounded native `idPlayer`
-  startup/commands and reloads, plus missing-map, script-error, restricted geometry/material
-  and player spawn/script/command/state failures in fresh emulator processes.
-  Fixed floor/wall/low-roof/step collision and native physics wall-stop, gravity, floor-rest and
-  grounded-sliding probes are covered, along with native player physics driven by
-  explicitly injected user commands, including jumping/landing, jump release and
-  crouch/standing collision shapes. The native `idPlayer` also covers jump/crouch
-  commands, crouch speed/view interpolation, authored actor-state transitions,
-  low-ceiling passage, blocked standing restoration and bounded step-up/high-rise blocking;
-  `make test-map` uses native `InitFromNewMap` with one authored floor, logical
-  world/model/PVS queries, AAS routing and one idle native AI over three 60-frame
-  reloads. Rendering and playback stay inactive; a native empty sound world provides
-  startup bookkeeping. Full campaign player startup, animated AI and general campaign
-  maps remain later gates. Preserve headless simulation while the selected 2D renderer/
-  console/menu roadmap progresses; sound and world rendering follow later.
-- New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
-  documented in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests
-  cannot replace target compilation. Check Make's exit status, including VU tool failures.
-- `make resource-unpack` builds the standalone C++20 host extractor at
-  `build/tools/resource_unpack`, using the native resource layout without engine/SDK
-  linkage. The host tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`, which owns
-  their flags on every host (MSVC included); make configures it into `build/tools/cmake/`
-  and starts that tree afresh when `HOST_CXX` changes. `--list` validates metadata;
-  `--output DIR` streams a merged directory tree, with later input containers/records
-  winning. Existing files require `--overwrite`. Keep retail output ignored.
-  `make test-host` exercises its separate sanitizer build; this host-only tool does not
-  change native asset providers or boot capability.
-- `make asset-reexport` builds `build/tools/asset_reexport`, the C++20 converter of retail
-  textures to paletted GSTX (`src/tools/assets/gstx.h`): PSMT8/PSMT4 pages, shared CLUTs,
-  RLE and placements mapping each image's logical texels. It also renders a font's glyphs
-  at exact on-screen pixel sizes into a glyph-set texture (`assets/glyph_set.*`). It and
-  `resource_unpack` share the `src/tools/assets/` library (resources, BIMAGE/DXT, palettes,
-  packing, GSTX), meant for every later texture re-export. Output is byte-identical on any
-  host (contraction off). Its `world` command cooks a text `.proc` into a D3WD world file
-  (`assets/world.h`: areas, portals, nodes, VU1 batch packets, CPU mirror); `make
-  world-cook` cooks the authored graybox map, generated with its `.map`/`.proc` by
-  `src/tests/host/scripts/graybox_fixture.py` (update the generator, never the outputs).
-- `make ui-inventory` / `make ui-cook` inspect/cook the local retail shell/dialog profile
-  in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
-  Output must stay under `build/`. The manifest records hashes, dependencies, feature
-  gaps, full English font/language data and the converted GSTX runtime images; the
-  profile's conversion policy (first pass: everything halved, 16-level English-only
-  font glyphs; `texture_policies` keeps the console charset at full resolution) drives
-  `asset_reexport`, and `UI_PREVIEWS=DIR` adds original/converted
-  PNGs for a visual review. Initial UI localization supports English only. The cook also
-  emits a bounded UICT4
-  resource index carrying each texture's GSTX header and tables and each glyph set's
-  table. Native snapshots validate its offsets/paths/English records and font counts
-  before legacy parsing; constant UI material stages are generated from admitted
-  bindings. A retail `PalettedImage` admits exactly the cataloged file, checks every
-  CLUT and page while loading and keeps them resident in the texture owner; a triangle
-  samples the placement holding its UV centroid, region-clamped. The profile's
-  `glyph_sets` list sizes (pixels per atlas texel, outline weight) whose glyphs and
-  outlines are pre-rendered; a tagged `RenderEditText` hook draws them texel for texel
-  at the native layout position, keeps native quads for any other size and logs each
-  such size once (`UI glyph size ... prerendered=no`). The dialog's and the shell start
-  screen's sizes are cooked (Sarasori and Arial Narrow, in each standard). A set image
-  holds one 1:1 band placement per page; each catalog entry carries its glyph's rectangle.
-  `runtime_ready=false` is intentional: the shell's later screens, additive alpha terms,
-  active artwork residency and offline Shell integration remain later gates. Scoped
-  dictionary/text/timeline admission exists. See
-  [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md).
+- `make` / `make release` build production: `build/<config>/d3bfg.elf`, matching
+  `d3bfg_unstripped.elf`, map and resident `report.{json,txt}`. Production links no test code.
+  Check Make's exit status, including VU tool failures.
+- Test images are built explicitly (`make build-core`, `build-platform`, `build-game`,
+  `build-script`). Gates: `test-host`, `test-renderer`, `test-common`, `test-game`,
+  `test-map`, `test-headless`, `test-headless-retail` and `test-ui` (about 8 minutes per
+  standard). Their acceptance is in `docs/testing/`.
+- `make stage-*` / `run-*` package the same ELF under `build/<config>/<package>/`.
+  Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` (`menu` also opens the
+  native menu); HostFs `console.txt` takes appended commands. Visible packages need
+  `make ui-cook` first. Retail data stays under ignored `build/`.
+- Host tools are the CMake project `src/tools/CMakeLists.txt` (`make resource-unpack`,
+  `asset-reexport`, `world-cook`, `ui-inventory`, `ui-cook`). Regenerate authored fixtures
+  with their generator scripts, never by editing outputs.
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
-  Test them with `#if`, never `#ifdef` (`-Wundef` is on).
+  Test them with `#if`, never `#ifdef` (`-Wundef` is on). `PS2_D3BFG_TESTS` is the sole
+  test-enable define; keep fixture hooks behind it.
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend
   files in `PS2_CXX_SRC` or the relevant core group; cold sources also go in
-  `SIZE_OPT_CXX_SRC`. Both configurations build at `-O2`; id's load/init/command-time
-  sources listed in `ENGINE_SIZE_OPT_CXX_SRC` build at `-Os` (`-Oz` is identical on the EE). Run `make compiledb` after changing source lists. Flag stamps
-  invalidate affected object groups automatically.
-- `GAME_BACKEND_CXX_SRC` contains required campaign adapters compiled strictly into
-  production; `RESIDENT_SUPPORT_CXX_SRC` supplies strict shared providers;
-  `PS2_CXX_SRC` owns production entry, `CORE_TEST_DRIVER_CXX_SRC` and `GAME_TEST_CXX_SRC`
-  own test entries/adapters. `PLATFORM_TEST_CXX_SRC` supplies the SDK-only core-stage
-  skip provider. Make selects test stages through source lists; `PS2_D3BFG_TESTS` is
-  the sole test-enable define. Keep fixture hooks behind it and separate
-  campaign/test object trees. The production link rejects test inputs and symbols. The source
-  inventory records the deleted upstream JPEG/zlib trees, whose units id's project files
-  still name.
-- Emulator and host test rules are in [.claude/rules/testing-pcsx2.md](.claude/rules/testing-pcsx2.md);
-  each gate's detailed acceptance and the Quake reference are in `docs/testing/`.
-- CI: `.github/workflows/ps2.yml` runs `make` and `make release` on Linux, in the ps2dev
-  `ps2sdk` image pinned by digest, for every change but docs. It keeps no ELF and runs no
-  test executable, host test or emulator gate. `tools.yml` builds the host tools with GCC,
-  Apple clang and MSVC. See [.claude/rules/ci.md](.claude/rules/ci.md).
+  `SIZE_OPT_CXX_SRC`. Run `make compiledb` after changing source lists.
+- New backend/test sources pass strict warnings and `-Werror`; legacy warning policy is
+  in [docs/BUILD_INVENTORY.md](docs/BUILD_INVENTORY.md). Host runtime tests cannot replace
+  target compilation.
+- Preserve headless simulation while the 2D renderer/console/menu roadmap progresses;
+  sound and world rendering follow later.
+- CI (`.github/workflows/ps2.yml`, `tools.yml`) only compiles and links; it runs no test
+  executable or emulator gate. See [.claude/rules/ci.md](.claude/rules/ci.md).
 
 ## Git workflow
 

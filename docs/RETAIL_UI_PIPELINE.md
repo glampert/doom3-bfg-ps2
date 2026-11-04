@@ -699,3 +699,32 @@ loss: halve all UI, including the PDA and pause menus; English-only fonts; palet
 shared aggressively; PSMT4 wherever it holds; RLE on disc. The cook above implements
 it and halves the fonts too, as part of all UI. A later visual pass decides which textures need their resolution or
 color depth back, using the previews; only the conversion policy changes for that.
+
+## Cook overview
+
+Summary of `make ui-inventory` / `make ui-cook` and what the cooked catalog carries.
+
+- `make ui-inventory` / `make ui-cook` inspect/cook the local retail shell/dialog profile
+  in `config/ui_retail.json`; override `UI_DATA_ROOT` and `UI_COOK_OUTPUT` as needed.
+  Output must stay under `build/`. The manifest records hashes, dependencies, feature
+  gaps, full English font/language data and the converted GSTX runtime images; the
+  profile's conversion policy (first pass: everything halved, 16-level English-only
+  font glyphs; `texture_policies` keeps the console charset at full resolution) drives
+  `asset_reexport`, and `UI_PREVIEWS=DIR` adds original/converted
+  PNGs for a visual review. Initial UI localization supports English only. The cook also
+  emits a bounded UICT4
+  resource index carrying each texture's GSTX header and tables and each glyph set's
+  table. Native snapshots validate its offsets/paths/English records and font counts
+  before legacy parsing; constant UI material stages are generated from admitted
+  bindings. A retail `PalettedImage` admits exactly the cataloged file, checks every
+  CLUT and page while loading and keeps them resident in the texture owner; a triangle
+  samples the placement holding its UV centroid, region-clamped. The profile's
+  `glyph_sets` list sizes (pixels per atlas texel, outline weight) whose glyphs and
+  outlines are pre-rendered; a tagged `RenderEditText` hook draws them texel for texel
+  at the native layout position, keeps native quads for any other size and logs each
+  such size once (`UI glyph size ... prerendered=no`). The dialog's and the shell start
+  screen's sizes are cooked (Sarasori and Arial Narrow, in each standard). A set image
+  holds one 1:1 band placement per page; each catalog entry carries its glyph's rectangle.
+  `runtime_ready=false` is intentional: the shell's later screens, additive alpha terms,
+  active artwork residency and offline Shell integration remain later gates. Scoped
+  dictionary/text/timeline admission exists.
