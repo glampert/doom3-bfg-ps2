@@ -48,9 +48,17 @@ production link free of test inputs. Section numbers in parentheses point into t
       previous chain, `gs::Present(..., Pipelined)` flips at an EVEN field for 30/25 fps, and a
       PAL presentation sets `com_engineHz` 50; the GS gate's `pipelined-present` check drives
       the raw frame model (4.1, 4.2) (2026-11-03). The 2D path keeps its immediate present.
+- [x] `DisplayList` is the one command interface: DIRECT blocks, `FlushPaths`,
+      `SetFrameConstants` (with the VIF1 double buffer), `SetProgram`, `DrawBatch`,
+      `UnpackBatch` and `EndBatches`, each reserving its own ring room; tag writers are
+      private and `vu::Bind` only resolves residency. The `gs` draw functions take the list
+      as a parameter, `dma.h` holds the DMA tag and address encoders and `vif.h` the VIFcodes
+      (host-safe, shared with the D3WD validator), and `gs`
+      supplies the window transform and `DrawingTag` (`Primitive`, `VertexFormat`) the
+      world's frame constants use (2026-11-04).
 - [x] `ps2::renderer::vu`: program table, resident region and swap region laid out from the
       measured programs, prebuilt MPG chains (REF pieces of 256 instructions plus RET), `Bind`
-      emitting one CALL only on a change, `Invalidate`, `EmitFrameConstants`, upload and
+      emitting one CALL only on a change, `Invalidate`, frame constants, upload and
       eviction statistics; the GS gate's `vu-passthrough` draws the first PATH1 sprite
       (2026-11-03). `kernel.i` (quake2-ps2's clipper and window macros) is imported with its
       first consumer, `world_lm.vcl`, at R1, so nothing unverified sits in the tree.

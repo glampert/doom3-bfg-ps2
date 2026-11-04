@@ -1,11 +1,14 @@
 // ================================================================================================
 // File: gs.h
-// Brief: Owns fixed 16-bit drawing contexts and emit clipped direct RGBA sprites and triangles.
+// Brief: Owns fixed 16-bit drawing contexts and emit clipped direct RGBA sprites and triangles into
+//        the caller's display list, and describes the window and drawing tags VU1 programs output.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #pragma once
 
+#include "ps2/math/vec_mat.h"
+#include "ps2/renderer/dma.h"
 #include "ps2/renderer/gif_writer.h"
 #include "ps2/renderer/texture_layout.h"
 #include "ps2/system/video_mode.h"
@@ -117,38 +120,66 @@ enum class PresentMode : u8
 
 void Present(DrawContext context, PresentMode mode = PresentMode::Immediate);
 
+// The window transform VU1 programs apply to clip coordinates over w before ftoi4 (x16, 12.4
+// fixed point): x and y of +-1 reach 2048 pixels either side of the screen centre, and z from +1
+// (near) to -1 (far) spans the Z16 buffer, larger nearer (GEQUAL). The w lanes are zero.
+math::Vec4 WindowScale();
+math::Vec4 WindowOffset();
+
+// GS primitive types (PRIM.PRIM).
+enum class Primitive : u8
+{
+    Point,
+    Line,
+    LineStrip,
+    Triangle,
+    TriangleStrip,
+    TriangleFan,
+    Sprite
+};
+
+// The registers each vertex of a PACKED drawing tag writes, in order.
+enum class VertexFormat : u8
+{
+    ColorPosition // RGBAQ, XYZ2
+};
+
+// A PACKED GIF tag whose PRE sets a Gouraud-shaded 'primitive' in 'context'; NLOOP and EOP are
+// zero, for the VU1 program to fill per kick.
+qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context);
+
 // Uploads a binding's complete storage: padded RGBA32, or PSMT8/PSMT4 index rows.
 void Upload(const TextureBinding & binding, const void * pixels);
 
-// 2D drawing:
-void TexturedRect(DrawContext context, const TextureBinding & binding,
+// 2D drawing, appended to 'list':
+void TexturedRect(dma::DisplayList & list, DrawContext context, const TextureBinding & binding,
                   int x, int y, int width, int height,
                   int u0, int v0, int u1, int v1, Color color);
 
 // Coordinates exclude XYOFFSET and are already clipped, in GS 1/16 pixel/texel units.
-void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int x0, int y0, int x1, int y1,
-                       int u0, int v0, int u1, int v1, Color color, const DrawState & state);
+void TexturedRectFixed(dma::DisplayList & list, DrawContext context, const TextureBinding & binding,
+                       int x0, int y0, int x1, int y1, int u0, int v0, int u1, int v1, Color color, const DrawState & state);
 
-void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
+void TexturedTriangleFixed(dma::DisplayList & list, DrawContext context, const TextureBinding & binding,
                            const ui::FixedTriangle & triangle, const DrawState & state);
 
 // An untextured Gouraud line: the GS draws its start pixel but not its end pixel.
-void LineFixed(DrawContext context, const ui::FixedLine & line, const DrawState & state);
-void FillRect(DrawContext context, int x, int y, int width, int height, Color color);
+void LineFixed(dma::DisplayList & list, DrawContext context, const ui::FixedLine & line, const DrawState & state);
+void FillRect(dma::DisplayList & list, DrawContext context, int x, int y, int width, int height, Color color);
 
 // Fills the color buffer and resets the depth mask: no pixel is inside it afterwards.
-void ClearFrame(DrawContext context, Color color);
+void ClearFrame(dma::DisplayList & list, DrawContext context, Color color);
 
 // The world's depth state for 'context': depth written and tested GEQUAL (larger is nearer).
 // End restores the 2D environment (depth writes masked). Each begins with a VIF FLUSH, so it
 // lands between whole PATH1 packets: after every batch before it, before any after it.
-void BeginDepthPass(DrawContext context);
-void EndDepthPass(DrawContext context);
+void BeginDepthPass(dma::DisplayList & list, DrawContext context);
+void EndDepthPass(dma::DisplayList & list, DrawContext context);
 
 // The depth buffer holds one mask: these write coverage into it without touching color, and
 // ClearMask removes it from a pixel rectangle. A masked DrawState passes only inside it.
-void MaskTriangleFixed(DrawContext context, const ui::FixedTriangle & triangle);
-void MaskLineFixed(DrawContext context, const ui::FixedLine & line);
-void ClearMask(DrawContext context, int x0, int y0, int x1, int y1);
+void MaskTriangleFixed(dma::DisplayList & list, DrawContext context, const ui::FixedTriangle & triangle);
+void MaskLineFixed(dma::DisplayList & list, DrawContext context, const ui::FixedLine & line);
+void ClearMask(dma::DisplayList & list, DrawContext context, int x0, int y0, int x1, int y1);
 
 } // namespace ps2::renderer::gs

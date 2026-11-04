@@ -58,10 +58,12 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   the VU object. Use `u32`/`unsigned int` for the symbol types, not `uint32_t`. Nothing keeps
   `.vutext` through `--gc-sections` but a reference from linked code: the core test reads
   the symbols, production will through `vu::Init`.
-- Doom's manager (`ps2/renderer/vu.{h,cpp}`): `vu::Bind(dma::List(), Program)` returns the
-  MSCAL address and emits the program's prebuilt MPG chain (one CALL tag) only when it is not
-  loaded; call `dma::Ensure` for the qwords first. `vu::EmitFrameConstants` writes the shared
-  data memory constants each frame; `vu::Invalidate` after anything else touches micro memory.
+- Draw code reaches VU1 only through `dma::DisplayList` (`dma_list.h`): `SetFrameConstants`
+  writes the shared data memory block and the VIF1 double buffer once per frame,
+  `SetProgram` CALLs the prebuilt MPG chain only when `vu::Bind` (`ps2/renderer/vu.{h,cpp}`)
+  finds the program unloaded, and `DrawBatch`/`UnpackBatch`/`EndBatches` place each MSCAL in
+  the next tag. Every command reserves its own ring room. Call `vu::Invalidate` after
+  anything else touches micro memory.
 - A program that kicks its input half directly must not end before the kick drains:
   MSCAL waits for the program's E bit, not for PATH1, and the unpack after next overwrites
   the half under the GIF. `passthrough.vcl` kicks a null GIF tag (NLOOP 0, EOP 1, which
@@ -80,7 +82,7 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   or shift. Phase 1 overwrites each vertex in place (clip position, projected XYZ2 with the
   outside flag in .w, colour bytes kept).
 - The two output windows are absolute (652, 803) and keep alternating across batches through
-  qword 7; `vu::EmitFrameConstants` resets them per frame. Never reopen window A per batch: the
+  qword 7; `DisplayList::SetFrameConstants` resets them per frame. Never reopen window A per batch: the
   window a batch writes first must be the one drained by the previous kick's stall.
 - Store XYZ2 as `sq.xyz` plus a separate `isw.w` for ADC: two writes to the same field may be
   reordered, disjoint fields cannot collide (quake2-ps2's EmitVertex does the same).

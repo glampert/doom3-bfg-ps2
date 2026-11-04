@@ -1,21 +1,18 @@
 // ================================================================================================
 // File: vu.cpp
 // Brief: The VU1 program manager: lays out micro memory into a resident region and one swap region,
-//        prebuilds each program's MPG chain in main memory once, and emits a CALL into that chain
-//        only when a Bind finds the program absent, so a frame sorted by program swaps a few times,
+//        prebuilds each program's MPG chain in main memory once, and hands the display list that
+//        chain to CALL only when a Bind finds the program absent, so a frame sorted by program swaps a few times,
 //        never per batch (TimeSplitters' program packages, Black's .vutext chains).
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/renderer/vu.h"
-#include "ps2/renderer/dma_list.h"
-#include "ps2/qwords.h"
+#include "ps2/renderer/dma.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
 #include <idlib/precompiled.h> // memTag_t for the chain allocation
-#include <dma_tags.h>
-#include <gif_tags.h>
 #include <kernel.h>
 
 #include <algorithm>
@@ -66,11 +63,6 @@ Source SourceOf(Program program)
     FatalError("unknown VU1 program %d", static_cast<int>(program));
 }
 
-inline u32 PhysicalAddress(const void * pointer)
-{
-    return static_cast<u32>(reinterpret_cast<uiptr>(pointer) & 0x0FFFFFFFU);
-}
-
 inline u32 ChainQwords(u32 instructions)
 {
     return (instructions + kMpgInstructions - 1U) / kMpgInstructions + 1U;
@@ -81,16 +73,17 @@ void BuildChain(Entry & entry, qword_t * chain, u32 address)
 {
     qword_t * tag = chain;
     const u32 * code = entry.code.start;
+
     for (u32 done = 0; done < entry.instructions; done += kMpgInstructions)
     {
         const u32 count = std::min(kMpgInstructions, entry.instructions - done);
-        StoreQword(tag, DMATAG(count / 2U, 0, DMA_TAG_REF, 0, PhysicalAddress(code + done * 2U), 0),
-                   static_cast<u64>(dma::kVifNop) | (static_cast<u64>(dma::VifMpg(count & 0xFFU, address + done)) << 32));
+        dma::StoreRefTag(tag, code + done * 2U, count / 2U, dma::kVifNop, dma::VifMpg(count & 0xFFU, address + done));
         ++tag;
     }
 
-    StoreQword(tag, DMATAG(0, 0, DMA_TAG_RET, 0, 0, 0), static_cast<u64>(dma::kVifNop) | (static_cast<u64>(dma::kVifNop) << 32));
+    dma::StoreRetTag(tag, dma::kVifNop, dma::kVifNop);
     ++tag;
+
     PS2_Assert(static_cast<u32>(tag - chain) == entry.chainQwords);
 }
 
@@ -119,7 +112,7 @@ PS2_COLD_FUNC bool Init()
         chainQwords += entry.chainQwords;
 
         if ((reinterpret_cast<uiptr>(source.code.start) & 15U) != 0 || entry.instructions == 0U ||
-            entry.instructions > kMicroMemInstructions)
+            entry.instructions > kMicroMemInstructions) [[unlikely]]
         {
             Log(LogLevel::Error, "VU1 program %d is unusable: %u instructions at %p\n", index, entry.instructions, static_cast<const void *>(source.code.start));
             return false;
@@ -145,7 +138,7 @@ PS2_COLD_FUNC bool Init()
     // The chains are DMA territory: built once here, written back, and never touched again.
     const size_t bytes = static_cast<size_t>(chainQwords) * 16U;
     s_chains = system::heap::TryAlloc(bytes, TAG_RENDER, 64);
-    if (s_chains == nullptr)
+    if (s_chains == nullptr) [[unlikely]]
     {
         return false;
     }
@@ -193,14 +186,14 @@ bool IsInitialized()
     return s_initialized;
 }
 
-MicroAddr Bind(dma::DisplayList & list, Program program)
+Binding Bind(Program program)
 {
     PS2_AssertMsg(s_initialized && static_cast<int>(program) < static_cast<int>(Program::Count), "invalid VU1 program bind");
 
     Entry & entry = s_entries[static_cast<int>(program)];
     if (entry.loaded)
     {
-        return entry.address;
+        return { entry.address, nullptr };
     }
 
     if (!entry.resident)
@@ -223,7 +216,7 @@ MicroAddr Bind(dma::DisplayList & list, Program program)
 
         // The prebuilt chain carries the destination in its MPG codes; rewrite them for the new
         // address, through the uncached view since the DMA reads what main memory holds.
-        qword_t * tag = reinterpret_cast<qword_t *>(reinterpret_cast<uiptr>(entry.chain) | 0x20000000U);
+        qword_t * tag = dma::Uncached(entry.chain);
         for (u32 done = 0; done < entry.instructions; done += kMpgInstructions, ++tag)
         {
             const u32 count = std::min(kMpgInstructions, entry.instructions - done);
@@ -231,10 +224,9 @@ MicroAddr Bind(dma::DisplayList & list, Program program)
         }
     }
 
-    list.Call(entry.chain, dma::kVifNop, dma::kVifNop);
     entry.loaded = true;
     ++s_stats.uploads;
-    return entry.address;
+    return { entry.address, entry.chain };
 }
 
 void Invalidate()
@@ -245,28 +237,6 @@ void Invalidate()
     }
 
     s_swapNext = s_swapBase;
-}
-
-void EmitFrameConstants(dma::DisplayList & list, const FrameConstants & constants)
-{
-    PS2_AssertMsg(s_initialized, "VU1 frame constants before initialization");
-
-    static_assert(sizeof(FrameConstants) == 9U * 16U, "FrameConstants must match qwords 0-6 and 9-10 of vu_memory.h");
-    static_assert(kVuWindowStateAddr == 7 && kVuNullGifTagAddr == 8 && kVuStripTagAddr == 9 && kVuListTagAddr == 10 &&
-                      kVuFrameBlockQwords == 11,
-                  "the frame block layout changed");
-
-    // STCYCL 1,1 then one absolute V4-32 unpack of the whole block.
-    qword_t * const payload = list.Cnt(kVuFrameBlockQwords, dma::VifStcycl(1U, 1U),
-                                       dma::VifUnpack(dma::UnpackFormat::V4_32, kVuFrameBlockQwords, kVuFrameConstantsAddr, false, false));
-    const qword_t * const source = reinterpret_cast<const qword_t *>(&constants);
-
-    CopyQwords<7>(payload, source);
-
-    // The windows restart at A each frame: nothing is in flight across a frame boundary.
-    StoreQword(payload + kVuWindowStateAddr, static_cast<u64>(kVuWindowA) | (static_cast<u64>(kVuWindowQwords) << 32), 0);
-    PACK_GIFTAG((payload + kVuNullGifTagAddr), GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 0), 0);
-    CopyQwords<2>(payload + kVuStripTagAddr, source + 7);
 }
 
 const Stats & GetStats()

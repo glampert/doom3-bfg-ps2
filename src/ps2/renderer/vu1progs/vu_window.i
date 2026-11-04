@@ -8,7 +8,7 @@
 ; This source code is released under the GNU GPL-3.0-or-later license.
 ; =================================================================================================
 
-; The frame constants, at the fixed low addresses vu::EmitFrameConstants writes. The fcset comes
+; The frame constants, at the fixed low addresses DisplayList::SetFrameConstants writes. The fcset comes
 ; with them because VCL requires zeroed clip flags before any CLIP instruction.
 #macro LoadFrameConstants
     fcset 0x000000

@@ -601,9 +601,9 @@ namespace ps2::renderer::vu
 
     PS2_COLD_FUNC void Init();          // measure every program, lay out the fixed kernel
 
-    // Emits an MPG upload chain into the display list only when 'program' is not resident,
-    // evicting the least recently used swappable slot. Returns the MSCAL address.
-    MicroAddr Bind(dma::DisplayList & list, Program program);
+    // Makes 'program' current: returns its MSCAL address and the MPG upload chain the
+    // display list CALLs (DisplayList::SetProgram), or null when it is already resident.
+    Binding Bind(Program program);
 
     // Draw lists are sorted by program before emission so swaps happen a few times per
     // frame, never per batch.
@@ -617,8 +617,9 @@ chain (MPG itself waits for the running program to end, so no FLUSH precedes it)
 kernel's entry addresses are fixed; programs call it with `bal`, and the checker's
 `branches` check confirms every target. Implemented 2026-11-03 (`vu.{h,cpp}`): residents
 upload on their first `Bind` after `Init` or `Invalidate`, swappable programs bump-allocate
-the swap region and evict it whole when they do not fit, and `EmitFrameConstants` uploads
-the shared data memory constants once per frame.
+the swap region and evict it whole when they do not fit, and `DisplayList::SetFrameConstants`
+uploads the shared data memory constants once per frame (2026-11-04: `Bind` returns the chain
+for `DisplayList::SetProgram` to CALL instead of writing to the list).
 
 Build: the quake2-ps2 rule (`vclpp -I vu1progs -Wundef -Werror -j`, then `openvcl`, then
 `openvcl -c` for the source names, then `dvp-as`, then `check_vu_code.py`) is adopted verbatim into the Makefile (done 2026-11-03), with vclpp and
@@ -1210,6 +1211,14 @@ private:
   offset 0 of its own ring and a ring that fills mid-frame kicks, waits and restarts at 0
   (the `drains` statistic) instead of wrapping through a NEXT tag, so the two rings need no
   wrap tag and an overflow is a counted restart rather than silent corruption.
+- Since 2026-11-04 the tag helpers above are private: draw code calls named commands
+  (`BeginDirect`/`EndDirect`, `FlushPaths`, `SetFrameConstants`, `SetProgram`, `DrawBatch`,
+  `UnpackBatch`, `EndBatches`), each of which reserves its own ring room and writes its own
+  tags and VIFcodes. The list holds the bound program and the pending batch's MSCAL, which
+  rides in the next tag or in the chain's terminator. The `gs` draw functions take the list as an
+  explicit parameter; the encodings (`dma::Store*Tag`, `PhysicalAddress`, `Uncached` in
+  `dma.h`, VIFcodes in the host-safe `vif.h`) are shared with the VU program manager's
+  prebuilt MPG chains and the D3WD packet validator.
 - The ring is written by DMA, never by the EE, so no D-cache flush is needed per frame; the
   EE writes only to the scratchpad (uncached). Dynamic per-frame data (joint palettes,
   light blocks, particle vertices) is written into CNT payload in the scratchpad rather than

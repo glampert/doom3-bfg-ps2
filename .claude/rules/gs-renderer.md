@@ -60,7 +60,8 @@ coordinates; CLUTs; VRAM and mipmaps.
   out-of-frame redraw never advances simulation; guard against recursive Begin/End. A queued
   `ps2_capture` finishes before shutdown.
 - **Device:** reset/claim VIF1 and GIF along with the GS (CSR reset alone stalled PATH2 DIRECT).
-  The display list (`dma::DisplayList`, `dma_list.h`) is built in the 16 KiB scratchpad and
+  The display list (`dma::DisplayList`, `dma_list.h`) is the one command interface (DIRECT
+  blocks, `FlushPaths`, VU1 frame constants, programs and batches; no client writes tags). It is built in the 16 KiB scratchpad and
   drained by channel 8 (fromSPR) into a per-frame chain ring the EE never writes, so a kick
   needs no `FlushCache`; a full ring kicks, waits and restarts at offset 0 (a `drains` stat).
   All packet reservations leave room for the final EOP and four-qword FINISH/END terminator;

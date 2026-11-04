@@ -619,7 +619,7 @@ bool PipelinedPresent(system::video::Standard standard)
     {
         const auto context = (frame & 1) == 0 ? renderer::gs::DrawContext::Ctx0 : renderer::gs::DrawContext::Ctx1;
         renderer::dma::BeginFrame();
-        renderer::gs::ClearFrame(context, kColours[frame]);
+        renderer::gs::ClearFrame(renderer::dma::List(), context, kColours[frame]);
         if (frame > 0)
         {
             renderer::dma::WaitIdle();
@@ -645,11 +645,11 @@ bool PipelinedPresent(system::video::Standard standard)
     return passed && SameLedger(baseline);
 }
 
-// The first PATH1 pixels: Bind uploads passthrough through its MPG chain, the frame constants put
-// the null tag in VU data memory, a batch UNPACKs a six-qword GIF packet (TEST, PRIM, RGBAQ and a
-// red sprite from 64,64 to 192,128) into the double buffer and MSCALs the program, which kicks it.
-// The renderer's first frame after Init draws context 1, so the packet names that context. The
-// runner checks the capture; a second bind must not upload again.
+// The first PATH1 pixels: SetProgram uploads passthrough through its MPG chain, the frame constants
+// put the null tag in VU data memory, a batch UNPACKs a six-qword GIF packet (TEST, PRIM, RGBAQ
+// and a red sprite from 64,64 to 192,128) into the double buffer and MSCALs the program, which
+// kicks it. The renderer's first frame after Init draws context 1, so the packet names that
+// context. The runner checks the capture; a second bind must not upload again.
 bool VuPassthrough(system::video::Standard standard)
 {
     const auto baseline = system::heap::GetTotalStats();
@@ -660,29 +660,26 @@ bool VuPassthrough(system::video::Standard standard)
 
     renderer::BeginFrame({ 0, 0, 0, 255 });
 
-    renderer::dma::Ensure(renderer::vu::kFrameConstantQwords + renderer::vu::kBindQwords + 1U + 7U + 1U);
     renderer::dma::DisplayList & list = renderer::dma::List();
-    renderer::vu::EmitFrameConstants(list, {});
-    const auto entry = renderer::vu::Bind(list, renderer::vu::Program::Passthrough);
-    const auto again = renderer::vu::Bind(list, renderer::vu::Program::Passthrough);
+    list.SetFrameConstants({});
+    list.SetProgram(renderer::vu::Program::Passthrough);
+    list.SetProgram(renderer::vu::Program::Passthrough);
     const u32 uploads = renderer::vu::GetStats().uploads;
 
-    list.Cnt(0U, renderer::dma::VifBase(40U), renderer::dma::VifOffset(306U));
-    qword_t * packet = list.Cnt(6U, renderer::dma::VifStcycl(1U, 1U),
-                                renderer::dma::VifUnpack(renderer::dma::UnpackFormat::V4_32, 6U, 0U, true, false));
+    qword_t * packet = list.UnpackBatch(6U);
     PACK_GIFTAG(packet, GIF_SET_TAG(5, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
     PACK_GIFTAG((packet + 1), GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 1), GS_REG_TEST_2);
     PACK_GIFTAG((packet + 2), GS_SET_PRIM(PRIM_SPRITE, 0, 0, 0, 0, 0, 1, 1, 0), GS_REG_PRIM);
     PACK_GIFTAG((packet + 3), GS_SET_RGBAQ(255, 0, 0, 0x80, 0x3F800000U), GS_REG_RGBAQ);
     PACK_GIFTAG((packet + 4), GS_SET_XYZ((2048 + 64) * 16, (2048 + 64) * 16, 1), GS_REG_XYZ2);
     PACK_GIFTAG((packet + 5), GS_SET_XYZ((2048 + 192) * 16, (2048 + 128) * 16, 1), GS_REG_XYZ2);
-    list.Cnt(0U, renderer::dma::kVifNop, renderer::dma::VifMscal(static_cast<u32>(entry)));
+    list.EndBatches();
 
     renderer::EndFrame();
     bool passed = renderer::LastPresentedContext() == renderer::gs::DrawContext::Ctx1 &&
                   renderer::gs::CaptureTga("host:renderer-vu.tga", renderer::LastPresentedContext());
-    passed = passed && entry == again && uploads == 1U && renderer::vu::GetStats().evictions == 0U;
-    Log(LogLevel::Info, "[D3BFG] GS vu passthrough entry=%u uploads=%u kicks=%u\n", static_cast<u32>(entry), uploads, renderer::dma::GetStats().kicks);
+    passed = passed && uploads == 1U && renderer::vu::GetStats().evictions == 0U;
+    Log(LogLevel::Info, "[D3BFG] GS vu passthrough uploads=%u kicks=%u\n", uploads, renderer::dma::GetStats().kicks);
     renderer::Shutdown();
     return passed && SameLedger(baseline) && !renderer::vu::IsInitialized();
 }
@@ -888,7 +885,7 @@ bool RunGsFailureProbe(const char * name)
             FatalError("probe command initialization failed");
         }
         renderer::dma::BeginFrame();
-        (void)renderer::dma::BeginDirect(INT_MAX);
+        (void)renderer::dma::List().BeginDirect(INT_MAX);
     }
     else if (strcmp(name, "renderer-wait-timeout") == 0)
     {

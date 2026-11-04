@@ -6,21 +6,14 @@
 // ================================================================================================
 
 #include "ps2/renderer/world_format.h"
-#include "ps2/math/vec_mat.h"
+#include "ps2/renderer/vif.h"
+
+#include <bit> // not ps2/math: the host world tests compile this file too
 
 namespace ps2::renderer::world
 {
 namespace
 {
-
-// VIFcodes (EE manual, VIF chapter): CMD in bits 24-31, NUM in 16-23, IMMEDIATE in 0-15.
-static constexpr std::uint32_t kVifNop = 0x00;
-static constexpr std::uint32_t kVifStcycl = 0x01;
-static constexpr std::uint32_t kVifItop = 0x04;
-static constexpr std::uint32_t kVifUnpack = 0x60;
-static constexpr std::uint32_t kUnpackV4_32 = 0xC;
-static constexpr std::uint32_t kUnpackV4_16 = 0xD;
-static constexpr std::uint32_t kUnpackV4_8 = 0xE;
 
 static constexpr std::uint32_t kRecordBytes[kSectionCount] = { 0, 8, 64, 64, 16, 12, 24, 64, 6, 2, 0 };
 
@@ -66,18 +59,14 @@ static std::uint32_t Align(std::uint32_t value, std::uint32_t alignment)
 static bool Finite(float value)
 {
     // No Inf/NaN on the EE FPU, but a file can still carry their bit patterns.
-    const std::uint32_t bits = math::BitsToU32(value);
+    const std::uint32_t bits = std::bit_cast<std::uint32_t>(value);
     return (bits & 0x7F800000U) != 0x7F800000U;
 }
 
-static constexpr std::uint32_t VifCode(std::uint32_t command, std::uint32_t num, std::uint32_t immediate)
+// Every unpack of a batch is relative to TOPS: VIF1 alternates the two input halves.
+static constexpr std::uint32_t Unpack(dma::UnpackFormat format, std::uint32_t count, std::uint32_t address, bool unsignedExtend)
 {
-    return (command << 24) | ((num & 0xFFU) << 16) | (immediate & 0xFFFFU);
-}
-
-static constexpr std::uint32_t VifUnpack(std::uint32_t format, std::uint32_t count, std::uint32_t address, bool unsignedExtend)
-{
-    return VifCode(kVifUnpack | format, count, address | (unsignedExtend ? 1U << 14 : 0U) | (1U << 15));
+    return dma::VifUnpack(format, count, address, true, unsignedExtend);
 }
 
 template<typename T>
@@ -107,17 +96,17 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
         return at < words && Word(packet + 4U * at++) == expected;
     };
 
-    if (!take(VifCode(kVifStcycl, 0, 0x0101U)) || !take(VifUnpack(kUnpackV4_32, 2, 0, false)) || at + 8U > words) [[unlikely]]
+    if (!take(dma::VifStcycl(1U, 1U)) || !take(Unpack(dma::UnpackFormat::V4_32, 2, 0, false)) || at + 8U > words) [[unlikely]]
     {
         return "bad batch header unpack";
     }
 
     const std::uint8_t * header = packet + 4U * at;
 
-    if (Word(header) != math::BitsToU32(batch.positionOffset[0]) ||
-        Word(header + 4) != math::BitsToU32(batch.positionOffset[1]) ||
-        Word(header + 8) != math::BitsToU32(batch.positionOffset[2]) || Word(header + 12) != indexQwords ||
-        Word(header + 16) != math::BitsToU32(batch.positionScale)) [[unlikely]]
+    if (Word(header) != std::bit_cast<std::uint32_t>(batch.positionOffset[0]) ||
+        Word(header + 4) != std::bit_cast<std::uint32_t>(batch.positionOffset[1]) ||
+        Word(header + 8) != std::bit_cast<std::uint32_t>(batch.positionOffset[2]) || Word(header + 12) != indexQwords ||
+        Word(header + 16) != std::bit_cast<std::uint32_t>(batch.positionScale)) [[unlikely]]
     {
         return "VU header disagrees with the batch header";
     }
@@ -126,7 +115,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
 
     if (indexed)
     {
-        if (!take(VifUnpack(kUnpackV4_16, indexQwords, 2, true)) || at + 2U * indexQwords > words) [[unlikely]]
+        if (!take(Unpack(dma::UnpackFormat::V4_16, indexQwords, 2, true)) || at + 2U * indexQwords > words) [[unlikely]]
         {
             return "bad index unpack";
         }
@@ -172,7 +161,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
         at += 2U * indexQwords;
     }
 
-    if (!take(VifCode(kVifStcycl, 0, 0x0103U)) || !take(VifUnpack(kUnpackV4_16, count, base, false)) || at + 2U * count > words) [[unlikely]]
+    if (!take(dma::VifStcycl(3U, 1U)) || !take(Unpack(dma::UnpackFormat::V4_16, count, base, false)) || at + 2U * count > words) [[unlikely]]
     {
         return "bad position unpack";
     }
@@ -189,28 +178,28 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
 
     at += 2U * count;
 
-    if (!take(VifUnpack(kUnpackV4_16, count, base + 1U, false)) || at + 2U * count > words) [[unlikely]]
+    if (!take(Unpack(dma::UnpackFormat::V4_16, count, base + 1U, false)) || at + 2U * count > words) [[unlikely]]
     {
         return "bad UV unpack";
     }
 
     at += 2U * count;
 
-    if (!take(VifUnpack(kUnpackV4_8, count, base + 2U, true)) || at + count > words) [[unlikely]]
+    if (!take(Unpack(dma::UnpackFormat::V4_8, count, base + 2U, true)) || at + count > words) [[unlikely]]
     {
         return "bad colour unpack";
     }
 
     at += count;
 
-    if (!take(VifCode(kVifItop, 0, count))) [[unlikely]]
+    if (!take(dma::VifItop(count))) [[unlikely]]
     {
         return "bad packet tail";
     }
 
     while (at < words)
     {
-        if (!take(VifCode(kVifNop, 0, 0))) [[unlikely]]
+        if (!take(dma::kVifNop)) [[unlikely]]
         {
             return "bad packet padding";
         }

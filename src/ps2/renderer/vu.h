@@ -1,8 +1,8 @@
 // ================================================================================================
 // File: vu.h
 // Brief: The VU1 microprograms: their link symbols in the ELF's .vutext section and the VU1 data
-//        memory map they share through vu1progs/vu_memory.h. The program manager (upload, the swap
-//        region, Bind) joins this header with the display list.
+//        memory map they share through vu1progs/vu_memory.h, and the program manager (upload, the
+//        swap region, Bind) the display list binds programs through.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -12,11 +12,6 @@
 #include "ps2/math/vec_mat.h"
 #include "ps2/renderer/vu1progs/vu_memory.h"
 #include <tamtypes.h>
-
-namespace ps2::renderer::dma
-{
-class DisplayList;
-}
 
 namespace ps2::renderer::vu
 {
@@ -53,10 +48,6 @@ PS2_DECLARE_VU_MICROPROGRAM(world_lm)
 // Micro memory: 2048 64-bit instructions. Addresses are in that unit, as MPG and MSCAL take them.
 static constexpr u32 kMicroMemInstructions = 2048U;
 
-// Qwords a Bind or EmitFrameConstants reserves at most, for dma::Ensure.
-static constexpr u32 kBindQwords = 1U;
-static constexpr u32 kFrameConstantQwords = 1U + kVuFrameBlockQwords;
-
 enum class Program : u8
 {
     Passthrough,
@@ -64,17 +55,27 @@ enum class Program : u8
     Count
 };
 
+// The clipper's parameters (vu_clip.i), which reach it through the frame constants. A triangle
+// survives the guard band judgement out to |x/w| and |y/w| of 0.8, the reach of the 12.4 window
+// coordinates (the visible screen ends near 0.13); the clipper cuts to that band.
+static constexpr float kGuardBandScale = 1.0f / 0.8f;
+
+// The clipper cuts this fraction of w inside each plane, so the survivors' own judgement agrees,
+// and scales distances so the ftoi4 sign of a product of two survives (quake2-ps2's values).
+static constexpr float kClipShrink = 0.001f;
+static constexpr float kClipDistanceScale = 2048.0f * 2048.0f;
+
 // What a frame's programs read from the low data memory (vu_memory.h): the view-projection (row
 // vectors), the projection to GS window coordinates and the guard band, and the world programs'
-// drawing tags. EmitFrameConstants adds the window state and the null tag itself.
+// drawing tags. DisplayList::SetFrameConstants adds the window state and the null tag itself.
 struct alignas(16) FrameConstants
 {
     math::Mat4 viewProjection;
-    math::Vec4 gsScale;   // w: the clipper's plane shrink
-    math::Vec4 gsOffset;  // w: the clipper's distance scale
-    math::Vec4 clipScale; // the guard band judgement scale (xy), 1 for z
-    u64 stripTag[2];      // GIF tags (PRE, PRIM, PACKED RGBAQ + XYZ2); NLOOP and EOP are the program's
-    u64 listTag[2];
+    math::Vec4 gsScale;   // w: 1 - kClipShrink
+    math::Vec4 gsOffset;  // w: kClipDistanceScale
+    math::Vec4 clipScale; // kGuardBandScale (xy), 1 for z
+    qword_t stripTag;     // drawing tags (gs::DrawingTag); NLOOP and EOP are the program's
+    qword_t listTag;
 };
 
 enum class MicroAddr : u32
@@ -87,20 +88,23 @@ PS2_COLD_FUNC bool Init();
 PS2_COLD_FUNC void Shutdown();
 bool IsInitialized();
 
-// Emits the program's MPG chain into 'list' (one CALL tag) only when it is not resident in micro
-// memory, and returns the MSCAL entry address. Resident programs upload on first use after Init
-// or after micro memory was invalidated; swappable ones take the swap region, evicting its
-// contents when they do not fit. Draw lists are sorted by program so swaps stay rare.
-MicroAddr Bind(dma::DisplayList & list, Program program);
+// Where a bound program starts, and the MPG chain (ending in RET) the caller must CALL before it,
+// or null when the program is already in micro memory.
+struct Binding
+{
+    MicroAddr entry;
+    const qword_t * upload;
+};
+
+// Makes 'program' current in micro memory for DisplayList::SetProgram, which CALLs the upload.
+// Resident programs upload on first use after Init or after micro memory was invalidated;
+// swappable ones take the swap region, evicting its contents when they do not fit. Draw lists
+// are sorted by program so swaps stay rare.
+Binding Bind(Program program);
 
 // Micro memory contents are unknown again (after a VU reset or a foreign upload): every program
 // uploads on its next Bind.
 void Invalidate();
-
-// Uploads the shared VU data memory block (vu_memory.h, qwords 0 to kVuFrameBlockQwords - 1): the
-// caller's constants, the null GIF tag and the output windows reset to window A. One CNT block,
-// emitted before the first batch of a frame, while no program runs.
-void EmitFrameConstants(dma::DisplayList & list, const FrameConstants & constants);
 
 struct Stats
 {

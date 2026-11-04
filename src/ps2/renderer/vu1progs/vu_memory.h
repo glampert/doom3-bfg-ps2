@@ -9,7 +9,7 @@
 
 #pragma once
 
-// Frame constants, unpacked once per frame by vu::EmitFrameConstants together with the window
+// Frame constants, unpacked once per frame by DisplayList::SetFrameConstants with the window
 // state and the GIF tag templates (qwords 0-10): 0-3 the view-projection rows (row vectors),
 // 4 GS scale (w: the clipper's plane shrink), 5 GS offset (w: the clipper's distance scale),
 // 6 the guard band judgement scale.

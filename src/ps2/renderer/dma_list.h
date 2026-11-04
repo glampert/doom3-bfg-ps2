@@ -1,15 +1,20 @@
 // ================================================================================================
 // File: dma_list.h
-// Brief: The display list builder: DMA tags and their VIF/GIF payloads are written into the 16 KiB
-//        scratchpad, 8 KiB at a time, and drained by the fromSPR DMA channel into a main-RAM chain
-//        ring that the EE itself never touches (Black's allocator). CNT, REF and CALL tags carry
-//        the content, so the drained chain is position independent and needs no cache writeback.
+// Brief: The display list, the one interface draw code builds a frame's commands through: DIRECT
+//        GIF blocks, path fences, VU1 frame constants, program binds and batches. The DMA tags and
+//        their VIF/GIF payloads are written into the 16 KiB scratchpad, 8 KiB at a time, and drained
+//        by the fromSPR DMA channel into a main-RAM chain ring that the EE itself never touches
+//        (Black's allocator). CNT, REF and CALL tags carry the content, so the drained chain is
+//        position independent and needs no cache writeback.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #pragma once
 
 #include "ps2/common.h"
+#include "ps2/renderer/dma.h"
+#include "ps2/renderer/gif_writer.h"
+#include "ps2/renderer/vu.h"
 #include <tamtypes.h>
 
 namespace ps2::renderer::dma
@@ -19,79 +24,6 @@ namespace ps2::renderer::dma
 static constexpr u32 kScratchpadBase  = 0x70000000U;
 static constexpr u32 kScratchpadBytes = 16U * 1024U;
 static constexpr u32 kHalfQwords      = kScratchpadBytes / 2U / 16U;
-
-// VIFcode packing (VIF1: IMMEDIATE 15:0, NUM 23:16, CMD 30:24). A chain runs with TTE, so the
-// upper 64 bits of every DMA tag reach VIF1 as two of these.
-constexpr u32 VifCode(u32 cmd, u32 num, u32 immediate)
-{
-    return (immediate & 0xFFFFU) | ((num & 0xFFU) << 16) | ((cmd & 0x7FU) << 24);
-}
-
-static constexpr u32 kVifNop    = VifCode(0x00U, 0U, 0U);
-static constexpr u32 kVifFlushE = VifCode(0x10U, 0U, 0U); // wait for the microprogram
-static constexpr u32 kVifFlush  = VifCode(0x11U, 0U, 0U); // ... and for PATH1/PATH2 to the GS
-static constexpr u32 kVifFlushA = VifCode(0x13U, 0U, 0U); // ... and for PATH3
-static constexpr u32 kVifMscnt  = VifCode(0x17U, 0U, 0U);
-
-constexpr u32 VifDirect(u32 qwords)
-{
-    return VifCode(0x50U, 0U, qwords); // 1..65535 qwords of GIF data to PATH2
-}
-
-constexpr u32 VifMscal(u32 instructionAddress)
-{
-    return VifCode(0x14U, 0U, instructionAddress);
-}
-
-// STCYCL: CL and WL cycle lengths (1, 1 for a plain unpack). BASE and OFFSET: the VU data memory
-// double buffer TOPS alternates between (qword addresses).
-constexpr u32 VifStcycl(u32 cl, u32 wl)
-{
-    return VifCode(0x01U, 0U, (cl & 0xFFU) | ((wl & 0xFFU) << 8));
-}
-
-constexpr u32 VifBase(u32 qwordAddress)
-{
-    return VifCode(0x03U, 0U, qwordAddress);
-}
-
-constexpr u32 VifOffset(u32 qwords)
-{
-    return VifCode(0x02U, 0U, qwords);
-}
-
-// MPG: 'count' 64-bit instructions (256 encodes as 0) to micro memory at 'instructionAddress'.
-// VIF1 waits for the running microprogram to end first.
-constexpr u32 VifMpg(u32 count, u32 instructionAddress)
-{
-    return VifCode(0x4AU, count, instructionAddress);
-}
-
-// UNPACK formats: the low nibble of the VIFcode command (V4-32 is 0xC; 0x60 is the UNPACK group).
-enum class UnpackFormat : u32
-{
-    S32  = 0x0U,
-    S16  = 0x1U,
-    S8   = 0x2U,
-    V2_32 = 0x4U,
-    V2_16 = 0x5U,
-    V2_8  = 0x6U,
-    V3_32 = 0x8U,
-    V3_16 = 0x9U,
-    V3_8  = 0xAU,
-    V4_32 = 0xCU,
-    V4_16 = 0xDU,
-    V4_8  = 0xEU,
-    V4_5  = 0xFU
-};
-
-// UNPACK 'count' vectors to 'qwordAddress'; 'relativeToTops' adds the double buffer's TOPS;
-// 'unsignedExtend' zero-extends the 16- and 8-bit formats instead of sign-extending them.
-constexpr u32 VifUnpack(UnpackFormat format, u32 count, u32 qwordAddress, bool relativeToTops, bool unsignedExtend)
-{
-    const u32 immediate = (qwordAddress & 0x3FFU) | (unsignedExtend ? 1U << 14 : 0U) | (relativeToTops ? 1U << 15 : 0U);
-    return VifCode(0x60U | static_cast<u32>(format), count, immediate);
-}
 
 // A main-RAM destination of the list: one per in-flight frame, 64-byte aligned, written only by
 // the fromSPR DMA and read only by the VIF1 DMA.
@@ -108,11 +40,91 @@ public:
     DisplayList(const DisplayList & other) = delete;
     DisplayList & operator=(const DisplayList & other) = delete;
 
-    // Start writing at 'offsetBytes' into 'ring' (0 at a frame start; a mid-frame kick continues
-    // where the previous chain ended). Any earlier list must have been Flush()ed.
-    void Begin(ChainRing & ring, u32 offsetBytes);
+    // ---- Commands ----
 
-    // True when 'qwords' more fit the ring. Callers check before reserving; Reserve asserts.
+    // Each reserves its own room: a ring that cannot hold it kicks, waits and restarts.
+
+    // A CNT block whose payload is GIF data sent through DIRECT. Every block is closed before any
+    // other command, so no reservation can drain or invalidate its writer.
+    gs::GifWriter BeginDirect(int payloadQwords);
+    void EndDirect(const gs::GifWriter & writer);
+
+    // VIF FLUSH: later commands wait for the running microprogram and for PATH1/PATH2 to drain.
+    void FlushPaths();
+
+    // The shared VU1 data memory block (vu_memory.h, qwords 0 to kVuFrameBlockQwords - 1): the
+    // caller's constants, the null GIF tag and the output windows reset to window A, plus the VIF1
+    // double buffer (BASE, OFFSET), which batches then alternate across programs. Once per frame
+    // before the first program, while no program runs.
+    void SetFrameConstants(const vu::FrameConstants & constants);
+
+    // Starts any pending batch on the current program, then binds 'program': its MPG chain is
+    // CALLed only when it is not in micro memory (vu::Bind). Later batches start at its entry.
+    void SetProgram(vu::Program program);
+
+    // A batch whose packet (16-byte aligned, ending with ITOP) is REF'd in place. It starts on the
+    // current program from the next batch's tag, whose VIFcodes run before its data reaches the
+    // other half, or from EndBatches.
+    void DrawBatch(const void * packet, u32 qwords);
+
+    // A batch whose packet rides in the list: 'qwords' (V4-32, STCYCL 1,1) unpacked at the start
+    // of the next double buffer half. Returns where to write them; it starts like a DrawBatch.
+    qword_t * UnpackBatch(u32 qwords);
+
+    // Starts the pending batch, if any. A chain that closes starts it too.
+    void EndBatches()
+    {
+        StartPendingBatch();
+    }
+
+    // ---- Chain ownership ----
+
+    // Start a frame's chain at offset 0 of 'ring'. Any earlier chain must have been closed.
+    void Begin(ChainRing & ring);
+
+    // True when commands were written since the last CloseChain.
+    bool HasChain() const
+    {
+        return RingUsedBytes() != m_chainStart;
+    }
+
+    // Starts any pending batch, ends the chain with FLUSH, FINISH and END, drains the scratchpad
+    // and waits for the fromSPR DMA; returns the chain's first tag for the VIF1 kick. Later
+    // commands start a new chain in the same ring.
+    const void * CloseChain();
+
+    bool InDirect() const
+    {
+        return m_directTag != nullptr;
+    }
+
+    // Bytes of the ring the list has written or is about to (drained plus pending).
+    u32 RingUsedBytes() const
+    {
+        return m_ringOffset + static_cast<u32>(m_cursor - HalfBase(m_half)) * 16U;
+    }
+
+    u32 SprDrains() const
+    {
+        return m_sprDrains;
+    }
+
+    u32 RingRestarts() const
+    {
+        return m_ringRestarts;
+    }
+
+    void ResetCounters()
+    {
+        m_sprDrains = 0;
+        m_ringRestarts = 0;
+    }
+
+private:
+    // Room for 'qwords' more, the chain's terminator and the pending batch's start; a full ring
+    // is kicked, waited for and restarted at offset 0.
+    void Ensure(u32 qwords);
+    void RestartRing();
     bool Fits(u32 qwords) const;
 
     // 'qwords' of contiguous scratchpad for a tag and its payload, at most kHalfQwords. A half
@@ -130,26 +142,28 @@ public:
     void Call(const void * chain, u32 vif0, u32 vif1);
     void End(u32 vif0, u32 vif1);
 
-    // Drain what the scratchpad holds and wait for the fromSPR DMA, so the ring is complete.
-    void Flush();
+    // A CNT carrying the pending batch's MSCAL. It needs no reservation: Ensure always leaves room.
+    void StartPendingBatch();
 
-    // Bytes of the ring the list has written or is about to (drained plus pending).
-    u32 RingUsedBytes() const;
-
-    u32 SprDrains() const
-    {
-        return m_sprDrains;
-    }
-
-private:
     void Drain();
     qword_t * HalfBase(int half) const;
 
     ChainRing * m_ring = nullptr;
     u32 m_ringOffset = 0; // bytes already drained into the ring
+    u32 m_chainStart = 0; // ring offset of the chain the next CloseChain ends
     int m_half = 0;
     qword_t * m_cursor = nullptr;
     u32 m_sprDrains = 0;
+    u32 m_ringRestarts = 0;
+
+    qword_t * m_directTag = nullptr;
+    qword_t * m_directBase = nullptr;
+    int m_directCapacity = 0;
+
+    u32 m_programEntry = kNoProgram; // the bound program's MSCAL address
+    u32 m_pendingStart = kVifNop;    // MSCAL of the last batch, not issued yet
+
+    static constexpr u32 kNoProgram = ~0U;
 };
 
 } // namespace ps2::renderer::dma

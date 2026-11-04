@@ -1,6 +1,7 @@
 // ================================================================================================
 // File: gs.cpp
-// Brief: Owns GS contexts, direct RGBA and paletted uploads and ordered CPU primitives.
+// Brief: Owns GS contexts, direct RGBA and paletted uploads and ordered CPU primitives, and the
+//        window transform and drawing tags VU1 programs need.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -12,6 +13,7 @@
 #include <idlib/precompiled.h>
 #include <dma.h>
 #include <dma_tags.h>
+#include <draw_primitives.h>
 #include <graph.h>
 #include <gs_gp.h>
 #include <gs_psm.h>
@@ -30,6 +32,9 @@ static u32 s_fixedVramBytes = 0;
 static bool s_initialized = false;
 static u64 s_previousImr = 0;
 alignas(64) static qword_t s_upload[128] = {};
+
+// z/w of +-1 times this, plus the same offset, then x16 (ftoi4) spans the Z16 range [0, 0xFFFF].
+static constexpr float kDepthScale = static_cast<float>(0xFFFF) / 32.0f;
 
 ID_FORCE_INLINE int Index(DrawContext context)
 {
@@ -330,11 +335,12 @@ PS2_COLD_FUNC bool Init(const Config & config)
 
     dma::BeginFrame();
     {
-        GifWriter writer = dma::BeginDirect(32);
+        dma::DisplayList & list = dma::List();
+        GifWriter writer = list.BeginDirect(32);
         writer.SetupEnvironment(0, s_frames[0], s_depth);
         writer.SetupEnvironment(1, s_frames[1], s_depth);
-        dma::EndDirect(writer);
-        ClearFrame(DrawContext::Ctx0, { 0, 0, 0, 255 });
+        list.EndDirect(writer);
+        ClearFrame(list, DrawContext::Ctx0, { 0, 0, 0, 255 });
     }
     dma::EndFrame();
 
@@ -419,6 +425,41 @@ void Present(DrawContext context, PresentMode mode)
     graph_enable_output();
 }
 
+math::Vec4 WindowScale()
+{
+    return { 2048.0f, 2048.0f, kDepthScale, 0.0f };
+}
+
+math::Vec4 WindowOffset()
+{
+    return { 2048.0f + static_cast<float>(s_width) * 0.5f, 2048.0f + static_cast<float>(s_height) * 0.5f, kDepthScale, 0.0f };
+}
+
+qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context)
+{
+    // In Primitive and VertexFormat order: the PRIM type, then the REGS nibbles and NREG.
+    static constexpr u64 kTypes[] = {
+        PRIM_POINT,
+        PRIM_LINE, PRIM_LINE_STRIP,
+        PRIM_TRIANGLE, PRIM_TRIANGLE_STRIP, PRIM_TRIANGLE_FAN,
+        PRIM_SPRITE
+    };
+    static constexpr u64 kRegisters[][2] = { { static_cast<u64>(GIF_REG_RGBAQ) | (static_cast<u64>(GIF_REG_XYZ2) << 4), 2 } };
+
+    static_assert(ArrayLength(kTypes) == static_cast<int>(Primitive::Sprite) + 1, "kTypes must follow Primitive");
+    static_assert(ArrayLength(kRegisters) == static_cast<int>(VertexFormat::ColorPosition) + 1, "kRegisters must follow VertexFormat");
+    PS2_AssertMsg(static_cast<int>(primitive) < ArrayLength(kTypes) && static_cast<int>(format) < ArrayLength(kRegisters),
+                  "invalid GS drawing tag");
+
+    const u64 * const registers = kRegisters[static_cast<int>(format)];
+    const u64 prim = GS_SET_PRIM(kTypes[static_cast<int>(primitive)], PRIM_SHADE_GOURAUD, 0, 0, 0, 0, 0, static_cast<u64>(Index(context)), 0);
+
+    qword_t tag;
+    tag.dw[0] = GIF_SET_TAG(0, 0, 1, prim, GIF_FLG_PACKED, registers[1]);
+    tag.dw[1] = registers[0];
+    return tag;
+}
+
 void Upload(const TextureBinding & binding, const void * pixels)
 {
     const auto & layout = binding.layout;
@@ -464,7 +505,7 @@ void Upload(const TextureBinding & binding, const void * pixels)
     WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "texture GS FINISH");
 }
 
-void TexturedRect(DrawContext context, const TextureBinding & binding,
+void TexturedRect(dma::DisplayList & list, DrawContext context, const TextureBinding & binding,
                   int x, int y, int width, int height,
                   int u0, int v0, int u1, int v1, Color color)
 {
@@ -501,12 +542,12 @@ void TexturedRect(DrawContext context, const TextureBinding & binding,
     const int endU   = Coord(u0, u1, static_cast<s64>(endX) - x, width);
     const int endV   = Coord(v0, v1, static_cast<s64>(endY) - y, height);
 
-    TexturedRectFixed(context, binding, left * 16, top * 16, endX * 16, endY * 16,
+    TexturedRectFixed(list, context, binding, left * 16, top * 16, endX * 16, endY * 16,
                       startU, startV, endU, endV, color, DrawState{});
 }
 
-void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int x0, int y0, int x1, int y1,
-                       int u0, int v0, int u1, int v1, Color color, const DrawState & state)
+void TexturedRectFixed(dma::DisplayList & list, DrawContext context, const TextureBinding & binding,
+                       int x0, int y0, int x1, int y1, int u0, int v0, int u1, int v1, Color color, const DrawState & state)
 {
 #if PS2_D3BFG_ASSERTS
     (void)ValidateBinding(binding);
@@ -527,7 +568,7 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
 
     const int filter = binding.sampler.filter == tex::Filter::Linear ? 1 : 0;
 
-    GifWriter writer = dma::BeginDirect(30);
+    GifWriter writer = list.BeginDirect(30);
     BeginPass(writer, context, state);
 
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
@@ -546,10 +587,10 @@ void TexturedRectFixed(DrawContext context, const TextureBinding & binding, int 
     Position(writer, state, x1, y1);
 
     EndPass(writer, context, state);
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
+void TexturedTriangleFixed(dma::DisplayList & list, DrawContext context, const TextureBinding & binding,
                            const ui::FixedTriangle & triangle, const DrawState & state)
 {
 #if PS2_D3BFG_ASSERTS
@@ -580,7 +621,7 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
 
     // Complete state and three RGBAQ/UV/XYZ2 vertices: at most eighteen registers, thirty-six qwords.
     // A drain may alternate command halves; never depend on the previous primitive's state.
-    GifWriter writer = dma::BeginDirect(36);
+    GifWriter writer = list.BeginDirect(36);
     BeginPass(writer, context, state);
 
     writer.SetRegister(ContextReg(GS_REG_TEX1, context), GS_SET_TEX1(1, 0, filter, filter, 0, 0, 0));
@@ -600,10 +641,10 @@ void TexturedTriangleFixed(DrawContext context, const TextureBinding & binding,
     }
 
     EndPass(writer, context, state);
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void LineFixed(DrawContext context, const ui::FixedLine & line, const DrawState & state)
+void LineFixed(dma::DisplayList & list, DrawContext context, const ui::FixedLine & line, const DrawState & state)
 {
     const auto & first  = line.vertices[0];
     const auto & second = line.vertices[1];
@@ -624,7 +665,7 @@ void LineFixed(DrawContext context, const ui::FixedLine & line, const DrawState 
     }
 
     // Untextured RGB is the pixel color itself; only alpha takes the 0x80 = 1.0 scale.
-    GifWriter writer = dma::BeginDirect(24);
+    GifWriter writer = list.BeginDirect(24);
     BeginPass(writer, context, state);
 
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_LINE, PRIM_SHADE_GOURAUD, 0, state.constantColor ? 1 : 0,
@@ -637,10 +678,10 @@ void LineFixed(DrawContext context, const ui::FixedLine & line, const DrawState 
     }
 
     EndPass(writer, context, state);
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void FillRect(DrawContext context, int x, int y, int width, int height, Color color)
+void FillRect(dma::DisplayList & list, DrawContext context, int x, int y, int width, int height, Color color)
 {
 #if PS2_D3BFG_ASSERTS
     if (!s_initialized || width < 0 || height < 0) [[unlikely]]
@@ -663,7 +704,7 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
         return;
     }
 
-    GifWriter writer = dma::BeginDirect(12);
+    GifWriter writer = list.BeginDirect(12);
 
     writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 1, 0, 1, 0x80));
     writer.SetRegister(ContextReg(GS_REG_TEST, context), TestState(false));
@@ -676,10 +717,10 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((left + 2048) * 16, (top + 2048) * 16, 0));
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((endX + 2048) * 16, (endY + 2048) * 16, 0));
 
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void ClearFrame(DrawContext context, Color color)
+void ClearFrame(dma::DisplayList & list, DrawContext context, Color color)
 {
 #if PS2_D3BFG_ASSERTS
     if (!s_initialized || color.a != 255) [[unlikely]]
@@ -691,7 +732,7 @@ void ClearFrame(DrawContext context, Color color)
 #endif // PS2_D3BFG_ASSERTS
 
     // One sprite writes the color and depth 1, outside every mask; then depth writes stop again.
-    GifWriter writer = dma::BeginDirect(16);
+    GifWriter writer = list.BeginDirect(16);
 
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(true));
     writer.SetRegister(ContextReg(GS_REG_TEST, context), TestState(false));
@@ -701,37 +742,35 @@ void ClearFrame(DrawContext context, Color color)
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((2048 + s_width) * 16, (2048 + s_height) * 16, 1));
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(false));
 
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void BeginDepthPass(DrawContext context)
+void BeginDepthPass(dma::DisplayList & list, DrawContext context)
 {
     PS2_AssertMsg(s_initialized, "depth pass before GS initialization");
 
-    dma::Ensure(1U);
-    dma::List().Cnt(0U, dma::kVifFlush, dma::kVifNop);
+    list.FlushPaths();
 
     // ZTST 2 is GEQUAL; ClearFrame left depth 1, the far end of the range. Each register is a
     // tag and its A+D qword.
-    GifWriter writer = dma::BeginDirect(4);
+    GifWriter writer = list.BeginDirect(4);
     writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 2));
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(true));
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void EndDepthPass(DrawContext context)
+void EndDepthPass(dma::DisplayList & list, DrawContext context)
 {
     PS2_AssertMsg(s_initialized, "depth pass before GS initialization");
 
-    dma::Ensure(1U);
-    dma::List().Cnt(0U, dma::kVifFlush, dma::kVifNop);
+    list.FlushPaths();
 
-    GifWriter writer = dma::BeginDirect(2);
+    GifWriter writer = list.BeginDirect(2);
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(false));
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void MaskTriangleFixed(DrawContext context, const ui::FixedTriangle & triangle)
+void MaskTriangleFixed(dma::DisplayList & list, DrawContext context, const ui::FixedTriangle & triangle)
 {
 #if PS2_D3BFG_ASSERTS
     (void)Index(context);
@@ -756,7 +795,7 @@ void MaskTriangleFixed(DrawContext context, const ui::FixedTriangle & triangle)
         return;
     }
 
-    GifWriter writer = dma::BeginDirect(20);
+    GifWriter writer = list.BeginDirect(20);
     BeginMaskWrite(writer, context);
 
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_TRIANGLE, 0, 0, 0, 0, 0, 1, Index(context), 0));
@@ -766,10 +805,10 @@ void MaskTriangleFixed(DrawContext context, const ui::FixedTriangle & triangle)
     }
 
     EndMaskWrite(writer, context);
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void MaskLineFixed(DrawContext context, const ui::FixedLine & line)
+void MaskLineFixed(dma::DisplayList & list, DrawContext context, const ui::FixedLine & line)
 {
     const auto & first  = line.vertices[0];
     const auto & second = line.vertices[1];
@@ -788,7 +827,7 @@ void MaskLineFixed(DrawContext context, const ui::FixedLine & line)
         return;
     }
 
-    GifWriter writer = dma::BeginDirect(18);
+    GifWriter writer = list.BeginDirect(18);
     BeginMaskWrite(writer, context);
 
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_LINE, 0, 0, 0, 0, 0, 1, Index(context), 0));
@@ -796,10 +835,10 @@ void MaskLineFixed(DrawContext context, const ui::FixedLine & line)
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ(second.x + 2048 * 16, second.y + 2048 * 16, 0));
 
     EndMaskWrite(writer, context);
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
-void ClearMask(DrawContext context, int x0, int y0, int x1, int y1)
+void ClearMask(dma::DisplayList & list, DrawContext context, int x0, int y0, int x1, int y1)
 {
 #if PS2_D3BFG_ASSERTS
     (void)Index(context);
@@ -815,7 +854,7 @@ void ClearMask(DrawContext context, int x0, int y0, int x1, int y1)
         return;
     }
 
-    GifWriter writer = dma::BeginDirect(18);
+    GifWriter writer = list.BeginDirect(18);
     BeginMaskWrite(writer, context);
 
     writer.SetRegister(GS_REG_PRIM, GS_SET_PRIM(PRIM_SPRITE, 0, 0, 0, 0, 0, 1, Index(context), 0));
@@ -823,7 +862,7 @@ void ClearMask(DrawContext context, int x0, int y0, int x1, int y1)
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((2048 + x1) * 16, (2048 + y1) * 16, 1));
 
     EndMaskWrite(writer, context);
-    dma::EndDirect(writer);
+    list.EndDirect(writer);
 }
 
 } // namespace ps2::renderer::gs

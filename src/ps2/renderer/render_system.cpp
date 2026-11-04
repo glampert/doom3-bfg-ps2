@@ -221,7 +221,7 @@ void BeginFrame(gs::Color clearColor)
     s_frame = true;
 
     ui::BeginGeometryFrame();
-    gs::ClearFrame(s_context, clearColor);
+    gs::ClearFrame(dma::List(), s_context, clearColor);
 }
 
 void EndFrame()
@@ -241,7 +241,7 @@ void FillRect(int x, int y, int width, int height, gs::Color color)
     PS2_AssertMsg(s_frame, "2D fill outside a frame");
 
     ui::Flush();
-    gs::FillRect(s_context, x, y, width, height, color);
+    gs::FillRect(dma::List(), s_context, x, y, width, height, color);
 }
 
 bool TexturedRect(tex::Handle texture, int x, int y, int width, int height, int u0, int v0, int u1, int v1, gs::Color color)
@@ -255,7 +255,7 @@ bool TexturedRect(tex::Handle texture, int x, int y, int width, int height, int 
         return false;
     }
 
-    gs::TexturedRect(s_context, binding, x, y, width, height, u0, v0, u1, v1, color);
+    gs::TexturedRect(dma::List(), s_context, binding, x, y, width, height, u0, v0, u1, v1, color);
     return true;
 }
 
@@ -272,7 +272,7 @@ bool TexturedRectFixed(tex::Handle texture, const ui::FixedRect & rect, gs::Colo
 
     gs::DrawState state;
     state.blend = blend;
-    gs::TexturedRectFixed(s_context, binding, rect.x0, rect.y0, rect.x1, rect.y1,
+    gs::TexturedRectFixed(dma::List(), s_context, binding, rect.x0, rect.y0, rect.x1, rect.y1,
                           rect.u0, rect.v0, rect.u1, rect.v1, color, state);
     return true;
 }
@@ -310,7 +310,7 @@ bool PalettedTriangleFixed(const PalettedDraw & draw, const ui::FixedTriangle & 
         binding.regionMaxU = draw.regionMaxU;
         binding.regionMinV = draw.regionMinV;
         binding.regionMaxV = draw.regionMaxV;
-        gs::TexturedTriangleFixed(s_context, binding, pass, state);
+        gs::TexturedTriangleFixed(dma::List(), s_context, binding, pass, state);
         return true;
     };
 
@@ -331,7 +331,7 @@ bool TexturedTriangleFixed(tex::Handle texture, const ui::FixedTriangle & triang
             return false;
         }
 
-        gs::TexturedTriangleFixed(s_context, binding, pass, state);
+        gs::TexturedTriangleFixed(dma::List(), s_context, binding, pass, state);
         return true;
     };
 
@@ -345,7 +345,7 @@ bool LineFixed(const ui::FixedLine & line, const Shading & shading)
     ui::Flush();
     const auto Emit = [](const ui::FixedLine & pass, const gs::DrawState & state, int)
     {
-        gs::LineFixed(s_context, pass, state);
+        gs::LineFixed(dma::List(), s_context, pass, state);
         return true;
     };
 
@@ -357,7 +357,7 @@ void MaskTriangleFixed(const ui::FixedTriangle & triangle)
     PS2_AssertMsg(s_frame, "2D mask draw outside a frame");
 
     ui::Flush();
-    gs::MaskTriangleFixed(s_context, triangle);
+    gs::MaskTriangleFixed(dma::List(), s_context, triangle);
 }
 
 void MaskLineFixed(const ui::FixedLine & line)
@@ -365,7 +365,7 @@ void MaskLineFixed(const ui::FixedLine & line)
     PS2_AssertMsg(s_frame, "2D mask draw outside a frame");
 
     ui::Flush();
-    gs::MaskLineFixed(s_context, line);
+    gs::MaskLineFixed(dma::List(), s_context, line);
 }
 
 void ClearMask(int x0, int y0, int x1, int y1)
@@ -373,7 +373,7 @@ void ClearMask(int x0, int y0, int x1, int y1)
     PS2_AssertMsg(s_frame, "2D mask clear outside a frame");
 
     ui::Flush();
-    gs::ClearMask(s_context, x0, y0, x1, y1);
+    gs::ClearMask(dma::List(), s_context, x0, y0, x1, y1);
 }
 
 } // namespace ps2::renderer
