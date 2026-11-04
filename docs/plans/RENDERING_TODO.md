@@ -54,15 +54,19 @@ production link free of test inputs. Section numbers in parentheses point into t
       eviction statistics; the GS gate's `vu-passthrough` draws the first PATH1 sprite
       (2026-11-03). `kernel.i` (quake2-ps2's clipper and window macros) is imported with its
       first consumer, `world_lm.vcl`, at R1, so nothing unverified sits in the tree.
-- [ ] Register new units in `config/sources.mk` (`RESIDENT_SUPPORT_CXX_SRC`,
-      `CORE_BACKEND_CXX_SRC`, cold units in `SIZE_OPT_CXX_SRC`); `make compiledb`.
-- [ ] Gate: `make` builds and checks a VU object; the existing 2D scene draws through the
-      new chain with pixel parity in `make test-renderer`; expected-fatal probes for a chain
-      ring overflow and a VU window overrun; hardware probes written for `DATE` (also the
-      PCSX2 software renderer), large texture coordinates, DMA cache coherence and a
-      `PSMCT16S` scratch sharing the `Z16S` buffer, run at the first console session.
-- [ ] Docs: `CVARS.md` rows for the profile cvar, `docs/testing/` entry for the new probes,
-      `BUILD_INVENTORY.md` for the moved units.
+- [x] Register new units in `config/sources.mk` (`RESIDENT_SUPPORT_CXX_SRC`,
+      `CORE_BACKEND_CXX_SRC`, cold units in `SIZE_OPT_CXX_SRC`); `make compiledb`
+      (2026-11-03).
+- [x] Gate, emulator part: `make` builds and checks a VU object; the existing 2D scene draws
+      through the new chain with pixel parity in `make test-renderer`; the chain ring
+      overflow is an expected-fatal probe (`renderer-direct-overflow`) (2026-11-03).
+- [ ] Gate, remaining: the VU window overrun probe (needs R1's batches); hardware probes
+      written for `DATE` (also the PCSX2 software renderer), large texture coordinates, DMA
+      cache coherence and a `PSMCT16S` scratch sharing the `Z16S` buffer, run at the first
+      console session.
+- [x] Docs: `docs/testing/core.md` lists the new markers and probe, `BUILD_INVENTORY.md`
+      the moved and added units (2026-11-03). The profile cvar's `CVARS.md` row moves to R1,
+      where the cvar is added.
 
 ## R1: first world pixels
 
@@ -79,7 +83,7 @@ production link free of test inputs. Section numbers in parentheses point into t
 - [ ] `world_lm.vcl` with vertex colour only; VU1 counter test of the strip index walk
       against plain ADC strips (6.1, 7.4).
 - [ ] Both frame-buffer profiles selectable (`PSMCT32 + Z16S`, `PSMCT16 + Z16`); capture
-      pixel model records the profile (4.3).
+      pixel model records the profile (4.3); the profile cvar gets its `CVARS.md` row.
 - [ ] Gate: fixed-camera captures of the room in both profiles; area 2 draws with correct
       depth and portal culling; decisions on profile, topology and FIELD versus FRAME mode
       written into section 20.
