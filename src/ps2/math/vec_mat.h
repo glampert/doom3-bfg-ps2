@@ -107,12 +107,12 @@ constexpr Vec3 Cross(const Vec3 & a, const Vec3 & b)
              (a.x * b.y) - (a.y * b.x) };
 }
 
-inline float Length(const Vec3 & v)
+PS2_MATH_ALWAYS_INLINE float Length(const Vec3 & v)
 {
     return Sqrtf(Dot(v, v));
 }
 
-inline Vec3 Normalize(const Vec3 & v)
+PS2_MATH_ALWAYS_INLINE Vec3 Normalize(const Vec3 & v)
 {
     return v * RSqrtf(Dot(v, v));
 }
@@ -201,7 +201,7 @@ Mat4 PerspectiveProjection(float fovyRadians, float aspect,
 
 // Row-vector transform: result = v * m. All four components of v are used, so set
 // w to 1 for points. Also handy for EE-side verification of the VU1 path.
-inline Vec4 Transform(const Vec4 & v, const Mat4 & m)
+PS2_MATH_ALWAYS_INLINE Vec4 Transform(const Vec4 & v, const Mat4 & m)
 {
     Vec4 result;
     asm volatile (
@@ -224,7 +224,7 @@ inline Vec4 Transform(const Vec4 & v, const Mat4 & m)
 // Component-wise linear interpolation: out = a + t * (b - a), with the multiply and
 // the add fused into one VU multiply-accumulate. Exact at both ends: t = 0 gives a.
 // Writes through 'out', which may alias 'a' or 'b' (both are loaded up front).
-inline void LerpTo(Vec4 & out, const Vec4 & a, const Vec4 & b, float t)
+PS2_MATH_ALWAYS_INLINE void LerpTo(Vec4 & out, const Vec4 & a, const Vec4 & b, float t)
 {
     [[maybe_unused]] u32 tmp;
     asm (
@@ -244,7 +244,7 @@ inline void LerpTo(Vec4 & out, const Vec4 & a, const Vec4 & b, float t)
 // Value-returning form of LerpTo. Prefer LerpTo in hot loops: the vector unit can
 // only deliver its result to memory, so this form lands it in a temporary that the
 // caller then has to copy out (four instructions GCC will not elide).
-inline Vec4 Lerp(const Vec4 & a, const Vec4 & b, float t)
+PS2_MATH_ALWAYS_INLINE Vec4 Lerp(const Vec4 & a, const Vec4 & b, float t)
 {
     Vec4 result;
     LerpTo(result, a, b, t);
@@ -255,7 +255,7 @@ inline Vec4 Lerp(const Vec4 & a, const Vec4 & b, float t)
 // clip-space position of a world-space point, w included. The merged vector's 4th
 // lane is left as whatever the shuffle produced and never read - the row 3 term is
 // taken from vf0's hardwired w = 1 instead of from the vector.
-inline Vec4 Transform(const Vec3 & v, const Mat4 & m)
+PS2_MATH_ALWAYS_INLINE Vec4 Transform(const Vec3 & v, const Mat4 & m)
 {
     Vec4 result;
     [[maybe_unused]] u32 t0, t1, t2;
@@ -289,7 +289,7 @@ inline Vec4 Transform(const Vec3 & v, const Mat4 & m)
 // caller stores the three words straight into wherever its Vec3 lives - an sqc2
 // would need a 16-byte-aligned home first and then a copy out of it. The two source
 // operands are declared to the asm as memory rather than clobbering all of it.
-inline Vec3 Lerp(const Vec3 & a, const Vec3 & b, float t)
+PS2_MATH_ALWAYS_INLINE Vec3 Lerp(const Vec3 & a, const Vec3 & b, float t)
 {
     u32 rx, ry, rz;
     asm (
@@ -344,7 +344,7 @@ inline Vec3 Lerp(const Vec3 & a, const Vec3 & b, float t)
 // branch and drops the qmfc2 -> mtc1 -> c.le.s chain the float version needs.
 // The sll is not redundant - qmfc2 writes all 64 low bits of the GPR, and a
 // 32-bit compare on MIPS64 requires the value sign-extended from bit 31.
-inline bool CullBackFacingTriangle(const Vec4 & eye, const Vec4 & v0, const Vec4 & v1, const Vec4 & v2)
+PS2_MATH_ALWAYS_INLINE bool CullBackFacingTriangle(const Vec4 & eye, const Vec4 & v0, const Vec4 & v1, const Vec4 & v2)
 {
     s32 dotBits;
     asm (

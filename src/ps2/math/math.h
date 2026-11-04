@@ -11,6 +11,12 @@
 
 #pragma once
 
+#if defined(__GNUC__) || defined(__clang__)
+    #define PS2_MATH_ALWAYS_INLINE inline __attribute__((always_inline))
+#else // __GNUC__ || __clang__
+    #define PS2_MATH_ALWAYS_INLINE inline
+#endif // __GNUC__ || __clang__
+
 namespace ps2::math
 {
 
@@ -18,36 +24,36 @@ constexpr float kPI     = 3.1415926535897932384626433832795f;
 constexpr float kTwoPI  = 6.283185307179586476925286766559f;
 constexpr float kHalfPI = 1.5707963267948966192313216916398f;
 
-inline float Fabsf(float x)
+PS2_MATH_ALWAYS_INLINE float Fabsf(float x)
 {
     float r;
-    __asm__("abs.s %0, %1" : "=f"(r) : "f"(x));
+    asm ("abs.s %0, %1" : "=f"(r) : "f"(x));
     return r;
 }
 
-inline float Sqrtf(float x)
+PS2_MATH_ALWAYS_INLINE float Sqrtf(float x)
 {
     float r;
-    __asm__("sqrt.s %0, %1" : "=f"(r) : "f"(x));
+    asm ("sqrt.s %0, %1" : "=f"(r) : "f"(x));
     return r;
 }
 
-inline float Minf(float a, float b)
+PS2_MATH_ALWAYS_INLINE float Minf(float a, float b)
 {
     float r;
-    __asm__("min.s %0, %1, %2" : "=f"(r) : "f"(a), "f"(b));
+    asm ("min.s %0, %1, %2" : "=f"(r) : "f"(a), "f"(b));
     return r;
 }
 
-inline float Maxf(float a, float b)
+PS2_MATH_ALWAYS_INLINE float Maxf(float a, float b)
 {
     float r;
-    __asm__("max.s %0, %1, %2" : "=f"(r) : "f"(a), "f"(b));
+    asm ("max.s %0, %1, %2" : "=f"(r) : "f"(a), "f"(b));
     return r;
 }
 
 // 1 / sqrt(x). The EE has no rsqrt.s; sqrt.s of zero is zero and the divide saturates to FLT_MAX.
-inline float RSqrtf(float x)
+PS2_MATH_ALWAYS_INLINE float RSqrtf(float x)
 {
     return 1.0f / Sqrtf(x);
 }
@@ -58,7 +64,7 @@ inline float RSqrtf(float x)
 // and Cosf(0) is 1, which id's code relies on when it compares axes built from zero angles; at the
 // float values of pi/2 and pi the results carry libm's sign and magnitude (the rounding residue of
 // those constants). Error is about one ulp within a few turns of zero.
-inline void ReduceOctant(float ax, float & r, int & octant)
+PS2_MATH_ALWAYS_INLINE void ReduceOctant(float ax, float & r, int & octant)
 {
     int   j = static_cast<int>(ax * 1.27323954473516f); // 4 / pi, truncated
     float y = static_cast<float>(j);
@@ -73,13 +79,13 @@ inline void ReduceOctant(float ax, float & r, int & octant)
     r      = ((ax - y * 0.78515625f) - y * 2.4187564849853515625e-4f) - y * 3.77489497744594108e-8f;
 }
 
-inline float SinPolynomial(float r)
+PS2_MATH_ALWAYS_INLINE float SinPolynomial(float r)
 {
     const float z = r * r;
     return ((-1.9515295891e-4f * z + 8.3321608736e-3f) * z - 1.6666654611e-1f) * z * r + r;
 }
 
-inline float CosPolynomial(float r)
+PS2_MATH_ALWAYS_INLINE float CosPolynomial(float r)
 {
     const float z = r * r;
     return ((2.443315711809948e-5f * z - 1.388731625493765e-3f) * z + 4.166664568298827e-2f) * z * z - 0.5f * z + 1.0f;
@@ -87,7 +93,7 @@ inline float CosPolynomial(float r)
 
 // The reduction leaves an even octant: 0 and 4 take the sine polynomial, 2 and 6 the cosine one,
 // and the upper half-turn (4, 6) negates. Cosine swaps the polynomials and also negates quadrant 2.
-inline float Sinf(float x)
+PS2_MATH_ALWAYS_INLINE float Sinf(float x)
 {
     float r;
     int   octant;
@@ -102,7 +108,7 @@ inline float Sinf(float x)
     return (x < 0.0f) ? -y : y;
 }
 
-inline float Cosf(float x)
+PS2_MATH_ALWAYS_INLINE float Cosf(float x)
 {
     float r;
     int   octant;
@@ -112,9 +118,9 @@ inline float Cosf(float x)
     return negate ? -y : y;
 }
 
-// One reduction for both: the sine and cosine polynomials of r are the pair, swapped in the odd
-// quadrants.
-inline void SinCosf(float x, float & s, float & c)
+// One reduction for both: the sine and cosine polynomials of r are the pair,
+// swapped in the odd quadrants.
+PS2_MATH_ALWAYS_INLINE void SinCosf(float x, float & s, float & c)
 {
     float r;
     int   octant;
@@ -131,15 +137,17 @@ inline void SinCosf(float x, float & s, float & c)
 }
 
 // sin / cos: exact where both are, and the pole is where libm's tanf also loses meaning.
-inline float Tanf(float x)
+PS2_MATH_ALWAYS_INLINE float Tanf(float x)
 {
-    return Sinf(x) / Cosf(x);
+    float sin, cos;
+    SinCosf(x, sin, cos);
+    return sin / cos;
 }
 
 // Arc tangent on the Cephes atanf scheme: fold |x| into [0, tan(pi/8)] with one of two identities,
 // then an odd degree-9 minimax polynomial. Error is about 2e-7 relative; the divides saturate on
 // the EE instead of producing infinities, which the folds tolerate (1 / FLT_MAX is zero).
-inline float ATanf(float x)
+PS2_MATH_ALWAYS_INLINE float ATanf(float x)
 {
     const float ax = Fabsf(x);
     float y;
@@ -168,7 +176,7 @@ inline float ATanf(float x)
 
 // Four-quadrant arc tangent with libm's conventions for the axes: atan2(0, x < 0) is pi,
 // atan2(y != 0, 0) is +-pi/2 and atan2(0, 0) is 0.
-inline float ATan2f(float y, float x)
+PS2_MATH_ALWAYS_INLINE float ATan2f(float y, float x)
 {
     if (x == 0.0f)
     {
@@ -198,7 +206,7 @@ inline float ATan2f(float y, float x)
 // Arc sine on the Cephes asinf scheme: |x| above 1/2 goes through asin(x) = pi/2 - 2 asin(sqrt((1 - x) / 2)),
 // then a degree-11 polynomial on the reduced argument. About 2.5e-7 relative; inputs beyond [-1, 1]
 // clamp to +-pi/2 (libm would return NaN, which this FPU cannot represent).
-inline float ASinf(float x)
+PS2_MATH_ALWAYS_INLINE float ASinf(float x)
 {
     const float ax = Fabsf(x);
 
@@ -221,7 +229,7 @@ inline float ASinf(float x)
 }
 
 // Arc cosine through the arc sine, choosing the identity that keeps the polynomial argument small.
-inline float ACosf(float x)
+PS2_MATH_ALWAYS_INLINE float ACosf(float x)
 {
     if (x <= -1.0f)
     {
@@ -248,7 +256,7 @@ inline float ACosf(float x)
 
 // The EE has no floor.w.s / ceil.w.s, only the truncating cvt.w.s, which saturates past 2^31; any
 // float of magnitude 2^23 or more is already integral, so those return unchanged.
-inline float Floorf(float x)
+PS2_MATH_ALWAYS_INLINE float Floorf(float x)
 {
     if (Fabsf(x) >= 8388608.0f)
     {
@@ -259,7 +267,7 @@ inline float Floorf(float x)
     return (t > x) ? t - 1.0f : t;
 }
 
-inline float Ceilf(float x)
+PS2_MATH_ALWAYS_INLINE float Ceilf(float x)
 {
     if (Fabsf(x) >= 8388608.0f)
     {
