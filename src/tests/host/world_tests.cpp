@@ -207,6 +207,44 @@ static bool Procs()
 // An independent VIF model of one batch packet
 // ------------------------------------------------------------------------------------------------
 
+// VIFcode fields (EE User's Manual, VIF chapter): CMD in bits 24-31, NUM in 16-23, IMMEDIATE in
+// 0-15. Only the commands a batch packet may hold are modelled; anything else fails the packet.
+static constexpr std::uint32_t kVifCommandShift = 24;
+static constexpr std::uint32_t kVifNumShift = 16;
+static constexpr std::uint32_t kVifNumMask = 0xFFU;
+static constexpr std::uint32_t kVifImmediateMask = 0xFFFFU;
+
+static constexpr std::uint32_t kVifNop = 0x00;
+static constexpr std::uint32_t kVifStcycl = 0x01;
+static constexpr std::uint32_t kVifItop = 0x04;
+static constexpr std::uint32_t kVifMscnt = 0x17;
+
+// STCYCL: IMMEDIATE holds CL (cycle length) in bits 0-7 and WL (write length) in bits 8-15.
+static constexpr std::uint32_t kStcyclCycleMask = 0xFFU;
+static constexpr std::uint32_t kStcyclWriteShift = 8;
+
+// ITOP: a 10-bit count the microprogram reads back with XITOP.
+static constexpr std::uint32_t kItopMask = 0x3FFU;
+
+// UNPACK: CMD is 011m vnvl. The m bit (masking) is unused here; vn is the component count less
+// one and vl the component width (0: 32, 1: 16, 2: 8, 3: 5 bits, V4-5 only). IMMEDIATE holds the
+// qword address (bits 0-9), USN (bit 14, zero instead of sign extension) and FLG (bit 15, the
+// address is relative to TOPS). NUM 0 means 256 elements.
+static constexpr std::uint32_t kUnpackCommandMask = 0xE0U;
+static constexpr std::uint32_t kUnpackCommand = 0x60U;
+static constexpr std::uint32_t kUnpackMaskBit = 0x10U;
+static constexpr std::uint32_t kUnpackVnShift = 2;
+static constexpr std::uint32_t kUnpackFieldMask = 3U;
+static constexpr std::uint32_t kUnpackAddressMask = 0x3FFU;
+static constexpr std::uint32_t kUnpackUnsignedBit = 1U << 14;
+static constexpr std::uint32_t kUnpackTopsBit = 1U << 15;
+static constexpr std::uint32_t kUnpackMaxElements = 256;
+static constexpr std::uint32_t kUnpackV4_5Bits = 5;
+
+static constexpr std::uint32_t kQwordLanes = 4;
+static constexpr std::uint32_t kWordBits = 32;
+static constexpr std::size_t kWordBytes = 4;
+
 struct Unpacked
 {
     std::vector<std::array<std::uint32_t, 4>> memory = std::vector<std::array<std::uint32_t, 4>>(kWorldInputHalfQwords);
@@ -220,63 +258,67 @@ static bool RunVif(std::span<const std::uint8_t> packet, Unpacked & output)
     std::uint32_t cycle = 1;
     std::uint32_t write = 1;
     std::size_t at = 0;
-    const std::size_t words = packet.size() / 4;
+    const std::size_t words = packet.size() / kWordBytes;
 
     while (at < words)
     {
-        const std::uint32_t code = ReadLe32(packet.data() + 4 * at++);
-        const std::uint32_t command = code >> 24;
-        const std::uint32_t num = (code >> 16) & 0xFFU;
-        const std::uint32_t immediate = code & 0xFFFFU;
+        const std::uint32_t code = ReadLe32(packet.data() + kWordBytes * at++);
+        const std::uint32_t command = code >> kVifCommandShift;
+        const std::uint32_t num = (code >> kVifNumShift) & kVifNumMask;
+        const std::uint32_t immediate = code & kVifImmediateMask;
 
-        if (output.kicked && command != 0)
+        // MSCNT starts the program; only padding may follow it.
+        if (output.kicked && command != kVifNop)
         {
             return false;
         }
 
-        if (command == 0x00)
+        if (command == kVifNop)
         {
             continue;
         }
 
-        if (command == 0x01)
+        if (command == kVifStcycl)
         {
-            cycle = immediate & 0xFFU;
-            write = immediate >> 8;
+            cycle = immediate & kStcyclCycleMask;
+            write = immediate >> kStcyclWriteShift;
             continue;
         }
 
-        if (command == 0x04)
+        if (command == kVifItop)
         {
-            output.itop = immediate & 0x3FFU;
+            output.itop = immediate & kItopMask;
             continue;
         }
 
-        if (command == 0x17)
+        if (command == kVifMscnt)
         {
             output.kicked = true;
             continue;
         }
 
-        if ((command & 0xE0U) != 0x60U || (command & 0x10U) != 0 || (immediate & 0x8000U) == 0 || write == 0 || cycle < write)
+        // Every batch unpack is unmasked and relative to TOPS, in skipping-write mode (CL >= WL).
+        if ((command & kUnpackCommandMask) != kUnpackCommand || (command & kUnpackMaskBit) != 0 || (immediate & kUnpackTopsBit) == 0 || write == 0 ||
+            cycle < write)
         {
             return false;
         }
 
-        const std::uint32_t components = ((command >> 2) & 3U) + 1U;
-        const std::uint32_t bits = 32U >> (command & 3U);
-        const bool unsignedExtend = (immediate & 0x4000U) != 0;
-        const std::uint32_t address = immediate & 0x3FFU;
-        const std::uint32_t count = num == 0 ? 256U : num;
-        const std::size_t dataWords = (static_cast<std::size_t>(count) * components * bits + 31U) / 32U;
+        const std::uint32_t components = ((command >> kUnpackVnShift) & kUnpackFieldMask) + 1U;
+        const std::uint32_t bits = kWordBits >> (command & kUnpackFieldMask);
+        const bool unsignedExtend = (immediate & kUnpackUnsignedBit) != 0;
+        const std::uint32_t address = immediate & kUnpackAddressMask;
+        const std::uint32_t count = num == 0 ? kUnpackMaxElements : num;
+        const std::size_t dataWords = (static_cast<std::size_t>(count) * components * bits + kWordBits - 1U) / kWordBits;
 
-        if (components != 4 || bits == 5 || at + dataWords > words)
+        if (components != kQwordLanes || bits == kUnpackV4_5Bits || at + dataWords > words)
         {
             return false;
         }
 
         for (std::uint32_t element = 0; element < count; ++element)
         {
+            // Skipping write: WL qwords written, then CL - WL skipped.
             const std::uint32_t target = address + (element / write) * cycle + element % write;
 
             if (target >= static_cast<std::uint32_t>(kWorldInputHalfQwords))
@@ -284,15 +326,16 @@ static bool RunVif(std::span<const std::uint8_t> packet, Unpacked & output)
                 return false;
             }
 
-            for (std::uint32_t lane = 0; lane < 4; ++lane)
+            for (std::uint32_t lane = 0; lane < kQwordLanes; ++lane)
             {
-                const std::size_t bit = (static_cast<std::size_t>(element) * 4U + lane) * bits;
-                const std::uint32_t word = ReadLe32(packet.data() + 4 * (at + bit / 32U));
-                std::uint32_t value = bits == 32 ? word : (word >> (bit % 32U)) & ((1U << bits) - 1U);
+                const std::size_t bit = (static_cast<std::size_t>(element) * kQwordLanes + lane) * bits;
+                const std::uint32_t word = ReadLe32(packet.data() + kWordBytes * (at + bit / kWordBits));
+                const std::uint32_t fieldMask = bits == kWordBits ? ~0U : (1U << bits) - 1U;
+                std::uint32_t value = bits == kWordBits ? word : (word >> (bit % kWordBits)) & fieldMask;
 
-                if (!unsignedExtend && bits < 32 && (value & (1U << (bits - 1U))) != 0)
+                if (!unsignedExtend && bits < kWordBits && (value & (1U << (bits - 1U))) != 0)
                 {
-                    value |= ~((1U << bits) - 1U);
+                    value |= ~fieldMask;
                 }
 
                 output.memory[target][lane] = value;
