@@ -6,6 +6,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/world_format.h"
+#include "ps2/math/vec_mat.h"
 
 namespace ps2::renderer::world
 {
@@ -65,7 +66,7 @@ static std::uint32_t Align(std::uint32_t value, std::uint32_t alignment)
 static bool Finite(float value)
 {
     // No Inf/NaN on the EE FPU, but a file can still carry their bit patterns.
-    const std::uint32_t bits = __builtin_bit_cast(std::uint32_t, value);
+    const std::uint32_t bits = math::BitsToU32(value);
     return (bits & 0x7F800000U) != 0x7F800000U;
 }
 
@@ -95,7 +96,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
     const std::uint32_t indexQwords = (indexCount + 3U) / 4U;
     const std::uint32_t base = kHeaderQwords + indexQwords;
 
-    if (indexed != (indexCount != 0) || count == 0 || (indexed && count > kMaxIndexedVertices) || base + kVertexQwords * count > kInputHalfQwords)
+    if (indexed != (indexCount != 0) || count == 0 || (indexed && count > kMaxIndexedVertices) || base + kVertexQwords * count > kInputHalfQwords) [[unlikely]]
     {
         return "batch exceeds the VU1 input half";
     }
@@ -106,17 +107,17 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
         return at < words && Word(packet + 4U * at++) == expected;
     };
 
-    if (!take(VifCode(kVifStcycl, 0, 0x0101U)) || !take(VifUnpack(kUnpackV4_32, 2, 0, false)) || at + 8U > words)
+    if (!take(VifCode(kVifStcycl, 0, 0x0101U)) || !take(VifUnpack(kUnpackV4_32, 2, 0, false)) || at + 8U > words) [[unlikely]]
     {
         return "bad batch header unpack";
     }
 
     const std::uint8_t * header = packet + 4U * at;
 
-    if (Word(header) != __builtin_bit_cast(std::uint32_t, batch.positionOffset[0]) ||
-        Word(header + 4) != __builtin_bit_cast(std::uint32_t, batch.positionOffset[1]) ||
-        Word(header + 8) != __builtin_bit_cast(std::uint32_t, batch.positionOffset[2]) || Word(header + 12) != indexQwords ||
-        Word(header + 16) != __builtin_bit_cast(std::uint32_t, batch.positionScale))
+    if (Word(header) != math::BitsToU32(batch.positionOffset[0]) ||
+        Word(header + 4) != math::BitsToU32(batch.positionOffset[1]) ||
+        Word(header + 8) != math::BitsToU32(batch.positionOffset[2]) || Word(header + 12) != indexQwords ||
+        Word(header + 16) != math::BitsToU32(batch.positionScale)) [[unlikely]]
     {
         return "VU header disagrees with the batch header";
     }
@@ -125,7 +126,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
 
     if (indexed)
     {
-        if (!take(VifUnpack(kUnpackV4_16, indexQwords, 2, true)) || at + 2U * indexQwords > words)
+        if (!take(VifUnpack(kUnpackV4_16, indexQwords, 2, true)) || at + 2U * indexQwords > words) [[unlikely]]
         {
             return "bad index unpack";
         }
@@ -139,7 +140,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
 
             if (index >= indexCount)
             {
-                if (entry != (kEntryAdc | base))
+                if (entry != (kEntryAdc | base)) [[unlikely]]
                 {
                     return "bad index padding";
                 }
@@ -147,7 +148,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
                 continue;
             }
 
-            if (offset < base || (offset - base) % kVertexQwords != 0 || (offset - base) / kVertexQwords >= count)
+            if (offset < base || (offset - base) % kVertexQwords != 0 || (offset - base) / kVertexQwords >= count) [[unlikely]]
             {
                 return "strip index out of range";
             }
@@ -155,7 +156,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
             // Two ADC entries open a strip, which then closes at least one triangle.
             const bool adc = (entry & kEntryAdc) != 0;
 
-            if ((adc && run == 2) || (!adc && run < 2))
+            if ((adc && run == 2) || (!adc && run < 2)) [[unlikely]]
             {
                 return "malformed strip";
             }
@@ -163,7 +164,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
             run = adc ? (run == 1 ? 2U : 1U) : run + 1U;
         }
 
-        if (run < 3)
+        if (run < 3) [[unlikely]]
         {
             return "unfinished strip";
         }
@@ -171,7 +172,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
         at += 2U * indexQwords;
     }
 
-    if (!take(VifCode(kVifStcycl, 0, 0x0103U)) || !take(VifUnpack(kUnpackV4_16, count, base, false)) || at + 2U * count > words)
+    if (!take(VifCode(kVifStcycl, 0, 0x0103U)) || !take(VifUnpack(kUnpackV4_16, count, base, false)) || at + 2U * count > words) [[unlikely]]
     {
         return "bad position unpack";
     }
@@ -180,7 +181,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
     {
         const std::uint32_t w = Word(packet + 4U * (at + 2U * vertex + 1U)) >> 16;
 
-        if (indexed ? w != 0 : (w != 0 && w != kEntryAdc))
+        if (indexed ? w != 0 : (w != 0 && w != kEntryAdc)) [[unlikely]]
         {
             return "bad position flag";
         }
@@ -188,28 +189,28 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
 
     at += 2U * count;
 
-    if (!take(VifUnpack(kUnpackV4_16, count, base + 1U, false)) || at + 2U * count > words)
+    if (!take(VifUnpack(kUnpackV4_16, count, base + 1U, false)) || at + 2U * count > words) [[unlikely]]
     {
         return "bad UV unpack";
     }
 
     at += 2U * count;
 
-    if (!take(VifUnpack(kUnpackV4_8, count, base + 2U, true)) || at + count > words)
+    if (!take(VifUnpack(kUnpackV4_8, count, base + 2U, true)) || at + count > words) [[unlikely]]
     {
         return "bad colour unpack";
     }
 
     at += count;
 
-    if (!take(VifCode(kVifItop, 0, count)))
+    if (!take(VifCode(kVifItop, 0, count))) [[unlikely]]
     {
         return "bad packet tail";
     }
 
     while (at < words)
     {
-        if (!take(VifCode(kVifNop, 0, 0)))
+        if (!take(VifCode(kVifNop, 0, 0))) [[unlikely]]
         {
             return "bad packet padding";
         }
@@ -228,7 +229,7 @@ static const char * CheckRecords(Sections & s)
         const AreaRecord & area = s.areas[index];
 
         if (area.reserved[0] != 0 || area.reserved[1] != 0 || area.firstSurface != nextSurface || area.surfaceCount > s.surfaceCount - nextSurface ||
-            area.firstBatch != nextBatch || area.batchCount > s.batchCount - nextBatch || !(area.mirrorScale > 0.0f) || !Finite(area.mirrorScale))
+            area.firstBatch != nextBatch || area.batchCount > s.batchCount - nextBatch || !(area.mirrorScale > 0.0f) || !Finite(area.mirrorScale)) [[unlikely]]
         {
             return "bad area record";
         }
@@ -237,7 +238,7 @@ static const char * CheckRecords(Sections & s)
         nextBatch += area.batchCount;
     }
 
-    if (nextSurface != s.surfaceCount || nextBatch != s.batchCount)
+    if (nextSurface != s.surfaceCount || nextBatch != s.batchCount) [[unlikely]]
     {
         return "areas do not cover the surfaces and batches";
     }
@@ -255,14 +256,14 @@ static const char * CheckRecords(Sections & s)
         if (surface.reserved[0] != 0 || surface.reserved[1] != 0 || !inArea || surface.material >= s.materialCount || surface.firstBatch != nextBatch ||
             surface.batchCount > s.batchCount - nextBatch || surface.firstVertex != nextVertex || surface.vertexCount > s.mirrorVertexCount - nextVertex ||
             surface.vertexCount > 65536U || surface.firstIndex != nextIndex || surface.indexCount > s.mirrorIndexCount - nextIndex ||
-            surface.indexCount % 3U != 0)
+            surface.indexCount % 3U != 0) [[unlikely]]
         {
             return "bad surface record";
         }
 
         for (std::uint32_t corner = 0; corner < surface.indexCount; ++corner)
         {
-            if (s.mirrorIndices[surface.firstIndex + corner] >= surface.vertexCount)
+            if (s.mirrorIndices[surface.firstIndex + corner] >= surface.vertexCount) [[unlikely]]
             {
                 return "mirror index out of range";
             }
@@ -270,7 +271,7 @@ static const char * CheckRecords(Sections & s)
 
         for (std::uint32_t batch = surface.firstBatch; batch < surface.firstBatch + surface.batchCount; ++batch)
         {
-            if (s.batches[batch].material != surface.material)
+            if (s.batches[batch].material != surface.material) [[unlikely]]
             {
                 return "batch material differs from its surface";
             }
@@ -281,7 +282,7 @@ static const char * CheckRecords(Sections & s)
         nextIndex += surface.indexCount;
     }
 
-    if (nextBatch != s.batchCount || nextVertex != s.mirrorVertexCount || nextIndex != s.mirrorIndexCount)
+    if (nextBatch != s.batchCount || nextVertex != s.mirrorVertexCount || nextIndex != s.mirrorIndexCount) [[unlikely]]
     {
         return "surfaces do not cover the batches and mirror";
     }
@@ -293,7 +294,7 @@ static const char * CheckRecords(Sections & s)
         const PortalRecord & portal = s.portals[index];
 
         if (portal.firstPoint != nextPoint || portal.pointCount < 3 || portal.pointCount > s.portalPointCount - nextPoint ||
-            portal.areas[0] >= s.areaCount || portal.areas[1] >= s.areaCount || portal.areas[0] == portal.areas[1])
+            portal.areas[0] >= s.areaCount || portal.areas[1] >= s.areaCount || portal.areas[0] == portal.areas[1]) [[unlikely]]
         {
             return "bad portal record";
         }
@@ -301,12 +302,12 @@ static const char * CheckRecords(Sections & s)
         nextPoint += portal.pointCount;
     }
 
-    if (nextPoint != s.portalPointCount)
+    if (nextPoint != s.portalPointCount) [[unlikely]]
     {
         return "unused portal points";
     }
 
-    if (s.nodeCount == 0)
+    if (s.nodeCount == 0) [[unlikely]]
     {
         return "no area nodes";
     }
@@ -315,7 +316,7 @@ static const char * CheckRecords(Sections & s)
     {
         for (const std::int32_t child : s.nodes[index].children)
         {
-            if ((child > 0 && static_cast<std::uint32_t>(child) >= s.nodeCount) || (child < 0 && static_cast<std::uint32_t>(-1 - child) >= s.areaCount))
+            if ((child > 0 && static_cast<std::uint32_t>(child) >= s.nodeCount) || (child < 0 && static_cast<std::uint32_t>(-1 - child) >= s.areaCount)) [[unlikely]]
             {
                 return "bad node child";
             }
@@ -330,12 +331,12 @@ static const char * CheckRecords(Sections & s)
 
         if (batch.reserved != 0 || (batch.flags & ~(kLayoutMask | kFlagIndexedStrips)) != 0 || (batch.flags & kLayoutMask) != kLayoutWorldLightmapped ||
             batch.material >= s.materialCount || batch.lightmapPage != kNoLightmap || batch.packetOffset != nextPacket || batch.packetQwords == 0 ||
-            batch.packetQwords > (s.packetBytes - nextPacket) / 16U || !(batch.positionScale > 0.0f) || !Finite(batch.positionScale))
+            batch.packetQwords > (s.packetBytes - nextPacket) / 16U || !(batch.positionScale > 0.0f) || !Finite(batch.positionScale)) [[unlikely]]
         {
             return "bad batch record";
         }
 
-        if (const char * error = CheckPacket(s.packets + batch.packetOffset, batch.packetQwords, batch))
+        if (const char * error = CheckPacket(s.packets + batch.packetOffset, batch.packetQwords, batch)) [[unlikely]]
         {
             return error;
         }
@@ -348,22 +349,22 @@ static const char * CheckRecords(Sections & s)
 
 } // namespace
 
-const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections & output)
+PS2_COLD_FUNC const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections & output)
 {
     output = {};
 
-    if (bytes < kDirectoryBytes || bytes > kMaxFileBytes || (reinterpret_cast<std::uintptr_t>(file) & 15U) != 0)
+    if (bytes < kDirectoryBytes || bytes > kMaxFileBytes || (reinterpret_cast<std::uintptr_t>(file) & 15U) != 0) [[unlikely]]
     {
         return "truncated or misaligned world file";
     }
 
     if (Word(file) != kMagic || Half(file + 4) != kVersion || Half(file + 6) != kHeaderBytes || Half(file + 8) != kSectionCount ||
-        Half(file + 10) != 0 || Word(file + 20) != kConverterVersion || !Zero(file + 24, 8))
+        Half(file + 10) != 0 || Word(file + 20) != kConverterVersion || !Zero(file + 24, 8)) [[unlikely]]
     {
         return "unsupported world header";
     }
 
-    if (Word(file + 12) != bytes || bytes % 16U != 0)
+    if (Word(file + 12) != bytes || bytes % 16U != 0) [[unlikely]]
     {
         return "world file size mismatch";
     }
@@ -372,7 +373,7 @@ const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections &
     static constexpr std::uint8_t kZero[4] = {};
     const std::uint32_t checksum = Fnv(file + 20, kDirectoryBytes - 20U, Fnv(kZero, 4, Fnv(file, 16, 2166136261U)));
 
-    if (checksum != Word(file + 16))
+    if (checksum != Word(file + 16)) [[unlikely]]
     {
         return "world header checksum mismatch";
     }
@@ -390,19 +391,19 @@ const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections &
         const std::uint32_t previousEnd = expected;
         expected = Align(expected, section == static_cast<std::uint32_t>(Section::Packets) ? kPacketAlignment : 16U);
 
-        if (offset != expected || offset > bytes || size > bytes - offset || !Zero(file + previousEnd, offset - previousEnd))
+        if (offset != expected || offset > bytes || size > bytes - offset || !Zero(file + previousEnd, offset - previousEnd)) [[unlikely]]
         {
             return "world section out of place";
         }
 
-        if (Fnv(file + offset, size, 2166136261U) != Word(record + 12))
+        if (Fnv(file + offset, size, 2166136261U) != Word(record + 12)) [[unlikely]]
         {
             return "world section checksum mismatch";
         }
 
         counts[section] = Word(record + 8);
 
-        if (kRecordBytes[section] != 0 && counts[section] * kRecordBytes[section] != size)
+        if (kRecordBytes[section] != 0 && counts[section] * kRecordBytes[section] != size) [[unlikely]]
         {
             return "world section size mismatch";
         }
@@ -412,7 +413,7 @@ const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections &
         expected = offset + size;
     }
 
-    if (Align(expected, 16U) != bytes || !Zero(file + expected, bytes - expected))
+    if (Align(expected, 16U) != bytes || !Zero(file + expected, bytes - expected)) [[unlikely]]
     {
         return "trailing world bytes";
     }
@@ -444,7 +445,7 @@ const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections &
     output.mirrorIndexCount = counts[at(Section::MirrorIndices)];
     output.packetBytes = sizes[at(Section::Packets)];
 
-    if (output.packetBytes != counts[at(Section::Packets)] * 16U || counts[at(Section::Strings)] != output.materialCount)
+    if (output.packetBytes != counts[at(Section::Packets)] * 16U || counts[at(Section::Strings)] != output.materialCount) [[unlikely]]
     {
         output = {};
         return "bad string or packet count";
@@ -459,7 +460,7 @@ const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections &
         const MaterialRecord & material = output.materials[index];
 
         if (material.nameOffset != stringEnd || material.nameBytes == 0 || material.nameBytes >= stringBytes - stringEnd ||
-            output.strings[stringEnd + material.nameBytes] != '\0')
+            output.strings[stringEnd + material.nameBytes] != '\0') [[unlikely]]
         {
             output = {};
             return "bad material name";
@@ -467,7 +468,7 @@ const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections &
 
         for (std::uint32_t character = 0; character < material.nameBytes; ++character)
         {
-            if (output.strings[stringEnd + character] == '\0')
+            if (output.strings[stringEnd + character] == '\0') [[unlikely]]
             {
                 output = {};
                 return "bad material name";
@@ -477,13 +478,13 @@ const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections &
         stringEnd += material.nameBytes + 1U;
     }
 
-    if (stringEnd != stringBytes)
+    if (stringEnd != stringBytes) [[unlikely]]
     {
         output = {};
         return "unused string bytes";
     }
 
-    if (const char * error = CheckRecords(output))
+    if (const char * error = CheckRecords(output)) [[unlikely]]
     {
         output = {};
         return error;

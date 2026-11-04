@@ -139,14 +139,15 @@ void Draw(const Level & level, const math::Mat4 & viewProjection)
     PS2_AssertMsg(level.storage != nullptr, "drawing an unloaded world");
 
     const gs::DrawContext context = renderer::DrawingContext();
+    dma::DisplayList & list = dma::List();
 
     dma::Ensure(vu::kFrameConstantQwords);
-    vu::EmitFrameConstants(dma::List(), MakeFrameConstants(viewProjection, context));
+    vu::EmitFrameConstants(list, MakeFrameConstants(viewProjection, context));
     gs::BeginDepthPass(context);
 
     dma::Ensure(vu::kBindQwords + 1U);
-    const vu::MicroAddr entry = vu::Bind(dma::List(), vu::Program::WorldLightmapped);
-    dma::List().Cnt(0U, dma::VifBase(kVuInputBase), dma::VifOffset(kVuInputHalfQwords));
+    const vu::MicroAddr entry = vu::Bind(list, vu::Program::WorldLightmapped);
+    list.Cnt(0U, dma::VifBase(kVuInputBase), dma::VifOffset(kVuInputHalfQwords));
 
     // A packet ends with ITOP; the tag after it starts the program on it, which is the next
     // batch's REF (its VIFcodes run before its data lands in the other half) or a closing CNT.
@@ -157,12 +158,12 @@ void Draw(const Level & level, const math::Mat4 & viewProjection)
     {
         const BatchRecord & batch = sections.batches[index];
         dma::Ensure(1U);
-        dma::List().Ref(sections.packets + batch.packetOffset, batch.packetQwords, dma::kVifNop, start);
+        list.Ref(sections.packets + batch.packetOffset, batch.packetQwords, dma::kVifNop, start);
         start = dma::VifMscal(static_cast<u32>(entry));
     }
 
     dma::Ensure(1U);
-    dma::List().Cnt(0U, dma::kVifNop, start);
+    list.Cnt(0U, dma::kVifNop, start);
     gs::EndDepthPass(context);
 }
 

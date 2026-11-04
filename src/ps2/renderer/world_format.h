@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "ps2/common.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -115,8 +116,9 @@ struct BatchRecord
     std::uint16_t reserved;
 };
 
-static_assert(sizeof(MaterialRecord) == 8 && sizeof(AreaRecord) == 64 && sizeof(SurfaceRecord) == 64 && sizeof(PortalRecord) == 16 &&
-              sizeof(NodeRecord) == 24 && sizeof(BatchRecord) == 64);
+static_assert(sizeof(MaterialRecord) == 8  && sizeof(AreaRecord)   == 64 &&
+              sizeof(SurfaceRecord)  == 64 && sizeof(PortalRecord) == 16 &&
+              sizeof(NodeRecord)     == 24 && sizeof(BatchRecord)  == 64);
 
 // Views into a validated file. Names are NUL-terminated inside 'strings'.
 struct Sections
@@ -147,6 +149,6 @@ struct Sections
 // Validates the header, directory, checksums, every record range and cross reference and each
 // batch packet's VIFcodes against its header. 'file' must be 16-byte aligned (64 for the packets
 // to be REF'd in place). Returns null when valid, else what was wrong.
-const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections & output);
+PS2_COLD_FUNC const char * Validate(const std::uint8_t * file, std::uint32_t bytes, Sections & output);
 
 } // namespace ps2::renderer::world
