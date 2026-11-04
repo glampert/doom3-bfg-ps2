@@ -80,23 +80,30 @@ static constexpr int kD3wdSectionCount = static_cast<int>(D3wdSection::Count);
 //
 // Flags: bits 0-3 vertex layout (0: WA), bit 4 indexed strips. Every packet is, in order:
 //   STCYCL 1,1
-//   UNPACK V4-32 2 qwords at +0 (TOPS):  qw0 position offset xyz (f32), w index count (u32);
+//   UNPACK V4-32 2 qwords at +0 (TOPS):  qw0 position offset xyz (f32), w index qwords Q (u32);
 //                                        qw1 position scale, UV scale, UV offset s, t (f32)
-//   UNPACK V4-8 unsigned ceil(I/4) at +2  strip index stream, four bytes per qword (indexed only)
+//   UNPACK V4-16 unsigned Q at +2        strip index stream, four u16 entries per qword (indexed only)
 //   STCYCL 3,1
 //   UNPACK V4-16 N at +2+Q    position s16 xyz, w the ADC flag 0x8000 (plain strips) or 0
 //   UNPACK V4-16 N at +3+Q    UV s16 s, t and lightmap s, t (UV = q * UV scale + offset)
 //   UNPACK V4-8 unsigned N at +4+Q  RGBA, 0x80 = 1.0
-//   ITOP N; MSCNT; NOPs to the qword
-// with Q = ceil(I/4). A strip index is the vertex in its low 7 bits, and bit 7 (ADC) marks the
-// first two vertices of each strip, which close no triangle; strip triangle k is (k, k+1, k+2)
-// in id's winding for even k and (k+1, k, k+2) for odd k. Plain strips have no index stream: the
-// N vertices are emitted in strip order with the same ADC rule in position w.
+//   ITOP N; NOPs to the qword
+// with Q = ceil(I/4). The packet starts no program: the display list sends MSCAL with the next tag,
+// so the packet stays valid wherever vu::Init places the program. A strip index entry is the
+// vertex's qword offset in the input half (2 + Q + 3 * vertex) in bits 0-14 and the GS ADC flag in
+// bit 15, set on the first two entries of each strip, which close no triangle: VU1 has no integer
+// multiply or shift, so the program adds the entry to XTOP and writes the flag into XYZ2 as they
+// stand. Entries past I repeat the first vertex with ADC set, so a program may walk whole qwords.
+// Strip triangle k is (k, k+1, k+2) in id's winding for even k and (k+1, k, k+2) for odd k. Plain
+// strips have no index stream: the N vertices are emitted in strip order with the same ADC rule
+// in position w.
 static constexpr std::uint32_t kBatchLayoutWorldLightmapped = 0;
 static constexpr std::uint32_t kBatchLayoutMask = 0xF;
 static constexpr std::uint32_t kBatchFlagIndexedStrips = 1U << 4;
 static constexpr std::uint16_t kBatchNoLightmap = 0xFFFF;
+// BuildStrips and WalkStrips number vertices 0..127 with the ADC flag in bit 7; packets use bit 15.
 static constexpr std::uint8_t kStripIndexAdc = 0x80;
+static constexpr std::uint32_t kStripEntryAdc = 0x8000;
 static constexpr std::int16_t kStripVertexAdc = -32768;
 
 // VU1 data memory (ps2/renderer/vu1progs/vu_memory.h, plan section 7.2): each input half is 306

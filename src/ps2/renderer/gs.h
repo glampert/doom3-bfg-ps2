@@ -139,6 +139,12 @@ void FillRect(DrawContext context, int x, int y, int width, int height, Color co
 // Fills the color buffer and resets the depth mask: no pixel is inside it afterwards.
 void ClearFrame(DrawContext context, Color color);
 
+// The world's depth state for 'context': depth written and tested GEQUAL (larger is nearer).
+// End restores the 2D environment (depth writes masked). Each begins with a VIF FLUSH, so it
+// lands between whole PATH1 packets: after every batch before it, before any after it.
+void BeginDepthPass(DrawContext context);
+void EndDepthPass(DrawContext context);
+
 // The depth buffer holds one mask: these write coverage into it without touching color, and
 // ClearMask removes it from a pixel rectangle. A masked DrawState passes only inside it.
 void MaskTriangleFixed(DrawContext context, const ui::FixedTriangle & triangle);

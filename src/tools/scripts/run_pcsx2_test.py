@@ -121,7 +121,7 @@ CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
     "inactive-start", "rejected-partial-init", "device-init", "context-frames",
     "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters", "native-indexed",
-    "pipelined-present", "vu-passthrough"))
+    "pipelined-present", "vu-passthrough", "world-graybox"))
 REQUIRED_CORE_CHECKS = frozenset({
     "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
@@ -827,6 +827,12 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
     game_scenario = args.scenario in ("game", "game-map") or args.scenario in GAME_FAILURES
     archive = archive_resident_artifacts if game_scenario else archive_build_artifacts
     build_artifacts = archive(elf, staged_elf, output / "d3bfg_tests_unstripped.elf", output)
+    if args.scenario in ("renderer-ntsc", "renderer-pal"):
+        # The graybox world the GS gate draws, cooked by make world-cook.
+        world = REPO_ROOT / "build/world/graybox.d3wd"
+        if not world.is_file():
+            raise ValueError(f"{world} is missing; run make world-cook")
+        shutil.copy2(world, output / "graybox.d3wd")
     if game_scenario:
         stage_game_fixtures(output / "game-fixture", args.scenario)
         (output / "game.manifest").write_text(f"D3BFG_GAME_1\n{test_id}\n{args.scenario}\n")
@@ -945,6 +951,9 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 if any(abs(actual - wanted) > 8 for actual, wanted in zip(pixels[offset:offset + 3], expected)):
                     raise ValueError(f"VU passthrough capture wrong at {x},{y}")
             capture_checks["renderer-vu.tga"] = {"sha256": sha256(output / "renderer-vu.tga"), "sprite": "PASS"}
+            for view in ("room0", "room1", "doorway", "clip"):
+                name = f"renderer-world-{view}.tga"
+                capture_checks[name] = renderer_capture.verify_world_scene(output / name, standard, view)
             for name in ("renderer-ui.tga", "renderer-ui-reload.tga"):
                 capture_checks[name] = renderer_capture.verify_ui_scene(output / name, standard)
             if capture_checks["renderer-ui.tga"]["sha256"] != capture_checks["renderer-ui-reload.tga"]["sha256"]:

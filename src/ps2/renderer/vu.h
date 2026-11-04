@@ -9,6 +9,7 @@
 #pragma once
 
 #include "ps2/common.h"
+#include "ps2/math/vec_mat.h"
 #include "ps2/renderer/vu1progs/vu_memory.h"
 #include <tamtypes.h>
 
@@ -47,18 +48,33 @@ struct MicroCode
 
 // The programs in config/sources.mk's VCL_FILES.
 PS2_DECLARE_VU_MICROPROGRAM(passthrough)
+PS2_DECLARE_VU_MICROPROGRAM(world_lm)
 
 // Micro memory: 2048 64-bit instructions. Addresses are in that unit, as MPG and MSCAL take them.
 static constexpr u32 kMicroMemInstructions = 2048U;
 
 // Qwords a Bind or EmitFrameConstants reserves at most, for dma::Ensure.
 static constexpr u32 kBindQwords = 1U;
-static constexpr u32 kFrameConstantQwords = 2U;
+static constexpr u32 kFrameConstantQwords = 1U + kVuFrameBlockQwords;
 
 enum class Program : u8
 {
     Passthrough,
+    WorldLightmapped, // world_lm.vcl: one cooked D3WD batch per MSCAL
     Count
+};
+
+// What a frame's programs read from the low data memory (vu_memory.h): the view-projection (row
+// vectors), the projection to GS window coordinates and the guard band, and the world programs'
+// drawing tags. EmitFrameConstants adds the window state and the null tag itself.
+struct alignas(16) FrameConstants
+{
+    math::Mat4 viewProjection;
+    math::Vec4 gsScale;   // w: the clipper's plane shrink
+    math::Vec4 gsOffset;  // w: the clipper's distance scale
+    math::Vec4 clipScale; // the guard band judgement scale (xy), 1 for z
+    u64 stripTag[2];      // GIF tags (PRE, PRIM, PACKED RGBAQ + XYZ2); NLOOP and EOP are the program's
+    u64 listTag[2];
 };
 
 enum class MicroAddr : u32
@@ -81,9 +97,10 @@ MicroAddr Bind(dma::DisplayList & list, Program program);
 // uploads on its next Bind.
 void Invalidate();
 
-// Uploads the shared VU data memory constants a frame relies on (today the null GIF tag at
-// kVuNullGifTagAddr): one CNT block, emitted once per frame before the first batch.
-void EmitFrameConstants(dma::DisplayList & list);
+// Uploads the shared VU data memory block (vu_memory.h, qwords 0 to kVuFrameBlockQwords - 1): the
+// caller's constants, the null GIF tag and the output windows reset to window A. One CNT block,
+// emitted before the first batch of a frame, while no program runs.
+void EmitFrameConstants(dma::DisplayList & list, const FrameConstants & constants);
 
 struct Stats
 {

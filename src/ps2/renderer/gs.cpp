@@ -6,6 +6,7 @@
 
 #include "ps2/renderer/gs.h"
 #include "ps2/renderer/dma.h"
+#include "ps2/renderer/dma_list.h"
 #include "ps2/renderer/pipeline_wait.h"
 
 #include <idlib/precompiled.h>
@@ -700,6 +701,33 @@ void ClearFrame(DrawContext context, Color color)
     writer.SetRegister(GS_REG_XYZ2, GS_SET_XYZ((2048 + s_width) * 16, (2048 + s_height) * 16, 1));
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(false));
 
+    dma::EndDirect(writer);
+}
+
+void BeginDepthPass(DrawContext context)
+{
+    PS2_AssertMsg(s_initialized, "depth pass before GS initialization");
+
+    dma::Ensure(1U);
+    dma::List().Cnt(0U, dma::kVifFlush, dma::kVifNop);
+
+    // ZTST 2 is GEQUAL; ClearFrame left depth 1, the far end of the range. Each register is a
+    // tag and its A+D qword.
+    GifWriter writer = dma::BeginDirect(4);
+    writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 2));
+    writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(true));
+    dma::EndDirect(writer);
+}
+
+void EndDepthPass(DrawContext context)
+{
+    PS2_AssertMsg(s_initialized, "depth pass before GS initialization");
+
+    dma::Ensure(1U);
+    dma::List().Cnt(0U, dma::kVifFlush, dma::kVifNop);
+
+    GifWriter writer = dma::BeginDirect(2);
+    writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(false));
     dma::EndDirect(writer);
 }
 

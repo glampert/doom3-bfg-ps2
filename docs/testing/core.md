@@ -71,6 +71,15 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
 
 ## Host tests
 
+- The GS gate's `renderer-gs/world-graybox` loads `host:graybox.d3wd` (`make test-renderer` runs
+  `make world-cook` and the runner stages it), draws it through `world_lm.vcl` from four
+  cameras (room 0, room 1, through the doorway, against the divider where the near plane and
+  the guard band clip) and captures `renderer-world-{room0,room1,doorway,clip}.tga`; it also
+  requires one program upload and the exact heap ledger after unload. The runner checks eight
+  pixels a view (`renderer_capture.WORLD_SCENE_PIXELS`, per standard), chosen deep inside flat
+  faces from a reference rasterizer of the same `.proc`, cameras and colour bytes; 99.4 to
+  99.9 % of each capture matches it within the PSMCT16 model. Reference images:
+  `docs/images/renderer-world-1-*-{ntsc,pal}.png`.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

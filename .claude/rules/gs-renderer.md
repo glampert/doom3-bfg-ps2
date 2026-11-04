@@ -66,6 +66,12 @@ coordinates; CLUTs; VRAM and mipmaps.
   All packet reservations leave room for the final EOP and four-qword FINISH/END terminator;
   DMA, FINISH and VSYNC polls use wrap-safe COP0 Count deadlines in assertion builds; release
   spins. Packet bounds and state preflight are assertions too ([ps2-backend-cpp.md](ps2-backend-cpp.md#validation-and-error-handling)).
+- **World pass:** `gs::BeginDepthPass`/`EndDepthPass` wrap the VU1 world draw with a VIF FLUSH and
+  a DIRECT block (TEST GEQUAL with depth written, then depth writes masked again), so the state
+  lands between whole PATH1 packets. ClearFrame leaves depth 1 (far); world depth is 0xFFFF at
+  the near plane. A `GifWriter::SetRegister` costs two qwords (its own tag and the A+D data):
+  size `BeginDirect` accordingly. Untextured vertex colour writes 0x80 as 128, half brightness,
+  until a textured MODULATE pass makes 0x80 one.
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,
   eviction, destruction and image close drain/FINISH (flush queued UI references) before
   overwriting or releasing VRAM. Uploads retire PATH2 before synchronous PATH3 chains.

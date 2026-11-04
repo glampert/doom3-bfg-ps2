@@ -1,8 +1,10 @@
 # VU microprograms and VU0 inline asm
 
-Doom's VU build (the rule, `vu.h`, `vu1progs/`) is in place since 2026-11-03 with one program,
-`passthrough.vcl`; the memory layout, program names, VU0 asm sites and tests below still belong
-to `quake2-ps2`, and the hardware/toolchain behaviour transfers.
+Doom's VU build (the rule, `vu.h`, `vu1progs/`) is in place since 2026-11-03: `passthrough.vcl`
+and, since 2026-11-04, `world_lm.vcl` (cooked D3WD world batches) with `vu_window.i` and
+`vu_clip.i` adapted from quake2-ps2. Doom's data memory map is `vu1progs/vu_memory.h`; the
+"VU memory layout (vu1.h)" section and the named VU0 asm sites below are quake2-ps2's, and the
+hardware/toolchain behaviour transfers.
 
 ## Pipeline (Makefile rule `build/vu/%.o`)
 
@@ -68,6 +70,22 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   Label-placing macros take one prefix and paste it (`lbl##Loop`, `lbl##NoWarp`). Constant
   expressions are folded only with `-x`, which the Makefile doesn't pass, so openvcl gets
   operands like `1010 + 0(vi00)` as written.
+
+## Doom's world batches (world_lm.vcl)
+
+- A cooked packet ends with `ITOP N` and starts nothing: `world::Draw` puts `MSCAL` in the next
+  tag's VIFcode (the next batch's REF runs it before its data reaches the other half). Keep
+  the program a single-exit openvcl program; there is no MSCNT entry.
+- Index entries are u16 qword offsets with ADC in bit 15, because VU1 has no integer multiply
+  or shift. Phase 1 overwrites each vertex in place (clip position, projected XYZ2 with the
+  outside flag in .w, colour bytes kept).
+- The two output windows are absolute (652, 803) and keep alternating across batches through
+  qword 7; `vu::EmitFrameConstants` resets them per frame. Never reopen window A per batch: the
+  window a batch writes first must be the one drained by the previous kick's stall.
+- Store XYZ2 as `sq.xyz` plus a separate `isw.w` for ADC: two writes to the same field may be
+  reordered, disjoint fields cannot collide (quake2-ps2's EmitVertex does the same).
+- Walk state that must survive the clipper lives in VU memory (954-956), reloaded every entry,
+  with `--barrier` between a spill's loads and its stores in one block.
 
 ## VU memory layout (vu1.h)
 

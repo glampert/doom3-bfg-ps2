@@ -356,7 +356,7 @@ $(SIZE_OPT_OBJS) $(GAME_SIZE_OPT_OBJS) $(RESIDENT_SIZE_OPT_OBJS) $(TEST_SIZE_OPT
 # Only heap.cpp imports dlmalloc's declaration header. Angle inclusion marks
 # that vendor header as system without hiding warnings in heap.cpp or heap.h.
 $(OUTPUT_DIR)/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_VENDOR_INCS)
-$(OUTPUT_DIR)/src/ps2/ui/paletted_image.o $(OUTPUT_DIR)/src/ps2/renderer/gs.o $(OUTPUT_DIR)/src/ps2/renderer/dma.o $(OUTPUT_DIR)/src/ps2/renderer/vu.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/renderer/capture.o $(OUTPUT_DIR)/src/ps2/ui/draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
+$(OUTPUT_DIR)/src/ps2/ui/paletted_image.o $(OUTPUT_DIR)/src/ps2/renderer/gs.o $(OUTPUT_DIR)/src/ps2/renderer/dma.o $(OUTPUT_DIR)/src/ps2/renderer/vu.o $(OUTPUT_DIR)/src/ps2/renderer/world.o $(OUTPUT_DIR)/src/ps2/renderer/texture.o $(OUTPUT_DIR)/src/ps2/renderer/capture.o $(OUTPUT_DIR)/src/ps2/ui/draw.o $(OUTPUT_DIR)/src/ps2/renderer/image_backend.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.
@@ -551,7 +551,7 @@ test-core: build-core
 test-platform: build-platform
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario platform
 
-test-renderer: build-core
+test-renderer: build-core world-cook
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ntsc
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-pal
 # Render-time checks are assertions: the expected-fatal probes need an assertion build.
@@ -575,7 +575,7 @@ ifneq ($(BUILD),release)
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-capacity
 endif
 
-run-renderer: build-core
+run-renderer: build-core world-cook
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ntsc --visual-wait 60 --timeout 90
 
 HOST_CXX ?= clang++
@@ -678,10 +678,11 @@ build/tests/gstx_format_tests: src/tests/host/gstx_format_tests.cpp src/ps2/ui/g
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/gstx_format_tests.cpp src/ps2/ui/gstx_format.cpp $(ASSET_LIB_SRC) -o $@
 
-# The world cook (proc reader, strips, D3WD) against the graybox fixture and synthetic grids.
-build/tests/world_tests: src/tests/host/world_tests.cpp $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+# The world cook (proc reader, strips, D3WD) and the target's D3WD validator against the graybox
+# fixture and synthetic grids.
+build/tests/world_tests: src/tests/host/world_tests.cpp src/ps2/renderer/world_format.cpp src/ps2/renderer/world_format.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
 	@mkdir -p $(dir $@)
-	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/world_tests.cpp $(ASSET_LIB_SRC) -o $@
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/world_tests.cpp src/ps2/renderer/world_format.cpp $(ASSET_LIB_SRC) -o $@
 
 HOST_HEAP_SOURCES = src/tests/smoketests/type_query_tests.cpp src/tests/smoketests/type_query_bridge.cpp src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/tests/smoketests/class_alloc_tests.cpp src/ps2/game/class_alloc.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 

@@ -23,7 +23,6 @@ namespace
 static constexpr std::uint32_t kVifNop = 0x00;
 static constexpr std::uint32_t kVifStcycl = 0x01;
 static constexpr std::uint32_t kVifItop = 0x04;
-static constexpr std::uint32_t kVifMscnt = 0x17;
 static constexpr std::uint32_t kVifUnpack = 0x60;
 static constexpr std::uint32_t kUnpackV4_32 = 0xC;
 static constexpr std::uint32_t kUnpackV4_16 = 0xD;
@@ -920,31 +919,37 @@ private:
         words.push_back(FloatBits(batch.positionOffset[0]));
         words.push_back(FloatBits(batch.positionOffset[1]));
         words.push_back(FloatBits(batch.positionOffset[2]));
-        words.push_back(static_cast<std::uint32_t>(indices.size()));
+        words.push_back(indexQwords);
         words.push_back(FloatBits(batch.positionScale));
         words.push_back(FloatBits(uvScale));
         words.push_back(FloatBits(uvOffset[0]));
         words.push_back(FloatBits(uvOffset[1]));
 
+        const std::uint32_t vertexBase = 2U + indexQwords;
+
         if (!indices.empty())
         {
-            words.push_back(VifUnpack(kUnpackV4_8, indexQwords, 2, true));
+            words.push_back(VifUnpack(kUnpackV4_16, indexQwords, 2, true));
 
-            for (std::size_t index = 0; index < indexQwords * 4; index += 4)
+            // Each entry is the vertex's qword offset in the input half with the ADC flag in bit 15:
+            // VU1 has no integer multiply or shift, so the program adds it to XTOP as it stands.
+            // Padding repeats the first vertex with ADC, which draws nothing.
+            for (std::size_t index = 0; index < indexQwords * 4; index += 2)
             {
-                std::uint32_t word = 0;
+                std::uint16_t pair[2] = {};
 
-                for (std::size_t lane = 0; lane < 4; ++lane)
+                for (std::size_t lane = 0; lane < 2; ++lane)
                 {
-                    const std::uint32_t value = index + lane < indices.size() ? indices[index + lane] : 0U;
-                    word |= value << (8 * lane);
+                    const bool real = index + lane < indices.size();
+                    const std::uint32_t entry = real ? indices[index + lane] : kStripIndexAdc;
+                    const std::uint32_t offset = vertexBase + static_cast<std::uint32_t>(kWorldVertexQwords) * (entry & 0x7FU);
+                    pair[lane] = static_cast<std::uint16_t>(offset | ((entry & kStripIndexAdc) != 0 ? kStripEntryAdc : 0U));
                 }
 
-                words.push_back(word);
+                words.push_back(static_cast<std::uint32_t>(pair[0]) | (static_cast<std::uint32_t>(pair[1]) << 16));
             }
         }
 
-        const std::uint32_t vertexBase = 2U + indexQwords;
         words.push_back(VifStcycl(static_cast<std::uint32_t>(kWorldVertexQwords), 1));
         words.push_back(VifUnpack(kUnpackV4_16, count, vertexBase, false));
 
@@ -971,7 +976,6 @@ private:
         }
 
         words.push_back(VifCode(kVifItop, 0, count));
-        words.push_back(VifCode(kVifMscnt, 0, 0));
 
         while (words.size() % 4 != 0)
         {
@@ -1048,7 +1052,7 @@ bool CheckPacket(std::span<const std::uint8_t> packet, const WorldBatch & batch,
     }
 
     if (words[at] != FloatBits(batch.positionOffset[0]) || words[at + 1] != FloatBits(batch.positionOffset[1]) ||
-        words[at + 2] != FloatBits(batch.positionOffset[2]) || words[at + 3] != indexCount || words[at + 4] != FloatBits(batch.positionScale))
+        words[at + 2] != FloatBits(batch.positionOffset[2]) || words[at + 3] != indexQwords || words[at + 4] != FloatBits(batch.positionScale))
     {
         return fail("VU header disagrees with the batch header");
     }
@@ -1062,9 +1066,11 @@ bool CheckPacket(std::span<const std::uint8_t> packet, const WorldBatch & batch,
 
     at += 8;
 
+    const std::uint32_t base = 2U + indexQwords;
+
     if (indexed)
     {
-        if (!take(VifUnpack(kUnpackV4_8, indexQwords, 2, true)) || at + indexQwords > words.size())
+        if (!take(VifUnpack(kUnpackV4_16, indexQwords, 2, true)) || at + 2U * indexQwords > words.size())
         {
             return fail("bad index unpack");
         }
@@ -1073,25 +1079,26 @@ bool CheckPacket(std::span<const std::uint8_t> packet, const WorldBatch & batch,
 
         for (std::uint32_t index = 0; index < indexQwords * 4U; ++index)
         {
-            const std::uint32_t entry = (words[at + index / 4U] >> (8U * (index % 4U))) & 0xFFU;
+            const std::uint32_t entry = (words[at + index / 2U] >> (16U * (index % 2U))) & 0xFFFFU;
+            const std::uint32_t offset = entry & ~kStripEntryAdc;
 
             if (index >= indexCount)
             {
-                if (entry != 0)
+                if (entry != (kStripEntryAdc | base))
                 {
-                    return fail("nonzero index padding");
+                    return fail("bad index padding");
                 }
 
                 continue;
             }
 
-            if ((entry & 0x7FU) >= count)
+            if (offset < base || (offset - base) % 3U != 0 || (offset - base) / 3U >= count)
             {
                 return fail("strip index out of range");
             }
 
             // Two ADC entries open a strip, which then closes at least one triangle.
-            const bool adc = (entry & kStripIndexAdc) != 0;
+            const bool adc = (entry & kStripEntryAdc) != 0;
 
             if ((adc && run == 2) || (!adc && run < 2))
             {
@@ -1106,10 +1113,8 @@ bool CheckPacket(std::span<const std::uint8_t> packet, const WorldBatch & batch,
             return fail("unfinished strip");
         }
 
-        at += indexQwords;
+        at += 2U * indexQwords;
     }
-
-    const std::uint32_t base = 2U + indexQwords;
 
     if (!take(VifStcycl(3, 1)) || !take(VifUnpack(kUnpackV4_16, count, base, false)) || at + 2U * count > words.size())
     {
@@ -1142,7 +1147,7 @@ bool CheckPacket(std::span<const std::uint8_t> packet, const WorldBatch & batch,
 
     at += count;
 
-    if (!take(VifCode(kVifItop, 0, count)) || !take(VifCode(kVifMscnt, 0, 0)))
+    if (!take(VifCode(kVifItop, 0, count)))
     {
         return fail("bad packet tail");
     }

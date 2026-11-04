@@ -145,6 +145,25 @@ INDEXED_SCENE_PIXELS = (
     ("passes-line-gouraud", 545, 450, (127, 0, 127)),
 )
 
+# The graybox world drawn by world_lm.vcl from the GS gate's four cameras. Points sit deep inside
+# flat faces (eight materials a view, the clipped floor and divider near the camera included), with
+# colours from a reference rasterizer of the same .proc, cameras and vertex colour bytes, stored
+# as PSMCT16 keeps them. Untextured vertex colour writes 0x80 as 128: half brightness until R2.
+WORLD_SCENE_PIXELS = {
+    "NTSC": {
+        "room0": ((40, 180, (57, 57, 49)), (92, 40, (24, 24, 24)), (472, 152, (33, 24, 24)), (326, 340, (41, 8, 8)), (150, 180, (41, 33, 33)), (268, 268, (99, 24, 16)), (380, 422, (41, 41, 49)), (164, 424, (74, 74, 74))),
+        "room1": ((40, 72, (41, 33, 33)), (138, 40, (24, 24, 24)), (266, 412, (41, 41, 49)), (318, 182, (49, 41, 33)), (178, 176, (49, 49, 49)), (348, 382, (74, 74, 74)), (148, 252, (66, 33, 8)), (250, 226, (57, 16, 49))),
+        "doorway": ((388, 40, (24, 24, 24)), (58, 76, (8, 16, 41)), (152, 216, (33, 24, 24)), (176, 384, (74, 74, 74)), (296, 384, (41, 41, 49)), (430, 262, (57, 49, 16)), (484, 152, (49, 49, 49)), (364, 258, (90, 82, 24))),
+        "clip": ((88, 40, (24, 24, 24)), (414, 124, (41, 33, 33)), (338, 350, (41, 41, 49)), (140, 162, (57, 57, 49)), (226, 414, (74, 74, 74)), (482, 208, (33, 24, 24)), (128, 222, (33, 90, 33)), (270, 36, (16, 24, 49))),
+    },
+    "PAL": {
+        "room0": ((56, 40, (24, 24, 24)), (468, 174, (33, 24, 24)), (106, 200, (41, 33, 33)), (342, 378, (41, 8, 8)), (32, 260, (57, 57, 49)), (270, 306, (99, 24, 16)), (398, 482, (41, 41, 49)), (150, 484, (74, 74, 74))),
+        "room1": ((40, 136, (41, 33, 33)), (112, 40, (24, 24, 24)), (268, 470, (41, 41, 49)), (328, 208, (49, 41, 33)), (166, 202, (49, 49, 49)), (356, 432, (74, 74, 74)), (132, 288, (66, 33, 8)), (234, 260, (57, 16, 49))),
+        "doorway": ((396, 40, (24, 24, 24)), (40, 88, (8, 16, 41)), (132, 228, (33, 24, 24)), (452, 296, (57, 49, 16)), (160, 432, (74, 74, 74)), (296, 432, (41, 41, 49)), (380, 296, (90, 82, 24)), (238, 256, (41, 33, 33))),
+        "clip": ((40, 40, (24, 24, 24)), (438, 134, (41, 33, 33)), (120, 178, (57, 57, 49)), (348, 392, (41, 41, 49)), (222, 474, (74, 74, 74)), (108, 252, (33, 90, 33)), (496, 222, (33, 24, 24)), (272, 42, (16, 24, 49))),
+    },
+}
+
 
 def _read_capture(path: Path) -> tuple[int, int, bytes, str]:
     with Path(path).open("rb") as stream:
@@ -204,6 +223,26 @@ def verify_indexed_scene(path: Path, standard: str) -> dict:
     """Require genuine indexed triangles, interpolated native attributes and deferred ordering."""
     return _verify_virtual_scene(path, standard, INDEXED_SCENE_PIXELS)
 
+
+def verify_world_scene(path: Path, standard: str, view: str) -> dict:
+    """Require the graybox view's depth-tested, clipped world geometry at its reference colours."""
+    if standard not in ("NTSC", "PAL") or view not in WORLD_SCENE_PIXELS["NTSC"]:
+        raise ValueError("world capture standard must be NTSC or PAL and the view a known camera")
+    width, height, pixels, digest = _read_capture(path)
+    expected_height = 448 if standard == "NTSC" else 512
+    if (width, height) != (512, expected_height):
+        raise ValueError(f"world capture is {width}x{height}; expected 512x{expected_height} for {standard}")
+    checks = []
+    for x, y, expected in WORLD_SCENE_PIXELS[standard][view]:
+        offset = (y * width + x) * 3
+        actual = tuple(pixels[offset:offset + 3])
+        passed = all(abs(a - e) <= PIXEL_TOLERANCE for a, e in zip(actual, expected))
+        checks.append({"x": x, "y": y, "expected_rgb": list(expected), "actual_rgb": list(actual),
+                       "tolerance": PIXEL_TOLERANCE, "passed": passed})
+        if not passed:
+            raise ValueError(f"world {view} capture pixel ({x},{y}) is {actual}; expected {expected} within {PIXEL_TOLERANCE}")
+    return {"schema": 1, "standard": standard, "view": view, "width": width, "height": height,
+            "sha256": digest, "checks": checks}
 
 def _verify_virtual_scene(path: Path, standard: str, scene_pixels: tuple) -> dict:
     if standard not in ("NTSC", "PAL"):

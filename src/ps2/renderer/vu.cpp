@@ -59,6 +59,7 @@ Source SourceOf(Program program)
     switch (program)
     {
         case Program::Passthrough: return { passthrough_Code(), true };
+        case Program::WorldLightmapped: return { world_lm_Code(), true };
         case Program::Count: break;
     }
 
@@ -246,13 +247,26 @@ void Invalidate()
     s_swapNext = s_swapBase;
 }
 
-void EmitFrameConstants(dma::DisplayList & list)
+void EmitFrameConstants(dma::DisplayList & list, const FrameConstants & constants)
 {
     PS2_AssertMsg(s_initialized, "VU1 frame constants before initialization");
 
-    // STCYCL 1,1 then one absolute V4-32 unpack: the null GIF tag passthrough kicks as its drain guard.
-    qword_t * const payload = list.Cnt(1U, dma::VifStcycl(1U, 1U), dma::VifUnpack(dma::UnpackFormat::V4_32, 1U, kVuNullGifTagAddr, false, false));
-    PACK_GIFTAG(payload, GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 0), 0);
+    static_assert(sizeof(FrameConstants) == 9U * 16U, "FrameConstants must match qwords 0-6 and 9-10 of vu_memory.h");
+    static_assert(kVuWindowStateAddr == 7 && kVuNullGifTagAddr == 8 && kVuStripTagAddr == 9 && kVuListTagAddr == 10 &&
+                      kVuFrameBlockQwords == 11,
+                  "the frame block layout changed");
+
+    // STCYCL 1,1 then one absolute V4-32 unpack of the whole block.
+    qword_t * const payload = list.Cnt(kVuFrameBlockQwords, dma::VifStcycl(1U, 1U),
+                                       dma::VifUnpack(dma::UnpackFormat::V4_32, kVuFrameBlockQwords, kVuFrameConstantsAddr, false, false));
+    const qword_t * const source = reinterpret_cast<const qword_t *>(&constants);
+
+    CopyQwords<7>(payload, source);
+
+    // The windows restart at A each frame: nothing is in flight across a frame boundary.
+    StoreQword(payload + kVuWindowStateAddr, static_cast<u64>(kVuWindowA) | (static_cast<u64>(kVuWindowQwords) << 32), 0);
+    PACK_GIFTAG((payload + kVuNullGifTagAddr), GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 0), 0);
+    CopyQwords<2>(payload + kVuStripTagAddr, source + 7);
 }
 
 const Stats & GetStats()

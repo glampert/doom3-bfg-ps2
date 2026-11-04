@@ -35,6 +35,9 @@ void EndFrame();
 u32 FrameCount();
 gs::DrawContext LastPresentedContext();
 
+// The context the open frame draws into.
+gs::DrawContext DrawingContext();
+
 // 2D primitives:
 void FillRect(int x, int y, int width, int height, gs::Color color);
 bool TexturedRect(tex::Handle texture, int x, int y, int width, int height,

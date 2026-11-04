@@ -60,10 +60,12 @@ production link free of test inputs. Section numbers in parentheses point into t
 - [x] Gate, emulator part: `make` builds and checks a VU object; the existing 2D scene draws
       through the new chain with pixel parity in `make test-renderer`; the chain ring
       overflow is an expected-fatal probe (`renderer-direct-overflow`) (2026-11-03).
-- [ ] Gate, remaining: the VU window overrun probe (needs R1's batches); hardware probes
-      written for `DATE` (also the PCSX2 software renderer), large texture coordinates, DMA
-      cache coherence and a `PSMCT16S` scratch sharing the `Z16S` buffer, run at the first
-      console session.
+- [x] VU window overrun: a batch past its input half is refused at load in every build
+      (`world_format.cpp`, VIFcodes included), and the host tests unpack every graybox packet
+      through an independent VIF model that fails any write past the half (2026-11-04).
+- [ ] Gate, remaining: hardware probes written for `DATE` (also the PCSX2 software renderer),
+      large texture coordinates, DMA cache coherence and a `PSMCT16S` scratch sharing the
+      `Z16S` buffer, run at the first console session.
 - [x] Docs: `docs/testing/core.md` lists the new markers and probe, `BUILD_INVENTORY.md`
       the moved and added units (2026-11-03). The profile cvar's `CVARS.md` row moves to R1,
       where the cvar is added.
@@ -81,15 +83,21 @@ production link free of test inputs. Section numbers in parentheses point into t
       (2026-11-04).
 - [ ] Cook mars_city1 area 2: a `.bproc` reader for the retail containers (15.2's byte
       order traps), then the same cook.
-- [ ] `ps2::renderer::world`: load `.d3wd` into a 64-byte-aligned DMA arena, the compact CPU
-      mirror, the `_areaN` model adapters; `InitFromMap` takes portals and nodes from it
-      behind a tagged seam (5.2, 5.4).
+- [x] `ps2::renderer::world`: load `.d3wd` whole into a 64-byte-aligned `TAG_RENDER`
+      allocation, validated in every build (`world_format.cpp`, shared with the host tests)
+      and written back once; `world::Draw` REFs every batch (2026-11-04).
+- [ ] The `_areaN` model adapters over the compact CPU mirror; `InitFromMap` takes portals and
+      nodes from the D3WD behind a tagged seam (5.2, 5.4).
 - [ ] `ps2::renderer::scene::RenderView` consuming `viewDef_t` after
       `FindViewLightsAndEntities`; frame arena initialised by `ps2` with a small tagged size;
       the removed frontend units leave the campaign list and the kept symbols move
       (5.2 table, 5.3).
-- [ ] `world_lm.vcl` with vertex colour only; VU1 counter test of the strip index walk
-      against plain ADC strips (6.1, 7.4).
+- [x] `world_lm.vcl` with vertex colour only: in-place transform, the strip walk, and the
+      triangle list path through the imported clipper (`vu_clip.i`) for batches leaving the
+      guard band; the GS gate's `world-graybox` draws four cameras in both standards and the
+      runner checks 32 pixels a standard against a reference rasterizer (2026-11-04).
+- [ ] A plain-strips program variant and the VU1 cost comparison of the two topologies
+      (instruction counts in PCSX2, cycles on the console) (6.1, 7.4).
 - [ ] Both frame-buffer profiles selectable (`PSMCT32 + Z16S`, `PSMCT16 + Z16`); capture
       pixel model records the profile (4.3); the profile cvar gets its `CVARS.md` row.
 - [ ] Gate: fixed-camera captures of the room in both profiles; area 2 draws with correct

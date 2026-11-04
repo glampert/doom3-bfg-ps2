@@ -9,6 +9,7 @@
 #include "assets/bytes.h"
 #include "assets/proc.h"
 #include "assets/world.h"
+#include "ps2/renderer/world_format.h"
 
 #include <algorithm>
 #include <array>
@@ -29,6 +30,20 @@ namespace
 using namespace assets;
 
 static const char * const kGrayboxProc = "src/tests/data/graybox_map/maps/graybox.proc";
+
+// The target validator wants the file 16-byte aligned, as the loader's DMA allocation is.
+alignas(64) static std::uint8_t s_aligned[1U << 20];
+
+static const char * TargetValidate(const std::vector<std::uint8_t> & file, ps2::renderer::world::Sections & sections)
+{
+    if (file.size() > sizeof(s_aligned))
+    {
+        return "test buffer too small";
+    }
+
+    std::memcpy(s_aligned, file.data(), file.size());
+    return ps2::renderer::world::Validate(s_aligned, static_cast<std::uint32_t>(file.size()), sections);
+}
 
 static bool Check(bool passed, const char * name)
 {
@@ -217,7 +232,6 @@ static constexpr std::uint32_t kVifImmediateMask = 0xFFFFU;
 static constexpr std::uint32_t kVifNop = 0x00;
 static constexpr std::uint32_t kVifStcycl = 0x01;
 static constexpr std::uint32_t kVifItop = 0x04;
-static constexpr std::uint32_t kVifMscnt = 0x17;
 
 // STCYCL: IMMEDIATE holds CL (cycle length) in bits 0-7 and WL (write length) in bits 8-15.
 static constexpr std::uint32_t kStcyclCycleMask = 0xFFU;
@@ -250,7 +264,7 @@ struct Unpacked
     std::vector<std::array<std::uint32_t, 4>> memory = std::vector<std::array<std::uint32_t, 4>>(kWorldInputHalfQwords);
     int highest = -1;
     std::uint32_t itop = 0;
-    bool kicked = false;
+    bool ended = false;
 };
 
 static bool RunVif(std::span<const std::uint8_t> packet, Unpacked & output)
@@ -267,8 +281,8 @@ static bool RunVif(std::span<const std::uint8_t> packet, Unpacked & output)
         const std::uint32_t num = (code >> kVifNumShift) & kVifNumMask;
         const std::uint32_t immediate = code & kVifImmediateMask;
 
-        // MSCNT starts the program; only padding may follow it.
-        if (output.kicked && command != kVifNop)
+        // ITOP closes the packet (the display list sends MSCAL after it); only padding may follow.
+        if (output.ended && command != kVifNop)
         {
             return false;
         }
@@ -288,12 +302,7 @@ static bool RunVif(std::span<const std::uint8_t> packet, Unpacked & output)
         if (command == kVifItop)
         {
             output.itop = immediate & kItopMask;
-            continue;
-        }
-
-        if (command == kVifMscnt)
-        {
-            output.kicked = true;
+            output.ended = true;
             continue;
         }
 
@@ -347,7 +356,7 @@ static bool RunVif(std::span<const std::uint8_t> packet, Unpacked & output)
         at += dataWords;
     }
 
-    return output.kicked;
+    return output.ended;
 }
 
 static float AsFloat(std::uint32_t bits)
@@ -487,8 +496,8 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
 
                 const std::array<std::uint32_t, 4> & header0 = unpacked.memory[0];
                 const std::array<std::uint32_t, 4> & header1 = unpacked.memory[1];
-                const std::uint32_t indexCount = header0[3];
-                const std::uint32_t indexQwords = (indexCount + 3U) / 4U;
+                const std::uint32_t indexQwords = header0[3];
+                const std::uint32_t indexCount = batch.indexCount;
                 const std::uint32_t base = 2U + indexQwords;
                 const bool indexed = (batch.flags & kBatchFlagIndexedStrips) != 0;
                 const float scale = AsFloat(header1[0]);
@@ -496,7 +505,7 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
                 const Point offset = { AsFloat(header0[0]), AsFloat(header0[1]), AsFloat(header0[2]) };
 
                 // The program's last write is the last vertex's colour; nothing may land beyond it.
-                packets = indexCount == batch.indexCount && indexed == (indexCount != 0) && scale == batch.positionScale &&
+                packets = indexQwords == (indexCount + 3U) / 4U && indexed == (indexCount != 0) && scale == batch.positionScale &&
                           unpacked.highest == static_cast<int>(base + 3U * batch.vertexCount) - 1 &&
                           (!indexed || batch.vertexCount <= static_cast<std::uint32_t>(kWorldMaxIndexedVertices));
                 tolerance = std::max(tolerance, scale * 0.5f + 1e-3f);
@@ -543,10 +552,21 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
 
                 if (indexed)
                 {
-                    for (std::uint32_t entry = 0; entry < indexCount; ++entry)
+                    // Entries are vertex qword offsets with ADC in bit 15; padding repeats the first
+                    // vertex with ADC.
+                    for (std::uint32_t entry = 0; entry < indexQwords * 4U; ++entry)
                     {
                         const std::uint32_t lane = unpacked.memory[2U + entry / 4U][entry % 4U];
-                        order.push_back(lane);
+                        const std::uint32_t entryOffset = lane & 0x7FFFU;
+                        packets = packets && lane <= 0xFFFFU && entryOffset >= base && (entryOffset - base) % 3U == 0;
+
+                        if (entry >= indexCount)
+                        {
+                            packets = packets && lane == (0x8000U | base);
+                            continue;
+                        }
+
+                        order.push_back((entryOffset - base) / 3U | ((lane & 0x8000U) != 0 ? 0x80U : 0U));
                     }
                 }
                 else
@@ -652,6 +672,18 @@ static bool Graybox()
         }
 
         passed = Check(ReadD3wd(file, read, error), "graybox D3WD reads back") && passed;
+        ps2::renderer::world::Sections sections = {};
+        const char * targetError = TargetValidate(file, sections);
+        passed = Check(targetError == nullptr && sections.areaCount == world.areas.size() && sections.batchCount == world.batches.size() &&
+                           sections.surfaceCount == world.surfaces.size() && sections.nodeCount == world.nodes.size() &&
+                           sections.packetBytes == world.packets.size() && sections.mirrorIndexCount == world.mirrorIndices.size(),
+                       "the target validator admits the graybox") &&
+                 passed;
+
+        if (targetError != nullptr)
+        {
+            std::fprintf(stderr, "%s\n", targetError);
+        }
         passed = Check(WriteD3wd(read, again, error) && again == file, "graybox D3WD rewrites byte for byte") && passed;
 
         World second;
@@ -760,18 +792,23 @@ static bool Corruption()
         return false;
     }
 
-    // Any flipped byte fails a checksum or a range check.
+    // Any flipped byte fails a checksum or a range check, in the host reader and the target's.
     bool rejected = true;
+    bool targetRejected = true;
+    ps2::renderer::world::Sections sections = {};
 
     for (std::size_t offset = 0; offset < file.size(); offset += 7)
     {
         std::vector<std::uint8_t> copy = file;
         copy[offset] ^= 0x10;
         rejected = rejected && !ReadD3wd(copy, read, error);
+        targetRejected = targetRejected && TargetValidate(copy, sections) != nullptr;
     }
 
-    bool passed = Check(rejected, "every flipped byte is refused");
+    bool passed = Check(rejected, "every flipped byte is refused") && Check(targetRejected, "the target refuses every flipped byte");
     passed = Check(!ReadD3wd(std::span<const std::uint8_t>(file).first(file.size() - 16), read, error), "a truncated file is refused") && passed;
+    std::vector<std::uint8_t> truncated(file.begin(), file.end() - 16);
+    passed = Check(TargetValidate(truncated, sections) != nullptr, "the target refuses a truncated file") && passed;
 
     // Records the writer serializes faithfully but the reader must refuse, checksums intact.
     const struct
@@ -785,7 +822,7 @@ static bool Corruption()
         { [](World & w) { w.nodes[0].children[0] = -5; }, "a node child naming a missing area" },
         { [](World & w) { w.surfaces[0].material = 3; }, "a surface material out of range" },
         { [](World & w) { w.areas[0].surfaceCount = 0; }, "areas not covering their surfaces" },
-        { [](World & w) { w.packets[44] = static_cast<std::uint8_t>(0x7F | (w.packets[44] & 0x80)); }, "a strip index out of range" },
+        { [](World & w) { w.packets[44] = 0xFF; w.packets[45] = static_cast<std::uint8_t>(0x7F | (w.packets[45] & 0x80)); }, "a strip index out of range" },
         { [](World & w) { w.batches[0].lightmapPage = 0; }, "a lightmap page before lightmaps exist" },
     };
 
@@ -794,7 +831,10 @@ static bool Corruption()
         World broken = world;
         entry.mutate(broken);
         std::vector<std::uint8_t> brokenFile;
-        passed = Check(WriteD3wd(broken, brokenFile, error) && !ReadD3wd(brokenFile, read, error), entry.name) && passed;
+        passed = Check(WriteD3wd(broken, brokenFile, error) && !ReadD3wd(brokenFile, read, error) &&
+                           TargetValidate(brokenFile, sections) != nullptr,
+                       entry.name) &&
+                 passed;
     }
 
     return passed;

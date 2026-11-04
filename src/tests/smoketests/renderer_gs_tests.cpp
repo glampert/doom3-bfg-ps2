@@ -11,6 +11,8 @@
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/vram.h"
+#include "ps2/renderer/world.h"
+#include "ps2/math/math.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/draw.h"
 #include "tests/smoketests/console_charset.h"
@@ -660,7 +662,7 @@ bool VuPassthrough(system::video::Standard standard)
 
     renderer::dma::Ensure(renderer::vu::kFrameConstantQwords + renderer::vu::kBindQwords + 1U + 7U + 1U);
     renderer::dma::DisplayList & list = renderer::dma::List();
-    renderer::vu::EmitFrameConstants(list);
+    renderer::vu::EmitFrameConstants(list, {});
     const auto entry = renderer::vu::Bind(list, renderer::vu::Program::Passthrough);
     const auto again = renderer::vu::Bind(list, renderer::vu::Program::Passthrough);
     const u32 uploads = renderer::vu::GetStats().uploads;
@@ -684,6 +686,66 @@ bool VuPassthrough(system::video::Standard standard)
     renderer::Shutdown();
     return passed && SameLedger(baseline) && !renderer::vu::IsInitialized();
 }
+// The authored graybox (src/tests/data/graybox_map), cooked by make world-cook and staged by the
+// runner, drawn by world_lm.vcl from fixed cameras: one in each room, one through the doorway and
+// one against the divider, where the near plane and the guard band cut the jambs and the floor.
+bool WorldGraybox(system::video::Standard standard)
+{
+    struct Camera
+    {
+        const char * capture;
+        math::Vec3 eye;
+        math::Vec3 target;
+    };
+
+    static constexpr Camera kCameras[] = {
+        { "host:renderer-world-room0.tga", { -480.0f, -340.0f, 150.0f }, { -180.0f, 100.0f, 40.0f } },
+        { "host:renderer-world-room1.tga", { 480.0f, 330.0f, 150.0f }, { 240.0f, -150.0f, 40.0f } },
+        { "host:renderer-world-doorway.tga", { -440.0f, 0.0f, 64.0f }, { 0.0f, 0.0f, 64.0f } },
+        { "host:renderer-world-clip.tga", { -20.0f, -40.0f, 40.0f }, { -300.0f, 300.0f, 20.0f } },
+    };
+
+    const auto baseline = system::heap::GetTotalStats();
+    renderer::world::Level level;
+
+    if (!renderer::world::Load("host:graybox.d3wd", level))
+    {
+        return false;
+    }
+
+    const bool loaded = level.sections.areaCount == 2 && level.sections.portalCount == 1 && level.sections.nodeCount == 11 &&
+                        level.sections.batchCount > 0;
+
+    if (!renderer::Init({ standard, 128U * 1024U, 64U * 1024U, 128U * 1024U }))
+    {
+        renderer::world::Unload(level);
+        return false;
+    }
+
+    const float width = static_cast<float>(renderer::gs::Width());
+    const float height = static_cast<float>(renderer::gs::Height());
+    const math::Mat4 projection = math::PerspectiveProjection(math::DegToRad(90.0f), width / height, width, height, 4.0f, 8192.0f);
+    bool captured = true;
+
+    for (const Camera & camera : kCameras)
+    {
+        const math::Mat4 viewProjection = math::LookAt(camera.eye, camera.target, { 0.0f, 0.0f, 1.0f }) * projection;
+
+        renderer::BeginFrame({ 0, 0, 0, 255 });
+        renderer::world::Draw(level, viewProjection);
+        renderer::EndFrame();
+
+        captured = renderer::gs::CaptureTga(camera.capture, renderer::LastPresentedContext()) && captured;
+    }
+
+    const u32 uploads = renderer::vu::GetStats().uploads;
+    const auto chains = renderer::dma::GetStats();
+    Log(LogLevel::Info, "[D3BFG] GS world batches=%u frames=%d uploads=%u kicks=%u peak=%u\n", static_cast<u32>(level.sections.batchCount),
+        ArrayLength(kCameras), uploads, chains.kicks, chains.peakBytes);
+    renderer::Shutdown();
+    renderer::world::Unload(level);
+    return loaded && captured && uploads == 1U && SameLedger(baseline);
+}
 } // namespace
 
 bool RunGsTests(system::video::Standard standard)
@@ -697,6 +759,7 @@ bool RunGsTests(system::video::Standard standard)
     passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !renderer::dma::IsInitialized()) && passed;
     passed = Check("pipelined-present", PipelinedPresent(standard)) && passed;
     passed = Check("vu-passthrough", VuPassthrough(standard)) && passed;
+    passed = Check("world-graybox", WorldGraybox(standard)) && passed;
     passed = Check("split-upload", SplitUpload(standard)) && passed;
     passed = Check("native-adapters", NativeAdapters(standard)) && passed;
     passed = Check("native-indexed", NativeIndexed(standard)) && passed;

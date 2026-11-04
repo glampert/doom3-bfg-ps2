@@ -164,7 +164,9 @@ paths, test results and runtime behavior are not yet Doom 3 implementation facts
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
   RGB/alpha, additive color, screen and line passes and the depth mask, context flips,
   residency/buffer pressure,
-  reload/cleanup and, in assertion builds, seventeen bounds/state/deadline failures. `make run-renderer` captures
+  reload/cleanup, the cooked graybox world (`make world-cook`) drawn through `world_lm.vcl` from
+  four cameras with near-plane and guard band clipping, and, in assertion builds, seventeen
+  bounds/state/deadline failures. `make run-renderer` captures
   and holds the NTSC scene for inspection.
   Production optionally presents the real native console and the retail screens and menu
   through Common. `ui::Init/Shutdown` explicitly own

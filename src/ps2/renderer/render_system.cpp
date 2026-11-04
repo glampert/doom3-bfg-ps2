@@ -141,6 +141,12 @@ u32 FrameCount()
     return s_frames;
 }
 
+gs::DrawContext DrawingContext()
+{
+    PS2_AssertMsg(s_frame, "no open GS frame");
+    return s_context;
+}
+
 gs::DrawContext LastPresentedContext()
 {
     PS2_AssertMsg(!s_frame && s_frames != 0, "no completed GS frame");

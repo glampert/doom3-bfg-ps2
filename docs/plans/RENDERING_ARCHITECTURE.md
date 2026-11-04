@@ -389,15 +389,15 @@ with NOP) exactly as the VIF consumes it, REF'd from the display list:
 ```
 batch packet (REF'd from the display list, never copied by the EE)
   STCYCL cl=1 wl=1
-  UNPACK V4-32 num=2  addr=0 +TOPS        ; qw0: pos offset xyz | index count ; qw1: pos scale, uv scale, uv offset st
-  UNPACK V4-8  num=I/4 addr=2 +TOPS       ; strip index stream, four u8 indices per qword (bit 7: ADC)
+  UNPACK V4-32 num=2  addr=0 +TOPS        ; qw0: pos offset xyz | index qwords ; qw1: pos scale, uv scale, uv offset st
+  UNPACK V4-16 num=I/4 addr=2 +TOPS       ; strip index stream, four u16 entries per qword (vertex qword offset | ADC)
   STCYCL cl=S wl=1                        ; vertex stride S qwords (3 for lightmapped world)
   UNPACK V4-16 num=N  addr=2+I/4   +TOPS  ; position xyz (s16) + w: ADC flag 0x8000 (plain strips only)
   UNPACK V4-16 num=N  addr=3+I/4   +TOPS  ; uv0 (4.12) and lightmap uv (4.12)
   UNPACK V4-8  num=N  addr=4+I/4   +TOPS  ; rgba chroma (0x80 = 1.0)
   [UNPACK V3-8 num=N addr=5+I/4 +TOPS]    ; normal (lit variants)
   [UNPACK V4-8 ... joint indices, weights] ; skinned variants (no index stream, plain strips)
-  ITOP N ; MSCNT                           ; count for xitop, run the resident program
+  ITOP N                                   ; count for xitop; the next tag's VIFcode MSCALs the program
 ```
 
 Vertex layouts (bytes per vertex in the packet, qwords in VU memory):
@@ -429,8 +429,11 @@ world (50,332 triangles, 1,791 surfaces):
 The hybrid is the default: VU1 transforms each unique vertex once, then emits the GS packet
 by walking a byte index stream of strips (`lq` by index), so output traffic is the strip
 cost and input traffic the unique cost (about 1.3 emitted vertices per unique vertex).
-Each index byte names the vertex in its low 7 bits; bit 7 is the GS ADC flag, set on the
-first two entries of every strip, which close no triangle. Strip triangle `k` is
+Each index entry is a u16: the vertex's qword offset in the input half (bits 0-14) and the
+GS ADC flag (bit 15), set on the first two entries of every strip, which close no triangle.
+VU1 has no integer multiply or shift, so the program adds the entry to XTOP and writes the
+flag into XYZ2 as they stand; the stream costs one byte per entry more on the wire, none in
+VU memory. Strip triangle `k` is
 `(k, k+1, k+2)` in id's winding for even `k` and `(k+1, k, k+2)` for odd `k`, so a later
 culling path can recover each triangle's facing.
 A better stripper (the greedy one averages three triangles per strip) improves it further.
@@ -470,10 +473,28 @@ command of `asset_reexport`): D3WD v1 holds this header per batch, the packets i
 (5.4); `world.h` documents every field. Positions take a per-batch power-of-two step with
 the offset snapped to it, so map-grid coordinates stay exact; UVs are 4.12 around a
 whole-number offset and coarsen only when a batch's range needs it. The packet ends with
-`ITOP N; MSCNT`, so it is independent of where the program sits in micro memory; the first
-batch after a `vu::Bind` needs the program's `MSCAL` entry once. The graybox map (two
-rooms, 1,516 triangles) cooks into 26 batches: 3.8 triangles per strip, 0.94 vertices
-transformed and 1.53 emitted per triangle, 33 KB of packets in a 53 KB file.
+`ITOP N` and starts no program: the display list puts `MSCAL` in the VIFcode of the tag
+after it (the next batch's REF, whose VIFcodes run before its data reaches the other half,
+or a closing CNT), so packets stay valid wherever `vu::Init` places the program, at no cost
+in qwords. The graybox map (two rooms, 1,516 triangles) cooks into 26 batches: 3.8
+triangles per strip, 0.94 vertices transformed and 1.53 emitted per triangle, 34.9 KB of
+packets in a 55 KB file.
+
+First pixels (2026-11-04): `ps2::renderer::world` loads the whole file into one
+64-byte-aligned `TAG_RENDER` allocation, validates it (`world_format.cpp`, every build,
+VIFcodes included) and writes it back from the cache once; `world::Draw` emits the frame
+block, the depth pass state, one bind and one REF per batch. `world_lm.vcl` (926
+instructions) transforms each unique vertex once in place, then either walks the index
+stream as triangle strips (every vertex inside the guard band) or, when a vertex left it,
+walks the same stream as triangles, sending those wholly inside as they are and the rest
+through quake2-ps2's Sutherland-Hodgman clipper as a fan, all as a triangle list. The GS
+gate draws the graybox from four cameras in both standards
+([room 0](../images/renderer-world-1-room0-ntsc.png), [room 1](../images/renderer-world-1-room1-ntsc.png),
+[doorway](../images/renderer-world-1-doorway-ntsc.png), [clipped](../images/renderer-world-1-clip-ntsc.png));
+99.4 to 99.9 % of pixels match a reference rasterizer within the PSMCT16 model, the rest
+being polygon edges and the affine Gouraud interpolation of the smooth column. Untextured
+vertex colour writes 0x80 as 128, so the images are at half brightness until R2's textured
+pass, where 0x80 is 1.0.
 
 ### 6.3 Material pass tables
 
@@ -533,6 +554,15 @@ qword     world_lm (S = 3, N = 88, I = 1.3 N indices)       model_skin4 (K = 24 
 954..1009 clipper scratch and spill qwords (quake2's 54)    same
 1010..1023 light block: 4 lights, one per lane              same
 ```
+
+As built for R1 (2026-11-04, `vu1progs/vu_memory.h`): qwords 0-6 frame constants, 7 the
+output window state (kept across batches), 8 the null tag, 9 and 10 the strip and triangle
+drawing tags; the halves at 40 and 346; windows at 652 and 803 of one tag qword plus 75
+vertices of RGBAQ and XYZ2 (151 qwords, absolute and shared by both halves); 954-956 the
+list path's walk state; 957-990 the clipper's buffers (two qwords per corner); 991 its
+survivor count. Consecutive batches keep alternating windows: the window a batch writes
+first is the one kicked two kicks ago, which the last kick's stall has drained, so no
+program needs a drain guard.
 
 The output windows hold a fixed 48 emitted vertices each, not `N`: the program kicks a
 window when it fills and continues in the other (quake2-ps2's `OpenOutputWindow`), so the
@@ -650,6 +680,10 @@ lVertex:                               ; software pipelined 2 vertices per itera
     nop                                ; the branch delay slot executes
 #endvuprog
 ```
+
+As built (`world_lm.vcl`, 2026-11-04) the program has no init block and no `MSCNT` loop: each
+batch is one `MSCAL` sent with the following tag (decision log), and the window state that would
+have lived in registers across batches lives in data memory qword 7.
 
 The two-context trick (Black shaders 4/7, TimeSplitters' second pass) lets one program
 emit the base pass under `CTXT=0` and the lightmap or environment pass under `CTXT=1` with
@@ -1478,11 +1512,11 @@ constructed by its owning system, testable on the host where it has no hardware 
 ```
 src/ps2/renderer/
   dma.{h,cpp} dma_list.{h,cpp}  vu.{h,cpp}             scene.{h,cpp}
-  world.{h,cpp}            world_format.h             lightmaps.{h,cpp}
+  world.{h,cpp}            world_format.{h,cpp}       lightmaps.{h,cpp}
   model.{h,cpp}            model_format.h             skinning.{h,cpp}
   lights.{h,cpp}           shadows.{h,cpp}            materials.{h,cpp}
   anim.{h,cpp}             texture_stream.{h,cpp}     gstx2_format.h
-  vu1progs/ kernel.i vu_common.i vu_clip.i world_lm.vcl world_lit.vcl model_rigid.vcl
+  vu1progs/ vu_memory.h vu_window.i vu_clip.i world_lm.vcl (2026-11-04) world_lit.vcl model_rigid.vcl
             model_skin2.vcl model_skin4.vcl shadow_volume.vcl shadow_planar.vcl
             particles.vcl ui_2d.vcl passthrough.vcl
 src/ps2/math/ math.h vec_mat.{h,cpp}; src/ps2/qwords.h  (imported from quake2-ps2, 2026-11-03)
@@ -1561,8 +1595,9 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Shadows | L0 baked + planar/blob; L1 flashlight texture; L2 counter stencil as stretch | Full parity | BFG's own default has no weapon-light shadows; counter cost unmeasured |
 | Chain rings (2026-11-03) | Each frame's chain starts at offset 0 of its ring; a full ring kicks, waits and restarts at 0 | A continuous ring wrapped by one NEXT tag | Two full-size rings make the wrap pointless; a restart is a counted, debuggable event and the DIRECT path keeps its drain statistic |
 | First level (2026-11-04) | An authored graybox map generated with its `.proc` (`graybox_fixture.py`) | The `headless_map` fixture's `.proc` | That one is two floor quads without walls or shapes, and its portal winding faces area 1, so the view flood would pass it from neither side; it stays as `make test-map`'s fixture |
-| Strip restarts (2026-11-04) | Bit 7 of each index byte is the GS ADC flag (first two entries of each strip); 7-bit vertex indices | A restart marker byte | The VU writes the flag straight into XYZ2, and 88 vertices fit 7 bits |
-| Batch packet tail (2026-11-04) | `ITOP N; MSCNT` in the cooked packet | `MSCAL` with a cooked address | Packets stay valid whatever the micro memory layout `vu::Init` measures |
+| Strip restarts (2026-11-04) | u16 index entries: the vertex's qword offset in the input half with the GS ADC flag in bit 15 (first two entries of each strip) | u8 indices with a restart marker | VU1 has no integer multiply or shift: the program adds the entry to XTOP and writes the flag into XYZ2 as they stand; one byte per entry more on the wire, none in VU memory |
+| Batch packet tail (2026-11-04) | `ITOP N` in the cooked packet; `MSCAL` in the next tag's VIFcode | `MSCNT` or a cooked `MSCAL` address | Packets stay valid whatever micro memory layout `vu::Init` measures, the program keeps openvcl's single exit, and the start costs no qword |
+| Clipped batches (2026-11-04) | A batch with any vertex outside the guard band goes out as a triangle list, its outside triangles through the clipper's fan | Mark clipped triangles ADC inside the strips and append their fans | One extra path, chosen per batch, keeps the strip walk free of flag tests; batches touching the near plane or the band are a few per frame |
 | Skinning | VU1 palettes of 24 joints, 40 vertices, three weight kernels | VU0 skinning streamed through SPR | Double-buffered palettes ride with the vertices; simulated duplication 1.4 to 1.6x, to be re-run at the 40 cap |
 | Lightmap density | 16 units per luxel for Q1 and Q2 (lighting report's chart measurement), 32 for Q3 | the asset report's 16/32/64 | the measured charts give 0.29 MiB at 16 u, cheap enough to keep |
 | Video materials | cooked still frames until a converted-video path exists | Bink or RoQ decode | no cinematic decoder is linked; the PDA and screens must not block the campaign |
