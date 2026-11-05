@@ -12,8 +12,10 @@ RenderScene: the portal flow decides which areas each view draws. Traces through
 models check the compact position mirror id's traces read. Every view is captured and
 checked: the GS gate's four cameras against the same reference pixels, a camera facing away from
 the doorway and the doorway camera with its portal closed against the area counts that portal
-culling must give, the closed doorway against the open one. The world is then unloaded and the
-session quits, recovering the startup ledger."""
+culling must give, the closed doorway against the open one. The views are drawn in the 16-bit
+frame-buffer profile, then again after ps2_frameBufferBits switches to 32 live, each against the
+pixels its profile stores; switched back, the doorway must match its first capture. The world is
+then unloaded and the session quits, recovering the startup ledger."""
 
 import argparse
 from datetime import datetime, timezone
@@ -41,7 +43,8 @@ CLEAR_RGB = (16, 24, 40)
 LOAD_RE = re.compile(r"\[D3BFG\] world maps/graybox\.d3wd: areas=2 surfaces=18 batches=26 portals=1 nodes=11 ")
 WORLD_RE = re.compile(r"\[D3BFG\] WORLD (\w+) areas=(\d+) portals=(\d+) viewing=([01]) frame=(\d+) views=(\d+) area=(-?\d+) "
                       r"entities=(\d+) drawn=(\d+) batches=(\d+) arena=(\d+)")
-CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(\S+\.tga) frame=(\d+) presents=(\d+) redraws=(\d+)")
+CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(\S+\.tga) frame=(\d+) presents=(\d+) redraws=(\d+) bits=(\d+)")
+SWITCH_RE = re.compile(r"\[D3BFG\] GS frame buffer bits=(\d+) (\S+) fixed_vram=(\d+) texture_vram=(\d+)")
 TRACE_RE = re.compile(r"\[D3BFG\] WORLD trace hit=([01]) fraction=([\d.]+) normal=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) material=(\S+)")
 WORLD_FIELDS = ("event", "areas", "portals", "viewing", "frame", "views", "area", "entities", "drawn", "batches", "arena")
 
@@ -56,6 +59,23 @@ VIEWS = (
     ("away", (-200, 0, 64, -600, 0, 64), "open", 0, 1, 14, False),
     ("closed", (-440, 0, 64, 0, 0, 64), "closed", 0, 1, 14, False),
 )
+
+
+# Each profile's frame buffers and the 2 MiB texture range left above them (the two standards).
+PROFILES = {16: ("PSMCT16/Z16", (1376256, 1572864)), 32: ("PSMCT32/Z16S", (2293760, 2621440))}
+TEXTURE_VRAM = 2097152
+VRAM_BYTES = 4194304
+
+
+def steps() -> list[tuple]:
+    """The session after the load, in order: (barrier, frame-buffer bits, view), a view of None
+    being the profile change. Each view's capture is world-<barrier>.tga."""
+    sequence = [(view[0], 16, view) for view in VIEWS]
+    sequence.append(("bits-32", 32, None))
+    sequence += [(view[0] + "-32", 32, view) for view in VIEWS]
+    sequence.append(("bits-16", 16, None))
+    sequence.append(("doorway-16", 16, VIEWS[2]))
+    return sequence
 
 
 # Traces through the area models' s16 mirror: straight down onto room 0's floor, across both
@@ -78,14 +98,20 @@ def view_commands(identity: str, name: str, camera: tuple, portal: str) -> list[
             f'ps2_capture "world-{name}.tga"', "wait 2", "ps2_world status", f'echo "{barrier(identity, name)}"']
 
 
+def switch_commands(identity: str, name: str, bits: int) -> list[str]:
+    # The profile changes before the next frame begins; two frames later it has drawn in it.
+    return [f"ps2_frameBufferBits {bits}", "wait 2", f'echo "{barrier(identity, name)}"']
+
+
 def driver(identity: str):
     """Yield each command batch with the condition, over the log, that ends its wait."""
     # The console starts open; closed, it slides away over real time before the first view.
     traces = ["ps2_world trace " + " ".join(str(value) for value in start + end) for start, end, *_ in TRACES]
     yield ([f'echo "{barrier(identity, "begin")}"', "ps2_consoleKey toggle", "wait 60", "r_znear 4", "ps2_world load maps/graybox",
             *traces, f'echo "{barrier(identity, "loaded")}"'], lambda log: echoed(log, barrier(identity, "loaded")))
-    for name, camera, portal, *_ in VIEWS:
-        yield view_commands(identity, name, camera, portal), lambda log, name=name: echoed(log, barrier(identity, name))
+    for name, bits, view in steps():
+        commands = switch_commands(identity, name, bits) if view is None else view_commands(identity, name, view[1], view[2])
+        yield commands, lambda log, name=name: echoed(log, barrier(identity, name))
     yield ["ps2_world portal 1 open", "ps2_world unload", f'echo "{barrier(identity, "unloaded")}"', "quit"], \
         lambda log: run_headless.SHUTDOWN_COMPLETE in log
 
@@ -102,7 +128,7 @@ def classify(log: str, identity: str) -> tuple[bool, str, dict]:
         return False, "the cooked graybox did not load with its areas, portals and nodes", {}
     if "WORLD load failed" in log:
         return False, "the render world refused the map", {}
-    markers = ["begin", "loaded"] + [name for name, *_ in VIEWS] + ["unloaded"]
+    markers = ["begin", "loaded"] + [name for name, *_ in steps()] + ["unloaded"]
     # Echo output, not the submitted line, is the barrier.
     spans = [re.search(re.escape(barrier(identity, name)) + r" +\r?\n", log) for name in markers]
     if any(span is None for span in spans):
@@ -124,12 +150,25 @@ def classify(log: str, identity: str) -> tuple[bool, str, dict]:
                 any(abs(a - b) > 0.002 for a, b in zip(normal_found, normal)) or not found[5].startswith(material)):
             return False, f"the trace from {start} to {end} found {found}; expected hit={hit} fraction={fraction} {normal} {material}", {}
     views = {}
-    for index, (name, _, _, area, drawn, batches, _) in enumerate(VIEWS):
+    switches = {}
+    for index, (name, bits, view) in enumerate(steps()):
         span = log[positions[index + 1]:positions[index + 2]]
+        changes = SWITCH_RE.findall(span)
+        if view is None:
+            format_name, fixed = PROFILES[bits]
+            found = tuple(int(value) for value in changes[0][2:]) if len(changes) == 1 else ()
+            if (len(changes) != 1 or int(changes[0][0]) != bits or changes[0][1] != format_name or not found or
+                    found[0] not in fixed or found[1] != min(TEXTURE_VRAM, VRAM_BYTES - found[0])):
+                return False, f"{name}: the frame buffers did not change to the {bits}-bit profile once", {}
+            switches[name] = {"fixed_vram": found[0], "texture_vram": found[1]}
+            continue
+        _, _, _, area, drawn, batches, _ = view
         captures = CAPTURE_RE.findall(span)
         statuses = [line for line in world_lines(span) if line["event"] == "status"]
-        if len(captures) != 1 or captures[0][0] != f"world-{name}.tga" or len(statuses) != 1:
+        if changes or len(captures) != 1 or captures[0][0] != f"world-{name}.tga" or len(statuses) != 1:
             return False, f"{name}: missing capture or world status", {}
+        if int(captures[0][4]) != bits:
+            return False, f"{name}: captured in the {captures[0][4]}-bit profile; expected {bits}", {}
         status = statuses[0]
         presents = int(captures[0][2])
         if status["viewing"] != 1 or status["frame"] <= presents:
@@ -137,7 +176,9 @@ def classify(log: str, identity: str) -> tuple[bool, str, dict]:
         if (status["area"], status["drawn"], status["batches"]) != (area, drawn, batches) or status["entities"] < drawn:
             return False, (f"{name}: started in area {status['area']} and drew {status['drawn']} areas, {status['batches']} batches; "
                            f"expected area {area}, {drawn} areas, {batches} batches"), {}
-        views[name] = {"capture": captures[0][0], "presents": presents, "status": status}
+        views[name] = {"capture": captures[0][0], "bits": bits, "presents": presents, "status": status}
+    if SWITCH_RE.search(log[:positions[1]] + log[positions[-2]:]):
+        return False, "the frame-buffer profile changed outside its steps", {}
     unloads = [line for line in world_lines(log[positions[-2]:positions[-1]]) if line["event"] == "unloaded"]
     if len(unloads) != 1 or (unloads[0]["areas"], unloads[0]["portals"], unloads[0]["viewing"]) != (1, 0, 0):
         return False, "the world did not unload to the empty single-area world", {}
@@ -145,8 +186,8 @@ def classify(log: str, identity: str) -> tuple[bool, str, dict]:
     if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
         return False, "production shutdown did not recover the startup allocation ledger", {}
     arena = max(view["status"]["arena"] for view in views.values())
-    return True, "the cooked graybox loaded, drew through the portal flow in every view, unloaded and shut down", {
-        "views": views, "arena_bytes": arena}
+    return True, ("the cooked graybox loaded, drew through the portal flow in every view in both frame-buffer profiles, "
+                  "unloaded and shut down"), {"views": views, "switches": switches, "arena_bytes": arena}
 
 
 def doorway_box(standard: str) -> tuple[int, int, int, int]:
@@ -158,7 +199,7 @@ def doorway_box(standard: str) -> tuple[int, int, int, int]:
     return 256 - half, height // 2 - half, 256 + half, height // 2 + half
 
 
-def verify_closed(open_path: Path, closed_path: Path, standard: str) -> dict:
+def verify_closed(open_path: Path, closed_path: Path, standard: str, bits: int = 16) -> dict:
     """The closed doorway shows the clear colour where area 1 was and matches the open view everywhere else."""
     width, height, opened = renderer_capture.read_tga(open_path)
     closed_size = renderer_capture.read_tga(closed_path)
@@ -177,8 +218,9 @@ def verify_closed(open_path: Path, closed_path: Path, standard: str) -> dict:
             changed += 1
     centre = (height // 2 * width + width // 2) * 3
     actual = tuple(closed[centre:centre + 3])
-    if any(abs(a - e) > renderer_capture.PIXEL_TOLERANCE for a, e in zip(actual, CLEAR_RGB)):
-        raise ValueError(f"the closed doorway's centre is {actual}; expected the clear colour {CLEAR_RGB}")
+    expected = renderer_capture.stored(CLEAR_RGB, bits)
+    if any(abs(a - e) > renderer_capture.tolerance(bits) for a, e in zip(actual, expected)):
+        raise ValueError(f"the closed doorway's centre is {actual}; expected the clear colour {expected}")
     if changed < (x1 - x0) * (y1 - y0) // 2:
         raise ValueError(f"closing the doorway portal changed only {changed} pixels")
     return {"changed_pixels": changed, "doorway_box": [x0, y0, x1, y1], "centre_rgb": list(actual)}
@@ -186,10 +228,13 @@ def verify_closed(open_path: Path, closed_path: Path, standard: str) -> dict:
 
 def verify_captures(output: Path, standard: str) -> dict:
     results = {}
-    for name, *_, reference in VIEWS:
-        if reference:
-            results[name] = renderer_capture.verify_world_scene(output / f"world-{name}.tga", standard, name)
+    for name, bits, view in steps():
+        if view is not None and view[-1]:
+            results[name] = renderer_capture.verify_world_scene(output / f"world-{name}.tga", standard, view[0], bits)
     results["closed"] = verify_closed(output / "world-doorway.tga", output / "world-closed.tga", standard)
+    results["closed-32"] = verify_closed(output / "world-doorway-32.tga", output / "world-closed-32.tga", standard, 32)
+    if sha256(output / "world-doorway-16.tga") != results["doorway"]["sha256"]:
+        raise ValueError("the doorway drawn after the profile round trip differs from its first capture")
     return results
 
 

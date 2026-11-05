@@ -26,6 +26,7 @@ namespace
 
 static framebuffer_t s_frames[2] = {};
 static zbuffer_t s_depth = {};
+static FrameFormat s_format = FrameFormat::Color16;
 static int s_width = 0;
 static int s_height = 0;
 static u32 s_fixedVramBytes = 0;
@@ -92,7 +93,7 @@ ID_FORCE_INLINE u64 TestState(bool masked)
     return GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, masked ? 2 : 1);
 }
 
-// FBMSK follows the 32-bit pixel before PSMCT16 conversion (R 7:3, G 15:11, B 23:19, A 31).
+// FBMSK follows the 32-bit pixel in both profiles; PSMCT16 keeps R 7:3, G 15:11, B 23:19, A 31.
 ID_FORCE_INLINE u64 FrameState(DrawContext context, u32 mask)
 {
     const auto & frame = s_frames[Index(context)];
@@ -250,6 +251,49 @@ u64 ClampState(const TextureBinding & binding)
                         layout.height - 1);
 }
 
+ID_FORCE_INLINE int ColorPsm(FrameFormat format)
+{
+    return format == FrameFormat::Color32 ? GS_PSM_32 : GS_PSM_16;
+}
+
+ID_FORCE_INLINE int DepthPsm(FrameFormat format)
+{
+    return format == FrameFormat::Color32 ? GS_ZBUF_16S : GS_ZBUF_16;
+}
+
+// Both colour buffers, then the depth buffer, page-aligned from VRAM address 0.
+PS2_COLD_FUNC bool LayOutBuffers(FrameFormat format, int width, int height)
+{
+    graph_vram_clear();
+    const int first  = graph_vram_allocate(width, height, ColorPsm(format), GRAPH_ALIGN_PAGE);
+    const int second = graph_vram_allocate(width, height, ColorPsm(format), GRAPH_ALIGN_PAGE);
+    const int depth  = graph_vram_allocate(width, height, DepthPsm(format), GRAPH_ALIGN_PAGE);
+
+    if (first < 0 || second < 0 || depth < 0)
+    {
+        graph_vram_clear();
+        return false;
+    }
+
+    for (int index = 0; index < 2; ++index)
+    {
+        s_frames[index].width   = static_cast<unsigned int>(width);
+        s_frames[index].height  = static_cast<unsigned int>(height);
+        s_frames[index].address = static_cast<unsigned int>(index == 0 ? first : second);
+        s_frames[index].psm     = static_cast<unsigned int>(ColorPsm(format));
+        s_frames[index].mask    = 0;
+    }
+
+    s_depth.address = static_cast<unsigned int>(depth);
+    s_depth.zsm     = static_cast<unsigned int>(DepthPsm(format));
+    s_depth.mask    = 1;
+    s_depth.enable  = DRAW_DISABLE;
+    s_depth.method  = ZTEST_METHOD_ALLPASS;
+    s_format        = format;
+    s_fixedVramBytes = static_cast<u32>(depth + graph_vram_size(width, height, DepthPsm(format), GRAPH_ALIGN_PAGE)) * 4U;
+    return true;
+}
+
 } // namespace
 
 PS2_COLD_FUNC bool Init(const Config & config)
@@ -260,48 +304,28 @@ PS2_COLD_FUNC bool Init(const Config & config)
     }
 
     // Narrow first device profile: all dimensions are page-aligned and fit the TV standard.
-    if (!system::video::IsValid(config.standard) || config.width != 512 || config.height != system::video::VisibleLines(config.standard))
+    if (!system::video::IsValid(config.standard) || config.width != 512 || config.height != system::video::VisibleLines(config.standard) ||
+        (config.format != FrameFormat::Color16 && config.format != FrameFormat::Color32))
     {
         Log(LogLevel::Error, "unsupported GS device configuration\n");
         return false;
     }
 
-    graph_vram_clear();
-    const int first  = graph_vram_allocate(config.width, config.height, GS_PSM_16, GRAPH_ALIGN_PAGE);
-    const int second = graph_vram_allocate(config.width, config.height, GS_PSM_16, GRAPH_ALIGN_PAGE);
-    const int depth  = graph_vram_allocate(config.width, config.height, GS_ZBUF_16, GRAPH_ALIGN_PAGE);
-
-    if (first < 0 || second < 0 || depth < 0)
+    if (!LayOutBuffers(config.format, config.width, config.height))
     {
-        graph_vram_clear();
         return false;
     }
 
     s_width = config.width;
     s_height = config.height;
-    s_fixedVramBytes = static_cast<u32>(depth + graph_vram_size(s_width, s_height, GS_ZBUF_16, GRAPH_ALIGN_PAGE)) * 4U;
-
-    for (int index = 0; index < 2; ++index)
-    {
-        s_frames[index].width   = static_cast<unsigned int>(s_width);
-        s_frames[index].height  = static_cast<unsigned int>(s_height);
-        s_frames[index].address = static_cast<unsigned int>(index == 0 ? first : second);
-        s_frames[index].psm     = GS_PSM_16;
-        s_frames[index].mask    = 0;
-    }
-
-    s_depth.address = static_cast<unsigned int>(depth);
-    s_depth.zsm     = GS_ZBUF_16;
-    s_depth.mask    = 1;
-    s_depth.enable  = DRAW_DISABLE;
-    s_depth.method  = ZTEST_METHOD_ALLPASS;
-    s_previousImr   = GsGetIMR();
+    s_previousImr = GsGetIMR();
 
     if (graph_set_mode(GRAPH_MODE_INTERLACED, system::video::GraphMode(config.standard), GRAPH_MODE_FIELD, GRAPH_ENABLE) != 0)
     {
         graph_shutdown();
         GsPutIMR(s_previousImr);
         graph_vram_clear();
+        s_format = FrameFormat::Color16;
         s_width = s_height = 0;
         s_fixedVramBytes = 0;
         return false;
@@ -324,7 +348,7 @@ PS2_COLD_FUNC bool Init(const Config & config)
     GsPutIMR(0x7F00);
     graph_set_screen(0, 0, s_width, s_height);
     graph_set_bgcolor(0, 0, 0);
-    graph_set_framebuffer_filtered(first, s_width, GS_PSM_16, 0, 0);
+    graph_set_framebuffer_filtered(static_cast<int>(s_frames[0].address), s_width, ColorPsm(s_format), 0, 0);
     s_initialized = true;
 
     if (dma_channel_initialize(DMA_CHANNEL_GIF, nullptr, 0) < 0)
@@ -344,10 +368,25 @@ PS2_COLD_FUNC bool Init(const Config & config)
     }
     dma::EndFrame();
 
-    Log(LogLevel::Info, "[D3BFG] GS ready %s %dx%d PSMCT16/Z16 fixed_vram=%u\n",
-        system::video::Name(config.standard), s_width, s_height, s_fixedVramBytes);
+    Log(LogLevel::Info, "[D3BFG] GS ready %s %dx%d %s fixed_vram=%u\n",
+        system::video::Name(config.standard), s_width, s_height, FrameFormatName(s_format), s_fixedVramBytes);
 
     return true;
+}
+
+FrameFormat GetFrameFormat()
+{
+    return s_format;
+}
+
+const char * FrameFormatName(FrameFormat format)
+{
+    return format == FrameFormat::Color32 ? "PSMCT32/Z16S" : "PSMCT16/Z16";
+}
+
+int FrameFormatBits(FrameFormat format)
+{
+    return format == FrameFormat::Color32 ? 32 : 16;
 }
 
 PS2_COLD_FUNC void Shutdown()
@@ -366,6 +405,7 @@ PS2_COLD_FUNC void Shutdown()
     s_frames[0] = {};
     s_frames[1] = {};
     s_depth = {};
+    s_format = FrameFormat::Color16;
     s_width = s_height = 0;
     s_fixedVramBytes = 0;
     s_initialized = false;
@@ -394,7 +434,7 @@ u32 FixedVramBytes()
 FramebufferInfo GetFramebuffer(DrawContext context)
 {
     PS2_AssertMsg(s_initialized, "framebuffer query before GS initialization");
-    return { s_frames[Index(context)].address, s_width, s_height, GS_PSM_16 };
+    return { s_frames[Index(context)].address, s_width, s_height, static_cast<int>(s_frames[Index(context)].psm) };
 }
 
 void Present(DrawContext context, PresentMode mode)
@@ -421,7 +461,7 @@ void Present(DrawContext context, PresentMode mode)
         WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC (even field)");
     }
 
-    graph_set_framebuffer_filtered(static_cast<int>(s_frames[Index(context)].address), s_width, GS_PSM_16, 0, 0);
+    graph_set_framebuffer_filtered(static_cast<int>(s_frames[Index(context)].address), s_width, ColorPsm(s_format), 0, 0);
     graph_enable_output();
 }
 

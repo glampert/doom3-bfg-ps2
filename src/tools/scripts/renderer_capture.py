@@ -18,6 +18,27 @@ import struct
 TGA_HEADER = struct.Struct("<BBBHHBHHHHBB")
 MAX_DIMENSION = 512
 PIXEL_TOLERANCE = 8
+# The 32-bit profile stores every channel bit, so its captures may differ from an exact model by
+# rounding alone; a five-bit store of the same colours misses by up to seven.
+PIXEL_TOLERANCE_32 = 2
+FRAME_BITS = (16, 32)
+
+
+def stored(rgb: tuple, bits: int) -> tuple:
+    """An 8-bit colour as the frame-buffer profile keeps it and the capture expands it again."""
+    if bits not in FRAME_BITS:
+        raise ValueError("frame-buffer bits must be 16 or 32")
+    if bits == 32:
+        return tuple(rgb)
+    # PSMCT16 truncates each channel to five bits; the capture repeats the upper bits below them.
+    return tuple(((channel >> 3) << 3) | (channel >> 5) for channel in rgb)
+
+
+def tolerance(bits: int) -> int:
+    """The per-channel slack each profile's pixel model allows."""
+    if bits not in FRAME_BITS:
+        raise ValueError("frame-buffer bits must be 16 or 32")
+    return PIXEL_TOLERANCE_32 if bits == 32 else PIXEL_TOLERANCE
 SCENE_PIXELS = (
     ("border", 0, 0, (255, 255, 255)),
     ("background", 12, 12, (16, 24, 40)),
@@ -147,20 +168,21 @@ INDEXED_SCENE_PIXELS = (
 
 # The graybox world drawn by world_lm.vcl from the GS gate's four cameras. Points sit deep inside
 # flat faces (eight materials a view, the clipped floor and divider near the camera included), with
-# colours from a reference rasterizer of the same .proc, cameras and vertex colour bytes, stored
-# as PSMCT16 keeps them. Untextured vertex colour writes 0x80 as 128: half brightness until R2.
+# 8-bit colours from a reference rasterizer of the same .proc, cameras and vertex colour bytes; each
+# profile compares what its frame buffer stores of them (stored()). Untextured vertex colour writes
+# 0x80 as 128: half brightness until R2.
 WORLD_SCENE_PIXELS = {
     "NTSC": {
-        "room0": ((40, 180, (57, 57, 49)), (92, 40, (24, 24, 24)), (472, 152, (33, 24, 24)), (326, 340, (41, 8, 8)), (150, 180, (41, 33, 33)), (268, 268, (99, 24, 16)), (380, 422, (41, 41, 49)), (164, 424, (74, 74, 74))),
-        "room1": ((40, 72, (41, 33, 33)), (138, 40, (24, 24, 24)), (266, 412, (41, 41, 49)), (318, 182, (49, 41, 33)), (178, 176, (49, 49, 49)), (348, 382, (74, 74, 74)), (148, 252, (66, 33, 8)), (250, 226, (57, 16, 49))),
-        "doorway": ((388, 40, (24, 24, 24)), (58, 76, (8, 16, 41)), (152, 216, (33, 24, 24)), (176, 384, (74, 74, 74)), (296, 384, (41, 41, 49)), (430, 262, (57, 49, 16)), (484, 152, (49, 49, 49)), (364, 258, (90, 82, 24))),
-        "clip": ((88, 40, (24, 24, 24)), (414, 124, (41, 33, 33)), (338, 350, (41, 41, 49)), (140, 162, (57, 57, 49)), (226, 414, (74, 74, 74)), (482, 208, (33, 24, 24)), (128, 222, (33, 90, 33)), (270, 36, (16, 24, 49))),
+        "room0": ((40, 180, (58, 56, 53)), (92, 40, (24, 25, 28)), (472, 152, (33, 30, 25)), (326, 340, (46, 13, 10)), (150, 180, (40, 39, 37)), (268, 268, (97, 27, 22)), (380, 422, (46, 46, 48)), (164, 424, (75, 75, 73))),
+        "room1": ((40, 72, (40, 39, 37)), (138, 40, (24, 25, 28)), (266, 412, (46, 46, 48)), (318, 182, (48, 43, 36)), (178, 176, (53, 51, 48)), (348, 382, (75, 75, 73)), (148, 252, (68, 38, 11)), (250, 226, (56, 23, 53))),
+        "doorway": ((388, 40, (24, 25, 28)), (58, 76, (14, 23, 46)), (152, 216, (33, 30, 25)), (176, 384, (75, 75, 73)), (296, 384, (46, 46, 48)), (430, 262, (60, 54, 17)), (484, 152, (53, 51, 48)), (364, 258, (94, 83, 26))),
+        "clip": ((88, 40, (24, 25, 28)), (414, 124, (40, 39, 37)), (338, 350, (46, 46, 48)), (140, 162, (58, 56, 53)), (226, 414, (75, 75, 73)), (482, 208, (33, 30, 25)), (128, 222, (38, 88, 38)), (270, 36, (16, 25, 50))),
     },
     "PAL": {
-        "room0": ((56, 40, (24, 24, 24)), (468, 174, (33, 24, 24)), (106, 200, (41, 33, 33)), (342, 378, (41, 8, 8)), (32, 260, (57, 57, 49)), (270, 306, (99, 24, 16)), (398, 482, (41, 41, 49)), (150, 484, (74, 74, 74))),
-        "room1": ((40, 136, (41, 33, 33)), (112, 40, (24, 24, 24)), (268, 470, (41, 41, 49)), (328, 208, (49, 41, 33)), (166, 202, (49, 49, 49)), (356, 432, (74, 74, 74)), (132, 288, (66, 33, 8)), (234, 260, (57, 16, 49))),
-        "doorway": ((396, 40, (24, 24, 24)), (40, 88, (8, 16, 41)), (132, 228, (33, 24, 24)), (452, 296, (57, 49, 16)), (160, 432, (74, 74, 74)), (296, 432, (41, 41, 49)), (380, 296, (90, 82, 24)), (238, 256, (41, 33, 33))),
-        "clip": ((40, 40, (24, 24, 24)), (438, 134, (41, 33, 33)), (120, 178, (57, 57, 49)), (348, 392, (41, 41, 49)), (222, 474, (74, 74, 74)), (108, 252, (33, 90, 33)), (496, 222, (33, 24, 24)), (272, 42, (16, 24, 49))),
+        "room0": ((56, 40, (24, 25, 28)), (468, 174, (33, 30, 25)), (106, 200, (40, 39, 37)), (342, 378, (46, 13, 10)), (32, 260, (58, 56, 53)), (270, 306, (97, 27, 22)), (398, 482, (46, 46, 48)), (150, 484, (75, 75, 73))),
+        "room1": ((40, 136, (40, 39, 37)), (112, 40, (24, 25, 28)), (268, 470, (46, 46, 48)), (328, 208, (48, 43, 36)), (166, 202, (53, 51, 48)), (356, 432, (75, 75, 73)), (132, 288, (68, 38, 11)), (234, 260, (56, 23, 53))),
+        "doorway": ((396, 40, (24, 25, 28)), (40, 88, (14, 23, 46)), (132, 228, (33, 30, 25)), (452, 296, (60, 54, 17)), (160, 432, (75, 75, 73)), (296, 432, (46, 46, 48)), (380, 296, (94, 83, 26)), (238, 256, (40, 39, 37))),
+        "clip": ((40, 40, (24, 25, 28)), (438, 134, (40, 39, 37)), (120, 178, (58, 56, 53)), (348, 392, (46, 46, 48)), (222, 474, (75, 75, 73)), (108, 252, (38, 88, 38)), (496, 222, (33, 30, 25)), (272, 42, (16, 25, 50))),
     },
 }
 
@@ -224,25 +246,66 @@ def verify_indexed_scene(path: Path, standard: str) -> dict:
     return _verify_virtual_scene(path, standard, INDEXED_SCENE_PIXELS)
 
 
-def verify_world_scene(path: Path, standard: str, view: str) -> dict:
-    """Require the graybox view's depth-tested, clipped world geometry at its reference colours."""
+def verify_world_scene(path: Path, standard: str, view: str, bits: int = 16) -> dict:
+    """Require the graybox view's depth-tested, clipped world geometry at its reference colours,
+    as the frame-buffer profile of 'bits' stores them."""
     if standard not in ("NTSC", "PAL") or view not in WORLD_SCENE_PIXELS["NTSC"]:
         raise ValueError("world capture standard must be NTSC or PAL and the view a known camera")
+    slack = tolerance(bits)
     width, height, pixels, digest = _read_capture(path)
     expected_height = 448 if standard == "NTSC" else 512
     if (width, height) != (512, expected_height):
         raise ValueError(f"world capture is {width}x{height}; expected 512x{expected_height} for {standard}")
     checks = []
-    for x, y, expected in WORLD_SCENE_PIXELS[standard][view]:
+    for x, y, reference in WORLD_SCENE_PIXELS[standard][view]:
+        expected = stored(reference, bits)
         offset = (y * width + x) * 3
         actual = tuple(pixels[offset:offset + 3])
-        passed = all(abs(a - e) <= PIXEL_TOLERANCE for a, e in zip(actual, expected))
+        passed = all(abs(a - e) <= slack for a, e in zip(actual, expected))
         checks.append({"x": x, "y": y, "expected_rgb": list(expected), "actual_rgb": list(actual),
-                       "tolerance": PIXEL_TOLERANCE, "passed": passed})
+                       "tolerance": slack, "passed": passed})
         if not passed:
-            raise ValueError(f"world {view} capture pixel ({x},{y}) is {actual}; expected {expected} within {PIXEL_TOLERANCE}")
-    return {"schema": 1, "standard": standard, "view": view, "width": width, "height": height,
+            raise ValueError(f"world {view} {bits}-bit capture pixel ({x},{y}) is {actual}; expected {expected} within {slack}")
+    return {"schema": 1, "standard": standard, "view": view, "bits": bits, "width": width, "height": height,
             "sha256": digest, "checks": checks}
+
+
+# The GS gate's profile switch: a fill and a modulated texture whose low channel bits PSMCT16 drops,
+# over the black clear (renderer_gs_tests.cpp, FrameFormatSwitch). Each: name, pixel rectangle
+# (x0, y0, x1, y1, exclusive) and 8-bit colour; every other pixel is the clear.
+FORMAT_SCENE_RECTS = (
+    ("format-fill", (64, 64, 192, 160), (93, 47, 205)),
+    ("format-texture", (256, 64, 384, 160), (3, 130, 253)),
+)
+FORMAT_CLEAR = (0, 0, 0)
+
+
+def verify_format_scene(path: Path, standard: str, bits: int) -> dict:
+    """Require every pixel of the profile-switch scene at the colour the profile of 'bits' stores:
+    a pixel of an earlier picture or layout left anywhere fails."""
+    if standard not in ("NTSC", "PAL"):
+        raise ValueError("renderer capture standard must be NTSC or PAL")
+    slack = tolerance(bits)
+    width, height, pixels, digest = _read_capture(path)
+    expected_height = 448 if standard == "NTSC" else 512
+    if (width, height) != (512, expected_height):
+        raise ValueError(f"format capture is {width}x{height}; expected 512x{expected_height} for {standard}")
+    counts = {name: 0 for name, *_ in FORMAT_SCENE_RECTS}
+    counts["format-clear"] = 0
+    for y in range(height):
+        for x in range(width):
+            name, reference = "format-clear", FORMAT_CLEAR
+            for rect_name, (x0, y0, x1, y1), colour in FORMAT_SCENE_RECTS:
+                if x0 <= x < x1 and y0 <= y < y1:
+                    name, reference = rect_name, colour
+            expected = stored(reference, bits)
+            offset = (y * width + x) * 3
+            actual = tuple(pixels[offset:offset + 3])
+            if any(abs(a - e) > slack for a, e in zip(actual, expected)):
+                raise ValueError(f"{bits}-bit capture pixel {name} ({x},{y}) is {actual}; expected {expected} within {slack}")
+            counts[name] += 1
+    return {"schema": 1, "standard": standard, "bits": bits, "width": width, "height": height,
+            "sha256": digest, "pixels": counts, "tolerance": slack}
 
 def _verify_virtual_scene(path: Path, standard: str, scene_pixels: tuple) -> dict:
     if standard not in ("NTSC", "PAL"):

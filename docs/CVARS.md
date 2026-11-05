@@ -1,12 +1,13 @@
 
 # PS2 backend cvars
 
-The production loop registers the backend cvar below using Doom's
+The production loop registers the backend cvars below using Doom's
 native command and cvar system. Test executables do not register production controls.
 
 | Name | Debug default | Release default | Flags | Behavior and registration |
 | --- | --- | --- | --- | --- |
 | `ps2_maxFrames` | `0` | `0` | `CVAR_SYSTEM`, `CVAR_INTEGER` | Live, unarchived completed-frame limit, clamped to 0–1,000,000. Zero runs until quit; a positive value requests shutdown once reached. Registered in `src/ps2/system/headless.cpp`. |
+| `ps2_frameBufferBits` | `16` | `16` | `CVAR_SYSTEM`, `CVAR_INTEGER` | Live, unarchived frame-buffer profile of the visible modes: `16` is `PSMCT16` + `PSMZ16`, `32` is `PSMCT32` + `PSMZ16S` (8-bit channels and destination alpha; the GS pairs a 32-bit frame only with a depth format of its own group). The device starts in the default, since no config has run yet; a change applies before the next frame, as a GS restart that blanks one frame. Textures leave VRAM and upload again on their next draw, and the 2 MiB texture range is capped by what the buffers leave: 1,900,544 bytes NTSC and 1,572,864 PAL at 32 bits. Other values are refused with a warning and reset. Headless mode ignores it. Registered in `src/ps2/system/presentation.cpp`. |
 
 Presentation is an early package policy, not a cvar: `presentation.cfg` beside the
 ELF contains `headless`, `ntsc` or `pal`, the visible modes optionally followed by

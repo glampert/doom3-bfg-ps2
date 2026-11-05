@@ -20,6 +20,11 @@ PS2_COLD_FUNC bool Init(u32 vramBytes, u32 pixelBudgetBytes);
 PS2_COLD_FUNC void Shutdown();
 bool IsInitialized();
 
+// After the GS frame buffers changed size: every texture leaves VRAM, keeping its EE copy, and
+// 'vramBytes' starting at the new gs::FixedVramBytes() become the range; each uploads again at
+// its next bind. Between frames only.
+PS2_COLD_FUNC void MoveVram(u32 vramBytes);
+
 PS2_COLD_FUNC Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes);
 
 // Copies exactly MakeIndexedLayout's bytes of GS index data (PSMT4: even texel in the low nibble).

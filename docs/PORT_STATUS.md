@@ -5170,3 +5170,44 @@ PAL: [room 0](images/renderer-world-2-room0-pal.png), [room 1](images/renderer-w
 Release builds were not run. Still open for R1: the frame-buffer profiles, the plain-strips
 topology measurement and the R1 decisions; the replaced frontend units remain in the campaign
 source list, and world decals do not read the mirror yet.
+
+## Frame-buffer profiles: 16 and 32 bits (2026-11-05)
+
+Gate R1's frame-buffer half of [section 4.3](plans/RENDERING_ARCHITECTURE.md#43-frame-buffer-format):
+the device runs in `PSMCT16` + `PSMZ16` (default) or `PSMCT32` + `PSMZ16S`, chosen by
+`renderer::Config::frameFormat` at init or live with `ps2_frameBufferBits 16|32`. A live change
+restarts the GS before the next frame (one blank frame); textures leave VRAM and upload again
+when next drawn, and the 2 MiB texture range is capped by what the buffers leave. Captures read
+both formats and their log lines carry `bits=`; the runners compare each capture with what its
+profile stores of 8-bit reference colours. Default stays 16 bits until the R1 decision.
+
+| Profile | Fixed VRAM NTSC / PAL | Texture range NTSC / PAL |
+| --- | --- | --- |
+| `PSMCT16` + `PSMZ16` | 1,376,256 / 1,572,864 | 2,097,152 / 2,097,152 (configured) |
+| `PSMCT32` + `PSMZ16S` | 2,293,760 / 2,621,440 | 1,900,544 / 1,572,864 (capped) |
+
+| Check | Result |
+| --- | --- |
+| `make test-renderer` (debug) | NTSC and PAL passed (`20261105T040418Z_smoke_5ca424ee6b244f0b`, `20261105T040432Z_smoke_1e9662cb606a405f`) with `world-graybox-32` (the four cameras at the exact reference colours, worst channel error 0) and `frame-format-switch` (16, 32 and 16 again after a full-screen picture, every pixel checked, the two 16-bit captures byte-identical, one texture re-upload per change); 17 expected-fatal probes passed |
+| `make test-world` (debug) | NTSC and PAL passed (`20261105T040601Z_world_bcf70f955b6e`, `20261105T040609Z_world_3cc3509b843b`): the six views in each profile through id's `RenderScene`, the 32-bit ones at the exact reference colours and the closed doorway at the exact clear colour (16, 24, 40; the 16-bit store is 16, 24, 41), and the doorway after the round trip byte-identical to the first; ledger exact |
+| `make test-ui`, `test-headless` (debug) | Passed in the default 16-bit profile, captures now logging `bits=16`: both UI sessions (`20261105T043858Z_session_c44b9ce1ff00`, `20261105T044655Z_session_a21929707bc3`), the 5 retail-UI and 13 movie cases (`20261105T045744Z_retail_93b7b7c68b0c` to `20261105T050053Z_movies_b5cd1d949630`), and both headless runs with the unchanged startup ledger (4,502,888 / 4,573,708 in 1,677 allocations) |
+| `make test-host` | Passed; the capture models, the GS runner and the world runner reject a 16-bit store under the 32-bit model, stray pixels, a capture in the wrong profile and a missing, doubled or wrong profile change |
+| Retail menu at 32 bits (one-off, debug) | The `stage-ui-menu` package drew its start screen 300 frames in each profile: the 14 resident textures (of 19 images, 1,540,096 pixel bytes) uploaded once more after the switch and never evicted, in NTSC's 1.81 MB and PAL's 1.5 MB alike. Captures: [NTSC](images/renderer-world-3-menu-ntsc.png), [PAL](images/renderer-world-3-menu-pal.png) |
+| `make`, `make release` | Passed; runnable `PT_LOAD` 4,802,156 debug (+1,984) and 4,078,188 release. Release builds were compiled, not run |
+
+The first attempt laid the buffers out again under the running GS. PCSX2's default hardware
+renderer then returned the old 16-bit frame's pixels for the bottom half of the first 32-bit
+capture (rows 224 and below, where the old second buffer began); the software renderer drew
+the same session cleanly (`20261105T040120Z_world_59d8a9779f77`). A GS reset clears that target
+cache, so the change became a restart.
+
+On the vertex-coloured graybox the 16-bit profile shifts the hue of dark colours: each channel
+loses up to seven levels on its own, so the reference's grey walls (33, 30, 25) store as
+(33, 24, 24). Brightened four times, 16 bits left and 32 right: [NTSC](images/renderer-world-3-room0-ntsc-x4.png),
+[PAL](images/renderer-world-3-room0-pal-x4.png). 32-bit captures, NTSC: [room 0](images/renderer-world-3-room0-ntsc.png),
+[room 1](images/renderer-world-3-room1-ntsc.png), [doorway](images/renderer-world-3-doorway-ntsc.png),
+[against the divider](images/renderer-world-3-clip-ntsc.png), [facing away](images/renderer-world-3-away-ntsc.png),
+[doorway closed](images/renderer-world-3-closed-ntsc.png); PAL: [room 0](images/renderer-world-3-room0-pal.png),
+[room 1](images/renderer-world-3-room1-pal.png), [doorway](images/renderer-world-3-doorway-pal.png),
+[against the divider](images/renderer-world-3-clip-pal.png), [facing away](images/renderer-world-3-away-pal.png),
+[doorway closed](images/renderer-world-3-closed-pal.png).

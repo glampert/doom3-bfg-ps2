@@ -40,9 +40,14 @@ memory figures in [memory-budget.md](memory-budget.md).
 - HostFs `console.txt` lines are logged on submission, before `wait` delays execute: only
   actual native `echo` output is a barrier. A key or command issued in the frame of a
   `ps2_capture` runs before that frame draws; put `wait 1` between them.
-- Inspect captures as well as logs. Pixel checks model the PSMCT16 frame (five bits per
-  channel) and allow eight levels per channel. PCSX2 models neither the EE cache nor GS
-  internal cost: captures prove function, not hardware timing or coherency.
+- Inspect captures as well as logs. Pixel checks model the frame-buffer profile the capture
+  line's `bits=` names: PSMCT16 stores five bits per channel and allows eight levels, PSMCT32
+  the exact colour within two. PCSX2 models neither the EE cache nor GS internal cost:
+  captures prove function, not hardware timing or coherency.
+- The default hardware renderer (`Renderer = -1`) caches render targets by address and
+  format, and a readback can return a stale one. When a capture looks wrong only after VRAM
+  was reused in another format, rerun once with the software renderer (`Renderer = 13`, ini
+  edited while PCSX2 is closed, restored after) before suspecting the target.
 - Closing the PCSX2 window ends the VM with status 0; the runner reports "emulator exited
   with status 0 after N s". That is an interrupted run, not a target fault.
 
@@ -58,6 +63,10 @@ memory figures in [memory-budget.md](memory-budget.md).
   for `` ` ``). Its `Missing host mapping for QKey` warnings are harmless.
 - PCSX2 2.6.3 exits with status 1 for `-version` and `-help`; the runner accepts that for
   the version query only.
+- Start a hand-run PCSX2 at normal priority. zsh runs `&` jobs at nice 5 (`BG_NICE`), and
+  with other work holding the cores the emulator crawls: an ad-hoc menu run took 104 s to
+  start its ELF against 2 s from a runner (2026-11-05). Use `setopt no_bg_nice` or the
+  runners' Python `Popen`.
 - On 2026-10-18 PCSX2 trapped with host SIGILL while handling the runner's SIGINT after a
   clean shutdown (recursive `os_unfair_lock` in malloc from Qt's signal handler). That
   host fault is separate from the EE flake below. Keep strict exit checks and triage

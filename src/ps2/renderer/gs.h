@@ -1,7 +1,8 @@
 // ================================================================================================
 // File: gs.h
-// Brief: Owns fixed 16-bit drawing contexts and emit clipped direct RGBA sprites and triangles into
-//        the caller's display list, and describes the window and drawing tags VU1 programs output.
+// Brief: Owns the drawing contexts in a 16- or 32-bit frame-buffer profile and emit clipped direct
+//        RGBA sprites and triangles into the caller's display list, and describes the window and
+//        drawing tags VU1 programs output.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -44,11 +45,20 @@ constexpr u8 kWriteGreen = 2;
 constexpr u8 kWriteBlue  = 4;
 constexpr u8 kWriteRgb   = 7;
 
+// Both colour buffers and the depth buffer (RENDERING_ARCHITECTURE.md 4.3). The GS pairs PSMCT32
+// only with depth formats of its own group, so the 32-bit profile's 16-bit depth is PSMZ16S.
+enum class FrameFormat : u8
+{
+    Color16, // PSMCT16 + PSMZ16: five bits a channel, one alpha bit
+    Color32  // PSMCT32 + PSMZ16S: eight bits a channel and an 8-bit destination alpha
+};
+
 struct Config
 {
     system::video::Standard standard;
     int width;
     int height;
+    FrameFormat format = FrameFormat::Color16;
 };
 
 struct Color
@@ -105,8 +115,13 @@ bool IsInitialized();
 int Width();
 int Height();
 
+// The frame buffers occupy VRAM from address 0 up to FixedVramBytes(); textures live above.
 u32 FixedVramBytes();
 FramebufferInfo GetFramebuffer(DrawContext context);
+
+FrameFormat GetFrameFormat();
+const char * FrameFormatName(FrameFormat format);
+int FrameFormatBits(FrameFormat format);
 
 // Immediate: wait for the queued chain, then flip at the next vsync (the 2D path, which needs
 // no following frame). Pipelined: the context's chain already ran (the caller waited before

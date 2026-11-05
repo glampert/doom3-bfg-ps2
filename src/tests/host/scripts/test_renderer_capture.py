@@ -452,5 +452,96 @@ class RendererCapture(unittest.TestCase):
                     capture.verify_indexed_scene(self.write(tga(512, 448, pixels)), "NTSC")
 
 
+def profile_scene(bits, height=448, colours=None):
+    """The GS gate's profile-switch picture as the profile of 'bits' stores it, painted from the
+    test's own rectangles rather than the verifier's sample table."""
+    rgb = bytearray(512 * height * 3)
+    fill, texel = colours or ((93, 47, 205), (3, 130, 253))
+    for x0, color in ((64, fill), (256, texel)):
+        row = bytes(capture.stored(color, bits)) * 128
+        for y in range(64, 160):
+            offset = (y * 512 + x0) * 3
+            rgb[offset:offset + len(row)] = row
+    return rgb
+
+
+def world_scene(standard, view, bits):
+    """A world capture holding each reference point's stored colour and black elsewhere."""
+    height = 448 if standard == "NTSC" else 512
+    rgb = bytearray(512 * height * 3)
+    for x, y, reference in capture.WORLD_SCENE_PIXELS[standard][view]:
+        offset = (y * 512 + x) * 3
+        rgb[offset:offset + 3] = bytes(capture.stored(reference, bits))
+    return rgb
+
+
+class FrameBufferProfiles(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.path = Path(self.temporary.name) / "renderer.tga"
+
+    def write(self, content):
+        self.path.write_bytes(content)
+        return self.path
+
+    def test_stored_colours(self):
+        # PSMCT16 keeps five bits a channel and the capture repeats the top bits below them.
+        self.assertEqual(capture.stored((93, 47, 205), 16), (90, 41, 206))
+        self.assertEqual(capture.stored((3, 130, 253), 16), (0, 132, 255))
+        self.assertEqual(capture.stored((93, 47, 205), 32), (93, 47, 205))
+        self.assertEqual(capture.stored((255, 0, 128), 16), (255, 0, 132))
+        with self.assertRaisesRegex(ValueError, "16 or 32"):
+            capture.stored((1, 2, 3), 24)
+        with self.assertRaisesRegex(ValueError, "16 or 32"):
+            capture.tolerance(8)
+
+    def test_format_scene_in_each_profile(self):
+        for standard, height in (("NTSC", 448), ("PAL", 512)):
+            for bits in (16, 32):
+                with self.subTest(standard=standard, bits=bits):
+                    result = capture.verify_format_scene(self.write(tga(512, height, profile_scene(bits, height))), standard, bits)
+                    self.assertEqual(result["bits"], bits)
+                    self.assertEqual(result["pixels"], {"format-fill": 128 * 96, "format-texture": 128 * 96,
+                                                        "format-clear": 512 * height - 2 * 128 * 96})
+
+    def test_a_five_bit_store_fails_the_32_bit_model(self):
+        # The 16-bit picture passes its own model and fails the 32-bit one (the fill's green is 6 off).
+        capture.verify_format_scene(self.write(tga(512, 448, profile_scene(16))), "NTSC", 16)
+        with self.assertRaisesRegex(ValueError, "32-bit capture pixel format-fill"):
+            capture.verify_format_scene(self.path, "NTSC", 32)
+
+    def test_32_bit_tolerance_is_rounding_only(self):
+        pixels = profile_scene(32, colours=((93 + capture.PIXEL_TOLERANCE_32, 47, 205), (3, 130, 253)))
+        capture.verify_format_scene(self.write(tga(512, 448, pixels)), "NTSC", 32)
+        pixels = profile_scene(32, colours=((93 + capture.PIXEL_TOLERANCE_32 + 1, 47, 205), (3, 130, 253)))
+        with self.assertRaisesRegex(ValueError, "format-fill"):
+            capture.verify_format_scene(self.write(tga(512, 448, pixels)), "NTSC", 32)
+
+    def test_format_scene_rejects_any_stray_pixel(self):
+        # A pixel left from the previous picture anywhere, or a rectangle one pixel short.
+        for x, y, colour, failure in ((511, 447, (255, 0, 255), "format-clear"), (224, 112, (93, 47, 205), "format-clear"),
+                                      (191, 159, (0, 0, 0), "format-fill"), (256, 64, (0, 0, 0), "format-texture")):
+            with self.subTest(x=x, y=y):
+                pixels = profile_scene(32)
+                offset = (y * 512 + x) * 3
+                pixels[offset:offset + 3] = bytes(colour)
+                with self.assertRaisesRegex(ValueError, failure):
+                    capture.verify_format_scene(self.write(tga(512, 448, pixels)), "NTSC", 32)
+
+    def test_world_views_in_each_profile(self):
+        for standard in ("NTSC", "PAL"):
+            for view in capture.WORLD_SCENE_PIXELS[standard]:
+                for bits in (16, 32):
+                    with self.subTest(standard=standard, view=view, bits=bits):
+                        height = 448 if standard == "NTSC" else 512
+                        result = capture.verify_world_scene(self.write(tga(512, height, world_scene(standard, view, bits))),
+                                                            standard, view, bits)
+                        self.assertEqual(result["bits"], bits)
+        # The 16-bit store of room0 fails the 32-bit model: five-bit storage dropped its low bits.
+        with self.assertRaisesRegex(ValueError, "room0 32-bit"):
+            capture.verify_world_scene(self.write(tga(512, 448, world_scene("NTSC", "room0", 16))), "NTSC", "room0", 32)
+
+
 if __name__ == "__main__":
     unittest.main()

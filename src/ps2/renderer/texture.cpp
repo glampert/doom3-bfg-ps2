@@ -220,6 +220,31 @@ PS2_COLD_FUNC void Shutdown()
     s_initialized = false;
 }
 
+PS2_COLD_FUNC void MoveVram(u32 vramBytes)
+{
+    if (!s_initialized) [[unlikely]]
+    {
+        FatalError("texture VRAM moved before initialization");
+    }
+
+    Fence();
+
+    for (auto & record : s_records)
+    {
+        if (record.handle.id != 0)
+        {
+            ReleaseResidency(record);
+        }
+    }
+
+    gs::ShutdownVram();
+
+    if (!gs::InitVram(gs::FixedVramBytes(), vramBytes)) [[unlikely]]
+    {
+        FatalError("texture VRAM range does not fit beside the frame buffers");
+    }
+}
+
 PS2_COLD_FUNC Handle Create(int width, int height, Sampler sampler, const void * rgba, size_t sourceBytes, size_t strideBytes)
 {
     if (!s_initialized) [[unlikely]]

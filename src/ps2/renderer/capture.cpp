@@ -23,7 +23,7 @@ namespace
 {
 
 static constexpr int kWidth = 512;
-static constexpr int kStripRows = 32;
+static constexpr int kStripRows = 32; // PSMCT16 rows a strip holds; PSMCT32 pixels fill it in half as many
 static constexpr u32 kDmaStart = 1U << 8;
 static constexpr u32 kDmacSuspend = 1U << 16;
 static constexpr u32 kVifDirection = 1U << 23;
@@ -37,11 +37,21 @@ static constexpr u32 kTimeoutCycles = 294912000U;
 // whole cache lines, and a stalled receive is stopped by RecoverPipeline before release.
 struct alignas(64) Strip
 {
-    u16 pixels[kWidth * kStripRows];
+    u8 pixels[kWidth * kStripRows * sizeof(u16)];
     u8 bgr[kWidth * kStripRows * 3];
 };
 
 static_assert(sizeof(Strip::pixels) % 64 == 0 && sizeof(Strip) % 64 == 0);
+
+ID_FORCE_INLINE int PixelBytes(const gs::FramebufferInfo & frame)
+{
+    return frame.pixelFormat == GS_PSM_32 ? 4 : 2;
+}
+
+ID_FORCE_INLINE int StripRows(const gs::FramebufferInfo & frame)
+{
+    return static_cast<int>(sizeof(Strip::pixels)) / (frame.width * PixelBytes(frame));
+}
 
 alignas(64) static u64 s_request[16];
 alignas(64) static u32 s_restorePath3[16];
@@ -116,12 +126,12 @@ PS2_COLD_FUNC void RecoverPipeline(const SavedPipeline & saved)
 
 PS2_COLD_FUNC bool ReadRows(Strip & strip, const gs::FramebufferInfo & frame, int y, int rows)
 {
-    PS2_Assert(y >= 0 && rows > 0 && rows <= kStripRows && y + rows <= frame.height);
+    PS2_Assert(y >= 0 && rows > 0 && rows <= StripRows(frame) && y + rows <= frame.height);
 
     // The profile uses full, aligned rows, so neither the request nor target shares a
     // cache line with unrelated data. Both DMA channels must already have drained.
-    if (frame.width != kWidth || frame.pixelFormat != GS_PSM_16 || y < 0 || rows <= 0 ||
-        rows > kStripRows || y > frame.height - rows ||
+    if (frame.width != kWidth || (frame.pixelFormat != GS_PSM_16 && frame.pixelFormat != GS_PSM_32) || y < 0 || rows <= 0 ||
+        rows > StripRows(frame) || y > frame.height - rows ||
         (*R_EE_D1_CHCR & kDmaStart) != 0 || (*R_EE_D2_CHCR & kDmaStart) != 0 ||
         (*R_EE_VIF1_STAT & (kVifDirection | kVifFifoCount)) != 0 ||
         (*GS_REG_BUSDIR & 1U) != 0 || (*R_EE_GIF_STAT & kPath3VifMask) != 0)
@@ -135,7 +145,7 @@ PS2_COLD_FUNC bool ReadRows(Strip & strip, const gs::FramebufferInfo & frame, in
         *R_EE_D1_CHCR, *R_EE_GIF_MODE
     };
 
-    const int bytes = frame.width * rows * static_cast<int>(sizeof(u16));
+    const int bytes = frame.width * rows * PixelBytes(frame);
     u32 * const codes = static_cast<u32 *>(static_cast<void *>(s_request));
 
     codes[0] = VIF_CODE(0, 0, VIF_CMD_NOP, 0);
@@ -208,13 +218,28 @@ PS2_COLD_FUNC bool ReadRows(Strip & strip, const gs::FramebufferInfo & frame, in
     return true;
 }
 
-PS2_COLD_FUNC void ToBgr(Strip & strip, int count)
+PS2_COLD_FUNC void ToBgr(Strip & strip, const gs::FramebufferInfo & frame, int count)
 {
+    if (frame.pixelFormat == GS_PSM_32)
+    {
+        // PSMCT32 holds R, G, B and A bytes in that order; the alpha byte is dropped.
+        for (int i = 0; i < count; ++i)
+        {
+            strip.bgr[i * 3] = strip.pixels[i * 4 + 2];
+            strip.bgr[i * 3 + 1] = strip.pixels[i * 4 + 1];
+            strip.bgr[i * 3 + 2] = strip.pixels[i * 4];
+        }
+
+        return;
+    }
+
+    const u16 * const pixels = static_cast<const u16 *>(static_cast<const void *>(strip.pixels));
+
     for (int i = 0; i < count; ++i)
     {
-        const u32 r = strip.pixels[i] & 31U;
-        const u32 g = (strip.pixels[i] >> 5) & 31U;
-        const u32 b = (strip.pixels[i] >> 10) & 31U;
+        const u32 r = pixels[i] & 31U;
+        const u32 g = (pixels[i] >> 5) & 31U;
+        const u32 b = (pixels[i] >> 10) & 31U;
         // Repeat the upper bits when expanding RGB5, so the maximum remains 255.
         strip.bgr[i * 3] = static_cast<u8>((b << 3) | (b >> 2));
         strip.bgr[i * 3 + 1] = static_cast<u8>((g << 3) | (g >> 2));
@@ -238,16 +263,18 @@ PS2_COLD_FUNC bool WriteFrame(std::FILE * file, Strip & strip, const gs::Framebu
         return false;
     }
 
-    for (int y = 0; y < frame.height; y += kStripRows)
+    const int stripRows = StripRows(frame);
+
+    for (int y = 0; y < frame.height; y += stripRows)
     {
-        const int rows = frame.height - y < kStripRows ? frame.height - y : kStripRows;
+        const int rows = frame.height - y < stripRows ? frame.height - y : stripRows;
         if (!ReadRows(strip, frame, y, rows))
         {
             return false;
         }
 
         const int count = frame.width * rows;
-        ToBgr(strip, count);
+        ToBgr(strip, frame, count);
 
         const size_t bytes = static_cast<size_t>(count) * 3U;
         if (std::fwrite(strip.bgr, 1, bytes, file) != bytes)
@@ -272,9 +299,9 @@ PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
     }
 
     const gs::FramebufferInfo frame = gs::GetFramebuffer(context);
-    if (frame.width != kWidth || frame.height <= 0 || frame.height > 512 || frame.pixelFormat != GS_PSM_16)
+    if (frame.width != kWidth || frame.height <= 0 || frame.height > 512 || (frame.pixelFormat != GS_PSM_16 && frame.pixelFormat != GS_PSM_32))
     {
-        Log(LogLevel::Error, "GS capture supports only the fixed PSMCT16 device profile");
+        Log(LogLevel::Error, "GS capture supports only the 512-wide PSMCT16 and PSMCT32 device profiles");
         return false;
     }
 

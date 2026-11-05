@@ -212,7 +212,9 @@ EY EZ` logs the first world surface between two points, `portal HANDLE open|clos
 portal's view blocking, `off` stops drawing, `unload` empties the world and `status` logs the
 areas, portals and the last view's area, entities, drawn areas, batches and frame arena use.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
-the graybox and runs it.
+the graybox and runs it. `ps2_frameBufferBits 16|32` switches the frame buffers between
+`PSMCT16` + `PSMZ16` and `PSMCT32` + `PSMZ16S` before the next frame, restarting the GS
+(one blank frame); capture lines report the profile as `bits=` ([CVARS.md](CVARS.md)).
 
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 `d3bfg_tests.map`. `make build-core` writes `build/<config>/tests/core/`,

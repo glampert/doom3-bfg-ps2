@@ -19,14 +19,19 @@ struct Config
 {
     system::video::Standard standard = system::video::Standard::Ntsc;
     u32 chainRingBytes    = 128U * 1024U; // per in-flight frame; the list is built in the scratchpad
-    u32 textureVramBytes  = 2U * 1024U * 1024U;
+    u32 textureVramBytes  = 2U * 1024U * 1024U; // at most: the frame-buffer profile may leave less
     u32 texturePixelBytes = 2U * 1024U * 1024U;
+    gs::FrameFormat frameFormat = gs::FrameFormat::Color16;
 };
 
 // Init/shutdown:
 PS2_COLD_FUNC bool Init(const Config & config);
 PS2_COLD_FUNC void Shutdown();
 bool IsInitialized();
+
+// Changes the frame-buffer profile between frames. Textures move above the new frame buffers and
+// upload again when next drawn; the texture range is the configured one, capped by what is left.
+PS2_COLD_FUNC void SetFrameFormat(gs::FrameFormat format);
 
 // Frame lifecycle:
 bool FrameStarted();

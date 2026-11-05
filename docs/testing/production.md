@@ -216,16 +216,24 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   `clip` (the doorway just outside its frustum), `away` (facing room 0's far wall) and
   `closed` (the doorway camera with the portal closed) 1 area and 14 batches.
 - Captures: `room0`, `room1`, `doorway` and `clip` are the GS gate's cameras and must
-  show its reference pixels (`renderer_capture.WORLD_SCENE_PIXELS`); `closed` must equal
-  `doorway` everywhere outside the doorway's screen rectangle (the opening seen from 436
-  units plus 3 pixels), differ on at least half of it and show the clear colour
-  (16, 24, 40) at the centre.
+  show its reference pixels (`renderer_capture.WORLD_SCENE_PIXELS`, 8-bit colours stored
+  as each profile keeps them); `closed` must equal `doorway` everywhere outside the
+  doorway's screen rectangle (the opening seen from 436 units plus 3 pixels), differ on at
+  least half of it and show the clear colour (16, 24, 40) at the centre.
+- Frame-buffer profiles: the six views run in the 16-bit profile, then `ps2_frameBufferBits
+  32` must log one `[D3BFG] GS frame buffer bits=32 PSMCT32/Z16S fixed_vram=` line (2,293,760
+  NTSC, 2,621,440 PAL, with the texture range capped at what is left) and the six views run
+  again as `<view>-32`, every capture line carrying its `bits=`. The 32-bit captures are
+  checked against the exact reference colours within 2 levels (PSMCT16's model allows 8),
+  the closed doorway against the exact clear colour. Back at 16 bits, `doorway-16` must be
+  byte-identical to the first `doorway`.
 - `ps2_world unload` must leave the empty single-area world (`areas=1 portals=0`), and the
-  session quits with the exact startup ledger. A session takes about 5 s of emulation in
+  session quits with the exact startup ledger. A session takes about 9 s of emulation in
   debug. `test_world_runner.py` rejects a missing or refused cooked load, wrong traces,
-  broken culling counts, missing, stale or misnamed captures and statuses, out-of-order
-  barriers, an unfinished unload or ledger, and a closed doorway that changes pixels
-  outside the opening or none.
+  broken culling counts, missing, stale or misnamed captures and statuses, a capture in the
+  wrong profile, a profile change that is missing, doubled, outside its step or with the
+  wrong buffers, out-of-order barriers, an unfinished unload or ledger, and a closed doorway
+  that changes pixels outside the opening or none.
 
 ## Package and UI gate overview
 

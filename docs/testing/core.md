@@ -80,6 +80,18 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   faces from a reference rasterizer of the same `.proc`, cameras and colour bytes; 99.4 to
   99.9 % of each capture matches it within the PSMCT16 model. Reference images:
   `docs/images/renderer-world-1-*-{ntsc,pal}.png`.
+- Frame-buffer profiles: `renderer-gs/world-graybox-32` draws the same cameras with the device
+  initialized in `PSMCT32` + `PSMZ16S` (`GS ready ... PSMCT32/Z16S fixed_vram=2293760`, PAL
+  2,621,440) and captures `renderer-world-*-32.tga`; the runner compares them with the exact
+  8-bit reference colours within 2 levels (`renderer_capture.stored()` and `tolerance()`: the
+  16-bit model truncates to five bits and allows 8). `renderer-gs/frame-format-switch` draws a
+  fill and a texture whose low channel bits PSMCT16 drops in the 16-bit profile, then after
+  `renderer::SetFrameFormat` restarts the GS at 32 bits and again back at 16; both buffers
+  hold a full-screen magenta picture before each measured frame. It logs `GS format bits=
+  fixed_vram= texture_vram= uploads=` per profile (the 2 MiB texture range capped at
+  1,900,544 NTSC / 1,572,864 PAL at 32 bits, one re-upload after each change), the runner
+  requires those lines and checks every pixel of `renderer-format-{16,32,16-again}.tga`, and
+  the two 16-bit captures must be byte-identical.
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

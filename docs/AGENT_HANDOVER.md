@@ -57,6 +57,7 @@ for each feature.
 | Retail shell drawing | Native `Render` of the original shell's start screen: outlines, color terms, screen blends, depth masks; the native logo transition on request | 100–140 ms per debug PCSX2 frame on the fixed clock; placeholder prompts and labels; no navigation |
 | Native shell menu | `idMenuHandler_Shell` with its start, root, campaign, settings and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start; Quit opens Common's native confirmation, whose Cancel returns and Accept quits; pad button tags draw as PS3 prompt art; a `menu` package policy boots into it | The screens below Campaign and Settings; a hands-on pad/keyboard check in PCSX2 |
 | World viewer | `ps2_world` loads a cooked `.d3wd` into Common's render world through `InitFromMap` (areas, portals, nodes, `_areaN` models over the s16 mirror) and draws it from a fixed camera through `RenderScene`, the portal flow choosing the areas; traces read the mirror | Vertex colour only (half brightness), no lights, entities or batch culling; the graybox only; no game map |
+| Frame-buffer profiles | `ps2_frameBufferBits 16\|32` switches a running device between `PSMCT16` + `PSMZ16` (default) and `PSMCT32` + `PSMZ16S` by restarting the GS; captures and pixel models carry the profile | The R1 profile decision is open; the 32-bit profile leaves 1.81 MB (NTSC) / 1.5 MB (PAL) for textures |
 | Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | About 13.2 MB requested / 16.5 MB heap backing before any map (see memory-budget.md); no retail map or in-game UI yet |
 
 Recent implementation: the 2026-10-24 menu and device slices (`ea039bf`, `75b25f7`,
@@ -235,7 +236,8 @@ regenerate the compile database. Third-party code belongs in `src/external/`.
   Native image dimensions remain logical atlas dimensions, not tile dimensions.
 - SWF zero-additive color accepts biased 127/128 only in its scope. Mode 8 uses
   straight RGBA with alpha-weighted GS addition. Nonzero color transforms still fail.
-  Expected pixels include each PSMCT16 storage round; do not widen tolerances to hide errors.
+  Expected pixels include each PSMCT16 storage round (`renderer_capture.stored(rgb, bits)` for
+  the 32-bit profile); do not widen tolerances to hide errors.
 - Scripts/callbacks need storage, operand, work, hierarchy and destructive-ancestor
   checks. `resourceExecution` is a separate permission from `resourceOnly`, and
   `resourceRender` a third one: drawing requires no outlines, screen blends or additive

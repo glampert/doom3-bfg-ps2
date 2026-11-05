@@ -9,6 +9,7 @@
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/scene.h"
+#include "ps2/renderer/vram.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
@@ -45,6 +46,12 @@ static char s_captureName[64] = {};
 // console and screens until the game draws its own views.
 static bool s_worldView = false;
 static renderView_t s_view;
+
+// The frame-buffer profile (RENDERING_ARCHITECTURE.md 4.3). The device starts in it, and a
+// change takes effect before the next frame begins.
+static idCVar s_frameBufferBits("ps2_frameBufferBits", "16", CVAR_SYSTEM | CVAR_INTEGER,
+                                "frame-buffer colour bits, 16 (PSMCT16 + Z16) or 32 (PSMCT32 + Z16S); changes between frames",
+                                16.0f, 32.0f);
 
 void RequireConsole(const idCmdArgs & args, int count)
 {
@@ -261,9 +268,47 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     ps2::FatalError("unknown ps2_world use: %s", args.Args());
 }
 
+ps2::renderer::gs::FrameFormat FrameFormatFromBits(int bits)
+{
+    return bits == 32 ? ps2::renderer::gs::FrameFormat::Color32 : ps2::renderer::gs::FrameFormat::Color16;
+}
+
+PS2_COLD_FUNC void ApplyFrameBufferBits()
+{
+    s_frameBufferBits.ClearModified();
+
+    const int bits = s_frameBufferBits.GetInteger();
+    const ps2::renderer::gs::FrameFormat current = ps2::renderer::gs::GetFrameFormat();
+
+    if (bits != 16 && bits != 32)
+    {
+        ps2::Log(ps2::LogLevel::Warning, "ps2_frameBufferBits accepts 16 or 32; keeping %d\n", ps2::renderer::gs::FrameFormatBits(current));
+        s_frameBufferBits.SetInteger(ps2::renderer::gs::FrameFormatBits(current));
+        s_frameBufferBits.ClearModified();
+        return;
+    }
+
+    const ps2::renderer::gs::FrameFormat format = FrameFormatFromBits(bits);
+
+    if (format == current)
+    {
+        return;
+    }
+
+    ps2::renderer::SetFrameFormat(format);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GS frame buffer bits=%d %s fixed_vram=%u texture_vram=%u\n", bits,
+             ps2::renderer::gs::FrameFormatName(format), ps2::renderer::gs::FixedVramBytes(),
+             static_cast<u32>(ps2::renderer::gs::GetVramStats().capacityBytes));
+}
+
 void Present()
 {
     PS2_AssertMsg(!s_drawing && !ps2::renderer::FrameStarted(), "nested native console presentation");
+
+    if (s_frameBufferBits.IsModified()) [[unlikely]]
+    {
+        ApplyFrameBufferBits();
+    }
 
     s_drawing = true;
 
@@ -293,8 +338,9 @@ void Present()
             ps2::FatalError("native console capture failed: %s", s_captureName);
         }
 
-        ps2::Log(ps2::LogLevel::Info, "[D3BFG] CONSOLE capture=%s frame=%d presents=%u redraws=%u\n",
-                 s_captureName, s_frames, ps2::renderer::FrameCount(), s_redraws);
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] CONSOLE capture=%s frame=%d presents=%u redraws=%u bits=%d\n",
+                 s_captureName, s_frames, ps2::renderer::FrameCount(), s_redraws,
+                 ps2::renderer::gs::FrameFormatBits(ps2::renderer::gs::GetFrameFormat()));
 
         s_captureName[0] = '\0';
     }
@@ -410,6 +456,12 @@ PS2_COLD_FUNC void InitPresentation()
 
     renderer::Config config;
     config.standard = s_policy == Presentation::Pal ? system::video::Standard::Pal : system::video::Standard::Ntsc;
+
+    // No config file has run yet: the device starts in the cvar's default, and later values apply
+    // at the frame boundary.
+    config.frameFormat = FrameFormatFromBits(s_frameBufferBits.GetInteger());
+    s_frameBufferBits.SetInteger(renderer::gs::FrameFormatBits(config.frameFormat));
+    s_frameBufferBits.ClearModified();
 
     if (!renderer::Init(config)) [[unlikely]]
     {

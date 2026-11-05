@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/vram.h"
 #include "ps2/ui/draw.h"
 
 namespace ps2::renderer
@@ -15,7 +16,16 @@ static bool s_initialized = false;
 static bool s_frame = false;
 static gs::DrawContext s_context = gs::DrawContext::Ctx0;
 static u32 s_frames = 0;
+static u32 s_textureVramBytes = 0;
+static system::video::Standard s_standard = system::video::Standard::Ntsc;
 static constexpr u8 kChannelBits[] = { gs::kWriteRed, gs::kWriteGreen, gs::kWriteBlue };
+
+// The configured texture range, or all VRAM the frame buffers leave when that is less.
+u32 TextureVramBytes()
+{
+    const u32 free = gs::kVramBytes - gs::FixedVramBytes();
+    return s_textureVramBytes < free ? s_textureVramBytes : free;
+}
 
 u8 ChannelValue(const ui::FixedVertex & vertex, int channel)
 {
@@ -172,14 +182,17 @@ PS2_COLD_FUNC bool Init(const Config & config)
         return false;
     }
 
-    if (!gs::Init({ config.standard, 512, system::video::VisibleLines(config.standard) }))
+    if (!gs::Init({ config.standard, 512, system::video::VisibleLines(config.standard), config.frameFormat }))
     {
         vu::Shutdown();
         dma::Shutdown();
         return false;
     }
 
-    if (!tex::Init(config.textureVramBytes, config.texturePixelBytes))
+    s_standard = config.standard;
+    s_textureVramBytes = config.textureVramBytes;
+
+    if (!tex::Init(TextureVramBytes(), config.texturePixelBytes))
     {
         vu::Shutdown();
         dma::Shutdown();
@@ -209,6 +222,35 @@ PS2_COLD_FUNC void Shutdown()
 
     s_initialized = false;
     s_frames = 0;
+    s_textureVramBytes = 0;
+}
+
+PS2_COLD_FUNC void SetFrameFormat(gs::FrameFormat format)
+{
+    if (!s_initialized || s_frame) [[unlikely]]
+    {
+        FatalError("frame-buffer profile changed outside the frame boundary");
+    }
+
+    if (format == gs::GetFrameFormat())
+    {
+        return;
+    }
+
+    // A GS restart, not buffers laid out again under a running device: the reset leaves no state
+    // of the old layout behind (an emulator's render-target cache keeps old-format buffers
+    // otherwise), at the cost of a blank frame. No queued TEX0 may name a page the larger buffers
+    // cover, and the VIF1 reset leaves VU1 micro memory unknown.
+    dma::WaitIdle();
+    gs::Shutdown();
+
+    if (!gs::Init({ s_standard, 512, system::video::VisibleLines(s_standard), format })) [[unlikely]]
+    {
+        FatalError("cannot restart the GS in the %s profile", gs::FrameFormatName(format));
+    }
+
+    vu::Invalidate();
+    tex::MoveVram(TextureVramBytes());
 }
 
 void BeginFrame(gs::Color clearColor)

@@ -2,7 +2,8 @@
 # ================================================================================================
 # File: test_world_runner.py
 # Brief: Reject false world-session acceptance: a missing cooked load, broken portal culling, stray
-# captures, an unfinished unload or ledger, and a closed doorway that changes the wrong pixels.
+# captures, a frame-buffer profile that did not change, an unfinished unload or ledger, and a closed
+# doorway that changes the wrong pixels.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -29,8 +30,14 @@ def trace_line(hit, fraction, normal, material):
             f"material={material}\n")
 
 
-def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", traces=None):
-    """A world session's log as PCSX2's file log stamps it, with per-view and per-trace overrides."""
+def switch_line(bits, fixed, texture):
+    name = "PSMCT32/Z16S" if bits == 32 else "PSMCT16/Z16"
+    return f"[D3BFG] GS frame buffer bits={bits} {name} fixed_vram={fixed} texture_vram={texture}\n"
+
+
+def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", traces=None, switches=None):
+    """A world session's log as PCSX2's file log stamps it, with per-view, per-trace and per-switch
+    overrides (a switch override replaces its GS line; None drops it)."""
     log = echo("ready") + echo("begin")
     log += "[D3BFG] world maps/graybox.d3wd: areas=2 surfaces=18 batches=26 portals=1 nodes=11 packets=34896 bytes=55056\n"
     log += WORLD.format(event="loaded", areas=2, portals=1, viewing=0, frame=0, views=0, area=-1, entities=0, drawn=0, batches=0)
@@ -41,13 +48,23 @@ def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", t
         log += trace_line(**found)
     log += echo("loaded")
     frame = 70
-    for name, _, _, area, drawn, batches, _ in runner.VIEWS:
+    for name, bits, view in runner.steps():
+        if view is None:
+            line = switch_line(bits, 2293760 if bits == 32 else 1376256, 1900544 if bits == 32 else 2097152)
+            line = (switches or {}).get(name, line)
+            if line:
+                log += line
+            log += echo(name)
+            frame += 3
+            continue
+        _, _, _, area, drawn, batches, _ = view
         status = {"event": "status", "areas": 2, "portals": 1, "viewing": 1, "frame": frame + 3, "views": frame,
                   "area": area, "entities": drawn, "drawn": drawn, "batches": batches}
         status.update((views or {}).get(name, {}))
         capture = status.pop("capture", f"world-{name}.tga")
+        captured_bits = status.pop("bits", bits)
         if capture:
-            log += f"[D3BFG] CONSOLE capture={capture} frame={frame} presents={frame} redraws=0\n"
+            log += f"[D3BFG] CONSOLE capture={capture} frame={frame} presents={frame} redraws=0 bits={captured_bits}\n"
         if status.pop("status", True):
             log += WORLD.format(**status)
         log += echo(name)
@@ -77,6 +94,31 @@ class WorldRunnerTests(unittest.TestCase):
         self.assertTrue(passed, reason)
         self.assertEqual(details["arena_bytes"], 1248)
         self.assertEqual(details["views"]["away"]["status"]["drawn"], 1)
+        self.assertEqual(details["views"]["clip-32"]["bits"], 32)
+        self.assertEqual(details["switches"]["bits-32"], {"fixed_vram": 2293760, "texture_vram": 1900544})
+
+    def test_pal_profiles_pass(self):
+        log = session(switches={"bits-32": switch_line(32, 2621440, 1572864), "bits-16": switch_line(16, 1572864, 2097152)})
+        passed, reason, _ = runner.classify(log, IDENTITY)
+        self.assertTrue(passed, reason)
+
+    def test_profile_switch_must_happen_once_with_its_buffers(self):
+        # No change, a change to the wrong profile, buffers of no standard, an uncapped texture range.
+        self.assertFalse(runner.classify(session(switches={"bits-32": None}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(16, 1376256, 2097152)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(32, 2293761, 1900543)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(32, 2293760, 2097152)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-16": None}), IDENTITY)[0])
+        # A second change inside a view's span, or one after the session's steps.
+        doubled = switch_line(32, 2293760, 1900544) * 2
+        self.assertFalse(runner.classify(session(switches={"bits-32": doubled}), IDENTITY)[0])
+        log = session().replace("[D3BFG] WORLD unloaded", switch_line(32, 2293760, 1900544).rstrip("\n") + "\n[    1.0000] [D3BFG] WORLD unloaded")
+        self.assertFalse(runner.classify(log, IDENTITY)[0])
+
+    def test_capture_must_carry_its_profile(self):
+        self.assertFalse(runner.classify(session({"room0-32": {"bits": 16}}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session({"doorway-16": {"bits": 32}}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session().replace(" bits=32\n", "\n", 1), IDENTITY)[0])
 
     def test_traces_must_hit_the_mirror_geometry(self):
         # The floor missed, the divider hit at the wrong place or facing, the doorway blocked.
@@ -126,6 +168,30 @@ class WorldRunnerTests(unittest.TestCase):
         self.assertFalse(runner.classify(session(unloaded={"areas": 2, "portals": 1}), IDENTITY)[0])
         self.assertFalse(runner.classify(session(memory="7424/7600/4 final=7488/7664/5"), IDENTITY)[0])
         self.assertFalse(runner.classify(session().replace("======== Shutdown complete ========", ""), IDENTITY)[0])
+
+    def test_closed_doorway_in_32_bits_needs_the_exact_clear_colour(self):
+        x0, y0, x1, y1 = runner.doorway_box("NTSC")
+        inside = [(x, y) for y in range(y0, y1) for x in range(x0, x1)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            opened, closed = doorway_images(448, inside)
+            (root / "open.tga").write_bytes(opened)
+            (root / "closed.tga").write_bytes(closed)
+            self.assertEqual(runner.verify_closed(root / "open.tga", root / "closed.tga", "NTSC", 32)["centre_rgb"], list(runner.CLEAR_RGB))
+            # The five-bit store of the clear colour (16, 24, 41) passes only the 16-bit model.
+            stored = bytearray(closed)
+            for x, y in inside:
+                offset = 18 + (y * 512 + x) * 3
+                stored[offset:offset + 3] = bytes((41, 24, 16))
+            (root / "closed.tga").write_bytes(stored)
+            runner.verify_closed(root / "open.tga", root / "closed.tga", "NTSC", 16)
+            # Five levels off in blue would pass PSMCT16's slack; the 32-bit model refuses it.
+            for x, y in inside:
+                offset = 18 + (y * 512 + x) * 3
+                stored[offset:offset + 3] = bytes((45, 24, 16))
+            (root / "closed.tga").write_bytes(stored)
+            with self.assertRaisesRegex(ValueError, "centre"):
+                runner.verify_closed(root / "open.tga", root / "closed.tga", "NTSC", 32)
 
     def test_closed_doorway_changes_only_the_opening(self):
         x0, y0, x1, y1 = runner.doorway_box("NTSC")

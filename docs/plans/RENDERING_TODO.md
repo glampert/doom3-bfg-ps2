@@ -123,11 +123,18 @@ production link free of test inputs. Section numbers in parentheses point into t
       runner checks 32 pixels a standard against a reference rasterizer (2026-11-04).
 - [ ] A plain-strips program variant and the VU1 cost comparison of the two topologies
       (instruction counts in PCSX2, cycles on the console) (6.1, 7.4).
-- [ ] Both frame-buffer profiles selectable (`PSMCT32 + Z16S`, `PSMCT16 + Z16`); capture
-      pixel model records the profile (4.3); the profile cvar gets its `CVARS.md` row.
-- [ ] Gate: fixed-camera captures of the room in both profiles; area 2 draws with correct
-      depth and portal culling; decisions on profile, topology and FIELD versus FRAME mode
-      written into section 20.
+- [x] Both frame-buffer profiles selectable (`PSMCT32 + Z16S`, `PSMCT16 + Z16`); capture
+      pixel model records the profile (4.3); the profile cvar gets its `CVARS.md` row:
+      `gs::FrameFormat` in the device config, `renderer::SetFrameFormat` restarting the GS
+      between frames (textures move above the new buffers and upload again, the texture range
+      capped by what is left), 32-bit capture readback with `bits=` on capture lines, the
+      runners' `stored()`/`tolerance()` model per profile, and the live `ps2_frameBufferBits`
+      cvar; the GS gate's `world-graybox-32` and `frame-format-switch`, and `make test-world`
+      redrawing its six views at 32 bits (2026-11-05).
+- [ ] Gate: fixed-camera captures of the room in both profiles (done for the graybox,
+      2026-11-05: `docs/images/renderer-world-3-*`); area 2 draws with correct depth and
+      portal culling; decisions on profile, topology and FIELD versus FRAME mode written into
+      section 20.
 
 ## R2: lightmapped world and streaming
 

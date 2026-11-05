@@ -121,7 +121,7 @@ CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
     "inactive-start", "rejected-partial-init", "device-init", "context-frames",
     "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters", "native-indexed",
-    "pipelined-present", "vu-passthrough", "world-graybox"))
+    "pipelined-present", "vu-passthrough", "world-graybox", "world-graybox-32", "frame-format-switch"))
 REQUIRED_CORE_CHECKS = frozenset({
     "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
@@ -567,10 +567,18 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                 return False, "missing or failed GS checks"
             standard, height = ("PAL", 512) if scenario == "renderer-pal" else ("NTSC", 448)
             if (f"[D3BFG] RUN {test_id} BEGIN" not in log or
-                    f"GS ready {standard} 512x{height} PSMCT16/Z16" not in log or
+                    f"GS ready {standard} 512x{height} PSMCT16/Z16 " not in log or
+                    f"GS ready {standard} 512x{height} PSMCT32/Z16S " not in log or
                     any(f"GS scene {standard} cycle={cycle} frames={frames} context=0" not in log
                         for cycle, frames in ((0, 120), (1, 4)))):
                 return False, "incorrect GS mode or completed frames"
+            # The profile switch: 16, 32 and 16 again, the texture range capped by the 32-bit buffers.
+            fixed16, fixed32 = (1572864, 2621440) if standard == "PAL" else (1376256, 2293760)
+            switches = [tuple(map(int, item)) for item in
+                        re.findall(r"GS format bits=(\d+) fixed_vram=(\d+) texture_vram=(\d+) uploads=(\d+)", log)]
+            expected_switches = [(16, fixed16, 2097152, 1), (32, fixed32, min(2097152, 4194304 - fixed32), 2), (16, fixed16, 2097152, 3)]
+            if switches not in (expected_switches, expected_switches * 2):
+                return False, "invalid frame-buffer profile switch"
             memory = re.findall(r"GS memory baseline=(\d+)/(\d+)/(\d+) final=(\d+)/(\d+)/(\d+)", log)
             chains = re.findall(r"GS chains half=(\d+) peak=(\d+) kicks=(\d+) drains=(\d+)", log)
             if (not memory or any(item[:3] != item[3:] for item in memory) or
@@ -952,8 +960,13 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                     raise ValueError(f"VU passthrough capture wrong at {x},{y}")
             capture_checks["renderer-vu.tga"] = {"sha256": sha256(output / "renderer-vu.tga"), "sprite": "PASS"}
             for view in ("room0", "room1", "doorway", "clip"):
-                name = f"renderer-world-{view}.tga"
-                capture_checks[name] = renderer_capture.verify_world_scene(output / name, standard, view)
+                for bits, suffix in ((16, ""), (32, "-32")):
+                    name = f"renderer-world-{view}{suffix}.tga"
+                    capture_checks[name] = renderer_capture.verify_world_scene(output / name, standard, view, bits)
+            for name, bits in (("renderer-format-16.tga", 16), ("renderer-format-32.tga", 32), ("renderer-format-16-again.tga", 16)):
+                capture_checks[name] = renderer_capture.verify_format_scene(output / name, standard, bits)
+            if capture_checks["renderer-format-16.tga"]["sha256"] != capture_checks["renderer-format-16-again.tga"]["sha256"]:
+                raise ValueError("the frame-buffer profile round trip changed the 16-bit picture")
             for name in ("renderer-ui.tga", "renderer-ui-reload.tga"):
                 capture_checks[name] = renderer_capture.verify_ui_scene(output / name, standard)
             if capture_checks["renderer-ui.tga"]["sha256"] != capture_checks["renderer-ui-reload.tga"]["sha256"]:

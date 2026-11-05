@@ -20,6 +20,7 @@
 #include <climits>
 #include <delaythread.h>
 #include <gs_gp.h>
+#include <gs_psm.h>
 #include <idlib/precompiled.h>
 #include <kernel.h>
 #include <renderer/tr_local.h>
@@ -686,20 +687,21 @@ bool VuPassthrough(system::video::Standard standard)
 // The authored graybox (src/tests/data/graybox_map), cooked by make world-cook and staged by the
 // runner, drawn by world_lm.vcl from fixed cameras: one in each room, one through the doorway and
 // one against the divider, where the near plane and the guard band cut the jambs and the floor.
-bool WorldGraybox(system::video::Standard standard)
+// The 32-bit profile's captures carry a -32 suffix.
+bool WorldGraybox(system::video::Standard standard, renderer::gs::FrameFormat format)
 {
     struct Camera
     {
-        const char * capture;
+        const char * name;
         math::Vec3 eye;
         math::Vec3 target;
     };
 
     static constexpr Camera kCameras[] = {
-        { "host:renderer-world-room0.tga", { -480.0f, -340.0f, 150.0f }, { -180.0f, 100.0f, 40.0f } },
-        { "host:renderer-world-room1.tga", { 480.0f, 330.0f, 150.0f }, { 240.0f, -150.0f, 40.0f } },
-        { "host:renderer-world-doorway.tga", { -440.0f, 0.0f, 64.0f }, { 0.0f, 0.0f, 64.0f } },
-        { "host:renderer-world-clip.tga", { -20.0f, -40.0f, 40.0f }, { -300.0f, 300.0f, 20.0f } },
+        { "room0", { -480.0f, -340.0f, 150.0f }, { -180.0f, 100.0f, 40.0f } },
+        { "room1", { 480.0f, 330.0f, 150.0f }, { 240.0f, -150.0f, 40.0f } },
+        { "doorway", { -440.0f, 0.0f, 64.0f }, { 0.0f, 0.0f, 64.0f } },
+        { "clip", { -20.0f, -40.0f, 40.0f }, { -300.0f, 300.0f, 20.0f } },
     };
 
     const auto baseline = system::heap::GetTotalStats();
@@ -713,12 +715,15 @@ bool WorldGraybox(system::video::Standard standard)
     const bool loaded = level.sections.areaCount == 2 && level.sections.portalCount == 1 && level.sections.nodeCount == 11 &&
                         level.sections.batchCount > 0;
 
-    if (!renderer::Init({ standard, 128U * 1024U, 64U * 1024U, 128U * 1024U }))
+    if (!renderer::Init({ standard, 128U * 1024U, 64U * 1024U, 128U * 1024U, format }))
     {
         renderer::world::Unload(level);
         return false;
     }
 
+    const bool profile = renderer::gs::GetFrameFormat() == format &&
+                         renderer::gs::GetFramebuffer(renderer::gs::DrawContext::Ctx0).pixelFormat ==
+                             (format == renderer::gs::FrameFormat::Color32 ? GS_PSM_32 : GS_PSM_16);
     const float width = static_cast<float>(renderer::gs::Width());
     const float height = static_cast<float>(renderer::gs::Height());
     const math::Mat4 projection = math::PerspectiveProjection(math::DegToRad(90.0f), width / height, width, height, 4.0f, 8192.0f);
@@ -732,16 +737,103 @@ bool WorldGraybox(system::video::Standard standard)
         renderer::world::Draw(level, viewProjection);
         renderer::EndFrame();
 
-        captured = renderer::gs::CaptureTga(camera.capture, renderer::LastPresentedContext()) && captured;
+        char path[64];
+        idStr::snPrintf(path, static_cast<int>(sizeof(path)), "host:renderer-world-%s%s.tga", camera.name,
+                        format == renderer::gs::FrameFormat::Color32 ? "-32" : "");
+        captured = renderer::gs::CaptureTga(path, renderer::LastPresentedContext()) && captured;
     }
 
     const u32 uploads = renderer::vu::GetStats().uploads;
     const auto chains = renderer::dma::GetStats();
-    Log(LogLevel::Info, "[D3BFG] GS world batches=%u frames=%d uploads=%u kicks=%u peak=%u\n", static_cast<u32>(level.sections.batchCount),
-        ArrayLength(kCameras), uploads, chains.kicks, chains.peakBytes);
+    Log(LogLevel::Info, "[D3BFG] GS world bits=%d batches=%u frames=%d uploads=%u kicks=%u peak=%u\n",
+        renderer::gs::FrameFormatBits(format), static_cast<u32>(level.sections.batchCount), ArrayLength(kCameras), uploads, chains.kicks,
+        chains.peakBytes);
     renderer::Shutdown();
     renderer::world::Unload(level);
-    return loaded && captured && uploads == 1U && SameLedger(baseline);
+    return loaded && profile && captured && uploads == 1U && SameLedger(baseline);
+}
+
+// The live profile change: one texture and one fill drawn in PSMCT16 + Z16, again after the GS
+// restarts in PSMCT32 + Z16S (the texture leaves VRAM and uploads once more), and again after the
+// change back. Both buffers hold a full-screen picture before each measured frame, so anything
+// the previous layout left behind would show. The configured 2 MiB texture range is capped by what
+// the 32-bit buffers leave. The runner compares every pixel of each capture with its profile's
+// storage of the colours, whose low three bits PSMCT16 drops, and the second 16-bit capture with
+// the first.
+bool FrameFormatSwitch(system::video::Standard standard)
+{
+    struct Profile
+    {
+        renderer::gs::FrameFormat format;
+        const char * capture;
+        u32 fixedBytes;
+    };
+
+    const bool pal = standard == system::video::Standard::Pal;
+    const Profile kProfiles[] = {
+        { renderer::gs::FrameFormat::Color16, "host:renderer-format-16.tga", pal ? 1572864U : 1376256U },
+        { renderer::gs::FrameFormat::Color32, "host:renderer-format-32.tga", pal ? 2621440U : 2293760U },
+        { renderer::gs::FrameFormat::Color16, "host:renderer-format-16-again.tga", pal ? 1572864U : 1376256U },
+    };
+
+    static constexpr u32 kTextureVram = 2U * 1024U * 1024U;
+    static constexpr renderer::gs::Color kTexel = { 3, 130, 253, 255 };
+    static constexpr renderer::gs::Color kFill = { 93, 47, 205, 255 };
+
+    const auto baseline = system::heap::GetTotalStats();
+
+    if (!renderer::Init({ standard, 128U * 1024U, kTextureVram, 128U * 1024U }))
+    {
+        return false;
+    }
+
+    renderer::gs::Color texels[16 * 16];
+
+    for (auto & texel : texels)
+    {
+        texel = kTexel;
+    }
+
+    const renderer::tex::Handle texture = renderer::tex::Create(16, 16, {}, texels, sizeof(texels), 16U * sizeof(texels[0]));
+    bool passed = texture.id != 0;
+
+    // Asking for the current profile changes nothing.
+    renderer::SetFrameFormat(renderer::gs::FrameFormat::Color16);
+
+    for (u32 index = 0; index < static_cast<u32>(ArrayLength(kProfiles)) && passed; ++index)
+    {
+        const Profile & profile = kProfiles[index];
+        renderer::SetFrameFormat(profile.format);
+
+        const u32 fixed = renderer::gs::FixedVramBytes();
+        const u32 capacity = static_cast<u32>(renderer::gs::GetVramStats().capacityBytes);
+        const u32 free = static_cast<u32>(renderer::gs::kVramBytes) - profile.fixedBytes;
+        const u32 expectedCapacity = kTextureVram < free ? kTextureVram : free;
+
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            renderer::BeginFrame({ 255, 0, 255, 255 });
+            renderer::EndFrame();
+        }
+
+        renderer::BeginFrame({ 0, 0, 0, 255 });
+        renderer::FillRect(64, 64, 128, 96, kFill);
+        passed = renderer::TexturedRect(texture, 256, 64, 128, 96, 0, 0, 16, 16) && passed;
+        renderer::EndFrame();
+
+        const renderer::gs::FramebufferInfo frame = renderer::gs::GetFramebuffer(renderer::LastPresentedContext());
+        passed = passed && renderer::gs::CaptureTga(profile.capture, renderer::LastPresentedContext());
+        passed = passed && renderer::gs::GetFrameFormat() == profile.format && fixed == profile.fixedBytes && capacity == expectedCapacity &&
+                 frame.pixelFormat == (profile.format == renderer::gs::FrameFormat::Color32 ? GS_PSM_32 : GS_PSM_16) &&
+                 renderer::tex::GetStats().uploads == index + 1U;
+
+        Log(LogLevel::Info, "[D3BFG] GS format bits=%d fixed_vram=%u texture_vram=%u uploads=%u\n",
+            renderer::gs::FrameFormatBits(profile.format), fixed, capacity, renderer::tex::GetStats().uploads);
+    }
+
+    renderer::tex::Destroy(texture);
+    renderer::Shutdown();
+    return passed && SameLedger(baseline);
 }
 } // namespace
 
@@ -756,7 +848,9 @@ bool RunGsTests(system::video::Standard standard)
     passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !renderer::dma::IsInitialized()) && passed;
     passed = Check("pipelined-present", PipelinedPresent(standard)) && passed;
     passed = Check("vu-passthrough", VuPassthrough(standard)) && passed;
-    passed = Check("world-graybox", WorldGraybox(standard)) && passed;
+    passed = Check("world-graybox", WorldGraybox(standard, renderer::gs::FrameFormat::Color16)) && passed;
+    passed = Check("world-graybox-32", WorldGraybox(standard, renderer::gs::FrameFormat::Color32)) && passed;
+    passed = Check("frame-format-switch", FrameFormatSwitch(standard)) && passed;
     passed = Check("split-upload", SplitUpload(standard)) && passed;
     passed = Check("native-adapters", NativeAdapters(standard)) && passed;
     passed = Check("native-indexed", NativeIndexed(standard)) && passed;

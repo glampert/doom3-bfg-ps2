@@ -89,7 +89,11 @@ class ClassifierTests(unittest.TestCase):
 class RendererClassifierTests(unittest.TestCase):
     def log(self):
         checks = "".join(f"[D3BFG] CHECK {name} PASS\n" for name in runner.REQUIRED_GS_CHECKS)
-        return (checks + "[D3BFG] RUN run1 BEGIN\nGS ready NTSC 512x448 PSMCT16/Z16\n"
+        return (checks + "[D3BFG] RUN run1 BEGIN\nGS ready NTSC 512x448 PSMCT16/Z16 fixed_vram=1376256\n"
+                "GS ready NTSC 512x448 PSMCT32/Z16S fixed_vram=2293760\n"
+                "GS format bits=16 fixed_vram=1376256 texture_vram=2097152 uploads=1\n"
+                "GS format bits=32 fixed_vram=2293760 texture_vram=1900544 uploads=2\n"
+                "GS format bits=16 fixed_vram=1376256 texture_vram=2097152 uploads=3\n"
                 "GS scene NTSC cycle=0 frames=120 context=0\nGS scene NTSC cycle=1 frames=4 context=0\n"
                 "GS chains half=131072 peak=131008 kicks=123 drains=1\n"
                 "GS chains half=1024 peak=1024 kicks=230 drains=224\n"
@@ -108,6 +112,17 @@ class RendererClassifierTests(unittest.TestCase):
         for old, new in (("renderer-gs/context-frames PASS", "renderer-gs/context-frames FAIL"),
                          ("NTSC", "PAL"), ("frames=120 context=0", "frames=119 context=0"),
                          ("RUN run1 BEGIN", "RUN old BEGIN")):
+            with self.subTest(field=old):
+                self.assertFalse(self.classify(self.log().replace(old, new)))
+
+    def test_frame_buffer_profiles_must_both_start_and_switch(self):
+        for old, new in (("renderer-gs/world-graybox-32 PASS", "renderer-gs/world-graybox-32 FAIL"),
+                         ("renderer-gs/frame-format-switch PASS", "renderer-gs/frame-format-switch FAIL"),
+                         ("GS ready NTSC 512x448 PSMCT32/Z16S", "GS ready NTSC 512x448 PSMCT16/Z16"),
+                         ("texture_vram=1900544", "texture_vram=2097152"),
+                         ("bits=32 fixed_vram=2293760", "bits=32 fixed_vram=1376256"),
+                         ("uploads=2", "uploads=1"),
+                         ("GS format bits=16 fixed_vram=1376256 texture_vram=2097152 uploads=3\n", "")):
             with self.subTest(field=old):
                 self.assertFalse(self.classify(self.log().replace(old, new)))
 

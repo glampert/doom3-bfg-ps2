@@ -40,6 +40,8 @@ coordinates; CLUTs; VRAM and mipmaps.
   capture expands 5 bits to 8) and keep the **eight-channel tolerance**; ideal float RGB needs a
   growing tolerance. FBMSK bits for the 32-bit pixel apply to PSMCT16 too: R 7:3, G 15:11, B 23:19, A 31.
 - GS LINE draws its start pixel but not its end. COLCLAMP is on, so sums saturate.
+- **Frame and depth formats pair by group** (GS manual 2.5.4): `PSMCT32/24/16S` only with
+  `PSMZ32/24/16S`, `PSMCT16` only with `PSMZ16`. The 32-bit profile's depth is `PSMZ16S`.
 - Do not trust PCSX2 for GS cost, cache coherence or hardware timing; captures gate regressions only.
 
 ## Doom 2D path invariants
@@ -59,6 +61,11 @@ coordinates; CLUTs; VRAM and mipmaps.
   vsync paces visible mode (no headless sleep). `UpdateScreen` coalesces in-frame redraws, and an
   out-of-frame redraw never advances simulation; guard against recursive Begin/End. A queued
   `ps2_capture` finishes before shutdown.
+- **Frame-buffer profiles:** `gs::FrameFormat` `Color16` (`PSMCT16` + `PSMZ16`, the default) or
+  `Color32` (`PSMCT32` + `PSMZ16S`), live through `ps2_frameBufferBits`. A change restarts the GS
+  (`renderer::SetFrameFormat`: shutdown, init, `vu::Invalidate`, `tex::MoveVram`); never lay the
+  buffers out again under a running GS (PCSX2's hardware renderer then returned stale old-format
+  targets to the first readback). Pixel models use `renderer_capture.stored(rgb, bits)`.
 - **Device:** reset/claim VIF1 and GIF along with the GS (CSR reset alone stalled PATH2 DIRECT).
   The display list (`dma::DisplayList`, `dma_list.h`) is the one command interface (DIRECT
   blocks, `FlushPaths`, VU1 frame constants, programs and batches; no client writes tags). It is built in the 16 KiB scratchpad and

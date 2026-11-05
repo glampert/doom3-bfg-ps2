@@ -243,6 +243,19 @@ The decision is taken at gate R1 with captures of a lit room in both formats. Th
 already parameterises the split (`renderer::Config`, `gs::InitVram(begin, budget)`); both
 profiles stay selectable, and the capture pixel model records which one a run used.
 
+Implemented 2026-11-05: `gs::FrameFormat` (`Color16`, `Color32`) in the device config, and
+`ps2_frameBufferBits 16|32` switching a running device between frames. The GS manual (2.5.4)
+pairs a frame format only with depth formats of its group, so the 32-bit profile's depth is
+`PSMZ16S`, never `PSMZ16`. A change restarts the GS rather than laying the buffers out again
+under it, and costs a blank frame: PCSX2's hardware renderer otherwise kept the old-format
+render targets and returned their pixels to the first readback over the new buffers. Textures
+leave VRAM, keep their EE copies and upload again on their next draw; the texture range stays
+the configured 2 MiB, capped by what the frame buffers leave (1,900,544 bytes NTSC, 1,572,864
+PAL at 32 bits). On the vertex-coloured graybox both profiles match a reference rasterizer
+exactly: the 32-bit captures to the 8-bit colour, the 16-bit ones to its five-bit store. Dark
+colours shift hue in the 16-bit profile, since each channel loses up to seven levels
+independently (`docs/images/renderer-world-3-room0-ntsc-x4.png`, brightened four times).
+
 ---
 
 ## 5. The seam into id's renderer
@@ -1628,6 +1641,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Clipped batches (2026-11-04) | A batch with any vertex outside the guard band goes out as a triangle list, its outside triangles through the clipper's fan | Mark clipped triangles ADC inside the strips and append their fans | One extra path, chosen per batch, keeps the strip walk free of flag tests; batches touching the near plane or the band are a few per frame |
 | Cooked map load (2026-11-05) | `InitFromMap` builds areas, portals, nodes and the `_areaN` models from `maps/<name>.d3wd` when it exists; a refused file fails the load; a map without one loads its `.proc` | Always parse the `.proc`, cook only the batches | The PS2 never holds the `.proc` geometry; `make test-map`'s authored map keeps its `.proc` path |
 | Area models (2026-11-05) | Plain `idRenderModelStatic`s whose surfaces reference the D3WD mirror's u16 indexes (`referencedIndexes`) and carry its s16 positions in tagged `srfTriangles_t` fields; `R_LocalTrace` decodes them in a scalar branch | A PS2 model class; idDrawVerts built from the mirror | No id class changes and no 32-byte vertices; only traces read the geometry, and the mirror's per-surface indexes are not 16-byte aligned, so the branch walks them without id's streamed reads |
+| Profile change (2026-11-05) | `ps2_frameBufferBits` applies before the next frame by restarting the GS in the new format; textures upload again; the 2 MiB texture range is capped by what the buffers leave | Lay the buffers out again under the running GS | The reset leaves no state of the old layout: PCSX2's hardware renderer returned stale old-format targets to the first readback after an in-place change; one blank frame for a rare, explicit action |
 | Frame arena (2026-11-05) | One arena of 128 KiB with 16-byte rounding, owned by `scene::Init` in visible mode | id's two 64 MiB arenas with cache-line rounding | `scene::RenderView` consumes a view before `RenderScene` returns; the graybox peaks at 1,248 bytes per view |
 | View clip space (2026-11-05) | `scene::RenderView` builds the world pass's matrix from `renderView_t` (id's axes, `fov_x`/`fov_y`, `r_znear`) with a far plane at 8,192 units | id's far-at-infinity projection | The 16-bit depth buffer and the VU1 clipper need a finite far plane; revisit with retail rooms |
 | Area culling (2026-11-05) | Draw the areas whose model entity the portal flow put on the view entity list | Walk `areaScreenRect` or the connected areas | It is id's own culling, entity portal culling included, and needs no second walk; per-batch frustum tests and portal scissors are left for R2's measurements |
