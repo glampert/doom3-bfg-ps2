@@ -28,8 +28,8 @@ namespace
 static bool s_initialized = false;
 static Stats s_stats = {};
 
-// id projects to a far plane at infinity, which the 16-bit depth buffer cannot hold; Doom's rooms
-// end well inside this.
+// id projects to a far plane at infinity, which the 16-bit depth buffer cannot hold;
+// Doom's rooms end well inside this.
 static constexpr float kFarPlane = 8192.0f;
 
 // The world pass's clip space (math::PerspectiveProjection) for id's camera: eye space as
@@ -40,9 +40,9 @@ math::Mat4 ViewProjection(const viewDef_t & view)
     const idMat3 & axis = camera.viewaxis;
 
     const math::Vec3 right = { -axis[1].x, -axis[1].y, -axis[1].z };
-    const math::Vec3 up = { axis[2].x, axis[2].y, axis[2].z };
-    const math::Vec3 back = { -axis[0].x, -axis[0].y, -axis[0].z };
-    const math::Vec3 eye = { camera.vieworg.x, camera.vieworg.y, camera.vieworg.z };
+    const math::Vec3 up    = {  axis[2].x,  axis[2].y,  axis[2].z };
+    const math::Vec3 back  = { -axis[0].x, -axis[0].y, -axis[0].z };
+    const math::Vec3 eye   = { camera.vieworg.x, camera.vieworg.y, camera.vieworg.z };
 
     const math::Mat4 viewMatrix = {{ { right.x, up.x, back.x, 0.0f },
                                      { right.y, up.y, back.y, 0.0f },
@@ -50,10 +50,10 @@ math::Mat4 ViewProjection(const viewDef_t & view)
                                      { -math::Dot(right, eye), -math::Dot(up, eye), -math::Dot(back, eye), 1.0f } }};
 
     // R_SetupProjectionMatrix's near plane and field of view; the aspect carries fov_x.
-    const float zNear = camera.cramZNear ? r_znear.GetFloat() * 0.25f : r_znear.GetFloat();
-    const float tanX = idMath::Tan(camera.fov_x * idMath::PI / 360.0f);
-    const float tanY = idMath::Tan(camera.fov_y * idMath::PI / 360.0f);
-    const float width = static_cast<float>(gs::Width());
+    const float zNear  = camera.cramZNear ? r_znear.GetFloat() * 0.25f : r_znear.GetFloat();
+    const float tanX   = idMath::Tan(camera.fov_x * idMath::PI / 360.0f);
+    const float tanY   = idMath::Tan(camera.fov_y * idMath::PI / 360.0f);
+    const float width  = static_cast<float>(gs::Width());
     const float height = static_cast<float>(gs::Height());
 
     return viewMatrix * math::PerspectiveProjection(math::DegToRad(camera.fov_y), tanX / tanY, width, height, zNear, kFarPlane);
@@ -117,7 +117,7 @@ void RenderView(const viewDef_t & view)
     // id's RenderScene closes any gui drawing first; the 2D queued so far draws under the view.
     ui::Flush();
 
-    const auto & renderWorld = *static_cast<const idRenderWorldLocal *>(view.renderWorld);
+    const idRenderWorldLocal & renderWorld = *view.renderWorld;
     const world::Level * level = renderWorld.cookedLevel;
 
     Stats stats = s_stats;
@@ -163,7 +163,7 @@ void RenderView(const viewDef_t & view)
     s_stats = stats;
 }
 
-Stats GetStats()
+const Stats & GetStats()
 {
     return s_stats;
 }

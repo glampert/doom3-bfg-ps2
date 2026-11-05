@@ -32,15 +32,15 @@ void RenderView(const viewDef_t & view);
 
 struct Stats
 {
-    std::uint32_t views = 0;      // views drawn since Init
-    std::uint32_t frame = 0;      // the renderer frame count once the last view's frame is presented
-    int area = -1;                // the area the last view started in, -1 outside the world
-    std::uint32_t entities = 0;   // view entities the portal flow listed for the last view
-    std::uint32_t areas = 0;      // world areas the last view drew
-    std::uint32_t batches = 0;    // world batches the last view drew
-    std::uint32_t arenaBytes = 0; // the frame arena's largest use in one frame
+    std::uint32_t views      = 0;  // views drawn since Init
+    std::uint32_t frame      = 0;  // the renderer frame count once the last view's frame is presented
+    int           area       = -1; // the area the last view started in, -1 outside the world
+    std::uint32_t entities   = 0;  // view entities the portal flow listed for the last view
+    std::uint32_t areas      = 0;  // world areas the last view drew
+    std::uint32_t batches    = 0;  // world batches the last view drew
+    std::uint32_t arenaBytes = 0;  // the frame arena's largest use in one frame
 };
 
-Stats GetStats();
+const Stats & GetStats();
 
 } // namespace ps2::renderer::scene
