@@ -5174,12 +5174,13 @@ source list, and world decals do not read the mirror yet.
 ## Frame-buffer profiles: 16 and 32 bits (2026-11-05)
 
 Gate R1's frame-buffer half of [section 4.3](plans/RENDERING_ARCHITECTURE.md#43-frame-buffer-format):
-the device runs in `PSMCT16` + `PSMZ16` (default) or `PSMCT32` + `PSMZ16S`, chosen by
+the device runs in `PSMCT32` + `PSMZ16S` (production's default) or `PSMCT16` + `PSMZ16`, chosen by
 `renderer::Config::frameFormat` at init or live with `ps2_frameBufferBits 16|32`. A live change
 restarts the GS before the next frame (one blank frame); textures leave VRAM and upload again
 when next drawn, and the 2 MiB texture range is capped by what the buffers leave. Captures read
 both formats and their log lines carry `bits=`; the runners compare each capture with what its
-profile stores of 8-bit reference colours. Default stays 16 bits until the R1 decision.
+profile stores of 8-bit reference colours. Production defaults to 32 bits (the R1 profile
+decision); test images choose their profile in `renderer::Config`, 16 bits unless set.
 
 | Profile | Fixed VRAM NTSC / PAL | Texture range NTSC / PAL |
 | --- | --- | --- |
@@ -5200,6 +5201,16 @@ renderer then returned the old 16-bit frame's pixels for the bottom half of the 
 capture (rows 224 and below, where the old second buffer began); the software renderer drew
 the same session cleanly (`20261105T040120Z_world_59d8a9779f77`). A GS reset clears that target
 cache, so the change became a restart.
+
+The 32-bit profile became production's default the same day, in both standards. `make test-world`
+then starts at 32 bits and switches to 16 and back (`20261105T054638Z_world_1f99d032bbdf`,
+`20261105T054650Z_world_711a9f9df05c`, passed). `make test-ui` passed every step and case at 32 bits
+(`20261105T061202Z_session_3502db8d1b92`, `20261105T061947Z_session_4b0dc4212913`, then the 5 retail-UI
+and 13 movie cases from `20261105T062746Z_retail_f0d7894b3747`): NTSC uploads the retail UI's 33
+textures once and evicts none, PAL's 1.5 MB does not hold them all, and from the quit dialog on its
+screens evict and upload textures again (11 evictions, 38 uploads in the session). That was accepted;
+the PAL session's classifiers admit evictions and the session caps them at 32, so per-frame churn
+still fails.
 
 On the vertex-coloured graybox the 16-bit profile shifts the hue of dark colours: each channel
 loses up to seven levels on its own, so the reference's grey walls (33, 30, 25) store as

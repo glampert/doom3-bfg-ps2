@@ -76,7 +76,9 @@ have not been re-measured.
   VRAM by default; one 2 MiB texture owner for converted retail images (images keep all
   pages resident, nothing streams per frame; CLUT textures charged in 8 KiB PSMCT32 pages).
   PSMCT16 color plus Z16 take 1,376,256 NTSC / 1,572,864 PAL bytes; the 32-bit profile
-  (PSMCT32 plus Z16S) 2,293,760 / 2,621,440, capping the texture range at 1,900,544 / 1,572,864. UI collection owns 4,096
+  (PSMCT32 plus Z16S, production's default) 2,293,760 / 2,621,440, capping the texture range at
+  1,900,544 / 1,572,864. NTSC holds the whole retail UI; PAL evicts on screen changes (11 in
+  the UI session). UI collection owns 4,096
   vertices, 6,144 indices and 128 runs (146,944 bytes); the depth-mask capture buffers add
   9,216 bytes; a drawn movie with screen placements adds three channel CLUT textures
   (72 KiB VRAM for the shell). Loading a texture briefly holds its largest page encoded

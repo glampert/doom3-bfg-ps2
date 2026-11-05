@@ -61,8 +61,9 @@ coordinates; CLUTs; VRAM and mipmaps.
   vsync paces visible mode (no headless sleep). `UpdateScreen` coalesces in-frame redraws, and an
   out-of-frame redraw never advances simulation; guard against recursive Begin/End. A queued
   `ps2_capture` finishes before shutdown.
-- **Frame-buffer profiles:** `gs::FrameFormat` `Color16` (`PSMCT16` + `PSMZ16`, the default) or
-  `Color32` (`PSMCT32` + `PSMZ16S`), live through `ps2_frameBufferBits`. A change restarts the GS
+- **Frame-buffer profiles:** `gs::FrameFormat` `Color32` (`PSMCT32` + `PSMZ16S`, production's
+  default) or `Color16` (`PSMCT16` + `PSMZ16`, `renderer::Config`'s default for test images), live
+  through `ps2_frameBufferBits`. A change restarts the GS
   (`renderer::SetFrameFormat`: shutdown, init, `vu::Invalidate`, `tex::MoveVram`); never lay the
   buffers out again under a running GS (PCSX2's hardware renderer then returned stale old-format
   targets to the first readback). Pixel models use `renderer_capture.stored(rgb, bits)`.

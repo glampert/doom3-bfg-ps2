@@ -245,6 +245,32 @@ class MovieResourcesTests(unittest.TestCase):
             with self.subTest(changed=changed):
                 self.assertFalse(accepted(changed))
 
+    def test_dialog_render_with_evictions_bounds_uploads_to_screen_changes(self):
+        manifest = self.label_manifest()
+        self.language += b' { "#str_swf_accept" "Accept" "#str_swf_cancel" "Cancel" "#str_swf_change_game" "Change Game" }'
+        self.language = self.language.replace(b' } {', b'')
+        self.add_asset("strings/english.lang", self.language)
+        manifest["language"] = inspect_language(self.language)
+        log = self.render_log(manifest)
+        evicting = lambda text: runner.classify_dialog_render(text, manifest, self.source, evictions=True)[0]
+        # Textures evicted and uploaded again by a reload: refused unless evictions are admitted.
+        rows = [match.group(0) for match in runner.TEXTURES_RE.finditer(log)]
+        reloaded = log
+        for row in rows[2:]:
+            reloaded = reloaded.replace(row, row.replace("uploads=5 evictions=0", "uploads=7 evictions=2"))
+        self.assertFalse(runner.classify_dialog_render(reloaded, manifest, self.source)[0])
+        self.assertTrue(evicting(reloaded), runner.classify_dialog_render(reloaded, manifest, self.source, evictions=True)[1])
+        # Uploads while the dialog is held between its two captures still fail.
+        held = log.replace(rows[1], rows[1].replace("uploads=5 evictions=0", "uploads=6 evictions=1"))
+        self.assertFalse(evicting(held))
+
+    def test_shell_render_with_evictions_admits_uploads_across_reloads(self):
+        manifest = self.label_manifest()
+        log = self.shell_render_log(manifest)
+        changed = replace_last(replace_last(log, "uploads=5", "uploads=6"), "evictions=0", "evictions=1")
+        self.assertFalse(runner.classify_shell_render(changed, manifest, self.source)[0])
+        self.assertTrue(runner.classify_shell_render(changed, manifest, self.source, evictions=True)[0])
+
     def shell_render_log(self, manifest, menu=False):
         swf = manifest["swfs"]["generated/swf/shell.bswf"]
         phases = runner.MENU_RENDER_PHASES if menu else runner.SHELL_RENDER_PHASES

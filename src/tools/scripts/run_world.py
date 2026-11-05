@@ -12,10 +12,10 @@ RenderScene: the portal flow decides which areas each view draws. Traces through
 models check the compact position mirror id's traces read. Every view is captured and
 checked: the GS gate's four cameras against the same reference pixels, a camera facing away from
 the doorway and the doorway camera with its portal closed against the area counts that portal
-culling must give, the closed doorway against the open one. The views are drawn in the 16-bit
-frame-buffer profile, then again after ps2_frameBufferBits switches to 32 live, each against the
-pixels its profile stores; switched back, the doorway must match its first capture. The world is
-then unloaded and the session quits, recovering the startup ledger."""
+culling must give, the closed doorway against the open one. The views are drawn in the default
+32-bit frame-buffer profile, then again after ps2_frameBufferBits switches to 16 live, each against
+the pixels its profile stores; switched back, the doorway must match its first capture. The world
+is then unloaded and the session quits, recovering the startup ledger."""
 
 import argparse
 from datetime import datetime, timezone
@@ -69,12 +69,13 @@ VRAM_BYTES = 4194304
 
 def steps() -> list[tuple]:
     """The session after the load, in order: (barrier, frame-buffer bits, view), a view of None
-    being the profile change. Each view's capture is world-<barrier>.tga."""
-    sequence = [(view[0], 16, view) for view in VIEWS]
-    sequence.append(("bits-32", 32, None))
-    sequence += [(view[0] + "-32", 32, view) for view in VIEWS]
+    being the profile change. Each view's capture is world-<barrier>.tga. The device starts in
+    the default 32-bit profile."""
+    sequence = [(view[0], 32, view) for view in VIEWS]
     sequence.append(("bits-16", 16, None))
-    sequence.append(("doorway-16", 16, VIEWS[2]))
+    sequence += [(view[0] + "-16", 16, view) for view in VIEWS]
+    sequence.append(("bits-32", 32, None))
+    sequence.append(("doorway-32", 32, VIEWS[2]))
     return sequence
 
 
@@ -231,9 +232,9 @@ def verify_captures(output: Path, standard: str) -> dict:
     for name, bits, view in steps():
         if view is not None and view[-1]:
             results[name] = renderer_capture.verify_world_scene(output / f"world-{name}.tga", standard, view[0], bits)
-    results["closed"] = verify_closed(output / "world-doorway.tga", output / "world-closed.tga", standard)
-    results["closed-32"] = verify_closed(output / "world-doorway-32.tga", output / "world-closed-32.tga", standard, 32)
-    if sha256(output / "world-doorway-16.tga") != results["doorway"]["sha256"]:
+    results["closed"] = verify_closed(output / "world-doorway.tga", output / "world-closed.tga", standard, 32)
+    results["closed-16"] = verify_closed(output / "world-doorway-16.tga", output / "world-closed-16.tga", standard)
+    if sha256(output / "world-doorway-32.tga") != results["doorway"]["sha256"]:
         raise ValueError("the doorway drawn after the profile round trip differs from its first capture")
     return results
 

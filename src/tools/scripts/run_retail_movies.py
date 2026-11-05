@@ -533,9 +533,15 @@ def menu_screens_driver(begin: str, end: str):
             "clearHistory", "ps2_uiRetail unload", f'echo "{end}"'], lambda log: echoed(log, end))
 
 
-def classify_menu_screens(log: str, manifest: dict, source: Path, warm: set = frozenset()) -> tuple[bool, str]:
+# EVICTIONS_NOTE: PAL's 32-bit frame buffers leave 1,572,864 bytes of texture VRAM, less than the
+# whole retail UI texture set, so screens evict and upload textures again when they change. With
+# evictions set, a classifier accepts evictions and uploads across screens and reloads; the session
+# bounds the total (run_ui_session.EVICTION_LIMIT) so per-frame churn still fails.
+def classify_menu_screens(log: str, manifest: dict, source: Path, warm: set = frozenset(),
+                          evictions: bool = False) -> tuple[bool, str]:
     """Check the Campaign and Settings screens: reached from the root by keys on the fixed clock, their
-    lists scrolled, left by back, every text size pre-rendered, then released."""
+    lists scrolled, left by back, every text size pre-rendered, then released. evictions admits
+    textures leaving VRAM (EVICTIONS_NOTE)."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native menu crash or fatal"
     captures = list(CAPTURE.finditer(log))
@@ -576,7 +582,7 @@ def classify_menu_screens(log: str, manifest: dict, source: Path, warm: set = fr
             return False, "native menu stopped drawing between its captures"
         previous_draw = draw
         texture = tuple(map(int, textures[-1]))
-        if texture[:5] != resident or texture[7] != 0 or tuple(map(int, channel_rows[-1])) != channels:
+        if texture[:5] != resident or (texture[7] != 0 and not evictions) or tuple(map(int, channel_rows[-1])) != channels:
             return False, "native menu textures differ from the shell's and dialog's converted images, or were evicted"
         frame, presents = int(capture[2]), int(capture[3])
         if frame <= previous_frame or frame != presents:
@@ -590,7 +596,7 @@ def classify_menu_screens(log: str, manifest: dict, source: Path, warm: set = fr
 
 
 def classify_menu_boot(log: str, identity: str, standard: str, manifest: dict, source: Path,
-                       warm: set = frozenset()) -> tuple[bool, str]:
+                       warm: set = frozenset(), evictions: bool = False) -> tuple[bool, str]:
     """Check a package that boots into the native menu: both movies admitted before the startup
     commands run, the console closed, the menu driven by keys on real time, then released."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
@@ -639,7 +645,7 @@ def classify_menu_boot(log: str, identity: str, standard: str, manifest: dict, s
         if tuple(owners[-1]) != MENU_BOOT_SCREENS[suffix] or tuple(inputs[-1]) != MENU_BOOT_INPUTS[suffix]:
             return False, f"native menu screen, focus or key events differ at capture {suffix}"
         texture = tuple(map(int, textures[-1]))
-        if texture[:5] != resident or texture[7] != 0 or tuple(map(int, channel_rows[-1])) != channels:
+        if texture[:5] != resident or (texture[7] != 0 and not evictions) or tuple(map(int, channel_rows[-1])) != channels:
             return False, "native menu textures differ from the shell's and dialog's converted images, or were evicted"
         frame, presents = int(capture[2]), int(capture[3])
         if frame <= previous_frame or frame != presents:
@@ -661,7 +667,7 @@ def channel_counters(manifest: dict, source: Path) -> tuple[int, int]:
 
 
 def classify_shell_render(log: str, manifest: dict, source: Path, menu: bool = False,
-                          warm: set = frozenset()) -> tuple[bool, str]:
+                          warm: set = frozenset(), evictions: bool = False) -> tuple[bool, str]:
     """Check the fully drawn native shell: admission, outlines, depth masks, screen, color terms and ownership.
 
     With menu set, the native shell handler owns the movie and key events drive it: each load must
@@ -729,7 +735,7 @@ def classify_shell_render(log: str, manifest: dict, source: Path, menu: bool = F
             if (min(triangles, flushes, masks, depth_masks, color_terms, *rolled) == 0 or not 1 <= peak_masks <= 4 or
                     not 0 < vertices <= 4096 or not 0 < indexes <= 6144 or not 0 < draws_peak <= 128):
                 return False, "native shell drawing, masks, outlines, screen, color terms or geometry bounds differ"
-            if texture[:5] != resident or min(texture[5], texture[6]) == 0 or texture[7] != 0 or channel != channels:
+            if texture[:5] != resident or min(texture[5], texture[6]) == 0 or (texture[7] != 0 and not evictions) or channel != channels:
                 return False, "native shell textures differ from its converted images and channel CLUTs, or were evicted"
         before, after = rows["a"][0], rows["b"][0]
         if not all(after[index] > before[index] for index in (0, 2, 7, 8, 9, 10)):
@@ -737,15 +743,16 @@ def classify_shell_render(log: str, manifest: dict, source: Path, menu: bool = F
         if any(rows[later][0][index] <= rows[earlier][0][index] for earlier, later in zip(names[1:], names[2:]) for index in (0, 2, 7)):
             return False, "native menu stopped drawing between its captures"
         # The channel CLUTs upload at the first screen pass, after the start screen's capture;
-        # from then on, reloads included, nothing uploads again.
+        # from then on, reloads included, nothing uploads again unless textures may be evicted.
         if phase == 0:
             if rows["b"][1][6] < rows["a"][1][6]:
                 return False, "native shell upload counter went backwards"
-        else:
+        elif not evictions:
             uploads.add(rows["a"][1][6])
-        uploads.update(rows[name][1][6] for name in names[1:])
-        if len(uploads) != 1:
-            return False, "native shell uploaded textures again while drawing"
+        if not evictions:
+            uploads.update(rows[name][1][6] for name in names[1:])
+            if len(uploads) != 1:
+                return False, "native shell uploaded textures again while drawing"
         for shot in shots:
             frame, presents = int(shot[2]), int(shot[3])
             if frame <= previous_frame or frame != presents:
@@ -803,7 +810,8 @@ def menu_quit_driver(begin: str, end: str):
            lambda log: run_headless.SHUTDOWN_COMPLETE in log)
 
 
-def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = frozenset(), traces: bool = True) -> tuple[bool, str]:
+def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = frozenset(), traces: bool = True,
+                       evictions: bool = False) -> tuple[bool, str]:
     """Check the native quit confirmation: opened from the root's Quit through Common's dialog manager,
     cancelled, opened again and accepted, which quits the game right after the final capture."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
@@ -832,7 +840,7 @@ def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = froze
         if tuple(owners[-1]) != MENU_QUIT_SCREENS[suffix] or tuple(inputs[-1]) != MENU_QUIT_INPUTS[suffix]:
             return False, f"native menu screen, focus, key events or dialog state differ at capture {suffix}"
         texture = tuple(map(int, textures[-1]))
-        if texture[:5] != resident or texture[7] != 0 or tuple(map(int, channel_rows[-1])) != channels:
+        if texture[:5] != resident or (texture[7] != 0 and not evictions) or tuple(map(int, channel_rows[-1])) != channels:
             return False, "native menu textures differ from the shell's and dialog's converted images, or were evicted"
         start = capture.end()
     # The shown dialog reaches its native layout services, and its buttons call the pinned choices.
@@ -872,7 +880,8 @@ def verify_menu_captures(output: Path, standard: str, names) -> dict:
     return result
 
 
-def classify_dialog_render(log: str, manifest: dict, source: Path, warm: set = frozenset(), traces: bool = True) -> tuple[bool, str]:
+def classify_dialog_render(log: str, manifest: dict, source: Path, warm: set = frozenset(), traces: bool = True,
+                           evictions: bool = False) -> tuple[bool, str]:
     """Check the fully drawn native quit dialog step: admission, owner state, scripts, masks, textures and ownership."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "native dialog crash or fatal"
@@ -930,12 +939,15 @@ def classify_dialog_render(log: str, manifest: dict, source: Path, warm: set = f
             if (min(triangles, flushes, masks) == 0 or not 1 <= peak_masks <= 4 or not 0 < vertices <= 4096 or
                     not 0 < indexes <= 6144 or not 0 < draws_peak <= 128):
                 return False, "native dialog drawing, masks or geometry bounds differ"
-            if texture[:5] != resident or min(texture[5], texture[6]) == 0 or texture[7] != 0:
+            if texture[:5] != resident or min(texture[5], texture[6]) == 0 or (texture[7] != 0 and not evictions):
                 return False, "native dialog textures differ from its converted images, did not draw or were evicted"
         if not (rows["b"][3][0] > rows["a"][3][0] and rows["b"][3][2] > rows["a"][3][2] and
                 rows["b"][2][7] > rows["a"][2][7] and rows["b"][5][5] > rows["a"][5][5]):
             return False, "native dialog stopped drawing masks, textures or running its timeline"
         # Resident textures: once the first frames have drawn, nothing uploads again, reloads included.
+        # Where textures may be evicted, only the held dialog between its two captures uploads nothing.
+        if evictions:
+            uploads = set()
         uploads.update((rows["a"][5][6], rows["b"][5][6]))
         if len(uploads) != 1:
             return False, "native dialog uploaded textures again while drawing"

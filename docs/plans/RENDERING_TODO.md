@@ -134,7 +134,7 @@ production link free of test inputs. Section numbers in parentheses point into t
 - [ ] Gate: fixed-camera captures of the room in both profiles (done for the graybox,
       2026-11-05: `docs/images/renderer-world-3-*`); area 2 draws with correct depth and
       portal culling; decisions on profile, topology and FIELD versus FRAME mode written into
-      section 20.
+      section 20. The profile is decided: `PSMCT32 + Z16S` by default (2026-11-05).
 
 ## R2: lightmapped world and streaming
 

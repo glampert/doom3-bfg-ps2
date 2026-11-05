@@ -49,7 +49,7 @@ static renderView_t s_view;
 
 // The frame-buffer profile (RENDERING_ARCHITECTURE.md 4.3). The device starts in it, and a
 // change takes effect before the next frame begins.
-static idCVar s_frameBufferBits("ps2_frameBufferBits", "16", CVAR_SYSTEM | CVAR_INTEGER,
+static idCVar s_frameBufferBits("ps2_frameBufferBits", "32", CVAR_SYSTEM | CVAR_INTEGER,
                                 "frame-buffer colour bits, 16 (PSMCT16 + Z16) or 32 (PSMCT32 + Z16S); changes between frames",
                                 16.0f, 32.0f);
 

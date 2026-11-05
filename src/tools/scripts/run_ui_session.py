@@ -37,6 +37,10 @@ STEPS = (("boot", 300), ("console", 90), ("fonts", 180), ("inactive", 180), ("ex
          ("shell", 300), ("menu", 420), ("screens", 300), ("quit", 300))
 STARTUP_SECONDS = 120
 CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(\S+\.tga) frame=(\d+) presents=(\d+) redraws=(\d+)")
+GS_READY_RE = re.compile(r"\[D3BFG\] GS ready (NTSC|PAL) 512x\d+ (\S+) ")
+# Where screens may evict textures, the whole session's evictions stay below this: each comes from
+# a screen change (11 in the PAL session, 2026-11-05), while per-frame churn would reach hundreds.
+EVICTION_LIMIT = 32
 
 
 def barrier(identity: str, step: str, edge: str) -> str:
@@ -128,30 +132,42 @@ def classify_session(log: str, identity: str, standard: str) -> tuple[bool, str]
         previous = int(frame)
     if not captures or captures[-1][0] != "movie-quit.tga" or (int(captures[-1][1]), int(captures[-1][2])) != (frames, presents):
         return False, "the quit dialog did not end the frame loop right after the final capture"
+    textures = fonts.TEXTURES_RE.findall(log)
+    evicted = int(textures[-1][7]) if textures else 0
+    if evicted > (EVICTION_LIMIT if evicting_profile(log) else 0):
+        return False, f"{evicted} texture evictions: more than screen changes explain"
     memory = run_headless.MEMORY_RE.findall(log)
     if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
         return False, "production shutdown did not recover the startup allocation ledger"
     return True, "native UI session completed"
 
 
+def evicting_profile(log: str) -> bool:
+    """PAL in the 32-bit frame-buffer profile: the retail UI's textures do not all fit beside the
+    buffers, so screens may evict them (run_retail_movies.EVICTIONS_NOTE)."""
+    ready = GS_READY_RE.findall(log)
+    return bool(ready) and ready[0] == ("PAL", "PSMCT32/Z16S")
+
+
 def classify_steps(log: str, identity: str, standard: str, manifest: dict, source: Path, traces: bool = True) -> dict:
     """Each step's verdict on its own slice of the log; warm images accumulate in step order.
     traces is false for a release build, which logs no SWF dependency lines."""
     sliced = windows(log, identity)
+    evictions = evicting_profile(log)
     images = {"boot": movies.menu_images(manifest), "fonts": fonts.resident_images(manifest),
               "shell": movies.shell_images(manifest), "menu": movies.menu_images(manifest),
               "screens": movies.menu_images(manifest), "quit": movies.menu_images(manifest)}
     checks = {
-        "boot": lambda window, warm: movies.classify_menu_boot(window, identity, standard, manifest, source, warm),
+        "boot": lambda window, warm: movies.classify_menu_boot(window, identity, standard, manifest, source, warm, evictions),
         "console": lambda window, warm: run_console.classify(window, identity),
         "fonts": lambda window, warm: fonts.classify(window, manifest, source, warm),
         "inactive": lambda window, warm: movies.classify(window, manifest, source, False, movies.PHASES, warm),
         "execution": lambda window, warm: movies.classify(window, manifest, source, True, movies.PHASES, warm, traces),
-        "dialog": lambda window, warm: movies.classify_dialog_render(window, manifest, source, warm, traces),
-        "shell": lambda window, warm: movies.classify_shell_render(window, manifest, source, False, warm),
-        "menu": lambda window, warm: movies.classify_shell_render(window, manifest, source, True, warm),
-        "screens": lambda window, warm: movies.classify_menu_screens(window, manifest, source, warm),
-        "quit": lambda window, warm: movies.classify_menu_quit(window, manifest, source, warm, traces),
+        "dialog": lambda window, warm: movies.classify_dialog_render(window, manifest, source, warm, traces, evictions),
+        "shell": lambda window, warm: movies.classify_shell_render(window, manifest, source, False, warm, evictions),
+        "menu": lambda window, warm: movies.classify_shell_render(window, manifest, source, True, warm, evictions),
+        "screens": lambda window, warm: movies.classify_menu_screens(window, manifest, source, warm, evictions),
+        "quit": lambda window, warm: movies.classify_menu_quit(window, manifest, source, warm, traces, evictions),
     }
     warm = set()
     results = {}

@@ -94,7 +94,8 @@ class WorldRunnerTests(unittest.TestCase):
         self.assertTrue(passed, reason)
         self.assertEqual(details["arena_bytes"], 1248)
         self.assertEqual(details["views"]["away"]["status"]["drawn"], 1)
-        self.assertEqual(details["views"]["clip-32"]["bits"], 32)
+        self.assertEqual(details["views"]["clip"]["bits"], 32)
+        self.assertEqual(details["views"]["clip-16"]["bits"], 16)
         self.assertEqual(details["switches"]["bits-32"], {"fixed_vram": 2293760, "texture_vram": 1900544})
 
     def test_pal_profiles_pass(self):
@@ -116,8 +117,9 @@ class WorldRunnerTests(unittest.TestCase):
         self.assertFalse(runner.classify(log, IDENTITY)[0])
 
     def test_capture_must_carry_its_profile(self):
-        self.assertFalse(runner.classify(session({"room0-32": {"bits": 16}}), IDENTITY)[0])
-        self.assertFalse(runner.classify(session({"doorway-16": {"bits": 32}}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session({"room0": {"bits": 16}}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session({"room0-16": {"bits": 32}}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session({"doorway-32": {"bits": 16}}), IDENTITY)[0])
         self.assertFalse(runner.classify(session().replace(" bits=32\n", "\n", 1), IDENTITY)[0])
 
     def test_traces_must_hit_the_mirror_geometry(self):

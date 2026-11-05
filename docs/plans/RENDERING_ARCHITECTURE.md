@@ -1629,7 +1629,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | --- | --- | --- | --- |
 | Seam altitude | After `FindViewLightsAndEntities`; replace add-lights/add-models/interactions/shadow jobs/vertex cache | Cut at `RenderScene` | Portal flow is cheap and gives the lists we want; area and portal state is shared with sound and doors |
 | Geometry transport | Cooked REF'd packets, VIF-decompressed `s16`/4.12/`s8` streams, strip index hybrid | ADC strips | EE cost per batch, not per vertex; 1.48 MB world |
-| Frame-buffer profile | `PSMCT32 + Z16S` proposed | `PSMCT16 + Z16` (today) | Destination alpha for projected lights, layers, gloss; no 5-bit banding; decided at R1 |
+| Frame-buffer profile (decided 2026-11-05) | `PSMCT32 + Z16S`, production's default in both standards | `PSMCT16 + Z16`, selectable live | Destination alpha for projected lights, layers, gloss; no 5-bit banding or hue shift in dark colours (graybox captures). The user chose visual fidelity over the 0.8 to 1.0 MB of texture VRAM: NTSC still holds the whole retail UI, PAL's 1.5 MB does not, and its screens evict and upload textures again on changes (accepted; per-frame churn is gated) |
 | World lighting | Baked intensity atlas + per-vertex chroma, layers per switch group | Dense per-vertex baking; three-channel RGB lightmap passes | Expressible on the GS; Quake-proven; layers keep scripted lights |
 | Dynamic lights | Four per batch on VU1, additive; projected ones through destination alpha | Per-pixel through CLUT relight everywhere | Budget; CLUT relight is a spike for weapons and flashlight |
 | Normal maps | Cavity bake into the diffuse | Emboss; CLUT relight | Zero run-time cost; keeps detail under the baked key light |

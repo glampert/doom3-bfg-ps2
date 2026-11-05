@@ -51,6 +51,26 @@ class SessionAcceptance(unittest.TestCase):
             self.assertEqual(self.verdict(session_log(standard), standard), (True, "native UI session completed"))
         self.assertFalse(self.verdict(session_log("pal"), "ntsc")[0])
 
+    def test_evictions_only_where_the_profile_leaves_too_little_vram(self):
+        def textures(evictions):
+            return ("[D3BFG] RETAIL textures images=19 pages=24 cluts=43 pixels=1540096 metadata=55124 "
+                    f"triangles=10 uploads=33 evictions={evictions} channel_cluts=66 channel_pixels=73728\n")
+
+        def with_profile(log, standard, profile):
+            return log.replace(f"GS ready {standard.upper()} 512x448\n", f"GS ready {standard.upper()} 512x448 {profile} fixed_vram=1\n")
+
+        pal32 = with_profile(session_log("pal"), "pal", "PSMCT32/Z16S")
+        self.assertTrue(session.evicting_profile(pal32))
+        self.assertFalse(session.evicting_profile(with_profile(session_log("pal"), "pal", "PSMCT16/Z16")))
+        self.assertFalse(session.evicting_profile(with_profile(session_log(), "ntsc", "PSMCT32/Z16S")))
+        # PAL at 32 bits evicts on screen changes, within the limit; churn beyond it fails.
+        self.assertTrue(self.verdict(pal32.replace("run_quit_end \n", textures(11) + "run_quit_end \n"), "pal")[0])
+        churn = pal32.replace("run_quit_end \n", textures(session.EVICTION_LIMIT + 1) + "run_quit_end \n")
+        self.assertFalse(self.verdict(churn, "pal")[0])
+        # Where everything fits, any eviction fails.
+        ntsc32 = with_profile(session_log(), "ntsc", "PSMCT32/Z16S")
+        self.assertFalse(self.verdict(ntsc32.replace("run_quit_end \n", textures(1) + "run_quit_end \n"))[0])
+
     def test_boot_policy_barriers_and_shutdown_are_required(self):
         log = session_log()
         for changed in (log.replace("menu=1", "menu=0"), log.replace("run_ready \n", ""),
