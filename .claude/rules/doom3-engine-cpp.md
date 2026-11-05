@@ -48,6 +48,10 @@ file keeps only what most engine edits need.
   providers, never a different class layout.
 - The offline session stays LOADING until an explicit `LoadingFinished`; never infer map
   completion from Pump/Frame.
+- id's `idODSStreamedArray` (traces, culling) asserts 16-byte-aligned arrays. Data borrowed
+  from a cooked file (the D3WD mirror's per-surface indexes) is not aligned: read it directly.
+- There is no `tr.guiModel` on the PS2. `RenderScene`'s gui model calls are tagged out;
+  any other id path reaching `tr.guiModel` (a null pointer) needs the same seam.
 - Failed plane/ray intersections leave the scale output untouched: check the return value.
   `FS_WriteFloatString` takes no `l` modifier (parser integers are `long`: `%ld`, `labs`).
 - Abstract bases with virtual destructors only; disabling RTTI does not make deleting

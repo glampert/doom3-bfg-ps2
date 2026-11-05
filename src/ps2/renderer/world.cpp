@@ -56,13 +56,27 @@ PS2_COLD_FUNC bool Load(const char * path, Level & level)
 
     const bool read = std::fread(storage, 1, bytes, file) == bytes;
     const bool closed = std::fclose(file) == 0;
-    const char * error = read && closed ? Validate(static_cast<const u8 *>(storage), bytes, level.sections) : "read failed";
+
+    if (!read || !closed) [[unlikely]]
+    {
+        system::heap::Free(storage);
+        Log(LogLevel::Error, "world %s refused: read failed\n", path);
+        return false;
+    }
+
+    return Adopt(storage, bytes, path, level);
+}
+
+PS2_COLD_FUNC bool Adopt(void * storage, u32 bytes, const char * name, Level & level)
+{
+    level = {};
+    const char * error = Validate(static_cast<const u8 *>(storage), bytes, level.sections);
 
     if (error != nullptr) [[unlikely]]
     {
         system::heap::Free(storage);
         level = {};
-        Log(LogLevel::Error, "world %s refused: %s\n", path, error);
+        Log(LogLevel::Error, "world %s refused: %s\n", name, error);
         return false;
     }
 
@@ -73,7 +87,7 @@ PS2_COLD_FUNC bool Load(const char * path, Level & level)
     level.bytes = bytes;
 
     const Sections & sections = level.sections;
-    Log(LogLevel::Info, "[D3BFG] world %s: areas=%u surfaces=%u batches=%u portals=%u nodes=%u packets=%u bytes=%u\n", path,
+    Log(LogLevel::Info, "[D3BFG] world %s: areas=%u surfaces=%u batches=%u portals=%u nodes=%u packets=%u bytes=%u\n", name,
         static_cast<u32>(sections.areaCount), static_cast<u32>(sections.surfaceCount), static_cast<u32>(sections.batchCount),
         static_cast<u32>(sections.portalCount), static_cast<u32>(sections.nodeCount), static_cast<u32>(sections.packetBytes), bytes);
 
@@ -107,26 +121,51 @@ vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::Dra
     return constants;
 }
 
-void Draw(const Level & level, const math::Mat4 & viewProjection)
+void BeginPass(const math::Mat4 & viewProjection)
 {
-    PS2_AssertMsg(level.storage != nullptr, "drawing an unloaded world");
-
     const gs::DrawContext context = renderer::DrawingContext();
     dma::DisplayList & list = dma::List();
 
     list.SetFrameConstants(MakeFrameConstants(viewProjection, context));
     gs::BeginDepthPass(list, context);
     list.SetProgram(vu::Program::WorldLightmapped);
+}
 
+void DrawArea(const Level & level, u32 area)
+{
+    PS2_AssertMsg(level.storage != nullptr && area < level.sections.areaCount, "drawing an area of no loaded world");
+
+    dma::DisplayList & list = dma::List();
     const Sections & sections = level.sections;
-    for (u32 index = 0; index < sections.batchCount; ++index)
+    const AreaRecord & record = sections.areas[area];
+
+    for (u32 index = record.firstBatch; index < record.firstBatch + record.batchCount; ++index)
     {
         const BatchRecord & batch = sections.batches[index];
         list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords);
     }
+}
+
+void EndPass()
+{
+    dma::DisplayList & list = dma::List();
 
     list.EndBatches();
-    gs::EndDepthPass(list, context);
+    gs::EndDepthPass(list, renderer::DrawingContext());
+}
+
+void Draw(const Level & level, const math::Mat4 & viewProjection)
+{
+    PS2_AssertMsg(level.storage != nullptr, "drawing an unloaded world");
+
+    BeginPass(viewProjection);
+
+    for (u32 area = 0; area < level.sections.areaCount; ++area)
+    {
+        DrawArea(level, area);
+    }
+
+    EndPass();
 }
 
 } // namespace ps2::renderer::world

@@ -73,6 +73,11 @@ coordinates; CLUTs; VRAM and mipmaps.
   the near plane. A `GifWriter::SetRegister` costs two qwords (its own tag and the A+D data):
   size `BeginDirect` accordingly. Untextured vertex colour writes 0x80 as 128, half brightness,
   until a textured MODULATE pass makes 0x80 one.
+- **Views:** id's `RenderScene` reaches `scene::RenderView` (`ps2/renderer/scene.cpp`) after the
+  portal flow; it draws the areas whose `_areaN` entity is on the view entity list, in one
+  `world::BeginPass`/`DrawArea`/`EndPass`. `scene::BeginFrame` resets id's frame arena once
+  per renderer frame (presentation does it). A cooked world's packets are freed only between
+  renderer frames (`FreeCookedMap` waits for the DMA).
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,
   eviction, destruction and image close drain/FINISH (flush queued UI references) before
   overwriting or releasing VRAM. Uploads retire PATH2 before synchronous PATH3 chains.

@@ -227,6 +227,31 @@ void idRenderSystemLocal::EndAutomaticBackgroundSwaps()
 {
 }
 
+// Views render at the full frame-buffer size: no resolution scaling, and the only crop is the
+// whole screen (RenderScene's own). Render-to-texture crops come with their PS2 passes.
+void idRenderSystemLocal::PerformResolutionScaling(int &, int &)
+{
+}
+
+void idRenderSystemLocal::CropRenderSize(int width, int height)
+{
+    PS2_AssertMsg(width == GetWidth() && height == GetHeight(), "render crops other than the full screen are unavailable");
+}
+
+void idRenderSystemLocal::UnCrop()
+{
+}
+
+void idRenderSystemLocal::GetCroppedViewport(idScreenRect * viewport)
+{
+    viewport->x1 = 0;
+    viewport->y1 = 0;
+    viewport->x2 = static_cast<short>(GetWidth() - 1);
+    viewport->y2 = static_cast<short>(GetHeight() - 1);
+    viewport->zmin = 0.0f;
+    viewport->zmax = 1.0f;
+}
+
 #define RENDER_UNAVAILABLE(result, method, parameters) \
     PS2_COLD_FUNC result method parameters             \
     {                                                  \
@@ -251,13 +276,9 @@ RENDER_UNAVAILABLE(void, idRenderSystemLocal::SwapCommandBuffers_FinishRendering
 RENDER_UNAVAILABLE(const emptyCommand_t *, idRenderSystemLocal::SwapCommandBuffers_FinishCommandBuffers, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::RenderCommandBuffers, (const emptyCommand_t *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::TakeScreenshot, (int, int, const char *, int, renderView_t *))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::CropRenderSize, (int, int))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::CaptureRenderToImage, (const char *, bool))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::CaptureRenderToFile, (const char *, bool))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::UnCrop, ())
 RENDER_UNAVAILABLE(bool, idRenderSystemLocal::UploadImage, (const char *, const byte *, int, int))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::GetCroppedViewport, (idScreenRect *))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::PerformResolutionScaling, (int &, int &))
 
 #if defined(PS2_D3BFG_FOUNDATION)
 RENDER_UNAVAILABLE(idFont *, idRenderSystemLocal::RegisterFont, (const char *))

@@ -204,6 +204,16 @@ draw and before UI/device shutdown. Visible `ps2_status` also reports presentati
 and redraw-request counts. These three controls are available only in visible mode;
 `ps2_maxFrames` and the ordinary command stream work in either mode.
 
+`ps2_world` (visible mode too) drives Common's render world without a game map:
+`load maps/NAME` takes `base/maps/NAME.d3wd` (from `make world-cook`; its materials must be
+in `base/materials/`), `view EX EY EZ TX TY TZ` draws it every frame from the eye towards the
+target under the console and screens (90-degree vertical field of view), `trace SX SY SZ EX
+EY EZ` logs the first world surface between two points, `portal HANDLE open|closed` sets a
+portal's view blocking, `off` stops drawing, `unload` empties the world and `status` logs the
+areas, portals and the last view's area, entities, drawn areas, batches and frame arena use.
+Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
+the graybox and runs it.
+
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 `d3bfg_tests.map`. `make build-core` writes `build/<config>/tests/core/`,
 `make build-platform` writes `build/<config>/tests/platform/`, and

@@ -39,6 +39,7 @@
 #   make test-headless           # 120 frames, live console commands and shutdown
 #   make test-headless-retail    # retail startup ledgers, 120 frames and shutdown
 #   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog) and the invalid-resource cases
+#   make test-world              # the cooked graybox through id's render world: portal culling and captures, one production session per standard
 #
 # Tooling:
 #   make tools                   # audit sources and build the host tools
@@ -311,7 +312,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui ui-inventory ui-cook resource-unpack asset-reexport world-cook build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
+.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world ui-inventory ui-cook resource-unpack asset-reexport world-cook build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
 
 release: all
 build-platform: core-test-image
@@ -524,6 +525,11 @@ test-ui: all
 	$(PYTHON) $(SCRIPTS)/run_ui_session.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 	$(PYTHON) $(SCRIPTS)/run_retail_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
+
+# One production session per standard loads the cooked graybox into id's render world and draws it
+# through the portal flow from fixed cameras.
+test-world: all world-cook
+	$(PYTHON) $(SCRIPTS)/run_world.py --build $(BUILD) --catalog "$(UI_COOK_OUTPUT)" --world "$(WORLD_COOK_OUTPUT)/graybox.d3wd" --emulator $(PCSX2)
 
 .PHONY: stage-ui-fonts run-ui-fonts stage-ui-movies run-ui-movies stage-ui-menu run-ui-menu
 

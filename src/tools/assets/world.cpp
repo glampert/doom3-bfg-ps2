@@ -1638,9 +1638,11 @@ bool ReadD3wd(std::span<const std::uint8_t> file, World & world, std::string & e
         node.children[0] = static_cast<std::int32_t>(nodes.U32());
         node.children[1] = static_cast<std::int32_t>(nodes.U32());
 
+        // Children follow their node, as dmap numbers them, so the engine's recursive walks end.
         for (const std::int32_t child : node.children)
         {
-            if ((child > 0 && static_cast<std::size_t>(child) >= nodeCount) || (child < 0 && static_cast<std::size_t>(-1 - static_cast<std::int64_t>(child)) >= areaCount))
+            if ((child > 0 && (static_cast<std::size_t>(child) >= nodeCount || static_cast<std::size_t>(child) <= index)) ||
+                (child < 0 && static_cast<std::size_t>(-1 - static_cast<std::int64_t>(child)) >= areaCount))
             {
                 return fail("bad node child");
             }

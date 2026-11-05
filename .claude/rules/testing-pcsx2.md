@@ -7,7 +7,7 @@ the gate you are changing or diagnosing:
 | Gate | Detail |
 | --- | --- |
 | `test-renderer`, `run-renderer`, `test-host`, `test-platform`, `test-core`, `test-script`, `test-common` | [core.md](../../docs/testing/core.md) |
-| `test-headless`, `test-headless-retail`, `test-ui` (every step), input devices | [production.md](../../docs/testing/production.md) |
+| `test-headless`, `test-headless-retail`, `test-ui` (every step), `test-world`, input devices | [production.md](../../docs/testing/production.md) |
 | `test-game`, `test-map` | [game.md](../../docs/testing/game.md) |
 | Quake II reference: PCSX2 storage (USB/HDD images), full crash triage, host harness recipes | [quake2-reference.md](../../docs/testing/quake2-reference.md) |
 

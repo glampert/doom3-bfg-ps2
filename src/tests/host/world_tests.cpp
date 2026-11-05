@@ -820,6 +820,7 @@ static bool Corruption()
         { [](World & w) { w.batches[0].positionScale *= 2.0f; }, "a batch scale disagreeing with its packet" },
         { [](World & w) { w.mirrorIndices[0] = 60000; }, "a mirror index out of range" },
         { [](World & w) { w.nodes[0].children[0] = -5; }, "a node child naming a missing area" },
+        { [](World & w) { w.nodes.push_back(w.nodes[0]); w.nodes[0].children[1] = 1; w.nodes[1].children[0] = 1; }, "a node naming itself as a child" },
         { [](World & w) { w.surfaces[0].material = 3; }, "a surface material out of range" },
         { [](World & w) { w.areas[0].surfaceCount = 0; }, "areas not covering their surfaces" },
         { [](World & w) { w.packets[44] = 0xFF; w.packets[45] = static_cast<std::uint8_t>(0x7F | (w.packets[45] & 0x80)); }, "a strip index out of range" },

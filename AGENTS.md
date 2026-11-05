@@ -70,8 +70,8 @@ statement or block; keep the code visually spaced rather than densely packed.
   Check Make's exit status, including VU tool failures.
 - Test images are built explicitly (`make build-core`, `build-platform`, `build-game`,
   `build-script`). Gates: `test-host`, `test-renderer`, `test-common`, `test-game`,
-  `test-map`, `test-headless`, `test-headless-retail` and `test-ui` (about 8 minutes per
-  standard). Their acceptance is in `docs/testing/`.
+  `test-map`, `test-headless`, `test-headless-retail`, `test-ui` (about 8 minutes per
+  standard) and `test-world`. Their acceptance is in `docs/testing/`.
 - `make stage-*` / `run-*` package the same ELF under `build/<config>/<package>/`.
   Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` (`menu` also opens the
   native menu); HostFs `console.txt` takes appended commands. Visible packages need

@@ -79,7 +79,9 @@ have not been re-measured.
   vertices, 6,144 indices and 128 runs (146,944 bytes); the depth-mask capture buffers add
   9,216 bytes; a drawn movie with screen placements adds three channel CLUT textures
   (72 KiB VRAM for the shell). Loading a texture briefly holds its largest page encoded
-  and decoded (at most about 384 KB). Main stack reserve is 128 KiB.
+  and decoded (at most about 384 KB). Main stack reserve is 128 KiB. Visible packages also
+  hold id's frame arena, one 128 KiB `TAG_RENDER` block from presentation start (2026-11-05;
+  a graybox view uses 1,248 bytes), and a loaded cooked world its whole D3WD.
 - Glyph sets and charset: Sarasori's pre-rendered set is 18 sizes on two PSMT4 pages
   (136 KiB VRAM); the console charset is one 256x256 PSMT4 page (32 KiB). The UICT4
   catalog is 74,499 bytes and every visible package pays it. Eight prompt icons add about

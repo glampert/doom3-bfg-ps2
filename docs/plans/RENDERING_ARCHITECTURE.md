@@ -320,7 +320,11 @@ Symbols the kept units still need from the removed ones, and where they go:
 - **`RenderScene` on the PS2**: `idRenderWorldLocal::RenderScene` keeps its entry (it
   flushes pending 2D, builds the `viewDef_t`, sets viewport and scissor) but calls
   `ps2::renderer::scene::RenderView` instead of `R_AddDrawViewCmd`. `CropRenderSize` and
-  `PerformResolutionScaling` become no-ops that report full size.
+  `PerformResolutionScaling` become no-ops that report full size. Implemented 2026-11-05:
+  `R_RenderView` hands the view over right after `FindViewLightsAndEntities`; `RenderScene`
+  skips the gui model (there is none; `scene::RenderView` flushes the PS2 2D collector) and
+  `R_RenderPostProcess`; `GetCroppedViewport` reports the frame buffer and crops other than
+  the full screen are an assertion.
 
 Why this cut and not a deeper cut at `RenderScene`: the portal flow is cheap, already compiled
 and tested, and it produces exactly the per-view entity and light lists with scissor
@@ -330,7 +334,11 @@ allocations. `R_InitFrameData` is called by `ps2` (today nothing calls it, so th
 `RenderScene` would use an uninitialised arena) with a frame size of
 `sizeof(viewDef_t) + N x sizeof(viewEntity_t) + M x sizeof(viewLight_t)` plus the
 `connectedAreas` array at the p99 counts of section 8.1, and with 16-byte rounding instead
-of the desktop's 128-byte cache-line rounding.
+of the desktop's 128-byte cache-line rounding. Implemented 2026-11-05 as one 128 KiB arena
+(a view is consumed before `RenderScene` returns, so the second is unneeded) that
+`scene::Init` allocates in visible mode and `scene::BeginFrame` resets once per renderer
+frame; allocations are cleared with `memset`, since clearing whole cache lines would reach
+a 16-byte neighbour. The graybox's views peak at 1,248 bytes.
 
 ### 5.3 What `scene::RenderView` does
 
@@ -349,6 +357,10 @@ void scene::RenderView(const viewDef_t & view)
     // Every step writes DMA tags and VIF/GIF payload into dma::DisplayList (scratchpad).
 }
 ```
+
+Implemented 2026-11-05 for step 1 without lights or batch frustum tests: the view entities
+whose model is one of a cooked world's area models (non-empty scissor) draw that area's
+batches in one world pass, with the view's clip space built from `renderView_t`.
 
 `FindViewLightsAndEntities` only creates the `viewEntity_t`/`viewLight_t` records with their
 portal scissors. `scene::RenderView` re-creates what `R_AddSingleLight` and
@@ -374,6 +386,13 @@ Each cooked model has two faces:
 
 The world's `_areaN` models are the same class; `FastWorldTrace` needs only the cooked
 area nodes, while world decals and `ModelTrace` on world models use the compact mirror.
+Implemented 2026-11-05 for the world (`ps2/renderer/world_map.cpp`): each area model is an
+`idRenderModelStatic` with the area's bounds and one surface per cooked surface, whose
+`srfTriangles_t` has no `verts`, points `indexes` into the D3WD (`referencedIndexes`, so
+freeing the model leaves them) and carries the s16 positions with their offset and scale
+in three tagged fields. `R_LocalTrace` decodes them in a scalar branch; `Trace` and
+`ModelTrace` over world areas go through it. World decals are not adapted yet: nothing
+projects one before the game loads maps (R3).
 
 ---
 
@@ -1607,6 +1626,11 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Strip restarts (2026-11-04) | u16 index entries: the vertex's qword offset in the input half with the GS ADC flag in bit 15 (first two entries of each strip) | u8 indices with a restart marker | VU1 has no integer multiply or shift: the program adds the entry to XTOP and writes the flag into XYZ2 as they stand; one byte per entry more on the wire, none in VU memory |
 | Batch packet tail (2026-11-04) | `ITOP N` in the cooked packet; `MSCAL` in the next tag's VIFcode | `MSCNT` or a cooked `MSCAL` address | Packets stay valid whatever micro memory layout `vu::Init` measures, the program keeps openvcl's single exit, and the start costs no qword |
 | Clipped batches (2026-11-04) | A batch with any vertex outside the guard band goes out as a triangle list, its outside triangles through the clipper's fan | Mark clipped triangles ADC inside the strips and append their fans | One extra path, chosen per batch, keeps the strip walk free of flag tests; batches touching the near plane or the band are a few per frame |
+| Cooked map load (2026-11-05) | `InitFromMap` builds areas, portals, nodes and the `_areaN` models from `maps/<name>.d3wd` when it exists; a refused file fails the load; a map without one loads its `.proc` | Always parse the `.proc`, cook only the batches | The PS2 never holds the `.proc` geometry; `make test-map`'s authored map keeps its `.proc` path |
+| Area models (2026-11-05) | Plain `idRenderModelStatic`s whose surfaces reference the D3WD mirror's u16 indexes (`referencedIndexes`) and carry its s16 positions in tagged `srfTriangles_t` fields; `R_LocalTrace` decodes them in a scalar branch | A PS2 model class; idDrawVerts built from the mirror | No id class changes and no 32-byte vertices; only traces read the geometry, and the mirror's per-surface indexes are not 16-byte aligned, so the branch walks them without id's streamed reads |
+| Frame arena (2026-11-05) | One arena of 128 KiB with 16-byte rounding, owned by `scene::Init` in visible mode | id's two 64 MiB arenas with cache-line rounding | `scene::RenderView` consumes a view before `RenderScene` returns; the graybox peaks at 1,248 bytes per view |
+| View clip space (2026-11-05) | `scene::RenderView` builds the world pass's matrix from `renderView_t` (id's axes, `fov_x`/`fov_y`, `r_znear`) with a far plane at 8,192 units | id's far-at-infinity projection | The 16-bit depth buffer and the VU1 clipper need a finite far plane; revisit with retail rooms |
+| Area culling (2026-11-05) | Draw the areas whose model entity the portal flow put on the view entity list | Walk `areaScreenRect` or the connected areas | It is id's own culling, entity portal culling included, and needs no second walk; per-batch frustum tests and portal scissors are left for R2's measurements |
 | Skinning | VU1 palettes of 24 joints, 40 vertices, three weight kernels | VU0 skinning streamed through SPR | Double-buffered palettes ride with the vertices; simulated duplication 1.4 to 1.6x, to be re-run at the 40 cap |
 | Lightmap density | 16 units per luxel for Q1 and Q2 (lighting report's chart measurement), 32 for Q3 | the asset report's 16/32/64 | the measured charts give 0.29 MiB at 16 u, cheap enough to keep |
 | Video materials | cooked still frames until a converted-video path exists | Bink or RoQ decode | no cinematic decoder is linked; the PDA and screens must not block the campaign |

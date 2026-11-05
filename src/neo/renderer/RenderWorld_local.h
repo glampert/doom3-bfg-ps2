@@ -31,6 +31,13 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "BoundsTrack.h"
 
+#if defined( ID_PS2 )
+// [PS2_D3BFG]: The cooked world (D3WD) a PS2 render world is built from (ps2/renderer/world.h).
+namespace ps2::renderer::world {
+struct Level;
+}
+#endif
+
 // assume any lightDef or entityDef index above this is an internal error
 const int LUDICROUS_INDEX	= 10000;
 
@@ -193,6 +200,12 @@ public:
 
 	bool					generateAllInteractionsCalled;
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: The cooked world this map was built from, drawn by the PS2 renderer and read by
+	// the area models' traces; NULL for a map parsed from its .proc.
+	ps2::renderer::world::Level *	cookedLevel = NULL;
+#endif
+
 	//-----------------------
 	// RenderWorld_load.cpp
 
@@ -212,6 +225,13 @@ public:
 	void					ReadBinaryNodes( idFile *file );
 	idRenderModel *			ReadBinaryModel( idFile *file );
 	idRenderModel *			ReadBinaryShadowModel( idFile *file );
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Builds the areas, portals, nodes and _areaN models from maps/<name>.d3wd
+	// (ps2/renderer/world_map.cpp). 'found' is false when there is no cooked file; with one,
+	// false means it was refused and nothing was kept.
+	bool					InitFromCookedMap( const char *name, bool &found );
+	void					FreeCookedMap();
+#endif
 
 	//--------------------------
 	// RenderWorld_portals.cpp

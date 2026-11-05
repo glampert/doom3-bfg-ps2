@@ -121,6 +121,14 @@ struct srfTriangles_t {
 	vertCacheHandle_t			ambientCache;			// idDrawVert
 	vertCacheHandle_t			shadowCache;			// idVec4
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Cooked world areas keep s16 positions instead of idDrawVerts (verts is NULL):
+	// xyz = ps2PositionOffset + ps2Positions[3 * i + axis] * ps2PositionScale. Only traces read them.
+	const short *				ps2Positions;
+	idVec3						ps2PositionOffset;
+	float						ps2PositionScale;
+#endif
+
 	DISALLOW_COPY_AND_ASSIGN( srfTriangles_t );
 };
 

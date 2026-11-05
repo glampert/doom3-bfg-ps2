@@ -215,6 +215,69 @@ static void R_TracePointCullStatic( byte *cullBits, byte &totalOr, const float r
 #endif
 }
 
+#if defined( ID_PS2 )
+/*
+====================
+R_CompactPosition
+
+[PS2_D3BFG]: A cooked world area's position, decoded from its s16 mirror.
+====================
+*/
+static ID_INLINE idVec3 R_CompactPosition( const srfTriangles_t *tri, const int index ) {
+	const short * q = tri->ps2Positions + index * 3;
+	return idVec3( tri->ps2PositionOffset.x + q[0] * tri->ps2PositionScale,
+				   tri->ps2PositionOffset.y + q[1] * tri->ps2PositionScale,
+				   tri->ps2PositionOffset.z + q[2] * tri->ps2PositionScale );
+}
+
+/*
+====================
+R_TracePointCullCompact
+
+[PS2_D3BFG]: The scalar R_TracePointCullStatic over the s16 position mirror.
+====================
+*/
+static void R_TracePointCullCompact( byte *cullBits, byte &totalOr, const float radius, const idPlane *planes, const srfTriangles_t *tri ) {
+	byte tOr = 0;
+	for ( int i = 0; i < tri->numVerts; i++ ) {
+		const idVec3 v = R_CompactPosition( tri, i );
+
+		const float d0 = planes[0].Distance( v );
+		const float d1 = planes[1].Distance( v );
+		const float d2 = planes[2].Distance( v );
+		const float d3 = planes[3].Distance( v );
+
+		const float t0 = d0 + radius;
+		const float t1 = d1 + radius;
+		const float t2 = d2 + radius;
+		const float t3 = d3 + radius;
+
+		const float s0 = d0 - radius;
+		const float s1 = d1 - radius;
+		const float s2 = d2 - radius;
+		const float s3 = d3 - radius;
+
+		byte bits;
+		bits  = IEEE_FLT_SIGNBITSET( t0 ) << 0;
+		bits |= IEEE_FLT_SIGNBITSET( t1 ) << 1;
+		bits |= IEEE_FLT_SIGNBITSET( t2 ) << 2;
+		bits |= IEEE_FLT_SIGNBITSET( t3 ) << 3;
+
+		bits |= IEEE_FLT_SIGNBITSET( s0 ) << 4;
+		bits |= IEEE_FLT_SIGNBITSET( s1 ) << 5;
+		bits |= IEEE_FLT_SIGNBITSET( s2 ) << 6;
+		bits |= IEEE_FLT_SIGNBITSET( s3 ) << 7;
+
+		bits ^= 0x0F;		// flip lower four bits
+
+		tOr |= bits;
+		cullBits[i] = bits;
+	}
+
+	totalOr = tOr;
+}
+#endif
+
 /*
 ====================
 R_TracePointCullSkinned
@@ -574,6 +637,12 @@ localTrace_t R_LocalTrace( const idVec3 &start, const idVec3 &end, const float r
 	byte totalOr = 0;
 
 	const idJointMat * joints = ( tri->staticModelWithJoints != NULL && r_useGPUSkinning.GetBool() ) ? tri->staticModelWithJoints->jointsInverted : NULL;
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Cooked world areas have s16 positions instead of idDrawVerts.
+	if ( tri->verts == NULL ) {
+		R_TracePointCullCompact( cullBits, totalOr, radius, planes, tri );
+	} else
+#endif
 	if ( joints != NULL ) {
 		R_TracePointCullSkinned( cullBits, totalOr, radius, planes, tri->verts, tri->numVerts, joints );
 	} else {
@@ -589,6 +658,33 @@ localTrace_t R_LocalTrace( const idVec3 &start, const idVec3 &end, const float r
 	if ( ( totalOr ^ ( totalOr >> 1 ) ) & 4 ) {
 		return hit;
 	}
+
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: A cooked world area's indexes point into its file's mirror, which the 16-byte
+	// streamed reads below cannot take, and its positions are decoded where idDrawVerts are read.
+	if ( tri->verts == NULL ) {
+		for ( int i = 0; i + 2 < tri->numIndexes; i += 3 ) {
+			const int i0 = tri->indexes[i + 0];
+			const int i1 = tri->indexes[i + 1];
+			const int i2 = tri->indexes[i + 2];
+
+			const byte triOr = cullBits[i0] | cullBits[i1] | cullBits[i2];
+			if ( ( triOr ^ ( triOr >> 4 ) ) & 3 ) {
+				continue;
+			}
+			if ( ( triOr ^ ( triOr >> 1 ) ) & 4 ) {
+				continue;
+			}
+
+			if ( R_LineIntersectsTriangleExpandedWithCircle( hit, start, end, radius, R_CompactPosition( tri, i0 ), R_CompactPosition( tri, i1 ), R_CompactPosition( tri, i2 ) ) ) {
+				hit.indexes[0] = i0;
+				hit.indexes[1] = i1;
+				hit.indexes[2] = i2;
+			}
+		}
+		return hit;
+	}
+#endif
 
 	// start streaming the indexes
 	idODSStreamedArray< triIndex_t, 256, SBT_QUAD, 3 > indexesODS( tri->indexes, tri->numIndexes );

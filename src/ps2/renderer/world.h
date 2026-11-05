@@ -28,6 +28,12 @@ struct Level
 
 // Reads and validates 'path' (every build); false, with nothing held, if it cannot be used.
 PS2_COLD_FUNC bool Load(const char * path, Level & level);
+
+// Takes a file already read into 'storage' (a TAG_RENDER allocation of kPacketAlignment):
+// validates it and writes it back from the data cache, or frees it and returns false.
+PS2_COLD_FUNC bool Adopt(void * storage, u32 bytes, const char * name, Level & level);
+
+// The caller has ended its frames, or none is in flight.
 PS2_COLD_FUNC void Unload(Level & level);
 
 // The frame constants for drawing with 'viewProjection' (row vectors, math::PerspectiveProjection's
@@ -35,8 +41,13 @@ PS2_COLD_FUNC void Unload(Level & level);
 // plane, and the strip and triangle drawing tags.
 vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::DrawContext context);
 
-// Draws every batch of 'level' into the open renderer frame, depth tested, through world_lm.vcl.
-// No culling yet: every area and batch is sent.
+// The world pass inside the open renderer frame: BeginPass sets the frame constants, the depth
+// test and world_lm.vcl once, DrawArea sends every batch of one area, EndPass starts the last one.
+void BeginPass(const math::Mat4 & viewProjection);
+void DrawArea(const Level & level, u32 area);
+void EndPass();
+
+// One pass over every area of 'level'.
 void Draw(const Level & level, const math::Mat4 & viewProjection);
 
 } // namespace ps2::renderer::world

@@ -8,6 +8,7 @@
 #include "ps2/renderer/capture.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/scene.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
@@ -39,6 +40,11 @@ static bool s_drawing = false;
 static int s_frames = 0;
 static u32 s_redraws = 0;
 static char s_captureName[64] = {};
+
+// The world viewer (ps2_world): one fixed camera over Common's render world, drawn under the
+// console and screens until the game draws its own views.
+static bool s_worldView = false;
+static renderView_t s_view;
 
 void RequireConsole(const idCmdArgs & args, int count)
 {
@@ -139,6 +145,122 @@ PS2_COLD_FUNC void Capture(const idCmdArgs & args)
     memcpy(s_captureName, name, length + 1);
 }
 
+PS2_COLD_FUNC void LogWorldStatus(const char * event)
+{
+    const ps2::renderer::scene::Stats stats = ps2::renderer::scene::GetStats();
+    const idRenderWorld * world = common->RW();
+
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD %s areas=%d portals=%d viewing=%d frame=%u views=%u area=%d entities=%u drawn=%u batches=%u arena=%u\n",
+             event, world->NumAreas(), world->NumPortals(), static_cast<int>(s_worldView), static_cast<u32>(stats.frame),
+             static_cast<u32>(stats.views), stats.area, static_cast<u32>(stats.entities), static_cast<u32>(stats.areas),
+             static_cast<u32>(stats.batches), static_cast<u32>(stats.arenaBytes));
+}
+
+// Three command arguments from 'first' on as a point.
+PS2_COLD_FUNC idVec3 Point(const idCmdArgs & args, int first)
+{
+    return idVec3(static_cast<float>(atof(args.Argv(first))), static_cast<float>(atof(args.Argv(first + 1))),
+                  static_cast<float>(atof(args.Argv(first + 2))));
+}
+
+// ps2_world load MAP | unload | view EX EY EZ TX TY TZ | trace SX SY SZ EX EY EZ |
+// portal HANDLE open|closed | off | status. A view looks from the eye at the target with a
+// 90-degree vertical field of view; a trace reports the first world surface between two points.
+PS2_COLD_FUNC void World(const idCmdArgs & args)
+{
+    if (!ps2::system::runtime::HasPresentation() || args.Argc() < 2) [[unlikely]]
+    {
+        ps2::FatalError("ps2_world requires a visible console and a subcommand");
+    }
+
+    const char * verb = args.Argv(1);
+    idRenderWorld * world = common->RW();
+
+    if (strcmp(verb, "load") == 0 && args.Argc() == 3)
+    {
+        s_worldView = false;
+
+        if (!world->InitFromMap(args.Argv(2)))
+        {
+            ps2::Log(ps2::LogLevel::Error, "[D3BFG] WORLD load failed map=%s\n", args.Argv(2));
+            return;
+        }
+
+        LogWorldStatus("loaded");
+        return;
+    }
+
+    if (strcmp(verb, "unload") == 0 && args.Argc() == 2)
+    {
+        s_worldView = false;
+        world->InitFromMap(nullptr);
+        LogWorldStatus("unloaded");
+        return;
+    }
+
+    if (strcmp(verb, "view") == 0 && args.Argc() == 8)
+    {
+        const idVec3 eye = Point(args, 2);
+        idVec3 forward = Point(args, 5) - eye;
+        idVec3 left = idVec3(0.0f, 0.0f, 1.0f).Cross(forward);
+
+        if (forward.Normalize() < 1.0f || left.Normalize() < 0.001f) [[unlikely]]
+        {
+            ps2::FatalError("ps2_world view needs a target at least one unit away and not straight up or down");
+        }
+
+        // id's camera looks down its forward axis, with left and up completing it.
+        memset(static_cast<void *>(&s_view), 0, sizeof(s_view));
+        s_view.vieworg = eye;
+        s_view.viewaxis[0] = forward;
+        s_view.viewaxis[1] = left;
+        s_view.viewaxis[2] = forward.Cross(left);
+        s_view.fov_y = 90.0f;
+        s_view.fov_x = RAD2DEG(2.0f * idMath::ATan(static_cast<float>(ps2::renderer::gs::Width()), static_cast<float>(ps2::renderer::gs::Height())));
+        s_worldView = true;
+        return;
+    }
+
+    if (strcmp(verb, "trace") == 0 && args.Argc() == 8)
+    {
+        modelTrace_t trace = {};
+        const bool hit = world->Trace(trace, Point(args, 2), Point(args, 5), 0.0f, true, false);
+
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD trace hit=%d fraction=%.3f normal=%.3f,%.3f,%.3f material=%s\n", static_cast<int>(hit),
+                 static_cast<double>(trace.fraction), static_cast<double>(trace.normal.x), static_cast<double>(trace.normal.y),
+                 static_cast<double>(trace.normal.z), hit && trace.material != nullptr ? trace.material->GetName() : "none");
+        return;
+    }
+
+    if (strcmp(verb, "portal") == 0 && args.Argc() == 4)
+    {
+        const int portal = atoi(args.Argv(2));
+        const bool closed = strcmp(args.Argv(3), "closed") == 0;
+
+        if (portal < 1 || portal > world->NumPortals() || (!closed && strcmp(args.Argv(3), "open") != 0)) [[unlikely]]
+        {
+            ps2::FatalError("ps2_world portal needs a handle from 1 to %d and open or closed", world->NumPortals());
+        }
+
+        world->SetPortalState(portal, closed ? PS_BLOCK_VIEW : PS_BLOCK_NONE);
+        return;
+    }
+
+    if (strcmp(verb, "off") == 0 && args.Argc() == 2)
+    {
+        s_worldView = false;
+        return;
+    }
+
+    if (strcmp(verb, "status") == 0 && args.Argc() == 2)
+    {
+        LogWorldStatus("status");
+        return;
+    }
+
+    ps2::FatalError("unknown ps2_world use: %s", args.Args());
+}
+
 void Present()
 {
     PS2_AssertMsg(!s_drawing && !ps2::renderer::FrameStarted(), "nested native console presentation");
@@ -147,7 +269,13 @@ void Present()
 
     ps2::ui::AdvanceScreen(s_inFrame);
     ps2::renderer::BeginFrame({ 16, 24, 40, 255 });
+    ps2::renderer::scene::BeginFrame();
     {
+        if (s_worldView)
+        {
+            common->RW()->RenderScene(&s_view);
+        }
+
         renderSystem->SetGLState(0);
         renderSystem->SetColor(colorWhite);
         ps2::ui::RenderScreen(s_inFrame);
@@ -288,6 +416,8 @@ PS2_COLD_FUNC void InitPresentation()
         FatalError("cannot initialize console display");
     }
 
+    renderer::scene::Init();
+
     // PAL runs the engine at 50 Hz, so a 40 ms frame is two ticks as a 33 ms NTSC frame is two
     // at 60 (RENDERING_ARCHITECTURE.md 4.2). Both the cvar, which every map load latches from,
     // and the values already latched change. A console's standard never changes, so the archived
@@ -301,6 +431,7 @@ PS2_COLD_FUNC void InitPresentation()
 
     if (!ui::Init()) [[unlikely]]
     {
+        renderer::scene::Shutdown();
         renderer::Shutdown();
         FatalError("cannot initialize native console images");
     }
@@ -316,6 +447,7 @@ PS2_COLD_FUNC void InitPresentation()
     cmdSystem->AddCommand("ps2_consoleText", ConsoleText, CMD_FL_SYSTEM, CMD_DESC("type quoted ASCII into the native console edit field"));
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, CMD_DESC("send a named native console key"));
     cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, CMD_DESC("capture the next completed console frame to a HostFs .tga basename"));
+    cmdSystem->AddCommand("ps2_world", World, CMD_FL_SYSTEM, CMD_DESC("load, view and query a render world under the console"));
 
     // The pad and the debug keyboard feed the same event queue the HostFs commands do; the
     // package stages the keyboard driver's modules beside the ELF.
@@ -401,12 +533,14 @@ PS2_COLD_FUNC void ShutdownPresentation(int frames)
 
     SetEventGenerator(nullptr);
     input::ShutdownDevices();
+    cmdSystem->RemoveCommand("ps2_world");
     cmdSystem->RemoveCommand("ps2_capture");
     cmdSystem->RemoveCommand("ps2_consoleKey");
     cmdSystem->RemoveCommand("ps2_consoleText");
     ui::ShutdownScreen();
     ui::fonts::Shutdown();
     ui::Shutdown();
+    renderer::scene::Shutdown();
     renderer::Shutdown();
 }
 

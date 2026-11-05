@@ -91,6 +91,11 @@ void idRenderWorldLocal::FreeWorld() {
 	areaReferenceAllocator.Shutdown();
 	interactionAllocator.Shutdown();
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: The area models borrowed the cooked world's trace mirror; they are gone now.
+	FreeCookedMap();
+#endif
+
 	mapName = "<FREED>";
 }
 
@@ -764,7 +769,24 @@ bool idRenderWorldLocal::InitFromMap( const char *name ) {
 	static const byte BPROC_VERSION = 1;
 	static const unsigned int BPROC_MAGIC = ( 'P' << 24 ) | ( 'R' << 16 ) | ( 'O' << 8 ) | BPROC_VERSION;
 	bool loaded = false;
+
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: A cooked world replaces the .proc and its binary cache when the map has one
+	// (RENDERING_ARCHITECTURE.md 5.2); a refused one fails the load like a missing .proc.
+	bool cookedFound = false;
+	if ( InitFromCookedMap( name, cookedFound ) ) {
+		mapName = name;
+		mapTimeStamp = currentTimeStamp;
+		loaded = true;
+	} else if ( cookedFound ) {
+		ClearWorld();
+		return false;
+	}
+
+	idFileLocal file( loaded ? NULL : fileSystem->OpenFileReadMemory( generatedFileName ) );
+#else
 	idFileLocal file( fileSystem->OpenFileReadMemory( generatedFileName ) );
+#endif
 	if ( file != NULL ) {
 		int numEntries = 0;
 		int magic = 0;

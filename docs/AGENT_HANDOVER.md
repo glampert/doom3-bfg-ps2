@@ -56,6 +56,7 @@ for each feature.
 | Retail dialog drawing | Native `Render` of the original dialog with Common's quit message from resident paletted textures, its text from pre-rendered glyphs | About 60 ms per debug PCSX2 frame; choices fail explicitly |
 | Retail shell drawing | Native `Render` of the original shell's start screen: outlines, color terms, screen blends, depth masks; the native logo transition on request | 100–140 ms per debug PCSX2 frame on the fixed clock; placeholder prompts and labels; no navigation |
 | Native shell menu | `idMenuHandler_Shell` with its start, root, campaign, settings and credits screens, driven by HostFs keyboard keys and pad buttons through Common's event loop: sign-in, root focus, back to press-start; Quit opens Common's native confirmation, whose Cancel returns and Accept quits; pad button tags draw as PS3 prompt art; a `menu` package policy boots into it | The screens below Campaign and Settings; a hands-on pad/keyboard check in PCSX2 |
+| World viewer | `ps2_world` loads a cooked `.d3wd` into Common's render world through `InitFromMap` (areas, portals, nodes, `_areaN` models over the s16 mirror) and draws it from a fixed camera through `RenderScene`, the portal flow choosing the areas; traces read the mirror | Vertex colour only (half brightness), no lights, entities or batch culling; the graybox only; no game map |
 | Retail data boot | Production mounts `_common`/`_ordered`, loads every retail declaration and compiles the full `doom_main.script` into `NOMAP` | About 13.2 MB requested / 16.5 MB heap backing before any map (see memory-budget.md); no retail map or in-game UI yet |
 
 Recent implementation: the 2026-10-24 menu and device slices (`ea039bf`, `75b25f7`,
@@ -302,6 +303,7 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Change | Relevant existing gates |
 | --- | --- |
 | Geometry/GS/mask work | `make test-host`, `make test-renderer`, `make test-ui`; repeat target gates with `BUILD=release` |
+| World renderer, render world seam, cooked maps | `make test-host`, `make test-renderer`, `make test-world`, `make test-map`, `make test-ui` |
 | Retail resources/timelines/menu | Host guards plus `make test-ui` (one retail session per standard and every invalid-resource case), debug/release |
 | Common/frame/presentation ownership | `make test-headless`, `make test-ui`, debug/release |
 | Heap, declarations, scripts or containers | `make test-headless-retail` (its startup ledgers), plus `make test-headless` |
@@ -309,7 +311,7 @@ host-emulator crashes; a fresh retry is new evidence, not a passing crashed run.
 | Documentation/path-only changes | Local links/targets, source inventory, fixture `--check`; fixture moves also use host tests and package staging |
 | Include/Makefile paths, toolchain or CI | `make`, `make release`, plus the case-sensitive Linux check in [ci.md](../.claude/rules/ci.md) |
 
-Current gates: `make test-ui`, `test-headless-retail`, `test-renderer`, `test-core`,
+Current gates: `make test-ui`, `test-world`, `test-headless-retail`, `test-renderer`, `test-core`,
 `test-platform`, `test-common`, `test-game`, `test-map`, `test-script` and `test-host`.
 Run IDs are in PORT_STATUS "Current snapshot". The 2026-10-30/31 size work has build and
 ledger checks and no emulator-gate sweep recorded here.

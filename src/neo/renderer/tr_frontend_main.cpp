@@ -30,6 +30,10 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 
 #include "tr_local.h"
+// [PS2_D3BFG]: The PS2 renderer takes each view after the portal flow.
+#if defined( ID_PS2 )
+#include "ps2/renderer/scene.h"
+#endif
 
 /*
 ==========================================================================================
@@ -39,9 +43,18 @@ FRAME MEMORY ALLOCATION
 ==========================================================================================
 */
 
+#if defined( ID_PS2 )
+// [PS2_D3BFG]: The PS2 renderer consumes a view before RenderScene returns, so one small arena
+// serves every frame (RENDERING_ARCHITECTURE.md 5.2): view, view entities, view lights and the
+// connected-area flags, rounded to 16 bytes instead of the desktop's cache lines.
+static const unsigned int NUM_FRAME_DATA = 1;
+static const unsigned int FRAME_ALLOC_ALIGNMENT = 16;
+static const unsigned int MAX_FRAME_MEMORY = 128 * 1024;
+#else
 static const unsigned int NUM_FRAME_DATA = 2;
 static const unsigned int FRAME_ALLOC_ALIGNMENT = 128;
 static const unsigned int MAX_FRAME_MEMORY = 64 * 1024 * 1024;	// larger so that we can noclip on PC for dev purposes
+#endif
 
 idFrameData		smpFrameData[NUM_FRAME_DATA];
 idFrameData *	frameData;
@@ -155,10 +168,15 @@ void *R_FrameAlloc( int bytes, frameAllocType_t type ) {
 
 	byte * ptr = frameData->frameMemory + end - bytes;
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Allocations are not whole cache lines here; clearing lines would reach a neighbour.
+	memset( ptr, 0, bytes );
+#else
 	// cache line clear the memory
 	for ( int offset = 0; offset < bytes; offset += CACHE_LINE_SIZE ) {
 		ZeroCacheLine( ptr, offset );
 	}
+#endif
 
 	return ptr;
 }
@@ -227,6 +245,7 @@ FONT-END RENDERING
 ==========================================================================================
 */
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: The PS2 renderer sorts its own draws; nothing calls this.
 /*
 =================
 R_SortDrawSurfs
@@ -341,6 +360,7 @@ static void R_SortDrawSurfs( drawSurf_t ** drawSurfs, const int numDrawSurfs ) {
 
 #endif
 }
+#endif
 
 /*
 ================
@@ -385,6 +405,11 @@ void R_RenderView( viewDef_t *parms ) {
 	// for all the the entityDefs and lightDefs that are in the visible portal areas
 	static_cast<idRenderWorldLocal *>(parms->renderWorld)->FindViewLightsAndEntities();
 
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: The PS2 renderer draws the visible entities and lights from here, in place of
+	// the light, model, interaction and draw surface passes (RENDERING_ARCHITECTURE.md 5.2).
+	ps2::renderer::scene::RenderView( *tr.viewDef );
+#else
 	// wait for any shadow volume jobs from the previous frame to finish
 	tr.frontEndJobList->Wait();
 
@@ -423,6 +448,7 @@ void R_RenderView( viewDef_t *parms ) {
 
 	// add the rendering commands for this viewDef
 	R_AddDrawViewCmd( parms, false );
+#endif
 
 	// restore view in case we are a subview
 	tr.viewDef = oldView;

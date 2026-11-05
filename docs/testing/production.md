@@ -1,7 +1,7 @@
 # Production package procedures
 
 Detailed acceptance for the production ELF's packages: `make test-headless`,
-`test-headless-retail` and `test-ui`. The shared rules are in
+`test-headless-retail`, `test-ui` and `test-world`. The shared rules are in
 [testing-pcsx2.md](../../.claude/rules/testing-pcsx2.md).
 
 ## Headless and retail boot
@@ -194,6 +194,38 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   remain under ignored `build/`. This proves the resource screen, not a retail SWF,
   Shell navigation or physical PS2 performance. `make run-ui-fonts` launches it;
   append `ps2_uiRetail font 0` through `font 4`, `status` or `quit` to its console.txt.
+
+## World session (`make test-world`)
+
+- `make test-world` / `make BUILD=release test-world` (after `make world-cook` and
+  `make ui-cook`, which the target runs or needs) run `run_world.py`: one production
+  session per standard from a visible console package on the authored headless data, with
+  `src/tests/data/graybox_map/materials/graybox.mtr` and the cooked
+  `build/world/graybox.d3wd` staged under `base/`. No `.proc` is staged: the render world
+  must take the D3WD.
+- HostFs commands close the console, set `r_znear 4` (the GS gate's near plane), run
+  `ps2_world load maps/graybox` (the `[D3BFG] world maps/graybox.d3wd: areas=2 surfaces=18
+  batches=26 portals=1 nodes=11` line and `WORLD loaded areas=2 portals=1`), then three
+  `ps2_world trace`s through the area models' s16 mirror (room 0's floor at fraction 0.5
+  facing up, the divider's post at 0.46 facing -x with `trim`, the open doorway a miss,
+  each within 0.002).
+- Six views, each `ps2_world portal 1 open|closed`, `ps2_world view EYE TARGET`, a capture
+  two frames later and a `ps2_world status` two frames after that, between echo barriers.
+  The status must report the view still drawing, the start area and the areas and batches
+  the portal flow let it draw: `room0`, `room1` and `doorway` 2 areas and 26 batches,
+  `clip` (the doorway just outside its frustum), `away` (facing room 0's far wall) and
+  `closed` (the doorway camera with the portal closed) 1 area and 14 batches.
+- Captures: `room0`, `room1`, `doorway` and `clip` are the GS gate's cameras and must
+  show its reference pixels (`renderer_capture.WORLD_SCENE_PIXELS`); `closed` must equal
+  `doorway` everywhere outside the doorway's screen rectangle (the opening seen from 436
+  units plus 3 pixels), differ on at least half of it and show the clear colour
+  (16, 24, 40) at the centre.
+- `ps2_world unload` must leave the empty single-area world (`areas=1 portals=0`), and the
+  session quits with the exact startup ledger. A session takes about 5 s of emulation in
+  debug. `test_world_runner.py` rejects a missing or refused cooked load, wrong traces,
+  broken culling counts, missing, stale or misnamed captures and statuses, out-of-order
+  barriers, an unfinished unload or ledger, and a closed doorway that changes pixels
+  outside the opening or none.
 
 ## Package and UI gate overview
 

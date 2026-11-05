@@ -804,9 +804,11 @@ void idRenderWorldLocal::RenderScene( const renderView_t *renderView ) {
 		common->Error( "idRenderWorld::RenderScene: bad FOVs: %f, %f", renderView->fov_x, renderView->fov_y );
 	}
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No gui model; scene::RenderView flushes the PS2 2D collector.
 	// close any gui drawing
 	tr.guiModel->EmitFullScreen();
 	tr.guiModel->Clear();
+#endif
 
 	int startTime = Sys_Microseconds();
 
@@ -865,8 +867,10 @@ void idRenderWorldLocal::RenderScene( const renderView_t *renderView ) {
 	// updated to the demo file
 	R_RenderView( parms );
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: The PS2 renderer draws post-processing itself (RENDERING_ARCHITECTURE.md 13.4).
 	// render any post processing after the view and all its subviews has been draw
 	R_RenderPostProcess( parms );
+#endif
 
 	// now write delete commands for any modified-but-not-visible entities, and
 	// add the renderView command to the demo
@@ -894,8 +898,10 @@ void idRenderWorldLocal::RenderScene( const renderView_t *renderView ) {
 
 	tr.pc.frontEndMicroSec += endTime - startTime;
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No gui model; the PS2 2D collector keeps queueing after the view.
 	// prepare for any 2D drawing after this
 	tr.guiModel->Clear();
+#endif
 }
 
 /*

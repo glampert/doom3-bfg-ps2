@@ -5138,3 +5138,35 @@ PAL: [room 0](images/renderer-world-1-room0-pal.png), [room 1](images/renderer-w
 Against a reference rasterizer of the same geometry and cameras, 99.4 to 99.9 % of pixels match
 within the PSMCT16 model; the rest are polygon edges and the GS's affine Gouraud interpolation on
 the smooth column. Release builds and the other gates were not rerun.
+
+## The cooked world in id's render world (2026-11-05)
+
+Gate R1's engine seam from the [rendering plan](plans/RENDERING_ARCHITECTURE.md#52-the-cut):
+`idRenderWorldLocal::InitFromMap` builds its areas, portals, nodes and `_areaN` models from
+`maps/<name>.d3wd` when the map has one (`ps2/renderer/world_map.cpp`), and `R_RenderView`
+hands each view to `ps2::renderer::scene::RenderView` right after id's portal flow, which
+draws the world areas the flow reached. Production cannot load a game map yet, so the gate
+drives Common's render world from the visible console with `ps2_world`; `make test-world`
+loads the graybox, traces through its area models and draws six fixed views in each standard.
+Vertex colour only, at half brightness as in the first world pixels.
+
+| Check | Result |
+| --- | --- |
+| `make test-world` (debug) | NTSC and PAL passed (`20261105T013520Z_world_3a72f8a14e09`, `20261105T013526Z_world_b80ff7ba3911`): the D3WD load (2 areas, 26 batches, 1 portal, 11 nodes), three traces through the s16 mirror, the GS gate's four cameras at its 8 reference pixels each, `away` and the closed doorway drawing one area (14 batches), the closed doorway changing only the opening (3,385 NTSC / 4,495 PAL pixels), unload and the exact startup ledger |
+| `make test-renderer` (debug) | NTSC and PAL passed with `world-graybox` through the split `world::BeginPass`/`DrawArea`/`EndPass` (`20261105T013534Z_smoke_6f18a41f262f423b`, `20261105T013545Z_smoke_c141d57e8f68423d`); 17 expected-fatal probes passed |
+| `make test-ui` (debug) | Both sessions passed every step (`20261105T014044Z_session_06638ef2f2bb`, `20261105T014822Z_session_9a698f15f252`), with the frame arena allocated at presentation start; the 5 retail-UI cases passed. Of the 13 movie cases, `movie-branch` first ended in the known HostFs flake (three TLB misses at 0x10/0x18 in `_request_end`); the re-run passed all 13 (`20261105T015731Z_movies_34cc4e8cd678` to `20261105T015825Z_movies_740de5c14ea6`) |
+| `make test-map`, `test-game` (debug) | Passed (`20261105T013642Z_smoke_f244c1d899b04b1f`; `20261105T013650Z_smoke_c4ee664382294745` and its 10 expected fatals): the authored map has no `.d3wd` and still loads its `.proc` |
+| `make test-headless`, `test-headless-retail` (debug) | Passed with unchanged startup ledgers (4,502,744 / 4,573,520 in 1,676 allocations; retail 13,240,094 / 16,541,204 in 75,111) |
+| `make test-common`, `test-core`, `test-platform`, `test-script` (debug) | Passed |
+| `make test-host` | 348 Python tests and the C++ harnesses passed; `test_world_runner.py` rejects false world acceptance, and `world_tests` refuses a node naming itself as a child in both readers |
+| `make` (debug) | Passed; runnable `PT_LOAD` 4,800,172 bytes. The world session peaks at 5,795,973 / 5,876,776 bytes; the frame arena is 128 KiB from presentation start and a graybox view uses 1,248 bytes of it |
+
+Captures, NTSC: [room 0](images/renderer-world-2-room0-ntsc.png), [room 1](images/renderer-world-2-room1-ntsc.png),
+[doorway](images/renderer-world-2-doorway-ntsc.png), [against the divider](images/renderer-world-2-clip-ntsc.png),
+[facing away](images/renderer-world-2-away-ntsc.png), [doorway closed](images/renderer-world-2-closed-ntsc.png);
+PAL: [room 0](images/renderer-world-2-room0-pal.png), [room 1](images/renderer-world-2-room1-pal.png),
+[doorway](images/renderer-world-2-doorway-pal.png), [against the divider](images/renderer-world-2-clip-pal.png),
+[facing away](images/renderer-world-2-away-pal.png), [doorway closed](images/renderer-world-2-closed-pal.png).
+Release builds were not run. Still open for R1: the frame-buffer profiles, the plain-strips
+topology measurement and the R1 decisions; the replaced frontend units remain in the campaign
+source list, and world decals do not read the mirror yet.

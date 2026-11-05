@@ -301,11 +301,13 @@ static const char * CheckRecords(Sections & s)
         return "no area nodes";
     }
 
+    // Children follow their node, as dmap numbers them, so id's recursive walks end.
     for (std::uint32_t index = 0; index < s.nodeCount; ++index)
     {
         for (const std::int32_t child : s.nodes[index].children)
         {
-            if ((child > 0 && static_cast<std::uint32_t>(child) >= s.nodeCount) || (child < 0 && static_cast<std::uint32_t>(-1 - child) >= s.areaCount)) [[unlikely]]
+            if ((child > 0 && (static_cast<std::uint32_t>(child) >= s.nodeCount || static_cast<std::uint32_t>(child) <= index)) ||
+                (child < 0 && static_cast<std::uint32_t>(-1 - child) >= s.areaCount)) [[unlikely]]
             {
                 return "bad node child";
             }

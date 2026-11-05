@@ -11,6 +11,8 @@ production link free of test inputs. Section numbers in parentheses point into t
 
 - [ ] Production `Frame` calls the game's draw path: a `RenderScene` step inside the
       presentation bracket, after the game tick and before the console draw (5.2, 19).
+      The bracket's step exists since 2026-11-05 for the `ps2_world` viewer's fixed camera;
+      the game's own views (`idGameLocal::Draw`, the player view) wait for a loaded map.
 - [ ] Common owns a loaded map in production (M3 work in
       [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)); until then R0 and R1 use the game
       test image with the authored graybox map (`src/tests/data/graybox_map/`).
@@ -94,12 +96,27 @@ production link free of test inputs. Section numbers in parentheses point into t
 - [x] `ps2::renderer::world`: load `.d3wd` whole into a 64-byte-aligned `TAG_RENDER`
       allocation, validated in every build (`world_format.cpp`, shared with the host tests)
       and written back once; `world::Draw` REFs every batch (2026-11-04).
-- [ ] The `_areaN` model adapters over the compact CPU mirror; `InitFromMap` takes portals and
-      nodes from the D3WD behind a tagged seam (5.2, 5.4).
-- [ ] `ps2::renderer::scene::RenderView` consuming `viewDef_t` after
-      `FindViewLightsAndEntities`; frame arena initialised by `ps2` with a small tagged size;
-      the removed frontend units leave the campaign list and the kept symbols move
-      (5.2 table, 5.3).
+- [x] The `_areaN` model adapters over the compact CPU mirror; `InitFromMap` takes portals and
+      nodes from the D3WD behind a tagged seam (5.2, 5.4): `world_map.cpp` builds the areas,
+      portals, nodes and one `idRenderModelStatic` per area whose surfaces reference the
+      mirror's indexes and carry its s16 positions on `srfTriangles_t`, which `R_LocalTrace`
+      decodes; a map without a `.d3wd` still loads its `.proc` (2026-11-05).
+- [x] `ps2::renderer::scene::RenderView` consuming `viewDef_t` after
+      `FindViewLightsAndEntities`, drawing the world areas the portal flow listed; frame
+      arena initialised by `ps2` with a small tagged size (one 128 KiB arena, 16-byte
+      rounding); `RenderScene` without a gui model or post-process pass (5.2 table, 5.3)
+      (2026-11-05).
+- [ ] The removed frontend units leave the campaign list and the kept symbols move (5.2
+      table). `R_RenderView` no longer reaches them on the PS2, so the runnable link drops
+      most of their code already.
+- [ ] World decals over the compact mirror (`ModelDecal.cpp` reads `idDrawVert`s, which world
+      area surfaces no longer have) before the game projects one on a loaded map (5.4).
+- [x] Gate (production): `make test-world` loads the cooked graybox into Common's render
+      world with `ps2_world` and draws it through `RenderScene` in both standards: the GS
+      gate's four cameras at its reference pixels, area counts from portal culling (a view
+      facing away and the doorway closed draw one area), the closed doorway changing only
+      the opening, three traces through the mirror, unload and the startup ledger
+      (2026-11-05).
 - [x] `world_lm.vcl` with vertex colour only: in-place transform, the strip walk, and the
       triangle list path through the imported clipper (`vu_clip.i`) for batches leaving the
       guard band; the GS gate's `world-graybox` draws four cameras in both standards and the
