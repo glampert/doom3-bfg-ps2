@@ -236,6 +236,16 @@ faces when a pass needs them).
   between frames. Live through `ps2_resolution 0|1` and `ps2_interlace field|frame`
   ([CVARS.md](../CVARS.md)); the GS gate's `display-mode-switch` and `make test-world` exercise
   both. The defaults stay 512 wide and FIELD; the 640 experiment is an R9 item (section 19).
+- Future follow-up: 480p progressive output (`GRAPH_MODE_HDTV_480P`, component cables) as one
+  more resolution entry: 640x480 drawn whole each frame, no interlace or flicker filter, the
+  frame shown for two vsyncs. It costs 3,072,000 bytes of fixed VRAM at 32 bits (about 1.1 MB
+  left for textures; about 1.84 MB fixed at 16 bits) and is judged with the 640 experiment.
+  gsKit's multi-pass 1080i/720p (`gsHires.c`: one buffer in bands redrawn behind the beam
+  from HSYNC interrupts) was considered on 2026-11-05 and not adopted for the world: the whole
+  list replays three times per field (VU1 and setup cost six times per 30 fps frame), a late
+  band corrupts the picture instead of slipping a frame, textures must stay resident across
+  replays, no whole frame exists for framebuffer-as-texture effects or captures, and it needs
+  16-bit colour and an interrupt-driven device.
 
 ### 4.3 Frame buffer format
 

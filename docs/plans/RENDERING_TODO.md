@@ -243,6 +243,11 @@ production link free of test inputs. Section numbers in parentheses point into t
       pre-rendered glyph sets at 640 (they are cooked for 512 and fall back to native quads);
       PAL at 640x512 in 32 bits already thrashes the retail menu (917,504 bytes of texture VRAM),
       so PAL would pair 640 with 16 bits or less resident UI; record adopt or keep 512 in section 20.
+- [ ] Follow-up: 480p progressive output (`GRAPH_MODE_HDTV_480P`, 4.2) as another entry in the
+      resolution table, for component cables: 640x480 with no interlace flicker, presented
+      every second vsync. 3,072,000 bytes of fixed VRAM at 32 bits (about 1.1 MB left for
+      textures), about 1.84 MB at 16 bits; judge it against the same texture working set as
+      the 640 experiment.
 - [ ] L2 counting stencil for at most two lights if the hardware frame log leaves room
       (9.2, 9.3); shadow-rung cvar in `CVARS.md`.
 - [ ] Gate: hardware frame log on the camera path, p95 at most 33.3 ms NTSC and 40.0 ms
