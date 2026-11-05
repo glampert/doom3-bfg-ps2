@@ -227,13 +227,22 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   doorway's screen rectangle (the opening seen from 436 units plus 3 pixels), differ on at
   least half of it and show the clear colour (16, 24, 40) at the centre.
 - Frame-buffer profiles: the six views run in the default 32-bit profile, then
-  `ps2_frameBufferBits 16` must log one `[D3BFG] GS frame buffer bits=16 PSMCT16/Z16
-  fixed_vram=` line (1,376,256 NTSC, 1,572,864 PAL) and the six views run again as
-  `<view>-16`, every capture line carrying its `bits=`. The 32-bit captures are checked
+  `ps2_frameBufferBits 16` must log one `[D3BFG] GS display 512x448 FIELD bits=16 PSMCT16/Z16
+  fixed_vram=` line (`512x512` and 1,376,256 NTSC, 1,572,864 PAL) and the six views run again
+  as `<view>-16`, every capture line carrying its `bits=`. The 32-bit captures are checked
   against the exact reference colours within 2 levels (PSMCT16's model allows 8), the closed
   doorway against the exact clear colour. Switched back (`bits=32 PSMCT32/Z16S` with the
   texture range capped at 1,900,544 NTSC / 1,572,864 PAL), `doorway-32` must be
   byte-identical to the first `doorway`.
+- Display modes: `ps2_resolution 1` must log one `GS display 640x448 FIELD bits=32` line
+  (`640x512` PAL; fixed VRAM 2,867,200 / 3,276,800, the texture range capped at 1,327,104 /
+  917,504) and `doorway-640` is captured 640 wide, showing the room beyond the doorway at its
+  centre; `ps2_resolution 0` back, and `doorway-512` must be byte-identical to the first
+  `doorway`. Then `ps2_interlace frame` (`GS display 512x224 FRAME`, `512x256` PAL; fixed VRAM
+  1,179,648 / 1,310,720) and `doorway-frame` is captured at the half height; `ps2_interlace
+  field` back, and `doorway-field` must match the first `doorway`. Each step changes one cvar
+  (`run_world.switch_command`); the expected line comes from `renderer_capture.frame_size` and
+  `fixed_vram_bytes` for the session's standard. Every view keeps its culling counts.
 - `ps2_world unload` must leave the empty single-area world (`areas=1 portals=0`), and the
   session quits with the exact startup ledger. A session takes about 9 s of emulation in
   debug. `test_world_runner.py` rejects a missing or refused cooked load, wrong traces,

@@ -5222,3 +5222,49 @@ loses up to seven levels on its own, so the reference's grey walls (33, 30, 25) 
 [room 1](images/renderer-world-3-room1-pal.png), [doorway](images/renderer-world-3-doorway-pal.png),
 [against the divider](images/renderer-world-3-clip-pal.png), [facing away](images/renderer-world-3-away-pal.png),
 [doorway closed](images/renderer-world-3-closed-pal.png).
+
+## Display modes: resolutions and FIELD/FRAME (2026-11-05)
+
+The question of where 512 wide came from (the 2D plan's unmeasured first choice, kept by
+[section 4.2](plans/RENDERING_ARCHITECTURE.md#42-pacing-and-display) on VRAM and fill grounds while
+quake2-ps2 runs 640) became a device table and two more live cvars. `system::video` now lists each
+standard's frame-buffer resolutions (`ResolutionAt`: 512 and 640 wide at the standard's 448 or 512
+lines, both filling the screen through the display magnification, 5x and 4x of 2560 video clocks) and
+the interlace mode (`Interlace::Field`, the full-height buffer read every other line with the flicker
+filter, or `Interlace::Frame`, a half-height buffer shown whole on every field without the filter,
+pipelined presents flipping on either field). `renderer::DisplayMode` carries the resolution index,
+the interlace mode and the frame format; `renderer::SetDisplayMode` replaces the profile-only setter
+and restarts the GS between frames for any change. Production's cvars are `ps2_resolution 0|1` and
+`ps2_interlace field|frame` beside `ps2_frameBufferBits`; every change logs one `[D3BFG] GS display
+WxH MODE bits= ... fixed_vram= texture_vram=` line ([CVARS.md](CVARS.md)). The defaults stay 512 wide
+and FIELD; the 640 experiment is an R9 item of the plan. Frame buffers now pad to whole GS page rows
+(64 lines for 16-bit formats, 32 for `PSMCT32`), which only FRAME mode's 224-line NTSC buffers need.
+Captures read any supported width (`renderer_capture.frame_size`, `fixed_vram_bytes`).
+
+| Mode (32 bits) | Fixed VRAM NTSC / PAL | Texture range NTSC / PAL |
+| --- | --- | --- |
+| 512 wide, FIELD (default) | 2,293,760 / 2,621,440 | 1,900,544 / 1,572,864 |
+| 640 wide, FIELD | 2,867,200 / 3,276,800 | 1,327,104 / 917,504 |
+| 512 wide, FRAME (224 / 256 lines) | 1,179,648 / 1,310,720 | 2,097,152 / 2,097,152 |
+| 512 wide, FRAME, 16 bits | 786,432 / 786,432 | 2,097,152 / 2,097,152 |
+
+| Check | Result |
+| --- | --- |
+| `make test-renderer` (debug) | NTSC and PAL passed (`20261105T111556Z_smoke_5a54f1a15c854d2d`, `20261105T111610Z_smoke_185d386a8a4c4c79`): the new `display-mode-switch` draws the profile scene at 512 FIELD, 640 FIELD, 512 FRAME and 512 FIELD again in the 16-bit profile (`GS display` lines with the padded fixed VRAM, one texture re-upload per restart), every pixel of each capture checked at its size and the two default-mode captures byte-identical; `rejected-partial-init` refuses 320 wide and FRAME at the full line count; 17 expected-fatal probes passed |
+| `make test-world` (debug) | NTSC and PAL passed (`20261105T111859Z_world_e7d460266824`, `20261105T111908Z_world_ac5030a904bb`, 8.3 and 9.1 s of emulation): after the profile round trip the doorway is drawn 640 wide (`ps2_resolution 1`), at 512 again (byte-identical to the first doorway), in FRAME mode (`ps2_interlace frame`, 512x224 / 512x256) and in FIELD again (byte-identical); each change one `GS display` line with the expected buffers, every view keeping its culling counts |
+| `make test-ui` (debug) | Passed: both sessions (`20261105T111957Z_session_d0bd3278bb90` NTSC, 33 uploads and no eviction; `20261105T112737Z_session_e286b11899d1` PAL, 38 uploads and 11 evictions as before) and the 18 retail-UI and movie cases from `20261105T113542Z_retail_6b3d4c04c199`; the session runner reads the interlace mode from the `GS ready` line. `make test-headless` passed with the startup ledger at 4,503,176 / 4,574,084 bytes in 1,679 allocations (the two new cvars: +288 bytes, +2) |
+| `make test-host` | Passed (366 Python tests and the C++ harnesses): the capture model's `frame_size` and `fixed_vram_bytes`, the format scene at every mode size, the GS runner's display-switch sequence, the world runner's one-cvar steps, expected lines per standard and padded buffers |
+| Retail menu at 640 and FRAME (one-off, debug) | The `stage-ui-menu` package drew its start screen 240 frames at 512, then 90 frames each 640 wide, at 640 in FRAME mode and at 512 again. NTSC at 640 (1,327,104 bytes for textures): the 14 resident textures uploaded once more and nothing evicted. PAL at 640x512 (917,504 bytes) cannot hold the start screen: 799 evictions and 810 uploads in its 90 frames, the per-frame churn the UI gate forbids, so 640 wide on PAL needs the 16-bit profile (1,966,080 fixed, 2 MiB left) or less resident UI. FRAME mode at 640x224 / 640x256 leaves the full 2 MiB and evicts nothing. Menu text at 640 and in FRAME mode falls back to native quads (`UI glyph size ... prerendered=no`: the glyph sets are cooked for 512 wide, FIELD). Captures, NTSC: [640 wide](images/renderer-world-4-menu-640-ntsc.png), [640 FRAME](images/renderer-world-4-menu-640-frame-ntsc.png); PAL: [640 wide](images/renderer-world-4-menu-640-pal.png), [640 FRAME](images/renderer-world-4-menu-640-frame-pal.png) |
+| `make`, `make release` | Passed; runnable `PT_LOAD` 4,804,716 debug (+2,560) and 4,080,364 release (+2,176). Release builds were compiled, not run |
+
+Captures of the doorway camera through id's `RenderScene`, NTSC: [640 wide](images/renderer-world-4-doorway-640-ntsc.png),
+[FRAME mode, 224 lines](images/renderer-world-4-doorway-frame-ntsc.png); PAL: [640 wide](images/renderer-world-4-doorway-640-pal.png),
+[FRAME mode, 256 lines](images/renderer-world-4-doorway-frame-pal.png). They also show a defect the
+modes expose: the world viewer (`ps2_world view`) and the GS gate's graybox cameras take the horizontal
+field of view from the buffer's width over its height, as if pixels were square, while the picture
+always fills a 4:3 screen (`idGameLocal::CalcFov` corrects by `GetPixelAspect`, so the game's own
+views will be right). At 512x448 the world is drawn 1.17x too wide, at 512x512 PAL 1.33x, at 640
+0.93x, and FRAME mode's half-height buffers widen the frustum further (the red box enters the
+doorway view). The fix is one line in each (the display's 4:3 aspect), but it moves every world
+reference pixel and brings the doorway portal into the `clip` camera's frustum, so it is left for its
+own change ([RENDERING_TODO.md](plans/RENDERING_TODO.md) R1).

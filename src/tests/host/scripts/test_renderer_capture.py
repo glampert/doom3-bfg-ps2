@@ -265,7 +265,7 @@ class RendererCapture(unittest.TestCase):
                     capture.read_tga(self.write(malformed))
 
     def test_dimension_bounds_before_payload_read(self):
-        for width, height in ((0, 1), (1, 0), (513, 1), (1, 513), (65535, 65535)):
+        for width, height in ((0, 1), (1, 0), (641, 1), (1, 641), (65535, 65535)):
             with self.subTest(width=width, height=height):
                 with self.assertRaisesRegex(ValueError, "dimensions"):
                     capture.read_tga(self.write(tga(width, height, b"")))
@@ -452,15 +452,15 @@ class RendererCapture(unittest.TestCase):
                     capture.verify_indexed_scene(self.write(tga(512, 448, pixels)), "NTSC")
 
 
-def profile_scene(bits, height=448, colours=None):
+def profile_scene(bits, height=448, colours=None, width=512):
     """The GS gate's profile-switch picture as the profile of 'bits' stores it, painted from the
     test's own rectangles rather than the verifier's sample table."""
-    rgb = bytearray(512 * height * 3)
+    rgb = bytearray(width * height * 3)
     fill, texel = colours or ((93, 47, 205), (3, 130, 253))
     for x0, color in ((64, fill), (256, texel)):
         row = bytes(capture.stored(color, bits)) * 128
         for y in range(64, 160):
-            offset = (y * 512 + x0) * 3
+            offset = (y * width + x0) * 3
             rgb[offset:offset + len(row)] = row
     return rgb
 
@@ -504,6 +504,43 @@ class FrameBufferProfiles(unittest.TestCase):
                     self.assertEqual(result["bits"], bits)
                     self.assertEqual(result["pixels"], {"format-fill": 128 * 96, "format-texture": 128 * 96,
                                                         "format-clear": 512 * height - 2 * 128 * 96})
+
+    def test_format_scene_at_each_display_mode(self):
+        # The display-mode switch draws the same picture 640 wide and in a half-height FRAME buffer.
+        for standard, resolution, interlace in (("NTSC", 1, "FIELD"), ("PAL", 1, "FIELD"), ("NTSC", 0, "FRAME"), ("PAL", 0, "FRAME")):
+            with self.subTest(standard=standard, resolution=resolution, interlace=interlace):
+                width, height = capture.frame_size(standard, resolution, interlace)
+                result = capture.verify_format_scene(self.write(tga(width, height, profile_scene(16, height, width=width))), standard, 16,
+                                                     (width, height))
+                self.assertEqual(result["pixels"]["format-clear"], width * height - 2 * 128 * 96)
+        # The default size is the 512-wide FIELD frame; a capture of another size fails it.
+        with self.assertRaisesRegex(ValueError, "expected 512x448"):
+            capture.verify_format_scene(self.write(tga(640, 448, profile_scene(16, width=640))), "NTSC", 16)
+        with self.assertRaisesRegex(ValueError, "expected 640x448"):
+            capture.verify_format_scene(self.write(tga(512, 448, profile_scene(16))), "NTSC", 16, (640, 448))
+
+    def test_display_mode_table(self):
+        self.assertEqual(capture.frame_size("NTSC"), (512, 448))
+        self.assertEqual(capture.frame_size("PAL", 1), (640, 512))
+        self.assertEqual(capture.frame_size("NTSC", 0, "FRAME"), (512, 224))
+        self.assertEqual(capture.frame_size("PAL", 1, "FRAME"), (640, 256))
+        for arguments in (("SECAM",), ("NTSC", 2), ("NTSC", 0, "PROGRESSIVE")):
+            with self.assertRaisesRegex(ValueError, "display mode"):
+                capture.frame_size(*arguments)
+        # The device's fixed VRAM (two colour buffers and Z16/Z16S): the measured 512-wide values, 640
+        # wide, and FRAME mode's 224-line PSMCT16 buffers padded to four 64-line page rows.
+        self.assertEqual(capture.fixed_vram_bytes(512, 448, 16), 1376256)
+        self.assertEqual(capture.fixed_vram_bytes(512, 448, 32), 2293760)
+        self.assertEqual(capture.fixed_vram_bytes(512, 512, 16), 1572864)
+        self.assertEqual(capture.fixed_vram_bytes(512, 512, 32), 2621440)
+        self.assertEqual(capture.fixed_vram_bytes(640, 448, 16), 1720320)
+        self.assertEqual(capture.fixed_vram_bytes(640, 448, 32), 2867200)
+        self.assertEqual(capture.fixed_vram_bytes(640, 512, 32), 3276800)
+        self.assertEqual(capture.fixed_vram_bytes(512, 224, 16), 786432)
+        self.assertEqual(capture.fixed_vram_bytes(512, 224, 32), 1179648)
+        self.assertEqual(capture.fixed_vram_bytes(512, 256, 32), 1310720)
+        with self.assertRaisesRegex(ValueError, "16 or 32"):
+            capture.fixed_vram_bytes(512, 448, 24)
 
     def test_a_five_bit_store_fails_the_32_bit_model(self):
         # The 16-bit picture passes its own model and fails the 32-bit one (the fill's green is 6 off).

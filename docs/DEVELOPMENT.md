@@ -213,8 +213,10 @@ portal's view blocking, `off` stops drawing, `unload` empties the world and `sta
 areas, portals and the last view's area, entities, drawn areas, batches and frame arena use.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
 the graybox and runs it. `ps2_frameBufferBits 16|32` switches the frame buffers between
-`PSMCT16` + `PSMZ16` and `PSMCT32` + `PSMZ16S` before the next frame, restarting the GS
-(one blank frame); capture lines report the profile as `bits=` ([CVARS.md](CVARS.md)).
+`PSMCT16` + `PSMZ16` and `PSMCT32` + `PSMZ16S`, `ps2_resolution 0|1` between 512 and 640
+wide and `ps2_interlace field|frame` between the full-height FIELD buffer and a half-height
+FRAME one, each before the next frame by restarting the GS (one blank frame); capture lines
+report the profile as `bits=` and the TGA carries the size ([CVARS.md](CVARS.md)).
 
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 `d3bfg_tests.map`. `make build-core` writes `build/<config>/tests/core/`,

@@ -42,8 +42,10 @@ memory figures in [memory-budget.md](memory-budget.md).
   `ps2_capture` runs before that frame draws; put `wait 1` between them.
 - Inspect captures as well as logs. Pixel checks model the frame-buffer profile the capture
   line's `bits=` names: PSMCT16 stores five bits per channel and allows eight levels, PSMCT32
-  the exact colour within two. PCSX2 models neither the EE cache nor GS internal cost:
-  captures prove function, not hardware timing or coherency.
+  the exact colour within two. A capture's size is the display mode's (`GS ready NTSC 512x448
+  FIELD PSMCT32/Z16S fixed_vram=`; 640 wide or a half-height FRAME buffer when `ps2_resolution`
+  or `ps2_interlace` changed it, logged as `GS display WxH MODE bits=`). PCSX2 models neither
+  the EE cache nor GS internal cost: captures prove function, not hardware timing or coherency.
 - The default hardware renderer (`Renderer = -1`) caches render targets by address and
   format, and a readback can return a stale one. When a capture looks wrong only after VRAM
   was reused in another format, rerun once with the software renderer (`Renderer = 13`, ini

@@ -47,8 +47,16 @@ static char s_captureName[64] = {};
 static bool s_worldView = false;
 static renderView_t s_view;
 
-// The frame-buffer profile (RENDERING_ARCHITECTURE.md 4.3). The device starts in it, and a
-// change takes effect before the next frame begins.
+// The display mode (RENDERING_ARCHITECTURE.md 4.2 and 4.3): the frame-buffer resolution, how each
+// field reads it and the frame-buffer profile. The device starts in the cvars' values, and a change
+// takes effect before the next frame begins.
+static idCVar s_resolution("ps2_resolution", "0", CVAR_SYSTEM | CVAR_INTEGER,
+                           "frame-buffer resolution, an index into the standard's list: 0 is 512x448 (NTSC) or 512x512 (PAL), 1 is 640 wide; "
+                           "changes between frames",
+                           0.0f, 15.0f);
+static idCVar s_interlace("ps2_interlace", "field", CVAR_SYSTEM,
+                          "how each field reads the frame buffer: field shows every other line of the full-height buffer, frame a half-height "
+                          "buffer whole (SMODE2 FFMD); changes between frames");
 static idCVar s_frameBufferBits("ps2_frameBufferBits", "32", CVAR_SYSTEM | CVAR_INTEGER,
                                 "frame-buffer colour bits, 16 (PSMCT16 + Z16) or 32 (PSMCT32 + Z16S); changes between frames",
                                 16.0f, 32.0f);
@@ -268,46 +276,91 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     ps2::FatalError("unknown ps2_world use: %s", args.Args());
 }
 
-ps2::renderer::gs::FrameFormat FrameFormatFromBits(int bits)
+ps2::system::video::Standard PolicyStandard()
 {
-    return bits == 32 ? ps2::renderer::gs::FrameFormat::Color32 : ps2::renderer::gs::FrameFormat::Color16;
+    return s_policy == Presentation::Pal ? ps2::system::video::Standard::Pal : ps2::system::video::Standard::Ntsc;
 }
 
-PS2_COLD_FUNC void ApplyFrameBufferBits()
+// The display mode the three cvars ask for, each refused with a warning and reset to 'mode's
+// value when it names nothing the standard has. The cvars then hold the effective values.
+PS2_COLD_FUNC void ReadDisplayCvars(ps2::system::video::Standard standard, ps2::renderer::DisplayMode & mode)
 {
-    s_frameBufferBits.ClearModified();
+    const int resolution = s_resolution.GetInteger();
+    const int count = ps2::system::video::ResolutionCount(standard);
+
+    if (resolution < 0 || resolution >= count)
+    {
+        ps2::Log(ps2::LogLevel::Warning, "ps2_resolution accepts 0 to %d; keeping %d\n", count - 1, mode.resolution);
+    }
+    else
+    {
+        mode.resolution = resolution;
+    }
+
+    const char * interlace = s_interlace.GetString();
+
+    if (idStr::Icmp(interlace, "field") == 0)
+    {
+        mode.interlace = ps2::system::video::Interlace::Field;
+    }
+    else if (idStr::Icmp(interlace, "frame") == 0)
+    {
+        mode.interlace = ps2::system::video::Interlace::Frame;
+    }
+    else
+    {
+        ps2::Log(ps2::LogLevel::Warning, "ps2_interlace accepts field or frame; keeping %s\n", ps2::system::video::InterlaceName(mode.interlace));
+    }
 
     const int bits = s_frameBufferBits.GetInteger();
-    const ps2::renderer::gs::FrameFormat current = ps2::renderer::gs::GetFrameFormat();
 
     if (bits != 16 && bits != 32)
     {
-        ps2::Log(ps2::LogLevel::Warning, "ps2_frameBufferBits accepts 16 or 32; keeping %d\n", ps2::renderer::gs::FrameFormatBits(current));
-        s_frameBufferBits.SetInteger(ps2::renderer::gs::FrameFormatBits(current));
-        s_frameBufferBits.ClearModified();
-        return;
+        ps2::Log(ps2::LogLevel::Warning, "ps2_frameBufferBits accepts 16 or 32; keeping %d\n", ps2::renderer::gs::FrameFormatBits(mode.format));
+    }
+    else
+    {
+        mode.format = bits == 32 ? ps2::renderer::gs::FrameFormat::Color32 : ps2::renderer::gs::FrameFormat::Color16;
     }
 
-    const ps2::renderer::gs::FrameFormat format = FrameFormatFromBits(bits);
+    s_resolution.SetInteger(mode.resolution);
+    s_interlace.SetString(mode.interlace == ps2::system::video::Interlace::Frame ? "frame" : "field");
+    s_frameBufferBits.SetInteger(ps2::renderer::gs::FrameFormatBits(mode.format));
+    s_resolution.ClearModified();
+    s_interlace.ClearModified();
+    s_frameBufferBits.ClearModified();
+}
 
-    if (format == current)
+PS2_COLD_FUNC void LogDisplayMode()
+{
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GS display %dx%d %s bits=%d %s fixed_vram=%u texture_vram=%u\n", ps2::renderer::gs::Width(),
+             ps2::renderer::gs::Height(), ps2::system::video::InterlaceName(ps2::renderer::gs::GetInterlace()),
+             ps2::renderer::gs::FrameFormatBits(ps2::renderer::gs::GetFrameFormat()), ps2::renderer::gs::FrameFormatName(ps2::renderer::gs::GetFrameFormat()),
+             ps2::renderer::gs::FixedVramBytes(), static_cast<u32>(ps2::renderer::gs::GetVramStats().capacityBytes));
+}
+
+PS2_COLD_FUNC void ApplyDisplayCvars()
+{
+    const ps2::renderer::DisplayMode current = ps2::renderer::GetDisplayMode();
+    ps2::renderer::DisplayMode mode = current;
+    ReadDisplayCvars(PolicyStandard(), mode);
+
+    if (mode.resolution == current.resolution && mode.interlace == current.interlace && mode.format == current.format)
     {
         return;
     }
 
-    ps2::renderer::SetFrameFormat(format);
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GS frame buffer bits=%d %s fixed_vram=%u texture_vram=%u\n", bits,
-             ps2::renderer::gs::FrameFormatName(format), ps2::renderer::gs::FixedVramBytes(),
-             static_cast<u32>(ps2::renderer::gs::GetVramStats().capacityBytes));
+    ps2::renderer::SetDisplayMode(mode);
+    LogDisplayMode();
 }
 
 void Present()
 {
     PS2_AssertMsg(!s_drawing && !ps2::renderer::FrameStarted(), "nested native console presentation");
 
-    if (s_frameBufferBits.IsModified()) [[unlikely]]
+    if (s_resolution.IsModified() || s_interlace.IsModified() || s_frameBufferBits.IsModified()) [[unlikely]]
     {
-        ApplyFrameBufferBits();
+        ApplyDisplayCvars();
     }
 
     s_drawing = true;
@@ -455,13 +508,12 @@ PS2_COLD_FUNC void InitPresentation()
     }
 
     renderer::Config config;
-    config.standard = s_policy == Presentation::Pal ? system::video::Standard::Pal : system::video::Standard::Ntsc;
+    config.standard = PolicyStandard();
 
-    // No config file has run yet: the device starts in the cvar's default, and later values apply
+    // No config file has run yet: the device starts in the cvars' defaults, and later values apply
     // at the frame boundary.
-    config.frameFormat = FrameFormatFromBits(s_frameBufferBits.GetInteger());
-    s_frameBufferBits.SetInteger(renderer::gs::FrameFormatBits(config.frameFormat));
-    s_frameBufferBits.ClearModified();
+    config.display.format = renderer::gs::FrameFormat::Color32;
+    ReadDisplayCvars(config.standard, config.display);
 
     if (!renderer::Init(config)) [[unlikely]]
     {

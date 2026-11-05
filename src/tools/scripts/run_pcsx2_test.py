@@ -121,7 +121,7 @@ CHECK_RE = re.compile(r"\[D3BFG\] CHECK ([A-Za-z0-9_./-]+) (PASS|FAIL)(?:\s|$)")
 REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
     "inactive-start", "rejected-partial-init", "device-init", "context-frames",
     "presented-scene", "bounded-pressure", "reload-shutdown-ledger", "textures", "native-capture", "capture-recovery", "split-upload", "native-adapters", "native-indexed",
-    "pipelined-present", "vu-passthrough", "world-graybox", "world-graybox-32", "frame-format-switch"))
+    "pipelined-present", "vu-passthrough", "world-graybox", "world-graybox-32", "frame-format-switch", "display-mode-switch"))
 REQUIRED_CORE_CHECKS = frozenset({
     "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
@@ -567,8 +567,8 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
                 return False, "missing or failed GS checks"
             standard, height = ("PAL", 512) if scenario == "renderer-pal" else ("NTSC", 448)
             if (f"[D3BFG] RUN {test_id} BEGIN" not in log or
-                    f"GS ready {standard} 512x{height} PSMCT16/Z16 " not in log or
-                    f"GS ready {standard} 512x{height} PSMCT32/Z16S " not in log or
+                    f"GS ready {standard} 512x{height} FIELD PSMCT16/Z16 " not in log or
+                    f"GS ready {standard} 512x{height} FIELD PSMCT32/Z16S " not in log or
                     any(f"GS scene {standard} cycle={cycle} frames={frames} context=0" not in log
                         for cycle, frames in ((0, 120), (1, 4)))):
                 return False, "incorrect GS mode or completed frames"
@@ -579,6 +579,15 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
             expected_switches = [(16, fixed16, 2097152, 1), (32, fixed32, min(2097152, 4194304 - fixed32), 2), (16, fixed16, 2097152, 3)]
             if switches not in (expected_switches, expected_switches * 2):
                 return False, "invalid frame-buffer profile switch"
+            # The display-mode switch in the 16-bit profile: 512 wide, 640 wide, 512 in FRAME mode (a
+            # half-height buffer padded to whole page rows) and 512 again, the texture uploading after each.
+            modes = [(int(w), int(h), mode, int(fixed), int(texture), int(uploads)) for w, h, mode, fixed, texture, uploads in
+                     re.findall(r"GS display (\d+)x(\d+) (FIELD|FRAME) fixed_vram=(\d+) texture_vram=(\d+) uploads=(\d+)", log)]
+            expected_modes = [(width, lines, mode, renderer_capture.fixed_vram_bytes(width, lines, 16), 2097152, index + 1)
+                              for index, (width, lines, mode) in enumerate(((512, height, "FIELD"), (640, height, "FIELD"),
+                                                                             (512, height // 2, "FRAME"), (512, height, "FIELD")))]
+            if modes not in (expected_modes, expected_modes * 2):
+                return False, "invalid display-mode switch"
             memory = re.findall(r"GS memory baseline=(\d+)/(\d+)/(\d+) final=(\d+)/(\d+)/(\d+)", log)
             chains = re.findall(r"GS chains half=(\d+) peak=(\d+) kicks=(\d+) drains=(\d+)", log)
             if (not memory or any(item[:3] != item[3:] for item in memory) or
@@ -967,6 +976,12 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 capture_checks[name] = renderer_capture.verify_format_scene(output / name, standard, bits)
             if capture_checks["renderer-format-16.tga"]["sha256"] != capture_checks["renderer-format-16-again.tga"]["sha256"]:
                 raise ValueError("the frame-buffer profile round trip changed the 16-bit picture")
+            for name, resolution, interlace in (("renderer-display-512.tga", 0, "FIELD"), ("renderer-display-640.tga", 1, "FIELD"),
+                                                ("renderer-display-frame.tga", 0, "FRAME"), ("renderer-display-512-again.tga", 0, "FIELD")):
+                size = renderer_capture.frame_size(standard, resolution, interlace)
+                capture_checks[name] = renderer_capture.verify_format_scene(output / name, standard, 16, size)
+            if capture_checks["renderer-display-512.tga"]["sha256"] != capture_checks["renderer-display-512-again.tga"]["sha256"]:
+                raise ValueError("the display-mode round trip changed the default-mode picture")
             for name in ("renderer-ui.tga", "renderer-ui-reload.tga"):
                 capture_checks[name] = renderer_capture.verify_ui_scene(output / name, standard)
             if capture_checks["renderer-ui.tga"]["sha256"] != capture_checks["renderer-ui-reload.tga"]["sha256"]:

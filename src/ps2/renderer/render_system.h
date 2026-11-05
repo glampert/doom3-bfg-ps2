@@ -15,13 +15,22 @@
 namespace ps2::renderer
 {
 
+// What the frame buffers look like: one of the standard's resolutions (an index into
+// system::video::ResolutionAt), how each field reads them and the frame-buffer profile.
+struct DisplayMode
+{
+    int resolution = 0;
+    system::video::Interlace interlace = system::video::Interlace::Field;
+    gs::FrameFormat format = gs::FrameFormat::Color16;
+};
+
 struct Config
 {
     system::video::Standard standard = system::video::Standard::Ntsc;
     u32 chainRingBytes    = 128U * 1024U; // per in-flight frame; the list is built in the scratchpad
-    u32 textureVramBytes  = 2U * 1024U * 1024U; // at most: the frame-buffer profile may leave less
+    u32 textureVramBytes  = 2U * 1024U * 1024U; // at most: the display mode's buffers may leave less
     u32 texturePixelBytes = 2U * 1024U * 1024U;
-    gs::FrameFormat frameFormat = gs::FrameFormat::Color16;
+    DisplayMode display = {};
 };
 
 // Init/shutdown:
@@ -29,9 +38,11 @@ PS2_COLD_FUNC bool Init(const Config & config);
 PS2_COLD_FUNC void Shutdown();
 bool IsInitialized();
 
-// Changes the frame-buffer profile between frames. Textures move above the new frame buffers and
-// upload again when next drawn; the texture range is the configured one, capped by what is left.
-PS2_COLD_FUNC void SetFrameFormat(gs::FrameFormat format);
+// Changes the display mode between frames, restarting the GS. Textures move above the new frame
+// buffers and upload again when next drawn; the texture range is the configured one, capped by
+// what the buffers leave. The mode's resolution index must be one of the standard's.
+PS2_COLD_FUNC void SetDisplayMode(const DisplayMode & mode);
+DisplayMode GetDisplayMode();
 
 // Frame lifecycle:
 bool FrameStarted();

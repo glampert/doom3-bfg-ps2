@@ -229,6 +229,13 @@ faces when a pass needs them).
   captures both.
 - 512 wide is the default. 640 wide costs 25% more frame-buffer VRAM and fill and is a
   stretch after texture residency is measured (section 16).
+- Implemented 2026-11-05: `system::video` holds each standard's resolution table (512 and 640
+  wide at the standard's lines) and the interlace mode (`Interlace::Field`, `Interlace::Frame`
+  with a half-height buffer, no flicker filter and a flip on any field); `renderer::DisplayMode`
+  carries resolution, interlace and frame format, and `renderer::SetDisplayMode` restarts the GS
+  between frames. Live through `ps2_resolution 0|1` and `ps2_interlace field|frame`
+  ([CVARS.md](../CVARS.md)); the GS gate's `display-mode-switch` and `make test-world` exercise
+  both. The defaults stay 512 wide and FIELD; the 640 experiment is an R9 item (section 19).
 
 ### 4.3 Frame buffer format
 
@@ -1611,7 +1618,7 @@ are taken on measurements.
 | **R6 shadows L0 and L1** | Planar and blob shadows through the A-bit mask; flashlight projected shadow texture behind the option | Overlapping shadow triangles darken once; the projected silhouette matches the analytic box within one texel |
 | **R7 the rest of the draws** | Particles program, decals and overlays, in-world GUIs, one bounded subview, `_currentRender` heat haze, fog | mars_city1 start sequence captures (monitors, particles, the hallway heat haze) against PC references |
 | **R8 UI on PATH1** | `ui_2d` runs, the collector writing into the display list, depth-mask rework | Every `make test-ui` capture matches the current DIRECT path within the pixel model |
-| **R9 optimisation and hardware** | Batch merging per material and area, program-swap minimisation, PATH3 upload interleave if measured, LOD/mips tuning, PAL profile decision, L2 counter stencil if the budget allows | Hardware frame log on the camera path: p95 frame time at most 33.3 ms NTSC and 40.0 ms PAL, no frame above 50 / 60 ms; the memory ledgers stay inside section 16 at every area transition |
+| **R9 optimisation and hardware** | Batch merging per material and area, program-swap minimisation, PATH3 upload interleave if measured, LOD/mips tuning, PAL profile decision, L2 counter stencil if the budget allows; the 640-wide experiment (`ps2_resolution 1`): the in-game texture working set per area against the 1.27 MB NTSC / 0.88 MB PAL the 32-bit buffers leave, the fill and VU1 cost on the hardware frame log, and retail UI glyph sets cooked for 640 if the width is adopted | Hardware frame log on the camera path: p95 frame time at most 33.3 ms NTSC and 40.0 ms PAL, no frame above 50 / 60 ms; the memory ledgers stay inside section 16 at every area transition; the 640 experiment records adopt or keep 512 in section 20 |
 
 Before R1 can draw, the production frame must call the game's draw path: the existing
 headless `Frame` gains a `RenderScene` step inside the presentation bracket, and `Common`
@@ -1652,6 +1659,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Texture uploads | Inside the VIF1 chain (`FLUSHA; DIRECT`) | PATH3 with `MSKPATH3` | Ordering safety first; interleave as an R9 optimisation |
 | Display list | Scratchpad builder, `fromSPR` drains, CNT/REF/CALL only | Main-RAM builder with cache flushes | No per-frame flush, position-independent list (Black) |
 | Resolution | 512x448 / 512x512 FIELD mode | 640 wide; FRAME mode half height | VRAM; decided finally at R1 and R9 |
+| Display modes (2026-11-05) | `system::video`'s per-standard resolution table (512 and 640 wide) and interlace mode (FIELD, FRAME half height), one `renderer::DisplayMode` with the frame format, changed live by `ps2_resolution` and `ps2_interlace` through the same GS restart as the profile | Fixed 512 FIELD until R9; a width cvar alone | The settings menu will offer the list later; FRAME mode and 640 can be judged on the TV as soon as a console session runs; FRAME buffers pad to whole page rows (a 224-line 16-bit buffer takes 256) so the next buffer never shares a page row; FRAME flips on either field, since both show the whole buffer |
 
 ### 20.2 Risks
 
@@ -1679,7 +1687,10 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 - Whether the shared Z buffer across `PSMCT32` scene and `PSMCT16S` scratch behaves on
   hardware exactly as the group rule implies (R0 hardware probe).
 - Whether a half-height FRAME-mode buffer is acceptable if interlace flicker on lit edges is
-  visible at 30 fps.
+  visible at 30 fps (`ps2_interlace frame` shows it live since 2026-11-05; the judgement needs
+  a TV).
+- Whether 640 wide earns its 25% more frame-buffer VRAM and fill once R2 measures the in-game
+  texture working set (the R9 experiment, `ps2_resolution 1`).
 - How many lights per view the real portal flow yields in the busiest rooms (areas 15 and 7
   of mars_city1 have 51 to 52 lights in reach), which sizes R5's light binding.
 - Whether cinematics' animations (3.7 MiB) stream from disc fast enough on USB and HDD.

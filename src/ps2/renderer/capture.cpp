@@ -22,8 +22,10 @@ namespace ps2::renderer::gs
 namespace
 {
 
-static constexpr int kWidth = 512;
-static constexpr int kStripRows = 32; // PSMCT16 rows a strip holds; PSMCT32 pixels fill it in half as many
+// The widest frame buffer (system::video) and the PSMCT16 rows of it a strip holds; narrower
+// buffers and PSMCT32 pixels fill the same strip in other row counts (StripRows).
+static constexpr int kMaxWidth = 640;
+static constexpr int kStripRows = 25;
 static constexpr u32 kDmaStart = 1U << 8;
 static constexpr u32 kDmacSuspend = 1U << 16;
 static constexpr u32 kVifDirection = 1U << 23;
@@ -37,8 +39,8 @@ static constexpr u32 kTimeoutCycles = 294912000U;
 // whole cache lines, and a stalled receive is stopped by RecoverPipeline before release.
 struct alignas(64) Strip
 {
-    u8 pixels[kWidth * kStripRows * sizeof(u16)];
-    u8 bgr[kWidth * kStripRows * 3];
+    u8 pixels[kMaxWidth * kStripRows * sizeof(u16)];
+    u8 bgr[kMaxWidth * kStripRows * 3];
 };
 
 static_assert(sizeof(Strip::pixels) % 64 == 0 && sizeof(Strip) % 64 == 0);
@@ -128,9 +130,10 @@ PS2_COLD_FUNC bool ReadRows(Strip & strip, const gs::FramebufferInfo & frame, in
 {
     PS2_Assert(y >= 0 && rows > 0 && rows <= StripRows(frame) && y + rows <= frame.height);
 
-    // The profile uses full, aligned rows, so neither the request nor target shares a
-    // cache line with unrelated data. Both DMA channels must already have drained.
-    if (frame.width != kWidth || (frame.pixelFormat != GS_PSM_16 && frame.pixelFormat != GS_PSM_32) || y < 0 || rows <= 0 ||
+    // Every supported width is a whole number of 64-pixel GS blocks, so neither the request nor
+    // the target shares a cache line with unrelated data. Both DMA channels must already have drained.
+    if (frame.width <= 0 || frame.width > kMaxWidth || frame.width % 64 != 0 || (frame.pixelFormat != GS_PSM_16 && frame.pixelFormat != GS_PSM_32) ||
+        y < 0 || rows <= 0 ||
         rows > StripRows(frame) || y > frame.height - rows ||
         (*R_EE_D1_CHCR & kDmaStart) != 0 || (*R_EE_D2_CHCR & kDmaStart) != 0 ||
         (*R_EE_VIF1_STAT & (kVifDirection | kVifFifoCount)) != 0 ||
@@ -299,9 +302,10 @@ PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
     }
 
     const gs::FramebufferInfo frame = gs::GetFramebuffer(context);
-    if (frame.width != kWidth || frame.height <= 0 || frame.height > 512 || (frame.pixelFormat != GS_PSM_16 && frame.pixelFormat != GS_PSM_32))
+    if (frame.width <= 0 || frame.width > kMaxWidth || frame.width % 64 != 0 || frame.height <= 0 || frame.height > 512 ||
+        (frame.pixelFormat != GS_PSM_16 && frame.pixelFormat != GS_PSM_32))
     {
-        Log(LogLevel::Error, "GS capture supports only the 512-wide PSMCT16 and PSMCT32 device profiles");
+        Log(LogLevel::Error, "GS capture supports only PSMCT16 and PSMCT32 frame buffers up to %d pixels wide", kMaxWidth);
         return false;
     }
 

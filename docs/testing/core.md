@@ -92,6 +92,18 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   1,900,544 NTSC / 1,572,864 PAL at 32 bits, one re-upload after each change), the runner
   requires those lines and checks every pixel of `renderer-format-{16,32,16-again}.tga`, and
   the two 16-bit captures must be byte-identical.
+- Display modes: `renderer-gs/display-mode-switch` draws the same scene in the 16-bit profile
+  at the default 512-wide FIELD mode, after `renderer::SetDisplayMode` restarts the GS 640 wide,
+  at 512 in FRAME mode (a half-height buffer: 224 NTSC / 256 PAL lines) and at the default
+  again, logging `GS display WxH FIELD|FRAME fixed_vram= texture_vram= uploads=` per mode
+  (`fixed_vram` 1,376,256 / 1,720,320 / 786,432 / 1,376,256 NTSC, 1,572,864 / 1,966,080 /
+  786,432 / 1,572,864 PAL: FRAME buffers pad to whole 64-line page rows; one texture re-upload
+  per change). The runner requires those lines, checks every pixel of
+  `renderer-display-{512,640,frame,512-again}.tga` at the mode's size
+  (`renderer_capture.frame_size`, `fixed_vram_bytes`) and the two default-mode captures must be
+  byte-identical. `rejected-partial-init` refuses a 320-wide device and FRAME mode asked for
+  with the full line count. The `GS ready` line names the interlace mode before the profile
+  (`GS ready NTSC 512x448 FIELD PSMCT16/Z16 fixed_vram=`).
 - `make test-host` builds the texture converter and runs its library tests (glyph sets
   included), the target GSTX admission against converter output, the catalog reader
   against valid and mutated glyph tables and Python tests that drive the converter on

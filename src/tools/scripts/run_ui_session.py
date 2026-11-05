@@ -37,7 +37,7 @@ STEPS = (("boot", 300), ("console", 90), ("fonts", 180), ("inactive", 180), ("ex
          ("shell", 300), ("menu", 420), ("screens", 300), ("quit", 300))
 STARTUP_SECONDS = 120
 CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(\S+\.tga) frame=(\d+) presents=(\d+) redraws=(\d+)")
-GS_READY_RE = re.compile(r"\[D3BFG\] GS ready (NTSC|PAL) 512x\d+ (\S+) ")
+GS_READY_RE = re.compile(r"\[D3BFG\] GS ready (NTSC|PAL) \d+x\d+ (?:FIELD|FRAME) (\S+) ")
 # Where screens may evict textures, the whole session's evictions stay below this: each comes from
 # a screen change (11 in the PAL session, 2026-11-05), while per-frame churn would reach hundreds.
 EVICTION_LIMIT = 32

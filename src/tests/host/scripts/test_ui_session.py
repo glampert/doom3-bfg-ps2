@@ -57,7 +57,7 @@ class SessionAcceptance(unittest.TestCase):
                     f"triangles=10 uploads=33 evictions={evictions} channel_cluts=66 channel_pixels=73728\n")
 
         def with_profile(log, standard, profile):
-            return log.replace(f"GS ready {standard.upper()} 512x448\n", f"GS ready {standard.upper()} 512x448 {profile} fixed_vram=1\n")
+            return log.replace(f"GS ready {standard.upper()} 512x448\n", f"GS ready {standard.upper()} 512x448 FIELD {profile} fixed_vram=1\n")
 
         pal32 = with_profile(session_log("pal"), "pal", "PSMCT32/Z16S")
         self.assertTrue(session.evicting_profile(pal32))

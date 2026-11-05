@@ -61,12 +61,18 @@ coordinates; CLUTs; VRAM and mipmaps.
   vsync paces visible mode (no headless sleep). `UpdateScreen` coalesces in-frame redraws, and an
   out-of-frame redraw never advances simulation; guard against recursive Begin/End. A queued
   `ps2_capture` finishes before shutdown.
-- **Frame-buffer profiles:** `gs::FrameFormat` `Color32` (`PSMCT32` + `PSMZ16S`, production's
-  default) or `Color16` (`PSMCT16` + `PSMZ16`, `renderer::Config`'s default for test images), live
-  through `ps2_frameBufferBits`. A change restarts the GS
-  (`renderer::SetFrameFormat`: shutdown, init, `vu::Invalidate`, `tex::MoveVram`); never lay the
-  buffers out again under a running GS (PCSX2's hardware renderer then returned stale old-format
-  targets to the first readback). Pixel models use `renderer_capture.stored(rgb, bits)`.
+- **Display modes:** `renderer::DisplayMode` is a resolution index into `system::video`'s
+  per-standard table (512 wide the default, 640 the alternative, at the standard's lines), the
+  interlace mode and the frame-buffer profile: `gs::FrameFormat` `Color32` (`PSMCT32` + `PSMZ16S`,
+  production's default) or `Color16` (`PSMCT16` + `PSMZ16`, `renderer::Config`'s default for test
+  images). Live through `ps2_resolution`, `ps2_interlace` and `ps2_frameBufferBits`. A change
+  restarts the GS (`renderer::SetDisplayMode`: shutdown, init, `vu::Invalidate`, `tex::MoveVram`);
+  never lay the buffers out again under a running GS (PCSX2's hardware renderer then returned stale
+  old-format targets to the first readback). FRAME mode (`SMODE2.FFMD` 1) draws a half-height buffer
+  shown whole on every field: no flicker filter, both `DISPFB` circuits at line 0, pipelined presents
+  flip on any field. Buffers pad to whole GS page rows (64 lines for 16-bit formats, 32 for
+  `PSMCT32`) so a 224-line buffer never shares a page row with the next one. Pixel models use
+  `renderer_capture.stored(rgb, bits)`, `frame_size` and `fixed_vram_bytes`.
 - **Device:** reset/claim VIF1 and GIF along with the GS (CSR reset alone stalled PATH2 DIRECT).
   The display list (`dma::DisplayList`, `dma_list.h`) is the one command interface (DIRECT
   blocks, `FlushPaths`, VU1 frame constants, programs and batches; no client writes tags). It is built in the 16 KiB scratchpad and

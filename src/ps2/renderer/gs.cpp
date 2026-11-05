@@ -27,6 +27,7 @@ namespace
 static framebuffer_t s_frames[2] = {};
 static zbuffer_t s_depth = {};
 static FrameFormat s_format = FrameFormat::Color16;
+static system::video::Interlace s_interlace = system::video::Interlace::Field;
 static int s_width = 0;
 static int s_height = 0;
 static u32 s_fixedVramBytes = 0;
@@ -261,13 +262,25 @@ ID_FORCE_INLINE int DepthPsm(FrameFormat format)
     return format == FrameFormat::Color32 ? GS_ZBUF_16S : GS_ZBUF_16;
 }
 
+// A buffer's height rounded up to whole GS page rows: 16-bit formats page 64x64 texels, 32-bit
+// ones 64x32. The GS addresses a buffer by whole page rows, so a 224-line PSMCT16 buffer still
+// reaches into its fourth row; another buffer starting inside it would overlap.
+ID_FORCE_INLINE int PaddedRows(int psm, int height)
+{
+    const int pageRows = psm == GS_PSM_32 ? 32 : 64;
+    return (height + pageRows - 1) / pageRows * pageRows;
+}
+
 // Both colour buffers, then the depth buffer, page-aligned from VRAM address 0.
 PS2_COLD_FUNC bool LayOutBuffers(FrameFormat format, int width, int height)
 {
+    const int colorRows = PaddedRows(ColorPsm(format), height);
+    const int depthRows = PaddedRows(DepthPsm(format), height);
+
     graph_vram_clear();
-    const int first  = graph_vram_allocate(width, height, ColorPsm(format), GRAPH_ALIGN_PAGE);
-    const int second = graph_vram_allocate(width, height, ColorPsm(format), GRAPH_ALIGN_PAGE);
-    const int depth  = graph_vram_allocate(width, height, DepthPsm(format), GRAPH_ALIGN_PAGE);
+    const int first  = graph_vram_allocate(width, colorRows, ColorPsm(format), GRAPH_ALIGN_PAGE);
+    const int second = graph_vram_allocate(width, colorRows, ColorPsm(format), GRAPH_ALIGN_PAGE);
+    const int depth  = graph_vram_allocate(width, depthRows, DepthPsm(format), GRAPH_ALIGN_PAGE);
 
     if (first < 0 || second < 0 || depth < 0)
     {
@@ -290,8 +303,23 @@ PS2_COLD_FUNC bool LayOutBuffers(FrameFormat format, int width, int height)
     s_depth.enable  = DRAW_DISABLE;
     s_depth.method  = ZTEST_METHOD_ALLPASS;
     s_format        = format;
-    s_fixedVramBytes = static_cast<u32>(depth + graph_vram_size(width, height, DepthPsm(format), GRAPH_ALIGN_PAGE)) * 4U;
+    s_fixedVramBytes = static_cast<u32>(depth + graph_vram_size(width, depthRows, DepthPsm(format), GRAPH_ALIGN_PAGE)) * 4U;
     return true;
+}
+
+// The read circuits show 'address'. FIELD mode blends the two circuits a line apart (libgraph's
+// flicker filter); FRAME mode reads the whole buffer on every field through circuit 2 alone, so
+// both circuits name line 0 and the one-line offset would only drop the first line.
+void SetDisplayBuffer(u32 address)
+{
+    if (s_interlace == system::video::Interlace::Field)
+    {
+        graph_set_framebuffer_filtered(static_cast<int>(address), s_width, ColorPsm(s_format), 0, 0);
+        return;
+    }
+
+    graph_set_framebuffer(0, static_cast<int>(address), s_width, ColorPsm(s_format), 0, 0);
+    graph_set_framebuffer(1, static_cast<int>(address), s_width, ColorPsm(s_format), 0, 0);
 }
 
 } // namespace
@@ -303,9 +331,13 @@ PS2_COLD_FUNC bool Init(const Config & config)
         FatalError("invalid GS initialization order");
     }
 
-    // Narrow first device profile: all dimensions are page-aligned and fit the TV standard.
-    if (!system::video::IsValid(config.standard) || config.width != 512 || config.height != system::video::VisibleLines(config.standard) ||
-        (config.format != FrameFormat::Color16 && config.format != FrameFormat::Color32))
+    // One of the standard's resolutions (video_mode.cpp) at the lines its interlace mode draws.
+    const bool known = system::video::IsValid(config.standard) && system::video::IsValid(config.interlace) &&
+                       (config.format == FrameFormat::Color16 || config.format == FrameFormat::Color32);
+    const int lines = known ? system::video::VisibleLines(config.standard) : 0;
+    const int index = known ? system::video::FindResolution(config.standard, { config.width, lines }) : -1;
+
+    if (index < 0 || config.height != system::video::FrameHeight(system::video::ResolutionAt(config.standard, index), config.interlace))
     {
         Log(LogLevel::Error, "unsupported GS device configuration\n");
         return false;
@@ -316,16 +348,23 @@ PS2_COLD_FUNC bool Init(const Config & config)
         return false;
     }
 
+    s_interlace = config.interlace;
     s_width = config.width;
     s_height = config.height;
     s_previousImr = GsGetIMR();
 
-    if (graph_set_mode(GRAPH_MODE_INTERLACED, system::video::GraphMode(config.standard), GRAPH_MODE_FIELD, GRAPH_ENABLE) != 0)
+    // FIELD mode blends the two read circuits a line apart (the flicker filter); FRAME mode shows
+    // the same lines on both fields, where the filter would only blur adjacent buffer lines.
+    const bool field = config.interlace == system::video::Interlace::Field;
+
+    if (graph_set_mode(GRAPH_MODE_INTERLACED, system::video::GraphMode(config.standard), field ? GRAPH_MODE_FIELD : GRAPH_MODE_FRAME,
+                       field ? GRAPH_ENABLE : GRAPH_DISABLE) != 0)
     {
         graph_shutdown();
         GsPutIMR(s_previousImr);
         graph_vram_clear();
         s_format = FrameFormat::Color16;
+        s_interlace = system::video::Interlace::Field;
         s_width = s_height = 0;
         s_fixedVramBytes = 0;
         return false;
@@ -348,7 +387,7 @@ PS2_COLD_FUNC bool Init(const Config & config)
     GsPutIMR(0x7F00);
     graph_set_screen(0, 0, s_width, s_height);
     graph_set_bgcolor(0, 0, 0);
-    graph_set_framebuffer_filtered(static_cast<int>(s_frames[0].address), s_width, ColorPsm(s_format), 0, 0);
+    SetDisplayBuffer(s_frames[0].address);
     s_initialized = true;
 
     if (dma_channel_initialize(DMA_CHANNEL_GIF, nullptr, 0) < 0)
@@ -368,8 +407,8 @@ PS2_COLD_FUNC bool Init(const Config & config)
     }
     dma::EndFrame();
 
-    Log(LogLevel::Info, "[D3BFG] GS ready %s %dx%d %s fixed_vram=%u\n",
-        system::video::Name(config.standard), s_width, s_height, FrameFormatName(s_format), s_fixedVramBytes);
+    Log(LogLevel::Info, "[D3BFG] GS ready %s %dx%d %s %s fixed_vram=%u\n", system::video::Name(config.standard), s_width, s_height,
+        system::video::InterlaceName(s_interlace), FrameFormatName(s_format), s_fixedVramBytes);
 
     return true;
 }
@@ -406,6 +445,7 @@ PS2_COLD_FUNC void Shutdown()
     s_frames[1] = {};
     s_depth = {};
     s_format = FrameFormat::Color16;
+    s_interlace = system::video::Interlace::Field;
     s_width = s_height = 0;
     s_fixedVramBytes = 0;
     s_initialized = false;
@@ -424,6 +464,11 @@ int Width()
 int Height()
 {
     return s_height;
+}
+
+system::video::Interlace GetInterlace()
+{
+    return s_interlace;
 }
 
 u32 FixedVramBytes()
@@ -453,15 +498,18 @@ void Present(DrawContext context, PresentMode mode)
     *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
     WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC");
 
-    // CSR.FIELD (bit 13) is the field now being displayed. A flip at the start of the EVEN field
-    // shows the whole frame for two fields; one that lands on ODD waits for the next vsync.
-    while (mode == PresentMode::Pipelined && (*GS_REG_CSR & (1U << 13)) != 0U)
+    // CSR.FIELD (bit 13) is the field now being displayed. In FIELD mode a flip at the start of
+    // the EVEN field shows the whole frame for two fields; one that lands on ODD waits for the
+    // next vsync. FRAME mode shows the whole buffer on either field.
+    const bool pairFields = mode == PresentMode::Pipelined && s_interlace == system::video::Interlace::Field;
+
+    while (pairFields && (*GS_REG_CSR & (1U << 13)) != 0U)
     {
         *GS_REG_CSR = 8;
         WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC (even field)");
     }
 
-    graph_set_framebuffer_filtered(static_cast<int>(s_frames[Index(context)].address), s_width, ColorPsm(s_format), 0, 0);
+    SetDisplayBuffer(s_frames[Index(context)].address);
     graph_enable_output();
 }
 

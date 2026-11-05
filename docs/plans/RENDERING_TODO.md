@@ -131,10 +131,23 @@ production link free of test inputs. Section numbers in parentheses point into t
       runners' `stored()`/`tolerance()` model per profile, and the live `ps2_frameBufferBits`
       cvar; the GS gate's `world-graybox-32` and `frame-format-switch`, and `make test-world`
       redrawing its six views at 32 bits (2026-11-05).
+- [x] Display modes selectable live (4.2): `system::video`'s resolution table (512 and 640
+      wide per standard) and interlace mode (FIELD, FRAME with a half-height buffer),
+      `renderer::DisplayMode`/`SetDisplayMode` replacing the profile-only setter, captures up
+      to 640 wide, `ps2_resolution` and `ps2_interlace` with their `CVARS.md` rows; the GS
+      gate's `display-mode-switch` and `make test-world`'s 640 and FRAME doorway views
+      (2026-11-05). Defaults stay 512 wide, FIELD.
+- [ ] The world viewer's and the GS gate's horizontal field of view from the display's 4:3
+      aspect instead of the buffer's width over height (`presentation.cpp` `ps2_world view`,
+      `renderer_gs_tests.cpp` `WorldGraybox`): the picture is drawn 1.17x too wide at 512x448
+      and 1.33x at PAL's 512x512, and changes with `ps2_resolution` and `ps2_interlace`. Moves
+      `WORLD_SCENE_PIXELS` and brings the doorway portal into the `clip` camera's frustum, so
+      the reference pixels and that camera's culling counts are regenerated with it (2026-11-05).
 - [ ] Gate: fixed-camera captures of the room in both profiles (done for the graybox,
       2026-11-05: `docs/images/renderer-world-3-*`); area 2 draws with correct depth and
       portal culling; decisions on profile, topology and FIELD versus FRAME mode written into
-      section 20. The profile is decided: `PSMCT32 + Z16S` by default (2026-11-05).
+      section 20. The profile is decided: `PSMCT32 + Z16S` by default (2026-11-05); FIELD is
+      kept for now (FRAME stays live for a TV judgement).
 
 ## R2: lightmapped world and streaming
 
@@ -224,6 +237,12 @@ production link free of test inputs. Section numbers in parentheses point into t
 
 - [ ] Batch merging per material and area; program-swap minimisation; PATH3 upload
       interleave if uploads measure as a stall; LOD and mip tuning; PAL profile decision.
+- [ ] Experiment with the 640-wide resolution (`ps2_resolution 1`, 4.2): measure the in-game
+      texture working set per area against the 1,327,104 bytes NTSC / 917,504 PAL the 32-bit
+      buffers leave, the fill and VU1 cost on the hardware frame log, and the menu's
+      pre-rendered glyph sets at 640 (they are cooked for 512 and fall back to native quads);
+      PAL at 640x512 in 32 bits already thrashes the retail menu (917,504 bytes of texture VRAM),
+      so PAL would pair 640 with 16 bits or less resident UI; record adopt or keep 512 in section 20.
 - [ ] L2 counting stencil for at most two lights if the hardware frame log leaves room
       (9.2, 9.3); shadow-rung cvar in `CVARS.md`.
 - [ ] Gate: hardware frame log on the camera path, p95 at most 33.3 ms NTSC and 40.0 ms

@@ -53,12 +53,15 @@ enum class FrameFormat : u8
     Color32  // PSMCT32 + PSMZ16S: eight bits a channel and an 8-bit destination alpha
 };
 
+// The frame buffers: one of the standard's resolutions (system::video::ResolutionAt) at the lines
+// its interlace mode draws (system::video::FrameHeight), in a frame-buffer profile.
 struct Config
 {
     system::video::Standard standard;
     int width;
     int height;
     FrameFormat format = FrameFormat::Color16;
+    system::video::Interlace interlace = system::video::Interlace::Field;
 };
 
 struct Color
@@ -114,6 +117,7 @@ bool IsInitialized();
 
 int Width();
 int Height();
+system::video::Interlace GetInterlace();
 
 // The frame buffers occupy VRAM from address 0 up to FixedVramBytes(); textures live above.
 u32 FixedVramBytes();
@@ -125,8 +129,9 @@ int FrameFormatBits(FrameFormat format);
 
 // Immediate: wait for the queued chain, then flip at the next vsync (the 2D path, which needs
 // no following frame). Pipelined: the context's chain already ran (the caller waited before
-// kicking the next frame); flip at the next vsync that starts an EVEN field, so the frame
-// displays for two fields and the pace is 30/25 fps.
+// kicking the next frame); in FIELD mode flip at the next vsync that starts an EVEN field, so the
+// frame displays for two fields and the pace is 30/25 fps. FRAME mode shows the whole buffer on
+// every field, so it flips at the next vsync.
 enum class PresentMode : u8
 {
     Immediate,

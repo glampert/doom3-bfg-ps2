@@ -16,7 +16,8 @@ import struct
 
 
 TGA_HEADER = struct.Struct("<BBBHHBHHHHBB")
-MAX_DIMENSION = 512
+# The widest frame buffer (640) and the most lines (PAL's 512) the device offers.
+MAX_DIMENSION = 640
 PIXEL_TOLERANCE = 8
 # The 32-bit profile stores every channel bit, so its captures may differ from an exact model by
 # rounding alone; a five-bit store of the same colours misses by up to seven.
@@ -39,6 +40,35 @@ def tolerance(bits: int) -> int:
     if bits not in FRAME_BITS:
         raise ValueError("frame-buffer bits must be 16 or 32")
     return PIXEL_TOLERANCE_32 if bits == 32 else PIXEL_TOLERANCE
+
+
+# The device's display modes (system::video): the standard's visible lines, its frame-buffer widths
+# (index 0 the default) and how each field reads the buffer.
+VISIBLE_LINES = {"NTSC": 448, "PAL": 512}
+RESOLUTION_WIDTHS = (512, 640)
+INTERLACE_MODES = ("FIELD", "FRAME")
+
+
+def frame_size(standard: str, resolution: int = 0, interlace: str = "FIELD") -> tuple:
+    """The frame buffer's pixels in a display mode: FRAME mode holds half the standard's lines."""
+    if standard not in VISIBLE_LINES or not 0 <= resolution < len(RESOLUTION_WIDTHS) or interlace not in INTERLACE_MODES:
+        raise ValueError("display mode outside the device's table")
+    lines = VISIBLE_LINES[standard]
+    return RESOLUTION_WIDTHS[resolution], lines // 2 if interlace == "FRAME" else lines
+
+
+def fixed_vram_bytes(width: int, height: int, bits: int) -> int:
+    """VRAM the two colour buffers and the depth buffer take (gs.cpp LayOutBuffers): each buffer is
+    padded to whole GS page rows, 64 lines for 16-bit formats and 32 for PSMCT32, and the depth
+    buffer is 16 bits in both profiles."""
+    if bits not in FRAME_BITS:
+        raise ValueError("frame-buffer bits must be 16 or 32")
+
+    def buffer(bytes_per_pixel):
+        page_rows = 32 if bytes_per_pixel == 4 else 64
+        return width * -(-height // page_rows) * page_rows * bytes_per_pixel
+
+    return 2 * buffer(bits // 8) + buffer(2)
 SCENE_PIXELS = (
     ("border", 0, 0, (255, 255, 255)),
     ("background", 12, 12, (16, 24, 40)),
@@ -280,16 +310,17 @@ FORMAT_SCENE_RECTS = (
 FORMAT_CLEAR = (0, 0, 0)
 
 
-def verify_format_scene(path: Path, standard: str, bits: int) -> dict:
+def verify_format_scene(path: Path, standard: str, bits: int, size: tuple | None = None) -> dict:
     """Require every pixel of the profile-switch scene at the colour the profile of 'bits' stores:
-    a pixel of an earlier picture or layout left anywhere fails."""
+    a pixel of an earlier picture or layout left anywhere fails. 'size' is the display mode's frame
+    (frame_size), the default 512-wide FIELD mode unless given."""
     if standard not in ("NTSC", "PAL"):
         raise ValueError("renderer capture standard must be NTSC or PAL")
     slack = tolerance(bits)
     width, height, pixels, digest = _read_capture(path)
-    expected_height = 448 if standard == "NTSC" else 512
-    if (width, height) != (512, expected_height):
-        raise ValueError(f"format capture is {width}x{height}; expected 512x{expected_height} for {standard}")
+    expected = size or frame_size(standard)
+    if (width, height) != tuple(expected):
+        raise ValueError(f"format capture is {width}x{height}; expected {expected[0]}x{expected[1]} for {standard}")
     counts = {name: 0 for name, *_ in FORMAT_SCENE_RECTS}
     counts["format-clear"] = 0
     for y in range(height):

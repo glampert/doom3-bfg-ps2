@@ -18,6 +18,7 @@ static gs::DrawContext s_context = gs::DrawContext::Ctx0;
 static u32 s_frames = 0;
 static u32 s_textureVramBytes = 0;
 static system::video::Standard s_standard = system::video::Standard::Ntsc;
+static DisplayMode s_display;
 static constexpr u8 kChannelBits[] = { gs::kWriteRed, gs::kWriteGreen, gs::kWriteBlue };
 
 // The configured texture range, or all VRAM the frame buffers leave when that is less.
@@ -25,6 +26,26 @@ u32 TextureVramBytes()
 {
     const u32 free = gs::kVramBytes - gs::FixedVramBytes();
     return s_textureVramBytes < free ? s_textureVramBytes : free;
+}
+
+// The GS configuration a display mode means on 'standard'; false when its resolution index is
+// not one of the standard's.
+PS2_COLD_FUNC bool DeviceConfig(system::video::Standard standard, const DisplayMode & mode, gs::Config & config)
+{
+    if (!system::video::IsValid(standard) || mode.resolution < 0 || mode.resolution >= system::video::ResolutionCount(standard) ||
+        !system::video::IsValid(mode.interlace))
+    {
+        return false;
+    }
+
+    const system::video::Resolution resolution = system::video::ResolutionAt(standard, mode.resolution);
+    config = { standard, resolution.width, system::video::FrameHeight(resolution, mode.interlace), mode.format, mode.interlace };
+    return true;
+}
+
+bool SameMode(const DisplayMode & a, const DisplayMode & b)
+{
+    return a.resolution == b.resolution && a.interlace == b.interlace && a.format == b.format;
 }
 
 u8 ChannelValue(const ui::FixedVertex & vertex, int channel)
@@ -182,7 +203,9 @@ PS2_COLD_FUNC bool Init(const Config & config)
         return false;
     }
 
-    if (!gs::Init({ config.standard, 512, system::video::VisibleLines(config.standard), config.frameFormat }))
+    gs::Config device;
+
+    if (!DeviceConfig(config.standard, config.display, device) || !gs::Init(device))
     {
         vu::Shutdown();
         dma::Shutdown();
@@ -190,6 +213,7 @@ PS2_COLD_FUNC bool Init(const Config & config)
     }
 
     s_standard = config.standard;
+    s_display = config.display;
     s_textureVramBytes = config.textureVramBytes;
 
     if (!tex::Init(TextureVramBytes(), config.texturePixelBytes))
@@ -223,16 +247,19 @@ PS2_COLD_FUNC void Shutdown()
     s_initialized = false;
     s_frames = 0;
     s_textureVramBytes = 0;
+    s_display = {};
 }
 
-PS2_COLD_FUNC void SetFrameFormat(gs::FrameFormat format)
+PS2_COLD_FUNC void SetDisplayMode(const DisplayMode & mode)
 {
-    if (!s_initialized || s_frame) [[unlikely]]
+    gs::Config device;
+
+    if (!s_initialized || s_frame || !DeviceConfig(s_standard, mode, device)) [[unlikely]]
     {
-        FatalError("frame-buffer profile changed outside the frame boundary");
+        FatalError("display mode changed outside the frame boundary or to one the standard lacks");
     }
 
-    if (format == gs::GetFrameFormat())
+    if (SameMode(mode, s_display))
     {
         return;
     }
@@ -244,13 +271,21 @@ PS2_COLD_FUNC void SetFrameFormat(gs::FrameFormat format)
     dma::WaitIdle();
     gs::Shutdown();
 
-    if (!gs::Init({ s_standard, 512, system::video::VisibleLines(s_standard), format })) [[unlikely]]
+    if (!gs::Init(device)) [[unlikely]]
     {
-        FatalError("cannot restart the GS in the %s profile", gs::FrameFormatName(format));
+        FatalError("cannot restart the GS at %dx%d %s %s", device.width, device.height, system::video::InterlaceName(device.interlace),
+                   gs::FrameFormatName(device.format));
     }
 
+    s_display = mode;
     vu::Invalidate();
     tex::MoveVram(TextureVramBytes());
+}
+
+DisplayMode GetDisplayMode()
+{
+    PS2_AssertMsg(s_initialized, "display mode query before initialization");
+    return s_display;
 }
 
 void BeginFrame(gs::Color clearColor)

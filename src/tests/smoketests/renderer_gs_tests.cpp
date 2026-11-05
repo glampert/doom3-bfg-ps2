@@ -715,7 +715,7 @@ bool WorldGraybox(system::video::Standard standard, renderer::gs::FrameFormat fo
     const bool loaded = level.sections.areaCount == 2 && level.sections.portalCount == 1 && level.sections.nodeCount == 11 &&
                         level.sections.batchCount > 0;
 
-    if (!renderer::Init({ standard, 128U * 1024U, 64U * 1024U, 128U * 1024U, format }))
+    if (!renderer::Init({ standard, 128U * 1024U, 64U * 1024U, 128U * 1024U, { 0, system::video::Interlace::Field, format } }))
     {
         renderer::world::Unload(level);
         return false;
@@ -798,12 +798,12 @@ bool FrameFormatSwitch(system::video::Standard standard)
     bool passed = texture.id != 0;
 
     // Asking for the current profile changes nothing.
-    renderer::SetFrameFormat(renderer::gs::FrameFormat::Color16);
+    renderer::SetDisplayMode({ 0, system::video::Interlace::Field, renderer::gs::FrameFormat::Color16 });
 
     for (u32 index = 0; index < static_cast<u32>(ArrayLength(kProfiles)) && passed; ++index)
     {
         const Profile & profile = kProfiles[index];
-        renderer::SetFrameFormat(profile.format);
+        renderer::SetDisplayMode({ 0, system::video::Interlace::Field, profile.format });
 
         const u32 fixed = renderer::gs::FixedVramBytes();
         const u32 capacity = static_cast<u32>(renderer::gs::GetVramStats().capacityBytes);
@@ -835,6 +835,88 @@ bool FrameFormatSwitch(system::video::Standard standard)
     renderer::Shutdown();
     return passed && SameLedger(baseline);
 }
+
+// The live display-mode change, in the 16-bit profile: the FrameFormatSwitch scene drawn at the
+// default 512-wide FIELD mode, after the GS restarts 640 wide, at 512 in FRAME mode (a half-height
+// buffer, its lines each shown on both fields), and at the default again. Every restart moves the
+// texture, which uploads once more; the fixed VRAM follows the buffers (a 224-line PSMCT16 buffer
+// pads to four 64-line page rows). The runner checks every pixel of each capture at its size and
+// the two default-mode captures against each other.
+bool DisplayModeSwitch(system::video::Standard standard)
+{
+    struct Mode
+    {
+        renderer::DisplayMode display;
+        const char * capture;
+        int width;
+        int height;
+        u32 fixedBytes;
+    };
+
+    const bool pal = standard == system::video::Standard::Pal;
+    const int lines = system::video::VisibleLines(standard);
+    const Mode kModes[] = {
+        { { 0, system::video::Interlace::Field }, "host:renderer-display-512.tga", 512, lines, pal ? 1572864U : 1376256U },
+        { { 1, system::video::Interlace::Field }, "host:renderer-display-640.tga", 640, lines, pal ? 1966080U : 1720320U },
+        { { 0, system::video::Interlace::Frame }, "host:renderer-display-frame.tga", 512, lines / 2, 786432U },
+        { { 0, system::video::Interlace::Field }, "host:renderer-display-512-again.tga", 512, lines, pal ? 1572864U : 1376256U },
+    };
+
+    static constexpr renderer::gs::Color kTexel = { 3, 130, 253, 255 };
+    static constexpr renderer::gs::Color kFill = { 93, 47, 205, 255 };
+
+    const auto baseline = system::heap::GetTotalStats();
+
+    if (!renderer::Init({ standard, 128U * 1024U, 2U * 1024U * 1024U, 128U * 1024U }))
+    {
+        return false;
+    }
+
+    renderer::gs::Color texels[16 * 16];
+
+    for (auto & texel : texels)
+    {
+        texel = kTexel;
+    }
+
+    const renderer::tex::Handle texture = renderer::tex::Create(16, 16, {}, texels, sizeof(texels), 16U * sizeof(texels[0]));
+    bool passed = texture.id != 0;
+
+    for (u32 index = 0; index < static_cast<u32>(ArrayLength(kModes)) && passed; ++index)
+    {
+        const Mode & mode = kModes[index];
+        renderer::SetDisplayMode(mode.display);
+
+        const u32 fixed = renderer::gs::FixedVramBytes();
+        const u32 capacity = static_cast<u32>(renderer::gs::GetVramStats().capacityBytes);
+
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            renderer::BeginFrame({ 255, 0, 255, 255 });
+            renderer::EndFrame();
+        }
+
+        renderer::BeginFrame({ 0, 0, 0, 255 });
+        renderer::FillRect(64, 64, 128, 96, kFill);
+        passed = renderer::TexturedRect(texture, 256, 64, 128, 96, 0, 0, 16, 16) && passed;
+        renderer::EndFrame();
+
+        const renderer::DisplayMode current = renderer::GetDisplayMode();
+        passed = passed && renderer::gs::CaptureTga(mode.capture, renderer::LastPresentedContext());
+        passed = passed && renderer::gs::Width() == mode.width && renderer::gs::Height() == mode.height &&
+                 renderer::gs::GetInterlace() == mode.display.interlace && current.resolution == mode.display.resolution &&
+                 current.interlace == mode.display.interlace && current.format == renderer::gs::FrameFormat::Color16 &&
+                 fixed == mode.fixedBytes && capacity == 2U * 1024U * 1024U && renderer::tex::GetStats().uploads == index + 1U;
+
+        Log(LogLevel::Info, "[D3BFG] GS display %dx%d %s fixed_vram=%u texture_vram=%u uploads=%u\n", renderer::gs::Width(),
+            renderer::gs::Height(), system::video::InterlaceName(renderer::gs::GetInterlace()), fixed, capacity,
+            renderer::tex::GetStats().uploads);
+    }
+
+    renderer::tex::Destroy(texture);
+    renderer::Shutdown();
+    return passed && SameLedger(baseline);
+}
 } // namespace
 
 bool RunGsTests(system::video::Standard standard)
@@ -843,7 +925,10 @@ bool RunGsTests(system::video::Standard standard)
     bool passed = Check("inactive-start", !renderer::IsInitialized() && !renderer::gs::IsInitialized() && !renderer::dma::IsInitialized());
     renderer::Shutdown();
     const bool invalid = !renderer::Init({ static_cast<system::video::Standard>(99), 128U * 1024U }) && !renderer::dma::Init(65);
-    const bool partial = renderer::dma::Init(1024) && !renderer::gs::Init({ standard, 640, system::video::VisibleLines(standard) });
+    // A width the standard lacks, and FRAME mode asked for with the full-height line count.
+    const bool partial = renderer::dma::Init(1024) && !renderer::gs::Init({ standard, 320, system::video::VisibleLines(standard) }) &&
+                         !renderer::gs::Init({ standard, 512, system::video::VisibleLines(standard), renderer::gs::FrameFormat::Color16,
+                                               system::video::Interlace::Frame });
     renderer::Shutdown();
     passed = Check("rejected-partial-init", invalid && partial && SameLedger(baseline) && !renderer::dma::IsInitialized()) && passed;
     passed = Check("pipelined-present", PipelinedPresent(standard)) && passed;
@@ -851,6 +936,7 @@ bool RunGsTests(system::video::Standard standard)
     passed = Check("world-graybox", WorldGraybox(standard, renderer::gs::FrameFormat::Color16)) && passed;
     passed = Check("world-graybox-32", WorldGraybox(standard, renderer::gs::FrameFormat::Color32)) && passed;
     passed = Check("frame-format-switch", FrameFormatSwitch(standard)) && passed;
+    passed = Check("display-mode-switch", DisplayModeSwitch(standard)) && passed;
     passed = Check("split-upload", SplitUpload(standard)) && passed;
     passed = Check("native-adapters", NativeAdapters(standard)) && passed;
     passed = Check("native-indexed", NativeIndexed(standard)) && passed;
