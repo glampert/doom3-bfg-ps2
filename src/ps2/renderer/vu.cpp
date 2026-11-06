@@ -69,7 +69,7 @@ inline u32 ChainQwords(u32 instructions)
 }
 
 // REF tags carrying { NOP, MPG } for each 256-instruction piece of the program, then RET.
-void BuildChain(Entry & entry, qword_t * chain, u32 address)
+void BuildChain(const Entry & entry, qword_t * chain, u32 address)
 {
     qword_t * tag = chain;
     const u32 * code = entry.code.start;
