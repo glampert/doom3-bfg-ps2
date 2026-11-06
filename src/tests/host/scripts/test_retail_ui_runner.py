@@ -16,6 +16,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 import gstx_fixture
+import renderer_capture
 import retail_ui_capture
 import run_retail_ui as runner
 import stage_retail_ui as staging
@@ -102,18 +103,18 @@ def completed(manifest, textures, first_cycle=1):
 
 
 def tga(manifest, source, standard):
-    height = 448 if standard == "ntsc" else 512
-    rgb = bytearray(bytes(retail_ui_capture.BACKGROUND) * 512 * height)
+    width, height = renderer_capture.production_size(standard)
+    rgb = bytearray(bytes(retail_ui_capture.BACKGROUND) * width * height)
     for baseline in (120, 220, 350):
         for y in range(int((baseline - 4) * height / 480), int(baseline * height / 480)):
             for x in range(320, 350):
-                rgb[(y * 512 + x) * 3:(y * 512 + x) * 3 + 3] = bytes(retail_ui_capture.TEXT)
+                rgb[(y * width + x) * 3:(y * width + x) * 3 + 3] = bytes(retail_ui_capture.TEXT)
     for probe in retail_ui_capture.expected_probes(manifest, source, 0, standard):
-        offset = (probe["y"] * 512 + probe["x"]) * 3
+        offset = (probe["y"] * width + probe["x"]) * 3
         rgb[offset:offset + 3] = bytes(probe["expected"])
     bgr = bytearray(len(rgb))
     bgr[0::3], bgr[1::3], bgr[2::3] = rgb[2::3], rgb[1::3], rgb[0::3]
-    return struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, height, 24, 0x20) + bgr
+    return struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, width, height, 24, 0x20) + bgr
 
 
 def replace_last(text, old, new):
@@ -277,7 +278,7 @@ class RetailProofTests(unittest.TestCase):
         original = tga(self.manifest, self.source, "ntsc")
         for probe in retail_ui_capture.expected_probes(self.manifest, self.source, 0, "ntsc"):
             changed = bytearray(original)
-            offset = 18 + (probe["y"] * 512 + probe["x"]) * 3
+            offset = 18 + (probe["y"] * renderer_capture.production_size("ntsc")[0] + probe["x"]) * 3
             changed[offset:offset + 3] = b"\x00\x00\xff"
             path.write_bytes(changed)
             with self.subTest(probe=probe["name"]), self.assertRaisesRegex(ValueError, "expected"):

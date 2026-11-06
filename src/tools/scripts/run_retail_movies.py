@@ -17,6 +17,7 @@ import subprocess
 import time
 import uuid
 
+import renderer_capture
 import retail_ui_capture
 import run_console
 import ui_gstx
@@ -167,7 +168,7 @@ def text_probes(manifest: dict, source: Path, movie: int, standard: str) -> list
     language = inspect_language((source / manifest["cooked"]["assets"]["strings/english.lang"]["path"]).read_bytes())
     scale = prototype["font_height"] / 960
     color = prototype["color_rgba"]
-    screen_height = 448 if standard == "ntsc" else 512
+    screen_width, screen_height = renderer_capture.production_size(standard)
     probes = []
     for row, label in enumerate(LABELS):
         word = language["entries"][label]
@@ -186,9 +187,9 @@ def text_probes(manifest: dict, source: Path, movie: int, standard: str) -> list
             for y, x, (low, high) in retail_ui_capture.glyph_candidates(atlas, glyph)["ink"]:
                 if selected == 2:
                     break
-                sx = int((pen + glyph["left"] * scale + (x + 1) * (glyph["width"] * scale + 1) / (glyph["width"] + 1)) * 512 / 640)
+                sx = int((pen + glyph["left"] * scale + (x + 1) * (glyph["width"] * scale + 1) / (glyph["width"] + 1)) * screen_width / 640)
                 sy = int((baseline - glyph["top"] * scale + (y + 1) * (glyph["height"] * scale + 1) / (glyph["height"] + 1)) * screen_height / 480)
-                if not (1 <= sx < 511 and 1 <= sy < screen_height - 1):
+                if not (1 <= sx < screen_width - 1 and 1 <= sy < screen_height - 1):
                     continue
                 if any(abs(sx - probe["x"]) < 4 and abs(sy - probe["y"]) < 4 for probe in row_probes):
                     continue
@@ -207,7 +208,7 @@ def text_probes(manifest: dict, source: Path, movie: int, standard: str) -> list
 
 def verify_capture(path: Path, manifest: dict, source: Path, movie: int, standard: str) -> dict:
     width, height, pixels = retail_ui_capture.read_tga(path)
-    if (width, height) != (512, 448 if standard == "ntsc" else 512):
+    if (width, height) != renderer_capture.production_size(standard):
         raise ValueError("invalid movie resource capture dimensions")
     probes = text_probes(manifest, source, movie, standard)
     for probe in probes:
@@ -222,7 +223,7 @@ def verify_capture(path: Path, manifest: dict, source: Path, movie: int, standar
 
 def verify_final_capture(path: Path, standard: str) -> dict:
     width, height, _ = retail_ui_capture.read_tga(path)
-    if (width, height) != (512, 448 if standard == "ntsc" else 512):
+    if (width, height) != renderer_capture.production_size(standard):
         raise ValueError("invalid final movie capture dimensions")
     return {"sha256": sha256(path), "width": width, "height": height}
 
@@ -245,9 +246,10 @@ def dialog_rounding_row(manifest: dict, source: Path) -> tuple[int, int, int]:
     pen += 48 - prototype["bounds"][0] + sum(glyphs[ord(char)]["advance"] * scale for char in word[:-1])
     glyph = glyphs[ord(word[-1])]
     baseline = 320 + scale * (font["ascender"] + 1.15)
-    x1 = (pen + glyph["left"] * scale) * 512 / 640
-    x2 = (pen + (glyph["left"] + glyph["width"]) * scale + 1) * 512 / 640
-    bottom = (baseline - glyph["top"] * scale + glyph["height"] * scale + 1) * 448 / 480
+    width, lines = renderer_capture.production_size("ntsc")
+    x1 = (pen + glyph["left"] * scale) * width / 640
+    x2 = (pen + (glyph["left"] + glyph["width"]) * scale + 1) * width / 640
+    bottom = (baseline - glyph["top"] * scale + glyph["height"] * scale + 1) * lines / 480
     return math.floor(x1), math.ceil(x2), math.floor(bottom)
 
 
@@ -266,7 +268,7 @@ def verify_reload_captures(output: Path, phases: tuple, captures: dict, manifest
             raise ValueError("native movie text changed across dictionary reloads")
         width, height, first = retail_ui_capture.read_tga(output / names[0])
         later_width, later_height, later = retail_ui_capture.read_tga(output / names[1])
-        if (width, height) != (512, 448) or (later_width, later_height) != (width, height):
+        if (width, height) != renderer_capture.production_size("ntsc") or (later_width, later_height) != (width, height):
             raise ValueError("native dialog reload capture dimensions differ")
         changed = [offset for offset in range(0, len(first), 3) if first[offset:offset + 3] != later[offset:offset + 3]]
         if not changed:
@@ -533,8 +535,9 @@ def menu_screens_driver(begin: str, end: str):
             "clearHistory", "ps2_uiRetail unload", f'echo "{end}"'], lambda log: echoed(log, end))
 
 
-# EVICTIONS_NOTE: PAL's 32-bit frame buffers leave 1,572,864 bytes of texture VRAM, less than the
-# whole retail UI texture set, so screens evict and upload textures again when they change. With
+# EVICTIONS_NOTE: some display modes leave less texture VRAM than the whole retail UI texture set
+# (NTSC 640x448 at 32 bits leaves 1,327,104 bytes, PAL 512x512 at 32 bits 1,572,864), so screens evict
+# and upload textures again when they change. With
 # evictions set, a classifier accepts evictions and uploads across screens and reloads; the session
 # bounds the total (run_ui_session.EVICTION_LIMIT) so per-frame churn still fails.
 def classify_menu_screens(log: str, manifest: dict, source: Path, warm: set = frozenset(),
@@ -778,18 +781,18 @@ def classify_shell_render(log: str, manifest: dict, source: Path, menu: bool = F
 
 def verify_shell_render_captures(output: Path, standard: str, phases=SHELL_RENDER_PHASES) -> dict:
     """The fixed clock reaches the same frames on both warm reloads: their captures must match exactly."""
-    height = 448 if standard == "ntsc" else 512
+    frame_width, height = renderer_capture.production_size(standard)
     images = {}
     for name in render_capture_names(phases):
         width, actual_height, pixels = retail_ui_capture.read_tga(output / name)
-        if (width, actual_height) != (512, height):
+        if (width, actual_height) != (frame_width, height):
             raise ValueError("invalid native shell capture dimensions")
         images[name] = pixels
     for suffix in capture_gaps(phases):
         second, third = images[f"movie-{phases[1][0]}-{suffix}.tga"], images[f"movie-{phases[2][0]}-{suffix}.tga"]
         if second != third:
             offset = next(index for index in range(0, len(second), 3) if second[index:index + 3] != third[index:index + 3])
-            raise ValueError(f"native shell warm reloads differ at x={offset // 3 % 512} y={offset // 3 // 512} ({suffix})")
+            raise ValueError(f"native shell warm reloads differ at x={offset // 3 % frame_width} y={offset // 3 // frame_width} ({suffix})")
     distinct = {}
     for name, pixels in images.items():
         distinct[name] = len({bytes(pixels[offset:offset + 3]) for offset in range(0, len(pixels), 3)})
@@ -867,11 +870,10 @@ def classify_menu_quit(log: str, manifest: dict, source: Path, warm: set = froze
 
 def verify_menu_captures(output: Path, standard: str, names) -> dict:
     """Every named capture shows the menu's artwork and text."""
-    height = 448 if standard == "ntsc" else 512
     result = {}
     for name in names:
         width, actual_height, pixels = retail_ui_capture.read_tga(output / name)
-        if (width, actual_height) != (512, height):
+        if (width, actual_height) != renderer_capture.production_size(standard):
             raise ValueError("invalid native menu capture dimensions")
         distinct = len({bytes(pixels[offset:offset + 3]) for offset in range(0, len(pixels), 3)})
         if distinct < 128:
@@ -977,11 +979,11 @@ def classify_dialog_render(log: str, manifest: dict, source: Path, warm: set = f
 
 def verify_dialog_render_captures(output: Path, standard: str) -> dict:
     """Locate the looping focus highlight within each load, then require reloads to match everywhere else."""
-    height = 448 if standard == "ntsc" else 512
+    frame_width, height = renderer_capture.production_size(standard)
     images = {}
     for name in render_capture_names():
         width, actual_height, pixels = retail_ui_capture.read_tga(output / name)
-        if (width, actual_height) != (512, height):
+        if (width, actual_height) != (frame_width, height):
             raise ValueError("invalid native dialog capture dimensions")
         images[name] = pixels
     animated = set()
@@ -991,15 +993,15 @@ def verify_dialog_render_captures(output: Path, standard: str) -> dict:
     # The dialog's only animation at rest is the selected option's pulse: a small bounded region.
     region = None
     if animated:
-        xs, ys = [pixel % 512 for pixel in animated], [pixel // 512 for pixel in animated]
+        xs, ys = [pixel % frame_width for pixel in animated], [pixel // frame_width for pixel in animated]
         region = (min(xs) - 2, min(ys) - 2, max(xs) + 2, max(ys) + 2)
-        if (region[2] - region[0]) * (region[3] - region[1]) > 512 * height // 100:
+        if (region[2] - region[0]) * (region[3] - region[1]) > frame_width * height // 100:
             raise ValueError("native dialog animation exceeds the selected-option highlight bound")
     reference = images["movie-" + RENDER_PHASES[0][0] + "-a.tga"]
     compared = 0
     for name, pixels in images.items():
-        for pixel in range(512 * height):
-            x, y = pixel % 512, pixel // 512
+        for pixel in range(frame_width * height):
+            x, y = pixel % frame_width, pixel // frame_width
             if region is not None and region[0] <= x <= region[2] and region[1] <= y <= region[3]:
                 continue
             if pixels[pixel * 3:pixel * 3 + 3] != reference[pixel * 3:pixel * 3 + 3]:

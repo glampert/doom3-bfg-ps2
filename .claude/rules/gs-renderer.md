@@ -62,10 +62,13 @@ coordinates; CLUTs; VRAM and mipmaps.
   out-of-frame redraw never advances simulation; guard against recursive Begin/End. A queued
   `ps2_capture` finishes before shutdown.
 - **Display modes:** `renderer::DisplayMode` is a resolution index into `system::video`'s
-  per-standard table (512 wide the default, 640 the alternative, at the standard's lines), the
-  interlace mode and the frame-buffer profile: `gs::FrameFormat` `Color32` (`PSMCT32` + `PSMZ16S`,
-  production's default) or `Color16` (`PSMCT16` + `PSMZ16`, `renderer::Config`'s default for test
-  images). Live through `ps2_resolution`, `ps2_interlace` and `ps2_frameBufferBits`. A change
+  per-standard table (512 or 640 wide at the standard's lines; production defaults to 640, test
+  images to 512), the interlace mode and the frame-buffer profile: `gs::FrameFormat` `Color32`
+  (32/32: two `PSMCT32` + `PSMZ16S`, production's in-game default), `Color32Display16` (32/16: one
+  `PSMCT32` draw buffer + `PSMZ16S`, presented as a dithered copy into one `PSMCT16S` display buffer
+  in the vertical blank; the front end draws a 32/32 preference this way, since two 640-wide 32-bit
+  buffers leave too little texture VRAM for the menus) or `Color16` (16/16, `renderer::Config`'s
+  default for test images). A loaded map (or `ps2_world` render world) switches to the preference. Live through `ps2_resolution`, `ps2_interlace` and `ps2_frameBufferBits`. A change
   restarts the GS (`renderer::SetDisplayMode`: shutdown, init, `vu::Invalidate`, `tex::MoveVram`);
   never lay the buffers out again under a running GS (PCSX2's hardware renderer then returned stale
   old-format targets to the first readback). FRAME mode (`SMODE2.FFMD` 1) draws a half-height buffer

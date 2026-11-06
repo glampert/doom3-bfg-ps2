@@ -37,10 +37,16 @@ STEPS = (("boot", 300), ("console", 90), ("fonts", 180), ("inactive", 180), ("ex
          ("shell", 300), ("menu", 420), ("screens", 300), ("quit", 300))
 STARTUP_SECONDS = 120
 CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(\S+\.tga) frame=(\d+) presents=(\d+) redraws=(\d+)")
-GS_READY_RE = re.compile(r"\[D3BFG\] GS ready (NTSC|PAL) \d+x\d+ (?:FIELD|FRAME) (\S+) ")
+GS_READY_RE = re.compile(r"\[D3BFG\] GS ready (NTSC|PAL) \d+x\d+ (?:FIELD|FRAME) \S+ fixed_vram=(\d+)")
 # Where screens may evict textures, the whole session's evictions stay below this: each comes from
-# a screen change (11 in the PAL session, 2026-11-05), while per-frame churn would reach hundreds.
+# a screen change (11 in the PAL session at 512x512 32-bit, 2026-11-05), while per-frame churn
+# would reach hundreds.
 EVICTION_LIMIT = 32
+# The smallest texture range measured to hold the whole retail UI session without an eviction
+# (NTSC 512x448 at 32 bits, 2026-11-05). Below it, screens may evict on changes.
+EVICTION_FREE_TEXTURE_VRAM = 1900544
+TEXTURE_VRAM = 2097152
+VRAM_BYTES = 4194304
 
 
 def barrier(identity: str, step: str, edge: str) -> str:
@@ -142,11 +148,18 @@ def classify_session(log: str, identity: str, standard: str) -> tuple[bool, str]
     return True, "native UI session completed"
 
 
-def evicting_profile(log: str) -> bool:
-    """PAL in the 32-bit frame-buffer profile: the retail UI's textures do not all fit beside the
-    buffers, so screens may evict them (run_retail_movies.EVICTIONS_NOTE)."""
+def texture_range(log: str) -> int | None:
+    """The texture VRAM the session's first display mode leaves: the configured 2 MiB, capped by
+    what the frame buffers leave (render_system.cpp TextureVramBytes)."""
     ready = GS_READY_RE.findall(log)
-    return bool(ready) and ready[0] == ("PAL", "PSMCT32/Z16S")
+    return min(TEXTURE_VRAM, VRAM_BYTES - int(ready[0][1])) if ready else None
+
+
+def evicting_profile(log: str) -> bool:
+    """A display mode whose frame buffers leave less texture VRAM than the whole retail UI session
+    needs: screens may evict on changes (run_retail_movies.EVICTIONS_NOTE)."""
+    available = texture_range(log)
+    return available is not None and available < EVICTION_FREE_TEXTURE_VRAM
 
 
 def classify_steps(log: str, identity: str, standard: str, manifest: dict, source: Path, traces: bool = True) -> dict:

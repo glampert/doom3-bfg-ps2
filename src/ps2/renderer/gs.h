@@ -45,12 +45,15 @@ constexpr u8 kWriteGreen = 2;
 constexpr u8 kWriteBlue  = 4;
 constexpr u8 kWriteRgb   = 7;
 
-// Both colour buffers and the depth buffer (RENDERING_ARCHITECTURE.md 4.3). The GS pairs PSMCT32
-// only with depth formats of its own group, so the 32-bit profile's 16-bit depth is PSMZ16S.
+// The colour buffers and the depth buffer (RENDERING_ARCHITECTURE.md 4.3), named draw/display
+// bits. The GS pairs PSMCT32 only with depth formats of its own group, so the 32-bit profiles'
+// depth is PSMZ16S.
 enum class FrameFormat : u8
 {
-    Color16, // PSMCT16 + PSMZ16: five bits a channel, one alpha bit
-    Color32  // PSMCT32 + PSMZ16S: eight bits a channel and an 8-bit destination alpha
+    Color16,         // 16/16: two PSMCT16 buffers + PSMZ16, five bits a channel, one alpha bit
+    Color32,         // 32/32: two PSMCT32 buffers + PSMZ16S, eight bits a channel and destination alpha
+    Color32Display16 // 32/16: one PSMCT32 draw buffer + PSMZ16S, copied at present into one PSMCT16S
+                     // display buffer with dithering: 32-bit blending for two thirds of 32/32's VRAM
 };
 
 // The frame buffers: one of the standard's resolutions (system::video::ResolutionAt) at the lines
@@ -124,11 +127,17 @@ u32 FixedVramBytes();
 FramebufferInfo GetFramebuffer(DrawContext context);
 
 FrameFormat GetFrameFormat();
-const char * FrameFormatName(FrameFormat format);
-int FrameFormatBits(FrameFormat format);
+const char * FrameFormatName(FrameFormat format);  // "PSMCT32/Z16S" and the like
+const char * FrameFormatLabel(FrameFormat format); // "16/16", "32/16" or "32/32"
+int FrameFormatBits(FrameFormat format);           // the draw buffer's bits, which captures read
+
+// The buffer the display circuits read. In the 32/16 profile it is the PSMCT16S copy that Present
+// writes; otherwise it is the colour buffer presented last.
+FramebufferInfo GetDisplayFramebuffer();
 
 // Immediate: wait for the queued chain, then flip at the next vsync (the 2D path, which needs
-// no following frame). Pipelined: the context's chain already ran (the caller waited before
+// no following frame). In the 32/16 profile the flip is a dithered copy of the draw buffer into
+// the display buffer, made in the vertical blank before the display reads it again. Pipelined: the context's chain already ran (the caller waited before
 // kicking the next frame); in FIELD mode flip at the next vsync that starts an EVEN field, so the
 // frame displays for two fields and the pace is 30/25 fps. FRAME mode shows the whole buffer on
 // every field, so it flips at the next vsync.

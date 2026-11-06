@@ -569,14 +569,17 @@ def classify_run(test_id: str, scenario: str, result: dict | None, log: str,
             if (f"[D3BFG] RUN {test_id} BEGIN" not in log or
                     f"GS ready {standard} 512x{height} FIELD PSMCT16/Z16 " not in log or
                     f"GS ready {standard} 512x{height} FIELD PSMCT32/Z16S " not in log or
+                    f"GS ready {standard} 512x{height} FIELD PSMCT32+PSMCT16S/Z16S " not in log or
                     any(f"GS scene {standard} cycle={cycle} frames={frames} context=0" not in log
                         for cycle, frames in ((0, 120), (1, 4)))):
                 return False, "incorrect GS mode or completed frames"
-            # The profile switch: 16, 32 and 16 again, the texture range capped by the 32-bit buffers.
-            fixed16, fixed32 = (1572864, 2621440) if standard == "PAL" else (1376256, 2293760)
-            switches = [tuple(map(int, item)) for item in
-                        re.findall(r"GS format bits=(\d+) fixed_vram=(\d+) texture_vram=(\d+) uploads=(\d+)", log)]
-            expected_switches = [(16, fixed16, 2097152, 1), (32, fixed32, min(2097152, 4194304 - fixed32), 2), (16, fixed16, 2097152, 3)]
+            # The profile switch: 16/16, 32/32, 32/16 and 16/16 again, the texture range capped by the buffers.
+            switches = [(bits, int(fixed), int(texture), int(uploads)) for bits, fixed, texture, uploads in
+                        re.findall(r"GS format bits=(\S+) fixed_vram=(\d+) texture_vram=(\d+) uploads=(\d+)", log)]
+            expected_switches = []
+            for index, profile in enumerate(("16/16", "32/32", "32/16", "16/16")):
+                fixed = renderer_capture.fixed_vram_bytes(512, height, profile)
+                expected_switches.append((profile, fixed, min(2097152, 4194304 - fixed), index + 1))
             if switches not in (expected_switches, expected_switches * 2):
                 return False, "invalid frame-buffer profile switch"
             # The display-mode switch in the 16-bit profile: 512 wide, 640 wide, 512 in FRAME mode (a
@@ -972,8 +975,11 @@ def run(args: argparse.Namespace) -> tuple[bool, Path]:
                 for bits, suffix in ((16, ""), (32, "-32")):
                     name = f"renderer-world-{view}{suffix}.tga"
                     capture_checks[name] = renderer_capture.verify_world_scene(output / name, standard, view, bits)
-            for name, bits in (("renderer-format-16.tga", 16), ("renderer-format-32.tga", 32), ("renderer-format-16-again.tga", 16)):
+            for name, bits in (("renderer-format-16.tga", 16), ("renderer-format-32.tga", 32), ("renderer-format-32-16.tga", 32),
+                               ("renderer-format-16-again.tga", 16)):
                 capture_checks[name] = renderer_capture.verify_format_scene(output / name, standard, bits)
+            capture_checks["renderer-format-32-16-display.tga"] = renderer_capture.verify_format_display(
+                output / "renderer-format-32-16-display.tga", standard)
             if capture_checks["renderer-format-16.tga"]["sha256"] != capture_checks["renderer-format-16-again.tga"]["sha256"]:
                 raise ValueError("the frame-buffer profile round trip changed the 16-bit picture")
             for name, resolution, interlace in (("renderer-display-512.tga", 0, "FIELD"), ("renderer-display-640.tga", 1, "FIELD"),

@@ -9,7 +9,7 @@ import hashlib
 import math
 from pathlib import Path
 
-from renderer_capture import PIXEL_TOLERANCE, read_tga
+from renderer_capture import PIXEL_TOLERANCE, production_size, read_tga
 import ui_gstx
 
 
@@ -86,7 +86,7 @@ def expected_probes(manifest: dict, source: Path, font_index: int, standard: str
     details = manifest["fonts"][font_path]
     atlas = Atlas(source / manifest["cooked"]["runtime_images"][_image_for_font(manifest, font_path)]["path"])
     glyphs = {glyph["codepoint"]: glyph for glyph in details["glyphs"]}
-    height = 448 if standard == "ntsc" else 512
+    screen_width, height = production_size(standard)
     probes = [{"name": "background", "x": 8, "y": height - 8, "expected": BACKGROUND, "low": BACKGROUND,
                "high": BACKGROUND}]
     pen = 48
@@ -101,7 +101,7 @@ def expected_probes(manifest: dict, source: Path, font_index: int, standard: str
                     break
                 virtual_x = pen + glyph["left"] + x + 1
                 virtual_y = 350 - glyph["top"] + y + 1
-                screen_x = int(virtual_x * 512 / 640)
+                screen_x = int(virtual_x * screen_width / 640)
                 screen_y = int(virtual_y * height / 480)
                 if any(abs(screen_x - old[0]) < 4 and abs(screen_y - old[1]) < 4 for old in selected):
                     continue
@@ -121,7 +121,7 @@ def expected_probes(manifest: dict, source: Path, font_index: int, standard: str
 
 def verify(path: Path, manifest: dict, source: Path, font_index: int, standard: str) -> dict:
     width, height, pixels = read_tga(path)
-    if (width, height) != (512, 448 if standard == "ntsc" else 512):
+    if (width, height) != production_size(standard):
         raise ValueError("retail native font capture has incorrect dimensions")
     checks = []
     for probe in expected_probes(manifest, source, font_index, standard):

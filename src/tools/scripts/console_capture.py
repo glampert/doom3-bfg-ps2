@@ -9,7 +9,7 @@
 import hashlib
 from pathlib import Path
 
-from renderer_capture import PIXEL_TOLERANCE, read_tga
+from renderer_capture import PIXEL_TOLERANCE, production_size, read_tga
 from retail_ui_capture import INK_MINIMUM, Atlas, blend, ink_interval, within
 
 
@@ -61,9 +61,9 @@ def cell_pixels(index: int, standard: str):
     or 6.4 x 17.1 (PAL) pixels. Pixel centers sit on integer coordinates; the texture
     coordinate interpolates linearly across the quad. Edge pixels are left out: a pixel on the
     quad's boundary belongs to whichever cell the fixed-point rounding favors."""
-    lines = 448 if standard == "ntsc" else 512
-    x0 = (INPUT_LINE[0] + index * CELL[0]) * 512 / 640
-    x1 = x0 + CELL[0] * 512 / 640
+    width, lines = production_size(standard)
+    x0 = (INPUT_LINE[0] + index * CELL[0]) * width / 640
+    x1 = x0 + CELL[0] * width / 640
     y0 = INPUT_LINE[1] * lines / 480
     y1 = y0 + CELL[1] * lines / 480
     pixels = []
@@ -110,10 +110,10 @@ def expected_probes(manifest: dict, source: Path, standard: str) -> list[dict]:
     if standard not in ("ntsc", "pal"):
         raise ValueError("console capture standard must be ntsc or pal")
     atlas = charset_atlas(manifest, source)
-    lines = 448 if standard == "ntsc" else 512
+    width, lines = production_size(standard)
     probes = []
     for name, virtual_x, virtual_y, expected in FIXED_PIXELS:
-        probes.append({"name": name, "x": int(virtual_x * 512 / 640), "y": int(virtual_y * lines / 480),
+        probes.append({"name": name, "x": int(virtual_x * width / 640), "y": int(virtual_y * lines / 480),
                        "expected": expected, "low": expected, "high": expected})
     for index, character in enumerate(INPUT_TEXT):
         if character == " ":
@@ -133,9 +133,9 @@ def verify_edit(path: Path, standard: str, manifest: dict, source: Path) -> dict
     if standard not in ("ntsc", "pal"):
         raise ValueError("console capture standard must be ntsc or pal")
     width, height, pixels = read_tga(path)
-    expected_height = 448 if standard == "ntsc" else 512
-    if (width, height) != (512, expected_height):
-        raise ValueError(f"console capture expected 512x{expected_height}, got {width}x{height}")
+    expected = production_size(standard)
+    if (width, height) != expected:
+        raise ValueError(f"console capture expected {expected[0]}x{expected[1]}, got {width}x{height}")
     checks = []
     for probe in expected_probes(manifest, source, standard):
         offset = (probe["y"] * width + probe["x"]) * 3

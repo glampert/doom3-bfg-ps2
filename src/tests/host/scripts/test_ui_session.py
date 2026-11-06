@@ -56,20 +56,28 @@ class SessionAcceptance(unittest.TestCase):
             return ("[D3BFG] RETAIL textures images=19 pages=24 cluts=43 pixels=1540096 metadata=55124 "
                     f"triangles=10 uploads=33 evictions={evictions} channel_cluts=66 channel_pixels=73728\n")
 
-        def with_profile(log, standard, profile):
-            return log.replace(f"GS ready {standard.upper()} 512x448\n", f"GS ready {standard.upper()} 512x448 FIELD {profile} fixed_vram=1\n")
+        def with_mode(log, standard, size, profile, fixed):
+            return log.replace(f"GS ready {standard.upper()} 512x448\n",
+                               f"GS ready {standard.upper()} {size} FIELD {profile} fixed_vram={fixed}\n")
 
-        pal32 = with_profile(session_log("pal"), "pal", "PSMCT32/Z16S")
-        self.assertTrue(session.evicting_profile(pal32))
-        self.assertFalse(session.evicting_profile(with_profile(session_log("pal"), "pal", "PSMCT16/Z16")))
-        self.assertFalse(session.evicting_profile(with_profile(session_log(), "ntsc", "PSMCT32/Z16S")))
-        # PAL at 32 bits evicts on screen changes, within the limit; churn beyond it fails.
-        self.assertTrue(self.verdict(pal32.replace("run_quit_end \n", textures(11) + "run_quit_end \n"), "pal")[0])
-        churn = pal32.replace("run_quit_end \n", textures(session.EVICTION_LIMIT + 1) + "run_quit_end \n")
-        self.assertFalse(self.verdict(churn, "pal")[0])
+        # The texture range the first mode leaves decides: below 1,900,544 bytes screens may evict.
+        ntsc640 = with_mode(session_log(), "ntsc", "640x448", "PSMCT32/Z16S", 2867200)
+        pal640 = with_mode(session_log("pal"), "pal", "640x512", "PSMCT16/Z16", 1966080)
+        pal512 = with_mode(session_log("pal"), "pal", "512x512", "PSMCT32/Z16S", 2621440)
+        ntsc512 = with_mode(session_log(), "ntsc", "512x448", "PSMCT32/Z16S", 2293760)
+        self.assertEqual(session.texture_range(ntsc640), 1327104)
+        self.assertEqual(session.texture_range(pal640), 2097152)
+        self.assertTrue(session.evicting_profile(ntsc640))
+        self.assertTrue(session.evicting_profile(pal512))
+        self.assertFalse(session.evicting_profile(pal640))
+        self.assertFalse(session.evicting_profile(ntsc512))
+        self.assertFalse(session.evicting_profile(session_log()))
+        # Where screens may evict, the session stays within the limit; churn beyond it fails.
+        self.assertTrue(self.verdict(ntsc640.replace("run_quit_end \n", textures(11) + "run_quit_end \n"))[0])
+        churn = ntsc640.replace("run_quit_end \n", textures(session.EVICTION_LIMIT + 1) + "run_quit_end \n")
+        self.assertFalse(self.verdict(churn)[0])
         # Where everything fits, any eviction fails.
-        ntsc32 = with_profile(session_log(), "ntsc", "PSMCT32/Z16S")
-        self.assertFalse(self.verdict(ntsc32.replace("run_quit_end \n", textures(1) + "run_quit_end \n"))[0])
+        self.assertFalse(self.verdict(pal640.replace("run_quit_end \n", textures(1) + "run_quit_end \n"), "pal")[0])
 
     def test_boot_policy_barriers_and_shutdown_are_required(self):
         log = session_log()

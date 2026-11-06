@@ -465,12 +465,12 @@ def profile_scene(bits, height=448, colours=None, width=512):
     return rgb
 
 
-def world_scene(standard, view, bits):
+def world_scene(standard, view, bits, width=512):
     """A world capture holding each reference point's stored colour and black elsewhere."""
     height = 448 if standard == "NTSC" else 512
-    rgb = bytearray(512 * height * 3)
-    for x, y, reference in capture.WORLD_SCENE_PIXELS[standard][view]:
-        offset = (y * 512 + x) * 3
+    rgb = bytearray(width * height * 3)
+    for x, y, reference in capture.WORLD_SCENE_TABLES[width][standard][view]:
+        offset = (y * width + x) * 3
         rgb[offset:offset + 3] = bytes(capture.stored(reference, bits))
     return rgb
 
@@ -539,8 +539,46 @@ class FrameBufferProfiles(unittest.TestCase):
         self.assertEqual(capture.fixed_vram_bytes(512, 224, 16), 786432)
         self.assertEqual(capture.fixed_vram_bytes(512, 224, 32), 1179648)
         self.assertEqual(capture.fixed_vram_bytes(512, 256, 32), 1310720)
-        with self.assertRaisesRegex(ValueError, "16 or 32"):
+        # 32/16: one PSMCT32 draw buffer, one PSMCT16S display buffer and Z16S.
+        self.assertEqual(capture.fixed_vram_bytes(640, 448, "32/16"), 2293760)
+        self.assertEqual(capture.fixed_vram_bytes(640, 512, "32/16"), 2621440)
+        self.assertEqual(capture.fixed_vram_bytes(512, 448, "32/16"), 1835008)
+        self.assertEqual(capture.fixed_vram_bytes(640, 448, "32/32"), capture.fixed_vram_bytes(640, 448, 32))
+        self.assertEqual((capture.draw_bits("32/16"), capture.draw_bits("16/16"), capture.draw_bits(32)), (32, 16, 32))
+        with self.assertRaisesRegex(ValueError, "16/16, 32/16 or 32/32"):
             capture.fixed_vram_bytes(512, 448, 24)
+        with self.assertRaisesRegex(ValueError, "16/16, 32/16 or 32/32"):
+            capture.fixed_vram_bytes(512, 448, "16/32")
+
+    def test_dithered_display_copy(self):
+        # Each channel may move by the dither (-4..3) before its five-bit store: 93 stores as 11 or 12.
+        self.assertEqual(capture.dithered_range(93), (90, 99))
+        self.assertEqual(capture.dithered_range(0), (0, 0))
+        self.assertEqual(capture.dithered_range(255), (255, 255))
+        self.assertEqual(capture.dithered_range(2), (0, 0))
+        width, height = 512, 448
+
+        def display_scene(values):
+            # values: (x, y) -> colour for the fill; everything else the exact store of its colour.
+            rgb = bytearray(width * height * 3)
+            for name, (x0, y0, x1, y1), colour in capture.FORMAT_SCENE_RECTS:
+                for y in range(y0, y1):
+                    for x in range(x0, x1):
+                        offset = (y * width + x) * 3
+                        rgb[offset:offset + 3] = bytes(values(x, y) if name == "format-fill" else capture.stored(colour, 16))
+            return rgb
+
+        dithered = display_scene(lambda x, y: capture.stored((93 + (x % 4), 47, 205), 16))
+        result = capture.verify_format_display(self.write(tga(width, height, dithered)), "NTSC")
+        self.assertGreater(result["fill_values"], 1)
+        # One stored value for the whole fill: the copy was not dithered.
+        flat = display_scene(lambda x, y: capture.stored((93, 47, 205), 16))
+        with self.assertRaisesRegex(ValueError, "not dithered"):
+            capture.verify_format_display(self.write(tga(width, height, flat)), "NTSC")
+        # A value the dither cannot reach.
+        wrong = display_scene(lambda x, y: (82, 41, 206) if (x, y) == (100, 100) else capture.stored((93 + (x % 4), 47, 205), 16))
+        with self.assertRaisesRegex(ValueError, "format-fill \\(100,100\\)"):
+            capture.verify_format_display(self.write(tga(width, height, wrong)), "NTSC")
 
     def test_a_five_bit_store_fails_the_32_bit_model(self):
         # The 16-bit picture passes its own model and fails the 32-bit one (the fill's green is 6 off).
@@ -575,6 +613,17 @@ class FrameBufferProfiles(unittest.TestCase):
                         result = capture.verify_world_scene(self.write(tga(512, height, world_scene(standard, view, bits))),
                                                             standard, view, bits)
                         self.assertEqual(result["bits"], bits)
+        # Production's 640-wide views read their own table; a 512-wide capture fails it.
+        for standard, height in (("NTSC", 448), ("PAL", 512)):
+            for view in capture.WORLD_SCENE_PIXELS_640[standard]:
+                with self.subTest(standard=standard, view=view, width=640):
+                    result = capture.verify_world_scene(self.write(tga(640, height, world_scene(standard, view, 32, 640))),
+                                                        standard, view, 32, 640)
+                    self.assertEqual((result["width"], result["height"]), (640, height))
+        with self.assertRaisesRegex(ValueError, "expected 640x448"):
+            capture.verify_world_scene(self.write(tga(512, 448, world_scene("NTSC", "room0", 32))), "NTSC", "room0", 32, 640)
+        with self.assertRaisesRegex(ValueError, "room0 32-bit"):
+            capture.verify_world_scene(self.write(tga(640, 448, world_scene("NTSC", "room1", 32, 640))), "NTSC", "room0", 32, 640)
         # The 16-bit store of room0 fails the 32-bit model: five-bit storage dropped its low bits.
         with self.assertRaisesRegex(ValueError, "room0 32-bit"):
             capture.verify_world_scene(self.write(tga(512, 448, world_scene("NTSC", "room0", 16))), "NTSC", "room0", 32)

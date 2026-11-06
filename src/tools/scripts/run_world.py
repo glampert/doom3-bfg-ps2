@@ -12,12 +12,15 @@ RenderScene: the portal flow decides which areas each view draws. Traces through
 models check the compact position mirror id's traces read. Every view is captured and
 checked: the GS gate's four cameras against the same reference pixels, a camera facing away from
 the doorway and the doorway camera with its portal closed against the area counts that portal
-culling must give, the closed doorway against the open one. The views are drawn in the default
-32-bit frame-buffer profile, then again after ps2_frameBufferBits switches to 16 live, each against
-the pixels its profile stores; switched back, the doorway must match its first capture. The doorway
-is then drawn 640 wide (ps2_resolution 1) and in FRAME mode (ps2_interlace frame, a half-height
-buffer), each live change restarting the GS, and after each change back it must match its first
-capture again. The world is then unloaded and the session quits, recovering the startup ledger."""
+culling must give, the closed doorway against the open one. The package boots in the front end, which
+draws the default 32/32 preference as 32/16; loading the world switches to 32/32, 640 wide, FIELD,
+where the views are drawn, then again after ps2_frameBufferBits switches to 16/16 live, each against
+the pixels its profile stores; the doorway is drawn once more in 32/16 and back in 32/32, matching its
+first capture both times. The doorway is then drawn 512 wide (ps2_resolution 0, against
+the GS gate's references) and in FRAME mode (ps2_interlace frame, a half-height buffer), each live
+change restarting the GS, and after each change back it must match its first capture again. The
+world is then unloaded, the front end returns to 32/16, and the session quits, recovering the
+startup ledger."""
 
 import argparse
 from collections import namedtuple
@@ -47,7 +50,7 @@ LOAD_RE = re.compile(r"\[D3BFG\] world maps/graybox\.d3wd: areas=2 surfaces=18 b
 WORLD_RE = re.compile(r"\[D3BFG\] WORLD (\w+) areas=(\d+) portals=(\d+) viewing=([01]) frame=(\d+) views=(\d+) area=(-?\d+) "
                       r"entities=(\d+) drawn=(\d+) batches=(\d+) arena=(\d+)")
 CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(\S+\.tga) frame=(\d+) presents=(\d+) redraws=(\d+) bits=(\d+)")
-SWITCH_RE = re.compile(r"\[D3BFG\] GS display (\d+)x(\d+) (FIELD|FRAME) bits=(\d+) (\S+) fixed_vram=(\d+) texture_vram=(\d+)")
+SWITCH_RE = re.compile(r"\[D3BFG\] GS display (\d+)x(\d+) (FIELD|FRAME) bits=(\S+) (\S+) fixed_vram=(\d+) texture_vram=(\d+)")
 TRACE_RE = re.compile(r"\[D3BFG\] WORLD trace hit=([01]) fraction=([\d.]+) normal=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) material=(\S+)")
 WORLD_FIELDS = ("event", "areas", "portals", "viewing", "frame", "views", "area", "entities", "drawn", "batches", "arena")
 
@@ -64,11 +67,10 @@ VIEWS = (
 )
 
 
-# A display mode: the frame-buffer profile, the standard's resolution index (0 is 512 wide, 1 is
-# 640) and how each field reads the buffer. The device starts in DEFAULT_DISPLAY.
-Display = namedtuple("Display", "bits resolution interlace")
-DEFAULT_DISPLAY = Display(32, 0, "FIELD")
-PROFILE_NAMES = {16: "PSMCT16/Z16", 32: "PSMCT32/Z16S"}
+# A display mode: the frame-buffer profile (draw/display bits), the standard's resolution index (0 is
+# 512 wide, 1 is 640) and how each field reads the buffer.
+Display = namedtuple("Display", "profile resolution interlace")
+PROFILE_NAMES = {"16/16": "PSMCT16/Z16", "32/16": "PSMCT32+PSMCT16S/Z16S", "32/32": "PSMCT32/Z16S"}
 TEXTURE_VRAM = 2097152
 VRAM_BYTES = 4194304
 
@@ -76,31 +78,53 @@ VRAM_BYTES = 4194304
 # reference pixels do not apply, only the frame's size and its contents.
 DOORWAY_UNCHECKED = VIEWS[2][:-1] + (False,)
 
+# Steps whose display change follows from the session, not a cvar: loading the world leaves the
+# front end, so the preferred profile replaces the front end's.
+AUTOMATIC_STEPS = ("ingame",)
 
-def steps() -> list[tuple]:
+
+def default_display(standard: str) -> Display:
+    """The preferred mode by default (presentation.cpp), which a loaded map draws in: 640 wide,
+    FIELD, 32/32. 'standard' is accepted for symmetry; both standards prefer the same mode."""
+    del standard
+    return Display("32/32", renderer_capture.PRODUCTION_RESOLUTION, "FIELD")
+
+
+def front_end_display(standard: str) -> Display:
+    """The mode the front end (no map loaded) draws the default preference in: 32/16."""
+    return default_display(standard)._replace(profile="32/16")
+
+
+def steps(standard: str = "ntsc") -> list[tuple]:
     """The session after the load, in order: (barrier, display mode, view), a view of None being
     the display-mode change that reaches the mode. Each view's capture is world-<barrier>.tga."""
-    sequence = [(view[0], DEFAULT_DISPLAY, view) for view in VIEWS]
-    sequence.append(("bits-16", Display(16, 0, "FIELD"), None))
-    sequence += [(view[0] + "-16", Display(16, 0, "FIELD"), view) for view in VIEWS]
-    sequence.append(("bits-32", DEFAULT_DISPLAY, None))
-    sequence.append(("doorway-32", DEFAULT_DISPLAY, VIEWS[2]))
-    sequence.append(("res-640", Display(32, 1, "FIELD"), None))
-    sequence.append(("doorway-640", Display(32, 1, "FIELD"), DOORWAY_UNCHECKED))
-    sequence.append(("res-512", DEFAULT_DISPLAY, None))
-    sequence.append(("doorway-512", DEFAULT_DISPLAY, VIEWS[2]))
-    sequence.append(("frame", Display(32, 0, "FRAME"), None))
-    sequence.append(("doorway-frame", Display(32, 0, "FRAME"), DOORWAY_UNCHECKED))
-    sequence.append(("field", DEFAULT_DISPLAY, None))
-    sequence.append(("doorway-field", DEFAULT_DISPLAY, VIEWS[2]))
+    base = default_display(standard)
+    narrow = base._replace(resolution=0)
+    frame = base._replace(interlace="FRAME")
+    sequence = [("ingame", base, None)]
+    sequence += [(view[0], base, view) for view in VIEWS]
+    sequence.append(("bits-16", base._replace(profile="16/16"), None))
+    sequence += [(view[0] + "-16", base._replace(profile="16/16"), view) for view in VIEWS]
+    sequence.append(("bits-32-16", base._replace(profile="32/16"), None))
+    sequence.append(("doorway-32-16", base._replace(profile="32/16"), VIEWS[2]))
+    sequence.append(("bits-32", base, None))
+    sequence.append(("doorway-32", base, VIEWS[2]))
+    sequence.append(("res-512", narrow, None))
+    sequence.append(("doorway-512", narrow, VIEWS[2]))
+    sequence.append(("res-640", base, None))
+    sequence.append(("doorway-640", base, VIEWS[2]))
+    sequence.append(("frame", frame, None))
+    sequence.append(("doorway-frame", frame, DOORWAY_UNCHECKED))
+    sequence.append(("field", base, None))
+    sequence.append(("doorway-field", base, VIEWS[2]))
     return sequence
 
 
 def switch_command(previous: Display, display: Display) -> str:
     """The one cvar that takes the device from 'previous' to 'display'."""
     changes = []
-    if display.bits != previous.bits:
-        changes.append(f"ps2_frameBufferBits {display.bits}")
+    if display.profile != previous.profile:
+        changes.append(f"ps2_frameBufferBits {display.profile}")
     if display.resolution != previous.resolution:
         changes.append(f"ps2_resolution {display.resolution}")
     if display.interlace != previous.interlace:
@@ -113,8 +137,9 @@ def switch_command(previous: Display, display: Display) -> str:
 def expected_switch(standard: str, display: Display) -> tuple:
     """The GS display line's fields after a change: frame size, mode, profile and VRAM split."""
     width, height = renderer_capture.frame_size(standard.upper(), display.resolution, display.interlace)
-    fixed = renderer_capture.fixed_vram_bytes(width, height, display.bits)
-    return width, height, display.interlace, display.bits, PROFILE_NAMES[display.bits], fixed, min(TEXTURE_VRAM, VRAM_BYTES - fixed)
+    fixed = renderer_capture.fixed_vram_bytes(width, height, display.profile)
+    return (width, height, display.interlace, display.profile, PROFILE_NAMES[display.profile], fixed,
+            min(TEXTURE_VRAM, VRAM_BYTES - fixed))
 
 
 # Traces through the area models' s16 mirror: straight down onto room 0's floor, across both
@@ -139,22 +164,34 @@ def view_commands(identity: str, name: str, camera: tuple, portal: str) -> list[
 
 def switch_commands(identity: str, name: str, previous: Display, display: Display) -> list[str]:
     # The display mode changes before the next frame begins; two frames later it has drawn in it.
-    return [switch_command(previous, display), "wait 2", f'echo "{barrier(identity, name)}"']
+    change = [] if name in AUTOMATIC_STEPS else [switch_command(previous, display)]
+    return [*change, "wait 2", f'echo "{barrier(identity, name)}"']
 
 
-def driver(identity: str):
+def driver(identity: str, standard: str = "ntsc"):
     """Yield each command batch with the condition, over the log, that ends its wait."""
     # The console starts open; closed, it slides away over real time before the first view.
     traces = ["ps2_world trace " + " ".join(str(value) for value in start + end) for start, end, *_ in TRACES]
     yield ([f'echo "{barrier(identity, "begin")}"', "ps2_consoleKey toggle", "wait 60", "r_znear 4", "ps2_world load maps/graybox",
             *traces, f'echo "{barrier(identity, "loaded")}"'], lambda log: echoed(log, barrier(identity, "loaded")))
-    previous = DEFAULT_DISPLAY
-    for name, display, view in steps():
+    previous = front_end_display(standard)
+    for name, display, view in steps(standard):
         commands = switch_commands(identity, name, previous, display) if view is None else view_commands(identity, name, view[1], view[2])
         previous = display
         yield commands, lambda log, name=name: echoed(log, barrier(identity, name))
-    yield ["ps2_world portal 1 open", "ps2_world unload", f'echo "{barrier(identity, "unloaded")}"', "quit"], \
-        lambda log: run_headless.SHUTDOWN_COMPLETE in log
+    # Unloaded, the session is back in the front end, which draws in 32/16 again.
+    yield ["ps2_world portal 1 open", "ps2_world unload", f'echo "{barrier(identity, "unloaded")}"'], \
+        lambda log: echoed(log, barrier(identity, "unloaded"))
+    yield ["wait 2", f'echo "{barrier(identity, "frontend")}"', "quit"], lambda log: run_headless.SHUTDOWN_COMPLETE in log
+
+
+def parse_switch(match: tuple) -> tuple:
+    return (int(match[0]), int(match[1]), match[2], match[3], match[4], int(match[5]), int(match[6]))
+
+
+def switch_details(found: tuple) -> dict:
+    return {"width": found[0], "height": found[1], "interlace": found[2], "profile": found[3],
+            "fixed_vram": found[5], "texture_vram": found[6]}
 
 
 def world_lines(log: str) -> list[dict]:
@@ -170,7 +207,7 @@ def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str
         return False, "the cooked graybox did not load with its areas, portals and nodes", {}
     if "WORLD load failed" in log:
         return False, "the render world refused the map", {}
-    markers = ["begin", "loaded"] + [name for name, *_ in steps()] + ["unloaded"]
+    markers = ["begin", "loaded"] + [name for name, *_ in steps(standard)] + ["unloaded", "frontend"]
     # Echo output, not the submitted line, is the barrier.
     spans = [re.search(re.escape(barrier(identity, name)) + r" +\r?\n", log) for name in markers]
     if any(span is None for span in spans):
@@ -193,20 +230,18 @@ def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str
             return False, f"the trace from {start} to {end} found {found}; expected hit={hit} fraction={fraction} {normal} {material}", {}
     views = {}
     switches = {}
-    for index, (name, display, view) in enumerate(steps()):
+    for index, (name, display, view) in enumerate(steps(standard)):
         span = log[positions[index + 1]:positions[index + 2]]
         changes = SWITCH_RE.findall(span)
         if view is None:
             expected = expected_switch(standard, display)
-            found = (int(changes[0][0]), int(changes[0][1]), changes[0][2], int(changes[0][3]), changes[0][4],
-                     int(changes[0][5]), int(changes[0][6])) if len(changes) == 1 else ()
+            found = parse_switch(changes[0]) if len(changes) == 1 else ()
             if found != expected:
                 return False, f"{name}: the display did not change once to {expected[0]}x{expected[1]} {expected[2]} {expected[4]}", {}
-            switches[name] = {"width": found[0], "height": found[1], "interlace": found[2], "bits": found[3],
-                              "fixed_vram": found[5], "texture_vram": found[6]}
+            switches[name] = switch_details(found)
             continue
         _, _, _, area, drawn, batches, _ = view
-        bits = display.bits
+        bits = renderer_capture.draw_bits(display.profile)
         captures = CAPTURE_RE.findall(span)
         statuses = [line for line in world_lines(span) if line["event"] == "status"]
         if changes or len(captures) != 1 or captures[0][0] != f"world-{name}.tga" or len(statuses) != 1:
@@ -221,26 +256,34 @@ def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str
             return False, (f"{name}: started in area {status['area']} and drew {status['drawn']} areas, {status['batches']} batches; "
                            f"expected area {area}, {drawn} areas, {batches} batches"), {}
         views[name] = {"capture": captures[0][0], "bits": bits, "presents": presents, "status": status}
-    if SWITCH_RE.search(log[:positions[1]] + log[positions[-2]:]):
+    if SWITCH_RE.search(log[:positions[1]] + log[positions[-3]:positions[-2]] + log[positions[-1]:]):
         return False, "the display mode changed outside its steps", {}
-    unloads = [line for line in world_lines(log[positions[-2]:positions[-1]]) if line["event"] == "unloaded"]
+    unloads = [line for line in world_lines(log[positions[-3]:positions[-2]]) if line["event"] == "unloaded"]
     if len(unloads) != 1 or (unloads[0]["areas"], unloads[0]["portals"], unloads[0]["viewing"]) != (1, 0, 0):
         return False, "the world did not unload to the empty single-area world", {}
+    # The unloaded world leaves the front end, which draws the preference in 32/16 again.
+    back = SWITCH_RE.findall(log[positions[-2]:positions[-1]])
+    expected = expected_switch(standard, front_end_display(standard))
+    if len(back) != 1 or parse_switch(back[0]) != expected:
+        return False, f"the front end did not return to {expected[3]} once after the unload", {}
+    switches["frontend"] = switch_details(expected)
     memory = run_headless.MEMORY_RE.findall(log)
     if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
         return False, "production shutdown did not recover the startup allocation ledger", {}
     arena = max(view["status"]["arena"] for view in views.values())
-    return True, ("the cooked graybox loaded, drew through the portal flow in every view in both frame-buffer profiles, "
-                  "640 wide and in FRAME mode, unloaded and shut down"), {"views": views, "switches": switches, "arena_bytes": arena}
+    return True, ("the cooked graybox loaded, left the front end's 32/16 for 32/32, drew through the portal flow in every view in "
+                  "16/16 and 32/32, the doorway in 32/16, "
+                  "at 512 wide and in FRAME mode, unloaded and shut down"), {"views": views, "switches": switches, "arena_bytes": arena}
 
 
-def doorway_box(standard: str) -> tuple[int, int, int, int]:
-    """The doorway's screen rectangle from the doorway camera, with a margin for the divider's thickness."""
-    height = 448 if standard == "NTSC" else 512
+def doorway_box(standard: str, width: int = 512) -> tuple[int, int, int, int]:
+    """The doorway's screen rectangle from the doorway camera in a FIELD frame 'width' wide, with a
+    margin for the divider's thickness."""
+    height = renderer_capture.VISIBLE_LINES[standard.upper()]
     # The camera is 440 units from the doorway's centre, looking straight at it with a 90-degree
-    # vertical field of view; the opening is 128 units square.
+    # vertical field of view and square pixels; the opening is 128 units square.
     half = int(64.0 / 436.0 * height / 2.0) + 3
-    return 256 - half, height // 2 - half, 256 + half, height // 2 + half
+    return width // 2 - half, height // 2 - half, width // 2 + half, height // 2 + half
 
 
 def verify_closed(open_path: Path, closed_path: Path, standard: str, bits: int = 16) -> dict:
@@ -250,7 +293,7 @@ def verify_closed(open_path: Path, closed_path: Path, standard: str, bits: int =
     if (width, height) != closed_size[:2]:
         raise ValueError("the open and closed doorway captures differ in size")
     closed = closed_size[2]
-    x0, y0, x1, y1 = doorway_box(standard)
+    x0, y0, x1, y1 = doorway_box(standard, width)
     changed = 0
     for y in range(height):
         for x in range(width):
@@ -274,28 +317,33 @@ def verify_sized_view(path: Path, standard: str, display: Display) -> dict:
     """A view drawn outside the default frame: its capture has the mode's size and shows the room
     through the doorway at the centre, not the clear colour."""
     width, height, pixels = renderer_capture.read_tga(path)
-    expected = renderer_capture.frame_size(standard, display.resolution, display.interlace)
+    expected = renderer_capture.frame_size(standard.upper(), display.resolution, display.interlace)
     if (width, height) != expected:
         raise ValueError(f"{path.name} is {width}x{height}; expected {expected[0]}x{expected[1]}")
     centre = (height // 2 * width + width // 2) * 3
     actual = tuple(pixels[centre:centre + 3])
-    if all(abs(a - e) <= renderer_capture.tolerance(display.bits) for a, e in zip(actual, renderer_capture.stored(CLEAR_RGB, display.bits))):
+    bits = renderer_capture.draw_bits(display.profile)
+    if all(abs(a - e) <= renderer_capture.tolerance(bits) for a, e in zip(actual, renderer_capture.stored(CLEAR_RGB, bits))):
         raise ValueError(f"{path.name} shows the clear colour at its centre; expected the room beyond the doorway")
     return {"width": width, "height": height, "centre_rgb": list(actual), "sha256": sha256(path)}
 
 
 def verify_captures(output: Path, standard: str) -> dict:
     results = {}
-    for name, display, view in steps():
+    for name, display, view in steps(standard):
         if view is None:
             continue
         if view[-1]:
-            results[name] = renderer_capture.verify_world_scene(output / f"world-{name}.tga", standard, view[0], display.bits)
-        elif (display.resolution, display.interlace) != (DEFAULT_DISPLAY.resolution, DEFAULT_DISPLAY.interlace):
+            width = renderer_capture.frame_size(standard.upper(), display.resolution)[0]
+            results[name] = renderer_capture.verify_world_scene(output / f"world-{name}.tga", standard.upper(), view[0],
+                                                                renderer_capture.draw_bits(display.profile), width)
+        elif display.interlace == "FRAME":
             results[name] = verify_sized_view(output / f"world-{name}.tga", standard, display)
     results["closed"] = verify_closed(output / "world-doorway.tga", output / "world-closed.tga", standard, 32)
-    results["closed-16"] = verify_closed(output / "world-doorway-16.tga", output / "world-closed-16.tga", standard)
-    for name, change in (("doorway-32", "profile"), ("doorway-512", "resolution"), ("doorway-field", "interlace")):
+    results["closed-16"] = verify_closed(output / "world-doorway-16.tga", output / "world-closed-16.tga", standard, 16)
+    # 32/16 captures its 32-bit draw buffer, which holds what 32/32 draws.
+    for name, change in (("doorway-32-16", "32/16 profile"), ("doorway-32", "profile"), ("doorway-640", "resolution"),
+                         ("doorway-field", "interlace")):
         if sha256(output / f"world-{name}.tga") != results["doorway"]["sha256"]:
             raise ValueError(f"the doorway drawn after the {change} round trip differs from its first capture")
     return results
@@ -329,7 +377,7 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
     (output / "console.txt").write_bytes(b"")
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
     command = [str(args.emulator), "-batch", "-elf", str(output / "d3bfg.elf"), "-logfile", str(output / "emulog.txt")]
-    steps = driver(identity)
+    steps = driver(identity, standard)
     until = None
     started = time.monotonic()
     deadline = started + STARTUP_SECONDS * args.timeout_scale
@@ -370,7 +418,7 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
     captures = {}
     if passed:
         try:
-            captures = verify_captures(output, standard.upper())
+            captures = verify_captures(output, standard)
         except (OSError, ValueError) as error:
             passed, reason = False, str(error)
     if process.returncode != 0:

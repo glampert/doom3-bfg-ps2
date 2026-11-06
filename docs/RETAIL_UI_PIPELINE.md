@@ -275,9 +275,10 @@ image has no retail data. Every visible package therefore stages the catalog; se
 ## Pre-rendered glyphs
 
 Menu text draws far below its atlas size. For a SWF edit text of font height H (in
-1280 × 960 stage units), one texel of the 48-point atlas covers H / 120 GS pixels
-horizontally in both standards and H × lines / 46,080 vertically (448 or 512 lines), so
-the dialog's text (H = 21, 22 and 34) minifies the original atlas 3.5–5.7× horizontally. The PC
+1280 × 960 stage units), one texel of the 48-point atlas covers H / 96 GS pixels
+horizontally on the 640-wide default screen (H / 120 at 512) in both standards and
+H × lines / 46,080 vertically (448 or 512 lines), so the dialog's text (H = 21, 22 and 34)
+minifies the original atlas 2.8–4.6× horizontally. The PC
 samples the fonts' mip chains with trilinear and anisotropic filtering; the GS path
 binds one level, bilinear, so thin stems alias. Native `RenderEditText` also grows each
 glyph quad by one screen unit but its UVs by one texel, stretching small glyphs, and
@@ -289,7 +290,8 @@ Fonts listed under `conversion.glyph_sets` in the profile draw such text from bi
 rendered at the exact on-screen size. Each entry names a font and its sizes: `scale`
 is GS pixels per atlas texel (x, y) and `stroke_weight` the outline weight in atlas
 texels, zero for none. The dialog and the shell's start, root, Campaign and Settings screens are covered, each size in
-NTSC and PAL. Sarasori has the dialog's heights 21 and 22 with weight 1.75 and 34 with
+NTSC and PAL, for the 640-wide default (2026-11-06; the scales were 0.8 times as wide for 512, which now
+draws menu text with native quads). Sarasori has the dialog's heights 21 and 22 with weight 1.75 and 34 with
 weight 2.0, plus the start screen's prompts and carousel labels at heights 10 and 13
 without an outline, the root screen's options and help line at heights 18 and 10 with a 2.0 outline, and the Campaign and Settings headings (0.35 per texel, 1.75 outline) and options (0.2, 2.0 outline): 18 sizes. Arial Narrow has the start screen's small background text
 at heights 2.5 and 3: four sizes. The runtime supplies the values: a retail font drawn at
@@ -315,7 +317,7 @@ font's full-resolution atlas, decoded from its BIMAGE, and its glyph records:
   texture therefore holds one placement per page, and each glyph records its own
   rectangle instead.
 
-The Sarasori set holds 18 sizes. The cooked glyph-set images are two PSMT4 pages (512 × 512 and 128 × 128), 136 KiB of VRAM in all; re-read the per-set disc sizes from the manifest. (The Arial Narrow figures in the next sentence also need re-reading.) The Arial Narrow set is 128 × 128:
+The Sarasori set holds 18 sizes. At 640 its cooked image is two PSMT4 pages (512 × 512 and 256 × 384), 176 KiB of VRAM (136 KiB when it was cooked for 512); re-read the per-set disc sizes from the manifest. (The Arial Narrow figures in the next sentence also need re-reading.) The Arial Narrow set is 128 × 128:
 992 bytes and 8 KiB of VRAM. Each glyph's rectangle, outline flag and ink origin, its
 left edge on its baseline in 1/16 pixel from the bitmap's corner, go to
 `cooked.glyph_sets` and the catalog.

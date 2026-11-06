@@ -91,7 +91,14 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   fixed_vram= texture_vram= uploads=` per profile (the 2 MiB texture range capped at
   1,900,544 NTSC / 1,572,864 PAL at 32 bits, one re-upload after each change), the runner
   requires those lines and checks every pixel of `renderer-format-{16,32,16-again}.tga`, and
-  the two 16-bit captures must be byte-identical.
+  the two 16-bit captures must be byte-identical. Since 2026-11-06 the switch also passes
+  through 32/16 (`GS ready ... PSMCT32+PSMCT16S/Z16S fixed_vram=1835008`, PAL 2,097,152; the
+  lines now name profiles, `GS format bits=16/16|32/32|32/16`): `renderer-format-32-16.tga`
+  reads the 32-bit draw buffer and must hold the exact colours, and
+  `renderer-format-32-16-display.tga` (`gs::CaptureDisplayTga`) reads the `PSMCT16S` display
+  buffer, where every pixel must be a dithered five-bit store of its colour
+  (`renderer_capture.dithered_range`: the channel moved by -4..3, then truncated) and the fill
+  must show more than one stored value, proving the copy dithered (three in PCSX2).
 - Display modes: `renderer-gs/display-mode-switch` draws the same scene in the 16-bit profile
   at the default 512-wide FIELD mode, after `renderer::SetDisplayMode` restarts the GS 640 wide,
   at 512 in FRAME mode (a half-height buffer: 224 NTSC / 256 PAL lines) and at the default

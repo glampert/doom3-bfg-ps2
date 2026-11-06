@@ -51,13 +51,15 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   per Common frame, no unreviewed screen, no unrendered glyph size outside the
   `inactive`/`execution` steps (their isolated English labels draw at the movie's largest
   text height through native quads, and a size logs once per session), the final capture
-  drained by the dialog's quit and exact startup-ledger recovery. Sessions run in the default
-  32-bit frame-buffer profile. In PAL its buffers leave 1,572,864 bytes of texture VRAM, less
-  than the retail UI's texture set, so from the `dialog` step on screens evict and upload
-  textures again when they change: when the log's `GS ready` names PAL and `PSMCT32/Z16S`, the
-  step classifiers accept evictions and uploads across screens and reloads (the held dialog
-  between its two captures still uploads nothing), and the session allows at most
-  `EVICTION_LIMIT` (32) evictions in all; NTSC must evict nothing. A debug NTSC session
+  drained by the dialog's quit and exact startup-ledger recovery. Sessions run in the front end's
+  display mode: 640 wide, FIELD, the default 32/32 preference drawn as 32/16 (`GS ready NTSC
+  640x448 FIELD PSMCT32+PSMCT16S/Z16S fixed_vram=2293760`), with captures 640 wide and the menu's
+  glyph sets cooked for that width. The texture range the first `GS ready` line leaves decides the
+  eviction policy (`run_ui_session.texture_range`): below 1,900,544 bytes, the smallest measured to
+  hold the whole session (PAL's 1,572,864), screens evict and upload textures again when they
+  change, and the step classifiers accept evictions and uploads across screens and reloads (the
+  held dialog between its two captures still uploads nothing), and the session allows at most
+  `EVICTION_LIMIT` (32) evictions in all (PAL 23 at 640, 2026-11-06); NTSC must evict nothing. A debug NTSC session
   takes about 470 s: boot 93, console 5, fonts 15, inactive 11, execution 62, dialog 8,
   shell 40, menu 107, screens 63 and quit 53. `summary.json` records
   each step's verdict, captures and duration. Then `run_retail_ui.py` and
@@ -222,27 +224,35 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   `clip` (the doorway just outside its frustum), `away` (facing room 0's far wall) and
   `closed` (the doorway camera with the portal closed) 1 area and 14 batches.
 - Captures: `room0`, `room1`, `doorway` and `clip` are the GS gate's cameras and must
-  show its reference pixels (`renderer_capture.WORLD_SCENE_PIXELS`, 8-bit colours stored
-  as each profile keeps them); `closed` must equal `doorway` everywhere outside the
-  doorway's screen rectangle (the opening seen from 436 units plus 3 pixels), differ on at
-  least half of it and show the clear colour (16, 24, 40) at the centre.
-- Frame-buffer profiles: the six views run in the default 32-bit profile, then
-  `ps2_frameBufferBits 16` must log one `[D3BFG] GS display 512x448 FIELD bits=16 PSMCT16/Z16
-  fixed_vram=` line (`512x512` and 1,376,256 NTSC, 1,572,864 PAL) and the six views run again
-  as `<view>-16`, every capture line carrying its `bits=`. The 32-bit captures are checked
-  against the exact reference colours within 2 levels (PSMCT16's model allows 8), the closed
-  doorway against the exact clear colour. Switched back (`bits=32 PSMCT32/Z16S` with the
-  texture range capped at 1,900,544 NTSC / 1,572,864 PAL), `doorway-32` must be
-  byte-identical to the first `doorway`.
-- Display modes: `ps2_resolution 1` must log one `GS display 640x448 FIELD bits=32` line
-  (`640x512` PAL; fixed VRAM 2,867,200 / 3,276,800, the texture range capped at 1,327,104 /
-  917,504) and `doorway-640` is captured 640 wide, showing the room beyond the doorway at its
-  centre; `ps2_resolution 0` back, and `doorway-512` must be byte-identical to the first
-  `doorway`. Then `ps2_interlace frame` (`GS display 512x224 FRAME`, `512x256` PAL; fixed VRAM
-  1,179,648 / 1,310,720) and `doorway-frame` is captured at the half height; `ps2_interlace
-  field` back, and `doorway-field` must match the first `doorway`. Each step changes one cvar
-  (`run_world.switch_command`); the expected line comes from `renderer_capture.frame_size` and
-  `fixed_vram_bytes` for the session's standard. Every view keeps its culling counts.
+  show its reference pixels at the capture's width (`renderer_capture.WORLD_SCENE_PIXELS_640`
+  for production's default, `WORLD_SCENE_PIXELS` at 512, both from the same rasterizer and
+  8-bit colours stored as each profile keeps them); `closed` must equal `doorway` everywhere
+  outside the doorway's screen rectangle (the opening seen from 436 units plus 3 pixels,
+  centred on the frame), differ on at least half of it and show the clear colour (16, 24, 40)
+  at the centre.
+- Frame-buffer profiles: the package boots in the front end, whose `GS ready ... 640x448 FIELD
+  PSMCT32+PSMCT16S/Z16S fixed_vram=2293760` (PAL `640x512`, 2,621,440) is the default 32/32
+  preference drawn as 32/16. The load switches to the preference by itself: the `ingame` step must
+  log one `[D3BFG] GS display 640x448 FIELD bits=32/32 PSMCT32/Z16S fixed_vram=2867200
+  texture_vram=1327104` (PAL 3,276,800 and 917,504). The six views run there, then
+  `ps2_frameBufferBits 16/16` switches live (`bits=16/16 PSMCT16/Z16`, NTSC 1,720,320, PAL
+  1,966,080) and they run again as `<view>-16`; `ps2_frameBufferBits 32/16` (`bits=32/16`) draws
+  `doorway-32-16`, and `ps2_frameBufferBits 32/32` back draws `doorway-32`. Every capture line
+  carries the draw buffer's `bits=` (32 in 32/16, whose capture reads the 32-bit draw buffer).
+  32-bit captures are checked against the exact reference colours within 2 levels (PSMCT16's model
+  allows 8), the closed doorway against the exact clear colour; `doorway-32-16` and `doorway-32`
+  must be byte-identical to the first `doorway`.
+- Display modes: `ps2_resolution 0` must log one `GS display 512x448 FIELD` line (`512x512`
+  PAL) and `doorway-512` must show the GS gate's 512-wide reference pixels; `ps2_resolution 1`
+  back, and `doorway-640` must be byte-identical to the first `doorway`. Then `ps2_interlace
+  frame` (`GS display 640x224 FRAME`, `640x256` PAL; fixed VRAM 1,474,560 / 1,638,400 at 32/32)
+  and `doorway-frame` is captured at the half height, showing the room beyond the doorway at its
+  centre; `ps2_interlace field` back, and `doorway-field` must match the first `doorway`. Each
+  step changes one cvar (`run_world.switch_command`); the expected line comes from
+  `renderer_capture.frame_size` and `fixed_vram_bytes` for the session's standard. Every view
+  keeps its culling counts. After `ps2_world unload` the session is back in the front end: the
+  `frontend` barrier's span must hold one switch back to 32/16, and no display change may happen
+  outside these steps.
 - `ps2_world unload` must leave the empty single-area world (`areas=1 portals=0`), and the
   session quits with the exact startup ledger. A session takes about 9 s of emulation in
   debug. `test_world_runner.py` rejects a missing or refused cooked load, wrong traces,

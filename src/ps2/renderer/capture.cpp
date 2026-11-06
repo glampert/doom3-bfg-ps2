@@ -45,6 +45,13 @@ struct alignas(64) Strip
 
 static_assert(sizeof(Strip::pixels) % 64 == 0 && sizeof(Strip) % 64 == 0);
 
+// PSMCT16 and PSMCT16S hold the same pixel bits; only their VRAM arrangement differs, which the
+// transfer undoes.
+ID_FORCE_INLINE bool Readable(const gs::FramebufferInfo & frame)
+{
+    return frame.pixelFormat == GS_PSM_16 || frame.pixelFormat == GS_PSM_16S || frame.pixelFormat == GS_PSM_32;
+}
+
 ID_FORCE_INLINE int PixelBytes(const gs::FramebufferInfo & frame)
 {
     return frame.pixelFormat == GS_PSM_32 ? 4 : 2;
@@ -132,7 +139,7 @@ PS2_COLD_FUNC bool ReadRows(Strip & strip, const gs::FramebufferInfo & frame, in
 
     // Every supported width is a whole number of 64-pixel GS blocks, so neither the request nor
     // the target shares a cache line with unrelated data. Both DMA channels must already have drained.
-    if (frame.width <= 0 || frame.width > kMaxWidth || frame.width % 64 != 0 || (frame.pixelFormat != GS_PSM_16 && frame.pixelFormat != GS_PSM_32) ||
+    if (frame.width <= 0 || frame.width > kMaxWidth || frame.width % 64 != 0 || !Readable(frame) ||
         y < 0 || rows <= 0 ||
         rows > StripRows(frame) || y > frame.height - rows ||
         (*R_EE_D1_CHCR & kDmaStart) != 0 || (*R_EE_D2_CHCR & kDmaStart) != 0 ||
@@ -289,23 +296,11 @@ PS2_COLD_FUNC bool WriteFrame(std::FILE * file, Strip & strip, const gs::Framebu
     return std::ferror(file) == 0;
 }
 
-} // namespace
-
-PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
+PS2_COLD_FUNC bool CaptureFrame(const char * path, const gs::FramebufferInfo & frame)
 {
-    if (path == nullptr || path[0] == '\0' || s_active || !renderer::IsInitialized() ||
-        !gs::IsInitialized() || renderer::FrameStarted() || renderer::FrameCount() == 0 ||
-        context != renderer::LastPresentedContext())
+    if (frame.width <= 0 || frame.width > kMaxWidth || frame.width % 64 != 0 || frame.height <= 0 || frame.height > 512 || !Readable(frame))
     {
-        Log(LogLevel::Error, "GS capture requires a path and the most recently completed frame");
-        return false;
-    }
-
-    const gs::FramebufferInfo frame = gs::GetFramebuffer(context);
-    if (frame.width <= 0 || frame.width > kMaxWidth || frame.width % 64 != 0 || frame.height <= 0 || frame.height > 512 ||
-        (frame.pixelFormat != GS_PSM_16 && frame.pixelFormat != GS_PSM_32))
-    {
-        Log(LogLevel::Error, "GS capture supports only PSMCT16 and PSMCT32 frame buffers up to %d pixels wide", kMaxWidth);
+        Log(LogLevel::Error, "GS capture supports only PSMCT16, PSMCT16S and PSMCT32 frame buffers up to %d pixels wide", kMaxWidth);
         return false;
     }
 
@@ -339,6 +334,36 @@ PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
         Log(LogLevel::Error, "GS capture failed: %s", path);
     }
     return written;
+}
+
+PS2_COLD_FUNC bool Completed(const char * path)
+{
+    if (path == nullptr || path[0] == '\0' || s_active || !renderer::IsInitialized() || !gs::IsInitialized() ||
+        renderer::FrameStarted() || renderer::FrameCount() == 0)
+    {
+        Log(LogLevel::Error, "GS capture requires a path and the most recently completed frame");
+        return false;
+    }
+
+    return true;
+}
+
+} // namespace
+
+PS2_COLD_FUNC bool CaptureTga(const char * path, gs::DrawContext context)
+{
+    if (!Completed(path) || context != renderer::LastPresentedContext())
+    {
+        Log(LogLevel::Error, "GS capture requires the most recently completed frame's context");
+        return false;
+    }
+
+    return CaptureFrame(path, gs::GetFramebuffer(context));
+}
+
+PS2_COLD_FUNC bool CaptureDisplayTga(const char * path)
+{
+    return Completed(path) && CaptureFrame(path, gs::GetDisplayFramebuffer());
 }
 
 #if PS2_D3BFG_TESTS

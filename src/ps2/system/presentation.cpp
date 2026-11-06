@@ -50,16 +50,23 @@ static renderView_t s_view;
 // The display mode (RENDERING_ARCHITECTURE.md 4.2 and 4.3): the frame-buffer resolution, how each
 // field reads it and the frame-buffer profile. The device starts in the cvars' values, and a change
 // takes effect before the next frame begins.
-static idCVar s_resolution("ps2_resolution", "0", CVAR_SYSTEM | CVAR_INTEGER,
+// 640 wide is the fidelity target production ships with; 512 is the fallback.
+static idCVar s_resolution("ps2_resolution", "1", CVAR_SYSTEM | CVAR_INTEGER,
                            "frame-buffer resolution, an index into the standard's list: 0 is 512x448 (NTSC) or 512x512 (PAL), 1 is 640 wide; "
                            "changes between frames",
                            0.0f, 15.0f);
 static idCVar s_interlace("ps2_interlace", "field", CVAR_SYSTEM,
                           "how each field reads the frame buffer: field shows every other line of the full-height buffer, frame a half-height "
                           "buffer whole (SMODE2 FFMD); changes between frames");
-static idCVar s_frameBufferBits("ps2_frameBufferBits", "32", CVAR_SYSTEM | CVAR_INTEGER,
-                                "frame-buffer colour bits, 16 (PSMCT16 + Z16) or 32 (PSMCT32 + Z16S); changes between frames",
-                                16.0f, 32.0f);
+static idCVar s_frameBufferBits("ps2_frameBufferBits", "32/32", CVAR_SYSTEM,
+                                "frame-buffer draw/display bits in game: 16/16, 32/16 (32-bit drawing shown through a dithered "
+                                "16-bit copy) or 32/32; the front end uses 32/16 for 32/32; changes between frames");
+
+// The display mode the cvars ask for; the front end may draw it in a smaller profile (Effective).
+static ps2::renderer::DisplayMode s_preferred;
+
+// A render world loaded by ps2_world stands in for a game map until production loads maps.
+static bool s_worldLoaded = false;
 
 void RequireConsole(const idCmdArgs & args, int count)
 {
@@ -197,10 +204,12 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
 
         if (!world->InitFromMap(args.Argv(2)))
         {
+            s_worldLoaded = false;
             ps2::Log(ps2::LogLevel::Error, "[D3BFG] WORLD load failed map=%s\n", args.Argv(2));
             return;
         }
 
+        s_worldLoaded = true;
         LogWorldStatus("loaded");
         return;
     }
@@ -208,6 +217,7 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     if (strcmp(verb, "unload") == 0 && args.Argc() == 2)
     {
         s_worldView = false;
+        s_worldLoaded = false;
         world->InitFromMap(nullptr);
         LogWorldStatus("unloaded");
         return;
@@ -312,20 +322,33 @@ PS2_COLD_FUNC void ReadDisplayCvars(ps2::system::video::Standard standard, ps2::
         ps2::Log(ps2::LogLevel::Warning, "ps2_interlace accepts field or frame; keeping %s\n", ps2::system::video::InterlaceName(mode.interlace));
     }
 
-    const int bits = s_frameBufferBits.GetInteger();
+    static constexpr ps2::renderer::gs::FrameFormat kFormats[] = {
+        ps2::renderer::gs::FrameFormat::Color16, ps2::renderer::gs::FrameFormat::Color32Display16, ps2::renderer::gs::FrameFormat::Color32
+    };
+    bool found = false;
 
-    if (bits != 16 && bits != 32)
+    // The console tokenizes 32/16 as three words and joins them with spaces: compare without them.
+    idStr label = s_frameBufferBits.GetString();
+    label.Replace(" ", "");
+
+    for (const ps2::renderer::gs::FrameFormat format : kFormats)
     {
-        ps2::Log(ps2::LogLevel::Warning, "ps2_frameBufferBits accepts 16 or 32; keeping %d\n", ps2::renderer::gs::FrameFormatBits(mode.format));
+        if (label.Cmp(ps2::renderer::gs::FrameFormatLabel(format)) == 0)
+        {
+            mode.format = format;
+            found = true;
+        }
     }
-    else
+
+    if (!found)
     {
-        mode.format = bits == 32 ? ps2::renderer::gs::FrameFormat::Color32 : ps2::renderer::gs::FrameFormat::Color16;
+        ps2::Log(ps2::LogLevel::Warning, "ps2_frameBufferBits accepts 16/16, 32/16 or 32/32; keeping %s\n",
+                 ps2::renderer::gs::FrameFormatLabel(mode.format));
     }
 
     s_resolution.SetInteger(mode.resolution);
     s_interlace.SetString(mode.interlace == ps2::system::video::Interlace::Frame ? "frame" : "field");
-    s_frameBufferBits.SetInteger(ps2::renderer::gs::FrameFormatBits(mode.format));
+    s_frameBufferBits.SetString(ps2::renderer::gs::FrameFormatLabel(mode.format));
     s_resolution.ClearModified();
     s_interlace.ClearModified();
     s_frameBufferBits.ClearModified();
@@ -333,35 +356,59 @@ PS2_COLD_FUNC void ReadDisplayCvars(ps2::system::video::Standard standard, ps2::
 
 PS2_COLD_FUNC void LogDisplayMode()
 {
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GS display %dx%d %s bits=%d %s fixed_vram=%u texture_vram=%u\n", ps2::renderer::gs::Width(),
+    const ps2::renderer::gs::FrameFormat format = ps2::renderer::gs::GetFrameFormat();
+
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] GS display %dx%d %s bits=%s %s fixed_vram=%u texture_vram=%u\n", ps2::renderer::gs::Width(),
              ps2::renderer::gs::Height(), ps2::system::video::InterlaceName(ps2::renderer::gs::GetInterlace()),
-             ps2::renderer::gs::FrameFormatBits(ps2::renderer::gs::GetFrameFormat()), ps2::renderer::gs::FrameFormatName(ps2::renderer::gs::GetFrameFormat()),
-             ps2::renderer::gs::FixedVramBytes(), static_cast<u32>(ps2::renderer::gs::GetVramStats().capacityBytes));
+             ps2::renderer::gs::FrameFormatLabel(format), ps2::renderer::gs::FrameFormatName(format), ps2::renderer::gs::FixedVramBytes(),
+             static_cast<u32>(ps2::renderer::gs::GetVramStats().capacityBytes));
 }
 
-PS2_COLD_FUNC void ApplyDisplayCvars()
+// A map is loaded: the game's, or a render world the viewer loaded.
+bool InGame()
 {
-    const ps2::renderer::DisplayMode current = ps2::renderer::GetDisplayMode();
-    ps2::renderer::DisplayMode mode = current;
-    ReadDisplayCvars(PolicyStandard(), mode);
+    return s_worldLoaded || (game != nullptr && game->IsInGame());
+}
 
-    if (mode.resolution == current.resolution && mode.interlace == current.interlace && mode.format == current.format)
+// The front end (no map loaded) draws the retail menus, whose textures do not fit beside two 640-wide
+// 32-bit buffers (the quit dialog over the shell evicted every frame in NTSC's 1,327,104 bytes):
+// it draws in 32 bits but shows a dithered 16-bit copy, which leaves 1,900,544 bytes NTSC and
+// 1,572,864 PAL. A map switches to the preferred profile.
+ps2::renderer::DisplayMode Effective(const ps2::renderer::DisplayMode & preferred)
+{
+    ps2::renderer::DisplayMode mode = preferred;
+
+    if (!InGame() && mode.format == ps2::renderer::gs::FrameFormat::Color32)
     {
-        return;
+        mode.format = ps2::renderer::gs::FrameFormat::Color32Display16;
     }
 
-    ps2::renderer::SetDisplayMode(mode);
-    LogDisplayMode();
+    return mode;
+}
+
+// Applies the cvars and the front-end rule before a frame begins; a change restarts the GS.
+void UpdateDisplayMode()
+{
+    if (s_resolution.IsModified() || s_interlace.IsModified() || s_frameBufferBits.IsModified()) [[unlikely]]
+    {
+        ReadDisplayCvars(PolicyStandard(), s_preferred);
+    }
+
+    const ps2::renderer::DisplayMode current = ps2::renderer::GetDisplayMode();
+    const ps2::renderer::DisplayMode mode = Effective(s_preferred);
+
+    if (mode.resolution != current.resolution || mode.interlace != current.interlace || mode.format != current.format) [[unlikely]]
+    {
+        ps2::renderer::SetDisplayMode(mode);
+        LogDisplayMode();
+    }
 }
 
 void Present()
 {
     PS2_AssertMsg(!s_drawing && !ps2::renderer::FrameStarted(), "nested native console presentation");
 
-    if (s_resolution.IsModified() || s_interlace.IsModified() || s_frameBufferBits.IsModified()) [[unlikely]]
-    {
-        ApplyDisplayCvars();
-    }
+    UpdateDisplayMode();
 
     s_drawing = true;
 
@@ -510,10 +557,12 @@ PS2_COLD_FUNC void InitPresentation()
     renderer::Config config;
     config.standard = PolicyStandard();
 
-    // No config file has run yet: the device starts in the cvars' defaults, and later values apply
-    // at the frame boundary.
-    config.display.format = renderer::gs::FrameFormat::Color32;
-    ReadDisplayCvars(config.standard, config.display);
+    // No config file has run yet: the device starts in the cvars' defaults, as the front end draws
+    // them, and later values apply at the frame boundary.
+    s_preferred = {};
+    s_preferred.format = renderer::gs::FrameFormat::Color32;
+    ReadDisplayCvars(config.standard, s_preferred);
+    config.display = Effective(s_preferred);
 
     if (!renderer::Init(config)) [[unlikely]]
     {

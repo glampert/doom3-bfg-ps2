@@ -17,10 +17,14 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
 import console_capture
+import renderer_capture
 import run_console as runner
 import stage_headless as staging
 import stage_retail_ui
 from test_retail_ui_runner import synthetic_package
+
+# Production draws the console 640 wide (renderer_capture.production_size).
+WIDTH = renderer_capture.production_size("ntsc")[0]
 
 
 def completed():
@@ -40,13 +44,13 @@ def completed():
 def console_image(height, manifest, source):
     """Render what the native console shows: the half console, its border and the input line's
     glyphs sampled from the synthetic charset exactly as the target's quads map them."""
-    rgb = bytearray(bytes((16, 24, 40)) * (512 * height))
+    rgb = bytearray(bytes((16, 24, 40)) * (WIDTH * height))
 
     def rectangle(x, y, width, rows, color):
-        left, right = math.ceil(x * 512 / 640), math.ceil((x + width) * 512 / 640)
+        left, right = math.ceil(x * WIDTH / 640), math.ceil((x + width) * WIDTH / 640)
         top, bottom = math.ceil(y * height / 480), math.ceil((y + rows) * height / 480)
         for row in range(top, bottom):
-            offset = (row * 512 + left) * 3
+            offset = (row * WIDTH + left) * 3
             rgb[offset:offset + (right - left) * 3] = bytes(color) * (right - left)
 
     rectangle(0, 0, 640, 238, console_capture.DARK)
@@ -58,9 +62,9 @@ def console_image(height, manifest, source):
             continue
         code = ord(character)
         cell_x, cell_y = (code & 15) * 16, (code >> 4) * 16
-        x0 = (console_capture.INPUT_LINE[0] + index * 8) * 512 / 640
+        x0 = (console_capture.INPUT_LINE[0] + index * 8) * WIDTH / 640
         y0 = console_capture.INPUT_LINE[1] * lines / 480
-        x1, y1 = x0 + 8 * 512 / 640, y0 + 16 * lines / 480
+        x1, y1 = x0 + 8 * WIDTH / 640, y0 + 16 * lines / 480
         color = console_capture.CYAN if index == 0 else console_capture.WHITE
         for row in range(math.ceil(y0), math.ceil(y1)):
             for column in range(math.ceil(x0), math.ceil(x1)):
@@ -68,13 +72,13 @@ def console_image(height, manifest, source):
                 v = cell_y + (row - y0) / (y1 - y0) * 16
                 sampled = atlas.texture.sample(u, v)
                 alpha = 0 if sampled is None else sampled[3]
-                offset = (row * 512 + column) * 3
+                offset = (row * WIDTH + column) * 3
                 rgb[offset:offset + 3] = bytes(console_capture.blend(color, alpha / 255, console_capture.DARK))
     return rgb
 
 
 def tga(height, pixels):
-    header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, height, 24, 0x20)
+    header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, WIDTH, height, 24, 0x20)
     bgr = bytearray(len(pixels))
     bgr[0::3], bgr[1::3], bgr[2::3] = pixels[2::3], pixels[1::3], pixels[0::3]
     return header + bgr
@@ -126,7 +130,7 @@ class ConsolePixels(unittest.TestCase):
         for standard, height in (("ntsc", 448), ("pal", 512)):
             self.path.write_bytes(tga(height, console_image(height, self.manifest, self.source)))
             result = self.verify(standard)
-            self.assertEqual((result["width"], result["height"]), (512, height))
+            self.assertEqual((result["width"], result["height"]), (WIDTH, height))
             names = [check["name"] for check in result["checks"]]
             self.assertEqual(names[:3], [name for name, _, _, _ in console_capture.FIXED_PIXELS])
             # The prompt, every letter's ink and hole, and the gap between the words.
@@ -138,8 +142,8 @@ class ConsolePixels(unittest.TestCase):
     def test_opaque_or_absent_console_background_is_rejected(self):
         for replacement in ((0, 0, 0), (16, 24, 40)):
             pixels = console_image(448, self.manifest, self.source)
-            x, y = int(8 * 512 / 640), int(200 * 448 / 480)
-            offset = (y * 512 + x) * 3
+            x, y = int(8 * WIDTH / 640), int(200 * 448 / 480)
+            offset = (y * WIDTH + x) * 3
             pixels[offset:offset + 3] = bytes(replacement)
             self.path.write_bytes(tga(448, pixels))
             with self.assertRaisesRegex(ValueError, "half-console-background"):
@@ -148,7 +152,7 @@ class ConsolePixels(unittest.TestCase):
     def test_missing_text_or_opaque_glyphs_are_rejected(self):
         for probe in console_capture.expected_probes(self.manifest, self.source, "ntsc"):
             pixels = console_image(448, self.manifest, self.source)
-            offset = (probe["y"] * 512 + probe["x"]) * 3
+            offset = (probe["y"] * WIDTH + probe["x"]) * 3
             actual = pixels[offset:offset + 3]
             pixels[offset:offset + 3] = bytes((255, 0, 0)) if actual != bytes((255, 0, 0)) else bytes(3)
             self.path.write_bytes(tga(448, pixels))
@@ -171,7 +175,7 @@ class ConsolePixels(unittest.TestCase):
 
     def test_wrong_dimensions_or_profile_are_rejected(self):
         self.path.write_bytes(tga(448, console_image(448, self.manifest, self.source)))
-        with self.assertRaisesRegex(ValueError, "expected 512x512"):
+        with self.assertRaisesRegex(ValueError, "expected 640x512"):
             self.verify("pal")
         with self.assertRaisesRegex(ValueError, "standard"):
             self.verify("secam")

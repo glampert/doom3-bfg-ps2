@@ -27,6 +27,8 @@ namespace
 static framebuffer_t s_frames[2] = {};
 static zbuffer_t s_depth = {};
 static FrameFormat s_format = FrameFormat::Color16;
+static u32 s_displayAddress = 0; // the 32/16 profile's PSMCT16S display buffer
+static u32 s_presentedAddress = 0;
 static system::video::Interlace s_interlace = system::video::Interlace::Field;
 static int s_width = 0;
 static int s_height = 0;
@@ -34,6 +36,7 @@ static u32 s_fixedVramBytes = 0;
 static bool s_initialized = false;
 static u64 s_previousImr = 0;
 alignas(64) static qword_t s_upload[128] = {};
+alignas(64) static qword_t s_copy[80] = {};
 
 // z/w of +-1 times this, plus the same offset, then x16 (ftoi4) spans the Z16 range [0, 0xFFFF].
 static constexpr float kDepthScale = static_cast<float>(0xFFFF) / 32.0f;
@@ -252,14 +255,26 @@ u64 ClampState(const TextureBinding & binding)
                         layout.height - 1);
 }
 
+// The draw buffers' format.
 ID_FORCE_INLINE int ColorPsm(FrameFormat format)
 {
-    return format == FrameFormat::Color32 ? GS_PSM_32 : GS_PSM_16;
+    return format == FrameFormat::Color16 ? GS_PSM_16 : GS_PSM_32;
 }
 
 ID_FORCE_INLINE int DepthPsm(FrameFormat format)
 {
-    return format == FrameFormat::Color32 ? GS_ZBUF_16S : GS_ZBUF_16;
+    return format == FrameFormat::Color16 ? GS_ZBUF_16 : GS_ZBUF_16S;
+}
+
+// The format the display circuits read: PSMCT16S for the 32/16 copy, of the depth buffer's group.
+ID_FORCE_INLINE int DisplayPsm(FrameFormat format)
+{
+    return format == FrameFormat::Color32Display16 ? GS_PSM_16S : ColorPsm(format);
+}
+
+ID_FORCE_INLINE bool SplitDisplay(FrameFormat format)
+{
+    return format == FrameFormat::Color32Display16;
 }
 
 // A buffer's height rounded up to whole GS page rows: 16-bit formats page 64x64 texels, 32-bit
@@ -271,15 +286,17 @@ ID_FORCE_INLINE int PaddedRows(int psm, int height)
     return (height + pageRows - 1) / pageRows * pageRows;
 }
 
-// Both colour buffers, then the depth buffer, page-aligned from VRAM address 0.
+// Both colour buffers (or the 32/16 profile's draw buffer and its display buffer), then the depth
+// buffer, page-aligned from VRAM address 0. In 32/16 both drawing contexts name the one draw buffer.
 PS2_COLD_FUNC bool LayOutBuffers(FrameFormat format, int width, int height)
 {
     const int colorRows = PaddedRows(ColorPsm(format), height);
+    const int secondRows = PaddedRows(DisplayPsm(format), height);
     const int depthRows = PaddedRows(DepthPsm(format), height);
 
     graph_vram_clear();
     const int first  = graph_vram_allocate(width, colorRows, ColorPsm(format), GRAPH_ALIGN_PAGE);
-    const int second = graph_vram_allocate(width, colorRows, ColorPsm(format), GRAPH_ALIGN_PAGE);
+    const int second = graph_vram_allocate(width, secondRows, DisplayPsm(format), GRAPH_ALIGN_PAGE);
     const int depth  = graph_vram_allocate(width, depthRows, DepthPsm(format), GRAPH_ALIGN_PAGE);
 
     if (first < 0 || second < 0 || depth < 0)
@@ -292,7 +309,7 @@ PS2_COLD_FUNC bool LayOutBuffers(FrameFormat format, int width, int height)
     {
         s_frames[index].width   = static_cast<unsigned int>(width);
         s_frames[index].height  = static_cast<unsigned int>(height);
-        s_frames[index].address = static_cast<unsigned int>(index == 0 ? first : second);
+        s_frames[index].address = static_cast<unsigned int>(index == 0 || SplitDisplay(format) ? first : second);
         s_frames[index].psm     = static_cast<unsigned int>(ColorPsm(format));
         s_frames[index].mask    = 0;
     }
@@ -303,6 +320,7 @@ PS2_COLD_FUNC bool LayOutBuffers(FrameFormat format, int width, int height)
     s_depth.enable  = DRAW_DISABLE;
     s_depth.method  = ZTEST_METHOD_ALLPASS;
     s_format        = format;
+    s_displayAddress = SplitDisplay(format) ? static_cast<u32>(second) : 0;
     s_fixedVramBytes = static_cast<u32>(depth + graph_vram_size(width, depthRows, DepthPsm(format), GRAPH_ALIGN_PAGE)) * 4U;
     return true;
 }
@@ -312,14 +330,84 @@ PS2_COLD_FUNC bool LayOutBuffers(FrameFormat format, int width, int height)
 // both circuits name line 0 and the one-line offset would only drop the first line.
 void SetDisplayBuffer(u32 address)
 {
+    s_presentedAddress = address;
+
     if (s_interlace == system::video::Interlace::Field)
     {
-        graph_set_framebuffer_filtered(static_cast<int>(address), s_width, ColorPsm(s_format), 0, 0);
+        graph_set_framebuffer_filtered(static_cast<int>(address), s_width, DisplayPsm(s_format), 0, 0);
         return;
     }
 
-    graph_set_framebuffer(0, static_cast<int>(address), s_width, ColorPsm(s_format), 0, 0);
-    graph_set_framebuffer(1, static_cast<int>(address), s_width, ColorPsm(s_format), 0, 0);
+    graph_set_framebuffer(0, static_cast<int>(address), s_width, DisplayPsm(s_format), 0, 0);
+    graph_set_framebuffer(1, static_cast<int>(address), s_width, DisplayPsm(s_format), 0, 0);
+}
+
+// The ordered dither the copy adds before PSMCT16S drops each channel's low three bits, 3-bit
+// signed entries a row at a time (libdraw's matrix). GS_SET_DIMX masks entries with 0x3, so pack
+// them by hand.
+u64 DitherMatrix()
+{
+    static constexpr int kMatrix[16] = { -4, 2, -3, 3, 0, -2, 1, -1, -3, 3, -4, 2, 1, -1, 0, -2 };
+    u64 packed = 0;
+
+    for (int index = 0; index < 16; ++index)
+    {
+        packed |= static_cast<u64>(static_cast<u32>(kMatrix[index]) & 0x7U) << (index * 4);
+    }
+
+    return packed;
+}
+
+// The 32/16 present: textured sprites copy the PSMCT32 draw buffer texel for texel into the
+// PSMCT16S display buffer with dithering, in 64-pixel columns that keep the texture cache on one
+// page column. Context 0's frame, test and texture state are rewritten and the frame restored;
+// every primitive writes its own texture state, so nothing else is inherited.
+void CopyToDisplay(u32 drawAddress)
+{
+    PS2_AssertMsg(SplitDisplay(s_format), "display copy outside the 32/16 profile");
+
+    qword_t * q = s_copy + 1;
+    const auto Set = [&q](u64 reg, u64 data)
+    {
+        q->dw[0] = data;
+        q->dw[1] = reg;
+        ++q;
+    };
+
+    // The UVs sit half a texel in, so each pixel center samples its own texel.
+    Set(GS_REG_TEXFLUSH, 0);
+    Set(GS_REG_FRAME_1, GS_SET_FRAME(s_displayAddress >> 11, static_cast<u32>(s_width) >> 6, GS_PSM_16S, 0));
+    Set(GS_REG_ZBUF_1, DepthState(false));
+    Set(GS_REG_TEST_1, TestState(false));
+    Set(GS_REG_TEX0_1, GS_SET_TEX0(drawAddress >> 6, static_cast<u32>(s_width) >> 6, GS_PSM_32, 10, 9, 0, 1, 0, 0, 0, 0, 0));
+    Set(GS_REG_TEX1_1, GS_SET_TEX1(1, 0, 0, 0, 0, 0, 0));
+    Set(GS_REG_CLAMP_1, GS_SET_CLAMP(1, 1, 0, 0, 0, 0));
+    Set(GS_REG_DIMX, DitherMatrix());
+    Set(GS_REG_DTHE, GS_SET_DTHE(1));
+    Set(GS_REG_PRIM, GS_SET_PRIM(PRIM_SPRITE, 0, 1, 0, 0, 0, 1, 0, 0));
+    Set(GS_REG_RGBAQ, GS_SET_RGBAQ(0x80, 0x80, 0x80, 0x80, 0x3F800000U));
+
+    for (int x = 0; x < s_width; x += 64)
+    {
+        Set(GS_REG_UV, GS_SET_UV(x * 16 + 8, 8));
+        Set(GS_REG_XYZ2, GS_SET_XYZ((2048 + x) * 16, 2048 * 16, 0));
+        Set(GS_REG_UV, GS_SET_UV((x + 64) * 16 + 8, s_height * 16 + 8));
+        Set(GS_REG_XYZ2, GS_SET_XYZ((2048 + x + 64) * 16, (2048 + s_height) * 16, 0));
+    }
+
+    Set(GS_REG_DTHE, GS_SET_DTHE(0));
+    Set(GS_REG_FRAME_1, FrameState(DrawContext::Ctx0, 0));
+    Set(GS_REG_FINISH, 1);
+
+    const u32 count = static_cast<u32>(q - s_copy);
+    PS2_AssertMsg(count <= static_cast<u32>(ArrayLength(s_copy)), "display copy packet overflow");
+    PACK_GIFTAG(s_copy, GIF_SET_TAG(count - 1U, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
+
+    FlushCache(0);
+    *GS_REG_CSR = 2;
+    dma_channel_send_normal(DMA_CHANNEL_GIF, s_copy, static_cast<int>(count), 0, 0);
+    WaitUntil([] { return (*R_EE_D2_CHCR & (1U << 8)) == 0; }, "display copy GIF DMA");
+    WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "display copy GS FINISH");
 }
 
 } // namespace
@@ -333,7 +421,8 @@ PS2_COLD_FUNC bool Init(const Config & config)
 
     // One of the standard's resolutions (video_mode.cpp) at the lines its interlace mode draws.
     const bool known = system::video::IsValid(config.standard) && system::video::IsValid(config.interlace) &&
-                       (config.format == FrameFormat::Color16 || config.format == FrameFormat::Color32);
+                       (config.format == FrameFormat::Color16 || config.format == FrameFormat::Color32 ||
+                        config.format == FrameFormat::Color32Display16);
     const int lines = known ? system::video::VisibleLines(config.standard) : 0;
     const int index = known ? system::video::FindResolution(config.standard, { config.width, lines }) : -1;
 
@@ -364,6 +453,7 @@ PS2_COLD_FUNC bool Init(const Config & config)
         GsPutIMR(s_previousImr);
         graph_vram_clear();
         s_format = FrameFormat::Color16;
+        s_displayAddress = 0;
         s_interlace = system::video::Interlace::Field;
         s_width = s_height = 0;
         s_fixedVramBytes = 0;
@@ -387,7 +477,7 @@ PS2_COLD_FUNC bool Init(const Config & config)
     GsPutIMR(0x7F00);
     graph_set_screen(0, 0, s_width, s_height);
     graph_set_bgcolor(0, 0, 0);
-    SetDisplayBuffer(s_frames[0].address);
+    SetDisplayBuffer(SplitDisplay(s_format) ? s_displayAddress : s_frames[0].address);
     s_initialized = true;
 
     if (dma_channel_initialize(DMA_CHANNEL_GIF, nullptr, 0) < 0)
@@ -420,12 +510,17 @@ FrameFormat GetFrameFormat()
 
 const char * FrameFormatName(FrameFormat format)
 {
-    return format == FrameFormat::Color32 ? "PSMCT32/Z16S" : "PSMCT16/Z16";
+    return format == FrameFormat::Color32 ? "PSMCT32/Z16S" : format == FrameFormat::Color32Display16 ? "PSMCT32+PSMCT16S/Z16S" : "PSMCT16/Z16";
+}
+
+const char * FrameFormatLabel(FrameFormat format)
+{
+    return format == FrameFormat::Color32 ? "32/32" : format == FrameFormat::Color32Display16 ? "32/16" : "16/16";
 }
 
 int FrameFormatBits(FrameFormat format)
 {
-    return format == FrameFormat::Color32 ? 32 : 16;
+    return format == FrameFormat::Color16 ? 16 : 32;
 }
 
 PS2_COLD_FUNC void Shutdown()
@@ -445,6 +540,8 @@ PS2_COLD_FUNC void Shutdown()
     s_frames[1] = {};
     s_depth = {};
     s_format = FrameFormat::Color16;
+    s_displayAddress = 0;
+    s_presentedAddress = 0;
     s_interlace = system::video::Interlace::Field;
     s_width = s_height = 0;
     s_fixedVramBytes = 0;
@@ -482,6 +579,12 @@ FramebufferInfo GetFramebuffer(DrawContext context)
     return { s_frames[Index(context)].address, s_width, s_height, static_cast<int>(s_frames[Index(context)].psm) };
 }
 
+FramebufferInfo GetDisplayFramebuffer()
+{
+    PS2_AssertMsg(s_initialized, "framebuffer query before GS initialization");
+    return { s_presentedAddress, s_width, s_height, DisplayPsm(s_format) };
+}
+
 void Present(DrawContext context, PresentMode mode)
 {
     PS2_AssertMsg(s_initialized, "GS present before initialization");
@@ -509,7 +612,16 @@ void Present(DrawContext context, PresentMode mode)
         WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC (even field)");
     }
 
-    SetDisplayBuffer(s_frames[Index(context)].address);
+    if (SplitDisplay(s_format))
+    {
+        CopyToDisplay(s_frames[Index(context)].address);
+        SetDisplayBuffer(s_displayAddress);
+    }
+    else
+    {
+        SetDisplayBuffer(s_frames[Index(context)].address);
+    }
+
     graph_enable_output();
 }
 

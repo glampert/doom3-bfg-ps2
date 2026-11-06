@@ -5268,3 +5268,60 @@ views will be right). At 512x448 the world is drawn 1.17x too wide, at 512x512 P
 doorway view). The fix is one line in each (the display's 4:3 aspect), but it moves every world
 reference pixel and brings the doorway portal into the `clip` camera's frustum, so it is left for its
 own change ([RENDERING_TODO.md](plans/RENDERING_TODO.md) R1).
+
+## 640 wide by default and the 32/16 front end (2026-11-06)
+
+The user set 640 wide as the fidelity target the port ships with, 512 being the fallback if the
+in-game working set does not fit. Production's `ps2_resolution` defaults to 1 (640x448 NTSC,
+640x512 PAL). Two 640-wide 32-bit buffers leave 1,327,104 bytes of texture VRAM NTSC and 917,504
+PAL, and the retail menus thrash in both: PAL's start screen evicted hundreds of times a second,
+and in NTSC the quit dialog drawn over the shell evicted every frame (1,935 evictions before the
+session's quit). So a third frame-buffer profile joined the two:
+
+- **32/16** draws into one `PSMCT32` buffer with `PSMZ16S` and presents by copying it into one
+  `PSMCT16S` display buffer (the depth buffer's format group), textured sprites in 64-pixel
+  columns made in the vertical blank with the GS's ordered dither (`DTHE`, a hand-packed `DIMX`).
+  Blending, destination alpha and every pass stay 32-bit; the picture on screen is 16-bit,
+  dithered, so alpha gradients in the menu art stay smooth. At 640x448 it takes 2,293,760 bytes,
+  as 512x448 at 32/32 did.
+- `ps2_frameBufferBits` is now `16/16`, `32/16` or `32/32` (default `32/32`), the in-game
+  preference. The front end, with no map loaded, draws a `32/32` preference as `32/16`; loading a
+  map (the game's, or a `ps2_world` render world until production loads maps) switches to the
+  preference, unloading switches back, each a GS restart. The console tokenizes `32/16` into three
+  words, so the value is compared without spaces. Captures read the draw buffer (`bits=32` in
+  32/16); `gs::CaptureDisplayTga` reads the display copy.
+- The menu's pre-rendered glyph sets were re-cooked for 640 (each size 1.25 times as wide; the
+  Sarasori set is 176 KiB of VRAM, 136 at 512's sizes). No other UI art changed: the half-scale
+  textures map one texel to one pixel at 640. Menu text at 512 now falls back to native quads.
+- The world references were rasterized again at 640 (`renderer_capture.WORLD_SCENE_PIXELS_640`;
+  the 640 doorway the gate captured on 2026-11-05 matches them at every sampled point, 99.6–99.7 %
+  of all pixels within two levels). The GS gate's test images keep 512 wide and 16/16.
+
+| Mode, 640 wide | Fixed VRAM NTSC / PAL | Texture range NTSC / PAL |
+| --- | --- | --- |
+| 32/32 (in game, default) | 2,867,200 / 3,276,800 | 1,327,104 / 917,504 |
+| 32/16 (front end) | 2,293,760 / 2,621,440 | 1,900,544 / 1,572,864 |
+| 16/16 | 1,720,320 / 1,966,080 | 2,097,152 / 2,097,152 |
+
+| Check | Result |
+| --- | --- |
+| `make test-ui` (debug) | Passed: both sessions at 640 in 32/16 (`20261106T114700Z_session_391d341ba3a0` NTSC, 33 uploads and no eviction; `20261106T115443Z_session_e525b2db587c` PAL, 45 uploads and 23 evictions, all at screen changes, under the cap of 32) and the 18 retail-UI and movie cases from `20261106T120238Z_retail_f2aaad7f3d9a`. Every menu text size is pre-rendered; only the inactive movies' labels draw with native quads, as before |
+| `make test-world` (debug) | NTSC and PAL passed (`20261106T114624Z_world_abb64d26993f`, `20261106T114634Z_world_a9409683d105`): boot in 32/16, the load's switch to 32/32 at 640, the views against the 640 references in 32/32 and 16/16, the doorway in 32/16 and back in 32/32 byte-identical to the first, 512 against the GS gate's references, FRAME at 640x224 / 640x256, and the return to 32/16 after the unload |
+| `make test-renderer` (debug) | NTSC and PAL passed (`20261106T121712Z_smoke_541392c4e806478a`, `20261106T121728Z_smoke_c6ed5195f2834cc5`): the profile switch passes through 32/16, its draw-buffer capture exact and its display capture a dithered five-bit store of every pixel, the fill showing three stored values; 17 expected-fatal probes passed |
+| `make test-headless`, `make test-host` | Passed; startup ledger unchanged (4,503,176 / 4,574,084 bytes in 1,679 allocations); 367 Python tests and the C++ harnesses |
+| `make`, `make release` | Passed; runnable `PT_LOAD` 4,808,300 debug and 4,083,564 release. Release builds were compiled, not run |
+
+Two `test-ui` attempts before these failed on a backquote character (`SE_CHAR` 96) reaching the
+active menu, which refuses character events: it came through the USB keyboard PCSX2 maps from the
+host, most likely typing while the emulator window had focus. That behaviour predates this change.
+
+The world viewer's horizontal field of view still follows the buffer's pixel aspect (an R1 TODO),
+so at 640x448 the graybox is drawn 0.93 times as wide as a 4:3 screen shows it. Captures at 640,
+32/32: NTSC [room 0](images/renderer-world-5-room0-ntsc.png), [room 1](images/renderer-world-5-room1-ntsc.png),
+[doorway](images/renderer-world-5-doorway-ntsc.png), [against the divider](images/renderer-world-5-clip-ntsc.png);
+PAL [room 0](images/renderer-world-5-room0-pal.png), [room 1](images/renderer-world-5-room1-pal.png),
+[doorway](images/renderer-world-5-doorway-pal.png), [against the divider](images/renderer-world-5-clip-pal.png).
+The front end at 640 in 32/16 (draw-buffer captures): NTSC [start](images/renderer-world-5-menu-start-ntsc.png),
+[root](images/renderer-world-5-menu-root-ntsc.png), [quit dialog over the shell](images/renderer-world-5-menu-quit-ntsc.png);
+PAL [start](images/renderer-world-5-menu-start-pal.png), [root](images/renderer-world-5-menu-root-pal.png),
+[quit dialog over the shell](images/renderer-world-5-menu-quit-pal.png).

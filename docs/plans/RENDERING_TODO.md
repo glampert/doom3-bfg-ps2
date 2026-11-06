@@ -143,6 +143,12 @@ production link free of test inputs. Section numbers in parentheses point into t
       and 1.33x at PAL's 512x512, and changes with `ps2_resolution` and `ps2_interlace`. Moves
       `WORLD_SCENE_PIXELS` and brings the doorway portal into the `clip` camera's frustum, so
       the reference pixels and that camera's culling counts are regenerated with it (2026-11-05).
+- [x] 640 wide by default with a third frame-buffer profile (2026-11-06): 32/16 draws in one
+      `PSMCT32` buffer and presents a dithered `PSMCT16S` copy made in the vertical blank;
+      `ps2_frameBufferBits 16/16|32/16|32/32` (default 32/32) names the in-game preference and the
+      front end draws 32/32 as 32/16; a loaded map or `ps2_world` render world switches to the
+      preference. Glyph sets re-cooked for 640, world reference pixels at 640, the GS gate's
+      32/16 step with a display-buffer capture, `make test-world` switching on load and unload.
 - [ ] Gate: fixed-camera captures of the room in both profiles (done for the graybox,
       2026-11-05: `docs/images/renderer-world-3-*`); area 2 draws with correct depth and
       portal culling; decisions on profile, topology and FIELD versus FRAME mode written into
@@ -237,12 +243,12 @@ production link free of test inputs. Section numbers in parentheses point into t
 
 - [ ] Batch merging per material and area; program-swap minimisation; PATH3 upload
       interleave if uploads measure as a stall; LOD and mip tuning; PAL profile decision.
-- [ ] Experiment with the 640-wide resolution (`ps2_resolution 1`, 4.2): measure the in-game
-      texture working set per area against the 1,327,104 bytes NTSC / 917,504 PAL the 32-bit
-      buffers leave, the fill and VU1 cost on the hardware frame log, and the menu's
-      pre-rendered glyph sets at 640 (they are cooked for 512 and fall back to native quads);
-      PAL at 640x512 in 32 bits already thrashes the retail menu (917,504 bytes of texture VRAM),
-      so PAL would pair 640 with 16 bits or less resident UI; record adopt or keep 512 in section 20.
+- [ ] Confirm the 640-wide default (`ps2_resolution 1`, 4.2, default since 2026-11-06): measure
+      the in-game texture working set per area against the 1,327,104 bytes NTSC (32 bits) and
+      2,097,152 PAL (16 bits) the buffers leave, and the fill and VU1 cost on the hardware frame
+      log; fall back to 512 (`ps2_resolution 0`, glyph sets re-cooked for it) only where 640 does
+      not fit, and record the outcome in section 20. Two 32-bit 640-wide buffers thrash the retail
+      menus, which is why the front end draws in 32/16 and a map switches to the preference.
 - [ ] Follow-up: 480p progressive output (`GRAPH_MODE_HDTV_480P`, 4.2) as another entry in the
       resolution table, for component cables: 640x480 with no interlace flicker, presented
       every second vsync. 3,072,000 bytes of fixed VRAM at 32 bits (about 1.1 MB left for

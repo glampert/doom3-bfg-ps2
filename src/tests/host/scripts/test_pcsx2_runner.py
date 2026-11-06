@@ -91,9 +91,11 @@ class RendererClassifierTests(unittest.TestCase):
         checks = "".join(f"[D3BFG] CHECK {name} PASS\n" for name in runner.REQUIRED_GS_CHECKS)
         return (checks + "[D3BFG] RUN run1 BEGIN\nGS ready NTSC 512x448 FIELD PSMCT16/Z16 fixed_vram=1376256\n"
                 "GS ready NTSC 512x448 FIELD PSMCT32/Z16S fixed_vram=2293760\n"
-                "GS format bits=16 fixed_vram=1376256 texture_vram=2097152 uploads=1\n"
-                "GS format bits=32 fixed_vram=2293760 texture_vram=1900544 uploads=2\n"
-                "GS format bits=16 fixed_vram=1376256 texture_vram=2097152 uploads=3\n"
+                "GS ready NTSC 512x448 FIELD PSMCT32+PSMCT16S/Z16S fixed_vram=1835008\n"
+                "GS format bits=16/16 fixed_vram=1376256 texture_vram=2097152 uploads=1\n"
+                "GS format bits=32/32 fixed_vram=2293760 texture_vram=1900544 uploads=2\n"
+                "GS format bits=32/16 fixed_vram=1835008 texture_vram=2097152 uploads=3\n"
+                "GS format bits=16/16 fixed_vram=1376256 texture_vram=2097152 uploads=4\n"
                 "GS display 512x448 FIELD fixed_vram=1376256 texture_vram=2097152 uploads=1\n"
                 "GS display 640x448 FIELD fixed_vram=1720320 texture_vram=2097152 uploads=2\n"
                 "GS display 512x224 FRAME fixed_vram=786432 texture_vram=2097152 uploads=3\n"
@@ -124,10 +126,14 @@ class RendererClassifierTests(unittest.TestCase):
                          ("renderer-gs/frame-format-switch PASS", "renderer-gs/frame-format-switch FAIL"),
                          ("GS ready NTSC 512x448 FIELD PSMCT32/Z16S", "GS ready NTSC 512x448 FIELD PSMCT16/Z16"),
                          ("GS ready NTSC 512x448 FIELD PSMCT16/Z16", "GS ready NTSC 512x448 FRAME PSMCT16/Z16"),
+                         ("GS ready NTSC 512x448 FIELD PSMCT32+PSMCT16S/Z16S", "GS ready NTSC 512x448 FIELD PSMCT32/Z16S"),
                          ("texture_vram=1900544", "texture_vram=2097152"),
-                         ("bits=32 fixed_vram=2293760", "bits=32 fixed_vram=1376256"),
+                         ("bits=32/32 fixed_vram=2293760", "bits=32/32 fixed_vram=1376256"),
+                         ("bits=32/16 fixed_vram=1835008", "bits=32/32 fixed_vram=1835008"),
+                         ("bits=32/16 fixed_vram=1835008", "bits=32/16 fixed_vram=2293760"),
                          ("uploads=2", "uploads=1"),
-                         ("GS format bits=16 fixed_vram=1376256 texture_vram=2097152 uploads=3\n", "")):
+                         ("GS format bits=32/16 fixed_vram=1835008 texture_vram=2097152 uploads=3\n", ""),
+                         ("GS format bits=16/16 fixed_vram=1376256 texture_vram=2097152 uploads=4\n", "")):
             with self.subTest(field=old):
                 self.assertFalse(self.classify(self.log().replace(old, new)))
 

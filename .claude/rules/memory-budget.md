@@ -77,8 +77,9 @@ have not been re-measured.
   pages resident, nothing streams per frame; CLUT textures charged in 8 KiB PSMCT32 pages).
   PSMCT16 color plus Z16 take 1,376,256 NTSC / 1,572,864 PAL bytes; the 32-bit profile
   (PSMCT32 plus Z16S, production's default) 2,293,760 / 2,621,440, capping the texture range at
-  1,900,544 / 1,572,864. 640 wide (`ps2_resolution 1`) at 32 bits takes 2,867,200 / 3,276,800
-  and leaves 1,327,104 / 917,504; FRAME mode's half-height buffers pad to whole page rows
+  1,900,544 / 1,572,864. Production's default is 640 wide (2026-11-06): NTSC at 32 bits takes
+  2,867,200 and leaves 1,327,104, PAL 3,276,800 and 917,504; the front end's 32/16 profile takes
+  2,293,760 / 2,621,440 and leaves 1,900,544 / 1,572,864, which hold the retail menus; FRAME mode's half-height buffers pad to whole page rows
   (`renderer_capture.fixed_vram_bytes`). NTSC holds the whole retail UI; PAL evicts on screen changes (11 in
   the UI session). UI collection owns 4,096
   vertices, 6,144 indices and 128 runs (146,944 bytes); the depth-mask capture buffers add
@@ -87,8 +88,8 @@ have not been re-measured.
   and decoded (at most about 384 KB). Main stack reserve is 128 KiB. Visible packages also
   hold id's frame arena, one 128 KiB `TAG_RENDER` block from presentation start (2026-11-05;
   a graybox view uses 1,248 bytes), and a loaded cooked world its whole D3WD.
-- Glyph sets and charset: Sarasori's pre-rendered set is 18 sizes on two PSMT4 pages
-  (136 KiB VRAM); the console charset is one 256x256 PSMT4 page (32 KiB). The UICT4
+- Glyph sets and charset: Sarasori's pre-rendered set is 18 sizes on two PSMT4 pages,
+  cooked for 640 wide (176 KiB VRAM; 136 KiB at 512's sizes); the console charset is one 256x256 PSMT4 page (32 KiB). The UICT4
   catalog is 74,499 bytes and every visible package pays it. Eight prompt icons add about
   98 KB of pixels, kept warm after a drawn movie releases.
 - Hot PS2 structure: sound voice pool is 48 slots in one 7,296-byte AUDIO allocation

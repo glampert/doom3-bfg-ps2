@@ -212,11 +212,14 @@ EY EZ` logs the first world surface between two points, `portal HANDLE open|clos
 portal's view blocking, `off` stops drawing, `unload` empties the world and `status` logs the
 areas, portals and the last view's area, entities, drawn areas, batches and frame arena use.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
-the graybox and runs it. `ps2_frameBufferBits 16|32` switches the frame buffers between
-`PSMCT16` + `PSMZ16` and `PSMCT32` + `PSMZ16S`, `ps2_resolution 0|1` between 512 and 640
-wide and `ps2_interlace field|frame` between the full-height FIELD buffer and a half-height
-FRAME one, each before the next frame by restarting the GS (one blank frame); capture lines
-report the profile as `bits=` and the TGA carries the size ([CVARS.md](CVARS.md)).
+the graybox and runs it. Production draws 640 wide by default. `ps2_frameBufferBits
+16/16|32/16|32/32` sets the in-game frame-buffer profile (draw/display bits; 32/16 draws in
+32 bits and shows a dithered 16-bit copy), and the front end, with no map loaded, draws a 32/32
+preference as 32/16; `ps2_resolution 0|1` switches between 512 and 640 wide and `ps2_interlace
+field|frame` between the full-height FIELD buffer and a half-height FRAME one, each before the
+next frame by restarting the GS (one blank frame). Loading a world with `ps2_world` counts as a
+map. Capture lines report the captured draw buffer's bits as `bits=` and the TGA carries the
+size ([CVARS.md](CVARS.md)).
 
 Native tests use `d3bfg_tests.elf`, matching `d3bfg_tests_unstripped.elf` and
 `d3bfg_tests.map`. `make build-core` writes `build/<config>/tests/core/`,

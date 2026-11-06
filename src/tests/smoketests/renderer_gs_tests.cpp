@@ -754,8 +754,9 @@ bool WorldGraybox(system::video::Standard standard, renderer::gs::FrameFormat fo
 }
 
 // The live profile change: one texture and one fill drawn in PSMCT16 + Z16, again after the GS
-// restarts in PSMCT32 + Z16S (the texture leaves VRAM and uploads once more), and again after the
-// change back. Both buffers hold a full-screen picture before each measured frame, so anything
+// restarts in PSMCT32 + Z16S (the texture leaves VRAM and uploads once more), in 32/16 (drawn in
+// PSMCT32 and presented as a dithered PSMCT16S copy, captured from both buffers), and again after
+// the change back to 16 bits. Both buffers hold a full-screen picture before each measured frame, so anything
 // the previous layout left behind would show. The configured 2 MiB texture range is capped by what
 // the 32-bit buffers leave. The runner compares every pixel of each capture with its profile's
 // storage of the colours, whose low three bits PSMCT16 drops, and the second 16-bit capture with
@@ -773,6 +774,7 @@ bool FrameFormatSwitch(system::video::Standard standard)
     const Profile kProfiles[] = {
         { renderer::gs::FrameFormat::Color16, "host:renderer-format-16.tga", pal ? 1572864U : 1376256U },
         { renderer::gs::FrameFormat::Color32, "host:renderer-format-32.tga", pal ? 2621440U : 2293760U },
+        { renderer::gs::FrameFormat::Color32Display16, "host:renderer-format-32-16.tga", pal ? 2097152U : 1835008U },
         { renderer::gs::FrameFormat::Color16, "host:renderer-format-16-again.tga", pal ? 1572864U : 1376256U },
     };
 
@@ -822,13 +824,17 @@ bool FrameFormatSwitch(system::video::Standard standard)
         renderer::EndFrame();
 
         const renderer::gs::FramebufferInfo frame = renderer::gs::GetFramebuffer(renderer::LastPresentedContext());
+        const renderer::gs::FramebufferInfo display = renderer::gs::GetDisplayFramebuffer();
+        const bool split = profile.format == renderer::gs::FrameFormat::Color32Display16;
         passed = passed && renderer::gs::CaptureTga(profile.capture, renderer::LastPresentedContext());
+        passed = passed && (!split || renderer::gs::CaptureDisplayTga("host:renderer-format-32-16-display.tga"));
         passed = passed && renderer::gs::GetFrameFormat() == profile.format && fixed == profile.fixedBytes && capacity == expectedCapacity &&
-                 frame.pixelFormat == (profile.format == renderer::gs::FrameFormat::Color32 ? GS_PSM_32 : GS_PSM_16) &&
+                 frame.pixelFormat == (profile.format == renderer::gs::FrameFormat::Color16 ? GS_PSM_16 : GS_PSM_32) &&
+                 display.pixelFormat == (split ? GS_PSM_16S : frame.pixelFormat) && (split ? display.address != frame.address : display.address == frame.address) &&
                  renderer::tex::GetStats().uploads == index + 1U;
 
-        Log(LogLevel::Info, "[D3BFG] GS format bits=%d fixed_vram=%u texture_vram=%u uploads=%u\n",
-            renderer::gs::FrameFormatBits(profile.format), fixed, capacity, renderer::tex::GetStats().uploads);
+        Log(LogLevel::Info, "[D3BFG] GS format bits=%s fixed_vram=%u texture_vram=%u uploads=%u\n",
+            renderer::gs::FrameFormatLabel(profile.format), fixed, capacity, renderer::tex::GetStats().uploads);
     }
 
     renderer::tex::Destroy(texture);

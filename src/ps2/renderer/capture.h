@@ -15,6 +15,10 @@ namespace ps2::renderer::gs
 // can leave a partial file; callers must publish success only when this returns true.
 PS2_COLD_FUNC bool CaptureTga(const char * path, DrawContext context);
 
+// The buffer the display circuits read (GetDisplayFramebuffer): in the 32/16 profile the dithered
+// PSMCT16S copy of the last frame, between frames like CaptureTga.
+PS2_COLD_FUNC bool CaptureDisplayTga(const char * path);
+
 #if PS2_D3BFG_TESTS
 PS2_COLD_FUNC void InjectReadbackTimeoutOnce();
 #endif // PS2_D3BFG_TESTS

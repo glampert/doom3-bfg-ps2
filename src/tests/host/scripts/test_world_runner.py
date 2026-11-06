@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
+import renderer_capture
 import run_world as runner
 from test_renderer_capture import tga
 
@@ -30,15 +31,17 @@ def trace_line(hit, fraction, normal, material):
             f"material={material}\n")
 
 
-def switch_line(bits, fixed, texture, width=512, height=448, interlace="FIELD"):
-    name = "PSMCT32/Z16S" if bits == 32 else "PSMCT16/Z16"
-    return f"[D3BFG] GS display {width}x{height} {interlace} bits={bits} {name} fixed_vram={fixed} texture_vram={texture}\n"
+def switch_line(profile, fixed, texture, width=640, height=448, interlace="FIELD"):
+    """A GS display line; profile is a draw/display label, or 16/32 for 16/16 and 32/32."""
+    label = {16: "16/16", 32: "32/32"}.get(profile, profile)
+    return (f"[D3BFG] GS display {width}x{height} {interlace} bits={label} {runner.PROFILE_NAMES[label]} fixed_vram={fixed} "
+            f"texture_vram={texture}\n")
 
 
 def expected_switch_line(display, standard="ntsc"):
     """The GS display line a step's mode logs on 'standard', from the runner's own expectation."""
-    width, height, interlace, bits, _, fixed, texture = runner.expected_switch(standard, display)
-    return switch_line(bits, fixed, texture, width, height, interlace)
+    width, height, interlace, profile, _, fixed, texture = runner.expected_switch(standard, display)
+    return switch_line(profile, fixed, texture, width, height, interlace)
 
 
 def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", traces=None, switches=None, standard="ntsc"):
@@ -54,8 +57,8 @@ def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", t
         log += trace_line(**found)
     log += echo("loaded")
     frame = 70
-    for name, display, view in runner.steps():
-        bits = display.bits
+    for name, display, view in runner.steps(standard):
+        bits = renderer_capture.draw_bits(display.profile)
         if view is None:
             line = expected_switch_line(display, standard)
             line = (switches or {}).get(name, line)
@@ -80,6 +83,9 @@ def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", t
               "entities": 1, "drawn": 1, "batches": 14}
     unload.update(unloaded or {})
     log += WORLD.format(**unload) + echo("unloaded")
+    # The front end returns to 32/16 once the world is gone.
+    frontend = (switches or {}).get("frontend", expected_switch_line(runner.front_end_display(standard), standard))
+    log += (frontend or "") + echo("frontend")
     log += f"Memory baseline={memory} peak=5795973/5876776 arena=5915604\n"
     log += "======== Shutdown complete ========\n"
     return "".join("[    1.0000] " + line for line in log.splitlines(keepends=True))
@@ -103,55 +109,81 @@ class WorldRunnerTests(unittest.TestCase):
         self.assertEqual(details["views"]["away"]["status"]["drawn"], 1)
         self.assertEqual(details["views"]["clip"]["bits"], 32)
         self.assertEqual(details["views"]["clip-16"]["bits"], 16)
-        self.assertEqual(details["switches"]["bits-32"], {"width": 512, "height": 448, "interlace": "FIELD", "bits": 32,
-                                                           "fixed_vram": 2293760, "texture_vram": 1900544})
-        # 640 wide at 32 bits leaves 1,327,104 bytes for textures; FRAME mode halves the lines.
-        self.assertEqual(details["switches"]["res-640"], {"width": 640, "height": 448, "interlace": "FIELD", "bits": 32,
-                                                          "fixed_vram": 2867200, "texture_vram": 1327104})
-        self.assertEqual(details["switches"]["frame"], {"width": 512, "height": 224, "interlace": "FRAME", "bits": 32,
-                                                        "fixed_vram": 1179648, "texture_vram": 2097152})
+        # 32/16 captures its 32-bit draw buffer.
+        self.assertEqual(details["views"]["doorway-32-16"]["bits"], 32)
+        # Loading the world leaves the front end: 32/32, 640 wide, which leaves 1,327,104 bytes for textures.
+        self.assertEqual(details["switches"]["ingame"], {"width": 640, "height": 448, "interlace": "FIELD", "profile": "32/32",
+                                                         "fixed_vram": 2867200, "texture_vram": 1327104})
+        # 32/16 draws in one 32-bit buffer and shows a 16-bit one: two thirds of 32/32's VRAM.
+        self.assertEqual(details["switches"]["bits-32-16"], {"width": 640, "height": 448, "interlace": "FIELD", "profile": "32/16",
+                                                             "fixed_vram": 2293760, "texture_vram": 1900544})
+        self.assertEqual(details["switches"]["frontend"], details["switches"]["bits-32-16"])
+        self.assertEqual(details["switches"]["res-512"], {"width": 512, "height": 448, "interlace": "FIELD", "profile": "32/32",
+                                                          "fixed_vram": 2293760, "texture_vram": 1900544})
+        # FRAME mode halves the lines; 224-line 32-bit buffers need no padding (32-line page rows).
+        self.assertEqual(details["switches"]["frame"], {"width": 640, "height": 224, "interlace": "FRAME", "profile": "32/32",
+                                                        "fixed_vram": 1474560, "texture_vram": 2097152})
         self.assertEqual(details["views"]["doorway-frame"]["status"]["drawn"], 2)
 
     def test_pal_profiles_pass(self):
         passed, reason, details = runner.classify(session(standard="pal"), IDENTITY, "pal")
         self.assertTrue(passed, reason)
-        self.assertEqual(details["switches"]["bits-32"]["fixed_vram"], 2621440)
-        self.assertEqual(details["switches"]["res-640"], {"width": 640, "height": 512, "interlace": "FIELD", "bits": 32,
-                                                          "fixed_vram": 3276800, "texture_vram": 917504})
+        self.assertEqual(details["switches"]["ingame"]["fixed_vram"], 3276800)
+        self.assertEqual(details["switches"]["ingame"]["texture_vram"], 917504)
+        self.assertEqual(details["switches"]["bits-16"]["fixed_vram"], 1966080)
+        self.assertEqual(details["switches"]["frontend"]["fixed_vram"], 2621440)
+        self.assertEqual(details["switches"]["frontend"]["texture_vram"], 1572864)
         self.assertEqual(details["switches"]["frame"]["height"], 256)
         # A PAL log judged as NTSC names the wrong buffers.
         self.assertFalse(runner.classify(session(standard="pal"), IDENTITY, "ntsc")[0])
 
     def test_each_switch_step_changes_one_cvar(self):
-        commands = [runner.switch_command(previous, display) for previous, display in
-                    zip([runner.DEFAULT_DISPLAY] + [step[1] for step in runner.steps()], [step[1] for step in runner.steps()])
-                    if previous != display]
-        self.assertEqual(commands, ["ps2_frameBufferBits 16", "ps2_frameBufferBits 32", "ps2_resolution 1", "ps2_resolution 0",
-                                    "ps2_interlace frame", "ps2_interlace field"])
+        for standard in ("ntsc", "pal"):
+            steps = runner.steps(standard)
+            self.assertEqual(steps[0][:2], ("ingame", runner.default_display(standard)))
+            modes = [step[1] for step in steps[1:]]
+            previous = [runner.default_display(standard)] + modes
+            commands = [runner.switch_command(before, after) for before, after in zip(previous, modes) if before != after]
+            self.assertEqual(commands, ["ps2_frameBufferBits 16/16", "ps2_frameBufferBits 32/16", "ps2_frameBufferBits 32/32",
+                                        "ps2_resolution 0", "ps2_resolution 1", "ps2_interlace frame", "ps2_interlace field"])
+        self.assertEqual(runner.default_display("ntsc"), runner.Display("32/32", 1, "FIELD"))
+        self.assertEqual(runner.front_end_display("PAL"), runner.Display("32/16", 1, "FIELD"))
+        # The load switches by itself: its step sends no cvar.
+        self.assertEqual(runner.switch_commands("run", "ingame", runner.front_end_display("ntsc"), runner.default_display("ntsc")),
+                         ["wait 2", 'echo "run_ingame"'])
         with self.assertRaisesRegex(ValueError, "one cvar"):
-            runner.switch_command(runner.DEFAULT_DISPLAY, runner.Display(16, 1, "FIELD"))
+            runner.switch_command(runner.default_display("ntsc"), runner.Display("16/16", 0, "FIELD"))
 
     def test_profile_switch_must_happen_once_with_its_buffers(self):
+        # The load's switch missing or to the front end's profile; the return to 32/16 missing or doubled.
+        self.assertFalse(runner.classify(session(switches={"ingame": None}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"ingame": switch_line("32/16", 2293760, 1900544)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"frontend": None}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"frontend": switch_line("32/16", 2293760, 1900544) * 2}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"frontend": switch_line(32, 2867200, 1327104)}), IDENTITY)[0])
         # No change, a change to the wrong profile, buffers of no standard, an uncapped texture range.
         self.assertFalse(runner.classify(session(switches={"bits-32": None}), IDENTITY)[0])
-        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(16, 1376256, 2097152)}), IDENTITY)[0])
-        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(32, 2293761, 1900543)}), IDENTITY)[0])
-        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(32, 2293760, 2097152)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(16, 1720320, 2097152)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(32, 2867201, 1327103)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(32, 2867200, 2097152)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-32": switch_line(32, 2293760, 1900544, 512)}), IDENTITY)[0])
         self.assertFalse(runner.classify(session(switches={"bits-16": None}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"bits-32-16": switch_line(32, 2867200, 1327104)}), IDENTITY)[0])
         # The resolution or interlace change missing, at the wrong size, or with unpadded buffers.
-        self.assertFalse(runner.classify(session(switches={"res-640": None}), IDENTITY)[0])
-        self.assertFalse(runner.classify(session(switches={"res-640": switch_line(32, 2293760, 1900544)}), IDENTITY)[0])
-        self.assertFalse(runner.classify(session(switches={"frame": switch_line(32, 1146880, 2097152, 512, 224, "FRAME")}), IDENTITY)[0])
-        self.assertFalse(runner.classify(session(switches={"frame": switch_line(32, 1179648, 2097152, 512, 224, "FIELD")}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"res-512": None}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"res-512": switch_line(32, 2867200, 1327104)}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"frame": switch_line(32, 1433600, 2097152, 640, 224, "FRAME")}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(switches={"frame": switch_line(32, 1474560, 2097152, 640, 224, "FIELD")}), IDENTITY)[0])
         # A second change inside a view's span, or one after the session's steps.
-        doubled = switch_line(32, 2293760, 1900544) * 2
+        doubled = switch_line(32, 2867200, 1327104) * 2
         self.assertFalse(runner.classify(session(switches={"bits-32": doubled}), IDENTITY)[0])
-        log = session().replace("[D3BFG] WORLD unloaded", switch_line(32, 2293760, 1900544).rstrip("\n") + "\n[    1.0000] [D3BFG] WORLD unloaded")
+        log = session().replace("[D3BFG] WORLD unloaded", switch_line(32, 2867200, 1327104).rstrip("\n") + "\n[    1.0000] [D3BFG] WORLD unloaded")
         self.assertFalse(runner.classify(log, IDENTITY)[0])
 
     def test_capture_must_carry_its_profile(self):
         self.assertFalse(runner.classify(session({"room0": {"bits": 16}}), IDENTITY)[0])
         self.assertFalse(runner.classify(session({"room0-16": {"bits": 32}}), IDENTITY)[0])
+        self.assertFalse(runner.classify(session({"doorway-32-16": {"bits": 16}}), IDENTITY)[0])
         self.assertFalse(runner.classify(session({"doorway-32": {"bits": 16}}), IDENTITY)[0])
         self.assertFalse(runner.classify(session().replace(" bits=32\n", "\n", 1), IDENTITY)[0])
 

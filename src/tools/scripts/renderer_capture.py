@@ -57,18 +57,60 @@ def frame_size(standard: str, resolution: int = 0, interlace: str = "FIELD") -> 
     return RESOLUTION_WIDTHS[resolution], lines // 2 if interlace == "FRAME" else lines
 
 
-def fixed_vram_bytes(width: int, height: int, bits: int) -> int:
-    """VRAM the two colour buffers and the depth buffer take (gs.cpp LayOutBuffers): each buffer is
+# Production's default resolution (presentation.cpp, ps2_resolution 1): the runners of production
+# packages expect captures of this size, and map the UI's 640x480 space onto it.
+PRODUCTION_RESOLUTION = 1
+
+
+def production_size(standard: str) -> tuple:
+    """The frame production draws by default in 'standard' (either case)."""
+    return frame_size(standard.upper(), PRODUCTION_RESOLUTION)
+
+
+# The frame-buffer profiles, draw/display bits (gs::FrameFormatLabel): 16/16 and 32/32 draw into two
+# buffers of their format; 32/16 draws into one PSMCT32 buffer and presents a dithered PSMCT16S copy.
+PROFILES = ("16/16", "32/16", "32/32")
+
+
+def profile_label(profile) -> str:
+    """A profile label from a label or the 16/32 bits the two-buffer profiles were named by."""
+    label = {16: "16/16", 32: "32/32"}.get(profile, profile)
+    if label not in PROFILES:
+        raise ValueError("frame-buffer profile must be 16/16, 32/16 or 32/32")
+    return label
+
+
+def draw_bits(profile) -> int:
+    """The bits of the buffer a profile draws into, which frame captures read."""
+    return 16 if profile_label(profile) == "16/16" else 32
+
+
+def fixed_vram_bytes(width: int, height: int, profile) -> int:
+    """VRAM the colour buffers and the depth buffer take (gs.cpp LayOutBuffers): each buffer is
     padded to whole GS page rows, 64 lines for 16-bit formats and 32 for PSMCT32, and the depth
-    buffer is 16 bits in both profiles."""
-    if bits not in FRAME_BITS:
-        raise ValueError("frame-buffer bits must be 16 or 32")
+    buffer is 16 bits in every profile."""
+    label = profile_label(profile)
 
     def buffer(bytes_per_pixel):
         page_rows = 32 if bytes_per_pixel == 4 else 64
         return width * -(-height // page_rows) * page_rows * bytes_per_pixel
 
-    return 2 * buffer(bits // 8) + buffer(2)
+    draw, display = (2, 2) if label == "16/16" else (4, 2) if label == "32/16" else (4, 4)
+    return buffer(draw) + buffer(display) + buffer(2)
+
+
+# The 32/16 present adds an ordered dither of -4..3 to each 8-bit channel before PSMCT16S keeps its
+# top five bits (gs.cpp DitherMatrix).
+DITHER_RANGE = (-4, 3)
+
+
+def dithered_range(channel: int) -> tuple:
+    """The lowest and highest capture value a dithered five-bit store of an 8-bit channel can give."""
+    def expand(value):
+        five = max(0, min(255, value)) >> 3
+        return (five << 3) | (five >> 2)
+
+    return expand(channel + DITHER_RANGE[0]), expand(channel + DITHER_RANGE[1])
 SCENE_PIXELS = (
     ("border", 0, 0, (255, 255, 255)),
     ("background", 12, 12, (16, 24, 40)),
@@ -217,6 +259,25 @@ WORLD_SCENE_PIXELS = {
 }
 
 
+# The same cameras 640 wide (production's default, make test-world), from the same rasterizer at
+# that width and the standard's lines; the GS gate draws 512 wide and reads WORLD_SCENE_PIXELS.
+WORLD_SCENE_PIXELS_640 = {
+    "NTSC": {
+        "room0": ((40, 46, (58, 56, 53)), (156, 40, (24, 25, 28)), (598, 140, (33, 30, 25)), (390, 340, (46, 13, 10)), (214, 180, (40, 39, 37)), (332, 268, (97, 27, 22)), (444, 422, (46, 46, 48)), (228, 424, (75, 75, 73))),
+        "room1": ((40, 40, (40, 39, 37)), (202, 40, (24, 25, 28)), (600, 240, (48, 43, 36)), (330, 412, (46, 46, 48)), (242, 176, (53, 51, 48)), (412, 382, (75, 75, 73)), (212, 252, (68, 38, 11)), (314, 226, (56, 23, 53))),
+        "doorway": ((452, 40, (24, 25, 28)), (122, 76, (14, 23, 46)), (40, 144, (40, 39, 37)), (598, 144, (53, 51, 48)), (216, 216, (33, 30, 25)), (240, 384, (75, 75, 73)), (360, 384, (46, 46, 48)), (494, 262, (60, 54, 17))),
+        "clip": ((152, 40, (24, 25, 28)), (568, 40, (33, 30, 25)), (478, 124, (40, 39, 37)), (402, 350, (46, 46, 48)), (204, 162, (58, 56, 53)), (290, 414, (75, 75, 73)), (192, 222, (38, 88, 38)), (334, 36, (16, 25, 50))),
+    },
+    "PAL": {
+        "room0": ((40, 116, (58, 56, 53)), (120, 40, (24, 25, 28)), (594, 162, (33, 30, 25)), (170, 200, (40, 39, 37)), (406, 378, (46, 13, 10)), (334, 306, (97, 27, 22)), (462, 482, (46, 46, 48)), (214, 484, (75, 75, 73))),
+        "room1": ((40, 40, (40, 39, 37)), (176, 40, (24, 25, 28)), (332, 470, (46, 46, 48)), (392, 208, (48, 43, 36)), (230, 202, (53, 51, 48)), (420, 432, (75, 75, 73)), (196, 288, (68, 38, 11)), (298, 260, (56, 23, 53))),
+        "doorway": ((460, 40, (24, 25, 28)), (88, 74, (14, 23, 46)), (598, 176, (53, 51, 48)), (196, 228, (33, 30, 25)), (516, 296, (60, 54, 17)), (224, 432, (75, 75, 73)), (360, 432, (46, 46, 48)), (24, 146, (40, 39, 37))),
+        "clip": ((90, 40, (24, 25, 28)), (598, 40, (33, 30, 25)), (184, 178, (58, 56, 53)), (502, 134, (40, 39, 37)), (412, 392, (46, 46, 48)), (286, 474, (75, 75, 73)), (172, 252, (38, 88, 38)), (336, 42, (16, 25, 50))),
+    },
+}
+WORLD_SCENE_TABLES = {512: WORLD_SCENE_PIXELS, 640: WORLD_SCENE_PIXELS_640}
+
+
 def _read_capture(path: Path) -> tuple[int, int, bytes, str]:
     with Path(path).open("rb") as stream:
         header = stream.read(TGA_HEADER.size)
@@ -276,18 +337,18 @@ def verify_indexed_scene(path: Path, standard: str) -> dict:
     return _verify_virtual_scene(path, standard, INDEXED_SCENE_PIXELS)
 
 
-def verify_world_scene(path: Path, standard: str, view: str, bits: int = 16) -> dict:
+def verify_world_scene(path: Path, standard: str, view: str, bits: int = 16, frame_width: int = 512) -> dict:
     """Require the graybox view's depth-tested, clipped world geometry at its reference colours,
-    as the frame-buffer profile of 'bits' stores them."""
-    if standard not in ("NTSC", "PAL") or view not in WORLD_SCENE_PIXELS["NTSC"]:
-        raise ValueError("world capture standard must be NTSC or PAL and the view a known camera")
+    as the frame-buffer profile of 'bits' stores them, in a FIELD frame 'frame_width' wide."""
+    if standard not in ("NTSC", "PAL") or view not in WORLD_SCENE_PIXELS["NTSC"] or frame_width not in WORLD_SCENE_TABLES:
+        raise ValueError("world capture standard must be NTSC or PAL, the view a known camera and the width 512 or 640")
     slack = tolerance(bits)
     width, height, pixels, digest = _read_capture(path)
-    expected_height = 448 if standard == "NTSC" else 512
-    if (width, height) != (512, expected_height):
-        raise ValueError(f"world capture is {width}x{height}; expected 512x{expected_height} for {standard}")
+    expected_height = VISIBLE_LINES[standard]
+    if (width, height) != (frame_width, expected_height):
+        raise ValueError(f"world capture is {width}x{height}; expected {frame_width}x{expected_height} for {standard}")
     checks = []
-    for x, y, reference in WORLD_SCENE_PIXELS[standard][view]:
+    for x, y, reference in WORLD_SCENE_TABLES[frame_width][standard][view]:
         expected = stored(reference, bits)
         offset = (y * width + x) * 3
         actual = tuple(pixels[offset:offset + 3])
@@ -337,6 +398,40 @@ def verify_format_scene(path: Path, standard: str, bits: int, size: tuple | None
             counts[name] += 1
     return {"schema": 1, "standard": standard, "bits": bits, "width": width, "height": height,
             "sha256": digest, "pixels": counts, "tolerance": slack}
+
+def verify_format_display(path: Path, standard: str, size: tuple | None = None) -> dict:
+    """The 32/16 profile's display buffer for the profile-switch scene: every pixel a dithered five-bit
+    store of its colour (dithered_range), and the fill, whose channels sit between five-bit steps,
+    showing more than one stored value (the copy dithered)."""
+    if standard not in ("NTSC", "PAL"):
+        raise ValueError("renderer capture standard must be NTSC or PAL")
+    width, height, pixels, digest = _read_capture(path)
+    expected = size or frame_size(standard)
+    if (width, height) != tuple(expected):
+        raise ValueError(f"display capture is {width}x{height}; expected {expected[0]}x{expected[1]} for {standard}")
+    counts = {name: 0 for name, *_ in FORMAT_SCENE_RECTS}
+    counts["format-clear"] = 0
+    fill_values = set()
+    for y in range(height):
+        for x in range(width):
+            name, reference = "format-clear", FORMAT_CLEAR
+            for rect_name, (x0, y0, x1, y1), colour in FORMAT_SCENE_RECTS:
+                if x0 <= x < x1 and y0 <= y < y1:
+                    name, reference = rect_name, colour
+            offset = (y * width + x) * 3
+            actual = tuple(pixels[offset:offset + 3])
+            for value, channel in zip(actual, reference):
+                low, high = dithered_range(channel)
+                if not low <= value <= high:
+                    raise ValueError(f"display pixel {name} ({x},{y}) is {actual}; expected a dithered store of {reference}")
+            if name == "format-fill":
+                fill_values.add(actual)
+            counts[name] += 1
+    if len(fill_values) < 2:
+        raise ValueError("the display copy of the fill holds one value: it was not dithered")
+    return {"schema": 1, "standard": standard, "width": width, "height": height, "sha256": digest, "pixels": counts,
+            "fill_values": len(fill_values)}
+
 
 def _verify_virtual_scene(path: Path, standard: str, scene_pixels: tuple) -> dict:
     if standard not in ("NTSC", "PAL"):

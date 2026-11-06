@@ -16,7 +16,11 @@ ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src/tools/scripts"))
 import swf_fixture
 import gstx_fixture
+import renderer_capture
 import run_retail_movies as runner
+
+# Production draws the UI 640 wide (renderer_capture.production_size).
+WIDTH = renderer_capture.production_size("ntsc")[0]
 import stage_retail_ui as staging
 from ui_font import inspect_language, inspect_font
 from ui_gstx import fnv1a32
@@ -79,17 +83,17 @@ class MovieResourcesTests(unittest.TestCase):
         for standard, height in (("ntsc", 448), ("pal", 512)):
             probes = runner.text_probes(manifest, self.source, 0, standard)
             self.assertEqual({probe["label"] for probe in probes}, {0, 1, 2})
-            pixels = bytearray(bytes((16, 24, 40)) * 512 * height)
+            pixels = bytearray(bytes((16, 24, 40)) * WIDTH * height)
             for probe in probes:
-                offset = (probe["y"] * 512 + probe["x"]) * 3
+                offset = (probe["y"] * WIDTH + probe["x"]) * 3
                 pixels[offset:offset + 3] = bytes(probe["expected"])
             path = self.source / "labels.tga"
-            header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, height, 24, 0x20)
+            header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, WIDTH, height, 24, 0x20)
             bgr = bytearray(pixels)
             bgr[0::3], bgr[2::3] = pixels[2::3], pixels[0::3]
             path.write_bytes(header + bgr)
             self.assertTrue(runner.verify_capture(path, manifest, self.source, 0, standard))
-            path.write_bytes(header + bytes((40, 24, 16)) * 512 * height)
+            path.write_bytes(header + bytes((40, 24, 16)) * WIDTH * height)
             with self.assertRaisesRegex(ValueError, "source pixel"):
                 runner.verify_capture(path, manifest, self.source, 0, standard)
             bgr[0::3] = bytes(len(pixels) // 3)
@@ -511,9 +515,9 @@ class MovieResourcesTests(unittest.TestCase):
                 self.assertFalse(verdict(changed)[0])
 
     def test_shell_captures_require_identical_warm_reloads_and_detail(self):
-        detailed = bytes(value for index in range(512 * 448) for value in (index % 251, index % 241, index % 239))
-        flat = bytes((16, 24, 40)) * (512 * 448)
-        header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, 448, 24, 0x20)
+        detailed = bytes(value for index in range(WIDTH * 448) for value in (index % 251, index % 241, index % 239))
+        flat = bytes((16, 24, 40)) * (WIDTH * 448)
+        header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, WIDTH, 448, 24, 0x20)
 
         def write(images):
             for name in runner.render_capture_names(runner.SHELL_RENDER_PHASES):
@@ -547,8 +551,8 @@ class MovieResourcesTests(unittest.TestCase):
         with self.assertRaises(OSError):
             runner.verify_final_capture(path, "ntsc")
         for standard, height in (("ntsc", 448), ("pal", 512)):
-            header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, height, 24, 0x20)
-            raw = header + bytes(512 * height * 3)
+            header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, WIDTH, height, 24, 0x20)
+            raw = header + bytes(WIDTH * height * 3)
             path.write_bytes(raw)
             self.assertEqual(runner.verify_final_capture(path, standard)["height"], height)
             with self.assertRaisesRegex(ValueError, "dimensions"):
@@ -670,13 +674,13 @@ class MovieResourcesTests(unittest.TestCase):
         manifest = self.label_manifest()
         x1, x2, row = runner.dialog_rounding_row(manifest, self.source)
         self.assertGreaterEqual(x2 - x1, 5)
-        baseline = bytes((16, 24, 40)) * 512 * 448
-        header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, 512, 448, 24, 0x20)
+        baseline = bytes((16, 24, 40)) * WIDTH * 448
+        header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, WIDTH, 448, 24, 0x20)
 
         def variant(count=4, delta=25, x=x1, y=row):
             pixels = bytearray(baseline)
             for index in range(count):
-                pixels[(y * 512 + x + index) * 3] += delta
+                pixels[(y * WIDTH + x + index) * 3] += delta
             return pixels
 
         dialog_phases = tuple(("dialog" + str(index), "dialog", 1) for index in (1, 2, 3))
