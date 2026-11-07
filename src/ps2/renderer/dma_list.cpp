@@ -16,6 +16,7 @@
 #include <ee_regs.h>
 #include <gif_tags.h>
 #include <gs_gp.h>
+#include <gs_psm.h>
 #include <kernel.h>
 
 #include <algorithm>
@@ -134,6 +135,27 @@ void DisplayList::DrawBatch(const void * packet, u32 qwords)
     Ensure(2U);
     Ref(packet, qwords, kVifNop, m_pendingStart);
     m_pendingStart = VifMscal(m_programEntry);
+}
+
+void DisplayList::UploadImage(const void * stream, u32 qwords, u32 base)
+{
+    PS2_AssertMsg(m_directTag == nullptr && qwords >= 1U && qwords <= 0xFFFFU && base < 16384U, "invalid image upload");
+
+    // The pending batch runs first, so FLUSH also covers its kicks.
+    StartPendingBatch();
+    Ensure(8U);
+
+    // A 64-wide PSMCT32 destination at the allocation: the stream's rectangles address it.
+    const u64 bitbltbuf = GS_SET_BITBLTBUF(0, 0, 0, base, 1, GS_PSM_32);
+    qword_t * const target = Cnt(2U, kVifFlush, VifDirect(2U));
+    PACK_GIFTAG(target, GIF_SET_TAG(1, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
+    PACK_GIFTAG((target + 1), bitbltbuf, GS_REG_BITBLTBUF);
+
+    Ref(stream, qwords, kVifNop, VifDirect(qwords));
+
+    qword_t * const flush = Cnt(2U, kVifNop, VifDirect(2U));
+    PACK_GIFTAG(flush, GIF_SET_TAG(1, 1, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
+    PACK_GIFTAG((flush + 1), 0, GS_REG_TEXFLUSH);
 }
 
 qword_t * DisplayList::UnpackBatch(u32 qwords)

@@ -83,6 +83,17 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   `world_reference.py --compare <tga> --view <name> --bits <16|32>` matches a whole capture
   with its reference image, and 99.4 to 99.9 % of each capture matches within the PSMCT16 model. Reference images:
   `docs/images/renderer-world-1-*-{ntsc,pal}.png`.
+- `renderer-gs/gstx-images` loads the GSTX v2 fixtures `host:renderer-t8.gstx` (64x64 `PSMT8`, four
+  levels, repeating) and `host:renderer-t4.gstx` (64x32 `PSMT4`, three levels, clamped), written by
+  `make texture-fixture` (`src/tests/host/texture_fixture.cpp`) and staged by the runner. In the
+  32-bit profile it uploads both through `DisplayList::UploadImage` at block addresses no page
+  aligns (the allocation plus five blocks, the `PSMT4` file right after the 26 `PSMT8` blocks),
+  draws every level 1:1 with nearest sampling at a fixed LOD (`TEX1.LCM` 1, `K` the level) from
+  the cooked registers moved by `RelocateTex0`/`RelocateMiptbp`, then level 0 of each over twice
+  its width (repeat and clamp), and captures `renderer-gstx.tga`. The runner compares every pixel
+  of the nine sprites with the fixture's formulas (`renderer_capture.verify_gstx_scene`, 20,416
+  pixels within 2 levels) and requires black just outside each one, so a swizzle, upload,
+  relocation, `MIPTBP` or `CLAMP` error shows wherever it lands.
 - Frame-buffer profiles: `renderer-gs/world-graybox-32` draws the same cameras with the device
   initialized in `PSMCT32` + `PSMZ16S` (`GS ready ... PSMCT32/Z16S fixed_vram=2293760`, PAL
   2,621,440) and captures `renderer-world-*-32.tga`; the runner compares them with the exact

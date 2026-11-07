@@ -10,6 +10,7 @@
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/texture_format.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/renderer/world.h"
 #include "ps2/math/math.h"
@@ -753,6 +754,144 @@ bool WorldGraybox(system::video::Standard standard, renderer::gs::FrameFormat fo
     return loaded && profile && captured && uploads == 1U && SameLedger(baseline);
 }
 
+// A cooked GSTX v2 file read whole into 64-byte aligned storage, validated and written back.
+struct LoadedImage
+{
+    void * storage = nullptr;
+    renderer::tex::Image image = {};
+};
+
+bool LoadImage(const char * path, LoadedImage & output)
+{
+    FILE * file = fopen(path, "rb");
+
+    if (file == nullptr)
+    {
+        return false;
+    }
+
+    alignas(64) static u8 s_header[renderer::tex::kImageHeaderBytes];
+    const bool header = fread(s_header, 1, sizeof(s_header), file) == sizeof(s_header);
+    const u32 bytes = header ? renderer::tex::kImageHeaderBytes + 16U * (static_cast<u32>(s_header[20]) | (static_cast<u32>(s_header[21]) << 8) |
+                                                                          (static_cast<u32>(s_header[22]) << 16) | (static_cast<u32>(s_header[23]) << 24))
+                             : 0U;
+    void * storage = header && bytes <= renderer::tex::kImageMaxFileBytes ? system::heap::TryAlloc(bytes, TAG_RENDER, 64) : nullptr;
+    const bool read = storage != nullptr && fseek(file, 0, SEEK_SET) == 0 && fread(storage, 1, bytes, file) == bytes;
+    const bool closed = fclose(file) == 0;
+    const char * error = read && closed ? renderer::tex::ValidateImage(static_cast<const u8 *>(storage), bytes, output.image) : "read failed";
+
+    if (error != nullptr)
+    {
+        Log(LogLevel::Error, "GSTX v2 %s refused: %s\n", path, error);
+        system::heap::Free(storage);
+        return false;
+    }
+
+    SyncDCache(storage, static_cast<u8 *>(storage) + bytes);
+    output.storage = storage;
+    return true;
+}
+
+// One level drawn 1:1 with fixed LOD (TEX1.LCM 1, K = level) and nearest sampling, the cooked
+// registers moved to 'base'. The rectangle starts half a pixel up and left, so each pixel centre
+// samples a texel centre; 'spanS' > 1 repeats or clamps along S.
+void DrawImageLevel(renderer::gs::GifWriter & writer, u64 context, const renderer::tex::Image & image, u32 base, u32 level, int x, int y,
+                    float spanS)
+{
+    const int width = static_cast<int>(image.width >> level);
+    const int height = static_cast<int>(image.height >> level);
+    const u64 tex1 = 1ULL | (image.tex1 & (7ULL << 2)) | (image.levels > 1U ? 2ULL << 6 : 0ULL) | (static_cast<u64>(level) << 36);
+    const int drawn = static_cast<int>(static_cast<float>(width) * spanS);
+    const u64 rgbaq = GS_SET_RGBAQ(128, 128, 128, 128, std::bit_cast<u32>(1.0f));
+    const u64 prim = GS_SET_PRIM(PRIM_SPRITE, 0, 1, 0, 0, 0, 0, context, 0);
+    const u64 test = GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 1);
+    const u64 first = GS_SET_ST(std::bit_cast<u32>(0.0f), std::bit_cast<u32>(0.0f));
+    const u64 last = GS_SET_ST(std::bit_cast<u32>(spanS), std::bit_cast<u32>(1.0f));
+    const u64 topLeft = GS_SET_XYZ((2048 + x) * 16 - 8, (2048 + y) * 16 - 8, 0);
+    const u64 bottomRight = GS_SET_XYZ((2048 + x + drawn) * 16 - 8, (2048 + y + height) * 16 - 8, 0);
+
+    writer.SetRegister(GS_REG_TEX0_1 + context, renderer::tex::RelocateTex0(image.tex0, base));
+    writer.SetRegister(GS_REG_TEX1_1 + context, tex1);
+    writer.SetRegister(GS_REG_MIPTBP1_1 + context, renderer::tex::RelocateMiptbp(image.miptbp1, base));
+    writer.SetRegister(GS_REG_MIPTBP2_1 + context, renderer::tex::RelocateMiptbp(image.miptbp2, base));
+    writer.SetRegister(GS_REG_CLAMP_1 + context, image.clamp);
+    writer.SetRegister(GS_REG_TEST_1 + context, test);
+    writer.SetRegister(GS_REG_PRIM, prim);
+    writer.SetRegister(GS_REG_RGBAQ, rgbaq);
+    writer.SetRegister(GS_REG_ST, first);
+    writer.SetRegister(GS_REG_XYZ2, topLeft);
+    writer.SetRegister(GS_REG_ST, last);
+    writer.SetRegister(GS_REG_XYZ2, bottomRight);
+}
+
+// The cooked PSMT8 and PSMT4 fixtures (texture_fixture.cpp, staged by the runner) uploaded through
+// the display list at block addresses no page aligns, then every level of both drawn, plus the
+// PSMT8 level 0 repeated and the PSMT4 level 0 clamped along S. The runner compares every pixel of
+// the sprites with the fixture's formulas in the 32-bit profile.
+bool GstxImages(system::video::Standard standard)
+{
+    const auto baseline = system::heap::GetTotalStats();
+    LoadedImage index8;
+    LoadedImage index4;
+
+    if (!LoadImage("host:renderer-t8.gstx", index8) || !LoadImage("host:renderer-t4.gstx", index4))
+    {
+        system::heap::Free(index8.storage);
+        return false;
+    }
+
+    const bool shapes = index8.image.psm == renderer::tex::kPsmT8 && index8.image.levels == 4U && index8.image.blocks == 26U &&
+                        index4.image.psm == renderer::tex::kPsmT4 && index4.image.levels == 3U && index4.image.blocks == 7U;
+    bool passed = false;
+
+    if (renderer::Init({ standard, 128U * 1024U, 64U * 1024U, 128U * 1024U, { 0, system::video::Interlace::Field, renderer::gs::FrameFormat::Color32 } }))
+    {
+        renderer::gs::VramAllocation allocation = {};
+
+        if (renderer::gs::AllocateVram(2U * renderer::gs::kVramPageBytes, allocation))
+        {
+            const u32 base8 = allocation.byteAddress / 256U + 5U;
+            const u32 base4 = base8 + index8.image.blocks;
+
+            renderer::BeginFrame({ 0, 0, 0, 255 });
+            const u64 context = renderer::DrawingContext() == renderer::gs::DrawContext::Ctx1 ? 1U : 0U;
+            renderer::dma::DisplayList & list = renderer::dma::List();
+            list.UploadImage(index8.image.stream, index8.image.streamQwords, base8);
+            list.UploadImage(index4.image.stream, index4.image.streamQwords, base4);
+
+            renderer::gs::GifWriter writer = list.BeginDirect(9 * 24);
+            static constexpr int kLevelX[] = { 16, 96, 144, 176 };
+
+            for (u32 level = 0; level < 4U; ++level)
+            {
+                DrawImageLevel(writer, context, index8.image, base8, level, kLevelX[level], 16, 1.0f);
+            }
+
+            for (u32 level = 0; level < 3U; ++level)
+            {
+                DrawImageLevel(writer, context, index4.image, base4, level, kLevelX[level], 112, 1.0f);
+            }
+
+            DrawImageLevel(writer, context, index8.image, base8, 0, 16, 176, 2.0f);
+            DrawImageLevel(writer, context, index4.image, base4, 0, 16, 256, 2.0f);
+            list.EndDirect(writer);
+            renderer::EndFrame();
+
+            passed = renderer::gs::CaptureTga("host:renderer-gstx.tga", renderer::LastPresentedContext());
+            Log(LogLevel::Info, "[D3BFG] GS gstx t8 blocks=%u qwords=%u base=%u t4 blocks=%u qwords=%u base=%u\n",
+                static_cast<u32>(index8.image.blocks), static_cast<u32>(index8.image.streamQwords), base8,
+                static_cast<u32>(index4.image.blocks), static_cast<u32>(index4.image.streamQwords), base4);
+            renderer::gs::ReleaseVram(allocation);
+        }
+
+        renderer::Shutdown();
+    }
+
+    system::heap::Free(index8.storage);
+    system::heap::Free(index4.storage);
+    return shapes && passed && SameLedger(baseline);
+}
+
 // The live profile change: one texture and one fill drawn in PSMCT16 + Z16, again after the GS
 // restarts in PSMCT32 + Z16S (the texture leaves VRAM and uploads once more), in 32/16 (drawn in
 // PSMCT32 and presented as a dithered PSMCT16S copy, captured from both buffers), and again after
@@ -941,6 +1080,7 @@ bool RunGsTests(system::video::Standard standard)
     passed = Check("vu-passthrough", VuPassthrough(standard)) && passed;
     passed = Check("world-graybox", WorldGraybox(standard, renderer::gs::FrameFormat::Color16)) && passed;
     passed = Check("world-graybox-32", WorldGraybox(standard, renderer::gs::FrameFormat::Color32)) && passed;
+    passed = Check("gstx-images", GstxImages(standard)) && passed;
     passed = Check("frame-format-switch", FrameFormatSwitch(standard)) && passed;
     passed = Check("display-mode-switch", DisplayModeSwitch(standard)) && passed;
     passed = Check("split-upload", SplitUpload(standard)) && passed;

@@ -311,6 +311,63 @@ def verify_scene(path: Path, standard: str) -> dict:
             "sha256": digest, "checks": checks}
 
 
+# The GSTX v2 fixtures (src/tests/host/texture_fixture.cpp): keep these formulas in step with it.
+def texture_fixture_t8(level: int, x: int, y: int) -> tuple:
+    index = (x * 5 + y * 3 + level * 61) & 0xFF
+    return (index, (index * 3) & 0xFF, 255 - index)
+
+
+def texture_fixture_t4(level: int, x: int, y: int) -> tuple:
+    index = (x // 3 + y * 7 + level * 5) & 0xF
+    return (index * 16 + 8, 255 - index * 16, (index * 85) & 0xFF)
+
+
+# Where GstxImages (renderer_gs_tests.cpp) draws each level: (formula, level, x, y, width, height,
+# S span, wrap). Every rectangle is drawn 1:1, nearest, at a fixed LOD.
+GSTX_SPRITES = (
+    (texture_fixture_t8, 0, 16, 16, 64, 64, 1, "repeat"),
+    (texture_fixture_t8, 1, 96, 16, 32, 32, 1, "repeat"),
+    (texture_fixture_t8, 2, 144, 16, 16, 16, 1, "repeat"),
+    (texture_fixture_t8, 3, 176, 16, 8, 8, 1, "repeat"),
+    (texture_fixture_t4, 0, 16, 112, 64, 32, 1, "clamp"),
+    (texture_fixture_t4, 1, 96, 112, 32, 16, 1, "clamp"),
+    (texture_fixture_t4, 2, 144, 112, 16, 8, 1, "clamp"),
+    (texture_fixture_t8, 0, 16, 176, 64, 64, 2, "repeat"),
+    (texture_fixture_t4, 0, 16, 256, 64, 32, 2, "clamp"),
+)
+
+
+def verify_gstx_scene(path: Path, standard: str) -> dict:
+    """Require every pixel of every GSTX v2 sprite to be its fixture texel as the 32-bit profile
+    stores it, and the pixel row and column just outside each sprite to stay black."""
+    if standard not in ("NTSC", "PAL"):
+        raise ValueError("renderer capture standard must be NTSC or PAL")
+    width, height, pixels, digest = _read_capture(path)
+    if (width, height) != (512, VISIBLE_LINES[standard]):
+        raise ValueError(f"GSTX capture is {width}x{height}; expected 512x{VISIBLE_LINES[standard]}")
+
+    def pixel(x, y):
+        offset = (y * width + x) * 3
+        return tuple(pixels[offset:offset + 3])
+
+    checked = 0
+    for formula, level, left, top, level_width, level_height, span, wrap in GSTX_SPRITES:
+        drawn = level_width * span
+        for y in range(level_height):
+            for x in range(drawn):
+                u = x % level_width if wrap == "repeat" else min(x, level_width - 1)
+                expected = formula(level, u, y)
+                actual = pixel(left + x, top + y)
+                if any(abs(a - e) > PIXEL_TOLERANCE_32 for a, e in zip(actual, expected)):
+                    raise ValueError(f"GSTX level {level} pixel ({left + x},{top + y}) is {actual}; expected {expected}")
+                checked += 1
+        for x, y in [(left + drawn, top + row) for row in range(level_height)] + [(left + column, top - 1) for column in range(drawn)]:
+            if any(channel > PIXEL_TOLERANCE_32 for channel in pixel(x, y)):
+                raise ValueError(f"GSTX level {level} spills to ({x},{y})")
+    return {"schema": 1, "standard": standard, "width": width, "height": height, "sha256": digest,
+            "sprites": len(GSTX_SPRITES), "pixels": checked}
+
+
 def verify_ui_scene(path: Path, standard: str) -> dict:
     """Require native UI glyph coverage, colors, blending and clipped/fractional geometry."""
     return _verify_virtual_scene(path, standard, UI_SCENE_PIXELS)

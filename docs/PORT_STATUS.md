@@ -5512,3 +5512,23 @@ which the opaque retail materials accept.
 | `make test-ui` (debug) | NTSC and PAL sessions passed (`20261107T092646Z_session_cf3678e6a061`, `20261107T093435Z_session_754d854cb937`) with every invalid-resource case; this also covers the frontend-unit cut's `DeviceContext` and cvar changes |
 | `make test-host` | Passed: 389 Python tests and the C++ harnesses; the world runners reject a wrong decal area, bounds or entity count, a decal before any view or after the unload |
 | `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 4,728,748 debug (+8,576) and 4,025,388 release (+7,424): id's decal generator is reachable now. Release was compiled, not run |
+
+## World textures: GSTX v2 memory images (2026-11-08)
+
+A retail census (`texture_census.py`) found five BIMAGE encodings plus RGB565 light images across
+all 8,863 images; the plan's 10.4 records it. Informed by Black's and TimeSplitters' texture
+formats, GSTX v2 stores a texture as its GS memory image: the cook places every mip level and the
+CLUT in one run of blocks from 0 through an emulation of the GS's own addressing
+(`src/tools/assets/gs_memory.cpp`), and stores the run as the words of at most seven `PSMCT32`
+rectangles of a 64-wide buffer, with their GIF tags. The target validates the file in place
+(`ps2/renderer/texture_format.cpp`; the stream checksum only in assertion builds), and
+`DisplayList::UploadImage` writes `BITBLTBUF` at the allocation, REFs the stream under `DIRECT` and
+flushes the texture cache; the cooked `TEX0`/`MIPTBP` block addresses move by one add. No EE work
+touches a texel. Residency, streaming and the retail cook are still to come.
+
+| Check | Result |
+| --- | --- |
+| `make test-renderer` (debug) | NTSC and PAL passed (`20261107T233632Z_smoke_3eeec57102424799`, `20261107T233645Z_smoke_b6f421fc2b404d6b`) with every expected-fatal probe: `renderer-gs/gstx-images` uploaded the 26-block `PSMT8` and 7-block `PSMT4` fixtures at blocks 8,965/8,991 (NTSC) and 10,245/10,271 (PAL) and drew all seven levels plus a repeated and a clamped span; all 20,416 sprite pixels match the fixture formulas in each standard |
+| `make test-host` | Passed: 392 Python tests and the C++ harnesses; `texture_format_tests` holds the emulation to TimeSplitters' published `PSMT8` unswizzle and Black's `PSMT4` mip placement, round-trips all four formats through the cook's reader and the target validator, and checks their refusals |
+| `make`, `make release`, release core image | Passed, no warnings; runnable `PT_LOAD` 4,725,164 debug and 4,021,932 release (production does not load world textures yet). Release was compiled, not run |
+

@@ -71,6 +71,12 @@ public:
     // of the next double buffer half. Returns where to write them; it starts like a DrawBatch.
     qword_t * UnpackBatch(u32 qwords);
 
+    // A cooked GSTX v2 image (texture_format.h) uploaded at GS block 'base': after the running
+    // program and PATH1/PATH2 drain (FLUSH), BITBLTBUF names the allocation, the stream (16-byte
+    // aligned, written back) is REF'd in place under DIRECT, and TEXFLUSH follows. Nothing reads
+    // or copies a texel.
+    void UploadImage(const void * stream, u32 qwords, u32 base);
+
     // Starts the pending batch, if any. A chain that closes starts it too.
     void EndBatches()
     {

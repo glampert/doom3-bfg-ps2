@@ -205,9 +205,10 @@ production link free of test inputs. Section numbers in parentheses point into t
       (10.4, 2026-11-08).
 - [ ] Cook: YCoCg and normal-map DXT5 and RGB565 decoders; coverage merged into the CLUT
       alpha (10.4, 15.1).
-- [ ] Runtime: GSTX v2 loading, the in-chain upload (`BITBLTBUF`, REF of the stream,
-      `TEXFLUSH`) and register relocation; a renderer gate draws every level of a `PSMT8`
-      and a `PSMT4` file with fixed LOD and compares the captures with the cook's sampler.
+- [x] Runtime: GSTX v2 validation, the in-chain upload (`DisplayList::UploadImage`: `BITBLTBUF`,
+      REF of the stream, `TEXFLUSH`) and register relocation; the renderer gate's `gstx-images`
+      draws every level of a `PSMT8` and a `PSMT4` fixture with fixed LOD at unaligned blocks
+      and the runner matches every pixel with the fixture's formulas (2026-11-08).
 - [ ] Cook: material pass tables for opaque and alpha-tested materials, cavity bake into the
       diffuse, Q2 policy (10.1, 10.2, 15.3).
 - [ ] Runtime: lightmap pass (`Cd x As`, GEQUAL, ZMSK 1) through the second context; sky

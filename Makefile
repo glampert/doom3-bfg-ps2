@@ -316,7 +316,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world test-world-retail ui-inventory ui-cook resource-unpack asset-reexport world-cook world-cook-retail build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
+.PHONY: texture-fixture all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world test-world-retail ui-inventory ui-cook resource-unpack asset-reexport world-cook world-cook-retail build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
 
 release: all
 build-platform: core-test-image
@@ -567,7 +567,7 @@ test-core: build-core
 test-platform: build-platform
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario platform
 
-test-renderer: build-core world-cook
+test-renderer: build-core world-cook texture-fixture
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ntsc
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-pal
 # Render-time checks are assertions: the expected-fatal probes need an assertion build.
@@ -591,7 +591,7 @@ ifneq ($(BUILD),release)
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ui-mask-capacity
 endif
 
-run-renderer: build-core world-cook
+run-renderer: build-core world-cook texture-fixture
 	$(PYTHON) $(SCRIPTS)/run_pcsx2_test.py --emulator $(PCSX2) --elf $(TEST_ELF) --scenario renderer-ntsc --visual-wait 60 --timeout 90
 
 HOST_CXX ?= clang++
@@ -704,6 +704,15 @@ build/tests/world_tests: src/tests/host/world_tests.cpp src/ps2/renderer/world_f
 build/tests/texture_format_tests: src/tests/host/texture_format_tests.cpp src/ps2/renderer/texture_format.cpp src/ps2/renderer/texture_format.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/texture_format_tests.cpp src/ps2/renderer/texture_format.cpp $(ASSET_LIB_SRC) -o $@
+
+# The GSTX v2 files the renderer gate uploads (formulas shared with renderer_capture.py).
+build/tests/texture_fixture: src/tests/host/texture_fixture.cpp $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+	@mkdir -p $(dir $@)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/texture_fixture.cpp $(ASSET_LIB_SRC) -o $@
+
+texture-fixture: build/tests/texture_fixture
+	@mkdir -p build/textures
+	./build/tests/texture_fixture build/textures
 
 HOST_HEAP_SOURCES = src/tests/smoketests/type_query_tests.cpp src/tests/smoketests/type_query_bridge.cpp src/tests/host/heap_tests.cpp src/tests/smoketests/heap_tests.cpp src/tests/smoketests/class_alloc_tests.cpp src/ps2/game/class_alloc.cpp src/ps2/system/heap.cpp src/ps2/system/log.cpp
 

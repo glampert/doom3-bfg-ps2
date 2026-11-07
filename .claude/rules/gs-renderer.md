@@ -101,6 +101,11 @@ coordinates; CLUTs; VRAM and mipmaps.
   retail sky boxes reach 14,000 units from inside a level. `scene::BeginFrame` resets id's frame arena once
   per renderer frame (presentation does it). A cooked world's packets are freed only between
   renderer frames (`FreeCookedMap` waits for the DMA).
+- **World textures (GSTX v2):** a file is the texture's GS memory image (levels and CLUT) plus the
+  `PSMCT32` rectangles that write it; `DisplayList::UploadImage` sends it at any block (FLUSH,
+  `BITBLTBUF` with `DBW 1`, REF under `DIRECT`, `TEXFLUSH`) and `RelocateTex0`/`RelocateMiptbp`
+  move the cooked block addresses. Never reorder or copy its texels on the EE. Fixed-LOD draws:
+  `TEX1.LCM` 1 with `K` = level << 4. `renderer::DrawingContext()` asserts an open frame.
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,
   eviction, destruction and image close drain/FINISH (flush queued UI references) before
   overwriting or releasing VRAM. Uploads retire PATH2 before synchronous PATH3 chains.
