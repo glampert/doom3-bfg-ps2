@@ -103,6 +103,13 @@ PS2_COLD_FUNC void InitLogical(const char * defaultMaterialName)
     }
 
     renderModelManager->Init();
+
+    // id's Init sets the identity space; the portal flow projects each portal's winding through it
+    // for the screen rectangle that scissors the areas behind it (an all-zero matrix maps every
+    // corner to the world origin).
+    tr.identitySpace.modelMatrix[0 * 4 + 0] = 1.0f;
+    tr.identitySpace.modelMatrix[1 * 4 + 1] = 1.0f;
+    tr.identitySpace.modelMatrix[2 * 4 + 2] = 1.0f;
     s_logicalInitialized = true;
 
     // Native model queries cache by renderer frame; zero is the uninitialized definition stamp.

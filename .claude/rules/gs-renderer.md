@@ -91,8 +91,12 @@ coordinates; CLUTs; VRAM and mipmaps.
   size `BeginDirect` accordingly. Untextured vertex colour writes 0x80 as 128, half brightness,
   until a textured MODULATE pass makes 0x80 one.
 - **Views:** id's `RenderScene` reaches `scene::RenderView` (`ps2/renderer/scene.cpp`) after the
-  portal flow; it draws the areas whose `_areaN` entity is on the view entity list, in one
-  `world::BeginPass`/`DrawArea`/`EndPass`. `scene::BeginFrame` resets id's frame arena once
+  portal flow; it draws the areas whose `_areaN` entity is on the view entity list with a
+  non-empty scissor (empty means shadows only), in one `world::BeginPass`/`DrawArea`/`EndPass`.
+  The scissor is the portal winding's screen rectangle, projected through `tr.identitySpace`,
+  which `InitLogical` must set as id's `Init` does (left zero, every rectangle collapsed onto
+  the world origin and a portal at the screen edge culled its area). Cameras use a 4:3
+  horizontal field of view (`system::video::kDisplayAspect`), never the buffer's width/height. `scene::BeginFrame` resets id's frame arena once
   per renderer frame (presentation does it). A cooked world's packets are freed only between
   renderer frames (`FreeCookedMap` waits for the DMA).
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,

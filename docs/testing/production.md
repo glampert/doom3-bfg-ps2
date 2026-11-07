@@ -220,9 +220,9 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
 - Six views, each `ps2_world portal 1 open|closed`, `ps2_world view EYE TARGET`, a capture
   two frames later and a `ps2_world status` two frames after that, between echo barriers.
   The status must report the view still drawing, the start area and the areas and batches
-  the portal flow let it draw: `room0`, `room1` and `doorway` 2 areas and 26 batches,
-  `clip` (the doorway just outside its frustum), `away` (facing room 0's far wall) and
-  `closed` (the doorway camera with the portal closed) 1 area and 14 batches.
+  the portal flow let it draw: `room0`, `room1`, `doorway` and `clip` (the doorway at the
+  screen's right edge, partly behind the camera) 2 areas and 26 batches, `away` (facing room
+  0's far wall) and `closed` (the doorway camera with the portal closed) 1 area and 14 batches.
 - Captures: `room0`, `room1`, `doorway` and `clip` are the GS gate's cameras and must
   show its reference pixels at the capture's width (`renderer_capture.WORLD_SCENE_PIXELS_640`
   for production's default, `WORLD_SCENE_PIXELS` at 512, both from the same rasterizer and
@@ -246,8 +246,9 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   PAL) and `doorway-512` must show the GS gate's 512-wide reference pixels; `ps2_resolution 1`
   back, and `doorway-640` must be byte-identical to the first `doorway`. Then `ps2_interlace
   frame` (`GS display 640x224 FRAME`, `640x256` PAL; fixed VRAM 1,474,560 / 1,638,400 at 32/32)
-  and `doorway-frame` is captured at the half height, showing the room beyond the doorway at its
-  centre; `ps2_interlace field` back, and `doorway-field` must match the first `doorway`. Each
+  and `doorway-frame` is captured at the half height and must show the 640-wide reference pixels,
+  each at half its row (the camera's 4:3 field of view makes it the same picture at half the
+  lines); `ps2_interlace field` back, and `doorway-field` must match the first `doorway`. Each
   step changes one cvar (`run_world.switch_command`); the expected line comes from
   `renderer_capture.frame_size` and `fixed_vram_bytes` for the session's standard. Every view
   keeps its culling counts. After `ps2_world unload` the session is back in the front end: the

@@ -52,4 +52,8 @@ const char * InterlaceName(Interlace interlace); // "FIELD" or "FRAME"
 // The lines the frame buffer holds: the resolution's in FIELD mode, half of them in FRAME mode.
 int FrameHeight(Resolution resolution, Interlace interlace);
 
+// Both standards show a 4:3 picture whatever the buffer's width and lines, so a camera's horizontal
+// field of view follows this aspect, never the buffer's width over height.
+static constexpr float kDisplayAspect = 4.0f / 3.0f;
+
 } // namespace ps2::system::video

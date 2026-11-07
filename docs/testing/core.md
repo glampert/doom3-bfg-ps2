@@ -74,7 +74,8 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
 - The GS gate's `renderer-gs/world-graybox` loads `host:graybox.d3wd` (`make test-renderer` runs
   `make world-cook` and the runner stages it), draws it through `world_lm.vcl` from four
   cameras (room 0, room 1, through the doorway, against the divider where the near plane and
-  the guard band clip) and captures `renderer-world-{room0,room1,doorway,clip}.tga`; it also
+  the guard band clip; a 90-degree vertical field of view on the TV's 4:3 picture,
+  `system::video::kDisplayAspect`, whatever the buffer's size) and captures `renderer-world-{room0,room1,doorway,clip}.tga`; it also
   requires one program upload and the exact heap ledger after unload. The runner checks eight
   pixels a view (`renderer_capture.WORLD_SCENE_PIXELS`, per standard), chosen deep inside flat
   faces from a reference rasterizer of the same `.proc`, cameras and colour bytes; 99.4 to

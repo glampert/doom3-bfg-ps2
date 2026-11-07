@@ -137,12 +137,16 @@ production link free of test inputs. Section numbers in parentheses point into t
       to 640 wide, `ps2_resolution` and `ps2_interlace` with their `CVARS.md` rows; the GS
       gate's `display-mode-switch` and `make test-world`'s 640 and FRAME doorway views
       (2026-11-05). Defaults stay 512 wide, FIELD.
-- [ ] The world viewer's and the GS gate's horizontal field of view from the display's 4:3
+- [x] The world viewer's and the GS gate's horizontal field of view from the display's 4:3
       aspect instead of the buffer's width over height (`presentation.cpp` `ps2_world view`,
-      `renderer_gs_tests.cpp` `WorldGraybox`): the picture is drawn 1.17x too wide at 512x448
-      and 1.33x at PAL's 512x512, and changes with `ps2_resolution` and `ps2_interlace`. Moves
-      `WORLD_SCENE_PIXELS` and brings the doorway portal into the `clip` camera's frustum, so
-      the reference pixels and that camera's culling counts are regenerated with it (2026-11-05).
+      `renderer_gs_tests.cpp` `WorldGraybox`, `system::video::kDisplayAspect`): every display
+      mode now shows the same framing. `WORLD_SCENE_PIXELS` and `WORLD_SCENE_PIXELS_640`
+      rasterized again, and `make test-world`'s FRAME doorway is checked against the references
+      at half their rows (2026-11-07). Comparing whole captures with the new references found
+      a culling defect: the PS2's `InitLogical` never set `tr.identitySpace`'s model matrix (id's
+      `Init` does), so every portal's screen rectangle collapsed onto the projected world origin
+      and the `clip` view listed room 1 with an empty scissor and skipped it; it now draws both
+      areas.
 - [x] 640 wide by default with a third frame-buffer profile (2026-11-06): 32/16 draws in one
       `PSMCT32` buffer and presents a dithered `PSMCT16S` copy made in the vertical blank;
       `ps2_frameBufferBits 16/16|32/16|32/32` (default 32/32) names the in-game preference and the

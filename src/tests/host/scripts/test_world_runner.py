@@ -208,13 +208,18 @@ class WorldRunnerTests(unittest.TestCase):
 
     def test_portal_culling_must_hold(self):
         # A view facing away from the doorway, or through it closed, still drawing both rooms.
-        for name in ("away", "closed", "clip"):
+        for name in ("away", "closed"):
             log = session({name: {"drawn": 2, "batches": 26, "entities": 2}})
             passed, reason, _ = runner.classify(log, IDENTITY)
             self.assertFalse(passed, name)
             self.assertIn(name, reason)
-        # A doorway view drawing only its own room, or one starting in the wrong area.
+        # A doorway view drawing only its own room, or one starting in the wrong area. The clip
+        # camera sees the doorway at the screen's right edge: listing room 1 without drawing it
+        # (an empty portal scissor) fails too.
         self.assertFalse(runner.classify(session({"doorway": {"drawn": 1, "batches": 14}}), IDENTITY)[0])
+        passed, reason, _ = runner.classify(session({"clip": {"drawn": 1, "batches": 14}}), IDENTITY)
+        self.assertFalse(passed)
+        self.assertIn("clip", reason)
         self.assertFalse(runner.classify(session({"room1": {"area": 0}}), IDENTITY)[0])
 
     def test_missing_or_stale_capture_and_status_fail(self):
@@ -287,6 +292,14 @@ class WorldRunnerTests(unittest.TestCase):
         x0, y0, x1, y1 = runner.doorway_box("PAL")
         self.assertEqual((x0 + x1) // 2, 256)
         self.assertEqual((y0 + y1) // 2, 256)
+
+    def test_doorway_box_follows_the_4_3_picture(self):
+        # The opening is square on the TV: at 512x448 its width spans 3/8 of the buffer's width per
+        # half-width over a vertical half of 224 lines, so it is wider than tall in buffer pixels.
+        x0, y0, x1, y1 = runner.doorway_box("NTSC", 512)
+        self.assertEqual((x1 - x0, y1 - y0), (2 * (int(64.0 / 436.0 * 192.0) + 3), 2 * (int(64.0 / 436.0 * 224.0) + 3)))
+        x0, _, x1, _ = runner.doorway_box("NTSC", 640)
+        self.assertEqual(x1 - x0, 2 * (int(64.0 / 436.0 * 240.0) + 3))
 
 
 if __name__ == "__main__":

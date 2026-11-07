@@ -207,7 +207,8 @@ and redraw-request counts. These three controls are available only in visible mo
 `ps2_world` (visible mode too) drives Common's render world without a game map:
 `load maps/NAME` takes `base/maps/NAME.d3wd` (from `make world-cook`; its materials must be
 in `base/materials/`), `view EX EY EZ TX TY TZ` draws it every frame from the eye towards the
-target under the console and screens (90-degree vertical field of view), `trace SX SY SZ EX
+target under the console and screens (90-degree vertical field of view on the 4:3 picture, the
+same framing in every display mode), `trace SX SY SZ EX
 EY EZ` logs the first world surface between two points, `portal HANDLE open|closed` sets a
 portal's view blocking, `off` stops drawing, `unload` empties the world and `status` logs the
 areas, portals and the last view's area, entities, drawn areas, batches and frame arena use.

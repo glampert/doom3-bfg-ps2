@@ -465,12 +465,14 @@ def profile_scene(bits, height=448, colours=None, width=512):
     return rgb
 
 
-def world_scene(standard, view, bits, width=512):
-    """A world capture holding each reference point's stored colour and black elsewhere."""
-    height = 448 if standard == "NTSC" else 512
+def world_scene(standard, view, bits, width=512, interlace="FIELD"):
+    """A world capture holding each reference point's stored colour and black elsewhere; a FRAME
+    capture holds them at half the lines."""
+    frame = interlace == "FRAME"
+    height = (448 if standard == "NTSC" else 512) // (2 if frame else 1)
     rgb = bytearray(width * height * 3)
     for x, y, reference in capture.WORLD_SCENE_TABLES[width][standard][view]:
-        offset = (y * width + x) * 3
+        offset = ((y // 2 if frame else y) * width + x) * 3
         rgb[offset:offset + 3] = bytes(capture.stored(reference, bits))
     return rgb
 
@@ -627,6 +629,19 @@ class FrameBufferProfiles(unittest.TestCase):
         # The 16-bit store of room0 fails the 32-bit model: five-bit storage dropped its low bits.
         with self.assertRaisesRegex(ValueError, "room0 32-bit"):
             capture.verify_world_scene(self.write(tga(512, 448, world_scene("NTSC", "room0", 16))), "NTSC", "room0", 32)
+        # FRAME mode draws the same 4:3 picture into half the lines: each reference row y is row y / 2.
+        for standard, height in (("NTSC", 224), ("PAL", 256)):
+            with self.subTest(standard=standard, interlace="FRAME"):
+                result = capture.verify_world_scene(self.write(tga(640, height, world_scene(standard, "doorway", 32, 640, "FRAME"))),
+                                                    standard, "doorway", 32, 640, "FRAME")
+                self.assertEqual((result["height"], result["interlace"]), (height, "FRAME"))
+        with self.assertRaisesRegex(ValueError, "expected 640x224"):
+            capture.verify_world_scene(self.write(tga(640, 448, world_scene("NTSC", "doorway", 32, 640))), "NTSC", "doorway", 32, 640,
+                                       "FRAME")
+        # A full-height picture squeezed into the top half (rows not halved) fails the FRAME check.
+        squeezed = world_scene("NTSC", "doorway", 32, 640)[:640 * 224 * 3]
+        with self.assertRaisesRegex(ValueError, "doorway 32-bit"):
+            capture.verify_world_scene(self.write(tga(640, 224, squeezed)), "NTSC", "doorway", 32, 640, "FRAME")
 
 
 if __name__ == "__main__":

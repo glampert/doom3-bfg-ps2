@@ -61,7 +61,7 @@ VIEWS = (
     ("room0", (-480, -340, 150, -180, 100, 40), "open", 0, 2, 26, True),
     ("room1", (480, 330, 150, 240, -150, 40), "open", 1, 2, 26, True),
     ("doorway", (-440, 0, 64, 0, 0, 64), "open", 0, 2, 26, True),
-    ("clip", (-20, -40, 40, -300, 300, 20), "open", 0, 1, 14, True),
+    ("clip", (-20, -40, 40, -300, 300, 20), "open", 0, 2, 26, True),
     ("away", (-200, 0, 64, -600, 0, 64), "open", 0, 1, 14, False),
     ("closed", (-440, 0, 64, 0, 0, 64), "closed", 0, 1, 14, False),
 )
@@ -73,10 +73,6 @@ Display = namedtuple("Display", "profile resolution interlace")
 PROFILE_NAMES = {"16/16": "PSMCT16/Z16", "32/16": "PSMCT32+PSMCT16S/Z16S", "32/32": "PSMCT32/Z16S"}
 TEXTURE_VRAM = 2097152
 VRAM_BYTES = 4194304
-
-# The doorway camera drawn outside the default resolution or interlace mode: the GS gate's
-# reference pixels do not apply, only the frame's size and its contents.
-DOORWAY_UNCHECKED = VIEWS[2][:-1] + (False,)
 
 # Steps whose display change follows from the session, not a cvar: loading the world leaves the
 # front end, so the preferred profile replaces the front end's.
@@ -114,7 +110,7 @@ def steps(standard: str = "ntsc") -> list[tuple]:
     sequence.append(("res-640", base, None))
     sequence.append(("doorway-640", base, VIEWS[2]))
     sequence.append(("frame", frame, None))
-    sequence.append(("doorway-frame", frame, DOORWAY_UNCHECKED))
+    sequence.append(("doorway-frame", frame, VIEWS[2]))
     sequence.append(("field", base, None))
     sequence.append(("doorway-field", base, VIEWS[2]))
     return sequence
@@ -281,9 +277,11 @@ def doorway_box(standard: str, width: int = 512) -> tuple[int, int, int, int]:
     margin for the divider's thickness."""
     height = renderer_capture.VISIBLE_LINES[standard.upper()]
     # The camera is 440 units from the doorway's centre, looking straight at it with a 90-degree
-    # vertical field of view and square pixels; the opening is 128 units square.
-    half = int(64.0 / 436.0 * height / 2.0) + 3
-    return width // 2 - half, height // 2 - half, width // 2 + half, height // 2 + half
+    # vertical field of view on a 4:3 picture: half the width spans 4/3 of the vertical half-angle's
+    # tangent. The opening is 128 units square.
+    half_x = int(64.0 / 436.0 * width * 3.0 / 8.0) + 3
+    half_y = int(64.0 / 436.0 * height / 2.0) + 3
+    return width // 2 - half_x, height // 2 - half_y, width // 2 + half_x, height // 2 + half_y
 
 
 def verify_closed(open_path: Path, closed_path: Path, standard: str, bits: int = 16) -> dict:
@@ -313,21 +311,6 @@ def verify_closed(open_path: Path, closed_path: Path, standard: str, bits: int =
     return {"changed_pixels": changed, "doorway_box": [x0, y0, x1, y1], "centre_rgb": list(actual)}
 
 
-def verify_sized_view(path: Path, standard: str, display: Display) -> dict:
-    """A view drawn outside the default frame: its capture has the mode's size and shows the room
-    through the doorway at the centre, not the clear colour."""
-    width, height, pixels = renderer_capture.read_tga(path)
-    expected = renderer_capture.frame_size(standard.upper(), display.resolution, display.interlace)
-    if (width, height) != expected:
-        raise ValueError(f"{path.name} is {width}x{height}; expected {expected[0]}x{expected[1]}")
-    centre = (height // 2 * width + width // 2) * 3
-    actual = tuple(pixels[centre:centre + 3])
-    bits = renderer_capture.draw_bits(display.profile)
-    if all(abs(a - e) <= renderer_capture.tolerance(bits) for a, e in zip(actual, renderer_capture.stored(CLEAR_RGB, bits))):
-        raise ValueError(f"{path.name} shows the clear colour at its centre; expected the room beyond the doorway")
-    return {"width": width, "height": height, "centre_rgb": list(actual), "sha256": sha256(path)}
-
-
 def verify_captures(output: Path, standard: str) -> dict:
     results = {}
     for name, display, view in steps(standard):
@@ -336,9 +319,8 @@ def verify_captures(output: Path, standard: str) -> dict:
         if view[-1]:
             width = renderer_capture.frame_size(standard.upper(), display.resolution)[0]
             results[name] = renderer_capture.verify_world_scene(output / f"world-{name}.tga", standard.upper(), view[0],
-                                                                renderer_capture.draw_bits(display.profile), width)
-        elif display.interlace == "FRAME":
-            results[name] = verify_sized_view(output / f"world-{name}.tga", standard, display)
+                                                                renderer_capture.draw_bits(display.profile), width,
+                                                                display.interlace)
     results["closed"] = verify_closed(output / "world-doorway.tga", output / "world-closed.tga", standard, 32)
     results["closed-16"] = verify_closed(output / "world-doorway-16.tga", output / "world-closed-16.tga", standard, 16)
     # 32/16 captures its 32-bit draw buffer, which holds what 32/32 draws.

@@ -726,7 +726,7 @@ bool WorldGraybox(system::video::Standard standard, renderer::gs::FrameFormat fo
                              (format == renderer::gs::FrameFormat::Color32 ? GS_PSM_32 : GS_PSM_16);
     const float width = static_cast<float>(renderer::gs::Width());
     const float height = static_cast<float>(renderer::gs::Height());
-    const math::Mat4 projection = math::PerspectiveProjection(math::DegToRad(90.0f), width / height, width, height, 4.0f, 8192.0f);
+    const math::Mat4 projection = math::PerspectiveProjection(math::DegToRad(90.0f), system::video::kDisplayAspect, width, height, 4.0f, 8192.0f);
     bool captured = true;
 
     for (const Camera & camera : kCameras)

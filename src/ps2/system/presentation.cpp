@@ -240,8 +240,9 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         s_view.viewaxis[0] = forward;
         s_view.viewaxis[1] = left;
         s_view.viewaxis[2] = forward.Cross(left);
+        // A 90 degree vertical field of view on the TV's 4:3 picture: tan(fov_x / 2) = 4/3 x tan(45).
         s_view.fov_y = 90.0f;
-        s_view.fov_x = RAD2DEG(2.0f * idMath::ATan(static_cast<float>(ps2::renderer::gs::Width()), static_cast<float>(ps2::renderer::gs::Height())));
+        s_view.fov_x = RAD2DEG(2.0f * idMath::ATan(ps2::system::video::kDisplayAspect, 1.0f));
         s_worldView = true;
         return;
     }

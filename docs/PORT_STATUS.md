@@ -5325,3 +5325,45 @@ The front end at 640 in 32/16 (draw-buffer captures): NTSC [start](images/render
 [root](images/renderer-world-5-menu-root-ntsc.png), [quit dialog over the shell](images/renderer-world-5-menu-quit-ntsc.png);
 PAL [start](images/renderer-world-5-menu-start-pal.png), [root](images/renderer-world-5-menu-root-pal.png),
 [quit dialog over the shell](images/renderer-world-5-menu-quit-pal.png).
+
+## A 4:3 field of view, and portal scissors through the identity space (2026-11-07)
+
+The world viewer (`ps2_world view`) and the GS gate's graybox cameras now take their horizontal
+field of view from the TV's 4:3 picture (`system::video::kDisplayAspect`): a 90-degree vertical
+field of view and `tan(fov_x / 2) = 4/3`, about 106.3 degrees, whatever the buffer's width, lines
+or interlace mode. Before, `fov_x` followed the buffer's width over its height, so the world was
+drawn 1.17x too wide at 512x448, 1.33x at 512x512 and 0.93x at 640x448, and FRAME mode's
+half-height buffers changed it again. Every mode now shows the same framing. The reference
+rasterizer drew the four cameras again at 512x448, 512x512, 640x448 and 640x512
+(`renderer_capture.WORLD_SCENE_PIXELS` and `WORLD_SCENE_PIXELS_640`), and because a FRAME
+buffer now holds the same picture at half the lines, `make test-world`'s FRAME doorway is
+checked against the 640 references at half their rows instead of only "not the clear colour".
+`run_world.doorway_box` follows the 4:3 projection too.
+
+Comparing whole captures with the new references, not only the eight probes a view, found a
+culling defect that predates this change (the 2026-11-06 `clip` captures show it). The PS2's
+logical renderer startup (`renderer::InitLogical`, `null_render.cpp`) never set
+`tr.identitySpace.modelMatrix`, which id's `idRenderSystemLocal::Init` makes the identity. The
+portal flow projects each visible portal's clipped winding through it for the screen rectangle
+that becomes the scissor of the areas behind it, so every rectangle collapsed onto the projected
+world origin: a 2x2 box wherever (0,0,0) fell. The views whose origin landed on screen still drew,
+but the `clip` camera, which sees the doorway at the right edge with part of the portal behind
+it, listed room 1's area model with an empty scissor, and `scene::RenderView` skips such entities
+as shadow-only. Room 1 is now drawn there: `clip` reports 2 areas and 26 batches (`make
+test-world` expected 1 and 14).
+
+| Check | Result |
+| --- | --- |
+| `make test-world` (debug) | NTSC and PAL passed (`20261107T000605Z_world_abcd34e9259d`, `20261107T000615Z_world_ec7a141e0d91`): `clip` draws both areas; the whole 640-wide captures match the new references at 99.73–99.93 % of pixels within two levels (`clip` 96.32 % before the identity fix), the FRAME doorway 99.68–99.87 % at half rows and the 512 doorway 99.67–99.89 % |
+| `make test-renderer` (debug) | NTSC and PAL passed (`20261107T000815Z_smoke_e8e788e33b3d40fa`, `20261107T000829Z_smoke_bb904615d06e440f`); the GS gate's graybox captures match the 512-wide references at 99.67–99.93 %; 17 expected-fatal probes passed |
+| `make test-game`, `make test-map`, `make test-headless` | Passed; startup ledger unchanged (4,503,176 / 4,574,084 bytes in 1,679 allocations) |
+| `make test-host` | Passed (368 Python tests and the C++ harnesses): the FRAME world check at half rows, the 4:3 doorway box, a `clip` view drawing one area failing |
+| `make`, `make release` | Passed; runnable `PT_LOAD` 4,808,428 debug (+128) and 4,083,820 release (+256). Release builds were compiled, not run |
+
+Captures through id's `RenderScene` at 640, 32/32: NTSC [room 0](images/renderer-world-6-room0-ntsc.png),
+[room 1](images/renderer-world-6-room1-ntsc.png), [doorway](images/renderer-world-6-doorway-ntsc.png),
+[against the divider](images/renderer-world-6-clip-ntsc.png), [doorway in FRAME mode](images/renderer-world-6-doorway-frame-ntsc.png),
+[doorway 512 wide](images/renderer-world-6-doorway-512-ntsc.png); PAL [room 0](images/renderer-world-6-room0-pal.png),
+[room 1](images/renderer-world-6-room1-pal.png), [doorway](images/renderer-world-6-doorway-pal.png),
+[against the divider](images/renderer-world-6-clip-pal.png), [doorway in FRAME mode](images/renderer-world-6-doorway-frame-pal.png),
+[doorway 512 wide](images/renderer-world-6-doorway-512-pal.png).
