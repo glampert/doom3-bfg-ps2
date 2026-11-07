@@ -40,7 +40,7 @@ PS2_COLD_FUNC void MA_Free(maModel_t *)
     Unsupported("MA_Free");
 }
 
-lwObject * lwGetObject(const char *, unsigned int *, int *)
+PS2_COLD_FUNC lwObject * lwGetObject(const char *, unsigned int *, int *)
 {
     Unsupported("lwGetObject");
 }
