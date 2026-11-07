@@ -145,7 +145,7 @@ void RenderView(const viewDef_t & view)
 
         if (!drawing)
         {
-            world::BeginPass(ViewProjection(view));
+            world::BeginPass(*level, ViewProjection(view));
             drawing = true;
         }
 

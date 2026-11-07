@@ -315,10 +315,17 @@ static const char * CheckRecords(Sections & s)
     }
 
     std::uint32_t nextPacket = 0;
+    s.indexedStrips = s.batchCount != 0 && (s.batches[0].flags & kFlagIndexedStrips) != 0;
 
     for (std::uint32_t index = 0; index < s.batchCount; ++index)
     {
         const BatchRecord & batch = s.batches[index];
+
+        // One program draws the whole pass.
+        if (((batch.flags & kFlagIndexedStrips) != 0) != s.indexedStrips) [[unlikely]]
+        {
+            return "batches mix topologies";
+        }
 
         if (batch.reserved != 0 || (batch.flags & ~(kLayoutMask | kFlagIndexedStrips)) != 0 || (batch.flags & kLayoutMask) != kLayoutWorldLightmapped ||
             batch.material >= s.materialCount || batch.lightmapPage != kNoLightmap || batch.packetOffset != nextPacket || batch.packetQwords == 0 ||

@@ -46,18 +46,19 @@ DOORWAY_PORTAL = (55, 2, 50)
 
 # Each view: its camera (eye, target as ps2_world view takes them), the doorway portal's state
 # while it draws (None leaves it open), the area the view starts in, the areas portal culling lets
-# it draw and their batches, and the areas its reference holds (None for every area).
-View = namedtuple("View", "name camera portal area drawn batches reference_areas")
+# it draw (their batches come from the cook report, so either topology passes), and the areas its
+# reference holds (None for every area).
+View = namedtuple("View", "name camera portal area areas reference_areas")
 # info_player_start_2 stands at (-3632, -3416, 192); the eye is 68 units above it.
 START = (-3632, -3416, 260)
 VIEWS = (
-    View("east", START + (-3332, -3416, 260), None, 2, 1, 64, None),
-    View("west", START + (-3932, -3416, 260), None, 2, 1, 64, None),
-    View("north", START + (-3632, -3116, 260), None, 2, 3, 162, None),
-    View("south", START + (-3632, -3716, 260), None, 2, 1, 64, None),
-    View("doorway", (-3772, -3300, 260, -3772, -2900, 260), None, 2, 3, 162, None),
-    View("corridor", (-3772, -3000, 260, -3700, -3500, 240), None, 50, 2, 111, None),
-    View("closed", START + (-3632, -3116, 260), "closed", 2, 1, 64, (2,)),
+    View("east", START + (-3332, -3416, 260), None, 2, (2,), None),
+    View("west", START + (-3932, -3416, 260), None, 2, (2,), None),
+    View("north", START + (-3632, -3116, 260), None, 2, (2, 50, 51), None),
+    View("south", START + (-3632, -3716, 260), None, 2, (2,), None),
+    View("doorway", (-3772, -3300, 260, -3772, -2900, 260), None, 2, (2, 50, 51), None),
+    View("corridor", (-3772, -3000, 260, -3700, -3500, 240), None, 50, (50, 2), None),
+    View("closed", START + (-3632, -3116, 260), "closed", 2, (2,), (2,)),
 )
 
 # Traces through the area models' s16 mirror from the player's eye: straight down onto the floor
@@ -72,6 +73,11 @@ TRACES = (
 def world_report(world: Path) -> dict:
     """The cook's report beside the D3WD (asset_reexport world)."""
     return json.loads(world.with_name(world.stem + ".report.json").read_text())
+
+
+def view_batches(report: dict, view: View) -> int:
+    """The batches of the areas the view draws, as the cook laid them out."""
+    return sum(report["area_list"][area]["batches"] for area in view.areas)
 
 
 def view_commands(identity: str, view: View) -> list[str]:
@@ -151,9 +157,10 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         presents = int(captures[0][2])
         if status["viewing"] != 1 or status["frame"] <= presents:
             return False, f"{view.name}: the view was not drawn after its capture", {}
-        if (status["area"], status["drawn"], status["batches"]) != (view.area, view.drawn, view.batches) or status["entities"] < view.drawn:
+        drawn, batches = len(view.areas), view_batches(report, view)
+        if (status["area"], status["drawn"], status["batches"]) != (view.area, drawn, batches) or status["entities"] < drawn:
             return False, (f"{view.name}: started in area {status['area']} and drew {status['drawn']} areas, {status['batches']} batches; "
-                           f"expected area {view.area}, {view.drawn} areas, {view.batches} batches"), {}
+                           f"expected area {view.area}, {drawn} areas, {batches} batches"), {}
         views[view.name] = {"capture": captures[0][0], "bits": bits, "presents": presents, "status": status}
     if run_world.SWITCH_RE.search(log[:positions[1]] + log[positions[-3]:positions[-2]] + log[positions[-1]:]):
         return False, "the display mode changed outside its steps", {}

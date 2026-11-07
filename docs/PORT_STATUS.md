@@ -5424,3 +5424,40 @@ Captures at 640, 32/32, NTSC: [east](images/renderer-world-7-mars_city1-east-nts
 [south](images/renderer-world-7-mars_city1-south-ntsc.png), [doorway](images/renderer-world-7-mars_city1-doorway-ntsc.png),
 [corridor](images/renderer-world-7-mars_city1-corridor-ntsc.png), [doorway closed](images/renderer-world-7-mars_city1-closed-ntsc.png);
 PAL [north](images/renderer-world-7-mars_city1-north-pal.png).
+
+## Batch topology measured: plain strips against the strip index hybrid (2026-11-07)
+
+Gate R1's last measurement. The world cook writes either topology (`asset_reexport world
+--topology hybrid|strips`, `make world-cook-retail WORLD_TOPOLOGY=strips`), and
+`world_strips.vcl` draws a plain-strips level from the swap region with the same two phases as
+`world_lm.vcl`: every strip vertex transformed in place, then the strip path copies them in order,
+or the list path walks them as triangles through the clipper. A level is one topology
+(`Sections::indexedStrips`; both readers refuse a mix), and `world::BeginPass` binds its program.
+`run_world_retail.py` now names each view's areas and takes their batches from the cook report,
+so one runner checks either cook.
+
+PCSX2 reports no VU1 cycles, so `src/tools/scripts/vu_cost.py` counts them: it unpacks each
+cooked batch into data memory as VIF1 does and runs the program's scheduled `.vsm` on the integer
+side (one cycle per instruction pair, the DIV wait at `waitq`, clip flags zero: the strip path).
+Its count of vertices sent matches every batch's index or vertex count plus the two resent per
+extra window, in both programs.
+
+| mars_city1 | Hybrid (`world_lm`) | Plain strips (`world_strips`) |
+| --- | --- | --- |
+| Batches, packet bytes | 2,138, 1,610,352 | 2,286, 1,922,048 |
+| VU1 cycles per triangle, whole map | 93.0 (0.32 µs at 294.912 MHz) | 122.5 |
+| Area 2 alone (1,788 triangles) | 181,323 cycles (0.61 ms) | 237,502 (0.81 ms) |
+| Per vertex | transform 50.8, index walk 14.6 per entry sent | transform about 51, copy about 13 |
+
+openvcl overlaps no loop iterations, so the transform dominates and transforming 1.28 rather than
+1.76 vertices per triangle decides it: the hybrid stays the cooked format (plan 20.1). A
+software-pipelined transform with plain strips emitting from it could reverse the result (an
+estimate from issue counts of 25 against 34 cycles per triangle); R9 measures again.
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips` (debug) | NTSC and PAL passed (`20261107T085116Z_world_retail_1cb5d435b73d`, `20261107T085142Z_world_retail_a78f01aba01a`): 3 VU1 programs, resident 932 instructions, swap region 1,116; area 2 draws 69 batches, the `north` view 170, `corridor` 117; captures 99.74–99.93 % |
+| `make test-world-retail` (debug, hybrid) | NTSC and PAL passed (`20261107T085241Z_world_retail_14fac8124a11`, `20261107T085307Z_world_retail_824a79380b8d`), captures 99.74–99.93 % |
+| `make test-world`, `test-renderer`, `test-headless` (debug) | Passed (`20261107T085349Z_world_14e62c8e4d41`, `20261107T085401Z_world_2c09282be944`; GS gate and its expected-fatal probes; startup ledger 4,503,176 / 4,574,084 bytes in 1,679 allocations) |
+| `make test-host` | Passed: 381 Python tests and the C++ harnesses; `world_tests` checks the target validator names each cook's topology and that both readers refuse a world mixing them; `test_vu_cost.py` pins the cycle model and both programs' kicks |
+| `make`, `make release` | Passed; runnable `PT_LOAD` 4,815,596 debug (+7,168) and 4,090,732 release (+7,040), the 851-instruction `world_strips` program. Release was compiled, not run |

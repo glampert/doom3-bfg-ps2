@@ -144,6 +144,8 @@ struct Sections
     std::uint32_t mirrorVertexCount;
     std::uint32_t mirrorIndexCount;
     std::uint32_t packetBytes;
+    // Every batch has the strip index stream (world_lm.vcl), or none has (world_strips.vcl).
+    bool indexedStrips;
 };
 
 // Validates the header, directory, checksums, every record range and cross reference and each

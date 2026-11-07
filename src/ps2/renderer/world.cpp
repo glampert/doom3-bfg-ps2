@@ -1,7 +1,7 @@
 // ================================================================================================
 // File: world.cpp
-// Brief: Load a cooked world and draw its batches through world_lm.vcl: frame constants, the depth
-// pass state, one program bind, then one REF'd batch per cooked packet.
+// Brief: Load a cooked world and draw its batches through world_lm.vcl (or world_strips.vcl): frame
+// constants, the depth pass state, one program bind, then one REF'd batch per cooked packet.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -121,14 +121,14 @@ vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::Dra
     return constants;
 }
 
-void BeginPass(const math::Mat4 & viewProjection)
+void BeginPass(const Level & level, const math::Mat4 & viewProjection)
 {
     const gs::DrawContext context = renderer::DrawingContext();
     dma::DisplayList & list = dma::List();
 
     list.SetFrameConstants(MakeFrameConstants(viewProjection, context));
     gs::BeginDepthPass(list, context);
-    list.SetProgram(vu::Program::WorldLightmapped);
+    list.SetProgram(level.sections.indexedStrips ? vu::Program::WorldLightmapped : vu::Program::WorldStrips);
 }
 
 void DrawArea(const Level & level, u32 area)
@@ -158,7 +158,7 @@ void Draw(const Level & level, const math::Mat4 & viewProjection)
 {
     PS2_AssertMsg(level.storage != nullptr, "drawing an unloaded world");
 
-    BeginPass(viewProjection);
+    BeginPass(level, viewProjection);
 
     for (u32 area = 0; area < level.sections.areaCount; ++area)
     {

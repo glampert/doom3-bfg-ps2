@@ -131,8 +131,14 @@ production link free of test inputs. Section numbers in parentheses point into t
       triangle list path through the imported clipper (`vu_clip.i`) for batches leaving the
       guard band; the GS gate's `world-graybox` draws four cameras in both standards and the
       runner checks 32 pixels a standard against a reference rasterizer (2026-11-04).
-- [ ] A plain-strips program variant and the VU1 cost comparison of the two topologies
-      (instruction counts in PCSX2, cycles on the console) (6.1, 7.4).
+- [x] A plain-strips program variant and the VU1 cost comparison of the two topologies
+      (6.1, 7.4): `world_strips.vcl` (swap region) drawn for a level cooked with `--topology
+      strips` (`make world-cook-retail WORLD_TOPOLOGY=strips`), the level validator refusing a
+      world that mixes topologies, `make test-world-retail` passing on both cooks (view batches
+      now taken from the cook report), and `vu_cost.py` counting strip-path cycles over the
+      cooked batches: 93.0 cycles per triangle for the hybrid, 122.5 for plain strips, with 19 %
+      more packet bytes. The hybrid stays; cycles on the console remain a hardware item
+      (2026-11-07).
 - [x] Both frame-buffer profiles selectable (`PSMCT32 + Z16S`, `PSMCT16 + Z16`); capture
       pixel model records the profile (4.3); the profile cvar gets its `CVARS.md` row:
       `gs::FrameFormat` in the device config, `renderer::SetFrameFormat` restarting the GS
@@ -165,11 +171,12 @@ production link free of test inputs. Section numbers in parentheses point into t
       front end draws 32/32 as 32/16; a loaded map or `ps2_world` render world switches to the
       preference. Glyph sets re-cooked for 640, world reference pixels at 640, the GS gate's
       32/16 step with a display-buffer capture, `make test-world` switching on load and unload.
-- [ ] Gate: fixed-camera captures of the room in both profiles (done for the graybox,
+- [x] Gate: fixed-camera captures of the room in both profiles (done for the graybox,
       2026-11-05: `docs/images/renderer-world-3-*`); area 2 draws with correct depth and
       portal culling (done 2026-11-07, `make test-world-retail`); decisions on profile, topology and FIELD versus FRAME mode written into
-      section 20. The profile is decided: `PSMCT32 + Z16S` by default (2026-11-05); FIELD is
-      kept for now (FRAME stays live for a TV judgement).
+      section 20. The profile is decided: `PSMCT32 + Z16S` by default (2026-11-05); the topology
+      is decided: the strip index hybrid (2026-11-07); FIELD is kept for now (FRAME stays live for
+      a TV judgement). R1 is complete (2026-11-07).
 
 ## R2: lightmapped world and streaming
 

@@ -499,8 +499,32 @@ VU memory. Strip triangle `k` is
 culling path can recover each triangle's facing.
 A better stripper (the greedy one averages three triangles per strip) improves it further.
 The simulations ran at caps of 48 to 96 vertices (2,626 to 2,094 batches); the 88 cap of
-section 7.2 lands near 2,150 batches for the whole level. Gate R1 measures the VU1 cycle cost of the index
-walk against plain ADC strips before the cook commits.
+section 7.2 lands near 2,150 batches for the whole level.
+
+Measured at gate R1 (2026-11-07): the cook writes either topology (`asset_reexport world
+--topology hybrid|strips`, `make world-cook-retail WORLD_TOPOLOGY=strips`), `world_strips.vcl`
+draws plain strips with the same two phases as `world_lm.vcl` (transform in place, then the strip
+or the clipped list path, sequential instead of indexed), and both pass `make test-world-retail`
+at 99.7 to 99.9 %. `src/tools/scripts/vu_cost.py` counts each program's strip-path cycles over the
+cooked batches by running the scheduled `.vsm` on the integer side (PCSX2 reports no VU1 cycles;
+openvcl's output is one instruction pair a cycle):
+
+| mars_city1 | Hybrid, `world_lm` | Plain strips, `world_strips` |
+| --- | --- | --- |
+| Batches | 2,138 | 2,286 (+7 %) |
+| Packet bytes (whole map) | 1,610,352 | 1,922,048 (+19 %) |
+| Vertices transformed per triangle | 1.28 (unique) | 1.76 (every strip vertex) |
+| VU1 cycles per triangle, whole map | 93.0 (0.32 µs) | 122.5 (0.42 µs, +32 %) |
+| Area 2 view (1,788 triangles) | 181,323 cycles, 0.61 ms | 237,502 cycles, 0.81 ms |
+| Areas 2, 50, 51 (the `north` view) | 104.8 per triangle | 132.2 per triangle |
+
+Per vertex, the transform costs about 51 cycles in both programs (openvcl pads every latency
+and overlaps no vertices), the hybrid's index walk 14.6 cycles per entry sent and the plain copy
+about 13. The hybrid stays the cooked format (section 20.1). The comparison would turn once the
+transform is software-pipelined and plain strips emit from the transform loop itself, with the
+EE sending only batches wholly inside the guard band to that path: from issue counts, about 25
+cycles per triangle for plain strips against 34 for the hybrid. That is an estimate, revisited
+with R9's hand-scheduled programs and the hardware frame log.
 
 ### 6.2 Batch header and draw record
 
@@ -589,7 +613,8 @@ reference, stage enable) per frame.
 | `passthrough` | GIF packet | `xgkick` of the input half, then `xgkick` of the null GIF tag at qword 8 so the program ends only once its packet has drained (an XGKICK stalls while the previous PATH1 transfer runs); for SIGNAL/LABEL fences and A+D blocks that must be ordered with PATH1 | | 6 (built) |
 
 The kernel, `world_lm` and `passthrough` (about 1,110 instructions) stay resident during
-gameplay. The remaining 940 slots are one swap region that holds one or two programs at a
+gameplay. `world_strips` (851 instructions, built 2026-11-07) is gate R1's plain-strips
+comparison program; it takes the swap region when a plain-strips cook is loaded. The remaining 940 slots are one swap region that holds one or two programs at a
 time (`world_lit` + `model_rigid` = 850 fit together, as do `model_skin4` +
 `shadow_volume` = 820); `vu::Init` reports the region size and a gate checks that every
 program fits it alone. Draw lists are sorted by program so the region swaps a few times per
@@ -1521,7 +1546,7 @@ Section 7.2. The binding limits are 88 unique vertices for 3-qword layouts, 68 f
 | --- | --- | --- |
 | Game simulation (two ticks: 60 Hz NTSC, 50 Hz PAL) | 12 ms NTSC, 14 ms PAL | unmeasured on the PS2; the headless retail boot runs but no map ticks yet |
 | Renderer EE: portal flow, light binding, culling, display list | 6 ms | about 900 batches per frame (650 world at 23 triangles each, 250 model) at 3 to 5 µs each, plus flow and sort |
-| VU1: transform, light, clip, emit | 20 ms in parallel | 15 k world triangles (the 1-ring max is 10.5 k; deeper portal views reach 15 k) plus 10 k model triangles in two passes. **This row does not close at quake2-ps2's static estimate of 1.2 µs per triangle pass** (30 ms per pass, 60 ms for two); it needs about 0.4 µs per triangle pass, which the two-context kernel (one transform for both passes) and the unique-vertex walk aim at. Gate R1's VU1 counter test decides whether counts, passes or the target must give. |
+| VU1: transform, light, clip, emit | 20 ms in parallel | 15 k world triangles (the 1-ring max is 10.5 k; deeper portal views reach 15 k) plus 10 k model triangles in two passes. **This row does not close at quake2-ps2's static estimate of 1.2 µs per triangle pass** (30 ms per pass, 60 ms for two); it needs about 0.4 µs per triangle pass, which the two-context kernel (one transform for both passes) and the unique-vertex walk aim at. Gate R1 measured the vertex-colour pass at 93 cycles, 0.32 µs, per world triangle (`vu_cost.py`, mars_city1, section 6.1); the two-context lightmap pass adds UVs, Q and a second emit per vertex. |
 | GS: fill, setup, uploads | in parallel | 3 to 6 passes over about 1.5x overdraw of 229 k pixels is under 10% of peak fill; setup at 30 M fogged textured triangles per second is 1.7 ms for 50 k emitted triangles |
 | Fences and present | 1 ms | FINISH wait at the frame boundary only |
 
@@ -1540,9 +1565,9 @@ ms that way. REF'd cooked batches make the EE cost per batch, not per vertex.
   sequence) with the frame log written at the end of the run, in release, on a real console
   via USB or HDD. The first hardware capture is gate R2's exit criterion, before any
   stretch rung is scheduled.
-- **VU1 cost** is measured with a counter test ELF in the scratchpad (performance.md recipe)
-  before the batch layout is frozen, because no per-triangle VU1 measurement exists in
-  quake2-ps2 either.
+- **VU1 cost** is counted by `src/tools/scripts/vu_cost.py`, which runs a program's scheduled
+  `.vsm` over the cooked batches on the integer side, one cycle per instruction pair plus the
+  DIV wait (section 6.1). XGKICK stalls and hardware effects are confirmed on the console.
 - **GS cost** is approximated by submitted pixel and texture-page estimates in PCSX2 and
   confirmed only on hardware.
 
@@ -1671,6 +1696,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Chain rings (2026-11-03) | Each frame's chain starts at offset 0 of its ring; a full ring kicks, waits and restarts at 0 | A continuous ring wrapped by one NEXT tag | Two full-size rings make the wrap pointless; a restart is a counted, debuggable event and the DIRECT path keeps its drain statistic |
 | First level (2026-11-04) | An authored graybox map generated with its `.proc` (`graybox_fixture.py`) | The `headless_map` fixture's `.proc` | That one is two floor quads without walls or shapes, and its portal winding faces area 1, so the view flood would pass it from neither side; it stays as `make test-map`'s fixture |
 | Strip restarts (2026-11-04) | u16 index entries: the vertex's qword offset in the input half with the GS ADC flag in bit 15 (first two entries of each strip) | u8 indices with a restart marker | VU1 has no integer multiply or shift: the program adds the entry to XTOP and writes the flag into XYZ2 as they stand; one byte per entry more on the wire, none in VU memory |
+| Batch topology (decided 2026-11-07) | The unique-vertex strip index hybrid (`world_lm.vcl`) | Plain strips (`asset_reexport world --topology strips`, `world_strips.vcl` in the swap region), cooked and drawn live | Measured on mars_city1 (section 6.1): 93.0 against 122.5 VU1 cycles per triangle, 1.61 against 1.92 MB of packets, 2,138 against 2,286 batches. Both programs' transform is openvcl's unpipelined 51 cycles per vertex, so transforming 1.28 rather than 1.76 vertices per triangle wins; a pipelined transform with plain strips emitting from it could reverse that (an estimate of 25 against 34 cycles), so R9 re-measures before batches are merged |
 | Batch packet tail (2026-11-04) | `ITOP N` in the cooked packet; `MSCAL` in the next tag's VIFcode | `MSCNT` or a cooked `MSCAL` address | Packets stay valid whatever micro memory layout `vu::Init` measures, the program keeps openvcl's single exit, and the start costs no qword |
 | Clipped batches (2026-11-04) | A batch with any vertex outside the guard band goes out as a triangle list, its outside triangles through the clipper's fan | Mark clipped triangles ADC inside the strips and append their fans | One extra path, chosen per batch, keeps the strip walk free of flag tests; batches touching the near plane or the band are a few per frame |
 | Cooked map load (2026-11-05) | `InitFromMap` builds areas, portals, nodes and the `_areaN` models from `maps/<name>.d3wd` when it exists; a refused file fails the load; a map without one loads its `.proc` | Always parse the `.proc`, cook only the batches | The PS2 never holds the `.proc` geometry; `make test-map`'s authored map keeps its `.proc` path |

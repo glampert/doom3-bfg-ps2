@@ -42,8 +42,9 @@ PS2_COLD_FUNC void Unload(Level & level);
 vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::DrawContext context);
 
 // The world pass inside the open renderer frame: BeginPass sets the frame constants, the depth
-// test and world_lm.vcl once, DrawArea sends every batch of one area, EndPass starts the last one.
-void BeginPass(const math::Mat4 & viewProjection);
+// test and the level's program once (world_lm.vcl, or world_strips.vcl for a plain-strips cook),
+// DrawArea sends every batch of one area, EndPass starts the last one.
+void BeginPass(const Level & level, const math::Mat4 & viewProjection);
 void DrawArea(const Level & level, u32 area);
 void EndPass();
 

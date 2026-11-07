@@ -1701,6 +1701,12 @@ bool ReadD3wd(std::span<const std::uint8_t> file, World & world, std::string & e
             return fail(error + " in batch " + std::to_string(index));
         }
 
+        // One VU1 program draws a world's whole pass.
+        if (index != 0 && ((batch.flags ^ world.batches.front().flags) & kBatchFlagIndexedStrips) != 0)
+        {
+            return fail("batches mix topologies");
+        }
+
         nextPacket += static_cast<std::size_t>(batch.packetQwords) * 16;
         world.batches.push_back(batch);
     }

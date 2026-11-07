@@ -57,6 +57,7 @@ Source SourceOf(Program program)
     {
         case Program::Passthrough: return { passthrough_Code(), true };
         case Program::WorldLightmapped: return { world_lm_Code(), true };
+        case Program::WorldStrips: return { world_strips_Code(), false };
         case Program::Count: break;
     }
 

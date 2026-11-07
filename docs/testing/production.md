@@ -289,10 +289,13 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
 - Seven views in area 2, where the player starts, each a capture two frames after
   `ps2_world view` and a status two frames later: `east`, `west` and `south` from the start
   draw area 2 alone (64 batches); `north` from the start and `doorway`, nearer the doorway,
-  draw 3 areas (162 batches) through portal 55, which joins area 2 to the corridor (area 50);
-  `corridor`, from inside area 50 looking back through the doorway, starts in area 50 and
-  draws 2 areas (111 batches); `closed` repeats `north` with `ps2_world portal 55 closed`
-  and must draw area 2 alone (64 batches); the portal is reopened after its status.
+  draw areas 2, 50 and 51 (162 batches) through portal 55, which joins area 2 to the corridor
+  (area 50); `corridor`, from inside area 50 looking back through the doorway, starts in area 50
+  and draws areas 50 and 2 (111 batches); `closed` repeats `north` with `ps2_world portal 55
+  closed` and must draw area 2 alone (64 batches); the portal is reopened after its status. The
+  runner names each view's areas and takes their batches from the cook report's `area_list`, so
+  `make test-world-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips` checks a
+  plain-strips cook drawn by `world_strips.vcl` the same way (69, 170 and 117 batches).
 - Captures: each must match a software rasterization of the same `.bproc` from the same camera
   (`world_reference.compare_image`, the cook's float32 vertex colours, the near plane at 4
   and the world pass's far plane) on at least 99 % of its pixels within the profile's

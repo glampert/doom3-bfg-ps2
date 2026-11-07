@@ -44,6 +44,7 @@ struct MicroCode
 // The programs in config/sources.mk's VCL_FILES.
 PS2_DECLARE_VU_MICROPROGRAM(passthrough)
 PS2_DECLARE_VU_MICROPROGRAM(world_lm)
+PS2_DECLARE_VU_MICROPROGRAM(world_strips)
 
 // Micro memory: 2048 64-bit instructions. Addresses are in that unit, as MPG and MSCAL take them.
 static constexpr u32 kMicroMemInstructions = 2048U;
@@ -52,6 +53,7 @@ enum class Program : u8
 {
     Passthrough,
     WorldLightmapped, // world_lm.vcl: one cooked D3WD batch per MSCAL
+    WorldStrips,      // world_strips.vcl: the same in plain strips (gate R1's topology comparison)
     Count
 };
 

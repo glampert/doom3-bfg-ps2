@@ -1071,8 +1071,9 @@ static bool Graybox()
         const char * targetError = TargetValidate(file, sections);
         passed = Check(targetError == nullptr && sections.areaCount == world.areas.size() && sections.batchCount == world.batches.size() &&
                            sections.surfaceCount == world.surfaces.size() && sections.nodeCount == world.nodes.size() &&
-                           sections.packetBytes == world.packets.size() && sections.mirrorIndexCount == world.mirrorIndices.size(),
-                       "the target validator admits the graybox") &&
+                           sections.packetBytes == world.packets.size() && sections.mirrorIndexCount == world.mirrorIndices.size() &&
+                           sections.indexedStrips == (topology == WorldTopology::IndexedStrips),
+                       "the target validator admits the graybox and names its topology") &&
                  passed;
 
         if (targetError != nullptr)
@@ -1232,6 +1233,32 @@ static bool Corruption()
                        entry.name) &&
                  passed;
     }
+
+    // One program draws a world's pass: the last batch swapped for its plain-strips cook, which is
+    // valid on its own, makes a world neither program can draw.
+    const ProcFile large = GridProc(24, 0.0f, 64.0f, 1.0f);
+    World hybrid;
+    World strips;
+    WorldCookStats stripStats;
+    passed = Check(CookWorld(large, policy, hybrid, stats, error) && CookWorld(large, GrayboxPolicy(WorldTopology::Strips), strips, stripStats, error) &&
+                       hybrid.batches.size() >= 2,
+                   "a grid of several batches cooks in both topologies") &&
+             passed;
+    World mixed = hybrid;
+    const WorldBatch & plain = strips.batches.back();
+    WorldBatch & last = mixed.batches.back();
+    mixed.packets.resize(last.packetOffset);
+    mixed.packets.insert(mixed.packets.end(), strips.packets.begin() + plain.packetOffset, strips.packets.end());
+    const std::uint32_t offset = last.packetOffset;
+    last = plain;
+    last.packetOffset = offset;
+    std::vector<std::uint8_t> mixedFile;
+    const bool written = WriteD3wd(mixed, mixedFile, error);
+    const bool hostRefused = written && !ReadD3wd(mixedFile, read, error) && error.find("batches mix topologies") != std::string::npos;
+    const char * targetError = written ? TargetValidate(mixedFile, sections) : nullptr;
+    passed = Check(hostRefused && targetError != nullptr && std::string(targetError) == "batches mix topologies",
+                   "a world mixing topologies is refused") &&
+             passed;
 
     return passed;
 }

@@ -20,17 +20,20 @@ from test_renderer_capture import tga
 from test_world_runner import WORLD, expected_switch_line, trace_line
 
 IDENTITY = "20261107T000000Z_world_retail_0123456789ab"
+# Area 2 holds 64 batches, areas 50 and 51 another 47 and 51 (the hybrid cook).
+AREA_BATCHES = {2: 64, 50: 47, 51: 51}
 REPORT = {"areas": 56, "surfaces": 1791, "batches": 2138, "portals": 55, "nodes": 9783,
-          "material_names": ["textures/a", "textures/skies/b"]}
+          "material_names": ["textures/a", "textures/skies/b"],
+          "area_list": [{"batches": AREA_BATCHES.get(area, 1)} for area in range(56)]}
 
 
 def echo(name):
     return f"]echo \"{IDENTITY}_{name}\"\n{IDENTITY}_{name} \n"
 
 
-def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4 final=7424/7600/4"):
+def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4 final=7424/7600/4", report=REPORT):
     """A retail world session's log as PCSX2's file log stamps it, with per-view and per-trace overrides."""
-    counts = dict(REPORT, **(load or {}))
+    counts = dict(report, **(load or {}))
     log = echo("ready") + echo("begin")
     log += (f"[D3BFG] world {runner.MAP}.d3wd: areas={counts['areas']} surfaces={counts['surfaces']} batches={counts['batches']} "
             f"portals={counts['portals']} nodes={counts['nodes']} packets=1610352 bytes=2704880\n")
@@ -45,8 +48,9 @@ def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4
     log += echo("ingame")
     frame = 70
     for view in runner.VIEWS:
+        drawn = len(view.areas)
         status = {"event": "status", "areas": 56, "portals": 55, "viewing": 1, "frame": frame + 3, "views": frame, "area": view.area,
-                  "entities": view.drawn, "drawn": view.drawn, "batches": view.batches}
+                  "entities": drawn, "drawn": drawn, "batches": runner.view_batches(report, view)}
         status.update((views or {}).get(view.name, {}))
         capture = status.pop("capture", f"world-{view.name}.tga")
         if capture:
@@ -72,6 +76,14 @@ class RetailWorldRunnerTests(unittest.TestCase):
         self.assertEqual(details["views"]["north"]["status"]["drawn"], 3)
         self.assertEqual(details["views"]["corridor"]["status"]["area"], 50)
         self.assertEqual(details["views"]["closed"]["status"]["drawn"], 1)
+
+    def test_view_batches_follow_the_cook_report(self):
+        # The strips cook lays the same areas out in more batches: the session must draw those.
+        strips = dict(REPORT, batches=2286, area_list=[{"batches": batches + 5} for batches in
+                                                       (entry["batches"] for entry in REPORT["area_list"])])
+        self.assertEqual(runner.view_batches(REPORT, runner.VIEWS[2]), 162)
+        self.assertTrue(runner.classify(session(report=strips), IDENTITY, "ntsc", strips)[0])
+        self.assertFalse(classify(session(report=strips))[0])
 
     def test_load_must_match_the_cook_report(self):
         passed, reason, _ = classify(session(load={"batches": 2137}))

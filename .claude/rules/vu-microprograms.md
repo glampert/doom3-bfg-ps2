@@ -2,7 +2,8 @@
 
 Doom's VU build (the rule, `vu.h`, `vu1progs/`) is in place since 2026-11-03: `passthrough.vcl`
 and, since 2026-11-04, `world_lm.vcl` (cooked D3WD world batches) with `vu_window.i` and
-`vu_clip.i` adapted from quake2-ps2. Doom's data memory map is `vu1progs/vu_memory.h`; the
+`vu_clip.i` adapted from quake2-ps2; `world_strips.vcl` (2026-11-07, swap region) draws plain-strips
+cooks for the topology comparison. Doom's data memory map is `vu1progs/vu_memory.h`; the
 "VU memory layout (vu1.h)" section and the named VU0 asm sites below are quake2-ps2's, and the
 hardware/toolchain behaviour transfers.
 
@@ -73,7 +74,7 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   expressions are folded only with `-x`, which the Makefile doesn't pass, so openvcl gets
   operands like `1010 + 0(vi00)` as written.
 
-## Doom's world batches (world_lm.vcl)
+## Doom's world batches (world_lm.vcl, world_strips.vcl)
 
 - A cooked packet ends with `ITOP N` and starts nothing: `world::Draw` puts `MSCAL` in the next
   tag's VIFcode (the next batch's REF runs it before its data reaches the other half). Keep
@@ -88,6 +89,15 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   reordered, disjoint fields cannot collide (quake2-ps2's EmitVertex does the same).
 - Walk state that must survive the clipper lives in VU memory (954-956), reloaded every entry,
   with `--barrier` between a spill's loads and its stores in one block.
+- A load and a store of one address with no data dependency between them may be swapped:
+  `world_strips.vcl` reads the position's ADC word with `ilw.w` before the in-place `sq` and puts
+  a `--barrier` between them. Plain strips keep ADC (0x8000) and the outside flag (0x4000) apart
+  in XYZ2's `.w`; the list path clears the word for its triangles.
+- **Count VU1 cycles with `src/tools/scripts/vu_cost.py`** (PCSX2 shows none): it runs a
+  program's `.vsm` on the integer side over cooked batches, one cycle per pair plus the DIV wait
+  at `waitq`, clip flags taken as zero (the strip path). openvcl overlaps no loop iterations: the
+  transform is about 51 cycles a vertex, so per-triangle cost follows vertices transformed
+  (`world_lm` 93 cycles per mars_city1 triangle, plain strips 122.5).
 
 ## VU memory layout (vu1.h)
 

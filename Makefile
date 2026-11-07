@@ -48,6 +48,7 @@
 #   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
 #   make world-cook              # cook the authored graybox map into a D3WD world file
 #   make world-cook-retail       # cook mars_city1's retail .bproc (RETAIL_DATA_ROOT) into a D3WD world file
+#                                # (WORLD_TOPOLOGY=strips cooks plain strips; pair it with another WORLD_COOK_OUTPUT)
 #   make ui-inventory            # inspect local retail UI dependencies and feature gaps
 #   make ui-cook                 # cook the ignored local retail English resource package
 #   make audit-sources           # audit explicit source lists and exclusions
@@ -498,7 +499,7 @@ world-cook: build/tools/asset_reexport
 	build/tools/asset_reexport world --data "$(WORLD_DATA_ROOT)" --job "$(WORLD_COOK_JOB)" --output "$(WORLD_COOK_OUTPUT)"
 
 world-cook-retail: build/tools/asset_reexport
-	build/tools/asset_reexport world --data "$(RETAIL_DATA_ROOT)" --job "$(WORLD_RETAIL_JOB)" --output "$(WORLD_COOK_OUTPUT)"
+	build/tools/asset_reexport world --data "$(RETAIL_DATA_ROOT)" --job "$(WORLD_RETAIL_JOB)" --output "$(WORLD_COOK_OUTPUT)" $(if $(WORLD_TOPOLOGY),--topology $(WORLD_TOPOLOGY))
 
 stage-headless: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)

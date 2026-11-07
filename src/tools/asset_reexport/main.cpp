@@ -795,7 +795,8 @@ static std::string Ratio(std::size_t numerator, std::size_t denominator)
     return Number(denominator == 0 ? 0.0 : static_cast<double>(numerator) / static_cast<double>(denominator));
 }
 
-static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const fs::path & output)
+// 'topology', when not empty, replaces the job's ("hybrid" or "strips", already checked).
+static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const fs::path & output, const std::string & topology)
 {
     std::string jobText;
     JsonValue root;
@@ -817,6 +818,11 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
     if (!ParseWorldJob(root, map, containers, policy))
     {
         return false;
+    }
+
+    if (!topology.empty())
+    {
+        policy.topology = topology == "strips" ? WorldTopology::Strips : WorldTopology::IndexedStrips;
     }
 
     const fs::path procPath = data / (map + ".proc");
@@ -944,13 +950,14 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
 static void Usage()
 {
     std::cout << "Usage: asset_reexport ui --data DIR --job FILE.json --output DIR [--previews DIR]\n"
-                 "       asset_reexport world --data DIR --job FILE.json --output DIR\n"
+                 "       asset_reexport world --data DIR --job FILE.json --output DIR [--topology hybrid|strips]\n"
                  "ui converts the retail interface textures a job lists into paletted GSTX files.\n"
                  "--data names the retail installation holding the job's .resources containers.\n"
                  "--output receives one file per texture and report.json; existing files are replaced.\n"
                  "--previews also writes <output>.original.png and <output>.converted.png per texture.\n"
                  "world cooks <data>/<map>.proc, the map the job names, into <output>/<name>.d3wd and\n"
-                 "<name>.report.json; with containers listed, it reads generated/<map>.bproc from them.\n";
+                 "<name>.report.json; with containers listed, it reads generated/<map>.bproc from them.\n"
+                 "--topology replaces the job's batch topology.\n";
 }
 
 static int Run(int argc, char ** argv)
@@ -973,6 +980,7 @@ static int Run(int argc, char ** argv)
     fs::path job;
     fs::path output;
     fs::path previews;
+    fs::path topology;
 
     for (int index = 2; index < argc; ++index)
     {
@@ -981,6 +989,7 @@ static int Run(int argc, char ** argv)
                             : argument == "--job"                        ? &job
                             : argument == "--output"                     ? &output
                             : argument == "--previews" && command == "ui" ? &previews
+                            : argument == "--topology" && command == "world" ? &topology
                                                                          : nullptr;
 
         if (target == nullptr || index + 1 >= argc || !target->empty())
@@ -1000,7 +1009,13 @@ static int Run(int argc, char ** argv)
 
     if (command == "world")
     {
-        return CookWorldFile(data, job, output) ? 0 : 1;
+        if (!topology.empty() && topology != "hybrid" && topology != "strips")
+        {
+            Fail("--topology must be hybrid or strips");
+            return 2;
+        }
+
+        return CookWorldFile(data, job, output, topology.string()) ? 0 : 1;
     }
 
     return ConvertUi(data, job, output, previews) ? 0 : 1;
