@@ -98,7 +98,7 @@ Doom is removed. Expansion campaigns inherit whatever works.
 | Specular and detail | Gloss mask in texture alpha, additive environment pass with `(Cs - 0) x Ad + Cd`; reflective floors with a per-vertex paraboloid env map | None | None | Black's gloss pass for metal and weapons; `HIGHLIGHT2` per-vertex specular (section 10) |
 | Shadows | Projected decals (program `3852379027`, `ALPHA 0x44`, no Z write) | Blob shadows as separate chunks | Planar squash shadow through the same stream | Baked static shadows, planar and blob entity shadows, a counting stencil as a stretch (section 9) |
 | Skinning | Bone palette in VU memory, bone index in position `w` | 45 matrix slots per skinned package, slot index times 8 in `w` | Two-keyframe lerp on VU1 | Per-batch joint palette of 24 joints, 40 vertices, three weight kernels (section 11) |
-| Textures | 4- and 8-bit, pre-swizzled, uploaded as `PSMCT32`, PATH3 interleaved with `MSKPATH3` | Uploaded inside the VIF1 chain with `FLUSHA; DIRECT` | PATH3 after `WaitIdle`, synchronous | Uploads inside the chain first (safe), PATH3 interleave as an optimisation (section 10) |
+| Textures | 4- and 8-bit, pre-swizzled, uploaded as `PSMCT16`/`PSMCT32` by prebuilt chains with relative block addresses, PATH3 interleaved with `MSKPATH3` | All `PSMT8` with a CSM1 CLUT, levels pre-swizzled for a 32-bit upload, uploaded inside the VIF1 chain with `FLUSHA; DIRECT` | PATH3 after `WaitIdle`, synchronous | A file is the texture's GS memory image (levels and CLUT), uploaded as `PSMCT32` rectangles inside the chain and relocated by adding the base (section 10.4); PATH3 interleave as an optimisation |
 | Frame buffer | `PSMCT32` 640x448 interlaced, `PSMZ24` | not recorded | `PSMCT16` + `Z16`, DIMX dither | `PSMCT32` + `Z16S` at 512x448 proposed, `PSMCT16` + `Z16` kept as a profile (section 4) |
 
 Black is the closest visual target: dark interiors, glossy metal, environment passes and a
@@ -904,9 +904,9 @@ Q and the falloff coordinate) into alpha only; pass b adds `diffuse x vertexColo
 (`ALPHA 0x58`). The flashlight is this path with the cone's `flashlight5` image reduced to
 256x256 `PSMT8`; in the `PSMCT16` profile it becomes an analytic soft cone.
 
-Lit and additive passes bind the diffuse through a CLUT variant whose alpha is a constant
-0x80 (MODULATE gives `Av = At x Af`), so a gloss or coverage alpha in the base CLUT never
-scales them; only the base, alpha-test and environment passes use the gloss CLUT.
+Lit and additive passes bind the diffuse with `TEX0.TCC` 0, so `MODULATE` gives `Av = Af`
+and a gloss alpha in the CLUT never scales them; the base, alpha-test and environment passes
+keep `TCC` 1 (section 10.4; a constant-alpha CLUT variant was the earlier plan).
 
 **Destination alpha ownership.** One alpha channel serves several passes, so each batch's
 pass sequence states what alpha holds:
@@ -1121,45 +1121,122 @@ not a default (section 19, R5).
 
 ### 10.4 Texture format: GSTX version 2
 
-GSTX v1 (`src/tools/assets/gstx.h`) serves atlases with placements and region clamp. World
-and model textures need:
+**Retail census** (`src/tools/scripts/texture_census.py`, 2026-11-08). The usage is the
+`#__UU` digits of the generated name (`textureUsage_t`):
 
-- power-of-two sizes up to 512, `REPEAT` wrap, one texture = one `TEX0`;
-- mip chains (`TEX1.MXL` up to 3 or 4 levels in practice, each level a page set with its own
-  `TBP/TBW`, levels packed into the same pages where possible);
-- `PSMT8` with a 256-entry CLUT or `PSMT4` with a 16-entry CLUT, chosen per texture by
-  measured error (the UI tool already does this), with CLUT alpha carrying coverage or
-  gloss;
-- a usage tag (diffuse, light cookie, lookup ramp, sphere map, lightmap atlas), a
-  constant-alpha CLUT variant for lit passes (section 8.4), and the decoders the current
-  BIMAGE reader lacks: YCoCg and normal-map DXT5 plus the non-DXT formats a retail
-  `(format, colorFormat)` census finds (`RGB565` light images at least; `L8A8`, `LUM8`,
-  `INT8`, `ALPHA`, `RGBA8` if present).
+| Usage | Encoding | Retail images | Retail Mtexels | mars_city1 images | mars_city1 Mtexels |
+| --- | --- | --- | --- | --- | --- |
+| diffuse | DXT5 YCoCg | 2,635 | 164.7 | 498 | 22.7 |
+| bump | DXT5 normal map | 1,963 | 147.6 | 434 | 21.8 |
+| specular | DXT1 | 2,035 | 130.2 | 418 | 19.0 |
+| default (particles, GUIs, decals, blend stages) | DXT5 | 1,863 | 101.7 | 403 | 6.9 |
+| coverage | DXT1 green-alpha | 261 | 11.8 | 56 | 0.9 |
+| default cube maps | DXT5, six faces | 19 | 9.1 | 7 | 2.5 |
+| font | DXT1 green-alpha | 6 | 5.5 | 0 | 0 |
+| light (falloff and projection images) | RGB565 | 81 | 1.5 | 13 | 0.2 |
+
+Five encodings and RGB565 cover all 8,863 retail images; `RGBA8`, `L8A8`, `LUM8`, `INT8` and
+`ALPHA` never occur. The cook needs three decoders beyond the DXT1/DXT5 ones the UI already
+has: YCoCg DXT5 (diffuse), normal-map DXT5 (bump, read only by the cavity bake) and RGB565
+(light images). Coverage images exist because YCoCg spends the alpha channel on luminance:
+an alpha-tested diffuse brings its coverage as a separate image, and the cook merges it into
+the CLUT alpha. Bump and specular images never reach the GS (cavity and gloss bakes), so
+the GS samples diffuse, default, light images, sphere maps converted from the cube maps, and
+lightmaps. 150 retail images are not powers of two (143 of them `default` GUI art) and are
+resampled to the next power of two.
+
+**What the reference games ship.** Black's texture object carries a complete upload chain
+(`BITBLTBUF`, `TRXPOS`, `TRXREG`, `TRXDIR`, `IMAGE`) and the `TEX0`/`TEX1`/`MIPTBP1`/`MIPTBP2`
+values to sample it, all with block addresses relative to 0; the texture manager adds the
+allocation's base. Its 4- and 8-bit textures are uploaded as `PSMCT16` and `PSMCT32` and
+sampled as `PSMT4` and `PSMT8`: the two formats of each pair share a block layout, so the
+bytes on disc are already in the order GS memory holds them, and the faster 16/32-bit
+transfer does the swizzle. Mip levels sit beside level 0 in the same pages, each at its own
+block address. TimeSplitters stores every texture as `PSMT8` with a 256-entry `PSMCT32` CLUT
+in CSM1 order, levels pre-swizzled for a 32-bit upload, and uploads them inside the VIF1
+chain with `FLUSHA; DIRECT` when a material needs one.
+
+**Adopted: the file is the texture's GS memory image.** The cook lays out every mip level and
+the CLUT in one run of N 256-byte blocks starting at block 0, writes the texels through an
+emulation of the GS's own addressing for the format `TEX0` samples (`PSMT8`, `PSMT4`, or
+`PSMCT32`/`PSMCT16` for direct colour), and stores those N blocks as the `PSMCT32` words a
+transfer into a 64-wide (`DBW 1`) buffer writes. In a `DBW 1` `PSMCT32` buffer pages stack
+vertically and the blocks of a page run in Morton order (`x0 y0 x1 y1 x2`), so blocks
+`[0, N)` are at most six rectangles: one of whole pages, then 32x32, 32x16, 16x16, 16x8 and 8x8
+pixels for the set bits of `N mod 32`. The upload is one `BITBLTBUF` (`DBP` = the allocation,
+`DBW 1`, `PSMCT32`) the runtime writes into the display list, then a REF of the cooked GIF
+stream (per rectangle an A+D tag with `TRXPOS`, `TRXREG`, `TRXDIR`, an `IMAGE` tag and the
+words) under `DIRECT`, then `TEXFLUSH`. The EE never touches a texel: no swizzle, no
+palette reorder, no decode, no RLE, no copy. The upload path does not depend on the format,
+and every texture moves as a 32-bit transfer, the fastest one according to both games
+(not measured here; R9 measures upload volume on hardware).
+
+Because GS addresses are the base pointer plus page and block offsets, an image cooked at
+block 0 is valid at any block. The register templates are cooked with relative addresses and
+relocated once per upload into the residency record:
 
 ```cpp
-struct GstxHeaderV2            // 64 bytes (static_assert), little-endian, canonical like v1
+tex0    = cooked.tex0    + base * (1ull | 1ull << 37);              // TBP0 and CBP
+miptbp1 = cooked.miptbp1 + base * (1ull | 1ull << 20 | 1ull << 40); // TBP1..TBP3
+miptbp2 = cooked.miptbp2 + base * (1ull | 1ull << 20 | 1ull << 40); // TBP4..TBP6
+```
+
+No field overflows, since every relocated address stays below block 16,384 (4 MiB). The
+pass table ORs in what belongs to the pass: `TCC`, `TFX` and `TEX1`'s `L`/`K` LOD terms.
+
+Layout rules:
+
+- Power-of-two levels up to 512 (`TW`/`TH` up to 9), `MXL` up to 6; each level's `TBW` is the
+  smallest width covering it, even for `PSMT8`/`PSMT4` (the GS manual's 128-texel rule).
+- Each level and the CLUT take the lowest block address where every block they occupy is
+  free, found by the same emulation, so small levels fill the holes larger ones leave (a
+  64x16 `PSMT8` level occupies blocks 0, 1, 4 and 5). A 256-entry CLUT is a 16x16 `PSMCT32`
+  tile in four consecutive blocks, a 16-entry one an 8x2 tile in one block; CSM1, `CPSM
+  PSMCT32`, `CSA 0`, and `CLD 1` on every bind as today.
+- One CLUT per texture, inside its footprint. Texture and CLUT are one allocation, upload
+  together and evict together; `tex::BindPair` and the shared CLUT pages are not needed for
+  world textures.
+- The constant-alpha CLUT variant (section 8.4) is dropped: lit and additive passes clear
+  `TEX0.TCC`, so `MODULATE` takes the vertex alpha (`Av = Af`) and a gloss alpha in the CLUT
+  never scales them. Alpha-tested materials keep `TCC 1`; their coverage is 0 or 0x80.
+
+```cpp
+struct GstxHeaderV2            // 96 bytes (static_assert), little-endian; the stream follows at 96
 {
     u32 magic;                 // 'GSTX'
     u16 version;               // 2
-    u16 headerBytes;           // 64
-    u16 width, height;         // level 0, powers of two
-    u8  psm;                   // 0x13 PSMT8, 0x14 PSMT4
-    u8  mipLevels;             // 1..7
-    u8  usage;                 // diffuse, cookie, ramp, sphere, lightmap, ui-atlas
-    u8  wrap;                  // REPEAT/CLAMP per axis
-    u16 clutEntries;           // 16 or 256
-    u16 levelCount;            // table rows follow
-    u32 clutOffset, clutBytes, clutFnv;
-    u32 levelTableOffset;      // rows: {u32 dataOffset, dataBytes, decodedBytes, fnv; u16 w, h, tbw, flags}
-    u32 fileBytes, headerFnv;
-    u8  reserved[20];
+    u16 headerBytes;           // 96
+    u16 width, height;         // level 0, powers of two up to 512
+    u8  psm;                   // TEX0.PSM: PSMT8, PSMT4 (PSMCT32, PSMCT16 admitted)
+    u8  levels;                // 1..7 (MXL + 1)
+    u8  usage;                 // diffuse, default, light image, sphere map, lightmap
+    u8  rectangles;            // in the stream, 1..6
+    u32 blocks;                // N, the GS footprint in 256-byte blocks
+    u32 streamQwords;          // 5 tag qwords per rectangle + 16 x N data qwords
+    u32 streamFnv;             // FNV-1a of the stream
+    u32 headerFnv;             // FNV-1a of the header with this field read as zero
+    u64 tex0, tex1;            // relative to block 0; CLD 1, CSM1, CPSM PSMCT32
+    u64 miptbp1, miptbp2;      // levels 1..6, relative to block 0, unused fields zero
+    u64 clamp;                 // REPEAT or CLAMP per axis
+    u8  reserved[24];
 };
 
-static_assert(sizeof(GstxHeaderV2) == 64);
+static_assert(sizeof(GstxHeaderV2) == 96);
 ```
 
-Loading validates every table and FNV before publication (as the UI path does) and keeps
-the decoded bytes in the EE copy for re-upload after eviction.
+Every load, in every build, checks the header, its FNV and the registers: the formats, `TW`/`TH`
+against the size, `MXL` against the levels, even `TBW`s, every level's last block
+(`TBP` plus the block of its last texel, the maximum since GS block numbers grow with x and
+y) and the CLUT inside `[0, N)`, and the stream's tags (each rectangle in Morton order, exactly
+the shape above, together covering `[0, N)`). Corrupt tags could hang the GIF; corrupt texels
+cannot. So the payload's FNV is checked by the cook's reader and on the target only in
+assertion builds, which keeps a streamed area ring's load from hashing a megabyte of texels
+in release. The loaded file is the upload source as it stands, 64-byte aligned and written
+back once (`SyncDCache`) after the read. The EE copy is the VRAM footprint plus 96 header
+bytes and at most 480 tag bytes.
+
+The UI keeps GSTX v1, whose placements and region clamp serve atlases; moving the UI pages
+to memory images belongs with R8.
 
 ### 10.5 Residency and streaming
 
@@ -1176,13 +1253,14 @@ the decoded bytes in the EE copy for re-upload after eviction.
   portal ahead. The budget per portal crossing is that worst ring against the measured
   read rate of each device (`host:`, USB, HDD; gate R2 records them); a miss draws the
   stale or white texture and never stalls the frame.
-- Uploads ride inside the VIF1 chain as `FLUSHA; DIRECT` blocks (`BITBLTBUF`, `TRXPOS`,
-  `TRXREG`, `TRXDIR`, then IMAGE data by REF), followed by `TEXFLUSH`, in the order the
-  frame needs them (TimeSplitters). This keeps PATH2 and PATH1 ordered with no arbitration
-  hazards. Moving uploads to PATH3 with `MSKPATH3` interleaving (Black) is an optimisation
-  for gate R9 if upload volume ever stalls the chain.
-- One texture and its CLUT bind together (`BindPair`); every textured `TEX0` writes
-  `CLD 1`, as the GSTX path does today, until CBP caching is measured worth its hazards.
+- Uploads ride inside the VIF1 chain: `FLUSHA`, a `DIRECT` block with the texture's
+  `BITBLTBUF`, a REF of its cooked stream under `DIRECT` (10.4), then `TEXFLUSH`, in the order
+  the frame needs them (TimeSplitters). This keeps PATH2 and PATH1 ordered with no
+  arbitration hazards. Moving uploads to PATH3 with `MSKPATH3` interleaving (Black) is an
+  optimisation for gate R9 if upload volume ever stalls the chain.
+- A world texture and its CLUT are one allocation of whole blocks (10.4); every textured
+  `TEX0` writes `CLD 1`, as the GSTX path does today, until CBP caching is measured worth its
+  hazards. The UI's GSTX v1 pages keep their separate CLUT textures and `BindPair`.
 
 ---
 
@@ -1415,7 +1493,8 @@ writes. The 3D renderer's PATH1 path makes a 2D program natural:
 
 `asset_reexport` grows from its `ui` subcommand into the level cooker; the shared
 `src/tools/assets/` library keeps the resource reader, BIMAGE decoder (plus YCoCg and
-normal-map DXT5), palettes, packing, RLE and GSTX. New stages:
+normal-map DXT5 and RGB565, the census's needs), palettes, packing, RLE, GSTX and a GS local
+memory emulation that writes GSTX v2's images. New stages:
 
 ```
 retail .resources ──▶ resource catalog (later containers win)
@@ -1524,7 +1603,8 @@ PSMCT32 + Z16S profile, 512x448 NTSC            pages   bytes
   Z16S                                            56    458,752
   shadow counter scratch PSMCT16S (L2 only)       56    458,752
   lightmap atlases, visible areas (2-3 x 64 KiB)  24    196,608
-  CLUT pages (256-entry CLUTs, 8 per page)         8     65,536
+  CLUT pages (UI CLUTs; world CLUTs sit in each    8     65,536
+    texture's footprint, 10.4)
   texture arena, shared with UI images, glyph     144  1,179,648   (1,638,400 without the scratch;
     sets (136 KiB) and the L1 target (32 KiB)                       the UI's 2 MiB cap shrinks to fit)
                                                  512  4,194,304
@@ -1716,6 +1796,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Video materials | cooked still frames until a converted-video path exists | Bink or RoQ decode | no cinematic decoder is linked; the PDA and screens must not block the campaign |
 | Portal sky | cooked skybox drawn by the sky program | nested second scene | removes a full second frontend pass and a frame-buffer capture |
 | Texture uploads | Inside the VIF1 chain (`FLUSHA; DIRECT`) | PATH3 with `MSKPATH3` | Ordering safety first; interleave as an R9 optimisation |
+| Texture format (2026-11-08) | GSTX v2 is the texture's GS memory image (all levels and its CLUT in N blocks from 0), stored as the `PSMCT32` words of at most six `DBW 1` rectangles; registers cooked relative to block 0 and relocated by one add | v1's index pages uploaded as `PSMT8`/`PSMT4`, CLUTs in shared pages; Black's per-level rectangles in the sampling buffer | No EE work per texel, one upload path for every format, one allocation per texture; Black's and TimeSplitters' pre-swizzled 32-bit uploads generalised to the CLUT and the mips |
 | Display list | Scratchpad builder, `fromSPR` drains, CNT/REF/CALL only | Main-RAM builder with cache flushes | No per-frame flush, position-independent list (Black) |
 | Resolution (decided 2026-11-06) | 640x448 / 640x512 FIELD mode in both standards | 512 wide, the fallback; FRAME mode half height | The user's fidelity target: ship at 640 if it fits, falling back to 512 makes everything else roomier; R9 confirms against the in-game working set |
 | Front-end profile (2026-11-06) | Three profiles, draw/display: 16/16, 32/16, 32/32 (default). The front end draws a 32/32 preference as 32/16; a loaded map switches to the preference | 640 at 16 bits; PAL alone at 16 bits; smaller UI art | Two 640-wide 32-bit buffers leave 1,327,104 bytes NTSC / 917,504 PAL, and the retail menus thrash in both (the quit dialog over the shell evicted every frame). 32/16 keeps 32-bit blending and destination alpha and shows a dithered 16-bit copy made in the vertical blank, for the VRAM of 512 at 32/32. In game the preference applies, so a level that fits gets two 32-bit buffers |
