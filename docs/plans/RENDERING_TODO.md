@@ -290,6 +290,17 @@ production link free of test inputs. Section numbers in parentheses point into t
       every second vsync. 3,072,000 bytes of fixed VRAM at 32 bits (about 1.1 MB left for
       textures), about 1.84 MB at 16 bits; judge it against the same texture working set as
       the 640 experiment.
+- [ ] Devirtualise the hot renderer interfaces: the PS2 links exactly one renderer backend, so
+      id's `virtual` on per-frame `idRenderSystem`/`idRenderWorld` methods (2D draws such as
+      `DrawStretchPic`/`SetColor`/`AllocTris`, entity and light updates, `RenderScene`) only
+      buys an indirect call and blocks inlining. Spell those `ID_RENDERER_VIRTUAL` in id's
+      headers (`virtual` off the PS2, empty under `ID_PS2`), keeping the classes and callers
+      unchanged. Callers see only the interface header, so the interface's own declarations
+      must be the ones the backend defines: the pure `= 0` needs a companion macro (empty under
+      `ID_PS2`), and the PS2 backend then defines `idRenderSystem::DrawStretchPic` and friends
+      (or the override in `tr_local.h` drops out). Measure call counts and the static
+      instruction delta first ([performance.md](../../.claude/rules/performance.md)); PCSX2
+      charges per instruction, so the win shows only as a net instruction cut.
 - [ ] L2 counting stencil for at most two lights if the hardware frame log leaves room
       (9.2, 9.3); shadow-rung cvar in `CVARS.md`.
 - [ ] Gate: hardware frame log on the camera path, p95 at most 33.3 ms NTSC and 40.0 ms
