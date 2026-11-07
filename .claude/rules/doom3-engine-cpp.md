@@ -51,7 +51,12 @@ file keeps only what most engine edits need.
 - id's `idODSStreamedArray` (traces, culling) asserts 16-byte-aligned arrays. Data borrowed
   from a cooked file (the D3WD mirror's per-surface indexes) is not aligned: read it directly.
 - There is no `tr.guiModel` on the PS2. `RenderScene`'s gui model calls are tagged out;
-  any other id path reaching `tr.guiModel` (a null pointer) needs the same seam.
+  any other id path reaching `tr.guiModel` (a null pointer) needs the same seam (`DeviceContext`'s
+  glyph fast path goes through `renderSystem->AllocTris`).
+- The replaced frontend units (light/model passes, `Interaction.cpp`, shadow jobs, deforms,
+  `GuiModel.cpp`) are not compiled. `R_EntityDefDynamicModel` and its two helpers live in
+  `RenderEntity.cpp`; the PS2 creates no interactions (their loops are tagged out). Before adding
+  a caller of anything in those units, give it a kept home or a seam.
 - Failed plane/ray intersections leave the scale output untouched: check the return value.
   `FS_WriteFloatString` takes no `l` modifier (parser integers are `long`: `%ld`, `labs`).
 - Abstract bases with virtual destructors only; disabling RTTI does not make deleting

@@ -112,3 +112,154 @@ void idRenderLightLocal::ForceUpdate() {
 int idRenderLightLocal::GetIndex() {
 	return index;
 }
+
+#if defined( ID_PS2 )
+// [PS2_D3BFG]: Moved from tr_frontend_addmodels.cpp, which the PS2 renderer replaces
+// (RENDERING_ARCHITECTURE.md 5.2): traces and entity def updates still instantiate dynamic models
+// through these. The PS2 creates no interactions, so the dynamic model clear frees no surfaces.
+static const float CHECK_BOUNDS_EPSILON = 1.0f;
+
+/*
+==================
+R_ClearEntityDefDynamicModel
+
+If we know the reference bounds stays the same, we
+only need to do this on entity update, not the full
+R_FreeEntityDefDerivedData
+==================
+*/
+void R_ClearEntityDefDynamicModel( idRenderEntityLocal *def ) {
+	// clear the dynamic model if present
+	if ( def->dynamicModel ) {
+		// this is copied from cachedDynamicModel, so it doesn't need to be freed
+		def->dynamicModel = NULL;
+	}
+	def->dynamicModelFrameCount = 0;
+}
+
+/*
+==================
+R_IssueEntityDefCallback
+==================
+*/
+bool R_IssueEntityDefCallback( idRenderEntityLocal *def ) {
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
+	idBounds oldBounds = def->localReferenceBounds;
+
+#endif
+	def->archived = false;		// will need to be written to the demo file
+
+	bool update;
+	if ( tr.viewDef != NULL ) {
+		update = def->parms.callback( &def->parms, &tr.viewDef->renderView );
+	} else {
+		update = def->parms.callback( &def->parms, NULL );
+	}
+	tr.pc.c_entityDefCallbacks++;
+
+	if ( def->parms.hModel == NULL ) {
+		common->Error( "R_IssueEntityDefCallback: dynamic entity callback didn't set model" );
+	}
+
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
+	if ( r_checkBounds.GetBool() ) {
+		if (	oldBounds[0][0] > def->localReferenceBounds[0][0] + CHECK_BOUNDS_EPSILON ||
+				oldBounds[0][1] > def->localReferenceBounds[0][1] + CHECK_BOUNDS_EPSILON ||
+				oldBounds[0][2] > def->localReferenceBounds[0][2] + CHECK_BOUNDS_EPSILON ||
+				oldBounds[1][0] < def->localReferenceBounds[1][0] - CHECK_BOUNDS_EPSILON ||
+				oldBounds[1][1] < def->localReferenceBounds[1][1] - CHECK_BOUNDS_EPSILON ||
+				oldBounds[1][2] < def->localReferenceBounds[1][2] - CHECK_BOUNDS_EPSILON ) {
+			common->Printf( "entity %i callback extended reference bounds\n", def->index );
+		}
+	}
+
+#endif
+
+	return update;
+}
+
+/*
+===================
+R_EntityDefDynamicModel
+
+This is also called by the game code for idRenderWorldLocal::ModelTrace(), and idRenderWorldLocal::Trace() which is bad for performance...
+
+Issues a deferred entity callback if necessary.
+If the model isn't dynamic, it returns the original.
+Returns the cached dynamic model if present, otherwise creates it.
+===================
+*/
+idRenderModel *R_EntityDefDynamicModel( idRenderEntityLocal *def ) {
+	if ( def->dynamicModelFrameCount == tr.frameCount ) {
+		return def->dynamicModel;
+	}
+
+	// allow deferred entities to construct themselves
+	bool callbackUpdate;
+	if ( def->parms.callback != NULL ) {
+		SCOPED_PROFILE_EVENT( "R_IssueEntityDefCallback" );
+		callbackUpdate = R_IssueEntityDefCallback( def );
+	} else {
+		callbackUpdate = false;
+	}
+
+	idRenderModel *model = def->parms.hModel;
+
+	if ( model == NULL ) {
+		common->Error( "R_EntityDefDynamicModel: NULL model" );
+		return NULL;
+	}
+
+	if ( model->IsDynamicModel() == DM_STATIC ) {
+		def->dynamicModel = NULL;
+		def->dynamicModelFrameCount = 0;
+		return model;
+	}
+
+	// continously animating models (particle systems, etc) will have their snapshot updated every single view
+	if ( callbackUpdate || ( model->IsDynamicModel() == DM_CONTINUOUS && def->dynamicModelFrameCount != tr.frameCount ) ) {
+		R_ClearEntityDefDynamicModel( def );
+	}
+
+	// if we don't have a snapshot of the dynamic model, generate it now
+	if ( def->dynamicModel == NULL ) {
+
+		SCOPED_PROFILE_EVENT( "InstantiateDynamicModel" );
+
+		// instantiate the snapshot of the dynamic model, possibly reusing memory from the cached snapshot
+		def->cachedDynamicModel = model->InstantiateDynamicModel( &def->parms, tr.viewDef, def->cachedDynamicModel );
+
+#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
+		if ( def->cachedDynamicModel != NULL && r_checkBounds.GetBool() ) {
+			idBounds b = def->cachedDynamicModel->Bounds();
+			if (	b[0][0] < def->localReferenceBounds[0][0] - CHECK_BOUNDS_EPSILON ||
+					b[0][1] < def->localReferenceBounds[0][1] - CHECK_BOUNDS_EPSILON ||
+					b[0][2] < def->localReferenceBounds[0][2] - CHECK_BOUNDS_EPSILON ||
+					b[1][0] > def->localReferenceBounds[1][0] + CHECK_BOUNDS_EPSILON ||
+					b[1][1] > def->localReferenceBounds[1][1] + CHECK_BOUNDS_EPSILON ||
+					b[1][2] > def->localReferenceBounds[1][2] + CHECK_BOUNDS_EPSILON ) {
+				common->Printf( "entity %i dynamic model exceeded reference bounds\n", def->index );
+			}
+		}
+
+#endif
+
+		def->dynamicModel = def->cachedDynamicModel;
+		def->dynamicModelFrameCount = tr.frameCount;
+	}
+
+	// set model depth hack value
+	if ( def->dynamicModel != NULL && model->DepthHack() != 0.0f && tr.viewDef != NULL ) {
+		idPlane eye, clip;
+		idVec3 ndc;
+		R_TransformModelToClip( def->parms.origin, tr.viewDef->worldSpace.modelViewMatrix, tr.viewDef->projectionMatrix, eye, clip );
+		R_TransformClipToDevice( clip, ndc );
+		def->parms.modelDepthHack = model->DepthHack() * ( 1.0f - ndc.z );
+	} else {
+		def->parms.modelDepthHack = 0.0f;
+	}
+
+	return def->dynamicModel;
+}
+
+#endif

@@ -85,9 +85,11 @@ void R_FreeEntityDefDerivedData( idRenderEntityLocal *def, bool keepDecals, bool
 	}
 
 	// free all the interactions
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: The PS2 renderer creates no interactions (RENDERING_ARCHITECTURE.md 5.2).
 	while ( def->firstInteraction != NULL ) {
 		def->firstInteraction->UnlinkAndFree();
 	}
+#endif
 	def->dynamicModelFrameCount = 0;
 
 	// clear the dynamic model if present
@@ -458,9 +460,11 @@ void R_FreeLightDefDerivedData( idRenderLightLocal *ldef ) {
 	}
 
 	// free all the interactions
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: The PS2 renderer creates no interactions (RENDERING_ARCHITECTURE.md 5.2).
 	while ( ldef->firstInteraction != NULL ) {
 		ldef->firstInteraction->UnlinkAndFree();
 	}
+#endif
 
 	// free all the references to the light
 	areaReference_t * nextRef = NULL;

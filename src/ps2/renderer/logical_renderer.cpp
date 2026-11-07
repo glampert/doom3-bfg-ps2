@@ -29,7 +29,6 @@ idRenderSystemLocal tr;
 idRenderSystem * renderSystem = &tr;
 backEndState_t backEnd{};
 glconfig_t glConfig{};
-idGuiModel * tr_guiModel = nullptr;
 
 namespace
 {

@@ -5461,3 +5461,31 @@ estimate from issue counts of 25 against 34 cycles per triangle); R9 measures ag
 | `make test-world`, `test-renderer`, `test-headless` (debug) | Passed (`20261107T085349Z_world_14e62c8e4d41`, `20261107T085401Z_world_2c09282be944`; GS gate and its expected-fatal probes; startup ledger 4,503,176 / 4,574,084 bytes in 1,679 allocations) |
 | `make test-host` | Passed: 381 Python tests and the C++ harnesses; `world_tests` checks the target validator names each cook's topology and that both readers refuse a world mixing them; `test_vu_cost.py` pins the cycle model and both programs' kicks |
 | `make`, `make release` | Passed; runnable `PT_LOAD` 4,815,596 debug (+7,168) and 4,090,732 release (+7,040), the 851-instruction `world_strips` program. Release was compiled, not run |
+
+## The replaced renderer frontend units leave the campaign list (2026-11-07)
+
+Nine of id's frontend units are now PS2 replacements rather than campaign units (271 remain):
+`tr_frontend_addlights.cpp`, `tr_frontend_addmodels.cpp`, `Interaction.cpp`, `ShadowShared.cpp` and
+the three shadow-volume jobs, `tr_frontend_deform.cpp` and `GuiModel.cpp`. `R_RenderView` already
+handed views to `scene::RenderView` after the portal flow, so nothing reached their passes; what
+the kept units still needed (`nm` over every linked object) got a home or a tagged seam:
+
+- `R_EntityDefDynamicModel`, `R_IssueEntityDefCallback` and `R_ClearEntityDefDynamicModel` moved into
+  `RenderEntity.cpp`; the clear frees no interaction surfaces, since none exist.
+- `GenerateAllInteractions` and the three interaction-freeing loops are tagged out: the PS2 creates
+  no interactions (the interaction table is never allocated).
+- The decal and overlay draw-surface emitters (and their static copy helpers) are tagged out; only
+  the replaced model pass called them, and their PS2 counterparts come with the decal pass.
+- `R_RenderGuiSurf` redraws without a gui model; `DeviceContext`'s glyph fast path goes through
+  `renderSystem->AllocTris` instead of the null `tr_guiModel`, whose definition is gone.
+
+The units' ten cvars (`r_useParallelAddModels`, `r_cullDynamicShadowTriangles`, ...) go with them;
+none is archived or named in data, scripts or runners.
+
+| Check | Result |
+| --- | --- |
+| `make`, `make release`, every test image, `make audit-sources` | Passed with no unresolved or duplicate symbols and no warnings; runnable `PT_LOAD` 4,720,172 debug (−95,424) and 4,017,964 release (−72,768): the units' cvars, job registrations and static data had kept code alive. Release was compiled, not run |
+| `make test-headless`, `test-headless-retail` (debug) | Passed (`20261107T090650Z_headless_8f3082b2e39e`, `20261107T090704Z_headless_93c4740d6c5b`); production startup 4,501,208 / 4,571,236 bytes in 1,659 allocations (20 fewer, the cvars), retail 13,238,558 / 16,538,920 in 75,094 |
+| `make test-game`, `test-map` (debug) | Passed (`20261107T090606Z_smoke_331e49274be8462a`, `20261107T090641Z_smoke_3b514b9dd5474389`): traces, entity defs and their teardown through the moved functions |
+| `make test-world`, `test-world-retail`, `test-renderer` (debug) | Passed (`20261107T090731Z_world_07eb199d45cf`, `20261107T090756Z_world_retail_6f0869b8f607` and their PAL runs; GS gate `20261107T090903Z_smoke_6eb9708de2c94cbc`) |
+| `make test-host` | Passed: 385 Python tests and the C++ harnesses |

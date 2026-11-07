@@ -11,7 +11,7 @@ context; they do not reopen completed portability work.
 | Milestone | Current acceptance |
 | --- | --- |
 | M0–M2 | Complete: layout/manifests, EE portability, staged core/Common boot |
-| M2b | Complete: retained campaign compilation and resident link; currently 280 campaign units |
+| M2b | Complete: retained campaign compilation and resident link; currently 271 campaign units |
 | M3 | Partial: native game/player fixtures and one authored map/PVS/collision/AAS/idle-AI fixture; full campaign player, animated AI and retail maps pending |
 | M4 / 2D-1–4 | Bounded GS 2D device, capture, console, indexed UI and fonts accepted (the placeholder authored native SWF was a bring-up step, removed 2026-10-29); world/depth/CLUT/VU scope remains later |
 | 2D-5–6 | Retail cooking, English resources and scoped timeline execution accepted within their profiles; additive blend 8 and convex masks accepted; the original dialog draws in full from resident paletted textures; the shell start screen draws in full; additive alpha terms, two simultaneous non-convex masks and dynamic artwork residency remain |

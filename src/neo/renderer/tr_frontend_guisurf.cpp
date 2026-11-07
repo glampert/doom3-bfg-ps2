@@ -175,10 +175,16 @@ static void R_RenderGuiSurf( idUserInterface *gui, const drawSurf_t *drawSurf ) 
 	tr.guiRecursionLevel++;
 
 	// call the gui, which will call the 2D drawing functions
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: No gui model: in-world GUIs reach the PS2 2D collector with the surface matrix
+	// at gate R7 (RENDERING_ARCHITECTURE.md 13.3); nothing calls this before then.
+	gui->Redraw( tr.viewDef->renderView.time[0] );
+#else
 	tr.guiModel->Clear();
 	gui->Redraw( tr.viewDef->renderView.time[0] );
 	tr.guiModel->EmitToCurrentView( modelMatrix, drawSurf->space->weaponDepthHack );
 	tr.guiModel->Clear();
+#endif
 
 	tr.guiRecursionLevel--;
 }

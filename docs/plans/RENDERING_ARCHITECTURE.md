@@ -348,6 +348,8 @@ Measured over `src/neo/d3xp`, `framework`, `ui`, `swf`, `sound` (2026-11-02):
   generators in section 13), `GuiModel.cpp` (its surfaces are produced for the PS2 2D
   collector), `drawSurf_t`, `vertCacheHandle_t`, `idVertexCache`, the 2 x 64 MiB frame
   arena. Their units leave the campaign source list; each engine caller gets a tagged seam.
+  Done 2026-11-07 for the light and model passes, `Interaction.cpp`, the shadow jobs,
+  `tr_frontend_deform.cpp` and `GuiModel.cpp`; `VertexCache.cpp` was never compiled.
 
 Symbols the kept units still need from the removed ones, and where they go:
 

@@ -6,9 +6,11 @@ of every shipped BFG C/C++ unit. `make audit-sources` fails when a source is add
 duplicated, left unclassified, or enabled despite an exclusion. Source discovery is used
 for auditing only; it never selects files for compilation.
 
-Current source audit, reviewed **2026-11-05**: 393 shipped units, 280 retained
+Current source audit, reviewed **2026-11-07**: 393 shipped units, 271 retained
 campaign units, 18 campaign backend sources, 50 core backend sources, 38 resident support
-sources, two VU microprograms and 370 compile database entries. The current acceptance state is the "Current snapshot" section of
+sources, three VU microprograms and 368 compile database entries. On 2026-11-07 the nine
+renderer frontend units the PS2 renderer replaces (light and model passes, interactions, the
+shadow-volume jobs, deforms and the gui model) moved from campaign runtime to PS2 replacement. The current acceptance state is the "Current snapshot" section of
 [PORT_STATUS.md](PORT_STATUS.md#current-snapshot--2026-10-31). Later
 sections retain dated source/size snapshots; their earlier counts are historical.
 
@@ -42,8 +44,8 @@ resource packs will import miniz.
 
 | Disposition | Units | EE policy |
 | --- | ---: | --- |
-| Campaign runtime | 280 | Includes the native shell handler with its press-start, root, Campaign, Settings and credits screens; M3 runtime adaptation remains required |
-| PS2 replacement | 62 | Desktop platform, GPU/device, input and BFG service implementations need adapters |
+| Campaign runtime | 271 | Includes the native shell handler with its press-start, root, Campaign, Settings and credits screens; M3 runtime adaptation remains required |
+| PS2 replacement | 71 | Desktop platform, GPU/device, input and BFG service implementations need adapters; the replaced renderer frontend units (RENDERING_ARCHITECTURE.md 5.2) |
 | Deferred runtime | 31 | Other BFG shell screens, multiplayer, online services and demo paths; callers still need explicit adapters |
 | Compression deferred | 3 | `Zip.cpp`, `Unzip.cpp` and `File_SaveGame.cpp` need zlib; `save_metadata.cpp` stubs the pipelined save file until miniz |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
@@ -197,7 +199,7 @@ declarations with `ID_PS2_CORE` undefined while linking only inline hierarchy qu
 and real foundation file objects. It does not link a menu/model runtime or discard
 selected core objects. These test sources remain explicit in `CORE_BOOT_CXX_SRC`.
 
-The campaign manifest retains 280 units; all compile in both configurations.
+The campaign manifest retains 271 units; all compile in both configurations.
 [PORT_STATUS.md](PORT_STATUS.md) records the sound boundary and resident-link work.
 
 ## Campaign diagnostics
@@ -286,7 +288,7 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 ## Resident campaign link gate
 
 `make` / `make release` perform the actual EE link with
-all 280 campaign objects, the 18 campaign backend objects (2026-11-05 added `world_map.cpp` and `scene.cpp`, the render world's cooked-map and view seams), 38 resident support objects, the 7 production entry and device units, dlmalloc and the two VU objects (passthrough, world_lm): 346 direct inputs, without GC or archives hiding undefined
+all 271 campaign objects, the 18 campaign backend objects (2026-11-05 added `world_map.cpp` and `scene.cpp`, the render world's cooked-map and view seams), 38 resident support objects, the 7 production entry and device units, dlmalloc and the three VU objects (passthrough, world_lm, world_strips): 338 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
 stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1` with the production link is rejected explicitly.

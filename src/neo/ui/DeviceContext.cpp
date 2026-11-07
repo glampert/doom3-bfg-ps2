@@ -1056,7 +1056,12 @@ int idDeviceContextOptimized::DrawText(float x, float y, float scale, idVec4 col
 			float x2 = xOffset + ( drawX + w ) * xScale;
 			float y1 = yOffset + drawY * yScale;
 			float y2 = yOffset + ( drawY + h ) * yScale;
+#if defined( ID_PS2 )
+			// [PS2_D3BFG]: No gui model to bypass to: glyphs go through the render system's 2D collector.
+			idDrawVert * verts = renderSystem->AllocTris( 4, quadPicIndexes, 6, glyphInfo.material, STEREO_DEPTH_TYPE_NONE );
+#else
 			idDrawVert * verts = tr_guiModel->AllocTris( 4, quadPicIndexes, 6, glyphInfo.material, 0, STEREO_DEPTH_TYPE_NONE );
+#endif
 			if ( verts != NULL ) {
 				verts[0].xyz[0] = x1;
 				verts[0].xyz[1] = y1;

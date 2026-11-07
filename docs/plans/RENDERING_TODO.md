@@ -116,9 +116,15 @@ production link free of test inputs. Section numbers in parentheses point into t
       arena initialised by `ps2` with a small tagged size (one 128 KiB arena, 16-byte
       rounding); `RenderScene` without a gui model or post-process pass (5.2 table, 5.3)
       (2026-11-05).
-- [ ] The removed frontend units leave the campaign list and the kept symbols move (5.2
-      table). `R_RenderView` no longer reaches them on the PS2, so the runnable link drops
-      most of their code already.
+- [x] The removed frontend units leave the campaign list and the kept symbols move (5.2
+      table): `tr_frontend_addlights`, `tr_frontend_addmodels`, `Interaction`, the four
+      shadow-volume job units, `tr_frontend_deform` and `GuiModel` are PS2 replacements now (271
+      campaign units). `R_EntityDefDynamicModel`, `R_IssueEntityDefCallback` and
+      `R_ClearEntityDefDynamicModel` moved into `RenderEntity.cpp`; interaction creation and
+      freeing are tagged out; the decal and overlay draw-surface emitters are tagged out until
+      their PS2 replacements (13.2); `DeviceContext`'s glyph fast path uses
+      `renderSystem->AllocTris`. Runnable `PT_LOAD` fell 95,424 bytes debug and 72,768 release
+      (2026-11-07).
 - [ ] World decals over the compact mirror (`ModelDecal.cpp` reads `idDrawVert`s, which world
       area surfaces no longer have) before the game projects one on a loaded map (5.4).
 - [x] Gate (production): `make test-world` loads the cooked graybox into Common's render

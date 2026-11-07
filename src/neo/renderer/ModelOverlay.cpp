@@ -501,6 +501,7 @@ void idRenderModelOverlay::AddDeferredOverlay( const overlayProjectionParms_t & 
 	}
 }
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: Only the replaced model pass emitted these draw surfaces (RENDERING_ARCHITECTURE.md 5.2, 13.2).
 /*
 ====================
 R_CopyOverlaySurface
@@ -571,6 +572,7 @@ static void R_CopyOverlaySurface( idDrawVert * verts, int numVerts, triIndex_t *
 
 #endif
 }
+#endif
 
 /*
 =====================
@@ -597,6 +599,7 @@ unsigned int idRenderModelOverlay::GetNumOverlayDrawSurfs() {
 	return numOverlayMaterials;
 }
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: Only the replaced model pass emitted these draw surfaces (RENDERING_ARCHITECTURE.md 5.2, 13.2).
 /*
 ====================
 idRenderModelOverlay::CreateOverlayDrawSurf
@@ -716,6 +719,7 @@ drawSurf_t * idRenderModelOverlay::CreateOverlayDrawSurf( const viewEntity_t *sp
 
 	return drawSurf;
 }
+#endif
 
 /*
 ====================

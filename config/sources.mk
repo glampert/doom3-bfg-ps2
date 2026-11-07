@@ -475,11 +475,9 @@ CAMPAIGN_CXX_SRC = \
 	neo/renderer/DXT/DXTDecoder.cpp \
 	neo/renderer/Font.cpp \
 	neo/renderer/GLMatrix.cpp \
-	neo/renderer/GuiModel.cpp \
 	neo/renderer/Image_files.cpp \
 	neo/renderer/Image_process.cpp \
 	neo/renderer/Image_program.cpp \
-	neo/renderer/Interaction.cpp \
 	neo/renderer/Material.cpp \
 	neo/renderer/Model.cpp \
 	neo/renderer/ModelDecal.cpp \
@@ -497,13 +495,6 @@ CAMPAIGN_CXX_SRC = \
 	neo/renderer/RenderWorld_load.cpp \
 	neo/renderer/RenderWorld_portals.cpp \
 	neo/renderer/ScreenRect.cpp \
-	neo/renderer/jobs/ShadowShared.cpp \
-	neo/renderer/jobs/dynamicshadowvolume/DynamicShadowVolume.cpp \
-	neo/renderer/jobs/prelightshadowvolume/PreLightShadowVolume.cpp \
-	neo/renderer/jobs/staticshadowvolume/StaticShadowVolume.cpp \
-	neo/renderer/tr_frontend_addlights.cpp \
-	neo/renderer/tr_frontend_addmodels.cpp \
-	neo/renderer/tr_frontend_deform.cpp \
 	neo/renderer/tr_frontend_guisurf.cpp \
 	neo/renderer/tr_frontend_main.cpp \
 	neo/renderer/tr_frontend_subview.cpp \

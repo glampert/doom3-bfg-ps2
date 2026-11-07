@@ -337,7 +337,7 @@ machine.
 
 Production has 341 direct inputs (340 objects and the VU object) and no fixture inputs/symbols; since 2026-10-30 the
 whole-object link (no GC) is the gate and the runnable is a `--gc-sections` relink. The source audit
-classifies 393 upstream units (280 campaign units); compile database 366 entries. Production
+classifies 393 upstream units (271 campaign units since 2026-11-07); compile database 368 entries. Production
 PT_LOAD is 4,779,884 debug / 4,063,468 release bytes (runnable link, 2026-10-31; see
 [memory-budget.md](../.claude/rules/memory-budget.md)). Earlier (2026-10-20) it was about 11.2 MB. The removed authored UI peaked at 3,885,330 requested /
 3,992,352 backing; full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are

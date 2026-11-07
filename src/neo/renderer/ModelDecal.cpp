@@ -591,6 +591,7 @@ void idRenderModelDecal::RemoveFadedDecals( int time ) {
 	}
 }
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: Only the replaced model pass emitted these draw surfaces (RENDERING_ARCHITECTURE.md 5.2, 13.2).
 /*
 =====================
 R_CopyDecalSurface
@@ -666,6 +667,7 @@ static void R_CopyDecalSurface( idDrawVert * verts, int numVerts, triIndex_t * i
 
 #endif
 }
+#endif
 
 /*
 =====================
@@ -692,6 +694,7 @@ unsigned int idRenderModelDecal::GetNumDecalDrawSurfs() {
 	return numDecalMaterials;
 }
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: Only the replaced model pass emitted these draw surfaces (RENDERING_ARCHITECTURE.md 5.2, 13.2).
 /*
 =====================
 idRenderModelDecal::CreateDecalDrawSurf
@@ -789,6 +792,7 @@ drawSurf_t * idRenderModelDecal::CreateDecalDrawSurf( const viewEntity_t *space,
 
 	return drawSurf;
 }
+#endif
 
 /*
 ====================

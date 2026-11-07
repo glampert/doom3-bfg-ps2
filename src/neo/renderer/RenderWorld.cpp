@@ -1546,6 +1546,7 @@ void idRenderWorldLocal::GenerateAllInteractions() {
 		return;
 	}
 
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: The PS2 renderer creates no interactions (RENDERING_ARCHITECTURE.md 5.2).
 	int start = Sys_Milliseconds();
 
 	generateAllInteractionsCalled = false;
@@ -1616,6 +1617,7 @@ void idRenderWorldLocal::GenerateAllInteractions() {
 
 	// entities flagged as noDynamicInteractions will no longer make any
 	generateAllInteractionsCalled = true;
+#endif
 }
 
 /*
@@ -1633,9 +1635,11 @@ void idRenderWorldLocal::FreeInteractions() {
 			continue;
 		}
 		// free all the interactions
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: The PS2 renderer creates no interactions (RENDERING_ARCHITECTURE.md 5.2).
 		while ( def->firstInteraction != NULL ) {
 			def->firstInteraction->UnlinkAndFree();
 		}
+#endif
 	}
 }
 
