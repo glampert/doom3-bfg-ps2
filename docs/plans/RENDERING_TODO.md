@@ -125,8 +125,15 @@ production link free of test inputs. Section numbers in parentheses point into t
       their PS2 replacements (13.2); `DeviceContext`'s glyph fast path uses
       `renderSystem->AllocTris`. Runnable `PT_LOAD` fell 95,424 bytes debug and 72,768 release
       (2026-11-07).
-- [ ] World decals over the compact mirror (`ModelDecal.cpp` reads `idDrawVert`s, which world
-      area surfaces no longer have) before the game projects one on a loaded map (5.4).
+- [x] World decals over the compact mirror (`ModelDecal.cpp` reads `idDrawVert`s, which world
+      area surfaces no longer have) before the game projects one on a loaded map (5.4):
+      `CreateDecal` culls and clips the s16 positions (`R_CompactPosition`, shared with the traces)
+      and reads the borrowed indexes directly; `scene::RenderView` builds a visible entity's pending
+      decals, the step of the replaced model pass; `ps2_world decal`/`decals` project and report
+      them, and `make test-world` / `test-world-retail` require a floor decal to cover its square
+      exactly (2,304 and 1,024 units²) once a view sees its area, and none before or after the
+      world. The stand-in materials take `forceOverlays`, since id refuses decals on materials
+      without stages (2026-11-07). Drawing them is R7's decal pass.
 - [x] Gate (production): `make test-world` loads the cooked graybox into Common's render
       world with `ps2_world` and draws it through `RenderScene` in both standards: the GS
       gate's four cameras at its reference pixels, area counts from portal culling (a view
@@ -254,8 +261,8 @@ production link free of test inputs. Section numbers in parentheses point into t
 
 - [ ] `particles.vcl` from 16-byte records (particle and particle2 deforms); sprite, tube,
       flare, expand, move, eyeball and turbulent deforms (13.1).
-- [ ] Decals over the world mirror; overlays over the `idDrawVert` mirror with the skinned
-      layout (13.2).
+- [ ] Decals drawn as WC batches (generated over the world mirror since 2026-11-07); overlays
+      over the `idDrawVert` mirror with the skinned layout (13.2).
 - [ ] In-world GUIs through the 2D collector with the surface matrix; one bounded subview;
       `_currentRender` heat haze; portal sky as the cooked skybox; `videomap` still frames
       (13.3, 10.1).

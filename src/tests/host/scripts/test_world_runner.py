@@ -31,6 +31,16 @@ def trace_line(hit, fraction, normal, material):
             f"material={material}\n")
 
 
+def decals_line(entities=0, decals=0, vertices=0, triangles=0, area=0.0, bounds=(0.0,) * 6):
+    return (f"[D3BFG] WORLD decals entities={entities} decals={decals} vertices={vertices} triangles={triangles} area={area:.2f} "
+            f"bounds={','.join(f'{value:.2f}' for value in bounds)}\n")
+
+
+# The floor decal as a good session reports it: two pieces across a floor tile seam.
+FLOOR_DECAL = {"entities": 1, "decals": 2, "vertices": 8, "triangles": 4, "area": 2304.0,
+               "bounds": runner.DECALS_EXPECTED["bounds"]}
+
+
 def switch_line(profile, fixed, texture, width=640, height=448, interlace="FIELD"):
     """A GS display line; profile is a draw/display label, or 16/32 for 16/16 and 32/32."""
     label = {16: "16/16", 32: "32/32"}.get(profile, profile)
@@ -44,7 +54,8 @@ def expected_switch_line(display, standard="ntsc"):
     return switch_line(profile, fixed, texture, width, height, interlace)
 
 
-def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", traces=None, switches=None, standard="ntsc"):
+def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", traces=None, switches=None, standard="ntsc",
+            decals=(None, FLOOR_DECAL, None)):
     """A world session's log as PCSX2's file log stamps it, with per-view, per-trace and per-switch
     overrides (a switch override replaces its GS line; None drops it)."""
     log = echo("ready") + echo("begin")
@@ -55,7 +66,7 @@ def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", t
                  "material": material + "light" if material.endswith("_") else material}
         found.update((traces or {}).get(index, {}))
         log += trace_line(**found)
-    log += echo("loaded")
+    log += decals_line(**(decals[0] or {})) + echo("loaded")
     frame = 70
     for name, display, view in runner.steps(standard):
         bits = renderer_capture.draw_bits(display.profile)
@@ -82,7 +93,7 @@ def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", t
     unload = {"event": "unloaded", "areas": 1, "portals": 0, "viewing": 0, "frame": frame, "views": frame, "area": 0,
               "entities": 1, "drawn": 1, "batches": 14}
     unload.update(unloaded or {})
-    log += WORLD.format(**unload) + echo("unloaded")
+    log += decals_line(**(decals[1] or {})) + WORLD.format(**unload) + decals_line(**(decals[2] or {})) + echo("unloaded")
     # The front end returns to 32/16 once the world is gone.
     frontend = (switches or {}).get("frontend", expected_switch_line(runner.front_end_display(standard), standard))
     log += (frontend or "") + echo("frontend")
@@ -196,6 +207,27 @@ class WorldRunnerTests(unittest.TestCase):
         self.assertFalse(runner.classify(session(traces={1: {"material": "textures/graybox/wall"}}), IDENTITY)[0])
         self.assertFalse(runner.classify(session(traces={2: {"hit": 1, "fraction": 0.46}}), IDENTITY)[0])
         self.assertFalse(runner.classify(session().replace("[D3BFG] WORLD trace", "[D3BFG] WORLD skipped", 1), IDENTITY)[0])
+
+    def test_floor_decal_must_cover_its_square(self):
+        self.assertEqual(runner.classify(session(), IDENTITY)[2]["decals"]["area"], 2304.0)
+        shifted = runner.DECALS_EXPECTED["bounds"][:2] + (0.5,) + runner.DECALS_EXPECTED["bounds"][3:5] + (0.5,)
+        for floor in ({"area": 2280.0}, {"bounds": shifted}, {"entities": 2}, {"triangles": 0}, None):
+            with self.subTest(floor=floor):
+                report = None if floor is None else dict(FLOOR_DECAL, **floor)
+                passed, reason, _ = runner.classify(session(decals=(None, report, None)), IDENTITY)
+                self.assertFalse(passed)
+                self.assertIn("floor decal", reason)
+
+    def test_decals_wait_for_a_view_and_go_with_the_world(self):
+        passed, reason, _ = runner.classify(session(decals=(FLOOR_DECAL, FLOOR_DECAL, None)), IDENTITY)
+        self.assertFalse(passed)
+        self.assertIn("before any view", reason)
+        passed, reason, _ = runner.classify(session(decals=(None, FLOOR_DECAL, FLOOR_DECAL)), IDENTITY)
+        self.assertFalse(passed)
+        self.assertIn("outlived", reason)
+
+    def test_decal_commands_project_into_the_surface(self):
+        self.assertEqual(runner.decal_commands(runner.DECALS[:1]), ["ps2_world decal -100 300 0 0 0 -1 48 8 textures/graybox/wall"])
 
     def test_crash_or_fatal_fails(self):
         self.assertFalse(runner.classify(session() + "[    2.0000] TLB Miss, pc=0x100 addr=0x0 [load]\n", IDENTITY)[0])

@@ -5489,3 +5489,26 @@ none is archived or named in data, scripts or runners.
 | `make test-game`, `test-map` (debug) | Passed (`20261107T090606Z_smoke_331e49274be8462a`, `20261107T090641Z_smoke_3b514b9dd5474389`): traces, entity defs and their teardown through the moved functions |
 | `make test-world`, `test-world-retail`, `test-renderer` (debug) | Passed (`20261107T090731Z_world_07eb199d45cf`, `20261107T090756Z_world_retail_6f0869b8f607` and their PAL runs; GS gate `20261107T090903Z_smoke_6eb9708de2c94cbc`) |
 | `make test-host` | Passed: 385 Python tests and the C++ harnesses |
+
+## World decals built over the compact mirror (2026-11-07)
+
+World area surfaces carry s16 positions and borrowed indexes instead of `idDrawVert`s, so id's
+decal generator gained a PS2 path: `idRenderModelDecal::CreateDecal` culls the decoded positions
+(`R_DecalPointCullCompact`; `R_CompactPosition` moved to `Model.h`, shared with the traces), reads
+the indexes directly and hands the triangle's decoded corners to id's unchanged clipping. id's
+model pass, which built each visible entity's queued decals, is gone, so `scene::RenderView` now
+does it for every entity a view sees. `idRenderModelDecal` exposes its live decals for the
+renderer (`FirstDecal`, `NextDecal`, `Decal`); drawing them is R7. `ps2_world decal` projects a
+square as `idGameLocal::ProjectDecal` does (unrotated, parallel) and `ps2_world decals` reports
+the entities' decals (count, vertices, triangles without id's 16-byte index padding, area,
+bounds). The stand-in materials gained `forceOverlays`: without stages id refuses them decals,
+which the opaque retail materials accept.
+
+| Check | Result |
+| --- | --- |
+| `make test-world` (debug) | NTSC and PAL passed (`20261107T091842Z_world_2e943d9f723c`, `20261107T091851Z_world_11f062e23fef`): no decal before the first view; afterwards area 0's model holds two decals (split at a floor tile seam), 12 vertices, 6 triangles, 2,304.00 units² inside (-124, 276, 0) to (-76, 324, 0); the doorway decal finds nothing; none after the unload; startup ledger recovered |
+| `make test-world-retail` (debug) | NTSC and PAL passed (`20261107T091912Z_world_retail_03b622421c64`, `20261107T091933Z_world_retail_df31fb01a309`): the grate decal is one decal of 4 vertices and 2 triangles, 1,024.00 units² inside (-3648, -3432, 192) to (-3616, -3400, 192) |
+| `make test-map`, `test-game`, `test-headless`, `test-renderer` (debug) | Passed (`20261107T092411Z_smoke_5ebe6aa0bf6048f8`, `20261107T092420Z_smoke_cf0a62cb8e3d42aa`, `20261107T092501Z_headless_9b38cc3cc71d`, `20261107T092520Z_smoke_7e32c4eb3dd4482d`) |
+| `make test-ui` (debug) | NTSC and PAL sessions passed (`20261107T092646Z_session_cf3678e6a061`, `20261107T093435Z_session_754d854cb937`) with every invalid-resource case; this also covers the frontend-unit cut's `DeviceContext` and cvar changes |
+| `make test-host` | Passed: 389 Python tests and the C++ harnesses; the world runners reject a wrong decal area, bounds or entity count, a decal before any view or after the unload |
+| `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 4,728,748 debug (+8,576) and 4,025,388 release (+7,424): id's decal generator is reachable now. Release was compiled, not run |

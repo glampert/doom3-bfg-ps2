@@ -123,7 +123,8 @@ struct srfTriangles_t {
 
 #if defined( ID_PS2 )
 	// [PS2_D3BFG]: Cooked world areas keep s16 positions instead of idDrawVerts (verts is NULL):
-	// xyz = ps2PositionOffset + ps2Positions[3 * i + axis] * ps2PositionScale. Only traces read them.
+	// xyz = ps2PositionOffset + ps2Positions[3 * i + axis] * ps2PositionScale. Traces and decals
+	// read them through R_CompactPosition.
 	const short *				ps2Positions;
 	idVec3						ps2PositionOffset;
 	float						ps2PositionScale;
@@ -131,6 +132,16 @@ struct srfTriangles_t {
 
 	DISALLOW_COPY_AND_ASSIGN( srfTriangles_t );
 };
+
+#if defined( ID_PS2 )
+// [PS2_D3BFG]: A cooked world area's position, decoded from its s16 mirror.
+ID_INLINE idVec3 R_CompactPosition( const srfTriangles_t *tri, const int index ) {
+	const short * q = tri->ps2Positions + index * 3;
+	return idVec3( tri->ps2PositionOffset.x + q[0] * tri->ps2PositionScale,
+				   tri->ps2PositionOffset.y + q[1] * tri->ps2PositionScale,
+				   tri->ps2PositionOffset.z + q[2] * tri->ps2PositionScale );
+}
+#endif
 
 typedef idList<srfTriangles_t *, TAG_IDLIB_LIST_TRIANGLES> idTriList;
 

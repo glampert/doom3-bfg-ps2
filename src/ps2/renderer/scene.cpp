@@ -2,7 +2,8 @@
 // File: scene.cpp
 // Brief: Take id's views after the portal flow and draw the world areas they reach. Each area's
 // model entity lands on the view entity list only when a portal chain to it is visible, so
-// drawing those areas is id's portal culling; batch culling and entities come later.
+// drawing those areas is id's portal culling; batch culling and entities come later. Visible
+// entities build their pending decals here, as id's model pass did; drawing them comes later.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -77,6 +78,25 @@ int EntityArea(const idRenderWorldLocal & renderWorld, const viewEntity_t & enti
     return owned ? area : -1;
 }
 
+// Builds the decals projected onto a visible entity since it was last seen (R_AddSingleModel's
+// step): ProjectDecalOntoWorld only queues them, and a queued decal times out unseen.
+void CreateDecals(const viewEntity_t & entity)
+{
+    idRenderEntityLocal * def = entity.entityDef;
+
+    if (def->decals == nullptr)
+    {
+        return;
+    }
+
+    const idRenderModel * model = R_EntityDefDynamicModel(def);
+
+    if (model != nullptr && model->NumSurfaces() > 0)
+    {
+        def->decals->CreateDeferredDecals(model);
+    }
+}
+
 } // namespace
 
 PS2_COLD_FUNC void Init()
@@ -136,6 +156,11 @@ void RenderView(const viewDef_t & view)
         ++stats.entities;
 
         // An empty scissor means the entity is only listed for shadows.
+        if (!entity->scissorRect.IsEmpty())
+        {
+            CreateDecals(*entity);
+        }
+
         const int area = level != nullptr && !entity->scissorRect.IsEmpty() ? EntityArea(renderWorld, *entity) : -1;
 
         if (area < 0)
@@ -167,6 +192,62 @@ void RenderView(const viewDef_t & view)
 const Stats & GetStats()
 {
     return s_stats;
+}
+
+PS2_COLD_FUNC DecalStats MeasureDecals(const idRenderWorld & world)
+{
+    const idRenderWorldLocal & local = static_cast<const idRenderWorldLocal &>(world);
+    DecalStats stats;
+    idBounds bounds;
+    bounds.Clear();
+
+    for (int index = 0; index < local.entityDefs.Num(); ++index)
+    {
+        const idRenderEntityLocal * def = local.entityDefs[index];
+
+        if (def == nullptr || def->decals == nullptr || def->decals->FirstDecal() == def->decals->NextDecal())
+        {
+            continue;
+        }
+
+        ++stats.entities;
+
+        for (unsigned int slot = def->decals->FirstDecal(); slot < def->decals->NextDecal(); ++slot)
+        {
+            const decal_t & decal = def->decals->Decal(slot);
+            ++stats.decals;
+            stats.vertices += static_cast<std::uint32_t>(decal.numVerts);
+
+            // Decal vertices are in the entity's space; world areas sit at the origin unrotated.
+            for (int vertex = 0; vertex < decal.numVerts; ++vertex)
+            {
+                bounds.AddPoint(decal.verts[vertex].xyz * def->parms.axis + def->parms.origin);
+            }
+
+            for (int corner = 0; corner + 2 < decal.numIndexes; corner += 3)
+            {
+                // The index list is padded to 16 bytes with (0, 0, 0) triangles.
+                if (decal.indexes[corner + 0] == decal.indexes[corner + 1] && decal.indexes[corner + 1] == decal.indexes[corner + 2])
+                {
+                    continue;
+                }
+
+                ++stats.triangles;
+                const idVec3 & a = decal.verts[decal.indexes[corner + 0]].xyz;
+                const idVec3 & b = decal.verts[decal.indexes[corner + 1]].xyz;
+                const idVec3 & c = decal.verts[decal.indexes[corner + 2]].xyz;
+                stats.area += 0.5f * (b - a).Cross(c - a).Length();
+            }
+        }
+    }
+
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        stats.boundsMin[axis] = stats.vertices != 0 ? bounds[0][axis] : 0.0f;
+        stats.boundsMax[axis] = stats.vertices != 0 ? bounds[1][axis] : 0.0f;
+    }
+
+    return stats;
 }
 
 } // namespace ps2::renderer::scene

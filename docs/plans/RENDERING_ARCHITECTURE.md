@@ -435,8 +435,11 @@ Implemented 2026-11-05 for the world (`ps2/renderer/world_map.cpp`): each area m
 `srfTriangles_t` has no `verts`, points `indexes` into the D3WD (`referencedIndexes`, so
 freeing the model leaves them) and carries the s16 positions with their offset and scale
 in three tagged fields. `R_LocalTrace` decodes them in a scalar branch; `Trace` and
-`ModelTrace` over world areas go through it. World decals are not adapted yet: nothing
-projects one before the game loads maps (R3).
+`ModelTrace` over world areas go through it. World decals followed on 2026-11-07:
+`idRenderModelDecal::CreateDecal` culls and clips the decoded s16 positions
+(`R_CompactPosition`, shared with the traces) and reads the borrowed indexes directly, and
+`scene::RenderView` builds the pending decals of each visible entity, which the replaced model
+pass did; the decals are not drawn yet (13.2).
 
 ---
 
@@ -1357,7 +1360,8 @@ VU UV wobble.
 
 Impact decals (world) keep id's generation over the world mirror (`MAX_DECALS 32`,
 deferred 4, as the non-PC constants say) and draw as WC batches written into the display
-list per frame: at most 18 vertices each. Blood overlays (`MAX_OVERLAYS 8` per model) copy
+list per frame: at most 18 vertices each. The generation runs since 2026-11-07 (5.4); the
+renderer reads the live decals through `idRenderModelDecal::FirstDecal`/`NextDecal`/`Decal`. Blood overlays (`MAX_OVERLAYS 8` per model) copy
 the base model's vertices, including the skinned path, so they are generated over the
 `idDrawVert` mirror and drawn with the model's skinned layout and palette.
 

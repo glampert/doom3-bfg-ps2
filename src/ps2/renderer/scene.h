@@ -14,6 +14,7 @@
 #include <cstdint>
 
 struct viewDef_t;
+class idRenderWorld;
 
 namespace ps2::renderer::scene
 {
@@ -42,5 +43,20 @@ struct Stats
 };
 
 const Stats & GetStats();
+
+// The decals a render world's entities hold (built when their entity was last seen), for the world
+// viewer's report: their count, geometry, total area and world-space bounds.
+struct DecalStats
+{
+    std::uint32_t entities  = 0; // entities holding at least one decal
+    std::uint32_t decals    = 0;
+    std::uint32_t vertices  = 0;
+    std::uint32_t triangles = 0; // without the degenerate ones padding each index list
+    float         area      = 0.0f;
+    float         boundsMin[3] = {};
+    float         boundsMax[3] = {};
+};
+
+PS2_COLD_FUNC DecalStats MeasureDecals(const idRenderWorld & world);
 
 } // namespace ps2::renderer::scene

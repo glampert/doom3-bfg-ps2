@@ -218,20 +218,6 @@ static void R_TracePointCullStatic( byte *cullBits, byte &totalOr, const float r
 #if defined( ID_PS2 )
 /*
 ====================
-R_CompactPosition
-
-[PS2_D3BFG]: A cooked world area's position, decoded from its s16 mirror.
-====================
-*/
-static ID_INLINE idVec3 R_CompactPosition( const srfTriangles_t *tri, const int index ) {
-	const short * q = tri->ps2Positions + index * 3;
-	return idVec3( tri->ps2PositionOffset.x + q[0] * tri->ps2PositionScale,
-				   tri->ps2PositionOffset.y + q[1] * tri->ps2PositionScale,
-				   tri->ps2PositionOffset.z + q[2] * tri->ps2PositionScale );
-}
-
-/*
-====================
 R_TracePointCullCompact
 
 [PS2_D3BFG]: The scalar R_TracePointCullStatic over the s16 position mirror.

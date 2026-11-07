@@ -70,6 +70,13 @@ TRACES = (
 )
 
 
+# A decal projected at load straight down onto the floor grate under the start, where one flat
+# .bproc triangle (z = 192) holds the whole 32-unit square: once a view sees area 2, its model must
+# hold the square's area inside the square's bounds.
+DECALS = (((-3632, -3416, 192), (0, 0, -1), 32, 8, "textures/base_floor/sflgrate2"),)
+DECALS_EXPECTED = {"entities": 1, "area": 32.0 * 32.0, "bounds": (-3648.0, -3432.0, 192.0, -3616.0, -3400.0, 192.0)}
+
+
 def world_report(world: Path) -> dict:
     """The cook's report beside the D3WD (asset_reexport world)."""
     return json.loads(world.with_name(world.stem + ".report.json").read_text())
@@ -98,12 +105,13 @@ def driver(identity: str):
     traces = ["ps2_world trace " + " ".join(str(value) for value in start + end) for start, end, *_ in TRACES]
     # The console starts open; closed, it slides away over real time before the first view.
     yield ([f'echo "{run_world.barrier(identity, "begin")}"', "ps2_consoleKey toggle", "wait 60", "r_znear 4", f"ps2_world load {MAP}",
-            *traces, f'echo "{run_world.barrier(identity, "loaded")}"'], until("loaded"))
+            *traces, *run_world.decal_commands(DECALS), "ps2_world decals", f'echo "{run_world.barrier(identity, "loaded")}"'],
+           until("loaded"))
     # Loading the map leaves the front end: two frames later the device draws in the preference.
     yield ["wait 2", f'echo "{run_world.barrier(identity, "ingame")}"'], until("ingame")
     for view in VIEWS:
         yield view_commands(identity, view), until(view.name)
-    yield ["ps2_world unload", f'echo "{run_world.barrier(identity, "unloaded")}"'], until("unloaded")
+    yield ["ps2_world decals", "ps2_world unload", "ps2_world decals", f'echo "{run_world.barrier(identity, "unloaded")}"'], until("unloaded")
     yield ["wait 2", f'echo "{run_world.barrier(identity, "frontend")}"', "quit"], lambda log: run_headless.SHUTDOWN_COMPLETE in log
 
 
@@ -139,6 +147,9 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         if (int(found[0]) != hit or abs(float(found[1]) - fraction) > 0.002 or
                 any(abs(a - b) > 0.002 for a, b in zip(normal_found, normal)) or found[5] != material):
             return False, f"the trace from {start} to {end} found {found}; expected hit={hit} fraction={fraction} {normal} {material}", {}
+    queued = run_world.decal_reports(log[positions[0]:positions[1]])
+    if len(queued) != 1 or not run_world.decals_match(queued[0], None):
+        return False, "decals existed before any view saw their entity", {}
     ingame = run_world.SWITCH_RE.findall(log[positions[1]:positions[2]])
     expected = run_world.expected_switch(standard, run_world.default_display(standard))
     if len(ingame) != 1 or run_world.parse_switch(ingame[0]) != expected:
@@ -167,6 +178,11 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
     unloads = [line for line in run_world.world_lines(log[positions[-3]:positions[-2]]) if line["event"] == "unloaded"]
     if len(unloads) != 1 or (unloads[0]["areas"], unloads[0]["portals"], unloads[0]["viewing"]) != (1, 0, 0):
         return False, "the world did not unload to the empty single-area world", {}
+    decals = run_world.decal_reports(log[positions[-3]:positions[-2]])
+    if len(decals) != 2 or not run_world.decals_match(decals[0], DECALS_EXPECTED):
+        return False, f"the floor decal does not cover its square on the grate: {decals[:1]}", {}
+    if not run_world.decals_match(decals[1], None):
+        return False, "decals outlived the unloaded world", {}
     back = run_world.SWITCH_RE.findall(log[positions[-2]:positions[-1]])
     expected = run_world.expected_switch(standard, run_world.front_end_display(standard))
     if len(back) != 1 or run_world.parse_switch(back[0]) != expected:
@@ -176,7 +192,8 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         return False, "production shutdown did not recover the startup allocation ledger", {}
     arena = max(view["status"]["arena"] for view in views.values())
     return True, ("mars_city1 loaded from its cooked .bproc, drew area 2 and the corridor through the portal flow, closed the "
-                  "doorway down to area 2, unloaded and shut down"), {"views": views, "arena_bytes": arena}
+                  "doorway down to area 2, built its floor decal over the mirror, unloaded and shut down"), \
+        {"views": views, "arena_bytes": arena, "decals": decals[0]}
 
 
 def verify_captures(output: Path, data: Path, standard: str) -> dict:
@@ -209,7 +226,8 @@ def stage_retail_world(build: str, output: Path, standard: str, catalog: Path, w
     package = stage(build, output, standard, catalog=catalog)
     materials = package / "base/materials"
     materials.mkdir(parents=True, exist_ok=True)
-    (materials / "world_stand_in.mtr").write_text("".join(f"{name} {{ solid collision }}\n" for name in report["material_names"]))
+    # Without stages id refuses the stand-ins decals, which the opaque retail materials accept.
+    (materials / "world_stand_in.mtr").write_text("".join(f"{name} {{ solid collision forceOverlays }}\n" for name in report["material_names"]))
     maps = package / "base" / Path(MAP).parent
     maps.mkdir(parents=True, exist_ok=True)
     shutil.copy2(world, maps / world.name)

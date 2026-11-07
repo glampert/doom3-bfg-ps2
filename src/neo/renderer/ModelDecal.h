@@ -114,6 +114,14 @@ public:
 	void						ReadFromDemoFile( class idDemoFile *f );
 	void						WriteToDemoFile( class idDemoFile *f ) const;
 
+#if defined( ID_PS2 )
+								// [PS2_D3BFG]: The live decals, for the PS2 renderer, which draws them
+								// itself (RENDERING_ARCHITECTURE.md 13.2): firstDecal <= i < nextDecal.
+	unsigned int				FirstDecal() const { return firstDecal; }
+	unsigned int				NextDecal() const { return nextDecal; }
+	const decal_t &				Decal( unsigned int index ) const { return decals[index & ( MAX_DECALS - 1 )]; }
+#endif
+
 private:
 	decal_t						decals[MAX_DECALS];
 	unsigned int				firstDecal;

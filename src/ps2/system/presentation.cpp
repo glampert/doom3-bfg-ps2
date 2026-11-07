@@ -186,8 +186,12 @@ PS2_COLD_FUNC idVec3 Point(const idCmdArgs & args, int first)
 }
 
 // ps2_world load MAP | unload | view EX EY EZ TX TY TZ | trace SX SY SZ EX EY EZ |
-// portal HANDLE open|closed | off | status. A view looks from the eye at the target with a
-// 90-degree vertical field of view; a trace reports the first world surface between two points.
+// decal OX OY OZ DX DY DZ SIZE DEPTH MATERIAL | decals | portal HANDLE open|closed | off | status.
+// A view looks from the eye at the target with a 90-degree vertical field of view; a trace reports
+// the first world surface between two points. A decal projects a SIZE square of MATERIAL along
+// the direction D onto the surfaces around O, as the game's idGameLocal::ProjectDecal does it
+// unrotated and parallel; the entities build it the next time a view sees them, and decals
+// reports what they hold.
 PS2_COLD_FUNC void World(const idCmdArgs & args)
 {
     if (!ps2::system::runtime::HasPresentation() || args.Argc() < 2) [[unlikely]]
@@ -255,6 +259,47 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD trace hit=%d fraction=%.3f normal=%.3f,%.3f,%.3f material=%s\n", static_cast<int>(hit),
                  static_cast<double>(trace.fraction), static_cast<double>(trace.normal.x), static_cast<double>(trace.normal.y),
                  static_cast<double>(trace.normal.z), hit && trace.material != nullptr ? trace.material->GetName() : "none");
+        return;
+    }
+
+    if (strcmp(verb, "decal") == 0 && args.Argc() == 11)
+    {
+        const idVec3 origin = Point(args, 2);
+        idVec3 direction = Point(args, 5);
+        const float half = 0.5f * static_cast<float>(atof(args.Argv(8)));
+        const float depth = static_cast<float>(atof(args.Argv(9)));
+        const idMaterial * material = declManager->FindMaterial(args.Argv(10), false);
+
+        if (direction.Normalize() < 0.001f || !(half > 0.0f) || !(depth > 0.0f) || material == nullptr) [[unlikely]]
+        {
+            ps2::FatalError("ps2_world decal needs a direction, a positive size and depth, and a declared material");
+        }
+
+        idVec3 across;
+        idVec3 down;
+        direction.NormalVectors(across, down);
+
+        // idGameLocal::ProjectDecal at angle 0: axis 0 is the first normal vector, axis 1 the second negated.
+        const idVec3 windingOrigin = origin + depth * direction;
+        idFixedWinding winding;
+        winding += idVec5(windingOrigin + (across - down) * half, idVec2(1.0f, 1.0f));
+        winding += idVec5(windingOrigin + (-across - down) * half, idVec2(0.0f, 1.0f));
+        winding += idVec5(windingOrigin + (-across + down) * half, idVec2(0.0f, 0.0f));
+        winding += idVec5(windingOrigin + (across + down) * half, idVec2(1.0f, 0.0f));
+        world->ProjectDecalOntoWorld(winding, origin - depth * direction, true, depth * 0.5f, material, s_view.time[0]);
+        return;
+    }
+
+    if (strcmp(verb, "decals") == 0 && args.Argc() == 2)
+    {
+        const ps2::renderer::scene::DecalStats decals = ps2::renderer::scene::MeasureDecals(*world);
+
+        ps2::Log(ps2::LogLevel::Info,
+                 "[D3BFG] WORLD decals entities=%u decals=%u vertices=%u triangles=%u area=%.2f bounds=%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
+                 static_cast<u32>(decals.entities), static_cast<u32>(decals.decals), static_cast<u32>(decals.vertices),
+                 static_cast<u32>(decals.triangles), static_cast<double>(decals.area), static_cast<double>(decals.boundsMin[0]),
+                 static_cast<double>(decals.boundsMin[1]), static_cast<double>(decals.boundsMin[2]), static_cast<double>(decals.boundsMax[0]),
+                 static_cast<double>(decals.boundsMax[1]), static_cast<double>(decals.boundsMax[2]));
         return;
     }
 

@@ -596,9 +596,10 @@ def map_text(shell, objects):
 
 def material_text():
     lines = [BANNER, "// Graybox materials: collision only until the world cook compiles material passes (gate R2);\n",
-             "// the cook job gives each one its base colour.\n"]
+             "// the cook job gives each one its base colour. Without stages id refuses them decals, which\n",
+             "// opaque drawn materials accept; forceOverlays restores that.\n"]
     for name in MATERIALS:
-        lines.append(f"{name} {{ solid collision }}\n")
+        lines.append(f"{name} {{ solid collision forceOverlays }}\n")
     return "".join(lines)
 
 

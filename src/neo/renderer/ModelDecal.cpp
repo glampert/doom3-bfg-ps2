@@ -410,6 +410,29 @@ static void R_DecalPointCullStatic( byte * cullBits, const idPlane * planes, con
 #endif
 }
 
+#if defined( ID_PS2 )
+/*
+============
+R_DecalPointCullCompact
+
+[PS2_D3BFG]: The scalar R_DecalPointCullStatic over a cooked world area's s16 position mirror.
+============
+*/
+static void R_DecalPointCullCompact( byte * cullBits, const idPlane * planes, const srfTriangles_t * tri ) {
+	for ( int i = 0; i < tri->numVerts; i++ ) {
+		const idVec3 v = R_CompactPosition( tri, i );
+
+		byte bits = 0;
+		for ( int j = 0; j < NUM_DECAL_BOUNDING_PLANES; j++ ) {
+			const float d = planes[j].Distance( v );
+			bits |= IEEE_FLT_SIGNBITNOTSET( d ) << j;
+		}
+
+		cullBits[i] = bits;
+	}
+}
+#endif
+
 /*
 =================
 idRenderModelDecal::CreateDecal
@@ -450,6 +473,45 @@ void idRenderModelDecal::CreateDecal( const idRenderModel *model, const decalPro
 		// decals don't work on animated models
 		assert( tri->staticModelWithJoints == NULL );
 
+#if defined( ID_PS2 )
+		// [PS2_D3BFG]: Cooked world areas keep s16 positions (verts is NULL) and borrow their indexes
+		// from the cooked file, unaligned for the 16-byte streamed reads: both are read directly, and
+		// a triangle's corners are decoded into idDrawVerts for the code below, which reads xyz only.
+		const bool compact = tri->verts == NULL;
+		if ( compact ) {
+			R_DecalPointCullCompact( cullBits.Ptr(), localParms.boundingPlanes, tri );
+		} else {
+			R_DecalPointCullStatic( cullBits.Ptr(), localParms.boundingPlanes, tri->verts, tri->numVerts );
+		}
+
+		// one pass of the outer loop covers every index
+		for ( int i = 0; i + 2 < tri->numIndexes; ) {
+
+			for ( ; i + 2 < tri->numIndexes; i += 3 ) {
+				const int i0 = tri->indexes[i + 0];
+				const int i1 = tri->indexes[i + 1];
+				const int i2 = tri->indexes[i + 2];
+
+				// skip triangles completely off one side
+				if ( cullBits[i0] & cullBits[i1] & cullBits[i2] ) {
+					continue;
+				}
+
+				idDrawVert decoded[3];
+				const idDrawVert * verts[3];
+				if ( compact ) {
+					decoded[0].xyz = R_CompactPosition( tri, i0 );
+					decoded[1].xyz = R_CompactPosition( tri, i1 );
+					decoded[2].xyz = R_CompactPosition( tri, i2 );
+					verts[0] = &decoded[0];
+					verts[1] = &decoded[1];
+					verts[2] = &decoded[2];
+				} else {
+					verts[0] = &tri->verts[i0];
+					verts[1] = &tri->verts[i1];
+					verts[2] = &tri->verts[i2];
+				}
+#else
 		// catagorize all points by the planes
 		R_DecalPointCullStatic( cullBits.Ptr(), localParms.boundingPlanes, tri->verts, tri->numVerts );
 
@@ -476,6 +538,7 @@ void idRenderModelDecal::CreateDecal( const idRenderModel *model, const decalPro
 					&tri->verts[i1],
 					&tri->verts[i2]
 				};
+#endif
 
 				// skip back facing triangles
 				const idPlane plane( verts[0]->xyz, verts[1]->xyz, verts[2]->xyz );

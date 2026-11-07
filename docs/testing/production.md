@@ -216,7 +216,12 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   batches=26 portals=1 nodes=11` line and `WORLD loaded areas=2 portals=1`), then three
   `ps2_world trace`s through the area models' s16 mirror (room 0's floor at fraction 0.5
   facing up, the divider's post at 0.46 facing -x with `trim`, the open doorway a miss,
-  each within 0.002).
+  each within 0.002), and two `ps2_world decal`s: a 48-unit square straight down onto room 0's
+  floor at (-100, 300, 0) and one into the open doorway at (-100, 0, 64) facing +x, where no
+  surface lies within its 8-unit depth. `ps2_world decals` must then report none: a decal is
+  queued until a view sees its entity (`scene::RenderView` builds it, as id's model pass did).
+  The graybox materials are `{ solid collision forceOverlays }`: without stages id refuses them
+  decals.
 - Six views, each `ps2_world portal 1 open|closed`, `ps2_world view EYE TARGET`, a capture
   two frames later and a `ps2_world status` two frames after that, between echo barriers.
   The status must report the view still drawing, the start area and the areas and batches
@@ -256,9 +261,14 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   keeps its culling counts. After `ps2_world unload` the session is back in the front end: the
   `frontend` barrier's span must hold one switch back to 32/16, and no display change may happen
   outside these steps.
+- Decals: after the views, `ps2_world decals` must report one entity (area 0's model) whose
+  decals cover the floor square exactly, built over the s16 mirror: 2,304 units² within 0.5 % and
+  bounds (-124, 276, 0) to (-76, 324, 0) within 0.05 (two decals, split across a floor tile
+  seam); after the unload it must report none.
 - `ps2_world unload` must leave the empty single-area world (`areas=1 portals=0`), and the
-  session quits with the exact startup ledger. A session takes about 9 s of emulation in
-  debug. `test_world_runner.py` rejects a missing or refused cooked load, wrong traces,
+  session quits with the exact startup ledger, decals included. A session takes about 9 s of
+  emulation in debug. `test_world_runner.py` rejects a floor decal with the wrong area, bounds or
+  entity count, a decal before any view or after the unload, a missing or refused cooked load, wrong traces,
   broken culling counts, missing, stale or misnamed captures and statuses, a capture in the
   wrong profile, a profile change that is missing, doubled, outside its step or with the
   wrong buffers, out-of-order barriers, an unfinished unload or ledger, and a closed doorway
@@ -272,7 +282,7 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   `maps/mars_city1.resources` into `build/world/mars_city1.d3wd` and its report) run
   `run_world_retail.py`: one production session per standard from a visible console package
   on the authored headless data, with the D3WD staged as `base/maps/game/mars_city1.d3wd` and
-  every material the cook report lists declared `{ solid collision }` in
+  every material the cook report lists declared `{ solid collision forceOverlays }` in
   `base/materials/world_stand_in.mtr`. Without that file id's declaration manager makes
   implicit materials for the retail names and loads their images, which the image backend
   refuses; the world pass draws vertex colours and never reads the materials.
@@ -283,7 +293,9 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   above (-3632, -3416, 192)): straight down onto `textures/base_floor/sflgrate2` at fraction
   0.148 facing up, and west into `textures/mcity/stewall3b` at 0.383 facing (0.990, 0,
   -0.141), each within 0.002 and with the exact material. A Python ray cast over the `.bproc`'s
-  triangles gives the same fractions and materials.
+  triangles gives the same fractions and materials. A 32-unit `ps2_world decal` goes straight down
+  onto the grate under the start, where one flat `.bproc` triangle at z = 192 holds the whole
+  square; `ps2_world decals` must report none until a view has seen area 2.
 - Loading the map leaves the front end: the `ingame` barrier's span must hold one switch to
   32/32, as in `make test-world`.
 - Seven views in area 2, where the player starts, each a capture two frames after
@@ -305,6 +317,8 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   to 99.9 %; with a missing area they drop to 39 to 96 % (the `north`, `doorway` and `corridor`
   captures against area 2 alone). The runner writes `references/ref-<view>-WxH.png` and
   `references/diff-world-<view>.png` (mismatches in magenta) beside the captures.
+- After the views `ps2_world decals` must report area 2's model holding the square: 1,024 units²
+  within 0.5 % and bounds (-3648, -3432, 192) to (-3616, -3400, 192); after the unload, none.
 - `ps2_world unload` must leave the empty single-area world, the `frontend` barrier one switch
   back to 32/16, and the session quits with the exact startup ledger. A session takes about
   20 s. `test_world_retail_runner.py` rejects a load that differs from the cook report, broken

@@ -215,7 +215,10 @@ the PS2 refuses; `run_world_retail.py` declares the retail ones collision-only f
 report), `view EX EY EZ TX TY TZ` draws it every frame from the eye towards the
 target under the console and screens (90-degree vertical field of view on the 4:3 picture, the
 same framing in every display mode), `trace SX SY SZ EX
-EY EZ` logs the first world surface between two points, `portal HANDLE open|closed` sets a
+EY EZ` logs the first world surface between two points, `decal OX OY OZ DX DY DZ SIZE DEPTH
+MATERIAL` projects a SIZE square along D onto the surfaces around O as the game's `ProjectDecal`
+does (built when a view next sees them; materials without stages need `forceOverlays`), `decals`
+logs what the entities hold (count, triangles, area, bounds), `portal HANDLE open|closed` sets a
 portal's view blocking, `off` stops drawing, `unload` empties the world and `status` logs the
 areas, portals and the last view's area, entities, drawn areas, batches and frame arena use.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages

@@ -9,7 +9,8 @@
 staged beside it. HostFs commands close the console, load maps/graybox (its cooked D3WD, not a
 .proc) into Common's render world with ps2_world, and draw it from fixed cameras through id's
 RenderScene: the portal flow decides which areas each view draws. Traces through the area
-models check the compact position mirror id's traces read. Every view is captured and
+models check the compact position mirror id's traces read, and a decal projected onto room 0's
+floor must be built over that mirror once a view sees the area. Every view is captured and
 checked: the GS gate's four cameras against the same reference pixels, a camera facing away from
 the doorway and the doorway camera with its portal closed against the area counts that portal
 culling must give, the closed doorway against the open one. The package boots in the front end, which
@@ -149,6 +150,45 @@ TRACES = (
 )
 
 
+# Decals projected at load (origin, direction into the surface, size, depth, material): one onto room 0's
+# flat floor (z = 0), which must hold the whole square once a view has seen the area, and one into the
+# open doorway, where no surface lies within its depth.
+DECALS = (
+    ((-100, 300, 0), (0, 0, -1), 48, 8, "textures/graybox/wall"),
+    ((-100, 0, 64), (1, 0, 0), 48, 8, "textures/graybox/wall"),
+)
+# What the render world holds after the views: one entity (area 0's model) with the square's area,
+# its bounds (min xyz, max xyz) on the floor.
+DECALS_EXPECTED = {"entities": 1, "area": 48.0 * 48.0, "bounds": (-124.0, 276.0, 0.0, -76.0, 324.0, 0.0)}
+DECALS_RE = re.compile(r"\[D3BFG\] WORLD decals entities=(\d+) decals=(\d+) vertices=(\d+) triangles=(\d+) area=([\d.]+) "
+                       r"bounds=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)")
+DECAL_FIELDS = ("entities", "decals", "vertices", "triangles")
+
+
+def decal_commands(decals) -> list[str]:
+    return ["ps2_world decal " + " ".join(str(value) for value in origin + direction + (size, depth, material))
+            for origin, direction, size, depth, material in decals]
+
+
+def decal_reports(span: str) -> list[dict]:
+    reports = []
+    for match in DECALS_RE.findall(span):
+        report = dict(zip(DECAL_FIELDS, (int(value) for value in match[:4])))
+        report["area"] = float(match[4])
+        report["bounds"] = tuple(float(value) for value in match[5:])
+        reports.append(report)
+    return reports
+
+
+def decals_match(report: dict, expected: dict | None) -> bool:
+    """None expects no decal; otherwise the entity count, the area within 0.5 % and the bounds within 0.05 units."""
+    if expected is None:
+        return report["entities"] == 0 and report["decals"] == 0 and report["triangles"] == 0
+    return (report["entities"] == expected["entities"] and report["decals"] >= 1 and report["triangles"] >= 1 and
+            abs(report["area"] - expected["area"]) <= 0.005 * expected["area"] and
+            all(abs(a - b) <= 0.05 for a, b in zip(report["bounds"], expected["bounds"])))
+
+
 def barrier(identity: str, name: str) -> str:
     return f"{identity}_{name}"
 
@@ -169,15 +209,17 @@ def driver(identity: str, standard: str = "ntsc"):
     """Yield each command batch with the condition, over the log, that ends its wait."""
     # The console starts open; closed, it slides away over real time before the first view.
     traces = ["ps2_world trace " + " ".join(str(value) for value in start + end) for start, end, *_ in TRACES]
+    # A projected decal is built only when a view sees its entity: none exists before the first view.
     yield ([f'echo "{barrier(identity, "begin")}"', "ps2_consoleKey toggle", "wait 60", "r_znear 4", "ps2_world load maps/graybox",
-            *traces, f'echo "{barrier(identity, "loaded")}"'], lambda log: echoed(log, barrier(identity, "loaded")))
+            *traces, *decal_commands(DECALS), "ps2_world decals", f'echo "{barrier(identity, "loaded")}"'],
+           lambda log: echoed(log, barrier(identity, "loaded")))
     previous = front_end_display(standard)
     for name, display, view in steps(standard):
         commands = switch_commands(identity, name, previous, display) if view is None else view_commands(identity, name, view[1], view[2])
         previous = display
         yield commands, lambda log, name=name: echoed(log, barrier(identity, name))
     # Unloaded, the session is back in the front end, which draws in 32/16 again.
-    yield ["ps2_world portal 1 open", "ps2_world unload", f'echo "{barrier(identity, "unloaded")}"'], \
+    yield ["ps2_world portal 1 open", "ps2_world decals", "ps2_world unload", "ps2_world decals", f'echo "{barrier(identity, "unloaded")}"'], \
         lambda log: echoed(log, barrier(identity, "unloaded"))
     yield ["wait 2", f'echo "{barrier(identity, "frontend")}"', "quit"], lambda log: run_headless.SHUTDOWN_COMPLETE in log
 
@@ -225,6 +267,9 @@ def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str
         if (int(found[0]) != hit or abs(float(found[1]) - fraction) > 0.002 or
                 any(abs(a - b) > 0.002 for a, b in zip(normal_found, normal)) or not found[5].startswith(material)):
             return False, f"the trace from {start} to {end} found {found}; expected hit={hit} fraction={fraction} {normal} {material}", {}
+    queued = decal_reports(log[positions[0]:positions[1]])
+    if len(queued) != 1 or not decals_match(queued[0], None):
+        return False, "decals existed before any view saw their entity", {}
     views = {}
     switches = {}
     for index, (name, display, view) in enumerate(steps(standard)):
@@ -258,6 +303,11 @@ def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str
     unloads = [line for line in world_lines(log[positions[-3]:positions[-2]]) if line["event"] == "unloaded"]
     if len(unloads) != 1 or (unloads[0]["areas"], unloads[0]["portals"], unloads[0]["viewing"]) != (1, 0, 0):
         return False, "the world did not unload to the empty single-area world", {}
+    decals = decal_reports(log[positions[-3]:positions[-2]])
+    if len(decals) != 2 or not decals_match(decals[0], DECALS_EXPECTED):
+        return False, f"the floor decal does not cover its square on room 0's floor: {decals[:1]}", {}
+    if not decals_match(decals[1], None):
+        return False, "decals outlived the unloaded world", {}
     # The unloaded world leaves the front end, which draws the preference in 32/16 again.
     back = SWITCH_RE.findall(log[positions[-2]:positions[-1]])
     expected = expected_switch(standard, front_end_display(standard))
@@ -270,7 +320,8 @@ def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str
     arena = max(view["status"]["arena"] for view in views.values())
     return True, ("the cooked graybox loaded, left the front end's 32/16 for 32/32, drew through the portal flow in every view in "
                   "16/16 and 32/32, the doorway in 32/16, "
-                  "at 512 wide and in FRAME mode, unloaded and shut down"), {"views": views, "switches": switches, "arena_bytes": arena}
+                  "at 512 wide and in FRAME mode, built its floor decal over the mirror, unloaded and shut down"), \
+        {"views": views, "switches": switches, "arena_bytes": arena, "decals": decals[0]}
 
 
 def doorway_box(standard: str, width: int = 512) -> tuple[int, int, int, int]:
