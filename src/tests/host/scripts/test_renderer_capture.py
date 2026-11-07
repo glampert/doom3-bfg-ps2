@@ -6,6 +6,7 @@
 # ================================================================================================
 
 import hashlib
+import json
 import math
 from pathlib import Path
 import struct
@@ -605,6 +606,19 @@ class FrameBufferProfiles(unittest.TestCase):
                 pixels[offset:offset + 3] = bytes(colour)
                 with self.assertRaisesRegex(ValueError, failure):
                     capture.verify_format_scene(self.write(tga(512, 448, pixels)), "NTSC", 32)
+
+    def test_world_scene_pixels_are_current(self):
+        # world_reference.py writes the tables; a change to the .proc, the cook job, the cameras or the
+        # generator makes them stale (regenerating takes about 15 seconds, so only the digest is compared).
+        import world_reference
+        recorded = json.loads(capture.WORLD_SCENE_FILE.read_text())["inputs_sha256"]
+        self.assertEqual(recorded, world_reference.inputs_digest(), "scene_pixels.json is stale: run world_reference.py")
+        views = set(world_reference.reference_views())
+        for width, standard, _ in world_reference.frame_sizes():
+            with self.subTest(width=width, standard=standard):
+                self.assertEqual(set(capture.WORLD_SCENE_TABLES[width][standard]), views)
+                for points in capture.WORLD_SCENE_TABLES[width][standard].values():
+                    self.assertEqual(len(points), world_reference.POINTS_PER_VIEW)
 
     def test_world_views_in_each_profile(self):
         for standard in ("NTSC", "PAL"):

@@ -78,8 +78,10 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   `system::video::kDisplayAspect`, whatever the buffer's size) and captures `renderer-world-{room0,room1,doorway,clip}.tga`; it also
   requires one program upload and the exact heap ledger after unload. The runner checks eight
   pixels a view (`renderer_capture.WORLD_SCENE_PIXELS`, per standard), chosen deep inside flat
-  faces from a reference rasterizer of the same `.proc`, cameras and colour bytes; 99.4 to
-  99.9 % of each capture matches it within the PSMCT16 model. Reference images:
+  faces by `src/tools/scripts/world_reference.py`, a reference rasterizer of the same `.proc`,
+  cameras and colour bytes that writes `src/tests/data/graybox_map/scene_pixels.json`;
+  `world_reference.py --compare <tga> --view <name> --bits <16|32>` matches a whole capture
+  with its reference image, and 99.4 to 99.9 % of each capture matches within the PSMCT16 model. Reference images:
   `docs/images/renderer-world-1-*-{ntsc,pal}.png`.
 - Frame-buffer profiles: `renderer-gs/world-graybox-32` draws the same cameras with the device
   initialized in `PSMCT32` + `PSMZ16S` (`GS ready ... PSMCT32/Z16S fixed_vram=2293760`, PAL

@@ -4,8 +4,11 @@ The first level the PS2 world renderer draws (gate R1 of the
 [rendering plan](../../../../docs/plans/RENDERING_ARCHITECTURE.md)): two 1024x768-unit
 rooms, 256 units high, split by a wall at x = 0 with a 128x128 doorway, each with basic
 shapes in it. It is authored, not retail content, and nothing here is hand-edited:
-`src/tests/host/scripts/graybox_fixture.py` writes every file, and
+`src/tests/host/scripts/graybox_fixture.py` writes the map, materials and cook job, and
 `graybox_fixture.py --check` (also run by `make test-host`) fails when any is stale.
+`scene_pixels.json` holds the world gates' reference pixels, written by
+`src/tools/scripts/world_reference.py` from the `.proc`, the cook job and the gates' cameras;
+`make test-host` fails when its input digest is stale.
 
 - **Room 0 (area 0, x < 0)**: a red crate, a blue octagonal pillar from floor to ceiling,
   a yellow pyramid, a green ramp and a floating white icosphere (smooth normals).

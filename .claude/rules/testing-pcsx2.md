@@ -46,6 +46,10 @@ memory figures in [memory-budget.md](memory-budget.md).
   FIELD PSMCT32/Z16S fixed_vram=`; 640 wide or a half-height FRAME buffer when `ps2_resolution`
   or `ps2_interlace` changed it, logged as `GS display WxH MODE bits=`). PCSX2 models neither
   the EE cache nor GS internal cost: captures prove function, not hardware timing or coherency.
+- Point checks miss what lies between their points. After a world or camera change, match whole
+  graybox captures with `src/tools/scripts/world_reference.py --compare <tga> --view <name>
+  --bits <16|32>` (good captures score 99.5 % or more; seams account for the rest). It found
+  culled geometry that every point check passed.
 - The default hardware renderer (`Renderer = -1`) caches render targets by address and
   format, and a readback can return a stale one. When a capture looks wrong only after VRAM
   was reused in another format, rerun once with the software renderer (`Renderer = 13`, ini

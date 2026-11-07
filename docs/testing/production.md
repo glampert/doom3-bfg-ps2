@@ -225,8 +225,10 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   0's far wall) and `closed` (the doorway camera with the portal closed) 1 area and 14 batches.
 - Captures: `room0`, `room1`, `doorway` and `clip` are the GS gate's cameras and must
   show its reference pixels at the capture's width (`renderer_capture.WORLD_SCENE_PIXELS_640`
-  for production's default, `WORLD_SCENE_PIXELS` at 512, both from the same rasterizer and
-  8-bit colours stored as each profile keeps them); `closed` must equal `doorway` everywhere
+  for production's default, `WORLD_SCENE_PIXELS` at 512, both written by
+  `src/tools/scripts/world_reference.py` and 8-bit colours stored as each profile keeps them;
+  its `--compare` matches a whole capture, which the point checks cannot, and a capture with
+  room 1 missing behind the doorway scores 98.7 %, good ones 99.5 to 99.9 %); `closed` must equal `doorway` everywhere
   outside the doorway's screen rectangle (the opening seen from 436 units plus 3 pixels,
   centred on the frame), differ on at least half of it and show the clear colour (16, 24, 40)
   at the centre.

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 from pathlib import Path
 import struct
@@ -238,45 +239,27 @@ INDEXED_SCENE_PIXELS = (
     ("passes-line-gouraud", 545, 450, (127, 0, 127)),
 )
 
-# The graybox world drawn by world_lm.vcl from the GS gate's four cameras: a 90 degree vertical field
+# The graybox world drawn by world_lm.vcl from the world gates' cameras: a 90 degree vertical field
 # of view on the TV's 4:3 picture, so every frame size shows the same framing. Points sit deep inside
 # flat faces (eight materials a view, the clipped floor and divider near the camera included), with
-# 8-bit colours from a reference rasterizer of the same .proc, cameras and vertex colour bytes; each
-# profile compares what its frame buffer stores of them (stored()). Untextured vertex colour writes
-# 0x80 as 128: half brightness until R2.
-WORLD_SCENE_PIXELS = {
-    "NTSC": {
-        "room0": ((40, 116, (58, 56, 53)), (120, 40, (24, 25, 28)), (466, 148, (33, 30, 25)), (308, 346, (46, 13, 10)), (150, 178, (40, 39, 37)), (272, 266, (97, 27, 22)), (362, 422, (46, 46, 48)), (174, 426, (75, 75, 73))),
-        "room1": ((40, 40, (40, 39, 37)), (162, 40, (24, 25, 28)), (194, 176, (53, 51, 48)), (266, 412, (46, 46, 48)), (480, 136, (48, 43, 36)), (334, 382, (75, 75, 73)), (164, 250, (68, 38, 11)), (252, 226, (56, 23, 53))),
-        "doorway": ((374, 40, (24, 25, 28)), (92, 92, (14, 23, 46)), (472, 160, (53, 51, 48)), (192, 384, (75, 75, 73)), (296, 384, (46, 46, 48)), (170, 220, (33, 30, 25)), (406, 262, (60, 54, 17)), (26, 132, (40, 39, 37))),
-        "clip": ((118, 40, (24, 25, 28)), (472, 54, (33, 30, 25)), (386, 128, (40, 39, 37)), (330, 352, (46, 46, 48)), (160, 164, (58, 56, 53)), (230, 416, (75, 75, 73)), (148, 222, (38, 88, 38)), (268, 34, (16, 25, 50))),
-    },
-    "PAL": {
-        "room0": ((40, 126, (58, 56, 53)), (116, 40, (24, 25, 28)), (472, 162, (33, 30, 25)), (154, 202, (40, 39, 37)), (312, 388, (46, 13, 10)), (268, 304, (97, 27, 22)), (364, 484, (46, 46, 48)), (172, 488, (75, 75, 73))),
-        "room1": ((40, 40, (40, 39, 37)), (158, 40, (24, 25, 28)), (186, 200, (53, 51, 48)), (268, 476, (46, 46, 48)), (476, 156, (48, 43, 36)), (336, 438, (75, 75, 73)), (164, 284, (68, 38, 11)), (250, 258, (56, 23, 53))),
-        "doorway": ((372, 40, (24, 25, 28)), (92, 100, (14, 23, 46)), (472, 178, (53, 51, 48)), (194, 432, (75, 75, 73)), (296, 432, (46, 46, 48)), (172, 254, (33, 30, 25)), (408, 304, (60, 54, 17)), (26, 146, (40, 39, 37))),
-        "clip": ((94, 40, (24, 25, 28)), (472, 56, (33, 30, 25)), (164, 188, (58, 56, 53)), (384, 142, (40, 39, 37)), (330, 396, (46, 46, 48)), (230, 476, (75, 75, 73)), (148, 252, (38, 88, 38)), (268, 38, (16, 25, 50))),
-    },
-}
+# 8-bit colours from world_reference.py's rasterizer of the same .proc, cameras and vertex colour
+# bytes, which writes the file; each profile compares what its frame buffer stores of them (stored()).
+# Untextured vertex colour writes 0x80 as 128: half brightness until R2. Tables by frame width (512 is
+# the GS gate's, 640 production's default), then standard and view: ((x, y, rgb), ...).
+WORLD_SCENE_FILE = Path(__file__).resolve().parents[3] / "src/tests/data/graybox_map/scene_pixels.json"
 
 
-# The same cameras 640 wide (production's default, make test-world), from the same rasterizer at
-# that width and the standard's lines; the GS gate draws 512 wide and reads WORLD_SCENE_PIXELS.
-WORLD_SCENE_PIXELS_640 = {
-    "NTSC": {
-        "room0": ((40, 78, (58, 56, 53)), (140, 40, (24, 25, 28)), (594, 144, (33, 30, 25)), (396, 338, (46, 13, 10)), (208, 180, (40, 39, 37)), (336, 268, (97, 27, 22)), (452, 420, (46, 46, 48)), (222, 424, (75, 75, 73))),
-        "room1": ((40, 40, (40, 39, 37)), (192, 40, (24, 25, 28)), (388, 184, (48, 43, 36)), (330, 412, (46, 46, 48)), (234, 176, (53, 51, 48)), (418, 382, (75, 75, 73)), (202, 252, (68, 38, 11)), (296, 200, (66, 26, 61))),
-        "doorway": ((458, 40, (24, 25, 28)), (106, 72, (14, 23, 46)), (598, 152, (53, 51, 48)), (206, 210, (33, 30, 25)), (230, 384, (75, 75, 73)), (360, 384, (46, 46, 48)), (504, 258, (60, 54, 17)), (32, 138, (40, 39, 37))),
-        "clip": ((138, 40, (24, 25, 28)), (582, 40, (33, 30, 25)), (492, 122, (40, 39, 37)), (408, 348, (46, 46, 48)), (194, 162, (58, 56, 53)), (288, 414, (75, 75, 73)), (182, 222, (38, 88, 38)), (336, 38, (16, 25, 50))),
-    },
-    "PAL": {
-        "room0": ((40, 84, (58, 56, 53)), (136, 40, (24, 25, 28)), (598, 158, (33, 30, 25)), (182, 200, (40, 39, 37)), (398, 380, (46, 13, 10)), (336, 306, (97, 27, 22)), (454, 482, (46, 46, 48)), (220, 486, (75, 75, 73))),
-        "room1": ((40, 40, (40, 39, 37)), (188, 40, (24, 25, 28)), (332, 472, (46, 46, 48)), (238, 200, (53, 51, 48)), (388, 204, (48, 43, 36)), (412, 430, (75, 75, 73)), (204, 288, (68, 38, 11)), (300, 260, (56, 23, 53))),
-        "doorway": ((454, 40, (24, 25, 28)), (106, 76, (14, 23, 46)), (598, 168, (53, 51, 48)), (206, 234, (33, 30, 25)), (506, 298, (60, 54, 17)), (360, 432, (46, 46, 48)), (232, 432, (75, 75, 73)), (32, 152, (40, 39, 37))),
-        "clip": ((106, 40, (24, 25, 28)), (582, 40, (33, 30, 25)), (194, 180, (58, 56, 53)), (492, 134, (40, 39, 37)), (410, 392, (46, 46, 48)), (288, 474, (75, 75, 73)), (182, 252, (38, 88, 38)), (336, 42, (16, 25, 50))),
-    },
-}
-WORLD_SCENE_TABLES = {512: WORLD_SCENE_PIXELS, 640: WORLD_SCENE_PIXELS_640}
+def _load_world_scene_tables() -> dict:
+    tables = json.loads(WORLD_SCENE_FILE.read_text())["tables"]
+    return {int(width): {standard: {view: tuple((x, y, tuple(rgb)) for x, y, rgb in points)
+                                    for view, points in views.items()}
+                         for standard, views in standards.items()}
+            for width, standards in tables.items()}
+
+
+WORLD_SCENE_TABLES = _load_world_scene_tables()
+WORLD_SCENE_PIXELS = WORLD_SCENE_TABLES[512]
+WORLD_SCENE_PIXELS_640 = WORLD_SCENE_TABLES[640]
 
 
 def _read_capture(path: Path) -> tuple[int, int, bytes, str]:

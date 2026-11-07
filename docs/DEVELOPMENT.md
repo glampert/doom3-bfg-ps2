@@ -282,6 +282,10 @@ visible. A host runtime test does not replace the EE compile/link check.
   (`assets/world.h`: areas, portals, nodes, VU1 batch packets, CPU mirror); `make
   world-cook` cooks the authored graybox map, generated with its `.map`/`.proc` by
   `src/tests/host/scripts/graybox_fixture.py` (update the generator, never the outputs).
+  The world gates' reference pixels (`graybox_map/scene_pixels.json`) come from
+  `src/tools/scripts/world_reference.py`, which rasterizes the `.proc` from the gates' cameras;
+  run it after changing the map, the cook job's colours or a camera (`make test-host` fails
+  on a stale digest), and use its `--compare` to match a whole capture with the reference.
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend

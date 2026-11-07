@@ -146,7 +146,9 @@ production link free of test inputs. Section numbers in parentheses point into t
       a culling defect: the PS2's `InitLogical` never set `tr.identitySpace`'s model matrix (id's
       `Init` does), so every portal's screen rectangle collapsed onto the projected world origin
       and the `clip` view listed room 1 with an empty scissor and skipped it; it now draws both
-      areas.
+      areas. The rasterizer is `src/tools/scripts/world_reference.py` (tables in
+      `graybox_map/scene_pixels.json`, staleness checked by `make test-host`; `--compare` for
+      whole captures).
 - [x] 640 wide by default with a third frame-buffer profile (2026-11-06): 32/16 draws in one
       `PSMCT32` buffer and presents a dithered `PSMCT16S` copy made in the vertical blank;
       `ps2_frameBufferBits 16/16|32/16|32/32` (default 32/32) names the in-game preference and the
