@@ -609,7 +609,7 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/game/script_error.cpp
 
 # Production entry and isolated campaign-test entry/adapters.
-PS2_CXX_SRC = ps2/ui/movie.cpp ps2/system/main.cpp ps2/system/headless.cpp ps2/system/presentation.cpp ps2/input/devices.cpp ps2/input/keyboard.cpp ps2/input/pad.cpp
+PS2_CXX_SRC = ps2/ui/movie.cpp ps2/system/main.cpp ps2/system/common_production.cpp ps2/system/presentation.cpp ps2/input/devices.cpp ps2/input/keyboard.cpp ps2/input/pad.cpp
 GAME_TEST_CXX_SRC = \
 	tests/smoketests/game_tests_main.cpp \
 	tests/smoketests/headless_fixture.cpp \

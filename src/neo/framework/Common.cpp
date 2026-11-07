@@ -1034,7 +1034,7 @@ void idCommonLocal::Init( int argc, const char * const * argv, const char *cmdli
 	}
 	// [PS2_D3BFG]: Native game/console startup belongs only to the production executable.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	if ( com_fullyInitialized ) { InitHeadless(); }
+	if ( com_fullyInitialized ) { InitProduction(); }
 #endif
 	return;
 #else
@@ -1335,7 +1335,7 @@ void idCommonLocal::Shutdown() {
 	com_shuttingDown = true;
 	// [PS2_D3BFG]: Release game/console ownership while foundation services are still alive.
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	ShutdownHeadless();
+	ShutdownProduction();
 #endif
 	// [PS2_D3BFG]: StartupVariable may read the startup command lines until now (foundation has none).
 #if defined( ID_PS2 ) && !defined( PS2_D3BFG_FOUNDATION )

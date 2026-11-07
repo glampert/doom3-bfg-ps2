@@ -407,7 +407,7 @@ void idCommonLocal::Frame() {
 	// [PS2_D3BFG]: Production pumps native game/console services; tests retain foundation frames.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #if defined( ID_PS2 ) && !PS2_D3BFG_TESTS
-	FrameHeadless();
+	FrameProduction();
 #else
 	ps2::system::lifecycle::Frame();
 #endif

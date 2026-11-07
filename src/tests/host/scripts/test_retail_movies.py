@@ -427,7 +427,7 @@ class MovieResourcesTests(unittest.TestCase):
                f"RETAIL drawable movie=0 masks={shell['features']['masks']} strokes={shell['features']['strokes']} "
                f"screen_blends={runner.screen_placements(shell)} additive_colors={shell['features']['color_add']}\n"
                f"RETAIL drawable movie=1 masks={dialog['features']['masks']} strokes=0 screen_blends=0 additive_colors=0\n"
-               "[D3BFG] HEADLESS frames=0 game_frames=0 state=console console=0 game_nomap=1 render_device=1 sound_output=0 "
+               "[D3BFG] COMMON frames=0 game_frames=0 state=console console=0 game_nomap=1 render_device=1 sound_output=0 "
                "heap=100/120/8\nrun_ready \n")
         frame = 1
         for suffix, _, gap in runner.MENU_BOOT_STEPS:

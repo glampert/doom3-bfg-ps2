@@ -1,6 +1,7 @@
 // ================================================================================================
-// File: headless.cpp
-// Brief: Own native game/console startup, synchronous frames and live HostFs commands.
+// File: common_production.cpp
+// Brief: Common's production startup, frames and shutdown: native game and console, the render world,
+// presentation when the package draws, and live HostFs commands.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -41,7 +42,7 @@ PS2_COLD_FUNC void Status(const idCmdArgs &)
 {
     const auto stats = ps2::system::heap::GetTotalStats();
     ps2::Log(ps2::LogLevel::Info,
-             "[D3BFG] HEADLESS frames=%d game_frames=%d state=console console=%d game_nomap=%d render_device=%d sound_output=%d heap=%zu/%zu/%zu\n",
+             "[D3BFG] COMMON frames=%d game_frames=%d state=console console=%d game_nomap=%d render_device=%d sound_output=%d heap=%zu/%zu/%zu\n",
              s_frames, gameLocal.GetFrameNum(), static_cast<int>(console->Active()),
              static_cast<int>(gameLocal.GameState() == GAMESTATE_NOMAP),
              static_cast<int>(ps2::system::runtime::HasPresentation()),
@@ -163,12 +164,12 @@ bool IsQuitRequested()
 
 } // namespace ps2::system::runtime
 
-PS2_COLD_FUNC void idCommonLocal::InitHeadless()
+PS2_COLD_FUNC void idCommonLocal::InitProduction()
 {
     PS2_Assert(IsInitialized());
     if (!IsInitialized() || s_initialized) [[unlikely]]
     {
-        ps2::FatalError("invalid headless game startup");
+        ps2::FatalError("invalid production game startup");
     }
 
     // Tagged ledgers after each stage record what the startup data costs on the EE.
@@ -197,25 +198,25 @@ PS2_COLD_FUNC void idCommonLocal::InitHeadless()
     soundWorld = soundSystem->AllocSoundWorld(renderWorld);
     menuSoundWorld = soundSystem->AllocSoundWorld(nullptr);
     userCmdMgr.SetDefaults();
-    cmdSystem->AddCommand("ps2_status", Status, CMD_FL_SYSTEM, CMD_DESC("print headless startup state and completed frame counts"));
+    cmdSystem->AddCommand("ps2_status", Status, CMD_FL_SYSTEM, CMD_DESC("print production startup state and completed frame counts"));
     cvarSystem->SetCVarBool("com_allowConsole", true);
     consoleUsed = true;
 
     const sysEvent_t open{ SE_KEY, K_GRAVE, 1, 0, nullptr, 0 };
     if (!console->ProcessEvent(&open, false) || !console->Active() || gameLocal.GameState() != GAMESTATE_NOMAP) [[unlikely]]
     {
-        ps2::FatalError("native game did not reach the headless console");
+        ps2::FatalError("native game did not reach the console");
     }
 
     s_initialized = true;
     ps2::system::runtime::InitPresentation();
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] HEADLESS console ready; append commands to host:console.txt\n");
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] COMMON console ready; append commands to host:console.txt\n");
     Status(idCmdArgs{});
 }
 
-void idCommonLocal::FrameHeadless()
+void idCommonLocal::FrameProduction()
 {
-    PS2_AssertMsg(s_initialized && s_frames != INT_MAX && idLib::frameNumber != INT_MAX, "invalid headless game frame");
+    PS2_AssertMsg(s_initialized && s_frames != INT_MAX && idLib::frameNumber != INT_MAX, "invalid production game frame");
 
     ps2::system::runtime::BeginPresentationFrame();
     PollConsole();
@@ -230,7 +231,7 @@ void idCommonLocal::FrameHeadless()
     game->RunFrame(userCmdMgr, result); // Native NOMAP frames return without advancing map simulation.
     if (result.sessionCommand[0] != '\0') [[unlikely]]
     {
-        ps2::FatalError("headless console cannot process a map/session transition");
+        ps2::FatalError("the production console cannot process a map/session transition yet");
     }
 
     ++s_frames;
@@ -240,12 +241,12 @@ void idCommonLocal::FrameHeadless()
 
     if (s_maxFrames.GetInteger() > 0 && s_frames >= s_maxFrames.GetInteger()) [[unlikely]]
     {
-        ps2::Log(ps2::LogLevel::Info, "[D3BFG] HEADLESS frame limit reached frames=%d\n", s_frames);
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] COMMON frame limit reached frames=%d\n", s_frames);
         ps2::system::runtime::RequestQuit();
     }
 }
 
-PS2_COLD_FUNC void idCommonLocal::ShutdownHeadless()
+PS2_COLD_FUNC void idCommonLocal::ShutdownProduction()
 {
     if (!s_initialized)
     {
@@ -271,5 +272,5 @@ PS2_COLD_FUNC void idCommonLocal::ShutdownHeadless()
     eventLoop->Shutdown();
     idKeyInput::Shutdown();
     s_initialized = false;
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] HEADLESS shutdown complete frames=%d\n", s_frames);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] COMMON shutdown complete frames=%d\n", s_frames);
 }

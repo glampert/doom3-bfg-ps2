@@ -23,7 +23,7 @@ from stage_headless import REPO_ROOT, boot_data, sha256, stage
 BOOT_BEGIN = "======== PS2 Game boot begin ========"
 LOOP_READY = "Main loop ready;"
 SHUTDOWN_COMPLETE = "======== Shutdown complete ========"
-STATUS_RE = re.compile(r"\[D3BFG\] HEADLESS frames=(\d+) game_frames=0 state=console console=1 game_nomap=1 render_device=0 sound_output=0 heap=(\d+)/(\d+)/(\d+)")
+STATUS_RE = re.compile(r"\[D3BFG\] COMMON frames=(\d+) game_frames=0 state=console console=1 game_nomap=1 render_device=0 sound_output=0 heap=(\d+)/(\d+)/(\d+)")
 MEMORY_RE = re.compile(r"Memory baseline=(\d+)/(\d+)/(\d+) final=(\d+)/(\d+)/(\d+) peak=(\d+)/(\d+) arena=(\d+)")
 STARTUP_STAGES = ("startup-foundation", "startup-decls", "startup-game")
 STARTUP_RE = re.compile(r"\[D3BFG\] MEMORY (startup-\w+) requested=(\d+) backing=(\d+) allocations=(\d+)")
@@ -70,14 +70,14 @@ def classify(log: str, case: str, identity: str) -> tuple[bool, str]:
         return False, "crash or fatal diagnostic"
     if "[D3BFG] GS ready" in log:
         return False, "headless run initialized a GS device"
-    required = ("game initialized.", "HEADLESS console ready;", LOOP_READY,
+    required = ("game initialized.", "COMMON console ready;", LOOP_READY,
                 "------------ Game Shutdown", "COMMON stage=system shutdown", SHUTDOWN_COMPLETE)
     if any(marker not in log for marker in required):
         return False, "incomplete native boot/shutdown"
     if f"{identity}_begin" not in log:
         return False, "stale or missing run identity"
     bounded = case in ("bounded", "retail")
-    frames = re.findall(r"HEADLESS shutdown complete frames=(\d+)", log)
+    frames = re.findall(r"COMMON shutdown complete frames=(\d+)", log)
     if len(frames) != 1 or (int(frames[0]) != 120 if bounded else int(frames[0]) < 120):
         return False, "incorrect completed frame count"
     statuses = STATUS_RE.findall(log)
@@ -92,7 +92,7 @@ def classify(log: str, case: str, identity: str) -> tuple[bool, str]:
         if [stage for stage, *_ in STARTUP_RE.findall(log)] != list(STARTUP_STAGES):
             return False, "missing or repeated startup memory checkpoints"
     if bounded:
-        if "HEADLESS frame limit reached frames=120" not in log:
+        if "COMMON frame limit reached frames=120" not in log:
             return False, "frame limit did not request shutdown"
     elif f"]echo \"{identity}_command\"" not in log or "]quit" not in log or "]history" not in log:
         return False, "live console commands did not execute"

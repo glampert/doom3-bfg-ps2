@@ -26,16 +26,16 @@ RETAIL_STARTUP = ("Loaded resource file _common.resources\nLoaded resource file 
 
 
 def completed(case="bounded"):
-    status = "[D3BFG] HEADLESS frames={frame} game_frames=0 state=console console=1 game_nomap=1 render_device=0 sound_output=0 heap=10/20/3\n"
+    status = "[D3BFG] COMMON frames={frame} game_frames=0 state=console console=1 game_nomap=1 render_device=0 sound_output=0 heap=10/20/3\n"
     log = RETAIL_STARTUP if case == "retail" else ""
-    log += "game initialized.\nHEADLESS console ready;\nMain loop ready;\nrun_begin\n"
+    log += "game initialized.\nCOMMON console ready;\nMain loop ready;\nrun_begin\n"
     log += status.format(frame=0) + status.format(frame=120)
     if case in ("bounded", "retail"):
-        log += "HEADLESS frame limit reached frames=120\n"
+        log += "COMMON frame limit reached frames=120\n"
     else:
         log += ']echo "run_command"\n]history\n]quit\n'
         log += "discarding invalid or oversized headless console line\n" * 2
-    log += "------------ Game Shutdown\nHEADLESS shutdown complete frames=120\n"
+    log += "------------ Game Shutdown\nCOMMON shutdown complete frames=120\n"
     log += "COMMON stage=system shutdown\nMemory baseline=1/2/3 final=1/2/3 peak=10/20 arena=30\n======== Shutdown complete ========\n"
     return log
 
@@ -60,11 +60,11 @@ class HeadlessAcceptance(unittest.TestCase):
                 self.assertFalse(runner.classify(completed().replace(old, new), "bounded", "run")[0])
 
     def test_missing_or_duplicate_shutdown(self):
-        for log in (completed().replace("======== Shutdown complete ========", ""), completed() + "HEADLESS shutdown complete frames=120\n"):
+        for log in (completed().replace("======== Shutdown complete ========", ""), completed() + "COMMON shutdown complete frames=120\n"):
             self.assertFalse(runner.classify(log, "bounded", "run")[0])
 
     def test_frame_count_and_memory_recovery(self):
-        for old, new in (("HEADLESS shutdown complete frames=120", "HEADLESS shutdown complete frames=119"), ("final=1/2/3", "final=1/2/4")):
+        for old, new in (("COMMON shutdown complete frames=120", "COMMON shutdown complete frames=119"), ("final=1/2/3", "final=1/2/4")):
             with self.subTest(field=old):
                 self.assertFalse(runner.classify(completed().replace(old, new), "bounded", "run")[0])
 
@@ -81,7 +81,7 @@ class HeadlessAcceptance(unittest.TestCase):
         repeated = log.replace("[D3BFG] MEMORY startup-game", "[D3BFG] MEMORY startup-decls requested=1 backing=1 allocations=1\n"
                                "[D3BFG] MEMORY startup-game", 1)
         self.assertFalse(runner.classify(repeated, "retail", "run")[0])
-        self.assertFalse(runner.classify(log.replace("HEADLESS frame limit reached frames=120", ""), "retail", "run")[0])
+        self.assertFalse(runner.classify(log.replace("COMMON frame limit reached frames=120", ""), "retail", "run")[0])
         # An authored boot's checkpoints cannot stand in for the retail containers.
         self.assertFalse(runner.classify(completed("bounded"), "retail", "run")[0])
 

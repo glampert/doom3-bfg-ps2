@@ -623,7 +623,7 @@ def classify_menu_boot(log: str, identity: str, standard: str, manifest: dict, s
     # Both movies open before the startup commands, and the menu closes the console as StartMenu does.
     if not max(shell_loads[0].end(), dialog_loads[0].end()) < ready.start():
         return False, "the menu did not open before the startup commands"
-    if "HEADLESS frames=0 game_frames=0 state=console console=0" not in log[:ready.start()]:
+    if "COMMON frames=0 game_frames=0 state=console console=0" not in log[:ready.start()]:
         return False, "the console stayed open over the menu at startup"
     if UNRENDERED.search(log):
         return False, "native menu drew text at a size without pre-rendered glyphs"
