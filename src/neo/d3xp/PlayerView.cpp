@@ -611,6 +611,8 @@ void idPlayerView::ScreenFade() {
 	}
 }
 
+// [PS2_D3BFG]: No stereoscopic rendering on the PS2: the view always renders once (mono).
+#if !defined( ID_PS2 )
 idCVar	stereoRender_interOccularCentimeters( "stereoRender_interOccularCentimeters", "3.0", CVAR_ARCHIVE | CVAR_RENDERER, "Distance between eyes" );
 idCVar	stereoRender_convergence( "stereoRender_convergence", "6", CVAR_RENDERER, "0 = head mounted display, otherwise world units to convergence plane" );
 
@@ -727,6 +729,7 @@ bool	IsGameStereoRendered() {
 int EyeForHalfRateFrame( const int frameCount ) {
 	return ( renderSystem->GetFrameCount() & 1 ) ? -1 : 1;
 }
+#endif
 
 /*
 ===================
@@ -735,6 +738,9 @@ idPlayerView::RenderPlayerView
 */
 void idPlayerView::RenderPlayerView( idMenuHandler_HUD * hudManager ) {
 	const renderView_t *view = player->GetRenderView();
+#if defined( ID_PS2 )	// [PS2_D3BFG]: Mono only.
+	SingleView( view, hudManager );
+#else
 	if ( renderSystem->GetStereo3DMode() != STEREO3D_OFF ) {
 		// render both eye views each frame on the PC
 		for ( int eye = 1 ; eye >= -1 ; eye -= 2 ) {
@@ -744,6 +750,7 @@ void idPlayerView::RenderPlayerView( idMenuHandler_HUD * hudManager ) {
 	{
 		SingleView( view, hudManager );
 	}
+#endif
 	ScreenFade();
 }
 

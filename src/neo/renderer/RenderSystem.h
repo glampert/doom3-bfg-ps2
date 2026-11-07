@@ -201,6 +201,8 @@ public:
 	// only called before quitting
 	virtual void			Shutdown() = 0;
 
+	// [PS2_D3BFG]: No OpenGL context or gui model on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ResetGuiModels() = 0;
 
 	virtual void			InitOpenGL() = 0;
@@ -208,6 +210,7 @@ public:
 	virtual void			ShutdownOpenGL() = 0;
 
 	virtual bool			IsOpenGLRunning() const = 0;
+#endif
 
 	virtual bool			IsFullScreen() const = 0;
 	virtual int				GetWidth() const = 0;
@@ -218,6 +221,8 @@ public:
 	// A top-and-bottom stereo 3D frame will have a pixel aspect of 2.0
 	virtual float			GetPixelAspect() const = 0;
 
+	// [PS2_D3BFG]: No stereoscopic rendering on the PS2.
+#if !defined( ID_PS2 )
 	// This is used to calculate stereoscopic screen offset for a given interocular distance.
 	virtual float			GetPhysicalScreenWidthInCentimeters() const = 0;
 
@@ -228,6 +233,7 @@ public:
 	virtual stereo3DMode_t	GetStereoScopicRenderingMode() const = 0;
 	virtual void			EnableStereoScopicRendering( const stereo3DMode_t mode ) const = 0;
 	virtual bool			HasQuadBufferSupport() const = 0;
+#endif
 
 	// allocate a renderWorld to be used for drawing
 	virtual idRenderWorld *	AllocRenderWorld() = 0;
@@ -299,6 +305,8 @@ public:
 	// so new scenes and GUIs can be built up in parallel with the rendering.
 	virtual void			RenderCommandBuffers( const emptyCommand_t * commandBuffers ) = 0;
 
+	// [PS2_D3BFG]: No desktop screenshots or AVI capture; ps2_capture reads the GS frame buffer.
+#if !defined( ID_PS2 )
 	// aviDemo uses this.
 	// Will automatically tile render large screen shots if necessary
 	// Samples is the number of jittered frames for anti-aliasing
@@ -307,6 +315,7 @@ public:
 	// generate image files that happen during gameplay, as for savegame
 	// markers.  Use WriteRender() instead.
 	virtual void			TakeScreenshot( int width, int height, const char *fileName, int samples, struct renderView_s *ref ) = 0;
+#endif
 
 	// the render output can be cropped down to a subset of the real screen, as
 	// for save-game reviews and split-screen multiplayer.  Users of the renderer
@@ -319,15 +328,20 @@ public:
 	// if the specified physical dimensions are larger than the current cropped region, they will be cut down to fit
 	virtual void			CropRenderSize( int width, int height ) = 0;
 	virtual void			CaptureRenderToImage( const char *imageName, bool clearColorAfterCopy = false ) = 0;
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No desktop screenshots.
 	// fixAlpha will set all the alpha channel values to 0xff, which allows screen captures
 	// to use the default tga loading code without having dimmed down areas in many places
 	virtual void			CaptureRenderToFile( const char *fileName, bool fixAlpha = false ) = 0;
+#endif
 	virtual void			UnCrop() = 0;
 
+	// [PS2_D3BFG]: Only Doom Classic uploads images by name.
+#if !defined( ID_PS2 )
 	// the image has to be already loaded ( most straightforward way would be through a FindMaterial )
 	// texture filter / mipmapping / repeat won't be modified by the upload
 	// returns false if the image wasn't found
 	virtual bool			UploadImage( const char *imageName, const byte *data, int width, int height ) = 0;
+#endif
 
 	// consoles switch stereo 3D eye views each 60 hz frame
 	virtual int				GetFrameCount() const = 0;

@@ -463,7 +463,7 @@ void idCommonLocal::Frame() {
 
 		const bool pauseGame = ( !mapSpawned || ( !IsMultiplayer() && ( Dialog().IsDialogPausing() || session->IsSystemUIShowing() || ( game && game->Shell_IsActive() ) ) ) ) && !IsPlayingDoomClassic();
 
-#if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No desktop screenshots or AVI capture on the PS2.
 		// save the screenshot and audio from the last draw if needed
 		if ( aviCaptureMode ) {
 			idStr name = va("demos/%s/%s_%05i.tga", aviDemoShortName.c_str(), aviDemoShortName.c_str(), aviDemoFrameCount++ );

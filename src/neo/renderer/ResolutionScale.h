@@ -28,6 +28,8 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __RESOLUTIONSCALE_H__
 #define __RESOLUTIONSCALE_H__
 
+// [PS2_D3BFG]: No GPU timer and no dynamic resolution; views render at the full frame size.
+#if !defined( ID_PS2 )
 class idResolutionScale {
 public:
 			idResolutionScale();
@@ -60,5 +62,6 @@ private:
 };
 
 extern idResolutionScale resolutionScale;
+#endif
 
 #endif // __RESOLUTIONSCALE_H__

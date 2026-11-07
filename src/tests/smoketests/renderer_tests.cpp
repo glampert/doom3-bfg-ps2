@@ -28,13 +28,10 @@ bool RunRendererTests()
 {
     autoRenderIconType_t icon = AUTORENDER_HELLICON;
     bool passed = Check("inactive-interfaces", renderSystem == &tr && globalImages != nullptr && !R_IsInitialized() &&
-                                               !tr.registered && !renderSystem->IsOpenGLRunning() && !renderSystem->IsFullScreen() &&
-                                               !renderSystem->HasQuadBufferSupport() && !renderSystem->IsStereoScopicRenderingSupported() &&
-                                               renderSystem->GetStereo3DMode() == STEREO3D_OFF && renderSystem->GetStereoScopicRenderingMode() == STEREO3D_OFF &&
+                                               !tr.registered && !renderSystem->IsFullScreen() &&
                                                !renderSystem->AreAutomaticBackgroundSwapsRunning(&icon) && icon == AUTORENDER_HELLICON &&
                                                renderSystem->GetFrameCount() == 0 && tr.worlds.Num() == 0 && tr.fonts.Num() == 0 && tr.guiModel == nullptr &&
-                                               !glConfig.vertexBufferObjectAvailable && !glConfig.uniformBufferAvailable &&
-                                               glConfig.nativeScreenWidth == 0 && glConfig.nativeScreenHeight == 0 && globalImages->images.Num() == 0 &&
+                                               globalImages->images.Num() == 0 &&
                                                globalImages->defaultImage == nullptr && globalImages->currentRenderImage == nullptr);
 
     const system::heap::Stats before = system::heap::GetTotalStats();
@@ -68,18 +65,11 @@ bool RunRendererTests()
     }
     passed = Check("empty-resource-ledger", metadata) && passed;
 
-    idStr text;
-    float x = 0.0f;
-    float y = 0.0f;
-    resolutionScale.ResetToFullResolution();
-    resolutionScale.SetCurrentGPUFrameTime(0);
-    resolutionScale.GetCurrentResolutionScale(x, y);
-    resolutionScale.GetConsoleText(text);
     const idCVar * nearPlane = cvarSystem->Find("r_znear");
     const idCVar * dynamicModels = cvarSystem->Find("r_useCachedDynamicModels");
-    passed = Check("disabled-resolution-cvars", x == 1.0f && y == 1.0f && idStr::Cmp(text, "rendering unavailable") == 0 &&
-                                                nearPlane != nullptr && nearPlane->GetFloat() == 3.0f && (nearPlane->GetFlags() & (CVAR_RENDERER | CVAR_FLOAT)) == (CVAR_RENDERER | CVAR_FLOAT) &&
-                                                dynamicModels != nullptr && dynamicModels->GetBool()) &&
+    passed = Check("frontend-cvars", nearPlane != nullptr && nearPlane->GetFloat() == 3.0f &&
+                                     (nearPlane->GetFlags() & (CVAR_RENDERER | CVAR_FLOAT)) == (CVAR_RENDERER | CVAR_FLOAT) &&
+                                     dynamicModels != nullptr && dynamicModels->GetBool()) &&
              passed;
 
     // The VU rule's product reached the link: the passthrough program's .vutext symbols bracket

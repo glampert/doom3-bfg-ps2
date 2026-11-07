@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: logical_renderer.cpp
-// Brief: Bind id's tr/renderSystem, program manager, resolution scale and vertex cache: CPU models and worlds; the rest fails by name.
+// Brief: Bind id's tr/renderSystem and vertex cache: CPU models and worlds; the rest fails by name.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -8,7 +8,6 @@
 #include "ps2/system/log.h"
 #include "ps2/ui/draw.h"
 #include <idlib/precompiled.h>
-#include <renderer/ResolutionScale.h>
 #include <renderer/tr_local.h>
 
 // Native world declarations depend on frontend types from tr_local.h.
@@ -27,8 +26,6 @@ namespace ps2::renderer
 // Keep the native frontend storage and interface identity; no frame arenas or device are created.
 idRenderSystemLocal tr;
 idRenderSystem * renderSystem = &tr;
-backEndState_t backEnd{};
-glconfig_t glConfig{};
 
 namespace
 {
@@ -181,34 +178,9 @@ bool R_IsInitialized()
     return ps2::ui::IsInitialized();
 }
 
-bool idRenderSystemLocal::IsOpenGLRunning() const
-{
-    return false;
-}
-
 bool idRenderSystemLocal::IsFullScreen() const
 {
     return this == &tr && ps2::ui::IsInitialized();
-}
-
-bool idRenderSystemLocal::HasQuadBufferSupport() const
-{
-    return false;
-}
-
-bool idRenderSystemLocal::IsStereoScopicRenderingSupported() const
-{
-    return false;
-}
-
-stereo3DMode_t idRenderSystemLocal::GetStereo3DMode() const
-{
-    return STEREO3D_OFF;
-}
-
-stereo3DMode_t idRenderSystemLocal::GetStereoScopicRenderingMode() const
-{
-    return STEREO3D_OFF;
 }
 
 bool idRenderSystemLocal::AreAutomaticBackgroundSwapsRunning(autoRenderIconType_t *) const
@@ -225,21 +197,12 @@ PS2_COLD_FUNC void idRenderSystemLocal::Shutdown()
     Clear();
 }
 
-PS2_COLD_FUNC void idRenderSystemLocal::ShutdownOpenGL()
-{
-    CheckNoResources(*this, "idRenderSystemLocal::ShutdownOpenGL");
-}
-
 void idRenderSystemLocal::EndAutomaticBackgroundSwaps()
 {
 }
 
-// Views render at the full frame-buffer size: no resolution scaling, and the only crop is the
-// whole screen (RenderScene's own). Render-to-texture crops come with their PS2 passes.
-void idRenderSystemLocal::PerformResolutionScaling(int &, int &)
-{
-}
-
+// Views render at the full frame-buffer size; the only crop is the whole screen (RenderScene's
+// own). Render-to-texture crops come with their PS2 passes.
 void idRenderSystemLocal::CropRenderSize(int width, int height)
 {
     PS2_AssertMsg(width == GetWidth() && height == GetHeight(), "render crops other than the full screen are unavailable");
@@ -266,10 +229,6 @@ void idRenderSystemLocal::GetCroppedViewport(idScreenRect * viewport)
     }
 
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::Init, ())
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::InitOpenGL, ())
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::ResetGuiModels, ())
-RENDER_UNAVAILABLE(float, idRenderSystemLocal::GetPhysicalScreenWidthInCentimeters, () const)
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::EnableStereoScopicRendering, (stereo3DMode_t) const)
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::BeginLevelLoad, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::EndLevelLoad, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::LoadLevelImages, ())
@@ -282,19 +241,14 @@ RENDER_UNAVAILABLE(const emptyCommand_t *, idRenderSystemLocal::SwapCommandBuffe
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::SwapCommandBuffers_FinishRendering, (uint64 *, uint64 *, uint64 *, uint64 *))
 RENDER_UNAVAILABLE(const emptyCommand_t *, idRenderSystemLocal::SwapCommandBuffers_FinishCommandBuffers, ())
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::RenderCommandBuffers, (const emptyCommand_t *))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::TakeScreenshot, (int, int, const char *, int, renderView_t *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::CaptureRenderToImage, (const char *, bool))
-RENDER_UNAVAILABLE(void, idRenderSystemLocal::CaptureRenderToFile, (const char *, bool))
-RENDER_UNAVAILABLE(bool, idRenderSystemLocal::UploadImage, (const char *, const byte *, int, int))
 
 #if defined(PS2_D3BFG_FOUNDATION)
 RENDER_UNAVAILABLE(idFont *, idRenderSystemLocal::RegisterFont, (const char *))
 RENDER_UNAVAILABLE(void, idRenderSystemLocal::ResetFonts, ())
 #endif // PS2_D3BFG_FOUNDATION
 
-RENDER_UNAVAILABLE(void, R_AddDrawViewCmd, (viewDef_t *, bool))
 RENDER_UNAVAILABLE(void, R_AddDrawPostProcess, (viewDef_t *))
-RENDER_UNAVAILABLE(bool, R_GetModeListForDisplay, (int, idList<vidMode_t> &))
 RENDER_UNAVAILABLE(void, RB_AddDebugLine, (const idVec4 &, const idVec3 &, const idVec3 &, int, bool))
 RENDER_UNAVAILABLE(void, RB_AddDebugText, (const char *, const idVec3 &, float, const idVec4 &, const idMat3 &, int, int, bool))
 RENDER_UNAVAILABLE(void, RB_AddDebugPolygon, (const idVec4 &, const idWinding &, int, bool))
@@ -331,11 +285,6 @@ void idRenderWorldLocal::WriteFreeLight(int)
 void idRenderWorldLocal::WriteRenderView(const renderView_t *)
 {
     CheckDemoInactive("idRenderWorldLocal::WriteRenderView");
-}
-
-void idRenderWorldLocal::WriteVisibleDefs(const viewDef_t *)
-{
-    CheckDemoInactive("idRenderWorldLocal::WriteVisibleDefs");
 }
 
 void idRenderWorldLocal::StopWritingDemo()
@@ -388,61 +337,6 @@ PS2_COLD_FUNC void idRenderSystemLocal::FreeRenderWorld(idRenderWorld * world)
 }
 
 #endif // PS2_D3BFG_FOUNDATION
-
-// ------------------------------------------------------------------------------------------------
-// Render programs and resolution scaling
-// ------------------------------------------------------------------------------------------------
-
-// id's GLSL program manager has no programs here (the VU1 programs are ps2::renderer::vu's); a
-// material that looks one up fails by name.
-idRenderProgManager renderProgManager;
-idResolutionScale resolutionScale;
-
-idRenderProgManager::idRenderProgManager()
-    : backendState(nullptr)
-{
-    for (int & shader : builtinShaders)
-    {
-        shader = -1;
-    }
-}
-
-idRenderProgManager::~idRenderProgManager()
-{
-    if (backendState != nullptr) [[unlikely]]
-    {
-        ps2::FatalError("idRenderProgManager::~idRenderProgManager with backend state");
-    }
-}
-
-// Always full resolution: there is no GPU timer to drive the scale.
-idResolutionScale::idResolutionScale()
-    : dropMilliseconds(0.0f), raiseMilliseconds(0.0f), framesAboveRaise(0), currentResolution(1.0f)
-{
-}
-
-void idResolutionScale::ResetToFullResolution()
-{
-    currentResolution = 1.0f;
-}
-
-void idResolutionScale::GetCurrentResolutionScale(float & x, float & y)
-{
-    x = y = currentResolution;
-}
-
-void idResolutionScale::GetConsoleText(idStr & text)
-{
-    text = "rendering unavailable";
-}
-
-void idResolutionScale::SetCurrentGPUFrameTime(int microseconds)
-{
-    if (microseconds != 0) [[unlikely]]
-    {
-        ps2::FatalError("idResolutionScale::SetCurrentGPUFrameTime");
-    }
-}
 
 // ------------------------------------------------------------------------------------------------
 // Vertex cache
@@ -543,9 +437,6 @@ PS2_COLD_FUNC void idVertexCache::Shutdown()
         ps2::renderer::Unavailable(#method);           \
     }
 
-RENDER_UNAVAILABLE(int, idRenderProgManager::FindVertexShader, (const char *))
-RENDER_UNAVAILABLE(int, idRenderProgManager::FindFragmentShader, (const char *))
-RENDER_UNAVAILABLE(int, idRenderProgManager::FindGLSLProgram, (const char *, int, int))
 RENDER_UNAVAILABLE(vertCacheHandle_t, idVertexCache::ActuallyAlloc, (geoBufferSet_t &, const void *, int, cacheType_t))
 
 #undef RENDER_UNAVAILABLE

@@ -1251,7 +1251,11 @@ idRenderModel *idRenderModelMD5::InstantiateDynamicModel( const struct renderEnt
 	const int numInvertedJoints = SIMD_ROUND_JOINTS( joints.Num() );
 	if ( staticModel->jointsInverted == NULL ) {
 		staticModel->numInvertedJoints = numInvertedJoints;
+#if defined( ID_PS2 )	// [PS2_D3BFG]: No uniform buffers (a zero GL alignment made ALIGN return 0 bytes).
+		const int alignment = 16;
+#else
 		const int alignment = glConfig.uniformBufferOffsetAlignment;
+#endif
 		staticModel->jointsInverted = (idJointMat *)Mem_ClearedAlloc( ALIGN( numInvertedJoints * sizeof( idJointMat ), alignment ), TAG_JOINTMAT );
 		staticModel->jointsInvertedBuffer = 0;
 	} else {

@@ -50,4 +50,3 @@ DEV_CVAR( idCVar r_jointNameScale("r_jointNameScale", "0.02", CVAR_RENDERER | CV
 DEV_CVAR( idCVar r_jointNameOffset("r_jointNameOffset", "0.5", CVAR_RENDERER | CVAR_FLOAT, "offset of joint names when r_showskel is set to 1") );	// [PS2_D3BFG]
 idCVar r_debugArrowStep("r_debugArrowStep", "120", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER, "step size of arrow cone line rotation in degrees", 0, 120);
 DEV_CVAR( idCVar r_materialOverride("r_materialOverride", "", CVAR_RENDERER, "overrides all materials", idCmdSystem::ArgCompletion_Decl<DECL_MATERIAL>) );	// [PS2_D3BFG]
-idCVar stereoRender_swapEyes("stereoRender_swapEyes", "0", CVAR_BOOL | CVAR_ARCHIVE, "reverse eye adjustments");

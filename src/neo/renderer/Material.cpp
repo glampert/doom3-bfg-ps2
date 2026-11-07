@@ -1544,6 +1544,27 @@ void idMaterial::ParseStage( idLexer &src, const textureRepeat_t trpDefault ) {
 			ss->conditionRegister = ParseExpression( src );
 			continue;
 		}
+		// [PS2_D3BFG]: No GLSL programs; -1 keeps the stage marked as program-driven (newStage set).
+#if defined( ID_PS2 )
+		if ( !token.Icmp( "program" ) ) {
+			if ( src.ReadTokenOnLine( &token ) ) {
+				newStage.vertexProgram = newStage.fragmentProgram = -1;
+			}
+			continue;
+		}
+		if ( !token.Icmp( "fragmentProgram" ) ) {
+			if ( src.ReadTokenOnLine( &token ) ) {
+				newStage.fragmentProgram = -1;
+			}
+			continue;
+		}
+		if ( !token.Icmp( "vertexProgram" ) ) {
+			if ( src.ReadTokenOnLine( &token ) ) {
+				newStage.vertexProgram = -1;
+			}
+			continue;
+		}
+#else
 		if ( !token.Icmp( "program" ) ) {
 			if ( src.ReadTokenOnLine( &token ) ) {
 				newStage.vertexProgram = renderProgManager.FindVertexShader( token.c_str() );
@@ -1563,6 +1584,7 @@ void idMaterial::ParseStage( idLexer &src, const textureRepeat_t trpDefault ) {
 			}
 			continue;
 		}
+#endif
 
 		if ( !token.Icmp( "vertexParm2" ) ) {
 			ParseVertexParm2( src, &newStage );
@@ -1588,7 +1610,9 @@ void idMaterial::ParseStage( idLexer &src, const textureRepeat_t trpDefault ) {
 
 	// if we are using newStage, allocate a copy of it
 	if ( newStage.fragmentProgram || newStage.vertexProgram ) {
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: glslProgram stays -1.
 		newStage.glslProgram = renderProgManager.FindGLSLProgram( GetName(), newStage.vertexProgram, newStage.fragmentProgram );
+#endif
 		ss->newStage = (newShaderStage_t *)Mem_Alloc( sizeof( newStage ), TAG_MATERIAL );
 		*(ss->newStage) = newStage;
 	}

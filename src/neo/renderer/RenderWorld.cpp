@@ -822,7 +822,9 @@ void idRenderWorldLocal::RenderScene( const renderView_t *renderView ) {
 
 	int windowWidth = tr.GetWidth();
 	int windowHeight = tr.GetHeight();
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No dynamic resolution scaling.
 	tr.PerformResolutionScaling( windowWidth, windowHeight );
+#endif
 
 #if !defined( ID_PS2 ) || PS2_D3BFG_DEBUG	// [PS2_D3BFG]: Developer cvars are debug-only on the PS2.
 	// screenFraction is just for quickly testing fill rate limitations

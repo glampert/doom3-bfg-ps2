@@ -125,7 +125,7 @@ REQUIRED_GS_CHECKS = frozenset("renderer-gs/" + name for name in (
 REQUIRED_CORE_CHECKS = frozenset({
     "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
-    "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/disabled-resolution-cvars",
+    "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/frontend-cvars",
     "renderer/passthrough-microprogram",
     "math/qword-copies", "math/vu0-transform", "math/vu0-lerp", "math/vu0-matrix-multiply", "math/vu0-backface-cull",
     "math/transcendentals",

@@ -340,8 +340,10 @@ its BSWF and font remain host-test stand-ins). These findings carry over to reta
   storage despite having no network peers. Populated-state runtime acceptance remains
   an M3 check. Inactive demo cleanup can return safely; active demos fail explicitly.
 - `renderSystem` and direct retained frontend callers must share native `tr` identity.
-  Bind the full `idRenderSystemLocal` vtable and native image/shader/cache globals with
-  typed definitions; no generic symbol shims or desktop arenas. Inactive state is a
+  Bind the full `idRenderSystemLocal` vtable and native image/cache globals with
+  typed definitions; no generic symbol shims or desktop arenas. Desktop-only features
+  (GLSL programs, resolution scaling, OpenGL/stereo/screenshot virtuals, `backEnd`,
+  `glConfig`) are compiled out under `ID_PS2` in id's headers and callers, not stubbed. Inactive state is a
   valid query, while live dimensions, allocation and submission fail until implemented.
   Preserve referenced frontend cvar defaults/flags/bounds. Unloaded image metadata and
   empty buffer cleanup must not claim a loaded resource or mutate the heap ledger.

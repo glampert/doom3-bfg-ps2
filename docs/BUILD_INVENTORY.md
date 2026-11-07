@@ -334,18 +334,22 @@ Two explicit `RENDER_BINDING_CXX_SRC` units (`RENDER_STUB_CXX_SRC` with four uni
 against full native headers under strict warnings; no upstream renderer sources or layouts
 change. `logical_renderer.cpp` (`null_render.cpp` until 2026-11-07) binds `renderSystem`
 to the native `tr`, provides zero device/backend state, the complete native render-system
-vtable, debug entry points and demo boundaries, and, since `vertex_stubs.cpp` and the program
-and resolution parts of `image_stubs.cpp` were retired into it (2026-11-07), id's
-`renderProgManager`, `resolutionScale` (always full resolution) and an empty `vertexCache`
-whose buffers construct and clean up empty. `image_backend.cpp` took the rest of
+vtable, debug entry points and demo boundaries, and, since `vertex_stubs.cpp` was retired
+into it (2026-11-07), an empty `vertexCache` whose buffers construct and clean up empty.
+The desktop-only parts of id's renderer are compiled out under `ID_PS2` instead of stubbed
+(2026-11-07): GLSL programs (`idRenderProgManager`; material `program`/`vertexProgram`/
+`fragmentProgram` stages keep `newStage` with the program indexes at -1), dynamic resolution
+scaling (`idResolutionScale`, `PerformResolutionScaling`), `backEnd`, `glConfig`, and the
+render-system virtuals for OpenGL, the gui model, stereoscopic rendering (the player view
+renders mono, `IsGameStereoRendered` is inline false and Settings has no stereo entry),
+desktop screenshots/AVI capture and Doom Classic image uploads. `image_backend.cpp` took the rest of
 `image_stubs.cpp`: `globalImages`, `idImage::Reload`, the image manager's bulk build and the
 cinematic classes, all failing by name. Methods of those classes that no linked object
 references were deleted rather than moved (`nm` over every debug and release object).
 `render_cvars.cpp` preserves the
-42 referenced frontend controls with native defaults, flags, bounds and completions.
+41 referenced frontend controls with native defaults, flags, bounds and completions.
 
-Only inactive queries, unloaded image metadata, empty-resource cleanup and a disabled
-full-resolution policy are supported. Display dimensions, initialization, loading,
+Only inactive queries, unloaded image metadata and empty-resource cleanup are supported. Display dimensions, initialization, loading,
 allocation, shader/timing queries and draw submission fail explicitly. Demo writes
 can return when no recorder exists; active demo operations fail. These providers close
 all 87 renderer symbols and two cinematic sound-window symbols from the preceding link.

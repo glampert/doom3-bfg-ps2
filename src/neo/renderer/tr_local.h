@@ -685,20 +685,27 @@ public:
 	// external functions
 	virtual void			Init();
 	virtual void			Shutdown();
+	// [PS2_D3BFG]: No OpenGL context, gui model or stereoscopic rendering on the PS2.
+#if !defined( ID_PS2 )
 	virtual void			ResetGuiModels();
 	virtual void			InitOpenGL();
 	virtual void			ShutdownOpenGL();
 	virtual bool			IsOpenGLRunning() const;
+#endif
 	virtual bool			IsFullScreen() const;
+#if !defined( ID_PS2 )
 	virtual stereo3DMode_t	GetStereo3DMode() const;
 	virtual bool			HasQuadBufferSupport() const;
 	virtual bool			IsStereoScopicRenderingSupported() const;
 	virtual stereo3DMode_t	GetStereoScopicRenderingMode() const;
 	virtual void			EnableStereoScopicRendering( const stereo3DMode_t mode ) const;
+#endif
 	virtual int				GetWidth() const;
 	virtual int				GetHeight() const;
 	virtual float			GetPixelAspect() const;
+#if !defined( ID_PS2 )
 	virtual float			GetPhysicalScreenWidthInCentimeters() const;
+#endif
 	virtual idRenderWorld *	AllocRenderWorld();
 	virtual void			FreeRenderWorld( idRenderWorld *rw );
 	virtual void			BeginLevelLoad();
@@ -734,12 +741,18 @@ public:
 	virtual const emptyCommand_t *	SwapCommandBuffers_FinishCommandBuffers();
 
 	virtual void			RenderCommandBuffers( const emptyCommand_t * commandBuffers );
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No desktop screenshots or Doom Classic image uploads.
 	virtual void			TakeScreenshot( int width, int height, const char *fileName, int downSample, renderView_t *ref );
+#endif
 	virtual void			CropRenderSize( int width, int height );
 	virtual void			CaptureRenderToImage( const char *imageName, bool clearColorAfterCopy = false );
+#if !defined( ID_PS2 )
 	virtual void			CaptureRenderToFile( const char *fileName, bool fixAlpha );
+#endif
 	virtual void			UnCrop();
+#if !defined( ID_PS2 )
 	virtual bool			UploadImage( const char *imageName, const byte *data, int width, int height );
+#endif
 
 	
 
@@ -750,7 +763,9 @@ public:
 
 	void					Clear();
 	void					GetCroppedViewport( idScreenRect * viewport );
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No dynamic resolution scaling.
 	void					PerformResolutionScaling( int& newWidth, int& newHeight );
+#endif
 	int						GetFrameCount() const { return frameCount; };
 
 public:
@@ -820,9 +835,14 @@ public:
 	unsigned				timerQueryId;		// for GL_TIME_ELAPSED_EXT queries
 };
 
+// [PS2_D3BFG]: No OpenGL backend state or driver configuration on the PS2.
+#if !defined( ID_PS2 )
 extern backEndState_t		backEnd;
+#endif
 extern idRenderSystemLocal	tr;
+#if !defined( ID_PS2 )
 extern glconfig_t			glConfig;		// outside of TR since it shouldn't be cleared during ref re-init
+#endif
 
 //
 // cvars

@@ -348,7 +348,7 @@ bool NativeAdapters(system::video::Standard standard)
         const idImage * const chars = renderer::ConsoleCharsetImage();
         passed = white != nullptr && chars != nullptr && white->IsLoaded() && chars->IsLoaded() &&
                  white->StorageSize() == 8192 && chars->StorageSize() == 262144 && tr.registered && R_IsInitialized() &&
-                 !renderSystem->IsOpenGLRunning() && renderSystem->IsFullScreen() && renderSystem->GetWidth() == 512 &&
+                 renderSystem->IsFullScreen() && renderSystem->GetWidth() == 512 &&
                  renderSystem->GetHeight() == system::video::VisibleLines(standard) && passed;
         renderSystem->SetColor(idVec4(0.5f, 0.25f, 1.0f, 0.75f));
         passed = renderSystem->GetColor() == 0xBFFF3F7FU && passed;

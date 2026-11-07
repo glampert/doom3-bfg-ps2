@@ -242,11 +242,15 @@ float idConsoleLocal::DrawFPS( float y ) {
 
 	y += BIGCHAR_HEIGHT + 4;
 
+#if defined( ID_PS2 )	// [PS2_D3BFG]: No dynamic resolution scaling to report.
+	int w;
+#else
 	// print the resolution scale so we can tell when we are at reduced resolution
 	idStr resolutionText;
 	resolutionScale.GetConsoleText( resolutionText );
 	int w = resolutionText.Length() * BIGCHAR_WIDTH;
 	renderSystem->DrawBigStringExt( LOCALSAFE_RIGHT - w, idMath::Ftoi( y ) + 2, resolutionText.c_str(), colorWhite, true );
+#endif
 
 	const int gameThreadTotalTime = commonLocal.GetGameThreadTotalTime();
 	const int gameThreadGameTime = commonLocal.GetGameThreadGameTime();

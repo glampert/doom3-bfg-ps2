@@ -66,7 +66,7 @@ until implemented and tested.
 
 ## Retained renderer frontend controls
 
-The 42 controls below are registered by [render_cvars.cpp](../src/ps2/renderer/render_cvars.cpp)
+The 41 controls below are registered by [render_cvars.cpp](../src/ps2/renderer/render_cvars.cpp)
 in both core and campaign builds. The 24 developer controls (isolation, skip, show and joint-name
 toggles) are `DEV_CVAR`s: PS2 release builds compile them out with every reader, behaving as
 their defaults, so their release default reads "absent". The archived `r_debugArrowStep`
@@ -120,4 +120,3 @@ these retained frontend cvar registrations do not initialize a GS device or sele
 | `r_jointNameOffset` | `0.5` | absent | `CVAR_RENDERER`, `CVAR_FLOAT` | Native frontend control. |
 | `r_debugArrowStep` | `120` | `120` | `CVAR_RENDERER`, `CVAR_ARCHIVE`, `CVAR_INTEGER` | Clamped to 0–120. |
 | `r_materialOverride` | empty string | absent | `CVAR_RENDERER` | Native material-name completion; world-material override drawing remains unavailable. |
-| `stereoRender_swapEyes` | `0` | `0` | `CVAR_BOOL`, `CVAR_ARCHIVE` | Native frontend control. |

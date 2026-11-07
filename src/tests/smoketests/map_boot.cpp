@@ -94,7 +94,7 @@ bool RunMapTests()
                                           floor.c.entityNum == ENTITYNUM_WORLD && floor.c.normal == idVec3(0.0f, 0.0f, 1.0f) &&
                                           idMath::Fabs(floor.endpos.z - CM_CLIP_EPSILON) < 0.05f) &&
                  passed;
-        passed = Check("presentation-off", ps2::renderer::IsLogicalInitialized() && !renderSystem->IsOpenGLRunning() &&
+        passed = Check("presentation-off", ps2::renderer::IsLogicalInitialized() &&
                                            cvarSystem->GetCVarBool("s_noSound") && soundSystem->GetPlayingSoundWorld() == nullptr) &&
                  passed;
         const idVec3 start(-32.0f, 0.0f, 0.25f), goal(32.0f, 0.0f, 0.25f);

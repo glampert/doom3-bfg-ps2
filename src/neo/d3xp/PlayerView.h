@@ -360,7 +360,9 @@ public:
 	// this may involve rendering to a texture and displaying
 	// that with a warp model or in double vision mode
 	void				RenderPlayerView( idMenuHandler_HUD * hudManager );
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: No stereoscopic rendering.
 	void				EmitStereoEyeView( const int eye, idMenuHandler_HUD * hudManager );
+#endif
 
 	void				Fade( idVec4 color, int time );
 
@@ -412,6 +414,10 @@ public:
 };
 
 // the crosshair is swapped for a laser sight in stereo rendering
+#if defined( ID_PS2 )	// [PS2_D3BFG]: No stereoscopic rendering; callers fold the stereo branches.
+inline constexpr bool IsGameStereoRendered() { return false; }
+#else
 bool	IsGameStereoRendered();
+#endif
 
 #endif /* !__GAME_PLAYERVIEW_H__ */
