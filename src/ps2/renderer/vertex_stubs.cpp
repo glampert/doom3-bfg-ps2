@@ -4,7 +4,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/null_render.h"
+#include "ps2/renderer/logical_renderer.h"
 #include <idlib/precompiled.h>
 #include <renderer/tr_local.h>
 

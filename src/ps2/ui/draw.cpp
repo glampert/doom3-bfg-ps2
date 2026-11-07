@@ -6,7 +6,7 @@
 
 #include "ps2/ui/draw.h"
 #include "ps2/renderer/image_backend.h"
-#include "ps2/renderer/null_render.h"
+#include "ps2/renderer/logical_renderer.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"

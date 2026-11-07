@@ -5,7 +5,7 @@
 // ================================================================================================
 
 #include "ps2/input/devices.h"
-#include "ps2/renderer/null_render.h"
+#include "ps2/renderer/logical_renderer.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/lifecycle.h"

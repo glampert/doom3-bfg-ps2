@@ -5342,7 +5342,7 @@ checked against the 640 references at half their rows instead of only "not the c
 
 Comparing whole captures with the new references, not only the eight probes a view, found a
 culling defect that predates this change (the 2026-11-06 `clip` captures show it). The PS2's
-logical renderer startup (`renderer::InitLogical`, `null_render.cpp`) never set
+logical renderer startup (`renderer::InitLogical`, `logical_renderer.cpp`) never set
 `tr.identitySpace.modelMatrix`, which id's `idRenderSystemLocal::Init` makes the identity. The
 portal flow projects each visible portal's clipped winding through it for the screen rectangle
 that becomes the scissor of the areas behind it, so every rectangle collapsed onto the projected

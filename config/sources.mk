@@ -9,7 +9,7 @@ CORE_TEST_DRIVER_CXX_SRC = \
 PLATFORM_TEST_CXX_SRC = tests/smoketests/platform_stage.cpp
 
 RENDER_STUB_CXX_SRC = \
-	ps2/renderer/null_render.cpp \
+	ps2/renderer/logical_renderer.cpp \
 	ps2/renderer/image_stubs.cpp \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp
@@ -240,7 +240,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/input/usercmd_stub.cpp \
 	ps2/game/multiplayer_stub.cpp \
 	ps2/system/save_metadata.cpp \
-	ps2/renderer/null_render.cpp \
+	ps2/renderer/logical_renderer.cpp \
 	ps2/renderer/image_stubs.cpp \
 	ps2/renderer/vertex_stubs.cpp \
 	ps2/renderer/render_cvars.cpp \
@@ -569,7 +569,7 @@ SCRIPT_BOOT_CXX_SRC = \
 	tests/smoketests/script_boot.cpp
 
 # Required portable campaign support; compiled strictly without claiming a resident link.
-GAME_BACKEND_CXX_SRC = ps2/audio/voice_timeline.cpp ps2/audio/pcm_wave.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/null_render.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp ps2/renderer/world_map.cpp ps2/renderer/scene.cpp
+GAME_BACKEND_CXX_SRC = ps2/audio/voice_timeline.cpp ps2/audio/pcm_wave.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp ps2/ui/shell_stub.cpp ps2/renderer/logical_renderer.cpp ps2/renderer/image_stubs.cpp ps2/renderer/vertex_stubs.cpp ps2/renderer/render_cvars.cpp ps2/system/common_campaign.cpp ps2/system/lifecycle.cpp ps2/system/offline_session.cpp ps2/audio/sound_backend.cpp ps2/system/sys_services.cpp ps2/renderer/model_import.cpp ps2/renderer/world_map.cpp ps2/renderer/scene.cpp
 
 # Shared providers for production and campaign tests; no test source belongs here.
 RESIDENT_SUPPORT_CXX_SRC = \

@@ -1,6 +1,6 @@
 // ================================================================================================
-// File: null_render.h
-// Brief: Select CPU world ownership and report unavailable renderer output capabilities.
+// File: logical_renderer.h
+// Brief: Doom's logical renderer: id's tr/renderSystem with CPU models, render worlds and a frame stamp.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 

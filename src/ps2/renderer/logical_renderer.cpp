@@ -1,10 +1,10 @@
 // ================================================================================================
-// File: null_render.cpp
-// Brief: Preserve native CPU world/model queries and explicitly defer rendering output.
+// File: logical_renderer.cpp
+// Brief: Bind id's tr/renderSystem: CPU models, render worlds, the identity space and frame stamp; the rest fails by name.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
-#include "ps2/renderer/null_render.h"
+#include "ps2/renderer/logical_renderer.h"
 #include "ps2/system/log.h"
 #include "ps2/ui/draw.h"
 #include <idlib/precompiled.h>

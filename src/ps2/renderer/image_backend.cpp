@@ -5,7 +5,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/image_backend.h"
-#include "ps2/renderer/null_render.h"
+#include "ps2/renderer/logical_renderer.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"

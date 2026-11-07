@@ -329,7 +329,8 @@ the renderer slices below record the existing implementation history.
 
 Four explicit `RENDER_STUB_CXX_SRC` units also appear in the core/campaign backend
 lists and cold policy. They compile against full native headers under strict warnings;
-no upstream renderer sources or layouts change. `null_render.cpp` binds `renderSystem`
+no upstream renderer sources or layouts change. `logical_renderer.cpp` (`null_render.cpp` until
+2026-11-07) binds `renderSystem`
 to the native `tr`, provides zero device/backend state, the complete native render-system
 vtable, debug entry points and demo boundaries. `image_stubs.cpp` binds the native
 image/shader/resolution/cinematic interfaces; `vertex_stubs.cpp` supplies empty native
@@ -557,7 +558,7 @@ Both production headless checks and all 115 Python host regressions pass; see
 
 The first 2D-3 slice adds explicit strict `ui_geometry.cpp`, `ui_draw.cpp`, `charset.cpp`
 and cold `image_backend.cpp` to core/resident support. Native display/color/quad/text
-methods move out of `null_render.cpp`; implemented intrinsic-image methods move out
+methods move out of `logical_renderer.cpp`; implemented intrinsic-image methods move out
 of `image_stubs.cpp`. A tagged `Image.h` friend returns the typed handle from the
 existing opaque backend state. There is still one provider per native method, with no
 desktop `RenderSystem.cpp`/`Image_GL.cpp` added. Core adapters and the GS test use the

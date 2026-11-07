@@ -5,7 +5,7 @@
 // ================================================================================================
 
 #include "tests/smoketests/map_boot.h"
-#include "ps2/renderer/null_render.h"
+#include "ps2/renderer/logical_renderer.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>

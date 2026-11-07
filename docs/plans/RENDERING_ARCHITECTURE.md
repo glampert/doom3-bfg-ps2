@@ -1603,8 +1603,9 @@ New units register in `config/sources.mk` (`RESIDENT_SUPPORT_CXX_SRC` and
 VU objects in a `VCL_FILES` list with the imported rule; `make compiledb` after each list
 change. Engine edits keep the `// [PS2_D3BFG]:` tag; the removed frontend units leave the
 campaign list with their replacement named in `BUILD_INVENTORY.md`. R0's bookkeeping
-checklist: retire the superseded stubs (`null_render.cpp`, `image_stubs.cpp`,
-`vertex_stubs.cpp`, `model_import.cpp`) as their replacements land, with the production
+checklist: retire the superseded stubs (`image_stubs.cpp`, `vertex_stubs.cpp`,
+`model_import.cpp`) as their replacements land (`logical_renderer.cpp`, first named
+`null_render.cpp`, stays: it binds id's `tr` to the PS2 renderer), with the production
 link still rejecting test inputs; `REUSE.md` rows for every imported quake2-ps2 file with
 its commit; `CVARS.md` rows for the new cvars (frame-buffer profile, shadow rung, Flashlight
 Shadows) with debug and release defaults; a check that the pinned CI ps2sdk image provides

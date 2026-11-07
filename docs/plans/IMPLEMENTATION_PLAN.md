@@ -257,7 +257,7 @@ ordered shutdown, while retail menu screens beyond those admitted, campaign map 
 remain pending. Tests continue to load and tick the authored map independently; the
 next production gate connects map ownership and simulation to this Common loop.
 
-For headless stages, exclude the desktop backend and prevent its allocations, not just `r_skipBackEnd`. New `ps2/renderer/null_render.*` and `ps2/audio/sound_backend.*` provide narrowly defined contracts. They may discard output, but material lookup, model bounds/joints, render-world portals/traces, sound duration and trigger timing require meaningful behavior by the game-fixture stage. Unexpected calls fail with the method name instead of silently succeeding.
+For headless stages, exclude the desktop backend and prevent its allocations, not just `r_skipBackEnd`. New `ps2/renderer/logical_renderer.*` (first named `null_render.*`) and `ps2/audio/sound_backend.*` provide narrowly defined contracts. They may discard output, but material lookup, model bounds/joints, render-world portals/traces, sound duration and trigger timing require meaningful behavior by the game-fixture stage. Unexpected calls fail with the method name instead of silently succeeding.
 
 Make the distinction visible in test markers, for example `D3PS2:CORE_BOOT:PASS` versus `D3PS2:GAME_FIXTURE:PASS`. Reserve a campaign-map marker for successful real map load plus simulation ticks. Build-only archives and a tiny linked executable do not establish campaign feasibility.
 
