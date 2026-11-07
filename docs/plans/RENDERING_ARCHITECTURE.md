@@ -1162,8 +1162,10 @@ emulation of the GS's own addressing for the format `TEX0` samples (`PSMT8`, `PS
 `PSMCT32`/`PSMCT16` for direct colour), and stores those N blocks as the `PSMCT32` words a
 transfer into a 64-wide (`DBW 1`) buffer writes. In a `DBW 1` `PSMCT32` buffer pages stack
 vertically and the blocks of a page run in Morton order (`x0 y0 x1 y1 x2`), so blocks
-`[0, N)` are at most six rectangles: one of whole pages, then 32x32, 32x16, 16x16, 16x8 and 8x8
-pixels for the set bits of `N mod 32`. The upload is one `BITBLTBUF` (`DBP` = the allocation,
+`[0, N)` are at most seven rectangles: whole pages in runs of at most 32 (an `IMAGE` tag holds
+32,767 qwords), then 32x32, 32x16, 16x16, 16x8 and 8x8 pixels for the set bits of `N mod 32`.
+`TRXPOS` addresses 2,048 rows, which caps a footprint at 2,048 blocks (512 KiB): a 512x512
+`PSMT8` texture with every mip and its CLUT takes 1,370. The upload is one `BITBLTBUF` (`DBP` = the allocation,
 `DBW 1`, `PSMCT32`) the runtime writes into the display list, then a REF of the cooked GIF
 stream (per rectangle an A+D tag with `TRXPOS`, `TRXREG`, `TRXDIR`, an `IMAGE` tag and the
 words) under `DIRECT`, then `TEXFLUSH`. The EE never touches a texel: no swizzle, no
@@ -1190,7 +1192,10 @@ Layout rules:
   smallest width covering it, even for `PSMT8`/`PSMT4` (the GS manual's 128-texel rule).
 - Each level and the CLUT take the lowest block address where every block they occupy is
   free, found by the same emulation, so small levels fill the holes larger ones leave (a
-  64x16 `PSMT8` level occupies blocks 0, 1, 4 and 5). A 256-entry CLUT is a 16x16 `PSMCT32`
+  64x16 `PSMT8` level occupies blocks 0, 1, 4 and 5). Square textures leave none: a 256x256
+  `PSMT8` texture with mips down to 8x8 and its CLUT is 346 blocks (88,576 bytes against
+  65,536 for level 0), a 128x128 `PSMT4` one 45 blocks, and a 64x64 `PSMT4` one with three mips
+  lands exactly where Black's `bg1_asr_shl` has them (blocks 0, 8, 10, 11). A 256-entry CLUT is a 16x16 `PSMCT32`
   tile in four consecutive blocks, a 16-entry one an 8x2 tile in one block; CSM1, `CPSM
   PSMCT32`, `CSA 0`, and `CLD 1` on every bind as today.
 - One CLUT per texture, inside its footprint. Texture and CLUT are one allocation, upload
@@ -1210,7 +1215,7 @@ struct GstxHeaderV2            // 96 bytes (static_assert), little-endian; the s
     u8  psm;                   // TEX0.PSM: PSMT8, PSMT4 (PSMCT32, PSMCT16 admitted)
     u8  levels;                // 1..7 (MXL + 1)
     u8  usage;                 // diffuse, default, light image, sphere map, lightmap
-    u8  rectangles;            // in the stream, 1..6
+    u8  rectangles;            // in the stream, 1..7
     u32 blocks;                // N, the GS footprint in 256-byte blocks
     u32 streamQwords;          // 5 tag qwords per rectangle + 16 x N data qwords
     u32 streamFnv;             // FNV-1a of the stream
@@ -1233,7 +1238,11 @@ cannot. So the payload's FNV is checked by the cook's reader and on the target o
 assertion builds, which keeps a streamed area ring's load from hashing a megabyte of texels
 in release. The loaded file is the upload source as it stands, 64-byte aligned and written
 back once (`SyncDCache`) after the read. The EE copy is the VRAM footprint plus 96 header
-bytes and at most 480 tag bytes.
+bytes and at most 560 tag bytes.
+
+The cook's emulation (`src/tools/assets/gs_memory.cpp`) reproduces TimeSplitters' published
+`PSMT8` unswizzle for levels up to 256x128 across pages, and `texture_format_tests` holds the
+cook's reader and the target's validator (`ps2/renderer/texture_format.cpp`) to each other.
 
 The UI keeps GSTX v1, whose placements and region clamp serve atlases; moving the UI pages
 to memory images belongs with R8.

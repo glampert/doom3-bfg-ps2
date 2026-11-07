@@ -90,8 +90,10 @@ endfunction()
 add_library(assets STATIC
     assets/bimage.cpp
     assets/glyph_set.cpp
+    assets/gs_memory.cpp
     assets/gs_texture.cpp
     assets/gstx.cpp
+    assets/gstx_v2.cpp
     assets/image.cpp
     assets/json.cpp
     assets/palette.cpp

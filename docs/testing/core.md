@@ -122,6 +122,12 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   cross-image keys, LRU pressure, bad-read preservation, detach/reopen identity, fixed
   allocation ledgers, partial-init cleanup and live-image shutdown guards covered.
   These checks supplement strict EE compilation and native captures.
+- `build/tests/texture_format_tests` checks GSTX v2: the GS memory emulation against
+  TimeSplitters' published `PSMT8` unswizzle (levels up to 256x128, across pages) and Black's
+  `PSMT4` mip placement, upload rectangles covering every footprint up to 2,048 blocks once,
+  `PSMT8`/`PSMT4`/`PSMCT32`/`PSMCT16` round trips sampled through the cooked registers, the
+  target validator agreeing with the cook's reader on every file, and both refusing flipped
+  fields and tags (the cook alone sees a moved level or CLUT that stays in the footprint).
 - `build/tests/world_tests` checks the world cook: the `.proc` parser and its refusals,
   greedy strips against their source triangles, D3WD byte-exact round trips, flipped bytes
   and semantic corruptions, and every batch of the graybox map (both topologies) and of

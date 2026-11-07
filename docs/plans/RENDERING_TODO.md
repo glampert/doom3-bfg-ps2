@@ -199,8 +199,10 @@ production link free of test inputs. Section numbers in parentheses point into t
       Light8 atlases as GSTX v2 (8.2, 8.3, 15.1).
 - [x] Retail `(format, colorFormat)` census (`texture_census.py`, 2026-11-08): five encodings
       plus RGB565 light images; the plan's 10.4 records it and the memory-image format.
-- [ ] Cook: GSTX v2 memory images (GS local memory emulation, level and CLUT placement, mips,
-      wrap, usage) with their reader and a sampler through the cooked registers (10.4).
+- [x] Cook: GSTX v2 memory images (GS local memory emulation, level and CLUT placement, mips,
+      wrap, usage) with their reader and a sampler through the cooked registers, and the
+      target's validator (`texture_format.cpp`), held to each other by `texture_format_tests`
+      (10.4, 2026-11-08).
 - [ ] Cook: YCoCg and normal-map DXT5 and RGB565 decoders; coverage merged into the CLUT
       alpha (10.4, 15.1).
 - [ ] Runtime: GSTX v2 loading, the in-chain upload (`BITBLTBUF`, REF of the stream,
