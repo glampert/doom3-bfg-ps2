@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: world_tests.cpp
-// Brief: Exercise the world cook: .proc parsing, greedy strips, D3WD round trips and corruption,
+// Brief: Exercise the world cook: .proc and .bproc parsing, greedy strips, D3WD round trips and corruption,
 // and every graybox batch packet unpacked by an independent VIF model into a VU1 input half,
 // rebuilt into triangles and compared with the source geometry.
 // This source code is released under the GNU GPL-3.0-or-later license.
@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -213,6 +214,400 @@ static bool Procs()
         std::string text = base;
         text.replace(text.find(corruption.from), std::string(corruption.from).size(), corruption.to);
         passed = Check(!ParseProc(text, proc, error) && !error.empty(), corruption.name) && passed;
+    }
+
+    return passed;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Binary .bproc
+// ------------------------------------------------------------------------------------------------
+
+// Writes what idRenderWorldLocal::InitFromMap and idRenderModelStatic::WriteBinaryModel would for
+// a parsed .proc: WriteBig values big-endian, strings and WriteVec3/WriteFloat values little-endian.
+class BprocWriter final
+{
+public:
+    void Be32(std::uint32_t value)
+    {
+        for (int shift = 24; shift >= 0; shift -= 8)
+        {
+            m_bytes.push_back(static_cast<std::uint8_t>((value >> shift) & 0xFFU));
+        }
+    }
+
+    void Be16(std::uint16_t value)
+    {
+        m_bytes.push_back(static_cast<std::uint8_t>(value >> 8));
+        m_bytes.push_back(static_cast<std::uint8_t>(value & 0xFFU));
+    }
+
+    void BeFloat(float value)
+    {
+        Be32(std::bit_cast<std::uint32_t>(value));
+    }
+
+    void LeFloat(float value)
+    {
+        const std::uint32_t bits = std::bit_cast<std::uint32_t>(value);
+
+        for (int shift = 0; shift < 32; shift += 8)
+        {
+            m_bytes.push_back(static_cast<std::uint8_t>((bits >> shift) & 0xFFU));
+        }
+    }
+
+    void Byte(std::uint8_t value)
+    {
+        m_bytes.push_back(value);
+    }
+
+    void Zeros(std::size_t count)
+    {
+        m_bytes.insert(m_bytes.end(), count, 0);
+    }
+
+    void String(const std::string & text)
+    {
+        const auto length = static_cast<std::uint32_t>(text.size());
+
+        for (int shift = 0; shift < 32; shift += 8)
+        {
+            m_bytes.push_back(static_cast<std::uint8_t>((length >> shift) & 0xFFU));
+        }
+
+        m_bytes.insert(m_bytes.end(), text.begin(), text.end());
+    }
+
+    std::vector<std::uint8_t> & Bytes()
+    {
+        return m_bytes;
+    }
+
+private:
+    std::vector<std::uint8_t> m_bytes;
+};
+
+// A half for the values the fixtures use (zero and normals between 2^-14 and 65504), rounded to nearest.
+static std::uint16_t FloatToHalf(float value)
+{
+    if (value == 0.0f)
+    {
+        return 0;
+    }
+
+    const std::uint32_t bits = std::bit_cast<std::uint32_t>(value);
+    const auto sign = static_cast<std::uint16_t>((bits >> 16) & 0x8000U);
+    const int exponent = static_cast<int>((bits >> 23) & 0xFFU) - 127 + 15;
+    const std::uint32_t mantissa = (bits & 0x7FFFFFU) + 0x1000U;
+    return static_cast<std::uint16_t>(sign | (static_cast<std::uint32_t>(exponent) << 10) + (mantissa >> 13));
+}
+
+// idDrawVert's VERTEX_FLOAT_TO_BYTE.
+static std::uint8_t UnitToByte(float value)
+{
+    return static_cast<std::uint8_t>(std::lround((value + 1.0f) * (255.0f / 2.0f)));
+}
+
+static void WriteBinaryModel(BprocWriter & out, const ProcModel & model, int prelightVertices)
+{
+    out.String("shadowmodel"); // the type both of id's model writers use
+    out.String(model.name);
+    out.Be32(0x42524D6CU);
+    out.Zeros(8);
+    out.Be32(static_cast<std::uint32_t>(prelightVertices > 0 ? 1 : model.surfaces.size()));
+
+    for (std::size_t index = 0; index < (prelightVertices > 0 ? 1 : model.surfaces.size()); ++index)
+    {
+        const ProcSurface * surface = prelightVertices > 0 ? nullptr : &model.surfaces[index];
+        const std::uint32_t vertexCount = surface != nullptr ? static_cast<std::uint32_t>(surface->vertices.size()) : static_cast<std::uint32_t>(prelightVertices);
+        out.Be32(static_cast<std::uint32_t>(index));
+        out.String(surface != nullptr ? surface->material : std::string());
+        out.Byte(1);
+        out.Zeros(24 + 4);
+        out.Zeros(4); // generateNormals, tangentsCalculated, perfectHull, referencedIndexes
+        out.Be32(vertexCount);
+        out.Be32(surface != nullptr ? vertexCount : 0);
+
+        if (surface != nullptr)
+        {
+            for (const ProcVertex & vertex : surface->vertices)
+            {
+                out.LeFloat(vertex.position[0]);
+                out.LeFloat(vertex.position[1]);
+                out.LeFloat(vertex.position[2]);
+                out.Be16(FloatToHalf(vertex.uv[0]));
+                out.Be16(FloatToHalf(vertex.uv[1]));
+                out.Byte(UnitToByte(vertex.normal[0]));
+                out.Byte(UnitToByte(vertex.normal[1]));
+                out.Byte(UnitToByte(vertex.normal[2]));
+                out.Byte(0);
+                out.Zeros(4);
+                // The retail area vertices' colours are garbage; the reader must ignore them.
+                out.Byte(0xA5);
+                out.Byte(0x5A);
+                out.Byte(0xC3);
+                out.Byte(0x3C);
+                out.Zeros(4);
+            }
+
+            out.Be32(0); // no prelight shadow vertices
+            out.Be32(static_cast<std::uint32_t>(surface->indices.size()));
+
+            for (const std::uint32_t entry : surface->indices)
+            {
+                out.Be16(static_cast<std::uint16_t>(entry));
+            }
+        }
+        else
+        {
+            // A prelight shadow volume: positions with w, then a triangle over them.
+            out.Be32(vertexCount);
+            out.Zeros(16U * vertexCount);
+            out.Be32(3);
+            out.Be16(0);
+            out.Be16(1);
+            out.Be16(2);
+        }
+
+        // Silhouette indexes, mirrored and duplicate vertices, silhouette edges, dominant triangles
+        // and the three shadow index counts: present but skipped.
+        out.Be32(0);
+        out.Be32(1);
+        out.Zeros(4);
+        out.Be32(1);
+        out.Zeros(8);
+        out.Be32(1);
+        out.Zeros(8);
+        out.Byte(0);
+        out.Zeros(12);
+    }
+
+    out.Zeros(24 + 12);
+    out.String(model.name);
+    out.Zeros(9);
+}
+
+static std::vector<std::uint8_t> WriteBproc(const ProcFile & proc, bool prelight)
+{
+    BprocWriter out;
+    const std::size_t entries = proc.models.size() + (prelight ? 1U : 0U) + 2U;
+    out.Be32(0x50524F01U);
+    out.Be32(static_cast<std::uint32_t>(entries));
+    out.String("maps/fixture.map");
+    out.Zeros(8);
+
+    for (const ProcModel & model : proc.models)
+    {
+        WriteBinaryModel(out, model, 0);
+    }
+
+    if (prelight)
+    {
+        ProcModel shadow;
+        shadow.name = "_prelight_fixture";
+        WriteBinaryModel(out, shadow, 3);
+    }
+
+    out.String("interAreaPortals");
+    out.Be32(static_cast<std::uint32_t>(proc.areaCount));
+    out.Be32(static_cast<std::uint32_t>(proc.portals.size()));
+
+    for (const ProcPortal & portal : proc.portals)
+    {
+        out.Be32(static_cast<std::uint32_t>(portal.points.size()));
+        out.Be32(static_cast<std::uint32_t>(portal.areas[0]));
+        out.Be32(static_cast<std::uint32_t>(portal.areas[1]));
+
+        for (const auto & point : portal.points)
+        {
+            out.BeFloat(point[0]);
+            out.BeFloat(point[1]);
+            out.BeFloat(point[2]);
+        }
+    }
+
+    out.String("nodes");
+    out.Be32(static_cast<std::uint32_t>(proc.nodes.size()));
+
+    for (const ProcNode & node : proc.nodes)
+    {
+        for (const float value : node.plane)
+        {
+            out.BeFloat(value);
+        }
+
+        out.Be32(static_cast<std::uint32_t>(node.children[0]));
+        out.Be32(static_cast<std::uint32_t>(node.children[1]));
+    }
+
+    return out.Bytes();
+}
+
+// The binary parse holds the text parse's geometry: positions, portals and nodes exactly, texture
+// coordinates through halves and normals through bytes (a zero component comes back as 1/255).
+static bool SameGeometry(const ProcFile & text, const ProcFile & binary)
+{
+    if (text.models.size() != binary.models.size() || text.areaCount != binary.areaCount || text.portals.size() != binary.portals.size() ||
+        text.nodes.size() != binary.nodes.size())
+    {
+        return false;
+    }
+
+    for (std::size_t model = 0; model < text.models.size(); ++model)
+    {
+        const ProcModel & a = text.models[model];
+        const ProcModel & b = binary.models[model];
+
+        if (a.name != b.name || a.surfaces.size() != b.surfaces.size())
+        {
+            return false;
+        }
+
+        for (std::size_t surface = 0; surface < a.surfaces.size(); ++surface)
+        {
+            const ProcSurface & x = a.surfaces[surface];
+            const ProcSurface & y = b.surfaces[surface];
+
+            if (x.material != y.material || x.indices != y.indices || x.vertices.size() != y.vertices.size())
+            {
+                return false;
+            }
+
+            for (std::size_t vertex = 0; vertex < x.vertices.size(); ++vertex)
+            {
+                const ProcVertex & v = x.vertices[vertex];
+                const ProcVertex & w = y.vertices[vertex];
+
+                for (std::size_t axis = 0; axis < 3; ++axis)
+                {
+                    if (v.position[axis] != w.position[axis] || std::fabs(v.normal[axis] - w.normal[axis]) > 1.5f / 255.0f)
+                    {
+                        return false;
+                    }
+                }
+
+                for (std::size_t axis = 0; axis < 2; ++axis)
+                {
+                    if (std::fabs(v.uv[axis] - w.uv[axis]) > std::fabs(v.uv[axis]) / 1024.0f)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    for (std::size_t portal = 0; portal < text.portals.size(); ++portal)
+    {
+        const ProcPortal & a = text.portals[portal];
+        const ProcPortal & b = binary.portals[portal];
+
+        if (a.areas[0] != b.areas[0] || a.areas[1] != b.areas[1] || a.points != b.points)
+        {
+            return false;
+        }
+    }
+
+    for (std::size_t node = 0; node < text.nodes.size(); ++node)
+    {
+        const ProcNode & a = text.nodes[node];
+        const ProcNode & b = binary.nodes[node];
+
+        if (a.plane != b.plane || a.children[0] != b.children[0] || a.children[1] != b.children[1])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Overwrites 'size' bytes at the first occurrence of 'find' (searched from 'from') with 'replace'.
+static bool Patch(std::vector<std::uint8_t> & bytes, std::span<const std::uint8_t> find, std::span<const std::uint8_t> replace, std::size_t from = 0)
+{
+    const auto match = std::search(bytes.begin() + static_cast<std::ptrdiff_t>(from), bytes.end(), find.begin(), find.end());
+
+    if (match == bytes.end())
+    {
+        return false;
+    }
+
+    std::copy(replace.begin(), replace.end(), match);
+    return true;
+}
+
+static bool BinaryProcs()
+{
+    std::string error;
+    ProcFile text;
+    ProcFile binary;
+    bool passed = Check(ParseProc(kSmallProc, text, error), "small proc parses for the binary writer");
+    const std::vector<std::uint8_t> small = WriteBproc(text, true);
+
+    passed = Check(ParseBinaryProc(small, binary, error), "small bproc parses") && Check(SameGeometry(text, binary), "small bproc geometry") &&
+             Check(binary.shadowModelCount == 1, "the prelight shadow model is counted, not kept") &&
+             Check(binary.models[0].surfaces[0].vertices[2].uv[0] == 1.0f && binary.models[0].surfaces[0].vertices[1].uv[1] == 1.0f,
+                   "half texture coordinates decode") &&
+             passed;
+
+    // The graybox, written as id's loader would cache it, reads back as its text form.
+    std::ifstream stream(kGrayboxProc, std::ios::binary);
+    std::stringstream graybox;
+    graybox << stream.rdbuf();
+    passed = Check(ParseProc(graybox.str(), text, error), "graybox proc parses for the binary writer") &&
+             Check(ParseBinaryProc(WriteBproc(text, false), binary, error), "graybox bproc parses") &&
+             Check(SameGeometry(text, binary), "graybox bproc holds the text geometry") && passed;
+
+    // Every truncation, and one byte past the end, is refused.
+    bool truncations = true;
+
+    for (std::size_t length = 0; length < small.size(); ++length)
+    {
+        truncations = !ParseBinaryProc(std::span<const std::uint8_t>(small).first(length), binary, error) && !error.empty() && truncations;
+    }
+
+    std::vector<std::uint8_t> longer = small;
+    longer.push_back(0);
+    passed = Check(truncations, "every truncated bproc is refused") && Check(!ParseBinaryProc(longer, binary, error), "a trailing byte is refused") &&
+             passed;
+
+    const auto bytes = [](std::initializer_list<std::uint8_t> list)
+    {
+        return std::vector<std::uint8_t>(list);
+    };
+    const auto text16 = [](const char * value)
+    {
+        return std::vector<std::uint8_t>(value, value + std::strlen(value));
+    };
+    const struct
+    {
+        std::vector<std::uint8_t> find;
+        std::vector<std::uint8_t> replace;
+        const char * name;
+    } corruptions[] = {
+        { bytes({ 0x50, 0x52, 0x4F, 0x01 }), bytes({ 0x50, 0x52, 0x4F, 0x02 }), "wrong bproc version" },
+        { bytes({ 0x42, 0x52, 0x4D, 0x6C }), bytes({ 0x42, 0x52, 0x4D, 0x6B }), "wrong binary model version" },
+        { text16("interAreaPortals"), text16("interAreaPortalz"), "unknown entry type" },
+        { text16("_area0\x42"), text16("_areaX\x42"), "outer and inner model names differ" },
+        // The first index triple (0 1 2) becomes (0 1 3), past the three vertices.
+        { bytes({ 0x00, 0x00, 0x00, 0x01, 0x00, 0x02 }), bytes({ 0x00, 0x00, 0x00, 0x01, 0x00, 0x03 }), "index out of range" },
+        // The portal's areas 0 1 become 0 0.
+        { bytes({ 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 }),
+          bytes({ 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }), "portal joins an area to itself" },
+        // The node's children -2 -1 become -3 -1: an area past the two the portals declare.
+        { bytes({ 0xFF, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF }), bytes({ 0xFF, 0xFF, 0xFF, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF }), "node child names a missing area" },
+        // The geometry flag after the area surface's material becomes 2.
+        { bytes({ 't', 'e', 'x', 't', 'u', 'r', 'e', 's', '/', 'a', 0x01 }), bytes({ 't', 'e', 'x', 't', 'u', 'r', 'e', 's', '/', 'a', 0x02 }), "flag byte other than 0 or 1" },
+        // ... or 0: an area surface without geometry.
+        { bytes({ 't', 'e', 'x', 't', 'u', 'r', 'e', 's', '/', 'a', 0x01 }), bytes({ 't', 'e', 'x', 't', 'u', 'r', 'e', 's', '/', 'a', 0x00 }), "area surface without geometry" },
+    };
+
+    for (const auto & corruption : corruptions)
+    {
+        std::vector<std::uint8_t> file = small;
+        const bool patched = Patch(file, corruption.find, corruption.replace);
+        passed = Check(patched && !ParseBinaryProc(file, binary, error) && !error.empty(), corruption.name) && passed;
     }
 
     return passed;
@@ -845,7 +1240,7 @@ static bool Corruption()
 
 int main()
 {
-    const bool passed = Strips() && Procs() && Graybox() && LargeWorlds() && Corruption();
+    const bool passed = Strips() && Procs() && BinaryProcs() && Graybox() && LargeWorlds() && Corruption();
 
     if (passed)
     {

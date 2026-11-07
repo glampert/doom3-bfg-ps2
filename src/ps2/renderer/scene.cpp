@@ -28,9 +28,10 @@ namespace
 static bool s_initialized = false;
 static Stats s_stats = {};
 
-// id projects to a far plane at infinity, which the 16-bit depth buffer cannot hold;
-// Doom's rooms end well inside this.
-static constexpr float kFarPlane = 8192.0f;
+// id projects to a far plane at infinity, which the clip space cannot hold; world_lm.vcl skips a
+// triangle with a corner past this one. Retail sky boxes reach past 8,192 units from inside a level
+// (mars_city1's spans 14,000), and with depth going as 1 / distance the plane costs no precision.
+static constexpr float kFarPlane = 65536.0f;
 
 // The world pass's clip space (math::PerspectiveProjection) for id's camera: eye space as
 // math::LookAt builds it (x right, y up, z behind the eye) from id's forward, left and up axes.

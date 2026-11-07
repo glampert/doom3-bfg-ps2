@@ -659,7 +659,14 @@ static bool GetColor(const JsonValue * value, std::array<float, 3> & output)
     return true;
 }
 
-static bool ParseWorldJob(const JsonValue & root, std::string & map, WorldPolicy & policy)
+// A relative path below --data: no '..', no leading slash, no backslashes.
+static bool RelativeDataPath(const JsonValue * value)
+{
+    return value != nullptr && value->type == JsonValue::Type::String && !value->text.empty() && value->text.size() <= 128 &&
+           value->text.find("..") == std::string::npos && value->text.front() != '/' && value->text.find('\\') == std::string::npos;
+}
+
+static bool ParseWorldJob(const JsonValue & root, std::string & map, std::vector<std::string> & containers, WorldPolicy & policy)
 {
     const JsonValue * version = root.Find("version");
 
@@ -670,7 +677,8 @@ static bool ParseWorldJob(const JsonValue & root, std::string & map, WorldPolicy
 
     for (const std::string & key : root.keys)
     {
-        if (key != "version" && key != "map" && key != "topology" && key != "shading" && key != "default_color" && key != "materials")
+        if (key != "version" && key != "map" && key != "containers" && key != "topology" && key != "shading" && key != "default_color" &&
+            key != "material_tint" && key != "materials")
         {
             return Fail("unknown world job field: " + key);
         }
@@ -678,14 +686,34 @@ static bool ParseWorldJob(const JsonValue & root, std::string & map, WorldPolicy
 
     const JsonValue * name = root.Find("map");
 
-    // A relative path below --data, without its extension.
-    if (name == nullptr || name->type != JsonValue::Type::String || name->text.empty() || name->text.size() > 128 ||
-        name->text.find("..") != std::string::npos || name->text.front() == '/' || name->text.find('\\') != std::string::npos)
+    // Without its extension: <map>.proc below --data, or generated/<map>.bproc in the containers.
+    if (!RelativeDataPath(name))
     {
         return Fail("map must be a relative path without '..'");
     }
 
     map = name->text;
+    containers.clear();
+
+    // Retail maps: the .resources containers below --data that hold the binary cache, later ones
+    // winning as the engine's lookup does.
+    if (const JsonValue * list = root.Find("containers"))
+    {
+        if (list->type != JsonValue::Type::Array || list->items.empty())
+        {
+            return Fail("containers must be a non-empty array");
+        }
+
+        for (const JsonValue & item : list->items)
+        {
+            if (!RelativeDataPath(&item))
+            {
+                return Fail("containers must be relative paths without '..'");
+            }
+
+            containers.push_back(item.text);
+        }
+    }
 
     if (const JsonValue * topology = root.Find("topology"))
     {
@@ -713,6 +741,16 @@ static bool ParseWorldJob(const JsonValue & root, std::string & map, WorldPolicy
     if (root.Find("default_color") != nullptr && !GetColor(root.Find("default_color"), policy.defaultColor))
     {
         return Fail("default_color must be three numbers in [0, 2]");
+    }
+
+    if (const JsonValue * tint = root.Find("material_tint"))
+    {
+        if (tint->type != JsonValue::Type::Number || tint->number < 0.0 || tint->number > 1.0)
+        {
+            return Fail("material_tint must be a number in [0, 1]");
+        }
+
+        policy.tint = static_cast<float>(tint->number);
     }
 
     if (const JsonValue * materials = root.Find("materials"))
@@ -763,6 +801,7 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
     JsonValue root;
     std::string error;
     std::string map;
+    std::vector<std::string> containers;
     WorldPolicy policy;
 
     if (!ReadFile(jobPath, kMaxJobBytes, jobText))
@@ -775,23 +814,54 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return Fail(jobPath.string() + ": " + error);
     }
 
-    if (!ParseWorldJob(root, map, policy))
+    if (!ParseWorldJob(root, map, containers, policy))
     {
         return false;
     }
 
     const fs::path procPath = data / (map + ".proc");
-    std::string procText;
+    // What the report names as the cook's input, relative to --data or the containers.
+    std::string source = map + ".proc";
     ProcFile proc;
 
-    if (!ReadFile(procPath, kMaxProcBytes, procText))
+    if (containers.empty())
     {
-        return false;
-    }
+        std::string procText;
 
-    if (!ParseProc(procText, proc, error))
+        if (!ReadFile(procPath, kMaxProcBytes, procText))
+        {
+            return false;
+        }
+
+        if (!ParseProc(procText, proc, error))
+        {
+            return Fail(procPath.string() + ": " + error);
+        }
+    }
+    else
     {
-        return Fail(procPath.string() + ": " + error);
+        // The binary cache id's loader would read first (idRenderWorldLocal::InitFromMap).
+        std::vector<fs::path> inputs;
+        ResourceCatalog catalog;
+        std::vector<std::uint8_t> bytes;
+        const std::string name = "generated/" + map + ".bproc";
+
+        for (const std::string & container : containers)
+        {
+            inputs.push_back(data / container);
+        }
+
+        source = name;
+
+        if (!catalog.Open(inputs, error) || !catalog.Read(name, bytes, error))
+        {
+            return Fail(name + ": " + error);
+        }
+
+        if (!ParseBinaryProc(bytes, proc, error))
+        {
+            return Fail(name + ": " + error);
+        }
     }
 
     World world;
@@ -825,7 +895,8 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return false;
     }
 
-    std::string report = "{\n  \"map\": " + JsonString(map) + ",\n  \"topology\": \"" +
+    std::string report = "{\n  \"map\": " + JsonString(map) + ",\n  \"source\": " + JsonString(source) +
+                         ",\n  \"topology\": \"" +
                          (policy.topology == WorldTopology::Strips ? std::string("strips") : std::string("hybrid")) + "\",\n";
     report += "  \"areas\": " + std::to_string(world.areas.size()) + ",\n  \"surfaces\": " + std::to_string(world.surfaces.size()) +
               ",\n  \"materials\": " + std::to_string(world.materials.size()) + ",\n  \"portals\": " + std::to_string(world.portals.size()) +
@@ -855,6 +926,15 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
                   std::to_string(area.batchCount) + ", \"triangles\": " + std::to_string(triangles) + ", \"bounds\": " + Bounds(area.bounds) + " }";
     }
 
+    // The material names in the file's order: test packages declare them until the cook compiles
+    // material passes (R2).
+    report += "\n  ],\n  \"material_names\": [";
+
+    for (std::size_t index = 0; index < world.materials.size(); ++index)
+    {
+        report += std::string(index == 0 ? "" : ",") + "\n    " + JsonString(world.materials[index]);
+    }
+
     report += "\n  ]\n}\n";
     std::cout << stem << ".d3wd: " << world.areas.size() << " areas, " << stats.triangles << " triangles in " << stats.batches << " batches, "
               << file.size() << " bytes\n";
@@ -870,7 +950,7 @@ static void Usage()
                  "--output receives one file per texture and report.json; existing files are replaced.\n"
                  "--previews also writes <output>.original.png and <output>.converted.png per texture.\n"
                  "world cooks <data>/<map>.proc, the map the job names, into <output>/<name>.d3wd and\n"
-                 "<name>.report.json.\n";
+                 "<name>.report.json; with containers listed, it reads generated/<map>.bproc from them.\n";
 }
 
 static int Run(int argc, char ** argv)

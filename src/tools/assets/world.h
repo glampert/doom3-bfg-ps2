@@ -209,6 +209,9 @@ struct WorldPolicy
     float ambient = 0.5f;
     std::array<float, 3> defaultColor = { 0.5f, 0.5f, 0.5f };
     std::vector<WorldMaterialColor> colors;
+    // Materials without a colour vary around the default by up to this fraction per channel, from a
+    // hash of their name (0 keeps every one at the default).
+    float tint = 0.0f;
 };
 
 struct WorldCookStats

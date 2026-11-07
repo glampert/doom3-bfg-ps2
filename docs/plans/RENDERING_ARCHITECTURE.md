@@ -1416,7 +1416,10 @@ inputs and cooked outputs stay ignored under `build/`.
   for this plan parse every retail model, animation and `.bproc` to the exact EOF.
 - `.bproc` writes the type string `shadowmodel` for every model entry (`ParseModel` and
   `ParseShadowModel` both write it; portals and nodes keep their own strings); `_areaN` and
-  `_prelight_*` are told apart by name.
+  `_prelight_*` are told apart by name. The entry's model name follows the type string, before
+  the `BRM` magic (`ReadBinaryModel` reads it for `InitEmpty`), and the binary model repeats it
+  at its end. Entity brush models (`func_static_*`, 424 in mars_city1) are entries too.
+  `assets::ParseBinaryProc` (2026-11-07) reads this to the exact end.
 - The `.bproc` `_area` vertices carry garbage in `color`/`color2`; honour only the
   material's vertex-colour flag.
 - Diffuse BIMAGEs are YCoCg-scaled DXT5 (the Co/Cg scale is in `z`); bump maps store X in
@@ -1603,9 +1606,10 @@ New units register in `config/sources.mk` (`RESIDENT_SUPPORT_CXX_SRC` and
 VU objects in a `VCL_FILES` list with the imported rule; `make compiledb` after each list
 change. Engine edits keep the `// [PS2_D3BFG]:` tag; the removed frontend units leave the
 campaign list with their replacement named in `BUILD_INVENTORY.md`. R0's bookkeeping
-checklist: retire the superseded stubs (`image_stubs.cpp`, `vertex_stubs.cpp`,
-`model_import.cpp`) as their replacements land (`logical_renderer.cpp`, first named
-`null_render.cpp`, stays: it binds id's `tr` to the PS2 renderer), with the production
+checklist: retire the superseded stubs as their replacements land (`image_stubs.cpp` and
+`vertex_stubs.cpp` were retired 2026-11-07: their unreferenced methods deleted, the rest moved
+to `image_backend.cpp` and `logical_renderer.cpp`, which binds id's `tr` to the PS2 renderer
+and was first named `null_render.cpp`; `model_import.cpp` remains), with the production
 link still rejecting test inputs; `REUSE.md` rows for every imported quake2-ps2 file with
 its commit; `CVARS.md` rows for the new cvars (frame-buffer profile, shadow rung, Flashlight
 Shadows) with debug and release defaults; a check that the pinned CI ps2sdk image provides
@@ -1673,7 +1677,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Area models (2026-11-05) | Plain `idRenderModelStatic`s whose surfaces reference the D3WD mirror's u16 indexes (`referencedIndexes`) and carry its s16 positions in tagged `srfTriangles_t` fields; `R_LocalTrace` decodes them in a scalar branch | A PS2 model class; idDrawVerts built from the mirror | No id class changes and no 32-byte vertices; only traces read the geometry, and the mirror's per-surface indexes are not 16-byte aligned, so the branch walks them without id's streamed reads |
 | Profile change (2026-11-05) | `ps2_frameBufferBits` applies before the next frame by restarting the GS in the new format; textures upload again; the 2 MiB texture range is capped by what the buffers leave | Lay the buffers out again under the running GS | The reset leaves no state of the old layout: PCSX2's hardware renderer returned stale old-format targets to the first readback after an in-place change; one blank frame for a rare, explicit action |
 | Frame arena (2026-11-05) | One arena of 128 KiB with 16-byte rounding, owned by `scene::Init` in visible mode | id's two 64 MiB arenas with cache-line rounding | `scene::RenderView` consumes a view before `RenderScene` returns; the graybox peaks at 1,248 bytes per view |
-| View clip space (2026-11-05) | `scene::RenderView` builds the world pass's matrix from `renderView_t` (id's axes, `fov_x`/`fov_y`, `r_znear`) with a far plane at 8,192 units | id's far-at-infinity projection | The 16-bit depth buffer and the VU1 clipper need a finite far plane; revisit with retail rooms |
+| View clip space (2026-11-05) | `scene::RenderView` builds the world pass's matrix from `renderView_t` (id's axes, `fov_x`/`fov_y`, `r_znear`) with a far plane at 65,536 units (8,192 until 2026-11-07) | id's far-at-infinity projection | The VU1 clipper needs a finite far plane and skips a triangle with a corner past it; mars_city1's sky box around area 2 spans 14,000 units, and depth going as 1 / distance makes the plane's distance cost no precision near the eye |
 | Area culling (2026-11-05) | Draw the areas whose model entity the portal flow put on the view entity list | Walk `areaScreenRect` or the connected areas | It is id's own culling, entity portal culling included, and needs no second walk; per-batch frustum tests and portal scissors are left for R2's measurements |
 | Skinning | VU1 palettes of 24 joints, 40 vertices, three weight kernels | VU0 skinning streamed through SPR | Double-buffered palettes ride with the vertices; simulated duplication 1.4 to 1.6x, to be re-run at the 40 cap |
 | Lightmap density | 16 units per luxel for Q1 and Q2 (lighting report's chart measurement), 32 for Q3 | the asset report's 16/32/64 | the measured charts give 0.29 MiB at 16 u, cheap enough to keep |

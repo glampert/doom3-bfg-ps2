@@ -134,16 +134,28 @@ and runs Python tests that invoke the tool on synthetic containers.
 
 ```sh
 make world-cook          # the authored graybox map into build/world/
+make world-cook-retail   # mars_city1 from the retail installation (RETAIL_DATA_ROOT)
 build/tools/asset_reexport world --data src/tests/data/graybox_map \
     --job src/tests/data/graybox_map/graybox_world.json --output build/world
+build/tools/asset_reexport world --data gamedata/d3_bfg \
+    --job config/world_mars_city1.json --output build/world
 ```
 
-`world` reads `<data>/<map>.proc`, the text render geometry dmap writes (`mapProcFile003`,
-parsed by [`assets/proc.h`](../assets/proc.h) as strictly as id's loader would need), and
-writes `<name>.d3wd` and `<name>.report.json` to `--output`. The format is documented field
-by field in [`assets/world.h`](../assets/world.h); the design is section 6 of the
-[rendering plan](../../../docs/plans/RENDERING_ARCHITECTURE.md#6-scene-data-on-the-ps2).
-Retail maps ship binary `.bproc` files instead, which the cook does not read yet.
+`world` reads `<data>/<map>.proc`, the text render geometry dmap writes (`mapProcFile003`),
+or, when the job lists `containers`, `generated/<map>.bproc` from those `.resources`
+containers: the binary cache id's loader reads first, the form retail maps ship. Both are
+parsed by [`assets/proc.h`](../assets/proc.h) as strictly as id's loader would need, the
+binary one to its exact end. It writes `<name>.d3wd` and `<name>.report.json` to `--output`.
+The format is documented field by field in [`assets/world.h`](../assets/world.h); the design
+is section 6 of the [rendering plan](../../../docs/plans/RENDERING_ARCHITECTURE.md#6-scene-data-on-the-ps2).
+
+The `.bproc` layout (`idRenderWorldLocal::InitFromMap`, `idRenderModelStatic::WriteBinaryModel`)
+mixes byte orders: `WriteBig` values (counts, flags, indexes, half texture coordinates,
+portal points, node planes) are big-endian, while string lengths, `WriteVec3`/`WriteFloat`
+values and `idDrawVert` positions are little-endian. Every model entry, area or prelight
+shadow volume, has the type `shadowmodel`, then its name, then the `BRM` binary model; the
+name tells them apart. Retail area vertices carry garbage in `color`/`color2`, which the
+reader skips with tangents and the precomputed shadow and silhouette data.
 
 ```json
 {
@@ -156,12 +168,16 @@ Retail maps ship binary `.bproc` files instead, which the cook does not read yet
 }
 ```
 
-- `map` is the path below `--data` without `.proc`.
+- `map` is the path below `--data` without `.proc`; with `containers` (paths below `--data`,
+  later ones winning), the name of the `.bproc` inside them without `generated/` and `.bproc`.
 - `topology` is `hybrid` (unique vertices plus a strip index stream, the default) or
   `strips` (vertices repeated in strip order), the comparison gate R1 measures on VU1.
 - Until lightmaps exist, each vertex colour is the material's base colour (`materials`,
   else `default_color`, each channel 0–2 with 1.0 written as the GS's 0x80) times
   `ambient + (1 - ambient) * max(0, N.L)` for the `shading` light direction.
+  `material_tint` (0–1, default 0) varies the materials without a colour around the default:
+  each channel scales by `1 + tint * (2u - 1)`, `u` a byte of the name's FNV-1a hash over 255,
+  so a retail map's hundreds of materials read apart (`config/world_mars_city1.json` uses 0.35).
 
 Every `_areaN` model becomes an area of surfaces (in `.proc` order) and each surface a
 run of batches, each the VIF packet one VU1 input half receives: at most 88 unique
@@ -174,10 +190,14 @@ coarser only when a batch's range needs it. The CPU mirror keeps every source tr
 `s16` positions per area. Portals and area nodes are copied unchanged; other models
 (entity brush models) are counted in the report and skipped.
 
-The report records counts (areas, surfaces, batches, strips, triangles), vertices
-transformed and emitted per triangle, packet and file bytes, the largest position and UV
-quantization errors and each area's bounds. The file is re-read with the full validation
+The report records the source (`<map>.proc` or `generated/<map>.bproc`), counts (areas,
+surfaces, batches, strips, triangles), vertices transformed and emitted per triangle, packet
+and file bytes, the largest position and UV quantization errors, each area's bounds and the
+material names in file order (test packages declare them until the cook compiles material
+passes). mars_city1: 56 areas, 1,791 surfaces, 287 materials, 50,332 triangles in 2,138
+batches, 2,704,880 bytes, position error at most 0.094 units. The file is re-read with the full validation
 (`ReadD3wd`, packet VIFcodes included) before it is written. `build/tests/world_tests`
-checks the parser, the strips, byte-exact round trips, corruption and, through an
+checks both parsers (the graybox written as id would cache it reads back as its text form;
+every truncation of a small `.bproc` and targeted corruptions are refused), the strips, byte-exact round trips, corruption and, through an
 independent VIF model, that every graybox batch unpacks inside one input half and draws
 exactly its source triangles.

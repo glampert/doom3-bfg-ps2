@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "map": "maps/game/mars_city1",
+  "containers": [
+    "maps/mars_city1.resources"
+  ],
+  "topology": "hybrid",
+  "shading": {
+    "light": [
+      0.35,
+      0.25,
+      0.9
+    ],
+    "ambient": 0.45
+  },
+  "default_color": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "material_tint": 0.35
+}

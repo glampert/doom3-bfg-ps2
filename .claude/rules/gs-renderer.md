@@ -96,7 +96,9 @@ coordinates; CLUTs; VRAM and mipmaps.
   The scissor is the portal winding's screen rectangle, projected through `tr.identitySpace`,
   which `InitLogical` must set as id's `Init` does (left zero, every rectangle collapsed onto
   the world origin and a portal at the screen edge culled its area). Cameras use a 4:3
-  horizontal field of view (`system::video::kDisplayAspect`), never the buffer's width/height. `scene::BeginFrame` resets id's frame arena once
+  horizontal field of view (`system::video::kDisplayAspect`), never the buffer's width/height. The world pass's far
+  plane is 65,536 units (`scene.cpp`): `world_lm.vcl` skips a triangle with a corner past it, and
+  retail sky boxes reach 14,000 units from inside a level. `scene::BeginFrame` resets id's frame arena once
   per renderer frame (presentation does it). A cooked world's packets are freed only between
   renderer frames (`FreeCookedMap` waits for the DMA).
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,

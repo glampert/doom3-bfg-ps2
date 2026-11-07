@@ -5367,3 +5367,60 @@ Captures through id's `RenderScene` at 640, 32/32: NTSC [room 0](images/renderer
 [room 1](images/renderer-world-6-room1-pal.png), [doorway](images/renderer-world-6-doorway-pal.png),
 [against the divider](images/renderer-world-6-clip-pal.png), [doorway in FRAME mode](images/renderer-world-6-doorway-frame-pal.png),
 [doorway 512 wide](images/renderer-world-6-doorway-512-pal.png).
+
+## mars_city1 from its retail .bproc, and the stub files retired (2026-11-07)
+
+The world cook reads retail maps. `assets::ParseBinaryProc` (`src/tools/assets/proc.cpp`) parses
+the binary cache id's loader reads before a `.proc`, `generated/maps/game/<map>.bproc`, to its
+exact end under the text parser's checks: big-endian `WriteBig` counts, flags, indexes, half
+texture coordinates, portal points and node planes beside little-endian strings and vertex
+positions; every model entry typed `shadowmodel` and named before its `BRM` model, areas and
+prelight shadow volumes told apart by name; the garbage retail vertex colours, tangents and
+precomputed shadow data skipped. A world job that lists `containers` reads the `.bproc` from
+them (`config/world_mars_city1.json`, `make world-cook-retail`). mars_city1 cooks whole: 56
+areas, 1,791 surfaces, 287 materials, 50,332 triangles in 2,138 batches, 55 portals and 9,783
+nodes in 2,704,880 bytes, with 424 entity brush models skipped and positions within 0.094 units.
+A new `material_tint` job option varies each material's colour around the default by a hash of
+its name, so neighbouring surfaces read apart until textures exist.
+
+`make test-world-retail` (`run_world_retail.py`) loads the cooked map into Common's render world
+under the visible console and draws seven views in area 2, where the player starts (68 units
+above `info_player_start_2`), and in the corridor beyond its doorway (area 50, portal 55),
+closing that portal for the last. Each capture is matched whole against a software
+rasterization of the `.bproc` (`world_reference.py --scene mars_city1`), where a pixel may show
+any surface the 16-bit depth buffer cannot order against the nearest. Two traces from the
+player's eye hit the floor grate and the hall's west wall at the fractions and materials a
+Python ray cast over the `.bproc` gives. The package declares the cook report's materials
+collision-only: otherwise id's declaration manager makes implicit materials for the retail
+names and loads their images, which the image backend refuses.
+
+Two findings. The world pass's far plane moved from 8,192 to 65,536 units (`scene.cpp`): area 2
+is surrounded by a sky box 14,000 units across, `world_lm.vcl` skips any triangle with a corner
+past the far plane, and the west view lost the sky box's far wall (97.0 % against the
+reference; 99.8 % after). The world depth goes as 1 / distance, so the plane's distance costs no
+precision near the eye. And comparing whole images needs the depth-tie rule: coplanar decals over
+walls and ceilings draw either way on the GS and in the reference (the `north` view matched
+78.4 % before it, 99.7 % after).
+
+`image_stubs.cpp` and `vertex_stubs.cpp` are gone. Of their definitions, those no linked object
+references (most of id's GPU image, program and buffer methods; `nm` over every debug and release
+object) were deleted, and the rest moved to the files that own the interfaces:
+`globalImages`, `idImage::Reload`, the image manager's bulk build and the cinematic classes to
+`image_backend.cpp`; `renderProgManager`, `resolutionScale` and the empty `vertexCache` with its
+buffers to `logical_renderer.cpp`. `RENDER_STUB_CXX_SRC` became `RENDER_BINDING_CXX_SRC`
+(`logical_renderer.cpp`, `render_cvars.cpp`).
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC and PAL passed (`20261107T035720Z_world_retail_50d6681aa954`, `20261107T035742Z_world_retail_920cfa9de2a3`), about 20 s each: `east`, `west`, `south` and `closed` draw area 2 alone (64 batches), `north` and `doorway` 3 areas (162), `corridor` starts in area 50 and draws 2 (111); whole captures match their references at 99.74–99.93 %; with area 2 alone as the reference the `north`, `doorway` and `corridor` captures score 95.6, 86.8 and 39.0 %; frame arena at most 1,536 bytes; startup ledger recovered |
+| `make test-world` (debug) | NTSC and PAL passed (`20261107T035651Z_world_c9a52ce10536`, `20261107T035702Z_world_f148adba0321`) with the new far plane |
+| `make test-renderer`, `test-map`, `test-game`, `test-headless` (debug) | Passed; startup ledger unchanged (4,503,176 / 4,574,084 bytes in 1,679 allocations) |
+| `make test-ui` (debug) | NTSC and PAL sessions passed (`20261107T040037Z_session_fad57875f939`, `20261107T040816Z_session_df764239113c`), and every invalid-resource case: the image manager in its new file draws the retail UI as before |
+| `make test-host` | Passed: 380 Python tests and the C++ harnesses; `world_tests` reads the graybox written as id would cache it back as its text form, refuses every truncation of a small `.bproc` and nine targeted corruptions; `test_world_retail_runner.py` rejects broken culling counts, traces, loads, captures and ledgers and checks the reference's depth-tie and far-plane rules |
+| `make`, `make release`, test images, `make audit-sources` | Passed with no unresolved or duplicate symbols; runnable `PT_LOAD` 4,808,428 debug (unchanged: section GC had already dropped the deleted stubs) and 4,083,692 release (−128). Release builds were compiled, not run |
+
+Captures at 640, 32/32, NTSC: [east](images/renderer-world-7-mars_city1-east-ntsc.png),
+[west](images/renderer-world-7-mars_city1-west-ntsc.png), [north](images/renderer-world-7-mars_city1-north-ntsc.png),
+[south](images/renderer-world-7-mars_city1-south-ntsc.png), [doorway](images/renderer-world-7-mars_city1-doorway-ntsc.png),
+[corridor](images/renderer-world-7-mars_city1-corridor-ntsc.png), [doorway closed](images/renderer-world-7-mars_city1-closed-ntsc.png);
+PAL [north](images/renderer-world-7-mars_city1-north-pal.png).

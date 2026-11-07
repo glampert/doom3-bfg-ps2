@@ -24,6 +24,7 @@ startup ledger."""
 
 import argparse
 from collections import namedtuple
+from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -343,14 +344,17 @@ def stage_world(build: str, output: Path, standard: str, catalog: Path, world: P
     return package
 
 
-def run(args: argparse.Namespace, standard: str, version: str) -> bool:
+def run_session(args: argparse.Namespace, standard: str, version: str, kind: str, package: Callable[[Path], Path],
+                session: Callable[[str], Iterator], check: Callable[[str, str], tuple], verify: Callable[[Path], dict],
+                world: Path) -> bool:
+    """One production session under the visible console: 'package' stages it into the archive
+    directory, 'session' yields (commands, done) batches for an identity, 'check' classifies the log
+    and 'verify' the captures. Archives, watchdogs and the summary are shared by the world runners."""
     if smoke.emulator_is_running(args.emulator):
-        raise ValueError("an emulator is already running; the world session requires an isolated emulator")
+        raise ValueError(f"an emulator is already running; the {kind} session requires an isolated emulator")
     smoke.check_config(args.config)
-    if not args.world.is_file():
-        raise ValueError(f"missing cooked world {args.world}; run make world-cook")
-    identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_world_" + uuid.uuid4().hex[:12]
-    output = stage_world(args.build, REPO_ROOT / "build/test-results" / identity, standard, args.catalog, args.world)
+    identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"_{kind}_" + uuid.uuid4().hex[:12]
+    output = package(REPO_ROOT / "build/test-results" / identity)
     report = json.loads((output / "report.json").read_text())
     for name in report["flag_stamps"]:
         shutil.copy2(REPO_ROOT / name, output / Path(name).name)
@@ -359,7 +363,7 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
     (output / "console.txt").write_bytes(b"")
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
     command = [str(args.emulator), "-batch", "-elf", str(output / "d3bfg.elf"), "-logfile", str(output / "emulog.txt")]
-    steps = driver(identity, standard)
+    steps = session(identity)
     until = None
     started = time.monotonic()
     deadline = started + STARTUP_SECONDS * args.timeout_scale
@@ -396,25 +400,34 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
         finally:
             smoke.stop_owned_process(process)
     log = run_headless.read_log(output)
-    passed, reason, details = classify(log, identity, standard) if completed else (False, failure, {})
+    passed, reason, details = check(log, identity) if completed else (False, failure, {})
     captures = {}
     if passed:
         try:
-            captures = verify_captures(output, standard)
+            captures = verify(output)
         except (OSError, ValueError) as error:
             passed, reason = False, str(error)
     if process.returncode != 0:
         passed, reason = False, f"emulator exited with status {process.returncode}"
     summary = {"passed": passed, "reason": reason, "configuration": args.build, "standard": standard, "command": command,
                "emulator_version": version, "elapsed_seconds": round(time.monotonic() - started, 1),
-               "emulator_returncode": process.returncode, "boot_data": boot_data(output), "world_sha256": sha256(args.world),
+               "emulator_returncode": process.returncode, "boot_data": boot_data(output), "world_sha256": sha256(world),
                "console_sha256": sha256(output / "console.txt"), "details": details, "captures": captures,
                "pixel_inspection_required": True}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-    print(f"{'PASS' if passed else 'FAIL'} world-{standard}: {reason}\nArtifacts: {output}", flush=True)
+    print(f"{'PASS' if passed else 'FAIL'} {kind}-{standard}: {reason}\nArtifacts: {output}", flush=True)
     if not passed:
         print(log[-6000:], flush=True)
     return passed
+
+
+def run(args: argparse.Namespace, standard: str, version: str) -> bool:
+    if not args.world.is_file():
+        raise ValueError(f"missing cooked world {args.world}; run make world-cook")
+    return run_session(args, standard, version, "world",
+                       lambda output: stage_world(args.build, output, standard, args.catalog, args.world),
+                       lambda identity: driver(identity, standard), lambda log, identity: classify(log, identity, standard),
+                       lambda output: verify_captures(output, standard), args.world)
 
 
 def main() -> int:

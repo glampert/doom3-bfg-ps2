@@ -60,7 +60,9 @@ ignored local directories; it is separate from the host SWF fixtures and target 
 The [asset re-export tool](../src/tools/asset_reexport/README.md) converts retail
 textures into paletted GSTX files the GS samples directly, from a JSON job. Its `world`
 command cooks a map's `.proc` into a D3WD world file; `make world-cook` cooks the authored
-graybox map (`src/tests/data/graybox_map/`) into `build/world/`. `make ui-cook`
+graybox map (`src/tests/data/graybox_map/`) into `build/world/`, and `make world-cook-retail`
+cooks mars_city1's binary `.bproc` from the retail installation (`config/world_mars_city1.json`,
+`RETAIL_DATA_ROOT`) there too. `make ui-cook`
 writes that job for the retail UI and runs it; `UI_PREVIEWS=build/ui-previews` also writes
 an original and a converted PNG of every texture for a visual review:
 
@@ -205,8 +207,10 @@ and redraw-request counts. These three controls are available only in visible mo
 `ps2_maxFrames` and the ordinary command stream work in either mode.
 
 `ps2_world` (visible mode too) drives Common's render world without a game map:
-`load maps/NAME` takes `base/maps/NAME.d3wd` (from `make world-cook`; its materials must be
-in `base/materials/`), `view EX EY EZ TX TY TZ` draws it every frame from the eye towards the
+`load maps/NAME` takes `base/maps/NAME.d3wd` (from `make world-cook` or `world-cook-retail`;
+its materials must be declared in `base/materials/`, or id's declaration manager loads images
+the PS2 refuses; `run_world_retail.py` declares the retail ones collision-only from the cook
+report), `view EX EY EZ TX TY TZ` draws it every frame from the eye towards the
 target under the console and screens (90-degree vertical field of view on the 4:3 picture, the
 same framing in every display mode), `trace SX SY SZ EX
 EY EZ` logs the first world surface between two points, `portal HANDLE open|closed` sets a
@@ -285,7 +289,8 @@ visible. A host runtime test does not replace the EE compile/link check.
   The world gates' reference pixels (`graybox_map/scene_pixels.json`) come from
   `src/tools/scripts/world_reference.py`, which rasterizes the `.proc` from the gates' cameras;
   run it after changing the map, the cook job's colours or a camera (`make test-host` fails
-  on a stale digest), and use its `--compare` to match a whole capture with the reference.
+  on a stale digest), and use its `--compare` to match a whole capture with the reference
+  (`--scene mars_city1` rasterizes the retail `.bproc`, `--camera` takes any view).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend

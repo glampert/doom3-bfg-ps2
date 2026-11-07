@@ -40,12 +40,14 @@
 #   make test-headless-retail    # retail startup ledgers, 120 frames and shutdown
 #   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog) and the invalid-resource cases
 #   make test-world              # the cooked graybox through id's render world: portal culling and captures, one production session per standard
+#   make test-world-retail       # mars_city1 cooked from the retail .bproc: area 2 and its doorway, captures against references, per standard
 #
 # Tooling:
 #   make tools                   # audit sources and build the host tools
 #   make resource-unpack         # standalone C++20 host resource reader/extractor (CMake)
 #   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
 #   make world-cook              # cook the authored graybox map into a D3WD world file
+#   make world-cook-retail       # cook mars_city1's retail .bproc (RETAIL_DATA_ROOT) into a D3WD world file
 #   make ui-inventory            # inspect local retail UI dependencies and feature gaps
 #   make ui-cook                 # cook the ignored local retail English resource package
 #   make audit-sources           # audit explicit source lists and exclusions
@@ -75,6 +77,7 @@ UI_RETAIL_CONFIG ?= config/ui_retail.json
 WORLD_DATA_ROOT ?= src/tests/data/graybox_map
 WORLD_COOK_JOB ?= $(WORLD_DATA_ROOT)/graybox_world.json
 WORLD_COOK_OUTPUT ?= build/world
+WORLD_RETAIL_JOB ?= config/world_mars_city1.json
 PYTHON ?= python3
 EE_TOOL_PREFIX ?= $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-
 
@@ -312,7 +315,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world ui-inventory ui-cook resource-unpack asset-reexport world-cook build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
+.PHONY: all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world test-world-retail ui-inventory ui-cook resource-unpack asset-reexport world-cook world-cook-retail build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
 
 release: all
 build-platform: core-test-image
@@ -325,7 +328,7 @@ audit-sources:
 # A stamp is rewritten only when its compiler identity, flags or source list
 # changes. This fixes the reference's stale-object behavior after flag edits.
 $(OUTPUT_DIR)/.backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/ui/assets.cpp ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_STUB_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/ui/draw.cpp ps2/renderer/image_backend.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/renderer_gs_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_BOOT_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) --cold-sources $(SIZE_OPT_CXX_SRC) --heap-vendor-includes $(HEAP_VENDOR_INCS) --engine-bridge-includes $(ENGINE_BRIDGE_INCS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-backend ps2/ui/assets.cpp ps2/input/usercmd_stub.cpp tests/smoketests/input_tests.cpp ps2/game/multiplayer_stub.cpp ps2/system/save_metadata.cpp tests/smoketests/deferred_tests.cpp $(RENDER_BINDING_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp ps2/ui/draw.cpp ps2/renderer/image_backend.cpp ps2/system/sys_services.cpp ps2/audio/sound_backend.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp tests/smoketests/renderer_tests.cpp tests/smoketests/renderer_gs_tests.cpp tests/smoketests/audio_tests.cpp tests/smoketests/offline_tests.cpp --sources $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(CORE_BOOT_CXX_SRC)
 
 $(OUTPUT_DIR)/.core-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(CORE_CXXFLAGS) --cold-sources $(ENGINE_SIZE_OPT_CXX_SRC) --source-warning-policy $(LEGACY_SHARED_WARNFLAGS) --foundation-header-flags $(FOUNDATION_HEADER_FLAGS) --full-header-core neo/framework/Common.cpp neo/framework/PlayerProfile.cpp neo/sys/sys_localuser.cpp neo/sys/sys_signin.cpp --sources $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC)
@@ -417,7 +420,7 @@ $(OUTPUT_DIR)/test-support/src/ps2/system/heap.o: CXX_VENDOR_INCS_FOR = $(HEAP_V
 $(OUTPUT_DIR)/core/src/neo/framework/Common.o: CORE_HEADER_FLAGS = $(FOUNDATION_HEADER_FLAGS)
 $(addprefix $(OUTPUT_DIR)/core/src/,$(filter-out neo/framework/Common.o,$(CORE_FRAMEWORK_CXX_SRC:.cpp=.o))): CORE_HEADER_FLAGS =
 $(addprefix $(OUTPUT_DIR)/core/src/,neo/framework/PlayerProfile.o neo/sys/sys_localuser.o neo/sys/sys_signin.o): CORE_HEADER_FLAGS = -UID_PS2_CORE
-$(addprefix $(OUTPUT_DIR)/src/,$(RENDER_STUB_CXX_SRC:.cpp=.o) ps2/ui/assets.o ps2/ui/draw.o ps2/renderer/image_backend.o ps2/input/usercmd_stub.o ps2/game/multiplayer_stub.o ps2/system/save_metadata.o ps2/system/common_campaign.o ps2/renderer/model_import.o ps2/system/sys_services.o ps2/audio/sound_backend.o ps2/system/common_foundation.o ps2/system/offline_session.o): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
+$(addprefix $(OUTPUT_DIR)/src/,$(RENDER_BINDING_CXX_SRC:.cpp=.o) ps2/ui/assets.o ps2/ui/draw.o ps2/renderer/image_backend.o ps2/input/usercmd_stub.o ps2/game/multiplayer_stub.o ps2/system/save_metadata.o ps2/system/common_campaign.o ps2/renderer/model_import.o ps2/system/sys_services.o ps2/audio/sound_backend.o ps2/system/common_foundation.o ps2/system/offline_session.o): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
 $(OUTPUT_DIR)/src/tests/smoketests/renderer_tests.o $(OUTPUT_DIR)/src/tests/smoketests/renderer_gs_tests.o $(OUTPUT_DIR)/src/tests/smoketests/deferred_tests.o $(OUTPUT_DIR)/src/tests/smoketests/input_tests.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) $(FOUNDATION_HEADER_FLAGS)
 $(OUTPUT_DIR)/src/ps2/system/lifecycle.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 $(CORE_OBJS) $(CAMPAIGN_OBJS): NEO_WARNFLAGS_FOR = $(LEGACY_SHARED_WARNFLAGS)
@@ -494,6 +497,9 @@ ui-cook: build/tools/asset_reexport
 world-cook: build/tools/asset_reexport
 	build/tools/asset_reexport world --data "$(WORLD_DATA_ROOT)" --job "$(WORLD_COOK_JOB)" --output "$(WORLD_COOK_OUTPUT)"
 
+world-cook-retail: build/tools/asset_reexport
+	build/tools/asset_reexport world --data "$(RETAIL_DATA_ROOT)" --job "$(WORLD_RETAIL_JOB)" --output "$(WORLD_COOK_OUTPUT)"
+
 stage-headless: all
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)
 
@@ -530,6 +536,9 @@ test-ui: all
 # through the portal flow from fixed cameras.
 test-world: all world-cook
 	$(PYTHON) $(SCRIPTS)/run_world.py --build $(BUILD) --catalog "$(UI_COOK_OUTPUT)" --world "$(WORLD_COOK_OUTPUT)/graybox.d3wd" --emulator $(PCSX2)
+
+test-world-retail: all world-cook-retail
+	$(PYTHON) $(SCRIPTS)/run_world_retail.py --build $(BUILD) --catalog "$(UI_COOK_OUTPUT)" --world "$(WORLD_COOK_OUTPUT)/mars_city1.d3wd" --data "$(RETAIL_DATA_ROOT)" --emulator $(PCSX2)
 
 .PHONY: stage-ui-fonts run-ui-fonts stage-ui-movies run-ui-movies stage-ui-menu run-ui-menu
 

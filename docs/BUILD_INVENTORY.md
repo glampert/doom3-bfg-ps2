@@ -321,20 +321,25 @@ conversion parsers or pretending resources loaded. Those source dispositions sta
 unchanged. All three backend units compile strictly and cold in core and campaign
 object trees. No vendor/data import is added.
 
-## Renderer interface stubs
+## Renderer interface bindings
 
 The active 2D bring-up proposal and Quake II reuse inventory are in
 [RENDERER_2D_PLAN.md](plans/RENDERER_2D_PLAN.md). Its destinations and budgets are proposed;
 the renderer slices below record the existing implementation history.
 
-Four explicit `RENDER_STUB_CXX_SRC` units also appear in the core/campaign backend
-lists and cold policy. They compile against full native headers under strict warnings;
-no upstream renderer sources or layouts change. `logical_renderer.cpp` (`null_render.cpp` until
-2026-11-07) binds `renderSystem`
+Two explicit `RENDER_BINDING_CXX_SRC` units (`RENDER_STUB_CXX_SRC` with four units until
+2026-11-07) also appear in the core/campaign backend lists and cold policy. They compile
+against full native headers under strict warnings; no upstream renderer sources or layouts
+change. `logical_renderer.cpp` (`null_render.cpp` until 2026-11-07) binds `renderSystem`
 to the native `tr`, provides zero device/backend state, the complete native render-system
-vtable, debug entry points and demo boundaries. `image_stubs.cpp` binds the native
-image/shader/resolution/cinematic interfaces; `vertex_stubs.cpp` supplies empty native
-buffer construction/destruction and cache cleanup. `render_cvars.cpp` preserves the
+vtable, debug entry points and demo boundaries, and, since `vertex_stubs.cpp` and the program
+and resolution parts of `image_stubs.cpp` were retired into it (2026-11-07), id's
+`renderProgManager`, `resolutionScale` (always full resolution) and an empty `vertexCache`
+whose buffers construct and clean up empty. `image_backend.cpp` took the rest of
+`image_stubs.cpp`: `globalImages`, `idImage::Reload`, the image manager's bulk build and the
+cinematic classes, all failing by name. Methods of those classes that no linked object
+references were deleted rather than moved (`nm` over every debug and release object).
+`render_cvars.cpp` preserves the
 42 referenced frontend controls with native defaults, flags, bounds and completions.
 
 Only inactive queries, unloaded image metadata, empty-resource cleanup and a disabled
@@ -559,7 +564,7 @@ Both production headless checks and all 115 Python host regressions pass; see
 The first 2D-3 slice adds explicit strict `ui_geometry.cpp`, `ui_draw.cpp`, `charset.cpp`
 and cold `image_backend.cpp` to core/resident support. Native display/color/quad/text
 methods move out of `logical_renderer.cpp`; implemented intrinsic-image methods move out
-of `image_stubs.cpp`. A tagged `Image.h` friend returns the typed handle from the
+of `image_stubs.cpp` (since retired). A tagged `Image.h` friend returns the typed handle from the
 existing opaque backend state. There is still one provider per native method, with no
 desktop `RenderSystem.cpp`/`Image_GL.cpp` added. Core adapters and the GS test use the
 audited full-header foundation seam; resident adapters use full campaign headers.

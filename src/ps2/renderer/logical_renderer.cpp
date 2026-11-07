@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: logical_renderer.cpp
-// Brief: Bind id's tr/renderSystem: CPU models, render worlds, the identity space and frame stamp; the rest fails by name.
+// Brief: Bind id's tr/renderSystem, program manager, resolution scale and vertex cache: CPU models and worlds; the rest fails by name.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -8,6 +8,7 @@
 #include "ps2/system/log.h"
 #include "ps2/ui/draw.h"
 #include <idlib/precompiled.h>
+#include <renderer/ResolutionScale.h>
 #include <renderer/tr_local.h>
 
 // Native world declarations depend on frontend types from tr_local.h.
@@ -388,3 +389,164 @@ PS2_COLD_FUNC void idRenderSystemLocal::FreeRenderWorld(idRenderWorld * world)
 }
 
 #endif // PS2_D3BFG_FOUNDATION
+
+// ------------------------------------------------------------------------------------------------
+// Render programs and resolution scaling
+// ------------------------------------------------------------------------------------------------
+
+// id's GLSL program manager has no programs here (the VU1 programs are ps2::renderer::vu's); a
+// material that looks one up fails by name.
+idRenderProgManager renderProgManager;
+idResolutionScale resolutionScale;
+
+idRenderProgManager::idRenderProgManager()
+    : backendState(nullptr)
+{
+    for (int & shader : builtinShaders)
+    {
+        shader = -1;
+    }
+}
+
+idRenderProgManager::~idRenderProgManager()
+{
+    if (backendState != nullptr) [[unlikely]]
+    {
+        ps2::FatalError("idRenderProgManager::~idRenderProgManager with backend state");
+    }
+}
+
+// Always full resolution: there is no GPU timer to drive the scale.
+idResolutionScale::idResolutionScale()
+    : dropMilliseconds(0.0f), raiseMilliseconds(0.0f), framesAboveRaise(0), currentResolution(1.0f)
+{
+}
+
+void idResolutionScale::ResetToFullResolution()
+{
+    currentResolution = 1.0f;
+}
+
+void idResolutionScale::GetCurrentResolutionScale(float & x, float & y)
+{
+    x = y = currentResolution;
+}
+
+void idResolutionScale::GetConsoleText(idStr & text)
+{
+    text = "rendering unavailable";
+}
+
+void idResolutionScale::SetCurrentGPUFrameTime(int microseconds)
+{
+    if (microseconds != 0) [[unlikely]]
+    {
+        ps2::FatalError("idResolutionScale::SetCurrentGPUFrameTime");
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// Vertex cache
+// ------------------------------------------------------------------------------------------------
+
+// id's GPU buffers have no storage on the PS2 (world geometry is cooked into VU1 batches): the
+// cache and its buffers construct empty, clean up empty, and any allocation fails by name.
+idVertexCache vertexCache{};
+
+// Empty construction must work before main without allocating desktop buffer pools.
+idVertexBuffer::idVertexBuffer()
+    : size(0), offsetInOtherBuffer(0), apiObject(nullptr)
+{
+}
+
+idIndexBuffer::idIndexBuffer()
+    : size(0), offsetInOtherBuffer(0), apiObject(nullptr)
+{
+}
+
+idJointBuffer::idJointBuffer()
+    : numJoints(0), offsetInOtherBuffer(0), apiObject(nullptr)
+{
+}
+
+idVertexBuffer::~idVertexBuffer()
+{
+    FreeBufferObject();
+}
+
+idIndexBuffer::~idIndexBuffer()
+{
+    FreeBufferObject();
+}
+
+idJointBuffer::~idJointBuffer()
+{
+    FreeBufferObject();
+}
+
+PS2_COLD_FUNC void idVertexBuffer::FreeBufferObject()
+{
+    if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0) [[unlikely]]
+    {
+        ps2::renderer::Unavailable("idVertexBuffer::FreeBufferObject with backend state");
+    }
+}
+
+PS2_COLD_FUNC void idIndexBuffer::FreeBufferObject()
+{
+    if (apiObject != nullptr || size != 0 || offsetInOtherBuffer != 0) [[unlikely]]
+    {
+        ps2::renderer::Unavailable("idIndexBuffer::FreeBufferObject with backend state");
+    }
+}
+
+PS2_COLD_FUNC void idJointBuffer::FreeBufferObject()
+{
+    if (apiObject != nullptr || numJoints != 0 || offsetInOtherBuffer != 0) [[unlikely]]
+    {
+        ps2::renderer::Unavailable("idJointBuffer::FreeBufferObject with backend state");
+    }
+}
+
+static PS2_COLD_FUNC void ClearEmptySet(geoBufferSet_t & buffers)
+{
+    buffers.vertexBuffer.FreeBufferObject();
+    buffers.indexBuffer.FreeBufferObject();
+    buffers.jointBuffer.FreeBufferObject();
+
+    if (buffers.mappedVertexBase != nullptr || buffers.mappedIndexBase != nullptr || buffers.mappedJointBase != nullptr ||
+        buffers.vertexMemUsed.GetValue() != 0 || buffers.indexMemUsed.GetValue() != 0 || buffers.jointMemUsed.GetValue() != 0 ||
+        buffers.allocations != 0) [[unlikely]]
+    {
+        ps2::renderer::Unavailable("idVertexCache empty cleanup with live storage");
+    }
+}
+
+PS2_COLD_FUNC void idVertexCache::FreeStaticData()
+{
+    ClearEmptySet(staticData);
+    mostUsedVertex = mostUsedIndex = mostUsedJoint = 0;
+}
+
+PS2_COLD_FUNC void idVertexCache::Shutdown()
+{
+    FreeStaticData();
+
+    for (geoBufferSet_t & buffers : frameData)
+    {
+        ClearEmptySet(buffers);
+    }
+}
+
+#define RENDER_UNAVAILABLE(result, method, parameters) \
+    PS2_COLD_FUNC result method parameters             \
+    {                                                  \
+        ps2::renderer::Unavailable(#method);           \
+    }
+
+RENDER_UNAVAILABLE(int, idRenderProgManager::FindVertexShader, (const char *))
+RENDER_UNAVAILABLE(int, idRenderProgManager::FindFragmentShader, (const char *))
+RENDER_UNAVAILABLE(int, idRenderProgManager::FindGLSLProgram, (const char *, int, int))
+RENDER_UNAVAILABLE(vertCacheHandle_t, idVertexCache::ActuallyAlloc, (geoBufferSet_t &, const void *, int, cacheType_t))
+
+#undef RENDER_UNAVAILABLE

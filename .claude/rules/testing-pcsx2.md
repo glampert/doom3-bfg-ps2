@@ -7,7 +7,7 @@ the gate you are changing or diagnosing:
 | Gate | Detail |
 | --- | --- |
 | `test-renderer`, `run-renderer`, `test-host`, `test-platform`, `test-core`, `test-script`, `test-common` | [core.md](../../docs/testing/core.md) |
-| `test-headless`, `test-headless-retail`, `test-ui` (every step), `test-world`, input devices | [production.md](../../docs/testing/production.md) |
+| `test-headless`, `test-headless-retail`, `test-ui` (every step), `test-world`, `test-world-retail`, input devices | [production.md](../../docs/testing/production.md) |
 | `test-game`, `test-map` | [game.md](../../docs/testing/game.md) |
 | Quake II reference: PCSX2 storage (USB/HDD images), full crash triage, host harness recipes | [quake2-reference.md](../../docs/testing/quake2-reference.md) |
 
@@ -47,9 +47,10 @@ memory figures in [memory-budget.md](memory-budget.md).
   or `ps2_interlace` changed it, logged as `GS display WxH MODE bits=`). PCSX2 models neither
   the EE cache nor GS internal cost: captures prove function, not hardware timing or coherency.
 - Point checks miss what lies between their points. After a world or camera change, match whole
-  graybox captures with `src/tools/scripts/world_reference.py --compare <tga> --view <name>
-  --bits <16|32>` (good captures score 99.5 % or more; seams account for the rest). It found
-  culled geometry that every point check passed.
+  captures with `src/tools/scripts/world_reference.py --compare <tga> --view <name> --bits
+  <16|32>` (`--scene mars_city1` for the retail map, `--camera EX EY EZ TX TY TZ` for any view;
+  good captures score 99.5 % or more; seams and depth ties account for the rest). It found
+  culled geometry that every point check passed, and a far plane that dropped a sky box.
 - The default hardware renderer (`Renderer = -1`) caches render targets by address and
   format, and a readback can return a stale one. When a capture looks wrong only after VRAM
   was reused in another format, rerun once with the software renderer (`Renderer = 13`, ini

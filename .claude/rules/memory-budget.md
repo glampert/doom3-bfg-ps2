@@ -67,6 +67,10 @@ have not been re-measured.
   5,326,988 / 2,733; quit run peak 11,358,206 / 12,114,412; dialog at rest 4,380,385 /
   4,525,300 / 3,447; font screen warm 2,727,335 / 2,832,204 / 2,537; visible console peak
   2,440,512 / 2,539,056. Executing shell peaked at about 11 MB earlier (2026-10-23).
+- Cooked retail world (2026-11-07): mars_city1's whole D3WD is 2,704,880 bytes (1,610,352 of
+  VU1 packets, the rest the s16 CPU mirror, portals and 9,783 nodes), loaded whole into one
+  `TAG_RENDER` allocation; the gate's views peak at 1,536 bytes of frame arena. No textures or
+  lightmaps yet.
 - Measured map baseline (authored map, 2026-10-11): fixed `PT_LOAD` 10.9 MB, three 60-frame
   reloads about 2.22 MB requested; no retail map transition peak is established. mars_city1
   `.map` is 5.48 MB (4.85 MB brush/patch text), its container holds 5.4 MB of binary

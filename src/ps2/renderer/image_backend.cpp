@@ -559,3 +559,40 @@ PS2_COLD_FUNC idImage * idImageManager::ImageFromFile(const char * name, texture
     image->AddReference();
     return image;
 }
+
+// ------------------------------------------------------------------------------------------------
+// id's image manager and cinematics
+// ------------------------------------------------------------------------------------------------
+
+// The manager object itself; the methods above serve the console and retail UI images, and a
+// material's image reload or a bulk build has nothing to do on the PS2.
+static idImageManager s_imageManager;
+idImageManager * globalImages = &s_imageManager;
+
+#define IMAGE_UNAVAILABLE(result, method, parameters) \
+    PS2_COLD_FUNC result method parameters            \
+    {                                                 \
+        ps2::renderer::Unavailable(#method);          \
+    }
+
+IMAGE_UNAVAILABLE(void, idImage::Reload, (bool))
+IMAGE_UNAVAILABLE(void, idImageManager::StartBuild, ())
+IMAGE_UNAVAILABLE(void, idImageManager::FinishBuild, (bool))
+
+// No cinematic decoder exists (Bink and RoQ material videos): a material naming one fails at its
+// load. The virtual members stay for the classes' vtables.
+IMAGE_UNAVAILABLE(idCinematic *, idCinematic::Alloc, ())
+idCinematic::~idCinematic() = default;
+IMAGE_UNAVAILABLE(bool, idCinematic::InitFromFile, (const char *, bool))
+IMAGE_UNAVAILABLE(int, idCinematic::AnimationLength, ())
+IMAGE_UNAVAILABLE(cinData_t, idCinematic::ImageForTime, (int))
+IMAGE_UNAVAILABLE(void, idCinematic::Close, ())
+IMAGE_UNAVAILABLE(void, idCinematic::ResetTime, (int))
+IMAGE_UNAVAILABLE(int, idCinematic::GetStartTime, ())
+IMAGE_UNAVAILABLE(void, idCinematic::ExportToTGA, (bool))
+IMAGE_UNAVAILABLE(float, idCinematic::GetFrameRate, () const)
+IMAGE_UNAVAILABLE(bool, idSndWindow::InitFromFile, (const char *, bool))
+IMAGE_UNAVAILABLE(cinData_t, idSndWindow::ImageForTime, (int))
+IMAGE_UNAVAILABLE(int, idSndWindow::AnimationLength, ())
+
+#undef IMAGE_UNAVAILABLE

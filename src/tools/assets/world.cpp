@@ -544,7 +544,24 @@ std::array<float, 3> MaterialColor(const WorldPolicy & policy, const std::string
         }
     }
 
-    return policy.defaultColor;
+    if (policy.tint <= 0.0f)
+    {
+        return policy.defaultColor;
+    }
+
+    // A stable per-material shade around the default: each channel scales by 1 + tint x [-1, 1] from
+    // the name's FNV-1a bytes, so neighbouring surfaces of different materials read apart.
+    const auto * name = reinterpret_cast<const std::uint8_t *>(material.data());
+    const std::uint32_t hash = Fnv1a32(std::span<const std::uint8_t>(name, material.size()));
+    std::array<float, 3> color = policy.defaultColor;
+
+    for (int channel = 0; channel < 3; ++channel)
+    {
+        const float unit = static_cast<float>((hash >> (8 * channel)) & 0xFFU) / 255.0f;
+        color[static_cast<std::size_t>(channel)] *= 1.0f + policy.tint * (2.0f * unit - 1.0f);
+    }
+
+    return color;
 }
 
 std::uint8_t ColorByte(float value)

@@ -1,7 +1,7 @@
 # Production package procedures
 
 Detailed acceptance for the production ELF's packages: `make test-headless`,
-`test-headless-retail`, `test-ui` and `test-world`. The shared rules are in
+`test-headless-retail`, `test-ui`, `test-world` and `test-world-retail`. The shared rules are in
 [testing-pcsx2.md](../../.claude/rules/testing-pcsx2.md).
 
 ## Headless and retail boot
@@ -263,6 +263,52 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   wrong profile, a profile change that is missing, doubled, outside its step or with the
   wrong buffers, out-of-order barriers, an unfinished unload or ledger, and a closed doorway
   that changes pixels outside the opening or none.
+
+## Retail world session (`make test-world-retail`)
+
+- `make test-world-retail` / `make BUILD=release test-world-retail` (after `make ui-cook`;
+  the target runs `make world-cook-retail`, which cooks `config/world_mars_city1.json`: the
+  binary `generated/maps/game/mars_city1.bproc` in `RETAIL_DATA_ROOT`'s
+  `maps/mars_city1.resources` into `build/world/mars_city1.d3wd` and its report) run
+  `run_world_retail.py`: one production session per standard from a visible console package
+  on the authored headless data, with the D3WD staged as `base/maps/game/mars_city1.d3wd` and
+  every material the cook report lists declared `{ solid collision }` in
+  `base/materials/world_stand_in.mtr`. Without that file id's declaration manager makes
+  implicit materials for the retail names and loads their images, which the image backend
+  refuses; the world pass draws vertex colours and never reads the materials.
+- HostFs commands close the console, set `r_znear 4`, run `ps2_world load maps/game/mars_city1`
+  (the `[D3BFG] world maps/game/mars_city1.d3wd:` line must carry the cook report's areas,
+  surfaces, batches, portals and nodes: 56, 1,791, 2,138, 55 and 9,783 today) and two
+  `ps2_world trace`s from the player's eye at the start (`info_player_start_2`, 68 units
+  above (-3632, -3416, 192)): straight down onto `textures/base_floor/sflgrate2` at fraction
+  0.148 facing up, and west into `textures/mcity/stewall3b` at 0.383 facing (0.990, 0,
+  -0.141), each within 0.002 and with the exact material. A Python ray cast over the `.bproc`'s
+  triangles gives the same fractions and materials.
+- Loading the map leaves the front end: the `ingame` barrier's span must hold one switch to
+  32/32, as in `make test-world`.
+- Seven views in area 2, where the player starts, each a capture two frames after
+  `ps2_world view` and a status two frames later: `east`, `west` and `south` from the start
+  draw area 2 alone (64 batches); `north` from the start and `doorway`, nearer the doorway,
+  draw 3 areas (162 batches) through portal 55, which joins area 2 to the corridor (area 50);
+  `corridor`, from inside area 50 looking back through the doorway, starts in area 50 and
+  draws 2 areas (111 batches); `closed` repeats `north` with `ps2_world portal 55 closed`
+  and must draw area 2 alone (64 batches); the portal is reopened after its status.
+- Captures: each must match a software rasterization of the same `.bproc` from the same camera
+  (`world_reference.compare_image`, the cook's float32 vertex colours, the near plane at 4
+  and the world pass's far plane) on at least 99 % of its pixels within the profile's
+  tolerance, where a pixel matches any surface the 16-bit depth buffer cannot order against
+  the nearest (within two levels of `65535 x near / distance`: coplanar decals over walls and
+  ceilings). `closed` is compared with a rasterization of area 2 alone. Good captures score 99.7
+  to 99.9 %; with a missing area they drop to 39 to 96 % (the `north`, `doorway` and `corridor`
+  captures against area 2 alone). The runner writes `references/ref-<view>-WxH.png` and
+  `references/diff-world-<view>.png` (mismatches in magenta) beside the captures.
+- `ps2_world unload` must leave the empty single-area world, the `frontend` barrier one switch
+  back to 32/16, and the session quits with the exact startup ledger. A session takes about
+  20 s. `test_world_retail_runner.py` rejects a load that differs from the cook report, broken
+  culling counts (the closed doorway drawing past area 2, the open one stopping at it, a wrong
+  start area), wrong traces, a missing display change, capture or ledger, and checks that the
+  closed view brackets its portal and that the package declares every cooked material; it also
+  checks the reference's depth-tie and far-plane rules.
 
 ## Package and UI gate overview
 

@@ -1,7 +1,8 @@
 // ================================================================================================
 // File: proc.h
-// Brief: Read dmap's text .proc render geometry (mapProcFile003): area models, inter-area portals
-// and the area BSP, the input of the world cook. Checked as strictly as id's loader would need.
+// Brief: Read dmap's .proc render geometry (text mapProcFile003, or id's binary .bproc cache): area
+// models, inter-area portals and the area BSP, the input of the world cook. Checked as strictly as
+// id's loader would need.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -9,6 +10,7 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -67,6 +69,12 @@ struct ProcFile
 // Surfaces keep at most 65,535 vertices (16-bit indices on the PS2). Every area 0..N-1 named by
 // the portal section must have its model, and node children must stay in range.
 bool ParseProc(std::string_view text, ProcFile & output, std::string & error);
+
+// The same geometry from the binary cache retail containers ship (generated/maps/<map>.bproc),
+// parsed to its exact end under the same checks. Vertex positions, texture coordinates and normals
+// are kept; colours (garbage in the retail _area vertices), tangents and the precomputed shadow and
+// silhouette data are skipped. Prelight shadow models are counted, as the text parser does.
+bool ParseBinaryProc(std::span<const std::uint8_t> data, ProcFile & output, std::string & error);
 
 // The model of area 'area', or null.
 const ProcModel * FindAreaModel(const ProcFile & proc, int area);
