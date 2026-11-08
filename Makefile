@@ -41,6 +41,7 @@
 #   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog) and the invalid-resource cases
 #   make test-world              # the cooked graybox through id's render world: portal culling and captures, one production session per standard
 #   make test-world-retail       # mars_city1 cooked from the retail .bproc: area 2 and its doorway, captures against references, per standard
+#   make run-world-retail        # debug: fly through cooked mars_city1 with the pad (ps2_world fly)
 #
 # Tooling:
 #   make tools                   # audit sources and build the host tools
@@ -316,7 +317,7 @@ $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-fl
 $(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
 endif
 
-.PHONY: texture-fixture all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world test-world-retail ui-inventory ui-cook resource-unpack asset-reexport world-cook world-cook-retail build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
+.PHONY: texture-fixture all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world test-world-retail stage-world-retail run-world-retail ui-inventory ui-cook resource-unpack asset-reexport world-cook world-cook-retail build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
 
 release: all
 build-platform: core-test-image
@@ -540,6 +541,13 @@ test-world: all world-cook
 
 test-world-retail: all world-cook-retail
 	$(PYTHON) $(SCRIPTS)/run_world_retail.py --build $(BUILD) --catalog "$(UI_COOK_OUTPUT)" --world "$(WORLD_COOK_OUTPUT)/mars_city1.d3wd" --data "$(RETAIL_DATA_ROOT)" --emulator $(PCSX2)
+
+# Debug builds: fly through mars_city1 with the pad (ps2_world fly), from the player start.
+stage-world-retail: all world-cook-retail
+	$(PYTHON) $(SCRIPTS)/run_world_retail.py --build $(BUILD) --catalog "$(UI_COOK_OUTPUT)" --world "$(WORLD_COOK_OUTPUT)/mars_city1.d3wd" --data "$(RETAIL_DATA_ROOT)" --standard $(CONSOLE_STANDARD) --stage $(OUTPUT_DIR)/world-retail
+
+run-world-retail: stage-world-retail
+	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/world-retail/d3bfg.elf
 
 .PHONY: stage-ui-fonts run-ui-fonts stage-ui-movies run-ui-movies stage-ui-menu run-ui-menu
 

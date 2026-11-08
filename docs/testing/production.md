@@ -319,6 +319,14 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   runner names each view's areas and takes their batches from the cook report's `area_list`, so
   `make test-world-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips` checks a
   plain-strips cook drawn by `world_strips.vcl` the same way.
+- Debug builds then fly (`fly` barrier): from the `east` view, `ps2_world fly on` must log the
+  start's pose (yaw 0, pitch 0), and `ps2_world fly input 0 -63 -119 34 0 30` (96 units forward
+  while turning 110 degrees left and looking 11.5 degrees down, 30 frames of 1/30 s) must end, by
+  `ps2_world fly status` four frames after the last scripted frame, within 0.25 units and 0.05
+  degrees of the pose `run_world_retail.fly_pose` steps the same way (-3586.95, -3348.12, 250.05;
+  yaw 109.62, pitch 11.54). `world-fly.tga` is captured there and must match the reference from that
+  pose; the status must start in area 2. `world-fly-lit.tga` follows, textured and lit, checked by
+  eye. Release builds have no flight camera and skip the step.
 - Captures: each untextured, unlit one must match a software rasterization of the cooked D3WD's
   own triangles from the same camera (`world_reference.load_cooked_triangles`, decoded from the
   batch packets with their vertex colour bytes, which are the baked chroma: the reference renders

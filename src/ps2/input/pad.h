@@ -22,12 +22,23 @@ PS2_COLD_FUNC void Shutdown();
 // posts the engine's stick keys. The read is a copy of padman's buffer, not an IOP round trip.
 void Poll();
 
+// False stops the pad posting key events (releasing what it holds) while something else reads
+// GetStats directly, as the debug free-flight camera does; true resumes them.
+void SetKeyEvents(bool enabled);
+
 struct Stats
 {
     bool available = false;
     bool ready = false;
     bool analog = false;
+    // libpad's button mask (PAD_CROSS and the like), set bits pressed.
     u16 buttons = 0;
+    // Each stick's deflection from its centre, -128 to 127 (x rightwards, y downwards); zero
+    // unless the pad is in an analog mode.
+    s8 leftX = 0;
+    s8 leftY = 0;
+    s8 rightX = 0;
+    s8 rightY = 0;
     u32 events = 0;
 };
 

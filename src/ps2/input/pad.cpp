@@ -34,6 +34,7 @@ static Status s_status = Status::Unavailable;
 static bool s_modulesLoaded = false;
 static bool s_padStarted = false;
 static ps2::input::pad::Stats s_stats;
+static bool s_keyEvents = true;
 
 // Every key this pad has pressed since the last poll: buttons and the stick directions.
 static bool s_pressed[K_JOY_DPAD_RIGHT + 1 - K_JOY1] = {};
@@ -81,6 +82,12 @@ void SetKey(int key, bool down)
 {
     bool & pressed = s_pressed[key - K_JOY1];
 
+    // With key events off nothing is held, so turning them on again presses what is down then.
+    if (!s_keyEvents)
+    {
+        return;
+    }
+
     if (pressed == down)
     {
         return;
@@ -89,6 +96,14 @@ void SetKey(int key, bool down)
     pressed = down;
     Sys_QueEvent(SE_KEY, key, down ? 1 : 0, 0, nullptr, 0);
     ++s_stats.events;
+}
+
+void CenterSticks()
+{
+    s_stats.leftX = 0;
+    s_stats.leftY = 0;
+    s_stats.rightX = 0;
+    s_stats.rightY = 0;
 }
 
 void ReleaseAll()
@@ -160,6 +175,7 @@ PS2_COLD_FUNC void Shutdown()
     s_stats.ready = false;
     s_stats.analog = false;
     s_stats.buttons = 0;
+    CenterSticks();
 }
 
 void Poll()
@@ -209,6 +225,7 @@ void Poll()
                 ReleaseAll();
                 s_stats.buttons = 0;
                 s_stats.analog = false;
+                CenterSticks();
                 s_status = Status::Disconnected;
                 break;
             }
@@ -237,6 +254,11 @@ void Poll()
                 const int rightX = s_stats.analog ? data.rjoy_h - kStickCenter : 0;
                 const int rightY = s_stats.analog ? data.rjoy_v - kStickCenter : 0;
 
+                s_stats.leftX = static_cast<s8>(leftX);
+                s_stats.leftY = static_cast<s8>(leftY);
+                s_stats.rightX = static_cast<s8>(rightX);
+                s_stats.rightY = static_cast<s8>(rightY);
+
                 SetKey(K_JOY_STICK1_UP,    leftY  < -kStickThreshold);
                 SetKey(K_JOY_STICK1_DOWN,  leftY  >  kStickThreshold);
                 SetKey(K_JOY_STICK1_LEFT,  leftX  < -kStickThreshold);
@@ -254,6 +276,21 @@ void Poll()
     }
 
     s_stats.ready = s_status == Status::Ready;
+}
+
+void SetKeyEvents(bool enabled)
+{
+    if (enabled == s_keyEvents)
+    {
+        return;
+    }
+
+    if (!enabled)
+    {
+        ReleaseAll();
+    }
+
+    s_keyEvents = enabled;
 }
 
 const Stats & GetStats()

@@ -45,8 +45,25 @@ def textures_line(**fields):
     return ("[D3BFG] WORLD textures " + " ".join(f"{name}={values[name]}" for name in runner.TEXTURE_FIELDS) + "\n")
 
 
+def fly_line(event, on, eye, yaw, pitch):
+    return (f"[D3BFG] WORLD fly {event} on={on} eye={eye[0]:.2f},{eye[1]:.2f},{eye[2]:.2f} yaw={yaw:.2f} pitch={pitch:.2f} "
+            f"view=0 0 0 1 0 0\n")
+
+
+def flight(frame, pose=None, area=runner.FLY_AREA):
+    """The flight step as a debug session logs it, ending at 'pose' (the model's by default)."""
+    start = tuple(runner.FLY_START.camera[:3])
+    eye, yaw, pitch = pose or runner.fly_pose(start, runner.FLY_INPUT)
+    log = fly_line("on", 1, start, 0.0, 0.0) + fly_line("status", 1, eye, yaw, pitch)
+    log += f"[D3BFG] CONSOLE capture=world-fly.tga frame={frame} presents={frame} redraws=0 bits=32\n"
+    log += WORLD.format(event="status", areas=56, portals=55, viewing=1, frame=frame + 3, views=frame, area=area, entities=2, drawn=2,
+                        batches=123)
+    log += f"[D3BFG] CONSOLE capture=world-fly-lit.tga frame={frame + 5} presents={frame + 5} redraws=0 bits=32\n"
+    return log + fly_line("off", 0, eye, yaw, pitch) + echo("fly")
+
+
 def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4 final=7424/7600/4", report=REPORT,
-            decals=(None, GRATE_DECAL, None), textures=None):
+            decals=(None, GRATE_DECAL, None), textures=None, fly=None):
     """A retail world session's log as PCSX2's file log stamps it, with per-view and per-trace overrides."""
     counts = dict(report, **(load or {}))
     log = echo("ready") + echo("begin")
@@ -76,6 +93,8 @@ def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4
         log += f"[D3BFG] CONSOLE capture=world-{view.name}-lit.tga frame={frame + 7} presents={frame + 7} redraws=0 bits=32\n"
         log += textures_line(**(textures or {}).get(view.name, {})) + echo(view.name)
         frame += 10
+    if fly is not None:
+        log += flight(frame, **fly)
     log += decals_line(**(decals[1] or {}))
     log += WORLD.format(event="unloaded", areas=1, portals=0, viewing=0, frame=frame, views=frame, area=0, entities=1, drawn=1,
                         batches=64)
@@ -86,8 +105,8 @@ def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4
     return "".join("[    1.0000] " + line for line in log.splitlines(keepends=True))
 
 
-def classify(log):
-    return runner.classify(log, IDENTITY, "ntsc", REPORT)
+def classify(log, fly=False):
+    return runner.classify(log, IDENTITY, "ntsc", REPORT, fly)
 
 
 class RetailWorldRunnerTests(unittest.TestCase):
@@ -97,6 +116,29 @@ class RetailWorldRunnerTests(unittest.TestCase):
         self.assertEqual(details["views"]["north"]["status"]["drawn"], 3)
         self.assertEqual(details["views"]["corridor"]["status"]["area"], 50)
         self.assertEqual(details["views"]["closed"]["status"]["drawn"], 1)
+
+    def test_flight_model_follows_the_target(self):
+        # Full forward for 30 frames of 1/30 s covers the flight speed along the starting view (+x).
+        eye, yaw, pitch = runner.fly_pose((0.0, 0.0, 0.0), (0, -128, 0, 0, 0, 30))
+        self.assertEqual((round(eye[0], 6), round(eye[1], 6), round(eye[2], 6), yaw, pitch), (runner.FLY_SPEED, 0.0, 0.0, 0.0, 0.0))
+        # The scripted flight as the debug target logged it (20261108T090034Z_world_retail_038a5b17cb0c).
+        eye, yaw, pitch = runner.fly_pose(tuple(runner.FLY_START.camera[:3]), runner.FLY_INPUT)
+        for found, logged in zip((*eye, yaw, pitch), (-3586.95, -3348.12, 250.05, 109.62, 11.54)):
+            self.assertAlmostEqual(found, logged, delta=0.01)
+
+    def test_flight_session_passes(self):
+        passed, reason, details = classify(session(fly={}), fly=True)
+        self.assertTrue(passed, reason)
+        self.assertEqual(details["flight"]["status"]["area"], runner.FLY_AREA)
+        # A debug session must fly.
+        self.assertFalse(classify(session(), fly=True)[0])
+
+    def test_flight_must_reach_the_modelled_pose_in_its_area(self):
+        eye, yaw, pitch = runner.fly_pose(tuple(runner.FLY_START.camera[:3]), runner.FLY_INPUT)
+        moved = (eye[0] + 1.0, eye[1], eye[2])
+        self.assertIn("flight status", classify(session(fly={"pose": (moved, yaw, pitch)}), fly=True)[1])
+        self.assertIn("flight status", classify(session(fly={"pose": (eye, yaw + 1.0, pitch)}), fly=True)[1])
+        self.assertIn("ended in area", classify(session(fly={"area": -1}), fly=True)[1])
 
     def test_view_batches_follow_the_cook_report(self):
         # The strips cook lays the same areas out in more batches: the session must draw those.

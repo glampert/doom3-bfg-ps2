@@ -230,6 +230,17 @@ areas, portals and the last view's area, entities, drawn areas, batches and fram
 lightmap pass (the default) or the vertex chroma alone, and `textures status` logs the last pass's
 texture arena, residents, uploads, evictions, untextured fallbacks, resident lightmap pages and
 batches drawn without their page.
+Debug builds add a free-flight camera: `fly on` starts from the current view, then each frame the
+pad's left stick moves along the view and sideways, the right stick turns, R1 and L1 rise and sink,
+cross holds 4x speed and square a quarter (256 units a second at full deflection, 120 degrees a
+second of turn, through walls: it moves the camera, not a player). Triangle logs the pose with a
+`view=` line `ps2_world view` takes, and `fly status` logs it too. While flying, the pad posts no
+key events, so it never reaches the console or a screen. `fly off` stops; `view`, `off`, `load`
+and `unload` end or move the flight. `fly input LX LY RX RY BUTTONS FRAMES` scripts the sticks
+(-128 to 127) and a libpad button mask for FRAMES frames of 1/30 s each, for the gate.
+`make run-world-retail` (debug, after `make ui-cook`; `CONSOLE_STANDARD=pal` for PAL) stages mars_city1
+under `build/debug/world-retail/` with a `console.txt` that closes the console, loads the map and
+starts flying from the player start.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
 the graybox and runs it. Production draws 640 wide by default. `ps2_frameBufferBits
 16/16|32/16|32/32` sets the in-game frame-buffer profile (draw/display bits; 32/16 draws in

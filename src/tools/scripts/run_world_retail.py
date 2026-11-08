@@ -16,12 +16,15 @@ models check the compact position mirror id's traces read. Each capture must mat
 pixel within the frame-buffer profile's tolerance, a software rasterization of the same .bproc
 from the same camera (world_reference.py), where any surface the 16-bit depth buffer cannot order
 may win: a missing area or misplaced geometry fails it. Closing the doorway's portal must leave
-only area 2, against a reference of area 2 alone. The world is then unloaded and the session
+only area 2, against a reference of area 2 alone. In debug builds the free-flight camera then
+flies from the start under scripted stick input, to the pose the same steps give here, and its
+capture must match the reference from that pose. The world is then unloaded and the session
 quits, recovering the startup ledger."""
 
 import argparse
 from collections import namedtuple
 import json
+import math
 from pathlib import Path
 import re
 import shutil
@@ -77,6 +80,92 @@ DECALS = (((-3632, -3416, 192), (0, 0, -1), 32, 8, "textures/base_floor/sflgrate
 DECALS_EXPECTED = {"entities": 1, "area": 32.0 * 32.0, "bounds": (-3648.0, -3432.0, 192.0, -3616.0, -3400.0, 192.0)}
 
 
+# The free-flight step (debug builds): from the east view, ps2_world fly input holds the sticks
+# (left x, left y, right x, right y, -128 to 127), a libpad button mask and a frame count; each
+# frame advances 1/30 s whatever it took. Here: 96 units forward while turning 110 degrees left
+# and looking a little down, which keeps the eye inside the start room (area 2).
+FLY_START = VIEWS[0]
+FLY_INPUT = (0, -63, -119, 34, 0, 30)
+FLY_AREA = 2
+# The presentation's flight constants (presentation.cpp).
+FLY_SPEED, FLY_TURN_RATE, FLY_DEAD_ZONE, FLY_MAX_PITCH, FLY_STEP = 256.0, 120.0, 24, 89.0, 1.0 / 30.0
+# The pose the target reaches, within its single-precision steps.
+FLY_POSITION_TOLERANCE, FLY_ANGLE_TOLERANCE = 0.25, 0.05
+FLY_RE = re.compile(r"\[D3BFG\] WORLD fly (\w+) on=([01]) eye=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) yaw=(-?[\d.]+) pitch=(-?[\d.]+) ")
+
+
+def fly_axis(value: int) -> float:
+    """A stick's deflection past the dead zone, rescaled to [-1, 1] (presentation.cpp's FlyAxis)."""
+    if value > FLY_DEAD_ZONE:
+        return min(1.0, (value - FLY_DEAD_ZONE) / (128 - FLY_DEAD_ZONE))
+    if value < -FLY_DEAD_ZONE:
+        return max(-1.0, (value + FLY_DEAD_ZONE) / (128 - FLY_DEAD_ZONE))
+    return 0.0
+
+
+def fly_axes(yaw: float, pitch: float) -> tuple[tuple, tuple]:
+    """Forward and left of idAngles(pitch, yaw, 0).ToMat3() (pitch positive looks down)."""
+    cy, sy = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+    cp, sp = math.cos(math.radians(pitch)), math.sin(math.radians(pitch))
+    return (cp * cy, cp * sy, -sp), (-sy, cy, 0.0)
+
+
+def fly_pose(start: tuple, script: tuple) -> tuple[tuple, float, float]:
+    """The eye, yaw and pitch after the scripted frames, starting level and looking along +x
+    (the east view), as UpdateFly steps them: turn, then move along the new axes."""
+    left_x, left_y, right_x, right_y, buttons, frames = script
+    if buttons != 0:
+        raise ValueError("the flight model covers stick input only")
+    eye, yaw, pitch = list(start), 0.0, 0.0
+    for _ in range(frames):
+        yaw = (yaw - fly_axis(right_x) * FLY_TURN_RATE * FLY_STEP) % 360.0
+        pitch = max(-FLY_MAX_PITCH, min(FLY_MAX_PITCH, pitch + fly_axis(right_y) * FLY_TURN_RATE * FLY_STEP))
+        forward, left = fly_axes(yaw, pitch)
+        for lane in range(3):
+            eye[lane] += FLY_SPEED * FLY_STEP * (-fly_axis(left_y) * forward[lane] - fly_axis(left_x) * left[lane])
+    return tuple(eye), yaw, pitch
+
+
+def fly_camera() -> tuple[tuple, tuple]:
+    """The flight's final camera as an eye and a target 100 units along its view."""
+    eye, yaw, pitch = fly_pose(FLY_START.camera[:3], FLY_INPUT)
+    forward, _ = fly_axes(yaw, pitch)
+    return eye, tuple(eye[lane] + 100.0 * forward[lane] for lane in range(3))
+
+
+def fly_commands(identity: str) -> list[str]:
+    # The capture runs after the scripted frames end (the pad, untouched, then moves nothing).
+    return ["ps2_world view " + " ".join(str(value) for value in FLY_START.camera), "ps2_world fly on",
+            "ps2_world fly input " + " ".join(str(value) for value in FLY_INPUT), f"wait {FLY_INPUT[5] + 4}", "ps2_world fly status",
+            'ps2_capture "world-fly.tga"', "wait 2", "ps2_world status", "ps2_world textures on", "ps2_world lightmaps on", "wait 2",
+            'ps2_capture "world-fly-lit.tga"', "wait 2", "ps2_world textures off", "ps2_world lightmaps off", "ps2_world fly off",
+            f'echo "{run_world.barrier(identity, "fly")}"']
+
+
+def check_fly(span: str) -> tuple[bool, str, dict]:
+    """The flight's log lines: on at the east view's pose, the status at the modelled pose, its
+    capture and a world status that saw the view."""
+    lines = FLY_RE.findall(span)
+    if [line[0] for line in lines] != ["on", "status", "off"] or [line[1] for line in lines] != ["1", "1", "0"]:
+        return False, f"the flight did not log on, status and off: {[line[0] for line in lines]}", {}
+    expected = (tuple(FLY_START.camera[:3]), 0.0, 0.0), fly_pose(FLY_START.camera[:3], FLY_INPUT)
+    for line, (eye, yaw, pitch) in zip(lines, expected):
+        found = tuple(float(value) for value in line[2:5])
+        yaw_found, pitch_found = float(line[5]), float(line[6])
+        yaw_error = abs((yaw_found - yaw + 180.0) % 360.0 - 180.0)
+        if (any(abs(a - b) > FLY_POSITION_TOLERANCE for a, b in zip(found, eye)) or yaw_error > FLY_ANGLE_TOLERANCE or
+                abs(pitch_found - pitch) > FLY_ANGLE_TOLERANCE):
+            return False, f"flight {line[0]} at {found} yaw={yaw_found} pitch={pitch_found}; expected {eye} yaw={yaw:.2f} pitch={pitch:.2f}", {}
+    captures = run_world.CAPTURE_RE.findall(span)
+    statuses = [line for line in run_world.world_lines(span) if line["event"] == "status"]
+    if [capture[0] for capture in captures] != ["world-fly.tga", "world-fly-lit.tga"] or len(statuses) != 1 or statuses[0]["viewing"] != 1:
+        return False, "the flight's captures or world status are missing", {}
+    if statuses[0]["area"] != FLY_AREA:
+        return False, f"the flight ended in area {statuses[0]['area']}; expected {FLY_AREA}", {}
+    eye, target = fly_camera()
+    return True, "", {"eye": [round(value, 2) for value in eye], "target": [round(value, 2) for value in target], "status": statuses[0]}
+
+
 def world_report(world: Path) -> dict:
     """The cook's report beside the D3WD (asset_reexport world)."""
     return json.loads(world.with_name(world.stem + ".report.json").read_text())
@@ -108,8 +197,9 @@ def view_commands(identity: str, view: View) -> list[str]:
             f'echo "{run_world.barrier(identity, view.name)}"']
 
 
-def driver(identity: str):
-    """Yield each command batch with the condition, over the log, that ends its wait."""
+def driver(identity: str, fly: bool):
+    """Yield each command batch with the condition, over the log, that ends its wait; 'fly' adds
+    the free-flight step (debug builds)."""
 
     def until(name: str):
         return lambda log: run_world.echoed(log, run_world.barrier(identity, name))
@@ -124,13 +214,16 @@ def driver(identity: str):
     yield ["wait 2", f'echo "{run_world.barrier(identity, "ingame")}"'], until("ingame")
     for view in VIEWS:
         yield view_commands(identity, view), until(view.name)
+    if fly:
+        yield fly_commands(identity), until("fly")
     yield ["ps2_world decals", "ps2_world unload", "ps2_world decals", f'echo "{run_world.barrier(identity, "unloaded")}"'], until("unloaded")
     yield ["wait 2", f'echo "{run_world.barrier(identity, "frontend")}"', "quit"], lambda log: run_headless.SHUTDOWN_COMPLETE in log
 
 
-def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool, str, dict]:
+def classify(log: str, identity: str, standard: str, report: dict, fly: bool = False) -> tuple[bool, str, dict]:
     """Check the session log: the cooked load with the report's counts, the traces, every view's
-    portal culling and capture, the display changes into and out of the map, the unload and shutdown."""
+    portal culling and capture, the flight when 'fly' asks for it, the display changes into and out
+    of the map, the unload and shutdown."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "crash or fatal diagnostic", {}
     load = re.compile(rf"\[D3BFG\] world {re.escape(MAP)}\.d3wd: areas={report['areas']} surfaces={report['surfaces']} "
@@ -139,7 +232,7 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         return False, "the cooked map did not load with the cook report's areas, surfaces, batches, portals and nodes", {}
     if "WORLD load failed" in log:
         return False, "the render world refused the map", {}
-    markers = ["begin", "loaded", "ingame"] + [view.name for view in VIEWS] + ["unloaded", "frontend"]
+    markers = ["begin", "loaded", "ingame"] + [view.name for view in VIEWS] + (["fly"] if fly else []) + ["unloaded", "frontend"]
     # Echo output, not the submitted line, is the barrier.
     spans = [re.search(re.escape(run_world.barrier(identity, name)) + r" +\r?\n", log) for name in markers]
     if any(span is None for span in spans):
@@ -211,13 +304,18 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
     memory = run_headless.MEMORY_RE.findall(log)
     if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
         return False, "production shutdown did not recover the startup allocation ledger", {}
+    flight = None
+    if fly:
+        passed, failure, flight = check_fly(log[positions[-4]:positions[-3]])
+        if not passed:
+            return False, failure, {}
     arena = max(view["status"]["arena"] for view in views.values())
     return True, ("mars_city1 loaded from its cooked .bproc, drew area 2 and the corridor through the portal flow, closed the "
                   "doorway down to area 2, built its floor decal over the mirror, unloaded and shut down"), \
-        {"views": views, "arena_bytes": arena, "decals": decals[0]}
+        {"views": views, "arena_bytes": arena, "decals": decals[0], "flight": flight}
 
 
-def verify_captures(output: Path, data: Path, world: Path, standard: str) -> dict:
+def verify_captures(output: Path, data: Path, world: Path, standard: str, fly: bool = False) -> dict:
     """Every unlit capture against the reference rasterization of its view, written beside it as
     reference-<view>.png and difference-<view>.png (mismatches in magenta). The reference draws
     the cooked world's own triangles and vertex colours: the baked chroma is the cook's, and the
@@ -240,6 +338,11 @@ def verify_captures(output: Path, data: Path, world: Path, standard: str) -> dic
         results[view.name] = {"match_percent": round(share, 2), "minimum_percent": MIN_MATCH}
         if share < MIN_MATCH:
             raise ValueError(f"{view.name}: {share:.2f}% of the capture matches its reference; expected at least {MIN_MATCH}%")
+    if fly:
+        share = world_reference.compare_image(output / "world-fly.tga", everything, fly_camera(), bits, world_reference.CLEAR_RGB, images, "fly")
+        results["fly"] = {"match_percent": round(share, 2), "minimum_percent": MIN_MATCH}
+        if share < MIN_MATCH:
+            raise ValueError(f"fly: {share:.2f}% of the capture matches its reference; expected at least {MIN_MATCH}%")
     return results
 
 
@@ -262,14 +365,31 @@ def stage_retail_world(build: str, output: Path, standard: str, catalog: Path, w
     return package
 
 
+def stage_flight(args: argparse.Namespace, standard: str) -> Path:
+    """A package for flying through the map by hand (make run-world-retail, debug builds): its
+    console.txt closes the console, loads the map, sets the player start's east view and turns
+    the free-flight camera on."""
+    if not args.world.is_file():
+        raise ValueError(f"missing cooked world {args.world}; run make world-cook-retail")
+    if args.build != "debug":
+        raise ValueError("the free-flight camera exists in debug builds only")
+    package = stage_retail_world(args.build, args.stage, standard, args.catalog, args.world, world_report(args.world))
+    commands = ["ps2_consoleKey toggle", "r_znear 4", f"ps2_world load {MAP}", "ps2_world view " + " ".join(str(value) for value in FLY_START.camera),
+                "ps2_world fly on"]
+    (package / "console.txt").write_text("".join(command + "\n" for command in commands))
+    return package
+
+
 def run(args: argparse.Namespace, standard: str, version: str) -> bool:
     if not args.world.is_file():
         raise ValueError(f"missing cooked world {args.world}; run make world-cook-retail")
     report = world_report(args.world)
+    # The free-flight camera exists in debug builds only.
+    fly = args.build == "debug"
     return run_world.run_session(args, standard, version, "world_retail",
                                  lambda output: stage_retail_world(args.build, output, standard, args.catalog, args.world, report),
-                                 driver, lambda log, identity: classify(log, identity, standard, report),
-                                 lambda output: verify_captures(output, args.data, args.world, standard), args.world)
+                                 lambda identity: driver(identity, fly), lambda log, identity: classify(log, identity, standard, report, fly),
+                                 lambda output: verify_captures(output, args.data, args.world, standard, fly), args.world)
 
 
 def main() -> int:
@@ -284,10 +404,15 @@ def main() -> int:
     parser.add_argument("--emulator", type=Path, default=smoke.DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)
     parser.add_argument("--timeout-scale", type=float, default=1.0, help="multiplies the watchdogs")
+    parser.add_argument("--stage", type=Path, help="only stage a package here that starts flying from the player start (debug builds)")
     args = parser.parse_args()
     if not 0 < args.timeout_scale <= 10:
         parser.error("timeout scale must be positive and at most 10")
     try:
+        if args.stage:
+            package = stage_flight(args, args.standard or "ntsc")
+            print(f"staged {package}", flush=True)
+            return 0
         if smoke.emulator_is_running(args.emulator):
             raise ValueError("an emulator is already running; close it before starting the world session")
         smoke.check_config(args.config)

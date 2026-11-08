@@ -5633,3 +5633,26 @@ exposure).
 | `make test-host` | Passed: 396 Python tests and the C++ harnesses. `lighting_tests` (new) checks id's expression priorities and tables, light material coverage, entity parsing, light projections and bounds, the six classes, a light's value, and a baked room against analytic intensity, shadow, chroma and per-vertex grate light. `texture_format_tests` checks D3TX pages and hidden materials; `world_tests` checks a lit graybox |
 | `make`, `make release`, release core image | Passed, no warnings; runnable `PT_LOAD` 4,742,572 debug and 4,038,700 release. `make test-ui` was not run (no UI path changed). Release was compiled, not run |
 
+
+## Debug free-flight camera (2026-11-08)
+
+Debug builds fly through a `ps2_world` render world with the pad: `ps2_world fly on` takes over the
+current view, and each frame the left stick moves along the view and sideways, the right stick
+turns, R1/L1 rise and sink, cross and square scale the speed (256 units a second, 120 degrees a
+second at full deflection), and triangle logs the pose as a `ps2_world view` line. It moves the
+camera, not a player: there is no collision, and the portal flow picks the areas from wherever the
+eye is. The pad now keeps its stick deflections in `pad::Stats` and stops posting key events while
+flying (`pad::SetKeyEvents`). `make run-world-retail` stages mars_city1 under
+`build/debug/world-retail/` flying from the player start. Release builds compile the camera out.
+
+The retail gate's debug sessions fly a scripted path (`ps2_world fly input`, 30 frames of 1/30 s):
+both standards end at (-3586.95, -3348.12, 250.05), yaw 109.62, pitch 11.54, the pose
+`run_world_retail.fly_pose` steps in Python, inside area 2, and the capture there matches its
+reference.
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC `20261108T090034Z_world_retail_038a5b17cb0c`, PAL `20261108T090229Z_world_retail_e000f65da8e2`; the flight's capture matches 99.88 / 99.89 %, two areas and 123 batches drawn. Captures `docs/images/renderer-world-10-mars_city1-fly-{ntsc,pal}.png` |
+| `make test-world` (debug) | Passed in both standards |
+| `make test-host` | Passed: 399 Python tests and the C++ harnesses |
+| `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 4,745,780 debug and 4,038,836 release |

@@ -200,6 +200,12 @@ production link free of test inputs. Section numbers in parentheses point into t
       lights into 8 pages, alpha-tested surfaces lit per vertex).
 - [ ] Cook: chroma subdivision to 64 units; the `.bcm` and mesh models (`func_static` `.lwo`/`.ase`)
       as occluders; a pixel reference for the lightmap pass in the retail gate (8.2, 8.3).
+- [ ] Cook: draw the static `func_static` brush models (no bind, no script control, not a mover)
+      as world batches of the areas they touch, lit like the area surfaces; today they only cast
+      shadows in the bake, so the props they make leave holes in the viewer.
+- [x] Debug free-flight camera (2026-11-08): `ps2_world fly` steers the viewer with the pad,
+      `make run-world-retail` stages mars_city1 flying from the player start, and the retail gate
+      flies a scripted path to a modelled pose and matches its capture (debug builds).
 - [x] Retail `(format, colorFormat)` census (`texture_census.py`, 2026-11-08): five encodings
       plus RGB565 light images; the plan's 10.4 records it and the memory-image format.
 - [x] Cook: GSTX v2 memory images (GS local memory emulation, level and CLUT placement, mips,

@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/input/devices.h"
+#include "ps2/input/pad.h"
 #include "ps2/renderer/capture.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
@@ -22,6 +23,7 @@
 
 #include <cerrno>
 #include <idlib/precompiled.h>
+#include <libpad.h>
 
 namespace
 {
@@ -187,8 +189,226 @@ PS2_COLD_FUNC idVec3 Point(const idCmdArgs & args, int first)
                   static_cast<float>(atof(args.Argv(first + 2))));
 }
 
+// ------------------------------------------------------------------------------------------------
+// Debug free-flight camera (ps2_world fly)
+// ------------------------------------------------------------------------------------------------
+
+#if PS2_D3BFG_DEBUG
+
+// Walks through walls: it moves the viewer's camera, not a player. The left stick moves along the
+// view and sideways, the right stick turns (no inversion), R1 and L1 rise and sink, cross holds 4x
+// speed and square a quarter, and triangle logs the pose as a ps2_world view line.
+static constexpr float kFlySpeed = 256.0f;   // world units a second at full deflection
+static constexpr float kFlyTurnRate = 120.0f; // degrees a second at full deflection
+static constexpr int kFlyDeadZone = 24;       // of the stick's 128
+static constexpr float kFlyMaxPitch = 89.0f;
+// A frame longer than this (a load, a GS restart) moves the camera as if it took this long.
+static constexpr float kFlyMaxSeconds = 0.1f;
+// Scripted input (ps2_world fly input) advances this much each frame, whatever the frame took, so
+// a gate can predict the pose.
+static constexpr float kFlyScriptSeconds = 1.0f / 30.0f;
+
+struct FlyInput
+{
+    int leftX = 0;
+    int leftY = 0;
+    int rightX = 0;
+    int rightY = 0;
+    u16 buttons = 0;
+};
+
+static bool s_fly = false;
+static float s_flyYaw = 0.0f;
+static float s_flyPitch = 0.0f;
+static u64 s_flyLastMicroseconds = 0;
+static bool s_flyReportHeld = false;
+static FlyInput s_flyScript;
+static int s_flyScriptFrames = 0;
+
+// A stick's deflection past the dead zone, rescaled to [-1, 1].
+float FlyAxis(int value)
+{
+    if (value > kFlyDeadZone)
+    {
+        return idMath::ClampFloat(0.0f, 1.0f, static_cast<float>(value - kFlyDeadZone) / static_cast<float>(128 - kFlyDeadZone));
+    }
+
+    if (value < -kFlyDeadZone)
+    {
+        return idMath::ClampFloat(-1.0f, 0.0f, static_cast<float>(value + kFlyDeadZone) / static_cast<float>(128 - kFlyDeadZone));
+    }
+
+    return 0.0f;
+}
+
+PS2_COLD_FUNC void LogFly(const char * event)
+{
+    const idVec3 & eye = s_view.vieworg;
+    const idVec3 target = eye + 100.0f * s_view.viewaxis[0];
+
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD fly %s on=%d eye=%.2f,%.2f,%.2f yaw=%.2f pitch=%.2f view=%.0f %.0f %.0f %.0f %.0f %.0f\n", event,
+             static_cast<int>(s_fly), static_cast<double>(eye.x), static_cast<double>(eye.y), static_cast<double>(eye.z),
+             static_cast<double>(s_flyYaw), static_cast<double>(s_flyPitch), static_cast<double>(eye.x), static_cast<double>(eye.y),
+             static_cast<double>(eye.z), static_cast<double>(target.x), static_cast<double>(target.y), static_cast<double>(target.z));
+}
+
+PS2_COLD_FUNC void StartFly()
+{
+    const idAngles angles = s_view.viewaxis[0].ToAngles();
+    s_flyYaw = idMath::AngleNormalize360(angles.yaw);
+    s_flyPitch = idMath::ClampFloat(-kFlyMaxPitch, kFlyMaxPitch, idMath::AngleNormalize180(angles.pitch));
+    s_flyLastMicroseconds = Sys_Microseconds();
+    s_flyReportHeld = false;
+    s_flyScriptFrames = 0;
+    s_fly = true;
+    // The pad steers the camera; its buttons must not also reach the console or a screen.
+    ps2::input::pad::SetKeyEvents(false);
+}
+
+void StopFly()
+{
+    if (!s_fly)
+    {
+        return;
+    }
+
+    s_fly = false;
+    s_flyScriptFrames = 0;
+    ps2::input::pad::SetKeyEvents(true);
+}
+
+// One frame of flight, from the pad or the scripted input, before the view draws.
+void UpdateFly()
+{
+    const u64 now = Sys_Microseconds();
+    FlyInput input;
+    float seconds = 0.0f;
+
+    if (s_flyScriptFrames > 0)
+    {
+        input = s_flyScript;
+        seconds = kFlyScriptSeconds;
+        --s_flyScriptFrames;
+    }
+    else
+    {
+        const ps2::input::pad::Stats & pad = ps2::input::pad::GetStats();
+        input.leftX = pad.leftX;
+        input.leftY = pad.leftY;
+        input.rightX = pad.rightX;
+        input.rightY = pad.rightY;
+        input.buttons = pad.buttons;
+        seconds = idMath::ClampFloat(0.0f, kFlyMaxSeconds, static_cast<float>(now - s_flyLastMicroseconds) * 1.0e-6f);
+    }
+
+    s_flyLastMicroseconds = now;
+
+    // Turn first, then move along the new axis.
+    s_flyYaw = idMath::AngleNormalize360(s_flyYaw - FlyAxis(input.rightX) * kFlyTurnRate * seconds);
+    s_flyPitch = idMath::ClampFloat(-kFlyMaxPitch, kFlyMaxPitch, s_flyPitch + FlyAxis(input.rightY) * kFlyTurnRate * seconds);
+
+    const idMat3 axis = idAngles(s_flyPitch, s_flyYaw, 0.0f).ToMat3();
+    float speed = kFlySpeed * seconds;
+
+    if ((input.buttons & PAD_CROSS) != 0)
+    {
+        speed *= 4.0f;
+    }
+
+    if ((input.buttons & PAD_SQUARE) != 0)
+    {
+        speed *= 0.25f;
+    }
+
+    const float rise = ((input.buttons & PAD_R1) != 0 ? 1.0f : 0.0f) - ((input.buttons & PAD_L1) != 0 ? 1.0f : 0.0f);
+    const idVec3 move = -FlyAxis(input.leftY) * axis[0] - FlyAxis(input.leftX) * axis[1] + idVec3(0.0f, 0.0f, rise);
+
+    s_view.vieworg += speed * move;
+    s_view.viewaxis = axis;
+
+    const bool report = (input.buttons & PAD_TRIANGLE) != 0;
+
+    if (report && !s_flyReportHeld)
+    {
+        LogFly("pose");
+    }
+
+    s_flyReportHeld = report;
+}
+
+// ps2_world fly on | off | status | input LX LY RX RY BUTTONS FRAMES: the input line holds the
+// sticks (-128 to 127) and a libpad button mask for FRAMES frames of kFlyScriptSeconds each.
+PS2_COLD_FUNC void Fly(const idCmdArgs & args)
+{
+    const char * verb = args.Argc() >= 3 ? args.Argv(2) : "";
+
+    if (strcmp(verb, "on") == 0 && args.Argc() == 3)
+    {
+        if (!s_worldView) [[unlikely]]
+        {
+            ps2::FatalError("ps2_world fly on starts from a view: set one with ps2_world view first");
+        }
+
+        StartFly();
+        LogFly("on");
+        return;
+    }
+
+    if (strcmp(verb, "off") == 0 && args.Argc() == 3)
+    {
+        StopFly();
+        LogFly("off");
+        return;
+    }
+
+    if (strcmp(verb, "status") == 0 && args.Argc() == 3)
+    {
+        LogFly("status");
+        return;
+    }
+
+    if (strcmp(verb, "input") == 0 && args.Argc() == 9)
+    {
+        int sticks[4] = {};
+        bool sticksValid = true;
+
+        for (int index = 0; index < 4; ++index)
+        {
+            sticks[index] = atoi(args.Argv(3 + index));
+            sticksValid = sticksValid && sticks[index] >= -128 && sticks[index] <= 127;
+        }
+
+        const int buttons = atoi(args.Argv(7));
+        const int frames = atoi(args.Argv(8));
+
+        if (!s_fly || !sticksValid || buttons < 0 || buttons > 0xFFFF || frames < 1 || frames > 600) [[unlikely]]
+        {
+            ps2::FatalError("ps2_world fly input needs flight on, sticks from -128 to 127, a 16-bit button mask and 1 to 600 frames");
+        }
+
+        s_flyScript.leftX = sticks[0];
+        s_flyScript.leftY = sticks[1];
+        s_flyScript.rightX = sticks[2];
+        s_flyScript.rightY = sticks[3];
+        s_flyScript.buttons = static_cast<u16>(buttons);
+        s_flyScriptFrames = frames;
+        return;
+    }
+
+    ps2::FatalError("ps2_world fly needs on, off, status or input LX LY RX RY BUTTONS FRAMES");
+}
+
+#else
+
+void StopFly()
+{
+}
+
+#endif
+
 // ps2_world load MAP | unload | view EX EY EZ TX TY TZ | trace SX SY SZ EX EY EZ |
-// decal OX OY OZ DX DY DZ SIZE DEPTH MATERIAL | decals | portal HANDLE open|closed | off | status.
+// decal OX OY OZ DX DY DZ SIZE DEPTH MATERIAL | decals | portal HANDLE open|closed | off | status, and
+// in debug builds fly (the free-flight camera above).
 // A view looks from the eye at the target with a 90-degree vertical field of view; a trace reports
 // the first world surface between two points. A decal projects a SIZE square of MATERIAL along
 // the direction D onto the surfaces around O, as the game's idGameLocal::ProjectDecal does it
@@ -204,9 +424,18 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     const char * verb = args.Argv(1);
     idRenderWorld * world = common->RW();
 
+#if PS2_D3BFG_DEBUG
+    if (strcmp(verb, "fly") == 0)
+    {
+        Fly(args);
+        return;
+    }
+#endif
+
     if (strcmp(verb, "load") == 0 && args.Argc() == 3)
     {
         s_worldView = false;
+        StopFly();
 
         if (!world->InitFromMap(args.Argv(2)))
         {
@@ -223,6 +452,7 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     if (strcmp(verb, "unload") == 0 && args.Argc() == 2)
     {
         s_worldView = false;
+        StopFly();
         s_worldLoaded = false;
         world->InitFromMap(nullptr);
         LogWorldStatus("unloaded");
@@ -250,6 +480,15 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         s_view.fov_y = 90.0f;
         s_view.fov_x = RAD2DEG(2.0f * idMath::ATan(ps2::system::video::kDisplayAspect, 1.0f));
         s_worldView = true;
+
+#if PS2_D3BFG_DEBUG
+        // A view set while flying moves the flight there.
+        if (s_fly)
+        {
+            StartFly();
+        }
+#endif
+
         return;
     }
 
@@ -322,6 +561,7 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     if (strcmp(verb, "off") == 0 && args.Argc() == 2)
     {
         s_worldView = false;
+        StopFly();
         return;
     }
 
@@ -504,6 +744,14 @@ void Present()
     {
         if (s_worldView)
         {
+#if PS2_D3BFG_DEBUG
+            // Once per Common frame: a redraw between frames shows the same pose.
+            if (s_fly && s_inFrame)
+            {
+                UpdateFly();
+            }
+#endif
+
             common->RW()->RenderScene(&s_view);
         }
 
@@ -766,6 +1014,8 @@ PS2_COLD_FUNC void ShutdownPresentation(int frames)
     {
         FatalError("console shutdown with pending frame work");
     }
+
+    StopFly();
 
     Log(LogLevel::Info, "[D3BFG] CONSOLE shutdown complete frames=%d presents=%u redraws=%u\n",
         frames, renderer::FrameCount(), s_redraws);
