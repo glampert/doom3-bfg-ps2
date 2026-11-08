@@ -224,7 +224,9 @@ production link free of test inputs. Section numbers in parentheses point into t
       (2026-11-08): `world_lm.vcl` walks a lit batch a second time after kicking the page's `TEX0`,
       the pages share the texture arena, `ps2_world lightmaps on|off`; the retail gate captures each
       view lit by its lightmaps alone and textured (6.1, 6.3, 8.2).
-- [ ] Runtime: sky program; streaming the EE copies per area ring from the package (10.5).
+- [ ] Runtime: sky program; streaming the EE copies per area ring from the package (10.5),
+      preferably as per-segment texture dictionaries (one read and one allocation per segment,
+      a level-common dictionary, optionally one cooked VRAM layout per segment; 10.5).
 - [ ] Pull the declaration-text lever (4.76 MB on demand) before measuring the level ledger
       (16.1).
 - [ ] Gate: mars_city1 camera path; area, portal and node counts and sampled
@@ -249,6 +251,10 @@ production link free of test inputs. Section numbers in parentheses point into t
       `.d3sk` (weight classes, joint-set sort, 24-joint palettes, 40-vertex strips),
       `.d3an` (s16 sparse); re-run the batcher at the 40 cap and record duplication (11.1,
       15.1).
+- [ ] Shared resident VU library first (7.3): the clipper, fan emit and window kicks uploaded once
+      and called from every program (patched `bal` offsets at `vu::Bind`, or `jalr` through an
+      entry in the frame constants), instead of each program carrying them (875 of `world_lm`'s
+      1,271 instructions today), so the model programs do not multiply the copies.
 - [ ] Runtime: `model_rigid.vcl`, `model_skin2.vcl`, `model_skin4.vcl`; PS2 SIMD processor
       joint conversion in VU0 macro mode; `jointsInverted` on the EE; palettes written into
       the display list; `idDrawVert` mirrors for traces, decals and overlays (11.2 to 11.4).

@@ -744,6 +744,23 @@ the swap region and evict it whole when they do not fit, and `DisplayList::SetFr
 uploads the shared data memory constants once per frame (2026-11-04: `Bind` returns the chain
 for `DisplayList::SetProgram` to CALL instead of writing to the list).
 
+**Shared VU library (noted 2026-11-08, not built).** As built, no program calls a kernel: each
+expands the clipper and window macros (`vu_clip.i`, `vu_window.i`) into its own code. The list
+path with the clipper is 875 of `world_lm`'s 1,271 instructions and 777 of `world_strips`' 940, and
+every model, shadow and particle program would carry its own copy, which is why the world programs
+no longer fit beside each other. The plan's resident kernel returns as a **resident VU library**:
+- The clipper, the fan emit and the window close and kick are uploaded once and stay resident.
+- Programs reach the library with a call that returns to them, and its routines take their inputs
+  in an agreed set of VF and VI registers and data memory qwords. openvcl allocates registers per
+  program, so the library is hand-written VSM, or its registers are reserved in every caller.
+- `bal`'s 11-bit offset is PC-relative, and a swapped program lands anywhere in the swap region.
+  Calls are therefore either patched when `vu::Bind` places the program (the build emits a
+  relocation list beside each `.vsm`, and `vu::Init` or `Bind` rewrites the offsets in the program's
+  MPG image), or made through `jalr` to an absolute entry the frame constants hold, which needs
+  no patching.
+- The checker's `branches` check and `vu_cost.py` must follow calls across the boundary.
+- Measure the call overhead on the list path (rare) against the code it frees in micro memory.
+
 Build: the quake2-ps2 rule (`vclpp -I vu1progs -Wundef -Werror -j`, then `openvcl`, then
 `openvcl -c` for the source names, then `dvp-as`, then `check_vu_code.py`) is adopted verbatim into the Makefile (done 2026-11-03), with vclpp and
 vu-checker imported under `src/external/` and vclpp built into `build/tools/vclpp`.
@@ -1345,6 +1362,26 @@ to memory images belongs with R8.
 - Lightmap pages (2026-11-08) travel in the map's D3TX (version 2: a page table after the texture
   table, the pages GSTX v2 usage `Lightmap` flagged as such) and share the textures' arena and LRU;
   a batch whose page cannot become resident draws without its lightmap pass.
+- **Texture dictionaries (noted 2026-11-08, not built).** Black groups a file's textures into
+  dictionaries (`docs/formats/textures.md` in black-re): GLOBDATA, LEVELDAT and per-unit ones.
+  Each is a count and an entry table over self-contained texture objects that carry their upload
+  chains, relocated in place after one read (`ResDict_Relocate`) and registered by slot.
+  The area-ring streaming above should load textures the same way, not one by one:
+  - The cook groups a level's textures (and lightmap pages) into one dictionary per **segment**: a
+    cluster of areas the portal graph keeps together, plus a level-common dictionary for textures
+    many segments share.
+  - A segment arrives as one read into one EE allocation, so it pays the heap's per-allocation
+    header and alignment slack once (25 % of backing at retail boot,
+    [memory-budget.md](../../.claude/rules/memory-budget.md)).
+  - Its textures could also be packed into one cooked VRAM layout: one upload stream into one
+    arena region, released together. That avoids per-texture block rounding and the LRU arena's
+    fragmentation.
+  - The whole-level D3TX loaded today wastes only 7,752 bytes to 64-byte alignment across 266
+    textures. The gain is in streaming and in VRAM, where 86 of mars_city1's textures are under
+    4 KiB.
+  - Open choices: segment boundaries, duplicating a shared texture or moving it to the common
+    dictionary, and whether a segment's VRAM layout survives a texture that several resident
+    segments use. Decide them with R2's streaming measurements.
 
 ---
 
