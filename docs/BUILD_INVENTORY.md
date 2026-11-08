@@ -49,7 +49,7 @@ resource packs will import miniz.
 | Campaign runtime | 271 | Includes the native shell handler with its press-start, root, Campaign, Settings and credits screens; M3 runtime adaptation remains required |
 | PS2 replacement | 71 | Desktop platform, GPU/device, input and BFG service implementations need adapters; the replaced renderer frontend units (RENDERING_ARCHITECTURE.md 5.2) |
 | Deferred runtime | 31 | Other BFG shell screens, multiplayer, online services and demo paths; callers still need explicit adapters |
-| Compression deferred | 3 | `Zip.cpp`, `Unzip.cpp` and `File_SaveGame.cpp` need zlib; `save_metadata.cpp` stubs the pipelined save file until miniz |
+| Compression deferred | 3 | `Zip.cpp`, `Unzip.cpp` and `File_SaveGame.cpp` need zlib; `filesystem.cpp` stubs the pipelined save file until miniz |
 | Host conversion | 5 | Desktop model import and texture encoding candidates |
 | PCH excluded | 3 | Visual Studio precompiled-header translation units |
 | Outside project manifests | 9 | Kept for inspection; never silently enabled |
@@ -215,8 +215,8 @@ by name.
 
 ## Portable filesystem services
 
-`CORE_BACKEND_CXX_SRC` includes strict shared `filesystem.cpp` and the engine-facing
-`sys_filesystem.cpp`; both cold units use `-Os`. The foundation opens real permanent
+`CORE_BACKEND_CXX_SRC` includes strict shared `filesystem.cpp`, whose engine-facing
+`Sys_*` directory contracts follow its libc services; the cold unit uses `-Os`. The foundation opens real permanent
 streams, while explicit whole-file fixture reads keep their 64 KiB limit. The full
 campaign `FileSystem.cpp` is retained in the resident link and now initializes an
 explicit native loose-file search root for the authored game fixture, and production mounts
@@ -317,7 +317,7 @@ The shared `common_campaign.cpp` supplies offline Common queries, native snapsho
 interpolation/usercmd state reset, inactive-demo cleanup, and explicit failures for
 network/demo/menu capabilities. State reset is compile-accepted; populated snapshot
 cleanup still requires the game fixture. Foundation tests cover inactive demos and
-offline query/ledger stability. New `sys_services.cpp` supplies language identifiers,
+offline query/ledger stability. `sys.cpp` also supplies language identifiers,
 nonnegative duration formatting and UTC formatting of supplied timestamps; it does not
 validate a wall clock or storage timestamps. Unavailable OS services fail by method.
 `model_import.cpp` rejects the three host source formats instead of enabling their
@@ -374,7 +374,7 @@ scoreboard cleanup and inactive queries. Match ticks, snapshots, chat, team/flag
 operations, scoreboard activation and mode enumeration fail by native method name.
 Offline leaderboard init/shutdown create no online definitions or requests.
 
-Shared `save_metadata.cpp` implements native description construction/clear; normal
+Shared `filesystem.cpp` implements native save description construction/clear; normal
 copy assignment remains upstream. `saveGame_enable` defaults to zero with BOOL/ROM
 flags. A forced internal write cannot enable the session save manager. Retry dialogs
 fail explicitly; no save manager, file pipeline, storage or enumeration is constructed.
@@ -717,7 +717,7 @@ JPEG/zlib tags are parsed solely from source SWF. `VENDOR_C_SRC`, `VENDOR_CXX_SR
 `Zip.cpp`, `Unzip.cpp` and `File_SaveGame.cpp` leave the campaign list for a new
 `compression_deferred` disposition (`Zip.cpp`, `Zip.h` and `Unzip.h` return to upstream);
 `idFile_InZip`, `idSWF::Inflate` and the SWF JPEG decoder fail by name, and
-`save_metadata.cpp` stubs the `idFile_SaveGamePipelined` members campaign code calls. The
+`filesystem.cpp` stubs the `idFile_SaveGamePipelined` members campaign code calls. The
 filesystem's ZIP timestamp packing, used only by `Zip.cpp`, is removed with its checks.
 Production retains **341 direct objects**, zero test inputs/symbols and no GC; fixed
 `PT_LOAD` is **11,133,165 debug / 11,564,269 release bytes** (release 158,592 below HEAD

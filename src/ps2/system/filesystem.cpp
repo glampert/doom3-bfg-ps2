@@ -1,7 +1,8 @@
 // ================================================================================================
 // File: filesystem.cpp
 // Brief: Keep path bounds, I/O failures and driver capability limits explicit at the libc boundary,
-// and give the core test image's Common a filesystem jailed to bounded loose-file fixtures.
+// supply Doom's directory and save-file contracts over them, and give the core test image's Common
+// a filesystem jailed to bounded loose-file fixtures.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -13,6 +14,7 @@
 #include <cstring>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #if !defined(ID_HOST_TEST)
     #include <sbv_patches.h>
@@ -462,16 +464,199 @@ int List(const char * directory, const char * extension, void (*visit)(const cha
 } // namespace ps2::system::fs
 
 // ------------------------------------------------------------------------------------------------
+// Doom's contracts over these services
+// ------------------------------------------------------------------------------------------------
+
+// The host harness tests the services above without id's headers. idlib comes in here, after the
+// libc code, because Str.h redefines libc names such as strcmp as macros. The core image compiles
+// idlib's reduced header set, which leaves out the save-game headers.
+#if !defined(ID_HOST_TEST)
+
+#include "ps2/system/heap.h"
+#include <idlib/precompiled.h>
+#include <framework/File_SaveGame.h>
+#include <sys/sys_savegame.h>
+
+namespace ps2::system::fs
+{
+namespace
+{
+
+static_assert(MAX_OSPATH == kPathCapacity);
+
+void AppendName(const char * name, void * context)
+{
+    static_cast<idStrList *>(context)->Append(name);
+}
+
+} // namespace
+} // namespace ps2::system::fs
+
+namespace fs = ps2::system::fs;
+
+// ------------------------------------------------------------------------------------------------
+// Directory contracts
+// ------------------------------------------------------------------------------------------------
+
+void Sys_Mkdir(const char * path)
+{
+    if (!fs::IsValidPath(path))
+    {
+        errno = EINVAL;
+    }
+    else if (mkdir(path, 0777) == 0)
+    {
+        return;
+    }
+    else if (errno == EEXIST && Sys_IsFolder(path) == FOLDER_YES)
+    {
+        return;
+    }
+    ps2::Log(ps2::LogLevel::Warning, "mkdir(%s) failed: %d", path != nullptr ? path : "(null)", errno);
+}
+
+bool Sys_Rmdir(const char * path)
+{
+    if (!fs::IsValidPath(path))
+    {
+        errno = EINVAL;
+        return false;
+    }
+    return rmdir(path) == 0;
+}
+
+bool Sys_IsFileWritable(const char * path)
+{
+    struct stat status = {};
+    return fs::IsValidPath(path) && stat(path, &status) == 0 &&
+           S_ISREG(status.st_mode) && (status.st_mode & S_IWUSR) != 0;
+}
+
+sysFolder_t Sys_IsFolder(const char * path)
+{
+    if (!fs::IsValidPath(path))
+    {
+        errno = EINVAL;
+        return FOLDER_ERROR;
+    }
+
+    struct stat status = {};
+    if (stat(path, &status) != 0)
+    {
+        return FOLDER_ERROR;
+    }
+
+    return S_ISDIR(status.st_mode) ? FOLDER_YES : FOLDER_NO;
+}
+
+int Sys_ListFiles(const char * directory, const char * extension, idStrList & list)
+{
+    list.Clear();
+    const int count = fs::List(directory, extension, fs::AppendName, &list);
+    if (count < 0)
+    {
+        list.Clear();
+    }
+    return count;
+}
+
+// The current bootstrap has no saved loader argv. Do not invent an executable filename.
+const char * Sys_EXEPath()
+{
+    return ""; // FIXME.
+}
+
+const char * Sys_CWD()
+{
+    static char s_path[fs::kPathCapacity];
+    if (getcwd(s_path, sizeof(s_path)) == nullptr)
+    {
+        return "";
+    }
+    return s_path;
+}
+
+// The loader's HostFs root is the only launch root currently preserved by this bootstrap.
+const char * Sys_LaunchPath()
+{
+    return "host:"; // FIXME: support usb/hdd.
+}
+
+// ------------------------------------------------------------------------------------------------
+// Save games: native save-description ownership, without storage, compression or retry dialogs
+// ------------------------------------------------------------------------------------------------
+
+idCVar saveGame_enable("saveGame_enable", "0", CVAR_BOOL | CVAR_ROM,
+                       "save storage is unavailable; changing this value does not enable the save manager");
+
+idSaveGameDetails::idSaveGameDetails()
+{
+    Clear();
+}
+
+void idSaveGameDetails::Clear()
+{
+    descriptors.Clear();
+    damaged = false;
+    date = 0;
+    slotName.Clear();
+}
+
+// Preserve the native spelling and signature; do not claim a retry was queued.
+void idSaveGameManager::ShowRetySaveDialog(const char *, const int64)
+{
+    ps2::FatalError("save capability unavailable: idSaveGameManager::ShowRetySaveDialog");
+}
+
+// id's File_SaveGame.cpp streams saves through zlib, which is not linked. Compressed saves return
+// with miniz; until then only the members the campaign code names exist, and each one fails.
+[[noreturn]] static PS2_COLD_FUNC void SaveFileUnavailable(const char * method)
+{
+    ps2::FatalError("save capability unavailable: idFile_SaveGamePipelined::%s", method);
+}
+
+idFile_SaveGamePipelined::idFile_SaveGamePipelined()
+{
+    SaveFileUnavailable("idFile_SaveGamePipelined");
+}
+
+idFile_SaveGamePipelined::~idFile_SaveGamePipelined()
+{
+    SaveFileUnavailable("~idFile_SaveGamePipelined");
+}
+
+PS2_COLD_FUNC bool idFile_SaveGamePipelined::OpenForReading(idFile *)
+{
+    SaveFileUnavailable("OpenForReading");
+}
+
+PS2_COLD_FUNC bool idFile_SaveGamePipelined::OpenForWriting(idFile *)
+{
+    SaveFileUnavailable("OpenForWriting");
+}
+
+void idFile_SaveGamePipelined::Finish()
+{
+    SaveFileUnavailable("Finish");
+}
+
+int idFile_SaveGamePipelined::Read(void *, int)
+{
+    SaveFileUnavailable("Read");
+}
+
+int idFile_SaveGamePipelined::Write(const void *, int)
+{
+    SaveFileUnavailable("Write");
+}
+
+// ------------------------------------------------------------------------------------------------
 // Core test image: Common's idFileSystem over bounded loose-file fixtures
 // ------------------------------------------------------------------------------------------------
 
 // Only the core image's objects define ID_PS2_CORE; production and the game images link id's
-// idFileSystemLocal, which defines the same global. idlib comes in here, after the libc code above,
-// because Str.h redefines libc names such as strcmp as macros.
+// idFileSystemLocal, which defines the same global.
 #if defined(ID_PS2_CORE) && ID_PS2_CORE
-
-#include "ps2/system/heap.h"
-#include <idlib/precompiled.h>
 
 namespace ps2::system::fs
 {
@@ -760,3 +945,5 @@ static CoreFileSystem s_coreFileSystem;
 idFileSystem * fileSystem = &ps2::system::fs::s_coreFileSystem;
 
 #endif // ID_PS2_CORE
+
+#endif // ID_HOST_TEST

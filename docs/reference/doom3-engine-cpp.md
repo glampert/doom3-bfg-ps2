@@ -318,7 +318,7 @@ its BSWF and font remain host-test stand-ins). These findings carry over to reta
   `PT_LOAD`). PS2 loads only cooked BSWF movies and converted images, so the source-SWF
   JPEG tags, `idSWF::Inflate` and `LoadJPG` fail by name, and `idDecompressJPEG` holds no
   decoder state. `Zip.cpp`, `Unzip.cpp` and `idFile_InZip` are excluded (nothing opens
-  ZIP files), and `ps2/system/save_metadata.cpp` stubs the `idFile_SaveGamePipelined`
+  ZIP files), and `ps2/system/filesystem.cpp` stubs the `idFile_SaveGamePipelined`
   members campaign code names; `File_SaveGame.cpp` and its `sgf_*` cvars are not built.
 - id's project files still name the deleted `renderer/jpeg-6` and `framework/zlib`
   units; the inventory's `removed_upstream_trees` counts them without resolving them.

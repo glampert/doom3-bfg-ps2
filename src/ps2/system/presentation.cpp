@@ -198,12 +198,14 @@ PS2_COLD_FUNC idVec3 Point(const idCmdArgs & args, int first)
 // Walks through walls: it moves the viewer's camera, not a player. The left stick moves along the
 // view and sideways, the right stick turns (no inversion), R1 and L1 rise and sink, cross holds 4x
 // speed and square a quarter, and triangle logs the pose as a ps2_world view line.
-static constexpr float kFlySpeed = 256.0f;   // world units a second at full deflection
+static constexpr float kFlySpeed = 256.0f;    // world units a second at full deflection
 static constexpr float kFlyTurnRate = 120.0f; // degrees a second at full deflection
 static constexpr int kFlyDeadZone = 24;       // of the stick's 128
 static constexpr float kFlyMaxPitch = 89.0f;
+
 // A frame longer than this (a load, a GS restart) moves the camera as if it took this long.
 static constexpr float kFlyMaxSeconds = 0.1f;
+
 // Scripted input (ps2_world fly input) advances this much each frame, whatever the frame took, so
 // a gate can predict the pose.
 static constexpr float kFlyScriptSeconds = 1.0f / 30.0f;
@@ -398,13 +400,13 @@ PS2_COLD_FUNC void Fly(const idCmdArgs & args)
     ps2::FatalError("ps2_world fly needs on, off, status or input LX LY RX RY BUTTONS FRAMES");
 }
 
-#else
+#else // PS2_D3BFG_DEBUG
 
 void StopFly()
 {
 }
 
-#endif
+#endif // PS2_D3BFG_DEBUG
 
 // ps2_world load MAP | unload | view EX EY EZ TX TY TZ | trace SX SY SZ EX EY EZ |
 // decal OX OY OZ DX DY DZ SIZE DEPTH MATERIAL | decals | portal HANDLE open|closed | off | status, and
@@ -430,7 +432,7 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         Fly(args);
         return;
     }
-#endif
+#endif // PS2_D3BFG_DEBUG
 
     if (strcmp(verb, "load") == 0 && args.Argc() == 3)
     {
@@ -487,7 +489,7 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         {
             StartFly();
         }
-#endif
+#endif // PS2_D3BFG_DEBUG
 
         return;
     }
@@ -649,7 +651,9 @@ PS2_COLD_FUNC void ReadDisplayCvars(ps2::system::video::Standard standard, ps2::
     }
 
     static constexpr ps2::renderer::gs::FrameFormat kFormats[] = {
-        ps2::renderer::gs::FrameFormat::Color16, ps2::renderer::gs::FrameFormat::Color32Display16, ps2::renderer::gs::FrameFormat::Color32
+        ps2::renderer::gs::FrameFormat::Color16,
+        ps2::renderer::gs::FrameFormat::Color32Display16,
+        ps2::renderer::gs::FrameFormat::Color32
     };
     bool found = false;
 
@@ -750,7 +754,7 @@ void Present()
             {
                 UpdateFly();
             }
-#endif
+#endif // PS2_D3BFG_DEBUG
 
             common->RW()->RenderScene(&s_view);
         }
