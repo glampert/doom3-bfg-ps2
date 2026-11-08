@@ -216,14 +216,16 @@ bool GsMemory::Locate(GsPsm psm, std::uint32_t bp, std::uint32_t bw, int x, int 
         return false;
     }
 
+    const int bitsPerPixel = GsBitsPerPixel(psm);
     const std::uint32_t block = GsBlockNumber(psm, x, y, bp, bw);
 
-    if (block >= Blocks())
+    // Zero only for a value outside GsPsm; refusing it also keeps MSVC's C4723 quiet.
+    if (bitsPerPixel == 0 || block >= Blocks())
     {
         return false;
     }
 
-    const std::size_t unitsPerBlock = kGsBlockBytes * 8U / static_cast<std::size_t>(GsBitsPerPixel(psm));
+    const std::size_t unitsPerBlock = kGsBlockBytes * 8U / static_cast<std::size_t>(bitsPerPixel);
     unit = block * unitsPerBlock + UnitInBlock(psm, x, y);
     return true;
 }
