@@ -61,15 +61,14 @@
     iaddiu iVertsLeft, vi00, kVuWindowVertices
 #endmacro
 
-; The lightmap strip pass's window: its tag from the frame constants, and
-; room for ST and XYZ2 per vertex.
+; The lightmap strip pass's window: its tag from the frame constants.
 ;
-;   out = win; *out++ = vuMem[kVuLightmapStripTagAddr]; vertsLeft = kVuWindowLightmapVertices;
+;   out = win; *out++ = vuMem[kVuLightmapStripTagAddr]; vertsLeft = kVuWindowVertices;
 #macro OpenLightmapWindow
     ilw.x  iOutPtr, kVuWindowStateAddr(vi00)
     lq     fTag,    kVuLightmapStripTagAddr(vi00)
     sqi    fTag,    (iOutPtr++)
-    iaddiu iVertsLeft, vi00, kVuWindowLightmapVertices
+    iaddiu iVertsLeft, vi00, kVuWindowVertices
 #endmacro
 
 ; The list path's window: the drawing tag of the pass it walks, whose address

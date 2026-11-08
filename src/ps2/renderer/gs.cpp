@@ -646,12 +646,11 @@ qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context
     };
     static constexpr u64 kRegisters[][2] = {
         { static_cast<u64>(GIF_REG_RGBAQ) | (static_cast<u64>(GIF_REG_XYZ2) << 4), 2 },
-        { static_cast<u64>(GIF_REG_ST) | (static_cast<u64>(GIF_REG_RGBAQ) << 4) | (static_cast<u64>(GIF_REG_XYZ2) << 8), 3 },
-        { static_cast<u64>(GIF_REG_ST) | (static_cast<u64>(GIF_REG_XYZ2) << 4), 2 }
+        { static_cast<u64>(GIF_REG_ST) | (static_cast<u64>(GIF_REG_RGBAQ) << 4) | (static_cast<u64>(GIF_REG_XYZ2) << 8), 3 }
     };
 
     static_assert(ArrayLength(kTypes) == static_cast<int>(Primitive::Sprite) + 1, "kTypes must follow Primitive");
-    static_assert(ArrayLength(kRegisters) == static_cast<int>(VertexFormat::StPosition) + 1, "kRegisters must follow VertexFormat");
+    static_assert(ArrayLength(kRegisters) == static_cast<int>(VertexFormat::StColorPosition) + 1, "kRegisters must follow VertexFormat");
     PS2_AssertMsg(!textured || format != VertexFormat::ColorPosition, "a textured drawing tag needs ST");
     PS2_AssertMsg(static_cast<int>(primitive) < ArrayLength(kTypes) && static_cast<int>(format) < ArrayLength(kRegisters),
                   "invalid GS drawing tag");

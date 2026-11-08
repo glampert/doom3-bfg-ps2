@@ -30,8 +30,9 @@
 ; triangle strip: about 1.5 vertices per triangle. Otherwise the list path walks the same
 ; stream as triangles: those with every corner inside go out as they are, the rest through the
 ; clipper (vu_clip.i) as a fan, all as a triangle list. A lit batch walks again for the lightmap
-; pass after kicking the page's A+D packet: the strip path sends ST and XYZ2 per vertex, the list
-; path its usual three qwords with the lightmap ST. The two contexts share one CLUT buffer, so the
+; pass after kicking the page's A+D packet: both paths send their usual three qwords with the
+; lightmap ST. The RGBAQ qword stays even though DECAL ignores the colour: PACKED ST holds its Q
+; until an RGBAQ write stores it, so without one every vertex would divide by a stale Q. The two contexts share one CLUT buffer, so the
 ; page's TEX0 (which loads its CLUT) goes only once the base pass's windows are out.
 ;
 ; Output goes through the two windows of vu_window.i, kept alternating across batches, so the
@@ -103,19 +104,21 @@
     move.z vSt, vStq
 #endmacro
 
-; Emits the vertex at iVertex into a lightmap strip window at 'off': its lightmap ST, then XYZ2
-; with ADC iAdc.
+; Emits the vertex at iVertex into a lightmap strip window at 'off': its lightmap ST, the colour
+; qword (whose write stores the ST's Q), then XYZ2 with ADC iAdc.
 ;
-;   out[off] = LightmapSt(vertex); out[off + 1].xyz = vertex[1].xyz; out[off + 1].w = adc;
+;   out[off] = LightmapSt(vertex); out[off + 1] = vertex[2]; out[off + 2].xyz = vertex[1].xyz; out[off + 2].w = adc;
 #macro EmitLightmapVertex: off
     LightmapSt{ iVertex, fLmSt, fStq, fLmT }
+    lq     fCol,  2(iVertex)
     lq     fXyz,  1(iVertex)
     sq.xyz fLmSt, off(iOutPtr)
-    sq.xyz fXyz,  off + 1(iOutPtr)
-    isw.w  iAdc,  off + 1(iOutPtr)
+    sq     fCol,  off + 1(iOutPtr)
+    sq.xyz fXyz,  off + 2(iOutPtr)
+    isw.w  iAdc,  off + 2(iOutPtr)
 #endmacro
 
-; StripEntry and StripReentry for the lightmap pass: two qwords a vertex.
+; StripEntry and StripReentry for the lightmap pass.
 #macro LightmapEntry
     iaddiu iMask,   vi00,   0x7FFF
     iand   iOffset, iEntry, iMask
@@ -124,7 +127,7 @@
 
     EmitLightmapVertex{ 0 }
 
-    iaddiu iOutPtr,    iOutPtr,     2
+    iaddiu iOutPtr,    iOutPtr,     3
     iaddi  iVertsLeft, iVertsLeft, -1
 #endmacro
 
@@ -137,7 +140,7 @@
 
     EmitLightmapVertex{ 0 }
 
-    iaddiu iOutPtr,    iOutPtr,     2
+    iaddiu iOutPtr,    iOutPtr,     3
     iaddi  iVertsLeft, iVertsLeft, -1
 #endmacro
 
@@ -366,8 +369,8 @@
     CloseOutputWindowAndKick{ lStripLast }
 
     ; ---------------------------------------------------------------------
-    ; The strip path's lightmap pass: the same stream again, ST and XYZ2 a
-    ; vertex under the other context, after the page's TEX0.
+    ; The strip path's lightmap pass: the same stream again under the other
+    ; context, after the page's TEX0.
     ; ---------------------------------------------------------------------
     ilw.w  iLit, kVuBatchLightmapFlagOffset(iBase)
     ibeq   iLit, vi00, lDone
@@ -384,7 +387,7 @@
 
         iaddi iRoom, iVertsLeft, -4
         ibgez iRoom, lLightmapRoom
-        CloseWindowAndKick{ lLightmapFull, kVuWindowLightmapVertices }
+        CloseOutputWindowAndKick{ lLightmapFull }
         OpenLightmapWindow{ }
         ilw.z iEntry, -1(iIdx)
         LightmapReentry{ }
@@ -405,7 +408,7 @@
         iaddi  iQwords, iQwords, -1
         ibgtz  iQwords, lLightmapQword
 
-    CloseWindowAndKick{ lLightmapLast, kVuWindowLightmapVertices }
+    CloseOutputWindowAndKick{ lLightmapLast }
     b lDone
 
     ; ---------------------------------------------------------------------

@@ -23,8 +23,8 @@
 // Per-pass GIF tag and A+D templates. The first is a null GIF tag (NLOOP 0, EOP 1): the drain
 // guard passthrough.vcl kicks so a program ends only once its packet has left VU memory. Then
 // the world programs' drawing tags, for strips and for the clipper's triangles, and the lightmap
-// pass's in the other GS context: strips as ST and XYZ2, the clipper's triangles as ST, RGBAQ and
-// XYZ2 (the colour unused under DECAL).
+// pass's in the other GS context, both ST, RGBAQ and XYZ2: DECAL ignores the colour, but the RGBAQ
+// write is what stores the Q of a PACKED ST.
 #define kVuGifTemplatesAddr     8
 #define kVuNullGifTagAddr       8
 #define kVuStripTagAddr         9
@@ -48,13 +48,12 @@
 #define kVuBatchListTagOffset      305
 
 // Two output windows, absolute and shared by both halves: one tag qword, then ST (with Q), RGBAQ
-// and XYZ2 per vertex (a lightmap strip, ST and XYZ2). A program fills one, kicks it and continues
+// and XYZ2 per vertex. A program fills one, kicks it and continues
 // in the other; an XGKICK stalls while the previous transfer runs, so the window being written has
 // always drained.
 #define kVuWindowA                652
 #define kVuWindowQwords           151
 #define kVuWindowVertices         50
-#define kVuWindowLightmapVertices 75
 
 // Clip scratch (954-1008): the list path's walk state (954 x entries left, y next stream qword,
 // z lanes left, w the previous vertex; 955 x the vertex before, y the address of the pass's

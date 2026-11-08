@@ -171,8 +171,7 @@ enum class Primitive : u8
 enum class VertexFormat : u8
 {
     ColorPosition,   // RGBAQ, XYZ2
-    StColorPosition, // ST (with Q), RGBAQ, XYZ2
-    StPosition       // ST (with Q), XYZ2
+    StColorPosition  // ST (with Q), RGBAQ, XYZ2: PACKED ST's Q reaches the GS only with the RGBAQ write
 };
 
 // A PACKED GIF tag whose PRE sets a Gouraud-shaded 'primitive' in 'context', sampling the bound

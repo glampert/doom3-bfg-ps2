@@ -93,7 +93,7 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
 - **Sixteen lanes, both passes:** phase 1 stores the lightmap S x Q in qword 3 `.w` and T x Q in
   qword 0 `.w` (the clip position's w); the clipper's seed rebuilds w as 1/Q (`div` per corner) and
   blends the pass's UV by the pass float in the walk state. A lit batch walks its stream again for
-  the lightmap pass (ST and XYZ2 a vertex, 75 a window). `world_lm` is 1,272 instructions and
+  the lightmap pass (ST, RGBAQ and XYZ2 like the base pass: the RGBAQ write is what stores a PACKED ST's Q). `world_lm` is 1,272 instructions and
   `world_strips` 940 (no lightmap pass; it zeroes the pass word), so both world programs swap and
   only passthrough is resident.
 - The two output windows are absolute (652, 803) and keep alternating across batches through
@@ -112,7 +112,7 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   at `waitq`, clip flags taken as zero (the strip path). openvcl overlaps no loop iterations: the
   transform is about 51 cycles a vertex, so per-triangle cost follows vertices transformed
   (`world_lm` 93 cycles per mars_city1 triangle, plain strips 122.5; textured, 99.5; lit, 116.8 for
-  the base pass and 153.7 with the lightmap pass, `--no-lightmaps` for the first). Only kicks of an
+  the base pass and 154.2 with the lightmap pass, `--no-lightmaps` for the first). Only kicks of an
   output window count as packets.
 
 ## VU memory layout (vu1.h)

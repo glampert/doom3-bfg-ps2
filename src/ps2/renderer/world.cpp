@@ -156,7 +156,7 @@ vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::Dra
     constants.clipScale      = { vu::kGuardBandScale, vu::kGuardBandScale, 1.0f, 0.0f };
     constants.stripTag       = gs::DrawingTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context);
     constants.listTag        = gs::DrawingTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context);
-    constants.lightmapStripTag = gs::LightmapTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StPosition, context);
+    constants.lightmapStripTag = gs::LightmapTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context);
     constants.lightmapListTag  = gs::LightmapTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context);
     return constants;
 }

@@ -109,14 +109,15 @@ class WorldProgramTests(unittest.TestCase):
                 self.assertGreater(cycles, 48 * length)
 
     def test_lightmap_pass_sends_every_vertex_again(self):
-        # Its windows hold 75 vertices of two qwords: a 68-vertex batch (291 qwords) fits one.
+        # Its windows are the base pass's (ST, RGBAQ and XYZ2, 50 vertices), so it kicks and resends
+        # exactly as the base pass does.
         program = vu_cost.load_program("world_lm")
         for length, base_kicks, base_sent in ((6, 1, 8), (68, 2, 70)):
             with self.subTest(vertices=length):
                 unlit = vu_cost.batch_cycles(program, batch_packet(strip_of(length), True))
                 lit = vu_cost.batch_cycles(program, batch_packet(strip_of(length), True), lit=True)
                 self.assertEqual(unlit[1:], (base_kicks, base_sent))
-                self.assertEqual(lit[1:], (base_kicks + 1, base_sent + 4 * ((length + 3) // 4)))
+                self.assertEqual(lit[1:], (2 * base_kicks, 2 * base_sent))
                 self.assertGreater(lit[0], unlit[0] + 8 * length)
         # world_strips draws no lightmap pass.
         strips = vu_cost.load_program("world_strips")

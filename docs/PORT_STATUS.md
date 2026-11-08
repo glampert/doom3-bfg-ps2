@@ -5656,3 +5656,18 @@ reference.
 | `make test-world` (debug) | Passed in both standards |
 | `make test-host` | Passed: 399 Python tests and the C++ harnesses |
 | `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 4,745,780 debug and 4,038,836 release |
+
+### Lightmap strips drew with a stale Q (fixed 2026-11-08)
+
+Flying through the map showed lightmap bands that slid with the camera. The strip path's lightmap
+pass sent ST and XYZ2 per vertex, but a PACKED ST's Q is stored only by the next RGBAQ write, so
+every lightmap strip vertex divided its ST by the last Q the base pass left. The list and clipper
+paths already sent RGBAQ, so only strips were affected. The fixed views looked plausible, and the
+lightmap captures were checked by eye only. The strip pass now sends ST, RGBAQ and XYZ2 like the base pass (50 vertices
+a window); VU1 cost with the lightmap pass is 154.2 cycles per mars_city1 triangle (153.7 before).
+The `docs/images/renderer-world-9-*` and `-10-*` captures were retaken.
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC `20261108T091935Z_world_retail_332e9d8a1107`, PAL `20261108T092017Z_world_retail_ece5e9b209b5` |
+| `test_vu_cost` | The lightmap pass now kicks and resends exactly as the base pass |

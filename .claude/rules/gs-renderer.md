@@ -24,6 +24,9 @@ coordinates; CLUTs; VRAM and mipmaps.
 - **One XGKICK with several GIF tags: only the last tag may set EOP** (PRE=1 on each tag).
 - **TEST.ZTE must be 1** (ZTST ALWAYS, ZMSK 1 when not using depth); ZTE 0 is prohibited by the
   manual though PCSX2 tolerates it. Every primitive writes TEST.
+- **PACKED ST's Q reaches the GS only with the next PACKED RGBAQ write** (the GS holds it until
+  then). A vertex format of ST and XYZ2 alone draws every vertex with a stale Q: textures slide
+  with the camera. Send RGBAQ after ST even when the colour is unused (DECAL).
 - **Normalized ST spans the TEX0 TW/TH extent**, the image rounded up to a power of two, not the
   image. The 2D path uses texel (`PRIM_MAP_UV`) coordinates.
 - **CLUT CSM1 reorder:** in each 32-entry group the two middle 8-entry blocks swap:
