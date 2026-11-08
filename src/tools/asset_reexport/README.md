@@ -185,6 +185,36 @@ reader skips with tangents and the precomputed shadow and silhouette data.
   `material_tint` (0–1, default 0) varies the materials without a colour around the default:
   each channel scales by `1 + tint * (2u - 1)`, `u` a byte of the name's FNV-1a hash over 255,
   so a retail map's hundreds of materials read apart (`config/world_mars_city1.json` uses 0.35).
+- `textures` (optional) also cooks the world's diffuse textures into `<name>.d3tx` and
+  `<name>.textures.json` ([below](#world-textures)): `material_containers` (below `--data`) hold
+  id's `materials/*.mtr`; `scale` (default 0.5), `min_extent` (64), `max_extent` (256) and
+  `min_mip_extent` (8) set the policy.
+
+### World textures
+
+With a `textures` section the world command scans every `materials/*.mtr` in the material
+containers (file-name order, the first definition of a name winning; `assets/material.cpp`
+reads the stages, not id's whole grammar) and, for each material of the cooked world, takes its
+first diffuse stage (`diffusemap X`, or a stage with `blend diffusemap` and `map X`). It reads the
+BIMAGE id generated for that image (`generated/images/<name>#__0100.bimage`, the extension
+stripped, image programs spelled as paths) from all the containers and decodes level 0; when
+the stage alpha-tests, the coverage image (`#__1000`, DXT1 green-alpha) supplies the alpha,
+otherwise alpha is opaque. Retail diffuse images are YCoCg DXT5, decoded as
+`idColorSpace::ConvertCoCgSYToRGB` does; normal maps and RGB565 light images decode too.
+
+Each image becomes a GSTX v2 file (`assets/gstx_v2.h`, plan 10.4): level 0 is the source times
+`scale` rounded down to a power of two, at least `min(source, min_extent)` and at most
+`max_extent` a side; every mip down to `min_mip_extent` is box-filtered from the source; one
+palette serves every level, `PSMT4` when a 16-colour palette keeps RMSE within 3 and every
+channel within 48 over all levels, else `PSMT8`. Materials sharing an image share the file.
+`<name>.d3tx` (`assets/texture_pack.h`) holds one texture index per D3WD material, in its order,
+bound to the world by the FNV-1a of the material names, then the files 64-byte aligned.
+`--previews DIR` writes each texture's decoded source and cooked level 0 as PNGs.
+
+mars_city1 at the defaults: 258 textures for 261 of 287 materials (the other 26 have no
+diffuse stage: shadow and stain overlays, the entity GUI), 186 `PSMT4` and 72 `PSMT8`, 35
+alpha-tested, 1,976,832 bytes of VRAM for the whole map and a 2,076,800-byte package; median
+RMSE 1.3 against each level's resampled source, at most 3.04.
 
 Every `_areaN` model becomes an area of surfaces (in `.proc` order) and each surface a
 run of batches, each the VIF packet one VU1 input half receives: at most 88 unique

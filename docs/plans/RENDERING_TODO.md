@@ -203,8 +203,10 @@ production link free of test inputs. Section numbers in parentheses point into t
       wrap, usage) with their reader and a sampler through the cooked registers, and the
       target's validator (`texture_format.cpp`), held to each other by `texture_format_tests`
       (10.4, 2026-11-08).
-- [ ] Cook: YCoCg and normal-map DXT5 and RGB565 decoders; coverage merged into the CLUT
-      alpha (10.4, 15.1).
+- [x] Cook: YCoCg and normal-map DXT5 and RGB565 decoders; coverage merged into the CLUT
+      alpha; each world material's diffuse texture cooked into `<map>.d3tx` (`asset_reexport
+      world` with a `textures` section; mars_city1: 258 textures, 1.98 MB of VRAM; 2026-11-08)
+      (10.4, 15.1).
 - [x] Runtime: GSTX v2 validation, the in-chain upload (`DisplayList::UploadImage`: `BITBLTBUF`,
       REF of the stream, `TEXFLUSH`) and register relocation; the renderer gate's `gstx-images`
       draws every level of a `PSMT8` and a `PSMT4` fixture with fixed LOD at unaligned blocks

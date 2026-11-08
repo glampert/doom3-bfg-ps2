@@ -1244,6 +1244,12 @@ The cook's emulation (`src/tools/assets/gs_memory.cpp`) reproduces TimeSplitters
 `PSMT8` unswizzle for levels up to 256x128 across pages, and `texture_format_tests` holds the
 cook's reader and the target's validator (`ps2/renderer/texture_format.cpp`) to each other.
 
+The first cook (`asset_reexport world` with a `textures` section, 2026-11-08) takes each world
+material's first diffuse stage, merges the coverage image into the palette alpha when the stage
+alpha-tests, and packs the files by material into `<map>.d3tx`. mars_city1 at Q2: 258 textures for
+261 of 287 materials, 186 `PSMT4`, 1,976,832 bytes of VRAM for the whole map, median RMSE 1.3.
+Retail RGB565 light images are stored high byte first, unlike every other BIMAGE payload.
+
 The UI keeps GSTX v1, whose placements and region clamp serve atlases; moving the UI pages
 to memory images belongs with R8.
 
@@ -1552,7 +1558,7 @@ colour set of 518 images, the manifest's 630 animations and the world):
 
 | | Q1 fidelity | **Q2 balanced (default)** | Q3 tight |
 | --- | --- | --- | --- |
-| Colour textures | retail size, `PSMT8`, mips | halved, `PSMT4` where the error allows (assume half), mips | halved, all `PSMT4`, mips |
+| Colour textures | retail size, `PSMT8`, mips | halved but never below 64 a side (smaller sources kept), `PSMT4` where the error allows (mars_city1's diffuse set: 72 %), mips | halved, all `PSMT4`, mips |
 | Whole-level textures | 28.8 MiB | 5.6 MiB | 3.6 MiB |
 | Worst area ring (1-ring) textures | 4.49 MiB | 0.88 MiB | 0.55 MiB |
 | World vertex | 28 B float | 20 B (WA) | 20 B |

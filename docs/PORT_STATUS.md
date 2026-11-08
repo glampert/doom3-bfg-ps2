@@ -5532,3 +5532,11 @@ touches a texel. Residency, streaming and the retail cook are still to come.
 | `make test-host` | Passed: 392 Python tests and the C++ harnesses; `texture_format_tests` holds the emulation to TimeSplitters' published `PSMT8` unswizzle and Black's `PSMT4` mip placement, round-trips all four formats through the cook's reader and the target validator, and checks their refusals |
 | `make`, `make release`, release core image | Passed, no warnings; runnable `PT_LOAD` 4,725,164 debug and 4,021,932 release (production does not load world textures yet). Release was compiled, not run |
 
+The retail cook followed the same day: the BIMAGE decoder reads YCoCg DXT5 (diffuse, as
+`ConvertCoCgSYToRGB`), normal-map DXT5 and big-endian RGB565, and `asset_reexport world` cooks each
+mars_city1 material's diffuse stage into `mars_city1.d3tx` (`assets/material.cpp`,
+`assets/texture_pack.cpp`): 258 GSTX v2 textures for 261 of 287 materials, 186 `PSMT4`, 35
+alpha-tested with their coverage in the palette alpha, 1,976,832 bytes of VRAM and a 2,076,800-byte
+package. `texture_format_tests` adds the material scan, id's generated image names, the cook and
+D3TX round trips and refusals. Nothing on the target reads the package yet.
+

@@ -9,12 +9,15 @@
 #include "assets/bytes.h"
 #include "assets/gs_memory.h"
 #include "assets/gstx_v2.h"
+#include "assets/material.h"
+#include "assets/texture_pack.h"
 #include "ps2/renderer/texture_format.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <random>
 #include <set>
 #include <string>
@@ -396,6 +399,141 @@ static bool Footprints()
     return Check(passed, "footprints are exactly the levels' and the CLUT's blocks");
 }
 
+static bool Materials()
+{
+    static constexpr const char * kText = R"(
+// a comment { not a brace
+table sintable { { 0, 1 } }
+textures/a/plain
+{
+    qer_editorimage textures/a/plain.tga
+    bumpmap         textures/a/plain_local.tga
+    diffusemap      textures/a/plain_d.tga
+}
+textures/a/staged
+{
+    /* stages */
+    { blend bumpmap  map textures/a/staged_local }
+    { blend diffusemap map textures/a/staged_d alphaTest 0.5 }
+    { blend add map "textures/a/glow" rgb 0.5 }
+}
+material textures/a/program
+{
+    { blend gl_one, gl_one map textures/a/glow }
+    diffusemap addnormals( textures/a/x_local, heightmap( textures/a/x_bmp, 4 ) )
+}
+textures/a/plain { diffusemap textures/a/second_definition }
+)";
+
+    std::map<std::string, MaterialInfo> materials;
+    std::string error;
+    bool passed = ScanMaterials(kText, materials, error) && materials.size() == 3;
+    passed = passed && materials["textures/a/plain"].diffuse == "textures/a/plain_d.tga" && !materials["textures/a/plain"].alphaTest &&
+             materials["textures/a/plain"].otherStages == 0;
+    passed = passed && materials["textures/a/staged"].diffuse == "textures/a/staged_d" && materials["textures/a/staged"].alphaTest &&
+             materials["textures/a/staged"].otherStages == 1;
+    passed = passed && materials["textures/a/program"].diffuse == "addnormals(textures/a/x_local,heightmap(textures/a/x_bmp,4))" &&
+             materials["textures/a/program"].otherStages == 1;
+
+    // The names retail ships (texture_census.py lists both).
+    passed = passed && GeneratedImageName("Textures\\Base_Door\\deldoorgutter_d.tga", kTextureUsageDiffuse) ==
+                           "generated/images/textures/base_door/deldoorgutter_d#__0100.bimage";
+    passed = passed && GeneratedImageName("addnormals( textures/decals/pipecap2a_local, heightmap( textures/decals/pipecap2_bmp, 1 ) )", 3) ==
+                           "generated/images/addnormals/textures/decals/pipecap2a_local/heightmap/textures/decals/pipecap2_bmp/1#__0300.bimage";
+    passed = passed && GeneratedImageName("textures/a/b_d", kTextureUsageCoverage) == "generated/images/textures/a/b_d#__1000.bimage";
+
+    std::map<std::string, MaterialInfo> refused;
+    passed = passed && !ScanMaterials("textures/a { { blend diffusemap ", refused, error) && !ScanMaterials("/* open", refused, error) &&
+             !ScanMaterials("lonely_name", refused, error);
+    return Check(passed, "material scan finds diffuse stages and id's generated image names");
+}
+
+static RgbaImage Noise(int width, int height, bool twoColors)
+{
+    RgbaImage image;
+    image.Allocate(width, height);
+    std::mt19937 random(9);
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            std::uint8_t * texel = image.At(x, y);
+            const bool first = twoColors ? ((x / 8 + y / 8) & 1) != 0 : false;
+
+            for (int channel = 0; channel < 3; ++channel)
+            {
+                texel[channel] = twoColors ? static_cast<std::uint8_t>(first ? 200 : 40) : static_cast<std::uint8_t>(random() & 0xFF);
+            }
+
+            texel[3] = 255;
+        }
+    }
+
+    return image;
+}
+
+static bool TextureCook()
+{
+    TexturePolicy policy;
+    CookedTexture flat;
+    CookedTexture noisy;
+    CookedTexture small;
+    std::string error;
+    std::vector<std::uint8_t> file;
+    GstxV2Texture texture;
+
+    // 512x256 halves to 256x128 with mips to 8 texels; two colours fit PSMT4 exactly.
+    bool passed = CookTexture(Noise(512, 256, true), policy, GstxUsage::Diffuse, flat, error) && flat.image.width == 256 &&
+                  flat.image.height == 128 && flat.image.levels.size() == 5 && flat.image.psm == GsPsm::T4 && flat.quality.rmse < 0.5 &&
+                  WriteGstxV2(flat.image, file, error) && ReadGstxV2(file, texture, error);
+    std::uint32_t texel = 0;
+    passed = passed && SampleGstxV2(texture, 0, 0, 0, texel) && (texel & 0xFFU) >= 38U && (texel & 0xFFU) <= 42U && (texel >> 24) == 0x80U;
+    // Noise needs PSMT8; 100x60 keeps 64x32 (the 64-texel floor), three levels.
+    passed = passed && CookTexture(Noise(100, 60, false), policy, GstxUsage::Diffuse, noisy, error) && noisy.image.psm == GsPsm::T8 &&
+             noisy.image.width == 64 && noisy.image.height == 32 && noisy.image.levels.size() == 3;
+    // Small sources keep their size.
+    passed = passed && CookTexture(Noise(16, 16, true), policy, GstxUsage::Diffuse, small, error) && small.image.width == 16 &&
+             small.image.levels.size() == 2;
+    return Check(passed, "textures cook to power-of-two GSTX v2 levels in PSMT4 or PSMT8");
+}
+
+static bool TexturePacks()
+{
+    TexturePolicy policy;
+    CookedTexture first;
+    CookedTexture second;
+    std::vector<std::uint8_t> firstFile;
+    std::vector<std::uint8_t> secondFile;
+    std::string error;
+    bool passed = CookTexture(Noise(64, 64, true), policy, GstxUsage::Diffuse, first, error) && WriteGstxV2(first.image, firstFile, error) &&
+                  CookTexture(Noise(32, 128, false), policy, GstxUsage::Diffuse, second, error) && WriteGstxV2(second.image, secondFile, error);
+
+    TexturePack pack;
+    pack.materialsHash = MaterialNamesHash({ "textures/a", "textures/b", "textures/c" });
+    pack.materialTextures = { 1, kD3txNoTexture, 0 };
+    pack.textureFlags = { 0, kD3txFlagAlphaTest };
+    pack.textures = { firstFile, secondFile };
+    std::vector<std::uint8_t> file;
+    TexturePack read;
+    passed = passed && WriteD3tx(pack, file, error) && ReadD3tx(file, read, error) && read.materialTextures == pack.materialTextures &&
+             read.textures == pack.textures && read.textureFlags == pack.textureFlags && read.materialsHash == pack.materialsHash;
+    passed = passed && MaterialNamesHash({ "ab" }) != MaterialNamesHash({ "a", "b" });
+
+    // Flipped bytes anywhere in the tables or a texture, and a dangling material, are refused.
+    for (const std::size_t offset : { std::size_t(8), std::size_t(16), std::size_t(33), std::size_t(52), file.size() - 100 })
+    {
+        std::vector<std::uint8_t> bad = file;
+        bad[offset] ^= 0x10U;
+        passed = passed && !ReadD3tx(bad, read, error);
+    }
+
+    TexturePack dangling = pack;
+    dangling.materialTextures[1] = 2;
+    passed = passed && !WriteD3tx(dangling, file, error);
+    return Check(passed, "D3TX packs round trip and refuse corruption");
+}
+
 } // namespace
 
 int main()
@@ -412,6 +550,9 @@ int main()
     passed = RoundTrip(GsPsm::Ct16, 128, 16, 4, "PSMCT16 128x16 with mips round trips") && passed;
     passed = Refusals() && passed;
     passed = Footprints() && passed;
+    passed = Materials() && passed;
+    passed = TextureCook() && passed;
+    passed = TexturePacks() && passed;
 
     if (!passed)
     {

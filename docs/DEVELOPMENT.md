@@ -62,7 +62,7 @@ textures into paletted GSTX files the GS samples directly, from a JSON job. Its 
 command cooks a map's `.proc` into a D3WD world file; `make world-cook` cooks the authored
 graybox map (`src/tests/data/graybox_map/`) into `build/world/`, and `make world-cook-retail`
 cooks mars_city1's binary `.bproc` from the retail installation (`config/world_mars_city1.json`,
-`RETAIL_DATA_ROOT`) there too (`WORLD_TOPOLOGY=strips` cooks plain strips instead; give it its own
+`RETAIL_DATA_ROOT`) there too, with its diffuse textures as `mars_city1.d3tx` (`WORLD_TOPOLOGY=strips` cooks plain strips instead; give it its own
 `WORLD_COOK_OUTPUT`). `src/tools/scripts/vu_cost.py` counts the world programs' VU1 cycles over
 cooked worlds. `src/tools/scripts/texture_census.py --data <root> [--map NAME]` counts
 the retail BIMAGE textures by usage, format and colour format (headers only, about 4 s for

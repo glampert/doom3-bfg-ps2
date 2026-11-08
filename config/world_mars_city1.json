@@ -18,5 +18,13 @@
     1.0,
     1.0
   ],
-  "material_tint": 0.35
+  "material_tint": 0.35,
+  "textures": {
+    "material_containers": [
+      "_common.resources",
+      "_ordered.resources"
+    ],
+    "scale": 0.5,
+    "max_extent": 256
+  }
 }

@@ -9,9 +9,11 @@
 #include "assets/bimage.h"
 #include "assets/glyph_set.h"
 #include "assets/json.h"
+#include "assets/material.h"
 #include "assets/png.h"
 #include "assets/resources.h"
 #include "assets/texture_convert.h"
+#include "assets/texture_pack.h"
 #include "assets/world.h"
 
 #include <algorithm>
@@ -22,6 +24,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -666,7 +669,92 @@ static bool RelativeDataPath(const JsonValue * value)
            value->text.find("..") == std::string::npos && value->text.front() != '/' && value->text.find('\\') == std::string::npos;
 }
 
-static bool ParseWorldJob(const JsonValue & root, std::string & map, std::vector<std::string> & containers, WorldPolicy & policy)
+// The job's optional texture stage: where id's materials are, and the cook policy.
+struct WorldTextureJob
+{
+    bool enabled = false;
+    std::vector<std::string> materialContainers;
+    TexturePolicy policy;
+};
+
+static bool ParseTextureJob(const JsonValue & value, WorldTextureJob & output)
+{
+    if (value.type != JsonValue::Type::Object)
+    {
+        return Fail("textures must be an object");
+    }
+
+    for (const std::string & key : value.keys)
+    {
+        if (key != "material_containers" && key != "scale" && key != "min_extent" && key != "max_extent" && key != "min_mip_extent")
+        {
+            return Fail("unknown textures field: " + key);
+        }
+    }
+
+    const JsonValue * list = value.Find("material_containers");
+
+    if (list == nullptr || list->type != JsonValue::Type::Array || list->items.empty())
+    {
+        return Fail("textures.material_containers must be a non-empty array");
+    }
+
+    for (const JsonValue & item : list->items)
+    {
+        if (!RelativeDataPath(&item))
+        {
+            return Fail("textures.material_containers must be relative paths without '..'");
+        }
+
+        output.materialContainers.push_back(item.text);
+    }
+
+    if (const JsonValue * scale = value.Find("scale"))
+    {
+        if (scale->type != JsonValue::Type::Number || scale->number <= 0.0 || scale->number > 1.0)
+        {
+            return Fail("textures.scale must be in (0, 1]");
+        }
+
+        output.policy.scale = scale->number;
+    }
+
+    if (const JsonValue * extent = value.Find("min_extent"))
+    {
+        if (!extent->IsInteger(1, kGstxV2MaxExtent))
+        {
+            return Fail("textures.min_extent must be an integer from 1 to 512");
+        }
+
+        output.policy.minExtent = static_cast<int>(extent->number);
+    }
+
+    if (const JsonValue * extent = value.Find("max_extent"))
+    {
+        if (!extent->IsInteger(1, kGstxV2MaxExtent) || static_cast<int>(extent->number) < output.policy.minExtent)
+        {
+            return Fail("textures.max_extent must be an integer from min_extent to 512");
+        }
+
+        output.policy.maxExtent = static_cast<int>(extent->number);
+    }
+
+    if (const JsonValue * extent = value.Find("min_mip_extent"))
+    {
+        if (!extent->IsInteger(1, 512))
+        {
+            return Fail("textures.min_mip_extent must be an integer from 1 to 512");
+        }
+
+        output.policy.minMipExtent = static_cast<int>(extent->number);
+    }
+
+    output.enabled = true;
+    return true;
+}
+
+static bool ParseWorldJob(const JsonValue & root, std::string & map, std::vector<std::string> & containers, WorldPolicy & policy,
+                          WorldTextureJob & textures)
 {
     const JsonValue * version = root.Find("version");
 
@@ -678,7 +766,7 @@ static bool ParseWorldJob(const JsonValue & root, std::string & map, std::vector
     for (const std::string & key : root.keys)
     {
         if (key != "version" && key != "map" && key != "containers" && key != "topology" && key != "shading" && key != "default_color" &&
-            key != "material_tint" && key != "materials")
+            key != "material_tint" && key != "materials" && key != "textures")
         {
             return Fail("unknown world job field: " + key);
         }
@@ -753,6 +841,14 @@ static bool ParseWorldJob(const JsonValue & root, std::string & map, std::vector
         policy.tint = static_cast<float>(tint->number);
     }
 
+    if (const JsonValue * texturesValue = root.Find("textures"))
+    {
+        if (!ParseTextureJob(*texturesValue, textures))
+        {
+            return false;
+        }
+    }
+
     if (const JsonValue * materials = root.Find("materials"))
     {
         if (materials->type != JsonValue::Type::Object)
@@ -795,8 +891,219 @@ static std::string Ratio(std::size_t numerator, std::size_t denominator)
     return Number(denominator == 0 ? 0.0 : static_cast<double>(numerator) / static_cast<double>(denominator));
 }
 
+// The world's diffuse textures (RENDERING_ARCHITECTURE.md 10.4): each material's first diffuse
+// stage, decoded from the BIMAGE id generated for it, its coverage image's alpha merged in when the
+// stage alpha-tests, cooked into GSTX v2 and packed by material into <stem>.d3tx, with a report.
+static bool CookWorldTextures(const fs::path & data, const std::vector<std::string> & containers, const WorldTextureJob & job,
+                              const std::vector<std::string> & materials, const fs::path & output, const std::string & stem,
+                              const fs::path & previews)
+{
+    std::vector<fs::path> inputs;
+
+    for (const std::string & container : job.materialContainers)
+    {
+        inputs.push_back(data / container);
+    }
+
+    for (const std::string & container : containers)
+    {
+        inputs.push_back(data / container);
+    }
+
+    ResourceCatalog catalog;
+    std::string error;
+
+    if (!catalog.Open(inputs, error))
+    {
+        return Fail("texture containers: " + error);
+    }
+
+    // Declarations in file-name order, the first definition of a name winning.
+    std::map<std::string, MaterialInfo> declared;
+
+    for (const auto & entry : catalog.Entries())
+    {
+        if (entry.first.rfind("materials/", 0) != 0 || entry.first.size() < 4 || entry.first.compare(entry.first.size() - 4, 4, ".mtr") != 0)
+        {
+            continue;
+        }
+
+        std::vector<std::uint8_t> bytes;
+
+        if (!catalog.Read(entry.first, bytes, error) ||
+            !ScanMaterials(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), declared, error))
+        {
+            return Fail(entry.first + ": " + error);
+        }
+    }
+
+    TexturePack pack;
+    pack.materialsHash = MaterialNamesHash(materials);
+    std::map<std::string, std::uint32_t> cooked;
+    std::string textureReport;
+    std::string untextured;
+    std::size_t vramBytes = 0;
+    std::size_t t4 = 0;
+
+    if (!previews.empty())
+    {
+        std::error_code status;
+        fs::create_directories(previews, status);
+
+        if (status)
+        {
+            return Fail("cannot create " + previews.string());
+        }
+    }
+
+    for (const std::string & material : materials)
+    {
+        std::string name = material;
+        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+        const auto found = declared.find(name);
+        const char * reason = found == declared.end() ? "undeclared" : found->second.diffuse.empty() ? "no diffuse stage" : nullptr;
+        std::uint32_t index = kD3txNoTexture;
+
+        if (reason == nullptr)
+        {
+            const MaterialInfo & info = found->second;
+            const std::string image = GeneratedImageName(info.diffuse, kTextureUsageDiffuse);
+            const std::string key = image + (info.alphaTest ? "#alphatest" : "");
+            const auto previous = cooked.find(key);
+
+            if (previous != cooked.end())
+            {
+                index = previous->second;
+            }
+            else
+            {
+                std::vector<std::uint8_t> bytes;
+                RgbaImage pixels;
+
+                if (!catalog.Read(image, bytes, error) || !DecodeBimage(bytes, 0, pixels, error))
+                {
+                    reason = "diffuse image unavailable";
+                }
+                else
+                {
+                    bool coverage = false;
+
+                    if (info.alphaTest)
+                    {
+                        RgbaImage mask;
+                        coverage = catalog.Read(GeneratedImageName(info.diffuse, kTextureUsageCoverage), bytes, error) &&
+                                   DecodeBimage(bytes, 0, mask, error) && mask.width == pixels.width && mask.height == pixels.height;
+
+                        for (int y = 0; coverage && y < pixels.height; ++y)
+                        {
+                            for (int x = 0; x < pixels.width; ++x)
+                            {
+                                pixels.At(x, y)[3] = mask.At(x, y)[3];
+                            }
+                        }
+                    }
+
+                    if (!coverage)
+                    {
+                        for (int y = 0; y < pixels.height; ++y)
+                        {
+                            for (int x = 0; x < pixels.width; ++x)
+                            {
+                                pixels.At(x, y)[3] = 255;
+                            }
+                        }
+                    }
+
+                    CookedTexture texture;
+                    std::vector<std::uint8_t> file;
+                    GstxV2Texture check;
+
+                    if (!CookTexture(pixels, job.policy, GstxUsage::Diffuse, texture, error) || !WriteGstxV2(texture.image, file, error) ||
+                        !ReadGstxV2(file, check, error))
+                    {
+                        return Fail(material + ": " + error);
+                    }
+
+                    index = static_cast<std::uint32_t>(pack.textures.size());
+                    cooked.emplace(key, index);
+                    pack.textures.push_back(std::move(file));
+                    pack.textureFlags.push_back(coverage ? kD3txFlagAlphaTest : 0U);
+                    vramBytes += static_cast<std::size_t>(check.blocks) * kGsBlockBytes;
+                    t4 += texture.image.psm == GsPsm::T4 ? 1U : 0U;
+                    textureReport += std::string(index == 0 ? "" : ",") + "\n    { \"image\": " + JsonString(image) + ", \"source\": [" +
+                                     std::to_string(texture.sourceWidth) + ", " + std::to_string(texture.sourceHeight) + "], \"size\": [" +
+                                     std::to_string(texture.image.width) + ", " + std::to_string(texture.image.height) + "], \"psm\": \"" +
+                                     (texture.image.psm == GsPsm::T4 ? "PSMT4" : "PSMT8") + "\", \"levels\": " +
+                                     std::to_string(texture.image.levels.size()) + ", \"blocks\": " + std::to_string(check.blocks) +
+                                     ", \"alpha_test\": " + (coverage ? "true" : "false") + ", \"rmse\": " + Number(texture.quality.rmse) +
+                                     ", \"max_error\": " + std::to_string(texture.quality.maxError) + " }";
+
+                    if (!previews.empty())
+                    {
+                        RgbaImage preview;
+                        preview.Allocate(check.width, check.height);
+
+                        for (int y = 0; y < check.height; ++y)
+                        {
+                            for (int x = 0; x < check.width; ++x)
+                            {
+                                std::uint32_t value = 0;
+                                (void)SampleGstxV2(check, 0, x, y, value);
+                                std::uint8_t * texel = preview.At(x, y);
+                                texel[0] = static_cast<std::uint8_t>(value & 0xFFU);
+                                texel[1] = static_cast<std::uint8_t>((value >> 8) & 0xFFU);
+                                texel[2] = static_cast<std::uint8_t>((value >> 16) & 0xFFU);
+                                texel[3] = static_cast<std::uint8_t>(std::min(255U, (value >> 24) * 2U));
+                            }
+                        }
+
+                        const std::string base = std::to_string(index) + "-" + fs::path(info.diffuse).filename().string();
+
+                        if (!WritePng(previews / (base + ".original.png"), pixels, error) || !WritePng(previews / (base + ".cooked.png"), preview, error))
+                        {
+                            return Fail(error);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (reason != nullptr)
+        {
+            untextured += std::string(untextured.empty() ? "" : ",") + "\n    { \"material\": " + JsonString(material) + ", \"reason\": \"" + reason + "\" }";
+        }
+
+        pack.materialTextures.push_back(index);
+    }
+
+    std::vector<std::uint8_t> file;
+    TexturePack check;
+
+    if (!WriteD3tx(pack, file, error) || !ReadD3tx(file, check, error))
+    {
+        return Fail("texture pack: " + error);
+    }
+
+    if (!WriteFile(output / (stem + ".d3tx"), file.data(), file.size()))
+    {
+        return false;
+    }
+
+    const std::size_t textured = static_cast<std::size_t>(std::count_if(pack.materialTextures.begin(), pack.materialTextures.end(),
+                                                                        [](std::uint32_t texture) { return texture != kD3txNoTexture; }));
+    const std::string report = "{\n  \"materials\": " + std::to_string(materials.size()) + ",\n  \"textured_materials\": " +
+                               std::to_string(textured) + ",\n  \"textures\": " + std::to_string(pack.textures.size()) + ",\n  \"psmt4\": " +
+                               std::to_string(t4) + ",\n  \"vram_bytes\": " + std::to_string(vramBytes) + ",\n  \"file_bytes\": " +
+                               std::to_string(file.size()) + ",\n  \"texture_list\": [" + textureReport + "\n  ],\n  \"untextured\": [" +
+                               untextured + "\n  ]\n}\n";
+    std::cout << stem << ".d3tx: " << pack.textures.size() << " textures for " << textured << " of " << materials.size() << " materials, "
+              << vramBytes << " bytes of VRAM, " << file.size() << " bytes\n";
+    return WriteFile(output / (stem + ".textures.json"), report.data(), report.size());
+}
+
 // 'topology', when not empty, replaces the job's ("hybrid" or "strips", already checked).
-static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const fs::path & output, const std::string & topology)
+static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const fs::path & output, const std::string & topology,
+                          const fs::path & previews)
 {
     std::string jobText;
     JsonValue root;
@@ -804,6 +1111,7 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
     std::string map;
     std::vector<std::string> containers;
     WorldPolicy policy;
+    WorldTextureJob textures;
 
     if (!ReadFile(jobPath, kMaxJobBytes, jobText))
     {
@@ -815,7 +1123,7 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return Fail(jobPath.string() + ": " + error);
     }
 
-    if (!ParseWorldJob(root, map, containers, policy))
+    if (!ParseWorldJob(root, map, containers, policy, textures))
     {
         return false;
     }
@@ -944,20 +1252,28 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
     report += "\n  ]\n}\n";
     std::cout << stem << ".d3wd: " << world.areas.size() << " areas, " << stats.triangles << " triangles in " << stats.batches << " batches, "
               << file.size() << " bytes\n";
-    return WriteFile(output / (stem + ".report.json"), report.data(), report.size());
+
+    if (!WriteFile(output / (stem + ".report.json"), report.data(), report.size()))
+    {
+        return false;
+    }
+
+    return !textures.enabled || CookWorldTextures(data, containers, textures, world.materials, output, stem, previews);
 }
 
 static void Usage()
 {
     std::cout << "Usage: asset_reexport ui --data DIR --job FILE.json --output DIR [--previews DIR]\n"
-                 "       asset_reexport world --data DIR --job FILE.json --output DIR [--topology hybrid|strips]\n"
+                 "       asset_reexport world --data DIR --job FILE.json --output DIR [--topology hybrid|strips] [--previews DIR]\n"
                  "ui converts the retail interface textures a job lists into paletted GSTX files.\n"
                  "--data names the retail installation holding the job's .resources containers.\n"
                  "--output receives one file per texture and report.json; existing files are replaced.\n"
                  "--previews also writes <output>.original.png and <output>.converted.png per texture.\n"
                  "world cooks <data>/<map>.proc, the map the job names, into <output>/<name>.d3wd and\n"
                  "<name>.report.json; with containers listed, it reads generated/<map>.bproc from them.\n"
-                 "--topology replaces the job's batch topology.\n";
+                 "--topology replaces the job's batch topology. A job with a textures section also cooks\n"
+                 "each material's diffuse image into <name>.d3tx and <name>.textures.json; --previews then\n"
+                 "writes each texture's original and cooked level 0 as PNGs.\n";
 }
 
 static int Run(int argc, char ** argv)
@@ -988,7 +1304,7 @@ static int Run(int argc, char ** argv)
         fs::path * target = argument == "--data"                         ? &data
                             : argument == "--job"                        ? &job
                             : argument == "--output"                     ? &output
-                            : argument == "--previews" && command == "ui" ? &previews
+                            : argument == "--previews"                   ? &previews
                             : argument == "--topology" && command == "world" ? &topology
                                                                          : nullptr;
 
@@ -1015,7 +1331,7 @@ static int Run(int argc, char ** argv)
             return 2;
         }
 
-        return CookWorldFile(data, job, output, topology.string()) ? 0 : 1;
+        return CookWorldFile(data, job, output, topology.string(), previews) ? 0 : 1;
     }
 
     return ConvertUi(data, job, output, previews) ? 0 : 1;

@@ -96,6 +96,7 @@ add_library(assets STATIC
     assets/gstx_v2.cpp
     assets/image.cpp
     assets/json.cpp
+    assets/material.cpp
     assets/palette.cpp
     assets/png.cpp
     assets/proc.cpp
@@ -103,6 +104,7 @@ add_library(assets STATIC
     assets/resources.cpp
     assets/rle.cpp
     assets/texture_convert.cpp
+    assets/texture_pack.cpp
     assets/world.cpp)
 apply_tool_options(assets)
 target_include_directories(assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

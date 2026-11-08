@@ -1,7 +1,8 @@
 // ================================================================================================
 // File: bimage.cpp
-// Brief: Validate native BIMAGE v10 files and decode their DXT1/DXT5 levels to straight RGBA8 with
-// the engine's integer interpolation, so converted textures start from the pixels it would see.
+// Brief: Validate native BIMAGE v10 files and decode their DXT1/DXT5 and RGB565 levels to straight
+// RGBA8 with the engine's integer interpolation and colour-format conversions, so converted textures
+// start from the pixels it would see.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -10,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <set>
 #include <utility>
 
@@ -91,6 +93,49 @@ static Rgba Rgb565(std::uint16_t value)
     const int blue = value & 31;
     return { static_cast<std::uint8_t>((red << 3) | (red >> 2)), static_cast<std::uint8_t>((green << 2) | (green >> 4)),
              static_cast<std::uint8_t>((blue << 3) | (blue >> 2)), 255 };
+}
+
+// What a decoded DXT texel means for each colour format, as the engine's shaders and
+// gl_Image.cpp's swizzles read it:
+//   green-alpha: white RGB with the coverage from green in alpha;
+//   YCoCg: Co, Cg, the chroma scale and Y (alpha) back to RGB with idColorSpace::ConvertCoCgSYToRGB's
+//          integer rounding (the scale is 1 / (1 + z / 8), the chroma truncated toward zero);
+//   normal map: X in alpha and Y in green, Z rebuilt, stored as RGB with 0..255 for -1..1.
+static Rgba Interpret(const Rgba & texel, int colorFormat)
+{
+    if (colorFormat == kBimageColorGreenAlpha)
+    {
+        return { 255, 255, 255, texel[1] };
+    }
+
+    if (colorFormat == kBimageColorYCoCgDxt5)
+    {
+        const float scale = 1.0f / (1.0f + static_cast<float>(texel[2]) * (31.875f / 255.0f));
+        const int co = static_cast<int>(static_cast<float>(texel[0] - 128) * scale);
+        const int cg = static_cast<int>(static_cast<float>(texel[1] - 128) * scale);
+        const int y = texel[3];
+        const auto clamp = [](int value)
+        {
+            return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+        };
+
+        return { clamp(y + co - cg), clamp(y + cg), clamp(y - co - cg), 255 };
+    }
+
+    if (colorFormat == kBimageColorNormalDxt5)
+    {
+        const float x = static_cast<float>(texel[3]) * (2.0f / 255.0f) - 1.0f;
+        const float y = static_cast<float>(texel[1]) * (2.0f / 255.0f) - 1.0f;
+        const float z = std::sqrt(std::max(0.0f, 1.0f - x * x - y * y));
+        const auto encode = [](float value)
+        {
+            return static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::floor((value * 0.5f + 0.5f) * 255.0f + 0.5f)), 0, 255));
+        };
+
+        return { texel[3], texel[1], encode(z), 255 };
+    }
+
+    return texel;
 }
 
 // DXTDecoder.cpp's palettes: DXT5 color blocks always use four colors.
@@ -309,15 +354,18 @@ bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & ou
         return false;
     }
 
-    if (info.colorFormat != kBimageColorDefault && info.colorFormat != kBimageColorGreenAlpha)
+    const bool dxt = info.format == kBimageFormatDxt1 || info.format == kBimageFormatDxt5;
+    const bool dxt5Only = info.colorFormat == kBimageColorNormalDxt5 || info.colorFormat == kBimageColorYCoCgDxt5;
+
+    if (info.format != kBimageFormatRgb565 && !dxt)
     {
-        error = "unsupported BIMAGE decode color format";
+        error = "unsupported BIMAGE decode format";
         return false;
     }
 
-    if (info.format != kBimageFormatDxt1 && info.format != kBimageFormatDxt5)
+    if ((info.format == kBimageFormatRgb565 && info.colorFormat != kBimageColorDefault) || (dxt5Only && info.format != kBimageFormatDxt5))
     {
-        error = "unsupported BIMAGE decode format";
+        error = "unsupported BIMAGE decode color format for its format";
         return false;
     }
 
@@ -328,10 +376,27 @@ bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & ou
     }
 
     const BimageLevel & mip = info.mips[static_cast<std::size_t>(level)];
-    const bool dxt5 = info.format == kBimageFormatDxt5;
-    const bool greenAlpha = info.colorFormat == kBimageColorGreenAlpha;
     RgbaImage image;
     image.Allocate(mip.width, mip.height);
+
+    if (info.format == kBimageFormatRgb565)
+    {
+        // BinaryImage.cpp stores each texel high byte first.
+        for (int y = 0; y < mip.height; ++y)
+        {
+            for (int x = 0; x < mip.width; ++x)
+            {
+                const std::size_t at = mip.offset + 2U * (static_cast<std::size_t>(y) * static_cast<std::size_t>(mip.width) + static_cast<std::size_t>(x));
+                const Rgba texel = Rgb565(static_cast<std::uint16_t>((bytes[at] << 8) | bytes[at + 1]));
+                std::copy(texel.begin(), texel.end(), image.At(x, y));
+            }
+        }
+
+        output = std::move(image);
+        return true;
+    }
+
+    const bool dxt5 = info.format == kBimageFormatDxt5;
     std::size_t offset = mip.offset;
 
     for (int blockY = 0; blockY < mip.height; blockY += 4)
@@ -376,10 +441,7 @@ bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & ou
                     texel[3] = alphas[(alphaIndices >> (3 * pixel)) & 7U];
                 }
 
-                if (greenAlpha)
-                {
-                    texel = { 255, 255, 255, texel[1] };
-                }
+                texel = Interpret(texel, info.colorFormat);
 
                 std::copy(texel.begin(), texel.end(), image.At(x, y));
             }

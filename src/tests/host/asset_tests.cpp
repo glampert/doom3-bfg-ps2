@@ -421,6 +421,27 @@ static bool Images()
     passed = passed && Check(DecodeBimage(Bimage(kBimageFormatDxt1, kBimageColorGreenAlpha, green), 0, image, error) && image.At(0, 0)[0] == 255 &&
                                  image.At(0, 0)[3] == 255,
                              "green-alpha decodes white coverage");
+    // YCoCg: Co 165 - 128, Cg 162 - 128 and the scale byte 33 (1 / 5.125) from one 565 colour, Y 100 in
+    // alpha: ConvertCoCgSYToRGB truncates the scaled chroma to 7 and 6.
+    const std::vector<std::uint8_t> ycocg = { 100, 100, 0, 0, 0, 0, 0, 0, 0x04, 0xA5, 0x04, 0xA5, 0x00, 0x00, 0x00, 0x00 };
+    passed = passed && Check(DecodeBimage(Bimage(kBimageFormatDxt5, kBimageColorYCoCgDxt5, ycocg), 0, image, error) &&
+                                 image.At(3, 3)[0] == 101 && image.At(3, 3)[1] == 106 && image.At(3, 3)[2] == 87 && image.At(3, 3)[3] == 255,
+                             "YCoCg decodes through the scaled chroma");
+    // Normal map: X 128 in alpha, Y 130 (565 green 32) in green, Z rebuilt to almost +1.
+    const std::vector<std::uint8_t> normal = { 128, 128, 0, 0, 0, 0, 0, 0, 0x00, 0x04, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00 };
+    passed = passed && Check(DecodeBimage(Bimage(kBimageFormatDxt5, kBimageColorNormalDxt5, normal), 0, image, error) &&
+                                 image.At(0, 0)[0] == 128 && image.At(0, 0)[1] == 130 && image.At(0, 0)[2] == 255 && image.At(0, 0)[3] == 255,
+                             "normal map decodes X, Y and the rebuilt Z");
+    // RGB565, high byte first: red, then green.
+    std::vector<std::uint8_t> rgb565(32, 0);
+    rgb565[0] = 0xF8;
+    rgb565[2] = 0x07;
+    rgb565[3] = 0xE0;
+    passed = passed && Check(DecodeBimage(Bimage(kBimageFormatRgb565, kBimageColorDefault, rgb565), 0, image, error) &&
+                                 image.At(0, 0)[0] == 255 && image.At(0, 0)[1] == 0 && image.At(1, 0)[1] == 255 && image.At(1, 0)[0] == 0 &&
+                                 image.At(1, 0)[3] == 255,
+                             "RGB565 decodes big-endian texels");
+    passed = passed && Check(!DecodeBimage(Bimage(kBimageFormatDxt1, kBimageColorYCoCgDxt5, dxt1), 0, image, error), "YCoCg DXT1 refused");
     std::vector<std::uint8_t> bad = Bimage(kBimageFormatDxt1, kBimageColorDefault, dxt1);
     bad[8] ^= 1;
     std::vector<std::uint8_t> trailing = Bimage(kBimageFormatDxt1, kBimageColorDefault, dxt1);
