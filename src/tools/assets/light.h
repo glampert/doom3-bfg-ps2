@@ -94,6 +94,9 @@ struct LightContext
 
 LightContext MakeLightContext(const std::vector<MapEntity> & entities, const std::string & script);
 
+// Whether the script names the entity as $name (any case), so it may change it at run time.
+bool ScriptMentions(const LightContext & context, const std::string & name);
+
 // 'material' is the light's shader (null when undeclared, which classifies as Moving: nothing can
 // be baked). 'reason' names the rule that decided.
 LightClass ClassifyLight(const MapEntity & entity, const RenderLight & light, const MaterialInfo * material, const LightContext & context,

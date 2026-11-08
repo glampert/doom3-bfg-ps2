@@ -5671,3 +5671,32 @@ The `docs/images/renderer-world-9-*` and `-10-*` captures were retaken.
 | --- | --- |
 | `make test-world-retail` (debug) | NTSC `20261108T091935Z_world_retail_332e9d8a1107`, PAL `20261108T092017Z_world_retail_ece5e9b209b5` |
 | `test_vu_cost` | The lightmap pass now kicks and resends exactly as the base pass |
+
+## Static func_static models in the world (2026-11-08)
+
+The world cook merges the brush models of static `func_static` entities into the area models before
+the lightmap bake (`assets/static_models.cpp`, the lighting job's `"static_models": true`), so the
+props they make draw, light, shadow and trace like the areas' own surfaces instead of leaving holes.
+Each model is placed at its entity's origin and rotation, and each triangle joins the area holding
+its centroid. Entities that may change keep their models: bound, hidden at spawn, with a GUI or a
+skin, targeted, or named in the map script; so do translucent surfaces coloured by their entity's
+parms (flares, glass, glow decals).
+
+- mars_city1: 362 inline `func_static` models; 108 merged whole and 15 in part, 3,625 triangles (93
+  opaque merged surfaces read their entity's parms in a glow stage the world pass does not draw);
+  189 are only flares, glass or glow decals, 35 carry GUIs, 13 are bound, 2 are targeted. Its 311
+  mesh models wait for model import.
+- The cook: 1,842 surfaces, 53,957 triangles in 2,700 batches (2,383 lit), 1.55 vertices transformed
+  per triangle; the D3WD is 3,229,424 bytes (+173,584), the D3TX unchanged at 2,612,672.
+  `vu_cost.py`: 153.1 VU1 cycles a triangle with the lightmap pass. The bake takes 1.4 s for 1.83 M
+  rays and stays byte-identical across runs.
+- Before and after, the same views (ad-hoc captures, textured and lit, NTSC):
+  [floor plate](images/renderer-world-11-mars_city1-props-floor-ntsc.png),
+  [wall box](images/renderer-world-11-mars_city1-props-wall-ntsc.png),
+  [floor hatch](images/renderer-world-11-mars_city1-props-hatch-ntsc.png).
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC `20261108T095121Z_world_retail_4faf7498666c`, PAL `20261108T095718Z_world_retail_1d630203e253`; every capture matches its reference at 99.81 to 99.93 % |
+| `make test-host` | Passed: 399 Python tests and the C++ harnesses; `lighting_tests` merges a fixture's models (rotation, area by centroid, every refusal, a partial merge) |
+| Host tools | Built without warnings; the changed tool sources pass the EE compiler's LP64 GCC check |

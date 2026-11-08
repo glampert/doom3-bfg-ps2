@@ -200,9 +200,13 @@ production link free of test inputs. Section numbers in parentheses point into t
       lights into 8 pages, alpha-tested surfaces lit per vertex).
 - [ ] Cook: chroma subdivision to 64 units; the `.bcm` and mesh models (`func_static` `.lwo`/`.ase`)
       as occluders; a pixel reference for the lightmap pass in the retail gate (8.2, 8.3).
-- [ ] Cook: draw the static `func_static` brush models (no bind, no script control, not a mover)
-      as world batches of the areas they touch, lit like the area surfaces; today they only cast
-      shadows in the bake, so the props they make leave holes in the viewer.
+- [x] Cook: static `func_static` brush models merge into the area models before the bake
+      (2026-11-08, `"static_models": true`): mars_city1's 108 whole and 15 partial models, 3,625
+      triangles, drawn, lit, shadowed and traced as area geometry.
+- [ ] The `func_static` models the cook leaves out: 35 with GUIs (GUI surfaces), 13 bound (R4),
+      189 flares, glass and glow decals coloured by their entity (material passes, with the entity's
+      parms), and 311 mesh models (`.lwo`/`.ase`, model import). Material passes also need per-surface
+      parms for the 93 merged opaque surfaces whose glow stages read them.
 - [x] Debug free-flight camera (2026-11-08): `ps2_world fly` steers the viewer with the pad,
       `make run-world-retail` stages mars_city1 flying from the player start, and the retail gate
       flies a scripted path to a modelled pose and matches its capture (debug builds).

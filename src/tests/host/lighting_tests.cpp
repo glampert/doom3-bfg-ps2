@@ -2,8 +2,9 @@
 // File: lighting_tests.cpp
 // Brief: Check the light cook against id's rules and analytic answers: the material expression
 // grammar and tables, light materials and coverage, .map entities, render lights with their
-// projections, bounds and classes, a light's value at a point, and lightmaps baked over a small
-// scene (intensity, chroma, shadows, pages, per-vertex light for alpha-tested surfaces).
+// projections, bounds and classes, a light's value at a point, lightmaps baked over a small
+// scene (intensity, chroma, shadows, pages, per-vertex light for alpha-tested surfaces), and static
+// func_static models merged into the areas they stand in.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -11,6 +12,7 @@
 #include "assets/lightmap.h"
 #include "assets/map_entities.h"
 #include "assets/material.h"
+#include "assets/static_models.h"
 
 #include <algorithm>
 #include <cmath>
@@ -468,6 +470,118 @@ static bool Bake()
     return Check(passed, "lightmaps bake intensity, chroma, shadows and pages");
 }
 
+// ------------------------------------------------------------------------------------------------
+// Static models
+// ------------------------------------------------------------------------------------------------
+
+static void AddTriangle(ProcSurface & surface, const Vec3 & a, const Vec3 & b, const Vec3 & c)
+{
+    for (const Vec3 & corner : { a, b, c })
+    {
+        ProcVertex vertex;
+        vertex.position = corner;
+        vertex.normal = { 1.0f, 0.0f, 0.0f };
+        surface.indices.push_back(static_cast<std::uint32_t>(surface.vertices.size()));
+        surface.vertices.push_back(vertex);
+    }
+}
+
+static MapEntity StaticEntity(const char * name, std::vector<std::pair<std::string, std::string> > keys)
+{
+    MapEntity entity;
+    entity.keys = { { "classname", "func_static" }, { "name", name }, { "model", name } };
+    entity.keys.insert(entity.keys.end(), keys.begin(), keys.end());
+    return entity;
+}
+
+static bool StaticModels()
+{
+    std::map<std::string, MaterialInfo> materials;
+    std::string error;
+    // A wall, a flare coloured by the entity, and an opaque panel whose glow stage is coloured too.
+    const bool scanned = ScanMaterials("textures/wall { diffusemap textures/wall_d }\n"
+                                       "textures/flare { translucent { blend add map textures/flare_d colored } }\n"
+                                       "textures/panel { diffusemap textures/panel_d { blend add map textures/panel_add colored } }\n",
+                                       materials, error);
+
+    if (!scanned)
+    {
+        std::fprintf(stderr, "materials: %s\n", error.c_str());
+        return Check(false, "static func_static models merge into their areas");
+    }
+
+    // Two areas split at x = 0: area 0 on the positive side.
+    ProcFile proc;
+    proc.areaCount = 2;
+    proc.nodes.push_back(ProcNode{ { 1.0f, 0.0f, 0.0f, 0.0f }, { -1, -2 } });
+    proc.models.push_back(ProcModel{ "_area0", { ProcSurface{ "textures/wall", {}, {} } } });
+    AddTriangle(proc.models.back().surfaces[0], { 10.0f, 0.0f, 0.0f }, { 10.0f, 8.0f, 0.0f }, { 10.0f, 0.0f, 8.0f });
+    proc.models.push_back(ProcModel{ "_area1", {} });
+
+    // func_static_1, turned 180 degrees at x = 100: its +150 triangle lands at x = -50 (area 1),
+    // its -50 one at x = 150 (area 0).
+    ProcModel moved{ "func_static_1", { ProcSurface{ "textures/wall", {}, {} } } };
+    AddTriangle(moved.surfaces[0], { 150.0f, 0.0f, 0.0f }, { 150.0f, 8.0f, 0.0f }, { 150.0f, 0.0f, 8.0f });
+    AddTriangle(moved.surfaces[0], { -50.0f, 0.0f, 0.0f }, { -50.0f, 8.0f, 0.0f }, { -50.0f, 0.0f, 8.0f });
+    proc.models.push_back(moved);
+
+    // A bound copy, a flare, a panel with a flare, and one the script names.
+    for (const char * name : { "func_static_2", "func_static_3", "func_static_5" })
+    {
+        proc.models.push_back(ProcModel{ name, { ProcSurface{ name == std::string("func_static_3") ? "textures/flare" : "textures/wall", {}, {} } } });
+        AddTriangle(proc.models.back().surfaces[0], { 0.0f, 0.0f, 0.0f }, { 0.0f, 8.0f, 0.0f }, { 0.0f, 0.0f, 8.0f });
+    }
+
+    proc.models.push_back(ProcModel{ "func_static_4", { ProcSurface{ "textures/panel", {}, {} }, ProcSurface{ "textures/flare", {}, {} } } });
+
+    for (ProcSurface & surface : proc.models.back().surfaces)
+    {
+        AddTriangle(surface, { 0.0f, 0.0f, 0.0f }, { 0.0f, 8.0f, 0.0f }, { 0.0f, 0.0f, 8.0f });
+    }
+
+    const std::vector<MapEntity> entities = {
+        StaticEntity("func_static_1", { { "origin", "100 0 0" }, { "angle", "180" } }),
+        StaticEntity("func_static_2", { { "origin", "50 0 0" }, { "bind", "mover" } }),
+        StaticEntity("func_static_3", { { "origin", "50 0 0" }, { "_color", "1 0 0" } }),
+        StaticEntity("func_static_4", { { "origin", "50 0 0" }, { "_color", "0 1 0" } }),
+        StaticEntity("func_static_5", { { "origin", "50 0 0" } }),
+    };
+    const LightContext context = MakeLightContext(entities, "void main() { $func_static_5.hide(); }");
+    StaticModelStats stats;
+    bool passed = MergeStaticModels(proc, entities, context, materials, stats, error);
+
+    std::vector<std::string> names;
+
+    for (const ProcModel & model : proc.models)
+    {
+        names.push_back(model.name);
+    }
+
+    // func_static_1 left whole; the panel's flare stays with func_static_4.
+    passed = passed && names == std::vector<std::string>{ "_area0", "_area1", "func_static_2", "func_static_3", "func_static_5", "func_static_4" } &&
+             proc.models[5].surfaces.size() == 1 && proc.models[5].surfaces[0].material == "textures/flare";
+    passed = passed && stats.inlineModels == 5 && stats.merged == 1 && stats.partial == 1 && stats.keptSurfaces == 2 && stats.parmSurfaces == 1 &&
+             stats.triangles == 3 && stats.solidTriangles == 0 && stats.surfacesAdded == 2 && stats.kept.size() == 3 && stats.kept["bound"] == 1 &&
+             stats.kept["parms"] == 1 && stats.kept["scripted"] == 1;
+
+    // Area 0: its wall gained the turned -50 triangle at x = 150 (y and the normal turned too),
+    // and a panel surface; area 1 a new wall surface with the +150 triangle at x = -50.
+    const ProcModel & area0 = proc.models[0];
+    const ProcModel & area1 = proc.models[1];
+    passed = passed && area0.surfaces.size() == 2 && area0.surfaces[0].vertices.size() == 6 && area0.surfaces[0].indices.size() == 6 &&
+             area0.surfaces[1].material == "textures/panel" && area1.surfaces.size() == 1 && area1.surfaces[0].indices.size() == 3;
+
+    if (passed)
+    {
+        const ProcVertex & turned = area0.surfaces[0].vertices[4];
+        const ProcVertex & far = area1.surfaces[0].vertices[0];
+        passed = Near(turned.position[0], 150.0f, 1e-3f) && Near(turned.position[1], -8.0f, 1e-3f) && Near(turned.position[2], 0.0f, 1e-3f) &&
+                 Near(turned.normal[0], -1.0f, 1e-5f) && Near(far.position[0], -50.0f, 1e-3f) && area0.surfaces[0].indices[3] == 3;
+    }
+
+    return Check(passed, "static func_static models merge into their areas");
+}
+
 } // namespace
 
 int main()
@@ -478,6 +592,7 @@ int main()
     passed = Classes() && passed;
     passed = Evaluation() && passed;
     passed = Bake() && passed;
+    passed = StaticModels() && passed;
 
     if (!passed)
     {

@@ -72,8 +72,9 @@ have not been re-measured.
   `TAG_RENDER` allocation; the gate's views peak at 1,536 bytes of frame arena. Its diffuse
   textures (`mars_city1.d3tx`, 2026-11-08) are 1,976,832 bytes of VRAM for the whole map, more than
   640-wide 32/32 leaves (1.27 MB NTSC), so they live in an LRU arena (1,064,960 bytes at 640 NTSC
-  32/32; the area 2 views use 517 KB). With the class A lightmaps (2026-11-08) the D3WD is 3,055,840
-  bytes (chart seams split vertices) and the D3TX 2,612,672 (8 pages, 532,480 bytes of VRAM sharing
+  32/32; the area 2 views use 517 KB). With the class A lightmaps (2026-11-08) the D3WD is 3,229,424
+  bytes (chart seams split vertices; 3,055,840 before the static `func_static` models merged into
+  the areas) and the D3TX 2,612,672 (8 pages, 532,480 bytes of VRAM sharing
   the arena), both whole in EE RAM (TAG_RENDER), plus 2 x 192 bytes of state blocks per material
   and 2 x 64 per page.
 - Measured map baseline (authored map, 2026-10-11): fixed `PT_LOAD` 10.9 MB, three 60-frame

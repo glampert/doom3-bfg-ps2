@@ -34,6 +34,11 @@ struct MapEntity
     bool Vector(std::string_view key, std::array<float, 3> & output) const;
     // Nine numbers, rows in order (idDict::GetMatrix).
     bool Matrix(std::string_view key, std::array<std::array<float, 3>, 3> & output) const;
+
+    // Where the entity's model sits: 'origin', and the rows of 'rotation', else a yaw of 'angle'
+    // degrees (idGameEdit::ParseSpawnArgsToRenderEntity). A point p of the model lands at
+    // origin + p[0] * axis[0] + p[1] * axis[1] + p[2] * axis[2].
+    void Placement(std::array<float, 3> & origin, std::array<std::array<float, 3>, 3> & axis) const;
 };
 
 // The entities in file order; the first is worldspawn. Comments, quoted strings and nesting are

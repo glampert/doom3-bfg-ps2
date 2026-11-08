@@ -433,6 +433,11 @@ bool DeriveLightVolume(const RenderLight & light, LightVolume & output, std::str
     return true;
 }
 
+bool ScriptMentions(const LightContext & context, const std::string & name)
+{
+    return Mentions(context.script, Lower(name));
+}
+
 LightContext MakeLightContext(const std::vector<MapEntity> & entities, const std::string & script)
 {
     LightContext context;

@@ -291,7 +291,8 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   materials.
 - HostFs commands close the console, set `r_znear 4`, run `ps2_world load maps/game/mars_city1`
   (the `[D3BFG] world maps/game/mars_city1.d3wd:` line must carry the cook report's areas,
-  surfaces, batches, portals and nodes: 56, 1,791, 2,572, 55 and 9,783 today, and a
+  surfaces, batches, portals and nodes: 56, 1,842, 2,700, 55 and 9,783 today, with the static
+  `func_static` brush models merged into the areas, and a
   `[D3BFG] world textures maps/game/mars_city1.d3tx:` line with its pages must follow),
   `ps2_world textures off`, `ps2_world lightmaps off`, and two
   `ps2_world trace`s from the player's eye at the start (`info_player_start_2`, 68 units

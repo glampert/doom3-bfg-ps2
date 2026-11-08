@@ -31,6 +31,7 @@
     "script": "script/map_marscity1.script",
     "light_scale": 3.0,
     "luxel_size": 16.0,
-    "shadow_samples": 4
+    "shadow_samples": 4,
+    "static_models": true
   }
 }

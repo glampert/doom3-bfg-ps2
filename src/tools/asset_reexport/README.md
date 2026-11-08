@@ -261,9 +261,22 @@ The class A lights bake into Light8 pages (`assets/lightmap.cpp`, plan 8.2 and 8
 - Alpha-tested surfaces take their light per vertex, without a page.
 - `--previews DIR` also writes `lightmap-<page>.png`.
 
-mars_city1: A 410, B 13, C 31, D 2, E 27, F 3. The 410 A lights (284 cast shadows) cover 1,697 lit
-surfaces (204 alpha-tested, lit per vertex) with 10,081 charts (4,186 points) in 8 pages: 532,480
-bytes of VRAM and 1.77 M rays, in 0.65 s single threaded. The output is byte-identical across runs.
+With `"static_models": true` the brush models of static `func_static` entities join the area
+models before the bake (`assets/static_models.cpp`), so they draw, light, shadow and trace as area
+geometry. Each model is placed at its entity's `origin` and `rotation` (or `angle`), and each
+triangle goes to the area holding its centroid (else a corner, else the origin), appended to an
+area surface of its material while that has room. An entity keeps its model when it is bound, hidden,
+carries a GUI or a skin, is targeted by another entity or named in the map script. A translucent
+surface whose material reads parms the entity sets (`_color`, `shaderParmN`: flares, glass, glow
+decals) stays in the model too; opaque ones merge, since the world pass draws only their diffuse.
+The report's `static_models` counts them. Models left out shadow from their entity in the bake.
+
+mars_city1: A 410, B 13, C 31, D 2, E 27, F 3. The 410 A lights (284 cast shadows) cover 1,716 lit
+surfaces (204 alpha-tested, lit per vertex) with 10,683 charts in 8 pages: 532,480 bytes of VRAM
+and 1.83 M rays, in about 1.4 s single threaded. The output is byte-identical across runs. Of its 362
+inline `func_static` models, 108 merge whole and 15 in part (3,625 triangles; 93 opaque surfaces read
+their entity's parms in a glow stage); 189 are only flares, glass or glow decals, 35 carry GUIs,
+13 are bound and 2 targeted. Its 311 mesh models (`.lwo`, `.ase`) wait for model import.
 
 Every `_areaN` model becomes an area of surfaces (in `.proc` order) and each surface a
 run of batches, each the VIF packet one VU1 input half receives: at most 88 unique

@@ -8,6 +8,7 @@
 #include "assets/map_entities.h"
 
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 
 namespace assets
@@ -117,6 +118,21 @@ bool MapEntity::Matrix(std::string_view key, std::array<std::array<float, 3>, 3>
     }
 
     return true;
+}
+
+void MapEntity::Placement(std::array<float, 3> & origin, std::array<std::array<float, 3>, 3> & axis) const
+{
+    origin = {};
+    (void)Vector("origin", origin);
+
+    if (Matrix("rotation", axis))
+    {
+        return;
+    }
+
+    const float yaw = Float("angle", 0.0f) * 3.14159265358979323846f / 180.0f;
+    axis = { std::array<float, 3>{ std::cos(yaw), std::sin(yaw), 0.0f }, std::array<float, 3>{ -std::sin(yaw), std::cos(yaw), 0.0f },
+             std::array<float, 3>{ 0.0f, 0.0f, 1.0f } };
 }
 
 bool ParseMapEntities(std::string_view text, std::vector<MapEntity> & output, std::string & error)

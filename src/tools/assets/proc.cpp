@@ -1159,6 +1159,37 @@ bool ParseBinaryProc(std::span<const std::uint8_t> data, ProcFile & output, std:
     return parser.File(output);
 }
 
+int PointInArea(const ProcFile & proc, const std::array<float, 3> & point)
+{
+    if (proc.nodes.empty())
+    {
+        return proc.areaCount == 1 ? 0 : -1;
+    }
+
+    int node = 0;
+
+    for (std::size_t steps = 0; steps <= proc.nodes.size(); ++steps)
+    {
+        const ProcNode & entry = proc.nodes[static_cast<std::size_t>(node)];
+        const float distance = entry.plane[0] * point[0] + entry.plane[1] * point[1] + entry.plane[2] * point[2] + entry.plane[3];
+        const int child = distance > 0.0f ? entry.children[0] : entry.children[1];
+
+        if (child == 0)
+        {
+            return -1;
+        }
+
+        if (child < 0)
+        {
+            return -1 - child;
+        }
+
+        node = child;
+    }
+
+    return -1;
+}
+
 const ProcModel * FindAreaModel(const ProcFile & proc, int area)
 {
     const std::string name = "_area" + std::to_string(area);

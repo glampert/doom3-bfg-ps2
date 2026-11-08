@@ -106,6 +106,7 @@ add_library(assets STATIC
     assets/rect_pack.cpp
     assets/resources.cpp
     assets/rle.cpp
+    assets/static_models.cpp
     assets/texture_convert.cpp
     assets/texture_pack.cpp
     assets/world.cpp)

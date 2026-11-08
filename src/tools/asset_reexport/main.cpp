@@ -15,6 +15,7 @@
 #include "assets/material.h"
 #include "assets/png.h"
 #include "assets/resources.h"
+#include "assets/static_models.h"
 #include "assets/texture_convert.h"
 #include "assets/texture_pack.h"
 #include "assets/world.h"
@@ -766,6 +767,8 @@ struct WorldLightingJob
     float lightScale = 3.0f;
     // Off, no light casts shadows (to judge occlusion in the bake).
     bool shadows = true;
+    // Merge the static func_static brush models into the area models before the bake.
+    bool staticModels = false;
     LightmapPolicy policy;
 };
 
@@ -779,7 +782,7 @@ static bool ParseLightingJob(const JsonValue & value, WorldLightingJob & output)
     for (const std::string & key : value.keys)
     {
         if (key != "script" && key != "light_scale" && key != "luxel_size" && key != "shadow_samples" && key != "chart_angle" &&
-            key != "ray_offset" && key != "min_exposure" && key != "flat_steps" && key != "shadows")
+            key != "ray_offset" && key != "min_exposure" && key != "flat_steps" && key != "shadows" && key != "static_models")
         {
             return Fail("unknown lighting field: " + key);
         }
@@ -842,6 +845,16 @@ static bool ParseLightingJob(const JsonValue & value, WorldLightingJob & output)
         }
 
         output.shadows = shadows->boolean;
+    }
+
+    if (const JsonValue * staticModels = value.Find("static_models"))
+    {
+        if (staticModels->type != JsonValue::Type::Boolean)
+        {
+            return Fail("lighting.static_models must be true or false");
+        }
+
+        output.staticModels = staticModels->boolean;
     }
 
     if (const JsonValue * steps = value.Find("flat_steps"))
@@ -1369,13 +1382,12 @@ static std::string Lowercase(std::string text)
 }
 
 // Classifies the map's lights, bakes the static ones and writes <stem>.lights.json.
-static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::string, MaterialInfo> & declared, const MaterialTables & tables,
-                              const std::string & map, const ProcFile & proc, const WorldLightingJob & job, WorldLighting & lighting,
-                              std::vector<LightmapPage> & pages, const fs::path & output, const std::string & stem)
+// The map's entities and the light context (targets, the map script) the lighting job reads.
+static bool ReadMapEntities(ResourceCatalog & catalog, const std::string & map, const WorldLightingJob & job, std::vector<MapEntity> & entities,
+                            LightContext & context)
 {
     std::string error;
     std::vector<std::uint8_t> bytes;
-    std::vector<MapEntity> entities;
 
     if (!catalog.Read(map + ".map", bytes, error) ||
         !ParseMapEntities(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), entities, error))
@@ -1395,7 +1407,16 @@ static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::str
         script.assign(reinterpret_cast<const char *>(bytes.data()), bytes.size());
     }
 
-    const LightContext context = MakeLightContext(entities, script);
+    context = MakeLightContext(entities, script);
+    return true;
+}
+
+static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::string, MaterialInfo> & declared, const MaterialTables & tables,
+                              const std::vector<MapEntity> & entities, const LightContext & context, const ProcFile & proc,
+                              const WorldLightingJob & job, WorldLighting & lighting, std::vector<LightmapPage> & pages, const fs::path & output,
+                              const std::string & stem)
+{
+    std::string error;
     std::map<std::string, LightImage> images;
     std::string imageError;
 
@@ -1537,7 +1558,8 @@ static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::str
         }
     }
 
-    // Static brush entities shadow too: their inline models sit at the entity's origin and axis.
+    // Brush entities left out of the area models shadow too: their inline models sit at the
+    // entity's origin and axis.
     std::map<std::string, const ProcModel *> inlineModels;
 
     for (const ProcModel & model : proc.models)
@@ -1557,14 +1579,8 @@ static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::str
         }
 
         Vec3 origin = {};
-        (void)entity.Vector("origin", origin);
-        std::array<Vec3, 3> axis = { Vec3{ 1.0f, 0.0f, 0.0f }, Vec3{ 0.0f, 1.0f, 0.0f }, Vec3{ 0.0f, 0.0f, 1.0f } };
-
-        if (!entity.Matrix("rotation", axis))
-        {
-            const float yaw = entity.Float("angle", 0.0f) * 3.14159265358979323846f / 180.0f;
-            axis = { Vec3{ std::cos(yaw), std::sin(yaw), 0.0f }, Vec3{ -std::sin(yaw), std::cos(yaw), 0.0f }, Vec3{ 0.0f, 0.0f, 1.0f } };
-        }
+        std::array<Vec3, 3> axis = {};
+        entity.Placement(origin, axis);
 
         ++staticModels;
 
@@ -1622,7 +1638,7 @@ static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::str
 
     const std::string report = "{\n  \"lights\": " + std::to_string(lights) + ",\n  \"refused\": " + std::to_string(refused) + ",\n  \"classes\": { " +
                                classReport + " },\n  \"baked\": " + std::to_string(scene.lights.size()) + ",\n  \"baked_shadowed\": " +
-                               std::to_string(shadowed) + ",\n  \"baked_dark\": " + std::to_string(dark) + ",\n  \"static_models\": " +
+                               std::to_string(shadowed) + ",\n  \"baked_dark\": " + std::to_string(dark) + ",\n  \"entity_occluder_models\": " +
                                std::to_string(staticModels) + ",\n  \"occluders\": " + std::to_string(stats.occluders) + ",\n  \"lit_surfaces\": " +
                                std::to_string(stats.litSurfaces) + ",\n  \"vertex_lit_surfaces\": " + std::to_string(stats.vertexLitSurfaces) +
                                ",\n  \"lights_per_lit_surface\": " + Ratio(stats.surfaceLights, stats.litSurfaces) +
@@ -1736,7 +1752,22 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return false;
     }
 
-    if (lightingJob.enabled && !BakeWorldLighting(materialCatalog, declared, tables, map, proc, lightingJob, lighting, pages, output, stem))
+    std::vector<MapEntity> entities;
+    LightContext context;
+    StaticModelStats staticModels;
+
+    if (lightingJob.enabled && !ReadMapEntities(materialCatalog, map, lightingJob, entities, context))
+    {
+        return false;
+    }
+
+    if (lightingJob.staticModels && !MergeStaticModels(proc, entities, context, declared, staticModels, error))
+    {
+        return Fail("static models: " + error);
+    }
+
+    if (lightingJob.enabled &&
+        !BakeWorldLighting(materialCatalog, declared, tables, entities, context, proc, lightingJob, lighting, pages, output, stem))
     {
         return false;
     }
@@ -1777,8 +1808,25 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
               ",\n  \"triangles_per_batch\": " + Ratio(stats.triangles, stats.batches) +
               ",\n  \"lit_batches\": " + std::to_string(stats.litBatches) + ",\n  \"lightmap_pages\": " + std::to_string(world.lightmapPages) +
               ",\n  \"packet_bytes\": " + std::to_string(stats.packetBytes) + ",\n  \"file_bytes\": " + std::to_string(file.size()) +
-              ",\n  \"max_position_error\": " + Real(stats.maxPositionError) + ",\n  \"max_uv_error\": " + Real(stats.maxUvError) +
-              ",\n  \"area_list\": [";
+              ",\n  \"max_position_error\": " + Real(stats.maxPositionError) + ",\n  \"max_uv_error\": " + Real(stats.maxUvError) + ",\n";
+
+    if (lightingJob.staticModels)
+    {
+        std::string kept;
+
+        for (const auto & [reason, count] : staticModels.kept)
+        {
+            kept += std::string(kept.empty() ? "" : ", ") + JsonString(reason) + ": " + std::to_string(count);
+        }
+
+        report += "  \"static_models\": { \"inline\": " + std::to_string(staticModels.inlineModels) + ", \"merged\": " +
+                  std::to_string(staticModels.merged) + ", \"partial\": " + std::to_string(staticModels.partial) + ", \"kept_surfaces\": " +
+                  std::to_string(staticModels.keptSurfaces) + ", \"parm_surfaces\": " + std::to_string(staticModels.parmSurfaces) + ", \"triangles\": " + std::to_string(staticModels.triangles) + ", \"solid_triangles\": " +
+                  std::to_string(staticModels.solidTriangles) + ", \"surfaces_added\": " + std::to_string(staticModels.surfacesAdded) +
+                  ", \"kept\": { " + kept + " } },\n";
+    }
+
+    report += "  \"area_list\": [";
 
     for (std::size_t index = 0; index < world.areas.size(); ++index)
     {
