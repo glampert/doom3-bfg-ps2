@@ -317,7 +317,7 @@ The shared `common_campaign.cpp` supplies offline Common queries, native snapsho
 interpolation/usercmd state reset, inactive-demo cleanup, and explicit failures for
 network/demo/menu capabilities. State reset is compile-accepted; populated snapshot
 cleanup still requires the game fixture. Foundation tests cover inactive demos and
-offline query/ledger stability. `sys.cpp` also supplies language identifiers,
+offline query/ledger stability. `sys.cpp` also supplies the one (English) language identifier,
 nonnegative duration formatting and UTC formatting of supplied timestamps; it does not
 validate a wall clock or storage timestamps. Unavailable OS services fail by method.
 `model_import.cpp` rejects the three host source formats instead of enabling their

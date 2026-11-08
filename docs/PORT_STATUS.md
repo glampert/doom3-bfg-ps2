@@ -664,7 +664,7 @@ size measurements. The next closure groups are renderer contracts, explicit defe
 game/UI services, input/usercmd and audited codec dependencies. M3 game startup/ticks,
 logical rendering/audio behavior and authored map/reload acceptance still follow.
 
-`sys.cpp` supplies six language identifiers, bounded nonnegative duration
+`sys.cpp` supplies one (English) language identifier, bounded nonnegative duration
 formatting and UTC formatting of supplied timestamps. It does not validate a clock or
 storage timestamps. OS capabilities fail with their method names. Source-model import
 rejects ASE/LWO/Maya formats with a host-conversion diagnostic. No vendor or retail

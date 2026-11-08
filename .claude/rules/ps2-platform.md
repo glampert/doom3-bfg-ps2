@@ -40,8 +40,8 @@ The overflow regression calls through a volatile function pointer; check the gen
 EE assembly when testing allocation side effects.
 
 The shared OS-service bridge formats nonnegative durations and supplied epoch values
-in UTC. It exposes six engine language identifiers with an English default; that is
-metadata, not acceptance of translated content. Process launch, clipboard, rumble,
+in UTC. It exposes English as the only language identifier (`Sys_NumLangs` 1), since the
+UI is cooked for English only. Process launch, clipboard, rumble,
 desktop physical-working-set control and drive-capacity queries are explicitly
 unavailable. Production mouse-capture requests are harmless with no mouse device;
 test variants retain their unavailable-capability failure. Never return fabricated free space or treat desktop memory

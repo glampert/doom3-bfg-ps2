@@ -88,8 +88,8 @@ bool CheckCVars()
 
 bool CheckPlatformServices()
 {
-    const bool languages = Sys_NumLangs() == 6 && idStr::Cmp(Sys_Lang(0), ID_LANG_ENGLISH) == 0 &&
-                           idStr::Cmp(Sys_Lang(5), ID_LANG_JAPANESE) == 0 && Sys_Lang(-1)[0] == '\0' && Sys_Lang(6)[0] == '\0' &&
+    const bool languages = Sys_NumLangs() == 1 && idStr::Cmp(Sys_Lang(0), ID_LANG_ENGLISH) == 0 &&
+                           Sys_Lang(-1)[0] == '\0' && Sys_Lang(1)[0] == '\0' &&
                            idStr::Cmp(Sys_DefaultLanguage(), ID_LANG_ENGLISH) == 0 &&
                            idStr::Cmp(cvarSystem->GetCVarString("sys_lang"), ID_LANG_ENGLISH) == 0 &&
                            (cvarSystem->Find("sys_lang")->GetFlags() & CVAR_INIT) != 0;

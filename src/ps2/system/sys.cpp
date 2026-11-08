@@ -753,14 +753,6 @@ const char * Sys_DefaultSavePath()
 namespace
 {
 
-static constexpr const char * kLanguages[] = {
-    ID_LANG_ENGLISH, ID_LANG_FRENCH, ID_LANG_ITALIAN,
-    ID_LANG_GERMAN, ID_LANG_SPANISH, ID_LANG_JAPANESE,
-    nullptr
-};
-
-static constexpr int kLanguageCount = static_cast<int>(ps2::ArrayLength(kLanguages)) - 1;
-
 static char s_seconds[64];
 static char s_timestamp[64];
 
@@ -773,14 +765,16 @@ static char s_timestamp[64];
 
 idCVar sys_lang("sys_lang", ID_LANG_ENGLISH, CVAR_SYSTEM | CVAR_INIT, "language identifier for resource lookup");
 
+// The UI is cooked for English only (fonts, glyph sets and strings), so it is the one resource
+// language: id's per-language manifest and copy loops skip English and add no variants.
 int Sys_NumLangs()
 {
-    return kLanguageCount;
+    return 1;
 }
 
 const char * Sys_Lang(int index)
 {
-    return index >= 0 && index < kLanguageCount ? kLanguages[index] : "";
+    return index == 0 ? ID_LANG_ENGLISH : "";
 }
 
 const char * Sys_DefaultLanguage()
