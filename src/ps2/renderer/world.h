@@ -69,6 +69,10 @@ void Draw(const Level & level, const math::Mat4 & viewProjection);
 void SetTexturesEnabled(bool enabled);
 bool TexturesEnabled();
 
+// The lightmap pass of lit batches (on by default; off draws the vertex colour's chroma alone).
+void SetLightmapsEnabled(bool enabled);
+bool LightmapsEnabled();
+
 // The texture residency of the last pass's level (zero when it had no textures or they were off).
 struct TextureStats;
 const TextureStats & LastPassTextureStats();

@@ -1221,7 +1221,7 @@ static bool Corruption()
         { [](World & w) { w.surfaces[0].material = 3; }, "a surface material out of range" },
         { [](World & w) { w.areas[0].surfaceCount = 0; }, "areas not covering their surfaces" },
         { [](World & w) { w.packets[44] = 0xFF; w.packets[45] = static_cast<std::uint8_t>(0x7F | (w.packets[45] & 0x80)); }, "a strip index out of range" },
-        { [](World & w) { w.batches[0].lightmapPage = 0; }, "a lightmap page before lightmaps exist" },
+        { [](World & w) { w.batches[0].lightmapPage = 0; }, "a lightmap page the world lacks" },
     };
 
     for (const auto & entry : semantic)
@@ -1266,9 +1266,91 @@ static bool Corruption()
 
 } // namespace
 
+// The graybox cooked with lighting: two pages alternating by triangle, a lightmap UV and a colour
+// per vertex. Batches never mix pages, the packets carry the UVs in 4.12 and the colours as bytes,
+// and both readers take the page count.
+static bool LitGraybox()
+{
+    std::string text;
+    ProcFile proc;
+    std::string error;
+
+    if (!ReadText(kGrayboxProc, text) || !ParseProc(text, proc, error))
+    {
+        return Check(false, "graybox proc parses for lighting");
+    }
+
+    WorldLighting lighting;
+    lighting.pages = 2;
+    lighting.areas.resize(static_cast<std::size_t>(proc.areaCount));
+
+    for (int area = 0; area < proc.areaCount; ++area)
+    {
+        for (const ProcSurface & surface : FindAreaModel(proc, area)->surfaces)
+        {
+            WorldLitSurface lit;
+
+            for (std::size_t index = 0; index < surface.vertices.size(); ++index)
+            {
+                WorldLitVertex vertex;
+                vertex.position = surface.vertices[index].position;
+                vertex.uv = surface.vertices[index].uv;
+                vertex.normal = surface.vertices[index].normal;
+                vertex.lightmapUv = { static_cast<float>(index % 64U) / 64.0f, 0.5f };
+                vertex.color = { 0.5f, 0.25f, 1.0f };
+                lit.vertices.push_back(vertex);
+            }
+
+            lit.indices = surface.indices;
+
+            for (std::size_t triangle = 0; triangle < surface.indices.size() / 3; ++triangle)
+            {
+                lit.pages.push_back(static_cast<std::uint16_t>(triangle % 2));
+            }
+
+            lighting.areas[static_cast<std::size_t>(area)].push_back(std::move(lit));
+        }
+    }
+
+    World world;
+    WorldCookStats stats;
+    std::vector<std::uint8_t> file;
+    World read;
+    const WorldPolicy policy = GrayboxPolicy(WorldTopology::IndexedStrips);
+    bool passed = CookWorld(proc, policy, world, stats, error, &lighting) && WriteD3wd(world, file, error) && ReadD3wd(file, read, error) &&
+                  world.lightmapPages == 2 && read.lightmapPages == 2 && stats.litBatches == world.batches.size() && stats.triangles == 1516;
+
+    for (const WorldBatch & batch : world.batches)
+    {
+        Unpacked unpacked;
+        const std::size_t base = 2U + (batch.indexCount + 3U) / 4U;
+        passed = passed && batch.lightmapPage < 2 &&
+                 RunVif(std::span<const std::uint8_t>(world.packets).subspan(batch.packetOffset, static_cast<std::size_t>(batch.packetQwords) * 16U),
+                        unpacked);
+
+        for (std::uint32_t vertex = 0; passed && vertex < batch.vertexCount; ++vertex)
+        {
+            const std::array<std::uint32_t, 4> & uv = unpacked.memory[base + kWorldVertexQwords * vertex + 1U];
+            const std::array<std::uint32_t, 4> & color = unpacked.memory[base + kWorldVertexQwords * vertex + 2U];
+            passed = uv[2] <= 4096U && uv[2] % 64U == 0 && uv[3] == 2048U && color[0] == 64U && color[1] == 32U && color[2] == 128U && color[3] == 128U;
+        }
+    }
+
+    ps2::renderer::world::Sections sections = {};
+    passed = passed && TargetValidate(file, sections) == nullptr && sections.lightmapPages == 2;
+
+    // A page the lighting lacks and a lighting for other areas are refused.
+    WorldLighting overflow = lighting;
+    overflow.areas[0][0].pages[0] = 2;
+    WorldLighting fewer = lighting;
+    fewer.areas.pop_back();
+    passed = passed && !CookWorld(proc, policy, world, stats, error, &overflow) && !CookWorld(proc, policy, world, stats, error, &fewer);
+    return Check(passed, "a lit graybox keeps each batch on one page with its lightmap UVs and colours");
+}
+
 int main()
 {
-    const bool passed = Strips() && Procs() && BinaryProcs() && Graybox() && LargeWorlds() && Corruption();
+    const bool passed = Strips() && Procs() && BinaryProcs() && Graybox() && LitGraybox() && LargeWorlds() && Corruption();
 
     if (passed)
     {

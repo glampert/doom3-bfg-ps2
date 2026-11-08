@@ -112,6 +112,18 @@ coordinates; CLUTs; VRAM and mipmaps.
   context: a frame rewrites only its own context's blocks, never one the chain in flight reads.
   `TEX1.K` = log2(UV per unit) + log2(texture size) - log2(GS pixels per unit at depth 1).
   `ps2_world textures on|off|status`; untextured captures stay the reference gate.
+- **Lightmap pass:** the frame's *other* GS context (contexts alternate per frame) is set for it
+  by `gs::BeginDepthPass` (this frame's buffer with alpha masked, ZBUF masked, GEQUAL, ALPHA
+  `(Cd - 0) x As + 0`, bilinear LOD 0, clamp) and handed back its own frame by `EndDepthPass`.
+  Both contexts share **one CLUT buffer**: a page's `TEX0` (CLD 1) loads its CLUT, so the program
+  kicks it only after the base pass's windows; never put it in the material's A+D packet. Pages
+  are `PSMT8` ramps (alpha = index, 0x80 = 1.0, up to 0xFF), drawn with `TFX` DECAL OR'd in at
+  run time. Alpha-tested surfaces get no lightmap pass (it cannot test the diffuse's alpha and the
+  GS has no EQUAL depth test): the cook lights them per vertex. `ps2_world lightmaps on|off`.
+- Translucent materials without a diffuse stage (`kPackHidden` in the D3TX) are skipped by the
+  textured pass until material passes exist; untextured passes draw them. The retail gate's
+  reference rasterizes the cooked D3WD's own triangles (`world_reference.load_cooked_triangles`),
+  since a lit cook's vertex colours are the baked chroma.
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,
   eviction, destruction and image close drain/FINISH (flush queued UI references) before
   overwriting or releasing VRAM. Uploads retire PATH2 before synchronous PATH3 chains.

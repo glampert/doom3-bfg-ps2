@@ -9,7 +9,8 @@
 # branches and their delay slots), charging one cycle a pair plus the DIV wait at each WAITQ. Float
 # results are not computed: every vertex is taken to be inside the guard band (the clip flags read
 # zero), which is the strip path nearly every batch takes. XGKICK stalls depend on the GS and are
-# not charged; both topologies send the same vertices.
+# not charged; both topologies send the same vertices. A batch with a lightmap page runs the
+# lightmap pass too (world_lm.vcl; world_strips.vcl draws none).
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -31,6 +32,8 @@ INPUT_BASE = 40
 WINDOW_STATE = 7
 WINDOW_A = 652
 WINDOW_QWORDS = 151
+# The lightmap page's A+D packet: its second qword's word 3 asks for the lightmap pass.
+BATCH_LIGHTMAP_FLAG = 296
 # The VU1 DIV unit's latency in cycles (EE Core User's Manual, VU instruction timings).
 DIV_LATENCY = 7
 MAX_CYCLES = 1_000_000
@@ -238,17 +241,17 @@ class Machine:
             pending = target
 
 
-def batch_cycles(program: Program, packet: bytes) -> tuple[int, int, int]:
-    """Cycles, GS packets kicked and vertices sent for one batch."""
-    memory = {WINDOW_STATE: [WINDOW_A, WINDOW_QWORDS, 0, 0]}
+def batch_cycles(program: Program, packet: bytes, lit: bool = False) -> tuple[int, int, int]:
+    """Cycles, GS packets kicked and vertices sent for one batch, with its lightmap pass when 'lit'."""
+    memory = {WINDOW_STATE: [WINDOW_A, WINDOW_QWORDS, 0, 0], INPUT_BASE + BATCH_LIGHTMAP_FLAG: [0, 0, 0, 1 if lit else 0]}
     itop = unpack(packet, memory)
     machine = Machine(program, memory, itop)
     cycles = machine.run()
     return cycles, len(machine.kicks), sum(machine.kicks)
 
 
-def measure(world: d3wd.World, program: Program) -> list:
-    return [batch_cycles(program, world.packet(batch)) for batch in world.batches]
+def measure(world: d3wd.World, program: Program, lightmaps: bool = True) -> list:
+    return [batch_cycles(program, world.packet(batch), lightmaps and batch.lightmap_page != d3wd.NO_LIGHTMAP) for batch in world.batches]
 
 
 def summary(world: d3wd.World, report: dict, costs: list, areas=None) -> dict:
@@ -268,13 +271,14 @@ def main() -> int:
     parser.add_argument("--areas", type=int, nargs="*", action="append", default=None,
                         help="also sum these areas (repeatable: one view's areas each)")
     parser.add_argument("--vu", type=Path, default=VU_BUILD, help="where the assembled .vsm files are")
+    parser.add_argument("--no-lightmaps", action="store_true", help="count the base pass alone")
     args = parser.parse_args()
     results = {}
     for path in args.worlds:
         world = d3wd.load(path)
         report = json.loads(path.with_name(path.stem + ".report.json").read_text())
         program = load_program("world_lm" if world.indexed() else "world_strips", args.vu)
-        costs = measure(world, program)
+        costs = measure(world, program, not args.no_lightmaps)
         entry = {"program": program.name, "topology": report["topology"], "map": summary(world, report, costs)}
         for areas in args.areas or []:
             entry["areas " + " ".join(str(area) for area in areas)] = summary(world, report, costs, areas)

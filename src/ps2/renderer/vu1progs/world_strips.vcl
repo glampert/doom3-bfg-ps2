@@ -264,6 +264,10 @@
     isw.x  iLeft, kVuWalkStateAddr(vi00)
     isw.y  iNext, kVuWalkStateAddr(vi00)
 
+    ; The clipper's seed (vu_clip.i) picks the UV by the pass: this program
+    ; draws only the base pass, which needs Q in qword 3 .z, as phase 1 keeps.
+    isw.z  vi00,  kVuWalkPrevAddr(vi00)
+
     --barrier
 
     lListEntry:

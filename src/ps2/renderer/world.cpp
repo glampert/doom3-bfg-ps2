@@ -26,6 +26,7 @@ namespace
 {
 
 static bool s_texturesEnabled = true;
+static bool s_lightmapsEnabled = true;
 static Textures * s_passTextures = nullptr;
 static TextureStats s_lastStats = {};
 
@@ -155,6 +156,8 @@ vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::Dra
     constants.clipScale      = { vu::kGuardBandScale, vu::kGuardBandScale, 1.0f, 0.0f };
     constants.stripTag       = gs::DrawingTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context);
     constants.listTag        = gs::DrawingTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context);
+    constants.lightmapStripTag = gs::LightmapTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StPosition, context);
+    constants.lightmapListTag  = gs::LightmapTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context);
     return constants;
 }
 
@@ -168,6 +171,16 @@ bool TexturesEnabled()
     return s_texturesEnabled;
 }
 
+void SetLightmapsEnabled(bool enabled)
+{
+    s_lightmapsEnabled = enabled;
+}
+
+bool LightmapsEnabled()
+{
+    return s_lightmapsEnabled;
+}
+
 const TextureStats & LastPassTextureStats()
 {
     return s_lastStats;
@@ -175,7 +188,7 @@ const TextureStats & LastPassTextureStats()
 
 void BeginPass(const Level & level, const math::Mat4 & viewProjection)
 {
-    s_passTextures = s_texturesEnabled ? level.textures : nullptr;
+    s_passTextures = level.textures;
 
     const gs::DrawContext context = renderer::DrawingContext();
     dma::DisplayList & list = dma::List();
@@ -188,7 +201,7 @@ void BeginPass(const Level & level, const math::Mat4 & viewProjection)
     // matrix's first column, the view rotation being orthonormal) times the window scale.
     const float columnX = viewProjection.m[0][0] * viewProjection.m[0][0] + viewProjection.m[1][0] * viewProjection.m[1][0] +
                           viewProjection.m[2][0] * viewProjection.m[2][0];
-    BeginTextures(s_passTextures, context, gs::WindowScale().x * math::Sqrtf(columnX));
+    BeginTextures(s_passTextures, context, gs::WindowScale().x * math::Sqrtf(columnX), s_texturesEnabled, s_lightmapsEnabled);
 }
 
 void DrawArea(const Level & level, u32 area)
@@ -203,7 +216,14 @@ void DrawArea(const Level & level, u32 area)
     {
         const BatchRecord & batch = sections.batches[index];
         const void * state = BatchState(s_passTextures, list, batch.material);
-        list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords);
+
+        if (state == nullptr)
+        {
+            continue;
+        }
+
+        const void * page = PageState(s_passTextures, list, batch.lightmapPage);
+        list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, page, kPageStateBlockQwords);
     }
 }
 

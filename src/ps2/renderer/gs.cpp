@@ -646,12 +646,13 @@ qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context
     };
     static constexpr u64 kRegisters[][2] = {
         { static_cast<u64>(GIF_REG_RGBAQ) | (static_cast<u64>(GIF_REG_XYZ2) << 4), 2 },
-        { static_cast<u64>(GIF_REG_ST) | (static_cast<u64>(GIF_REG_RGBAQ) << 4) | (static_cast<u64>(GIF_REG_XYZ2) << 8), 3 }
+        { static_cast<u64>(GIF_REG_ST) | (static_cast<u64>(GIF_REG_RGBAQ) << 4) | (static_cast<u64>(GIF_REG_XYZ2) << 8), 3 },
+        { static_cast<u64>(GIF_REG_ST) | (static_cast<u64>(GIF_REG_XYZ2) << 4), 2 }
     };
 
     static_assert(ArrayLength(kTypes) == static_cast<int>(Primitive::Sprite) + 1, "kTypes must follow Primitive");
-    static_assert(ArrayLength(kRegisters) == static_cast<int>(VertexFormat::StColorPosition) + 1, "kRegisters must follow VertexFormat");
-    PS2_AssertMsg(!textured || format == VertexFormat::StColorPosition, "a textured drawing tag needs ST");
+    static_assert(ArrayLength(kRegisters) == static_cast<int>(VertexFormat::StPosition) + 1, "kRegisters must follow VertexFormat");
+    PS2_AssertMsg(!textured || format != VertexFormat::ColorPosition, "a textured drawing tag needs ST");
     PS2_AssertMsg(static_cast<int>(primitive) < ArrayLength(kTypes) && static_cast<int>(format) < ArrayLength(kRegisters),
                   "invalid GS drawing tag");
 
@@ -663,6 +664,20 @@ qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context
     tag.dw[0] = GIF_SET_TAG(0, 0, 1, prim, GIF_FLG_PACKED, registers[1]);
     tag.dw[1] = registers[0];
     return tag;
+}
+
+qword_t LightmapTag(Primitive primitive, VertexFormat format, DrawContext context)
+{
+    qword_t tag = DrawingTag(primitive, format, OtherContext(context), true);
+
+    // PRIM sits at bits 47-57 of the tag; ABE is its bit 6.
+    tag.dw[0] |= 1ULL << (47 + 6);
+    return tag;
+}
+
+DrawContext OtherContext(DrawContext context)
+{
+    return context == DrawContext::Ctx0 ? DrawContext::Ctx1 : DrawContext::Ctx0;
 }
 
 void Upload(const TextureBinding & binding, const void * pixels)
@@ -958,9 +973,19 @@ void BeginDepthPass(dma::DisplayList & list, DrawContext context)
 
     // ZTST 2 is GEQUAL; ClearFrame left depth 1, the far end of the range. Each register is a
     // tag and its A+D qword.
-    GifWriter writer = list.BeginDirect(4);
+    const DrawContext other = OtherContext(context);
+    GifWriter writer = list.BeginDirect(16);
     writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 2));
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(true));
+
+    // The lightmap pass: this frame's buffer with alpha kept, equal depths pass, ALPHA
+    // (Cd - 0) x As + 0 (A Cd, B zero, C As, D zero), DECAL comes with each page's TEX0.
+    writer.SetRegister(ContextReg(GS_REG_FRAME, other), FrameState(context, 0xFF000000U));
+    writer.SetRegister(ContextReg(GS_REG_ZBUF, other), DepthState(false));
+    writer.SetRegister(ContextReg(GS_REG_TEST, other), GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 2));
+    writer.SetRegister(ContextReg(GS_REG_ALPHA, other), GS_SET_ALPHA(1, 2, 0, 2, 0));
+    writer.SetRegister(ContextReg(GS_REG_TEX1, other), GS_SET_TEX1(1, 0, 1, 1, 0, 0, 0));
+    writer.SetRegister(ContextReg(GS_REG_CLAMP, other), GS_SET_CLAMP(1, 1, 0, 0, 0, 0));
     list.EndDirect(writer);
 }
 
@@ -970,8 +995,12 @@ void EndDepthPass(dma::DisplayList & list, DrawContext context)
 
     list.FlushPaths();
 
-    GifWriter writer = list.BeginDirect(2);
+    // The other context gets its own frame back; the 2D path writes the rest per primitive.
+    const DrawContext other = OtherContext(context);
+    GifWriter writer = list.BeginDirect(6);
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(false));
+    writer.SetRegister(ContextReg(GS_REG_FRAME, other), FrameState(other, 0));
+    writer.SetRegister(ContextReg(GS_REG_ZBUF, other), DepthState(false));
     list.EndDirect(writer);
 }
 

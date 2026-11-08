@@ -706,6 +706,10 @@ build/tests/texture_format_tests: src/tests/host/texture_format_tests.cpp src/ps
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/texture_format_tests.cpp src/ps2/renderer/texture_format.cpp $(ASSET_LIB_SRC) -o $@
 
 # The GSTX v2 files the renderer gate uploads (formulas shared with renderer_capture.py).
+build/tests/lighting_tests: src/tests/host/lighting_tests.cpp $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+	@mkdir -p $(@D)
+	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/lighting_tests.cpp $(ASSET_LIB_SRC) -o $@
+
 build/tests/texture_fixture: src/tests/host/texture_fixture.cpp $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/texture_fixture.cpp $(ASSET_LIB_SRC) -o $@
@@ -796,11 +800,12 @@ build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp -o $@
 
-test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/texture_format_tests build/tests/world_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/filesystem_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
+test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_format_tests build/tests/texture_format_tests build/tests/world_tests build/tests/lighting_tests build/tests/swf_runtime_tests_0 build/tests/swf_runtime_tests_1 build/tests/swf_execution_tests build/tests/ui_swf_format_tests build/tests/ui_font_format_tests build/tests/ui_catalog_tests build/tests/ui_page_geometry_tests build/tests/resource_unpack build/tests/ui_triangles_tests build/tests/charset_tests build/tests/ui_geometry_tests build/tests/heap_tests build/tests/common_tests_1 build/tests/common_tests_0 build/tests/filesystem_tests build/tests/pcm_wave_tests build/tests/voice_timeline_tests_1 build/tests/voice_timeline_tests_0
 	./build/tests/asset_tests
 	./build/tests/gstx_format_tests
 	./build/tests/texture_format_tests
 	./build/tests/world_tests
+	./build/tests/lighting_tests
 	./build/tests/swf_runtime_tests_0
 	./build/tests/swf_runtime_tests_1
 	./build/tests/swf_execution_tests

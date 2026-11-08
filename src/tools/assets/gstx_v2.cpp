@@ -352,9 +352,11 @@ static bool ValidateImage(const GstxV2Image & image, std::string & error)
         return false;
     }
 
+    // GS alpha 0x80 is 1.0; a lightmap's palette is the light intensity ramp, which reaches 2x
+    // through Cd x As.
     for (const std::uint32_t color : image.palette)
     {
-        if ((color >> 24) > 0x80U)
+        if ((color >> 24) > 0x80U && image.usage != GstxUsage::Lightmap)
         {
             error = "GSTX v2 palette alpha exceeds 0x80";
             return false;

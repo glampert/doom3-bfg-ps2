@@ -61,6 +61,29 @@
     iaddiu iVertsLeft, vi00, kVuWindowVertices
 #endmacro
 
+; The lightmap strip pass's window: its tag from the frame constants, and
+; room for ST and XYZ2 per vertex.
+;
+;   out = win; *out++ = vuMem[kVuLightmapStripTagAddr]; vertsLeft = kVuWindowLightmapVertices;
+#macro OpenLightmapWindow
+    ilw.x  iOutPtr, kVuWindowStateAddr(vi00)
+    lq     fTag,    kVuLightmapStripTagAddr(vi00)
+    sqi    fTag,    (iOutPtr++)
+    iaddiu iVertsLeft, vi00, kVuWindowLightmapVertices
+#endmacro
+
+; The list path's window: the drawing tag of the pass it walks, whose address
+; the walk state holds (the batch's own, or the lightmap pass's).
+;
+;   out = win; *out++ = vuMem[vuMem[kVuWalkPrevAddr].y]; vertsLeft = kVuWindowVertices;
+#macro OpenWalkWindow
+    ilw.y  iOutPtr, kVuWalkPrevAddr(vi00)
+    lq     fTag,    0(iOutPtr)
+    ilw.x  iOutPtr, kVuWindowStateAddr(vi00)
+    sqi    fTag,    (iOutPtr++)
+    iaddiu iVertsLeft, vi00, kVuWindowVertices
+#endmacro
+
 ; Patches the drawing tag with the vertices written, kicks the window and
 ; moves to the other one; an empty window is not sent (quake2-ps2: VIF1
 ; would wait at the chain's FLUSH for a PATH1 transfer that never ends).
@@ -76,7 +99,12 @@
 ; 'lblEmpty' must be unique to each invocation. The first instruction must
 ; stay harmless in a branch delay slot.
 #macro CloseOutputWindowAndKick: lblEmpty
-    iaddiu iNloop, vi00,   kVuWindowVertices
+    CloseWindowAndKick{ lblEmpty, kVuWindowVertices }
+#endmacro
+
+; The same for a window opened with room for 'capacity' vertices.
+#macro CloseWindowAndKick: lblEmpty, capacity
+    iaddiu iNloop, vi00,   capacity
     isub   iNloop, iNloop, iVertsLeft
 
     ibeq   iNloop, vi00, lblEmpty

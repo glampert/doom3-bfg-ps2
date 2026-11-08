@@ -2,8 +2,9 @@
 # ================================================================================================
 # File: test_vu_cost.py
 # Brief: Pin vu_cost.py's VU1 model: delay slots, the DIV wait at WAITQ, the E bit, VIF1's unpack
-# with skipping writes and sign extension, and both world programs' strip paths sending every
-# vertex of a batch across window kicks.
+# with skipping writes and sign extension, both world programs' strip paths sending every vertex
+# of a batch across window kicks, the lightmap pass sending them again, and d3wd.py's decoding of
+# a batch's vertices and strips.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -13,6 +14,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
+import d3wd
 import vu_cost
 
 TOY = """
@@ -106,12 +108,51 @@ class WorldProgramTests(unittest.TestCase):
                 self.assertEqual(kicks, 1 if length <= 48 else 2)
                 self.assertGreater(cycles, 48 * length)
 
+    def test_lightmap_pass_sends_every_vertex_again(self):
+        # Its windows hold 75 vertices of two qwords: a 68-vertex batch (291 qwords) fits one.
+        program = vu_cost.load_program("world_lm")
+        for length, base_kicks, base_sent in ((6, 1, 8), (68, 2, 70)):
+            with self.subTest(vertices=length):
+                unlit = vu_cost.batch_cycles(program, batch_packet(strip_of(length), True))
+                lit = vu_cost.batch_cycles(program, batch_packet(strip_of(length), True), lit=True)
+                self.assertEqual(unlit[1:], (base_kicks, base_sent))
+                self.assertEqual(lit[1:], (base_kicks + 1, base_sent + 4 * ((length + 3) // 4)))
+                self.assertGreater(lit[0], unlit[0] + 8 * length)
+        # world_strips draws no lightmap pass.
+        strips = vu_cost.load_program("world_strips")
+        self.assertEqual(vu_cost.batch_cycles(strips, batch_packet(strip_of(6), False), lit=True)[1:],
+                         vu_cost.batch_cycles(strips, batch_packet(strip_of(6), False))[1:])
+
     def test_plain_strips_transform_every_repeat(self):
         # Two strips sharing two vertices: the indexed program transforms each vertex once.
         strip = [(0, True), (1, True), (2, False), (3, False), (2, True), (3, True), (4, False), (5, False)]
         indexed = vu_cost.batch_cycles(vu_cost.load_program("world_lm"), batch_packet(strip, True))[0]
         plain = vu_cost.batch_cycles(vu_cost.load_program("world_strips"), batch_packet(strip, False))[0]
         self.assertGreater(plain - indexed, 2 * 40)
+
+
+class DecoderTests(unittest.TestCase):
+    def batch(self, packet, indexed, vertices, indices):
+        world = d3wd.World.__new__(d3wd.World)
+        world.packets = packet
+        flags = d3wd.FLAG_INDEXED_STRIPS if indexed else 0
+        return world, d3wd.Batch(flags, vertices, 0, len(packet) // 16, indices, 0, d3wd.NO_LIGHTMAP)
+
+    def test_strips_decode_in_id_winding(self):
+        # Two strips: triangle k of each is (k, k+1, k+2) for even k, (k+1, k, k+2) for odd k.
+        strip = [(0, True), (1, True), (2, False), (3, False), (4, False), (2, True), (3, True), (5, False)]
+        expected = [(0, 1, 2), (2, 1, 3), (2, 3, 4), (2, 3, 5)]
+        world, batch = self.batch(batch_packet(strip, True), True, 6, len(strip))
+        self.assertEqual(world.triangles(batch), expected)
+        plain, plain_batch = self.batch(batch_packet(strip, False), False, len(strip), 0)
+        self.assertEqual(plain.triangles(plain_batch), [(0, 1, 2), (2, 1, 3), (2, 3, 4), (5, 6, 7)])
+
+    def test_vertices_decode_the_streams(self):
+        world, batch = self.batch(batch_packet(strip_of(6), True), True, 6, 6)
+        vertices = world.vertices(batch)
+        self.assertEqual(len(vertices), 6)
+        self.assertEqual(vertices[0].color, (0x80, 0x80, 0x80, 0x80))
+        self.assertEqual(vertices[5].lightmap, (0.0, 0.0))
 
 
 if __name__ == "__main__":

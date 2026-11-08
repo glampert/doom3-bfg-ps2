@@ -17,8 +17,8 @@ namespace ps2::renderer::world
 
 // The layout is defined by src/tools/assets/world.h, which writes it.
 static constexpr std::uint32_t kMagic = 0x44573344;
-static constexpr std::uint32_t kVersion = 2;
-static constexpr std::uint32_t kConverterVersion = 2;
+static constexpr std::uint32_t kVersion = 3;
+static constexpr std::uint32_t kConverterVersion = 3;
 static constexpr std::uint32_t kHeaderBytes = 32;
 static constexpr std::uint32_t kSectionCount = 11;
 static constexpr std::uint32_t kDirectoryBytes = kHeaderBytes + kSectionCount * 16U;
@@ -29,12 +29,14 @@ static constexpr std::uint32_t kLayoutMask = 0xFU;
 static constexpr std::uint32_t kLayoutWorldLightmapped = 0;
 static constexpr std::uint32_t kFlagIndexedStrips = 1U << 4;
 static constexpr std::uint32_t kNoLightmap = 0xFFFFU;
+static constexpr std::uint32_t kMaxLightmapPages = 256;
 static constexpr std::uint32_t kEntryAdc = 0x8000U;
 
 // VU1 data memory (vu1progs/vu_memory.h): a batch, its last write included, fits one input half.
 static constexpr std::uint32_t kInputHalfQwords = 306;
-// The half's last 8 qwords receive the batch's texture state (DisplayList::DrawBatch).
-static constexpr std::uint32_t kBatchStateQwords = 8;
+// The half's last 11 qwords receive the batch's state (DisplayList::DrawBatch): the lightmap page's
+// A+D packet, the material's, and the drawing tags.
+static constexpr std::uint32_t kBatchStateQwords = 11;
 static constexpr std::uint32_t kBatchQwords = kInputHalfQwords - kBatchStateQwords;
 static constexpr std::uint32_t kHeaderQwords = 2;
 static constexpr std::uint32_t kVertexQwords = 4;
@@ -147,6 +149,8 @@ struct Sections
     std::uint32_t mirrorVertexCount;
     std::uint32_t mirrorIndexCount;
     std::uint32_t packetBytes;
+    // The map's D3TX holds this many Light8 pages; a batch names one or kNoLightmap.
+    std::uint32_t lightmapPages;
     // Every batch has the strip index stream (world_lm.vcl), or none has (world_strips.vcl).
     bool indexedStrips;
 };

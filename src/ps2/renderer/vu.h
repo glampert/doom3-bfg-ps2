@@ -78,6 +78,8 @@ struct alignas(16) FrameConstants
     math::Vec4 clipScale; // kGuardBandScale (xy), 1 for z
     qword_t stripTag;     // drawing tags (gs::DrawingTag); NLOOP and EOP are the program's
     qword_t listTag;
+    qword_t lightmapStripTag; // the lightmap pass's (gs::LightmapTag)
+    qword_t lightmapListTag;
 };
 
 enum class MicroAddr : u32

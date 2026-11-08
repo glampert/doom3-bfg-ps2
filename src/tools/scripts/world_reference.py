@@ -35,6 +35,8 @@ import struct
 import sys
 import zlib
 
+import d3wd
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -290,6 +292,22 @@ def load_retail_triangles(data: Path, job: dict, only: set | None = None) -> lis
             for first in range(0, len(indices), 3):
                 corners = tuple((vertices[i][0], colours[i]) for i in indices[first:first + 3])
                 triangles.append((material, corners))
+    return triangles
+
+
+def load_cooked_triangles(world: Path, only: set | None = None) -> list:
+    """The cooked D3WD's triangles as its packets draw them, with their vertex colour bytes (the
+    baked light's chroma for a lit map); with 'only', just those areas' triangles."""
+    cooked = d3wd.load(world)
+    triangles = []
+    for area, record in enumerate(cooked.areas):
+        if only is not None and area not in only:
+            continue
+        for batch in cooked.batches[record.first_batch:record.first_batch + record.batch_count]:
+            vertices = cooked.vertices(batch)
+            material = cooked.materials[batch.material]
+            for corners in cooked.triangles(batch):
+                triangles.append((material, tuple((vertices[k].position, list(vertices[k].color[:3])) for k in corners)))
     return triangles
 
 
@@ -557,6 +575,8 @@ def main() -> int:
     parser.add_argument("--scene", choices=("graybox", "mars_city1"), default="graybox",
                         help="the --compare capture's map: the authored graybox or a cooked retail map (config/world_<scene>.json)")
     parser.add_argument("--data", type=Path, default=RETAIL_DATA, help="the retail installation a retail scene reads")
+    parser.add_argument("--world", type=Path,
+                        help="draw this cooked D3WD's own triangles and vertex colours instead of the scene's source (a lit cook's chroma)")
     parser.add_argument("--view", help="the camera of the --compare capture, by name")
     parser.add_argument("--camera", type=float, nargs=6, metavar=("EX", "EY", "EZ", "TX", "TY", "TZ"),
                         help="the --compare capture's camera given directly, as ps2_world view takes it")
@@ -578,6 +598,8 @@ def main() -> int:
                 parser.error(f"--view must be one of {', '.join(sorted(views))}")
             camera, label = views[args.view], args.view
         triangles, background = scene_triangles(args.scene, args.data)
+        if args.world is not None:
+            triangles = load_cooked_triangles(args.world)
         share = compare_image(args.compare, triangles, camera, args.bits, background, args.images, label)
         print(f"{args.compare.name} {label} {args.bits}-bit: {share:.2f}% within {renderer_capture.tolerance(args.bits)}")
         return 0 if share >= args.min_match else 1

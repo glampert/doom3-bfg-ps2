@@ -362,17 +362,25 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     if (bytes < kPackHeaderBytes || bytes > kPackMaxFileBytes || Word(file) != kPackMagic || Half(file + 4) != kPackVersion ||
         Half(file + 6) != kPackHeaderBytes || Word(file + 20) != bytes || Word(file + 28) != kPackConverterVersion) [[unlikely]]
     {
-        return "not a D3TX v1 file";
+        return "not a D3TX v2 file";
     }
 
     Pack pack = {};
     pack.materialCount = Word(file + 8);
     pack.textureCount = Word(file + 12);
     pack.materialsHash = Word(file + 16);
-    const std::uint32_t tablesEnd = kPackHeaderBytes + kPackMaterialBytes * pack.materialCount + kPackTextureBytes * pack.textureCount;
+    pack.pageCount = Word(file + 32);
 
-    if (pack.materialCount > kPackMaxMaterials || pack.textureCount > kPackMaxTextures || pack.textureCount > imageCapacity ||
-        tablesEnd > bytes) [[unlikely]]
+    if (pack.materialCount > kPackMaxMaterials || pack.textureCount > kPackMaxTextures || pack.pageCount > kPackMaxPages ||
+        pack.textureCount > imageCapacity || Word(file + 36) != 0 || Word(file + 40) != 0 || Word(file + 44) != 0) [[unlikely]]
+    {
+        return "D3TX tables out of range";
+    }
+
+    const std::uint32_t pagesAt = kPackHeaderBytes + kPackMaterialBytes * pack.materialCount + kPackTextureBytes * pack.textureCount;
+    const std::uint32_t tablesEnd = pagesAt + kPackPageBytes * pack.pageCount;
+
+    if (tablesEnd > bytes) [[unlikely]]
     {
         return "D3TX tables out of range";
     }
@@ -388,16 +396,26 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
 
     pack.materials = static_cast<const PackMaterial *>(static_cast<const void *>(file + kPackHeaderBytes));
     pack.textures = static_cast<const PackTexture *>(static_cast<const void *>(file + kPackHeaderBytes + kPackMaterialBytes * pack.materialCount));
+    pack.pages = static_cast<const std::uint32_t *>(static_cast<const void *>(file + pagesAt));
 
     for (std::uint32_t index = 0; index < pack.materialCount; ++index)
     {
         const PackMaterial & material = pack.materials[index];
 
         // Finite and bounded; NaN fails both comparisons.
-        if ((material.texture != kPackNoTexture && material.texture >= pack.textureCount) ||
+        if ((material.texture != kPackNoTexture && material.texture != kPackHidden &&
+             (material.texture >= pack.textureCount || (pack.textures[material.texture].flags & kPackFlagLightmap) != 0)) ||
             !(material.uvDensityLog2 >= -64.0f && material.uvDensityLog2 <= 64.0f)) [[unlikely]]
         {
             return "D3TX material record out of range";
+        }
+    }
+
+    for (std::uint32_t index = 0; index < pack.pageCount; ++index)
+    {
+        if (pack.pages[index] >= pack.textureCount || (pack.textures[pack.pages[index]].flags & kPackFlagLightmap) == 0) [[unlikely]]
+        {
+            return "D3TX page record out of range";
         }
     }
 
@@ -406,7 +424,8 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
         const PackTexture & texture = pack.textures[index];
 
         if (texture.offset < tablesEnd || (texture.offset & (kPackAlignment - 1U)) != 0 || texture.bytes > bytes ||
-            texture.offset > bytes - texture.bytes || (texture.flags & ~kPackFlagAlphaTest) != 0 || texture.reserved != 0) [[unlikely]]
+            texture.offset > bytes - texture.bytes || (texture.flags & ~(kPackFlagAlphaTest | kPackFlagLightmap)) != 0 ||
+            texture.flags == (kPackFlagAlphaTest | kPackFlagLightmap) || texture.reserved != 0) [[unlikely]]
         {
             return "D3TX texture record out of range";
         }
@@ -416,6 +435,11 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
         if (error != nullptr) [[unlikely]]
         {
             return error;
+        }
+
+        if (((texture.flags & kPackFlagLightmap) != 0) != (images[index].usage == ImageUsage::Lightmap)) [[unlikely]]
+        {
+            return "D3TX texture flags disagree with its usage";
         }
     }
 

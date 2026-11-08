@@ -25,9 +25,9 @@ namespace assets
 // arena's alignment) with zero padding between them. The layout is canonical: one world has one
 // valid encoding.
 //
-// Header:    u32 magic 'D3WD', u16 version 1, u16 header bytes 32, u16 section count 11, u16 flags 0,
+// Header:    u32 magic 'D3WD', u16 version 3, u16 header bytes 32, u16 section count 11, u16 flags 0,
 //            u32 file bytes, u32 FNV-1a of header and directory with this field read as zero,
-//            u32 converter version, 8 reserved zero bytes.
+//            u32 converter version, u32 lightmap pages (the map's D3TX holds them), 4 zero bytes.
 // Directory: per section u32 offset, u32 bytes, u32 record count, u32 FNV-1a of its bytes.
 //
 // Sections and records:
@@ -49,8 +49,9 @@ namespace assets
 // An area's surfaces and batches, and a surface's batches, are contiguous; surfaces are ordered by
 // area, batches by surface.
 static constexpr std::uint32_t kD3wdMagic = 0x44573344;
-static constexpr std::uint16_t kD3wdVersion = 2;
-static constexpr std::uint32_t kD3wdConverterVersion = 2;
+static constexpr std::uint16_t kD3wdVersion = 3;
+static constexpr std::uint32_t kD3wdConverterVersion = 3;
+static constexpr std::uint32_t kD3wdMaxLightmapPages = 256;
 static constexpr std::size_t kD3wdHeaderBytes = 32;
 static constexpr std::size_t kD3wdDirectoryRecordBytes = 16;
 static constexpr std::size_t kD3wdPacketAlignment = 64;
@@ -76,7 +77,8 @@ static constexpr int kD3wdSectionCount = static_cast<int>(D3wdSection::Count);
 // Batch header (64 bytes, plan section 6.2):
 //   f32 bounds min[3], u32 flags, f32 bounds max[3], u32 vertex count, f32 position offset[3],
 //   f32 position scale, u32 packet offset (bytes into Packets, qword aligned), u32 packet qwords,
-//   u16 material, u16 lightmap page (0xFFFF none), u16 index count, u16 0.
+//   u16 material, u16 lightmap page (0xFFFF none, else below the header's page count), u16 index
+//   count, u16 0.
 //
 // Flags: bits 0-3 vertex layout (0: WA), bit 4 indexed strips. Every packet is, in order:
 //   STCYCL 1,1
@@ -85,8 +87,10 @@ static constexpr int kD3wdSectionCount = static_cast<int>(D3wdSection::Count);
 //   UNPACK V4-16 unsigned Q at +2        strip index stream, four u16 entries per qword (indexed only)
 //   STCYCL 4,1 (the fourth qword of each vertex is the program's: the projected STQ)
 //   UNPACK V4-16 N at +2+Q    position s16 xyz, w the ADC flag 0x8000 (plain strips) or 0
-//   UNPACK V4-16 N at +3+Q    UV s16 s, t and lightmap s, t (UV = q * UV scale + offset)
-//   UNPACK V4-8 unsigned N at +4+Q  RGBA, 0x80 = 1.0
+//   UNPACK V4-16 N at +3+Q    UV s16 s, t (UV = q * UV scale + offset) and lightmap s, t (4.12
+//                             fixed point of the page, 0 without a lightmap)
+//   UNPACK V4-8 unsigned N at +4+Q  RGBA, 0x80 = 1.0 (lit batches: the light's chroma times the
+//                                   chart's exposure, which the lightmap's intensity divides out)
 //   ITOP N; NOPs to the qword
 // with Q = ceil(I/4). The packet starts no program: the display list sends MSCAL with the next tag,
 // so the packet stays valid wherever vu::Init places the program. A strip index entry is the
@@ -107,13 +111,13 @@ static constexpr std::uint32_t kStripEntryAdc = 0x8000;
 static constexpr std::int16_t kStripVertexAdc = -32768;
 
 // VU1 data memory (ps2/renderer/vu1progs/vu_memory.h, plan section 7.2): each input half is 306
-// qwords, of which the last 8 receive the batch's texture state from the display list, so a batch,
-// its last write included, fits 298; WA vertices take 4 qwords and the indexed layout stops at 72
-// unique vertices.
+// qwords, of which the last 11 receive the batch's state from the display list (the lightmap
+// page's A+D packet, the material's, and the drawing tags), so a batch, its last write included,
+// fits 295; WA vertices take 4 qwords and the indexed layout stops at 72 unique vertices.
 static constexpr int kWorldInputHalfQwords = 306;
 static constexpr int kWorldHeaderQwords = 2;
 static constexpr int kWorldVertexQwords = 4;
-static constexpr int kWorldBatchStateQwords = 8;
+static constexpr int kWorldBatchStateQwords = 11;
 static constexpr int kWorldBatchQwords = kWorldInputHalfQwords - kWorldBatchStateQwords;
 static constexpr int kWorldMaxIndexedVertices = 72;
 static constexpr int kWorldMaxStripIndices = 255;
@@ -187,6 +191,7 @@ struct World
     std::vector<std::array<std::int16_t, 3>> mirrorPositions;
     std::vector<std::uint16_t> mirrorIndices;
     std::vector<std::uint8_t> packets;
+    std::uint32_t lightmapPages = 0;
 };
 
 enum class WorldTopology : std::uint8_t
@@ -203,8 +208,34 @@ struct WorldMaterialColor
     std::array<float, 3> color = {};
 };
 
-// Until lightmaps exist (gate R2) the vertex colour is the material's base colour shaded by one
-// fixed direction: base * (ambient + (1 - ambient) * max(0, N.L)).
+// A lit area surface (assets/lightmap.h bakes them): vertices split where charts meet, with the
+// lightmap UV in [0, 1] of its page and the vertex colour (1.0 is 0x80), and each triangle's page.
+struct WorldLitVertex
+{
+    std::array<float, 3> position = {};
+    std::array<float, 2> uv = {};
+    std::array<float, 3> normal = {};
+    std::array<float, 2> lightmapUv = {};
+    std::array<float, 3> color = { 1.0f, 1.0f, 1.0f };
+};
+
+struct WorldLitSurface
+{
+    std::vector<WorldLitVertex> vertices;
+    std::vector<std::uint32_t> indices;
+    // Per triangle (indices / 3): the page, or kBatchNoLightmap for a surface lights do not reach.
+    std::vector<std::uint16_t> pages;
+};
+
+// Per area model, per surface in .proc order.
+struct WorldLighting
+{
+    std::vector<std::vector<WorldLitSurface> > areas;
+    std::uint32_t pages = 0;
+};
+
+// Without lighting the vertex colour is the material's base colour shaded by one fixed direction:
+// base * (ambient + (1 - ambient) * max(0, N.L)).
 struct WorldPolicy
 {
     WorldTopology topology = WorldTopology::IndexedStrips;
@@ -229,10 +260,14 @@ struct WorldCookStats
     std::size_t skippedModels = 0;
     float maxPositionError = 0.0f;
     float maxUvError = 0.0f;
+    std::size_t litBatches = 0;
 };
 
 // Cooks every area model of 'proc'. Other models (entity brush models) are counted and skipped.
-bool CookWorld(const ProcFile & proc, const WorldPolicy & policy, World & output, WorldCookStats & stats, std::string & error);
+// With 'lighting' (one surface list per area, matching the proc's), the area surfaces come from it:
+// batches never mix lightmap pages, and carry their page.
+bool CookWorld(const ProcFile & proc, const WorldPolicy & policy, World & output, WorldCookStats & stats, std::string & error,
+               const WorldLighting * lighting = nullptr);
 
 bool WriteD3wd(const World & world, std::vector<std::uint8_t> & file, std::string & error);
 

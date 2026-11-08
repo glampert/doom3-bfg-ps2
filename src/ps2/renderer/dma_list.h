@@ -62,11 +62,12 @@ public:
     // CALLed only when it is not in micro memory (vu::Bind). Later batches start at its entry.
     void SetProgram(vu::Program program);
 
-    // A batch whose packet (16-byte aligned, ending with ITOP) is REF'd in place, after its state:
-    // 'stateQwords' of VIF stream (16-byte aligned, written back) that unpack the batch's texture
-    // state into the same half. The previous batch starts from the state's tag, so the state lands
-    // in this batch's half; this one starts from the next batch's tag, or from EndBatches.
-    void DrawBatch(const void * packet, u32 qwords, const void * state, u32 stateQwords);
+    // A batch whose packet (16-byte aligned, ending with ITOP) is REF'd in place, after its states:
+    // VIF streams (16-byte aligned, written back) that unpack the lightmap page's and the
+    // material's state into the same half. The previous batch starts from the first state's tag, so
+    // the states land in this batch's half; this one starts from the next batch's tag, or from
+    // EndBatches.
+    void DrawBatch(const void * packet, u32 qwords, const void * state, u32 stateQwords, const void * pageState, u32 pageQwords);
 
     // A batch whose packet rides in the list: 'qwords' (V4-32, STCYCL 1,1) unpacked at the start
     // of the next double buffer half. Returns where to write them; it starts like a DrawBatch.

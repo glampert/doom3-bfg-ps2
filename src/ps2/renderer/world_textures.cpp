@@ -1,8 +1,9 @@
 // ================================================================================================
 // File: world_textures.cpp
 // Brief: A cooked world's textures (the map's D3TX): residency in one VRAM arena with LRU eviction
-// and in-chain uploads, and each batch's texture state, the 10-qword VIF block the display list
-// unpacks into the batch's input half for the world program to kick.
+// and in-chain uploads, and each batch's state, the VIF blocks the display list unpacks into the
+// batch's input half for the world program to kick: the material's texture registers and drawing
+// tags, and the lightmap page's TEX0 for the other context.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -26,9 +27,13 @@ namespace ps2::renderer::world
 namespace
 {
 
-// Each state block in its own cache lines (10 qwords rounded up to 64 bytes), so writing one back
-// never touches another that a chain in flight reads.
+// Each state block in its own cache lines (10 qwords rounded up to 64 bytes, a page's 3 to 4), so
+// writing one back never touches another that a chain in flight reads.
 static constexpr u32 kStateStrideQwords = 12;
+static constexpr u32 kPageStrideQwords = 4;
+
+// TEX0.TFX DECAL: the lightmap pass takes the texel's alpha alone, the frame its colour.
+static constexpr u64 kTex0Decal = 1ULL << 35;
 
 // VRAM the arena leaves to the UI's own textures (the console charset, the menus' pages).
 static constexpr u32 kUiReserveBytes = 256U * 1024U;
@@ -47,6 +52,11 @@ struct MaterialState
 {
     u32 generation[2];
     u32 focal[2];
+};
+
+struct PageBlockState
+{
+    u32 generation[2];
 };
 
 struct Range
@@ -102,12 +112,45 @@ static void WriteState(qword_t * block, gs::DrawContext context, bool textured, 
     SyncDCache(block, block + kStateStrideQwords);
 }
 
-// The untextured state per context: written once, never changed after.
+// The page's A+D packet, with word 3 of its register qword the program's flag.
+static void WritePage(qword_t * block, gs::DrawContext context, u64 tex0, bool lit)
+{
+    const u64 other = gs::OtherContext(context) == gs::DrawContext::Ctx1 ? 1U : 0U;
+
+    block[0].sw[0] = static_cast<s32>(dma::kVifNop);
+    block[0].sw[1] = static_cast<s32>(dma::kVifNop);
+    block[0].sw[2] = static_cast<s32>(dma::VifStcycl(1U, 1U));
+    block[0].sw[3] = static_cast<s32>(dma::VifUnpack(dma::UnpackFormat::V4_32, 2U, kVuBatchLightmapOffset, true, false));
+    block[1].dw[0] = GIF_SET_TAG(1, 1, 0, 0, GIF_FLG_PACKED, 1);
+    block[1].dw[1] = GIF_REG_AD;
+    block[2].dw[0] = tex0;
+    block[2].dw[1] = (GS_REG_TEX0_1 + other) | (lit ? 1ULL << 32 : 0U);
+
+    SyncDCache(block, block + kPageStrideQwords);
+}
+
+// The untextured state per context: written once, never changed after; and the page state of a
+// batch without a lightmap pass (the program never kicks it).
 alignas(64) static qword_t s_untextured[2][kStateStrideQwords];
 static bool s_untexturedWritten[2] = {};
+alignas(64) static qword_t s_unlit[kPageStrideQwords];
+static bool s_unlitWritten = false;
 
 // The pass in progress, for worlds without textures too.
 static gs::DrawContext s_context = gs::DrawContext::Ctx0;
+static bool s_textured = true;
+static bool s_lightmapped = true;
+
+static const void * Unlit()
+{
+    if (!s_unlitWritten)
+    {
+        WritePage(s_unlit, gs::DrawContext::Ctx0, 0, false);
+        s_unlitWritten = true;
+    }
+
+    return s_unlit;
+}
 
 static const void * Untextured(gs::DrawContext context)
 {
@@ -133,6 +176,8 @@ struct Textures
     Slot * slots;
     MaterialState * states;
     qword_t * blocks;
+    PageBlockState * pageStates;
+    qword_t * pageBlocks;
     Range * free;
     u32 freeCount;
     gs::VramAllocation arena;
@@ -187,9 +232,16 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
         error = "its materials are not the world's";
     }
 
+    if (error == nullptr && pack.pageCount != sections.lightmapPages)
+    {
+        error = "its lightmap pages are not the world's";
+    }
+
     Slot * slots = nullptr;
     MaterialState * states = nullptr;
     qword_t * blocks = nullptr;
+    PageBlockState * pageStates = nullptr;
+    qword_t * pageBlocks = nullptr;
     Range * ranges = nullptr;
 
     if (error == nullptr)
@@ -199,12 +251,18 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
         states = static_cast<MaterialState *>(system::heap::TryAlloc(sizeof(MaterialState) * (pack.materialCount + 1U), TAG_RENDER));
         blocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * (pack.materialCount + 1U), TAG_RENDER, 64));
         ranges = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
-        error = slots == nullptr || states == nullptr || blocks == nullptr || ranges == nullptr ? "no memory for its residency" : nullptr;
+        pageStates = static_cast<PageBlockState *>(system::heap::TryAlloc(sizeof(PageBlockState) * (pack.pageCount + 1U), TAG_RENDER));
+        pageBlocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.pageCount + 1U), TAG_RENDER, 64));
+        error = slots == nullptr || states == nullptr || blocks == nullptr || ranges == nullptr || pageStates == nullptr || pageBlocks == nullptr
+                    ? "no memory for its residency"
+                    : nullptr;
     }
 
     if (error != nullptr) [[unlikely]]
     {
         Log(LogLevel::Error, "textures %s refused: %s\n", name, error);
+        system::heap::Free(pageBlocks);
+        system::heap::Free(pageStates);
         system::heap::Free(ranges);
         system::heap::Free(blocks);
         system::heap::Free(states);
@@ -226,6 +284,8 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
     textures->slots = slots;
     textures->states = states;
     textures->blocks = blocks;
+    textures->pageStates = pageStates;
+    textures->pageBlocks = pageBlocks;
     textures->free = ranges;
 
     for (u32 index = 0; index < pack.textureCount; ++index)
@@ -238,6 +298,11 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
         states[index] = {};
     }
 
+    for (u32 index = 0; index < pack.pageCount; ++index)
+    {
+        pageStates[index] = {};
+    }
+
     u32 vramBytes = 0;
 
     for (u32 index = 0; index < pack.textureCount; ++index)
@@ -245,8 +310,8 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
         vramBytes += images[index].blocks * kGsBlockBytes;
     }
 
-    Log(LogLevel::Info, "[D3BFG] world textures %s: textures=%u materials=%u vram=%u bytes=%u\n", name,
-        static_cast<u32>(pack.textureCount), static_cast<u32>(pack.materialCount), vramBytes, bytes);
+    Log(LogLevel::Info, "[D3BFG] world textures %s: textures=%u materials=%u pages=%u vram=%u bytes=%u\n", name,
+        static_cast<u32>(pack.textureCount), static_cast<u32>(pack.materialCount), static_cast<u32>(pack.pageCount), vramBytes, bytes);
     return textures;
 }
 
@@ -263,6 +328,8 @@ PS2_COLD_FUNC void FreeTextures(Textures * textures)
     }
 
     system::heap::Free(textures->free);
+    system::heap::Free(textures->pageBlocks);
+    system::heap::Free(textures->pageStates);
     system::heap::Free(textures->blocks);
     system::heap::Free(textures->states);
     system::heap::Free(textures->slots);
@@ -288,6 +355,7 @@ static void AllocateArena(Textures & textures)
     textures.freeCount = 0;
     textures.stats.residentBytes = 0;
     textures.stats.resident = 0;
+    textures.stats.pagesResident = 0;
     const gs::VramStats & vram = gs::GetVramStats();
     const u32 available = vram.capacityBytes - vram.usedBytes;
     u32 bytes = available > kUiReserveBytes ? (available - kUiReserveBytes) / gs::kVramPageBytes * gs::kVramPageBytes : 0U;
@@ -419,6 +487,7 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
         evicted.resident = false;
         textures.stats.residentBytes -= textures.images[victim].blocks * kGsBlockBytes;
         --textures.stats.resident;
+        textures.stats.pagesResident -= textures.images[victim].usage == tex::ImageUsage::Lightmap ? 1U : 0U;
         ++textures.stats.evictions;
     }
 
@@ -428,6 +497,7 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
     list.UploadImage(image.stream, image.streamQwords, slot.base);
     textures.stats.residentBytes += image.blocks * kGsBlockBytes;
     ++textures.stats.resident;
+    textures.stats.pagesResident += image.usage == tex::ImageUsage::Lightmap ? 1U : 0U;
     ++textures.stats.uploads;
     return true;
 }
@@ -436,9 +506,11 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
 // Passes
 // ------------------------------------------------------------------------------------------------
 
-void BeginTextures(Textures * textures, gs::DrawContext context, float focal)
+void BeginTextures(Textures * textures, gs::DrawContext context, float focal, bool textured, bool lightmapped)
 {
     s_context = context;
+    s_textured = textured;
+    s_lightmapped = lightmapped;
 
     if (textures == nullptr)
     {
@@ -462,13 +534,18 @@ void BeginTextures(Textures * textures, gs::DrawContext context, float focal)
 
 const void * BatchState(Textures * textures, dma::DisplayList & list, u32 material)
 {
-    if (textures == nullptr)
+    if (textures == nullptr || !s_textured)
     {
         return Untextured(s_context);
     }
 
     PS2_AssertMsg(material < textures->pack.materialCount, "batch material outside the texture package");
     const tex::PackMaterial & record = textures->pack.materials[material];
+
+    if (record.texture == tex::kPackHidden)
+    {
+        return nullptr;
+    }
 
     if (record.texture == tex::kPackNoTexture)
     {
@@ -507,6 +584,38 @@ const void * BatchState(Textures * textures, dma::DisplayList & list, u32 materi
                    tex::RelocateMiptbp(image.miptbp2, slot.base), image.clamp, TestState(alphaTest));
         state.generation[index] = slot.generation;
         state.focal[index] = textures->focalVersion;
+    }
+
+    return block;
+}
+
+const void * PageState(Textures * textures, dma::DisplayList & list, u32 page)
+{
+    if (textures == nullptr || !s_lightmapped || page == kNoLightmap)
+    {
+        return Unlit();
+    }
+
+    PS2_AssertMsg(page < textures->pack.pageCount, "batch page outside the texture package");
+    const u32 texture = textures->pack.pages[page];
+    Slot & slot = textures->slots[texture];
+
+    if (!slot.resident && (textures->arenaBlocks == 0 || !MakeResident(*textures, list, texture)))
+    {
+        ++textures->stats.unlitFallbacks;
+        return Unlit();
+    }
+
+    slot.lastFrame = textures->frame;
+    const int index = s_context == gs::DrawContext::Ctx1 ? 1 : 0;
+    PageBlockState & state = textures->pageStates[page];
+    qword_t * const block = textures->pageBlocks + (page * 2U + static_cast<u32>(index)) * kPageStrideQwords;
+
+    // As with materials, only this context's block is rewritten.
+    if (state.generation[index] != slot.generation)
+    {
+        WritePage(block, s_context, tex::RelocateTex0(textures->images[texture].tex0, slot.base) | kTex0Decal, true);
+        state.generation[index] = slot.generation;
     }
 
     return block;

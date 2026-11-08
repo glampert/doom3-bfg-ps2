@@ -48,7 +48,8 @@ memory figures in [memory-budget.md](memory-budget.md).
   the EE cache nor GS internal cost: captures prove function, not hardware timing or coherency.
 - Point checks miss what lies between their points. After a world or camera change, match whole
   captures with `src/tools/scripts/world_reference.py --compare <tga> --view <name> --bits
-  <16|32>` (`--scene mars_city1` for the retail map, `--camera EX EY EZ TX TY TZ` for any view;
+  <16|32>` (`--scene mars_city1` for the retail map, `--world <d3wd>` to draw a lit cook's own
+  triangles and chroma, `--camera EX EY EZ TX TY TZ` for any view;
   good captures score 99.5 % or more; seams and depth ties account for the rest). It found
   culled geometry that every point check passed, and a far plane that dropped a sky box.
 - The default hardware renderer (`Renderer = -1`) caches render targets by address and

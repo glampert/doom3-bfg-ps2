@@ -5573,3 +5573,63 @@ Captures at 640, 32/32: [north](images/renderer-world-8-mars_city1-textured-nort
 | `make test-host` | Passed: 393 Python tests and the C++ harnesses; `texture_format_tests` adds the target's D3TX validator against the cook's reader, the retail runner refuses a textured pass with a fallback or no upload |
 | `make`, `make release`, release core image | Passed, no warnings; runnable `PT_LOAD` 4,737,324 debug and 4,033,324 release. `make test-ui` was not run (no UI path changed). Release was compiled, not run |
 
+## mars_city1 lightmapped (2026-11-08)
+
+The world cook lights mars_city1 with its static lights, and the world program draws a second,
+lightmap pass. The cook reads `maps/game/mars_city1.map` and the map script, parses each light as
+`idGameEdit::ParseSpawnArgsToRenderLight` does, derives its projection and bounds as
+`R_DeriveLightData` does, and evaluates its material's stages with id's expression grammar and
+tables (`assets/light.cpp`, `assets/material.cpp`). The 486 lights classify as A 410, B 13, C 31,
+D 2, E 27 and F 3; `mars_city1.lights.json` names the rule behind each.
+
+The 410 class A lights bake into 8 Light8 pages (`assets/lightmap.cpp`):
+- 10,081 charts over 1,697 lit surfaces, 4,186 of them collapsed to a single texel.
+- 1.77 M shadow rays through a BVH of the shadow-casting area triangles and the 362 `func_static`
+  brush models, in 0.65 s; the output is byte-identical across runs.
+- Vertex colours carry each chart's chroma times its exposure, and texels the intensity over that
+  exposure, so `Cd x As` gives back up to 4x. The 204 alpha-tested surfaces are lit per vertex.
+
+The pages are `PSMT8` GSTX v2 files in D3TX version 2 (532,480 bytes of VRAM), and every batch of
+D3WD version 3 names its page.
+
+On the target, phase 1 of `world_lm.vcl` also stores the lightmap ST x Q in the two free `.w`
+lanes. A lit batch walks its stream again, after kicking the page's `TEX0`, in the frame's other GS
+context, which `gs::BeginDepthPass` sets to multiply the frame by the texel's alpha. The page
+travels in a second per-batch VIF block (`PageState`) and shares the textures' arena and LRU.
+
+Figures for the map:
+- 2,572 batches, 2,262 of them lit. Chart seams split vertices: 1.56 transformed per triangle, from
+  1.28.
+- VU1 cost per triangle: 116.8 cycles for the base pass, 153.7 with the lightmap pass (`vu_cost.py`).
+- `world_lm` is 1,272 instructions, so both world programs now swap.
+
+Changes elsewhere:
+- Translucent materials without a diffuse stage are no longer drawn when textured.
+- The retail gate's unlit references now rasterize the cooked D3WD's own triangles and colours,
+  since the vertex colours are now the baked chroma.
+- `ps2_world lightmaps on|off` switches the pass.
+
+The start room is dark: its switchable lights (class C, such as `light_4750`, `start_off`) wait
+for R3's layers.
+
+Captures at 640, 32/32, textured and lit: [north](images/renderer-world-9-mars_city1-lit-north-ntsc.png),
+[doorway](images/renderer-world-9-mars_city1-lit-doorway-ntsc.png),
+[corridor](images/renderer-world-9-mars_city1-lit-corridor-ntsc.png),
+[east](images/renderer-world-9-mars_city1-lit-east-ntsc.png),
+[west](images/renderer-world-9-mars_city1-lit-west-ntsc.png),
+[south](images/renderer-world-9-mars_city1-lit-south-ntsc.png),
+[corridor in PAL](images/renderer-world-9-mars_city1-lit-corridor-pal.png); lit by the lightmaps
+alone: [corridor](images/renderer-world-9-mars_city1-light-corridor-ntsc.png),
+[south](images/renderer-world-9-mars_city1-light-south-ntsc.png); and
+[page 0](images/renderer-world-9-mars_city1-lightmap-page-0.png) (128 = 1.0 over each chart's
+exposure).
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC and PAL passed (`20261108T031215Z_world_retail_354a459528e9`, `20261108T031236Z_world_retail_12e544f17793`): the unlit captures match the cooked world's references at 99.81 to 99.94 %; every view drawn lit by its lightmaps alone and textured and lit, with every texture and page resident and no batch fallen back to untextured or unlit |
+| `make test-world` (debug) | NTSC and PAL passed (`20261108T030314Z_world_1b447bcf1d55`, `20261108T030323Z_world_d6197a8ad20a`); the graybox is unlit (no lighting section) and keeps its 30 batches |
+| `make test-renderer` (debug) | Passed with every probe (`20261108T030400Z_smoke_23901312427f4839`) |
+| `make test-map`, `test-game`, `test-headless`, `test-headless-retail` (debug) | Passed (`20261108T030600Z_smoke_9b97fba85a594391`, `20261108T030609Z_smoke_95afc5971548442e`, `20261108T030644Z_headless_0bb7873f5d4c`, `20261108T030658Z_headless_fef6a380942e`) |
+| `make test-host` | Passed: 396 Python tests and the C++ harnesses. `lighting_tests` (new) checks id's expression priorities and tables, light material coverage, entity parsing, light projections and bounds, the six classes, a light's value, and a baked room against analytic intensity, shadow, chroma and per-vertex grate light. `texture_format_tests` checks D3TX pages and hidden materials; `world_tests` checks a lit graybox |
+| `make`, `make release`, release core image | Passed, no warnings; runnable `PT_LOAD` 4,742,572 debug and 4,038,700 release. `make test-ui` was not run (no UI path changed). Release was compiled, not run |
+

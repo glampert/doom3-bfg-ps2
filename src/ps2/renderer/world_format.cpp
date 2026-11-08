@@ -328,7 +328,8 @@ static const char * CheckRecords(Sections & s)
         }
 
         if (batch.reserved != 0 || (batch.flags & ~(kLayoutMask | kFlagIndexedStrips)) != 0 || (batch.flags & kLayoutMask) != kLayoutWorldLightmapped ||
-            batch.material >= s.materialCount || batch.lightmapPage != kNoLightmap || batch.packetOffset != nextPacket || batch.packetQwords == 0 ||
+            batch.material >= s.materialCount || (batch.lightmapPage != kNoLightmap && batch.lightmapPage >= s.lightmapPages) ||
+            batch.packetOffset != nextPacket || batch.packetQwords == 0 ||
             batch.packetQwords > (s.packetBytes - nextPacket) / 16U || !(batch.positionScale > 0.0f) || !Finite(batch.positionScale)) [[unlikely]]
         {
             return "bad batch record";
@@ -357,10 +358,12 @@ PS2_COLD_FUNC const char * Validate(const std::uint8_t * file, std::uint32_t byt
     }
 
     if (Word(file) != kMagic || Half(file + 4) != kVersion || Half(file + 6) != kHeaderBytes || Half(file + 8) != kSectionCount ||
-        Half(file + 10) != 0 || Word(file + 20) != kConverterVersion || !Zero(file + 24, 8)) [[unlikely]]
+        Half(file + 10) != 0 || Word(file + 20) != kConverterVersion || Word(file + 24) > kMaxLightmapPages || !Zero(file + 28, 4)) [[unlikely]]
     {
         return "unsupported world header";
     }
+
+    output.lightmapPages = Word(file + 24);
 
     if (Word(file + 12) != bytes || bytes % 16U != 0) [[unlikely]]
     {

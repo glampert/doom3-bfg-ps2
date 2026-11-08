@@ -35,8 +35,9 @@ def echo(name):
 GRATE_DECAL = {"entities": 1, "decals": 1, "vertices": 4, "triangles": 2, "area": 1024.0, "bounds": runner.DECALS_EXPECTED["bounds"]}
 
 
-# A textured pass that held every texture it needed.
-TEXTURES = {"enabled": 1, "arena": 1064960, "resident": 40, "resident_bytes": 367360, "uploads": 40, "evictions": 0, "fallbacks": 0}
+# A lit pass that held every texture and lightmap page it needed.
+TEXTURES = {"enabled": 1, "arena": 1064960, "resident": 42, "resident_bytes": 500480, "uploads": 42, "evictions": 0, "fallbacks": 0,
+            "lightmaps": 1, "pages": 2, "unlit": 0}
 
 
 def textures_line(**fields):
@@ -51,7 +52,7 @@ def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4
     log = echo("ready") + echo("begin")
     log += (f"[D3BFG] world {runner.MAP}.d3wd: areas={counts['areas']} surfaces={counts['surfaces']} batches={counts['batches']} "
             f"portals={counts['portals']} nodes={counts['nodes']} packets=1610352 bytes=2704880\n")
-    log += f"[D3BFG] world textures {runner.MAP}.d3tx: textures=258 materials=287 vram=1976832 bytes=2077952\n"
+    log += f"[D3BFG] world textures {runner.MAP}.d3tx: textures=266 materials=287 pages=8 vram=2509312 bytes=2612672\n"
     log += WORLD.format(event="loaded", areas=56, portals=55, viewing=0, frame=0, views=0, area=-1, entities=0, drawn=0, batches=0)
     for index, (_, _, hit, fraction, normal, material) in enumerate(runner.TRACES):
         found = {"hit": hit, "fraction": fraction, "normal": normal, "material": material}
@@ -71,7 +72,8 @@ def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4
         if capture:
             log += f"[D3BFG] CONSOLE capture={capture} frame={frame} presents={frame} redraws=0 bits=32\n"
         log += WORLD.format(**status)
-        log += f"[D3BFG] CONSOLE capture=world-{view.name}-textured.tga frame={frame + 5} presents={frame + 5} redraws=0 bits=32\n"
+        log += f"[D3BFG] CONSOLE capture=world-{view.name}-light.tga frame={frame + 5} presents={frame + 5} redraws=0 bits=32\n"
+        log += f"[D3BFG] CONSOLE capture=world-{view.name}-lit.tga frame={frame + 7} presents={frame + 7} redraws=0 bits=32\n"
         log += textures_line(**(textures or {}).get(view.name, {})) + echo(view.name)
         frame += 10
     log += decals_line(**(decals[1] or {}))
@@ -143,7 +145,7 @@ class RetailWorldRunnerTests(unittest.TestCase):
         self.assertFalse(classify(session(memory="7424/7600/5 final=7424/7600/5"))[0])
 
     def test_textured_pass_must_hold_its_textures(self):
-        for change in ({"fallbacks": 1}, {"uploads": 0}, {"enabled": 0}, {"resident": 0}):
+        for change in ({"fallbacks": 1}, {"uploads": 0}, {"enabled": 0}, {"resident": 0}, {"lightmaps": 0}, {"pages": 0}, {"unlit": 1}):
             with self.subTest(change=change):
                 passed, reason, _ = classify(session(textures={"north": change}))
                 self.assertFalse(passed)

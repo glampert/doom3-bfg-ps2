@@ -509,29 +509,51 @@ static bool TexturePacks()
     bool passed = CookTexture(Noise(64, 64, true), policy, GstxUsage::Diffuse, first, error) && WriteGstxV2(first.image, firstFile, error) &&
                   CookTexture(Noise(32, 128, false), policy, GstxUsage::Diffuse, second, error) && WriteGstxV2(second.image, secondFile, error);
 
+    // A Light8 page: an identity ramp whose alpha reaches 2x (above the diffuse limit of 0x80).
+    std::vector<std::uint8_t> texels(64U * 64U);
+
+    for (std::size_t index = 0; index < texels.size(); ++index)
+    {
+        texels[index] = static_cast<std::uint8_t>(index * 7U);
+    }
+
+    GstxV2Image page;
+    std::vector<std::uint8_t> pageFile;
+    GstxV2Texture pageTexture;
+    passed = passed && CookLightmapPage(64, texels, page, error) && page.usage == GstxUsage::Lightmap && page.palette[255] >> 24 == 255U &&
+             page.wrapS == GstxWrap::Clamp && WriteGstxV2(page, pageFile, error) && ReadGstxV2(pageFile, pageTexture, error) &&
+             !CookLightmapPage(48, std::vector<std::uint8_t>(48U * 48U), page, error);
+    GstxV2Image diffuse = page;
+    diffuse.usage = GstxUsage::Diffuse;
+    std::vector<std::uint8_t> refused;
+    passed = passed && !WriteGstxV2(diffuse, refused, error);
+
     TexturePack pack;
-    pack.materialsHash = MaterialNamesHash({ "textures/a", "textures/b", "textures/c" });
-    pack.materialTextures = { 1, kD3txNoTexture, 0 };
-    pack.materialUvDensity = { -7.0f, 0.0f, -6.5f };
-    pack.textureFlags = { 0, kD3txFlagAlphaTest };
-    pack.textures = { firstFile, secondFile };
+    pack.materialsHash = MaterialNamesHash({ "textures/a", "textures/b", "textures/c", "textures/d" });
+    pack.materialTextures = { 1, kD3txNoTexture, 0, kD3txHidden };
+    pack.materialUvDensity = { -7.0f, 0.0f, -6.5f, 0.0f };
+    pack.textureFlags = { 0, kD3txFlagAlphaTest, kD3txFlagLightmap };
+    pack.textures = { firstFile, secondFile, pageFile };
+    pack.lightmapPages = { 2, 2 };
     std::vector<std::uint8_t> file;
     TexturePack read;
     passed = passed && WriteD3tx(pack, file, error) && ReadD3tx(file, read, error) && read.materialTextures == pack.materialTextures &&
              read.textures == pack.textures && read.textureFlags == pack.textureFlags && read.materialsHash == pack.materialsHash &&
-             read.materialUvDensity == pack.materialUvDensity;
+             read.materialUvDensity == pack.materialUvDensity && read.lightmapPages == pack.lightmapPages;
     passed = passed && MaterialNamesHash({ "ab" }) != MaterialNamesHash({ "a", "b" });
 
     // The target admits the same file and sees the same tables.
     ps2::renderer::tex::Pack target{};
-    ps2::renderer::tex::Image images[2]{};
+    ps2::renderer::tex::Image images[3]{};
     std::memcpy(s_aligned, file.data(), file.size());
-    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 2) == nullptr &&
-             target.materialCount == 3 && target.textureCount == 2 && target.materialsHash == pack.materialsHash &&
-             target.materials[0].texture == 1 && target.materials[1].texture == ps2::renderer::tex::kPackNoTexture &&
+    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 3) == nullptr &&
+             target.materialCount == 4 && target.textureCount == 3 && target.pageCount == 2 && target.pages[1] == 2 &&
+             target.materialsHash == pack.materialsHash && target.materials[0].texture == 1 &&
+             target.materials[1].texture == ps2::renderer::tex::kPackNoTexture && target.materials[3].texture == ps2::renderer::tex::kPackHidden &&
              target.materials[2].uvDensityLog2 == -6.5f && target.textures[1].flags == ps2::renderer::tex::kPackFlagAlphaTest &&
+             target.textures[2].flags == ps2::renderer::tex::kPackFlagLightmap && images[2].usage == ps2::renderer::tex::ImageUsage::Lightmap &&
              images[0].width == static_cast<std::uint32_t>(first.image.width) && images[1].height == static_cast<std::uint32_t>(second.image.height);
-    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 1) != nullptr;
+    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 2) != nullptr;
 
     // Flipped bytes anywhere in the tables or a texture, and a dangling material, are refused by both.
     for (const std::size_t offset : { std::size_t(8), std::size_t(16), std::size_t(33), std::size_t(62), file.size() - 100 })
@@ -540,12 +562,22 @@ static bool TexturePacks()
         bad[offset] ^= 0x10U;
         std::memcpy(s_aligned, bad.data(), bad.size());
         passed = passed && !ReadD3tx(bad, read, error) &&
-                 ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(bad.size()), target, images, 2) != nullptr;
+                 ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(bad.size()), target, images, 3) != nullptr;
     }
 
+    // A material may not name a page, a page only a lightmap, and the flag must match the usage.
     TexturePack dangling = pack;
-    dangling.materialTextures[1] = 2;
-    passed = passed && !WriteD3tx(dangling, file, error);
+    dangling.materialTextures[1] = 3;
+    TexturePack namesPage = pack;
+    namesPage.materialTextures[1] = 2;
+    TexturePack pageNamesDiffuse = pack;
+    pageNamesDiffuse.lightmapPages[0] = 0;
+    TexturePack unflagged = pack;
+    unflagged.textureFlags[2] = 0;
+    TexturePack misflagged = pack;
+    misflagged.textureFlags[0] = kD3txFlagLightmap;
+    passed = passed && !WriteD3tx(dangling, file, error) && !WriteD3tx(namesPage, file, error) && !WriteD3tx(pageNamesDiffuse, file, error) &&
+             !WriteD3tx(unflagged, file, error) && !WriteD3tx(misflagged, file, error);
     return Check(passed, "D3TX packs round trip and refuse corruption");
 }
 

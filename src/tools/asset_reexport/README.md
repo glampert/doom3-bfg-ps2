@@ -179,7 +179,7 @@ reader skips with tangents and the precomputed shadow and silhouette data.
   Gate R1 measured both on mars_city1: the hybrid takes 93 VU1 cycles a triangle and 1.61 MB of
   packets, plain strips 122.5 cycles and 1.92 MB (`src/tools/scripts/vu_cost.py`), so the hybrid
   is the default. A world is one topology; both readers refuse a mix.
-- Until lightmaps exist, each vertex colour is the material's base colour (`materials`,
+- Without a `lighting` section, each vertex colour is the material's base colour (`materials`,
   else `default_color`, each channel 0–2 with 1.0 written as the GS's 0x80) times
   `ambient + (1 - ambient) * max(0, N.L)` for the `shading` light direction.
   `material_tint` (0–1, default 0) varies the materials without a colour around the default:
@@ -189,6 +189,11 @@ reader skips with tangents and the precomputed shadow and silhouette data.
   `<name>.textures.json` ([below](#world-textures)): `material_containers` (below `--data`) hold
   id's `materials/*.mtr`; `scale` (default 0.5), `min_extent` (64), `max_extent` (256) and
   `min_mip_extent` (8) set the policy.
+- `lighting` (optional, needs `textures` and the map's containers) bakes the map's static lights
+  ([below](#world-lighting)): `script` names the map script inside the containers (light classes
+  read it); `light_scale` (r_lightScale, default 3), `luxel_size` (16 units a texel),
+  `shadow_samples` (1 or 4), `chart_angle` (30 degrees), `ray_offset` (0.5 units), `min_exposure`
+  (0.25), `flat_steps` (1) and `shadows` (true) set the bake.
 
 ### World textures
 
@@ -214,9 +219,51 @@ of the material names, then the files 64-byte aligned.
 `--previews DIR` writes each texture's decoded source and cooked level 0 as PNGs.
 
 mars_city1 at the defaults: 258 textures for 261 of 287 materials (the other 26 have no
-diffuse stage: shadow and stain overlays, the entity GUI), 186 `PSMT4` and 72 `PSMT8`, 35
-alpha-tested, 1,976,832 bytes of VRAM for the whole map and a 2,076,800-byte package; median
-RMSE 1.3 against each level's resampled source, at most 3.04.
+diffuse stage: shadow and stain overlays, the entity GUI; the 25 of them that are translucent are
+written as not drawn textured), 186 `PSMT4` and 72 `PSMT8`, 35 alpha-tested, 1,976,832 bytes of
+VRAM for the whole map; median RMSE 1.3 against each level's resampled source, at most 3.04.
+
+### World lighting
+
+With a `lighting` section the world command reads `<map>.map` from the containers
+(`assets/map_entities.cpp`), parses each `light` entity as `idGameEdit::ParseSpawnArgsToRenderLight`
+does and derives its projection and bounds as `R_DeriveLightData` does (`assets/light.cpp`). The
+material scan keeps every stage's image, clamp mode, condition and colour registers, parsed with
+id's expression grammar and its tables, and decides `lit` (an interaction stage), `castsShadow`
+and `translucent` as `idMaterial` does. Each light falls in class A to F (plan 8.1):
+- F: fog and blend lights.
+- E: bound to a mover or joint, a texture matrix, a cinematic, a script that changes its shader,
+  parms or radius, or an undeclared material.
+- D: an expression reading `sound`.
+- C: `start_off`, health, `broken`, `break` or levels, targeted by an entity, or named in the script.
+- B: an expression reading time.
+- A: the rest.
+
+`<name>.lights.json` lists every light with its class, the rule that decided it, and the bake's
+counts.
+
+The class A lights bake into Light8 pages (`assets/lightmap.cpp`, plan 8.2 and 8.3):
+- Each lit area surface splits into charts: edge-connected triangles within `chart_angle` of the
+  first one's normal, projected onto it at `luxel_size`.
+- Every texel bilinear filtering reads, plus one more around, takes the light at the nearest point
+  of the chart's triangles: per stage colour x projection x falloff x N.L.
+- Shadows come from `shadow_samples` rays toward the light origin through a BVH. It holds the area
+  triangles whose materials cast shadows (alpha-tested ones whole, as id's shadow volumes do) and
+  the `func_static` inline models placed at their entity. Only lights without `noshadows` cast them.
+- Lights reach the areas flooded through portals their bounds overlap.
+- Each chart vertex gets the chroma of the light around it, normalised to its brightest channel.
+  It is multiplied by the chart's exposure E (its peak intensity over 255/128, at least
+  `min_exposure`) into the vertex colour.
+- Texels hold the intensity against that chroma over E (128 = 1.0).
+- Flat or sub-texel charts collapse to a 3x3 block.
+- Charts pack area by area by skyline into 256x256 pages, each a `PSMT8` GSTX v2 file whose CLUT
+  alpha is the index. They go into the D3TX's page table, and every batch names its page.
+- Alpha-tested surfaces take their light per vertex, without a page.
+- `--previews DIR` also writes `lightmap-<page>.png`.
+
+mars_city1: A 410, B 13, C 31, D 2, E 27, F 3. The 410 A lights (284 cast shadows) cover 1,697 lit
+surfaces (204 alpha-tested, lit per vertex) with 10,081 charts (4,186 points) in 8 pages: 532,480
+bytes of VRAM and 1.77 M rays, in 0.65 s single threaded. The output is byte-identical across runs.
 
 Every `_areaN` model becomes an area of surfaces (in `.proc` order) and each surface a
 run of batches, each the VIF packet one VU1 input half receives: at most 88 unique
@@ -233,8 +280,8 @@ The report records the source (`<map>.proc` or `generated/<map>.bproc`), counts 
 surfaces, batches, strips, triangles), vertices transformed and emitted per triangle, packet
 and file bytes, the largest position and UV quantization errors, each area's bounds and the
 material names in file order (test packages declare them until the cook compiles material
-passes). mars_city1: 56 areas, 1,791 surfaces, 287 materials, 50,332 triangles in 2,302
-batches, 2,739,728 bytes, position error at most 0.094 units. The file is re-read with the full validation
+passes). mars_city1: 56 areas, 1,791 surfaces, 287 materials, 50,332 triangles in 2,572
+batches (2,262 lit across 8 pages), 3,055,840 bytes, position error at most 0.094 units. The file is re-read with the full validation
 (`ReadD3wd`, packet VIFcodes included) before it is written. `build/tests/world_tests`
 checks both parsers (the graybox written as id would cache it reads back as its text form;
 every truncation of a small `.bproc` and targeted corruptions are refused), the strips, byte-exact round trips, corruption and, through an

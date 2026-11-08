@@ -348,9 +348,24 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
 
         const ps2::renderer::world::TextureStats & stats = ps2::renderer::world::LastPassTextureStats();
         ps2::Log(ps2::LogLevel::Info,
-                 "[D3BFG] WORLD textures enabled=%d arena=%u resident=%u resident_bytes=%u uploads=%u evictions=%u fallbacks=%u\n",
+                 "[D3BFG] WORLD textures enabled=%d arena=%u resident=%u resident_bytes=%u uploads=%u evictions=%u fallbacks=%u "
+                 "lightmaps=%d pages=%u unlit=%u\n",
                  ps2::renderer::world::TexturesEnabled() ? 1 : 0, stats.arenaBytes, stats.resident, stats.residentBytes, stats.uploads,
-                 stats.evictions, stats.untexturedFallbacks);
+                 stats.evictions, stats.untexturedFallbacks, ps2::renderer::world::LightmapsEnabled() ? 1 : 0, stats.pagesResident,
+                 stats.unlitFallbacks);
+        return;
+    }
+
+    if (strcmp(verb, "lightmaps") == 0 && args.Argc() == 3)
+    {
+        const bool on = strcmp(args.Argv(2), "on") == 0;
+
+        if (!on && strcmp(args.Argv(2), "off") != 0) [[unlikely]]
+        {
+            ps2::FatalError("ps2_world lightmaps needs on or off");
+        }
+
+        ps2::renderer::world::SetLightmapsEnabled(on);
         return;
     }
 

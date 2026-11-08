@@ -26,5 +26,11 @@
     ],
     "scale": 0.5,
     "max_extent": 256
+  },
+  "lighting": {
+    "script": "script/map_marscity1.script",
+    "light_scale": 3.0,
+    "luxel_size": 16.0,
+    "shadow_samples": 4
   }
 }

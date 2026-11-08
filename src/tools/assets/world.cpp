@@ -573,8 +573,9 @@ std::uint8_t ColorByte(float value)
 class Cook final
 {
 public:
-    Cook(const WorldPolicy & policy, World & world, WorldCookStats & stats, std::string & error)
+    Cook(const WorldPolicy & policy, const WorldLighting * lighting, World & world, WorldCookStats & stats, std::string & error)
         : m_policy(policy)
+        , m_lighting(lighting)
         , m_world(world)
         , m_stats(stats)
         , m_error(error)
@@ -615,6 +616,13 @@ public:
         }
 
         std::size_t areaModels = 0;
+
+        if (m_lighting != nullptr && (m_lighting->areas.size() != static_cast<std::size_t>(proc.areaCount) || m_lighting->pages > kD3wdMaxLightmapPages))
+        {
+            return Fail("the lighting does not match the areas");
+        }
+
+        m_world.lightmapPages = m_lighting != nullptr ? m_lighting->pages : 0U;
 
         for (int area = 0; area < proc.areaCount; ++area)
         {
@@ -679,10 +687,18 @@ private:
         }
 
         bool areaEmpty = true;
+        const std::vector<WorldLitSurface> * lit = m_lighting != nullptr ? &m_lighting->areas[areaIndex] : nullptr;
 
-        for (const ProcSurface & surface : model.surfaces)
+        if (lit != nullptr && lit->size() != model.surfaces.size())
         {
-            if (!Surface(surface, areaIndex, area))
+            return Fail("the lighting does not match area " + std::to_string(areaIndex));
+        }
+
+        for (std::size_t index = 0; index < model.surfaces.size(); ++index)
+        {
+            const ProcSurface & surface = model.surfaces[index];
+
+            if (!Surface(surface, lit != nullptr ? &(*lit)[index] : nullptr, areaIndex, area))
             {
                 return false;
             }
@@ -699,8 +715,57 @@ private:
         return true;
     }
 
-    bool Surface(const ProcSurface & surface, std::uint32_t areaIndex, const WorldArea & area)
+    // A lit surface replaces the source's vertices and indices; its lightmap UVs, colours and pages
+    // stay beside them, indexed alike.
+    bool Surface(const ProcSurface & source, const WorldLitSurface * lit, std::uint32_t areaIndex, const WorldArea & area)
     {
+        ProcSurface relit;
+        m_lightmapUvs.clear();
+        m_colors.clear();
+        std::vector<std::uint16_t> pages;
+
+        if (lit != nullptr)
+        {
+            if (lit->pages.size() * 3 != lit->indices.size())
+            {
+                return Fail("a lit surface's pages do not match its triangles");
+            }
+
+            for (const std::uint16_t page : lit->pages)
+            {
+                if (page != kBatchNoLightmap && page >= m_lighting->pages)
+                {
+                    return Fail("a lit surface names a page the lighting lacks");
+                }
+            }
+
+            for (const std::uint32_t index : lit->indices)
+            {
+                if (index >= lit->vertices.size())
+                {
+                    return Fail("a lit surface's index is out of range");
+                }
+            }
+
+            relit.material = source.material;
+            relit.indices = lit->indices;
+
+            for (const WorldLitVertex & vertex : lit->vertices)
+            {
+                ProcVertex copy;
+                copy.position = vertex.position;
+                copy.uv = vertex.uv;
+                copy.normal = vertex.normal;
+                relit.vertices.push_back(copy);
+                m_lightmapUvs.push_back(vertex.lightmapUv);
+                m_colors.push_back(vertex.color);
+            }
+
+            pages = lit->pages;
+        }
+
+        const ProcSurface & surface = lit != nullptr ? relit : source;
+
         WorldSurface record;
         record.material = m_materialIndex.at(surface.material);
         record.area = areaIndex;
@@ -736,6 +801,7 @@ private:
         }
 
         std::vector<SourceTriangle> triangles;
+        std::vector<std::uint16_t> trianglePages;
 
         for (std::size_t index = 0; index + 2 < surface.indices.size(); index += 3)
         {
@@ -755,6 +821,7 @@ private:
             }
 
             triangles.push_back(triangle);
+            trianglePages.push_back(pages.empty() ? kBatchNoLightmap : pages[index / 3]);
 
             for (const std::uint32_t corner : triangle.corners)
             {
@@ -766,11 +833,44 @@ private:
         record.indexCount = static_cast<std::uint32_t>(m_world.mirrorIndices.size()) - record.firstIndex;
         m_stats.triangles += triangles.size();
 
-        const std::vector<std::size_t> order = triangles.empty() ? std::vector<std::size_t>() : LocalityOrder(triangles);
+        // One batch list per page, in the order the pages first appear: a batch binds one page.
+        const std::vector<std::size_t> locality = triangles.empty() ? std::vector<std::size_t>() : LocalityOrder(triangles);
+        std::vector<std::uint16_t> pageOrder;
+
+        for (const std::size_t index : locality)
+        {
+            if (std::find(pageOrder.begin(), pageOrder.end(), trianglePages[index]) == pageOrder.end())
+            {
+                pageOrder.push_back(trianglePages[index]);
+            }
+        }
+
+        std::vector<std::size_t> order;
+        std::vector<std::size_t> groupEnds;
+
+        for (const std::uint16_t page : pageOrder)
+        {
+            for (const std::size_t index : locality)
+            {
+                if (trianglePages[index] == page)
+                {
+                    order.push_back(index);
+                }
+            }
+
+            groupEnds.push_back(order.size());
+        }
+
+        std::size_t group = 0;
 
         for (std::size_t start = 0; start < order.size();)
         {
-            const std::span<const std::size_t> rest(order.data() + start, order.size() - start);
+            while (start >= groupEnds[group])
+            {
+                ++group;
+            }
+
+            const std::span<const std::size_t> rest(order.data() + start, groupEnds[group] - start);
             Fit fit;
             std::size_t low = 1;
             std::size_t high = rest.size();
@@ -795,7 +895,7 @@ private:
                 return Fail("a triangle does not fit a VU1 input half");
             }
 
-            if (!Batch(surface, record, fit))
+            if (!Batch(surface, record, fit, pageOrder[group]))
             {
                 return false;
             }
@@ -808,10 +908,11 @@ private:
         return true;
     }
 
-    bool Batch(const ProcSurface & surface, WorldSurface & record, const Fit & fit)
+    bool Batch(const ProcSurface & surface, WorldSurface & record, const Fit & fit, std::uint16_t page)
     {
         WorldBatch batch;
         batch.material = static_cast<std::uint16_t>(record.material);
+        batch.lightmapPage = page;
         batch.flags = kBatchLayoutWorldLightmapped | (m_policy.topology == WorldTopology::IndexedStrips ? kBatchFlagIndexedStrips : 0U);
 
         WorldBounds source;
@@ -899,9 +1000,25 @@ private:
             output.uv[2] = 0;
             output.uv[3] = 0;
 
-            const float facing = vertex.normal[0] * m_light[0] + vertex.normal[1] * m_light[1] + vertex.normal[2] * m_light[2];
-            const float shade = m_policy.ambient + (1.0f - m_policy.ambient) * std::max(0.0f, facing);
-            output.color = { ColorByte(base[0] * shade), ColorByte(base[1] * shade), ColorByte(base[2] * shade), 0x80 };
+            if (!m_colors.empty())
+            {
+                // The lightmap UV in 4.12 of the page (the program's itof12), exact at texel centres.
+                const std::array<float, 3> & color = m_colors[fit.vertices[index]];
+
+                for (std::size_t axis = 0; axis < 2; ++axis)
+                {
+                    const float value = page == kBatchNoLightmap ? 0.0f : m_lightmapUvs[fit.vertices[index]][axis];
+                    output.uv[2 + axis] = static_cast<std::int16_t>(std::clamp(std::round(value * 4096.0f), 0.0f, 4096.0f));
+                }
+
+                output.color = { ColorByte(color[0]), ColorByte(color[1]), ColorByte(color[2]), 0x80 };
+            }
+            else
+            {
+                const float facing = vertex.normal[0] * m_light[0] + vertex.normal[1] * m_light[1] + vertex.normal[2] * m_light[2];
+                const float shade = m_policy.ambient + (1.0f - m_policy.ambient) * std::max(0.0f, facing);
+                output.color = { ColorByte(base[0] * shade), ColorByte(base[1] * shade), ColorByte(base[2] * shade), 0x80 };
+            }
         }
 
         // The surface's bounds already hold its source vertices; add what the batch draws.
@@ -1013,6 +1130,7 @@ private:
         }
 
         m_world.batches.push_back(batch);
+        m_stats.litBatches += page != kBatchNoLightmap ? 1U : 0U;
         m_stats.transformedVertices += fit.vertices.size();
         m_stats.emittedVertices += fit.stream.size();
         m_stats.strips += fit.strips;
@@ -1020,11 +1138,15 @@ private:
     }
 
     const WorldPolicy & m_policy;
+    const WorldLighting * m_lighting = nullptr;
     World & m_world;
     WorldCookStats & m_stats;
     std::string & m_error;
     std::array<float, 3> m_light = {};
     std::map<std::string, std::uint16_t> m_materialIndex;
+    // The current lit surface's per-vertex lightmap UVs and colours (empty when unlit).
+    std::vector<std::array<float, 2> > m_lightmapUvs;
+    std::vector<std::array<float, 3> > m_colors;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1226,12 +1348,13 @@ std::vector<std::array<std::uint8_t, 3>> WalkStrips(std::span<const std::uint8_t
     return triangles;
 }
 
-bool CookWorld(const ProcFile & proc, const WorldPolicy & policy, World & output, WorldCookStats & stats, std::string & error)
+bool CookWorld(const ProcFile & proc, const WorldPolicy & policy, World & output, WorldCookStats & stats, std::string & error,
+               const WorldLighting * lighting)
 {
     output = {};
     stats = {};
     error.clear();
-    Cook cook(policy, output, stats, error);
+    Cook cook(policy, lighting, output, stats, error);
     return cook.Run(proc);
 }
 
@@ -1381,7 +1504,8 @@ bool WriteD3wd(const World & world, std::vector<std::uint8_t> & file, std::strin
     header.U32(static_cast<std::uint32_t>(fileBytes));
     header.U32(0);
     header.U32(kD3wdConverterVersion);
-    header.Zero(8);
+    header.U32(world.lightmapPages);
+    header.Zero(4);
 
     for (int section = 0; section < kD3wdSectionCount; ++section)
     {
@@ -1429,9 +1553,10 @@ bool ReadD3wd(std::span<const std::uint8_t> file, World & world, std::string & e
     const std::uint32_t fileBytes = header.U32();
     const std::uint32_t checksum = header.U32();
     const std::uint32_t converter = header.U32();
+    world.lightmapPages = header.U32();
 
     if (magic != kD3wdMagic || version != kD3wdVersion || headerBytes != kD3wdHeaderBytes || sectionCount != kD3wdSectionCount || flags != 0 ||
-        converter != kD3wdConverterVersion || !header.Zero(8))
+        converter != kD3wdConverterVersion || world.lightmapPages > kD3wdMaxLightmapPages || !header.Zero(4))
     {
         return fail("unsupported header");
     }
@@ -1691,7 +1816,7 @@ bool ReadD3wd(std::span<const std::uint8_t> file, World & world, std::string & e
 
         if (batches.U16() != 0 || (batch.flags & ~(kBatchLayoutMask | kBatchFlagIndexedStrips)) != 0 ||
             (batch.flags & kBatchLayoutMask) != kBatchLayoutWorldLightmapped || batch.material >= world.materials.size() ||
-            batch.lightmapPage != kBatchNoLightmap || batch.packetOffset != nextPacket || batch.packetQwords == 0 ||
+            (batch.lightmapPage != kBatchNoLightmap && batch.lightmapPage >= world.lightmapPages) || batch.packetOffset != nextPacket || batch.packetQwords == 0 ||
             batch.packetQwords > (packets.size() - nextPacket) / 16 || !(batch.positionScale > 0.0f) || !std::isfinite(batch.positionScale))
         {
             return fail("bad batch record");

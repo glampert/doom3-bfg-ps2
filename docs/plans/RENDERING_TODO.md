@@ -193,10 +193,13 @@ production link free of test inputs. Section numbers in parentheses point into t
 
 ## R2: lightmapped world and streaming
 
-- [ ] Cook: light classification A to F per map; lightmap baker for category A (occlusion
-      against world and `.bcm`, id's light materials evaluated in the tool); chart
-      extraction, skyline packing, 1-texel borders; chroma subdivision to 64 units;
-      Light8 atlases as GSTX v2 (8.2, 8.3, 15.1).
+- [x] Cook: light classification A to F per map; lightmap baker for category A (id's light
+      materials and projections evaluated in the tool, occlusion by rays against the area models
+      and the `func_static` brush models); chart extraction, skyline packing, 1-texel borders;
+      Light8 pages as GSTX v2 in the D3TX (8.2, 8.3, 15.1; 2026-11-08: mars_city1's 410 class A
+      lights into 8 pages, alpha-tested surfaces lit per vertex).
+- [ ] Cook: chroma subdivision to 64 units; the `.bcm` and mesh models (`func_static` `.lwo`/`.ase`)
+      as occluders; a pixel reference for the lightmap pass in the retail gate (8.2, 8.3).
 - [x] Retail `(format, colorFormat)` census (`texture_census.py`, 2026-11-08): five encodings
       plus RGB565 light images; the plan's 10.4 records it and the memory-image format.
 - [x] Cook: GSTX v2 memory images (GS local memory emulation, level and CLUT placement, mips,
@@ -217,8 +220,11 @@ production link free of test inputs. Section numbers in parentheses point into t
       batch carries its material's texture state, and `world_textures.cpp` keeps the map's D3TX
       resident in a block-granular VRAM arena with LRU eviction and in-chain uploads; the
       retail gate captures every view textured too (6.3, 10.5).
-- [ ] Runtime: lightmap pass (`Cd x As`, GEQUAL, ZMSK 1) through the second context; sky
-      program; streaming the EE copies per area ring from the package (10.5).
+- [x] Runtime: lightmap pass (`Cd x As`, GEQUAL, ZMSK 1) through the second context
+      (2026-11-08): `world_lm.vcl` walks a lit batch a second time after kicking the page's `TEX0`,
+      the pages share the texture arena, `ps2_world lightmaps on|off`; the retail gate captures each
+      view lit by its lightmaps alone and textured (6.1, 6.3, 8.2).
+- [ ] Runtime: sky program; streaming the EE copies per area ring from the package (10.5).
 - [ ] Pull the declaration-text lever (4.76 MB on demand) before measuring the level ledger
       (16.1).
 - [ ] Gate: mars_city1 camera path; area, portal and node counts and sampled

@@ -9,6 +9,9 @@
 #include "assets/bimage.h"
 #include "assets/glyph_set.h"
 #include "assets/json.h"
+#include "assets/light.h"
+#include "assets/lightmap.h"
+#include "assets/map_entities.h"
 #include "assets/material.h"
 #include "assets/png.h"
 #include "assets/resources.h"
@@ -754,8 +757,109 @@ static bool ParseTextureJob(const JsonValue & value, WorldTextureJob & output)
     return true;
 }
 
+struct WorldLightingJob
+{
+    bool enabled = false;
+    // The map script (inside the containers) the light classes read; empty for none.
+    std::string script;
+    // r_lightScale's default.
+    float lightScale = 3.0f;
+    // Off, no light casts shadows (to judge occlusion in the bake).
+    bool shadows = true;
+    LightmapPolicy policy;
+};
+
+static bool ParseLightingJob(const JsonValue & value, WorldLightingJob & output)
+{
+    if (value.type != JsonValue::Type::Object)
+    {
+        return Fail("lighting must be an object");
+    }
+
+    for (const std::string & key : value.keys)
+    {
+        if (key != "script" && key != "light_scale" && key != "luxel_size" && key != "shadow_samples" && key != "chart_angle" &&
+            key != "ray_offset" && key != "min_exposure" && key != "flat_steps" && key != "shadows")
+        {
+            return Fail("unknown lighting field: " + key);
+        }
+    }
+
+    if (const JsonValue * script = value.Find("script"))
+    {
+        if (!RelativeDataPath(script))
+        {
+            return Fail("lighting.script must be a relative path without '..'");
+        }
+
+        output.script = script->text;
+    }
+
+    struct Range
+    {
+        const char * key;
+        double minimum;
+        double maximum;
+        float * target;
+    };
+
+    const Range ranges[] = {
+        { "light_scale", 0.0, 16.0, &output.lightScale },
+        { "luxel_size", 1.0, 256.0, &output.policy.luxelSize },
+        { "chart_angle", 0.0, 89.0, &output.policy.chartAngle },
+        { "ray_offset", 0.0, 16.0, &output.policy.rayOffset },
+        { "min_exposure", 0.01, 1.99, &output.policy.minExposure },
+    };
+
+    for (const Range & range : ranges)
+    {
+        if (const JsonValue * number = value.Find(range.key))
+        {
+            if (number->type != JsonValue::Type::Number || number->number < range.minimum || number->number > range.maximum)
+            {
+                return Fail(std::string("lighting.") + range.key + " must be a number from " + Number(range.minimum) + " to " + Number(range.maximum));
+            }
+
+            *range.target = static_cast<float>(number->number);
+        }
+    }
+
+    if (const JsonValue * samples = value.Find("shadow_samples"))
+    {
+        if (!samples->IsInteger(1, 4) || (samples->number != 1.0 && samples->number != 4.0))
+        {
+            return Fail("lighting.shadow_samples must be 1 or 4");
+        }
+
+        output.policy.shadowSamples = static_cast<int>(samples->number);
+    }
+
+    if (const JsonValue * shadows = value.Find("shadows"))
+    {
+        if (shadows->type != JsonValue::Type::Boolean)
+        {
+            return Fail("lighting.shadows must be true or false");
+        }
+
+        output.shadows = shadows->boolean;
+    }
+
+    if (const JsonValue * steps = value.Find("flat_steps"))
+    {
+        if (!steps->IsInteger(0, 16))
+        {
+            return Fail("lighting.flat_steps must be an integer from 0 to 16");
+        }
+
+        output.policy.flatSteps = static_cast<int>(steps->number);
+    }
+
+    output.enabled = true;
+    return true;
+}
+
 static bool ParseWorldJob(const JsonValue & root, std::string & map, std::vector<std::string> & containers, WorldPolicy & policy,
-                          WorldTextureJob & textures)
+                          WorldTextureJob & textures, WorldLightingJob & lighting)
 {
     const JsonValue * version = root.Find("version");
 
@@ -767,7 +871,7 @@ static bool ParseWorldJob(const JsonValue & root, std::string & map, std::vector
     for (const std::string & key : root.keys)
     {
         if (key != "version" && key != "map" && key != "containers" && key != "topology" && key != "shading" && key != "default_color" &&
-            key != "material_tint" && key != "materials" && key != "textures")
+            key != "material_tint" && key != "materials" && key != "textures" && key != "lighting")
         {
             return Fail("unknown world job field: " + key);
         }
@@ -847,6 +951,20 @@ static bool ParseWorldJob(const JsonValue & root, std::string & map, std::vector
         if (!ParseTextureJob(*texturesValue, textures))
         {
             return false;
+        }
+    }
+
+    if (const JsonValue * lightingValue = root.Find("lighting"))
+    {
+        if (!ParseLightingJob(*lightingValue, lighting))
+        {
+            return false;
+        }
+
+        // The pages travel in the D3TX; the bake reads the light materials the textures section names.
+        if (!textures.enabled || containers.empty())
+        {
+            return Fail("lighting needs a textures section and the map's containers");
         }
     }
 
@@ -952,11 +1070,12 @@ static std::vector<float> MaterialUvDensity(const ProcFile & proc, const std::ve
     return density;
 }
 
-static bool CookWorldTextures(const fs::path & data, const std::vector<std::string> & containers, const WorldTextureJob & job,
-                              const std::vector<std::string> & materials, const std::vector<float> & density, const fs::path & output,
-                              const std::string & stem, const fs::path & previews)
+// Opens the material containers and the map's, later ones winning as the engine's lookup does.
+static bool OpenMaterialCatalog(const fs::path & data, const std::vector<std::string> & containers, const WorldTextureJob & job,
+                                ResourceCatalog & catalog)
 {
     std::vector<fs::path> inputs;
+    std::string error;
 
     for (const std::string & container : job.materialContainers)
     {
@@ -968,16 +1087,18 @@ static bool CookWorldTextures(const fs::path & data, const std::vector<std::stri
         inputs.push_back(data / container);
     }
 
-    ResourceCatalog catalog;
-    std::string error;
-
     if (!catalog.Open(inputs, error))
     {
         return Fail("texture containers: " + error);
     }
 
-    // Declarations in file-name order, the first definition of a name winning.
-    std::map<std::string, MaterialInfo> declared;
+    return true;
+}
+
+// Declarations in file-name order, the first definition of a name winning; tables likewise.
+static bool ScanCatalogMaterials(ResourceCatalog & catalog, std::map<std::string, MaterialInfo> & declared, MaterialTables & tables)
+{
+    std::string error;
 
     for (const auto & entry : catalog.Entries())
     {
@@ -989,12 +1110,21 @@ static bool CookWorldTextures(const fs::path & data, const std::vector<std::stri
         std::vector<std::uint8_t> bytes;
 
         if (!catalog.Read(entry.first, bytes, error) ||
-            !ScanMaterials(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), declared, error))
+            !ScanMaterials(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), declared, error, &tables))
         {
             return Fail(entry.first + ": " + error);
         }
     }
 
+    return true;
+}
+
+static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::string, MaterialInfo> & declared, const WorldTextureJob & job,
+                              const std::vector<std::string> & materials, const std::vector<float> & density,
+                              const std::vector<LightmapPage> & pages, const fs::path & output, const std::string & stem,
+                              const fs::path & previews)
+{
+    std::string error;
     TexturePack pack;
     pack.materialsHash = MaterialNamesHash(materials);
     pack.materialUvDensity = density;
@@ -1020,8 +1150,12 @@ static bool CookWorldTextures(const fs::path & data, const std::vector<std::stri
         std::string name = material;
         std::transform(name.begin(), name.end(), name.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
         const auto found = declared.find(name);
-        const char * reason = found == declared.end() ? "undeclared" : found->second.diffuse.empty() ? "no diffuse stage" : nullptr;
-        std::uint32_t index = kD3txNoTexture;
+        const bool hidden = found != declared.end() && found->second.diffuse.empty() && found->second.translucent;
+        const char * reason = found == declared.end()         ? "undeclared"
+                              : hidden                        ? "translucent without a diffuse stage: not drawn textured"
+                              : found->second.diffuse.empty() ? "no diffuse stage"
+                                                              : nullptr;
+        std::uint32_t index = hidden ? kD3txHidden : kD3txNoTexture;
 
         if (reason == nullptr)
         {
@@ -1135,6 +1269,51 @@ static bool CookWorldTextures(const fs::path & data, const std::vector<std::stri
         pack.materialTextures.push_back(index);
     }
 
+    std::size_t pageBytes = 0;
+
+    for (std::size_t index = 0; index < pages.size(); ++index)
+    {
+        GstxV2Image image;
+        std::vector<std::uint8_t> file;
+        GstxV2Texture check;
+
+        if (!CookLightmapPage(pages[index].size, pages[index].texels, image, error) || !WriteGstxV2(image, file, error) ||
+            !ReadGstxV2(file, check, error))
+        {
+            return Fail("lightmap page " + std::to_string(index) + ": " + error);
+        }
+
+        pack.lightmapPages.push_back(static_cast<std::uint32_t>(pack.textures.size()));
+        pack.textures.push_back(std::move(file));
+        pack.textureFlags.push_back(kD3txFlagLightmap);
+        pageBytes += static_cast<std::size_t>(check.blocks) * kGsBlockBytes;
+
+        if (!previews.empty())
+        {
+            RgbaImage preview;
+            preview.Allocate(pages[index].size, pages[index].size);
+
+            for (int y = 0; y < pages[index].size; ++y)
+            {
+                for (int x = 0; x < pages[index].size; ++x)
+                {
+                    // 0x80 (1.0) shows as mid grey.
+                    const std::uint8_t value = pages[index].texels[static_cast<std::size_t>(y) * static_cast<std::size_t>(pages[index].size) + static_cast<std::size_t>(x)];
+                    std::uint8_t * texel = preview.At(x, y);
+                    texel[0] = value;
+                    texel[1] = value;
+                    texel[2] = value;
+                    texel[3] = 255;
+                }
+            }
+
+            if (!WritePng(previews / ("lightmap-" + std::to_string(index) + ".png"), preview, error))
+            {
+                return Fail(error);
+            }
+        }
+    }
+
     std::vector<std::uint8_t> file;
     TexturePack check;
 
@@ -1149,15 +1328,314 @@ static bool CookWorldTextures(const fs::path & data, const std::vector<std::stri
     }
 
     const std::size_t textured = static_cast<std::size_t>(std::count_if(pack.materialTextures.begin(), pack.materialTextures.end(),
-                                                                        [](std::uint32_t texture) { return texture != kD3txNoTexture; }));
+                                                                        [](std::uint32_t texture) { return texture < kD3txHidden; }));
     const std::string report = "{\n  \"materials\": " + std::to_string(materials.size()) + ",\n  \"textured_materials\": " +
                                std::to_string(textured) + ",\n  \"textures\": " + std::to_string(pack.textures.size()) + ",\n  \"psmt4\": " +
-                               std::to_string(t4) + ",\n  \"vram_bytes\": " + std::to_string(vramBytes) + ",\n  \"file_bytes\": " +
+                               std::to_string(t4) + ",\n  \"vram_bytes\": " + std::to_string(vramBytes) + ",\n  \"lightmap_pages\": " +
+                               std::to_string(pages.size()) + ",\n  \"lightmap_vram_bytes\": " + std::to_string(pageBytes) + ",\n  \"file_bytes\": " +
                                std::to_string(file.size()) + ",\n  \"texture_list\": [" + textureReport + "\n  ],\n  \"untextured\": [" +
                                untextured + "\n  ]\n}\n";
     std::cout << stem << ".d3tx: " << pack.textures.size() << " textures for " << textured << " of " << materials.size() << " materials, "
-              << vramBytes << " bytes of VRAM, " << file.size() << " bytes\n";
+              << vramBytes << " bytes of VRAM, " << pages.size() << " lightmap pages (" << pageBytes << " bytes), " << file.size() << " bytes\n";
     return WriteFile(output / (stem + ".textures.json"), report.data(), report.size());
+}
+
+// id's _noFalloff: white, zero clamped, with a black border (Image_intrinsic.cpp).
+static LightImage NoFalloffImage()
+{
+    RgbaImage image;
+    image.Allocate(64, 16);
+
+    for (int y = 0; y < 16; ++y)
+    {
+        for (int x = 0; x < 64; ++x)
+        {
+            const std::uint8_t value = x > 0 && x < 63 && y > 0 && y < 15 ? 255 : 0;
+            std::uint8_t * texel = image.At(x, y);
+            texel[0] = value;
+            texel[1] = value;
+            texel[2] = value;
+            texel[3] = value;
+        }
+    }
+
+    return LightImage::FromRgba(image);
+}
+
+static std::string Lowercase(std::string text)
+{
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+    return text;
+}
+
+// Classifies the map's lights, bakes the static ones and writes <stem>.lights.json.
+static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::string, MaterialInfo> & declared, const MaterialTables & tables,
+                              const std::string & map, const ProcFile & proc, const WorldLightingJob & job, WorldLighting & lighting,
+                              std::vector<LightmapPage> & pages, const fs::path & output, const std::string & stem)
+{
+    std::string error;
+    std::vector<std::uint8_t> bytes;
+    std::vector<MapEntity> entities;
+
+    if (!catalog.Read(map + ".map", bytes, error) ||
+        !ParseMapEntities(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), entities, error))
+    {
+        return Fail(map + ".map: " + error);
+    }
+
+    std::string script;
+
+    if (!job.script.empty())
+    {
+        if (!catalog.Read(job.script, bytes, error))
+        {
+            return Fail(job.script + ": " + error);
+        }
+
+        script.assign(reinterpret_cast<const char *>(bytes.data()), bytes.size());
+    }
+
+    const LightContext context = MakeLightContext(entities, script);
+    std::map<std::string, LightImage> images;
+    std::string imageError;
+
+    // Generated BIMAGEs by name (level 0), decoded once; null when unavailable.
+    const auto Image = [&](const std::string & name, int usage) -> const LightImage *
+    {
+        const std::string key = Lowercase(name) == "_nofalloff" ? std::string("_nofalloff") : GeneratedImageName(name, usage);
+        const auto found = images.find(key);
+
+        if (found != images.end())
+        {
+            return &found->second;
+        }
+
+        if (key == "_nofalloff")
+        {
+            return &images.emplace(key, NoFalloffImage()).first->second;
+        }
+
+        std::vector<std::uint8_t> file;
+        RgbaImage pixels;
+        std::string readError;
+
+        if (!catalog.Read(key, file, readError) || !DecodeBimage(file, 0, pixels, readError))
+        {
+            imageError = key + ": " + readError;
+            return nullptr;
+        }
+
+        return &images.emplace(key, LightImage::FromRgba(pixels)).first->second;
+    };
+
+    const auto DefaultFalloff = [&declared](const char * material)
+    {
+        const auto found = declared.find(material);
+        return found != declared.end() ? found->second.lightFalloffImage : std::string();
+    };
+
+    const std::string pointFalloff = DefaultFalloff("lights/defaultpointlight");
+    const std::string projectedFalloff = DefaultFalloff("lights/defaultprojectedlight");
+    LightmapScene scene;
+    scene.proc = &proc;
+    std::array<std::size_t, static_cast<std::size_t>(LightClass::Count)> classes = {};
+    std::map<std::string, std::size_t> reasons;
+    std::size_t lights = 0;
+    std::size_t refused = 0;
+    std::size_t dark = 0;
+    std::size_t shadowed = 0;
+    std::string lightList;
+
+    for (const MapEntity & entity : entities)
+    {
+        if (Lowercase(entity.String("classname")) != "light")
+        {
+            continue;
+        }
+
+        ++lights;
+        RenderLight light;
+
+        if (!ParseRenderLight(entity, light, error))
+        {
+            // id spawns it without a volume: nothing to light.
+            ++refused;
+            continue;
+        }
+
+        const auto found = declared.find(light.shader);
+        const MaterialInfo * material = found != declared.end() ? &found->second : nullptr;
+        std::string reason;
+        const LightClass lightClass = ClassifyLight(entity, light, material, context, reason);
+        ++classes[static_cast<std::size_t>(lightClass)];
+        ++reasons[std::string(LightClassName(lightClass)) + ": " + reason];
+        lightList += std::string(lightList.empty() ? "" : ",") + "\n    { \"name\": " + JsonString(light.name) + ", \"class\": \"" +
+                     LightClassName(lightClass) + "\", \"shader\": " + JsonString(light.shader) + ", \"reason\": " + JsonString(reason) + " }";
+
+        if (lightClass != LightClass::Static)
+        {
+            continue;
+        }
+
+        LightSource source;
+        source.name = light.name;
+        source.castsShadows = job.shadows && !light.noShadows;
+        source.ambient = material->ambientLight;
+
+        if (!DeriveLightVolume(light, source.volume, error))
+        {
+            return Fail(error);
+        }
+
+        source.stages = EvaluateLightStages(*material, light, &tables, job.lightScale);
+
+        if (source.stages.empty())
+        {
+            ++dark;
+            continue;
+        }
+
+        const std::string & falloff = !material->lightFalloffImage.empty() ? material->lightFalloffImage : light.pointLight ? pointFalloff : projectedFalloff;
+        source.falloff = falloff.empty() ? nullptr : Image(falloff, kTextureUsageDefault);
+
+        if (!falloff.empty() && source.falloff == nullptr)
+        {
+            return Fail("light " + light.name + " falloff " + imageError);
+        }
+
+        for (const LightStageColor & stage : source.stages)
+        {
+            const LightImage * image = Image(stage.image, kTextureUsageLight);
+
+            if (image == nullptr)
+            {
+                return Fail("light " + light.name + " image " + imageError);
+            }
+
+            source.images.push_back(image);
+        }
+
+        shadowed += source.castsShadows ? 1U : 0U;
+        scene.lights.push_back(std::move(source));
+    }
+
+    for (const ProcModel & model : proc.models)
+    {
+        for (const ProcSurface & surface : model.surfaces)
+        {
+            const auto found = declared.find(Lowercase(surface.material));
+            SurfaceShading shading;
+
+            if (found != declared.end())
+            {
+                shading.lit = found->second.lit;
+                shading.castsShadow = found->second.castsShadow;
+                shading.perforated = found->second.alphaTest;
+            }
+
+            scene.materials.emplace(surface.material, shading);
+        }
+    }
+
+    // Static brush entities shadow too: their inline models sit at the entity's origin and axis.
+    std::map<std::string, const ProcModel *> inlineModels;
+
+    for (const ProcModel & model : proc.models)
+    {
+        inlineModels.emplace(Lowercase(model.name), &model);
+    }
+
+    std::size_t staticModels = 0;
+
+    for (const MapEntity & entity : entities)
+    {
+        const auto found = inlineModels.find(Lowercase(entity.String("model")));
+
+        if (Lowercase(entity.String("classname")) != "func_static" || found == inlineModels.end() || found->first.rfind("_area", 0) == 0)
+        {
+            continue;
+        }
+
+        Vec3 origin = {};
+        (void)entity.Vector("origin", origin);
+        std::array<Vec3, 3> axis = { Vec3{ 1.0f, 0.0f, 0.0f }, Vec3{ 0.0f, 1.0f, 0.0f }, Vec3{ 0.0f, 0.0f, 1.0f } };
+
+        if (!entity.Matrix("rotation", axis))
+        {
+            const float yaw = entity.Float("angle", 0.0f) * 3.14159265358979323846f / 180.0f;
+            axis = { Vec3{ std::cos(yaw), std::sin(yaw), 0.0f }, Vec3{ -std::sin(yaw), std::cos(yaw), 0.0f }, Vec3{ 0.0f, 0.0f, 1.0f } };
+        }
+
+        ++staticModels;
+
+        for (const ProcSurface & surface : found->second->surfaces)
+        {
+            const auto shading = scene.materials.find(surface.material);
+
+            if (shading == scene.materials.end() || !shading->second.castsShadow)
+            {
+                continue;
+            }
+
+            for (std::size_t index = 0; index + 2 < surface.indices.size(); index += 3)
+            {
+                std::array<Vec3, 3> triangle = {};
+
+                for (std::size_t corner = 0; corner < 3; ++corner)
+                {
+                    const auto & local = surface.vertices[surface.indices[index + corner]].position;
+
+                    for (std::size_t component = 0; component < 3; ++component)
+                    {
+                        triangle[corner][component] = origin[component] + local[0] * axis[0][component] + local[1] * axis[1][component] +
+                                                      local[2] * axis[2][component];
+                    }
+                }
+
+                scene.occluders.push_back(triangle);
+            }
+        }
+    }
+
+    LightmapStats stats;
+    const auto started = std::chrono::steady_clock::now();
+
+    if (!BakeLightmaps(scene, job.policy, lighting, pages, stats, error))
+    {
+        return Fail("lightmaps: " + error);
+    }
+
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    std::string classReport;
+
+    for (std::size_t index = 0; index < classes.size(); ++index)
+    {
+        classReport += std::string(index == 0 ? "" : ", ") + "\"" + LightClassName(static_cast<LightClass>(index)) + "\": " + std::to_string(classes[index]);
+    }
+
+    std::string reasonReport;
+
+    for (const auto & [reason, count] : reasons)
+    {
+        reasonReport += std::string(reasonReport.empty() ? "" : ",") + "\n    " + JsonString(reason) + ": " + std::to_string(count);
+    }
+
+    const std::string report = "{\n  \"lights\": " + std::to_string(lights) + ",\n  \"refused\": " + std::to_string(refused) + ",\n  \"classes\": { " +
+                               classReport + " },\n  \"baked\": " + std::to_string(scene.lights.size()) + ",\n  \"baked_shadowed\": " +
+                               std::to_string(shadowed) + ",\n  \"baked_dark\": " + std::to_string(dark) + ",\n  \"static_models\": " +
+                               std::to_string(staticModels) + ",\n  \"occluders\": " + std::to_string(stats.occluders) + ",\n  \"lit_surfaces\": " +
+                               std::to_string(stats.litSurfaces) + ",\n  \"vertex_lit_surfaces\": " + std::to_string(stats.vertexLitSurfaces) +
+                               ",\n  \"lights_per_lit_surface\": " + Ratio(stats.surfaceLights, stats.litSurfaces) +
+                               ",\n  \"max_lights_per_surface\": " + std::to_string(stats.maxSurfaceLights) + ",\n  \"charts\": " +
+                               std::to_string(stats.charts) + ",\n  \"point_charts\": " + std::to_string(stats.pointCharts) +
+                               ",\n  \"scaled_charts\": " + std::to_string(stats.scaledCharts) + ",\n  \"texels\": " + std::to_string(stats.texels) +
+                               ",\n  \"pages\": " + std::to_string(stats.pages) + ",\n  \"rays\": " + std::to_string(stats.rays) +
+                               ",\n  \"clipped\": " + std::to_string(stats.clippedTexels) + ",\n  \"max_intensity\": " + Real(stats.maxIntensity) +
+                               ",\n  \"seconds\": " + Number(seconds) + ",\n  \"reasons\": {" + reasonReport + "\n  },\n  \"light_list\": [" + lightList +
+                               "\n  ]\n}\n";
+    std::cout << stem << ".lights.json: " << lights << " lights, " << scene.lights.size() << " baked (" << shadowed << " shadowed) into "
+              << stats.pages << " pages of " << stats.charts << " charts, " << stats.rays << " rays, " << Number(seconds) << " s\n";
+    return WriteFile(output / (stem + ".lights.json"), report.data(), report.size());
 }
 
 // 'topology', when not empty, replaces the job's ("hybrid" or "strips", already checked).
@@ -1171,6 +1649,7 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
     std::vector<std::string> containers;
     WorldPolicy policy;
     WorldTextureJob textures;
+    WorldLightingJob lightingJob;
 
     if (!ReadFile(jobPath, kMaxJobBytes, jobText))
     {
@@ -1182,7 +1661,7 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return Fail(jobPath.string() + ": " + error);
     }
 
-    if (!ParseWorldJob(root, map, containers, policy, textures))
+    if (!ParseWorldJob(root, map, containers, policy, textures, lightingJob))
     {
         return false;
     }
@@ -1237,22 +1716,6 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         }
     }
 
-    World world;
-    WorldCookStats stats;
-    std::vector<std::uint8_t> file;
-    World check;
-
-    if (!CookWorld(proc, policy, world, stats, error) || !WriteD3wd(world, file, error))
-    {
-        return Fail(procPath.string() + ": " + error);
-    }
-
-    // The target admits exactly what the reader admits; never publish a file it would refuse.
-    if (!ReadD3wd(file, check, error))
-    {
-        return Fail("cooked world fails validation: " + error);
-    }
-
     std::error_code status;
     fs::create_directories(output, status);
 
@@ -1262,6 +1725,37 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
     }
 
     const std::string stem = fs::path(map).filename().string();
+    ResourceCatalog materialCatalog;
+    std::map<std::string, MaterialInfo> declared;
+    MaterialTables tables;
+    WorldLighting lighting;
+    std::vector<LightmapPage> pages;
+
+    if (textures.enabled && (!OpenMaterialCatalog(data, containers, textures, materialCatalog) || !ScanCatalogMaterials(materialCatalog, declared, tables)))
+    {
+        return false;
+    }
+
+    if (lightingJob.enabled && !BakeWorldLighting(materialCatalog, declared, tables, map, proc, lightingJob, lighting, pages, output, stem))
+    {
+        return false;
+    }
+
+    World world;
+    WorldCookStats stats;
+    std::vector<std::uint8_t> file;
+    World check;
+
+    if (!CookWorld(proc, policy, world, stats, error, lightingJob.enabled ? &lighting : nullptr) || !WriteD3wd(world, file, error))
+    {
+        return Fail(procPath.string() + ": " + error);
+    }
+
+    // The target admits exactly what the reader admits; never publish a file it would refuse.
+    if (!ReadD3wd(file, check, error))
+    {
+        return Fail("cooked world fails validation: " + error);
+    }
 
     if (!WriteFile(output / (stem + ".d3wd"), file.data(), file.size()))
     {
@@ -1281,6 +1775,7 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
               ",\n  \"transformed_per_triangle\": " + Ratio(stats.transformedVertices, stats.triangles) +
               ",\n  \"emitted_per_triangle\": " + Ratio(stats.emittedVertices, stats.triangles) +
               ",\n  \"triangles_per_batch\": " + Ratio(stats.triangles, stats.batches) +
+              ",\n  \"lit_batches\": " + std::to_string(stats.litBatches) + ",\n  \"lightmap_pages\": " + std::to_string(world.lightmapPages) +
               ",\n  \"packet_bytes\": " + std::to_string(stats.packetBytes) + ",\n  \"file_bytes\": " + std::to_string(file.size()) +
               ",\n  \"max_position_error\": " + Real(stats.maxPositionError) + ",\n  \"max_uv_error\": " + Real(stats.maxUvError) +
               ",\n  \"area_list\": [";
@@ -1317,8 +1812,8 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return false;
     }
 
-    return !textures.enabled ||
-           CookWorldTextures(data, containers, textures, world.materials, MaterialUvDensity(proc, world.materials), output, stem, previews);
+    return !textures.enabled || CookWorldTextures(materialCatalog, declared, textures, world.materials, MaterialUvDensity(proc, world.materials), pages,
+                                                  output, stem, previews);
 }
 
 static void Usage()

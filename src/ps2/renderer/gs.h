@@ -170,13 +170,21 @@ enum class Primitive : u8
 // The registers each vertex of a PACKED drawing tag writes, in order.
 enum class VertexFormat : u8
 {
-    ColorPosition,  // RGBAQ, XYZ2
-    StColorPosition // ST (with Q), RGBAQ, XYZ2
+    ColorPosition,   // RGBAQ, XYZ2
+    StColorPosition, // ST (with Q), RGBAQ, XYZ2
+    StPosition       // ST (with Q), XYZ2
 };
 
 // A PACKED GIF tag whose PRE sets a Gouraud-shaded 'primitive' in 'context', sampling the bound
 // texture through STQ when 'textured'; NLOOP and EOP are zero, for the VU1 program to fill per kick.
 qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context, bool textured = false);
+
+// The world's lightmap pass for a frame drawn in 'context': the same, textured and alpha blended,
+// in the other context, whose registers BeginDepthPass sets to multiply the frame by the
+// lightmap's alpha (Cd x As).
+qword_t LightmapTag(Primitive primitive, VertexFormat format, DrawContext context);
+
+DrawContext OtherContext(DrawContext context);
 
 // Uploads a binding's complete storage: padded RGBA32, or PSMT8/PSMT4 index rows.
 void Upload(const TextureBinding & binding, const void * pixels);
@@ -200,9 +208,11 @@ void FillRect(dma::DisplayList & list, DrawContext context, int x, int y, int wi
 // Fills the color buffer and resets the depth mask: no pixel is inside it afterwards.
 void ClearFrame(dma::DisplayList & list, DrawContext context, Color color);
 
-// The world's depth state for 'context': depth written and tested GEQUAL (larger is nearer).
-// End restores the 2D environment (depth writes masked). Each begins with a VIF FLUSH, so it
-// lands between whole PATH1 packets: after every batch before it, before any after it.
+// The world's depth state for 'context': depth written and tested GEQUAL (larger is nearer). The
+// other context becomes the lightmap pass's: the same frame with its alpha masked, depth tested
+// GEQUAL and not written, ALPHA Cd x As, bilinear and clamped at a fixed LOD. End restores the 2D
+// environment (depth writes masked, the other context's own frame). Each begins with a VIF FLUSH,
+// so it lands between whole PATH1 packets: after every batch before it, before any after it.
 void BeginDepthPass(dma::DisplayList & list, DrawContext context);
 void EndDepthPass(dma::DisplayList & list, DrawContext context);
 

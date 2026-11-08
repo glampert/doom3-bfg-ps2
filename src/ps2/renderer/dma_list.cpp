@@ -92,8 +92,9 @@ void DisplayList::SetFrameConstants(const vu::FrameConstants & constants)
 {
     PS2_AssertMsg(vu::IsInitialized() && m_pendingStart == kVifNop, "VU1 frame constants before initialization or over a pending batch");
 
-    static_assert(sizeof(vu::FrameConstants) == 9U * 16U, "FrameConstants must match qwords 0-6 and 9-10 of vu_memory.h");
-    static_assert(kVuWindowStateAddr == 7 && kVuNullGifTagAddr == 8 && kVuStripTagAddr == 9 && kVuListTagAddr == 10 && kVuFrameBlockQwords == 11,
+    static_assert(sizeof(vu::FrameConstants) == 11U * 16U, "FrameConstants must match qwords 0-6 and 9-12 of vu_memory.h");
+    static_assert(kVuWindowStateAddr == 7 && kVuNullGifTagAddr == 8 && kVuStripTagAddr == 9 && kVuListTagAddr == 10 &&
+                      kVuLightmapStripTagAddr == 11 && kVuLightmapListTagAddr == 12 && kVuFrameBlockQwords == 13,
                   "the frame block layout changed");
 
     Ensure(2U + kVuFrameBlockQwords);
@@ -109,7 +110,7 @@ void DisplayList::SetFrameConstants(const vu::FrameConstants & constants)
     // The windows restart at A each frame: nothing is in flight across a frame boundary.
     StoreQword(payload + kVuWindowStateAddr, static_cast<u64>(kVuWindowA) | (static_cast<u64>(kVuWindowQwords) << 32), 0);
     PACK_GIFTAG((payload + kVuNullGifTagAddr), GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 0), 0);
-    CopyQwords<2>(payload + kVuStripTagAddr, source + 7);
+    CopyQwords<4>(payload + kVuStripTagAddr, source + 7);
 }
 
 void DisplayList::SetProgram(vu::Program program)
@@ -127,14 +128,15 @@ void DisplayList::SetProgram(vu::Program program)
     m_programEntry = static_cast<u32>(binding.entry);
 }
 
-void DisplayList::DrawBatch(const void * packet, u32 qwords, const void * state, u32 stateQwords)
+void DisplayList::DrawBatch(const void * packet, u32 qwords, const void * state, u32 stateQwords, const void * pageState, u32 pageQwords)
 {
     PS2_AssertMsg(m_programEntry != kNoProgram && m_directTag == nullptr, "batch drawn without a program or inside DIRECT");
 
-    // The previous batch's MSCAL swaps TOPS before the state unpacks, so both REFs land in this
+    // The previous batch's MSCAL swaps TOPS before the state unpacks, so every REF lands in this
     // batch's half; its own start is left pending.
-    Ensure(3U);
-    Ref(state, stateQwords, kVifNop, m_pendingStart);
+    Ensure(4U);
+    Ref(pageState, pageQwords, kVifNop, m_pendingStart);
+    Ref(state, stateQwords, kVifNop, kVifNop);
     Ref(packet, qwords, kVifNop, kVifNop);
     m_pendingStart = VifMscal(m_programEntry);
 }

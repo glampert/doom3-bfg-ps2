@@ -88,21 +88,24 @@ def view_batches(report: dict, view: View) -> int:
 
 
 TEXTURES_RE = re.compile(r"\[D3BFG\] WORLD textures enabled=([01]) arena=(\d+) resident=(\d+) resident_bytes=(\d+) uploads=(\d+) "
-                         r"evictions=(\d+) fallbacks=(\d+)")
-TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks")
-TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) vram=(\d+) bytes=(\d+)")
+                         r"evictions=(\d+) fallbacks=(\d+) lightmaps=([01]) pages=(\d+) unlit=(\d+)")
+TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks", "lightmaps", "pages", "unlit")
+TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) pages=(\d+) "
+                             r"vram=(\d+) bytes=(\d+)")
 
 
 def view_commands(identity: str, view: View) -> list[str]:
-    # The untextured capture (compared with the vertex-colour reference) runs two frames after the
-    # camera is set and the status two frames after that; then the same view textured, and the
-    # residency of that pass.
+    # The untextured, unlit capture (compared with the vertex-colour reference) runs two frames after
+    # the camera is set and the status two frames after that; then the same view lit by its
+    # lightmaps alone, then textured and lit, and the residency of that pass.
     handle = DOORWAY_PORTAL[0]
     portal = [f"ps2_world portal {handle} {view.portal}"] if view.portal else []
     reopen = [f"ps2_world portal {handle} open"] if view.portal else []
     return [*portal, "ps2_world view " + " ".join(str(value) for value in view.camera), "wait 2", f'ps2_capture "world-{view.name}.tga"',
-            "wait 2", "ps2_world status", "ps2_world textures on", "wait 2", f'ps2_capture "world-{view.name}-textured.tga"', "wait 2",
-            "ps2_world textures status", "ps2_world textures off", *reopen, f'echo "{run_world.barrier(identity, view.name)}"']
+            "wait 2", "ps2_world status", "ps2_world lightmaps on", "wait 2", f'ps2_capture "world-{view.name}-light.tga"', "wait 2",
+            "ps2_world textures on", "wait 2", f'ps2_capture "world-{view.name}-lit.tga"', "wait 2",
+            "ps2_world textures status", "ps2_world textures off", "ps2_world lightmaps off", *reopen,
+            f'echo "{run_world.barrier(identity, view.name)}"']
 
 
 def driver(identity: str):
@@ -114,7 +117,7 @@ def driver(identity: str):
     traces = ["ps2_world trace " + " ".join(str(value) for value in start + end) for start, end, *_ in TRACES]
     # The console starts open; closed, it slides away over real time before the first view.
     yield ([f'echo "{run_world.barrier(identity, "begin")}"', "ps2_consoleKey toggle", "wait 60", "r_znear 4", f"ps2_world load {MAP}",
-            "ps2_world textures off", *traces, *run_world.decal_commands(DECALS), "ps2_world decals",
+            "ps2_world textures off", "ps2_world lightmaps off", *traces, *run_world.decal_commands(DECALS), "ps2_world decals",
             f'echo "{run_world.barrier(identity, "loaded")}"'],
            until("loaded"))
     # Loading the map leaves the front end: two frames later the device draws in the preference.
@@ -170,12 +173,14 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         captures = run_world.CAPTURE_RE.findall(span)
         statuses = [line for line in run_world.world_lines(span) if line["event"] == "status"]
         textures = [dict(zip(TEXTURE_FIELDS, map(int, match))) for match in TEXTURES_RE.findall(span)]
-        if (run_world.SWITCH_RE.search(span) or len(captures) != 2 or captures[0][0] != f"world-{view.name}.tga" or
-                captures[1][0] != f"world-{view.name}-textured.tga" or len(statuses) != 1 or len(textures) != 1):
+        if (run_world.SWITCH_RE.search(span) or len(captures) != 3 or captures[0][0] != f"world-{view.name}.tga" or
+                captures[1][0] != f"world-{view.name}-light.tga" or captures[2][0] != f"world-{view.name}-lit.tga" or
+                len(statuses) != 1 or len(textures) != 1):
             return False, f"{view.name}: missing capture, world status or texture status", {}
-        # The textured pass drew every texture it needed: none fell back to untextured.
-        if textures[0]["enabled"] != 1 or textures[0]["uploads"] == 0 or textures[0]["fallbacks"] != 0 or textures[0]["resident"] == 0:
-            return False, f"{view.name}: the textured pass did not hold its textures: {textures[0]}", {}
+        # The lit pass drew every texture and lightmap page it needed: none fell back.
+        if (textures[0]["enabled"] != 1 or textures[0]["uploads"] == 0 or textures[0]["fallbacks"] != 0 or textures[0]["resident"] == 0 or
+                textures[0]["lightmaps"] != 1 or textures[0]["pages"] == 0 or textures[0]["unlit"] != 0):
+            return False, f"{view.name}: the lit pass did not hold its textures and pages: {textures[0]}", {}
         bits = renderer_capture.draw_bits(run_world.default_display(standard).profile)
         if int(captures[0][4]) != bits:
             return False, f"{view.name}: captured in the {captures[0][4]}-bit profile; expected {bits}", {}
@@ -187,8 +192,8 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         if (status["area"], status["drawn"], status["batches"]) != (view.area, drawn, batches) or status["entities"] < drawn:
             return False, (f"{view.name}: started in area {status['area']} and drew {status['drawn']} areas, {status['batches']} batches; "
                            f"expected area {view.area}, {drawn} areas, {batches} batches"), {}
-        views[view.name] = {"capture": captures[0][0], "textured": captures[1][0], "bits": bits, "presents": presents, "status": status,
-                            "textures": textures[0]}
+        views[view.name] = {"capture": captures[0][0], "light": captures[1][0], "lit": captures[2][0], "bits": bits, "presents": presents,
+                            "status": status, "textures": textures[0]}
     if run_world.SWITCH_RE.search(log[:positions[1]] + log[positions[-3]:positions[-2]] + log[positions[-1]:]):
         return False, "the display mode changed outside its steps", {}
     unloads = [line for line in run_world.world_lines(log[positions[-3]:positions[-2]]) if line["event"] == "unloaded"]
@@ -212,21 +217,23 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         {"views": views, "arena_bytes": arena, "decals": decals[0]}
 
 
-def verify_captures(output: Path, data: Path, standard: str) -> dict:
-    """Every capture against the reference rasterization of its view, written beside it as
-    reference-<view>.png and difference-<view>.png (mismatches in magenta)."""
+def verify_captures(output: Path, data: Path, world: Path, standard: str) -> dict:
+    """Every unlit capture against the reference rasterization of its view, written beside it as
+    reference-<view>.png and difference-<view>.png (mismatches in magenta). The reference draws
+    the cooked world's own triangles and vertex colours: the baked chroma is the cook's, and the
+    cook's geometry is held to the .bproc by its own checks (max_position_error in the report)."""
     job = json.loads(JOB.read_text())
     handle, first, second = DOORWAY_PORTAL
     portals = {entry[0]: entry[1:3] for entry in world_reference.retail_portals(data, job)}
     if portals.get(handle) != (first, second):
         raise ValueError(f"portal {handle} joins areas {portals.get(handle)}; expected {first} and {second}")
     bits = renderer_capture.draw_bits(run_world.default_display(standard).profile)
-    everything = world_reference.load_retail_triangles(data, job)
+    everything = world_reference.load_cooked_triangles(world)
     images = output / "references"
     images.mkdir(exist_ok=True)
     results = {}
     for view in VIEWS:
-        triangles = everything if view.reference_areas is None else world_reference.load_retail_triangles(data, job, set(view.reference_areas))
+        triangles = everything if view.reference_areas is None else world_reference.load_cooked_triangles(world, set(view.reference_areas))
         camera = (view.camera[:3], view.camera[3:])
         share = world_reference.compare_image(output / f"world-{view.name}.tga", triangles, camera, bits, world_reference.CLEAR_RGB,
                                               images, view.name)
@@ -262,7 +269,7 @@ def run(args: argparse.Namespace, standard: str, version: str) -> bool:
     return run_world.run_session(args, standard, version, "world_retail",
                                  lambda output: stage_retail_world(args.build, output, standard, args.catalog, args.world, report),
                                  driver, lambda log, identity: classify(log, identity, standard, report),
-                                 lambda output: verify_captures(output, args.data, standard), args.world)
+                                 lambda output: verify_captures(output, args.data, args.world, standard), args.world)
 
 
 def main() -> int:

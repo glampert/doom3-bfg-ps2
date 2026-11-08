@@ -21,29 +21,46 @@
 ; =================================================================================================
 
 ; Seeds buffer A with a triangle's corners, read from the transformed batch
-; vertices at iA, iB and iC: the clip position (qword 0), the colour bytes
-; (qword 2) widened to floats, and the UV back from the projected STQ (qword 3)
-; as S * w, all of which the cut interpolates.
+; vertices at iA, iB and iC: the clip position (qword 0, its w rebuilt as 1/Q,
+; since phase 1 keeps the lightmap T x Q there), the colour bytes (qword 2)
+; widened to floats, and the pass's UV back from the projected STQ (qword 3)
+; as S * w, all of which the cut interpolates. The pass (walk state .z, 0 base
+; or 1 lightmap) picks the UV: the base S x Q and T x Q (qword 3 .xy) or the
+; lightmap's (qword 3 .w and qword 0 .w), blended by it as a float.
 ;
+;   float pass = itof(vuMem[kVuWalkPrevAddr].z);
+;   for (corner : a, b, c)
+;   {
+;       vec2 st = lerp(v[3].xy, { v[3].w, v[0].w }, pass);
+;       float w = 1 / v[3].z;
+;       pos = { v[0].xyz, w }; col = itof(v[2]); uv = st * w;
+;   }
 ;   bufA = { pos(a), col(a), uv(a), pos(b), ..., uv(c), pos(a), col(a), uv(a) };
 ;   clipCount = 3;
-#macro ClipSeedTriangle: iA, iB, iC
-    lq    fPos0,  0(iA)
-    lq    fColI0, 2(iA)
-    lq    fUV0,   3(iA)
-    lq    fPos1,  0(iB)
-    lq    fColI1, 2(iB)
-    lq    fUV1,   3(iB)
-    lq    fPos2,  0(iC)
-    lq    fColI2, 2(iC)
-    lq    fUV2,   3(iC)
+#macro SeedCorner: iV, vPos, vColI, vCol, vUV, vLm
+    lq    vPos,  0(iV)
+    lq    vColI, 2(iV)
+    lq    vUV,   3(iV)
 
-    itof0 fCol0, fColI0
-    itof0 fCol1, fColI1
-    itof0 fCol2, fColI2
-    mul.xy fUV0, fUV0, fPos0[w]
-    mul.xy fUV1, fUV1, fPos1[w]
-    mul.xy fUV2, fUV2, fPos2[w]
+    add.x  vLm,  vf00, vUV[w]
+    add.y  vLm,  vf00, vPos[w]
+    sub.xy vLm,  vLm,  vUV
+    mul.xy vLm,  vLm,  fPass[z]
+    add.xy vUV,  vUV,  vLm
+
+    div    q,    vf00[w], vUV[z]
+    mul.w  vPos, vf00,    q
+    mul.xy vUV,  vUV,     vPos[w]
+    itof0  vCol, vColI
+#endmacro
+
+#macro ClipSeedTriangle: iA, iB, iC
+    lq    fPass, kVuWalkPrevAddr(vi00)
+    itof0.z fPass, fPass
+
+    SeedCorner{ iA, fPos0, fColI0, fCol0, fUV0, fLm0 }
+    SeedCorner{ iB, fPos1, fColI1, fCol1, fUV1, fLm1 }
+    SeedCorner{ iC, fPos2, fColI2, fCol2, fUV2, fLm2 }
 
     sq fPos0, kVuClipBufA + 0(vi00)
     sq fCol0, kVuClipBufA + 1(vi00)

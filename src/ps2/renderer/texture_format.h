@@ -64,24 +64,31 @@ struct Image
 // checked only in assertion builds (corrupt texels cannot hang the GIF; every tag is checked).
 PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_t bytes, Image & output);
 
-// A map's texture package (D3TX v1, src/tools/assets/texture_pack.h), validated in place: the
-// material table, then each texture validated as an Image. 64-byte aligned like the D3WD.
+// A map's texture package (D3TX v2, src/tools/assets/texture_pack.h), validated in place: the
+// material, texture and lightmap page tables, then each texture validated as an Image. 64-byte
+// aligned like the D3WD.
 static constexpr std::uint32_t kPackMagic = 0x58543344;
-static constexpr std::uint32_t kPackVersion = 1;
-static constexpr std::uint32_t kPackConverterVersion = 1;
-static constexpr std::uint32_t kPackHeaderBytes = 32;
+static constexpr std::uint32_t kPackVersion = 2;
+static constexpr std::uint32_t kPackConverterVersion = 2;
+static constexpr std::uint32_t kPackHeaderBytes = 48;
 static constexpr std::uint32_t kPackMaterialBytes = 8;
 static constexpr std::uint32_t kPackTextureBytes = 16;
+static constexpr std::uint32_t kPackPageBytes = 4;
 static constexpr std::uint32_t kPackAlignment = 64;
 static constexpr std::uint32_t kPackMaxMaterials = 4096;
 static constexpr std::uint32_t kPackMaxTextures = 4096;
 static constexpr std::uint32_t kPackMaxFileBytes = 16U * 1024U * 1024U;
 static constexpr std::uint32_t kPackNoTexture = 0xFFFFFFFFU;
+// Translucent without a diffuse stage: the textured pass leaves it to the material's own stages.
+static constexpr std::uint32_t kPackHidden = 0xFFFFFFFEU;
 static constexpr std::uint32_t kPackFlagAlphaTest = 1U;
+// A Light8 page: usage Lightmap, named by the page table, never by a material.
+static constexpr std::uint32_t kPackFlagLightmap = 2U;
+static constexpr std::uint32_t kPackMaxPages = 256;
 
 struct PackMaterial
 {
-    std::uint32_t texture;  // kPackNoTexture: drawn untextured
+    std::uint32_t texture;  // kPackNoTexture: drawn untextured; kPackHidden: not drawn textured
     float uvDensityLog2;    // log2 of UV units per world unit
 };
 
@@ -100,8 +107,10 @@ struct Pack
     std::uint32_t materialCount;
     std::uint32_t textureCount;
     std::uint32_t materialsHash; // FNV-1a of the world's material names, each with its NUL
+    std::uint32_t pageCount;
     const PackMaterial * materials;
     const PackTexture * textures;
+    const std::uint32_t * pages; // the texture of each D3WD lightmap page
 };
 
 // Null when the package is valid; 'images' receives every texture's Image (textureCount of them).

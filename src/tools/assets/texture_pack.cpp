@@ -167,15 +167,43 @@ std::uint32_t MaterialNamesHash(const std::vector<std::string> & materials)
 // D3TX
 // ------------------------------------------------------------------------------------------------
 
-static std::size_t TablesEnd(std::size_t materials, std::size_t textures)
+static std::size_t TablesEnd(std::size_t materials, std::size_t textures, std::size_t pages)
 {
-    return kD3txHeaderBytes + kD3txMaterialRecordBytes * materials + kD3txTextureRecordBytes * textures;
+    return kD3txHeaderBytes + kD3txMaterialRecordBytes * materials + kD3txTextureRecordBytes * textures + kD3txPageRecordBytes * pages;
+}
+
+bool CookLightmapPage(int size, const std::vector<std::uint8_t> & texels, GstxV2Image & output, std::string & error)
+{
+    if (size < 8 || size > kGstxV2MaxExtent || (size & (size - 1)) != 0 || texels.size() != static_cast<std::size_t>(size) * static_cast<std::size_t>(size))
+    {
+        error = "bad lightmap page size";
+        return false;
+    }
+
+    GstxV2Image image;
+    image.width = size;
+    image.height = size;
+    image.psm = GsPsm::T8;
+    image.usage = GstxUsage::Lightmap;
+    image.wrapS = GstxWrap::Clamp;
+    image.wrapT = GstxWrap::Clamp;
+    image.levels.emplace_back(texels.begin(), texels.end());
+
+    for (std::uint32_t entry = 0; entry < 256; ++entry)
+    {
+        const std::uint32_t grey = std::min(255U, entry);
+        image.palette.push_back(grey | (grey << 8) | (grey << 16) | (entry << 24));
+    }
+
+    output = std::move(image);
+    return true;
 }
 
 bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std::string & error)
 {
     if (pack.materialTextures.size() > kD3txMaxMaterials || pack.textures.size() > kD3txMaxTextures ||
-        pack.textureFlags.size() != pack.textures.size() || pack.materialUvDensity.size() != pack.materialTextures.size())
+        pack.textureFlags.size() != pack.textures.size() || pack.materialUvDensity.size() != pack.materialTextures.size() ||
+        pack.lightmapPages.size() > kD3txMaxPages)
     {
         return Fail(error, "D3TX table sizes out of range");
     }
@@ -190,23 +218,35 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
 
     for (const std::uint32_t texture : pack.materialTextures)
     {
-        if (texture != kD3txNoTexture && texture >= pack.textures.size())
+        if (texture != kD3txNoTexture && texture != kD3txHidden &&
+            (texture >= pack.textures.size() || (pack.textureFlags[texture] & kD3txFlagLightmap) != 0))
         {
-            return Fail(error, "D3TX material names a missing texture");
+            return Fail(error, "D3TX material names a missing texture or a lightmap");
+        }
+    }
+
+    for (const std::uint32_t texture : pack.lightmapPages)
+    {
+        if (texture >= pack.textures.size() || (pack.textureFlags[texture] & kD3txFlagLightmap) == 0)
+        {
+            return Fail(error, "D3TX page names a missing texture or one not a lightmap");
         }
     }
 
     for (std::size_t index = 0; index < pack.textures.size(); ++index)
     {
         GstxV2Texture texture;
+        const std::uint32_t flags = pack.textureFlags[index];
+        error.clear();
 
-        if ((pack.textureFlags[index] & ~kD3txFlagAlphaTest) != 0 || !ReadGstxV2(pack.textures[index], texture, error))
+        if ((flags & ~(kD3txFlagAlphaTest | kD3txFlagLightmap)) != 0 || !ReadGstxV2(pack.textures[index], texture, error) ||
+            ((flags & kD3txFlagLightmap) != 0) != (texture.usage == GstxUsage::Lightmap) || flags == (kD3txFlagAlphaTest | kD3txFlagLightmap))
         {
-            return Fail(error, "D3TX texture " + std::to_string(index) + ": " + (error.empty() ? "unknown flags" : error));
+            return Fail(error, "D3TX texture " + std::to_string(index) + ": " + (error.empty() ? "flags disagree with the texture" : error));
         }
     }
 
-    std::size_t offset = Align(TablesEnd(pack.materialTextures.size(), pack.textures.size()), kD3txAlignment);
+    std::size_t offset = Align(TablesEnd(pack.materialTextures.size(), pack.textures.size(), pack.lightmapPages.size()), kD3txAlignment);
     std::vector<std::size_t> offsets;
 
     for (const auto & texture : pack.textures)
@@ -230,6 +270,7 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
     WriteLe32(bytes + 16, pack.materialsHash);
     WriteLe32(bytes + 20, static_cast<std::uint32_t>(output.size()));
     WriteLe32(bytes + 28, kD3txConverterVersion);
+    WriteLe32(bytes + 32, static_cast<std::uint32_t>(pack.lightmapPages.size()));
     std::size_t at = kD3txHeaderBytes;
 
     for (std::size_t index = 0; index < pack.materialTextures.size(); ++index)
@@ -251,6 +292,12 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
         std::memcpy(bytes + offsets[index], pack.textures[index].data(), pack.textures[index].size());
     }
 
+    for (const std::uint32_t texture : pack.lightmapPages)
+    {
+        WriteLe32(bytes + at, texture);
+        at += kD3txPageRecordBytes;
+    }
+
     WriteLe32(bytes + 24, Fnv1a32({ bytes, at }));
     return true;
 }
@@ -260,19 +307,20 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
     if (bytes.size() < kD3txHeaderBytes || ReadLe32(bytes.data()) != kD3txMagic || ReadLe16(bytes.data() + 4) != kD3txVersion ||
         ReadLe16(bytes.data() + 6) != kD3txHeaderBytes || ReadLe32(bytes.data() + 28) != kD3txConverterVersion)
     {
-        return Fail(error, "not a D3TX v1 file");
+        return Fail(error, "not a D3TX v2 file");
     }
 
     const std::uint32_t materials = ReadLe32(bytes.data() + 8);
     const std::uint32_t textures = ReadLe32(bytes.data() + 12);
+    const std::uint32_t pages = ReadLe32(bytes.data() + 32);
 
-    if (materials > kD3txMaxMaterials || textures > kD3txMaxTextures || ReadLe32(bytes.data() + 20) != bytes.size() ||
-        TablesEnd(materials, textures) > bytes.size())
+    if (materials > kD3txMaxMaterials || textures > kD3txMaxTextures || pages > kD3txMaxPages || ReadLe32(bytes.data() + 20) != bytes.size() ||
+        TablesEnd(materials, textures, pages) > bytes.size())
     {
         return Fail(error, "D3TX sizes out of range");
     }
 
-    const std::size_t tablesEnd = TablesEnd(materials, textures);
+    const std::size_t tablesEnd = TablesEnd(materials, textures, pages);
     std::vector<std::uint8_t> header(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(tablesEnd));
     WriteLe32(header.data() + 24, 0);
 
@@ -313,6 +361,12 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
 
         pack.textures.emplace_back(bytes.begin() + offset, bytes.begin() + offset + size);
         pack.textureFlags.push_back(ReadLe32(record + 8));
+    }
+
+    for (std::uint32_t index = 0; index < pages; ++index)
+    {
+        pack.lightmapPages.push_back(ReadLe32(bytes.data() + kD3txHeaderBytes + kD3txMaterialRecordBytes * materials + kD3txTextureRecordBytes * textures +
+                                              kD3txPageRecordBytes * index));
     }
 
     // Canonical: the writer rebuilds exactly these bytes, padding and order included.

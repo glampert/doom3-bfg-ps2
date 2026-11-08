@@ -529,6 +529,16 @@ out as three qwords (ST, RGBAQ, XYZ2). The fourth qword and the batch's 9-qword 
 the half's end cap a batch at 72 unique vertices in 298 qwords, so the map takes 2,302 batches
 (1,634,704 bytes of packets) instead of 2,138.
 
+Lightmaps (2026-11-08) keep the 4-qword vertex. Phase 1 also converts the lightmap UV (`itof12` of
+the second pair in qword 1) and multiplies it by Q; it parks S x Q in the STQ qword's free `.w` and
+T x Q in the clip position's `.w`, and the clipper rebuilds w as 1/Q (one DIV per seeded corner),
+so the sixteen lanes hold both passes and the clipper's inputs. A lit batch walks its index stream
+a second time for the lightmap pass (section 8.2). Chart seams split vertices: mars_city1 cooks into
+2,572 batches (2,262 of them lit), 1.56 vertices transformed per triangle (from 1.28) and 1,933,536
+bytes of packets. `vu_cost.py` counts 116.8 VU1 cycles a triangle for the base pass and 153.7 with
+the lightmap pass (area 2: 271,100 cycles for 1,788 triangles, 0.92 ms); the second walk sends ST and
+XYZ2 per vertex and assembles the lightmap ST from the two `.w` lanes and Q.
+
 Per vertex, the transform costs about 51 cycles in both programs (openvcl pads every latency
 and overlaps no vertices), the hybrid's index walk 14.6 cycles per entry sent and the plain copy
 about 13. The hybrid stays the cooked format (section 20.1). The comparison would turn once the
@@ -608,6 +618,16 @@ read; `ALPHA` and the `FRAME` mask join it with the blend and layer passes. Mate
 `EvaluateRegisters` on the EE and patch the affected words (UV matrix, colour, alpha test
 reference, stage enable) per frame.
 
+Since the lightmap pass (2026-11-08) the display list REFs a second, 3-qword block per batch, per
+lightmap page and drawing context, which unpacks at qword 295: an A+D packet with the page's `TEX0`
+for the other context (relocated, `TFX` DECAL), whose register qword's word 3 is the program's flag
+for the pass (`world_textures.cpp`, `PageState`). The program kicks it only after the base pass's
+windows, because the two contexts share the one CLUT buffer: a page's `TEX0` loads its CLUT, so
+sent with the material's packet it would replace the diffuse palette before the base triangles
+draw. A batch fits 295 qwords. Translucent materials without a diffuse stage (25 of mars_city1's
+287: shadow and stain overlays) are not drawn by the textured pass (`kD3txHidden`) until their
+own stages compile; untextured passes still draw them.
+
 ---
 
 ## 7. VU1 microprograms and their manager
@@ -628,7 +648,9 @@ reference, stage enable) per frame.
 | `passthrough` | GIF packet | `xgkick` of the input half, then `xgkick` of the null GIF tag at qword 8 so the program ends only once its packet has drained (an XGKICK stalls while the previous PATH1 transfer runs); for SIGNAL/LABEL fences and A+D blocks that must be ordered with PATH1 | | 6 (built) |
 
 The kernel, `world_lm` and `passthrough` (about 1,110 instructions) stay resident during
-gameplay. `world_strips` (851 instructions, built 2026-11-07) is gate R1's plain-strips
+gameplay. As built with both lightmap passes (2026-11-08), `world_lm` is 1,272 instructions with
+its own clipper and `world_strips` 940, so only passthrough stays resident: the world programs swap,
+and a level binds the same one every frame, so nothing uploads again. `world_strips` (851 instructions, built 2026-11-07) is gate R1's plain-strips
 comparison program; it takes the swap region when a plain-strips cook is loaded. The remaining 940 slots are one swap region that holds one or two programs at a
 time (`world_lit` + `model_rigid` = 850 fit together, as do `model_skin4` +
 `shadow_volume` = 820); `vu::Init` reports the region size and a gate checks that every
@@ -877,6 +899,30 @@ offline (cook)                                        runtime (per world batch)
   resident in VRAM. The retail prelight shadow volumes (4.35 MB in memory for mars_city1)
   disappear.
 
+Implemented for class A on 2026-11-08 (`assets/light.cpp`, `assets/lightmap.cpp`, `world_lm.vcl`):
+- The cook classifies mars_city1's 486 lights as A 410, B 13, C 31, D 2, E 27, F 3 (`<map>.lights.json`
+  names each rule). Static projected lights count as A, and lights a script switches as C unless it
+  changes their shader, parms or radius (E).
+- Charts are edge-connected triangles within 30 degrees of their seed's normal, projected onto it
+  at 16 units a texel, with every texel bilinear filtering reads plus one more around. A chart under
+  one texel, or whose texels stay within one step, collapses to a 3x3 block.
+- Charts pack area by area, tallest first, by skyline into 256x256 `PSMT8` pages whose CLUT is the
+  identity ramp in alpha. mars_city1 takes 8 pages (532,480 bytes of VRAM, 91% of texels used):
+  10,081 charts, 4,186 of them points.
+- Vertex colours carry the chroma (normalised, its brightest channel 1) times a per-chart exposure
+  E = peak intensity / (255/128), at least 0.25. Texels hold the intensity over E, projected onto the
+  interpolated chroma (`I = rgb.c / c.c`). Each factor therefore reaches 2x, and `Cd x As` restores
+  the product up to 4x without touching the diffuse CLUTs.
+- Alpha-tested surfaces (204 in mars_city1) take their light per vertex and have no lightmap pass.
+  That pass cannot test the diffuse's alpha, and the GS has no EQUAL depth test, so it would darken
+  what the holes show.
+- The pass itself: the other context gets the frame with its alpha masked, depth GEQUAL unwritten,
+  `ALPHA` (Cd - 0) x As + 0, bilinear at LOD 0 and clamped. These are set in `gs::BeginDepthPass`
+  and restored in `EndDepthPass`.
+- Chroma subdivision to 64 units is not done yet: large faces show one chroma across them.
+- Classes B to F are not baked; the start room of mars_city1 is dark until R3's layers add its
+  switchable lights.
+
 ### 8.3 Lightmap baker
 
 A new host stage in `asset_reexport` (section 15). Per luxel: for each light in classes A
@@ -886,6 +932,16 @@ and the `.bcm` collision model when the light casts shadows. Light materials are
 with id's `idMaterial` register code compiled into the tool so tables, `colored` and
 `zeroClamp` behave exactly as in the engine. Determinism follows the existing tool rules
 (`-ffp-contract=off`, byte-identical output across hosts).
+
+As built (2026-11-08): the tool parses id's expression grammar itself rather than compiling
+`idMaterial` in (`assets/material.cpp`: the priorities and right associativity of
+`ParseExpressionPriority`, `idDeclTable::TableLookup`, stage conditions and colour registers). Light
+volumes follow `R_DeriveLightData` (box and spot projections, the old-style `lightProject`, bounds
+through the inverse); `_noFalloff` is generated. A light reaches an area flooded through the portals
+its bounds overlap. Occlusion is ray cast through a BVH of the area triangles whose materials cast
+shadows (id's `SurfaceCastsShadow`, alpha-tested ones whole) and the `func_static` inline models
+placed at their entity's origin and rotation, four rays a texel. Mesh models and the `.bcm` are not
+occluders yet. The bake is single threaded: mars_city1's 1.77 M rays take 0.65 s.
 
 ### 8.4 Dynamic lights on VU1
 
@@ -1286,6 +1342,9 @@ to memory images belongs with R8.
 - A world texture and its CLUT are one allocation of whole blocks (10.4); every textured
   `TEX0` writes `CLD 1`, as the GSTX path does today, until CBP caching is measured worth its
   hazards. The UI's GSTX v1 pages keep their separate CLUT textures and `BindPair`.
+- Lightmap pages (2026-11-08) travel in the map's D3TX (version 2: a page table after the texture
+  table, the pages GSTX v2 usage `Lightmap` flagged as such) and share the textures' arena and LRU;
+  a batch whose page cannot become resident draws without its lightmap pass.
 
 ---
 
@@ -1642,6 +1701,11 @@ PAL at `PSMCT32` with the L2 scratch is tight: the scratch is allocated only whi
 active, and PAL may run the `PSMCT16` profile if R1's captures show the difference is
 acceptable.
 
+Measured (2026-11-08): mars_city1's 8 lightmap pages take 532,480 bytes, 65 KiB each (a 256x256
+`PSMT8` footprint plus its CLUT), and share the texture arena with the diffuse textures rather than
+a reserved region; the area 2 and corridor views keep their pages resident beside their textures in
+the 1,064,960-byte arena at 640x448 32/32.
+
 ### 16.3 VU1 memory
 
 Section 7.2. The binding limits are 88 unique vertices for 3-qword layouts, 68 for 4, and
@@ -1824,6 +1888,9 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Batch texture state (2026-11-08) | A 10-qword VIF block per batch, REF'd from the material's per-context block, unpacked into the input half's last 9 qwords and kicked by the program before its first window | `DIRECT` register writes between batches (a `FLUSH` per texture change); the state in the cooked header | No stall per texture change and no per-batch EE writes; costs a 4-qword vertex (STQ) slot and 9 qwords of each half: mars_city1 rises from 2,138 to 2,302 batches and the world program from 93.0 to 99.5 VU1 cycles a triangle |
 | World texture residency (2026-11-08) | One whole-page VRAM arena per textured world (the texture range less 256 KiB for the UI), block-granular first fit, least recently drawn evicted, never a texture this pass drew; uploads in the chain where a batch first needs them | Area-ring streaming from the package (still the plan for the EE copy, 10.5) | mars_city1's 69 textures for the area 2 and corridor views take 517 KB of a 1,064,960-byte arena at 640x448 32/32; the whole map's 1.98 MB would not fit |
 | Texture format (2026-11-08) | GSTX v2 is the texture's GS memory image (all levels and its CLUT in N blocks from 0), stored as the `PSMCT32` words of at most six `DBW 1` rectangles; registers cooked relative to block 0 and relocated by one add | v1's index pages uploaded as `PSMT8`/`PSMT4`, CLUTs in shared pages; Black's per-level rectangles in the sampling buffer | No EE work per texel, one upload path for every format, one allocation per texture; Black's and TimeSplitters' pre-swizzled 32-bit uploads generalised to the CLUT and the mips |
+| Lightmap pass (2026-11-08) | The frame's other GS context, set per world pass; a second walk of the batch's index stream after the base pass, the page's `TEX0` kicked between them | A fifth vertex qword with the lightmap STQ; the page's `TEX0` in the material's A+D packet | Sixteen lanes hold both passes (lightmap S x Q and T x Q in the two free `.w` lanes, w rebuilt as 1/Q in the clipper), so batches stay at 4 qwords a vertex (a fifth would cost about a quarter more batches); the contexts share one CLUT buffer, so the page's CLUT may load only after the base pass draws |
+| Lightmap split (2026-11-08) | Per-vertex chroma x per-chart exposure, texel intensity over that exposure, `PSMT8` identity ramp | One exposure per level brightening the diffuse CLUTs; a non-linear ramp | No change to the diffuse textures; each factor keeps 2x headroom and dark charts keep 8-bit precision |
+| Alpha-tested world surfaces (2026-11-08) | Lit per vertex, no lightmap pass | Lightmap pass with destination-alpha masking | The lightmap pass cannot test the diffuse's alpha and the GS has no EQUAL depth test; 204 of mars_city1's surfaces |
 | Display list | Scratchpad builder, `fromSPR` drains, CNT/REF/CALL only | Main-RAM builder with cache flushes | No per-frame flush, position-independent list (Black) |
 | Resolution (decided 2026-11-06) | 640x448 / 640x512 FIELD mode in both standards | 512 wide, the fallback; FRAME mode half height | The user's fidelity target: ship at 640 if it fits, falling back to 512 makes everything else roomier; R9 confirms against the in-game working set |
 | Front-end profile (2026-11-06) | Three profiles, draw/display: 16/16, 32/16, 32/32 (default). The front end draws a 32/32 preference as 32/16; a loaded map switches to the preference | 640 at 16 bits; PAL alone at 16 bits; smaller UI art | Two 640-wide 32-bit buffers leave 1,327,104 bytes NTSC / 917,504 PAL, and the retail menus thrash in both (the quit dialog over the shell evicted every frame). 32/16 keeps 32-bit blending and destination alpha and shows a dithered 16-bit copy made in the vertical blank, for the VRAM of 512 at 32/32. In game the preference applies, so a level that fits gets two 32-bit buffers |

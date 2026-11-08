@@ -96,6 +96,9 @@ add_library(assets STATIC
     assets/gstx_v2.cpp
     assets/image.cpp
     assets/json.cpp
+    assets/light.cpp
+    assets/lightmap.cpp
+    assets/map_entities.cpp
     assets/material.cpp
     assets/palette.cpp
     assets/png.cpp

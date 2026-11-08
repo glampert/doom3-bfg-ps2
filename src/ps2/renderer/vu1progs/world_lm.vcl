@@ -1,9 +1,10 @@
 ; =================================================================================================
 ; world_lm.vcl
 ;
-; One cooked world batch (D3WD, layout WA: src/tools/assets/world.h), textured with its material's
-; diffuse and the vertex colour until lightmaps exist. Preprocessed with vclpp; -j adds the VCL
-; boilerplate.
+; One cooked world batch (D3WD, layout WA: src/tools/assets/world.h): the base pass, its material's
+; diffuse times the vertex colour (the light's chroma), then, when the batch has a lightmap, the
+; lightmap pass in the other GS context, Cd x As with the page's intensity. Preprocessed with
+; vclpp; -j adds the VCL boilerplate.
 ;
 ; Batch layout at XTOP:
 ;   +0       position offset xyz, w the index qwords Q
@@ -11,20 +12,27 @@
 ;   +2       the strip index stream: four entries per qword, each the vertex's qword offset in
 ;            this half with the GS ADC flag in bit 15 (entries past the last repeat the first
 ;            vertex with ADC set, so whole qwords can be walked)
-;   +2+Q     N vertices (N from XITOP) of four qwords: position s16, UVs, RGBA bytes, free
-;   +297     the batch state (vu_memory.h): an A+D packet with the material's texture registers
-;            and TEST, kicked first, then the batch's strip and list drawing tags
+;   +2+Q     N vertices (N from XITOP) of four qwords: position s16, UVs (the base pair, then the
+;            lightmap pair in 4.12), RGBA bytes, free
+;   +295     the batch state (vu_memory.h): the lightmap page's A+D packet (its second qword's
+;            word 3 non-zero when the batch has a lightmap pass), the material's A+D packet,
+;            kicked first, then the batch's strip and list drawing tags
 ;
 ; Phase 1 transforms every unique vertex once, in place: qword 0 becomes the clip-space
-; position, qword 1 the projected XYZ2 (12.4 xy, z) with w 0x8000 when the vertex left the guard
-; band, qword 2 keeps the colour bytes, already PACKED RGBAQ, and qword 3 receives the PACKED ST
-; with Q: the UV times 1/w, and 1/w.
+; position with the lightmap T x Q in w, qword 1 the projected XYZ2 (12.4 xy, z) with w 0x8000
+; when the vertex left the guard band, qword 2 keeps the colour bytes, already PACKED RGBAQ, and
+; qword 3 receives the PACKED ST with Q (the UV times Q = 1/w, and Q) with the lightmap S x Q in
+; w. Sixteen lanes hold everything both passes and the clipper need: the clipper rebuilds w as
+; 1/Q, and a lightmap vertex assembles its ST from the two w lanes and Q.
 ;
 ; Phase 2 sends the batch to the GS. When every vertex is inside the band (nearly every batch)
 ; the strip path walks the index stream and emits each entry's vertex with its ADC flag as a
 ; triangle strip: about 1.5 vertices per triangle. Otherwise the list path walks the same
 ; stream as triangles: those with every corner inside go out as they are, the rest through the
-; clipper (vu_clip.i) as a fan, all as a triangle list.
+; clipper (vu_clip.i) as a fan, all as a triangle list. A lit batch walks again for the lightmap
+; pass after kicking the page's A+D packet: the strip path sends ST and XYZ2 per vertex, the list
+; path its usual three qwords with the lightmap ST. The two contexts share one CLUT buffer, so the
+; page's TEX0 (which loads its CLUT) goes only once the base pass's windows are out.
 ;
 ; Output goes through the two windows of vu_window.i, kept alternating across batches, so the
 ; program needs no drain guard: the window it writes next was drained by its last kick's stall.
@@ -84,6 +92,67 @@
     iaddi  iVertsLeft, iVertsLeft, -1
 #endmacro
 
+; The lightmap pass's ST: the lightmap S x Q (qword 3 .w), T x Q (qword 0 .w) and Q.
+;
+;   st = { vertex[3].w, vertex[0].w, vertex[3].z };
+#macro LightmapSt: iV, vSt, vStq, vT
+    lq    vStq, 3(iV)
+    lq.w  vT,   0(iV)
+    add.x vSt,  vf00, vStq[w]
+    add.y vSt,  vf00, vT[w]
+    move.z vSt, vStq
+#endmacro
+
+; Emits the vertex at iVertex into a lightmap strip window at 'off': its lightmap ST, then XYZ2
+; with ADC iAdc.
+;
+;   out[off] = LightmapSt(vertex); out[off + 1].xyz = vertex[1].xyz; out[off + 1].w = adc;
+#macro EmitLightmapVertex: off
+    LightmapSt{ iVertex, fLmSt, fStq, fLmT }
+    lq     fXyz,  1(iVertex)
+    sq.xyz fLmSt, off(iOutPtr)
+    sq.xyz fXyz,  off + 1(iOutPtr)
+    isw.w  iAdc,  off + 1(iOutPtr)
+#endmacro
+
+; StripEntry and StripReentry for the lightmap pass: two qwords a vertex.
+#macro LightmapEntry
+    iaddiu iMask,   vi00,   0x7FFF
+    iand   iOffset, iEntry, iMask
+    isub   iAdc,    iEntry, iOffset
+    iadd   iVertex, iBase,  iOffset
+
+    EmitLightmapVertex{ 0 }
+
+    iaddiu iOutPtr,    iOutPtr,     2
+    iaddi  iVertsLeft, iVertsLeft, -1
+#endmacro
+
+#macro LightmapReentry
+    iaddiu iMask,   vi00,   0x7FFF
+    iand   iOffset, iEntry, iMask
+    iadd   iVertex, iBase,  iOffset
+    iaddiu iAdc,    vi00,   0x7FFF
+    iaddiu iAdc,    iAdc,   1
+
+    EmitLightmapVertex{ 0 }
+
+    iaddiu iOutPtr,    iOutPtr,     2
+    iaddi  iVertsLeft, iVertsLeft, -1
+#endmacro
+
+; A list path corner of the lightmap pass, inside the band: ListCorner with the lightmap ST.
+;
+;   out[off] = LightmapSt(corner); out[off + 1] = corner[2]; out[off + 2] = corner[1];
+#macro ListLightmapCorner: iCorner, off
+    LightmapSt{ iCorner, fLmSt, fStq, fLmT }
+    lq     fCol,  2(iCorner)
+    lq     fXyz,  1(iCorner)
+    sq.xyz fLmSt, off(iOutPtr)
+    sq     fCol,  off + 1(iOutPtr)
+    sq     fXyz,  off + 2(iOutPtr)
+#endmacro
+
 ; Projects a clipped corner and writes it at 'offSt'/'offCol'/'offXyz': its UV and 1/w as PACKED
 ; ST, its colour back to bytes through ftoi0 (PACKED RGBAQ), its position through the same mapping
 ; phase 1 applies.
@@ -131,39 +200,50 @@
 ;       {
 ;           vec4 p    = itof0(v[0]).xyz * batch[1].x + batch[0].xyz;
 ;           vec2 uv   = itof0(v[1]).xy * batch[1].y + batch[1].zw;
+;           vec2 lm   = itof12(v[1]).zw;
 ;           vec4 clip = p * mvp;                                    // row vectors, w = 1
 ;           bool out  = clipw(clip.xyz * clipScale.xyz, clip.w);     // left the guard band
-;           v[0] = clip;
-;           v[1].xyz = ftoi4(gsOffset.xyz + clip.xyz / clip.w * gsScale.xyz);
+;           float q   = 1 / clip.w;
+;           v[0] = { clip.xyz, lm.y * q };
+;           v[1].xyz = ftoi4(gsOffset.xyz + clip.xyz * q * gsScale.xyz);
 ;           v[1].w = out ? 0x8000 : 0; anyOut |= out;
-;           v[3].xyz = { uv / clip.w, 1 / clip.w };
+;           v[3] = { uv * q, q, lm.x * q };
 ;           v += 4;
 ;       } while (--n > 0);
 ;
+;       bool lit = batch[kVuBatchLightmapFlagOffset].w != 0;
 ;       if (!anyOut) // Phase 2, strip path.
 ;       {
-;           OpenWindow(batch[kVuBatchStripTagOffset]);
-;           for (qword * e = batch + 2; q > 0; ++e, --q)
+;           for (pass : base, lit ? lightmap : none)
 ;           {
-;               if (vertsLeft < 4) { CloseAndKick(); OpenWindow(...); Reentry(e[-1].z); Reentry(e[-1].w); }
-;               for (lane : x, y, z, w) StripEntry(e[0].lane);
+;               if (pass == lightmap) xgkick(batch + kVuBatchLightmapOffset);   // its TEX0
+;               OpenWindow(pass == base ? batch[kVuBatchStripTagOffset] : vuMem[kVuLightmapStripTagAddr]);
+;               for (qword * e = batch + 2; q > 0; ++e, --q)
+;               {
+;                   if (vertsLeft < 4) { CloseAndKick(); OpenWindow(...); Reentry(e[-1].z); Reentry(e[-1].w); }
+;                   for (lane : x, y, z, w) Entry(e[0].lane);       // ST, RGBAQ, XYZ2 or ST, XYZ2
+;               }
+;               CloseAndKick();
 ;           }
-;           CloseAndKick();
 ;       }
-;       else // Phase 2, list path: the same stream as triangles.
+;       else // Phase 2, list path: the same stream as triangles, once per pass.
 ;       {
-;           OpenWindow(batch[kVuBatchListTagOffset]);
-;           for (int left = 4 * q; left > 0; --left)                 // state kept in vuMem
+;           for (pass : base, lit ? lightmap : none)                // pass and tag kept in vuMem
 ;           {
-;               if (vertsLeft < 18) { CloseAndKick(); OpenWindow(...); }
-;               entry = NextEntry(); vertex = batch + (entry & 0x7FFF);
-;               (a, b) = (prev2, prev1); (prev2, prev1) = (prev1, vertex);
-;               if (entry & 0x8000) continue;                       // opens a strip
-;               if (!(a[1].w | b[1].w | vertex[1].w)) Emit(a, b, vertex);
-;               else for (tri : Fan(Clip(a, b, vertex))) Emit(tri, adc = judged again);
+;               if (pass == lightmap) xgkick(batch + kVuBatchLightmapOffset);
+;               OpenWindow(pass == base ? batch[kVuBatchListTagOffset] : vuMem[kVuLightmapListTagAddr]);
+;               for (int left = 4 * q; left > 0; --left)             // state kept in vuMem
+;               {
+;                   if (vertsLeft < 18) { CloseAndKick(); OpenWindow(...); }
+;                   entry = NextEntry(); vertex = batch + (entry & 0x7FFF);
+;                   (a, b) = (prev2, prev1); (prev2, prev1) = (prev1, vertex);
+;                   if (entry & 0x8000) continue;                   // opens a strip
+;                   if (!(a[1].w | b[1].w | vertex[1].w)) Emit(pass, a, b, vertex);
+;                   else for (tri : Fan(Clip(pass, a, b, vertex))) Emit(tri, adc = judged again);
+;               }
+;               CloseAndKick();
 ;           }
-;           CloseAndKick();
-;           xgkick(nullTag);                         // the state kick drains before the program ends
+;           xgkick(nullTag);                         // the state kicks drain before the program ends
 ;       }
 ;   }
 #vuprog world_lm
@@ -202,9 +282,10 @@
     lTransform:
 
         lq.xyz    fPos, 0(iVert)
-        lq.xy     fUV,  1(iVert)
+        lq        fUV,  1(iVert)
         itof0.xyz fPos, fPos
         itof0.xy  fUV,  fUV
+        itof12.zw fUV,  fUV
         mul.xyz   fPos, fPos, fPosScale[x]
         mul.xy    fUV,  fUV,  fPosScale[y]
         add.xyz   fPos, fPos, fPosOffset
@@ -222,6 +303,8 @@
         mul.xyz   fProj, fClip,     q
         mul.xy    fSTQ,  fUV,       q
         addq.z    fSTQ,  vf00,      q
+        mul.zw    fLmQ,  fUV,       q
+        mul.w     fSTQ,  vf00,      fLmQ[z]
         mula.xyz  acc,   fGSOffset, vf00[w]
         madd.xyz  fProj, fProj,     fGSScale
         ftoi4.xyz fProj, fProj
@@ -232,10 +315,11 @@
         iand   iOutside, iOutside, iFlagBit
         ior    iAnyOut,  iAnyOut,  iOutside
 
-        sq     fClip,    0(iVert)
+        sq.xyz fClip,    0(iVert)
+        sq.w   fLmQ,     0(iVert)
         sq.xyz fProj,    1(iVert)
         isw.w  iOutside, 1(iVert)
-        sq.xyz fSTQ,     3(iVert)
+        sq     fSTQ,     3(iVert)
 
         iaddiu iVert,      iVert,       4
         iaddi  iVertsToGo, iVertsToGo, -1
@@ -280,6 +364,48 @@
         ibgtz  iQwords, lStripQword
 
     CloseOutputWindowAndKick{ lStripLast }
+
+    ; ---------------------------------------------------------------------
+    ; The strip path's lightmap pass: the same stream again, ST and XYZ2 a
+    ; vertex under the other context, after the page's TEX0.
+    ; ---------------------------------------------------------------------
+    ilw.w  iLit, kVuBatchLightmapFlagOffset(iBase)
+    ibeq   iLit, vi00, lDone
+
+    iaddiu iKickAt, iBase, kVuBatchLightmapOffset
+    xgkick iKickAt
+
+    OpenLightmapWindow{ }
+
+    iaddiu iIdx,    iBase, 2
+    ilw.w  iQwords, 0(iBase)
+
+    lLightmapQword:
+
+        iaddi iRoom, iVertsLeft, -4
+        ibgez iRoom, lLightmapRoom
+        CloseWindowAndKick{ lLightmapFull, kVuWindowLightmapVertices }
+        OpenLightmapWindow{ }
+        ilw.z iEntry, -1(iIdx)
+        LightmapReentry{ }
+        ilw.w iEntry, -1(iIdx)
+        LightmapReentry{ }
+        lLightmapRoom:
+
+        ilw.x iEntry, 0(iIdx)
+        LightmapEntry{ }
+        ilw.y iEntry, 0(iIdx)
+        LightmapEntry{ }
+        ilw.z iEntry, 0(iIdx)
+        LightmapEntry{ }
+        ilw.w iEntry, 0(iIdx)
+        LightmapEntry{ }
+
+        iaddiu iIdx,    iIdx,     1
+        iaddi  iQwords, iQwords, -1
+        ibgtz  iQwords, lLightmapQword
+
+    CloseWindowAndKick{ lLightmapLast, kVuWindowLightmapVertices }
     b lDone
 
     ; ---------------------------------------------------------------------
@@ -289,13 +415,23 @@
     ; but the window cursor is carried in registers across the clipper:
     ;   kVuWalkStateAddr   x entries left, y next stream qword, z lanes left
     ;                      in the rotating qword, w the previous vertex
-    ;   kVuWalkPrevAddr    x the vertex before that
+    ;   kVuWalkPrevAddr    x the vertex before that, y the address of the
+    ;                      pass's drawing tag, z the pass (0 base, 1 lightmap)
     ;   kVuWalkIndicesAddr the current stream qword, rotated one lane per entry
     ; ---------------------------------------------------------------------
     lListPath:
 
-    OpenBatchWindow{ kVuBatchListTagOffset }
+    iaddiu iTagAt, iBase, kVuBatchListTagOffset
+    isw.y  iTagAt, kVuWalkPrevAddr(vi00)
+    isw.z  vi00,   kVuWalkPrevAddr(vi00)
 
+    --barrier
+
+    lListPass:
+
+    OpenWalkWindow{ }
+
+    xtop   iBase
     ilw.w  iQwords, 0(iBase)
     iadd   iLeft,   iQwords, iQwords
     iadd   iLeft,   iLeft,   iLeft
@@ -315,7 +451,7 @@
         isub   iRoom, iVertsLeft, iRoom
         ibgez  iRoom, lListRoom
         CloseOutputWindowAndKick{ lListFull }
-        OpenBatchWindow{ kVuBatchListTagOffset }
+        OpenWalkWindow{ }
         lListRoom:
 
         ; The next entry: lane x of the rotating qword, refilled every four.
@@ -359,10 +495,23 @@
         ior   iF0, iF0, iF2
         ibne  iF0, vi00, lListClip
 
-        ; Every corner inside: the three phase 1 vertices as they are.
+        ; Every corner inside: the three phase 1 vertices as they are, with
+        ; the lightmap ST in the lightmap pass.
+        ilw.z iPass, kVuWalkPrevAddr(vi00)
+        ibne  iPass, vi00, lListLightmapCorners
+
         ListCorner{ iPrev2,  0 }
         ListCorner{ iPrev1,  3 }
         ListCorner{ iVertex, 6 }
+        b lListCornersDone
+
+        lListLightmapCorners:
+
+        ListLightmapCorner{ iPrev2,  0 }
+        ListLightmapCorner{ iPrev1,  3 }
+        ListLightmapCorner{ iVertex, 6 }
+
+        lListCornersDone:
 
         iaddiu iOutPtr,    iOutPtr,     9
         iaddi  iVertsLeft, iVertsLeft, -3
@@ -425,8 +574,29 @@
 
     CloseOutputWindowAndKick{ lListLast }
 
+    ; After the base pass, the lightmap pass when the batch has one.
+    ilw.z  iPass, kVuWalkPrevAddr(vi00)
+    ibne   iPass, vi00, lListEnd
+    xtop   iBase
+    ilw.w  iLit,  kVuBatchLightmapFlagOffset(iBase)
+    ibeq   iLit,  vi00, lListEnd
+
+    iaddiu iKickAt, iBase, kVuBatchLightmapOffset
+    xgkick iKickAt
+
+    iaddiu iTagAt, vi00, kVuLightmapListTagAddr
+    iaddiu iPass,  vi00, 1
+    isw.y  iTagAt, kVuWalkPrevAddr(vi00)
+    isw.z  iPass,  kVuWalkPrevAddr(vi00)
+
+    --barrier
+
+    b lListPass
+
+    lListEnd:
+
     ; A list batch may kick no window at all: the null tag waits for the
-    ; state packet, which must leave the half before the program ends.
+    ; state packets, which must leave the half before the program ends.
     iaddiu iKickAt, vi00, kVuNullGifTagAddr
     xgkick iKickAt
 

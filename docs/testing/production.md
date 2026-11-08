@@ -279,7 +279,8 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
 - `make test-world-retail` / `make BUILD=release test-world-retail` (after `make ui-cook`;
   the target runs `make world-cook-retail`, which cooks `config/world_mars_city1.json`: the
   binary `generated/maps/game/mars_city1.bproc` in `RETAIL_DATA_ROOT`'s
-  `maps/mars_city1.resources` into `build/world/mars_city1.d3wd` and its report) run
+  `maps/mars_city1.resources` into `build/world/mars_city1.d3wd` and its report, baking the
+  class A lights of `maps/game/mars_city1.map` into the D3TX's lightmap pages) run
   `run_world_retail.py`: one production session per standard from a visible console package
   on the authored headless data, with the D3WD staged as `base/maps/game/mars_city1.d3wd`, its
   texture package (`mars_city1.d3tx`, the job's `textures` section) beside it, and
@@ -290,8 +291,9 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   materials.
 - HostFs commands close the console, set `r_znear 4`, run `ps2_world load maps/game/mars_city1`
   (the `[D3BFG] world maps/game/mars_city1.d3wd:` line must carry the cook report's areas,
-  surfaces, batches, portals and nodes: 56, 1,791, 2,302, 55 and 9,783 today, and a
-  `[D3BFG] world textures maps/game/mars_city1.d3tx:` line must follow), `ps2_world textures off`, and two
+  surfaces, batches, portals and nodes: 56, 1,791, 2,572, 55 and 9,783 today, and a
+  `[D3BFG] world textures maps/game/mars_city1.d3tx:` line with its pages must follow),
+  `ps2_world textures off`, `ps2_world lightmaps off`, and two
   `ps2_world trace`s from the player's eye at the start (`info_player_start_2`, 68 units
   above (-3632, -3416, 192)): straight down onto `textures/base_floor/sflgrate2` at fraction
   0.148 facing up, and west into `textures/mcity/stewall3b` at 0.383 facing (0.990, 0,
@@ -303,25 +305,29 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   32/32, as in `make test-world`.
 - Seven views in area 2, where the player starts, each a capture two frames after
   `ps2_world view` and a status two frames later: `east`, `west` and `south` from the start
-  draw area 2 alone (70 batches); `north` from the start and `doorway`, nearer the doorway,
-  draw areas 2, 50 and 51 (174 batches) through portal 55, which joins area 2 to the corridor
+  draw area 2 alone; `north` from the start and `doorway`, nearer the doorway,
+  draw areas 2, 50 and 51 through portal 55, which joins area 2 to the corridor
   (area 50); `corridor`, from inside area 50 looking back through the doorway, starts in area 50
-  and draws areas 50 and 2 (119 batches); `closed` repeats `north` with `ps2_world portal 55
-  closed` and must draw area 2 alone (70 batches); the portal is reopened after its status. Each
-  view is then drawn textured (`ps2_world textures on`, `world-<view>-textured.tga` two frames
-  later) and `ps2_world textures status` must report textures enabled, resident and uploaded,
-  with no batch fallen back to untextured: the area 2 and corridor views upload 69 textures
-  (517 KB) into a 1,064,960-byte arena at 640x448 32/32, evicting none. Textures go off again
-  before the next view. The
+  and draws areas 50 and 2; `closed` repeats `north` with `ps2_world portal 55
+  closed` and must draw area 2 alone; the portal is reopened after its status. Each
+  view is then drawn lit by its lightmaps alone (`ps2_world lightmaps on`, `world-<view>-light.tga`
+  two frames later), then textured and lit (`ps2_world textures on`, `world-<view>-lit.tga`), and
+  `ps2_world textures status` must report textures and lightmaps enabled, textures and pages
+  resident and uploaded, with no batch fallen back to untextured or unlit. Both go off again
+  before the next view. The lit captures are checked by eye for now: no pixel reference models the
+  lightmap pass yet. The
   runner names each view's areas and takes their batches from the cook report's `area_list`, so
   `make test-world-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips` checks a
   plain-strips cook drawn by `world_strips.vcl` the same way.
-- Captures: each untextured one must match a software rasterization of the same `.bproc` from the same camera
-  (`world_reference.compare_image`, the cook's float32 vertex colours, the near plane at 4
-  and the world pass's far plane) on at least 99 % of its pixels within the profile's
+- Captures: each untextured, unlit one must match a software rasterization of the cooked D3WD's
+  own triangles from the same camera (`world_reference.load_cooked_triangles`, decoded from the
+  batch packets with their vertex colour bytes, which are the baked chroma: the reference renders
+  what the cook wrote, and the cook's geometry is held to the `.bproc` by its reported
+  `max_position_error` and `world_tests`), with `world_reference.compare_image`, the near plane at 4
+  and the world pass's far plane, on at least 99 % of its pixels within the profile's
   tolerance, where a pixel matches any surface the 16-bit depth buffer cannot order against
   the nearest (within two levels of `65535 x near / distance`: coplanar decals over walls and
-  ceilings). `closed` is compared with a rasterization of area 2 alone. Good captures score 99.7
+  ceilings). `closed` is compared with a rasterization of area 2 alone. Good captures score 99.8
   to 99.9 %; with a missing area they drop to 39 to 96 % (the `north`, `doorway` and `corridor`
   captures against area 2 alone). The runner writes `references/ref-<view>-WxH.png` and
   `references/diff-world-<view>.png` (mismatches in magenta) beside the captures.

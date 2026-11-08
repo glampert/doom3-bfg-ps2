@@ -62,7 +62,9 @@ textures into paletted GSTX files the GS samples directly, from a JSON job. Its 
 command cooks a map's `.proc` into a D3WD world file; `make world-cook` cooks the authored
 graybox map (`src/tests/data/graybox_map/`) into `build/world/`, and `make world-cook-retail`
 cooks mars_city1's binary `.bproc` from the retail installation (`config/world_mars_city1.json`,
-`RETAIL_DATA_ROOT`) there too, with its diffuse textures as `mars_city1.d3tx` (`WORLD_TOPOLOGY=strips` cooks plain strips instead; give it its own
+`RETAIL_DATA_ROOT`) there too, with its diffuse textures and the lightmap pages of its class A
+lights as `mars_city1.d3tx` (`mars_city1.lights.json` classifies every light; `WORLD_TOPOLOGY=strips`
+cooks plain strips instead, drawn without a lightmap pass; give it its own
 `WORLD_COOK_OUTPUT`). `src/tools/scripts/vu_cost.py` counts the world programs' VU1 cycles over
 cooked worlds. `src/tools/scripts/texture_census.py --data <root> [--map NAME]` counts
 the retail BIMAGE textures by usage, format and colour format (headers only, about 4 s for
@@ -224,8 +226,10 @@ does (built when a view next sees them; materials without stages need `forceOver
 logs what the entities hold (count, triangles, area, bounds), `portal HANDLE open|closed` sets a
 portal's view blocking, `off` stops drawing, `unload` empties the world and `status` logs the
 areas, portals and the last view's area, entities, drawn areas, batches and frame arena use;
-`textures on|off` draws the world textured (the default) or untextured, and `textures status`
-logs the last pass's texture arena, residents, uploads, evictions and untextured fallbacks.
+`textures on|off` draws the world textured (the default) or untextured, `lightmaps on|off` its
+lightmap pass (the default) or the vertex chroma alone, and `textures status` logs the last pass's
+texture arena, residents, uploads, evictions, untextured fallbacks, resident lightmap pages and
+batches drawn without their page.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
 the graybox and runs it. Production draws 640 wide by default. `ps2_frameBufferBits
 16/16|32/16|32/32` sets the in-game frame-buffer profile (draw/display bits; 32/16 draws in

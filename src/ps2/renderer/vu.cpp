@@ -43,8 +43,10 @@ static u32 s_swapNext = 0;  // next free instruction in it
 static Stats s_stats = {};
 static bool s_initialized = false;
 
-// The program table, in Program order. Residency follows the plan: the kernel, the lightmapped
-// world program and passthrough stay; everything else takes the swap region.
+// The program table, in Program order. Passthrough stays; everything else takes the swap region.
+// The plan kept the world program resident too, but with both lightmap passes and its own clipper it
+// is 1,272 instructions, which would leave the swap region too small for the plain-strips program;
+// a level draws with one of them, so each frame binds the same one and nothing uploads again.
 struct Source
 {
     MicroCode code;
@@ -56,7 +58,7 @@ Source SourceOf(Program program)
     switch (program)
     {
         case Program::Passthrough: return { passthrough_Code(), true };
-        case Program::WorldLightmapped: return { world_lm_Code(), true };
+        case Program::WorldLightmapped: return { world_lm_Code(), false };
         case Program::WorldStrips: return { world_strips_Code(), false };
         case Program::Count: break;
     }
