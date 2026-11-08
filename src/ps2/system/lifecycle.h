@@ -44,4 +44,8 @@ void StopAfterForTest(Stage stage);
 // Totals, allocator arena and every tag with live or peak bytes, labeled with the stage.
 PS2_COLD_FUNC void PrintMemory(const char * stage);
 
+// The core test boot: Common on filesystem.cpp's loose-file fixture filesystem (core image only).
+PS2_COLD_FUNC void InitCore();
+PS2_COLD_FUNC void ShutdownCore();
+
 } // namespace ps2::system::lifecycle

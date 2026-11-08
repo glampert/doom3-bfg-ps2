@@ -1,6 +1,7 @@
 // ================================================================================================
 // File: filesystem.cpp
-// Brief: Keep path bounds, I/O failures and driver capability limits explicit at the libc boundary.
+// Brief: Keep path bounds, I/O failures and driver capability limits explicit at the libc boundary,
+// and give the core test image's Common a filesystem jailed to bounded loose-file fixtures.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -459,3 +460,303 @@ int List(const char * directory, const char * extension, void (*visit)(const cha
 }
 
 } // namespace ps2::system::fs
+
+// ------------------------------------------------------------------------------------------------
+// Core test image: Common's idFileSystem over bounded loose-file fixtures
+// ------------------------------------------------------------------------------------------------
+
+// Only the core image's objects define ID_PS2_CORE; production and the game images link id's
+// idFileSystemLocal, which defines the same global. idlib comes in here, after the libc code above,
+// because Str.h redefines libc names such as strcmp as macros.
+#if defined(ID_PS2_CORE) && ID_PS2_CORE
+
+#include "ps2/system/heap.h"
+#include <idlib/precompiled.h>
+
+namespace ps2::system::fs
+{
+namespace
+{
+
+static constexpr size_t kFixtureLimit = 65536;
+
+[[noreturn]] PS2_COLD_FUNC void Unsupported(const char * operation)
+{
+    ps2::FatalError("unsupported headless core operation: %s", operation);
+}
+
+// Keep unsupported interfaces visible at the ABI boundary. A core compile/link is not a game boot.
+#define CORE_UNSUPPORTED(result, method, parameters) \
+    result method parameters override                \
+    {                                                \
+        Unsupported(#method);                        \
+    }
+
+bool FixturePath(const char * input, char * output, size_t capacity)
+{
+    if (input == nullptr)
+    {
+        return false;
+    }
+
+    const char * relative = idStr::Cmpn(input, "host:", 5) == 0 ? input + 5 : input;
+    const size_t length = strlen(relative);
+
+    if (length >= MAX_OSPATH - 5 || !IsRelativePath(relative))
+    {
+        return false;
+    }
+
+#if defined(ID_HOST_TEST)
+    const int written = idStr::snPrintf(output, static_cast<int>(capacity), "%s", relative);
+#else // ID_HOST_TEST
+    const int written = idStr::snPrintf(output, static_cast<int>(capacity), "host:%s", relative);
+#endif // ID_HOST_TEST
+
+    return written > 0 && static_cast<size_t>(written) < capacity;
+}
+
+class CoreReadFile final : public idFile_Memory
+{
+public:
+    CoreReadFile(const char * path, void * data, int length, ID_TIME_T timestamp)
+        : idFile_Memory(path, static_cast<const char *>(data), length), m_data(data), m_timestamp(timestamp)
+    {
+    }
+
+    ~CoreReadFile() override
+    {
+        heap::Free(m_data);
+    }
+
+    ID_TIME_T Timestamp() const override
+    {
+        return m_timestamp;
+    }
+
+private:
+    void * m_data;
+    ID_TIME_T m_timestamp;
+};
+
+class CoreFileSystem final : public idFileSystem
+{
+public:
+    void Init() override
+    {
+        m_initialized = true;
+    }
+
+    void Shutdown(bool) override
+    {
+        m_initialized = false;
+    }
+
+    bool IsInitialized() const override
+    {
+        return m_initialized;
+    }
+
+    int ReadFile(const char * path, void ** buffer, ID_TIME_T * timestamp) override
+    {
+        if (buffer != nullptr)
+        {
+            *buffer = nullptr;
+        }
+        if (timestamp != nullptr)
+        {
+            *timestamp = FILE_NOT_FOUND_TIMESTAMP;
+        }
+
+        char normalized[MAX_OSPATH] = {};
+        if (!m_initialized || !FixturePath(path, normalized, sizeof(normalized)))
+        {
+            return -1;
+        }
+
+        FILE * file = Open(normalized, OpenMode::Read);
+        if (file == nullptr)
+        {
+            return -1;
+        }
+
+        const int length = FileLength(file);
+        if (length < 0 || (buffer != nullptr && static_cast<size_t>(length) > kFixtureLimit))
+        {
+            fclose(file);
+            return -1;
+        }
+
+        const ID_TIME_T fileTime = Sys_FileTimeStamp(file);
+        void * data = nullptr;
+        if (buffer != nullptr)
+        {
+            data = heap::TryAlloc(static_cast<size_t>(length) + 1, static_cast<std::uint16_t>(TAG_IDLIB));
+            if (data == nullptr)
+            {
+                fclose(file);
+                return -1;
+            }
+            if (!ReadExact(file, data, static_cast<size_t>(length)))
+            {
+                heap::Free(data);
+                fclose(file);
+                return -1;
+            }
+            static_cast<char *>(data)[static_cast<size_t>(length)] = '\0';
+        }
+
+        if (fclose(file) != 0)
+        {
+            heap::Free(data);
+            return -1;
+        }
+
+        if (buffer != nullptr)
+        {
+            *buffer = data;
+        }
+        if (timestamp != nullptr)
+        {
+            *timestamp = fileTime;
+        }
+
+        return static_cast<int>(length);
+    }
+
+    void FreeFile(void * buffer) override
+    {
+        heap::Free(buffer);
+    }
+
+    int GetFileLength(const char * path) override
+    {
+        return ReadFile(path, nullptr, nullptr);
+    }
+
+    idFile * OpenFileRead(const char * path, bool, const char *) override
+    {
+        char normalized[MAX_OSPATH] = {};
+        if (!m_initialized || !FixturePath(path, normalized, sizeof(normalized)))
+        {
+            return nullptr;
+        }
+        return idFile_Permanent::OpenPortableRead(path, normalized);
+    }
+
+    idFile * OpenFileReadMemory(const char * path, bool, const char *) override
+    {
+        void * data = nullptr;
+        ID_TIME_T timestamp = FILE_NOT_FOUND_TIMESTAMP;
+        const int length = ReadFile(path, &data, &timestamp);
+        if (length < 0)
+        {
+            return nullptr;
+        }
+        return new CoreReadFile(path, data, length, timestamp);
+    }
+
+    idFile * OpenExplicitFileRead(const char * path) override
+    {
+        return OpenFileRead(path, false, nullptr);
+    }
+
+    void CloseFile(idFile * file) override
+    {
+        delete file;
+    }
+
+    findFile_t FindFile(const char * path) override
+    {
+        return GetFileLength(path) >= 0 ? FIND_YES : FIND_NO;
+    }
+
+    bool FilenameCompare(const char * first, const char * second) const override
+    {
+        return idStr::IcmpPath(first, second) != 0;
+    }
+
+    bool InProductionMode() override
+    {
+        return false;
+    }
+
+    bool UsingResourceFiles() override
+    {
+        return false;
+    }
+
+    CORE_UNSUPPORTED(void, Restart, ())
+    CORE_UNSUPPORTED(idFileList *, ListFiles, (const char *, const char *, bool, bool, const char *))
+    CORE_UNSUPPORTED(idFileList *, ListFilesTree, (const char *, const char *, bool, const char *))
+    CORE_UNSUPPORTED(void, FreeFileList, (idFileList *))
+
+    // The foundation has one host fixture root. Preserve the same path jail for script diagnostics.
+    const char * OSPathToRelativePath(const char * path) override
+    {
+        char normalized[MAX_OSPATH];
+        if (!FixturePath(path, normalized, sizeof(normalized)))
+        {
+            return "";
+        }
+        return idStr::Cmpn(path, "host:", 5) == 0 ? path + 5 : path;
+    }
+
+    const char * RelativePathToOSPath(const char * path, const char *) override
+    {
+        if (!FixturePath(path, m_path, sizeof(m_path))) [[unlikely]]
+        {
+            Unsupported("script source path outside fixture root");
+        }
+        return m_path;
+    }
+
+    CORE_UNSUPPORTED(const char *, BuildOSPath, (const char *, const char *, const char *))
+    CORE_UNSUPPORTED(const char *, BuildOSPath, (const char *, const char *))
+    CORE_UNSUPPORTED(void, CreateOSPath, (const char *))
+    CORE_UNSUPPORTED(int, WriteFile, (const char *, const void *, int, const char *))
+    CORE_UNSUPPORTED(void, RemoveFile, (const char *))
+    CORE_UNSUPPORTED(bool, RemoveDir, (const char *))
+    CORE_UNSUPPORTED(bool, RenameFile, (const char *, const char *, const char *))
+    CORE_UNSUPPORTED(idFile *, OpenFileWrite, (const char *, const char *))
+    CORE_UNSUPPORTED(idFile *, OpenFileAppend, (const char *, bool, const char *))
+    CORE_UNSUPPORTED(idFile *, OpenFileByMode, (const char *, fsMode_t))
+    CORE_UNSUPPORTED(idFile *, OpenExplicitFileWrite, (const char *))
+    CORE_UNSUPPORTED(idFile_Cached *, OpenExplicitPakFile, (const char *))
+    CORE_UNSUPPORTED(void, FindDLL, (const char *, char[MAX_OSPATH]))
+    CORE_UNSUPPORTED(void, CopyFile, (const char *, const char *))
+    CORE_UNSUPPORTED(sysFolder_t, IsFolder, (const char *, const char *))
+    CORE_UNSUPPORTED(void, EnableBackgroundCache, (bool))
+    CORE_UNSUPPORTED(void, BeginLevelLoad, (const char *, char *, int))
+    CORE_UNSUPPORTED(void, EndLevelLoad, ())
+    CORE_UNSUPPORTED(void, UnloadMapResources, (const char *))
+    CORE_UNSUPPORTED(void, UnloadResourceContainer, (const char *))
+    CORE_UNSUPPORTED(void, StartPreload, (const idStrList &))
+    CORE_UNSUPPORTED(void, StopPreload, ())
+    CORE_UNSUPPORTED(int, ReadFromBGL, (idFile *, void *, int, int))
+    CORE_UNSUPPORTED(bool, IsBinaryModel, (const idStr &) const)
+    CORE_UNSUPPORTED(bool, IsSoundSample, (const idStr &) const)
+    CORE_UNSUPPORTED(bool, GetResourceCacheEntry, (const char *, idResourceCacheEntry &))
+    CORE_UNSUPPORTED(void, FreeResourceBuffer, ())
+    CORE_UNSUPPORTED(void, AddImagePreload, (const char *, int, int, int, int))
+    CORE_UNSUPPORTED(void, AddSamplePreload, (const char *))
+    CORE_UNSUPPORTED(void, AddModelPreload, (const char *))
+    CORE_UNSUPPORTED(void, AddAnimPreload, (const char *))
+    CORE_UNSUPPORTED(void, AddParticlePreload, (const char *))
+    CORE_UNSUPPORTED(void, AddCollisionPreload, (const char *))
+
+private:
+    char m_path[MAX_OSPATH] = {};
+    bool m_initialized = false;
+};
+
+static CoreFileSystem s_coreFileSystem;
+
+#undef CORE_UNSUPPORTED
+
+} // namespace
+} // namespace ps2::system::fs
+
+idFileSystem * fileSystem = &ps2::system::fs::s_coreFileSystem;
+
+#endif // ID_PS2_CORE

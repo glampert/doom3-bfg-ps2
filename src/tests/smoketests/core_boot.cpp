@@ -6,7 +6,6 @@
 
 #include "ps2/system/log.h"
 
-#include "ps2/system/core.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/lifecycle.h"

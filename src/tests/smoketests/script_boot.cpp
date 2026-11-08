@@ -9,8 +9,8 @@
 
 #include "d3xp/Game_local.h"
 #include "ps2/game/script_error.h"
-#include "ps2/system/core.h"
 #include "ps2/system/heap.h"
+#include "ps2/system/lifecycle.h"
 #include "ps2/system/log.h"
 
 #include <cstdio>

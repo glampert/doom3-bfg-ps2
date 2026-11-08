@@ -229,4 +229,19 @@ PS2_COLD_FUNC void PrintMemory(const char * stage)
     }
 }
 
+// Only the core image compiles this unit with ID_PS2_CORE, beside filesystem.cpp's fixture filesystem.
+#if defined(ID_PS2_CORE) && ID_PS2_CORE
+
+PS2_COLD_FUNC void InitCore()
+{
+    common->Init(0, nullptr, nullptr);
+}
+
+PS2_COLD_FUNC void ShutdownCore()
+{
+    common->Shutdown();
+}
+
+#endif // ID_PS2_CORE
+
 } // namespace ps2::system::lifecycle

@@ -3940,7 +3940,7 @@ direction release gates were not run. Every backend namespace now follows
 | --- | --- | --- |
 | `ps2` | `Log`/`FatalError`, assertions, `DynCast` | unchanged |
 | `ps2::system::heap`, `fs`, `video`, `runtime` | allocator, file services, NTSC/PAL modes, production loop and presentation | `ps2::heap`, `filesystem`, `video`, `runtime` |
-| `ps2::system::lifecycle` | Common startup stages and the core test boot (`InitCore`/`ShutdownCore`) | `ps2::lifecycle`, `ps2::core` |
+| `ps2::system::lifecycle` | Common startup stages and the core test boot (`InitCore`/`ShutdownCore`, on `filesystem.cpp`'s fixture filesystem) | `ps2::lifecycle`, `ps2::core` |
 | `ps2::system::session` | offline campaign session | `ps2::offline` |
 | `ps2::audio` | PCM, voice timelines, `SoundSample`/`SoundVoice`/`SoundHardware` | `ps2::audio`, global `idSound*` |
 | `ps2::game`, `ps2::game::script` | class allocation; script error scopes | `ps2::game`, `ps2::script` |

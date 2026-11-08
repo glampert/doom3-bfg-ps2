@@ -130,8 +130,7 @@ PS2_COLD_FUNC bool PalettedImage::Open(const char * path, const std::uint8_t * d
     return true;
 }
 
-PS2_COLD_FUNC bool PalettedImage::ReadCluts(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes, std::uint8_t * texels,
-                              int channel)
+PS2_COLD_FUNC bool PalettedImage::ReadCluts(std::FILE * file, std::uint8_t * scratch, std::uint32_t scratchBytes, std::uint8_t * texels, int channel)
 {
     const u32 rows = (m_header.clutCount + 3U) / 4U * 16U;
     std::memset(texels, 0, kClutTextureWidth * rows * 4U);

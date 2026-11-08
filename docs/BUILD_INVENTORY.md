@@ -292,7 +292,7 @@ in fresh processes with assertions enabled and disabled. See acceptance in
 `make` / `make release` perform the actual EE link with
 all 271 campaign objects, the 18 campaign backend objects (2026-11-05 added `world_map.cpp` and `scene.cpp`, the render world's cooked-map and view seams), 38 resident support objects, the 7 production entry and device units, dlmalloc and the three VU objects (passthrough, world_lm, world_strips): 338 direct inputs, without GC or archives hiding undefined
 references. `RESIDENT_SUPPORT_CXX_SRC` uses its own full-header object tree and flag
-stamp. It excludes `core.cpp`'s fixture filesystem and `common_foundation.cpp`'s method
+stamp. It compiles `filesystem.cpp` without the core image's fixture filesystem (`ID_PS2_CORE`) and excludes `common_foundation.cpp`'s method
 substitutes. `SCRIPT_PROBE=1` with the production link is rejected explicitly.
 
 `link_resident.py` records the compiler/link command, flags, source/dependency/object

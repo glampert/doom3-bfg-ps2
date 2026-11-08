@@ -366,7 +366,7 @@ $(OUTPUT_DIR)/src/ps2/ui/paletted_image.o $(OUTPUT_DIR)/src/ps2/renderer/gs.o $(
 
 # Checked backend code includes upstream public contracts through this seam.
 # Only neo headers become system headers; ps2 and test headers stay checked.
-$(OUTPUT_DIR)/src/ps2/system/core.o $(OUTPUT_DIR)/src/ps2/system/sys.o $(OUTPUT_DIR)/src/ps2/system/sys_filesystem.o $(BOOT_OBJS): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
+$(OUTPUT_DIR)/src/ps2/system/filesystem.o $(OUTPUT_DIR)/src/ps2/system/sys.o $(OUTPUT_DIR)/src/ps2/system/sys_filesystem.o $(BOOT_OBJS): CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 
 # These checks inspect real campaign contracts; the session test exercises the offline replacement.
 $(OUTPUT_DIR)/src/tests/smoketests/type_query_engine_tests.o $(OUTPUT_DIR)/src/tests/smoketests/audio_tests.o $(OUTPUT_DIR)/src/tests/smoketests/offline_tests.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
