@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/ui/swf_runtime.h"
+#include "ps2/fnv.h"
 #include "ps2/system/log.h"
 
 #include <algorithm>
@@ -357,16 +358,11 @@ void Trace(const char * kind, const char * name)
 
     Require(kind != nullptr && name != nullptr, "trace identity");
     CheckString(std::strlen(name));
-    std::uint32_t hash = 2166136261U;
+    std::uint32_t hash = kFnv1a32Basis;
 
     for (const char * part : { kind, name })
     {
-        for (const auto * c = reinterpret_cast<const unsigned char *>(part); *c != 0; ++c)
-        {
-            hash = (hash ^ *c) * 16777619U;
-        }
-
-        hash = (hash ^ 0xffU) * 16777619U;
+        hash = Fnv1a32Byte(Fnv1a32(part, std::strlen(part), hash), 0xffU);
     }
 
     hash = hash == 0 ? 1 : hash;

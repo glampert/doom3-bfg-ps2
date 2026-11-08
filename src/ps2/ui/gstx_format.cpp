@@ -6,6 +6,7 @@
 // ================================================================================================
 
 #include "ps2/ui/gstx_format.h"
+#include "ps2/fnv.h"
 
 namespace ps2::ui::gstx
 {
@@ -41,22 +42,12 @@ static bool Zero(const std::uint8_t * bytes, std::uint32_t count)
     return true;
 }
 
-static std::uint32_t Fnv(const std::uint8_t * bytes, std::uint32_t length, std::uint32_t hash)
-{
-    for (std::uint32_t index = 0; index < length; ++index)
-    {
-        hash = (hash ^ bytes[index]) * 16777619U;
-    }
-
-    return hash;
-}
-
 // FNV-1a over the header and tables, with the checksum field (bytes 28..31) read as zero.
 static std::uint32_t TableChecksum(const std::uint8_t * bytes, std::uint32_t length)
 {
     static constexpr std::uint8_t kZero[4] = {};
-    const std::uint32_t head = Fnv(kZero, sizeof(kZero), Fnv(bytes, 28, 2166136261U));
-    return Fnv(bytes + 32, length - 32U, head);
+    const std::uint32_t head = Fnv1a32(kZero, sizeof(kZero), Fnv1a32(bytes, 28));
+    return Fnv1a32(bytes + 32, length - 32U, head);
 }
 
 static Rect GetRect(const std::uint8_t * bytes)
@@ -265,19 +256,6 @@ bool RleDecode(const std::uint8_t * input, std::size_t inputBytes, std::uint8_t 
     }
 
     return written == outputBytes;
-}
-
-std::uint32_t Checksum(const void * bytes, std::size_t length)
-{
-    const auto * const data = static_cast<const std::uint8_t *>(bytes);
-    std::uint32_t hash = 2166136261U;
-
-    for (std::size_t index = 0; index < length; ++index)
-    {
-        hash = (hash ^ data[index]) * 16777619U;
-    }
-
-    return hash;
 }
 
 } // namespace ps2::ui::gstx

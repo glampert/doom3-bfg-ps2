@@ -36,6 +36,7 @@ import sys
 import zlib
 
 import d3wd
+from ui_gstx import fnv1a32
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
@@ -257,9 +258,7 @@ def material_color(job: dict, material: str) -> list:
     tint = _f32(job.get("material_tint", 0.0))
     if tint <= 0.0:
         return color
-    digest = 2166136261
-    for byte in material.encode("latin1"):
-        digest = ((digest ^ byte) * 16777619) & 0xFFFFFFFF
+    digest = fnv1a32(material.encode("latin1"))
     for channel in range(3):
         unit = _f32(((digest >> (8 * channel)) & 0xFF) / _f32(255.0))
         color[channel] = _f32(color[channel] * _f32(1.0 + _f32(tint * _f32(_f32(2.0 * unit) - 1.0))))

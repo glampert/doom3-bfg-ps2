@@ -8,6 +8,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/world_textures.h"
+#include "ps2/fnv.h"
 #include "ps2/renderer/texture_format.h"
 #include "ps2/renderer/vif.h"
 #include "ps2/renderer/vram.h"
@@ -197,18 +198,14 @@ struct Textures
 
 PS2_COLD_FUNC static u32 NamesHash(const Sections & sections)
 {
-    u32 hash = 2166136261U;
+    u32 hash = kFnv1a32Basis;
 
     for (u32 index = 0; index < sections.materialCount; ++index)
     {
         const MaterialRecord & material = sections.materials[index];
-        const u8 * name = reinterpret_cast<const u8 *>(sections.strings + material.nameOffset);
 
         // Each name with its NUL, as the D3WD Strings section holds them.
-        for (u32 at = 0; at <= material.nameBytes; ++at)
-        {
-            hash = (hash ^ name[at]) * 16777619U;
-        }
+        hash = Fnv1a32(sections.strings + material.nameOffset, material.nameBytes + 1U, hash);
     }
 
     return hash;

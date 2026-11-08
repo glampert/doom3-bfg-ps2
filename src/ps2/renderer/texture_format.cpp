@@ -7,6 +7,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/texture_format.h"
+#include "ps2/fnv.h"
 
 namespace ps2::renderer::tex
 {
@@ -56,16 +57,6 @@ static std::uint64_t Dword(const std::uint8_t * bytes)
 static std::uint32_t Half(const std::uint8_t * bytes)
 {
     return static_cast<std::uint32_t>(bytes[0]) | (static_cast<std::uint32_t>(bytes[1]) << 8);
-}
-
-static std::uint32_t Fnv(const std::uint8_t * bytes, std::uint32_t length, std::uint32_t hash)
-{
-    for (std::uint32_t index = 0; index < length; ++index)
-    {
-        hash = (hash ^ bytes[index]) * 16777619U;
-    }
-
-    return hash;
 }
 
 static std::uint32_t Field(std::uint64_t value, int shift, int bits)
@@ -206,9 +197,9 @@ PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_
         return "not a GSTX v2 file";
     }
 
-    std::uint32_t headerHash = Fnv(file, 28, 2166136261U);
-    headerHash = Fnv(reinterpret_cast<const std::uint8_t *>("\0\0\0\0"), 4, headerHash);
-    headerHash = Fnv(file + 32, kImageHeaderBytes - 32U, headerHash);
+    std::uint32_t headerHash = Fnv1a32(file, 28);
+    headerHash = Fnv1a32("\0\0\0\0", 4, headerHash);
+    headerHash = Fnv1a32(file + 32, kImageHeaderBytes - 32U, headerHash);
 
     if (headerHash != Word(file + 28)) [[unlikely]]
     {
@@ -341,7 +332,7 @@ PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_
     }
 
 #if PS2_D3BFG_ASSERTS
-    if (Fnv(image.stream, image.streamQwords * 16U, 2166136261U) != Word(file + 24)) [[unlikely]]
+    if (Fnv1a32(image.stream, image.streamQwords * 16U) != Word(file + 24)) [[unlikely]]
     {
         return "GSTX v2 stream checksum mismatch";
     }
@@ -385,9 +376,9 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
         return "D3TX tables out of range";
     }
 
-    std::uint32_t hash = Fnv(file, 24, 2166136261U);
-    hash = Fnv(reinterpret_cast<const std::uint8_t *>("\0\0\0\0"), 4, hash);
-    hash = Fnv(file + 28, tablesEnd - 28U, hash);
+    std::uint32_t hash = Fnv1a32(file, 24);
+    hash = Fnv1a32("\0\0\0\0", 4, hash);
+    hash = Fnv1a32(file + 28, tablesEnd - 28U, hash);
 
     if (hash != Word(file + 24)) [[unlikely]]
     {

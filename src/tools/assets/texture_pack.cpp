@@ -151,7 +151,7 @@ bool CookTexture(const RgbaImage & source, const TexturePolicy & policy, GstxUsa
 
 std::uint32_t MaterialNamesHash(const std::vector<std::string> & materials)
 {
-    std::uint32_t hash = 2166136261U;
+    std::uint32_t hash = kFnv1a32Basis;
 
     for (const std::string & name : materials)
     {

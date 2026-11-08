@@ -6,6 +6,7 @@
 // ================================================================================================
 
 #include "ps2/ui/paletted_image.h"
+#include "ps2/fnv.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
@@ -141,7 +142,7 @@ PS2_COLD_FUNC bool PalettedImage::ReadCluts(std::FILE * file, std::uint8_t * scr
         const gstx::Clut clut = gstx::GetClut(m_tables, m_header, index);
 
         if (clut.dataBytes > scratchBytes || !ReadAt(file, clut.dataOffset, scratch, clut.dataBytes) ||
-            gstx::Checksum(scratch, clut.dataBytes) != clut.checksum)
+            Fnv1a32(scratch, clut.dataBytes) != clut.checksum)
         {
             return false;
         }
@@ -218,7 +219,7 @@ PS2_COLD_FUNC bool PalettedImage::Load(std::FILE * file, std::uint8_t * scratch,
             std::memcpy(decoded, encoded, page.decodedBytes);
         }
 
-        if (!unpacked || gstx::Checksum(decoded, page.decodedBytes) != page.checksum)
+        if (!unpacked || Fnv1a32(decoded, page.decodedBytes) != page.checksum)
         {
             return Failed("page block, encoding or checksum");
         }

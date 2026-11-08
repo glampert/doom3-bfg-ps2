@@ -45,14 +45,18 @@ inline void WriteLe32(std::uint8_t * bytes, std::uint32_t value)
     }
 }
 
-// Standard FNV-1a, the checksum the target's UI loaders already use for cooked payloads.
-inline std::uint32_t Fnv1a32(std::span<const std::uint8_t> bytes, std::uint32_t seed = 2166136261U)
+// Standard FNV-1a, the checksum every cooked format carries. The runtime's copy is src/ps2/fnv.h
+// (the tools build without the backend's headers); the GSTX host test checks that both agree.
+static constexpr std::uint32_t kFnv1a32Basis = 2166136261U;
+static constexpr std::uint32_t kFnv1a32Prime = 16777619U;
+
+inline std::uint32_t Fnv1a32(std::span<const std::uint8_t> bytes, std::uint32_t seed = kFnv1a32Basis)
 {
     std::uint32_t hash = seed;
 
     for (const std::uint8_t byte : bytes)
     {
-        hash = (hash ^ byte) * 16777619U;
+        hash = (hash ^ byte) * kFnv1a32Prime;
     }
 
     return hash;

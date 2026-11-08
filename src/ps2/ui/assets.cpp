@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/ui/assets.h"
+#include "ps2/fnv.h"
 #include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/render_system.h"
 #include "ps2/system/heap.h"
@@ -64,7 +65,7 @@ PS2_COLD_FUNC void * Snapshot(const char * path, std::uint32_t length, std::uint
     const bool read = source->Read(bytes, static_cast<int>(length)) == static_cast<int>(length);
     delete source;
 
-    if (!read || gstx::Checksum(bytes, length) != checksum)
+    if (!read || Fnv1a32(bytes, length) != checksum)
     {
         system::heap::Free(bytes);
         FatalError("retail movie resource checksum mismatch: %s", path);
@@ -219,7 +220,7 @@ PS2_COLD_FUNC idFile * OpenFont(const FontRecord & font)
     delete source;
     fonts::FontFormatSummary summary;
 
-    if (!read || gstx::Checksum(bytes, admitted.bytes) != admitted.checksum ||
+    if (!read || Fnv1a32(bytes, admitted.bytes) != admitted.checksum ||
         !fonts::ValidateFontBytes(bytes, admitted.bytes, image.width, image.height, summary))
     {
         system::heap::Free(bytes);

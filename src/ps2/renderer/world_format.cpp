@@ -6,6 +6,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/world_format.h"
+#include "ps2/fnv.h"
 #include "ps2/renderer/vif.h"
 
 #include <bit> // not ps2/math: the host world tests compile this file too
@@ -26,16 +27,6 @@ static std::uint32_t Word(const std::uint8_t * bytes)
 static std::uint32_t Half(const std::uint8_t * bytes)
 {
     return static_cast<std::uint32_t>(bytes[0]) | (static_cast<std::uint32_t>(bytes[1]) << 8);
-}
-
-static std::uint32_t Fnv(const std::uint8_t * bytes, std::uint32_t length, std::uint32_t hash)
-{
-    for (std::uint32_t index = 0; index < length; ++index)
-    {
-        hash = (hash ^ bytes[index]) * 16777619U;
-    }
-
-    return hash;
 }
 
 static bool Zero(const std::uint8_t * bytes, std::uint32_t count)
@@ -372,7 +363,7 @@ PS2_COLD_FUNC const char * Validate(const std::uint8_t * file, std::uint32_t byt
 
     // FNV-1a over the header and directory with the checksum field (bytes 16..19) read as zero.
     static constexpr std::uint8_t kZero[4] = {};
-    const std::uint32_t checksum = Fnv(file + 20, kDirectoryBytes - 20U, Fnv(kZero, 4, Fnv(file, 16, 2166136261U)));
+    const std::uint32_t checksum = Fnv1a32(file + 20, kDirectoryBytes - 20U, Fnv1a32(kZero, 4, Fnv1a32(file, 16)));
 
     if (checksum != Word(file + 16)) [[unlikely]]
     {
@@ -397,7 +388,7 @@ PS2_COLD_FUNC const char * Validate(const std::uint8_t * file, std::uint32_t byt
             return "world section out of place";
         }
 
-        if (Fnv(file + offset, size, 2166136261U) != Word(record + 12)) [[unlikely]]
+        if (Fnv1a32(file + offset, size) != Word(record + 12)) [[unlikely]]
         {
             return "world section checksum mismatch";
         }

@@ -5,7 +5,9 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "assets/bytes.h"
 #include "assets/texture_convert.h"
+#include "ps2/fnv.h"
 #include "ps2/ui/gstx_format.h"
 
 #include <cstdint>
@@ -138,10 +140,18 @@ static bool Checksums()
     static constexpr char kA[] = "a";
     static constexpr char kFoobar[] = "foobar";
     static constexpr char kHello[] = "hello";
-    return Check(gstx::Checksum(nullptr, 0) == 0x811C9DC5, "empty FNV-1a32 basis") &&
-           Check(gstx::Checksum(kA, sizeof(kA) - 1U) == 0xE40C292C, "FNV-1a32 a vector") &&
-           Check(gstx::Checksum(kFoobar, sizeof(kFoobar) - 1U) == 0xBF9CF968, "FNV-1a32 foobar vector") &&
-           Check(gstx::Checksum(kHello, sizeof(kHello) - 1U) == 0x4F9F2CAB, "FNV-1a32 hello vector");
+    static constexpr std::uint8_t kBytes[] = { 0x00, 0x7F, 0x80, 0xFF, 0x12, 0x34 };
+
+    // The tools' copy (src/tools/assets/bytes.h) must write what the runtime's reads.
+    const bool shared =
+        assets::Fnv1a32({ kBytes, sizeof(kBytes) }) == ps2::Fnv1a32(kBytes, sizeof(kBytes)) &&
+        assets::Fnv1a32({ kBytes + 2, 4 }, assets::Fnv1a32({ kBytes, 2 })) == ps2::Fnv1a32(kBytes, sizeof(kBytes));
+    return Check(ps2::Fnv1a32(nullptr, 0) == 0x811C9DC5, "empty FNV-1a32 basis") &&
+           Check(ps2::Fnv1a32(kA, sizeof(kA) - 1U) == 0xE40C292C, "FNV-1a32 a vector") &&
+           Check(ps2::Fnv1a32(kFoobar, sizeof(kFoobar) - 1U) == 0xBF9CF968, "FNV-1a32 foobar vector") &&
+           Check(ps2::Fnv1a32(kHello, sizeof(kHello) - 1U) == 0x4F9F2CAB, "FNV-1a32 hello vector") &&
+           Check(ps2::Fnv1a32Byte(ps2::kFnv1a32Basis, 'a') == 0xE40C292C, "FNV-1a32 single byte") &&
+           Check(shared, "tool and runtime FNV-1a32 agree");
 }
 
 } // namespace

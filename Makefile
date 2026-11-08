@@ -690,18 +690,18 @@ build/tests/asset_tests: src/tests/host/asset_tests.cpp $(ASSET_LIB_SRC) $(ASSET
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/asset_tests.cpp $(ASSET_LIB_SRC) -o $@
 
 # The target's GSTX admission against files the host converter writes.
-build/tests/gstx_format_tests: src/tests/host/gstx_format_tests.cpp src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+build/tests/gstx_format_tests: src/tests/host/gstx_format_tests.cpp src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h src/ps2/fnv.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/gstx_format_tests.cpp src/ps2/ui/gstx_format.cpp $(ASSET_LIB_SRC) -o $@
 
 # The world cook (proc reader, strips, D3WD) and the target's D3WD validator against the graybox
 # fixture and synthetic grids.
-build/tests/world_tests: src/tests/host/world_tests.cpp src/ps2/renderer/world_format.cpp src/ps2/renderer/world_format.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+build/tests/world_tests: src/tests/host/world_tests.cpp src/ps2/renderer/world_format.cpp src/ps2/renderer/world_format.h src/ps2/fnv.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/world_tests.cpp src/ps2/renderer/world_format.cpp $(ASSET_LIB_SRC) -o $@
 
 # The GS memory emulation, GSTX v2 cook and the target's GSTX v2 validator against each other.
-build/tests/texture_format_tests: src/tests/host/texture_format_tests.cpp src/ps2/renderer/texture_format.cpp src/ps2/renderer/texture_format.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
+build/tests/texture_format_tests: src/tests/host/texture_format_tests.cpp src/ps2/renderer/texture_format.cpp src/ps2/renderer/texture_format.h src/ps2/fnv.h $(ASSET_LIB_SRC) $(ASSET_LIB_HEADERS) build/tests/.asset-flags.json
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -ffp-contract=off -Isrc/tools src/tests/host/texture_format_tests.cpp src/ps2/renderer/texture_format.cpp $(ASSET_LIB_SRC) -o $@
 
@@ -776,7 +776,7 @@ build/tests/ui_font_format_tests: src/tests/host/ui_font_format_tests.cpp src/ps
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_font_format_tests.cpp src/ps2/ui/font_format.cpp -o $@
 
-build/tests/ui_catalog_tests: src/tests/host/ui_catalog_tests.cpp src/ps2/ui/catalog.cpp src/ps2/ui/catalog.h src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h src/ps2/ui/font_format.h Makefile
+build/tests/ui_catalog_tests: src/tests/host/ui_catalog_tests.cpp src/ps2/ui/catalog.cpp src/ps2/ui/catalog.h src/ps2/ui/gstx_format.cpp src/ps2/ui/gstx_format.h src/ps2/fnv.h src/ps2/ui/font_format.h Makefile
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/ui_catalog_tests.cpp src/ps2/ui/catalog.cpp src/ps2/ui/gstx_format.cpp -o $@
 
@@ -796,7 +796,7 @@ build/tests/swf_execution_tests: src/tests/host/swf_execution_tests.cpp src/ps2/
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(HOST_TEST_FLAGS) src/tests/host/swf_execution_tests.cpp src/ps2/ui/swf_execution.cpp src/ps2/ui/swf_format.cpp -o $@
 
-build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp src/ps2/ui/swf_runtime.h src/ps2/system/log.h Makefile
+build/tests/swf_runtime_tests_%: src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp src/ps2/ui/swf_runtime.h src/ps2/system/log.h src/ps2/fnv.h Makefile
 	@mkdir -p $(dir $@)
 	$(HOST_CXX) $(filter-out -DPS2_D3BFG_ASSERTS=1,$(HOST_TEST_FLAGS)) -DPS2_D3BFG_ASSERTS=$* src/tests/host/swf_runtime_tests.cpp src/ps2/ui/swf_runtime.cpp -o $@
 
