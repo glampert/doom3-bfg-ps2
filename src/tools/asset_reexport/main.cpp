@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -894,9 +895,66 @@ static std::string Ratio(std::size_t numerator, std::size_t denominator)
 // The world's diffuse textures (RENDERING_ARCHITECTURE.md 10.4): each material's first diffuse
 // stage, decoded from the BIMAGE id generated for it, its coverage image's alpha merged in when the
 // stage alpha-tests, cooked into GSTX v2 and packed by material into <stem>.d3tx, with a report.
+// log2 of each material's UV units per world unit over the map's area surfaces: the square root of
+// its total UV area over its total world area (0 for a material without area).
+static std::vector<float> MaterialUvDensity(const ProcFile & proc, const std::vector<std::string> & materials)
+{
+    std::map<std::string, std::array<double, 2> > totals;
+
+    for (const ProcModel & model : proc.models)
+    {
+        if (model.name.rfind("_area", 0) != 0)
+        {
+            continue;
+        }
+
+        for (const ProcSurface & surface : model.surfaces)
+        {
+            std::array<double, 2> & total = totals[surface.material];
+
+            for (std::size_t index = 0; index + 2 < surface.indices.size(); index += 3)
+            {
+                const ProcVertex & a = surface.vertices[surface.indices[index]];
+                const ProcVertex & b = surface.vertices[surface.indices[index + 1]];
+                const ProcVertex & c = surface.vertices[surface.indices[index + 2]];
+                double edge1[3];
+                double edge2[3];
+
+                for (std::size_t axis = 0; axis < 3; ++axis)
+                {
+                    edge1[axis] = static_cast<double>(b.position[axis]) - static_cast<double>(a.position[axis]);
+                    edge2[axis] = static_cast<double>(c.position[axis]) - static_cast<double>(a.position[axis]);
+                }
+
+                const double cx = edge1[1] * edge2[2] - edge1[2] * edge2[1];
+                const double cy = edge1[2] * edge2[0] - edge1[0] * edge2[2];
+                const double cz = edge1[0] * edge2[1] - edge1[1] * edge2[0];
+                const double du1 = static_cast<double>(b.uv[0]) - static_cast<double>(a.uv[0]);
+                const double dv1 = static_cast<double>(b.uv[1]) - static_cast<double>(a.uv[1]);
+                const double du2 = static_cast<double>(c.uv[0]) - static_cast<double>(a.uv[0]);
+                const double dv2 = static_cast<double>(c.uv[1]) - static_cast<double>(a.uv[1]);
+                const double uvCross = du1 * dv2 - dv1 * du2;
+                total[0] += 0.5 * std::sqrt(cx * cx + cy * cy + cz * cz);
+                total[1] += 0.5 * std::fabs(uvCross);
+            }
+        }
+    }
+
+    std::vector<float> density;
+
+    for (const std::string & material : materials)
+    {
+        const auto found = totals.find(material);
+        const bool usable = found != totals.end() && found->second[0] > 0.0 && found->second[1] > 0.0;
+        density.push_back(usable ? static_cast<float>(0.5 * std::log2(found->second[1] / found->second[0])) : 0.0f);
+    }
+
+    return density;
+}
+
 static bool CookWorldTextures(const fs::path & data, const std::vector<std::string> & containers, const WorldTextureJob & job,
-                              const std::vector<std::string> & materials, const fs::path & output, const std::string & stem,
-                              const fs::path & previews)
+                              const std::vector<std::string> & materials, const std::vector<float> & density, const fs::path & output,
+                              const std::string & stem, const fs::path & previews)
 {
     std::vector<fs::path> inputs;
 
@@ -939,6 +997,7 @@ static bool CookWorldTextures(const fs::path & data, const std::vector<std::stri
 
     TexturePack pack;
     pack.materialsHash = MaterialNamesHash(materials);
+    pack.materialUvDensity = density;
     std::map<std::string, std::uint32_t> cooked;
     std::string textureReport;
     std::string untextured;
@@ -1258,7 +1317,8 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return false;
     }
 
-    return !textures.enabled || CookWorldTextures(data, containers, textures, world.materials, output, stem, previews);
+    return !textures.enabled ||
+           CookWorldTextures(data, containers, textures, world.materials, MaterialUvDensity(proc, world.materials), output, stem, previews);
 }
 
 static void Usage()

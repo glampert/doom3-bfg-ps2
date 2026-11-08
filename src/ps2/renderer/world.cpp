@@ -9,6 +9,8 @@
 #include "ps2/renderer/dma.h"
 #include "ps2/renderer/dma_list.h"
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/texture_format.h"
+#include "ps2/renderer/world_textures.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
@@ -20,51 +22,79 @@
 namespace ps2::renderer::world
 {
 
+namespace
+{
+
+static bool s_texturesEnabled = true;
+static Textures * s_passTextures = nullptr;
+static TextureStats s_lastStats = {};
+
+} // namespace
+
+
 static_assert(kInputHalfQwords == kVuInputHalfQwords, "world_format.h and vu_memory.h disagree on the input half");
 
-PS2_COLD_FUNC bool Load(const char * path, Level & level)
+PS2_COLD_FUNC void * ReadWhole(const char * path, u32 limit, u32 & bytes)
 {
-    level = {};
+    bytes = 0;
     std::FILE * file = std::fopen(path, "rb");
 
     if (file == nullptr) [[unlikely]]
     {
-        Log(LogLevel::Error, "cannot open world %s\n", path);
-        return false;
+        Log(LogLevel::Error, "cannot open %s\n", path);
+        return nullptr;
     }
 
     const bool seeked = std::fseek(file, 0, SEEK_END) == 0;
     const long length = seeked ? std::ftell(file) : -1;
     const bool rewound = std::fseek(file, 0, SEEK_SET) == 0;
 
-    if (!seeked || !rewound || length <= 0 || static_cast<unsigned long>(length) > kMaxFileBytes) [[unlikely]]
+    if (!seeked || !rewound || length <= 0 || static_cast<unsigned long>(length) > limit) [[unlikely]]
     {
         std::fclose(file);
-        Log(LogLevel::Error, "unusable world file size in %s\n", path);
-        return false;
+        Log(LogLevel::Error, "unusable file size in %s\n", path);
+        return nullptr;
     }
 
-    const u32 bytes = static_cast<u32>(length);
-    void * storage = system::heap::TryAlloc(bytes, TAG_RENDER, kPacketAlignment);
+    const u32 size = static_cast<u32>(length);
+    void * storage = system::heap::TryAlloc(size, TAG_RENDER, kPacketAlignment);
 
     if (storage == nullptr) [[unlikely]]
     {
         std::fclose(file);
-        Log(LogLevel::Error, "no memory for world %s (%u bytes)\n", path, bytes);
-        return false;
+        Log(LogLevel::Error, "no memory for %s (%u bytes)\n", path, size);
+        return nullptr;
     }
 
-    const bool read = std::fread(storage, 1, bytes, file) == bytes;
+    const bool read = std::fread(storage, 1, size, file) == size;
     const bool closed = std::fclose(file) == 0;
 
     if (!read || !closed) [[unlikely]]
     {
         system::heap::Free(storage);
-        Log(LogLevel::Error, "world %s refused: read failed\n", path);
-        return false;
+        Log(LogLevel::Error, "%s refused: read failed\n", path);
+        return nullptr;
     }
 
-    return Adopt(storage, bytes, path, level);
+    bytes = size;
+    return storage;
+}
+
+PS2_COLD_FUNC bool Load(const char * path, Level & level)
+{
+    level = {};
+    u32 bytes = 0;
+    void * storage = ReadWhole(path, kMaxFileBytes, bytes);
+    return storage != nullptr && Adopt(storage, bytes, path, level);
+}
+
+PS2_COLD_FUNC bool LoadTextures(const char * path, Level & level)
+{
+    PS2_AssertMsg(level.storage != nullptr && level.textures == nullptr, "textures for no level, or twice");
+    u32 bytes = 0;
+    void * storage = ReadWhole(path, tex::kPackMaxFileBytes, bytes);
+    level.textures = storage != nullptr ? AdoptTextures(storage, bytes, path, level.sections) : nullptr;
+    return level.textures != nullptr;
 }
 
 PS2_COLD_FUNC bool Adopt(void * storage, u32 bytes, const char * name, Level & level)
@@ -99,6 +129,13 @@ PS2_COLD_FUNC void Unload(Level & level)
     // A frame still in flight may read the packets: the caller has ended its frames.
     PS2_AssertMsg(!dma::IsInitialized() || !dma::InFlight(), "world unloaded while its packets may be in flight");
 
+    if (s_passTextures == level.textures)
+    {
+        s_passTextures = nullptr;
+    }
+
+    FreeTextures(level.textures);
+
     if (level.storage != nullptr)
     {
         system::heap::Free(level.storage);
@@ -116,19 +153,42 @@ vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::Dra
     constants.gsOffset       = gs::WindowOffset();
     constants.gsOffset.w     = vu::kClipDistanceScale;
     constants.clipScale      = { vu::kGuardBandScale, vu::kGuardBandScale, 1.0f, 0.0f };
-    constants.stripTag       = gs::DrawingTag(gs::Primitive::TriangleStrip, gs::VertexFormat::ColorPosition, context);
-    constants.listTag        = gs::DrawingTag(gs::Primitive::Triangle, gs::VertexFormat::ColorPosition, context);
+    constants.stripTag       = gs::DrawingTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context);
+    constants.listTag        = gs::DrawingTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context);
     return constants;
+}
+
+void SetTexturesEnabled(bool enabled)
+{
+    s_texturesEnabled = enabled;
+}
+
+bool TexturesEnabled()
+{
+    return s_texturesEnabled;
+}
+
+const TextureStats & LastPassTextureStats()
+{
+    return s_lastStats;
 }
 
 void BeginPass(const Level & level, const math::Mat4 & viewProjection)
 {
+    s_passTextures = s_texturesEnabled ? level.textures : nullptr;
+
     const gs::DrawContext context = renderer::DrawingContext();
     dma::DisplayList & list = dma::List();
 
     list.SetFrameConstants(MakeFrameConstants(viewProjection, context));
     gs::BeginDepthPass(list, context);
     list.SetProgram(level.sections.indexedStrips ? vu::Program::WorldLightmapped : vu::Program::WorldStrips);
+
+    // GS pixels per world unit at depth 1, for the mip LOD: clip x per view x (the length of the
+    // matrix's first column, the view rotation being orthonormal) times the window scale.
+    const float columnX = viewProjection.m[0][0] * viewProjection.m[0][0] + viewProjection.m[1][0] * viewProjection.m[1][0] +
+                          viewProjection.m[2][0] * viewProjection.m[2][0];
+    BeginTextures(s_passTextures, context, gs::WindowScale().x * math::Sqrtf(columnX));
 }
 
 void DrawArea(const Level & level, u32 area)
@@ -142,7 +202,8 @@ void DrawArea(const Level & level, u32 area)
     for (u32 index = record.firstBatch; index < record.firstBatch + record.batchCount; ++index)
     {
         const BatchRecord & batch = sections.batches[index];
-        list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords);
+        const void * state = BatchState(s_passTextures, list, batch.material);
+        list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords);
     }
 }
 
@@ -152,6 +213,7 @@ void EndPass()
 
     list.EndBatches();
     gs::EndDepthPass(list, renderer::DrawingContext());
+    s_lastStats = GetTextureStats(s_passTextures);
 }
 
 void Draw(const Level & level, const math::Mat4 & viewProjection)

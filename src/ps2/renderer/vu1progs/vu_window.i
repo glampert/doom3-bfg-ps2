@@ -25,8 +25,8 @@
 ; ---------------------------------------------------------------------
 ; Output windows
 ;
-; A packet is one drawing tag, copied from its template, then RGBAQ and
-; XYZ2 per vertex. The program fills a window, patches the tag's NLOOP
+; A packet is one drawing tag, copied from its template, then ST (with Q),
+; RGBAQ and XYZ2 per vertex. The program fills a window, patches the tag's NLOOP
 ; and EOP, kicks it and continues in the other window. The state (which
 ; window is next, and the signed step to the other) lives in a spill
 ; qword rather than VI registers, which the clipper runs out of first,
@@ -44,6 +44,19 @@
 #macro OpenOutputWindow: tagAddr
     ilw.x  iOutPtr, kVuWindowStateAddr(vi00)
     lq     fTag,    tagAddr(vi00)
+    sqi    fTag,    (iOutPtr++)
+    iaddiu iVertsLeft, vi00, kVuWindowVertices
+#endmacro
+
+; The same with the batch's own drawing tag, at 'tagOffset' from XTOP (the
+; batch state DisplayList::DrawBatch unpacks); the cursor register holds
+; XTOP while the tag loads.
+;
+;   out = win; *out++ = xtop()[tagOffset]; vertsLeft = kVuWindowVertices;
+#macro OpenBatchWindow: tagOffset
+    xtop   iOutPtr
+    lq     fTag,    tagOffset(iOutPtr)
+    ilw.x  iOutPtr, kVuWindowStateAddr(vi00)
     sqi    fTag,    (iOutPtr++)
     iaddiu iVertsLeft, vi00, kVuWindowVertices
 #endmacro
@@ -95,11 +108,11 @@
 ; judgements left the band, 0x7FFF + flag reaches bit 15, the ADC bit, and
 ; the GS skips the triangle. Must run in the block of the clipw it reads.
 ;
-;   adc = 0x7FFF + (clipFlags.last3() != 0); out[1].w = out[3].w = out[5].w = adc;
+;   adc = 0x7FFF + (clipFlags.last3() != 0); out[2].w = out[5].w = out[8].w = adc;
 #macro WholeTriangleReject
     fcand  vi01, 0x3FFFF
     iaddiu iADC, vi01, 0x7FFF
-    isw.w  iADC, 1(iOutPtr)
-    isw.w  iADC, 3(iOutPtr)
+    isw.w  iADC, 2(iOutPtr)
     isw.w  iADC, 5(iOutPtr)
+    isw.w  iADC, 8(iOutPtr)
 #endmacro

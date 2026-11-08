@@ -7,9 +7,10 @@ duplicated, left unclassified, or enabled despite an exclusion. Source discovery
 for auditing only; it never selects files for compilation.
 
 Current source audit, reviewed **2026-11-08**: 393 shipped units, 271 retained
-campaign units, 18 campaign backend sources, 51 core backend sources, 39 resident support
-sources, three VU microprograms and 369 compile database entries (the GSTX v2 validator,
-`renderer/texture_format.cpp`, joined core backend and resident support on 2026-11-08). On 2026-11-07 the nine
+campaign units, 18 campaign backend sources, 52 core backend sources, 40 resident support
+sources, three VU microprograms and 370 compile database entries (the GSTX v2 validator,
+`renderer/texture_format.cpp`, and the world texture residency, `renderer/world_textures.cpp`,
+joined core backend and resident support on 2026-11-08). On 2026-11-07 the nine
 renderer frontend units the PS2 renderer replaces (light and model passes, interactions, the
 shadow-volume jobs, deforms and the gui model) moved from campaign runtime to PS2 replacement. The current acceptance state is the "Current snapshot" section of
 [PORT_STATUS.md](PORT_STATUS.md#current-snapshot--2026-10-31). Later

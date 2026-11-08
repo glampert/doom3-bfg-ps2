@@ -136,6 +136,17 @@ void ReleaseVram(const VramAllocation & allocation)
     s_allocations[allocation.slot] = {};
 }
 
+bool IsVramLive(const VramAllocation & allocation)
+{
+    if (!s_initialized || allocation.bytes == 0 || allocation.slot >= kMaxVramAllocations)
+    {
+        return false;
+    }
+
+    const VramAllocation & current = s_allocations[allocation.slot];
+    return current.byteAddress == allocation.byteAddress && current.bytes == allocation.bytes && current.generation == allocation.generation;
+}
+
 void ResetVram()
 {
     for (auto & page : s_pages)

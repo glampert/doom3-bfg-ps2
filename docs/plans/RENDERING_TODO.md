@@ -213,10 +213,12 @@ production link free of test inputs. Section numbers in parentheses point into t
       and the runner matches every pixel with the fixture's formulas (2026-11-08).
 - [ ] Cook: material pass tables for opaque and alpha-tested materials, cavity bake into the
       diffuse, Q2 policy (10.1, 10.2, 15.3).
+- [x] Runtime: textured world pass (2026-11-08): `world_lm.vcl`/`world_strips.vcl` send STQ, each
+      batch carries its material's texture state, and `world_textures.cpp` keeps the map's D3TX
+      resident in a block-granular VRAM arena with LRU eviction and in-chain uploads; the
+      retail gate captures every view textured too (6.3, 10.5).
 - [ ] Runtime: lightmap pass (`Cd x As`, GEQUAL, ZMSK 1) through the second context; sky
-      program; `ps2::renderer::tex` streaming per area ring with pinning of in-flight
-      textures, `FLUSHA; DIRECT` uploads inside the chain, block-granular `gs::VramArena`
-      (10.5).
+      program; streaming the EE copies per area ring from the package (10.5).
 - [ ] Pull the declaration-text lever (4.76 MB on demand) before measuring the level ledger
       (16.1).
 - [ ] Gate: mars_city1 camera path; area, portal and node counts and sampled

@@ -211,7 +211,8 @@ and redraw-request counts. These three controls are available only in visible mo
 `ps2_maxFrames` and the ordinary command stream work in either mode.
 
 `ps2_world` (visible mode too) drives Common's render world without a game map:
-`load maps/NAME` takes `base/maps/NAME.d3wd` (from `make world-cook` or `world-cook-retail`;
+`load maps/NAME` takes `base/maps/NAME.d3wd` (from `make world-cook` or `world-cook-retail`, with
+`base/maps/NAME.d3tx` beside it drawing its textures when there is one;
 its materials must be declared in `base/materials/`, or id's declaration manager loads images
 the PS2 refuses; `run_world_retail.py` declares the retail ones collision-only from the cook
 report), `view EX EY EZ TX TY TZ` draws it every frame from the eye towards the
@@ -222,7 +223,9 @@ MATERIAL` projects a SIZE square along D onto the surfaces around O as the game'
 does (built when a view next sees them; materials without stages need `forceOverlays`), `decals`
 logs what the entities hold (count, triangles, area, bounds), `portal HANDLE open|closed` sets a
 portal's view blocking, `off` stops drawing, `unload` empties the world and `status` logs the
-areas, portals and the last view's area, entities, drawn areas, batches and frame arena use.
+areas, portals and the last view's area, entities, drawn areas, batches and frame arena use;
+`textures on|off` draws the world textured (the default) or untextured, and `textures status`
+logs the last pass's texture arena, residents, uploads, evictions and untextured fallbacks.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
 the graybox and runs it. Production draws 640 wide by default. `ps2_frameBufferBits
 16/16|32/16|32/32` sets the in-game frame-buffer profile (draw/display bits; 32/16 draws in

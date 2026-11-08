@@ -8,7 +8,9 @@
 
 #include "ps2/renderer/dma.h"
 #include "ps2/renderer/render_system.h"
+#include "ps2/renderer/texture_format.h"
 #include "ps2/renderer/world.h"
+#include "ps2/renderer/world_textures.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
@@ -25,11 +27,12 @@ namespace
 using ps2::renderer::world::Level;
 using ps2::renderer::world::Sections;
 
-// Reads maps/<name>.d3wd whole into a DMA-ready allocation. 'found' tells a missing file from a
-// refused one.
-PS2_COLD_FUNC Level * ReadLevel(const char * path, bool & found)
+// Reads 'path' whole into a DMA-ready allocation of at most 'limit' bytes. 'found' tells a missing
+// file from a refused one.
+PS2_COLD_FUNC void * ReadCooked(const char * path, u32 limit, u32 & bytes, bool & found)
 {
     found = false;
+    bytes = 0;
     idFile * file = fileSystem->OpenFileRead(path);
 
     if (file == nullptr)
@@ -40,20 +43,19 @@ PS2_COLD_FUNC Level * ReadLevel(const char * path, bool & found)
     found = true;
     const int length = file->Length();
 
-    if (length <= 0 || static_cast<u32>(length) > ps2::renderer::world::kMaxFileBytes) [[unlikely]]
+    if (length <= 0 || static_cast<u32>(length) > limit) [[unlikely]]
     {
         fileSystem->CloseFile(file);
-        ps2::Log(ps2::LogLevel::Error, "unusable world file size in %s\n", path);
+        ps2::Log(ps2::LogLevel::Error, "unusable file size in %s\n", path);
         return nullptr;
     }
 
-    const u32 bytes = static_cast<u32>(length);
-    void * storage = ps2::system::heap::TryAlloc(bytes, TAG_RENDER, ps2::renderer::world::kPacketAlignment);
+    void * storage = ps2::system::heap::TryAlloc(static_cast<u32>(length), TAG_RENDER, ps2::renderer::world::kPacketAlignment);
 
     if (storage == nullptr) [[unlikely]]
     {
         fileSystem->CloseFile(file);
-        ps2::Log(ps2::LogLevel::Error, "no memory for world %s (%u bytes)\n", path, bytes);
+        ps2::Log(ps2::LogLevel::Error, "no memory for %s (%d bytes)\n", path, length);
         return nullptr;
     }
 
@@ -63,16 +65,41 @@ PS2_COLD_FUNC Level * ReadLevel(const char * path, bool & found)
     if (!read) [[unlikely]]
     {
         ps2::system::heap::Free(storage);
-        ps2::Log(ps2::LogLevel::Error, "world %s refused: read failed\n", path);
+        ps2::Log(ps2::LogLevel::Error, "%s refused: read failed\n", path);
+        return nullptr;
+    }
+
+    bytes = static_cast<u32>(length);
+    return storage;
+}
+
+// Reads maps/<name>.d3wd, and maps/<name>.d3tx beside it when there is one (a refused package
+// leaves the world untextured). 'found' tells a missing world from a refused one.
+PS2_COLD_FUNC Level * ReadLevel(idStrStatic<MAX_OSPATH> & path, bool & found)
+{
+    u32 bytes = 0;
+    void * storage = ReadCooked(path.c_str(), ps2::renderer::world::kMaxFileBytes, bytes, found);
+
+    if (storage == nullptr)
+    {
         return nullptr;
     }
 
     auto * level = new (TAG_RENDER) Level;
 
-    if (!ps2::renderer::world::Adopt(storage, bytes, path, *level)) [[unlikely]]
+    if (!ps2::renderer::world::Adopt(storage, bytes, path.c_str(), *level)) [[unlikely]]
     {
         delete level;
         return nullptr;
+    }
+
+    path.SetFileExtension("d3tx");
+    bool texturesFound = false;
+    void * textures = ReadCooked(path.c_str(), ps2::renderer::tex::kPackMaxFileBytes, bytes, texturesFound);
+
+    if (textures != nullptr)
+    {
+        level->textures = ps2::renderer::world::AdoptTextures(textures, bytes, path.c_str(), level->sections);
     }
 
     return level;
@@ -135,7 +162,7 @@ PS2_COLD_FUNC bool idRenderWorldLocal::InitFromCookedMap(const char * name, bool
     idStrStatic<MAX_OSPATH> path = name;
     path.SetFileExtension("d3wd");
 
-    Level * level = ReadLevel(path.c_str(), found);
+    Level * level = ReadLevel(path, found);
 
     if (level == nullptr)
     {

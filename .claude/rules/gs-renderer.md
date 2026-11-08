@@ -106,6 +106,12 @@ coordinates; CLUTs; VRAM and mipmaps.
   `BITBLTBUF` with `DBW 1`, REF under `DIRECT`, `TEXFLUSH`) and `RelocateTex0`/`RelocateMiptbp`
   move the cooked block addresses. Never reorder or copy its texels on the EE. Fixed-LOD draws:
   `TEX1.LCM` 1 with `K` = level << 4. `renderer::DrawingContext()` asserts an open frame.
+- **Textured world pass:** a map's `.d3tx` stays resident in one VRAM arena (`world_textures.cpp`:
+  the texture range less 256 KiB for the UI, LRU, never evicting what this pass drew, so a texture's
+  last reader is an earlier chain). Each batch's state block is per material and per drawing
+  context: a frame rewrites only its own context's blocks, never one the chain in flight reads.
+  `TEX1.K` = log2(UV per unit) + log2(texture size) - log2(GS pixels per unit at depth 1).
+  `ps2_world textures on|off|status`; untextured captures stay the reference gate.
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,
   eviction, destruction and image close drain/FINISH (flush queued UI references) before
   overwriting or releasing VRAM. Uploads retire PATH2 before synchronous PATH3 chains.

@@ -18,7 +18,7 @@
     1.0,
     1.0
   ],
-  "material_tint": 0.35,
+  "material_tint": 0.0,
   "textures": {
     "material_containers": [
       "_common.resources",

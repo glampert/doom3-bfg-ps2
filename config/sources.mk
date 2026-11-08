@@ -231,6 +231,7 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/renderer/dma_list.cpp \
 	ps2/renderer/vu.cpp \
 	ps2/renderer/world.cpp \
+	ps2/renderer/world_textures.cpp \
 	ps2/renderer/world_format.cpp \
 	ps2/renderer/texture_format.cpp \
 	ps2/renderer/render_system.cpp \
@@ -590,6 +591,7 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/renderer/dma_list.cpp \
 	ps2/renderer/vu.cpp \
 	ps2/renderer/world.cpp \
+	ps2/renderer/world_textures.cpp \
 	ps2/renderer/world_format.cpp \
 	ps2/renderer/texture_format.cpp \
 	ps2/renderer/render_system.cpp \

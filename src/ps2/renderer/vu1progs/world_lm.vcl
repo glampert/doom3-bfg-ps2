@@ -1,20 +1,24 @@
 ; =================================================================================================
 ; world_lm.vcl
 ;
-; One cooked world batch (D3WD, layout WA: src/tools/assets/world.h), vertex colour only until
-; lightmaps exist. Preprocessed with vclpp; -j adds the VCL boilerplate.
+; One cooked world batch (D3WD, layout WA: src/tools/assets/world.h), textured with its material's
+; diffuse and the vertex colour until lightmaps exist. Preprocessed with vclpp; -j adds the VCL
+; boilerplate.
 ;
 ; Batch layout at XTOP:
 ;   +0       position offset xyz, w the index qwords Q
-;   +1       position scale x (UV scale and offset, unused until textures)
+;   +1       position scale x, UV scale y, UV offset zw
 ;   +2       the strip index stream: four entries per qword, each the vertex's qword offset in
 ;            this half with the GS ADC flag in bit 15 (entries past the last repeat the first
 ;            vertex with ADC set, so whole qwords can be walked)
-;   +2+Q     N vertices (N from XITOP) of three qwords: position s16, UVs, RGBA bytes
+;   +2+Q     N vertices (N from XITOP) of four qwords: position s16, UVs, RGBA bytes, free
+;   +297     the batch state (vu_memory.h): an A+D packet with the material's texture registers
+;            and TEST, kicked first, then the batch's strip and list drawing tags
 ;
 ; Phase 1 transforms every unique vertex once, in place: qword 0 becomes the clip-space
 ; position, qword 1 the projected XYZ2 (12.4 xy, z) with w 0x8000 when the vertex left the guard
-; band, and qword 2 keeps the colour bytes, already PACKED RGBAQ.
+; band, qword 2 keeps the colour bytes, already PACKED RGBAQ, and qword 3 receives the PACKED ST
+; with Q: the UV times 1/w, and 1/w.
 ;
 ; Phase 2 sends the batch to the GS. When every vertex is inside the band (nearly every batch)
 ; the strip path walks the index stream and emits each entry's vertex with its ADC flag as a
@@ -32,23 +36,25 @@
 #include "vu_window.i"
 #include "vu_clip.i"
 
-; Emits the vertex at iVertex into the window at 'off' (RGBAQ, then XYZ2) with ADC iAdc. Only raw
-; moves: the colour words are integers, which an FMAC operation would flush as denormals. The
+; Emits the vertex at iVertex into the window at 'off' (ST, RGBAQ, then XYZ2) with ADC iAdc. Only
+; raw moves: the colour words are integers, which an FMAC operation would flush as denormals. The
 ; XYZ2 store leaves .w to the separate isw so the two writes cannot be reordered onto each other.
 ;
-;   out[off] = vertex[2]; out[off + 1].xyz = vertex[1].xyz; out[off + 1].w = adc;
+;   out[off] = vertex[3]; out[off + 1] = vertex[2]; out[off + 2].xyz = vertex[1].xyz; out[off + 2].w = adc;
 #macro EmitStripVertex: off
+    lq     fStq, 3(iVertex)
     lq     fCol, 2(iVertex)
     lq     fXyz, 1(iVertex)
-    sq     fCol, off(iOutPtr)
-    sq.xyz fXyz, off + 1(iOutPtr)
-    isw.w  iAdc, off + 1(iOutPtr)
+    sq     fStq, off(iOutPtr)
+    sq     fCol, off + 1(iOutPtr)
+    sq.xyz fXyz, off + 2(iOutPtr)
+    isw.w  iAdc, off + 2(iOutPtr)
 #endmacro
 
 ; One strip entry, already in iEntry: its vertex out with its own ADC flag.
 ;
 ;   int offset = entry & 0x7FFF; adc = entry - offset; vertex = batch + offset;
-;   EmitStripVertex(0); out += 2; --vertsLeft;
+;   EmitStripVertex(0); out += 3; --vertsLeft;
 #macro StripEntry
     iaddiu iMask,   vi00,   0x7FFF
     iand   iOffset, iEntry, iMask
@@ -57,14 +63,14 @@
 
     EmitStripVertex{ 0 }
 
-    iaddiu iOutPtr,    iOutPtr,     2
+    iaddiu iOutPtr,    iOutPtr,     3
     iaddi  iVertsLeft, iVertsLeft, -1
 #endmacro
 
 ; A strip entry re-sent at the head of a fresh window with ADC set: a new GIF packet restarts the
 ; GS vertex queue, so the two vertices the next triangle closes over are sent again, drawing nothing.
 ;
-;   adc = 0x8000; vertex = batch + (entry & 0x7FFF); EmitStripVertex(0); out += 2; --vertsLeft;
+;   adc = 0x8000; vertex = batch + (entry & 0x7FFF); EmitStripVertex(0); out += 3; --vertsLeft;
 #macro StripReentry
     iaddiu iMask,   vi00,   0x7FFF
     iand   iOffset, iEntry, iMask
@@ -74,24 +80,29 @@
 
     EmitStripVertex{ 0 }
 
-    iaddiu iOutPtr,    iOutPtr,     2
+    iaddiu iOutPtr,    iOutPtr,     3
     iaddi  iVertsLeft, iVertsLeft, -1
 #endmacro
 
-; Projects a clipped corner and writes it at 'offCol'/'offXyz': its colour back to bytes through
-; ftoi0 (PACKED RGBAQ), its position through the same mapping phase 1 applies.
+; Projects a clipped corner and writes it at 'offSt'/'offCol'/'offXyz': its UV and 1/w as PACKED
+; ST, its colour back to bytes through ftoi0 (PACKED RGBAQ), its position through the same mapping
+; phase 1 applies.
 ;
 ;   float q = 1 / pos.w;
+;   out[offSt]      = { uv.x * q, uv.y * q, q };
 ;   out[offXyz].xyz = ftoi4(gsOffset.xyz + pos.xyz * q * gsScale.xyz);
 ;   out[offCol]     = ftoi0(col);
-#macro EmitClipVertex: vPos, vCol, offCol, offXyz
+#macro EmitClipVertex: vPos, vCol, vUV, offSt, offCol, offXyz
     div       q,     vf00[w],   vPos[w]
     mul.xyz   fProj, vPos,      q
+    mul.xy    fSTQ,  vUV,       q
+    addq.z    fSTQ,  vf00,      q
     mula.xyz  acc,   fGSOffset, vf00[w]
     madd.xyz  fProj, fProj,     fGSScale
     ftoi4.xyz fProj, fProj
     ftoi0     fRGBA, vCol
 
+    sq.xyz fSTQ,  offSt(iOutPtr)
     sq     fRGBA, offCol(iOutPtr)
     sq.xyz fProj, offXyz(iOutPtr)
 #endmacro
@@ -99,12 +110,14 @@
 ; A list path corner whose triangle is wholly inside: its phase 1 qwords copied as they are. The
 ; XYZ2 .w is the vertex's outside flag, zero here, so ADC stays clear and the triangle draws.
 ;
-;   out[off] = vertex[2]; out[off + 1] = vertex[1];
+;   out[off] = vertex[3]; out[off + 1] = vertex[2]; out[off + 2] = vertex[1];
 #macro ListCorner: iCorner, off
+    lq fStq, 3(iCorner)
     lq fCol, 2(iCorner)
     lq fXyz, 1(iCorner)
-    sq fCol, off(iOutPtr)
-    sq fXyz, off + 1(iOutPtr)
+    sq fStq, off(iOutPtr)
+    sq fCol, off + 1(iOutPtr)
+    sq fXyz, off + 2(iOutPtr)
 #endmacro
 
 ; C-like pseudo-code of the program ('vuMem' is VU1 data memory as qwords):
@@ -112,34 +125,37 @@
 ;   void world_lm()
 ;   {
 ;       qword * batch = xtop(); int n = xitop(); int q = batch[0].w;
+;       xgkick(batch + kVuBatchStateOffset);                         // the material's registers
 ;       qword * v = batch + 2 + q; bool anyOut = false;
 ;       do // Phase 1: every unique vertex once.
 ;       {
 ;           vec4 p    = itof0(v[0]).xyz * batch[1].x + batch[0].xyz;
+;           vec2 uv   = itof0(v[1]).xy * batch[1].y + batch[1].zw;
 ;           vec4 clip = p * mvp;                                    // row vectors, w = 1
 ;           bool out  = clipw(clip.xyz * clipScale.xyz, clip.w);     // left the guard band
 ;           v[0] = clip;
 ;           v[1].xyz = ftoi4(gsOffset.xyz + clip.xyz / clip.w * gsScale.xyz);
 ;           v[1].w = out ? 0x8000 : 0; anyOut |= out;
-;           v += 3;
+;           v[3].xyz = { uv / clip.w, 1 / clip.w };
+;           v += 4;
 ;       } while (--n > 0);
 ;
 ;       if (!anyOut) // Phase 2, strip path.
 ;       {
-;           OpenWindow(stripTag);
+;           OpenWindow(batch[kVuBatchStripTagOffset]);
 ;           for (qword * e = batch + 2; q > 0; ++e, --q)
 ;           {
-;               if (vertsLeft < 4) { CloseAndKick(); OpenWindow(stripTag); Reentry(e[-1].z); Reentry(e[-1].w); }
+;               if (vertsLeft < 4) { CloseAndKick(); OpenWindow(...); Reentry(e[-1].z); Reentry(e[-1].w); }
 ;               for (lane : x, y, z, w) StripEntry(e[0].lane);
 ;           }
 ;           CloseAndKick();
 ;       }
 ;       else // Phase 2, list path: the same stream as triangles.
 ;       {
-;           OpenWindow(listTag);
+;           OpenWindow(batch[kVuBatchListTagOffset]);
 ;           for (int left = 4 * q; left > 0; --left)                 // state kept in vuMem
 ;           {
-;               if (vertsLeft < 18) { CloseAndKick(); OpenWindow(listTag); }
+;               if (vertsLeft < 18) { CloseAndKick(); OpenWindow(...); }
 ;               entry = NextEntry(); vertex = batch + (entry & 0x7FFF);
 ;               (a, b) = (prev2, prev1); (prev2, prev1) = (prev1, vertex);
 ;               if (entry & 0x8000) continue;                       // opens a strip
@@ -147,6 +163,7 @@
 ;               else for (tri : Fan(Clip(a, b, vertex))) Emit(tri, adc = judged again);
 ;           }
 ;           CloseAndKick();
+;           xgkick(nullTag);                         // the state kick drains before the program ends
 ;       }
 ;   }
 #vuprog world_lm
@@ -162,6 +179,15 @@
     lq     fPosScale,  1(iBase)
     ilw.w  iQwords,    0(iBase)
 
+    ; The material's A+D packet goes first: every window this batch kicks
+    ; waits behind it, so its registers reach the GS before any vertex.
+    iaddiu iKickAt, iBase, kVuBatchStateOffset
+    xgkick iKickAt
+
+    ; The UV offset (header .zw) moved to .xy, where the UVs are.
+    mr32 fUVOffset, fPosScale
+    mr32 fUVOffset, fUVOffset
+
     iaddiu iVert, iBase, 2
     iadd   iVert, iVert, iQwords
 
@@ -176,9 +202,13 @@
     lTransform:
 
         lq.xyz    fPos, 0(iVert)
+        lq.xy     fUV,  1(iVert)
         itof0.xyz fPos, fPos
+        itof0.xy  fUV,  fUV
         mul.xyz   fPos, fPos, fPosScale[x]
+        mul.xy    fUV,  fUV,  fPosScale[y]
         add.xyz   fPos, fPos, fPosOffset
+        add.xy    fUV,  fUV,  fUVOffset
 
         mul  acc,   fMVP0, fPos[x]
         madd acc,   fMVP1, fPos[y]
@@ -190,6 +220,8 @@
 
         div       q,     vf00[w],   fClip[w]
         mul.xyz   fProj, fClip,     q
+        mul.xy    fSTQ,  fUV,       q
+        addq.z    fSTQ,  vf00,      q
         mula.xyz  acc,   fGSOffset, vf00[w]
         madd.xyz  fProj, fProj,     fGSScale
         ftoi4.xyz fProj, fProj
@@ -203,8 +235,9 @@
         sq     fClip,    0(iVert)
         sq.xyz fProj,    1(iVert)
         isw.w  iOutside, 1(iVert)
+        sq.xyz fSTQ,     3(iVert)
 
-        iaddiu iVert,      iVert,       3
+        iaddiu iVert,      iVert,       4
         iaddi  iVertsToGo, iVertsToGo, -1
         ibgtz  iVertsToGo, lTransform
 
@@ -213,7 +246,7 @@
     ; ---------------------------------------------------------------------
     ; Phase 2, strip path: every vertex inside the guard band.
     ; ---------------------------------------------------------------------
-    OpenOutputWindow{ kVuStripTagAddr }
+    OpenBatchWindow{ kVuBatchStripTagOffset }
 
     iaddiu iIdx,    iBase, 2
     ilw.w  iQwords, 0(iBase)
@@ -226,7 +259,7 @@
         iaddi iRoom, iVertsLeft, -4
         ibgez iRoom, lStripRoom
         CloseOutputWindowAndKick{ lStripFull }
-        OpenOutputWindow{ kVuStripTagAddr }
+        OpenBatchWindow{ kVuBatchStripTagOffset }
         ilw.z iEntry, -1(iIdx)
         StripReentry{ }
         ilw.w iEntry, -1(iIdx)
@@ -261,7 +294,7 @@
     ; ---------------------------------------------------------------------
     lListPath:
 
-    OpenOutputWindow{ kVuListTagAddr }
+    OpenBatchWindow{ kVuBatchListTagOffset }
 
     ilw.w  iQwords, 0(iBase)
     iadd   iLeft,   iQwords, iQwords
@@ -282,7 +315,7 @@
         isub   iRoom, iVertsLeft, iRoom
         ibgez  iRoom, lListRoom
         CloseOutputWindowAndKick{ lListFull }
-        OpenOutputWindow{ kVuListTagAddr }
+        OpenBatchWindow{ kVuBatchListTagOffset }
         lListRoom:
 
         ; The next entry: lane x of the rotating qword, refilled every four.
@@ -328,10 +361,10 @@
 
         ; Every corner inside: the three phase 1 vertices as they are.
         ListCorner{ iPrev2,  0 }
-        ListCorner{ iPrev1,  2 }
-        ListCorner{ iVertex, 4 }
+        ListCorner{ iPrev1,  3 }
+        ListCorner{ iVertex, 6 }
 
-        iaddiu iOutPtr,    iOutPtr,     6
+        iaddiu iOutPtr,    iOutPtr,     9
         iaddi  iVertsLeft, iVertsLeft, -3
         b lListNext
 
@@ -355,28 +388,31 @@
 
         lq fPos0, kVuClipBufB + 0(vi00)
         lq fCol0, kVuClipBufB + 1(vi00)
-        iaddiu iFan, vi00, kVuClipBufB + 2
+        lq fUV0,  kVuClipBufB + 2(vi00)
+        iaddiu iFan, vi00, kVuClipBufB + 3
 
         lFanLoop:
 
             lq fPos1, 0(iFan)
             lq fCol1, 1(iFan)
-            lq fPos2, 2(iFan)
-            lq fCol2, 3(iFan)
+            lq fUV1,  2(iFan)
+            lq fPos2, 3(iFan)
+            lq fCol2, 4(iFan)
+            lq fUV2,  5(iFan)
 
             ClipJudge{ fPos0 }
             ClipJudge{ fPos1 }
             ClipJudge{ fPos2 }
 
-            EmitClipVertex{ fPos0, fCol0, 0, 1 }
-            EmitClipVertex{ fPos1, fCol1, 2, 3 }
-            EmitClipVertex{ fPos2, fCol2, 4, 5 }
+            EmitClipVertex{ fPos0, fCol0, fUV0, 0, 1, 2 }
+            EmitClipVertex{ fPos1, fCol1, fUV1, 3, 4, 5 }
+            EmitClipVertex{ fPos2, fCol2, fUV2, 6, 7, 8 }
             WholeTriangleReject{ }
 
-            iaddiu iOutPtr,    iOutPtr,     6
+            iaddiu iOutPtr,    iOutPtr,     9
             iaddi  iVertsLeft, iVertsLeft, -3
 
-            iaddiu iFan,     iFan,     2
+            iaddiu iFan,     iFan,     3
             iaddi  iFanLeft, iFanLeft, -1
             ibgtz  iFanLeft, lFanLoop
 
@@ -388,6 +424,11 @@
         ibgtz iLeft, lListEntry
 
     CloseOutputWindowAndKick{ lListLast }
+
+    ; A list batch may kick no window at all: the null tag waits for the
+    ; state packet, which must leave the half before the program ends.
+    iaddiu iKickAt, vi00, kVuNullGifTagAddr
+    xgkick iKickAt
 
     lDone:
 

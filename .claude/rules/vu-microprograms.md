@@ -80,8 +80,14 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   tag's VIFcode (the next batch's REF runs it before its data reaches the other half). Keep
   the program a single-exit openvcl program; there is no MSCNT entry.
 - Index entries are u16 qword offsets with ADC in bit 15, because VU1 has no integer multiply
-  or shift. Phase 1 overwrites each vertex in place (clip position, projected XYZ2 with the
-  outside flag in .w, colour bytes kept).
+  or shift. A vertex is four qwords in VU memory (`STCYCL 4,1`): phase 1 overwrites it in place
+  (clip position, projected XYZ2 with the outside flag in .w, colour bytes kept, STQ into the
+  fourth), and goes out as ST, RGBAQ, XYZ2 (50 vertices a window). The clipper's corners carry
+  the UV before the divide (S times w), three qwords each.
+- Each batch's input half ends with 9 qwords of texture state (`kVuBatchStateOffset` 297): the
+  program kicks its A+D packet first and opens its windows with the batch's own drawing tags
+  (`OpenBatchWindow`). A list batch may kick no window, so it kicks the null tag before it ends:
+  the state packet must leave the half first. A batch fits 298 qwords.
 - The two output windows are absolute (652, 803) and keep alternating across batches through
   qword 7; `DisplayList::SetFrameConstants` resets them per frame. Never reopen window A per batch: the
   window a batch writes first must be the one drained by the previous kick's stall.
@@ -97,7 +103,8 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   program's `.vsm` on the integer side over cooked batches, one cycle per pair plus the DIV wait
   at `waitq`, clip flags taken as zero (the strip path). openvcl overlaps no loop iterations: the
   transform is about 51 cycles a vertex, so per-triangle cost follows vertices transformed
-  (`world_lm` 93 cycles per mars_city1 triangle, plain strips 122.5).
+  (`world_lm` 93 cycles per mars_city1 triangle, plain strips 122.5; textured, 99.5). Only kicks
+  of an output window count as packets.
 
 ## VU memory layout (vu1.h)
 

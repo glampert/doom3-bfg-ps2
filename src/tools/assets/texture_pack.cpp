@@ -169,15 +169,23 @@ std::uint32_t MaterialNamesHash(const std::vector<std::string> & materials)
 
 static std::size_t TablesEnd(std::size_t materials, std::size_t textures)
 {
-    return kD3txHeaderBytes + 4U * materials + kD3txTextureRecordBytes * textures;
+    return kD3txHeaderBytes + kD3txMaterialRecordBytes * materials + kD3txTextureRecordBytes * textures;
 }
 
 bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std::string & error)
 {
     if (pack.materialTextures.size() > kD3txMaxMaterials || pack.textures.size() > kD3txMaxTextures ||
-        pack.textureFlags.size() != pack.textures.size())
+        pack.textureFlags.size() != pack.textures.size() || pack.materialUvDensity.size() != pack.materialTextures.size())
     {
         return Fail(error, "D3TX table sizes out of range");
+    }
+
+    for (const float density : pack.materialUvDensity)
+    {
+        if (!std::isfinite(density) || density < -64.0f || density > 64.0f)
+        {
+            return Fail(error, "D3TX material density out of range");
+        }
     }
 
     for (const std::uint32_t texture : pack.materialTextures)
@@ -224,10 +232,14 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
     WriteLe32(bytes + 28, kD3txConverterVersion);
     std::size_t at = kD3txHeaderBytes;
 
-    for (const std::uint32_t texture : pack.materialTextures)
+    for (std::size_t index = 0; index < pack.materialTextures.size(); ++index)
     {
-        WriteLe32(bytes + at, texture);
-        at += 4;
+        std::uint32_t density = 0;
+        static_assert(sizeof(density) == sizeof(float));
+        std::memcpy(&density, &pack.materialUvDensity[index], sizeof(density));
+        WriteLe32(bytes + at, pack.materialTextures[index]);
+        WriteLe32(bytes + at + 4, density);
+        at += kD3txMaterialRecordBytes;
     }
 
     for (std::size_t index = 0; index < pack.textures.size(); ++index)
@@ -274,12 +286,23 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
 
     for (std::uint32_t index = 0; index < materials; ++index)
     {
-        pack.materialTextures.push_back(ReadLe32(bytes.data() + kD3txHeaderBytes + 4U * index));
+        const std::uint8_t * record = bytes.data() + kD3txHeaderBytes + kD3txMaterialRecordBytes * index;
+        const std::uint32_t bits = ReadLe32(record + 4);
+        float density = 0.0f;
+        std::memcpy(&density, &bits, sizeof(density));
+
+        if (!std::isfinite(density) || density < -64.0f || density > 64.0f)
+        {
+            return Fail(error, "D3TX material density out of range");
+        }
+
+        pack.materialTextures.push_back(ReadLe32(record));
+        pack.materialUvDensity.push_back(density);
     }
 
     for (std::uint32_t index = 0; index < textures; ++index)
     {
-        const std::uint8_t * record = bytes.data() + kD3txHeaderBytes + 4U * materials + kD3txTextureRecordBytes * index;
+        const std::uint8_t * record = bytes.data() + kD3txHeaderBytes + kD3txMaterialRecordBytes * materials + kD3txTextureRecordBytes * index;
         const std::uint32_t offset = ReadLe32(record);
         const std::uint32_t size = ReadLe32(record + 4);
 

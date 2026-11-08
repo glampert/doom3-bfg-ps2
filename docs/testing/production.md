@@ -213,7 +213,7 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   must take the D3WD.
 - HostFs commands close the console, set `r_znear 4` (the GS gate's near plane), run
   `ps2_world load maps/graybox` (the `[D3BFG] world maps/graybox.d3wd: areas=2 surfaces=18
-  batches=26 portals=1 nodes=11` line and `WORLD loaded areas=2 portals=1`), then three
+  batches=30 portals=1 nodes=11` line and `WORLD loaded areas=2 portals=1`), then three
   `ps2_world trace`s through the area models' s16 mirror (room 0's floor at fraction 0.5
   facing up, the divider's post at 0.46 facing -x with `trim`, the open doorway a miss,
   each within 0.002), and two `ps2_world decal`s: a 48-unit square straight down onto room 0's
@@ -226,8 +226,8 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   two frames later and a `ps2_world status` two frames after that, between echo barriers.
   The status must report the view still drawing, the start area and the areas and batches
   the portal flow let it draw: `room0`, `room1`, `doorway` and `clip` (the doorway at the
-  screen's right edge, partly behind the camera) 2 areas and 26 batches, `away` (facing room
-  0's far wall) and `closed` (the doorway camera with the portal closed) 1 area and 14 batches.
+  screen's right edge, partly behind the camera) 2 areas and 30 batches, `away` (facing room
+  0's far wall) and `closed` (the doorway camera with the portal closed) 1 area and 16 batches.
 - Captures: `room0`, `room1`, `doorway` and `clip` are the GS gate's cameras and must
   show its reference pixels at the capture's width (`renderer_capture.WORLD_SCENE_PIXELS_640`
   for production's default, `WORLD_SCENE_PIXELS` at 512, both written by
@@ -281,14 +281,17 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   binary `generated/maps/game/mars_city1.bproc` in `RETAIL_DATA_ROOT`'s
   `maps/mars_city1.resources` into `build/world/mars_city1.d3wd` and its report) run
   `run_world_retail.py`: one production session per standard from a visible console package
-  on the authored headless data, with the D3WD staged as `base/maps/game/mars_city1.d3wd` and
+  on the authored headless data, with the D3WD staged as `base/maps/game/mars_city1.d3wd`, its
+  texture package (`mars_city1.d3tx`, the job's `textures` section) beside it, and
   every material the cook report lists declared `{ solid collision forceOverlays }` in
   `base/materials/world_stand_in.mtr`. Without that file id's declaration manager makes
   implicit materials for the retail names and loads their images, which the image backend
-  refuses; the world pass draws vertex colours and never reads the materials.
+  refuses; the world pass draws the package's textures and vertex colours and never reads the
+  materials.
 - HostFs commands close the console, set `r_znear 4`, run `ps2_world load maps/game/mars_city1`
   (the `[D3BFG] world maps/game/mars_city1.d3wd:` line must carry the cook report's areas,
-  surfaces, batches, portals and nodes: 56, 1,791, 2,138, 55 and 9,783 today) and two
+  surfaces, batches, portals and nodes: 56, 1,791, 2,302, 55 and 9,783 today, and a
+  `[D3BFG] world textures maps/game/mars_city1.d3tx:` line must follow), `ps2_world textures off`, and two
   `ps2_world trace`s from the player's eye at the start (`info_player_start_2`, 68 units
   above (-3632, -3416, 192)): straight down onto `textures/base_floor/sflgrate2` at fraction
   0.148 facing up, and west into `textures/mcity/stewall3b` at 0.383 facing (0.990, 0,
@@ -300,15 +303,20 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   32/32, as in `make test-world`.
 - Seven views in area 2, where the player starts, each a capture two frames after
   `ps2_world view` and a status two frames later: `east`, `west` and `south` from the start
-  draw area 2 alone (64 batches); `north` from the start and `doorway`, nearer the doorway,
-  draw areas 2, 50 and 51 (162 batches) through portal 55, which joins area 2 to the corridor
+  draw area 2 alone (70 batches); `north` from the start and `doorway`, nearer the doorway,
+  draw areas 2, 50 and 51 (174 batches) through portal 55, which joins area 2 to the corridor
   (area 50); `corridor`, from inside area 50 looking back through the doorway, starts in area 50
-  and draws areas 50 and 2 (111 batches); `closed` repeats `north` with `ps2_world portal 55
-  closed` and must draw area 2 alone (64 batches); the portal is reopened after its status. The
+  and draws areas 50 and 2 (119 batches); `closed` repeats `north` with `ps2_world portal 55
+  closed` and must draw area 2 alone (70 batches); the portal is reopened after its status. Each
+  view is then drawn textured (`ps2_world textures on`, `world-<view>-textured.tga` two frames
+  later) and `ps2_world textures status` must report textures enabled, resident and uploaded,
+  with no batch fallen back to untextured: the area 2 and corridor views upload 69 textures
+  (517 KB) into a 1,064,960-byte arena at 640x448 32/32, evicting none. Textures go off again
+  before the next view. The
   runner names each view's areas and takes their batches from the cook report's `area_list`, so
   `make test-world-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips` checks a
-  plain-strips cook drawn by `world_strips.vcl` the same way (69, 170 and 117 batches).
-- Captures: each must match a software rasterization of the same `.bproc` from the same camera
+  plain-strips cook drawn by `world_strips.vcl` the same way.
+- Captures: each untextured one must match a software rasterization of the same `.bproc` from the same camera
   (`world_reference.compare_image`, the cook's float32 vertex colours, the near plane at 4
   and the world pass's far plane) on at least 99 % of its pixels within the profile's
   tolerance, where a pixel matches any surface the 16-bit depth buffer cannot order against
@@ -323,7 +331,8 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   back to 32/16, and the session quits with the exact startup ledger. A session takes about
   20 s. `test_world_retail_runner.py` rejects a load that differs from the cook report, broken
   culling counts (the closed doorway drawing past area 2, the open one stopping at it, a wrong
-  start area), wrong traces, a missing display change, capture or ledger, and checks that the
+  start area), wrong traces, a missing display change, capture or ledger, a textured pass with a
+  fallback or no upload, and checks that the
   closed view brackets its portal and that the package declares every cooked material; it also
   checks the reference's depth-tie and far-plane rules.
 

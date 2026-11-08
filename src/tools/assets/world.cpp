@@ -456,7 +456,7 @@ bool TryFit(const std::vector<SourceTriangle> & triangles, std::span<const std::
 
     fit.stream = BuildStrips(fit.triangles, fit.strips);
     return fit.stream.size() <= static_cast<std::size_t>(kWorldMaxStripIndices) &&
-           InputQwords(topology, fit.vertices.size(), fit.stream.size()) <= kWorldInputHalfQwords;
+           InputQwords(topology, fit.vertices.size(), fit.stream.size()) <= kWorldBatchQwords;
 }
 
 // A breadth-first walk over shared edges, falling back to the nearest remaining triangle, so each
@@ -1052,7 +1052,7 @@ bool CheckPacket(std::span<const std::uint8_t> packet, const WorldBatch & batch,
     const std::uint32_t indexQwords = (indexCount + 3U) / 4U;
 
     if (indexed != (indexCount != 0) || count == 0 || (indexed && count > static_cast<std::uint32_t>(kWorldMaxIndexedVertices)) ||
-        static_cast<int>(2U + indexQwords + 3U * count) > kWorldInputHalfQwords)
+        static_cast<int>(2U + indexQwords + static_cast<std::uint32_t>(kWorldVertexQwords) * count) > kWorldBatchQwords)
     {
         return fail("counts exceed the VU1 input half");
     }
@@ -1109,7 +1109,8 @@ bool CheckPacket(std::span<const std::uint8_t> packet, const WorldBatch & batch,
                 continue;
             }
 
-            if (offset < base || (offset - base) % 3U != 0 || (offset - base) / 3U >= count)
+            if (offset < base || (offset - base) % static_cast<std::uint32_t>(kWorldVertexQwords) != 0 ||
+                (offset - base) / static_cast<std::uint32_t>(kWorldVertexQwords) >= count)
             {
                 return fail("strip index out of range");
             }
@@ -1133,7 +1134,7 @@ bool CheckPacket(std::span<const std::uint8_t> packet, const WorldBatch & batch,
         at += 2U * indexQwords;
     }
 
-    if (!take(VifStcycl(3, 1)) || !take(VifUnpack(kUnpackV4_16, count, base, false)) || at + 2U * count > words.size())
+    if (!take(VifStcycl(static_cast<std::uint32_t>(kWorldVertexQwords), 1)) || !take(VifUnpack(kUnpackV4_16, count, base, false)) || at + 2U * count > words.size())
     {
         return fail("bad position unpack");
     }

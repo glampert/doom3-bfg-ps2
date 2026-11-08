@@ -64,6 +64,51 @@ struct Image
 // checked only in assertion builds (corrupt texels cannot hang the GIF; every tag is checked).
 PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_t bytes, Image & output);
 
+// A map's texture package (D3TX v1, src/tools/assets/texture_pack.h), validated in place: the
+// material table, then each texture validated as an Image. 64-byte aligned like the D3WD.
+static constexpr std::uint32_t kPackMagic = 0x58543344;
+static constexpr std::uint32_t kPackVersion = 1;
+static constexpr std::uint32_t kPackConverterVersion = 1;
+static constexpr std::uint32_t kPackHeaderBytes = 32;
+static constexpr std::uint32_t kPackMaterialBytes = 8;
+static constexpr std::uint32_t kPackTextureBytes = 16;
+static constexpr std::uint32_t kPackAlignment = 64;
+static constexpr std::uint32_t kPackMaxMaterials = 4096;
+static constexpr std::uint32_t kPackMaxTextures = 4096;
+static constexpr std::uint32_t kPackMaxFileBytes = 16U * 1024U * 1024U;
+static constexpr std::uint32_t kPackNoTexture = 0xFFFFFFFFU;
+static constexpr std::uint32_t kPackFlagAlphaTest = 1U;
+
+struct PackMaterial
+{
+    std::uint32_t texture;  // kPackNoTexture: drawn untextured
+    float uvDensityLog2;    // log2 of UV units per world unit
+};
+
+struct PackTexture
+{
+    std::uint32_t offset;
+    std::uint32_t bytes;
+    std::uint32_t flags;
+    std::uint32_t reserved;
+};
+
+static_assert(sizeof(PackMaterial) == kPackMaterialBytes && sizeof(PackTexture) == kPackTextureBytes);
+
+struct Pack
+{
+    std::uint32_t materialCount;
+    std::uint32_t textureCount;
+    std::uint32_t materialsHash; // FNV-1a of the world's material names, each with its NUL
+    const PackMaterial * materials;
+    const PackTexture * textures;
+};
+
+// Null when the package is valid; 'images' receives every texture's Image (textureCount of them).
+// The file must stay alive and 64-byte aligned.
+PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t bytes, Pack & output, Image * images,
+                                        std::uint32_t imageCapacity);
+
 // The registers of an image uploaded at block 'base': every block address moves by 'base'
 // (TEX0's TBP0 and CBP, MIPTBP's TBP1..TBP6). No field overflows below block 16,384.
 inline std::uint64_t RelocateTex0(std::uint64_t tex0, std::uint32_t base)

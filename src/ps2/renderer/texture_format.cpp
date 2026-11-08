@@ -351,4 +351,76 @@ PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_
     return nullptr;
 }
 
+PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t bytes, Pack & output, Image * images,
+                                        std::uint32_t imageCapacity)
+{
+    if (file == nullptr || (reinterpret_cast<std::uintptr_t>(file) & (kPackAlignment - 1U)) != 0) [[unlikely]]
+    {
+        return "D3TX file is not 64-byte aligned";
+    }
+
+    if (bytes < kPackHeaderBytes || bytes > kPackMaxFileBytes || Word(file) != kPackMagic || Half(file + 4) != kPackVersion ||
+        Half(file + 6) != kPackHeaderBytes || Word(file + 20) != bytes || Word(file + 28) != kPackConverterVersion) [[unlikely]]
+    {
+        return "not a D3TX v1 file";
+    }
+
+    Pack pack = {};
+    pack.materialCount = Word(file + 8);
+    pack.textureCount = Word(file + 12);
+    pack.materialsHash = Word(file + 16);
+    const std::uint32_t tablesEnd = kPackHeaderBytes + kPackMaterialBytes * pack.materialCount + kPackTextureBytes * pack.textureCount;
+
+    if (pack.materialCount > kPackMaxMaterials || pack.textureCount > kPackMaxTextures || pack.textureCount > imageCapacity ||
+        tablesEnd > bytes) [[unlikely]]
+    {
+        return "D3TX tables out of range";
+    }
+
+    std::uint32_t hash = Fnv(file, 24, 2166136261U);
+    hash = Fnv(reinterpret_cast<const std::uint8_t *>("\0\0\0\0"), 4, hash);
+    hash = Fnv(file + 28, tablesEnd - 28U, hash);
+
+    if (hash != Word(file + 24)) [[unlikely]]
+    {
+        return "D3TX table checksum mismatch";
+    }
+
+    pack.materials = static_cast<const PackMaterial *>(static_cast<const void *>(file + kPackHeaderBytes));
+    pack.textures = static_cast<const PackTexture *>(static_cast<const void *>(file + kPackHeaderBytes + kPackMaterialBytes * pack.materialCount));
+
+    for (std::uint32_t index = 0; index < pack.materialCount; ++index)
+    {
+        const PackMaterial & material = pack.materials[index];
+
+        // Finite and bounded; NaN fails both comparisons.
+        if ((material.texture != kPackNoTexture && material.texture >= pack.textureCount) ||
+            !(material.uvDensityLog2 >= -64.0f && material.uvDensityLog2 <= 64.0f)) [[unlikely]]
+        {
+            return "D3TX material record out of range";
+        }
+    }
+
+    for (std::uint32_t index = 0; index < pack.textureCount; ++index)
+    {
+        const PackTexture & texture = pack.textures[index];
+
+        if (texture.offset < tablesEnd || (texture.offset & (kPackAlignment - 1U)) != 0 || texture.bytes > bytes ||
+            texture.offset > bytes - texture.bytes || (texture.flags & ~kPackFlagAlphaTest) != 0 || texture.reserved != 0) [[unlikely]]
+        {
+            return "D3TX texture record out of range";
+        }
+
+        const char * error = ValidateImage(file + texture.offset, texture.bytes, images[index]);
+
+        if (error != nullptr) [[unlikely]]
+        {
+            return error;
+        }
+    }
+
+    output = pack;
+    return nullptr;
+}
+
 } // namespace ps2::renderer::tex

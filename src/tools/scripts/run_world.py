@@ -48,7 +48,7 @@ DEFAULT_WORLD = REPO_ROOT / "build/world/graybox.d3wd"
 STARTUP_SECONDS = 120
 SESSION_SECONDS = 240
 CLEAR_RGB = (16, 24, 40)
-LOAD_RE = re.compile(r"\[D3BFG\] world maps/graybox\.d3wd: areas=2 surfaces=18 batches=26 portals=1 nodes=11 ")
+LOAD_RE = re.compile(r"\[D3BFG\] world maps/graybox\.d3wd: areas=2 surfaces=18 batches=30 portals=1 nodes=11 ")
 WORLD_RE = re.compile(r"\[D3BFG\] WORLD (\w+) areas=(\d+) portals=(\d+) viewing=([01]) frame=(\d+) views=(\d+) area=(-?\d+) "
                       r"entities=(\d+) drawn=(\d+) batches=(\d+) arena=(\d+)")
 CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(\S+\.tga) frame=(\d+) presents=(\d+) redraws=(\d+) bits=(\d+)")
@@ -56,16 +56,16 @@ SWITCH_RE = re.compile(r"\[D3BFG\] GS display (\d+)x(\d+) (FIELD|FRAME) bits=(\S
 TRACE_RE = re.compile(r"\[D3BFG\] WORLD trace hit=([01]) fraction=([\d.]+) normal=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) material=(\S+)")
 WORLD_FIELDS = ("event", "areas", "portals", "viewing", "frame", "views", "area", "entities", "drawn", "batches", "arena")
 
-# Area 0 holds 14 batches and area 1 12. Each view: its camera (eye, target), the doorway portal's
+# Area 0 holds 16 batches and area 1 14. Each view: its camera (eye, target), the doorway portal's
 # state, the area the view starts in, the areas portal culling lets it draw and their batches,
 # and whether the GS gate's reference pixels apply (its cameras).
 VIEWS = (
-    ("room0", (-480, -340, 150, -180, 100, 40), "open", 0, 2, 26, True),
-    ("room1", (480, 330, 150, 240, -150, 40), "open", 1, 2, 26, True),
-    ("doorway", (-440, 0, 64, 0, 0, 64), "open", 0, 2, 26, True),
-    ("clip", (-20, -40, 40, -300, 300, 20), "open", 0, 2, 26, True),
-    ("away", (-200, 0, 64, -600, 0, 64), "open", 0, 1, 14, False),
-    ("closed", (-440, 0, 64, 0, 0, 64), "closed", 0, 1, 14, False),
+    ("room0", (-480, -340, 150, -180, 100, 40), "open", 0, 2, 30, True),
+    ("room1", (480, 330, 150, 240, -150, 40), "open", 1, 2, 30, True),
+    ("doorway", (-440, 0, 64, 0, 0, 64), "open", 0, 2, 30, True),
+    ("clip", (-20, -40, 40, -300, 300, 20), "open", 0, 2, 30, True),
+    ("away", (-200, 0, 64, -600, 0, 64), "open", 0, 1, 16, False),
+    ("closed", (-440, 0, 64, 0, 0, 64), "closed", 0, 1, 16, False),
 )
 
 

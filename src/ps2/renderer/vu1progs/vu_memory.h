@@ -28,22 +28,28 @@
 #define kVuStripTagAddr     9
 #define kVuListTagAddr      10
 
-// The VIF1 double buffer: BASE and OFFSET. A batch, its last write included, fits one half.
+// The VIF1 double buffer: BASE and OFFSET. A batch, its last write included, fits one half
+// before its last 9 qwords, which DisplayList::DrawBatch fills with the batch's texture state: an
+// A+D packet (GIF tag, TEX0, TEX1, MIPTBP1, MIPTBP2, CLAMP, TEST) the program kicks first, then
+// the batch's strip and list drawing tags. Offsets from XTOP.
 #define kVuInputBase       40
 #define kVuInputHalfQwords 306
+#define kVuBatchStateOffset    297
+#define kVuBatchStripTagOffset 304
+#define kVuBatchListTagOffset  305
 
-// Two output windows, absolute and shared by both halves: one tag qword, then RGBAQ and XYZ2
-// per vertex. A program fills one, kicks it and continues in the other; an XGKICK stalls while
-// the previous transfer runs, so the window being written has always drained.
+// Two output windows, absolute and shared by both halves: one tag qword, then ST (with Q), RGBAQ
+// and XYZ2 per vertex. A program fills one, kicks it and continues in the other; an XGKICK stalls
+// while the previous transfer runs, so the window being written has always drained.
 #define kVuWindowA        652
 #define kVuWindowQwords   151
-#define kVuWindowVertices 75
+#define kVuWindowVertices 50
 
-// Clip scratch (954-1009): the list path's walk state, then the clipper's ping-pong buffers of
-// two qwords per corner (clip position, float colour) and its survivor count.
+// Clip scratch (954-1008): the list path's walk state, then the clipper's ping-pong buffers of
+// three qwords per corner (clip position, float colour, UV) and its survivor count.
 #define kVuWalkStateAddr   954
 #define kVuWalkPrevAddr    955
 #define kVuWalkIndicesAddr 956
 #define kVuClipBufA        957
-#define kVuClipBufB        973
-#define kVuClipCountAddr   991
+#define kVuClipBufB        981
+#define kVuClipCountAddr   1008

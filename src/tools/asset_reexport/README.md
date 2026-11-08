@@ -207,8 +207,10 @@ Each image becomes a GSTX v2 file (`assets/gstx_v2.h`, plan 10.4): level 0 is th
 `max_extent` a side; every mip down to `min_mip_extent` is box-filtered from the source; one
 palette serves every level, `PSMT4` when a 16-colour palette keeps RMSE within 3 and every
 channel within 48 over all levels, else `PSMT8`. Materials sharing an image share the file.
-`<name>.d3tx` (`assets/texture_pack.h`) holds one texture index per D3WD material, in its order,
-bound to the world by the FNV-1a of the material names, then the files 64-byte aligned.
+`<name>.d3tx` (`assets/texture_pack.h`) holds, per D3WD material in its order, a texture index and
+log2 of the material's UV units per world unit (its UV area over its world area across the
+`.bproc`'s area surfaces, from which the target sets the mip LOD), bound to the world by the FNV-1a
+of the material names, then the files 64-byte aligned.
 `--previews DIR` writes each texture's decoded source and cooked level 0 as PNGs.
 
 mars_city1 at the defaults: 258 textures for 261 of 287 materials (the other 26 have no
@@ -231,8 +233,8 @@ The report records the source (`<map>.proc` or `generated/<map>.bproc`), counts 
 surfaces, batches, strips, triangles), vertices transformed and emitted per triangle, packet
 and file bytes, the largest position and UV quantization errors, each area's bounds and the
 material names in file order (test packages declare them until the cook compiles material
-passes). mars_city1: 56 areas, 1,791 surfaces, 287 materials, 50,332 triangles in 2,138
-batches, 2,704,880 bytes, position error at most 0.094 units. The file is re-read with the full validation
+passes). mars_city1: 56 areas, 1,791 surfaces, 287 materials, 50,332 triangles in 2,302
+batches, 2,739,728 bytes, position error at most 0.094 units. The file is re-read with the full validation
 (`ReadD3wd`, packet VIFcodes included) before it is written. `build/tests/world_tests`
 checks both parsers (the graybox written as id would cache it reads back as its text form;
 every truncation of a small `.bproc` and targeted corruptions are refused), the strips, byte-exact round trips, corruption and, through an

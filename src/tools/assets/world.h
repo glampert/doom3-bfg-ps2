@@ -49,8 +49,8 @@ namespace assets
 // An area's surfaces and batches, and a surface's batches, are contiguous; surfaces are ordered by
 // area, batches by surface.
 static constexpr std::uint32_t kD3wdMagic = 0x44573344;
-static constexpr std::uint16_t kD3wdVersion = 1;
-static constexpr std::uint32_t kD3wdConverterVersion = 1;
+static constexpr std::uint16_t kD3wdVersion = 2;
+static constexpr std::uint32_t kD3wdConverterVersion = 2;
 static constexpr std::size_t kD3wdHeaderBytes = 32;
 static constexpr std::size_t kD3wdDirectoryRecordBytes = 16;
 static constexpr std::size_t kD3wdPacketAlignment = 64;
@@ -83,14 +83,14 @@ static constexpr int kD3wdSectionCount = static_cast<int>(D3wdSection::Count);
 //   UNPACK V4-32 2 qwords at +0 (TOPS):  qw0 position offset xyz (f32), w index qwords Q (u32);
 //                                        qw1 position scale, UV scale, UV offset s, t (f32)
 //   UNPACK V4-16 unsigned Q at +2        strip index stream, four u16 entries per qword (indexed only)
-//   STCYCL 3,1
+//   STCYCL 4,1 (the fourth qword of each vertex is the program's: the projected STQ)
 //   UNPACK V4-16 N at +2+Q    position s16 xyz, w the ADC flag 0x8000 (plain strips) or 0
 //   UNPACK V4-16 N at +3+Q    UV s16 s, t and lightmap s, t (UV = q * UV scale + offset)
 //   UNPACK V4-8 unsigned N at +4+Q  RGBA, 0x80 = 1.0
 //   ITOP N; NOPs to the qword
 // with Q = ceil(I/4). The packet starts no program: the display list sends MSCAL with the next tag,
 // so the packet stays valid wherever vu::Init places the program. A strip index entry is the
-// vertex's qword offset in the input half (2 + Q + 3 * vertex) in bits 0-14 and the GS ADC flag in
+// vertex's qword offset in the input half (2 + Q + 4 * vertex) in bits 0-14 and the GS ADC flag in
 // bit 15, set on the first two entries of each strip, which close no triangle: VU1 has no integer
 // multiply or shift, so the program adds the entry to XTOP and writes the flag into XYZ2 as they
 // stand. Entries past I repeat the first vertex with ADC set, so a program may walk whole qwords.
@@ -107,12 +107,15 @@ static constexpr std::uint32_t kStripEntryAdc = 0x8000;
 static constexpr std::int16_t kStripVertexAdc = -32768;
 
 // VU1 data memory (ps2/renderer/vu1progs/vu_memory.h, plan section 7.2): each input half is 306
-// qwords, the last write of a batch included; WA vertices take 3 qwords and the indexed layout
-// stops at 88 unique vertices.
+// qwords, of which the last 8 receive the batch's texture state from the display list, so a batch,
+// its last write included, fits 298; WA vertices take 4 qwords and the indexed layout stops at 72
+// unique vertices.
 static constexpr int kWorldInputHalfQwords = 306;
 static constexpr int kWorldHeaderQwords = 2;
-static constexpr int kWorldVertexQwords = 3;
-static constexpr int kWorldMaxIndexedVertices = 88;
+static constexpr int kWorldVertexQwords = 4;
+static constexpr int kWorldBatchStateQwords = 8;
+static constexpr int kWorldBatchQwords = kWorldInputHalfQwords - kWorldBatchStateQwords;
+static constexpr int kWorldMaxIndexedVertices = 72;
 static constexpr int kWorldMaxStripIndices = 255;
 
 struct WorldBounds

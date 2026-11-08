@@ -2,12 +2,14 @@
 ; vu_clip.i
 ;
 ; Sutherland-Hodgman clipping on VU1 against the near plane and the four guard band sides,
-; adapted from quake2-ps2's vu_clip.i: a corner is two qwords here (the clip-space position and
-; the colour as floats), so nothing in it is a bit pattern and every lane is interpolated.
+; adapted from quake2-ps2's vu_clip.i: a corner is three qwords here (the clip-space position, the
+; colour as floats and the texture coordinates before the divide), so nothing in it is a bit
+; pattern and every lane is interpolated; attributes interpolate linearly in clip space.
 ;
 ; A polygon lives in one of two scratch buffers (vu_memory.h) with its first corner repeated at
 ; the end, so the edge walk needs no wrap test; a pass reads one buffer and writes the other, and
-; five passes leave the survivors in B. Buffer A holds 8 entries (7 corners plus the wrap) and B 9.
+; five passes leave the survivors in B. Buffer A holds 8 entries (7 corners plus the wrap) and B 9,
+; three qwords each.
 ; The corner count travels through kVuClipCountAddr, never a register: openvcl's liveness does
 ; not carry a value from one loop into a sibling loop and hands the register to a temporary.
 ;
@@ -19,31 +21,42 @@
 ; =================================================================================================
 
 ; Seeds buffer A with a triangle's corners, read from the transformed batch
-; vertices at iA, iB and iC: the clip position (qword 0) and the colour bytes
-; (qword 2) widened to floats, which the cut interpolates.
+; vertices at iA, iB and iC: the clip position (qword 0), the colour bytes
+; (qword 2) widened to floats, and the UV back from the projected STQ (qword 3)
+; as S * w, all of which the cut interpolates.
 ;
-;   bufA = { pos(a), col(a), pos(b), col(b), pos(c), col(c), pos(a), col(a) };
+;   bufA = { pos(a), col(a), uv(a), pos(b), ..., uv(c), pos(a), col(a), uv(a) };
 ;   clipCount = 3;
 #macro ClipSeedTriangle: iA, iB, iC
     lq    fPos0,  0(iA)
     lq    fColI0, 2(iA)
+    lq    fUV0,   3(iA)
     lq    fPos1,  0(iB)
     lq    fColI1, 2(iB)
+    lq    fUV1,   3(iB)
     lq    fPos2,  0(iC)
     lq    fColI2, 2(iC)
+    lq    fUV2,   3(iC)
 
     itof0 fCol0, fColI0
     itof0 fCol1, fColI1
     itof0 fCol2, fColI2
+    mul.xy fUV0, fUV0, fPos0[w]
+    mul.xy fUV1, fUV1, fPos1[w]
+    mul.xy fUV2, fUV2, fPos2[w]
 
     sq fPos0, kVuClipBufA + 0(vi00)
     sq fCol0, kVuClipBufA + 1(vi00)
-    sq fPos1, kVuClipBufA + 2(vi00)
-    sq fCol1, kVuClipBufA + 3(vi00)
-    sq fPos2, kVuClipBufA + 4(vi00)
-    sq fCol2, kVuClipBufA + 5(vi00)
-    sq fPos0, kVuClipBufA + 6(vi00)
-    sq fCol0, kVuClipBufA + 7(vi00)
+    sq fUV0,  kVuClipBufA + 2(vi00)
+    sq fPos1, kVuClipBufA + 3(vi00)
+    sq fCol1, kVuClipBufA + 4(vi00)
+    sq fUV1,  kVuClipBufA + 5(vi00)
+    sq fPos2, kVuClipBufA + 6(vi00)
+    sq fCol2, kVuClipBufA + 7(vi00)
+    sq fUV2,  kVuClipBufA + 8(vi00)
+    sq fPos0, kVuClipBufA + 9(vi00)
+    sq fCol0, kVuClipBufA + 10(vi00)
+    sq fUV0,  kVuClipBufA + 11(vi00)
 
     iaddiu iCount, vi00, 3
     isw.x  iCount, kVuClipCountAddr(vi00)
@@ -69,12 +82,12 @@
 ;       qword * in = src, * out = dst; int count = 0;
 ;       do
 ;       {
-;           float dCur = dist(in[0]), dNxt = dist(in[2]);
-;           if (dCur >= 0) { out[0..1] = in[0..1]; out += 2; ++count; }
-;           if (dCur * dNxt < 0) { t = dCur / (dCur - dNxt); out[0..1] = lerp(in[0..1], in[2..3], t); out += 2; ++count; }
-;           in += 2;
+;           float dCur = dist(in[0]), dNxt = dist(in[3]);
+;           if (dCur >= 0) { out[0..2] = in[0..2]; out += 3; ++count; }
+;           if (dCur * dNxt < 0) { t = dCur / (dCur - dNxt); out[0..2] = lerp(in[0..2], in[3..5], t); out += 3; ++count; }
+;           in += 3;
 ;       } while (--left > 0);
-;       if (count >= 3) { out[0..1] = dst[0..1]; clipCount = count; }
+;       if (count >= 3) { out[0..2] = dst[0..2]; clipCount = count; }
 ;   }
 #macro ClipPlanePass: vSelCur, vSelNxt, srcBuf, dstBuf, lbl
     ilw.x  iCorners, kVuClipCountAddr(vi00)
@@ -93,8 +106,10 @@
 
         lq fCurPos, 0(iWalk)
         lq fCurCol, 1(iWalk)
-        lq fNxtPos, 2(iWalk)
-        lq fNxtCol, 3(iWalk)
+        lq fCurUV,  2(iWalk)
+        lq fNxtPos, 3(iWalk)
+        lq fNxtCol, 4(iWalk)
+        lq fNxtUV,  5(iWalk)
 
         mul.xyz fJpC,  fCurPos, fClipScale
         mul.xyz fJpN,  fNxtPos, fClipScale
@@ -124,7 +139,8 @@
         ibltz iSignCur, lbl##Kept
         sq fCurPos, 0(iOut)
         sq fCurCol, 1(iOut)
-        iaddiu iOut,   iOut,   2
+        sq fCurUV,  2(iOut)
+        iaddiu iOut,   iOut,   3
         iaddiu iCount, iCount, 1
         lbl##Kept:
 
@@ -137,18 +153,22 @@
 
         sub fCutPos, fNxtPos, fCurPos
         sub fCutCol, fNxtCol, fCurCol
+        sub fCutUV,  fNxtUV,  fCurUV
         mul fCutPos, fCutPos, fClipQ[x]
         mul fCutCol, fCutCol, fClipQ[x]
+        mul fCutUV,  fCutUV,  fClipQ[x]
         add fCutPos, fCurPos, fCutPos
         add fCutCol, fCurCol, fCutCol
+        add fCutUV,  fCurUV,  fCutUV
 
         sq fCutPos, 0(iOut)
         sq fCutCol, 1(iOut)
-        iaddiu iOut,   iOut,   2
+        sq fCutUV,  2(iOut)
+        iaddiu iOut,   iOut,   3
         iaddiu iCount, iCount, 1
         lbl##NoCut:
 
-        iaddiu iWalk,    iWalk,    2
+        iaddiu iWalk,    iWalk,    3
         iaddi  iCorners, iCorners, -1
         ibgtz  iCorners, lbl##Loop
 
@@ -162,8 +182,10 @@
     ibltz iSignCur, lbl##Out
     lq fCurPos, dstBuf + 0(vi00)
     lq fCurCol, dstBuf + 1(vi00)
+    lq fCurUV,  dstBuf + 2(vi00)
     sq fCurPos, 0(iOut)
     sq fCurCol, 1(iOut)
+    sq fCurUV,  2(iOut)
     isw.x iCount, kVuClipCountAddr(vi00)
     lbl##Out:
 #endmacro

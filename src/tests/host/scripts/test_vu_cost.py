@@ -45,12 +45,12 @@ def batch_packet(strip, indexed):
     quads = (len(strip) + 3) // 4 if indexed else 0
     words = [vif(0x01, 0, 1 | 1 << 8), unpack_code(0xC, 2, 0), 0, 0, 0, quads, 0x3F800000, 0x3F800000, 0, 0]
     if indexed:
-        entries = [2 + quads + 3 * vertex | (0x8000 if adc else 0) for vertex, adc in strip]
+        entries = [2 + quads + 4 * vertex | (0x8000 if adc else 0) for vertex, adc in strip]
         entries += [0x8000 | (2 + quads)] * (4 * quads - len(entries))
         words.append(unpack_code(0xD, quads, 2, unsigned=True))
         words += [entries[index] | entries[index + 1] << 16 for index in range(0, len(entries), 2)]
     flags = [0] * len(vertices) if indexed else [0x8000 if adc else 0 for _, adc in strip]
-    words += [vif(0x01, 0, 3 | 1 << 8), unpack_code(0xD, len(vertices), 2 + quads)]
+    words += [vif(0x01, 0, 4 | 1 << 8), unpack_code(0xD, len(vertices), 2 + quads)]
     for flag in flags:
         words += [0, flag << 16]
     words.append(unpack_code(0xD, len(vertices), 3 + quads))
@@ -97,13 +97,13 @@ class MachineTests(unittest.TestCase):
 class WorldProgramTests(unittest.TestCase):
     def test_every_vertex_is_sent_across_kicks(self):
         # Short batches fit one window; long ones kick and resend two vertices per extra window.
-        for name, indexed, length in (("world_lm", True, 6), ("world_lm", True, 88), ("world_strips", False, 6),
-                                      ("world_strips", False, 101)):
+        for name, indexed, length in (("world_lm", True, 6), ("world_lm", True, 72), ("world_strips", False, 6),
+                                      ("world_strips", False, 70)):
             with self.subTest(program=name, vertices=length):
                 cycles, kicks, sent = vu_cost.batch_cycles(vu_cost.load_program(name), batch_packet(strip_of(length), indexed))
                 padded = 4 * ((length + 3) // 4) if indexed else length
                 self.assertEqual(sent, padded + 2 * (kicks - 1))
-                self.assertEqual(kicks, 1 if length <= 70 else 2)
+                self.assertEqual(kicks, 1 if length <= 48 else 2)
                 self.assertGreater(cycles, 48 * length)
 
     def test_plain_strips_transform_every_repeat(self):

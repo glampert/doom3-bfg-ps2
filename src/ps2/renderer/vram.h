@@ -35,6 +35,10 @@ bool AllocateVram(std::uint32_t bytes, VramAllocation & output);
 // The allocation must be live and unchanged (asserted).
 void ReleaseVram(const VramAllocation & allocation);
 
+// False once a reset, a shutdown or a release has ended the allocation (a GS restart moves the
+// texture range and resets it).
+bool IsVramLive(const VramAllocation & allocation);
+
 // The owner must drain and fence every queued draw/upload before releasing or resetting its range.
 // ResetVram preserves the range and peak accounting; ShutdownVram forgets it. Both invalidate every handle.
 void ResetVram();

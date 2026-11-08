@@ -635,7 +635,7 @@ math::Vec4 WindowOffset()
     return { 2048.0f + static_cast<float>(s_width) * 0.5f, 2048.0f + static_cast<float>(s_height) * 0.5f, kDepthScale, 0.0f };
 }
 
-qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context)
+qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context, bool textured)
 {
     // In Primitive and VertexFormat order: the PRIM type, then the REGS nibbles and NREG.
     static constexpr u64 kTypes[] = {
@@ -644,15 +644,20 @@ qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context
         PRIM_TRIANGLE, PRIM_TRIANGLE_STRIP, PRIM_TRIANGLE_FAN,
         PRIM_SPRITE
     };
-    static constexpr u64 kRegisters[][2] = { { static_cast<u64>(GIF_REG_RGBAQ) | (static_cast<u64>(GIF_REG_XYZ2) << 4), 2 } };
+    static constexpr u64 kRegisters[][2] = {
+        { static_cast<u64>(GIF_REG_RGBAQ) | (static_cast<u64>(GIF_REG_XYZ2) << 4), 2 },
+        { static_cast<u64>(GIF_REG_ST) | (static_cast<u64>(GIF_REG_RGBAQ) << 4) | (static_cast<u64>(GIF_REG_XYZ2) << 8), 3 }
+    };
 
     static_assert(ArrayLength(kTypes) == static_cast<int>(Primitive::Sprite) + 1, "kTypes must follow Primitive");
-    static_assert(ArrayLength(kRegisters) == static_cast<int>(VertexFormat::ColorPosition) + 1, "kRegisters must follow VertexFormat");
+    static_assert(ArrayLength(kRegisters) == static_cast<int>(VertexFormat::StColorPosition) + 1, "kRegisters must follow VertexFormat");
+    PS2_AssertMsg(!textured || format == VertexFormat::StColorPosition, "a textured drawing tag needs ST");
     PS2_AssertMsg(static_cast<int>(primitive) < ArrayLength(kTypes) && static_cast<int>(format) < ArrayLength(kRegisters),
                   "invalid GS drawing tag");
 
     const u64 * const registers = kRegisters[static_cast<int>(format)];
-    const u64 prim = GS_SET_PRIM(kTypes[static_cast<int>(primitive)], PRIM_SHADE_GOURAUD, 0, 0, 0, 0, 0, static_cast<u64>(Index(context)), 0);
+    const u64 prim = GS_SET_PRIM(kTypes[static_cast<int>(primitive)], PRIM_SHADE_GOURAUD, textured ? 1U : 0U, 0, 0, 0, 0,
+                                 static_cast<u64>(Index(context)), 0);
 
     qword_t tag;
     tag.dw[0] = GIF_SET_TAG(0, 0, 1, prim, GIF_FLG_PACKED, registers[1]);

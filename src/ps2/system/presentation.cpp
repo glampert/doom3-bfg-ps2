@@ -10,6 +10,8 @@
 #include "ps2/renderer/render_system.h"
 #include "ps2/renderer/scene.h"
 #include "ps2/renderer/vram.h"
+#include "ps2/renderer/world.h"
+#include "ps2/renderer/world_textures.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
@@ -326,6 +328,29 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     if (strcmp(verb, "status") == 0 && args.Argc() == 2)
     {
         LogWorldStatus("status");
+        return;
+    }
+
+    if (strcmp(verb, "textures") == 0 && args.Argc() == 3)
+    {
+        const bool on = strcmp(args.Argv(2), "on") == 0;
+
+        if (!on && strcmp(args.Argv(2), "off") != 0 && strcmp(args.Argv(2), "status") != 0) [[unlikely]]
+        {
+            ps2::FatalError("ps2_world textures needs on, off or status");
+        }
+
+        if (strcmp(args.Argv(2), "status") != 0)
+        {
+            ps2::renderer::world::SetTexturesEnabled(on);
+            return;
+        }
+
+        const ps2::renderer::world::TextureStats & stats = ps2::renderer::world::LastPassTextureStats();
+        ps2::Log(ps2::LogLevel::Info,
+                 "[D3BFG] WORLD textures enabled=%d arena=%u resident=%u resident_bytes=%u uploads=%u evictions=%u fallbacks=%u\n",
+                 ps2::renderer::world::TexturesEnabled() ? 1 : 0, stats.arenaBytes, stats.resident, stats.residentBytes, stats.uploads,
+                 stats.evictions, stats.untexturedFallbacks);
         return;
     }
 

@@ -5540,3 +5540,36 @@ alpha-tested with their coverage in the palette alpha, 1,976,832 bytes of VRAM a
 package. `texture_format_tests` adds the material scan, id's generated image names, the cook and
 D3TX round trips and refusals. Nothing on the target reads the package yet.
 
+## mars_city1 textured (2026-11-08)
+
+The world pass draws each material's diffuse texture. Vertices are four qwords in VU memory
+(`STCYCL 4,1`): phase 1 of `world_lm.vcl` and `world_strips.vcl` also stores STQ, vertices go out
+as ST, RGBAQ, XYZ2, and the clipper carries the UV before the divide. Each batch's input half ends
+with 9 qwords of texture state, which the display list REFs from the material's per-context block
+(`DisplayList::DrawBatch`) and the program kicks before its first window, taking its drawing tags
+from there too. `world_textures.cpp` loads `maps/<name>.d3tx` beside the D3WD, keeps textures
+resident in one VRAM arena (block-granular first fit, the least recently drawn evicted, uploads in
+the chain) and sets `TEX1.K` from the material's UV density, the texture's size and the view's
+focal length. D3WD is version 2 (the vertex stride and the 298-qword batch); mars_city1 cooks into
+2,302 batches (from 2,138), the graybox into 30 (from 26), and the textured program costs 99.5 VU1
+cycles a triangle (from 93.0, `vu_cost.py`). mars_city1's job drops the per-material vertex tint,
+which textures now replace. `ps2_world textures on|off|status` switches and reports them; the
+retail gate captures every view both ways.
+
+Captures at 640, 32/32: [north](images/renderer-world-8-mars_city1-textured-north-ntsc.png),
+[doorway](images/renderer-world-8-mars_city1-textured-doorway-ntsc.png),
+[corridor](images/renderer-world-8-mars_city1-textured-corridor-ntsc.png),
+[east](images/renderer-world-8-mars_city1-textured-east-ntsc.png),
+[west](images/renderer-world-8-mars_city1-textured-west-ntsc.png),
+[south](images/renderer-world-8-mars_city1-textured-south-ntsc.png), and
+[north in PAL](images/renderer-world-8-mars_city1-textured-north-pal.png).
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC and PAL passed (`20261108T005931Z_world_retail_693a7ce88693`, `20261108T005951Z_world_retail_f8190e00fed9`): every untextured capture against its reference as before; every textured view held its textures with no fallback: 69 textures (517 KB) uploaded into a 1,064,960-byte arena at 640x448 (NTSC), none evicted |
+| `make test-world` (debug) | NTSC and PAL passed (`20261108T010505Z_world_c7dd23ca0b83`, `20261108T010515Z_world_c9733bb41f72`), untextured through the new state path |
+| `make test-renderer` (debug) | Passed with every probe (`20261108T010015Z_smoke_bb717f8bb49b4803`); the graybox captures match their references at 99.92 to 99.93 % whole, the clipped view included |
+| `make test-map`, `test-game`, `test-headless`, `test-headless-retail` (debug) | Passed (`20261108T010316Z_smoke_bf7d6152b5b843b5`, `20261108T010324Z_smoke_48013198d2b94ec7`, `20261108T010358Z_headless_b2152dd9015a`, `20261108T010413Z_headless_8ecc03b17b64`) |
+| `make test-host` | Passed: 393 Python tests and the C++ harnesses; `texture_format_tests` adds the target's D3TX validator against the cook's reader, the retail runner refuses a textured pass with a fallback or no upload |
+| `make`, `make release`, release core image | Passed, no warnings; runnable `PT_LOAD` 4,737,324 debug and 4,033,324 release. `make test-ui` was not run (no UI path changed). Release was compiled, not run |
+

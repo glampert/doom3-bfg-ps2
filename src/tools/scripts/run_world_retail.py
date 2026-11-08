@@ -87,13 +87,22 @@ def view_batches(report: dict, view: View) -> int:
     return sum(report["area_list"][area]["batches"] for area in view.areas)
 
 
+TEXTURES_RE = re.compile(r"\[D3BFG\] WORLD textures enabled=([01]) arena=(\d+) resident=(\d+) resident_bytes=(\d+) uploads=(\d+) "
+                         r"evictions=(\d+) fallbacks=(\d+)")
+TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks")
+TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) vram=(\d+) bytes=(\d+)")
+
+
 def view_commands(identity: str, view: View) -> list[str]:
-    # The capture runs two frames after the camera is set, and the status two frames after that.
+    # The untextured capture (compared with the vertex-colour reference) runs two frames after the
+    # camera is set and the status two frames after that; then the same view textured, and the
+    # residency of that pass.
     handle = DOORWAY_PORTAL[0]
     portal = [f"ps2_world portal {handle} {view.portal}"] if view.portal else []
     reopen = [f"ps2_world portal {handle} open"] if view.portal else []
     return [*portal, "ps2_world view " + " ".join(str(value) for value in view.camera), "wait 2", f'ps2_capture "world-{view.name}.tga"',
-            "wait 2", "ps2_world status", *reopen, f'echo "{run_world.barrier(identity, view.name)}"']
+            "wait 2", "ps2_world status", "ps2_world textures on", "wait 2", f'ps2_capture "world-{view.name}-textured.tga"', "wait 2",
+            "ps2_world textures status", "ps2_world textures off", *reopen, f'echo "{run_world.barrier(identity, view.name)}"']
 
 
 def driver(identity: str):
@@ -105,7 +114,8 @@ def driver(identity: str):
     traces = ["ps2_world trace " + " ".join(str(value) for value in start + end) for start, end, *_ in TRACES]
     # The console starts open; closed, it slides away over real time before the first view.
     yield ([f'echo "{run_world.barrier(identity, "begin")}"', "ps2_consoleKey toggle", "wait 60", "r_znear 4", f"ps2_world load {MAP}",
-            *traces, *run_world.decal_commands(DECALS), "ps2_world decals", f'echo "{run_world.barrier(identity, "loaded")}"'],
+            "ps2_world textures off", *traces, *run_world.decal_commands(DECALS), "ps2_world decals",
+            f'echo "{run_world.barrier(identity, "loaded")}"'],
            until("loaded"))
     # Loading the map leaves the front end: two frames later the device draws in the preference.
     yield ["wait 2", f'echo "{run_world.barrier(identity, "ingame")}"'], until("ingame")
@@ -122,7 +132,7 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         return False, "crash or fatal diagnostic", {}
     load = re.compile(rf"\[D3BFG\] world {re.escape(MAP)}\.d3wd: areas={report['areas']} surfaces={report['surfaces']} "
                       rf"batches={report['batches']} portals={report['portals']} nodes={report['nodes']} ")
-    if not load.search(log):
+    if not load.search(log) or not TEXTURE_LOAD_RE.search(log):
         return False, "the cooked map did not load with the cook report's areas, surfaces, batches, portals and nodes", {}
     if "WORLD load failed" in log:
         return False, "the render world refused the map", {}
@@ -159,8 +169,13 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         span = log[positions[index + 2]:positions[index + 3]]
         captures = run_world.CAPTURE_RE.findall(span)
         statuses = [line for line in run_world.world_lines(span) if line["event"] == "status"]
-        if run_world.SWITCH_RE.search(span) or len(captures) != 1 or captures[0][0] != f"world-{view.name}.tga" or len(statuses) != 1:
-            return False, f"{view.name}: missing capture or world status", {}
+        textures = [dict(zip(TEXTURE_FIELDS, map(int, match))) for match in TEXTURES_RE.findall(span)]
+        if (run_world.SWITCH_RE.search(span) or len(captures) != 2 or captures[0][0] != f"world-{view.name}.tga" or
+                captures[1][0] != f"world-{view.name}-textured.tga" or len(statuses) != 1 or len(textures) != 1):
+            return False, f"{view.name}: missing capture, world status or texture status", {}
+        # The textured pass drew every texture it needed: none fell back to untextured.
+        if textures[0]["enabled"] != 1 or textures[0]["uploads"] == 0 or textures[0]["fallbacks"] != 0 or textures[0]["resident"] == 0:
+            return False, f"{view.name}: the textured pass did not hold its textures: {textures[0]}", {}
         bits = renderer_capture.draw_bits(run_world.default_display(standard).profile)
         if int(captures[0][4]) != bits:
             return False, f"{view.name}: captured in the {captures[0][4]}-bit profile; expected {bits}", {}
@@ -172,7 +187,8 @@ def classify(log: str, identity: str, standard: str, report: dict) -> tuple[bool
         if (status["area"], status["drawn"], status["batches"]) != (view.area, drawn, batches) or status["entities"] < drawn:
             return False, (f"{view.name}: started in area {status['area']} and drew {status['drawn']} areas, {status['batches']} batches; "
                            f"expected area {view.area}, {drawn} areas, {batches} batches"), {}
-        views[view.name] = {"capture": captures[0][0], "bits": bits, "presents": presents, "status": status}
+        views[view.name] = {"capture": captures[0][0], "textured": captures[1][0], "bits": bits, "presents": presents, "status": status,
+                            "textures": textures[0]}
     if run_world.SWITCH_RE.search(log[:positions[1]] + log[positions[-3]:positions[-2]] + log[positions[-1]:]):
         return False, "the display mode changed outside its steps", {}
     unloads = [line for line in run_world.world_lines(log[positions[-3]:positions[-2]]) if line["event"] == "unloaded"]
@@ -231,6 +247,11 @@ def stage_retail_world(build: str, output: Path, standard: str, catalog: Path, w
     maps = package / "base" / Path(MAP).parent
     maps.mkdir(parents=True, exist_ok=True)
     shutil.copy2(world, maps / world.name)
+    # The map's textures (asset_reexport world with the job's textures section).
+    textures = world.with_suffix(".d3tx")
+    if not textures.is_file():
+        raise ValueError(f"missing cooked textures {textures}; run make world-cook-retail")
+    shutil.copy2(textures, maps / textures.name)
     return package
 
 

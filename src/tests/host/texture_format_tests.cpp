@@ -512,20 +512,35 @@ static bool TexturePacks()
     TexturePack pack;
     pack.materialsHash = MaterialNamesHash({ "textures/a", "textures/b", "textures/c" });
     pack.materialTextures = { 1, kD3txNoTexture, 0 };
+    pack.materialUvDensity = { -7.0f, 0.0f, -6.5f };
     pack.textureFlags = { 0, kD3txFlagAlphaTest };
     pack.textures = { firstFile, secondFile };
     std::vector<std::uint8_t> file;
     TexturePack read;
     passed = passed && WriteD3tx(pack, file, error) && ReadD3tx(file, read, error) && read.materialTextures == pack.materialTextures &&
-             read.textures == pack.textures && read.textureFlags == pack.textureFlags && read.materialsHash == pack.materialsHash;
+             read.textures == pack.textures && read.textureFlags == pack.textureFlags && read.materialsHash == pack.materialsHash &&
+             read.materialUvDensity == pack.materialUvDensity;
     passed = passed && MaterialNamesHash({ "ab" }) != MaterialNamesHash({ "a", "b" });
 
-    // Flipped bytes anywhere in the tables or a texture, and a dangling material, are refused.
-    for (const std::size_t offset : { std::size_t(8), std::size_t(16), std::size_t(33), std::size_t(52), file.size() - 100 })
+    // The target admits the same file and sees the same tables.
+    ps2::renderer::tex::Pack target{};
+    ps2::renderer::tex::Image images[2]{};
+    std::memcpy(s_aligned, file.data(), file.size());
+    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 2) == nullptr &&
+             target.materialCount == 3 && target.textureCount == 2 && target.materialsHash == pack.materialsHash &&
+             target.materials[0].texture == 1 && target.materials[1].texture == ps2::renderer::tex::kPackNoTexture &&
+             target.materials[2].uvDensityLog2 == -6.5f && target.textures[1].flags == ps2::renderer::tex::kPackFlagAlphaTest &&
+             images[0].width == static_cast<std::uint32_t>(first.image.width) && images[1].height == static_cast<std::uint32_t>(second.image.height);
+    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 1) != nullptr;
+
+    // Flipped bytes anywhere in the tables or a texture, and a dangling material, are refused by both.
+    for (const std::size_t offset : { std::size_t(8), std::size_t(16), std::size_t(33), std::size_t(62), file.size() - 100 })
     {
         std::vector<std::uint8_t> bad = file;
         bad[offset] ^= 0x10U;
-        passed = passed && !ReadD3tx(bad, read, error);
+        std::memcpy(s_aligned, bad.data(), bad.size());
+        passed = passed && !ReadD3tx(bad, read, error) &&
+                 ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(bad.size()), target, images, 2) != nullptr;
     }
 
     TexturePack dangling = pack;

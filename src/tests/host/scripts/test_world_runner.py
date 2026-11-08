@@ -59,7 +59,7 @@ def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", t
     """A world session's log as PCSX2's file log stamps it, with per-view, per-trace and per-switch
     overrides (a switch override replaces its GS line; None drops it)."""
     log = echo("ready") + echo("begin")
-    log += "[D3BFG] world maps/graybox.d3wd: areas=2 surfaces=18 batches=26 portals=1 nodes=11 packets=34896 bytes=55056\n"
+    log += "[D3BFG] world maps/graybox.d3wd: areas=2 surfaces=18 batches=30 portals=1 nodes=11 packets=34896 bytes=55056\n"
     log += WORLD.format(event="loaded", areas=2, portals=1, viewing=0, frame=0, views=0, area=-1, entities=0, drawn=0, batches=0)
     for index, (_, _, hit, fraction, normal, material) in enumerate(runner.TRACES):
         found = {"hit": hit, "fraction": fraction, "normal": normal,
@@ -241,7 +241,7 @@ class WorldRunnerTests(unittest.TestCase):
     def test_portal_culling_must_hold(self):
         # A view facing away from the doorway, or through it closed, still drawing both rooms.
         for name in ("away", "closed"):
-            log = session({name: {"drawn": 2, "batches": 26, "entities": 2}})
+            log = session({name: {"drawn": 2, "batches": 30, "entities": 2}})
             passed, reason, _ = runner.classify(log, IDENTITY)
             self.assertFalse(passed, name)
             self.assertIn(name, reason)

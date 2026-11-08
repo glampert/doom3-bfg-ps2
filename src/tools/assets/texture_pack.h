@@ -28,12 +28,15 @@ namespace assets
 //            count, u32 FNV-1a of the world's material names (each with its NUL, the D3WD Strings
 //            section), u32 file bytes, u32 FNV-1a of header and tables with this field read as zero,
 //            u32 converter version.
-// Materials: u32 per material, the texture index or 0xFFFFFFFF (drawn untextured).
+// Materials: 8 bytes each: u32 the texture index or 0xFFFFFFFF (drawn untextured), f32 log2 of the
+//            material's UV units per world unit over the map's surfaces (0 without area), from
+//            which the target sets the mip LOD (TEX1.K).
 // Textures:  16 bytes each: u32 offset, u32 bytes, u32 flags (bit 0 alpha-tested), u32 0.
 static constexpr std::uint32_t kD3txMagic = 0x58543344;
 static constexpr std::uint16_t kD3txVersion = 1;
 static constexpr std::uint32_t kD3txConverterVersion = 1;
 static constexpr std::size_t kD3txHeaderBytes = 32;
+static constexpr std::size_t kD3txMaterialRecordBytes = 8;
 static constexpr std::size_t kD3txTextureRecordBytes = 16;
 static constexpr std::size_t kD3txAlignment = 64;
 static constexpr std::uint32_t kD3txNoTexture = 0xFFFFFFFFU;
@@ -74,6 +77,7 @@ struct TexturePack
 {
     std::uint32_t materialsHash = 0;
     std::vector<std::uint32_t> materialTextures;
+    std::vector<float> materialUvDensity;
     std::vector<std::uint32_t> textureFlags;
     std::vector<std::vector<std::uint8_t> > textures;
 };

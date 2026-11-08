@@ -127,13 +127,15 @@ void DisplayList::SetProgram(vu::Program program)
     m_programEntry = static_cast<u32>(binding.entry);
 }
 
-void DisplayList::DrawBatch(const void * packet, u32 qwords)
+void DisplayList::DrawBatch(const void * packet, u32 qwords, const void * state, u32 stateQwords)
 {
-    PS2_AssertMsg(m_programEntry != kNoProgram, "batch drawn without a program");
+    PS2_AssertMsg(m_programEntry != kNoProgram && m_directTag == nullptr, "batch drawn without a program or inside DIRECT");
 
-    // The REF and the start it leaves pending.
-    Ensure(2U);
-    Ref(packet, qwords, kVifNop, m_pendingStart);
+    // The previous batch's MSCAL swaps TOPS before the state unpacks, so both REFs land in this
+    // batch's half; its own start is left pending.
+    Ensure(3U);
+    Ref(state, stateQwords, kVifNop, m_pendingStart);
+    Ref(packet, qwords, kVifNop, kVifNop);
     m_pendingStart = VifMscal(m_programEntry);
 }
 

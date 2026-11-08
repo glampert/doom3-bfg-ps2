@@ -189,8 +189,11 @@ class Machine:
         elif base == "xitop":
             self.set_vi(self.register(args[0]), self.itop)
         elif base == "xgkick":
-            # NLOOP as the GIF reads it now; a later packet reuses the window.
-            self.kicks.append(self.word(self.vi[self.register(args[0])])[0] & 0x7FFF)
+            # NLOOP as the GIF reads it now; a later packet reuses the window. The batch's state
+            # packet and the null tag are kicked too but send no vertex.
+            address = self.vi[self.register(args[0])]
+            if WINDOW_A <= address < WINDOW_A + 2 * WINDOW_QWORDS:
+                self.kicks.append(self.word(address)[0] & 0x7FFF)
         elif base == "fcand":
             # Every vertex inside the guard band: no clip flag is set.
             self.set_vi(1, 0)

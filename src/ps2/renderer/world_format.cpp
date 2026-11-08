@@ -85,7 +85,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
     const std::uint32_t indexQwords = (indexCount + 3U) / 4U;
     const std::uint32_t base = kHeaderQwords + indexQwords;
 
-    if (indexed != (indexCount != 0) || count == 0 || (indexed && count > kMaxIndexedVertices) || base + kVertexQwords * count > kInputHalfQwords) [[unlikely]]
+    if (indexed != (indexCount != 0) || count == 0 || (indexed && count > kMaxIndexedVertices) || base + kVertexQwords * count > kBatchQwords) [[unlikely]]
     {
         return "batch exceeds the VU1 input half";
     }
@@ -161,7 +161,7 @@ static const char * CheckPacket(const std::uint8_t * packet, std::uint32_t qword
         at += 2U * indexQwords;
     }
 
-    if (!take(dma::VifStcycl(3U, 1U)) || !take(Unpack(dma::UnpackFormat::V4_16, count, base, false)) || at + 2U * count > words) [[unlikely]]
+    if (!take(dma::VifStcycl(kVertexQwords, 1U)) || !take(Unpack(dma::UnpackFormat::V4_16, count, base, false)) || at + 2U * count > words) [[unlikely]]
     {
         return "bad position unpack";
     }

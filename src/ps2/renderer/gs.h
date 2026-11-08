@@ -170,12 +170,13 @@ enum class Primitive : u8
 // The registers each vertex of a PACKED drawing tag writes, in order.
 enum class VertexFormat : u8
 {
-    ColorPosition // RGBAQ, XYZ2
+    ColorPosition,  // RGBAQ, XYZ2
+    StColorPosition // ST (with Q), RGBAQ, XYZ2
 };
 
-// A PACKED GIF tag whose PRE sets a Gouraud-shaded 'primitive' in 'context'; NLOOP and EOP are
-// zero, for the VU1 program to fill per kick.
-qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context);
+// A PACKED GIF tag whose PRE sets a Gouraud-shaded 'primitive' in 'context', sampling the bound
+// texture through STQ when 'textured'; NLOOP and EOP are zero, for the VU1 program to fill per kick.
+qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context, bool textured = false);
 
 // Uploads a binding's complete storage: padded RGBA32, or PSMT8/PSMT4 index rows.
 void Upload(const TextureBinding & binding, const void * pixels);

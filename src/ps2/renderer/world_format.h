@@ -17,8 +17,8 @@ namespace ps2::renderer::world
 
 // The layout is defined by src/tools/assets/world.h, which writes it.
 static constexpr std::uint32_t kMagic = 0x44573344;
-static constexpr std::uint32_t kVersion = 1;
-static constexpr std::uint32_t kConverterVersion = 1;
+static constexpr std::uint32_t kVersion = 2;
+static constexpr std::uint32_t kConverterVersion = 2;
 static constexpr std::uint32_t kHeaderBytes = 32;
 static constexpr std::uint32_t kSectionCount = 11;
 static constexpr std::uint32_t kDirectoryBytes = kHeaderBytes + kSectionCount * 16U;
@@ -33,9 +33,12 @@ static constexpr std::uint32_t kEntryAdc = 0x8000U;
 
 // VU1 data memory (vu1progs/vu_memory.h): a batch, its last write included, fits one input half.
 static constexpr std::uint32_t kInputHalfQwords = 306;
+// The half's last 8 qwords receive the batch's texture state (DisplayList::DrawBatch).
+static constexpr std::uint32_t kBatchStateQwords = 8;
+static constexpr std::uint32_t kBatchQwords = kInputHalfQwords - kBatchStateQwords;
 static constexpr std::uint32_t kHeaderQwords = 2;
-static constexpr std::uint32_t kVertexQwords = 3;
-static constexpr std::uint32_t kMaxIndexedVertices = 88;
+static constexpr std::uint32_t kVertexQwords = 4;
+static constexpr std::uint32_t kMaxIndexedVertices = 72;
 
 enum class Section : std::uint32_t
 {

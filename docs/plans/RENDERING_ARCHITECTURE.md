@@ -523,6 +523,12 @@ openvcl's output is one instruction pair a cycle):
 | Area 2 view (1,788 triangles) | 181,323 cycles, 0.61 ms | 237,502 cycles, 0.81 ms |
 | Areas 2, 50, 51 (the `north` view) | 104.8 per triangle | 132.2 per triangle |
 
+Textures (2026-11-08) cost the hybrid program 99.5 cycles per triangle over the whole map (from
+93.0): the transform also scales the UVs and stores STQ in a fourth vertex qword, and a vertex goes
+out as three qwords (ST, RGBAQ, XYZ2). The fourth qword and the batch's 9-qword texture state at
+the half's end cap a batch at 72 unique vertices in 298 qwords, so the map takes 2,302 batches
+(1,634,704 bytes of packets) instead of 2,138.
+
 Per vertex, the transform costs about 51 cycles in both programs (openvcl pads every latency
 and overlaps no vertices), the hybrid's index walk 14.6 cycles per entry sent and the plain copy
 about 13. The hybrid stays the cooked format (section 20.1). The comparison would turn once the
@@ -590,10 +596,14 @@ pass, where 0x80 is 1.0.
 
 The cook compiles each material into a fixed list of GS passes (section 10.1): for each
 pass the texture, CLUT, `TEX1`, `CLAMP`, `ALPHA`, `TEST`, `FBMSK`, `PRIM` flags and the VU
-program variant. At run time the pass's A+D register block (6 qwords: `TEX0`, `TEX1`, `CLAMP`, `ALPHA`,
-`TEST`, `FRAME` mask) travels in the batch header qwords and is copied by the VU program
-into every output window ahead of the drawing tag, so it is ordered with the triangles by
-`XGKICK` (section 4.1); nothing per batch goes through `DIRECT`. Materials with time-driven registers
+program variant. At run time the pass's state travels with each batch: since R2's first textured
+pass (2026-11-08) the display list REFs a 10-qword VIF block per batch (`world_textures.cpp`) that
+unpacks into the last 9 qwords of the batch's input half (`kVuBatchStateOffset`, 297): an A+D
+packet (`TEX0`, `TEX1`, `MIPTBP1`, `MIPTBP2`, `CLAMP`, `TEST`) the program kicks before its first
+window, then the batch's strip and list drawing tags (`PRIM` with `TME`). It is ordered with the
+triangles by `XGKICK` (section 4.1); nothing per batch goes through `DIRECT`. The block is per
+material and per drawing context, so a frame only rewrites blocks the chain in flight does not
+read; `ALPHA` and the `FRAME` mask join it with the blend and layer passes. Materials with time-driven registers
 (1,601 of 6,878 non-light materials use `time`, tables, parms or `sound`) keep
 `EvaluateRegisters` on the EE and patch the affected words (UV matrix, colour, alpha test
 reference, stage enable) per frame.
@@ -1811,6 +1821,8 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Video materials | cooked still frames until a converted-video path exists | Bink or RoQ decode | no cinematic decoder is linked; the PDA and screens must not block the campaign |
 | Portal sky | cooked skybox drawn by the sky program | nested second scene | removes a full second frontend pass and a frame-buffer capture |
 | Texture uploads | Inside the VIF1 chain (`FLUSHA; DIRECT`) | PATH3 with `MSKPATH3` | Ordering safety first; interleave as an R9 optimisation |
+| Batch texture state (2026-11-08) | A 10-qword VIF block per batch, REF'd from the material's per-context block, unpacked into the input half's last 9 qwords and kicked by the program before its first window | `DIRECT` register writes between batches (a `FLUSH` per texture change); the state in the cooked header | No stall per texture change and no per-batch EE writes; costs a 4-qword vertex (STQ) slot and 9 qwords of each half: mars_city1 rises from 2,138 to 2,302 batches and the world program from 93.0 to 99.5 VU1 cycles a triangle |
+| World texture residency (2026-11-08) | One whole-page VRAM arena per textured world (the texture range less 256 KiB for the UI), block-granular first fit, least recently drawn evicted, never a texture this pass drew; uploads in the chain where a batch first needs them | Area-ring streaming from the package (still the plan for the EE copy, 10.5) | mars_city1's 69 textures for the area 2 and corridor views take 517 KB of a 1,064,960-byte arena at 640x448 32/32; the whole map's 1.98 MB would not fit |
 | Texture format (2026-11-08) | GSTX v2 is the texture's GS memory image (all levels and its CLUT in N blocks from 0), stored as the `PSMCT32` words of at most six `DBW 1` rectangles; registers cooked relative to block 0 and relocated by one add | v1's index pages uploaded as `PSMT8`/`PSMT4`, CLUTs in shared pages; Black's per-level rectangles in the sampling buffer | No EE work per texel, one upload path for every format, one allocation per texture; Black's and TimeSplitters' pre-swizzled 32-bit uploads generalised to the CLUT and the mips |
 | Display list | Scratchpad builder, `fromSPR` drains, CNT/REF/CALL only | Main-RAM builder with cache flushes | No per-frame flush, position-independent list (Black) |
 | Resolution (decided 2026-11-06) | 640x448 / 640x512 FIELD mode in both standards | 512 wide, the fallback; FRAME mode half height | The user's fidelity target: ship at 640 if it fits, falling back to 512 makes everything else roomier; R9 confirms against the in-game working set |

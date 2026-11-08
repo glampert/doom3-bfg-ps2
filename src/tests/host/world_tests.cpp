@@ -725,7 +725,7 @@ static bool RunVif(std::span<const std::uint8_t> packet, Unpacked & output)
             // Skipping write: WL qwords written, then CL - WL skipped.
             const std::uint32_t target = address + (element / write) * cycle + element % write;
 
-            if (target >= static_cast<std::uint32_t>(kWorldInputHalfQwords))
+            if (target >= static_cast<std::uint32_t>(kWorldBatchQwords))
             {
                 return false;
             }
@@ -894,6 +894,7 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
                 const std::uint32_t indexQwords = header0[3];
                 const std::uint32_t indexCount = batch.indexCount;
                 const std::uint32_t base = 2U + indexQwords;
+                const std::uint32_t kStride = static_cast<std::uint32_t>(kWorldVertexQwords);
                 const bool indexed = (batch.flags & kBatchFlagIndexedStrips) != 0;
                 const float scale = AsFloat(header1[0]);
                 const float uvScale = AsFloat(header1[1]);
@@ -901,7 +902,7 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
 
                 // The program's last write is the last vertex's colour; nothing may land beyond it.
                 packets = indexQwords == (indexCount + 3U) / 4U && indexed == (indexCount != 0) && scale == batch.positionScale &&
-                          unpacked.highest == static_cast<int>(base + 3U * batch.vertexCount) - 1 &&
+                          unpacked.highest == static_cast<int>(base + kStride * (batch.vertexCount - 1U) + 2U) &&
                           (!indexed || batch.vertexCount <= static_cast<std::uint32_t>(kWorldMaxIndexedVertices));
                 tolerance = std::max(tolerance, scale * 0.5f + 1e-3f);
 
@@ -910,14 +911,14 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
 
                 for (std::uint32_t vertex = 0; vertex < batch.vertexCount; ++vertex)
                 {
-                    const std::array<std::uint32_t, 4> & position = unpacked.memory[base + 3U * vertex];
-                    const std::array<std::uint32_t, 4> & color = unpacked.memory[base + 3U * vertex + 2U];
+                    const std::array<std::uint32_t, 4> & position = unpacked.memory[base + kStride * vertex];
+                    const std::array<std::uint32_t, 4> & color = unpacked.memory[base + kStride * vertex + 2U];
                     const Point point = { static_cast<float>(AsInt(position[0])) * scale + offset[0], static_cast<float>(AsInt(position[1])) * scale + offset[1],
                                           static_cast<float>(AsInt(position[2])) * scale + offset[2] };
                     positions.push_back(point);
                     adc.push_back(AsInt(position[3]) == -32768);
                     bounds = bounds && Inside(batch.bounds, { point, point }) && Inside(surface.bounds, { point, point });
-                    colours = colours && color[3] == 0x80 && color[0] <= 255 && unpacked.memory[base + 3U * vertex + 1U][2] == 0;
+                    colours = colours && color[3] == 0x80 && color[0] <= 255 && unpacked.memory[base + kStride * vertex + 1U][2] == 0;
 
                     // The floor faces +z, the light's z share shades it.
                     if (world.materials[surface.material] == "textures/graybox/floor_light")
@@ -928,7 +929,7 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
                     }
 
                     // UVs: some source vertex at this position carries this UV within half a step.
-                    const std::array<std::uint32_t, 4> & uv = unpacked.memory[base + 3U * vertex + 1U];
+                    const std::array<std::uint32_t, 4> & uv = unpacked.memory[base + kStride * vertex + 1U];
                     const float s = static_cast<float>(AsInt(uv[0])) * uvScale + AsFloat(header1[2]);
                     const float t = static_cast<float>(AsInt(uv[1])) * uvScale + AsFloat(header1[3]);
                     bool uvFound = false;
@@ -953,7 +954,7 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
                     {
                         const std::uint32_t lane = unpacked.memory[2U + entry / 4U][entry % 4U];
                         const std::uint32_t entryOffset = lane & 0x7FFFU;
-                        packets = packets && lane <= 0xFFFFU && entryOffset >= base && (entryOffset - base) % 3U == 0;
+                        packets = packets && lane <= 0xFFFFU && entryOffset >= base && (entryOffset - base) % kStride == 0;
 
                         if (entry >= indexCount)
                         {
@@ -961,7 +962,7 @@ static bool CheckCookedWorld(const ProcFile & proc, const World & world, const W
                             continue;
                         }
 
-                        order.push_back((entryOffset - base) / 3U | ((lane & 0x8000U) != 0 ? 0x80U : 0U));
+                        order.push_back((entryOffset - base) / kStride | ((lane & 0x8000U) != 0 ? 0x80U : 0U));
                     }
                 }
                 else
