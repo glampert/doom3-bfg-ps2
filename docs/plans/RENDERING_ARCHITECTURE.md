@@ -176,7 +176,7 @@ faces when a pass needs them).
 ```
    EE (294.9 MHz)                 DMAC / VIF1                     VU1 (16K/16K)             GS
    ────────────────────────────   ────────────────────────────    ──────────────────────    ───────────────
-   game tick (frame N+1)          ┌─ chain N (built last frame) ─┐
+   game tick (frame N+1)          ┌─ chain N (built last frame) ──┐
    portal flow, light binding     │ CNT  FLUSH MSCAL ...          │  xtop/xitop
    per batch: state, lights,      │ REF  cooked vertex packet ────┼─▶ UNPACK into TOPS half
      tags into the SCRATCHPAD     │ CALL program MPG (if swap)    │  transform, light,
@@ -331,10 +331,10 @@ Measured over `src/neo/d3xp`, `framework`, `ui`, `swf`, `sound` (2026-11-02):
     FindViewLightsAndEntities ──────────────────────────────▶│  scene::RenderView(viewDef)
     [R_AddLights, R_AddModels, Interaction, shadow jobs,     │    bind lights to batches, cull batches,
      R_SortDrawSurfs, vertexCache, drawSurf_t: REMOVED]      │    instantiate dynamic models (callbacks,
-    R_AddInGameGuis → ps2 GUI surfaces                        │    decals, overlays on the same triggers),
+    R_AddInGameGuis → ps2 GUI surfaces                       │    decals, overlays on the same triggers),
     R_GenerateSubViews → bounded ps2 subviews                │    sort, build the display list
   idRenderSystemLocal: 2D calls → ui::draw (today)           │  world::, model::, light::, shadow::,
-  RenderScene → FrameBegin/End → scene::RenderView            │  material::, vu::, dma::, tex::, gs::
+  RenderScene → FrameBegin/End → scene::RenderView           │  material::, vu::, dma::, tex::, gs::
 ```
 
 - **Kept**: `RenderWorld*.cpp` (defs, areas, portals, load of portals and nodes, traces,
@@ -455,13 +455,13 @@ with NOP) exactly as the VIF consumes it, REF'd from the display list:
 ```
 batch packet (REF'd from the display list, never copied by the EE)
   STCYCL cl=1 wl=1
-  UNPACK V4-32 num=2  addr=0 +TOPS        ; qw0: pos offset xyz | index qwords ; qw1: pos scale, uv scale, uv offset st
-  UNPACK V4-16 num=I/4 addr=2 +TOPS       ; strip index stream, four u16 entries per qword (vertex qword offset | ADC)
-  STCYCL cl=S wl=1                        ; vertex stride S qwords (3 for lightmapped world)
-  UNPACK V4-16 num=N  addr=2+I/4   +TOPS  ; position xyz (s16) + w: ADC flag 0x8000 (plain strips only)
-  UNPACK V4-16 num=N  addr=3+I/4   +TOPS  ; uv0 (4.12) and lightmap uv (4.12)
-  UNPACK V4-8  num=N  addr=4+I/4   +TOPS  ; rgba chroma (0x80 = 1.0)
-  [UNPACK V3-8 num=N addr=5+I/4 +TOPS]    ; normal (lit variants)
+  UNPACK V4-32 num=2  addr=0 +TOPS         ; qw0: pos offset xyz | index qwords ; qw1: pos scale, uv scale, uv offset st
+  UNPACK V4-16 num=I/4 addr=2 +TOPS        ; strip index stream, four u16 entries per qword (vertex qword offset | ADC)
+  STCYCL cl=S wl=1                         ; vertex stride S qwords (3 for lightmapped world)
+  UNPACK V4-16 num=N  addr=2+I/4   +TOPS   ; position xyz (s16) + w: ADC flag 0x8000 (plain strips only)
+  UNPACK V4-16 num=N  addr=3+I/4   +TOPS   ; uv0 (4.12) and lightmap uv (4.12)
+  UNPACK V4-8  num=N  addr=4+I/4   +TOPS   ; rgba chroma (0x80 = 1.0)
+  [UNPACK V3-8 num=N addr=5+I/4 +TOPS]     ; normal (lit variants)
   [UNPACK V4-8 ... joint indices, weights] ; skinned variants (no index stream, plain strips)
   ITOP N                                   ; count for xitop; the next tag's VIFcode MSCALs the program
 ```
@@ -661,21 +661,21 @@ frame (world, then rigid models, then skinned, then effects), never per batch. E
 ### 7.2 VU1 data memory
 
 ```
-qword     world_lm (S = 3, N = 88, I = 1.3 N indices)       model_skin4 (K = 24 joints, N = 40, strips)
-0..7      frame constants: MVP rows, GS scale/offset,       same
-          clip scale, fog params
-8..23     per-pass GIF tag and A+D templates (2 passes x 8); same
-          qword 8 is a null GIF tag (NLOOP 0, EOP 1)
-24..39    per-draw constants: lightmap and layer scales,    same
-          material UV matrix, specular parameters,
-          the projected light's four planes (4 qw)
-40..345   input half A (BASE = 40, 306 qw): 2 header +       input half A: 96 palette + 2 header +
-          29 index qw (1.3 x 88 / 4) + 88 x 3 = 295          40 x 5 = 298
-346..651  input half B (OFFSET = 306): same                  same
-652..802  output window A: 7 tags + 3 x 48 emitted = 151    same
-803..953  output window B: 151                               same
-954..1009 clipper scratch and spill qwords (quake2's 54)    same
-1010..1023 light block: 4 lights, one per lane              same
+qword      world_lm (S = 3, N = 88, I = 1.3 N indices)        model_skin4 (K = 24 joints, N = 40, strips)
+0..7       frame constants: MVP rows, GS scale/offset,        same
+           clip scale, fog params
+8..23      per-pass GIF tag and A+D templates (2 passes x 8); same
+           qword 8 is a null GIF tag (NLOOP 0, EOP 1)
+24..39     per-draw constants: lightmap and layer scales,     same
+           material UV matrix, specular parameters,
+           the projected light's four planes (4 qw)
+40..345    input half A (BASE = 40, 306 qw): 2 header +       input half A: 96 palette + 2 header +
+           29 index qw (1.3 x 88 / 4) + 88 x 3 = 295          40 x 5 = 298
+346..651   input half B (OFFSET = 306): same                  same
+652..802   output window A: 7 tags + 3 x 48 emitted = 151     same
+803..953   output window B: 151                               same
+954..1009  clipper scratch and spill qwords (quake2's 54)     same
+1010..1023 light block: 4 lights, one per lane                same
 ```
 
 As built for R1 (2026-11-04, `vu1progs/vu_memory.h`): qwords 0-6 frame constants, 7 the
@@ -971,7 +971,7 @@ Per vertex and light on VU1, with the light block laid out one light per SIMD la
 quake2-ps2 does:
 
 ```
-d²      = Σ (L - P)²                          ; 3 lanes x 4 lights, 3 FMAC
+d²      = Σ (L - P)²                           ; 3 lanes x 4 lights, 3 FMAC
 falloff = max(1 - d²/r², 0)                    ; or the cooked polynomial for the light's image class
 ndotl   = max(dot(N, L - P) x rsqrt(d²), 0)    ; one RSQRT per light, interleaved across vertices
 colour += lightColour x falloff x ndotl        ; 4 FMAC
@@ -1172,7 +1172,7 @@ DXT5 `wy` channels):
 // (default normalize(0.3, 0.3, 0.9): mostly along the normal, a little from above)
 float shade  = Clamp(Dot(n, L0) / L0.z, 0.5f, 1.5f);
 float cavity = 1.0f + amplitude * (shade - 1.0f);      // amplitude per material class
-diffuse      = Clamp(diffuse * cavity);                 // before palettisation
+diffuse      = Clamp(diffuse * cavity);                // before palettisation
 ```
 
 This keeps the surface detail Doom's look depends on under the baked key light, costs
@@ -1414,8 +1414,8 @@ Cooked formats:
 ### 11.2 Joint pipeline per frame
 
 ```
-EE (game, idAnimator)            VU0 macro mode                        VU1 (per batch)
- blend quats/translations  ───▶   quat → 3x4 matrix per joint        palette[k] x bindInverse
+EE (game, idAnimator)             VU0 macro mode                        VU1 (per batch)
+ blend quats/translations  ───▶   quat → 3x4 matrix per joint         palette[k] x bindInverse
  (idAnimBlend, as today)          parent chain multiply               arrives in the batch's input half
                                   x inverse bind pose                 (double-buffered with the vertices)
                                   write palette qwords into the
@@ -1438,7 +1438,7 @@ VIF unpacks them into VU memory ahead of the vertices with no extra DMA tag.
 model_skin4, per vertex (software pipelined, 2 vertices in flight):
   lq      fPos, 0(iVert)   ; s16 xyz widened, w = ADC
   lq      fNrm, 2(iVert)   ; s8 normal
-  ilw.x   iJ0, 3(iVert) ... iJ3           ; palette offsets, cooked as slot x 4 (the VU has no shift)
+  ilw.x   iJ0, 3(iVert) ... iJ3            ; palette offsets, cooked as slot x 4 (the VU has no shift)
   lq      fW,  4(iVert)                    ; weights as 0..256 integers, cooked to sum to 256: itof8 gives the fractions
   iaddiu  iM0, iBase, kPalette ; iadd iM0, iM0, iJ0   (4 qw per joint)
   mulax   ACC, m0c0, fPos[x] ; madday ACC, m0c1, fPos[y] ; maddaz ACC, m0c2, fPos[z] ; maddw fP0, m0c3, vf00[w]
@@ -1821,7 +1821,7 @@ constructed by its owning system, testable on the host where it has no hardware 
 
 ```
 src/ps2/renderer/
-  dma.{h,cpp} dma_list.{h,cpp}  vu.{h,cpp}             scene.{h,cpp}
+  dma.{h,cpp} dma_list.{h,cpp}  vu.{h,cpp}            scene.{h,cpp}
   world.{h,cpp}            world_format.{h,cpp}       lightmaps.{h,cpp}
   model.{h,cpp}            model_format.h             skinning.{h,cpp}
   lights.{h,cpp}           shadows.{h,cpp}            materials.{h,cpp}
