@@ -536,8 +536,12 @@ so the sixteen lanes hold both passes and the clipper's inputs. A lit batch walk
 a second time for the lightmap pass (section 8.2). Chart seams split vertices: mars_city1 cooks into
 2,572 batches (2,262 of them lit), 1.56 vertices transformed per triangle (from 1.28) and 1,933,536
 bytes of packets. `vu_cost.py` counts 116.8 VU1 cycles a triangle for the base pass and 153.7 with
-the lightmap pass (area 2: 271,100 cycles for 1,788 triangles, 0.92 ms); the second walk sends ST and
-XYZ2 per vertex and assembles the lightmap ST from the two `.w` lanes and Q.
+the lightmap pass (area 2: 271,100 cycles for 1,788 triangles, 0.92 ms); the second walk assembles
+the lightmap ST from the two `.w` lanes and Q. Two fixes since (2026-11-08 and 2026-11-14): the
+second walk sends RGBAQ too, because a PACKED ST's Q reaches the GS only with that write, and phase 1
+adds 1e-20 to every clip w after the matrix, so a vertex in the eye's plane keeps a finite Q and the
+clipper's rebuilt w (1/Q) does not flush to zero with the corner's UV. With the static `func_static`
+models merged, the counts are 117.6 and 154.7 cycles a triangle.
 
 Per vertex, the transform costs about 51 cycles in both programs (openvcl pads every latency
 and overlaps no vertices), the hybrid's index walk 14.6 cycles per entry sent and the plain copy
@@ -648,8 +652,8 @@ own stages compile; untextured passes still draw them.
 | `passthrough` | GIF packet | `xgkick` of the input half, then `xgkick` of the null GIF tag at qword 8 so the program ends only once its packet has drained (an XGKICK stalls while the previous PATH1 transfer runs); for SIGNAL/LABEL fences and A+D blocks that must be ordered with PATH1 | | 6 (built) |
 
 The kernel, `world_lm` and `passthrough` (about 1,110 instructions) stay resident during
-gameplay. As built with both lightmap passes (2026-11-08), `world_lm` is 1,272 instructions with
-its own clipper and `world_strips` 940, so only passthrough stays resident: the world programs swap,
+gameplay. As built with both lightmap passes (2026-11-08), `world_lm` is 1,274 instructions with
+its own clipper and `world_strips` 942, so only passthrough stays resident: the world programs swap,
 and a level binds the same one every frame, so nothing uploads again. `world_strips` (851 instructions, built 2026-11-07) is gate R1's plain-strips
 comparison program; it takes the swap region when a plain-strips cook is loaded. The remaining 940 slots are one swap region that holds one or two programs at a
 time (`world_lit` + `model_rigid` = 850 fit together, as do `model_skin4` +

@@ -15,8 +15,11 @@ each view draws, and the session requires the areas and batches it drew. Traces 
 models check the compact position mirror id's traces read. Each capture must match, pixel for
 pixel within the frame-buffer profile's tolerance, a software rasterization of the same .bproc
 from the same camera (world_reference.py), where any surface the 16-bit depth buffer cannot order
-may win: a missing area or misplaced geometry fails it. Closing the doorway's portal must leave
-only area 2, against a reference of area 2 alone. In debug builds the free-flight camera then
+may win: a missing area or misplaced geometry fails it. Each view lit by its lightmaps alone must
+match the same reference with the lightmap pass modelled: the cook's pages, decoded back out of the
+D3TX, sampled bilinearly at each pixel's perspective-correct lightmap UV and multiplied into the
+vertex colour. Closing the doorway's portal must leave only area 2, against a reference of area 2
+alone. In debug builds the free-flight camera then
 flies from the start under scripted stick input, to the pose the same steps give here, and its
 capture must match the reference from that pose. The world is then unloaded and the session
 quits, recovering the startup ledger."""
@@ -137,8 +140,9 @@ def fly_commands(identity: str) -> list[str]:
     # The capture runs after the scripted frames end (the pad, untouched, then moves nothing).
     return ["ps2_world view " + " ".join(str(value) for value in FLY_START.camera), "ps2_world fly on",
             "ps2_world fly input " + " ".join(str(value) for value in FLY_INPUT), f"wait {FLY_INPUT[5] + 4}", "ps2_world fly status",
-            'ps2_capture "world-fly.tga"', "wait 2", "ps2_world status", "ps2_world textures on", "ps2_world lightmaps on", "wait 2",
-            'ps2_capture "world-fly-lit.tga"', "wait 2", "ps2_world textures off", "ps2_world lightmaps off", "ps2_world fly off",
+            'ps2_capture "world-fly.tga"', "wait 2", "ps2_world status", "ps2_world lightmaps on", "wait 2", 'ps2_capture "world-fly-light.tga"',
+            "wait 2", "ps2_world textures on", "wait 2", 'ps2_capture "world-fly-lit.tga"', "wait 2", "ps2_world textures off",
+            "ps2_world lightmaps off", "ps2_world fly off",
             f'echo "{run_world.barrier(identity, "fly")}"']
 
 
@@ -158,7 +162,8 @@ def check_fly(span: str) -> tuple[bool, str, dict]:
             return False, f"flight {line[0]} at {found} yaw={yaw_found} pitch={pitch_found}; expected {eye} yaw={yaw:.2f} pitch={pitch:.2f}", {}
     captures = run_world.CAPTURE_RE.findall(span)
     statuses = [line for line in run_world.world_lines(span) if line["event"] == "status"]
-    if [capture[0] for capture in captures] != ["world-fly.tga", "world-fly-lit.tga"] or len(statuses) != 1 or statuses[0]["viewing"] != 1:
+    if ([capture[0] for capture in captures] != ["world-fly.tga", "world-fly-light.tga", "world-fly-lit.tga"] or len(statuses) != 1 or
+            statuses[0]["viewing"] != 1):
         return False, "the flight's captures or world status are missing", {}
     if statuses[0]["area"] != FLY_AREA:
         return False, f"the flight ended in area {statuses[0]['area']}; expected {FLY_AREA}", {}
@@ -319,30 +324,39 @@ def verify_captures(output: Path, data: Path, world: Path, standard: str, fly: b
     """Every unlit capture against the reference rasterization of its view, written beside it as
     reference-<view>.png and difference-<view>.png (mismatches in magenta). The reference draws
     the cooked world's own triangles and vertex colours: the baked chroma is the cook's, and the
-    cook's geometry is held to the .bproc by its own checks (max_position_error in the report)."""
+    cook's geometry is held to the .bproc by its own checks (max_position_error in the report).
+    Every capture lit by the lightmaps alone against the same reference with the lightmap pass:
+    each lit batch's page (the cook's <stem>.lightmaps.raw, read back out of the D3TX) sampled at
+    the pixel's lightmap UV and multiplied into its colour."""
     job = json.loads(JOB.read_text())
     handle, first, second = DOORWAY_PORTAL
     portals = {entry[0]: entry[1:3] for entry in world_reference.retail_portals(data, job)}
     if portals.get(handle) != (first, second):
         raise ValueError(f"portal {handle} joins areas {portals.get(handle)}; expected {first} and {second}")
     bits = renderer_capture.draw_bits(run_world.default_display(standard).profile)
-    everything = world_reference.load_cooked_triangles(world)
+    pages_path = world.with_name(world.stem + ".lightmaps.raw")
+    if not pages_path.is_file():
+        raise ValueError(f"missing {pages_path}; run make world-cook-retail")
+    pages = world_reference.load_lightmap_pages(pages_path)
     images = output / "references"
     images.mkdir(exist_ok=True)
     results = {}
-    for view in VIEWS:
-        triangles = everything if view.reference_areas is None else world_reference.load_cooked_triangles(world, set(view.reference_areas))
-        camera = (view.camera[:3], view.camera[3:])
-        share = world_reference.compare_image(output / f"world-{view.name}.tga", triangles, camera, bits, world_reference.CLEAR_RGB,
-                                              images, view.name)
-        results[view.name] = {"match_percent": round(share, 2), "minimum_percent": MIN_MATCH}
+
+    def check(name: str, capture: str, triangles: list, camera: tuple, lit: bool):
+        share = world_reference.compare_image(output / capture, triangles, camera, bits, world_reference.CLEAR_RGB, images,
+                                              name + ("-light" if lit else ""), pages if lit else None)
+        results[name + ("-light" if lit else "")] = {"match_percent": round(share, 2), "minimum_percent": MIN_MATCH}
         if share < MIN_MATCH:
-            raise ValueError(f"{view.name}: {share:.2f}% of the capture matches its reference; expected at least {MIN_MATCH}%")
-    if fly:
-        share = world_reference.compare_image(output / "world-fly.tga", everything, fly_camera(), bits, world_reference.CLEAR_RGB, images, "fly")
-        results["fly"] = {"match_percent": round(share, 2), "minimum_percent": MIN_MATCH}
-        if share < MIN_MATCH:
-            raise ValueError(f"fly: {share:.2f}% of the capture matches its reference; expected at least {MIN_MATCH}%")
+            raise ValueError(f"{capture}: {share:.2f}% of the capture matches its reference; expected at least {MIN_MATCH}%")
+
+    for lit in (False, True):
+        everything = world_reference.load_cooked_triangles(world, lightmaps=lit)
+        for view in VIEWS:
+            triangles = (everything if view.reference_areas is None else
+                         world_reference.load_cooked_triangles(world, set(view.reference_areas), lightmaps=lit))
+            check(view.name, f"world-{view.name}{'-light' if lit else ''}.tga", triangles, (view.camera[:3], view.camera[3:]), lit)
+        if fly:
+            check("fly", f"world-fly{'-light' if lit else ''}.tga", everything, fly_camera(), lit)
     return results
 
 

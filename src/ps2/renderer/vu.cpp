@@ -45,7 +45,7 @@ static bool s_initialized = false;
 
 // The program table, in Program order. Passthrough stays; everything else takes the swap region.
 // The plan kept the world program resident too, but with both lightmap passes and its own clipper it
-// is 1,272 instructions, which would leave the swap region too small for the plain-strips program;
+// is 1,274 instructions, which would leave the swap region too small for the plain-strips program;
 // a level draws with one of them, so each frame binds the same one and nothing uploads again.
 struct Source
 {

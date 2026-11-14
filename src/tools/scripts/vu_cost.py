@@ -154,7 +154,8 @@ class Machine:
         op, args = parts[0], parts[1:]
         base, _, dest = op.partition(".")
         lanes = [self.LANES.index(lane) for lane in (dest or "xyzw")]
-        if base in ("nop", "fcset", "waitq", "div", "sqrt", "rsqrt"):
+        # loi is the pair's I-bit immediate, a float for the upper half: nothing integer happens.
+        if base in ("nop", "fcset", "waitq", "div", "sqrt", "rsqrt", "loi"):
             if base == "div":
                 self.div_ready = self.cycles + DIV_LATENCY
             return None

@@ -260,6 +260,9 @@ The class A lights bake into Light8 pages (`assets/lightmap.cpp`, plan 8.2 and 8
   alpha is the index. They go into the D3TX's page table, and every batch names its page.
 - Alpha-tested surfaces take their light per vertex, without a page.
 - `--previews DIR` also writes `lightmap-<page>.png`.
+- `<name>.lightmaps.raw` holds the pages read back out of the written D3TX through each one's
+  registers (u32 page count, then per page u32 width and height and its texels' CLUT alpha, row by
+  row): the retail gate's lightmap reference samples them.
 
 With `"static_models": true` the brush models of static `func_static` entities join the area
 models before the bake (`assets/static_models.cpp`), so they draw, light, shadow and trace as area

@@ -135,6 +135,14 @@
     ; -1.0, the lower end of the clipper's distance clamp (vf00.w is the upper one).
     sub.x fMinusOne, vf00, vf00[w]
 
+    ; 1e-20 in w, added to every clip position after the matrix: a w of any real size absorbs it,
+    ; but one that cancels to exactly 0 (a vertex in the eye's plane, as on grid-aligned cameras)
+    ; keeps Q = 1 / w finite. With Q at the largest float the clipper's rebuilt w (1 / Q) flushes
+    ; to 0 and takes the corner's UV (S x Q x w) with it.
+    sub    fWBias, vf00, vf00
+    loi    1.0e-20
+    muli.w fWBias, vf00, i
+
     xtop   iBase
     xitop  iVertsToGo
     lq     fPosOffset, 0(iBase)
@@ -178,7 +186,8 @@
         mul  acc,   fMVP0, fPos[x]
         madd acc,   fMVP1, fPos[y]
         madd acc,   fMVP2, fPos[z]
-        madd fClip, fMVP3, vf00[w]
+        madda acc,  fMVP3,  vf00[w]
+        madd  fClip, fWBias, vf00[w]
 
         mul.xyz   fJudge, fClip, fClipScale
         clipw.xyz fJudge, fClip[w]

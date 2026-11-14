@@ -5700,3 +5700,31 @@ parms (flares, glass, glow decals).
 | `make test-world-retail` (debug) | NTSC `20261108T095121Z_world_retail_4faf7498666c`, PAL `20261108T095718Z_world_retail_1d630203e253`; every capture matches its reference at 99.81 to 99.93 % |
 | `make test-host` | Passed: 399 Python tests and the C++ harnesses; `lighting_tests` merges a fixture's models (rotation, area by centroid, every refusal, a partial merge) |
 | Host tools | Built without warnings; the changed tool sources pass the EE compiler's LP64 GCC check |
+
+## Lightmap pixel reference, and clipped corners in the eye's plane (2026-11-14)
+
+The retail gate now holds every capture lit by the lightmaps alone to a reference, not just the
+eye. `world_reference.py` models the lightmap pass: each lit batch's page, sampled bilinearly
+(clamped, texel centres at +0.5) at the pixel's perspective-correct lightmap UV, times the Gouraud
+vertex colour, `>> 7` and saturated, as `ALPHA (Cd - 0) x As` blends it. The pages are the ones the
+GS reads: the world cook decodes each back out of the D3TX it wrote, through the page's registers,
+into `<stem>.lightmaps.raw`. `--lightmaps` (with `--world`) compares one capture by hand. The
+flight step adds a lightmap-only capture, `world-fly-light.tga`, held to the same reference.
+
+The reference was checked against old runs. The stale-Q captures of 2026-11-08 score 73.45 to
+97.17 % against it, while the fixed runtime's score 99.81 to 99.98 %, except `south` at 91.58 %.
+That view looks straight down -y from the player start, and walls end exactly at its y. Their
+corners lie in the eye's plane, where the clip w is exactly 0. Phase 1's Q = 1/w saturates to the
+largest float; the clipper rebuilds w as 1/Q, which flushes to zero (the VU has no denormals), so
+the corner's UV (S x Q x w) became 0. The base pass's diffuse UVs went the same way, so the
+textured captures smeared there too. Both world programs now add 1e-20 to w after the matrix: a
+real w absorbs it, a cancelled one keeps Q finite. That costs 2 instructions (`world_lm` 1,274,
+`world_strips` 942) and 1.6 VU1 cycles a mars_city1 triangle (117.6 base pass, 154.7 with the
+lightmap pass).
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC `20261114T105749Z_world_retail_75434a62c851`, PAL `20261114T105859Z_world_retail_4223994232ab`: all 16 captures (8 untextured, 8 lightmap-only) match at 99.81 to 99.98 %; `south-light` rose from 91.58 to 99.83 %. Captures in `docs/images/renderer-world-9-*` and `-10-*` retaken |
+| `make test-world`, `make test-renderer` (debug) | Passed (`20261114T110349Z_smoke_27135bca6e3d4bcb` and the expected-fatal probes) |
+| `make test-host` | Passed: 399 Python tests and the C++ harnesses; `scene_pixels.json`'s input digest regenerated (pixels unchanged) |
+| `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 4,745,652 debug and 4,038,772 release |

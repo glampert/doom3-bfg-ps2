@@ -294,9 +294,11 @@ def load_retail_triangles(data: Path, job: dict, only: set | None = None) -> lis
     return triangles
 
 
-def load_cooked_triangles(world: Path, only: set | None = None) -> list:
+def load_cooked_triangles(world: Path, only: set | None = None, lightmaps: bool = False) -> list:
     """The cooked D3WD's triangles as its packets draw them, with their vertex colour bytes (the
-    baked light's chroma for a lit map); with 'only', just those areas' triangles."""
+    baked light's chroma for a lit map); with 'only', just those areas' triangles. With 'lightmaps',
+    a batch with a lightmap page adds (page, the corners' lightmap UVs) to its triangles, which
+    rasterize multiplies in as the lightmap pass does."""
     cooked = d3wd.load(world)
     triangles = []
     for area, record in enumerate(cooked.areas):
@@ -305,9 +307,48 @@ def load_cooked_triangles(world: Path, only: set | None = None) -> list:
         for batch in cooked.batches[record.first_batch:record.first_batch + record.batch_count]:
             vertices = cooked.vertices(batch)
             material = cooked.materials[batch.material]
+            lit = lightmaps and batch.lightmap_page != d3wd.NO_LIGHTMAP
             for corners in cooked.triangles(batch):
-                triangles.append((material, tuple((vertices[k].position, list(vertices[k].color[:3])) for k in corners)))
+                triangle = (material, tuple((vertices[k].position, list(vertices[k].color[:3])) for k in corners))
+                if lit:
+                    triangle += ((batch.lightmap_page, tuple(vertices[k].lightmap for k in corners)),)
+                triangles.append(triangle)
     return triangles
+
+
+def load_lightmap_pages(path: Path) -> list:
+    """The cook's <stem>.lightmaps.raw: each lightmap page as (width, height, texels), the texels
+    the GS reads back out of the D3TX (its CLUT entries' alpha, 128 = 1.0), row by row."""
+    data = Path(path).read_bytes()
+    count, = struct.unpack_from("<I", data, 0)
+    pages, at = [], 4
+    for _ in range(count):
+        width, height = struct.unpack_from("<II", data, at)
+        at += 8
+        pages.append((width, height, data[at:at + width * height]))
+        at += width * height
+    if at != len(data):
+        raise ValueError(f"{path}: {len(data) - at} bytes past the last page")
+    return pages
+
+
+def sample_lightmap(page: tuple, u: float, v: float) -> int:
+    """The page's texel at normalized (u, v) through bilinear filtering with clamped edges (TEX1
+    LINEAR, CLAMP), texel centres at +0.5, rounded as the GS hands As to the blend."""
+    width, height, texels = page
+    x = min(max(u * width - 0.5, 0.0), width - 1.0)
+    y = min(max(v * height - 0.5, 0.0), height - 1.0)
+    x0, y0 = int(x), int(y)
+    x1, y1 = min(x0 + 1, width - 1), min(y0 + 1, height - 1)
+    fx, fy = x - x0, y - y0
+    top = texels[y0 * width + x0] * (1 - fx) + texels[y0 * width + x1] * fx
+    bottom = texels[y1 * width + x0] * (1 - fx) + texels[y1 * width + x1] * fx
+    return int(top * (1 - fy) + bottom * fy + 0.5)
+
+
+def lightmap_shade(colour: tuple, alpha: int) -> tuple:
+    """The lightmap pass's blend: ALPHA (Cd - 0) x As >> 7 + 0, saturated by COLCLAMP."""
+    return tuple(min(255, (c * alpha) >> 7) for c in colour)
 
 
 def retail_portals(data: Path, job: dict) -> list:
@@ -345,11 +386,13 @@ DEPTH_TOLERANCE = DEPTH_LEVELS / (65535.0 * NEAR)
 
 
 def rasterize(triangles: list, eye: tuple, target: tuple, width: int, height: int, background: tuple = (0, 0, 0),
-              ties: list | None = None) -> tuple:
+              ties: list | None = None, pages: list | None = None) -> tuple:
     """The view's pixels (rows of RGB tuples, 'background' where nothing draws) and, per pixel, the
     index of the triangle that won the depth test (None where nothing draws). With 'ties' (an empty
     list), it also receives per pixel the colours of every surface the 16-bit depth buffer could
-    not tell from the nearest (DEPTH_TOLERANCE in 1 / distance), coplanar decals in particular."""
+    not tell from the nearest (DEPTH_TOLERANCE in 1 / distance), coplanar decals in particular.
+    With 'pages' (load_lightmap_pages), a triangle carrying a lightmap (load_cooked_triangles with
+    lightmaps) is multiplied by its page, sampled at its perspective-correct lightmap UV."""
     forward = _normalize(_sub(eye, target))  # the camera looks down -forward
     right = _normalize(_cross(UP, forward))
     up = _cross(forward, right)
@@ -363,11 +406,16 @@ def rasterize(triangles: list, eye: tuple, target: tuple, width: int, height: in
     owner = [[None] * width for _ in range(height)]
     # Per pixel, the (1 / distance, colour) of every fragment within the tolerance of the nearest.
     near_set = [[None] * width for _ in range(height)] if ties is not None else None
-    for index, (_, corners) in enumerate(triangles):
+    for index, triangle in enumerate(triangles):
+        corners = triangle[1]
+        lightmap = triangle[2] if pages is not None and len(triangle) > 2 else None
+        page = pages[lightmap[0]] if lightmap is not None else None
         polygon = []
-        for position, colour in corners:
+        for corner, (position, colour) in enumerate(corners):
             offset = _sub(position, eye)
-            polygon.append(([_dot(offset, right), _dot(offset, up), -_dot(offset, forward)], colour))
+            # The lightmap UV rides behind the colour, so clipping interpolates it too.
+            attributes = list(colour) + (list(lightmap[1][corner]) if page is not None else [])
+            polygon.append(([_dot(offset, right), _dot(offset, up), -_dot(offset, forward)], attributes))
 
         # Clip against the near plane (view depth >= NEAR), interpolating colour along the edges.
         clipped = []
@@ -378,7 +426,7 @@ def rasterize(triangles: list, eye: tuple, target: tuple, width: int, height: in
             if (a[2] >= NEAR) != (b[2] >= NEAR):
                 t = (NEAR - a[2]) / (b[2] - a[2])
                 clipped.append(([a[q] + (b[q] - a[q]) * t for q in range(3)],
-                                [colour_a[q] + (colour_b[q] - colour_a[q]) * t for q in range(3)]))
+                                [colour_a[q] + (colour_b[q] - colour_a[q]) * t for q in range(len(colour_a))]))
         if len(clipped) < 3 or any(p[2] > FAR for p, _ in clipped):
             continue
 
@@ -398,15 +446,26 @@ def rasterize(triangles: list, eye: tuple, target: tuple, width: int, height: in
                         continue
                     inverse = w0 / z0 + w1 / z1 + w2 / z2
                     z = 1.0 / inverse
+
+                    def shade():
+                        # Gouraud colour, linear on screen; then the lightmap pass, its UV
+                        # perspective-correct (the GS divides ST by Q per pixel).
+                        rgb = tuple(int(round(w0 * c0[q] + w1 * c1[q] + w2 * c2[q])) for q in range(3))
+                        if page is None:
+                            return rgb
+                        u = (w0 * c0[3] / z0 + w1 * c1[3] / z1 + w2 * c2[3] / z2) / inverse
+                        v = (w0 * c0[4] / z0 + w1 * c1[4] / z1 + w2 * c2[4] / z2) / inverse
+                        return lightmap_shade(rgb, sample_lightmap(page, u, v))
+
                     colour = None
                     if z < depth[y][x]:
                         depth[y][x] = z
                         owner[y][x] = index
-                        colour = tuple(int(round(w0 * c0[q] + w1 * c1[q] + w2 * c2[q])) for q in range(3))
+                        colour = shade()
                         image[y][x] = colour
                     if near_set is not None and inverse >= 1.0 / depth[y][x] - DEPTH_TOLERANCE:
                         if colour is None:
-                            colour = tuple(int(round(w0 * c0[q] + w1 * c1[q] + w2 * c2[q])) for q in range(3))
+                            colour = shade()
                         front = 1.0 / depth[y][x]
                         kept = [entry for entry in near_set[y][x] or () if entry[0] >= front - DEPTH_TOLERANCE]
                         near_set[y][x] = kept + [(inverse, colour)]
@@ -534,7 +593,7 @@ def scene_triangles(scene: str, data: Path) -> tuple:
 
 
 def compare_image(capture: Path, triangles: list, camera: tuple, bits: int, background: tuple,
-                  images: Path | None = None, label: str = "view") -> float:
+                  images: Path | None = None, label: str = "view", pages: list | None = None) -> float:
     """The share (percent) of the capture's pixels within the profile's tolerance of the reference
     image from 'camera' (eye, target), or of any colour the 16-bit depth buffer could have kept there
     instead. A half-height capture is a FRAME buffer: its row y is the reference's row 2y."""
@@ -543,7 +602,7 @@ def compare_image(capture: Path, triangles: list, camera: tuple, bits: int, back
     if lines not in renderer_capture.VISIBLE_LINES.values() or width not in renderer_capture.RESOLUTION_WIDTHS:
         raise ValueError(f"{capture} is {width}x{height}, not a world display mode")
     ties = []
-    image, _ = rasterize(triangles, camera[0], camera[1], width, lines, background, ties)
+    image, _ = rasterize(triangles, camera[0], camera[1], width, lines, background, ties, pages)
     step = lines // height
     slack = renderer_capture.tolerance(bits)
     mismatches = 0
@@ -576,6 +635,9 @@ def main() -> int:
     parser.add_argument("--data", type=Path, default=RETAIL_DATA, help="the retail installation a retail scene reads")
     parser.add_argument("--world", type=Path,
                         help="draw this cooked D3WD's own triangles and vertex colours instead of the scene's source (a lit cook's chroma)")
+    parser.add_argument("--lightmaps", action="store_true",
+                        help="with --world, model the lightmap pass (a capture lit by the lightmaps alone): the pages come from the "
+                             "cook's <stem>.lightmaps.raw beside the D3WD")
     parser.add_argument("--view", help="the camera of the --compare capture, by name")
     parser.add_argument("--camera", type=float, nargs=6, metavar=("EX", "EY", "EZ", "TX", "TY", "TZ"),
                         help="the --compare capture's camera given directly, as ps2_world view takes it")
@@ -596,10 +658,15 @@ def main() -> int:
             if args.view not in views:
                 parser.error(f"--view must be one of {', '.join(sorted(views))}")
             camera, label = views[args.view], args.view
+        if args.lightmaps and args.world is None:
+            parser.error("--lightmaps needs --world")
         triangles, background = scene_triangles(args.scene, args.data)
+        pages = None
         if args.world is not None:
-            triangles = load_cooked_triangles(args.world)
-        share = compare_image(args.compare, triangles, camera, args.bits, background, args.images, label)
+            triangles = load_cooked_triangles(args.world, lightmaps=args.lightmaps)
+        if args.lightmaps:
+            pages = load_lightmap_pages(args.world.with_name(args.world.stem + ".lightmaps.raw"))
+        share = compare_image(args.compare, triangles, camera, args.bits, background, args.images, label, pages)
         print(f"{args.compare.name} {label} {args.bits}-bit: {share:.2f}% within {renderer_capture.tolerance(args.bits)}")
         return 0 if share >= args.min_match else 1
 

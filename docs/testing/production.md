@@ -315,8 +315,9 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   two frames later), then textured and lit (`ps2_world textures on`, `world-<view>-lit.tga`), and
   `ps2_world textures status` must report textures and lightmaps enabled, textures and pages
   resident and uploaded, with no batch fallen back to untextured or unlit. Both go off again
-  before the next view. The lit captures are checked by eye for now: no pixel reference models the
-  lightmap pass yet. The
+  before the next view. Each lightmap capture must match the reference with the lightmap pass
+  modelled (below); the textured captures are checked by eye: no reference models the diffuse
+  textures yet. The
   runner names each view's areas and takes their batches from the cook report's `area_list`, so
   `make test-world-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips` checks a
   plain-strips cook drawn by `world_strips.vcl` the same way.
@@ -326,8 +327,9 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   `ps2_world fly status` four frames after the last scripted frame, within 0.25 units and 0.05
   degrees of the pose `run_world_retail.fly_pose` steps the same way (-3586.95, -3348.12, 250.05;
   yaw 109.62, pitch 11.54). `world-fly.tga` is captured there and must match the reference from that
-  pose; the status must start in area 2. `world-fly-lit.tga` follows, textured and lit, checked by
-  eye. Release builds have no flight camera and skip the step.
+  pose; the status must start in area 2. `world-fly-light.tga` follows, lit by the lightmaps alone
+  and held to the lightmap reference, then `world-fly-lit.tga`, textured and lit, checked by eye.
+  Release builds have no flight camera and skip the step.
 - Captures: each untextured, unlit one must match a software rasterization of the cooked D3WD's
   own triangles from the same camera (`world_reference.load_cooked_triangles`, decoded from the
   batch packets with their vertex colour bytes, which are the baked chroma: the reference renders

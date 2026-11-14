@@ -1340,6 +1340,52 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         return false;
     }
 
+    // The pages' texels as the GS reads them back out of the written package (the CLUT entry's
+    // alpha, which the lightmap pass multiplies by): the retail gate's reference samples these.
+    std::vector<std::uint8_t> lightmaps;
+    const auto PutU32 = [&lightmaps](std::uint32_t value)
+    {
+        for (int shift = 0; shift < 32; shift += 8)
+        {
+            lightmaps.push_back(static_cast<std::uint8_t>(value >> shift));
+        }
+    };
+
+    PutU32(static_cast<std::uint32_t>(check.lightmapPages.size()));
+
+    for (std::size_t index = 0; index < check.lightmapPages.size(); ++index)
+    {
+        GstxV2Texture page;
+
+        if (!ReadGstxV2(check.textures[check.lightmapPages[index]], page, error))
+        {
+            return Fail("lightmap page " + std::to_string(index) + ": " + error);
+        }
+
+        PutU32(static_cast<std::uint32_t>(page.width));
+        PutU32(static_cast<std::uint32_t>(page.height));
+
+        for (int y = 0; y < page.height; ++y)
+        {
+            for (int x = 0; x < page.width; ++x)
+            {
+                std::uint32_t value = 0;
+
+                if (!SampleGstxV2(page, 0, x, y, value))
+                {
+                    return Fail("lightmap page " + std::to_string(index) + " cannot be sampled");
+                }
+
+                lightmaps.push_back(static_cast<std::uint8_t>(value >> 24));
+            }
+        }
+    }
+
+    if (!WriteFile(output / (stem + ".lightmaps.raw"), lightmaps.data(), lightmaps.size()))
+    {
+        return false;
+    }
+
     const std::size_t textured = static_cast<std::size_t>(std::count_if(pack.materialTextures.begin(), pack.materialTextures.end(),
                                                                         [](std::uint32_t texture) { return texture < kD3txHidden; }));
     const std::string report = "{\n  \"materials\": " + std::to_string(materials.size()) + ",\n  \"textured_materials\": " +

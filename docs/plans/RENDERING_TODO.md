@@ -199,7 +199,10 @@ production link free of test inputs. Section numbers in parentheses point into t
       Light8 pages as GSTX v2 in the D3TX (8.2, 8.3, 15.1; 2026-11-08: mars_city1's 410 class A
       lights into 8 pages, alpha-tested surfaces lit per vertex).
 - [ ] Cook: chroma subdivision to 64 units; the `.bcm` and mesh models (`func_static` `.lwo`/`.ase`)
-      as occluders; a pixel reference for the lightmap pass in the retail gate (8.2, 8.3).
+      as occluders (8.2, 8.3).
+- [x] Gate: a pixel reference for the lightmap pass (2026-11-14): every lightmap-only capture of the
+      retail gate against the cooked pages sampled at each pixel's lightmap UV; it rejects the
+      stale-Q captures and found clipped corners in the eye's plane losing their UVs (fixed).
 - [x] Cook: static `func_static` brush models merge into the area models before the bake
       (2026-11-08, `"static_models": true`): mars_city1's 108 whole and 15 partial models, 3,625
       triangles, drawn, lit, shadowed and traced as area geometry.

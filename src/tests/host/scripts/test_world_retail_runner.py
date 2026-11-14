@@ -58,7 +58,8 @@ def flight(frame, pose=None, area=runner.FLY_AREA):
     log += f"[D3BFG] CONSOLE capture=world-fly.tga frame={frame} presents={frame} redraws=0 bits=32\n"
     log += WORLD.format(event="status", areas=56, portals=55, viewing=1, frame=frame + 3, views=frame, area=area, entities=2, drawn=2,
                         batches=123)
-    log += f"[D3BFG] CONSOLE capture=world-fly-lit.tga frame={frame + 5} presents={frame + 5} redraws=0 bits=32\n"
+    log += f"[D3BFG] CONSOLE capture=world-fly-light.tga frame={frame + 5} presents={frame + 5} redraws=0 bits=32\n"
+    log += f"[D3BFG] CONSOLE capture=world-fly-lit.tga frame={frame + 7} presents={frame + 7} redraws=0 bits=32\n"
     return log + fly_line("off", 0, eye, yaw, pitch) + echo("fly")
 
 

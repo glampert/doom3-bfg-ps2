@@ -114,7 +114,8 @@ coordinates; CLUTs; VRAM and mipmaps.
   last reader is an earlier chain). Each batch's state block is per material and per drawing
   context: a frame rewrites only its own context's blocks, never one the chain in flight reads.
   `TEX1.K` = log2(UV per unit) + log2(texture size) - log2(GS pixels per unit at depth 1).
-  `ps2_world textures on|off|status`; untextured captures stay the reference gate.
+  `ps2_world textures on|off|status`; the untextured captures and the lightmap-only ones (below)
+  are held to references, the textured ones are checked by eye.
 - **Lightmap pass:** the frame's *other* GS context (contexts alternate per frame) is set for it
   by `gs::BeginDepthPass` (this frame's buffer with alpha masked, ZBUF masked, GEQUAL, ALPHA
   `(Cd - 0) x As + 0`, bilinear LOD 0, clamp) and handed back its own frame by `EndDepthPass`.
@@ -123,6 +124,9 @@ coordinates; CLUTs; VRAM and mipmaps.
   are `PSMT8` ramps (alpha = index, 0x80 = 1.0, up to 0xFF), drawn with `TFX` DECAL OR'd in at
   run time. Alpha-tested surfaces get no lightmap pass (it cannot test the diffuse's alpha and the
   GS has no EQUAL depth test): the cook lights them per vertex. `ps2_world lightmaps on|off`.
+  The retail gate holds every lightmap-only capture to `world_reference.py`'s model of the pass
+  (`--lightmaps`): the cook's `<stem>.lightmaps.raw` (the pages read back out of the D3TX) sampled
+  bilinearly at the perspective-correct lightmap UV, times the vertex colour, `>> 7`, saturated.
 - Translucent materials without a diffuse stage (`kPackHidden` in the D3TX) are skipped by the
   textured pass until material passes exist; untextured passes draw them. The retail gate's
   reference rasterizes the cooked D3WD's own triangles (`world_reference.load_cooked_triangles`),
