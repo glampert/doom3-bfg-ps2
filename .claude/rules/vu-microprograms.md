@@ -145,7 +145,9 @@ four copies), and `exit` ends a program on its last instructions. Write for thos
   wall edges there). Both world programs add 1e-20 to w after the matrix (`fWBias`); keep it.
 - The list path's walk state is in registers, the clipper's survivor count too (`iCount`); VU
   memory holds only what is read where it is used: the pass's drawing tag address and the pass
-  (`kVuWalkPrevAddr` .y, .z), for a window open and the clipper's seed. With the clipper's
+  (`kVuWalkPrevAddr` .y, .z), for a window open and the clipper's seed. The clip scratch is 954-1005, right
+  after window B (that qword, then buffers A and B of 24 and 27 qwords, pinned by `#if`s in
+  `vu_memory.h`); 1006-1023 are free. With the clipper's
   temporaries that fills the VI registers: add walk state by shortening another value's life.
 - `world_strips.vcl` reads the position's ADC word with `ilw.w` before the in-place `sq` of the
   same qword; oxide mode keeps the two in order, also in the pipelined transform. Plain strips

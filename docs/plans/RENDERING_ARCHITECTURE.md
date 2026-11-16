@@ -686,8 +686,10 @@ qword      world_lm (S = 3, N = 88, I = 1.3 N indices)        model_skin4 (K = 2
 346..651   input half B (OFFSET = 306): same                  same
 652..802   output window A: 7 tags + 3 x 48 emitted = 151     same
 803..953   output window B: 151                               same
-954..1009  clipper scratch and spill qwords (quake2's 54)     same
-1010..1023 light block: 4 lights, one per lane                same
+954..1005  clipper scratch: walk state, buffers A and B       same
+           (8 and 9 corners of 3 qw)
+1006..1023 free (18 qw); the light block (4 lights, one per   same
+           lane) fits in 14 of them
 ```
 
 As built for R1 (2026-11-04, `vu1progs/vu_memory.h`): qwords 0-6 frame constants, 7 the
@@ -697,7 +699,10 @@ vertices of RGBAQ and XYZ2 (151 qwords, absolute and shared by both halves); 954
 list path's walk state; 957-990 the clipper's buffers (two qwords per corner); 991 its
 survivor count. Consecutive batches keep alternating windows: the window a batch writes
 first is the one kicked two kicks ago, which the last kick's stall has drained, so no
-program needs a drain guard.
+program needs a drain guard. Since 2026-11-16 the clip scratch is 954-1005: the walk state's
+qword (the pass's drawing tag address and the pass), then the clipper's buffers of three qwords
+per corner, A 24 and B 27 back to back; `#if` checks in `vu_memory.h` pin the layout, and
+1006-1023 are free.
 
 The output windows hold a fixed 48 emitted vertices each, not `N`: the program kicks a
 window when it fills and continues in the other (quake2-ps2's `OpenOutputWindow`), so the

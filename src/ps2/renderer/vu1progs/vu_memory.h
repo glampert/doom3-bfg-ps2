@@ -63,10 +63,26 @@
     #error "kVuWindowStripQwords is the stream qwords a window holds after its two re-sent entries"
 #endif
 
-// Clip scratch (954-1008): what the list path keeps in memory (955 .y the address of the pass's
-// drawing tag, .z the pass, 0 base or 1 lightmap; the rest of its walk is in registers), then the
-// clipper's ping-pong buffers of three qwords per corner (clip position, float colour, UV). 954,
-// 956 and 1008 are free.
-#define kVuWalkPrevAddr 955
-#define kVuClipBufA     957
-#define kVuClipBufB     981
+// Clip scratch (954-1005), right after window B: what the list path keeps in memory (954 .y the
+// address of the pass's drawing tag, .z the pass, 0 base or 1 lightmap; the rest of its walk is
+// in registers), then the clipper's ping-pong buffers of three qwords per corner (clip position,
+// float colour, UV), the first corner repeated at the end: A holds 7 corners plus the wrap, B 8
+// (five planes add at most one corner each to a triangle). 1006-1023 are free.
+#define kVuWalkPrevAddr       954
+#define kVuClipBufA           955
+#define kVuClipBufAQwords     24
+#define kVuClipBufB           979
+#define kVuClipBufBQwords     27
+#define kVuClipScratchEndAddr 1006
+
+#if kVuWindowA + 2 * kVuWindowQwords != kVuWalkPrevAddr
+    #error "the clip scratch starts right after output window B"
+#endif
+
+#if kVuClipBufA != kVuWalkPrevAddr + 1 || kVuClipBufB != kVuClipBufA + kVuClipBufAQwords || kVuClipScratchEndAddr != kVuClipBufB + kVuClipBufBQwords
+    #error "the clip scratch is the walk state qword, then buffers A and B back to back"
+#endif
+
+#if kVuClipBufAQwords != 3 * 8 || kVuClipBufBQwords != 3 * 9 || kVuClipScratchEndAddr > 1024
+    #error "the clipper's buffers hold 8 and 9 corners of three qwords inside VU1 data memory"
+#endif
