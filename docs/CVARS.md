@@ -86,7 +86,7 @@ these retained frontend cvar registrations do not initialize a GS device or sele
 | `r_useNodeCommonChildren` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useShadowSurfaceScissor` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_useCachedDynamicModels` | `1` | `1` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
-| `r_znear` | `3` | `3` | `CVAR_RENDERER`, `CVAR_FLOAT` | Clamped to 0.001–200. |
+| `r_znear` | `3` | `3` | `CVAR_RENDERER`, `CVAR_FLOAT` | Clamped to 0.001–200. The world pass draws from at least 0.125 units (`vu::kClipMinNear`, after `cramZNear`'s quarter): release raises a nearer plane to it, assertion builds stop. |
 | `r_jitter` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_skipSuppress` | `0` | absent | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |
 | `r_skipDeforms` | `0` | `0` | `CVAR_RENDERER`, `CVAR_BOOL` | Native frontend control. |

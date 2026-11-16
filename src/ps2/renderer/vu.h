@@ -67,6 +67,15 @@ static constexpr float kGuardBandScale = 1.0f / 0.8f;
 static constexpr float kClipShrink = 0.001f;
 static constexpr float kClipDistanceScale = 2048.0f * 2048.0f;
 
+// The nearest the world pass's near plane may be. A plane distance is the difference of two floats
+// of about the near distance's size, so it is 0 or a whole number of their ulps; from 1/8 up an ulp
+// times kClipDistanceScale is at least 1/16, the ftoi4 step, so a corner is kept exactly when its
+// distance is >= 0 and a pass adds at most one corner (the buffers in vu_memory.h hold that).
+// Nearer, a corner just behind a plane can be kept and cut both, and the clipper writes past its
+// buffers and the output window.
+static constexpr float kClipMinNear = 8388608.0f / (16.0f * kClipDistanceScale);
+static_assert(kClipMinNear == 0.125f, "kClipMinNear is the near distance whose ulp scales to 1/16");
+
 // What a frame's programs read from the low data memory (vu_memory.h): the view-projection (row
 // vectors), the projection to GS window coordinates and the guard band, and the world programs'
 // drawing tags. DisplayList::SetFrameConstants adds the window state and the null tag itself.

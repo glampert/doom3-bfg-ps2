@@ -9,7 +9,9 @@
 ; A polygon lives in one of two scratch buffers (vu_memory.h) with its first corner repeated at
 ; the end, so the edge walk needs no wrap test; a pass reads one buffer and writes the other, and
 ; five passes leave the survivors in B. Buffer A holds 8 entries (7 corners plus the wrap) and B 9,
-; three qwords each.
+; three qwords each: a pass adds at most one corner while a corner is kept exactly when its distance
+; is >= 0, which holds with the near plane at least vu::kClipMinNear (vu.h) from the eye; nearer, a
+; corner just behind a plane can be kept and cut both. scene.cpp clamps the near plane there.
 ; The corner count is in iCount: the seed sets it, each pass reads it and leaves its own, and the
 ; fan reads the last.
 ;

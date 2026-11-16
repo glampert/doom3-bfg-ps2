@@ -51,8 +51,20 @@ math::Mat4 ViewProjection(const viewDef_t & view)
                                      { right.z, up.z, back.z, 0.0f },
                                      { -math::Dot(right, eye), -math::Dot(up, eye), -math::Dot(back, eye), 1.0f } }};
 
-    // R_SetupProjectionMatrix's near plane and field of view; the aspect carries fov_x.
-    const float zNear  = camera.cramZNear ? r_znear.GetFloat() * 0.25f : r_znear.GetFloat();
+    // R_SetupProjectionMatrix's near plane and field of view; the aspect carries fov_x. r_znear
+    // reaches down to 0.001, nearer than the clipper's buffers allow (vu::kClipMinNear): debug
+    // builds stop on it, release draws from the nearest plane the clipper holds.
+    const float idNear = camera.cramZNear ? r_znear.GetFloat() * 0.25f : r_znear.GetFloat();
+#if PS2_D3BFG_ASSERTS
+    if (idNear < vu::kClipMinNear) [[unlikely]]
+    {
+        FatalError("Assert Failed: the near plane at %g (r_znear %g%s) is nearer than the world clipper's %g (%s:%d)",
+                   static_cast<double>(idNear), static_cast<double>(r_znear.GetFloat()), camera.cramZNear ? ", quartered by cramZNear" : "",
+                   static_cast<double>(vu::kClipMinNear), __FILE__, __LINE__);
+    }
+#endif
+
+    const float zNear  = idNear < vu::kClipMinNear ? vu::kClipMinNear : idNear;
     const float tanX   = idMath::Tan(camera.fov_x * idMath::PI / 360.0f);
     const float tanY   = idMath::Tan(camera.fov_y * idMath::PI / 360.0f);
     const float width  = static_cast<float>(gs::Width());

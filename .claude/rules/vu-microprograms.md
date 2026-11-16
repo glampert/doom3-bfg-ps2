@@ -147,7 +147,10 @@ four copies), and `exit` ends a program on its last instructions. Write for thos
   memory holds only what is read where it is used: the pass's drawing tag address and the pass
   (`kVuWalkPrevAddr` .y, .z), for a window open and the clipper's seed. The clip scratch is 954-1005, right
   after window B (that qword, then buffers A and B of 24 and 27 qwords, pinned by `#if`s in
-  `vu_memory.h`); 1006-1023 are free. With the clipper's
+  `vu_memory.h`); 1006-1023 are free. The buffers hold the true worst case only while a corner is
+  kept exactly when its distance is >= 0: every distance is 0 or at least one ulp of the near
+  distance times `kClipDistanceScale`, which is the ftoi4 step (1/16) from a near plane of 1/8 up
+  (`vu::kClipMinNear`). `scene::ViewProjection` clamps the near plane there (assertion builds stop). With the clipper's
   temporaries that fills the VI registers: add walk state by shortening another value's life.
 - `world_strips.vcl` reads the position's ADC word with `ilw.w` before the in-place `sq` of the
   same qword; oxide mode keeps the two in order, also in the pipelined transform. Plain strips
