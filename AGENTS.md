@@ -44,7 +44,8 @@ statement or block; keep the code visually spaced rather than densely packed.
   glyph sets and the movie admissions.
 - [docs/plans/](docs/plans/): [IMPLEMENTATION_PLAN.md](docs/plans/IMPLEMENTATION_PLAN.md)
   (milestones), [RENDERING_ARCHITECTURE.md](docs/plans/RENDERING_ARCHITECTURE.md) (3D
-  rendering) and its step-by-step [RENDERING_TODO.md](docs/plans/RENDERING_TODO.md).
+  rendering) and its step-by-step [RENDERING_TODO.md](docs/plans/RENDERING_TODO.md);
+  [HEAP_ALLOCATOR.md](docs/plans/HEAP_ALLOCATOR.md) (the EE heap that replaces dlmalloc).
 - [docs/CVARS.md](docs/CVARS.md): implemented backend cvars; add each one with its
   debug/release defaults and flags when it exists in code.
 - [.claude/rules/](.claude/rules/) (index below) includes Quake II PS2 reference notes. Their
