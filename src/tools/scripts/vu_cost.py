@@ -3,10 +3,12 @@
 # File: vu_cost.py
 # Brief: Count the VU1 cycles a world program spends on each cooked batch, for gate R1's topology
 # comparison (world_lm.vcl over indexed strips, world_strips.vcl over plain strips). PCSX2 reports
-# no VU1 cycles, but openvcl's output is fully scheduled: every instruction pair is one cycle, the
-# FMAC and integer latencies padded with NOPs. This script unpacks each batch's VIF packet into data
+# no VU1 cycles, but oxide-vcl's output is scheduled: every instruction pair is one cycle, and a
+# pair the VU stalls on (a result not yet landed, the divider busy) carries the stall in its
+# listing comment, 'STALL_LATENCY ?N'. This script unpacks each batch's VIF packet into data
 # memory as VIF1 would and runs the program's integer side exactly (loads, stores, counters,
-# branches and their delay slots), charging one cycle a pair plus the DIV wait at each WAITQ. Float
+# branches and their delay slots), charging one cycle a pair, plus its marked stall, or the DIV
+# wait at a WAITQ. Float
 # results are not computed: every vertex is taken to be inside the guard band (the clip flags read
 # zero), which is the strip path nearly every batch takes. XGKICK stalls depend on the GS and are
 # not charged; both topologies send the same vertices. A batch with a lightmap page runs the
@@ -39,11 +41,16 @@ DIV_LATENCY = 7
 MAX_CYCLES = 1_000_000
 
 LABEL_RE = re.compile(r"^(\w+):\s*$")
+STALL_RE = re.compile(r"STALL_LATENCY \?(\d+)")
 MEMORY_RE = re.compile(r"^(-?\w+)\((VI\d\d)\)$")
 
 
 class Program:
-    """One assembled program: its instruction pairs (upper, lower) and labels."""
+    """One assembled program: its instruction pairs (upper, lower, stall cycles) and labels.
+
+    A row of oxide-vcl's listing is the upper instruction and its operands (none for NOP), then the
+    lower one and its operands, then an optional comment.
+    """
 
     def __init__(self, name: str, text: str):
         self.name = name
@@ -56,16 +63,20 @@ class Program:
                 continue
             if line.startswith(f"{name}_CodeEnd:"):
                 break
-            if not inside or not line.strip() or line.strip().startswith("."):
+            code, _, comment = line.partition(";")
+            if not inside or not code.strip() or code.strip().startswith("."):
                 continue
-            label = LABEL_RE.match(line)
+            label = LABEL_RE.match(code)
             if label:
                 self.labels[label.group(1)] = len(self.pairs)
                 continue
-            fields = re.split(r"\s{2,}", line.strip())
-            if len(fields) != 2:
+            tokens = code.split()
+            upper_size = 1 if tokens[0].upper().startswith("NOP") else 2
+            if len(tokens) < upper_size + 1:
                 raise ValueError(f"{name}: unexpected line {line!r}")
-            self.pairs.append((fields[0], fields[1]))
+            stall = STALL_RE.search(comment)
+            self.pairs.append((" ".join(tokens[:upper_size]), " ".join(tokens[upper_size:]),
+                               int(stall.group(1)) if stall else 0))
 
 
 def load_program(name: str, build: Path = VU_BUILD) -> Program:
@@ -151,7 +162,7 @@ class Machine:
     def lower(self, text: str):
         """Executes one lower instruction; returns a branch target pair index or None."""
         parts = text.replace(",", " ").split()
-        op, args = parts[0], parts[1:]
+        op, args = parts[0].lower(), parts[1:]
         base, _, dest = op.partition(".")
         lanes = [self.LANES.index(lane) for lane in (dest or "xyzw")]
         # loi is the pair's I-bit immediate, a float for the upper half: nothing integer happens.
@@ -184,6 +195,8 @@ class Machine:
                 target[lane] = self.vi[self.register(args[0])]
         elif base in ("iaddiu", "iaddi"):
             self.set_vi(self.register(args[0]), self.vi[self.register(args[1])] + int(args[2], 0))
+        elif base == "isubiu":
+            self.set_vi(self.register(args[0]), self.vi[self.register(args[1])] - int(args[2], 0))
         elif base in ("iadd", "isub", "iand", "ior"):
             left, right = self.vi[self.register(args[1])], self.vi[self.register(args[2])]
             value = {"iadd": left + right, "isub": left - right, "iand": left & right, "ior": left | right}[base]
@@ -226,9 +239,11 @@ class Machine:
     def run(self) -> int:
         pc, pending, ending = 0, None, False
         while True:
-            upper, lower = self.program.pairs[pc]
+            upper, lower, stall = self.program.pairs[pc]
             if lower.startswith("waitq"):
                 self.cycles = max(self.cycles, self.div_ready)
+            else:
+                self.cycles += stall
             self.cycles += 1
             target = self.lower(lower)
             if self.cycles > MAX_CYCLES:

@@ -100,17 +100,25 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
   The first `ps2.yml` run (2026-10-19, `232d758`) stopped at its first compile with
   `Error loading shared library libmpc.so.3`. Install `gmp mpfr4 mpc1` (Alpine 3.24 names).
   quake2-ps2 gets them through `build-base`, whose host gcc depends on them. The EE
-  binutils and driver need only musl; the `libstdc++`/`libgcc_s` users are gdb, openvcl
-  and the libcc1 plugins. On a new pin, list each image binary's needs with
+  binutils and driver need only musl; the `libstdc++`/`libgcc_s` users are gdb, the image's
+  openvcl (which the build no longer runs) and the libcc1 plugins. On a new pin, list each
+  image binary's needs with
   `llvm-readelf -d` and map the sonames through Alpine's `APKINDEX` `p:so:` entries.
 - **Install git before `actions/checkout`.** Without git 2.18 or newer on `PATH`, it downloads
   a tarball through the REST API instead, with no `.git`, and the link report records an
   unknown commit.
-- **Checkout fetches the submodules** (`submodules: recursive`, since 2026-11-03): the VU
-  tool submodules under `src/external/` must be present for the VU build rule. A new
-  gitlink must point at a published commit or the checkout fails. The job installs `g++`
-  and passes `HOST_CXX=g++` so `make` can build vclpp; `openvcl` and `dvp-as` are in the
-  image (quake2-ps2 builds its VU programs on the same digest).
+- **Checkout fetches the submodules** (`submodules: recursive`): oxide-vcl, the VU
+  compiler, under `src/external/oxide-vcl` must be present for the VU build rule. A new
+  gitlink must point at a published commit or the checkout fails. `dvp-as` is in the image.
+- **Rust for oxide-vcl.** The job adds `rustup` with apk and installs stable Rust
+  (`rustup-init -y --profile minimal --default-toolchain stable`) for the musl host, then
+  puts `$HOME/.cargo/bin` on `GITHUB_PATH`. oxide-vcl is edition 2024 with no crate
+  dependencies; Alpine's own `rust` package can lag behind what it needs. cargo links with
+  the host `cc`, so the job installs `musl-dev` beside `g++`, which stays the host C/C++
+  compiler (`HOST_CXX=g++`). `stable` is not pinned, unlike the image: a new Rust release
+  reaches CI unannounced, changing how oxide-vcl is built but not what it generates; pin it
+  with `--default-toolchain 1.NN` if one ever breaks the build. The Makefile builds
+  oxide-vcl into `build/tools/oxide-vcl/` once, for both configurations.
 - **Mark the workspace safe for git after checkout.** The container runs as root while the
   runner's user owns the workspace, so git stops with "detected dubious ownership". Checkout
   adds `safe.directory` only to its own temporary global configuration. `build_metadata.py`

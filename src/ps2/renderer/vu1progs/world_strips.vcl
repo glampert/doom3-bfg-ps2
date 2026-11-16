@@ -3,7 +3,8 @@
 ;
 ; One cooked world batch in plain strips (D3WD, layout WA without the index stream: the cook's
 ; "strips" topology, src/tools/assets/world.h), the other half of gate R1's topology comparison
-; with world_lm.vcl. Preprocessed with vclpp; -j adds the VCL boilerplate.
+; with world_lm.vcl. Built by oxide-vcl, whose preprocessor (-G) runs first; --vcl-boilerplate
+; adds the VCL boilerplate.
 ;
 ; Batch layout at XTOP:
 ;   +0       position offset xyz, w the index qwords (0)
@@ -116,7 +117,7 @@
 ;       else // Phase 2, list path: the same sequence as triangles.
 ;       {
 ;           OpenWindow(batch[kVuBatchListTagOffset]);
-;           for (int left = xitop(), v = batch + 2; left > 0; --left, v += 4) // state kept in vuMem
+;           for (int left = xitop(), v = batch + 2; left > 0; --left, v += 4) // state in registers
 ;           {
 ;               if (vertsLeft < 18) { CloseAndKick(); OpenWindow(...); }
 ;               (a, b) = (prev2, prev1); (prev2, prev1) = (prev1, v);
@@ -168,13 +169,12 @@
     ; ---------------------------------------------------------------------
     lTransform:
 
-        ; The ADC flag is read before qword 0 is overwritten; the barrier
-        ; keeps openvcl from moving the store above the load.
+        ; The ADC flag is read before qword 0 is overwritten, through the same
+        ; address the store below uses: oxide mode keeps the two in order, in
+        ; the pipelined loop too.
         lq.xyz fPos, 0(iVert)
         lq.xy  fUV,  1(iVert)
         ilw.w  iAdc, 0(iVert)
-
-        --barrier
 
         itof0.xyz fPos, fPos
         itof0.xy  fUV,  fUV
@@ -228,30 +228,44 @@
     iaddiu iVert,  iBase, 2
     xitop  iToGo
 
-    lStripVertex:
+    lStripWindow:
 
-        ; A full window: kick it and start the next one with the two
-        ; previous vertices again, so a strip spanning the kick keeps its
-        ; pending pair. The first window holds more than two vertices.
-        ibne iVertsLeft, vi00, lStripRoom
+        ; This window's run: as many vertices as it has room for, or all that
+        ; are left. A window is only ever closed full, so this is where a test
+        ; per vertex would close it.
+        iaddiu iRun,  iVertsLeft, 0
+        isub   iDiff, iToGo,      iVertsLeft
+        ibgez  iDiff, lStripRun
+        iaddiu iRun,  iToGo,      0
+        lStripRun:
+        isub   iToGo,      iToGo,      iRun
+        isub   iVertsLeft, iVertsLeft, iRun
+
+        lStripVertex:
+
+            lq fStq, 3(iVert)
+            lq fCol, 2(iVert)
+            lq fXyz, 1(iVert)
+            sq fStq, 0(iOutPtr)
+            sq fCol, 1(iOutPtr)
+            sq fXyz, 2(iOutPtr)
+
+            iaddiu iOutPtr, iOutPtr,  3
+            iaddiu iVert,   iVert,    4
+            iaddi  iRun,    iRun,    -1
+            ibgtz  iRun,    lStripVertex
+
+        ; A full window with vertices left: kick it and start the next one with
+        ; the two previous vertices again, so a strip spanning the kick keeps its
+        ; pending pair.
+        ibeq iToGo, vi00, lStripEnd
         CloseOutputWindowAndKick{ lStripFull }
         OpenBatchWindow{ kVuBatchStripTagOffset }
         StripReentry{ -5, -6, -7 }
         StripReentry{ -1, -2, -3 }
-        lStripRoom:
+        b lStripWindow
 
-        lq fStq, 3(iVert)
-        lq fCol, 2(iVert)
-        lq fXyz, 1(iVert)
-        sq fStq, 0(iOutPtr)
-        sq fCol, 1(iOutPtr)
-        sq fXyz, 2(iOutPtr)
-
-        iaddiu iOutPtr,    iOutPtr,     3
-        iaddi  iVertsLeft, iVertsLeft, -1
-        iaddiu iVert,      iVert,       4
-        iaddi  iToGo,      iToGo,      -1
-        ibgtz  iToGo,      lStripVertex
+    lStripEnd:
 
     CloseOutputWindowAndKick{ lStripLast }
     b lDone
@@ -259,53 +273,45 @@
     ; ---------------------------------------------------------------------
     ; Phase 2, list path: some vertex left the guard band.
     ;
-    ; The walk's state lives in VU memory, reloaded every entry, so nothing
-    ; but the window cursor is carried in registers across the clipper:
-    ;   kVuWalkStateAddr   x vertices left, y the next vertex, w the previous one
-    ;   kVuWalkPrevAddr    x the vertex before that
+    ; The walk's state is in registers: the vertices left (iLeft), the next
+    ; vertex (iVertex) and the three corners of the triangle it closes
+    ; (iPrev2, iPrev1, iCorner).
     ; ---------------------------------------------------------------------
     lListPath:
 
     OpenBatchWindow{ kVuBatchListTagOffset }
 
     xitop  iLeft
-    iaddiu iNext, iBase, 2
-    isw.x  iLeft, kVuWalkStateAddr(vi00)
-    isw.y  iNext, kVuWalkStateAddr(vi00)
+    iaddiu iVertex, iBase, 2
+
+    ; The first vertex opens a strip, so these are never read before the walk
+    ; sets them; they only need a value.
+    iaddiu iPrev1,  iVertex, 0
+    iaddiu iCorner, iVertex, 0
 
     ; The clipper's seed (vu_clip.i) picks the UV by the pass: this program
     ; draws only the base pass, which needs Q in qword 3 .z, as phase 1 keeps.
     isw.z  vi00,  kVuWalkPrevAddr(vi00)
 
-    --barrier
-
     lListEntry:
 
         ; Room for the most one clipped triangle can fan out to: five planes
         ; leave at most eight corners, six triangles.
-        iaddiu iRoom, vi00,       18
-        isub   iRoom, iVertsLeft, iRoom
+        isubiu iRoom, iVertsLeft, 18
         ibgez  iRoom, lListRoom
         CloseOutputWindowAndKick{ lListFull }
         OpenBatchWindow{ kVuBatchListTagOffset }
         lListRoom:
 
-        ilw.y  iVertex, kVuWalkStateAddr(vi00)
-        ilw.w  iPrev1,  kVuWalkStateAddr(vi00)
-        ilw.x  iPrev2,  kVuWalkPrevAddr(vi00)
-        iaddiu iNext,   iVertex, 4
-
-        --barrier
-
-        isw.y  iNext,   kVuWalkStateAddr(vi00)
-        isw.x  iPrev1,  kVuWalkPrevAddr(vi00)
-        isw.w  iVertex, kVuWalkStateAddr(vi00)
+        ; The triangle this vertex closes: the two before it and itself.
+        iaddiu iPrev2,  iPrev1,  0
+        iaddiu iPrev1,  iCorner, 0
+        iaddiu iCorner, iVertex, 0
+        iaddiu iVertex, iVertex, 4
 
         ; An opening vertex closes no triangle.
-        ilw.w  iF2,   1(iVertex)
-        iaddiu iMask, vi00,  0x7FFF
-        iaddiu iMask, iMask, 1
-        iand   iAdc,  iF2,   iMask
+        ilw.w  iF2,   1(iCorner)
+        iand   iAdc,  iF2,   iFlagBit
         ibne   iAdc,  vi00,  lListNext
 
         ilw.w  iF0,   1(iPrev2)
@@ -319,7 +325,7 @@
         ; Every corner inside: the three phase 1 vertices as they are.
         ListCorner{ iPrev2,  0 }
         ListCorner{ iPrev1,  3 }
-        ListCorner{ iVertex, 6 }
+        ListCorner{ iCorner, 6 }
 
         iaddiu iOutPtr,    iOutPtr,     9
         iaddi  iVertsLeft, iVertsLeft, -3
@@ -327,7 +333,7 @@
 
         lListClip:
 
-        ClipSeedTriangle{ iPrev2, iPrev1, iVertex }
+        ClipSeedTriangle{ iPrev2, iPrev1, iCorner }
 
         ; Near first (it removes the most), then the four guard band sides;
         ; A->B->A->B->A->B leaves the survivors in B.
@@ -338,7 +344,6 @@
         ClipPlanePass{ fJpC[y], fJpN[y], kVuClipBufA, kVuClipBufB, lYt   }
 
         ; Fan the survivors from corner 0: count - 2 triangles.
-        ilw.x iCount,   kVuClipCountAddr(vi00)
         iaddi iFanLeft, iCount, -2
         ibltz iFanLeft, lListNext
         ibeq  iFanLeft, vi00, lListNext
@@ -375,9 +380,7 @@
 
         lListNext:
 
-        ilw.x iLeft, kVuWalkStateAddr(vi00)
         iaddi iLeft, iLeft, -1
-        isw.x iLeft, kVuWalkStateAddr(vi00)
         ibgtz iLeft, lListEntry
 
     CloseOutputWindowAndKick{ lListLast }

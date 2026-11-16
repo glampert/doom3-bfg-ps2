@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: test_vu_cost.py
-# Brief: Pin vu_cost.py's VU1 model: delay slots, the DIV wait at WAITQ, the E bit, VIF1's unpack
+# Brief: Pin vu_cost.py's VU1 model: delay slots, the DIV wait at WAITQ, the stalls oxide-vcl's
+# listing marks, the E bit, VIF1's unpack
 # with skipping writes and sign extension, both world programs' strip paths sending every vertex
 # of a batch across window kicks, the lightmap pass sending them again, and d3wd.py's decoding of
 # a batch's vertices and strips.
@@ -30,6 +31,17 @@ lLoop:
                     nop[E]                          nop
                     nop                             isw.x VI02, 0(VI00)
 toy_CodeEnd:
+"""
+
+STALLS = """
+\t\t.vu
+stall_CodeStart:
+; _LNOPT_w=[ normal2 ] 4 [8 0] 8   [stall]
+         NOP                                                        div           Q,VF00w,VF01w
+         mulq.xyz      VF02,VF01,Q                                  iaddiu        VI02,VI00,0x00000003 ;\tSTALL_LATENCY ?4
+         NOP[E]                                                     NOP
+         NOP                                                        NOP
+stall_CodeEnd:
 """
 
 
@@ -81,6 +93,15 @@ class MachineTests(unittest.TestCase):
         # The delay slot ran on every pass, the pair after the E bit once.
         self.assertEqual(memory[0][0], 3)
 
+    def test_marked_stalls_are_charged(self):
+        # oxide-vcl's layout: an upper instruction with operands, a lower one, and a pair the VU
+        # stalls on, which the listing marks with the stall's cycles.
+        program = vu_cost.Program("stall", STALLS)
+        self.assertEqual(program.pairs[1], ("mulq.xyz VF02,VF01,Q", "iaddiu VI02,VI00,0x00000003", 4))
+        machine = vu_cost.Machine(program, {}, itop=0)
+        self.assertEqual(machine.run(), 4 + 4)
+        self.assertEqual(machine.vi[2], 3)
+
     def test_unpack_skips_and_extends(self):
         memory = {}
         words = [vif(0x01, 0, 3 | 1 << 8), unpack_code(0xD, 2, 2), 0x00010002, 0x80000003, 0x0000FFFF, 0x7FFF0000,
@@ -106,7 +127,8 @@ class WorldProgramTests(unittest.TestCase):
                 padded = 4 * ((length + 3) // 4) if indexed else length
                 self.assertEqual(sent, padded + 2 * (kicks - 1))
                 self.assertEqual(kicks, 1 if length <= 48 else 2)
-                self.assertGreater(cycles, 48 * length)
+                # A floor, not a pin: each vertex is transformed and sent.
+                self.assertGreater(cycles, 24 * length)
 
     def test_lightmap_pass_sends_every_vertex_again(self):
         # Its windows are the base pass's (ST, RGBAQ and XYZ2, 50 vertices), so it kicks and resends
@@ -125,11 +147,15 @@ class WorldProgramTests(unittest.TestCase):
                          vu_cost.batch_cycles(strips, batch_packet(strip_of(6), False))[1:])
 
     def test_plain_strips_transform_every_repeat(self):
-        # Two strips sharing two vertices: the indexed program transforms each vertex once.
-        strip = [(0, True), (1, True), (2, False), (3, False), (2, True), (3, True), (4, False), (5, False)]
-        indexed = vu_cost.batch_cycles(vu_cost.load_program("world_lm"), batch_packet(strip, True))[0]
-        plain = vu_cost.batch_cycles(vu_cost.load_program("world_strips"), batch_packet(strip, False))[0]
-        self.assertGreater(plain - indexed, 2 * 40)
+        # Two strips sharing two vertices, against two of the same length over distinct ones: the
+        # indexed program transforms each shared vertex once, so the repeats cost it less; the plain
+        # one transforms every entry, so they cost it the same.
+        shared = [(0, True), (1, True), (2, False), (3, False), (2, True), (3, True), (4, False), (5, False)]
+        distinct = [(0, True), (1, True), (2, False), (3, False), (4, True), (5, True), (6, False), (7, False)]
+        lm, strips = vu_cost.load_program("world_lm"), vu_cost.load_program("world_strips")
+        cost = lambda program, strip, indexed: vu_cost.batch_cycles(program, batch_packet(strip, indexed))[0]
+        self.assertLess(cost(lm, shared, True), cost(lm, distinct, True))
+        self.assertEqual(cost(strips, shared, False), cost(strips, distinct, False))
 
 
 class DecoderTests(unittest.TestCase):

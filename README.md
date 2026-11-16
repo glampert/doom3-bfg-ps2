@@ -36,9 +36,13 @@ rendering work:
 | Tool | Comes from | Typical location |
 | --- | --- | --- |
 | `mips64r5900el-ps2-elf-gcc` / `mips64r5900el-ps2-elf-g++` | ps2toolchain | `$PS2DEV/ee/bin` |
-| `openvcl` | openvcl | `$PS2DEV/bin` |
 | `dvp-as` | ps2toolchain (dvp) | `$PS2DEV/dvp/bin` |
 | `bin2c` | ps2sdk | `$PS2SDK/bin` |
+| `cargo` | Rust (a recent stable release, from [rustup](https://rustup.rs)) | `~/.cargo/bin` |
+
+The VU microprograms are compiled by [oxide-vcl](https://github.com/glampert/oxide-vcl), a
+submodule under `src/external/` that `make` builds with `cargo`; the toolchain's `openvcl` is
+not used.
 
 Set up `~/.zshenv` (or your shell's equivalent) along these lines:
 

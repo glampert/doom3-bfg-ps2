@@ -28,9 +28,8 @@
 ; A packet is one drawing tag, copied from its template, then ST (with Q),
 ; RGBAQ and XYZ2 per vertex. The program fills a window, patches the tag's NLOOP
 ; and EOP, kicks it and continues in the other window. The state (which
-; window is next, and the signed step to the other) lives in a spill
-; qword rather than VI registers, which the clipper runs out of first,
-; and it survives the program: the next batch opens the window after
+; window is next, and the signed step to the other) lives in VU memory
+; because it survives the program: the next batch opens the window after
 ; the one this batch kicked last, which the XGKICK stall has drained.
 ;
 ;   qword * win = vuMem[kVuWindowStateAddr].x; // the window to open
@@ -115,15 +114,11 @@
     iaddiu iNloop, iNloop, 1
     isw.x  iNloop, 0(iWin)
 
-    --barrier
-
     iaddiu iKickAt, iWin, 0
     iadd   iWin,    iWin, iDelta
     isub   iDelta,  vi00, iDelta
     isw.x  iWin,    kVuWindowStateAddr(vi00)
     isw.y  iDelta,  kVuWindowStateAddr(vi00)
-
-    --barrier
 
     xgkick iKickAt
 

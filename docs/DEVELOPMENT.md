@@ -23,11 +23,11 @@ verification. Python 3.10 or later runs the build/report/cook scripts. Host tool
 sanitizer tests use a C++20 host compiler (`HOST_CXX`, default `clang++`). The C++ host
 tools are a CMake 3.24+ project, `src/tools/CMakeLists.txt`: `make resource-unpack` and
 `make asset-reexport` configure it into `build/tools/cmake/` with `HOST_CXX`, and other
-hosts, Windows/MSVC included, build it with `cmake` directly. The VU tools `vclpp` (with
-`parse-utils`) and `vu-checker` are pinned submodules under `src/external/`
-(`git submodule update --init --recursive`); `make` builds vclpp with `HOST_CXX` into
-`build/tools/vclpp` and assembles the `VCL_FILES` programs into `build/vu/` with the
-toolchain's `openvcl` and `dvp-as`, checked by `check_vu_code.py`.
+hosts, Windows/MSVC included, build it with `cmake` directly. The VU compiler, oxide-vcl, is a
+pinned submodule under `src/external/` (`git submodule update --init`); `make` builds it with
+`cargo` (a recent stable Rust) into `build/tools/oxide-vcl/` and compiles the `VCL_FILES`
+programs into `build/vu/` with it, in oxide mode with every optimization, then assembles them
+with the toolchain's `dvp-as`. Writing VU programs for it: [vu-microprograms.md](../.claude/rules/vu-microprograms.md).
 
 GitHub Actions runs `make` and `make release` on Linux in the pinned ps2dev `ps2sdk` image,
 and builds the host tools with GCC, Apple clang and MSVC. These are compile and link checks;
@@ -277,18 +277,17 @@ visible. A host runtime test does not replace the EE compile/link check.
 
 ## Third-party dependencies
 
-- Imported third-party dependencies live in `src/external/`: `dlmalloc` and the VU tool
-  submodules below.
+- Imported third-party dependencies live in `src/external/`: `dlmalloc` and the VU compiler
+  submodule below.
   No JPEG or zlib is linked: images arrive converted by the asset pipeline, ZIP files are
   unsupported, and source-SWF inflation and pipelined save compression fail by name.
   Compressed resource packs will import `src/external/miniz`, whose zlib-compatible API
   can then restore save compression.
-  The VU tool dependencies are pinned submodules: `src/external/vclpp` (with its nested
-  `external/parse-utils`) and `src/external/vu-checker`, at the commits quake2-ps2 uses
-  (`git submodule update --init --recursive` after cloning). `make` builds the pinned vclpp
-  into `build/tools/vclpp` with `HOST_CXX` (never a copy on `PATH`) and assembles the
-  programs in `config/sources.mk`'s `VCL_FILES` (`src/ps2/renderer/vu1progs/`) into
-  `build/vu/` through the quake2-ps2 rule; `ps2/renderer/vu.h` declares their symbols.
+  The VU compiler is a pinned submodule: `src/external/oxide-vcl`
+  (`git submodule update --init` after cloning). `make` builds it with cargo into
+  `build/tools/oxide-vcl/` (never a copy on `PATH`) and compiles the programs in
+  `config/sources.mk`'s `VCL_FILES` (`src/ps2/renderer/vu1progs/`) into `build/vu/`, its
+  preprocessor first; `ps2/renderer/vu.h` declares their symbols.
 
 ## Host tools, source groups and link policy
 

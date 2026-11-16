@@ -1,6 +1,3 @@
-[submodule "src/external/vclpp"]
-	path = src/external/vclpp
-	url = https://github.com/glampert/vclpp.git
-[submodule "src/external/vu-checker"]
-	path = src/external/vu-checker
-	url = https://github.com/glampert/vu-checker.git
+[submodule "src/external/oxide-vcl"]
+	path = src/external/oxide-vcl
+	url = https://github.com/glampert/oxide-vcl.git

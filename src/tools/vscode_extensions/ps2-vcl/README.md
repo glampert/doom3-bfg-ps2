@@ -3,8 +3,8 @@
 Syntax highlighting for PS2 VU microprograms, reused from the Quake II PS2 toolset.
 The Doom port does not yet include a VU program; this editor support is available
 for future renderer work. It recognizes:
-`.vcl` sources (openvcl/vclpp dialect, including the `#macro`/`#vuprog`
-preprocessor directives), the `.i` files they `#include`, and the assembled
+`.vcl` sources (VCL, including the `#macro`/`#vuprog` directives of
+oxide-vcl's preprocessor), the `.i` files they `#include`, and the assembled
 `.vsm` output.
 
 The includes are matched by path, as `**/vu1progs/*.i`, rather than by

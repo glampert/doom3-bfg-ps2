@@ -48,11 +48,19 @@ jobs:
       # would otherwise download a tarball with no repository in it; the link report
       # records the commit.
       - name: Install the host build tools
-        # g++ builds vclpp (src/external/vclpp) for the VU rule; the image has openvcl and
-        # dvp-as, as quake2-ps2's VU build on the same image digest proves.
-        run: apk add --no-cache make python3 git gmp mpfr4 mpc1 g++
-      # The VU tool submodules (src/external/vclpp with its nested parse-utils, and
-      # vu-checker) come with the checkout, so the VU build rule finds them.
+        # g++ is the host C/C++ compiler (HOST_CXX), and with musl-dev the linker cargo uses for
+        # oxide-vcl; the image has dvp-as, which assembles the VU programs.
+        run: apk add --no-cache make python3 git gmp mpfr4 mpc1 g++ musl-dev rustup
+      # Rust for oxide-vcl, the VCL compiler (src/external/oxide-vcl), which needs a recent
+      # stable release (edition 2024): Alpine's rustup installs one for the musl host, and its
+      # bin directory goes on PATH for the steps after this one. oxide-vcl has no crate
+      # dependencies, so the build downloads nothing else.
+      - name: Install Rust
+        run: |
+          rustup-init -y --profile minimal --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      # The VU compiler submodule (src/external/oxide-vcl) comes with the checkout, so the VU
+      # build rule finds it.
       - uses: actions/checkout@v5
         with:
           submodules: recursive

@@ -3,8 +3,8 @@
 ;
 ; One cooked world batch (D3WD, layout WA: src/tools/assets/world.h): the base pass, its material's
 ; diffuse times the vertex colour (the light's chroma), then, when the batch has a lightmap, the
-; lightmap pass in the other GS context, Cd x As with the page's intensity. Preprocessed with
-; vclpp; -j adds the VCL boilerplate.
+; lightmap pass in the other GS context, Cd x As with the page's intensity. Built by oxide-vcl,
+; whose preprocessor (-G) runs first; --vcl-boilerplate adds the VCL boilerplate.
 ;
 ; Batch layout at XTOP:
 ;   +0       position offset xyz, w the index qwords Q
@@ -65,7 +65,6 @@
 ;   int offset = entry & 0x7FFF; adc = entry - offset; vertex = batch + offset;
 ;   EmitStripVertex(0); out += 3; --vertsLeft;
 #macro StripEntry
-    iaddiu iMask,   vi00,   0x7FFF
     iand   iOffset, iEntry, iMask
     isub   iAdc,    iEntry, iOffset
     iadd   iVertex, iBase,  iOffset
@@ -81,11 +80,9 @@
 ;
 ;   adc = 0x8000; vertex = batch + (entry & 0x7FFF); EmitStripVertex(0); out += 3; --vertsLeft;
 #macro StripReentry
-    iaddiu iMask,   vi00,   0x7FFF
     iand   iOffset, iEntry, iMask
     iadd   iVertex, iBase,  iOffset
-    iaddiu iAdc,    vi00,   0x7FFF
-    iaddiu iAdc,    iAdc,   1
+    iaddiu iAdc,    iFlagBit, 0
 
     EmitStripVertex{ 0 }
 
@@ -120,7 +117,6 @@
 
 ; StripEntry and StripReentry for the lightmap pass.
 #macro LightmapEntry
-    iaddiu iMask,   vi00,   0x7FFF
     iand   iOffset, iEntry, iMask
     isub   iAdc,    iEntry, iOffset
     iadd   iVertex, iBase,  iOffset
@@ -132,11 +128,9 @@
 #endmacro
 
 #macro LightmapReentry
-    iaddiu iMask,   vi00,   0x7FFF
     iand   iOffset, iEntry, iMask
     iadd   iVertex, iBase,  iOffset
-    iaddiu iAdc,    vi00,   0x7FFF
-    iaddiu iAdc,    iAdc,   1
+    iaddiu iAdc,    iFlagBit, 0
 
     EmitLightmapVertex{ 0 }
 
@@ -231,11 +225,11 @@
 ;       }
 ;       else // Phase 2, list path: the same stream as triangles, once per pass.
 ;       {
-;           for (pass : base, lit ? lightmap : none)                // pass and tag kept in vuMem
+;           for (pass : base, lit ? lightmap : none)                // the tag and pass also in vuMem
 ;           {
 ;               if (pass == lightmap) xgkick(batch + kVuBatchLightmapOffset);
 ;               OpenWindow(pass == base ? batch[kVuBatchListTagOffset] : vuMem[kVuLightmapListTagAddr]);
-;               for (int left = 4 * q; left > 0; --left)             // state kept in vuMem
+;               for (int left = 4 * q; left > 0; --left)             // state in registers
 ;               {
 ;                   if (vertsLeft < 18) { CloseAndKick(); OpenWindow(...); }
 ;                   entry = NextEntry(); vertex = batch + (entry & 0x7FFF);
@@ -342,38 +336,60 @@
     ; ---------------------------------------------------------------------
     ; Phase 2, strip path: every vertex inside the guard band.
     ; ---------------------------------------------------------------------
+    ; The entries' offset mask, for every walk below.
+    iaddiu iMask, vi00, 0x7FFF
+
     OpenBatchWindow{ kVuBatchStripTagOffset }
 
     iaddiu iIdx,    iBase, 2
     ilw.w  iQwords, 0(iBase)
 
-    lStripQword:
+    lStripWindow:
 
-        ; Room for this qword's four entries. A fresh window starts with the
-        ; previous qword's last two entries again, so a strip spanning the
-        ; kick keeps its two pending vertices; the first qword always fits.
-        iaddi iRoom, iVertsLeft, -4
-        ibgez iRoom, lStripRoom
+        ; A window holds kVuWindowStripQwords stream qwords: the first one 48 of
+        ; its 50 vertices, every later one the two re-sent entries and 48 more.
+        ; This is where a room test per qword would close it.
+        iaddiu iRun,  vi00,    kVuWindowStripQwords
+        isub   iDiff, iQwords, iRun
+        ibgez  iDiff, lStripRun
+        iaddiu iRun,  iQwords, 0
+        lStripRun:
+        isub   iQwords, iQwords, iRun
+
+        lStripQword:
+
+            ilw.x iEntry, 0(iIdx)
+            StripEntry{ }
+            ilw.y iEntry, 0(iIdx)
+            StripEntry{ }
+            ilw.z iEntry, 0(iIdx)
+            StripEntry{ }
+            ilw.w iEntry, 0(iIdx)
+            StripEntry{ }
+
+            ; A block boundary, not an ordering: as one block this loop is one
+            ; oxide-vcl would software-pipeline, and the search for its schedule
+            ; costs seconds of every build for under 1% of the strip path's
+            ; cycles (it is bound by its 11 lower-pipe instructions an entry).
+            --barrier
+
+            iaddiu iIdx, iIdx,  1
+            iaddi  iRun, iRun, -1
+            ibgtz  iRun, lStripQword
+
+        ; Qwords left: kick the full window and start the next one with the
+        ; previous qword's last two entries again, so a strip spanning the kick
+        ; keeps its two pending vertices.
+        ibeq iQwords, vi00, lStripEnd
         CloseOutputWindowAndKick{ lStripFull }
         OpenBatchWindow{ kVuBatchStripTagOffset }
         ilw.z iEntry, -1(iIdx)
         StripReentry{ }
         ilw.w iEntry, -1(iIdx)
         StripReentry{ }
-        lStripRoom:
+        b lStripWindow
 
-        ilw.x iEntry, 0(iIdx)
-        StripEntry{ }
-        ilw.y iEntry, 0(iIdx)
-        StripEntry{ }
-        ilw.z iEntry, 0(iIdx)
-        StripEntry{ }
-        ilw.w iEntry, 0(iIdx)
-        StripEntry{ }
-
-        iaddiu iIdx,    iIdx,     1
-        iaddi  iQwords, iQwords, -1
-        ibgtz  iQwords, lStripQword
+    lStripEnd:
 
     CloseOutputWindowAndKick{ lStripLast }
 
@@ -392,30 +408,44 @@
     iaddiu iIdx,    iBase, 2
     ilw.w  iQwords, 0(iBase)
 
-    lLightmapQword:
+    lLightmapWindow:
 
-        iaddi iRoom, iVertsLeft, -4
-        ibgez iRoom, lLightmapRoom
+        iaddiu iRun,  vi00,    kVuWindowStripQwords
+        isub   iDiff, iQwords, iRun
+        ibgez  iDiff, lLightmapRun
+        iaddiu iRun,  iQwords, 0
+        lLightmapRun:
+        isub   iQwords, iQwords, iRun
+
+        lLightmapQword:
+
+            ilw.x iEntry, 0(iIdx)
+            LightmapEntry{ }
+            ilw.y iEntry, 0(iIdx)
+            LightmapEntry{ }
+            ilw.z iEntry, 0(iIdx)
+            LightmapEntry{ }
+            ilw.w iEntry, 0(iIdx)
+            LightmapEntry{ }
+
+            ; As in the base pass's loop: a block boundary that keeps the
+            ; schedule search out of every build.
+            --barrier
+
+            iaddiu iIdx, iIdx,  1
+            iaddi  iRun, iRun, -1
+            ibgtz  iRun, lLightmapQword
+
+        ibeq iQwords, vi00, lLightmapEnd
         CloseOutputWindowAndKick{ lLightmapFull }
         OpenLightmapWindow{ }
         ilw.z iEntry, -1(iIdx)
         LightmapReentry{ }
         ilw.w iEntry, -1(iIdx)
         LightmapReentry{ }
-        lLightmapRoom:
+        b lLightmapWindow
 
-        ilw.x iEntry, 0(iIdx)
-        LightmapEntry{ }
-        ilw.y iEntry, 0(iIdx)
-        LightmapEntry{ }
-        ilw.z iEntry, 0(iIdx)
-        LightmapEntry{ }
-        ilw.w iEntry, 0(iIdx)
-        LightmapEntry{ }
-
-        iaddiu iIdx,    iIdx,     1
-        iaddi  iQwords, iQwords, -1
-        ibgtz  iQwords, lLightmapQword
+    lLightmapEnd:
 
     CloseOutputWindowAndKick{ lLightmapLast }
     b lDone
@@ -423,79 +453,72 @@
     ; ---------------------------------------------------------------------
     ; Phase 2, list path: some vertex left the guard band.
     ;
-    ; The walk's state lives in VU memory, reloaded every entry, so nothing
-    ; but the window cursor is carried in registers across the clipper:
-    ;   kVuWalkStateAddr   x entries left, y next stream qword, z lanes left
-    ;                      in the rotating qword, w the previous vertex
-    ;   kVuWalkPrevAddr    x the vertex before that, y the address of the
-    ;                      pass's drawing tag, z the pass (0 base, 1 lightmap)
-    ;   kVuWalkIndicesAddr the current stream qword, rotated one lane per entry
+    ; The walk's state is in registers: the entries left (iLeft, whose low two
+    ; bits also count the lanes left in the rotating qword fIndices), the next
+    ; stream qword (iNext), the two vertices before this entry's (iPrev1,
+    ; iVertex) and the pass (iPass, never written by the walk, so unswitch
+    ; gives each pass its own copy of it). Two values are in VU memory, where
+    ; they are read: kVuWalkPrevAddr .y the pass's drawing tag (a window open)
+    ; and .z the pass (the clipper's seed). The batch base is read again with
+    ; xtop rather than held, which keeps the walk within the VI registers the
+    ; clipper leaves.
     ; ---------------------------------------------------------------------
     lListPath:
 
     iaddiu iTagAt, iBase, kVuBatchListTagOffset
-    isw.y  iTagAt, kVuWalkPrevAddr(vi00)
-    isw.z  vi00,   kVuWalkPrevAddr(vi00)
-
-    --barrier
+    iaddiu iPass,  vi00,  0
 
     lListPass:
 
+    ; The pass's drawing tag, for every window the walk opens, and the pass for
+    ; the clipper's seed (vu_clip.i): both read where they are used, from memory.
+    isw.y  iTagAt, kVuWalkPrevAddr(vi00)
+    isw.z  iPass,  kVuWalkPrevAddr(vi00)
+
     OpenWalkWindow{ }
 
-    xtop   iBase
     ilw.w  iQwords, 0(iBase)
     iadd   iLeft,   iQwords, iQwords
     iadd   iLeft,   iLeft,   iLeft
     iaddiu iNext,   iBase,   2
-    isw.x  iLeft,   kVuWalkStateAddr(vi00)
-    isw.y  iNext,   kVuWalkStateAddr(vi00)
-    isw.z  vi00,    kVuWalkStateAddr(vi00)
 
-    --barrier
+    ; The first entry opens a strip, so these are never read before the walk
+    ; sets them; they only need a value.
+    iaddiu iPrev1,  iBase, 0
+    iaddiu iVertex, iBase, 0
+    lq     fIndices, 2(iBase)
 
     lListEntry:
 
         ; Room for the most one clipped triangle can fan out to: five planes
         ; leave at most eight corners, six triangles. Asked once, before the
-        ; corners load, as quake2-ps2's program does.
-        iaddiu iRoom, vi00,       18
-        isub   iRoom, iVertsLeft, iRoom
+        ; corners load.
+        isubiu iRoom, iVertsLeft, 18
         ibgez  iRoom, lListRoom
         CloseOutputWindowAndKick{ lListFull }
         OpenWalkWindow{ }
         lListRoom:
 
-        ; The next entry: lane x of the rotating qword, refilled every four.
-        lq     fIndices, kVuWalkIndicesAddr(vi00)
-        ilw.z  iLanes,   kVuWalkStateAddr(vi00)
-        ibne   iLanes,   vi00, lListHaveLanes
-        ilw.y  iNext,    kVuWalkStateAddr(vi00)
+        ; The next entry: lane x of the rotating qword, refilled every four
+        ; entries, when the count left is a multiple of four.
+        iaddiu iLanes,   vi00,   3
+        iand   iLanes,   iLeft,  iLanes
+        ibne   iLanes,   vi00,   lListHaveLanes
         lq     fIndices, 0(iNext)
-        iaddiu iNext,    iNext, 1
-        iaddiu iLanes,   vi00,  4
-        isw.y  iNext,    kVuWalkStateAddr(vi00)
+        iaddiu iNext,    iNext,  1
         lListHaveLanes:
 
         mtir   iEntry,   fIndices[x]
         mr32   fIndices, fIndices
-        iaddi  iLanes,   iLanes, -1
 
+        ; The triangle this entry closes: the two vertices before it and its own.
         xtop   iBase
-        iaddiu iMask,    vi00,    0x7FFF
-        iand   iOffset,  iEntry,  iMask
-        isub   iAdc,     iEntry,  iOffset
-        iadd   iVertex,  iBase,   iOffset
-
-        ilw.w  iPrev1,   kVuWalkStateAddr(vi00)
-        ilw.x  iPrev2,   kVuWalkPrevAddr(vi00)
-
-        --barrier
-
-        sq     fIndices, kVuWalkIndicesAddr(vi00)
-        isw.z  iLanes,   kVuWalkStateAddr(vi00)
-        isw.x  iPrev1,   kVuWalkPrevAddr(vi00)
-        isw.w  iVertex,  kVuWalkStateAddr(vi00)
+        iaddiu iMask,   vi00,    0x7FFF
+        iaddiu iPrev2,  iPrev1,  0
+        iaddiu iPrev1,  iVertex, 0
+        iand   iOffset, iEntry,  iMask
+        isub   iAdc,    iEntry,  iOffset
+        iadd   iVertex, iBase,   iOffset
 
         ; An opening entry closes no triangle.
         ibne iAdc, vi00, lListNext
@@ -508,8 +531,8 @@
         ibne  iF0, vi00, lListClip
 
         ; Every corner inside: the three phase 1 vertices as they are, with
-        ; the lightmap ST in the lightmap pass.
-        ilw.z iPass, kVuWalkPrevAddr(vi00)
+        ; the lightmap ST in the lightmap pass. The walk never writes iPass,
+        ; so oxide-vcl's unswitch gives each pass its own copy of the walk.
         ibne  iPass, vi00, lListLightmapCorners
 
         ListCorner{ iPrev2,  0 }
@@ -542,7 +565,6 @@
         ClipPlanePass{ fJpC[y], fJpN[y], kVuClipBufA, kVuClipBufB, lYt   }
 
         ; Fan the survivors from corner 0: count - 2 triangles.
-        ilw.x iCount,   kVuClipCountAddr(vi00)
         iaddi iFanLeft, iCount, -2
         ibltz iFanLeft, lListNext
         ibeq  iFanLeft, vi00, lListNext
@@ -579,15 +601,12 @@
 
         lListNext:
 
-        ilw.x iLeft, kVuWalkStateAddr(vi00)
         iaddi iLeft, iLeft, -1
-        isw.x iLeft, kVuWalkStateAddr(vi00)
         ibgtz iLeft, lListEntry
 
     CloseOutputWindowAndKick{ lListLast }
 
     ; After the base pass, the lightmap pass when the batch has one.
-    ilw.z  iPass, kVuWalkPrevAddr(vi00)
     ibne   iPass, vi00, lListEnd
     xtop   iBase
     ilw.w  iLit,  kVuBatchLightmapFlagOffset(iBase)
@@ -598,11 +617,6 @@
 
     iaddiu iTagAt, vi00, kVuLightmapListTagAddr
     iaddiu iPass,  vi00, 1
-    isw.y  iTagAt, kVuWalkPrevAddr(vi00)
-    isw.z  iPass,  kVuWalkPrevAddr(vi00)
-
-    --barrier
-
     b lListPass
 
     lListEnd:

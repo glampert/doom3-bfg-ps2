@@ -6,8 +6,9 @@
 ; to be ordered with PATH1 output but needs no VU work - SIGNAL/LABEL
 ; fences and A+D register blocks between batches - and the first R0
 ; frames, which draw the existing 2D scene through the new chain
-; before any transform program exists. Preprocessed with vclpp; -j
-; adds the VCL boilerplate (.init_*, --enter/--exit).
+; before any transform program exists. Built by oxide-vcl, whose
+; preprocessor (-G) runs first; --vcl-boilerplate adds the VCL boilerplate
+; (.init_*, --enter/--exit).
 ;
 ; The second XGKICK is a hazard guard, not a second packet. XGKICK is
 ; asynchronous and the E bit ends the program as soon as the kick is

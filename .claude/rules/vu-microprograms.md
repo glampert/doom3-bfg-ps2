@@ -9,51 +9,89 @@ hardware/toolchain behaviour transfers.
 
 ## Pipeline (Makefile rule `build/vu/%.o`)
 
-`vclpp -I vu1progs -Wundef -Werror -j` → `openvcl` → `openvcl -c` (source names, for the
-regalloc check) → `dvp-as` → `check_vu_code.py` (vu-checker submodule), which deletes the
-`.o` on failure, then a `.d` for the link reports. The output is config-independent and lives
-in `build/vu/`; `make vu` builds it alone. Doom's programs are listed in `config/sources.mk`
-(`VCL_FILES`) under `src/ps2/renderer/vu1progs/`, with the data memory map in `vu_memory.h`,
-shared with C++ through `ps2/renderer/vu.h` (plain `#define`s and `//` comments only, names
-prefixed `kVu`); the reference has `textured_triangles.vcl` and `particles.vcl` with
-shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directive's section);
-`.vudata` is empty, whatever the reference's comments say.
+`oxide-vcl -G -I vu1progs --vcl-boilerplate --warn-undef --mode=oxide --opt=all
+--warnings-as-errors` → `dvp-as`, then a `.d` for the link reports. oxide-vcl is the
+`src/external/oxide-vcl` submodule, built by cargo into `build/tools/oxide-vcl/`; its
+`docs/VCL_REFERENCE.md` covers the language, the preprocessor and the optimizations. The output is
+config-independent and lives in `build/vu/`, the `.vsm` listing beside each `.o`; `make vu` builds
+it alone. Doom's programs are listed in `config/sources.mk` (`VCL_FILES`) under
+`src/ps2/renderer/vu1progs/`, with the data memory map in `vu_memory.h`, shared with C++ through
+`ps2/renderer/vu.h` (plain `#define`s, `#if` checks and `//` comments only, names prefixed `kVu`).
+The code lands in `.vutext` (the `.vu` directive's section); `.vudata` is empty.
 
-- **A failed VU build is easy to miss.** openvcl's messages don't match `error:`. Check
-  `make`'s exit status. If a VU change seems not to take effect, compare the `.vsm` mtime
-  with the `.vcl`.
-- dvp-as's **"operand out of range" warnings are expected**. Branch offsets are 11 bits, and
-  dvp-as keeps the low bits. That is correct only because VU1 micro memory is exactly 2048
-  instructions and the PC wraps. The `branches` check proves each lands mod 2048.
-- The six checks: `crossloop`, `regalloc` (reaching definitions), `loopvar`, `immediates`
-  (dvp-as silently truncates), `latency` (clip flag/Q across branches), `branches`. Each
-  exists because a silent toolchain failure reached the screen.
+- **Check `make`'s exit status.** A failed VU build leaves the previous `.vsm`/`.o` in place.
+  Messages read `file(line): error: ...` with the source line and a caret.
+- `--warnings-as-errors` covers the preprocessor (`--warn-undef`: an `#if` on an undefined name)
+  and the compiler alike.
+- dvp-as's **"operand out of range" warning on a branch is harmless**: offsets are 11 bits and
+  dvp-as keeps the low ones, which reach the same instruction because VU1 micro memory is exactly
+  2048 instructions and the PC wraps.
+- **Immediates:** oxide mode's `imm` fix rewrites or rejects an immediate that does not fit its
+  field, where dvp-as would truncate it silently.
+- `oxide-vcl -G -I vu1progs --vcl-boilerplate --preprocess-only prog.vcl` prints the expanded
+  source; `-c` puts the source lines in the listing as comments.
 
-## openvcl traps (all silent or cryptic)
+## Writing fast VCL for oxide-vcl
 
-- **Masked + unmasked writes to one VF register across a branch are not ordered as written.**
-  `move vCol, vf00` before an `ibeq` and `move.w vCol, x` after it ended with the
-  *initialiser's* `.w`. Keep writes to one register lane-disjoint (`move.xyz` + `move.w`), or
-  write the value once on a path with no second writer.
-- openvcl rejects a read of a lane that isn't written on every path, even an unreachable one
-  (`Read-attempt from uninitialized float register`). The message is trustworthy: it caught
-  an unassigned `.w`. But the obvious fix, an all-lane initialiser, creates the trap above.
-  Mask the initialiser to the lanes the other writer does *not* touch.
-- **A loop-carried value whose last write is mid-loop is treated as dead to the loop bottom.**
-  openvcl sizes live ranges by source order and ignores the back edge, so it handed the
-  pointer's VI to three other values. Keep a loop-carried pointer's update at the loop
-  bottom. Use a spilled stride if the step varies. `regalloc` now catches this.
-- **About 13 allocatable VI registers** (`-j` emits `.init_vi VI02..VI14`, and VI01 usually
-  belongs to `fcand`). Past that you get `Register allocation ran out of registers` with no
-  location. Fixes: merge counters with disjoint live ranges, read verdicts straight from
-  `vi01`, and reuse one register for a running sum and its result.
-- `clipw.xyz a, b` is rejected. Write `clipw.xyz fJudge, fPos[w]`, with an explicit `[w]`.
+The scheduler packs the instructions of one **block** (the code between labels, branches and
+`--barrier`s) into upper/lower pairs, filling latencies with independent work. Three oxide-mode
+optimizations work on whole loops (`--opt=all`): `loops` software-pipelines a loop that is one
+block (iteration *k+1*'s loads and math run beside iteration *k*'s stores), `unswitch` copies a
+loop once per outcome of a branch on a register the loop never writes (two such registers give
+four copies), and `exit` ends a program on its last instructions. Write for those:
 
-## vclpp and linking
+- **Read the listing.** Each block's header, `_LNOPT_w=[ ... ] N [...] C`, gives its
+  instructions and its cycles. A pipelined loop shows `__MAIN_LOOP`/`__EPI0` labels, an unswitched
+  one `__u0`/`__u1` (`__u0__u1` for the second level), and `STALL_LATENCY ?N` marks a pair the VU
+  stalls on. `src/tools/scripts/vu_cost.py` counts a program's cycles over cooked batches.
+- **Keep a hot loop one block.** A branch inside the body splits it and stops `loops`. Turn a test
+  per iteration into a run length computed outside the loop: the strip paths compute how many
+  vertices (or index qwords) the window takes, `min(left, room)`, and run that many without a
+  room test. A per-element decision with a cheap slow path can often be made after the work: the
+  quake2-ps2 triangle loop writes each triangle into the window before it knows whether it is
+  clipped, and the clip path writes over the same slots.
+- **Watch the compile time.** `loops`' schedule search grows quickly with the body: a loop of
+  about 50 instructions costs seconds, a branch-free clipper pass of 70 about four minutes
+  (`time make vu`). When a big loop gains little (world_lm's index-qword loops are bound by their
+  11 lower-pipe instructions an entry, under 1% from pipelining), a `--barrier` inside it makes it
+  two blocks, which `loops` leaves alone; say why in a comment. `--LoopCS 0,0` does not do it: it
+  warns, and `--warnings-as-errors` fails the build.
+- **Hold batch state in VI registers.** The allocator gives a value its real live range across
+  branches and loops, and has VI01-VI15 (`--vcl-boilerplate` declares `.init_vi_all`; VI01 is
+  `fcand`'s destination and stays free across it). A mode read once per batch belongs in a register:
+  the world list path's pass (`iPass`) is never written by the walk, so unswitch gives each pass its
+  own copy. Reloading such a value inside the loop, even from a constant header, is a write and
+  keeps the branch.
+- **When the integer pool runs out** (`AllocationPoolFull` on a VI web), shorten lives rather than
+  spill: rebuild a constant where it is used (`iaddiu iMask, vi00, 0x7FFF`), re-read `xtop` instead
+  of holding the base, derive a counter from another (world_lm's lanes left are `iLeft & 3`), and
+  keep a value read once per window or pass in memory (the drawing tag's address).
+- **Every register read must be written on every path** before it, even one that never runs:
+  `'x.y' is read before anything writes it`. Initialise it before the loop; the message names the
+  register and lane.
+- **Memory order:** oxide mode keeps two accesses in order when their addresses are provably the
+  same qword, the same base register (or VI00) plus the same constant through IADDIU, ISUBIU,
+  IADDI or LQI/SQI steps, in a pipelined loop too; XGKICK follows every earlier store. So a load and
+  a store of one address, a spill and its reload, or a window patch and its kick need no
+  `--barrier`. Keep one only between two accesses to one qword through registers the compiler
+  cannot relate (an `iadd` of a variable, or two separately loaded pointers).
+- **No float immediates.** Build a constant once with `loi` and `addi` on a zeroed register
+  (`sub fK, vf00, vf00`), never on `vf00` itself: its w is 1.0, so `addi fK, vf00, i` gives w = 1 + I,
+  and `add.yw fX, vf00, fY[x]` gives w = 1 + y. Both bit this port once.
+- **Flags and Q:** `fcand`/`fmand` in the block of the instruction that set the flags; the
+  scheduler places the read when they land (four cycles after a `clipw`) and keeps other
+  flag-setting instructions out of the way. A Q read after `div` needs no hand padding.
+- **Integer immediates:** `iaddi` takes 5 bits signed, `iaddiu`/`isubiu` 15 bits unsigned; 0x8000
+  takes two steps (`iaddiu r, vi00, 0x7FFF` then `+1`).
+- **Before keeping a rewrite**, compare its GIF packets with the version before: the same input
+  data, a PCSX2 capture or `ps2::debug::DumpVu1DataMemory` of the windows. oxide-vcl's own test
+  suite runs the corpus versions of `world_lm.vcl` and `world_strips.vcl` (at `adc427d`) on scenes
+  in a timed VU model (`crates/oxide-vcl/tests/scenes.rs` there), which is how this port's
+  rewrites were checked: the same packets as the original vcl's, and their cycles.
 
-- vclpp is the pinned submodule build. An old vclpp on `PATH` mangles macro bodies that
-  contain comments.
-- `#vuprog NAME` → `.name NAME` → openvcl emits `NAME_CodeStart`/`NAME_CodeEnd`. Declare
+## Linking
+
+- `#vuprog NAME` → `.name NAME` → oxide-vcl emits `NAME_CodeStart`/`NAME_CodeEnd`. Declare
   those with `PS2_DECLARE_VU_MICROPROGRAM` (`ps2/renderer/vu.h`) at global scope. An
   `extern "C"` inside an anonymous namespace gets internal linkage and won't resolve against
   the VU object. Use `u32`/`unsigned int` for the symbol types, not `uint32_t`. Nothing keeps
@@ -69,16 +107,16 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   MSCAL waits for the program's E bit, not for PATH1, and the unpack after next overwrites
   the half under the GIF. `passthrough.vcl` kicks a null GIF tag (NLOOP 0, EOP 1, which
   outputs nothing) second, since an XGKICK stalls until the previous PATH1 transfer ends.
-- Since vclpp 2, `#define`s nest and `#macro`s may invoke each other (recursion is an error).
-  Label-placing macros take one prefix and paste it (`lbl##Loop`, `lbl##NoWarp`). Constant
-  expressions are folded only with `-x`, which the Makefile doesn't pass, so openvcl gets
-  operands like `1010 + 0(vi00)` as written.
+- `#define`s nest and `#macro`s may invoke each other (recursion is an error). Label-placing
+  macros take one prefix and paste it (`lbl##Loop`, `lbl##NoWarp`). Constant expressions are
+  folded only with `--fold-constants`, which the Makefile doesn't pass, so the compiler gets
+  operands like `1010 + 0(vi00)` as written and evaluates them itself.
 
 ## Doom's world batches (world_lm.vcl, world_strips.vcl)
 
 - A cooked packet ends with `ITOP N` and starts nothing: `world::Draw` puts `MSCAL` in the next
   tag's VIFcode (the next batch's REF runs it before its data reaches the other half). Keep
-  the program a single-exit openvcl program; there is no MSCNT entry.
+  the program single-exit; there is no MSCNT entry.
 - Index entries are u16 qword offsets with ADC in bit 15, because VU1 has no integer multiply
   or shift. A vertex is four qwords in VU memory (`STCYCL 4,1`): phase 1 overwrites it in place
   (clip position, projected XYZ2 with the outside flag in .w, colour bytes kept, STQ into the
@@ -93,9 +131,9 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
 - **Sixteen lanes, both passes:** phase 1 stores the lightmap S x Q in qword 3 `.w` and T x Q in
   qword 0 `.w` (the clip position's w); the clipper's seed rebuilds w as 1/Q (`div` per corner) and
   blends the pass's UV by the pass float in the walk state. A lit batch walks its stream again for
-  the lightmap pass (ST, RGBAQ and XYZ2 like the base pass: the RGBAQ write is what stores a PACKED ST's Q). `world_lm` is 1,274 instructions and
-  `world_strips` 942 (no lightmap pass; it zeroes the pass word), so both world programs swap and
-  only passthrough is resident.
+  the lightmap pass (ST, RGBAQ and XYZ2 like the base pass: the RGBAQ write is what stores a
+  PACKED ST's Q). `world_lm` is 1,060 instructions and `world_strips` 782 (no lightmap pass; it
+  zeroes the pass word); both world programs swap and only passthrough is resident.
 - The two output windows are absolute (652, 803) and keep alternating across batches through
   qword 7; `DisplayList::SetFrameConstants` resets them per frame. Never reopen window A per batch: the
   window a batch writes first must be the one drained by the previous kick's stall.
@@ -105,19 +143,21 @@ shared `vu_common.i`/`vu_clip.i`. The code lands in `.vutext` (the `.vu` directi
   Q = 1/0 at the largest float that flushes to zero (the VU has no denormals), taking the corner's
   UV (S x Q x w) with it. A vertex in the eye's plane does this (grid-aligned cameras put whole
   wall edges there). Both world programs add 1e-20 to w after the matrix (`fWBias`); keep it.
-- Walk state that must survive the clipper lives in VU memory (954-956), reloaded every entry,
-  with `--barrier` between a spill's loads and its stores in one block.
-- A load and a store of one address with no data dependency between them may be swapped:
-  `world_strips.vcl` reads the position's ADC word with `ilw.w` before the in-place `sq` and puts
-  a `--barrier` between them. Plain strips keep ADC (0x8000) and the outside flag (0x4000) apart
-  in XYZ2's `.w`; the list path clears the word for its triangles.
+- The list path's walk state is in registers, the clipper's survivor count too (`iCount`); VU
+  memory holds only what is read where it is used: the pass's drawing tag address and the pass
+  (`kVuWalkPrevAddr` .y, .z), for a window open and the clipper's seed. With the clipper's
+  temporaries that fills the VI registers: add walk state by shortening another value's life.
+- `world_strips.vcl` reads the position's ADC word with `ilw.w` before the in-place `sq` of the
+  same qword; oxide mode keeps the two in order, also in the pipelined transform. Plain strips
+  keep ADC (0x8000) and the outside flag (0x4000) apart in XYZ2's `.w`; the list path clears the
+  word for its triangles.
 - **Count VU1 cycles with `src/tools/scripts/vu_cost.py`** (PCSX2 shows none): it runs a
-  program's `.vsm` on the integer side over cooked batches, one cycle per pair plus the DIV wait
-  at `waitq`, clip flags taken as zero (the strip path). openvcl overlaps no loop iterations: the
-  transform is about 51 cycles a vertex, so per-triangle cost follows vertices transformed
-  (`world_lm` 93 cycles per mars_city1 triangle, plain strips 122.5; textured, 99.5; lit, 117.6 for
-  the base pass and 154.7 with the lightmap pass, `--no-lightmaps` for the first). Only kicks of an
-  output window count as packets.
+  program's `.vsm` on the integer side over cooked batches, one cycle per pair plus the stall the
+  listing marks on it (`STALL_LATENCY ?N`), or the DIV wait at `waitq`, clip flags taken as zero
+  (the strip path). Over mars_city1 (2026-11-16): `world_lm` 64.6 cycles a triangle for the base
+  pass (`--no-lightmaps`) and 93.3 with the lightmap pass, plain strips 55.5; with openvcl they
+  were 117.6, 154.7 and 122.5, when the transform cost 51 cycles a vertex unpipelined. Only kicks
+  of an output window count as packets.
 
 ## VU memory layout (vu1.h)
 
@@ -132,7 +172,7 @@ light block starts at 1010. The batch tag block is 7 qwords with no room to grow
   `;`-commented **C-like pseudo-code** block: `vec4`/`mat4`/`qword` types, `//` comments, and
   control flow that mirrors the real code (`do/while` for a bottom-tested `ibne` loop).
   `textured_triangles.vcl` sets the format. Comment-only top-level `;` blocks pass through
-  vclpp/openvcl safely.
+  the preprocessor and the compiler safely.
 
 ## Debugging a microprogram
 

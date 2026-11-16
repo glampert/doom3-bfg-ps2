@@ -10,12 +10,17 @@
 ; the end, so the edge walk needs no wrap test; a pass reads one buffer and writes the other, and
 ; five passes leave the survivors in B. Buffer A holds 8 entries (7 corners plus the wrap) and B 9,
 ; three qwords each.
-; The corner count travels through kVuClipCountAddr, never a register: openvcl's liveness does
-; not carry a value from one loop into a sibling loop and hands the register to a temporary.
+; The corner count is in iCount: the seed sets it, each pass reads it and leaves its own, and the
+; fan reads the last.
 ;
 ; Signs come from the float distances, clamped and read through ftoi4 and mtir, rather than from
-; the clip flag register, so openvcl cannot reorder them away. A macro that places labels takes a
-; prefix, unique to each invocation.
+; the clip flag register, whose six bits per vertex would need decoding per plane. A macro that
+; places labels takes a prefix, unique to each invocation.
+;
+; The pass stays a loop of three blocks, branching on the two signs. Without the branches (both
+; decisions turned into pointer steps, the cut always made) it is one block that oxide-vcl
+; would software-pipeline, but the search for that schedule takes minutes, and unpipelined the
+; branch-free body is slower than this one.
 ;
 ; This source code is released under the GNU GPL-3.0-or-later license.
 ; =================================================================================================
@@ -76,7 +81,6 @@
     sq fUV0,  kVuClipBufA + 11(vi00)
 
     iaddiu iCount, vi00, 3
-    isw.x  iCount, kVuClipCountAddr(vi00)
 #endmacro
 
 ; One pass against one plane, over a polygon of any size. 'vSelCur'/'vSelNxt'
@@ -90,10 +94,10 @@
 ; w is shrunk by fGSScale[w] first so a cut lands strictly inside the plane,
 ; and the distance is scaled by fGSOffset[w] so the ftoi4 sign survives the
 ; product of two distances (quake2-ps2's kVuClipShrink and kVuClipDistScale).
-; The two endpoints' chains are interleaved by hand: openvcl will not overlap
-; them on its own. There is no far plane; a triangle past it is rejected whole.
+; The two endpoints' chains are interleaved by hand, so each instruction covers
+; the other's latency. There is no far plane; a triangle past it is rejected whole.
 ;
-;   int left = clipCount; clipCount = 0;
+;   int left = count; count = 0;
 ;   if (left >= 3)
 ;   {
 ;       qword * in = src, * out = dst; int count = 0;
@@ -104,14 +108,11 @@
 ;           if (dCur * dNxt < 0) { t = dCur / (dCur - dNxt); out[0..2] = lerp(in[0..2], in[3..5], t); out += 3; ++count; }
 ;           in += 3;
 ;       } while (--left > 0);
-;       if (count >= 3) { out[0..2] = dst[0..2]; clipCount = count; }
+;       if (count >= 3) out[0..2] = dst[0..2]; else count = 0;
 ;   }
 #macro ClipPlanePass: vSelCur, vSelNxt, srcBuf, dstBuf, lbl
-    ilw.x  iCorners, kVuClipCountAddr(vi00)
-
-    ; Dead unless proven otherwise: only the surviving path overwrites it.
-    iaddiu iCount, vi00, 0
-    isw.x  iCount, kVuClipCountAddr(vi00)
+    iaddiu iCorners, iCount, 0
+    iaddiu iCount,   vi00,   0
 
     iaddi iSignCur, iCorners, -3
     ibltz iSignCur, lbl##Out
@@ -203,7 +204,6 @@
     sq fCurPos, 0(iOut)
     sq fCurCol, 1(iOut)
     sq fCurUV,  2(iOut)
-    isw.x iCount, kVuClipCountAddr(vi00)
     lbl##Out:
 #endmacro
 

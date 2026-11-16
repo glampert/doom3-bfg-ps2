@@ -35,6 +35,10 @@ production link free of test inputs. Section numbers in parentheses point into t
       ([ci.md](../../.claude/rules/ci.md)). `passthrough.vcl` (6 instructions, with a
       null-tag drain guard) and `vu.h` are the first program and header; the core gate's
       `renderer/passthrough-microprogram` check reads them (2026-11-03).
+- [x] Replace vclpp, openvcl and vu-checker with oxide-vcl (`src/external/oxide-vcl`, built
+      by cargo, oxide mode with every optimization), CI installing Rust; tune the world
+      programs for it: the transform pipelined, the strip loops a window at a time, the walk
+      state in registers, no ordering barriers (2026-11-16).
 - [x] Import `qwords.h`, `math/vec_mat.{h,cpp}` and `PS2_DECLARE_VU_MICROPROGRAM` from
       quake2-ps2 with `REUSE.md` rows; the VU0 asm and the qword copies are proven against
       scalar references by the core gate's `math/*` checks rather than a one-off test ELF

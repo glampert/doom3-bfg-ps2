@@ -152,9 +152,8 @@ visible, so a new engine warning is a regression to investigate.
 The checked backend bridge treats upstream `neo` contracts as system headers;
 new backend/test headers remain checked. SDK and dlmalloc headers are system headers.
 No project-wide `-w` is introduced. The VU microprograms in `config/sources.mk`'s
-`VCL_FILES` (`src/ps2/renderer/vu1progs/`) assemble once into `build/vu/` through the
-quake2-ps2 rule (pinned `build/tools/vclpp`, `openvcl`, `dvp-as`, `check_vu_code.py`, a
-`.d` for the reports) and link into every image as `.vutext`; `passthrough.vcl` is the
+`VCL_FILES` (`src/ps2/renderer/vu1progs/`) build once into `build/vu/` (the pinned oxide-vcl in
+`build/tools/oxide-vcl/`, then `dvp-as`, then a `.d` for the reports) and link into every image as `.vutext`; `passthrough.vcl` is the
 first (2026-11-03). `ps2/math/vec_mat.cpp` (VU0 macro-mode matrix math, with `ps2/qwords.h`
 and `ps2/math/math.h`) is a shared resident unit proven by the core gate's `math/*` checks. `ps2/renderer/dma_list.cpp`
 is the scratchpad display list builder (fromSPR drains into per-frame chain rings) that

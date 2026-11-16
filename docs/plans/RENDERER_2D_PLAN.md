@@ -310,9 +310,9 @@ loaded shell, a font, a GUI vertex pool or a drawn pixel.
 
 Quake links `draw`, `graph`, `packet2` and `dma` directly; gsKit is installed locally
 but is not the selected rendering API in this reference. Do not introduce a second
-GS resource owner during reuse. Its VU tools live at `src/tools/{vclpp,vu-checker}`;
-Doom imports them as pinned submodules under `src/external/` (2026-11-03, for the 3D
-renderer). The CPU 2D roadmap itself needs no VU tool.
+GS resource owner during reuse. Its VU compiler lives at `src/tools/oxide-vcl`; Doom
+imports it as a pinned submodule under `src/external/` (2026-11-16, for the 3D renderer;
+vclpp and vu-checker before). The CPU 2D roadmap itself needs no VU tool.
 
 ## Reuse and adaptation map
 

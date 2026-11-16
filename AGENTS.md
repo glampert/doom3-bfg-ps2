@@ -53,14 +53,15 @@ statement or block; keep the code visually spaced rather than densely packed.
 ## Toolchain
 
 - EE compiler: `mips64r5900el-ps2-elf-gcc`/`g++` (GCC 15). There is no `ee-gcc`/`ee-g++`, so
-  don't go looking for them. VU tools: `openvcl`, `dvp-as`. Also `bin2c`.
+  don't go looking for them. VU tools: oxide-vcl (a submodule, below) and `dvp-as`. Also
+  `bin2c`. Building oxide-vcl needs a Rust toolchain (`cargo`, a recent stable release).
 - `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
   SDK's C sources, for checking what a library really does, are under
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
-- Third-party code lives in `src/external/`: `dlmalloc` and the pinned VU tool submodules
-  `vclpp` (with nested `parse-utils`) and `vu-checker` (`git submodule update --init
-  --recursive` after cloning). `make` builds vclpp into `build/tools/vclpp` with `HOST_CXX`
-  (never a copy on `PATH`) and the `VCL_FILES` programs into `build/vu/`. No JPEG or zlib is
+- Third-party code lives in `src/external/`: `dlmalloc` and the pinned VU compiler submodule
+  `oxide-vcl` (`git submodule update --init` after cloning). `make` builds oxide-vcl with cargo
+  into `build/tools/oxide-vcl/` (never a copy on `PATH`) and the `VCL_FILES` programs into
+  `build/vu/`, in oxide mode with every optimization (`make vu` builds them alone). No JPEG or zlib is
   linked; see [DEVELOPMENT.md](docs/DEVELOPMENT.md#third-party-dependencies).
 
 ## Build and verify
@@ -99,12 +100,10 @@ statement or block; keep the code visually spaced rather than densely packed.
   only when asked.
 - `git fetch` first. The user sometimes commits on GitHub directly; check for divergence
   before committing and fast-forward only when the working tree can be preserved safely.
-- The `src/external/vclpp` (with nested `parse-utils`) and `src/external/vu-checker`
-  gitlinks point at published upstream commits. When a submodule changes, publish the
-  nested commit first (parse-utils, then vclpp), then bump the gitlink here.
+- The `src/external/oxide-vcl` gitlink points at a published upstream commit. When it
+  changes, publish the oxide-vcl commit first, then bump the gitlink here.
 - Commit subjects are one sentence ending in a period, often prefixed with the area:
-  `Sound: stream the soundtrack from loose SPU2 ADPCM files.`,
-  `vclpp: back to C++17, so GCC 9 builds it; CI on GitHub.`
+  `Sound: stream the soundtrack from loose SPU2 ADPCM files.`
 
 ## Things that bite (details in the rules)
 
@@ -113,7 +112,8 @@ statement or block; keep the code visually spaced rather than densely packed.
 - ps2sdk stubs some libc calls to fail (`sysconf` → -1), and some of its register macros
   don't parenthesize their arguments. Verify before trusting either.
 - SIF DMA target buffers need `alignas(64)`.
-- The VU toolchain miscompiles silently. Only `check_vu_code.py` and the screen tell you.
+- A VU program that builds can still be wrong. Only the screen, a VU1 memory dump or a
+  console capture tells you; `vu_cost.py` counts its cycles (see vu-microprograms.md).
 - GS alpha 1.0 is `0x80`. Normalized ST spans the power-of-two TEX0 extent, not the image.
 - PCSX2 models neither the EE cache nor GS-internal cost. A capture only gates regressions
   for those.
@@ -135,9 +135,8 @@ until reproduced on this port.
 | [ps2-backend-cpp.md](.claude/rules/ps2-backend-cpp.md) | `ps2`, host tools | naming, types, file style, load-time vs render-time validation, passing the strict `-Werror` set |
 | [ps2-platform.md](.claude/rules/ps2-platform.md) | `ps2` | ps2sdk traps, EE FPU, SIF DMA, IOP modules, ROM FILEIO, memory card |
 | [gs-renderer.md](.claude/rules/gs-renderer.md) | `ps2/renderer` | GS/libdraw traps, Doom 2D path invariants, paletted pages, SWF draw scope; history in `docs/reference/gs-renderer.md` |
-| [vu-microprograms.md](.claude/rules/vu-microprograms.md) | VU sources, vu-checker | openvcl/dvp-as/vclpp traps, VU0 inline asm, VCL comment style, runtime probes |
+| [vu-microprograms.md](.claude/rules/vu-microprograms.md) | VU sources | the oxide-vcl build, writing fast VCL for it, Doom's world batches, VU0 inline asm, VCL comment style, runtime probes |
 | [performance.md](.claude/rules/performance.md) | `ps2`, frame-log scripts | EE codegen facts, what PCSX2 can measure, capture/A-B/asm-test recipes |
 | [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md) | id's C++ | editing rules, portability traps, retail SWF admission model; subsystem findings in `docs/reference/doom3-engine-cpp.md` |
 | [memory-budget.md](.claude/rules/memory-budget.md) | heap, VRAM, assets, MapCycle | how to measure, the current 32 MB picture, recurring lessons; dated budgets in `docs/reference/memory-budget.md` |
-| [vclpp-submodule.md](.claude/rules/vclpp-submodule.md) | `external/vclpp` | vclpp/parse-utils conventions, verification recipes, CI, MASP mode, tyra |
 | [ci.md](.claude/rules/ci.md) | `.github` | the two workflows, the pinned ps2sdk image and moving it, checking a Linux build without Docker, runner traps |

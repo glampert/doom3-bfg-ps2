@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: vu_memory.h
-// Brief: The VU1 data memory map (qword addresses), shared by the microprograms (through vclpp)
+// Brief: The VU1 data memory map (qword addresses), shared by the microprograms (through oxide-vcl's preprocessor)
 //        and the EE code that fills it (through ps2/renderer/vu.h). Only plain #defines and
 //        // comments, which both preprocessors accept; the kVu prefix stands in for a namespace.
 //
@@ -39,8 +39,8 @@
 // A+D packet (GIF tag, TEX0, TEX1, MIPTBP1, MIPTBP2, CLAMP, TEST), kicked first; then the
 // batch's strip and list drawing tags. Offsets from XTOP. The two contexts share one CLUT
 // buffer, so the page's TEX0 must not load its CLUT before the base pass draws.
-#define kVuInputBase       40
-#define kVuInputHalfQwords 306
+#define kVuInputBase               40
+#define kVuInputHalfQwords         306
 #define kVuBatchLightmapOffset     295
 #define kVuBatchLightmapFlagOffset 296
 #define kVuBatchStateOffset        297
@@ -51,18 +51,22 @@
 // and XYZ2 per vertex. A program fills one, kicks it and continues
 // in the other; an XGKICK stalls while the previous transfer runs, so the window being written has
 // always drained.
-#define kVuWindowA                652
-#define kVuWindowQwords           151
-#define kVuWindowVertices         50
+#define kVuWindowA        652
+#define kVuWindowQwords   151
+#define kVuWindowVertices 50
 
-// Clip scratch (954-1008): the list path's walk state (954 x entries left, y next stream qword,
-// z lanes left, w the previous vertex; 955 x the vertex before, y the address of the pass's
-// drawing tag, z the pass, 0 base or 1 lightmap; 956 the rotating stream qword), then the
-// clipper's ping-pong buffers of three qwords per corner (clip position, float colour, UV) and its
-// survivor count.
-#define kVuWalkStateAddr   954
-#define kVuWalkPrevAddr    955
-#define kVuWalkIndicesAddr 956
-#define kVuClipBufA        957
-#define kVuClipBufB        981
-#define kVuClipCountAddr   1008
+// Stream qwords (four strip entries each) one window holds on world_lm.vcl's strip path: the first
+// window takes 48 of its 50 vertices, every later one the two re-sent entries and 48 more.
+#define kVuWindowStripQwords 12
+
+#if (kVuWindowVertices - 2) / 4 != kVuWindowStripQwords
+    #error "kVuWindowStripQwords is the stream qwords a window holds after its two re-sent entries"
+#endif
+
+// Clip scratch (954-1008): what the list path keeps in memory (955 .y the address of the pass's
+// drawing tag, .z the pass, 0 base or 1 lightmap; the rest of its walk is in registers), then the
+// clipper's ping-pong buffers of three qwords per corner (clip position, float colour, UV). 954,
+// 956 and 1008 are free.
+#define kVuWalkPrevAddr 955
+#define kVuClipBufA     957
+#define kVuClipBufB     981
