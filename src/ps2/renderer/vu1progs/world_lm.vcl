@@ -358,6 +358,11 @@
 
         lStripQword:
 
+            ; Not software-pipelined: the loop is bound by its 11 lower-pipe
+            ; instructions an entry, and pipelining gains under 1% of the strip
+            ; path's cycles for about a second more of every build.
+            --LoopCS 0,0
+
             ilw.x iEntry, 0(iIdx)
             StripEntry{ }
             ilw.y iEntry, 0(iIdx)
@@ -366,12 +371,6 @@
             StripEntry{ }
             ilw.w iEntry, 0(iIdx)
             StripEntry{ }
-
-            ; A block boundary, not an ordering: as one block this loop is one
-            ; oxide-vcl would software-pipeline, and the search for its schedule
-            ; costs seconds of every build for under 1% of the strip path's
-            ; cycles (it is bound by its 11 lower-pipe instructions an entry).
-            --barrier
 
             iaddiu iIdx, iIdx,  1
             iaddi  iRun, iRun, -1
@@ -419,6 +418,9 @@
 
         lLightmapQword:
 
+            ; Not software-pipelined, as the base pass's loop.
+            --LoopCS 0,0
+
             ilw.x iEntry, 0(iIdx)
             LightmapEntry{ }
             ilw.y iEntry, 0(iIdx)
@@ -427,10 +429,6 @@
             LightmapEntry{ }
             ilw.w iEntry, 0(iIdx)
             LightmapEntry{ }
-
-            ; As in the base pass's loop: a block boundary that keeps the
-            ; schedule search out of every build.
-            --barrier
 
             iaddiu iIdx, iIdx,  1
             iaddi  iRun, iRun, -1

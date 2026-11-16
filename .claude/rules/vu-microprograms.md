@@ -50,12 +50,13 @@ four copies), and `exit` ends a program on its last instructions. Write for thos
   room test. A per-element decision with a cheap slow path can often be made after the work: the
   quake2-ps2 triangle loop writes each triangle into the window before it knows whether it is
   clipped, and the clip path writes over the same slots.
-- **Watch the compile time.** `loops`' schedule search grows quickly with the body: a loop of
-  about 50 instructions costs seconds, a branch-free clipper pass of 70 about four minutes
-  (`time make vu`). When a big loop gains little (world_lm's index-qword loops are bound by their
-  11 lower-pipe instructions an entry, under 1% from pipelining), a `--barrier` inside it makes it
-  two blocks, which `loops` leaves alone; say why in a comment. `--LoopCS 0,0` does not do it: it
-  warns, and `--warnings-as-errors` fails the build.
+- **Watch the compile time.** `loops`' schedule search has a work budget: on a large body (50 to
+  70 instructions) it settles or gives up within about two seconds per loop, and a loop it gives up
+  on stays as written (a branch-free clipper pass of 70 does). When a big loop gains little
+  (world_lm's index-qword loops are bound by their 11 lower-pipe instructions an entry, under 1%
+  from pipelining), `--LoopCS 0,0` inside it keeps `loops` off it without a warning in oxide mode;
+  say why in a comment. Don't use a `--barrier` for this: it splits the block and schedules it
+  worse. `time make vu` shows what a loop costs.
 - **Hold batch state in VI registers.** The allocator gives a value its real live range across
   branches and loops, and has VI01-VI15 (`--vcl-boilerplate` declares `.init_vi_all`; VI01 is
   `fcand`'s destination and stays free across it). A mode read once per batch belongs in a register:
@@ -159,8 +160,8 @@ four copies), and `exit` ends a program on its last instructions. Write for thos
 - **Count VU1 cycles with `src/tools/scripts/vu_cost.py`** (PCSX2 shows none): it runs a
   program's `.vsm` on the integer side over cooked batches, one cycle per pair plus the stall the
   listing marks on it (`STALL_LATENCY ?N`), or the DIV wait at `waitq`, clip flags taken as zero
-  (the strip path). Over mars_city1 (2026-11-16): `world_lm` 64.6 cycles a triangle for the base
-  pass (`--no-lightmaps`) and 93.3 with the lightmap pass, plain strips 55.5; with openvcl they
+  (the strip path). Over mars_city1 (2026-11-16): `world_lm` 64.2 cycles a triangle for the base
+  pass (`--no-lightmaps`) and 92.4 with the lightmap pass, plain strips 55.5; with openvcl they
   were 117.6, 154.7 and 122.5, when the transform cost 51 cycles a vertex unpipelined. Only kicks
   of an output window count as packets.
 

@@ -553,8 +553,8 @@ with R9's hand-scheduled programs and the hardware frame log.
 
 Compiled by oxide-vcl (2026-11-16, oxide mode with every optimization, `vu_cost.py` charging the
 stalls its listing marks), the transform loop is software-pipelined and the strip loops run a
-window at a time, and the turn above happened: over mars_city1, 64.6 cycles a triangle for the
-hybrid's base pass (from 117.6) and 93.3 with the lightmap pass (from 154.7), 55.5 for plain
+window at a time, and the turn above happened: over mars_city1, 64.2 cycles a triangle for the
+hybrid's base pass (from 117.6) and 92.4 with the lightmap pass (from 154.7), 55.5 for plain
 strips (from 122.5). Plain strips now cost VU1 less than the hybrid, though `world_strips.vcl`
 still draws no lightmap pass and sends 19 % more packet bytes; the hybrid stays the cooked format
 until the comparison is redone with both counted.
