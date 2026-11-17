@@ -263,6 +263,9 @@ bool CheckMissingAndEscapingPaths()
 
 void InitTestServices()
 {
+    // The first call after main's SifInitRpc: tagged allocations may start. The platform image links
+    // no heap, so its stage provider has nothing to open.
+    ps2::system::heap::EnterMain();
     ps2::system::fs::Init();
 }
 

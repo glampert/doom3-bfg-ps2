@@ -1091,3 +1091,38 @@ At `main` four allocations (7,424 / 7,600 bytes) are live. All of them come from
 - `File.cpp:752`, a global `idHashTableT<int, int>` (IDLIB_HASH, 1,024 bytes).
 - `idAnimManager::idAnimManager` (`Anim.cpp:992`), its `idHashTable<idMD5Anim *>` (IDLIB_HASH,
   1,024 bytes).
+
+## The port's own heap (2026-11-17)
+
+`ps2::system::heap` replaced dlmalloc ([HEAP_ALLOCATOR.md](../plans/HEAP_ALLOCATOR.md)): headerless
+slots in 4 KiB pages of 48 classes up to 256 bytes, TLSF above. Debug, against the same day's dlmalloc
+runs on the same sources:
+
+| Ledger (debug) | dlmalloc | Port's heap |
+| --- | ---: | ---: |
+| Retail `startup-game`, requested / backing / allocations | 13,231,527 / 16,531,324 / 75,081 | 13,231,527 / **13,434,232** / 75,081 |
+| Retail peak arena commitment | 17,581,068 | 14,425,296 |
+| Bounded headless startup, backing | 4,563,640 | 4,498,104 |
+| Retail `startup-game` (release), backing / allocations | 16,482,064 / 74,564 (2026-10-31) | **13,361,680** / 74,542 |
+| Retail peak arena commitment (release) | | 14,171,520 |
+| Authored map fixture peak backing | 5,647,620 | 5,573,296 |
+
+The retail boot's backing is 202,705 bytes above its requested bytes, against 3,299,797 before. At
+`startup-game` the small tier holds 1,124 pages, 15 of them free; the large tier has 110,464 free
+bytes, its largest free block is 22,544 bytes, and 13,584,640 bytes of gap remain between the tiers.
+Tracking adds 172,912 bytes of shadow arrays, outside the ledger. The C library holds 35,064 bytes in
+25 allocations, counted apart. Release keeps no requested sizes, so its `requested` equals backing.
+
+The first UI session on the new heap crashed in `cvarSystem->Shutdown()` (a jump to 0): six
+adjacent `idInternalCVar`s at 0x1FD9520-0x1FDA000, in the arena's topmost small pages, had lost
+their vtables to a stack frame (`__ssprint_r` return addresses, `_impure_data`, `s_catalog`). The
+main stack, 128 KiB at the top of RAM, had overflowed about 27 KB into the arena. dlmalloc never
+used the arena's top before the rest, so the overflow went unnoticed. Painted at 512 KiB, the
+retail menu session peaked at **154,376 bytes**; retail boot to `startup-game` uses about 103 KB.
+The stack is now 256 KiB, and tracking builds stop at its bottom guard.
+
+A second finding: two warm reloads of the same inactive movie allocated the same requested bytes
+with backing 32 bytes apart. A large block whose leftover could not hold a free block kept it,
+so backing depended on which free block served the request. Free-list links now sit 8 bytes into
+every block (the payload in release, the header's unused tracking fields otherwise), so 16 bytes
+hold a free block, every remainder splits, and backing is a function of the request alone.

@@ -8,6 +8,7 @@
 
 #include <climits>
 #include <cstddef>
+#include <cstdint>
 
 #if defined(__GNUC__) || defined(__clang__)
     // Rarely called functions: Init/shutdown/error handlers - optimize for size aggressively (Oz), never inline.
@@ -38,6 +39,31 @@ constexpr int ArrayLength(const T (&)[N])
 {
     static_assert(N <= INT_MAX);
     return static_cast<int>(N);
+}
+
+// Leading zero bits of a nonzero value. __builtin_clz is a libgcc call on the EE. plzcw counts the
+// bits after the first one that equal it, so a value below 2^31 has plzcw + 1 leading zeros; it
+// writes the upper word's count above bit 31 too, which sll clears back to a sign-extended word.
+inline int CountLeadingZeros(std::uint32_t value)
+{
+#if defined(_EE)
+    if (static_cast<std::int32_t>(value) < 0)
+    {
+        return 0;
+    }
+
+    std::uint32_t count;
+    asm("plzcw %0, %1\n\tsll %0, %0, 0" : "=r"(count) : "r"(value));
+    return static_cast<int>(count) + 1;
+#else // _EE
+    return __builtin_clz(value);
+#endif // _EE
+}
+
+// The index of the lowest set bit of a nonzero value.
+inline int CountTrailingZeros(std::uint32_t value)
+{
+    return 31 - CountLeadingZeros(value & (0u - value));
 }
 
 } // namespace ps2

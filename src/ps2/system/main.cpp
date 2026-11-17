@@ -18,6 +18,9 @@ static constexpr uint64 kFrameMicroseconds = 1000000U / 60U;
 // or dropping one fails every headless and UI gate, so change those markers in the same commit.
 int main()
 {
+    // Every global constructor has run; tagged allocations may start.
+    ps2::system::heap::EnterMain();
+
     // Preserve the loader's IOP and HostFs until console device bring-up is available.
     SifInitRpc(0);
 
@@ -59,6 +62,12 @@ int main()
 
     const auto final = ps2::system::heap::GetTotalStats();
     const auto arena = ps2::system::heap::GetArenaStats();
+
+#if PS2_D3BFG_ASSERTS
+    // The deepest the main stack reached over the whole run.
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] STACK final size=%zu headroom=%zu\n", ps2::system::heap::kMainStackBytes,
+             ps2::system::heap::GetStackHeadroom());
+#endif // PS2_D3BFG_ASSERTS
 
     // Runner MEMORY_RE parses these fields; full shutdown must recover the baseline exactly.
     ps2::Log(ps2::LogLevel::Info, "Memory baseline=%zu/%zu/%zu final=%zu/%zu/%zu peak=%zu/%zu arena=%zu\n",

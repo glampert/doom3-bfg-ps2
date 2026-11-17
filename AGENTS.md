@@ -45,7 +45,7 @@ statement or block; keep the code visually spaced rather than densely packed.
 - [docs/plans/](docs/plans/): [IMPLEMENTATION_PLAN.md](docs/plans/IMPLEMENTATION_PLAN.md)
   (milestones), [RENDERING_ARCHITECTURE.md](docs/plans/RENDERING_ARCHITECTURE.md) (3D
   rendering) and its step-by-step [RENDERING_TODO.md](docs/plans/RENDERING_TODO.md);
-  [HEAP_ALLOCATOR.md](docs/plans/HEAP_ALLOCATOR.md) (the EE heap that replaces dlmalloc).
+  [HEAP_ALLOCATOR.md](docs/plans/HEAP_ALLOCATOR.md) (the EE heap, which replaced dlmalloc).
 - [docs/CVARS.md](docs/CVARS.md): implemented backend cvars; add each one with its
   debug/release defaults and flags when it exists in code.
 - [.claude/rules/](.claude/rules/) (index below) includes Quake II PS2 reference notes. Their
@@ -59,8 +59,8 @@ statement or block; keep the code visually spaced rather than densely packed.
 - `$PS2DEV` = `~/ps2dev`, `$PS2SDK` = `~/ps2dev/ps2sdk` (EE headers in `ee/include`). The
   SDK's C sources, for checking what a library really does, are under
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/<lib>/src/`. gsKit is at `~/ps2dev/gsKit`.
-- Third-party code lives in `src/external/`: `dlmalloc` and the pinned VU compiler submodule
-  `oxide-vcl` (`git submodule update --init` after cloning). `make` builds oxide-vcl with cargo
+- Third-party code lives in `src/external/`: the pinned VU compiler submodule `oxide-vcl`
+  (`git submodule update --init` after cloning). The EE heap is the port's own (`system/heap*`). `make` builds oxide-vcl with cargo
   into `build/tools/oxide-vcl/` (never a copy on `PATH`) and the `VCL_FILES` programs into
   `build/vu/`, in oxide mode with every optimization (`make vu` builds them alone). No JPEG or zlib is
   linked; see [DEVELOPMENT.md](docs/DEVELOPMENT.md#third-party-dependencies).

@@ -247,12 +247,14 @@ CORE_BACKEND_CXX_SRC = \
 	ps2/game/script_error.cpp \
 	ps2/game/class_alloc.cpp \
 	ps2/system/heap.cpp \
+	ps2/system/heap_allocator.cpp \
+	ps2/system/heap_small.cpp \
+	ps2/system/heap_large.cpp \
 	ps2/system/lifecycle.cpp \
 	ps2/system/common_foundation.cpp \
 	ps2/system/offline_session.cpp \
 	ps2/system/filesystem.cpp \
 	ps2/system/sys.cpp
-CORE_C_SRC = external/dlmalloc/dlmalloc.c
 CORE_BOOT_CXX_SRC = \
 	tests/smoketests/math_tests.cpp \
 	tests/smoketests/renderer_gs_tests.cpp \
@@ -593,6 +595,9 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/renderer/render_system.cpp \
 	ps2/system/log.cpp \
 	ps2/system/heap.cpp \
+	ps2/system/heap_allocator.cpp \
+	ps2/system/heap_small.cpp \
+	ps2/system/heap_large.cpp \
 	ps2/system/filesystem.cpp \
 	ps2/system/sys.cpp \
 	ps2/game/class_alloc.cpp \

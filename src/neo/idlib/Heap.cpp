@@ -35,12 +35,18 @@ If you have questions concerning this license or the applicable additional terms
 static_assert( TAG_NEW == ps2::system::heap::kNewTag && TAG_NUM_TAGS <= ps2::system::heap::kTagCount );
 #endif
 
-// [PS2_D3BFG]: Tagged C++ new has non-null zero-size behavior and preserves its type's alignment.
+// [PS2_D3BFG]: Tagged C++ new preserves its type's alignment (0 asks for the size's natural one); a
+// zero-size new is a bug, which assertion builds stop on.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 void * Mem_AllocAligned( size_t size, size_t alignment, memTag_t tag ) {
 	if ( size > static_cast<size_t>( INT_MAX ) || tag < 0 || tag >= TAG_NUM_TAGS ) {
 		ps2::system::heap::Fail( "invalid aligned Doom allocation" );
 	}
+#if PS2_D3BFG_ASSERTS
+	if ( size == 0 ) {
+		ps2::system::heap::Fail( "tagged new of zero bytes" );
+	}
+#endif
 	return ps2::system::heap::Alloc( size, static_cast<uint16_t>( tag ), alignment );
 }
 #endif

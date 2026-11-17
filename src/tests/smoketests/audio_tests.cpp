@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "tests/smoketests/audio_tests.h"
+#include "tests/smoketests/heap_ledger.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "tests/smoketests/voice_tests.h"
@@ -33,7 +34,10 @@ bool LedgerMatches(const system::heap::Stats & before)
 bool PcmSamples()
 {
     const system::heap::Stats before = system::heap::GetTotalStats();
+    // Exact per-tag payload sizes are checked in tracking builds; release checks the total recovery.
+#if PS2_D3BFG_ASSERTS
     const system::heap::Stats audioBefore = system::heap::GetStats(TAG_AUDIO);
+#endif // PS2_D3BFG_ASSERTS
     bool passed = true;
     for (int cycle = 0; cycle < 3; ++cycle)
     {
@@ -50,9 +54,11 @@ bool PcmSamples()
                      sample.GetAmplitude(0) == 1.0f && sample.GetAmplitude(17) == 0.25f && sample.GetAmplitude(34) == 0.0f &&
                      sample.GetAmplitude(999) == 0.5f && sample.GetAmplitude(-1) == 0.0f &&
                      sample.GetAmplitude(1000) == 0.0f && sample.GetAmplitude(INT_MAX) == 0.0f && passed;
+#if PS2_D3BFG_ASSERTS
             const system::heap::Stats mono = system::heap::GetStats(TAG_AUDIO);
             passed = mono.requestedBytes == audioBefore.requestedBytes + 22050 &&
                      mono.allocationCount == audioBefore.allocationCount + 1 && passed;
+#endif // PS2_D3BFG_ASSERTS
             // SetName must release the old payload before binding new resource identity.
             sample.SetName("audio-fixtures/stereo");
             passed = !sample.IsLoaded() && sample.GetTimestamp() == FILE_NOT_FOUND_TIMESTAMP && passed;
@@ -62,15 +68,22 @@ bool PcmSamples()
                      sample.LengthInMsec() == 500 && sample.GetAmplitude(0) == 0.5f && sample.GetAmplitude(499) == 0.5f &&
                      sample.GetAmplitude(500) == 0.0f && sample.GetNeverPurge() && sample.GetLevelLoadReferenced() &&
                      sample.GetLastPlayedTime() == 77 && passed;
+#if PS2_D3BFG_ASSERTS
             const system::heap::Stats stereo = system::heap::GetStats(TAG_AUDIO);
             passed = stereo.requestedBytes == audioBefore.requestedBytes + 88200 &&
                      stereo.allocationCount == audioBefore.allocationCount + 1 && passed;
+#endif // PS2_D3BFG_ASSERTS
             sample.LoadResource(); // Reload releases its previous allocation rather than accumulating payloads.
-            passed = sample.IsLoaded() && system::heap::GetStats(TAG_AUDIO).requestedBytes == stereo.requestedBytes && passed;
+            passed = sample.IsLoaded() && passed;
+#if PS2_D3BFG_ASSERTS
+            passed = system::heap::GetStats(TAG_AUDIO).requestedBytes == stereo.requestedBytes && passed;
+#endif // PS2_D3BFG_ASSERTS
             sample.FreeData();
             sample.FreeData();
-            passed = !sample.IsLoaded() && !sample.IsDefault() &&
-                     system::heap::GetStats(TAG_AUDIO).requestedBytes == audioBefore.requestedBytes && passed;
+            passed = !sample.IsLoaded() && !sample.IsDefault() && passed;
+#if PS2_D3BFG_ASSERTS
+            passed = system::heap::GetStats(TAG_AUDIO).requestedBytes == audioBefore.requestedBytes && passed;
+#endif // PS2_D3BFG_ASSERTS
             sample.LoadResource(); // Destructor must also release a live sample.
         }
         passed = LedgerMatches(before) && passed;
@@ -213,7 +226,8 @@ bool VoicePool()
             hardware.InitHeadless({ &now, FixtureTime });
             const system::heap::Stats withPool = system::heap::GetTotalStats();
             poolBytes = sizeof(audio::SoundVoice) * audio::SoundHardware::kHeadlessVoiceCount;
-            passed = withPool.requestedBytes == withSample.requestedBytes + poolBytes &&
+            passed = (!kExactHeapLedgers || withPool.requestedBytes == withSample.requestedBytes + poolBytes) &&
+                     withPool.backingBytes >= withSample.backingBytes + poolBytes &&
                      withPool.allocationCount == withSample.allocationCount + 1 && passed;
             audio::SoundVoice * voices[audio::SoundHardware::kHeadlessVoiceCount] = {};
             for (int i = 0; i < audio::SoundHardware::kHeadlessVoiceCount; ++i)

@@ -60,11 +60,14 @@ class BackendCommonTests(unittest.TestCase):
                 self.assertEqual(result.stdout, f"[D3BFG] FATAL {output}\n")
                 self.assertNotIn("returned", result.stdout)
 
-    def test_class_allocation_failures_are_fatal_with_assertions_disabled(self):
-        for mode, output in (("class-fail", "idClass allocation failed: size="),
-                             ("class-underflow", "idClass allocation counters underflow")):
-            with self.subTest(mode=mode):
-                result = self.run_mode(0, mode)
+    def test_class_allocation_failures_are_fatal(self):
+        # Allocation failure is fatal in every build; the counters, and so their underflow check,
+        # exist only in tracking builds.
+        for assertions, mode, output in ((0, "class-fail", "idClass allocation failed: size="),
+                                         (1, "class-fail", "idClass allocation failed: size="),
+                                         (1, "class-underflow", "idClass allocation counters underflow")):
+            with self.subTest(assertions=assertions, mode=mode):
+                result = self.run_mode(assertions, mode)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f"[D3BFG] FATAL {output}", result.stdout)
                 self.assertNotIn("returned", result.stdout)

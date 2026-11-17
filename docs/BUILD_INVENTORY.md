@@ -38,9 +38,9 @@ matches project paths without case and records the actual on-disk filename so th
 inventory works on hosts with either filesystem behavior.
 
 Third-party dependencies imported for the port live under `src/external/`, currently
-only `src/external/dlmalloc/`. dlmalloc is listed in `CORE_C_SRC`, and the heap bridge
-imports its header through a system include path. No JPEG or zlib is linked; compressed
-resource packs will import miniz.
+only the oxide-vcl submodule, a host tool. dlmalloc was removed on 2026-11-17 for the port's
+own heap (`src/ps2/system/heap*`), and with it the EE's only C source group. No JPEG or zlib
+is linked; compressed resource packs will import miniz.
 
 ## Source dispositions
 
@@ -150,7 +150,7 @@ review were fixed in the source (tagged `[PS2_D3BFG]`), not suppressed. Format,
 destructor, parentheses, attribute and the remaining `-Wall -Wextra` diagnostics stay
 visible, so a new engine warning is a regression to investigate.
 The checked backend bridge treats upstream `neo` contracts as system headers;
-new backend/test headers remain checked. SDK and dlmalloc headers are system headers.
+new backend/test headers remain checked. SDK headers are system headers.
 No project-wide `-w` is introduced. The VU microprograms in `config/sources.mk`'s
 `VCL_FILES` (`src/ps2/renderer/vu1progs/`) build once into `build/vu/` (the pinned oxide-vcl in
 `build/tools/oxide-vcl/`, then `dvp-as`, then a `.d` for the reports) and link into every image as `.vutext`; `passthrough.vcl` is the

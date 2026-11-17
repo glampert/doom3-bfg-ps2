@@ -138,6 +138,9 @@ arena start (page-aligned)                                         EndOfHeap()  
 - **When the gap is spent**, the small tier borrows a page-aligned 4 KiB block from TLSF; it goes back to TLSF
   as soon as it is empty.
 - **Tier dispatch** on free is one bit test: a 1 KiB bitmap marks every page holding slots, wherever it sits.
+- **The main stack** sits right above the arena's top, so an overflow lands on the first small pages. The
+  heap sets `_stack_size` (256 KiB, measured 154 KB peak in the retail menus) and tracking builds paint the
+  stack and check its bottom 1 KiB every Common frame (2026-11-17).
 
 ### Small tier: headerless slot pages (up to 256 bytes)
 
@@ -177,8 +180,10 @@ page threads all its slots at once.
 - `__builtin_clz` is a libgcc call on the EE, so `ps2::CountLeadingZeros` in `src/ps2/common.h` uses `plzcw`
   (plus an `sll` that sign-extends the result), with `__builtin_clz` on the host.
 - The header is 8 bytes in release: `prevPhys` and `size|free|prevFree`, as arena offsets so the layout is the
-  same on the host. A free block keeps its links in the payload. Sizes are multiples of 16 and payloads are
-  16-aligned.
+  same on the host. A free block keeps its links 8 bytes in (the payload in release, the header's tracking
+  fields otherwise), so 16 bytes hold one. Sizes are multiples of 16 and payloads are 16-aligned. Every
+  remainder can therefore split off, and a block's size depends on its request alone: the gates compare warm
+  reload ledgers exactly.
 - An alignment of 32 or more searches for `size + align + minimum block` and splits off the leading gap, as
   `dlmemalign` does.
 - Realloc grows a block in place into a free neighbour or the gap, and shrinks by splitting. Only newlib uses
@@ -306,7 +311,10 @@ keeps the record in its own memory.
      (`src/tools/scripts/run_pcsx2_test.py:142`).
    - The baseline becomes (0, 0, 0). Runners stop hard-coding `BASELINE` and require 0/0/0.
    - Regenerate the fixture logs with their generators.
-2. **Core classes, host-tested.**
+2. **Core classes, host-tested.** Done 2026-11-17 as `Allocator` (both tiers, `heap_allocator.h` and three
+   sources), `Ledger` (in `heap.cpp`) and `ps2::CountLeadingZeros`; `make test-host` runs
+   `heap_core_tests_0`/`_1` and `test_heap_core.py`. ASan manual poisoning of free slots was not added: the
+   tracking build's poison checks catch writes after free, not reads.
    - `Allocator`, `SmallTier`, `LargeTier`, `Ledger`, `Tracker` and `CountLeadingZeros`.
    - Host harness `src/tests/host/heap_core_tests.cpp`, added to `HOST_HEAP_SOURCES` in the Makefile. It runs
      on its own `Allocator` over a buffer and covers:
@@ -316,7 +324,8 @@ keeps the record in its own memory.
      - TLSF coalescing
      - poison detection
      - ASan manual poisoning of free slots, proven by seeding defects
-3. **Switch the EE over.**
+3. **Switch the EE over.** Done 2026-11-17. The core test image opens the heap in its stage provider's
+   `InitTestServices`, since the platform image shares its main and links no heap.
    - `heap.cpp` on the singletons, `_ps2sdk_memory_init`, `EnterMain` from `src/ps2/system/main.cpp` and the
      test drivers' mains, and the libc entry points.
    - Delete `src/external/dlmalloc/` and the `HEAP_VENDOR_INCS` rules (Makefile:363-420).
@@ -324,7 +333,9 @@ keeps the record in its own memory.
      (:249, :595). Then run `make compiledb`.
    - Check with `nm` on the unstripped ELF that nothing else references `sbrk`/`_sbrk`, and that newlib's
      malloc objects are absent.
-4. **Ledgers and checks.**
+4. **Ledgers and checks.** Done 2026-11-17, except the EE expected-fatal probes: the host defect modes
+   cover write after free and double free, while pre-main allocation and zero-size `new` have no target
+   probe yet. No debug gate hit a zero-size `new`.
    - Tracker wiring, `PrintMemory`, and the debug-only `class_alloc` counting.
    - Update the heap and class-alloc smoke checks: natural alignment, tier boundaries, `requested == 37`
      (debug only), `invalid-requests` (assertion builds only).
@@ -334,7 +345,7 @@ keeps the record in its own memory.
 5. **Mem_Alloc audit.** Worth about 40 KB at the retail boot (phase 0), so it waits behind other levers.
    - Move the sites that do not need 16 to `Mem_AllocAligned`/`Mem_ClearedAllocAligned` one owner group at a
      time, then idBlockAlloc. Measure each step with `test-headless-retail`.
-6. **Docs.**
+6. **Docs.** Done 2026-11-17.
    - `.claude/rules/memory-budget.md`: overhead and how to measure.
    - A dated before/after section in `docs/reference/memory-budget.md`.
    - `docs/DEVELOPMENT.md`'s third-party list.
@@ -342,11 +353,14 @@ keeps the record in its own memory.
    - `.claude/rules/ps2-platform.md`: the dlmalloc page-size note.
 7. **(R2)** Build `RelocatableArena` with `tex::Record.pixels`, then D3TX segments and sound.
 
-## Expected outcome (phase 0's model, for phase 3 to confirm)
+## Expected outcome (phase 0's model; measured in phase 3)
 
 - Small allocations drop from about 44 bytes of overhead to a few bytes of class rounding.
 - Replaying the retail boot's live set gives 13,525,120 backing bytes against 16,538,096 today: about
   **3.0 MB more free EE RAM** at `startup-game`, with the pages perfectly packed.
+- Measured (2026-11-17): debug 13,434,232 backing bytes for the same 13,231,527 requested in 75,081
+  allocations, **3.10 MB less** than dlmalloc's 16,531,324, plus 172,912 bytes of tracking shadows; the arena
+  peak fell from 17,581,068 to 14,425,296. Release 13,361,680 in 74,542 against 16,482,064 (**3.12 MB less**).
 - Shorter alloc and free paths than the wrapper plus dlmalloc.
 
 ## Verification

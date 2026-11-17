@@ -200,6 +200,11 @@ void Frame()
         FatalError("Common frame before completed initialization");
     }
 
+    // The main stack overflows into the arena's first small pages; stop at the guard instead.
+#if PS2_D3BFG_ASSERTS
+    system::heap::CheckStack();
+#endif // PS2_D3BFG_ASSERTS
+
     ++idLib::frameNumber;
     cmdSystem->ExecuteCommandBuffer();
     system::session::Frame();
@@ -217,6 +222,18 @@ PS2_COLD_FUNC void PrintMemory(const char * stage)
     Log(LogLevel::Info, "[D3BFG] ARENA %s available=%d committed=%zu used=%zu free=%zu peak_committed=%zu\n", stage,
         arena.available ? 1 : 0, arena.committedBytes, arena.usedBytes, arena.freeBytes, arena.peakCommittedBytes);
 
+    const system::heap::Stats libc = system::heap::GetLibcStats();
+    Log(LogLevel::Info,
+        "[D3BFG] HEAP %s gap=%zu small_pages=%zu small_free_pages=%zu borrowed_pages=%zu large_free=%zu largest_free=%zu "
+        "metadata=%zu libc=%zu/%zu/%zu\n",
+        stage, arena.gapBytes, arena.smallPages, arena.smallFreePages, arena.smallBorrowedPages, arena.largeFreeBytes,
+        arena.largestFreeBlock, arena.metadataBytes, libc.requestedBytes, libc.backingBytes, libc.allocationCount);
+
+    // Per-tag ledgers and the stack paint exist in tracking builds only.
+#if PS2_D3BFG_ASSERTS
+    Log(LogLevel::Info, "[D3BFG] STACK %s size=%zu headroom=%zu\n", stage, system::heap::kMainStackBytes,
+        system::heap::GetStackHeadroom());
+
     for (std::uint16_t tag = 0; tag < static_cast<std::uint16_t>(TAG_NUM_TAGS); ++tag)
     {
         const system::heap::Stats stats = system::heap::GetStats(tag);
@@ -227,6 +244,7 @@ PS2_COLD_FUNC void PrintMemory(const char * stage)
                 kTagNames[tag], stats.requestedBytes, stats.backingBytes, stats.allocationCount, stats.peakRequestedBytes);
         }
     }
+#endif // PS2_D3BFG_ASSERTS
 }
 
 // Only the core image compiles this unit with ID_PS2_CORE, beside filesystem.cpp's fixture filesystem.

@@ -166,11 +166,20 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   long output, assertion evaluation/disable behavior, source-location diagnostics and
   fatal/heap-failure stdout flushing. `make test-host` builds both assertion settings
   under the strict warning set and ASan/UBSan, alongside the shared heap checks.
-- Shared host/EE class-allocation checks cover ordinary/over-aligned objects, exact
-  accounting and out-of-order free, signed counter limits, rejected requests without
-  mutation, and factory constructor/diagnostic/virtual-delete ordering. Host subprocess
-  checks require allocation rejection and counter underflow to remain fatal with
-  assertions disabled. These test the adapter, not a linked `idGameLocal` fixture.
+- `heap_core_tests_0`/`_1` drive the heap's `Allocator` over private arenas against a
+  reference model, in release and tracking form: the class table, alignments from 4 to 8192,
+  content integrity and disjointness over random allocations, frees and reallocs (32 MiB,
+  3 MiB and 600 KiB arenas), in-place realloc, both tiers filling the arena and handing the
+  gap back, and the small tier borrowing large-tier holes. `test_heap_core.py` runs the
+  tracking build's seeded defects: a write after free and a double free in each tier must
+  each end in its own fatal. The shared target checks (`heap_tests.cpp`) add natural
+  alignment, the 256/257-byte tier boundary and the C library's separate ledger.
+- Shared host/EE class-allocation checks cover ordinary/over-aligned objects, oversized
+  rejection without mutation, factory constructor/diagnostic/virtual-delete ordering and
+  exact ledger recovery; tracking builds, which alone keep the class counters, add exact
+  accounting, out-of-order free and signed counter limits. Host subprocess checks require
+  allocation failure to stay fatal in both settings, and counter underflow to be fatal in
+  the tracking build. These test the adapter, not a linked `idGameLocal` fixture.
 
 - `make build-script` / `make test-script` select the isolated real script compiler and
   program, with an empty native-event registry. `make BUILD=release test-script` verifies

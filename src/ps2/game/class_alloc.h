@@ -12,8 +12,9 @@
 namespace ps2::game
 {
 
-// bytes counts object bytes; allocator metadata/backing is tracked separately by the shared heap.
-// Failed requests leave both counters and the heap ledger untouched.
+// Tracking builds (PS2_D3BFG_ASSERTS) count object bytes and objects; their only reader is the debug
+// game_memory command, so release builds leave both counters alone. Failed requests change neither
+// the counters nor the heap ledger.
 void * TryAllocClass(size_t size, size_t alignment, std::uint16_t tag, int & bytes, int & objects);
 void * AllocClass(size_t size, size_t alignment, std::uint16_t tag, int & bytes, int & objects);
 void FreeClass(void * pointer, int & bytes, int & objects);

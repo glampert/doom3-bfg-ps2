@@ -1,6 +1,7 @@
 // ================================================================================================
 // File: class_alloc_tests.cpp
-// Brief: Check alignment, constructor ordering, signed counter bounds and exact allocation recovery.
+// Brief: Check alignment, constructor ordering and exact allocation recovery; tracking builds also check
+//        the signed counters and their bounds.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -82,6 +83,7 @@ public:
     int payload[16] = { 73 };
 };
 
+#if PS2_D3BFG_ASSERTS
 bool Rejected(size_t size, size_t alignment, std::uint16_t tag, int bytes, int objects)
 {
     const int oldBytes = bytes;
@@ -91,6 +93,7 @@ bool Rejected(size_t size, size_t alignment, std::uint16_t tag, int bytes, int o
     return pointer == nullptr && bytes == oldBytes && objects == oldObjects &&
            SameStats(before, system::heap::GetTotalStats());
 }
+#endif // PS2_D3BFG_ASSERTS
 
 } // namespace
 
@@ -98,28 +101,42 @@ bool RunClassAllocTests()
 {
     const system::heap::Stats baseline = system::heap::GetTotalStats();
     bool passed = true;
+
     for (const size_t alignment : { size_t{ 16 }, size_t{ 64 }, size_t{ 256 } })
     {
         int bytes = 0;
         int objects = 0;
         void * first = game::AllocClass(37, alignment, kClassTestTag, bytes, objects);
         void * second = game::AllocClass(19, alignment, kClassTestTag, bytes, objects);
-        passed &= Check(reinterpret_cast<std::uintptr_t>(first) % alignment == 0 &&
-                        reinterpret_cast<std::uintptr_t>(second) % alignment == 0 &&
-                        system::heap::GetRequestedSize(first) == 37 && system::heap::GetRequestedSize(second) == 19 &&
-                        bytes == 56 && objects == 2,
-                        "aligned-accounting");
+        bool accounted = reinterpret_cast<std::uintptr_t>(first) % alignment == 0 &&
+                         reinterpret_cast<std::uintptr_t>(second) % alignment == 0;
+
+#if PS2_D3BFG_ASSERTS
+        accounted = accounted && system::heap::GetRequestedSize(first) == 37 && system::heap::GetRequestedSize(second) == 19 &&
+                    bytes == 56 && objects == 2;
+#endif // PS2_D3BFG_ASSERTS
+
+        passed &= Check(accounted, "aligned-accounting");
         game::FreeClass(first, bytes, objects);
+
+#if PS2_D3BFG_ASSERTS
         passed &= Check(bytes == 19 && objects == 1, "out-of-order-free");
+#endif // PS2_D3BFG_ASSERTS
+
         game::FreeClass(second, bytes, objects);
         game::FreeClass(nullptr, bytes, objects);
         passed &= Check(bytes == 0 && objects == 0 && SameStats(baseline, system::heap::GetTotalStats()), "ledger-recovery");
     }
-    passed &= Check(Rejected(std::numeric_limits<size_t>::max(), 16, kClassTestTag, 0, 0) &&
-                    Rejected(4, 16, kClassTestTag, INT_MAX - 3, 0) &&
-                    Rejected(1, 16, kClassTestTag, 0, INT_MAX) && Rejected(1, 16, kClassTestTag, -1, 0) &&
-                    Rejected(1, 16, kClassTestTag, 0, -1) && Rejected(1, 3, kClassTestTag, 0, 0) &&
-                    Rejected(1, 16, system::heap::kTagCount, 0, 0),
+
+    // A size beyond the arena fails in every build; the counter bounds exist only where the counters do.
+    int unchanged = 0;
+    passed &= Check(game::TryAllocClass(std::numeric_limits<size_t>::max(), 16, kClassTestTag, unchanged, unchanged) == nullptr &&
+                    unchanged == 0 && SameStats(baseline, system::heap::GetTotalStats()),
+                    "reject-oversized");
+
+#if PS2_D3BFG_ASSERTS
+    passed &= Check(Rejected(4, 16, kClassTestTag, INT_MAX - 3, 0) && Rejected(1, 16, kClassTestTag, 0, INT_MAX) &&
+                    Rejected(1, 16, kClassTestTag, -1, 0) && Rejected(1, 16, kClassTestTag, 0, -1),
                     "reject-without-mutation");
 
     int bytes = INT_MAX - 8;
@@ -136,14 +153,18 @@ bool RunClassAllocTests()
                     system::heap::GetRequestedSize(nullptr) == 0 && bytes == 0 && objects == 1,
                     "zero-size");
     game::FreeClass(zero, bytes, objects);
+#endif // PS2_D3BFG_ASSERTS
 
     s_diagnostics = s_destructors = 0;
     Probe * ordinary = game::CreateClass<Probe>();
     AlignedProbe * aligned = game::CreateClass<AlignedProbe>();
-    passed &= Check(s_objects == 2 && s_diagnostics == 2 &&
-                    s_bytes == static_cast<int>(sizeof(Probe) + sizeof(AlignedProbe)) && aligned->payload[0] == 73 &&
-                    reinterpret_cast<std::uintptr_t>(aligned) % 64 == 0,
-                    "factory-construction");
+    bool constructed = s_diagnostics == 2 && aligned->payload[0] == 73 && reinterpret_cast<std::uintptr_t>(aligned) % 64 == 0;
+
+#if PS2_D3BFG_ASSERTS
+    constructed = constructed && s_objects == 2 && s_bytes == static_cast<int>(sizeof(Probe) + sizeof(AlignedProbe));
+#endif // PS2_D3BFG_ASSERTS
+
+    passed &= Check(constructed, "factory-construction");
     Probe * base = aligned;
     delete ordinary;
     delete base;

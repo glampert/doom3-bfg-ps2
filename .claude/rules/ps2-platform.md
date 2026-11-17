@@ -6,7 +6,16 @@ Production boots in PCSX2 with `src/ps2/system/main.cpp`; the core test driver i
 `src/tests/smoketests/core_tests_main.cpp`. Both preserve the loader's
 IOP/HostFs, initializes SIF RPC and uses SDK bus-clock reads. Target fixtures verify
 timer conversion/progress, 64-byte buffers and finite EE divide-by-zero behavior.
-The dlmalloc wrapper pins 4 KiB pages and checks the `size_t`/`ptrdiff_t` sbrk boundary.
+The heap takes all of sbrk's range in crt0's weak `_ps2sdk_memory_init` hook, which runs after
+`SetupHeap` and before libcglue's startup and every constructor; nothing else may call sbrk.
+The kernel puts the main stack at the top of RAM and `EndOfHeap()` is its bottom, so the arena's
+top (the heap's first small pages) sits right under it. The SDK linkfile only `PROVIDE`s
+`_stack_size` (128 KiB); `heap.cpp` defines it (256 KiB, `heap::kMainStackBytes`) with `.set`.
+The retail menu session peaked at 154,376 bytes, past the old 128 KiB: dlmalloc grew up from
+`_end`, so the overflow landed in its untouched top unnoticed, while the new heap's cvars there
+lost their vtables (2026-11-17). Tracking builds paint the stack in `EnterMain`; every Common
+frame's `heap::CheckStack` stops once its bottom 1 KiB is touched, and `STACK` lines report the
+untouched headroom.
 There is no storage-driver bring-up or custom EE exception handler yet. Recorded
 results and limits are in [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
@@ -97,9 +106,8 @@ diagnostics and measurements describe `quake2-ps2`. Recheck them for each Doom s
 
 - **libc stubs.** libcglue stubs a number of libc functions to fail. `sysconf()` returns -1
   with `EINVAL` for *every* name, `_SC_PAGE_SIZE` included, and `tcgetattr`/`tcsetattr` etc.
-  return -1/`ENOSYS`. The vendored dlmalloc took its page size from `sysconf`, got
-  `(size_t)-1`, and the ELF black-screened. `dlmalloc.c` now pins
-  `#define malloc_getpagesize ((size_t)4096)`. Before relying on a libc call, grep
+  return -1/`ENOSYS`. The dlmalloc this port used to vendor took its page size from `sysconf`,
+  got `(size_t)-1`, and the ELF black-screened until it pinned 4096. Before relying on a libc call, grep
   `~/ps2dev/src/ps2dev/build/ps2sdk/ee/libcglue/src/glue.c`. Prefer pinned constants to
   runtime libc queries.
 - **Register-packing macros.** `VU_GS_PRIM`/`VU_GS_GIFTAG` (packet2_utils.h) don't

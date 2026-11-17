@@ -11,8 +11,8 @@ have not been re-measured.
 ## How to measure and compare
 
 - Keep three numbers apart: tagged ledgers (requested / backing bytes / allocations from
-  `ps2::system::heap`), dlmalloc arena commitment, and fixed `PT_LOAD` (ELF, BSS). Tagged
-  backing lives inside the arena: never add it on top. Kernel (first MiB), stacks, VRAM
+  `ps2::system::heap`), arena commitment (the heap's arena less the gap between its tiers), and
+  fixed `PT_LOAD` (ELF, BSS). Tagged backing lives inside the arena: never add it on top. Kernel (first MiB), stacks, VRAM
   and GS buffers are separate again.
 - Untagged arena commitment depends on libc buffering and allocation order; across
   toolchains or small changes compare tagged ledgers, not the arena.
@@ -20,12 +20,15 @@ have not been re-measured.
   embed `__FILE__`; a deeper path measured 256 bytes more). Compare debug sizes within one
   install only; release builds match across installs.
 - `make test-headless-retail` boots production with the retail containers and prints
-  `[D3BFG] MEMORY`/`ARENA`/`TAG` ledgers after `startup-foundation`, `startup-decls` and
-  `startup-game`; an allocation failure lists every live tag first. Use these to judge any
-  budget change.
-- Count allocations, not only requested bytes: per-allocation overhead is 3.32 MB (25% of
-  backing) at retail startup (tagged header, up to 15 bytes of alignment slack, dlmalloc
-  rounding).
+  `[D3BFG] MEMORY`/`ARENA`/`HEAP` ledgers (and `TAG` in debug) after `startup-foundation`,
+  `startup-decls` and `startup-game`; an allocation failure lists every live tag first (debug).
+  Use these to judge any budget change.
+- Release builds keep no requested sizes or per-tag ledgers: their `requested` is the backing.
+  Compare requested bytes and tags in debug; backing and counts in either.
+- Count allocations, not only requested bytes. Under dlmalloc, per-allocation overhead was
+  3.32 MB (25 % of backing) at retail startup. The port's heap (2026-11-17,
+  [HEAP_ALLOCATOR.md](../../docs/plans/HEAP_ALLOCATOR.md)) has no small-allocation header: 94 %
+  of allocations are 256 bytes or less and take a slot of the nearest of 48 classes.
 - Nothing allocates before `main` (2026-11-17): every image starts at 0 / 0 / 0, and full
   shutdown must return to it exactly. A global whose constructor allocates gets
   `ps2::DeferredObject` storage that its owner constructs and destroys (`deferred_object.h`).
@@ -49,7 +52,11 @@ have not been re-measured.
   (2026-10-30), retail `startup-game` is 13,600,574 / 16,900,752 bytes in 75,116
   allocations (debug); with 16-bit event maps and no developer cvars (2026-10-31) it is
   13,240,094 / 16,541,204 in 75,111 debug and 13,204,286 / 16,482,064 in 74,564 release.
-- Boot owners (backing): compressed declaration text 4.76 MB (kept resident by
+  On the port's own heap (2026-11-17) the same boot is 13,231,527 / **13,434,232** in 75,081
+  (debug): 3.10 MB less backing, with 172,912 bytes of tracking shadows on top; arena peak
+  14,425,296 against 17,581,068. Release: **13,361,680** backing in 74,542 (3.12 MB less), arena
+  peak 14,171,520, 14.3 MB of gap left at `startup-game`.
+- Boot owners (backing; dlmalloc figures, before the heap): compressed declaration text 4.76 MB (kept resident by
   `USE_COMPRESSED_DECLS`, 11,947 declarations), script 6.34 MB (3.52 MB of it the fixed
   program storage), declaration objects
   1.78 MB, strings 1.23 MB, container file tables 1.08 MB, smoke particles 0.68 MB;
@@ -97,7 +104,8 @@ have not been re-measured.
   vertices, 6,144 indices and 128 runs (146,944 bytes); the depth-mask capture buffers add
   9,216 bytes; a drawn movie with screen placements adds three channel CLUT textures
   (72 KiB VRAM for the shell). Loading a texture briefly holds its largest page encoded
-  and decoded (at most about 384 KB). Main stack reserve is 128 KiB. Visible packages also
+  and decoded (at most about 384 KB). Main stack reserve is 256 KiB (`heap::kMainStackBytes`); the
+  retail menu session peaks at 154,376 bytes (2026-11-17). Visible packages also
   hold id's frame arena, one 128 KiB `TAG_RENDER` block from presentation start (2026-11-05;
   a graybox view uses 1,248 bytes), and a loaded cooked world its whole D3WD.
 - Glyph sets and charset: Sarasori's pre-rendered set is 18 sizes on two PSMT4 pages,
@@ -130,6 +138,7 @@ have not been re-measured.
 - Quake II reference: one program-wide dlmalloc heap with per-tag accounting and
   `MemTag::ElfSys` booking kernel, ELF and stack so tags sum to 32 MB; dlmalloc's page
   size is pinned to 4096 because `sysconf` fails (see [ps2-platform.md](ps2-platform.md)).
+  Doom replaced dlmalloc with its own heap on 2026-11-17.
 
 ## Where the history is
 

@@ -80,9 +80,10 @@ ID_INLINE void operator delete[]( void *p ) {
 }
 #endif
 ID_INLINE void *operator new( size_t s, memTag_t tag ) {
-	// [PS2_D3BFG]: prevent size_t truncation into the engine's signed allocation API.
+	// [PS2_D3BFG]: prevent size_t truncation into the engine's signed allocation API. Alignment 0 is the
+	// size's natural one, enough for any type of that size; over-aligned types take the align_val_t form.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	return Mem_AllocAligned( s, 16, tag );
+	return Mem_AllocAligned( s, 0, tag );
 #else
 	return Mem_Alloc( static_cast<int>( s ), tag );
 #endif
@@ -91,9 +92,9 @@ ID_INLINE void operator delete( void *p, memTag_t tag ) {
 	Mem_Free( p );
 }
 ID_INLINE void *operator new[]( size_t s, memTag_t tag ) {
-	// [PS2_D3BFG]: array allocations need the same range check as tagged scalar new.
+	// [PS2_D3BFG]: array allocations need the same range check and natural alignment as tagged scalar new.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
-	return Mem_AllocAligned( s, 16, tag );
+	return Mem_AllocAligned( s, 0, tag );
 #else
 	return Mem_Alloc( static_cast<int>( s ), tag );
 #endif

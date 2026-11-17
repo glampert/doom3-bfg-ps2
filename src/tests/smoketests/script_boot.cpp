@@ -51,6 +51,7 @@ void Compile(const char * text)
 
 int main()
 {
+    ps2::system::heap::EnterMain();
     SifInitRpc(0);
     char mode[64] = {};
     FILE * input = std::fopen("host:script-case.txt", "rb");

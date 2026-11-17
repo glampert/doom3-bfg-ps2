@@ -1057,11 +1057,14 @@ bool RunGameTests(const char * mode)
         passed = Check("player-command-queue", playerQueuePassed && !commands->HasUserCmdForPlayer(0) &&
                                                commands->readFrame[0] == -1 && commands->writeFrame[0] == 0) &&
                  passed;
-        passed = Check("collision-shutdown", ps2::system::heap::GetStats(TAG_COLLISION).allocationCount == 0 &&
-                                             ps2::system::heap::GetStats(TAG_PHYSICS_CLIP).allocationCount == 0 &&
-                                             ps2::system::heap::GetStats(TAG_PHYSICS_CLIP_ENTITY).allocationCount == 0 &&
-                                             idClipModel::TraceModelCacheSize() == 0) &&
-                 passed;
+        // Release builds keep no per-tag ledger; their whole-ledger recovery is checked below.
+        bool collisionFreed = idClipModel::TraceModelCacheSize() == 0;
+#if PS2_D3BFG_ASSERTS
+        collisionFreed = collisionFreed && ps2::system::heap::GetStats(TAG_COLLISION).allocationCount == 0 &&
+                         ps2::system::heap::GetStats(TAG_PHYSICS_CLIP).allocationCount == 0 &&
+                         ps2::system::heap::GetStats(TAG_PHYSICS_CLIP_ENTITY).allocationCount == 0;
+#endif // PS2_D3BFG_ASSERTS
+        passed = Check("collision-shutdown", collisionFreed) && passed;
         const auto stats = ps2::system::heap::GetTotalStats();
         if (cycle == 0)
         {

@@ -277,8 +277,8 @@ visible. A host runtime test does not replace the EE compile/link check.
 
 ## Third-party dependencies
 
-- Imported third-party dependencies live in `src/external/`: `dlmalloc` and the VU compiler
-  submodule below.
+- Imported third-party dependencies live in `src/external/`: the VU compiler submodule below.
+  The EE heap is the port's own (`src/ps2/system/heap*`, which replaced dlmalloc).
   No JPEG or zlib is linked: images arrive converted by the asset pipeline, ZIP files are
   unsupported, and source-SWF inflation and pipelined save compression fail by name.
   Compressed resource packs will import `src/external/miniz`, whose zlib-compatible API
@@ -389,26 +389,38 @@ performance tests must precede replacing them with single-precision implementati
 
 ## Heap and memory
 
-Doug Lea's allocator supplies the EE's sole C/newlib arena; standard C allocation entry
-points and their reentrant variants route to it. Doom's aligned/tagged APIs and all
-standard, sized, nothrow and over-aligned C++ allocation forms use `ps2::system::heap` metadata.
-The zero-initialized ledger supports registration allocations before `main`.
+`ps2::system::heap` is the EE's only allocator ([HEAP_ALLOCATOR.md](plans/HEAP_ALLOCATOR.md)).
+crt0's `_ps2sdk_memory_init` hook hands it all of sbrk's range before libcglue or any
+constructor runs. Requests up to 256 bytes take headerless slots in 4 KiB pages of 48 size
+classes, carved down from the arena's top; larger ones take TLSF blocks with an 8-byte
+header, carved up from its bottom. Doom's tagged APIs, every C++ allocation form and the
+C/newlib entry points (including the reentrant `_r` variants) share it; the C library's
+allocations are counted in their own ledger (`GetLibcStats`).
 
-Each allocation stores its requested size, backing size, tag and original base pointer.
-An unsized free subtracts exactly that allocation's sizes. Invalid alignment, size
-arithmetic overflow and invalid tags are rejected; required allocations terminate on
-failure. Alignment is at least 16 bytes, with larger powers of two supported for DMA.
-The current implementation is for a single calling thread.
+Alignment is the size's natural one (its lowest set bit after rounding to 4, capped at 16)
+for `new` and tagged `new`, 16 for `Mem_Alloc`, at least 8 for `malloc`, and any power of two
+on request. Tracking builds (`PS2_D3BFG_ASSERTS`) keep each allocation's tag and requested
+size in the tiers' own records, poison freed memory (`0xDEADBEEF`) and fresh memory
+(`0xCDCDCDCD`), and stop on a write after free, a double or foreign free, a zero-size `new`,
+a tagged allocation before `heap::EnterMain()` (every EE main calls it first; a global whose
+constructor allocates needs `ps2::DeferredObject` storage) or use from another thread.
+Release builds check nothing, keep no per-tag ledger and count backing bytes as requested.
+The heap serves a single calling thread.
 
-The shutdown tests require current requested/backing bytes and allocation count to
-return to the baseline taken before initialization. Each executable records its own
-pre-initialization baseline; current measurements are recorded in [PORT_STATUS](PORT_STATUS.md).
+The main stack sits right above the arena, under the heap's first small pages. `heap.cpp`
+sets crt0's `_stack_size` to 256 KiB (`heap::kMainStackBytes`; the retail menus peak at about
+154 KB). Tracking builds paint the stack in `EnterMain`, stop at its bottom 1 KiB on every
+Common frame (`heap::CheckStack`) and print the untouched headroom in `STACK` lines.
 
-Per-tag and total reports track current and peak requested/backing bytes. On the EE,
-backing size is the allocator's usable chunk size; host tests report the reserved request.
-`GetArenaStats` includes untagged C/newlib allocations and allocator overhead on the EE.
-The ELF report, arena commitment, stack usage and GS VRAM usage are separate parts
-of the memory budget. Stripping symbols does not reduce loaded code/data/BSS.
+Nothing allocates before `main`, so every executable starts and ends at a 0 / 0 / 0
+tagged ledger and the shutdown tests require exactly that.
+
+Per-tag (tracking builds) and total reports track current and peak requested/backing bytes.
+Backing is the slot's class size or the block's size, header included. `GetArenaStats` adds
+the tiers: commitment (the arena less the gap between them), free pages, borrowed pages, the
+largest free block and tracking metadata. The ELF report, arena commitment, stack usage and
+GS VRAM usage are separate parts of the memory budget. Stripping symbols does not reduce
+loaded code/data/BSS.
 
 ## Smoke tests and diagnostics
 

@@ -49,10 +49,12 @@ void Manifest()
 
 int main()
 {
+    ps2::system::heap::EnterMain();
     SifInitRpc(0);
     Manifest();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] RUN %s BEGIN\n[D3BFG] STAGE platform PASS\n[D3BFG] STAGE core SKIP\n[D3BFG] STAGE game BEGIN\n", s_testId);
     const auto baseline = ps2::system::heap::GetTotalStats();
+#if PS2_D3BFG_ASSERTS
     for (unsigned int tag = 0; tag < TAG_NUM_TAGS; ++tag)
     {
         const auto stats = ps2::system::heap::GetStats(static_cast<std::uint16_t>(tag));
@@ -61,6 +63,7 @@ int main()
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_TAG before %u %zu/%zu/%zu\n", tag, stats.requestedBytes, stats.backingBytes, stats.allocationCount);
         }
     }
+#endif // PS2_D3BFG_ASSERTS
     if (strcmp(s_mode, "game-map") == 0)
     {
         ps2::tests::fixture::EnableMap();
@@ -77,6 +80,7 @@ int main()
     declManager->Shutdown();
     common->Shutdown();
     const auto final = ps2::system::heap::GetTotalStats();
+#if PS2_D3BFG_ASSERTS
     for (unsigned int tag = 0; tag < TAG_NUM_TAGS; ++tag)
     {
         const auto stats = ps2::system::heap::GetStats(static_cast<std::uint16_t>(tag));
@@ -85,6 +89,7 @@ int main()
             ps2::Log(ps2::LogLevel::Info, "[D3BFG] GAME_TAG after %u %zu/%zu/%zu\n", tag, stats.requestedBytes, stats.backingBytes, stats.allocationCount);
         }
     }
+#endif // PS2_D3BFG_ASSERTS
     const bool recovered = baseline.requestedBytes == final.requestedBytes &&
                            baseline.backingBytes == final.backingBytes && baseline.allocationCount == final.allocationCount;
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK game/full-shutdown-ledger %s\n", recovered ? "PASS" : "FAIL");
