@@ -527,6 +527,12 @@ PS2_COLD_FUNC void ResetPeaks()
     s_ledger.ResetPeaks();
 }
 
+PS2_COLD_FUNC size_t ReleaseBootData()
+{
+    EnsureArena();
+    return s_allocator.ReleaseHeld();
+}
+
 } // namespace ps2::system::heap
 
 // ------------------------------------------------------------------------------------------------
@@ -547,18 +553,30 @@ static_assert(PS2_MAIN_STACK_BYTES == ps2::system::heap::kMainStackBytes);
 #define PS2_STRINGIFY(value) PS2_STRINGIFY_VALUE(value)
 asm(".globl _stack_size\n\t.set _stack_size, " PS2_STRINGIFY(PS2_MAIN_STACK_BYTES));
 
+// The linker script's boot data, the first page past _end (config/linkfile.ld); crt0 clears .bss up
+// to _end only, so the loader's copy is intact here.
+extern "C" std::uint8_t _boot_data_start[];
+extern "C" std::uint8_t _boot_data_end[];
+
 extern "C" void _ps2sdk_memory_init()
 {
     void * begin = sbrk(0);
     const ptrdiff_t bytes = static_cast<std::uint8_t *>(EndOfHeap()) - static_cast<std::uint8_t *>(begin);
+    const auto heldBytes = static_cast<size_t>(_boot_data_end - _boot_data_start);
 
     #if PS2_D3BFG_ASSERTS
     ps2::system::heap::s_stackBottom = reinterpret_cast<std::uintptr_t>(EndOfHeap());
     #endif // PS2_D3BFG_ASSERTS
 
-    if (bytes > 0 && sbrk(bytes) == begin) [[likely]]
+    // The arena starts on the boot data, which then holds its first block. A layout that put it
+    // anywhere else leaves the heap uninitialized, and the first allocation fails by name.
+    void * arena = heldBytes != 0 ? static_cast<void *>(_boot_data_start) : begin;
+    const bool placed = heldBytes == 0 || (_boot_data_start >= static_cast<std::uint8_t *>(begin) &&
+                                           _boot_data_start - static_cast<std::uint8_t *>(begin) < 4096);
+
+    if (placed && bytes > 0 && sbrk(bytes) == begin) [[likely]]
     {
-        ps2::system::heap::s_allocator.Init(begin, static_cast<std::uint8_t *>(begin) + bytes);
+        ps2::system::heap::s_allocator.Init(arena, static_cast<std::uint8_t *>(begin) + bytes, heldBytes);
     }
 }
 

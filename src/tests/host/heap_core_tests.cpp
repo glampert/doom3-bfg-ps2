@@ -189,6 +189,81 @@ void CheckAlignmentAndSizes()
     Check(stats.smallPages <= static_cast<size_t>(kSmallClassCount), "small-pages-cached");
 }
 
+// The boot data's hold: the arena's first bytes past the header's 16 survive Init and every
+// allocation, a hold the arena cannot place is refused, and the release serves large requests.
+void CheckHeldBlock()
+{
+    static constexpr size_t kPage = 4096;
+    static constexpr size_t kArenaBytes = 2u * 1024u * 1024u;
+    Arena arena(kArenaBytes + kPage);
+    auto * base = reinterpret_cast<std::uint8_t *>((reinterpret_cast<std::uintptr_t>(arena.memory) + kPage - 1) & ~std::uintptr_t{ kPage - 1 });
+
+    {
+        Allocator misplaced;
+        Check(!misplaced.Init(base + 16, base + kArenaBytes, 64 * 1024), "held-unaligned-refused");
+        Allocator oversized;
+        Check(!oversized.Init(base, base + kArenaBytes, kArenaBytes), "held-oversized-refused");
+        Allocator headerOnly;
+        Check(!headerOnly.Init(base, base + kArenaBytes, 16), "held-header-only-refused");
+    }
+
+    // An odd size: the block rounds up past it.
+    static constexpr size_t kHeldBytes = 190u * 1024u + 37u;
+
+    for (size_t index = 16; index < kHeldBytes; ++index)
+    {
+        base[index] = static_cast<std::uint8_t>(index * 7u + 3u);
+    }
+
+    Allocator allocator;
+    Check(allocator.Init(base, base + kArenaBytes, kHeldBytes), "held-init");
+    const auto held = allocator.GetTierStats();
+    Check(held.largeBytes >= kHeldBytes - 16 && held.largeFreeBytes == 0, "held-is-one-used-block");
+
+    std::vector<void *> pointers;
+    bool outside = true;
+
+    for (size_t size : { size_t{ 24 }, size_t{ 300 }, size_t{ 5000 }, size_t{ 70000 }, size_t{ 200 } })
+    {
+        size_t backing = 0;
+        auto * pointer = static_cast<std::uint8_t *>(allocator.Alloc(size, 16, 9, backing));
+        outside = outside && pointer != nullptr && (pointer + size <= base || pointer >= base + kHeldBytes);
+
+        if (pointer != nullptr)
+        {
+            std::memset(pointer, 0xA5, size);
+            pointers.push_back(pointer);
+        }
+    }
+
+    bool intact = true;
+
+    for (size_t index = 16; index < kHeldBytes; ++index)
+    {
+        intact = intact && base[index] == static_cast<std::uint8_t>(index * 7u + 3u);
+    }
+
+    Check(outside, "held-allocations-outside");
+    Check(intact, "held-bytes-intact");
+
+    const size_t released = allocator.ReleaseHeld();
+    Check(released >= kHeldBytes - 16 && released < kHeldBytes + 16, "held-release-bytes");
+    Check(allocator.ReleaseHeld() == 0, "held-release-once");
+
+    // The released block sits below live large blocks, so a request of nearly its size fits it.
+    size_t backing = 0;
+    auto * reused = static_cast<std::uint8_t *>(allocator.Alloc(180u * 1024u, 16, 9, backing));
+    Check(reused == base + 16, "held-space-reused");
+    allocator.Free(reused);
+
+    for (void * pointer : pointers)
+    {
+        allocator.Free(pointer);
+    }
+
+    Check(Drained(allocator.GetTierStats()), "held-drains");
+}
+
 // Random allocations, frees and reallocs; every live block keeps a fill byte that must survive.
 void CheckRandomModel(std::uint32_t seed, size_t arenaBytes, int operations)
 {
@@ -536,6 +611,7 @@ int main(int argc, char ** argv)
     CheckAlignmentAndSizes();
     CheckReallocInPlace();
     CheckExhaustion();
+    CheckHeldBlock();
     CheckRandomModel(0x12345678u, 32u * 1024u * 1024u, 300000);
     CheckRandomModel(0x0BADF00Du, 3u * 1024u * 1024u, 300000);
     CheckRandomModel(0xC0FFEE11u, 600u * 1024u, 200000);

@@ -36,6 +36,12 @@ void Free(void * pointer);
 // whose constructor allocates needs ps2::DeferredObject storage (deferred_object.h).
 PS2_COLD_FUNC void EnterMain();
 
+// The linker's boot data (config/linkfile.ld: the IOP storage drivers) is the arena's first block
+// from before main, so the ELF loader's copy survives until the IOP boot has started it. This
+// hands it to the large tier and returns its bytes; later calls, and images without boot data,
+// return 0. It never enters the ledger.
+PS2_COLD_FUNC size_t ReleaseBootData();
+
 // The main thread's stack sits right above the arena, whose top holds the small tier's first
 // pages, so an overflow corrupts them. Tracking builds paint the stack in EnterMain; CheckStack is
 // fatal once the paint at its bottom is gone, and GetStackHeadroom is the paint still untouched.

@@ -768,8 +768,8 @@ void Present()
 
     if (s_captureName[0] != '\0')
     {
-        char path[sizeof(s_captureName) + 5];
-        idStr::snPrintf(path, static_cast<int>(sizeof(path)), "host:%s", s_captureName);
+        char path[ps2::system::fs::kPathCapacity];
+        ps2::system::runtime::PackageFile(path, sizeof(path), s_captureName);
 
         if (!ps2::renderer::gs::CaptureTga(path, ps2::renderer::LastPresentedContext())) [[unlikely]]
         {
@@ -800,7 +800,9 @@ PS2_COLD_FUNC void ConfigurePresentation()
 
     char policy[16] = {};
     errno = 0;
-    FILE * file = system::fs::Open("host:presentation.cfg", system::fs::OpenMode::Read);
+    char path[system::fs::kPathCapacity];
+    PackageFile(path, sizeof(path), "presentation.cfg");
+    FILE * file = system::fs::Open(path, system::fs::OpenMode::Read);
 
     if (file == nullptr)
     {
@@ -941,8 +943,8 @@ PS2_COLD_FUNC void InitPresentation()
     cmdSystem->AddCommand("ps2_world", World, CMD_FL_SYSTEM, CMD_DESC("load, view and query a render world under the console"));
 
     // The pad and the debug keyboard feed the same event queue the HostFs commands do; the
-    // package stages the keyboard driver's modules beside the ELF.
-    input::InitDevices("host:irx");
+    // package stages the keyboard driver's modules in its irx/ directory.
+    input::InitDevices();
     SetEventGenerator(input::PollDevices);
 
     // idCommonLocal::Init creates the main menu and starts it before the startup commands run;

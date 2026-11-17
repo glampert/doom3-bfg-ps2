@@ -11,9 +11,9 @@
 namespace ps2::input
 {
 
-// Brings the pad and the keyboard up; either failing only leaves that device silent. The IRX
-// directory holds the keyboard driver's modules (usbd, ps2kbd).
-PS2_COLD_FUNC void InitDevices(const char * irxDirectory);
+// Brings the pad and the keyboard up; either failing only leaves that device silent. The IOP boot
+// starts their drivers (iop_boot.h).
+PS2_COLD_FUNC void InitDevices();
 PS2_COLD_FUNC void ShutdownDevices();
 PS2_COLD_FUNC void LogDeviceStatus();
 

@@ -1,21 +1,23 @@
 // ================================================================================================
 // File: pad.cpp
-// Brief: libpad connection state machine and the button and stick to engine key translation.
+// Brief: libpad connection state machine over both controller ports and the button and stick to
+// engine key translation.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/input/pad.h"
+#include "ps2/system/iop_boot.h"
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>
 #include <libpad.h>
-#include <loadfile.h>
 
 namespace ps2::input::pad
 {
 namespace
 {
 
-static constexpr int kPort = 0;
+// Connectors 1 and 2, slot 0 of each: no multitap.
+static constexpr int kPortCount = 2;
 static constexpr int kSlot = 0;
 
 // A stick past half its range from the center presses the engine's stick key, as the PC does.
@@ -31,16 +33,17 @@ enum class Status : u8
 };
 
 static Status s_status = Status::Unavailable;
-static bool s_modulesLoaded = false;
-static bool s_padStarted = false;
+static int s_port = 0; // the port of the pad in use; meaningful past Disconnected
+static bool s_portOpen[kPortCount] = {};
 static ps2::input::pad::Stats s_stats;
 static bool s_keyEvents = true;
 
 // Every key this pad has pressed since the last poll: buttons and the stick directions.
 static bool s_pressed[K_JOY_DPAD_RIGHT + 1 - K_JOY1] = {};
 
-// libpad's transfer area: 256 bytes, 64-byte aligned.
-alignas(64) static char s_padArea[256];
+// libpad's transfer areas, one per open port, which padman writes the port's state into on every
+// poll: 256 bytes each, 64-byte aligned.
+alignas(64) static char s_padAreas[kPortCount][256];
 
 struct ButtonKey
 {
@@ -61,20 +64,6 @@ static constexpr ButtonKey kButtonKeys[] = {
 bool Connected(int state)
 {
     return state == PAD_STATE_STABLE || state == PAD_STATE_FINDCTP1;
-}
-
-PS2_COLD_FUNC bool LoadRomModule(const char * path)
-{
-    int moduleResult = 0;
-    const int id = SifLoadStartModule(path, 0, nullptr, &moduleResult);
-
-    if (id < 0 || moduleResult == 1)
-    {
-        ps2::Log(ps2::LogLevel::Warning, "[D3BFG] INPUT pad module %s failed: id=%d result=%d\n", path, id, moduleResult);
-        return false;
-    }
-
-    return true;
 }
 
 // Posts a key event when the key's state changed, so a held button sends nothing more.
@@ -126,32 +115,28 @@ PS2_COLD_FUNC bool Init()
     s_stats = Stats();
     memset(static_cast<void *>(s_pressed), 0, sizeof(s_pressed));
 
-    // The ROM's PADMAN runs on the ROM's SIO2MAN; both load once per process. A failure only
+    // The IOP boot loads the ROM's pad modules and starts libpad, once per process. A failure only
     // leaves the pad silent.
-    if (!s_modulesLoaded)
+    if (!system::iop::StartPadDriver())
     {
-        if (!LoadRomModule("rom0:SIO2MAN") || !LoadRomModule("rom0:PADMAN"))
-        {
-            return false;
-        }
-
-        s_modulesLoaded = true;
+        return false;
     }
 
-    if (!s_padStarted)
-    {
-        if (padInit(0) != 1)
-        {
-            Log(LogLevel::Warning, "[D3BFG] INPUT pad library did not start\n");
-            return false;
-        }
+    bool anyOpen = false;
 
-        s_padStarted = true;
+    for (int port = 0; port < kPortCount; ++port)
+    {
+        s_portOpen[port] = padPortOpen(port, kSlot, s_padAreas[port]) != 0;
+        anyOpen = anyOpen || s_portOpen[port];
+
+        if (!s_portOpen[port])
+        {
+            Log(LogLevel::Warning, "[D3BFG] INPUT pad port %d did not open", port + 1);
+        }
     }
 
-    if (padPortOpen(kPort, kSlot, s_padArea) == 0)
+    if (!anyOpen)
     {
-        Log(LogLevel::Warning, "[D3BFG] INPUT pad port did not open\n");
         return false;
     }
 
@@ -168,7 +153,15 @@ PS2_COLD_FUNC void Shutdown()
     }
 
     ReleaseAll();
-    padPortClose(kPort, kSlot);
+
+    for (int port = 0; port < kPortCount; ++port)
+    {
+        if (s_portOpen[port])
+        {
+            padPortClose(port, kSlot);
+            s_portOpen[port] = false;
+        }
+    }
 
     s_status = Status::Unavailable;
     s_stats.available = false;
@@ -185,17 +178,39 @@ void Poll()
         return;
     }
 
-    const int state = padGetState(kPort, kSlot);
+    if (s_status == Status::Disconnected)
+    {
+        // No pad in use: the first port in connector order with one takes it, so with two pads
+        // attached connector 1's drives the game. It keeps it until it is unplugged.
+        int found = -1;
+
+        for (int port = 0; port < kPortCount && found < 0; ++port)
+        {
+            if (s_portOpen[port] && Connected(padGetState(port, kSlot)))
+            {
+                found = port;
+            }
+        }
+
+        if (found < 0)
+        {
+            return;
+        }
+
+        s_port = found;
+    }
+
+    const int state = padGetState(s_port, kSlot);
 
     switch (s_status)
     {
         case Status::Disconnected:
-            if (Connected(state))
+            if (Connected(state)) // found above, by the same poll
             {
                 // Pads start digital; ask a DualShock for its sticks, locked against the MODE button.
-                if (padInfoMode(kPort, kSlot, PAD_MODETABLE, -1) > 0)
+                if (padInfoMode(s_port, kSlot, PAD_MODETABLE, -1) > 0)
                 {
-                    padSetMainMode(kPort, kSlot, PAD_MMODE_DUALSHOCK, PAD_MMODE_LOCK);
+                    padSetMainMode(s_port, kSlot, PAD_MMODE_DUALSHOCK, PAD_MMODE_LOCK);
                     s_status = Status::SettingMode;
                 }
                 else
@@ -208,12 +223,21 @@ void Poll()
 
         case Status::SettingMode:
         {
-            const unsigned char request = padGetReqState(kPort, kSlot);
+            // Unplugged mid-switch: watch both ports again, or a pad in the other one would never
+            // be picked up.
+            if (state == PAD_STATE_DISCONN)
+            {
+                s_status = Status::Disconnected;
+                break;
+            }
+
+            const unsigned char request = padGetReqState(s_port, kSlot);
 
             if ((request == PAD_RSTAT_COMPLETE || request == PAD_RSTAT_FAILED) && Connected(state))
             {
                 s_status = Status::Ready;
-                Log(LogLevel::Info, "[D3BFG] INPUT pad connected analog=%d\n", request == PAD_RSTAT_COMPLETE ? 1 : 0);
+                Log(LogLevel::Info, "[D3BFG] INPUT pad connected port=%d analog=%d\n", s_port + 1,
+                    request == PAD_RSTAT_COMPLETE ? 1 : 0);
             }
 
             break;
@@ -234,7 +258,7 @@ void Poll()
                 padButtonStatus data = {};
 
                 // A failed read keeps the last state: a transient hiccup, not a release.
-                if (padRead(kPort, kSlot, &data) == 0)
+                if (padRead(s_port, kSlot, &data) == 0)
                 {
                     break;
                 }

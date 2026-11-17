@@ -5,6 +5,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
@@ -13,6 +14,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -702,10 +704,34 @@ namespace ps2::system::runtime
 {
 
 static void (*s_eventGenerator)() = nullptr;
+static char s_packageRoot[fs::kPathCapacity] = "host:";
 
 void SetEventGenerator(void (*generator)())
 {
     s_eventGenerator = generator;
+}
+
+PS2_COLD_FUNC void SetPackageRoot(const char * root)
+{
+    if (root == nullptr || std::strlen(root) >= sizeof(s_packageRoot) || !fs::IsValidPath(root)) [[unlikely]]
+    {
+        FatalError("invalid package root: %s", root != nullptr ? root : "(null)");
+    }
+
+    std::memcpy(s_packageRoot, root, std::strlen(root) + 1);
+}
+
+const char * PackageRoot()
+{
+    return s_packageRoot;
+}
+
+PS2_COLD_FUNC void PackageFile(char * output, size_t capacity, const char * name)
+{
+    if (!fs::BuildPath(output, capacity, s_packageRoot, "", name)) [[unlikely]]
+    {
+        FatalError("package path too long: %s/%s", s_packageRoot, name);
+    }
 }
 
 } // namespace ps2::system::runtime
@@ -736,14 +762,15 @@ ID_TIME_T Sys_FileTimeStamp(idFileHandle file)
     return static_cast<ID_TIME_T>(status.st_mtime);
 }
 
+// The package's root holds base/; saves have no storage of their own yet.
 const char * Sys_DefaultBasePath()
 {
-    return "host:";
+    return ps2::system::runtime::PackageRoot();
 }
 
 const char * Sys_DefaultSavePath()
 {
-    return "host:";
+    return ps2::system::runtime::PackageRoot();
 }
 
 // ------------------------------------------------------------------------------------------------

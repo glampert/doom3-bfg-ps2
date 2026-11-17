@@ -139,7 +139,8 @@ Production artifacts are `build/<config>/d3bfg.elf`, `d3bfg_unstripped.elf`,
 `d3bfg.map` and `report.{json,txt}`. This executable links the full retained campaign
 without sources or headers under `src/tests/` or fixture symbols; the gate link keeps every
 object and the runnable is relinked with `--gc-sections`. Its
-`main()` preserves the loader's IOP and initializes Common, native declarations,
+`main()` first finds the package through the [IOP boot](#console-boot-usb-and-hdd), keeping
+the loader's IOP on `host:`, then initializes Common, native declarations,
 key/console events, the static game API and `idGameLocal::Init`, plus CPU render-world
 and silent sound bookkeeping. Common processes console events, commands, offline
 services and native `RunFrame` on the calling thread. Headless mode retains approximately
@@ -275,6 +276,38 @@ suppressions and the narrow system-header treatment of upstream contracts are li
 in the build inventory. Format, array bounds and uninitialized-value warnings remain
 visible. A host runtime test does not replace the EE compile/link check.
 
+## Console boot (USB and HDD)
+
+`ps2::system::iop::Boot` (`src/ps2/system/iop_boot.cpp`, adapted from `quake2-ps2`) runs
+first in `main` and returns the package root, the folder holding `base/default.cfg`, which
+`ps2::system::runtime::PackageRoot()` then gives to `fs_basepath`, `presentation.cfg`, captures
+and `Sys_LaunchPath`:
+
+- **`host:`** (the emulator's HostFs) is probed first and keeps the IOP as the loader left it,
+  with the ROM's FILEIO serving files. Every production gate takes this path.
+- **Any other boot resets the IOP**, since a launcher's modules are no base to build on, then
+  starts iomanX and fileXio, the hard disk's DEV9/ATAD/APA/PFS drivers (skipped when the ELF
+  was launched from `mass:`), then BDM, FatFs, usbd and usbmass_bd, and waits up to 10 s for
+  a USB volume. The ELF's folder (from the loader's `argv[0]`, at most 64 characters) is
+  searched before the drive's root: on the launch partition, the other main PFS partitions,
+  then `mass0:` to `mass9:`. A found partition stays mounted at `pfs0:`. fileXio then serves
+  the C library's files, with a 64 KB read buffer.
+- **The storage drivers come from EE memory**: after the reset nothing can read the drive
+  until they run. `iop_modules.S` embeds the SDK's ten IRX files (190,784 bytes) in the
+  `.bootdata` section, which `config/linkfile.ld` places in its own segment at the first
+  page past `_end`. The heap's arena starts on it and holds it as its first block until the
+  boot calls `heap::ReleaseBootData()`, on `host:` too. Drivers started later load as loose
+  files from the package's `irx/`: `usbd` (unless the USB boot started it) and `ps2kbd`. The
+  pad uses the ROM's SIO2MAN and PADMAN.
+- What the boot did is logged as `[D3BFG] IOP` lines and, after a reset, printed into the
+  engine console (`IOP boot:`), a console's only record. No package found is fatal with the
+  launch path, the folders searched, the hard disk's state and the mounted USB volumes, but
+  fatal errors reach only stdout so far. `console.txt` is polled on `host:` only.
+
+The HDD path and real hardware are untested; the USB path ran in PCSX2's emulated USB storage
+([production.md](testing/production.md#console-storage-boot)). Writes to a PFS partition
+are not synced (`fileXioSync`): nothing but `ps2_capture` writes yet.
+
 ## Third-party dependencies
 
 - Imported third-party dependencies live in `src/external/`: the VU compiler submodule below.
@@ -288,6 +321,11 @@ visible. A host runtime test does not replace the EE compile/link check.
   `build/tools/oxide-vcl/` (never a copy on `PATH`) and compiles the programs in
   `config/sources.mk`'s `VCL_FILES` (`src/ps2/renderer/vu1progs/`) into `build/vu/`, its
   preprocessor first; `ps2/renderer/vu.h` declares their symbols.
+- IOP modules come from the installed SDK's `$PS2SDK/iop/irx`, none of them vendored: the
+  storage drivers are `.incbin`'d into production's boot data (`IOP_BOOT_MODULES` in the
+  Makefile, built once into `build/iop/`), and visible packages copy `usbd.irx` and
+  `ps2kbd.irx` into their `irx/`. Every EE image links with `config/linkfile.ld`, the SDK's
+  linkfile plus the boot data segment; keep it in step when the pinned SDK moves.
 
 ## Host tools, source groups and link policy
 
@@ -368,8 +406,9 @@ on-screen fatal reporting remains a TODO. `src/ps2/common.h` provides `PS2_Asser
 The fixture adapter streams loose files through real `idFile_Permanent` objects;
 explicit bulk/memory reads stay bounded to 64 KiB. It rejects parent, absolute and
 other-device paths. Shared system services supply directory filters, parent creation,
-and write/append. The one-time ROM FILEIO patch protects
-getstat/dread DMA and removal fallthrough without resetting the loader's IOP. Native
+and write/append. On `host:` the one-time ROM FILEIO patch protects
+getstat/dread DMA and removal fallthrough without resetting the loader's IOP; a console
+boot's files go through fileXio instead. Native
 rename reports `ENOSYS`; PCSX2 removal reports `ENODEV` despite deleting the file,
 and the wrapper preserves that error. Foundation-level listing/write/resource APIs
 remain unsupported until the campaign filesystem is linked. Unimplemented game/UI/network calls also terminate with a
@@ -391,7 +430,9 @@ performance tests must precede replacing them with single-precision implementati
 
 `ps2::system::heap` is the EE's only allocator ([HEAP_ALLOCATOR.md](plans/HEAP_ALLOCATOR.md)).
 crt0's `_ps2sdk_memory_init` hook hands it all of sbrk's range before libcglue or any
-constructor runs. Requests up to 256 bytes take headerless slots in 4 KiB pages of 48 size
+constructor runs. In production the arena starts a page lower, on the linker's boot data,
+held as its first large block until the IOP boot releases it (`heap::ReleaseBootData`); it
+never enters the ledger. Requests up to 256 bytes take headerless slots in 4 KiB pages of 48 size
 classes, carved down from the arena's top; larger ones take TLSF blocks with an 8-byte
 header, carved up from its bottom. Doom's tagged APIs, every C++ allocation form and the
 C/newlib entry points (including the reentrant `_r` variants) share it; the C library's

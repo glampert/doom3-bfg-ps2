@@ -5,10 +5,10 @@
 // ================================================================================================
 
 #include "ps2/input/keyboard.h"
+#include "ps2/system/iop_boot.h"
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>
 #include <libkbd.h>
-#include <loadfile.h>
 
 namespace ps2::input::keyboard
 {
@@ -28,8 +28,6 @@ static constexpr int kActiveMsec = 10 * 1000;
 static constexpr u32 kUsageCount = 256;
 
 static bool s_available = false;
-static bool s_usbdStarted = false;
-static bool s_kbdStarted = false;
 static bool s_held[kUsageCount] = {};
 static bool s_keySeen = false;
 static bool s_shift = false;
@@ -159,37 +157,13 @@ PS2_COLD_FUNC void BuildKeyTable()
     }
 }
 
-PS2_COLD_FUNC bool StartModule(const char * irxDirectory, const char * name, bool & started)
-{
-    if (started)
-    {
-        return true;
-    }
-
-    char path[128];
-    idStr::snPrintf(path, static_cast<int>(sizeof(path)), "%s/%s.irx", irxDirectory, name);
-
-    int moduleResult = 0;
-    const int id = SifLoadStartModule(path, 0, nullptr, &moduleResult);
-
-    // A negative id is a load that failed; result 1 is a module whose start bailed out.
-    if (id < 0 || moduleResult == 1)
-    {
-        ps2::Log(ps2::LogLevel::Warning, "[D3BFG] INPUT keyboard module %s failed: id=%d result=%d\n", path, id, moduleResult);
-        return false;
-    }
-
-    started = true;
-    return true;
-}
-
 } // namespace
 
-PS2_COLD_FUNC bool Init(const char * irxDirectory)
+PS2_COLD_FUNC bool Init()
 {
-    if (s_available || irxDirectory == nullptr) [[unlikely]]
+    if (s_available) [[unlikely]]
     {
-        FatalError("keyboard initialized twice or without an IRX directory");
+        FatalError("keyboard initialized twice");
     }
 
     BuildKeyTable();
@@ -199,8 +173,9 @@ PS2_COLD_FUNC bool Init(const char * irxDirectory)
     s_lastPollMsec = 0;
     memset(static_cast<void *>(s_held), 0, sizeof(s_held));
 
-    // ps2kbd speaks USB, so usbd goes first. A driver that will not start only costs the keyboard.
-    if (!StartModule(irxDirectory, "usbd", s_usbdStarted) || !StartModule(irxDirectory, "ps2kbd", s_kbdStarted))
+    // The IOP boot starts usbd and ps2kbd from the package's irx/, once per process. A driver that
+    // will not start only costs the keyboard.
+    if (!system::iop::StartKeyboardDriver())
     {
         return false;
     }

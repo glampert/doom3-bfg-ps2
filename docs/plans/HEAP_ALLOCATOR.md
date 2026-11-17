@@ -119,6 +119,12 @@ The heap is set up in **`extern "C" void _ps2sdk_memory_init()`**:
 - It calls `s_allocator.Init(sbrk(0), EndOfHeap())` after one `sbrk` of the whole range, and never calls sbrk
   again.
 - The allocation fast path needs no lazy-init branch. Host tests initialise a static 32 MiB arena on first use.
+- **Boot data** (2026-11-17): production's linker script puts `.bootdata` (the IOP storage drivers the
+  console boot starts) at the first page past `_end`, beyond crt0's `.bss` clear. The arena then starts on
+  it, `Init(begin, end, heldBytes)` makes the range the large tier's first used block without touching it
+  (its header takes the 16 spare bytes the section leaves at its start), and `heap::ReleaseBootData()`
+  frees that block like any other once the IOP boot is done. The hold never enters the ledger; images
+  without boot data hold nothing.
 
 `main` calls `heap::EnterMain()`, which records the owner thread and closes the pre-main window. In tracking
 builds, any **tagged** allocation (`heap::Alloc`, `Mem_*`, `operator new`) made before `EnterMain()` is fatal

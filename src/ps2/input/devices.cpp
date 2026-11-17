@@ -20,7 +20,7 @@ static u32 s_polls = 0;
 
 } // namespace
 
-PS2_COLD_FUNC void InitDevices(const char * irxDirectory)
+PS2_COLD_FUNC void InitDevices()
 {
     if (s_initialized) [[unlikely]]
     {
@@ -31,7 +31,7 @@ PS2_COLD_FUNC void InitDevices(const char * irxDirectory)
     s_polls = 0;
 
     const bool padUp = pad::Init();
-    const bool keyboardUp = keyboard::Init(irxDirectory);
+    const bool keyboardUp = keyboard::Init();
     Log(LogLevel::Info, "[D3BFG] INPUT devices pad=%d keyboard=%d\n", padUp ? 1 : 0, keyboardUp ? 1 : 0);
 }
 

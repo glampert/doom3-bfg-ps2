@@ -131,6 +131,31 @@ PS2_COLD_FUNC void Allocator::InitLarge()
     m_largeTop = kFirstBlock;
 }
 
+// The empty tier's first block, as a used one covering the arena's first `heldBytes` without
+// touching them: its payload starts one granule in, so its header takes the bytes before that.
+PS2_COLD_FUNC bool Allocator::HoldFirst(std::uint32_t heldBytes)
+{
+    static_assert(kFirstBlock + kBlockHeaderBytes == kGranule);
+
+    const std::uint32_t blockBytes = BlockBytesFor(heldBytes - kGranule);
+    const std::uint32_t offset = Extend(blockBytes);
+
+    if (offset != kFirstBlock) [[unlikely]]
+    {
+        return false;
+    }
+
+#if PS2_D3BFG_ASSERTS
+    BlockHeader * block = BlockAt(offset);
+    block->requested = blockBytes - kBlockHeaderBytes;
+    block->tag = 0;
+    block->magic = kBlockMagic;
+#endif // PS2_D3BFG_ASSERTS
+
+    m_heldBlockBytes = blockBytes;
+    return true;
+}
+
 BlockHeader * Allocator::BlockAt(std::uint32_t offset) const
 {
     return reinterpret_cast<BlockHeader *>(m_base + offset);

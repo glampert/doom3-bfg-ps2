@@ -3,8 +3,8 @@
 ## Verified Doom foundation
 
 Production boots in PCSX2 with `src/ps2/system/main.cpp`; the core test driver is
-`src/tests/smoketests/core_tests_main.cpp`. Both preserve the loader's
-IOP/HostFs, initializes SIF RPC and uses SDK bus-clock reads. Target fixtures verify
+`src/tests/smoketests/core_tests_main.cpp`. Both initialize SIF RPC and use SDK bus-clock reads;
+the core driver and production on `host:` preserve the loader's IOP/HostFs. Target fixtures verify
 timer conversion/progress, 64-byte buffers and finite EE divide-by-zero behavior.
 The heap takes all of sbrk's range in crt0's weak `_ps2sdk_memory_init` hook, which runs after
 `SetupHeap` and before libcglue's startup and every constructor; nothing else may call sbrk.
@@ -16,8 +16,20 @@ The retail menu session peaked at 154,376 bytes, past the old 128 KiB: dlmalloc 
 lost their vtables (2026-11-17). Tracking builds paint the stack in `EnterMain`; every Common
 frame's `heap::CheckStack` stops once its bottom 1 KiB is touched, and `STACK` lines report the
 untouched headroom.
-There is no storage-driver bring-up or custom EE exception handler yet. Recorded
-results and limits are in [PORT_STATUS.md](../../docs/PORT_STATUS.md).
+There is no custom EE exception handler yet. Recorded results and limits are in
+[PORT_STATUS.md](../../docs/PORT_STATUS.md).
+
+**IOP boot** (`system/iop_boot.cpp`, from quake2-ps2, 2026-11-17): production finds its package
+(`base/default.cfg`) on `host:` with the IOP untouched, or resets the IOP and searches the HDD
+(PFS) and then USB (BDM) itself; the result is `runtime::PackageRoot()`. After a reset no drive is
+readable until the game's storage drivers run, so those ten IRX are `.incbin`'d into `.bootdata`
+(`iop_modules.S`), linked at the first page past `_end` (`config/linkfile.ld`, every image), which
+the heap holds as its first block until `heap::ReleaseBootData()`. Later drivers load from the
+package's `irx/` through the ROM LOADFILE, which reaches `mass0:`/`pfs0:` through iomanX's ioman
+hook once `sbv_patch_disable_prefix_check` has run. Through fileXio, **`closedir` returns the
+IOP's close result** (2 on bdmfs_fatfs, PCSX2): only -1 is a failure. The USB path has run in
+PCSX2's emulated USB storage ([production.md](../../docs/testing/production.md#console-storage-boot));
+HDD and hardware have not.
 
 The filesystem slice verifies streaming reads (including an authored 70 KiB file),
 directory enumeration/stat, mkdir/rmdir and write/append on the preserved HostFs.
@@ -100,7 +112,9 @@ filesystem smoke checks behave as before in PCSX2.
 ## Quake II reference
 
 SDK and EE hardware findings below are useful, but named source files, boot flows,
-diagnostics and measurements describe `quake2-ps2`. Recheck them for each Doom subsystem.
+diagnostics and measurements describe `quake2-ps2`. Recheck them for each Doom subsystem. Doom's
+`iop_boot.cpp` keeps Quake's search order, HDD/PFS arguments and USB wait, without its option to
+reuse a launcher's modules, its log-file sync or its sound and memory card drivers.
 
 ## Don't trust ps2sdk on sight
 

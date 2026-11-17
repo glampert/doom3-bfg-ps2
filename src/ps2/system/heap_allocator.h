@@ -193,8 +193,14 @@ public:
     Allocator(const Allocator &) = delete;
     Allocator & operator=(const Allocator &) = delete;
 
-    // Takes [begin, end), at most kMaxArenaBytes once its start is rounded up to a page.
-    PS2_COLD_FUNC bool Init(void * begin, void * end);
+    // Takes [begin, end), at most kMaxArenaBytes once its start is rounded up to a page. Nonzero
+    // `heldBytes` keeps the arena's first bytes untouched, as one used large block, until
+    // ReleaseHeld: `begin` must then be page-aligned, and the block's header overwrites the first
+    // 16 of those bytes, so the caller leaves them spare.
+    PS2_COLD_FUNC bool Init(void * begin, void * end, size_t heldBytes = 0);
+
+    // Returns the held block to the large tier and its bytes; 0 when nothing is held.
+    PS2_COLD_FUNC size_t ReleaseHeld();
 
     bool IsInitialized() const
     {
@@ -276,6 +282,7 @@ private:
     size_t FreeLarge(void * pointer);
     bool ResizeLargeInPlace(void * pointer, size_t size);
     PS2_COLD_FUNC void InitLarge();
+    PS2_COLD_FUNC bool HoldFirst(std::uint32_t heldBytes);
     BlockHeader * BlockAt(std::uint32_t offset) const;
     std::uint32_t BlockSize(std::uint32_t offset) const;
     void InsertFree(std::uint32_t offset);
@@ -296,6 +303,7 @@ private:
     std::uint32_t m_largeTop = 0; // offsets from m_base
     std::uint32_t m_smallLow = 0;
     std::uint32_t m_peakCommitted = 0;
+    std::uint32_t m_heldBlockBytes = 0; // the first large block, kept for the caller until ReleaseHeld
     std::uint32_t m_smallBitmap[kMaxPages / 32] = {}; // pages holding slots
     std::uint32_t m_freeBitmap[kMaxPages / 32] = {};  // released pages above the frontier
     SmallState m_small;

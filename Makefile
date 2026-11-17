@@ -271,6 +271,18 @@ RESIDENT_LINK_OBJS += $(VU_OBJS)
 GAME_TEST_LINK_SOURCES += $(VCL_SRC)
 GAME_TEST_LINK_OBJS += $(VU_OBJS)
 
+# The IOP storage drivers a console boot starts after resetting the IOP, embedded in production's
+# boot data (config/linkfile.ld) since the drive is out of reach until they run. iop_modules.S
+# .incbin's the SDK's own IRX files; the drivers started later are loose files in the package's
+# irx/ directory. The object is config-independent, like the VU programs: built once into
+# build/iop/. Its .d names only the .S, so the IRX files are listed as prerequisites here.
+IRX_PATH = $(PS2SDK)/iop/irx
+IOP_BOOT_MODULES = iomanX fileXio ps2dev9 ps2atad ps2hdd ps2fs bdm bdmfs_fatfs usbd usbmass_bd
+IOP_MODULES_SRC = ps2/system/iop_modules.S
+IOP_MODULES_OBJ = build/iop/iop_modules.o
+RESIDENT_LINK_SOURCES += $(IOP_MODULES_SRC)
+RESIDENT_LINK_OBJS += $(IOP_MODULES_OBJ)
+
 ifeq ($(CORE_BOOT),1)
 	BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
 	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(VU_OBJS)
@@ -295,11 +307,12 @@ endif
 
 # Do not garbage-collect registration objects to manufacture a smaller link.
 # The loaded PT_LOAD sizes are recorded independently of ELF stripping.
-EE_LINKFILE ?= $(PS2SDK)/ee/startup/linkfile
+# The SDK's linkfile plus the boot data segment the heap reclaims (see its header); every image.
+EE_LINKFILE ?= config/linkfile.ld
 EE_LDFLAGS = -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib -Wl,-zmax-page-size=128 -Wl,-Map,$(CORE_TEST_DIR)/d3bfg_tests.map
 EE_LIBS = -lkernel -lm
 RENDER_SDK_LIBS = draw graph packet2 dma
-RESIDENT_SDK_LIBS = $(RENDER_SDK_LIBS) pad kbd kernel m patches
+RESIDENT_SDK_LIBS = $(RENDER_SDK_LIBS) pad kbd fileXio kernel m patches
 ifeq ($(CORE_BOOT),1)
 	EE_LIBS = $(addprefix -l,$(RESIDENT_SDK_LIBS))
 endif
@@ -410,7 +423,7 @@ $(OUTPUT_DIR)/src/tests/smoketests/renderer_tests.o $(OUTPUT_DIR)/src/tests/smok
 $(OUTPUT_DIR)/src/ps2/system/lifecycle.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS)
 $(CORE_OBJS) $(CAMPAIGN_OBJS): NEO_WARNFLAGS_FOR = $(LEGACY_SHARED_WARNFLAGS)
 
-$(EE_BIN): $(LINK_OBJS) $(CORE_TEST_DIR)/.link-flags.json
+$(EE_BIN): $(LINK_OBJS) $(EE_LINKFILE) $(CORE_TEST_DIR)/.link-flags.json
 	@mkdir -p $(dir $@)
 	$(EE_CXX) $(OPTFLAGS) -o $@ $(LINK_OBJS) $(EE_LDFLAGS) $(EE_LIBS)
 
@@ -422,7 +435,7 @@ else
 endif
 
 $(CORE_TEST_DIR)/.source-identity.json: FORCE $(LINK_OBJS) $(SCRIPTS)/build_metadata.py
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py identity --output $@ --sources $(addprefix src/,$(LINK_SOURCES)) --dependencies $(LINK_OBJS:.o=.d) --policies Makefile config/sources.mk config/source_inventory.json $(SCRIPTS)/build_metadata.py
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py identity --output $@ --sources $(addprefix src/,$(LINK_SOURCES)) --dependencies $(LINK_OBJS:.o=.d) --policies Makefile config/sources.mk config/source_inventory.json $(EE_LINKFILE) $(SCRIPTS)/build_metadata.py
 
 $(CORE_TEST_DIR)/build-report.json: $(EE_BIN) $(TEST_ELF) $(REPORT_FLAGS) $(CORE_TEST_DIR)/.source-identity.json $(SCRIPTS)/build_metadata.py
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py report --elf $(EE_BIN) --runnable-elf $(TEST_ELF) --identity $(CORE_TEST_DIR)/.source-identity.json --output $(CORE_TEST_DIR)/build-report --compiler $(EE_CXX) --configuration $(BUILD) --milestone $(MILESTONE) --flags $(REPORT_FLAGS) --sources $(addprefix src/,$(LINK_SOURCES))
@@ -647,6 +660,10 @@ $(OXIDE_VCL): $(wildcard $(OXIDE_VCL_SRCS))
 # the program's inputs like a compiled source's.
 vu: $(VU_OBJS)
 
+$(IOP_MODULES_OBJ): src/$(IOP_MODULES_SRC) $(addprefix $(IRX_PATH)/,$(IOP_BOOT_MODULES:=.irx))
+	@mkdir -p $(dir $@)
+	$(EE_CC) -D_EE -G0 -MD -MP -Wa,-I$(IRX_PATH) -c $< -o $@
+
 build/vu/%.o: $(VCL_PATH)/%.vcl $(VCL_INCS) $(OXIDE_VCL)
 	@mkdir -p $(dir $@)
 	$(OXIDE_VCL) $(OXIDE_VCL_FLAGS) -o$(basename $@).vsm $<
@@ -817,7 +834,7 @@ test-host: build/tools/asset_reexport build/tests/asset_tests build/tests/gstx_f
 -include $(GAME_BACKEND_OBJS:.o=.d) $(RESIDENT_SUPPORT_OBJS:.o=.d) $(TEST_CAMPAIGN_OBJS:.o=.d) $(TEST_BACKEND_OBJS:.o=.d) $(TEST_SUPPORT_OBJS:.o=.d)
 
 clean:
-	rm -rf build/debug build/release build/tests build/vu
+	rm -rf build/debug build/release build/tests build/vu build/iop
 
 FORCE:
 

@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/system/heap.h"
+#include "ps2/system/iop_boot.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
 
@@ -16,16 +17,18 @@ static constexpr uint64 kFrameMicroseconds = 1000000U / 60U;
 // The emulator test runners recognize a run by the exact text of the boot, main-loop, memory
 // and shutdown lines below (markers in src/tools/scripts/run_headless.py). Rewording, reordering
 // or dropping one fails every headless and UI gate, so change those markers in the same commit.
-int main()
+int main(int argc, char ** argv)
 {
     // Every global constructor has run; tagged allocations may start.
     ps2::system::heap::EnterMain();
-
-    // Preserve the loader's IOP and HostFs until console device bring-up is available.
     SifInitRpc(0);
 
     // Runner marker BOOT_BEGIN: selects which mirrored log stream to read.
     ps2::Log(ps2::LogLevel::Info, "======== PS2 Game boot begin ========\n");
+
+    // Finds the package before anything opens a file: host: keeps the loader's IOP, a console boot
+    // resets it and starts the drives' drivers. The loader's argv[0] is the ELF's path.
+    ps2::system::runtime::SetPackageRoot(ps2::system::iop::Boot(argc > 0 ? argv[0] : nullptr));
     ps2::system::runtime::ConfigurePresentation();
 
     const auto baseline = ps2::system::heap::GetTotalStats();
@@ -35,6 +38,12 @@ int main()
     {
         ps2::FatalError("Common startup did not complete!");
     }
+
+    // A console boot's only record of how it found the drive.
+    ps2::system::iop::PrintBootReport([](const char * line)
+    {
+        common->Printf("%s\n", line);
+    });
 
     // Runner marker LOOP_READY: startup reached the frame loop.
     ps2::Log(ps2::LogLevel::Info, "Main loop ready; native game and %s console active\n",

@@ -91,6 +91,13 @@ void PollConsole()
 
     s_lastConsolePoll = now;
 
+    // The development computer appends commands through the emulator's HostFs. Nothing can on a
+    // console's drive while the game runs, so a package found there has no command file to poll.
+    if (idStr::Cmp(ps2::system::runtime::PackageRoot(), "host:") != 0)
+    {
+        return;
+    }
+
     // Reopen each poll: HostFs writers may append while the engine runs, and stdio can cache EOF.
     FILE * file = ps2::system::fs::Open("host:console.txt", ps2::system::fs::OpenMode::Read);
     if (file == nullptr)

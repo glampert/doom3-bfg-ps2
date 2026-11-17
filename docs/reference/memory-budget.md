@@ -1126,3 +1126,21 @@ with backing 32 bytes apart. A large block whose leftover could not hold a free 
 so backing depended on which free block served the request. Free-list links now sit 8 bytes into
 every block (the payload in release, the header's unused tracking fields otherwise), so 16 bytes
 hold a free block, every remainder splits, and backing is a function of the request alone.
+
+## IOP boot and boot data (2026-11-17)
+
+The console boot (`system/iop_boot.cpp`) starts ten embedded IOP storage drivers, 190,784 bytes in
+production's `.bootdata` segment, which the heap holds as its arena's first block until the boot
+releases it (`heap::ReleaseBootData`). Quake II's bin2c images, every module the game ran (sound
+and keyboard included), stayed resident for the whole run instead.
+
+- **Resident cost**: about 41 KB, all release `.text`/`.bss`: the boot itself 11,094 bytes (7,410 code,
+  3,680 for its report and paths; `iop_boot.o`, release) and libfileXio about 30 KB, 19,456 of them its
+  static RPC buffer (`__sbuff`). `PT_LOAD` is 5,003,257 debug / 4,283,321 release with the boot
+  segment, 4,812,473 / 4,092,537 without it.
+- **Arena**: the bounded headless boot's ledgers are unchanged (debug, `Memory baseline=0/0/0
+  final=0/0/0 peak=4928519/4933352`); its arena peak is 5,049,248 against 5,049,056 before (+192
+  bytes). At `startup-foundation` the released block shows as 176,864 bytes of free large-tier space
+  (committed 313,008 against 136,480), reused by `startup-game` (committed 4,595,200 against
+  4,594,512). On a USB boot the IOP had 1,228 KB free in one block once the storage drivers ran.
+

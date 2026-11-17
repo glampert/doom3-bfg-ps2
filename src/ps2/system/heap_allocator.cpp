@@ -17,7 +17,7 @@ static const SmallPage * PageOf(const void * pointer)
     return reinterpret_cast<const SmallPage *>(reinterpret_cast<std::uintptr_t>(pointer) & ~static_cast<std::uintptr_t>(kPageBytes - 1));
 }
 
-PS2_COLD_FUNC bool Allocator::Init(void * begin, void * end)
+PS2_COLD_FUNC bool Allocator::Init(void * begin, void * end, size_t heldBytes)
 {
     const std::uintptr_t first = (reinterpret_cast<std::uintptr_t>(begin) + kPageBytes - 1) & ~static_cast<std::uintptr_t>(kPageBytes - 1);
     const std::uintptr_t last = reinterpret_cast<std::uintptr_t>(end) & ~static_cast<std::uintptr_t>(kPageBytes - 1);
@@ -28,13 +28,44 @@ PS2_COLD_FUNC bool Allocator::Init(void * begin, void * end)
     }
 
     const std::uintptr_t bytes = last - first;
+    const std::uint32_t arenaBytes = bytes < kMaxArenaBytes ? static_cast<std::uint32_t>(bytes) : kMaxArenaBytes;
+
+    // A held range starts at the arena's first byte and leaves it four pages at least.
+    if (heldBytes != 0 && (first != reinterpret_cast<std::uintptr_t>(begin) || heldBytes <= kGranule ||
+                           heldBytes > arenaBytes - 4u * kPageBytes)) [[unlikely]]
+    {
+        return false;
+    }
+
     m_base = first;
-    m_bytes = bytes < kMaxArenaBytes ? static_cast<std::uint32_t>(bytes) : kMaxArenaBytes;
+    m_bytes = arenaBytes;
     m_smallLow = m_bytes;
     m_peakCommitted = 0;
+    m_heldBlockBytes = 0;
     InitSmall();
     InitLarge();
+
+    if (heldBytes != 0 && !HoldFirst(static_cast<std::uint32_t>(heldBytes))) [[unlikely]]
+    {
+        m_base = 0;
+        return false;
+    }
+
     return true;
+}
+
+PS2_COLD_FUNC size_t Allocator::ReleaseHeld()
+{
+    const std::uint32_t bytes = m_heldBlockBytes;
+
+    if (bytes == 0)
+    {
+        return 0;
+    }
+
+    m_heldBlockBytes = 0;
+    ReleaseBlock(m_large.begin);
+    return bytes;
 }
 
 void Allocator::UpdatePeak()

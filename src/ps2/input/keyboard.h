@@ -12,10 +12,10 @@
 namespace ps2::input::keyboard
 {
 
-// Starts usbd and ps2kbd from the package's IRX directory and opens the driver in raw mode. False
-// leaves the keyboard silent for the process; true means the driver runs, not that a keyboard is
-// attached, which the driver cannot tell.
-PS2_COLD_FUNC bool Init(const char * irxDirectory);
+// Has the IOP boot start usbd and ps2kbd from the package's irx/, and opens the driver in raw mode.
+// False leaves the keyboard silent for the process; true means the driver runs, not that a keyboard
+// is attached, which the driver cannot tell.
+PS2_COLD_FUNC bool Init();
 PS2_COLD_FUNC void Shutdown();
 
 // Drains the driver's queue into Common's event queue: one key event per transition, plus a

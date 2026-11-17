@@ -31,8 +31,37 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   with `ps2_status`. In PCSX2 the emulated DualShock2 connects in analog mode and the
   `hidkbd` USB keyboard opens; the gates press nothing, so no device event reaches them,
   and the idle keyboard is read about every 250 ms. The keyboard's modules load from the
-  package's `irx/` (staged from `$PS2SDK/iop/irx`); a module that fails only disables
-  that device.
+  package's `irx/` (staged from `$PS2SDK/iop/irx`) through the IOP boot (`iop_boot.cpp`),
+  logged `[D3BFG] IOP started host:/irx/usbd.irx`; a module that fails only disables that
+  device. The pad opens both ports and logs the one it connects on (`INPUT pad connected
+  port=1 analog=1`).
+
+## Console storage boot
+
+No gate covers it: the runners need HostFs, which takes the `host:` path. To run the USB path in
+PCSX2 by hand:
+
+1. Make a FAT32 image holding a visible package's `d3bfg.elf`, `base/`, `irx/` and
+   `presentation.cfg` at its root: `hdiutil create -size 64m -fs 'MS-DOS FAT32' -layout
+   MBRSPUD -volname D3BFGTEST -srcfolder <folder> -format UDTO -nospotlight usb.cdr`, then
+   rename it to `usb.img` (the format gives raw MBR/FAT32 sectors).
+2. With PCSX2 closed, back up `PCSX2.ini`, set `[EmuCore] HostFs = false` and `[USB2] Type =
+   Msd`, `Msd_subtype = 0`, `Msd_ImagePathMsd = /absolute/usb.img` (USB1 can stay `hidkbd`).
+3. `PCSX2 -batch -logfile <log> -elf <any copy of the ELF>`, at normal priority. The `host:`
+   probe misses, the boot resets the IOP, and HDD is skipped when DEV9 has no disk.
+4. Close PCSX2, then restore the backup: PCSX2 rewrites the ini on exit.
+
+**2026-11-17** (debug, NTSC console package): `reset the IOP in 63 ms; module loader patched to
+load from EE memory`, the ten modules started, `ps2dev9 didn't start (id 27, result 1)` with no
+disk attached, `package on mass0: after 600 ms of waiting for the drive`, 190,784 bytes of boot
+data returned to the heap at 757 ms with 1,228 KB of IOP memory free, `ps2kbd` loaded from
+`mass0:/irx/ps2kbd.irx`, `INPUT devices pad=1 keyboard=1`, the pad connected on port 1 in analog
+mode and `Main loop ready; native game and visible console active`, with the boot report in the
+engine console. The first try stopped at `logical renderer requires a stage-free default
+material`: through fileXio, `closedir` returns the IOP's close result (2 for every bdmfs_fatfs
+directory), which `fs::List` took for a failure, so no declaration file was listed; it now
+fails only on -1. The hard disk path (from `quake2-ps2`, whose PFS boot ran in PCSX2 on
+2026-10-07) has not run here.
 
 ## UI session (`make test-ui`)
 

@@ -117,7 +117,7 @@ def run(args: argparse.Namespace) -> int:
     link_map.unlink(missing_ok=True)
     libraries = getattr(args, "libraries", ("kernel", "m", "patches"))
     if (not libraries or len(set(libraries)) != len(libraries) or
-            any(name not in ("draw", "graph", "packet2", "dma", "pad", "kbd", "kernel", "m", "patches") for name in libraries) or
+            any(name not in ("draw", "graph", "packet2", "dma", "pad", "kbd", "fileXio", "kernel", "m", "patches") for name in libraries) or
             not {"kernel", "m", "patches"}.issubset(libraries)):
         raise ValueError("invalid resident SDK library list")
 
@@ -156,7 +156,7 @@ def run(args: argparse.Namespace) -> int:
         "flag_stamps": {path: json.loads(Path(path).read_text()) for path in getattr(args, "flags", [])},
         "source_identity": source_identity(args.sources, [str(Path(p).with_suffix(".d")) for p in args.objects],
                                            ["Makefile", "config/sources.mk", "config/source_inventory.json",
-                                            "src/tools/scripts/link_resident.py"]),
+                                            str(args.linkfile), "src/tools/scripts/link_resident.py"]),
     }
     if kind == "game":
         data["test_inputs"] = [path for path in data["source_identity"].get("project_input_sha256", {})

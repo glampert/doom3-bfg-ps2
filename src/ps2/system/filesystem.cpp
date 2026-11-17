@@ -8,6 +8,7 @@
 
 #include "ps2/system/filesystem.h"
 #include "ps2/system/log.h"
+#include "ps2/system/runtime.h"
 
 #include <cerrno>
 #include <climits>
@@ -451,6 +452,8 @@ int List(const char * directory, const char * extension, void (*visit)(const cha
         ++count;
     }
 
+    // Only -1 is a failure: through fileXio, closedir passes the IOP's close result on, which was 2
+    // for every bdmfs_fatfs directory in PCSX2 (2026-11-17).
     const int closed = closedir(handle);
     if (error != 0) [[unlikely]]
     {
@@ -458,7 +461,7 @@ int List(const char * directory, const char * extension, void (*visit)(const cha
         return -1;
     }
 
-    return closed == 0 ? count : -1;
+    return closed >= 0 ? count : -1;
 }
 
 } // namespace ps2::system::fs
@@ -576,10 +579,10 @@ const char * Sys_CWD()
     return s_path;
 }
 
-// The loader's HostFs root is the only launch root currently preserved by this bootstrap.
+// The package's root: host:, or the drive and folder the IOP boot found it in.
 const char * Sys_LaunchPath()
 {
-    return "host:"; // FIXME: support usb/hdd.
+    return ps2::system::runtime::PackageRoot();
 }
 
 // ------------------------------------------------------------------------------------------------

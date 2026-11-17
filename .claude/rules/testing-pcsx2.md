@@ -58,6 +58,9 @@ memory figures in [memory-budget.md](memory-budget.md).
   edited while PCSX2 is closed, restored after) before suspecting the target.
 - Closing the PCSX2 window ends the VM with status 0; the runner reports "emulator exited
   with status 0 after N s". That is an interrupted run, not a target fault.
+- Every runner needs HostFs, so the console storage boot (IOP reset, HDD/USB search) has no
+  gate: run it by hand on an emulated USB image
+  ([production.md](../../docs/testing/production.md#console-storage-boot)).
 
 ## PCSX2 setup and logs
 

@@ -120,9 +120,25 @@ Type = hidkbd             ; optional: a USB keyboard the game reads (grave key t
 On macOS the configuration is normally at
 `~/Library/Application Support/PCSX2/inis/PCSX2.ini`, with logs in the sibling `logs/`
 directory. Visible packages poll the DualShock pad and a debug USB keyboard and post their key
-events into Common's queue (cross is `K_JOY1`, the grave key toggles the console).
+events into Common's queue (cross is `K_JOY1`, the grave key toggles the console). The pad
+can be in either controller port: the first one connected drives the game until it is unplugged.
 With `[USB1] Type = hidkbd`, PCSX2 passes host keystrokes to that keyboard. Current console controls
 and command-file input are described in the [developer guide](docs/DEVELOPMENT.md#production-packages-and-controls).
+
+## Running on a PS2
+
+**Not yet tried on a console.** The boot that finds the game on a USB drive has run in PCSX2's
+emulated USB storage; the hard disk path and real hardware are untested.
+
+Copy a staged package's `d3bfg.elf`, `base/`, `irx/` and `presentation.cfg` into one folder,
+on a FAT32/exFAT USB drive or an APA/PFS hard disk partition, and launch the ELF from a
+homebrew launcher such as wLaunchELF. A visible package (`make stage-console`, say) carries
+`irx/`. The game looks next to the ELF first, then at the drive's root: on the launch
+partition, the other PFS partitions, then every USB volume. It resets the IOP and starts its
+own storage drivers, whatever the launcher left running. They are embedded in the ELF and
+handed back to the heap once the drive is up; the keyboard's driver loads from `irx/`. What
+the boot found is printed into the engine console. A failure shows nothing on screen yet;
+see the [developer guide](docs/DEVELOPMENT.md#console-boot-usb-and-hdd).
 
 ## Source layout
 
@@ -130,7 +146,7 @@ and command-file input are described in the [developer guide](docs/DEVELOPMENT.m
 .
 |-- base/               # Upstream configs and render programs; local retail files ignored
 |-- build/              # Generated executables, packages, tools and test results
-|-- config/             # Build source lists and asset profiles
+|-- config/             # Build source lists, the EE linker script and asset profiles
 |-- docs/               # Developer guides, roadmaps and technical records
 |-- src/
 |   |-- external/       # Imported third-party dependencies
@@ -146,7 +162,9 @@ and command-file input are described in the [developer guide](docs/DEVELOPMENT.m
 
 Thanks to id Software for the original game source code and the ps2dev community for the toolchain and SDK.
 
-This project derives its PS2 backend code from [Quake II PS2](https://github.com/glampert/quake2-ps2).
+This project derives its PS2 backend code from [Quake II PS2](https://github.com/glampert/quake2-ps2),
+the IOP boot and its USB and hard disk search included. The EE linker script derives from
+ps2sdk's (Academic Free License 2.0, notice kept in [config/linkfile.ld](config/linkfile.ld)).
 
 See the [reuse inventory](docs/REUSE.md) for the provenance of reused code and individual notices.
 

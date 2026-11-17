@@ -14,6 +14,10 @@ have not been re-measured.
   `ps2::system::heap`), arena commitment (the heap's arena less the gap between its tiers), and
   fixed `PT_LOAD` (ELF, BSS). Tagged backing lives inside the arena: never add it on top. Kernel (first MiB), stacks, VRAM
   and GS buffers are separate again.
+- Production's `PT_LOAD` (report.json's sum) includes the boot data segment, 190,784 bytes of
+  IOP storage drivers that the heap takes back during boot (2026-11-17): compare the first
+  segment, or subtract it, against older figures. The reclaimed block is committed-but-free in
+  the arena until large allocations reuse it, so early `ARENA` checkpoints show it as `free`.
 - Untagged arena commitment depends on libc buffering and allocation order; across
   toolchains or small changes compare tagged ledgers, not the arena.
 - Debug `PT_LOAD` depends on the SDK install path (ps2sdk's inline `packet2_*` asserts
