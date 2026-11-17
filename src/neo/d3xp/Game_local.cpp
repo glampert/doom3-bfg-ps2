@@ -30,6 +30,12 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "Game_local.h"
+
+// [PS2_D3BFG]: Static storage for globals constructed after main.
+#if defined( ID_PS2 )
+#include "ps2/deferred_object.h"
+#endif
+
 // [PS2_D3BFG]: Allow explicitly selected playerless fixtures to tick without presentation.
 #if defined( ID_PS2 ) && PS2_D3BFG_TESTS
 #include "tests/smoketests/headless_fixture.h"
@@ -61,7 +67,14 @@ idSoundWorld *				gameSoundWorld = NULL;		// all audio goes to this world
 static gameExport_t			gameExport;
 
 // global animation lib
+// [PS2_D3BFG]: Init constructs it and Shutdown destroys it: its hash table allocates, the PS2 heap admits
+// no allocation before main, and a full shutdown must recover every byte.
+#if defined( ID_PS2 )
+static ps2::DeferredObject< idAnimManager > animationLibStorage;
+idAnimManager &				animationLib = animationLibStorage.object;
+#else
 idAnimManager				animationLib;
+#endif
 
 // the rest of the engine will only reference the "game" variable, while all local aspects stay hidden
 idGameLocal					gameLocal;
@@ -294,6 +307,11 @@ void idGameLocal::Init() {
 	const idDict *dict;
 	idAAS *aas;
 
+	// [PS2_D3BFG]: The animation manager lives from game Init to Shutdown.
+#if defined( ID_PS2 )
+	animationLibStorage.Construct();
+#endif
+
 #ifndef GAME_DLL
 
 	TestGameAPI();
@@ -435,6 +453,10 @@ void idGameLocal::Shutdown() {
 
 	// shut down the animation manager
 	animationLib.Shutdown();
+	// [PS2_D3BFG]: Free its hash table heads too; Init constructed it.
+#if defined( ID_PS2 )
+	animationLibStorage.Destroy();
+#endif
 
 	Printf( "--------------------------------------\n" );
 

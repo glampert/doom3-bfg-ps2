@@ -32,6 +32,11 @@ If you have questions concerning this license or the applicable additional terms
 #include "ps2/ui/swf_runtime.h"
 #endif
 
+// [PS2_D3BFG]: Static storage for the prototype, constructed after main.
+#if defined( ID_PS2 )
+#include "ps2/deferred_object.h"
+#endif
+
 #if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
 namespace
 {
@@ -59,7 +64,22 @@ static void CountResourceInstances( idSWFSpriteInstance * instance, unsigned & s
 #endif
 
 
+// [PS2_D3BFG]: Static storage that the first live movie constructs: the PS2 heap admits no allocation
+// before main, and a full shutdown must recover the prototype's variables.
+#if defined( ID_PS2 )
+static ps2::DeferredObject< idSWFScriptObject_SpriteInstancePrototype > spriteInstancePrototypeStorage;
+idSWFScriptObject_SpriteInstancePrototype & spriteInstanceScriptObjectPrototype = spriteInstancePrototypeStorage.object;
+
+void SWF_ConstructSpriteInstancePrototype() {
+	spriteInstancePrototypeStorage.Construct();
+}
+
+void SWF_DestroySpriteInstancePrototype() {
+	spriteInstancePrototypeStorage.Destroy();
+}
+#else
 idSWFScriptObject_SpriteInstancePrototype spriteInstanceScriptObjectPrototype;
+#endif
 
 /*
 ========================

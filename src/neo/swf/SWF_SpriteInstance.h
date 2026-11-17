@@ -255,4 +255,11 @@ public:
 	//SWF_NATIVE_VAR_DECLARE( onLoad );
 };
 
+// [PS2_D3BFG]: The prototype registers its members on construction, which allocates; the first live
+// movie constructs it and the last one destroys it (SWF_Main.cpp).
+#if defined( ID_PS2 )
+void SWF_ConstructSpriteInstancePrototype();
+void SWF_DestroySpriteInstancePrototype();
+#endif
+
 #endif

@@ -12,8 +12,8 @@ import run_pcsx2_test as smoke
 
 
 TARGET_CRASH_RE = re.compile(r"TLB Miss|Assertion failed|Bus error", re.IGNORECASE)
-# The exact tagged ledger every production session recovers at full shutdown.
-BASELINE = (7424, 7600, 4)
+# Nothing allocates before main, so every production session starts and ends with an empty ledger.
+BASELINE = (0, 0, 0)
 STATUS_RE = re.compile(r"\[D3BFG\] CONSOLE frames=(\d+) presents=(\d+) redraws=(\d+) active=([01])")
 CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(console-edit\.tga) frame=(\d+) presents=(\d+) redraws=(\d+)")
 SHUTDOWN_RE = re.compile(r"\[D3BFG\] CONSOLE shutdown complete frames=(\d+) presents=(\d+) redraws=(\d+)")

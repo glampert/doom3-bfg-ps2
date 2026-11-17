@@ -63,7 +63,7 @@ def flight(frame, pose=None, area=runner.FLY_AREA):
     return log + fly_line("off", 0, eye, yaw, pitch) + echo("fly")
 
 
-def session(views=None, traces=None, load=None, ingame=True, memory="7424/7600/4 final=7424/7600/4", report=REPORT,
+def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final=0/0/0", report=REPORT,
             decals=(None, GRATE_DECAL, None), textures=None, fly=None):
     """A retail world session's log as PCSX2's file log stamps it, with per-view and per-trace overrides."""
     counts = dict(report, **(load or {}))
@@ -185,7 +185,7 @@ class RetailWorldRunnerTests(unittest.TestCase):
 
     def test_missing_capture_and_ledger_fail(self):
         self.assertFalse(classify(session(views={"west": {"capture": ""}}))[0])
-        self.assertFalse(classify(session(memory="7424/7600/5 final=7424/7600/5"))[0])
+        self.assertFalse(classify(session(memory="0/0/1 final=0/0/1"))[0])
 
     def test_textured_pass_must_hold_its_textures(self):
         for change in ({"fallbacks": 1}, {"uploads": 0}, {"enabled": 0}, {"resident": 0}, {"lightmaps": 0}, {"pages": 0}, {"unlit": 1}):

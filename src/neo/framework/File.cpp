@@ -749,6 +749,9 @@ void * memcpy2( void * __restrict b, const void * __restrict a, size_t n ) {
 idFile_Memory::Write
 =================
 */
+// [PS2_D3BFG]: Write's histogram update is compiled out (#if 0 below), so the table and its commands
+// only cost an allocation before main.
+#if !defined( ID_PS2 )
 idHashTableT< int, int > histogram;
 CONSOLE_COMMAND( outputHistogram, "", 0 ) {
 	for ( int i = 0; i < histogram.Num(); i++ ) {
@@ -769,6 +772,7 @@ CONSOLE_COMMAND( outputHistogram, "", 0 ) {
 CONSOLE_COMMAND( clearHistogram, "", 0 ) {
 	histogram.Clear();
 }
+#endif
 
 int idFile_Memory::Write( const void *buffer, int len ) {
 	if ( len == 0 ) {

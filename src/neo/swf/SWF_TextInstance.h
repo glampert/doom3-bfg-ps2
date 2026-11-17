@@ -248,4 +248,10 @@ public:
 	SWF_TEXT_FUNCTION_DECLARE( clearTimingInfo );
 };
 
+// [PS2_D3BFG]: Constructed with the first live movie and destroyed with the last (SWF_Main.cpp).
+#if defined( ID_PS2 )
+void SWF_ConstructTextInstancePrototype();
+void SWF_DestroyTextInstancePrototype();
+#endif
+
 #endif // !__SWF_TEXTINSTANCE_H__

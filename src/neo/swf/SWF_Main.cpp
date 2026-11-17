@@ -54,8 +54,16 @@ idSWF::idSWF
 */
 // [PS2_D3BFG]: Retail resources load inactive; execution, drawing and events are separate admissions.
 #if defined( ID_PS2 )
+// [PS2_D3BFG]: The sprite and text prototypes live while any movie does (SWF_SpriteInstance.h).
+static int liveMovies = 0;
+
 idSWF::idSWF( const char * filename_, idSoundWorld * soundWorld_, bool resourceOnly_ )
 {
+	if ( liveMovies++ == 0 ) {
+		SWF_ConstructSpriteInstancePrototype();
+		SWF_ConstructTextInstancePrototype();
+	}
+
 	resourceOnly = resourceOnly_;
 	// [PS2_D3BFG]: Construction never executes or draws retail content before explicit admission.
 	resourceExecution = false;
@@ -302,6 +310,14 @@ idSWF::~idSWF() {
 
 	shortcutKeys->Clear();
 	shortcutKeys->Release();
+
+	// [PS2_D3BFG]: The last movie's instances are gone; the prototypes they referenced go with them.
+#if defined( ID_PS2 )
+	if ( --liveMovies == 0 ) {
+		SWF_DestroyTextInstancePrototype();
+		SWF_DestroySpriteInstancePrototype();
+	}
+#endif
 }
 
 /*

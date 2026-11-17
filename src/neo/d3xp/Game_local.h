@@ -694,7 +694,12 @@ private:
 //============================================================================
 
 extern idGameLocal			gameLocal;
+// [PS2_D3BFG]: A reference to storage that game Init constructs (Game_local.cpp).
+#if defined( ID_PS2 )
+extern idAnimManager &		animationLib;
+#else
 extern idAnimManager		animationLib;
+#endif
 
 //============================================================================
 

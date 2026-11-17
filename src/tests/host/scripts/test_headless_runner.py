@@ -36,7 +36,7 @@ def completed(case="bounded"):
         log += ']echo "run_command"\n]history\n]quit\n'
         log += "discarding invalid or oversized headless console line\n" * 2
     log += "------------ Game Shutdown\nCOMMON shutdown complete frames=120\n"
-    log += "COMMON stage=system shutdown\nMemory baseline=1/2/3 final=1/2/3 peak=10/20 arena=30\n======== Shutdown complete ========\n"
+    log += "COMMON stage=system shutdown\nMemory baseline=0/0/0 final=0/0/0 peak=10/20 arena=30\n======== Shutdown complete ========\n"
     return log
 
 
@@ -64,7 +64,7 @@ class HeadlessAcceptance(unittest.TestCase):
             self.assertFalse(runner.classify(log, "bounded", "run")[0])
 
     def test_frame_count_and_memory_recovery(self):
-        for old, new in (("COMMON shutdown complete frames=120", "COMMON shutdown complete frames=119"), ("final=1/2/3", "final=1/2/4")):
+        for old, new in (("COMMON shutdown complete frames=120", "COMMON shutdown complete frames=119"), ("final=0/0/0", "final=0/0/1")):
             with self.subTest(field=old):
                 self.assertFalse(runner.classify(completed().replace(old, new), "bounded", "run")[0])
 

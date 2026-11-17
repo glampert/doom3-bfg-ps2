@@ -16,6 +16,7 @@ import time
 import uuid
 
 import run_pcsx2_test as smoke
+from run_console import BASELINE
 from stage_headless import REPO_ROOT, boot_data, sha256, stage
 
 # Production boot/shutdown markers printed by src/ps2/system/main.cpp; every runner matches
@@ -84,7 +85,7 @@ def classify(log: str, case: str, identity: str) -> tuple[bool, str]:
     if len(statuses) < 2 or int(statuses[-1][0]) != int(frames[0]):
         return False, "missing native console/NOMAP frame state"
     memory = MEMORY_RE.findall(log)
-    if len(memory) != 1 or memory[0][:3] != memory[0][3:6]:
+    if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
         return False, "startup allocations were not recovered"
     if case == "retail":
         if any(marker not in log for marker in RETAIL_MARKERS):

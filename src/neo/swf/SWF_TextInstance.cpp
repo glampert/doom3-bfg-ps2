@@ -29,7 +29,23 @@ If you have questions concerning this license or the applicable additional terms
 #include "../idlib/precompiled.h"
 #include "../renderer/Font.h"
 
+// [PS2_D3BFG]: Static storage that the first live movie constructs, like the sprite prototype's.
+#if defined( ID_PS2 )
+#include "ps2/deferred_object.h"
+
+static ps2::DeferredObject< idSWFScriptObject_TextInstancePrototype > textInstancePrototypeStorage;
+idSWFScriptObject_TextInstancePrototype & textInstanceScriptObjectPrototype = textInstancePrototypeStorage.object;
+
+void SWF_ConstructTextInstancePrototype() {
+	textInstancePrototypeStorage.Construct();
+}
+
+void SWF_DestroyTextInstancePrototype() {
+	textInstancePrototypeStorage.Destroy();
+}
+#else
 idSWFScriptObject_TextInstancePrototype textInstanceScriptObjectPrototype;
+#endif
 
 idCVar swf_textScrollSpeed( "swf_textScrollSpeed", "80", CVAR_INTEGER, "scroll speed for text" );
 idCVar swf_textRndLetterSpeed( "swf_textRndLetterSpeed", "8", CVAR_INTEGER, "scroll speed for text" );

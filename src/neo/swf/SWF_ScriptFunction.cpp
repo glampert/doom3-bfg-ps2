@@ -254,8 +254,8 @@ idSWFScriptVar idSWFScriptFunction_Script::Call( idSWFScriptObject * thisObject,
 */
 // [PS2_D3BFG]: Compare immutable callback object identities, independently of script lookup names.
 #if defined( ID_PS2 ) && PS2_D3BFG_ASSERTS
-extern idSWFScriptObject_SpriteInstancePrototype spriteInstanceScriptObjectPrototype;
-extern idSWFScriptObject_TextInstancePrototype textInstanceScriptObjectPrototype;
+extern idSWFScriptObject_SpriteInstancePrototype & spriteInstanceScriptObjectPrototype;
+extern idSWFScriptObject_TextInstancePrototype & textInstanceScriptObjectPrototype;
 #endif
 
 namespace {

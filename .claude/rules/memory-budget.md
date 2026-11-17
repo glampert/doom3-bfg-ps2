@@ -26,8 +26,10 @@ have not been re-measured.
 - Count allocations, not only requested bytes: per-allocation overhead is 3.32 MB (25% of
   backing) at retail startup (tagged header, up to 15 bytes of alignment slack, dlmalloc
   rounding).
-- Full shutdown must recover the exact pre-boot baseline: 7,424 / 7,600 bytes in 4
-  allocations (production). Warm map/movie shutdown must be exact too.
+- Nothing allocates before `main` (2026-11-17): every image starts at 0 / 0 / 0, and full
+  shutdown must return to it exactly. A global whose constructor allocates gets
+  `ps2::DeferredObject` storage that its owner constructs and destroys (`deferred_object.h`).
+  Warm map/movie shutdown must be exact too.
 - Warm native dictionary string pools (and fonts/images, which stay cached until UI
   shutdown) once before comparing repeated-reload ledgers, then require exact stability.
   Clear queued console history before a final release checkpoint (its echo adds a

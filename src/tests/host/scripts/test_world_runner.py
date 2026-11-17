@@ -54,7 +54,7 @@ def expected_switch_line(display, standard="ntsc"):
     return switch_line(profile, fixed, texture, width, height, interlace)
 
 
-def session(views=None, unloaded=None, memory="7424/7600/4 final=7424/7600/4", traces=None, switches=None, standard="ntsc",
+def session(views=None, unloaded=None, memory="0/0/0 final=0/0/0", traces=None, switches=None, standard="ntsc",
             decals=(None, FLOOR_DECAL, None)):
     """A world session's log as PCSX2's file log stamps it, with per-view, per-trace and per-switch
     overrides (a switch override replaces its GS line; None drops it)."""
@@ -270,7 +270,7 @@ class WorldRunnerTests(unittest.TestCase):
 
     def test_unload_and_ledger_must_complete(self):
         self.assertFalse(runner.classify(session(unloaded={"areas": 2, "portals": 1}), IDENTITY)[0])
-        self.assertFalse(runner.classify(session(memory="7424/7600/4 final=7488/7664/5"), IDENTITY)[0])
+        self.assertFalse(runner.classify(session(memory="0/0/0 final=64/64/1"), IDENTITY)[0])
         self.assertFalse(runner.classify(session().replace("======== Shutdown complete ========", ""), IDENTITY)[0])
 
     def test_closed_doorway_in_32_bits_needs_the_exact_clear_colour(self):

@@ -22,10 +22,6 @@ namespace ps2::tests
 namespace
 {
 
-// Models engine registration allocation before main; the heap ledger must already exist.
-static constexpr std::uint16_t kEarlyTag = 201;
-static void * s_earlyAllocation = ps2::system::heap::TryAlloc(23, kEarlyTag, 64);
-
 bool Check(bool condition, const char * name)
 {
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] CHECK %s %s\n", name, condition ? "PASS" : "FAIL");
@@ -38,10 +34,6 @@ bool RunHeapTests()
 {
     using namespace ps2::system::heap;
     bool passed = true;
-    passed &= Check(s_earlyAllocation != nullptr && GetStats(kEarlyTag).requestedBytes == 23,
-                    "allocation-before-main");
-    Free(s_earlyAllocation);
-    s_earlyAllocation = nullptr;
     const Stats baseline = GetTotalStats();
     constexpr std::uint16_t kTestTag = 200;
     for (const size_t alignment : { size_t{ 16 }, size_t{ 64 }, size_t{ 256 }, size_t{ 4096 } })

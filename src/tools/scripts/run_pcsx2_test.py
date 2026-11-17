@@ -138,7 +138,7 @@ REQUIRED_CORE_CHECKS = frozenset({
     "offline/real-common", "offline/local-user", "offline/registration-idempotent",
     "offline/transient-profile-achievements", "offline/persistence-unavailable",
     "offline/campaign-transitions-copy", "offline/match-reload-ledger", "offline/signout-routing-stale-handle",
-    "allocation-before-main", "alignment", "tag-accounting", "unsized-free", "invalid-requests",
+    "alignment", "tag-accounting", "unsized-free", "invalid-requests",
     "zero-size", "global-new-forms", "global-delete-forms", "ledger-restored",
     "calloc-overflow",
     "core/initialized", "core/command-buffer-wait", "core/cvar-registration-command", "core/exec-config",

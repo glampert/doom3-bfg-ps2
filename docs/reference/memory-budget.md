@@ -1046,3 +1046,48 @@ anything named in data, and the six archived developer cvars (`com_showFPS`,
 Retail startup (`startup-game`): release 13,204,286 / 16,482,064 bytes in 74,564
 allocations (13,588,967 / 16,874,592 in 74,768 before); debug 13,240,094 / 16,541,204 in
 75,111.
+
+## Allocation size histogram at retail startup (2026-11-17)
+
+Measured for the heap replacement ([HEAP_ALLOCATOR.md](../plans/HEAP_ALLOCATOR.md)) with a
+temporary debug histogram in `heap.cpp`, which was not committed. The run was `make test-headless-retail`
+(debug, run `20261117T010402Z_headless_d4040a29dc57`). At `startup-game` the heap holds 13,237,998
+requested / 16,538,096 backing bytes in 75,088 live allocations: 3.30 MB of wrapper and dlmalloc
+overhead. Boot makes 167,613 allocations in total. Every live allocation asked for 16-byte
+alignment; none asked for more.
+
+| Live sizes | Allocations | Share |
+| --- | ---: | ---: |
+| 29-32 bytes (`idStr` buffers, `STR_ALLOC_GRAN` 32) | 30,921 | 41.2 % |
+| 89-92 bytes | 12,056 | 16.1 % |
+| 33-36 bytes | 7,058 | 9.4 % |
+| 61-64 bytes | 5,184 | 6.9 % |
+| 105-108 bytes | 3,076 | 4.1 % |
+| up to 16 / 64 / 128 / 256 / 512 bytes, cumulative | 3,505 / 47,790 / 64,727 / 70,501 / 73,272 | 4.7 / 63.6 / 86.2 / 93.9 / 97.6 % |
+
+By entry point: 17,356 live allocations come from `Mem_Alloc16` (`Mem_Alloc`, `Mem_ClearedAlloc`),
+57,725 from `Mem_AllocAligned` (tagged `new`), 3 from global `new` and 4 from direct `heap::` calls.
+SCRIPT holds 20,275 allocations of 17-32 bytes and 7,069 of 33-64; STRING holds 9,257 of 17-32;
+DECL holds 11,953 of 65-128; DECLTEXT spreads from 33 bytes to 4 KiB.
+
+Replaying the live set through candidate size-class tables, assuming the pages are perfectly packed:
+
+| Small classes (cutoff) | Classes | Backing with `Mem_Alloc` at 16 | All natural alignment |
+| --- | ---: | ---: | ---: |
+| 4/64, 8/128, 16/256, 32/512 (512) | 40 | 13,630,160 | 13,589,200 |
+| 4/64, 8/128, 16/256 (256) | 32 | 13,561,984 | 13,521,024 |
+| **4/128, 8/256 (256)** | **48** | **13,504,640** | **13,463,680** |
+| 4/128, 8/256, 16/512 (512) | 64 | 13,552,336 | 13,511,376 |
+
+Larger requests go to TLSF, with an 8-byte header and 16-byte rounding in the model. A cutoff of 256
+beats 512, because 32-byte class steps waste more than the large tier's header. With 16-byte page
+headers instead of a descriptor table for every reachable page (about 75 KB), the chosen table needs
+1,100 pages and 13,525,120 bytes in all. That is **about 3.0 MB less backing** than today. Keeping
+`Mem_Alloc` at 16 bytes costs only about 40 KB against natural alignment for every caller.
+
+At `main` four allocations (7,424 / 7,600 bytes) are live. All of them come from static constructors:
+- `idSWFScriptObject` variable lists of the sprite and text prototypes grow through `GetVariable`
+  (SWF; 896 → 1,792 → 2,688 bytes, twice). The constructors run `Set` before `main`.
+- `File.cpp:752`, a global `idHashTableT<int, int>` (IDLIB_HASH, 1,024 bytes).
+- `idAnimManager::idAnimManager` (`Anim.cpp:992`), its `idHashTable<idMD5Anim *>` (IDLIB_HASH,
+  1,024 bytes).

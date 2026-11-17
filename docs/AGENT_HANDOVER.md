@@ -340,7 +340,8 @@ whole-object link (no GC) is the gate and the runnable is a `--gc-sections` reli
 classifies 393 upstream units (271 campaign units since 2026-11-07); compile database 368 entries. Production
 PT_LOAD is 4,779,884 debug / 4,063,468 release bytes (runnable link, 2026-10-31; see
 [memory-budget.md](../.claude/rules/memory-budget.md)). Earlier (2026-10-20) it was about 11.2 MB. The removed authored UI peaked at 3,885,330 requested /
-3,992,352 backing; full shutdown recovers 7,424 / 7,600 bytes / four allocations. These are
+3,992,352 backing; full shutdown then recovered 7,424 / 7,600 bytes / four allocations (0 / 0 / 0
+since 2026-11-17, when the last allocations before `main` were removed). These are
 separate fixed/runtime measurements; do not sum tagged backing and committed arena
 twice. Retail timeline heap acceptance uses its own 16 MiB loaded ceiling and exact warm
 release baselines. The fully drawn dialog peaks at 4,412,335 requested / 4,516,500

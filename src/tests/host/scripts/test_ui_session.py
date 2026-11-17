@@ -38,7 +38,7 @@ def session_log(standard="ntsc"):
     return log + (f"[D3BFG] CONSOLE capture=movie-quit.tga frame={frame} presents={frame} redraws=1\n"
                   f"------------ Game Shutdown\n[D3BFG] CONSOLE shutdown complete frames={frame} presents={frame} redraws=1\n"
                   "COMMON stage=system shutdown\n"
-                  "Memory baseline=7424/7600/4 final=7424/7600/4 peak=10/20 arena=30\n"
+                  "Memory baseline=0/0/0 final=0/0/0 peak=10/20 arena=30\n"
                   "======== Shutdown complete ========\n")
 
 
@@ -118,7 +118,7 @@ class SessionAcceptance(unittest.TestCase):
                         log.replace("capture=fonts-a.tga frame=30", "capture=fonts-a.tga frame=20"),
                         replace_last(log, f"frame={final} presents={final} redraws=1\n------------",
                                      f"frame={int(final) - 1} presents={int(final) - 1} redraws=1\n------------"),
-                        log.replace("final=7424/7600/4", "final=7488/7600/4")):
+                        log.replace("final=0/0/0", "final=64/0/0")):
             with self.subTest(changed=changed):
                 self.assertFalse(self.verdict(changed)[0])
 

@@ -24,7 +24,7 @@ entities are counted, so this overhead is the largest saving that needs no chang
   (R2).
 
 **Decisions from the user**
-- Per-tag ledgers exist in debug builds only, kept in a side table. Release keeps exact backing bytes and
+- Per-tag ledgers exist in debug builds only, kept in the allocator's own records. Release keeps exact backing bytes and
   counts per tier, plus totals.
 - The relocatable arena is designed now and built later. It is called `RelocatableArena`, in
   `src/ps2/system/relocatable.{h,cpp}`.
@@ -92,6 +92,10 @@ engine thread and no locking.
 
 ## Design
 
+Phase 0's measurements (docs/reference/memory-budget.md, 2026-11-17) settled the class table, the cutoff
+and the metadata layout below. The first draft had 40 classes up to 512 bytes, a 75 KB descriptor table
+and a 1 MB debug side table; each lost to the alternatives here.
+
 ### Code structure
 
 All of this lives in namespace `ps2::system::heap`. Every class has a `constexpr` constructor and does
@@ -99,14 +103,14 @@ nothing until `Init`, so a `constinit` singleton has no static-initialization or
 
 | File | Contents |
 | --- | --- |
-| `heap.h` | Public API, unchanged in shape (`TryAlloc`, `Alloc`, `Free`, `GetStats`, `GetTotalStats`, `GetArenaStats`, `ResetPeaks`), plus `kNaturalAlignment` and debug-only `GetRequestedSize` |
-| `heap_allocator.{h,cpp}` | `class Allocator`: arena, frontier, `Init(begin, end)`, `Alloc(size, align)`, `Free`, `Realloc`, `UsableSize`, `GetTierStats`. It owns a `SmallTier` and a `LargeTier` member and has no EE dependencies, so host tests build their own instance on a buffer |
-| `heap_small.cpp`, `heap_large.cpp` | `SmallTier` (slot pages) and `LargeTier` (TLSF), declared in `heap_allocator.h` |
-| `heap_ledger.{h,cpp}` | `class Ledger`: exact totals, tier counters, and libc `Stats` kept apart from the tagged totals. `class Tracker` (debug only): the side table of tag and requested size, live-pointer checks, and per-tag `Stats` |
-| `heap.cpp` | `static constinit Allocator s_allocator; static constinit Ledger s_ledger;` and, in debug, `static constinit Tracker s_tracker;`. Also the public API, every `operator new`/`delete` form, the C/newlib entry points (`malloc`, `free`, `calloc`, `realloc`, `memalign`, `posix_memalign`, `aligned_alloc`, `valloc`, `cfree`, `malloc_usable_size`, `_malloc_r` and the rest) and `_ps2sdk_memory_init` |
+| `heap.h` | Public API (`TryAlloc`, `Alloc`, `Free`, `GetTotalStats`, `GetLibcStats`, `GetArenaStats`, `ResetPeaks`, `EnterMain`), `kNaturalAlignment`, and the tracking-only `GetStats(tag)` and `GetRequestedSize` |
+| `heap_allocator.h` | `class Allocator` with the small tier's inline fast paths and the `constexpr` class table. It has no EE dependencies, so the host tests build their own instance on a buffer |
+| `heap_allocator.cpp`, `heap_small.cpp`, `heap_large.cpp` | Arena setup, realloc and statistics; the small tier's slow paths (pages, frontier, tracking); the TLSF tier |
+| `heap.cpp` | `constinit static Allocator s_allocator; constinit static Ledger s_ledger;` (`Ledger` is a class local to the file), the public API, every `operator new`/`delete` form, the C/newlib entry points (`malloc`, `free`, `calloc`, `realloc`, `memalign`, `posix_memalign`, `aligned_alloc`, `valloc`, `cfree`, `malloc_usable_size`, `_malloc_r` and the rest) and `_ps2sdk_memory_init` |
 | `relocatable.{h,cpp}` | `class RelocatableArena` (R2) |
 
-`src/external/dlmalloc/` is deleted.
+`src/external/dlmalloc/` is deleted. The first draft's separate `Tracker` class went away once tracking moved
+into the allocator's own records (below).
 
 ### Arena layout (one land grab)
 
@@ -114,76 +118,73 @@ The heap is set up in **`extern "C" void _ps2sdk_memory_init()`**:
 - It runs after crt0's `SetupHeap` and before libcglue and every constructor.
 - It calls `s_allocator.Init(sbrk(0), EndOfHeap())` after one `sbrk` of the whole range, and never calls sbrk
   again.
-- The allocation fast path needs no lazy-init branch.
+- The allocation fast path needs no lazy-init branch. Host tests initialise a static 32 MiB arena on first use.
 
-`main` calls `heap::EnterMain()`, which records the owner thread and closes the pre-main window.
-
-In assertion builds, any **tagged** allocation (`heap::Alloc`, `Mem_*`, `operator new`) made before
-`EnterMain()` is fatal and logs `__builtin_return_address(0)` for addr2line. The libc entry points are allowed
-before main, because libcglue's start-up may need them. They are charged to the libc `Stats`.
+`main` calls `heap::EnterMain()`, which records the owner thread and closes the pre-main window. In tracking
+builds, any **tagged** allocation (`heap::Alloc`, `Mem_*`, `operator new`) made before `EnterMain()` is fatal
+and logs `__builtin_return_address(0)` for addr2line. The libc entry points are allowed before main, because
+libcglue's start-up may need them; they are charged to the libc `Stats`.
 
 ```
-_end                                                             EndOfHeap()   stack
- | page descriptors | large tier (TLSF) grows up -> | gap | <- small pages grow down |
-                    ^ s_largeTop                          ^ s_smallLow
+arena start (page-aligned)                                         EndOfHeap()   stack
+ | large tier (TLSF) grows up ->          | gap |          <- small pages grow down |
+                                          ^ m_largeTop     ^ m_smallLow
 ```
 
-- **Page descriptors** come first in the arena: 12 bytes for each 4 KiB page the small tier could reach,
-  about 75 KB.
-- **Small tier** pages are taken downward from the top. An emptied page goes on a free-page list. If it was
-  the lowest page, the frontier moves back up.
-- **Large tier** (TLSF) owns `[descriptors end, s_largeTop)`. Its last block is a wilderness block that grows
-  into the gap, like dlmalloc's `top`. A free block touching the top merges back into the gap.
-- **When the tiers meet**, the small tier first takes a page-aligned 4 KiB block from TLSF, and the large tier
-  first takes free small pages next to the frontier. Both are rare slow paths.
-- **Tier dispatch** on free is a single compare: `p >= s_smallLow` means small, anything else is large.
+- **Small tier** pages are taken downward from the top. A released page sets its bit in a free-page bitmap; if
+  it is the lowest page, the frontier rises past it and every free page right above it.
+- **Large tier** (TLSF) owns `[start, m_largeTop)`. A free block that ends at the top always merges back into
+  the gap, like dlmalloc's `top`, so the top block is always in use.
+- **When the gap is spent**, the small tier borrows a page-aligned 4 KiB block from TLSF; it goes back to TLSF
+  as soon as it is empty.
+- **Tier dispatch** on free is one bit test: a 1 KiB bitmap marks every page holding slots, wherever it sits.
 
-### Small tier: headerless slot pages (up to 512 bytes; phase 0 tunes the cutoff)
+### Small tier: headerless slot pages (up to 256 bytes)
 
-**Size classes**, about 40:
-- 4 to 64 bytes in steps of 4
-- 72 to 128 in steps of 8
-- 144 to 256 in steps of 16
-- 288 to 512 in steps of 32
+**Size classes**, 48: 4 to 128 bytes in steps of 4, then 136 to 256 in steps of 8. On the retail boot's live
+set, 94 % of allocations are 256 bytes or less, and 41 % are exactly 29 to 32 (idStr buffers).
 
 **Pages and alignment**
-- Each page is one 4 KiB span of one class, and slot *i* sits at `page + i × size`.
-- A class's slot alignment is `gcd(size, 4096)` capped at 16: class 24 gives 8, class 48 gives 16.
-- The class comes from `constexpr` tables `s_class[alignLevel][(size + 3) >> 2]` for alignments of 4, 8 and
+- Each page is one 4 KiB span of one class. A 16-byte header comes first and slot *i* sits at
+  `page + 16 + i × size`, so a class is aligned to its size's lowest set bit, capped at 16.
+- The class comes from `constexpr` tables `forSize[alignLevel][(size + 3) >> 2]` for alignments of 4, 8 and
   16. Each entry is the smallest class that is big enough and aligned enough.
 - Requests aligned to 32 or more go to the large tier.
 
-**Page descriptor**, 12 bytes:
-- `u8 class`, `u8 flags`
-- `u16 used`
-- `u16 freeHead`, a page offset, 0xFFFF for none
-- `u16 bump`, for lazy carving
-- `u16 prev`, `u16 next`, which link the class's partial-page list
+**Page header**, 16 bytes: `u16 freeHead` (a page offset, 0 for none), `u16 used`, `u8 class`, `u8 flags`,
+`u16 prev`, `u16 next` (the class's partial list, as page indices), and in tracking builds the arena offset
+of the page's shadow array. A header per page costs only for pages in use, about 55 KB less than a table for
+every reachable page.
 
-**Free list:** a `u16` page offset stored in the slot itself. No header, and no division on free.
+**Free list:** a `u16` page offset stored in the slot itself. No header, and no division on free. A new
+page threads all its slots at once.
 
 **Page policy**
-- Each class allocates from the head of its partial list.
-- A page that becomes full leaves the list.
-- A page that becomes empty goes back to the page pool. Each class keeps one empty page cached so it does not
-  thrash.
-- Debug and release follow the same policy, so their layouts match.
+- Each class allocates from the head of its partial list. A full page leaves it; a page that gains a free
+  slot rejoins at the head.
+- A page that becomes empty is kept listed if it is the class's only empty page. Of two, the higher one stays
+  and the lower one is released, so low pages free up and the frontier can rise.
+- A new page takes the highest free page first, then the gap, then a borrowed block.
 
-**Release fast paths**
+**Release fast paths** (inline in `heap_allocator.h`)
 - Alloc: a table lookup, a head load, a pop and two counter updates.
-- Free: a compare, a page index, a push and two counter updates.
+- Free: a bitmap test, a page mask, a push and two counter updates.
 
-### Large tier: TLSF (above 512 bytes, or alignment of 32 or more)
+### Large tier: TLSF (above 256 bytes, or alignment of 32 or more)
 
-- Two-level segregated fit: O(1), with boundary tags as in dlmalloc. There are 16 sub-bins per power of two,
-  the first level covers 512 B to 32 MB, and the bitmaps are `u32`.
-- `__builtin_clz` is a libgcc call on the EE, so a new `ps2::CountLeadingZeros` in `src/ps2/common.h` uses
-  `plzcw`, with a portable version for the host.
-- The header is 8 bytes: `prevPhys`, and `size|free|prevFree`. A free block keeps its links in the payload.
-  Sizes are multiples of 16, so payloads are 16-aligned.
-- An alignment of 64 or more searches for `size + align` and splits off the leading gap, as `dlmemalign` does.
-- Realloc grows a block in place into a free neighbour or the wilderness, and shrinks by splitting. Only newlib
-  uses realloc.
+- Two-level segregated fit: O(1), with boundary tags as in dlmalloc. There are exact 16-byte bins below
+  256 bytes and 16 sub-bins per power of two above, up to 32 MB. The bitmaps are `u32`.
+- `__builtin_clz` is a libgcc call on the EE, so `ps2::CountLeadingZeros` in `src/ps2/common.h` uses `plzcw`
+  (plus an `sll` that sign-extends the result), with `__builtin_clz` on the host.
+- The header is 8 bytes in release: `prevPhys` and `size|free|prevFree`, as arena offsets so the layout is the
+  same on the host. A free block keeps its links in the payload. Sizes are multiples of 16 and payloads are
+  16-aligned.
+- An alignment of 32 or more searches for `size + align + minimum block` and splits off the leading gap, as
+  `dlmemalign` does.
+- Realloc grows a block in place into a free neighbour or the gap, and shrinks by splitting. Only newlib uses
+  realloc.
+- The search rounds a request up to the next bin (good fit), so a block of exactly the requested size in the
+  same bin can be skipped while a larger bin or the gap has room.
 
 ### Alignment policy
 
@@ -214,39 +215,39 @@ are dropped.
 `Mem_AllocAligned` already has the signature the plan needs. The audit uses it rather than adding a
 near-duplicate `Mem_AlignedAlloc`.
 
-### Debug builds: tracking, checks and poison
+### Tracking builds: tags, checks and poison
 
-The tracker is enabled when `PS2_D3BFG_ASSERTS || PS2_D3BFG_DEBUG`. It changes no layout: the same requests
-land at the same addresses as in release.
+Tracking follows `PS2_D3BFG_ASSERTS`, which is also defined on the host. It needs no side table: each tier
+keeps the record in its own memory.
 
-**Tracker**
-- An open-addressed table keyed by address, with 8-byte entries: `u32 address` and
-  `u32 requested:24 | tag:8`. Requests of 16 MB or more use an escape value.
-- 128 k entries, 1 MB, carved from the arena and counted under a "metadata" figure.
-- It provides exact per-tag `Stats`, `requested`, and `GetRequestedSize`.
-- `class_alloc.cpp`'s `memused`/`numobjects` counting goes under `#if PS2_D3BFG_DEBUG`, as do the
-  `idClass::memused` updates.
+**Records**
+- Small slots: each page's shadow array, allocated from the large tier, holds `{tag, slack}` per slot, where
+  slack is the class size less the requested size (under 16, so 0xFF marks a free slot).
+- Large blocks: the header grows to 16 bytes with `requested`, `tag` and a magic value.
+- Together they give exact per-tag `Stats`, `requested` and `GetRequestedSize`. Shadows are about 2 bytes a
+  slot, counted as `metadataBytes`.
+- `class_alloc.cpp`'s `memused`/`numobjects` counting goes under `#if PS2_D3BFG_ASSERTS`: its only reader,
+  the `game_memory` command, is debug-only (`SysCmds.cpp:2332`).
 
 **Assertions** (`[[unlikely]]` fatals)
-- a bad tag, alignment or size
+- a bad tag or alignment
 - `new` of size 0
 - a tagged allocation before `EnterMain()`
-- a free of a pointer that is not live (double or foreign free)
-- a free that does not match its tier
-- TLSF boundary-tag consistency
+- a free of a pointer that is not live (double or foreign free), or of a C library pointer through
+  `heap::Free` (and the reverse)
 - page counters out of range
 - an allocation from a thread other than the owner (`GetThreadId()`)
 
 **Poison**
-- On free, the payload is filled with `0xDEADBEEF` words. The small slot's first `u16` and the TLSF links are
-  skipped. An odd pointer faults on its first word load.
+- On free, the payload is filled with `0xDEADBEEF` words; the slot's link and the TLSF links overwrite the first
+  word or two. An odd pointer faults on its first word load.
 - Fresh allocations are filled with `0xCDCDCDCD`.
-- On reuse the poison is checked: every word of a small slot, and the first and last 256 bytes of a large
-  block. A mismatch is fatal and names the address, tier, class and tag.
+- On reuse the poison is checked: every word of a small slot, and the first and last 256 bytes of a binned large
+  block. A mismatch is fatal and names the address, size and word.
 
 **Release**
-- No checks.
-- `Alloc` failure is fatal and `TryAlloc` returns null.
+- No checks. The ledger's underflow check is an assertion too.
+- `Alloc` failure is fatal and `TryAlloc` returns null. A size beyond the arena returns null in every build.
 - `calloc` overflow returns null with `ENOMEM`, which is C semantics and costs nothing.
 
 ### Ledgers and stats
@@ -290,14 +291,16 @@ land at the same addresses as in release.
 
 ## Implementation phases
 
-0. **Measure on the current allocator.**
+0. **Measure on the current allocator.** Done 2026-11-17.
    - Add a temporary debug histogram in `heap.cpp`: sizes in 4-byte buckets up to 1 KiB and log2 above, with
      alignment and tag. Dump it at `startup-game` (`make test-headless-retail`) and after a `test-map` load.
    - Log each pre-main allocation's return address to identify the four.
    - Record the results in `docs/reference/memory-budget.md`, then fix the class table, the cutoff and the
      tracker size.
    - This plan is `docs/plans/HEAP_ALLOCATOR.md`. Commit it with phase 0's measurements.
-1. **Remove the pre-main allocations.**
+1. **Remove the pre-main allocations.** Done 2026-11-17: `ps2::DeferredObject` (`src/ps2/deferred_object.h`)
+   holds `animationLib` (game Init to Shutdown) and the SWF sprite and text prototypes (first live movie to
+   last), and File.cpp's dead write histogram is compiled out.
    - Make the four globals lazy, or give them static storage, with a `[PS2_D3BFG]` tag in id code.
    - Drop the `allocation-before-main` check from `heap_tests.cpp` and from `REQUIRED_CORE_CHECKS`
      (`src/tools/scripts/run_pcsx2_test.py:142`).
@@ -328,7 +331,7 @@ land at the same addresses as in release.
    - Add debug expected-fatal probes for zero-size `new`, double free, write-after-free and pre-main
      allocation.
    - Fix any zero-size `new` the debug gates find, with `[PS2_D3BFG]`.
-5. **Mem_Alloc audit.**
+5. **Mem_Alloc audit.** Worth about 40 KB at the retail boot (phase 0), so it waits behind other levers.
    - Move the sites that do not need 16 to `Mem_AllocAligned`/`Mem_ClearedAllocAligned` one owner group at a
      time, then idBlockAlloc. Measure each step with `test-headless-retail`.
 6. **Docs.**
@@ -339,11 +342,11 @@ land at the same addresses as in release.
    - `.claude/rules/ps2-platform.md`: the dlmalloc page-size note.
 7. **(R2)** Build `RelocatableArena` with `tex::Record.pixels`, then D3TX segments and sound.
 
-## Expected outcome (estimates for phases 0 and 4 to confirm)
+## Expected outcome (phase 0's model, for phase 3 to confirm)
 
-- Small allocations drop from about 44 bytes of overhead to 2 to 6 bytes of class rounding. Partial pages cost
-  about 80 KB and descriptors about 75 KB.
-- Net, about **2.5 to 2.9 MB more free EE RAM** at retail `startup-game`, more after the audit.
+- Small allocations drop from about 44 bytes of overhead to a few bytes of class rounding.
+- Replaying the retail boot's live set gives 13,525,120 backing bytes against 16,538,096 today: about
+  **3.0 MB more free EE RAM** at `startup-game`, with the pages perfectly packed.
 - Shorter alloc and free paths than the wrapper plus dlmalloc.
 
 ## Verification
