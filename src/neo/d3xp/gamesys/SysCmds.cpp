@@ -139,6 +139,8 @@ void Cmd_ListSpawnArgs_f( const idCmdArgs &args ) {
 	}
 }
 
+// [PS2_D3BFG]: These compile scripts at run time; the PS2 loads the cooked program and has no compiler.
+#if !defined( ID_SCRIPT_IMAGE )
 /*
 ===================
 Cmd_ReloadScript_f
@@ -208,6 +210,8 @@ void Cmd_Script_f( const idCmdArgs &args ) {
 		}
 	}
 }
+
+#endif // !defined( ID_SCRIPT_IMAGE )
 
 /*
 ==================
@@ -1956,6 +1960,7 @@ static void Cmd_SaveParticles_f( const idCmdArgs &args ) {
 }
 
 
+#if !defined( ID_SCRIPT_IMAGE )	// [PS2_D3BFG]: Disassembles the compiler's program.
 /*
 ==================
 Cmd_DisasmScript_f
@@ -1964,6 +1969,7 @@ Cmd_DisasmScript_f
 static void Cmd_DisasmScript_f( const idCmdArgs &args ) {
 	gameLocal.program.Disassemble();
 }
+#endif
 
 /*
 ==================
@@ -2307,8 +2313,27 @@ void Cmd_TestId_f( const idCmdArgs &args ) {
 	if ( idStr::Cmpn( id, STRTABLE_ID, STRTABLE_ID_LENGTH ) != 0 ) {
 		id = STRTABLE_ID + id;
 	}
-	gameLocal.mpGame.AddChatLine( idLocalization::GetString( id ), "<nothing>", "<nothing>", "<nothing>" );	
+	gameLocal.mpGame.AddChatLine( idLocalization::GetString( id ), "<nothing>", "<nothing>", "<nothing>" );
 }
+
+#if defined( ID_PS2 )
+/*
+==================
+Cmd_PS2ScriptEvents_f
+
+[PS2_D3BFG]: Lists the event registry for the host script cook, which has no game classes:
+src/tools/scripts/script_events.py turns these lines into src/tools/script_cook/events.txt.
+==================
+*/
+static void Cmd_PS2ScriptEvents_f( const idCmdArgs &args ) {
+	const int count = idEventDef::NumEventCommands();
+	for ( int i = 0; i < count; i++ ) {
+		const idEventDef *ev = idEventDef::GetEventCommand( i );
+		common->Printf( "[D3BFG] SCRIPT_EVENT \"%s\" \"%s\" %d %d\n", ev->GetName(), ev->GetArgFormat(), ev->GetReturnType(), idThread::Type.RespondsTo( *ev ) ? 1 : 0 );
+	}
+	common->Printf( "[D3BFG] SCRIPT_EVENTS count=%d\n", count );
+}
+#endif
 
 #endif // !defined( ID_PS2 ) || PS2_D3BFG_DEBUG
 
@@ -2375,8 +2400,12 @@ void idGameLocal::InitConsoleCommands() {
 	cmdSystem->AddCommand( "nextFrame",				idTestModel::TestModelNextFrame_f,	CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "shows next animation frame on test model" ) );
 	cmdSystem->AddCommand( "prevFrame",				idTestModel::TestModelPrevFrame_f,	CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "shows previous animation frame on test model" ) );
 	cmdSystem->AddCommand( "testBlend",				idTestModel::TestBlend_f,			CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "tests animation blending" ) );
+#if !defined( ID_SCRIPT_IMAGE )	// [PS2_D3BFG]: No script compiler on the PS2.
 	cmdSystem->AddCommand( "reloadScript",			Cmd_ReloadScript_f,			CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "reloads scripts" ) );
+#endif
+#if !defined( ID_SCRIPT_IMAGE )	// [PS2_D3BFG]: No script compiler on the PS2.
 	cmdSystem->AddCommand( "script",				Cmd_Script_f,				CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "executes a line of script" ) );
+#endif
 	cmdSystem->AddCommand( "listCollisionModels",	Cmd_ListCollisionModels_f,	CMD_FL_GAME,				CMD_DESC( "lists collision models" ) );
 	cmdSystem->AddCommand( "collisionModelInfo",	Cmd_CollisionModelInfo_f,	CMD_FL_GAME,				CMD_DESC( "shows collision model info" ) );
 	cmdSystem->AddCommand( "reloadanims",			Cmd_ReloadAnims_f,			CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "reloads animations" ) );
@@ -2395,7 +2424,12 @@ void idGameLocal::InitConsoleCommands() {
 	cmdSystem->AddCommand( "clearLights",			Cmd_ClearLights_f,			CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "clears all lights" ) );
 	cmdSystem->AddCommand( "gameError",				Cmd_GameError_f,			CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "causes a game error" ) );
 
+#if !defined( ID_SCRIPT_IMAGE )	// [PS2_D3BFG]: No script compiler on the PS2.
 	cmdSystem->AddCommand( "disasmScript",			Cmd_DisasmScript_f,			CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "disassembles script" ) );
+#endif
+#if defined( ID_PS2 )
+	cmdSystem->AddCommand( "ps2_scriptEvents",		Cmd_PS2ScriptEvents_f,		CMD_FL_GAME,				CMD_DESC( "lists the event registry for the host script cook" ) );	// [PS2_D3BFG]
+#endif
 	cmdSystem->AddCommand( "recordViewNotes",		Cmd_RecordViewNotes_f,		CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "record the current view position with notes" ) );
 	cmdSystem->AddCommand( "showViewNotes",			Cmd_ShowViewNotes_f,		CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "show any view notes for the current map, successive calls will cycle to the next note" ) );
 	cmdSystem->AddCommand( "closeViewNotes",		Cmd_CloseViewNotes_f,		CMD_FL_GAME|CMD_FL_CHEAT,	CMD_DESC( "close the view showing any notes for this map" ) );

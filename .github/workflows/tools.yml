@@ -2,7 +2,9 @@
 # with each compiler they support: GCC on Linux, Apple clang on macOS, MSVC on Windows.
 #
 # The game is built by ps2.yml, inside the ps2dev toolchain's container image. This workflow
-# runs when the tools or their CMake project change; they share no sources with the game.
+# runs when the tools or their CMake project change, or the engine sources the script cook
+# builds (idlib, id's script compiler and the backend files it links). MSVC builds every tool
+# but the script cook, whose idlib host platform is GNU-style.
 
 name: Host tools
 
@@ -13,6 +15,16 @@ on:
       - 'src/tools/assets/**'
       - 'src/tools/asset_reexport/**'
       - 'src/tools/resource_unpack/**'
+      - 'src/tools/script_cook/**'
+      - 'src/neo/idlib/**'
+      - 'src/neo/d3xp/script/**'
+      - 'src/neo/framework/**'
+      - 'src/neo/sys/sys_public.h'
+      - 'src/ps2/common.h'
+      - 'src/ps2/game/script_error.*'
+      - 'src/ps2/game/script_image_format.h'
+      - 'src/ps2/system/heap.h'
+      - 'src/ps2/system/log.*'
       - '.github/workflows/tools.yml'
   pull_request:
     paths:
@@ -20,6 +32,16 @@ on:
       - 'src/tools/assets/**'
       - 'src/tools/asset_reexport/**'
       - 'src/tools/resource_unpack/**'
+      - 'src/tools/script_cook/**'
+      - 'src/neo/idlib/**'
+      - 'src/neo/d3xp/script/**'
+      - 'src/neo/framework/**'
+      - 'src/neo/sys/sys_public.h'
+      - 'src/ps2/common.h'
+      - 'src/ps2/game/script_error.*'
+      - 'src/ps2/game/script_image_format.h'
+      - 'src/ps2/system/heap.h'
+      - 'src/ps2/system/log.*'
       - '.github/workflows/tools.yml'
   workflow_dispatch:
 

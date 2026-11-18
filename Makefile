@@ -38,6 +38,7 @@
 #   make test-map                # native authored map/world/PVS/AAS/AI startup and ticks
 #   make test-headless           # 120 frames, live console commands and shutdown
 #   make test-headless-retail    # retail startup ledgers, 120 frames and shutdown
+#   make test-script-image       # the host-cooked retail program equals an EE compile's, byte for byte
 #   make test-ui                 # every UI screen: one retail session per standard (boot menu, console, fonts, movies, dialog, shell, menu screens, quit dialog) and the invalid-resource cases
 #   make test-world              # the cooked graybox through id's render world: portal culling and captures, one production session per standard
 #   make test-world-retail       # mars_city1 cooked from the retail .bproc: area 2 and its doorway, captures against references, per standard
@@ -49,6 +50,8 @@
 #   make asset-reexport          # C++20 host converter of retail textures to paletted GSTX (CMake)
 #   make world-cook              # cook the authored graybox map into a D3WD world file
 #   make world-cook-retail       # cook mars_city1's retail .bproc (RETAIL_DATA_ROOT) into a D3WD world file
+#   make script-cook             # compile the authored headless script into the cooked program (D3SP) packages load
+#   make script-cook-retail      # compile the retail game script (RETAIL_DATA_ROOT) into its cooked program
 #                                # (WORLD_TOPOLOGY=strips cooks plain strips; pair it with another WORLD_COOK_OUTPUT)
 #   make ui-inventory            # inspect local retail UI dependencies and feature gaps
 #   make ui-cook                 # cook the ignored local retail English resource package
@@ -85,6 +88,10 @@ EE_TOOL_PREFIX ?= $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-
 
 include $(PS2SDK)/samples/Makefile.pref
 include config/sources.mk
+# The check variant links the cook's image writer to serialize its own compile.
+ifeq ($(SCRIPT_CHECK),1)
+	GAME_BACKEND_CXX_SRC += tools/script_cook/script_image_writer.cpp
+endif
 
 ifneq ($(filter release,$(MAKECMDGOALS)),)
 	BUILD := release
@@ -120,6 +127,21 @@ ifeq ($(filter $(STRIP_ELF),0 1),)
 endif
 
 SCRIPT_PROBE ?= 0
+# SCRIPT_CHECK=1 builds a production variant (build/<config>-scriptcheck) that compiles the script
+# at boot with id's compiler, as production did before the cook, and logs the image the cook's
+# writer makes of that compile: test-script-image holds it to the host cook's, byte for byte.
+SCRIPT_CHECK ?= 0
+ifeq ($(filter $(SCRIPT_CHECK),0 1),)
+	$(error SCRIPT_CHECK must be 0 or 1)
+endif
+ifeq ($(SCRIPT_CHECK),1)
+  ifneq ($(SCRIPT_PROBE),0)
+    $(error SCRIPT_CHECK builds production only)
+  endif
+  ifneq ($(filter-out all release,$(or $(MAKECMDGOALS),all)),)
+    $(error SCRIPT_CHECK builds production only: make SCRIPT_CHECK=1 [release])
+  endif
+endif
 ifeq ($(filter $(SCRIPT_PROBE),0 1),)
 	$(error SCRIPT_PROBE must be 0 or 1)
 endif
@@ -131,7 +153,7 @@ ifeq ($(SCRIPT_PROBE),1)
 		$(error the production link requires the ordinary campaign object tree, not SCRIPT_PROBE=1)
 	endif
 endif
-OUTPUT_DIR = build/$(BUILD)$(if $(filter 1,$(SCRIPT_PROBE)),-script,)
+OUTPUT_DIR = build/$(BUILD)$(if $(filter 1,$(SCRIPT_PROBE)),-script,)$(if $(filter 1,$(SCRIPT_CHECK)),-scriptcheck,)
 # Select the core-stage provider without another test-enable compiler define.
 ifeq ($(CORE_BOOT),0)
 	CORE_TEST_DRIVER_CXX_SRC += $(PLATFORM_TEST_CXX_SRC)
@@ -169,7 +191,7 @@ else
 	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=1 -DPS2_D3BFG_ASSERTS=1 -DPS2_D3BFG_PROFILE=1 -D_DEBUG=1
 endif
 
-COMMON_DEFS = -DPS2_D3BFG $(CONFIG_DEFS)
+COMMON_DEFS = -DPS2_D3BFG $(CONFIG_DEFS)$(if $(filter 1,$(SCRIPT_CHECK)), -DID_SCRIPT_COMPILER -DID_SCRIPT_CHECK,)
 LANGFLAGS = -std=gnu++20 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing
 SDK_INCS = -isystem $(PS2SDK)/ee/include -isystem $(PS2SDK)/common/include
 PROJECT_INCS = -Isrc -Isrc/neo -isystem src/external
@@ -197,7 +219,11 @@ CORE_CXXFLAGS = $(NEO_CXXFLAGS) -DID_PS2_CORE=1 -DPS2_D3BFG_TESTS=1
 FOUNDATION_HEADER_FLAGS = -UID_PS2_CORE -DPS2_D3BFG_FOUNDATION=1
 CAMPAIGN_CXXFLAGS = $(NEO_CXXFLAGS) -DPS2_D3BFG_TESTS=0
 GAME_RUNTIME_CXXFLAGS = $(filter-out -DPS2_D3BFG_TESTS=1,$(PS2_CXXFLAGS)) -DPS2_D3BFG_TESTS=0
-GAME_TEST_CXXFLAGS = $(NEO_CXXFLAGS) -DPS2_D3BFG_TESTS=1
+# Production loads the cooked script program (script_cook); the test images keep id's compiler and
+# its structures, because their fixtures compile scripts at run time. Every object of an image
+# must agree, so each test image group passes this.
+SCRIPT_COMPILER_FLAGS = -DID_SCRIPT_COMPILER
+GAME_TEST_CXXFLAGS = $(NEO_CXXFLAGS) -DPS2_D3BFG_TESTS=1 $(SCRIPT_COMPILER_FLAGS)
 
 # Applied only to id's engine objects (CORE/CAMPAIGN/game-test groups, all under
 # src/neo); the backend keeps EE_CXX_WARNFLAGS and -Werror. Each category was
@@ -327,10 +353,10 @@ $(OUTPUT_DIR)/.script-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile co
 $(SCRIPT_OBJS): $(OUTPUT_DIR)/script/src/%.o: src/%.cpp $(OUTPUT_DIR)/.script-flags.json
 	@mkdir -p $(dir $@)
 	$(EE_CXX) $(SCRIPT_CXXFLAGS) -c $< -o $@
-$(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE
+$(OUTPUT_DIR)/src/tests/smoketests/script_boot.o: CXX_VENDOR_INCS_FOR = $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE $(SCRIPT_COMPILER_FLAGS)
 endif
 
-.PHONY: texture-fixture all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world test-world-retail stage-world-retail run-world-retail ui-inventory ui-cook resource-unpack asset-reexport world-cook world-cook-retail build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
+.PHONY: texture-fixture all release stage-headless run-headless test-headless stage-headless-retail run-headless-retail test-headless-retail stage-console run-console test-ui test-world test-world-retail stage-world-retail run-world-retail ui-inventory ui-cook resource-unpack asset-reexport world-cook world-cook-retail script-cook script-cook-retail test-script-image build-platform build-core build-game test-map test-game test-renderer run-renderer audit-sources compiledb tools run build-script test-script test-common test-host test-core test-platform core-test-image vu clean FORCE
 
 release: all
 build-platform: core-test-image
@@ -402,18 +428,18 @@ $(TEST_CAMPAIGN_OBJS): $(OUTPUT_DIR)/test-campaign/src/%.o: src/%.cpp $(OUTPUT_D
 	$(EE_CXX) $(GAME_TEST_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(LEGACY_SHARED_WARNFLAGS) -c $< -o $@
 
 $(OUTPUT_DIR)/.test-backend-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(GAME_SIZE_OPT_CXX_SRC) --sources $(GAME_BACKEND_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(SCRIPT_COMPILER_FLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(GAME_SIZE_OPT_CXX_SRC) --sources $(GAME_BACKEND_CXX_SRC)
 
 $(TEST_BACKEND_OBJS): $(OUTPUT_DIR)/test-backend/src/%.o: src/%.cpp $(OUTPUT_DIR)/.test-backend-flags.json
 	@mkdir -p $(dir $@)
-	$(EE_CXX) $(PS2_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE -c $< -o $@
+	$(EE_CXX) $(PS2_CXXFLAGS) $(SCRIPT_COMPILER_FLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE -c $< -o $@
 
 $(OUTPUT_DIR)/.test-support-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile config/sources.mk
-	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(TEST_SUPPORT_SIZE_OPT_CXX_SRC) --sources $(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC)
+	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(EE_CXX) $(PS2_CXXFLAGS) $(SCRIPT_COMPILER_FLAGS) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE --cold-sources $(TEST_SUPPORT_SIZE_OPT_CXX_SRC) --sources $(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC)
 
 $(TEST_SUPPORT_OBJS): $(OUTPUT_DIR)/test-support/src/%.o: src/%.cpp $(OUTPUT_DIR)/.test-support-flags.json
 	@mkdir -p $(dir $@)
-	$(EE_CXX) $(PS2_CXXFLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE $(CXX_VENDOR_INCS_FOR) -c $< -o $@
+	$(EE_CXX) $(PS2_CXXFLAGS) $(SCRIPT_COMPILER_FLAGS) $(CXX_OPTFLAGS_FOR) $(ENGINE_BRIDGE_INCS) -UID_PS2_CORE $(CXX_VENDOR_INCS_FOR) -c $< -o $@
 
 # The foundation uses the real Common layout and retained session/profile value types.
 $(OUTPUT_DIR)/core/src/neo/framework/Common.o: CORE_HEADER_FLAGS = $(FOUNDATION_HEADER_FLAGS)
@@ -480,8 +506,27 @@ test-common: build-core
 test-script: build-script
 	$(PYTHON) $(SCRIPTS)/run_script_tests.py --elf build/$(BUILD)-script/tests/script/d3bfg_tests.elf
 
-tools: audit-sources resource-unpack asset-reexport
-	@echo "Host tools: build/tools/resource_unpack, build/tools/asset_reexport; Python tools: $(SCRIPTS)/."
+tools: audit-sources resource-unpack asset-reexport build/tools/script_cook
+	@echo "Host tools: build/tools/resource_unpack, build/tools/asset_reexport, build/tools/script_cook; Python tools: $(SCRIPTS)/."
+
+# Production loads a cooked script program (base/script/doom_main.d3sp), compiled on the host by
+# id's own compiler against the game's event table (src/tools/script_cook/events.txt, which
+# src/tools/scripts/script_events.py regenerates): the authored headless fixture's for the
+# packages on authored data, the retail game's for the retail ones.
+SCRIPT_COOK_OUTPUT ?= build/script
+SCRIPT_EVENTS = src/tools/script_cook/events.txt
+
+script-cook: build/tools/script_cook
+	build/tools/script_cook --events $(SCRIPT_EVENTS) --source-dir src/tests/data/headless/base --output $(SCRIPT_COOK_OUTPUT)/headless/doom_main.d3sp
+
+script-cook-retail: build/tools/script_cook
+	build/tools/script_cook --events $(SCRIPT_EVENTS) --resources "$(RETAIL_DATA_ROOT)/_common.resources" --resources "$(RETAIL_DATA_ROOT)/_ordered.resources" --output $(SCRIPT_COOK_OUTPUT)/retail/doom_main.d3sp
+
+# The host cook against the EE: production's old compile-at-boot path (SCRIPT_CHECK=1) compiles the
+# retail script in PCSX2 and must make the identical image.
+test-script-image: script-cook-retail
+	$(MAKE) SCRIPT_CHECK=1 BUILD=$(BUILD) all
+	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2) --case retail --data-root "$(RETAIL_DATA_ROOT)" --script-check $(SCRIPT_COOK_OUTPUT)/retail/doom_main.d3sp
 
 resource-unpack: build/tools/resource_unpack
 
@@ -499,26 +544,26 @@ world-cook: build/tools/asset_reexport
 world-cook-retail: build/tools/asset_reexport
 	build/tools/asset_reexport world --data "$(RETAIL_DATA_ROOT)" --job "$(WORLD_RETAIL_JOB)" --output "$(WORLD_COOK_OUTPUT)" $(if $(WORLD_TOPOLOGY),--topology $(WORLD_TOPOLOGY))
 
-stage-headless: all
+stage-headless: all script-cook
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD)
 
 run: run-headless
 run-headless: stage-headless
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/headless/d3bfg.elf
 
-test-headless: all
+test-headless: all script-cook
 	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2)
 
-stage-headless-retail: all
+stage-headless-retail: all script-cook-retail
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --retail-data "$(RETAIL_DATA_ROOT)"
 
 run-headless-retail: stage-headless-retail
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/headless-retail/d3bfg.elf
 
-test-headless-retail: all
+test-headless-retail: all script-cook-retail
 	$(PYTHON) $(SCRIPTS)/run_headless.py --build $(BUILD) --emulator $(PCSX2) --case retail --data-root "$(RETAIL_DATA_ROOT)"
 
-stage-console: all
+stage-console: all script-cook
 	$(PYTHON) $(SCRIPTS)/stage_headless.py --build $(BUILD) --presentation $(CONSOLE_STANDARD) --catalog "$(UI_COOK_OUTPUT)"
 
 run-console: stage-console
@@ -526,21 +571,21 @@ run-console: stage-console
 
 # One session per standard boots into the retail menu and visits every retail screen; each
 # invalid-resource case ends its process in a fatal.
-test-ui: all
+test-ui: all script-cook
 	$(PYTHON) $(SCRIPTS)/run_ui_session.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 	$(PYTHON) $(SCRIPTS)/run_retail_ui.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 	$(PYTHON) $(SCRIPTS)/run_retail_movies.py --build $(BUILD) --source "$(UI_COOK_OUTPUT)" --emulator $(PCSX2)
 
 # One production session per standard loads the cooked graybox into id's render world and draws it
 # through the portal flow from fixed cameras.
-test-world: all world-cook
+test-world: all world-cook script-cook
 	$(PYTHON) $(SCRIPTS)/run_world.py --build $(BUILD) --catalog "$(UI_COOK_OUTPUT)" --world "$(WORLD_COOK_OUTPUT)/graybox.d3wd" --emulator $(PCSX2)
 
-test-world-retail: all world-cook-retail
+test-world-retail: all world-cook-retail script-cook
 	$(PYTHON) $(SCRIPTS)/run_world_retail.py --build $(BUILD) --catalog "$(UI_COOK_OUTPUT)" --world "$(WORLD_COOK_OUTPUT)/mars_city1.d3wd" --data "$(RETAIL_DATA_ROOT)" --emulator $(PCSX2)
 
 # Debug builds: fly through mars_city1 with the pad (ps2_world fly), from the player start.
-stage-world-retail: all world-cook-retail
+stage-world-retail: all world-cook-retail script-cook
 	$(PYTHON) $(SCRIPTS)/run_world_retail.py --build $(BUILD) --catalog "$(UI_COOK_OUTPUT)" --world "$(WORLD_COOK_OUTPUT)/mars_city1.d3wd" --data "$(RETAIL_DATA_ROOT)" --standard $(CONSOLE_STANDARD) --stage $(OUTPUT_DIR)/world-retail
 
 run-world-retail: stage-world-retail
@@ -548,19 +593,19 @@ run-world-retail: stage-world-retail
 
 .PHONY: stage-ui-fonts run-ui-fonts stage-ui-movies run-ui-movies stage-ui-menu run-ui-menu
 
-stage-ui-fonts: all
+stage-ui-fonts: all script-cook
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)"
 
 run-ui-fonts: stage-ui-fonts
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-fonts/d3bfg.elf
 
-stage-ui-movies: all
+stage-ui-movies: all script-cook
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)" --movies
 
 run-ui-movies: stage-ui-movies
 	$(PCSX2) -batch -elf $(abspath $(OUTPUT_DIR))/ui-movies/d3bfg.elf
 
-stage-ui-menu: all
+stage-ui-menu: all script-cook
 	$(PYTHON) $(SCRIPTS)/stage_retail_ui.py --build $(BUILD) --standard $(CONSOLE_STANDARD) --source "$(UI_COOK_OUTPUT)" --movies --menu
 
 run-ui-menu: stage-ui-menu
@@ -632,6 +677,9 @@ build/tools/resource_unpack: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
 
 build/tools/asset_reexport: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
 	@MAKEFLAGS= cmake --build $(HOST_TOOLS_CMAKE) --parallel --target asset_reexport
+
+build/tools/script_cook: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
+	@MAKEFLAGS= cmake --build $(HOST_TOOLS_CMAKE) --parallel --target script_cook
 
 # VU microprograms. oxide-vcl (https://github.com/glampert/oxide-vcl), the VCL compiler they
 # are built with, comes in as a git submodule (src/external/oxide-vcl) and is built by cargo

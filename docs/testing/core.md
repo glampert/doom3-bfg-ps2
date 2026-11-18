@@ -182,7 +182,7 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   the tracking build. These test the adapter, not a linked `idGameLocal` fixture.
 
 - `make build-script` / `make test-script` select the isolated real script compiler and
-  program, with an empty native-event registry. `make BUILD=release test-script` verifies
+  program (compiler mode, `-DID_SCRIPT_COMPILER`), with an empty native-event registry. `make BUILD=release test-script` verifies
   the same matrix with assertions disabled. This target has its own `-script` artifact
   directory and linker-GC boundary; it is not a resident game-link gate.
 - Script runs archive authored inputs, matched images/symbols/map, flags and config.

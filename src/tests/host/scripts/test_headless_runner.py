@@ -17,9 +17,7 @@ import run_headless as runner
 RETAIL_STARTUP = ("Loaded resource file _common.resources\nLoaded resource file _ordered.resources\n"
                   "[D3BFG] MEMORY startup-foundation requested=100 backing=200 allocations=3 peak_requested=100 peak_backing=200\n"
                   "[D3BFG] MEMORY startup-decls requested=400 backing=500 allocations=6 peak_requested=400 peak_backing=500\n"
-                  "Compiled 'script/doom_main.script': 7807.0 ms\n     Strings: 120, 14868 bytes\n"
-                  "  Statements: 95386, 1907720 bytes\n   Functions: 3070, 386208 bytes\n   Variables: 206536 bytes\n"
-                  " Static data: 3515932 bytes\n   Allocated: 4998796 bytes\n"
+                  "Loaded 'script/doom_main.d3sp': 95386 statements, 3070 functions, 18522 defs, 359 types, 43208 global bytes\n"
                   "[D3BFG] MEMORY startup-game requested=900 backing=1000 allocations=9 peak_requested=900 peak_backing=1000\n"
                   "[D3BFG] TAG startup-game DECL requested=300 backing=350 allocations=4 peak_requested=300\n"
                   "[D3BFG] TAG startup-game DECLTEXT requested=500 backing=600 allocations=5 peak_requested=500\n")
@@ -75,7 +73,7 @@ class HeadlessAcceptance(unittest.TestCase):
     def test_retail_requires_containers_script_and_checkpoints(self):
         log = completed("retail")
         for marker in ("Loaded resource file _common.resources", "Loaded resource file _ordered.resources",
-                       "Compiled 'script/doom_main.script'", "MEMORY startup-decls"):
+                       "Loaded 'script/doom_main.d3sp'", "MEMORY startup-decls"):
             with self.subTest(missing=marker):
                 self.assertFalse(runner.classify(log.replace(marker, "missing"), "retail", "run")[0])
         repeated = log.replace("[D3BFG] MEMORY startup-game", "[D3BFG] MEMORY startup-decls requested=1 backing=1 allocations=1\n"
@@ -90,10 +88,24 @@ class HeadlessAcceptance(unittest.TestCase):
         self.assertEqual(list(record["stages"]), list(runner.STARTUP_STAGES))
         self.assertEqual(record["stages"]["startup-game"], {"requested": 900, "backing": 1000, "allocations": 9})
         self.assertEqual([tag["tag"] for tag in record["tags"]], ["DECLTEXT", "DECL"])
-        self.assertEqual(record["script"]["statements"], 95386)
-        self.assertEqual(record["script"]["function_bytes"], 386208)
-        self.assertEqual(record["script"]["compile_ms"], 7807.0)
+        self.assertEqual(record["script"], {"statements": 95386, "functions": 3070, "defs": 18522, "types": 359,
+                                            "global_bytes": 43208})
         self.assertEqual(runner.startup_memory("no checkpoints"), {"stages": {}, "tags": [], "script": {}})
+
+    def test_script_image_check(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cooked = Path(temporary) / "doom_main.d3sp"
+            cooked.write_bytes(b"D3SP image")
+            line = f"[D3BFG] SCRIPT_IMAGE bytes=10 fnv={runner.fnv1a(cooked.read_bytes()):08x} defs=1\n"
+            self.assertTrue(runner.check_script_image(line, cooked)[0])
+            self.assertFalse(runner.check_script_image(line.replace("bytes=10", "bytes=11"), cooked)[0])
+            self.assertFalse(runner.check_script_image(line + line, cooked)[0])
+            cooked.write_bytes(b"D3SP imagf")
+            self.assertFalse(runner.check_script_image(line, cooked)[0])
+        # The check variant compiles: its markers replace the cooked program's load line.
+        compiled = completed("retail").replace("Loaded 'script/doom_main.d3sp'", "Compiled 'script/doom_main.script'")
+        self.assertTrue(runner.classify(compiled, "retail", "run", compiled=True)[0])
+        self.assertFalse(runner.classify(compiled, "retail", "run")[0])
 
     def test_mirrored_logs_and_secondary_crash(self):
         with tempfile.TemporaryDirectory() as temporary:

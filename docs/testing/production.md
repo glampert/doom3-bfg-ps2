@@ -17,12 +17,21 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   false acceptance.
 - `make test-headless-retail` runs the production ELF headless with the local retail
   `_common`/`_ordered` containers hard-linked into its package (`RETAIL_DATA_ROOT`,
-  default `gamedata/d3_bfg`; symlinks are skipped by the native listing). It requires
-  both container mounts, the full `doom_main.script` compile, the three startup
-  memory checkpoints in order, 120 `NOMAP` frames and exact startup-ledger recovery.
-  `summary.json` records each checkpoint, the largest tags and the compiled script
-  size. The run takes about 20 s (7.8 s of script compilation); `make run-headless-retail`
-  stages and launches the same package until quit. Retail data never enters the repo.
+  default `gamedata/d3_bfg`; symlinks are skipped by the native listing) and the cooked
+  retail program (`make script-cook-retail`). It requires both container mounts, the
+  `Loaded 'script/doom_main.d3sp'` line, the three startup memory checkpoints in order, 120
+  `NOMAP` frames and exact startup-ledger recovery. `summary.json` records each checkpoint, the
+  largest tags and the loaded program's size. Startup reaches `startup-game` in about 10 s
+  (the program loads in 0.13 s); `make run-headless-retail` stages and launches the same
+  package until quit. Retail data never enters the repo. Every package on the authored data
+  stages the cooked headless fixture (`make script-cook`) the same way.
+- `make test-script-image` (debug; `BUILD=release` for release) cooks the retail program, builds
+  the `SCRIPT_CHECK=1` production variant, which still compiles `doom_main.script` at boot with
+  id's compiler, and runs the retail case on it. Beyond the retail checks (with the
+  `Compiled 'script/doom_main.script'` line in place of the load line), it requires one
+  `[D3BFG] SCRIPT_IMAGE bytes=N fnv=X` line whose size and FNV-1a equal the host-cooked file's:
+  the image the cook's writer makes of the EE compile must be the host cook's byte for byte.
+  2026-11-18: 1,531,584 bytes, `aca1421d` (`20261118T032312Z_headless_230e8d44faa6`).
 
 ## Input devices
 
@@ -393,8 +402,8 @@ Summary of the production packages, their controls and the UI screens `make test
   live command input and full shutdown without linking fixtures into production.
   `make stage-headless-retail` / `make run-headless-retail` stage/run the same ELF with the local retail
   `_common`/`_ordered` containers hard-linked from `RETAIL_DATA_ROOT` (symlinks are not
-  listed). `make test-headless-retail` checks every retail declaration and the full
-  `doom_main.script` reaching `NOMAP`, and records the tagged `[D3BFG] MEMORY startup-*`
+  listed). `make test-headless-retail` checks every retail declaration and the cooked retail
+  program reaching `NOMAP`, and records the tagged `[D3BFG] MEMORY startup-*`
   ledgers production prints after foundation, declaration and game startup.
   `make stage-console` / `make run-console` stage/run the same ELF visibly under
   `build/<config>/console/`; `CONSOLE_STANDARD=ntsc` (default) or `pal` selects the mode. A PAL

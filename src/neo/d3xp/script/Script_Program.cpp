@@ -30,26 +30,43 @@ If you have questions concerning this license or the applicable additional terms
 #include "../../idlib/precompiled.h"
 
 
+// [PS2_D3BFG]: The host script cook compiles the compiler against a minimal game surface.
+#if defined( ID_SCRIPT_COOK )
+#include "tools/script_cook/cook_game.h"
+#else
 #include "../Game_local.h"
+#endif
 
 // [PS2_D3BFG]: Required compilation failures release owned state before fatal termination.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #include "ps2/game/script_error.h"
 #endif
 
+// [PS2_D3BFG]: The PS2 loads the cooked program instead of compiling it.
+#if defined( ID_SCRIPT_IMAGE ) || defined( ID_SCRIPT_CHECK )
+#include "ps2/game/script_image.h"
+#endif
+
+// [PS2_D3BFG]: Pointer-sized script types take the EE's 4 bytes, also in the 64-bit host script
+// cook, whose program image the PS2 loads.
+static const int SCRIPT_POINTER_SIZE = 4;
+#if defined( ID_PS2 )
+static_assert( sizeof( void * ) == SCRIPT_POINTER_SIZE && sizeof( int * ) == SCRIPT_POINTER_SIZE, "script pointer size" );
+#endif
+
 // simple types.  function types are dynamically allocated
 idTypeDef	type_void( ev_void, &def_void, "void", 0, NULL );
-idTypeDef	type_scriptevent( ev_scriptevent, &def_scriptevent, "scriptevent", sizeof( void * ), NULL );
-idTypeDef	type_namespace( ev_namespace, &def_namespace, "namespace", sizeof( void * ), NULL );
+idTypeDef	type_scriptevent( ev_scriptevent, &def_scriptevent, "scriptevent", SCRIPT_POINTER_SIZE, NULL );
+idTypeDef	type_namespace( ev_namespace, &def_namespace, "namespace", SCRIPT_POINTER_SIZE, NULL );
 idTypeDef	type_string( ev_string, &def_string, "string", MAX_STRING_LEN, NULL );
 idTypeDef	type_float( ev_float, &def_float, "float", sizeof( float ), NULL );
 idTypeDef	type_vector( ev_vector, &def_vector, "vector", sizeof( idVec3 ), NULL );
-idTypeDef	type_entity( ev_entity, &def_entity, "entity", sizeof( int * ), NULL );					// stored as entity number pointer
-idTypeDef	type_field( ev_field, &def_field, "field", sizeof( void * ), NULL );
-idTypeDef	type_function( ev_function, &def_function, "function", sizeof( void * ), &type_void );
+idTypeDef	type_entity( ev_entity, &def_entity, "entity", SCRIPT_POINTER_SIZE, NULL );					// stored as entity number pointer
+idTypeDef	type_field( ev_field, &def_field, "field", SCRIPT_POINTER_SIZE, NULL );
+idTypeDef	type_function( ev_function, &def_function, "function", SCRIPT_POINTER_SIZE, &type_void );
 idTypeDef	type_virtualfunction( ev_virtualfunction, &def_virtualfunction, "virtual function", sizeof( int ), NULL );
-idTypeDef	type_pointer( ev_pointer, &def_pointer, "pointer", sizeof( void * ), NULL );
-idTypeDef	type_object( ev_object, &def_object, "object", sizeof( int * ), NULL );					// stored as entity number pointer
+idTypeDef	type_pointer( ev_pointer, &def_pointer, "pointer", SCRIPT_POINTER_SIZE, NULL );
+idTypeDef	type_object( ev_object, &def_object, "object", SCRIPT_POINTER_SIZE, NULL );					// stored as entity number pointer
 idTypeDef	type_jumpoffset( ev_jumpoffset, &def_jumpoffset, "<jump>", sizeof( int ), NULL );		// only used for jump opcodes
 idTypeDef	type_argsize( ev_argsize, &def_argsize, "<argsize>", sizeof( int ), NULL );				// only used for function call and thread opcodes
 idTypeDef	type_boolean( ev_boolean, &def_boolean, "boolean", sizeof( int ), NULL );
@@ -69,6 +86,9 @@ idVarDef	def_object( &type_object );
 idVarDef	def_jumpoffset( &type_jumpoffset );		// only used for jump opcodes
 idVarDef	def_argsize( &type_argsize );
 idVarDef	def_boolean( &type_boolean );
+
+// [PS2_D3BFG]: The compiler's program structures; the PS2 runs the cooked image's (below).
+#if !defined( ID_SCRIPT_IMAGE )
 
 /***********************************************************************
 
@@ -697,7 +717,13 @@ void idVarDef::SetObject( idScriptObject *object ) {
 	assert( typeDef );
 	initialized = initialized;
 	assert( typeDef->Inherits( &type_object ) );
+#if defined( ID_SCRIPT_COOK )
+	// [PS2_D3BFG]: The compiler only clears object slots, which hold 4 bytes in the host cook too.
+	assert( object == NULL );
+	*value.entityNumberPtr = 0;
+#else
 	*value.objectPtrPtr = object;
+#endif
 }
 
 /*
@@ -908,6 +934,8 @@ void idVarDefName::RemoveDef( idVarDef *def ) {
 	def->next = NULL;
 	def->name = NULL;
 }
+
+#endif // !defined( ID_SCRIPT_IMAGE )
 
 /***********************************************************************
 
@@ -1162,6 +1190,9 @@ byte *idScriptObject::GetVariable( const char *name, etype_t etype ) const {
 	return NULL;
 }
 
+// [PS2_D3BFG]: The compiler's program structures; the PS2 runs the cooked image's (below).
+#if !defined( ID_SCRIPT_IMAGE )
+
 /***********************************************************************
 
   idProgram
@@ -1271,6 +1302,37 @@ void idProgram::AddDefToNameList( idVarDef *def, const char *name ) {
 	varDefNames[i]->AddDef( def );
 }
 
+#if ( defined( ID_PS2 ) && PS2_D3BFG_DEBUG ) || defined( ID_SCRIPT_COOK )
+// [PS2_D3BFG]: Debug-only census of what the global bytes hold, recorded as AllocDef places them,
+// to size the cooked program image. Rows are what reserved the bytes, columns the etype + 1.
+enum scriptGlobalUse_t {
+	SCRIPT_GLOBAL_IMMEDIATE,
+	SCRIPT_GLOBAL_FUNCTION,
+	SCRIPT_GLOBAL_OBJECT_TYPE,
+	SCRIPT_GLOBAL_NAMED,
+	SCRIPT_GLOBAL_USES
+};
+static const char * const s_scriptGlobalUseNames[ SCRIPT_GLOBAL_USES ] = { "immediate", "function", "object type", "named" };
+static const char * const s_scriptTypeNames[ ev_boolean + 2 ] = { "error", "void", "scriptevent", "namespace", "string", "float", "vector", "entity", "field", "function", "virtualfunction", "pointer", "object", "jumpoffset", "argsize", "boolean" };
+static int s_scriptGlobalBytes[ SCRIPT_GLOBAL_USES ][ ev_boolean + 2 ];
+static int s_scriptGlobalDefs[ SCRIPT_GLOBAL_USES ][ ev_boolean + 2 ];
+
+static void CountGlobalBytes( const idTypeDef *type, const char *name, int bytes ) {
+	const int column = type->Type() + 1;
+	int use = SCRIPT_GLOBAL_NAMED;
+	if ( idStr::Cmpn( name, "<IMMEDIATE>", 11 ) == 0 ) {
+		use = SCRIPT_GLOBAL_IMMEDIATE;
+	} else if ( type->Type() == ev_function ) {
+		use = SCRIPT_GLOBAL_FUNCTION;
+	} else if ( type->Type() == ev_object && type->def == NULL ) {
+		// ParseObjectDef allocates the type's own def before it assigns type->def.
+		use = SCRIPT_GLOBAL_OBJECT_TYPE;
+	}
+	s_scriptGlobalBytes[ use ][ column ] += bytes;
+	s_scriptGlobalDefs[ use ][ column ]++;
+}
+#endif
+
 /*
 ============
 idProgram::AllocDef
@@ -1376,6 +1438,9 @@ idVarDef *idProgram::AllocDef( idTypeDef *type, const char *name, idVarDef *scop
 		def->value.bytePtr = variables.Ptr() + numVariables;
 #else
 		def->value.bytePtr = &variables[ numVariables ];
+#endif
+#if ( defined( ID_PS2 ) && PS2_D3BFG_DEBUG ) || defined( ID_SCRIPT_COOK )
+		CountGlobalBytes( type, name, bytes );	// [PS2_D3BFG]: Debug-only census for the cooked program image.
 #endif
 		numVariables += bytes;
 
@@ -1678,6 +1743,10 @@ void idProgram::BeginCompilation() {
 	functions.Allocate( TAG_SCRIPT );
 	statements.Allocate( TAG_SCRIPT );
 #endif
+#if ( defined( ID_PS2 ) && PS2_D3BFG_DEBUG ) || defined( ID_SCRIPT_COOK )
+	memset( s_scriptGlobalBytes, 0, sizeof( s_scriptGlobalBytes ) );	// [PS2_D3BFG]: Debug-only census.
+	memset( s_scriptGlobalDefs, 0, sizeof( s_scriptGlobalDefs ) );
+#endif
 
 	// [PS2_D3BFG]: Desktop keeps recoverable exceptions; target errors use explicit fatal cleanup.
 #if !defined( ID_PS2 ) && !defined( ID_HOST_TEST )
@@ -1855,7 +1924,159 @@ void idProgram::CompileStats() {
 	common->Printf( " Static data: %d bytes\n", sizeof( idProgram ) );
 	common->Printf( "   Allocated: %d bytes\n", memallocated );
 	common->Printf( " Thread size: %d bytes\n\n", sizeof( idThread ) );
+
+#if ( defined( ID_PS2 ) && PS2_D3BFG_DEBUG ) || defined( ID_SCRIPT_COOK )
+	CompileCensus();	// [PS2_D3BFG]: Debug-only census for the cooked program image.
+#endif
 }
+
+#if ( defined( ID_PS2 ) && PS2_D3BFG_DEBUG ) || defined( ID_SCRIPT_COOK )
+/*
+==============
+idProgram::CompileCensus
+
+[PS2_D3BFG]: Counts what the compiled program holds and what its statements reference, so the
+cooked program image can be sized from facts. Debug builds only.
+==============
+*/
+void idProgram::CompileCensus() const {
+	int i, j;
+
+	common->Printf( "---------- Script census ----------\n" );
+
+	// global bytes, by what reserved them
+	for ( i = 0; i < SCRIPT_GLOBAL_USES; i++ ) {
+		for ( j = 0; j < ev_boolean + 2; j++ ) {
+			if ( s_scriptGlobalDefs[ i ][ j ] != 0 ) {
+				common->Printf( "[D3BFG] SCRIPT_CENSUS globals use=\"%s\" type=%s defs=%d bytes=%d\n", s_scriptGlobalUseNames[ i ], s_scriptTypeNames[ j ], s_scriptGlobalDefs[ i ][ j ], s_scriptGlobalBytes[ i ][ j ] );
+			}
+		}
+	}
+
+	// defs by storage class and scope
+	int byInitialized[ 4 ] = {};
+	int byScope[ ev_boolean + 2 ] = {};
+	int results = 0;
+	int immediates = 0;
+	int components = 0;
+	int entityGlobals = 0;
+	int functionDefs = 0;
+	for ( i = 0; i < varDefs.Num(); i++ ) {
+		const idVarDef *def = varDefs[ i ];
+		byInitialized[ def->initialized ]++;
+		byScope[ ( def->scope != NULL ) ? def->scope->Type() + 1 : 0 ]++;
+		const char *name = def->Name();
+		const int length = idStr::Length( name );
+		if ( idStr::Cmp( name, RESULT_STRING ) == 0 ) {
+			results++;
+		} else if ( idStr::Cmpn( name, "<IMMEDIATE>", 11 ) == 0 ) {
+			immediates++;
+		}
+		if ( length > 2 && name[ length - 2 ] == '_' && ( name[ length - 1 ] == 'x' || name[ length - 1 ] == 'y' || name[ length - 1 ] == 'z' ) ) {
+			components++;
+		}
+		if ( name[ 0 ] == '$' ) {
+			entityGlobals++;
+		}
+		if ( def->Type() == ev_function && def->initialized != idVarDef::stackVariable ) {
+			functionDefs++;
+		}
+	}
+	common->Printf( "[D3BFG] SCRIPT_CENSUS defs total=%d names=%d uninitialized=%d variable=%d constant=%d stack=%d results=%d immediates=%d components=%d entity_globals=%d function_defs=%d\n",
+		varDefs.Num(), varDefNames.Num(), byInitialized[ 0 ], byInitialized[ 1 ], byInitialized[ 2 ], byInitialized[ 3 ], results, immediates, components, entityGlobals, functionDefs );
+	for ( j = 0; j < ev_boolean + 2; j++ ) {
+		if ( byScope[ j ] != 0 ) {
+			common->Printf( "[D3BFG] SCRIPT_CENSUS defs scope=%s count=%d\n", s_scriptTypeNames[ j ], byScope[ j ] );
+		}
+	}
+
+	// defs the statements reference: the operand table of a cooked image
+	byte *referenced = static_cast<byte *>( Mem_ClearedAlloc( varDefs.Num(), TAG_TEMP ) );
+	int maxNum = -1;
+	int operandSlots = 0;
+	for ( i = 0; i < statements.Num(); i++ ) {
+		const statement_t &st = statements[ i ];
+		const idVarDef *operands[ 3 ] = { st.a, st.b, st.c };
+		for ( j = 0; j < 3; j++ ) {
+			if ( operands[ j ] != NULL ) {
+				operandSlots++;
+				if ( operands[ j ]->num >= 0 && operands[ j ]->num < varDefs.Num() ) {
+					referenced[ operands[ j ]->num ] = 1;
+					maxNum = Max( maxNum, operands[ j ]->num );
+				}
+			}
+		}
+	}
+	int referencedDefs = 0;
+	int referencedByInitialized[ 4 ] = {};
+	int referencedByType[ ev_boolean + 2 ] = {};
+	for ( i = 0; i < varDefs.Num(); i++ ) {
+		if ( referenced[ i ] ) {
+			referencedDefs++;
+			referencedByInitialized[ varDefs[ i ]->initialized ]++;
+			referencedByType[ varDefs[ i ]->Type() + 1 ]++;
+		}
+	}
+	Mem_Free( referenced );
+	common->Printf( "[D3BFG] SCRIPT_CENSUS operands referenced=%d max_num=%d slots=%d uninitialized=%d variable=%d constant=%d stack=%d\n",
+		referencedDefs, maxNum, operandSlots, referencedByInitialized[ 0 ], referencedByInitialized[ 1 ], referencedByInitialized[ 2 ], referencedByInitialized[ 3 ] );
+	for ( j = 0; j < ev_boolean + 2; j++ ) {
+		if ( referencedByType[ j ] != 0 ) {
+			common->Printf( "[D3BFG] SCRIPT_CENSUS operands type=%s count=%d\n", s_scriptTypeNames[ j ], referencedByType[ j ] );
+		}
+	}
+
+	// types, and the names runtime lookups reach through them
+	int typesByKind[ ev_boolean + 2 ] = {};
+	int objectFields = 0;
+	int objectFieldNameBytes = 0;
+	int virtualFunctions = 0;
+	int functionParms = 0;
+	for ( i = 0; i < types.Num(); i++ ) {
+		const idTypeDef *type = types[ i ];
+		typesByKind[ type->Type() + 1 ]++;
+		if ( type->Type() == ev_object ) {
+			objectFields += type->NumParameters();
+			for ( j = 0; j < type->NumParameters(); j++ ) {
+				objectFieldNameBytes += idStr::Length( type->GetParmName( j ) ) + 1;
+			}
+			virtualFunctions += type->NumFunctions();
+		} else if ( type->Type() == ev_function ) {
+			functionParms += type->NumParameters();
+		}
+	}
+	for ( j = 0; j < ev_boolean + 2; j++ ) {
+		if ( typesByKind[ j ] != 0 ) {
+			common->Printf( "[D3BFG] SCRIPT_CENSUS types kind=%s count=%d\n", s_scriptTypeNames[ j ], typesByKind[ j ] );
+		}
+	}
+	common->Printf( "[D3BFG] SCRIPT_CENSUS types total=%d object_fields=%d object_field_name_bytes=%d virtual_functions=%d function_type_parms=%d\n",
+		types.Num(), objectFields, objectFieldNameBytes, virtualFunctions, functionParms );
+
+	// functions
+	int events = 0;
+	int parmSizes = 0;
+	int nameBytes = 0;
+	int maxStatements = 0;
+	int maxLocals = 0;
+	for ( i = 0; i < functions.Num(); i++ ) {
+		const function_t &func = functions[ i ];
+		if ( func.eventdef != NULL ) {
+			events++;
+		}
+		parmSizes += func.parmSize.Num();
+		nameBytes += idStr::Length( func.Name() ) + 1;
+		maxStatements = Max( maxStatements, func.numStatements );
+		maxLocals = Max( maxLocals, func.locals );
+	}
+	int defNameBytes = 0;
+	for ( i = 0; i < varDefNames.Num(); i++ ) {
+		defNameBytes += idStr::Length( varDefNames[ i ]->Name() ) + 1;
+	}
+	common->Printf( "[D3BFG] SCRIPT_CENSUS functions total=%d events=%d parm_sizes=%d name_bytes=%d max_statements=%d max_locals=%d def_name_bytes=%d\n",
+		functions.Num(), events, parmSizes, nameBytes, maxStatements, maxLocals, defNameBytes );
+}
+#endif
 
 /*
 ================
@@ -2051,6 +2272,11 @@ void idProgram::Startup( const char *defaultScript ) {
 	}
 
 	FinishCompilation();
+
+#if defined( ID_SCRIPT_CHECK )
+	// [PS2_D3BFG]: The cook's equivalence check: log the image the cook's writer makes of this compile.
+	ps2::game::script::ReportCompiledImage( *this );
+#endif
 }
 
 /*
@@ -2283,3 +2509,663 @@ void idProgram::ReturnEntity( idEntity *ent ) {
 		*returnDef->value.entityNumberPtr = 0;
 	}
 }
+
+#endif // !defined( ID_SCRIPT_IMAGE )
+
+#if defined( ID_SCRIPT_IMAGE )
+
+/***********************************************************************
+
+  [PS2_D3BFG]: The cooked program
+
+  The host script cook compiled the program; ps2/game/script_image.cpp loads and checks it. These
+  are the engine's runtime views of its records, with id's lookup rules.
+
+***********************************************************************/
+
+static idTypeDef * const s_builtinTypes[ ps2::game::script::image::kBuiltinTypes ] = {
+	&type_void, &type_scriptevent, &type_namespace, &type_string, &type_float, &type_vector, &type_entity, &type_field,
+	&type_function, &type_virtualfunction, &type_pointer, &type_object, &type_jumpoffset, &type_argsize, &type_boolean
+};
+
+idTypeDef * const *idVarDef::typeTable = s_builtinTypes;
+idVarDef *scriptOperand_t::defs = NULL;
+
+static_assert( sizeof( idVarDef ) == sizeof( ps2::game::script::image::Def ), "an image def is the engine's idVarDef" );
+static_assert( sizeof( statement_t ) == sizeof( ps2::game::script::image::Statement ), "an image statement is the engine's statement_t" );
+static_assert( ev_boolean + 1 == ps2::game::script::image::kBuiltinTypes, "one built-in type per etype" );
+
+/*
+================
+idTypeDef::idTypeDef
+================
+*/
+idTypeDef::idTypeDef() {
+	type			= ev_void;
+	name			= "";
+	size			= 0;
+	auxType			= NULL;
+	parmTypes		= NULL;
+	parmNames		= NULL;
+	functions		= NULL;
+	numParms		= 0;
+	numFunctions	= 0;
+	def				= NULL;
+}
+
+idTypeDef::idTypeDef( etype_t etype, idVarDef *edef, const char *ename, int esize, idTypeDef *aux ) {
+	type			= etype;
+	name			= ename;
+	size			= esize;
+	auxType			= aux;
+	parmTypes		= NULL;
+	parmNames		= NULL;
+	functions		= NULL;
+	numParms		= 0;
+	numFunctions	= 0;
+	def				= edef;
+}
+
+bool idTypeDef::Inherits( const idTypeDef *basetype ) const {
+	if ( type != ev_object ) {
+		return false;
+	}
+
+	if ( this == basetype ) {
+		return true;
+	}
+
+	for( const idTypeDef *superType = auxType; superType != NULL; superType = superType->auxType ) {
+		if ( superType == basetype ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+const char *idTypeDef::Name() const {
+	return name;
+}
+
+etype_t idTypeDef::Type() const {
+	return type;
+}
+
+int idTypeDef::Size() const {
+	return size;
+}
+
+idTypeDef *idTypeDef::SuperClass() const {
+	if ( type != ev_object ) {
+		gameLocal.Error( "idTypeDef::SuperClass : tried to get superclass of a non-object type" );
+	}
+
+	return auxType;
+}
+
+idTypeDef *idTypeDef::ReturnType() const {
+	if ( type != ev_function ) {
+		gameLocal.Error( "idTypeDef::ReturnType: tried to get return type on non-function type" );
+	}
+
+	return auxType;
+}
+
+idTypeDef *idTypeDef::FieldType() const {
+	if ( type != ev_field ) {
+		gameLocal.Error( "idTypeDef::FieldType: tried to get field type on non-field type" );
+	}
+
+	return auxType;
+}
+
+idTypeDef *idTypeDef::PointerType() const {
+	if ( type != ev_pointer ) {
+		gameLocal.Error( "idTypeDef::PointerType: tried to get pointer type on non-pointer" );
+	}
+
+	return auxType;
+}
+
+int idTypeDef::NumParameters() const {
+	return numParms;
+}
+
+idTypeDef *idTypeDef::GetParmType( int parmNumber ) const {
+	assert( parmNumber >= 0 );
+	assert( parmNumber < numParms );
+	return parmTypes[ parmNumber ];
+}
+
+const char *idTypeDef::GetParmName( int parmNumber ) const {
+	assert( parmNumber >= 0 );
+	assert( parmNumber < numParms );
+	// Function types are shared by signature and keep no parameter names.
+	return parmNames != NULL ? parmNames[ parmNumber ] : "";
+}
+
+int idTypeDef::NumFunctions() const {
+	return numFunctions;
+}
+
+int idTypeDef::GetFunctionNumber( const function_t *func ) const {
+	for( int i = 0; i < numFunctions; i++ ) {
+		if ( functions[ i ] == func ) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+const function_t *idTypeDef::GetFunction( int funcNumber ) const {
+	assert( funcNumber >= 0 );
+	assert( funcNumber < numFunctions );
+	return functions[ funcNumber ];
+}
+
+/*
+================
+idVarDef::idVarDef
+
+The built-in defs (def_void ...); the image's come from the loader.
+================
+*/
+idVarDef::idVarDef( idTypeDef *typeptr ) {
+	value.intPtr	= NULL;
+	initialized		= uninitialized;
+	valueKind		= static_cast<unsigned char>( ps2::game::script::image::ValueKind::None );
+	typeIndex		= ( typeptr != NULL ) ? static_cast<unsigned short>( typeptr->Type() ) : 0;
+}
+
+/*
+================
+idVarDef::Name
+
+Diagnostics only: the name a lookup reaches this def by, if any.
+================
+*/
+const char *idVarDef::Name() const {
+	return gameLocal.program.DefName( this );
+}
+
+/*
+================
+idProgram::idProgram
+================
+*/
+idProgram::idProgram() {
+	image				= NULL;
+	objects				= NULL;
+	debugInfo			= NULL;
+	fileNames			= NULL;
+	variables			= NULL;
+	returnDef			= NULL;
+	returnStringDef		= NULL;
+	FreeData();
+}
+
+/*
+================
+idProgram::~idProgram
+================
+*/
+idProgram::~idProgram() {
+	FreeData();
+}
+
+/*
+================
+idProgram::FreeData
+================
+*/
+void idProgram::FreeData() {
+	Mem_Free( image );
+	Mem_Free( objects );
+	Mem_Free( debugInfo );
+	Mem_Free( fileNames );
+	Mem_Free( variables );
+
+	image				= NULL;
+	objects				= NULL;
+	debugInfo			= NULL;
+	statements			= NULL;
+	numStatements		= 0;
+	defs				= NULL;
+	numDefs				= 0;
+	lookups				= NULL;
+	numLookups			= 0;
+	scopes				= NULL;
+	numScopes			= 0;
+	strings				= NULL;
+	functions			= NULL;
+	numFunctions		= 0;
+	typeTable			= NULL;
+	numTypes			= 0;
+	variables			= NULL;
+	variableDefaults	= NULL;
+	numVariables		= 0;
+	checksum			= 0;
+	lines				= NULL;
+	fileRuns			= NULL;
+	numFileRuns			= 0;
+	fileNames			= NULL;
+	numFiles			= 0;
+	returnDef			= NULL;
+	returnStringDef		= NULL;
+
+	scriptOperand_t::defs	= NULL;
+	idVarDef::typeTable		= s_builtinTypes;
+}
+
+/*
+================
+idProgram::Startup
+================
+*/
+void idProgram::Startup( const char *defaultScript ) {
+	gameLocal.Printf( "Initializing scripts\n" );
+
+	// make sure all data is freed up
+	idThread::Restart();
+	FreeData();
+
+	idStr imageName = defaultScript;
+	imageName.SetFileExtension( ".d3sp" );
+
+	idStr error;
+	if ( !ps2::game::script::ImageLoader::Load( *this, imageName, error ) ) {
+		FreeData();
+		common->FatalError( "Couldn't load the cooked script %s: %s", imageName.c_str(), error.c_str() );
+	}
+
+	gameLocal.Printf( "Loaded '%s': %d statements, %d functions, %d defs, %d types, %d global bytes\n", imageName.c_str(),
+		numStatements, numFunctions, numDefs, numTypes - static_cast<int>( ps2::game::script::image::kBuiltinTypes ), numVariables );
+}
+
+/*
+================
+idProgram::Restart
+
+Restores all variables to their initial value.
+================
+*/
+void idProgram::Restart() {
+	idThread::Restart();
+
+	if ( numVariables > 0 ) {
+		memcpy( variables, variableDefaults, numVariables );
+	}
+}
+
+/*
+================
+idProgram::Save
+================
+*/
+void idProgram::Save( idSaveGame *savefile ) const {
+	// no map scripts are compiled in on the PS2
+	savefile->WriteInt( 0 );
+
+	for ( int i = 0; i < numVariables; i++ ) {
+		if ( variables[i] != variableDefaults[i] ) {
+			savefile->WriteInt( i );
+			savefile->WriteByte( variables[i] );
+		}
+	}
+	// Mark the end of the diff with default variables with -1
+	savefile->WriteInt( -1 );
+
+	savefile->WriteInt( numVariables );
+	savefile->WriteInt( CalculateChecksum() );
+}
+
+/*
+================
+idProgram::Restore
+================
+*/
+bool idProgram::Restore( idRestoreGame *savefile ) {
+	int num, index;
+
+	savefile->ReadInt( num );
+	if ( num != 0 ) {
+		savefile->Error( "idProgram::Restore: the save game compiled map scripts, which the PS2 does not run" );
+	}
+
+	savefile->ReadInt( index );
+	while( index >= 0 ) {
+		if ( index >= numVariables ) {
+			savefile->Error( "idProgram::Restore: global variable %d is out of range", index );
+		}
+		savefile->ReadByte( variables[index] );
+		savefile->ReadInt( index );
+	}
+
+	savefile->ReadInt( num );
+	if ( num != numVariables ) {
+		return false;
+	}
+
+	int saved_checksum;
+	savefile->ReadInt( saved_checksum );
+	return saved_checksum == CalculateChecksum();
+}
+
+/*
+================
+idProgram::CalculateChecksum
+
+The cooked image's own checksum identifies the program.
+================
+*/
+int idProgram::CalculateChecksum() const {
+	return checksum;
+}
+
+/*
+================
+idProgram::GetFilename
+================
+*/
+const char *idProgram::GetFilename( int num ) {
+	if ( fileNames == NULL || num < 0 || num >= numFiles ) {
+		return "";
+	}
+
+	return fileNames[ num ];
+}
+
+/*
+================
+idProgram::GetLineNumberForStatement
+================
+*/
+int idProgram::GetLineNumberForStatement( int index ) {
+	if ( lines == NULL || index < 0 || index >= numStatements ) {
+		return 0;
+	}
+
+	return lines[ index ];
+}
+
+/*
+================
+idProgram::GetFilenameForStatement
+================
+*/
+const char *idProgram::GetFilenameForStatement( int index ) {
+	if ( fileRuns == NULL || index < 0 || index >= numStatements ) {
+		return "";
+	}
+
+	// the last run that starts at or before the statement
+	int low = 0;
+	int high = numFileRuns - 1;
+	while ( low < high ) {
+		const int middle = ( low + high + 1 ) / 2;
+		if ( static_cast<int>( fileRuns[ middle ].firstStatement ) <= index ) {
+			low = middle;
+		} else {
+			high = middle - 1;
+		}
+	}
+
+	return GetFilename( static_cast<int>( fileRuns[ low ].file ) );
+}
+
+/*
+================
+idProgram::DefName
+================
+*/
+const char *idProgram::DefName( const idVarDef *def ) const {
+	if ( defs != NULL && def >= defs && def < defs + numDefs ) {
+		const unsigned short index = static_cast<unsigned short>( def - defs );
+		for ( int i = 0; i < numLookups; i++ ) {
+			if ( lookups[ i ].def == index ) {
+				return strings + lookups[ i ].name;
+			}
+		}
+	}
+
+	return "";
+}
+
+/*
+================
+idProgram::FindType
+================
+*/
+idTypeDef *idProgram::FindType( const char *name ) {
+	// as id's program, only the program's own types (no built-in one) are found by name
+	for ( int i = ps2::game::script::image::kBuiltinTypes; i < numTypes; i++ ) {
+		if ( !strcmp( typeTable[ i ]->Name(), name ) ) {
+			return typeTable[ i ];
+		}
+	}
+
+	return NULL;
+}
+
+/*
+================
+idProgram::ScopeParent
+
+The namespace or object a scope def was defined in; the global namespace has none.
+================
+*/
+idVarDef *idProgram::ScopeParent( const idVarDef *scope ) const {
+	if ( scope == &def_namespace || scope < defs || scope >= defs + numDefs ) {
+		return NULL;
+	}
+
+	const unsigned short index = static_cast<unsigned short>( scope - defs );
+	int low = 0;
+	int high = numScopes - 1;
+	while ( low <= high ) {
+		const int middle = ( low + high ) / 2;
+		if ( scopes[ middle ].def == index ) {
+			return ( scopes[ middle ].parent == ps2::game::script::image::kNone ) ? &def_namespace : &defs[ scopes[ middle ].parent ];
+		}
+		if ( scopes[ middle ].def < index ) {
+			low = middle + 1;
+		} else {
+			high = middle - 1;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+================
+idProgram::ScopeDepth
+
+idVarDef::DepthOfScope: how many scopes out from otherScope the def's scope lies, or 0.
+================
+*/
+int idProgram::ScopeDepth( const idVarDef *defScope, const idVarDef *otherScope ) const {
+	int depth = 1;
+	for( const idVarDef *scope = otherScope; scope != NULL; scope = ScopeParent( scope ) ) {
+		if ( scope == defScope ) {
+			return depth;
+		}
+		depth++;
+	}
+
+	return 0;
+}
+
+/*
+================
+idProgram::GetDef
+
+If type is NULL, it will match any type. The cooked lookups hold every def a namespace or object
+scope can reach, sorted by name.
+================
+*/
+idVarDef *idProgram::GetDef( const idTypeDef *type, const char *name, const idVarDef *scope ) const {
+	// the first lookup with this name
+	int low = 0;
+	int high = numLookups;
+	while ( low < high ) {
+		const int middle = ( low + high ) / 2;
+		if ( idStr::Cmp( strings + lookups[ middle ].name, name ) < 0 ) {
+			low = middle + 1;
+		} else {
+			high = middle;
+		}
+	}
+
+	idVarDef *bestDef = NULL;
+	int bestDepth = 0;
+	for ( int i = low; i < numLookups && !idStr::Cmp( strings + lookups[ i ].name, name ); i++ ) {
+		idVarDef *def = &defs[ lookups[ i ].def ];
+		const idVarDef *defScope = ( lookups[ i ].scope == ps2::game::script::image::kNone ) ? &def_namespace : &defs[ lookups[ i ].scope ];
+		int depth;
+
+		if ( defScope->Type() == ev_namespace ) {
+			depth = ScopeDepth( defScope, scope );
+			if ( !depth ) {
+				// not in the same namespace
+				continue;
+			}
+		} else if ( defScope != scope ) {
+			// in a different object
+			continue;
+		} else {
+			depth = 1;
+		}
+
+		if ( !bestDef || ( depth < bestDepth ) ) {
+			bestDepth = depth;
+			bestDef = def;
+		}
+	}
+
+	// see if the name is already in use for another type
+	if ( bestDef && type && ( bestDef->TypeDef() != type ) ) {
+		gameLocal.Error( "Type mismatch on redeclaration of %s", name );
+	}
+
+	return bestDef;
+}
+
+/*
+================
+idProgram::FindFunction
+
+Searches for the specified function in the currently loaded script.  A full namespace should be
+specified if not in the global namespace.
+
+Returns 0 if function not found.
+Returns >0 if function found.
+================
+*/
+function_t *idProgram::FindFunction( const char *name ) const {
+	int			start;
+	int			pos;
+	idVarDef	*namespaceDef;
+	idVarDef	*def;
+
+	assert( name );
+
+	idStr fullname = name;
+	start = 0;
+	namespaceDef = &def_namespace;
+	do {
+		pos = fullname.Find( "::", true, start );
+		if ( pos < 0 ) {
+			break;
+		}
+
+		idStr namespaceName = fullname.Mid( start, pos - start );
+		def = GetDef( NULL, namespaceName, namespaceDef );
+		if ( !def ) {
+			// couldn't find namespace
+			return NULL;
+		}
+		namespaceDef = def;
+
+		// skip past the ::
+		start = pos + 2;
+	} while( def->Type() == ev_namespace );
+
+	idStr funcName = fullname.Right( fullname.Length() - start );
+	def = GetDef( NULL, funcName, namespaceDef );
+	if ( !def ) {
+		// couldn't find function
+		return NULL;
+	}
+
+	if ( ( def->Type() == ev_function ) && ( def->value.functionPtr->eventdef == NULL ) ) {
+		return def->value.functionPtr;
+	}
+
+	// is not a function, or is an eventdef
+	return NULL;
+}
+
+/*
+================
+idProgram::FindFunction
+
+Searches for the specified object function in the currently loaded script.
+
+Returns 0 if function not found.
+Returns >0 if function found.
+================
+*/
+function_t *idProgram::FindFunction( const char *name, const idTypeDef *type ) const {
+	const idVarDef	*tdef;
+	const idVarDef	*def;
+
+	// look for the function
+	def = NULL;
+	for( tdef = type->def; tdef != &def_object; tdef = tdef->TypeDef()->SuperClass()->def ) {
+		def = GetDef( NULL, name, tdef );
+		if ( def ) {
+			return def->value.functionPtr;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+================
+idProgram::SetEntity
+================
+*/
+void idProgram::SetEntity( const char *name, idEntity *ent ) {
+	idVarDef	*def;
+	idStr		defName( "$" );
+
+	defName += name;
+
+	def = GetDef( &type_entity, defName, &def_namespace );
+	if ( def != NULL && ( def->initialized != idVarDef::stackVariable ) ) {
+		// 0 is reserved for NULL entity
+		if ( !ent ) {
+			*def->value.entityNumberPtr = 0;
+		} else {
+			*def->value.entityNumberPtr = ent->entityNumber + 1;
+		}
+	}
+}
+
+/*
+================
+idProgram::ReturnEntity
+================
+*/
+void idProgram::ReturnEntity( idEntity *ent ) {
+	if ( ent ) {
+		*returnDef->value.entityNumberPtr = ent->entityNumber + 1;
+	} else {
+		*returnDef->value.entityNumberPtr = 0;
+	}
+}
+
+#endif // defined( ID_SCRIPT_IMAGE )

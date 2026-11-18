@@ -29,8 +29,17 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __SCRIPT_PROGRAM_H__
 #define __SCRIPT_PROGRAM_H__
 
-// [PS2_D3BFG]: The program's fixed arrays live on the tagged heap instead of in BSS.
-#if defined( ID_PS2 )
+// [PS2_D3BFG]: The PS2 runs the program the host script cook compiled (src/tools/script_cook), in
+// the cooked image's compact records; only the cook and the compiler test images build id's
+// compiler and its structures (ID_SCRIPT_COMPILER).
+#if defined( ID_PS2 ) && !defined( ID_SCRIPT_COMPILER )
+#define ID_SCRIPT_IMAGE
+#endif
+
+// [PS2_D3BFG]: The compiler's fixed arrays live on the tagged heap instead of in BSS.
+#if defined( ID_SCRIPT_IMAGE )
+#include "ps2/game/script_image_format.h"
+#elif defined( ID_PS2 )
 #include "ps2/game/script_storage.h"
 #endif
 
@@ -39,6 +48,10 @@ class idEventDef;
 class idVarDef;
 class idTypeDef;
 class idEntity;
+// [PS2_D3BFG]: The host script cook's image writer reads the compiled program directly.
+namespace cook { class ImageWriter; }
+// [PS2_D3BFG]: The PS2's loader builds the program from the cooked image.
+namespace ps2 { namespace game { namespace script { class ImageLoader; } } }
 class idThread;
 class idSaveGame;
 class idRestoreGame;
@@ -55,6 +68,37 @@ typedef enum {
 	ev_error = -1, ev_void, ev_scriptevent, ev_namespace, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_virtualfunction, ev_pointer, ev_object, ev_jumpoffset, ev_argsize, ev_boolean
 } etype_t;
 
+#if defined( ID_SCRIPT_IMAGE )
+// [PS2_D3BFG]: A cooked program's function: the name and argument sizes point into the image.
+class scriptParmSizes_t {
+public:
+	int					Num() const { return num; }
+	const int &			operator[]( int index ) const { assert( index >= 0 && index < num ); return list[ index ]; }
+
+	const int *			list;
+	int					num;
+};
+
+class function_t {
+	friend class ps2::game::script::ImageLoader;
+
+public:
+	const char			*Name() const { return name; }
+
+	const idEventDef	*eventdef;
+	const idTypeDef		*type;
+	int 				firstStatement;
+	int 				numStatements;
+	int 				parmTotal;
+	int 				locals; 			// total ints of parms + locals
+	int					filenum; 			// source file defined in
+	scriptParmSizes_t	parmSize;
+
+private:
+	const char *		name;
+};
+
+#else
 class function_t {
 public:
 						function_t();
@@ -77,6 +121,7 @@ public:
 	int					filenum; 			// source file defined in
 	idList<int, TAG_SCRIPT>			parmSize;
 };
+#endif
 
 typedef union eval_s {
 	const char			*stringPtr;
@@ -95,7 +140,52 @@ Contains type information for variables and functions.
 
 ***********************************************************************/
 
+#if defined( ID_SCRIPT_IMAGE )
+// [PS2_D3BFG]: A cooked program's type. Function types are shared by signature; only the image's
+// object types keep field names and virtual functions.
 class idTypeDef {
+	friend class ps2::game::script::ImageLoader;
+
+private:
+	etype_t						type;
+	const char *				name;
+	int							size;
+	idTypeDef					*auxType;					// return, field, superclass or pointed-to type
+	idTypeDef * const *			parmTypes;
+	const char * const *		parmNames;
+	const function_t * const *	functions;
+	int							numParms;
+	int							numFunctions;
+
+public:
+	idVarDef					*def;						// a def that points to this type
+
+						idTypeDef();
+						idTypeDef( etype_t etype, idVarDef *edef, const char *ename, int esize, idTypeDef *aux );
+
+	bool				Inherits( const idTypeDef *basetype ) const;
+
+	const char			*Name() const;
+	etype_t				Type() const;
+	int					Size() const;
+
+	idTypeDef			*SuperClass() const;
+	idTypeDef			*ReturnType() const;
+	idTypeDef			*FieldType() const;
+	idTypeDef			*PointerType() const;
+
+	int					NumParameters() const;
+	idTypeDef			*GetParmType( int parmNumber ) const;
+	const char			*GetParmName( int parmNumber ) const;
+
+	int					NumFunctions() const;
+	int					GetFunctionNumber( const function_t *func ) const;
+	const function_t	*GetFunction( int funcNumber ) const;
+};
+
+#else
+class idTypeDef {
+	friend class cook::ImageWriter;	// [PS2_D3BFG]
 private:
 	etype_t						type;
 	idStr 						name;
@@ -147,6 +237,7 @@ public:
 	const function_t	*GetFunction( int funcNumber ) const;
 	void				AddFunction( const function_t *func );
 };
+#endif
 
 /***********************************************************************
 
@@ -313,6 +404,34 @@ typedef union varEval_s {
 	int						ptrOffset;
 } varEval_t;
 
+#if defined( ID_SCRIPT_IMAGE )
+// [PS2_D3BFG]: A cooked program's def, the image's 8-byte record (ps2::game::script::image::Def):
+// only what the interpreter reads. Statements name defs by index into the image's table.
+class idVarDef {
+	friend class ps2::game::script::ImageLoader;
+
+public:
+	typedef enum {
+		uninitialized, initializedVariable, initializedConstant, stackVariable
+	} initialized_t;
+
+	varEval_t				value;
+	unsigned char			initialized;	// initialized_t
+	unsigned char			valueKind;		// how the image wrote value; the loader's
+	unsigned short			typeIndex;		// into the program's type table (the built-in types first)
+
+							idVarDef( idTypeDef *typeptr = NULL );
+
+	const char *			Name() const;
+
+	idTypeDef *				TypeDef() const { return typeTable[ typeIndex ]; }
+	etype_t					Type() const { return TypeDef()->Type(); }
+
+	// The loaded program's types, or the built-in ones alone before an image loads.
+	static idTypeDef * const *	typeTable;
+};
+
+#else
 class idVarDefName;
 
 class idVarDef {
@@ -379,6 +498,7 @@ private:
 	idStr					name;
 	idVarDef *				defs;
 };
+#endif
 
 /***********************************************************************
 
@@ -418,6 +538,153 @@ extern	idVarDef	def_jumpoffset;		// only used for jump opcodes
 extern	idVarDef	def_argsize;		// only used for function call and thread opcodes
 extern	idVarDef	def_boolean;
 
+#if defined( ID_SCRIPT_IMAGE )
+// [PS2_D3BFG]: A cooked program's statement, the image's 8-byte record: each operand is an index
+// into the program's defs, which reads like id's idVarDef pointer (0 is none).
+class scriptOperand_t {
+public:
+						operator idVarDef *() const { return index != 0 ? &defs[ index ] : NULL; }
+	idVarDef *			operator->() const { return &defs[ index ]; }
+
+	unsigned short		index;
+
+	// The loaded program's defs.
+	static idVarDef *	defs;
+};
+
+typedef struct statement_s {
+	unsigned short		op;
+	scriptOperand_t		a;
+	scriptOperand_t		b;
+	scriptOperand_t		c;
+} statement_t;
+
+/***********************************************************************
+
+idProgram
+
+[PS2_D3BFG]: The PS2 loads the program the host script cook compiled; nothing compiles at run
+time. The loader (ps2/game/script_image.cpp) builds these members from the image.
+
+***********************************************************************/
+
+class idProgram {
+	friend class ps2::game::script::ImageLoader;
+
+private:
+	void *										image;				// the resident sections
+	void *										objects;			// functions, types and their tables
+	statement_t *								statements;
+	int											numStatements;
+	idVarDef *									defs;
+	int											numDefs;
+	const ps2::game::script::image::Lookup *	lookups;
+	int											numLookups;
+	const ps2::game::script::image::Scope *		scopes;
+	int											numScopes;
+	const char *								strings;
+	function_t *								functions;
+	int											numFunctions;
+	idTypeDef **								typeTable;
+	int											numTypes;
+	byte *										variables;
+	const byte *								variableDefaults;
+	int											numVariables;
+	int											checksum;
+
+	// debug builds only: source lines and files
+	void *										debugInfo;
+	const unsigned short *						lines;
+	const ps2::game::script::image::FileRun *	fileRuns;
+	int											numFileRuns;
+	const char **								fileNames;
+	int											numFiles;
+
+	idVarDef *									ScopeParent( const idVarDef *scope ) const;
+	int											ScopeDepth( const idVarDef *defScope, const idVarDef *otherScope ) const;
+
+public:
+	idVarDef									*returnDef;
+	idVarDef									*returnStringDef;
+
+												idProgram();
+												~idProgram();
+
+	// save games
+	void										Save( idSaveGame *savefile ) const;
+	bool										Restore( idRestoreGame *savefile );
+	int											CalculateChecksum() const;		// Used to insure program code has not
+																						//    changed between savegames
+
+	// loads the cooked program for this script (script/doom_main.script: script/doom_main.d3sp)
+	void										Startup( const char *defaultScript );
+	void										Restart();
+	void										FreeData();
+
+	const char									*GetFilename( int num );
+	int											GetLineNumberForStatement( int index );
+	const char									*GetFilenameForStatement( int index );
+
+	idTypeDef									*FindType( const char *name );
+	idVarDef									*GetDef( const idTypeDef *type, const char *name, const idVarDef *scope ) const;
+
+	function_t									*FindFunction( const char *name ) const;						// returns NULL if function not found
+	function_t									*FindFunction( const char *name, const idTypeDef *type ) const;	// returns NULL if function not found
+	function_t									*GetFunction( int index );
+	int											GetFunctionIndex( const function_t *func );
+
+	void										SetEntity( const char *name, idEntity *ent );
+
+	statement_t									&GetStatement( int index );
+	int											NumStatements() { return numStatements; }
+
+	int 										GetReturnedInteger();
+
+	void										ReturnFloat( float value );
+	void										ReturnInteger( int value );
+	void										ReturnVector( idVec3 const &vec );
+	void										ReturnString( const char *string );
+	void										ReturnEntity( idEntity *ent );
+
+	int											NumFilenames() { return numFiles; }
+
+	// diagnostics: the name a lookup reaches a def by, or ""
+	const char *								DefName( const idVarDef *def ) const;
+};
+
+ID_INLINE statement_t &idProgram::GetStatement( int index ) {
+	return statements[ index ];
+}
+
+ID_INLINE function_t *idProgram::GetFunction( int index ) {
+	return &functions[ index ];
+}
+
+ID_INLINE int idProgram::GetFunctionIndex( const function_t *func ) {
+	return func - &functions[0];
+}
+
+ID_INLINE int idProgram::GetReturnedInteger() {
+	return *returnDef->value.intPtr;
+}
+
+ID_INLINE void idProgram::ReturnFloat( float value ) {
+	*returnDef->value.floatPtr = value;
+}
+
+ID_INLINE void idProgram::ReturnInteger( int value ) {
+	*returnDef->value.intPtr = value;
+}
+
+ID_INLINE void idProgram::ReturnVector( idVec3 const &vec ) {
+	*returnDef->value.vectorPtr = vec;
+}
+
+ID_INLINE void idProgram::ReturnString( const char *string ) {
+	idStr::Copynz( returnStringDef->value.stringPtr, string, MAX_STRING_LEN );
+}
+
+#else
 typedef struct statement_s {
 	unsigned short	op;
 	idVarDef		*a;
@@ -439,6 +706,7 @@ single idProgram.
 ***********************************************************************/
 
 class idProgram {
+	friend class cook::ImageWriter;	// [PS2_D3BFG]
 private:
 	idStrList									fileList;
 	idStr 										filename;
@@ -472,6 +740,9 @@ private:
 	int											top_files;
 
 	void										CompileStats();
+#if ( defined( ID_PS2 ) && PS2_D3BFG_DEBUG ) || defined( ID_SCRIPT_COOK )
+	void										CompileCensus() const;	// [PS2_D3BFG]: Debug-only program census.
+#endif
 
 public:
 	idVarDef									*returnDef;
@@ -635,5 +906,7 @@ idProgram::GetFilenameForStatement
 ID_INLINE const char *idProgram::GetFilenameForStatement( int index ) {
 	return GetFilename( statements[ index ].file );
 }
+
+#endif
 
 #endif /* !__SCRIPT_PROGRAM_H__ */

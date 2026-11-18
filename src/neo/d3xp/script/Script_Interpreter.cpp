@@ -175,6 +175,8 @@ void idInterpreter::Reset() {
 	doneProcessing	= true;
 }
 
+// [PS2_D3BFG]: A debugger helper that looks locals up by name; the cooked program keeps no local names.
+#if !defined( ID_SCRIPT_IMAGE )
 /*
 ================
 idInterpreter::GetRegisterValue
@@ -313,6 +315,8 @@ bool idInterpreter::GetRegisterValue( const char *name, idStr &out, int scopeDep
 	}
 }
 
+#endif // !defined( ID_SCRIPT_IMAGE )
+
 /*
 ================
 idInterpreter::GetCallstackDepth
@@ -437,8 +441,8 @@ void idInterpreter::Error( const char *fmt, ... ) const {
 	StackTrace();
 
 	if ( ( instructionPointer >= 0 ) && ( instructionPointer < gameLocal.program.NumStatements() ) ) {
-		statement_t &line = gameLocal.program.GetStatement( instructionPointer );
-		common->Error( "%s(%d): Thread '%s': %s\n", gameLocal.program.GetFilename( line.file ), line.linenumber, thread->GetThreadName(), text );
+		// [PS2_D3BFG]: Source locations come from the program, which keeps them in debug builds only.
+		common->Error( "%s(%d): Thread '%s': %s\n", gameLocal.program.GetFilenameForStatement( instructionPointer ), gameLocal.program.GetLineNumberForStatement( instructionPointer ), thread->GetThreadName(), text );
 	} else {
 		common->Error( "Thread '%s': %s\n", thread->GetThreadName(), text );
 	}
@@ -460,8 +464,8 @@ void idInterpreter::Warning( const char *fmt, ... ) const {
 	va_end( argptr );
 
 	if ( ( instructionPointer >= 0 ) && ( instructionPointer < gameLocal.program.NumStatements() ) ) {
-		statement_t &line = gameLocal.program.GetStatement( instructionPointer );
-		common->Warning( "%s(%d): Thread '%s': %s", gameLocal.program.GetFilename( line.file ), line.linenumber, thread->GetThreadName(), text );
+		// [PS2_D3BFG]: Source locations come from the program, which keeps them in debug builds only.
+		common->Warning( "%s(%d): Thread '%s': %s", gameLocal.program.GetFilenameForStatement( instructionPointer ), gameLocal.program.GetLineNumberForStatement( instructionPointer ), thread->GetThreadName(), text );
 	} else {
 		common->Warning( "Thread '%s' : %s", thread->GetThreadName(), text );
 	}
@@ -589,8 +593,9 @@ void idInterpreter::EnterFunction( const function_t *func, bool clearStack ) {
 
 	if ( debug ) {
 		if ( currentFunction ) {
+			// [PS2_D3BFG]: Source locations come from the program, which keeps them in debug builds only.
 			gameLocal.Printf( "%d: call '%s' from '%s'(line %d)%s\n", gameLocal.time, func->Name(), currentFunction->Name(), 
-				gameLocal.program.GetStatement( instructionPointer ).linenumber, clearStack ? " clear stack" : "" );
+				gameLocal.program.GetLineNumberForStatement( instructionPointer ), clearStack ? " clear stack" : "" );
 		} else {
             gameLocal.Printf( "%d: call '%s'%s\n", gameLocal.time, func->Name(), clearStack ? " clear stack" : "" );
 		}
@@ -656,10 +661,10 @@ void idInterpreter::LeaveFunction( idVarDef *returnDef ) {
 	assert( localstackUsed == localstackBase );
 
 	if ( debug ) {
-		statement_t &line = gameLocal.program.GetStatement( instructionPointer );
-		gameLocal.Printf( "%d: %s(%d): exit %s", gameLocal.time, gameLocal.program.GetFilename( line.file ), line.linenumber, currentFunction->Name() );
+		// [PS2_D3BFG]: Source locations come from the program, which keeps them in debug builds only.
+		gameLocal.Printf( "%d: %s(%d): exit %s", gameLocal.time, gameLocal.program.GetFilenameForStatement( instructionPointer ), gameLocal.program.GetLineNumberForStatement( instructionPointer ), currentFunction->Name() );
 		if ( callStackDepth > 1 ) {
-			gameLocal.Printf( " return to %s(line %d)\n", callStack[ callStackDepth - 1 ].f->Name(), gameLocal.program.GetStatement( callStack[ callStackDepth - 1 ].s ).linenumber );
+			gameLocal.Printf( " return to %s(line %d)\n", callStack[ callStackDepth - 1 ].f->Name(), gameLocal.program.GetLineNumberForStatement( callStack[ callStackDepth - 1 ].s ) );
 		} else {
 			gameLocal.Printf( " done\n" );
 		}

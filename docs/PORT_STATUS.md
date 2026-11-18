@@ -5728,3 +5728,38 @@ lightmap pass).
 | `make test-world`, `make test-renderer` (debug) | Passed (`20261114T110349Z_smoke_27135bca6e3d4bcb` and the expected-fatal probes) |
 | `make test-host` | Passed: 399 Python tests and the C++ harnesses; `scene_pixels.json`'s input digest regenerated (pixels unchanged) |
 | `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 4,745,652 debug and 4,038,772 release |
+
+## Cooked script program (2026-11-18)
+
+Production no longer compiles scripts at boot. The retail `doom_main.script` (which includes
+every retail map's script) is compiled on the host by id's own compiler (`make
+script-cook-retail`, `src/tools/script_cook`) into a 1,531,584-byte D3SP image that
+`idProgram::Startup` loads and checks. The image keeps only what runs: 8-byte statements with
+16-bit operand indices, 8-byte defs, the names runtime lookups reach, function types shared by
+signature, string constants packed to their length and a debug-only section of source lines.
+Design and traps: [doom3-engine-cpp reference](reference/doom3-engine-cpp.md#cooked-script-program-2026-11-18);
+ledgers: [memory-budget reference](reference/memory-budget.md#cooked-script-program-2026-11-18).
+
+| Retail `startup-game` | Compiled at boot | Cooked |
+| --- | --- | --- |
+| Debug backing / allocations | 13,434,284 / 75,083 | 9,810,624 / 35,245 |
+| Release backing / allocations | 13,361,680 / 74,542 | 9,541,700 / 34,710 |
+| `SCRIPT` (debug) | 4,930,444 in 33,714 | 1,621,376 in 5 |
+| Script init (release) | 8.84 s | 0.13 s |
+
+The host and EE compiles had to agree bit for bit: `idToken::NumberValue`'s `0.1` is
+0x3DCCCCCC on the EE (single precision, rounded toward zero) and is now spelled that way, and
+pointer-sized script types are a fixed 4 bytes. The game test images and the script probe keep
+the compiler (`-DID_SCRIPT_COMPILER`), so their fixtures still compile at run time; no gate yet
+executes script code on the cooked program's structures, because production loads no map.
+
+| Check | Result |
+| --- | --- |
+| `make test-script-image` (debug) | `20261118T032312Z_headless_230e8d44faa6`: the `SCRIPT_CHECK=1` variant's EE compile makes the host cook's image exactly (1,531,584 bytes, FNV-1a `aca1421d`) |
+| `make test-headless-retail` | Debug `20261118T031431Z_headless_e57d52a0a8c3`, release `20261118T032428Z_headless_931cf5794962` |
+| `make test-headless` | Debug `20261118T031238Z_headless_038d659b6421` (bounded) and `20261118T031242Z_headless_7860f8611d7f` (console); release passed (926,876 bytes in 1,082 allocations at startup) |
+| `make test-script`, `make test-game`, `make test-map` (debug) | Passed, compiler mode |
+| `make test-world` (debug) | Passed, NTSC and PAL |
+| `make test-ui` (debug) | Passed: both UI sessions (PAL `20261118T060321Z_session_5fdd28e9d860`, rerun after an interrupted first attempt), the 5 retail UI resource cases and the 13 movie admission cases |
+| `make test-host` | Passed |
+| `make`, `make release`, `make build/tools/script_cook` | Passed, no warnings; runnable `PT_LOAD` 5,022,457 debug (−45,312) and 4,250,297 release (−33,024); the cook's sources also pass GCC 15 in its LP64 ABI with the tools' strict set |

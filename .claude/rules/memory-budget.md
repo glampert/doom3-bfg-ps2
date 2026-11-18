@@ -41,10 +41,11 @@ have not been re-measured.
   shutdown) once before comparing repeated-reload ledgers, then require exact stability.
   Clear queued console history before a final release checkpoint (its echo adds a
   transient 64-byte string). Real-time animation leaves a few KB of varying script state.
-- The script program's fixed arrays (3,515,712 bytes: statements, functions, globals and
-  their defaults) are `TAG_SCRIPT` heap allocations from `BeginCompilation` to `FreeData`
-  (game init to game shutdown), not BSS. Ledgers before 2026-10-30 count them in `PT_LOAD`
-  instead, so add 3.5 MB to older startup/UI ledgers when comparing.
+- Production loads the host-cooked script program (2026-11-18): `SCRIPT` at retail
+  `startup-game` is 1.62 MB in 5 allocations debug (196 KB of it the debug-only lines), against
+  4.93 MB in 33,714 when the compiler ran at boot. Ledgers from 2026-10-30 to 2026-11-17 hold
+  the compiler's state (its 3,515,712-byte fixed arrays on `TAG_SCRIPT`; before 2026-10-30
+  those were in `PT_LOAD`); `make SCRIPT_CHECK=1` still builds that path for an A/B.
 
 ## Current picture
 
@@ -59,9 +60,11 @@ have not been re-measured.
   On the port's own heap (2026-11-17) the same boot is 13,231,527 / **13,434,232** in 75,081
   (debug): 3.10 MB less backing, with 172,912 bytes of tracking shadows on top; arena peak
   14,425,296 against 17,581,068. Release: **13,361,680** backing in 74,542 (3.12 MB less), arena
-  peak 14,171,520, 14.3 MB of gap left at `startup-game`.
+  peak 14,171,520, 14.3 MB of gap left at `startup-game`. With the cooked script program
+  (2026-11-18): **9,810,624** backing in 35,245 debug, **9,541,700** in 34,710 release
+  (−3.62 / −3.82 MB), arena committed 10,167,536 / 9,835,856.
 - Boot owners (backing; dlmalloc figures, before the heap): compressed declaration text 4.76 MB (kept resident by
-  `USE_COMPRESSED_DECLS`, 11,947 declarations), script 6.34 MB (3.52 MB of it the fixed
+  `USE_COMPRESSED_DECLS`, 11,947 declarations), script 6.34 MB (1.62 MB since the cooked program; 3.52 MB of it the fixed
   program storage), declaration objects
   1.78 MB, strings 1.23 MB, container file tables 1.08 MB, smoke particles 0.68 MB;
   event callback maps 126 KB (0.64 MB before they became 16-bit pool indexes).
@@ -70,8 +73,8 @@ have not been re-measured.
   heap script storage, smaller console/command/scratch buffers, no multiplayer code, and no
   developer commands, debug drawing, developer prints or developer cvars in release
   (11.45 / 11.91 MB before). `.text` is 3.81 / 3.19 MB and `.bss` 0.60 / 0.58 MB; stripped
-  ELFs 4.18 / 3.48 MB. Retail scripts use 95,386 of 131,072
-  statements. `report.json` keeps the gate link's `PT_LOAD` too; compare the runnable
+  ELFs 4.18 / 3.48 MB. The retail program has 95,386 statements and 3,070 functions; its
+  cooked image is 1,531,584 bytes (1.22 MB resident). `report.json` keeps the gate link's `PT_LOAD` too; compare the runnable
   figure. Buffers still waiting on measurements (entity, event, input-device and GUI
   register capacities) are listed in the reference's "Smaller static buffers" section.
 - Latest UI ledgers (debug, NTSC = PAL; requested / backing / allocations, 2026-10-24):
@@ -163,4 +166,5 @@ heading:
 | Quit dialog, Pad prompt icons, Booting into the menu, Campaign and Settings | 2026-10-24 |
 | Authored UI removal | 2026-10-29 |
 | Executable size, Script program storage on the heap, Smaller static buffers, Multiplayer code compiled out, Release console commands, Debug-only tools, BSS cuts and developer cvars | section GC, `-O2`/`-Os` experiments; script arrays moved to `TAG_SCRIPT`; console/command/scratch buffers and the measurement backlog; multiplayer strip by step; release command set (2026-10-30); debug-only tools and developer prints, BSS cuts, event maps and developer cvars (2026-10-31) |
+| Cooked script program | 2026-11-18: what the compiler left resident against what the image keeps; same-day compile-at-boot and cooked ledgers, debug and release |
 | Quake II reference | allocator and accounting notes |

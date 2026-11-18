@@ -895,7 +895,7 @@ names the format if a later slice exceeds 1 KB.
 | `EventPool` | 147,456 | `MAX_EVENTS` (4096 × 36) | peak queued events in campaign play |
 | `commonLocal.userCmdMgr`, `playerProfiles` | 5,640 + 3,392 | `MAX_INPUT_DEVICES`; the command ring is 128 frames × 1 player since 2026-10-31 | the device indexes that reach them in a menu-to-map session, and the peak queued commands |
 | `idWindow::EvalRegs::regs`, `registerIsTemporary` | 16,384 + 4,096 | `MAX_EXPRESSION_REGISTERS` | largest register count over every `.gui` the PS2 loads |
-| script program storage (heap) | 3,515,712 | `MAX_STATEMENTS` etc. | the campaign-wide maximum including map scripts; `variableDefaults` can also be sized at `FinishCompilation` (about 90 KB) |
+| ~~script program storage (heap)~~ | 3,515,712 | `MAX_STATEMENTS` etc. | resolved 2026-11-18: production loads the cooked program, sized exactly ("Cooked script program") |
 
 Left as is after review: returned-pointer statics bounded by `MAX_STRING_CHARS` and
 ps2sdk's own buffers. The event-definition list, command ring, SSD pools, collision trace
@@ -1151,4 +1151,48 @@ builds only. Debug production `PT_LOAD` grows from 5,003,257 to 5,064,057 bytes 
 exception report's own 16 KiB stack, the 2 KiB font, its 2 KiB report and print buffers,
 libeedebug's vectors and frames, and the code. Release is unchanged at 4,283,321 bytes: the three
 units compile to empty objects and nothing pulls libeedebug in.
+
+## Cooked script program (2026-11-18)
+
+Production loads the retail program compiled on the host (`make script-cook-retail`,
+`src/tools/script_cook`) instead of compiling `doom_main.script` at game init; the engine
+reference's "Cooked script program" has the design. What the compile left resident, measured by
+the census the compiler now prints in debug (`SCRIPT_CENSUS` lines) on the PS2 compile:
+
+| Part of the compiled program | Bytes | What the cooked image keeps |
+| --- | --- | --- |
+| `statements` (131,072 × 20) | 2,621,440 | 95,386 × 8: an op and three 16-bit def indices (763,088) |
+| `variables` + `variableDefaults` (2 × 296,608) | 593,216 | 43,220 initial bytes, once (the defaults stay in the image) |
+| of the 206,536 used: 1,327 string immediates in 128-byte slots | 169,856 | packed to their length |
+| `functions` (3,584 × 84) plus names and argument lists | 386,208 | 3,070 × 40, names in the image's string pool |
+| 20,232 `idVarDef`, 7,041 `idVarDefName`, 2,970 `idTypeDef` and their lists and hashes | ~1.1 MB | 18,522 × 8-byte defs; 7,477 name lookups (8 bytes each); 359 types |
+
+The image is 1,531,584 bytes: 1,221,812 resident (defs 148,176, statements 763,088, lookups
+59,816, strings 186,536, globals 43,220), 113,692 turned into function and type objects and
+freed, and a 196,080-byte debug section (source lines and file names) that only debug builds
+read. `make test-script-image` holds it to an EE compile of the same script (the
+`SCRIPT_CHECK=1` production variant): identical, FNV-1a `aca1421d`.
+
+Retail `startup-game`, same day, compile at boot (`SCRIPT_CHECK=1`,
+`20261118T032312Z_headless_230e8d44faa6`) against the cooked program
+(`20261118T031431Z_headless_e57d52a0a8c3`), debug:
+
+| | Compiled at boot | Cooked |
+| --- | --- | --- |
+| startup requested / backing / allocations | 13,231,564 / 13,434,284 / 75,083 | 9,647,013 / 9,810,624 / 35,245 |
+| arena committed | 14,162,672 | 10,167,536 |
+| `SCRIPT` backing / allocations | 4,930,444 / 33,714 | 1,621,376 / 5 (196 KB of it the debug section) |
+| `STRING` | 571,760 / 13,683 | 387,024 / 9,279 |
+| `IDLIB_LIST` | 82,512 / 1,724 | 1,952 / 7 |
+| `IDLIB_HASH` | 252,160 / 45 | 202,944 / 41 |
+| tracking shadows (`HEAP metadata`) | 171,776 | 81,872 |
+| "Initializing scripts" to "game initialized." | 10.85 s | 0.15 s |
+
+Release (`20261118T032428Z_headless_931cf5794962` against yesterday's
+`20261117T032816Z_headless_9a0cf445968f`): startup **13,361,680 → 9,541,700** bytes in 74,542 →
+34,710 allocations (−3,819,980), arena committed 13,899,120 → 9,835,856, script init 8.84 s →
+0.13 s. The bounded authored boot's `SCRIPT` is 728 bytes in 5 allocations (was 3,518,372 in 21):
+startup 959,451 / 963,240 in 1,617 debug, 926,876 in 1,082 release. Runnable `PT_LOAD` loses the
+compiler: 5,067,769 → 5,022,457 debug, 4,283,321 → 4,250,297 release. Saves no longer copy the
+statements for their checksum (1.9 MB per save or load).
 

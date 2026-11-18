@@ -62,6 +62,22 @@ file keeps only what most engine edits need.
 - Abstract bases with virtual destructors only; disabling RTTI does not make deleting
   through a nonvirtual base safe.
 
+## Cooked script program
+
+- Production never compiles scripts: it loads `base/script/doom_main.d3sp`, which
+  `make script-cook-retail` (retail) or `make script-cook` (the authored headless fixture)
+  compiles on the host with id's own compiler (`src/tools/script_cook`). Staging copies it.
+- `Script_Program.h` has two modes: `ID_SCRIPT_IMAGE` (the PS2 default: slim `idVarDef`,
+  `statement_t`, `function_t`, `idTypeDef` read from the image) and `ID_SCRIPT_COMPILER` (id's
+  structures, for the cook, the script probe, the game test images and `SCRIPT_CHECK=1`). All
+  objects of one image must agree. Runtime code may use only what both modes declare.
+- After adding, removing or changing an `idEventDef`, regenerate the cook's
+  `src/tools/script_cook/events.txt` (`python3 src/tools/scripts/script_events.py`) and cook
+  again; the loader refuses a program whose events differ from the game's.
+- The host compile must stay bit-identical to the EE's (`make test-script-image`). Script-visible
+  constants in the lexer/compiler paths must not depend on `-fsingle-precision-constant` or
+  pointer width; details in the reference, "Cooked script program".
+
 ## No multiplayer on the PS2
 
 - `common->IsMultiplayer()`/`IsServer()`/`IsClient()` are inline `false` and
@@ -126,4 +142,4 @@ compiler, casts); Native SWF and font loading; Staged Common and offline profile
 Portable logical sound; Resident link findings (removed JPEG/zlib, renderSystem binding); Initial
 native game fixture; Native collision fixture; Native player-physics fixture; Bounded native
 player fixture; Scoped retail execution; Native shell menu; Native edit-text drawing; Native
-BSWF atlas records.
+BSWF atlas records; Cooked script program.

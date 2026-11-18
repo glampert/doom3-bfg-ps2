@@ -15,6 +15,7 @@ import shutil
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BOOT_ROOT = REPO_ROOT / "src/tests/data/headless"
 RETAIL_ROOT = REPO_ROOT / "src/tests/data/retail_boot"
+SCRIPT_COOK_ROOT = REPO_ROOT / "build/script"
 PRESENTATIONS = ("headless", "ntsc", "pal")
 # The debug keyboard's IOP modules, which a visible package carries beside the ELF; the pad uses
 # the ROM's. The SDK's own copies, so the package never carries a module from the repository.
@@ -79,6 +80,16 @@ def stage_keyboard_modules(output: Path) -> None:
         shutil.copy2(IRX_ROOT / name, target)
 
 
+def stage_script_program(base: Path, retail: bool) -> None:
+    """Production loads the cooked script program; nothing compiles scripts on the PS2."""
+    source = SCRIPT_COOK_ROOT / ("retail" if retail else "headless") / "doom_main.d3sp"
+    if not source.is_file():
+        raise ValueError(f"missing cooked script program {source}; run make {'script-cook-retail' if retail else 'script-cook'}")
+    target = base / "script/doom_main.d3sp"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+
+
 def stage(build: str, output: Path, presentation: str = "headless", retail_data: Path | None = None,
           catalog: Path | None = None, menu: bool = False) -> Path:
     if presentation not in PRESENTATIONS:
@@ -122,6 +133,7 @@ def stage(build: str, output: Path, presentation: str = "headless", retail_data:
         stage_keyboard_modules(output)
     else:
         shutil.rmtree(output / "irx", ignore_errors=True)
+    stage_script_program(output / "base", retail_data is not None)
     if retail_data is not None:
         for path in sorted(path for path in RETAIL_ROOT.rglob("*") if path.is_file()):
             target = output / path.relative_to(RETAIL_ROOT)

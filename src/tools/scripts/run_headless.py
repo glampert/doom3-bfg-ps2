@@ -29,17 +29,18 @@ MEMORY_RE = re.compile(r"Memory baseline=(\d+)/(\d+)/(\d+) final=(\d+)/(\d+)/(\d
 STARTUP_STAGES = ("startup-foundation", "startup-decls", "startup-game")
 STARTUP_RE = re.compile(r"\[D3BFG\] MEMORY (startup-\w+) requested=(\d+) backing=(\d+) allocations=(\d+)")
 STARTUP_TAG_RE = re.compile(r"\[D3BFG\] TAG startup-game (\w+) requested=(\d+) backing=(\d+) allocations=(\d+)")
-SCRIPT_RE = {"compile_ms": re.compile(r"Compiled 'script/doom_main\.script': ([\d.]+) ms"),
-             "statements": re.compile(r"Statements: (\d+), \d+ bytes"),
-             "statement_bytes": re.compile(r"Statements: \d+, (\d+) bytes"),
-             "functions": re.compile(r"Functions: (\d+), \d+ bytes"),
-             "function_bytes": re.compile(r"Functions: \d+, (\d+) bytes"),
-             "variable_bytes": re.compile(r"Variables: (\d+) bytes"),
-             "static_bytes": re.compile(r"Static data: (\d+) bytes"),
-             "allocated_bytes": re.compile(r"Allocated: (\d+) bytes")}
-# The retail case mounts the containers and compiles the complete retail script.
+# The cooked program's load line (idProgram::Startup on the PS2).
+SCRIPT_LOAD_RE = re.compile(r"Loaded 'script/doom_main\.d3sp': (\d+) statements, (\d+) functions, (\d+) defs, "
+                            r"(\d+) types, (\d+) global bytes")
+SCRIPT_FIELDS = ("statements", "functions", "defs", "types", "global_bytes")
+# The retail case mounts the containers and loads the complete retail program, cooked on the host.
 RETAIL_MARKERS = ("Loaded resource file _common.resources", "Loaded resource file _ordered.resources",
-                  "Compiled 'script/doom_main.script'")
+                  "Loaded 'script/doom_main.d3sp'")
+# The check variant (make SCRIPT_CHECK=1) compiles the script at boot and logs the image the cook's
+# writer makes of it, which must be the host cook's file byte for byte.
+CHECK_MARKERS = ("Loaded resource file _common.resources", "Loaded resource file _ordered.resources",
+                 "Compiled 'script/doom_main.script'")
+SCRIPT_IMAGE_RE = re.compile(r"\[D3BFG\] SCRIPT_IMAGE bytes=(\d+) fnv=([0-9a-f]{8})")
 DEFAULT_TIMEOUTS = {"bounded": 30.0, "console": 30.0, "retail": 300.0}
 
 
@@ -49,11 +50,8 @@ def startup_memory(log: str) -> dict:
               for stage, requested, backing, count in STARTUP_RE.findall(log)}
     tags = sorted(({"tag": tag, "requested": int(requested), "backing": int(backing), "allocations": int(count)}
                    for tag, requested, backing, count in STARTUP_TAG_RE.findall(log)), key=lambda tag: -tag["backing"])
-    script = {}
-    for name, pattern in SCRIPT_RE.items():
-        match = pattern.search(log)
-        if match:
-            script[name] = float(match.group(1)) if name == "compile_ms" else int(match.group(1))
+    match = SCRIPT_LOAD_RE.search(log)
+    script = dict(zip(SCRIPT_FIELDS, map(int, match.groups()))) if match else {}
     return {"stages": stages, "tags": tags, "script": script}
 
 
@@ -66,7 +64,26 @@ def read_log(output: Path) -> str:
     return console if BOOT_BEGIN in console else stdout
 
 
-def classify(log: str, case: str, identity: str) -> tuple[bool, str]:
+def fnv1a(data: bytes) -> int:
+    value = 2166136261
+    for byte in data:
+        value = ((value ^ byte) * 16777619) & 0xFFFFFFFF
+    return value
+
+
+def check_script_image(log: str, cooked: Path) -> tuple[bool, str]:
+    """The EE compile's image (size and FNV-1a) against the host cook's file."""
+    images = SCRIPT_IMAGE_RE.findall(log)
+    if len(images) != 1:
+        return False, "the check variant logged no single script image"
+    data = cooked.read_bytes()
+    if int(images[0][0]) != len(data) or int(images[0][1], 16) != fnv1a(data):
+        return False, (f"the EE compile's image ({images[0][0]} bytes, fnv {images[0][1]}) differs from {cooked} "
+                       f"({len(data)} bytes, fnv {fnv1a(data):08x})")
+    return True, f"the EE compile's image equals {cooked.name} ({len(data)} bytes, fnv {images[0][1]})"
+
+
+def classify(log: str, case: str, identity: str, compiled: bool = False) -> tuple[bool, str]:
     if smoke.CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "crash or fatal diagnostic"
     if "[D3BFG] GS ready" in log:
@@ -88,7 +105,7 @@ def classify(log: str, case: str, identity: str) -> tuple[bool, str]:
     if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
         return False, "startup allocations were not recovered"
     if case == "retail":
-        if any(marker not in log for marker in RETAIL_MARKERS):
+        if any(marker not in log for marker in (CHECK_MARKERS if compiled else RETAIL_MARKERS)):
             return False, "retail containers or script were not loaded"
         if [stage for stage, *_ in STARTUP_RE.findall(log)] != list(STARTUP_STAGES):
             return False, "missing or repeated startup memory checkpoints"
@@ -108,7 +125,8 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
     smoke.check_config(args.config)
     identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_headless_" + uuid.uuid4().hex[:12]
     retail_data = args.data_root if case == "retail" else None
-    output = stage(args.build, REPO_ROOT / "build/test-results" / identity, retail_data=retail_data)
+    build = f"{args.build}-scriptcheck" if args.script_check is not None else args.build
+    output = stage(build, REPO_ROOT / "build/test-results" / identity, retail_data=retail_data)
     timeout = args.timeout if args.timeout is not None else DEFAULT_TIMEOUTS[case]
     report = json.loads((output / "report.json").read_text())
     for name in report["flag_stamps"]:
@@ -155,7 +173,9 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
         finally:
             smoke.stop_owned_process(process)
     log = read_log(output)
-    passed, reason = classify(log, case, identity) if completed else (False, failure)
+    passed, reason = classify(log, case, identity, args.script_check is not None) if completed else (False, failure)
+    if passed and args.script_check is not None:
+        passed, reason = check_script_image(log, args.script_check)
     if process.returncode != 0:
         passed, reason = False, f"emulator exited with status {process.returncode}"
     # Match source/ELF evidence and retain the exact runtime settings and input bytes.
@@ -167,6 +187,8 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
             "startup_memory": startup_memory(log)}
     if retail_data is not None:
         data["retail_data"] = str(retail_data.resolve())
+    if args.script_check is not None:
+        data["script_check"] = {"image": str(args.script_check.resolve()), "sha256": sha256(args.script_check)}
     (output / "summary.json").write_text(json.dumps(data, indent=2) + "\n")
     game = data["startup_memory"]["stages"].get("startup-game")
     detail = f" (startup heap {game['requested']}/{game['backing']} bytes in {game['allocations']} allocations)" if game else ""
@@ -186,7 +208,11 @@ def main() -> int:
     parser.add_argument("--emulator", type=Path, default=smoke.DEFAULT_EMULATOR)
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)
     parser.add_argument("--timeout", type=float, help="seconds per run (default 30, or 300 for retail)")
+    parser.add_argument("--script-check", type=Path,
+                        help="run the SCRIPT_CHECK=1 variant and hold its compile to this host-cooked image (retail only)")
     args = parser.parse_args()
+    if args.script_check is not None and args.case != "retail":
+        parser.error("--script-check needs --case retail")
     if args.timeout is not None and not 0 < args.timeout <= 3600:
         parser.error("timeout must be positive and at most 3600 seconds")
     try:

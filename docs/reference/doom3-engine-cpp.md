@@ -137,9 +137,9 @@ before touching that subsystem.
 - `idParser` tries an include relative to the including file first, so the retail
   script compile logs failed HostFs opens such as `script/script/doom_defs.script`
   before the container lookup succeeds. They are expected.
-- The retail `doom_main.script` compiles in 7.8 s in PCSX2: 95,386 statements and 3,070
-  functions, within the 131,072 / 3,584 static limits. `idGameLocal::Init` also
-  preallocates `idSmokeParticles` (680 KB) before any map.
+- The retail `doom_main.script` compiled in 7.8 s in PCSX2 (95,386 statements and 3,070
+  functions) until production started loading the host-cooked program (below, "Cooked script
+  program"). `idGameLocal::Init` also preallocates `idSmokeParticles` (680 KB) before any map.
 
 ## Campaign portability findings
 
@@ -692,3 +692,55 @@ followed by an offset pair. The host SWF fixture's seam probe uses `(16,246,16,6
 native size factors cancel, while never crossing the intended page boundary.
 Check semantic dimensions/offsets in host readers and require actual page-load
 counters plus seam pixels on EE; a visually familiar letter alone missed this error.
+
+## Cooked script program (2026-11-18)
+
+Production no longer compiles scripts. `make script-cook-retail` runs id's own compiler on the
+host (`src/tools/script_cook`, CMake target `script_cook`) and writes `doom_main.d3sp`
+(format: `src/ps2/game/script_image_format.h`); `idProgram::Startup` on the PS2 loads it
+(`src/ps2/game/script_image.cpp`). Findings and rules:
+
+- **Two program modes.** `Script_Program.h` defines `ID_SCRIPT_IMAGE` on the PS2 unless
+  `ID_SCRIPT_COMPILER` is given. Image mode has slim same-named classes: an 8-byte `idVarDef`
+  (value, storage, type index), an 8-byte `statement_t` whose operands are 16-bit def indices
+  that convert to `idVarDef *` (so the interpreter's code is unchanged), a `function_t` whose
+  name and argument sizes point into the image, and an `idTypeDef` without lists. Compiler mode
+  keeps id's structures; the host cook, the script probe, the game test images (whose fixtures
+  compile scripts at run time, map scripts and syntax-error cases included) and the
+  `SCRIPT_CHECK=1` production variant build it. Every object of one image must agree on the mode:
+  the Makefile passes `-DID_SCRIPT_COMPILER` to each test-image group.
+- **What the image keeps.** The statements, the defs they name, and every def a namespace or
+  object scope can reach by name (functions, `$entity` globals, `GAME_FPS`, object fields and
+  methods), with their names sorted for a binary search and the scopes they walk out of.
+  `GetDef`, `FindFunction` and `FindType` keep id's depth rules exactly, including a global
+  found from inside an object. Locals, parameters, temporaries, immediates and their names are
+  gone. Function types are shared by signature: 2,886 became 275, beside 73 object and 11
+  field types. String constants are packed to their length, so the retail globals shrink from
+  206,536 to 43,220 bytes; jump,
+  argument-size and virtual-function immediates, namespaces and object types' own defs get no
+  global bytes. Source lines and file names are a debug-only section release never reads.
+- **The compiler retypes defs after use.** `program.returnDef` ends with the last call's return
+  type (void in retail), and temporaries become `pointer` or a field's type. The interpreter
+  reads the final types, so the image records them; storage must come from the allocation
+  (the return def is a 12-byte vector), never from the final type.
+- **The host compile must match the EE's bit for bit.** Pointer-sized script types are a fixed
+  4 bytes (`SCRIPT_POINTER_SIZE`), and `idVarDef::SetObject`'s null store is 4 bytes in the cook.
+  `idToken::NumberValue` builds fractions from `0.1` in double; the EE build's
+  `-fsingle-precision-constant` makes that a float, which GCC rounds toward zero for the R5900
+  (0x3DCCCCCC, so script `0.5` is 0x3EFFFFFF on the PS2). The constant is spelled as that exact
+  hex float, so clang (no such flag) parses identically. Before that, one float immediate of
+  1,260 differed. `make test-script-image` checks the whole image: the `SCRIPT_CHECK=1`
+  production variant compiles at boot as production used to and logs the size and FNV-1a of the
+  image the cook's writer makes of its compile, which must equal the host file's. Float folds in
+  `OptimizeOpcode` use the host's rounding; the retail program has none that differ.
+- **Events.** The cook has no game classes. `src/tools/script_cook/events.txt` (name, format,
+  return type, whether `idThread` responds) comes from the debug-only `ps2_scriptEvents`
+  command through `src/tools/scripts/script_events.py`. The loader resolves each event the image
+  uses with `idEventDef::FindEvent` and fails at boot, by name, when its format, return type or
+  thread response differs: regenerate the table after changing an `idEventDef`.
+- **Map scripts.** BFG's `doom_main.script` includes every retail map's script, and no
+  `maps/*.script` exists in the containers. Image-mode `idWorldspawn::Spawn` fails by name if a
+  map script appears; `reloadScript`, `script` and `disasmScript` are not registered.
+- **Savegames.** The program checksum is the image's own; `Restore` checks global indexes and
+  rejects compiled map files. `CalculateChecksum`'s 1.9 MB statement copy is gone.
+

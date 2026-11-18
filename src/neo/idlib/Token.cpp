@@ -67,9 +67,12 @@ void idToken::NumberValue() {
 			}
 			if ( *p == '.' ) {
 				p++;
-				for( m = 0.1; *p && *p != 'e'; p++ ) {
+				// [PS2_D3BFG]: The EE build's -fsingle-precision-constant makes 0.1 a float, which GCC
+				// rounds toward zero for the R5900 (0x3DCCCCCC). Spelled exactly, so the host script
+				// cook converts numbers bit for bit as the PS2 does.
+				for( m = 0x1.999998p-4f; *p && *p != 'e'; p++ ) {
 					floatvalue = floatvalue + (double) (*p - '0') * m;
-					m *= 0.1;
+					m *= 0x1.999998p-4f;
 				}
 			}
 			if ( *p == 'e' ) {

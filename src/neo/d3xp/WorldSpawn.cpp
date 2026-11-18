@@ -73,6 +73,13 @@ void idWorldspawn::Spawn() {
 	// load script
 	scriptname = gameLocal.GetMapName();
 	scriptname.SetFileExtension( ".script" );
+#if defined( ID_SCRIPT_IMAGE )
+	// [PS2_D3BFG]: The PS2 runs the cooked retail program, which already holds every retail map's
+	// script; nothing compiles at map load, so a map script of its own cannot run.
+	if ( fileSystem->ReadFile( scriptname, NULL, NULL ) > 0 ) {
+		gameLocal.Error( "%s needs the script compiler, which the PS2 does not have", scriptname.c_str() );
+	}
+#else
 	if ( fileSystem->ReadFile( scriptname, NULL, NULL ) > 0 ) {
 		gameLocal.program.CompileFile( scriptname );
 
@@ -83,6 +90,7 @@ void idWorldspawn::Spawn() {
 			thread->DelayedStart( 0 );
 		}
 	}
+#endif
 
 	// call any functions specified in worldspawn
 	kv = spawnArgs.MatchPrefix( "call" );

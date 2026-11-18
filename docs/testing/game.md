@@ -6,6 +6,10 @@ Detailed acceptance for `make test-game` and `make test-map` on the game test im
 
 ## Game fixture
 
+- The game test image keeps id's script compiler (`-DID_SCRIPT_COMPILER` on every one of its
+  groups): its fixtures compile scripts at run time, map scripts and the syntax-error case
+  included, where production loads the cooked program. Script execution on the cooked
+  program's structures is therefore not covered by these gates.
 - `make build-game` builds `build/<config>/tests/game/d3bfg_tests.elf`. `make test-game`
   runs `game`, `game-missing-map`, `game-syntax`, `game-geometry`, `game-material`,
   `game-player-args`, `game-player-script`, `game-player-command`, `game-player-state`,

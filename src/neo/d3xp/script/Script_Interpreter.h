@@ -108,7 +108,9 @@ public:
 	bool				Execute();
 	void				Reset();
 
+#if !defined( ID_SCRIPT_IMAGE )	// [PS2_D3BFG]: The cooked program keeps no local names.
 	bool				GetRegisterValue( const char *name, idStr &out, int scopeDepth );
+#endif
 	int					GetCallstackDepth() const;
 	const prstack_t		*GetCallstack() const;
 	const function_t	*GetCurrentFunction() const;

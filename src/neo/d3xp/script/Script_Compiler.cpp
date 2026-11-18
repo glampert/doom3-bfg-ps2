@@ -30,12 +30,21 @@ If you have questions concerning this license or the applicable additional terms
 #include "../../idlib/precompiled.h"
 
 
+// [PS2_D3BFG]: The host script cook compiles the compiler against a minimal game surface.
+#if defined( ID_SCRIPT_COOK )
+#include "tools/script_cook/cook_game.h"
+#else
 #include "../Game_local.h"
+#endif
 
 // [PS2_D3BFG]: Explicit fatal compilation cleanup replaces exception unwinding.
 #if defined( ID_PS2 ) || defined( ID_HOST_TEST )
 #include "ps2/game/script_error.h"
 #endif
+
+// [PS2_D3BFG]: The PS2 loads the program the host script cook compiled; only the cook and the
+// compiler test images build the compiler.
+#if !defined( ID_SCRIPT_IMAGE )
 
 #define FUNCTION_PRIORITY	2
 #define INT_PRIORITY		2
@@ -2712,3 +2721,5 @@ void idCompiler::CompileFile( const char *text, const char *filename, bool toCon
 		common->Printf( "Compiled '%s': %.1f ms\n", filename, compile_time.Milliseconds() );
 	}
 }
+
+#endif // !defined( ID_SCRIPT_IMAGE )

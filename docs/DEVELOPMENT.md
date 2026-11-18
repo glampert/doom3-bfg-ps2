@@ -30,7 +30,7 @@ programs into `build/vu/` with it, in oxide mode with every optimization, then a
 with the toolchain's `dvp-as`. Writing VU programs for it: [vu-microprograms.md](../.claude/rules/vu-microprograms.md).
 
 GitHub Actions runs `make` and `make release` on Linux in the pinned ps2dev `ps2sdk` image,
-and builds the host tools with GCC, Apple clang and MSVC. These are compile and link checks;
+and builds the host tools with GCC, Apple clang and MSVC (MSVC without the script cook). These are compile and link checks;
 host tests and PCSX2 gates still run locally. Linux file names are case-sensitive, unlike
 the default macOS volume; [ci.md](../.claude/rules/ci.md) describes reproducing the Linux
 build on a Mac.
@@ -86,6 +86,29 @@ once; add those values to the list and cook again. See the
 
 Both tools share the `src/tools/assets/` library, meant for every later texture
 re-export.
+
+## Script cook
+
+Production never compiles scripts. `build/tools/script_cook` (CMake target `script_cook`, GCC
+and Clang only) builds id's own compiler, idlib's lexer and parser and the program from
+`src/neo` for the host, and writes the compiled program as a D3SP image
+(`src/ps2/game/script_image_format.h`) that `idProgram::Startup` loads:
+
+```sh
+make script-cook          # src/tests/data/headless/base -> build/script/headless/doom_main.d3sp
+make script-cook-retail   # RETAIL_DATA_ROOT's containers -> build/script/retail/doom_main.d3sp
+```
+
+Staging copies the retail image into packages that mount the retail containers and the
+headless one into every package on the authored data (headless, console, world and UI); the
+targets that stage depend on the cook. The cook has no game classes: it reads the game's event
+registry from `src/tools/script_cook/events.txt`, which `python3 src/tools/scripts/script_events.py`
+regenerates from a bounded debug run (`ps2_scriptEvents`). Regenerate it after changing an
+`idEventDef`; the PS2 refuses a program whose events differ from its own. `make
+test-script-image` builds the `SCRIPT_CHECK=1` production variant (`build/<config>-scriptcheck`),
+which compiles the retail script at boot as production used to, and requires the image the
+cook's writer makes of that EE compile to equal the host cook's, byte for byte. The engine
+reference's "Cooked script program" has the format and the host/EE traps.
 
 ## Production packages and controls
 
@@ -180,8 +203,9 @@ completed frames, native `NOMAP`/console state and the tagged heap ledger.
 retail `_common.resources` and `_ordered.resources` of `RETAIL_DATA_ROOT` (default
 `gamedata/d3_bfg`) hard-linked into its `base/` (copied across volumes; the native
 listing skips symlinks). Only the authored configuration and the port's
-`_headless_default` material come from `src/tests/data/`; every retail declaration and
-the full retail `doom_main.script` load from the containers. `make run-headless-retail`
+`_headless_default` material come from `src/tests/data/`; every retail declaration loads
+from the containers, and the retail script program from the cooked
+`base/script/doom_main.d3sp` (`make script-cook-retail`). `make run-headless-retail`
 launches it with the same `console.txt` controls. Every production startup prints
 `[D3BFG] MEMORY`, `ARENA` and per-tag `TAG` ledgers after `startup-foundation`,
 `startup-decls` and `startup-game`; `make test-headless-retail` checks and records them.
@@ -354,6 +378,9 @@ are not synced (`fileXioSync`): nothing but `ps2_capture` writes yet.
   run it after changing the map, the cook job's colours or a camera (`make test-host` fails
   on a stale digest), and use its `--compare` to match a whole capture with the reference
   (`--scene mars_city1` rasterizes the retail `.bproc`, `--camera` takes any view).
+- `make script-cook` / `script-cook-retail` build `build/tools/script_cook` ("Script cook"
+  above). It compiles id's sources with their warnings off, as they are exempt from the strict
+  set on the EE, and holds its own to the tools' set.
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on).
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend

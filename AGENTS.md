@@ -72,15 +72,19 @@ statement or block; keep the code visually spaced rather than densely packed.
   Check Make's exit status, including VU tool failures.
 - Test images are built explicitly (`make build-core`, `build-platform`, `build-game`,
   `build-script`). Gates: `test-host`, `test-renderer`, `test-common`, `test-game`,
-  `test-map`, `test-headless`, `test-headless-retail`, `test-ui` (about 8 minutes per
-  standard) and `test-world`. Their acceptance is in `docs/testing/`.
+  `test-map`, `test-headless`, `test-headless-retail`, `test-script-image`, `test-ui` (about
+  8 minutes per standard) and `test-world`. Their acceptance is in `docs/testing/`.
 - `make stage-*` / `run-*` package the same ELF under `build/<config>/<package>/`.
   Package-root `presentation.cfg` selects `headless`/`ntsc`/`pal` (`menu` also opens the
   native menu); HostFs `console.txt` takes appended commands. Visible packages need
   `make ui-cook` first. Retail data stays under ignored `build/`.
 - Host tools are the CMake project `src/tools/CMakeLists.txt` (`make resource-unpack`,
-  `asset-reexport`, `world-cook`, `ui-inventory`, `ui-cook`). Regenerate authored fixtures
-  with their generator scripts, never by editing outputs.
+  `asset-reexport`, `world-cook`, `ui-inventory`, `ui-cook`, `script-cook`). Regenerate
+  authored fixtures with their generator scripts, never by editing outputs.
+- Production loads a host-cooked script program (`make script-cook`, `script-cook-retail`);
+  nothing compiles scripts on the PS2 outside the test images. Regenerate
+  `src/tools/script_cook/events.txt` (`src/tools/scripts/script_events.py`) after changing an
+  `idEventDef`. See [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md#cooked-script-program).
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
   Test them with `#if`, never `#ifdef` (`-Wundef` is on). `PS2_D3BFG_TESTS` is the sole
   test-enable define; keep fixture hooks behind it.

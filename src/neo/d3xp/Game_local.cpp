@@ -1914,9 +1914,14 @@ idGameLocal::SetScriptFPS
 void idGameLocal::SetScriptFPS( const float engineHz ) {
 	idVarDef * fpsDef = program.GetDef( &type_float, "GAME_FPS", &def_namespace );
 	if ( fpsDef != NULL ) {
+#if defined( ID_SCRIPT_IMAGE )
+		// [PS2_D3BFG]: A cooked program's def is its value alone; GAME_FPS is a float global.
+		*fpsDef->value.floatPtr = engineHz;
+#else
 		eval_t fpsValue;
 		fpsValue._float = engineHz;
 		fpsDef->SetValue( fpsValue, false );
+#endif
 	}
 }
 
