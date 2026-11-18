@@ -4,6 +4,7 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "ps2/debug/crash_report.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "tests/smoketests/game_boot.h"
@@ -51,6 +52,11 @@ int main()
 {
     ps2::system::heap::EnterMain();
     SifInitRpc(0);
+
+#if PS2_D3BFG_ASSERTS
+    // Before anything can fault: a CPU exception from here on gives a report, not a hang.
+    ps2::debug::InstallExceptionHandlers();
+#endif // PS2_D3BFG_ASSERTS
     Manifest();
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] RUN %s BEGIN\n[D3BFG] STAGE platform PASS\n[D3BFG] STAGE core SKIP\n[D3BFG] STAGE game BEGIN\n", s_testId);
     const auto baseline = ps2::system::heap::GetTotalStats();

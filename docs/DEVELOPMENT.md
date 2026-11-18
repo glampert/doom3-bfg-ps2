@@ -301,8 +301,9 @@ and `Sys_LaunchPath`:
   pad uses the ROM's SIO2MAN and PADMAN.
 - What the boot did is logged as `[D3BFG] IOP` lines and, after a reset, printed into the
   engine console (`IOP boot:`), a console's only record. No package found is fatal with the
-  launch path, the folders searched, the hard disk's state and the mounted USB volumes, but
-  fatal errors reach only stdout so far. `console.txt` is polled on `host:` only.
+  launch path, the folders searched, the hard disk's state and the mounted USB volumes, which a
+  debug build shows on its crash screen (below); a release build only logs it. `console.txt` is
+  polled on `host:` only.
 
 The HDD path and real hardware are untested; the USB path ran in PCSX2's emulated USB storage
 ([production.md](testing/production.md#console-storage-boot)). Writes to a PFS partition
@@ -399,8 +400,9 @@ voice/device integration and audsrv/SPU2 output remain later work.
 
 Backend and smoke-test diagnostics use the shared `ps2::Log` / `LogV` sink with info,
 warning, error and fatal levels. It currently writes synchronously to stdout. System,
-core, heap and assertion failures terminate through `FatalError` / `FatalErrorV`;
-on-screen fatal reporting remains a TODO. `src/ps2/common.h` provides `PS2_Assert`,
+core, heap and assertion failures terminate through `FatalError` / `FatalErrorV`; assertion
+builds then report on screen ([crash reports](#smoke-tests-and-diagnostics)), release builds
+`Exit(1)`. `src/ps2/common.h` provides `PS2_Assert`,
 `PS2_AssertMsg`, `ArrayLength` and portable format/cold attributes for new backend code.
 
 The fixture adapter streams loose files through real `idFile_Permanent` objects;
@@ -498,9 +500,24 @@ For a reported EE address, use the symbols from the exact production or test bui
 mips64r5900el-ps2-elf-addr2line -f -C -e build/debug/d3bfg_unstripped.elf 0xADDRESS
 ```
 
-Use the archived `d3bfg_tests_unstripped.elf` for a test executable. The standalone
-symbolization helper lives in `src/tools/scripts/`. A custom EE crash screen and
-exception handler remain pending.
+Use the archived `d3bfg_tests_unstripped.elf` for a test executable.
+
+**Crash reports (assertion builds only, `src/ps2/debug/`, from `quake2-ps2`).** A fatal error
+(`FatalErrorV`: assertions, `Sys_Error`, heap failures) or an EE CPU exception logs the message,
+then the unwound call stack as `#N 0xADDRESS` lines between `STACK TRACE` banners, and draws the
+message and the stack in red on a debug screen that takes the GS over by hand (`scr_print`), in the
+standard `gs::Init` last ran, or the ROM's. The program then halts there; the runners stop the
+emulator at the `[D3BFG] FATAL` line, which an exception report starts with too. Every EE `main`
+installs libeedebug's level 1 exception handlers first (`[D3BFG] DEBUG EE exception handlers
+installed`). Resolve a log, or the addresses read off the screen, with
+`python3 src/tools/scripts/symbolize.py --elf build/debug/d3bfg_unstripped.elf < log`. The
+walker (`stack_trace`) reads each frame from its function's prologue, decoding a caller's frame
+from its call, since a `[[noreturn]]` function's return address is the next function's first
+instruction. Production's `ps2_crash fatal|assert|trap|null` raises each kind; PCSX2 raises the
+trap but skips the null store, which faults on a console. Release builds compile none of it and
+keep `Exit(1)`; their link is unchanged.
+
+The standalone symbolization helper lives in `src/tools/scripts/`.
 
 ## Local data and reference knowledge
 

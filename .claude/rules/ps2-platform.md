@@ -16,8 +16,10 @@ The retail menu session peaked at 154,376 bytes, past the old 128 KiB: dlmalloc 
 lost their vtables (2026-11-17). Tracking builds paint the stack in `EnterMain`; every Common
 frame's `heap::CheckStack` stops once its bottom 1 KiB is touched, and `STACK` lines report the
 untouched headroom.
-There is no custom EE exception handler yet. Recorded results and limits are in
-[PORT_STATUS.md](../../docs/PORT_STATUS.md).
+Assertion builds install libeedebug's level 1 exception handlers first in every EE main and turn
+fatal errors and CPU exceptions into a red screen with the call stack (`ps2/debug/`, see
+[DEVELOPMENT.md](../../docs/DEVELOPMENT.md#smoke-tests-and-diagnostics)); release builds have
+neither. Recorded results and limits are in [PORT_STATUS.md](../../docs/PORT_STATUS.md).
 
 **IOP boot** (`system/iop_boot.cpp`, from quake2-ps2, 2026-11-17): production finds its package
 (`base/default.cfg`) on `host:` with the IOP untouched, or resets the IOP and searches the HDD

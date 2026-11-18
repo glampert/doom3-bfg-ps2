@@ -6,6 +6,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/gs.h"
+#include "ps2/debug/scr_print.h"
 #include "ps2/renderer/dma.h"
 #include "ps2/renderer/dma_list.h"
 #include "ps2/renderer/pipeline_wait.h"
@@ -441,6 +442,11 @@ PS2_COLD_FUNC bool Init(const Config & config)
     s_width = config.width;
     s_height = config.height;
     s_previousImr = GsGetIMR();
+
+#if PS2_D3BFG_ASSERTS
+    // A crash report then draws in the standard this display runs in.
+    ps2::debug::ScrSetStandard(config.standard);
+#endif // PS2_D3BFG_ASSERTS
 
     // FIELD mode blends the two read circuits a line apart (the flicker filter); FRAME mode shows
     // the same lines on both fields, where the filter would only blur adjacent buffer lines.

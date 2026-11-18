@@ -23,6 +23,7 @@ default or archive behavior:
 | Command | Arguments and behavior |
 | --- | --- |
 | `ps2_status` | No arguments; reports startup state and completed frames in headless or visible production. Registered in `src/ps2/system/common_production.cpp`. |
+| `ps2_crash` | Assertion builds only, both modes: `fatal`, `assert`, `trap` (`teq`) or `null` (a store to address 0) raises that failure, to check the crash report. PCSX2 skips the null store; a console faults. Registered in `src/ps2/system/common_production.cpp`. |
 | `ps2_consoleText` | One quoted printable ASCII argument, delivered to the active native console edit field. |
 | `ps2_consoleKey` | One named native console key; `toggle` opens/closes the console over an active movie. |
 | `ps2_capture` | One checked `.tga` basename; capture the next completed presentation, including before queued quit. |

@@ -117,7 +117,7 @@ def run(args: argparse.Namespace) -> int:
     link_map.unlink(missing_ok=True)
     libraries = getattr(args, "libraries", ("kernel", "m", "patches"))
     if (not libraries or len(set(libraries)) != len(libraries) or
-            any(name not in ("draw", "graph", "packet2", "dma", "pad", "kbd", "fileXio", "kernel", "m", "patches") for name in libraries) or
+            any(name not in ("draw", "graph", "packet2", "dma", "pad", "kbd", "fileXio", "eedebug", "kernel", "m", "patches") for name in libraries) or
             not {"kernel", "m", "patches"}.issubset(libraries)):
         raise ValueError("invalid resident SDK library list")
 

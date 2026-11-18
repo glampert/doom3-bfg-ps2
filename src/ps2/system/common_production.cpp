@@ -154,6 +154,40 @@ void PollConsole()
         }
     }
 }
+
+#if PS2_D3BFG_ASSERTS
+// The address the null store goes to, kept out of the compiler's sight.
+static volatile uintptr_t s_crashAddress = 0;
+
+// ps2_crash fatal|assert|trap|null: checks the crash reports (ps2/debug/crash_report.h). PCSX2
+// raises the trap; it logs and skips the null store, which faults on a console.
+PS2_COLD_FUNC void Crash(const idCmdArgs & args)
+{
+    const char * kind = args.Argc() == 2 ? args.Argv(1) : "";
+
+    if (idStr::Cmp(kind, "fatal") == 0)
+    {
+        ps2::FatalError("ps2_crash fatal: a fatal error requested from the console");
+    }
+    else if (idStr::Cmp(kind, "assert") == 0)
+    {
+        PS2_AssertMsg(args.Argc() == 0, "ps2_crash assert: an assertion requested from the console");
+    }
+    else if (idStr::Cmp(kind, "trap") == 0)
+    {
+        asm volatile("teq $zero, $zero");
+    }
+    else if (idStr::Cmp(kind, "null") == 0)
+    {
+        *reinterpret_cast<volatile int *>(s_crashAddress) = 1;
+    }
+    else
+    {
+        common->Printf("usage: ps2_crash fatal|assert|trap|null\n");
+    }
+}
+#endif // PS2_D3BFG_ASSERTS
+
 } // namespace
 
 namespace ps2::system::runtime
@@ -206,6 +240,9 @@ PS2_COLD_FUNC void idCommonLocal::InitProduction()
     menuSoundWorld = soundSystem->AllocSoundWorld(nullptr);
     userCmdMgr.SetDefaults();
     cmdSystem->AddCommand("ps2_status", Status, CMD_FL_SYSTEM, CMD_DESC("print production startup state and completed frame counts"));
+#if PS2_D3BFG_ASSERTS
+    cmdSystem->AddCommand("ps2_crash", Crash, CMD_FL_SYSTEM, CMD_DESC("raise a fatal error, an assertion, a CPU trap or a null store to check the crash report"));
+#endif // PS2_D3BFG_ASSERTS
     cvarSystem->SetCVarBool("com_allowConsole", true);
     consoleUsed = true;
 

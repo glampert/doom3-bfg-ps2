@@ -137,8 +137,9 @@ homebrew launcher such as wLaunchELF. A visible package (`make stage-console`, s
 partition, the other PFS partitions, then every USB volume. It resets the IOP and starts its
 own storage drivers, whatever the launcher left running. They are embedded in the ELF and
 handed back to the heap once the drive is up; the keyboard's driver loads from `irx/`. What
-the boot found is printed into the engine console. A failure shows nothing on screen yet;
-see the [developer guide](docs/DEVELOPMENT.md#console-boot-usb-and-hdd).
+the boot found is printed into the engine console. In a debug build a fatal error or CPU
+exception stops on a red screen with its message and call stack; a release build still shows
+nothing. See the [developer guide](docs/DEVELOPMENT.md#console-boot-usb-and-hdd).
 
 ## Source layout
 
@@ -163,7 +164,8 @@ see the [developer guide](docs/DEVELOPMENT.md#console-boot-usb-and-hdd).
 Thanks to id Software for the original game source code and the ps2dev community for the toolchain and SDK.
 
 This project derives its PS2 backend code from [Quake II PS2](https://github.com/glampert/quake2-ps2),
-the IOP boot and its USB and hard disk search included. The EE linker script derives from
+the IOP boot and its USB and hard disk search, and the debug crash screen, exception handler and
+call stack unwinder included. The EE linker script derives from
 ps2sdk's (Academic Free License 2.0, notice kept in [config/linkfile.ld](config/linkfile.ld)).
 
 See the [reuse inventory](docs/REUSE.md) for the provenance of reused code and individual notices.

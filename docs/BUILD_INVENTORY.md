@@ -158,7 +158,8 @@ first (2026-11-03). `ps2/system/iop_modules.S` assembles once into `build/iop/` 
 into production only: it `.incbin`s the SDK's IOP storage drivers into `.bootdata`, which
 `config/linkfile.ld` (the SDK's linkfile plus that segment, used by every image) places past
 `_end` for the heap to reclaim (2026-11-17). The resident link's SDK libraries include
-`fileXio`. `ps2/math/vec_mat.cpp` (VU0 macro-mode matrix math, with `ps2/qwords.h`
+`fileXio`, and every image links `eedebug` for the assertion builds' exception handler
+(`ps2/debug/`, whose units compile to nothing in release; 2026-11-18). `ps2/math/vec_mat.cpp` (VU0 macro-mode matrix math, with `ps2/qwords.h`
 and `ps2/math/math.h`) is a shared resident unit proven by the core gate's `math/*` checks. `ps2/renderer/dma_list.cpp`
 is the scratchpad display list builder (fromSPR drains into per-frame chain rings) that
 `dma.cpp` builds the 2D path's DIRECT chains with since 2026-11-03; `ps2/renderer/vu.cpp` is the

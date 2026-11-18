@@ -87,7 +87,9 @@ memory figures in [memory-budget.md](memory-budget.md).
 
 - Resolve addresses against the same build's unstripped ELF:
   `mips64r5900el-ps2-elf-addr2line -f -C -e build/<config>/d3bfg_unstripped.elf <addr>`
-  (or the test image's `d3bfg_tests_unstripped.elf`).
+  (or the test image's `d3bfg_tests_unstripped.elf`). Debug builds log a call stack after every
+  fatal error and CPU exception and then halt on a red crash screen; `symbolize.py --elf <elf>
+  < log` resolves the whole trace. The runners stop the emulator at the FATAL line.
 - **Known flake, never game code:** one to three `TLB Miss, pc=<same> addr=0x10|0x18`
   lines in `_request_end` (ps2sdk `sifrpc.c`) during `host:` I/O, or a wild `pc` below
   `.text`. One HostFs RPC completed twice. **Re-run before investigating.** Details and

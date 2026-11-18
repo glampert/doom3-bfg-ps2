@@ -5,6 +5,7 @@
 // ================================================================================================
 
 // Engine declarations depend on the platform and type setup in this header.
+#include "ps2/debug/crash_report.h"
 #include "idlib/precompiled.h"
 
 #include "d3xp/Game_local.h"
@@ -53,6 +54,11 @@ int main()
 {
     ps2::system::heap::EnterMain();
     SifInitRpc(0);
+
+#if PS2_D3BFG_ASSERTS
+    // Before anything can fault: a CPU exception from here on gives a report, not a hang.
+    ps2::debug::InstallExceptionHandlers();
+#endif // PS2_D3BFG_ASSERTS
     char mode[64] = {};
     FILE * input = std::fopen("host:script-case.txt", "rb");
     if (input == nullptr || std::fscanf(input, "%63s %63s", s_testId, mode) != 2)

@@ -13,6 +13,10 @@
     #include <kernel.h>
 #endif // _EE
 
+#if defined(_EE) && PS2_D3BFG_ASSERTS
+    #include "ps2/debug/crash_report.h"
+#endif // _EE && PS2_D3BFG_ASSERTS
+
 namespace ps2
 {
 
@@ -51,10 +55,19 @@ void Log(LogLevel level, const char * format, ...)
 
 [[noreturn]] PS2_COLD_FUNC void FatalErrorV(const char * format, va_list arguments)
 {
+#if defined(_EE) && PS2_D3BFG_ASSERTS
+    va_list report;
+    va_copy(report, arguments);
+#endif // _EE && PS2_D3BFG_ASSERTS
+
     LogV(LogLevel::Fatal, format, arguments);
-    // TODO: Add on-screen fatal/crash reporting when the emergency GS text renderer is available.
-    // This path runs in ordinary thread context; an EE exception handler must defer reporting here.
-#if defined(_EE)
+
+#if defined(_EE) && PS2_D3BFG_ASSERTS
+    // The call stack, then the message and the stack on the debug screen, which stays up: a console
+    // has no other record. The runners stop the emulator at the FATAL line.
+    debug::ReportFatalError(format, report);
+#elif defined(_EE)
+    // TODO: release builds have no on-screen report.
     Exit(1);
 #else
     std::abort();

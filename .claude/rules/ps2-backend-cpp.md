@@ -25,8 +25,9 @@ in other rule files still need verification when imported. Current backend code 
 - `alignas(N)` is the alignment idiom, not `__attribute__((aligned))`.
 - Backend/stdout diagnostics use `ps2::Log` / `LogV` from `system/log.h`, with info,
   warning, error and fatal levels. Required failures use `ps2::FatalError` / `FatalErrorV`;
-  `system::heap::Fail` delegates there. The sink currently uses synchronous stdout; on-screen
-  fatal reporting remains a TODO. Data-file writes are separate from diagnostics.
+  `system::heap::Fail` delegates there. The sink writes synchronously to stdout. Assertion builds
+  end a fatal error on the crash screen with a call stack (`ps2/debug/crash_report.h`); every
+  `ps2/debug/` unit compiles to nothing in release. Data-file writes are separate from diagnostics.
 - `common.h` provides `ArrayLength`, portable `PS2_PRINTF_FUNC` / `PS2_COLD_FUNC`, and
   `PS2_Assert` / `PS2_AssertMsg` for preconditions. Assertions follow
   `PS2_D3BFG_ASSERTS`; disabled assertions do not evaluate conditions or messages.

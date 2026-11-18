@@ -1144,3 +1144,11 @@ and keyboard included), stayed resident for the whole run instead.
   (committed 313,008 against 136,480), reused by `startup-game` (committed 4,595,200 against
   4,594,512). On a USB boot the IOP had 1,228 KB free in one block once the storage drivers ran.
 
+## Debug crash reports (2026-11-18)
+
+The crash screen, call stack unwinder and exception handler (`src/ps2/debug/`) exist in assertion
+builds only. Debug production `PT_LOAD` grows from 5,003,257 to 5,064,057 bytes (+60,800): the
+exception report's own 16 KiB stack, the 2 KiB font, its 2 KiB report and print buffers,
+libeedebug's vectors and frames, and the code. Release is unchanged at 4,283,321 bytes: the three
+units compile to empty objects and nothing pulls libeedebug in.
+

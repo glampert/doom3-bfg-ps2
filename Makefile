@@ -310,9 +310,10 @@ endif
 # The SDK's linkfile plus the boot data segment the heap reclaims (see its header); every image.
 EE_LINKFILE ?= config/linkfile.ld
 EE_LDFLAGS = -T$(EE_LINKFILE) -L$(PS2SDK)/ee/lib -Wl,-zmax-page-size=128 -Wl,-Map,$(CORE_TEST_DIR)/d3bfg_tests.map
-EE_LIBS = -lkernel -lm
+# libeedebug carries the assertion builds' CPU exception handler (ps2/debug/crash_report.cpp).
+EE_LIBS = -leedebug -lkernel -lm
 RENDER_SDK_LIBS = draw graph packet2 dma
-RESIDENT_SDK_LIBS = $(RENDER_SDK_LIBS) pad kbd fileXio kernel m patches
+RESIDENT_SDK_LIBS = $(RENDER_SDK_LIBS) pad kbd fileXio eedebug kernel m patches
 ifeq ($(CORE_BOOT),1)
 	EE_LIBS = $(addprefix -l,$(RESIDENT_SDK_LIBS))
 endif
