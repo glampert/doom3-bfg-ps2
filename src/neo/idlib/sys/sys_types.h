@@ -146,7 +146,7 @@ ID_INLINE void WriteIndexPair( triIndex_t * dest, const triIndex_t a, const triI
 
 #if defined(_DEBUG) || defined(_lint)
 #define NODEFAULT	default: assert( 0 )
-#elif defined( ID_PS2 ) || defined( ID_HOST_TEST )
+#elif defined( ID_PS2 ) || ( defined( ID_HOST_TEST ) && !defined( _MSC_VER ) )
 // [PS2_D3BFG]: GCC's equivalent of the Windows unreachable hint.
 #define NODEFAULT default: __builtin_unreachable()
 #else

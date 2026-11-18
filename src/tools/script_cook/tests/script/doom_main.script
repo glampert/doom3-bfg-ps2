@@ -1,0 +1,224 @@
+// ================================================================================================
+// File: doom_main.script
+// Brief: The script cook's cross-host fixture: CI cooks it on Linux, macOS and Windows and requires
+// one image. It exercises what a host could change: float literals and the compiler's constant
+// folding, vectors, strings of many lengths, objects, virtual functions, namespaces, threads,
+// $entity references and events. It is never run, and its folds round to nearest as every host
+// does, where the EE rounds toward zero: it is no reference for a PS2 compile.
+// This source code is released under the GNU GPL-3.0-or-later license.
+// ================================================================================================
+
+#include "script/cook_constants.script"
+
+// ------------------------------------------------------------------------------------------------
+// Globals and folded constants
+// ------------------------------------------------------------------------------------------------
+
+float   g_tenth = 0.1;
+float   g_third = 0.333333333;
+float   g_tiny = 0.000001;
+float   g_huge = 123456789.0;
+float   g_negative = -2.75;
+float   g_hexish = 255;
+vector  g_axis = '0.1 -0.2 0.3';
+vector  g_unit = '1 0 0';
+string  g_short = "a";
+string  g_medium = "a string of some length";
+string  g_long = "a much longer string constant that the image packs to its own length, not to the compiler's slot";
+boolean g_flag;
+
+float FoldedArithmetic()
+{
+    float value;
+
+    value = 0.1 + 0.2;
+    value = value + ( 1.0 / 3.0 );
+    value = value + ( 0.7 * 0.3 );
+    value = value + ( 10.0 - 0.0001 );
+    value = value + ( 1 / 1e-30 ) + ( 2 / 3 );
+    value = value + ( COOK_SCALE * COOK_SCALE / 7 );
+    value = value + ( 1e10 * 1e-10 );
+    value = value + ( 3.14159265358979 / 180 );
+    value = value + ( 255 & 15 ) + ( 8 | 3 );
+    value = value + ( 17 % 5 );
+    value = value + !value;
+    return value;
+}
+
+vector VectorMath( vector a, vector b )
+{
+    vector result;
+    float dot;
+
+    result = a + b;
+    result = result - '0.5 0.25 0.125';
+    result = result * 0.1;
+    result = 3 * result;
+    dot = a * b;
+    result_z = result_z + dot;
+    result = sys.CrossProduct( result, b );
+    result = sys.vecNormalize( result );
+    result_x = sys.vecLength( result ) + sys.DotProduct( a, b );
+    return result;
+}
+
+string StringMath( float count )
+{
+    string text;
+    float index;
+
+    text = "count " + count + " axis " + g_axis + "\n";
+    for ( index = 0; index < count; index++ )
+    {
+        text = text + sys.strLeft( g_long, index ) + ",";
+    }
+
+    if ( sys.strLength( text ) > 40 && text != g_medium )
+    {
+        text = "long";
+    }
+    else if ( text == "" || g_flag )
+    {
+        text = "short";
+    }
+
+    return text;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Namespaces
+// ------------------------------------------------------------------------------------------------
+
+namespace cook_test
+{
+    float counter;
+    vector origin = '128 -64 32.5';
+
+    float Next()
+    {
+        counter = counter + COOK_STEP;
+        return counter;
+    }
+
+    namespace inner
+    {
+        string name = "inner";
+
+        void Report()
+        {
+            sys.print( name + " " + cook_test::Next() + "\n" );
+        }
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// Objects and virtual functions
+// ------------------------------------------------------------------------------------------------
+
+object cook_base
+{
+    float   health;
+    vector  home;
+    string  label;
+    entity  target;
+
+    void    init();
+    void    Think();
+    float   Score( float scale );
+};
+
+object cook_derived : cook_base
+{
+    float   bonus;
+    boolean awake;
+
+    void    init();
+    void    Think();
+    float   Score( float scale );
+};
+
+void cook_base::init()
+{
+    health = 100;
+    home = getOrigin();
+    label = "base";
+    thread Think();
+}
+
+void cook_base::Think()
+{
+    while ( health > 0 )
+    {
+        health = health - Score( 0.5 );
+        setOrigin( home + '0 0 1' * health );
+        sys.waitFrame();
+    }
+}
+
+float cook_base::Score( float scale )
+{
+    return health * scale + 0.1;
+}
+
+void cook_derived::init()
+{
+    bonus = 2.5;
+    awake = 0;
+    label = "derived";
+    target = sys.getEntity( "cook_target" );
+    health = 50;
+    home = getOrigin() + '0 0 16';
+    thread Think();
+}
+
+void cook_derived::Think()
+{
+    do
+    {
+        awake = !awake;
+        if ( awake )
+        {
+            target.activate( self );
+        }
+
+        sys.wait( 0.25 );
+    } while ( health > 0 );
+}
+
+float cook_derived::Score( float scale )
+{
+    return ( health * scale + 0.1 ) * bonus;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Threads, $entity references and entry
+// ------------------------------------------------------------------------------------------------
+
+void CookWorker( float rounds )
+{
+    float index;
+    entity spawned;
+
+    for ( index = 0; index < rounds; index++ )
+    {
+        spawned = sys.spawn( "func_static" );
+        spawned.setKey( "name", "cook_spawned" );
+        spawned.setAngles( sys.angToForward( '0 90 0' ) );
+        spawned.bind( $cook_anchor );
+        sys.wait( sys.random( 1.5 ) );
+    }
+
+    $cook_anchor.setShaderParm( 4, sys.sin( 30 ) + sys.cos( 60 ) + sys.sqrt( 2 ) );
+}
+
+void doom_main()
+{
+    float score;
+
+    score = FoldedArithmetic();
+    g_axis = VectorMath( g_axis, g_unit );
+    sys.print( StringMath( 3 ) );
+    cook_test::inner::Report();
+    thread CookWorker( 4 );
+    sys.print( "time " + sys.getTime() + " score " + score + "\n" );
+}

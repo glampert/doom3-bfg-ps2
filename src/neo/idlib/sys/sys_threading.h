@@ -46,7 +46,13 @@ If you have questions concerning this license or the applicable additional terms
 		bool manualReset;
 	};
 	typedef int interlockedInt_t;
-	#define SYS_MEMORYBARRIER __asm__ volatile( "" ::: "memory" )
+	#if defined( _MSC_VER )
+		// [PS2_D3BFG]: MSVC (the host script cook) spells the compiler barrier as an intrinsic.
+		#include <intrin.h>
+		#define SYS_MEMORYBARRIER _ReadWriteBarrier()
+	#else
+		#define SYS_MEMORYBARRIER __asm__ volatile( "" ::: "memory" )
+	#endif
 
 	class idSysThreadLocalStorage {
 	public:

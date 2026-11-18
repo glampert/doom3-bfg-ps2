@@ -126,44 +126,53 @@ add_tool(asset_reexport asset_reexport/main.cpp)
 
 # id's script compiler built for the host from the engine's own sources, on idlib's scalar host
 # platform (ID_HOST_TEST) with a stand-in game surface (ID_SCRIPT_COOK). id's sources are exempt
-# from the strict warning set, as in the EE build; the cook's own are held to it. idlib's host
-# platform definitions are GNU-style, so MSVC does not build it: the cook needs a local retail
-# installation anyway, and CI compiles it with GCC and Clang.
-if(NOT MSVC)
-    set(REPO_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
-    # Winding.cpp: GCC emits idWinding's vtable wherever idlib's inline code constructs one, so
-    # its out-of-line virtuals must link even though the compiler never uses a winding.
-    set(SCRIPT_COOK_ENGINE_SOURCES
-        ${REPO_SOURCE_DIR}/neo/d3xp/script/Script_Compiler.cpp
-        ${REPO_SOURCE_DIR}/neo/d3xp/script/Script_Program.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/CommandLink.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/Heap.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/LangDict.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/Lexer.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/Parser.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/Str.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/Timer.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/Token.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/containers/HashIndex.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/geometry/Winding.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/hashing/MD4.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/math/Math.cpp
-        ${REPO_SOURCE_DIR}/neo/idlib/math/Vector.cpp)
-    add_executable(script_cook
-        script_cook/main.cpp
-        script_cook/cook_engine.cpp
-        script_cook/cook_game.cpp
-        script_cook/script_image_writer.cpp
-        ${REPO_SOURCE_DIR}/ps2/game/script_error.cpp
-        ${REPO_SOURCE_DIR}/ps2/system/log.cpp
-        ${SCRIPT_COOK_ENGINE_SOURCES})
+# from the strict warning set, as in the EE build; the cook's own are held to it.
+set(REPO_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
+# Winding.cpp: GCC emits idWinding's vtable wherever idlib's inline code constructs one, so
+# its out-of-line virtuals must link even though the compiler never uses a winding.
+set(SCRIPT_COOK_ENGINE_SOURCES
+    ${REPO_SOURCE_DIR}/neo/d3xp/script/Script_Compiler.cpp
+    ${REPO_SOURCE_DIR}/neo/d3xp/script/Script_Program.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/CommandLink.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/Heap.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/LangDict.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/Lexer.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/Parser.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/Str.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/Timer.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/Token.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/containers/HashIndex.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/geometry/Winding.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/hashing/MD4.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/math/Math.cpp
+    ${REPO_SOURCE_DIR}/neo/idlib/math/Vector.cpp)
+set(SCRIPT_COOK_SOURCES
+    script_cook/main.cpp
+    script_cook/cook_engine.cpp
+    script_cook/cook_game.cpp
+    script_cook/script_image_writer.cpp
+    ${REPO_SOURCE_DIR}/ps2/game/script_error.cpp
+    ${REPO_SOURCE_DIR}/ps2/system/log.cpp)
+add_executable(script_cook ${SCRIPT_COOK_SOURCES} ${SCRIPT_COOK_ENGINE_SOURCES})
+target_link_libraries(script_cook PRIVATE assets)
+target_compile_definitions(script_cook PRIVATE ID_HOST_TEST ID_SCRIPT_COOK ID_PS2_CORE=1
+    PS2_D3BFG_DEBUG=0 PS2_D3BFG_ASSERTS=0 PS2_D3BFG_TESTS=0 PS2_D3BFG_PROFILE=0)
+target_include_directories(script_cook PRIVATE ${REPO_SOURCE_DIR})
+target_include_directories(script_cook SYSTEM PRIVATE ${REPO_SOURCE_DIR}/neo)
+if(MSVC)
+    # Each source gets one warning level: /W4 and /w on one command line draw D9025.
+    set_target_properties(script_cook PROPERTIES COMPILE_WARNING_AS_ERROR ON)
+    target_compile_options(script_cook PRIVATE /fp:precise)
+    target_compile_definitions(script_cook PRIVATE _CRT_SECURE_NO_WARNINGS)
+    set_source_files_properties(${SCRIPT_COOK_SOURCES} PROPERTIES COMPILE_OPTIONS "/W4")
+    # /std:c++20 implies /permissive-, whose strict strings refuse id's punctuation tables
+    # (string literals in char * fields); GCC and Clang only warn about those.
+    set_source_files_properties(${SCRIPT_COOK_ENGINE_SOURCES} PROPERTIES
+        COMPILE_OPTIONS "/w;/Zc:strictStrings-")
+else()
     apply_tool_options(script_cook)
-    target_link_libraries(script_cook PRIVATE assets)
-    target_compile_definitions(script_cook PRIVATE ID_HOST_TEST ID_SCRIPT_COOK ID_PS2_CORE=1
-        PS2_D3BFG_DEBUG=0 PS2_D3BFG_ASSERTS=0 PS2_D3BFG_TESTS=0 PS2_D3BFG_PROFILE=0)
-    # id's code relies on type punning, as the EE build allows.
+    # id's code relies on type punning, as the EE build allows (MSVC never assumes strict
+    # aliasing).
     target_compile_options(script_cook PRIVATE -fno-strict-aliasing)
-    target_include_directories(script_cook PRIVATE ${REPO_SOURCE_DIR})
-    target_include_directories(script_cook SYSTEM PRIVATE ${REPO_SOURCE_DIR}/neo)
     set_source_files_properties(${SCRIPT_COOK_ENGINE_SOURCES} PROPERTIES COMPILE_OPTIONS "-w")
 endif()

@@ -12,9 +12,10 @@ paths:
   ELF and builds no test executable; host tests and PCSX2 gates stay local.
 - **`tools.yml`** builds the C++ host tools (`src/tools/CMakeLists.txt`: the shared `assets`
   library, `asset_reexport`, `resource_unpack` and `script_cook`) alone, with GCC, Apple clang
-  and MSVC (MSVC skips `script_cook`, whose idlib host platform is GNU-style), when they, their
-  CMake project or the engine sources the script cook builds (idlib, `d3xp/script`, the backend
-  files it links) change. It keeps the Windows `.exe`
+  and MSVC, when they, their CMake project or the engine sources the script cook builds (idlib,
+  `d3xp/script`, the backend files it links) change. Each host then cooks the authored script
+  fixtures (`src/tools/script_cook/tests`, the two headless packages), and a last job
+  (`script-images`) fails unless macOS and Windows wrote Linux's bytes. It keeps the Windows `.exe`
   files as an artifact, `host-tools-windows-x64`, for 90 days. Its first run (2026-10-19,
   `232d758`) passed on all three: GCC 13.3 in 12 s, MSVC 19.51 in 34 s, and Apple clang 21
   in 20 s after ten minutes waiting for a macOS runner.
@@ -149,3 +150,10 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
   -fPIE`); for MSVC, `/O2 /Ob2 /DNDEBUG /EHsc -std:c++20 -MT /W4 /fp:precise /WX
   -D_CRT_SECURE_NO_WARNINGS`. The fixed sources compile cleanly there on GCC 13.3, 14.4,
   15.3 and 16.2 and on MSVC 19.51.
+- **The script cook's units pull in about 750 KB of idlib** each; Compiler Explorer takes
+  them (2026-11-18, MSVC 19.51). Inline only the headers clang opens under the cook's defines
+  (`clang++ -H`), at every occurrence inside an `#ifndef` guard (the first may sit in a dead
+  branch), strip comments, and wrap `neo/` headers in `#pragma warning(push, 0)` for the
+  `/external:W0` the SYSTEM include gives them. id's units compile with `/w /Zc:strictStrings-`
+  (`/std:c++20` implies `/permissive-`, and id's punctuation tables put string literals in
+  `char *`), the cook's own with `/W4 /WX`. A D9025 option override is not an error under `/WX`.

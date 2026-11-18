@@ -20,7 +20,11 @@
 #include "idlib/precompiled.h"
 
 // The stubs spell the interfaces' signatures as the engine headers do, names included.
-#pragma GCC diagnostic ignored "-Wunused-parameter"
+#if defined(_MSC_VER)
+    #pragma warning(disable : 4100)
+#else // _MSC_VER
+    #pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif // _MSC_VER
 
 namespace
 {

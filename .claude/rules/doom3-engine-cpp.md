@@ -76,7 +76,8 @@ file keeps only what most engine edits need.
   again; the loader refuses a program whose events differ from the game's.
 - The host compile must stay bit-identical to the EE's (`make test-script-image`). Script-visible
   constants in the lexer/compiler paths must not depend on `-fsingle-precision-constant` or
-  pointer width; details in the reference, "Cooked script program".
+  pointer width; details in the reference, "Cooked script program". GCC, Clang and MSVC build
+  the cook, and CI requires their images of `src/tools/script_cook/tests` to match.
 
 ## No multiplayer on the PS2
 

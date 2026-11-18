@@ -867,7 +867,8 @@ idHashTable<Type>::GetSpread
 */
 template< class Type >
 int idHashTable<Type>::GetSpread() const {
-	int i, average, error, e;
+	// [PS2_D3BFG]: numItems was never declared; only GCC skipped this branch until MSVC built it.
+	int i, average, error, e, numItems;
 	hashnode_s	*node;
 
 	// if no items in hash

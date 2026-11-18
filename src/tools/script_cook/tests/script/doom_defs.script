@@ -1,0 +1,32 @@
+// ================================================================================================
+// File: doom_defs.script
+// Brief: Definitions for the script cook's cross-host fixture, compiled before doom_main.script
+// as the retail ones are; doom_main.script covers #include.
+// This source code is released under the GNU GPL-3.0-or-later license.
+// ================================================================================================
+
+// The events the fixture calls; the cook checks each against events.txt.
+scriptEvent void    wait( float time );
+scriptEvent void    waitFrame();
+scriptEvent void    print( string text );
+scriptEvent float   random( float range );
+scriptEvent float   getTime();
+scriptEvent float   sin( float degrees );
+scriptEvent float   cos( float degrees );
+scriptEvent float   sqrt( float square );
+scriptEvent float   vecLength( vector vec );
+scriptEvent vector  vecNormalize( vector vec );
+scriptEvent vector  CrossProduct( vector vec1, vector vec2 );
+scriptEvent float   DotProduct( vector vec1, vector vec2 );
+scriptEvent vector  angToForward( vector angles );
+scriptEvent float   strLength( string text );
+scriptEvent string  strLeft( string text, float num );
+scriptEvent entity  spawn( string classname );
+scriptEvent entity  getEntity( string name );
+scriptEvent void    setShaderParm( float parm, float value );
+scriptEvent void    activate( entity activator );
+scriptEvent void    bind( entity master );
+scriptEvent void    setKey( string key, string value );
+scriptEvent void    setOrigin( vector origin );
+scriptEvent vector  getOrigin();
+scriptEvent void    setAngles( vector angles );

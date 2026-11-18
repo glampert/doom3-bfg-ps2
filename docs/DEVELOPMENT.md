@@ -30,7 +30,8 @@ programs into `build/vu/` with it, in oxide mode with every optimization, then a
 with the toolchain's `dvp-as`. Writing VU programs for it: [vu-microprograms.md](../.claude/rules/vu-microprograms.md).
 
 GitHub Actions runs `make` and `make release` on Linux in the pinned ps2dev `ps2sdk` image,
-and builds the host tools with GCC, Apple clang and MSVC (MSVC without the script cook). These are compile and link checks;
+and builds the host tools with GCC, Apple clang and MSVC, then requires the three script cooks to
+write the same images of the authored script fixtures. Otherwise these are compile and link checks;
 host tests and PCSX2 gates still run locally. Linux file names are case-sensitive, unlike
 the default macOS volume; [ci.md](../.claude/rules/ci.md) describes reproducing the Linux
 build on a Mac.
@@ -89,8 +90,8 @@ re-export.
 
 ## Script cook
 
-Production never compiles scripts. `build/tools/script_cook` (CMake target `script_cook`, GCC
-and Clang only) builds id's own compiler, idlib's lexer and parser and the program from
+Production never compiles scripts. `build/tools/script_cook` (CMake target `script_cook`, on
+GCC, Clang and MSVC) builds id's own compiler, idlib's lexer and parser and the program from
 `src/neo` for the host, and writes the compiled program as a D3SP image
 (`src/ps2/game/script_image_format.h`) that `idProgram::Startup` loads:
 
@@ -107,7 +108,12 @@ regenerates from a bounded debug run (`ps2_scriptEvents`). Regenerate it after c
 `idEventDef`; the PS2 refuses a program whose events differ from its own. `make
 test-script-image` builds the `SCRIPT_CHECK=1` production variant (`build/<config>-scriptcheck`),
 which compiles the retail script at boot as production used to, and requires the image the
-cook's writer makes of that EE compile to equal the host cook's, byte for byte. The engine
+cook's writer makes of that EE compile to equal the host cook's, byte for byte. CI cannot cook
+the retail program, so `tools.yml` cooks `src/tools/script_cook/tests` (an authored script
+covering folds, vectors, strings, objects, namespaces and events) and the two headless
+fixtures on Linux, macOS and Windows and requires identical images; cook it by hand with
+`build/tools/script_cook --events src/tools/script_cook/events.txt --source-dir
+src/tools/script_cook/tests --output <file>`. The engine
 reference's "Cooked script program" has the format and the host/EE traps.
 
 ## Production packages and controls

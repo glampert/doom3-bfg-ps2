@@ -1,0 +1,3 @@
+// This source code is released under the GNU GPL-3.0-or-later license.
+#define COOK_SCALE  1.25
+#define COOK_STEP   0.05

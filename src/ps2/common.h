@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <bit>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -56,7 +57,7 @@ inline int CountLeadingZeros(std::uint32_t value)
     asm("plzcw %0, %1\n\tsll %0, %0, 0" : "=r"(count) : "r"(value));
     return static_cast<int>(count) + 1;
 #else // _EE
-    return __builtin_clz(value);
+    return std::countl_zero(value);
 #endif // _EE
 }
 

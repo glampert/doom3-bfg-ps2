@@ -3,8 +3,10 @@
 #
 # The game is built by ps2.yml, inside the ps2dev toolchain's container image. This workflow
 # runs when the tools or their CMake project change, or the engine sources the script cook
-# builds (idlib, id's script compiler and the backend files it links). MSVC builds every tool
-# but the script cook, whose idlib host platform is GNU-style.
+# builds (idlib, id's script compiler and the backend files it links). Each host then cooks the
+# authored script fixtures, and the last job requires all three to write the same images: the
+# retail program can only be cooked where a retail installation is, so this is what holds a
+# Linux, macOS or Windows cook to one program.
 
 name: Host tools
 
@@ -25,6 +27,8 @@ on:
       - 'src/ps2/game/script_image_format.h'
       - 'src/ps2/system/heap.h'
       - 'src/ps2/system/log.*'
+      - 'src/tests/data/headless/base/script/**'
+      - 'src/tests/data/headless_map/script/**'
       - '.github/workflows/tools.yml'
   pull_request:
     paths:
@@ -42,6 +46,8 @@ on:
       - 'src/ps2/game/script_image_format.h'
       - 'src/ps2/system/heap.h'
       - 'src/ps2/system/log.*'
+      - 'src/tests/data/headless/base/script/**'
+      - 'src/tests/data/headless_map/script/**'
       - '.github/workflows/tools.yml'
   workflow_dispatch:
 
@@ -79,3 +85,45 @@ jobs:
           name: host-tools-windows-x64
           path: build/tools/Release/*.exe
           if-no-files-found: error
+      # The cross-host fixture (src/tools/script_cook/tests) and the two headless packages'
+      # programs; a Windows checkout's CRLF line endings cook the same images.
+      - name: Cook the script fixtures
+        shell: bash
+        run: |
+          cook=build/tools/script_cook
+          if [ "$RUNNER_OS" = Windows ]; then cook=build/tools/Release/script_cook.exe; fi
+          mkdir -p build/script-images
+          for fixture in src/tools/script_cook/tests src/tests/data/headless/base src/tests/data/headless_map; do
+            "$cook" --events src/tools/script_cook/events.txt --source-dir "$fixture" \
+              --output "build/script-images/$(echo "${fixture#src/}" | tr / _).d3sp" | grep -v SCRIPT_CENSUS
+          done
+      - name: Upload the script images
+        uses: actions/upload-artifact@v7
+        with:
+          name: script-images-${{ runner.os }}
+          path: build/script-images/
+          if-no-files-found: error
+          retention-days: 7
+
+  script-images:
+    name: Script images agree across hosts
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: script-images-*
+      - name: Compare with the Linux images
+        run: |
+          sha256sum script-images-*/*.d3sp
+          status=0
+          for image in script-images-Linux/*.d3sp; do
+            name=$(basename "$image")
+            for host in macOS Windows; do
+              if ! cmp "$image" "script-images-$host/$name"; then
+                echo "::error::$host cooks a different $name"
+                status=1
+              fi
+            done
+          done
+          exit $status

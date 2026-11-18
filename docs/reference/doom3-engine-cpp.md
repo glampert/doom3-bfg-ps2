@@ -733,6 +733,13 @@ host (`src/tools/script_cook`, CMake target `script_cook`) and writes `doom_main
   production variant compiles at boot as production used to and logs the size and FNV-1a of the
   image the cook's writer makes of its compile, which must equal the host file's. Float folds in
   `OptimizeOpcode` use the host's rounding; the retail program has none that differ.
+- **Every host cooks the same image.** MSVC builds the cook since 2026-11-18: idlib's host
+  branch spells `ID_FORCE_INLINE`, `NO_RETURN`, `_alloca`, `NODEFAULT` and the compiler barrier
+  for it, and `idHashTable::GetSpread`'s non-GNU twin finally declares `numItems` (no compiler
+  had built it). The writer's output order never depends on pointers (its pointer-keyed maps are
+  lookups, both sorts are total), and a CRLF checkout cooks the same bytes. CI holds the three
+  hosts to one image of the authored fixtures (`src/tools/script_cook/tests`); that fixture's
+  folds round to nearest, so its image is no EE reference.
 - **Events.** The cook has no game classes. `src/tools/script_cook/events.txt` (name, format,
   return type, whether `idThread` responds) comes from the debug-only `ps2_scriptEvents`
   command through `src/tools/scripts/script_events.py`. The loader resolves each event the image

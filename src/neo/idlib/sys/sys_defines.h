@@ -156,11 +156,19 @@ If you have questions concerning this license or the applicable additional terms
 #define PATHSEPARATOR_CHAR              '/'
 #define NEWLINE                         "\n"
 #define ID_INLINE                       inline
-#define ID_FORCE_INLINE                 inline __attribute__((always_inline))
 #define ID_INLINE_EXTERN                inline
+#if defined( _MSC_VER )
+// [PS2_D3BFG]: MSVC builds the host script cook; _alloca is its own, from <malloc.h>.
+#include <malloc.h>
+#define ID_FORCE_INLINE                 __forceinline
+#define ID_FORCE_INLINE_EXTERN          __forceinline
+#define NO_RETURN                       __declspec(noreturn)
+#else
+#define ID_FORCE_INLINE                 inline __attribute__((always_inline))
 #define ID_FORCE_INLINE_EXTERN          inline __attribute__((always_inline))
 #define NO_RETURN                       __attribute__((noreturn))
 #define _alloca                         __builtin_alloca
+#endif
 #endif
 
 /*
