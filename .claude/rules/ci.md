@@ -150,10 +150,12 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
   -fPIE`); for MSVC, `/O2 /Ob2 /DNDEBUG /EHsc -std:c++20 -MT /W4 /fp:precise /WX
   -D_CRT_SECURE_NO_WARNINGS`. The fixed sources compile cleanly there on GCC 13.3, 14.4,
   15.3 and 16.2 and on MSVC 19.51.
-- **The script cook's units pull in about 750 KB of idlib** each; Compiler Explorer takes
-  them (2026-11-18, MSVC 19.51). Inline only the headers clang opens under the cook's defines
-  (`clang++ -H`), at every occurrence inside an `#ifndef` guard (the first may sit in a dead
-  branch), strip comments, and wrap `neo/` headers in `#pragma warning(push, 0)` for the
-  `/external:W0` the SYSTEM include gives them. id's units compile with `/w /Zc:strictStrings-`
-  (`/std:c++20` implies `/permissive-`, and id's punctuation tables put string literals in
-  `char *`), the cook's own with `/W4 /WX`. A D9025 option override is not an error under `/WX`.
+- **`python3 src/tools/scripts/compiler_explorer.py [unit...]` checks the script cook on
+  MSVC 19.51** (every unit, or the named file stems; `--expand-only` sends nothing). It reads
+  the cook's source lists and defines from `CMakeLists.txt` and expands each unit into one
+  file (about 800 KB: only the headers `clang++ -H` opens, each inside an `#ifndef` guard since
+  the first `#include` may sit in a dead branch, and `neo/` wrapped in `#pragma warning(push, 0)`
+  for the `/external:W0` the SYSTEM include gives it). id's units compile with
+  `/w /Zc:strictStrings-` (`/std:c++20` implies `/permissive-`, and id's punctuation tables put
+  string literals in `char *`), the cook's own with `/W4 /WX`. A D9025 option override is not an
+  error under `/WX`.
