@@ -131,6 +131,8 @@ add_tool(asset_reexport asset_reexport/main.cpp)
 # installation anyway, and CI compiles it with GCC and Clang.
 if(NOT MSVC)
     set(REPO_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
+    # Winding.cpp: GCC emits idWinding's vtable wherever idlib's inline code constructs one, so
+    # its out-of-line virtuals must link even though the compiler never uses a winding.
     set(SCRIPT_COOK_ENGINE_SOURCES
         ${REPO_SOURCE_DIR}/neo/d3xp/script/Script_Compiler.cpp
         ${REPO_SOURCE_DIR}/neo/d3xp/script/Script_Program.cpp
@@ -143,6 +145,7 @@ if(NOT MSVC)
         ${REPO_SOURCE_DIR}/neo/idlib/Timer.cpp
         ${REPO_SOURCE_DIR}/neo/idlib/Token.cpp
         ${REPO_SOURCE_DIR}/neo/idlib/containers/HashIndex.cpp
+        ${REPO_SOURCE_DIR}/neo/idlib/geometry/Winding.cpp
         ${REPO_SOURCE_DIR}/neo/idlib/hashing/MD4.cpp
         ${REPO_SOURCE_DIR}/neo/idlib/math/Math.cpp
         ${REPO_SOURCE_DIR}/neo/idlib/math/Vector.cpp)
