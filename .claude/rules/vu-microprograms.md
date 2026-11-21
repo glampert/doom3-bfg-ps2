@@ -56,10 +56,12 @@ region ends at 1536 (2010-2047 stay unused).
   call may change those, VI15 (the link) and VI01. The clipper also works in VF16-VF23 and
   VI06-VI09, which it saves at 1008-1016 and restores, and spills to 1017-1023.
 - **A call costs a caller its registers.** What a loop keeps live across the call must fit
-  VI02-VI09; with more, oxide-vcl kept values of every path in the work area, those of the strip
-  path that never calls it too. `world_lm`'s list walk stores its state (`Walk`, qwords 36-39)
-  before the call and reloads it after; in registers, the lightmap pass cost 19% more over
-  mars_city1. Check a new program's work-area notes after adding a call.
+  VI02-VI09. oxide-vcl gives those values their registers first, and saves the ones that do not
+  fit only across the calls: stored when written and loaded back after each call, in their
+  registers everywhere else. `world_lm` saves the XTOP base, its list walk's counters and its
+  window state, `world_strips` the XTOP base and its flag masks (0x8000, 0x4000); the strip paths,
+  which never call, keep them all in registers. The build notes each one ("crosses a library
+  call"); check a new program's notes after adding a call.
 - **The value cache forgets memory at a call**, `uniform` memory apart: a value read before the
   call is read again after it.
 - Without the library each world program inlines its own clipper: `world_lm` would be 1,520
@@ -68,20 +70,15 @@ region ends at 1536 (2010-2047 stay unused).
 ## Writing VUSL for these programs
 
 Measured with `vu_cost.py` over mars_city1 (2026-11-21), against the hand-written VCL these
-programs replaced: the same kicks and vertices; `world_lm` 66.5 cycles a triangle for the base
-pass (VCL 64.2, +3.6%) and 95.4 with the lightmap pass (92.4, +3.2%), `world_strips` 58.7
-(55.5, +5.8%). oxide-vcl's programs suite ran both on its scenes in its VU model, with the
+programs replaced: the same kicks and vertices; `world_lm` 63.7 cycles a triangle for the base
+pass (VCL 64.2, −0.8%) and 90.3 with the lightmap pass (92.4, −2.3%), `world_strips` 60.2
+(57.1, +5.3%). oxide-vcl's programs suite ran both on its scenes in its VU model, with the
 packets of the VCL programs and the interpreter's memory. What moved them, each from its own
 A/B:
 
 - **Keep a hot loop one block.** oxide-vcl's `loops` pipelines only a loop that is one block. A
   room test per vertex splits the strip copy: `world_strips` computes each window's run,
   `min(left, room)`, and copies that many with no test (74.8 to 72.1 cycles a triangle).
-- **Hoist what a loop reads every iteration into locals before it** when the program calls the
-  library. oxide-vusl hoists loop invariants itself, but hoists fewer when values spill, and
-  with the call's registers taken it hoisted none of `world_strips`' transform constants: 27
-  cycles a vertex, 19 with `mat4 mvp = frame.mvp;` and the rest as locals, and the integer
-  masks and the w bias too (to 58.7). `world_lm`'s transform was 22 either way.
 - **Not every rewrite pays.** The same run-length window in `world_lm`'s strip pass cost its
   lightmap pass 104.3 cycles a triangle against 95.4. Measure each one.
 - The pass is a run-time argument of the clipper (`float pass`), where an inlined clipper would
@@ -149,7 +146,7 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   Q = 1/0 at the largest float that flushes to zero (the VU has no denormals), taking the corner's
   UV (S x Q x w) with it. A vertex in the eye's plane does this (grid-aligned cameras put whole
   wall edges there). Both world programs add 1e-20 to w after the matrix; keep it.
-- **Data memory beyond the EE's:** world_lm's work area at 13-35 and its `Walk` at 36-39; the
+- **Data memory beyond the EE's:** world_lm's work area at 13-39; the
   world programs' scratch at 954-956, right after window B; the clipper's buffers at 957-1007,
   A of 8 corners and B of 9, three qwords each; its saves and work area at 1008-1023. The buffers
   hold the true worst case only while a corner is kept exactly when its distance is >= 0: every
@@ -161,9 +158,9 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
 - **Count VU1 cycles with `src/tools/scripts/vu_cost.py`** (PCSX2 shows none): it runs a
   program's `.vsm` on the integer side over cooked batches, one cycle per pair plus the stall the
   listing marks on it (`STALL_LATENCY ?N`), or the DIV wait at `waitq`, clip flags taken as zero
-  (the strip path, which never calls the clipper). Over mars_city1 (2026-11-21): `world_lm` 66.5
-  cycles a triangle for the base pass (`--no-lightmaps`) and 95.4 with the lightmap pass, plain
-  strips 58.7. Only kicks of an output window count as packets.
+  (the strip path, which never calls the clipper). Over mars_city1 (2026-11-21): `world_lm` 63.7
+  cycles a triangle for the base pass (`--no-lightmaps`) and 90.3 with the lightmap pass, plain
+  strips 60.2. Only kicks of an output window count as packets.
 
 ## Writing VUSL
 

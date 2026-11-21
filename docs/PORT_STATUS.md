@@ -5812,3 +5812,41 @@ a relocation ld rejects.
 | `make test-ui` | Passed: both sessions (`20261121T030223Z_session_e3d173bbb5bb`, `20261121T031214Z_session_2d649a04da39`), the retail resource and movie cases |
 | `make test-host` | Passed (`scene_pixels.json` regenerated: its inputs digest covers `world_reference.py`) |
 | `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 5,020,665 debug and 4,248,505 release |
+
+## oxide-vcl `5511b30`: values saved across the clipper call (2026-11-21)
+
+The oxide-vcl submodule moves to `5511b30`. Its external assignment gives the values that cross
+a library call their registers first, and saves those that do not fit in memory only across the
+calls: stored when written, loaded back after each call, in their registers everywhere else.
+oxide-vusl puts a barrier before a call's argument moves, so the call's block holds only the
+call. Neither world program needs its workaround now: `world_lm`'s list walk keeps its state in
+registers (the `Walk` at 36-39 is gone, and the work area takes 13-39), and `world_strips`'
+transform reads the frame's constants and its masks inside the loop again, which oxide-vusl
+hoists. The build notes each saved value: `world_lm` the XTOP base, its list walk's counters and
+its window state, `world_strips` the XTOP base and its flag masks.
+
+| Micro memory | VCL | VUSL |
+| --- | ---: | ---: |
+| passthrough | 5 | 5 |
+| world_lm | 1,058 | 634 |
+| world_strips | 782 | 357 |
+| clipper (resident at 1536) | inlined | 474 |
+| All | 1,845 | 1,470 |
+
+| VU1 cycles a mars_city1 triangle (`vu_cost.py`) | VCL | VUSL |
+| --- | ---: | ---: |
+| world_lm, base pass (`--no-lightmaps`) | 64.2 | 63.7 (−0.8%) |
+| world_lm, with the lightmap pass | 92.4 | 90.3 (−2.3%) |
+| world_strips | 57.1 | 60.2 (+5.3%) |
+
+Each pair draws the same kicks and vertices (`world_lm` 3,691 kicks for the base pass and 7,037
+with the lightmap pass, `world_strips` 3,792). Both world_strips columns are over the current
+strips cook (`build/world-strips`), where the VUSL program took 60.6 at `42cbce5`; `world_lm`
+took 66.5 and 95.4 there.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world` | `20261121T064816Z_world_e265976aa7ff` (NTSC), `20261121T064827Z_world_64ef000a825a` (PAL); all 36 captures byte-identical to the previous section's runs |
+| `make test-world-retail` | `20261121T064848Z_world_retail_d6e06df49a8a` (NTSC), `20261121T064943Z_world_retail_95768ecbaa90` (PAL); every capture byte-identical to the previous section's runs |
+| `make test-renderer` | Passed |
+| `make` | Passed, no warnings |

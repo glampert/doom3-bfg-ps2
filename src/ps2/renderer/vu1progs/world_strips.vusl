@@ -84,36 +84,24 @@ void main(layout(address = 0) inout Frame frame,
     layout(lane = x) vec2 uvOffset = batch.uvOffset;
     int16 anyOut                   = 0;
 
-    // What the transform reads every vertex, in registers across it. oxide-vusl hoists fewer
-    // loop invariants when values spill, and with the clipper call's registers taken it hoisted
-    // none of these: read from the frame inside the loop, the transform took 27 cycles a vertex
-    // instead of 19.
-    mat4 mvp       = frame.mvp;
-    vec3 clipScale = frame.clipScale;
-    vec3 gsScale   = frame.gsScale;
-    vec3 gsOffset  = frame.gsOffset;
-    int16 adcBit   = 0x8000;
-    int16 outBit   = 0x4000;
-    float wBias    = 1.0e-20;
-
     // Phase 1: transform, judge and project every vertex in place.
     for (inout Vertex v : batch.vertices)
     {
-        int16 adc    = v.flags & adcBit;
+        int16 adc    = v.flags & 0x8000;
         vec3 pos     = itof0(v.pos) * posScale + posOffset;
         vec2 uv      = itof0(v.uv.xy) * uvScale + uvOffset;
-        vec4 clipPos = vec4(pos, 1.0) * mvp;
+        vec4 clipPos = vec4(pos, 1.0) * frame.mvp;
 
         // 1e-20 in w: a w of any real size absorbs it, but one that cancels to exactly 0 (a
         // vertex in the eye's plane, as on grid-aligned cameras) keeps Q = 1 / w finite. With
         // Q at the largest float the clipper's rebuilt w (1 / Q) flushes to 0 and takes the
         // corner's UV (S x Q x w) with it.
-        clipPos.w = clipPos.w + wBias;
+        clipPos.w = clipPos.w + 1.0e-20;
 
-        clipflags judged = clipw(clipPos.xyz * clipScale, clipPos.w);
+        clipflags judged = clipw(clipPos.xyz * frame.clipScale, clipPos.w);
         float q          = 1.0 / clipPos.w;
-        vec3 projected   = gsOffset + clipPos.xyz * q * gsScale;
-        int16 outside    = (clipped(judged) + 0x3fff) & outBit;
+        vec3 projected   = frame.gsOffset + clipPos.xyz * q * frame.gsScale;
+        int16 outside    = (clipped(judged) + 0x3fff) & 0x4000;
         anyOut           = anyOut | outside;
 
         ref<Projected> p = ref<Projected>(v);

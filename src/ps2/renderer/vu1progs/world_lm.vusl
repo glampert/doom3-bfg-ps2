@@ -28,24 +28,11 @@
 #include "world.vush"
 #include "clipper.vush"
 
-// The free qwords between the frame constants and the double buffer (13-35), where the
+// The free qwords between the frame constants and the double buffer (13-39), where the
 // program keeps the values that do not fit in its registers.
 struct WorkArea
 {
-    qword q[23];
-};
-
-// The list path's walk, kept in memory across a clipper call (36-39, free between the work area
-// and the double buffer). A call may change VI10-VI15 and VI01, so what the walk keeps in
-// registers across it must fit VI02-VI09; with the walk there, oxide-vcl kept values of every
-// path in the work area, the strip path's too, and the lightmap pass cost 19% more cycles
-// (vu_cost.py over mars_city1). Reloaded after the call, the walk crosses it in memory instead.
-struct Walk
-{
-    int16 left;
-    int16 next;
-    int16 prev1;
-    int16 prev2;
+    qword q[27];
 };
 
 // A cooked vertex: s16 position, s16 UVs with the lightmap pair in 4.12, RGBA bytes, and a free
@@ -204,7 +191,7 @@ void listCorner(out WindowVertex to, ref<Projected> vertex, int16 pass)
 
 // The list path's pass: the stream's entries as triangles, those wholly inside sent as they are
 // and the rest through the clipper.
-void listPass(inout Frame frame, inout Windows windows, inout Batch batch, inout Walk walk, int16 pass)
+void listPass(inout Frame frame, inout Windows windows, inout Batch batch, int16 pass)
 {
     qword tag = batch.listTag;
 
@@ -263,15 +250,7 @@ void listPass(inout Frame frame, inout Windows windows, inout Batch batch, inout
             }
             else
             {
-                walk.left  = left;
-                walk.next  = int16(next);
-                walk.prev1 = int16(prev1);
-                walk.prev2 = int16(prev2);
                 ClipTriangle(cursor, room, a, b, c, float(pass));
-                left  = walk.left;
-                next  = ref<Entries>(batch.indices, walk.next);
-                prev1 = ref<Projected>(batch.vertices, walk.prev1);
-                prev2 = ref<Projected>(batch.vertices, walk.prev2);
             }
         }
 
@@ -286,8 +265,7 @@ void main(layout(address = 0) inout Frame frame,
           layout(xtop, vif_base = 40, vif_offset = 306) inout Batch batch,
           layout(address = 652) inout Windows windows,
           layout(address = 954, spill) inout Scratch scratch,
-          layout(address = 13, spill) inout WorkArea work,
-          layout(address = 36) inout Walk walk)
+          layout(address = 13, spill) inout WorkArea work)
 {
     // The material's registers go first: every window waits behind them.
     xgkick(batch.state);
@@ -342,12 +320,12 @@ void main(layout(address = 0) inout Frame frame,
     else
     {
         // Phase 2, list path: the stream as triangles, once a pass.
-        listPass(frame, windows, batch, walk, 0);
+        listPass(frame, windows, batch, 0);
 
         if (batch.lightmap[1].w != 0)
         {
             xgkick(batch.lightmap);
-            listPass(frame, windows, batch, walk, 1);
+            listPass(frame, windows, batch, 1);
         }
 
         // A list batch may kick no window: the null tag waits for the state packets, which

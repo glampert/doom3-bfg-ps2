@@ -83,7 +83,7 @@ static_assert(kClipperAddress + clipper::kInstructions <= kMicroMemInstructions,
 // VU1 data memory (1024 qwords; addresses in qwords), as vu1progs/vu_memory.vush lays it out
 //
 //      0-12      the frame constants (FrameConstants)
-//      13-35     world_lm's work area, for values that do not fit in its registers
+//      13-39     world_lm's work area, for values that do not fit in its registers
 //      40-651    the VIF1 double buffer (BASE 40, OFFSET 306): a batch at XTOP
 //      652-953   the two output windows, kept alternating across batches
 //      954-956   the world programs' scratch
