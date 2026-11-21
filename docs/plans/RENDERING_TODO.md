@@ -39,6 +39,11 @@ production link free of test inputs. Section numbers in parentheses point into t
       by cargo, oxide mode with every optimization), CI installing Rust; tune the world
       programs for it: the transform pipelined, the strip loops a window at a time, the walk
       state in registers, no ordering barriers (2026-11-16).
+- [x] Write the VU programs in VUSL and build them with oxide-vusl: `passthrough`, `world_lm`
+      and `world_strips` from the VCL ones, the clipper a library resident at 1536 that both
+      world programs call (`vu::Bind` uploads it once), and `vu.h` taking the data memory map
+      from the generated headers; same kicks and vertices over mars_city1, 3-6% more VU1 cycles
+      a triangle (2026-11-21).
 - [x] Import `qwords.h`, `math/vec_mat.{h,cpp}` and `PS2_DECLARE_VU_MICROPROGRAM` from
       quake2-ps2 with `REUSE.md` rows; the VU0 asm and the qword copies are proven against
       scalar references by the core gate's `math/*` checks rather than a one-off test ELF

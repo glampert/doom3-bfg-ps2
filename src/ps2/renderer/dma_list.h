@@ -52,14 +52,15 @@ public:
     // VIF FLUSH: later commands wait for the running microprogram and for PATH1/PATH2 to drain.
     void FlushPaths();
 
-    // The shared VU1 data memory block (vu_memory.h, qwords 0 to kVuFrameBlockQwords - 1): the
+    // The shared VU1 data memory block (vu::FrameConstants at vu::kFrameConstantsAddr): the
     // caller's constants, the null GIF tag and the output windows reset to window A, plus the VIF1
     // double buffer (BASE, OFFSET), which batches then alternate across programs. Once per frame
     // before the first program, while no program runs.
     void SetFrameConstants(const vu::FrameConstants & constants);
 
-    // Starts any pending batch on the current program, then binds 'program': its MPG chain is
-    // CALLed only when it is not in micro memory (vu::Bind). Later batches start at its entry.
+    // Starts any pending batch on the current program, then binds 'program': its MPG chain, and the
+    // clipper library's for a program that calls it, are CALLed only when not in micro memory
+    // (vu::Bind). Later batches start at its entry.
     void SetProgram(vu::Program program);
 
     // A batch whose packet (16-byte aligned, ending with ITOP) is REF'd in place, after its states:

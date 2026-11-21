@@ -680,13 +680,16 @@ bool VuPassthrough(system::video::Standard standard)
     renderer::EndFrame();
     bool passed = renderer::LastPresentedContext() == renderer::gs::DrawContext::Ctx1 &&
                   renderer::gs::CaptureTga("host:renderer-vu.tga", renderer::LastPresentedContext());
-    passed = passed && uploads == 1U && renderer::vu::GetStats().evictions == 0U;
-    Log(LogLevel::Info, "[D3BFG] GS vu passthrough uploads=%u kicks=%u\n", uploads, renderer::dma::GetStats().kicks);
+    // Passthrough calls no library: the clipper stays out of micro memory.
+    const u32 libraryUploads = renderer::vu::GetStats().libraryUploads;
+    passed = passed && uploads == 1U && libraryUploads == 0U && renderer::vu::GetStats().evictions == 0U;
+    Log(LogLevel::Info, "[D3BFG] GS vu passthrough uploads=%u library_uploads=%u kicks=%u\n", uploads, libraryUploads,
+        renderer::dma::GetStats().kicks);
     renderer::Shutdown();
     return passed && SameLedger(baseline) && !renderer::vu::IsInitialized();
 }
 // The authored graybox (src/tests/data/graybox_map), cooked by make world-cook and staged by the
-// runner, drawn by world_lm.vcl from fixed cameras: one in each room, one through the doorway and
+// runner, drawn by world_lm.vusl from fixed cameras: one in each room, one through the doorway and
 // one against the divider, where the near plane and the guard band cut the jambs and the floor.
 // The 32-bit profile's captures carry a -32 suffix.
 bool WorldGraybox(system::video::Standard standard, renderer::gs::FrameFormat format)
@@ -744,14 +747,16 @@ bool WorldGraybox(system::video::Standard standard, renderer::gs::FrameFormat fo
         captured = renderer::gs::CaptureTga(path, renderer::LastPresentedContext()) && captured;
     }
 
+    // world_lm and the clipper it calls, each uploaded once for every frame.
     const u32 uploads = renderer::vu::GetStats().uploads;
+    const u32 libraryUploads = renderer::vu::GetStats().libraryUploads;
     const auto chains = renderer::dma::GetStats();
-    Log(LogLevel::Info, "[D3BFG] GS world bits=%d batches=%u frames=%d uploads=%u kicks=%u peak=%u\n",
-        renderer::gs::FrameFormatBits(format), static_cast<u32>(level.sections.batchCount), ArrayLength(kCameras), uploads, chains.kicks,
-        chains.peakBytes);
+    Log(LogLevel::Info, "[D3BFG] GS world bits=%d batches=%u frames=%d uploads=%u library_uploads=%u kicks=%u peak=%u\n",
+        renderer::gs::FrameFormatBits(format), static_cast<u32>(level.sections.batchCount), ArrayLength(kCameras), uploads, libraryUploads,
+        chains.kicks, chains.peakBytes);
     renderer::Shutdown();
     renderer::world::Unload(level);
-    return loaded && profile && captured && uploads == 1U && SameLedger(baseline);
+    return loaded && profile && captured && uploads == 1U && libraryUploads == 1U && SameLedger(baseline);
 }
 
 // A cooked GSTX v2 file read whole into 64-byte aligned storage, validated and written back.

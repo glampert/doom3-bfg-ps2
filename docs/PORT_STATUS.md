@@ -5763,3 +5763,52 @@ executes script code on the cooked program's structures, because production load
 | `make test-ui` (debug) | Passed: both UI sessions (PAL `20261118T060321Z_session_5fdd28e9d860`, rerun after an interrupted first attempt), the 5 retail UI resource cases and the 13 movie admission cases |
 | `make test-host` | Passed |
 | `make`, `make release`, `make build/tools/script_cook` | Passed, no warnings; runnable `PT_LOAD` 5,022,457 debug (−45,312) and 4,250,297 release (−33,024); the cook's sources also pass GCC 15 in its LP64 ABI with the tools' strict set |
+
+## VU programs in VUSL, and the clipper library (2026-11-21)
+
+The VU1 programs are VUSL, compiled by oxide-vusl from the oxide-vcl submodule, instead of VCL:
+`passthrough.vusl`, `world_lm.vusl` and `world_strips.vusl`, ported from oxide-vcl's VUSL
+ports of this port's VCL (`tests/vusl/programs` there), and `clipper.vusl`, the near-plane and
+guard band clipper as a library both world programs call. Each build writes a C++ header of the
+program's layouts; `ps2/renderer/vu.h` takes VU1 data memory's addresses from them,
+`vu::FrameConstants` is the generated `Frame`, and `vu1progs/vu_memory.h` is gone. Design,
+costs and traps: [vu-microprograms.md](../.claude/rules/vu-microprograms.md).
+
+| Micro memory | VCL | VUSL |
+| --- | ---: | ---: |
+| passthrough | 5 | 5 |
+| world_lm | 1,058 | 714 |
+| world_strips | 782 | 332 |
+| clipper (resident at 1536) | inlined | 474 |
+| All | 1,845 | 1,525 |
+
+`vu::Init` logs `VU1 programs: 3, resident 6 instructions, swap region 1530, clipper 474 at
+1536`; the clipper uploads with the first program that calls it (`vu::Stats::libraryUploads`).
+
+| VU1 cycles a mars_city1 triangle (`vu_cost.py`) | VCL | VUSL |
+| --- | ---: | ---: |
+| world_lm, base pass (`--no-lightmaps`) | 64.2 | 66.5 (+3.6%) |
+| world_lm, with the lightmap pass | 92.4 | 95.4 (+3.2%) |
+| world_strips | 55.5 | 58.7 (+5.8%) |
+
+Two changes to the ports, each from an A/B over mars_city1: world_lm's list walk keeps its
+state in memory across the clipper call (109.8 cycles a triangle with the lightmap pass
+otherwise), and world_strips copies each window's run with no room test and holds the
+transform's constants in locals (74.8 otherwise). Both world programs keep the 1e-20 w bias of
+the clipped-UV fix. oxide-vcl needed two fixes for this port (`42cbce5`): a caller's
+generated header declared the library's memory constants beside main's (`kFrameAddress`
+twice) and gave no library address, and the library's entry table branched to a global symbol,
+a relocation ld rejects.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261121T025805Z_world_retail_8974461a24a1` (NTSC), `20261121T025849Z_world_retail_ce876b474fbb` (PAL); all 48 captures byte-identical to a run with the VCL world_lm linked in its place |
+| `make test-world` | `20261121T025637Z_world_ca5ed5eab70e`, `20261121T025646Z_world_87612be76e7d`; all 36 captures byte-identical to the VCL world_lm's |
+| `make test-world-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips` | Fails at `world-east-light.tga` (8.64% against the lightmap reference), as the VCL world_strips does: neither draws a lightmap pass, which the runner's lit references have required since 2026-11-14. The 24 captures are byte-identical to the VCL program's (`20261121T030050Z_world_retail_4d8dd71714d9` against `20261121T032430Z_world_retail_e101903d14b8`) |
+| `make test-renderer` | Passed: `vu-passthrough` with one upload and no library upload, `world-graybox` and `-32` with one program upload and one library upload |
+| `make test-core`, `test-platform`, `test-common` | Passed, `renderer/clipper-library` among the core checks |
+| `make test-script`, `test-script-image`, `test-game`, `test-map` | Passed |
+| `make test-headless`, `test-headless-retail` | Passed |
+| `make test-ui` | Passed: both sessions (`20261121T030223Z_session_e3d173bbb5bb`, `20261121T031214Z_session_2d649a04da39`), the retail resource and movie cases |
+| `make test-host` | Passed (`scene_pixels.json` regenerated: its inputs digest covers `world_reference.py`) |
+| `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 5,020,665 debug and 4,248,505 release |

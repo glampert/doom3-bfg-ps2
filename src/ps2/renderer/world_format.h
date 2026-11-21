@@ -32,7 +32,8 @@ static constexpr std::uint32_t kNoLightmap = 0xFFFFU;
 static constexpr std::uint32_t kMaxLightmapPages = 256;
 static constexpr std::uint32_t kEntryAdc = 0x8000U;
 
-// VU1 data memory (vu1progs/vu_memory.h): a batch, its last write included, fits one input half.
+// VU1 data memory (vu1progs/vu_memory.vush, checked in world.cpp against the world programs'
+// generated layouts): a batch, its last write included, fits one input half.
 static constexpr std::uint32_t kInputHalfQwords = 306;
 // The half's last 11 qwords receive the batch's state (DisplayList::DrawBatch): the lightmap page's
 // A+D packet, the material's, and the drawing tags.
@@ -151,7 +152,7 @@ struct Sections
     std::uint32_t packetBytes;
     // The map's D3TX holds this many Light8 pages; a batch names one or kNoLightmap.
     std::uint32_t lightmapPages;
-    // Every batch has the strip index stream (world_lm.vcl), or none has (world_strips.vcl).
+    // Every batch has the strip index stream (world_lm.vusl), or none has (world_strips.vusl).
     bool indexedStrips;
 };
 

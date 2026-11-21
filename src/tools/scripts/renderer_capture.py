@@ -239,7 +239,7 @@ INDEXED_SCENE_PIXELS = (
     ("passes-line-gouraud", 545, 450, (127, 0, 127)),
 )
 
-# The graybox world drawn by world_lm.vcl from the world gates' cameras: a 90 degree vertical field
+# The graybox world drawn by world_lm.vusl from the world gates' cameras: a 90 degree vertical field
 # of view on the TV's 4:3 picture, so every frame size shows the same framing. Points sit deep inside
 # flat faces (eight materials a view, the clipped floor and divider near the camera included), with
 # 8-bit colours from world_reference.py's rasterizer of the same .proc, cameras and vertex colour

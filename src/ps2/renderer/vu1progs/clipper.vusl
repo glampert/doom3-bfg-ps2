@@ -1,0 +1,224 @@
+/* ================================================================================================
+ * File: clipper.vusl
+ * Brief: The clipper library's own build (clipper.vush): one entry, ClipTriangle, at 1536.
+ *        A polygon lives in one of two scratch buffers with its first corner repeated at the
+ *        end, so the edge walk needs no wrap test; a pass reads one buffer and writes the other,
+ *        and five passes leave the survivors in B. Signs come from the float distances, clamped
+ *        and read through FTOI4, rather than from the clip flag register, whose six bits per
+ *        vertex would need decoding per plane.
+ *
+ * This source code is released under the GNU GPL-3.0-or-later license.
+ * ================================================================================================ */
+
+#include "clipper.vush"
+
+// A clipper corner from a phase 1 vertex: the clip position with its w rebuilt as 1 / Q, the
+// colour as floats, and the pass's UV back from the projected STQ as S x w. The pass, 0 base or
+// 1 lightmap, blends the base S x Q and T x Q with the lightmap's (STQ .w and the position's .w).
+void seedCorner(ref<Projected> vertex, float pass, out vec4 pos, out vec4 col, out vec4 uv)
+{
+    pos = vertex.clip;
+    uv  = vertex.stq;
+
+    vec2 lightmap;
+    lightmap.x = uv.w;
+    lightmap.y = pos.w;
+    lightmap   = (lightmap - uv.xy) * pass;
+    uv.xy      = uv.xy + lightmap;
+
+    float q = 1.0 / uv.z;
+    pos.w   = q;
+    uv.xy   = uv.xy * pos.w;
+    col     = itof0(vertex.rgba);
+}
+
+// A corner's distance inside plane `plane` (0 near, 1 x-, 2 x+, 3 y-, 4 y+): w shrunk so a cut
+// lands strictly inside, plus the plane's term, scaled so the sign survives the product of two
+// distances. There is no far plane; a triangle past it is rejected whole.
+float planeDistance(in Frame frame, vec4 pos, int16 plane)
+{
+    vec3 jp = pos.xyz * frame.clipScale;
+    vec3 jn = -jp;
+    float d = 0.0 + pos.w;
+    d       = d * frame.clipShrink;
+
+    if (plane == 0)
+    {
+        d = d + jn.z;
+    }
+    else if (plane == 1)
+    {
+        d = d + jn.x;
+    }
+    else if (plane == 2)
+    {
+        d = d + jp.x;
+    }
+    else if (plane == 3)
+    {
+        d = d + jn.y;
+    }
+    else
+    {
+        d = d + jp.y;
+    }
+
+    return d * frame.clipDistance;
+}
+
+// The sign of a distance, read through FTOI4 of it clamped to [-1, 1].
+int16 sign(float d)
+{
+    return int16(ftoi4(clamp(d, -1.0, 1.0)));
+}
+
+// One Sutherland-Hodgman pass over `corners` corners in `from` against plane `plane`, the
+// survivors into `to` with the first again after the last. Fewer than three survivors are none.
+int16 clipPass(in Frame frame, int16 corners, ref<Corner> from, ref<Corner> to, int16 plane)
+{
+    int16 count = 0;
+
+    if (corners >= 3)
+    {
+        ref<Corner> walk   = from;
+        ref<Corner> cursor = to;
+
+        do
+        {
+            vec4 curPos   = walk.pos;
+            vec4 curCol   = walk.col;
+            vec4 curUV    = walk.uv;
+            vec4 nxtPos   = walk[1].pos;
+            vec4 nxtCol   = walk[1].col;
+            vec4 nxtUV    = walk[1].uv;
+            float dCur    = planeDistance(frame, curPos, plane);
+            float dNxt    = planeDistance(frame, nxtPos, plane);
+            int16 signCur = sign(dCur);
+            int16 signCut = sign(dCur * dNxt);
+
+            if (signCur >= 0)
+            {
+                cursor.pos = curPos;
+                cursor.col = curCol;
+                cursor.uv  = curUV;
+                cursor += 1;
+                count++;
+            }
+
+            if (signCut < 0)
+            {
+                float t    = dCur / (dCur - dNxt);
+                cursor.pos = curPos + (nxtPos - curPos) * t;
+                cursor.col = curCol + (nxtCol - curCol) * t;
+                cursor.uv  = curUV + (nxtUV - curUV) * t;
+                cursor += 1;
+                count++;
+            }
+
+            walk += 1;
+            corners--;
+        } while (corners > 0);
+
+        if (count >= 3)
+        {
+            cursor.pos = to.pos;
+            cursor.col = to.col;
+            cursor.uv  = to.uv;
+        }
+        else
+        {
+            count = 0;
+        }
+    }
+
+    return count;
+}
+
+// Projects a clipped corner into a window vertex.
+void emitCorner(out ClipVertex to, in Frame frame, vec4 pos, vec4 col, vec4 uv)
+{
+    float q        = 1.0 / pos.w;
+    vec3 projected = frame.gsOffset + pos.xyz * q * frame.gsScale;
+
+    to.stq  = vec3(uv.xy * q, q);
+    to.rgba = ftoi0(col);
+    to.xyz  = ftoi4(projected);
+}
+
+// A triangle that left the guard band: clipped against the near plane and the four sides, then
+// sent at `cursor` as a fan of the survivors, each triangle judged again and sent with ADC set
+// when any corner is still outside.
+void clipTriangle(in Frame frame, inout ClipBuffers clip, inout ref<WindowVertex> cursor,
+                  inout int16 room, ref<Projected> a, ref<Projected> b, ref<Projected> c,
+                  float pass)
+{
+    vec4 pos0; vec4 col0; vec4 uv0;
+    vec4 pos1; vec4 col1; vec4 uv1;
+    vec4 pos2; vec4 col2; vec4 uv2;
+
+    seedCorner(a, pass, pos0, col0, uv0);
+    seedCorner(b, pass, pos1, col1, uv1);
+    seedCorner(c, pass, pos2, col2, uv2);
+
+    clip.a[0].pos = pos0;  clip.a[0].col = col0;  clip.a[0].uv = uv0;
+    clip.a[1].pos = pos1;  clip.a[1].col = col1;  clip.a[1].uv = uv1;
+    clip.a[2].pos = pos2;  clip.a[2].col = col2;  clip.a[2].uv = uv2;
+    clip.a[3].pos = pos0;  clip.a[3].col = col0;  clip.a[3].uv = uv0;
+
+    ref<Corner> bufferA = ref<Corner>(clip.a);
+    ref<Corner> bufferB = ref<Corner>(clip.b);
+
+    // Near first, which removes the most, then the four sides; A to B and back leaves the
+    // survivors in B.
+    int16 count = clipPass(frame, 3, bufferA, bufferB, 0);
+    count       = clipPass(frame, count, bufferB, bufferA, 1);
+    count       = clipPass(frame, count, bufferA, bufferB, 2);
+    count       = clipPass(frame, count, bufferB, bufferA, 3);
+    count       = clipPass(frame, count, bufferA, bufferB, 4);
+
+    // Fan the survivors from corner 0: count - 2 triangles.
+    int16 fans = count - 2;
+
+    if (fans > 0)
+    {
+        vec4 firstPos   = clip.b[0].pos;
+        vec4 firstCol   = clip.b[0].col;
+        vec4 firstUV    = clip.b[0].uv;
+        ref<Corner> fan = bufferB + 1;
+
+        do
+        {
+            vec4 secondPos = fan.pos;
+            vec4 secondCol = fan.col;
+            vec4 secondUV  = fan.uv;
+            vec4 thirdPos  = fan[1].pos;
+            vec4 thirdCol  = fan[1].col;
+            vec4 thirdUV   = fan[1].uv;
+
+            clipflags j0 = clipw(firstPos.xyz * frame.clipScale, firstPos.w);
+            clipflags j1 = clipw(secondPos.xyz * frame.clipScale, secondPos.w);
+            clipflags j2 = clipw(thirdPos.xyz * frame.clipScale, thirdPos.w);
+
+            ref<ClipVertex> emit = ref<ClipVertex>(cursor);
+            emitCorner(emit[0], frame, firstPos, firstCol, firstUV);
+            emitCorner(emit[1], frame, secondPos, secondCol, secondUV);
+            emitCorner(emit[2], frame, thirdPos, thirdCol, thirdUV);
+
+            int16 reject = adc(j0, j1, j2);
+            emit[0].adc  = reject;
+            emit[1].adc  = reject;
+            emit[2].adc  = reject;
+
+            cursor += 3;
+            room -= 3;
+            fan += 1;
+            fans--;
+        } while (fans > 0);
+    }
+}
+
+export void ClipTriangle(inout ref<WindowVertex> cursor, inout int16 room,
+                         ref<Projected> a, ref<Projected> b, ref<Projected> c, float pass)
+{
+    clipTriangle(frame, clip, cursor, room, a, b, c, pass);
+}

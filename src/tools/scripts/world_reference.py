@@ -5,7 +5,7 @@
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
-"""A software reference for what world_lm.vcl draws of the authored graybox: the same .proc
+"""A software reference for what world_lm.vusl draws of the authored graybox: the same .proc
 triangles, the cook job's vertex colour bytes (base colour times the fixed light, 0x80 as 128),
 the cameras of run_world.VIEWS that the GS gate shares, a 90 degree vertical field of view on
 the TV's 4:3 picture and the near plane at 4 units, depth-tested with perspective-correct depth
@@ -53,7 +53,7 @@ OUTPUT_PATH = renderer_capture.WORLD_SCENE_FILE
 FOV_Y_DEGREES = 90.0
 DISPLAY_ASPECT = (4, 3)  # width, height
 NEAR = 4.0
-# The world pass's far plane (scene.cpp kFarPlane): world_lm.vcl skips a triangle with a corner past it.
+# The world pass's far plane (scene.cpp kFarPlane): world_lm.vusl skips a triangle with a corner past it.
 FAR = 65536.0
 UP = (0.0, 0.0, 1.0)
 

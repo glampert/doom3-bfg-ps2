@@ -110,7 +110,7 @@ static constexpr std::uint8_t kStripIndexAdc = 0x80;
 static constexpr std::uint32_t kStripEntryAdc = 0x8000;
 static constexpr std::int16_t kStripVertexAdc = -32768;
 
-// VU1 data memory (ps2/renderer/vu1progs/vu_memory.h, plan section 7.2): each input half is 306
+// VU1 data memory (ps2/renderer/vu1progs/vu_memory.vush, plan section 7.2): each input half is 306
 // qwords, of which the last 11 receive the batch's state from the display list (the lightmap
 // page's A+D packet, the material's, and the drawing tags), so a batch, its last write included,
 // fits 295; WA vertices take 4 qwords and the indexed layout stops at 72 unique vertices.

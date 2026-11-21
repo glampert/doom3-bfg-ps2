@@ -13,7 +13,8 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   at an EVEN field with `gs::PresentMode::Pipelined`, four presents taking at least five
   fields; `vu-passthrough` binds the passthrough microprogram through its MPG chain, UNPACKs a
   red sprite packet into the VU double buffer, MSCALs it and checks `renderer-vu.tga` at six
-  pixels, with a second bind uploading nothing) require 120 presented frames, alternating contexts, a reload with smaller
+  pixels, with a second bind uploading nothing and the clipper library, which passthrough does
+  not call, never uploaded) require 120 presented frames, alternating contexts, a reload with smaller
   chain rings (1 KiB: 573 kicks and 562 ring restarts over four frames on 2026-11-03, against
   135 kicks and 3 restarts at 128 KiB over 120), texture dirty/eviction hazards, capture
   recovery, pressure/drains and
@@ -24,7 +25,9 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
   triangles. Adapter startup also rejects insufficient VRAM/pixel budgets
   without retaining partial ownership. The core checks include
   `renderer/passthrough-microprogram`: the VU rule's `passthrough.o` reached the link with
-  whole-qword, 16-byte-aligned code of 4 to 16 instructions and an E bit (2026-11-03).
+  whole-qword, 16-byte-aligned code of 4 to 16 instructions and an E bit (2026-11-03);
+  `renderer/clipper-library`: the clipper library's `.vutext` symbols bracket exactly the
+  instructions its generated header counts, 16-byte aligned (2026-11-21).
   Five `math/*` checks (`qword-copies`, `vu0-transform`, `vu0-lerp`, `vu0-matrix-multiply`,
   `vu0-backface-cull`) compare `ps2/qwords.h` and the VU0 macro-mode asm in
   `ps2/math/vec_mat.h` with scalar EE references on xorshift inputs: guarded buffers for the
@@ -72,11 +75,12 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
 ## Host tests
 
 - The GS gate's `renderer-gs/world-graybox` loads `host:graybox.d3wd` (`make test-renderer` runs
-  `make world-cook` and the runner stages it), draws it through `world_lm.vcl` from four
+  `make world-cook` and the runner stages it), draws it through `world_lm.vusl` from four
   cameras (room 0, room 1, through the doorway, against the divider where the near plane and
   the guard band clip; a 90-degree vertical field of view on the TV's 4:3 picture,
   `system::video::kDisplayAspect`, whatever the buffer's size) and captures `renderer-world-{room0,room1,doorway,clip}.tga`; it also
-  requires one program upload and the exact heap ledger after unload. The runner checks eight
+  requires one program upload, one upload of the clipper library world_lm calls, and the exact
+  heap ledger after unload. The runner checks eight
   pixels a view (`renderer_capture.WORLD_SCENE_PIXELS`, per standard), chosen deep inside flat
   faces by `src/tools/scripts/world_reference.py`, a reference rasterizer of the same `.proc`,
   cameras and colour bytes that writes `src/tests/data/graybox_map/scene_pixels.json`;
@@ -285,7 +289,7 @@ Summary of `make test-renderer` and the native 2D path it covers.
   native drawing adapters/ASCII glyphs, indexed rotated/clipped geometry and per-vertex
   RGB/alpha, additive color, screen and line passes and the depth mask, context flips,
   residency/buffer pressure,
-  reload/cleanup, the cooked graybox world (`make world-cook`) drawn through `world_lm.vcl` from
+  reload/cleanup, the cooked graybox world (`make world-cook`) drawn through `world_lm.vusl` from
   four cameras with near-plane and guard band clipping, and, in assertion builds, seventeen
   bounds/state/deadline failures. `make run-renderer` captures
   and holds the NTSC scene for inspection.

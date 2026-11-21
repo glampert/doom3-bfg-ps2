@@ -110,8 +110,8 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
 - **Install git before `actions/checkout`.** Without git 2.18 or newer on `PATH`, it downloads
   a tarball through the REST API instead, with no `.git`, and the link report records an
   unknown commit.
-- **Checkout fetches the submodules** (`submodules: recursive`): oxide-vcl, the VU
-  compiler, under `src/external/oxide-vcl` must be present for the VU build rule. A new
+- **Checkout fetches the submodules** (`submodules: recursive`): oxide-vcl, whose oxide-vusl
+  is the VU compiler, under `src/external/oxide-vcl` must be present for the VU build rule. A new
   gitlink must point at a published commit or the checkout fails. `dvp-as` is in the image.
 - **Rust for oxide-vcl.** The job adds `rustup` with apk and installs stable Rust
   (`rustup-init -y --profile minimal --default-toolchain stable`) for the musl host, then
@@ -121,7 +121,7 @@ finds wrong-case includes in seconds. It can't see Makefile paths of files never
   compiler (`HOST_CXX=g++`). `stable` is not pinned, unlike the image: a new Rust release
   reaches CI unannounced, changing how oxide-vcl is built but not what it generates; pin it
   with `--default-toolchain 1.NN` if one ever breaks the build. The Makefile builds
-  oxide-vcl into `build/tools/oxide-vcl/` once, for both configurations.
+  oxide-vusl into `build/tools/oxide-vcl/` once, for both configurations.
 - **Mark the workspace safe for git after checkout.** The container runs as root while the
   runner's user owns the workspace, so git stops with "detected dubious ownership". Checkout
   adds `safe.directory` only to its own temporary global configuration. `build_metadata.py`

@@ -127,7 +127,7 @@ REQUIRED_CORE_CHECKS = frozenset({
     "input/native-action-table", "input/inactive-cleanup-ledger", "input/disabled-controller-policy",
     "deferred/offline-multiplayer-ledger", "deferred/save-metadata-ledger", "deferred/disabled-save-policy",
     "renderer/inactive-interfaces", "renderer/empty-resource-ledger", "renderer/frontend-cvars",
-    "renderer/passthrough-microprogram",
+    "renderer/passthrough-microprogram", "renderer/clipper-library",
     "math/qword-copies", "math/vu0-transform", "math/vu0-lerp", "math/vu0-matrix-multiply", "math/vu0-backface-cull",
     "math/transcendentals",
     "offline/common-idle-demo-ledger",

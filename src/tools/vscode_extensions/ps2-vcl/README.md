@@ -1,13 +1,19 @@
-# PS2 VCL/VU Assembly syntax highlighting for VSCode
+# PS2 VCL, VUSL and VU Assembly syntax highlighting for VSCode
 
-Syntax highlighting for PS2 VU microprograms, reused from the Quake II PS2 toolset.
-The Doom port does not yet include a VU program; this editor support is available
-for future renderer work. It recognizes:
-`.vcl` sources (VCL, including the `#macro`/`#vuprog` directives of
-oxide-vcl's preprocessor), the `.i` files they `#include`, and the assembled
-`.vsm` output.
+Syntax highlighting for PS2 VU microprograms, reused from the Quake II PS2 toolset, as two
+languages. The Doom port's programs are VUSL (`src/ps2/renderer/vu1progs/`):
 
-The includes are matched by path, as `**/vu1progs/*.i`, rather than by
+- **VUSL** (`vusl`): `.vusl` sources and the `.vush` files they `#include`,
+  as compiled by oxide-vusl. The grammar knows VUSL's types, qualifiers,
+  `layout(...)` keys, `ref<T>`, built-in functions, pragmas and their
+  arguments, and swizzles. A built-in's name is only coloured as one when a
+  call follows, so members named `clamp` or `adc` stay plain. A `#pragma`
+  the compiler does not know is marked, as the compiler warns about it.
+- **VCL** (`ps2-vcl`): `.vcl` sources (VCL, including the `#macro`/`#vuprog`
+  directives of oxide-vcl's preprocessor), the `.i` files they `#include`,
+  and the assembled `.vsm` output.
+
+The VCL includes are matched by path, as `**/vu1progs/*.i`, rather than by
 extension: `.i` is also preprocessed C, which VSCode's built-in C support
 claims, and this extension is installed for every workspace. A path pattern
 outranks an extension match, so it wins here and nowhere else. An include

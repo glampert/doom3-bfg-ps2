@@ -73,10 +73,10 @@ bool RunRendererTests()
              passed;
 
     // The VU rule's product reached the link: the passthrough program's .vutext symbols bracket
-    // whole qwords (MPG uploads qwords), the count is the handful of instructions the source
-    // and the -j boilerplate amount to, and the upper word of some instruction carries the E
-    // bit that ends the program. An unchecked object or a dropped section fails here, not on
-    // the first MSCAL.
+    // whole qwords (MPG uploads qwords), the count is the handful of instructions its two kicks
+    // amount to, and the upper word of some instruction carries the E bit that ends the program.
+    // The clipper library's symbols bracket what its generated header counted. An unchecked
+    // object or a dropped section fails here, not on the first MSCAL.
     const renderer::vu::MicroCode passthrough = renderer::vu::passthrough_Code();
     const u32 instructions = passthrough.InstructionCount();
     bool endBit = false;
@@ -87,6 +87,11 @@ bool RunRendererTests()
 
     passed = Check("passthrough-microprogram", instructions >= 4u && instructions <= 16u && (instructions % 2u) == 0u &&
                                                (reinterpret_cast<uintptr_t>(passthrough.start) % 16u) == 0u && endBit) &&
+             passed;
+
+    const renderer::vu::MicroCode clipper = renderer::vu::clipper_Code();
+    passed = Check("clipper-library", clipper.InstructionCount() == ((vusl::clipper::kInstructions + 1u) & ~1u) &&
+                                      (reinterpret_cast<uintptr_t>(clipper.start) % 16u) == 0u) &&
              passed;
     return passed;
 }

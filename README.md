@@ -40,9 +40,9 @@ rendering work:
 | `bin2c` | ps2sdk | `$PS2SDK/bin` |
 | `cargo` | Rust (a recent stable release, from [rustup](https://rustup.rs)) | `~/.cargo/bin` |
 
-The VU microprograms are compiled by [oxide-vcl](https://github.com/glampert/oxide-vcl), a
-submodule under `src/external/` that `make` builds with `cargo`; the toolchain's `openvcl` is
-not used.
+The VU microprograms are written in VUSL, a GLSL-like language for VU1, and compiled by
+oxide-vusl, from [oxide-vcl](https://github.com/glampert/oxide-vcl), a submodule under
+`src/external/` that `make` builds with `cargo`; the toolchain's `openvcl` is not used.
 
 Set up `~/.zshenv` (or your shell's equivalent) along these lines:
 

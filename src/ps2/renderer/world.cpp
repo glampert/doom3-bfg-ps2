@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: world.cpp
-// Brief: Load a cooked world and draw its batches through world_lm.vcl (or world_strips.vcl): frame
+// Brief: Load a cooked world and draw its batches through world_lm.vusl (or world_strips.vusl): frame
 // constants, the depth pass state, one program bind, then one REF'd batch per cooked packet.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
@@ -33,7 +33,11 @@ static TextureStats s_lastStats = {};
 } // namespace
 
 
-static_assert(kInputHalfQwords == kVuInputHalfQwords, "world_format.h and vu_memory.h disagree on the input half");
+static_assert(kInputHalfQwords == vu::kInputHalfQwords, "world_format.h and the world programs disagree on the input half");
+static_assert(kBatchQwords == vu::kBatchLightmapOffset && kBatchStateQwords == vu::kBatchLightmapQwords + vu::kBatchStateQwords,
+              "world_format.h and the world programs disagree on where the batch state starts");
+static_assert(kBatchStateBlockQwords == 1U + vu::kBatchStateQwords && kPageStateBlockQwords == 1U + vu::kBatchLightmapQwords,
+              "a state block is its VIFcode and the qwords it unpacks");
 
 PS2_COLD_FUNC void * ReadWhole(const char * path, u32 limit, u32 & bytes)
 {
@@ -147,15 +151,19 @@ PS2_COLD_FUNC void Unload(Level & level)
 
 vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::DrawContext context)
 {
-    vu::FrameConstants constants;
-    constants.viewProjection = viewProjection;
-    constants.gsScale        = gs::WindowScale();
-    constants.gsScale.w      = 1.0f - vu::kClipShrink;
-    constants.gsOffset       = gs::WindowOffset();
-    constants.gsOffset.w     = vu::kClipDistanceScale;
-    constants.clipScale      = { vu::kGuardBandScale, vu::kGuardBandScale, 1.0f, 0.0f };
-    constants.stripTag       = gs::DrawingTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context);
-    constants.listTag        = gs::DrawingTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context);
+    const math::Vec4 scale  = gs::WindowScale();
+    const math::Vec4 offset = gs::WindowOffset();
+
+    // The window state and the null tag are DisplayList::SetFrameConstants's.
+    vu::FrameConstants constants = {};
+    CopyQwords<sizeof(math::Mat4) / 16>(&constants.mvp, &viewProjection);
+    constants.gsScale          = { scale.x, scale.y, scale.z };
+    constants.clipShrink       = 1.0f - vu::kClipShrink;
+    constants.gsOffset         = { offset.x, offset.y, offset.z };
+    constants.clipDistance     = vu::kClipDistanceScale;
+    constants.clipScale        = { vu::kGuardBandScale, vu::kGuardBandScale, 1.0f };
+    constants.stripTag         = gs::DrawingTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context);
+    constants.listTag          = gs::DrawingTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context);
     constants.lightmapStripTag = gs::LightmapTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context);
     constants.lightmapListTag  = gs::LightmapTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context);
     return constants;

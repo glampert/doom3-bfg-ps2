@@ -2,7 +2,7 @@
 # ================================================================================================
 # File: vu_cost.py
 # Brief: Count the VU1 cycles a world program spends on each cooked batch, for gate R1's topology
-# comparison (world_lm.vcl over indexed strips, world_strips.vcl over plain strips). PCSX2 reports
+# comparison (world_lm.vusl over indexed strips, world_strips.vusl over plain strips). PCSX2 reports
 # no VU1 cycles, but oxide-vcl's output is scheduled: every instruction pair is one cycle, and a
 # pair the VU stalls on (a result not yet landed, the divider busy) carries the stall in its
 # listing comment, 'STALL_LATENCY ?N'. This script unpacks each batch's VIF packet into data
@@ -10,9 +10,10 @@
 # branches and their delay slots), charging one cycle a pair, plus its marked stall, or the DIV
 # wait at a WAITQ. Float
 # results are not computed: every vertex is taken to be inside the guard band (the clip flags read
-# zero), which is the strip path nearly every batch takes. XGKICK stalls depend on the GS and are
-# not charged; both topologies send the same vertices. A batch with a lightmap page runs the
-# lightmap pass too (world_lm.vcl; world_strips.vcl draws none).
+# zero), which is the strip path nearly every batch takes, so the clipper library is never called.
+# XGKICK stalls depend on the GS and are not charged; both topologies send the same vertices. A
+# batch with a lightmap page runs the lightmap pass too (world_lm.vusl; world_strips.vusl draws
+# none).
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -29,7 +30,7 @@ import d3wd
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 VU_BUILD = REPO_ROOT / "build/vu"
-# vu_memory.h
+# vu1progs/vu_memory.vush (vu::kInputBase, vu::kWindowA and vu::kWindowQwords in vu.h)
 INPUT_BASE = 40
 WINDOW_STATE = 7
 WINDOW_A = 652
@@ -217,6 +218,11 @@ class Machine:
         elif base == "mtir":
             lane = self.LANES.index(args[1][-1])
             self.set_vi(self.register(args[0]), self.vf[self.register(args[1][:-1])][lane])
+        elif base == "move":
+            source = self.vf[self.register(args[1])]
+            target = self.vf[self.register(args[0])]
+            for lane in lanes:
+                target[lane] = source[lane]
         elif base == "mr32":
             source = list(self.vf[self.register(args[1])])
             target = self.vf[self.register(args[0])]

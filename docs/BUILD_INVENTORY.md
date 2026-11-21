@@ -152,9 +152,10 @@ visible, so a new engine warning is a regression to investigate.
 The checked backend bridge treats upstream `neo` contracts as system headers;
 new backend/test headers remain checked. SDK headers are system headers.
 No project-wide `-w` is introduced. The VU microprograms in `config/sources.mk`'s
-`VCL_FILES` (`src/ps2/renderer/vu1progs/`) build once into `build/vu/` (the pinned oxide-vcl in
-`build/tools/oxide-vcl/`, then `dvp-as`, then a `.d` for the reports) and link into every image as `.vutext`; `passthrough.vcl` is the
-first (2026-11-03). `ps2/system/iop_modules.S` assembles once into `build/iop/` too and links
+`VUSL_FILES` (`src/ps2/renderer/vu1progs/`) build once into `build/vu/` (the pinned oxide-vusl in
+`build/tools/oxide-vcl/`, then `dvp-as`, then a `.d` for the reports) and link into every image
+as `.vutext`; their generated headers (`build/vu/<name>.vusl.h`, on every EE compile's include
+path) build before any EE object. The programs were VCL until 2026-11-21. `ps2/system/iop_modules.S` assembles once into `build/iop/` too and links
 into production only: it `.incbin`s the SDK's IOP storage drivers into `.bootdata`, which
 `config/linkfile.ld` (the SDK's linkfile plus that segment, used by every image) places past
 `_end` for the heap to reclaim (2026-11-17). The resident link's SDK libraries include

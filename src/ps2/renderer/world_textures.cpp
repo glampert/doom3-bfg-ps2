@@ -91,7 +91,7 @@ static void WriteState(qword_t * block, gs::DrawContext context, bool textured, 
     block[0].sw[0] = static_cast<s32>(dma::kVifNop);
     block[0].sw[1] = static_cast<s32>(dma::kVifNop);
     block[0].sw[2] = static_cast<s32>(dma::VifStcycl(1U, 1U));
-    block[0].sw[3] = static_cast<s32>(dma::VifUnpack(dma::UnpackFormat::V4_32, 9U, kVuBatchStateOffset, true, false));
+    block[0].sw[3] = static_cast<s32>(dma::VifUnpack(dma::UnpackFormat::V4_32, vu::kBatchStateQwords, vu::kBatchStateOffset, true, false));
 
     block[1].dw[0] = GIF_SET_TAG(6, 1, 0, 0, GIF_FLG_PACKED, 1);
     block[1].dw[1] = GIF_REG_AD;
@@ -121,7 +121,7 @@ static void WritePage(qword_t * block, gs::DrawContext context, u64 tex0, bool l
     block[0].sw[0] = static_cast<s32>(dma::kVifNop);
     block[0].sw[1] = static_cast<s32>(dma::kVifNop);
     block[0].sw[2] = static_cast<s32>(dma::VifStcycl(1U, 1U));
-    block[0].sw[3] = static_cast<s32>(dma::VifUnpack(dma::UnpackFormat::V4_32, 2U, kVuBatchLightmapOffset, true, false));
+    block[0].sw[3] = static_cast<s32>(dma::VifUnpack(dma::UnpackFormat::V4_32, vu::kBatchLightmapQwords, vu::kBatchLightmapOffset, true, false));
     block[1].dw[0] = GIF_SET_TAG(1, 1, 0, 0, GIF_FLG_PACKED, 1);
     block[1].dw[1] = GIF_REG_AD;
     block[2].dw[0] = tex0;

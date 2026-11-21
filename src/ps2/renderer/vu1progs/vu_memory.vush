@@ -1,0 +1,119 @@
+#pragma once
+/* ================================================================================================
+ * File: vu_memory.vush
+ * Brief: The VU1 data memory map (qword addresses) the programs share: the frame constants,
+ *        a batch vertex after phase 1, the output windows and the clipper's buffers. Each
+ *        program binds them at their addresses as main's parameters. ps2/renderer/vu.h is the
+ *        host's side, checked against the headers oxide-vusl generates.
+ *
+ * This source code is released under the GNU GPL-3.0-or-later license.
+ * ================================================================================================ */
+
+// Qwords 0-12: the frame constants DisplayList::SetFrameConstants writes once a frame
+// (vu::FrameConstants). The clipper's parameters ride in spare w lanes.
+struct Frame
+{
+    layout(row_major) mat4 mvp; // the view-projection rows (row vectors)
+    vec3  gsScale;
+    float clipShrink;           // 1 - vu::kClipShrink
+    vec3  gsOffset;
+    float clipDistance;         // vu::kClipDistanceScale
+    vec3  clipScale;            // the guard band judgement scale
+    float pad6;
+    int16 window;               // the window the next packet opens, kept across batches
+    int16 windowStep;           // the signed step to the other window
+    qword nullTag;              // NLOOP 0 and EOP 1: the drain guard
+    qword stripTag;             // the drawing tags; NLOOP and EOP are the program's
+    qword listTag;
+    qword lightmapStripTag;     // the lightmap pass's, in the other GS context
+    qword lightmapListTag;
+};
+
+// A batch vertex after phase 1, in place of the cooked one: the clip-space position, XYZ2
+// with w the ADC flag (0x8000) and 0x4000 when the vertex left the guard band, the colour
+// bytes, and the PACKED ST with Q.
+struct Projected
+{
+    vec4  clip;
+    ivec3 xyz;
+    int16 flags;
+    ivec4 rgba;
+    vec4  stq;
+};
+
+// The same qwords, as they are sent.
+struct Sent
+{
+    qword clip;
+    qword xyz;
+    qword rgba;
+    qword stq;
+};
+
+// The two output windows (652-953): a drawing tag, then ST (with Q), RGBAQ and XYZ2 per vertex.
+// A program fills one, kicks it and continues in the other; an XGKICK stalls while the
+// previous transfer runs, so the window being written has always drained. Frame.window keeps
+// them alternating across batches: the window a batch writes first is the one the previous
+// batch's last kick drained.
+const int16 kWindowVertices = 50;
+
+struct WindowVertex
+{
+    qword st;
+    qword rgbaq;
+    qword xyz;
+};
+
+struct Window
+{
+    qword        tag;
+    WindowVertex vertices[50];
+};
+
+struct Windows
+{
+    Window windows[2];
+};
+
+// Views of a window vertex: XYZ2 as its coordinates and ADC flag, and a clipped corner's,
+// projected here.
+struct WindowCorner
+{
+    qword st;
+    qword rgbaq;
+    ivec3 xyz;
+    int16 adc;
+};
+
+struct ClipVertex
+{
+    vec3  stq;
+    float pad;
+    ivec4 rgba;
+    ivec3 xyz;
+    int16 adc;
+};
+
+// Qwords 954-956, after window B: where a world program keeps values that do not fit in its
+// registers.
+struct Scratch
+{
+    qword q[3];
+};
+
+// The clipper's ping-pong buffers (957-1007): three qwords a corner, the first again after the
+// last. A holds 7 corners plus the wrap, B 8: five planes add at most one corner each to a
+// triangle while a corner is kept exactly when its distance is >= 0, which holds with the near
+// plane at least vu::kClipMinNear from the eye (scene.cpp clamps it there).
+struct Corner
+{
+    vec4 pos;
+    vec4 col;
+    vec4 uv;
+};
+
+struct ClipBuffers
+{
+    Corner a[8];
+    Corner b[9];
+};

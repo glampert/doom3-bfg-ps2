@@ -1,0 +1,357 @@
+/* ================================================================================================
+ * File: world_lm.vusl
+ * Brief: One cooked world batch (D3WD, layout WA: src/tools/assets/world.h), its strips given as
+ *        an index stream: the base pass, its material's diffuse times the vertex colour (the
+ *        light's chroma), then, when the batch has a lightmap, the lightmap pass in the other GS
+ *        context, Cd x As with the page's intensity.
+ *
+ * Phase 1 transforms every unique vertex once, in place (Projected): qword 0 becomes the
+ * clip-space position with the lightmap T x Q in w, qword 1 the projected XYZ2 with w 0x8000 when
+ * the vertex left the guard band, qword 2 keeps the colour bytes, already PACKED RGBAQ, and qword
+ * 3 receives the PACKED ST with Q, the lightmap S x Q in w. Sixteen lanes hold everything both
+ * passes and the clipper need: the clipper rebuilds w as 1 / Q, and a lightmap vertex assembles
+ * its ST from the two w lanes and Q.
+ *
+ * Phase 2 sends the batch to the GS. When every vertex is inside the band (nearly every batch)
+ * the strip path walks the index stream and emits each entry's vertex with its ADC flag as a
+ * triangle strip. Otherwise the list path walks the same stream as triangles: those with every
+ * corner inside go out as they are, the rest through the clipper library (clipper.vush) as a
+ * fan. A lit batch walks again for the lightmap pass after kicking the page's A+D packet. The
+ * RGBAQ qword stays even though DECAL ignores the colour: PACKED ST holds its Q until an RGBAQ
+ * write stores it. The two contexts share one CLUT buffer, so the page's TEX0 (which loads its
+ * CLUT) goes only once the base pass's windows are out.
+ *
+ * This source code is released under the GNU GPL-3.0-or-later license.
+ * ================================================================================================ */
+
+#pragma program(world_lm)
+#include "world.vush"
+#include "clipper.vush"
+
+// The free qwords between the frame constants and the double buffer (13-35), where the
+// program keeps the values that do not fit in its registers.
+struct WorkArea
+{
+    qword q[23];
+};
+
+// The list path's walk, kept in memory across a clipper call (36-39, free between the work area
+// and the double buffer). A call may change VI10-VI15 and VI01, so what the walk keeps in
+// registers across it must fit VI02-VI09; with the walk there, oxide-vcl kept values of every
+// path in the work area, the strip path's too, and the lightmap pass cost 19% more cycles
+// (vu_cost.py over mars_city1). Reloaded after the call, the walk crosses it in memory instead.
+struct Walk
+{
+    int16 left;
+    int16 next;
+    int16 prev1;
+    int16 prev2;
+};
+
+// A cooked vertex: s16 position, s16 UVs with the lightmap pair in 4.12, RGBA bytes, and a free
+// qword.
+struct Vertex
+{
+    ivec3 pos;
+    int16 pad;
+    ivec4 uv;
+    ivec4 rgba;
+    qword free;
+};
+
+// Four stream entries: a vertex's qword offset in the half, with the GS ADC flag in bit 15.
+// Entries past the last repeat the first vertex with ADC set, so whole qwords can be walked.
+struct Entries
+{
+    ivec4 lanes;
+};
+
+// A batch at XTOP: its dequantisation and index qwords, the index stream, the vertices (their
+// count from XITOP), and the batch state DisplayList::DrawBatch writes at the end of the half:
+// the lightmap page's A+D packet (word 3 of its second qword non-zero when the batch has a
+// lightmap pass), the material's A+D packet, kicked first, then the drawing tags.
+struct Batch
+{
+    vec3    posOffset;
+    int16   indexQwords;
+    float   posScale;
+    float   uvScale;
+    vec2    uvOffset;
+    Entries indices[indexQwords];
+    Vertex  vertices[count];
+    layout(offset = 295) qword lightmap[2];
+    qword   state[7];
+    qword   stripTag;
+    qword   listTag;
+};
+
+// A window vertex of the lightmap pass: its lightmap ST.
+struct LightmapVertex
+{
+    vec3  st;
+    float pad;
+    qword rgbaq;
+    ivec3 xyz;
+    int16 adc;
+};
+
+// The lightmap pass's ST: the lightmap S x Q (STQ .w), T x Q (the clip position's .w) and Q.
+vec3 lightmapSt(ref<Projected> vertex)
+{
+    vec3 st;
+    st.x = vertex.stq.w;
+    st.y = vertex.clip.w;
+    st.z = vertex.stq.z;
+    return st;
+}
+
+// One stream entry's vertex into the window, with ADC `adc`. Only raw moves: the colour words
+// are integers, which an FMAC operation would flush as denormals.
+void emitEntry(out WindowVertex to, ref<Projected> vertex, int16 adc, int16 lightmap)
+{
+    ref<Sent> sent = ref<Sent>(vertex);
+
+    if (lightmap != 0)
+    {
+        ref<LightmapVertex> lit = ref<LightmapVertex>(to);
+        lit.st                  = lightmapSt(vertex);
+        lit.rgbaq               = sent.rgba;
+        lit.xyz                 = vertex.xyz;
+        lit.adc                 = adc;
+    }
+    else
+    {
+        to.st    = sent.stq;
+        to.rgbaq = sent.rgba;
+
+        ref<WindowCorner> corner = ref<WindowCorner>(to);
+        corner.xyz               = vertex.xyz;
+        corner.adc               = adc;
+    }
+}
+
+// The strip path's pass: the stream's entries as strips, four a qword. A fresh window starts
+// with the previous qword's last two entries again, ADC set, so a strip across the kick keeps
+// its two pending vertices.
+void stripPass(inout Frame frame, inout Windows windows, inout Batch batch, int16 lightmap)
+{
+    qword tag = batch.stripTag;
+
+    if (lightmap != 0)
+    {
+        tag = frame.lightmapStripTag;
+    }
+
+    ref<WindowVertex> cursor = openWindow(frame, windows, tag);
+    int16 room               = kWindowVertices;
+
+    for (Entries e : batch.indices)
+    {
+        if (room < 4)
+        {
+            closeWindow(frame, windows, room);
+            cursor = openWindow(frame, windows, tag);
+            room   = kWindowVertices;
+
+            ref<qword> previous = ref<qword>(e) - 1;
+            int16 entry         = previous.z;
+            emitEntry(cursor[0], ref<Projected>(batch.vertices, int16(ref<Batch>(batch)) + (entry & 0x7fff)), 0x8000, lightmap);
+            entry = previous.w;
+            emitEntry(cursor[1], ref<Projected>(batch.vertices, int16(ref<Batch>(batch)) + (entry & 0x7fff)), 0x8000, lightmap);
+            cursor += 2;
+            room -= 2;
+        }
+
+        ref<qword> entries = ref<qword>(e);
+        int16 entry        = entries.x;
+        int16 offset       = entry & 0x7fff;
+        emitEntry(cursor[0], ref<Projected>(batch.vertices, int16(ref<Batch>(batch)) + offset), entry - offset, lightmap);
+        entry  = entries.y;
+        offset = entry & 0x7fff;
+        emitEntry(cursor[1], ref<Projected>(batch.vertices, int16(ref<Batch>(batch)) + offset), entry - offset, lightmap);
+        entry  = entries.z;
+        offset = entry & 0x7fff;
+        emitEntry(cursor[2], ref<Projected>(batch.vertices, int16(ref<Batch>(batch)) + offset), entry - offset, lightmap);
+        entry  = entries.w;
+        offset = entry & 0x7fff;
+        emitEntry(cursor[3], ref<Projected>(batch.vertices, int16(ref<Batch>(batch)) + offset), entry - offset, lightmap);
+        cursor += 4;
+        room -= 4;
+    }
+
+    closeWindow(frame, windows, room);
+}
+
+// A corner of a triangle wholly inside: its phase 1 qwords as they are (XYZ2's .w, the outside
+// flag, is 0), with the lightmap ST in that pass.
+void listCorner(out WindowVertex to, ref<Projected> vertex, int16 pass)
+{
+    ref<Sent> sent = ref<Sent>(vertex);
+
+    if (pass != 0)
+    {
+        ref<LightmapVertex> lit = ref<LightmapVertex>(to);
+        lit.st                  = lightmapSt(vertex);
+    }
+    else
+    {
+        to.st = sent.stq;
+    }
+
+    to.rgbaq = sent.rgba;
+    to.xyz   = sent.xyz;
+}
+
+// The list path's pass: the stream's entries as triangles, those wholly inside sent as they are
+// and the rest through the clipper.
+void listPass(inout Frame frame, inout Windows windows, inout Batch batch, inout Walk walk, int16 pass)
+{
+    qword tag = batch.listTag;
+
+    if (pass != 0)
+    {
+        tag = frame.lightmapListTag;
+    }
+
+    ref<WindowVertex> cursor = openWindow(frame, windows, tag);
+    int16 room               = kWindowVertices;
+    ref<Entries> next        = ref<Entries>(batch.indices);
+    int16 left               = batch.indexQwords;
+    left                     = left + left;
+    left                     = left + left;
+    ivec4 lanes              = next.lanes;
+    ref<Projected> prev1     = ref<Projected>(batch.vertices);
+    ref<Projected> prev2     = prev1;
+
+    while (left > 0)
+    {
+        // Room for the most a clipped triangle fans out to: five planes leave at most eight
+        // corners, six triangles.
+        if (room < 18)
+        {
+            closeWindow(frame, windows, room);
+            cursor = openWindow(frame, windows, tag);
+            room   = kWindowVertices;
+        }
+
+        // The next entry: lane x of the rotating qword, refilled every four.
+        if ((left & 3) == 0)
+        {
+            lanes = next.lanes;
+            next += 1;
+        }
+
+        int16 entry      = int16(lanes.x);
+        lanes            = mr32(lanes);
+        int16 offset     = entry & 0x7fff;
+        ref<Projected> c = ref<Projected>(batch.vertices, int16(ref<Batch>(batch)) + offset);
+        ref<Projected> a = prev2;
+        ref<Projected> b = prev1;
+        prev2            = prev1;
+        prev1            = c;
+
+        // An opening entry closes no triangle.
+        if (entry - offset == 0)
+        {
+            if ((a.flags | b.flags | c.flags) == 0)
+            {
+                listCorner(cursor[0], a, pass);
+                listCorner(cursor[1], b, pass);
+                listCorner(cursor[2], c, pass);
+                cursor += 3;
+                room -= 3;
+            }
+            else
+            {
+                walk.left  = left;
+                walk.next  = int16(next);
+                walk.prev1 = int16(prev1);
+                walk.prev2 = int16(prev2);
+                ClipTriangle(cursor, room, a, b, c, float(pass));
+                left  = walk.left;
+                next  = ref<Entries>(batch.indices, walk.next);
+                prev1 = ref<Projected>(batch.vertices, walk.prev1);
+                prev2 = ref<Projected>(batch.vertices, walk.prev2);
+            }
+        }
+
+        left--;
+    }
+
+    closeWindow(frame, windows, room);
+}
+
+void main(layout(address = 0) inout Frame frame,
+          layout(xitop) int16 count,
+          layout(xtop, vif_base = 40, vif_offset = 306) inout Batch batch,
+          layout(address = 652) inout Windows windows,
+          layout(address = 954, spill) inout Scratch scratch,
+          layout(address = 13, spill) inout WorkArea work,
+          layout(address = 36) inout Walk walk)
+{
+    // The material's registers go first: every window waits behind them.
+    xgkick(batch.state);
+
+    vec3 posOffset                 = batch.posOffset;
+    float posScale                 = batch.posScale;
+    float uvScale                  = batch.uvScale;
+    layout(lane = x) vec2 uvOffset = batch.uvOffset;
+    int16 anyOut                   = 0;
+
+    // Phase 1: transform, judge and project every unique vertex in place.
+    for (inout Vertex v : batch.vertices)
+    {
+        vec3 pos      = itof0(v.pos) * posScale + posOffset;
+        vec2 uv       = itof0(v.uv.xy) * uvScale + uvOffset;
+        vec2 lightmap = itof12(v.uv.zw);
+        vec4 clipPos  = vec4(pos, 1.0) * frame.mvp;
+
+        // 1e-20 in w: a w of any real size absorbs it, but one that cancels to exactly 0 (a
+        // vertex in the eye's plane, as on grid-aligned cameras) keeps Q = 1 / w finite. With
+        // Q at the largest float the clipper's rebuilt w (1 / Q) flushes to 0 and takes the
+        // corner's UV (S x Q x w) with it.
+        clipPos.w = clipPos.w + 1.0e-20;
+
+        clipflags judged = clipw(clipPos.xyz * frame.clipScale, clipPos.w);
+        float q          = 1.0 / clipPos.w;
+        vec3 projected   = frame.gsOffset + clipPos.xyz * q * frame.gsScale;
+        vec2 lightmapQ   = lightmap * q;
+        int16 outside    = adc(judged) & 0x8000;
+        anyOut           = anyOut | outside;
+
+        ref<Projected> p = ref<Projected>(v);
+        p.clip.xyz       = clipPos.xyz;
+        p.clip.w         = lightmapQ.y;
+        p.xyz            = ftoi4(projected);
+        p.flags          = outside;
+        p.stq            = vec4(uv * q, q, lightmapQ.x);
+    }
+
+    if (anyOut == 0)
+    {
+        // Phase 2, strip path: every vertex inside the guard band.
+        stripPass(frame, windows, batch, 0);
+
+        if (batch.lightmap[1].w != 0)
+        {
+            // The page's TEX0, then the stream again under the other context.
+            xgkick(batch.lightmap);
+            stripPass(frame, windows, batch, 1);
+        }
+    }
+    else
+    {
+        // Phase 2, list path: the stream as triangles, once a pass.
+        listPass(frame, windows, batch, walk, 0);
+
+        if (batch.lightmap[1].w != 0)
+        {
+            xgkick(batch.lightmap);
+            listPass(frame, windows, batch, walk, 1);
+        }
+
+        // A list batch may kick no window: the null tag waits for the state packets, which
+        // must leave the half before the program ends.
+        xgkick(frame.nullTag);
+    }
+}

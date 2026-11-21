@@ -44,6 +44,15 @@ stall_CodeStart:
 stall_CodeEnd:
 """
 
+MOVES = """
+\t\t.vu
+moves_CodeStart:
+         NOP                                                        move.xy       VF02,VF01
+         NOP[E]                                                     mr32          VF03,VF01
+         NOP                                                        NOP
+moves_CodeEnd:
+"""
+
 
 def vif(command, num=0, immediate=0):
     return (command << 24) | (num << 16) | immediate
@@ -101,6 +110,15 @@ class MachineTests(unittest.TestCase):
         machine = vu_cost.Machine(program, {}, itop=0)
         self.assertEqual(machine.run(), 4 + 4)
         self.assertEqual(machine.vi[2], 3)
+
+    def test_lower_moves_copy_lanes(self):
+        # MOVE and MR32 run in the lower pipe: MOVE copies the lanes it names, MR32 rotates.
+        program = vu_cost.Program("moves", MOVES)
+        machine = vu_cost.Machine(program, {}, itop=0)
+        machine.vf[1] = [1, 2, 3, 4]
+        machine.run()
+        self.assertEqual(machine.vf[2], [1, 2, 0, 0])
+        self.assertEqual(machine.vf[3], [2, 3, 4, 1])
 
     def test_unpack_skips_and_extends(self):
         memory = {}

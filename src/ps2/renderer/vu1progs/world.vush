@@ -1,0 +1,35 @@
+#pragma once
+/* ================================================================================================
+ * File: world.vush
+ * Brief: The code both world programs share: opening, closing and kicking the output windows.
+ *
+ * This source code is released under the GNU GPL-3.0-or-later license.
+ * ================================================================================================ */
+
+#include "vu_memory.vush"
+
+// Starts a packet in the next window: its drawing tag, then the cursor.
+ref<WindowVertex> openWindow(inout Frame frame, inout Windows windows, qword tag)
+{
+    ref<Window> window = ref<Window>(windows, frame.window);
+    window.tag = tag;
+    return ref<WindowVertex>(window.vertices);
+}
+
+// Patches the window's tag with the vertices written (NLOOP, EOP set), kicks it and moves to
+// the other window; an empty window is not sent.
+void closeWindow(inout Frame frame, inout Windows windows, int16 room)
+{
+    int16 written = kWindowVertices - room;
+
+    if (written != 0)
+    {
+        ref<Window> window = ref<Window>(windows, frame.window);
+        int16 step         = frame.windowStep;
+
+        window.tag.x     = written + 0x8000;
+        frame.window     = int16(window) + step;
+        frame.windowStep = -step;
+        xgkick(window);
+    }
+}

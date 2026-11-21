@@ -358,7 +358,7 @@ fails only on -1. The hard disk path (from `quake2-ps2`, whose PFS boot ran in P
   textures yet. The
   runner names each view's areas and takes their batches from the cook report's `area_list`, so
   `make test-world-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips` checks a
-  plain-strips cook drawn by `world_strips.vcl` the same way.
+  plain-strips cook drawn by `world_strips.vusl` the same way.
 - Debug builds then fly (`fly` barrier): from the `east` view, `ps2_world fly on` must log the
   start's pose (yaw 0, pitch 0), and `ps2_world fly input 0 -63 -119 34 0 30` (96 units forward
   while turning 110 degrees left and looking 11.5 degrees down, 30 frames of 1/30 s) must end, by

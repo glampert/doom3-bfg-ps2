@@ -194,7 +194,9 @@ endif
 COMMON_DEFS = -DPS2_D3BFG $(CONFIG_DEFS)$(if $(filter 1,$(SCRIPT_CHECK)), -DID_SCRIPT_COMPILER -DID_SCRIPT_CHECK,)
 LANGFLAGS = -std=gnu++20 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing
 SDK_INCS = -isystem $(PS2SDK)/ee/include -isystem $(PS2SDK)/common/include
-PROJECT_INCS = -Isrc -Isrc/neo -isystem src/external
+# build/vu holds the VU programs' generated headers (VU_HEADERS), which ps2/renderer/vu.h
+# includes by bare name.
+PROJECT_INCS = -Isrc -Isrc/neo -isystem src/external -Ibuild/vu
 ENGINE_BRIDGE_INCS = -isystem src/neo
 # One section per function and object lets the resident runnable link discard unreferenced code.
 SECTIONFLAGS = -ffunction-sections -fdata-sections
@@ -275,26 +277,27 @@ TEST_SIZE_OPT_OBJS = $(addprefix $(OUTPUT_DIR)/test-backend/src/,$(GAME_SIZE_OPT
 GAME_TEST_LINK_SOURCES = $(CAMPAIGN_CXX_SRC) $(GAME_BACKEND_CXX_SRC) $(RESIDENT_SUPPORT_CXX_SRC) $(GAME_TEST_CXX_SRC)
 GAME_TEST_LINK_OBJS = $(TEST_CAMPAIGN_OBJS) $(TEST_BACKEND_OBJS) $(TEST_SUPPORT_OBJS)
 
-# VU1 microprograms: oxide-vcl (preprocessing and compiling in one run) -> dvp-as (the rule is
-# with the host tools below). Each .vcl assembles into .vutext with <name>_CodeStart/_CodeEnd link
-# symbols (PS2_DECLARE_VU_MICROPROGRAM in ps2/renderer/vu.h); until vu::Init references
-# them, --gc-sections drops the code from the runnable and only the gate link carries it. No EE compiler flag reaches
-# this toolchain, so the output is identical in both configurations: it is built once into
-# build/vu/ and linked into the production, game test and core test images. The VU rule
-# writes a .d beside each object, so the link reports hash the .vcl and its includes like
-# any compiled source.
-VCL_PATH = src/ps2/renderer/vu1progs
-VCL_SRC  = $(addprefix ps2/renderer/vu1progs/,$(VCL_FILES))
-VU_OBJS  = $(addprefix build/vu/,$(VCL_FILES:.vcl=.o))
-VCL_INCS = $(wildcard $(VCL_PATH)/*.i $(VCL_PATH)/*.h)
-OXIDE_VCL_PATH  = src/external/oxide-vcl
-OXIDE_VCL_BUILD = build/tools/oxide-vcl
-OXIDE_VCL       = $(OXIDE_VCL_BUILD)/release/oxide-vcl
-OXIDE_VCL_FLAGS = -G -I$(VCL_PATH) --vcl-boilerplate --warn-undef \
-                  --mode=oxide --opt=all --warnings-as-errors
-RESIDENT_LINK_SOURCES += $(VCL_SRC)
+# VU1 microprograms, written in VUSL: oxide-vusl -> dvp-as (the rule is with the host tools
+# below). Each .vusl compiles into a .vsm, assembled into .vutext with <name>_CodeStart/_CodeEnd
+# link symbols (VUSL_DECLARE_PROGRAM in ps2/renderer/vu.h), and a C++ header, <name>.vusl.h,
+# with the program's memory layout: vu.h includes them and checks the host's structs and
+# constants against them. Until vu::Init references the symbols, --gc-sections drops the code
+# from the runnable and only the gate link carries it. No EE compiler flag reaches this
+# toolchain, so the output is identical in both configurations: it is built once into build/vu/
+# and linked into the production, game test and core test images. The VU rule writes a .d beside
+# each object, so the link reports hash the .vusl and its includes like any compiled source.
+VUSL_PATH  = src/ps2/renderer/vu1progs
+VUSL_SRC   = $(addprefix ps2/renderer/vu1progs/,$(VUSL_FILES))
+VU_OBJS    = $(addprefix build/vu/,$(VUSL_FILES:.vusl=.o))
+VU_HEADERS = $(addprefix build/vu/,$(VUSL_FILES:.vusl=.vusl.h))
+VUSL_INCS  = $(wildcard $(VUSL_PATH)/*.vush)
+OXIDE_VCL_PATH   = src/external/oxide-vcl
+OXIDE_VCL_BUILD  = build/tools/oxide-vcl
+OXIDE_VUSL       = $(OXIDE_VCL_BUILD)/release/oxide-vusl
+OXIDE_VUSL_FLAGS = --warnings-as-errors
+RESIDENT_LINK_SOURCES += $(VUSL_SRC)
 RESIDENT_LINK_OBJS += $(VU_OBJS)
-GAME_TEST_LINK_SOURCES += $(VCL_SRC)
+GAME_TEST_LINK_SOURCES += $(VUSL_SRC)
 GAME_TEST_LINK_OBJS += $(VU_OBJS)
 
 # The IOP storage drivers a console boot starts after resetting the IOP, embedded in production's
@@ -312,7 +315,7 @@ RESIDENT_LINK_OBJS += $(IOP_MODULES_OBJ)
 ifeq ($(CORE_BOOT),1)
 	BOOT_OBJS = $(addprefix $(OUTPUT_DIR)/src/,$(CORE_BOOT_CXX_SRC:.cpp=.o))
 	LINK_OBJS = $(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_OBJS) $(CORE_BACKEND_OBJS) $(VU_OBJS)
-	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(VCL_SRC)
+	LINK_SOURCES = $(CORE_TEST_DRIVER_CXX_SRC) $(CORE_BOOT_CXX_SRC) $(CORE_CXX_SRC) $(CORE_FRAMEWORK_CXX_SRC) $(CORE_BACKEND_CXX_SRC) $(VUSL_SRC)
 	MILESTONE = build-core
 	REPORT_FLAGS = $(OUTPUT_DIR)/.backend-flags.json $(OUTPUT_DIR)/.core-flags.json $(CORE_TEST_DIR)/.link-flags.json
 else
@@ -681,43 +684,49 @@ build/tools/asset_reexport: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
 build/tools/script_cook: $(HOST_TOOLS_CMAKE)/CMakeCache.txt FORCE
 	@MAKEFLAGS= cmake --build $(HOST_TOOLS_CMAKE) --parallel --target script_cook
 
-# VU microprograms. oxide-vcl (https://github.com/glampert/oxide-vcl), the VCL compiler they
-# are built with, comes in as a git submodule (src/external/oxide-vcl) and is built by cargo
-# into build/tools/oxide-vcl/, so every VU build runs the pinned version. The up-to-date check
-# is made here, on the crates' sources and manifests, so the rule runs again only when checking
-# out a new commit changes them, and a make with nothing to do never starts cargo. Every VU
-# program depends on the binary, so a new oxide-vcl rebuilds them all.
+# VU microprograms. oxide-vusl, the VUSL compiler they are built with, comes from oxide-vcl
+# (https://github.com/glampert/oxide-vcl), a git submodule (src/external/oxide-vcl) built by cargo
+# into build/tools/oxide-vcl/, so every VU build runs the pinned version. It compiles VUSL to VCL
+# and hands that to oxide-vcl in the same process, in oxide mode with every fix and optimization.
+# The up-to-date check is made here, on the crates' sources and manifests, so the rule runs again
+# only when checking out a new commit changes them, and a make with nothing to do never starts
+# cargo. Every VU program depends on the binary, so a new oxide-vusl rebuilds them all.
 OXIDE_VCL_SRCS = $(OXIDE_VCL_PATH)/Cargo.toml $(OXIDE_VCL_PATH)/Cargo.lock \
                  $(shell find $(OXIDE_VCL_PATH)/crates -path '*/tests' -prune -o -type f -print 2>/dev/null)
 
-$(OXIDE_VCL): $(wildcard $(OXIDE_VCL_SRCS))
+$(OXIDE_VUSL): $(wildcard $(OXIDE_VCL_SRCS))
 	@test -f $(OXIDE_VCL_PATH)/Cargo.toml || \
 		{ echo "$(OXIDE_VCL_PATH) is empty - run 'git submodule update --init'"; exit 1; }
-	@cargo build --quiet --release --locked --bin oxide-vcl \
+	@cargo build --quiet --release --locked --bin oxide-vusl \
 		--manifest-path $(OXIDE_VCL_PATH)/Cargo.toml --target-dir $(OXIDE_VCL_BUILD)
 	@touch $@
 
-# -G runs oxide-vcl's built-in preprocessor (#macro blocks, #vuprog and the C directives, which
-# also reads vu_memory.h); --vcl-boilerplate adds the .init_*/--enter/--exit frame, --warn-undef
-# warns about an #if on an undefined name; --mode=oxide --opt=all turns on its fixes and every
-# optimization; --warnings-as-errors fails the build on any warning, the preprocessor's or the
-# compiler's. In oxide mode it rewrites or rejects an immediate that does not fit its field (its
-# 'imm' fix) rather than leaving dvp-as to truncate it. An 'operand out of range' warning from
-# dvp-as on a branch longer than 1023 instructions is harmless: VU1 micro memory is exactly 2048
+# oxide-vusl writes the listing and the header together, or neither when the program has an
+# error; --warnings-as-errors fails the build on any warning, the preprocessor's or the
+# compiler's. Its notes (a value kept in the work area for want of registers) are not warnings.
+# In oxide mode oxide-vcl rewrites or rejects an immediate that does not fit its field (its 'imm'
+# fix) rather than leaving dvp-as to truncate it. An 'operand out of range' warning from dvp-as on
+# a branch longer than 1023 instructions is harmless: VU1 micro memory is exactly 2048
 # instructions and the PC wraps, so the low 11 bits dvp-as keeps reach the same instruction. The
 # .vsm is kept beside the object for reading, and the .d written last lets the link reports hash
-# the program's inputs like a compiled source's.
-vu: $(VU_OBJS)
+# the program's inputs like a compiled source's. One recipe makes both targets: a pattern rule
+# with two targets runs once for the pair.
+vu: $(VU_OBJS) $(VU_HEADERS)
 
 $(IOP_MODULES_OBJ): src/$(IOP_MODULES_SRC) $(addprefix $(IRX_PATH)/,$(IOP_BOOT_MODULES:=.irx))
 	@mkdir -p $(dir $@)
 	$(EE_CC) -D_EE -G0 -MD -MP -Wa,-I$(IRX_PATH) -c $< -o $@
 
-build/vu/%.o: $(VCL_PATH)/%.vcl $(VCL_INCS) $(OXIDE_VCL)
+build/vu/%.o build/vu/%.vusl.h: $(VUSL_PATH)/%.vusl $(VUSL_INCS) $(OXIDE_VUSL)
 	@mkdir -p $(dir $@)
-	$(OXIDE_VCL) $(OXIDE_VCL_FLAGS) -o$(basename $@).vsm $<
-	dvp-as $(basename $@).vsm -o $@
-	@printf '%s: %s\n' '$@' '$< $(VCL_INCS)' > $(basename $@).d
+	$(OXIDE_VUSL) $(OXIDE_VUSL_FLAGS) --header=build/vu/$*.vusl.h -obuild/vu/$*.vsm $<
+	dvp-as build/vu/$*.vsm -o build/vu/$*.o
+	@printf '%s: %s\n' 'build/vu/$*.o' '$< $(VUSL_INCS)' > build/vu/$*.d
+
+# vu.h includes the generated headers, so no EE object can be built before them. Order-only:
+# once an object exists, its -MD dependency file names the headers it really includes, and that
+# is what rebuilds it when one changes.
+$(CORE_TEST_DRIVER_OBJS) $(BOOT_OBJS) $(CORE_BACKEND_OBJS) $(CORE_OBJS) $(CAMPAIGN_OBJS) $(GAME_BACKEND_OBJS) $(RESIDENT_SUPPORT_OBJS) $(TEST_CAMPAIGN_OBJS) $(TEST_BACKEND_OBJS) $(TEST_SUPPORT_OBJS) $(SCRIPT_OBJS): | $(VU_HEADERS)
 
 build/tests/.resource-unpack-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(RESOURCE_UNPACK_SRC)

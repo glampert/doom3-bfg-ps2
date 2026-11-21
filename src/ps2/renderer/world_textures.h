@@ -17,11 +17,11 @@
 namespace ps2::renderer::world
 {
 
-// One VIFcode qword (STCYCL 1,1; UNPACK V4-32 9 at XTOP + kVuBatchStateOffset) and the 9 qwords it
+// One VIFcode qword (STCYCL 1,1; UNPACK V4-32 9 at XTOP + vu::kBatchStateOffset) and the 9 qwords it
 // writes: the A+D packet (TEX0, TEX1, MIPTBP1, MIPTBP2, CLAMP, TEST) and the strip and list tags.
 static constexpr u32 kBatchStateBlockQwords = 10;
 
-// One VIFcode qword (STCYCL 1,1; UNPACK V4-32 2 at XTOP + kVuBatchLightmapOffset) and the 2 qwords
+// One VIFcode qword (STCYCL 1,1; UNPACK V4-32 2 at XTOP + vu::kBatchLightmapOffset) and the 2 qwords
 // it writes: an A+D GIF tag and the page's TEX0 for the other context, whose word 3 is non-zero
 // when the batch draws a lightmap pass.
 static constexpr u32 kPageStateBlockQwords = 3;

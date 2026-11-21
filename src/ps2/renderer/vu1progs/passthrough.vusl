@@ -1,0 +1,34 @@
+/* ================================================================================================
+ * File: passthrough.vusl
+ * Brief: The smallest VU1 microprogram: kicks the GIF packet the EE unpacked into this batch's
+ *        double-buffer half, untouched. It carries what has to be ordered with PATH1 output but
+ *        needs no VU work: SIGNAL/LABEL fences and A+D register blocks between batches.
+ *
+ * The second XGKICK is a hazard guard, not a second packet. XGKICK is asynchronous and the E bit
+ * ends the program as soon as the kick is *issued*. MSCAL waits for the program to end, not for
+ * its kick to drain, so VIF1 proceeds to the next unpacks while the GIF may still be reading
+ * this half; the unpack after the next targets this half again and would overwrite the packet
+ * under the GIF. An XGKICK issued while the previous PATH1 transfer is in progress stalls the VU
+ * until that transfer ends (VU User's Manual, XGKICK), and a GIF tag with NLOOP 0 and EOP 1
+ * outputs nothing (EE User's Manual, GIFtag: "when NLOOP is 0, the GIF does not output
+ * anything"). Kicking the null tag therefore ends the program only once its packet has left VU
+ * memory, and the ordinary double buffer is protection enough.
+ *
+ * This source code is released under the GNU GPL-3.0-or-later license.
+ * ================================================================================================ */
+
+#pragma program(passthrough)
+#include "vu_memory.vush"
+
+// The packet at XTOP: a GIF tag and what it carries, which the program never reads.
+struct Packet
+{
+    qword tag;
+};
+
+void main(layout(address = 0) uniform Frame frame,
+          layout(xtop, vif_base = 40, vif_offset = 306) in Packet packet)
+{
+    xgkick(packet);
+    xgkick(frame.nullTag);
+}

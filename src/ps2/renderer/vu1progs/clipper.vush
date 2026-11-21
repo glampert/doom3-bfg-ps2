@@ -1,0 +1,41 @@
+#pragma once
+/* ================================================================================================
+ * File: clipper.vush
+ * Brief: The clipper library's interface: the world programs' near-plane and guard band
+ *        clipper, compiled once (clipper.vusl), resident in micro memory at 1536 and called by
+ *        every program that clips. vu::Init uploads it there (kMicroAddress in its generated
+ *        header).
+ *
+ * This source code is released under the GNU GPL-3.0-or-later license.
+ * ================================================================================================ */
+
+#pragma library(clipper, address = 1536, vf = 24, vi = 10, saved_vf = 8, saved_vi = 4, save = saves)
+#include "vu_memory.vush"
+
+// Calls pass values in VF24-VF31 and VI10-VI14, and may change those, VI15 (the link) and VI01.
+// The clipper also works in VF16-VF23 and VI06-VI09, which it saves on entry and puts back
+// before it returns.
+//
+// What the clipper reads and writes of its own: the frame constants, its ping-pong buffers, and
+// the free qwords after them (1008-1023): the saved registers, then where its values that do not
+// fit in its registers go.
+struct ClipSaves
+{
+    qword q[9];
+};
+
+struct ClipSpill
+{
+    qword q[7];
+};
+
+layout(address = 0) uniform Frame frame;
+layout(address = 957) inout ClipBuffers clip;
+layout(address = 1008) inout ClipSaves saves;
+layout(address = 1017, spill) inout ClipSpill spill;
+
+// A triangle that left the guard band, clipped and sent at `cursor` as a fan (clipper.vusl's
+// clipTriangle): `cursor` and `room` come back moved on. `pass` is 0 for the base pass and 1
+// for the lightmap pass.
+export void ClipTriangle(inout ref<WindowVertex> cursor, inout int16 room,
+                         ref<Projected> a, ref<Projected> b, ref<Projected> c, float pass);

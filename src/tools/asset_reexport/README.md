@@ -139,7 +139,7 @@ build/tools/asset_reexport world --data src/tests/data/graybox_map \
     --job src/tests/data/graybox_map/graybox_world.json --output build/world
 build/tools/asset_reexport world --data gamedata/d3_bfg \
     --job config/world_mars_city1.json --output build/world
-# the same map in plain strips, for world_strips.vcl and the R1 topology comparison
+# the same map in plain strips, for world_strips.vusl and the R1 topology comparison
 make world-cook-retail WORLD_TOPOLOGY=strips WORLD_COOK_OUTPUT=build/world-strips
 ```
 
@@ -175,7 +175,7 @@ reader skips with tangents and the precomputed shadow and silhouette data.
 - `map` is the path below `--data` without `.proc`; with `containers` (paths below `--data`,
   later ones winning), the name of the `.bproc` inside them without `generated/` and `.bproc`.
 - `topology` is `hybrid` (unique vertices plus a strip index stream, the default, drawn by
-  `world_lm.vcl`) or `strips` (vertices repeated in strip order, drawn by `world_strips.vcl`).
+  `world_lm.vusl`) or `strips` (vertices repeated in strip order, drawn by `world_strips.vusl`).
   Gate R1 measured both on mars_city1: the hybrid takes 93 VU1 cycles a triangle and 1.61 MB of
   packets, plain strips 122.5 cycles and 1.92 MB (`src/tools/scripts/vu_cost.py`), so the hybrid
   is the default. A world is one topology; both readers refuse a mix.

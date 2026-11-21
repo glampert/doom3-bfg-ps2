@@ -92,34 +92,33 @@ void DisplayList::SetFrameConstants(const vu::FrameConstants & constants)
 {
     PS2_AssertMsg(vu::IsInitialized() && m_pendingStart == kVifNop, "VU1 frame constants before initialization or over a pending batch");
 
-    static_assert(sizeof(vu::FrameConstants) == 11U * 16U, "FrameConstants must match qwords 0-6 and 9-12 of vu_memory.h");
-    static_assert(kVuWindowStateAddr == 7 && kVuNullGifTagAddr == 8 && kVuStripTagAddr == 9 && kVuListTagAddr == 10 &&
-                      kVuLightmapStripTagAddr == 11 && kVuLightmapListTagAddr == 12 && kVuFrameBlockQwords == 13,
-                  "the frame block layout changed");
-
-    Ensure(2U + kVuFrameBlockQwords);
+    Ensure(2U + vu::kFrameConstantsQwords);
 
     // The double buffer, then STCYCL 1,1 and one absolute V4-32 unpack of the whole block.
-    Cnt(0U, VifBase(kVuInputBase), VifOffset(kVuInputHalfQwords));
-    qword_t * const payload = Cnt(kVuFrameBlockQwords, VifStcycl(1U, 1U),
-                                  VifUnpack(UnpackFormat::V4_32, kVuFrameBlockQwords, kVuFrameConstantsAddr, false, false));
+    Cnt(0U, VifBase(vu::kInputBase), VifOffset(vu::kInputHalfQwords));
+    qword_t * const payload = Cnt(vu::kFrameConstantsQwords, VifStcycl(1U, 1U),
+                                  VifUnpack(UnpackFormat::V4_32, vu::kFrameConstantsQwords, vu::kFrameConstantsAddr, false, false));
 
-    const qword_t * const source = reinterpret_cast<const qword_t *>(&constants);
-    CopyQwords<7>(payload, source);
+    CopyQwords<vu::kFrameConstantsQwords>(payload, &constants);
 
-    // The windows restart at A each frame: nothing is in flight across a frame boundary.
-    StoreQword(payload + kVuWindowStateAddr, static_cast<u64>(kVuWindowA) | (static_cast<u64>(kVuWindowQwords) << 32), 0);
-    PACK_GIFTAG((payload + kVuNullGifTagAddr), GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 0), 0);
-    CopyQwords<4>(payload + kVuStripTagAddr, source + 7);
+    // The windows restart at A each frame: nothing is in flight across a frame boundary. The step
+    // to window B is positive.
+    StoreQword(payload + vu::kWindowStateQword, static_cast<u64>(vu::kWindowA) | (static_cast<u64>(vu::kWindowQwords) << 32), 0);
+    PACK_GIFTAG((payload + vu::kNullTagQword), GIF_SET_TAG(0, 1, 0, 0, GIF_FLG_PACKED, 0), 0);
 }
 
 void DisplayList::SetProgram(vu::Program program)
 {
     // A pending batch must start on the program it was drawn for, before an upload can evict it.
     StartPendingBatch();
-    Ensure(1U);
+    Ensure(2U);
 
     const vu::Binding binding = vu::Bind(program);
+    if (binding.library != nullptr)
+    {
+        Call(binding.library, kVifNop, kVifNop);
+    }
+
     if (binding.upload != nullptr)
     {
         Call(binding.upload, kVifNop, kVifNop);
@@ -164,7 +163,7 @@ void DisplayList::UploadImage(const void * stream, u32 qwords, u32 base)
 
 qword_t * DisplayList::UnpackBatch(u32 qwords)
 {
-    PS2_AssertMsg(m_programEntry != kNoProgram && qwords >= 1U && qwords <= kVuInputHalfQwords && qwords <= 256U,
+    PS2_AssertMsg(m_programEntry != kNoProgram && qwords >= 1U && qwords <= vu::kInputHalfQwords && qwords <= 256U,
                   "invalid unpacked batch");
 
     StartPendingBatch();
