@@ -641,7 +641,7 @@ math::Vec4 WindowOffset()
     return { 2048.0f + static_cast<float>(s_width) * 0.5f, 2048.0f + static_cast<float>(s_height) * 0.5f, kDepthScale, 0.0f };
 }
 
-qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context, bool textured)
+qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context, bool textured, bool blended)
 {
     // In Primitive and VertexFormat order: the PRIM type, then the REGS nibbles and NREG.
     static constexpr u64 kTypes[] = {
@@ -662,7 +662,7 @@ qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context
                   "invalid GS drawing tag");
 
     const u64 * const registers = kRegisters[static_cast<int>(format)];
-    const u64 prim = GS_SET_PRIM(kTypes[static_cast<int>(primitive)], PRIM_SHADE_GOURAUD, textured ? 1U : 0U, 0, 0, 0, 0,
+    const u64 prim = GS_SET_PRIM(kTypes[static_cast<int>(primitive)], PRIM_SHADE_GOURAUD, textured ? 1U : 0U, 0, blended ? 1U : 0U, 0, 0,
                                  static_cast<u64>(Index(context)), 0);
 
     qword_t tag;
@@ -979,9 +979,13 @@ void BeginDepthPass(dma::DisplayList & list, DrawContext context)
     // ZTST 2 is GEQUAL; ClearFrame left depth 1, the far end of the range. Each register is a
     // tag and its A+D qword.
     const DrawContext other = OtherContext(context);
-    GifWriter writer = list.BeginDirect(16);
+    GifWriter writer = list.BeginDirect(18);
     writer.SetRegister(ContextReg(GS_REG_TEST, context), GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 2));
     writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(true));
+
+    // The material passes blend additively in this context (their tags set ABE; the base pass's do
+    // not): (Cs - 0) x FIX + Cd with FIX 1.0 (A Cs, B zero, C FIX, D Cd).
+    writer.SetRegister(ContextReg(GS_REG_ALPHA, context), GS_SET_ALPHA(0, 2, 2, 1, 0x80));
 
     // The lightmap pass: this frame's buffer with alpha kept, equal depths pass, ALPHA
     // (Cd - 0) x As + 0 (A Cd, B zero, C As, D zero), DECAL comes with each page's TEX0.

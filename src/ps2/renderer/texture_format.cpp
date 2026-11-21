@@ -342,6 +342,76 @@ PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_
     return nullptr;
 }
 
+// Finite and within the float range; NaN fails both comparisons, and the EE reads an infinity's
+// bits as a number past the largest float.
+static bool Finite(float value)
+{
+    return value >= -3.402823466e38f && value <= 3.402823466e38f;
+}
+
+static bool NodeInPass(const PackPass & pass, std::uint32_t node)
+{
+    return node >= pass.firstNode && node < static_cast<std::uint32_t>(pass.firstNode) + pass.nodeCount;
+}
+
+PS2_COLD_FUNC static const char * ValidatePass(const Pack & pack, const PackPass & pass)
+{
+    if (pass.texture >= pack.textureCount || (pack.textures[pass.texture].flags & kPackFlagLightmap) != 0 || pass.blend != kPackBlendAdd ||
+        pass.reserved != 0 || pass.nodeCount > kPackMaxNodesPerPass || static_cast<std::uint32_t>(pass.firstNode) + pass.nodeCount > pack.nodeCount)
+        [[unlikely]]
+    {
+        return "D3TX pass record out of range";
+    }
+
+    bool valid = pass.condition == kPackNoNode || NodeInPass(pass, pass.condition);
+
+    for (const std::uint16_t node : pass.colorNodes)
+    {
+        valid = valid && (node == kPackNoNode || NodeInPass(pass, node));
+    }
+
+    for (std::uint32_t index = pass.firstNode; valid && index < static_cast<std::uint32_t>(pass.firstNode) + pass.nodeCount; ++index)
+    {
+        const PackNode & node = pack.nodes[index];
+        const bool earlierA = node.a >= pass.firstNode && node.a < index;
+        const bool earlierB = node.b >= pass.firstNode && node.b < index;
+
+        switch (node.op)
+        {
+            case PackOp::Constant:
+                valid = node.a == 0 && node.b == 0 && node.count == 0 && node.flags == 0 && Finite(node.value);
+                break;
+            case PackOp::Time:
+                valid = node.a == 0 && node.b == 0 && node.count == 0 && node.flags == 0 && node.value == 0.0f;
+                break;
+            case PackOp::Table:
+                valid = earlierA && (node.flags & ~(kPackTableSnap | kPackTableClamp)) == 0 && node.count >= 2 &&
+                        static_cast<std::uint32_t>(node.b) + node.count <= pack.valueCount && node.value == 0.0f;
+                break;
+            case PackOp::Add:
+            case PackOp::Subtract:
+            case PackOp::Multiply:
+            case PackOp::Divide:
+            case PackOp::Mod:
+            case PackOp::Greater:
+            case PackOp::GreaterEqual:
+            case PackOp::Less:
+            case PackOp::LessEqual:
+            case PackOp::Equal:
+            case PackOp::NotEqual:
+            case PackOp::And:
+            case PackOp::Or:
+                valid = earlierA && earlierB && node.count == 0 && node.flags == 0 && node.value == 0.0f;
+                break;
+            default:
+                valid = false;
+                break;
+        }
+    }
+
+    return valid ? nullptr : "D3TX pass expression out of range";
+}
+
 PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t bytes, Pack & output, Image * images,
                                         std::uint32_t imageCapacity)
 {
@@ -353,7 +423,7 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     if (bytes < kPackHeaderBytes || bytes > kPackMaxFileBytes || Word(file) != kPackMagic || Half(file + 4) != kPackVersion ||
         Half(file + 6) != kPackHeaderBytes || Word(file + 20) != bytes || Word(file + 28) != kPackConverterVersion) [[unlikely]]
     {
-        return "not a D3TX v2 file";
+        return "not a D3TX v3 file";
     }
 
     Pack pack = {};
@@ -361,16 +431,25 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     pack.textureCount = Word(file + 12);
     pack.materialsHash = Word(file + 16);
     pack.pageCount = Word(file + 32);
+    pack.passCount = Word(file + 36);
+    pack.nodeCount = Word(file + 40);
+    pack.valueCount = Word(file + 44);
 
     if (pack.materialCount > kPackMaxMaterials || pack.textureCount > kPackMaxTextures || pack.pageCount > kPackMaxPages ||
-        pack.textureCount > imageCapacity || Word(file + 36) != 0 || Word(file + 40) != 0 || Word(file + 44) != 0) [[unlikely]]
+        pack.textureCount > imageCapacity || pack.passCount > kPackMaxPasses || pack.nodeCount > kPackMaxNodes ||
+        pack.valueCount > kPackMaxValues) [[unlikely]]
     {
         return "D3TX tables out of range";
     }
 
-    const std::uint32_t pagesAt = kPackHeaderBytes + kPackMaterialBytes * pack.materialCount + kPackTextureBytes * pack.textureCount;
-    const std::uint32_t tablesEnd = pagesAt + kPackPageBytes * pack.pageCount;
+    const std::uint32_t passesAt = kPackHeaderBytes + kPackMaterialBytes * pack.materialCount;
+    const std::uint32_t texturesAt = passesAt + kPackPassBytes * pack.passCount;
+    const std::uint32_t pagesAt = texturesAt + kPackTextureBytes * pack.textureCount;
+    const std::uint32_t nodesAt = pagesAt + kPackPageBytes * pack.pageCount;
+    const std::uint32_t valuesAt = nodesAt + kPackNodeBytes * pack.nodeCount;
+    const std::uint32_t tablesEnd = valuesAt + kPackValueBytes * pack.valueCount;
 
+    // Node records are 12 bytes: the values after them stay 4-byte aligned.
     if (tablesEnd > bytes) [[unlikely]]
     {
         return "D3TX tables out of range";
@@ -386,19 +465,53 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     }
 
     pack.materials = static_cast<const PackMaterial *>(static_cast<const void *>(file + kPackHeaderBytes));
-    pack.textures = static_cast<const PackTexture *>(static_cast<const void *>(file + kPackHeaderBytes + kPackMaterialBytes * pack.materialCount));
+    pack.passes = static_cast<const PackPass *>(static_cast<const void *>(file + passesAt));
+    pack.textures = static_cast<const PackTexture *>(static_cast<const void *>(file + texturesAt));
     pack.pages = static_cast<const std::uint32_t *>(static_cast<const void *>(file + pagesAt));
+    pack.nodes = static_cast<const PackNode *>(static_cast<const void *>(file + nodesAt));
+    pack.values = static_cast<const float *>(static_cast<const void *>(file + valuesAt));
+
+    for (std::uint32_t index = 0; index < pack.textureCount; ++index)
+    {
+        const PackTexture & texture = pack.textures[index];
+
+        if (texture.offset < tablesEnd || (texture.offset & (kPackAlignment - 1U)) != 0 || texture.bytes > bytes ||
+            texture.offset > bytes - texture.bytes || (texture.flags & ~(kPackFlagAlphaTest | kPackFlagLightmap)) != 0 ||
+            texture.flags == (kPackFlagAlphaTest | kPackFlagLightmap) || texture.reserved != 0) [[unlikely]]
+        {
+            return "D3TX texture record out of range";
+        }
+    }
 
     for (std::uint32_t index = 0; index < pack.materialCount; ++index)
     {
         const PackMaterial & material = pack.materials[index];
+        const bool textured = material.texture != kPackNoTexture && material.texture != kPackHidden;
 
-        // Finite and bounded; NaN fails both comparisons.
-        if ((material.texture != kPackNoTexture && material.texture != kPackHidden &&
-             (material.texture >= pack.textureCount || (pack.textures[material.texture].flags & kPackFlagLightmap) != 0)) ||
-            !(material.uvDensityLog2 >= -64.0f && material.uvDensityLog2 <= 64.0f)) [[unlikely]]
+        if ((textured && (material.texture >= pack.textureCount || (pack.textures[material.texture].flags & kPackFlagLightmap) != 0)) ||
+            !(material.uvDensityLog2 >= -64.0f && material.uvDensityLog2 <= 64.0f) || material.alphaRef > kPackMaxAlphaRef ||
+            material.passCount > kPackMaxPassesPerMaterial || static_cast<std::uint32_t>(material.firstPass) + material.passCount > pack.passCount ||
+            (material.passCount != 0 && !textured) || material.reserved != 0) [[unlikely]]
         {
             return "D3TX material record out of range";
+        }
+    }
+
+    for (std::uint32_t index = 0; index < pack.passCount; ++index)
+    {
+        const char * error = ValidatePass(pack, pack.passes[index]);
+
+        if (error != nullptr) [[unlikely]]
+        {
+            return error;
+        }
+    }
+
+    for (std::uint32_t index = 0; index < pack.valueCount; ++index)
+    {
+        if (!Finite(pack.values[index])) [[unlikely]]
+        {
+            return "D3TX table value out of range";
         }
     }
 
@@ -413,14 +526,6 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     for (std::uint32_t index = 0; index < pack.textureCount; ++index)
     {
         const PackTexture & texture = pack.textures[index];
-
-        if (texture.offset < tablesEnd || (texture.offset & (kPackAlignment - 1U)) != 0 || texture.bytes > bytes ||
-            texture.offset > bytes - texture.bytes || (texture.flags & ~(kPackFlagAlphaTest | kPackFlagLightmap)) != 0 ||
-            texture.flags == (kPackFlagAlphaTest | kPackFlagLightmap) || texture.reserved != 0) [[unlikely]]
-        {
-            return "D3TX texture record out of range";
-        }
-
         const char * error = ValidateImage(file + texture.offset, texture.bytes, images[index]);
 
         if (error != nullptr) [[unlikely]]
@@ -436,6 +541,141 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
 
     output = pack;
     return nullptr;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Pass registers
+// ------------------------------------------------------------------------------------------------
+
+// Floor through truncation: no libm call on the EE, exact within the int range.
+static float FloorFloat(float value)
+{
+    const float whole = static_cast<float>(static_cast<int>(value));
+    return value < whole ? whole - 1.0f : whole;
+}
+
+// idDeclTable::TableLookup over 'count' values, the first repeated at the end.
+static float TableLookup(const float * values, std::uint32_t count, std::uint8_t flags, float index)
+{
+    const int domain = static_cast<int>(count) - 1;
+
+    if (domain <= 1)
+    {
+        return 1.0f;
+    }
+
+    int whole = 0;
+    float fraction = 0.0f;
+
+    if ((flags & kPackTableClamp) != 0)
+    {
+        index *= static_cast<float>(domain - 1);
+
+        if (index >= static_cast<float>(domain - 1))
+        {
+            return values[domain - 1];
+        }
+
+        if (index <= 0.0f)
+        {
+            return values[0];
+        }
+
+        whole = static_cast<int>(index);
+        fraction = index - static_cast<float>(whole);
+    }
+    else
+    {
+        index *= static_cast<float>(domain);
+
+        if (index < 0.0f)
+        {
+            index += static_cast<float>(domain) * -FloorFloat(index / static_cast<float>(domain));
+        }
+
+        whole = static_cast<int>(FloorFloat(index));
+        fraction = index - static_cast<float>(whole);
+        whole %= domain;
+    }
+
+    if ((flags & kPackTableSnap) == 0)
+    {
+        return values[whole] * (1.0f - fraction) + values[whole + 1] * fraction;
+    }
+
+    return values[whole];
+}
+
+void EvaluatePassNodes(const Pack & pack, const PackPass & pass, float time, float * registers)
+{
+    const PackNode * const nodes = pack.nodes + pass.firstNode;
+
+    for (std::uint32_t index = 0; index < pass.nodeCount; ++index)
+    {
+        const PackNode & node = nodes[index];
+        const float a = node.op == PackOp::Constant || node.op == PackOp::Time ? 0.0f : registers[node.a - pass.firstNode];
+        const float b = node.op == PackOp::Constant || node.op == PackOp::Time || node.op == PackOp::Table ? 0.0f : registers[node.b - pass.firstNode];
+        float value = 0.0f;
+
+        switch (node.op)
+        {
+            case PackOp::Constant:
+                value = node.value;
+                break;
+            case PackOp::Time:
+                value = time;
+                break;
+            case PackOp::Table:
+                value = TableLookup(pack.values + node.b, node.count, node.flags, a);
+                break;
+            case PackOp::Add:
+                value = a + b;
+                break;
+            case PackOp::Subtract:
+                value = a - b;
+                break;
+            case PackOp::Multiply:
+                value = a * b;
+                break;
+            case PackOp::Divide:
+                value = b != 0.0f ? a / b : 0.0f;
+                break;
+            case PackOp::Mod:
+            {
+                const int divisor = static_cast<int>(b);
+                value = divisor != 0 ? static_cast<float>(static_cast<int>(a) % divisor) : 0.0f;
+                break;
+            }
+            case PackOp::Greater:
+                value = a > b ? 1.0f : 0.0f;
+                break;
+            case PackOp::GreaterEqual:
+                value = a >= b ? 1.0f : 0.0f;
+                break;
+            case PackOp::Less:
+                value = a < b ? 1.0f : 0.0f;
+                break;
+            case PackOp::LessEqual:
+                value = a <= b ? 1.0f : 0.0f;
+                break;
+            case PackOp::Equal:
+                value = a == b ? 1.0f : 0.0f;
+                break;
+            case PackOp::NotEqual:
+                value = a != b ? 1.0f : 0.0f;
+                break;
+            case PackOp::And:
+                value = a != 0.0f && b != 0.0f ? 1.0f : 0.0f;
+                break;
+            case PackOp::Or:
+                value = a != 0.0f || b != 0.0f ? 1.0f : 0.0f;
+                break;
+            default:
+                break;
+        }
+
+        registers[index] = value;
+    }
 }
 
 } // namespace ps2::renderer::tex

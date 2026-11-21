@@ -13,6 +13,7 @@
 #include "assets/lightmap.h"
 #include "assets/map_entities.h"
 #include "assets/material.h"
+#include "assets/material_passes.h"
 #include "assets/png.h"
 #include "assets/resources.h"
 #include "assets/static_models.h"
@@ -26,6 +27,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -680,6 +682,8 @@ struct WorldTextureJob
     bool enabled = false;
     std::vector<std::string> materialContainers;
     TexturePolicy policy;
+    // Bump maps baked into the diffuse (off at amplitude 0).
+    CavityPolicy cavity;
 };
 
 static bool ParseTextureJob(const JsonValue & value, WorldTextureJob & output)
@@ -691,7 +695,8 @@ static bool ParseTextureJob(const JsonValue & value, WorldTextureJob & output)
 
     for (const std::string & key : value.keys)
     {
-        if (key != "material_containers" && key != "scale" && key != "min_extent" && key != "max_extent" && key != "min_mip_extent")
+        if (key != "material_containers" && key != "scale" && key != "min_extent" && key != "max_extent" && key != "min_mip_extent" &&
+            key != "cavity" && key != "cavity_light")
         {
             return Fail("unknown textures field: " + key);
         }
@@ -752,6 +757,22 @@ static bool ParseTextureJob(const JsonValue & value, WorldTextureJob & output)
         }
 
         output.policy.minMipExtent = static_cast<int>(extent->number);
+    }
+
+    if (const JsonValue * cavity = value.Find("cavity"))
+    {
+        if (cavity->type != JsonValue::Type::Number || cavity->number < 0.0 || cavity->number > 2.0)
+        {
+            return Fail("textures.cavity must be a number in [0, 2]");
+        }
+
+        output.cavity.amplitude = static_cast<float>(cavity->number);
+    }
+
+    if (value.Find("cavity_light") != nullptr &&
+        (!GetColor(value.Find("cavity_light"), output.cavity.light) || output.cavity.light[2] <= 0.0f))
+    {
+        return Fail("textures.cavity_light must be three numbers with z above 0");
     }
 
     output.enabled = true;
@@ -1132,20 +1153,64 @@ static bool ScanCatalogMaterials(ResourceCatalog & catalog, std::map<std::string
     return true;
 }
 
-static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::string, MaterialInfo> & declared, const WorldTextureJob & job,
-                              const std::vector<std::string> & materials, const std::vector<float> & density,
-                              const std::vector<LightmapPage> & pages, const fs::path & output, const std::string & stem,
-                              const fs::path & previews)
+// textureUsage_t's TD_BUMP, which id loads bump maps with.
+static constexpr int kTextureUsageBump = 3;
+
+static std::string Lowercase(std::string text)
+{
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+    return text;
+}
+
+// An image as the GS will sample it, back out of the cooked file, for the preview PNGs.
+static bool WritePreviewPair(const fs::path & previews, const std::string & base, const RgbaImage & original, const GstxV2Texture & check)
+{
+    std::string error;
+    RgbaImage preview;
+    preview.Allocate(check.width, check.height);
+
+    for (int y = 0; y < check.height; ++y)
+    {
+        for (int x = 0; x < check.width; ++x)
+        {
+            std::uint32_t value = 0;
+            (void)SampleGstxV2(check, 0, x, y, value);
+            std::uint8_t * texel = preview.At(x, y);
+            texel[0] = static_cast<std::uint8_t>(value & 0xFFU);
+            texel[1] = static_cast<std::uint8_t>((value >> 8) & 0xFFU);
+            texel[2] = static_cast<std::uint8_t>((value >> 16) & 0xFFU);
+            texel[3] = static_cast<std::uint8_t>(std::min(255U, (value >> 24) * 2U));
+        }
+    }
+
+    if (!WritePng(previews / (base + ".original.png"), original, error) || !WritePng(previews / (base + ".cooked.png"), preview, error))
+    {
+        return Fail(error);
+    }
+
+    return true;
+}
+
+// The world textures: each material's base pass and its additive passes, every texture cooked once
+// per image, alpha test and bump map; 'parms' are the materials' (World::materialParms).
+static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::string, MaterialInfo> & declared, const MaterialTables & tables,
+                              const WorldTextureJob & job, const std::vector<std::string> & materials, const std::vector<ShaderParms> & parms,
+                              const std::vector<float> & density, const std::vector<LightmapPage> & pages, const fs::path & output,
+                              const std::string & stem, const fs::path & previews)
 {
     std::string error;
     TexturePack pack;
     pack.materialsHash = MaterialNamesHash(materials);
     pack.materialUvDensity = density;
     std::map<std::string, std::uint32_t> cooked;
+    std::map<std::string, std::uint16_t> tableOffsets;
     std::string textureReport;
     std::string untextured;
+    std::string passReport;
     std::size_t vramBytes = 0;
     std::size_t t4 = 0;
+    std::size_t cavities = 0;
+    std::size_t dynamicPasses = 0;
 
     if (!previews.empty())
     {
@@ -1158,120 +1223,139 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         }
     }
 
-    for (const std::string & material : materials)
+    // Cooks 'image' (a generated BIMAGE name) once per key; 'prepare' adjusts the decoded pixels.
+    // Returns the texture's index, or kD3txNoTexture when the image is unavailable.
+    const auto CookImage = [&](const std::string & key, const std::string & image, const std::string & label, bool & coverage,
+                               const std::function<void(RgbaImage &, bool &, RgbaImage &)> & prepare, std::uint32_t & index) -> bool
     {
-        std::string name = material;
-        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-        const auto found = declared.find(name);
+        const auto previous = cooked.find(key);
+
+        if (previous != cooked.end())
+        {
+            index = previous->second;
+            coverage = (pack.textureFlags[index] & kD3txFlagAlphaTest) != 0;
+            return true;
+        }
+
+        std::vector<std::uint8_t> bytes;
+        RgbaImage pixels;
+
+        if (!catalog.Read(image, bytes, error) || !DecodeBimage(bytes, 0, pixels, error))
+        {
+            index = kD3txNoTexture;
+            return true;
+        }
+
+        coverage = false;
+        RgbaImage reference;
+        prepare(pixels, coverage, reference);
+
+        CookedTexture texture;
+        std::vector<std::uint8_t> file;
+        GstxV2Texture check;
+        TexturePolicy policy = job.policy;
+        policy.formatSource = reference.width > 0 ? &reference : nullptr;
+
+        if (!CookTexture(pixels, policy, GstxUsage::Diffuse, texture, error) || !WriteGstxV2(texture.image, file, error) ||
+            !ReadGstxV2(file, check, error))
+        {
+            return Fail(label + ": " + error);
+        }
+
+        index = static_cast<std::uint32_t>(pack.textures.size());
+        cooked.emplace(key, index);
+        pack.textures.push_back(std::move(file));
+        pack.textureFlags.push_back(coverage ? kD3txFlagAlphaTest : 0U);
+        vramBytes += static_cast<std::size_t>(check.blocks) * kGsBlockBytes;
+        t4 += texture.image.psm == GsPsm::T4 ? 1U : 0U;
+        textureReport += std::string(index == 0 ? "" : ",") + "\n    { \"image\": " + JsonString(image) + ", \"key\": " + JsonString(key) +
+                         ", \"source\": [" + std::to_string(texture.sourceWidth) + ", " + std::to_string(texture.sourceHeight) + "], \"size\": [" +
+                         std::to_string(texture.image.width) + ", " + std::to_string(texture.image.height) + "], \"psm\": \"" +
+                         (texture.image.psm == GsPsm::T4 ? "PSMT4" : "PSMT8") + "\", \"levels\": " + std::to_string(texture.image.levels.size()) +
+                         ", \"blocks\": " + std::to_string(check.blocks) + ", \"alpha_test\": " + (coverage ? "true" : "false") +
+                         ", \"rmse\": " + Number(texture.quality.rmse) + ", \"max_error\": " + std::to_string(texture.quality.maxError) + " }";
+
+        return previews.empty() || WritePreviewPair(previews, std::to_string(index) + "-" + fs::path(label).filename().string(), pixels, check);
+    };
+
+    const auto Opaque = [](RgbaImage & pixels)
+    {
+        for (int y = 0; y < pixels.height; ++y)
+        {
+            for (int x = 0; x < pixels.width; ++x)
+            {
+                pixels.At(x, y)[3] = 255;
+            }
+        }
+    };
+
+    for (std::size_t materialIndex = 0; materialIndex < materials.size(); ++materialIndex)
+    {
+        const std::string & material = materials[materialIndex];
+        const auto found = declared.find(Lowercase(material));
         const bool hidden = found != declared.end() && found->second.diffuse.empty() && found->second.translucent;
         const char * reason = found == declared.end()         ? "undeclared"
                               : hidden                        ? "translucent without a diffuse stage: not drawn textured"
                               : found->second.diffuse.empty() ? "no diffuse stage"
                                                               : nullptr;
         std::uint32_t index = hidden ? kD3txHidden : kD3txNoTexture;
+        MaterialPassPlan plan;
+        bool coverage = false;
+        bool baked = false;
 
         if (reason == nullptr)
         {
             const MaterialInfo & info = found->second;
+            plan = PlanMaterialPasses(info, parms[materialIndex], tables);
             const std::string image = GeneratedImageName(info.diffuse, kTextureUsageDiffuse);
-            const std::string key = image + (info.alphaTest ? "#alphatest" : "");
-            const auto previous = cooked.find(key);
+            const std::string bump = info.bump.empty() || job.cavity.amplitude <= 0.0f ? std::string() : GeneratedImageName(info.bump, kTextureUsageBump);
+            const std::string key = image + (info.alphaTest ? "#alphatest" : "") + (bump.empty() ? "" : "#cavity:" + bump);
 
-            if (previous != cooked.end())
-            {
-                index = previous->second;
-            }
-            else
+            const auto prepare = [&](RgbaImage & pixels, bool & hasCoverage, RgbaImage & reference)
             {
                 std::vector<std::uint8_t> bytes;
-                RgbaImage pixels;
 
-                if (!catalog.Read(image, bytes, error) || !DecodeBimage(bytes, 0, pixels, error))
+                if (info.alphaTest)
                 {
-                    reason = "diffuse image unavailable";
-                }
-                else
-                {
-                    bool coverage = false;
+                    RgbaImage mask;
+                    hasCoverage = catalog.Read(GeneratedImageName(info.diffuse, kTextureUsageCoverage), bytes, error) &&
+                                  DecodeBimage(bytes, 0, mask, error) && mask.width == pixels.width && mask.height == pixels.height;
 
-                    if (info.alphaTest)
+                    for (int y = 0; hasCoverage && y < pixels.height; ++y)
                     {
-                        RgbaImage mask;
-                        coverage = catalog.Read(GeneratedImageName(info.diffuse, kTextureUsageCoverage), bytes, error) &&
-                                   DecodeBimage(bytes, 0, mask, error) && mask.width == pixels.width && mask.height == pixels.height;
-
-                        for (int y = 0; coverage && y < pixels.height; ++y)
+                        for (int x = 0; x < pixels.width; ++x)
                         {
-                            for (int x = 0; x < pixels.width; ++x)
-                            {
-                                pixels.At(x, y)[3] = mask.At(x, y)[3];
-                            }
-                        }
-                    }
-
-                    if (!coverage)
-                    {
-                        for (int y = 0; y < pixels.height; ++y)
-                        {
-                            for (int x = 0; x < pixels.width; ++x)
-                            {
-                                pixels.At(x, y)[3] = 255;
-                            }
-                        }
-                    }
-
-                    CookedTexture texture;
-                    std::vector<std::uint8_t> file;
-                    GstxV2Texture check;
-
-                    if (!CookTexture(pixels, job.policy, GstxUsage::Diffuse, texture, error) || !WriteGstxV2(texture.image, file, error) ||
-                        !ReadGstxV2(file, check, error))
-                    {
-                        return Fail(material + ": " + error);
-                    }
-
-                    index = static_cast<std::uint32_t>(pack.textures.size());
-                    cooked.emplace(key, index);
-                    pack.textures.push_back(std::move(file));
-                    pack.textureFlags.push_back(coverage ? kD3txFlagAlphaTest : 0U);
-                    vramBytes += static_cast<std::size_t>(check.blocks) * kGsBlockBytes;
-                    t4 += texture.image.psm == GsPsm::T4 ? 1U : 0U;
-                    textureReport += std::string(index == 0 ? "" : ",") + "\n    { \"image\": " + JsonString(image) + ", \"source\": [" +
-                                     std::to_string(texture.sourceWidth) + ", " + std::to_string(texture.sourceHeight) + "], \"size\": [" +
-                                     std::to_string(texture.image.width) + ", " + std::to_string(texture.image.height) + "], \"psm\": \"" +
-                                     (texture.image.psm == GsPsm::T4 ? "PSMT4" : "PSMT8") + "\", \"levels\": " +
-                                     std::to_string(texture.image.levels.size()) + ", \"blocks\": " + std::to_string(check.blocks) +
-                                     ", \"alpha_test\": " + (coverage ? "true" : "false") + ", \"rmse\": " + Number(texture.quality.rmse) +
-                                     ", \"max_error\": " + std::to_string(texture.quality.maxError) + " }";
-
-                    if (!previews.empty())
-                    {
-                        RgbaImage preview;
-                        preview.Allocate(check.width, check.height);
-
-                        for (int y = 0; y < check.height; ++y)
-                        {
-                            for (int x = 0; x < check.width; ++x)
-                            {
-                                std::uint32_t value = 0;
-                                (void)SampleGstxV2(check, 0, x, y, value);
-                                std::uint8_t * texel = preview.At(x, y);
-                                texel[0] = static_cast<std::uint8_t>(value & 0xFFU);
-                                texel[1] = static_cast<std::uint8_t>((value >> 8) & 0xFFU);
-                                texel[2] = static_cast<std::uint8_t>((value >> 16) & 0xFFU);
-                                texel[3] = static_cast<std::uint8_t>(std::min(255U, (value >> 24) * 2U));
-                            }
-                        }
-
-                        const std::string base = std::to_string(index) + "-" + fs::path(info.diffuse).filename().string();
-
-                        if (!WritePng(previews / (base + ".original.png"), pixels, error) || !WritePng(previews / (base + ".cooked.png"), preview, error))
-                        {
-                            return Fail(error);
+                            pixels.At(x, y)[3] = mask.At(x, y)[3];
                         }
                     }
                 }
+
+                if (!hasCoverage)
+                {
+                    Opaque(pixels);
+                }
+
+                RgbaImage normal;
+
+                if (!bump.empty() && catalog.Read(bump, bytes, error) && DecodeBimage(bytes, 0, normal, error))
+                {
+                    reference = pixels;
+                    BakeCavity(pixels, normal, job.cavity);
+                    baked = true;
+                }
+            };
+
+            if (!CookImage(key, image, info.diffuse, coverage, prepare, index))
+            {
+                return false;
             }
+
+            if (index == kD3txNoTexture)
+            {
+                reason = "diffuse image unavailable";
+            }
+
+            cavities += baked ? 1U : 0U;
         }
 
         if (reason != nullptr)
@@ -1280,6 +1364,60 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         }
 
         pack.materialTextures.push_back(index);
+        pack.materialAlphaRef.push_back(coverage ? plan.alphaRef : std::uint8_t(0));
+        pack.materialFirstPass.push_back(static_cast<std::uint16_t>(pack.passes.size()));
+        std::string passes;
+
+        for (const PlannedPass & planned : index < kD3txHidden ? plan.passes : std::vector<PlannedPass>())
+        {
+            const std::string label = material + " stage " + std::to_string(planned.stage);
+            std::uint32_t texture = kD3txNoTexture;
+            bool opaqueCoverage = false;
+            const auto opaque = [&Opaque](RgbaImage & pixels, bool &, RgbaImage &)
+            {
+                Opaque(pixels);
+            };
+
+            // id loads a blend stage's image as TD_DEFAULT; some ship only as diffuse.
+            for (const int usage : { kTextureUsageDefault, kTextureUsageDiffuse })
+            {
+                const std::string image = GeneratedImageName(planned.image, usage);
+
+                if (texture == kD3txNoTexture && !CookImage(image, image, planned.image, opaqueCoverage, opaque, texture))
+                {
+                    return false;
+                }
+            }
+
+            if (texture == kD3txNoTexture)
+            {
+                plan.skipped.push_back("stage " + std::to_string(planned.stage) + " (" + planned.image + "): image unavailable");
+                continue;
+            }
+
+            AddPlannedPass(pack, planned, texture, tables, tableOffsets);
+            const D3txPass & pass = pack.passes.back();
+            dynamicPasses += planned.nodes.empty() ? 0U : 1U;
+            passes += std::string(passes.empty() ? "" : ", ") + "{ \"stage\": " + std::to_string(planned.stage) + ", \"image\": " +
+                      JsonString(planned.image) + ", \"color\": [" + std::to_string(pass.color[0]) + ", " + std::to_string(pass.color[1]) + ", " +
+                      std::to_string(pass.color[2]) + ", " + std::to_string(pass.color[3]) + "], \"nodes\": " + std::to_string(pass.nodeCount) + " }";
+        }
+
+        pack.materialPassCount.push_back(static_cast<std::uint8_t>(pack.passes.size() - pack.materialFirstPass.back()));
+
+        if (!passes.empty() || !plan.skipped.empty() || pack.materialAlphaRef.back() != 0 || baked)
+        {
+            std::string skipped;
+
+            for (const std::string & entry : plan.skipped)
+            {
+                skipped += std::string(skipped.empty() ? "" : ", ") + JsonString(entry);
+            }
+
+            passReport += std::string(passReport.empty() ? "" : ",") + "\n    { \"material\": " + JsonString(material) + ", \"index\": " +
+                          std::to_string(materialIndex) + ", \"alpha_ref\": " + std::to_string(pack.materialAlphaRef.back()) + ", \"cavity\": " +
+                          (baked ? "true" : "false") + ", \"passes\": [" + passes + "], \"skipped\": [" + skipped + "] }";
+        }
     }
 
     std::size_t pageBytes = 0;
@@ -1390,12 +1528,16 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
                                                                         [](std::uint32_t texture) { return texture < kD3txHidden; }));
     const std::string report = "{\n  \"materials\": " + std::to_string(materials.size()) + ",\n  \"textured_materials\": " +
                                std::to_string(textured) + ",\n  \"textures\": " + std::to_string(pack.textures.size()) + ",\n  \"psmt4\": " +
-                               std::to_string(t4) + ",\n  \"vram_bytes\": " + std::to_string(vramBytes) + ",\n  \"lightmap_pages\": " +
+                               std::to_string(t4) + ",\n  \"vram_bytes\": " + std::to_string(vramBytes) + ",\n  \"cavity_baked\": " +
+                               std::to_string(cavities) + ",\n  \"passes\": " + std::to_string(pack.passes.size()) + ",\n  \"dynamic_passes\": " +
+                               std::to_string(dynamicPasses) + ",\n  \"expression_nodes\": " + std::to_string(pack.nodes.size()) +
+                               ",\n  \"table_values\": " + std::to_string(pack.tableValues.size()) + ",\n  \"lightmap_pages\": " +
                                std::to_string(pages.size()) + ",\n  \"lightmap_vram_bytes\": " + std::to_string(pageBytes) + ",\n  \"file_bytes\": " +
-                               std::to_string(file.size()) + ",\n  \"texture_list\": [" + textureReport + "\n  ],\n  \"untextured\": [" +
-                               untextured + "\n  ]\n}\n";
-    std::cout << stem << ".d3tx: " << pack.textures.size() << " textures for " << textured << " of " << materials.size() << " materials, "
-              << vramBytes << " bytes of VRAM, " << pages.size() << " lightmap pages (" << pageBytes << " bytes), " << file.size() << " bytes\n";
+                               std::to_string(file.size()) + ",\n  \"texture_list\": [" + textureReport + "\n  ],\n  \"material_passes\": [" +
+                               passReport + "\n  ],\n  \"untextured\": [" + untextured + "\n  ]\n}\n";
+    std::cout << stem << ".d3tx: " << pack.textures.size() << " textures for " << textured << " of " << materials.size() << " materials ("
+              << cavities << " with cavity), " << pack.passes.size() << " passes (" << dynamicPasses << " driven by time), " << vramBytes
+              << " bytes of VRAM, " << pages.size() << " lightmap pages (" << pageBytes << " bytes), " << file.size() << " bytes\n";
     return WriteFile(output / (stem + ".textures.json"), report.data(), report.size());
 }
 
@@ -1419,12 +1561,6 @@ static LightImage NoFalloffImage()
     }
 
     return LightImage::FromRgba(image);
-}
-
-static std::string Lowercase(std::string text)
-{
-    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-    return text;
 }
 
 // Classifies the map's lights, bakes the static ones and writes <stem>.lights.json.
@@ -1818,6 +1954,16 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return false;
     }
 
+    // The diffuse stage's colour registers under each surface's parms tint its vertex colours.
+    if (textures.enabled)
+    {
+        policy.stageColor = [&declared, &tables](const std::string & material, const ShaderParms & parms)
+        {
+            const auto found = declared.find(Lowercase(material));
+            return found == declared.end() ? std::array<float, 3>{ 1.0f, 1.0f, 1.0f } : PlanMaterialPasses(found->second, parms, tables).diffuseColor;
+        };
+    }
+
     World world;
     WorldCookStats stats;
     std::vector<std::uint8_t> file;
@@ -1867,7 +2013,8 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
 
         report += "  \"static_models\": { \"inline\": " + std::to_string(staticModels.inlineModels) + ", \"merged\": " +
                   std::to_string(staticModels.merged) + ", \"partial\": " + std::to_string(staticModels.partial) + ", \"kept_surfaces\": " +
-                  std::to_string(staticModels.keptSurfaces) + ", \"parm_surfaces\": " + std::to_string(staticModels.parmSurfaces) + ", \"triangles\": " + std::to_string(staticModels.triangles) + ", \"solid_triangles\": " +
+                  std::to_string(staticModels.keptSurfaces) + ", \"parm_surfaces\": " + std::to_string(staticModels.parmSurfaces) + ", \"parm_sets\": " +
+                  std::to_string(staticModels.parmSets) + ", \"triangles\": " + std::to_string(staticModels.triangles) + ", \"solid_triangles\": " +
                   std::to_string(staticModels.solidTriangles) + ", \"surfaces_added\": " + std::to_string(staticModels.surfacesAdded) +
                   ", \"kept\": { " + kept + " } },\n";
     }
@@ -1906,8 +2053,8 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return false;
     }
 
-    return !textures.enabled || CookWorldTextures(materialCatalog, declared, textures, world.materials, MaterialUvDensity(proc, world.materials), pages,
-                                                  output, stem, previews);
+    return !textures.enabled || CookWorldTextures(materialCatalog, declared, tables, textures, world.materials, world.materialParms,
+                                                  MaterialUvDensity(proc, world.materials), pages, output, stem, previews);
 }
 
 static void Usage()

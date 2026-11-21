@@ -13,6 +13,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <string>
 #include <vector>
@@ -181,7 +182,10 @@ struct WorldBatch
 
 struct World
 {
+    // A name may appear more than once, once per parm set its surfaces draw with.
     std::vector<std::string> materials;
+    // Each material's parms (the cook's; not in the file, which ReadD3wd leaves empty).
+    std::vector<ShaderParms> materialParms;
     std::vector<WorldArea> areas;
     std::vector<WorldSurface> surfaces;
     std::vector<WorldPortal> portals;
@@ -246,6 +250,9 @@ struct WorldPolicy
     // Materials without a colour vary around the default by up to this fraction per channel, from a
     // hash of their name (0 keeps every one at the default).
     float tint = 0.0f;
+    // The colour a material's diffuse stage multiplies its texture by under 'parms' (its colour
+    // registers), folded into the vertex colours; unset is white.
+    std::function<std::array<float, 3>(const std::string & material, const ShaderParms & parms)> stageColor;
 };
 
 struct WorldCookStats

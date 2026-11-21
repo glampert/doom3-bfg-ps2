@@ -92,7 +92,10 @@ have not been re-measured.
   bytes (chart seams split vertices; 3,055,840 before the static `func_static` models merged into
   the areas) and the D3TX 2,612,672 (8 pages, 532,480 bytes of VRAM sharing
   the arena), both whole in EE RAM (TAG_RENDER), plus 2 x 192 bytes of state blocks per material
-  and 2 x 64 per page.
+  and 2 x 64 per page. With material passes (2026-11-21) the D3WD is 3,234,032 bytes (313
+  materials with the parm variants) and the D3TX 2,713,792 (2,063,616 bytes of diffuse and pass
+  VRAM), plus 2 x (192 + 64) bytes of blocks per pass. PAL's 640-wide 32/32 arena (655,360
+  bytes) is 99.8 % full with the north view's diffuse textures and pages, so its glows drop.
 - Measured map baseline (authored map, 2026-10-11): fixed `PT_LOAD` 10.9 MB, three 60-frame
   reloads about 2.22 MB requested; no retail map transition peak is established. mars_city1
   `.map` is 5.48 MB (4.85 MB brush/patch text), its container holds 5.4 MB of binary

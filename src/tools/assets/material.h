@@ -124,11 +124,16 @@ struct MaterialStage
     std::string blend;
     std::string map;
     bool alphaTest = false;
+    // The alphaTest register: a fragment draws when its alpha is at least this.
+    MaterialExpression alphaTestValue;
     // The image's clamp mode as id reads it: 'clamp' or 'zeroClamp' (black outside [0, 1]).
     bool clamp = false;
     bool zeroClamp = false;
     // A texture matrix (translate, scroll, scale, centerScale, shear, rotate).
     bool transformed = false;
+    // An image no cooked texture stands for: a cube map, texgen, a video, sound or render map, or a
+    // vertex or fragment program.
+    bool special = false;
     // 'if': the stage draws while it is non-zero.
     MaterialExpression condition;
     // RGBA registers ('colored' is parm0..3); empty ones are 1.
@@ -142,6 +147,10 @@ struct MaterialInfo
     std::string diffuse;
     // That stage alpha-tests: id loads its coverage image too (Material.cpp's coverage stage).
     bool alphaTest = false;
+    // That stage's index in 'stages', or -1.
+    int diffuseStage = -1;
+    // The first bump stage's image ('bumpmap X' or 'blend bumpmap'), empty without one.
+    std::string bump;
     // Stages that are neither diffuse, bump nor specular (blend, add, filter and the like).
     int otherStages = 0;
     // An interaction stage (diffuse, bump or specular): lights reach the surface.

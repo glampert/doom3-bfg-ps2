@@ -658,6 +658,14 @@ static void CloseStage(Scan & scan)
         {
             info.diffuse = stage.map;
             info.alphaTest = stage.alphaTest;
+            info.diffuseStage = static_cast<int>(info.stages.size());
+        }
+    }
+    else if (stage.blend == "bumpmap")
+    {
+        if (info.bump.empty())
+        {
+            info.bump = stage.map;
         }
     }
     else if (stage.blend != "bumpmap" && stage.blend != "specularmap")
@@ -957,6 +965,14 @@ bool ScanMaterials(std::string_view text, std::map<std::string, MaterialInfo> & 
             else if (depth == 2 && word == "alphatest")
             {
                 scan.stage.alphaTest = true;
+                ++at;
+                ParseStageExpression(tokens, at, scan.stage.alphaTestValue, scan.info);
+            }
+            else if (depth == 2 && (word == "cubemap" || word == "cameracubemap" || word == "texgen" || word == "videomap" ||
+                                    word == "soundmap" || word == "mirrorrendermap" || word == "remoterendermap" || word == "xrayrendermap" ||
+                                    word == "program" || word == "vertexprogram" || word == "fragmentprogram"))
+            {
+                scan.stage.special = true;
                 ++at;
             }
             else if (depth == 2 && (word == "clamp" || word == "zeroclamp" || word == "alphazeroclamp"))

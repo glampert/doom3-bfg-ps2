@@ -329,7 +329,7 @@ fails only on -1. The hard disk path (from `quake2-ps2`, whose PFS boot ran in P
   materials.
 - HostFs commands close the console, set `r_znear 4`, run `ps2_world load maps/game/mars_city1`
   (the `[D3BFG] world maps/game/mars_city1.d3wd:` line must carry the cook report's areas,
-  surfaces, batches, portals and nodes: 56, 1,842, 2,700, 55 and 9,783 today, with the static
+  surfaces, batches, portals and nodes: 56, 1,861, 2,718, 55 and 9,783 today, with the static
   `func_static` brush models merged into the areas, and a
   `[D3BFG] world textures maps/game/mars_city1.d3tx:` line with its pages must follow),
   `ps2_world textures off`, `ps2_world lightmaps off`, and two
@@ -352,7 +352,9 @@ fails only on -1. The hard disk path (from `quake2-ps2`, whose PFS boot ran in P
   view is then drawn lit by its lightmaps alone (`ps2_world lightmaps on`, `world-<view>-light.tga`
   two frames later), then textured and lit (`ps2_world textures on`, `world-<view>-lit.tga`), and
   `ps2_world textures status` must report textures and lightmaps enabled, textures and pages
-  resident and uploaded, with no batch fallen back to untextured or unlit. Both go off again
+  resident and uploaded, with no batch fallen back to untextured or unlit; its `passes` and `pass_fallbacks` (material
+  passes drawn, and left out because the arena could not hold their texture: PAL's north view leaves
+  its glows out) are recorded, not required. Both go off again
   before the next view. Each lightmap capture must match the reference with the lightmap pass
   modelled (below); the textured captures are checked by eye: no reference models the diffuse
   textures yet. The

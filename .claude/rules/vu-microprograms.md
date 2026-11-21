@@ -124,17 +124,19 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   STQ into the fourth), and goes out as ST, RGBAQ, XYZ2 (50 vertices a window). The clipper's
   corners carry the UV before the divide (S times w), three qwords each.
 - Each batch's input half ends with 11 qwords of state (`vu::kBatchLightmapOffset`, 295): the
-  lightmap page's A+D packet (word 3 of 296 non-zero asks for the lightmap pass), then the
-  material's 9 qwords (`vu::kBatchStateOffset`, 297): the program kicks the material's A+D
-  packet first and opens its windows with the batch's own drawing tags. A list batch may kick
+  lightmap page's A+D packet (word 3 of 296 positive asks for the lightmap pass), or for a
+  material pass's batch its colour at 295 with word 3 of 296 negative (every vertex takes that
+  colour, no lightmap pass); then the material's 9 qwords (`vu::kBatchStateOffset`, 297): the
+  program kicks the material's A+D packet first and opens its windows with the batch's own
+  drawing tags. A list batch may kick
   no window, so it kicks the null tag before it ends: the state packets must leave the half
   first. A batch fits 295 qwords.
 - **Sixteen lanes, both passes:** phase 1 stores the lightmap S x Q in qword 3 `.w` and T x Q in
   qword 0 `.w` (the clip position's w); the clipper's seed rebuilds w as 1/Q (`div` per corner) and
   blends the pass's UV by the pass float. A lit batch walks its stream again for the lightmap
   pass (ST, RGBAQ and XYZ2 like the base pass: the RGBAQ write is what stores a PACKED ST's Q).
-  `world_lm` is 714 instructions and `world_strips` 332, both in the swap region; passthrough is
-  resident and the clipper fixed at 1536.
+  `world_lm` is 648 instructions and `world_strips` 370 (2026-11-21, `.vutext` of their objects),
+  both in the swap region; passthrough is resident and the clipper fixed at 1536.
 - The two output windows are absolute (652, 803) and keep alternating across batches through
   `Frame.window` (qword 7); `DisplayList::SetFrameConstants` resets them per frame. Never reopen
   window A per batch: the window a batch writes first must be the one drained by the previous

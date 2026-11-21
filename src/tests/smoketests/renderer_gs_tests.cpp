@@ -738,7 +738,7 @@ bool WorldGraybox(system::video::Standard standard, renderer::gs::FrameFormat fo
         const math::Mat4 viewProjection = math::LookAt(camera.eye, camera.target, { 0.0f, 0.0f, 1.0f }) * projection;
 
         renderer::BeginFrame({ 0, 0, 0, 255 });
-        renderer::world::Draw(level, viewProjection);
+        renderer::world::Draw(level, viewProjection, 0.0f);
         renderer::EndFrame();
 
         char path[64];

@@ -37,7 +37,7 @@ GRATE_DECAL = {"entities": 1, "decals": 1, "vertices": 4, "triangles": 2, "area"
 
 # A lit pass that held every texture and lightmap page it needed.
 TEXTURES = {"enabled": 1, "arena": 1064960, "resident": 42, "resident_bytes": 500480, "uploads": 42, "evictions": 0, "fallbacks": 0,
-            "lightmaps": 1, "pages": 2, "unlit": 0}
+            "lightmaps": 1, "pages": 2, "unlit": 0, "passes": 12, "pass_fallbacks": 0}
 
 
 def textures_line(**fields):
@@ -70,7 +70,7 @@ def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final
     log = echo("ready") + echo("begin")
     log += (f"[D3BFG] world {runner.MAP}.d3wd: areas={counts['areas']} surfaces={counts['surfaces']} batches={counts['batches']} "
             f"portals={counts['portals']} nodes={counts['nodes']} packets=1610352 bytes=2704880\n")
-    log += f"[D3BFG] world textures {runner.MAP}.d3tx: textures=266 materials=287 pages=8 vram=2509312 bytes=2612672\n"
+    log += f"[D3BFG] world textures {runner.MAP}.d3tx: textures=289 materials=313 pages=8 passes=48 vram=2643712 bytes=2761280\n"
     log += WORLD.format(event="loaded", areas=56, portals=55, viewing=0, frame=0, views=0, area=-1, entities=0, drawn=0, batches=0)
     for index, (_, _, hit, fraction, normal, material) in enumerate(runner.TRACES):
         found = {"hit": hit, "fraction": fraction, "normal": normal, "material": material}

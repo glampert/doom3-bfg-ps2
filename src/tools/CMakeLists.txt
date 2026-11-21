@@ -100,6 +100,7 @@ add_library(assets STATIC
     assets/lightmap.cpp
     assets/map_entities.cpp
     assets/material.cpp
+    assets/material_passes.cpp
     assets/palette.cpp
     assets/png.cpp
     assets/proc.cpp

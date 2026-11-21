@@ -25,7 +25,8 @@
       "_ordered.resources"
     ],
     "scale": 0.5,
-    "max_extent": 256
+    "max_extent": 256,
+    "cavity": 1.0
   },
   "lighting": {
     "script": "script/map_marscity1.script",

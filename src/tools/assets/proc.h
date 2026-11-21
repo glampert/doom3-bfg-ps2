@@ -26,12 +26,21 @@ struct ProcVertex
     std::array<float, 3> normal = {};
 };
 
+// An entity's twelve shader parms (renderEntity_t::shaderParms), which material registers read.
+using ShaderParms = std::array<float, 12>;
+
+// What id gives the world's area models: parms 0-3 one, the rest zero (RenderWorld_load.cpp).
+ShaderParms WorldShaderParms();
+
 struct ProcSurface
 {
     std::string material;
     std::vector<ProcVertex> vertices;
     // Triangles wound clockwise seen from the front (idPlane::FromPoints).
     std::vector<std::uint32_t> indices;
+    // The parms its material reads: 0 for the world's, N for ProcFile::parmSets[N - 1] (a merged
+    // entity's, static_models.h).
+    std::uint32_t parms = 0;
 };
 
 struct ProcModel
@@ -64,7 +73,12 @@ struct ProcFile
     std::vector<ProcNode> nodes;
     // Shadow models are parsed and dropped (static shadow volumes are a later gate).
     int shadowModelCount = 0;
+    // The parm sets surfaces other than the world's draw with (ProcSurface::parms).
+    std::vector<ShaderParms> parmSets;
 };
+
+// A surface's parms.
+const ShaderParms & SurfaceParms(const ProcFile & proc, const ProcSurface & surface);
 
 // Surfaces keep at most 65,535 vertices (16-bit indices on the PS2). Every area 0..N-1 named by
 // the portal section must have its model, and node children must stay in range.

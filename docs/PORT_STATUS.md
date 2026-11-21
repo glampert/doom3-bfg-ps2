@@ -5850,3 +5850,61 @@ took 66.5 and 95.4 there.
 | `make test-world-retail` | `20261121T064848Z_world_retail_d6e06df49a8a` (NTSC), `20261121T064943Z_world_retail_95768ecbaa90` (PAL); every capture byte-identical to the previous section's runs |
 | `make test-renderer` | Passed |
 | `make` | Passed, no warnings |
+
+## Material pass tables (2026-11-21)
+
+The world cook compiles each material into what the PS2 draws, in D3TX v3
+([texture_pack.h](../src/tools/assets/texture_pack.h)), and the runtime draws it:
+
+- **Base pass.** The diffuse stage's alpha test reference comes from its register (mars_city1:
+  0.25, 0.5 and 0.55; `TEST.AREF` had been 0.5 for every one), and its colour registers
+  (`rgb .5`, `colored`) multiply the vertex colours.
+- **Cavity bake.** Each bump map is baked into its diffuse as cavity shading (plan 10.2:
+  `clamp(N.L / L.z, 0.5, 1.5)` under a key light fixed in tangent space, amplitude 1 for
+  mars_city1; 200 textures). A baked texture keeps the PSMT4 or PSMT8 its unbaked image qualifies
+  for: the bake alone had promoted 12 textures to PSMT8 (+47.6 KB of VRAM), which PAL's arena
+  could not take.
+- **Additive passes.** An opaque or alpha-tested material's `blend add` and `gl_one, gl_one`
+  stages (glow maps) become passes: drawn after the world pass's areas, each batch again with the
+  pass's texture, ABE set (ALPHA `(Cs - 0) x FIX + Cd` with FIX 1.0 in the base context, set by
+  `gs::BeginDepthPass`) and one colour every vertex takes. Its depth equals the base pass's, so
+  GEQUAL lands it exactly where its surface is the nearest, in any order. Stages with cube maps,
+  texgen, programs, texture matrices or an alpha test draw nothing yet; translucent materials stay
+  `kPackHidden`.
+- **Registers.** Colours and conditions fold the surface's parms, zero globals and sound into
+  constants; what reads time stays as expression nodes (id's register ops and its table lookup)
+  that the EE evaluates once a frame (`tex::EvaluatePassNodes`). A condition false under the
+  parms drops its stage at the cook, as does a constant black colour.
+- **Parm sets.** A merged `func_static` surface whose material reads parms keeps its entity's
+  (`EntityShaderParms`: `_color`, `shaderParm3` to `11`), and the cook keys its materials by name
+  and parm set: mars_city1's 93 such surfaces make 26 material variants (313 materials, from 287).
+- **VU programs.** A pass's batch carries its colour where the lightmap page's packet goes, with
+  word 3 of the second qword negative; the lightmap pass now needs it positive. Both world
+  programs copy the colour into every vertex before phase 1 (`world_lm` 648 instructions, +14;
+  `world_strips` 370, +12). Normal batches are no slower: over the new cook `vu_cost.py` counts
+  63.59 cycles a mars_city1 triangle for the base pass and 90.21 with the lightmap pass, against
+  63.70 and 90.31 for the previous programs (the schedule moved; passes are not counted).
+- **Residency.** Pass textures take the arena's top end and are evicted before any diffuse texture
+  or page. Without that, PAL's north view (the arena 99.8 % full) failed: its areas 50 and 51 are
+  drawn before area 2, and least-recently-used could not tell area 2's diffuse textures from the
+  previous view's glow textures (both last drawn in the same frame), so it evicted a diffuse
+  texture area 2 still needed and fragmented the arena. Now PAL's north view drops its glows
+  (`pass_fallbacks`) and keeps every diffuse texture; NTSC draws them all.
+
+| mars_city1 | Before | Now |
+| --- | --- | --- |
+| Materials (D3WD) | 287 | 313 (26 parm variants) |
+| Batches | 2,700 | 2,718 |
+| D3WD bytes | 3,229,424 | 3,234,032 |
+| Textures (D3TX) | 266 | 289 (200 with cavity) |
+| Passes | 0 | 48 (5 driven by time: 40 expression nodes, 257 table values) |
+| Diffuse and pass VRAM | 1,976,832 | 2,063,616 (+86,784, the pass textures) |
+| D3TX bytes | 2,612,672 | 2,713,792 |
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC `20261121T103104Z_world_retail_fc5d8e73657f`, PAL `20261121T103148Z_world_retail_3e9c4cbbdabf`: every untextured and lightmap-only capture held to its reference (passes draw only textured); the textured captures checked by eye ([doorway](images/renderer-world-12-mars_city1-passes-doorway-ntsc.png), [north](images/renderer-world-12-mars_city1-passes-north-ntsc.png), [east](images/renderer-world-12-mars_city1-passes-east-ntsc.png), [corridor](images/renderer-world-12-mars_city1-passes-corridor-ntsc.png)); NTSC draws 13 passes in the north view and none fall back, PAL's arena leaves out north's glow textures |
+| `make test-world` (debug) | NTSC `20261121T101600Z_world_b283655dde5a`, PAL `20261121T101610Z_world_afbed6520429` |
+| `make test-renderer` (debug) | Passed (`20261121T103410Z_smoke_8cca1c7356cf44bd` and the expected-fatal probes) |
+| `make test-host` | Passed: 404 Python tests; `texture_format_tests` round-trips D3TX v3 through the cook and the target, refuses bad passes in both, and holds the target's evaluator to the planner and to id's expressions at seven times; `world_tests` and `lighting_tests` cover the parm sets |
+| `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 5,025,529 debug and 4,255,737 release |

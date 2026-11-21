@@ -1,8 +1,9 @@
 // ================================================================================================
 // File: texture_format_tests.cpp
 // Brief: Check the GS memory emulation against TimeSplitters' published PSMT8 swizzle and Black's
-// mip layout, GSTX v2 round trips through the cook's reader and the target validator, and their
-// refusals of corrupted files.
+// mip layout, GSTX v2 and D3TX v3 round trips through the cook's reader and the target validator,
+// their refusals of corrupted files, the material pass planner against the target's register
+// evaluator and id's expression semantics, and the cavity bake.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -10,6 +11,7 @@
 #include "assets/gs_memory.h"
 #include "assets/gstx_v2.h"
 #include "assets/material.h"
+#include "assets/material_passes.h"
 #include "assets/texture_pack.h"
 #include "ps2/renderer/texture_format.h"
 
@@ -432,6 +434,11 @@ textures/a/plain { diffusemap textures/a/second_definition }
              materials["textures/a/plain"].otherStages == 0;
     passed = passed && materials["textures/a/staged"].diffuse == "textures/a/staged_d" && materials["textures/a/staged"].alphaTest &&
              materials["textures/a/staged"].otherStages == 1;
+    // The alpha test's value, the diffuse stage's index and the bump stage, in either spelling.
+    const MaterialInfo & staged = materials["textures/a/staged"];
+    passed = passed && staged.diffuseStage == 1 && staged.bump == "textures/a/staged_local" &&
+             EvaluateExpression(staged.stages[1].alphaTestValue, ExpressionInputs{}) == 0.5f && materials["textures/a/plain"].bump == "textures/a/plain_local.tga" &&
+             materials["textures/a/plain"].diffuseStage == 1 && !staged.stages[2].special;
     passed = passed && materials["textures/a/program"].diffuse == "addnormals(textures/a/x_local,heightmap(textures/a/x_bmp,4))" &&
              materials["textures/a/program"].otherStages == 1;
 
@@ -532,14 +539,31 @@ static bool TexturePacks()
     pack.materialsHash = MaterialNamesHash({ "textures/a", "textures/b", "textures/c", "textures/d" });
     pack.materialTextures = { 1, kD3txNoTexture, 0, kD3txHidden };
     pack.materialUvDensity = { -7.0f, 0.0f, -6.5f, 0.0f };
+    pack.materialAlphaRef = { 0x40, 0, 0, 0 };
+    pack.materialFirstPass = { 0, 1, 0, 1 };
+    pack.materialPassCount = { 0, 0, 1, 0 };
     pack.textureFlags = { 0, kD3txFlagAlphaTest, kD3txFlagLightmap };
     pack.textures = { firstFile, secondFile, pageFile };
     pack.lightmapPages = { 2, 2 };
+    // One pass: time times a table, read through a clamped table.
+    D3txPass glow;
+    glow.texture = 0;
+    glow.color = { 0x80, 0x40, 0x20, 0x80 };
+    glow.nodeCount = 4;
+    glow.colorNodes[1] = 3;
+    glow.condition = 0;
+    pack.passes = { glow };
+    pack.nodes = { D3txNode{ 0, 0, 0, 0, 0, 1.0f }, D3txNode{ 1, 0, 0, 0, 0, 0.0f }, D3txNode{ 8, 0, 0, 1, 0, 0.0f },
+                   D3txNode{ 5, kD3txTableClamp, 2, 0, 3, 0.0f } };
+    pack.tableValues = { 0.0f, 1.0f, 0.0f };
     std::vector<std::uint8_t> file;
     TexturePack read;
     passed = passed && WriteD3tx(pack, file, error) && ReadD3tx(file, read, error) && read.materialTextures == pack.materialTextures &&
              read.textures == pack.textures && read.textureFlags == pack.textureFlags && read.materialsHash == pack.materialsHash &&
-             read.materialUvDensity == pack.materialUvDensity && read.lightmapPages == pack.lightmapPages;
+             read.materialUvDensity == pack.materialUvDensity && read.lightmapPages == pack.lightmapPages &&
+             read.materialAlphaRef == pack.materialAlphaRef && read.materialFirstPass == pack.materialFirstPass &&
+             read.materialPassCount == pack.materialPassCount && read.passes == pack.passes && read.nodes == pack.nodes &&
+             read.tableValues == pack.tableValues;
     passed = passed && MaterialNamesHash({ "ab" }) != MaterialNamesHash({ "a", "b" });
 
     // The target admits the same file and sees the same tables.
@@ -552,7 +576,9 @@ static bool TexturePacks()
              target.materials[1].texture == ps2::renderer::tex::kPackNoTexture && target.materials[3].texture == ps2::renderer::tex::kPackHidden &&
              target.materials[2].uvDensityLog2 == -6.5f && target.textures[1].flags == ps2::renderer::tex::kPackFlagAlphaTest &&
              target.textures[2].flags == ps2::renderer::tex::kPackFlagLightmap && images[2].usage == ps2::renderer::tex::ImageUsage::Lightmap &&
-             images[0].width == static_cast<std::uint32_t>(first.image.width) && images[1].height == static_cast<std::uint32_t>(second.image.height);
+             images[0].width == static_cast<std::uint32_t>(first.image.width) && images[1].height == static_cast<std::uint32_t>(second.image.height) &&
+             target.passCount == 1 && target.nodeCount == 4 && target.valueCount == 3 && target.materials[0].alphaRef == 0x40 &&
+             target.materials[2].passCount == 1 && target.passes[0].color[2] == 0x20 && target.passes[0].colorNodes[1] == 3;
     passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 2) != nullptr;
 
     // Flipped bytes anywhere in the tables or a texture, and a dangling material, are refused by both.
@@ -578,7 +604,217 @@ static bool TexturePacks()
     misflagged.textureFlags[0] = kD3txFlagLightmap;
     passed = passed && !WriteD3tx(dangling, file, error) && !WriteD3tx(namesPage, file, error) && !WriteD3tx(pageNamesDiffuse, file, error) &&
              !WriteD3tx(unflagged, file, error) && !WriteD3tx(misflagged, file, error);
+
+    // Passes: an operand that is not earlier, a node outside its pass, a table past the values, a
+    // folded input, a pass over an untextured material, a lightmap texture and an alpha reference
+    // above 1.0 are all refused.
+    TexturePack forward = pack;
+    forward.nodes[2].b = 3;
+    TexturePack outside = pack;
+    outside.passes[0].colorNodes[0] = 4;
+    TexturePack pastValues = pack;
+    pastValues.nodes[3].count = 4;
+    TexturePack parm = pack;
+    parm.nodes[1].op = static_cast<std::uint8_t>(ExpressionOp::Parm);
+    TexturePack untexturedPass = pack;
+    untexturedPass.materialPassCount = { 0, 1, 0, 0 };
+    TexturePack lightmapPass = pack;
+    lightmapPass.passes[0].texture = 2;
+    TexturePack bright = pack;
+    bright.materialAlphaRef[0] = 0x81;
+    passed = passed && !WriteD3tx(forward, file, error) && !WriteD3tx(outside, file, error) && !WriteD3tx(pastValues, file, error) &&
+             !WriteD3tx(parm, file, error) && !WriteD3tx(untexturedPass, file, error) && !WriteD3tx(lightmapPass, file, error) &&
+             !WriteD3tx(bright, file, error);
+
+    // The target refuses the same passes when the cook's checks are bypassed: patch a valid file.
+    if (WriteD3tx(pack, file, error))
+    {
+        const std::size_t nodesAt = kD3txHeaderBytes + 4 * kD3txMaterialRecordBytes + kD3txPassRecordBytes + 3 * kD3txTextureRecordBytes +
+                                    2 * kD3txPageRecordBytes;
+        std::vector<std::uint8_t> bad = file;
+        bad[nodesAt + 2 * kD3txNodeRecordBytes + 4] = 3; // node 2's b: itself
+        WriteLe32(bad.data() + 24, 0);
+        const std::size_t tablesEnd = nodesAt + 4 * kD3txNodeRecordBytes + 3 * kD3txValueRecordBytes;
+        WriteLe32(bad.data() + 24, Fnv1a32({ bad.data(), tablesEnd }));
+        std::memcpy(s_aligned, bad.data(), bad.size());
+        passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(bad.size()), target, images, 3) != nullptr;
+    }
     return Check(passed, "D3TX packs round trip and refuse corruption");
+}
+
+static bool MaterialPasses()
+{
+    static constexpr const char * kText = R"(
+table pulse { { 0, 1, 0.5 } }
+table steps { snap { 0.25, 1, 0.5, 2 } }
+textures/p/glow
+{
+    bumpmap textures/p/glow_local
+    { blend diffusemap map textures/p/glow_d alphaTest 0.25 rgb 0.5 }
+    { blend add map textures/p/pulse_add rgb pulse[ time * 0.5 ] }
+    { if ( parm7 == 0 ) blend gl_one, gl_one map textures/p/on_add red parm0 green parm1 * 2 blue 0.5 }
+    { if ( parm7 != 0 ) blend add map textures/p/off_add }
+    { blend add map textures/p/env cubeMap env/x }
+    { blend add map textures/p/dark rgb 0 }
+    { if ( time > 2 ) blend add map textures/p/late red steps[ time * -0.3 ] % 3 green ( time / 0 ) + 0.5 blue parm0 }
+}
+textures/p/glass { translucent { blend add map textures/p/glass_add } }
+)";
+
+    std::map<std::string, MaterialInfo> materials;
+    MaterialTables tables;
+    std::string error;
+    bool passed = ScanMaterials(kText, materials, error, &tables);
+    const MaterialInfo & glow = materials["textures/p/glow"];
+
+    // The world's parms: parm0-3 one, parm7 zero.
+    const MaterialPassPlan world = PlanMaterialPasses(glow, WorldShaderParms(), tables);
+    passed = passed && world.alphaRef == 32 && world.diffuseColor[0] == 0.5f && world.diffuseColor[2] == 0.5f && world.passes.size() == 3 &&
+             world.skipped.size() == 1;
+    passed = passed && world.passes.size() == 3 && world.passes[0].image == "textures/p/pulse_add" && !world.passes[0].nodes.empty() &&
+             world.passes[0].pass.colorNodes[3] == kD3txNoNode && world.passes[1].image == "textures/p/on_add" && world.passes[1].nodes.empty() &&
+             world.passes[1].pass.color == std::array<std::uint8_t, 4>{ 0x80, 0xFF, 0x40, 0x80 } && world.passes[1].pass.condition == kD3txNoNode &&
+             world.passes[2].image == "textures/p/late" && world.passes[2].pass.condition != kD3txNoNode;
+
+    // An entity's: parm7 set swaps the stages, parm0 folds into a constant.
+    ShaderParms entity = WorldShaderParms();
+    entity[0] = 0.25f;
+    entity[7] = 1.0f;
+    const MaterialPassPlan lit = PlanMaterialPasses(glow, entity, tables);
+    passed = passed && lit.passes.size() == 3 && lit.passes[1].image == "textures/p/off_add" && lit.passes[2].pass.colorNodes[2] == kD3txNoNode &&
+             lit.passes[2].pass.color[2] == 0x20;
+
+    // Translucent materials get no passes yet.
+    passed = passed && PlanMaterialPasses(materials["textures/p/glass"], WorldShaderParms(), tables).passes.empty();
+
+    // Packed, the target evaluates every pass as the cook's planner and id's own expressions do.
+    TexturePolicy policy;
+    CookedTexture texture;
+    std::vector<std::uint8_t> textureFile;
+    passed = passed && CookTexture(Noise(16, 16, true), policy, GstxUsage::Diffuse, texture, error) && WriteGstxV2(texture.image, textureFile, error);
+    TexturePack pack;
+    pack.materialsHash = MaterialNamesHash({ "textures/p/glow", "textures/p/glow" });
+    pack.materialTextures = { 0, 0 };
+    pack.materialUvDensity = { 0.0f, 0.0f };
+    pack.materialAlphaRef = { world.alphaRef, lit.alphaRef };
+    pack.textureFlags = { 0 };
+    pack.textures = { textureFile };
+    std::map<std::string, std::uint16_t> offsets;
+
+    for (const MaterialPassPlan * plan : { &world, &lit })
+    {
+        pack.materialFirstPass.push_back(static_cast<std::uint16_t>(pack.passes.size()));
+        pack.materialPassCount.push_back(static_cast<std::uint8_t>(plan->passes.size()));
+
+        for (const PlannedPass & planned : plan->passes)
+        {
+            AddPlannedPass(pack, planned, 0, tables, offsets);
+        }
+    }
+
+    std::vector<std::uint8_t> file;
+    ps2::renderer::tex::Pack target{};
+    ps2::renderer::tex::Image images[1]{};
+    passed = passed && WriteD3tx(pack, file, error);
+    std::memcpy(s_aligned, file.data(), file.size());
+    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 1) == nullptr &&
+             target.passCount == 6 && pack.tableValues.size() == 9;
+
+    for (std::size_t plan = 0; passed && plan < 2; ++plan)
+    {
+        const MaterialPassPlan & source = plan == 0 ? world : lit;
+        ExpressionInputs inputs;
+        const ShaderParms parms = plan == 0 ? WorldShaderParms() : entity;
+        std::copy(parms.begin(), parms.end(), inputs.parms.begin());
+        inputs.tables = &tables;
+
+        for (std::size_t index = 0; index < source.passes.size(); ++index)
+        {
+            const PlannedPass & planned = source.passes[index];
+            const ps2::renderer::tex::PackPass & record = target.passes[target.materials[plan].firstPass + index];
+            const MaterialStage & stage = glow.stages[static_cast<std::size_t>(planned.stage)];
+
+            for (const float time : { 0.0f, 0.3f, 1.7f, 2.5f, 5.0f, -3.2f, 123.4f })
+            {
+                float registers[ps2::renderer::tex::kPackMaxNodesPerPass] = {};
+                ps2::renderer::tex::EvaluatePassNodes(target, record, time, registers);
+                const std::vector<float> planner = EvaluatePlannedNodes(planned, tables, time);
+                inputs.time = time;
+
+                for (std::size_t node = 0; node < planner.size(); ++node)
+                {
+                    passed = passed && planner[node] == registers[node];
+                }
+
+                for (std::size_t channel = 0; channel < 4; ++channel)
+                {
+                    if (record.colorNodes[channel] != ps2::renderer::tex::kPackNoNode)
+                    {
+                        passed = passed && registers[record.colorNodes[channel] - record.firstNode] == EvaluateExpression(stage.color[channel], inputs);
+                    }
+                }
+
+                if (record.condition != ps2::renderer::tex::kPackNoNode)
+                {
+                    passed = passed && registers[record.condition - record.firstNode] == EvaluateExpression(stage.condition, inputs);
+                }
+            }
+        }
+    }
+
+    return Check(passed, "material passes fold parms, keep time, and evaluate on the target as id's registers do");
+}
+
+static bool Cavity()
+{
+    RgbaImage diffuse;
+    diffuse.Allocate(8, 8);
+    RgbaImage normal;
+    normal.Allocate(4, 4);
+
+    for (int y = 0; y < 8; ++y)
+    {
+        for (int x = 0; x < 8; ++x)
+        {
+            std::uint8_t * texel = diffuse.At(x, y);
+            texel[0] = texel[1] = texel[2] = 100;
+            texel[3] = 255;
+        }
+    }
+
+    // The left half faces the key light (+x), the right half away from it.
+    for (int y = 0; y < 4; ++y)
+    {
+        for (int x = 0; x < 4; ++x)
+        {
+            std::uint8_t * texel = normal.At(x, y);
+            const bool toward = x < 2;
+            texel[0] = toward ? 218 : 37;
+            texel[1] = 128;
+            texel[2] = 228;
+            texel[3] = 255;
+        }
+    }
+
+    RgbaImage untouched = diffuse;
+    CavityPolicy off;
+    BakeCavity(untouched, normal, off);
+    bool passed = untouched.pixels == diffuse.pixels;
+
+    CavityPolicy policy;
+    policy.amplitude = 1.0f;
+    policy.light = { 1.0f, 0.0f, 1.0f };
+    RgbaImage baked = diffuse;
+    BakeCavity(baked, normal, policy);
+    passed = passed && baked.At(1, 3)[0] > 100 && baked.At(6, 3)[0] < 100 && baked.At(1, 3)[3] == 255 && baked.At(1, 3)[0] <= 150 &&
+             baked.At(6, 3)[0] >= 50;
+
+    // Half the amplitude moves half as far.
+    policy.amplitude = 0.5f;
+    RgbaImage half = diffuse;
+    BakeCavity(half, normal, policy);
+    passed = passed && std::abs((half.At(1, 3)[0] - 100) * 2 - (baked.At(1, 3)[0] - 100)) <= 2;
+    return Check(passed, "the cavity bake brightens texels facing the key light and darkens the rest, by its amplitude");
 }
 
 } // namespace
@@ -600,6 +836,8 @@ int main()
     passed = Materials() && passed;
     passed = TextureCook() && passed;
     passed = TexturePacks() && passed;
+    passed = MaterialPasses() && passed;
+    passed = Cavity() && passed;
 
     if (!passed)
     {

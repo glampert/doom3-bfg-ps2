@@ -571,6 +571,17 @@ static bool StaticModels()
     passed = passed && area0.surfaces.size() == 2 && area0.surfaces[0].vertices.size() == 6 && area0.surfaces[0].indices.size() == 6 &&
              area0.surfaces[1].material == "textures/panel" && area1.surfaces.size() == 1 && area1.surfaces[0].indices.size() == 3;
 
+    // The panel reads its entity's parms, so its merged surface keeps them: green, the rest id's
+    // spawn defaults. The wall draws with the world's.
+    ShaderParms green = WorldShaderParms();
+    green[0] = 0.0f;
+    green[2] = 0.0f;
+    passed = passed && stats.parmSets == 1 && proc.parmSets.size() == 1 && proc.parmSets[0] == green && area0.surfaces.size() == 2 &&
+             area0.surfaces[1].parms == 1 && area0.surfaces[0].parms == 0 && SurfaceParms(proc, area0.surfaces[1]) == green &&
+             SurfaceParms(proc, area0.surfaces[0]) == WorldShaderParms();
+    const ShaderParms spawned = EntityShaderParms(StaticEntity("func_static_9", { { "shaderparm7", "1" }, { "shaderparm3", "0.5" } }));
+    passed = passed && spawned[0] == 1.0f && spawned[3] == 0.5f && spawned[7] == 1.0f && spawned[11] == 0.0f;
+
     if (passed)
     {
         const ProcVertex & turned = area0.surfaces[0].vertices[4];

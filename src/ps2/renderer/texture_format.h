@@ -64,19 +64,27 @@ struct Image
 // checked only in assertion builds (corrupt texels cannot hang the GIF; every tag is checked).
 PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_t bytes, Image & output);
 
-// A map's texture package (D3TX v2, src/tools/assets/texture_pack.h), validated in place: the
-// material, texture and lightmap page tables, then each texture validated as an Image. 64-byte
-// aligned like the D3WD.
+// A map's texture package (D3TX v3, src/tools/assets/texture_pack.h), validated in place: the
+// material, pass, texture, lightmap page, expression node and table value tables, then each
+// texture validated as an Image. 64-byte aligned like the D3WD.
 static constexpr std::uint32_t kPackMagic = 0x58543344;
-static constexpr std::uint32_t kPackVersion = 2;
-static constexpr std::uint32_t kPackConverterVersion = 2;
+static constexpr std::uint32_t kPackVersion = 3;
+static constexpr std::uint32_t kPackConverterVersion = 3;
 static constexpr std::uint32_t kPackHeaderBytes = 48;
-static constexpr std::uint32_t kPackMaterialBytes = 8;
+static constexpr std::uint32_t kPackMaterialBytes = 16;
+static constexpr std::uint32_t kPackPassBytes = 24;
 static constexpr std::uint32_t kPackTextureBytes = 16;
 static constexpr std::uint32_t kPackPageBytes = 4;
+static constexpr std::uint32_t kPackNodeBytes = 12;
+static constexpr std::uint32_t kPackValueBytes = 4;
 static constexpr std::uint32_t kPackAlignment = 64;
 static constexpr std::uint32_t kPackMaxMaterials = 4096;
 static constexpr std::uint32_t kPackMaxTextures = 4096;
+static constexpr std::uint32_t kPackMaxPasses = 4096;
+static constexpr std::uint32_t kPackMaxPassesPerMaterial = 8;
+static constexpr std::uint32_t kPackMaxNodes = 16384;
+static constexpr std::uint32_t kPackMaxNodesPerPass = 64;
+static constexpr std::uint32_t kPackMaxValues = 16384;
 static constexpr std::uint32_t kPackMaxFileBytes = 16U * 1024U * 1024U;
 static constexpr std::uint32_t kPackNoTexture = 0xFFFFFFFFU;
 // Translucent without a diffuse stage: the textured pass leaves it to the material's own stages.
@@ -85,11 +93,59 @@ static constexpr std::uint32_t kPackFlagAlphaTest = 1U;
 // A Light8 page: usage Lightmap, named by the page table, never by a material.
 static constexpr std::uint32_t kPackFlagLightmap = 2U;
 static constexpr std::uint32_t kPackMaxPages = 256;
+static constexpr std::uint8_t kPackMaxAlphaRef = 0x80;
+static constexpr std::uint8_t kPackBlendAdd = 1;
+static constexpr std::uint16_t kPackNoNode = 0xFFFF;
+static constexpr std::uint8_t kPackTableSnap = 1;
+static constexpr std::uint8_t kPackTableClamp = 2;
+
+// The cooked register ops (the cook's ExpressionOp, src/tools/assets/material.h; parms, globals and
+// sound are folded in by the cook and refused here).
+enum class PackOp : std::uint8_t
+{
+    Constant,
+    Time,
+    Parm,
+    Global,
+    Sound,
+    Table,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Mod,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    Equal,
+    NotEqual,
+    And,
+    Or
+};
 
 struct PackMaterial
 {
     std::uint32_t texture;  // kPackNoTexture: drawn untextured; kPackHidden: not drawn textured
     float uvDensityLog2;    // log2 of UV units per world unit
+    std::uint16_t firstPass;
+    std::uint8_t passCount;
+    std::uint8_t alphaRef;  // the alpha test's reference, 0x80 = 1.0; 0 without a test
+    std::uint32_t reserved;
+};
+
+// An additive pass over the base pass, drawn while its condition holds with its colour times its
+// texture.
+struct PackPass
+{
+    std::uint32_t texture;
+    std::uint8_t color[4];  // 0x80 = 1.0, for channels no node drives
+    std::uint8_t blend;     // kPackBlendAdd
+    std::uint8_t reserved;
+    std::uint16_t firstNode;
+    std::uint16_t nodeCount;
+    std::uint16_t condition; // kPackNoNode: always
+    std::uint16_t colorNodes[4];
 };
 
 struct PackTexture
@@ -100,7 +156,18 @@ struct PackTexture
     std::uint32_t reserved;
 };
 
-static_assert(sizeof(PackMaterial) == kPackMaterialBytes && sizeof(PackTexture) == kPackTextureBytes);
+struct PackNode
+{
+    PackOp op;
+    std::uint8_t flags;  // Table: kPackTableSnap, kPackTableClamp
+    std::uint16_t a;     // operands, earlier nodes of the pass; Table: the index
+    std::uint16_t b;     // Table: its first value
+    std::uint16_t count; // Table: its values, the first repeated at the end
+    float value;         // Constant
+};
+
+static_assert(sizeof(PackMaterial) == kPackMaterialBytes && sizeof(PackPass) == kPackPassBytes && sizeof(PackTexture) == kPackTextureBytes &&
+              sizeof(PackNode) == kPackNodeBytes);
 
 struct Pack
 {
@@ -108,10 +175,21 @@ struct Pack
     std::uint32_t textureCount;
     std::uint32_t materialsHash; // FNV-1a of the world's material names, each with its NUL
     std::uint32_t pageCount;
+    std::uint32_t passCount;
+    std::uint32_t nodeCount;
+    std::uint32_t valueCount;
     const PackMaterial * materials;
+    const PackPass * passes;
     const PackTexture * textures;
     const std::uint32_t * pages; // the texture of each D3WD lightmap page
+    const PackNode * nodes;
+    const float * values;
 };
+
+// Evaluates a validated pass's nodes at 'time' (seconds) into 'registers' (its nodeCount of them),
+// as idMaterial::EvaluateRegisters does the cooked ops: a divide by zero gives zero, a modulo works
+// on integers, and a table is idDeclTable::TableLookup.
+void EvaluatePassNodes(const Pack & pack, const PackPass & pass, float time, float * registers);
 
 // Null when the package is valid; 'images' receives every texture's Image (textureCount of them).
 // The file must stay alive and 64-byte aligned.

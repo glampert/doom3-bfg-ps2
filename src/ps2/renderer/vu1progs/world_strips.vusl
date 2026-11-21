@@ -5,7 +5,8 @@
  *        topology comparison with world_lm.vusl. Phase 1 transforms every vertex in place;
  *        phase 2 sends the strips as they are when every vertex stayed inside the guard band,
  *        and otherwise walks them as triangles, clipping those that left it through the
- *        clipper library (clipper.vush). It draws the base pass only.
+ *        clipper library (clipper.vush). It draws the base pass only, with the colour of a
+ *        material pass's block where the page's goes (as world_lm.vusl).
  *
  * This source code is released under the GNU GPL-3.0-or-later license.
  * ================================================================================================ */
@@ -27,7 +28,8 @@ struct Vertex
 
 // A batch at XTOP: its dequantisation, then the vertices (their count from XITOP), and the
 // batch state DisplayList::DrawBatch writes at the end of the half: the lightmap page's A+D
-// packet (unused here), the material's A+D packet, kicked first, then the drawing tags.
+// packet (unused here) or a material pass's colour (word 3 of the second qword negative), the
+// material's A+D packet, kicked first, then the drawing tags.
 struct Batch
 {
     vec3  posOffset;
@@ -77,6 +79,18 @@ void main(layout(address = 0) inout Frame frame,
 {
     // The material's registers go first: every window waits behind them.
     xgkick(batch.state);
+
+    // A material pass: every vertex takes the pass's colour.
+    if (batch.lightmap[1].w < 0)
+    {
+        qword color = batch.lightmap[0];
+
+        for (inout Vertex v : batch.vertices)
+        {
+            ref<Sent> sent = ref<Sent>(v);
+            sent.rgba      = color;
+        }
+    }
 
     vec3 posOffset                 = batch.posOffset;
     float posScale                 = batch.posScale;

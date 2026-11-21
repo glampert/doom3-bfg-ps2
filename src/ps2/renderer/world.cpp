@@ -30,6 +30,41 @@ static bool s_lightmapsEnabled = true;
 static Textures * s_passTextures = nullptr;
 static TextureStats s_lastStats = {};
 
+// The batches whose materials draw additive passes, queued until the pass's areas are all in:
+// the diffuse textures then hold the arena first, and a pass whose texture finds no room left
+// simply does not draw. Depth GEQUAL makes the order safe: a pass lands only where its own
+// surface is the nearest. A full queue draws what it holds.
+static constexpr u32 kMaxQueuedPassBatches = 512;
+static u32 s_queuedPasses[kMaxQueuedPassBatches];
+static u32 s_queuedPassCount = 0;
+static const Level * s_passLevel = nullptr;
+
+static void DrawQueuedPasses()
+{
+    dma::DisplayList & list = dma::List();
+    const Sections & sections = s_passLevel->sections;
+
+    for (u32 queued = 0; queued < s_queuedPassCount; ++queued)
+    {
+        const BatchRecord & batch = sections.batches[s_queuedPasses[queued]];
+        const u32 passes = PassCount(s_passTextures, batch.material);
+
+        for (u32 pass = 0; pass < passes; ++pass)
+        {
+            const void * state = nullptr;
+            const void * color = nullptr;
+
+            // Each batch again with the pass's texture, a constant colour and additive tags.
+            if (PassBlocks(s_passTextures, list, batch.material, pass, state, color))
+            {
+                list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, color, kPageStateBlockQwords);
+            }
+        }
+    }
+
+    s_queuedPassCount = 0;
+}
+
 } // namespace
 
 
@@ -194,9 +229,11 @@ const TextureStats & LastPassTextureStats()
     return s_lastStats;
 }
 
-void BeginPass(const Level & level, const math::Mat4 & viewProjection)
+void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time)
 {
     s_passTextures = level.textures;
+    s_passLevel = &level;
+    s_queuedPassCount = 0;
 
     const gs::DrawContext context = renderer::DrawingContext();
     dma::DisplayList & list = dma::List();
@@ -209,7 +246,7 @@ void BeginPass(const Level & level, const math::Mat4 & viewProjection)
     // matrix's first column, the view rotation being orthonormal) times the window scale.
     const float columnX = viewProjection.m[0][0] * viewProjection.m[0][0] + viewProjection.m[1][0] * viewProjection.m[1][0] +
                           viewProjection.m[2][0] * viewProjection.m[2][0];
-    BeginTextures(s_passTextures, context, gs::WindowScale().x * math::Sqrtf(columnX), s_texturesEnabled, s_lightmapsEnabled);
+    BeginTextures(s_passTextures, context, gs::WindowScale().x * math::Sqrtf(columnX), s_texturesEnabled, s_lightmapsEnabled, time);
 }
 
 void DrawArea(const Level & level, u32 area)
@@ -233,22 +270,39 @@ void DrawArea(const Level & level, u32 area)
         const void * page = PageState(s_passTextures, list, batch.lightmapPage);
         list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, page, kPageStateBlockQwords);
     }
+
+    // The material passes wait for the end of the pass (s_queuedPasses).
+    for (u32 index = record.firstBatch; index < record.firstBatch + record.batchCount; ++index)
+    {
+        if (PassCount(s_passTextures, sections.batches[index].material) == 0)
+        {
+            continue;
+        }
+
+        if (s_queuedPassCount == kMaxQueuedPassBatches)
+        {
+            DrawQueuedPasses();
+        }
+
+        s_queuedPasses[s_queuedPassCount++] = index;
+    }
 }
 
 void EndPass()
 {
     dma::DisplayList & list = dma::List();
 
+    DrawQueuedPasses();
     list.EndBatches();
     gs::EndDepthPass(list, renderer::DrawingContext());
     s_lastStats = GetTextureStats(s_passTextures);
 }
 
-void Draw(const Level & level, const math::Mat4 & viewProjection)
+void Draw(const Level & level, const math::Mat4 & viewProjection, float time)
 {
     PS2_AssertMsg(level.storage != nullptr, "drawing an unloaded world");
 
-    BeginPass(level, viewProjection);
+    BeginPass(level, viewProjection, time);
 
     for (u32 area = 0; area < level.sections.areaCount; ++area)
     {

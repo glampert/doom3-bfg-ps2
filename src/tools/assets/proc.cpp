@@ -1159,6 +1159,22 @@ bool ParseBinaryProc(std::span<const std::uint8_t> data, ProcFile & output, std:
     return parser.File(output);
 }
 
+ShaderParms WorldShaderParms()
+{
+    ShaderParms parms = {};
+    parms[0] = 1.0f;
+    parms[1] = 1.0f;
+    parms[2] = 1.0f;
+    parms[3] = 1.0f;
+    return parms;
+}
+
+const ShaderParms & SurfaceParms(const ProcFile & proc, const ProcSurface & surface)
+{
+    static const ShaderParms world = WorldShaderParms();
+    return surface.parms == 0 || surface.parms > proc.parmSets.size() ? world : proc.parmSets[surface.parms - 1U];
+}
+
 int PointInArea(const ProcFile & proc, const std::array<float, 3> & point)
 {
     if (proc.nodes.empty())

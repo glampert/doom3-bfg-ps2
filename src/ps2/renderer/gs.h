@@ -175,8 +175,9 @@ enum class VertexFormat : u8
 };
 
 // A PACKED GIF tag whose PRE sets a Gouraud-shaded 'primitive' in 'context', sampling the bound
-// texture through STQ when 'textured'; NLOOP and EOP are zero, for the VU1 program to fill per kick.
-qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context, bool textured = false);
+// texture through STQ when 'textured' and blending through the context's ALPHA when 'blended';
+// NLOOP and EOP are zero, for the VU1 program to fill per kick.
+qword_t DrawingTag(Primitive primitive, VertexFormat format, DrawContext context, bool textured = false, bool blended = false);
 
 // The world's lightmap pass for a frame drawn in 'context': the same, textured and alpha blended,
 // in the other context, whose registers BeginDepthPass sets to multiply the frame by the

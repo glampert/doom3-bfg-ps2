@@ -181,11 +181,14 @@ def view_batches(report: dict, view: View) -> int:
     return sum(report["area_list"][area]["batches"] for area in view.areas)
 
 
+# Cumulative since the map loaded; passes counts material passes drawn, pass_fallbacks those whose
+# texture the arena could not hold (they are left out, the frame keeps its diffuse textures).
 TEXTURES_RE = re.compile(r"\[D3BFG\] WORLD textures enabled=([01]) arena=(\d+) resident=(\d+) resident_bytes=(\d+) uploads=(\d+) "
-                         r"evictions=(\d+) fallbacks=(\d+) lightmaps=([01]) pages=(\d+) unlit=(\d+)")
-TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks", "lightmaps", "pages", "unlit")
+                         r"evictions=(\d+) fallbacks=(\d+) lightmaps=([01]) pages=(\d+) unlit=(\d+) passes=(\d+) pass_fallbacks=(\d+)")
+TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks", "lightmaps", "pages", "unlit",
+                  "passes", "pass_fallbacks")
 TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) pages=(\d+) "
-                             r"vram=(\d+) bytes=(\d+)")
+                             r"passes=(\d+) vram=(\d+) bytes=(\d+)")
 
 
 def view_commands(identity: str, view: View) -> list[str]:

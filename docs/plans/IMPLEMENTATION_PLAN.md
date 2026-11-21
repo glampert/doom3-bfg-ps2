@@ -1,38 +1,31 @@
 # Doom 3 BFG for PlayStation 2: implementation plan
 
-## Current position — 2026-11-02
+## Current position — 2026-11-21
 
-This is the campaign-level plan. [PORT_STATUS.md](../PORT_STATUS.md#current-snapshot--2026-10-31)
-is the current capability summary; [AGENT_HANDOVER.md](../AGENT_HANDOVER.md) describes
-how to continue, and [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) owns the selected UI work.
-Initial inspection tables and proposed source changes below retain their historical
-context; they do not reopen completed portability work.
+This is the campaign-level plan. [PORT_STATUS.md](../PORT_STATUS.md) records every accepted
+step with its runs; [AGENT_HANDOVER.md](../AGENT_HANDOVER.md) describes how to continue;
+[RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) owns the UI work and
+[RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md) with its
+[RENDERING_TODO.md](RENDERING_TODO.md) the 3D work, the selected one. Initial inspection tables
+and proposed source changes below retain their historical context; they do not reopen completed
+portability work.
 
 | Milestone | Current acceptance |
 | --- | --- |
-| M0–M2 | Complete: layout/manifests, EE portability, staged core/Common boot |
-| M2b | Complete: retained campaign compilation and resident link; currently 271 campaign units |
-| M3 | Partial: native game/player fixtures and one authored map/PVS/collision/AAS/idle-AI fixture; full campaign player, animated AI and retail maps pending |
-| M4 / 2D-1–4 | Bounded GS 2D device, capture, console, indexed UI and fonts accepted (the placeholder authored native SWF was a bring-up step, removed 2026-10-29); world/depth/CLUT/VU scope remains later |
-| 2D-5–6 | Retail cooking, English resources and scoped timeline execution accepted within their profiles; additive blend 8 and convex masks accepted; the original dialog draws in full from resident paletted textures; the shell start screen draws in full; additive alpha terms, two simultaneous non-convex masks and dynamic artwork residency remain |
-| 2D-7–8 | Native shell menu through the start, root, Campaign and Settings screens with the Quit dialog and boot-into-menu policy, driven by key events, HostFs, the DualShock pad and a debug USB keyboard (debug gates); screens below Campaign/Settings, a hands-on device check and hardware validation pending |
-| M5–M8 | Host extraction/UI conversion foundation exists; campaign-map conversion, world rendering, sound, streaming, saves and campaign sweep remain pending |
+| M0–M2 | Complete: layout/manifests, EE portability, staged core/Common boot; since 2026-11-17 the port's own EE heap (3.1 MB less than dlmalloc at the retail boot), boot from a USB drive or hard disk (PCSX2's emulated USB only), and a debug crash screen with the call stack |
+| M2b | Complete: retained campaign compilation and resident link; production loads the host-cooked retail script program (2026-11-18, 3.8 MB less heap, nine seconds less boot) |
+| M3 | Partial: native game/player fixtures and one authored map/PVS/collision/AAS/idle-AI fixture; full campaign player, animated AI, Common map transitions and retail maps in the game loop pending |
+| M4 / 2D-1–4 | Bounded GS 2D device, capture, console, indexed UI and fonts accepted |
+| 2D-5–8 | Retail cooking and scoped timeline execution; the original dialog and the shell draw in full from resident paletted textures; the native menu through the start, root, Campaign and Settings screens with the pad and a debug USB keyboard. Screens below Campaign/Settings, additive alpha terms, dynamic artwork residency and hardware validation pending |
+| M5 / rendering R0–R2 | The display list, VU1 programs (VUSL, the clipper a resident library), the cooked world (D3WD) in id's render world through the portal flow, mars_city1 from its retail `.bproc` textured (GSTX v2, D3TX) with class A lightmaps, merged static `func_static` models, material passes and cavity-baked bump maps; gates `test-world` and `test-world-retail` hold untextured and lightmap-only captures to pixel references. R2's sky, area-ring streaming, the declaration-text lever and its gate (PC reference captures, load/unload ledgers, a hardware frame log) remain |
+| M6–M8 | Models and animation (R4), dynamic lights and shadows (R5–R6), sound, streaming, saves and the campaign sweep pending |
 
-Production stays in `NOMAP`; its game loop does not yet load or simulate the authored
-map used by the separate test executable. The real dialog draws in full. Its page
-streaming showed that RGBA32 UI pages cannot hold a menu's working set. UI recompression
-and the 32 MiB cuts are done through 2026-10-31 (release `PT_LOAD` 4.06 MB), and the shell
-and menu run natively through Campaign and Settings with the pad and a debug USB keyboard.
-The selected next work is the 3D rendering architecture
-([plans/RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md)), retail map conversion
-and Common map transitions. Production boots the
-retail declarations and scripts (`make test-headless-retail`), using about 13.2 MB requested
-(16.5 MB backing) of heap before any map; the UI format and heap levers are measured in
-[PORT_STATUS](../PORT_STATUS.md#memory-budget-investigation-ui-formats-and-the-retail-boot-2026-10-20),
-and the first lever converts the retail UI to resident paletted textures
-([pipeline](../RETAIL_UI_PIPELINE.md#converted-textures-gstx), accepted in the
-[debug emulator gates](../PORT_STATUS.md#paletted-retail-ui-textures-2026-10-21)). Preserve headless behavior
-and extend existing fixtures.
+Production still stays in `NOMAP`: the `ps2_world` viewer loads a cooked map into id's render
+world and draws it from fixed cameras or the debug free-flight camera, but Common does not own a
+loaded map and the game's own views are not drawn. The next rendering work is in RENDERING_TODO's
+R2 list; the prerequisites outside the renderer (Common owning a map, the game's draw path in
+production, the PC reference capture method) gate R2's acceptance. Preserve headless behavior and
+extend existing fixtures.
 
 ## 1. Objective and scope
 
@@ -437,15 +430,16 @@ Work in small commits; each implementation commit states its behavior change and
 
 M2b is required before M3. M4 and the host asset inventory can proceed independently after M2 while M2b/M3 mature. The first retail-map trial requires both game initialization and compatible converted content. Optimization should not conceal unresolved loading/gameplay failures.
 
-The selected work is the GS-backed 2D renderer and native offline main menu.
+The 2D renderer and native offline main menu were the selected work through 2026-11-02; since then
+it is the 3D rendering architecture ([RENDERING_TODO.md](RENDERING_TODO.md)).
 [RENDERER_2D_PLAN.md](RENDERER_2D_PLAN.md) expands this work into device,
 texture/capture, console, SWF and menu gates. 2D-1–4 passed (the placeholder authored SWF used to prove them was removed 2026-10-29, replaced by the retail sessions), and bounded retail
 resource/timeline profiles, additive blend 8, convex masks and the fully drawn original
 dialog are accepted. Asset recompression and the 32 MiB budget landed
 (resident paletted UI textures accepted in the debug emulator gates). The shell and offline
 menu navigation through Campaign and Settings are accepted; remaining 2D work is the screens
-below them, additive alpha terms, dynamic artwork residency and hardware validation. Sound output and world rendering remain later
-work.
+below them, additive alpha terms, dynamic artwork residency and hardware validation. World
+rendering is under way (R0–R2); sound output remains later work.
 
 Preserve the completed headless path and pause further standalone movement fixtures.
 One integrated authored map now combines logical world/model/PVS checks with native

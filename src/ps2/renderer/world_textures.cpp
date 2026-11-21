@@ -3,7 +3,8 @@
 // Brief: A cooked world's textures (the map's D3TX): residency in one VRAM arena with LRU eviction
 // and in-chain uploads, and each batch's state, the VIF blocks the display list unpacks into the
 // batch's input half for the world program to kick: the material's texture registers and drawing
-// tags, and the lightmap page's TEX0 for the other context.
+// tags, and the lightmap page's TEX0 for the other context, or for a material pass the pass's
+// texture with blending tags and its colour, evaluated once a frame where time drives it.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -47,12 +48,23 @@ struct Slot
     u32 lastFrame;  // the last world pass that drew it
     u32 generation; // changes with every upload, so stale states are rewritten
     bool resident;
+    bool passOnly;  // only material passes draw it: evicted before any diffuse texture or page
 };
 
 struct MaterialState
 {
     u32 generation[2];
     u32 focal[2];
+};
+
+// A material pass at run time: its colour words this frame (0x80 = 1.0) and whether it draws, and
+// what each context's colour block holds.
+struct PassState
+{
+    u32 color[4];
+    bool enabled;
+    bool written[2];
+    u32 writtenColor[2][4];
 };
 
 struct PageBlockState
@@ -66,12 +78,16 @@ struct Range
     u32 count;
 };
 
-static u64 TestState(bool alphaTest)
+// The pass colour block's flag word (word 3 of its second qword): negative, where a lightmap page
+// block has 1 (lit) or 0. The programs give every vertex the block's first qword as its colour.
+static constexpr u32 kConstantColorFlag = 0xFFFFFFFFU;
+
+static u64 TestState(u32 alphaRef)
 {
-    // Depth GEQUAL with writes (gs::BeginDepthPass); alpha-tested stages pass at alpha >= 0.5
-    // (0x40 on the GS's 0..0x80 scale) and keep frame and depth where they fail, as id's
+    // Depth GEQUAL with writes (gs::BeginDepthPass); alpha-tested stages pass at alpha >= the
+    // material's reference (0x80 = 1.0) and keep frame and depth where they fail, as id's
     // fragment discard does.
-    return alphaTest ? GS_SET_TEST(1, 5, 0x40, 0, 0, 0, 1, 2) : GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 2);
+    return alphaRef != 0 ? GS_SET_TEST(1, 5, alphaRef, 0, 0, 0, 1, 2) : GS_SET_TEST(0, 0, 0, 0, 0, 0, 1, 2);
 }
 
 // log2 to about 1/200: the exponent plus a quadratic over the mantissa. TEX1.K holds 1/16 steps.
@@ -84,7 +100,7 @@ static float ApproxLog2(float value)
 }
 
 static void WriteState(qword_t * block, gs::DrawContext context, bool textured, u64 tex0, u64 tex1, u64 miptbp1, u64 miptbp2,
-                       u64 clamp, u64 test)
+                       u64 clamp, u64 test, bool blended = false)
 {
     const u64 c = context == gs::DrawContext::Ctx1 ? 1U : 0U;
 
@@ -107,8 +123,8 @@ static void WriteState(qword_t * block, gs::DrawContext context, bool textured, 
     block[6].dw[1] = GS_REG_CLAMP_1 + c;
     block[7].dw[0] = test;
     block[7].dw[1] = GS_REG_TEST_1 + c;
-    block[8] = gs::DrawingTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context, textured);
-    block[9] = gs::DrawingTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context, textured);
+    block[8] = gs::DrawingTag(gs::Primitive::TriangleStrip, gs::VertexFormat::StColorPosition, context, textured, blended);
+    block[9] = gs::DrawingTag(gs::Primitive::Triangle, gs::VertexFormat::StColorPosition, context, textured, blended);
 
     SyncDCache(block, block + kStateStrideQwords);
 }
@@ -128,6 +144,38 @@ static void WritePage(qword_t * block, gs::DrawContext context, u64 tex0, bool l
     block[2].dw[1] = (GS_REG_TEX0_1 + other) | (lit ? 1ULL << 32 : 0U);
 
     SyncDCache(block, block + kPageStrideQwords);
+}
+
+// A pass's colour block, in the page block's place: the colour every vertex takes, and the flag.
+static void WriteColor(qword_t * block, const u32 (&color)[4])
+{
+    block[0].sw[0] = static_cast<s32>(dma::kVifNop);
+    block[0].sw[1] = static_cast<s32>(dma::kVifNop);
+    block[0].sw[2] = static_cast<s32>(dma::VifStcycl(1U, 1U));
+    block[0].sw[3] = static_cast<s32>(dma::VifUnpack(dma::UnpackFormat::V4_32, vu::kBatchLightmapQwords, vu::kBatchLightmapOffset, true, false));
+    block[1].sw[0] = color[0];
+    block[1].sw[1] = color[1];
+    block[1].sw[2] = color[2];
+    block[1].sw[3] = color[3];
+    block[2].sw[0] = 0;
+    block[2].sw[1] = 0;
+    block[2].sw[2] = 0;
+    block[2].sw[3] = kConstantColorFlag;
+
+    SyncDCache(block, block + kPageStrideQwords);
+}
+
+// The LOD for a texture of 'image' at the material's UV density: LOD = log2(w) + K, the texels a
+// pixel spans at depth w, the material's UV density times the texture's size over the pixels a
+// unit spans at depth 1.
+static u64 Tex1(const tex::Image & image, float uvDensityLog2, float focalLog2)
+{
+    const float widthLog2 = static_cast<float>((image.tex0 >> 26) & 0xFU);
+    const float heightLog2 = static_cast<float>((image.tex0 >> 30) & 0xFU);
+    const float k = uvDensityLog2 + 0.5f * (widthLog2 + heightLog2) - focalLog2;
+    int fixed = static_cast<int>(k * 16.0f + (k >= 0.0f ? 0.5f : -0.5f));
+    fixed = fixed < -2048 ? -2048 : fixed > 2047 ? 2047 : fixed;
+    return image.tex1 | (static_cast<u64>(static_cast<u32>(fixed) & 0xFFFU) << 32);
 }
 
 // The untextured state per context: written once, never changed after; and the page state of a
@@ -159,7 +207,7 @@ static const void * Untextured(gs::DrawContext context)
 
     if (!s_untexturedWritten[index])
     {
-        WriteState(s_untextured[index], context, false, 0, 0, 0, 0, 0, TestState(false));
+        WriteState(s_untextured[index], context, false, 0, 0, 0, 0, 0, TestState(0));
         s_untexturedWritten[index] = true;
     }
 
@@ -177,6 +225,10 @@ struct Textures
     Slot * slots;
     MaterialState * states;
     qword_t * blocks;
+    PassState * passes;
+    MaterialState * passStates;
+    qword_t * passBlocks;
+    qword_t * colorBlocks;
     PageBlockState * pageStates;
     qword_t * pageBlocks;
     Range * free;
@@ -240,6 +292,10 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
     PageBlockState * pageStates = nullptr;
     qword_t * pageBlocks = nullptr;
     Range * ranges = nullptr;
+    PassState * passes = nullptr;
+    MaterialState * passStates = nullptr;
+    qword_t * passBlocks = nullptr;
+    qword_t * colorBlocks = nullptr;
 
     if (error == nullptr)
     {
@@ -250,7 +306,12 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
         ranges = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
         pageStates = static_cast<PageBlockState *>(system::heap::TryAlloc(sizeof(PageBlockState) * (pack.pageCount + 1U), TAG_RENDER));
         pageBlocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.pageCount + 1U), TAG_RENDER, 64));
-        error = slots == nullptr || states == nullptr || blocks == nullptr || ranges == nullptr || pageStates == nullptr || pageBlocks == nullptr
+        passes = static_cast<PassState *>(system::heap::TryAlloc(sizeof(PassState) * (pack.passCount + 1U), TAG_RENDER));
+        passStates = static_cast<MaterialState *>(system::heap::TryAlloc(sizeof(MaterialState) * (pack.passCount + 1U), TAG_RENDER));
+        passBlocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
+        colorBlocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
+        error = slots == nullptr || states == nullptr || blocks == nullptr || ranges == nullptr || pageStates == nullptr || pageBlocks == nullptr ||
+                        passes == nullptr || passStates == nullptr || passBlocks == nullptr || colorBlocks == nullptr
                     ? "no memory for its residency"
                     : nullptr;
     }
@@ -258,6 +319,10 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
     if (error != nullptr) [[unlikely]]
     {
         Log(LogLevel::Error, "textures %s refused: %s\n", name, error);
+        system::heap::Free(colorBlocks);
+        system::heap::Free(passBlocks);
+        system::heap::Free(passStates);
+        system::heap::Free(passes);
         system::heap::Free(pageBlocks);
         system::heap::Free(pageStates);
         system::heap::Free(ranges);
@@ -284,10 +349,43 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
     textures->pageStates = pageStates;
     textures->pageBlocks = pageBlocks;
     textures->free = ranges;
+    textures->passes = passes;
+    textures->passStates = passStates;
+    textures->passBlocks = passBlocks;
+    textures->colorBlocks = colorBlocks;
+
+    // Every pass starts with its cooked colour; BeginTextures evaluates the ones time drives.
+    for (u32 index = 0; index < pack.passCount; ++index)
+    {
+        const tex::PackPass & record = pack.passes[index];
+        PassState & state = passes[index];
+        state = {};
+        state.enabled = record.condition == tex::kPackNoNode;
+
+        for (u32 channel = 0; channel < 4; ++channel)
+        {
+            state.color[channel] = record.color[channel];
+        }
+
+        passStates[index] = {};
+    }
 
     for (u32 index = 0; index < pack.textureCount; ++index)
     {
         slots[index] = {};
+    }
+
+    for (u32 index = 0; index < pack.passCount; ++index)
+    {
+        slots[pack.passes[index].texture].passOnly = true;
+    }
+
+    for (u32 index = 0; index < pack.materialCount; ++index)
+    {
+        if (pack.materials[index].texture < pack.textureCount)
+        {
+            slots[pack.materials[index].texture].passOnly = false;
+        }
     }
 
     for (u32 index = 0; index < pack.materialCount; ++index)
@@ -307,8 +405,9 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
         vramBytes += images[index].blocks * kGsBlockBytes;
     }
 
-    Log(LogLevel::Info, "[D3BFG] world textures %s: textures=%u materials=%u pages=%u vram=%u bytes=%u\n", name,
-        static_cast<u32>(pack.textureCount), static_cast<u32>(pack.materialCount), static_cast<u32>(pack.pageCount), vramBytes, bytes);
+    Log(LogLevel::Info, "[D3BFG] world textures %s: textures=%u materials=%u pages=%u passes=%u vram=%u bytes=%u\n", name,
+        static_cast<u32>(pack.textureCount), static_cast<u32>(pack.materialCount), static_cast<u32>(pack.pageCount), static_cast<u32>(pack.passCount),
+        vramBytes, bytes);
     return textures;
 }
 
@@ -324,6 +423,10 @@ PS2_COLD_FUNC void FreeTextures(Textures * textures)
         gs::ReleaseVram(textures->arena);
     }
 
+    system::heap::Free(textures->colorBlocks);
+    system::heap::Free(textures->passBlocks);
+    system::heap::Free(textures->passStates);
+    system::heap::Free(textures->passes);
     system::heap::Free(textures->free);
     system::heap::Free(textures->pageBlocks);
     system::heap::Free(textures->pageStates);
@@ -376,11 +479,14 @@ static void AllocateArena(Textures & textures)
     textures.stats.arenaBytes = bytes;
 }
 
-// First fit over the free ranges, in block order.
-static bool TakeBlocks(Textures & textures, u32 count, u32 & start)
+// First fit over the free ranges, in block order; from the top (the last range that fits, its
+// end) for the material passes' textures, so the few small ones stay out of the diffuse
+// textures' way and a nearly full arena does not fragment under them.
+static bool TakeBlocks(Textures & textures, u32 count, u32 & start, bool fromTop)
 {
-    for (u32 index = 0; index < textures.freeCount; ++index)
+    for (u32 step = 0; step < textures.freeCount; ++step)
     {
+        const u32 index = fromTop ? textures.freeCount - 1U - step : step;
         Range & range = textures.free[index];
 
         if (range.count < count)
@@ -388,8 +494,16 @@ static bool TakeBlocks(Textures & textures, u32 count, u32 & start)
             continue;
         }
 
-        start = range.start;
-        range.start += count;
+        if (fromTop)
+        {
+            start = range.start + range.count - count;
+        }
+        else
+        {
+            start = range.start;
+            range.start += count;
+        }
+
         range.count -= count;
 
         if (range.count == 0)
@@ -452,14 +566,16 @@ static void GiveBlocks(Textures & textures, u32 start, u32 count)
 }
 
 // Places the image, evicting the least recently drawn ones this pass has not drawn: their last
-// readers are earlier chains, which finish before this frame's upload runs.
-static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index)
+// readers are earlier chains, which finish before this frame's upload runs. Textures only material
+// passes draw go first: a diffuse texture this pass has not drawn yet may still be needed by a
+// later area of it, and evicting it would scatter the arena when it comes back.
+static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index, bool fromTop = false)
 {
     Slot & slot = textures.slots[index];
     const tex::Image & image = textures.images[index];
     u32 start = 0;
 
-    while (!TakeBlocks(textures, image.blocks, start))
+    while (!TakeBlocks(textures, image.blocks, start, fromTop))
     {
         u32 victim = textures.pack.textureCount;
 
@@ -467,8 +583,15 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
         {
             const Slot & other = textures.slots[candidate];
 
-            if (other.resident && other.lastFrame != textures.frame &&
-                (victim == textures.pack.textureCount || other.lastFrame < textures.slots[victim].lastFrame))
+            if (!other.resident || other.lastFrame == textures.frame)
+            {
+                continue;
+            }
+
+            const Slot * best = victim == textures.pack.textureCount ? nullptr : &textures.slots[victim];
+
+            if (best == nullptr || (other.passOnly && !best->passOnly) ||
+                (other.passOnly == best->passOnly && other.lastFrame < best->lastFrame))
             {
                 victim = candidate;
             }
@@ -503,7 +626,37 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
 // Passes
 // ------------------------------------------------------------------------------------------------
 
-void BeginTextures(Textures * textures, gs::DrawContext context, float focal, bool textured, bool lightmapped)
+// The passes time drives, evaluated at 'time': their colour and whether they draw this frame.
+static void EvaluatePasses(Textures & textures, float time)
+{
+    float registers[tex::kPackMaxNodesPerPass];
+
+    for (u32 index = 0; index < textures.pack.passCount; ++index)
+    {
+        const tex::PackPass & record = textures.pack.passes[index];
+
+        if (record.nodeCount == 0)
+        {
+            continue;
+        }
+
+        tex::EvaluatePassNodes(textures.pack, record, time, registers);
+        PassState & state = textures.passes[index];
+        state.enabled = record.condition == tex::kPackNoNode || registers[record.condition - record.firstNode] != 0.0f;
+
+        for (u32 channel = 0; channel < 4; ++channel)
+        {
+            if (record.colorNodes[channel] != tex::kPackNoNode)
+            {
+                // 0x80 = 1.0, clamped to the colour byte.
+                const float value = registers[record.colorNodes[channel] - record.firstNode] * 128.0f + 0.5f;
+                state.color[channel] = value <= 0.0f ? 0U : value >= 255.0f ? 255U : static_cast<u32>(value);
+            }
+        }
+    }
+}
+
+void BeginTextures(Textures * textures, gs::DrawContext context, float focal, bool textured, bool lightmapped, float time)
 {
     s_context = context;
     s_textured = textured;
@@ -515,6 +668,7 @@ void BeginTextures(Textures * textures, gs::DrawContext context, float focal, bo
     }
 
     ++textures->frame;
+    EvaluatePasses(*textures, time);
 
     if (!gs::IsVramLive(textures->arena))
     {
@@ -566,19 +720,11 @@ const void * BatchState(Textures * textures, dma::DisplayList & list, u32 materi
     if (state.generation[index] != slot.generation || state.focal[index] != textures->focalVersion)
     {
         const tex::Image & image = textures->images[record.texture];
-        const float widthLog2 = static_cast<float>((image.tex0 >> 26) & 0xFU);
-        const float heightLog2 = static_cast<float>((image.tex0 >> 30) & 0xFU);
-
-        // LOD = log2(w) + K, the texels a pixel spans at depth w: the material's UV density times
-        // the texture's size, over the pixels a unit spans at depth 1.
-        const float k = record.uvDensityLog2 + 0.5f * (widthLog2 + heightLog2) - textures->focalLog2;
-        int fixed = static_cast<int>(k * 16.0f + (k >= 0.0f ? 0.5f : -0.5f));
-        fixed = fixed < -2048 ? -2048 : fixed > 2047 ? 2047 : fixed;
-        const u64 tex1 = image.tex1 | (static_cast<u64>(static_cast<u32>(fixed) & 0xFFFU) << 32);
         const bool alphaTest = (textures->pack.textures[record.texture].flags & tex::kPackFlagAlphaTest) != 0;
 
-        WriteState(block, s_context, true, tex::RelocateTex0(image.tex0, slot.base), tex1, tex::RelocateMiptbp(image.miptbp1, slot.base),
-                   tex::RelocateMiptbp(image.miptbp2, slot.base), image.clamp, TestState(alphaTest));
+        WriteState(block, s_context, true, tex::RelocateTex0(image.tex0, slot.base), Tex1(image, record.uvDensityLog2, textures->focalLog2),
+                   tex::RelocateMiptbp(image.miptbp1, slot.base), tex::RelocateMiptbp(image.miptbp2, slot.base), image.clamp,
+                   TestState(alphaTest ? record.alphaRef : 0U));
         state.generation[index] = slot.generation;
         state.focal[index] = textures->focalVersion;
     }
@@ -616,6 +762,81 @@ const void * PageState(Textures * textures, dma::DisplayList & list, u32 page)
     }
 
     return block;
+}
+
+u32 PassCount(const Textures * textures, u32 material)
+{
+    if (textures == nullptr || !s_textured)
+    {
+        return 0;
+    }
+
+    PS2_AssertMsg(material < textures->pack.materialCount, "batch material outside the texture package");
+    return textures->pack.materials[material].passCount;
+}
+
+bool PassBlocks(Textures * textures, dma::DisplayList & list, u32 material, u32 pass, const void *& state, const void *& color)
+{
+    PS2_AssertMsg(textures != nullptr && material < textures->pack.materialCount && pass < textures->pack.materials[material].passCount,
+                  "material pass outside the texture package");
+    const tex::PackMaterial & owner = textures->pack.materials[material];
+    const u32 index = owner.firstPass + pass;
+    const tex::PackPass & record = textures->pack.passes[index];
+    PassState & dynamic = textures->passes[index];
+
+    if (!dynamic.enabled)
+    {
+        return false;
+    }
+
+    Slot & slot = textures->slots[record.texture];
+
+    if (!slot.resident && (textures->arenaBlocks == 0 || !MakeResident(*textures, list, record.texture, true)))
+    {
+        ++textures->stats.passFallbacks;
+        return false;
+    }
+
+    slot.lastFrame = textures->frame;
+    const int context = s_context == gs::DrawContext::Ctx1 ? 1 : 0;
+    MaterialState & written = textures->passStates[index];
+    qword_t * const block = textures->passBlocks + (index * 2U + static_cast<u32>(context)) * kStateStrideQwords;
+    qword_t * const colorBlock = textures->colorBlocks + (index * 2U + static_cast<u32>(context)) * kPageStrideQwords;
+
+    // As with materials, only this context's blocks are rewritten: the chain in flight reads the other's.
+    if (written.generation[context] != slot.generation || written.focal[context] != textures->focalVersion)
+    {
+        const tex::Image & image = textures->images[record.texture];
+
+        // The base pass's UVs, density and depth; additive, its tags blending through ALPHA.
+        WriteState(block, s_context, true, tex::RelocateTex0(image.tex0, slot.base), Tex1(image, owner.uvDensityLog2, textures->focalLog2),
+                   tex::RelocateMiptbp(image.miptbp1, slot.base), tex::RelocateMiptbp(image.miptbp2, slot.base), image.clamp, TestState(0), true);
+        written.generation[context] = slot.generation;
+        written.focal[context] = textures->focalVersion;
+    }
+
+    bool same = dynamic.written[context];
+
+    for (u32 channel = 0; channel < 4; ++channel)
+    {
+        same = same && dynamic.writtenColor[context][channel] == dynamic.color[channel];
+    }
+
+    if (!same)
+    {
+        WriteColor(colorBlock, dynamic.color);
+        dynamic.written[context] = true;
+
+        for (u32 channel = 0; channel < 4; ++channel)
+        {
+            dynamic.writtenColor[context][channel] = dynamic.color[channel];
+        }
+    }
+
+    ++textures->stats.passes;
+    state = block;
+    color = colorBlock;
+    return true;
 }
 
 TextureStats GetTextureStats(const Textures * textures)

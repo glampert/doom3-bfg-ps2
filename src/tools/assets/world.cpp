@@ -13,6 +13,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <utility>
 
 namespace assets
 {
@@ -596,11 +597,12 @@ public:
 
     bool Run(const ProcFile & proc)
     {
+        // One material per name and parm set: id draws a merged entity's surfaces with its parms.
         for (const ProcModel & model : proc.models)
         {
             for (const ProcSurface & surface : model.surfaces)
             {
-                m_materialIndex.emplace(surface.material, std::uint16_t(0));
+                m_materialIndex.emplace(std::make_pair(surface.material, surface.parms), std::uint16_t(0));
             }
         }
 
@@ -609,10 +611,15 @@ public:
             return Fail("too many materials");
         }
 
-        for (auto & [name, index] : m_materialIndex)
+        for (auto & [key, index] : m_materialIndex)
         {
+            ProcSurface probe;
+            probe.parms = key.second;
             index = static_cast<std::uint16_t>(m_world.materials.size());
-            m_world.materials.push_back(name);
+            m_world.materials.push_back(key.first);
+            m_world.materialParms.push_back(SurfaceParms(proc, probe));
+            m_stageColors.push_back(m_policy.stageColor ? m_policy.stageColor(key.first, m_world.materialParms.back())
+                                                        : std::array<float, 3>{ 1.0f, 1.0f, 1.0f });
         }
 
         std::size_t areaModels = 0;
@@ -748,6 +755,7 @@ private:
             }
 
             relit.material = source.material;
+            relit.parms = source.parms;
             relit.indices = lit->indices;
 
             for (const WorldLitVertex & vertex : lit->vertices)
@@ -767,7 +775,7 @@ private:
         const ProcSurface & surface = lit != nullptr ? relit : source;
 
         WorldSurface record;
-        record.material = m_materialIndex.at(surface.material);
+        record.material = m_materialIndex.at(std::make_pair(surface.material, surface.parms));
         record.area = areaIndex;
         record.firstBatch = static_cast<std::uint32_t>(m_world.batches.size());
         record.firstVertex = static_cast<std::uint32_t>(m_world.mirrorPositions.size());
@@ -963,6 +971,7 @@ private:
 
         const float uvScale = std::ldexp(1.0f, -uvBits);
         const std::array<float, 3> base = MaterialColor(m_policy, surface.material);
+        const std::array<float, 3> & stage = m_stageColors[batch.material];
 
         struct Encoded
         {
@@ -1011,13 +1020,14 @@ private:
                     output.uv[2 + axis] = static_cast<std::int16_t>(std::clamp(std::round(value * 4096.0f), 0.0f, 4096.0f));
                 }
 
-                output.color = { ColorByte(color[0]), ColorByte(color[1]), ColorByte(color[2]), 0x80 };
+                output.color = { ColorByte(color[0] * stage[0]), ColorByte(color[1] * stage[1]), ColorByte(color[2] * stage[2]), 0x80 };
             }
             else
             {
                 const float facing = vertex.normal[0] * m_light[0] + vertex.normal[1] * m_light[1] + vertex.normal[2] * m_light[2];
                 const float shade = m_policy.ambient + (1.0f - m_policy.ambient) * std::max(0.0f, facing);
-                output.color = { ColorByte(base[0] * shade), ColorByte(base[1] * shade), ColorByte(base[2] * shade), 0x80 };
+                output.color = { ColorByte(base[0] * shade * stage[0]), ColorByte(base[1] * shade * stage[1]), ColorByte(base[2] * shade * stage[2]),
+                                 0x80 };
             }
         }
 
@@ -1143,7 +1153,8 @@ private:
     WorldCookStats & m_stats;
     std::string & m_error;
     std::array<float, 3> m_light = {};
-    std::map<std::string, std::uint16_t> m_materialIndex;
+    std::map<std::pair<std::string, std::uint32_t>, std::uint16_t> m_materialIndex;
+    std::vector<std::array<float, 3>> m_stageColors;
     // The current lit surface's per-vertex lightmap UVs and colours (empty when unlit).
     std::vector<std::array<float, 2> > m_lightmapUvs;
     std::vector<std::array<float, 3> > m_colors;

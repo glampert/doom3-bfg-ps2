@@ -56,13 +56,15 @@ vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::Dra
 // The world pass inside the open renderer frame: BeginPass sets the frame constants, the depth
 // test and the level's program once (world_lm.vusl, or world_strips.vusl for a plain-strips cook),
 // DrawArea sends every batch of one area after its texture state (uploading textures as they
-// become needed), EndPass starts the last one.
-void BeginPass(const Level & level, const math::Mat4 & viewProjection);
+// become needed) and queues those whose materials draw additive passes; EndPass draws the queued
+// passes, once every area's diffuse textures hold the arena, and starts the last batch. 'time' (seconds,
+// the view's) drives the material passes' registers.
+void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time);
 void DrawArea(const Level & level, u32 area);
 void EndPass();
 
 // One pass over every area of 'level'.
-void Draw(const Level & level, const math::Mat4 & viewProjection);
+void Draw(const Level & level, const math::Mat4 & viewProjection, float time);
 
 // Whether passes draw the level's textures (on by default); off, every batch draws untextured, as
 // the vertex-colour references expect.

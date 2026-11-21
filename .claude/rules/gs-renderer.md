@@ -127,8 +127,17 @@ coordinates; CLUTs; VRAM and mipmaps.
   The retail gate holds every lightmap-only capture to `world_reference.py`'s model of the pass
   (`--lightmaps`): the cook's `<stem>.lightmaps.raw` (the pages read back out of the D3TX) sampled
   bilinearly at the perspective-correct lightmap UV, times the vertex colour, `>> 7`, saturated.
+- **Material passes** (D3TX v3, 2026-11-21): a material's base pass takes its alpha test
+  reference from the cook (`TEST.AREF`, 0x80 = 1.0) and its stage colour in the vertex colours;
+  its additive stages (glow maps) are passes the world pass draws after its areas, each batch
+  again with the pass's texture, ABE set (the base context's ALPHA is `(Cs - 0) x FIX + Cd`, FIX
+  1.0, from `gs::BeginDepthPass`) and a constant colour every vertex takes. The same vertices give
+  the same depth, so GEQUAL lands a pass only where its surface is nearest, in any order. Colours
+  and conditions that time drives are cooked expression nodes the EE evaluates once a frame. Pass
+  textures sit at the arena's top and are evicted first: a frame's diffuse textures never give
+  way to them (`pass_fallbacks` counts the passes left out). Passes draw only textured.
 - Translucent materials without a diffuse stage (`kPackHidden` in the D3TX) are skipped by the
-  textured pass until material passes exist; untextured passes draw them. The retail gate's
+  textured pass until their blend stages compile; untextured passes draw them. The retail gate's
   reference rasterizes the cooked D3WD's own triangles (`world_reference.load_cooked_triangles`),
   since a lit cook's vertex colours are the baked chroma.
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,

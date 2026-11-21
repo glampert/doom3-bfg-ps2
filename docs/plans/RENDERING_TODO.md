@@ -1,7 +1,10 @@
 # Rendering implementation TODO
 
 Companion to [RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md): the same work as its
-section 19 gates, broken into concrete steps in the proposed order. Opened **2026-11-03**.
+section 19 gates, broken into concrete steps in the proposed order. Opened **2026-11-03**;
+status as of **2026-11-21**: R0 and R1 done but for the hardware probes, R2 in progress (the
+lightmapped, textured world with material passes is done; the sky, streaming and the R2 gate
+remain), R3 to R9 not started.
 Tick items as they land; move a step's measurements into the plan's decision log
 (section 20) and its acceptance into [PORT_STATUS.md](../PORT_STATUS.md). Every step keeps
 the headless and 2D gates green (`make test-headless`, `test-renderer`, `test-ui`) and the
@@ -236,8 +239,24 @@ production link free of test inputs. Section numbers in parentheses point into t
       REF of the stream, `TEXFLUSH`) and register relocation; the renderer gate's `gstx-images`
       draws every level of a `PSMT8` and a `PSMT4` fixture with fixed LOD at unaligned blocks
       and the runner matches every pixel with the fixture's formulas (2026-11-08).
-- [ ] Cook: material pass tables for opaque and alpha-tested materials, cavity bake into the
-      diffuse, Q2 policy (10.1, 10.2, 15.3).
+- [x] Cook: material pass tables for opaque and alpha-tested materials, cavity bake into the
+      diffuse, Q2 policy (10.1, 10.2, 15.3; 2026-11-21). D3TX v3: each material's alpha test
+      reference from its register, its diffuse stage colour folded into the vertex colours, and
+      its additive stages as passes whose colours and conditions fold the surface's parms and keep
+      time as cooked expression nodes the EE evaluates once a frame; merged `func_static` surfaces
+      keep their entity's parms as material variants (26 on mars_city1); bump maps baked into the
+      diffuse as cavity shading at the format the unbaked texture qualifies for. Q2's halving and
+      PSMT4 choice were in the texture cook since 2026-11-08.
+- [x] Runtime: material passes (2026-11-21): after the world pass's areas, each batch of a material
+      with passes is sent again per pass with the pass's texture, additive tags (ALPHA
+      `(Cs - 0) x FIX + Cd` in the base context) and a constant colour every vertex takes; their
+      textures take the arena's top end and are evicted first, so a frame's diffuse textures never
+      give way to them (PAL's 640 KB arena drops the north view's glows instead).
+- [ ] Material passes still to come: blend, filter and modulate stages of translucent materials
+      (25 on mars_city1, `kPackHidden` today; `Cd x As` with the stage's luminance in alpha, 10.1),
+      texture matrices (constant ones foldable into the UVs; mars_city1 has two diffuse stages
+      with `scale`), cube-map and texgen stages (the gloss and environment pass, 10.3), and stage
+      `clamp`.
 - [x] Runtime: textured world pass (2026-11-08): `world_lm.vcl`/`world_strips.vcl` send STQ, each
       batch carries its material's texture state, and `world_textures.cpp` keeps the map's D3TX
       resident in a block-granular VRAM arena with LRU eviction and in-chain uploads; the
@@ -273,10 +292,10 @@ production link free of test inputs. Section numbers in parentheses point into t
       `.d3sk` (weight classes, joint-set sort, 24-joint palettes, 40-vertex strips),
       `.d3an` (s16 sparse); re-run the batcher at the 40 cap and record duplication (11.1,
       15.1).
-- [ ] Shared resident VU library first (7.3): the clipper, fan emit and window kicks uploaded once
-      and called from every program (patched `bal` offsets at `vu::Bind`, or `jalr` through an
-      entry in the frame constants), instead of each program carrying them (875 of `world_lm`'s
-      1,271 instructions today), so the model programs do not multiply the copies.
+- [x] Shared resident VU library first (7.3): the clipper is a VUSL library resident at micro
+      address 1536 (474 instructions), uploaded once by `vu::Bind` and called with `jalr` from both
+      world programs (2026-11-21). Fan emit and the window kicks are still inlined per program;
+      move them into the library if the model programs repeat them.
 - [ ] Runtime: `model_rigid.vcl`, `model_skin2.vcl`, `model_skin4.vcl`; PS2 SIMD processor
       joint conversion in VU0 macro mode; `jointsInverted` on the EE; palettes written into
       the display list; `idDrawVert` mirrors for traces, decals and overlays (11.2 to 11.4).

@@ -1348,9 +1348,64 @@ static bool LitGraybox()
     return Check(passed, "a lit graybox keeps each batch on one page with its lightmap UVs and colours");
 }
 
+// One surface drawn twice, once with a merged entity's parms: two materials of one name, the
+// variant's vertex colours tinted by its diffuse stage colour, both accepted by the target.
+static bool ParmVariants()
+{
+    ProcFile proc = GridProc(4, 0.0f, 32.0f, 1.0f);
+    ProcSurface variant = proc.models[0].surfaces[0];
+    variant.parms = 1;
+    proc.models[0].surfaces.push_back(variant);
+    ShaderParms green = WorldShaderParms();
+    green[0] = 0.0f;
+    green[2] = 0.0f;
+    proc.parmSets.push_back(green);
+
+    WorldPolicy policy = GrayboxPolicy(WorldTopology::IndexedStrips);
+    policy.stageColor = [](const std::string &, const ShaderParms & parms)
+    {
+        return parms[0] == 0.0f ? std::array<float, 3>{ 0.5f, 1.0f, 0.5f } : std::array<float, 3>{ 1.0f, 1.0f, 1.0f };
+    };
+
+    World world;
+    WorldCookStats stats;
+    std::vector<std::uint8_t> file;
+    World read;
+    std::string error;
+    bool passed = CookWorld(proc, policy, world, stats, error) && WriteD3wd(world, file, error) && ReadD3wd(file, read, error) &&
+                  world.materials == std::vector<std::string>{ "textures/grid", "textures/grid" } && world.materialParms.size() == 2 &&
+                  world.materialParms[0] == WorldShaderParms() && world.materialParms[1] == green && read.surfaces.size() == 2 &&
+                  read.surfaces[0].material == 0 && read.surfaces[1].material == 1;
+
+    ps2::renderer::world::Sections sections = {};
+    passed = passed && TargetValidate(file, sections) == nullptr && sections.materialCount == 2;
+
+    // The same vertices in both surfaces' first batches: red and blue halved in the variant's.
+    for (std::uint32_t vertex = 0; passed && vertex < read.batches[read.surfaces[0].firstBatch].vertexCount; ++vertex)
+    {
+        Unpacked colors[2];
+
+        for (std::size_t surface = 0; surface < 2; ++surface)
+        {
+            const WorldBatch & batch = read.batches[read.surfaces[surface].firstBatch];
+            passed = passed && RunVif(std::span<const std::uint8_t>(read.packets).subspan(batch.packetOffset, static_cast<std::size_t>(batch.packetQwords) * 16U),
+                                      colors[surface]);
+        }
+
+        const WorldBatch & batch = read.batches[read.surfaces[0].firstBatch];
+        const std::size_t at = 2U + (batch.indexCount + 3U) / 4U + kWorldVertexQwords * vertex + 2U;
+        const std::array<std::uint32_t, 4> & plain = colors[0].memory[at];
+        const std::array<std::uint32_t, 4> & tinted = colors[1].memory[at];
+        passed = passed && plain[1] == tinted[1] && plain[0] >= 2 * tinted[0] - 1 && plain[0] <= 2 * tinted[0] + 1 && plain[2] >= 2 * tinted[2] - 1 &&
+                 plain[2] <= 2 * tinted[2] + 1;
+    }
+
+    return Check(passed, "a merged entity's parms make a material variant with its stage colour");
+}
+
 int main()
 {
-    const bool passed = Strips() && Procs() && BinaryProcs() && Graybox() && LitGraybox() && LargeWorlds() && Corruption();
+    const bool passed = Strips() && Procs() && BinaryProcs() && Graybox() && LitGraybox() && LargeWorlds() && Corruption() && ParmVariants();
 
     if (passed)
     {

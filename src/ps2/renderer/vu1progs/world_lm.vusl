@@ -16,7 +16,10 @@
  * the strip path walks the index stream and emits each entry's vertex with its ADC flag as a
  * triangle strip. Otherwise the list path walks the same stream as triangles: those with every
  * corner inside go out as they are, the rest through the clipper library (clipper.vush) as a
- * fan. A lit batch walks again for the lightmap pass after kicking the page's A+D packet. The
+ * fan. A lit batch walks again for the lightmap pass after kicking the page's A+D packet. A batch
+ * drawn for one of its material's additive passes has the pass's colour block in the page's place
+ * (its second qword's word 3 negative): every vertex takes that colour, and there is no lightmap
+ * pass. The
  * RGBAQ qword stays even though DECAL ignores the colour: PACKED ST holds its Q until an RGBAQ
  * write stores it. The two contexts share one CLUT buffer, so the page's TEX0 (which loads its
  * CLUT) goes only once the base pass's windows are out.
@@ -55,8 +58,9 @@ struct Entries
 
 // A batch at XTOP: its dequantisation and index qwords, the index stream, the vertices (their
 // count from XITOP), and the batch state DisplayList::DrawBatch writes at the end of the half:
-// the lightmap page's A+D packet (word 3 of its second qword non-zero when the batch has a
-// lightmap pass), the material's A+D packet, kicked first, then the drawing tags.
+// the lightmap page's A+D packet (word 3 of its second qword 1 when the batch has a lightmap pass,
+// 0 when not) or a material pass's colour (word 3 negative), the material's A+D packet, kicked
+// first, then the drawing tags.
 struct Batch
 {
     vec3    posOffset;
@@ -270,6 +274,18 @@ void main(layout(address = 0) inout Frame frame,
     // The material's registers go first: every window waits behind them.
     xgkick(batch.state);
 
+    // A material pass: every vertex takes the pass's colour.
+    if (batch.lightmap[1].w < 0)
+    {
+        qword color = batch.lightmap[0];
+
+        for (inout Vertex v : batch.vertices)
+        {
+            ref<Sent> sent = ref<Sent>(v);
+            sent.rgba      = color;
+        }
+    }
+
     vec3 posOffset                 = batch.posOffset;
     float posScale                 = batch.posScale;
     float uvScale                  = batch.uvScale;
@@ -310,7 +326,7 @@ void main(layout(address = 0) inout Frame frame,
         // Phase 2, strip path: every vertex inside the guard band.
         stripPass(frame, windows, batch, 0);
 
-        if (batch.lightmap[1].w != 0)
+        if (batch.lightmap[1].w > 0)
         {
             // The page's TEX0, then the stream again under the other context.
             xgkick(batch.lightmap);
@@ -322,7 +338,7 @@ void main(layout(address = 0) inout Frame frame,
         // Phase 2, list path: the stream as triangles, once a pass.
         listPass(frame, windows, batch, 0);
 
-        if (batch.lightmap[1].w != 0)
+        if (batch.lightmap[1].w > 0)
         {
             xgkick(batch.lightmap);
             listPass(frame, windows, batch, 1);

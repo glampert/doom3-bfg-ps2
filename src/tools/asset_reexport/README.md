@@ -188,7 +188,9 @@ reader skips with tangents and the precomputed shadow and silhouette data.
 - `textures` (optional) also cooks the world's diffuse textures into `<name>.d3tx` and
   `<name>.textures.json` ([below](#world-textures)): `material_containers` (below `--data`) hold
   id's `materials/*.mtr`; `scale` (default 0.5), `min_extent` (64), `max_extent` (256) and
-  `min_mip_extent` (8) set the policy.
+  `min_mip_extent` (8) set the policy; `cavity` (0 to 2, default 0: off) bakes each material's
+  bump map into its diffuse at that amplitude, under `cavity_light` (a tangent-space key light,
+  default `[0.3, 0.3, 0.9]`).
 - `lighting` (optional, needs `textures` and the map's containers) bakes the map's static lights
   ([below](#world-lighting)): `script` names the map script inside the containers (light classes
   read it); `light_scale` (r_lightScale, default 3), `luxel_size` (16 units a texel),
@@ -212,16 +214,31 @@ Each image becomes a GSTX v2 file (`assets/gstx_v2.h`, plan 10.4): level 0 is th
 `max_extent` a side; every mip down to `min_mip_extent` is box-filtered from the source; one
 palette serves every level, `PSMT4` when a 16-colour palette keeps RMSE within 3 and every
 channel within 48 over all levels, else `PSMT8`. Materials sharing an image share the file.
-`<name>.d3tx` (`assets/texture_pack.h`) holds, per D3WD material in its order, a texture index and
-log2 of the material's UV units per world unit (its UV area over its world area across the
-`.bproc`'s area surfaces, from which the target sets the mip LOD), bound to the world by the FNV-1a
-of the material names, then the files 64-byte aligned.
+`<name>.d3tx` (D3TX v3, `assets/texture_pack.h`) holds, per D3WD material in its order, a texture
+index, log2 of the material's UV units per world unit (its UV area over its world area across the
+`.bproc`'s area surfaces, from which the target sets the mip LOD), its alpha test reference and its
+passes, bound to the world by the FNV-1a of the material names, then the files 64-byte aligned.
 `--previews DIR` writes each texture's decoded source and cooked level 0 as PNGs.
 
-mars_city1 at the defaults: 258 textures for 261 of 287 materials (the other 26 have no
+Material passes (`assets/material_passes.cpp`) are compiled per material and parm set (a merged
+`func_static` surface whose material reads parms keeps its entity's, making a material variant
+of the same name): the diffuse stage's alpha test register becomes the reference and its colour
+registers multiply the vertex colours; each `blend add` or `gl_one, gl_one` stage of an opaque or
+alpha-tested material becomes an additive pass with its own texture (`#__0200`, else `#__0100`).
+Parms, globals and sound fold into constants; a register time drives is kept as expression nodes
+(id's ops and table lookup) the target evaluates each frame. A condition false under the parms, or
+a constant black colour, drops the stage; stages with cube maps, texgen, programs, texture
+matrices or an alpha test are listed as skipped. With `cavity`, the bump map (`#__0300`) is
+sampled at the diffuse's size and each texel scales by `1 + cavity x (clamp(N.L / L.z, 0.5, 1.5)
+- 1)`; the texture keeps the format its unbaked image qualifies for. `<name>.textures.json` lists
+each material's passes, skipped stages, alpha reference and whether it was baked.
+
+mars_city1 at the defaults (2026-11-08): 258 textures for 261 of 287 materials (the other 26 have no
 diffuse stage: shadow and stain overlays, the entity GUI; the 25 of them that are translucent are
 written as not drawn textured), 186 `PSMT4` and 72 `PSMT8`, 35 alpha-tested, 1,976,832 bytes of
 VRAM for the whole map; median RMSE 1.3 against each level's resampled source, at most 3.04.
+With material passes and `cavity` 1 (2026-11-21): 289 textures for 313 materials (26 parm
+variants), 200 baked, 48 passes (5 driven by time), 2,063,616 bytes of VRAM.
 
 ### World lighting
 

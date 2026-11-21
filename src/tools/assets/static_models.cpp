@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <limits>
 #include <set>
+#include <string>
 
 namespace assets
 {
@@ -89,6 +90,23 @@ static bool ReadsParms(const MaterialInfo & material)
 }
 
 } // namespace
+
+ShaderParms EntityShaderParms(const MapEntity & entity)
+{
+    ShaderParms parms = {};
+    Vec3f color = { 1.0f, 1.0f, 1.0f };
+    (void)entity.Vector("_color", color);
+    parms[0] = color[0];
+    parms[1] = color[1];
+    parms[2] = color[2];
+
+    for (std::size_t index = 3; index < parms.size(); ++index)
+    {
+        parms[index] = entity.Float("shaderparm" + std::to_string(index), index == 3 ? 1.0f : 0.0f);
+    }
+
+    return parms;
+}
 
 const char * StaticModelRefusal(const MapEntity & entity, const LightContext & context)
 {
@@ -211,6 +229,7 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
         Axis axis = {};
         entity.Placement(origin, axis);
         const int originArea = PointInArea(proc, origin);
+        const ShaderParms entityParms = EntityShaderParms(entity);
 
         for (const ProcSurface & surface : model.surfaces)
         {
@@ -220,7 +239,20 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
                 continue;
             }
 
-            stats.parmSurfaces += SurfaceReadsEntityParms(entity, surface, materials) ? 1U : 0U;
+            // A surface whose material reads the parms keeps the entity's; the rest draw as the world's.
+            std::uint32_t parms = 0;
+
+            if (SurfaceReadsEntityParms(entity, surface, materials))
+            {
+                ++stats.parmSurfaces;
+                const auto known = std::find(proc.parmSets.begin(), proc.parmSets.end(), entityParms);
+                parms = static_cast<std::uint32_t>(known - proc.parmSets.begin()) + 1U;
+
+                if (known == proc.parmSets.end())
+                {
+                    proc.parmSets.push_back(entityParms);
+                }
+            }
 
             std::vector<ProcVertex> world = surface.vertices;
 
@@ -279,7 +311,7 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
 
                 for (ProcSurface & candidate : target.surfaces)
                 {
-                    if (candidate.material == surface.material && candidate.vertices.size() + needed <= kMaxSurfaceVertices)
+                    if (candidate.material == surface.material && candidate.parms == parms && candidate.vertices.size() + needed <= kMaxSurfaceVertices)
                     {
                         into = &candidate;
                         break;
@@ -288,7 +320,7 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
 
                 if (into == nullptr)
                 {
-                    target.surfaces.push_back(ProcSurface{ surface.material, {}, {} });
+                    target.surfaces.push_back(ProcSurface{ surface.material, {}, {}, parms });
                     into = &target.surfaces.back();
                     ++stats.surfacesAdded;
                 }
@@ -331,6 +363,8 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
         model.surfaces = std::move(kept);
         ++stats.partial;
     }
+
+    stats.parmSets = proc.parmSets.size();
 
     // Merged models leave the file, from the back so indices stay valid.
     for (auto index = merged.rbegin(); index != merged.rend(); ++index)
