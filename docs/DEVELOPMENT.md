@@ -333,11 +333,18 @@ and `Sys_LaunchPath`:
   engine console (`IOP boot:`), a console's only record. No package found is fatal with the
   launch path, the folders searched, the hard disk's state and the mounted USB volumes, which a
   debug build shows on its crash screen (below); a release build only logs it. `console.txt` is
-  polled on `host:` only.
+  polled on `host:` only, so a console package puts its commands in `base/d3bfg.cfg`.
+- **A debug build's log on a console** (`ps2/debug/log_mirror`): every `ps2::LogV` line also goes
+  to the screen from the first line of `main` until `dma::Init` (the renderer) or the main loop
+  starts, white, warnings yellow, errors red, so a hang leaves its last line on the TV; and to
+  `d3bfg.log` in the package folder, emptied at each boot, with the lines logged before the
+  drive was found written first. Each line opens, appends and closes the file (the only flush
+  FatFs has on USB; a package on `pfs0:` also syncs), about 2.5 s more to the main loop in
+  PCSX2's emulated USB. `host:` boots write no file. Release builds have neither.
 
 The HDD path and real hardware are untested; the USB path ran in PCSX2's emulated USB storage
 ([production.md](testing/production.md#console-storage-boot)). Writes to a PFS partition
-are not synced (`fileXioSync`): nothing but `ps2_capture` writes yet.
+are synced (`fileXioSync`) only by a debug build's log file.
 
 ## Third-party dependencies
 

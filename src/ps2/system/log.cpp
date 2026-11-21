@@ -8,6 +8,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 #if defined(_EE)
     #include <kernel.h>
@@ -15,34 +16,82 @@
 
 #if defined(_EE) && PS2_D3BFG_ASSERTS
     #include "ps2/debug/crash_report.h"
+    #include "ps2/debug/log_mirror.h"
 #endif // _EE && PS2_D3BFG_ASSERTS
 
 namespace ps2
 {
 
-void LogV(LogLevel level, const char * format, va_list arguments)
+namespace
 {
-    // This is the only stdout sink. Keep it independent of common, Sys_* and the tagged heap.
+
+const char * Prefix(LogLevel level)
+{
     switch (level)
     {
     case LogLevel::Info:
         break;
     case LogLevel::Warning:
-        std::printf("[D3BFG] WARNING ");
-        break;
+        return "[D3BFG] WARNING ";
     case LogLevel::Error:
-        std::printf("[D3BFG] ERROR ");
-        break;
+        return "[D3BFG] ERROR ";
     case LogLevel::Fatal:
-        std::printf("[D3BFG] FATAL ");
-        break;
+        return "[D3BFG] FATAL ";
     }
+
+    return "";
+}
+
+#if defined(_EE) && PS2_D3BFG_ASSERTS
+// A console run's readers of the log, the boot screen and the package's log file, take each message
+// whole; a longer one is cut, still ending its line.
+void Mirror(LogLevel level, const char * prefix, const char * format, va_list arguments)
+{
+    static char s_line[1024];
+    const size_t prefixLength = std::strlen(prefix);
+    std::memcpy(s_line, prefix, prefixLength + 1);
+    const int written = std::vsnprintf(s_line + prefixLength, sizeof(s_line) - prefixLength, format, arguments);
+    size_t length = written > 0 ? prefixLength + static_cast<size_t>(written) : prefixLength;
+
+    if (length >= sizeof(s_line) - 1)
+    {
+        length = sizeof(s_line) - 2;
+        s_line[length] = '\n';
+        s_line[length + 1] = '\0';
+    }
+    else if (level != LogLevel::Info)
+    {
+        s_line[length] = '\n';
+        s_line[length + 1] = '\0';
+    }
+
+    debug::MirrorLog(level, s_line);
+}
+#endif // _EE && PS2_D3BFG_ASSERTS
+
+} // namespace
+
+void LogV(LogLevel level, const char * format, va_list arguments)
+{
+#if defined(_EE) && PS2_D3BFG_ASSERTS
+    va_list mirror;
+    va_copy(mirror, arguments);
+#endif // _EE && PS2_D3BFG_ASSERTS
+
+    // This is the only stdout sink. Keep it independent of common, Sys_* and the tagged heap.
+    const char * prefix = Prefix(level);
+    std::fputs(prefix, stdout);
     std::vprintf(format, arguments);
     if (level != LogLevel::Info)
     {
         std::printf("\n");
     }
     std::fflush(stdout);
+
+#if defined(_EE) && PS2_D3BFG_ASSERTS
+    Mirror(level, prefix, format, mirror);
+    va_end(mirror);
+#endif // _EE && PS2_D3BFG_ASSERTS
 }
 
 void Log(LogLevel level, const char * format, ...)

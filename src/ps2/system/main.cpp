@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/debug/crash_report.h"
+#include "ps2/debug/log_mirror.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/iop_boot.h"
 #include "ps2/system/log.h"
@@ -29,12 +30,17 @@ int main(int argc, char ** argv)
     ps2::debug::InstallExceptionHandlers();
 #endif // PS2_D3BFG_ASSERTS
 
+    // A console has no stdout anyone reads: debug builds print the log on screen until the renderer
+    // takes the GS, and into the package's d3bfg.log once the boot finds it.
+    ps2::debug::BeginBootScreen();
+
     // Runner marker BOOT_BEGIN: selects which mirrored log stream to read.
     ps2::Log(ps2::LogLevel::Info, "======== PS2 Game boot begin ========\n");
 
     // Finds the package before anything opens a file: host: keeps the loader's IOP, a console boot
     // resets it and starts the drives' drivers. The loader's argv[0] is the ELF's path.
     ps2::system::runtime::SetPackageRoot(ps2::system::iop::Boot(argc > 0 ? argv[0] : nullptr));
+    ps2::debug::OpenLogFile(ps2::system::runtime::PackageRoot());
     ps2::system::runtime::ConfigurePresentation();
 
     const auto baseline = ps2::system::heap::GetTotalStats();
@@ -54,6 +60,7 @@ int main(int argc, char ** argv)
     // Runner marker LOOP_READY: startup reached the frame loop.
     ps2::Log(ps2::LogLevel::Info, "Main loop ready; native game and %s console active\n",
              ps2::system::runtime::HasPresentation() ? "visible" : "headless");
+    ps2::debug::EndBootScreen();
 
     // A separate optional port config avoids executing desktop default.cfg device bindings.
     cmdSystem->BufferCommandText(CMD_EXEC_APPEND, "exec d3bfg.cfg\n");

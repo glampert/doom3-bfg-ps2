@@ -31,7 +31,9 @@ package's `irx/` through the ROM LOADFILE, which reaches `mass0:`/`pfs0:` throug
 hook once `sbv_patch_disable_prefix_check` has run. Through fileXio, **`closedir` returns the
 IOP's close result** (2 on bdmfs_fatfs, PCSX2): only -1 is a failure. The USB path has run in
 PCSX2's emulated USB storage ([production.md](../../docs/testing/production.md#console-storage-boot));
-HDD and hardware have not.
+HDD and hardware have not. Debug builds print the log on screen until
+the renderer starts and write `d3bfg.log` in the package folder (`ps2/debug/log_mirror`), a
+console run's only record ([DEVELOPMENT.md](../../docs/DEVELOPMENT.md#console-boot-usb-and-hdd)).
 
 The filesystem slice verifies streaming reads (including an authored 70 KiB file),
 directory enumeration/stat, mkdir/rmdir and write/append on the preserved HostFs.

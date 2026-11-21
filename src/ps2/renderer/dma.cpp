@@ -7,6 +7,7 @@
 // ================================================================================================
 
 #include "ps2/renderer/dma.h"
+#include "ps2/debug/log_mirror.h"
 #include "ps2/renderer/dma_list.h"
 #include "ps2/renderer/pipeline_wait.h"
 #include "ps2/system/heap.h"
@@ -44,6 +45,9 @@ bool g_inFlight = false;
 
 PS2_COLD_FUNC bool Init(u32 ringBytes)
 {
+    // The boot screen drives the GIF's channel by hand; from here on the display list owns it.
+    ps2::debug::EndBootScreen();
+
     if (IsInitialized()) [[unlikely]]
     {
         FatalError("display list system initialized twice");

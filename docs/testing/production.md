@@ -59,6 +59,11 @@ PCSX2 by hand:
 3. `PCSX2 -batch -logfile <log> -elf <any copy of the ELF>`, at normal priority. The `host:`
    probe misses, the boot resets the IOP, and HDD is skipped when DEV9 has no disk.
 4. Close PCSX2, then restore the backup: PCSX2 rewrites the ini on exit.
+5. A debug package leaves `d3bfg.log` on the image: `hdiutil attach -readonly -nomount -imagekey
+   diskimage-class=CRawDiskImage usb.img`, then `mount -t msdos -o rdonly /dev/diskNs1 <dir>`.
+
+PCSX2 launches the ELF from its host path, longer than a package folder may be, so the image holds
+the package at its root; a console launch also searches the ELF's own folder first.
 
 **2026-11-17** (debug, NTSC console package): `reset the IOP in 63 ms; module loader patched to
 load from EE memory`, the ten modules started, `ps2dev9 didn't start (id 27, result 1)` with no
@@ -71,6 +76,14 @@ material`: through fileXio, `closedir` returns the IOP's close result (2 for eve
 directory), which `fs::List` took for a failure, so no declaration file was listed; it now
 fails only on -1. The hard disk path (from `quake2-ps2`, whose PFS boot ran in PCSX2 on
 2026-10-07) has not run here.
+
+**2026-11-22** (debug, the mars_city1 viewer as a USB package, `d3bfg.cfg` carrying the viewer's
+commands): the first console run stayed on a black screen with no drive activity, a hang before
+the drive's driver mounted it, with nothing to say where. Debug builds now print the log on screen
+during the boot and write `d3bfg.log` to the package folder (`ps2/debug/log_mirror`). In PCSX2 the
+package booted from the image, loaded the map and started the fly camera, and its `d3bfg.log`
+(164 lines) held the whole boot from the exception handlers' line; an image with no package
+showed the IOP report on screen through the drive wait, then the red fatal screen.
 
 ## UI session (`make test-ui`)
 
