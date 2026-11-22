@@ -189,7 +189,9 @@ alignas(16) static GlyphPacket s_glyphPacket = {
     { GS_SET_TRXPOS(0, 0, /* DSAX = */ 0, /* DSAY = */ 0, 0), GS_REG_TRXPOS },
     { GS_SET_TRXREG(kScrCharSize, kScrCharSize), GS_REG_TRXREG },
     { GS_SET_TRXDIR(/* HOST -> LOCAL */ 0), GS_REG_TRXDIR },
-    GIF_SET_TAG(kGlyphPixelQwords, /* EOP = */ 0, 0, 0, GIF_FLG_IMAGE, /* NREG = */ 0),
+    // EOP ends PATH3's packet with each glyph: an open packet keeps the GIF on PATH3 (GIF_STAT
+    // APATH 3), which the boot screen's renderer would find before it resets the GIF.
+    GIF_SET_TAG(kGlyphPixelQwords, /* EOP = */ 1, 0, 0, GIF_FLG_IMAGE, /* NREG = */ 0),
     0
 };
 

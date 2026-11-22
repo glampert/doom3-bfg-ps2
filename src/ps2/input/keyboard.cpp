@@ -180,6 +180,9 @@ PS2_COLD_FUNC bool Init()
         return false;
     }
 
+    // libkbd opens ps2kbd's device: a console's log stops here if the open never returns.
+    Log(LogLevel::Info, "[D3BFG] INPUT opening the keyboard device\n");
+
     if (PS2KbdInit() == 0)
     {
         Log(LogLevel::Warning, "[D3BFG] INPUT keyboard driver did not open\n");

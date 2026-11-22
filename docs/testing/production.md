@@ -83,7 +83,12 @@ the drive's driver mounted it, with nothing to say where. Debug builds now print
 during the boot and write `d3bfg.log` to the package folder (`ps2/debug/log_mirror`). In PCSX2 the
 package booted from the image, loaded the map and started the fly camera, and its `d3bfg.log`
 (164 lines) held the whole boot from the exception handlers' line; an image with no package
-showed the IOP report on screen through the drive wait, then the red fatal screen.
+showed the IOP report on screen through the drive wait, then the red fatal screen. The second console run's
+`d3bfg.log` stopped after `RETAIL catalog ready`, in the input bring-up; PCSX2 then logged
+`Thread (thid=..., #3) stack overflow ... Stack size = 800 ... Module Name = Moldule_File_loader`
+as LOADFILE read `mass0:/irx/ps2kbd.irx` and hung there too, which an earlier emulated run had
+survived. Loose modules now start from EE memory: two emulated USB boots reached the fly camera
+with `pad=1 keyboard=1` and no overflow.
 
 ## UI session (`make test-ui`)
 

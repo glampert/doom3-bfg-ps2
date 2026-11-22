@@ -28,6 +28,7 @@
 #include <cstring>
 
 #include <dirent.h>
+#include <fcntl.h>
 #include <hdd-ioctl.h>
 #include <iopcontrol.h>
 #include <iopheap.h>
@@ -37,6 +38,7 @@
 #include <sbv_patches.h>
 #include <sifrpc.h>
 #include <timer.h>
+#include <unistd.h>
 
 // The header refuses direct fileXio use beside the C library unless told the caller knows what it
 // is doing: file reads go through the backend fileXioInit() installs, and the direct calls below
@@ -138,6 +140,13 @@ static constexpr int kMaxRootLen = static_cast<int>(sizeof("mass0:") - 1) + kMax
 static constexpr int kUsbWaitMsec = 10000;
 static constexpr int kUsbWaitStepMsec = 100;
 
+// How long PADMAN's RPC server may take to register after its start returns: PCSX2's takes a few
+// milliseconds.
+static constexpr int kPadServerTimeoutMsec = 3000;
+
+// The largest loose module the boot reads into EE memory to start; usbd, the largest, is 26 KB.
+static constexpr off_t kMaxLooseModuleBytes = 256 * 1024;
+
 static char s_root[kMaxRootLen + 1] = {};
 static char s_elfFolder[kMaxElfFolderLen + 1] = {}; // "/dir/sub", or empty for the drive's root
 static char s_candidate[kMaxRootLen + 1] = {};
@@ -146,6 +155,7 @@ static int s_hddMounts = 0;
 static int s_hddMountMsec = 0;
 static bool s_booted = false;
 static bool s_reset = false;
+static bool s_loaderPatched = false; // LOADFILE takes modules from EE memory
 static bool s_usbdRunning = false;
 
 // A partition listing's entry, written by SIF DMA: it owns whole cache lines, so no neighbour's
@@ -494,6 +504,7 @@ PS2_COLD_FUNC void ResetIop()
     }
 
     s_reset = true;
+    s_loaderPatched = true;
     Report("reset the IOP in %d ms; module loader %s", NowMsec() - startMsec,
            patched ? "patched to load from EE memory" : "left as it was (LOADFILE 2.x, or one sbv doesn't know)");
 }
@@ -527,13 +538,77 @@ PS2_COLD_FUNC void StartRequired(const EmbeddedModule & module)
     }
 }
 
-// Starts a module from the package's irx/ directory, with the same checks as StartEmbedded.
+// Starts a module through the IOP's LOADFILE, which blocks until the module's start returns: the
+// line before it names the module a hang is in, since a console's log file stops there.
+PS2_COLD_FUNC bool StartFromPath(const char * path, bool negativeStarts)
+{
+    Log(LogLevel::Info, "[D3BFG] IOP starting %s\n", path);
+    const int startMsec = NowMsec();
+    int result = 0;
+    const int id = SifLoadStartModule(path, 0, nullptr, &result);
+
+    if (id < 0 || (!negativeStarts && result < 0) || result == 1)
+    {
+        Log(LogLevel::Warning, "[D3BFG] IOP module %s didn't start (id %d, result %d)", path, id, result);
+        return false;
+    }
+
+    Log(LogLevel::Info, "[D3BFG] IOP started %s (id %d) in %d ms\n", path, id, NowMsec() - startMsec);
+    return true;
+}
+
+// Starts a module from the package's irx/ directory out of EE memory, as the boot starts the
+// embedded ones: the C library reads the file through fileXio, and LOADFILE only links what the EE
+// sends it. LOADFILE reading the drive itself (SifLoadStartModule on a mass0: path) runs FatFs on
+// its thread's 2 KB stack through the ROM ioman's hook into iomanX, and overflowed it: PCSX2 logged
+// the overflow and hung there, and a console hung loading ps2kbd (2026-11-22).
 PS2_COLD_FUNC bool StartLoose(const char * name)
 {
     char path[kMaxRootLen + 32];
     std::snprintf(path, sizeof(path), "%s/irx/%s.irx", s_root, name);
+
+    // host: kept the loader's IOP, whose LOADFILE takes no module from EE memory until patched;
+    // the patch leaves open host: files alone. LOADFILE reads host: itself without the overflow.
+    if (!s_loaderPatched)
+    {
+        bool patched = false;
+        s_loaderPatched = PatchModuleLoader(patched);
+
+        if (!s_loaderPatched)
+        {
+            return StartFromPath(path, false);
+        }
+    }
+
+    Log(LogLevel::Info, "[D3BFG] IOP starting %s\n", path);
+    const int startMsec = NowMsec();
+    const int file = open(path, O_RDONLY);
+
+    if (file < 0)
+    {
+        Log(LogLevel::Warning, "[D3BFG] IOP module %s can't be opened (%d)", path, file);
+        return false;
+    }
+
+    const off_t size = lseek(file, 0, SEEK_END);
+    const bool sized = size > 0 && size <= kMaxLooseModuleBytes && lseek(file, 0, SEEK_SET) == 0;
+
+    // A SIF DMA source: whole cache lines from a line's start.
+    const size_t bytes = sized ? static_cast<size_t>(size) : 0;
+    void * image = sized ? heap::TryAlloc((bytes + 63U) & ~static_cast<size_t>(63U), heap::kSystemTag, 64) : nullptr;
+    const bool read = image != nullptr && ::read(file, image, bytes) == static_cast<ssize_t>(bytes);
+    close(file);
+
+    if (!read)
+    {
+        Log(LogLevel::Warning, "[D3BFG] IOP module %s can't be read (%ld bytes)", path, static_cast<long>(size));
+        heap::Free(image);
+        return false;
+    }
+
     int result = 0;
-    const int id = SifLoadStartModule(path, 0, nullptr, &result);
+    const int id = SifExecModuleBuffer(image, static_cast<u32>(bytes), 0, nullptr, &result);
+    heap::Free(image);
 
     if (id < 0 || result < 0 || result == 1)
     {
@@ -541,22 +616,52 @@ PS2_COLD_FUNC bool StartLoose(const char * name)
         return false;
     }
 
-    Log(LogLevel::Info, "[D3BFG] IOP started %s (id %d)\n", path, id);
+    Log(LogLevel::Info, "[D3BFG] IOP started %s (%u bytes, id %d) in %d ms\n", path, static_cast<u32>(bytes), id, NowMsec() - startMsec);
     return true;
 }
 
+// The ROM's modules return no init error, only NO_RESIDENT_END (1) for a start that bailed out.
 PS2_COLD_FUNC bool StartRom(const char * path)
 {
-    int result = 0;
-    const int id = SifLoadStartModule(path, 0, nullptr, &result);
+    return StartFromPath(path, true);
+}
 
-    if (id < 0 || result == 1)
+// Waits for an IOP RPC server, any of 'ids', to register, for at most 'timeoutMsec'. libpad's
+// padInit binds in a loop with no end, so a PADMAN whose server never comes up would hang the boot.
+PS2_COLD_FUNC bool WaitForRpcServer(const u32 * ids, int count, int timeoutMsec, int & waitedMsec)
+{
+    // A SIF DMA target, like libpad's own: whole cache lines.
+    alignas(64) static SifRpcClientData_t s_probe;
+    const int startMsec = NowMsec();
+
+    for (;;)
     {
-        Log(LogLevel::Warning, "[D3BFG] IOP module %s didn't start (id %d, result %d)", path, id, result);
-        return false;
-    }
+        for (int index = 0; index < count; ++index)
+        {
+            std::memset(static_cast<void *>(&s_probe), 0, sizeof(s_probe));
 
-    return true;
+            if (SifBindRpc(&s_probe, static_cast<int>(ids[index]), 0) < 0)
+            {
+                waitedMsec = NowMsec() - startMsec;
+                return false;
+            }
+
+            if (s_probe.server != nullptr)
+            {
+                waitedMsec = NowMsec() - startMsec;
+                return true;
+            }
+        }
+
+        waitedMsec = NowMsec() - startMsec;
+
+        if (waitedMsec >= timeoutMsec)
+        {
+            return false;
+        }
+
+        WaitMsec(1);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -779,12 +884,25 @@ PS2_COLD_FUNC bool BringUpPad()
         return false;
     }
 
+    // libpad's first binding ids: PADMAN 2.x and ps2sdk's, then the ROM's 1.x.
+    static constexpr u32 kPadServers[] = { 0x80000100u, 0x8000010Fu };
+    int waitedMsec = 0;
+
+    if (!WaitForRpcServer(kPadServers, static_cast<int>(ArrayLength(kPadServers)), kPadServerTimeoutMsec, waitedMsec))
+    {
+        Log(LogLevel::Warning, "[D3BFG] IOP PADMAN's RPC server didn't appear in %d ms: no pad", waitedMsec);
+        return false;
+    }
+
+    Log(LogLevel::Info, "[D3BFG] IOP PADMAN's RPC server up after %d ms; starting libpad\n", waitedMsec);
+
     if (padInit(0) != 1)
     {
         Log(LogLevel::Warning, "[D3BFG] IOP pad library did not start");
         return false;
     }
 
+    Log(LogLevel::Info, "[D3BFG] IOP pad library started\n");
     return true;
 }
 

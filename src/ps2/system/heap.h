@@ -15,7 +15,10 @@ namespace ps2::system::heap
 {
 
 static constexpr std::uint16_t kTagCount = 256;
-static constexpr std::uint16_t kNewTag = 3; // Doom's TAG_NEW; verified by the engine adapter.
+static constexpr std::uint16_t kNewTag = 3; // Doom's TAG_NEW; verified by lifecycle.cpp.
+
+// Doom's TAG_SYSTEM, for backend code without the engine's headers; verified by lifecycle.cpp.
+static constexpr std::uint16_t kSystemTag = 88;
 
 // The C library's allocations; counted apart from the tagged ledger.
 static constexpr std::uint16_t kLibcTag = 255;

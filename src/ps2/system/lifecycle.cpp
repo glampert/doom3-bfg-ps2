@@ -23,6 +23,7 @@ static constexpr const char * kTagNames[] = {
 #include <idlib/sys/sys_alloc_tags.h>
 };
 static_assert(ps2::ArrayLength(kTagNames) == TAG_NUM_TAGS);
+static_assert(heap::kNewTag == TAG_NEW && heap::kSystemTag == TAG_SYSTEM, "heap.h's copies of Doom's tags");
 
 static Stage s_completed = Stage::None;
 static Stage s_stopAfter = Stage::None;

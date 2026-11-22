@@ -26,9 +26,12 @@ neither. Recorded results and limits are in [PORT_STATUS.md](../../docs/PORT_STA
 (PFS) and then USB (BDM) itself; the result is `runtime::PackageRoot()`. After a reset no drive is
 readable until the game's storage drivers run, so those ten IRX are `.incbin`'d into `.bootdata`
 (`iop_modules.S`), linked at the first page past `_end` (`config/linkfile.ld`, every image), which
-the heap holds as its first block until `heap::ReleaseBootData()`. Later drivers load from the
-package's `irx/` through the ROM LOADFILE, which reaches `mass0:`/`pfs0:` through iomanX's ioman
-hook once `sbv_patch_disable_prefix_check` has run. Through fileXio, **`closedir` returns the
+the heap holds as its first block until `heap::ReleaseBootData()`. Later drivers are loose files in the
+package's `irx/`, which the EE reads (fileXio) and starts with `SifExecModuleBuffer`. **Never have
+LOADFILE read a module off `mass0:`** (`SifLoadStartModule` on a drive path): FatFs then runs on
+LOADFILE's 2 KB thread stack through the ROM ioman's hook into iomanX and overflows it (PCSX2 logs
+`Thread ... stack overflow ... Moldule_File_loader`; a console hung loading `ps2kbd`, 2026-11-22).
+libpad's `padInit` binds PADMAN in an endless loop: the boot waits for the server itself, 3 s at most. Through fileXio, **`closedir` returns the
 IOP's close result** (2 on bdmfs_fatfs, PCSX2): only -1 is a failure. The USB path has run in
 PCSX2's emulated USB storage ([production.md](../../docs/testing/production.md#console-storage-boot));
 HDD and hardware have not. Debug builds print the log on screen until

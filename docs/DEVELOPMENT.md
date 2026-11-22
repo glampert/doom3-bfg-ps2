@@ -326,9 +326,12 @@ and `Sys_LaunchPath`:
   until they run. `iop_modules.S` embeds the SDK's ten IRX files (190,784 bytes) in the
   `.bootdata` section, which `config/linkfile.ld` places in its own segment at the first
   page past `_end`. The heap's arena starts on it and holds it as its first block until the
-  boot calls `heap::ReleaseBootData()`, on `host:` too. Drivers started later load as loose
-  files from the package's `irx/`: `usbd` (unless the USB boot started it) and `ps2kbd`. The
-  pad uses the ROM's SIO2MAN and PADMAN.
+  boot calls `heap::ReleaseBootData()`, on `host:` too. Drivers started later are loose
+  files in the package's `irx/`: `usbd` (unless the USB boot started it) and `ps2kbd`. The EE
+  reads each one and starts it from memory (`SifExecModuleBuffer`, LOADFILE patched first on
+  `host:`): LOADFILE reading a USB drive itself overflowed its thread's 2 KB stack. The pad uses
+  the ROM's SIO2MAN and PADMAN; the boot waits at most 3 s for PADMAN's RPC server before libpad's
+  `padInit`, whose own bind never gives up. Each module start and device open logs a line first.
 - What the boot did is logged as `[D3BFG] IOP` lines and, after a reset, printed into the
   engine console (`IOP boot:`), a console's only record. No package found is fatal with the
   launch path, the folders searched, the hard disk's state and the mounted USB volumes, which a

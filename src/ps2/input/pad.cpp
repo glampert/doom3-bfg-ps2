@@ -126,6 +126,8 @@ PS2_COLD_FUNC bool Init()
 
     for (int port = 0; port < kPortCount; ++port)
     {
+        // Each open is an RPC to PADMAN: a console's log stops at the one that never returns.
+        Log(LogLevel::Info, "[D3BFG] INPUT opening pad port %d\n", port + 1);
         s_portOpen[port] = padPortOpen(port, kSlot, s_padAreas[port]) != 0;
         anyOpen = anyOpen || s_portOpen[port];
 
