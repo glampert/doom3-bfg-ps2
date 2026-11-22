@@ -90,6 +90,14 @@ as LOADFILE read `mass0:/irx/ps2kbd.irx` and hung there too, which an earlier em
 survived. Loose modules now start from EE memory: two emulated USB boots reached the fly camera
 with `pad=1 keyboard=1` and no overflow.
 
+**2026-11-23** (debug, the same package with 6d845c8's ELF): the third console run booted from USB,
+loaded mars_city1 and flew through it with the pad, the first run on hardware. Its `d3bfg.log`
+(170 lines): `reset the IOP in 171 ms`, the package on `mass0:/d3bfg` after 600 ms of waiting
+for the drive, PADMAN's RPC server up at once, `ps2kbd` started from EE memory in 49 ms,
+`INPUT devices pad=1 keyboard=1`, `Main loop ready` at 6.5 s (each logged line costs about 30 ms
+on the drive, so most of that is the log), the D3WD (3,234,032 bytes) loaded in about 5.0 s and the
+D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included), and `GS claim GIF_STAT=00000000` at both claims.
+
 ## UI session (`make test-ui`)
 
 - `make test-ui` / `make BUILD=release test-ui` run every UI screen in two emulator

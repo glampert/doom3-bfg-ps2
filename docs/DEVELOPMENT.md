@@ -345,7 +345,7 @@ and `Sys_LaunchPath`:
   FatFs has on USB; a package on `pfs0:` also syncs), about 2.5 s more to the main loop in
   PCSX2's emulated USB. `host:` boots write no file. Release builds have neither.
 
-The HDD path and real hardware are untested; the USB path ran in PCSX2's emulated USB storage
+The USB path runs on a console and in PCSX2's emulated USB storage; the HDD path is untested
 ([production.md](testing/production.md#console-storage-boot)). Writes to a PFS partition
 are synced (`fileXioSync`) only by a debug build's log file.
 

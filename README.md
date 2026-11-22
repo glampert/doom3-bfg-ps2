@@ -127,8 +127,8 @@ and command-file input are described in the [developer guide](docs/DEVELOPMENT.m
 
 ## Running on a PS2
 
-**Not yet tried on a console.** The boot that finds the game on a USB drive has run in PCSX2's
-emulated USB storage; the hard disk path and real hardware are untested.
+**The USB boot runs on a console** (2026-11-23, a debug build): the game found its package on a
+USB drive, loaded mars_city1 and flew through it with the pad. The hard disk path is untested.
 
 Copy a staged package's `d3bfg.elf`, `base/`, `irx/` and `presentation.cfg` into one folder,
 on a FAT32/exFAT USB drive or an APA/PFS hard disk partition, and launch the ELF from a

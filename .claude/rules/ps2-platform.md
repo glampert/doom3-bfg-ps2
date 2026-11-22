@@ -32,9 +32,9 @@ LOADFILE read a module off `mass0:`** (`SifLoadStartModule` on a drive path): Fa
 LOADFILE's 2 KB thread stack through the ROM ioman's hook into iomanX and overflows it (PCSX2 logs
 `Thread ... stack overflow ... Moldule_File_loader`; a console hung loading `ps2kbd`, 2026-11-22).
 libpad's `padInit` binds PADMAN in an endless loop: the boot waits for the server itself, 3 s at most. Through fileXio, **`closedir` returns the
-IOP's close result** (2 on bdmfs_fatfs, PCSX2): only -1 is a failure. The USB path has run in
-PCSX2's emulated USB storage ([production.md](../../docs/testing/production.md#console-storage-boot));
-HDD and hardware have not. Debug builds print the log on screen until
+IOP's close result** (2 on bdmfs_fatfs, PCSX2): only -1 is a failure. The USB path runs on a console
+(2026-11-23) and in PCSX2's emulated USB storage ([production.md](../../docs/testing/production.md#console-storage-boot));
+HDD has not run. Debug builds print the log on screen until
 the renderer starts and write `d3bfg.log` in the package folder (`ps2/debug/log_mirror`), a
 console run's only record ([DEVELOPMENT.md](../../docs/DEVELOPMENT.md#console-boot-usb-and-hdd)).
 
