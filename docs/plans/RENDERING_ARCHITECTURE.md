@@ -1239,7 +1239,8 @@ not a default (section 19, R5).
 Built (2026-11-21): `BakeCavity` (`texture_pack.cpp`) with the key light (0.3, 0.3, 0.9) and one
 amplitude per map (1.0 for mars_city1, `textures.cavity` in the job), sampling the normal map
 bilinearly at the diffuse's size. The baked texture keeps the PSMT4 or PSMT8 its unbaked image
-qualifies for: the shading's extra colours would otherwise promote some to PSMT8.
+qualifies for: the shading's extra colours would otherwise promote some to PSMT8. Captures with
+and without the bake: [cavity-bake-comparison.md](../reference/cavity-bake-comparison.md).
 
 ### 10.3 Specular and gloss
 
