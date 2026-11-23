@@ -639,6 +639,57 @@ static bool TexturePacks()
         std::memcpy(s_aligned, bad.data(), bad.size());
         passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(bad.size()), target, images, 3) != nullptr;
     }
+
+    // A sky: a fifth material draws it, its faces name the two diffuse textures.
+    TexturePack sky = pack;
+    sky.materialsHash = MaterialNamesHash({ "textures/a", "textures/b", "textures/c", "textures/d", "textures/skies/e" });
+    sky.materialTextures.push_back(kD3txSky);
+    sky.materialUvDensity.push_back(0.0f);
+    sky.materialAlphaRef.push_back(0);
+    sky.materialFirstPass.push_back(1);
+    sky.materialPassCount.push_back(0);
+    D3txSky box;
+    box.faces = { 0, 1, 0, 1, 1, 0 };
+    box.color = { 0x60, 0x60, 0x60, 0x80 };
+    sky.skies = { box };
+    passed = passed && WriteD3tx(sky, file, error) && ReadD3tx(file, read, error) && read.skies == sky.skies &&
+             read.materialTextures == sky.materialTextures;
+    std::memcpy(s_aligned, file.data(), file.size());
+    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 3) == nullptr &&
+             target.skyCount == 1 && target.sky != nullptr && target.sky->faces[1] == 1 && target.sky->faces[5] == 0 && target.sky->color[0] == 0x60 &&
+             target.materials[4].texture == ps2::renderer::tex::kPackSky;
+
+    // No sky for a sky material, a face on a lightmap or a missing texture, two skies, and a sky that
+    // alpha-tests or draws passes are refused.
+    TexturePack noSky = sky;
+    noSky.skies.clear();
+    TexturePack faceOnPage = sky;
+    faceOnPage.skies[0].faces[3] = 2;
+    TexturePack faceMissing = sky;
+    faceMissing.skies[0].faces[0] = 3;
+    TexturePack twoSkies = sky;
+    twoSkies.skies.push_back(box);
+    TexturePack testedSky = sky;
+    testedSky.materialAlphaRef[4] = 0x40;
+    TexturePack skyPass = sky;
+    skyPass.materialFirstPass[4] = 0;
+    skyPass.materialPassCount[4] = 1;
+    passed = passed && !WriteD3tx(noSky, file, error) && !WriteD3tx(faceOnPage, file, error) && !WriteD3tx(faceMissing, file, error) &&
+             !WriteD3tx(twoSkies, file, error) && !WriteD3tx(testedSky, file, error) && !WriteD3tx(skyPass, file, error);
+
+    // The target refuses a face on a lightmap when the cook's checks are bypassed.
+    if (WriteD3tx(sky, file, error))
+    {
+        const std::size_t skyAt = kD3txHeaderBytes + 5 * kD3txMaterialRecordBytes + kD3txPassRecordBytes + 3 * kD3txTextureRecordBytes +
+                                  2 * kD3txPageRecordBytes + 4 * kD3txNodeRecordBytes + 3 * kD3txValueRecordBytes;
+        std::vector<std::uint8_t> bad = file;
+        WriteLe32(bad.data() + skyAt + 12, 2); // face 3: the lightmap page
+        WriteLe32(bad.data() + 24, 0);
+        WriteLe32(bad.data() + 24, Fnv1a32({ bad.data(), skyAt + kD3txSkyRecordBytes }));
+        std::memcpy(s_aligned, bad.data(), bad.size());
+        passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(bad.size()), target, images, 3) != nullptr;
+    }
+
     return Check(passed, "D3TX packs round trip and refuse corruption");
 }
 
@@ -659,6 +710,9 @@ textures/p/glow
     { if ( time > 2 ) blend add map textures/p/late red steps[ time * -0.3 ] % 3 green ( time / 0 ) + 0.5 blue parm0 }
 }
 textures/p/glass { translucent { blend add map textures/p/glass_add } }
+textures/skies/s { forceOpaque { blend add cameraCubeMap env/cloudy // desert
+    texgen skybox red .75 green .75 blue .75 } }
+textures/p/chrome { diffusemap textures/p/chrome_d { blend add cubeMap env/x texgen reflect } }
 )";
 
     std::map<std::string, MaterialInfo> materials;
@@ -686,6 +740,15 @@ textures/p/glass { translucent { blend add map textures/p/glass_add } }
 
     // Translucent materials get no passes yet.
     passed = passed && PlanMaterialPasses(materials["textures/p/glass"], WorldShaderParms(), tables).passes.empty();
+
+    // A sky stage: a camera cube map read along the view ray; a reflection is not one.
+    const MaterialInfo & skyMaterial = materials["textures/skies/s"];
+    const MaterialInfo & chrome = materials["textures/p/chrome"];
+    passed = passed && skyMaterial.skyStage == 0 && skyMaterial.diffuse.empty() && skyMaterial.stages[0].cubeMap == "env/cloudy" &&
+             skyMaterial.stages[0].cameraCube && skyMaterial.stages[0].texgen == "skybox" && chrome.skyStage < 0 &&
+             chrome.stages[1].cubeMap == "env/x" && !chrome.stages[1].cameraCube && chrome.stages[1].texgen == "reflect" &&
+             GeneratedImageName("env/cloudy", kTextureUsageDefault, kCubeFilesCamera) == "generated/images/env/cloudy#__0202.bimage" &&
+             GeneratedImageName("env/x", kTextureUsageDefault, kCubeFilesNative) == "generated/images/env/x#__0201.bimage";
 
     // Packed, the target evaluates every pass as the cook's planner and id's own expressions do.
     TexturePolicy policy;

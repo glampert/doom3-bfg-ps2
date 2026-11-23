@@ -1196,7 +1196,7 @@ emits a pass table:
 | `texgen reflect` | 121 materials, 52 cube maps | per-vertex sphere-map ST on VU1 from a cooked 2D map (10.3) |
 | `texgen skybox` / `wobblesky` | 17 / 9 | sky program: six quads with cooked faces, drawn first with Z writes off |
 | `videomap`, `cameracubemap`, mirrors, `_currentRender` | 119 dynamic-image materials | mirrors and remote cameras are bounded subviews (13.3); `_currentRender` reads the frame buffer as a texture; cube cameras degrade to a static sphere map; `videomap` (PDA videos, screens, intro) has no Bink or `idCinematic` on the PS2 and shows a cooked still frame until a converted-video path exists (decision in 20.1) |
-| `portalSky` surfaces | portal-sky boxes (areas 0, 3 and 4 of mars_city1) | the sky program draws the sky area's cooked skybox in place of the nested scene; no second `RenderScene` |
+| `portalSky` surfaces | portal-sky maps (not mars_city1, whose windows show `textures/skies/commoutside`, a `texgen skybox` camera cube) | the sky program draws the sky area's cooked skybox in place of the nested scene; no second `RenderScene` |
 | custom `vertexProgram`/`fragmentProgram` (heat haze, blood orb, enviro suit) | 61 | heat haze: frame-buffer texture with a per-vertex UV wobble; the rest degrade to their fixed stages |
 | deforms (sprite, tube, eyeball, particle, particle2, flare, expand, move, turbulent) | 275 | section 13 |
 
@@ -1204,6 +1204,25 @@ Built so far (2026-11-21): the `add` row (as additive passes of opaque and alpha
 materials), `alphatest` (its register as `AREF`), and the `if`/`parm` row (folded at the cook for
 the world's and merged entities' parms; time-driven registers evaluated on the EE). Section 6.3
 describes them.
+
+The `texgen skybox` / `wobblesky` row (2026-11-23, D3TX v4). The cook takes the first sky material
+(no diffuse stage, a stage reading a cube map along the view ray) and decodes its cube image's six
+faces, which id stores already in GL's cube order and orientation. Each face becomes a one-level
+texture (`sky_extent`, 128 by default: the sky is magnified on every screen). The stage's colour
+(parms folded, time at 0) rides in the D3TX's sky record, and every sky material is marked as
+drawing it. The textured pass, before `BeginDepthPass`, draws the box: per face, the quad of
+directions `normal ± sAxis ± tAxis` through the view-projection without its translation, cut on
+the EE to the guard band and before the eye's plane, then a DIRECT triangle fan with perspective
+STQ (S, T and Q over w), bilinear, clamped, depth neither tested nor written. Each sky surface
+then writes depth alone (an alpha test every pixel fails, `AFAIL ZB_ONLY`) before the other
+batches, so the box shows through it and nothing behind it draws. Wobblesky's turning is left out,
+and the faces give way to the frame's diffuse textures (10.5).
+
+The box replaces the clear colour as the backdrop: a pixel no surface covers shows the sky, as a
+doorway without its door model does until entities draw (R4). Drawing it only through sky surfaces
+would need a stencil the GS lacks (a destination alpha mark collides with the alpha every opaque
+texel writes), or clipping every sky triangle against the six face frusta on the EE. Fill is one
+textured full-screen layer in frames that see the sky.
 
 ### 10.2 Normal maps
 
@@ -1417,6 +1436,19 @@ to memory images belongs with R8.
 - Lightmap pages (2026-11-08) travel in the map's D3TX (version 2: a page table after the texture
   table, the pages GSTX v2 usage `Lightmap` flagged as such) and share the textures' arena and LRU;
   a batch whose page cannot become resident draws without its lightmap pass.
+- **Residency is planned per pass (2026-11-23).** The scene names the areas a pass will draw before
+  it begins; the pass makes their textures and pages resident first, in draw order, and never
+  evicts them while it draws. A view whose new textures do not fit the free ranges evicts
+  everything it does not need; if the rest still cannot be placed around the textures staying (a
+  simulation on a copy of the free ranges decides), the arena empties and takes the planned set in
+  draw order, which packs it without holes (a repack, counted). Placement is best fit. PAL's north
+  view (99.8 % of a 640 KiB arena) fits only so: its first-fit history happened to pack before the
+  sky's faces changed the order. At a pass's start no batch of its chain names a texture yet, and
+  the chain in flight finishes before this one's uploads run, so any texture may move then.
+- Give-way order: the sky's faces first (evicted even after the pass drew them, since their `TEX0`
+  travels in the chain's own DIRECT data, not in a cached state block), then material pass
+  textures, then the least recently drawn. The sky takes only free space or textures the previous
+  pass did not draw, so it never displaces what a view draws every frame.
 - **Texture dictionaries (noted 2026-11-08, not built).** Black groups a file's textures into
   dictionaries (`docs/formats/textures.md` in black-re): GLOBDATA, LEVELDAT and per-unit ones.
   Each is a count and an entry table over self-contained texture objects that carry their upload
@@ -1976,6 +2008,8 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Lightmap density | 16 units per luxel for Q1 and Q2 (lighting report's chart measurement), 32 for Q3 | the asset report's 16/32/64 | the measured charts give 0.29 MiB at 16 u, cheap enough to keep |
 | Video materials | cooked still frames until a converted-video path exists | Bink or RoQ decode | no cinematic decoder is linked; the PDA and screens must not block the campaign |
 | Portal sky | cooked skybox drawn by the sky program | nested second scene | removes a full second frontend pass and a frame-buffer capture |
+| Sky box (2026-11-23) | Six cooked faces drawn under the whole textured pass, sky surfaces writing depth alone | The sky only through sky surfaces (each sky triangle clipped to the face frusta on the EE, or a destination-alpha stencil) | One full-screen layer, no per-triangle EE work; uncovered pixels show the sky instead of the clear colour until entities draw |
+| World texture residency (2026-11-23) | Planned per pass from its areas; best fit; a repack when the new set will not fit around the old | First-fit LRU on demand | A nearly full arena (PAL's 640 KiB) otherwise fails on fragmentation alone, by placement history |
 | Texture uploads | Inside the VIF1 chain (`FLUSHA; DIRECT`) | PATH3 with `MSKPATH3` | Ordering safety first; interleave as an R9 optimisation |
 | Batch texture state (2026-11-08) | A 10-qword VIF block per batch, REF'd from the material's per-context block, unpacked into the input half's last 9 qwords and kicked by the program before its first window | `DIRECT` register writes between batches (a `FLUSH` per texture change); the state in the cooked header | No stall per texture change and no per-batch EE writes; costs a 4-qword vertex (STQ) slot and 9 qwords of each half: mars_city1 rises from 2,138 to 2,302 batches and the world program from 93.0 to 99.5 VU1 cycles a triangle |
 | World texture residency (2026-11-08) | One whole-page VRAM arena per textured world (the texture range less 256 KiB for the UI), block-granular first fit, least recently drawn evicted, never a texture this pass drew; uploads in the chain where a batch first needs them | Area-ring streaming from the package (still the plan for the EE copy, 10.5) | mars_city1's 69 textures for the area 2 and corridor views take 517 KB of a 1,064,960-byte arena at 640x448 32/32; the whole map's 1.98 MB would not fit |

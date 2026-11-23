@@ -182,11 +182,14 @@ def view_batches(report: dict, view: View) -> int:
 
 
 # Cumulative since the map loaded; passes counts material passes drawn, pass_fallbacks those whose
-# texture the arena could not hold (they are left out, the frame keeps its diffuse textures).
+# texture the arena could not hold (they are left out, the frame keeps its diffuse textures); the
+# sky's faces likewise (sky_faces, sky_fallbacks), and repacks the passes that emptied the arena to
+# place their textures without holes.
 TEXTURES_RE = re.compile(r"\[D3BFG\] WORLD textures enabled=([01]) arena=(\d+) resident=(\d+) resident_bytes=(\d+) uploads=(\d+) "
-                         r"evictions=(\d+) fallbacks=(\d+) lightmaps=([01]) pages=(\d+) unlit=(\d+) passes=(\d+) pass_fallbacks=(\d+)")
+                         r"evictions=(\d+) fallbacks=(\d+) lightmaps=([01]) pages=(\d+) unlit=(\d+) passes=(\d+) pass_fallbacks=(\d+) "
+                         r"sky_faces=(\d+) sky_fallbacks=(\d+) repacks=(\d+)")
 TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks", "lightmaps", "pages", "unlit",
-                  "passes", "pass_fallbacks")
+                  "passes", "pass_fallbacks", "sky_faces", "sky_fallbacks", "repacks")
 TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) pages=(\d+) "
                              r"passes=(\d+) vram=(\d+) bytes=(\d+)")
 
@@ -295,6 +298,10 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
                            f"expected area {view.area}, {drawn} areas, {batches} batches"), {}
         views[view.name] = {"capture": captures[0][0], "light": captures[1][0], "lit": captures[2][0], "bits": bits, "presents": presents,
                             "status": status, "textures": textures[0]}
+    # mars_city1's windows show the sky: the textured pass drew its box (PAL's north view leaves it out
+    # for the diffuse textures, the others have room).
+    if max(view["textures"]["sky_faces"] for view in views.values()) == 0:
+        return False, "the textured pass never drew the sky box", {}
     if run_world.SWITCH_RE.search(log[:positions[1]] + log[positions[-3]:positions[-2]] + log[positions[-1]:]):
         return False, "the display mode changed outside its steps", {}
     unloads = [line for line in run_world.world_lines(log[positions[-3]:positions[-2]]) if line["event"] == "unloaded"]

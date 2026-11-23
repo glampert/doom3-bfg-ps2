@@ -39,6 +39,9 @@ static u32 s_queuedPasses[kMaxQueuedPassBatches];
 static u32 s_queuedPassCount = 0;
 static const Level * s_passLevel = nullptr;
 
+// PlanArea has begun the next pass's plan.
+static bool s_planning = false;
+
 static void DrawQueuedPasses()
 {
     dma::DisplayList & list = dma::List();
@@ -229,24 +232,88 @@ const TextureStats & LastPassTextureStats()
     return s_lastStats;
 }
 
-void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time)
+void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time, bool sky)
 {
     s_passTextures = level.textures;
     s_passLevel = &level;
     s_queuedPassCount = 0;
+    s_planning = false;
 
     const gs::DrawContext context = renderer::DrawingContext();
     dma::DisplayList & list = dma::List();
-
-    list.SetFrameConstants(MakeFrameConstants(viewProjection, context));
-    gs::BeginDepthPass(list, context);
-    list.SetProgram(level.sections.indexedStrips ? vu::Program::WorldLightmapped : vu::Program::WorldStrips);
 
     // GS pixels per world unit at depth 1, for the mip LOD: clip x per view x (the length of the
     // matrix's first column, the view rotation being orthonormal) times the window scale.
     const float columnX = viewProjection.m[0][0] * viewProjection.m[0][0] + viewProjection.m[1][0] * viewProjection.m[1][0] +
                           viewProjection.m[2][0] * viewProjection.m[2][0];
-    BeginTextures(s_passTextures, context, gs::WindowScale().x * math::Sqrtf(columnX), s_texturesEnabled, s_lightmapsEnabled, time);
+    BeginTextures(s_passTextures, list, context, gs::WindowScale().x * math::Sqrtf(columnX), s_texturesEnabled, s_lightmapsEnabled, time);
+
+    list.SetFrameConstants(MakeFrameConstants(viewProjection, context));
+
+    // Under everything the pass draws, in the 2D environment's masked depth.
+    if (sky)
+    {
+        DrawSkyBox(s_passTextures, list, context, viewProjection);
+    }
+
+    gs::BeginDepthPass(list, context);
+    list.SetProgram(level.sections.indexedStrips ? vu::Program::WorldLightmapped : vu::Program::WorldStrips);
+}
+
+bool PlanArea(const Level & level, u32 area)
+{
+    PS2_AssertMsg(level.storage != nullptr && area < level.sections.areaCount, "planning an area of no loaded world");
+
+    if (!s_planning)
+    {
+        BeginPlan(level.textures);
+        s_planning = true;
+    }
+
+    const AreaRecord & record = level.sections.areas[area];
+    bool sky = false;
+
+    for (u32 index = record.firstBatch; index < record.firstBatch + record.batchCount; ++index)
+    {
+        const BatchRecord & batch = level.sections.batches[index];
+
+        // A textured pass draws a sky batch untextured and unlit, into depth.
+        if (s_texturesEnabled && IsSky(level.textures, batch.material))
+        {
+            sky = true;
+            continue;
+        }
+
+        PlanBatch(level.textures, batch.material, batch.lightmapPage, s_texturesEnabled, s_lightmapsEnabled);
+    }
+
+    return sky;
+}
+
+void DrawAreaSky(const Level & level, u32 area)
+{
+    PS2_AssertMsg(level.storage != nullptr && area < level.sections.areaCount, "drawing an area of no loaded world");
+
+    if (!s_texturesEnabled)
+    {
+        return;
+    }
+
+    dma::DisplayList & list = dma::List();
+    const Sections & sections = level.sections;
+    const AreaRecord & record = sections.areas[area];
+
+    for (u32 index = record.firstBatch; index < record.firstBatch + record.batchCount; ++index)
+    {
+        const BatchRecord & batch = sections.batches[index];
+
+        // Depth alone, and never a lightmap pass over the sky behind.
+        if (IsSky(s_passTextures, batch.material))
+        {
+            list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, SkyDepthState(), kBatchStateBlockQwords,
+                           PageState(nullptr, list, kNoLightmap), kPageStateBlockQwords);
+        }
+    }
 }
 
 void DrawArea(const Level & level, u32 area)
@@ -302,7 +369,19 @@ void Draw(const Level & level, const math::Mat4 & viewProjection, float time)
 {
     PS2_AssertMsg(level.storage != nullptr, "drawing an unloaded world");
 
-    BeginPass(level, viewProjection, time);
+    bool sky = false;
+
+    for (u32 area = 0; area < level.sections.areaCount; ++area)
+    {
+        sky = PlanArea(level, area) || sky;
+    }
+
+    BeginPass(level, viewProjection, time, sky);
+
+    for (u32 area = 0; area < level.sections.areaCount && sky; ++area)
+    {
+        DrawAreaSky(level, area);
+    }
 
     for (u32 area = 0; area < level.sections.areaCount; ++area)
     {

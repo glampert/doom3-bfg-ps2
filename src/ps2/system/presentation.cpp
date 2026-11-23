@@ -591,10 +591,10 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         const ps2::renderer::world::TextureStats & stats = ps2::renderer::world::LastPassTextureStats();
         ps2::Log(ps2::LogLevel::Info,
                  "[D3BFG] WORLD textures enabled=%d arena=%u resident=%u resident_bytes=%u uploads=%u evictions=%u fallbacks=%u "
-                 "lightmaps=%d pages=%u unlit=%u passes=%u pass_fallbacks=%u\n",
+                 "lightmaps=%d pages=%u unlit=%u passes=%u pass_fallbacks=%u sky_faces=%u sky_fallbacks=%u repacks=%u\n",
                  ps2::renderer::world::TexturesEnabled() ? 1 : 0, stats.arenaBytes, stats.resident, stats.residentBytes, stats.uploads,
                  stats.evictions, stats.untexturedFallbacks, ps2::renderer::world::LightmapsEnabled() ? 1 : 0, stats.pagesResident,
-                 stats.unlitFallbacks, stats.passes, stats.passFallbacks);
+                 stats.unlitFallbacks, stats.passes, stats.passFallbacks, stats.skyFaces, stats.skyFallbacks, stats.repacks);
         return;
     }
 

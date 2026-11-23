@@ -392,7 +392,9 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   `ps2_world textures status` must report textures and lightmaps enabled, textures and pages
   resident and uploaded, with no batch fallen back to untextured or unlit; its `passes` and `pass_fallbacks` (material
   passes drawn, and left out because the arena could not hold their texture: PAL's north view leaves
-  its glows out) are recorded, not required. Both go off again
+  its glows out), `sky_faces` and `sky_fallbacks` (the sky box's faces, which give way the same way)
+  and `repacks` (passes that emptied the arena to place their textures without holes) are recorded;
+  some view must have drawn the sky. Both go off again
   before the next view. Each lightmap capture must match the reference with the lightmap pass
   modelled (below); the textured captures are checked by eye: no reference models the diffuse
   textures yet. The

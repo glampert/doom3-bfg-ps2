@@ -673,6 +673,13 @@ static void CloseStage(Scan & scan)
         ++info.otherStages;
     }
 
+    // A sky stage samples its cube map along the view ray (texgen skybox; wobblesky turns the ray
+    // first), so it shows the same sky through every surface of the material.
+    if (info.skyStage < 0 && !stage.cubeMap.empty() && (stage.texgen == "skybox" || stage.texgen == "wobblesky"))
+    {
+        info.skyStage = static_cast<int>(info.stages.size());
+    }
+
     info.lit = info.lit || InteractionBlend(stage.blend);
     info.stages.push_back(stage);
 }
@@ -968,9 +975,22 @@ bool ScanMaterials(std::string_view text, std::map<std::string, MaterialInfo> & 
                 ++at;
                 ParseStageExpression(tokens, at, scan.stage.alphaTestValue, scan.info);
             }
-            else if (depth == 2 && (word == "cubemap" || word == "cameracubemap" || word == "texgen" || word == "videomap" ||
-                                    word == "soundmap" || word == "mirrorrendermap" || word == "remoterendermap" || word == "xrayrendermap" ||
-                                    word == "program" || word == "vertexprogram" || word == "fragmentprogram"))
+            else if (depth == 2 && (word == "cubemap" || word == "cameracubemap"))
+            {
+                scan.stage.special = true;
+                scan.stage.cameraCube = word == "cameracubemap";
+                ++at;
+                scan.stage.cubeMap = ImageArgument(tokens, at);
+            }
+            else if (depth == 2 && word == "texgen" && at + 1 < tokens.size())
+            {
+                scan.stage.special = true;
+                scan.stage.texgen = Lower(tokens[at + 1].text);
+                at += 2;
+            }
+            else if (depth == 2 && (word == "texgen" || word == "videomap" || word == "soundmap" || word == "mirrorrendermap" ||
+                                    word == "remoterendermap" || word == "xrayrendermap" || word == "program" || word == "vertexprogram" ||
+                                    word == "fragmentprogram"))
             {
                 scan.stage.special = true;
                 ++at;
@@ -1066,7 +1086,7 @@ bool ScanMaterials(std::string_view text, std::map<std::string, MaterialInfo> & 
     return true;
 }
 
-std::string GeneratedImageName(const std::string & image, int usage)
+std::string GeneratedImageName(const std::string & image, int usage, int cube)
 {
     std::string name = Lower(image);
 
@@ -1086,7 +1106,7 @@ std::string GeneratedImageName(const std::string & image, int usage)
     }
 
     char suffix[16];
-    std::snprintf(suffix, sizeof(suffix), "#__%02d00", usage);
+    std::snprintf(suffix, sizeof(suffix), "#__%02d%02d", usage, cube);
     name += suffix;
 
     std::string path = "generated/images/";

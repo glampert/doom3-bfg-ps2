@@ -2,8 +2,9 @@
 // File: texture_pack.h
 // Brief: Cook a level's world textures into GSTX v2 images (power-of-two levels, box-filtered mips,
 // PSMT4 where its palette is good enough, PSMT8 otherwise, the bump map baked in as cavity shading)
-// and pack them with the map's Light8 lightmap pages and each material's passes into D3TX v3, the
-// map's texture package, indexed by the D3WD's material order and its batches' lightmap pages.
+// and pack them with the map's Light8 lightmap pages, each material's passes and its sky's six faces
+// into D3TX v4, the map's texture package, indexed by the D3WD's material order and its batches'
+// lightmap pages.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -23,18 +24,19 @@
 namespace assets
 {
 
-// Little-endian. A 48-byte header, the material, pass, texture, lightmap page, expression node and
-// table value tables, then the GSTX v2 files, each 64-byte aligned with zero padding (the DMA
-// arena's alignment). Canonical like D3WD.
+// Little-endian. A 52-byte header, the material, pass, texture, lightmap page, expression node,
+// table value and sky tables, then the GSTX v2 files, each 64-byte aligned with zero padding (the
+// DMA arena's alignment). Canonical like D3WD.
 //
-// Header:    u32 magic 'D3TX', u16 version 3, u16 header bytes 48, u32 material count, u32 texture
+// Header:    u32 magic 'D3TX', u16 version 4, u16 header bytes 52, u32 material count, u32 texture
 //            count, u32 FNV-1a of the world's material names (each with its NUL, the D3WD Strings
 //            section), u32 file bytes, u32 FNV-1a of header and tables with this field read as zero,
 //            u32 converter version, u32 lightmap page count, u32 pass count, u32 expression node
-//            count, u32 table value count.
-// Materials: 16 bytes each: u32 the base pass's texture, 0xFFFFFFFF (drawn untextured) or
+//            count, u32 table value count, u32 sky count (0 or 1).
+// Materials: 16 bytes each: u32 the base pass's texture, 0xFFFFFFFF (drawn untextured),
 //            0xFFFFFFFE (not drawn textured: translucent without a diffuse stage, which only its own
-//            stages could draw); f32 log2 of the material's UV units per world unit over the map's
+//            stages could draw) or 0xFFFFFFFD (a sky: drawn into depth alone, the sky box behind it
+//            showing through; needs the sky); f32 log2 of the material's UV units per world unit over the map's
 //            surfaces (0 without area), from which the target sets the mip LOD (TEX1.K); u16 the
 //            first of its passes, u8 their count (drawn after the base pass, in order), u8 the alpha
 //            test's reference on the GS scale (0x80 = 1.0; 0 without a test); u32 0.
@@ -54,19 +56,26 @@ namespace assets
 //            value count (its first value repeated at the end, as idDeclTable keeps it), f32 the
 //            constant.
 // Values:    4 bytes each: f32 table values.
+// Sky:       32 bytes: u32 x 6 the textures of the sky box's faces in GL's cube order (+X, -X, +Y,
+//            -Y, +Z, -Z in id's world axes, each face's S and T as GL's cube map lookup takes them),
+//            u8 x 4 the RGBA colour they draw with (0x80 = 1.0), u32 0.
 static constexpr std::uint32_t kD3txMagic = 0x58543344;
-static constexpr std::uint16_t kD3txVersion = 3;
-static constexpr std::uint32_t kD3txConverterVersion = 3;
-static constexpr std::size_t kD3txHeaderBytes = 48;
+static constexpr std::uint16_t kD3txVersion = 4;
+static constexpr std::uint32_t kD3txConverterVersion = 4;
+static constexpr std::size_t kD3txHeaderBytes = 52;
 static constexpr std::size_t kD3txMaterialRecordBytes = 16;
 static constexpr std::size_t kD3txPassRecordBytes = 24;
 static constexpr std::size_t kD3txTextureRecordBytes = 16;
 static constexpr std::size_t kD3txPageRecordBytes = 4;
 static constexpr std::size_t kD3txNodeRecordBytes = 12;
 static constexpr std::size_t kD3txValueRecordBytes = 4;
+static constexpr std::size_t kD3txSkyRecordBytes = 32;
 static constexpr std::size_t kD3txAlignment = 64;
 static constexpr std::uint32_t kD3txNoTexture = 0xFFFFFFFFU;
 static constexpr std::uint32_t kD3txHidden = 0xFFFFFFFEU;
+static constexpr std::uint32_t kD3txSky = 0xFFFFFFFDU;
+static constexpr std::uint32_t kD3txMaxSkies = 1;
+static constexpr std::size_t kD3txSkyFaces = 6;
 static constexpr std::uint32_t kD3txFlagAlphaTest = 1U;
 static constexpr std::uint32_t kD3txFlagLightmap = 2U;
 static constexpr std::uint32_t kD3txMaxPages = 256;
@@ -106,6 +115,15 @@ struct D3txPass
     std::array<std::uint16_t, 4> colorNodes = { kD3txNoNode, kD3txNoNode, kD3txNoNode, kD3txNoNode };
 
     bool operator==(const D3txPass &) const = default;
+};
+
+// The sky box: its faces' textures and the colour they draw with.
+struct D3txSky
+{
+    std::array<std::uint32_t, kD3txSkyFaces> faces = {};
+    std::array<std::uint8_t, 4> color = { 0x80, 0x80, 0x80, 0x80 };
+
+    bool operator==(const D3txSky &) const = default;
 };
 
 struct TexturePolicy
@@ -155,6 +173,8 @@ struct TexturePack
     std::vector<std::uint32_t> lightmapPages;
     std::vector<D3txNode> nodes;
     std::vector<float> tableValues;
+    // At most kD3txMaxSkies; the materials marked kD3txSky draw it.
+    std::vector<D3txSky> skies;
 };
 
 // Cavity shading from a normal map (tangent space, decoded RGB with 0..255 for -1..1), the plan's

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "ps2/common.h"
+#include "ps2/math/vec_mat.h"
 #include "ps2/renderer/dma_list.h"
 #include "ps2/renderer/gs.h"
 #include "ps2/renderer/world_format.h"
@@ -37,16 +38,36 @@ PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * n
 // No chain may still read the textures' blocks or streams.
 PS2_COLD_FUNC void FreeTextures(Textures * textures);
 
+// Plans the next pass's residency (optional, before BeginTextures): BeginPlan, then PlanBatch for
+// every batch the pass will draw, in its order, with the pass's textured and lightmapped switches.
+// The pass then never evicts a planned texture, and BeginTextures makes them resident first.
+void BeginPlan(Textures * textures);
+void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool lightmapped);
+
 // Starts a world pass in 'context': the states are written for its registers and LOD, where
 // 'focal' is GS pixels per world unit at depth 1, and the material passes time drives are evaluated
 // at 'time' (seconds). 'textures' may be null (every batch untextured and unlit); 'textured' and
-// 'lightmapped' switch the diffuse textures (with the material passes) and the lightmap pass.
-void BeginTextures(Textures * textures, gs::DrawContext context, float focal, bool textured, bool lightmapped, float time);
+// 'lightmapped' switch the diffuse textures (with the material passes) and the lightmap pass. A
+// planned pass's textures are made resident here, in the list: when a view brings in new ones,
+// the textures it does not need leave, and if the rest cannot be placed around the ones staying,
+// the arena empties and takes the planned set in draw order (a repack).
+void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext context, float focal, bool textured, bool lightmapped,
+                   float time);
 
 // The state for a batch of 'material': the material's texture made resident first (an upload in
 // the list, evicting the least recently used textures this frame has not drawn), or untextured
-// when it has none or the arena cannot hold it; null when the textured pass does not draw it.
+// when it has none or the arena cannot hold it; null when the textured pass does not draw it (a
+// translucent material without a diffuse stage, or a sky, which SkyDepthState draws).
 const void * BatchState(Textures * textures, dma::DisplayList & list, u32 material);
+
+// Whether a textured pass draws 'material' as a sky: its surfaces write depth alone, before the
+// rest of the pass, and the sky box (DrawSkyBox, drawn under the whole pass) shows through them.
+// An untextured pass draws a sky as any untextured surface (BatchState).
+bool IsSky(const Textures * textures, u32 material);
+
+// The state of a sky batch in the pass's context: untextured, every pixel failing an alpha test
+// that keeps depth (AFAIL ZB_ONLY), so it writes depth GEQUAL and no colour.
+const void * SkyDepthState();
 
 // The page state for a batch of lightmap 'page' (kNoLightmap for none): the page made resident
 // first, or the state without a lightmap pass when it cannot be.
@@ -59,6 +80,12 @@ u32 PassCount(const Textures * textures, u32 material);
 // block, in PageState's place, with its texture made resident first. False when it does not draw
 // this frame (its condition, or a texture the arena cannot hold, counted in passFallbacks).
 bool PassBlocks(Textures * textures, dma::DisplayList & list, u32 material, u32 pass, const void *& state, const void *& color);
+
+// The sky box of the textured pass in 'context' through the clip space of 'viewProjection' (its
+// translation ignored: the box is the directions around the eye), drawn in the list before
+// BeginDepthPass with depth neither tested nor written, its faces made resident first; a face the
+// arena cannot hold is left out (skyFallbacks). Nothing without a sky or textures.
+void DrawSkyBox(Textures * textures, dma::DisplayList & list, gs::DrawContext context, const math::Mat4 & viewProjection);
 
 struct TextureStats
 {
@@ -73,6 +100,11 @@ struct TextureStats
     // Material passes drawn, and those left out because the arena could not hold their texture.
     u32 passes;
     u32 passFallbacks;
+    // Sky box faces drawn (clipped to the guard band, any part on screen), and those left out.
+    u32 skyFaces;
+    u32 skyFallbacks;
+    // Passes whose planned textures did not fit around the ones resident: the arena emptied first.
+    u32 repacks;
 };
 
 TextureStats GetTextureStats(const Textures * textures);

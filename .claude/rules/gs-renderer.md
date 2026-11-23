@@ -110,9 +110,12 @@ coordinates; CLUTs; VRAM and mipmaps.
   move the cooked block addresses. Never reorder or copy its texels on the EE. Fixed-LOD draws:
   `TEX1.LCM` 1 with `K` = level << 4. `renderer::DrawingContext()` asserts an open frame.
 - **Textured world pass:** a map's `.d3tx` stays resident in one VRAM arena (`world_textures.cpp`:
-  the texture range less 256 KiB for the UI, LRU, never evicting what this pass drew, so a texture's
-  last reader is an earlier chain). Each batch's state block is per material and per drawing
-  context: a frame rewrites only its own context's blocks, never one the chain in flight reads.
+  the texture range less 256 KiB for the UI, best fit, LRU, never evicting what this pass drew or
+  planned, so a texture's last reader is an earlier chain). Each batch's state block is per material
+  and per drawing context: a frame rewrites only its own context's blocks, never one the chain in
+  flight reads. `world::PlanArea` names a pass's areas first; the pass makes their textures resident
+  before drawing and repacks the arena when a view's new set will not fit around the old (PAL's
+  north view needs it: first fit packed it by luck).
   `TEX1.K` = log2(UV per unit) + log2(texture size) - log2(GS pixels per unit at depth 1).
   `ps2_world textures on|off|status`; the untextured captures and the lightmap-only ones (below)
   are held to references, the textured ones are checked by eye.
@@ -136,6 +139,11 @@ coordinates; CLUTs; VRAM and mipmaps.
   and conditions that time drives are cooked expression nodes the EE evaluates once a frame. Pass
   textures sit at the arena's top and are evicted first: a frame's diffuse textures never give
   way to them (`pass_fallbacks` counts the passes left out). Passes draw only textured.
+- **Sky** (D3TX v4, 2026-11-23): the textured pass draws the map's sky box first (six cooked faces,
+  DIRECT fans with STQ over w, cut on the EE to the guard band, depth untouched), then every sky
+  surface into depth alone (`ATST NEVER`, `AFAIL ZB_ONLY`) before the other batches. The faces give
+  way first, even after they drew: their `TEX0` is in the chain's DIRECT data, no state block. Any
+  pixel no surface covers shows the sky (a doorway without its door model).
 - Translucent materials without a diffuse stage (`kPackHidden` in the D3TX) are skipped by the
   textured pass until their blend stages compile; untextured passes draw them. The retail gate's
   reference rasterizes the cooked D3WD's own triangles (`world_reference.load_cooked_triangles`),

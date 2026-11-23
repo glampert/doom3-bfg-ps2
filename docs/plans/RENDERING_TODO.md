@@ -2,8 +2,8 @@
 
 Companion to [RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md): the same work as its
 section 19 gates, broken into concrete steps in the proposed order. Opened **2026-11-03**;
-status as of **2026-11-21**: R0 and R1 done but for the hardware probes, R2 in progress (the
-lightmapped, textured world with material passes is done; the sky, streaming and the R2 gate
+status as of **2026-11-23**: R0 and R1 done but for the hardware probes, R2 in progress (the
+lightmapped, textured world with material passes and the sky is done; streaming and the R2 gate
 remain), R3 to R9 not started.
 Tick items as they land; move a step's measurements into the plan's decision log
 (section 20) and its acceptance into [PORT_STATUS.md](../PORT_STATUS.md). Every step keeps
@@ -265,9 +265,20 @@ production link free of test inputs. Section numbers in parentheses point into t
       (2026-11-08): `world_lm.vcl` walks a lit batch a second time after kicking the page's `TEX0`,
       the pages share the texture arena, `ps2_world lightmaps on|off`; the retail gate captures each
       view lit by its lightmaps alone and textured (6.1, 6.3, 8.2).
-- [ ] Runtime: sky program; streaming the EE copies per area ring from the package (10.5),
-      preferably as per-segment texture dictionaries (one read and one allocation per segment,
-      a level-common dictionary, optionally one cooked VRAM layout per segment; 10.5).
+- [x] Sky (2026-11-23, D3TX v4): the cook turns the first sky material's cube map (`texgen skybox`
+      or `wobblesky`) into six one-level faces with the stage's colour; the textured pass draws
+      them as a box around the eye under everything it draws (DIRECT, STQ, clipped on the EE to
+      the guard band), and every sky surface into depth alone before the other batches, so the box
+      shows through them and hides what lies behind. The faces give way to the diffuse textures
+      (PAL's north view leaves the sky out). mars_city1 has no portal sky: its windows use
+      `textures/skies/commoutside`, a camera cube map (10.1, 13.3).
+- [x] Runtime: residency planned per pass (2026-11-23): the scene names the areas a pass draws first,
+      the pass makes their textures and pages resident before drawing and never evicts them, and a
+      view whose new textures do not fit around the resident ones empties the arena and takes them
+      in draw order (a repack); the PAL north view fits only with that packing (10.5).
+- [ ] Runtime: streaming the EE copies per area ring from the package (10.5), preferably as
+      per-segment texture dictionaries (one read and one allocation per segment, a level-common
+      dictionary, optionally one cooked VRAM layout per segment; 10.5).
 - [ ] Pull the declaration-text lever (4.76 MB on demand) before measuring the level ledger
       (16.1).
 - [ ] Gate: mars_city1 camera path; area, portal and node counts and sampled

@@ -190,7 +190,8 @@ reader skips with tangents and the precomputed shadow and silhouette data.
   id's `materials/*.mtr`; `scale` (default 0.5), `min_extent` (64), `max_extent` (256) and
   `min_mip_extent` (8) set the policy; `cavity` (0 to 2, default 0: off) bakes each material's
   bump map into its diffuse at that amplitude, under `cavity_light` (a tangent-space key light,
-  default `[0.3, 0.3, 0.9]`).
+  default `[0.3, 0.3, 0.9]`); `sky_extent` (a power of two from 8 to 256, default 128) sizes the
+  sky box's faces.
 - `lighting` (optional, needs `textures` and the map's containers) bakes the map's static lights
   ([below](#world-lighting)): `script` names the map script inside the containers (light classes
   read it); `light_scale` (r_lightScale, default 3), `luxel_size` (16 units a texel),
@@ -214,10 +215,11 @@ Each image becomes a GSTX v2 file (`assets/gstx_v2.h`, plan 10.4): level 0 is th
 `max_extent` a side; every mip down to `min_mip_extent` is box-filtered from the source; one
 palette serves every level, `PSMT4` when a 16-colour palette keeps RMSE within 3 and every
 channel within 48 over all levels, else `PSMT8`. Materials sharing an image share the file.
-`<name>.d3tx` (D3TX v3, `assets/texture_pack.h`) holds, per D3WD material in its order, a texture
+`<name>.d3tx` (D3TX v4, `assets/texture_pack.h`) holds, per D3WD material in its order, a texture
 index, log2 of the material's UV units per world unit (its UV area over its world area across the
 `.bproc`'s area surfaces, from which the target sets the mip LOD), its alpha test reference and its
-passes, bound to the world by the FNV-1a of the material names, then the files 64-byte aligned.
+passes, bound to the world by the FNV-1a of the material names, the sky, then the files 64-byte
+aligned.
 `--previews DIR` writes each texture's decoded source and cooked level 0 as PNGs.
 
 Material passes (`assets/material_passes.cpp`) are compiled per material and parm set (a merged
@@ -233,12 +235,24 @@ sampled at the diffuse's size and each texel scales by `1 + cavity x (clamp(N.L 
 - 1)`; the texture keeps the format its unbaked image qualifies for. `<name>.textures.json` lists
 each material's passes, skipped stages, alpha reference and whether it was baked.
 
+A material without a diffuse stage whose stage draws a cube map along the view ray (`texgen skybox`
+or `wobblesky` with `cubeMap` or `cameraCubeMap`) is a sky: its surfaces are written as drawing
+the sky (the target writes their depth alone and draws the sky box behind them). The first one
+gives the map's sky: its cube image (`#__0202` for a camera cube, `#__0201` for a native one; id
+stores the six faces already turned into GL's cube order) is decoded face by face and each face
+cooked at `sky_extent` with one level, and its stage colour (parms folded, time at 0) is the
+colour they draw with. A later sky material with another cube map or colour draws the first sky,
+and the report's `sky_notes` names it. Wobblesky's turning is left out.
+
 mars_city1 at the defaults (2026-11-08): 258 textures for 261 of 287 materials (the other 26 have no
 diffuse stage: shadow and stain overlays, the entity GUI; the 25 of them that are translucent are
 written as not drawn textured), 186 `PSMT4` and 72 `PSMT8`, 35 alpha-tested, 1,976,832 bytes of
 VRAM for the whole map; median RMSE 1.3 against each level's resampled source, at most 3.04.
 With material passes and `cavity` 1 (2026-11-21): 289 textures for 313 materials (26 parm
-variants), 200 baked, 48 passes (5 driven by time), 2,063,616 bytes of VRAM.
+variants), 200 baked, 48 passes (5 driven by time), 2,063,616 bytes of VRAM. With the sky
+(2026-11-23): `textures/skies/commoutside` (`cameraCubeMap env/cloudy`, colour 0.75) gives six
+128x128 faces, five `PSMT8` and one `PSMT4`, 95,488 bytes of VRAM; 295 textures, 2,159,104 bytes
+of VRAM, a 2,810,944-byte D3TX.
 
 ### World lighting
 

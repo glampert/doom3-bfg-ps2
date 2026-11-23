@@ -5908,3 +5908,55 @@ The world cook compiles each material into what the PS2 draws, in D3TX v3
 | `make test-renderer` (debug) | Passed (`20261121T103410Z_smoke_8cca1c7356cf44bd` and the expected-fatal probes) |
 | `make test-host` | Passed: 404 Python tests; `texture_format_tests` round-trips D3TX v3 through the cook and the target, refuses bad passes in both, and holds the target's evaluator to the planner and to id's expressions at seven times; `world_tests` and `lighting_tests` cover the parm sets |
 | `make`, `make release` | Passed, no warnings; runnable `PT_LOAD` 5,025,529 debug and 4,255,737 release |
+
+## The sky, and world texture residency planned per pass (2026-11-23)
+
+mars_city1's windows look out through `textures/skies/commoutside`: a `cameraCubeMap env/cloudy`
+stage with `texgen skybox` and colour 0.75, no diffuse stage. They drew in the clear colour (a flat
+blue); they now show the Martian sky. The map has no portal sky, as the plan had assumed.
+
+- **Cook (D3TX v4).** A material without a diffuse stage whose stage reads a cube map along the
+  view ray (`texgen skybox` or `wobblesky`) is a sky. The first one gives the map's sky: its cube
+  BIMAGE (`#__0202`, the six faces id stores already turned into GL's cube order) is decoded face by
+  face and cooked at `sky_extent` (128) with one level, and its stage colour (parms folded, time at
+  0) goes into the D3TX's new sky record. Every sky material is marked `kPackSky`. A host render of
+  the six cooked faces along each pixel's ray puts the south view's horizon where the capture does.
+- **Drawing.** The textured pass draws the box first: per face, the quad of directions through the
+  view-projection without its translation, cut on the EE to the guard band and before the eye's
+  plane, sent as one DIRECT fan with STQ over w, bilinear and clamped, depth untouched. Each sky
+  surface then writes depth alone (`ATST NEVER`, `AFAIL ZB_ONLY`), before every other batch, so the
+  box shows through it and whatever lies behind it stays hidden. Untextured passes draw sky
+  surfaces as before, so the reference captures are unchanged. Every pixel no surface covers now
+  shows the sky instead of the clear colour: the closed doorway and the door frame's edges in the
+  `closed`, `north` and `fly` views, where door models will draw (R4).
+- **Residency.** PAL's north view needs 653,824 of its arena's 655,360 bytes. With the sky's faces
+  in the history, first-fit placement left one 175-block texture without a contiguous hole: 181
+  blocks were free, in five pieces, every other texture pinned by the frame. Before, the view had
+  packed by luck of placement order. Now the scene names a pass's areas first
+  (`world::PlanArea`). The pass makes their textures and pages resident before drawing, in draw
+  order, and never evicts them while it draws. When a view's new textures do not fit, everything
+  the view does not need leaves; if a simulation still finds no room around the textures staying,
+  the arena empties and takes the planned set in order (a repack). Placement is best fit. The
+  sky's faces give way first, even after they drew (their `TEX0` travels in the chain's DIRECT
+  data, no state block), and take only free space or textures the previous pass did not draw: PAL's
+  north view leaves the sky out, as it leaves out its glows.
+- `ps2_world textures status` adds `sky_faces`, `sky_fallbacks` and `repacks`; the retail gate
+  requires some view to draw the sky.
+
+| mars_city1 | Before | Now |
+| --- | --- | --- |
+| Textures (D3TX) | 289 | 295 (six sky faces: five `PSMT8`, one `PSMT4`) |
+| Diffuse, pass and sky VRAM | 2,063,616 | 2,159,104 (+95,488, the faces) |
+| D3TX bytes | 2,713,792 | 2,810,944 |
+| NTSC views, textured | | every texture resident, no eviction; the sky in each view that sees a window |
+| PAL north view | | every diffuse texture and page resident; the sky's faces and the glows left out |
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC `20261123T111244Z_world_retail_5fe8bdf36a5f`, PAL `20261123T111329Z_world_retail_5383c6bea4e0`: every untextured and lightmap-only capture held to its reference; the textured captures checked by eye ([south](images/renderer-world-14-mars_city1-sky-south-ntsc.png), [corridor](images/renderer-world-14-mars_city1-sky-corridor-ntsc.png), [west](images/renderer-world-14-mars_city1-sky-west-ntsc.png)). NTSC's north view: 83 textures resident, no eviction, 13 passes and the sky drawn; PAL's: every diffuse texture and page resident (653,824 of 655,360 bytes), its glows and sky left out |
+| `make test-world` (debug) | NTSC `20261123T111214Z_world_7436a5021450`, PAL `20261123T111223Z_world_bc11df0efbc5` |
+| `make test-renderer` (debug) | Passed (`20261123T111059Z_smoke_8dbf11c31206430d` and the expected-fatal probes) |
+| `make test-ui` (debug) | Sessions `20261123T112006Z_session_d40bd1b69719` (NTSC) and `20261123T112958Z_session_6c2b98f2d7e9` (PAL) and the retail invalid-resource cases passed; the movies case `dialog-alpha-add` met its expected fatal, then PCSX2 died of SIGILL handling the runner's interrupt (the known host fault), and a rerun of every movies case passed |
+| `make test-headless`, `test-headless-retail`, `test-common`, `test-game`, `test-map`, `test-script-image` (debug) | Passed |
+| `make test-host` | Passed: 405 Python tests; `texture_format_tests` round-trips D3TX v4 with a sky and refuses a sky material without one, a face on a lightmap or a missing texture, two skies, and an alpha-tested or passed sky, in the cook and the target; `asset_tests` decodes cube faces |
+| `make`, `make release`, `build-core`, `build-game`, `build-script`, `build-platform` | Passed, no warnings; runnable `PT_LOAD` 5,090,169 debug and 4,263,801 release. `build-platform` had not linked since the debug log mirror (0e95d63) used `fileXioSync`; the core images now link libfileXio |

@@ -684,6 +684,9 @@ struct WorldTextureJob
     TexturePolicy policy;
     // Bump maps baked into the diffuse (off at amplitude 0).
     CavityPolicy cavity;
+    // The sky box's faces: one level of this size, a power of two. The sky is magnified on every
+    // screen (a face spans more than 90 degrees of a 640-pixel view), so mips would never draw.
+    int skyExtent = 128;
 };
 
 static bool ParseTextureJob(const JsonValue & value, WorldTextureJob & output)
@@ -696,7 +699,7 @@ static bool ParseTextureJob(const JsonValue & value, WorldTextureJob & output)
     for (const std::string & key : value.keys)
     {
         if (key != "material_containers" && key != "scale" && key != "min_extent" && key != "max_extent" && key != "min_mip_extent" &&
-            key != "cavity" && key != "cavity_light")
+            key != "cavity" && key != "cavity_light" && key != "sky_extent")
         {
             return Fail("unknown textures field: " + key);
         }
@@ -773,6 +776,18 @@ static bool ParseTextureJob(const JsonValue & value, WorldTextureJob & output)
         (!GetColor(value.Find("cavity_light"), output.cavity.light) || output.cavity.light[2] <= 0.0f))
     {
         return Fail("textures.cavity_light must be three numbers with z above 0");
+    }
+
+    if (const JsonValue * extent = value.Find("sky_extent"))
+    {
+        const int size = extent->IsInteger(8, 256) ? static_cast<int>(extent->number) : 0;
+
+        if (size == 0 || (size & (size - 1)) != 0)
+        {
+            return Fail("textures.sky_extent must be a power of two from 8 to 256");
+        }
+
+        output.skyExtent = size;
     }
 
     output.enabled = true;
@@ -1223,10 +1238,12 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         }
     }
 
-    // Cooks 'image' (a generated BIMAGE name) once per key; 'prepare' adjusts the decoded pixels.
-    // Returns the texture's index, or kD3txNoTexture when the image is unavailable.
+    // Cooks 'image' (a generated BIMAGE name; a cube's 'face') once per key, under the job's policy
+    // or 'custom'; 'prepare' adjusts the decoded pixels. Returns the texture's index, or
+    // kD3txNoTexture when the image is unavailable.
     const auto CookImage = [&](const std::string & key, const std::string & image, const std::string & label, bool & coverage,
-                               const std::function<void(RgbaImage &, bool &, RgbaImage &)> & prepare, std::uint32_t & index) -> bool
+                               const std::function<void(RgbaImage &, bool &, RgbaImage &)> & prepare, std::uint32_t & index, int face = 0,
+                               const TexturePolicy * custom = nullptr) -> bool
     {
         const auto previous = cooked.find(key);
 
@@ -1240,7 +1257,7 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         std::vector<std::uint8_t> bytes;
         RgbaImage pixels;
 
-        if (!catalog.Read(image, bytes, error) || !DecodeBimage(bytes, 0, pixels, error))
+        if (!catalog.Read(image, bytes, error) || !DecodeBimage(bytes, 0, pixels, error, face))
         {
             index = kD3txNoTexture;
             return true;
@@ -1253,7 +1270,7 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         CookedTexture texture;
         std::vector<std::uint8_t> file;
         GstxV2Texture check;
-        TexturePolicy policy = job.policy;
+        TexturePolicy policy = custom != nullptr ? *custom : job.policy;
         policy.formatSource = reference.width > 0 ? &reference : nullptr;
 
         if (!CookTexture(pixels, policy, GstxUsage::Diffuse, texture, error) || !WriteGstxV2(texture.image, file, error) ||
@@ -1289,12 +1306,94 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         }
     };
 
+    // The map's sky: the first sky material's cube map, its six faces cooked at the job's sky size,
+    // and the colour its stage draws them with (parms folded in, time at 0). Every later sky
+    // material draws the same sky; one with another cube map or colour is noted in the report.
+    std::string skyReport = "null";
+    std::string skyNotes;
+    std::string skyCube;
+    std::size_t skyMaterials = 0;
+
+    const auto CookSky = [&](const MaterialInfo & info, const ShaderParms & surfaceParms, const std::string & material) -> bool
+    {
+        const MaterialStage & stage = info.stages[static_cast<std::size_t>(info.skyStage)];
+        const std::string cube = GeneratedImageName(stage.cubeMap, kTextureUsageDefault, stage.cameraCube ? kCubeFilesCamera : kCubeFilesNative);
+        ExpressionInputs inputs;
+        std::copy(surfaceParms.begin(), surfaceParms.end(), inputs.parms.begin());
+        inputs.tables = &tables;
+        std::array<std::uint8_t, 4> color = { 0x80, 0x80, 0x80, 0x80 };
+        bool timed = false;
+
+        for (std::size_t channel = 0; channel < 3; ++channel)
+        {
+            const float value = EvaluateExpression(stage.color[channel], inputs, 1.0f) * 128.0f;
+            color[channel] = static_cast<std::uint8_t>(std::clamp(std::round(value), 0.0f, 255.0f));
+            timed = timed || (ExpressionReads(stage.color[channel]) & kExpressionReadsTime) != 0;
+        }
+
+        if (!pack.skies.empty())
+        {
+            if (cube != skyCube || color != pack.skies.front().color)
+            {
+                skyNotes += std::string(skyNotes.empty() ? "" : ", ") + JsonString(material + " draws the map's first sky, not its own (" + stage.cubeMap + ")");
+            }
+
+            return true;
+        }
+
+        TexturePolicy policy = job.policy;
+        policy.scale = 1.0;
+        policy.minExtent = job.skyExtent;
+        policy.maxExtent = job.skyExtent;
+        policy.minMipExtent = job.skyExtent;
+        D3txSky sky;
+        sky.color = color;
+        const auto opaque = [&Opaque](RgbaImage & pixels, bool &, RgbaImage &)
+        {
+            Opaque(pixels);
+        };
+
+        for (std::size_t face = 0; face < kD3txSkyFaces; ++face)
+        {
+            bool coverage = false;
+            const std::string label = stage.cubeMap + "-face" + std::to_string(face);
+
+            if (!CookImage(cube + "#face" + std::to_string(face), cube, label, coverage, opaque, sky.faces[face], static_cast<int>(face), &policy))
+            {
+                return false;
+            }
+
+            // A cube BIMAGE holds all six faces or fails whole.
+            if (sky.faces[face] == kD3txNoTexture)
+            {
+                return true;
+            }
+        }
+
+        pack.skies.push_back(sky);
+        skyCube = cube;
+        skyReport = "{ \"material\": " + JsonString(material) + ", \"cube\": " + JsonString(cube) + ", \"size\": " + std::to_string(job.skyExtent) +
+                    ", \"faces\": [";
+
+        for (std::size_t face = 0; face < kD3txSkyFaces; ++face)
+        {
+            skyReport += (face == 0 ? "" : ", ") + std::to_string(sky.faces[face]);
+        }
+
+        skyReport += "], \"color\": [" + std::to_string(color[0]) + ", " + std::to_string(color[1]) + ", " + std::to_string(color[2]) + ", " +
+                     std::to_string(color[3]) + "], \"time_fixed\": " + (timed ? "true" : "false") + " }";
+        return true;
+    };
+
     for (std::size_t materialIndex = 0; materialIndex < materials.size(); ++materialIndex)
     {
         const std::string & material = materials[materialIndex];
         const auto found = declared.find(Lowercase(material));
-        const bool hidden = found != declared.end() && found->second.diffuse.empty() && found->second.translucent;
+        // A sky stage on a material without a diffuse one: the sky box shows through its surfaces.
+        const bool sky = found != declared.end() && found->second.skyStage >= 0 && found->second.diffuse.empty();
+        const bool hidden = !sky && found != declared.end() && found->second.diffuse.empty() && found->second.translucent;
         const char * reason = found == declared.end()         ? "undeclared"
+                              : sky                           ? nullptr
                               : hidden                        ? "translucent without a diffuse stage: not drawn textured"
                               : found->second.diffuse.empty() ? "no diffuse stage"
                                                               : nullptr;
@@ -1303,7 +1402,18 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         bool coverage = false;
         bool baked = false;
 
-        if (reason == nullptr)
+        if (sky)
+        {
+            if (!CookSky(found->second, parms[materialIndex], material))
+            {
+                return false;
+            }
+
+            index = pack.skies.empty() ? kD3txNoTexture : kD3txSky;
+            reason = pack.skies.empty() ? "sky images unavailable" : nullptr;
+            skyMaterials += pack.skies.empty() ? 0U : 1U;
+        }
+        else if (reason == nullptr)
         {
             const MaterialInfo & info = found->second;
             plan = PlanMaterialPasses(info, parms[materialIndex], tables);
@@ -1368,7 +1478,7 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         pack.materialFirstPass.push_back(static_cast<std::uint16_t>(pack.passes.size()));
         std::string passes;
 
-        for (const PlannedPass & planned : index < kD3txHidden ? plan.passes : std::vector<PlannedPass>())
+        for (const PlannedPass & planned : index < kD3txSky ? plan.passes : std::vector<PlannedPass>())
         {
             const std::string label = material + " stage " + std::to_string(planned.stage);
             std::uint32_t texture = kD3txNoTexture;
@@ -1525,7 +1635,7 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
     }
 
     const std::size_t textured = static_cast<std::size_t>(std::count_if(pack.materialTextures.begin(), pack.materialTextures.end(),
-                                                                        [](std::uint32_t texture) { return texture < kD3txHidden; }));
+                                                                        [](std::uint32_t texture) { return texture < kD3txSky; }));
     const std::string report = "{\n  \"materials\": " + std::to_string(materials.size()) + ",\n  \"textured_materials\": " +
                                std::to_string(textured) + ",\n  \"textures\": " + std::to_string(pack.textures.size()) + ",\n  \"psmt4\": " +
                                std::to_string(t4) + ",\n  \"vram_bytes\": " + std::to_string(vramBytes) + ",\n  \"cavity_baked\": " +
@@ -1533,10 +1643,12 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
                                std::to_string(dynamicPasses) + ",\n  \"expression_nodes\": " + std::to_string(pack.nodes.size()) +
                                ",\n  \"table_values\": " + std::to_string(pack.tableValues.size()) + ",\n  \"lightmap_pages\": " +
                                std::to_string(pages.size()) + ",\n  \"lightmap_vram_bytes\": " + std::to_string(pageBytes) + ",\n  \"file_bytes\": " +
-                               std::to_string(file.size()) + ",\n  \"texture_list\": [" + textureReport + "\n  ],\n  \"material_passes\": [" +
-                               passReport + "\n  ],\n  \"untextured\": [" + untextured + "\n  ]\n}\n";
+                               std::to_string(file.size()) + ",\n  \"sky\": " + skyReport + ",\n  \"sky_materials\": " +
+                               std::to_string(skyMaterials) + ",\n  \"sky_notes\": [" + skyNotes + "],\n  \"texture_list\": [" + textureReport +
+                               "\n  ],\n  \"material_passes\": [" + passReport + "\n  ],\n  \"untextured\": [" + untextured + "\n  ]\n}\n";
     std::cout << stem << ".d3tx: " << pack.textures.size() << " textures for " << textured << " of " << materials.size() << " materials ("
-              << cavities << " with cavity), " << pack.passes.size() << " passes (" << dynamicPasses << " driven by time), " << vramBytes
+              << cavities << " with cavity, " << skyMaterials << " showing the sky" << (pack.skies.empty() ? "" : " box") << "), "
+              << pack.passes.size() << " passes (" << dynamicPasses << " driven by time), " << vramBytes
               << " bytes of VRAM, " << pages.size() << " lightmap pages (" << pageBytes << " bytes), " << file.size() << " bytes\n";
     return WriteFile(output / (stem + ".textures.json"), report.data(), report.size());
 }

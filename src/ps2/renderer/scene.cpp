@@ -90,6 +90,13 @@ int EntityArea(const idRenderWorldLocal & renderWorld, const viewEntity_t & enti
     return owned ? area : -1;
 }
 
+// The area a view entity draws: an area model in view (an empty scissor lists it for shadows alone)
+// of a cooked world, or -1.
+int DrawnArea(const idRenderWorldLocal & renderWorld, const world::Level * level, const viewEntity_t & entity)
+{
+    return level != nullptr && !entity.scissorRect.IsEmpty() ? EntityArea(renderWorld, entity) : -1;
+}
+
 // Builds the decals projected onto a visible entity since it was last seen (R_AddSingleModel's
 // step): ProjectDecalOntoWorld only queues them, and a queued decal times out unseen.
 void CreateDecals(const viewEntity_t & entity)
@@ -161,7 +168,38 @@ void RenderView(const viewDef_t & view)
     stats.areas = 0;
     stats.batches = 0;
 
+    // The areas drawn, planned in the order they draw (their textures go in first), and whether any
+    // shows the sky: the sky box goes under the whole pass, and every sky surface's depth before any
+    // other batch.
     bool drawing = false;
+    bool sky = false;
+
+    for (const viewEntity_t * entity = view.viewEntitys; entity != nullptr; entity = entity->next)
+    {
+        const int area = DrawnArea(renderWorld, level, *entity);
+
+        if (area >= 0)
+        {
+            drawing = true;
+            sky = world::PlanArea(*level, static_cast<u32>(area)) || sky;
+        }
+    }
+
+    if (drawing)
+    {
+        // World surfaces are time group 0 (renderEntity_t::timeGroup), in milliseconds.
+        world::BeginPass(*level, ViewProjection(view), static_cast<float>(view.renderView.time[0]) * 0.001f, sky);
+    }
+
+    for (const viewEntity_t * entity = view.viewEntitys; entity != nullptr && sky; entity = entity->next)
+    {
+        const int area = DrawnArea(renderWorld, level, *entity);
+
+        if (area >= 0)
+        {
+            world::DrawAreaSky(*level, static_cast<u32>(area));
+        }
+    }
 
     for (const viewEntity_t * entity = view.viewEntitys; entity != nullptr; entity = entity->next)
     {
@@ -173,18 +211,11 @@ void RenderView(const viewDef_t & view)
             CreateDecals(*entity);
         }
 
-        const int area = level != nullptr && !entity->scissorRect.IsEmpty() ? EntityArea(renderWorld, *entity) : -1;
+        const int area = DrawnArea(renderWorld, level, *entity);
 
         if (area < 0)
         {
             continue;
-        }
-
-        if (!drawing)
-        {
-            // World surfaces are time group 0 (renderEntity_t::timeGroup), in milliseconds.
-            world::BeginPass(*level, ViewProjection(view), static_cast<float>(view.renderView.time[0]) * 0.001f);
-            drawing = true;
         }
 
         world::DrawArea(*level, static_cast<u32>(area));

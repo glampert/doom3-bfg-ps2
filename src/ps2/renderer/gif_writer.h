@@ -58,6 +58,21 @@ public:
         ++m_ptr;
     }
 
+    // One A+D tag for the next 'count' Ad writes, which cost a qword each where SetRegister costs two.
+    void BeginAd(int count)
+    {
+        EnsureSpace(count + 1);
+        PACK_GIFTAG(m_ptr, GIF_SET_TAG(static_cast<u32>(count), 0, 0, 0, GIF_FLG_PACKED, 1), GIF_REG_AD);
+        ++m_ptr;
+    }
+
+    void Ad(u64 reg, u64 data)
+    {
+        EnsureSpace(1);
+        PACK_GIFTAG(m_ptr, data, reg);
+        ++m_ptr;
+    }
+
     void SetupEnvironment(int context, framebuffer_t & frame, zbuffer_t & depth)
     {
         // Audited ps2sdk draw.c: one tag and fifteen A+D writes. Re-audit on SDK changes.

@@ -64,19 +64,22 @@ struct Image
 // checked only in assertion builds (corrupt texels cannot hang the GIF; every tag is checked).
 PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_t bytes, Image & output);
 
-// A map's texture package (D3TX v3, src/tools/assets/texture_pack.h), validated in place: the
-// material, pass, texture, lightmap page, expression node and table value tables, then each
+// A map's texture package (D3TX v4, src/tools/assets/texture_pack.h), validated in place: the
+// material, pass, texture, lightmap page, expression node, table value and sky tables, then each
 // texture validated as an Image. 64-byte aligned like the D3WD.
 static constexpr std::uint32_t kPackMagic = 0x58543344;
-static constexpr std::uint32_t kPackVersion = 3;
-static constexpr std::uint32_t kPackConverterVersion = 3;
-static constexpr std::uint32_t kPackHeaderBytes = 48;
+static constexpr std::uint32_t kPackVersion = 4;
+static constexpr std::uint32_t kPackConverterVersion = 4;
+static constexpr std::uint32_t kPackHeaderBytes = 52;
 static constexpr std::uint32_t kPackMaterialBytes = 16;
 static constexpr std::uint32_t kPackPassBytes = 24;
 static constexpr std::uint32_t kPackTextureBytes = 16;
 static constexpr std::uint32_t kPackPageBytes = 4;
 static constexpr std::uint32_t kPackNodeBytes = 12;
 static constexpr std::uint32_t kPackValueBytes = 4;
+static constexpr std::uint32_t kPackSkyBytes = 32;
+static constexpr std::uint32_t kPackMaxSkies = 1;
+static constexpr std::uint32_t kPackSkyFaces = 6;
 static constexpr std::uint32_t kPackAlignment = 64;
 static constexpr std::uint32_t kPackMaxMaterials = 4096;
 static constexpr std::uint32_t kPackMaxTextures = 4096;
@@ -89,6 +92,8 @@ static constexpr std::uint32_t kPackMaxFileBytes = 16U * 1024U * 1024U;
 static constexpr std::uint32_t kPackNoTexture = 0xFFFFFFFFU;
 // Translucent without a diffuse stage: the textured pass leaves it to the material's own stages.
 static constexpr std::uint32_t kPackHidden = 0xFFFFFFFEU;
+// A sky surface: the textured pass writes its depth alone, and the sky box behind shows through.
+static constexpr std::uint32_t kPackSky = 0xFFFFFFFDU;
 static constexpr std::uint32_t kPackFlagAlphaTest = 1U;
 // A Light8 page: usage Lightmap, named by the page table, never by a material.
 static constexpr std::uint32_t kPackFlagLightmap = 2U;
@@ -126,7 +131,7 @@ enum class PackOp : std::uint8_t
 
 struct PackMaterial
 {
-    std::uint32_t texture;  // kPackNoTexture: drawn untextured; kPackHidden: not drawn textured
+    std::uint32_t texture;  // kPackNoTexture: drawn untextured; kPackHidden: not drawn textured; kPackSky: depth only
     float uvDensityLog2;    // log2 of UV units per world unit
     std::uint16_t firstPass;
     std::uint8_t passCount;
@@ -166,8 +171,17 @@ struct PackNode
     float value;         // Constant
 };
 
+// The sky box: its faces in GL's cube order (+X, -X, +Y, -Y, +Z, -Z in id's world axes) and the
+// colour they draw with.
+struct PackSky
+{
+    std::uint32_t faces[kPackSkyFaces];
+    std::uint8_t color[4]; // 0x80 = 1.0
+    std::uint32_t reserved;
+};
+
 static_assert(sizeof(PackMaterial) == kPackMaterialBytes && sizeof(PackPass) == kPackPassBytes && sizeof(PackTexture) == kPackTextureBytes &&
-              sizeof(PackNode) == kPackNodeBytes);
+              sizeof(PackNode) == kPackNodeBytes && sizeof(PackSky) == kPackSkyBytes);
 
 struct Pack
 {
@@ -178,12 +192,14 @@ struct Pack
     std::uint32_t passCount;
     std::uint32_t nodeCount;
     std::uint32_t valueCount;
+    std::uint32_t skyCount;
     const PackMaterial * materials;
     const PackPass * passes;
     const PackTexture * textures;
     const std::uint32_t * pages; // the texture of each D3WD lightmap page
     const PackNode * nodes;
     const float * values;
+    const PackSky * sky; // null without one
 };
 
 // Evaluates a validated pass's nodes at 'time' (seconds) into 'registers' (its nodeCount of them),

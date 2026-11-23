@@ -339,7 +339,7 @@ bool ParseBimage(std::span<const std::uint8_t> bytes, BimageInfo & output, std::
     return true;
 }
 
-bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & output, std::string & error)
+bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & output, std::string & error, int face)
 {
     BimageInfo info;
 
@@ -348,9 +348,11 @@ bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & ou
         return false;
     }
 
-    if (info.textureType != 1)
+    const int faces = info.textureType == 2 ? 6 : 1;
+
+    if (face < 0 || face >= faces)
     {
-        error = "unsupported BIMAGE decode: cube texture";
+        error = "invalid BIMAGE decode face";
         return false;
     }
 
@@ -375,7 +377,8 @@ bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & ou
         return false;
     }
 
-    const BimageLevel & mip = info.mips[static_cast<std::size_t>(level)];
+    // ParseBimage sorts the levels by level, then face.
+    const BimageLevel & mip = info.mips[static_cast<std::size_t>(level * faces + face)];
     RgbaImage image;
     image.Allocate(mip.width, mip.height);
 

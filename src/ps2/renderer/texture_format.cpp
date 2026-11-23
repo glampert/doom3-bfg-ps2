@@ -423,7 +423,7 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     if (bytes < kPackHeaderBytes || bytes > kPackMaxFileBytes || Word(file) != kPackMagic || Half(file + 4) != kPackVersion ||
         Half(file + 6) != kPackHeaderBytes || Word(file + 20) != bytes || Word(file + 28) != kPackConverterVersion) [[unlikely]]
     {
-        return "not a D3TX v3 file";
+        return "not a D3TX v4 file";
     }
 
     Pack pack = {};
@@ -434,10 +434,11 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     pack.passCount = Word(file + 36);
     pack.nodeCount = Word(file + 40);
     pack.valueCount = Word(file + 44);
+    pack.skyCount = Word(file + 48);
 
     if (pack.materialCount > kPackMaxMaterials || pack.textureCount > kPackMaxTextures || pack.pageCount > kPackMaxPages ||
         pack.textureCount > imageCapacity || pack.passCount > kPackMaxPasses || pack.nodeCount > kPackMaxNodes ||
-        pack.valueCount > kPackMaxValues) [[unlikely]]
+        pack.valueCount > kPackMaxValues || pack.skyCount > kPackMaxSkies) [[unlikely]]
     {
         return "D3TX tables out of range";
     }
@@ -447,9 +448,10 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     const std::uint32_t pagesAt = texturesAt + kPackTextureBytes * pack.textureCount;
     const std::uint32_t nodesAt = pagesAt + kPackPageBytes * pack.pageCount;
     const std::uint32_t valuesAt = nodesAt + kPackNodeBytes * pack.nodeCount;
-    const std::uint32_t tablesEnd = valuesAt + kPackValueBytes * pack.valueCount;
+    const std::uint32_t skiesAt = valuesAt + kPackValueBytes * pack.valueCount;
+    const std::uint32_t tablesEnd = skiesAt + kPackSkyBytes * pack.skyCount;
 
-    // Node records are 12 bytes: the values after them stay 4-byte aligned.
+    // Node records are 12 bytes: the values and the sky after them stay 4-byte aligned.
     if (tablesEnd > bytes) [[unlikely]]
     {
         return "D3TX tables out of range";
@@ -470,6 +472,7 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     pack.pages = static_cast<const std::uint32_t *>(static_cast<const void *>(file + pagesAt));
     pack.nodes = static_cast<const PackNode *>(static_cast<const void *>(file + nodesAt));
     pack.values = static_cast<const float *>(static_cast<const void *>(file + valuesAt));
+    pack.sky = pack.skyCount != 0 ? static_cast<const PackSky *>(static_cast<const void *>(file + skiesAt)) : nullptr;
 
     for (std::uint32_t index = 0; index < pack.textureCount; ++index)
     {
@@ -483,12 +486,27 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
         }
     }
 
+    if (pack.sky != nullptr)
+    {
+        for (std::uint32_t face = 0; face < kPackSkyFaces; ++face)
+        {
+            const std::uint32_t texture = pack.sky->faces[face];
+
+            if (texture >= pack.textureCount || (pack.textures[texture].flags & kPackFlagLightmap) != 0 || pack.sky->reserved != 0) [[unlikely]]
+            {
+                return "D3TX sky record out of range";
+            }
+        }
+    }
+
     for (std::uint32_t index = 0; index < pack.materialCount; ++index)
     {
         const PackMaterial & material = pack.materials[index];
-        const bool textured = material.texture != kPackNoTexture && material.texture != kPackHidden;
+        const bool textured = material.texture != kPackNoTexture && material.texture != kPackHidden && material.texture != kPackSky;
+        const bool sky = material.texture == kPackSky;
 
         if ((textured && (material.texture >= pack.textureCount || (pack.textures[material.texture].flags & kPackFlagLightmap) != 0)) ||
+            (sky && (pack.sky == nullptr || material.alphaRef != 0)) ||
             !(material.uvDensityLog2 >= -64.0f && material.uvDensityLog2 <= 64.0f) || material.alphaRef > kPackMaxAlphaRef ||
             material.passCount > kPackMaxPassesPerMaterial || static_cast<std::uint32_t>(material.firstPass) + material.passCount > pack.passCount ||
             (material.passCount != 0 && !textured) || material.reserved != 0) [[unlikely]]

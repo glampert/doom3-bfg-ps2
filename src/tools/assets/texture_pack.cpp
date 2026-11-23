@@ -2,8 +2,8 @@
 // File: texture_pack.cpp
 // Brief: Cook a level's world textures into GSTX v2 images (power-of-two levels, box-filtered mips,
 // PSMT4 where its palette is good enough, PSMT8 otherwise), bake bump maps into them as cavity
-// shading, and pack them with the materials' passes into D3TX v3, indexed by the D3WD's material
-// order.
+// shading, and pack them with the materials' passes and the sky's faces into D3TX v4, indexed by
+// the D3WD's material order.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -184,6 +184,7 @@ struct D3txCounts
     std::size_t pages = 0;
     std::size_t nodes = 0;
     std::size_t values = 0;
+    std::size_t skies = 0;
 };
 
 static std::size_t PassesAt(const D3txCounts & counts)
@@ -211,9 +212,14 @@ static std::size_t ValuesAt(const D3txCounts & counts)
     return NodesAt(counts) + kD3txNodeRecordBytes * counts.nodes;
 }
 
-static std::size_t TablesEnd(const D3txCounts & counts)
+static std::size_t SkiesAt(const D3txCounts & counts)
 {
     return ValuesAt(counts) + kD3txValueRecordBytes * counts.values;
+}
+
+static std::size_t TablesEnd(const D3txCounts & counts)
+{
+    return SkiesAt(counts) + kD3txSkyRecordBytes * counts.skies;
 }
 
 static std::uint32_t FloatBits(float value)
@@ -401,9 +407,20 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
     if (materials > kD3txMaxMaterials || pack.textures.size() > kD3txMaxTextures || pack.textureFlags.size() != pack.textures.size() ||
         pack.materialUvDensity.size() != materials || pack.materialAlphaRef.size() != materials || pack.materialFirstPass.size() != materials ||
         pack.materialPassCount.size() != materials || pack.lightmapPages.size() > kD3txMaxPages || pack.passes.size() > kD3txMaxPasses ||
-        pack.nodes.size() > kD3txMaxNodes || pack.tableValues.size() > kD3txMaxValues)
+        pack.nodes.size() > kD3txMaxNodes || pack.tableValues.size() > kD3txMaxValues || pack.skies.size() > kD3txMaxSkies)
     {
         return Fail(error, "D3TX table sizes out of range");
+    }
+
+    for (const D3txSky & sky : pack.skies)
+    {
+        for (const std::uint32_t face : sky.faces)
+        {
+            if (face >= pack.textures.size() || (pack.textureFlags[face] & kD3txFlagLightmap) != 0)
+            {
+                return Fail(error, "D3TX sky names a missing texture or a lightmap");
+            }
+        }
     }
 
     for (std::size_t index = 0; index < materials; ++index)
@@ -417,15 +434,20 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
             return Fail(error, "D3TX material density out of range");
         }
 
-        if (texture != kD3txNoTexture && texture != kD3txHidden &&
+        if (texture != kD3txNoTexture && texture != kD3txHidden && texture != kD3txSky &&
             (texture >= pack.textures.size() || (pack.textureFlags[texture] & kD3txFlagLightmap) != 0))
         {
             return Fail(error, "D3TX material names a missing texture or a lightmap");
         }
 
+        if (texture == kD3txSky && (pack.skies.empty() || pack.materialAlphaRef[index] != 0))
+        {
+            return Fail(error, "D3TX material " + std::to_string(index) + " draws a sky the package lacks, or alpha-tests one");
+        }
+
         // Passes draw over a textured base pass, which a material without a texture lacks.
         if (pack.materialAlphaRef[index] > kD3txMaxAlphaRef || pack.materialPassCount[index] > kD3txMaxPassesPerMaterial ||
-            passEnd > pack.passes.size() || (pack.materialPassCount[index] != 0 && texture >= kD3txHidden))
+            passEnd > pack.passes.size() || (pack.materialPassCount[index] != 0 && texture >= kD3txSky))
         {
             return Fail(error, "D3TX material " + std::to_string(index) + " has a bad alpha reference or pass range");
         }
@@ -477,6 +499,7 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
     counts.pages = pack.lightmapPages.size();
     counts.nodes = pack.nodes.size();
     counts.values = pack.tableValues.size();
+    counts.skies = pack.skies.size();
     std::size_t offset = Align(TablesEnd(counts), kD3txAlignment);
     std::vector<std::size_t> offsets;
 
@@ -505,6 +528,7 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
     WriteLe32(bytes + 36, static_cast<std::uint32_t>(counts.passes));
     WriteLe32(bytes + 40, static_cast<std::uint32_t>(counts.nodes));
     WriteLe32(bytes + 44, static_cast<std::uint32_t>(counts.values));
+    WriteLe32(bytes + 48, static_cast<std::uint32_t>(counts.skies));
 
     for (std::size_t index = 0; index < materials; ++index)
     {
@@ -564,6 +588,19 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
         WriteLe32(bytes + ValuesAt(counts) + kD3txValueRecordBytes * index, FloatBits(pack.tableValues[index]));
     }
 
+    for (std::size_t index = 0; index < pack.skies.size(); ++index)
+    {
+        const D3txSky & sky = pack.skies[index];
+        std::uint8_t * record = bytes + SkiesAt(counts) + kD3txSkyRecordBytes * index;
+
+        for (std::size_t face = 0; face < kD3txSkyFaces; ++face)
+        {
+            WriteLe32(record + 4 * face, sky.faces[face]);
+        }
+
+        std::memcpy(record + 24, sky.color.data(), 4);
+    }
+
     WriteLe32(bytes + 24, Fnv1a32({ bytes, TablesEnd(counts) }));
     return true;
 }
@@ -573,7 +610,7 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
     if (bytes.size() < kD3txHeaderBytes || ReadLe32(bytes.data()) != kD3txMagic || ReadLe16(bytes.data() + 4) != kD3txVersion ||
         ReadLe16(bytes.data() + 6) != kD3txHeaderBytes || ReadLe32(bytes.data() + 28) != kD3txConverterVersion)
     {
-        return Fail(error, "not a D3TX v3 file");
+        return Fail(error, "not a D3TX v4 file");
     }
 
     D3txCounts counts;
@@ -583,9 +620,10 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
     counts.passes = ReadLe32(bytes.data() + 36);
     counts.nodes = ReadLe32(bytes.data() + 40);
     counts.values = ReadLe32(bytes.data() + 44);
+    counts.skies = ReadLe32(bytes.data() + 48);
 
     if (counts.materials > kD3txMaxMaterials || counts.textures > kD3txMaxTextures || counts.pages > kD3txMaxPages ||
-        counts.passes > kD3txMaxPasses || counts.nodes > kD3txMaxNodes || counts.values > kD3txMaxValues ||
+        counts.passes > kD3txMaxPasses || counts.nodes > kD3txMaxNodes || counts.values > kD3txMaxValues || counts.skies > kD3txMaxSkies ||
         ReadLe32(bytes.data() + 20) != bytes.size() || TablesEnd(counts) > bytes.size())
     {
         return Fail(error, "D3TX sizes out of range");
@@ -675,6 +713,20 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
     for (std::size_t index = 0; index < counts.values; ++index)
     {
         pack.tableValues.push_back(BitsFloat(ReadLe32(bytes.data() + ValuesAt(counts) + kD3txValueRecordBytes * index)));
+    }
+
+    for (std::size_t index = 0; index < counts.skies; ++index)
+    {
+        const std::uint8_t * record = bytes.data() + SkiesAt(counts) + kD3txSkyRecordBytes * index;
+        D3txSky sky;
+
+        for (std::size_t face = 0; face < kD3txSkyFaces; ++face)
+        {
+            sky.faces[face] = ReadLe32(record + 4 * face);
+        }
+
+        std::memcpy(sky.color.data(), record + 24, 4);
+        pack.skies.push_back(sky);
     }
 
     // Canonical: the writer rebuilds exactly these bytes, padding and order included.

@@ -401,6 +401,33 @@ static std::vector<std::uint8_t> Bimage(int format, int colorFormat, const std::
     return bytes;
 }
 
+// A 4x4 DXT1 cube with one level: face N a single colour, red with N in its low blue bits.
+static std::vector<std::uint8_t> CubeBimage()
+{
+    std::vector<std::uint8_t> bytes(8, 0);
+    PutBe32(bytes, 0x0A4D4942);
+    PutBe32(bytes, 2);
+    PutBe32(bytes, static_cast<std::uint32_t>(kBimageFormatDxt1));
+    PutBe32(bytes, static_cast<std::uint32_t>(kBimageColorDefault));
+    PutBe32(bytes, 4);
+    PutBe32(bytes, 4);
+    PutBe32(bytes, 1);
+
+    for (std::uint32_t face = 0; face < 6; ++face)
+    {
+        PutBe32(bytes, 0);
+        PutBe32(bytes, face);
+        PutBe32(bytes, 4);
+        PutBe32(bytes, 4);
+        PutBe32(bytes, 8);
+        const std::uint8_t low = static_cast<std::uint8_t>(face);
+        const std::vector<std::uint8_t> block = { low, 0xF8, low, 0xF8, 0, 0, 0, 0 };
+        bytes.insert(bytes.end(), block.begin(), block.end());
+    }
+
+    return bytes;
+}
+
 static bool Images()
 {
     // DXT1: red/blue endpoints in four-color mode; texel indices 0, 1, 2, 3 on the first row.
@@ -446,6 +473,12 @@ static bool Images()
     bad[8] ^= 1;
     std::vector<std::uint8_t> trailing = Bimage(kBimageFormatDxt1, kBimageColorDefault, dxt1);
     trailing.push_back(0);
+    // A cube's faces decode one at a time, in the order stored; a 2D image has face 0 alone.
+    passed = passed && Check(DecodeBimage(CubeBimage(), 0, image, error, 3) && image.width == 4 && image.At(2, 2)[0] == 255 &&
+                                 image.At(2, 2)[2] == 24 && DecodeBimage(CubeBimage(), 0, image, error, 0) && image.At(0, 0)[2] == 0,
+                             "cube faces decode") &&
+             Check(!DecodeBimage(CubeBimage(), 0, image, error, 6) && !DecodeBimage(Bimage(kBimageFormatDxt1, kBimageColorDefault, dxt1), 0, image, error, 1),
+                   "faces past the image refused");
     return passed && Check(!DecodeBimage(bad, 0, image, error), "bad BIMAGE magic") &&
            Check(!DecodeBimage(trailing, 0, image, error), "trailing BIMAGE bytes") &&
            Check(!DecodeBimage(Bimage(1, kBimageColorDefault, std::vector<std::uint8_t>(64)), 0, image, error), "uncompressed decode refused");

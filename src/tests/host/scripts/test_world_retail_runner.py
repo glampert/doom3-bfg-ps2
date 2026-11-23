@@ -37,7 +37,7 @@ GRATE_DECAL = {"entities": 1, "decals": 1, "vertices": 4, "triangles": 2, "area"
 
 # A lit pass that held every texture and lightmap page it needed.
 TEXTURES = {"enabled": 1, "arena": 1064960, "resident": 42, "resident_bytes": 500480, "uploads": 42, "evictions": 0, "fallbacks": 0,
-            "lightmaps": 1, "pages": 2, "unlit": 0, "passes": 12, "pass_fallbacks": 0}
+            "lightmaps": 1, "pages": 2, "unlit": 0, "passes": 12, "pass_fallbacks": 0, "sky_faces": 20, "sky_fallbacks": 0, "repacks": 0}
 
 
 def textures_line(**fields):
@@ -194,6 +194,13 @@ class RetailWorldRunnerTests(unittest.TestCase):
                 self.assertFalse(passed)
                 self.assertIn("north", reason)
         self.assertFalse(classify(session() + "[    1.0000] [D3BFG] FATAL boom\n")[0])
+
+    def test_textured_pass_must_draw_the_sky(self):
+        passed, reason, _ = classify(session(textures={view.name: {"sky_faces": 0} for view in runner.VIEWS}))
+        self.assertFalse(passed)
+        self.assertIn("sky", reason)
+        # A view that leaves the sky out for its diffuse textures is fine.
+        self.assertTrue(classify(session(textures={"north": {"sky_faces": 0, "sky_fallbacks": 5}}))[0])
 
     def test_closed_view_brackets_its_portal(self):
         commands = {view.name: runner.view_commands(IDENTITY, view) for view in runner.VIEWS}

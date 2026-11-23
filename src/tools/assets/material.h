@@ -134,6 +134,12 @@ struct MaterialStage
     // An image no cooked texture stands for: a cube map, texgen, a video, sound or render map, or a
     // vertex or fragment program.
     bool special = false;
+    // 'cubeMap X' or 'cameraCubeMap X': the image, and whether it is a camera cube (id's six
+    // _forward.._down files, which it turns into GL's faces before storing them).
+    std::string cubeMap;
+    bool cameraCube = false;
+    // 'texgen X', lowercase: "skybox", "wobblesky", "reflect" or "screen"; empty for none.
+    std::string texgen;
     // 'if': the stage draws while it is non-zero.
     MaterialExpression condition;
     // RGBA registers ('colored' is parm0..3); empty ones are 1.
@@ -153,6 +159,8 @@ struct MaterialInfo
     std::string bump;
     // Stages that are neither diffuse, bump nor specular (blend, add, filter and the like).
     int otherStages = 0;
+    // The first stage that draws a sky (texgen skybox or wobblesky over a cube map), or -1.
+    int skyStage = -1;
     // An interaction stage (diffuse, bump or specular): lights reach the surface.
     bool lit = false;
     // idMaterial::SurfaceCastsShadow: 'forceShadows', or neither 'noShadows', a sprite, tube or
@@ -179,9 +187,14 @@ struct MaterialInfo
 bool ScanMaterials(std::string_view text, std::map<std::string, MaterialInfo> & materials, std::string & error,
                    MaterialTables * tables = nullptr);
 
+// cubeFiles_t (Image.h): the two digits after the usage.
+static constexpr int kCubeFiles2d = 0;
+static constexpr int kCubeFilesNative = 1;
+static constexpr int kCubeFilesCamera = 2;
+
 // The resource id reads for an image loaded with 'usage' (idImage::GetGeneratedName, then
-// idBinaryImage::GetGeneratedFileName): "generated/images/<name>#__UU00.bimage", the name lowercased
-// without its extension, '(' and ',' as '/', ')' and spaces dropped.
-std::string GeneratedImageName(const std::string & image, int usage);
+// idBinaryImage::GetGeneratedFileName): "generated/images/<name>#__UUCC.bimage", CC the cube files,
+// the name lowercased without its extension, '(' and ',' as '/', ')' and spaces dropped.
+std::string GeneratedImageName(const std::string & image, int usage, int cube = kCubeFiles2d);
 
 } // namespace assets

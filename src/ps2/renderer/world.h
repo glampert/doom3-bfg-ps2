@@ -53,13 +53,19 @@ PS2_COLD_FUNC void Unload(Level & level);
 // near plane. The world programs take their drawing tags from each batch's state.
 vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::DrawContext context);
 
-// The world pass inside the open renderer frame: BeginPass sets the frame constants, the depth
-// test and the level's program once (world_lm.vusl, or world_strips.vusl for a plain-strips cook),
-// DrawArea sends every batch of one area after its texture state (uploading textures as they
-// become needed) and queues those whose materials draw additive passes; EndPass draws the queued
-// passes, once every area's diffuse textures hold the arena, and starts the last batch. 'time' (seconds,
-// the view's) drives the material passes' registers.
-void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time);
+// The world pass inside the open renderer frame. PlanArea first names each area the pass will draw,
+// in its order: their textures and lightmap pages become resident at BeginPass, before anything
+// draws, and none is evicted during the pass. BeginPass sets the frame constants, draws the sky
+// box when 'sky' (a planned area shows the sky), then the depth test and the level's program once
+// (world_lm.vusl, or world_strips.vusl for a plain-strips cook). DrawAreaSky writes the
+// depth of one area's sky surfaces, for every such area before any DrawArea, so whatever lies
+// behind a sky surface stays hidden. DrawArea sends every other batch of one area after its texture
+// state (uploading textures as they become needed) and queues those whose materials draw additive
+// passes; EndPass draws the queued passes, once every area's diffuse textures hold the arena, and
+// starts the last batch. 'time' (seconds, the view's) drives the material passes' registers.
+bool PlanArea(const Level & level, u32 area); // whether the textured pass draws sky surfaces in it
+void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time, bool sky = false);
+void DrawAreaSky(const Level & level, u32 area);
 void DrawArea(const Level & level, u32 area);
 void EndPass();
 

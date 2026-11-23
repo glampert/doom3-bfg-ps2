@@ -53,10 +53,12 @@ struct BimageInfo
 // formats, inconsistent dimensions, duplicate levels, wrong payload sizes and trailing bytes fail.
 bool ParseBimage(std::span<const std::uint8_t> bytes, BimageInfo & output, std::string & error);
 
-// Decodes one 2D level of the encodings retail ships (texture_census.py): DXT1/DXT5 as stored,
+// Decodes one level of the encodings retail ships (texture_census.py): DXT1/DXT5 as stored,
 // green-alpha as white RGB with the coverage in alpha (gl_Image.cpp's swizzle), YCoCg DXT5 to RGB
 // with alpha 255 (ConvertCoCgSYToRGB), normal-map DXT5 to the normal as RGB (0..255 for -1..1,
 // Z rebuilt) with alpha 255, and big-endian RGB565 to RGB with alpha 255. Other formats are refused.
-bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & output, std::string & error);
+// A cube texture's 'face' is GL's (+X, -X, +Y, -Y, +Z, -Z: the order id uploads and stores them in,
+// camera cube maps already turned into it); a 2D texture has face 0 alone.
+bool DecodeBimage(std::span<const std::uint8_t> bytes, int level, RgbaImage & output, std::string & error, int face = 0);
 
 } // namespace assets
