@@ -370,7 +370,10 @@ def stage_retail_world(build: str, output: Path, standard: str, catalog: Path, w
     materials = package / "base/materials"
     materials.mkdir(parents=True, exist_ok=True)
     # Without stages id refuses the stand-ins decals, which the opaque retail materials accept.
-    (materials / "world_stand_in.mtr").write_text("".join(f"{name} {{ solid collision forceOverlays }}\n" for name in report["material_names"]))
+    # The report lists a material once per parm variant; id names declarations case-insensitively.
+    seen = set()
+    names = [name for name in report["material_names"] if not (name.lower() in seen or seen.add(name.lower()))]
+    (materials / "world_stand_in.mtr").write_text("".join(f"{name} {{ solid collision forceOverlays }}\n" for name in names))
     maps = package / "base" / Path(MAP).parent
     maps.mkdir(parents=True, exist_ok=True)
     shutil.copy2(world, maps / world.name)
