@@ -9,7 +9,6 @@ the gate you are changing or diagnosing:
 | `test-renderer`, `run-renderer`, `test-host`, `test-platform`, `test-core`, `test-script`, `test-common` | [core.md](../../docs/testing/core.md) |
 | `test-headless`, `test-headless-retail`, `test-script-image`, `test-ui` (every step), `test-world`, `test-world-retail`, input devices | [production.md](../../docs/testing/production.md) |
 | `test-game`, `test-map` | [game.md](../../docs/testing/game.md) |
-| Quake II reference: PCSX2 storage (USB/HDD images), full crash triage, host harness recipes | [quake2-reference.md](../../docs/testing/quake2-reference.md) |
 
 Run IDs, captures and measured budgets are in [PORT_STATUS](../../docs/PORT_STATUS.md);
 memory figures in [memory-budget.md](memory-budget.md).
@@ -70,6 +69,8 @@ memory figures in [memory-budget.md](memory-budget.md).
   `[Logging] EnableIOPConsole = true` (EE stdout goes through IOP fio) and
   `EnableFileLogging = true`. **Edit it only while PCSX2 is closed**; it rewrites the file
   on exit. Every launch overwrites `logs/emulog.txt`.
+- Memory card slot 1 is `~/Library/Application Support/PCSX2/memcards/Mcd001.ps2`;
+  `Slot1_Enable = false` in the ini simulates no card.
 - `[USB1] Type = hidkbd` attaches the host keyboard (reported as JIS; it sends HID `0x34`
   for `` ` ``). Its `Missing host mapping for QKey` warnings are harmless.
 - PCSX2 2.6.3 exits with status 1 for `-version` and `-help`; the runner accepts that for
@@ -92,8 +93,8 @@ memory figures in [memory-budget.md](memory-budget.md).
   < log` resolves the whole trace. The runners stop the emulator at the FATAL line.
 - **Known flake, never game code:** one to three `TLB Miss, pc=<same> addr=0x10|0x18`
   lines in `_request_end` (ps2sdk `sifrpc.c`) during `host:` I/O, or a wild `pc` below
-  `.text`. One HostFs RPC completed twice. **Re-run before investigating.** Details and
-  the disassembly recipe are in [quake2-reference.md](../../docs/testing/quake2-reference.md#crash-triage).
+  `.text`. One HostFs RPC completed twice. **Re-run before investigating.** Details are in
+  the [developer guide](../../docs/DEVELOPMENT.md#smoke-tests-and-diagnostics).
 - A null load/store in PCSX2 logs `TLB Miss ... [store]` and skips the access without
   raising an exception; use `teq $zero, $zero` to test an exception path.
 

@@ -561,6 +561,16 @@ instruction. Production's `ps2_crash fatal|assert|trap|null` raises each kind; P
 trap but skips the null store, which faults on a console. Release builds compile none of it and
 keep `Exit(1)`; their link is unchanged.
 
+**The HostFs flake (PCSX2, seen in `quake2-ps2`).** A `TLB Miss` in `_request_end` (ps2sdk
+`sifrpc.c`, `SIF_CMD_RPC_END`) during `host:` file I/O is never game code: one to three
+`TLB Miss, pc=<same> addr=0x10|0x18 [load|store]` lines, `cd->hdr.pkt_addr` already null because
+one RPC completed twice under PCSX2's HostFs. Its other face is a wild `pc` below `.text`
+(0x100000), such as `pc=0x82000 addr=0x0`, usually fatal. The `pc` moves per build: resolve it
+with `mips64r5900el-ps2-elf-addr2line -f -e <unstripped elf> <pc>` before deciding. Re-run
+before investigating: across three identical Quake II 39-map cycles, one died, one was clean and
+one logged it and still finished. VIF1 chains only read RAM, so the renderer cannot cause it, and
+a capture from a run that logged it stays valid.
+
 The standalone symbolization helper lives in `src/tools/scripts/`.
 
 ## Local data and reference knowledge

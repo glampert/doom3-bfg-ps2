@@ -56,6 +56,8 @@ PCSX2 by hand:
    rename it to `usb.img` (the format gives raw MBR/FAT32 sectors).
 2. With PCSX2 closed, back up `PCSX2.ini`, set `[EmuCore] HostFs = false` and `[USB2] Type =
    Msd`, `Msd_subtype = 0`, `Msd_ImagePathMsd = /absolute/usb.img` (USB1 can stay `hidkbd`).
+   PCSX2 opens the image as raw 512-byte sectors, read/write. Leave `[DEV9/Hdd] HddEnable`
+   off: a package on the hard disk wins over USB.
 3. `PCSX2 -batch -logfile <log> -elf <any copy of the ELF>`, at normal priority. The `host:`
    probe misses, the boot resets the IOP, and HDD is skipped when DEV9 has no disk.
 4. Close PCSX2, then restore the backup: PCSX2 rewrites the ini on exit.
@@ -64,6 +66,16 @@ PCSX2 by hand:
 
 PCSX2 launches the ELF from its host path, longer than a package folder may be, so the image holds
 the package at its root; a console launch also searches the ELF's own folder first.
+
+**The hard disk in PCSX2** (quake2-ps2's recipe; not yet run with Doom): set `[DEV9/Hdd]
+HddEnable = true` and `HddFile` to a PCSX2 HDD image. Format a new image with uLaunchELF's HDD
+Manager, create a main PFS partition (`+D3BFG`, say), copy the package folder into it, and with
+`HostFs = false` launch the ELF from uLaunchELF. The game resets the IOP and mounts PFS itself (the
+launcher's mount does not survive), and should log the package on `pfs0:` with its partition.
+`hdd0:+PART:pfs:/dir/d3bfg.elf` and `hdd0:/+PART/dir/d3bfg.elf` launches keep the launch
+partition; a bare `pfsN:` path falls back to enumerating the partitions. A debug build's
+`d3bfg.log` there exercises the `fileXioSync` after each close. quake2-ps2's emulated PFS boot
+(2026-10-07) loaded noticeably faster than its USB one.
 
 **2026-11-17** (debug, NTSC console package): `reset the IOP in 63 ms; module loader patched to
 load from EE memory`, the ten modules started, `ps2dev9 didn't start (id 27, result 1)` with no
