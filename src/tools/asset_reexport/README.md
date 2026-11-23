@@ -252,7 +252,9 @@ With material passes and `cavity` 1 (2026-11-21): 289 textures for 313 materials
 variants), 200 baked, 48 passes (5 driven by time), 2,063,616 bytes of VRAM. With the sky
 (2026-11-23): `textures/skies/commoutside` (`cameraCubeMap env/cloudy`, colour 0.75) gives six
 128x128 faces, five `PSMT8` and one `PSMT4`, 95,488 bytes of VRAM; 295 textures, 2,159,104 bytes
-of VRAM, a 2,810,944-byte D3TX.
+of VRAM, a 2,810,944-byte D3TX. The job sets `sky_extent` 256 (2026-11-24; the 128 faces looked
+soft at 640 wide): four `PSMT8` faces and two `PSMT4`, 332,288 bytes of VRAM; 2,395,904 bytes of
+VRAM in all, a 3,047,744-byte D3TX.
 
 ### World lighting
 

@@ -5960,3 +5960,22 @@ blue); they now show the Martian sky. The map has no portal sky, as the plan had
 | `make test-headless`, `test-headless-retail`, `test-common`, `test-game`, `test-map`, `test-script-image` (debug) | Passed |
 | `make test-host` | Passed: 405 Python tests; `texture_format_tests` round-trips D3TX v4 with a sky and refuses a sky material without one, a face on a lightmap or a missing texture, two skies, and an alpha-tested or passed sky, in the cook and the target; `asset_tests` decodes cube faces |
 | `make`, `make release`, `build-core`, `build-game`, `build-script`, `build-platform` | Passed, no warnings; runnable `PT_LOAD` 5,090,169 debug and 4,263,801 release. `build-platform` had not linked since the debug log mirror (0e95d63) used `fileXioSync`; the core images now link libfileXio |
+
+## mars_city1's sky at 256, planned textures placed before the sky (2026-11-24)
+
+mars_city1's job cooks the sky at `sky_extent` 256: at 128 a face spans the 640-wide screen at
+about five pixels a texel and looked soft beside the textured walls. The faces take 332,288 bytes
+of VRAM (four `PSMT8`, the zenith and the ground `PSMT4`) against 95,488, and the D3TX grows from
+2,810,944 to 3,047,744 bytes.
+
+The larger faces exposed a residency fault: when a view's new textures fit the free ranges as they
+stood, `Preload` left them to their batches, and the sky box, drawn before every batch, took that
+room first. PAL's north view then left one diffuse texture untextured. `Preload` now places the
+planned set in every case, so the sky takes only what the view leaves. PAL's north views need no
+repack since.
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | NTSC `20261123T130747Z_world_retail_68fd6683032f`: every view's textures resident (83, 1,011,456 of 1,064,960 bytes), no eviction, no fallback, the sky in every view. PAL `20261123T130832Z_world_retail_49f66ba3a9d5`: no diffuse or lightmap fallback and no repack; the north views leave out the sky and the glows, as at 128 |
+| `make test-world` (debug) | NTSC `20261123T130957Z_world_ef8bd7bc3aeb`, PAL `20261123T131007Z_world_1ae6fe0538b1` |
+| `make release` | Passed, no warnings; runnable `PT_LOAD` 4,263,801 |

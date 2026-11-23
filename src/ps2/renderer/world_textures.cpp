@@ -884,8 +884,10 @@ static bool PlanFits(Textures & textures, bool withoutUnplanned)
 // pass does not need leaves first; if they still cannot be placed around the ones staying (the arena
 // near full and fragmented), every texture leaves and the planned set goes in from an empty arena,
 // which packs it without holes. Simulations on a copy of the free ranges decide, so the placement
-// that follows is the one they found. Nothing of this pass references any texture yet, and the
-// chain in flight finishes before this one's uploads run.
+// that follows is the one they found. They are all placed here, even when they fit as things stand:
+// the sky box draws before every batch and would otherwise take the room they were counted on.
+// Nothing of this pass references any texture yet, and the chain in flight finishes before this
+// one's uploads run.
 static void Preload(Textures & textures, dma::DisplayList & list)
 {
     bool missing = false;
@@ -895,23 +897,25 @@ static void Preload(Textures & textures, dma::DisplayList & list)
         missing = !textures.slots[textures.planOrder[order]].resident;
     }
 
-    if (!missing || PlanFits(textures, false))
+    if (!missing)
     {
-        // Nothing to place, or room for it all: the pass places them as it draws.
         return;
     }
 
-    const bool fits = PlanFits(textures, true);
-
-    for (u32 index = 0; index < textures.pack.textureCount; ++index)
+    if (!PlanFits(textures, false))
     {
-        if (textures.slots[index].resident && (!fits || textures.slots[index].plannedFrame != textures.frame))
-        {
-            Evict(textures, index);
-        }
-    }
+        const bool fits = PlanFits(textures, true);
 
-    textures.stats.repacks += fits ? 0U : 1U;
+        for (u32 index = 0; index < textures.pack.textureCount; ++index)
+        {
+            if (textures.slots[index].resident && (!fits || textures.slots[index].plannedFrame != textures.frame))
+            {
+                Evict(textures, index);
+            }
+        }
+
+        textures.stats.repacks += fits ? 0U : 1U;
+    }
 
     // A texture that still finds no room falls back when its batch draws.
     for (u32 order = 0; order < textures.planCount; ++order)

@@ -1208,7 +1208,8 @@ describes them.
 The `texgen skybox` / `wobblesky` row (2026-11-23, D3TX v4). The cook takes the first sky material
 (no diffuse stage, a stage reading a cube map along the view ray) and decodes its cube image's six
 faces, which id stores already in GL's cube order and orientation. Each face becomes a one-level
-texture (`sky_extent`, 128 by default: the sky is magnified on every screen). The stage's colour
+texture (`sky_extent`, 128 by default, 256 in mars_city1's job: the sky is magnified on every
+screen). The stage's colour
 (parms folded, time at 0) rides in the D3TX's sky record, and every sky material is marked as
 drawing it. The textured pass, before `BeginDepthPass`, draws the box: per face, the quad of
 directions `normal ± sAxis ± tAxis` through the view-projection without its translation, cut on

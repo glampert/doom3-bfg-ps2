@@ -26,7 +26,8 @@
     ],
     "scale": 0.5,
     "max_extent": 256,
-    "cavity": 1.0
+    "cavity": 1.0,
+    "sky_extent": 256
   },
   "lighting": {
     "script": "script/map_marscity1.script",
