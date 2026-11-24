@@ -61,7 +61,10 @@ coordinates; CLUTs; VRAM and mipmaps.
   following frame is needed. `dma::EndFrame` itself only kicks: a chain runs while the EE builds the
   next frame, `Kick` waits for the previous chain before sending, and the 3D path presents the
   completed frame with `PresentMode::Pipelined` (flip at an EVEN field, 30/25 fps) before kicking. GS
-  vsync paces visible mode (no headless sleep). `UpdateScreen` coalesces in-frame redraws, and an
+  vsync paces visible mode (no headless sleep). The vsync wait **sleeps** (2026-11-24): an
+  `INTC_VBLANK_S` handler signals a semaphore, then CSR's VSINT confirms the edge (the IMR still masks
+  the GS interrupts, so CSR's events stay ours to poll). The background loader (`system/aio.h`) runs
+  only while the main thread sleeps; never turn this wait back into a spin. `UpdateScreen` coalesces in-frame redraws, and an
   out-of-frame redraw never advances simulation; guard against recursive Begin/End. A queued
   `ps2_capture` finishes before shutdown.
 - **Display modes:** `renderer::DisplayMode` is a resolution index into `system::video`'s
@@ -109,6 +112,12 @@ coordinates; CLUTs; VRAM and mipmaps.
   `BITBLTBUF` with `DBW 1`, REF under `DIRECT`, `TEXFLUSH`) and `RelocateTex0`/`RelocateMiptbp`
   move the cooked block addresses. Never reorder or copy its texels on the EE. Fixed-LOD draws:
   `TEX1.LCM` 1 with `K` = level << 4. `renderer::DrawingContext()` asserts an open frame.
+- **Streamed world textures (2026-11-24):** a map's D3TX keeps only its tables in EE memory; each
+  texture's file streams into its own copy on the loader thread. A pass requests its drawn areas'
+  textures first, then the view area's portal neighbours'. It waits for them only after a jump
+  (first pass, teleport, a switch turned on); otherwise a missing copy draws as a VRAM fallback
+  (`stream_misses`). Copies leave over a 2 MiB budget only once `dma::ChainDone` says no chain still
+  uploads from them. Details: RENDERING_ARCHITECTURE.md 10.5, "Streaming as built".
 - **Textured world pass:** a map's `.d3tx` stays resident in one VRAM arena (`world_textures.cpp`:
   the texture range less 256 KiB for the UI, best fit, LRU, never evicting what this pass drew or
   planned, so a texture's last reader is an earlier chain). Each batch's state block is per material

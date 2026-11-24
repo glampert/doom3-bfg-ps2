@@ -500,13 +500,40 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
     counts.nodes = pack.nodes.size();
     counts.values = pack.tableValues.size();
     counts.skies = pack.skies.size();
-    std::size_t offset = Align(TablesEnd(counts), kD3txAlignment);
-    std::vector<std::size_t> offsets;
+    std::vector<std::uint32_t> order = pack.fileOrder;
 
-    for (const auto & texture : pack.textures)
+    if (order.empty())
     {
-        offsets.push_back(offset);
-        offset = Align(offset + texture.size(), kD3txAlignment);
+        for (std::size_t index = 0; index < pack.textures.size(); ++index)
+        {
+            order.push_back(static_cast<std::uint32_t>(index));
+        }
+    }
+
+    std::vector<bool> placed(pack.textures.size(), false);
+
+    if (order.size() != pack.textures.size())
+    {
+        return Fail(error, "D3TX file order does not list every texture");
+    }
+
+    for (const std::uint32_t index : order)
+    {
+        if (index >= pack.textures.size() || placed[index])
+        {
+            return Fail(error, "D3TX file order is not a permutation of the textures");
+        }
+
+        placed[index] = true;
+    }
+
+    std::size_t offset = Align(TablesEnd(counts), kD3txAlignment);
+    std::vector<std::size_t> offsets(pack.textures.size(), 0);
+
+    for (const std::uint32_t index : order)
+    {
+        offsets[index] = offset;
+        offset = Align(offset + pack.textures[index].size(), kD3txAlignment);
     }
 
     if (offset > 0xFFFFFFFFU)
@@ -610,7 +637,7 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
     if (bytes.size() < kD3txHeaderBytes || ReadLe32(bytes.data()) != kD3txMagic || ReadLe16(bytes.data() + 4) != kD3txVersion ||
         ReadLe16(bytes.data() + 6) != kD3txHeaderBytes || ReadLe32(bytes.data() + 28) != kD3txConverterVersion)
     {
-        return Fail(error, "not a D3TX v4 file");
+        return Fail(error, "not a D3TX v4 file of this converter");
     }
 
     D3txCounts counts;
@@ -677,6 +704,8 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
         pack.passes.push_back(pass);
     }
 
+    std::vector<std::uint32_t> offsets;
+
     for (std::size_t index = 0; index < counts.textures; ++index)
     {
         const std::uint8_t * record = bytes.data() + TexturesAt(counts) + kD3txTextureRecordBytes * index;
@@ -690,7 +719,13 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
 
         pack.textures.emplace_back(bytes.begin() + offset, bytes.begin() + offset + size);
         pack.textureFlags.push_back(ReadLe32(record + 8));
+        offsets.push_back(offset);
+        pack.fileOrder.push_back(static_cast<std::uint32_t>(index));
     }
+
+    // The order the files lie in; the canonical check below refuses any other layout.
+    std::stable_sort(pack.fileOrder.begin(), pack.fileOrder.end(),
+                     [&offsets](std::uint32_t a, std::uint32_t b) { return offsets[a] < offsets[b]; });
 
     for (std::size_t index = 0; index < counts.pages; ++index)
     {

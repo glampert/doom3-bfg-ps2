@@ -1208,11 +1208,95 @@ static bool WritePreviewPair(const fs::path & previews, const std::string & base
 
 // The world textures: each material's base pass and its additive passes, every texture cooked once
 // per image, alpha test and bump map; 'parms' are the materials' (World::materialParms).
-static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::string, MaterialInfo> & declared, const MaterialTables & tables,
-                              const WorldTextureJob & job, const std::vector<std::string> & materials, const std::vector<ShaderParms> & parms,
-                              const std::vector<float> & density, const std::vector<LightmapPage> & pages, const fs::path & output,
-                              const std::string & stem, const fs::path & previews)
+// The order the package's texture files follow its tables in, for a target that streams them one at a
+// time as the areas needing them come into view (world_textures.cpp): the lightmap pages and the sky's
+// faces first (most views read them), then each area's textures as a walk outward through the portals
+// from area 0 meets them, its batches in order; anything no area draws last.
+static std::vector<std::uint32_t> StreamingOrder(const TexturePack & pack, const World & world)
 {
+    std::vector<std::uint32_t> order;
+    std::vector<bool> placed(pack.textures.size(), false);
+    const auto Place = [&](std::uint32_t texture)
+    {
+        if (texture < pack.textures.size() && !placed[texture])
+        {
+            placed[texture] = true;
+            order.push_back(texture);
+        }
+    };
+
+    for (const std::uint32_t page : pack.lightmapPages)
+    {
+        Place(page);
+    }
+
+    for (const D3txSky & sky : pack.skies)
+    {
+        for (const std::uint32_t face : sky.faces)
+        {
+            Place(face);
+        }
+    }
+
+    std::vector<bool> visited(world.areas.size(), false);
+    std::vector<std::uint32_t> queue;
+
+    for (std::uint32_t root = 0; root < world.areas.size(); ++root)
+    {
+        if (visited[root])
+        {
+            continue;
+        }
+
+        visited[root] = true;
+        queue.push_back(root);
+
+        for (std::size_t next = queue.size() - 1; next < queue.size(); ++next)
+        {
+            const WorldArea & area = world.areas[queue[next]];
+
+            for (std::uint32_t index = area.firstBatch; index < area.firstBatch + area.batchCount; ++index)
+            {
+                const std::uint16_t material = world.batches[index].material;
+                Place(pack.materialTextures[material]);
+
+                for (std::uint32_t pass = 0; pass < pack.materialPassCount[material]; ++pass)
+                {
+                    Place(pack.passes[pack.materialFirstPass[material] + pass].texture);
+                }
+            }
+
+            for (const WorldPortal & portal : world.portals)
+            {
+                for (int side = 0; side < 2; ++side)
+                {
+                    const std::uint32_t other = portal.areas[1 - side];
+
+                    if (portal.areas[side] == queue[next] && !visited[other])
+                    {
+                        visited[other] = true;
+                        queue.push_back(other);
+                    }
+                }
+            }
+        }
+    }
+
+    for (std::uint32_t texture = 0; texture < pack.textures.size(); ++texture)
+    {
+        Place(texture);
+    }
+
+    return order;
+}
+
+static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::string, MaterialInfo> & declared, const MaterialTables & tables,
+                              const WorldTextureJob & job, const World & world, const std::vector<float> & density,
+                              const std::vector<LightmapPage> & pages, const fs::path & output, const std::string & stem,
+                              const fs::path & previews)
+{
+    const std::vector<std::string> & materials = world.materials;
+    const std::vector<ShaderParms> & parms = world.materialParms;
     std::string error;
     TexturePack pack;
     pack.materialsHash = MaterialNamesHash(materials);
@@ -1577,6 +1661,7 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
 
     std::vector<std::uint8_t> file;
     TexturePack check;
+    pack.fileOrder = StreamingOrder(pack, world);
 
     if (!WriteD3tx(pack, file, error) || !ReadD3tx(file, check, error))
     {
@@ -2165,8 +2250,8 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return false;
     }
 
-    return !textures.enabled || CookWorldTextures(materialCatalog, declared, tables, textures, world.materials, world.materialParms,
-                                                  MaterialUvDensity(proc, world.materials), pages, output, stem, previews);
+    return !textures.enabled ||
+           CookWorldTextures(materialCatalog, declared, tables, textures, world, MaterialUvDensity(proc, world.materials), pages, output, stem, previews);
 }
 
 static void Usage()

@@ -37,7 +37,9 @@ GRATE_DECAL = {"entities": 1, "decals": 1, "vertices": 4, "triangles": 2, "area"
 
 # A lit pass that held every texture and lightmap page it needed.
 TEXTURES = {"enabled": 1, "arena": 1064960, "resident": 42, "resident_bytes": 500480, "uploads": 42, "evictions": 0, "fallbacks": 0,
-            "lightmaps": 1, "pages": 2, "unlit": 0, "passes": 12, "pass_fallbacks": 0, "sky_faces": 20, "sky_fallbacks": 0, "repacks": 0}
+            "lightmaps": 1, "pages": 2, "unlit": 0, "passes": 12, "pass_fallbacks": 0, "sky_faces": 20, "sky_fallbacks": 0, "repacks": 0,
+            "stream_loads": 60, "stream_bytes": 700000, "copies": 60, "copy_bytes": 702464, "copy_peak": 702464, "stream_failures": 0,
+            "stream_misses": 0, "stream_waits": 3, "stream_wait_ms": 40}
 
 
 def textures_line(**fields):
@@ -70,7 +72,7 @@ def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final
     log = echo("ready") + echo("begin")
     log += (f"[D3BFG] world {runner.MAP}.d3wd: areas={counts['areas']} surfaces={counts['surfaces']} batches={counts['batches']} "
             f"portals={counts['portals']} nodes={counts['nodes']} packets=1610352 bytes=2704880\n")
-    log += f"[D3BFG] world textures {runner.MAP}.d3tx: textures=289 materials=313 pages=8 passes=48 vram=2643712 bytes=2761280\n"
+    log += f"[D3BFG] world textures {runner.MAP}.d3tx: textures=289 materials=313 pages=8 passes=48 areas=56 bytes=2761280 tables=6720 streamed\n"
     log += WORLD.format(event="loaded", areas=56, portals=55, viewing=0, frame=0, views=0, area=-1, entities=0, drawn=0, batches=0)
     for index, (_, _, hit, fraction, normal, material) in enumerate(runner.TRACES):
         found = {"hit": hit, "fraction": fraction, "normal": normal, "material": material}
@@ -188,12 +190,22 @@ class RetailWorldRunnerTests(unittest.TestCase):
         self.assertFalse(classify(session(memory="0/0/1 final=0/0/1"))[0])
 
     def test_textured_pass_must_hold_its_textures(self):
-        for change in ({"fallbacks": 1}, {"uploads": 0}, {"enabled": 0}, {"resident": 0}, {"lightmaps": 0}, {"pages": 0}, {"unlit": 1}):
+        for change in ({"fallbacks": 1}, {"uploads": 0}, {"enabled": 0}, {"resident": 0}, {"lightmaps": 0}, {"pages": 0}, {"unlit": 1},
+                       {"stream_failures": 1}, {"stream_misses": 2}, {"stream_waits": 0}):
             with self.subTest(change=change):
                 passed, reason, _ = classify(session(textures={"north": change}))
                 self.assertFalse(passed)
                 self.assertIn("north", reason)
         self.assertFalse(classify(session() + "[    1.0000] [D3BFG] FATAL boom\n")[0])
+
+    def test_textures_must_stream(self):
+        # Copies that held the whole package did not stream it.
+        passed, reason, _ = classify(session(textures={"north": {"copy_peak": 2761280}}))
+        self.assertFalse(passed)
+        self.assertIn("whole", reason)
+        passed, _, details = classify(session())
+        self.assertTrue(passed)
+        self.assertEqual((details["texture_file_bytes"], details["copy_peak"]), (2761280, 702464))
 
     def test_textured_pass_must_draw_the_sky(self):
         passed, reason, _ = classify(session(textures={view.name: {"sky_faces": 0} for view in runner.VIEWS}))

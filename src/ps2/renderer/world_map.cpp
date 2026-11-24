@@ -93,13 +93,16 @@ PS2_COLD_FUNC Level * ReadLevel(idStrStatic<MAX_OSPATH> & path, bool & found)
         return nullptr;
     }
 
+    // The package streams from its own descriptor (the loader thread reads it): only its OS path is
+    // taken from the file system, which finds the loose file.
     path.SetFileExtension("d3tx");
-    bool texturesFound = false;
-    void * textures = ReadCooked(path.c_str(), ps2::renderer::tex::kPackMaxFileBytes, bytes, texturesFound);
+    idFile * textures = fileSystem->OpenFileRead(path.c_str());
 
     if (textures != nullptr)
     {
-        level->textures = ps2::renderer::world::AdoptTextures(textures, bytes, path.c_str(), level->sections);
+        const idStrStatic<MAX_OSPATH> osPath = textures->GetFullPath();
+        fileSystem->CloseFile(textures);
+        level->textures = ps2::renderer::world::OpenTextures(osPath.c_str(), path.c_str(), level->sections);
     }
 
     return level;

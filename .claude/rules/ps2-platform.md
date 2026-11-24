@@ -159,6 +159,20 @@ reuse a launcher's modules, its log-file sync or its sound and memory card drive
 - `__builtin_ctz`/`__builtin_clz` are **libgcc calls** (the R5900 has no count-zeros
   instruction). Use `ps2::tex::Log2` (`plzcw`) or compares in hot paths.
 
+## Background loader thread (Doom, 2026-11-24)
+
+`system/aio.h` (from quake2-ps2) reads file ranges on one EE thread, one priority below the main
+thread. The kernel does not time-slice, so the loader runs only while the main thread sleeps: in
+the present's vsync wait (a vblank semaphore), in `aio::Wait`, or in a SIF RPC of its own.
+- **The loader never allocates, logs or touches the engine.** The heap asserts that only the main
+  thread uses it. A request's destination is a main-thread allocation that the request owns until
+  it lands or is cancelled.
+- **The main thread opens and closes the descriptors.** It hands one over, and calls
+  `aio::ForgetDescriptor` before `close`.
+- **`aio::ReadNow`** (the synchronous fallback) needs an idle loader: no request may be pending.
+- fio's and fileXio's RPC clients each lock their buffers with a semaphore, so the two threads can
+  both make file calls; one waits behind the other's chunk in flight.
+
 ## SIF DMA
 
 - Any EE buffer that is a SIF DMA target (`SifRpcGetOtherData`, `sceSifSetDma`, memory card

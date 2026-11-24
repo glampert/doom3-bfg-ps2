@@ -26,7 +26,8 @@ namespace assets
 
 // Little-endian. A 52-byte header, the material, pass, texture, lightmap page, expression node,
 // table value and sky tables, then the GSTX v2 files, each 64-byte aligned with zero padding (the
-// DMA arena's alignment). Canonical like D3WD.
+// DMA arena's alignment), in the order a streaming target reads them (TexturePack::fileOrder), which
+// need not be their index order. Canonical like D3WD.
 //
 // Header:    u32 magic 'D3TX', u16 version 4, u16 header bytes 52, u32 material count, u32 texture
 //            count, u32 FNV-1a of the world's material names (each with its NUL, the D3WD Strings
@@ -61,7 +62,7 @@ namespace assets
 //            u8 x 4 the RGBA colour they draw with (0x80 = 1.0), u32 0.
 static constexpr std::uint32_t kD3txMagic = 0x58543344;
 static constexpr std::uint16_t kD3txVersion = 4;
-static constexpr std::uint32_t kD3txConverterVersion = 4;
+static constexpr std::uint32_t kD3txConverterVersion = 5;
 static constexpr std::size_t kD3txHeaderBytes = 52;
 static constexpr std::size_t kD3txMaterialRecordBytes = 16;
 static constexpr std::size_t kD3txPassRecordBytes = 24;
@@ -175,6 +176,10 @@ struct TexturePack
     std::vector<float> tableValues;
     // At most kD3txMaxSkies; the materials marked kD3txSky draw it.
     std::vector<D3txSky> skies;
+    // The textures in the order their files follow the tables (a permutation of their indices), or
+    // empty for index order. The target streams them one at a time, so the textures a view and its
+    // neighbours read lie together.
+    std::vector<std::uint32_t> fileOrder;
 };
 
 // Cavity shading from a normal map (tangent space, decoded RGB with 0..255 for -1..1), the plan's

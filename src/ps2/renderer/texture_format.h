@@ -69,7 +69,7 @@ PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_
 // texture validated as an Image. 64-byte aligned like the D3WD.
 static constexpr std::uint32_t kPackMagic = 0x58543344;
 static constexpr std::uint32_t kPackVersion = 4;
-static constexpr std::uint32_t kPackConverterVersion = 4;
+static constexpr std::uint32_t kPackConverterVersion = 5;
 static constexpr std::uint32_t kPackHeaderBytes = 52;
 static constexpr std::uint32_t kPackMaterialBytes = 16;
 static constexpr std::uint32_t kPackPassBytes = 24;
@@ -207,8 +207,21 @@ struct Pack
 // on integers, and a table is idDeclTable::TableLookup.
 void EvaluatePassNodes(const Pack & pack, const PackPass & pass, float time, float * registers);
 
-// Null when the package is valid; 'images' receives every texture's Image (textureCount of them).
-// The file must stay alive and 64-byte aligned.
+// Where a package's tables end (the bytes to read before ValidatePackTables), from its first
+// kPackHeaderBytes, in a file of 'fileBytes'; 0 when they are not a D3TX v4 header of this converter.
+PS2_COLD_FUNC std::uint32_t PackTablesBytes(const std::uint8_t * header, std::uint32_t fileBytes);
+
+// Null when the header and tables in 'file' (64-byte aligned, at least 'tablesBytes' of the package's
+// 'fileBytes') are valid, every texture record inside the file. The textures themselves are not
+// read: a streaming loader checks each with ValidatePackTexture as it arrives.
+PS2_COLD_FUNC const char * ValidatePackTables(const std::uint8_t * file, std::uint32_t tablesBytes, std::uint32_t fileBytes, Pack & output);
+
+// Null when texture 'index' of a validated package, read into 'file' (its record's bytes, 16-byte
+// aligned and kept alive), is valid: its Image, and its flags against its usage.
+PS2_COLD_FUNC const char * ValidatePackTexture(const Pack & pack, std::uint32_t index, const std::uint8_t * file, Image & output);
+
+// Null when the whole package in 'file' is valid; 'images' receives every texture's Image
+// (textureCount of them). The file must stay alive and 64-byte aligned.
 PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t bytes, Pack & output, Image * images,
                                         std::uint32_t imageCapacity);
 

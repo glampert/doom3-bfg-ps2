@@ -1,7 +1,8 @@
 // ================================================================================================
 // File: world_textures.h
-// Brief: A cooked world's textures (the map's D3TX): residency in one VRAM arena with LRU eviction
-// and in-chain uploads, and each batch's state, the VIF blocks the display list unpacks into the
+// Brief: A cooked world's textures (the map's D3TX): streamed into EE memory a texture at a time by
+// the background loader (the areas a pass draws first, then the view's portal neighbours), residency
+// in one VRAM arena with LRU eviction and in-chain uploads, and each batch's state, the VIF blocks the display list unpacks into the
 // batch's input half for the world program to kick: the material's texture registers and drawing
 // tags, and the lightmap page's TEX0 for the other context, or for a material pass the pass's
 // texture with blending tags and its colour.
@@ -31,28 +32,40 @@ static constexpr u32 kPageStateBlockQwords = 3;
 
 struct Textures;
 
-// Validates a D3TX read into 'storage' (a 64-byte aligned TAG_RENDER allocation) against the world's
-// material names and takes it; frees it and returns null on refusal.
-PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * name, const Sections & sections);
+// Opens the D3TX at 'path' (an OS path the loader thread reads; 'name' is logged), reads and
+// validates its header and tables against the world's material names, and keeps the descriptor for
+// streaming the textures; null (logged) on refusal. Each texture is validated as it arrives.
+PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, const Sections & sections);
 
-// No chain may still read the textures' blocks or streams.
+// Closes the package once its reads are cancelled. No chain may still read the textures' blocks or
+// streams.
 PS2_COLD_FUNC void FreeTextures(Textures * textures);
 
-// Plans the next pass's residency (optional, before BeginTextures): BeginPlan, then PlanBatch for
-// every batch the pass will draw, in its order, with the pass's textured and lightmapped switches.
-// The pass then never evicts a planned texture, and BeginTextures makes them resident first.
+// Plans the next pass (optional, before BeginTextures): BeginPlan, then for every area the pass will
+// draw, in its order, PlanAreaTextures and PlanBatch for each of its batches, with the pass's
+// textured and lightmapped switches. The area's textures are read first, and the pass never evicts
+// a planned texture from VRAM: BeginTextures makes them resident first.
 void BeginPlan(Textures * textures);
+void PlanAreaTextures(Textures * textures, u32 area);
 void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool lightmapped);
 
 // Starts a world pass in 'context': the states are written for its registers and LOD, where
 // 'focal' is GS pixels per world unit at depth 1, and the material passes time drives are evaluated
 // at 'time' (seconds). 'textures' may be null (every batch untextured and unlit); 'textured' and
-// 'lightmapped' switch the diffuse textures (with the material passes) and the lightmap pass. A
-// planned pass's textures are made resident here, in the list: when a view brings in new ones,
+// 'lightmapped' switch the diffuse textures (with the material passes) and the lightmap pass.
+//
+// Streaming: reads that landed are validated and kept; the planned areas' textures are requested
+// first, then those of the portal neighbours of 'viewArea' (the area the eye is in, -1 for none),
+// in the background. A texture whose read has not landed draws as one the arena cannot hold. After
+// a jump (the package's first pass, a view area that is not the last one or its neighbour, or a
+// switch turned on) the pass waits for its planned areas' textures instead. Copies beyond a budget
+// leave, least recently wanted first, once no chain reads them.
+//
+// A planned pass's textures are then made resident, in the list: when a view brings in new ones,
 // the textures it does not need leave, and if the rest cannot be placed around the ones staying,
 // the arena empties and takes the planned set in draw order (a repack).
 void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext context, float focal, bool textured, bool lightmapped,
-                   float time);
+                   float time, int viewArea);
 
 // The state for a batch of 'material': the material's texture made resident first (an upload in
 // the list, evicting the least recently used textures this frame has not drawn), or untextured
@@ -105,6 +118,19 @@ struct TextureStats
     u32 skyFallbacks;
     // Passes whose planned textures did not fit around the ones resident: the arena emptied first.
     u32 repacks;
+    // Streaming: textures read in and their bytes; copies in EE memory now, their bytes and the most
+    // they held; reads refused (a read error or a file that failed validation: never read again);
+    // draws left out because a texture's read had not landed (counted in the fallbacks above too);
+    // and the passes that waited for their textures after a jump, with the time they waited.
+    u32 streamLoads;
+    u32 streamBytes;
+    u32 copies;
+    u32 copyBytes;
+    u32 copyPeakBytes;
+    u32 streamFailures;
+    u32 streamMisses;
+    u32 streamWaits;
+    u32 streamWaitMs;
 };
 
 TextureStats GetTextureStats(const Textures * textures);

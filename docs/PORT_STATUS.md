@@ -6039,3 +6039,39 @@ its mars_city1 counts do not reach the clipper.
 | `make test-world` | `20261124T045510Z_world_ed6cb35d006f` (NTSC), `20261124T045521Z_world_c0e5d53f6046` (PAL); all 36 captures byte-identical to `20261124T025451Z_world_052f64ab5868` and `20261124T025501Z_world_08d0fe084e5d` |
 | `make test-world-retail` | `20261124T050137Z_world_retail_c7513f78bf7b` (NTSC), `20261124T050228Z_world_retail_a3d753776301` (PAL); all 112 captures byte-identical to `20261124T025523Z_world_retail_82641706467c` and `20261124T025616Z_world_retail_7b8b9be83b02` |
 | `make vu` | Passed, `--warnings-as-errors` |
+
+## World textures streamed, and a background loader (2026-11-24)
+
+The map's D3TX no longer loads whole. Its header and tables stay in EE memory (12,504 bytes for
+mars_city1), and each texture's file is read into its own copy when an area that needs it comes
+near the view (RENDERING_ARCHITECTURE.md 10.5, "Streaming as built").
+
+- **Dictionaries measured first.** On mars_city1 they lose to single textures: segments that own
+  their textures leave 2.36 MB of 3.03 MB in a common dictionary, and segments that copy theirs
+  hold at least 2.2 MB for the worst area and its neighbours, against 1.65 MB plus the 0.33 MB sky.
+- **The loader** (`src/ps2/system/aio.cpp`, quake2-ps2's without inflate) reads 32 KB chunks on a
+  thread one priority below the main thread. The present's vsync wait now sleeps on a vblank
+  semaphore, so the loader gets the CPU.
+- **Each pass** requests the textures of the areas it draws at high priority, then those of the
+  view area and its portal neighbours at low priority, each area's in file order. A missing copy
+  draws as a VRAM fallback, and only a jump (first pass, teleport, a switch turned on) waits.
+  Copies leave over a 2 MiB budget once `dma::ChainDone` says no chain uploads from them.
+- **The cook** (converter 5) lays the files out in a portal walk, which takes an area's sequential
+  reads, those that skip their seek, from 9% to 43%. It also writes
+  `TexturePack::fileOrder`, which the canonical reader recovers.
+
+| Retail gate (PCSX2, debug) | Whole file | Streamed |
+| --- | --- | --- |
+| D3TX in EE memory | 3,047,744 | 12,504 of tables + 4,116 of lists; copies at most 1,213,888 (99 textures) |
+| Misses, refused reads | | 0, 0 |
+| Passes that waited | | 3, 47 ms in all |
+| Captures | | all 24 per standard byte-identical to `20261124T050137Z`/`050228Z` |
+
+| Check | Result |
+| --- | --- |
+| `make test-world-retail` (debug) | `20261124T055213Z_world_retail_96c80ff9d942` (NTSC), `20261124T055258Z_world_retail_0807a51d1ad1` (PAL), with the new streaming checks |
+| `make test-world` (debug) | `20261124T055510Z_world_d1ad3bbb72d0`, `20261124T055520Z_world_777f83c9026f` |
+| `make test-renderer` (debug) | Passed, 19 cases, with the sleeping vsync wait (`20261124T055147Z_smoke_69bdd3e49f4f410b` last) |
+| `make test-ui` (debug) | Sessions `20261124T055544Z_session_dfececfa2d72` (NTSC) and `20261124T060536Z_session_263f40e45f7f` (PAL), the retail invalid-resource and movies cases: 20 passed, every present through the sleeping vsync wait |
+| `make test-host` | Passed: 407 Python tests; `texture_format_tests` writes a package in a permuted file order, reads its tables alone and validates each texture where its record says, and refuses a texture from the wrong place, short tables, another file size and a file order that is not a permutation |
+| `make`, `make release` | Passed, no warnings |

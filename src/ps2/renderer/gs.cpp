@@ -39,6 +39,13 @@ static u64 s_previousImr = 0;
 alignas(64) static qword_t s_upload[128] = {};
 alignas(64) static qword_t s_copy[80] = {};
 
+// The present's vsync wait sleeps: the EE INTC's vblank-start line (INTC_VBLANK_S, a separate line
+// from the GS interrupts the IMR masks, so CSR's events stay ours to poll) signals this semaphore,
+// and the kernel resumes the waiter at the handler's exit. The background loader (system/aio.h)
+// runs in the time a spin would burn. Without a semaphore or handler the wait spins on CSR.
+static s32 s_vblankSema = -1;
+static int s_vblankHandler = -1;
+
 // z/w of +-1 times this, plus the same offset, then x16 (ftoi4) spans the Z16 range [0, 0xFFFF].
 static constexpr float kDepthScale = static_cast<float>(0xFFFF) / 32.0f;
 
@@ -411,6 +418,79 @@ void CopyToDisplay(u32 drawAddress)
     WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "display copy GS FINISH");
 }
 
+static s32 VblankHandler(s32 cause)
+{
+    (void)cause;
+
+    // The semaphore's count is at most one: a vblank nobody waited for stays one pending signal,
+    // and a second one's overflow error is harmless.
+    iSignalSema(s_vblankSema);
+    ExitHandler();
+    return 0;
+}
+
+PS2_COLD_FUNC void InstallVblankWait()
+{
+    ee_sema_t sema = {};
+    sema.init_count = 0;
+    sema.max_count = 1;
+    s_vblankSema = CreateSema(&sema);
+
+    if (s_vblankSema < 0) [[unlikely]]
+    {
+        Log(LogLevel::Warning, "no vblank semaphore (%d): vsync waits spin\n", static_cast<int>(s_vblankSema));
+        s_vblankSema = -1;
+        return;
+    }
+
+    s_vblankHandler = graph_add_vsync_handler(&VblankHandler);
+
+    if (s_vblankHandler < 0) [[unlikely]]
+    {
+        Log(LogLevel::Warning, "no vblank handler (%d): vsync waits spin\n", s_vblankHandler);
+        DeleteSema(s_vblankSema);
+        s_vblankSema = -1;
+        s_vblankHandler = -1;
+    }
+}
+
+PS2_COLD_FUNC void RemoveVblankWait()
+{
+    if (s_vblankHandler >= 0)
+    {
+        graph_remove_vsync_handler(s_vblankHandler);
+        s_vblankHandler = -1;
+    }
+
+    if (s_vblankSema >= 0)
+    {
+        DeleteSema(s_vblankSema);
+        s_vblankSema = -1;
+    }
+}
+
+// Returns once a vertical blank has started since the call: CSR's VSINT is cleared first, so the
+// edge is a new one (a vblank that passed while the frame was built is not the one to present on).
+// The thread sleeps until the vblank's interrupt, then confirms the event on CSR.
+static void WaitVsync(const char * name)
+{
+    *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
+
+    if (s_vblankSema >= 0)
+    {
+        while (PollSema(s_vblankSema) >= 0)
+        {
+        }
+
+        if ((*GS_REG_CSR & 8U) == 0)
+        {
+            WaitSema(s_vblankSema);
+        }
+    }
+
+    WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, name);
+}
+
 } // namespace
 
 PS2_COLD_FUNC bool Init(const Config & config)
@@ -484,6 +564,7 @@ PS2_COLD_FUNC bool Init(const Config & config)
     graph_set_screen(0, 0, s_width, s_height);
     graph_set_bgcolor(0, 0, 0);
     SetDisplayBuffer(SplitDisplay(s_format) ? s_displayAddress : s_frames[0].address);
+    InstallVblankWait();
     s_initialized = true;
 
     if (dma_channel_initialize(DMA_CHANNEL_GIF, nullptr, 0) < 0)
@@ -537,6 +618,7 @@ PS2_COLD_FUNC void Shutdown()
     }
 
     dma::WaitIdle();
+    RemoveVblankWait();
     dma_channel_shutdown(DMA_CHANNEL_GIF, 0);
     graph_shutdown();
     GsPutIMR(s_previousImr);
@@ -604,8 +686,7 @@ void Present(DrawContext context, PresentMode mode)
         PS2_AssertMsg(!dma::InFlight(), "pipelined present while a chain is still queued");
     }
 
-    *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
-    WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC");
+    WaitVsync("VSYNC");
 
     // CSR.FIELD (bit 13) is the field now being displayed. In FIELD mode a flip at the start of
     // the EVEN field shows the whole frame for two fields; one that lands on ODD waits for the
@@ -614,8 +695,7 @@ void Present(DrawContext context, PresentMode mode)
 
     while (pairFields && (*GS_REG_CSR & (1U << 13)) != 0U)
     {
-        *GS_REG_CSR = 8;
-        WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, "VSYNC (even field)");
+        WaitVsync("VSYNC (even field)");
     }
 
     if (SplitDisplay(s_format))

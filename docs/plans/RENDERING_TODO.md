@@ -3,8 +3,9 @@
 Companion to [RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md): the same work as its
 section 19 gates, broken into concrete steps in the proposed order. Opened **2026-11-03**;
 status as of **2026-11-24**: R0 and R1 done but for the hardware probes, R2 in progress (the
-lightmapped, textured world with material passes and the sky is done, and declarations read their
-text on demand; streaming and the R2 gate remain), R3 to R9 not started.
+lightmapped, textured world with material passes and the sky is done, declarations read their
+text on demand and the world's textures stream; chroma subdivision and the R2 gate remain), R3 to R9
+not started.
 Tick items as they land; move a step's measurements into the plan's decision log
 (section 20) and its acceptance into [PORT_STATUS.md](../PORT_STATUS.md). Every step keeps
 the headless and 2D gates green (`make test-headless`, `test-renderer`, `test-ui`) and the
@@ -278,9 +279,18 @@ production link free of test inputs. Section numbers in parentheses point into t
       the pass makes their textures and pages resident before drawing and never evicts them, and a
       view whose new textures do not fit around the resident ones empties the arena and takes them
       in draw order (a repack); the PAL north view fits only with that packing (10.5).
-- [ ] Runtime: streaming the EE copies per area ring from the package (10.5), preferably as
-      per-segment texture dictionaries (one read and one allocation per segment, a level-common
-      dictionary, optionally one cooked VRAM layout per segment; 10.5).
+- [x] Runtime: streaming the EE copies per area ring from the package (10.5, 2026-11-24). Measured
+      first: per-segment dictionaries lose to single textures on mars_city1, whose wall set repeats
+      across the whole portal tree (at least 2.2 MB for the worst area and its neighbours against
+      1.65 MB plus the sky). The D3TX keeps only its tables resident (12,504 bytes); each texture's
+      file streams into its own copy on the background loader thread (`system/aio.h`, one priority
+      below the main thread, which the present's vsync wait now lets run: a vblank semaphore). The
+      areas a pass draws are read first, then the view area's portal neighbours; a miss draws as a
+      VRAM fallback, and only a jump (first pass, teleport, a switch turned on) waits. The cook lays
+      the files out in a portal walk and the runtime requests each area's in file order (43% of
+      reads skip their seek, 9% before). Copies beyond 2 MiB leave least recently wanted first,
+      once no chain uploads from them. The retail gate's copies peaked at 1,213,888 bytes against
+      the 3,047,744-byte package, with the same captures byte for byte.
 - [x] Declaration text on demand (2026-11-24, 16.1): a file's declarations keep only where their
       text is and its checksum, and read it again from the container when they parse
       (`fileSystem->ReadFileRange`, the range alone: opening a container entry reads it whole).
@@ -290,8 +300,9 @@ production link free of test inputs. Section numbers in parentheses point into t
 - [ ] Gate: mars_city1 camera path; area, portal and node counts and sampled
       `PointInArea`/`AreasAreConnected` match the proc loader; a door portal toggle still
       gates sound; three map load/unload cycles and one load-game
-      return the ledger to baseline; per-device read rates recorded; first hardware frame
-      log.
+      return the ledger to baseline; per-device read rates recorded (the loader's `aio::GetStats`
+      counts bytes, chunks and the cycles inside the reads), and the streaming's misses on a
+      console's USB and HDD; first hardware frame log.
 
 ## R3: layers, switches, fog and blend lights
 

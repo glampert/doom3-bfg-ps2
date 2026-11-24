@@ -185,13 +185,19 @@ def view_batches(report: dict, view: View) -> int:
 # texture the arena could not hold (they are left out, the frame keeps its diffuse textures); the
 # sky's faces likewise (sky_faces, sky_fallbacks), and repacks the passes that emptied the arena to
 # place their textures without holes.
+# Streaming (cumulative too): textures read in and their bytes; the EE copies held at the status, their
+# bytes and the most they held; refused reads; draws left out because a read had not landed; and the
+# passes that waited for their reads after a jump (each view's camera move is one), with the time.
 TEXTURES_RE = re.compile(r"\[D3BFG\] WORLD textures enabled=([01]) arena=(\d+) resident=(\d+) resident_bytes=(\d+) uploads=(\d+) "
                          r"evictions=(\d+) fallbacks=(\d+) lightmaps=([01]) pages=(\d+) unlit=(\d+) passes=(\d+) pass_fallbacks=(\d+) "
-                         r"sky_faces=(\d+) sky_fallbacks=(\d+) repacks=(\d+)")
+                         r"sky_faces=(\d+) sky_fallbacks=(\d+) repacks=(\d+) stream_loads=(\d+) stream_bytes=(\d+) copies=(\d+) "
+                         r"copy_bytes=(\d+) copy_peak=(\d+) stream_failures=(\d+) stream_misses=(\d+) stream_waits=(\d+) "
+                         r"stream_wait_ms=(\d+)")
 TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks", "lightmaps", "pages", "unlit",
-                  "passes", "pass_fallbacks", "sky_faces", "sky_fallbacks", "repacks")
+                  "passes", "pass_fallbacks", "sky_faces", "sky_fallbacks", "repacks", "stream_loads", "stream_bytes", "copies",
+                  "copy_bytes", "copy_peak", "stream_failures", "stream_misses", "stream_waits", "stream_wait_ms")
 TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) pages=(\d+) "
-                             r"passes=(\d+) vram=(\d+) bytes=(\d+)")
+                             r"passes=(\d+) areas=(\d+) bytes=(\d+) tables=(\d+) streamed")
 
 
 def view_commands(identity: str, view: View) -> list[str]:
@@ -239,7 +245,8 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
         return False, "crash or fatal diagnostic", {}
     load = re.compile(rf"\[D3BFG\] world {re.escape(MAP)}\.d3wd: areas={report['areas']} surfaces={report['surfaces']} "
                       rf"batches={report['batches']} portals={report['portals']} nodes={report['nodes']} ")
-    if not load.search(log) or not TEXTURE_LOAD_RE.search(log):
+    package = TEXTURE_LOAD_RE.search(log)
+    if not load.search(log) or not package:
         return False, "the cooked map did not load with the cook report's areas, surfaces, batches, portals and nodes", {}
     if "WORLD load failed" in log:
         return False, "the render world refused the map", {}
@@ -281,9 +288,11 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
                 captures[1][0] != f"world-{view.name}-light.tga" or captures[2][0] != f"world-{view.name}-lit.tga" or
                 len(statuses) != 1 or len(textures) != 1):
             return False, f"{view.name}: missing capture, world status or texture status", {}
-        # The lit pass drew every texture and lightmap page it needed: none fell back.
+        # The lit pass drew every texture and lightmap page it needed: none fell back. Each view's
+        # camera move and switch is a jump, so its passes waited for their reads: none was missing.
         if (textures[0]["enabled"] != 1 or textures[0]["uploads"] == 0 or textures[0]["fallbacks"] != 0 or textures[0]["resident"] == 0 or
-                textures[0]["lightmaps"] != 1 or textures[0]["pages"] == 0 or textures[0]["unlit"] != 0):
+                textures[0]["lightmaps"] != 1 or textures[0]["pages"] == 0 or textures[0]["unlit"] != 0 or
+                textures[0]["stream_failures"] != 0 or textures[0]["stream_misses"] != 0 or textures[0]["stream_waits"] == 0):
             return False, f"{view.name}: the lit pass did not hold its textures and pages: {textures[0]}", {}
         bits = renderer_capture.draw_bits(run_world.default_display(standard).profile)
         if int(captures[0][4]) != bits:
@@ -302,6 +311,11 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     # for the diffuse textures, the others have room).
     if max(view["textures"]["sky_faces"] for view in views.values()) == 0:
         return False, "the textured pass never drew the sky box", {}
+    # The package streamed: its EE copies never held the whole file.
+    file_bytes = int(package.group(6))
+    copy_peak = max(view["textures"]["copy_peak"] for view in views.values())
+    if copy_peak >= file_bytes:
+        return False, f"the texture copies held {copy_peak} bytes, the whole {file_bytes}-byte package", {}
     if run_world.SWITCH_RE.search(log[:positions[1]] + log[positions[-3]:positions[-2]] + log[positions[-1]:]):
         return False, "the display mode changed outside its steps", {}
     unloads = [line for line in run_world.world_lines(log[positions[-3]:positions[-2]]) if line["event"] == "unloaded"]
@@ -327,7 +341,7 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     arena = max(view["status"]["arena"] for view in views.values())
     return True, ("mars_city1 loaded from its cooked .bproc, drew area 2 and the corridor through the portal flow, closed the "
                   "doorway down to area 2, built its floor decal over the mirror, unloaded and shut down"), \
-        {"views": views, "arena_bytes": arena, "decals": decals[0], "flight": flight}
+        {"views": views, "arena_bytes": arena, "decals": decals[0], "flight": flight, "texture_file_bytes": file_bytes, "copy_peak": copy_peak}
 
 
 def verify_captures(output: Path, data: Path, world: Path, standard: str, fly: bool = False) -> dict:

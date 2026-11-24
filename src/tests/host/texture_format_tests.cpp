@@ -581,6 +581,36 @@ static bool TexturePacks()
              target.materials[2].passCount == 1 && target.passes[0].color[2] == 0x20 && target.passes[0].colorNodes[1] == 3;
     passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 2) != nullptr;
 
+    // The files may follow the tables in any order (the cook's streaming order); a streaming target
+    // reads the tables alone, then each texture from where its record says.
+    TexturePack shuffled = pack;
+    shuffled.fileOrder = { 2, 0, 1 };
+    std::vector<std::uint8_t> shuffledFile;
+    passed = passed && WriteD3tx(shuffled, shuffledFile, error) && ReadD3tx(shuffledFile, read, error) && read.fileOrder == shuffled.fileOrder &&
+             read.textures == pack.textures && shuffledFile.size() == file.size() && shuffledFile != file;
+    std::memcpy(s_aligned, shuffledFile.data(), shuffledFile.size());
+    const auto shuffledBytes = static_cast<std::uint32_t>(shuffledFile.size());
+    const std::uint32_t tables = ps2::renderer::tex::PackTablesBytes(s_aligned, shuffledBytes);
+    passed = passed && tables > 0 && tables < shuffledBytes &&
+             ps2::renderer::tex::ValidatePackTables(s_aligned, tables, shuffledBytes, target) == nullptr &&
+             target.textures[2].offset < target.textures[0].offset && target.textures[0].offset < target.textures[1].offset;
+
+    for (std::uint32_t index = 0; index < 3; ++index)
+    {
+        passed = passed && ps2::renderer::tex::ValidatePackTexture(target, index, s_aligned + target.textures[index].offset, images[index]) == nullptr;
+    }
+
+    // A texture read from the wrong place, the tables short of their end or against another file size,
+    // and a file order that is not a permutation are refused.
+    passed = passed && ps2::renderer::tex::ValidatePackTexture(target, 2, s_aligned + target.textures[0].offset, images[2]) != nullptr &&
+             ps2::renderer::tex::ValidatePackTables(s_aligned, tables - 4U, shuffledBytes, target) != nullptr &&
+             ps2::renderer::tex::ValidatePackTables(s_aligned, tables, shuffledBytes + 64U, target) != nullptr &&
+             ps2::renderer::tex::PackTablesBytes(s_aligned, shuffledBytes + 64U) == 0;
+    shuffled.fileOrder = { 0, 0, 1 };
+    passed = passed && !WriteD3tx(shuffled, shuffledFile, error);
+    shuffled.fileOrder = { 0, 1 };
+    passed = passed && !WriteD3tx(shuffled, shuffledFile, error);
+
     // Flipped bytes anywhere in the tables or a texture, and a dangling material, are refused by both.
     for (const std::size_t offset : { std::size_t(8), std::size_t(16), std::size_t(33), std::size_t(62), file.size() - 100 })
     {

@@ -33,7 +33,7 @@ struct Level
 // Reads and validates 'path' (every build); false, with nothing held, if it cannot be used.
 PS2_COLD_FUNC bool Load(const char * path, Level & level);
 
-// Reads a texture package for the loaded 'level' (every check AdoptTextures makes); false, with
+// Opens the texture package at 'path' (an OS path) for the loaded 'level' (OpenTextures); false, with
 // the level untextured, if it cannot be used.
 PS2_COLD_FUNC bool LoadTextures(const char * path, Level & level);
 
@@ -62,9 +62,11 @@ vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::Dra
 // behind a sky surface stays hidden. DrawArea sends every other batch of one area after its texture
 // state (uploading textures as they become needed) and queues those whose materials draw additive
 // passes; EndPass draws the queued passes, once every area's diffuse textures hold the arena, and
-// starts the last batch. 'time' (seconds, the view's) drives the material passes' registers.
+// starts the last batch. 'time' (seconds, the view's) drives the material passes' registers, and
+// 'viewArea' (the area the eye is in, -1 for none) names the area whose portal neighbours' textures
+// are read ahead (world_textures.h).
 bool PlanArea(const Level & level, u32 area); // whether the textured pass draws sky surfaces in it
-void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time, bool sky = false);
+void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time, bool sky = false, int viewArea = -1);
 void DrawAreaSky(const Level & level, u32 area);
 void DrawArea(const Level & level, u32 area);
 void EndPass();

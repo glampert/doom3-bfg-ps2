@@ -134,9 +134,7 @@ PS2_COLD_FUNC bool Load(const char * path, Level & level)
 PS2_COLD_FUNC bool LoadTextures(const char * path, Level & level)
 {
     PS2_AssertMsg(level.storage != nullptr && level.textures == nullptr, "textures for no level, or twice");
-    u32 bytes = 0;
-    void * storage = ReadWhole(path, tex::kPackMaxFileBytes, bytes);
-    level.textures = storage != nullptr ? AdoptTextures(storage, bytes, path, level.sections) : nullptr;
+    level.textures = OpenTextures(path, path, level.sections);
     return level.textures != nullptr;
 }
 
@@ -232,7 +230,7 @@ const TextureStats & LastPassTextureStats()
     return s_lastStats;
 }
 
-void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time, bool sky)
+void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time, bool sky, int viewArea)
 {
     s_passTextures = level.textures;
     s_passLevel = &level;
@@ -246,7 +244,8 @@ void BeginPass(const Level & level, const math::Mat4 & viewProjection, float tim
     // matrix's first column, the view rotation being orthonormal) times the window scale.
     const float columnX = viewProjection.m[0][0] * viewProjection.m[0][0] + viewProjection.m[1][0] * viewProjection.m[1][0] +
                           viewProjection.m[2][0] * viewProjection.m[2][0];
-    BeginTextures(s_passTextures, list, context, gs::WindowScale().x * math::Sqrtf(columnX), s_texturesEnabled, s_lightmapsEnabled, time);
+    BeginTextures(s_passTextures, list, context, gs::WindowScale().x * math::Sqrtf(columnX), s_texturesEnabled, s_lightmapsEnabled, time,
+                  viewArea);
 
     list.SetFrameConstants(MakeFrameConstants(viewProjection, context));
 
@@ -270,6 +269,7 @@ bool PlanArea(const Level & level, u32 area)
         s_planning = true;
     }
 
+    PlanAreaTextures(level.textures, area);
     const AreaRecord & record = level.sections.areas[area];
     bool sky = false;
 
@@ -376,7 +376,7 @@ void Draw(const Level & level, const math::Mat4 & viewProjection, float time)
         sky = PlanArea(level, area) || sky;
     }
 
-    BeginPass(level, viewProjection, time, sky);
+    BeginPass(level, viewProjection, time, sky, -1);
 
     for (u32 area = 0; area < level.sections.areaCount && sky; ++area)
     {

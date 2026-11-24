@@ -1220,3 +1220,23 @@ runnable `PT_LOAD` loses the Huffman code: 4,263,801 → 4,257,785 release; debu
 (6,615,438 bytes, the largest 32,961) back takes 1.1 s in scan order and 3.4 s in a scattered
 order in PCSX2; through `OpenFileRead`, which reads a container entry whole, it took 58 s.
 
+
+## World textures streamed (2026-11-24)
+
+The map's D3TX no longer loads whole. Its header and tables stay resident, and each texture's file
+streams into its own `TAG_RENDER` copy on the background loader thread (RENDERING_ARCHITECTURE.md
+10.5, "Streaming as built"). Measured over mars_city1's retail gate in PCSX2 (`host:`, debug,
+`20261124T055213Z_world_retail_96c80ff9d942` NTSC, `20261124T055258Z_world_retail_0807a51d1ad1` PAL):
+
+| | Whole file (before) | Streamed |
+| --- | --- | --- |
+| D3TX in EE memory at load | 3,047,744 (one allocation) | 12,504 of tables, plus 4,116 of area and neighbour lists (1,661 entries) |
+| Copies after the first view (area 2) | | 73 textures, 972,800 bytes |
+| Copies at the most (seven views, both standards) | 3,047,744 | 99 textures, 1,213,888 bytes |
+| Reads refused, draws missing a read | | 0, 0 |
+| Passes that waited (jumps with reads outstanding) | | 3, 47 ms in all |
+
+Copies are 64-byte multiples, 2,720 bytes over the 1,211,168 read. The budget (2 MiB) never bound in
+the gate. Every capture matched the whole-file runs byte for byte, and shutdown returned the startup
+ledger exactly. The worst area with its neighbours wants 1.65 MB plus the 0.33 MB sky (the cook's
+per-area lists, measured offline), within the budget.

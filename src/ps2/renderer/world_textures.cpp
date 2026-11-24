@@ -7,19 +7,26 @@
 // texture with blending tags and its colour, evaluated once a frame where time drives it; and the
 // sky box, drawn under the pass from the cooked cube faces. A pass may plan its textures first:
 // they go in before it draws, the arena repacked when they will not fit around the ones resident.
+// The package stays on the drive but for its tables: each texture's file is read into its own EE
+// copy by the background loader when an area the pass draws, or one next to the view's, needs it.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
 #include "ps2/renderer/world_textures.h"
 #include "ps2/fnv.h"
+#include "ps2/renderer/dma.h"
+#include "ps2/renderer/pipeline_wait.h"
 #include "ps2/renderer/texture_format.h"
 #include "ps2/renderer/vif.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/renderer/vu.h"
+#include "ps2/system/aio.h"
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
 #include <bit>
+#include <fcntl.h>
+#include <unistd.h>
 #include <gif_tags.h>
 #include <draw_primitives.h>
 #include <gs_gp.h>
@@ -45,6 +52,25 @@ static constexpr u32 kUiReserveBytes = 256U * 1024U;
 
 static constexpr u32 kGsBlockBytes = 256;
 
+// EE memory the streamed copies keep for areas the view may come back to; the copies a pass wants are
+// kept whatever this says. The plan's 1.5 MiB for an area ring's textures plus 0.5 MiB of lightmap
+// pages (RENDERING_ARCHITECTURE.md 16.1); mars_city1's worst view and its neighbours want 1.98 MB.
+static constexpr u32 kCopyBudgetBytes = 2U * 1024U * 1024U;
+
+// Reads queued at once, of the loader's 32 slots: a view's textures queue over a few passes.
+static constexpr u32 kMaxPendingReads = 16;
+
+// COP0 Count runs at the EE clock: cycles per millisecond.
+static constexpr u32 kCyclesPerMs = 294912;
+
+// How much a pass wants a texture's copy.
+enum class Want : u8
+{
+    None,
+    Neighbour, // an area next to the view's: read ahead
+    Drawn      // an area the pass draws
+};
+
 struct Slot
 {
     u32 base;         // block address of the image while resident
@@ -54,6 +80,15 @@ struct Slot
     bool resident;
     bool passOnly;  // only material passes draw it: evicted before any diffuse texture or page
     bool sky;       // a sky box face: evicted first, even after this frame drew it (below)
+    // Streaming. The copy is the texture's file, 64-byte aligned; images[] holds its Image once it
+    // landed (registers and blocks kept after the copy leaves, the stream pointer cleared).
+    u8 * copy;
+    system::aio::Ticket ticket; // valid while the read is pending
+    u32 wantedFrame;            // the last pass that wanted the copy: never evicted during it
+    u32 uploadChain;            // the chain whose upload last REF'd the copy (dma::OpenChain)
+    Want want;                  // this pass's (wantedFrame)
+    bool loaded;                // 'copy' holds the validated file
+    bool broken;                // its read or file was refused: never read again
 };
 
 struct MaterialState
@@ -366,8 +401,11 @@ static u32 ClipSkyFace(const math::Mat4 & viewProjection, u32 face, SkyVertex (&
 
 struct Textures
 {
+    // The package's header and tables; the texture files stay in the file 'fd' names.
     void * storage;
     u32 bytes;
+    int fd;
+    u32 fileBytes;
     tex::Pack pack;
     tex::Image * images;
     Slot * slots;
@@ -387,6 +425,22 @@ struct Textures
     Range * planFree;
     u32 planCount;
     u32 planFrame;
+    // Each area's textures (its batches' diffuse, pass and page textures, the sky's faces where a
+    // material shows it) and its portal neighbours, as [first[area], first[area + 1]) ranges; the
+    // areas the coming pass draws, and where the view stands.
+    u16 * areaTextures;
+    u32 * areaFirst;
+    u16 * neighbours;
+    u32 * neighbourFirst;
+    u32 areaCount;
+    u16 * drawnAreas;
+    u32 drawnCount;
+    int lastViewArea;
+    bool streamed;
+    bool lastTextured;
+    bool lastLightmapped;
+    u32 pendingReads;
+    char name[64];
     gs::VramAllocation arena;
     u32 arenaBase;
     u32 arenaBlocks;
@@ -417,180 +471,140 @@ PS2_COLD_FUNC static u32 NamesHash(const Sections & sections)
     return hash;
 }
 
-PS2_COLD_FUNC Textures * AdoptTextures(void * storage, u32 bytes, const char * name, const Sections & sections)
+// Each area's textures and portal neighbours (Textures::areaTextures, neighbours), in one allocation
+// each; 'mark' is scratch of textureCount entries. False without memory.
+PS2_COLD_FUNC static bool BuildAreaLists(Textures & textures, const Sections & sections, u32 * mark)
 {
-    auto * textures = static_cast<Textures *>(system::heap::TryAlloc(sizeof(Textures), TAG_RENDER, 64));
-    const u32 imageCapacity = tex::kPackMaxTextures;
-    auto * images = static_cast<tex::Image *>(system::heap::TryAlloc(sizeof(tex::Image) * imageCapacity, TAG_RENDER));
-    const char * error = textures == nullptr || images == nullptr ? "no memory for its tables" : nullptr;
-    tex::Pack pack = {};
+    const tex::Pack & pack = textures.pack;
+    const u32 areas = sections.areaCount;
+    u32 entries = 0;
 
-    if (error == nullptr)
+    // Two walks: the first counts, the second fills.
+    for (u32 walk = 0; walk < 2; ++walk)
     {
-        error = tex::ValidatePack(static_cast<const u8 *>(storage), bytes, pack, images, imageCapacity);
-    }
-
-    if (error == nullptr && (pack.materialCount != sections.materialCount || pack.materialsHash != NamesHash(sections)))
-    {
-        error = "its materials are not the world's";
-    }
-
-    if (error == nullptr && pack.pageCount != sections.lightmapPages)
-    {
-        error = "its lightmap pages are not the world's";
-    }
-
-    Slot * slots = nullptr;
-    MaterialState * states = nullptr;
-    qword_t * blocks = nullptr;
-    PageBlockState * pageStates = nullptr;
-    qword_t * pageBlocks = nullptr;
-    Range * ranges = nullptr;
-    PassState * passes = nullptr;
-    MaterialState * passStates = nullptr;
-    qword_t * passBlocks = nullptr;
-    qword_t * colorBlocks = nullptr;
-    u32 * planOrder = nullptr;
-    Range * planFree = nullptr;
-
-    if (error == nullptr)
-    {
-        const u32 textureCount = pack.textureCount > 0 ? pack.textureCount : 1U;
-        slots = static_cast<Slot *>(system::heap::TryAlloc(sizeof(Slot) * textureCount, TAG_RENDER));
-        states = static_cast<MaterialState *>(system::heap::TryAlloc(sizeof(MaterialState) * (pack.materialCount + 1U), TAG_RENDER));
-        blocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * (pack.materialCount + 1U), TAG_RENDER, 64));
-        ranges = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
-        pageStates = static_cast<PageBlockState *>(system::heap::TryAlloc(sizeof(PageBlockState) * (pack.pageCount + 1U), TAG_RENDER));
-        pageBlocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.pageCount + 1U), TAG_RENDER, 64));
-        passes = static_cast<PassState *>(system::heap::TryAlloc(sizeof(PassState) * (pack.passCount + 1U), TAG_RENDER));
-        passStates = static_cast<MaterialState *>(system::heap::TryAlloc(sizeof(MaterialState) * (pack.passCount + 1U), TAG_RENDER));
-        passBlocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
-        colorBlocks = static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
-        planOrder = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * textureCount, TAG_RENDER));
-        planFree = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
-        error = slots == nullptr || states == nullptr || blocks == nullptr || ranges == nullptr || pageStates == nullptr || pageBlocks == nullptr ||
-                        passes == nullptr || passStates == nullptr || passBlocks == nullptr || colorBlocks == nullptr || planOrder == nullptr ||
-                        planFree == nullptr
-                    ? "no memory for its residency"
-                    : nullptr;
-    }
-
-    if (error != nullptr) [[unlikely]]
-    {
-        Log(LogLevel::Error, "textures %s refused: %s\n", name, error);
-        system::heap::Free(planFree);
-        system::heap::Free(planOrder);
-        system::heap::Free(colorBlocks);
-        system::heap::Free(passBlocks);
-        system::heap::Free(passStates);
-        system::heap::Free(passes);
-        system::heap::Free(pageBlocks);
-        system::heap::Free(pageStates);
-        system::heap::Free(ranges);
-        system::heap::Free(blocks);
-        system::heap::Free(states);
-        system::heap::Free(slots);
-        system::heap::Free(images);
-        system::heap::Free(textures);
-        system::heap::Free(storage);
-        return nullptr;
-    }
-
-    // The streams are DMA territory from here on.
-    SyncDCache(storage, static_cast<u8 *>(storage) + bytes);
-
-    *textures = {};
-    textures->storage = storage;
-    textures->bytes = bytes;
-    textures->pack = pack;
-    textures->images = images;
-    textures->slots = slots;
-    textures->states = states;
-    textures->blocks = blocks;
-    textures->pageStates = pageStates;
-    textures->pageBlocks = pageBlocks;
-    textures->free = ranges;
-    textures->passes = passes;
-    textures->passStates = passStates;
-    textures->passBlocks = passBlocks;
-    textures->colorBlocks = colorBlocks;
-    textures->planOrder = planOrder;
-    textures->planFree = planFree;
-
-    // Every pass starts with its cooked colour; BeginTextures evaluates the ones time drives.
-    for (u32 index = 0; index < pack.passCount; ++index)
-    {
-        const tex::PackPass & record = pack.passes[index];
-        PassState & state = passes[index];
-        state = {};
-        state.enabled = record.condition == tex::kPackNoNode;
-
-        for (u32 channel = 0; channel < 4; ++channel)
+        for (u32 index = 0; index < pack.textureCount; ++index)
         {
-            state.color[channel] = record.color[channel];
+            mark[index] = 0xFFFFFFFFU;
         }
 
-        passStates[index] = {};
-    }
+        entries = 0;
 
-    for (u32 index = 0; index < pack.textureCount; ++index)
-    {
-        slots[index] = {};
-    }
-
-    for (u32 index = 0; index < pack.passCount; ++index)
-    {
-        slots[pack.passes[index].texture].passOnly = true;
-    }
-
-    for (u32 index = 0; index < pack.materialCount; ++index)
-    {
-        if (pack.materials[index].texture < pack.textureCount)
+        for (u32 area = 0; area < areas; ++area)
         {
-            slots[pack.materials[index].texture].passOnly = false;
+            if (walk == 1)
+            {
+                textures.areaFirst[area] = entries;
+            }
+
+            const AreaRecord & record = sections.areas[area];
+            const auto Add = [&](u32 texture)
+            {
+                if (texture < pack.textureCount && mark[texture] != area)
+                {
+                    mark[texture] = area;
+
+                    if (walk == 1)
+                    {
+                        textures.areaTextures[entries] = static_cast<u16>(texture);
+                    }
+
+                    ++entries;
+                }
+            };
+
+            for (u32 batch = record.firstBatch; batch < record.firstBatch + record.batchCount; ++batch)
+            {
+                const BatchRecord & batchRecord = sections.batches[batch];
+                const tex::PackMaterial & material = pack.materials[batchRecord.material];
+                Add(material.texture);
+
+                for (u32 pass = 0; pass < material.passCount; ++pass)
+                {
+                    Add(pack.passes[material.firstPass + pass].texture);
+                }
+
+                if (batchRecord.lightmapPage != kNoLightmap)
+                {
+                    Add(pack.pages[batchRecord.lightmapPage]);
+                }
+
+                for (u32 face = 0; material.texture == tex::kPackSky && face < tex::kPackSkyFaces; ++face)
+                {
+                    Add(pack.sky->faces[face]);
+                }
+            }
+        }
+
+        if (walk == 0)
+        {
+            textures.areaTextures = static_cast<u16 *>(system::heap::TryAlloc(sizeof(u16) * (entries + 1U), TAG_RENDER));
+            textures.areaFirst = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * (areas + 1U), TAG_RENDER));
+            textures.neighbours = static_cast<u16 *>(system::heap::TryAlloc(sizeof(u16) * (2U * sections.portalCount + 1U), TAG_RENDER));
+            textures.neighbourFirst = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * (areas + 1U), TAG_RENDER));
+            textures.drawnAreas = static_cast<u16 *>(system::heap::TryAlloc(sizeof(u16) * (areas + 1U), TAG_RENDER));
+
+            if (textures.areaTextures == nullptr || textures.areaFirst == nullptr || textures.neighbours == nullptr ||
+                textures.neighbourFirst == nullptr || textures.drawnAreas == nullptr) [[unlikely]]
+            {
+                return false;
+            }
         }
     }
 
-    for (u32 face = 0; pack.sky != nullptr && face < tex::kPackSkyFaces; ++face)
+    textures.areaFirst[areas] = entries;
+    textures.areaCount = areas;
+
+    // Each list in file order: requests queued in it often start where the last one ended, and the
+    // loader skips their seek (the cook lays an area's textures out together).
+    for (u32 area = 0; area < areas; ++area)
     {
-        slots[pack.sky->faces[face]].sky = true;
+        u16 * const list = textures.areaTextures + textures.areaFirst[area];
+        const u32 count = textures.areaFirst[area + 1U] - textures.areaFirst[area];
+
+        for (u32 index = 1; index < count; ++index)
+        {
+            const u16 texture = list[index];
+            u32 at = index;
+
+            while (at > 0 && pack.textures[list[at - 1U]].offset > pack.textures[texture].offset)
+            {
+                list[at] = list[at - 1U];
+                --at;
+            }
+
+            list[at] = texture;
+        }
     }
 
-    for (u32 index = 0; index < pack.materialCount; ++index)
+    // A portal joins two areas both ways; areas fit u16 (Validate bounds them by the file).
+    u32 count = 0;
+
+    for (u32 area = 0; area < areas; ++area)
     {
-        states[index] = {};
+        textures.neighbourFirst[area] = count;
+
+        for (u32 portal = 0; portal < sections.portalCount; ++portal)
+        {
+            const PortalRecord & record = sections.portals[portal];
+
+            if (record.areas[0] == area || record.areas[1] == area)
+            {
+                textures.neighbours[count++] = static_cast<u16>(record.areas[0] == area ? record.areas[1] : record.areas[0]);
+            }
+        }
     }
 
-    for (u32 index = 0; index < pack.pageCount; ++index)
-    {
-        pageStates[index] = {};
-    }
-
-    u32 vramBytes = 0;
-
-    for (u32 index = 0; index < pack.textureCount; ++index)
-    {
-        vramBytes += images[index].blocks * kGsBlockBytes;
-    }
-
-    Log(LogLevel::Info, "[D3BFG] world textures %s: textures=%u materials=%u pages=%u passes=%u vram=%u bytes=%u\n", name,
-        static_cast<u32>(pack.textureCount), static_cast<u32>(pack.materialCount), static_cast<u32>(pack.pageCount), static_cast<u32>(pack.passCount),
-        vramBytes, bytes);
-    return textures;
+    textures.neighbourFirst[areas] = count;
+    return true;
 }
 
-PS2_COLD_FUNC void FreeTextures(Textures * textures)
+PS2_COLD_FUNC static void FreeTables(Textures * textures)
 {
-    if (textures == nullptr)
-    {
-        return;
-    }
-
-    if (gs::IsVramLive(textures->arena))
-    {
-        gs::ReleaseVram(textures->arena);
-    }
-
+    system::heap::Free(textures->drawnAreas);
+    system::heap::Free(textures->neighbourFirst);
+    system::heap::Free(textures->neighbours);
+    system::heap::Free(textures->areaFirst);
+    system::heap::Free(textures->areaTextures);
     system::heap::Free(textures->planFree);
     system::heap::Free(textures->planOrder);
     system::heap::Free(textures->colorBlocks);
@@ -605,7 +619,226 @@ PS2_COLD_FUNC void FreeTextures(Textures * textures)
     system::heap::Free(textures->slots);
     system::heap::Free(textures->images);
     system::heap::Free(textures->storage);
+
+    if (textures->fd >= 0)
+    {
+        system::aio::ForgetDescriptor(textures->fd);
+        close(textures->fd);
+    }
+
     system::heap::Free(textures);
+}
+
+// The header read before the tables' size is known: a SIF DMA target of whole cache lines.
+alignas(64) static u8 s_header[system::aio::RoundUp64(tex::kPackHeaderBytes)];
+
+PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, const Sections & sections)
+{
+    auto * textures = static_cast<Textures *>(system::heap::TryAlloc(sizeof(Textures), TAG_RENDER, 64));
+
+    if (textures == nullptr) [[unlikely]]
+    {
+        Log(LogLevel::Error, "textures %s refused: no memory for its tables\n", name);
+        return nullptr;
+    }
+
+    *textures = {};
+    textures->fd = open(path, O_RDONLY);
+    const char * error = textures->fd < 0 ? "cannot open it" : nullptr;
+    const off_t end = error == nullptr ? lseek(textures->fd, 0, SEEK_END) : -1;
+
+    if (error == nullptr && (end < static_cast<off_t>(tex::kPackHeaderBytes) || end > static_cast<off_t>(tex::kPackMaxFileBytes)))
+    {
+        error = "unusable file size";
+    }
+
+    // No request of an earlier package is pending: its FreeTextures cancelled them.
+    system::aio::Request request;
+    request.fd = textures->fd;
+    request.dest = s_header;
+    request.destBytes = sizeof(s_header);
+    request.bytes = tex::kPackHeaderBytes;
+
+    if (error == nullptr)
+    {
+        textures->fileBytes = static_cast<u32>(end);
+        textures->bytes = system::aio::ReadNow(request) == static_cast<int>(tex::kPackHeaderBytes)
+                              ? tex::PackTablesBytes(s_header, textures->fileBytes)
+                              : 0U;
+        error = textures->bytes == 0 ? "not a D3TX v4 file of this converter" : nullptr;
+    }
+
+    if (error == nullptr)
+    {
+        textures->storage = system::heap::TryAlloc(system::aio::RoundUp64(textures->bytes), TAG_RENDER, 64);
+        request.dest = textures->storage;
+        request.destBytes = system::aio::RoundUp64(textures->bytes);
+        request.bytes = textures->bytes;
+        error = textures->storage == nullptr ? "no memory for its tables"
+                : system::aio::ReadNow(request) != static_cast<int>(textures->bytes) ? "read failed"
+                                                                                      : nullptr;
+    }
+
+    tex::Pack pack = {};
+
+    if (error == nullptr)
+    {
+        error = tex::ValidatePackTables(static_cast<const u8 *>(textures->storage), textures->bytes, textures->fileBytes, pack);
+    }
+
+    if (error == nullptr && (pack.materialCount != sections.materialCount || pack.materialsHash != NamesHash(sections)))
+    {
+        error = "its materials are not the world's";
+    }
+
+    if (error == nullptr && pack.pageCount != sections.lightmapPages)
+    {
+        error = "its lightmap pages are not the world's";
+    }
+
+    if (error == nullptr)
+    {
+        textures->pack = pack;
+        const u32 textureCount = pack.textureCount > 0 ? pack.textureCount : 1U;
+        textures->images = static_cast<tex::Image *>(system::heap::TryAlloc(sizeof(tex::Image) * textureCount, TAG_RENDER));
+        textures->slots = static_cast<Slot *>(system::heap::TryAlloc(sizeof(Slot) * textureCount, TAG_RENDER));
+        textures->states = static_cast<MaterialState *>(system::heap::TryAlloc(sizeof(MaterialState) * (pack.materialCount + 1U), TAG_RENDER));
+        textures->blocks =
+            static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * (pack.materialCount + 1U), TAG_RENDER, 64));
+        textures->free = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
+        textures->pageStates = static_cast<PageBlockState *>(system::heap::TryAlloc(sizeof(PageBlockState) * (pack.pageCount + 1U), TAG_RENDER));
+        textures->pageBlocks =
+            static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.pageCount + 1U), TAG_RENDER, 64));
+        textures->passes = static_cast<PassState *>(system::heap::TryAlloc(sizeof(PassState) * (pack.passCount + 1U), TAG_RENDER));
+        textures->passStates = static_cast<MaterialState *>(system::heap::TryAlloc(sizeof(MaterialState) * (pack.passCount + 1U), TAG_RENDER));
+        textures->passBlocks =
+            static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
+        textures->colorBlocks =
+            static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
+        textures->planOrder = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * textureCount, TAG_RENDER));
+        textures->planFree = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
+        error = textures->images == nullptr || textures->slots == nullptr || textures->states == nullptr || textures->blocks == nullptr ||
+                        textures->free == nullptr || textures->pageStates == nullptr || textures->pageBlocks == nullptr ||
+                        textures->passes == nullptr || textures->passStates == nullptr || textures->passBlocks == nullptr ||
+                        textures->colorBlocks == nullptr || textures->planOrder == nullptr || textures->planFree == nullptr
+                    ? "no memory for its residency"
+                    : nullptr;
+    }
+
+    // The plan order doubles as the lists' scratch.
+    if (error == nullptr && !BuildAreaLists(*textures, sections, textures->planOrder))
+    {
+        error = "no memory for its area lists";
+    }
+
+    if (error != nullptr) [[unlikely]]
+    {
+        Log(LogLevel::Error, "textures %s refused: %s\n", name, error);
+        FreeTables(textures);
+        return nullptr;
+    }
+
+    idStr::Copynz(textures->name, name, static_cast<int>(sizeof(textures->name)));
+    textures->lastViewArea = -1;
+
+    // Every pass starts with its cooked colour; BeginTextures evaluates the ones time drives.
+    for (u32 index = 0; index < pack.passCount; ++index)
+    {
+        const tex::PackPass & record = pack.passes[index];
+        PassState & state = textures->passes[index];
+        state = {};
+        state.enabled = record.condition == tex::kPackNoNode;
+
+        for (u32 channel = 0; channel < 4; ++channel)
+        {
+            state.color[channel] = record.color[channel];
+        }
+
+        textures->passStates[index] = {};
+    }
+
+    for (u32 index = 0; index < pack.textureCount; ++index)
+    {
+        textures->slots[index] = {};
+        textures->images[index] = {};
+    }
+
+    for (u32 index = 0; index < pack.passCount; ++index)
+    {
+        textures->slots[pack.passes[index].texture].passOnly = true;
+    }
+
+    for (u32 index = 0; index < pack.materialCount; ++index)
+    {
+        if (pack.materials[index].texture < pack.textureCount)
+        {
+            textures->slots[pack.materials[index].texture].passOnly = false;
+        }
+    }
+
+    for (u32 face = 0; pack.sky != nullptr && face < tex::kPackSkyFaces; ++face)
+    {
+        textures->slots[pack.sky->faces[face]].sky = true;
+    }
+
+    for (u32 index = 0; index < pack.materialCount; ++index)
+    {
+        textures->states[index] = {};
+    }
+
+    for (u32 index = 0; index < pack.pageCount; ++index)
+    {
+        textures->pageStates[index] = {};
+    }
+
+    Log(LogLevel::Info, "[D3BFG] world textures %s: textures=%u materials=%u pages=%u passes=%u areas=%u bytes=%u tables=%u streamed\n", name,
+        static_cast<u32>(pack.textureCount), static_cast<u32>(pack.materialCount), static_cast<u32>(pack.pageCount), static_cast<u32>(pack.passCount),
+        textures->areaCount, textures->fileBytes, textures->bytes);
+    return textures;
+}
+
+static void FreeCopy(Textures & textures, u32 index)
+{
+    Slot & slot = textures.slots[index];
+    PS2_AssertMsg(slot.copy != nullptr && !slot.ticket.IsValid() && dma::ChainDone(slot.uploadChain), "a texture copy freed while in use");
+
+    system::heap::Free(slot.copy);
+    textures.stats.copyBytes -= system::aio::RoundUp64(textures.pack.textures[index].bytes);
+    textures.stats.copies -= slot.loaded ? 1U : 0U;
+    textures.images[index].stream = nullptr;
+    slot.copy = nullptr;
+    slot.loaded = false;
+}
+
+PS2_COLD_FUNC void FreeTextures(Textures * textures)
+{
+    if (textures == nullptr)
+    {
+        return;
+    }
+
+    if (gs::IsVramLive(textures->arena))
+    {
+        gs::ReleaseVram(textures->arena);
+    }
+
+    for (u32 index = 0; index < textures->pack.textureCount; ++index)
+    {
+        Slot & slot = textures->slots[index];
+
+        if (slot.ticket.IsValid())
+        {
+            system::aio::Cancel(slot.ticket);
+            slot.ticket = {};
+        }
+
+        if (slot.copy != nullptr)
+        {
+            FreeCopy(*textures, index);
+        }
+    }
+
+    FreeTables(textures);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -787,6 +1020,13 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
     const tex::Image & image = textures.images[index];
     u32 start = 0;
 
+    // The upload REFs the EE copy: a texture whose read has not landed draws without it this pass.
+    if (!slot.loaded)
+    {
+        ++textures.stats.streamMisses;
+        return false;
+    }
+
     while (!TakeRange(textures.free, textures.freeCount, image.blocks, start, fromTop))
     {
         u32 victim = textures.pack.textureCount;
@@ -822,6 +1062,7 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
     slot.resident = true;
     slot.generation = ++textures.generation;
     list.UploadImage(image.stream, image.streamQwords, slot.base);
+    slot.uploadChain = dma::OpenChain();
     textures.stats.residentBytes += image.blocks * kGsBlockBytes;
     ++textures.stats.resident;
     textures.stats.pagesResident += image.usage == tex::ImageUsage::Lightmap ? 1U : 0U;
@@ -870,7 +1111,8 @@ static bool PlanFits(Textures & textures, bool withoutUnplanned)
         const u32 index = textures.planOrder[order];
         u32 start = 0;
 
-        if (!textures.slots[index].resident && !TakeRange(textures.planFree, rangeCount, textures.images[index].blocks, start, false))
+        if (!textures.slots[index].resident && textures.slots[index].loaded &&
+            !TakeRange(textures.planFree, rangeCount, textures.images[index].blocks, start, false))
         {
             return false;
         }
@@ -894,7 +1136,8 @@ static void Preload(Textures & textures, dma::DisplayList & list)
 
     for (u32 order = 0; order < textures.planCount && !missing; ++order)
     {
-        missing = !textures.slots[textures.planOrder[order]].resident;
+        const Slot & slot = textures.slots[textures.planOrder[order]];
+        missing = !slot.resident && slot.loaded;
     }
 
     if (!missing)
@@ -922,10 +1165,309 @@ static void Preload(Textures & textures, dma::DisplayList & list)
     {
         const u32 index = textures.planOrder[order];
 
-        if (!textures.slots[index].resident)
+        if (!textures.slots[index].resident && textures.slots[index].loaded)
         {
             (void)MakeResident(textures, list, index);
         }
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// Streaming
+// ------------------------------------------------------------------------------------------------
+
+static u32 CopyBytes(const Textures & textures, u32 index)
+{
+    return system::aio::RoundUp64(textures.pack.textures[index].bytes);
+}
+
+// A read that ended with 'result' (bytes delivered, or a loader code): the file is validated and
+// kept, or refused for good.
+static void Land(Textures & textures, u32 index, int result)
+{
+    Slot & slot = textures.slots[index];
+    const u32 bytes = textures.pack.textures[index].bytes;
+    PS2_AssertMsg(slot.copy != nullptr && textures.pendingReads > 0, "a texture read landed with no copy");
+    --textures.pendingReads;
+
+    const char * error = result != static_cast<int>(bytes) ? "its read failed" : tex::ValidatePackTexture(textures.pack, index, slot.copy, textures.images[index]);
+
+    if (error != nullptr) [[unlikely]]
+    {
+        Log(LogLevel::Error, "texture %u of %s refused: %s\n", index, textures.name, error);
+        FreeCopy(textures, index);
+        slot.broken = true;
+        ++textures.stats.streamFailures;
+        return;
+    }
+
+    // The GIF reads the stream from memory: no line of the copy may stay in the data cache.
+    SyncDCache(slot.copy, slot.copy + CopyBytes(textures, index));
+    slot.loaded = true;
+    ++textures.stats.copies;
+    ++textures.stats.streamLoads;
+    textures.stats.streamBytes += bytes;
+}
+
+// Lands every read the loader finished.
+static void Harvest(Textures & textures)
+{
+    for (u32 index = 0; index < textures.pack.textureCount && textures.pendingReads > 0; ++index)
+    {
+        Slot & slot = textures.slots[index];
+
+        if (!slot.ticket.IsValid())
+        {
+            continue;
+        }
+
+        const system::aio::State state = system::aio::Poll(slot.ticket);
+
+        if (state == system::aio::State::Done || state == system::aio::State::Failed)
+        {
+            const int result = system::aio::Result(slot.ticket);
+            system::aio::Release(slot.ticket);
+            slot.ticket = {};
+            Land(textures, index, result);
+        }
+    }
+}
+
+// Frees copies until 'bytes' more fit the budget, or as many as can go when 'all': the least recently
+// wanted first, never one this pass wants, one still being read, or one a chain not yet done uploads.
+static void MakeRoom(Textures & textures, u32 bytes, bool all)
+{
+    while (all || textures.stats.copyBytes + bytes > kCopyBudgetBytes)
+    {
+        u32 victim = textures.pack.textureCount;
+
+        for (u32 index = 0; index < textures.pack.textureCount; ++index)
+        {
+            const Slot & slot = textures.slots[index];
+
+            if (!slot.loaded || slot.wantedFrame == textures.frame || !dma::ChainDone(slot.uploadChain))
+            {
+                continue;
+            }
+
+            if (victim == textures.pack.textureCount || slot.wantedFrame < textures.slots[victim].wantedFrame)
+            {
+                victim = index;
+            }
+        }
+
+        if (victim == textures.pack.textureCount)
+        {
+            return;
+        }
+
+        FreeCopy(textures, victim);
+    }
+}
+
+// Queues the read of texture 'index' into a new copy; false when no copy or loader slot is free now.
+// Without the loader thread it reads at once.
+static bool Request(Textures & textures, u32 index, system::aio::Priority priority)
+{
+    Slot & slot = textures.slots[index];
+    const u32 bytes = CopyBytes(textures, index);
+    MakeRoom(textures, bytes, false);
+    void * copy = system::heap::TryAlloc(bytes, TAG_RENDER, 64);
+
+    if (copy == nullptr)
+    {
+        MakeRoom(textures, bytes, true);
+        copy = system::heap::TryAlloc(bytes, TAG_RENDER, 64);
+    }
+
+    if (copy == nullptr)
+    {
+        return false;
+    }
+
+    system::aio::Request request;
+    request.priority = priority;
+    request.fd = textures.fd;
+    request.offset = textures.pack.textures[index].offset;
+    request.bytes = textures.pack.textures[index].bytes;
+    request.dest = copy;
+    request.destBytes = bytes;
+    const system::aio::Ticket ticket = system::aio::Submit(request);
+
+    if (!ticket.IsValid() && system::aio::Enabled())
+    {
+        system::heap::Free(copy);
+        return false;
+    }
+
+    slot.copy = static_cast<u8 *>(copy);
+    slot.ticket = ticket;
+    ++textures.pendingReads;
+    textures.stats.copyBytes += bytes;
+    textures.stats.copyPeakBytes = textures.stats.copyBytes > textures.stats.copyPeakBytes ? textures.stats.copyBytes : textures.stats.copyPeakBytes;
+
+    if (!ticket.IsValid())
+    {
+        Land(textures, index, system::aio::ReadNow(request));
+    }
+
+    return true;
+}
+
+// Whether this pass reads texture 'index': pages for the lightmap pass, the rest for textured passes.
+static bool Streams(const Textures & textures, u32 index, bool textured, bool lightmapped)
+{
+    return (textures.pack.textures[index].flags & tex::kPackFlagLightmap) != 0 ? lightmapped : textured;
+}
+
+// Marks area 'area''s textures wanted this pass at 'want' (or more).
+static void WantArea(Textures & textures, u32 area, Want want, bool textured, bool lightmapped)
+{
+    for (u32 entry = textures.areaFirst[area]; entry < textures.areaFirst[area + 1U]; ++entry)
+    {
+        const u32 index = textures.areaTextures[entry];
+        Slot & slot = textures.slots[index];
+
+        if (!Streams(textures, index, textured, lightmapped))
+        {
+            continue;
+        }
+
+        if (slot.wantedFrame != textures.frame)
+        {
+            slot.wantedFrame = textures.frame;
+            slot.want = Want::None;
+        }
+
+        slot.want = want > slot.want ? want : slot.want;
+    }
+}
+
+// Queues the reads of the wanted textures of 'area' that have no copy, while the queue has room;
+// 'missing' tells whether one is still without a landed copy.
+static void RequestArea(Textures & textures, u32 area, system::aio::Priority priority, bool & missing)
+{
+    for (u32 entry = textures.areaFirst[area]; entry < textures.areaFirst[area + 1U]; ++entry)
+    {
+        const u32 index = textures.areaTextures[entry];
+        Slot & slot = textures.slots[index];
+
+        if (slot.wantedFrame != textures.frame || slot.want == Want::None || slot.loaded || slot.broken)
+        {
+            continue;
+        }
+
+        if (slot.copy == nullptr && (textures.pendingReads >= kMaxPendingReads || !Request(textures, index, priority)))
+        {
+            missing = true;
+            continue;
+        }
+
+        missing = missing || !slot.loaded;
+    }
+}
+
+static bool Adjacent(const Textures & textures, int from, int to)
+{
+    if (from < 0)
+    {
+        return false;
+    }
+
+    for (u32 entry = textures.neighbourFirst[from]; entry < textures.neighbourFirst[from + 1]; ++entry)
+    {
+        if (textures.neighbours[entry] == static_cast<u32>(to))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// The pass's streaming: see BeginTextures.
+static void Stream(Textures & textures, bool textured, bool lightmapped, int viewArea)
+{
+    Harvest(textures);
+
+    const bool planned = textures.planFrame == textures.frame;
+    const bool jump = !textures.streamed || (textured && !textures.lastTextured) || (lightmapped && !textures.lastLightmapped) ||
+                      (viewArea >= 0 && viewArea != textures.lastViewArea && !Adjacent(textures, textures.lastViewArea, viewArea));
+    const int view = viewArea >= 0 && static_cast<u32>(viewArea) < textures.areaCount ? viewArea : -1;
+
+    textures.streamed = true;
+    textures.lastTextured = textured;
+    textures.lastLightmapped = lightmapped;
+    textures.lastViewArea = view;
+
+    if (!planned || (!textured && !lightmapped))
+    {
+        return;
+    }
+
+    for (u32 area = 0; area < textures.drawnCount; ++area)
+    {
+        WantArea(textures, textures.drawnAreas[area], Want::Drawn, textured, lightmapped);
+    }
+
+    for (u32 entry = view >= 0 ? textures.neighbourFirst[view] : 0U; view >= 0 && entry < textures.neighbourFirst[view + 1]; ++entry)
+    {
+        WantArea(textures, textures.neighbours[entry], Want::Neighbour, textured, lightmapped);
+    }
+
+    if (view >= 0)
+    {
+        WantArea(textures, static_cast<u32>(view), Want::Neighbour, textured, lightmapped);
+    }
+
+    // The drawn areas' reads first, at high priority; then the neighbours'. After a jump the pass
+    // waits for every drawn area's texture (or its refusal), queueing more as reads land.
+    const u32 start = gs::ReadCycles();
+    bool waited = false;
+
+    for (;;)
+    {
+        bool missing = false;
+
+        for (u32 area = 0; area < textures.drawnCount; ++area)
+        {
+            RequestArea(textures, textures.drawnAreas[area], system::aio::Priority::High, missing);
+        }
+
+        if (!jump || !missing || textures.pendingReads == 0)
+        {
+            break;
+        }
+
+        waited = true;
+
+        for (u32 index = 0; index < textures.pack.textureCount; ++index)
+        {
+            if (textures.slots[index].ticket.IsValid())
+            {
+                system::aio::Wait(textures.slots[index].ticket);
+            }
+        }
+
+        Harvest(textures);
+    }
+
+    if (waited)
+    {
+        ++textures.stats.streamWaits;
+        textures.stats.streamWaitMs += (gs::ReadCycles() - start) / kCyclesPerMs;
+    }
+
+    bool ahead = false;
+
+    for (u32 entry = view >= 0 ? textures.neighbourFirst[view] : 0U; view >= 0 && entry < textures.neighbourFirst[view + 1]; ++entry)
+    {
+        RequestArea(textures, textures.neighbours[entry], system::aio::Priority::Low, ahead);
+    }
+
+    if (view >= 0)
+    {
+        RequestArea(textures, static_cast<u32>(view), system::aio::Priority::Low, ahead);
     }
 }
 
@@ -969,7 +1511,19 @@ void BeginPlan(Textures * textures)
     {
         textures->planFrame = textures->frame + 1U;
         textures->planCount = 0;
+        textures->drawnCount = 0;
     }
+}
+
+void PlanAreaTextures(Textures * textures, u32 area)
+{
+    if (textures == nullptr)
+    {
+        return;
+    }
+
+    PS2_AssertMsg(area < textures->areaCount && textures->drawnCount < textures->areaCount, "planned area outside the texture package");
+    textures->drawnAreas[textures->drawnCount++] = static_cast<u16>(area);
 }
 
 void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool lightmapped)
@@ -994,7 +1548,8 @@ void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool 
     }
 }
 
-void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext context, float focal, bool textured, bool lightmapped, float time)
+void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext context, float focal, bool textured, bool lightmapped, float time,
+                   int viewArea)
 {
     s_context = context;
     s_textured = textured;
@@ -1006,6 +1561,7 @@ void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext
     }
 
     ++textures->frame;
+    Stream(*textures, textured, lightmapped, viewArea);
     EvaluatePasses(*textures, time);
 
     if (!gs::IsVramLive(textures->arena))

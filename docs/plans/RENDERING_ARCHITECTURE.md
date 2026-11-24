@@ -1424,8 +1424,8 @@ to memory images belongs with R8.
   policy (halved, half of them `PSMT4`, with mips), 0.37 MiB on average. Textures outside
   the ring are loaded from the level package when an area becomes visible, prefetched one
   portal ahead. The budget per portal crossing is that worst ring against the measured
-  read rate of each device (`host:`, USB, HDD; gate R2 records them); a miss draws the
-  stale or white texture and never stalls the frame.
+  read rate of each device (`host:`, USB, HDD; gate R2 records them). A miss draws without the
+  texture; only a jump stalls the frame (as built, 2026-11-24: "Streaming as built" below).
 - Uploads ride inside the VIF1 chain: `FLUSHA`, a `DIRECT` block with the texture's
   `BITBLTBUF`, a REF of its cooked stream under `DIRECT` (10.4), then `TEXFLUSH`, in the order
   the frame needs them (TimeSplitters). This keeps PATH2 and PATH1 ordered with no
@@ -1450,26 +1450,54 @@ to memory images belongs with R8.
   travels in the chain's own DIRECT data, not in a cached state block), then material pass
   textures, then the least recently drawn. The sky takes only free space or textures the previous
   pass did not draw, so it never displaces what a view draws every frame.
-- **Texture dictionaries (noted 2026-11-08, not built).** Black groups a file's textures into
-  dictionaries (`docs/formats/textures.md` in black-re): GLOBDATA, LEVELDAT and per-unit ones.
-  Each is a count and an entry table over self-contained texture objects that carry their upload
-  chains, relocated in place after one read (`ResDict_Relocate`) and registered by slot.
-  The area-ring streaming above should load textures the same way, not one by one:
-  - The cook groups a level's textures (and lightmap pages) into one dictionary per **segment**: a
-    cluster of areas the portal graph keeps together, plus a level-common dictionary for textures
-    many segments share.
-  - A segment arrives as one read into one EE allocation, so it pays the heap's per-allocation
-    header and alignment slack once (25 % of backing at retail boot,
-    [memory-budget.md](../../.claude/rules/memory-budget.md)).
-  - Its textures could also be packed into one cooked VRAM layout: one upload stream into one
-    arena region, released together. That avoids per-texture block rounding and the LRU arena's
-    fragmentation.
-  - The whole-level D3TX loaded today wastes only 7,752 bytes to 64-byte alignment across 266
-    textures. The gain is in streaming and in VRAM, where 86 of mars_city1's textures are under
-    4 KiB.
-  - Open choices: segment boundaries, duplicating a shared texture or moving it to the common
-    dictionary, and whether a segment's VRAM layout survives a texture that several resident
-    segments use. Decide them with R2's streaming measurements.
+- **Texture dictionaries (noted 2026-11-08; measured and set aside 2026-11-24).** Black groups a
+  file's textures into dictionaries (`docs/formats/textures.md` in black-re): GLOBDATA, LEVELDAT and
+  per-unit ones, each read once and relocated in place (`ResDict_Relocate`). This plan meant to load
+  the area ring the same way: one dictionary per segment of areas, plus a level-common one. Measured
+  on mars_city1 (56 areas joined by 55 portals into a tree, 295 textures, 3.03 MB of texture files),
+  dictionaries lose to single textures, because the map reuses one wall set almost everywhere:
+  - Segments that own their textures outright leave 2.36 MB of the 3.03 MB in the common dictionary
+    at any segment size from 64 KB to 768 KB.
+  - Segments that each copy their own textures (common = textures that at least K areas use, plus the
+    pages and the sky) hold at least 2.2 MB for the worst area and its neighbours, against
+    1.65 MB + the 0.33 MB sky for single textures (0.99 MB on average). The files also grow
+    (3.3 MB at K = 3, 12 MB at K = 99).
+  The level streams **one texture at a time** instead (below). A single VRAM layout per segment goes
+  with the dictionaries; the arena's best fit and repack keep the VRAM side.
+- **Streaming as built (2026-11-24).**
+  - **What stays in EE memory.** The map's D3TX stays on the drive but for its header and tables
+    (12,504 bytes for mars_city1). Each texture's GSTX file is read whole into its own 64-byte aligned
+    copy, validated as it lands (`tex::ValidatePackTexture`; the payload hash only in assertion
+    builds), and uploaded from there as before.
+  - **The background loader** (`system/aio.h`, quake2-ps2's) reads 32 KB chunks on its own thread,
+    one priority below the main thread. It runs while the main thread sleeps, which the present's
+    vsync wait now does (a vblank interrupt semaphore, `gs.cpp`).
+  - **What each pass asks for.** At its start (`world::BeginTextures`) the pass lands the reads that
+    finished, then requests what it lacks:
+    - the textures of the areas it draws (the cook's per-area list: diffuse, material passes, pages,
+      and the sky's faces where a material shows it), at high priority;
+    - then those of the view area and its portal neighbours, at low priority.
+    The requests of one area go in file order. The cook lays the files out as the lightmap pages, the
+    sky, then a portal walk from area 0 that places each area's new textures in batch order. 43% of
+    an area's requests then start where the last one ended, so the loader skips their seek (9% in
+    index order with the requests unsorted).
+  - **A miss draws as a VRAM fallback.** A texture whose read has not landed is left out like one the
+    arena cannot hold: untextured, unlit, or without its pass or sky face. The pass waits instead
+    after a **jump**: the package's first pass, a view area that is neither the last one nor its
+    neighbour (a teleport, a load), or textures or lightmaps switched on. The gate's views are all
+    jumps and capture exactly what the whole-file load drew.
+  - **The copy budget.** Copies beyond 2 MiB leave, least recently wanted first, but never one the
+    pass wants, one being read, or one a chain still uploads from (`dma::ChainDone`; chains are
+    numbered as they are kicked). A texture can stay in VRAM after its copy leaves, and is read
+    again only if the arena evicts it.
+  - **Measured.** The retail gate (PCSX2, `host:`, both standards) peaked at 1,213,888 bytes of
+    copies, against 3,047,744 for the whole package, with no misses or refused reads. Three passes
+    waited, 47 ms in all. Read rates on USB and HDD, and the prefetch's reach on a console
+    (quake2-ps2 measured 41 ms per 32 KB chunk on a USB stick), are gate R2's hardware items.
+  - **Open:**
+    - Prefetch one portal deeper if console runs show misses.
+    - Coalesce adjacent requests into one read.
+    - The lightmap pages are shared by nearly every area: per-segment pages would let them stream too.
 
 ---
 
@@ -1787,7 +1815,7 @@ each gate:
 | `idDrawVert` mirrors for traces, decals and overlays (characters, props) | 1.1 MiB | 34,654 model vertices at 32 B plus indices |
 | Map-resident game data (collision, AAS, entities, sound world) | measure at R2 | mars_city1's container holds 5.4 MB of binary collision and 2 MB of AAS as id stores them |
 | Animations resident | 2.5 MiB | non-cinematic set of the level (4.55 MiB Q2 for mars_city1 needs pruning by use or streaming) |
-| Textures, EE copies for the area ring | 1.5 MiB | Q2 worst 1-ring 0.88 MiB plus characters and weapons |
+| Textures, EE copies for the area ring | 1.5 MiB | Q2 worst 1-ring 0.88 MiB plus characters and weapons; streamed since 2026-11-24, the retail gate's copies peaked at 1.21 MB with the pages and the sky (10.5) |
 | Lightmap atlases, EE copies | 0.5 MiB | 301 KiB at 16 u for mars_city1 |
 | Display-list rings (2 x 384 KiB), frame arena, light blocks | 1.0 MiB | replaces the 2 x 64 MiB frame arena and 2 x 128 KiB DIRECT halves |
 | VU program chains, CLUT images, material pass tables, manifest | 0.3 MiB | |

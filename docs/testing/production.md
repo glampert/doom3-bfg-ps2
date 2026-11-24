@@ -375,7 +375,8 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   (the `[D3BFG] world maps/game/mars_city1.d3wd:` line must carry the cook report's areas,
   surfaces, batches, portals and nodes: 56, 1,861, 2,718, 55 and 9,783 today, with the static
   `func_static` brush models merged into the areas, and a
-  `[D3BFG] world textures maps/game/mars_city1.d3tx:` line with its pages must follow),
+  `[D3BFG] world textures maps/game/mars_city1.d3tx:` line with its pages, areas, file and table
+  bytes, ending `streamed`, must follow),
   `ps2_world textures off`, `ps2_world lightmaps off`, and two
   `ps2_world trace`s from the player's eye at the start (`info_player_start_2`, 68 units
   above (-3632, -3416, 192)): straight down onto `textures/base_floor/sflgrate2` at fraction
@@ -400,7 +401,12 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   passes drawn, and left out because the arena could not hold their texture: PAL's north view leaves
   its glows out), `sky_faces` and `sky_fallbacks` (the sky box's faces, which give way the same way)
   and `repacks` (passes that emptied the arena to place their textures without holes) are recorded;
-  some view must have drawn the sky. Both go off again
+  some view must have drawn the sky. Streaming (2026-11-24): every view's status must show no
+  refused read (`stream_failures`), no draw left out for a read that had not landed
+  (`stream_misses`; each view's camera move and switch is a jump, which waits) and at least one
+  pass that waited (`stream_waits`). The copies' peak (`copy_peak`) must stay below the package's
+  file bytes. The runner records the peak, and `stream_loads`, `stream_bytes` and
+  `stream_wait_ms` per view. Both go off again
   before the next view. Each lightmap capture must match the reference with the lightmap pass
   modelled (below); the textured captures are checked by eye: no reference models the diffuse
   textures yet. The

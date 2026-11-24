@@ -101,6 +101,13 @@ void EndFrame();
 void Kick();
 void WaitIdle();
 
+// Chains are numbered from 1 as they are kicked. OpenChain is the number the chain being built gets
+// when it is kicked; ChainDone tells whether chain 'chain' has run to completion: a later one was
+// kicked (Kick waits for the one before it) or it was the last and has been waited for. Memory a
+// chain REFs (an upload's stream) may be freed once its chain is done.
+u32 OpenChain();
+bool ChainDone(u32 chain);
+
 // The frame's list: every draw command goes through it (dma_list.h).
 class DisplayList;
 

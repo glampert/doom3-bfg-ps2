@@ -32,6 +32,9 @@ static void * s_storage = nullptr;
 static int s_ring = 0;
 static Stats s_stats = {};
 
+// Chains kicked since boot, never reset (ChainDone compares against numbers taken before an Init).
+static u32 s_chains = 0;
+
 } // namespace
 
 namespace detail
@@ -165,6 +168,17 @@ void Kick()
 
     detail::g_inFlight = true;
     ++s_stats.kicks;
+    ++s_chains;
+}
+
+u32 OpenChain()
+{
+    return s_chains + 1U;
+}
+
+bool ChainDone(u32 chain)
+{
+    return s_chains > chain || (s_chains == chain && !detail::g_inFlight);
 }
 
 void WaitIdle()

@@ -188,7 +188,7 @@ void RenderView(const viewDef_t & view)
     if (drawing)
     {
         // World surfaces are time group 0 (renderEntity_t::timeGroup), in milliseconds.
-        world::BeginPass(*level, ViewProjection(view), static_cast<float>(view.renderView.time[0]) * 0.001f, sky);
+        world::BeginPass(*level, ViewProjection(view), static_cast<float>(view.renderView.time[0]) * 0.001f, sky, view.areaNum);
     }
 
     for (const viewEntity_t * entity = view.viewEntitys; entity != nullptr && sky; entity = entity->next)

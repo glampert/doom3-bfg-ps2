@@ -412,21 +412,17 @@ PS2_COLD_FUNC static const char * ValidatePass(const Pack & pack, const PackPass
     return valid ? nullptr : "D3TX pass expression out of range";
 }
 
-PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t bytes, Pack & output, Image * images,
-                                        std::uint32_t imageCapacity)
+// The counts of a D3TX v4 header of this converter in a file of 'fileBytes', and where the tables end;
+// false when the header is not one.
+static bool ReadPackHeader(const std::uint8_t * file, std::uint32_t fileBytes, Pack & pack, std::uint32_t & tablesEnd)
 {
-    if (file == nullptr || (reinterpret_cast<std::uintptr_t>(file) & (kPackAlignment - 1U)) != 0) [[unlikely]]
+    if (fileBytes < kPackHeaderBytes || fileBytes > kPackMaxFileBytes || Word(file) != kPackMagic || Half(file + 4) != kPackVersion ||
+        Half(file + 6) != kPackHeaderBytes || Word(file + 20) != fileBytes || Word(file + 28) != kPackConverterVersion) [[unlikely]]
     {
-        return "D3TX file is not 64-byte aligned";
+        return false;
     }
 
-    if (bytes < kPackHeaderBytes || bytes > kPackMaxFileBytes || Word(file) != kPackMagic || Half(file + 4) != kPackVersion ||
-        Half(file + 6) != kPackHeaderBytes || Word(file + 20) != bytes || Word(file + 28) != kPackConverterVersion) [[unlikely]]
-    {
-        return "not a D3TX v4 file";
-    }
-
-    Pack pack = {};
+    pack = {};
     pack.materialCount = Word(file + 8);
     pack.textureCount = Word(file + 12);
     pack.materialsHash = Word(file + 16);
@@ -437,25 +433,53 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     pack.skyCount = Word(file + 48);
 
     if (pack.materialCount > kPackMaxMaterials || pack.textureCount > kPackMaxTextures || pack.pageCount > kPackMaxPages ||
-        pack.textureCount > imageCapacity || pack.passCount > kPackMaxPasses || pack.nodeCount > kPackMaxNodes ||
-        pack.valueCount > kPackMaxValues || pack.skyCount > kPackMaxSkies) [[unlikely]]
+        pack.passCount > kPackMaxPasses || pack.nodeCount > kPackMaxNodes || pack.valueCount > kPackMaxValues ||
+        pack.skyCount > kPackMaxSkies) [[unlikely]]
+    {
+        return false;
+    }
+
+    // Node records are 12 bytes: the values and the sky after them stay 4-byte aligned.
+    tablesEnd = kPackHeaderBytes + kPackMaterialBytes * pack.materialCount + kPackPassBytes * pack.passCount +
+                kPackTextureBytes * pack.textureCount + kPackPageBytes * pack.pageCount + kPackNodeBytes * pack.nodeCount +
+                kPackValueBytes * pack.valueCount + kPackSkyBytes * pack.skyCount;
+    return tablesEnd <= fileBytes;
+}
+
+PS2_COLD_FUNC std::uint32_t PackTablesBytes(const std::uint8_t * header, std::uint32_t fileBytes)
+{
+    Pack pack = {};
+    std::uint32_t tablesEnd = 0;
+    return ReadPackHeader(header, fileBytes, pack, tablesEnd) ? tablesEnd : 0U;
+}
+
+PS2_COLD_FUNC const char * ValidatePackTables(const std::uint8_t * file, std::uint32_t tablesBytes, std::uint32_t fileBytes, Pack & output)
+{
+    if (file == nullptr || (reinterpret_cast<std::uintptr_t>(file) & (kPackAlignment - 1U)) != 0) [[unlikely]]
+    {
+        return "D3TX tables are not 64-byte aligned";
+    }
+
+    Pack pack = {};
+    std::uint32_t tablesEnd = 0;
+
+    if (tablesBytes < kPackHeaderBytes || !ReadPackHeader(file, fileBytes, pack, tablesEnd)) [[unlikely]]
+    {
+        return "not a D3TX v4 file of this converter";
+    }
+
+    if (tablesEnd > tablesBytes) [[unlikely]]
     {
         return "D3TX tables out of range";
     }
 
+    const std::uint32_t bytes = fileBytes;
     const std::uint32_t passesAt = kPackHeaderBytes + kPackMaterialBytes * pack.materialCount;
     const std::uint32_t texturesAt = passesAt + kPackPassBytes * pack.passCount;
     const std::uint32_t pagesAt = texturesAt + kPackTextureBytes * pack.textureCount;
     const std::uint32_t nodesAt = pagesAt + kPackPageBytes * pack.pageCount;
     const std::uint32_t valuesAt = nodesAt + kPackNodeBytes * pack.nodeCount;
     const std::uint32_t skiesAt = valuesAt + kPackValueBytes * pack.valueCount;
-    const std::uint32_t tablesEnd = skiesAt + kPackSkyBytes * pack.skyCount;
-
-    // Node records are 12 bytes: the values and the sky after them stay 4-byte aligned.
-    if (tablesEnd > bytes) [[unlikely]]
-    {
-        return "D3TX tables out of range";
-    }
 
     std::uint32_t hash = Fnv1a32(file, 24);
     hash = Fnv1a32("\0\0\0\0", 4, hash);
@@ -478,7 +502,9 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
     {
         const PackTexture & texture = pack.textures[index];
 
-        if (texture.offset < tablesEnd || (texture.offset & (kPackAlignment - 1U)) != 0 || texture.bytes > bytes ||
+        // A streaming loader allocates a record's bytes before reading them: bound them by an image's.
+        if (texture.offset < tablesEnd || (texture.offset & (kPackAlignment - 1U)) != 0 || texture.bytes < kImageHeaderBytes ||
+            texture.bytes > kImageMaxFileBytes || texture.bytes > bytes ||
             texture.offset > bytes - texture.bytes || (texture.flags & ~(kPackFlagAlphaTest | kPackFlagLightmap)) != 0 ||
             texture.flags == (kPackFlagAlphaTest | kPackFlagLightmap) || texture.reserved != 0) [[unlikely]]
         {
@@ -541,24 +567,50 @@ PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t
         }
     }
 
-    for (std::uint32_t index = 0; index < pack.textureCount; ++index)
-    {
-        const PackTexture & texture = pack.textures[index];
-        const char * error = ValidateImage(file + texture.offset, texture.bytes, images[index]);
-
-        if (error != nullptr) [[unlikely]]
-        {
-            return error;
-        }
-
-        if (((texture.flags & kPackFlagLightmap) != 0) != (images[index].usage == ImageUsage::Lightmap)) [[unlikely]]
-        {
-            return "D3TX texture flags disagree with its usage";
-        }
-    }
-
     output = pack;
     return nullptr;
+}
+
+PS2_COLD_FUNC const char * ValidatePackTexture(const Pack & pack, std::uint32_t index, const std::uint8_t * file, Image & output)
+{
+    if (index >= pack.textureCount) [[unlikely]]
+    {
+        return "D3TX texture outside its package";
+    }
+
+    const PackTexture & texture = pack.textures[index];
+    const char * error = ValidateImage(file, texture.bytes, output);
+
+    if (error == nullptr && ((texture.flags & kPackFlagLightmap) != 0) != (output.usage == ImageUsage::Lightmap)) [[unlikely]]
+    {
+        error = "D3TX texture flags disagree with its usage";
+    }
+
+    return error;
+}
+
+PS2_COLD_FUNC const char * ValidatePack(const std::uint8_t * file, std::uint32_t bytes, Pack & output, Image * images,
+                                        std::uint32_t imageCapacity)
+{
+    Pack pack = {};
+    const char * error = ValidatePackTables(file, bytes, bytes, pack);
+
+    if (error == nullptr && pack.textureCount > imageCapacity) [[unlikely]]
+    {
+        error = "D3TX tables out of range";
+    }
+
+    for (std::uint32_t index = 0; index < pack.textureCount && error == nullptr; ++index)
+    {
+        error = ValidatePackTexture(pack, index, file + pack.textures[index].offset, images[index]);
+    }
+
+    if (error == nullptr)
+    {
+        output = pack;
+    }
+
+    return error;
 }
 
 // ------------------------------------------------------------------------------------------------

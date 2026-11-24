@@ -219,7 +219,9 @@ channel within 48 over all levels, else `PSMT8`. Materials sharing an image shar
 index, log2 of the material's UV units per world unit (its UV area over its world area across the
 `.bproc`'s area surfaces, from which the target sets the mip LOD), its alpha test reference and its
 passes, bound to the world by the FNV-1a of the material names, the sky, then the files 64-byte
-aligned.
+aligned (converter 5). The files follow in the order the target streams them, not their index
+order: the lightmap pages, the sky's faces, then each area's new textures as a portal walk from
+area 0 reaches them, its batches in order (`StreamingOrder`).
 `--previews DIR` writes each texture's decoded source and cooked level 0 as PNGs.
 
 Material passes (`assets/material_passes.cpp`) are compiled per material and parm set (a merged
