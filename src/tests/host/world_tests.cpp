@@ -659,6 +659,65 @@ static bool BinaryModels()
     WriteBinaryModel(entry, source, 0, false);
     passed = Check(!ParseBinaryModel(entry.Bytes(), model, error), "a .bproc model entry is refused") && passed;
 
+    // A static func_static naming the mesh merges into the area holding it, lit per vertex in a
+    // surface of its own; one with a GUI, or whose file no container holds, stays out.
+    ProcFile scene;
+    passed = Check(ParseProc(kSmallProc, scene, error), "small proc parses for the mesh merge") && passed;
+    const std::size_t areaSurfaces = scene.models[0].surfaces.size();
+    const auto entity = [](const char * name, const char * model, const char * extra)
+    {
+        MapEntity record;
+        record.keys = { { "classname", "func_static" }, { "name", name }, { "model", model }, { "origin", "0 0 0" } };
+
+        if (extra != nullptr)
+        {
+            record.keys.push_back({ extra, "guis/monitor.gui" });
+        }
+
+        return record;
+    };
+    const std::vector<MapEntity> entities = { entity("crate_1", "models/fixture/Crate.lwo", nullptr),
+                                              entity("crate_2", "models/fixture/Crate.lwo", "gui"),
+                                              entity("crate_3", "models/fixture/missing.lwo", nullptr) };
+    int reads = 0;
+    const ResourceReader reader = [&](const std::string & name, std::vector<std::uint8_t> & bytes, std::string & readError)
+    {
+        readError.clear();
+        ++reads;
+
+        if (name != "generated/rendermodels/models/fixture/crate.blwo")
+        {
+            return false;
+        }
+
+        bytes = file;
+        return true;
+    };
+    StaticModelStats stats;
+    const std::map<std::string, MaterialInfo> materials;
+    passed = Check(MergeStaticModels(scene, entities, LightContext{}, materials, stats, error, &reader), "the mesh merge runs") &&
+             Check(stats.meshModels == 3 && stats.meshMerged == 1 && stats.meshPartial == 0 && stats.meshKept["gui"] == 1 &&
+                       stats.meshKept["missing"] == 1 && reads == 2,
+                   "the mesh merge counts its models") &&
+             Check(source.surfaces.size() == 1 && source.surfaces[0].indices.size() == 3 && stats.meshTriangles == 1 && stats.meshSolidTriangles == 0,
+                   "the mesh's one triangle is placed") &&
+             Check(scene.mergedEntities.size() == 1 && scene.mergedEntities[0].name == "crate_1" && scene.mergedEntities[0].model == "models/fixture/Crate.lwo" &&
+                       !scene.mergedEntities[0].partial,
+                   "the merged mesh entity is listed") &&
+             passed;
+    bool vertexLit = false;
+
+    for (const ProcModel & areaModel : scene.models)
+    {
+        for (const ProcSurface & surface : areaModel.surfaces)
+        {
+            vertexLit = vertexLit || surface.vertexLit;
+        }
+    }
+
+    passed = Check(vertexLit && scene.models[0].surfaces.size() + scene.models[1].surfaces.size() > areaSurfaces, "the mesh lands in surfaces lit per vertex") &&
+             passed;
+
     // The model key names its generated file, .lwo as .blwo and .ase as .base; anything else none.
     passed = Check(GeneratedModelName("models/MapObjects\\Crate.LWO") == "generated/rendermodels/models/mapobjects/crate.blwo", "lwo name") &&
              Check(GeneratedModelName("models/a/b.ase") == "generated/rendermodels/models/a/b.base", "ase name") &&
@@ -1149,6 +1208,46 @@ static bool Graybox()
         passed = CheckCookedWorld(proc, read, policy, label) && passed;
     }
 
+    // The merged entities travel in the Entities section: both readers see the cook's records, and
+    // a bad name, flag or mask is refused by the writer or by both readers.
+    ProcFile merged = proc;
+    ProcMergedEntity crate;
+    crate.name = "crate_1";
+    crate.model = "models/fixture/crate.lwo";
+    crate.origin = { 1.0f, 2.0f, 3.0f };
+    crate.axis = { { { 0.0f, 1.0f, 0.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } } };
+    crate.surfaces = 0xFFFFFFFFU;
+    ProcMergedEntity panel = crate;
+    panel.name = "func_static_9";
+    panel.model = "func_static_9";
+    panel.surfaces = 5U;
+    panel.partial = true;
+    merged.mergedEntities = { crate, panel };
+    World world;
+    WorldCookStats stats;
+    std::vector<std::uint8_t> file;
+    World read;
+    passed = Check(CookWorld(merged, GrayboxPolicy(WorldTopology::IndexedStrips), world, stats, error) && WriteD3wd(world, file, error) &&
+                       ReadD3wd(file, read, error) && read.entities.size() == 2 && read.entities[0].name == "crate_1" &&
+                       read.entities[0].model == crate.model && read.entities[0].axis[1][0] == -1.0f && read.entities[1].partial &&
+                       read.entities[1].surfaces == 5U && read.entities[1].origin[2] == 3.0f,
+                   "merged entities read back") &&
+             passed;
+    ps2::renderer::world::Sections sections = {};
+    const char * targetError = TargetValidate(file, sections);
+    passed = Check(targetError == nullptr && sections.entityCount == 2 &&
+                       std::string(sections.entityNames + sections.entities[0].nameOffset) == "crate_1" &&
+                       std::string(sections.entityNames + sections.entities[1].modelOffset) == "func_static_9" &&
+                       sections.entities[1].flags == ps2::renderer::world::kEntityPartial && sections.entities[0].axis[0][1] == 1.0f,
+                   "the target validator admits the merged entities") &&
+             passed;
+
+    World bad = world;
+    bad.entities[0].name.clear();
+    passed = Check(!WriteD3wd(bad, file, error), "an unnamed merged entity is refused") && passed;
+    bad = world;
+    bad.entities[1].surfaces = 0;
+    passed = Check(!WriteD3wd(bad, file, error), "a merged entity with no surface is refused") && passed;
     return passed;
 }
 

@@ -119,10 +119,17 @@ coordinates; CLUTs; VRAM and mipmaps.
   (`stream_misses`). Copies leave over a 2 MiB budget only once `dma::ChainDone` says no chain still
   uploads from them. Details: RENDERING_ARCHITECTURE.md 10.5, "Streaming as built".
 - **Textured world pass:** a map's `.d3tx` stays resident in one VRAM arena (`world_textures.cpp`:
-  the texture range less 256 KiB for the UI, best fit, LRU, never evicting what this pass drew or
-  planned, so a texture's last reader is an earlier chain). Each batch's state block is per material
-  and per drawing context: a frame rewrites only its own context's blocks, never one the chain in
-  flight reads. `world::PlanArea` names a pass's areas first; the pass makes their textures resident
+  the texture range less 256 KiB for the UI, best fit, LRU, first evicting what this pass neither
+  drew nor planned). Each batch's state block is per material and per drawing context: a frame
+  rewrites only its own context's blocks, never one the chain in flight reads.
+- **Mid-pass eviction (2026-11-25):** when a view's textures exceed the arena, a batch's diffuse or
+  page may evict a texture the pass drew or still needs. The victim is the one whose next use in the
+  pass's plan is furthest (`AdvanceBatch` walks the plan, pinning the current batch's two). This is
+  safe because the GS runs the chain in order: an upload lands after every batch that drew from those
+  blocks (`UploadImage` FLUSHes first). **Never rewrite a state block the pass already REF'd**: the
+  DMA reads it later, so earlier batches would draw from the new address. A texture that moves
+  within a pass takes a moved block from a per-context pool (`CurrentBlock`). Material passes and the
+  sky never evict what the pass needs. `world::PlanArea` names a pass's areas first; the pass makes their textures resident
   before drawing and repacks the arena when a view's new set will not fit around the old (PAL's
   north view needs it: first fit packed it by luck).
   `TEX1.K` = log2(UV per unit) + log2(texture size) - log2(GS pixels per unit at depth 1).

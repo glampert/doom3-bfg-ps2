@@ -67,10 +67,18 @@ void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool 
 void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext context, float focal, bool textured, bool lightmapped,
                    float time, int viewArea);
 
+// Steps to the next planned batch, before its BatchState: once per batch PlanBatch planned, in the
+// same order. Its diffuse texture and page are pinned, and what lies ahead in the plan decides what a
+// mid-pass eviction gives up.
+void AdvanceBatch(Textures * textures);
+
 // The state for a batch of 'material': the material's texture made resident first (an upload in
 // the list, evicting the least recently used textures this frame has not drawn), or untextured
 // when it has none or the arena cannot hold it; null when the textured pass does not draw it (a
-// translucent material without a diffuse stage, or a sky, which SkyDepthState draws).
+// translucent material without a diffuse stage, or a sky, which SkyDepthState draws). When no other
+// texture can go, the one the pass's plan needs again furthest ahead gives way, drawn or not: the
+// chain uploads in order, so its earlier batches drew before its blocks change, and a texture that
+// moved within the pass takes a moved state block.
 const void * BatchState(Textures * textures, dma::DisplayList & list, u32 material);
 
 // Whether a textured pass draws 'material' as a sky: its surfaces write depth alone, before the
@@ -118,6 +126,14 @@ struct TextureStats
     u32 skyFallbacks;
     // Passes whose planned textures did not fit around the ones resident: the arena emptied first.
     u32 repacks;
+    // Passes whose planned textures exceed the arena even empty (they load as their batches draw),
+    // textures given up mid-pass for one a batch needed (FurthestUse), the state blocks re-placed
+    // textures took, and the batches left out because none was left; and the bytes uploaded.
+    u32 overflows;
+    u32 passEvictions;
+    u32 movedStates;
+    u32 movedFallbacks;
+    u32 uploadBytes;
     // Streaming: textures read in and their bytes; copies in EE memory now, their bytes and the most
     // they held; reads refused (a read error or a file that failed validation: never read again);
     // draws left out because a texture's read had not landed (counted in the fallbacks above too);

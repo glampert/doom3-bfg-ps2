@@ -68,11 +68,15 @@ VIEWS = (
 )
 
 # Traces through the area models' s16 mirror from the player's eye: straight down onto the floor
-# grate under the start, and west into the hall's wall. Each: start, end, hit, fraction, normal and
-# the material (a Python ray cast over the .bproc's triangles gives the same fractions and materials).
+# grate under the start, and west into the computer rack the cook merged into area 2
+# (tim_func_static_2650, a mesh prop; before 2026-11-24 the trace reached the hall's wall,
+# textures/mcity/stewall3b at 0.383, as id's Trace would not have: it traces static entity models).
+# Each: start, end, hit, fraction, normal and the material. A Python ray cast gives the same
+# fractions and materials: over the .bproc's triangles for the grate, over the cooked D3WD's packets
+# for the rack (normal within 0.006: the mirror's s16 positions round its small faces apart).
 TRACES = (
     (START, (-3632, -3416, -200), 1, 0.148, (0.0, 0.0, 1.0), "textures/base_floor/sflgrate2"),
-    (START, (-4632, -3416, 260), 1, 0.383, (0.990, 0.0, -0.141), "textures/mcity/stewall3b"),
+    (START, (-4632, -3416, 260), 1, 0.049, (0.999, 0.047, 0.001), "models/mapobjects/cpu/comrack2"),
 )
 
 
@@ -187,15 +191,20 @@ def view_batches(report: dict, view: View) -> int:
 # place their textures without holes.
 # Streaming (cumulative too): textures read in and their bytes; the EE copies held at the status, their
 # bytes and the most they held; refused reads; draws left out because a read had not landed; and the
-# passes that waited for their reads after a jump (each view's camera move is one), with the time.
+# passes that waited for their reads after a jump (each view's camera move is one), with the time;
+# then the passes whose planned textures exceeded the arena even empty, the textures given up mid-pass
+# for one a batch needed, the state blocks re-placed textures took and the batches that found none
+# left, and the bytes uploaded.
 TEXTURES_RE = re.compile(r"\[D3BFG\] WORLD textures enabled=([01]) arena=(\d+) resident=(\d+) resident_bytes=(\d+) uploads=(\d+) "
                          r"evictions=(\d+) fallbacks=(\d+) lightmaps=([01]) pages=(\d+) unlit=(\d+) passes=(\d+) pass_fallbacks=(\d+) "
                          r"sky_faces=(\d+) sky_fallbacks=(\d+) repacks=(\d+) stream_loads=(\d+) stream_bytes=(\d+) copies=(\d+) "
                          r"copy_bytes=(\d+) copy_peak=(\d+) stream_failures=(\d+) stream_misses=(\d+) stream_waits=(\d+) "
-                         r"stream_wait_ms=(\d+)")
+                         r"stream_wait_ms=(\d+) overflows=(\d+) pass_evictions=(\d+) moved_states=(\d+) moved_fallbacks=(\d+) "
+                         r"upload_bytes=(\d+)")
 TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks", "lightmaps", "pages", "unlit",
                   "passes", "pass_fallbacks", "sky_faces", "sky_fallbacks", "repacks", "stream_loads", "stream_bytes", "copies",
-                  "copy_bytes", "copy_peak", "stream_failures", "stream_misses", "stream_waits", "stream_wait_ms")
+                  "copy_bytes", "copy_peak", "stream_failures", "stream_misses", "stream_waits", "stream_wait_ms", "overflows",
+                  "pass_evictions", "moved_states", "moved_fallbacks", "upload_bytes")
 TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) pages=(\d+) "
                              r"passes=(\d+) areas=(\d+) bytes=(\d+) tables=(\d+) streamed")
 
@@ -248,6 +257,10 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     package = TEXTURE_LOAD_RE.search(log)
     if not load.search(log) or not package:
         return False, "the cooked map did not load with the cook report's areas, surfaces, batches, portals and nodes", {}
+    # The entities whose models the cook merged travel with the world, for the game's spawn to skip.
+    merged = report.get("static_models", {}).get("merged_entities")
+    if merged is not None and not re.search(rf"\[D3BFG\] world {re.escape(MAP)}\.d3wd: .* merged_entities={merged}\b", log):
+        return False, f"the cooked map did not load the cook report's {merged} merged entities", {}
     if "WORLD load failed" in log:
         return False, "the render world refused the map", {}
     markers = ["begin", "loaded", "ingame"] + [view.name for view in VIEWS] + (["fly"] if fly else []) + ["unloaded", "frontend"]
@@ -292,7 +305,8 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
         # camera move and switch is a jump, so its passes waited for their reads: none was missing.
         if (textures[0]["enabled"] != 1 or textures[0]["uploads"] == 0 or textures[0]["fallbacks"] != 0 or textures[0]["resident"] == 0 or
                 textures[0]["lightmaps"] != 1 or textures[0]["pages"] == 0 or textures[0]["unlit"] != 0 or
-                textures[0]["stream_failures"] != 0 or textures[0]["stream_misses"] != 0 or textures[0]["stream_waits"] == 0):
+                textures[0]["stream_failures"] != 0 or textures[0]["stream_misses"] != 0 or textures[0]["stream_waits"] == 0 or
+                textures[0]["moved_fallbacks"] != 0):
             return False, f"{view.name}: the lit pass did not hold its textures and pages: {textures[0]}", {}
         bits = renderer_capture.draw_bits(run_world.default_display(standard).profile)
         if int(captures[0][4]) != bits:

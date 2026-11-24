@@ -63,6 +63,13 @@ static constexpr u32 kMaxPendingReads = 16;
 // COP0 Count runs at the EE clock: cycles per millisecond.
 static constexpr u32 kCyclesPerMs = 294912;
 
+// Moved state blocks per context and pass (MaterialState): a re-placed texture's materials, pages
+// and passes each take one. Past them a batch draws as if its texture found no room.
+static constexpr u32 kMovedBlocks = 128;
+
+// A planned batch's texture use the pass has none of (PlanBatch).
+static constexpr u32 kNoUse = 0xFFFFFFFFU;
+
 // How much a pass wants a texture's copy.
 enum class Want : u8
 {
@@ -91,10 +98,19 @@ struct Slot
     bool broken;                // its read or file was refused: never read again
 };
 
+// What one context's state block holds (a material's, a page's or a pass's), and the pass that last
+// REF'd it. A block REF'd earlier in this pass is never rewritten: the chain reads it when the DMA
+// runs, so its earlier batches would draw from the new address. A texture moved within the pass (a
+// mid-pass eviction, then a reload elsewhere) takes a moved block from the context's pool instead,
+// which the rest of the pass's batches of that state share.
 struct MaterialState
 {
     u32 generation[2];
     u32 focal[2];
+    u32 referencedFrame[2];
+    u32 movedFrame[2];
+    u32 movedGeneration[2];
+    qword_t * moved[2];
 };
 
 // A material pass at run time: its colour words this frame (0x80 = 1.0) and whether it draws, and
@@ -105,11 +121,6 @@ struct PassState
     bool enabled;
     bool written[2];
     u32 writtenColor[2][4];
-};
-
-struct PageBlockState
-{
-    u32 generation[2];
 };
 
 struct Range
@@ -415,7 +426,7 @@ struct Textures
     MaterialState * passStates;
     qword_t * passBlocks;
     qword_t * colorBlocks;
-    PageBlockState * pageStates;
+    MaterialState * pageStates;
     qword_t * pageBlocks;
     Range * free;
     u32 freeCount;
@@ -440,6 +451,22 @@ struct Textures
     bool lastTextured;
     bool lastLightmapped;
     u32 pendingReads;
+    // The planned batches' textures in draw order, two entries a batch (its diffuse and its page, or
+    // kNoUse), and the batch the pass draws now (AdvanceBatch): a mid-pass eviction gives up the
+    // texture whose next use is furthest, never the current batch's two (pinned). 'nextUse' is that
+    // choice's scratch, one entry a texture.
+    u32 * uses;
+    u32 useCapacity;
+    u32 useCount;
+    u32 cursor;
+    u32 pinned[2];
+    u32 * nextUse;
+    // Set once the pass's planned textures went in (Preload): batches may then evict textures the
+    // pass drew or still needs.
+    bool drawing;
+    // The moved state blocks, kMovedBlocks per context, and those this pass took.
+    qword_t * movedBlocks;
+    u32 movedCount;
     char name[64];
     gs::VramAllocation arena;
     u32 arenaBase;
@@ -600,6 +627,9 @@ PS2_COLD_FUNC static bool BuildAreaLists(Textures & textures, const Sections & s
 
 PS2_COLD_FUNC static void FreeTables(Textures * textures)
 {
+    system::heap::Free(textures->movedBlocks);
+    system::heap::Free(textures->nextUse);
+    system::heap::Free(textures->uses);
     system::heap::Free(textures->drawnAreas);
     system::heap::Free(textures->neighbourFirst);
     system::heap::Free(textures->neighbours);
@@ -706,7 +736,7 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
         textures->blocks =
             static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * (pack.materialCount + 1U), TAG_RENDER, 64));
         textures->free = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
-        textures->pageStates = static_cast<PageBlockState *>(system::heap::TryAlloc(sizeof(PageBlockState) * (pack.pageCount + 1U), TAG_RENDER));
+        textures->pageStates = static_cast<MaterialState *>(system::heap::TryAlloc(sizeof(MaterialState) * (pack.pageCount + 1U), TAG_RENDER));
         textures->pageBlocks =
             static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.pageCount + 1U), TAG_RENDER, 64));
         textures->passes = static_cast<PassState *>(system::heap::TryAlloc(sizeof(PassState) * (pack.passCount + 1U), TAG_RENDER));
@@ -717,10 +747,16 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
             static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
         textures->planOrder = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * textureCount, TAG_RENDER));
         textures->planFree = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
+        textures->useCapacity = 2U * sections.batchCount;
+        textures->uses = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * (textures->useCapacity + 2U), TAG_RENDER));
+        textures->nextUse = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * textureCount, TAG_RENDER));
+        textures->movedBlocks =
+            static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * kMovedBlocks, TAG_RENDER, 64));
         error = textures->images == nullptr || textures->slots == nullptr || textures->states == nullptr || textures->blocks == nullptr ||
                         textures->free == nullptr || textures->pageStates == nullptr || textures->pageBlocks == nullptr ||
                         textures->passes == nullptr || textures->passStates == nullptr || textures->passBlocks == nullptr ||
-                        textures->colorBlocks == nullptr || textures->planOrder == nullptr || textures->planFree == nullptr
+                        textures->colorBlocks == nullptr || textures->planOrder == nullptr || textures->planFree == nullptr ||
+                        textures->uses == nullptr || textures->nextUse == nullptr || textures->movedBlocks == nullptr
                     ? "no memory for its residency"
                     : nullptr;
     }
@@ -1014,8 +1050,64 @@ static u32 EvictionRank(const Slot & slot)
 // Textures only material passes draw go before diffuse ones. With 'staleOnly' (the sky), only
 // textures the previous pass did not draw either give way: what a view draws every frame never
 // makes room for the sky, which then waits for space or is left out.
+// The resident texture to give up mid-pass when nothing else may go: the one whose next use in the
+// pass's plan is furthest (none at all comes first, then by EvictionRank and least recently drawn),
+// never one of the current batch's. The GS runs the chain in order, so an upload into its blocks
+// lands after every batch drawn with it; a later batch that needs it again reloads it elsewhere
+// with a moved state block. Belady's choice, since the pass's order is known; textureCount for none.
+static u32 FurthestUse(Textures & textures)
+{
+    for (u32 index = 0; index < textures.pack.textureCount; ++index)
+    {
+        textures.nextUse[index] = kNoUse;
+    }
+
+    for (u32 at = 2U * (textures.cursor + 1U); at < textures.useCount; ++at)
+    {
+        const u32 texture = textures.uses[at];
+
+        if (texture != kNoUse && textures.nextUse[texture] == kNoUse)
+        {
+            textures.nextUse[texture] = at;
+        }
+    }
+
+    u32 victim = textures.pack.textureCount;
+
+    for (u32 candidate = 0; candidate < textures.pack.textureCount; ++candidate)
+    {
+        const Slot & other = textures.slots[candidate];
+
+        if (!other.resident || candidate == textures.pinned[0] || candidate == textures.pinned[1])
+        {
+            continue;
+        }
+
+        if (victim == textures.pack.textureCount)
+        {
+            victim = candidate;
+            continue;
+        }
+
+        const Slot & best = textures.slots[victim];
+        const u32 next = textures.nextUse[candidate];
+        const u32 bestNext = textures.nextUse[victim];
+
+        if (next > bestNext || (next == bestNext && (EvictionRank(other) < EvictionRank(best) ||
+                                                     (EvictionRank(other) == EvictionRank(best) && other.lastFrame < best.lastFrame))))
+        {
+            victim = candidate;
+        }
+    }
+
+    return victim;
+}
+
 static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index, bool fromTop = false, bool staleOnly = false)
 {
+    // While the areas draw, a diffuse texture or page may take the place of textures the pass drew or
+    // will draw (FurthestUse); the sky and the material passes only take what nothing of the pass needs.
+    const bool midPass = textures.drawing && !fromTop && !staleOnly;
     Slot & slot = textures.slots[index];
     const tex::Image & image = textures.images[index];
     u32 start = 0;
@@ -1050,6 +1142,12 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
             }
         }
 
+        if (victim == textures.pack.textureCount && midPass)
+        {
+            victim = FurthestUse(textures);
+            textures.stats.passEvictions += victim != textures.pack.textureCount ? 1U : 0U;
+        }
+
         if (victim == textures.pack.textureCount)
         {
             return false;
@@ -1067,6 +1165,7 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
     ++textures.stats.resident;
     textures.stats.pagesResident += image.usage == tex::ImageUsage::Lightmap ? 1U : 0U;
     ++textures.stats.uploads;
+    textures.stats.uploadBytes += image.blocks * kGsBlockBytes;
     return true;
 }
 
@@ -1085,18 +1184,28 @@ static void PlanTexture(Textures & textures, u32 index)
     }
 }
 
-// Whether the planned textures not resident yet can be placed, in draw order, into the free ranges
-// as they stand, or with every texture the plan does not name gone too: a simulation on a copy.
-static bool PlanFits(Textures & textures, bool withoutUnplanned)
+// Where a plan's simulation starts: the free ranges as they stand, with every texture the plan does
+// not name gone too, or the whole arena empty.
+enum class PlanStart
 {
-    u32 rangeCount = textures.freeCount;
+    AsItStands,
+    WithoutUnplanned,
+    Empty
+};
 
-    for (u32 range = 0; range < rangeCount; ++range)
+// Whether the planned textures (those whose copies landed) can be placed, in draw order, into the
+// arena from 'from', the ones already resident staying unless it is empty: a simulation on a copy.
+static bool PlanFits(Textures & textures, PlanStart from)
+{
+    u32 rangeCount = from == PlanStart::Empty ? 1U : textures.freeCount;
+    textures.planFree[0] = { 0, textures.arenaBlocks };
+
+    for (u32 range = 0; range < rangeCount && from != PlanStart::Empty; ++range)
     {
         textures.planFree[range] = textures.free[range];
     }
 
-    for (u32 index = 0; index < textures.pack.textureCount && withoutUnplanned; ++index)
+    for (u32 index = 0; index < textures.pack.textureCount && from == PlanStart::WithoutUnplanned; ++index)
     {
         const Slot & slot = textures.slots[index];
 
@@ -1109,9 +1218,10 @@ static bool PlanFits(Textures & textures, bool withoutUnplanned)
     for (u32 order = 0; order < textures.planCount; ++order)
     {
         const u32 index = textures.planOrder[order];
+        const Slot & slot = textures.slots[index];
         u32 start = 0;
 
-        if (!textures.slots[index].resident && textures.slots[index].loaded &&
+        if ((!slot.resident || from == PlanStart::Empty) && slot.loaded &&
             !TakeRange(textures.planFree, rangeCount, textures.images[index].blocks, start, false))
         {
             return false;
@@ -1145,19 +1255,24 @@ static void Preload(Textures & textures, dma::DisplayList & list)
         return;
     }
 
-    if (!PlanFits(textures, false))
+    if (!PlanFits(textures, PlanStart::AsItStands))
     {
-        const bool fits = PlanFits(textures, true);
+        // A set larger than the arena even empty (an overflow) is not repacked each frame, which
+        // would upload the whole arena again: what the pass does not need leaves, the resident
+        // planned textures stay, and the rest come in as their batches draw (FurthestUse).
+        const bool fits = PlanFits(textures, PlanStart::WithoutUnplanned);
+        const bool overflow = !fits && !PlanFits(textures, PlanStart::Empty);
 
         for (u32 index = 0; index < textures.pack.textureCount; ++index)
         {
-            if (textures.slots[index].resident && (!fits || textures.slots[index].plannedFrame != textures.frame))
+            if (textures.slots[index].resident && (textures.slots[index].plannedFrame != textures.frame || (!fits && !overflow)))
             {
                 Evict(textures, index);
             }
         }
 
-        textures.stats.repacks += fits ? 0U : 1U;
+        textures.stats.repacks += fits || overflow ? 0U : 1U;
+        textures.stats.overflows += overflow ? 1U : 0U;
     }
 
     // A texture that still finds no room falls back when its batch draws.
@@ -1512,6 +1627,7 @@ void BeginPlan(Textures * textures)
         textures->planFrame = textures->frame + 1U;
         textures->planCount = 0;
         textures->drawnCount = 0;
+        textures->useCount = 0;
     }
 }
 
@@ -1536,15 +1652,25 @@ void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool 
     PS2_AssertMsg(material < textures->pack.materialCount && (page == kNoLightmap || page < textures->pack.pageCount),
                   "planned batch outside the texture package");
     const u32 texture = textures->pack.materials[material].texture;
+    const bool diffuse = textured && texture < textures->pack.textureCount;
+    const bool lit = lightmapped && page != kNoLightmap;
 
-    if (textured && texture < textures->pack.textureCount)
+    if (diffuse)
     {
         PlanTexture(*textures, texture);
     }
 
-    if (lightmapped && page != kNoLightmap)
+    if (lit)
     {
         PlanTexture(*textures, textures->pack.pages[page]);
+    }
+
+    // The batch's two uses, in draw order (a batch planned twice in a pass overruns nothing: the
+    // capacity is two a batch of the level, and a plan past it just stops looking ahead).
+    if (textures->useCount + 2U <= textures->useCapacity)
+    {
+        textures->uses[textures->useCount++] = diffuse ? texture : kNoUse;
+        textures->uses[textures->useCount++] = lit ? textures->pack.pages[page] : kNoUse;
     }
 }
 
@@ -1561,6 +1687,12 @@ void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext
     }
 
     ++textures->frame;
+    textures->drawing = false;
+    textures->movedCount = 0;
+    textures->cursor = 0xFFFFFFFFU; // the first AdvanceBatch makes it 0
+    textures->pinned[0] = kNoUse;
+    textures->pinned[1] = kNoUse;
+    textures->useCount = textures->planFrame == textures->frame ? textures->useCount : 0U;
     Stream(*textures, textured, lightmapped, viewArea);
     EvaluatePasses(*textures, time);
 
@@ -1580,6 +1712,64 @@ void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext
     {
         Preload(*textures, list);
     }
+
+    textures->drawing = true;
+}
+
+// The block to REF for one context's state, written by 'write' when stale: 'block' itself while the
+// pass has not REF'd it yet, else (the texture moved within the pass) a moved block, shared by the
+// pass's later batches of this state; null when the pool is spent.
+template<typename Write>
+static const qword_t * CurrentBlock(Textures & textures, MaterialState & state, int context, qword_t * block, u32 generation, u32 focal,
+                                    Write write)
+{
+    if (state.generation[context] == generation && state.focal[context] == focal)
+    {
+        state.referencedFrame[context] = textures.frame;
+        return block;
+    }
+
+    if (state.referencedFrame[context] != textures.frame)
+    {
+        write(block);
+        state.generation[context] = generation;
+        state.focal[context] = focal;
+        state.referencedFrame[context] = textures.frame;
+        return block;
+    }
+
+    if (state.movedFrame[context] == textures.frame && state.movedGeneration[context] == generation)
+    {
+        return state.moved[context];
+    }
+
+    if (textures.movedCount == kMovedBlocks)
+    {
+        ++textures.stats.movedFallbacks;
+        return nullptr;
+    }
+
+    qword_t * const moved = textures.movedBlocks + (static_cast<u32>(context) * kMovedBlocks + textures.movedCount++) * kStateStrideQwords;
+    write(moved);
+    state.moved[context] = moved;
+    state.movedFrame[context] = textures.frame;
+    state.movedGeneration[context] = generation;
+    ++textures.stats.movedStates;
+    return moved;
+}
+
+void AdvanceBatch(Textures * textures)
+{
+    if (textures == nullptr)
+    {
+        return;
+    }
+
+    // Past the plan (a batch drawn that was not planned) nothing is pinned and every use lies behind.
+    textures->cursor = textures->cursor + 1U;
+    const u32 at = 2U * textures->cursor;
+    textures->pinned[0] = at < textures->useCount ? textures->uses[at] : kNoUse;
+    textures->pinned[1] = at + 1U < textures->useCount ? textures->uses[at + 1U] : kNoUse;
 }
 
 const void * BatchState(Textures * textures, dma::DisplayList & list, u32 material)
@@ -1612,23 +1802,26 @@ const void * BatchState(Textures * textures, dma::DisplayList & list, u32 materi
 
     slot.lastFrame = textures->frame;
     const int index = s_context == gs::DrawContext::Ctx1 ? 1 : 0;
-    MaterialState & state = textures->states[material];
     qword_t * const block = textures->blocks + (material * 2U + static_cast<u32>(index)) * kStateStrideQwords;
+    const tex::Image & image = textures->images[record.texture];
+    const bool alphaTest = (textures->pack.textures[record.texture].flags & tex::kPackFlagAlphaTest) != 0;
 
     // Only this context's block is rewritten: the chain in flight drew the other one.
-    if (state.generation[index] != slot.generation || state.focal[index] != textures->focalVersion)
-    {
-        const tex::Image & image = textures->images[record.texture];
-        const bool alphaTest = (textures->pack.textures[record.texture].flags & tex::kPackFlagAlphaTest) != 0;
+    const qword_t * const current =
+        CurrentBlock(*textures, textures->states[material], index, block, slot.generation, textures->focalVersion, [&](qword_t * target)
+                     {
+                         WriteState(target, s_context, true, tex::RelocateTex0(image.tex0, slot.base),
+                                    Tex1(image, record.uvDensityLog2, textures->focalLog2), tex::RelocateMiptbp(image.miptbp1, slot.base),
+                                    tex::RelocateMiptbp(image.miptbp2, slot.base), image.clamp, TestState(alphaTest ? record.alphaRef : 0U));
+                     });
 
-        WriteState(block, s_context, true, tex::RelocateTex0(image.tex0, slot.base), Tex1(image, record.uvDensityLog2, textures->focalLog2),
-                   tex::RelocateMiptbp(image.miptbp1, slot.base), tex::RelocateMiptbp(image.miptbp2, slot.base), image.clamp,
-                   TestState(alphaTest ? record.alphaRef : 0U));
-        state.generation[index] = slot.generation;
-        state.focal[index] = textures->focalVersion;
+    if (current == nullptr)
+    {
+        ++textures->stats.untexturedFallbacks;
+        return Untextured(s_context);
     }
 
-    return block;
+    return current;
 }
 
 const void * PageState(Textures * textures, dma::DisplayList & list, u32 page)
@@ -1650,17 +1843,23 @@ const void * PageState(Textures * textures, dma::DisplayList & list, u32 page)
 
     slot.lastFrame = textures->frame;
     const int index = s_context == gs::DrawContext::Ctx1 ? 1 : 0;
-    PageBlockState & state = textures->pageStates[page];
     qword_t * const block = textures->pageBlocks + (page * 2U + static_cast<u32>(index)) * kPageStrideQwords;
+    const u64 tex0 = tex::RelocateTex0(textures->images[texture].tex0, slot.base) | kTex0Decal;
 
-    // As with materials, only this context's block is rewritten.
-    if (state.generation[index] != slot.generation)
+    // As with materials, only this context's block is rewritten. A page block fits a moved one.
+    const qword_t * const current = CurrentBlock(*textures, textures->pageStates[page], index, block, slot.generation, 0U,
+                                                 [&](qword_t * target)
+                                                 {
+                                                     WritePage(target, s_context, tex0, true);
+                                                 });
+
+    if (current == nullptr)
     {
-        WritePage(block, s_context, tex::RelocateTex0(textures->images[texture].tex0, slot.base) | kTex0Decal, true);
-        state.generation[index] = slot.generation;
+        ++textures->stats.unlitFallbacks;
+        return Unlit();
     }
 
-    return block;
+    return current;
 }
 
 u32 PassCount(const Textures * textures, u32 material)
@@ -1698,20 +1897,24 @@ bool PassBlocks(Textures * textures, dma::DisplayList & list, u32 material, u32 
 
     slot.lastFrame = textures->frame;
     const int context = s_context == gs::DrawContext::Ctx1 ? 1 : 0;
-    MaterialState & written = textures->passStates[index];
     qword_t * const block = textures->passBlocks + (index * 2U + static_cast<u32>(context)) * kStateStrideQwords;
     qword_t * const colorBlock = textures->colorBlocks + (index * 2U + static_cast<u32>(context)) * kPageStrideQwords;
+    const tex::Image & image = textures->images[record.texture];
 
     // As with materials, only this context's blocks are rewritten: the chain in flight reads the other's.
-    if (written.generation[context] != slot.generation || written.focal[context] != textures->focalVersion)
-    {
-        const tex::Image & image = textures->images[record.texture];
+    // The base pass's UVs, density and depth; additive, its tags blending through ALPHA.
+    const qword_t * const current =
+        CurrentBlock(*textures, textures->passStates[index], context, block, slot.generation, textures->focalVersion, [&](qword_t * target)
+                     {
+                         WriteState(target, s_context, true, tex::RelocateTex0(image.tex0, slot.base),
+                                    Tex1(image, owner.uvDensityLog2, textures->focalLog2), tex::RelocateMiptbp(image.miptbp1, slot.base),
+                                    tex::RelocateMiptbp(image.miptbp2, slot.base), image.clamp, TestState(0), true);
+                     });
 
-        // The base pass's UVs, density and depth; additive, its tags blending through ALPHA.
-        WriteState(block, s_context, true, tex::RelocateTex0(image.tex0, slot.base), Tex1(image, owner.uvDensityLog2, textures->focalLog2),
-                   tex::RelocateMiptbp(image.miptbp1, slot.base), tex::RelocateMiptbp(image.miptbp2, slot.base), image.clamp, TestState(0), true);
-        written.generation[context] = slot.generation;
-        written.focal[context] = textures->focalVersion;
+    if (current == nullptr)
+    {
+        ++textures->stats.passFallbacks;
+        return false;
     }
 
     bool same = dynamic.written[context];
@@ -1733,7 +1936,7 @@ bool PassBlocks(Textures * textures, dma::DisplayList & list, u32 material, u32 
     }
 
     ++textures->stats.passes;
-    state = block;
+    state = current;
     color = colorBlock;
     return true;
 }

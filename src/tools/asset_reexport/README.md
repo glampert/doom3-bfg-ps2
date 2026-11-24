@@ -317,6 +317,16 @@ the world. It counts the entities per class, the `func_static`s the rules above 
 their triangles and those they keep by reason, translucent, parm-reading and solid-space triangles,
 and the triangles each area would gain (`area_triangles`).
 
+With `"mesh_models": true` as well, the static `func_static` mesh props merge by the same rules and
+placement, into area surfaces of their own (one per material and parm set) that the bake lights per
+vertex instead of giving their small triangles lightmap charts (`ProcSurface::vertexLit`). The
+report's `static_models` adds `mesh_models`, `mesh_merged`, `mesh_partial`, `mesh_triangles`,
+`mesh_solid_triangles` and `mesh_kept` by reason. Every entity whose model the areas now draw, inline
+or mesh, whole or in part, is listed in the D3WD's Entities section (v4): its name, model, placement
+and the mask of its model's surfaces the areas took, so the game's spawn can leave those surfaces
+undrawn (`merged_entities` in the report). mars_city1 merges 211 props whole and 23 in part, 29,702
+triangles; 357 entities in all.
+
 mars_city1: A 410, B 13, C 31, D 2, E 27, F 3. The 410 A lights (284 cast shadows) cover 1,716 lit
 surfaces (204 alpha-tested, lit per vertex) with 10,683 charts in 8 pages: 532,480 bytes of VRAM
 and 1.83 M rays, in about 1.4 s single threaded. The output is byte-identical across runs. Of its 362

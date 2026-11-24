@@ -234,8 +234,22 @@ production link free of test inputs. Section numbers in parentheses point into t
       (11,983 triangles), 17 with skins (2,406), 4 bound and 3 more. Merged, they would raise the world's
       53,957 triangles by 55% and the worst area with its neighbours from 10,898 to 15,991 (area 5);
       the start area 2 from 1,808 to 2,923.
-- [ ] Merge the static mesh props into the areas, lit per vertex rather than in lightmap charts;
-      the GUI props but for their GUI surfaces, and the skinned ones with the skin's materials.
+- [x] Merge the static mesh props into the areas, lit per vertex rather than in lightmap charts
+      (2026-11-25, `"mesh_models": true`): mars_city1's 211 whole and 23 partial props, 29,702
+      triangles; the world from 53,957 to 83,659 triangles in 3,397 batches, the D3WD from 3.23 to
+      4.49 MB, the D3TX from 295 to 382 textures. D3WD v4 lists the 357 merged entities (inline ones
+      too) with their model, placement and merged surfaces, for the game's spawn to skip their models.
+      The retail gate's westward trace now stops at a merged computer rack, as id's `Trace` would.
+- [ ] Merge the GUI props but for their GUI surfaces (53, 11,983 triangles), and the skinned ones with
+      the skin's materials (17, 2,406).
+- [x] Mid-pass texture eviction (2026-11-25, 10.5): a view whose textures exceed the arena loads the
+      rest as its batches draw, evicting the texture whose next use in the pass's plan is furthest;
+      a texture moved within a pass takes a moved state block. PAL's north, doorway and corridor
+      views draw every texture again (about 791 KB against 655,360 bytes).
+- [ ] Group each area's batches by texture to cut mid-pass evictions; let material passes evict
+      what the pass no longer needs (PAL's north view still leaves its glows out); the sky's faces
+      give way every frame in NTSC's 96.5 % full arena since the props merged (about 200 KB of
+      uploads a frame).
 - [ ] Rigid entity models for doors, movers, bound models, moveables and items (R4's rigid half):
       cooked batches per area streamed with the area ring, drawn by the world program with a
       per-entity matrix, at the cook's rest pose until the game loads retail maps (M3).

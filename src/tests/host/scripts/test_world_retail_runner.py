@@ -22,7 +22,7 @@ from test_world_runner import WORLD, decals_line, expected_switch_line, trace_li
 IDENTITY = "20261107T000000Z_world_retail_0123456789ab"
 # Area 2 holds 64 batches, areas 50 and 51 another 47 and 51 (the hybrid cook).
 AREA_BATCHES = {2: 64, 50: 47, 51: 51}
-REPORT = {"areas": 56, "surfaces": 1791, "batches": 2138, "portals": 55, "nodes": 9783,
+REPORT = {"areas": 56, "surfaces": 1791, "batches": 2138, "portals": 55, "nodes": 9783, "static_models": {"merged_entities": 357},
           "material_names": ["textures/a", "textures/skies/b"],
           "area_list": [{"batches": AREA_BATCHES.get(area, 1)} for area in range(56)]}
 
@@ -39,7 +39,8 @@ GRATE_DECAL = {"entities": 1, "decals": 1, "vertices": 4, "triangles": 2, "area"
 TEXTURES = {"enabled": 1, "arena": 1064960, "resident": 42, "resident_bytes": 500480, "uploads": 42, "evictions": 0, "fallbacks": 0,
             "lightmaps": 1, "pages": 2, "unlit": 0, "passes": 12, "pass_fallbacks": 0, "sky_faces": 20, "sky_fallbacks": 0, "repacks": 0,
             "stream_loads": 60, "stream_bytes": 700000, "copies": 60, "copy_bytes": 702464, "copy_peak": 702464, "stream_failures": 0,
-            "stream_misses": 0, "stream_waits": 3, "stream_wait_ms": 40}
+            "stream_misses": 0, "stream_waits": 3, "stream_wait_ms": 40, "overflows": 0, "pass_evictions": 0, "moved_states": 0,
+            "moved_fallbacks": 0, "upload_bytes": 600000}
 
 
 def textures_line(**fields):
@@ -71,7 +72,8 @@ def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final
     counts = dict(report, **(load or {}))
     log = echo("ready") + echo("begin")
     log += (f"[D3BFG] world {runner.MAP}.d3wd: areas={counts['areas']} surfaces={counts['surfaces']} batches={counts['batches']} "
-            f"portals={counts['portals']} nodes={counts['nodes']} packets=1610352 bytes=2704880\n")
+            f"portals={counts['portals']} nodes={counts['nodes']} packets=1610352 bytes=2704880 "
+            f"merged_entities={counts.get('merged_entities', 357)}\n")
     log += f"[D3BFG] world textures {runner.MAP}.d3tx: textures=289 materials=313 pages=8 passes=48 areas=56 bytes=2761280 tables=6720 streamed\n"
     log += WORLD.format(event="loaded", areas=56, portals=55, viewing=0, frame=0, views=0, area=-1, entities=0, drawn=0, batches=0)
     for index, (_, _, hit, fraction, normal, material) in enumerate(runner.TRACES):
@@ -191,12 +193,17 @@ class RetailWorldRunnerTests(unittest.TestCase):
 
     def test_textured_pass_must_hold_its_textures(self):
         for change in ({"fallbacks": 1}, {"uploads": 0}, {"enabled": 0}, {"resident": 0}, {"lightmaps": 0}, {"pages": 0}, {"unlit": 1},
-                       {"stream_failures": 1}, {"stream_misses": 2}, {"stream_waits": 0}):
+                       {"stream_failures": 1}, {"stream_misses": 2}, {"stream_waits": 0}, {"moved_fallbacks": 1}):
             with self.subTest(change=change):
                 passed, reason, _ = classify(session(textures={"north": change}))
                 self.assertFalse(passed)
                 self.assertIn("north", reason)
         self.assertFalse(classify(session() + "[    1.0000] [D3BFG] FATAL boom\n")[0])
+
+    def test_merged_entities_must_load(self):
+        passed, reason, _ = classify(session(load={"merged_entities": 300}))
+        self.assertFalse(passed)
+        self.assertIn("merged entities", reason)
 
     def test_textures_must_stream(self):
         # Copies that held the whole package did not stream it.

@@ -34,6 +34,7 @@
     "light_scale": 3.0,
     "luxel_size": 16.0,
     "shadow_samples": 4,
-    "static_models": true
+    "static_models": true,
+    "mesh_models": true
   }
 }

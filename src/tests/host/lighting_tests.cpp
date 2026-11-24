@@ -582,6 +582,13 @@ static bool StaticModels()
     const ShaderParms spawned = EntityShaderParms(StaticEntity("func_static_9", { { "shaderparm7", "1" }, { "shaderparm3", "0.5" } }));
     passed = passed && spawned[0] == 1.0f && spawned[3] == 0.5f && spawned[7] == 1.0f && spawned[11] == 0.0f;
 
+    // The entities the areas now draw, in map order: func_static_1 whole, func_static_4 but for its
+    // flare (surface 1).
+    passed = passed && stats.mergedEntities == 2 && proc.mergedEntities.size() == 2 && proc.mergedEntities[0].name == "func_static_1" &&
+             proc.mergedEntities[0].model == "func_static_1" && !proc.mergedEntities[0].partial && proc.mergedEntities[0].surfaces == 0xFFFFFFFFU &&
+             Near(proc.mergedEntities[0].origin[0], 100.0f, 1e-6f) && Near(proc.mergedEntities[0].axis[0][0], -1.0f, 1e-6f) &&
+             proc.mergedEntities[1].name == "func_static_4" && proc.mergedEntities[1].partial && proc.mergedEntities[1].surfaces == 1U;
+
     if (passed)
     {
         const ProcVertex & turned = area0.surfaces[0].vertices[4];

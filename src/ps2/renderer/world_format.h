@@ -17,10 +17,10 @@ namespace ps2::renderer::world
 
 // The layout is defined by src/tools/assets/world.h, which writes it.
 static constexpr std::uint32_t kMagic = 0x44573344;
-static constexpr std::uint32_t kVersion = 3;
-static constexpr std::uint32_t kConverterVersion = 3;
+static constexpr std::uint32_t kVersion = 4;
+static constexpr std::uint32_t kConverterVersion = 4;
 static constexpr std::uint32_t kHeaderBytes = 32;
-static constexpr std::uint32_t kSectionCount = 11;
+static constexpr std::uint32_t kSectionCount = 12;
 static constexpr std::uint32_t kDirectoryBytes = kHeaderBytes + kSectionCount * 16U;
 static constexpr std::uint32_t kPacketAlignment = 64;
 static constexpr std::uint32_t kMaxFileBytes = 16U * 1024U * 1024U;
@@ -55,7 +55,8 @@ enum class Section : std::uint32_t
     Batches,
     MirrorPositions,
     MirrorIndices,
-    Packets
+    Packets,
+    Entities
 };
 
 // Records exactly as the file holds them (little-endian, like the EE).
@@ -122,9 +123,24 @@ struct BatchRecord
     std::uint16_t reserved;
 };
 
+// An entity whose model the cook merged into the areas: when the game spawns it, its model must not
+// draw again (the surfaces in 'surfaces'; a partial merge's model keeps the rest).
+struct EntityRecord
+{
+    std::uint32_t nameOffset;  // bytes into the Entities section, NUL-terminated
+    std::uint32_t modelOffset;
+    std::uint32_t flags;       // kEntityPartial
+    std::uint32_t surfaces;    // bit i: the areas draw the model's surface i
+    float origin[3];
+    float axis[3][3];          // rows: a model point p lands at origin + p[i] * axis[i]
+};
+
+static constexpr std::uint32_t kEntityPartial = 1U;
+
 static_assert(sizeof(MaterialRecord) == 8  && sizeof(AreaRecord)   == 64 &&
               sizeof(SurfaceRecord)  == 64 && sizeof(PortalRecord) == 16 &&
-              sizeof(NodeRecord)     == 24 && sizeof(BatchRecord)  == 64);
+              sizeof(NodeRecord)     == 24 && sizeof(BatchRecord)  == 64 &&
+              sizeof(EntityRecord)   == 64);
 
 // Views into a validated file. Names are NUL-terminated inside 'strings'.
 struct Sections
@@ -140,6 +156,9 @@ struct Sections
     const std::int16_t * mirrorPositions; // xyz per vertex
     const std::uint16_t * mirrorIndices;
     const std::uint8_t * packets;
+    // The merged entities; their names lie in the same section, after the records.
+    const EntityRecord * entities;
+    const char * entityNames;
     std::uint32_t materialCount;
     std::uint32_t areaCount;
     std::uint32_t surfaceCount;
@@ -150,6 +169,7 @@ struct Sections
     std::uint32_t mirrorVertexCount;
     std::uint32_t mirrorIndexCount;
     std::uint32_t packetBytes;
+    std::uint32_t entityCount;
     // The map's D3TX holds this many Light8 pages; a batch names one or kNoLightmap.
     std::uint32_t lightmapPages;
     // Every batch has the strip index stream (world_lm.vusl), or none has (world_strips.vusl).

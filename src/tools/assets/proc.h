@@ -41,12 +41,30 @@ struct ProcSurface
     // The parms its material reads: 0 for the world's, N for ProcFile::parmSets[N - 1] (a merged
     // entity's, static_models.h).
     std::uint32_t parms = 0;
+    // Lit per vertex by the bake, never in lightmap charts: a merged entity mesh (a prop's many small
+    // triangles would each take a chart).
+    bool vertexLit = false;
 };
 
 struct ProcModel
 {
     std::string name;
     std::vector<ProcSurface> surfaces;
+};
+
+// An entity whose model the cook merged into the area models (static_models.h): when the game
+// spawns it, its render model must not draw again.
+struct ProcMergedEntity
+{
+    std::string name;
+    std::string model;
+    std::array<float, 3> origin = {};
+    // Rows: a model point p lands at origin + p[0] * axis[0] + p[1] * axis[1] + p[2] * axis[2].
+    std::array<std::array<float, 3>, 3> axis = {};
+    // Bit i: the areas draw the model's surface i. All set when the whole model merged; a partial
+    // merge keeps the rest in the entity's model.
+    std::uint32_t surfaces = 0;
+    bool partial = false;
 };
 
 struct ProcPortal
@@ -75,6 +93,8 @@ struct ProcFile
     int shadowModelCount = 0;
     // The parm sets surfaces other than the world's draw with (ProcSurface::parms).
     std::vector<ShaderParms> parmSets;
+    // The entities whose models the areas now draw, in map order.
+    std::vector<ProcMergedEntity> mergedEntities;
 };
 
 // A surface's parms.

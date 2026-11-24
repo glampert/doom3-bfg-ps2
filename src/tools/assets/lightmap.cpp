@@ -1275,7 +1275,7 @@ bool BakeLightmaps(const LightmapScene & scene, const LightmapPolicy & policy, W
             stats.surfaceLights += lights.size();
             stats.maxSurfaceLights = std::max(stats.maxSurfaceLights, lights.size());
 
-            if (found->second.perforated)
+            if (found->second.perforated || surface.vertexLit)
             {
                 std::vector<Vec3> & colors = vertexLit[{ area, surfaceIndex }];
 

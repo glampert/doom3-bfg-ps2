@@ -1446,6 +1446,29 @@ to memory images belongs with R8.
   view (99.8 % of a 640 KiB arena) fits only so: its first-fit history happened to pack before the
   sky's faces changed the order. At a pass's start no batch of its chain names a texture yet, and
   the chain in flight finishes before this one's uploads run, so any texture may move then.
+- **Mid-pass eviction (2026-11-25).** A view whose planned textures exceed the arena even empty (an
+  overflow) is not repacked each frame, which would upload the whole arena again. What the pass does
+  not need leaves, the planned textures already resident stay, and the rest come in as their batches
+  draw:
+  - **The victim.** When nothing outside the pass can give way, a batch's diffuse or page evicts the
+    resident texture whose next use in the pass's plan is furthest (Belady's choice: the plan lists
+    every batch's two textures in draw order, and `AdvanceBatch` walks it, pinning the current
+    batch's pair).
+  - **Why no stall is needed.** The GS runs the chain in order, so the upload into the victim's blocks
+    lands after every batch drawn with it (`UploadImage` FLUSHes PATH1 and PATH2 first). The EE never
+    waits.
+  - **State blocks.** The one hazard is a state block the pass already REF'd: the DMA reads it when
+    the chain runs, so rewriting it would move earlier batches too. A texture reloaded elsewhere
+    within the pass takes a moved block from a per-context pool of 128, shared by its later batches.
+  - **Measured.** PAL's north, doorway and corridor views with mars_city1's merged props need about
+    791 KB against a 655,360-byte arena. They now draw every diffuse texture and page: four passes
+    of the north view uploaded 1.62 MB with 152 mid-pass evictions. The jump frame loads the whole
+    set, so about 280 KB a frame in steady state, a few milliseconds of GIF time on hardware
+    (unmeasured: PCSX2 charges no upload).
+  - **Not done:**
+    - Material passes and the sky still only take space nothing of the pass needs (PAL's north view
+      keeps leaving its glows out).
+    - Batches are not grouped by texture within an area, which would cut the evictions.
 - Give-way order: the sky's faces first (evicted even after the pass drew them, since their `TEX0`
   travels in the chain's own DIRECT data, not in a cached state block), then material pass
   textures, then the least recently drawn. The sky takes only free space or textures the previous
@@ -2047,6 +2070,8 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Lightmap pass (2026-11-08) | The frame's other GS context, set per world pass; a second walk of the batch's index stream after the base pass, the page's `TEX0` kicked between them | A fifth vertex qword with the lightmap STQ; the page's `TEX0` in the material's A+D packet | Sixteen lanes hold both passes (lightmap S x Q and T x Q in the two free `.w` lanes, w rebuilt as 1/Q in the clipper), so batches stay at 4 qwords a vertex (a fifth would cost about a quarter more batches); the contexts share one CLUT buffer, so the page's CLUT may load only after the base pass draws |
 | Lightmap split (2026-11-08) | Per-vertex chroma x per-chart exposure, texel intensity over that exposure, `PSMT8` identity ramp | One exposure per level brightening the diffuse CLUTs; a non-linear ramp | No change to the diffuse textures; each factor keeps 2x headroom and dark charts keep 8-bit precision |
 | Static brush models (2026-11-08) | The cook merges each static `func_static` inline model into the area models, in world space, each triangle into the area holding its centroid, before the bake: it draws, lights, shadows and traces as area geometry | An entity model drawn per view | No entity, interaction or batch of its own: mars_city1's 123 merged models (3,625 triangles) add 1 % to the world. Bound, hidden, GUI, skinned, targeted and scripted entities keep their models, and so do translucent surfaces their entity's parms colour (flares, glass, glow decals). When the game loads maps, a merged entity must not add its render model again |
+| Static mesh props (2026-11-25) | The same merge for static `func_static` mesh models (`.lwo`, `.ase`), read from the retail binary render models (`generated/rendermodels/*.blwo`, `.base`), into surfaces of their own lit per vertex. The D3WD (v4) lists every merged entity (name, model, placement, merged surface mask), for the game's spawn to skip their render models | Drawing them as entities | mars_city1's 234 static props (29,702 triangles) raise the world from 53,957 to 83,659 triangles and the worst area with its neighbours from 10,898 to 15,991, inside the plan's 15 k world plus 10 k model triangles a view. Collision is untouched: each entity keeps its own clip model (`generated/collision/*.bcmodel`, shipped for all 367 mesh entities); `FastWorldTrace` walks the area BSP alone, and `Trace` hits the props as id's does through their entity models. Per-vertex light keeps 30 k small triangles out of the lightmap charts |
+| Texture overflow (2026-11-25) | Mid-pass eviction inside the chain: furthest next use in the pass's plan, moved state blocks for re-placed textures (10.5) | A display mode with more texture VRAM (PAL at 32/16 or 512 wide); smaller copies of each texture (a mip level less) when a view does not fit; a mid-frame kick and wait | Full texture quality in every profile, no EE stall (the GS keeps the chain's order), and graceful growth with later content; the cost is upload bandwidth on overflowing views (about 280 KB a frame in PAL's north view), to be measured on hardware. Smaller copies remain the fallback past an upload budget |
 | Material passes (2026-11-21) | Additive stages drawn as the batch again per pass, queued to the end of the world pass, with a constant colour every vertex takes; time-driven registers cooked to expression nodes the EE evaluates; parm sets as material variants | Extra passes inside one MSCAL from more batch state; id's `idMaterial::EvaluateRegisters` at run time | The batch state has no room (a pass needs about 8 qwords, every batch would shrink); a re-sent packet costs only the glow surfaces. Cooked nodes fold parms at the cook and do not depend on id's stage order (it adds coverage and implicit stages). Queuing after the areas lets the diffuse textures hold the arena first |
 | Alpha-tested world surfaces (2026-11-08) | Lit per vertex, no lightmap pass | Lightmap pass with destination-alpha masking | The lightmap pass cannot test the diffuse's alpha and the GS has no EQUAL depth test; 204 of mars_city1's surfaces |
 | Display list | Scratchpad builder, `fromSPR` drains, CNT/REF/CALL only | Main-RAM builder with cache flushes | No per-frame flush, position-independent list (Black) |

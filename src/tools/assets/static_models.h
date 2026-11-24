@@ -46,6 +46,17 @@ struct StaticModelStats
     std::size_t surfacesAdded = 0;
     // Inline models left out whole, by reason ("parms": every surface stays with the entity).
     std::map<std::string, std::size_t> kept;
+    // Mesh models (.lwo, .ase), when the merge reads them: the func_statics naming one, those merged
+    // whole and in part, the triangles placed and dropped in solid space, and those left out by
+    // reason ("missing": no container holds the file).
+    std::size_t meshModels = 0;
+    std::size_t meshMerged = 0;
+    std::size_t meshPartial = 0;
+    std::size_t meshTriangles = 0;
+    std::size_t meshSolidTriangles = 0;
+    std::map<std::string, std::size_t> meshKept;
+    // Entities recorded in ProcFile::mergedEntities.
+    std::size_t mergedEntities = 0;
 };
 
 // The map's entities with mesh models (a 'model' key naming a .lwo or .ase), each imported from its
@@ -120,8 +131,12 @@ bool SurfaceStaysWithEntity(const MapEntity & entity, const ProcSurface & surfac
 // the entity's origin and axis, joins the area holding its centroid (else a corner, else the
 // origin). SurfaceStaysWithEntity's surfaces stay in its model; a model merged whole leaves
 // proc.models, so later passes see its triangles only as area geometry. A merged surface whose
-// material reads the entity's parms keeps them (proc.parmSets).
+// material reads the entity's parms keeps them (proc.parmSets). With 'readMesh', static func_statics
+// naming a mesh model (.lwo, .ase) merge the same way from their binary render models, into
+// surfaces of their own lit per vertex (ProcSurface::vertexLit). Every entity whose model the areas
+// now draw, whole or in part, is listed in proc.mergedEntities.
 bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities, const LightContext & context,
-                       const std::map<std::string, MaterialInfo> & materials, StaticModelStats & stats, std::string & error);
+                       const std::map<std::string, MaterialInfo> & materials, StaticModelStats & stats, std::string & error,
+                       const ResourceReader * readMesh = nullptr);
 
 } // namespace assets

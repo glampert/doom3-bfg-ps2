@@ -41,7 +41,7 @@ static constexpr std::size_t kMirrorIndexBytes = 2;
 
 static constexpr std::size_t kRecordBytes[kD3wdSectionCount] = {
     0, kMaterialRecordBytes, kAreaRecordBytes, kSurfaceRecordBytes, kPortalRecordBytes, kPointRecordBytes,
-    kNodeRecordBytes, kBatchRecordBytes, kMirrorPositionBytes, kMirrorIndexBytes, 0
+    kNodeRecordBytes, kBatchRecordBytes, kMirrorPositionBytes, kMirrorIndexBytes, 0, 0
 };
 
 constexpr std::uint32_t VifCode(std::uint32_t command, std::uint32_t num, std::uint32_t immediate)
@@ -644,6 +644,7 @@ public:
         }
 
         m_stats.skippedModels = proc.models.size() - areaModels;
+        m_world.entities = proc.mergedEntities;
 
         for (const ProcPortal & portal : proc.portals)
         {
@@ -1483,7 +1484,48 @@ bool WriteD3wd(const World & world, std::vector<std::uint8_t> & file, std::strin
 
     counts[static_cast<int>(D3wdSection::Packets)] = static_cast<std::uint32_t>(world.packets.size() / 16);
 
-    for (int section = 1; section < kD3wdSectionCount - 1; ++section)
+    {
+        Writer & out = sections[static_cast<int>(D3wdSection::Entities)];
+        Writer names;
+        const std::size_t namesAt = kD3wdEntityRecordBytes * world.entities.size();
+
+        for (const ProcMergedEntity & entity : world.entities)
+        {
+            if (entity.name.empty() || entity.model.empty() || entity.name.find('\0') != std::string::npos ||
+                entity.model.find('\0') != std::string::npos || entity.surfaces == 0)
+            {
+                error = "a merged entity without a name, a model or a surface";
+                return false;
+            }
+
+            out.U32(static_cast<std::uint32_t>(namesAt + names.bytes.size()));
+            names.bytes.insert(names.bytes.end(), entity.name.begin(), entity.name.end());
+            names.U8(0);
+            out.U32(static_cast<std::uint32_t>(namesAt + names.bytes.size()));
+            names.bytes.insert(names.bytes.end(), entity.model.begin(), entity.model.end());
+            names.U8(0);
+            out.U32(entity.partial ? kD3wdEntityPartial : 0U);
+            out.U32(entity.surfaces);
+
+            for (const float value : entity.origin)
+            {
+                out.F32(value);
+            }
+
+            for (const std::array<float, 3> & row : entity.axis)
+            {
+                for (const float value : row)
+                {
+                    out.F32(value);
+                }
+            }
+        }
+
+        out.bytes.insert(out.bytes.end(), names.bytes.begin(), names.bytes.end());
+        counts[static_cast<int>(D3wdSection::Entities)] = static_cast<std::uint32_t>(world.entities.size());
+    }
+
+    for (int section = 1; section < static_cast<int>(D3wdSection::Packets); ++section)
     {
         counts[section] = static_cast<std::uint32_t>(sections[section].bytes.size() / kRecordBytes[section]);
     }
@@ -1890,6 +1932,77 @@ bool ReadD3wd(std::span<const std::uint8_t> file, World & world, std::string & e
     }
 
     world.packets.assign(packets.begin(), packets.end());
+
+    // The merged entities: the records, then their names packed in record order.
+    const std::span<const std::uint8_t> entities = sections[static_cast<int>(D3wdSection::Entities)];
+    const std::size_t entityCount = counts[static_cast<int>(D3wdSection::Entities)];
+
+    if (entityCount > entities.size() / kD3wdEntityRecordBytes)
+    {
+        return fail("bad entity count");
+    }
+
+    Reader records(entities);
+    std::size_t nameEnd = kD3wdEntityRecordBytes * entityCount;
+    const auto Name = [&](std::uint32_t offset, std::string & name)
+    {
+        if (offset != nameEnd || offset >= entities.size())
+        {
+            return false;
+        }
+
+        const auto terminator = std::find(entities.begin() + static_cast<std::ptrdiff_t>(offset), entities.end(), std::uint8_t(0));
+
+        if (terminator == entities.end() || terminator == entities.begin() + static_cast<std::ptrdiff_t>(offset))
+        {
+            return false;
+        }
+
+        name.assign(reinterpret_cast<const char *>(entities.data() + offset), static_cast<std::size_t>(terminator - entities.begin()) - offset);
+        nameEnd = static_cast<std::size_t>(terminator - entities.begin()) + 1;
+        return true;
+    };
+
+    for (std::size_t index = 0; index < entityCount; ++index)
+    {
+        ProcMergedEntity entity;
+        const std::uint32_t nameOffset = records.U32();
+        const std::uint32_t modelOffset = records.U32();
+        const std::uint32_t entityFlags = records.U32();
+        entity.surfaces = records.U32();
+        bool finite = true;
+
+        for (float & value : entity.origin)
+        {
+            value = records.F32();
+            finite = finite && std::isfinite(value);
+        }
+
+        for (std::array<float, 3> & row : entity.axis)
+        {
+            for (float & value : row)
+            {
+                value = records.F32();
+                finite = finite && std::isfinite(value);
+            }
+        }
+
+        entity.partial = (entityFlags & kD3wdEntityPartial) != 0;
+
+        if ((entityFlags & ~kD3wdEntityPartial) != 0 || entity.surfaces == 0 || !finite || !Name(nameOffset, entity.name) ||
+            !Name(modelOffset, entity.model))
+        {
+            return fail("bad entity record");
+        }
+
+        world.entities.push_back(std::move(entity));
+    }
+
+    if (nameEnd != entities.size())
+    {
+        return fail("unused entity bytes");
+    }
+
     return true;
 }
 

@@ -805,6 +805,8 @@ struct WorldLightingJob
     bool shadows = true;
     // Merge the static func_static brush models into the area models before the bake.
     bool staticModels = false;
+    // With staticModels, merge the static func_statics' mesh models (.lwo, .ase) too, lit per vertex.
+    bool meshModels = false;
     LightmapPolicy policy;
 };
 
@@ -818,7 +820,8 @@ static bool ParseLightingJob(const JsonValue & value, WorldLightingJob & output)
     for (const std::string & key : value.keys)
     {
         if (key != "script" && key != "light_scale" && key != "luxel_size" && key != "shadow_samples" && key != "chart_angle" &&
-            key != "ray_offset" && key != "min_exposure" && key != "flat_steps" && key != "shadows" && key != "static_models")
+            key != "ray_offset" && key != "min_exposure" && key != "flat_steps" && key != "shadows" && key != "static_models" &&
+            key != "mesh_models")
         {
             return Fail("unknown lighting field: " + key);
         }
@@ -891,6 +894,16 @@ static bool ParseLightingJob(const JsonValue & value, WorldLightingJob & output)
         }
 
         output.staticModels = staticModels->boolean;
+    }
+
+    if (const JsonValue * meshModels = value.Find("mesh_models"))
+    {
+        if (meshModels->type != JsonValue::Type::Boolean)
+        {
+            return Fail("lighting.mesh_models must be true or false");
+        }
+
+        output.meshModels = meshModels->boolean;
     }
 
     if (const JsonValue * steps = value.Find("flat_steps"))
@@ -2140,12 +2153,8 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return false;
     }
 
-    if (lightingJob.staticModels && !MergeStaticModels(proc, entities, context, declared, staticModels, error))
-    {
-        return Fail("static models: " + error);
-    }
-
-    // The mesh models' census (they are not cooked yet): what merging the static props would add.
+    // The mesh models' census first (it reads the proc's areas before the merge changes them, which
+    // its placement does not depend on), then the merge.
     MeshModelStats meshModels;
     const ResourceReader readModel = [&materialCatalog](const std::string & name, std::vector<std::uint8_t> & bytes, std::string & readError)
     {
@@ -2156,6 +2165,12 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
     if (lightingJob.staticModels && !CensusMeshModels(proc, entities, context, declared, readModel, meshModels, error))
     {
         return Fail("mesh models: " + error);
+    }
+
+    if (lightingJob.staticModels &&
+        !MergeStaticModels(proc, entities, context, declared, staticModels, error, lightingJob.meshModels ? &readModel : nullptr))
+    {
+        return Fail("static models: " + error);
     }
 
     if (lightingJob.enabled &&
@@ -2221,12 +2236,23 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
             kept += std::string(kept.empty() ? "" : ", ") + JsonString(reason) + ": " + std::to_string(count);
         }
 
+        std::string meshKept;
+
+        for (const auto & [reason, count] : staticModels.meshKept)
+        {
+            meshKept += std::string(meshKept.empty() ? "" : ", ") + JsonString(reason) + ": " + std::to_string(count);
+        }
+
         report += "  \"static_models\": { \"inline\": " + std::to_string(staticModels.inlineModels) + ", \"merged\": " +
                   std::to_string(staticModels.merged) + ", \"partial\": " + std::to_string(staticModels.partial) + ", \"kept_surfaces\": " +
                   std::to_string(staticModels.keptSurfaces) + ", \"parm_surfaces\": " + std::to_string(staticModels.parmSurfaces) + ", \"parm_sets\": " +
                   std::to_string(staticModels.parmSets) + ", \"triangles\": " + std::to_string(staticModels.triangles) + ", \"solid_triangles\": " +
                   std::to_string(staticModels.solidTriangles) + ", \"surfaces_added\": " + std::to_string(staticModels.surfacesAdded) +
-                  ", \"kept\": { " + kept + " } },\n";
+                  ", \"kept\": { " + kept + " }, \"mesh_models\": " + std::to_string(staticModels.meshModels) + ", \"mesh_merged\": " +
+                  std::to_string(staticModels.meshMerged) + ", \"mesh_partial\": " + std::to_string(staticModels.meshPartial) +
+                  ", \"mesh_triangles\": " + std::to_string(staticModels.meshTriangles) + ", \"mesh_solid_triangles\": " +
+                  std::to_string(staticModels.meshSolidTriangles) + ", \"mesh_kept\": { " + meshKept + " }, \"merged_entities\": " +
+                  std::to_string(staticModels.mergedEntities) + " },\n";
 
         const auto CountJson = [](const MeshModelStats::Count & count)
         {

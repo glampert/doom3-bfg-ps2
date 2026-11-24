@@ -373,16 +373,19 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   materials.
 - HostFs commands close the console, set `r_znear 4`, run `ps2_world load maps/game/mars_city1`
   (the `[D3BFG] world maps/game/mars_city1.d3wd:` line must carry the cook report's areas,
-  surfaces, batches, portals and nodes: 56, 1,861, 2,718, 55 and 9,783 today, with the static
-  `func_static` brush models merged into the areas, and a
+  surfaces, batches, portals and nodes, 56, 2,126, 3,397, 55 and 9,783 today with the static
+  `func_static` brush models and mesh props merged into the areas, and its `merged_entities`, 357;
+  and a
   `[D3BFG] world textures maps/game/mars_city1.d3tx:` line with its pages, areas, file and table
   bytes, ending `streamed`, must follow),
   `ps2_world textures off`, `ps2_world lightmaps off`, and two
   `ps2_world trace`s from the player's eye at the start (`info_player_start_2`, 68 units
   above (-3632, -3416, 192)): straight down onto `textures/base_floor/sflgrate2` at fraction
-  0.148 facing up, and west into `textures/mcity/stewall3b` at 0.383 facing (0.990, 0,
-  -0.141), each within 0.002 and with the exact material. A Python ray cast over the `.bproc`'s
-  triangles gives the same fractions and materials. A 32-unit `ps2_world decal` goes straight down
+  0.148 facing up, and west into the computer rack merged into area 2 (`tim_func_static_2650`,
+  `models/mapobjects/cpu/comrack2`) at 0.049 facing (0.999, 0.047, 0.001), each within 0.002 and
+  with the exact material. A Python ray cast gives the same fractions and materials, over the
+  `.bproc`'s triangles for the grate and the cooked D3WD's for the rack. Until the mesh props merged
+  (2026-11-24) the west trace reached the hall's wall, `textures/mcity/stewall3b` at 0.383. A 32-unit `ps2_world decal` goes straight down
   onto the grate under the start, where one flat `.bproc` triangle at z = 192 holds the whole
   square; `ps2_world decals` must report none until a view has seen area 2.
 - Loading the map leaves the front end: the `ingame` barrier's span must hold one switch to
@@ -403,8 +406,10 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   and `repacks` (passes that emptied the arena to place their textures without holes) are recorded;
   some view must have drawn the sky. Streaming (2026-11-24): every view's status must show no
   refused read (`stream_failures`), no draw left out for a read that had not landed
-  (`stream_misses`; each view's camera move and switch is a jump, which waits) and at least one
-  pass that waited (`stream_waits`). The copies' peak (`copy_peak`) must stay below the package's
+  (`stream_misses`; each view's camera move and switch is a jump, which waits), at least one
+  pass that waited (`stream_waits`), and no batch left out for want of a moved state block
+  (`moved_fallbacks`). `overflows`, `pass_evictions`, `moved_states` and `upload_bytes` record how
+  PAL's north, doorway and corridor views, whose textures exceed the arena, load the rest mid-pass. The copies' peak (`copy_peak`) must stay below the package's
   file bytes. The runner records the peak, and `stream_loads`, `stream_bytes` and
   `stream_wait_ms` per view. Both go off again
   before the next view. Each lightmap capture must match the reference with the lightmap pass

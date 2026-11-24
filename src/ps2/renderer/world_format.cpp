@@ -16,7 +16,7 @@ namespace ps2::renderer::world
 namespace
 {
 
-static constexpr std::uint32_t kRecordBytes[kSectionCount] = { 0, 8, 64, 64, 16, 12, 24, 64, 6, 2, 0 };
+static constexpr std::uint32_t kRecordBytes[kSectionCount] = { 0, 8, 64, 64, 16, 12, 24, 64, 6, 2, 0, 0 };
 
 static std::uint32_t Word(const std::uint8_t * bytes)
 {
@@ -480,6 +480,62 @@ PS2_COLD_FUNC const char * Validate(const std::uint8_t * file, std::uint32_t byt
     {
         output = {};
         return error;
+    }
+
+    // The merged entities: records, then their names packed in record order, name before model.
+    const std::uint8_t * const entities = sections[at(Section::Entities)];
+    const std::uint32_t entityBytes = sizes[at(Section::Entities)];
+    const std::uint32_t entityCount = counts[at(Section::Entities)];
+
+    if (entityCount > entityBytes / sizeof(EntityRecord)) [[unlikely]]
+    {
+        output = {};
+        return "bad world entity count";
+    }
+
+    output.entities = Records<EntityRecord>(entities);
+    output.entityNames = static_cast<const char *>(static_cast<const void *>(entities));
+    output.entityCount = entityCount;
+    std::uint32_t nameEnd = entityCount * static_cast<std::uint32_t>(sizeof(EntityRecord));
+
+    // A name starting where the last one ended, not empty, NUL-terminated inside the section.
+    const auto Name = [&](std::uint32_t offset)
+    {
+        std::uint32_t end = offset;
+
+        while (end < entityBytes && entities[end] != 0)
+        {
+            ++end;
+        }
+
+        const bool valid = offset == nameEnd && end > offset && end < entityBytes;
+        nameEnd = end + 1U;
+        return valid;
+    };
+
+    for (std::uint32_t index = 0; index < entityCount; ++index)
+    {
+        const EntityRecord & entity = output.entities[index];
+        bool finite = true;
+
+        for (std::uint32_t component = 0; component < 3; ++component)
+        {
+            finite = finite && Finite(entity.origin[component]) && Finite(entity.axis[component][0]) && Finite(entity.axis[component][1]) &&
+                     Finite(entity.axis[component][2]);
+        }
+
+        if ((entity.flags & ~kEntityPartial) != 0 || entity.surfaces == 0 || !finite || !Name(entity.nameOffset) ||
+            !Name(entity.modelOffset)) [[unlikely]]
+        {
+            output = {};
+            return "bad world entity record";
+        }
+    }
+
+    if (nameEnd != entityBytes) [[unlikely]]
+    {
+        output = {};
+        return "unused world entity bytes";
     }
 
     return nullptr;

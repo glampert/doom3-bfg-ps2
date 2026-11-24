@@ -1240,3 +1240,22 @@ Copies are 64-byte multiples, 2,720 bytes over the 1,211,168 read. The budget (2
 the gate. Every capture matched the whole-file runs byte for byte, and shutdown returned the startup
 ledger exactly. The worst area with its neighbours wants 1.65 MB plus the 0.33 MB sky (the cook's
 per-area lists, measured offline), within the budget.
+
+## Static mesh props merged (2026-11-25)
+
+The world cook merges mars_city1's static `func_static` mesh props into the areas
+(`"mesh_models": true`, RENDERING_ARCHITECTURE.md 20.1). Retail gate runs
+`20261124T133622Z_world_retail_b06a8a8b0b44` (NTSC) and `20261124T133732Z_world_retail_b79b02600874`
+(PAL), debug:
+
+| | Before | Props merged |
+| --- | --- | --- |
+| World triangles / batches | 53,957 / 2,718 | 83,659 / 3,397 |
+| D3WD (loaded whole, `TAG_RENDER`) | 3,234,032 | 4,494,064 (1,260,032 more; 357 merged-entity records) |
+| D3TX file / textures / whole-map VRAM | 3,047,744 / 295 / 2,395,904 | 4,040,832 / 382 / 3,351,552 |
+| Texture copies at most (streamed) | 1,213,888 | 1,388,928 |
+| NTSC arena at the most | 1,011,456 of 1,064,960 | 1,027,328 of 1,064,960 |
+| PAL north view's diffuse and pages | 653,824 of 655,360 | 791,296: loaded mid-pass |
+
+The lighting bake lights the props per vertex: 420 vertex-lit surfaces, the lightmap pages
+unchanged (8, 10,683 charts).

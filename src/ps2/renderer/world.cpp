@@ -42,6 +42,13 @@ static const Level * s_passLevel = nullptr;
 // PlanArea has begun the next pass's plan.
 static bool s_planning = false;
 
+// Whether a pass plans (PlanBatch) and steps over (AdvanceBatch) this batch: all but a textured
+// pass's sky batches, which write depth alone.
+static bool Planned(const Level & level, const BatchRecord & batch)
+{
+    return !(s_texturesEnabled && IsSky(level.textures, batch.material));
+}
+
 static void DrawQueuedPasses()
 {
     dma::DisplayList & list = dma::List();
@@ -158,9 +165,10 @@ PS2_COLD_FUNC bool Adopt(void * storage, u32 bytes, const char * name, Level & l
     level.bytes = bytes;
 
     const Sections & sections = level.sections;
-    Log(LogLevel::Info, "[D3BFG] world %s: areas=%u surfaces=%u batches=%u portals=%u nodes=%u packets=%u bytes=%u\n", name,
+    Log(LogLevel::Info, "[D3BFG] world %s: areas=%u surfaces=%u batches=%u portals=%u nodes=%u packets=%u bytes=%u merged_entities=%u\n", name,
         static_cast<u32>(sections.areaCount), static_cast<u32>(sections.surfaceCount), static_cast<u32>(sections.batchCount),
-        static_cast<u32>(sections.portalCount), static_cast<u32>(sections.nodeCount), static_cast<u32>(sections.packetBytes), bytes);
+        static_cast<u32>(sections.portalCount), static_cast<u32>(sections.nodeCount), static_cast<u32>(sections.packetBytes), bytes,
+        static_cast<u32>(sections.entityCount));
 
     return true;
 }
@@ -278,7 +286,7 @@ bool PlanArea(const Level & level, u32 area)
         const BatchRecord & batch = level.sections.batches[index];
 
         // A textured pass draws a sky batch untextured and unlit, into depth.
-        if (s_texturesEnabled && IsSky(level.textures, batch.material))
+        if (!Planned(level, batch))
         {
             sky = true;
             continue;
@@ -327,6 +335,12 @@ void DrawArea(const Level & level, u32 area)
     for (u32 index = record.firstBatch; index < record.firstBatch + record.batchCount; ++index)
     {
         const BatchRecord & batch = sections.batches[index];
+
+        if (Planned(level, batch))
+        {
+            AdvanceBatch(s_passTextures);
+        }
+
         const void * state = BatchState(s_passTextures, list, batch.material);
 
         if (state == nullptr)

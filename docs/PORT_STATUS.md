@@ -6075,3 +6075,45 @@ near the view (RENDERING_ARCHITECTURE.md 10.5, "Streaming as built").
 | `make test-ui` (debug) | Sessions `20261124T055544Z_session_dfececfa2d72` (NTSC) and `20261124T060536Z_session_263f40e45f7f` (PAL), the retail invalid-resource and movies cases: 20 passed, every present through the sleeping vsync wait |
 | `make test-host` | Passed: 407 Python tests; `texture_format_tests` writes a package in a permuted file order, reads its tables alone and validates each texture where its record says, and refuses a texture from the wrong place, short tables, another file size and a file order that is not a permutation |
 | `make`, `make release` | Passed, no warnings |
+
+## Static mesh props in the world, and mid-pass texture eviction (2026-11-25)
+
+**The props.** The world cook merges mars_city1's static `func_static` mesh props into the areas
+like the inline brush models. It reads them from the retail binary render models
+(`generated/rendermodels/*.blwo`, `.base`) into surfaces of their own, lit per vertex.
+- **Counts:** 211 whole and 23 in part, 29,702 triangles. The world grows from 53,957 to 83,659
+  triangles in 3,397 batches, the D3WD from 3.23 to 4.49 MB, the D3TX from 295 to 382 textures.
+- **The entity list:** D3WD v4 lists the 357 merged entities, inline and mesh, with model, placement
+  and merged surfaces, so the game's spawn can skip their render models when it loads maps.
+  Collision is unaffected: each entity keeps its own clip model, and all 367 mesh entities ship a
+  `.bcmodel`.
+- **Kept out:** the GUI props (53 entities, 11,983 triangles), the skinned ones (17) and the
+  bound, hidden, targeted and scripted ones keep their models, undrawn until rigid entities draw.
+- **The trace:** the retail gate's westward trace from the start now stops at a merged computer
+  rack (`tim_func_static_2650`, fraction 0.049) instead of the hall's wall. A ray cast over the
+  cooked triangles agrees, and id's `Trace` hits static entity models too.
+
+**Mid-pass eviction.** The props pushed PAL's north, doorway and corridor views to about 791 KB of
+textures and pages, against the 655,360-byte arena of 640-wide 32/32 PAL.
+- **Before the fix:** 48 to 116 batches per view drew untextured.
+- **The mechanism:** when nothing outside the pass can give way, a batch's texture evicts the one
+  whose next use in the pass's plan is furthest. The GS runs the chain in order, so no stall is
+  needed. A texture moved within the pass takes a moved state block, because a block the pass
+  already REF'd is never rewritten.
+- **The result:** those views draw every texture and page. The north view's four passes uploaded
+  1.62 MB with 152 mid-pass evictions, about 280 KB a frame in steady state. PCSX2 does not model
+  upload cost, so this needs a hardware frame log.
+- **NTSC:** never overflows, and its captures are byte-identical with and without mid-pass eviction.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261124T133622Z_world_retail_b06a8a8b0b44` (NTSC), `20261124T133732Z_world_retail_b79b02600874` (PAL): merged entities loaded, no fallback, no moved-block shortage; PAL's three overflowing views load mid-pass (four `overflows` each) |
+| `make test-world` | `20261124T133226Z_world_2ab1c9f82aa0`, `20261124T133237Z_world_7457cab1153d` (graybox on D3WD v4) |
+| `make test-host` | Passed: the standalone binary model reader, the mesh merge (per-vertex surfaces, kept and missing models), the merged-entity list in the cook, the D3WD round trip and the target validator; the runner refuses a load without the report's merged entities or with a moved-block shortage |
+| `make`, `make release` | Passed, no warnings |
+
+Open:
+- The sky's faces now give way every frame in NTSC's 96.5 % full arena, about 200 KB of uploads a
+  frame.
+- PAL's north view still leaves its glows out: material passes do not evict.
+- Batches are not yet grouped by texture to cut the evictions.

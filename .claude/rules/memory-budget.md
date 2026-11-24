@@ -105,7 +105,10 @@ have not been re-measured.
   3,047,744; NTSC still evicts nothing, PAL's north views still drop the sky and glows. Streamed
   since 2026-11-24: only the D3TX's tables (12,504 bytes) and the copies of the textures that areas
   near the view need stay in EE memory (2 MiB budget). The retail gate's copies peaked at 1,213,888
-  bytes, against the whole 3,047,744.
+  bytes, against the whole 3,047,744. With the static mesh props merged (2026-11-25) the D3WD is
+  4,494,064 bytes (83,659 triangles, still loaded whole) and the streamed D3TX 4,040,832 (382
+  textures, 3,351,552 bytes of VRAM); copies peak at 1,388,928. NTSC's arena holds the gate's views at
+  96.5 %; PAL's overflows in three views and loads the rest mid-pass (gs-renderer.md).
 - Measured map baseline (authored map, 2026-10-11): fixed `PT_LOAD` 10.9 MB, three 60-frame
   reloads about 2.22 MB requested; no retail map transition peak is established. mars_city1
   `.map` is 5.48 MB (4.85 MB brush/patch text), its container holds 5.4 MB of binary
