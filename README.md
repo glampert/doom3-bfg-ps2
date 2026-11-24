@@ -22,6 +22,12 @@ with small test maps before moving on to the full campaign.
 - [x] Controller and keyboard input for the console and menu.
 - [ ] Gameplay input, sound, and saving/loading progress.
 
+[![Mars City 1 rendered by the port in PCSX2](docs/images/readme-mars_city1-ntsc.png)](docs/images/readme-mars_city1-ntsc.png)
+
+*The first retail level, Mars City 1, drawn by the port's VU1 world renderer (PCSX2, NTSC, 640x448):
+lightmapped walls, floor textures with their bump maps baked in, and the Martian sky box seen
+through the windows and open doorways. Characters, doors, dynamic lights and effects are not drawn yet.*
+
 See the [roadmap](docs/plans/IMPLEMENTATION_PLAN.md) and [port status](docs/PORT_STATUS.md)
 for detailed progress and current limitations. Original game data is not included;
 retail-data tools require your own Doom 3 BFG Edition installation.
