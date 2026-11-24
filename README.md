@@ -21,6 +21,7 @@ with small test maps before moving on to the full campaign.
 - [ ] 3D graphics, lighting, animation and effects ([rendering architecture plan](docs/plans/RENDERING_ARCHITECTURE.md)).
 - [x] Controller and keyboard input for the console and menu.
 - [ ] Gameplay input, sound, and saving/loading progress.
+- [ ] Entity models: the player's weapon, monsters and props.
 
 [![Mars City 1 rendered by the port in PCSX2](docs/images/readme-mars_city1-ntsc.png)](docs/images/readme-mars_city1-ntsc.png)
 
