@@ -8,6 +8,7 @@
 
 #include "assets/bytes.h"
 #include "assets/proc.h"
+#include "assets/static_models.h"
 #include "assets/world.h"
 #include "ps2/renderer/world_format.h"
 
@@ -309,10 +310,16 @@ static std::uint8_t UnitToByte(float value)
     return static_cast<std::uint8_t>(std::lround((value + 1.0f) * (255.0f / 2.0f)));
 }
 
-static void WriteBinaryModel(BprocWriter & out, const ProcModel & model, int prelightVertices)
+// A model as a .bproc entry, or with 'standalone' as a generated/rendermodels file (no type or name
+// before LoadBinaryModel's record).
+static void WriteBinaryModel(BprocWriter & out, const ProcModel & model, int prelightVertices, bool standalone = false)
 {
-    out.String("shadowmodel"); // the type both of id's model writers use
-    out.String(model.name);
+    if (!standalone)
+    {
+        out.String("shadowmodel"); // the type both of id's model writers use
+        out.String(model.name);
+    }
+
     out.Be32(0x42524D6CU);
     out.Zeros(8);
     out.Be32(static_cast<std::uint32_t>(prelightVertices > 0 ? 1 : model.surfaces.size()));
@@ -610,6 +617,52 @@ static bool BinaryProcs()
         passed = Check(patched && !ParseBinaryProc(file, binary, error) && !error.empty(), corruption.name) && passed;
     }
 
+    return passed;
+}
+
+// A mesh model as the retail containers ship it (generated/rendermodels/*.blwo): the same record,
+// read on its own to its end.
+static bool BinaryModels()
+{
+    std::string error;
+    ProcFile text;
+    bool passed = Check(ParseProc(kSmallProc, text, error), "small proc parses for the model writer");
+    ProcModel source = text.models[0];
+    source.name = "models/fixture/Crate.lwo";
+    BprocWriter out;
+    WriteBinaryModel(out, source, 0, true);
+    const std::vector<std::uint8_t> file = out.Bytes();
+    ProcModel model;
+
+    passed = Check(ParseBinaryModel(file, model, error), "a standalone binary model parses") && Check(model.name == source.name, "it keeps its name") &&
+             Check(model.surfaces.size() == source.surfaces.size() && model.surfaces[0].indices == source.surfaces[0].indices &&
+                       model.surfaces[0].vertices.size() == source.surfaces[0].vertices.size() &&
+                       model.surfaces[0].vertices[1].position == source.surfaces[0].vertices[1].position &&
+                       model.surfaces[0].material == source.surfaces[0].material,
+                   "its surfaces read back") &&
+             passed;
+
+    bool truncations = true;
+
+    for (std::size_t length = 0; length < file.size(); ++length)
+    {
+        truncations = !ParseBinaryModel(std::span<const std::uint8_t>(file).first(length), model, error) && !error.empty() && truncations;
+    }
+
+    std::vector<std::uint8_t> longer = file;
+    longer.push_back(0);
+    passed = Check(truncations, "every truncated binary model is refused") && Check(!ParseBinaryModel(longer, model, error), "a trailing byte is refused") &&
+             passed;
+
+    // A .bproc entry (its type and name first) is not a standalone model.
+    BprocWriter entry;
+    WriteBinaryModel(entry, source, 0, false);
+    passed = Check(!ParseBinaryModel(entry.Bytes(), model, error), "a .bproc model entry is refused") && passed;
+
+    // The model key names its generated file, .lwo as .blwo and .ase as .base; anything else none.
+    passed = Check(GeneratedModelName("models/MapObjects\\Crate.LWO") == "generated/rendermodels/models/mapobjects/crate.blwo", "lwo name") &&
+             Check(GeneratedModelName("models/a/b.ase") == "generated/rendermodels/models/a/b.base", "ase name") &&
+             Check(GeneratedModelName("models/md5/imp.md5mesh").empty() && GeneratedModelName("func_static_1").empty(), "no generated name") && passed;
     return passed;
 }
 
@@ -1405,7 +1458,7 @@ static bool ParmVariants()
 
 int main()
 {
-    const bool passed = Strips() && Procs() && BinaryProcs() && Graybox() && LitGraybox() && LargeWorlds() && Corruption() && ParmVariants();
+    const bool passed = Strips() && Procs() && BinaryProcs() && BinaryModels() && Graybox() && LitGraybox() && LargeWorlds() && Corruption() && ParmVariants();
 
     if (passed)
     {

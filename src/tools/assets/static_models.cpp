@@ -375,4 +375,200 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
     return true;
 }
 
+std::string GeneratedModelName(const std::string & model)
+{
+    std::string name = Lower(model);
+
+    for (char & character : name)
+    {
+        character = character == '\\' ? '/' : character;
+    }
+
+    const std::size_t dot = name.rfind('.');
+
+    if (dot == std::string::npos || (name.compare(dot, std::string::npos, ".lwo") != 0 && name.compare(dot, std::string::npos, ".ase") != 0))
+    {
+        return std::string();
+    }
+
+    return "generated/rendermodels/" + name.substr(0, dot) + ".b" + name.substr(dot + 1);
+}
+
+bool CensusMeshModels(const ProcFile & proc, const std::vector<MapEntity> & entities, const LightContext & context,
+                      const std::map<std::string, MaterialInfo> & materials, const ResourceReader & read, MeshModelStats & stats,
+                      std::string & error)
+{
+    stats = MeshModelStats();
+    stats.areaTriangles.assign(static_cast<std::size_t>(proc.areaCount), 0);
+    std::map<std::string, ProcModel> models;
+    std::set<std::string> missing;
+
+    for (const MapEntity & entity : entities)
+    {
+        const std::string key = entity.String("model");
+        const std::string name = GeneratedModelName(key);
+
+        if (name.empty())
+        {
+            continue;
+        }
+
+        auto found = models.find(name);
+
+        if (found == models.end())
+        {
+            if (missing.count(name) != 0)
+            {
+                ++stats.missing;
+                continue;
+            }
+
+            std::vector<std::uint8_t> bytes;
+            std::string readError;
+
+            if (!read(name, bytes, readError))
+            {
+                if (!readError.empty())
+                {
+                    error = name + ": " + readError;
+                    return false;
+                }
+
+                missing.insert(name);
+                ++stats.missing;
+                continue;
+            }
+
+            ProcModel model;
+
+            if (!ParseBinaryModel(bytes, model, error))
+            {
+                error = name + ": " + error;
+                return false;
+            }
+
+            if (Lower(model.name) != Lower(key))
+            {
+                error = name + " names itself " + model.name + ", not " + key;
+                return false;
+            }
+
+            std::size_t triangles = 0;
+
+            for (const ProcSurface & surface : model.surfaces)
+            {
+                triangles += surface.indices.size() / 3;
+            }
+
+            ++stats.models;
+            stats.modelTriangles += triangles;
+            stats.modelBytes += bytes.size();
+            found = models.emplace(name, std::move(model)).first;
+        }
+
+        const ProcModel & model = found->second;
+        MeshModelStats::Count placed;
+        placed.entities = 1;
+
+        for (const ProcSurface & surface : model.surfaces)
+        {
+            placed.triangles += surface.indices.size() / 3;
+            placed.vertices += surface.vertices.size();
+        }
+
+        const std::string classname = Lower(entity.String("classname"));
+        MeshModelStats::Count & byClass = stats.classes[classname];
+        byClass.entities += 1;
+        byClass.triangles += placed.triangles;
+        byClass.vertices += placed.vertices;
+
+        if (classname != "func_static")
+        {
+            continue;
+        }
+
+        if (const char * reason = StaticModelRefusal(entity, context))
+        {
+            MeshModelStats::Count & refused = stats.kept[reason];
+            refused.entities += 1;
+            refused.triangles += placed.triangles;
+            refused.vertices += placed.vertices;
+            continue;
+        }
+
+        stats.staticMeshes.entities += 1;
+        stats.staticMeshes.triangles += placed.triangles;
+        stats.staticMeshes.vertices += placed.vertices;
+
+        if (placed.triangles > stats.largestTriangles)
+        {
+            stats.largestTriangles = placed.triangles;
+            stats.largest = key;
+        }
+
+        // Where MergeStaticModels would put each triangle: the area holding its centroid, else a
+        // corner, else the entity's origin.
+        Vec3f origin = {};
+        Axis axis = {};
+        entity.Placement(origin, axis);
+        const int originArea = PointInArea(proc, origin);
+
+        for (const ProcSurface & surface : model.surfaces)
+        {
+            const std::size_t triangles = surface.indices.size() / 3;
+            const auto material = materials.find(Lower(surface.material));
+
+            if (material == materials.end())
+            {
+                stats.undeclaredTriangles += triangles;
+            }
+            else if (material->second.translucent)
+            {
+                stats.translucentTriangles += triangles;
+            }
+
+            if (SurfaceReadsEntityParms(entity, surface, materials))
+            {
+                stats.parmTriangles += triangles;
+            }
+
+            for (std::size_t first = 0; first + 2 < surface.indices.size(); first += 3)
+            {
+                Vec3f corners[3] = {};
+                Vec3f centroid = {};
+
+                for (std::size_t corner = 0; corner < 3; ++corner)
+                {
+                    const Vec3f local = Rotate(axis, surface.vertices[surface.indices[first + corner]].position);
+
+                    for (std::size_t component = 0; component < 3; ++component)
+                    {
+                        corners[corner][component] = origin[component] + local[component];
+                        centroid[component] += corners[corner][component] / 3.0f;
+                    }
+                }
+
+                int area = PointInArea(proc, centroid);
+
+                for (std::size_t corner = 0; corner < 3 && area < 0; ++corner)
+                {
+                    area = PointInArea(proc, corners[corner]);
+                }
+
+                area = area >= 0 ? area : originArea;
+
+                if (area < 0)
+                {
+                    ++stats.solidTriangles;
+                    continue;
+                }
+
+                ++stats.areaTriangles[static_cast<std::size_t>(area)];
+            }
+        }
+    }
+
+    return true;
+}
+
 } // namespace assets

@@ -2145,6 +2145,19 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return Fail("static models: " + error);
     }
 
+    // The mesh models' census (they are not cooked yet): what merging the static props would add.
+    MeshModelStats meshModels;
+    const ResourceReader readModel = [&materialCatalog](const std::string & name, std::vector<std::uint8_t> & bytes, std::string & readError)
+    {
+        readError.clear();
+        return materialCatalog.Find(name) != nullptr && materialCatalog.Read(name, bytes, readError);
+    };
+
+    if (lightingJob.staticModels && !CensusMeshModels(proc, entities, context, declared, readModel, meshModels, error))
+    {
+        return Fail("mesh models: " + error);
+    }
+
     if (lightingJob.enabled &&
         !BakeWorldLighting(materialCatalog, declared, tables, entities, context, proc, lightingJob, lighting, pages, output, stem))
     {
@@ -2214,6 +2227,42 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
                   std::to_string(staticModels.parmSets) + ", \"triangles\": " + std::to_string(staticModels.triangles) + ", \"solid_triangles\": " +
                   std::to_string(staticModels.solidTriangles) + ", \"surfaces_added\": " + std::to_string(staticModels.surfacesAdded) +
                   ", \"kept\": { " + kept + " } },\n";
+
+        const auto CountJson = [](const MeshModelStats::Count & count)
+        {
+            return "{ \"entities\": " + std::to_string(count.entities) + ", \"triangles\": " + std::to_string(count.triangles) +
+                   ", \"vertices\": " + std::to_string(count.vertices) + " }";
+        };
+        std::string classes;
+        std::string refused;
+        std::string areas;
+
+        for (const auto & [name, count] : meshModels.classes)
+        {
+            classes += std::string(classes.empty() ? "" : ", ") + JsonString(name) + ": " + CountJson(count);
+        }
+
+        for (const auto & [reason, count] : meshModels.kept)
+        {
+            refused += std::string(refused.empty() ? "" : ", ") + JsonString(reason) + ": " + CountJson(count);
+        }
+
+        for (const std::size_t triangles : meshModels.areaTriangles)
+        {
+            areas += std::string(areas.empty() ? "" : ", ") + std::to_string(triangles);
+        }
+
+        report += "  \"mesh_models\": { \"models\": " + std::to_string(meshModels.models) + ", \"model_triangles\": " +
+                  std::to_string(meshModels.modelTriangles) + ", \"model_bytes\": " + std::to_string(meshModels.modelBytes) + ", \"missing\": " +
+                  std::to_string(meshModels.missing) + ", \"classes\": { " + classes + " }, \"static\": " + CountJson(meshModels.staticMeshes) +
+                  ", \"kept\": { " + refused + " }, \"translucent_triangles\": " + std::to_string(meshModels.translucentTriangles) +
+                  ", \"parm_triangles\": " + std::to_string(meshModels.parmTriangles) + ", \"undeclared_triangles\": " +
+                  std::to_string(meshModels.undeclaredTriangles) + ", \"solid_triangles\": " + std::to_string(meshModels.solidTriangles) +
+                  ", \"largest\": " + JsonString(meshModels.largest) + ", \"largest_triangles\": " + std::to_string(meshModels.largestTriangles) +
+                  ", \"area_triangles\": [" + areas + "] },\n";
+        std::cout << stem << " mesh models: " << meshModels.models << " files (" << meshModels.modelTriangles << " triangles), "
+                  << meshModels.staticMeshes.entities << " static func_static entities placing " << meshModels.staticMeshes.triangles
+                  << " triangles, " << meshModels.missing << " missing\n";
     }
 
     report += "  \"area_list\": [";

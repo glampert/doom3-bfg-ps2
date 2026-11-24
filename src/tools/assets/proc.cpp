@@ -644,8 +644,9 @@ public:
             {
                 ProcModel model;
                 bool shadow = false;
+                std::string outerName;
 
-                if (!Model(model, shadow))
+                if (!String(outerName, false) || !Model(&outerName, model, shadow))
                 {
                     return false;
                 }
@@ -697,12 +698,32 @@ public:
         return true;
     }
 
+    // A standalone binary model (generated/rendermodels/*.blwo, *.base): LoadBinaryModel's record
+    // with no name before it, to the file's end.
+    bool StandaloneModel(ProcModel & model)
+    {
+        bool shadow = false;
+        m_what = "binary model";
+
+        if (!Model(nullptr, model, shadow))
+        {
+            return false;
+        }
+
+        if (m_cursor != m_data.size())
+        {
+            return Fail(std::to_string(m_data.size() - m_cursor) + " bytes after the model");
+        }
+
+        return true;
+    }
+
 private:
     bool Fail(const std::string & message)
     {
         if (m_error.empty())
         {
-            m_error = "bproc offset " + std::to_string(m_cursor) + ": " + message;
+            m_error = std::string(m_what) + " offset " + std::to_string(m_cursor) + ": " + message;
         }
 
         return false;
@@ -881,21 +902,22 @@ private:
         return true;
     }
 
-    // ReadBinaryModel's name, then idRenderModelStatic::LoadBinaryModel.
-    bool Model(ProcModel & model, bool & shadow)
+    // idRenderModelStatic::LoadBinaryModel, after ReadBinaryModel's name in a .bproc ('outerName';
+    // null for a standalone model, whose surfaces must all carry their vertices).
+    bool Model(const std::string * outerName, ProcModel & model, bool & shadow)
     {
-        std::string outerName;
         std::uint32_t magic = 0;
         std::uint32_t surfaceCount = 0;
+        const std::string label = outerName != nullptr ? *outerName : std::string("file");
 
-        if (!String(outerName, false) || !Be32(magic))
+        if (!Be32(magic))
         {
             return false;
         }
 
         if (magic != kBrmMagic)
         {
-            return Fail("model " + outerName + " is not a version 108 binary model");
+            return Fail("model " + label + " is not a version 108 binary model");
         }
 
         if (!Skip(8) || !Count(kMaxBinaryCount, surfaceCount))
@@ -903,8 +925,8 @@ private:
             return false;
         }
 
-        shadow = outerName.starts_with("_prelight_");
-        const bool area = outerName.starts_with("_area");
+        shadow = outerName != nullptr && outerName->starts_with("_prelight_");
+        const bool area = outerName != nullptr && outerName->starts_with("_area");
 
         for (std::uint32_t index = 0; index < surfaceCount; ++index)
         {
@@ -917,7 +939,7 @@ private:
                 return false;
             }
 
-            if (geometry && !Surface(outerName, surface, vertexData))
+            if (geometry && !Surface(label, surface, vertexData))
             {
                 return false;
             }
@@ -925,7 +947,12 @@ private:
             // An area surface must carry what the text format would: a material and its vertices.
             if (area && (surface.material.empty() || !geometry || (!vertexData && !surface.indices.empty())))
             {
-                return Fail("area model " + outerName + " has a surface without a material or vertices");
+                return Fail("area model " + label + " has a surface without a material or vertices");
+            }
+
+            if (outerName == nullptr && geometry && !vertexData && !surface.indices.empty())
+            {
+                return Fail("model surface " + std::to_string(index) + " has indexes but no vertices");
             }
 
             if (!shadow)
@@ -940,9 +967,9 @@ private:
             return false;
         }
 
-        if (model.name != outerName)
+        if (outerName != nullptr && model.name != *outerName)
         {
-            return Fail("model " + outerName + " names itself " + model.name);
+            return Fail("model " + *outerName + " names itself " + model.name);
         }
 
         return true;
@@ -1139,6 +1166,7 @@ private:
     std::span<const std::uint8_t> m_data;
     std::size_t m_cursor = 0;
     std::string & m_error;
+    const char * m_what = "bproc";
 };
 
 } // namespace
@@ -1149,6 +1177,21 @@ bool ParseProc(std::string_view text, ProcFile & output, std::string & error)
     error.clear();
     Parser parser(text, error);
     return parser.File(output);
+}
+
+bool ParseBinaryModel(std::span<const std::uint8_t> data, ProcModel & output, std::string & error)
+{
+    error.clear();
+    ProcModel model;
+    BinaryParser parser(data, error);
+
+    if (!parser.StandaloneModel(model))
+    {
+        return false;
+    }
+
+    output = std::move(model);
+    return true;
 }
 
 bool ParseBinaryProc(std::span<const std::uint8_t> data, ProcFile & output, std::string & error)

@@ -309,6 +309,14 @@ surface whose material reads parms the entity sets (`_color`, `shaderParmN`: fla
 decals) stays in the model too; opaque ones merge, since the world pass draws only their diffuse.
 The report's `static_models` counts them. Models left out shadow from their entity in the bake.
 
+The same job takes a census of the map's mesh models (the report's `mesh_models`): every entity
+whose `model` names a `.lwo` or `.ase` is imported from the binary render model the containers ship
+for it (`generated/rendermodels/<path>.blwo` or `.base`, `ParseBinaryModel`). Imports are once per
+file; a file that is malformed or names another source fails the cook. The census does not change
+the world. It counts the entities per class, the `func_static`s the rules above would merge with
+their triangles and those they keep by reason, translucent, parm-reading and solid-space triangles,
+and the triangles each area would gain (`area_triangles`).
+
 mars_city1: A 410, B 13, C 31, D 2, E 27, F 3. The 410 A lights (284 cast shadows) cover 1,716 lit
 surfaces (204 alpha-tested, lit per vertex) with 10,683 charts in 8 pages: 532,480 bytes of VRAM
 and 1.83 M rays, in about 1.4 s single threaded. The output is byte-identical across runs. Of its 362

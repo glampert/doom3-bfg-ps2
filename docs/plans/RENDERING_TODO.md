@@ -225,6 +225,20 @@ production link free of test inputs. Section numbers in parentheses point into t
       189 flares, glass and glow decals coloured by their entity (material passes, with the entity's
       parms), and 311 mesh models (`.lwo`/`.ase`, model import). Material passes also need per-surface
       parms for the 93 merged opaque surfaces whose glow stages read them.
+- [x] Mesh model import and census (2026-11-24): the cook reads the retail binary render models
+      (`generated/rendermodels/*.blwo`, `.base`; `ParseBinaryModel`, the `.bproc` model parser) of
+      every map entity naming a `.lwo` or `.ase`, and reports them (`mesh_models`). mars_city1: 118
+      files (24,048 triangles, 1.6 MB), none missing; 311 `func_static`s place 46,377 triangles, 42
+      doors 2,446, 3 movers 624, 10 lights 116. The merge rules admit 234 `func_static`s with 30,376
+      triangles (29,844 inside areas; 1,433 translucent, 288 reading parms). They keep 53 with GUIs
+      (11,983 triangles), 17 with skins (2,406), 4 bound and 3 more. Merged, they would raise the world's
+      53,957 triangles by 55% and the worst area with its neighbours from 10,898 to 15,991 (area 5);
+      the start area 2 from 1,808 to 2,923.
+- [ ] Merge the static mesh props into the areas, lit per vertex rather than in lightmap charts;
+      the GUI props but for their GUI surfaces, and the skinned ones with the skin's materials.
+- [ ] Rigid entity models for doors, movers, bound models, moveables and items (R4's rigid half):
+      cooked batches per area streamed with the area ring, drawn by the world program with a
+      per-entity matrix, at the cook's rest pose until the game loads retail maps (M3).
 - [x] Debug free-flight camera (2026-11-08): `ps2_world fly` steers the viewer with the pad,
       `make run-world-retail` stages mars_city1 flying from the player start, and the retail gate
       flies a scripted path to a modelled pose and matches its capture (debug builds).

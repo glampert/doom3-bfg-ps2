@@ -90,6 +90,12 @@ bool ParseProc(std::string_view text, ProcFile & output, std::string & error);
 // silhouette data are skipped. Prelight shadow models are counted, as the text parser does.
 bool ParseBinaryProc(std::span<const std::uint8_t> data, ProcFile & output, std::string & error);
 
+// A standalone binary render model as the retail containers ship a mesh model's
+// (generated/rendermodels/<path>.blwo for a .lwo, .base for an .ase: idRenderModelStatic's
+// WriteBinaryModel, already triangulated), parsed to its exact end with the same checks and the same
+// fields kept. 'output.name' is the name the file gives itself (its source path).
+bool ParseBinaryModel(std::span<const std::uint8_t> data, ProcModel & output, std::string & error);
+
 // The area holding 'point' by the area BSP (idRenderWorld::PointInArea), or -1 in solid space.
 int PointInArea(const ProcFile & proc, const std::array<float, 3> & point);
 
