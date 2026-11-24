@@ -1196,3 +1196,27 @@ startup 959,451 / 963,240 in 1,617 debug, 926,876 in 1,082 release. Runnable `PT
 compiler: 5,067,769 → 5,022,457 debug, 4,283,321 → 4,250,297 release. Saves no longer copy the
 statements for their checksum (1.9 MB per save or load).
 
+## Declaration text on demand (2026-11-24)
+
+The PS2 no longer keeps declaration text resident: a file's declarations keep their offset, length
+and MD5, and read the text again from the container when they parse (the engine reference's
+"Retail containers and declaration residency"). Retail `startup-game`, the day before
+(`20261123T111443Z_headless_3114ede33ab7`, debug) against on demand
+(`20261124T024022Z_headless_6f2e1f854fbe` debug, `20261124T025944Z_headless_23150536a7ea` release):
+
+| | Resident (debug) | On demand (debug) | On demand (release) |
+| --- | --- | --- | --- |
+| startup requested / backing / allocations | 9,647,013 / 9,810,624 / 35,245 | 5,384,549 / 5,389,144 / 22,789 | 5,156,104 / 5,156,104 / 22,252 |
+| arena committed | 10,167,536 | 5,711,728 | 5,423,040 |
+| heap gap at `startup-game` | 17,169,168 | 21,629,072 | |
+| `DECLTEXT` backing / allocations | 4,411,312 / 11,947 | none allocated | none allocated |
+| `DECL` | 1,154,696 / 13,172 | 1,144,476 / 12,661 (the Huffman tree's 511 nodes gone) | |
+| tracking shadows (`HEAP metadata`) | 81,872 | 58,096 | |
+| filesystem start to `startup-game` (PCSX2) | 7.9 s | 4.4 s | 3.6 s |
+
+Release a day earlier was 9,541,700 bytes in 34,710 allocations (2026-11-18): −4,385,596. The
+runnable `PT_LOAD` loses the Huffman code: 4,263,801 → 4,257,785 release; debug 5,090,169 →
+5,086,329 with the `ps2_verifyDeclText` check added. Reading all 11,947 retail declarations
+(6,615,438 bytes, the largest 32,961) back takes 1.1 s in scan order and 3.4 s in a scattered
+order in PCSX2; through `OpenFileRead`, which reads a container entry whole, it took 58 s.
+

@@ -2,9 +2,9 @@
 
 Companion to [RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md): the same work as its
 section 19 gates, broken into concrete steps in the proposed order. Opened **2026-11-03**;
-status as of **2026-11-23**: R0 and R1 done but for the hardware probes, R2 in progress (the
-lightmapped, textured world with material passes and the sky is done; streaming and the R2 gate
-remain), R3 to R9 not started.
+status as of **2026-11-24**: R0 and R1 done but for the hardware probes, R2 in progress (the
+lightmapped, textured world with material passes and the sky is done, and declarations read their
+text on demand; streaming and the R2 gate remain), R3 to R9 not started.
 Tick items as they land; move a step's measurements into the plan's decision log
 (section 20) and its acceptance into [PORT_STATUS.md](../PORT_STATUS.md). Every step keeps
 the headless and 2D gates green (`make test-headless`, `test-renderer`, `test-ui`) and the
@@ -20,7 +20,9 @@ production link free of test inputs. Section numbers in parentheses point into t
       [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)); until then R0 and R1 use the game
       test image with the authored graybox map (`src/tests/data/graybox_map/`).
 - [ ] Decide and record the PC reference capture method (Wine on this Mac, or a Windows
-      machine) for R2 (20.3).
+      machine) (20.3). Deferred on 2026-11-24 until the frame is more complete: R2's gate no
+      longer compares with the PC, and the first comparison is R7's start-sequence gate, once
+      models, lights and particles draw.
 
 ## R0: toolchain, display list, frame model
 
@@ -279,12 +281,15 @@ production link free of test inputs. Section numbers in parentheses point into t
 - [ ] Runtime: streaming the EE copies per area ring from the package (10.5), preferably as
       per-segment texture dictionaries (one read and one allocation per segment, a level-common
       dictionary, optionally one cooked VRAM layout per segment; 10.5).
-- [ ] Pull the declaration-text lever (4.76 MB on demand) before measuring the level ledger
-      (16.1).
+- [x] Declaration text on demand (2026-11-24, 16.1): a file's declarations keep only where their
+      text is and its checksum, and read it again from the container when they parse
+      (`fileSystem->ReadFileRange`, the range alone: opening a container entry reads it whole).
+      Retail `startup-game` backing 9,810,624 to 5,389,092 bytes (debug), 3.6 s less boot in
+      PCSX2; the debug retail gate reads all 11,947 declarations back (1.1 s in order, 3.4 s
+      scattered).
 - [ ] Gate: mars_city1 camera path; area, portal and node counts and sampled
       `PointInArea`/`AreasAreConnected` match the proc loader; a door portal toggle still
-      gates sound; captures against PC `screenshot`s (`r_skipSpecular 1`) within the
-      eight-level pixel model and SSIM 0.9; three map load/unload cycles and one load-game
+      gates sound; three map load/unload cycles and one load-game
       return the ledger to baseline; per-device read rates recorded; first hardware frame
       log.
 

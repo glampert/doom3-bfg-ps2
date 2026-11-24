@@ -126,10 +126,22 @@ before touching that subsystem.
   `OpenFileReadMemory` (11.3 MB); on PS2 a tagged change opens it as a stream like
   the others. Each `idResourceCacheEntry` holds an `idStrStatic<256>` name, so the
   3,598 retail entries cost 1.08 MB of tables.
-- `USE_COMPRESSED_DECLS` keeps every declaration's Huffman-compressed text resident
+- `USE_COMPRESSED_DECLS` kept every declaration's Huffman-compressed text resident
   from `declManager->Init` onward, parsed or not: 4.25 MB requested for 11,947 retail
   declarations. `idGameLocal::Init` registers the `def`, `fx`, `particles`, `af` and
   `newpdas` folders, so most declaration text arrives during game startup.
+- **Declaration text on demand (2026-11-24).** The PS2 defines no `USE_COMPRESSED_DECLS`: the
+  scan keeps each file declaration's offset, length and MD5 (`textInSourceFile`), and `GetText`
+  reads the span again through `fileSystem->ReadFileRange` and holds it to the MD5 (fatal on a
+  mismatch). Generated and `SetText` text stays resident, uncompressed. A declaration a reload
+  drops loses its source. The Huffman tree was the 511 `TAG_DECL` nodes (10,220 bytes).
+- **Opening a container entry reads it whole.** `GetResourceFile` copies any entry under 8 MB
+  into a memory file (or the resource buffer) on open, so `OpenFileRead` plus `Seek` plus a small
+  `Read` costs the whole file: reading every retail declaration that way took 58 s in PCSX2
+  (4.9 ms each, the `.mtr`/`.def` files are up to 430 KB). `ReadFileRange` reads only the range
+  from the container's stream (`ReadFromBGL`): 1.1 s in scan order, 3.4 s scattered across the
+  files, where newlib's 16 KB stream buffer still serves neighbours. Every declaration file is in
+  both retail containers; containers are searched last to first.
 - Declarations with one name keep the first definition in folder listing order and
   warn for later ones. A loose authored `materials/*.mtr` beside the containers can
   silently replace a retail material (`_tracemodel`, `itemHighlightShell`); the retail

@@ -194,6 +194,19 @@ public:
 	virtual bool			IsBinaryModel( const idStr & resName ) const = 0;
 	virtual bool			IsSoundSample( const idStr & resName ) const = 0;
 	virtual bool			GetResourceCacheEntry( const char *fileName, idResourceCacheEntry &rc ) = 0;
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Reads 'length' bytes at 'offset' of a file; false when the file or the range is
+	// missing. The native filesystem reads a container entry's range alone, where opening the entry
+	// reads all of it.
+	virtual bool			ReadFileRange( const char *relativePath, int offset, void *buffer, int length ) {
+		idFile *file = OpenFileRead( relativePath );
+		const bool read = file != NULL && file->Seek( offset, FS_SEEK_SET ) == 0 && file->Read( buffer, length ) == length;
+		if ( file != NULL ) {
+			CloseFile( file );
+		}
+		return read;
+	}
+#endif
 	virtual void			FreeResourceBuffer() = 0;
 	virtual void			AddImagePreload( const char *resName, int filter, int repeat, int usage, int cube ) = 0;
 	virtual void			AddSamplePreload( const char *resName ) = 0;

@@ -5979,3 +5979,45 @@ repack since.
 | `make test-world-retail` (debug) | NTSC `20261123T130747Z_world_retail_68fd6683032f`: every view's textures resident (83, 1,011,456 of 1,064,960 bytes), no eviction, no fallback, the sky in every view. PAL `20261123T130832Z_world_retail_49f66ba3a9d5`: no diffuse or lightmap fallback and no repack; the north views leave out the sky and the glows, as at 128 |
 | `make test-world` (debug) | NTSC `20261123T130957Z_world_ef8bd7bc3aeb`, PAL `20261123T131007Z_world_1ae6fe0538b1` |
 | `make release` | Passed, no warnings; runnable `PT_LOAD` 4,263,801 |
+
+## Declaration text on demand (2026-11-24)
+
+id's declaration manager kept every declaration's text resident from the scan on,
+Huffman-compressed, parsed or not: 4,411,312 bytes of backing in 11,947 allocations at retail
+`startup-game`, 45 % of the boot heap. On the PS2 the scan now keeps where each file declaration's
+text is (offset, length) and its MD5, which id already took for `GetChecksum`; `GetText` reads the
+span again when the declaration parses and holds it to the MD5 (a mismatch is fatal). Generated
+and `SetText` text stays resident, uncompressed; no Huffman code is linked.
+
+The read goes through a new `idFileSystem::ReadFileRange`: opening a container entry reads it
+whole, so the first version, `OpenFileRead`, `Seek` and `Read`, cost 4.9 ms a declaration (58 s for
+the retail set) for files of up to 430 KB. The range read takes the bytes straight from the
+container's stream.
+
+| Retail `startup-game` | Before | Now |
+| --- | --- | --- |
+| Heap backing, debug | 9,810,624 in 35,245 allocations | **5,389,144** in 22,789 |
+| Heap backing, release | 9,541,700 in 34,710 | **5,156,104** in 22,252 |
+| Arena committed, debug / release | 10,167,536 / 9,835,856 | 5,711,728 / 5,423,040 |
+| Filesystem start to `startup-game`, debug (PCSX2) | 7.9 s | 4.4 s |
+| Runnable `PT_LOAD`, debug / release | 5,090,169 / 4,263,801 | 5,086,329 / 4,257,785 |
+
+Debug builds register `ps2_verifyDeclText`, which reads every file declaration back without
+parsing it; the retail headless gate runs it and requires its line. All 11,947 retail declarations
+(6,615,438 bytes) read back in 1.1 s in scan order and 3.4 s scattered across the files (0.28 ms a
+declaration): what a level load's parses would cost in PCSX2. No gate loads a retail level in
+production yet, and a console's USB reads are unmeasured: the R2 gate's per-device read rates
+cover them.
+
+The user deferred the PC reference comparison the same day until the frame is more complete: R2's
+gate no longer compares with the PC, and the first comparison is R7's start-sequence gate.
+
+| Check | Result |
+| --- | --- |
+| `make test-headless-retail` (debug) | `20261124T024022Z_headless_6f2e1f854fbe`: every declaration read back, `verified=11947`; ledgers above. Scattered pass: `20261124T023720Z_headless_494c8b8d4992` (one run with `ps2_verifyDeclText scattered`, 3,375 ms); the whole-entry reads: `20261124T023033Z_headless_2ecd7c92f71c` (58,139 / 58,562 ms) |
+| `make BUILD=release test-headless-retail` | `20261124T025944Z_headless_23150536a7ea` |
+| `make test-ui` (debug) | Sessions `20261124T030136Z_session_2216214a1b91` (NTSC) and `20261124T031130Z_session_73357567e7bf` (PAL), the retail invalid-resource and movies cases: 20 passed, the menus parsing their retail materials from the containers on demand |
+| `make test-headless`, `test-common`, `test-game`, `test-map`, `test-script-image`, `test-world`, `test-world-retail`, `test-renderer` (debug) | Passed |
+| `make test-host` | Passed, with runner tests for the `DECLTEXT` requirement (`test_headless_runner.py`) |
+| `make`, `make release` | Passed, no warnings |
+

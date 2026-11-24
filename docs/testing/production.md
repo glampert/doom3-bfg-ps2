@@ -21,8 +21,14 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   retail program (`make script-cook-retail`). It requires both container mounts, the
   `Loaded 'script/doom_main.d3sp'` line, the three startup memory checkpoints in order, 120
   `NOMAP` frames and exact startup-ledger recovery. `summary.json` records each checkpoint, the
-  largest tags and the loaded program's size. Startup reaches `startup-game` in about 10 s
-  (the program loads in 0.13 s); `make run-headless-retail` stages and launches the same
+  largest tags and the loaded program's size. Debug builds also run `ps2_verifyDeclText` before
+  the frames: every file declaration's text is read back from its container and held to the MD5
+  its scan took (a mismatch is fatal), and the gate requires its
+  `[D3BFG] DECLTEXT verified=N bytes= largest= ms= scattered_ms=` line with N above zero
+  (`summary.json`'s `decl_text`; 2026-11-24: 11,947 declarations, 6,615,438 bytes in about 1.1 s;
+  `ps2_verifyDeclText scattered` adds a pass that jumps across the files, 3.4 s). Startup takes 4.4 s from the
+  filesystem's start to `startup-game` since the declarations read their text on demand (7.9 s
+  before; the program loads in 0.13 s); `make run-headless-retail` stages and launches the same
   package until quit. Retail data never enters the repo. Every package on the authored data
   stages the cooked headless fixture (`make script-cook`) the same way.
 - `make test-script-image` (debug; `BUILD=release` for release) cooks the retail program, builds

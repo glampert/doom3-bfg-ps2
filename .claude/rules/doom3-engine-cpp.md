@@ -57,6 +57,10 @@ file keeps only what most engine edits need.
   `GuiModel.cpp`) are not compiled. `R_EntityDefDynamicModel` and its two helpers live in
   `RenderEntity.cpp`; the PS2 creates no interactions (their loops are tagged out). Before adding
   a caller of anything in those units, give it a kept home or a seam.
+- **Opening a container entry reads it whole** (`GetResourceFile`, any entry under 8 MB). For a
+  small part of a large file use `fileSystem->ReadFileRange` (PS2), which reads the range from
+  the container's stream; declarations read their text on demand this way (no
+  `USE_COMPRESSED_DECLS` on the PS2, details in the reference, "Retail containers").
 - Failed plane/ray intersections leave the scale output untouched: check the return value.
   `FS_WriteFloatString` takes no `l` modifier (parser integers are `long`: `%ld`, `labs`).
 - Abstract bases with virtual destructors only; disabling RTTI does not make deleting

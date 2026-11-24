@@ -62,9 +62,12 @@ have not been re-measured.
   14,425,296 against 17,581,068. Release: **13,361,680** backing in 74,542 (3.12 MB less), arena
   peak 14,171,520, 14.3 MB of gap left at `startup-game`. With the cooked script program
   (2026-11-18): **9,810,624** backing in 35,245 debug, **9,541,700** in 34,710 release
-  (−3.62 / −3.82 MB), arena committed 10,167,536 / 9,835,856.
+  (−3.62 / −3.82 MB), arena committed 10,167,536 / 9,835,856. With declaration text read on
+  demand (2026-11-24): **5,389,144** backing in 22,789 debug, **5,156,104** in 22,252 release
+  (−4.42 / −4.39 MB), arena committed 5,711,728 / 5,423,040; the heap's gap at `startup-game` is
+  21.6 MB debug.
 - Boot owners (backing; dlmalloc figures, before the heap): compressed declaration text 4.76 MB (kept resident by
-  `USE_COMPRESSED_DECLS`, 11,947 declarations), script 6.34 MB (1.62 MB since the cooked program; 3.52 MB of it the fixed
+  `USE_COMPRESSED_DECLS`, 11,947 declarations; read on demand since 2026-11-24, none resident), script 6.34 MB (1.62 MB since the cooked program; 3.52 MB of it the fixed
   program storage), declaration objects
   1.78 MB, strings 1.23 MB, container file tables 1.08 MB, smoke particles 0.68 MB;
   event callback maps 126 KB (0.64 MB before they became 16-bit pool indexes).
@@ -174,4 +177,5 @@ heading:
 | Authored UI removal | 2026-10-29 |
 | Executable size, Script program storage on the heap, Smaller static buffers, Multiplayer code compiled out, Release console commands, Debug-only tools, BSS cuts and developer cvars | section GC, `-O2`/`-Os` experiments; script arrays moved to `TAG_SCRIPT`; console/command/scratch buffers and the measurement backlog; multiplayer strip by step; release command set (2026-10-30); debug-only tools and developer prints, BSS cuts, event maps and developer cvars (2026-10-31) |
 | Cooked script program | 2026-11-18: what the compiler left resident against what the image keeps; same-day compile-at-boot and cooked ledgers, debug and release |
+| Declaration text on demand | 2026-11-24: retail ledgers before and after, debug and release; the read cost |
 | Quake II reference | allocator and accounting notes |

@@ -24,6 +24,7 @@ default or archive behavior:
 | --- | --- |
 | `ps2_status` | No arguments; reports startup state and completed frames in headless or visible production. Registered in `src/ps2/system/common_production.cpp`. |
 | `ps2_crash` | Assertion builds only, both modes: `fatal`, `assert`, `trap` (`teq`) or `null` (a store to address 0) raises that failure, to check the crash report. PCSX2 skips the null store; a console faults. Registered in `src/ps2/system/common_production.cpp`. |
+| `ps2_verifyDeclText` | Debug builds only, both modes: reads every file declaration's text back from its source file without parsing it, each read held to the MD5 its scan took (a mismatch is fatal), and prints `[D3BFG] DECLTEXT verified= bytes= largest= ms= scattered_ms=`; `scattered` reads them all a second time in an order that jumps across the files. The retail headless gate runs it. Registered in `src/neo/framework/DeclManager.cpp`. |
 | `ps2_consoleText` | One quoted printable ASCII argument, delivered to the active native console edit field. |
 | `ps2_consoleKey` | One named native console key; `toggle` opens/closes the console over an active movie. |
 | `ps2_capture` | One checked `.tga` basename; capture the next completed presentation, including before queued quit. |

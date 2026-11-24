@@ -17,14 +17,14 @@ portability work.
 | M3 | Partial: native game/player fixtures and one authored map/PVS/collision/AAS/idle-AI fixture; full campaign player, animated AI, Common map transitions and retail maps in the game loop pending |
 | M4 / 2D-1–4 | Bounded GS 2D device, capture, console, indexed UI and fonts accepted |
 | 2D-5–8 | Retail cooking and scoped timeline execution; the original dialog and the shell draw in full from resident paletted textures; the native menu through the start, root, Campaign and Settings screens with the pad and a debug USB keyboard. Screens below Campaign/Settings, additive alpha terms, dynamic artwork residency and hardware validation pending |
-| M5 / rendering R0–R2 | The display list, VU1 programs (VUSL, the clipper a resident library), the cooked world (D3WD) in id's render world through the portal flow, mars_city1 from its retail `.bproc` textured (GSTX v2, D3TX) with class A lightmaps, merged static `func_static` models, material passes, cavity-baked bump maps and the sky box; gates `test-world` and `test-world-retail` hold untextured and lightmap-only captures to pixel references. R2's area-ring streaming, the declaration-text lever and its gate (PC reference captures, load/unload ledgers, a hardware frame log) remain |
+| M5 / rendering R0–R2 | The display list, VU1 programs (VUSL, the clipper a resident library), the cooked world (D3WD) in id's render world through the portal flow, mars_city1 from its retail `.bproc` textured (GSTX v2, D3TX) with class A lightmaps, merged static `func_static` models, material passes, cavity-baked bump maps and the sky box; gates `test-world` and `test-world-retail` hold untextured and lightmap-only captures to pixel references. Declarations read their text on demand (2026-11-24, 4.4 MB less boot heap). R2's area-ring streaming and its gate (load/unload ledgers, a hardware frame log) remain; the PC reference captures wait for R7 |
 | M6–M8 | Models and animation (R4), dynamic lights and shadows (R5–R6), sound, streaming, saves and the campaign sweep pending |
 
 Production still stays in `NOMAP`: the `ps2_world` viewer loads a cooked map into id's render
 world and draws it from fixed cameras or the debug free-flight camera, but Common does not own a
 loaded map and the game's own views are not drawn. The next rendering work is in RENDERING_TODO's
 R2 list; the prerequisites outside the renderer (Common owning a map, the game's draw path in
-production, the PC reference capture method) gate R2's acceptance. Preserve headless behavior and
+production) gate R2's acceptance. The PC reference captures wait for R7's draws (2026-11-24). Preserve headless behavior and
 extend existing fixtures.
 
 ## 1. Objective and scope

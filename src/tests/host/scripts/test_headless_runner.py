@@ -83,6 +83,15 @@ class HeadlessAcceptance(unittest.TestCase):
         # An authored boot's checkpoints cannot stand in for the retail containers.
         self.assertFalse(runner.classify(completed("bounded"), "retail", "run")[0])
 
+    def test_debug_retail_reads_the_declarations_back(self):
+        line = "[D3BFG] DECLTEXT verified=11947 bytes=7254873 largest=86019 ms=1500 scattered_ms=0\n"
+        log = completed("retail")
+        self.assertTrue(runner.classify(log + line, "retail", "run", verify_decls=True)[0])
+        self.assertFalse(runner.classify(log, "retail", "run", verify_decls=True)[0])
+        self.assertFalse(runner.classify(log + line.replace("verified=11947", "verified=0"), "retail", "run", verify_decls=True)[0])
+        self.assertEqual(runner.decl_text(line), {"verified": 11947, "bytes": 7254873, "largest": 86019, "ms": 1500,
+                                                  "scattered_ms": 0})
+
     def test_startup_memory_record(self):
         record = runner.startup_memory(completed("retail"))
         self.assertEqual(list(record["stages"]), list(runner.STARTUP_STAGES))

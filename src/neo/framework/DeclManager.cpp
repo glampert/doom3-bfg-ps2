@@ -61,7 +61,11 @@ missing reload over a previously explicit definition
 
 */
 
+// [PS2_D3BFG]: A file's declarations read their text from it again when they parse (4.25 MB of
+// compressed text stayed resident otherwise); only generated and set text is kept, uncompressed.
+#if !defined( ID_PS2 )
 #define USE_COMPRESSED_DECLS
+#endif
 //#define GET_HUFFMAN_FREQUENCIES
 
 class idDeclType {
@@ -129,13 +133,21 @@ protected:
 								// Set textSource possible with compression.
 	void						SetTextLocal( const char *text, const int length );
 
+#if defined( ID_PS2 )
+								// [PS2_D3BFG]: The text stays in the source file, read again by GetText.
+	void						SetSourceTextLocal( const char *text, const int length );
+	bool						HasText() const { return textSource != NULL || textInSourceFile; }
+#endif
+
 private:
 	idDecl *					self;
 
 	idStr						name;					// name of the decl
 	char *						textSource;				// decl text definition
 	int							textLength;				// length of textSource
+#if !defined( ID_PS2 )	// [PS2_D3BFG]: Nothing is compressed.
 	int							compressedLength;		// compressed length
+#endif
 	idDeclFile *				sourceFile;				// source file in which the decl was defined
 	int							sourceTextOffset;		// offset in source file to decl text
 	int							sourceTextLength;		// length of decl text in source file
@@ -150,6 +162,9 @@ private:
 	bool						referencedThisLevel;	// set to true when the decl is used for the current level
 	bool						redefinedInReload;		// used during file reloading to make sure a decl that has
 														// its source removed will be defaulted
+#if defined( ID_PS2 )
+	bool						textInSourceFile;		// [PS2_D3BFG]: textLength bytes at sourceTextOffset of sourceFile
+#endif
 	idDeclLocal *				nextInFile;				// next decl in the decl file
 };
 
@@ -248,6 +263,9 @@ private:
 	static void					ListDecls_f( const idCmdArgs &args );
 	static void					ReloadDecls_f( const idCmdArgs &args );
 	static void					TouchDecl_f( const idCmdArgs &args );
+#if defined( ID_PS2 ) && PS2_D3BFG_DEBUG
+	static void					VerifyDeclText_f( const idCmdArgs &args );	// [PS2_D3BFG]
+#endif
 };
 
 DEV_CVAR( idCVar idDeclManagerLocal::decl_show( "decl_show", "0", CVAR_SYSTEM, "set to 1 to print parses, 2 to also print references", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> ) );	// [PS2_D3BFG]
@@ -760,7 +778,11 @@ int idDeclFile::LoadAndParse() {
 			newDecl->textSource = NULL;
 		}
 
+#if defined( ID_PS2 )
+		newDecl->SetSourceTextLocal( buffer + startMarker, size );	// [PS2_D3BFG]: Read on demand.
+#else
 		newDecl->SetTextLocal( buffer + startMarker, size );
+#endif
 		newDecl->sourceFile = this;
 		newDecl->sourceTextOffset = startMarker;
 		newDecl->sourceTextLength = size;
@@ -784,6 +806,10 @@ int idDeclFile::LoadAndParse() {
 			decl->sourceTextOffset = decl->sourceFile->fileSize;
 			decl->sourceTextLength = 0;
 			decl->sourceLine = decl->sourceFile->numLines;
+#if defined( ID_PS2 )
+			// [PS2_D3BFG]: The file no longer holds its text.
+			decl->textInSourceFile = false;
+#endif
 		}
 	}
 
@@ -844,6 +870,10 @@ void idDeclManagerLocal::Init() {
 
 	cmdSystem->AddCommand( "reloadDecls", ReloadDecls_f, CMD_FL_SYSTEM, CMD_DESC( "reloads decls" ) );
 	cmdSystem->AddCommand( "touch", TouchDecl_f, CMD_FL_SYSTEM, CMD_DESC( "touches a decl" ) );
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: The check of the text read on demand.
+	cmdSystem->AddCommand( "ps2_verifyDeclText", VerifyDeclText_f, CMD_FL_SYSTEM, CMD_DESC( "reads every file declaration's text back from its file and checks it" ) );
+#endif
 
 	cmdSystem->AddCommand( "listTables", idListDecls_f<DECL_TABLE>, CMD_FL_SYSTEM, CMD_DESC( "lists tables" ), idCmdSystem::ArgCompletion_String<listDeclStrings> );
 	cmdSystem->AddCommand( "listMaterials", idListDecls_f<DECL_MATERIAL>, CMD_FL_SYSTEM, CMD_DESC( "lists materials" ), idCmdSystem::ArgCompletion_String<listDeclStrings> );
@@ -1336,7 +1366,11 @@ void idDeclManagerLocal::PrintType( const idCmdArgs &args, declType_t type ) {
 	common->Printf( "%s %s:\n", declTypes[ type ]->typeName.c_str(), decl->name.c_str() );
 	common->Printf( "source: %s:%i\n", decl->sourceFile->fileName.c_str(), decl->sourceLine );
 	common->Printf( "----------\n" );
+#if defined( ID_PS2 )
+	if ( decl->HasText() ) {	// [PS2_D3BFG]: Or in its source file.
+#else
 	if ( decl->textSource != NULL ) {
+#endif
 		char *declText = (char *)_alloca( decl->textLength + 1 );
 		decl->GetText( declText );
 		common->Printf( "%s\n", declText );
@@ -1730,6 +1764,68 @@ void idDeclManagerLocal::TouchDecl_f( const idCmdArgs &args ) {
 	}
 }
 
+#if defined( ID_PS2 ) && PS2_D3BFG_DEBUG
+/*
+===================
+idDeclManagerLocal::VerifyDeclText_f
+
+[PS2_D3BFG]: Reads every file declaration's text back from its source file without parsing it,
+each read held to the checksum its scan took (GetText stops on a mismatch). "scattered" reads them
+all a second time in an order that jumps across the files: a level load's read pattern at its worst.
+===================
+*/
+void idDeclManagerLocal::VerifyDeclText_f( const idCmdArgs &args ) {
+	const bool scattered = args.Argc() == 2 && idStr::Icmp( args.Argv( 1 ), "scattered" ) == 0;
+
+	if ( args.Argc() > 2 || ( args.Argc() == 2 && !scattered ) ) {
+		common->Printf( "usage: ps2_verifyDeclText [scattered]\n" );
+		return;
+	}
+
+	idList< idDeclLocal * > decls;
+	int largest = 0;
+	int bytes = 0;
+
+	for ( int i = 0; i < DECL_MAX_TYPES; i++ ) {
+		for ( int j = 0; j < declManagerLocal.linearLists[i].Num(); j++ ) {
+			idDeclLocal *decl = declManagerLocal.linearLists[i][j];
+
+			if ( decl->textInSourceFile ) {
+				decls.Append( decl );
+				largest = decl->textLength > largest ? decl->textLength : largest;
+				bytes += decl->textLength;
+			}
+		}
+	}
+
+	char *text = (char *)Mem_Alloc( largest + 1, TAG_TEMP );
+	const uint64 start = Sys_Microseconds();
+
+	for ( int i = 0; i < decls.Num(); i++ ) {
+		decls[i]->GetText( text );
+	}
+
+	const uint64 ordered = Sys_Microseconds() - start;
+	uint64 jumping = 0;
+
+	if ( scattered && decls.Num() > 0 ) {
+		// A prime stride visits each declaration once, consecutive reads far apart.
+		const int stride = decls.Num() % 7919 != 0 ? 7919 : 7927;
+		const uint64 begin = Sys_Microseconds();
+
+		for ( int k = 0, index = 0; k < decls.Num(); k++, index = ( index + stride ) % decls.Num() ) {
+			decls[index]->GetText( text );
+		}
+
+		jumping = Sys_Microseconds() - begin;
+	}
+
+	Mem_Free( text );
+	common->Printf( "[D3BFG] DECLTEXT verified=%d bytes=%d largest=%d ms=%d scattered_ms=%d\n", decls.Num(), bytes, largest,
+					(int)( ordered / 1000 ), (int)( jumping / 1000 ) );
+}
+#endif
+
 /*
 ===================
 idDeclManagerLocal::FindTypeWithoutParsing
@@ -1775,6 +1871,9 @@ idDeclLocal *idDeclManagerLocal::FindTypeWithoutParsing( declType_t type, const 
 	decl->declState = DS_UNPARSED;
 	decl->textSource = NULL;
 	decl->textLength = 0;
+#if defined( ID_PS2 )
+	decl->textInSourceFile = false;	// [PS2_D3BFG]
+#endif
 	decl->sourceFile = &implicitDecls;
 	decl->referencedThisLevel = false;
 	decl->everReferenced = false;
@@ -1979,7 +2078,11 @@ idDeclLocal::idDeclLocal() {
 	name = "unnamed";
 	textSource = NULL;
 	textLength = 0;
+#if defined( ID_PS2 )
+	textInSourceFile = false;	// [PS2_D3BFG]
+#else
 	compressedLength = 0;
+#endif
 	sourceFile = NULL;
 	sourceTextOffset = 0;
 	sourceTextLength = 0;
@@ -2102,6 +2205,21 @@ idDeclLocal::GetText
 =================
 */
 void idDeclLocal::GetText( char *text ) const {
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: A file's declaration reads its text from the file again, held to the checksum
+	// its scan took: the containers cannot change under a running game.
+	if ( textInSourceFile ) {
+		const bool read = fileSystem->ReadFileRange( sourceFile->fileName, sourceTextOffset, text, textLength );
+		text[read ? textLength : 0] = '\0';
+
+		if ( !read || (int)MD5_BlockChecksum( text, textLength ) != checksum ) {
+			common->FatalError( "%s '%s' could not be read again from %s", declManagerLocal.GetDeclNameFromType( type ), name.c_str(),
+								sourceFile->fileName.c_str() );
+		}
+
+		return;
+	}
+#endif
 #ifdef USE_COMPRESSED_DECLS
 	HuffmanDecompressText( text, textLength, (byte *)textSource, compressedLength );
 #else
@@ -2151,13 +2269,34 @@ void idDeclLocal::SetTextLocal( const char *text, const int length ) {
 	textSource = (char *)Mem_Alloc( compressedLength, TAG_DECLTEXT );
 	memcpy( textSource, compressed, compressedLength );
 #else
+#if defined( ID_PS2 )
+	textInSourceFile = false;	// [PS2_D3BFG]: Nothing is compressed; the text is its own now.
+#else
 	compressedLength = length;
+#endif
 	textSource = (char *) Mem_Alloc( length + 1, TAG_DECLTEXT );
 	memcpy( textSource, text, length );
 	textSource[length] = '\0';
 #endif
 	textLength = length;
 }
+
+#if defined( ID_PS2 )
+/*
+=================
+idDeclLocal::SetSourceTextLocal
+
+[PS2_D3BFG]: Keeps where the text is (sourceTextOffset, set by the caller) and its checksum.
+=================
+*/
+void idDeclLocal::SetSourceTextLocal( const char *text, const int length ) {
+	Mem_Free( textSource );
+	textSource = NULL;
+	checksum = MD5_BlockChecksum( text, length );
+	textLength = length;
+	textInSourceFile = true;
+}
+#endif
 
 /*
 =================
@@ -2388,7 +2527,11 @@ void idDeclLocal::ParseLocal() {
 	declManagerLocal.MediaPrint( "parsing %s %s\n", declManagerLocal.declTypes[type]->typeName.c_str(), name.c_str() );
 
 	// if no text source try to generate default text
+#if defined( ID_PS2 )
+	if ( !HasText() ) {	// [PS2_D3BFG]: Text left in the source file counts.
+#else
 	if ( textSource == NULL ) {
+#endif
 		generatedDefaultText = self->SetDefaultText();
 	}
 
@@ -2396,7 +2539,11 @@ void idDeclLocal::ParseLocal() {
 	declManagerLocal.indent++;
 
 	// no text immediately causes a MakeDefault()
+#if defined( ID_PS2 )
+	if ( !HasText() ) {	// [PS2_D3BFG]
+#else
 	if ( textSource == NULL ) {
+#endif
 		MakeDefault();
 		declManagerLocal.indent--;
 		return;

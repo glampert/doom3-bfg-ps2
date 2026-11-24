@@ -196,6 +196,9 @@ public:
 	virtual void			StopPreload();
 	idFile *				GetResourceFile( const char *fileName, bool memFile );
 	bool					GetResourceCacheEntry( const char *fileName, idResourceCacheEntry &rc );
+#if defined( ID_PS2 )
+	virtual bool			ReadFileRange( const char *relativePath, int offset, void *buffer, int length );	// [PS2_D3BFG]
+#endif
 	virtual int				ReadFromBGL( idFile *_resourceFile, void * _buffer, int _offset, int _len );
 	virtual bool			IsBinaryModel( const idStr & resName ) const;
 	virtual bool			IsSoundSample( const idStr & resName ) const;
@@ -319,6 +322,33 @@ int idFileSystemLocal::ReadFromBGL( idFile *_resourceFile, void * _buffer, int _
 	}
 	return _resourceFile->Read( _buffer, _len );
 }
+
+#if defined( ID_PS2 )
+/*
+================
+idFileSystemLocal::ReadFileRange
+
+[PS2_D3BFG]: A container entry found first (as OpenFileRead finds it) reads its range straight from
+the container's stream: opening the entry reads it whole, and declarations read their text from
+files of up to 430 KB one at a time.
+================
+*/
+bool idFileSystemLocal::ReadFileRange( const char *relativePath, int offset, void *buffer, int length ) {
+	if ( resourceFiles.Num() > 0 && fs_resourceLoadPriority.GetInteger() == 1 ) {
+		static idResourceCacheEntry rc;
+
+		if ( GetResourceCacheEntry( relativePath, rc ) ) {
+			if ( offset < 0 || length < 0 || offset > rc.length || length > rc.length - offset ) {
+				return false;
+			}
+
+			return ReadFromBGL( resourceFiles[ rc.containerIndex ]->resourceFile, buffer, rc.offset + offset, length ) == length;
+		}
+	}
+
+	return idFileSystem::ReadFileRange( relativePath, offset, buffer, length );
+}
+#endif
 
 /*
 ================

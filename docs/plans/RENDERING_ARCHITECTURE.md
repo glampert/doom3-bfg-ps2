@@ -1795,9 +1795,9 @@ each gate:
 | **Total without map game data** | **12.3 MiB** | already above the 11 to 12 MB headroom before collision, AAS and entities |
 
 The envelope does not close as a whole-level residency: per-area streaming of textures,
-animations and model batches is required, not optional, and the declaration text lever
-(4.76 MB on demand, the next item in [memory-budget.md](../../.claude/rules/memory-budget.md))
-is pulled before R2. Level transitions unload the previous level first (`ExecuteMapChange`
+animations and model batches is required, not optional. The declaration text lever was pulled
+on 2026-11-24: declarations read their text from the containers when they parse, and the retail
+`startup-game` heap fell from 9.81 MB to 5.39 MB of backing (debug). Level transitions unload the previous level first (`ExecuteMapChange`
 ordering). Load and unload follow the owners in reverse `Init` order (movies, fonts, UI
 images, then models, world, textures, lightmaps, the VRAM allocator, the VU programs, the
 display list, the device); R2 runs three map load/unload cycles and one load-game and
@@ -1963,7 +1963,7 @@ are taken on measurements.
 | --- | --- | --- |
 | **R0 toolchain** | Import vclpp, parse-utils and vu-checker as submodules under `src/external/`; the Makefile VU rule; `vu::Init` uploads `kernel` + `passthrough`; `qwords.h`, `vec_mat.h` imported; `dma::DisplayList` in the scratchpad with `fromSPR` drains and chain rings; asynchronous frame (build N+1 while N runs) with the FINISH fence; the section 18.3 checklist | `make` builds and checks a VU object; a core test draws the existing 2D scene through the new chain with pixel parity; a VU0 asm test ELF passes in PCSX2; a chain-ring overflow and a VU window overrun are expected-fatal probes; hardware probes for `DATE` (PCSX2 software renderer too), large texture coordinates, DMA cache coherence and a `PSMCT16S` scratch sharing the `Z16S` buffer are written and run on the first console session |
 | **R1 first world pixels** | `world_lm` with vertex colour only; cooked `.d3wd` of one authored room and of mars_city1 area 2; both frame-buffer profiles; strip index hybrid versus ADC strips measured by VU1 counter | Fixed-camera captures of the room in both profiles; mars_city1 area 2 draws with correct depth and portal culling; the format and topology decisions are recorded in section 20 |
-| **R2 lightmapped world** | Lightmap baker (category A), chroma subdivision, Light8 atlases, `Cd x As` pass, area-ring texture streaming with GSTX v2 (Q2 policy), material pass tables for opaque and alpha-tested materials, sky | Walkthrough of mars_city1 on a fixed camera path; area, portal and node counts and sampled `PointInArea`/`AreasAreConnected` results match the proc loader, and a door portal toggle still gates sound; captures compared against PC `screenshot`s at the same `setviewpos` with `r_skipSpecular 1` within the eight-level pixel model and an SSIM floor of 0.9 per view; three map load/unload cycles and one load-game return the tagged ledger to baseline; the per-device read rates (`host:`, USB, HDD) against the worst area ring are recorded; the first **hardware frame log** |
+| **R2 lightmapped world** | Lightmap baker (category A), chroma subdivision, Light8 atlases, `Cd x As` pass, area-ring texture streaming with GSTX v2 (Q2 policy), material pass tables for opaque and alpha-tested materials, sky | Walkthrough of mars_city1 on a fixed camera path; area, portal and node counts and sampled `PointInArea`/`AreasAreConnected` results match the proc loader, and a door portal toggle still gates sound; (the PC `screenshot` comparison, at the same `setviewpos` with `r_skipSpecular 1` within the eight-level pixel model and an SSIM floor of 0.9 per view, moved to R7's gate on 2026-11-24, once the frame draws models, lights and particles); three map load/unload cycles and one load-game return the tagged ledger to baseline; the per-device read rates (`host:`, USB, HDD) against the worst area ring are recorded; the first **hardware frame log** |
 | **R3 layers and switches** | Categories B, C, D layers through destination alpha; `idLight` on/off/fade drive them; fog and blend lights | Scripted light switches in mars_city1 match the PC within the recorded tolerance; a 60-frame fade is monotonic in the captures |
 | **R4 models and skinning** | `.d3md`, `.d3sk`, `.d3an`; `model_rigid`, `model_skin2/4`; VU0 joint pipeline; CPU mirrors for traces; static props with baked vertex colour; the existing `test-game`/`test-map` fixtures draw their entities | An imp idle and walk cycle matches the PC pose within one unit on sampled joints; `ModelTrace` results unchanged against the fixtures; ledgers exact across reloads |
 | **R5 dynamic lights** | Four-light per-vertex path, projected two-pass path, the flashlight and muzzle flash, entity light sets, per-vertex specular; the CLUT-relight spike on one quad | Flashlight capture on the three-plane test room; a moving light over a lightmapped floor; the spike's result recorded as adopt or drop |
@@ -2010,6 +2010,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Video materials | cooked still frames until a converted-video path exists | Bink or RoQ decode | no cinematic decoder is linked; the PDA and screens must not block the campaign |
 | Portal sky | cooked skybox drawn by the sky program | nested second scene | removes a full second frontend pass and a frame-buffer capture |
 | Sky box (2026-11-23) | Six cooked faces drawn under the whole textured pass, sky surfaces writing depth alone | The sky only through sky surfaces (each sky triangle clipped to the face frusta on the EE, or a destination-alpha stencil) | One full-screen layer, no per-triangle EE work; uncovered pixels show the sky instead of the clear colour until entities draw |
+| Declaration text (2026-11-24) | Read again from the container when a declaration parses (`ReadFileRange`, the range alone), held to the scan's MD5 | id's resident Huffman-compressed text; a pruned declaration set; text cooked into a per-level pack | 4.42 MB of boot backing and 12,458 allocations back with the retail set unchanged; every read checked; a level's parses cost about 0.3 ms each scattered in PCSX2 (hardware unmeasured) |
 | World texture residency (2026-11-23) | Planned per pass from its areas; best fit; a repack when the new set will not fit around the old | First-fit LRU on demand | A nearly full arena (PAL's 640 KiB) otherwise fails on fragmentation alone, by placement history |
 | Texture uploads | Inside the VIF1 chain (`FLUSHA; DIRECT`) | PATH3 with `MSKPATH3` | Ordering safety first; interleave as an R9 optimisation |
 | Batch texture state (2026-11-08) | A 10-qword VIF block per batch, REF'd from the material's per-context block, unpacked into the input half's last 9 qwords and kicked by the program before its first window | `DIRECT` register writes between batches (a `FLUSH` per texture change); the state in the cooked header | No stall per texture change and no per-batch EE writes; costs a 4-qword vertex (STQ) slot and 9 qwords of each half: mars_city1 rises from 2,138 to 2,302 batches and the world program from 93.0 to 99.5 VU1 cycles a triangle |
@@ -2060,7 +2061,8 @@ R0 and R1 use the test executable's authored map until then: the graybox map
   of mars_city1 have 51 to 52 lights in reach), which sizes R5's light binding.
 - Whether cinematics' animations (3.7 MiB) stream from disc fast enough on USB and HDD.
 - The retail PC reference: `Doom3BFG.exe` under Wine on this Mac is unverified; a Windows
-  machine may be needed for R2's reference captures.
+  machine may be needed for the reference captures, which wait for R7's gate (deferred
+  2026-11-24: an R2 frame without models, lights or particles compares poorly).
 
 ---
 

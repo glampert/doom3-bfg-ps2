@@ -41,6 +41,10 @@ RETAIL_MARKERS = ("Loaded resource file _common.resources", "Loaded resource fil
 CHECK_MARKERS = ("Loaded resource file _common.resources", "Loaded resource file _ordered.resources",
                  "Compiled 'script/doom_main.script'")
 SCRIPT_IMAGE_RE = re.compile(r"\[D3BFG\] SCRIPT_IMAGE bytes=(\d+) fnv=([0-9a-f]{8})")
+# Debug builds read every declaration's text back from the containers (ps2_verifyDeclText); a read
+# that does not match its scan's checksum is fatal on the target.
+DECL_TEXT_RE = re.compile(r"\[D3BFG\] DECLTEXT verified=(\d+) bytes=(\d+) largest=(\d+) ms=(\d+) scattered_ms=(\d+)")
+DECL_TEXT_FIELDS = ("verified", "bytes", "largest", "ms", "scattered_ms")
 DEFAULT_TIMEOUTS = {"bounded": 30.0, "console": 30.0, "retail": 300.0}
 
 
@@ -83,7 +87,12 @@ def check_script_image(log: str, cooked: Path) -> tuple[bool, str]:
     return True, f"the EE compile's image equals {cooked.name} ({len(data)} bytes, fnv {images[0][1]})"
 
 
-def classify(log: str, case: str, identity: str, compiled: bool = False) -> tuple[bool, str]:
+def decl_text(log: str) -> dict | None:
+    match = DECL_TEXT_RE.search(log)
+    return dict(zip(DECL_TEXT_FIELDS, map(int, match.groups()))) if match else None
+
+
+def classify(log: str, case: str, identity: str, compiled: bool = False, verify_decls: bool = False) -> tuple[bool, str]:
     if smoke.CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "crash or fatal diagnostic"
     if "[D3BFG] GS ready" in log:
@@ -109,6 +118,8 @@ def classify(log: str, case: str, identity: str, compiled: bool = False) -> tupl
             return False, "retail containers or script were not loaded"
         if [stage for stage, *_ in STARTUP_RE.findall(log)] != list(STARTUP_STAGES):
             return False, "missing or repeated startup memory checkpoints"
+        if verify_decls and (decl_text(log) is None or decl_text(log)["verified"] == 0):
+            return False, "the declarations' text was not read back from the containers"
     if bounded:
         if "COMMON frame limit reached frames=120" not in log:
             return False, "frame limit did not request shutdown"
@@ -133,6 +144,8 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
         shutil.copy2(REPO_ROOT / name, output / Path(name).name)
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
     config = f'echo "{identity}_begin"\n'
+    verify_decls = case == "retail" and args.build == "debug" and args.script_check is None
+    config += "ps2_verifyDeclText\n" if verify_decls else ""
     config += "ps2_maxFrames 120\nps2_status\nwait 60\nps2_status\n" if case != "console" else f'wait 120\necho "{identity}_ready"\nps2_status\n'
     (output / "base/d3bfg.cfg").write_text(config)
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
@@ -173,7 +186,7 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
         finally:
             smoke.stop_owned_process(process)
     log = read_log(output)
-    passed, reason = classify(log, case, identity, args.script_check is not None) if completed else (False, failure)
+    passed, reason = classify(log, case, identity, args.script_check is not None, verify_decls) if completed else (False, failure)
     if passed and args.script_check is not None:
         passed, reason = check_script_image(log, args.script_check)
     if process.returncode != 0:
@@ -185,6 +198,8 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
             "boot_data": boot_data(output),
             "console_sha256": sha256(output / "console.txt"),
             "startup_memory": startup_memory(log)}
+    if verify_decls:
+        data["decl_text"] = decl_text(log)
     if retail_data is not None:
         data["retail_data"] = str(retail_data.resolve())
     if args.script_check is not None:

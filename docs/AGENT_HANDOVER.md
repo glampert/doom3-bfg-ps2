@@ -74,9 +74,9 @@ external Quake II repository remains a reuse/reference source when available.
 ## Next implementation sequence
 
 Since 2026-11-03 the selected work is 3D rendering: continue with the open R2 items in
-[RENDERING_TODO.md](plans/RENDERING_TODO.md) (the sky program, area-ring streaming with texture
-dictionaries, the declaration-text lever, chroma subdivision, then the R2 gate, which first needs
-the PC reference capture method decided). The numbered sections below are the earlier UI
+[RENDERING_TODO.md](plans/RENDERING_TODO.md): area-ring streaming with texture dictionaries,
+chroma subdivision, then the R2 gate (the sky and the declaration-text lever are done; the PC
+reference captures wait for R7's draws, the user's call on 2026-11-24). The numbered sections below are the earlier UI
 sequence, kept for its open items (screens below Campaign and Settings, hardware validation).
 
 ### 1. Asset recompression and the 32 MiB budget
@@ -136,8 +136,8 @@ Proposed order; the user chose lever 1 first:
    `test-headless-retail`: a smaller tagged header or
    small-block pools, heap-string container names, a PS2-sized smoke pool and script
    limits sized to the retail program.
-3. Declaration text on demand from the containers (keep an index), or a pruned
-   declaration set: up to 4.76 MB.
+3. Done 2026-11-24: declarations read their text on demand from the containers
+   ([PORT_STATUS](PORT_STATUS.md#declaration-text-on-demand-2026-11-24)), 4.4 MB of boot heap.
 4. A retail level's logic state (entities, collision, AAS, PVS topology) beside the
    in-game movies, with `.map` brush/patch text stripped at cook time.
 
