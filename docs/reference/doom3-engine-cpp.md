@@ -141,7 +141,10 @@ before touching that subsystem.
   (4.9 ms each, the `.mtr`/`.def` files are up to 430 KB). `ReadFileRange` reads only the range
   from the container's stream (`ReadFromBGL`): 1.1 s in scan order, 3.4 s scattered across the
   files, where newlib's 16 KB stream buffer still serves neighbours. Every declaration file is in
-  both retail containers; containers are searched last to first.
+  both retail containers at the same length; containers are searched last to first, so the
+  reads come from `_ordered.resources`, whose first 10.26 MB are the declarations and scripts
+  back to back. The PS2 package will give them a container of their own, sorted for loading
+  ([IMPLEMENTATION_PLAN.md](../plans/IMPLEMENTATION_PLAN.md#ps2-data-package-planned-2026-11-24)).
 - Declarations with one name keep the first definition in folder listing order and
   warn for later ones. A loose authored `materials/*.mtr` beside the containers can
   silently replace a retail material (`_tracemodel`, `itemHighlightShell`); the retail

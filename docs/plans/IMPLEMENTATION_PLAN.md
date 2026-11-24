@@ -351,6 +351,43 @@ Preserve a dependency manifest and measured size report for each converted level
 
 At the loader boundary, replace `_ordered.resources` eager buffering in `idResourceContainer::Init` and `.bproc` whole-file buffering in `InitFromMap` with bounded file/chunk readers. Audit `Common_load.cpp::ExecuteMapChange` ordering: it begins filesystem level work before `UnloadMap`, and later preloads assets before world/game initialization. Measure and eliminate avoidable old/new overlap there.
 
+### PS2 data package (planned, 2026-11-24)
+
+Every asset will be repacked for the PS2, so the final package loads neither
+`_common.resources` nor `_ordered.resources`, and it holds only what the PS2 build uses: no
+PC, Xbox 360 or PS3 assets of the game (shader binaries, platform images, desktop sounds or
+videos). Today's cooked files (D3WD, D3TX, the UI catalog, the D3SP script program) are
+already PS2-only; the containers stay mounted only for what nothing has cooked yet.
+
+**Declaration text gets its own container.** It is read on demand since 2026-11-24 (each
+declaration's offset, length and MD5, read again when it parses; see the reference, "Retail
+containers and declaration residency"), so its layout decides load cost:
+
+- Sort the files for loading: in the order the engine scans and parses them (the folders
+  `declManager->Init` and then `idGameLocal::Init` register), so the scan and the declarations
+  parsed at boot stream forward. A map's later parses could follow its dependency manifest;
+  measure on the console's storage before choosing (PCSX2: 1.1 s for every declaration in scan
+  order against 3.4 s scattered, newlib's 16 KB stream buffer serving neighbours).
+- One copy of each file. Leave out what production never reads: the `.script` sources
+  (1.69 MB; production loads the cooked program) and any declaration type the PS2 does not
+  parse.
+- Keep a versioned header, checked table bounds and a whole-file or per-file checksum, like the
+  other cooked formats; the per-declaration MD5 still holds every re-read to its scan.
+
+What the retail containers hold (their tables, 2026-11-24):
+
+| | `_common.resources` | `_ordered.resources` |
+| --- | --- | --- |
+| Size | 80,383,351 bytes, 2,262 entries | 11,311,441 bytes, 1,336 entries |
+| Declaration files | 1,017 (8.23 MB without scripts) | the same 1,017 at the same lengths, plus 75 `sound/44/temp/*.sndshd` (8.36 MB) |
+| Layout | between other assets, 6.76 to 16.99 MB | one block from byte 12 to 10.26 MB, the `.script` files with them |
+| Also | images, models, sounds, collision, AAS, the SWF | desktop and console shader binaries (`.cgb`, `.vfp`, `.vp`, `.v360`, `.p360`), `.dat`, one `.bswf` |
+
+By bytes: `.mtr` 2.75 MB in 128 files, `.def` 2.45 MB in 209, `.prt` 1.18 MB, `.af` 0.65 MB,
+`.sndshd` 0.51 MB (0.65 MB in `_ordered`), `.skin` 0.42 MB, `.pda` 0.22 MB, `.fx` 53 KB.
+Containers are searched last to first, so today every declaration read comes from
+`_ordered`'s front block and `_common`'s copies are never read.
+
 Offline script compilation is a later option if runtime compiler memory proves material. It requires a versioned bytecode/global/event format and validation against interpreter behavior; it is not a shortcut for skipping the script port.
 
 ## 10. Audio, input, UI, saves and campaign completeness

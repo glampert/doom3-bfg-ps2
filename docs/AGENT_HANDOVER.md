@@ -76,7 +76,10 @@ external Quake II repository remains a reuse/reference source when available.
 Since 2026-11-03 the selected work is 3D rendering: continue with the open R2 items in
 [RENDERING_TODO.md](plans/RENDERING_TODO.md): area-ring streaming with texture dictionaries,
 chroma subdivision, then the R2 gate (the sky and the declaration-text lever are done; the PC
-reference captures wait for R7's draws, the user's call on 2026-11-24). The numbered sections below are the earlier UI
+reference captures wait for R7's draws, the user's call on 2026-11-24). Planned, not
+scheduled: the PS2 data package repacks every asset, with no PC, Xbox 360 or PS3 data and the
+declaration text in its own container sorted for loading
+([IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md#ps2-data-package-planned-2026-11-24)). The numbered sections below are the earlier UI
 sequence, kept for its open items (screens below Campaign and Settings, hardware validation).
 
 ### 1. Asset recompression and the 32 MiB budget
