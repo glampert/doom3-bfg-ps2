@@ -170,7 +170,8 @@ static_assert(kInputBase + 2U * kInputHalfQwords == kWindowA && kWindowA + sizeo
 static constexpr float kGuardBandScale = 1.0f / 0.8f;
 
 // The clipper cuts this fraction of w inside each plane, so the survivors' own judgement agrees,
-// and scales distances so the ftoi4 sign of a product of two survives (quake2-ps2's values).
+// and scales distances so a product of two clears the passes' -1/16 sign threshold (quake2-ps2's
+// values).
 static constexpr float kClipShrink = 0.001f;
 static constexpr float kClipDistanceScale = 2048.0f * 2048.0f;
 

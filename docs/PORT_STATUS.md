@@ -6021,3 +6021,21 @@ gate no longer compares with the PC, and the first comparison is R7's start-sequ
 | `make test-host` | Passed, with runner tests for the `DECLTEXT` requirement (`test_headless_runner.py`) |
 | `make`, `make release` | Passed, no warnings |
 
+
+## oxide-vcl `3e4e5d8`: the clipper's signs from float compares (2026-11-24)
+
+The clip passes read a distance's sign from a compare against -1/16 instead of FTOI4 of it
+clamped to [-1, 1]: that sign is negative exactly when the distance is at most -1/16, so the
+cuts and the survivors are the same, and the compare on the MAC flags replaces a five-instruction
+chain of about 17 cycles. A plane distance is `pos.w * clipShrink` minus or plus the plane's
+term, with no negated copy of the judged position. The clipper takes 433 instructions instead of
+474. On oxide-vcl's programs suite, which runs these programs against their VCL originals in its
+VU model with identical packets, the floor scene with clipping takes 40,956 cycles instead of
+47,724 for `world_lm` and 40,536 for `world_strips`. `vu_cost.py` takes clip flags as zero, so
+its mars_city1 counts do not reach the clipper.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world` | `20261124T045510Z_world_ed6cb35d006f` (NTSC), `20261124T045521Z_world_c0e5d53f6046` (PAL); all 36 captures byte-identical to `20261124T025451Z_world_052f64ab5868` and `20261124T025501Z_world_08d0fe084e5d` |
+| `make test-world-retail` | `20261124T050137Z_world_retail_c7513f78bf7b` (NTSC), `20261124T050228Z_world_retail_a3d753776301` (PAL); all 112 captures byte-identical to `20261124T025523Z_world_retail_82641706467c` and `20261124T025616Z_world_retail_7b8b9be83b02` |
+| `make vu` | Passed, `--warnings-as-errors` |

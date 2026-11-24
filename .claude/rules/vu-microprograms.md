@@ -44,7 +44,7 @@ section); `.vudata` is empty.
 
 ## The clipper library
 
-`clipper.vusl` is compiled once (474 instructions, its entry table included) and resident at
+`clipper.vusl` is compiled once (433 instructions, its entry table included) and resident at
 micro address 1536, the `#pragma library` address in `clipper.vush`; the world programs reach it
 with `iaddiu` and `jalr`, so they stay relocatable in the swap region. `vu::Init` measures it and
 builds its MPG chain; `vu::Bind` returns that chain (`Binding::library`) with the first program
@@ -153,8 +153,8 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   A of 8 corners and B of 9, three qwords each; its saves and work area at 1008-1023. The buffers
   hold the true worst case only while a corner is kept exactly when its distance is >= 0: every
   distance is 0 or at least one ulp of the near distance times `kClipDistanceScale`, which is the
-  ftoi4 step (1/16) from a near plane of 1/8 up (`vu::kClipMinNear`). `scene::ViewProjection`
-  clamps the near plane there (assertion builds stop).
+  1/16 the clip passes compare against from a near plane of 1/8 up (`vu::kClipMinNear`).
+  `scene::ViewProjection` clamps the near plane there (assertion builds stop).
 - Plain strips keep ADC (0x8000) and the outside flag (0x4000) apart in XYZ2's `.w`; the list
   path clears the word for its triangles.
 - **Count VU1 cycles with `src/tools/scripts/vu_cost.py`** (PCSX2 shows none): it runs a

@@ -795,7 +795,7 @@ no longer fit beside each other. The plan's resident kernel returns as a **resid
 - Measure the call overhead on the list path (rare) against the code it frees in micro memory.
 
 Built 2026-11-21 as a VUSL library (`vu1progs/clipper.vusl`, interface `clipper.vush`): the
-clipper and its fan emit, 474 instructions resident at 1536, reached through `jalr` to that
+clipper and its fan emit, 433 instructions resident at 1536, reached through `jalr` to that
 absolute entry, so nothing is patched. Both world programs call it; `vu::Bind` uploads it with
 the first program that does, and the swap region ends below it. The calling convention and what
 a call costs the callers are in [vu-microprograms.md](../../.claude/rules/vu-microprograms.md#the-clipper-library);

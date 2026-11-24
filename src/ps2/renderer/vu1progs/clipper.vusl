@@ -3,9 +3,10 @@
  * Brief: The clipper library's own build (clipper.vush): one entry, ClipTriangle, at 1536.
  *        A polygon lives in one of two scratch buffers with its first corner repeated at the
  *        end, so the edge walk needs no wrap test; a pass reads one buffer and writes the other,
- *        and five passes leave the survivors in B. Signs come from the float distances, clamped
- *        and read through FTOI4, rather than from the clip flag register, whose six bits per
- *        vertex would need decoding per plane.
+ *        and five passes leave the survivors in B. Signs come from the float distances through
+ *        the MAC flags, rather than from the clip flag register, whose six bits per vertex would
+ *        need decoding per plane. A distance counts as negative from -1/16 down, one FTOI4 step,
+ *        so a product of two distances that rounds to less than a step is no cut.
  *
  * This source code is released under the GNU GPL-3.0-or-later license.
  * ================================================================================================ */
@@ -38,17 +39,15 @@ void seedCorner(ref<Projected> vertex, float pass, out vec4 pos, out vec4 col, o
 float planeDistance(in Frame frame, vec4 pos, int16 plane)
 {
     vec3 jp = pos.xyz * frame.clipScale;
-    vec3 jn = -jp;
-    float d = 0.0 + pos.w;
-    d       = d * frame.clipShrink;
+    float d = pos.w * frame.clipShrink;
 
     if (plane == 0)
     {
-        d = d + jn.z;
+        d = d - jp.z;
     }
     else if (plane == 1)
     {
-        d = d + jn.x;
+        d = d - jp.x;
     }
     else if (plane == 2)
     {
@@ -56,7 +55,7 @@ float planeDistance(in Frame frame, vec4 pos, int16 plane)
     }
     else if (plane == 3)
     {
-        d = d + jn.y;
+        d = d - jp.y;
     }
     else
     {
@@ -64,12 +63,6 @@ float planeDistance(in Frame frame, vec4 pos, int16 plane)
     }
 
     return d * frame.clipDistance;
-}
-
-// The sign of a distance, read through FTOI4 of it clamped to [-1, 1].
-int16 sign(float d)
-{
-    return int16(ftoi4(clamp(d, -1.0, 1.0)));
 }
 
 // One Sutherland-Hodgman pass over `corners` corners in `from` against plane `plane`, the
@@ -93,10 +86,9 @@ int16 clipPass(in Frame frame, int16 corners, ref<Corner> from, ref<Corner> to, 
             vec4 nxtUV    = walk[1].uv;
             float dCur    = planeDistance(frame, curPos, plane);
             float dNxt    = planeDistance(frame, nxtPos, plane);
-            int16 signCur = sign(dCur);
-            int16 signCut = sign(dCur * dNxt);
+            float cut     = dCur * dNxt;
 
-            if (signCur >= 0)
+            if (dCur > -0.0625)
             {
                 cursor.pos = curPos;
                 cursor.col = curCol;
@@ -105,7 +97,7 @@ int16 clipPass(in Frame frame, int16 corners, ref<Corner> from, ref<Corner> to, 
                 count++;
             }
 
-            if (signCut < 0)
+            if (cut <= -0.0625)
             {
                 float t    = dCur / (dCur - dNxt);
                 cursor.pos = curPos + (nxtPos - curPos) * t;
