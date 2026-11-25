@@ -56,10 +56,11 @@ static u32 s_nextSequence = 1;
 static int s_cacheFd = -1;
 static u32 s_cachePos = 0;
 
-// Monotonic, loader-written.
+// Monotonic, loader-written. The cycles are 64-bit: 32 bits of COP0 Count wrap after 14.6 s of reads.
 static volatile u32 s_statBytes = 0;
 static volatile u32 s_statChunks = 0;
-static volatile u32 s_statIoCycles = 0;
+static volatile u32 s_statSeeks = 0;
+static volatile u64 s_statIoCycles = 0;
 
 // The compiler may not move a slot's field writes past its state write, nor a field read above the
 // state read. The CPU is in order and the threads never overlap, so this is enough.
@@ -103,7 +104,10 @@ static int ReadRange(int fd, u32 position, u8 * dest, u32 bytes)
 {
     if (fd != s_cacheFd || position != s_cachePos)
     {
+        const u32 start = ReadCycles();
         const off_t at = lseek(fd, static_cast<off_t>(position), SEEK_SET);
+        s_statIoCycles = s_statIoCycles + (ReadCycles() - start);
+        s_statSeeks = s_statSeeks + 1U;
 
         if (at != static_cast<off_t>(position)) [[unlikely]]
         {
@@ -497,6 +501,7 @@ Stats GetStats()
     Stats stats = {};
     stats.bytes = s_statBytes;
     stats.chunks = s_statChunks;
+    stats.seeks = s_statSeeks;
     stats.ioCycles = s_statIoCycles;
 
     for (const Slot & slot : s_slots)

@@ -155,6 +155,19 @@ void PollConsole()
     }
 }
 
+// ps2_memory LABEL: the allocation ledgers under LABEL ([D3BFG] MEMORY, ARENA, HEAP and in tracking
+// builds STACK and TAG lines), for checkpoints a session chooses, such as between map loads.
+PS2_COLD_FUNC void Memory(const idCmdArgs & args)
+{
+    if (args.Argc() != 2) [[unlikely]]
+    {
+        common->Printf("usage: ps2_memory LABEL\n");
+        return;
+    }
+
+    ps2::system::lifecycle::PrintMemory(args.Argv(1));
+}
+
 #if PS2_D3BFG_ASSERTS
 // The address the null store goes to, kept out of the compiler's sight.
 static volatile uintptr_t s_crashAddress = 0;
@@ -240,6 +253,7 @@ PS2_COLD_FUNC void idCommonLocal::InitProduction()
     menuSoundWorld = soundSystem->AllocSoundWorld(nullptr);
     userCmdMgr.SetDefaults();
     cmdSystem->AddCommand("ps2_status", Status, CMD_FL_SYSTEM, CMD_DESC("print production startup state and completed frame counts"));
+    cmdSystem->AddCommand("ps2_memory", Memory, CMD_FL_SYSTEM, CMD_DESC("print the allocation ledgers under a label"));
 #if PS2_D3BFG_ASSERTS
     cmdSystem->AddCommand("ps2_crash", Crash, CMD_FL_SYSTEM, CMD_DESC("raise a fatal error, an assertion, a CPU trap or a null store to check the crash report"));
 #endif // PS2_D3BFG_ASSERTS
@@ -309,6 +323,7 @@ PS2_COLD_FUNC void idCommonLocal::ShutdownProduction()
     soundSystem->Shutdown();
     declManager->Shutdown();
     CloseLogFile();
+    cmdSystem->RemoveCommand("ps2_memory");
     cmdSystem->RemoveCommand("ps2_status");
     console->Close();
     console->Shutdown();

@@ -1967,6 +1967,25 @@ ms that way. REF'd cooked batches make the EE cost per batch, not per vertex.
 - **GS cost** is approximated by submitted pixel and texture-page estimates in PCSX2 and
   confirmed only on hardware.
 
+**The frame log as built (2026-11-25).** `ps2_framelog` (`src/ps2/system/frame_log.cpp`, every
+build) keeps one row per Common frame in EE memory and writes the run once to the package's
+`framelog.txt` (quake2-ps2's `FLOG` format, read by `src/tools/scripts/frame_log.py`); quake2-ps2
+wrote a batch every 64 frames, but a console's USB write costs about 23 ms, and one write after the
+measured frames costs none of them. The times come from COP0 Count stamps the presentation makes:
+the game step, the 3D views, the screens and the submit (kick, waits, flip), and inside the frame the
+cycles `dma::WaitIdle` spun for VU1 and the GS, those the present slept for the vertical blank
+(`gs::GetPresentStats`) and those the loader thread spent in reads and seeks (`aio::Stats`, 64-bit
+since 2026-11-25). The counters are the world passes' batches, lit and pass batches, vertices and
+packet bytes (`world::GetDrawStats`), the chain bytes, kicks and ring drains, and the textures'
+uploads, evictions, streamed reads, misses and fallbacks, with the eye and yaw. The camera path is
+`ps2_world path`: keyframes stepped once a Common frame, so every run draws the same frames, in place
+of a `setviewpos` sequence (each of which would be a jump that waits for its textures, where a walk
+reads ahead). mars_city1's tour (`config/world_mars_city1_tour.path`, `world_tour.py`) starts at the
+player start, walks depth first through every area the open portals reach, doorway to a standing
+point at eye height and on, and back, 7,244 frames. Today's frames are serial: the EE builds the
+frame, kicks it, waits for VU1 and the GS, then for the vertical blank (`gs::Present` in immediate
+mode), so the log's gpu column is the chain's whole time beyond the kick.
+
 ---
 
 ## 18. Code design

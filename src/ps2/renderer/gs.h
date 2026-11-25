@@ -149,6 +149,16 @@ enum class PresentMode : u8
 
 void Present(DrawContext context, PresentMode mode = PresentMode::Immediate);
 
+// The presents and their waits for the vertical blank, cumulative (the frame log's vsync column).
+struct PresentStats
+{
+    u32 presents;
+    u32 vsyncs;      // vertical blanks waited for (two for a FIELD flip that landed on an odd field)
+    u64 vsyncCycles; // EE cycles spent waiting for them (COP0 Count)
+};
+
+const PresentStats & GetPresentStats();
+
 // The window transform VU1 programs apply to clip coordinates over w before ftoi4 (x16, 12.4
 // fixed point): x and y of +-1 reach 2048 pixels either side of the screen centre, and z from +1
 // (near) to -1 (far) spans the Z16 buffer, larger nearer (GEQUAL). The w lanes are zero.

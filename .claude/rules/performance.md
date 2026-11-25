@@ -40,6 +40,17 @@ rendering-performance baseline. Quake timings below are not Doom measurements.
   VU0 paths and the UI's 1/16 fixed-point mapping keeps its rounding. Static counts only: no
   hardware or dynamic measurement yet.
 
+## Doom's frame log (2026-11-25)
+
+- `ps2_framelog start [FRAMES]` records a row per Common frame (every build) and writes the run once
+  to the package's `framelog.txt`; `ps2_world path FILE [FRAMES]` plays a camera path one step a
+  frame, so runs compare frame for frame. `src/tools/scripts/frame_log.py log [--compare base]`
+  summarises one. Columns and design: RENDERING_ARCHITECTURE.md 17.2.
+- Hardware timing comes from `make BUILD=release stage-perf-world-retail` on a console (the whole
+  mars_city1 tour, 7,244 frames); the gate's 240-frame tour in PCSX2 checks function only.
+- Frames are serial today (build, kick, wait for VU1 and the GS, wait for the vertical blank): the
+  `gpu_us` column is the chain's whole time beyond the kick.
+
 ## What a PCSX2 capture can and can't show
 
 - **No EE cache emulation** (`EnableEECache = false`). Cache-locality work (prefetch, slimmer

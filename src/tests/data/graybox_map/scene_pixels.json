@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "generator": "src/tools/scripts/world_reference.py",
-  "inputs_sha256": "fc26d6a96d1a0e897434e8f8e59da8f50b05aad957aed6e0c31bcf94e5d8255d",
+  "inputs_sha256": "41ced6d098384ccb22e88db51863a063ff88a848c83f5f108e90c92d9154bd38",
   "tables": {
     "512": {
       "NTSC": {

@@ -39,6 +39,9 @@ have not been re-measured.
   Warm map/movie shutdown must be exact too.
 - Warm native dictionary string pools (and fonts/images, which stay cached until UI
   shutdown) once before comparing repeated-reload ledgers, then require exact stability.
+  The retail world gate cycles mars_city1 this way (`ps2_memory cycleN` after `clearHistory`:
+  id's console history keeps a growing buffer per HostFs line); after the warm cycle the ledger
+  holds exactly (debug, 2026-11-25: 2,328,305 / 2,354,172 bytes, 3,398 allocations).
   Clear queued console history before a final release checkpoint (its echo adds a
   transient 64-byte string). Real-time animation leaves a few KB of varying script state.
 - Production loads the host-cooked script program (2026-11-18): `SCRIPT` at retail

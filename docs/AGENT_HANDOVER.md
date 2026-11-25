@@ -73,17 +73,21 @@ external Quake II repository remains a reuse/reference source when available.
 
 ## Next implementation sequence
 
-Since 2026-11-03 the selected work is 3D rendering: continue with the open R2 items in
-[RENDERING_TODO.md](plans/RENDERING_TODO.md): the R2 gate (the sky, the declaration-text lever, the
-world texture streaming, the static mesh props merged into the world and mid-pass texture eviction,
-the GUI and skinned props, the rigid entities at rest (doors, movers), chroma subdivision and the
-translucent stages are done; the moveables and items whose models come from .def files, texture
-matrices and cube-map stages are
-what mars_city1 still lacks; the PC reference captures wait
-for R7's draws, the user's call on 2026-11-24). Streaming (2026-11-24) loads textures one at a
-time on the background loader thread, not as the planned dictionaries, which mars_city1's
-measurements ruled out (RENDERING_ARCHITECTURE.md 10.5). Its console behaviour on USB and HDD (read
-rates, misses while walking) is still unmeasured. Planned, not
+Since 2026-11-03 the selected work is 3D rendering, in
+[RENDERING_TODO.md](plans/RENDERING_TODO.md). R2's work items are done (the sky, the
+declaration-text lever, the world texture streaming, the static mesh props merged into the world and
+mid-pass texture eviction, the GUI and skinned props, the rigid entities at rest (doors, movers),
+chroma subdivision and the translucent stages); the moveables and items whose models come from .def
+files, texture matrices and cube-map stages are what mars_city1 still lacks; the PC reference
+captures wait for R7's draws (the user's call on 2026-11-24). The R2 gate's emulator checks are in
+`make test-world-retail` since 2026-11-25 (probes against the `.bproc`, the door gating sound,
+exact load cycles, a frame-logged tour). Its console half is next: the user runs
+`make BUILD=release stage-perf-world-retail` from USB and the HDD and brings back `framelog.txt`
+(read rates, streaming misses while walking, the first hardware frame times; summarise it with
+`src/tools/scripts/frame_log.py`). Load-game waits for M3, which the user chose to do before R3
+(2026-11-25): Common owning a game-loaded map in production. Streaming (2026-11-24) loads textures
+one at a time on the background loader thread, not as the planned dictionaries, which mars_city1's
+measurements ruled out (RENDERING_ARCHITECTURE.md 10.5). Planned, not
 scheduled: the PS2 data package repacks every asset, with no PC, Xbox 360 or PS3 data and the
 declaration text in its own container sorted for loading
 ([IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md#ps2-data-package-planned-2026-11-24)). The numbered sections below are the earlier UI

@@ -145,6 +145,7 @@ void EndFrame()
 
     // The chain is sent, not awaited: the EE may build the next frame while it runs. An immediate
     // present (gs::Present) or WaitIdle fences on it.
+    s_stats.frameBytes = detail::g_list.RingUsedBytes();
     Kick();
     detail::g_inFrame = false;
 }
@@ -188,8 +189,12 @@ void WaitIdle()
         return;
     }
 
+    // The frame log's GPU column: how long the EE stood still for VU1 and the GS.
+    const u32 start = gs::ReadCycles();
     gs::WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "VIF1 DMA");
     gs::WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "GS FINISH");
+    s_stats.waitCycles += gs::ReadCycles() - start;
+    ++s_stats.waits;
 
     detail::g_inFlight = false;
 }

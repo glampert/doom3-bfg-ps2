@@ -30,6 +30,7 @@ static bool s_texturesEnabled = true;
 static bool s_lightmapsEnabled = true;
 static Textures * s_passTextures = nullptr;
 static TextureStats s_lastStats = {};
+static DrawStats s_drawStats = {};
 
 static const Level * s_passLevel = nullptr;
 
@@ -44,6 +45,14 @@ static bool s_planning = false;
 static bool Planned(const Level & level, const BatchRecord & batch)
 {
     return !(s_texturesEnabled && IsSky(level.textures, batch.material));
+}
+
+// Counts a batch the display list sent.
+static void CountBatch(const BatchRecord & batch)
+{
+    ++s_drawStats.batches;
+    s_drawStats.vertices += batch.vertexCount;
+    s_drawStats.packetQwords += batch.packetQwords;
 }
 
 } // namespace
@@ -329,6 +338,7 @@ void DrawAreaSky(const Level & level, u32 area)
         {
             list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, SkyDepthState(), kBatchStateBlockQwords,
                            PageState(nullptr, list, kNoLightmap), kPageStateBlockQwords);
+            CountBatch(batch);
         }
     }
 }
@@ -340,7 +350,9 @@ void EndPass()
     const Sections & sections = level.sections;
 
     // Every planned batch after its texture state (uploading textures as they become needed), in the
-    // plan's order.
+    // plan's order. A batch whose page state is the unlit one draws no lightmap pass.
+    const void * const unlit = PageState(nullptr, list, kNoLightmap);
+
     for (u32 index = 0; index < s_passCount; ++index)
     {
         const BatchRecord & batch = sections.batches[level.passOrder[index]];
@@ -354,6 +366,8 @@ void EndPass()
 
         const void * page = PageState(s_passTextures, list, batch.lightmapPage);
         list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, page, kPageStateBlockQwords);
+        CountBatch(batch);
+        s_drawStats.litBatches += page != unlit ? 1U : 0U;
     }
 
     // Then the material passes, once every diffuse texture drew: each batch again with the pass's
@@ -396,6 +410,8 @@ void EndPass()
                 }
 
                 list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, color, kPageStateBlockQwords);
+                CountBatch(batch);
+                ++s_drawStats.passBatches;
             }
         }
     }
@@ -404,6 +420,11 @@ void EndPass()
     gs::EndDepthPass(list, context);
     EndTextures(s_passTextures);
     s_lastStats = GetTextureStats(s_passTextures);
+}
+
+const DrawStats & GetDrawStats()
+{
+    return s_drawStats;
 }
 
 void Draw(const Level & level, const math::Mat4 & viewProjection, float time)

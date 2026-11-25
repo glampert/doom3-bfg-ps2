@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: run_world_retail.py
-# Brief: Draw mars_city1, cooked from the retail .bproc, through id's render world: area 2 from the player start, portal culling, whole-image references.
+# Brief: Draw mars_city1, cooked from the retail .bproc, through id's render world: area 2 from the player start, portal culling, whole-image references, the R2 gate's probes, a frame-logged tour and load cycles.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -19,10 +19,16 @@ may win: a missing area or misplaced geometry fails it. Each view lit by its lig
 match the same reference with the lightmap pass modelled: the cook's pages, decoded back out of the
 D3TX, sampled bilinearly at each pixel's perspective-correct lightmap UV and multiplied into the
 vertex colour. Closing the doorway's portal must leave only area 2, against a reference of area 2
-alone. In debug builds the free-flight camera then
+alone. The R2 gate's probes follow, each held to the .bproc as id's proc loader reads it
+(world_probes.py): sampled PointInArea, AreasAreConnected with the doorway open, closed as a door
+closes it and reopened, and the sound world's walk from the start to the corridor, which the closed
+doorway must lengthen by s_doorDistanceAdd. The first frames of the frame log's camera tour play into
+ps2_framelog. In debug builds the free-flight camera then
 flies from the start under scripted stick input, to the pose the same steps give here, and its
-capture must match the reference from that pose. The world is then unloaded and the session
-quits, recovering the startup ledger."""
+capture must match the reference from that pose. The world is then unloaded, loaded and unloaded
+again four times, the last three leaving the ledger exactly where the first did, and the session
+quits, recovering the startup ledger. With --stage --perf it stages a package that plays the whole
+tour into framelog.txt by itself, for a console run."""
 
 import argparse
 from collections import namedtuple
@@ -32,11 +38,14 @@ from pathlib import Path
 import re
 import shutil
 
+import frame_log
 import renderer_capture
 import run_headless
 import run_pcsx2_test as smoke
 import run_world
+import world_probes
 import world_reference
+import world_tour
 from run_console import BASELINE, TARGET_CRASH_RE
 from stage_headless import REPO_ROOT, stage
 
@@ -44,6 +53,9 @@ from stage_headless import REPO_ROOT, stage
 MAP = "maps/game/mars_city1"
 DEFAULT_WORLD = REPO_ROOT / "build/world/mars_city1.d3wd"
 JOB = REPO_ROOT / "config/world_mars_city1.json"
+# The frame log's camera tour (world_tour.py), staged beside the map.
+TOUR = REPO_ROOT / "config/world_mars_city1_tour.path"
+TOUR_PACKAGE_PATH = f"{MAP}_tour.path"
 # Seams and depth ties aside, a capture matches its reference at 99.7 % or more; a capture missing
 # a visible area (or drawing one the reference does not) scores well below.
 MIN_MATCH = 99.0
@@ -250,7 +262,170 @@ def check_share(span: str, before: dict, full_arena: int) -> tuple[bool, str, di
     return True, "", {"shown": shown, "closed": closed}
 
 
-def driver(identity: str, fly: bool):
+# The R2 gate's probes, held to the .bproc as id's proc loader reads it (world_probes): sampled
+# PointInArea, AreasAreConnected for each portal attribute with the doorway open, closed (as a door
+# closes it: every attribute blocked) and open again, and the sound world's walk from the player's
+# eye to a sound in the corridor, which the closed doorway must lengthen by s_doorDistanceAdd.
+SOUND_SOURCE = (-3772, -3000, 260)
+SOUND_MAX = 4096.0
+# The walk's virtual origins and LengthFast round a little apart from the model's doubles.
+SOUND_TOLERANCE = 1.0
+CONNECTED_KINDS = ("view", "location", "air")
+AREA_RE = re.compile(r"\[D3BFG\] WORLD area points=(\d+) areas=(-?\d+(?:,-?\d+)*)")
+CONNECTED_RE = re.compile(r"\[D3BFG\] WORLD connected kind=(\w+) first=(\d+) groups=(\d+(?:,\d+)*)")
+SOUND_RE = re.compile(r"\[D3BFG\] WORLD sound listener_area=(-?\d+) source_area=(-?\d+) direct=([\d.]+) spatialized=([\d.]+) "
+                      r"origin=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) door_add=([\d.]+)")
+PORTAL_RE = re.compile(r"\[D3BFG\] WORLD portal handle=(\d+) blocking=(\d+)")
+LOADER_RE = re.compile(r"\[D3BFG\] LOADER bytes=(\d+) chunks=(\d+) seeks=(\d+) io_us=(\d+) kib_per_s=(\d+) queue=(\d+) device=(\S+)")
+LOADER_FIELDS = ("bytes", "chunks", "seeks", "io_us", "kib_per_s", "queue")
+# PS_BLOCK_ALL: a closed door blocks the view, locations and air.
+BLOCK_ALL = 7
+
+
+def expected_probes(data: Path) -> dict:
+    """The probes' answers from the retail .bproc: its counts, the samples with their areas, each
+    portal state's groups and the sound walk."""
+    bproc = world_reference.retail_bproc(data, json.loads(JOB.read_text()))
+    samples = world_probes.sample_points(bproc.areas, bproc.portals, bproc.nodes)
+    closed = frozenset({DOORWAY_PORTAL[0]})
+    states = (frozenset(), closed, frozenset())
+    return {"areas": bproc.area_count, "portals": len(bproc.portals), "nodes": len(bproc.nodes), "samples": samples,
+            "groups": [world_probes.connected_groups(bproc.area_count, bproc.portals, state) for state in states],
+            "sounds": [world_probes.sound_distance(bproc.portals, bproc.nodes, START[:3], SOUND_SOURCE, SOUND_MAX, state)
+                       for state in states]}
+
+
+def probe_commands(identity: str, probes: dict) -> list[str]:
+    sound = "ps2_world sound " + " ".join(str(value) for value in START[:3] + SOUND_SOURCE) + f" {SOUND_MAX:g}"
+    handle = DOORWAY_PORTAL[0]
+    return [*world_probes.area_commands(probes["samples"]), "ps2_world connected", sound, f"ps2_world portal {handle} closed",
+            "ps2_world connected", sound, f"ps2_world portal {handle} open", "ps2_world connected", sound, "ps2_world loader",
+            f'echo "{run_world.barrier(identity, "probes")}"']
+
+
+def check_probes(span: str, probes: dict) -> tuple[bool, str, dict]:
+    """Every sample in its area, each state's groups for every attribute, the doorway blocking
+    everything once closed and nothing reopened, and the sound walks."""
+    found = []
+    for count, areas in AREA_RE.findall(span):
+        values = [int(value) for value in areas.split(",")]
+        if len(values) != int(count):
+            return False, "a ps2_world area line does not list its points", {}
+        found += values
+    expected = [area for _, area in probes["samples"]]
+    if len(found) != len(expected):
+        return False, f"PointInArea answered {len(found)} of {len(expected)} samples", {}
+    wrong = [(point, area, got) for (point, area), got in zip(probes["samples"], found) if area != got]
+    if wrong:
+        return False, f"PointInArea differs from the .bproc's nodes at {len(wrong)} samples, first {wrong[0]}", {}
+    groups = {}
+    for kind, first, values in CONNECTED_RE.findall(span):
+        groups.setdefault(kind, []).append((int(first), [int(value) for value in values.split(",")]))
+    states = []
+    for state in range(3):
+        for kind in CONNECTED_KINDS:
+            lines = groups.get(kind, [])
+            areas_found, first = [], 0
+            while lines and lines[0][0] == first and (not areas_found or first == len(areas_found)):
+                areas_found += lines.pop(0)[1]
+                first = len(areas_found)
+                if first == len(probes["groups"][state]):
+                    break
+            if areas_found != probes["groups"][state]:
+                return False, f"AreasAreConnected ({kind}, portal state {state}) differs from the .bproc's portals: {areas_found}", {}
+        states.append(probes["groups"][state])
+    portals = [(int(handle), int(blocking)) for handle, blocking in PORTAL_RE.findall(span)]
+    if portals != [(DOORWAY_PORTAL[0], BLOCK_ALL), (DOORWAY_PORTAL[0], 0)]:
+        return False, f"the doorway did not close for everything and reopen: {portals}", {}
+    sounds = SOUND_RE.findall(span)
+    if len(sounds) != 3:
+        return False, "missing sound walk", {}
+    walks = []
+    for line, model in zip(sounds, probes["sounds"]):
+        areas_found = (int(line[0]), int(line[1]))
+        spatialized = float(line[3])
+        if areas_found != (model["listener_area"], model["source_area"]) or abs(spatialized - model["spatialized"]) > SOUND_TOLERANCE:
+            return False, f"the sound walk found areas {areas_found} and {spatialized}; the model {model}", {}
+        walks.append(spatialized)
+    # The doorway is the corridor's only way to the start: closed, the sound goes s_doorDistanceAdd further.
+    door = float(sounds[1][7])
+    if not walks[1] > walks[0] or abs(walks[1] - walks[0] - door) > SOUND_TOLERANCE or abs(walks[2] - walks[0]) > 0.01:
+        return False, f"the closed doorway did not gate the sound by s_doorDistanceAdd ({door}): {walks}", {}
+    loader = LOADER_RE.findall(span)
+    if len(loader) != 1:
+        return False, "missing loader totals", {}
+    return True, "", {"samples": len(expected), "solid": expected.count(-1), "areas_hit": len(set(expected) - {-1}),
+                      "groups": len(set(states[0])), "sound": walks, "door_add": door,
+                      "loader": dict(zip(LOADER_FIELDS, map(int, loader[0][:6])), device=loader[0][6])}
+
+
+# The frame log over the first TOUR_FRAMES frames of the tour, textured and lit: the path must play
+# them and the log hold a row for each (PCSX2's timings are not the console's; the rows and their
+# columns are what the gate checks).
+TOUR_FRAMES = 240
+PATH_RE = re.compile(r"\[D3BFG\] WORLD path (started|done) (?:file=\S+ )?keys=(\d+) frames=(\d+)")
+FRAMELOG_RE = re.compile(r"\[D3BFG\] FRAMELOG written path=(\S+) rows=(\d+) bytes=(\d+) frame_us_mean=(\d+) frame_us_max=(\d+)")
+
+
+def tour_commands() -> list[str]:
+    # One row more than the path plays: its end, not a full log, writes the file.
+    return ["ps2_world textures on", "ps2_world lightmaps on", f"ps2_framelog start {TOUR_FRAMES + 1}",
+            f"ps2_world path {TOUR_PACKAGE_PATH} {TOUR_FRAMES}"]
+
+
+def tour_ended(log: str) -> bool:
+    return "[D3BFG] WORLD path done" in log and ("[D3BFG] FRAMELOG written" in log or "[D3BFG] FRAMELOG write failed" in log)
+
+
+def check_tour(span: str) -> tuple[bool, str, dict]:
+    """The path started, played TOUR_FRAMES frames and ended; the frame log wrote that many rows (the
+    frame it started in opens the first), and the streaming refused nothing."""
+    paths = PATH_RE.findall(span)
+    if [path[0] for path in paths] != ["started", "done"] or int(paths[1][2]) != TOUR_FRAMES:
+        return False, f"the tour did not play {TOUR_FRAMES} frames: {paths}", {}
+    logs = FRAMELOG_RE.findall(span)
+    if len(logs) != 1 or int(logs[0][1]) != TOUR_FRAMES:
+        return False, f"the frame log did not write {TOUR_FRAMES} rows: {logs}", {}
+    textures = [dict(zip(TEXTURE_FIELDS, map(int, match))) for match in TEXTURES_RE.findall(span)]
+    if len(textures) != 1 or textures[0]["stream_failures"] != 0 or textures[0]["moved_fallbacks"] != 0:
+        return False, f"the tour's textures failed to stream: {textures}", {}
+    loader = LOADER_RE.findall(span)
+    return True, "", {"keys": int(paths[0][1]), "frames": TOUR_FRAMES, "rows": int(logs[0][1]), "file_bytes": int(logs[0][2]),
+                      "frame_us_mean": int(logs[0][3]), "frame_us_max": int(logs[0][4]), "textures": textures[0],
+                      "loader": dict(zip(LOADER_FIELDS, map(int, loader[0][:6]))) if loader else None}
+
+
+# Map load/unload cycles: one warms what a first load leaves resident (declarations, pools), then
+# CYCLES more must each return the allocation ledger to exactly where the warm one left it. Each draws
+# the start's view textured and lit for a few frames, so the texture copies stream in and leave.
+CYCLES = 3
+# id's tokenizer splits a label at a dash: "cycle0", not "cycle-0".
+CYCLE_MEMORY_RE = re.compile(r"\[D3BFG\] MEMORY cycle(\d+) requested=(\d+) backing=(\d+) allocations=(\d+) ")
+
+
+def cycle_commands(identity: str, index: int) -> list[str]:
+    # The console history holds every HostFs line, and its slots keep the longest one's buffer: clear
+    # it before the checkpoint, as the UI sessions do.
+    return [f"ps2_world load {MAP}", "ps2_world view " + " ".join(str(value) for value in VIEWS[0].camera), "ps2_world textures on",
+            "ps2_world lightmaps on", "wait 6", "ps2_world unload", "wait 2", "clearHistory", f"ps2_memory cycle{index}",
+            f'echo "{run_world.barrier(identity, f"cycle{index}")}"']
+
+
+def check_cycles(span: str) -> tuple[bool, str, dict]:
+    ledgers = [(int(index), tuple(map(int, rest))) for index, *rest in CYCLE_MEMORY_RE.findall(span)]
+    if [index for index, _ in ledgers] != list(range(CYCLES + 1)):
+        return False, f"missing cycle ledgers: {[index for index, _ in ledgers]}", {}
+    warm = ledgers[0][1]
+    for index, ledger in ledgers[1:]:
+        if ledger != warm:
+            return False, f"cycle {index} left the ledger at {ledger}; the warm cycle left {warm}", {}
+    switches = run_world.SWITCH_RE.findall(span)
+    if len(switches) != 2 * (CYCLES + 1):
+        return False, f"the cycles switched the display {len(switches)} times; expected {2 * (CYCLES + 1)}", {}
+    return True, "", {"cycles": CYCLES, "ledger": dict(zip(("requested", "backing", "allocations"), warm))}
+
+
+def driver(identity: str, fly: bool, probes: dict):
     """Yield each command batch with the condition, over the log, that ends its wait; 'fly' adds
     the free-flight step (debug builds)."""
 
@@ -268,16 +443,24 @@ def driver(identity: str, fly: bool):
     for view in VIEWS:
         yield view_commands(identity, view), until(view.name)
     yield share_commands(identity), until("share")
+    yield probe_commands(identity, probes), until("probes")
+    yield tour_commands(), tour_ended
+    yield ["ps2_world loader", "ps2_world textures status", "ps2_world textures off", "ps2_world lightmaps off", "ps2_world off",
+           f'echo "{run_world.barrier(identity, "tour")}"'], until("tour")
     if fly:
         yield fly_commands(identity), until("fly")
     yield ["ps2_world decals", "ps2_world unload", "ps2_world decals", f'echo "{run_world.barrier(identity, "unloaded")}"'], until("unloaded")
-    yield ["wait 2", f'echo "{run_world.barrier(identity, "frontend")}"', "quit"], lambda log: run_headless.SHUTDOWN_COMPLETE in log
+    yield ["wait 2", f'echo "{run_world.barrier(identity, "frontend")}"'], until("frontend")
+    for index in range(CYCLES + 1):
+        yield cycle_commands(identity, index), until(f"cycle{index}")
+    yield ["quit"], lambda log: run_headless.SHUTDOWN_COMPLETE in log
 
 
-def classify(log: str, identity: str, standard: str, report: dict, fly: bool = False) -> tuple[bool, str, dict]:
-    """Check the session log: the cooked load with the report's counts, the traces, every view's
-    portal culling and capture, the flight when 'fly' asks for it, the display changes into and out
-    of the map, the unload and shutdown."""
+def classify(log: str, identity: str, standard: str, report: dict, probes: dict, fly: bool = False) -> tuple[bool, str, dict]:
+    """Check the session log: the cooked load with the report's counts and the .bproc's ('probes'),
+    the traces, every view's portal culling and capture, the probes, the tour's frame log, the flight
+    when 'fly' asks for it, the display changes into and out of the map, the unload, the ledger
+    cycles and shutdown."""
     if TARGET_CRASH_RE.search(log) or "[D3BFG] FATAL" in log:
         return False, "crash or fatal diagnostic", {}
     load = re.compile(rf"\[D3BFG\] world {re.escape(MAP)}\.d3wd: areas={report['areas']} surfaces={report['surfaces']} "
@@ -285,13 +468,19 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     package = TEXTURE_LOAD_RE.search(log)
     if not load.search(log) or not package:
         return False, "the cooked map did not load with the cook report's areas, surfaces, batches, portals and nodes", {}
+    # id's proc loader would read the same counts from the .bproc.
+    if (report["areas"], report["portals"], report["nodes"]) != (probes["areas"], probes["portals"], probes["nodes"]):
+        return False, (f"the cooked map's areas, portals and nodes {(report['areas'], report['portals'], report['nodes'])} differ from "
+                       f"the .bproc's {(probes['areas'], probes['portals'], probes['nodes'])}"), {}
     # The entities whose models the cook merged travel with the world, for the game's spawn to skip.
     merged = report.get("static_models", {}).get("merged_entities")
     if merged is not None and not re.search(rf"\[D3BFG\] world {re.escape(MAP)}\.d3wd: .* merged_entities={merged}\b", log):
         return False, f"the cooked map did not load the cook report's {merged} merged entities", {}
     if "WORLD load failed" in log:
         return False, "the render world refused the map", {}
-    markers = ["begin", "loaded", "ingame"] + [view.name for view in VIEWS] + ["share"] + (["fly"] if fly else []) + ["unloaded", "frontend"]
+    cycles = [f"cycle{index}" for index in range(CYCLES + 1)]
+    markers = (["begin", "loaded", "ingame"] + [view.name for view in VIEWS] + ["share", "probes", "tour"] + (["fly"] if fly else []) +
+               ["unloaded", "frontend"] + cycles)
     # Echo output, not the submitted line, is the barrier.
     spans = [re.search(re.escape(run_world.barrier(identity, name)) + r" +\r?\n", log) for name in markers]
     if any(span is None for span in spans):
@@ -299,9 +488,11 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     positions = [span.start() for span in spans]
     if positions != sorted(positions):
         return False, "session barriers ran out of order", {}
+    at = dict(zip(markers, positions))
+    before_unload = "fly" if fly else "tour"
     if run_headless.SHUTDOWN_COMPLETE not in log:
         return False, "the session did not shut down", {}
-    loaded = [line for line in run_world.world_lines(log) if line["event"] == "loaded"]
+    loaded = [line for line in run_world.world_lines(log[:at["loaded"]]) if line["event"] == "loaded"]
     if len(loaded) != 1 or (loaded[0]["areas"], loaded[0]["portals"]) != (report["areas"], report["portals"]):
         return False, "the render world did not take the cooked areas and portals", {}
     traces = run_world.TRACE_RE.findall(log[positions[0]:positions[1]])
@@ -353,8 +544,14 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     # for the diffuse textures, the others have room).
     if max(view["textures"]["sky_faces"] for view in views.values()) == 0:
         return False, "the textured pass never drew the sky box", {}
-    share_span = log[positions[2 + len(VIEWS)]:positions[3 + len(VIEWS)]]
+    share_span = log[at[VIEWS[-1].name]:at["share"]]
     passed, failure, share = check_share(share_span, views[VIEWS[-1].name]["textures"], max(view["textures"]["arena"] for view in views.values()))
+    if not passed:
+        return False, failure, {}
+    passed, failure, probed = check_probes(log[at["share"]:at["probes"]], probes)
+    if not passed:
+        return False, failure, {}
+    passed, failure, tour = check_tour(log[at["probes"]:at["tour"]])
     if not passed:
         return False, failure, {}
     # The package streamed: its EE copies never held the whole file.
@@ -362,33 +559,50 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     copy_peak = max(view["textures"]["copy_peak"] for view in views.values())
     if copy_peak >= file_bytes:
         return False, f"the texture copies held {copy_peak} bytes, the whole {file_bytes}-byte package", {}
-    if run_world.SWITCH_RE.search(log[:positions[1]] + log[positions[-3]:positions[-2]] + log[positions[-1]:]):
+    unload_span = log[at[before_unload]:at["unloaded"]]
+    if run_world.SWITCH_RE.search(log[:at["loaded"]] + log[at["share"]:at[before_unload]] + unload_span + log[at[cycles[-1]]:]):
         return False, "the display mode changed outside its steps", {}
-    unloads = [line for line in run_world.world_lines(log[positions[-3]:positions[-2]]) if line["event"] == "unloaded"]
+    unloads = [line for line in run_world.world_lines(unload_span) if line["event"] == "unloaded"]
     if len(unloads) != 1 or (unloads[0]["areas"], unloads[0]["portals"], unloads[0]["viewing"]) != (1, 0, 0):
         return False, "the world did not unload to the empty single-area world", {}
-    decals = run_world.decal_reports(log[positions[-3]:positions[-2]])
+    decals = run_world.decal_reports(unload_span)
     if len(decals) != 2 or not run_world.decals_match(decals[0], DECALS_EXPECTED):
         return False, f"the floor decal does not cover its square on the grate: {decals[:1]}", {}
     if not run_world.decals_match(decals[1], None):
         return False, "decals outlived the unloaded world", {}
-    back = run_world.SWITCH_RE.findall(log[positions[-2]:positions[-1]])
+    back = run_world.SWITCH_RE.findall(log[at["unloaded"]:at["frontend"]])
     expected = run_world.expected_switch(standard, run_world.front_end_display(standard))
     if len(back) != 1 or run_world.parse_switch(back[0]) != expected:
         return False, f"the front end did not return to {expected[3]} once after the unload", {}
+    passed, failure, cycled = check_cycles(log[at["frontend"]:at[cycles[-1]]])
+    if not passed:
+        return False, failure, {}
     memory = run_headless.MEMORY_RE.findall(log)
     if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
         return False, "production shutdown did not recover the startup allocation ledger", {}
     flight = None
     if fly:
-        passed, failure, flight = check_fly(log[positions[-4]:positions[-3]])
+        passed, failure, flight = check_fly(log[at["tour"]:at["fly"]])
         if not passed:
             return False, failure, {}
     arena = max(view["status"]["arena"] for view in views.values())
     return True, ("mars_city1 loaded from its cooked .bproc, drew area 2 and the corridor through the portal flow, closed the "
-                  "doorway down to area 2, built its floor decal over the mirror, unloaded and shut down"), \
+                  "doorway down to area 2, answered the area, connection and sound probes as the .bproc does, played the tour into "
+                  "the frame log, built its floor decal over the mirror, unloaded, cycled the map with an exact ledger and shut down"), \
         {"views": views, "arena_bytes": arena, "decals": decals[0], "flight": flight, "texture_file_bytes": file_bytes, "copy_peak": copy_peak,
-         "share": share}
+         "share": share, "probes": probed, "tour": tour, "cycles": cycled}
+
+
+def verify_frame_log(output: Path) -> dict:
+    """The tour's framelog.txt: complete, a row for each frame, every row's columns; its summary."""
+    log = frame_log.parse((output / "framelog.txt").read_text())
+    if log["end"] != TOUR_FRAMES or len(log["rows"]) != TOUR_FRAMES:
+        raise ValueError(f"framelog.txt holds {len(log['rows'])} rows and ends at {log['end']}; expected {TOUR_FRAMES}")
+    if [row["frame"] for row in log["rows"]] != list(range(TOUR_FRAMES)) or any(row["frame_us"] <= 0 for row in log["rows"]):
+        raise ValueError("framelog.txt's rows are out of order or hold empty frames")
+    summary = frame_log.summarize(log)
+    (output / "framelog-summary.txt").write_text(frame_log.format_summary(summary) + "\n")
+    return summary
 
 
 def verify_captures(output: Path, data: Path, world: Path, standard: str, fly: bool = False) -> dict:
@@ -450,6 +664,7 @@ def stage_retail_world(build: str, output: Path, standard: str, catalog: Path, w
     if not textures.is_file():
         raise ValueError(f"missing cooked textures {textures}; run make world-cook-retail")
     shutil.copy2(textures, maps / textures.name)
+    shutil.copy2(TOUR, package / "base" / TOUR_PACKAGE_PATH)
     return package
 
 
@@ -468,16 +683,47 @@ def stage_flight(args: argparse.Namespace, standard: str) -> Path:
     return package
 
 
+# The console run (make stage-perf-world-retail, a release build on a USB drive or the hard disk):
+# the package's startup config loads the map and plays the whole tour into the frame log, then opens
+# the console on how it ended. framelog.txt lands in the package folder.
+PERF_CONSOLE_WAIT = 60
+
+
+def perf_commands() -> list[str]:
+    frames = world_tour.path_frames(world_tour.read_path(TOUR))
+    return ["ps2_consoleKey toggle", f"wait {PERF_CONSOLE_WAIT}", "r_znear 4", f"ps2_world load {MAP}", "ps2_world textures on",
+            "ps2_world lightmaps on", f"ps2_framelog start {frames + 1}", f"ps2_world path {TOUR_PACKAGE_PATH}", f"wait {frames + 30}",
+            "ps2_world loader", "ps2_world textures status", "ps2_consoleKey toggle"]
+
+
+def stage_perf(args: argparse.Namespace, standard: str) -> Path:
+    """A package that plays the tour into the frame log by itself: its startup config, which a
+    console run reads from the drive, holds the commands HostFs would otherwise send."""
+    if not args.world.is_file():
+        raise ValueError(f"missing cooked world {args.world}; run make world-cook-retail")
+    package = stage_retail_world(args.build, args.stage, standard, args.catalog, args.world, world_report(args.world))
+    (package / "base/d3bfg.cfg").write_text("".join(command + "\n" for command in perf_commands()))
+    (package / "console.txt").write_bytes(b"")
+    return package
+
+
 def run(args: argparse.Namespace, standard: str, version: str) -> bool:
     if not args.world.is_file():
         raise ValueError(f"missing cooked world {args.world}; run make world-cook-retail")
     report = world_report(args.world)
+    probes = expected_probes(args.data)
     # The free-flight camera exists in debug builds only.
     fly = args.build == "debug"
+
+    def verify(output: Path) -> dict:
+        captures = verify_captures(output, args.data, args.world, standard, fly)
+        captures["frame_log"] = verify_frame_log(output)
+        return captures
+
     return run_world.run_session(args, standard, version, "world_retail",
                                  lambda output: stage_retail_world(args.build, output, standard, args.catalog, args.world, report),
-                                 lambda identity: driver(identity, fly), lambda log, identity: classify(log, identity, standard, report, fly),
-                                 lambda output: verify_captures(output, args.data, args.world, standard, fly), args.world)
+                                 lambda identity: driver(identity, fly, probes),
+                                 lambda log, identity: classify(log, identity, standard, report, probes, fly), verify, args.world)
 
 
 def main() -> int:
@@ -493,12 +739,13 @@ def main() -> int:
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)
     parser.add_argument("--timeout-scale", type=float, default=1.0, help="multiplies the watchdogs")
     parser.add_argument("--stage", type=Path, help="only stage a package here that starts flying from the player start (debug builds)")
+    parser.add_argument("--perf", action="store_true", help="with --stage: a package that plays the camera tour into framelog.txt")
     args = parser.parse_args()
     if not 0 < args.timeout_scale <= 10:
         parser.error("timeout scale must be positive and at most 10")
     try:
         if args.stage:
-            package = stage_flight(args, args.standard or "ntsc")
+            package = (stage_perf if args.perf else stage_flight)(args, args.standard or "ntsc")
             print(f"staged {package}", flush=True)
             return 0
         if smoke.emulator_is_running(args.emulator):

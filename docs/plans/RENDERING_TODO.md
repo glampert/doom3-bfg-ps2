@@ -5,7 +5,8 @@ section 19 gates, broken into concrete steps in the proposed order. Opened **202
 status as of **2026-11-25**: R0 and R1 done but for the hardware probes, R2 in progress (the
 lightmapped, textured world with material passes, the sky and chroma subdivision is done,
 declarations read their text on demand, the world's textures stream and translucent stages draw;
-the R2 gate remains), R3 to R9 not started.
+the R2 gate's emulator checks and the frame log are done, its console run and load-game remain),
+R3 to R9 not started.
 Tick items as they land; move a step's measurements into the plan's decision log
 (section 20) and its acceptance into [PORT_STATUS.md](../PORT_STATUS.md). Every step keeps
 the headless and 2D gates green (`make test-headless`, `test-renderer`, `test-ui`) and the
@@ -367,6 +368,22 @@ production link free of test inputs. Section numbers in parentheses point into t
       return the ledger to baseline; per-device read rates recorded (the loader's `aio::GetStats`
       counts bytes, chunks and the cycles inside the reads), and the streaming's misses on a
       console's USB and HDD; first hardware frame log.
+  - [x] Probes (2026-11-25, `make test-world-retail`, both standards): the load's area, portal and
+        node counts equal the `.bproc`'s; 438 sampled `PointInArea` answers and the
+        `AreasAreConnected` groups of every attribute (doorway open, closed as a door, reopened)
+        equal `world_probes.py`'s walk over the `.bproc`'s nodes and portals; the sound world's
+        own portal walk (`ResolveOrigin`) from the start to the corridor goes 438.93 units with the
+        doorway open and 588.93 closed, `s_doorDistanceAdd` more. The game's door entity closing the
+        portal waits for M3; the render and sound worlds it acts through are checked.
+  - [x] Load/unload cycles: a warm cycle and three more, each streaming the start view's textures,
+        return the ledger exactly (debug: 2,328,305 / 2,354,172 bytes, 3,398 allocations).
+        Load-game waits for M3.
+  - [x] Frame log (`ps2_framelog`, every build) and camera path (`ps2_world path`, the generated
+        `config/world_mars_city1_tour.path`: 7,244 frames through 50 of the 56 areas); the gate
+        plays 240 frames into it. `make BUILD=release stage-perf-world-retail` stages the console
+        run. Read rates: `ps2_world loader` and the log's `FLOG#loader` (`host:` in PCSX2 only).
+  - [ ] Console run: the release tour's frame log on a console from USB and from the HDD (read
+        rates, streaming misses, the first hardware frame times).
 
 ## R3: layers, switches, fog and blend lights
 

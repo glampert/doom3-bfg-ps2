@@ -26,6 +26,7 @@ images as PNGs for inspection."""
 from __future__ import annotations
 
 import argparse
+from collections import namedtuple
 import hashlib
 import json
 import math
@@ -192,13 +193,25 @@ def bproc_areas(data: bytes) -> tuple:
     """The area models of a .bproc as {area: [(material, vertices, indices)]}, vertices as (position,
     normal bytes), and the portals as (area a, area b, points). The C++ reader (proc.cpp) is the
     strict one; this one only needs the same geometry."""
+    world = bproc_world(data)
+    return world.areas, world.portals
+
+
+# A .bproc as id's proc loader takes it: the area models, the portals, the area nodes (each plane a, b,
+# c, d, then child 0 and 1: 0 for solid, -1 - area for an area leaf, else a node, as ReadBinaryNodes
+# reads them) and the area count the portal section declares (numPortalAreas).
+BProc = namedtuple("BProc", "areas portals nodes area_count")
+
+
+def bproc_world(data: bytes) -> BProc:
+    """bproc_areas' areas and portals, the area nodes and the declared area count."""
     reader = _Reader(data)
     if reader.take(4) != b"PRO\x01":
         raise ValueError("not a version 1 .bproc")
     entries = reader.big()
     reader.string()
     reader.take(8)
-    areas, portals = {}, []
+    areas, portals, nodes, area_count = {}, [], [], 0
     for _ in range(entries):
         kind = reader.string().lower()
         if kind in ("model", "shadowmodel"):
@@ -236,18 +249,24 @@ def bproc_areas(data: bytes) -> tuple:
             if name.startswith("_area"):
                 areas[int(name[5:])] = surfaces
         elif kind == "interareaportals":
-            reader.big()
+            area_count = reader.big()
             for _ in range(reader.big()):
                 count, a, b = reader.big(), reader.big(), reader.big()
                 points = [struct.unpack(">3f", reader.take(12)) for _ in range(count)]
                 portals.append((a, b, points))
         elif kind == "nodes":
-            reader.take(24 * reader.big())
+            for _ in range(reader.big()):
+                nodes.append(struct.unpack(">4f2i", reader.take(24)))
         else:
             raise ValueError(f"unexpected .bproc entry {kind}")
     if reader.cursor != len(data):
         raise ValueError("bytes after the last .bproc entry")
-    return areas, portals
+    return BProc(areas, portals, nodes, area_count)
+
+
+def retail_bproc(data: Path, job: dict) -> BProc:
+    """bproc_world over the job's map, read from its last container."""
+    return bproc_world(read_container_file(data / job["containers"][-1], f"generated/{job['map']}.bproc"))
 
 
 def material_color(job: dict, material: str) -> list:

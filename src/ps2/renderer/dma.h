@@ -133,10 +133,13 @@ PS2_ALWAYS_INLINE bool InFlight()
 
 struct Stats
 {
-    u32 peakBytes; // most ring bytes a frame's chains occupied
-    u32 kicks;     // VIF1 chains started
-    u32 drains;    // full rings that forced a kick, wait and restart mid-frame
-    u32 sprDrains; // scratchpad halves drained by the fromSPR DMA
+    u32 peakBytes;  // most ring bytes a frame's chains occupied
+    u32 kicks;      // VIF1 chains started
+    u32 drains;     // full rings that forced a kick, wait and restart mid-frame
+    u32 sprDrains;  // scratchpad halves drained by the fromSPR DMA
+    u32 frameBytes; // ring bytes the last ended frame's chains occupied
+    u32 waits;      // WaitIdle calls that found a chain still running
+    u64 waitCycles; // EE cycles spent in them (COP0 Count), waiting for VU1 and the GS
 };
 
 const Stats & GetStats();

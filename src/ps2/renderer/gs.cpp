@@ -469,11 +469,14 @@ PS2_COLD_FUNC void RemoveVblankWait()
     }
 }
 
+static PresentStats s_presentStats = {};
+
 // Returns once a vertical blank has started since the call: CSR's VSINT is cleared first, so the
 // edge is a new one (a vblank that passed while the frame was built is not the one to present on).
 // The thread sleeps until the vblank's interrupt, then confirms the event on CSR.
 static void WaitVsync(const char * name)
 {
+    const u32 start = ReadCycles();
     *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
 
     if (s_vblankSema >= 0)
@@ -489,6 +492,8 @@ static void WaitVsync(const char * name)
     }
 
     WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, name);
+    s_presentStats.vsyncCycles += ReadCycles() - start;
+    ++s_presentStats.vsyncs;
 }
 
 } // namespace
@@ -709,6 +714,12 @@ void Present(DrawContext context, PresentMode mode)
     }
 
     graph_enable_output();
+    ++s_presentStats.presents;
+}
+
+const PresentStats & GetPresentStats()
+{
+    return s_presentStats;
 }
 
 math::Vec4 WindowScale()

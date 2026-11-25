@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # ================================================================================================
 # File: test_world_retail_runner.py
-# Brief: Reject false retail-world acceptance: a load that differs from the cook report, broken portal
-# culling, wrong traces, a missing display change or capture, an unfinished unload or ledger; and
-# check the reference's depth-tie and far-plane rules.
+# Brief: Reject false retail-world acceptance: a load that differs from the cook report or the .bproc, broken
+# portal culling, wrong traces or probes, a short frame log, a missing display change or capture, an
+# unfinished unload, a drifting cycle ledger; check the probe models and the reference's depth-tie and
+# far-plane rules.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -13,9 +14,12 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools/scripts"))
+import frame_log
 import run_world
 import run_world_retail as runner
+import world_probes
 import world_reference
+import world_tour
 from test_renderer_capture import tga
 from test_world_runner import WORLD, decals_line, expected_switch_line, trace_line
 
@@ -25,6 +29,58 @@ AREA_BATCHES = {2: 64, 50: 47, 51: 51}
 REPORT = {"areas": 56, "surfaces": 1791, "batches": 2138, "portals": 55, "nodes": 9783, "static_models": {"merged_entities": 357},
           "material_names": ["textures/a", "textures/skies/b"],
           "area_list": [{"batches": AREA_BATCHES.get(area, 1)} for area in range(56)]}
+
+
+# The probes' expected answers (expected_probes reads them from the .bproc): three samples, the
+# doorway alone joining area 2 to the rest, the sound 150 units further with it closed.
+OPEN_GROUPS = [0] * 56
+CLOSED_GROUPS = [2 if area == 2 else 0 for area in range(56)]
+SOUNDS = [{"listener_area": 2, "source_area": 50, "direct": 438.93, "spatialized": spatialized} for spatialized in (438.93, 588.93, 438.93)]
+PROBES = {"areas": 56, "portals": 55, "nodes": 9783, "samples": [((1.0, 2.0, 3.0), 2), ((9000.0, 0.0, 0.0), -1), ((4.0, 5.0, 6.0), 50)],
+          "groups": [OPEN_GROUPS, CLOSED_GROUPS, OPEN_GROUPS], "sounds": SOUNDS}
+
+
+def probe_step(areas=None, groups=None, portals=None, sounds=None, loader=True):
+    """The probe step as a good session logs it, with overrides."""
+    found = areas or [area for _, area in PROBES["samples"]]
+    log = f"[D3BFG] WORLD area points={len(found)} areas={','.join(str(area) for area in found)}\n"
+    states = groups or PROBES["groups"]
+    blocking = portals or [7, 0]
+    walks = sounds or [sound["spatialized"] for sound in SOUNDS]
+    for state in range(3):
+        for kind in runner.CONNECTED_KINDS:
+            log += f"[D3BFG] WORLD connected kind={kind} first=0 groups={','.join(str(group) for group in states[state])}\n"
+        log += (f"[D3BFG] WORLD sound listener_area=2 source_area=50 direct=438.93 spatialized={walks[state]:.2f} "
+                f"origin=-3772.00,-3000.00,260.00 door_add=150.00\n")
+        if state < 2:
+            log += f"[D3BFG] WORLD portal handle={runner.DOORWAY_PORTAL[0]} blocking={blocking[state]}\n"
+    if loader:
+        log += "[D3BFG] LOADER bytes=3000000 chunks=120 seeks=40 io_us=500000 kib_per_s=5859 queue=0 device=host:\n"
+    return log + echo("probes")
+
+
+def tour_step(frames=runner.TOUR_FRAMES, rows=runner.TOUR_FRAMES, textures=None):
+    log = f"[D3BFG] WORLD path started file={runner.TOUR_PACKAGE_PATH} keys=441 frames=7244 playing={frames}\n"
+    log += f"[D3BFG] FRAMELOG started frames={runner.TOUR_FRAMES + 1} bytes=41452 label=map=maps/game/mars_city1 load_ms=900 standard=NTSC\n"
+    log += f"[D3BFG] WORLD path done keys=441 frames={frames} eye=1.00,2.00,3.00\n"
+    log += f"[D3BFG] FRAMELOG written path=host:framelog.txt rows={rows} bytes=40000 frame_us_mean=40000 frame_us_max=90000\n"
+    log += "[D3BFG] LOADER bytes=3200000 chunks=130 seeks=44 io_us=520000 kib_per_s=6000 queue=0 device=host:\n"
+    return log + textures_line(**(textures or {})) + echo("tour")
+
+
+def cycle_steps(ledgers=None):
+    log = ""
+    for index in range(runner.CYCLES + 1):
+        # Each cycle loads and unloads the map again, with its world lines.
+        log += WORLD.format(event="loaded", areas=56, portals=55, viewing=0, frame=0, views=0, area=-1, entities=0, drawn=0, batches=0)
+        log += expected_switch_line(run_world.default_display("ntsc"))
+        log += WORLD.format(event="unloaded", areas=1, portals=0, viewing=0, frame=0, views=0, area=0, entities=1, drawn=1, batches=64)
+        log += expected_switch_line(run_world.front_end_display("ntsc"))
+        requested, backing, allocations = (ledgers or {}).get(index, (5000000, 5200000, 22000))
+        log += (f"[D3BFG] MEMORY cycle{index} requested={requested} backing={backing} allocations={allocations} "
+                f"peak_requested=1 peak_backing=1\n")
+        log += echo(f"cycle{index}")
+    return log
 
 
 def echo(name):
@@ -75,7 +131,7 @@ def share_step(frame, shown=None, closed=None):
 
 
 def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final=0/0/0", report=REPORT,
-            decals=(None, GRATE_DECAL, None), textures=None, fly=None, share=None):
+            decals=(None, GRATE_DECAL, None), textures=None, fly=None, share=None, probes=None, tour=None, cycles=None):
     """A retail world session's log as PCSX2's file log stamps it, with per-view and per-trace overrides."""
     counts = dict(report, **(load or {}))
     log = echo("ready") + echo("begin")
@@ -107,6 +163,8 @@ def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final
         log += textures_line(**(textures or {}).get(view.name, {})) + echo(view.name)
         frame += 10
     log += share_step(frame, **(share or {}))
+    log += probe_step(**(probes or {}))
+    log += tour_step(**(tour or {}))
     if fly is not None:
         log += flight(frame, **fly)
     log += decals_line(**(decals[1] or {}))
@@ -114,13 +172,14 @@ def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final
                         batches=64)
     log += decals_line(**(decals[2] or {})) + echo("unloaded")
     log += expected_switch_line(run_world.front_end_display("ntsc")) + echo("frontend")
+    log += cycle_steps(**(cycles or {}))
     log += f"Memory baseline={memory} peak=5795973/5876776 arena=5915604\n"
     log += "======== Shutdown complete ========\n"
     return "".join("[    1.0000] " + line for line in log.splitlines(keepends=True))
 
 
-def classify(log, fly=False):
-    return runner.classify(log, IDENTITY, "ntsc", REPORT, fly)
+def classify(log, fly=False, probes=PROBES):
+    return runner.classify(log, IDENTITY, "ntsc", REPORT, probes, fly)
 
 
 class RetailWorldRunnerTests(unittest.TestCase):
@@ -159,7 +218,7 @@ class RetailWorldRunnerTests(unittest.TestCase):
         strips = dict(REPORT, batches=2286, area_list=[{"batches": batches + 5} for batches in
                                                        (entry["batches"] for entry in REPORT["area_list"])])
         self.assertEqual(runner.view_batches(REPORT, runner.VIEWS[2]), 162)
-        self.assertTrue(runner.classify(session(report=strips), IDENTITY, "ntsc", strips)[0])
+        self.assertTrue(runner.classify(session(report=strips), IDENTITY, "ntsc", strips, PROBES)[0])
         self.assertFalse(classify(session(report=strips))[0])
 
     def test_load_must_match_the_cook_report(self):
@@ -267,6 +326,114 @@ class RetailWorldRunnerTests(unittest.TestCase):
             self.assertEqual(text, "textures/a { solid collision forceOverlays }\ntextures/skies/b { solid collision forceOverlays }\n")
             self.assertTrue((package / "base/maps/game/mars_city1.d3wd").is_file())
             self.assertTrue((package / "base/maps/game/mars_city1.d3tx").is_file())
+
+
+class R2GateTests(unittest.TestCase):
+    """The probes, the tour's frame log and the load cycles."""
+
+    def test_complete_session_reports_the_gate(self):
+        passed, reason, details = classify(session())
+        self.assertTrue(passed, reason)
+        self.assertEqual(details["probes"]["samples"], 3)
+        self.assertEqual(details["probes"]["sound"], [438.93, 588.93, 438.93])
+        self.assertEqual(details["tour"]["rows"], runner.TOUR_FRAMES)
+        self.assertEqual(details["cycles"]["ledger"], {"requested": 5000000, "backing": 5200000, "allocations": 22000})
+
+    def test_counts_must_match_the_bproc(self):
+        passed, reason, _ = classify(session(), probes=dict(PROBES, nodes=9782))
+        self.assertFalse(passed)
+        self.assertIn(".bproc", reason)
+
+    def test_probes_must_answer_as_the_bproc(self):
+        for change, words in (({"areas": [2, -1, 51]}, "PointInArea"), ({"areas": [2, -1]}, "PointInArea"),
+                              ({"groups": [OPEN_GROUPS, OPEN_GROUPS, OPEN_GROUPS]}, "AreasAreConnected"),
+                              ({"portals": [1, 0]}, "doorway"), ({"sounds": [438.93, 438.93, 438.93]}, "sound"),
+                              ({"loader": False}, "loader")):
+            with self.subTest(change=change):
+                passed, reason, _ = classify(session(probes=change))
+                self.assertFalse(passed)
+                self.assertIn(words, reason)
+
+    def test_tour_must_fill_the_frame_log(self):
+        for change in ({"frames": runner.TOUR_FRAMES - 1}, {"rows": runner.TOUR_FRAMES - 1}, {"textures": {"stream_failures": 1}}):
+            with self.subTest(change=change):
+                self.assertFalse(classify(session(tour=change))[0])
+
+    def test_cycles_must_return_to_the_warm_ledger(self):
+        # The warm cycle may differ from startup; every cycle after it must equal it exactly.
+        self.assertTrue(classify(session(cycles={"ledgers": {0: (1, 2, 3), 1: (1, 2, 3), 2: (1, 2, 3), 3: (1, 2, 3)}}))[0])
+        passed, reason, _ = classify(session(cycles={"ledgers": {2: (5000064, 5200064, 22001)}}))
+        self.assertFalse(passed)
+        self.assertIn("cycle 2", reason)
+
+    def test_point_in_area_walks_the_nodes(self):
+        # One node splitting x = 0: area 0 in front (x > 0), solid behind; a point on the plane is
+        # neither side's for certain.
+        nodes = [(1.0, 0.0, 0.0, 0.0, -1, 0)]
+        self.assertEqual(world_probes.point_in_area(nodes, (5.0, 0.0, 0.0)), 0)
+        self.assertEqual(world_probes.point_in_area(nodes, (-5.0, 0.0, 0.0)), -1)
+        self.assertIsNone(world_probes.point_in_area(nodes, (0.01, 0.0, 0.0)))
+        self.assertEqual(world_probes.point_in_area(nodes, (0.0, 0.0, 0.0), margin=0.0), -1)
+
+    def test_connected_groups_follow_the_open_portals(self):
+        square = [(0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 1.0, 1.0), (0.0, 0.0, 1.0)]
+        portals = [(0, 1, square), (1, 2, square), (3, 4, square)]
+        self.assertEqual(world_probes.connected_groups(5, portals), [0, 0, 0, 3, 3])
+        self.assertEqual(world_probes.connected_groups(5, portals, frozenset({2})), [0, 0, 2, 3, 3])
+
+    def test_sound_walk_crosses_the_doorway(self):
+        # Two areas split by x = 0 (area 0 at x > 0), joined by a doorway square in that plane: a sound
+        # straight through it travels the direct line, and the closed doorway adds its distance.
+        nodes = [(1.0, 0.0, 0.0, 0.0, -1, -2)]
+        doorway = [(0.0, -32.0, -32.0), (0.0, 32.0, -32.0), (0.0, 32.0, 32.0), (0.0, -32.0, 32.0)]
+        portals = [(0, 1, doorway)]
+        open_walk = world_probes.sound_distance(portals, nodes, (100.0, 0.0, 0.0), (-100.0, 0.0, 0.0), 4096.0)
+        self.assertEqual((open_walk["listener_area"], open_walk["source_area"]), (0, 1))
+        self.assertAlmostEqual(open_walk["spatialized"], 200.0)
+        closed = world_probes.sound_distance(portals, nodes, (100.0, 0.0, 0.0), (-100.0, 0.0, 0.0), 4096.0, frozenset({1}))
+        self.assertAlmostEqual(closed["spatialized"], 350.0)
+        # Off to the side, the walk bends through the doorway's edge: longer than the straight line.
+        bent = world_probes.sound_distance(portals, nodes, (100.0, 200.0, 0.0), (-100.0, 200.0, 0.0), 4096.0)
+        self.assertGreater(bent["spatialized"], bent["direct"] + 1.0)
+        # Out of reach: the maximum.
+        self.assertEqual(world_probes.sound_distance(portals, nodes, (100.0, 0.0, 0.0), (-100.0, 0.0, 0.0), 150.0)["spatialized"], 150.0)
+
+    def test_tour_keyframes_play_as_the_target_steps_them(self):
+        keys = world_tour.keyframes([(0.0, 0.0, 0.0), (70.0, 0.0, 0.0), (70.0, 70.0, 0.0)])
+        # Walk 10 frames east, turn 90 degrees in 15, walk 10 frames north.
+        self.assertEqual([key[0] for key in keys], [0, 10, 15, 10])
+        self.assertEqual(world_tour.path_frames(keys), 36)
+        self.assertEqual(keys[2][4], 90.0)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "tour.path"
+            path.write_text(world_tour.format_path(keys, "maps/test", []))
+            self.assertEqual(world_tour.read_path(path), [tuple(float(v) if i else int(v) for i, v in enumerate(key)) for key in keys])
+        # The committed tour reads back within ps2_world path's limits.
+        tour = world_tour.read_path(runner.TOUR)
+        self.assertEqual(tour[0][0], 0)
+        self.assertLessEqual(len(tour), world_tour.MAX_KEYS)
+        self.assertGreater(world_tour.path_frames(tour), runner.TOUR_FRAMES)
+
+    def test_frame_log_parses_and_summarises(self):
+        header = "FLOG#hdr,frame," + ",".join(frame_log.TIME_COLUMNS) + ",stream_wait_ms,area,areas,entities," + \
+            ",".join(frame_log.COUNT_COLUMNS) + ",x,y,z,yaw"
+        columns = header.split(",")[1:]
+        rows = []
+        for frame in range(3):
+            values = {name: 0 for name in columns}
+            values.update(frame=frame, frame_us=33000 + frame * 10000, gpu_us=1000, batches=100 + frame)
+            rows.append("FLOG," + ",".join(str(values[name]) for name in columns))
+        text = "\n".join(["FLOG#build,release", header] + rows + ["FLOG#loader,bytes=10,chunks=1,seeks=1,io_us=5,kib_per_s=1", "FLOG#end,3"])
+        summary = frame_log.summarize(frame_log.parse(text))
+        self.assertTrue(summary["complete"])
+        self.assertEqual(summary["stages"]["frame_us"]["max"], 53000)
+        self.assertEqual(summary["over_budget"]["33367"], 2)
+        self.assertEqual(summary["worst"][0]["frame"], 2)
+        self.assertIn("53000", frame_log.format_summary(summary, summary))
+        # A file without its end row was cut short.
+        self.assertFalse(frame_log.summarize(frame_log.parse(text.replace("FLOG#end,3", "")))["complete"])
+        with self.assertRaises(ValueError):
+            frame_log.parse(text.replace("FLOG,0,", "FLOG,0,1,"))
 
 
 class ReferenceRuleTests(unittest.TestCase):

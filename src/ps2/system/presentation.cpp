@@ -13,7 +13,10 @@
 #include "ps2/renderer/vram.h"
 #include "ps2/renderer/world.h"
 #include "ps2/renderer/world_textures.h"
+#include "ps2/system/aio.h"
 #include "ps2/system/filesystem.h"
+#include "ps2/system/frame_log.h"
+#include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 #include "ps2/system/runtime.h"
 #include "ps2/ui/draw.h"
@@ -24,6 +27,9 @@
 #include <cerrno>
 #include <idlib/precompiled.h>
 #include <libpad.h>
+
+// The sound world's portal walk (idSoundWorldLocal::ResolveOrigin), for ps2_world sound.
+#include <sound/snd_local.h>
 
 namespace
 {
@@ -71,6 +77,10 @@ static ps2::renderer::DisplayMode s_preferred;
 
 // A render world loaded by ps2_world stands in for a game map until production loads maps.
 static bool s_worldLoaded = false;
+
+// The map ps2_world loaded last and how long its load took, for the frame log's notes.
+static idStrStatic<MAX_OSPATH> s_worldName;
+static int s_worldLoadMs = 0;
 
 void RequireConsole(const idCmdArgs & args, int count)
 {
@@ -187,6 +197,191 @@ PS2_COLD_FUNC idVec3 Point(const idCmdArgs & args, int first)
 {
     return idVec3(static_cast<float>(atof(args.Argv(first))), static_cast<float>(atof(args.Argv(first + 1))),
                   static_cast<float>(atof(args.Argv(first + 2))));
+}
+
+// Starts the world view at 'eye' looking along 'axis' (forward, left, up) with a 90-degree vertical
+// field of view on the TV's 4:3 picture: tan(fov_x / 2) = 4/3 x tan(45).
+void SetView(const idVec3 & eye, const idMat3 & axis)
+{
+    memset(static_cast<void *>(&s_view), 0, sizeof(s_view));
+    s_view.vieworg = eye;
+    s_view.viewaxis = axis;
+    s_view.fov_y = 90.0f;
+    s_view.fov_x = RAD2DEG(2.0f * idMath::ATan(ps2::system::video::kDisplayAspect, 1.0f));
+    s_worldView = true;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Camera path (ps2_world path)
+// ------------------------------------------------------------------------------------------------
+
+// A fixed camera path for the frame log: keyframes read from a file under base/, one per line as
+// FRAMES X Y Z YAW PITCH (degrees, pitch positive looking down), each reached FRAMES frames after the
+// one before by straight steps (yaw the short way round), 0 cutting to it. The path advances one
+// keyframe step per Common frame, whatever the frame took, so every run draws the same frames;
+// it plays 1 + the sum of max(FRAMES, 1) over the keyframes after the first.
+struct PathKey
+{
+    idVec3 eye;
+    float yaw;
+    float pitch;
+    int frames;
+};
+
+static constexpr int kMaxPathKeys = 4096;
+static constexpr int kMaxPathSegmentFrames = 3600;
+
+static PathKey * s_path = nullptr;
+static int s_pathKeys = 0;
+static int s_pathTarget = 0; // the keyframe the path moves toward
+static int s_pathStep = 0;   // frames into the segment that ends there
+static int s_pathFrame = 0;  // frames played
+static int s_pathLimit = 0;  // frames to play
+static bool s_pathDone = false;
+// The frame the path starts in, from its command, draws its first pose without playing a frame: the
+// path's frames are the ones after, which a frame log started with it records from their start.
+static bool s_pathStarting = false;
+
+PS2_COLD_FUNC void FreePath()
+{
+    ps2::system::heap::Free(s_path);
+    s_path = nullptr;
+    s_pathKeys = 0;
+    s_pathDone = false;
+}
+
+PS2_COLD_FUNC void LogPath(const char * event)
+{
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD path %s keys=%d frames=%d eye=%.2f,%.2f,%.2f\n", event, s_pathKeys, s_pathFrame,
+             static_cast<double>(s_view.vieworg.x), static_cast<double>(s_view.vieworg.y), static_cast<double>(s_view.vieworg.z));
+}
+
+// The frames a path of 'count' keyframes plays.
+PS2_COLD_FUNC int PathFrames(const PathKey * keys, int count)
+{
+    int frames = count > 0 ? 1 : 0;
+
+    for (int index = 1; index < count; ++index)
+    {
+        frames += keys[index].frames > 0 ? keys[index].frames : 1;
+    }
+
+    return frames;
+}
+
+// Reads the keyframes of 'name' (relative to base/); false, logged, when the file is missing or
+// malformed.
+PS2_COLD_FUNC bool LoadPath(const char * name)
+{
+    void * buffer = nullptr;
+    const int length = fileSystem->ReadFile(name, &buffer);
+
+    if (length <= 0 || buffer == nullptr)
+    {
+        ps2::Log(ps2::LogLevel::Error, "[D3BFG] WORLD path cannot read %s\n", name);
+        return false;
+    }
+
+    idLexer lexer(LEXFL_NOERRORS | LEXFL_NOWARNINGS | LEXFL_NOFATALERRORS);
+    lexer.LoadMemory(static_cast<const char *>(buffer), length, name);
+    auto * keys = static_cast<PathKey *>(ps2::system::heap::TryAlloc(sizeof(PathKey) * kMaxPathKeys, TAG_DEBUG));
+    int count = 0;
+    bool valid = keys != nullptr;
+    idToken token;
+
+    while (valid && lexer.ReadToken(&token))
+    {
+        if (count == kMaxPathKeys || token.type != TT_NUMBER || (token.subtype & TT_INTEGER) == 0) [[unlikely]]
+        {
+            valid = false;
+            break;
+        }
+
+        PathKey & key = keys[count];
+        key.frames = token.GetIntValue();
+        key.eye.x = lexer.ParseFloat();
+        key.eye.y = lexer.ParseFloat();
+        key.eye.z = lexer.ParseFloat();
+        key.yaw = lexer.ParseFloat();
+        key.pitch = lexer.ParseFloat();
+        valid = !lexer.HadError() && key.frames >= 0 && key.frames <= kMaxPathSegmentFrames && (count > 0 || key.frames == 0) &&
+                idMath::Fabs(key.pitch) < 90.0f;
+        ++count;
+    }
+
+    fileSystem->FreeFile(buffer);
+
+    if (!valid || count < 2) [[unlikely]]
+    {
+        ps2::system::heap::Free(keys);
+        ps2::Log(ps2::LogLevel::Error, "[D3BFG] WORLD path %s refused: keyframe %d is not FRAMES X Y Z YAW PITCH (the first with FRAMES 0, "
+                 "at most %d frames and %d keyframes, pitch within 90 degrees) or the path has fewer than two\n",
+                 name, count, kMaxPathSegmentFrames, kMaxPathKeys);
+        return false;
+    }
+
+    FreePath();
+    s_path = keys;
+    s_pathKeys = count;
+    return true;
+}
+
+// The pose of the path's next frame, before the view draws; the frame after the last ends it.
+void UpdatePath()
+{
+    if (s_pathStarting)
+    {
+        s_pathStarting = false;
+        return;
+    }
+
+    if (s_pathDone)
+    {
+        LogPath("done");
+        const int frames = s_pathFrame;
+        FreePath();
+
+        // The console shows how the run ended: a console's only screen.
+        if (ps2::system::frame_log::Recording())
+        {
+            const bool written = ps2::system::frame_log::Stop();
+            common->Printf("Camera path done after %d frames; frame log %s framelog.txt in %s\n", frames, written ? "written to" : "NOT written to",
+                           ps2::system::runtime::PackageRoot());
+        }
+        else
+        {
+            common->Printf("Camera path done after %d frames\n", frames);
+        }
+
+        return;
+    }
+
+    idVec3 eye = s_path[0].eye;
+    float yaw = s_path[0].yaw;
+    float pitch = s_path[0].pitch;
+
+    if (s_pathFrame > 0)
+    {
+        const PathKey & from = s_path[s_pathTarget - 1];
+        const PathKey & to = s_path[s_pathTarget];
+        const int frames = to.frames > 0 ? to.frames : 1;
+        ++s_pathStep;
+        const float t = static_cast<float>(s_pathStep) / static_cast<float>(frames);
+        eye = from.eye + t * (to.eye - from.eye);
+        yaw = from.yaw + t * idMath::AngleNormalize180(to.yaw - from.yaw);
+        pitch = from.pitch + t * (to.pitch - from.pitch);
+
+        if (s_pathStep == frames)
+        {
+            ++s_pathTarget;
+            s_pathStep = 0;
+        }
+    }
+
+    s_view.vieworg = eye;
+    s_view.viewaxis = idAngles(pitch, yaw, 0.0f).ToMat3();
+    ++s_pathFrame;
+    s_pathDone = s_pathTarget == s_pathKeys || s_pathFrame == s_pathLimit;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -408,9 +603,144 @@ void StopFly()
 
 #endif // PS2_D3BFG_DEBUG
 
+// ------------------------------------------------------------------------------------------------
+// World queries (ps2_world area, connected, sound, loader, path)
+// ------------------------------------------------------------------------------------------------
+
+static constexpr int kMaxAreaPoints = 16;
+
+// PointInArea for each point of the command (X Y Z from argument 2 on), on one line.
+PS2_COLD_FUNC void LogAreas(const idRenderWorld & world, const idCmdArgs & args)
+{
+    const int points = (args.Argc() - 2) / 3;
+    char areas[kMaxAreaPoints * 8] = {};
+    int used = 0;
+
+    for (int point = 0; point < points; ++point)
+    {
+        used += idStr::snPrintf(areas + used, static_cast<int>(sizeof(areas)) - used, point == 0 ? "%d" : ",%d",
+                                world.PointInArea(Point(args, 2 + 3 * point)));
+    }
+
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD area points=%d areas=%s\n", points, areas);
+}
+
+// The areas AreasAreConnected joins for each portal attribute, as each area's group: the lowest
+// area it is connected to. A line holds 64 areas.
+PS2_COLD_FUNC void LogConnectedAreas(const idRenderWorld & world)
+{
+    struct Kind
+    {
+        const char * name;
+        portalConnection_t connection;
+    };
+
+    static constexpr Kind kKinds[] = { { "view", PS_BLOCK_VIEW }, { "location", PS_BLOCK_LOCATION }, { "air", PS_BLOCK_AIR } };
+    static constexpr int kLineAreas = 64;
+    const int areas = world.NumAreas();
+
+    for (const Kind & kind : kKinds)
+    {
+        for (int first = 0; first < areas; first += kLineAreas)
+        {
+            char groups[kLineAreas * 6] = {};
+            int used = 0;
+
+            for (int area = first; area < areas && area < first + kLineAreas; ++area)
+            {
+                int group = area;
+
+                for (int other = 0; other < area; ++other)
+                {
+                    if (world.AreasAreConnected(area, other, kind.connection))
+                    {
+                        group = other;
+                        break;
+                    }
+                }
+
+                used += idStr::snPrintf(groups + used, static_cast<int>(sizeof(groups)) - used, area == first ? "%d" : ",%d", group);
+            }
+
+            ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD connected kind=%s first=%d groups=%s\n", kind.name, first, groups);
+        }
+    }
+}
+
+// The distance the sound world gives a sound at 'source' heard from 'listener', as an emitter's
+// Update works it out: the straight line in the listener's area, otherwise the shortest walk through
+// the portals (ResolveOrigin), each closed one adding s_doorDistanceAdd, or 'maxDistance' when no
+// walk is shorter. Units, not the emitter's metres.
+PS2_COLD_FUNC void LogSoundPath(const idVec3 & listener, const idVec3 & source, float maxDistance)
+{
+    if (!(maxDistance > 0.0f)) [[unlikely]]
+    {
+        ps2::FatalError("ps2_world sound needs a positive maximum distance");
+    }
+
+    // The one idSoundWorld; an emitter of its own on the stack holds the walk's result alone.
+    auto * soundWorld = static_cast<idSoundWorldLocal *>(common->SW());
+    soundWorld->PlaceListener(listener, mat3_identity, 0);
+    idSoundEmitterLocal emitter;
+    const int listenerArea = soundWorld->listener.area;
+    const int sourceArea = soundWorld->renderWorld != nullptr ? soundWorld->renderWorld->PointInArea(source) : -1;
+    emitter.spatializedDistance = (source - listener).LengthFast();
+    emitter.spatializedOrigin = source;
+
+    if (listenerArea != -1 && sourceArea != -1 && sourceArea != listenerArea)
+    {
+        emitter.spatializedDistance = maxDistance;
+        soundWorld->ResolveOrigin(0, nullptr, sourceArea, 0.0f, source, &emitter);
+    }
+
+    const idVec3 & origin = emitter.spatializedOrigin;
+    ps2::Log(ps2::LogLevel::Info,
+             "[D3BFG] WORLD sound listener_area=%d source_area=%d direct=%.2f spatialized=%.2f origin=%.2f,%.2f,%.2f door_add=%.2f\n",
+             listenerArea, sourceArea, static_cast<double>((source - listener).LengthFast()), static_cast<double>(emitter.spatializedDistance),
+             static_cast<double>(origin.x), static_cast<double>(origin.y), static_cast<double>(origin.z),
+             static_cast<double>(cvarSystem->GetCVarFloat("s_doorDistanceAdd")));
+}
+
+// The background loader's totals since boot, and its read rate: bytes over the time spent inside the
+// reads and seeks.
+PS2_COLD_FUNC void LogLoader()
+{
+    const ps2::system::aio::Stats stats = ps2::system::aio::GetStats();
+    const u64 microseconds = stats.ioCycles * 1000000U / ps2::system::aio::kCyclesPerSecond;
+
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] LOADER bytes=%u chunks=%u seeks=%u io_us=%llu kib_per_s=%llu queue=%u device=%s\n", stats.bytes,
+             stats.chunks, stats.seeks, static_cast<unsigned long long>(microseconds),
+             static_cast<unsigned long long>(microseconds != 0 ? static_cast<u64>(stats.bytes) * 1000000U / 1024U / microseconds : 0U),
+             stats.queueDepth, ps2::system::runtime::PackageRoot());
+}
+
+// Plays the path in 'name' from its first keyframe, 'limit' frames of it (all when 0).
+PS2_COLD_FUNC void StartPath(const char * name, int limit)
+{
+    StopFly();
+
+    if (limit < 0 || !LoadPath(name))
+    {
+        ps2::Log(ps2::LogLevel::Error, "[D3BFG] WORLD path not started: %s\n", name);
+        return;
+    }
+
+    const int frames = PathFrames(s_path, s_pathKeys);
+    SetView(s_path[0].eye, idAngles(s_path[0].pitch, s_path[0].yaw, 0.0f).ToMat3());
+    s_pathTarget = 1;
+    s_pathStep = 0;
+    s_pathFrame = 0;
+    s_pathLimit = limit > 0 && limit < frames ? limit : frames;
+    s_pathDone = false;
+    s_pathStarting = true;
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD path started file=%s keys=%d frames=%d playing=%d\n", name, s_pathKeys, frames, s_pathLimit);
+}
+
 // ps2_world load MAP | unload | view EX EY EZ TX TY TZ | trace SX SY SZ EX EY EZ |
-// decal OX OY OZ DX DY DZ SIZE DEPTH MATERIAL | decals | portal HANDLE open|closed | off | status, and
-// in debug builds fly (the free-flight camera above).
+// decal OX OY OZ DX DY DZ SIZE DEPTH MATERIAL | decals | portal HANDLE open|closed | area X Y Z... |
+// connected | sound LX LY LZ SX SY SZ MAX | loader | path FILE [FRAMES] | off | status, and in debug
+// builds fly (the free-flight camera above). The queries (area, connected, sound) answer as the
+// game's would: PointInArea, AreasAreConnected and the sound world's portal walk.
 // A view looks from the eye at the target with a 90-degree vertical field of view; a trace reports
 // the first world surface between two points. A decal projects a SIZE square of MATERIAL along
 // the direction D onto the surfaces around O, as the game's idGameLocal::ProjectDecal does it
@@ -438,6 +768,9 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     {
         s_worldView = false;
         StopFly();
+        FreePath();
+
+        const int start = Sys_Milliseconds();
 
         if (!world->InitFromMap(args.Argv(2)))
         {
@@ -447,7 +780,10 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         }
 
         s_worldLoaded = true;
+        s_worldName = args.Argv(2);
+        s_worldLoadMs = Sys_Milliseconds() - start;
         LogWorldStatus("loaded");
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD load_time map=%s ms=%d\n", s_worldName.c_str(), s_worldLoadMs);
         return;
     }
 
@@ -455,6 +791,7 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     {
         s_worldView = false;
         StopFly();
+        FreePath();
         s_worldLoaded = false;
         world->InitFromMap(nullptr);
         LogWorldStatus("unloaded");
@@ -473,15 +810,8 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         }
 
         // id's camera looks down its forward axis, with left and up completing it.
-        memset(static_cast<void *>(&s_view), 0, sizeof(s_view));
-        s_view.vieworg = eye;
-        s_view.viewaxis[0] = forward;
-        s_view.viewaxis[1] = left;
-        s_view.viewaxis[2] = forward.Cross(left);
-        // A 90 degree vertical field of view on the TV's 4:3 picture: tan(fov_x / 2) = 4/3 x tan(45).
-        s_view.fov_y = 90.0f;
-        s_view.fov_x = RAD2DEG(2.0f * idMath::ATan(ps2::system::video::kDisplayAspect, 1.0f));
-        s_worldView = true;
+        FreePath();
+        SetView(eye, idMat3(forward, left, forward.Cross(left)));
 
 #if PS2_D3BFG_DEBUG
         // A view set while flying moves the flight there.
@@ -556,7 +886,39 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
             ps2::FatalError("ps2_world portal needs a handle from 1 to %d and open or closed", world->NumPortals());
         }
 
-        world->SetPortalState(portal, closed ? PS_BLOCK_VIEW : PS_BLOCK_NONE);
+        // A closed door blocks everything (idMover_Binary, func_portal): the view, locations and air.
+        world->SetPortalState(portal, closed ? PS_BLOCK_ALL : PS_BLOCK_NONE);
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD portal handle=%d blocking=%d\n", portal, world->GetPortalState(portal));
+        return;
+    }
+
+    if (strcmp(verb, "area") == 0 && args.Argc() >= 5 && (args.Argc() - 2) % 3 == 0 && args.Argc() - 2 <= 3 * kMaxAreaPoints)
+    {
+        LogAreas(*world, args);
+        return;
+    }
+
+    if (strcmp(verb, "connected") == 0 && args.Argc() == 2)
+    {
+        LogConnectedAreas(*world);
+        return;
+    }
+
+    if (strcmp(verb, "sound") == 0 && args.Argc() == 9)
+    {
+        LogSoundPath(Point(args, 2), Point(args, 5), static_cast<float>(atof(args.Argv(8))));
+        return;
+    }
+
+    if (strcmp(verb, "loader") == 0 && args.Argc() == 2)
+    {
+        LogLoader();
+        return;
+    }
+
+    if (strcmp(verb, "path") == 0 && (args.Argc() == 3 || args.Argc() == 4))
+    {
+        StartPath(args.Argv(2), args.Argc() == 4 ? atoi(args.Argv(3)) : 0);
         return;
     }
 
@@ -564,6 +926,7 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
     {
         s_worldView = false;
         StopFly();
+        FreePath();
         return;
     }
 
@@ -623,6 +986,38 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
 ps2::system::video::Standard PolicyStandard()
 {
     return s_policy == Presentation::Pal ? ps2::system::video::Standard::Pal : ps2::system::video::Standard::Ntsc;
+}
+
+// ps2_framelog start [FRAMES] | stop | status: records a row per Common frame (FRAMES of them, 3600
+// when left out) and writes them to the package's framelog.txt when it stops, is full, or the camera
+// path it records ends (frame_log.h).
+PS2_COLD_FUNC void FrameLog(const idCmdArgs & args)
+{
+    const char * verb = args.Argc() >= 2 ? args.Argv(1) : "";
+
+    if (strcmp(verb, "start") == 0 && (args.Argc() == 2 || args.Argc() == 3))
+    {
+        const int frames = args.Argc() == 3 ? atoi(args.Argv(2)) : 3600;
+        char label[160];
+        idStr::snPrintf(label, sizeof(label), "map=%s load_ms=%d standard=%s", s_worldLoaded ? s_worldName.c_str() : "none",
+                        s_worldLoaded ? s_worldLoadMs : 0, ps2::system::video::Name(PolicyStandard()));
+        ps2::system::frame_log::Start(frames > 0 ? static_cast<u32>(frames) : 0U, label);
+        return;
+    }
+
+    if (strcmp(verb, "stop") == 0 && args.Argc() == 2)
+    {
+        ps2::system::frame_log::Stop();
+        return;
+    }
+
+    if (strcmp(verb, "status") == 0 && args.Argc() == 2)
+    {
+        ps2::system::frame_log::LogStatus();
+        return;
+    }
+
+    ps2::Log(ps2::LogLevel::Error, "usage: ps2_framelog start [FRAMES] | stop | status\n");
 }
 
 // The display mode the three cvars ask for, each refused with a warning and reset to 'mode's
@@ -748,14 +1143,25 @@ void Present()
 
     s_drawing = true;
 
+    // A redraw between Common frames is no frame of the log's.
+    if (s_inFrame)
+    {
+        ps2::system::frame_log::Mark(ps2::system::frame_log::Point::Present);
+    }
+
     ps2::ui::AdvanceScreen(s_inFrame);
     ps2::renderer::BeginFrame({ 16, 24, 40, 255 });
     ps2::renderer::scene::BeginFrame();
     {
         if (s_worldView)
         {
-#if PS2_D3BFG_DEBUG
             // Once per Common frame: a redraw between frames shows the same pose.
+            if (s_path != nullptr && s_inFrame)
+            {
+                UpdatePath();
+            }
+
+#if PS2_D3BFG_DEBUG
             if (s_fly && s_inFrame)
             {
                 UpdateFly();
@@ -763,14 +1169,35 @@ void Present()
 #endif // PS2_D3BFG_DEBUG
 
             common->RW()->RenderScene(&s_view);
+
+            if (s_inFrame)
+            {
+                const idVec3 & eye = s_view.vieworg;
+                ps2::system::frame_log::SetView(eye.x, eye.y, eye.z, s_view.viewaxis[0].ToYaw());
+            }
+        }
+
+        if (s_inFrame)
+        {
+            ps2::system::frame_log::Mark(ps2::system::frame_log::Point::View);
         }
 
         renderSystem->SetGLState(0);
         renderSystem->SetColor(colorWhite);
         ps2::ui::RenderScreen(s_inFrame);
         console->Draw(false);
+
+        if (s_inFrame)
+        {
+            ps2::system::frame_log::Mark(ps2::system::frame_log::Point::Ui);
+        }
     }
     ps2::renderer::EndFrame();
+
+    if (s_inFrame)
+    {
+        ps2::system::frame_log::Mark(ps2::system::frame_log::Point::Presented);
+    }
 
     if (s_captureName[0] != '\0')
     {
@@ -947,6 +1374,7 @@ PS2_COLD_FUNC void InitPresentation()
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, CMD_DESC("send a named native console key"));
     cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, CMD_DESC("capture the next completed console frame to a HostFs .tga basename"));
     cmdSystem->AddCommand("ps2_world", World, CMD_FL_SYSTEM, CMD_DESC("load, view and query a render world under the console"));
+    cmdSystem->AddCommand("ps2_framelog", FrameLog, CMD_FL_SYSTEM, CMD_DESC("record per-frame timings and counters to the package's framelog.txt"));
 
     // The pad and the debug keyboard feed the same event queue the HostFs commands do; the
     // package stages the keyboard driver's modules in its irx/ directory.
@@ -969,6 +1397,7 @@ void BeginPresentationFrame()
     }
     PS2_AssertMsg(!s_inFrame && !s_drawing, "nested console Common frame");
     s_inFrame = true;
+    ps2::system::frame_log::BeginFrame();
 }
 
 void PresentConsoleFrame(int frames)
@@ -1028,12 +1457,20 @@ PS2_COLD_FUNC void ShutdownPresentation(int frames)
     }
 
     StopFly();
+    FreePath();
+
+    // A log still recording is written: the run ended before its frames did.
+    if (frame_log::Recording())
+    {
+        frame_log::Stop();
+    }
 
     Log(LogLevel::Info, "[D3BFG] CONSOLE shutdown complete frames=%d presents=%u redraws=%u\n",
         frames, renderer::FrameCount(), s_redraws);
 
     SetEventGenerator(nullptr);
     input::ShutdownDevices();
+    cmdSystem->RemoveCommand("ps2_framelog");
     cmdSystem->RemoveCommand("ps2_world");
     cmdSystem->RemoveCommand("ps2_capture");
     cmdSystem->RemoveCommand("ps2_consoleKey");

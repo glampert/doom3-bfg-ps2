@@ -397,7 +397,8 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   draw areas 2, 50 and 51 through portal 55, which joins area 2 to the corridor
   (area 50); `corridor`, from inside area 50 looking back through the doorway, starts in area 50
   and draws areas 50 and 2; `closed` repeats `north` with `ps2_world portal 55
-  closed` and must draw area 2 alone; the portal is reopened after its status. Each
+  closed` (as a door closes it: every attribute blocked) and must draw area 2 alone; the portal is
+  reopened after its status. Each
   view is then drawn lit by its lightmaps alone (`ps2_world lightmaps on`, `world-<view>-light.tga`
   two frames later), then textured and lit (`ps2_world textures on`, `world-<view>-lit.tga`), and
   `ps2_world textures status` must report textures and lightmaps enabled, textures and pages
@@ -446,16 +447,50 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   to 99.9 %; with a missing area they drop to 39 to 96 % (the `north`, `doorway` and `corridor`
   captures against area 2 alone). The runner writes `references/ref-<view>-WxH.png` and
   `references/diff-world-<view>.png` (mismatches in magenta) beside the captures.
+- The probes (`probes` barrier, 2026-11-25; after the console step, before the flight), each held to
+  the `.bproc` as id's proc loader reads it (`world_probes.py`, apart from the cook): the load
+  line's areas, portals and nodes must equal the `.bproc`'s declared area count, portals and nodes
+  (56, 55, 9,783). `ps2_world area` asks
+  `PointInArea` for 438 points (six inside each area's bounds, both sides of every portal 4 units off
+  its centre, the map bounds' corners 512 units out), each away from every plane its walk tests by
+  0.05 units; every answer must equal the walk over the `.bproc`'s nodes (75 land in solid, every
+  area gets some). `ps2_world connected` must give each area the group the open portals join it to,
+  for the view, location and air attributes alike (five groups); with portal 55 closed
+  (`blocking=7`) area 2 must stand alone, and reopened (`blocking=0`) the groups come back.
+  `ps2_world sound` from the start's eye to a sound in the corridor (-3772, -3000, 260), 4,096 units
+  at most, must find areas 2 and 50 and the distance `world_probes.sound_distance` works out the way
+  `idSoundWorldLocal::ResolveOrigin` does, within one unit: 438.93 open, 588.93 closed (the doorway
+  is area 2's only portal, so the closed door adds `s_doorDistanceAdd`, 150, exactly), 438.93
+  reopened. The step ends with `ps2_world loader`, whose totals the runner records (`host:` in
+  PCSX2: about 1.8 MB in 199 reads and 129 seeks by then).
+- The tour (`tour` barrier): textured and lit, `ps2_framelog start 241` and `ps2_world path
+  maps/game/mars_city1_tour.path 240` play the first 240 frames of the frame log's camera tour; the
+  path must log its start and `done ... frames=240`, the frame log `written ... rows=240`, and the
+  texture status after it no refused read and no batch without a moved state block. The runner
+  checks `framelog.txt` (240 rows in order, each with a frame time, ending `FLOG#end,240`) and
+  writes `framelog-summary.txt` (`frame_log.py`). The tour's misses and fallbacks are recorded, not
+  limited: the walk does not wait for its reads (159 misses and 45 untextured fallbacks in both
+  standards in PCSX2, with 31 MB of texture uploads in NTSC and 90 MB in PAL over the 240 frames).
 - After the views `ps2_world decals` must report area 2's model holding the square: 1,024 units²
   within 0.5 % and bounds (-3648, -3432, 192) to (-3616, -3400, 192); after the unload, none.
-- `ps2_world unload` must leave the empty single-area world, the `frontend` barrier one switch
-  back to 32/16, and the session quits with the exact startup ledger. A session takes about
-  20 s. `test_world_retail_runner.py` rejects a load that differs from the cook report, broken
-  culling counts (the closed doorway drawing past area 2, the open one stopping at it, a wrong
-  start area), wrong traces, a missing display change, capture or ledger, a textured pass with a
-  fallback or no upload, and checks that the
-  closed view brackets its portal and that the package declares every cooked material; it also
-  checks the reference's depth-tie and far-plane rules.
+- `ps2_world unload` must leave the empty single-area world and the `frontend` barrier one switch
+  back to 32/16.
+- Load cycles (`cycle0` to `cycle3` barriers): four times, `ps2_world load`, the `east` view
+  textured and lit for six frames (its textures stream in), `ps2_world unload`, `clearHistory` (the
+  console history keeps a buffer per HostFs line) and `ps2_memory cycleN`. Each cycle switches the
+  display in and out of the map once. The first warms what a first load leaves resident; cycles 1
+  to 3 must each leave the requested bytes, backing bytes and allocations exactly where it did
+  (debug, 2026-11-25: 2,328,305 / 2,354,172 / 3,398 in both standards). The session then quits
+  with the exact startup ledger. A session takes about 25 s. `test_world_retail_runner.py`
+  rejects a load that differs from the cook report or the `.bproc`, broken culling counts (the
+  closed doorway drawing past area 2, the open one stopping at it, a wrong start area), wrong
+  traces, a probe that differs from the model (a sample's area, a group, a doorway that does not
+  block everything, a sound the closed doorway does not lengthen, missing loader totals), a tour
+  or frame log short of its frames, a cycle ledger that drifts, a missing display change, capture
+  or ledger, a textured pass with a fallback or no upload, and checks that the closed view
+  brackets its portal and that the package declares every cooked material; it also checks the
+  probe models, the tour's keyframes, the frame log reader and the reference's depth-tie and
+  far-plane rules.
 
 ## Package and UI gate overview
 

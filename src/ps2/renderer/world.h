@@ -88,4 +88,18 @@ bool LightmapsEnabled();
 struct TextureStats;
 const TextureStats & LastPassTextureStats();
 
+// What every world pass sent, cumulative since boot (the frame log's draw columns): the batches (sky
+// depth and material passes included), the lit ones among them (walked a second time for the
+// lightmap pass), the material pass batches, and the vertices and packet qwords of all of them.
+struct DrawStats
+{
+    u32 batches;
+    u32 litBatches;
+    u32 passBatches;
+    u32 vertices;
+    u32 packetQwords;
+};
+
+const DrawStats & GetDrawStats();
+
 } // namespace ps2::renderer::world

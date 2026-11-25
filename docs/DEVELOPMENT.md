@@ -254,9 +254,20 @@ same framing in every display mode), `trace SX SY SZ EX
 EY EZ` logs the first world surface between two points, `decal OX OY OZ DX DY DZ SIZE DEPTH
 MATERIAL` projects a SIZE square along D onto the surfaces around O as the game's `ProjectDecal`
 does (built when a view next sees them; materials without stages need `forceOverlays`), `decals`
-logs what the entities hold (count, triangles, area, bounds), `portal HANDLE open|closed` sets a
-portal's view blocking, `off` stops drawing, `unload` empties the world and `status` logs the
-areas, portals and the last view's area, entities, drawn areas, batches and frame arena use;
+logs what the entities hold (count, triangles, area, bounds), `portal HANDLE open|closed` opens a
+portal or closes it as a door does (`PS_BLOCK_ALL`: view, locations and air), `off` stops drawing,
+`unload` empties the world and `status` logs the areas, portals and the last view's area, entities,
+drawn areas, batches and frame arena use (`load` also logs its time, `[D3BFG] WORLD load_time`);
+three queries answer as the game's code would: `area X Y Z [X Y Z ...]` (up to 16 points) logs
+`PointInArea` for each, `connected` logs `AreasAreConnected` as each area's group (the lowest area it
+joins) for the view, location and air attributes, and `sound LX LY LZ SX SY SZ MAX` logs the distance
+the sound world gives a sound at S heard at L (`idSoundWorldLocal::ResolveOrigin`'s walk through the
+portals, a closed one adding `s_doorDistanceAdd`); `loader` logs the background loader's totals
+since boot (bytes, reads, seeks, the time inside them and the rate) and the package's device;
+`path FILE [FRAMES]` plays a camera path from `base/FILE` (lines of `FRAMES X Y Z YAW PITCH`, each
+keyframe reached FRAMES frames after the one before, one step a Common frame whatever it took, so
+every run draws the same frames; FRAMES limits the frames played) and logs `[D3BFG] WORLD path
+done` at its end;
 `textures on|off` draws the world textured (the default) or untextured, `lightmaps on|off` its
 lightmap pass (the default) or the vertex chroma alone, and `textures status` logs the last pass's
 texture arena, residents, uploads, evictions, untextured fallbacks, resident lightmap pages and
@@ -272,6 +283,28 @@ and `unload` end or move the flight. `fly input LX LY RX RY BUTTONS FRAMES` scri
 `make run-world-retail` (debug, after `make ui-cook`; `CONSOLE_STANDARD=pal` for PAL) stages mars_city1
 under `build/debug/world-retail/` with a `console.txt` that closes the console, loads the map and
 starts flying from the player start.
+
+`ps2_framelog start [FRAMES] | stop | status` (visible mode, every build) records one row per Common
+frame in EE memory (TAG_DEBUG, about 170 bytes a row, 3,600 rows when FRAMES is left out, 16,384 at
+most) and writes them once to the package's `framelog.txt` when it stops, fills, or the camera path
+it was started with ends (`src/ps2/system/frame_log.cpp`). A row holds the frame's EE time and its
+parts (game step, 3D views, screens, submit), the time spent waiting for VU1 and the GS and for the
+vertical blank, the loader's time in reads, and the frame's batches, vertices, chain bytes, texture
+uploads, streaming reads and misses and the eye. `src/tools/scripts/frame_log.py framelog.txt
+[--compare baseline.txt]` summarises a log: each stage's mean and percentiles, frames over the
+budgets, the slowest frames with where the camera was. `ps2_memory LABEL` logs the allocation
+ledgers under LABEL (MEMORY, ARENA, HEAP, and in tracking builds STACK and TAG lines); run
+`clearHistory` first, since the console history keeps a buffer per HostFs line.
+
+**Console perf run.** `make BUILD=release stage-perf-world-retail` (after `make ui-cook`;
+`CONSOLE_STANDARD=pal` for PAL) stages `build/release/perf-world-retail/`, whose `base/d3bfg.cfg`
+closes the console, loads mars_city1, starts the frame log and plays the whole camera tour
+(`config/world_mars_city1_tour.path`, 7,244 frames, generated from the `.bproc` by
+`src/tools/scripts/world_tour.py`), then opens the console on `Camera path done after 7244 frames;
+frame log written to framelog.txt in <device>`. Copy the package folder to a USB drive or the hard
+disk as for the console boot (below), boot its `d3bfg.elf`, wait for that line (about four minutes at
+30 frames a second), and read `framelog.txt` back from the package folder. The same package runs in
+PCSX2 (`make BUILD=release run-perf-world-retail`), whose timings say nothing about a console's.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
 the graybox and runs it. Production draws 640 wide by default. `ps2_frameBufferBits
 16/16|32/16|32/32` sets the in-game frame-buffer profile (draw/display bits; 32/16 draws in

@@ -118,9 +118,13 @@ struct Stats
 {
     u32 bytes;      // delivered into destinations
     u32 chunks;     // read calls made
-    u32 ioCycles;   // EE cycles spent inside them (COP0 Count, 294.912 MHz)
+    u32 seeks;      // lseek calls made (a read that continues where the last one ended needs none)
+    u64 ioCycles;   // EE cycles spent inside the reads and seeks (COP0 Count, 294.912 MHz)
     u32 queueDepth; // requests queued or running now
 };
+
+// COP0 Count's rate: EE cycles a second.
+static constexpr u32 kCyclesPerSecond = 294912000U;
 
 Stats GetStats();
 
