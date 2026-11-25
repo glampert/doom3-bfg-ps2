@@ -3,7 +3,8 @@
 // Brief: Check the light cook against id's rules and analytic answers: the material expression
 // grammar and tables, light materials and coverage, .map entities, render lights with their
 // projections, bounds and classes, a light's value at a point, lightmaps baked over a small
-// scene (intensity, chroma, shadows, pages, per-vertex light for alpha-tested surfaces), and static
+// scene (intensity, chroma, shadows, pages, per-vertex light for alpha-tested surfaces), chroma
+// subdivision, and static
 // func_static models merged into the areas they stand in.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
@@ -470,6 +471,118 @@ static bool Bake()
     return Check(passed, "lightmaps bake intensity, chroma, shadows and pages");
 }
 
+// A floor between a red and a blue light, an unlit wall sharing one of its edges. Chroma subdivision
+// splits the floor where the colour turns (and the wall alike along their edge), never under one
+// white light, and the rebuilt light misses its colour on fewer texels.
+static bool ChromaSubdivision()
+{
+    ProcFile proc;
+    proc.areaCount = 1;
+    ProcModel model;
+    model.name = "_area0";
+    ProcSurface floor;
+    floor.material = "floor";
+    AddQuad(floor, { -256.0f, -256.0f, 0.0f }, { 256.0f, -256.0f, 0.0f }, { 256.0f, 256.0f, 0.0f }, { -256.0f, 256.0f, 0.0f }, { 0.0f, 0.0f, 1.0f });
+    ProcSurface wall;
+    wall.material = "panel";
+    AddQuad(wall, { 256.0f, -256.0f, 0.0f }, { -256.0f, -256.0f, 0.0f }, { -256.0f, -256.0f, 128.0f }, { 256.0f, -256.0f, 128.0f },
+            { 0.0f, 1.0f, 0.0f });
+    model.surfaces = { floor, wall };
+    proc.models.push_back(model);
+
+    const LightImage white = Flat(4, 1.0f);
+    LightmapScene scene;
+    scene.proc = &proc;
+    scene.materials["floor"] = { true, false, false };
+    scene.materials["panel"] = { false, false, false };
+    scene.lights.push_back(PointSource({ -200.0f, 0.0f, 64.0f }, 400.0f, { 1.0f, 0.1f, 0.1f }, &white, &white));
+    scene.lights.push_back(PointSource({ 200.0f, 0.0f, 64.0f }, 400.0f, { 0.1f, 0.1f, 1.0f }, &white, &white));
+
+    LightmapPolicy policy;
+    WorldLighting plain;
+    WorldLighting split;
+    std::vector<LightmapPage> pages;
+    LightmapStats before;
+    LightmapStats after;
+    std::string error;
+    bool passed = BakeLightmaps(scene, policy, plain, pages, before, error);
+    policy.chromaEdge = 64.0f;
+    policy.chromaError = 0.1f;
+    passed = passed && BakeLightmaps(scene, policy, split, pages, after, error);
+
+    if (!passed)
+    {
+        std::fprintf(stderr, "chroma: %s\n", error.c_str());
+        return Check(false, "chroma subdivision follows the light's colour without T-junctions");
+    }
+
+    const WorldLitSurface & lit = split.areas[0][0];
+    const WorldLitSurface & panel = split.areas[0][1];
+    passed = before.chromaTriangles == 0 && after.chromaSplit > 0 && after.chromaTriangles > 0 && lit.indices.size() / 3 > 2 &&
+             panel.indices.size() / 3 > 2 && lit.pages.size() * 3 == lit.indices.size() && after.offColorTexels < before.offColorTexels;
+
+    // Every triangle keeps the floor's winding, and the pieces cover the floor and the wall exactly.
+    const auto Corner = [](const WorldLitSurface & surface, std::size_t index) { return surface.vertices[surface.indices[index]].position; };
+    float floorArea = 0.0f;
+    float wallArea = 0.0f;
+
+    for (std::size_t index = 0; index + 2 < lit.indices.size(); index += 3)
+    {
+        const Vec3 a = Corner(lit, index);
+        const Vec3 b = Corner(lit, index + 1);
+        const Vec3 c = Corner(lit, index + 2);
+        const float z = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        passed = passed && z > 0.0f;
+        floorArea += 0.5f * z;
+    }
+
+    for (std::size_t index = 0; index + 2 < panel.indices.size(); index += 3)
+    {
+        const Vec3 a = Corner(panel, index);
+        const Vec3 b = Corner(panel, index + 1);
+        const Vec3 c = Corner(panel, index + 2);
+        wallArea += 0.5f * std::fabs((b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0]));
+    }
+
+    passed = passed && Near(floorArea, 512.0f * 512.0f, 1.0f) && Near(wallArea, 512.0f * 128.0f, 1.0f);
+
+    // No corner of either surface lies inside an edge of the other's or its own triangles.
+    for (const WorldLitSurface * surface : { &lit, &panel })
+    {
+        for (std::size_t index = 0; index + 2 < surface->indices.size(); index += 3)
+        {
+            for (std::size_t edge = 0; edge < 3; ++edge)
+            {
+                const Vec3 a = Corner(*surface, index + edge);
+                const Vec3 b = Corner(*surface, index + (edge + 1) % 3);
+
+                for (const WorldLitSurface * other : { &lit, &panel })
+                {
+                    for (const WorldLitVertex & vertex : other->vertices)
+                    {
+                        const Vec3 & p = vertex.position;
+                        const Vec3 ab = { b[0] - a[0], b[1] - a[1], b[2] - a[2] };
+                        const Vec3 ap = { p[0] - a[0], p[1] - a[1], p[2] - a[2] };
+                        const float length = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+                        const float t = (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / length;
+                        const Vec3 off = { ap[0] - ab[0] * t, ap[1] - ab[1] * t, ap[2] - ab[2] * t };
+                        const bool inside = t > 1e-4f && t < 1.0f - 1e-4f && off[0] * off[0] + off[1] * off[1] + off[2] * off[2] < 1e-6f;
+                        passed = passed && !inside;
+                    }
+                }
+            }
+        }
+    }
+
+    // One white light: nothing to follow.
+    scene.lights.resize(1);
+    scene.lights[0] = PointSource({ 0.0f, 0.0f, 64.0f }, 512.0f, { 1.0f, 1.0f, 1.0f }, &white, &white);
+    LightmapStats whiteStats;
+    passed = passed && BakeLightmaps(scene, policy, split, pages, whiteStats, error) && whiteStats.chromaTested > 0 && whiteStats.chromaTriangles == 0 &&
+             split.areas[0][0].indices.size() == 6;
+    return Check(passed, "chroma subdivision follows the light's colour without T-junctions");
+}
+
 // ------------------------------------------------------------------------------------------------
 // Static models
 // ------------------------------------------------------------------------------------------------
@@ -704,6 +817,7 @@ int main()
     passed = Classes() && passed;
     passed = Evaluation() && passed;
     passed = Bake() && passed;
+    passed = ChromaSubdivision() && passed;
     passed = StaticModels() && passed;
     passed = GuiAndSkinnedModels() && passed;
     passed = RigidEntityModels() && passed;

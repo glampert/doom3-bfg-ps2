@@ -6191,3 +6191,32 @@ game. It now takes every free page.
 | `make test-ui` | Sessions `20261125T054743Z_session_6345af6625fb` (NTSC), `20261125T055916Z_session_9ef4398a2672` (PAL): 20 passed, the menus unaffected with no world loaded |
 | `make test-host` | Passed: the runner refuses a console step without the yield or the regrowth |
 | `make`, `make release` | Passed, no warnings |
+
+## Chroma subdivision (2026-11-25)
+
+The lightmap pass multiplies a texel's intensity into the frame, but the light's colour rides in the
+vertex colours, interpolated across each triangle. A long triangle between differently coloured
+lights showed one colour gradient from corner to corner. The bake now splits those triangles first.
+- **The test:** a lightmapped triangle longer than 64 units (`chroma_edge`) splits while the light
+  on a grid across it turns from the chroma its corners interpolate by more than a sine of 0.1
+  (`chroma_error`). Under one white light nothing splits.
+- **The split:** each halves the triangle's longest edge, after refining a neighbour whose longest
+  edge is another (Rivara's longest-edge propagation). Every triangle sharing that edge, in any surface
+  of any area, splits at the same point, so no T-junction opens; the cook fails if one did. The check
+  found the one case the first version missed: a source sliver with two corners 1/16 unit apart, now
+  never split.
+- **mars_city1:** 15,364 triangles and 9,146 vertices added (103,063 to 118,427 triangles; VU1's
+  transformed vertices 143,862 to 153,954, +7%); the D3WD 5.37 to 5.78 MB.
+- **Quality:** the lit texels whose rebuilt light (intensity times interpolated chroma) misses the true
+  light by more than 10% fall from 4.39% to 1.70% (`off_color_texels` in `<map>.lights.json`).
+  Uniform 64-unit subdivision would reach 1.42% for 63,608 triangles; a threshold of 0.2 gives 2.40%
+  for 8,959. In the gate's captures the olive smear on the south view's pillar and a too-bright arch
+  go neutral; 98% or more of every view's pixels stay within 8 levels.
+
+Mesh models already shadow in the bake as area geometry since they merged; the `.bcm` stays out of
+the shadow BVH, since id's shadows come from render surfaces and its clip brushes cast none.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261125T070207Z_world_retail_682dc0ff9e88` (NTSC), `20261125T070453Z_world_retail_5e75a90f4cb8` (PAL) |
+| `make test-host` | Passed: a floor between a red and a blue light splits where its colour turns and its wall splits alike along their edge (no corner inside another triangle's edge, areas and winding kept), fewer texels off colour, nothing split under one white light; a copy without the neighbour splits fails the cook's T-junction check |

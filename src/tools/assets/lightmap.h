@@ -42,6 +42,11 @@ struct LightmapPolicy
     // The chart exposure E, the vertex colour's share of the light (texels hold I / E; each side
     // reaches 255 / 128 at most): E = max intensity / (255 / 128), clamped to [minExposure, 255 / 128].
     float minExposure = 0.25f;
+    // Chroma subdivision: the vertex colours carry the light's colour, so a lightmapped triangle
+    // longer than 'chromaEdge' units splits while its light turns away from the colour its corners
+    // interpolate by more than 'chromaError' (the sine of the angle between them). 0 turns it off.
+    float chromaEdge = 0.0f;
+    float chromaError = 0.1f;
 };
 
 // What the bake reads from a surface's material.
@@ -91,10 +96,22 @@ struct LightmapStats
     std::size_t surfaceLights = 0;
     std::size_t maxSurfaceLights = 0;
     float maxIntensity = 0.0f;
+    // Chroma subdivision: the triangles it tested and those it found needing a split, the triangles
+    // and vertices it added (with the neighbours split alike across a shared edge), and its rays.
+    std::size_t chromaTested = 0;
+    std::size_t chromaSplit = 0;
+    std::size_t chromaTriangles = 0;
+    std::size_t chromaVertices = 0;
+    std::size_t chromaRays = 0;
+    // Texels inside the lightmapped triangles bright enough to have a colour, and those whose rebuilt
+    // light (intensity times the interpolated chroma) misses the true one by more than 10%.
+    std::size_t litTexels = 0;
+    std::size_t offColorTexels = 0;
 };
 
 // Bakes every area model of the scene's proc: 'lighting' gets one entry per area surface (lit or
-// not), 'pages' the Light8 pages its triangles name.
+// not), 'pages' the Light8 pages its triangles name. With chroma subdivision, its surfaces hold
+// the subdivided triangles, which replace the proc's.
 bool BakeLightmaps(const LightmapScene & scene, const LightmapPolicy & policy, WorldLighting & lighting, std::vector<LightmapPage> & pages,
                    LightmapStats & stats, std::string & error);
 

@@ -821,7 +821,7 @@ static bool ParseLightingJob(const JsonValue & value, WorldLightingJob & output)
     {
         if (key != "script" && key != "light_scale" && key != "luxel_size" && key != "shadow_samples" && key != "chart_angle" &&
             key != "ray_offset" && key != "min_exposure" && key != "flat_steps" && key != "shadows" && key != "static_models" &&
-            key != "mesh_models")
+            key != "mesh_models" && key != "chroma_edge" && key != "chroma_error")
         {
             return Fail("unknown lighting field: " + key);
         }
@@ -851,6 +851,8 @@ static bool ParseLightingJob(const JsonValue & value, WorldLightingJob & output)
         { "chart_angle", 0.0, 89.0, &output.policy.chartAngle },
         { "ray_offset", 0.0, 16.0, &output.policy.rayOffset },
         { "min_exposure", 0.01, 1.99, &output.policy.minExposure },
+        { "chroma_edge", 0.0, 4096.0, &output.policy.chromaEdge },
+        { "chroma_error", 0.001, 1.0, &output.policy.chromaError },
     };
 
     for (const Range & range : ranges)
@@ -2067,10 +2069,16 @@ static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::str
                                ",\n  \"scaled_charts\": " + std::to_string(stats.scaledCharts) + ",\n  \"texels\": " + std::to_string(stats.texels) +
                                ",\n  \"pages\": " + std::to_string(stats.pages) + ",\n  \"rays\": " + std::to_string(stats.rays) +
                                ",\n  \"clipped\": " + std::to_string(stats.clippedTexels) + ",\n  \"max_intensity\": " + Real(stats.maxIntensity) +
+                               ",\n  \"chroma_tested\": " + std::to_string(stats.chromaTested) + ",\n  \"chroma_split\": " +
+                               std::to_string(stats.chromaSplit) + ",\n  \"chroma_triangles\": " + std::to_string(stats.chromaTriangles) +
+                               ",\n  \"chroma_vertices\": " + std::to_string(stats.chromaVertices) + ",\n  \"chroma_rays\": " +
+                               std::to_string(stats.chromaRays) + ",\n  \"lit_texels\": " + std::to_string(stats.litTexels) +
+                               ",\n  \"off_color_texels\": " + std::to_string(stats.offColorTexels) +
                                ",\n  \"seconds\": " + Number(seconds) + ",\n  \"reasons\": {" + reasonReport + "\n  },\n  \"light_list\": [" + lightList +
                                "\n  ]\n}\n";
     std::cout << stem << ".lights.json: " << lights << " lights, " << scene.lights.size() << " baked (" << shadowed << " shadowed) into "
-              << stats.pages << " pages of " << stats.charts << " charts, " << stats.rays << " rays, " << Number(seconds) << " s\n";
+              << stats.pages << " pages of " << stats.charts << " charts, " << stats.rays << " rays, " << stats.chromaTriangles
+              << " triangles added for chroma, " << Number(seconds) << " s\n";
     return WriteFile(output / (stem + ".lights.json"), report.data(), report.size());
 }
 

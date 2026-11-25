@@ -2,10 +2,10 @@
 
 Companion to [RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md): the same work as its
 section 19 gates, broken into concrete steps in the proposed order. Opened **2026-11-03**;
-status as of **2026-11-24**: R0 and R1 done but for the hardware probes, R2 in progress (the
-lightmapped, textured world with material passes and the sky is done, declarations read their
-text on demand and the world's textures stream; chroma subdivision and the R2 gate remain), R3 to R9
-not started.
+status as of **2026-11-25**: R0 and R1 done but for the hardware probes, R2 in progress (the
+lightmapped, textured world with material passes, the sky and chroma subdivision is done,
+declarations read their text on demand and the world's textures stream; the translucent stages and
+the R2 gate remain), R3 to R9 not started.
 Tick items as they land; move a step's measurements into the plan's decision log
 (section 20) and its acceptance into [PORT_STATUS.md](../PORT_STATUS.md). Every step keeps
 the headless and 2D gates green (`make test-headless`, `test-renderer`, `test-ui`) and the
@@ -213,8 +213,15 @@ production link free of test inputs. Section numbers in parentheses point into t
       and the `func_static` brush models); chart extraction, skyline packing, 1-texel borders;
       Light8 pages as GSTX v2 in the D3TX (8.2, 8.3, 15.1; 2026-11-08: mars_city1's 410 class A
       lights into 8 pages, alpha-tested surfaces lit per vertex).
-- [ ] Cook: chroma subdivision to 64 units; the `.bcm` and mesh models (`func_static` `.lwo`/`.ase`)
-      as occluders (8.2, 8.3).
+- [x] Cook: chroma subdivision (2026-11-25, 8.2, 8.3): a lightmapped triangle longer than 64 units
+      splits, longest edge first, while the light on a grid across it turns from the chroma its
+      corners interpolate by more than a sine of 0.1 (`chroma_edge`, `chroma_error`); every triangle
+      sharing a split edge splits alike, so no T-junction opens (the cook checks). mars_city1: 15,364
+      triangles and 9,146 vertices added (103,063 to 118,427 triangles, 7% more transformed
+      vertices, the D3WD 5.37 to 5.78 MB); lit texels whose rebuilt light misses its colour by more
+      than 10% fall from 4.39% to 1.70% (uniform 64-unit subdivision: 1.42% for 63,608 triangles).
+      Mesh models shadow as area geometry since they merged; the `.bcm` stays out of the BVH, since
+      id's shadows come from render surfaces and its clip brushes cast none.
 - [x] Gate: a pixel reference for the lightmap pass (2026-11-14): every lightmap-only capture of the
       retail gate against the cooked pages sampled at each pixel's lightmap UV; it rejects the
       stale-Q captures and found clipped corners in the eye's plane losing their UVs (fixed).

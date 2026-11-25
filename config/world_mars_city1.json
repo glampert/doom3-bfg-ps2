@@ -35,6 +35,8 @@
     "luxel_size": 16.0,
     "shadow_samples": 4,
     "static_models": true,
-    "mesh_models": true
+    "mesh_models": true,
+    "chroma_edge": 64.0,
+    "chroma_error": 0.1
   }
 }

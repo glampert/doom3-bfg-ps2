@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <deque>
 #include <limits>
 #include <numeric>
 #include <set>
@@ -25,6 +26,10 @@ namespace
 // 255 / 128: the most either factor of Cd x As carries.
 static constexpr float kMaxScale = 255.0f / 128.0f;
 static constexpr int kBvhLeafTriangles = 4;
+// Light this dim has no colour worth following.
+static constexpr float kChromaDark = 0.02f;
+// A texel's rebuilt light this far from the true one (relative) counts as off colour.
+static constexpr float kOffColor = 0.1f;
 
 static Vec3 Add(const Vec3 & a, const Vec3 & b)
 {
@@ -715,6 +720,16 @@ public:
         return light;
     }
 
+    // The light at a point of a lightmapped surface, as a texel there would take it.
+    Vec3 PointLight(const Vec3 & point, const Vec3 & normal, const std::vector<std::size_t> & lights)
+    {
+        Chart chart;
+        chart.normal = normal;
+        chart.luxel = m_policy.luxelSize;
+        ChartBasis(chart);
+        return Light(point, normal, chart, lights, m_policy.shadowSamples);
+    }
+
     // Lights the chart's texels and its vertices; texels end as intensity over exposure.
     void Bake(const ProcSurface & surface, const std::vector<std::size_t> & lights, Chart & chart)
     {
@@ -849,6 +864,15 @@ public:
             const float norm = Dot(chroma, chroma);
             intensity[texel] = norm > 1e-12f ? std::max(0.0f, Dot(light[texel], chroma) / norm) : 0.0f;
             peak = std::max(peak, intensity[texel]);
+
+            // How far the colour the GS rebuilds (the intensity times the interpolated chroma) lands
+            // from the light, inside the triangles.
+            if (sample.distance == 0.0f && MaxChannel(light[texel]) >= kChromaDark)
+            {
+                const float miss = Length(Subtract(light[texel], Scale(chroma, intensity[texel]))) / Length(light[texel]);
+                ++m_stats.litTexels;
+                m_stats.offColorTexels += miss > kOffColor ? 1U : 0U;
+            }
         }
 
         m_stats.maxIntensity = std::max(m_stats.maxIntensity, peak);
@@ -1042,6 +1066,536 @@ private:
     LightmapStats & m_stats;
 };
 
+// ------------------------------------------------------------------------------------------------
+// Chroma subdivision
+// ------------------------------------------------------------------------------------------------
+
+// Cd x As carries a lightmapped surface's intensity per texel but its chroma per vertex, so a large
+// triangle shows one colour gradient across it, whatever its lights do there. This splits the
+// triangles whose light turns away from that gradient. Each split bisects a triangle's longest
+// edge, after refining any neighbour across it whose own longest edge is another (Rivara's
+// longest-edge propagation, which keeps the shapes from thinning), and every triangle sharing the
+// edge, in any surface of any area, splits at the same point: no T-junction opens.
+class ChromaSubdivider final
+{
+public:
+    ChromaSubdivider(const LightmapPolicy & policy, Baker & baker, LightmapStats & stats)
+        : m_policy(policy)
+        , m_baker(baker)
+        , m_stats(stats)
+    {
+    }
+
+    // Every surface added splits with its neighbours; the 'chroma' ones (lightmapped) are tested.
+    void AddSurface(ProcSurface & surface, std::vector<std::size_t> lights, bool chroma)
+    {
+        Piece piece;
+        piece.surface = &surface;
+        piece.lights = std::move(lights);
+        piece.chroma = chroma;
+        piece.firstTriangle = static_cast<std::uint32_t>(m_triangles.size());
+        piece.triangleCount = static_cast<std::uint32_t>(surface.indices.size() / 3);
+        piece.vertexChroma.assign(surface.vertices.size(), Vec3{});
+        piece.chromaKnown.assign(surface.vertices.size(), false);
+
+        for (const ProcVertex & vertex : surface.vertices)
+        {
+            piece.keys.push_back(PositionKey(vertex.position));
+        }
+
+        const auto pieceIndex = static_cast<std::uint32_t>(m_pieces.size());
+        m_pieces.push_back(std::move(piece));
+
+        for (std::size_t index = 0; index + 2 < surface.indices.size(); index += 3)
+        {
+            Triangle triangle;
+            triangle.piece = pieceIndex;
+            triangle.corners = { surface.indices[index], surface.indices[index + 1], surface.indices[index + 2] };
+            m_triangles.push_back(triangle);
+            Register(static_cast<std::uint32_t>(m_triangles.size() - 1));
+        }
+    }
+
+    // Splits until no tested triangle needs it, then writes each changed surface's triangles back,
+    // a source triangle's pieces where it stood.
+    bool Run(std::string & error)
+    {
+        const std::size_t raysBefore = m_stats.rays;
+        const std::size_t limit = m_triangles.size() * 8 + 65536;
+
+        for (const Piece & piece : m_pieces)
+        {
+            for (std::uint32_t triangle = 0; piece.chroma && triangle < piece.triangleCount; ++triangle)
+            {
+                m_queue.push_back(piece.firstTriangle + triangle);
+            }
+        }
+
+        while (!m_queue.empty())
+        {
+            const std::uint32_t triangle = m_queue.front();
+            m_queue.pop_front();
+
+            if (Alive(triangle) && NeedsSplit(triangle))
+            {
+                Bisect(triangle, 0);
+            }
+
+            if (m_triangles.size() > limit)
+            {
+                error = "chroma subdivision split more than " + std::to_string(limit) + " triangles";
+                return false;
+            }
+        }
+
+        m_stats.chromaRays += m_stats.rays - raysBefore;
+
+        // No live triangle may keep an edge another split: its neighbours' new vertex would sit on it.
+        for (const Piece & piece : m_pieces)
+        {
+            for (const auto & [edge, middle] : piece.midpoints)
+            {
+                const std::uint64_t a = piece.keys[edge.first];
+                const std::uint64_t b = piece.keys[edge.second];
+
+                if (a != b && !Neighbours(kNone, a < b ? EdgeKey{ a, b } : EdgeKey{ b, a }).empty())
+                {
+                    error = "chroma subdivision left a T-junction in " + piece.surface->material;
+                    return false;
+                }
+            }
+        }
+
+        for (Piece & piece : m_pieces)
+        {
+            if (!piece.changed)
+            {
+                continue;
+            }
+
+            if (piece.surface->vertices.size() > 0xFFFFU)
+            {
+                error = "chroma subdivision gave a surface of " + piece.surface->material + " more than 65,535 vertices";
+                return false;
+            }
+
+            std::vector<std::uint32_t> indices;
+            std::vector<std::uint32_t> stack;
+
+            for (std::uint32_t root = 0; root < piece.triangleCount; ++root)
+            {
+                stack.push_back(piece.firstTriangle + root);
+
+                while (!stack.empty())
+                {
+                    const std::uint32_t triangle = stack.back();
+                    stack.pop_back();
+                    const Triangle & current = m_triangles[triangle];
+
+                    if (Alive(triangle))
+                    {
+                        indices.insert(indices.end(), current.corners.begin(), current.corners.end());
+                        continue;
+                    }
+
+                    stack.push_back(current.children[1]);
+                    stack.push_back(current.children[0]);
+                }
+            }
+
+            piece.surface->indices = std::move(indices);
+        }
+
+        return true;
+    }
+
+private:
+    using EdgeKey = std::pair<std::uint64_t, std::uint64_t>;
+
+    // Neighbour refinement deeper than this splits across the edge as it stands (still conforming).
+    static constexpr int kMaxDepth = 48;
+    // Sample rows per side of a tested triangle, at most.
+    static constexpr int kMaxSteps = 8;
+
+    struct Piece
+    {
+        ProcSurface * surface = nullptr;
+        std::vector<std::size_t> lights;
+        bool chroma = false;
+        bool changed = false;
+        std::uint32_t firstTriangle = 0;
+        std::uint32_t triangleCount = 0;
+        std::vector<std::uint64_t> keys;
+        std::vector<Vec3> vertexChroma;
+        std::vector<bool> chromaKnown;
+        // The vertex made on each split edge, by its corners' indices (low first).
+        std::map<std::pair<std::uint32_t, std::uint32_t>, std::uint32_t> midpoints;
+    };
+
+    static constexpr std::uint32_t kNone = 0xFFFFFFFFU;
+
+    struct Triangle
+    {
+        std::uint32_t piece = 0;
+        std::array<std::uint32_t, 3> corners = {};
+        // Set once split: the halves, which hold the split edge's two parts.
+        std::array<std::uint32_t, 2> children = { kNone, kNone };
+    };
+
+    static std::uint64_t EdgeHash(const EdgeKey & key)
+    {
+        return (key.first * 0x9E3779B97F4A7C15ULL) ^ key.second;
+    }
+
+    bool Alive(std::uint32_t triangle) const
+    {
+        return m_triangles[triangle].children[0] == kNone;
+    }
+
+    EdgeKey KeyOf(std::uint32_t triangle, int edge) const
+    {
+        const Triangle & current = m_triangles[triangle];
+        const Piece & piece = m_pieces[current.piece];
+        const std::uint64_t a = piece.keys[current.corners[static_cast<std::size_t>(edge)]];
+        const std::uint64_t b = piece.keys[current.corners[static_cast<std::size_t>((edge + 1) % 3)]];
+        return a < b ? EdgeKey{ a, b } : EdgeKey{ b, a };
+    }
+
+    double EdgeLengthSquared(std::uint32_t triangle, int edge) const
+    {
+        const Triangle & current = m_triangles[triangle];
+        const ProcSurface & surface = *m_pieces[current.piece].surface;
+        const Vec3 & a = surface.vertices[current.corners[static_cast<std::size_t>(edge)]].position;
+        const Vec3 & b = surface.vertices[current.corners[static_cast<std::size_t>((edge + 1) % 3)]].position;
+        double sum = 0.0;
+
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            const double delta = static_cast<double>(a[axis]) - static_cast<double>(b[axis]);
+            sum += delta * delta;
+        }
+
+        return sum;
+    }
+
+    // The longest edge, ties broken by the edge's key so every triangle sharing it agrees.
+    int LongestEdge(std::uint32_t triangle) const
+    {
+        int best = 0;
+        double bestLength = -1.0;
+        EdgeKey bestKey = {};
+
+        for (int edge = 0; edge < 3; ++edge)
+        {
+            const double length = EdgeLengthSquared(triangle, edge);
+            const EdgeKey key = KeyOf(triangle, edge);
+
+            if (length > bestLength || (length == bestLength && key > bestKey))
+            {
+                best = edge;
+                bestLength = length;
+                bestKey = key;
+            }
+        }
+
+        return best;
+    }
+
+    // Two corners in one place (to the keys' 1/8 unit): a sliver no crack could show through. It
+    // joins no edge and never splits, so no split edge reappears in its halves.
+    bool Degenerate(std::uint32_t triangle) const
+    {
+        for (int edge = 0; edge < 3; ++edge)
+        {
+            const EdgeKey key = KeyOf(triangle, edge);
+
+            if (key.first == key.second)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Lists the triangle under its edges.
+    void Register(std::uint32_t triangle)
+    {
+        if (Degenerate(triangle))
+        {
+            return;
+        }
+
+        for (int edge = 0; edge < 3; ++edge)
+        {
+            m_edges[EdgeHash(KeyOf(triangle, edge))].push_back(triangle);
+        }
+    }
+
+    // The live triangles other than 'triangle' with an edge 'key', and which edge it is in each.
+    std::vector<std::pair<std::uint32_t, int> > Neighbours(std::uint32_t triangle, const EdgeKey & key) const
+    {
+        std::vector<std::pair<std::uint32_t, int> > neighbours;
+        const auto found = m_edges.find(EdgeHash(key));
+
+        if (found == m_edges.end())
+        {
+            return neighbours;
+        }
+
+        for (const std::uint32_t other : found->second)
+        {
+            const bool listed =
+                std::any_of(neighbours.begin(), neighbours.end(), [other](const std::pair<std::uint32_t, int> & entry) { return entry.first == other; });
+
+            if (other == triangle || listed || !Alive(other))
+            {
+                continue;
+            }
+
+            for (int edge = 0; edge < 3; ++edge)
+            {
+                if (KeyOf(other, edge) == key)
+                {
+                    neighbours.emplace_back(other, edge);
+                    break;
+                }
+            }
+        }
+
+        return neighbours;
+    }
+
+    // The vertex halfway along the piece's edge (a, b), made once per edge: its position is the same
+    // sum in every surface whose corners are the same, so the halves meet exactly.
+    std::uint32_t Midpoint(Piece & piece, std::uint32_t a, std::uint32_t b)
+    {
+        const std::pair<std::uint32_t, std::uint32_t> edge = a < b ? std::make_pair(a, b) : std::make_pair(b, a);
+        const auto found = piece.midpoints.find(edge);
+
+        if (found != piece.midpoints.end())
+        {
+            return found->second;
+        }
+
+        const ProcVertex & from = piece.surface->vertices[a];
+        const ProcVertex & to = piece.surface->vertices[b];
+        ProcVertex middle;
+
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            middle.position[axis] = (from.position[axis] + to.position[axis]) * 0.5f;
+        }
+
+        middle.uv = { (from.uv[0] + to.uv[0]) * 0.5f, (from.uv[1] + to.uv[1]) * 0.5f };
+        middle.normal = Normalize(Add(from.normal, to.normal), from.normal);
+        const auto index = static_cast<std::uint32_t>(piece.surface->vertices.size());
+        piece.surface->vertices.push_back(middle);
+        piece.keys.push_back(PositionKey(middle.position));
+        piece.vertexChroma.push_back(Vec3{});
+        piece.chromaKnown.push_back(false);
+        piece.midpoints.emplace(edge, index);
+        ++m_stats.chromaVertices;
+        return index;
+    }
+
+    // Halves the triangle at its 'edge', the winding kept.
+    void Split(std::uint32_t triangle, int edge)
+    {
+        const Triangle current = m_triangles[triangle];
+        Piece & piece = m_pieces[current.piece];
+        const std::uint32_t a = current.corners[static_cast<std::size_t>(edge)];
+        const std::uint32_t b = current.corners[static_cast<std::size_t>((edge + 1) % 3)];
+        const std::uint32_t c = current.corners[static_cast<std::size_t>((edge + 2) % 3)];
+        const std::uint32_t middle = Midpoint(piece, a, b);
+        const auto first = static_cast<std::uint32_t>(m_triangles.size());
+
+        Triangle half;
+        half.piece = current.piece;
+        half.corners = { a, middle, c };
+        m_triangles.push_back(half);
+        half.corners = { middle, b, c };
+        m_triangles.push_back(half);
+        m_triangles[triangle].children = { first, first + 1 };
+        Register(first);
+        Register(first + 1);
+        piece.changed = true;
+        ++m_stats.chromaTriangles;
+
+        if (piece.chroma)
+        {
+            m_queue.push_back(first);
+            m_queue.push_back(first + 1);
+        }
+    }
+
+    // Bisects the triangle's longest edge and every triangle across it, refining first a neighbour
+    // whose longest edge is another.
+    void Bisect(std::uint32_t triangle, int depth)
+    {
+        while (Alive(triangle))
+        {
+            const int edge = LongestEdge(triangle);
+            const EdgeKey key = KeyOf(triangle, edge);
+            const std::vector<std::pair<std::uint32_t, int> > neighbours = Neighbours(triangle, key);
+            bool refined = false;
+
+            for (std::size_t index = 0; depth < kMaxDepth && index < neighbours.size() && !refined; ++index)
+            {
+                if (LongestEdge(neighbours[index].first) != neighbours[index].second)
+                {
+                    Bisect(neighbours[index].first, depth + 1);
+                    refined = true;
+                }
+            }
+
+            if (refined)
+            {
+                continue;
+            }
+
+            Split(triangle, edge);
+
+            for (const auto & [other, otherEdge] : neighbours)
+            {
+                Split(other, otherEdge);
+            }
+        }
+    }
+
+    // The colour of the light at a vertex, its brightest channel 1 (white where it is dark), as the
+    // bake's vertex colours carry it.
+    const Vec3 & VertexChroma(Piece & piece, std::uint32_t vertex)
+    {
+        if (!piece.chromaKnown[vertex])
+        {
+            const ProcVertex & source = piece.surface->vertices[vertex];
+            const Vec3 light = m_baker.PointLight(source.position, Normalize(source.normal, Vec3{ 0.0f, 0.0f, 1.0f }), piece.lights);
+            const float peak = MaxChannel(light);
+            piece.vertexChroma[vertex] = peak > 1e-5f ? Scale(light, 1.0f / peak) : Vec3{ 1.0f, 1.0f, 1.0f };
+            piece.chromaKnown[vertex] = true;
+        }
+
+        return piece.vertexChroma[vertex];
+    }
+
+    // Whether the light anywhere on a grid across the triangle (rows about chromaEdge apart) turns
+    // further from the colour its corners interpolate there than the policy allows.
+    bool NeedsSplit(std::uint32_t triangle)
+    {
+        const Triangle current = m_triangles[triangle];
+        Piece & piece = m_pieces[current.piece];
+
+        if (!piece.chroma || Degenerate(triangle))
+        {
+            return false;
+        }
+
+        const double longest = std::sqrt(EdgeLengthSquared(triangle, LongestEdge(triangle)));
+
+        if (longest <= static_cast<double>(m_policy.chromaEdge))
+        {
+            return false;
+        }
+
+        ++m_stats.chromaTested;
+        std::array<Vec3, 3> chroma = {};
+
+        for (std::size_t corner = 0; corner < 3; ++corner)
+        {
+            chroma[corner] = VertexChroma(piece, current.corners[corner]);
+        }
+
+        const ProcSurface & surface = *piece.surface;
+        const int steps = std::min(kMaxSteps, static_cast<int>(std::ceil(longest / static_cast<double>(m_policy.chromaEdge))));
+
+        for (int i = 0; i <= steps; ++i)
+        {
+            for (int j = 0; i + j <= steps; ++j)
+            {
+                const int k = steps - i - j;
+
+                if (i == steps || j == steps || k == steps)
+                {
+                    continue;
+                }
+
+                const std::array<float, 3> weights = { static_cast<float>(i) / static_cast<float>(steps), static_cast<float>(j) / static_cast<float>(steps),
+                                                       static_cast<float>(k) / static_cast<float>(steps) };
+                Vec3 point = {};
+                Vec3 normal = {};
+                Vec3 interpolated = {};
+
+                for (std::size_t corner = 0; corner < 3; ++corner)
+                {
+                    const ProcVertex & vertex = surface.vertices[current.corners[corner]];
+                    point = Add(point, Scale(vertex.position, weights[corner]));
+                    normal = Add(normal, Scale(vertex.normal, weights[corner]));
+                    interpolated = Add(interpolated, Scale(chroma[corner], weights[corner]));
+                }
+
+                const Vec3 light = m_baker.PointLight(point, Normalize(normal, Vec3{ 0.0f, 0.0f, 1.0f }), piece.lights);
+                const float norm = Dot(interpolated, interpolated);
+
+                if (MaxChannel(light) < kChromaDark || norm <= 1e-12f)
+                {
+                    continue;
+                }
+
+                // What the texel's intensity cannot fix: the light's part across the interpolated chroma.
+                const Vec3 across = Subtract(light, Scale(interpolated, Dot(light, interpolated) / norm));
+
+                if (Length(across) > m_policy.chromaError * Length(light))
+                {
+                    ++m_stats.chromaSplit;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    const LightmapPolicy & m_policy;
+    Baker & m_baker;
+    LightmapStats & m_stats;
+    std::vector<Piece> m_pieces;
+    std::vector<Triangle> m_triangles;
+    std::unordered_map<std::uint64_t, std::vector<std::uint32_t> > m_edges;
+    std::deque<std::uint32_t> m_queue;
+};
+
+// The lights whose volume reaches the surface, of those its area receives.
+static std::vector<std::size_t> SurfaceLights(const ProcSurface & surface, const std::vector<std::size_t> & areaLights, const std::vector<LightSource> & sources)
+{
+    AreaBounds bounds;
+
+    for (const ProcVertex & vertex : surface.vertices)
+    {
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            bounds.min[axis] = bounds.empty ? vertex.position[axis] : std::min(bounds.min[axis], vertex.position[axis]);
+            bounds.max[axis] = bounds.empty ? vertex.position[axis] : std::max(bounds.max[axis], vertex.position[axis]);
+        }
+
+        bounds.empty = false;
+    }
+
+    std::vector<std::size_t> lights;
+
+    for (const std::size_t light : areaLights)
+    {
+        const LightVolume & volume = sources[light].volume;
+
+        if (BoundsOverlap(bounds.min, bounds.max, volume.boundsMin, volume.boundsMax))
+        {
+            lights.push_back(light);
+        }
+    }
+
+    return lights;
+}
+
 // A chart whose texels vary by at most 'steps' becomes one texel (3x3 with its border).
 static void CollapseFlat(Chart & chart, const LightmapPolicy & policy)
 {
@@ -1174,7 +1728,7 @@ bool BakeLightmaps(const LightmapScene & scene, const LightmapPolicy & policy, W
     stats = {};
 
     if (scene.proc == nullptr || policy.pageSize < 16 || policy.pageSize > 512 || policy.border < 0 || !(policy.luxelSize > 0.0f) ||
-        !(policy.minExposure > 0.0f) || policy.minExposure > kMaxScale)
+        !(policy.minExposure > 0.0f) || policy.minExposure > kMaxScale || !(policy.chromaEdge >= 0.0f) || !(policy.chromaError > 0.0f))
     {
         error = "bad lightmap policy";
         return false;
@@ -1226,6 +1780,45 @@ bool BakeLightmaps(const LightmapScene & scene, const LightmapPolicy & policy, W
     stats.occluders = bvh.Size();
     const std::vector<std::vector<std::size_t> > areaLights = AreaLights(proc, scene.lights, areaBounds);
     Baker baker(scene, policy, bvh, stats);
+
+    // Chroma subdivision works on copies of the area models, whose triangles the lit surfaces then
+    // carry; the drawn entities' surfaces stay whole (the game moves them).
+    std::vector<ProcModel> subdivided;
+
+    if (policy.chromaEdge > 0.0f)
+    {
+        subdivided.reserve(models.size());
+        ChromaSubdivider subdivider(policy, baker, stats);
+
+        for (std::size_t area = 0; area < models.size(); ++area)
+        {
+            subdivided.push_back(*models[area]);
+
+            for (ProcSurface & surface : subdivided.back().surfaces)
+            {
+                if (surface.entity != 0)
+                {
+                    continue;
+                }
+
+                const auto found = scene.materials.find(surface.material);
+                const bool lightmapped = found != scene.materials.end() && found->second.lit && !found->second.perforated && !surface.vertexLit;
+                subdivider.AddSurface(surface, lightmapped ? SurfaceLights(surface, areaLights[area], scene.lights) : std::vector<std::size_t>{},
+                                      lightmapped);
+            }
+        }
+
+        if (!subdivider.Run(error))
+        {
+            return false;
+        }
+
+        for (std::size_t area = 0; area < models.size(); ++area)
+        {
+            models[area] = &subdivided[area];
+        }
+    }
+
     std::vector<Chart> charts;
     std::map<std::pair<std::size_t, std::size_t>, std::vector<Vec3> > vertexLit;
     lighting.areas.resize(static_cast<std::size_t>(proc.areaCount));
@@ -1245,33 +1838,7 @@ bool BakeLightmaps(const LightmapScene & scene, const LightmapPolicy & policy, W
             }
 
             ++stats.litSurfaces;
-
-            // The lights whose volume reaches the surface, from those its area receives.
-            AreaBounds bounds;
-
-            for (const ProcVertex & vertex : surface.vertices)
-            {
-                for (std::size_t axis = 0; axis < 3; ++axis)
-                {
-                    bounds.min[axis] = bounds.empty ? vertex.position[axis] : std::min(bounds.min[axis], vertex.position[axis]);
-                    bounds.max[axis] = bounds.empty ? vertex.position[axis] : std::max(bounds.max[axis], vertex.position[axis]);
-                }
-
-                bounds.empty = false;
-            }
-
-            std::vector<std::size_t> lights;
-
-            for (const std::size_t light : areaLights[area])
-            {
-                const LightVolume & volume = scene.lights[light].volume;
-
-                if (BoundsOverlap(bounds.min, bounds.max, volume.boundsMin, volume.boundsMax))
-                {
-                    lights.push_back(light);
-                }
-            }
-
+            const std::vector<std::size_t> lights = SurfaceLights(surface, areaLights[area], scene.lights);
             stats.surfaceLights += lights.size();
             stats.maxSurfaceLights = std::max(stats.maxSurfaceLights, lights.size());
 

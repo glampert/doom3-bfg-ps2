@@ -196,7 +196,8 @@ reader skips with tangents and the precomputed shadow and silhouette data.
   ([below](#world-lighting)): `script` names the map script inside the containers (light classes
   read it); `light_scale` (r_lightScale, default 3), `luxel_size` (16 units a texel),
   `shadow_samples` (1 or 4), `chart_angle` (30 degrees), `ray_offset` (0.5 units), `min_exposure`
-  (0.25), `flat_steps` (1) and `shadows` (true) set the bake.
+  (0.25), `flat_steps` (1) and `shadows` (true) set the bake; `chroma_edge` (units, default 0: off)
+  and `chroma_error` (0.1) set its chroma subdivision.
 
 ### World textures
 
@@ -278,18 +279,29 @@ and `translucent` as `idMaterial` does. Each light falls in class A to F (plan 8
 counts.
 
 The class A lights bake into Light8 pages (`assets/lightmap.cpp`, plan 8.2 and 8.3):
+- With `chroma_edge` set, lightmapped triangles split first where the light's colour changes
+  across them: the vertex colours carry the chroma, interpolated, so a triangle longer than
+  `chroma_edge` splits while the light on a grid across it (rows about `chroma_edge` apart) turns
+  from the interpolated chroma by more than `chroma_error` (the sine of the angle). Each split
+  halves the triangle's longest edge after refining a neighbour whose longest edge is another
+  (Rivara's longest-edge propagation), and every triangle sharing the edge, in any surface or area,
+  splits at the same point, so no T-junction opens; the cook checks that none did. Drawn entities'
+  surfaces stay whole. The lit surfaces carry the split triangles into the D3WD.
 - Each lit area surface splits into charts: edge-connected triangles within `chart_angle` of the
   first one's normal, projected onto it at `luxel_size`.
 - Every texel bilinear filtering reads, plus one more around, takes the light at the nearest point
   of the chart's triangles: per stage colour x projection x falloff x N.L.
 - Shadows come from `shadow_samples` rays toward the light origin through a BVH. It holds the area
-  triangles whose materials cast shadows (alpha-tested ones whole, as id's shadow volumes do) and
-  the `func_static` inline models placed at their entity. Only lights without `noshadows` cast them.
+  triangles whose materials cast shadows (alpha-tested ones whole, as id's shadow volumes do; the
+  merged props and the entities placed at rest among them) and the `func_static` inline models left
+  out, placed at their entity. Only lights without `noshadows` cast them.
 - Lights reach the areas flooded through portals their bounds overlap.
 - Each chart vertex gets the chroma of the light around it, normalised to its brightest channel.
   It is multiplied by the chart's exposure E (its peak intensity over 255/128, at least
   `min_exposure`) into the vertex colour.
-- Texels hold the intensity against that chroma over E (128 = 1.0).
+- Texels hold the intensity against that chroma over E (128 = 1.0). The report's `off_color_texels`
+  counts the lit texels (of `lit_texels`) whose rebuilt light, intensity times interpolated chroma,
+  misses the true one by more than 10%.
 - Flat or sub-texel charts collapse to a 3x3 block.
 - Charts pack area by area by skyline into 256x256 pages, each a `PSMT8` GSTX v2 file whose CLUT
   alpha is the index. They go into the D3TX's page table, and every batch names its page.

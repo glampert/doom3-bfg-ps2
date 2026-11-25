@@ -113,7 +113,7 @@ have not been re-measured.
   1,722,432. Every PAL view now overflows its arena and loads the rest mid-pass (gs-renderer.md),
   uploading close to 1 MB a frame; NTSC's north views overflow slightly. With the rigid entities at
   rest (doors, movers): D3WD 5,365,984 (103,063 triangles), D3TX 5,020,800 (437 textures), copies peak
-  at 1,737,088.
+  at 1,737,088. With chroma subdivision (2026-11-25): D3WD 5,777,200 (118,427 triangles).
 - Measured map baseline (authored map, 2026-10-11): fixed `PT_LOAD` 10.9 MB, three 60-frame
   reloads about 2.22 MB requested; no retail map transition peak is established. mars_city1
   `.map` is 5.48 MB (4.85 MB brush/patch text), its container holds 5.4 MB of binary
