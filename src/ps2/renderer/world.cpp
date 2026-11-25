@@ -244,9 +244,12 @@ void BeginPass(const Level & level, const math::Mat4 & viewProjection, float tim
         PlanBatch(level.textures, batch.material, batch.lightmapPage, s_texturesEnabled, s_lightmapsEnabled);
     }
 
-    for (u32 index = 0; index < s_passCount && s_texturesEnabled; ++index)
+    for (u32 phase = 0; phase < static_cast<u32>(PassPhase::Count) && s_texturesEnabled; ++phase)
     {
-        PlanMaterialPasses(level.textures, sections.batches[level.passOrder[index]].material);
+        for (u32 index = 0; index < s_passCount; ++index)
+        {
+            PlanMaterialPasses(level.textures, sections.batches[level.passOrder[index]].material, static_cast<PassPhase>(phase));
+        }
     }
 
     const gs::DrawContext context = renderer::DrawingContext();
@@ -354,28 +357,51 @@ void EndPass()
     }
 
     // Then the material passes, once every diffuse texture drew: each batch again with the pass's
-    // texture, a constant colour and additive tags. Depth GEQUAL makes the order safe: a pass lands
-    // only where its own surface is the nearest.
-    for (u32 index = 0; index < s_passCount; ++index)
+    // texture, its colour (or its vertex colours) and blending tags, phase by phase. Depth GEQUAL makes
+    // the order within a phase safe: a pass lands only where its own surface is the nearest. The
+    // blend changes before a phase's first pass, and from the translucent phases on depth is no
+    // longer written (the opaque passes' phase keeps BeginDepthPass's additive blend).
+    const gs::DrawContext context = renderer::DrawingContext();
+
+    for (u32 phase = 0; phase < static_cast<u32>(PassPhase::Count); ++phase)
     {
-        const BatchRecord & batch = sections.batches[level.passOrder[index]];
-        const u32 passes = PassCount(s_passTextures, batch.material);
+        const PassPhase current = static_cast<PassPhase>(phase);
+        bool blending = current == PassPhase::Glow;
 
-        for (u32 pass = 0; pass < passes; ++pass)
+        for (u32 index = 0; index < s_passCount; ++index)
         {
-            const void * state = nullptr;
-            const void * color = nullptr;
-            AdvanceBatch(s_passTextures);
+            const BatchRecord & batch = sections.batches[level.passOrder[index]];
+            const u32 passes = PassCount(s_passTextures, batch.material);
 
-            if (PassBlocks(s_passTextures, list, batch.material, pass, state, color))
+            for (u32 pass = 0; pass < passes; ++pass)
             {
+                if (PassPhaseOf(s_passTextures, batch.material, pass) != current)
+                {
+                    continue;
+                }
+
+                const void * state = nullptr;
+                const void * color = nullptr;
+                AdvanceBatch(s_passTextures);
+
+                if (!PassBlocks(s_passTextures, list, batch.material, pass, state, color))
+                {
+                    continue;
+                }
+
+                if (!blending)
+                {
+                    gs::SetPassBlend(list, context, PhaseBlend(current), false);
+                    blending = true;
+                }
+
                 list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, color, kPageStateBlockQwords);
             }
         }
     }
 
     list.EndBatches();
-    gs::EndDepthPass(list, renderer::DrawingContext());
+    gs::EndDepthPass(list, context);
     EndTextures(s_passTextures);
     s_lastStats = GetTextureStats(s_passTextures);
 }

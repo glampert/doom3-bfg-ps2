@@ -54,10 +54,11 @@ struct SurfaceShading
 {
     bool lit = false;
     bool castsShadow = false;
-    // Alpha-tested: the lightmap pass cannot test the diffuse's alpha (and the GS has no EQUAL
-    // depth test), so it would darken whatever the holes show; these surfaces take their light
-    // per vertex instead, without a page.
-    bool perforated = false;
+    // Lit per vertex, without a page. Alpha-tested: the lightmap pass cannot test the diffuse's alpha
+    // (and the GS has no EQUAL depth test), so it would darken whatever the holes show. Translucent:
+    // its diffuse adds over the frame (with the light in its vertex colours), where the lightmap pass
+    // would darken the surface below.
+    bool vertexLit = false;
 };
 
 struct LightmapScene

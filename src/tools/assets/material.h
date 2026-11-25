@@ -172,6 +172,10 @@ struct MaterialInfo
     bool translucent = false;
     // 'guiSurf': the surface shows its entity's GUI (in-world screens), which changes at run time.
     bool gui = false;
+    // 'deform X', lowercase (sprite, tube, flare and the like: the renderer rebuilds the geometry), and
+    // 'mirror' (a subview): empty and false without.
+    std::string deform;
+    bool mirror = false;
     // Light material keywords.
     std::string lightFalloffImage;
     bool fogLight = false;

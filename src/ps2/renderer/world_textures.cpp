@@ -121,6 +121,7 @@ struct MaterialState
 struct PassState
 {
     u32 color[4];
+    PassPhase phase;
     bool enabled;
     bool written[2];
     u32 writtenColor[2][4];
@@ -814,6 +815,23 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
     for (u32 index = 0; index < pack.passCount; ++index)
     {
         textures->slots[pack.passes[index].texture].passOnly = true;
+    }
+
+    // A pass's phase: an opaque material's passes add over its base pass; a translucent one's stages
+    // by their blend.
+    for (u32 index = 0; index < pack.materialCount; ++index)
+    {
+        const tex::PackMaterial & material = pack.materials[index];
+
+        for (u32 pass = material.firstPass; pass < static_cast<u32>(material.firstPass) + material.passCount; ++pass)
+        {
+            const tex::PackPass & record = pack.passes[pass];
+            textures->passes[pass].phase = material.texture != tex::kPackHidden                ? PassPhase::Glow
+                                           : (record.flags & tex::kPackPassVertexColor) != 0   ? PassPhase::Lit
+                                           : record.blend == tex::kPackBlendMultiply           ? PassPhase::Multiply
+                                           : record.blend == tex::kPackBlendAlpha              ? PassPhase::Alpha
+                                                                                               : PassPhase::Add;
+        }
     }
 
     for (u32 index = 0; index < pack.materialCount; ++index)
@@ -1742,7 +1760,12 @@ void BeginPlan(Textures * textures)
     }
 }
 
-void PlanMaterialPasses(Textures * textures, u32 material)
+gs::PassBlend PhaseBlend(PassPhase phase)
+{
+    return phase == PassPhase::Multiply ? gs::PassBlend::Multiply : phase == PassPhase::Alpha ? gs::PassBlend::Alpha : gs::PassBlend::Add;
+}
+
+void PlanMaterialPasses(Textures * textures, u32 material, PassPhase phase)
 {
     if (textures == nullptr)
     {
@@ -1753,8 +1776,11 @@ void PlanMaterialPasses(Textures * textures, u32 material)
 
     for (u32 pass = 0; pass < record.passCount && textures->useCount + 2U <= textures->useCapacity; ++pass)
     {
-        textures->uses[textures->useCount++] = textures->pack.passes[record.firstPass + pass].texture;
-        textures->uses[textures->useCount++] = kNoUse;
+        if (textures->passes[record.firstPass + pass].phase == phase)
+        {
+            textures->uses[textures->useCount++] = textures->pack.passes[record.firstPass + pass].texture;
+            textures->uses[textures->useCount++] = kNoUse;
+        }
     }
 }
 
@@ -2005,6 +2031,13 @@ const void * PageState(Textures * textures, dma::DisplayList & list, u32 page)
     return current;
 }
 
+PassPhase PassPhaseOf(const Textures * textures, u32 material, u32 pass)
+{
+    PS2_AssertMsg(textures != nullptr && material < textures->pack.materialCount && pass < textures->pack.materials[material].passCount,
+                  "material pass outside the texture package");
+    return textures->passes[textures->pack.materials[material].firstPass + pass].phase;
+}
+
 u32 PassCount(const Textures * textures, u32 material)
 {
     if (textures == nullptr || !s_textured)
@@ -2060,6 +2093,16 @@ bool PassBlocks(Textures * textures, dma::DisplayList & list, u32 material, u32 
         return false;
     }
 
+    ++textures->stats.passes;
+    state = current;
+
+    // A translucent material's lit diffuse draws with the batch's vertex colours, the cook's light.
+    if ((record.flags & tex::kPackPassVertexColor) != 0)
+    {
+        color = Unlit();
+        return true;
+    }
+
     bool same = dynamic.written[context];
 
     for (u32 channel = 0; channel < 4; ++channel)
@@ -2078,8 +2121,6 @@ bool PassBlocks(Textures * textures, dma::DisplayList & list, u32 material, u32 
         }
     }
 
-    ++textures->stats.passes;
-    state = current;
     color = colorBlock;
     return true;
 }

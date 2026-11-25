@@ -218,10 +218,56 @@ static float EvaluateConstant(const MaterialExpression & expression, const Shade
     return EvaluateExpression(expression, inputs, fallback);
 }
 
-// Why an ambient stage draws no additive pass, or null when it does.
-static const char * PassRefusal(const MaterialStage & stage)
+// A translucent material's stage as a pass over the frame: its blend and what its texture holds,
+// or why it draws none. id lights a translucent material's diffuse stage over the surface below
+// (ONE, ONE): an add of the diffuse with the vertex colours, which carry the cook's light. The GS
+// multiplies the frame only by an alpha, so a multiply stage takes its image's luminance there.
+static const char * TranslucentBlend(const MaterialStage & stage, PlannedPass & planned)
 {
-    if (stage.blend != "add" && stage.blend != "gl_one,gl_one")
+    const std::string & blend = stage.blend;
+
+    if (blend == "diffusemap")
+    {
+        planned.pass.flags = kD3txPassVertexColor;
+        planned.source = PassImage::Diffuse;
+    }
+    else if (blend == "filter" || blend == "gl_dst_color,gl_zero" || blend == "gl_zero,gl_src_color")
+    {
+        planned.pass.blend = kD3txBlendMultiply;
+        planned.source = PassImage::Luminance;
+    }
+    else if (blend == "gl_zero,gl_one_minus_src_color")
+    {
+        planned.pass.blend = kD3txBlendMultiply;
+        planned.source = PassImage::InverseLuminance;
+    }
+    else if (blend == "blend" || blend == "gl_src_alpha,gl_one_minus_src_alpha")
+    {
+        planned.pass.blend = kD3txBlendAlpha;
+        planned.source = PassImage::Alpha;
+    }
+    else if (blend != "add" && blend != "gl_one,gl_one")
+    {
+        return blend.empty() ? "no blend: it replaces the frame" : "a blend the GS cannot draw";
+    }
+
+    return nullptr;
+}
+
+// Why a stage draws no pass, or null when it does: 'translucent' for a translucent material's stages
+// (TranslucentBlend), else an opaque material's additive stage.
+static const char * PassRefusal(const MaterialStage & stage, bool translucent, PlannedPass & planned)
+{
+    if (translucent)
+    {
+        const char * refusal = stage.special ? "a cube map, texgen, video, render map or program" : TranslucentBlend(stage, planned);
+
+        if (refusal != nullptr)
+        {
+            return refusal;
+        }
+    }
+    else if (stage.blend != "add" && stage.blend != "gl_one,gl_one")
     {
         return "a blend other than add";
     }
@@ -276,7 +322,17 @@ MaterialPassPlan PlanMaterialPasses(const MaterialInfo & material, const ShaderP
         }
     }
 
-    if (material.diffuseStage < 0 || material.translucent)
+    // A translucent material has no base pass: its stages draw over the frame. An alpha-tested one
+    // draws opaque where it passes.
+    const bool translucent = material.translucent && !material.alphaTest;
+
+    if (translucent && (material.mirror || !material.deform.empty()))
+    {
+        plan.skipped.push_back(material.mirror ? "a mirror" : "a deform (" + material.deform + ")");
+        return plan;
+    }
+
+    if (!translucent && (material.diffuseStage < 0 || material.translucent))
     {
         return plan;
     }
@@ -285,12 +341,15 @@ MaterialPassPlan PlanMaterialPasses(const MaterialInfo & material, const ShaderP
     {
         const MaterialStage & stage = material.stages[index];
 
-        if (stage.blend == "diffusemap" || stage.blend == "bumpmap" || stage.blend == "specularmap")
+        if ((stage.blend == "diffusemap" && !translucent) || stage.blend == "bumpmap" || stage.blend == "specularmap")
         {
             continue;
         }
 
-        const char * refusal = PassRefusal(stage);
+        PlannedPass planned;
+        planned.stage = static_cast<int>(index);
+        planned.image = stage.map;
+        const char * refusal = PassRefusal(stage, translucent, planned);
 
         if (refusal != nullptr)
         {
@@ -298,9 +357,6 @@ MaterialPassPlan PlanMaterialPasses(const MaterialInfo & material, const ShaderP
             continue;
         }
 
-        PlannedPass planned;
-        planned.stage = static_cast<int>(index);
-        planned.image = stage.map;
         bool fits = true;
 
         if (!stage.condition.Empty())
@@ -315,6 +371,41 @@ MaterialPassPlan PlanMaterialPasses(const MaterialInfo & material, const ShaderP
             }
 
             planned.pass.condition = fits && !condition.constant ? condition.node : kD3txNoNode;
+        }
+
+        // A lit diffuse's colour is in the vertex colours with the light (the base pass's diffuse
+        // colour, folded by the cook). A multiply stage's colour scales its alpha by its luminance,
+        // a constant: the GS multiplies the frame by one value per pixel.
+        if (fits && (planned.source == PassImage::Diffuse || planned.source == PassImage::Luminance || planned.source == PassImage::InverseLuminance))
+        {
+            std::array<float, 4> color = { 1.0f, 1.0f, 1.0f, 1.0f };
+            bool constant = true;
+
+            for (std::size_t channel = 0; channel < 4; ++channel)
+            {
+                Folded value;
+                PlannedPass scratch;
+                const MaterialExpression & expression = stage.color[channel];
+                constant = constant && (expression.Empty() || (Folder(expression, parms, tables, scratch).Fold(expression.root, value) && value.constant));
+                color[channel] = expression.Empty() || !value.constant ? 1.0f : *value.constant;
+            }
+
+            const float luminance = 0.299f * color[0] + 0.587f * color[1] + 0.114f * color[2];
+
+            if (planned.source != PassImage::Diffuse && (!constant || (planned.source == PassImage::InverseLuminance && luminance != 1.0f)))
+            {
+                plan.skipped.push_back("stage " + std::to_string(index) + " (" + stage.map + "): a multiply colour the GS cannot apply");
+                continue;
+            }
+
+            if (planned.source != PassImage::Diffuse)
+            {
+                planned.pass.color[3] = PassColorByte(std::clamp(luminance, 0.0f, 1.0f));
+            }
+
+            planned.pass.nodeCount = static_cast<std::uint16_t>(planned.nodes.size());
+            plan.passes.push_back(std::move(planned));
+            continue;
         }
 
         for (std::size_t channel = 0; fits && channel < 4; ++channel)
@@ -351,8 +442,8 @@ MaterialPassPlan PlanMaterialPasses(const MaterialInfo & material, const ShaderP
             continue;
         }
 
-        const bool black = planned.pass.color[0] == 0 && planned.pass.color[1] == 0 && planned.pass.color[2] == 0 &&
-                           planned.pass.colorNodes[0] == kD3txNoNode && planned.pass.colorNodes[1] == kD3txNoNode &&
+        const bool black = planned.pass.blend == kD3txBlendAdd && planned.pass.color[0] == 0 && planned.pass.color[1] == 0 &&
+                           planned.pass.color[2] == 0 && planned.pass.colorNodes[0] == kD3txNoNode && planned.pass.colorNodes[1] == kD3txNoNode &&
                            planned.pass.colorNodes[2] == kD3txNoNode;
 
         if (black)

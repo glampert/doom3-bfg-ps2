@@ -253,10 +253,12 @@ static bool ValidPass(const D3txPass & pass, const TexturePack & pack, std::stri
         return false;
     }
 
-    if (pass.blend != kD3txBlendAdd || pass.nodeCount > kD3txMaxNodesPerPass ||
-        static_cast<std::size_t>(pass.firstNode) + pass.nodeCount > pack.nodes.size())
+    const bool blend = pass.blend == kD3txBlendAdd || pass.blend == kD3txBlendMultiply || pass.blend == kD3txBlendAlpha;
+    const bool flags = pass.flags == 0 || (pass.flags == kD3txPassVertexColor && pass.blend == kD3txBlendAdd);
+
+    if (!blend || !flags || pass.nodeCount > kD3txMaxNodesPerPass || static_cast<std::size_t>(pass.firstNode) + pass.nodeCount > pack.nodes.size())
     {
-        reason = "has a bad blend or node range";
+        reason = "has a bad blend, flags or node range";
         return false;
     }
 
@@ -445,11 +447,20 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
             return Fail(error, "D3TX material " + std::to_string(index) + " draws a sky the package lacks, or alpha-tests one");
         }
 
-        // Passes draw over a textured base pass, which a material without a texture lacks.
+        // Passes draw over a textured base pass, or a translucent material's over the frame: an
+        // untextured material or a sky has none, and an opaque material's only add.
         if (pack.materialAlphaRef[index] > kD3txMaxAlphaRef || pack.materialPassCount[index] > kD3txMaxPassesPerMaterial ||
-            passEnd > pack.passes.size() || (pack.materialPassCount[index] != 0 && texture >= kD3txSky))
+            passEnd > pack.passes.size() || (pack.materialPassCount[index] != 0 && (texture == kD3txNoTexture || texture == kD3txSky)))
         {
             return Fail(error, "D3TX material " + std::to_string(index) + " has a bad alpha reference or pass range");
+        }
+
+        for (std::size_t pass = pack.materialFirstPass[index]; texture < kD3txSky && pass < passEnd; ++pass)
+        {
+            if (pack.passes[pass].blend != kD3txBlendAdd || pack.passes[pass].flags != 0)
+            {
+                return Fail(error, "D3TX material " + std::to_string(index) + " blends a pass over its base pass other than by adding");
+            }
         }
     }
 
@@ -574,6 +585,7 @@ bool WriteD3tx(const TexturePack & pack, std::vector<std::uint8_t> & output, std
         WriteLe32(record, pass.texture);
         std::memcpy(record + 4, pass.color.data(), 4);
         record[8] = pass.blend;
+        record[9] = pass.flags;
         WriteLe16(record + 10, pass.firstNode);
         WriteLe16(record + 12, pass.nodeCount);
         WriteLe16(record + 14, pass.condition);
@@ -692,6 +704,7 @@ bool ReadD3tx(std::span<const std::uint8_t> bytes, TexturePack & output, std::st
         pass.texture = ReadLe32(record);
         std::memcpy(pass.color.data(), record + 4, 4);
         pass.blend = record[8];
+        pass.flags = record[9];
         pass.firstNode = ReadLe16(record + 10);
         pass.nodeCount = ReadLe16(record + 12);
         pass.condition = ReadLe16(record + 14);

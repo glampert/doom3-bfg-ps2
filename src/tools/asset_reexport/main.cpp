@@ -1349,6 +1349,9 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
     std::size_t t4 = 0;
     std::size_t cavities = 0;
     std::size_t dynamicPasses = 0;
+    // Translucent materials drawn by their passes, and those passes.
+    std::size_t translucentDrawn = 0;
+    std::size_t translucentPasses = 0;
 
     if (!previews.empty())
     {
@@ -1520,14 +1523,19 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         const bool hidden = !sky && found != declared.end() && found->second.translucent && !found->second.alphaTest;
         const char * reason = found == declared.end()         ? "undeclared"
                               : sky                           ? nullptr
-                              : hidden && found->second.diffuse.empty() ? "translucent without a diffuse stage: not drawn textured"
-                              : hidden                        ? "translucent: its diffuse stage adds over the surface below; not drawn textured"
+                              : hidden                        ? "translucent: no stage the PS2 draws"
                               : found->second.diffuse.empty() ? "no diffuse stage"
                                                               : nullptr;
         std::uint32_t index = hidden ? kD3txHidden : kD3txNoTexture;
         MaterialPassPlan plan;
         bool coverage = false;
         bool baked = false;
+
+        // A translucent material has no base pass: its stages draw over the frame as passes.
+        if (hidden)
+        {
+            plan = PlanMaterialPasses(found->second, parms[materialIndex], tables);
+        }
 
         if (sky)
         {
@@ -1595,32 +1603,54 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
             cavities += baked ? 1U : 0U;
         }
 
-        if (reason != nullptr)
-        {
-            untextured += std::string(untextured.empty() ? "" : ",") + "\n    { \"material\": " + JsonString(material) + ", \"reason\": \"" + reason + "\" }";
-        }
-
         pack.materialTextures.push_back(index);
         pack.materialAlphaRef.push_back(coverage ? plan.alphaRef : std::uint8_t(0));
         pack.materialFirstPass.push_back(static_cast<std::uint16_t>(pack.passes.size()));
         std::string passes;
 
-        for (const PlannedPass & planned : index < kD3txSky ? plan.passes : std::vector<PlannedPass>())
+        for (const PlannedPass & planned : index < kD3txSky || index == kD3txHidden ? plan.passes : std::vector<PlannedPass>())
         {
             const std::string label = material + " stage " + std::to_string(planned.stage);
             std::uint32_t texture = kD3txNoTexture;
             bool opaqueCoverage = false;
-            const auto opaque = [&Opaque](RgbaImage & pixels, bool &, RgbaImage &)
+
+            // What the texture holds of the image: opaque for an add, the luminance (or one minus it)
+            // in the alpha over white for a multiply, the image's own alpha for a blend.
+            const auto prepare = [&Opaque, &planned](RgbaImage & pixels, bool &, RgbaImage &)
             {
-                Opaque(pixels);
+                if (planned.source == PassImage::Opaque || planned.source == PassImage::Diffuse)
+                {
+                    Opaque(pixels);
+                    return;
+                }
+
+                for (int y = 0; planned.source != PassImage::Alpha && y < pixels.height; ++y)
+                {
+                    for (int x = 0; x < pixels.width; ++x)
+                    {
+                        std::uint8_t * texel = pixels.At(x, y);
+                        const int luminance = (77 * texel[0] + 150 * texel[1] + 29 * texel[2] + 128) >> 8;
+                        texel[3] = static_cast<std::uint8_t>(planned.source == PassImage::InverseLuminance ? 255 - luminance : luminance);
+                        texel[0] = 255;
+                        texel[1] = 255;
+                        texel[2] = 255;
+                    }
+                }
             };
 
-            // id loads a blend stage's image as TD_DEFAULT; some ship only as diffuse.
+            const char * suffix = planned.source == PassImage::Luminance          ? "#luminance"
+                                  : planned.source == PassImage::InverseLuminance ? "#inverse-luminance"
+                                  : planned.source == PassImage::Alpha            ? "#alpha"
+                                                                                  : "";
+
+            // id loads a blend stage's image as TD_DEFAULT (some ship only as diffuse), a diffuse
+            // stage's as TD_DIFFUSE.
             for (const int usage : { kTextureUsageDefault, kTextureUsageDiffuse })
             {
                 const std::string image = GeneratedImageName(planned.image, usage);
+                const bool skip = planned.source == PassImage::Diffuse && usage != kTextureUsageDiffuse;
 
-                if (texture == kD3txNoTexture && !CookImage(image, image, planned.image, opaqueCoverage, opaque, texture))
+                if (texture == kD3txNoTexture && !skip && !CookImage(image + suffix, image, planned.image, opaqueCoverage, prepare, texture))
                 {
                     return false;
                 }
@@ -1635,12 +1665,21 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
             AddPlannedPass(pack, planned, texture, tables, tableOffsets);
             const D3txPass & pass = pack.passes.back();
             dynamicPasses += planned.nodes.empty() ? 0U : 1U;
-            passes += std::string(passes.empty() ? "" : ", ") + "{ \"stage\": " + std::to_string(planned.stage) + ", \"image\": " +
+            const char * blend = pass.blend == kD3txBlendMultiply ? "multiply" : pass.blend == kD3txBlendAlpha ? "alpha" : (pass.flags & kD3txPassVertexColor) != 0 ? "lit" : "add";
+            passes += std::string(passes.empty() ? "" : ", ") + "{ \"stage\": " + std::to_string(planned.stage) + ", \"blend\": \"" + blend + "\", \"image\": " +
                       JsonString(planned.image) + ", \"color\": [" + std::to_string(pass.color[0]) + ", " + std::to_string(pass.color[1]) + ", " +
                       std::to_string(pass.color[2]) + ", " + std::to_string(pass.color[3]) + "], \"nodes\": " + std::to_string(pass.nodeCount) + " }";
         }
 
         pack.materialPassCount.push_back(static_cast<std::uint8_t>(pack.passes.size() - pack.materialFirstPass.back()));
+        translucentPasses += hidden ? pack.materialPassCount.back() : 0U;
+        translucentDrawn += hidden && pack.materialPassCount.back() != 0 ? 1U : 0U;
+        reason = hidden && pack.materialPassCount.back() != 0 ? nullptr : reason;
+
+        if (reason != nullptr)
+        {
+            untextured += std::string(untextured.empty() ? "" : ",") + "\n    { \"material\": " + JsonString(material) + ", \"reason\": \"" + reason + "\" }";
+        }
 
         if (!passes.empty() || !plan.skipped.empty() || pack.materialAlphaRef.back() != 0 || baked)
         {
@@ -1768,7 +1807,9 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
                                std::to_string(textured) + ",\n  \"textures\": " + std::to_string(pack.textures.size()) + ",\n  \"psmt4\": " +
                                std::to_string(t4) + ",\n  \"vram_bytes\": " + std::to_string(vramBytes) + ",\n  \"cavity_baked\": " +
                                std::to_string(cavities) + ",\n  \"passes\": " + std::to_string(pack.passes.size()) + ",\n  \"dynamic_passes\": " +
-                               std::to_string(dynamicPasses) + ",\n  \"expression_nodes\": " + std::to_string(pack.nodes.size()) +
+                               std::to_string(dynamicPasses) + ",\n  \"translucent_materials\": " + std::to_string(translucentDrawn) +
+                               ",\n  \"translucent_passes\": " + std::to_string(translucentPasses) +
+                               ",\n  \"expression_nodes\": " + std::to_string(pack.nodes.size()) +
                                ",\n  \"table_values\": " + std::to_string(pack.tableValues.size()) + ",\n  \"lightmap_pages\": " +
                                std::to_string(pages.size()) + ",\n  \"lightmap_vram_bytes\": " + std::to_string(pageBytes) + ",\n  \"file_bytes\": " +
                                std::to_string(file.size()) + ",\n  \"sky\": " + skyReport + ",\n  \"sky_materials\": " +
@@ -1776,7 +1817,8 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
                                "\n  ],\n  \"material_passes\": [" + passReport + "\n  ],\n  \"untextured\": [" + untextured + "\n  ]\n}\n";
     std::cout << stem << ".d3tx: " << pack.textures.size() << " textures for " << textured << " of " << materials.size() << " materials ("
               << cavities << " with cavity, " << skyMaterials << " showing the sky" << (pack.skies.empty() ? "" : " box") << "), "
-              << pack.passes.size() << " passes (" << dynamicPasses << " driven by time), " << vramBytes
+              << pack.passes.size() << " passes (" << dynamicPasses << " driven by time, " << translucentPasses << " for " << translucentDrawn
+              << " translucent materials), " << vramBytes
               << " bytes of VRAM, " << pages.size() << " lightmap pages (" << pageBytes << " bytes), " << file.size() << " bytes\n";
     return WriteFile(output / (stem + ".textures.json"), report.data(), report.size());
 }
@@ -1973,7 +2015,7 @@ static bool BakeWorldLighting(ResourceCatalog & catalog, const std::map<std::str
             {
                 shading.lit = found->second.lit;
                 shading.castsShadow = found->second.castsShadow;
-                shading.perforated = found->second.alphaTest;
+                shading.vertexLit = found->second.alphaTest || found->second.translucent;
             }
 
             scene.materials.emplace(surface.material, shading);

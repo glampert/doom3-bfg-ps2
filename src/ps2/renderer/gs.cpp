@@ -1078,6 +1078,26 @@ void BeginDepthPass(dma::DisplayList & list, DrawContext context)
     list.EndDirect(writer);
 }
 
+void SetPassBlend(dma::DisplayList & list, DrawContext context, PassBlend blend, bool depthWrites)
+{
+    PS2_AssertMsg(s_initialized, "pass blend before GS initialization");
+
+    // The last batch before the switch starts first (its MSCAL is still pending), so the FLUSH
+    // waits for it to draw with the blend it was drawn for.
+    list.EndBatches();
+    list.FlushPaths();
+
+    // Add: (Cs - 0) x FIX + Cd, FIX 1.0. Multiply: (Cd - 0) x As + 0, the texture's alpha (the
+    // vertex alpha 0x80 leaves it as it is). Alpha: (Cs - Cd) x As + Cd.
+    const u64 alpha = blend == PassBlend::Add      ? GS_SET_ALPHA(0, 2, 2, 1, 0x80)
+                      : blend == PassBlend::Multiply ? GS_SET_ALPHA(1, 2, 0, 2, 0)
+                                                     : GS_SET_ALPHA(0, 1, 0, 1, 0);
+    GifWriter writer = list.BeginDirect(4);
+    writer.SetRegister(ContextReg(GS_REG_ALPHA, context), alpha);
+    writer.SetRegister(ContextReg(GS_REG_ZBUF, context), DepthState(depthWrites));
+    list.EndDirect(writer);
+}
+
 void EndDepthPass(dma::DisplayList & list, DrawContext context)
 {
     PS2_AssertMsg(s_initialized, "depth pass before GS initialization");

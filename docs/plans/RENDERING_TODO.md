@@ -4,8 +4,8 @@ Companion to [RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md): the same wo
 section 19 gates, broken into concrete steps in the proposed order. Opened **2026-11-03**;
 status as of **2026-11-25**: R0 and R1 done but for the hardware probes, R2 in progress (the
 lightmapped, textured world with material passes, the sky and chroma subdivision is done,
-declarations read their text on demand and the world's textures stream; the translucent stages and
-the R2 gate remain), R3 to R9 not started.
+declarations read their text on demand, the world's textures stream and translucent stages draw;
+the R2 gate remains), R3 to R9 not started.
 Tick items as they land; move a step's measurements into the plan's decision log
 (section 20) and its acceptance into [PORT_STATUS.md](../PORT_STATUS.md). Every step keeps
 the headless and 2D gates green (`make test-headless`, `test-renderer`, `test-ui`) and the
@@ -281,7 +281,7 @@ production link free of test inputs. Section numbers in parentheses point into t
       per-entity matrix for when the game moves them (M3).
 - [x] Translucent materials with a diffuse stage (decals, lettering: id adds the stage's light over the
       surface below) are hidden from the textured pass like those without one, instead of drawing
-      their black background (2026-11-25; 8 on mars_city1). The blend stages above draw them.
+      their black background (2026-11-25; 8 on mars_city1). Their passes below draw them.
 - [x] Debug free-flight camera (2026-11-08): `ps2_world fly` steers the viewer with the pad,
       `make run-world-retail` stages mars_city1 flying from the player start, and the retail gate
       flies a scripted path to a modelled pose and matches its capture (debug builds).
@@ -312,11 +312,18 @@ production link free of test inputs. Section numbers in parentheses point into t
       `(Cs - 0) x FIX + Cd` in the base context) and a constant colour every vertex takes; their
       textures take the arena's top end and are evicted first, so a frame's diffuse textures never
       give way to them (PAL's 640 KB arena drops the north view's glows instead).
-- [ ] Material passes still to come: blend, filter and modulate stages of translucent materials
-      (25 on mars_city1, `kPackHidden` today; `Cd x As` with the stage's luminance in alpha, 10.1),
-      texture matrices (constant ones foldable into the UVs; mars_city1 has two diffuse stages
-      with `scale`), cube-map and texgen stages (the gloss and environment pass, 10.3), and stage
-      `clamp`.
+- [x] Translucent stages (2026-11-25, D3TX v5, 10.1): a translucent material has no base pass; its
+      stages draw over the frame as passes, after the opaque materials' glows, depth tested and no
+      longer written, in four phases each opened by one ALPHA and ZBUF write (`gs::SetPassBlend`):
+      its diffuse lit by the vertex colours (added, as id lights translucent surfaces; the bake lights
+      them per vertex), its multiply stages (`filter`, `gl_dst_color, gl_zero`; `Cd x As` with the
+      image's luminance cooked into the alpha, or one minus it for `gl_zero,
+      gl_one_minus_src_color`), its add stages, and its alpha blends. mars_city1 draws 31 of its 49
+      hidden materials this way: 16 multiply, 7 lit, 7 add, 1 alpha blend.
+- [ ] Material stages still to come: texture matrices (constant ones foldable into the UVs; mars_city1
+      has two diffuse stages with `scale`, `chiglass1blue` among them), cube-map and texgen stages (the
+      gloss and environment pass, 10.3: glass reflections), stage `clamp`, deform materials (sprites
+      and flares, R7), heat-haze programs and mirrors (R7).
 - [x] Runtime: textured world pass (2026-11-08): `world_lm.vcl`/`world_strips.vcl` send STQ, each
       batch carries its material's texture state, and `world_textures.cpp` keeps the map's D3TX
       resident in a block-granular VRAM arena with LRU eviction and in-chain uploads; the

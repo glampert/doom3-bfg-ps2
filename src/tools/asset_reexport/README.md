@@ -351,9 +351,17 @@ vertex, and its D3WD entity record (v5, 80 bytes) is marked drawn with that area
 range. The report adds `drawn_entities`, `drawn_triangles` and `drawn_kept`. mars_city1 draws 94,
 8,258 triangles; 515 entity records in all.
 
-A translucent material is not drawn textured (`kD3txHidden`), with or without a diffuse stage: id
-adds a translucent diffuse stage's light over the surface below, and drawn opaque its black
-background would show.
+A translucent material has no base pass (`kD3txHidden`), with or without a diffuse stage: its stages
+draw over the frame as passes (D3TX v5). Its diffuse stage is an add of the diffuse with the vertex
+colours (id lights a translucent surface's diffuse over the surface below; the bake lights these
+surfaces per vertex, `SurfaceShading::vertexLit`, since a lightmap pass would darken what lies
+beneath). A multiply stage (`filter`, `gl_dst_color, gl_zero`, `gl_zero, gl_src_color`) becomes the
+frame times the texture's alpha, the image's luminance cooked there over white (one minus it for
+`gl_zero, gl_one_minus_src_color`), its colour's luminance in the vertex alpha. An add stage adds, and
+a `blend` stage mixes by the image's own alpha. Stages the GS cannot draw (cube maps, programs,
+texture matrices, `gl_dst_alpha` blends, stages that replace the frame), deform materials and mirrors
+are left out, each with its reason in the report's `material_passes`; a translucent material with no
+pass is listed in `untextured`. The report counts `translucent_materials` and `translucent_passes`.
 
 mars_city1: A 410, B 13, C 31, D 2, E 27, F 3. The 410 A lights (284 cast shadows) cover 1,716 lit
 surfaces (204 alpha-tested, lit per vertex) with 10,683 charts in 8 pages: 532,480 bytes of VRAM

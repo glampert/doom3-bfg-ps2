@@ -64,12 +64,12 @@ struct Image
 // checked only in assertion builds (corrupt texels cannot hang the GIF; every tag is checked).
 PS2_COLD_FUNC const char * ValidateImage(const std::uint8_t * file, std::uint32_t bytes, Image & output);
 
-// A map's texture package (D3TX v4, src/tools/assets/texture_pack.h), validated in place: the
+// A map's texture package (D3TX v5, src/tools/assets/texture_pack.h), validated in place: the
 // material, pass, texture, lightmap page, expression node, table value and sky tables, then each
 // texture validated as an Image. 64-byte aligned like the D3WD.
 static constexpr std::uint32_t kPackMagic = 0x58543344;
-static constexpr std::uint32_t kPackVersion = 4;
-static constexpr std::uint32_t kPackConverterVersion = 5;
+static constexpr std::uint32_t kPackVersion = 5;
+static constexpr std::uint32_t kPackConverterVersion = 6;
 static constexpr std::uint32_t kPackHeaderBytes = 52;
 static constexpr std::uint32_t kPackMaterialBytes = 16;
 static constexpr std::uint32_t kPackPassBytes = 24;
@@ -99,7 +99,15 @@ static constexpr std::uint32_t kPackFlagAlphaTest = 1U;
 static constexpr std::uint32_t kPackFlagLightmap = 2U;
 static constexpr std::uint32_t kPackMaxPages = 256;
 static constexpr std::uint8_t kPackMaxAlphaRef = 0x80;
+// A pass's blend: its colour times its texture added to the frame; the frame times the texture's
+// alpha (a translucent material's multiply stages, their image's luminance in the alpha); or the
+// two mixed by the texture's alpha.
 static constexpr std::uint8_t kPackBlendAdd = 1;
+static constexpr std::uint8_t kPackBlendMultiply = 2;
+static constexpr std::uint8_t kPackBlendAlpha = 3;
+// The pass draws with the batch's vertex colours (the cook's light per vertex), not its colour: a
+// translucent material's diffuse stage, which id lights over the surface below.
+static constexpr std::uint8_t kPackPassVertexColor = 1;
 static constexpr std::uint16_t kPackNoNode = 0xFFFF;
 static constexpr std::uint8_t kPackTableSnap = 1;
 static constexpr std::uint8_t kPackTableClamp = 2;
@@ -131,7 +139,7 @@ enum class PackOp : std::uint8_t
 
 struct PackMaterial
 {
-    std::uint32_t texture;  // kPackNoTexture: drawn untextured; kPackHidden: not drawn textured; kPackSky: depth only
+    std::uint32_t texture;  // kPackNoTexture: drawn untextured; kPackHidden: no base pass (translucent); kPackSky: depth only
     float uvDensityLog2;    // log2 of UV units per world unit
     std::uint16_t firstPass;
     std::uint8_t passCount;
@@ -139,14 +147,14 @@ struct PackMaterial
     std::uint32_t reserved;
 };
 
-// An additive pass over the base pass, drawn while its condition holds with its colour times its
-// texture.
+// A pass over the base pass (an opaque material's additive stage) or, for a translucent material,
+// one of its stages over the frame, drawn while its condition holds with its colour times its texture.
 struct PackPass
 {
     std::uint32_t texture;
     std::uint8_t color[4];  // 0x80 = 1.0, for channels no node drives
-    std::uint8_t blend;     // kPackBlendAdd
-    std::uint8_t reserved;
+    std::uint8_t blend;     // kPackBlendAdd, kPackBlendMultiply or kPackBlendAlpha
+    std::uint8_t flags;     // kPackPassVertexColor
     std::uint16_t firstNode;
     std::uint16_t nodeCount;
     std::uint16_t condition; // kPackNoNode: always

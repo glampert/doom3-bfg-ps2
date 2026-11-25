@@ -164,8 +164,13 @@ coordinates; CLUTs; VRAM and mipmaps.
   surface into depth alone (`ATST NEVER`, `AFAIL ZB_ONLY`) before the other batches. The faces give
   way first, even after they drew: their `TEX0` is in the chain's DIRECT data, no state block. Any
   pixel no surface covers shows the sky (a doorway without its door model).
-- Translucent materials without a diffuse stage (`kPackHidden` in the D3TX) are skipped by the
-  textured pass until their blend stages compile; untextured passes draw them. The retail gate's
+- **Translucent materials** (`kPackHidden` in the D3TX, 2026-11-25) have no base pass: their stages
+  are passes drawn after the opaque glows, phase by phase (`PassPhase`: lit diffuse, multiply, add,
+  alpha). Each phase opens with `gs::SetPassBlend` (it starts the pending batch, FLUSHes, then writes
+  ALPHA and ZBUF): depth stays tested GEQUAL and is no longer written. Multiply is `Cd x As` with the
+  image's luminance cooked into the texture's alpha (TCC 1, MODULATE with vertex alpha 0x80); the lit
+  diffuse takes the batch's vertex colours (the unlit page block). Untextured passes draw them as any
+  surface. The retail gate's
   reference rasterizes the cooked D3WD's own triangles (`world_reference.load_cooked_triangles`),
   since a lit cook's vertex colours are the baked chroma.
 - **Texture hazards:** queued TEX0 references are hazards even before a kick. Dirty reupload,

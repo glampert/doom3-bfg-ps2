@@ -216,6 +216,20 @@ void ClearFrame(dma::DisplayList & list, DrawContext context, Color color);
 void BeginDepthPass(dma::DisplayList & list, DrawContext context);
 void EndDepthPass(dma::DisplayList & list, DrawContext context);
 
+// How the world pass's blended batches in 'context' mix with the frame: their colour added (the
+// state BeginDepthPass leaves), the frame multiplied by their alpha (Cd x As), or the two mixed by
+// it. Between batches of a depth pass: the pending batch starts and a VIF FLUSH waits for it. Depth
+// stays tested GEQUAL and, past an opaque material's passes, is no longer written. EndDepthPass
+// ends both.
+enum class PassBlend : u8
+{
+    Add,
+    Multiply,
+    Alpha
+};
+
+void SetPassBlend(dma::DisplayList & list, DrawContext context, PassBlend blend, bool depthWrites);
+
 // The depth buffer holds one mask: these write coverage into it without touching color, and
 // ClearMask removes it from a pixel rectangle. A masked DrawState passes only inside it.
 void MaskTriangleFixed(dma::DisplayList & list, DrawContext context, const ui::FixedTriangle & triangle);

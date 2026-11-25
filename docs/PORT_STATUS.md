@@ -6220,3 +6220,38 @@ the shadow BVH, since id's shadows come from render surfaces and its clip brushe
 | --- | --- |
 | `make test-world-retail` | `20261125T070207Z_world_retail_682dc0ff9e88` (NTSC), `20261125T070453Z_world_retail_5e75a90f4cb8` (PAL) |
 | `make test-host` | Passed: a floor between a red and a blue light splits where its colour turns and its wall splits alike along their edge (no corner inside another triangle's edge, areas and winding kept), fewer texels off colour, nothing split under one white light; a copy without the neighbour splits fails the cook's T-junction check |
+
+## Translucent stages drawn (2026-11-25)
+
+Translucent materials had no draw in the textured pass: their stages blend with the frame, which a
+base pass cannot. They now draw as passes over the frame (D3TX v5), after the opaque materials'
+glows, with depth tested and no longer written.
+- **The phases, in id's order:** first the lit diffuse, then multiply stages (decals), then add
+  stages, then alpha blends. Each phase opens with one `gs::SetPassBlend`: it starts the pending
+  batch, FLUSHes, then writes the base context's ALPHA and ZBUF. The eviction plan walks the same
+  phases, so mid-pass eviction still sees the order the passes draw in.
+- **Lit diffuse:** id draws a translucent surface's light interactions with ONE, ONE over the
+  surface below. Here that is an add of the diffuse with the batch's vertex colours; the bake now
+  lights these surfaces per vertex, since a lightmap pass would darken what lies beneath.
+- **Multiply:** the GS multiplies the frame only by an alpha, so a `filter` or
+  `gl_dst_color, gl_zero` stage's image is cooked with its luminance in the alpha over white (one
+  minus it for `gl_zero, gl_one_minus_src_color`): `Cd x As`. 12 of mars_city1's 16 multiply images
+  average within 6 levels of grey; the red wall stain, the scanner square and two blood splats lose
+  their hue and darken grey.
+- **mars_city1:** 31 of its 49 hidden materials draw: 16 multiply, 7 lit, 7 add, 1 alpha blend. The
+  rest stay out with their reasons in the cook report: sprite and flare deforms (R7), the washroom
+  mirror, glass whose stages are cube-map reflections or heat-haze programs, one diffuse with a
+  texture matrix, and stageless clip, collision and GUI surfaces. The D3TX is 5.29 MB (468 textures,
+  108 passes).
+- **On screen:** the corridor door's "MARINE HQ" lettering (black boxes before 2026-11-25) draws lit
+  over the door. In a capture taken in the break room, the soda machines' logos glow, the snack
+  machine shows its snacks and sign, and an IV bag appears
+  (`docs/images/renderer-world-15-mars_city1-translucent-*`). The retail gate's views draw 1,208
+  passes against 524, with no pass left out for its texture in either standard.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261125T072406Z_world_retail_d6b8109d81a2` (NTSC), `20261125T072619Z_world_retail_bc448f37c6a1` (PAL). The first NTSC attempt (`20261125T072305Z_world_retail_ad5484e6ed03`) stopped on the known `_request_end` HostFs flake |
+| `make test-world` | `20261125T073423Z_world_e65975f4226d`, `20261125T073436Z_world_88758ff7918f` |
+| `make test-host` | Passed: a translucent material's stages plan as lit, multiply (luminance and inverse), add and alpha passes, with cube maps, `gl_dst_alpha` blends, replacing stages, deforms, mirrors and a coloured inverse multiply left out; writer and target admit a translucent material's passes of every blend and refuse a multiply under an opaque material, a vertex-coloured multiply and unknown blends or flags |
+| `make`, `make release` | Passed, no warnings |

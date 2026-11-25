@@ -636,9 +636,8 @@ for the other context (relocated, `TFX` DECAL), whose register qword's word 3 is
 for the pass (`world_textures.cpp`, `PageState`). The program kicks it only after the base pass's
 windows, because the two contexts share the one CLUT buffer: a page's `TEX0` loads its CLUT, so
 sent with the material's packet it would replace the diffuse palette before the base triangles
-draw. A batch fits 295 qwords. Translucent materials without a diffuse stage (25 of mars_city1's
-287: shadow and stain overlays) are not drawn by the textured pass (`kD3txHidden`) until their
-own stages compile; untextured passes still draw them.
+draw. A batch fits 295 qwords. Translucent materials have no base pass (`kD3txHidden`): since
+2026-11-25 their stages draw as passes (below); untextured passes draw them as any surface.
 
 As built for material passes (2026-11-21, D3TX v3): the cook compiles each material, under the
 parms its surfaces draw with, into a base pass and a list of additive passes
@@ -650,8 +649,20 @@ block (its texture, the tags with ABE, the base context's ALPHA `(Cs - 0) x FIX 
 world pass) and, in the page block's place, its colour, which the program gives every vertex
 (word 3 of qword 296 negative). Colours and conditions read through cooked expression nodes when
 time drives them, else as constants; merged `func_static` surfaces keep their entity's parms as
-material variants. Still to come: the translucent blend, filter and modulate stages, texture
-matrices, cube-map and texgen stages, and clamp.
+material variants.
+
+Translucent stages (2026-11-25, D3TX v5): a translucent material's stages are passes over the frame,
+drawn after the opaque glows in phases, each opened by `gs::SetPassBlend` (the pending batch started,
+a VIF FLUSH, then the base context's ALPHA and ZBUF: depth tested GEQUAL, no longer written). In id's
+order: the lit diffuse first (id draws translucent surfaces' light interactions with ONE, ONE and
+the depth mask before the shader passes): an add of the diffuse with the batch's own vertex colours,
+the light the bake gives these surfaces per vertex (the program reads them when the pass hands it
+the unlit page block). Then multiply stages (decals sort before the rest): `Cd x As`, the image's
+luminance cooked into the texture's alpha over white and the stage colour's luminance in the vertex
+alpha (`gl_zero, gl_one_minus_src_color` takes one minus the luminance), which loses a coloured
+filter's hue. Then add stages, then alpha blends (`(Cs - Cd) x As + Cd`). The pass plan for mid-pass
+eviction walks the same phases. Still to come: texture matrices, cube-map and texgen stages, clamp,
+deform materials (R7) and mirrors, heat haze (R7).
 
 ---
 
@@ -1213,7 +1224,8 @@ emits a pass table:
 Built so far (2026-11-21): the `add` row (as additive passes of opaque and alpha-tested
 materials), `alphatest` (its register as `AREF`), and the `if`/`parm` row (folded at the cook for
 the world's and merged entities' parms; time-driven registers evaluated on the EE). Section 6.3
-describes them.
+describes them. The blend stages of translucent materials (`add`, `filter` and the modulates as
+`Cd x As`, `blend`, and their diffuse lit per vertex) since 2026-11-25, also in 6.3.
 
 The `texgen skybox` / `wobblesky` row (2026-11-23, D3TX v4). The cook takes the first sky material
 (no diffuse stage, a stage reading a cube map along the view ray) and decodes its cube image's six
@@ -2103,6 +2115,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | Lightmap pass (2026-11-08) | The frame's other GS context, set per world pass; a second walk of the batch's index stream after the base pass, the page's `TEX0` kicked between them | A fifth vertex qword with the lightmap STQ; the page's `TEX0` in the material's A+D packet | Sixteen lanes hold both passes (lightmap S x Q and T x Q in the two free `.w` lanes, w rebuilt as 1/Q in the clipper), so batches stay at 4 qwords a vertex (a fifth would cost about a quarter more batches); the contexts share one CLUT buffer, so the page's CLUT may load only after the base pass draws |
 | Lightmap split (2026-11-08) | Per-vertex chroma x per-chart exposure, texel intensity over that exposure, `PSMT8` identity ramp | One exposure per level brightening the diffuse CLUTs; a non-linear ramp | No change to the diffuse textures; each factor keeps 2x headroom and dark charts keep 8-bit precision |
 | Static brush models (2026-11-08) | The cook merges each static `func_static` inline model into the area models, in world space, each triangle into the area holding its centroid, before the bake: it draws, lights, shadows and traces as area geometry | An entity model drawn per view | No entity, interaction or batch of its own: mars_city1's 123 merged models (3,625 triangles) add 1 % to the world. Bound, hidden, GUI, skinned, targeted and scripted entities keep their models, and so do translucent surfaces their entity's parms colour (flares, glass, glow decals). When the game loads maps, a merged entity must not add its render model again |
+| Translucent stages (2026-11-25) | Passes after the opaque glows in id's order (lit diffuse, multiply, add, alpha), each phase opened by one ALPHA and ZBUF write between batches; a multiply as `Cd x As` with the image's luminance in the alpha | A blend state per pass in the batch's A+D packet; three passes per coloured filter, one channel each through FBMSK | The packet has no free register (TEX0, TEX1, two MIPTBPs, CLAMP, TEST) and a qword more would move the VU layout; a phase switch costs one FLUSH a frame. Of mars_city1's 16 multiply images, 12 (shadows, stains, skid marks) average within 6 levels of grey; the red wall stain, the scanner square and two blood splats (10 to 30 levels) darken grey instead of red. Three passes would triple their fill for those four |
 | Chroma subdivision (2026-11-25) | Split lightmapped triangles only where the light's colour turns from the interpolated chroma (a sine of 0.1, edges down to 64 units), longest edge first, conforming across surfaces and areas | Uniform 64-unit subdivision | Uniform: 63,608 triangles more for 1.42% of lit texels off colour; adaptive: 15,364 for 1.70% (4.39% before). 0.2: 8,959 for 2.40%; 0.05: 25,070 for 1.47% |
 | Static mesh props (2026-11-25) | The same merge for static `func_static` mesh models (`.lwo`, `.ase`), read from the retail binary render models (`generated/rendermodels/*.blwo`, `.base`), into surfaces of their own lit per vertex. The D3WD (v4) lists every merged entity (name, model, placement, merged surface mask), for the game's spawn to skip their render models | Drawing them as entities | mars_city1's 234 static props (29,702 triangles) raise the world from 53,957 to 83,659 triangles and the worst area with its neighbours from 10,898 to 15,991, inside the plan's 15 k world plus 10 k model triangles a view. Collision is untouched: each entity keeps its own clip model (`generated/collision/*.bcmodel`, shipped for all 367 mesh entities); `FastWorldTrace` walks the area BSP alone, and `Trace` hits the props as id's does through their entity models. Per-vertex light keeps 30 k small triangles out of the lightmap charts |
 | Texture overflow (2026-11-25) | Mid-pass eviction inside the chain: furthest next use in the pass's plan, moved state blocks for re-placed textures (10.5) | A display mode with more texture VRAM (PAL at 32/16 or 512 wide); smaller copies of each texture (a mip level less) when a view does not fit; a mid-frame kick and wait | Full texture quality in every profile, no EE stall (the GS keeps the chain's order), and graceful growth with later content; the cost is upload bandwidth on overflowing views (about 280 KB a frame in PAL's north view), to be measured on hardware. Smaller copies remain the fallback past an upload budget |

@@ -29,21 +29,24 @@ namespace assets
 // DMA arena's alignment), in the order a streaming target reads them (TexturePack::fileOrder), which
 // need not be their index order. Canonical like D3WD.
 //
-// Header:    u32 magic 'D3TX', u16 version 4, u16 header bytes 52, u32 material count, u32 texture
+// Header:    u32 magic 'D3TX', u16 version 5, u16 header bytes 52, u32 material count, u32 texture
 //            count, u32 FNV-1a of the world's material names (each with its NUL, the D3WD Strings
 //            section), u32 file bytes, u32 FNV-1a of header and tables with this field read as zero,
 //            u32 converter version, u32 lightmap page count, u32 pass count, u32 expression node
 //            count, u32 table value count, u32 sky count (0 or 1).
 // Materials: 16 bytes each: u32 the base pass's texture, 0xFFFFFFFF (drawn untextured),
-//            0xFFFFFFFE (not drawn textured: translucent without a diffuse stage, which only its own
-//            stages could draw) or 0xFFFFFFFD (a sky: drawn into depth alone, the sky box behind it
+//            0xFFFFFFFE (no base pass: translucent, drawn by its passes alone) or 0xFFFFFFFD (a sky: drawn into depth alone, the sky box behind it
 //            showing through; needs the sky); f32 log2 of the material's UV units per world unit over the map's
 //            surfaces (0 without area), from which the target sets the mip LOD (TEX1.K); u16 the
-//            first of its passes, u8 their count (drawn after the base pass, in order), u8 the alpha
+//            first of its passes, u8 their count (drawn after the batches, in order), u8 the alpha
 //            test's reference on the GS scale (0x80 = 1.0; 0 without a test); u32 0.
-// Passes:    24 bytes each, an additive stage drawn over the base pass with the base pass's UVs and
-//            depth, its colour times its texture added to the frame: u32 its texture, u8 x 4 its
-//            RGBA colour (0x80 = 1.0) when no expression drives it, u8 the blend (1: add), u8 0,
+// Passes:    24 bytes each, a stage drawn with the batch's UVs and depth after the batches: an
+//            opaque material's additive stage over its base pass, or a translucent material's stage
+//            over the frame. u32 its texture, u8 x 4 its RGBA colour (0x80 = 1.0) when no expression
+//            drives it, u8 the blend (1: its colour times its texture added to the frame; 2, a
+//            translucent material's only: the frame times the texture's alpha times the colour's; 3,
+//            likewise: the two mixed by that alpha), u8 flags (bit 0, an add of a translucent
+//            material only: the batch's vertex colours instead of its colour),
 //            u16 the first of its expression nodes, u16 their count, u16 the node whose value is
 //            its condition (the pass draws while it is non-zero) or 0xFFFF for always, u16 x 4 the
 //            nodes of its colour channels or 0xFFFF for the constant.
@@ -61,8 +64,8 @@ namespace assets
 //            -Y, +Z, -Z in id's world axes, each face's S and T as GL's cube map lookup takes them),
 //            u8 x 4 the RGBA colour they draw with (0x80 = 1.0), u32 0.
 static constexpr std::uint32_t kD3txMagic = 0x58543344;
-static constexpr std::uint16_t kD3txVersion = 4;
-static constexpr std::uint32_t kD3txConverterVersion = 5;
+static constexpr std::uint16_t kD3txVersion = 5;
+static constexpr std::uint32_t kD3txConverterVersion = 6;
 static constexpr std::size_t kD3txHeaderBytes = 52;
 static constexpr std::size_t kD3txMaterialRecordBytes = 16;
 static constexpr std::size_t kD3txPassRecordBytes = 24;
@@ -89,6 +92,9 @@ static constexpr std::uint32_t kD3txMaxNodesPerPass = 64;
 static constexpr std::uint32_t kD3txMaxValues = 16384;
 static constexpr std::uint8_t kD3txMaxAlphaRef = 0x80;
 static constexpr std::uint8_t kD3txBlendAdd = 1;
+static constexpr std::uint8_t kD3txBlendMultiply = 2;
+static constexpr std::uint8_t kD3txBlendAlpha = 3;
+static constexpr std::uint8_t kD3txPassVertexColor = 1;
 static constexpr std::uint16_t kD3txNoNode = 0xFFFF;
 static constexpr std::uint8_t kD3txTableSnap = 1;
 static constexpr std::uint8_t kD3txTableClamp = 2;
@@ -110,6 +116,7 @@ struct D3txPass
     std::uint32_t texture = 0;
     std::array<std::uint8_t, 4> color = { 0x80, 0x80, 0x80, 0x80 };
     std::uint8_t blend = kD3txBlendAdd;
+    std::uint8_t flags = 0;
     std::uint16_t firstNode = 0;
     std::uint16_t nodeCount = 0;
     std::uint16_t condition = kD3txNoNode;

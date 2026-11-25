@@ -49,9 +49,26 @@ void BeginPlan(Textures * textures);
 void PlanAreaTextures(Textures * textures, u32 area);
 void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool lightmapped);
 
-// Plans the material passes of a batch of 'material' (a textured pass, after every PlanBatch), in the
-// order they draw: one AdvanceBatch each, before its PassBlocks.
-void PlanMaterialPasses(Textures * textures, u32 material);
+// The phases a world pass draws its material passes in, after its batches. First an opaque
+// material's additive passes over its base pass, depth still written. Then a translucent material's
+// stages over the frame, depth no longer written: its lit diffuse (added, as id lights translucent
+// surfaces before its other stages), then its multiply stages (decals), add stages and alpha blends.
+enum class PassPhase : u8
+{
+    Glow,
+    Lit,
+    Multiply,
+    Add,
+    Alpha,
+    Count
+};
+
+// The blend a phase's passes draw with (gs::SetPassBlend).
+gs::PassBlend PhaseBlend(PassPhase phase);
+
+// Plans the material passes in 'phase' of a batch of 'material' (a textured pass, after every
+// PlanBatch, phase by phase), in the order they draw: one AdvanceBatch each, before its PassBlocks.
+void PlanMaterialPasses(Textures * textures, u32 material, PassPhase phase);
 
 // The order a pass draws its batches in: by diffuse texture, then lightmap page (null textures: by
 // page alone).
@@ -86,7 +103,7 @@ void EndTextures(Textures * textures);
 // The state for a batch of 'material': the material's texture made resident first (an upload in
 // the list, evicting the least recently used textures this frame has not drawn), or untextured
 // when it has none or the arena cannot hold it; null when the textured pass does not draw it (a
-// translucent material without a diffuse stage, or a sky, which SkyDepthState draws). When no other
+// translucent material, which only its passes draw, or a sky, which SkyDepthState draws). When no other
 // texture can go, the one the pass's plan needs again furthest ahead gives way, drawn or not: the
 // chain uploads in order, so its earlier batches drew before its blocks change, and a texture that
 // moved within the pass takes a moved state block.
@@ -105,12 +122,16 @@ const void * SkyDepthState();
 // first, or the state without a lightmap pass when it cannot be.
 const void * PageState(Textures * textures, dma::DisplayList & list, u32 page);
 
-// The additive passes a batch of 'material' draws after the base pass: 0 untextured.
+// The passes a batch of 'material' draws after the batches: 0 untextured.
 u32 PassCount(const Textures * textures, u32 material);
 
+// The phase pass 'pass' of 'material' (below PassCount) draws in.
+PassPhase PassPhaseOf(const Textures * textures, u32 material, u32 pass);
+
 // Pass 'pass' of 'material' (below PassCount): its state, in BatchState's form, and its colour
-// block, in PageState's place, with its texture made resident first. False when it does not draw
-// this frame (its condition, or a texture the arena cannot hold, counted in passFallbacks).
+// block, in PageState's place (the unlit page block for a pass that takes the batch's vertex
+// colours), with its texture made resident first. False when it does not draw this frame (its
+// condition, or a texture the arena cannot hold, counted in passFallbacks).
 bool PassBlocks(Textures * textures, dma::DisplayList & list, u32 material, u32 pass, const void *& state, const void *& color);
 
 // The sky box of the textured pass in 'context' through the clip space of 'viewProjection' (its

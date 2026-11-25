@@ -356,9 +356,11 @@ static bool NodeInPass(const PackPass & pass, std::uint32_t node)
 
 PS2_COLD_FUNC static const char * ValidatePass(const Pack & pack, const PackPass & pass)
 {
-    if (pass.texture >= pack.textureCount || (pack.textures[pass.texture].flags & kPackFlagLightmap) != 0 || pass.blend != kPackBlendAdd ||
-        pass.reserved != 0 || pass.nodeCount > kPackMaxNodesPerPass || static_cast<std::uint32_t>(pass.firstNode) + pass.nodeCount > pack.nodeCount)
-        [[unlikely]]
+    const bool blend = pass.blend == kPackBlendAdd || pass.blend == kPackBlendMultiply || pass.blend == kPackBlendAlpha;
+    const bool flags = pass.flags == 0 || (pass.flags == kPackPassVertexColor && pass.blend == kPackBlendAdd);
+
+    if (pass.texture >= pack.textureCount || (pack.textures[pass.texture].flags & kPackFlagLightmap) != 0 || !blend || !flags ||
+        pass.nodeCount > kPackMaxNodesPerPass || static_cast<std::uint32_t>(pass.firstNode) + pass.nodeCount > pack.nodeCount) [[unlikely]]
     {
         return "D3TX pass record out of range";
     }
@@ -535,9 +537,18 @@ PS2_COLD_FUNC const char * ValidatePackTables(const std::uint8_t * file, std::ui
             (sky && (pack.sky == nullptr || material.alphaRef != 0)) ||
             !(material.uvDensityLog2 >= -64.0f && material.uvDensityLog2 <= 64.0f) || material.alphaRef > kPackMaxAlphaRef ||
             material.passCount > kPackMaxPassesPerMaterial || static_cast<std::uint32_t>(material.firstPass) + material.passCount > pack.passCount ||
-            (material.passCount != 0 && !textured) || material.reserved != 0) [[unlikely]]
+            (material.passCount != 0 && !textured && material.texture != kPackHidden) || material.reserved != 0) [[unlikely]]
         {
             return "D3TX material record out of range";
+        }
+
+        // An opaque material's passes add over its base pass; only a translucent one's blend otherwise.
+        for (std::uint32_t pass = material.firstPass; textured && pass < static_cast<std::uint32_t>(material.firstPass) + material.passCount; ++pass)
+        {
+            if (pass < pack.passCount && (pack.passes[pass].blend != kPackBlendAdd || pack.passes[pass].flags != 0)) [[unlikely]]
+            {
+                return "D3TX material record out of range";
+            }
         }
     }
 

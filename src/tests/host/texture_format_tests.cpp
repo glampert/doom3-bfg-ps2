@@ -670,6 +670,58 @@ static bool TexturePacks()
         passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(bad.size()), target, images, 3) != nullptr;
     }
 
+    // A translucent material (no base pass) draws passes of every blend over the frame, a vertex-coloured
+    // add among them; an opaque material's passes only add, and only an add takes vertex colours.
+    D3txPass multiply;
+    multiply.texture = 0;
+    multiply.blend = kD3txBlendMultiply;
+    D3txPass litPass;
+    litPass.texture = 1;
+    litPass.flags = kD3txPassVertexColor;
+    D3txPass mix;
+    mix.texture = 0;
+    mix.blend = kD3txBlendAlpha;
+    TexturePack translucent = pack;
+    translucent.passes = { glow, multiply, litPass, mix };
+    translucent.materialFirstPass[3] = 1;
+    translucent.materialPassCount[3] = 3;
+    passed = passed && WriteD3tx(translucent, file, error) && ReadD3tx(file, read, error) && read.passes == translucent.passes;
+    std::memcpy(s_aligned, file.data(), file.size());
+    passed = passed && ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(file.size()), target, images, 3) == nullptr &&
+             target.materials[3].passCount == 3 && target.passes[1].blend == ps2::renderer::tex::kPackBlendMultiply &&
+             target.passes[2].flags == ps2::renderer::tex::kPackPassVertexColor && target.passes[3].blend == ps2::renderer::tex::kPackBlendAlpha;
+    TexturePack opaqueMultiply = translucent;
+    opaqueMultiply.materialFirstPass[2] = 1;
+    TexturePack litMultiply = translucent;
+    litMultiply.passes[1].flags = kD3txPassVertexColor;
+    TexturePack unknownBlend = translucent;
+    unknownBlend.passes[3].blend = 4;
+    TexturePack unknownFlag = translucent;
+    unknownFlag.passes[2].flags = 2;
+    passed = passed && !WriteD3tx(opaqueMultiply, file, error) && !WriteD3tx(litMultiply, file, error) && !WriteD3tx(unknownBlend, file, error) &&
+             !WriteD3tx(unknownFlag, file, error);
+
+    // The target refuses them too when the cook's checks are bypassed: patch a valid file.
+    if (WriteD3tx(translucent, file, error))
+    {
+        const std::size_t passesAt = kD3txHeaderBytes + 4 * kD3txMaterialRecordBytes;
+        const std::size_t tablesEnd = passesAt + 4 * kD3txPassRecordBytes + 3 * kD3txTextureRecordBytes + 2 * kD3txPageRecordBytes +
+                                      4 * kD3txNodeRecordBytes + 3 * kD3txValueRecordBytes;
+        const auto Patched = [&](std::size_t offset, std::uint8_t value)
+        {
+            std::vector<std::uint8_t> bad = file;
+            bad[offset] = value;
+            WriteLe32(bad.data() + 24, 0);
+            WriteLe32(bad.data() + 24, Fnv1a32({ bad.data(), tablesEnd }));
+            std::memcpy(s_aligned, bad.data(), bad.size());
+            return ps2::renderer::tex::ValidatePack(s_aligned, static_cast<std::uint32_t>(bad.size()), target, images, 3) != nullptr;
+        };
+
+        // Material 2 (textured) over the multiply pass; the multiply with vertex colours; blend 4.
+        passed = passed && Patched(kD3txHeaderBytes + 2 * kD3txMaterialRecordBytes + 8, 1) &&
+                 Patched(passesAt + kD3txPassRecordBytes + 9, kD3txPassVertexColor) && Patched(passesAt + 3 * kD3txPassRecordBytes + 8, 4);
+    }
+
     // A sky: a fifth material draws it, its faces name the two diffuse textures.
     TexturePack sky = pack;
     sky.materialsHash = MaterialNamesHash({ "textures/a", "textures/b", "textures/c", "textures/d", "textures/skies/e" });
@@ -740,6 +792,20 @@ textures/p/glow
     { if ( time > 2 ) blend add map textures/p/late red steps[ time * -0.3 ] % 3 green ( time / 0 ) + 0.5 blue parm0 }
 }
 textures/p/glass { translucent { blend add map textures/p/glass_add } }
+textures/p/decal
+{
+    translucent
+    { blend diffusemap map textures/p/decal_d rgb 0.5 }
+    { blend filter map textures/p/stain rgb 0.5 }
+    { blend gl_zero, gl_one_minus_src_color map textures/p/splat }
+    { blend blend map textures/p/snacks alpha 0.5 }
+    { blend add cubeMap env/x texgen reflect }
+    { blend gl_dst_alpha, gl_one map textures/p/x }
+    { maskcolor map makealpha(textures/p/y) }
+}
+textures/p/flare { translucent deform sprite { blend add map textures/p/flare } }
+textures/p/mirror { translucent mirror { blend filter map textures/p/tint } }
+textures/p/tinted { translucent { blend gl_zero, gl_one_minus_src_color map textures/p/splat red 0.5 } }
 textures/skies/s { forceOpaque { blend add cameraCubeMap env/cloudy // desert
     texgen skybox red .75 green .75 blue .75 } }
 textures/p/chrome { diffusemap textures/p/chrome_d { blend add cubeMap env/x texgen reflect } }
@@ -768,8 +834,26 @@ textures/p/chrome { diffusemap textures/p/chrome_d { blend add cubeMap env/x tex
     passed = passed && lit.passes.size() == 3 && lit.passes[1].image == "textures/p/off_add" && lit.passes[2].pass.colorNodes[2] == kD3txNoNode &&
              lit.passes[2].pass.color[2] == 0x20;
 
-    // Translucent materials get no passes yet.
-    passed = passed && PlanMaterialPasses(materials["textures/p/glass"], WorldShaderParms(), tables).passes.empty();
+    // A translucent material's stages draw over the frame: an add; its diffuse lit by the vertex
+    // colours (its colour folded there); a multiply by the image's luminance (its colour's in the
+    // vertex alpha), or one minus it; an alpha blend with the colour's alpha. Cube maps, blends the
+    // GS cannot draw and replacing stages draw nothing, nor does a sprite, a mirror, or an inverse
+    // multiply with a colour.
+    const MaterialPassPlan glass = PlanMaterialPasses(materials["textures/p/glass"], WorldShaderParms(), tables);
+    passed = passed && glass.passes.size() == 1 && glass.passes[0].pass.blend == kD3txBlendAdd && glass.passes[0].pass.flags == 0 &&
+             glass.passes[0].source == PassImage::Opaque;
+    const MaterialPassPlan decal = PlanMaterialPasses(materials["textures/p/decal"], WorldShaderParms(), tables);
+    passed = passed && decal.diffuseColor[0] == 0.5f && decal.passes.size() == 4 && decal.skipped.size() == 3;
+    passed = passed && decal.passes.size() == 4 && decal.passes[0].source == PassImage::Diffuse && decal.passes[0].pass.flags == kD3txPassVertexColor &&
+             decal.passes[0].pass.blend == kD3txBlendAdd && decal.passes[0].pass.color == std::array<std::uint8_t, 4>{ 0x80, 0x80, 0x80, 0x80 } &&
+             decal.passes[1].source == PassImage::Luminance && decal.passes[1].pass.blend == kD3txBlendMultiply && decal.passes[1].pass.color[3] == 0x40 &&
+             decal.passes[2].source == PassImage::InverseLuminance && decal.passes[2].pass.blend == kD3txBlendMultiply &&
+             decal.passes[3].source == PassImage::Alpha && decal.passes[3].pass.blend == kD3txBlendAlpha && decal.passes[3].pass.color[3] == 0x40;
+    const MaterialPassPlan flare = PlanMaterialPasses(materials["textures/p/flare"], WorldShaderParms(), tables);
+    const MaterialPassPlan mirror = PlanMaterialPasses(materials["textures/p/mirror"], WorldShaderParms(), tables);
+    const MaterialPassPlan tinted = PlanMaterialPasses(materials["textures/p/tinted"], WorldShaderParms(), tables);
+    passed = passed && flare.passes.empty() && flare.skipped.size() == 1 && mirror.passes.empty() && mirror.skipped.size() == 1 &&
+             tinted.passes.empty() && tinted.skipped.size() == 1;
 
     // A sky stage: a camera cube map read along the view ray; a reflection is not one.
     const MaterialInfo & skyMaterial = materials["textures/skies/s"];

@@ -2,8 +2,9 @@
 // File: material_passes.h
 // Brief: Compile a world material, under the parms its surfaces draw with, into what the PS2 draws:
 // the base pass (its diffuse stage's alpha test reference and colour) and the additive passes its
-// other stages become, their colours and conditions folded to constants where only parms and
-// constants reach them, and to D3TX expression nodes where time does.
+// other stages become, or for a translucent material the passes its stages become over the frame
+// (added, multiplied or alpha blended), their colours and conditions folded to constants where only
+// parms and constants reach them, and to D3TX expression nodes where time does.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -22,13 +23,30 @@
 namespace assets
 {
 
-// An additive pass before its texture is cooked: 'image' is the stage's map. Table nodes name their
-// table in 'nodeTables' (b and count are set when the pack places the values); every other entry is
-// empty. Node operands index 'nodes'.
+// What a pass's texture holds of its stage's image.
+enum class PassImage : std::uint8_t
+{
+    // The image, opaque: an additive stage.
+    Opaque,
+    // The material's diffuse image, opaque: a translucent material's diffuse stage, lit by the
+    // vertex colours.
+    Diffuse,
+    // Its luminance in the alpha over white: a multiply stage (the frame times it).
+    Luminance,
+    // One minus that: a gl_zero, gl_one_minus_src_color stage.
+    InverseLuminance,
+    // The image with its alpha: an alpha-blend stage.
+    Alpha
+};
+
+// A pass before its texture is cooked: 'image' is the stage's map, cooked as 'source' says. Table
+// nodes name their table in 'nodeTables' (b and count are set when the pack places the values);
+// every other entry is empty. Node operands index 'nodes'.
 struct PlannedPass
 {
     int stage = -1;
     std::string image;
+    PassImage source = PassImage::Opaque;
     D3txPass pass;
     std::vector<D3txNode> nodes;
     std::vector<std::string> nodeTables;
@@ -45,8 +63,9 @@ struct MaterialPassPlan
     std::vector<std::string> skipped;
 };
 
-// Plans an opaque or alpha-tested material with a diffuse stage; for any other the plan is empty
-// but for its colour. Conditions false under 'parms' drop their stage.
+// Plans an opaque or alpha-tested material with a diffuse stage (its additive stages), or a
+// translucent one (every stage the GS can draw, over the frame: no base pass); for any other the plan
+// is empty but for its colour. Conditions false under 'parms' drop their stage.
 MaterialPassPlan PlanMaterialPasses(const MaterialInfo & material, const ShaderParms & parms, const MaterialTables & tables);
 
 // Appends a planned pass to 'pack' with its cooked 'texture': its nodes after the pack's, their

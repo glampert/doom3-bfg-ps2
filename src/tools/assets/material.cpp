@@ -956,7 +956,13 @@ bool ScanMaterials(std::string_view text, std::map<std::string, MaterialInfo> & 
             {
                 const std::string deform = Lower(tokens[at + 1].text);
                 scan.noShadows = scan.noShadows || deform == "sprite" || deform == "tube" || deform == "flare";
+                scan.info.deform = deform;
                 at += 2;
+            }
+            else if (depth == 1 && word == "mirror")
+            {
+                scan.info.mirror = true;
+                ++at;
             }
             else if (depth == 2 && word == "blend" && at + 1 < tokens.size())
             {

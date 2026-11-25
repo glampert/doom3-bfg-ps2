@@ -1802,7 +1802,7 @@ bool BakeLightmaps(const LightmapScene & scene, const LightmapPolicy & policy, W
                 }
 
                 const auto found = scene.materials.find(surface.material);
-                const bool lightmapped = found != scene.materials.end() && found->second.lit && !found->second.perforated && !surface.vertexLit;
+                const bool lightmapped = found != scene.materials.end() && found->second.lit && !found->second.vertexLit && !surface.vertexLit;
                 subdivider.AddSurface(surface, lightmapped ? SurfaceLights(surface, areaLights[area], scene.lights) : std::vector<std::size_t>{},
                                       lightmapped);
             }
@@ -1842,7 +1842,7 @@ bool BakeLightmaps(const LightmapScene & scene, const LightmapPolicy & policy, W
             stats.surfaceLights += lights.size();
             stats.maxSurfaceLights = std::max(stats.maxSurfaceLights, lights.size());
 
-            if (found->second.perforated || surface.vertexLit)
+            if (found->second.vertexLit || surface.vertexLit)
             {
                 std::vector<Vec3> & colors = vertexLit[{ area, surfaceIndex }];
 
