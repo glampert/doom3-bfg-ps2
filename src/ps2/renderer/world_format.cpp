@@ -524,8 +524,16 @@ PS2_COLD_FUNC const char * Validate(const std::uint8_t * file, std::uint32_t byt
                      Finite(entity.axis[component][2]);
         }
 
-        if ((entity.flags & ~kEntityPartial) != 0 || entity.surfaces == 0 || !finite || !Name(entity.nameOffset) ||
-            !Name(entity.modelOffset)) [[unlikely]]
+        // A drawn entity's surfaces lie in its area; a merged one names none.
+        const bool drawn = (entity.flags & kEntityDrawn) != 0;
+        const AreaRecord * area = drawn && entity.area < output.areaCount ? &output.areas[entity.area] : nullptr;
+        const bool range = drawn ? area != nullptr && entity.surfaceCount != 0 && (entity.flags & kEntityPartial) == 0 &&
+                                       entity.firstSurface >= area->firstSurface && entity.surfaceCount <= area->surfaceCount &&
+                                       entity.firstSurface - area->firstSurface <= area->surfaceCount - entity.surfaceCount
+                                 : entity.area == 0 && entity.firstSurface == 0 && entity.surfaceCount == 0;
+
+        if ((entity.flags & ~(kEntityPartial | kEntityDrawn)) != 0 || entity.surfaces == 0 || entity.reserved != 0 || !range || !finite ||
+            !Name(entity.nameOffset) || !Name(entity.modelOffset)) [[unlikely]]
         {
             output = {};
             return "bad world entity record";

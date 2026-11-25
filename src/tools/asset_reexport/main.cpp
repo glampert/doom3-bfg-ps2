@@ -1512,10 +1512,14 @@ static bool CookWorldTextures(ResourceCatalog & catalog, const std::map<std::str
         const auto found = declared.find(Lowercase(material));
         // A sky stage on a material without a diffuse one: the sky box shows through its surfaces.
         const bool sky = found != declared.end() && found->second.skyStage >= 0 && found->second.diffuse.empty();
-        const bool hidden = !sky && found != declared.end() && found->second.diffuse.empty() && found->second.translucent;
+        // A translucent material is not drawn textured until its blend stages draw: without a diffuse
+        // stage it has nothing the textured pass draws, and with one (decals, lettering) id adds the
+        // stage's lighting over the surface below, so drawing it opaque shows its black background.
+        const bool hidden = !sky && found != declared.end() && found->second.translucent && !found->second.alphaTest;
         const char * reason = found == declared.end()         ? "undeclared"
                               : sky                           ? nullptr
-                              : hidden                        ? "translucent without a diffuse stage: not drawn textured"
+                              : hidden && found->second.diffuse.empty() ? "translucent without a diffuse stage: not drawn textured"
+                              : hidden                        ? "translucent: its diffuse stage adds over the surface below; not drawn textured"
                               : found->second.diffuse.empty() ? "no diffuse stage"
                                                               : nullptr;
         std::uint32_t index = hidden ? kD3txHidden : kD3txNoTexture;
@@ -2204,6 +2208,13 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return Fail("static models: " + error);
     }
 
+    // The rigid entities the merge left (doors, movers, bound models), whole at their rest pose.
+    if (lightingJob.staticModels && lightingJob.meshModels &&
+        !PlaceEntityModels(proc, entities, declared, staticModels, error, &readModel, &skins))
+    {
+        return Fail("entity models: " + error);
+    }
+
     if (lightingJob.enabled &&
         !BakeWorldLighting(materialCatalog, declared, tables, entities, context, proc, lightingJob, lighting, pages, output, stem))
     {
@@ -2268,10 +2279,16 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         }
 
         std::string meshKept;
+        std::string drawnKept;
 
         for (const auto & [reason, count] : staticModels.meshKept)
         {
             meshKept += std::string(meshKept.empty() ? "" : ", ") + JsonString(reason) + ": " + std::to_string(count);
+        }
+
+        for (const auto & [reason, count] : staticModels.drawnKept)
+        {
+            drawnKept += std::string(drawnKept.empty() ? "" : ", ") + JsonString(reason) + ": " + std::to_string(count);
         }
 
         report += "  \"static_models\": { \"inline\": " + std::to_string(staticModels.inlineModels) + ", \"merged\": " +
@@ -2282,8 +2299,9 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
                   ", \"kept\": { " + kept + " }, \"mesh_models\": " + std::to_string(staticModels.meshModels) + ", \"mesh_merged\": " +
                   std::to_string(staticModels.meshMerged) + ", \"mesh_partial\": " + std::to_string(staticModels.meshPartial) +
                   ", \"mesh_triangles\": " + std::to_string(staticModels.meshTriangles) + ", \"mesh_solid_triangles\": " +
-                  std::to_string(staticModels.meshSolidTriangles) + ", \"mesh_kept\": { " + meshKept + " }, \"merged_entities\": " +
-                  std::to_string(staticModels.mergedEntities) + " },\n";
+                  std::to_string(staticModels.meshSolidTriangles) + ", \"mesh_kept\": { " + meshKept + " }, \"drawn_entities\": " +
+                  std::to_string(staticModels.drawnEntities) + ", \"drawn_triangles\": " + std::to_string(staticModels.drawnTriangles) +
+                  ", \"drawn_kept\": { " + drawnKept + " }, \"merged_entities\": " + std::to_string(staticModels.mergedEntities) + " },\n";
 
         const auto CountJson = [](const MeshModelStats::Count & count)
         {

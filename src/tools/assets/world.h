@@ -26,7 +26,7 @@ namespace assets
 // arena's alignment) with zero padding between them. The layout is canonical: one world has one
 // valid encoding.
 //
-// Header:    u32 magic 'D3WD', u16 version 4, u16 header bytes 32, u16 section count 12, u16 flags 0,
+// Header:    u32 magic 'D3WD', u16 version 5, u16 header bytes 32, u16 section count 12, u16 flags 0,
 //            u32 file bytes, u32 FNV-1a of header and directory with this field read as zero,
 //            u32 converter version, u32 lightmap pages (the map's D3TX holds them), 4 zero bytes.
 // Directory: per section u32 offset, u32 bytes, u32 record count, u32 FNV-1a of its bytes.
@@ -46,19 +46,22 @@ namespace assets
 //   MirrorPositions 6  s16 xyz; position = q * area mirror scale + area mirror offset.
 //   MirrorIndices   2  u16, per surface relative to its first mirror vertex, id's winding.
 //   Packets         VIF packets; the count is the qword total.
-//   Entities        The entities whose models the cook merged into the areas (ProcMergedEntity), so
-//                   the game's spawn of one never draws its model again: the count's 64-byte
-//                   records, then their names. A record: u32 name offset, u32 model offset (bytes
-//                   into the section, each NUL-terminated, packed after the records in record order,
-//                   the name before the model), u32 flags (bit 0: partial, the entity's model keeps
-//                   the surfaces the mask leaves out), u32 surface mask (bit i: the areas draw the
-//                   model's surface i; all set for a whole merge), f32 origin[3], f32 axis rows[3][3].
+//   Entities        The entities whose models the areas draw (ProcMergedEntity), so the game's spawn
+//                   of one never draws its model again: the count's 80-byte records, then their
+//                   names. A record: u32 name offset, u32 model offset (bytes into the section, each
+//                   NUL-terminated, packed after the records in record order, the name before the
+//                   model), u32 flags (bit 0: partial, the entity's model keeps the surfaces the mask
+//                   leaves out; bit 1: drawn, a rigid entity placed whole at its rest pose, which the
+//                   game may move), u32 surface mask (bit i: the areas draw the model's surface i; all
+//                   set for a whole merge), f32 origin[3], f32 axis rows[3][3], then for a drawn
+//                   entity u32 its area, u32 its first surface, u32 its surface count (contiguous,
+//                   in that area; zeros for a merged one), 4 zero bytes.
 //
 // An area's surfaces and batches, and a surface's batches, are contiguous; surfaces are ordered by
 // area, batches by surface.
 static constexpr std::uint32_t kD3wdMagic = 0x44573344;
-static constexpr std::uint16_t kD3wdVersion = 4;
-static constexpr std::uint32_t kD3wdConverterVersion = 4;
+static constexpr std::uint16_t kD3wdVersion = 5;
+static constexpr std::uint32_t kD3wdConverterVersion = 5;
 static constexpr std::uint32_t kD3wdMaxLightmapPages = 256;
 static constexpr std::size_t kD3wdHeaderBytes = 32;
 static constexpr std::size_t kD3wdDirectoryRecordBytes = 16;
@@ -81,8 +84,9 @@ enum class D3wdSection : std::uint8_t
     Count
 };
 
-static constexpr std::size_t kD3wdEntityRecordBytes = 64;
+static constexpr std::size_t kD3wdEntityRecordBytes = 80;
 static constexpr std::uint32_t kD3wdEntityPartial = 1U;
+static constexpr std::uint32_t kD3wdEntityDrawn = 2U;
 
 static constexpr int kD3wdSectionCount = static_cast<int>(D3wdSection::Count);
 

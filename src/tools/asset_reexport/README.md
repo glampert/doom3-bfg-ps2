@@ -330,6 +330,19 @@ skin's materials (the containers' `skins/*.skin`, by id's canonical name), and s
 declares it. A model whose every surface stays is kept, by reason `surfaces`. mars_city1 merges 221
 props whole and 71 in part, 40,786 triangles; 421 entities in all.
 
+The rigid entities the merge leaves, which the game may move, are then placed whole at their rest
+pose (`PlaceEntityModels`). These are doors, movers, lights and items with a model (an inline brush
+or a mesh), and `func_static`s kept for a bind, a target or the script. Triggers and other classes
+are left out, as are hidden entities and the surfaces that stay with their entity. Each goes into
+the area holding its origin (else a vertex), in surfaces of its own (`ProcSurface::entity`) lit per
+vertex, and its D3WD entity record (v5, 80 bytes) is marked drawn with that area and its surface
+range. The report adds `drawn_entities`, `drawn_triangles` and `drawn_kept`. mars_city1 draws 94,
+8,258 triangles; 515 entity records in all.
+
+A translucent material is not drawn textured (`kD3txHidden`), with or without a diffuse stage: id
+adds a translucent diffuse stage's light over the surface below, and drawn opaque its black
+background would show.
+
 mars_city1: A 410, B 13, C 31, D 2, E 27, F 3. The 410 A lights (284 cast shadows) cover 1,716 lit
 surfaces (204 alpha-tested, lit per vertex) with 10,683 charts in 8 pages: 532,480 bytes of VRAM
 and 1.83 M rays, in about 1.4 s single threaded. The output is byte-identical across runs. Of its 362

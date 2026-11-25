@@ -17,8 +17,8 @@ namespace ps2::renderer::world
 
 // The layout is defined by src/tools/assets/world.h, which writes it.
 static constexpr std::uint32_t kMagic = 0x44573344;
-static constexpr std::uint32_t kVersion = 4;
-static constexpr std::uint32_t kConverterVersion = 4;
+static constexpr std::uint32_t kVersion = 5;
+static constexpr std::uint32_t kConverterVersion = 5;
 static constexpr std::uint32_t kHeaderBytes = 32;
 static constexpr std::uint32_t kSectionCount = 12;
 static constexpr std::uint32_t kDirectoryBytes = kHeaderBytes + kSectionCount * 16U;
@@ -123,24 +123,30 @@ struct BatchRecord
     std::uint16_t reserved;
 };
 
-// An entity whose model the cook merged into the areas: when the game spawns it, its model must not
-// draw again (the surfaces in 'surfaces'; a partial merge's model keeps the rest).
+// An entity whose model the areas draw: when the game spawns it, its model must not draw again (the
+// surfaces in 'surfaces'; a partial merge's model keeps the rest). A drawn one is a rigid entity
+// placed whole at its rest pose in surfaces of its own, which the game may move.
 struct EntityRecord
 {
     std::uint32_t nameOffset;  // bytes into the Entities section, NUL-terminated
     std::uint32_t modelOffset;
-    std::uint32_t flags;       // kEntityPartial
+    std::uint32_t flags;       // kEntityPartial, kEntityDrawn
     std::uint32_t surfaces;    // bit i: the areas draw the model's surface i
     float origin[3];
     float axis[3][3];          // rows: a model point p lands at origin + p[i] * axis[i]
+    std::uint32_t area;        // drawn: its area, and its surfaces there; zero otherwise
+    std::uint32_t firstSurface;
+    std::uint32_t surfaceCount;
+    std::uint32_t reserved;
 };
 
 static constexpr std::uint32_t kEntityPartial = 1U;
+static constexpr std::uint32_t kEntityDrawn = 2U;
 
 static_assert(sizeof(MaterialRecord) == 8  && sizeof(AreaRecord)   == 64 &&
               sizeof(SurfaceRecord)  == 64 && sizeof(PortalRecord) == 16 &&
               sizeof(NodeRecord)     == 24 && sizeof(BatchRecord)  == 64 &&
-              sizeof(EntityRecord)   == 64);
+              sizeof(EntityRecord)   == 80);
 
 // Views into a validated file. Names are NUL-terminated inside 'strings'.
 struct Sections

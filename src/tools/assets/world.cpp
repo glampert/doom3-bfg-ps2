@@ -597,6 +597,8 @@ public:
 
     bool Run(const ProcFile & proc)
     {
+        m_entities = proc.mergedEntities;
+
         // One material per name and parm set: id draws a merged entity's surfaces with its parms.
         for (const ProcModel & model : proc.models)
         {
@@ -644,7 +646,16 @@ public:
         }
 
         m_stats.skippedModels = proc.models.size() - areaModels;
-        m_world.entities = proc.mergedEntities;
+
+        for (const ProcMergedEntity & entity : m_entities)
+        {
+            if (entity.drawn && entity.surfaceCount == 0)
+            {
+                return Fail("a drawn entity has no surface");
+            }
+        }
+
+        m_world.entities = m_entities;
 
         for (const ProcPortal & portal : proc.portals)
         {
@@ -709,6 +720,26 @@ private:
             if (!Surface(surface, lit != nullptr ? &(*lit)[index] : nullptr, areaIndex, area))
             {
                 return false;
+            }
+
+            // A drawn entity's surfaces: contiguous, in its own area.
+            if (surface.entity != 0)
+            {
+                if (surface.entity > m_entities.size() || !m_entities[surface.entity - 1].drawn || m_entities[surface.entity - 1].area != areaIndex)
+                {
+                    return Fail("a surface names an entity drawn elsewhere");
+                }
+
+                ProcMergedEntity & entity = m_entities[surface.entity - 1];
+                const auto global = static_cast<std::uint32_t>(m_world.surfaces.size() - 1);
+
+                if (entity.surfaceCount != 0 && entity.firstSurface + entity.surfaceCount != global)
+                {
+                    return Fail("a drawn entity's surfaces are not contiguous");
+                }
+
+                entity.firstSurface = entity.surfaceCount == 0 ? global : entity.firstSurface;
+                ++entity.surfaceCount;
             }
 
             if (!surface.vertices.empty())
@@ -1159,6 +1190,8 @@ private:
     // The current lit surface's per-vertex lightmap UVs and colours (empty when unlit).
     std::vector<std::array<float, 2> > m_lightmapUvs;
     std::vector<std::array<float, 3> > m_colors;
+    // The proc's entity records, drawn ones getting their surface ranges.
+    std::vector<ProcMergedEntity> m_entities;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -1504,7 +1537,7 @@ bool WriteD3wd(const World & world, std::vector<std::uint8_t> & file, std::strin
             out.U32(static_cast<std::uint32_t>(namesAt + names.bytes.size()));
             names.bytes.insert(names.bytes.end(), entity.model.begin(), entity.model.end());
             names.U8(0);
-            out.U32(entity.partial ? kD3wdEntityPartial : 0U);
+            out.U32((entity.partial ? kD3wdEntityPartial : 0U) | (entity.drawn ? kD3wdEntityDrawn : 0U));
             out.U32(entity.surfaces);
 
             for (const float value : entity.origin)
@@ -1519,6 +1552,11 @@ bool WriteD3wd(const World & world, std::vector<std::uint8_t> & file, std::strin
                     out.F32(value);
                 }
             }
+
+            out.U32(entity.drawn ? entity.area : 0U);
+            out.U32(entity.drawn ? entity.firstSurface : 0U);
+            out.U32(entity.drawn ? entity.surfaceCount : 0U);
+            out.Zero(4);
         }
 
         out.bytes.insert(out.bytes.end(), names.bytes.begin(), names.bytes.end());
@@ -1988,8 +2026,20 @@ bool ReadD3wd(std::span<const std::uint8_t> file, World & world, std::string & e
         }
 
         entity.partial = (entityFlags & kD3wdEntityPartial) != 0;
+        entity.drawn = (entityFlags & kD3wdEntityDrawn) != 0;
+        entity.area = records.U32();
+        entity.firstSurface = records.U32();
+        entity.surfaceCount = records.U32();
 
-        if ((entityFlags & ~kD3wdEntityPartial) != 0 || entity.surfaces == 0 || !finite || !Name(nameOffset, entity.name) ||
+        // A drawn entity's surfaces lie in its area; a merged one names none.
+        const bool range = entity.drawn ? entity.area < world.areas.size() && entity.surfaceCount != 0 &&
+                                              entity.firstSurface >= world.areas[entity.area].firstSurface &&
+                                              entity.surfaceCount <= world.areas[entity.area].surfaceCount &&
+                                              entity.firstSurface - world.areas[entity.area].firstSurface <=
+                                                  world.areas[entity.area].surfaceCount - entity.surfaceCount && !entity.partial
+                                        : entity.area == 0 && entity.firstSurface == 0 && entity.surfaceCount == 0;
+
+        if (!records.Zero(4) || !range || (entityFlags & ~(kD3wdEntityPartial | kD3wdEntityDrawn)) != 0 || entity.surfaces == 0 || !finite || !Name(nameOffset, entity.name) ||
             !Name(modelOffset, entity.model))
         {
             return fail("bad entity record");

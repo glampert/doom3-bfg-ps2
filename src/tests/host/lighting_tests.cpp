@@ -657,6 +657,43 @@ static bool GuiAndSkinnedModels()
     return Check(passed, "GUI and skinned func_static models merge");
 }
 
+// The rigid entities the merge leaves draw whole at their rest pose, in the area holding their origin,
+// in surfaces of their own; a trigger and a hidden mover do not.
+static bool RigidEntityModels()
+{
+    std::map<std::string, MaterialInfo> materials;
+    std::string error;
+    const bool scanned = ScanMaterials("textures/door { diffusemap textures/door_d }\n", materials, error);
+    ProcFile proc;
+    proc.areaCount = 2;
+    proc.nodes.push_back(ProcNode{ { 1.0f, 0.0f, 0.0f, 0.0f }, { -1, -2 } });
+    proc.models.push_back(ProcModel{ "_area0", {} });
+    proc.models.push_back(ProcModel{ "_area1", {} });
+
+    for (const char * name : { "func_door_1", "trigger_once_1", "func_mover_1" })
+    {
+        // A door straddling the plane x = 0: one triangle each side of it.
+        proc.models.push_back(ProcModel{ name, { ProcSurface{ "textures/door", {}, {} } } });
+        AddTriangle(proc.models.back().surfaces[0], { 10.0f, 0.0f, 0.0f }, { 10.0f, 8.0f, 0.0f }, { 10.0f, 0.0f, 8.0f });
+        AddTriangle(proc.models.back().surfaces[0], { -30.0f, 0.0f, 0.0f }, { -30.0f, 8.0f, 0.0f }, { -30.0f, 0.0f, 8.0f });
+    }
+
+    std::vector<MapEntity> entities(3);
+    entities[0].keys = { { "classname", "func_door" }, { "name", "func_door_1" }, { "model", "func_door_1" }, { "origin", "16 0 0" } };
+    entities[1].keys = { { "classname", "trigger_once" }, { "name", "trigger_once_1" }, { "model", "trigger_once_1" }, { "origin", "16 0 0" } };
+    entities[2].keys = { { "classname", "func_mover" }, { "name", "func_mover_1" }, { "model", "func_mover_1" }, { "origin", "16 0 0" }, { "hide", "1" } };
+    StaticModelStats stats;
+    bool passed = scanned && PlaceEntityModels(proc, entities, materials, stats, error, nullptr, nullptr);
+
+    // Both triangles in area 0 (the origin's, x = 16 > 0), in one surface of the door's own.
+    const ProcModel & area0 = proc.models[0];
+    passed = passed && stats.drawnEntities == 1 && stats.drawnTriangles == 2 && stats.drawnKept["hidden"] == 1 && proc.mergedEntities.size() == 1 &&
+             proc.mergedEntities[0].drawn && proc.mergedEntities[0].area == 0 && proc.mergedEntities[0].name == "func_door_1" &&
+             area0.surfaces.size() == 1 && proc.models[1].surfaces.empty() && area0.surfaces[0].entity == 1 && area0.surfaces[0].vertexLit &&
+             area0.surfaces[0].indices.size() == 6 && Near(area0.surfaces[0].vertices[3].position[0], -14.0f, 1e-4f);
+    return Check(passed, "rigid entities draw whole at their rest pose");
+}
+
 } // namespace
 
 int main()
@@ -669,6 +706,7 @@ int main()
     passed = Bake() && passed;
     passed = StaticModels() && passed;
     passed = GuiAndSkinnedModels() && passed;
+    passed = RigidEntityModels() && passed;
 
     if (!passed)
     {

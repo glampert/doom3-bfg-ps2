@@ -76,8 +76,9 @@ external Quake II repository remains a reuse/reference source when available.
 Since 2026-11-03 the selected work is 3D rendering: continue with the open R2 items in
 [RENDERING_TODO.md](plans/RENDERING_TODO.md): chroma subdivision, then the R2 gate (the sky, the
 declaration-text lever, the world texture streaming, the static mesh props merged into the world and
-mid-pass texture eviction are done; the GUI and skinned props and the rigid entity models for doors,
-movers and items are next for a complete level; the PC reference captures wait
+mid-pass texture eviction, the GUI and skinned props and the rigid entities at rest (doors, movers)
+are done; the moveables and items whose models come from .def files, and translucent blend stages, are
+what mars_city1 still lacks; the PC reference captures wait
 for R7's draws, the user's call on 2026-11-24). Streaming (2026-11-24) loads textures one at a
 time on the background loader thread, not as the planned dictionaries, which mars_city1's
 measurements ruled out (RENDERING_ARCHITECTURE.md 10.5). Its console behaviour on USB and HDD (read

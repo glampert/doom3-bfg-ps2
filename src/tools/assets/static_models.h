@@ -57,6 +57,11 @@ struct StaticModelStats
     std::map<std::string, std::size_t> meshKept;
     // Entities recorded in ProcFile::mergedEntities.
     std::size_t mergedEntities = 0;
+    // Rigid entities drawn at their rest pose (PlaceEntityModels), their triangles, and those left
+    // out by reason.
+    std::size_t drawnEntities = 0;
+    std::size_t drawnTriangles = 0;
+    std::map<std::string, std::size_t> drawnKept;
 };
 
 // The map's entities with mesh models (a 'model' key naming a .lwo or .ase), each imported from its
@@ -145,5 +150,14 @@ bool SurfaceStaysWithEntity(const MapEntity & entity, const ProcSurface & surfac
 bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities, const LightContext & context,
                        const std::map<std::string, MaterialInfo> & materials, StaticModelStats & stats, std::string & error,
                        const ResourceReader * readMesh = nullptr, const std::map<std::string, Skin> * skins = nullptr);
+
+// Places the models of the rigid entities the merge left, which the game may move (doors, movers,
+// lights and items with models, and func_statics kept for a bind, a target or the script), whole at
+// their rest pose into the area holding their origin, in surfaces of their own lit per vertex, and
+// lists them in proc.mergedEntities as drawn. Hidden entities, triggers and other classes are left
+// out; so are GUI surfaces and translucent surfaces their parms colour (SurfaceStaysWithEntity).
+// Call after MergeStaticModels, with the same inputs.
+bool PlaceEntityModels(ProcFile & proc, const std::vector<MapEntity> & entities, const std::map<std::string, MaterialInfo> & materials,
+                       StaticModelStats & stats, std::string & error, const ResourceReader * readMesh, const std::map<std::string, Skin> * skins);
 
 } // namespace assets

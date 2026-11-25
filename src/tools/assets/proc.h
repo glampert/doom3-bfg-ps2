@@ -44,6 +44,9 @@ struct ProcSurface
     // Lit per vertex by the bake, never in lightmap charts: a merged entity mesh (a prop's many small
     // triangles would each take a chart).
     bool vertexLit = false;
+    // An entity drawn at its rest pose (ProcFile::mergedEntities[entity - 1], 'drawn'): its surfaces
+    // never join another's. 0 for area geometry and merged models.
+    std::uint32_t entity = 0;
 };
 
 struct ProcModel
@@ -65,6 +68,13 @@ struct ProcMergedEntity
     // merge keeps the rest in the entity's model.
     std::uint32_t surfaces = 0;
     bool partial = false;
+    // A rigid entity that may move (a door, a mover, a bound model): its model was placed whole in
+    // 'area' at its rest pose, in surfaces of its own, so the game can draw them with the entity's
+    // transform instead. The world cook fills 'firstSurface' and 'surfaceCount' (D3WD numbering).
+    bool drawn = false;
+    std::uint32_t area = 0;
+    std::uint32_t firstSurface = 0;
+    std::uint32_t surfaceCount = 0;
 };
 
 struct ProcPortal

@@ -1222,20 +1222,44 @@ static bool Graybox()
     panel.model = "func_static_9";
     panel.surfaces = 5U;
     panel.partial = true;
-    merged.mergedEntities = { crate, panel };
+    // A drawn door in area 1: its surface, tagged, after the area's own.
+    ProcMergedEntity door = crate;
+    door.name = "func_door_3";
+    door.model = "func_door_3";
+    door.drawn = true;
+    door.area = 1;
+    ProcModel * area1 = nullptr;
+
+    for (ProcModel & candidate : merged.models)
+    {
+        area1 = candidate.name == "_area1" ? &candidate : area1;
+    }
+
+    passed = Check(area1 != nullptr && !area1->surfaces.empty(), "the graybox has a second area") && passed;
+    ProcSurface doorSurface = area1->surfaces[0];
+    doorSurface.entity = 3;
+    doorSurface.vertexLit = true;
+    area1->surfaces.push_back(doorSurface);
+    merged.mergedEntities = { crate, panel, door };
     World world;
     WorldCookStats stats;
     std::vector<std::uint8_t> file;
     World read;
     passed = Check(CookWorld(merged, GrayboxPolicy(WorldTopology::IndexedStrips), world, stats, error) && WriteD3wd(world, file, error) &&
-                       ReadD3wd(file, read, error) && read.entities.size() == 2 && read.entities[0].name == "crate_1" &&
+                       ReadD3wd(file, read, error) && read.entities.size() == 3 && read.entities[0].name == "crate_1" &&
                        read.entities[0].model == crate.model && read.entities[0].axis[1][0] == -1.0f && read.entities[1].partial &&
                        read.entities[1].surfaces == 5U && read.entities[1].origin[2] == 3.0f,
                    "merged entities read back") &&
              passed;
     ps2::renderer::world::Sections sections = {};
     const char * targetError = TargetValidate(file, sections);
-    passed = Check(targetError == nullptr && sections.entityCount == 2 &&
+    const std::size_t doorSurfaceIndex = world.areas[1].firstSurface + world.areas[1].surfaceCount - 1U;
+    passed = Check(read.entities.size() == 3 && read.entities[2].drawn && read.entities[2].area == 1 && read.entities[2].surfaceCount == 1 &&
+                       read.entities[2].firstSurface == doorSurfaceIndex,
+                   "a drawn entity reads back with its surfaces") &&
+             passed;
+    passed = Check(targetError == nullptr && sections.entityCount == 3 && sections.entities[2].flags == ps2::renderer::world::kEntityDrawn &&
+                       sections.entities[2].firstSurface == doorSurfaceIndex &&
                        std::string(sections.entityNames + sections.entities[0].nameOffset) == "crate_1" &&
                        std::string(sections.entityNames + sections.entities[1].modelOffset) == "func_static_9" &&
                        sections.entities[1].flags == ps2::renderer::world::kEntityPartial && sections.entities[0].axis[0][1] == 1.0f,

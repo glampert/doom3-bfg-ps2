@@ -268,7 +268,7 @@ static void PlaceModel(ProcFile & proc, const std::vector<std::size_t> & areaMod
 
             for (ProcSurface & candidate : target.surfaces)
             {
-                if (candidate.material == surface.material && candidate.parms == parms && candidate.vertexLit == vertexLit &&
+                if (candidate.material == surface.material && candidate.parms == parms && candidate.vertexLit == vertexLit && candidate.entity == 0 &&
                     candidate.vertices.size() + needed <= kMaxSurfaceVertices)
                 {
                     into = &candidate;
@@ -541,6 +541,217 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
         proc.models.erase(proc.models.begin() + static_cast<std::ptrdiff_t>(index->first));
     }
 
+    return true;
+}
+
+// Classes whose model a rigid entity draws (idMover, idDoor and their kin, lights and items with a
+// model, a kept func_static); triggers and everything else carry models no one sees.
+static bool DrawnClass(const std::string & classname)
+{
+    static constexpr const char * kClasses[] = { "func_door", "func_mover", "func_static", "func_splinemover", "func_rotating", "func_bobbing",
+                                                 "func_pendulum", "func_plat", "func_elevator", "light", "item_generic" };
+
+    for (const char * name : kClasses)
+    {
+        if (classname == name)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool PlaceEntityModels(ProcFile & proc, const std::vector<MapEntity> & entities, const std::map<std::string, MaterialInfo> & materials,
+                       StaticModelStats & stats, std::string & error, const ResourceReader * readMesh, const std::map<std::string, Skin> * skins)
+{
+    std::map<std::string, std::size_t> models;
+    std::vector<std::size_t> areaModels(static_cast<std::size_t>(proc.areaCount), proc.models.size());
+    std::set<std::string> merged;
+
+    for (std::size_t index = 0; index < proc.models.size(); ++index)
+    {
+        const std::string name = Lower(proc.models[index].name);
+        char * end = nullptr;
+        const long area = name.rfind("_area", 0) == 0 ? std::strtol(name.c_str() + 5, &end, 10) : -1;
+
+        if (area >= 0 && end != name.c_str() + 5 && *end == '\0' && area < proc.areaCount)
+        {
+            areaModels[static_cast<std::size_t>(area)] = index;
+        }
+        else
+        {
+            models.emplace(name, index);
+        }
+    }
+
+    for (const ProcMergedEntity & entity : proc.mergedEntities)
+    {
+        merged.insert(Lower(entity.name));
+    }
+
+    std::map<std::string, ProcModel> meshes;
+
+    for (const MapEntity & entity : entities)
+    {
+        const std::string classname = Lower(entity.String("classname"));
+        const std::string key = entity.String("model");
+
+        if (key.empty() || !DrawnClass(classname) || merged.count(Lower(entity.String("name"))) != 0)
+        {
+            continue;
+        }
+
+        // The model: a proc inline model (the merge left it, whole or but for its kept surfaces) or a
+        // mesh; a name the proc and containers lack (an md5, a particle system) is not rigid.
+        const auto found = models.find(Lower(key));
+        const std::string meshName = readMesh != nullptr ? GeneratedModelName(key) : std::string();
+        const ProcModel * model = found != models.end() ? &proc.models[found->second] : nullptr;
+
+        if (model == nullptr && !meshName.empty())
+        {
+            auto mesh = meshes.find(meshName);
+
+            if (mesh == meshes.end())
+            {
+                std::vector<std::uint8_t> bytes;
+                std::string readError;
+                ProcModel read;
+
+                if (!(*readMesh)(meshName, bytes, readError))
+                {
+                    if (!readError.empty())
+                    {
+                        error = meshName + ": " + readError;
+                        return false;
+                    }
+
+                    ++stats.drawnKept["missing"];
+                    continue;
+                }
+
+                if (!ParseBinaryModel(bytes, read, error))
+                {
+                    error = meshName + ": " + error;
+                    return false;
+                }
+
+                mesh = meshes.emplace(meshName, std::move(read)).first;
+            }
+
+            model = &mesh->second;
+        }
+
+        if (model == nullptr)
+        {
+            continue;
+        }
+
+        if (entity.Bool("hide", false))
+        {
+            ++stats.drawnKept["hidden"];
+            continue;
+        }
+
+        ProcModel skinnedModel;
+        const ProcModel * placed = Skinned(entity, *model, skins, skinnedModel);
+
+        if (placed == nullptr)
+        {
+            ++stats.drawnKept["skin"];
+            continue;
+        }
+
+        Vec3f origin = {};
+        Axis axis = {};
+        entity.Placement(origin, axis);
+        int home = PointInArea(proc, origin);
+
+        // An origin in solid space (a door's hinge in the wall): the area holding a vertex.
+        for (std::size_t surface = 0; surface < placed->surfaces.size() && home < 0; ++surface)
+        {
+            for (std::size_t vertex = 0; vertex < placed->surfaces[surface].vertices.size() && home < 0; ++vertex)
+            {
+                const Vec3f local = Rotate(axis, placed->surfaces[surface].vertices[vertex].position);
+                home = PointInArea(proc, { origin[0] + local[0], origin[1] + local[1], origin[2] + local[2] });
+            }
+        }
+
+        if (home < 0)
+        {
+            ++stats.drawnKept["solid"];
+            continue;
+        }
+
+        const auto ordinal = static_cast<std::uint32_t>(proc.mergedEntities.size()) + 1U;
+        ProcModel & target = proc.models[areaModels[static_cast<std::size_t>(home)]];
+        const std::size_t before = target.surfaces.size();
+        std::uint32_t mask = 0;
+
+        for (std::size_t index = 0; index < placed->surfaces.size(); ++index)
+        {
+            const ProcSurface & surface = placed->surfaces[index];
+
+            if (SurfaceStaysWithEntity(entity, surface, materials) || surface.indices.empty())
+            {
+                continue;
+            }
+
+            ProcSurface world = surface;
+            world.vertexLit = true;
+            world.entity = ordinal;
+            world.parms = 0;
+
+            if (SurfaceReadsEntityParms(entity, surface, materials))
+            {
+                const ShaderParms entityParms = EntityShaderParms(entity);
+                const auto known = std::find(proc.parmSets.begin(), proc.parmSets.end(), entityParms);
+                world.parms = static_cast<std::uint32_t>(known - proc.parmSets.begin()) + 1U;
+
+                if (known == proc.parmSets.end())
+                {
+                    proc.parmSets.push_back(entityParms);
+                }
+            }
+
+            for (ProcVertex & vertex : world.vertices)
+            {
+                const Vec3f position = Rotate(axis, vertex.position);
+
+                for (std::size_t component = 0; component < 3; ++component)
+                {
+                    vertex.position[component] = origin[component] + position[component];
+                }
+
+                vertex.normal = Rotate(axis, vertex.normal);
+            }
+
+            if (world.vertices.size() > kMaxSurfaceVertices)
+            {
+                error = "the model of entity " + entity.String("name") + " has a surface past 65,535 vertices";
+                return false;
+            }
+
+            stats.drawnTriangles += world.indices.size() / 3;
+            mask |= index < 32 ? 1U << index : 0U;
+            target.surfaces.push_back(std::move(world));
+        }
+
+        if (target.surfaces.size() == before)
+        {
+            ++stats.drawnKept["surfaces"];
+            continue;
+        }
+
+        ProcMergedEntity record = MergedEntity(entity, mask, false);
+        record.drawn = true;
+        record.area = static_cast<std::uint32_t>(home);
+        proc.mergedEntities.push_back(record);
+        ++stats.drawnEntities;
+    }
+
+    stats.parmSets = proc.parmSets.size();
+    stats.mergedEntities = proc.mergedEntities.size();
     return true;
 }
 

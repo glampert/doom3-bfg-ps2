@@ -257,9 +257,19 @@ production link free of test inputs. Section numbers in parentheses point into t
       views upload close to 1 MB a frame. Measure on hardware (R2's frame log); the levers are a
       tighter policy for prop textures, PAL in-game at 32/16, or smaller copies past an upload budget.
       NTSC's arena holds area 2 but for the sky's faces (about 200 KB of reloads a frame).
-- [ ] Rigid entity models for doors, movers, bound models, moveables and items (R4's rigid half):
-      cooked batches per area streamed with the area ring, drawn by the world program with a
-      per-entity matrix, at the cook's rest pose until the game loads retail maps (M3).
+- [x] Rigid entities at their rest pose (2026-11-25): the models of the entities the merge leaves that
+      the game may move (42 doors, movers, lights and an item with models, func_statics kept for a
+      bind, a target or the script) go whole into the area holding their origin, in surfaces of their
+      own lit per vertex. mars_city1: 94 entities, 8,258 triangles; the world 103,063 triangles, the
+      D3WD 5.37 MB. D3WD v5 entity records name a drawn entity's area and surface range: at M3 the
+      renderer draws those surfaces with the entity's transform (its rest pose undone) instead of as
+      area geometry. Doors show closed, as they spawn.
+- [ ] Rigid entities still missing: moveables and items whose model comes from their entityDef
+      (cans, chairs, keyboards, weapons and ammo: the cook does not read .def files yet), and the
+      per-entity matrix for when the game moves them (M3).
+- [x] Translucent materials with a diffuse stage (decals, lettering: id adds the stage's light over the
+      surface below) are hidden from the textured pass like those without one, instead of drawing
+      their black background (2026-11-25; 8 on mars_city1). The blend stages above draw them.
 - [x] Debug free-flight camera (2026-11-08): `ps2_world fly` steers the viewer with the pad,
       `make run-world-retail` stages mars_city1 flying from the player start, and the retail gate
       flies a scripted path to a modelled pose and matches its capture (debug builds).

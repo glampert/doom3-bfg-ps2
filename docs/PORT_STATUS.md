@@ -6139,3 +6139,32 @@ frame (NTSC views about 200 KB, mostly the sky's faces). This awaits the hardwar
 | `make test-world` | `20261125T005648Z_world_24778f604d5f`, `20261125T005658Z_world_97d48c3bf7dd` |
 | `make test-host` | Passed: GUI surfaces stay with their entity, skins remap by canonical name, a missing skin keeps its entity |
 | `make`, `make release` | Passed, no warnings |
+
+## Doors and other rigid entities at their rest pose (2026-11-25)
+
+The world cook now also places the rigid entities the merge leaves, which the game may move.
+- **What it places:** 42 doors, the movers, lights and an item with models, and `func_static`s kept
+  for a bind, a target or the script.
+- **How:** each goes whole into the area holding its origin, in surfaces of its own lit per vertex.
+  D3WD v5's entity records mark these as drawn, with their area and surface range, so at M3 the
+  renderer can draw them with the entity's transform instead.
+- **Counts on mars_city1:** 94 entities and 8,258 triangles. The world is 103,063 triangles, the
+  D3WD 5.37 MB, 515 entity records in all.
+- **What you see:** doors show closed, as they spawn. The retail gate's doorway and corridor views
+  now look at a closed door instead of through it, and the gate's area and batch checks still pass.
+
+**Translucent decals.** A lettering decal bound to the corridor's door drew black boxes:
+- **Cause:** a translucent material's diffuse stage is light id adds over the surface below, so drawn
+  opaque its background shows black.
+- **Fix:** translucent materials, with or without a diffuse stage (8 of the former on mars_city1), are
+  now hidden from the textured pass until the blend stages draw.
+
+**Uploads.** The gate's views upload roughly 1.0 to 2.6 MB per view span in NTSC and 2.4 to 3.8 MB
+in PAL, each span a few frames. No fallback, glow or sky is left out.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261125T012831Z_world_retail_2f4c68a1e705` (NTSC), `20261125T013040Z_world_retail_4cfcfcd79c0c` (PAL): 515 entities loaded, no fallback |
+| `make test-world` | `20261125T013248Z_world_82203273d9f2`, `20261125T013257Z_world_e7aa9ca4aadb` |
+| `make test-host` | Passed: a door placed whole in its origin's area in surfaces of its own (a trigger and a hidden mover left out), a drawn entity's range through the D3WD and the target validator |
+| `make`, `make release` | Passed, no warnings |
