@@ -6300,3 +6300,45 @@ The R2 gate's emulator half, and the tooling for its console half.
 | `make test-world` | `20261125T114329Z_world_f8e9dd25cb8e`, `20261125T114340Z_world_0a3959a9bf98` |
 | `make test-host` | Passed: the runner rejects a probe that differs from the model, a doorway that does not block everything or lengthen the sound, a short tour or frame log and a drifting cycle ledger; the probe models, the tour's keyframes and the frame log reader are checked |
 | `make`, `make release` | Passed, no warnings; the release perf package played the whole tour in PCSX2 |
+
+## First console frame log: the mars_city1 tour from HDD and USB (2026-11-26)
+
+The R2 gate's console run: the release perf package (`make BUILD=release stage-perf-world-retail`,
+NTSC, 640x448 FIELD, 32/32) played the whole 7,244-frame tour on a console, once from the HDD
+(`pfs0:`) and once from USB (`mass0:`). Both logs are complete (`FLOG#end 7244`); the user's copies
+are `build/framelog_hdd.txt` and `build/framelog_usb.txt` (`frame_log.py` summarises them, `--compare`
+holds a later run to them). These are the port's first hardware frame times.
+
+| | HDD | USB |
+| --- | --- | --- |
+| Map load | 4,592 ms | 27,442 ms |
+| Tour | 199.2 s (36.4 fps) | 193.4 s (37.5 fps) |
+| Frames of 1 / 2 / 3+ fields | 4,510 / 1,843 / 891 | 4,439 / 1,946 / 859 |
+| Stage totals: game, view, GPU wait, vsync wait | 1.9, 57.7, 77.1, 62.3 s | 4.1, 50.5, 76.6, 61.9 s |
+| One-field frames' mean: view, GPU wait, batches | 2.7 ms, 6.5 ms, 246 | 2.7 ms, 6.5 ms, 245 |
+| Streamed textures; misses; untextured fallbacks | 1,433 (16.3 MB); 41,070; 29,144 | 1,399 (15.9 MB); 146,613; 110,737 |
+| Loader: reads, seeks, rate | 1,928, 1,257, 706 KiB/s (11.6 ms a read) | 1,890, 1,241, 248 KiB/s (33 ms a read) |
+| Uploads (mid-pass evictions) | 145,772, 1.72 GB (106,422) | 120,531, 1.48 GB (86,694) |
+
+USB uploads less because its misses draw without the texture. What the log shows:
+- **A mid-pass eviction costs about 285 µs of EE time.** Fitting the view stage against batches,
+  vertices, uploads and evictions gives R² 0.989 with 285 µs per mid-pass eviction (281 USB) and
+  close to nothing per ordinary upload or eviction. `FurthestUse` (`world_textures.cpp`) rescans
+  all 468 textures and the whole rest of the plan for every victim. That is about 30 s of the HDD
+  tour's 57.7 s of view time. Area 8's frames (1,485 batches, about 250 mid-pass evictions) spend
+  about 100 ms building the view.
+- **Frames are serial,** as PCSX2 showed: the EE builds, then waits for VU1 and the GS, then for the
+  vertical blank. `gs::PresentMode::Pipelined` exists, but nothing presents with it yet.
+- **The GPU side:** one-field frames wait 6.5 ms for their chain; across the tour it fits about
+  1.0 to 1.4 µs per vertex counted and 7.7 to 8.4 µs per uploaded KB (about 125 MB/s). The log
+  cannot split VU1 from the GS: the chain is timed whole.
+- **The keyboard's idle poll stalls the main thread behind the loader.** `PS2KbdReadRaw` is a
+  fileXio read on the main thread every 250 ms, which waits for the loader's read in flight. USB:
+  183 frames with the game stage over 5 ms, exactly 250 ms apart, all during reads (up to 46 ms).
+  HDD: 7, up to 265 ms, where single HDD reads took about 400 ms.
+- **Streaming is latency-bound:** reads average 8.4 KB, one at a time, almost each after a seek.
+  USB misses 3.6 times as often as the HDD, and loads the map six times slower.
+
+Projected from the rows (each frame rounded up to whole fields): removing the eviction cost alone
+takes the HDD tour to about 166 s and its frames of three fields or more from 888 to 268;
+pipelining as well, to about 143 s, 34 such frames and 82% at one field.

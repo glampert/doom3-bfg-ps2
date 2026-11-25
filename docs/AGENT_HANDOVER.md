@@ -81,10 +81,11 @@ chroma subdivision and the translucent stages); the moveables and items whose mo
 files, texture matrices and cube-map stages are what mars_city1 still lacks; the PC reference
 captures wait for R7's draws (the user's call on 2026-11-24). The R2 gate's emulator checks are in
 `make test-world-retail` since 2026-11-25 (probes against the `.bproc`, the door gating sound,
-exact load cycles, a frame-logged tour). Its console half is next: the user runs
-`make BUILD=release stage-perf-world-retail` from USB and the HDD and brings back `framelog.txt`
-(read rates, streaming misses while walking, the first hardware frame times; summarise it with
-`src/tools/scripts/frame_log.py`). Load-game waits for M3, which the user chose to do before R3
+exact load cycles, a frame-logged tour). Its console run came back on 2026-11-26 (PORT_STATUS,
+"First console frame log": the tour from the HDD and USB, `make BUILD=release
+stage-perf-world-retail`, summarised by `src/tools/scripts/frame_log.py`): mid-pass evictions and
+serial frames cost the most, and RENDERING_TODO lists the fixes by what they cost the tour; a
+later console run compares with `frame_log.py --compare`. Load-game waits for M3, which the user chose to do before R3
 (2026-11-25): Common owning a game-loaded map in production. Streaming (2026-11-24) loads textures
 one at a time on the background loader thread, not as the planned dictionaries, which mars_city1's
 measurements ruled out (RENDERING_ARCHITECTURE.md 10.5). Planned, not

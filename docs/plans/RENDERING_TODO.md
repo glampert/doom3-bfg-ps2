@@ -2,10 +2,10 @@
 
 Companion to [RENDERING_ARCHITECTURE.md](RENDERING_ARCHITECTURE.md): the same work as its
 section 19 gates, broken into concrete steps in the proposed order. Opened **2026-11-03**;
-status as of **2026-11-25**: R0 and R1 done but for the hardware probes, R2 in progress (the
+status as of **2026-11-26**: R0 and R1 done but for the hardware probes, R2 in progress (the
 lightmapped, textured world with material passes, the sky and chroma subdivision is done,
 declarations read their text on demand, the world's textures stream and translucent stages draw;
-the R2 gate's emulator checks and the frame log are done, its console run and load-game remain),
+the R2 gate's emulator checks, the frame log and its first console run are done, load-game remains),
 R3 to R9 not started.
 Tick items as they land; move a step's measurements into the plan's decision log
 (section 20) and its acceptance into [PORT_STATUS.md](../PORT_STATUS.md). Every step keeps
@@ -382,8 +382,24 @@ production link free of test inputs. Section numbers in parentheses point into t
         `config/world_mars_city1_tour.path`: 7,244 frames through 50 of the 56 areas); the gate
         plays 240 frames into it. `make BUILD=release stage-perf-world-retail` stages the console
         run. Read rates: `ps2_world loader` and the log's `FLOG#loader` (`host:` in PCSX2 only).
-  - [ ] Console run: the release tour's frame log on a console from USB and from the HDD (read
-        rates, streaming misses, the first hardware frame times).
+  - [x] Console run (2026-11-26, PORT_STATUS "First console frame log"): the whole tour from the HDD
+        in 199.2 s and from USB in 193.4 s, 62% of frames at one field and 12% at three or more;
+        the loader reads 706 KiB/s from the HDD and 248 KiB/s from USB (8.4 KB a read), and misses
+        41,070 and 146,613 draws. Map load 4.6 s HDD, 27.4 s USB.
+  - [ ] What the console run found, by the time each costs the tour:
+    - [ ] A mid-pass eviction costs about 285 µs of EE (`FurthestUse` rescans every texture and
+          the rest of the plan per victim): about 30 s of the HDD tour's 57.7 s of view time.
+          Keep each texture's next use as the plan's cursor passes it, and pick among the
+          resident ones.
+    - [ ] Frames are serial: build the next frame while the GS draws this one
+          (`gs::PresentMode::Pipelined` and the second chain ring are there; nothing uses them).
+          Projected with the eviction fix: 199 to 143 s, 34 frames of three fields or more.
+    - [ ] The keyboard's 250 ms idle poll is a fileXio read on the main thread and waits behind
+          the loader's read (USB up to 46 ms, HDD up to 265 ms): skip it while a read is in flight.
+    - [ ] Streaming reads one small range at a time: order the D3TX by area and merge adjacent
+          requests, so a read brings in a whole area's textures (USB misses 3.6 times the HDD's).
+    - [ ] Split VU1 from GS time in the chain (the log times it whole): a console A/B with an
+          empty scissor, `textures off` and `lightmaps off` on the same tour.
 
 ## R3: layers, switches, fog and blend lights
 

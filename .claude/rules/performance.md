@@ -1,9 +1,8 @@
 # Performance: Quake II PS2 codegen and PCSX2 reference
 
 The named functions, object paths and measurements below come from `quake2-ps2`.
-Treat them as test ideas and hardware clues. Doom now has functional GS/UI captures
-and memory/stack baselines in PORT_STATUS, but no accepted campaign or physical PS2
-rendering-performance baseline. Quake timings below are not Doom measurements.
+Treat them as test ideas and hardware clues. Doom's first hardware frame log is the mars_city1
+tour (below); there is no campaign baseline yet. Quake timings below are not Doom measurements.
 
 ## EE codegen facts
 
@@ -50,6 +49,18 @@ rendering-performance baseline. Quake timings below are not Doom measurements.
   mars_city1 tour, 7,244 frames); the gate's 240-frame tour in PCSX2 checks function only.
 - Frames are serial today (build, kick, wait for VU1 and the GS, wait for the vertical blank): the
   `gpu_us` column is the chain's whole time beyond the kick.
+- **First console run (2026-11-26, NTSC 640 32/32, PORT_STATUS "First console frame log"):** the tour
+  took 199 s from the HDD and 193 s from USB (36 to 37 fps mean, 62% of frames at one field, 12% at
+  three or more). The HDD and USB logs (`build/framelog_{hdd,usb}.txt`) are the baselines for
+  `--compare`.
+  - A mid-pass eviction cost about 285 µs of EE time (`FurthestUse`'s rescans), about half the
+    view time.
+  - One-field frames waited 6.5 ms for VU1 and the GS.
+  - The loader read 706 KiB/s from the HDD and 248 KiB/s from USB, in 8.4 KB reads.
+- **Fit a stage's column against the counters** (least squares over the rows) to price a cost:
+  it found the eviction cost at R² 0.989. Stalls spaced at a fixed interval point at a periodic
+  call: the keyboard's 250 ms poll waits for the loader's read in flight, since both are fileXio
+  calls.
 
 ## What a PCSX2 capture can and can't show
 

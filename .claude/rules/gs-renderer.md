@@ -59,8 +59,8 @@ coordinates; CLUTs; VRAM and mipmaps.
   startup. One Common frame = events/commands, clocks and NOMAP work, then movie/menu/console draw
   in one GS frame. `EndFrame` fences and presents immediately (`gs::PresentMode::Immediate`); no
   following frame is needed. `dma::EndFrame` itself only kicks: a chain runs while the EE builds the
-  next frame, `Kick` waits for the previous chain before sending, and the 3D path presents the
-  completed frame with `PresentMode::Pipelined` (flip at an EVEN field, 30/25 fps) before kicking. GS
+  next frame, `Kick` waits for the previous chain before sending. `PresentMode::Pipelined` (flip at an EVEN
+  field, 30/25 fps) exists but nothing presents with it yet: presentation's frames are serial. GS
   vsync paces visible mode (no headless sleep). The vsync wait **sleeps** (2026-11-24): an
   `INTC_VBLANK_S` handler signals a semaphore, then CSR's VSINT confirms the edge (the IMR still masks
   the GS interrupts, so CSR's events stay ours to poll). The background loader (`system/aio.h`) runs
