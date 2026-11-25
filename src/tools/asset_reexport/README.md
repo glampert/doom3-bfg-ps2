@@ -324,8 +324,11 @@ report's `static_models` adds `mesh_models`, `mesh_merged`, `mesh_partial`, `mes
 `mesh_solid_triangles` and `mesh_kept` by reason. Every entity whose model the areas now draw, inline
 or mesh, whole or in part, is listed in the D3WD's Entities section (v4): its name, model, placement
 and the mask of its model's surfaces the areas took, so the game's spawn can leave those surfaces
-undrawn (`merged_entities` in the report). mars_city1 merges 211 props whole and 23 in part, 29,702
-triangles; 357 entities in all.
+undrawn (`merged_entities` in the report). A GUI surface (a material with `guiSurf`) stays with
+its entity, like a translucent surface its parms colour; an entity with a `skin` merges with the
+skin's materials (the containers' `skins/*.skin`, by id's canonical name), and stays out when no skin
+declares it. A model whose every surface stays is kept, by reason `surfaces`. mars_city1 merges 221
+props whole and 71 in part, 40,786 triangles; 421 entities in all.
 
 mars_city1: A 410, B 13, C 31, D 2, E 27, F 3. The 410 A lights (284 cast shadows) cover 1,716 lit
 surfaces (204 alpha-tested, lit per vertex) with 10,683 charts in 8 pages: 532,480 bytes of VRAM

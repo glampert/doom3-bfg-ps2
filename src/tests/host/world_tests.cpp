@@ -660,7 +660,7 @@ static bool BinaryModels()
     passed = Check(!ParseBinaryModel(entry.Bytes(), model, error), "a .bproc model entry is refused") && passed;
 
     // A static func_static naming the mesh merges into the area holding it, lit per vertex in a
-    // surface of its own; one with a GUI, or whose file no container holds, stays out.
+    // surface of its own; a bound one, or one whose file no container holds, stays out.
     ProcFile scene;
     passed = Check(ParseProc(kSmallProc, scene, error), "small proc parses for the mesh merge") && passed;
     const std::size_t areaSurfaces = scene.models[0].surfaces.size();
@@ -671,13 +671,13 @@ static bool BinaryModels()
 
         if (extra != nullptr)
         {
-            record.keys.push_back({ extra, "guis/monitor.gui" });
+            record.keys.push_back({ extra, "mover_1" });
         }
 
         return record;
     };
     const std::vector<MapEntity> entities = { entity("crate_1", "models/fixture/Crate.lwo", nullptr),
-                                              entity("crate_2", "models/fixture/Crate.lwo", "gui"),
+                                              entity("crate_2", "models/fixture/Crate.lwo", "bind"),
                                               entity("crate_3", "models/fixture/missing.lwo", nullptr) };
     int reads = 0;
     const ResourceReader reader = [&](const std::string & name, std::vector<std::uint8_t> & bytes, std::string & readError)
@@ -696,7 +696,7 @@ static bool BinaryModels()
     StaticModelStats stats;
     const std::map<std::string, MaterialInfo> materials;
     passed = Check(MergeStaticModels(scene, entities, LightContext{}, materials, stats, error, &reader), "the mesh merge runs") &&
-             Check(stats.meshModels == 3 && stats.meshMerged == 1 && stats.meshPartial == 0 && stats.meshKept["gui"] == 1 &&
+             Check(stats.meshModels == 3 && stats.meshMerged == 1 && stats.meshPartial == 0 && stats.meshKept["bound"] == 1 &&
                        stats.meshKept["missing"] == 1 && reads == 2,
                    "the mesh merge counts its models") &&
              Check(source.surfaces.size() == 1 && source.surfaces[0].indices.size() == 3 && stats.meshTriangles == 1 && stats.meshSolidTriangles == 0,

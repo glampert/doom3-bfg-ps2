@@ -562,7 +562,7 @@ static bool StaticModels()
              proc.models[5].surfaces.size() == 1 && proc.models[5].surfaces[0].material == "textures/flare";
     passed = passed && stats.inlineModels == 5 && stats.merged == 1 && stats.partial == 1 && stats.keptSurfaces == 2 && stats.parmSurfaces == 1 &&
              stats.triangles == 3 && stats.solidTriangles == 0 && stats.surfacesAdded == 2 && stats.kept.size() == 3 && stats.kept["bound"] == 1 &&
-             stats.kept["parms"] == 1 && stats.kept["scripted"] == 1;
+             stats.kept["surfaces"] == 1 && stats.kept["scripted"] == 1;
 
     // Area 0: its wall gained the turned -50 triangle at x = 150 (y and the normal turned too),
     // and a panel surface; area 1 a new wall surface with the +150 triangle at x = -50.
@@ -600,6 +600,63 @@ static bool StaticModels()
     return Check(passed, "static func_static models merge into their areas");
 }
 
+// A GUI prop merges but for its GUI surface; a skinned one with its skin's materials (named with the
+// .skin extension, as maps do); one naming no declared skin stays out.
+static bool GuiAndSkinnedModels()
+{
+    std::map<std::string, MaterialInfo> materials;
+    std::map<std::string, Skin> skins;
+    std::string error;
+    const bool scanned = ScanMaterials("textures/wall { diffusemap textures/wall_d }\n"
+                                       "textures/rust { diffusemap textures/rust_d }\n"
+                                       "textures/screen { guiSurf entity translucent }\n",
+                                       materials, error) &&
+                         ScanSkins("// a comment\nskin skins/rusty\n{\n model models/crate.lwo\n textures/wall textures/rust\n}\n"
+                                   "skins/any { * textures/rust }\n",
+                                   skins, error);
+
+    if (!scanned || !materials.at("textures/screen").gui || materials.at("textures/wall").gui || skins.size() != 2 ||
+        skins.at("skins/rusty").remaps.size() != 1 || !skins.at("skins/any").remaps[0].first.empty())
+    {
+        std::fprintf(stderr, "materials or skins: %s\n", error.c_str());
+        return Check(false, "GUI and skinned func_static models merge");
+    }
+
+    ProcFile proc;
+    proc.areaCount = 2;
+    proc.nodes.push_back(ProcNode{ { 1.0f, 0.0f, 0.0f, 0.0f }, { -1, -2 } });
+    proc.models.push_back(ProcModel{ "_area0", {} });
+    proc.models.push_back(ProcModel{ "_area1", {} });
+
+    for (const char * name : { "func_static_1", "func_static_2", "func_static_3" })
+    {
+        proc.models.push_back(ProcModel{ name, { ProcSurface{ "textures/wall", {}, {} }, ProcSurface{ "textures/screen", {}, {} } } });
+
+        for (ProcSurface & surface : proc.models.back().surfaces)
+        {
+            AddTriangle(surface, { 0.0f, 0.0f, 0.0f }, { 0.0f, 8.0f, 0.0f }, { 0.0f, 0.0f, 8.0f });
+        }
+    }
+
+    const std::vector<MapEntity> entities = {
+        StaticEntity("func_static_1", { { "origin", "50 0 0" }, { "gui", "guis/screens/monitor.gui" } }),
+        StaticEntity("func_static_2", { { "origin", "50 0 0" }, { "skin", "skins/Rusty.skin" } }),
+        StaticEntity("func_static_3", { { "origin", "50 0 0" }, { "skin", "skins/missing" } }),
+    };
+    const LightContext context = MakeLightContext(entities, "");
+    StaticModelStats stats;
+    bool passed = MergeStaticModels(proc, entities, context, materials, stats, error, nullptr, &skins);
+
+    // Both merge in part (the screens stay with their entities); the third keeps its model whole.
+    const ProcModel & area0 = proc.models[0];
+    passed = passed && stats.partial == 2 && stats.merged == 0 && stats.kept["skin"] == 1 && proc.mergedEntities.size() == 2 &&
+             proc.mergedEntities[0].partial && proc.mergedEntities[0].surfaces == 1U && proc.mergedEntities[1].surfaces == 1U &&
+             area0.surfaces.size() == 2 && area0.surfaces[0].material == "textures/wall" && area0.surfaces[1].material == "textures/rust";
+    passed = passed && CanonicalDeclName("Skins\\Rusty.Skin") == "skins/rusty" && RemapBySkin(skins.at("skins/any"), "textures/x") == "textures/rust" &&
+             RemapBySkin(skins.at("skins/rusty"), "textures/x") == "textures/x";
+    return Check(passed, "GUI and skinned func_static models merge");
+}
+
 } // namespace
 
 int main()
@@ -611,6 +668,7 @@ int main()
     passed = Evaluation() && passed;
     passed = Bake() && passed;
     passed = StaticModels() && passed;
+    passed = GuiAndSkinnedModels() && passed;
 
     if (!passed)
     {

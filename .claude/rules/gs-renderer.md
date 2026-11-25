@@ -128,8 +128,10 @@ coordinates; CLUTs; VRAM and mipmaps.
   safe because the GS runs the chain in order: an upload lands after every batch that drew from those
   blocks (`UploadImage` FLUSHes first). **Never rewrite a state block the pass already REF'd**: the
   DMA reads it later, so earlier batches would draw from the new address. A texture that moves
-  within a pass takes a moved block from a per-context pool (`CurrentBlock`). Material passes and the
-  sky never evict what the pass needs. `world::PlanArea` names a pass's areas first; the pass makes their textures resident
+  within a pass takes a moved block from a per-context pool (`CurrentBlock`). The pass draws its
+  batches grouped by texture (`BatchOrderKey`, fixed order every frame so coplanar surfaces never
+  trade places), then their material passes, and the plan covers both; the sky box evicts through it
+  too. A texture this pass needs no more ranks by its first use in the plan, as if it repeats. `world::PlanArea` names a pass's areas first; the pass makes their textures resident
   before drawing and repacks the arena when a view's new set will not fit around the old (PAL's
   north view needs it: first fit packed it by luck).
   `TEX1.K` = log2(UV per unit) + log2(texture size) - log2(GS pixels per unit at depth 1).

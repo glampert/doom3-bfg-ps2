@@ -747,7 +747,15 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
             static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
         textures->planOrder = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * textureCount, TAG_RENDER));
         textures->planFree = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
-        textures->useCapacity = 2U * sections.batchCount;
+        // Two a batch, and two a material pass of each.
+        u32 passUses = 0;
+
+        for (u32 batch = 0; batch < sections.batchCount; ++batch)
+        {
+            passUses += pack.materials[sections.batches[batch].material].passCount;
+        }
+
+        textures->useCapacity = 2U * (sections.batchCount + passUses);
         textures->uses = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * (textures->useCapacity + 2U), TAG_RENDER));
         textures->nextUse = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * textureCount, TAG_RENDER));
         textures->movedBlocks =
@@ -1042,14 +1050,6 @@ static u32 EvictionRank(const Slot & slot)
     return slot.sky ? 0U : slot.passOnly ? 1U : 2U;
 }
 
-// Places the image, evicting the least recently drawn ones this pass neither drew nor planned
-// (PlanBatch): their last readers are earlier chains, which finish before this frame's upload runs,
-// and a state block that names their address is never rewritten under a chain that reads it. Sky
-// faces are evicted even after this pass drew them: the sky box draws first, its TEX0 inside the
-// chain's own DIRECT data, and the GS draws it before any later upload overwrites its blocks.
-// Textures only material passes draw go before diffuse ones. With 'staleOnly' (the sky), only
-// textures the previous pass did not draw either give way: what a view draws every frame never
-// makes room for the sky, which then waits for space or is left out.
 // The resident texture to give up mid-pass when nothing else may go: the one whose next use in the
 // pass's plan is furthest (none at all comes first, then by EvictionRank and least recently drawn),
 // never one of the current batch's. The GS runs the chain in order, so an upload into its blocks
@@ -1062,13 +1062,28 @@ static u32 FurthestUse(Textures & textures)
         textures.nextUse[index] = kNoUse;
     }
 
-    for (u32 at = 2U * (textures.cursor + 1U); at < textures.useCount; ++at)
+    // Next uses after the current entry, then for textures this pass needs no more, their first use
+    // in the next frame's pass, taken to repeat this one's plan: the end of a frame then keeps what
+    // the next one needs first.
+    const u32 start = 2U * (textures.cursor + 1U);
+
+    for (u32 at = start; at < textures.useCount; ++at)
     {
         const u32 texture = textures.uses[at];
 
         if (texture != kNoUse && textures.nextUse[texture] == kNoUse)
         {
             textures.nextUse[texture] = at;
+        }
+    }
+
+    for (u32 at = 0; at < start && at < textures.useCount; ++at)
+    {
+        const u32 texture = textures.uses[at];
+
+        if (texture != kNoUse && textures.nextUse[texture] == kNoUse)
+        {
+            textures.nextUse[texture] = textures.useCount + at;
         }
     }
 
@@ -1103,11 +1118,16 @@ static u32 FurthestUse(Textures & textures)
     return victim;
 }
 
-static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index, bool fromTop = false, bool staleOnly = false)
+// Places the image, evicting first the least recently drawn ones this pass neither drew nor planned
+// (PlanBatch): their last readers are earlier chains, which finish before this frame's upload runs.
+// Sky faces are evicted even after this pass drew them: the sky box draws first, its TEX0 inside the
+// chain's own DIRECT data, and the GS draws it before any later upload overwrites its blocks.
+// Textures only material passes draw go before diffuse ones. Once the pass's planned textures went
+// in, any texture then gives up the one the pass needs furthest ahead (FurthestUse). 'fromTop'
+// places it at the arena's top end (material passes and the sky, out of the diffuse textures' way).
+static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index, bool fromTop = false)
 {
-    // While the areas draw, a diffuse texture or page may take the place of textures the pass drew or
-    // will draw (FurthestUse); the sky and the material passes only take what nothing of the pass needs.
-    const bool midPass = textures.drawing && !fromTop && !staleOnly;
+    const bool midPass = textures.drawing;
     Slot & slot = textures.slots[index];
     const tex::Image & image = textures.images[index];
     u32 start = 0;
@@ -1127,8 +1147,7 @@ static bool MakeResident(Textures & textures, dma::DisplayList & list, u32 index
         {
             const Slot & other = textures.slots[candidate];
 
-            if (!other.resident || other.plannedFrame == textures.frame || (other.lastFrame == textures.frame && !other.sky) ||
-                (staleOnly && !other.sky && other.lastFrame + 1U >= textures.frame))
+            if (!other.resident || other.plannedFrame == textures.frame || (other.lastFrame == textures.frame && !other.sky))
             {
                 continue;
             }
@@ -1631,6 +1650,28 @@ void BeginPlan(Textures * textures)
     }
 }
 
+void PlanMaterialPasses(Textures * textures, u32 material)
+{
+    if (textures == nullptr)
+    {
+        return;
+    }
+
+    const tex::PackMaterial & record = textures->pack.materials[material];
+
+    for (u32 pass = 0; pass < record.passCount && textures->useCount + 2U <= textures->useCapacity; ++pass)
+    {
+        textures->uses[textures->useCount++] = textures->pack.passes[record.firstPass + pass].texture;
+        textures->uses[textures->useCount++] = kNoUse;
+    }
+}
+
+u32 BatchOrderKey(const Textures * textures, u32 material, u32 page)
+{
+    const u32 texture = textures != nullptr ? textures->pack.materials[material].texture : tex::kPackNoTexture;
+    return ((texture < tex::kPackMaxTextures ? texture : 0xFFFFU) << 16) | (page & 0xFFFFU);
+}
+
 void PlanAreaTextures(Textures * textures, u32 area)
 {
     if (textures == nullptr)
@@ -1989,7 +2030,10 @@ void DrawSkyBox(Textures * textures, dma::DisplayList & list, gs::DrawContext co
         const u32 texture = sky.faces[face];
         Slot & slot = textures->slots[texture];
 
-        if (!slot.resident && (textures->arenaBlocks == 0 || !MakeResident(*textures, list, texture, true, true)))
+        // A face drawn before the areas: when the view's textures leave no room, it takes the place of
+        // the one the pass needs furthest ahead, and gives way to the areas' textures in turn (nothing
+        // later in the pass uses it), so the sky always draws.
+        if (!slot.resident && (textures->arenaBlocks == 0 || !MakeResident(*textures, list, texture, true)))
         {
             ++textures->stats.skyFallbacks;
             continue;

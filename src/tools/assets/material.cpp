@@ -947,6 +947,11 @@ bool ScanMaterials(std::string_view text, std::map<std::string, MaterialInfo> & 
                 scan.translucentKeyword = scan.translucentKeyword || word == "translucent";
                 ++at;
             }
+            else if (depth == 1 && word == "guisurf")
+            {
+                scan.info.gui = true;
+                ++at;
+            }
             else if (depth == 1 && word == "deform" && at + 1 < tokens.size())
             {
                 const std::string deform = Lower(tokens[at + 1].text);
@@ -1084,6 +1089,81 @@ bool ScanMaterials(std::string_view text, std::map<std::string, MaterialInfo> & 
     }
 
     return true;
+}
+
+bool ScanSkins(std::string_view text, std::map<std::string, Skin> & skins, std::string & error)
+{
+    std::vector<Token> tokens;
+
+    if (!Tokenize(text, tokens, error))
+    {
+        return false;
+    }
+
+    std::size_t at = 0;
+
+    while (at < tokens.size())
+    {
+        // [skin] name { pairs }
+        if (Lower(tokens[at].text) == "skin" && !tokens[at].quoted)
+        {
+            ++at;
+        }
+
+        if (at + 1 >= tokens.size() || !Is(tokens[at + 1], "{"))
+        {
+            error = "skin without a name and body at line " + std::to_string(at < tokens.size() ? tokens[at].line : 0);
+            return false;
+        }
+
+        const std::string name = Lower(tokens[at].text);
+        at += 2;
+        Skin skin;
+
+        while (at < tokens.size() && !Is(tokens[at], "}"))
+        {
+            if (at + 1 >= tokens.size() || Is(tokens[at + 1], "}") || Is(tokens[at + 1], "{"))
+            {
+                error = "skin " + name + " has an unpaired word at line " + std::to_string(tokens[at].line);
+                return false;
+            }
+
+            const std::string from = Lower(tokens[at].text);
+            const std::string to = Lower(tokens[at + 1].text);
+            at += 2;
+
+            if (from != "model")
+            {
+                skin.remaps.emplace_back(from == "*" ? std::string() : from, to);
+            }
+        }
+
+        if (at >= tokens.size())
+        {
+            error = "skin " + name + " lacks its closing brace";
+            return false;
+        }
+
+        ++at;
+        skins.emplace(name, std::move(skin));
+    }
+
+    return true;
+}
+
+std::string RemapBySkin(const Skin & skin, const std::string & material)
+{
+    const std::string lower = Lower(material);
+
+    for (const auto & [from, to] : skin.remaps)
+    {
+        if (from.empty() || from == lower)
+        {
+            return to;
+        }
+    }
+
+    return material;
 }
 
 std::string GeneratedImageName(const std::string & image, int usage, int cube)

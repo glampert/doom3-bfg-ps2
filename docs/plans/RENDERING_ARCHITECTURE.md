@@ -1465,14 +1465,25 @@ to memory images belongs with R8.
     of the north view uploaded 1.62 MB with 152 mid-pass evictions. The jump frame loads the whole
     set, so about 280 KB a frame in steady state, a few milliseconds of GIF time on hardware
     (unmeasured: PCSX2 charges no upload).
-  - **Not done:**
-    - Material passes and the sky still only take space nothing of the pass needs (PAL's north view
-      keeps leaving its glows out).
-    - Batches are not grouped by texture within an area, which would cut the evictions.
+  - **Order and reach (2026-11-25):**
+    - The pass draws its batches grouped by texture and page rather than area by area, in the same
+      order every frame, so coplanar surfaces never trade places. Material passes follow, and the plan
+      covers them.
+    - Material passes and the sky box evict through the plan like the batches: every view draws its
+      glows and sky again.
+    - A texture the pass needs no more ranks by its first use in the plan, as if the next frame
+      repeats it, so a frame ends holding what the next one needs first. That cut PAL's uploads by a
+      fifth to a third.
+  - **The budget this exposes.** With the GUI and skinned props merged too, PAL's views need about
+    twice the arena (area 2 alone 898 KB before the sky, the north view 1.13 MB, against 655,360
+    bytes). The gate's PAL views upload close to 1 MB a frame, which no ordering can bring far below
+    the overflow. The hardware frame log decides between a tighter policy for prop textures, PAL in
+    game at 32/16, and smaller copies past an upload budget.
 - Give-way order: the sky's faces first (evicted even after the pass drew them, since their `TEX0`
   travels in the chain's own DIRECT data, not in a cached state block), then material pass
-  textures, then the least recently drawn. The sky takes only free space or textures the previous
-  pass did not draw, so it never displaces what a view draws every frame.
+  textures, then the least recently drawn. Until 2026-11-25 the sky took only free space or textures
+  the previous pass did not draw; it now evicts through the plan like a batch, so it always draws
+  and what it displaces reloads later in the pass.
 - **Texture dictionaries (noted 2026-11-08; measured and set aside 2026-11-24).** Black groups a
   file's textures into dictionaries (`docs/formats/textures.md` in black-re): GLOBDATA, LEVELDAT and
   per-unit ones, each read once and relocated in place (`ResDict_Relocate`). This plan meant to load

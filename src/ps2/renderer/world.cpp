@@ -17,6 +17,7 @@
 #include <idlib/precompiled.h> // memTag_t for the world allocation
 #include <kernel.h>
 
+#include <algorithm>
 #include <cstdio>
 
 namespace ps2::renderer::world
@@ -30,14 +31,10 @@ static bool s_lightmapsEnabled = true;
 static Textures * s_passTextures = nullptr;
 static TextureStats s_lastStats = {};
 
-// The batches whose materials draw additive passes, queued until the pass's areas are all in:
-// the diffuse textures then hold the arena first, and a pass whose texture finds no room left
-// simply does not draw. Depth GEQUAL makes the order safe: a pass lands only where its own
-// surface is the nearest. A full queue draws what it holds.
-static constexpr u32 kMaxQueuedPassBatches = 512;
-static u32 s_queuedPasses[kMaxQueuedPassBatches];
-static u32 s_queuedPassCount = 0;
 static const Level * s_passLevel = nullptr;
+
+// The batches of the coming pass (Level::passOrder holds them), planned by PlanArea.
+static u32 s_passCount = 0;
 
 // PlanArea has begun the next pass's plan.
 static bool s_planning = false;
@@ -47,32 +44,6 @@ static bool s_planning = false;
 static bool Planned(const Level & level, const BatchRecord & batch)
 {
     return !(s_texturesEnabled && IsSky(level.textures, batch.material));
-}
-
-static void DrawQueuedPasses()
-{
-    dma::DisplayList & list = dma::List();
-    const Sections & sections = s_passLevel->sections;
-
-    for (u32 queued = 0; queued < s_queuedPassCount; ++queued)
-    {
-        const BatchRecord & batch = sections.batches[s_queuedPasses[queued]];
-        const u32 passes = PassCount(s_passTextures, batch.material);
-
-        for (u32 pass = 0; pass < passes; ++pass)
-        {
-            const void * state = nullptr;
-            const void * color = nullptr;
-
-            // Each batch again with the pass's texture, a constant colour and additive tags.
-            if (PassBlocks(s_passTextures, list, batch.material, pass, state, color))
-            {
-                list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, color, kPageStateBlockQwords);
-            }
-        }
-    }
-
-    s_queuedPassCount = 0;
 }
 
 } // namespace
@@ -163,6 +134,15 @@ PS2_COLD_FUNC bool Adopt(void * storage, u32 bytes, const char * name, Level & l
 
     level.storage = storage;
     level.bytes = bytes;
+    level.passOrder = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * (level.sections.batchCount + 1U), TAG_RENDER));
+
+    if (level.passOrder == nullptr) [[unlikely]]
+    {
+        system::heap::Free(storage);
+        level = {};
+        Log(LogLevel::Error, "world %s refused: no memory for its pass order\n", name);
+        return false;
+    }
 
     const Sections & sections = level.sections;
     Log(LogLevel::Info, "[D3BFG] world %s: areas=%u surfaces=%u batches=%u portals=%u nodes=%u packets=%u bytes=%u merged_entities=%u\n", name,
@@ -184,6 +164,7 @@ PS2_COLD_FUNC void Unload(Level & level)
     }
 
     FreeTextures(level.textures);
+    system::heap::Free(level.passOrder);
 
     if (level.storage != nullptr)
     {
@@ -242,8 +223,31 @@ void BeginPass(const Level & level, const math::Mat4 & viewProjection, float tim
 {
     s_passTextures = level.textures;
     s_passLevel = &level;
-    s_queuedPassCount = 0;
     s_planning = false;
+
+    // The pass draws its batches grouped by texture, then lightmap page, rather than area by area:
+    // each texture then has one run of uses, which a mid-pass eviction needs least (the depth test
+    // makes the order free for opaque surfaces). The order is the same every frame, so surfaces in
+    // one plane never trade places. The plan lists the batches, then their material passes, in the
+    // order EndPass draws them.
+    const Sections & sections = level.sections;
+    std::sort(level.passOrder, level.passOrder + s_passCount, [&](u32 a, u32 b)
+              {
+                  const u32 keyA = BatchOrderKey(level.textures, sections.batches[a].material, sections.batches[a].lightmapPage);
+                  const u32 keyB = BatchOrderKey(level.textures, sections.batches[b].material, sections.batches[b].lightmapPage);
+                  return keyA != keyB ? keyA < keyB : a < b;
+              });
+
+    for (u32 index = 0; index < s_passCount; ++index)
+    {
+        const BatchRecord & batch = sections.batches[level.passOrder[index]];
+        PlanBatch(level.textures, batch.material, batch.lightmapPage, s_texturesEnabled, s_lightmapsEnabled);
+    }
+
+    for (u32 index = 0; index < s_passCount && s_texturesEnabled; ++index)
+    {
+        PlanMaterialPasses(level.textures, sections.batches[level.passOrder[index]].material);
+    }
 
     const gs::DrawContext context = renderer::DrawingContext();
     dma::DisplayList & list = dma::List();
@@ -275,6 +279,7 @@ bool PlanArea(const Level & level, u32 area)
     {
         BeginPlan(level.textures);
         s_planning = true;
+        s_passCount = 0;
     }
 
     PlanAreaTextures(level.textures, area);
@@ -292,7 +297,8 @@ bool PlanArea(const Level & level, u32 area)
             continue;
         }
 
-        PlanBatch(level.textures, batch.material, batch.lightmapPage, s_texturesEnabled, s_lightmapsEnabled);
+        PS2_AssertMsg(s_passCount < level.sections.batchCount, "an area planned twice in one pass");
+        level.passOrder[s_passCount++] = index;
     }
 
     return sky;
@@ -324,23 +330,18 @@ void DrawAreaSky(const Level & level, u32 area)
     }
 }
 
-void DrawArea(const Level & level, u32 area)
+void EndPass()
 {
-    PS2_AssertMsg(level.storage != nullptr && area < level.sections.areaCount, "drawing an area of no loaded world");
-
     dma::DisplayList & list = dma::List();
+    const Level & level = *s_passLevel;
     const Sections & sections = level.sections;
-    const AreaRecord & record = sections.areas[area];
 
-    for (u32 index = record.firstBatch; index < record.firstBatch + record.batchCount; ++index)
+    // Every planned batch after its texture state (uploading textures as they become needed), in the
+    // plan's order.
+    for (u32 index = 0; index < s_passCount; ++index)
     {
-        const BatchRecord & batch = sections.batches[index];
-
-        if (Planned(level, batch))
-        {
-            AdvanceBatch(s_passTextures);
-        }
-
+        const BatchRecord & batch = sections.batches[level.passOrder[index]];
+        AdvanceBatch(s_passTextures);
         const void * state = BatchState(s_passTextures, list, batch.material);
 
         if (state == nullptr)
@@ -352,28 +353,27 @@ void DrawArea(const Level & level, u32 area)
         list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, page, kPageStateBlockQwords);
     }
 
-    // The material passes wait for the end of the pass (s_queuedPasses).
-    for (u32 index = record.firstBatch; index < record.firstBatch + record.batchCount; ++index)
+    // Then the material passes, once every diffuse texture drew: each batch again with the pass's
+    // texture, a constant colour and additive tags. Depth GEQUAL makes the order safe: a pass lands
+    // only where its own surface is the nearest.
+    for (u32 index = 0; index < s_passCount; ++index)
     {
-        if (PassCount(s_passTextures, sections.batches[index].material) == 0)
-        {
-            continue;
-        }
+        const BatchRecord & batch = sections.batches[level.passOrder[index]];
+        const u32 passes = PassCount(s_passTextures, batch.material);
 
-        if (s_queuedPassCount == kMaxQueuedPassBatches)
+        for (u32 pass = 0; pass < passes; ++pass)
         {
-            DrawQueuedPasses();
-        }
+            const void * state = nullptr;
+            const void * color = nullptr;
+            AdvanceBatch(s_passTextures);
 
-        s_queuedPasses[s_queuedPassCount++] = index;
+            if (PassBlocks(s_passTextures, list, batch.material, pass, state, color))
+            {
+                list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, color, kPageStateBlockQwords);
+            }
+        }
     }
-}
 
-void EndPass()
-{
-    dma::DisplayList & list = dma::List();
-
-    DrawQueuedPasses();
     list.EndBatches();
     gs::EndDepthPass(list, renderer::DrawingContext());
     s_lastStats = GetTextureStats(s_passTextures);
@@ -395,11 +395,6 @@ void Draw(const Level & level, const math::Mat4 & viewProjection, float time)
     for (u32 area = 0; area < level.sections.areaCount && sky; ++area)
     {
         DrawAreaSky(level, area);
-    }
-
-    for (u32 area = 0; area < level.sections.areaCount; ++area)
-    {
-        DrawArea(level, area);
     }
 
     EndPass();

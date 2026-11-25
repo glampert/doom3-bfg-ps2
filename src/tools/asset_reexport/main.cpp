@@ -1181,6 +1181,30 @@ static bool ScanCatalogMaterials(ResourceCatalog & catalog, std::map<std::string
     return true;
 }
 
+// The catalog's skins (skins/*.skin) in file-name order, the first definition of a name winning.
+static bool ScanCatalogSkins(ResourceCatalog & catalog, std::map<std::string, Skin> & skins)
+{
+    std::string error;
+
+    for (const auto & entry : catalog.Entries())
+    {
+        if (entry.first.rfind("skins/", 0) != 0 || entry.first.size() < 5 || entry.first.compare(entry.first.size() - 5, 5, ".skin") != 0)
+        {
+            continue;
+        }
+
+        std::vector<std::uint8_t> bytes;
+
+        if (!catalog.Read(entry.first, bytes, error) ||
+            !ScanSkins(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), skins, error))
+        {
+            return Fail(entry.first + ": " + error);
+        }
+    }
+
+    return true;
+}
+
 // textureUsage_t's TD_BUMP, which id loads bump maps with.
 static constexpr int kTextureUsageBump = 3;
 
@@ -2167,8 +2191,15 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
         return Fail("mesh models: " + error);
     }
 
+    std::map<std::string, Skin> skins;
+
+    if (lightingJob.staticModels && !ScanCatalogSkins(materialCatalog, skins))
+    {
+        return false;
+    }
+
     if (lightingJob.staticModels &&
-        !MergeStaticModels(proc, entities, context, declared, staticModels, error, lightingJob.meshModels ? &readModel : nullptr))
+        !MergeStaticModels(proc, entities, context, declared, staticModels, error, lightingJob.meshModels ? &readModel : nullptr, &skins))
     {
         return Fail("static models: " + error);
     }

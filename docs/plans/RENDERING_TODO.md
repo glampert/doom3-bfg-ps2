@@ -240,16 +240,23 @@ production link free of test inputs. Section numbers in parentheses point into t
       4.49 MB, the D3TX from 295 to 382 textures. D3WD v4 lists the 357 merged entities (inline ones
       too) with their model, placement and merged surfaces, for the game's spawn to skip their models.
       The retail gate's westward trace now stops at a merged computer rack, as id's `Trace` would.
-- [ ] Merge the GUI props but for their GUI surfaces (53, 11,983 triangles), and the skinned ones with
-      the skin's materials (17, 2,406).
+- [x] Merge the GUI props but for their GUI surfaces, and the skinned ones with the skin's materials
+      (2026-11-25): materials read `guiSurf`, the cook scans `skins/*.skin` (`ScanSkins`, id's canonical
+      names), and a skin naming no declaration keeps its entity out. mars_city1: 421 merged entities,
+      94,805 triangles in 3,643 batches, the D3WD 4.96 MB, the D3TX 423 textures (4.65 MB).
 - [x] Mid-pass texture eviction (2026-11-25, 10.5): a view whose textures exceed the arena loads the
       rest as its batches draw, evicting the texture whose next use in the pass's plan is furthest;
       a texture moved within a pass takes a moved state block. PAL's north, doorway and corridor
       views draw every texture again (about 791 KB against 655,360 bytes).
-- [ ] Group each area's batches by texture to cut mid-pass evictions; let material passes evict
-      what the pass no longer needs (PAL's north view still leaves its glows out); the sky's faces
-      give way every frame in NTSC's 96.5 % full arena since the props merged (about 200 KB of
-      uploads a frame).
+- [x] The pass draws its batches grouped by texture and page (`BatchOrderKey`, the same order every
+      frame), material passes and the sky box evict through the plan too, and a texture this pass
+      needs no more ranks by its first use in the next frame's (2026-11-25). Every view of both
+      standards draws its sky and glows again.
+- [ ] PAL's texture budget: with the GUI props, area 2 alone needs 898 KB of textures and pages
+      before the sky, the north view 1.13 MB, against PAL's 655,360-byte arena; the retail gate's PAL
+      views upload close to 1 MB a frame. Measure on hardware (R2's frame log); the levers are a
+      tighter policy for prop textures, PAL in-game at 32/16, or smaller copies past an upload budget.
+      NTSC's arena holds area 2 but for the sky's faces (about 200 KB of reloads a frame).
 - [ ] Rigid entity models for doors, movers, bound models, moveables and items (R4's rigid half):
       cooked batches per area streamed with the area ring, drawn by the world program with a
       per-entity matrix, at the cook's rest pose until the game loads retail maps (M3).

@@ -6117,3 +6117,25 @@ Open:
   frame.
 - PAL's north view still leaves its glows out: material passes do not evict.
 - Batches are not yet grouped by texture to cut the evictions.
+
+## GUI and skinned props, texture-ordered passes (2026-11-25)
+
+The world cook now also merges the props that carry a GUI or a skin. A GUI surface (a `guiSurf`
+material) stays with its entity, and a skinned entity merges with its skin's materials. mars_city1
+reaches 421 merged entities and 94,805 triangles; the D3WD is 4.96 MB and the D3TX 423 textures.
+
+The world pass draws its batches grouped by texture and lightmap page, in a fixed order, then their
+material passes. The sky box and the material passes evict through the pass's plan like the
+batches. A texture the pass needs no more ranks by its first use in the next frame's plan. Every
+view of both standards now draws its glows and sky.
+
+The props expose PAL's texture budget. Area 2 alone needs 898 KB of textures and pages before the
+sky, against PAL's 655,360-byte arena. The gate's PAL views all overflow and upload close to 1 MB a
+frame (NTSC views about 200 KB, mostly the sky's faces). This awaits the hardware frame log.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261125T005347Z_world_retail_12318fda9d55` (NTSC), `20261125T005459Z_world_retail_10c4a4dc19e8` (PAL): no fallback, glow or sky left out in any view |
+| `make test-world` | `20261125T005648Z_world_24778f604d5f`, `20261125T005658Z_world_97d48c3bf7dd` |
+| `make test-host` | Passed: GUI surfaces stay with their entity, skins remap by canonical name, a missing skin keeps its entity |
+| `make`, `make release` | Passed, no warnings |

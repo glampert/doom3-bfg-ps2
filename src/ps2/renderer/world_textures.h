@@ -49,6 +49,14 @@ void BeginPlan(Textures * textures);
 void PlanAreaTextures(Textures * textures, u32 area);
 void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool lightmapped);
 
+// Plans the material passes of a batch of 'material' (a textured pass, after every PlanBatch), in the
+// order they draw: one AdvanceBatch each, before its PassBlocks.
+void PlanMaterialPasses(Textures * textures, u32 material);
+
+// The order a pass draws its batches in: by diffuse texture, then lightmap page (null textures: by
+// page alone).
+u32 BatchOrderKey(const Textures * textures, u32 material, u32 page);
+
 // Starts a world pass in 'context': the states are written for its registers and LOD, where
 // 'focal' is GS pixels per world unit at depth 1, and the material passes time drives are evaluated
 // at 'time' (seconds). 'textures' may be null (every batch untextured and unlit); 'textured' and
@@ -67,9 +75,9 @@ void PlanBatch(Textures * textures, u32 material, u32 page, bool textured, bool 
 void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext context, float focal, bool textured, bool lightmapped,
                    float time, int viewArea);
 
-// Steps to the next planned batch, before its BatchState: once per batch PlanBatch planned, in the
-// same order. Its diffuse texture and page are pinned, and what lies ahead in the plan decides what a
-// mid-pass eviction gives up.
+// Steps to the next planned batch, before its BatchState (or a planned material pass, before its
+// PassBlocks): once per PlanBatch entry, then per PlanMaterialPasses entry, in the same order. Its
+// textures are pinned, and what lies ahead in the plan decides what a mid-pass eviction gives up.
 void AdvanceBatch(Textures * textures);
 
 // The state for a batch of 'material': the material's texture made resident first (an upload in

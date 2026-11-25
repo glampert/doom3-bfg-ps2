@@ -44,7 +44,7 @@ struct StaticModelStats
     std::size_t solidTriangles = 0;
     // Area surfaces added (a merged triangle joins an area surface of its material while it has room).
     std::size_t surfacesAdded = 0;
-    // Inline models left out whole, by reason ("parms": every surface stays with the entity).
+    // Inline models left out whole, by reason ("surfaces": every surface stays with the entity).
     std::map<std::string, std::size_t> kept;
     // Mesh models (.lwo, .ase), when the merge reads them: the func_statics naming one, those merged
     // whole and in part, the triangles placed and dropped in solid space, and those left out by
@@ -111,7 +111,12 @@ bool CensusMeshModels(const ProcFile & proc, const std::vector<MapEntity> & enti
                       std::string & error);
 
 // Why the func_static 'entity' may change at run time, or null when it never can: bound, hidden at
-// spawn, a GUI, a skin, targeted, or named in the script.
+// spawn, targeted, or named in the script. A GUI or a skin does not keep it out: its GUI surfaces stay
+// with it (SurfaceStaysWithEntity), and a skin's materials replace the model's.
+
+// id's canonical declaration name (idDeclManagerLocal::MakeNameCanonical): lowercase, '/' for '\\',
+// the text from the last '.' dropped. Skins are found by it.
+std::string CanonicalDeclName(const std::string & name);
 const char * StaticModelRefusal(const MapEntity & entity, const LightContext & context);
 
 // The entity's shader parms as id spawns it (idGameEdit::ParseSpawnArgsToRenderEntity): _color in
@@ -123,8 +128,9 @@ ShaderParms EntityShaderParms(const MapEntity & entity);
 // shaderParmN and the surface's material reads parms. 'materials' is keyed by lowercase name.
 bool SurfaceReadsEntityParms(const MapEntity & entity, const ProcSurface & surface, const std::map<std::string, MaterialInfo> & materials);
 
-// Whether the surface must stay in the entity's model: translucent and reading its parms (a flare,
-// glass, a glow decal), whose whole look is the entity's colour.
+// Whether the surface must stay in the entity's model: a GUI surface, which shows the entity's GUI, or
+// one translucent and reading its parms (a flare, glass, a glow decal), whose whole look is the
+// entity's colour.
 bool SurfaceStaysWithEntity(const MapEntity & entity, const ProcSurface & surface, const std::map<std::string, MaterialInfo> & materials);
 
 // Moves every static func_static's inline model into the area models: each triangle, placed by
@@ -133,10 +139,11 @@ bool SurfaceStaysWithEntity(const MapEntity & entity, const ProcSurface & surfac
 // proc.models, so later passes see its triangles only as area geometry. A merged surface whose
 // material reads the entity's parms keeps them (proc.parmSets). With 'readMesh', static func_statics
 // naming a mesh model (.lwo, .ase) merge the same way from their binary render models, into
-// surfaces of their own lit per vertex (ProcSurface::vertexLit). Every entity whose model the areas
+// surfaces of their own lit per vertex (ProcSurface::vertexLit). An entity naming a skin merges with
+// the skin's materials ('skins', keyed by CanonicalDeclName), and is kept when no skin declares it. Every entity whose model the areas
 // now draw, whole or in part, is listed in proc.mergedEntities.
 bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities, const LightContext & context,
                        const std::map<std::string, MaterialInfo> & materials, StaticModelStats & stats, std::string & error,
-                       const ResourceReader * readMesh = nullptr);
+                       const ResourceReader * readMesh = nullptr, const std::map<std::string, Skin> * skins = nullptr);
 
 } // namespace assets

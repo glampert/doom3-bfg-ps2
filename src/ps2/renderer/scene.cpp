@@ -218,7 +218,7 @@ void RenderView(const viewDef_t & view)
             continue;
         }
 
-        world::DrawArea(*level, static_cast<u32>(area));
+        // The area's batches draw at EndPass, with the pass's others in texture order.
         ++stats.areas;
         stats.batches += level->sections.areas[area].batchCount;
     }

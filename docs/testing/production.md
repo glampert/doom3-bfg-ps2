@@ -373,8 +373,8 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   materials.
 - HostFs commands close the console, set `r_znear 4`, run `ps2_world load maps/game/mars_city1`
   (the `[D3BFG] world maps/game/mars_city1.d3wd:` line must carry the cook report's areas,
-  surfaces, batches, portals and nodes, 56, 2,126, 3,397, 55 and 9,783 today with the static
-  `func_static` brush models and mesh props merged into the areas, and its `merged_entities`, 357;
+  surfaces, batches, portals and nodes, 56, 2,219, 3,643, 55 and 9,783 today with the static
+  `func_static` brush models and mesh props merged into the areas, and its `merged_entities`, 421;
   and a
   `[D3BFG] world textures maps/game/mars_city1.d3tx:` line with its pages, areas, file and table
   bytes, ending `streamed`, must follow),

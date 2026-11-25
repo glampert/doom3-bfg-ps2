@@ -13,6 +13,7 @@
 #include <array>
 #include <cstdint>
 #include <map>
+#include <utility>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -169,6 +170,8 @@ struct MaterialInfo
     // shadow volumes do.
     bool castsShadow = true;
     bool translucent = false;
+    // 'guiSurf': the surface shows its entity's GUI (in-world screens), which changes at run time.
+    bool gui = false;
     // Light material keywords.
     std::string lightFalloffImage;
     bool fogLight = false;
@@ -186,6 +189,20 @@ struct MaterialInfo
 // id's material parser.
 bool ScanMaterials(std::string_view text, std::map<std::string, MaterialInfo> & materials, std::string & error,
                    MaterialTables * tables = nullptr);
+
+// A skin declaration (idDeclSkin): material remaps in order, the first matching one applying; an
+// empty 'from' ("*" in the file) matches any material. 'model' lines name associated models only.
+struct Skin
+{
+    std::vector<std::pair<std::string, std::string> > remaps;
+};
+
+// Adds the skins of one .skin file to 'skins', keyed by lowercase name; a name already present keeps
+// its first definition. Material names are lowercased.
+bool ScanSkins(std::string_view text, std::map<std::string, Skin> & skins, std::string & error);
+
+// The material a surface of 'material' draws with under 'skin' (idDeclSkin::RemapShader).
+std::string RemapBySkin(const Skin & skin, const std::string & material);
 
 // cubeFiles_t (Image.h): the two digits after the usage.
 static constexpr int kCubeFiles2d = 0;

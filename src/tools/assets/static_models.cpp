@@ -122,16 +122,6 @@ const char * StaticModelRefusal(const MapEntity & entity, const LightContext & c
         return "hidden";
     }
 
-    if (entity.Find("gui") != nullptr || entity.Find("gui2") != nullptr || entity.Find("gui3") != nullptr)
-    {
-        return "gui";
-    }
-
-    if (entity.Find("skin") != nullptr)
-    {
-        return "skin";
-    }
-
     if (context.targeted.count(name) != 0)
     {
         return "targeted";
@@ -159,7 +149,20 @@ bool SurfaceReadsEntityParms(const MapEntity & entity, const ProcSurface & surfa
 bool SurfaceStaysWithEntity(const MapEntity & entity, const ProcSurface & surface, const std::map<std::string, MaterialInfo> & materials)
 {
     const auto found = materials.find(Lower(surface.material));
-    return SurfaceReadsEntityParms(entity, surface, materials) && found->second.translucent;
+    return found != materials.end() && (found->second.gui || (SurfaceReadsEntityParms(entity, surface, materials) && found->second.translucent));
+}
+
+std::string CanonicalDeclName(const std::string & name)
+{
+    std::string canonical = Lower(name);
+
+    for (char & character : canonical)
+    {
+        character = character == '\\' ? '/' : character;
+    }
+
+    const std::size_t dot = canonical.rfind('.');
+    return dot == std::string::npos ? canonical : canonical.substr(0, dot);
 }
 
 namespace
@@ -314,9 +317,42 @@ static ProcMergedEntity MergedEntity(const MapEntity & entity, std::uint32_t mer
 
 } // namespace
 
+// The entity's model with its skin's materials: 'skinned' gets the copy, and the return is the model
+// to merge; null when the entity names a skin no file declares (or none were scanned).
+static const ProcModel * Skinned(const MapEntity & entity, const ProcModel & model, const std::map<std::string, Skin> * skins, ProcModel & skinned)
+{
+    const std::string * name = entity.Find("skin");
+
+    if (name == nullptr)
+    {
+        return &model;
+    }
+
+    if (skins == nullptr)
+    {
+        return nullptr;
+    }
+
+    const auto found = skins->find(CanonicalDeclName(*name));
+
+    if (found == skins->end())
+    {
+        return nullptr;
+    }
+
+    skinned = model;
+
+    for (ProcSurface & surface : skinned.surfaces)
+    {
+        surface.material = RemapBySkin(found->second, surface.material);
+    }
+
+    return &skinned;
+}
+
 bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities, const LightContext & context,
                        const std::map<std::string, MaterialInfo> & materials, StaticModelStats & stats, std::string & error,
-                       const ResourceReader * readMesh)
+                       const ResourceReader * readMesh, const std::map<std::string, Skin> * skins)
 {
     stats = StaticModelStats();
     proc.mergedEntities.clear();
@@ -384,11 +420,21 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
                 continue;
             }
 
-            // Translucent surfaces coloured by the entity's parms (flares, glass, glow decals) stay
-            // in its model, for the entity to draw with them; the rest join the areas.
+            // GUI surfaces and translucent surfaces coloured by the entity's parms (flares, glass,
+            // glow decals) stay in its model, for the entity to draw with them; the rest join the
+            // areas, with the entity's skin's materials.
+            ProcModel skinnedModel;
+            const ProcModel * placed = Skinned(entity, model, skins, skinnedModel);
+
+            if (placed == nullptr)
+            {
+                ++stats.kept["skin"];
+                continue;
+            }
+
             std::vector<ProcSurface> kept;
             std::uint32_t mask = 0;
-            PlaceModel(proc, areaModels, entity, model, false, materials, stats, kept, mask, stats.triangles, stats.solidTriangles);
+            PlaceModel(proc, areaModels, entity, *placed, false, materials, stats, kept, mask, stats.triangles, stats.solidTriangles);
 
             if (kept.empty())
             {
@@ -402,7 +448,7 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
 
             if (kept.size() == model.surfaces.size())
             {
-                ++stats.kept["parms"];
+                ++stats.kept["surfaces"];
                 continue;
             }
 
@@ -455,13 +501,22 @@ bool MergeStaticModels(ProcFile & proc, const std::vector<MapEntity> & entities,
             mesh = meshes.emplace(meshName, std::move(model)).first;
         }
 
+        ProcModel skinnedMesh;
+        const ProcModel * placedMesh = Skinned(entity, mesh->second, skins, skinnedMesh);
+
+        if (placedMesh == nullptr)
+        {
+            ++stats.meshKept["skin"];
+            continue;
+        }
+
         std::vector<ProcSurface> kept;
         std::uint32_t mask = 0;
-        PlaceModel(proc, areaModels, entity, mesh->second, true, materials, stats, kept, mask, stats.meshTriangles, stats.meshSolidTriangles);
+        PlaceModel(proc, areaModels, entity, *placedMesh, true, materials, stats, kept, mask, stats.meshTriangles, stats.meshSolidTriangles);
 
         if (kept.size() == mesh->second.surfaces.size())
         {
-            ++stats.meshKept["parms"];
+            ++stats.meshKept["surfaces"];
             continue;
         }
 

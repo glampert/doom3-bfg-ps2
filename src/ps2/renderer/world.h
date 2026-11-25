@@ -28,6 +28,9 @@ struct Level
     Sections sections = {};
     // The map's D3TX (world_textures.h), when it has one; batches draw untextured without it.
     Textures * textures = nullptr;
+    // The batches a pass draws, in its order (PlanArea fills it, BeginPass sorts it): one entry a
+    // batch of the level.
+    u32 * passOrder = nullptr;
 };
 
 // Reads and validates 'path' (every build); false, with nothing held, if it cannot be used.
@@ -53,22 +56,20 @@ PS2_COLD_FUNC void Unload(Level & level);
 // near plane. The world programs take their drawing tags from each batch's state.
 vu::FrameConstants MakeFrameConstants(const math::Mat4 & viewProjection, gs::DrawContext context);
 
-// The world pass inside the open renderer frame. PlanArea first names each area the pass will draw,
-// in its order: their textures and lightmap pages become resident at BeginPass, before anything
-// draws, and none is evicted during the pass. BeginPass sets the frame constants, draws the sky
-// box when 'sky' (a planned area shows the sky), then the depth test and the level's program once
-// (world_lm.vusl, or world_strips.vusl for a plain-strips cook). DrawAreaSky writes the
-// depth of one area's sky surfaces, for every such area before any DrawArea, so whatever lies
-// behind a sky surface stays hidden. DrawArea sends every other batch of one area after its texture
-// state (uploading textures as they become needed) and queues those whose materials draw additive
-// passes; EndPass draws the queued passes, once every area's diffuse textures hold the arena, and
-// starts the last batch. 'time' (seconds, the view's) drives the material passes' registers, and
+// The world pass inside the open renderer frame. PlanArea first names each area the pass will draw
+// (once each); BeginPass orders their batches by texture and lightmap page and plans them, their
+// textures and pages going resident before anything draws (world_textures.h), then sets the frame
+// constants, draws the sky box when 'sky' (a planned area shows the sky), then the depth test and the
+// level's program once (world_lm.vusl, or world_strips.vusl for a plain-strips cook). DrawAreaSky
+// writes the depth of one area's sky surfaces, for every such area before EndPass, so whatever lies
+// behind a sky surface stays hidden. EndPass sends every planned batch after its texture state
+// (uploading textures as they become needed), then each batch's material passes, and starts the last
+// batch. 'time' (seconds, the view's) drives the material passes' registers, and
 // 'viewArea' (the area the eye is in, -1 for none) names the area whose portal neighbours' textures
 // are read ahead (world_textures.h).
 bool PlanArea(const Level & level, u32 area); // whether the textured pass draws sky surfaces in it
 void BeginPass(const Level & level, const math::Mat4 & viewProjection, float time, bool sky = false, int viewArea = -1);
 void DrawAreaSky(const Level & level, u32 area);
-void DrawArea(const Level & level, u32 area);
 void EndPass();
 
 // One pass over every area of 'level'.
