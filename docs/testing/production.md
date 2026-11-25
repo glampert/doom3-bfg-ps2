@@ -412,7 +412,13 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   (`moved_fallbacks`). `overflows`, `pass_evictions`, `moved_states` and `upload_bytes` record how
   PAL's north, doorway and corridor views, whose textures exceed the arena, load the rest mid-pass. The copies' peak (`copy_peak`) must stay below the package's
   file bytes. The runner records the peak, and `stream_loads`, `stream_bytes` and
-  `stream_wait_ms` per view. Both go off again
+  `stream_wait_ms` per view.
+- Then the console step (`share` barrier):
+  - It opens the console in game and captures `world-console.tga`. Its texture status must show the
+    world's arena gave pages back (`vram_yields` up, the arena smaller than the views' largest): the
+    console's character page finds no room in the shared texture range otherwise.
+  - It closes the console and waits 45 frames, past the 30 a UI texture stays idle before releasing
+    its pages. A second status must show the arena grown back (`regrows` up) to its full size. Both go off again
   before the next view. Each lightmap capture must match the reference with the lightmap pass
   modelled (below); the textured captures are checked by eye: no reference models the diffuse
   textures yet. The

@@ -376,6 +376,7 @@ void EndPass()
 
     list.EndBatches();
     gs::EndDepthPass(list, renderer::DrawingContext());
+    EndTextures(s_passTextures);
     s_lastStats = GetTextureStats(s_passTextures);
 }
 

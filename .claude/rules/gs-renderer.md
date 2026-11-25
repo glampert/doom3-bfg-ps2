@@ -119,8 +119,10 @@ coordinates; CLUTs; VRAM and mipmaps.
   (`stream_misses`). Copies leave over a 2 MiB budget only once `dma::ChainDone` says no chain still
   uploads from them. Details: RENDERING_ARCHITECTURE.md 10.5, "Streaming as built".
 - **Textured world pass:** a map's `.d3tx` stays resident in one VRAM arena (`world_textures.cpp`:
-  the texture range less 256 KiB for the UI, best fit, LRU, first evicting what this pass neither
-  drew nor planned). Each batch's state block is per material and per drawing context: a frame
+  best fit, LRU, first evicting what this pass neither drew nor planned). The arena shares the whole
+  texture range with the UI's textures (2026-11-25): a UI texture that finds no room fences, then the
+  arena gives back its end (`YieldVram`, never while a pass is built). UI textures idle 30 frames
+  release their pages (`tex::ReleaseIdle`) and the arena grows back over them (`GrowArena`). Each batch's state block is per material and per drawing context: a frame
   rewrites only its own context's blocks, never one the chain in flight reads.
 - **Mid-pass eviction (2026-11-25):** when a view's textures exceed the arena, a batch's diffuse or
   page may evict a texture the pass drew or still needs. The victim is the one whose next use in the

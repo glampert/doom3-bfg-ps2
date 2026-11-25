@@ -194,17 +194,18 @@ def view_batches(report: dict, view: View) -> int:
 # passes that waited for their reads after a jump (each view's camera move is one), with the time;
 # then the passes whose planned textures exceeded the arena even empty, the textures given up mid-pass
 # for one a batch needed, the state blocks re-placed textures took and the batches that found none
-# left, and the bytes uploaded.
+# left, and the bytes uploaded; the times the arena gave pages back to UI textures, the bytes it gave,
+# and the times it grew back over pages they freed.
 TEXTURES_RE = re.compile(r"\[D3BFG\] WORLD textures enabled=([01]) arena=(\d+) resident=(\d+) resident_bytes=(\d+) uploads=(\d+) "
                          r"evictions=(\d+) fallbacks=(\d+) lightmaps=([01]) pages=(\d+) unlit=(\d+) passes=(\d+) pass_fallbacks=(\d+) "
                          r"sky_faces=(\d+) sky_fallbacks=(\d+) repacks=(\d+) stream_loads=(\d+) stream_bytes=(\d+) copies=(\d+) "
                          r"copy_bytes=(\d+) copy_peak=(\d+) stream_failures=(\d+) stream_misses=(\d+) stream_waits=(\d+) "
                          r"stream_wait_ms=(\d+) overflows=(\d+) pass_evictions=(\d+) moved_states=(\d+) moved_fallbacks=(\d+) "
-                         r"upload_bytes=(\d+)")
+                         r"upload_bytes=(\d+) vram_yields=(\d+) yielded_bytes=(\d+) regrows=(\d+)")
 TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks", "lightmaps", "pages", "unlit",
                   "passes", "pass_fallbacks", "sky_faces", "sky_fallbacks", "repacks", "stream_loads", "stream_bytes", "copies",
                   "copy_bytes", "copy_peak", "stream_failures", "stream_misses", "stream_waits", "stream_wait_ms", "overflows",
-                  "pass_evictions", "moved_states", "moved_fallbacks", "upload_bytes")
+                  "pass_evictions", "moved_states", "moved_fallbacks", "upload_bytes", "vram_yields", "yielded_bytes", "regrows")
 TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) pages=(\d+) "
                              r"passes=(\d+) areas=(\d+) bytes=(\d+) tables=(\d+) streamed")
 
@@ -221,6 +222,32 @@ def view_commands(identity: str, view: View) -> list[str]:
             "ps2_world textures on", "wait 2", f'ps2_capture "world-{view.name}-lit.tga"', "wait 2",
             "ps2_world textures status", "ps2_world textures off", "ps2_world lightmaps off", *reopen,
             f'echo "{run_world.barrier(identity, view.name)}"']
+
+
+# The UI's textures share the texture range with the world's arena: opening the console in game makes
+# the arena give back its end for the console's character page, and once the console has been closed
+# past the idle time (world_textures.cpp's kUiIdleFrames, 30) the arena grows back over it.
+SHARE_IDLE_WAIT = 45
+
+
+def share_commands(identity: str) -> list[str]:
+    return ["ps2_consoleKey toggle", "wait 4", 'ps2_capture "world-console.tga"', "wait 2", "ps2_world textures status",
+            "ps2_consoleKey toggle", f"wait {SHARE_IDLE_WAIT}", "ps2_world textures status", f'echo "{run_world.barrier(identity, "share")}"']
+
+
+def check_share(span: str, before: dict, full_arena: int) -> tuple[bool, str, dict]:
+    """The console step: its capture, the arena giving pages back while the console shows, and the
+    arena whole again after."""
+    textures = [dict(zip(TEXTURE_FIELDS, map(int, match))) for match in TEXTURES_RE.findall(span)]
+    captures = run_world.CAPTURE_RE.findall(span)
+    if len(textures) != 2 or [capture[0] for capture in captures] != ["world-console.tga"]:
+        return False, "the console step's capture or texture statuses are missing", {}
+    shown, closed = textures
+    if shown["vram_yields"] <= before["vram_yields"] or shown["arena"] >= full_arena:
+        return False, f"the world's arena did not give pages back for the console: {shown}", {}
+    if closed["regrows"] <= shown["regrows"] or closed["arena"] != full_arena:
+        return False, f"the world's arena did not grow back after the console closed: {closed}", {}
+    return True, "", {"shown": shown, "closed": closed}
 
 
 def driver(identity: str, fly: bool):
@@ -240,6 +267,7 @@ def driver(identity: str, fly: bool):
     yield ["wait 2", f'echo "{run_world.barrier(identity, "ingame")}"'], until("ingame")
     for view in VIEWS:
         yield view_commands(identity, view), until(view.name)
+    yield share_commands(identity), until("share")
     if fly:
         yield fly_commands(identity), until("fly")
     yield ["ps2_world decals", "ps2_world unload", "ps2_world decals", f'echo "{run_world.barrier(identity, "unloaded")}"'], until("unloaded")
@@ -263,7 +291,7 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
         return False, f"the cooked map did not load the cook report's {merged} merged entities", {}
     if "WORLD load failed" in log:
         return False, "the render world refused the map", {}
-    markers = ["begin", "loaded", "ingame"] + [view.name for view in VIEWS] + (["fly"] if fly else []) + ["unloaded", "frontend"]
+    markers = ["begin", "loaded", "ingame"] + [view.name for view in VIEWS] + ["share"] + (["fly"] if fly else []) + ["unloaded", "frontend"]
     # Echo output, not the submitted line, is the barrier.
     spans = [re.search(re.escape(run_world.barrier(identity, name)) + r" +\r?\n", log) for name in markers]
     if any(span is None for span in spans):
@@ -325,6 +353,10 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     # for the diffuse textures, the others have room).
     if max(view["textures"]["sky_faces"] for view in views.values()) == 0:
         return False, "the textured pass never drew the sky box", {}
+    share_span = log[positions[2 + len(VIEWS)]:positions[3 + len(VIEWS)]]
+    passed, failure, share = check_share(share_span, views[VIEWS[-1].name]["textures"], max(view["textures"]["arena"] for view in views.values()))
+    if not passed:
+        return False, failure, {}
     # The package streamed: its EE copies never held the whole file.
     file_bytes = int(package.group(6))
     copy_peak = max(view["textures"]["copy_peak"] for view in views.values())
@@ -355,7 +387,8 @@ def classify(log: str, identity: str, standard: str, report: dict, fly: bool = F
     arena = max(view["status"]["arena"] for view in views.values())
     return True, ("mars_city1 loaded from its cooked .bproc, drew area 2 and the corridor through the portal flow, closed the "
                   "doorway down to area 2, built its floor decal over the mirror, unloaded and shut down"), \
-        {"views": views, "arena_bytes": arena, "decals": decals[0], "flight": flight, "texture_file_bytes": file_bytes, "copy_peak": copy_peak}
+        {"views": views, "arena_bytes": arena, "decals": decals[0], "flight": flight, "texture_file_bytes": file_bytes, "copy_peak": copy_peak,
+         "share": share}
 
 
 def verify_captures(output: Path, data: Path, world: Path, standard: str, fly: bool = False) -> dict:

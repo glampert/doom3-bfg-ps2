@@ -136,6 +136,65 @@ void ReleaseVram(const VramAllocation & allocation)
     s_allocations[allocation.slot] = {};
 }
 
+bool ResizeVram(VramAllocation & allocation, std::uint32_t bytes)
+{
+    PS2_AssertMsg(IsVramLive(allocation) && bytes != 0 && (bytes % kVramPageBytes) == 0, "invalid VRAM resize");
+
+    VramAllocation & current = s_allocations[allocation.slot];
+    const std::uint32_t firstPage = (current.byteAddress - s_beginBytes) / kVramPageBytes;
+    const std::uint32_t oldPages = current.bytes / kVramPageBytes;
+    const std::uint32_t newPages = bytes / kVramPageBytes;
+
+    if (newPages > oldPages)
+    {
+        if (firstPage + newPages > s_pageCount)
+        {
+            return false;
+        }
+
+        for (std::uint32_t page = firstPage + oldPages; page < firstPage + newPages; ++page)
+        {
+            if (s_pages[page] != 0)
+            {
+                return false;
+            }
+        }
+    }
+
+    for (std::uint32_t page = firstPage + newPages; page < firstPage + oldPages; ++page)
+    {
+        s_pages[page] = 0;
+    }
+
+    for (std::uint32_t page = firstPage + oldPages; page < firstPage + newPages; ++page)
+    {
+        s_pages[page] = 1;
+    }
+
+    s_stats.usedBytes = s_stats.usedBytes - current.bytes + bytes;
+    s_stats.peakBytes = s_stats.usedBytes > s_stats.peakBytes ? s_stats.usedBytes : s_stats.peakBytes;
+    current.bytes = bytes;
+    allocation = current;
+    return true;
+}
+
+std::uint32_t VramFreeAfter(const VramAllocation & allocation)
+{
+    PS2_AssertMsg(IsVramLive(allocation), "VRAM query of a dead allocation");
+
+    const VramAllocation & current = s_allocations[allocation.slot];
+    std::uint32_t page = (current.byteAddress - s_beginBytes + current.bytes) / kVramPageBytes;
+    std::uint32_t free = 0;
+
+    while (page < s_pageCount && s_pages[page] == 0)
+    {
+        ++free;
+        ++page;
+    }
+
+    return free * kVramPageBytes;
+}
+
 bool IsVramLive(const VramAllocation & allocation)
 {
     if (!s_initialized || allocation.bytes == 0 || allocation.slot >= kMaxVramAllocations)

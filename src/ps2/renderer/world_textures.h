@@ -80,6 +80,9 @@ void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext
 // textures are pinned, and what lies ahead in the plan decides what a mid-pass eviction gives up.
 void AdvanceBatch(Textures * textures);
 
+// Ends the pass BeginTextures began: the arena may give pages back to the UI's textures again.
+void EndTextures(Textures * textures);
+
 // The state for a batch of 'material': the material's texture made resident first (an upload in
 // the list, evicting the least recently used textures this frame has not drawn), or untextured
 // when it has none or the arena cannot hold it; null when the textured pass does not draw it (a
@@ -139,6 +142,11 @@ struct TextureStats
     // textures took, and the batches left out because none was left; and the bytes uploaded.
     u32 overflows;
     u32 passEvictions;
+    // The arena's share of the texture range: times it gave pages back to UI textures, the bytes it
+    // gave, and times it grew back over pages they freed.
+    u32 vramYields;
+    u32 yieldedBytes;
+    u32 regrows;
     u32 movedStates;
     u32 movedFallbacks;
     u32 uploadBytes;

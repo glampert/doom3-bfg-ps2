@@ -39,6 +39,17 @@ bool Bind(Handle handle, gs::TextureBinding & output);
 // Both textures resident at once (a paletted page and its CLUT texture); neither evicts the other.
 bool BindPair(Handle first, Handle second, gs::TextureBinding & firstOutput, gs::TextureBinding & secondOutput);
 
+// The world's texture arena shares the range with these textures: a texture that finds no room asks
+// it (after fencing every queued draw) to give back the end of its arena first, then evicts its own
+// least recently used. The callback returns whether it gave anything; one at a time, null for none.
+using VramYield = bool (*)(u32 bytes, void * context);
+void SetVramYield(VramYield yield, void * context);
+
+// Releases the VRAM of every texture not bound since frame 'before' (renderer::FrameCount()), its EE
+// copy kept: it uploads again at its next bind. Their last readers are chains long finished, so no
+// fence is needed; the world's arena then grows over the pages.
+void ReleaseIdle(u32 before);
+
 struct Stats
 {
     u32 pixelBytes;
@@ -46,6 +57,9 @@ struct Stats
     u32 textures;
     u32 uploads;
     u32 evictions;
+    // Times the world's arena gave VRAM back for these textures, and textures released idle.
+    u32 worldYields;
+    u32 idleReleases;
 };
 
 const Stats & GetStats();

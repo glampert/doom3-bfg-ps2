@@ -1476,9 +1476,20 @@ to memory images belongs with R8.
       fifth to a third.
   - **The budget this exposes.** With the GUI and skinned props merged too, PAL's views need about
     twice the arena (area 2 alone 898 KB before the sky, the north view 1.13 MB, against 655,360
-    bytes). The gate's PAL views upload close to 1 MB a frame, which no ordering can bring far below
-    the overflow. The hardware frame log decides between a tighter policy for prop textures, PAL in
-    game at 32/16, and smaller copies past an upload budget.
+    bytes). The gate's PAL views uploaded close to 1 MB a frame, which no ordering can bring far below
+    the overflow.
+  - **The whole texture range (2026-11-25).**
+    - The arena no longer leaves 256 KiB to the UI; it takes every free page of the range.
+    - A UI texture that finds no room fences first, then the arena gives back its end (`YieldVram`,
+      registered with `tex::SetVramYield`), evicting the world textures there. That is never done
+      while a world pass is being built.
+    - UI textures not bound for 30 frames release their pages (`tex::ReleaseIdle`). The arena grows
+      back over free pages after its end at each pass start (`GrowArena`, `gs::ResizeVram`). Their last
+      readers were long-finished chains, so this needs no fence.
+    - The arenas grow to 1,327,104 bytes in NTSC and 917,504 in PAL at 640 wide, 32/32. The gate's
+      uploads per view fell by a third to a half.
+    - The hardware frame log decides what PAL needs next: a tighter policy for prop textures, PAL in
+      game at 32/16, or smaller copies past an upload budget.
 - Give-way order: the sky's faces first (evicted even after the pass drew them, since their `TEX0`
   travels in the chain's own DIRECT data, not in a cached state block), then material pass
   textures, then the least recently drawn. Until 2026-11-25 the sky took only free space or textures
@@ -1891,7 +1902,8 @@ acceptable.
 Measured (2026-11-08): mars_city1's 8 lightmap pages take 532,480 bytes, 65 KiB each (a 256x256
 `PSMT8` footprint plus its CLUT), and share the texture arena with the diffuse textures rather than
 a reserved region; the area 2 and corridor views keep their pages resident beside their textures in
-the 1,064,960-byte arena at 640x448 32/32.
+the 1,064,960-byte arena at 640x448 32/32 (1,327,104 since the arena shares the UI's 256 KiB,
+2026-11-25).
 
 ### 16.3 VU1 memory
 
@@ -2076,7 +2088,7 @@ R0 and R1 use the test executable's authored map until then: the graybox map
 | World texture residency (2026-11-23) | Planned per pass from its areas; best fit; a repack when the new set will not fit around the old | First-fit LRU on demand | A nearly full arena (PAL's 640 KiB) otherwise fails on fragmentation alone, by placement history |
 | Texture uploads | Inside the VIF1 chain (`FLUSHA; DIRECT`) | PATH3 with `MSKPATH3` | Ordering safety first; interleave as an R9 optimisation |
 | Batch texture state (2026-11-08) | A 10-qword VIF block per batch, REF'd from the material's per-context block, unpacked into the input half's last 9 qwords and kicked by the program before its first window | `DIRECT` register writes between batches (a `FLUSH` per texture change); the state in the cooked header | No stall per texture change and no per-batch EE writes; costs a 4-qword vertex (STQ) slot and 9 qwords of each half: mars_city1 rises from 2,138 to 2,302 batches and the world program from 93.0 to 99.5 VU1 cycles a triangle |
-| World texture residency (2026-11-08) | One whole-page VRAM arena per textured world (the texture range less 256 KiB for the UI), block-granular first fit, least recently drawn evicted, never a texture this pass drew; uploads in the chain where a batch first needs them | Area-ring streaming from the package (still the plan for the EE copy, 10.5) | mars_city1's 69 textures for the area 2 and corridor views take 517 KB of a 1,064,960-byte arena at 640x448 32/32; the whole map's 1.98 MB would not fit |
+| World texture residency (2026-11-08) | One whole-page VRAM arena per textured world (the texture range less 256 KiB for the UI; the whole range, shared with the UI's textures, since 2026-11-25), block-granular first fit, least recently drawn evicted, never a texture this pass drew; uploads in the chain where a batch first needs them | Area-ring streaming from the package (still the plan for the EE copy, 10.5) | mars_city1's 69 textures for the area 2 and corridor views take 517 KB of a 1,064,960-byte arena at 640x448 32/32; the whole map's 1.98 MB would not fit |
 | Texture format (2026-11-08) | GSTX v2 is the texture's GS memory image (all levels and its CLUT in N blocks from 0), stored as the `PSMCT32` words of at most six `DBW 1` rectangles; registers cooked relative to block 0 and relocated by one add | v1's index pages uploaded as `PSMT8`/`PSMT4`, CLUTs in shared pages; Black's per-level rectangles in the sampling buffer | No EE work per texel, one upload path for every format, one allocation per texture; Black's and TimeSplitters' pre-swizzled 32-bit uploads generalised to the CLUT and the mips |
 | Lightmap pass (2026-11-08) | The frame's other GS context, set per world pass; a second walk of the batch's index stream after the base pass, the page's `TEX0` kicked between them | A fifth vertex qword with the lightmap STQ; the page's `TEX0` in the material's A+D packet | Sixteen lanes hold both passes (lightmap S x Q and T x Q in the two free `.w` lanes, w rebuilt as 1/Q in the clipper), so batches stay at 4 qwords a vertex (a fifth would cost about a quarter more batches); the contexts share one CLUT buffer, so the page's CLUT may load only after the base pass draws |
 | Lightmap split (2026-11-08) | Per-vertex chroma x per-chart exposure, texel intensity over that exposure, `PSMT8` identity ramp | One exposure per level brightening the diffuse CLUTs; a non-linear ramp | No change to the diffuse textures; each factor keeps 2x headroom and dark charts keep 8-bit precision |

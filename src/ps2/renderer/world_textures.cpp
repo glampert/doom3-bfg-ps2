@@ -16,6 +16,8 @@
 #include "ps2/fnv.h"
 #include "ps2/renderer/dma.h"
 #include "ps2/renderer/pipeline_wait.h"
+#include "ps2/renderer/render_system.h"
+#include "ps2/renderer/texture.h"
 #include "ps2/renderer/texture_format.h"
 #include "ps2/renderer/vif.h"
 #include "ps2/renderer/vram.h"
@@ -47,8 +49,9 @@ static constexpr u32 kPageStrideQwords = 4;
 // TEX0.TFX DECAL: the lightmap pass takes the texel's alpha alone, the frame its colour.
 static constexpr u64 kTex0Decal = 1ULL << 35;
 
-// VRAM the arena leaves to the UI's own textures (the console charset, the menus' pages).
-static constexpr u32 kUiReserveBytes = 256U * 1024U;
+// A UI texture not bound for this many renderer frames gives its VRAM back (tex::ReleaseIdle), and the
+// arena grows over it: about a second, so a HUD drawn every frame never leaves.
+static constexpr u32 kUiIdleFrames = 30;
 
 static constexpr u32 kGsBlockBytes = 256;
 
@@ -462,8 +465,9 @@ struct Textures
     u32 pinned[2];
     u32 * nextUse;
     // Set once the pass's planned textures went in (Preload): batches may then evict textures the
-    // pass drew or still needs.
+    // pass drew or still needs. 'inPass' from BeginTextures to EndTextures: the arena keeps its pages.
     bool drawing;
+    bool inPass;
     // The moved state blocks, kMovedBlocks per context, and those this pass took.
     qword_t * movedBlocks;
     u32 movedCount;
@@ -866,6 +870,8 @@ PS2_COLD_FUNC void FreeTextures(Textures * textures)
         gs::ReleaseVram(textures->arena);
     }
 
+    tex::SetVramYield(nullptr, nullptr);
+
     for (u32 index = 0; index < textures->pack.textureCount; ++index)
     {
         Slot & slot = textures->slots[index];
@@ -889,8 +895,10 @@ PS2_COLD_FUNC void FreeTextures(Textures * textures)
 // The arena
 // ------------------------------------------------------------------------------------------------
 
-// The largest whole-page arena the texture range has left beyond the UI's reserve; every image
-// leaves VRAM with the old one.
+static bool YieldVram(u32 bytes, void * context);
+
+// The largest whole-page arena the texture range has free, shared with the UI's textures (YieldVram,
+// GrowArena); every image leaves VRAM with the old one.
 static void AllocateArena(Textures & textures)
 {
     for (u32 slot = 0; slot < textures.pack.textureCount; ++slot)
@@ -903,9 +911,10 @@ static void AllocateArena(Textures & textures)
     textures.stats.residentBytes = 0;
     textures.stats.resident = 0;
     textures.stats.pagesResident = 0;
+    // Every page the UI's textures leave: when one of them needs room, the arena gives back its end
+    // (YieldVram), and it grows back over pages they free (GrowArena).
     const gs::VramStats & vram = gs::GetVramStats();
-    const u32 available = vram.capacityBytes - vram.usedBytes;
-    u32 bytes = available > kUiReserveBytes ? (available - kUiReserveBytes) / gs::kVramPageBytes * gs::kVramPageBytes : 0U;
+    u32 bytes = (vram.capacityBytes - vram.usedBytes) / gs::kVramPageBytes * gs::kVramPageBytes;
 
     while (bytes > 0 && !gs::AllocateVram(bytes, textures.arena))
     {
@@ -924,6 +933,7 @@ static void AllocateArena(Textures & textures)
     textures.free[0] = { 0, textures.arenaBlocks };
     textures.freeCount = 1;
     textures.stats.arenaBytes = bytes;
+    tex::SetVramYield(&YieldVram, &textures);
 }
 
 // Best fit over 'ranges' (the smallest that holds 'count' blocks, the lowest of equals), so a nearly
@@ -1041,6 +1051,88 @@ static void Evict(Textures & textures, u32 index)
     --textures.stats.resident;
     textures.stats.pagesResident -= image.usage == tex::ImageUsage::Lightmap ? 1U : 0U;
     ++textures.stats.evictions;
+}
+
+// Grows the arena's end over the free pages right after it (pages the UI's textures released).
+static void GrowArena(Textures & textures)
+{
+    const u32 extra = gs::IsVramLive(textures.arena) ? gs::VramFreeAfter(textures.arena) : 0U;
+
+    if (extra == 0 || !gs::ResizeVram(textures.arena, textures.arena.bytes + extra))
+    {
+        return;
+    }
+
+    const u32 oldBlocks = textures.arenaBlocks;
+    textures.arenaBlocks = textures.arena.bytes / kGsBlockBytes;
+    GiveRange(textures.free, textures.freeCount, oldBlocks, textures.arenaBlocks - oldBlocks);
+    textures.stats.arenaBytes = textures.arena.bytes;
+    ++textures.stats.regrows;
+}
+
+// tex::VramYield: gives back the arena's last pages, at least 'bytes', for a UI texture, evicting the
+// world textures there; the UI fenced every queued draw first, so no chain still reads them. Never
+// while a pass is being built (its plan and state blocks count on the arena).
+static bool YieldVram(u32 bytes, void * context)
+{
+    Textures & textures = *static_cast<Textures *>(context);
+
+    if (textures.inPass || !gs::IsVramLive(textures.arena)) [[unlikely]]
+    {
+        return false;
+    }
+
+    PS2_AssertMsg(!dma::InFlight(), "world texture VRAM yielded while a chain may read it");
+    const u32 pages = (bytes + gs::kVramPageBytes - 1U) / gs::kVramPageBytes;
+    const u32 arenaPages = textures.arena.bytes / gs::kVramPageBytes;
+    const u32 keepPages = arenaPages > pages ? arenaPages - pages : 0U;
+    const u32 keepBlocks = keepPages * (gs::kVramPageBytes / kGsBlockBytes);
+
+    for (u32 index = 0; index < textures.pack.textureCount; ++index)
+    {
+        const Slot & slot = textures.slots[index];
+
+        if (slot.resident && slot.base - textures.arenaBase + textures.images[index].blocks > keepBlocks)
+        {
+            Evict(textures, index);
+        }
+    }
+
+    // The free ranges stop at the new end.
+    u32 kept = 0;
+
+    for (u32 range = 0; range < textures.freeCount; ++range)
+    {
+        Range current = textures.free[range];
+
+        if (current.start >= keepBlocks)
+        {
+            continue;
+        }
+
+        current.count = current.start + current.count > keepBlocks ? keepBlocks - current.start : current.count;
+        textures.free[kept++] = current;
+    }
+
+    textures.freeCount = kept;
+    textures.stats.yieldedBytes += (arenaPages - keepPages) * gs::kVramPageBytes;
+    ++textures.stats.vramYields;
+
+    if (keepPages == 0)
+    {
+        gs::ReleaseVram(textures.arena);
+        textures.arena = {};
+        textures.arenaBlocks = 0;
+        textures.stats.arenaBytes = 0;
+        return true;
+    }
+
+    const bool resized = gs::ResizeVram(textures.arena, keepPages * gs::kVramPageBytes);
+    PS2_AssertMsg(resized, "a VRAM allocation did not shrink");
+    (void)resized;
+    textures.arenaBlocks = keepBlocks;
+    textures.stats.arenaBytes = textures.arena.bytes;
+    return true;
 }
 
 // How readily a resident texture gives way: sky faces first, then textures only material passes
@@ -1737,9 +1829,19 @@ void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext
     Stream(*textures, textured, lightmapped, viewArea);
     EvaluatePasses(*textures, time);
 
+    textures->inPass = true;
+
+    // UI textures idle for a while give their pages back, and the arena grows over what follows it.
+    const u32 frame = renderer::FrameCount();
+    tex::ReleaseIdle(frame > kUiIdleFrames ? frame - kUiIdleFrames : 0U);
+
     if (!gs::IsVramLive(textures->arena))
     {
         AllocateArena(*textures);
+    }
+    else
+    {
+        GrowArena(*textures);
     }
 
     if (focal != textures->focal)
@@ -2073,6 +2175,14 @@ void DrawSkyBox(Textures * textures, dma::DisplayList & list, gs::DrawContext co
         }
 
         list.EndDirect(writer);
+    }
+}
+
+void EndTextures(Textures * textures)
+{
+    if (textures != nullptr)
+    {
+        textures->inPass = false;
     }
 }
 

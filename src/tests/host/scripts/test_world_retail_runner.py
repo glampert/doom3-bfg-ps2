@@ -40,7 +40,7 @@ TEXTURES = {"enabled": 1, "arena": 1064960, "resident": 42, "resident_bytes": 50
             "lightmaps": 1, "pages": 2, "unlit": 0, "passes": 12, "pass_fallbacks": 0, "sky_faces": 20, "sky_fallbacks": 0, "repacks": 0,
             "stream_loads": 60, "stream_bytes": 700000, "copies": 60, "copy_bytes": 702464, "copy_peak": 702464, "stream_failures": 0,
             "stream_misses": 0, "stream_waits": 3, "stream_wait_ms": 40, "overflows": 0, "pass_evictions": 0, "moved_states": 0,
-            "moved_fallbacks": 0, "upload_bytes": 600000}
+            "moved_fallbacks": 0, "upload_bytes": 600000, "vram_yields": 0, "yielded_bytes": 0, "regrows": 0}
 
 
 def textures_line(**fields):
@@ -66,8 +66,16 @@ def flight(frame, pose=None, area=runner.FLY_AREA):
     return log + fly_line("off", 0, eye, yaw, pitch) + echo("fly")
 
 
+def share_step(frame, shown=None, closed=None):
+    """The console step: the arena gives a page back while the console shows, then grows back."""
+    log = f"[D3BFG] CONSOLE capture=world-console.tga frame={frame} presents={frame} redraws=0 bits=32\n"
+    log += textures_line(**dict({"arena": TEXTURES["arena"] - 40960, "vram_yields": 1, "yielded_bytes": 40960}, **(shown or {})))
+    log += textures_line(**dict({"vram_yields": 1, "yielded_bytes": 40960, "regrows": 1}, **(closed or {})))
+    return log + echo("share")
+
+
 def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final=0/0/0", report=REPORT,
-            decals=(None, GRATE_DECAL, None), textures=None, fly=None):
+            decals=(None, GRATE_DECAL, None), textures=None, fly=None, share=None):
     """A retail world session's log as PCSX2's file log stamps it, with per-view and per-trace overrides."""
     counts = dict(report, **(load or {}))
     log = echo("ready") + echo("begin")
@@ -98,6 +106,7 @@ def session(views=None, traces=None, load=None, ingame=True, memory="0/0/0 final
         log += f"[D3BFG] CONSOLE capture=world-{view.name}-lit.tga frame={frame + 7} presents={frame + 7} redraws=0 bits=32\n"
         log += textures_line(**(textures or {}).get(view.name, {})) + echo(view.name)
         frame += 10
+    log += share_step(frame, **(share or {}))
     if fly is not None:
         log += flight(frame, **fly)
     log += decals_line(**(decals[1] or {}))
@@ -204,6 +213,18 @@ class RetailWorldRunnerTests(unittest.TestCase):
         passed, reason, _ = classify(session(load={"merged_entities": 300}))
         self.assertFalse(passed)
         self.assertIn("merged entities", reason)
+
+    def test_console_must_share_the_arena(self):
+        # The arena must give pages back while the console shows, and be whole again after.
+        for share in ({"shown": {"vram_yields": 0}}, {"shown": {"arena": TEXTURES["arena"]}}, {"closed": {"regrows": 0}},
+                      {"closed": {"arena": TEXTURES["arena"] - 8192}}):
+            with self.subTest(share=share):
+                passed, reason, _ = classify(session(share=share))
+                self.assertFalse(passed)
+                self.assertIn("arena", reason)
+        passed, _, details = classify(session())
+        self.assertTrue(passed)
+        self.assertEqual(details["share"]["closed"]["regrows"], 1)
 
     def test_textures_must_stream(self):
         # Copies that held the whole package did not stream it.

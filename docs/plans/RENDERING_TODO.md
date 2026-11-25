@@ -252,11 +252,16 @@ production link free of test inputs. Section numbers in parentheses point into t
       frame), material passes and the sky box evict through the plan too, and a texture this pass
       needs no more ranks by its first use in the next frame's (2026-11-25). Every view of both
       standards draws its sky and glows again.
-- [ ] PAL's texture budget: with the GUI props, area 2 alone needs 898 KB of textures and pages
-      before the sky, the north view 1.13 MB, against PAL's 655,360-byte arena; the retail gate's PAL
-      views upload close to 1 MB a frame. Measure on hardware (R2's frame log); the levers are a
-      tighter policy for prop textures, PAL in-game at 32/16, or smaller copies past an upload budget.
-      NTSC's arena holds area 2 but for the sky's faces (about 200 KB of reloads a frame).
+- [x] The world arena shares the whole texture range with the UI's textures (2026-11-25): no 256 KiB
+      reserve. A UI texture that finds no room fences, and the arena gives back its end (`YieldVram`,
+      evicting the world textures there); UI textures idle for 30 frames release their pages and the
+      arena grows back over them (`tex::ReleaseIdle`, `GrowArena`). Arenas at 640 wide, 32/32: NTSC
+      1,327,104 (was 1,064,960), PAL 917,504 (was 655,360). The retail gate's uploads per view fell
+      by a third to a half; its console step checks the yield and the regrowth.
+- [ ] PAL's texture budget: area 2 alone needs 898 KB of textures and pages before the sky, the
+      north view 1.13 MB, against PAL's 917,504-byte arena: the retail gate's PAL views still upload
+      1.3 to 3.1 MB per view's span of a few frames. Measure on hardware (R2's frame log); the levers left are a tighter policy for prop
+      textures, PAL in-game at 32/16, or smaller copies past an upload budget.
 - [x] Rigid entities at their rest pose (2026-11-25): the models of the entities the merge leaves that
       the game may move (42 doors, movers, lights and an item with models, func_statics kept for a
       bind, a target or the script) go whole into the area holding their origin, in surfaces of their

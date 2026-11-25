@@ -35,6 +35,14 @@ bool AllocateVram(std::uint32_t bytes, VramAllocation & output);
 // The allocation must be live and unchanged (asserted).
 void ReleaseVram(const VramAllocation & allocation);
 
+// Moves the end of a live allocation in place, its base, slot and generation kept: to 'bytes'
+// (nonzero whole pages), shrinking always, growing only over free pages right after it. 'allocation'
+// is updated. False, with nothing changed, when it cannot grow that far.
+bool ResizeVram(VramAllocation & allocation, std::uint32_t bytes);
+
+// The free bytes right after a live allocation's end: how far ResizeVram can grow it.
+std::uint32_t VramFreeAfter(const VramAllocation & allocation);
+
 // False once a reset, a shutdown or a release has ended the allocation (a GS restart moves the
 // texture range and resets it).
 bool IsVramLive(const VramAllocation & allocation);

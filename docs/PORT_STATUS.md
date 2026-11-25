@@ -6168,3 +6168,26 @@ in PAL, each span a few frames. No fallback, glow or sky is left out.
 | `make test-world` | `20261125T013248Z_world_82203273d9f2`, `20261125T013257Z_world_e7aa9ca4aadb` |
 | `make test-host` | Passed: a door placed whole in its origin's area in surfaces of its own (a trigger and a hidden mover left out), a drawn entity's range through the D3WD and the target validator |
 | `make`, `make release` | Passed, no warnings |
+
+## The world arena shares the whole texture range with the UI (2026-11-25)
+
+The world's texture arena left 256 KiB of the texture range to the UI's textures, which sat idle in
+game. It now takes every free page.
+- **When a UI texture finds no room:** it fences, then the arena gives back its end (`YieldVram`,
+  evicting the world textures there).
+- **When UI textures go idle:** after 30 frames unbound they release their pages
+  (`tex::ReleaseIdle`), and the arena grows back over free pages after its end at each pass start
+  (`gs::ResizeVram`).
+- **Arenas at 640 wide, 32/32:** NTSC 1,327,104 bytes (was 1,064,960), PAL 917,504 (was 655,360).
+- **Uploads per view span:** NTSC 0.07 to 1.3 MB (was 1.0 to 2.6), PAL 1.3 to 3.1 MB (was 2.4 to 3.8).
+- **The gate's new console step:** opening the console in game made the arena yield 48 KiB in three
+  steps. 45 frames after closing it the arena had grown back to its full size.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261125T053600Z_world_retail_572d3fc2f86a` (NTSC), `20261125T053757Z_world_retail_5b225f3b6eab` (PAL), with the console step |
+| `make test-world` | `20261125T054444Z_world_f32e3956b8c5`, `20261125T054509Z_world_76938f4af824` |
+| `make test-renderer` | Passed, 19 cases |
+| `make test-ui` | Sessions `20261125T054743Z_session_6345af6625fb` (NTSC), `20261125T055916Z_session_9ef4398a2672` (PAL): 20 passed, the menus unaffected with no world loaded |
+| `make test-host` | Passed: the runner refuses a console step without the yield or the regrowth |
+| `make`, `make release` | Passed, no warnings |

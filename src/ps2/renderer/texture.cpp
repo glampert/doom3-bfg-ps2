@@ -6,6 +6,7 @@
 
 #include "ps2/renderer/texture.h"
 #include "ps2/renderer/dma.h"
+#include "ps2/renderer/render_system.h"
 #include "ps2/renderer/vram.h"
 #include "ps2/system/heap.h"
 #include "ps2/ui/draw.h"
@@ -24,6 +25,7 @@ struct Record
     void * pixels;
     gs::VramAllocation allocation;
     u64 lastUse;
+    u32 lastFrame; // renderer::FrameCount() at the last bind
     bool resident;
     bool dirty;
 };
@@ -34,6 +36,8 @@ static u32 s_budget = 0;
 static u32 s_nextId = 0;
 static u64 s_use = 0;
 static bool s_initialized = false;
+static VramYield s_yield = nullptr;
+static void * s_yieldContext = nullptr;
 
 Record & Find(Handle handle)
 {
@@ -91,7 +95,7 @@ PS2_COLD_FUNC Handle Publish(Record & record, const Layout & layout, Sampler sam
         FatalError("texture handle generation exhausted");
     }
 
-    record = { { ++s_nextId }, layout, sampler, pixels, {}, 0, false, true };
+    record = { { ++s_nextId }, layout, sampler, pixels, {}, 0, 0, false, true };
     s_stats.pixelBytes += static_cast<u32>(layout.bytes);
 
     if (s_stats.pixelBytes > s_stats.peakPixelBytes)
@@ -120,6 +124,20 @@ bool MakeResident(Record & record, const Record * keep)
     if (!gs::AllocateVram(record.layout.bytes, record.allocation))
     {
         Fence();
+
+        // The world's arena gives back the end it holds first: what is on screen now draws, and the
+        // world reloads what it lost as its batches need it.
+        if (s_yield != nullptr && s_yield(record.layout.bytes, s_yieldContext))
+        {
+            ++s_stats.worldYields;
+
+            if (gs::AllocateVram(record.layout.bytes, record.allocation))
+            {
+                record.resident = true;
+                record.dirty = true;
+                return true;
+            }
+        }
 
         do
         {
@@ -160,6 +178,7 @@ gs::TextureBinding Upload(Record & record)
     }
 
     record.lastUse = ++s_use;
+    record.lastFrame = renderer::FrameCount();
     return binding;
 }
 
@@ -168,6 +187,25 @@ gs::TextureBinding Upload(Record & record)
 bool IsInitialized()
 {
     return s_initialized;
+}
+
+void SetVramYield(VramYield yield, void * context)
+{
+    s_yield = yield;
+    s_yieldContext = context;
+}
+
+void ReleaseIdle(u32 before)
+{
+    for (auto & record : s_records)
+    {
+        if (record.handle.id != 0 && record.resident && record.lastFrame < before)
+        {
+            ReleaseResidency(record);
+            record.dirty = true;
+            ++s_stats.idleReleases;
+        }
+    }
 }
 
 const Stats & GetStats()
