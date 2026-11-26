@@ -387,15 +387,19 @@ production link free of test inputs. Section numbers in parentheses point into t
         the loader reads 706 KiB/s from the HDD and 248 KiB/s from USB (8.4 KB a read), and misses
         41,070 and 146,613 draws. Map load 4.6 s HDD, 27.4 s USB.
   - [ ] What the console run found, by the time each costs the tour:
-    - [ ] A mid-pass eviction costs about 285 µs of EE (`FurthestUse` rescans every texture and
+    - [x] A mid-pass eviction costs about 285 µs of EE (`FurthestUse` rescans every texture and
           the rest of the plan per victim): about 30 s of the HDD tour's 57.7 s of view time.
-          Keep each texture's next use as the plan's cursor passes it, and pick among the
-          resident ones.
+          Done 2026-11-26: the pass's first victim links each use to its texture's next one, and
+          `AdvanceBatch` keeps every texture's next use; the gate tour's uploads and evictions
+          are identical frame for frame in both standards, PAL's views 28% faster in PCSX2.
+          Console figures wait for the next run.
     - [ ] Frames are serial: build the next frame while the GS draws this one
           (`gs::PresentMode::Pipelined` and the second chain ring are there; nothing uses them).
           Projected with the eviction fix: 199 to 143 s, 34 frames of three fields or more.
-    - [ ] The keyboard's 250 ms idle poll is a fileXio read on the main thread and waits behind
-          the loader's read (USB up to 46 ms, HDD up to 265 ms): skip it while a read is in flight.
+    - [x] The keyboard's 250 ms idle poll is a fileXio read on the main thread and waits behind
+          the loader's read (USB up to 46 ms, HDD up to 265 ms). Done 2026-11-26: the keyboard is
+          off unless `ps2_keyboard` is set (its driver then starts once), and an idle one is read
+          once a second, never while the loader reads.
     - [ ] Streaming reads one small range at a time: order the D3TX by area and merge adjacent
           requests, so a read brings in a whole area's textures (USB misses 3.6 times the HDD's).
     - [ ] Split VU1 from GS time in the chain (the log times it whole): a console A/B with an

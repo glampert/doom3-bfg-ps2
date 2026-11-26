@@ -496,6 +496,19 @@ int ReadNow(const Request & request)
     return error != 0 ? error : static_cast<int>(request.bytes);
 }
 
+bool Busy()
+{
+    for (const Slot & slot : s_slots)
+    {
+        if (InFlight(slot.state))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 Stats GetStats()
 {
     Stats stats = {};

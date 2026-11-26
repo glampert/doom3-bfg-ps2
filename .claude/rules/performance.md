@@ -54,7 +54,8 @@ tour (below); there is no campaign baseline yet. Quake timings below are not Doo
   three or more). The HDD and USB logs (`build/framelog_{hdd,usb}.txt`) are the baselines for
   `--compare`.
   - A mid-pass eviction cost about 285 µs of EE time (`FurthestUse`'s rescans), about half the
-    view time.
+    view time; since fixed (the next uses are kept as the cursor advances: PCSX2's PAL gate tour
+    builds its views in 28% less time with the same evictions).
   - One-field frames waited 6.5 ms for VU1 and the GS.
   - The loader read 706 KiB/s from the HDD and 248 KiB/s from USB, in 8.4 KB reads.
 - **Fit a stage's column against the counters** (least squares over the rows) to price a cost:

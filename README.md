@@ -126,7 +126,8 @@ Type = hidkbd             ; optional: a USB keyboard the game reads (grave key t
 
 On macOS the configuration is normally at
 `~/Library/Application Support/PCSX2/inis/PCSX2.ini`, with logs in the sibling `logs/`
-directory. Visible packages poll the DualShock pad and a debug USB keyboard and post their key
+directory. Visible packages poll the DualShock pad, and a debug USB keyboard when `ps2_keyboard`
+is set (`set ps2_keyboard 1` in the package's `d3bfg.cfg`), and post their key
 events into Common's queue (cross is `K_JOY1`, the grave key toggles the console). The pad
 can be in either controller port: the first one connected drives the game until it is unplugged.
 With `[USB1] Type = hidkbd`, PCSX2 passes host keystrokes to that keyboard. Current console controls

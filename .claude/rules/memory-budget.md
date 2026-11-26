@@ -41,7 +41,8 @@ have not been re-measured.
   shutdown) once before comparing repeated-reload ledgers, then require exact stability.
   The retail world gate cycles mars_city1 this way (`ps2_memory cycleN` after `clearHistory`:
   id's console history keeps a growing buffer per HostFs line); after the warm cycle the ledger
-  holds exactly (debug, 2026-11-25: 2,328,305 / 2,354,172 bytes, 3,398 allocations).
+  holds exactly (debug, 2026-11-26: 2,328,449 / 2,354,316 bytes, 3,399 allocations, the
+  `ps2_keyboard` cvar's 144 bytes more than 2026-11-25's).
   Clear queued console history before a final release checkpoint (its echo adds a
   transient 64-byte string). Real-time animation leaves a few KB of varying script state.
 - Production loads the host-cooked script program (2026-11-18): `SCRIPT` at retail

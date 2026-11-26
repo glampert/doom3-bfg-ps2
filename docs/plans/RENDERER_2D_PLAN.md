@@ -589,7 +589,8 @@ and a debug USB keyboard also post key events into Common's queue. No desktop wi
 Q's `input/pad.*` / `keyboard.*` were reused as `src/ps2/input/pad.*` and `keyboard.*` (2026-10-24),
 adapting their events and IOP/module dependencies. Keep Q's keyboard polling policy: an
 idle keyboard is read every 250 ms and a busy one every frame, because each read is an
-IOP file round trip.
+IOP file round trip. (2026-11-26: off unless `ps2_keyboard` is set; idle reads once a second
+and never while the loader reads.)
 
 ## Memory and frame ownership
 

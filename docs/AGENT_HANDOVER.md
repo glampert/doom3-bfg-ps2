@@ -217,7 +217,9 @@ policy boots into the menu (`make stage-ui-menu`;
   The original plan: ps2kbd raw non-blocking reads, polled
   every 250 ms while idle and every frame only while a key is held or within 10 s of the
   last key, with capped reads per frame. Each read is an IOP file round trip, so polling
-  every frame has a real cost on hardware.
+  every frame has a real cost on hardware. Since 2026-11-26 the keyboard is off unless
+  `ps2_keyboard` is set, and an idle one is read once a second, never while the loader reads
+  (a console's frame log showed its reads waiting behind the loader's).
 
 The minimal owner of the older harness modes borrows a five-slot carousel with only the
 admitted Doom 3 cover and the native Credits callback. Avoid enabling all deferred

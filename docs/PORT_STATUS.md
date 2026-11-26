@@ -6342,3 +6342,31 @@ USB uploads less because its misses draw without the texture. What the log shows
 Projected from the rows (each frame rounded up to whole fields): removing the eviction cost alone
 takes the HDD tour to about 166 s and its frames of three fields or more from 888 to 268;
 pipelining as well, to about 143 s, 34 such frames and 82% at one field.
+
+## Mid-pass evictions without walking the plan; the keyboard behind `ps2_keyboard` (2026-11-26)
+
+The first two fixes from the console frame log.
+- **Mid-pass evictions:** `FurthestUse` used to rebuild every texture's next use from the rest of the
+  pass's plan for each victim, about 285 µs of EE on a console. Now the pass's first victim links
+  each planned use to its texture's next one (`LinkUses`), and `AdvanceBatch` keeps each texture's
+  next use as the cursor passes its uses. A victim's choice then reads one entry per texture, and a
+  frame that evicts nothing mid-pass never walks the plan. The choices are the same: the gate
+  tour's uploads, evictions, mid-pass evictions, misses and fallbacks equal the previous run's in
+  every one of its 240 frames, in both standards. In PCSX2, which charges per instruction and models
+  no EE cache, PAL's 5,703 mid-pass evictions over the tour took its view time from 1,638,574 to
+  1,178,882 µs (−28.1%); NTSC, with 115 of them, from 854,037 to 843,148. The links take 4 bytes per
+  plan entry while a map is loaded (37,820 bytes for mars_city1, `TAG_RENDER`).
+- **The debug keyboard is off by default:** `ps2_keyboard` (0) keeps the keyboard's driver unloaded
+  and its reads off. Set in a package's `d3bfg.cfg` or from the console, it starts `usbd` and
+  `ps2kbd` on the next frame (the loader drained first), once per process. An idle keyboard is read
+  once a second instead of every 250 ms, and never while the loader reads; one in use, every frame.
+  Clearing the cvar releases held keys and stops the reads. `make test-world` now sets it before its
+  load and requires the driver to start and poll, then no more polls once it is cleared (PCSX2: started
+  in 120 ms, 2 polls in 70 frames). The cvar's registration adds 144 bytes to the resident
+  ledger: the retail cycles now hold at 2,328,449 / 2,354,316 bytes, 3,399 allocations (debug).
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261126T001032Z_world_retail_90627a10b971` (NTSC), `20261126T001152Z_world_retail_36d28e513b59` (PAL): tour counters identical to `20261125T114011Z`/`114148Z` |
+| `make test-world` | `20261126T001524Z_world_ea490298e611`, `20261126T001541Z_world_a0f46cb846e6`, with the keyboard steps |
+| `make`, `make release` | Passed, no warnings |

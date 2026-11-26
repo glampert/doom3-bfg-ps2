@@ -41,15 +41,18 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
 
 ## Input devices
 
-- Every visible package brings up the pad and the debug USB keyboard at presentation
-  startup and logs `[D3BFG] INPUT devices pad=N keyboard=N`, then an `INPUT` status line
-  with `ps2_status`. In PCSX2 the emulated DualShock2 connects in analog mode and the
-  `hidkbd` USB keyboard opens; the gates press nothing, so no device event reaches them,
-  and the idle keyboard is read about every 250 ms. The keyboard's modules load from the
+- Every visible package brings up the pad at presentation startup and logs `[D3BFG] INPUT
+  devices pad=N keyboard=off`, then an `INPUT` status line with `ps2_status`. The debug USB
+  keyboard is off unless `ps2_keyboard` is set (2026-11-26), in a package's `d3bfg.cfg` or from
+  the console: its driver then starts on the next frame, once per process (`[D3BFG] INPUT
+  keyboard started=1`). In PCSX2 the emulated DualShock2 connects in analog mode and the `hidkbd`
+  USB keyboard opens; the gates press nothing, so no device event reaches them. The idle keyboard
+  is read about once a second, never while the loader reads. The keyboard's modules load from the
   package's `irx/` (staged from `$PS2SDK/iop/irx`) through the IOP boot (`iop_boot.cpp`),
   logged `[D3BFG] IOP started host:/irx/usbd.irx`; a module that fails only disables that
   device. The pad opens both ports and logs the one it connects on (`INPUT pad connected
-  port=1 analog=1`).
+  port=1 analog=1`). `make test-world` sets `ps2_keyboard` before its load and requires the
+  driver to start and poll, then no more polls once it is cleared.
 
 ## Console storage boot
 

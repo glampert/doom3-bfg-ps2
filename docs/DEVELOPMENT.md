@@ -232,7 +232,8 @@ printf 'ps2_capture console.tga\nquit\n' >> build/debug/console/console.txt
 printable ASCII characters, excluding grave and tilde. `ps2_consoleKey` accepts
 `enter`, `up`, `down`, `left`, `right`, `toggle`, `escape`, `home`, `end`, `delete` and
 `backspace`. These deliver native character/key events; visible packages also poll the
-DualShock pad and a debug USB keyboard, which post the same native events. Native Enter adds to RAM history; persistent history writes remain
+DualShock pad and, when `ps2_keyboard` is set (off by default; put `set ps2_keyboard 1` in a
+package's `d3bfg.cfg`), a debug USB keyboard, which post the same native events. Native Enter adds to RAM history; persistent history writes remain
 disabled. Host `ps2_` control messages do not replace edit-field history.
 `ps2_capture` accepts one pending ASCII alphanumeric/dash/underscore basename ending
 in `.tga` (at most 63 bytes including the suffix). Quote names containing a dash,

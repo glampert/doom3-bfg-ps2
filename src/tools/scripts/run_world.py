@@ -21,7 +21,8 @@ first capture both times. The doorway is then drawn 512 wide (ps2_resolution 0, 
 the GS gate's references) and in FRAME mode (ps2_interlace frame, a half-height buffer), each live
 change restarting the GS, and after each change back it must match its first capture again. The
 world is then unloaded, the front end returns to 32/16, and the session quits, recovering the
-startup ledger."""
+startup ledger. Before the load, the debug USB keyboard, off at startup, must start and poll when
+ps2_keyboard is set and stop polling once it is cleared."""
 
 import argparse
 from collections import namedtuple
@@ -55,6 +56,11 @@ CAPTURE_RE = re.compile(r"\[D3BFG\] CONSOLE capture=(\S+\.tga) frame=(\d+) prese
 SWITCH_RE = re.compile(r"\[D3BFG\] GS display (\d+)x(\d+) (FIELD|FRAME) bits=(\S+) (\S+) fixed_vram=(\d+) texture_vram=(\d+)")
 TRACE_RE = re.compile(r"\[D3BFG\] WORLD trace hit=([01]) fraction=([\d.]+) normal=(-?[\d.]+),(-?[\d.]+),(-?[\d.]+) material=(\S+)")
 WORLD_FIELDS = ("event", "areas", "portals", "viewing", "frame", "views", "area", "entities", "drawn", "batches", "arena")
+DEVICES_RE = re.compile(r"\[D3BFG\] INPUT devices pad=([01]) keyboard=(on|off)")
+KEYBOARD_STARTED_RE = re.compile(r"\[D3BFG\] INPUT keyboard started=([01])")
+INPUT_STATUS_RE = re.compile(r"\[D3BFG\] INPUT frames=\d+ .*? keyboard=([01]) polls=(\d+) ")
+# The keyboard's idle poll runs at once and then every second: 70 frames see at least one.
+KEYBOARD_COMMANDS = ["set ps2_keyboard 1", "wait 70", "ps2_status", "set ps2_keyboard 0", "wait 70", "ps2_status"]
 
 # Area 0 holds 16 batches and area 1 14. Each view: its camera (eye, target), the doorway portal's
 # state, the area the view starts in, the areas portal culling lets it draw and their batches,
@@ -210,7 +216,8 @@ def driver(identity: str, standard: str = "ntsc"):
     # The console starts open; closed, it slides away over real time before the first view.
     traces = ["ps2_world trace " + " ".join(str(value) for value in start + end) for start, end, *_ in TRACES]
     # A projected decal is built only when a view sees its entity: none exists before the first view.
-    yield ([f'echo "{barrier(identity, "begin")}"', "ps2_consoleKey toggle", "wait 60", "r_znear 4", "ps2_world load maps/graybox",
+    yield ([f'echo "{barrier(identity, "begin")}"', "ps2_consoleKey toggle", "wait 60", *KEYBOARD_COMMANDS, "r_znear 4",
+            "ps2_world load maps/graybox",
             *traces, *decal_commands(DECALS), "ps2_world decals", f'echo "{barrier(identity, "loaded")}"'],
            lambda log: echoed(log, barrier(identity, "loaded")))
     previous = front_end_display(standard)
@@ -237,6 +244,24 @@ def world_lines(log: str) -> list[dict]:
     return [dict(zip(WORLD_FIELDS, (match[0],) + tuple(int(value) for value in match[1:]))) for match in WORLD_RE.findall(log)]
 
 
+def keyboard_error(startup: str, span: str) -> str | None:
+    """What is wrong with the debug keyboard: off in the startup log, started once by ps2_keyboard and
+    polling in the span's first status, not polling after it was cleared (the second); None when right."""
+    devices = DEVICES_RE.findall(startup)
+    if len(devices) != 1 or devices[0][1] != "off":
+        return "the debug keyboard did not start off"
+    started = KEYBOARD_STARTED_RE.findall(span)
+    statuses = INPUT_STATUS_RE.findall(span)
+    if started != ["1"] or len(statuses) != 2:
+        return "ps2_keyboard did not start the debug keyboard once"
+    (first, polls), (second, later) = statuses
+    if first != "1" or int(polls) < 1:
+        return "the started keyboard did not poll"
+    if second != "1" or later != polls:
+        return "the keyboard kept polling after ps2_keyboard was cleared"
+    return None
+
+
 def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str, dict]:
     """Check the session log: the cooked load, every view's portal culling and capture, the display-mode
     changes with the frame buffers 'standard' gives them, the unload and shutdown."""
@@ -256,6 +281,9 @@ def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str
         return False, "session barriers ran out of order", {}
     if run_headless.SHUTDOWN_COMPLETE not in log:
         return False, "the session did not shut down", {}
+    keyboard = keyboard_error(log[:positions[0]], log[positions[0]:positions[1]])
+    if keyboard:
+        return False, keyboard, {}
     loaded = [line for line in world_lines(log) if line["event"] == "loaded"]
     if len(loaded) != 1 or (loaded[0]["areas"], loaded[0]["portals"]) != (2, 1):
         return False, "the render world did not take the cooked areas and portal", {}
@@ -318,7 +346,8 @@ def classify(log: str, identity: str, standard: str = "ntsc") -> tuple[bool, str
     if len(memory) != 1 or tuple(map(int, memory[0][:3])) != BASELINE or memory[0][:3] != memory[0][3:6]:
         return False, "production shutdown did not recover the startup allocation ledger", {}
     arena = max(view["status"]["arena"] for view in views.values())
-    return True, ("the cooked graybox loaded, left the front end's 32/16 for 32/32, drew through the portal flow in every view in "
+    return True, ("the debug keyboard started on ps2_keyboard and stopped after it; "
+                  "the cooked graybox loaded, left the front end's 32/16 for 32/32, drew through the portal flow in every view in "
                   "16/16 and 32/32, the doorway in 32/16, "
                   "at 512 wide and in FRAME mode, built its floor decal over the mirror, unloaded and shut down"), \
         {"views": views, "switches": switches, "arena_bytes": arena, "decals": decals[0]}

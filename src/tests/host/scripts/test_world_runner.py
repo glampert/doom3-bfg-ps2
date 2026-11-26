@@ -54,11 +54,22 @@ def expected_switch_line(display, standard="ntsc"):
     return switch_line(profile, fixed, texture, width, height, interlace)
 
 
+def input_status(keyboard=1, polls=2):
+    return (f"[D3BFG] INPUT frames=900 pad=1 ready=1 analog=1 buttons=0x0000 pad_events=0 keyboard={keyboard} polls={polls} keys=0 "
+            f"held=0 keyboard_events=0\n")
+
+
+# The keyboard as a good session reports it: off at startup, started by ps2_keyboard, polling, then not.
+KEYBOARD = ("[D3BFG] INPUT devices pad=1 keyboard=off\n",
+            "[D3BFG] INPUT keyboard started=1\n" + input_status(polls=2) + input_status(polls=2))
+
+
 def session(views=None, unloaded=None, memory="0/0/0 final=0/0/0", traces=None, switches=None, standard="ntsc",
-            decals=(None, FLOOR_DECAL, None)):
+            decals=(None, FLOOR_DECAL, None), keyboard=KEYBOARD):
     """A world session's log as PCSX2's file log stamps it, with per-view, per-trace and per-switch
-    overrides (a switch override replaces its GS line; None drops it)."""
-    log = echo("ready") + echo("begin")
+    overrides (a switch override replaces its GS line; None drops it) and the keyboard's lines at
+    startup and before the load."""
+    log = keyboard[0] + echo("ready") + echo("begin") + keyboard[1]
     log += "[D3BFG] world maps/graybox.d3wd: areas=2 surfaces=18 batches=30 portals=1 nodes=11 packets=34896 bytes=55056\n"
     log += WORLD.format(event="loaded", areas=2, portals=1, viewing=0, frame=0, views=0, area=-1, entities=0, drawn=0, batches=0)
     for index, (_, _, hit, fraction, normal, material) in enumerate(runner.TRACES):
@@ -228,6 +239,21 @@ class WorldRunnerTests(unittest.TestCase):
 
     def test_decal_commands_project_into_the_surface(self):
         self.assertEqual(runner.decal_commands(runner.DECALS[:1]), ["ps2_world decal -100 300 0 0 0 -1 48 8 textures/graybox/wall"])
+
+    def test_keyboard_starts_only_on_its_cvar_and_stops_after(self):
+        self.assertTrue(runner.classify(session(), IDENTITY)[0])
+        started = "[D3BFG] INPUT keyboard started=1\n"
+        cases = {
+            "on at startup": ("[D3BFG] INPUT devices pad=1 keyboard=on\n", KEYBOARD[1]),
+            "never started": (KEYBOARD[0], input_status(0, 0) + input_status(0, 0)),
+            "failed to start": (KEYBOARD[0], "[D3BFG] INPUT keyboard started=0\n" + input_status(0, 0) + input_status(0, 0)),
+            "started but not polled": (KEYBOARD[0], started + input_status(polls=0) + input_status(polls=0)),
+            "kept polling": (KEYBOARD[0], started + input_status(polls=2) + input_status(polls=3)),
+            "one status": (KEYBOARD[0], started + input_status(polls=2)),
+        }
+        for name, keyboard in cases.items():
+            with self.subTest(name):
+                self.assertFalse(runner.classify(session(keyboard=keyboard), IDENTITY)[0])
 
     def test_crash_or_fatal_fails(self):
         self.assertFalse(runner.classify(session() + "[    2.0000] TLB Miss, pc=0x100 addr=0x0 [load]\n", IDENTITY)[0])

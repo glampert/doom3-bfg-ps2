@@ -113,6 +113,9 @@ int ReadNow(const Request & request);
 // False when the thread could not start: every client reads synchronously.
 bool Enabled();
 
+// Whether a request is queued or running: another thread's file call then waits behind its read.
+bool Busy();
+
 // Cumulative since boot.
 struct Stats
 {

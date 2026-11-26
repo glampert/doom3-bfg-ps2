@@ -20,9 +20,12 @@ PS2_COLD_FUNC void Shutdown();
 
 // Drains the driver's queue into Common's event queue: one key event per transition, plus a
 // character event for a printable key or backspace. Each read is an IOP file round trip, so an
-// idle keyboard is read every kIdlePollMsec and a keyboard in use (a key held, or a key within
-// kActiveMsec) every frame.
+// idle keyboard is read every kIdlePollMsec while the loader is idle, and a keyboard in use (a key
+// held, or a key within kActiveMsec) every frame.
 void Poll(int nowMsec);
+
+// Posts a key up for every held key and forgets the keyboard was in use: polling is stopping.
+void ReleaseKeys();
 
 struct Stats
 {

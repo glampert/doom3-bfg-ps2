@@ -5,6 +5,7 @@
 // ================================================================================================
 
 #include "ps2/input/keyboard.h"
+#include "ps2/system/aio.h"
 #include "ps2/system/iop_boot.h"
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>
@@ -21,9 +22,10 @@ static constexpr int kMaxReadsPerFrame = 64;
 static constexpr int kMaxEventsPerFrame = 32;
 
 // Every read is an IOP file round trip, and the driver cannot say whether a keyboard is attached.
-// An idle keyboard is read every kIdlePollMsec; one in use every frame, until kActiveMsec after
-// the last raw key and for as long as any key is held.
-static constexpr int kIdlePollMsec = 250;
+// An idle keyboard is read every kIdlePollMsec, and not while the loader reads (the read would wait
+// behind its chunk: up to 46 ms from USB, 265 ms from the HDD on a console); one in use every
+// frame, until kActiveMsec after the last raw key and for as long as any key is held.
+static constexpr int kIdlePollMsec = 1000;
 static constexpr int kActiveMsec = 10 * 1000;
 static constexpr u32 kUsageCount = 256;
 
@@ -224,7 +226,8 @@ void Poll(int nowMsec)
 
     const bool inUse = s_stats.held > 0 || (s_keySeen && nowMsec - s_lastKeyMsec < kActiveMsec);
 
-    if (!inUse && nowMsec - s_lastPollMsec < kIdlePollMsec)
+    // A skipped idle poll keeps its interval: the next frame the loader is idle reads.
+    if (!inUse && (nowMsec - s_lastPollMsec < kIdlePollMsec || system::aio::Busy()))
     {
         return;
     }
@@ -280,6 +283,23 @@ void Poll(int nowMsec)
     }
 
     s_stats.events += static_cast<u32>(events);
+}
+
+void ReleaseKeys()
+{
+    for (u32 usage = 0; usage < kUsageCount; ++usage)
+    {
+        if (s_held[usage] && s_table.key[usage] != 0)
+        {
+            Sys_QueEvent(SE_KEY, s_table.key[usage], 0, 0, nullptr, 0);
+            ++s_stats.events;
+        }
+    }
+
+    memset(static_cast<void *>(s_held), 0, sizeof(s_held));
+    s_stats.held = 0;
+    s_keySeen = false;
+    s_shift = false;
 }
 
 const Stats & GetStats()

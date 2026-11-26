@@ -128,7 +128,9 @@ coordinates; CLUTs; VRAM and mipmaps.
   page may evict a texture the pass drew or still needs. The victim is the one whose next use in the
   pass's plan is furthest (`AdvanceBatch` walks the plan, pinning the current batch's two). This is
   safe because the GS runs the chain in order: an upload lands after every batch that drew from those
-  blocks (`UploadImage` FLUSHes first). **Never rewrite a state block the pass already REF'd**: the
+  blocks (`UploadImage` FLUSHes first). The pass's first victim links each planned use to its
+  texture's next one (`LinkUses`), and `AdvanceBatch` keeps every texture's next use from there:
+  never walk the plan per victim (it cost about 285 µs of EE each on a console, 2026-11-26). **Never rewrite a state block the pass already REF'd**: the
   DMA reads it later, so earlier batches would draw from the new address. A texture that moves
   within a pass takes a moved block from a per-context pool (`CurrentBlock`). The pass draws its
   batches grouped by texture (`BatchOrderKey`, fixed order every frame so coplanar surfaces never

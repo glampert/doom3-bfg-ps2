@@ -457,14 +457,18 @@ struct Textures
     u32 pendingReads;
     // The planned batches' textures in draw order, two entries a batch (its diffuse and its page, or
     // kNoUse), and the batch the pass draws now (AdvanceBatch): a mid-pass eviction gives up the
-    // texture whose next use is furthest, never the current batch's two (pinned). 'nextUse' is that
-    // choice's scratch, one entry a texture.
+    // texture whose next use is furthest, never the current batch's two (pinned). Once a pass needs
+    // a victim, 'nextAt' links each use to its texture's next one and 'nextUse' holds each
+    // texture's next use after the current batch, kept as the cursor passes its uses ('linked'): a
+    // victim's choice then reads one entry a texture instead of walking the rest of the plan.
     u32 * uses;
+    u32 * nextAt;
     u32 useCapacity;
     u32 useCount;
     u32 cursor;
     u32 pinned[2];
     u32 * nextUse;
+    bool linked;
     // Set once the pass's planned textures went in (Preload): batches may then evict textures the
     // pass drew or still needs. 'inPass' from BeginTextures to EndTextures: the arena keeps its pages.
     bool drawing;
@@ -634,6 +638,7 @@ PS2_COLD_FUNC static void FreeTables(Textures * textures)
 {
     system::heap::Free(textures->movedBlocks);
     system::heap::Free(textures->nextUse);
+    system::heap::Free(textures->nextAt);
     system::heap::Free(textures->uses);
     system::heap::Free(textures->drawnAreas);
     system::heap::Free(textures->neighbourFirst);
@@ -762,6 +767,7 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
 
         textures->useCapacity = 2U * (sections.batchCount + passUses);
         textures->uses = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * (textures->useCapacity + 2U), TAG_RENDER));
+        textures->nextAt = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * (textures->useCapacity + 2U), TAG_RENDER));
         textures->nextUse = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * textureCount, TAG_RENDER));
         textures->movedBlocks =
             static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kStateStrideQwords * 2U * kMovedBlocks, TAG_RENDER, 64));
@@ -769,7 +775,8 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
                         textures->free == nullptr || textures->pageStates == nullptr || textures->pageBlocks == nullptr ||
                         textures->passes == nullptr || textures->passStates == nullptr || textures->passBlocks == nullptr ||
                         textures->colorBlocks == nullptr || textures->planOrder == nullptr || textures->planFree == nullptr ||
-                        textures->uses == nullptr || textures->nextUse == nullptr || textures->movedBlocks == nullptr
+                        textures->uses == nullptr || textures->nextAt == nullptr || textures->nextUse == nullptr ||
+                        textures->movedBlocks == nullptr
                     ? "no memory for its residency"
                     : nullptr;
     }
@@ -1160,41 +1167,72 @@ static u32 EvictionRank(const Slot & slot)
     return slot.sky ? 0U : slot.passOnly ? 1U : 2U;
 }
 
+// Links the plan's uses for FurthestUse, the first time a pass needs a victim: each use to its
+// texture's next one, a texture's last use past the plan's end to its first one (useCount + first:
+// what this pass needs no more ranks by its first use, as if the next frame's pass repeats this
+// one), then each texture's next use after the batches already drawn. AdvanceBatch keeps it from
+// there. Frames that evict nothing mid-pass never walk the plan.
+static void LinkUses(Textures & textures)
+{
+    const u32 * __restrict uses = textures.uses;
+    u32 * __restrict nextAt = textures.nextAt;
+    u32 * __restrict nextUse = textures.nextUse;
+    const u32 count = textures.useCount;
+
+    for (u32 index = 0; index < textures.pack.textureCount; ++index)
+    {
+        nextUse[index] = kNoUse;
+    }
+
+    for (u32 at = count; at-- > 0;)
+    {
+        const u32 texture = uses[at];
+
+        if (texture != kNoUse)
+        {
+            nextAt[at] = nextUse[texture];
+            nextUse[texture] = at;
+        }
+    }
+
+    // 'nextUse' holds each texture's first use now: its last use links back to it.
+    for (u32 at = 0; at < count; ++at)
+    {
+        const u32 texture = uses[at];
+
+        if (texture != kNoUse && nextAt[at] == kNoUse)
+        {
+            nextAt[at] = count + nextUse[texture];
+        }
+    }
+
+    // The batches drawn so far, the current one included (the cursor starts at ~0U, before them).
+    const u32 drawn = 2U * (textures.cursor + 1U);
+
+    for (u32 at = 0; at < drawn && at < count; ++at)
+    {
+        const u32 texture = uses[at];
+
+        if (texture != kNoUse)
+        {
+            nextUse[texture] = nextAt[at];
+        }
+    }
+
+    textures.linked = true;
+}
+
 // The resident texture to give up mid-pass when nothing else may go: the one whose next use in the
 // pass's plan is furthest (none at all comes first, then by EvictionRank and least recently drawn),
 // never one of the current batch's. The GS runs the chain in order, so an upload into its blocks
 // lands after every batch drawn with it; a later batch that needs it again reloads it elsewhere
 // with a moved state block. Belady's choice, since the pass's order is known; textureCount for none.
+// Each texture's next use is linked once a pass (LinkUses) and kept by AdvanceBatch.
 static u32 FurthestUse(Textures & textures)
 {
-    for (u32 index = 0; index < textures.pack.textureCount; ++index)
+    if (!textures.linked)
     {
-        textures.nextUse[index] = kNoUse;
-    }
-
-    // Next uses after the current entry, then for textures this pass needs no more, their first use
-    // in the next frame's pass, taken to repeat this one's plan: the end of a frame then keeps what
-    // the next one needs first.
-    const u32 start = 2U * (textures.cursor + 1U);
-
-    for (u32 at = start; at < textures.useCount; ++at)
-    {
-        const u32 texture = textures.uses[at];
-
-        if (texture != kNoUse && textures.nextUse[texture] == kNoUse)
-        {
-            textures.nextUse[texture] = at;
-        }
-    }
-
-    for (u32 at = 0; at < start && at < textures.useCount; ++at)
-    {
-        const u32 texture = textures.uses[at];
-
-        if (texture != kNoUse && textures.nextUse[texture] == kNoUse)
-        {
-            textures.nextUse[texture] = textures.useCount + at;
-        }
+        LinkUses(textures);
     }
 
     u32 victim = textures.pack.textureCount;
@@ -1852,6 +1890,7 @@ void BeginTextures(Textures * textures, dma::DisplayList & list, gs::DrawContext
     textures->pinned[0] = kNoUse;
     textures->pinned[1] = kNoUse;
     textures->useCount = textures->planFrame == textures->frame ? textures->useCount : 0U;
+    textures->linked = false;
     Stream(*textures, textured, lightmapped, viewArea);
     EvaluatePasses(*textures, time);
 
@@ -1939,6 +1978,18 @@ void AdvanceBatch(Textures * textures)
     const u32 at = 2U * textures->cursor;
     textures->pinned[0] = at < textures->useCount ? textures->uses[at] : kNoUse;
     textures->pinned[1] = at + 1U < textures->useCount ? textures->uses[at + 1U] : kNoUse;
+
+    // Once the pass linked its plan, the batch's uses fall behind: each of its textures is next used
+    // where its link points.
+    for (u32 entry = at; textures->linked && entry < at + 2U && entry < textures->useCount; ++entry)
+    {
+        const u32 texture = textures->uses[entry];
+
+        if (texture != kNoUse)
+        {
+            textures->nextUse[texture] = textures->nextAt[entry];
+        }
+    }
 }
 
 const void * BatchState(Textures * textures, dma::DisplayList & list, u32 material)
