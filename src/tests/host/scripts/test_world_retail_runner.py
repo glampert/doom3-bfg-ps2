@@ -441,6 +441,42 @@ class R2GateTests(unittest.TestCase):
             frame_log.parse(text.replace("FLOG,0,", "FLOG,0,1,"))
 
 
+    def test_vu_fit_prices_the_list_path(self):
+        # VU1 cycles made of known costs: the fit over a serial log's vu_us and another log's counts
+        # (frame for frame) gives them back; a frame that drew other batches is left out.
+        truth = {"vertices": 50.0, "batches": 300.0, "lit_batches": 400.0, "list_entries": 35.0, "clips": 900.0, "empty_clips": -600.0}
+        columns = ["frame", "vu_us", "vertices", "batches", "lit_batches"] + list(frame_log.LIST_COLUMNS)
+        timed, counted = [], []
+        state = 12345
+        for frame in range(200):
+            values = {"frame": frame}
+            for name, bound in (("vertices", 40000), ("batches", 900), ("lit_batches", 300), ("list_entries", 20000), ("clips", 3000)):
+                state = (state * 1103515245 + 12345) % 2 ** 31
+                values[name] = 100 + state % bound
+            state = (state * 1103515245 + 12345) % 2 ** 31
+            values["empty_clips"] = state % (values["clips"] + 1)
+            values["list_batches"] = min(values["batches"], values["list_entries"] // 40)
+            cycles = sum(cost * values[name] for name, cost in truth.items()) + 20000.0
+            values["vu_us"] = round(cycles / frame_log.VU1_CYCLES_PER_US)
+            timed.append(dict(values, **{column: 0 for column in frame_log.LIST_COLUMNS}))
+            counted.append(dict(values, vu_us=0, batches=values["batches"] + (1 if frame == 7 else 0)))
+
+        def log(rows, label):
+            text = ["FLOG#label," + label, "FLOG#hdr," + ",".join(columns)]
+            text += ["FLOG," + ",".join(str(row[name]) for name in columns) for row in rows]
+            return frame_log.parse("\n".join(text + [f"FLOG#end,{len(rows)}"]))
+
+        fit = frame_log.vu_fit(log(timed, "pipeline=0"), log(counted, "pipeline=0"))
+        self.assertEqual((fit["frames"], fit["of"]), (199, 200))
+        self.assertGreater(fit["r2"], 0.9999)
+        for name, cost in truth.items():
+            self.assertAlmostEqual(fit["cycles"][name], cost, delta=abs(cost) * 0.02 + 1.0)
+        self.assertIn("a clip", frame_log.format_vu_fit(fit))
+        # A pipelined log's waits are not whole chains.
+        with self.assertRaises(ValueError):
+            frame_log.vu_fit(log(timed, "pipeline=1"), log(counted, "pipeline=0"))
+
+
 class ReferenceRuleTests(unittest.TestCase):
     """The rasterizer's rules for what the GS cannot decide or draw."""
 

@@ -168,10 +168,22 @@ enum class GpuState : u8
     Count
 };
 
+// What world_lm counted on its list path (vu_memory.vush's ListStats), summed over the chains
+// waited for: the batches that took it, the stream entries its passes walked (a lit batch's twice),
+// the clipper's calls and the calls that sent nothing.
+struct ListPathStats
+{
+    u64 batches;
+    u64 entries;
+    u64 clips;
+    u64 empty;
+};
+
 struct GpuStats
 {
     u64 cycles[static_cast<int>(GpuState::Count)];
     u32 samples;
+    ListPathStats listPath;
 };
 
 const GpuStats & GetGpuStats();

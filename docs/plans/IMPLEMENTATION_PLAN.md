@@ -356,8 +356,11 @@ At the loader boundary, replace `_ordered.resources` eager buffering in `idResou
 Instrumentation compiles behind its own defines, on in every configuration for now (the Makefile's
 `INSTRUMENT_DEFS`): `PS2_D3BFG_FRAME_LOG` (the frame log, `ps2_framelog`, and the timing counters
 only it reads: the DMA wait, vertical-blank and loader cycles, the world pass's draw counts) and
-`PS2_D3BFG_GPU_SAMPLER` (the GPU sampler in `dma::WaitIdle` and `ps2_world fill`). Builds without
-them compile to no-op stubs and keep no instrumentation symbols (9,216 bytes less `PT_LOAD`).
+`PS2_D3BFG_GPU_SAMPLER` (the GPU sampler in `dma::WaitIdle`, `ps2_world fill`, and world_lm's
+list-path counts). Builds without them compile to no-op stubs and keep no instrumentation symbols
+(9,216 bytes less `PT_LOAD`, measured before the list-path counts). The sampler's define also reaches
+the VU programs: the Makefile passes it to oxide-vusl, and world_lm is 676 instructions with the
+counts and 642 without.
 
 - **TODO:** add a third configuration, Profile (`BUILD=profile`): release's optimization,
   assertions and debug-only code (`PS2_D3BFG_DEBUG=0`, `PS2_D3BFG_ASSERTS=0`) with the
@@ -367,7 +370,11 @@ them compile to no-op stubs and keep no instrumentation symbols (9,216 bytes les
   - console perf packages stage the Profile build (`stage-perf-world-retail`);
   - the gates that read a frame log (the retail world gate's tour and its GPU split, the graybox
     gate's fill A/B) run on debug and Profile, and Release's runs leave those steps out;
-  - the docs that say "every build" for the frame log say "debug and Profile".
+  - the docs that say "every build" for the frame log say "debug and Profile";
+  - the VU programs, built once into `build/vu/` for every configuration today, need a build per
+    setting of `PS2_D3BFG_GPU_SAMPLER` (for instance `build/vu/<config>/`, or `build/vu/` and
+    `build/vu-sampler/`), with `-Ibuild/vu...` on the EE compiles following the configuration, so a
+    Release ELF links the world program without the counts and its headers agree.
 
 ### PS2 data package (planned, 2026-11-24)
 

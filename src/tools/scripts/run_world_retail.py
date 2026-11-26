@@ -606,7 +606,7 @@ def classify(log: str, identity: str, standard: str, report: dict, probes: dict,
 
 def verify_frame_log(output: Path) -> dict:
     """The tour's log (TOUR_LOG): complete, a row for each frame, every row's columns, serial frames whose
-    GPU split adds up to each wait; its summary."""
+    GPU split adds up to each wait, list path counts that hold together; its summary."""
     log = frame_log.parse((output / TOUR_LOG).read_text())
     if log["end"] != TOUR_FRAMES or len(log["rows"]) != TOUR_FRAMES:
         raise ValueError(f"{TOUR_LOG} holds {len(log['rows'])} rows and ends at {log['end']}; expected {TOUR_FRAMES}")
@@ -621,6 +621,16 @@ def verify_frame_log(output: Path) -> dict:
             raise ValueError(f"{TOUR_LOG} frame {row['frame']}: the GPU split adds up to {split} us of a {row['gpu_us']} us wait")
     if sum(row["gpu_us"] for row in log["rows"]) == 0:
         raise ValueError(f"{TOUR_LOG}'s serial frames never waited for their chains")
+    # world_lm's list path counts: a serial frame's are its own chain's, never more batches than it
+    # drew, never more empty clipper calls than calls; the tour passes close enough to walls to clip.
+    if any(column not in log["columns"] for column in frame_log.LIST_COLUMNS):
+        raise ValueError(f"{TOUR_LOG} has no list path columns")
+    for row in log["rows"]:
+        if row["list_batches"] > row["batches"] or row["empty_clips"] > row["clips"] or (row["clips"] > 0 and row["list_batches"] == 0):
+            raise ValueError(f"{TOUR_LOG} frame {row['frame']}: {row['list_batches']} list batches of {row['batches']}, "
+                             f"{row['empty_clips']} empty clipper calls of {row['clips']}")
+    if sum(row["list_batches"] for row in log["rows"]) == 0 or sum(row["clips"] for row in log["rows"]) == 0:
+        raise ValueError(f"{TOUR_LOG}: no batch took the list path, or the clipper was never called")
     summary = frame_log.summarize(log)
     (output / "framelog-summary.txt").write_text(frame_log.format_summary(summary) + "\n")
     return summary

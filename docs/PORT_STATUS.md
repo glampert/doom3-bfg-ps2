@@ -6541,3 +6541,63 @@ off. Every log is complete (7,244 frames) and labelled; copies are in `build/con
   - The views at the north end of area 8 reach 1,486 batches and about 250 uploads (2.5 MB a frame).
 - USB's first map load still takes 27.0 s, against 4.6 s from the HDD. The second and third loads
   take 8.5 s from USB and 1.2 s from the HDD.
+
+## The list path counted and priced (2026-11-27)
+
+The GPU sampler now counts world_lm's list path, to explain the second console run's 179 VU1 cycles
+a vertex against the strip-path model's 52 to 59.
+- **Counts.** In sampler builds, world_lm counts four things into the frame constants' new last
+  qword (`ListStats`, qword 13; the work area moves to 14-39):
+  - the batches that take the list path;
+  - the stream entries their passes walk;
+  - its calls to the clipper;
+  - the calls that send nothing.
+
+  The clipper may not write its callers' memory, so world_lm counts around the call.
+  `dma::WaitIdle` reads the qword from VU1 memory (`0x1100C000`) after each chain and zeroes it.
+  The frame log gains `list_batches`, `list_entries`, `clips` and `empty_clips`. The Makefile passes
+  `-DPS2_D3BFG_GPU_SAMPLER` to oxide-vusl: world_lm is 676 instructions with the counts and 642
+  without, and the other programs are unchanged.
+- **The tour in PCSX2.** A release package played the serial tour alone (7,244 frames, 149 s).
+  PCSX2 runs the VU1 programs as the console does, so its counts are the console's, frame for frame.
+  Per frame on average:
+
+  | List batches | List entries walked | Clipper calls | Calls that sent nothing |
+  | --- | --- | --- | --- |
+  | 123 of 358 (34%) | 10,361 | 4,699 | 4,314 (91.8%) |
+- **The fit.** `frame_log.py framelog_serial_hdd.txt --vu-fit <PCSX2 log>` pairs the 7,036 frames
+  that drew the same batches and vertices, and fits the console's `vu_us` with R² 0.997 (0.6 against
+  the vertices and batches alone). USB and the fill-off runs give the same costs within 1%.
+
+  | Term | Cycles each | VU1 ms a frame |
+  | --- | --- | --- |
+  | A vertex (transform, judge, strip pass) | 54.8 | 2.46 |
+  | A list-path entry, on top of the strip pass | 35.8 | 1.26 |
+  | A clipper call that sends a fan | 1,232 | 1.61 |
+  | A clipper call that sends nothing | 194 | 2.84 |
+
+  VU1 runs 8.04 ms a frame. The per-vertex and per-entry costs match `vu_cost.py`: 52 to 59 cycles a
+  vertex on the strip path, and 33.7 more per entry with `--list-path`, a new mode that sends every
+  batch down the list path with one vertex outside and the clipper free.
+- **What it means.** The clipper takes 4.45 ms of VU1's 8.04 ms a frame. 2.84 ms of that goes to
+  triangles it rejects, which have every corner outside one plane: behind the eye or past one side
+  of the guard band. Each still seeds three corners (three divides) and runs a clip pass or more.
+  The list path's own walk takes 1.26 ms more.
+  - world_lm keeps only one bit per vertex ("outside the guard band"), so the list path cannot tell
+    a triangle that crosses the band from one wholly past it.
+  - Keeping each vertex's six clip-flag bits and rejecting a triangle whose three share one would
+    remove most of the 2.84 ms. That is the next change to measure.
+- **Gates.**
+  - The retail world gate's 240-frame tour now requires the four columns and that they hold together.
+    It counts 30.7% of batches on the list path in both standards, with 93.3% of clipper calls
+    sending nothing.
+  - The first gate run found the counts' read inside the timed wait: frame 0's split came to 237 of
+    252 µs. The read now follows the wait's timing.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261126T130759Z_world_retail_0fa32761d2fe` (NTSC), `20261126T131010Z_world_retail_33f85a83b5f1` (PAL); an earlier NTSC run hit the known `_request_end` HostFs flake |
+| `make test-world` | `20261126T131354Z_world_ae2cb02ab563`, `20261126T131409Z_world_c544b87fc38d` |
+| `make test-renderer` | `20261126T131157Z_smoke_2e1068183a6041fd` (NTSC), `20261126T131213Z_smoke_d962fb265842470e` (PAL), and the expected-fatal probes |
+| `make test-host` | Passed (422) |
+| `make`, `make release` | Passed, no warnings |

@@ -291,7 +291,9 @@ GAME_TEST_LINK_OBJS = $(TEST_CAMPAIGN_OBJS) $(TEST_BACKEND_OBJS) $(TEST_SUPPORT_
 # constants against them. Until vu::Init references the symbols, --gc-sections drops the code
 # from the runnable and only the gate link carries it. No EE compiler flag reaches this
 # toolchain, so the output is identical in both configurations: it is built once into build/vu/
-# and linked into the production, game test and core test images. The VU rule writes a .d beside
+# and linked into the production, game test and core test images. The one define it takes is the
+# GPU sampler's, from INSTRUMENT_DEFS (world_lm's list-path counters), the same in every build
+# for now: a Profile build will need build/vu/ per setting (IMPLEMENTATION_PLAN.md, "Profile build"). The VU rule writes a .d beside
 # each object, so the link reports hash the .vusl and its includes like any compiled source.
 VUSL_PATH  = src/ps2/renderer/vu1progs
 VUSL_SRC   = $(addprefix ps2/renderer/vu1progs/,$(VUSL_FILES))
@@ -301,7 +303,7 @@ VUSL_INCS  = $(wildcard $(VUSL_PATH)/*.vush)
 OXIDE_VCL_PATH   = src/external/oxide-vcl
 OXIDE_VCL_BUILD  = build/tools/oxide-vcl
 OXIDE_VUSL       = $(OXIDE_VCL_BUILD)/release/oxide-vusl
-OXIDE_VUSL_FLAGS = --warnings-as-errors
+OXIDE_VUSL_FLAGS = --warnings-as-errors $(filter -DPS2_D3BFG_GPU_SAMPLER=%,$(INSTRUMENT_DEFS))
 RESIDENT_LINK_SOURCES += $(VUSL_SRC)
 RESIDENT_LINK_OBJS += $(VU_OBJS)
 GAME_TEST_LINK_SOURCES += $(VUSL_SRC)

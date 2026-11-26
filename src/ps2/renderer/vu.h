@@ -82,15 +82,16 @@ static_assert(kClipperAddress + clipper::kInstructions <= kMicroMemInstructions,
 // ------------------------------------------------------------------------------------------------
 // VU1 data memory (1024 qwords; addresses in qwords), as vu1progs/vu_memory.vush lays it out
 //
-//      0-12      the frame constants (FrameConstants)
-//      13-39     world_lm's work area, for values that do not fit in its registers
+//      0-13      the frame constants (FrameConstants), the list path's counts last
+//      14-39     world_lm's work area, for values that do not fit in its registers
 //      40-651    the VIF1 double buffer (BASE 40, OFFSET 306): a batch at XTOP
 //      652-953   the two output windows, kept alternating across batches
 //      954-956   the world programs' scratch
 //      957-1007  the clipper's ping-pong buffers
 //      1008-1023 the clipper's saved registers and work area
 //
-// The EE writes only the frame constants and the double buffer; the rest is the programs'.
+// The EE writes only the frame constants and the double buffer, and in GPU sampler builds zeroes
+// the counts after reading them (dma::WaitIdle); the rest is the programs'.
 // ------------------------------------------------------------------------------------------------
 
 // vu_memory.vush's Frame, unpacked once a frame by DisplayList::SetFrameConstants, which fills
@@ -104,6 +105,7 @@ static_assert(kClipperAddress + clipper::kInstructions <= kMicroMemInstructions,
 //   nullTag       NLOOP 0, EOP 1: the drain guard passthrough.vusl kicks
 //   stripTag ...  the world programs' drawing tags (gs::DrawingTag), and the lightmap pass's in
 //                 the other GS context (gs::LightmapTag); NLOOP and EOP are the programs'
+//   stats         what world_lm counted on its list path this frame (zero from the EE)
 using FrameConstants = lm::Frame;
 
 // Every program includes one vu_memory.vush, so their Frame is one type.
@@ -116,13 +118,15 @@ static constexpr u32 kFrameConstantsQwords = sizeof(FrameConstants) / 16U;
 static constexpr u32 kWindowStateQword = offsetof(FrameConstants, window) / 16U;
 static constexpr u32 kNullTagQword = offsetof(FrameConstants, nullTag) / 16U;
 static constexpr u32 kDrawingTagsQword = offsetof(FrameConstants, stripTag) / 16U;
+static constexpr u32 kListStatsQword = offsetof(FrameConstants, stats) / 16U;
 
 static_assert(strips::kFrameAddress == kFrameConstantsAddr && passthrough::kFrameAddress == kFrameConstantsAddr &&
               clipper::kFrameAddress == kFrameConstantsAddr,
               "every program reads the frame constants at one address");
 static_assert(offsetof(FrameConstants, windowStep) == offsetof(FrameConstants, window) + 4U &&
-              offsetof(FrameConstants, lightmapListTag) == (kDrawingTagsQword + 3U) * 16U && kDrawingTagsQword + 4U == kFrameConstantsQwords,
-              "the window state is one qword, and the four drawing tags end the frame constants");
+              offsetof(FrameConstants, lightmapListTag) == (kDrawingTagsQword + 3U) * 16U && kDrawingTagsQword + 4U == kListStatsQword &&
+                  kListStatsQword + 1U == kFrameConstantsQwords,
+              "the window state is one qword, then the four drawing tags and the list path's counts end the frame constants");
 
 // The VIF1 double buffer. The programs' batch parameters say where (layout(xtop, vif_base,
 // vif_offset)), and this is what sets the registers. A batch, its last write included, fits one

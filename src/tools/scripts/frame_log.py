@@ -15,9 +15,17 @@ thread's time in reads during the frame. A log built with the GPU sampler splits
 the chain up while the EE waited (GPU_COLUMNS: VU1 running, the GS not taking more, DIRECT data,
 VIF1 unpacking or waiting for the DMA, and the GS's last primitives); with serial frames (the label's
 pipeline=0) that is the whole chain, so its VU1 time over the vertices drawn is VU1's cycles a vertex,
-the figure to hold against vu_cost.py's model. Columns a log lacks are left out.
+the figure to hold against vu_cost.py's model. The sampler also counts world_lm's list path
+(LIST_COLUMNS: the batches that took it, the stream entries its passes walked, the clipper's calls
+and the calls that sent nothing), read from VU1 memory after each chain. Columns a log lacks are
+left out.
 
-Usage: frame_log.py framelog.txt [--compare other.txt] [--worst N] [--json summary.json]"""
+--vu-fit prices VU1's work: it takes a console log's vu_us (serial frames) and another log's list
+path counts for the same tour frame for frame (PCSX2 runs the VU1 programs as the console does but
+shows none of their time), and fits VU1's cycles a frame by least squares against the vertices,
+batches, lit batches, list entries, clipper calls and empty calls.
+
+Usage: frame_log.py framelog.txt [--compare other.txt] [--vu-fit counts.txt] [--worst N] [--json summary.json]"""
 
 import argparse
 import json
@@ -27,8 +35,14 @@ TIME_COLUMNS = ("frame_us", "game_us", "view_us", "ui_us", "submit_us", "gpu_us"
                 "vsync_us", "io_us")
 # The GPU sampler's split of gpu_us.
 GPU_COLUMNS = ("vu_us", "gs_us", "direct_us", "vif_us", "tail_us")
+# The sampler's counts of world_lm's list path.
+LIST_COLUMNS = ("list_batches", "list_entries", "clips", "empty_clips")
 # VU1 runs at the EE's clock.
 VU1_CYCLES_PER_US = 294.912
+# --vu-fit's terms, each a count a frame (a constant follows), and what one of each is called.
+VU_FIT_TERMS = ("vertices", "batches", "lit_batches", "list_entries", "clips", "empty_clips")
+VU_FIT_UNITS = {"vertices": "vertex", "batches": "batch", "lit_batches": "lit batch", "list_entries": "list entry", "clips": "clip",
+                "empty_clips": "empty clip"}
 COUNT_COLUMNS = ("batches", "lit_batches", "pass_batches", "vertices", "packet_bytes", "chain_bytes", "uploads", "upload_bytes",
                  "stream_loads", "stream_bytes", "stream_misses", "fallbacks", "pass_fallbacks", "loader_bytes")
 # Frame-time lines: two fields of NTSC (33.3 ms) and of PAL (40 ms), and RENDERING_ARCHITECTURE.md
@@ -100,7 +114,15 @@ def summarize(log: dict, worst: int = 8) -> dict:
         gpu = {"wait_us": wait, "us": shares, "percent": {name: round(100.0 * value / wait, 1) if wait else 0.0 for name, value in shares.items()},
                "pipelined": "pipeline=0" not in log["notes"].get("label", ""),
                "vu1_cycles_per_vertex": round(shares["vu"] * VU1_CYCLES_PER_US / vertices, 1) if vertices else 0.0}
+    list_path = None
+    if all(column in rows[0] for column in LIST_COLUMNS):
+        totals = {column: sum(row[column] for row in rows) for column in LIST_COLUMNS}
+        batches = sum(row["batches"] for row in rows)
+        list_path = {"totals": totals, "batch_percent": round(100.0 * totals["list_batches"] / batches, 1) if batches else 0.0,
+                     "empty_percent": round(100.0 * totals["empty_clips"] / totals["clips"], 1) if totals["clips"] else 0.0,
+                     "frames": sum(1 for row in rows if row["list_batches"] > 0)}
     return {"rows": len(rows), "complete": log["end"] == len(rows), "notes": log["notes"], "stages": stages, "counts": counts, "gpu": gpu,
+            "list_path": list_path,
             "over_budget": over, "fields": {str(count): fields[count] for count in sorted(fields)}, "standard": standard,
             "seconds": round(sum(frames) / 1e6, 2), "loader": log["loader"],
             "worst": [{key: row[key] for key in ("frame", "frame_us", "game_us", "view_us", "submit_us", "gpu_us", "vsync_us", "area",
@@ -133,6 +155,12 @@ def format_summary(summary: dict, other: dict | None = None) -> str:
         lines.append(f"gpu wait {gpu['wait_us'] / 1e6:.2f} s, {scope}: " +
                      ", ".join(f"{name} {gpu['percent'][name]}%" for name in gpu["us"]) +
                      f"; VU1 {gpu['vu1_cycles_per_vertex']} cycles a vertex drawn")
+    list_path = summary.get("list_path")
+    if list_path:
+        totals = list_path["totals"]
+        lines.append(f"list path: {totals['list_batches']} batches ({list_path['batch_percent']}% of those drawn, in {list_path['frames']} frames), "
+                     f"{totals['list_entries']} entries; clipper {totals['clips']} calls, {totals['empty_clips']} sent nothing "
+                     f"({list_path['empty_percent']}%)")
     loader = summary["loader"]
     if loader:
         lines.append(f"loader: {loader.get('bytes', 0)} bytes in {loader.get('chunks', 0)} reads and {loader.get('seeks', 0)} seeks, "
@@ -145,16 +173,72 @@ def format_summary(summary: dict, other: dict | None = None) -> str:
     return "\n".join(lines)
 
 
+def solve(matrix: list, vector: list) -> list:
+    """Gaussian elimination with partial pivoting; a singular column gets 0."""
+    size = len(vector)
+    rows = [list(matrix[index]) + [vector[index]] for index in range(size)]
+    for column in range(size):
+        pivot = max(range(column, size), key=lambda index: abs(rows[index][column]))
+        rows[column], rows[pivot] = rows[pivot], rows[column]
+        if abs(rows[column][column]) < 1e-12:
+            continue
+        for index in range(size):
+            if index != column:
+                factor = rows[index][column] / rows[column][column]
+                rows[index] = [value - factor * base for value, base in zip(rows[index], rows[column])]
+    return [rows[index][size] / rows[index][index] if abs(rows[index][index]) >= 1e-12 else 0.0 for index in range(size)]
+
+
+def vu_fit(timed: dict, counted: dict) -> dict:
+    """VU1's cycles a frame in 'timed' (serial frames, the GPU sampler's vu_us) fitted against the
+    list path counts of 'counted' (the same tour), over the frames whose batches and vertices agree."""
+    if "pipeline=0" not in timed["notes"].get("label", "") or "vu_us" not in timed["columns"]:
+        raise ValueError("--vu-fit needs a serial log with the GPU sampler's columns (pipeline=0)")
+    if not all(column in counted["columns"] for column in LIST_COLUMNS):
+        raise ValueError("--vu-fit's counts log has no list path columns")
+    frames = {row["frame"]: row for row in counted["rows"]}
+    pairs = [(row, frames[row["frame"]]) for row in timed["rows"] if row["frame"] in frames]
+    matched = [(row, other) for row, other in pairs if row["batches"] == other["batches"] and row["vertices"] == other["vertices"]]
+    if len(matched) < len(VU_FIT_TERMS) + 1:
+        raise ValueError(f"only {len(matched)} frames draw the same batches in both logs")
+    samples = [([row["vertices"], row["batches"], row["lit_batches"], other["list_entries"], other["clips"], other["empty_clips"], 1.0],
+                row["vu_us"] * VU1_CYCLES_PER_US) for row, other in matched]
+    width = len(VU_FIT_TERMS) + 1
+    normal = [[sum(x[i] * x[j] for x, _ in samples) for j in range(width)] for i in range(width)]
+    target = [sum(x[i] * y for x, y in samples) for i in range(width)]
+    coefficients = solve(normal, target)
+    mean = sum(y for _, y in samples) / len(samples)
+    residual = sum((y - sum(c * v for c, v in zip(coefficients, x))) ** 2 for x, y in samples)
+    total = sum((y - mean) ** 2 for _, y in samples)
+    # What each term costs the tour, in VU1 time.
+    shares = {term: round(coefficients[index] * sum(x[index] for x, _ in samples) / VU1_CYCLES_PER_US / 1e6, 2)
+              for index, term in enumerate(VU_FIT_TERMS)}
+    return {"frames": len(matched), "of": len(pairs), "cycles": {term: round(coefficients[index], 1) for index, term in enumerate(VU_FIT_TERMS)},
+            "constant": round(coefficients[-1], 1), "r2": round(1.0 - residual / total, 3) if total else 0.0, "seconds": shares,
+            "vu_seconds": round(sum(y for _, y in samples) / VU1_CYCLES_PER_US / 1e6, 2)}
+
+
+def format_vu_fit(fit: dict) -> str:
+    terms = ", ".join(f"{fit['cycles'][term]} {'an' if VU_FIT_UNITS[term][0] in 'aeiou' else 'a'} {VU_FIT_UNITS[term]}" for term in VU_FIT_TERMS)
+    shares = ", ".join(f"{term} {fit['seconds'][term]} s" for term in VU_FIT_TERMS)
+    return (f"VU1 fit over {fit['frames']} of {fit['of']} frames (R² {fit['r2']}), cycles: {terms}, {fit['constant']} a frame\n"
+            f"  of the tour's {fit['vu_seconds']} s of VU1: {shares}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("log", type=Path)
     parser.add_argument("--compare", type=Path, help="a baseline frame log: each stage's mean against it")
+    parser.add_argument("--vu-fit", type=Path, help="a log of the same tour with the list path counts (PCSX2's): price VU1's work")
     parser.add_argument("--worst", type=int, default=8)
     parser.add_argument("--json", type=Path, help="also write the summary here")
     args = parser.parse_args()
     summary = summarize(parse(args.log.read_text(errors="replace")), args.worst)
     other = summarize(parse(args.compare.read_text(errors="replace"))) if args.compare else None
     print(format_summary(summary, other))
+    if args.vu_fit:
+        summary["vu_fit"] = vu_fit(parse(args.log.read_text(errors="replace")), parse(args.vu_fit.read_text(errors="replace")))
+        print(format_vu_fit(summary["vu_fit"]))
     if args.json:
         args.json.write_text(json.dumps(summary, indent=2) + "\n")
     return 0

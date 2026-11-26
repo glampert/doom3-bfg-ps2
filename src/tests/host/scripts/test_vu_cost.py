@@ -4,8 +4,8 @@
 # Brief: Pin vu_cost.py's VU1 model: delay slots, the DIV wait at WAITQ, the stalls oxide-vcl's
 # listing marks, the E bit, VIF1's unpack
 # with skipping writes and sign extension, both world programs' strip paths sending every vertex
-# of a batch across window kicks, the lightmap pass sending them again, and d3wd.py's decoding of
-# a batch's vertices and strips.
+# of a batch across window kicks, the lightmap pass sending them again, world_lm's list path with
+# one vertex outside, and d3wd.py's decoding of a batch's vertices and strips.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -147,6 +147,18 @@ class WorldProgramTests(unittest.TestCase):
                 self.assertEqual(kicks, 1 if length <= 48 else 2)
                 # A floor, not a pin: each vertex is transformed and sent.
                 self.assertGreater(cycles, 24 * length)
+
+    def test_list_path_sends_the_inside_triangles(self):
+        # --list-path: one vertex reads outside, so the batch walks its stream as triangles; those
+        # with that vertex go to the clipper, which sends nothing here, and the rest go out whole.
+        program = vu_cost.load_program("world_lm")
+        packet = batch_packet(strip_of(6), True)
+        strip = vu_cost.batch_cycles(program, packet)
+        listed = vu_cost.batch_cycles(program, packet, list_path=True)
+        # A strip of six vertices is four triangles; the flagged vertex is in one to three of them.
+        self.assertEqual(listed[1], 1)
+        self.assertIn(listed[2], (3, 6, 9))
+        self.assertGreater(listed[0], strip[0])
 
     def test_lightmap_pass_sends_every_vertex_again(self):
         # Its windows are the base pass's (ST, RGBAQ and XYZ2, 50 vertices), so it kicks and resends

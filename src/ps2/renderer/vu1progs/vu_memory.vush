@@ -9,8 +9,22 @@
  * This source code is released under the GNU GPL-3.0-or-later license.
  * ================================================================================================ */
 
-// Qwords 0-12: the frame constants DisplayList::SetFrameConstants writes once a frame
-// (vu::FrameConstants). The clipper's parameters ride in spare w lanes.
+// What the world programs counted in the frame so far (PS2_D3BFG_GPU_SAMPLER builds count, as
+// floats: VU1 integers are 16 bits): the batches that took the list path, the stream entries its
+// passes walked, the clipper's calls and the calls that sent nothing (the callers count: the
+// clipper may not write their memory). The frame constants' upload zeroes it, and dma::WaitIdle
+// reads and zeroes it after each chain.
+struct ListStats
+{
+    float batches;
+    float entries;
+    float clips;
+    float empty;
+};
+
+// Qwords 0-13: the frame constants DisplayList::SetFrameConstants writes once a frame
+// (vu::FrameConstants), the list path's counts last. The clipper's parameters ride in spare w
+// lanes.
 struct Frame
 {
     layout(row_major) mat4 mvp; // the view-projection rows (row vectors)
@@ -27,6 +41,7 @@ struct Frame
     qword listTag;
     qword lightmapStripTag;     // the lightmap pass's, in the other GS context
     qword lightmapListTag;
+    ListStats stats;
 };
 
 // A batch vertex after phase 1, in place of the cooked one: the clip-space position, XYZ2

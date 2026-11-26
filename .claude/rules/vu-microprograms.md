@@ -148,7 +148,10 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   Q = 1/0 at the largest float that flushes to zero (the VU has no denormals), taking the corner's
   UV (S x Q x w) with it. A vertex in the eye's plane does this (grid-aligned cameras put whole
   wall edges there). Both world programs add 1e-20 to w after the matrix; keep it.
-- **Data memory beyond the EE's:** world_lm's work area at 13-39; the
+- **Data memory beyond the EE's:** world_lm's work area at 14-39 (qword 13 is the frame constants'
+  `ListStats`, the list path's counts in GPU sampler builds, `-DPS2_D3BFG_GPU_SAMPLER` from the
+  Makefile's `INSTRUMENT_DEFS`; the clipper may not write its callers' memory, so world_lm counts
+  around the call); the
   world programs' scratch at 954-956, right after window B; the clipper's buffers at 957-1007,
   A of 8 corners and B of 9, three qwords each; its saves and work area at 1008-1023. The buffers
   hold the true worst case only while a corner is kept exactly when its distance is >= 0: every
@@ -162,7 +165,11 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   listing marks on it (`STALL_LATENCY ?N`), or the DIV wait at `waitq`, clip flags taken as zero
   (the strip path, which never calls the clipper). Over mars_city1 (2026-11-21): `world_lm` 63.7
   cycles a triangle for the base pass (`--no-lightmaps`) and 90.3 with the lightmap pass, plain
-  strips 60.2. Only kicks of an output window count as packets.
+  strips 60.2. Only kicks of an output window count as packets. `--list-path` sends every batch
+  down the list path instead (one vertex outside, the clipper call free): 33.7 cycles more an entry
+  walked, which the console's fit confirms (35.8). The clipper's own cost comes only from the fit
+  (`frame_log.py --vu-fit`, performance.md): 1,232 cycles a call that sends a fan, 194 one that
+  sends nothing.
 
 ## Writing VUSL
 

@@ -85,6 +85,41 @@ static void Sample(u32 & last)
     ++s_gpu.samples;
     last = now;
 }
+
+// VU1 data memory as the EE sees it (EE User's Manual, the memory map: VU Mem1).
+static constexpr uintptr_t kVu1DataMemory = 0x1100C000U;
+
+// world_lm's list-path counts in VU1 data memory (vu::FrameConstants::stats, four floats).
+static volatile float * ListPathCounts()
+{
+    return reinterpret_cast<volatile float *>(kVu1DataMemory + vu::kListStatsQword * 16U);
+}
+
+// Zeroes the counts: at Init, over whatever VU1 memory held, and after each read. Only with VU1
+// and the DMA idle.
+static void ClearListPathStats()
+{
+    volatile float * const counts = ListPathCounts();
+
+    for (int lane = 0; lane < 4; ++lane)
+    {
+        counts[lane] = 0.0f;
+    }
+}
+
+// Adds what world_lm counted since the last read and zeroes it, so a chain the frame constants did
+// not open (a ring drain's second part, a frame without the world) counts on from zero.
+static void TakeListPathStats()
+{
+    // Whole counts below 2^24: through s32, a cvt.w.s, rather than libgcc's unsigned conversion.
+    const volatile float * const counts = ListPathCounts();
+    ListPathStats & stats = s_gpu.listPath;
+    stats.batches += static_cast<u32>(static_cast<s32>(counts[0]));
+    stats.entries += static_cast<u32>(static_cast<s32>(counts[1]));
+    stats.clips += static_cast<u32>(static_cast<s32>(counts[2]));
+    stats.empty += static_cast<u32>(static_cast<s32>(counts[3]));
+    ClearListPathStats();
+}
 #endif // PS2_D3BFG_GPU_SAMPLER
 
 } // namespace
@@ -134,6 +169,10 @@ PS2_COLD_FUNC bool Init(u32 ringBytes)
 
     gs::WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "initial VIF1 DMA");
     gs::WaitUntil([] { return (*R_EE_D8_CHCR & kDmaStart) == 0; }, "initial fromSPR DMA");
+
+#if PS2_D3BFG_GPU_SAMPLER
+    ClearListPathStats();
+#endif
 
     if (dma_channel_initialize(DMA_CHANNEL_VIF1, nullptr, 0) < 0 || dma_channel_initialize(DMA_CHANNEL_fromSPR, nullptr, 0) < 0)
     {
@@ -284,6 +323,11 @@ void WaitIdle()
     s_stats.waitCycles += gs::ReadCycles() - start;
     ++s_stats.waits;
 #endif // PS2_D3BFG_FRAME_LOG
+
+    // After the wait is timed: the sampler's split covers the wait alone.
+#if PS2_D3BFG_GPU_SAMPLER
+    TakeListPathStats();
+#endif // PS2_D3BFG_GPU_SAMPLER
 
     detail::g_inFlight = false;
 }

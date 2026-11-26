@@ -59,6 +59,7 @@ struct Counters
     u64 gpuCycles = 0;
 #if PS2_D3BFG_GPU_SAMPLER
     u64 gpuStates[kGpuStates] = {};
+    renderer::dma::ListPathStats listPath = {};
 #endif // PS2_D3BFG_GPU_SAMPLER
     u64 vsyncCycles = 0;
     u64 ioCycles = 0;
@@ -95,6 +96,12 @@ struct Row
     u32 gpuCycles;
 #if PS2_D3BFG_GPU_SAMPLER
     u32 gpuStates[kGpuStates];
+    // The chains' list path (dma::ListPathStats): batches, stream entries, clipper calls, and
+    // the calls that sent nothing.
+    u32 listBatches;
+    u32 listEntries;
+    u32 clips;
+    u32 emptyClips;
 #endif // PS2_D3BFG_GPU_SAMPLER
     u32 vsyncCycles;
     u32 ioCycles;
@@ -167,6 +174,8 @@ Counters Read()
     {
         counters.gpuStates[state] = gpu.cycles[state];
     }
+
+    counters.listPath = gpu.listPath;
 #endif // PS2_D3BFG_GPU_SAMPLER
 
     counters.kicks = dma.kicks;
@@ -222,6 +231,11 @@ void Capture(const Counters & before, const Counters & now)
     {
         row.gpuStates[state] = static_cast<u32>(now.gpuStates[state] - before.gpuStates[state]);
     }
+
+    row.listBatches = static_cast<u32>(now.listPath.batches - before.listPath.batches);
+    row.listEntries = static_cast<u32>(now.listPath.entries - before.listPath.entries);
+    row.clips = static_cast<u32>(now.listPath.clips - before.listPath.clips);
+    row.emptyClips = static_cast<u32>(now.listPath.empty - before.listPath.empty);
 #endif // PS2_D3BFG_GPU_SAMPLER
 
     row.vsyncCycles = static_cast<u32>(now.vsyncCycles - before.vsyncCycles);
@@ -386,9 +400,10 @@ PS2_COLD_FUNC void WriteRows(Writer & writer, const Counters & last)
                 system::video::InterlaceName(renderer::gs::GetInterlace()), renderer::gs::FrameFormatLabel(renderer::gs::GetFrameFormat()));
     writer.Line("FLOG#label,%s\n", s_label);
 
-    // The GPU sampler's columns split gpu_us; a log built without it has none of them.
+    // The GPU sampler's columns split gpu_us, then count the chains' list path; a log built without
+    // it has none of them.
 #if PS2_D3BFG_GPU_SAMPLER
-    static constexpr const char * kGpuColumns = "vu_us,gs_us,direct_us,vif_us,tail_us,";
+    static constexpr const char * kGpuColumns = "vu_us,gs_us,direct_us,vif_us,tail_us,list_batches,list_entries,clips,empty_clips,";
 #else // PS2_D3BFG_GPU_SAMPLER
     static constexpr const char * kGpuColumns = "";
 #endif // PS2_D3BFG_GPU_SAMPLER
@@ -402,11 +417,12 @@ PS2_COLD_FUNC void WriteRows(Writer & writer, const Counters & last)
     for (u32 index = 0; index < s_count; ++index)
     {
         const Row & row = s_rows[index];
-        char gpu[64] = {};
+        char gpu[128] = {};
 
 #if PS2_D3BFG_GPU_SAMPLER
-        idStr::snPrintf(gpu, sizeof(gpu), "%u,%u,%u,%u,%u,", Microseconds(row.gpuStates[0]), Microseconds(row.gpuStates[1]),
-                        Microseconds(row.gpuStates[2]), Microseconds(row.gpuStates[3]), Microseconds(row.gpuStates[4]));
+        idStr::snPrintf(gpu, sizeof(gpu), "%u,%u,%u,%u,%u,%u,%u,%u,%u,", Microseconds(row.gpuStates[0]), Microseconds(row.gpuStates[1]),
+                        Microseconds(row.gpuStates[2]), Microseconds(row.gpuStates[3]), Microseconds(row.gpuStates[4]), row.listBatches,
+                        row.listEntries, row.clips, row.emptyClips);
 #endif // PS2_D3BFG_GPU_SAMPLER
 
         writer.Line("FLOG,%u,%u,%u,%u,%u,%u,%u,%s%u,%u,%u,%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,"

@@ -11,9 +11,12 @@
 # wait at a WAITQ. Float
 # results are not computed: every vertex is taken to be inside the guard band (the clip flags read
 # zero), which is the strip path nearly every batch takes, so the clipper library is never called.
-# XGKICK stalls depend on the GS and are not charged; both topologies send the same vertices. A
-# batch with a lightmap page runs the lightmap pass too (world_lm.vusl; world_strips.vusl draws
-# none).
+# With --list-path, the first judgement of each batch reads one vertex outside instead: the batch
+# takes the list path, its triangles with that vertex call the clipper, which costs nothing and
+# sends nothing here, and the rest go out whole. That prices the list path's own walk for the
+# console's fit (frame_log.py --vu-fit), which prices the clipper. XGKICK stalls depend on the GS and
+# are not charged; both topologies send the same vertices. A batch with a lightmap page runs the
+# lightmap pass too (world_lm.vusl; world_strips.vusl draws none).
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -131,8 +134,10 @@ class Machine:
 
     LANES = "xyzw"
 
-    def __init__(self, program: Program, memory: dict, itop: int):
+    def __init__(self, program: Program, memory: dict, itop: int, list_path: bool = False):
         self.program = program
+        # --list-path: the next clip judgement reads a vertex outside.
+        self.outside = list_path
         self.memory = memory
         self.itop = itop
         self.vi = [0] * 16
@@ -213,8 +218,17 @@ class Machine:
             if WINDOW_A <= address < WINDOW_A + 2 * WINDOW_QWORDS:
                 self.kicks.append(self.word(address)[0] & 0x7FFF)
         elif base == "fcand":
-            # Every vertex inside the guard band: no clip flag is set.
-            self.set_vi(1, 0)
+            # Every vertex inside the guard band: no clip flag is set (but one, with --list-path).
+            self.set_vi(1, 1 if self.outside else 0)
+            self.outside = False
+        elif base == "jalr":
+            # A call to the clipper (--list-path): free, and it sends nothing.
+            self.set_vi(self.register(args[0]), 0)
+        elif base == "mfir":
+            # A VI register into VF lanes, sign-extended (the counts' float conversion follows).
+            target = self.vf[self.register(args[0])]
+            for lane in lanes:
+                target[lane] = self.signed(self.register(args[1]))
         elif base == "mtir":
             lane = self.LANES.index(args[1][-1])
             self.set_vi(self.register(args[0]), self.vf[self.register(args[1][:-1])][lane])
@@ -263,17 +277,18 @@ class Machine:
             pending = target
 
 
-def batch_cycles(program: Program, packet: bytes, lit: bool = False) -> tuple[int, int, int]:
+def batch_cycles(program: Program, packet: bytes, lit: bool = False, list_path: bool = False) -> tuple[int, int, int]:
     """Cycles, GS packets kicked and vertices sent for one batch, with its lightmap pass when 'lit'."""
     memory = {WINDOW_STATE: [WINDOW_A, WINDOW_QWORDS, 0, 0], INPUT_BASE + BATCH_LIGHTMAP_FLAG: [0, 0, 0, 1 if lit else 0]}
     itop = unpack(packet, memory)
-    machine = Machine(program, memory, itop)
+    machine = Machine(program, memory, itop, list_path)
     cycles = machine.run()
     return cycles, len(machine.kicks), sum(machine.kicks)
 
 
-def measure(world: d3wd.World, program: Program, lightmaps: bool = True) -> list:
-    return [batch_cycles(program, world.packet(batch), lightmaps and batch.lightmap_page != d3wd.NO_LIGHTMAP) for batch in world.batches]
+def measure(world: d3wd.World, program: Program, lightmaps: bool = True, list_path: bool = False) -> list:
+    return [batch_cycles(program, world.packet(batch), lightmaps and batch.lightmap_page != d3wd.NO_LIGHTMAP, list_path)
+            for batch in world.batches]
 
 
 def summary(world: d3wd.World, report: dict, costs: list, areas=None) -> dict:
@@ -291,6 +306,19 @@ def summary(world: d3wd.World, report: dict, costs: list, areas=None) -> dict:
             "packet_bytes": sum(16 * world.batches[index].packet_qwords for index in batches)}
 
 
+def list_path_summary(world: d3wd.World, strip: list, listed: list, lightmaps: bool) -> dict:
+    """The whole map down the list path against the strip path: the cycles it adds an entry walked,
+    the unit the GPU sampler counts (list_entries: a pass walks four a qword of the stream, a lit
+    batch's twice)."""
+    entries = sum(4 * ((batch.index_count + 3) // 4) * (2 if lightmaps and batch.lightmap_page != d3wd.NO_LIGHTMAP else 1)
+                  for batch in world.batches)
+    strip_cycles = sum(cost[0] for cost in strip)
+    list_cycles = sum(cost[0] for cost in listed)
+    return {"entries": entries, "strip_cycles": strip_cycles, "list_cycles": list_cycles,
+            "cycles_per_entry": round(list_cycles / entries, 2), "added_per_entry": round((list_cycles - strip_cycles) / entries, 2),
+            "vertices_sent": sum(cost[2] for cost in listed)}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("worlds", type=Path, nargs="+", help="cooked .d3wd files, each beside its .report.json")
@@ -298,6 +326,8 @@ def main() -> int:
                         help="also sum these areas (repeatable: one view's areas each)")
     parser.add_argument("--vu", type=Path, default=VU_BUILD, help="where the assembled .vsm files are")
     parser.add_argument("--no-lightmaps", action="store_true", help="count the base pass alone")
+    parser.add_argument("--list-path", action="store_true",
+                        help="also run every batch down the list path (one vertex outside, the clipper free): its cycles an entry walked")
     args = parser.parse_args()
     results = {}
     for path in args.worlds:
@@ -308,6 +338,8 @@ def main() -> int:
         entry = {"program": program.name, "topology": report["topology"], "map": summary(world, report, costs)}
         for areas in args.areas or []:
             entry["areas " + " ".join(str(area) for area in areas)] = summary(world, report, costs, areas)
+        if args.list_path:
+            entry["list_path"] = list_path_summary(world, costs, measure(world, program, not args.no_lightmaps, True), not args.no_lightmaps)
         results[str(path)] = entry
     json.dump(results, sys.stdout, indent=2)
     print()

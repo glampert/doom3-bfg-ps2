@@ -304,10 +304,18 @@ running), `gs_us` (VU1 stalled on an XGKICK, VIF1 waiting for the GIF, or PATH1 
 waiting for the DMA) and `tail_us` (the GS's last primitives). With serial frames
 (`ps2_pipelineFrames 0`) that is the whole chain; pipelined, only the part the EE's own work did not
 cover. PCSX2 classifies everything as `vif_us` (its VU1 finishes at once, and its GIF reports no
-path), so the split means something on a console only. `src/tools/scripts/frame_log.py framelog.txt
-[--compare baseline.txt]` summarises a log: each stage's mean and percentiles, frames over the
-budgets and by whole fields, the GPU split with VU1's cycles a vertex drawn (against
-`vu_cost.py`'s `cycles_per_vertex`), the slowest frames with where the camera was. `ps2_memory LABEL` logs the allocation
+path), so the split means something on a console only. The sampler also counts world_lm's list path,
+which `dma::WaitIdle` reads out of VU1 memory (the frame constants' last qword) after each chain:
+`list_batches` (batches with a vertex outside the guard band), `list_entries` (the stream entries
+its passes walked, a lit batch's twice), `clips` (triangles sent to the clipper) and `empty_clips`
+(calls that sent nothing). These are exact in PCSX2 too, which runs the programs as the console does.
+`src/tools/scripts/frame_log.py framelog.txt [--compare baseline.txt] [--vu-fit counts.txt]`
+summarises a log: each stage's mean and percentiles, frames over the budgets and by whole fields,
+the GPU split with VU1's cycles a vertex drawn (against `vu_cost.py`'s `cycles_per_vertex`), the
+list path's totals, the slowest frames with where the camera was. `--vu-fit` takes a console's
+serial log and a log of the same tour with the list path counts (PCSX2's), pairs the frames that
+drew the same batches and vertices, and fits VU1's cycles a frame against the vertices, batches, lit
+batches, list entries, clipper calls and empty calls. `ps2_memory LABEL` logs the allocation
 ledgers under LABEL (MEMORY, ARENA, HEAP, and in tracking builds STACK and TAG lines); run
 `clearHistory` first, since the console history keeps a buffer per HostFs line.
 

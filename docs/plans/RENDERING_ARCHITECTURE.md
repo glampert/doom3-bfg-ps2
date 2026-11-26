@@ -733,7 +733,8 @@ per corner, A 24 and B 27 back to back; `#if` checks in `vu_memory.h` pin the la
 1006-1023 are free. Since 2026-11-21 the programs are VUSL and `vu1progs/vu_memory.vush` holds the
 map, which `ps2/renderer/vu.h` reads back from the generated headers: 954-956 the world programs'
 scratch, 957-1007 the clipper's buffers, 1008-1023 the clipper library's saved registers and work
-area, and between the frame constants and the halves world_lm's work area (13-39).
+area, and between the frame constants and the halves world_lm's work area (13-39; 14-39 since
+2026-11-26, when qword 13 became the frame constants' list-path counts).
 
 The output windows hold a fixed 48 emitted vertices each, not `N`: the program kicks a
 window when it fills and continues in the other (quake2-ps2's `OpenOutputWindow`), so the
@@ -1991,6 +1992,11 @@ ms that way. REF'd cooked batches make the EE cost per batch, not per vertex.
   work. The split's VU1 time over the vertices drawn is VU1's cycles a vertex, against
   `vu_cost.py`'s 54.4 for mars_city1 (the clipper and XGKICK stalls are outside the model). The
   console perf package plays the three runs in one boot. None of it means anything in PCSX2.
+- **The list path's work (2026-11-26).** In sampler builds world_lm counts its list batches, the
+  entries their passes walk, the clipper's calls and the calls that sent nothing into the frame
+  constants' last qword, which `dma::WaitIdle` reads and zeroes after each chain. PCSX2 gives exact
+  counts for the tour, frame for frame; `frame_log.py --vu-fit` fits the console's VU1 time against
+  them, and `vu_cost.py --list-path` models the list path's walk without the clipper.
 - **GS cost** is approximated by submitted pixel and texture-page estimates in PCSX2 and
   confirmed only on hardware.
 

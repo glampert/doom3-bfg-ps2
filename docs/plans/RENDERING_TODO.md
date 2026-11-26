@@ -421,7 +421,15 @@ production link free of test inputs. Section numbers in parentheses point into t
   - [ ] What the second console run found:
     - [ ] VU1 runs 179 cycles a vertex drawn, against the 52 to 59 that `vu_cost.py` models on the
           strip path, and from 69 to 440 depending on the view. Count the batches that take the list
-          path and the triangles the clipper cuts, then make that path cheaper.
+          path and the triangles the clipper cuts, then make that path cheaper. Counted 2026-11-27
+          (PORT_STATUS "The list path counted and priced"):
+          - 34% of the tour's batches take the list path;
+          - 4,699 clipper calls a frame, 92% of which send nothing;
+          - the fit prices a vertex at 54.8 cycles, a list entry at 35.8 more, a clip at 1,232 and a
+            rejected one at 194.
+
+          The clipper is 4.45 ms of VU1's 8.04 ms a frame, 2.84 ms of it on triangles wholly outside
+          one plane. Next: keep each vertex's clip flags and reject those triangles before the call.
     - [ ] Every frame over two fields is limited by the EE's view build: about 10 µs a batch,
           36 µs an upload and 105 µs a mid-pass eviction. Split `view_us` into its stages; area 8's
           north views reach 1,486 batches and 250 uploads a frame.

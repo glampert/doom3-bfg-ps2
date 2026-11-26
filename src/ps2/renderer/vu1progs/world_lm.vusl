@@ -31,11 +31,11 @@
 #include "world.vush"
 #include "clipper.vush"
 
-// The free qwords between the frame constants and the double buffer (13-39), where the
+// The free qwords between the frame constants and the double buffer (14-39), where the
 // program keeps the values that do not fit in its registers.
 struct WorkArea
 {
-    qword q[27];
+    qword q[26];
 };
 
 // A cooked vertex: s16 position, s16 UVs with the lightmap pair in 4.12, RGBA bytes, and a free
@@ -214,6 +214,10 @@ void listPass(inout Frame frame, inout Windows windows, inout Batch batch, int16
     ref<Projected> prev1     = ref<Projected>(batch.vertices);
     ref<Projected> prev2     = prev1;
 
+#if PS2_D3BFG_GPU_SAMPLER
+    frame.stats.entries = frame.stats.entries + float(left);
+#endif
+
     while (left > 0)
     {
         // Room for the most a clipped triangle fans out to: five planes leave at most eight
@@ -254,7 +258,19 @@ void listPass(inout Frame frame, inout Windows windows, inout Batch batch, int16
             }
             else
             {
+#if PS2_D3BFG_GPU_SAMPLER
+                int16 before      = room;
+                frame.stats.clips = frame.stats.clips + 1.0;
+#endif
+
                 ClipTriangle(cursor, room, a, b, c, float(pass));
+
+#if PS2_D3BFG_GPU_SAMPLER
+                if (room == before)
+                {
+                    frame.stats.empty = frame.stats.empty + 1.0;
+                }
+#endif
             }
         }
 
@@ -269,7 +285,7 @@ void main(layout(address = 0) inout Frame frame,
           layout(xtop, vif_base = 40, vif_offset = 306) inout Batch batch,
           layout(address = 652) inout Windows windows,
           layout(address = 954, spill) inout Scratch scratch,
-          layout(address = 13, spill) inout WorkArea work)
+          layout(address = 14, spill) inout WorkArea work)
 {
     // The material's registers go first: every window waits behind them.
     xgkick(batch.state);
@@ -335,6 +351,10 @@ void main(layout(address = 0) inout Frame frame,
     }
     else
     {
+#if PS2_D3BFG_GPU_SAMPLER
+        frame.stats.batches = frame.stats.batches + 1.0;
+#endif
+
         // Phase 2, list path: the stream as triangles, once a pass.
         listPass(frame, windows, batch, 0);
 
