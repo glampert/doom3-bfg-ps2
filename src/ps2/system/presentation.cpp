@@ -964,13 +964,13 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
                  "lightmaps=%d pages=%u unlit=%u passes=%u pass_fallbacks=%u sky_faces=%u sky_fallbacks=%u repacks=%u "
                  "stream_loads=%u stream_bytes=%u copies=%u copy_bytes=%u copy_peak=%u stream_failures=%u stream_misses=%u "
                  "stream_waits=%u stream_wait_ms=%u overflows=%u pass_evictions=%u moved_states=%u moved_fallbacks=%u upload_bytes=%u "
-                 "vram_yields=%u yielded_bytes=%u regrows=%u\n",
+                 "vram_yields=%u yielded_bytes=%u regrows=%u stream_reads=%u\n",
                  ps2::renderer::world::TexturesEnabled() ? 1 : 0, stats.arenaBytes, stats.resident, stats.residentBytes, stats.uploads,
                  stats.evictions, stats.untexturedFallbacks, ps2::renderer::world::LightmapsEnabled() ? 1 : 0, stats.pagesResident,
                  stats.unlitFallbacks, stats.passes, stats.passFallbacks, stats.skyFaces, stats.skyFallbacks, stats.repacks, stats.streamLoads,
                  stats.streamBytes, stats.copies, stats.copyBytes, stats.copyPeakBytes, stats.streamFailures, stats.streamMisses,
                  stats.streamWaits, stats.streamWaitMs, stats.overflows, stats.passEvictions, stats.movedStates, stats.movedFallbacks,
-                 stats.uploadBytes, stats.vramYields, stats.yieldedBytes, stats.regrows);
+                 stats.uploadBytes, stats.vramYields, stats.yieldedBytes, stats.regrows, stats.streamReads);
         return;
     }
 

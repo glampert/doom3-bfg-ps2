@@ -404,8 +404,13 @@ production link free of test inputs. Section numbers in parentheses point into t
           the loader's read (USB up to 46 ms, HDD up to 265 ms). Done 2026-11-26: the keyboard is
           off unless `ps2_keyboard` is set (its driver then starts once), and an idle one is read
           once a second, never while the loader reads.
-    - [ ] Streaming reads one small range at a time: order the D3TX by area and merge adjacent
+    - [x] Streaming reads one small range at a time: order the D3TX by area and merge adjacent
           requests, so a read brings in a whole area's textures (USB misses 3.6 times the HDD's).
+          Done 2026-11-26: the D3TX was already in portal-walk order; a pass's missing textures now
+          go in file order as gathered requests (runs of up to 128 KiB and 32 textures, through gaps
+          of 16 KiB), read through the loader's chunk buffer into each texture's own copy, each
+          landing once its chunks have. The retail gate: 168 read calls and 93 seeks against 236
+          and 154. Console figures wait for the next run.
     - [ ] Split VU1 from GS time in the chain (the log times it whole): a console A/B with an
           empty scissor, `textures off` and `lightmaps off` on the same tour.
 

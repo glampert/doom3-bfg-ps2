@@ -9,7 +9,10 @@
 //        not time-slice.
 //
 //        Requests run a chunk at a time (kChunkBytes on the file's chunk boundaries), and the best
-//        (priority, sequence) request is picked again after every chunk.
+//        (priority, sequence) request is picked again after every chunk. A gathered request reads
+//        one range for several destinations (pieces): every call to the IOP's file server costs
+//        the drive's latency (on a console 33 ms a read from USB and 12 ms from the HDD, most of it
+//        not the bytes), so neighbouring files read in one range cost one call a chunk.
 //
 //        Rules. The loader touches its request slots, the descriptors it is handed (it never opens or
 //        closes one), lseek and read. It never allocates, logs or touches the engine: a failure is a
@@ -57,6 +60,15 @@ static constexpr int kErrSeek = -1;     // lseek to the range failed
 static constexpr int kErrRead = -2;     // read failed or ended early
 static constexpr int kErrNoThread = -3; // a stale ticket
 
+// One destination of a gathered request: 'bytes' of the file from 'offset' land at 'dest' (64-byte
+// aligned, at least RoundUp64(bytes)).
+struct Piece
+{
+    u32 offset;
+    u32 bytes;
+    u8 * dest;
+};
+
 struct Request
 {
     Priority priority = Priority::Low;
@@ -65,6 +77,13 @@ struct Request
     u32 bytes = 0;
     void * dest = nullptr; // 64-byte aligned, at least RoundUp64(bytes)
     u32 destBytes = 0;
+
+    // A gathered request: the range is read a chunk at a time into the loader's own buffer and each
+    // piece copied out to its destination ('dest' unused), the bytes between pieces dropped. Pieces
+    // lie inside the range in file order without overlapping; they stay the caller's, unchanged,
+    // while the request is pending. A piece wholly inside Progress() is the caller's again.
+    const Piece * pieces = nullptr;
+    u32 pieceCount = 0;
 };
 
 // What Submit hands back. A default one is invalid; one of a released slot goes stale, and Poll
@@ -89,6 +108,10 @@ State Poll(Ticket ticket);
 // Bytes delivered, or a negative code, once Poll says Done or Failed.
 int Result(Ticket ticket);
 
+// The bytes of a pending request's range landed so far, from its start (0 for a stale ticket): its
+// pieces that end inside them have been copied out.
+u32 Progress(Ticket ticket);
+
 // Sleeps until the request is Done or Failed; the loader runs meanwhile.
 void Wait(Ticket ticket);
 
@@ -107,7 +130,8 @@ void Drain();
 void ForgetDescriptor(int fd);
 
 // Reads the range on the calling thread (lseek and read): Submit's fallback when the loader is off.
-// Bytes delivered, or a negative code. No request may be pending (Drain first).
+// Bytes read (the whole range for a gathered request, each piece read on its own), or a negative
+// code. No request may be pending (Drain first).
 int ReadNow(const Request & request);
 
 // False when the thread could not start: every client reads synchronously.
@@ -119,7 +143,7 @@ bool Busy();
 // Cumulative since boot.
 struct Stats
 {
-    u32 bytes;      // delivered into destinations
+    u32 bytes;      // read from the drive (a gathered request's whole range)
     u32 chunks;     // read calls made
     u32 seeks;      // lseek calls made (a read that continues where the last one ended needs none)
     u64 ioCycles;   // EE cycles spent inside the reads and seeks (COP0 Count, 294.912 MHz)

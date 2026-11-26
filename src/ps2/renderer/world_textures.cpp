@@ -26,6 +26,7 @@
 #include "ps2/system/heap.h"
 #include "ps2/system/log.h"
 
+#include <algorithm>
 #include <bit>
 #include <fcntl.h>
 #include <unistd.h>
@@ -60,8 +61,18 @@ static constexpr u32 kGsBlockBytes = 256;
 // pages (RENDERING_ARCHITECTURE.md 16.1); mars_city1's worst view and its neighbours want 1.98 MB.
 static constexpr u32 kCopyBudgetBytes = 2U * 1024U * 1024U;
 
-// Reads queued at once, of the loader's 32 slots: a view's textures queue over a few passes.
-static constexpr u32 kMaxPendingReads = 16;
+// Streaming reads (RENDERING_ARCHITECTURE.md 10.5). A pass's missing textures go to the loader in
+// file order, neighbouring files gathered into one request (Run): every read call costs the drive's
+// latency, which on a console outweighs a small texture's bytes (an 8 KB read took 33 ms from USB,
+// 12 ms from the HDD). A run spans at most kRunSpanBytes of the file and kRunTextures textures, and
+// reads through gaps of up to kRunGapBytes (textures already in, or not wanted) rather than seek.
+// kMaxRuns requests and kMaxPendingReads textures are queued at once, of the loader's 32 slots.
+static constexpr u32 kMaxRuns = 16;
+static constexpr u32 kRunTextures = 32;
+static constexpr u32 kRunSpanBytes = 128U * 1024U;
+static constexpr u32 kRunGapBytes = 16U * 1024U;
+static constexpr u32 kMaxPendingReads = 64;
+static constexpr u8 kNoRun = 0xFF;
 
 // COP0 Count runs at the EE clock: cycles per millisecond.
 static constexpr u32 kCyclesPerMs = 294912;
@@ -93,7 +104,8 @@ struct Slot
     // Streaming. The copy is the texture's file, 64-byte aligned; images[] holds its Image once it
     // landed (registers and blocks kept after the copy leaves, the stream pointer cleared).
     u8 * copy;
-    system::aio::Ticket ticket; // valid while the read is pending
+    u8 run;                     // the Run reading it in, kNoRun when no read is pending
+    u32 gathered;               // the gathering (Textures::gatherStamp) that last listed it
     u32 wantedFrame;            // the last pass that wanted the copy: never evicted during it
     u32 uploadChain;            // the chain whose upload last REF'd the copy (dma::OpenChain)
     Want want;                  // this pass's (wantedFrame)
@@ -131,6 +143,17 @@ struct Range
 {
     u32 start;
     u32 count;
+};
+
+// A read in flight: textures of neighbouring files, in file order, one piece of the request each.
+// Its first 'landed' have landed already: a texture lands once the chunks that hold it have.
+struct Run
+{
+    system::aio::Ticket ticket;
+    u32 count; // 0: free
+    u32 landed;
+    u16 textures[kRunTextures];
+    system::aio::Piece pieces[kRunTextures];
 };
 
 // The pass colour block's flag word (word 3 of its second qword): negative, where a lightmap page
@@ -454,7 +477,13 @@ struct Textures
     bool streamed;
     bool lastTextured;
     bool lastLightmapped;
+    // Textures whose read is pending, and the reads; the textures a pass gathered for its next
+    // requests (deduplicated by the stamp), sorted by file offset before they go.
     u32 pendingReads;
+    Run runs[kMaxRuns];
+    u16 * gathered;
+    u32 gatheredCount;
+    u32 gatherStamp;
     // The planned batches' textures in draw order, two entries a batch (its diffuse and its page, or
     // kNoUse), and the batch the pass draws now (AdvanceBatch): a mid-pass eviction gives up the
     // texture whose next use is furthest, never the current batch's two (pinned). Once a pass needs
@@ -641,6 +670,7 @@ PS2_COLD_FUNC static void FreeTables(Textures * textures)
     system::heap::Free(textures->nextAt);
     system::heap::Free(textures->uses);
     system::heap::Free(textures->drawnAreas);
+    system::heap::Free(textures->gathered);
     system::heap::Free(textures->neighbourFirst);
     system::heap::Free(textures->neighbours);
     system::heap::Free(textures->areaFirst);
@@ -756,6 +786,7 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
         textures->colorBlocks =
             static_cast<qword_t *>(system::heap::TryAlloc(sizeof(qword_t) * kPageStrideQwords * 2U * (pack.passCount + 1U), TAG_RENDER, 64));
         textures->planOrder = static_cast<u32 *>(system::heap::TryAlloc(sizeof(u32) * textureCount, TAG_RENDER));
+        textures->gathered = static_cast<u16 *>(system::heap::TryAlloc(sizeof(u16) * textureCount, TAG_RENDER));
         textures->planFree = static_cast<Range *>(system::heap::TryAlloc(sizeof(Range) * (textureCount + 1U), TAG_RENDER));
         // Two a batch, and two a material pass of each.
         u32 passUses = 0;
@@ -776,7 +807,7 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
                         textures->passes == nullptr || textures->passStates == nullptr || textures->passBlocks == nullptr ||
                         textures->colorBlocks == nullptr || textures->planOrder == nullptr || textures->planFree == nullptr ||
                         textures->uses == nullptr || textures->nextAt == nullptr || textures->nextUse == nullptr ||
-                        textures->movedBlocks == nullptr
+                        textures->movedBlocks == nullptr || textures->gathered == nullptr
                     ? "no memory for its residency"
                     : nullptr;
     }
@@ -816,6 +847,7 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
     for (u32 index = 0; index < pack.textureCount; ++index)
     {
         textures->slots[index] = {};
+        textures->slots[index].run = kNoRun;
         textures->images[index] = {};
     }
 
@@ -873,7 +905,7 @@ PS2_COLD_FUNC Textures * OpenTextures(const char * path, const char * name, cons
 static void FreeCopy(Textures & textures, u32 index)
 {
     Slot & slot = textures.slots[index];
-    PS2_AssertMsg(slot.copy != nullptr && !slot.ticket.IsValid() && dma::ChainDone(slot.uploadChain), "a texture copy freed while in use");
+    PS2_AssertMsg(slot.copy != nullptr && slot.run == kNoRun && dma::ChainDone(slot.uploadChain), "a texture copy freed while in use");
 
     system::heap::Free(slot.copy);
     textures.stats.copyBytes -= system::aio::RoundUp64(textures.pack.textures[index].bytes);
@@ -897,17 +929,26 @@ PS2_COLD_FUNC void FreeTextures(Textures * textures)
 
     tex::SetVramYield(nullptr, nullptr);
 
-    for (u32 index = 0; index < textures->pack.textureCount; ++index)
+    for (Run & run : textures->runs)
     {
-        Slot & slot = textures->slots[index];
-
-        if (slot.ticket.IsValid())
+        if (run.count == 0)
         {
-            system::aio::Cancel(slot.ticket);
-            slot.ticket = {};
+            continue;
         }
 
-        if (slot.copy != nullptr)
+        system::aio::Cancel(run.ticket);
+
+        for (u32 member = run.landed; member < run.count; ++member)
+        {
+            textures->slots[run.textures[member]].run = kNoRun;
+        }
+
+        run = {};
+    }
+
+    for (u32 index = 0; index < textures->pack.textureCount; ++index)
+    {
+        if (textures->slots[index].copy != nullptr)
         {
             FreeCopy(*textures, index);
         }
@@ -1491,26 +1532,64 @@ static void Land(Textures & textures, u32 index, int result)
     textures.stats.streamBytes += bytes;
 }
 
+// Lands a finished run's textures still waiting: each its own file's bytes when the request read the
+// whole range ('result' its span), the loader's code otherwise.
+static void LandRun(Textures & textures, Run & run, int result, u32 span)
+{
+    for (u32 member = run.landed; member < run.count; ++member)
+    {
+        const u32 index = run.textures[member];
+        textures.slots[index].run = kNoRun;
+        Land(textures, index, result == static_cast<int>(span) ? static_cast<int>(textures.pack.textures[index].bytes)
+                                                                 : result < 0 ? result : system::aio::kErrRead);
+    }
+
+    run = {};
+}
+
+// Lands the textures of a running run whose chunks have all arrived: a large run's first files need
+// not wait for its last.
+static void LandArrived(Textures & textures, Run & run)
+{
+    const u32 arrived = run.pieces[0].offset + system::aio::Progress(run.ticket);
+
+    while (run.landed < run.count && run.pieces[run.landed].offset + run.pieces[run.landed].bytes <= arrived)
+    {
+        const u32 index = run.textures[run.landed];
+        textures.slots[index].run = kNoRun;
+        ++run.landed;
+        Land(textures, index, static_cast<int>(textures.pack.textures[index].bytes));
+    }
+}
+
+// The bytes of the file a run's request reads, from its first texture's start to its last's end.
+static u32 RunSpan(const Run & run)
+{
+    const system::aio::Piece & last = run.pieces[run.count - 1U];
+    return last.offset + last.bytes - run.pieces[0].offset;
+}
+
 // Lands every read the loader finished.
 static void Harvest(Textures & textures)
 {
-    for (u32 index = 0; index < textures.pack.textureCount && textures.pendingReads > 0; ++index)
+    for (Run & run : textures.runs)
     {
-        Slot & slot = textures.slots[index];
-
-        if (!slot.ticket.IsValid())
+        if (run.count == 0)
         {
             continue;
         }
 
-        const system::aio::State state = system::aio::Poll(slot.ticket);
+        const system::aio::State state = system::aio::Poll(run.ticket);
 
         if (state == system::aio::State::Done || state == system::aio::State::Failed)
         {
-            const int result = system::aio::Result(slot.ticket);
-            system::aio::Release(slot.ticket);
-            slot.ticket = {};
-            Land(textures, index, result);
+            const int result = system::aio::Result(run.ticket);
+            system::aio::Release(run.ticket);
+            LandRun(textures, run, result, RunSpan(run));
+        }
+        else if (state == system::aio::State::Running && run.count > 1U)
+        {
+            LandArrived(textures, run);
         }
     }
 }
@@ -1547,11 +1626,9 @@ static void MakeRoom(Textures & textures, u32 bytes, bool all)
     }
 }
 
-// Queues the read of texture 'index' into a new copy; false when no copy or loader slot is free now.
-// Without the loader thread it reads at once.
-static bool Request(Textures & textures, u32 index, system::aio::Priority priority)
+// A new copy for texture 'index', within the budget if the copies leaving allow; null when none fits.
+static u8 * AllocateCopy(Textures & textures, u32 index)
 {
-    Slot & slot = textures.slots[index];
     const u32 bytes = CopyBytes(textures, index);
     MakeRoom(textures, bytes, false);
     void * copy = system::heap::TryAlloc(bytes, TAG_RENDER, 64);
@@ -1562,38 +1639,126 @@ static bool Request(Textures & textures, u32 index, system::aio::Priority priori
         copy = system::heap::TryAlloc(bytes, TAG_RENDER, 64);
     }
 
-    if (copy == nullptr)
+    return static_cast<u8 *>(copy);
+}
+
+// Queues the gathered textures' reads, in file order: each run of neighbouring files (gaps up to
+// kRunGapBytes, at most kRunSpanBytes and kRunTextures) as one request, while runs, the pending
+// limit and copies allow. Without the loader thread a run reads at once, each file on its own.
+static void SubmitGathered(Textures & textures, system::aio::Priority priority)
+{
+    u16 * const gathered = textures.gathered;
+    const tex::PackTexture * const files = textures.pack.textures;
+    std::sort(gathered, gathered + textures.gatheredCount, [files](u16 a, u16 b)
+              {
+                  return files[a].offset < files[b].offset;
+              });
+
+    u32 next = 0;
+
+    while (next < textures.gatheredCount && textures.pendingReads < kMaxPendingReads)
     {
-        return false;
+        Run * run = nullptr;
+
+        for (Run & candidate : textures.runs)
+        {
+            if (candidate.count == 0)
+            {
+                run = &candidate;
+                break;
+            }
+        }
+
+        if (run == nullptr)
+        {
+            return;
+        }
+
+        // The run: the next files while they stay close and within its limits, each with its copy.
+        const u32 start = files[gathered[next]].offset;
+        u32 end = start;
+
+        while (next < textures.gatheredCount && run->count < kRunTextures && textures.pendingReads + run->count < kMaxPendingReads)
+        {
+            const u32 index = gathered[next];
+            const tex::PackTexture & file = files[index];
+
+            if (run->count != 0 && (file.offset - end > kRunGapBytes || file.offset + file.bytes - start > kRunSpanBytes))
+            {
+                break;
+            }
+
+            u8 * const copy = AllocateCopy(textures, index);
+
+            if (copy == nullptr)
+            {
+                break;
+            }
+
+            textures.slots[index].copy = copy;
+            run->textures[run->count] = static_cast<u16>(index);
+            run->pieces[run->count] = { file.offset, file.bytes, copy };
+            ++run->count;
+            end = file.offset + file.bytes;
+            ++next;
+        }
+
+        if (run->count == 0)
+        {
+            return; // no copy fits now
+        }
+
+        // One file reads straight into its copy; more gather through the loader's chunk buffer.
+        system::aio::Request request;
+        request.priority = priority;
+        request.fd = textures.fd;
+        request.offset = start;
+        request.bytes = end - start;
+
+        if (run->count == 1U)
+        {
+            request.dest = run->pieces[0].dest;
+            request.destBytes = CopyBytes(textures, run->textures[0]);
+        }
+        else
+        {
+            request.pieces = run->pieces;
+            request.pieceCount = run->count;
+        }
+
+        const system::aio::Ticket ticket = system::aio::Submit(request);
+
+        if (!ticket.IsValid() && system::aio::Enabled())
+        {
+            // No loader slot free: the copies go back, and these textures queue on a later pass.
+            for (u32 member = 0; member < run->count; ++member)
+            {
+                system::heap::Free(textures.slots[run->textures[member]].copy);
+                textures.slots[run->textures[member]].copy = nullptr;
+            }
+
+            *run = {};
+            return;
+        }
+
+        run->ticket = ticket;
+        const u8 runIndex = static_cast<u8>(run - textures.runs);
+
+        for (u32 member = 0; member < run->count; ++member)
+        {
+            textures.slots[run->textures[member]].run = runIndex;
+            textures.stats.copyBytes += CopyBytes(textures, run->textures[member]);
+        }
+
+        textures.pendingReads += run->count;
+        textures.stats.copyPeakBytes = textures.stats.copyBytes > textures.stats.copyPeakBytes ? textures.stats.copyBytes : textures.stats.copyPeakBytes;
+        ++textures.stats.streamReads;
+
+        if (!ticket.IsValid())
+        {
+            LandRun(textures, *run, system::aio::ReadNow(request), request.bytes);
+        }
     }
-
-    system::aio::Request request;
-    request.priority = priority;
-    request.fd = textures.fd;
-    request.offset = textures.pack.textures[index].offset;
-    request.bytes = textures.pack.textures[index].bytes;
-    request.dest = copy;
-    request.destBytes = bytes;
-    const system::aio::Ticket ticket = system::aio::Submit(request);
-
-    if (!ticket.IsValid() && system::aio::Enabled())
-    {
-        system::heap::Free(copy);
-        return false;
-    }
-
-    slot.copy = static_cast<u8 *>(copy);
-    slot.ticket = ticket;
-    ++textures.pendingReads;
-    textures.stats.copyBytes += bytes;
-    textures.stats.copyPeakBytes = textures.stats.copyBytes > textures.stats.copyPeakBytes ? textures.stats.copyBytes : textures.stats.copyPeakBytes;
-
-    if (!ticket.IsValid())
-    {
-        Land(textures, index, system::aio::ReadNow(request));
-    }
-
-    return true;
 }
 
 // Whether this pass reads texture 'index': pages for the lightmap pass, the rest for textured passes.
@@ -1625,28 +1790,46 @@ static void WantArea(Textures & textures, u32 area, Want want, bool textured, bo
     }
 }
 
-// Queues the reads of the wanted textures of 'area' that have no copy, while the queue has room;
-// 'missing' tells whether one is still without a landed copy.
-static void RequestArea(Textures & textures, u32 area, system::aio::Priority priority, bool & missing)
+// Starts a gathering: the textures Gather lists next go to the loader together (SubmitGathered).
+static void BeginGather(Textures & textures)
+{
+    textures.gatheredCount = 0;
+    ++textures.gatherStamp;
+}
+
+// Lists the wanted textures of 'area' that have no copy and no read pending, once each a gathering.
+static void Gather(Textures & textures, u32 area)
 {
     for (u32 entry = textures.areaFirst[area]; entry < textures.areaFirst[area + 1U]; ++entry)
     {
         const u32 index = textures.areaTextures[entry];
         Slot & slot = textures.slots[index];
 
-        if (slot.wantedFrame != textures.frame || slot.want == Want::None || slot.loaded || slot.broken)
+        if (slot.wantedFrame != textures.frame || slot.want == Want::None || slot.loaded || slot.broken || slot.copy != nullptr ||
+            slot.gathered == textures.gatherStamp)
         {
             continue;
         }
 
-        if (slot.copy == nullptr && (textures.pendingReads >= kMaxPendingReads || !Request(textures, index, priority)))
-        {
-            missing = true;
-            continue;
-        }
-
-        missing = missing || !slot.loaded;
+        slot.gathered = textures.gatherStamp;
+        textures.gathered[textures.gatheredCount++] = static_cast<u16>(index);
     }
+}
+
+// Whether a wanted texture of 'area' still has no landed copy (or refusal).
+static bool Missing(const Textures & textures, u32 area)
+{
+    for (u32 entry = textures.areaFirst[area]; entry < textures.areaFirst[area + 1U]; ++entry)
+    {
+        const Slot & slot = textures.slots[textures.areaTextures[entry]];
+
+        if (slot.wantedFrame == textures.frame && slot.want != Want::None && !slot.loaded && !slot.broken)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static bool Adjacent(const Textures & textures, int from, int to)
@@ -1709,11 +1892,19 @@ static void Stream(Textures & textures, bool textured, bool lightmapped, int vie
 
     for (;;)
     {
-        bool missing = false;
+        BeginGather(textures);
 
         for (u32 area = 0; area < textures.drawnCount; ++area)
         {
-            RequestArea(textures, textures.drawnAreas[area], system::aio::Priority::High, missing);
+            Gather(textures, textures.drawnAreas[area]);
+        }
+
+        SubmitGathered(textures, system::aio::Priority::High);
+        bool missing = false;
+
+        for (u32 area = 0; area < textures.drawnCount && !missing; ++area)
+        {
+            missing = Missing(textures, textures.drawnAreas[area]);
         }
 
         if (!jump || !missing || textures.pendingReads == 0)
@@ -1723,11 +1914,11 @@ static void Stream(Textures & textures, bool textured, bool lightmapped, int vie
 
         waited = true;
 
-        for (u32 index = 0; index < textures.pack.textureCount; ++index)
+        for (const Run & run : textures.runs)
         {
-            if (textures.slots[index].ticket.IsValid())
+            if (run.count != 0)
             {
-                system::aio::Wait(textures.slots[index].ticket);
+                system::aio::Wait(run.ticket);
             }
         }
 
@@ -1740,17 +1931,20 @@ static void Stream(Textures & textures, bool textured, bool lightmapped, int vie
         textures.stats.streamWaitMs += (gs::ReadCycles() - start) / kCyclesPerMs;
     }
 
-    bool ahead = false;
+    // The view's area and its neighbours read ahead, gathered together.
+    BeginGather(textures);
 
     for (u32 entry = view >= 0 ? textures.neighbourFirst[view] : 0U; view >= 0 && entry < textures.neighbourFirst[view + 1]; ++entry)
     {
-        RequestArea(textures, textures.neighbours[entry], system::aio::Priority::Low, ahead);
+        Gather(textures, textures.neighbours[entry]);
     }
 
     if (view >= 0)
     {
-        RequestArea(textures, static_cast<u32>(view), system::aio::Priority::Low, ahead);
+        Gather(textures, static_cast<u32>(view));
     }
+
+    SubmitGathered(textures, system::aio::Priority::Low);
 }
 
 // ------------------------------------------------------------------------------------------------

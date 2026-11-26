@@ -1565,9 +1565,22 @@ to memory images belongs with R8.
     copies, against 3,047,744 for the whole package, with no misses or refused reads. Three passes
     waited, 47 ms in all. Read rates on USB and HDD, and the prefetch's reach on a console
     (quake2-ps2 measured 41 ms per 32 KB chunk on a USB stick), are gate R2's hardware items.
+  - **Gathered reads (2026-11-26).** The first console frame log showed the reads latency-bound: 8.4
+    KB a read, almost each after a seek, 33 ms a read from USB and 12 ms from the HDD. A pass now
+    gathers its missing textures (the drawn areas', then the view's and its neighbours'), sorts them
+    by file offset, and sends each run of neighbouring files as one loader request:
+    - **Limits.** A run is at most 128 KiB of the file and 32 textures, and it reads through gaps of up
+      to 16 KiB (textures already in, or not wanted) rather than seek. At most 16 runs and 64
+      textures are queued.
+    - **On the loader thread.** A gathered request reads its range a 32 KB chunk at a time into the
+      loader's own buffer and copies each texture's bytes into its copy there (`aio::Piece`), in time
+      the main thread sleeps.
+    - **Copies.** Each texture keeps its own copy, so the copy budget and its order are unchanged. A
+      texture lands as soon as the chunks holding it have (`aio::Progress`), not when its whole run has.
+    - **In PCSX2.** The retail gate's session took 168 read calls and 93 seeks for its textures,
+      against 236 and 154, for 6% more bytes; its tour missed 156 draws against 159.
   - **Open:**
     - Prefetch one portal deeper if console runs show misses.
-    - Coalesce adjacent requests into one read.
     - The lightmap pages are shared by nearly every area: per-segment pages would let them stream too.
 
 ---

@@ -96,7 +96,8 @@ TEXTURES = {"enabled": 1, "arena": 1064960, "resident": 42, "resident_bytes": 50
             "lightmaps": 1, "pages": 2, "unlit": 0, "passes": 12, "pass_fallbacks": 0, "sky_faces": 20, "sky_fallbacks": 0, "repacks": 0,
             "stream_loads": 60, "stream_bytes": 700000, "copies": 60, "copy_bytes": 702464, "copy_peak": 702464, "stream_failures": 0,
             "stream_misses": 0, "stream_waits": 3, "stream_wait_ms": 40, "overflows": 0, "pass_evictions": 0, "moved_states": 0,
-            "moved_fallbacks": 0, "upload_bytes": 600000, "vram_yields": 0, "yielded_bytes": 0, "regrows": 0}
+            "moved_fallbacks": 0, "upload_bytes": 600000, "vram_yields": 0, "yielded_bytes": 0, "regrows": 0,
+            "stream_reads": 12}
 
 
 def textures_line(**fields):
@@ -261,7 +262,8 @@ class RetailWorldRunnerTests(unittest.TestCase):
 
     def test_textured_pass_must_hold_its_textures(self):
         for change in ({"fallbacks": 1}, {"uploads": 0}, {"enabled": 0}, {"resident": 0}, {"lightmaps": 0}, {"pages": 0}, {"unlit": 1},
-                       {"stream_failures": 1}, {"stream_misses": 2}, {"stream_waits": 0}, {"moved_fallbacks": 1}):
+                       {"stream_failures": 1}, {"stream_misses": 2}, {"stream_waits": 0}, {"moved_fallbacks": 1},
+                       {"stream_reads": 0}, {"stream_reads": 60}):
             with self.subTest(change=change):
                 passed, reason, _ = classify(session(textures={"north": change}))
                 self.assertFalse(passed)

@@ -174,7 +174,8 @@ struct TextureStats
     // Streaming: textures read in and their bytes; copies in EE memory now, their bytes and the most
     // they held; reads refused (a read error or a file that failed validation: never read again);
     // draws left out because a texture's read had not landed (counted in the fallbacks above too);
-    // and the passes that waited for their textures after a jump, with the time they waited.
+    // the passes that waited for their textures after a jump, with the time they waited; and the
+    // loader requests the loads took (neighbouring files gather into one).
     u32 streamLoads;
     u32 streamBytes;
     u32 copies;
@@ -184,6 +185,7 @@ struct TextureStats
     u32 streamMisses;
     u32 streamWaits;
     u32 streamWaitMs;
+    u32 streamReads;
 };
 
 TextureStats GetTextureStats(const Textures * textures);

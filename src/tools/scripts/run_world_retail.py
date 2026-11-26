@@ -213,11 +213,12 @@ TEXTURES_RE = re.compile(r"\[D3BFG\] WORLD textures enabled=([01]) arena=(\d+) r
                          r"sky_faces=(\d+) sky_fallbacks=(\d+) repacks=(\d+) stream_loads=(\d+) stream_bytes=(\d+) copies=(\d+) "
                          r"copy_bytes=(\d+) copy_peak=(\d+) stream_failures=(\d+) stream_misses=(\d+) stream_waits=(\d+) "
                          r"stream_wait_ms=(\d+) overflows=(\d+) pass_evictions=(\d+) moved_states=(\d+) moved_fallbacks=(\d+) "
-                         r"upload_bytes=(\d+) vram_yields=(\d+) yielded_bytes=(\d+) regrows=(\d+)")
+                         r"upload_bytes=(\d+) vram_yields=(\d+) yielded_bytes=(\d+) regrows=(\d+) stream_reads=(\d+)")
 TEXTURE_FIELDS = ("enabled", "arena", "resident", "resident_bytes", "uploads", "evictions", "fallbacks", "lightmaps", "pages", "unlit",
                   "passes", "pass_fallbacks", "sky_faces", "sky_fallbacks", "repacks", "stream_loads", "stream_bytes", "copies",
                   "copy_bytes", "copy_peak", "stream_failures", "stream_misses", "stream_waits", "stream_wait_ms", "overflows",
-                  "pass_evictions", "moved_states", "moved_fallbacks", "upload_bytes", "vram_yields", "yielded_bytes", "regrows")
+                  "pass_evictions", "moved_states", "moved_fallbacks", "upload_bytes", "vram_yields", "yielded_bytes", "regrows",
+                  "stream_reads")
 TEXTURE_LOAD_RE = re.compile(rf"\[D3BFG\] world textures {re.escape(MAP)}\.d3tx: textures=(\d+) materials=(\d+) pages=(\d+) "
                              r"passes=(\d+) areas=(\d+) bytes=(\d+) tables=(\d+) streamed")
 
@@ -527,6 +528,9 @@ def classify(log: str, identity: str, standard: str, report: dict, probes: dict,
                 textures[0]["stream_failures"] != 0 or textures[0]["stream_misses"] != 0 or textures[0]["stream_waits"] == 0 or
                 textures[0]["moved_fallbacks"] != 0):
             return False, f"{view.name}: the lit pass did not hold its textures and pages: {textures[0]}", {}
+        # Neighbouring files gather into one loader request: the loads took fewer requests than textures.
+        if not 0 < textures[0]["stream_reads"] < textures[0]["stream_loads"]:
+            return False, f"{view.name}: {textures[0]['stream_loads']} textures took {textures[0]['stream_reads']} reads; none gathered", {}
         bits = renderer_capture.draw_bits(run_world.default_display(standard).profile)
         if int(captures[0][4]) != bits:
             return False, f"{view.name}: captured in the {captures[0][4]}-bit profile; expected {bits}", {}

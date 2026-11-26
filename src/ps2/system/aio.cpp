@@ -15,6 +15,7 @@
 #include "ps2/system/log.h"
 
 #include <cstdint>
+#include <cstring>
 #include <kernel.h>
 #include <unistd.h>
 
@@ -39,12 +40,18 @@ struct Slot
     u32 offset;
     u32 bytes;
     u8 * dest;
+    const Piece * pieces; // a gathered request's, null otherwise
+    u32 pieceCount;
+    u32 nextPiece;          // loader-only: the first piece not wholly copied
     volatile u32 bytesDone; // loader writes, main reads
     volatile int result;    // loader writes, main reads
 };
 
 static Slot s_slots[kSlotCount] = {};
 alignas(16) static u8 s_stack[kStackBytes];
+
+// A gathered request's chunk lands here before its pieces are copied out: a SIF DMA target.
+alignas(64) static u8 s_staging[kChunkBytes];
 
 static s32 s_threadId = -1;
 static s32 s_workSema = -1; // one signal per Submit; the loader serves all it can per wake
@@ -149,18 +156,56 @@ static void Finish(Slot & slot, int result)
     slot.state = result < 0 ? State::Failed : State::Done;
 }
 
+// Copies the chunk [position, position + bytes) in the staging buffer to the pieces it covers. The
+// reads wrote the buffer back and dropped it from the data cache before their DMA, so the copies read
+// what landed; the destinations' lines stay dirty until the caller syncs them.
+static void Scatter(Slot & slot, u32 position, u32 bytes)
+{
+    const u32 end = position + bytes;
+
+    while (slot.nextPiece < slot.pieceCount)
+    {
+        const Piece & piece = slot.pieces[slot.nextPiece];
+        const u32 pieceEnd = piece.offset + piece.bytes;
+        const u32 from = piece.offset > position ? piece.offset : position;
+        const u32 to = pieceEnd < end ? pieceEnd : end;
+
+        if (from < to)
+        {
+            memcpy(piece.dest + (from - piece.offset), s_staging + (from - position), to - from);
+        }
+
+        // A piece that goes on past the chunk continues in the next one.
+        if (pieceEnd > end)
+        {
+            break;
+        }
+
+        ++slot.nextPiece;
+    }
+}
+
 static void RunChunk(Slot & slot)
 {
     const u32 done = slot.bytesDone;
     const u32 position = slot.offset + done;
     const u32 bytes = ChunkEnd(position, slot.offset + slot.bytes) - position;
-    const int error = ReadRange(slot.fd, position, slot.dest + done, bytes);
+    const bool gathered = slot.pieces != nullptr;
+    const int error = ReadRange(slot.fd, position, gathered ? s_staging : slot.dest + done, bytes);
 
     if (error != 0) [[unlikely]]
     {
         Finish(slot, error);
         return;
     }
+
+    if (gathered)
+    {
+        Scatter(slot, position, bytes);
+    }
+
+    // The pieces' copies before the count that hands them back (Progress).
+    CompilerBarrier();
 
     slot.bytesDone = done + bytes;
     s_statBytes = s_statBytes + bytes;
@@ -336,9 +381,27 @@ bool Enabled()
 
 Ticket Submit(const Request & request)
 {
-    PS2_AssertMsg((reinterpret_cast<std::uintptr_t>(request.dest) & 63U) == 0 && request.destBytes >= RoundUp64(request.bytes) &&
+#if PS2_D3BFG_ASSERTS
+    if (request.pieces != nullptr)
+    {
+        u32 end = request.offset;
+
+        for (u32 index = 0; index < request.pieceCount; ++index)
+        {
+            const Piece & piece = request.pieces[index];
+            PS2_AssertMsg(piece.offset >= end && piece.bytes != 0 && piece.offset + piece.bytes <= request.offset + request.bytes &&
+                              (reinterpret_cast<std::uintptr_t>(piece.dest) & 63U) == 0,
+                          "aio gathered request with an unaligned piece, or pieces out of order or outside the range");
+            end = piece.offset + piece.bytes;
+        }
+    }
+#endif // PS2_D3BFG_ASSERTS
+
+    PS2_AssertMsg((request.pieces != nullptr ? request.pieceCount != 0
+                                             : (reinterpret_cast<std::uintptr_t>(request.dest) & 63U) == 0 &&
+                                                   request.destBytes >= RoundUp64(request.bytes)) &&
                       request.fd >= 0,
-                  "aio request with an unaligned or short destination, or no descriptor");
+                  "aio request with an unaligned or short destination, no pieces, or no descriptor");
 
     if (request.bytes == 0 || !EnsureThread())
     {
@@ -360,6 +423,9 @@ Ticket Submit(const Request & request)
         slot.offset = request.offset;
         slot.bytes = request.bytes;
         slot.dest = static_cast<u8 *>(request.dest);
+        slot.pieces = request.pieces;
+        slot.pieceCount = request.pieceCount;
+        slot.nextPiece = 0;
         slot.bytesDone = 0;
         slot.result = 0;
 
@@ -400,6 +466,18 @@ int Result(Ticket ticket)
     const State state = slot.state;
     CompilerBarrier();
     return InFlight(state) ? 0 : slot.result;
+}
+
+u32 Progress(Ticket ticket)
+{
+    if (!IsCurrent(ticket))
+    {
+        return 0;
+    }
+
+    const u32 done = s_slots[ticket.slot].bytesDone;
+    CompilerBarrier();
+    return done;
 }
 
 void Wait(Ticket ticket)
@@ -485,6 +563,25 @@ int ReadNow(const Request & request)
         PS2_AssertMsg(!InFlight(slot.state), "aio synchronous read while the loader reads");
     }
 #endif // PS2_D3BFG_ASSERTS
+
+    // A gathered request reads each piece on its own: no staging copy on the caller's thread.
+    for (u32 index = 0; index < request.pieceCount; ++index)
+    {
+        const Piece & piece = request.pieces[index];
+        const int error = ReadRange(request.fd, piece.offset, piece.dest, piece.bytes);
+
+        if (error != 0)
+        {
+            return error;
+        }
+
+        s_statBytes = s_statBytes + piece.bytes;
+    }
+
+    if (request.pieces != nullptr)
+    {
+        return static_cast<int>(request.bytes);
+    }
 
     const int error = ReadRange(request.fd, request.offset, static_cast<u8 *>(request.dest), request.bytes);
 

@@ -170,6 +170,11 @@ the present's vsync wait (a vblank semaphore), in `aio::Wait`, or in a SIF RPC o
 - **The main thread opens and closes the descriptors.** It hands one over, and calls
   `aio::ForgetDescriptor` before `close`.
 - **`aio::ReadNow`** (the synchronous fallback) needs an idle loader: no request may be pending.
+- **Gather neighbouring reads** (2026-11-26): a call to the IOP's file server costs the drive's
+  latency (a console's 8 KB reads took 33 ms from USB, 12 ms from the HDD). A request with `pieces`
+  reads one range through the loader's 32 KB chunk buffer and copies each piece out. A piece wholly
+  inside `aio::Progress` is the caller's again. fio and fileXio write back and invalidate the
+  destination before their DMA, so the loader may read the chunk buffer straight after.
 - fio's and fileXio's RPC clients each lock their buffers with a semaphore, so the two threads can
   both make file calls; one waits behind the other's chunk in flight.
 

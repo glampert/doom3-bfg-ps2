@@ -6410,3 +6410,37 @@ VU1 and the GS's, not their sum, and shows one frame later.
 | `make test-ui` | `20261126T010630Z_session_bbe18d972673` (NTSC), `20261126T011622Z_session_a291c624e6de` (PAL), and the rejection cases |
 | `make test-host` | Passed (420) |
 | `make`, `make release` | Passed, no warnings |
+
+## Gathered streaming reads (2026-11-26)
+
+The fourth fix from the console frame log. There, reads were latency-bound: 8.4 KB a read, almost
+each after a seek, 33 ms a read from USB and 12 ms from the HDD. The D3TX was already laid out in a
+portal walk, so an area's new textures sit side by side. What changed is how a pass asks for them.
+- **Gathered requests.** A pass gathers its missing textures (the drawn areas' at high priority,
+  then the view's and its neighbours'), sorts them by file offset, and sends each run of neighbouring
+  files as one loader request. A run spans up to 128 KiB and 32 textures, and reads through gaps of up
+  to 16 KiB rather than seek. Up to 16 runs and 64 textures are queued.
+- **The loader copies the pieces.** A gathered request reads its range a 32 KB chunk at a time into
+  the loader's own buffer (32 KB of BSS) and copies each texture's bytes into that texture's copy
+  (`aio::Piece`). That copying runs on the loader thread, while the main thread sleeps.
+- **Copies are unchanged.** Each texture keeps its own copy, budget and eviction order. A texture
+  lands once the chunks holding it have (`aio::Progress`), so the first files of a run never wait
+  for its last.
+- **Gate check.** `ps2_world textures status` adds `stream_reads`. The retail gate now requires every
+  view's loads to have taken fewer requests than textures (in this run, 114 textures in 58 requests
+  at the first view).
+- **PCSX2's whole release tour** (`host:`, every fix of the day against yesterday's build): 997
+  textures streamed in 768 read calls and 402 seeks, against 1,001 in 1,316 and 884, for 6% more
+  bytes (11.4 MB). The draws missing their texture fell from 5,860 to 3,983, which the other fixes
+  share. In the retail gate's session alone: 168 read calls and 93 seeks against 236 and 154, and the
+  tour's misses went from 159 to 156.
+
+PCSX2 reads `host:` almost for free, so what the console saves depends on its per-call latency: the
+next console run measures it.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261126T051312Z_world_retail_bced61308295` (NTSC), `20261126T051416Z_world_retail_e780271dc978` (PAL) |
+| `make test-world` | `20261126T051852Z_world_f2035c603a69`, `20261126T051904Z_world_97d06ec6a4a3` |
+| `make test-host` | Passed (420): the runner refuses a view whose loads gathered nothing |
+| `make`, `make release` | Passed, no warnings; the release tour played whole in PCSX2 |
