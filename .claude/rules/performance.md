@@ -68,6 +68,16 @@ tour (below); there is no campaign baseline yet. Quake timings below are not Doo
     builds its views in 28% less time with the same evictions).
   - One-field frames waited 6.5 ms for VU1 and the GS.
   - The loader read 706 KiB/s from the HDD and 248 KiB/s from USB, in 8.4 KB reads.
+- **Second console run (2026-11-26, PORT_STATUS "Second console frame log"):** with the four fixes the
+  pipelined tour takes 149 s on either drive (79% of frames at one field, 2% at three or more). Its
+  logs, copied to `build/console-2026-11-26/` (restaging the package clears them), are the new
+  baselines.
+  - The chain is VU1's: 75.5% of serial chain time. The GS's pixel work is 1.5 ms a frame.
+  - VU1 runs 179 cycles a vertex drawn, against `vu_cost.py`'s 52 to 59 on the strip path; the gap
+    depends on the view (the list path and the clipper, which the model never runs).
+  - The worst frames are EE-bound: about 10 µs a batch and 105 µs a mid-pass eviction.
+  - Pair a serial log with the pipelined one of the same build (the tour plays frame for frame) to
+    tell a chain-bound frame from an EE-bound one.
 - **Fit a stage's column against the counters** (least squares over the rows) to price a cost:
   it found the eviction cost at R² 0.989. Stalls spaced at a fixed interval point at a periodic
   call: the keyboard's 250 ms poll waits for the loader's read in flight, since both are fileXio

@@ -411,11 +411,21 @@ production link free of test inputs. Section numbers in parentheses point into t
           of 16 KiB), read through the loader's chunk buffer into each texture's own copy, each
           landing once its chunks have. The retail gate: 168 read calls and 93 seeks against 236
           and 154. Console figures wait for the next run.
-    - [ ] Split VU1 from GS time in the chain (the log times it whole): a console A/B with an
+    - [x] Split VU1 from GS time in the chain (the log times it whole): a console A/B with an
           empty scissor, `textures off` and `lightmaps off` on the same tour. Tooling done
           2026-11-26: the GPU sampler (`vu_us`, `gs_us`, `direct_us`, `vif_us`, `tail_us`, adding up
           to `gpu_us`), `ps2_world fill off`, and a perf package that plays the tour pipelined,
-          serial and serial without fill in one boot. The console run is open.
+          serial and serial without fill in one boot. Second console run (2026-11-26, PORT_STATUS
+          "Second console frame log"): the tour takes 149 s pipelined; serial chains are 75.5% VU1
+          and 22.5% GS, and the GS's pixel work is 1.5 ms a frame.
+  - [ ] What the second console run found:
+    - [ ] VU1 runs 179 cycles a vertex drawn, against the 52 to 59 that `vu_cost.py` models on the
+          strip path, and from 69 to 440 depending on the view. Count the batches that take the list
+          path and the triangles the clipper cuts, then make that path cheaper.
+    - [ ] Every frame over two fields is limited by the EE's view build: about 10 µs a batch,
+          36 µs an upload and 105 µs a mid-pass eviction. Split `view_us` into its stages; area 8's
+          north views reach 1,486 batches and 250 uploads a frame.
+    - [ ] USB's first map load takes 27 s (4.6 s from the HDD).
 
 ## R3: layers, switches, fog and blend lights
 

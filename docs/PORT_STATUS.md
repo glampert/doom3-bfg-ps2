@@ -6494,3 +6494,50 @@ The tooling for the last item of the console frame log: what the chain's time is
 | `make test-renderer` | `20261126T055614Z_smoke_9e201b65e24e4f64` (NTSC), `20261126T055629Z_smoke_6b57d4d945b64911` (PAL), and the expected-fatal probes |
 | `make test-host` | Passed (420) |
 | `make`, `make release` | Passed, no warnings; `make BUILD=release` with each instrumentation define combination off links without warnings |
+
+## Second console frame log: the four fixes and the chain's split (2026-11-26)
+
+The perf package of `bfc5977` (oxide-vcl `7be50f7`), NTSC 640x448 FIELD 32/32, release, played the
+mars_city1 tour three times from the HDD and three from USB: pipelined, serial, and serial with fill
+off. Every log is complete (7,244 frames) and labelled; copies are in `build/console-2026-11-26/`.
+
+| Run (HDD / USB) | Tour | One field | Three or more | `view_us` | `gpu_us` | `vsync_us` |
+| --- | --- | --- | --- | --- | --- | --- |
+| First run (serial, before the fixes) | 199.2 / 193.4 s | 62% | 12% | 7,962 / 6,976 | 10,641 / 10,580 | 8,593 / 8,542 |
+| Pipelined | 149.4 / 149.0 s | 78.8% / 78.7% | 2.4% / 1.9% | 6,279 / 6,064 | 5,084 / 5,027 | 9,164 / 9,374 |
+| Serial | 186.0 / 184.0 s | 62.6% / 62.5% | 11.1% / 10.6% | 6,106 / 5,909 | 10,653 / 10,609 | 8,820 / 8,787 |
+| Serial, fill off | 178.3 / 176.4 s | 66.9% / 67.3% | 10.2% / 9.5% | 6,088 / 5,866 | 9,126 / 9,093 | 9,306 / 9,296 |
+
+- **The fixes.** The pipelined tour is 25% shorter than the first run (23% from USB), and it runs at
+  48.5 fps on average. Pipelining alone saves 37 s against this build's serial run: the EE now
+  covers about 5.6 ms of each frame's chain.
+  - `game_us` fell from 264 µs to 60 µs (566 to 60 from USB): that was the keyboard's poll.
+  - The loader reads 1,405 KiB/s from the HDD and 472 KiB/s from USB (706 and 248 before), in 769
+    reads and 404 seeks. Draws that missed a texture fell from 41,070 to 25,593 (HDD) and from
+    146,613 to 75,169 (USB).
+  - A mid-pass eviction now costs about 105 µs of EE time, against 281 µs before. The figure comes
+    from least squares over the pipelined HDD log, R² 0.994:
+    `view_us ≈ 10.2 × batches + 36 × uploads + 105 × pass_evictions + 102`. The first run's log
+    fits the same model to 10.7, 12 and 281.
+- **The chain is VU1's.** Serial chains split 75.5% VU1, 22.5% GS, 1.6% DIRECT and 0.4% VIF on both
+  drives.
+  - Fill off leaves `vu_us` within 2 µs of the fill-on run every frame. It takes 1,527 µs off
+    `gs_us` and the same off `gpu_us`: the GS's pixel work is 1.5 ms a frame (2.9 ms at p95,
+    4.4 ms at most), 14% of the chain.
+  - Without fill, the GS still holds the chain up for 0.87 ms a frame: VU1 stalls on its XGKICKs.
+- **VU1 runs 179 cycles a vertex drawn** (8.04 ms a frame at 294.912 cycles per µs, over 13,225
+  vertices). `vu_cost.py` models 52 to 59 for each area. The measured figure depends on the view:
+  the median frame per area ranges from 69 cycles a vertex (area 29) to 440 (area 9).
+  - A 4-batch, 30-vertex view in area 9 took 125 µs, about 37,000 cycles.
+  - The model runs only the strip path, with no clipper. The world program takes the list path for
+    a whole batch when any of its vertices leaves the guard band, a vertex behind the eye included,
+    and clips each triangle that crosses it. So the gap points at the list path and the clipper.
+    A count of how many batches take each path would confirm it.
+- **What limits the slow frames.** This takes the EE's time from the pipelined log and the chain's
+  from the serial log of the same frame; the tour plays frame for frame.
+  - Of the HDD tour's 1,537 frames over one field, 880 are limited by the chain and 657 by the EE.
+  - Every frame over two fields is limited by the EE, 172 on the HDD and 138 on USB. Their views
+    build in 29 ms on average, with 877 batches, 148 uploads and 136 mid-pass evictions.
+  - The views at the north end of area 8 reach 1,486 batches and about 250 uploads (2.5 MB a frame).
+- USB's first map load still takes 27.0 s, against 4.6 s from the HDD. The second and third loads
+  take 8.5 s from USB and 1.2 s from the HDD.
