@@ -50,6 +50,15 @@ tour (below); there is no campaign baseline yet. Quake timings below are not Doo
 - Frames pipeline (2026-11-26, `ps2_pipelineFrames`): the kick that sends frame N+1 waits for chain N
   (`gpu_us`, what the EE did not cover building N+1) and for the vsync that shows N (`vsync_us`).
   `ps2_pipelineFrames 0` gives the serial frames of the first console run, for an A/B on hardware.
+- **VU1 against the GS (2026-11-26):** the GPU sampler splits `gpu_us` into `vu_us`, `gs_us`,
+  `direct_us`, `vif_us` and `tail_us`, from VPU-STAT, VIF1_STAT and GIF_STAT read every pass of
+  `dma::WaitIdle` (`dma::GpuState`). It sees whole chains only with serial frames. `ps2_world fill off`
+  scissors every pass to one pixel: a serial run's chain time against it is the GS's pixel work.
+  The perf package plays the tour pipelined, serial and serial without fill in one boot. PCSX2
+  puts everything in `vif_us`.
+- **Instrumentation defines:** `PS2_D3BFG_FRAME_LOG` and `PS2_D3BFG_GPU_SAMPLER`, on in every build
+  for now (`INSTRUMENT_DEFS`). New timing or profiling code goes behind them, with no-op stubs where
+  callers would need `#if`, so a planned Profile build keeps it and Release drops it.
 - **First console run (2026-11-26, NTSC 640 32/32, PORT_STATUS "First console frame log"):** the tour
   took 199 s from the HDD and 193 s from USB (36 to 37 fps mean, 62% of frames at one field, 12% at
   three or more). The HDD and USB logs (`build/framelog_{hdd,usb}.txt`) are the baselines for

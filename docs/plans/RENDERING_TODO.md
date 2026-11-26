@@ -412,7 +412,10 @@ production link free of test inputs. Section numbers in parentheses point into t
           landing once its chunks have. The retail gate: 168 read calls and 93 seeks against 236
           and 154. Console figures wait for the next run.
     - [ ] Split VU1 from GS time in the chain (the log times it whole): a console A/B with an
-          empty scissor, `textures off` and `lightmaps off` on the same tour.
+          empty scissor, `textures off` and `lightmaps off` on the same tour. Tooling done
+          2026-11-26: the GPU sampler (`vu_us`, `gs_us`, `direct_us`, `vif_us`, `tail_us`, adding up
+          to `gpu_us`), `ps2_world fill off`, and a perf package that plays the tour pipelined,
+          serial and serial without fill in one boot. The console run is open.
 
 ## R3: layers, switches, fog and blend lights
 

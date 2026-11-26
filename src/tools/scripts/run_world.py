@@ -121,6 +121,8 @@ def steps(standard: str = "ntsc") -> list[tuple]:
     sequence.append(("doorway-frame", frame, VIEWS[2]))
     sequence.append(("field", base, None))
     sequence.append(("doorway-field", base, VIEWS[2]))
+    # The fill A/B: the same view drawn into a one-pixel scissor leaves the clear colour.
+    sequence.append(("doorway-nofill", base, VIEWS[2]))
     return sequence
 
 
@@ -200,9 +202,12 @@ def barrier(identity: str, name: str) -> str:
 
 
 def view_commands(identity: str, name: str, camera: tuple, portal: str) -> list[str]:
-    # The capture runs two frames after the camera is set, and the status two frames after that.
-    return [f"ps2_world portal 1 {portal}", "ps2_world view " + " ".join(str(value) for value in camera), "wait 2",
-            f'ps2_capture "world-{name}.tga"', "wait 2", "ps2_world status", f'echo "{barrier(identity, name)}"']
+    # The capture runs two frames after the camera is set, and the status two frames after that. A
+    # '-nofill' view draws with the GS's fill off and turns it back on after.
+    fill = name.endswith("-nofill")
+    return [*(["ps2_world fill off"] if fill else []), f"ps2_world portal 1 {portal}",
+            "ps2_world view " + " ".join(str(value) for value in camera), "wait 2", f'ps2_capture "world-{name}.tga"', "wait 2",
+            "ps2_world status", *(["ps2_world fill on"] if fill else []), f'echo "{barrier(identity, name)}"']
 
 
 def switch_commands(identity: str, name: str, previous: Display, display: Display) -> list[str]:
@@ -392,16 +397,30 @@ def verify_closed(open_path: Path, closed_path: Path, standard: str, bits: int =
     return {"changed_pixels": changed, "doorway_box": [x0, y0, x1, y1], "centre_rgb": list(actual)}
 
 
+def verify_no_fill(path: Path, bits: int) -> dict:
+    """The view drawn with the GS's fill off (ps2_world fill off): one pixel at most may differ from
+    the clear colour, the first, inside the one-pixel scissor."""
+    width, height, pixels = renderer_capture.read_tga(path)
+    expected = renderer_capture.stored(CLEAR_RGB, bits)
+    tolerance = renderer_capture.tolerance(bits)
+    for index in range(1, width * height):
+        actual = pixels[index * 3:index * 3 + 3]
+        if any(abs(a - e) > tolerance for a, e in zip(actual, expected)):
+            raise ValueError(f"with the fill off pixel ({index % width},{index // width}) is {tuple(actual)}, not the clear colour")
+    return {"width": width, "height": height, "first_pixel": list(pixels[0:3])}
+
+
 def verify_captures(output: Path, standard: str) -> dict:
     results = {}
     for name, display, view in steps(standard):
         if view is None:
             continue
-        if view[-1]:
+        if view[-1] and not name.endswith("-nofill"):
             width = renderer_capture.frame_size(standard.upper(), display.resolution)[0]
             results[name] = renderer_capture.verify_world_scene(output / f"world-{name}.tga", standard.upper(), view[0],
                                                                 renderer_capture.draw_bits(display.profile), width,
                                                                 display.interlace)
+    results["nofill"] = verify_no_fill(output / "world-doorway-nofill.tga", 32)
     results["closed"] = verify_closed(output / "world-doorway.tga", output / "world-closed.tga", standard, 32)
     results["closed-16"] = verify_closed(output / "world-doorway-16.tga", output / "world-closed-16.tga", standard, 16)
     # 32/16 captures its 32-bit draw buffer, which holds what 32/32 draws.

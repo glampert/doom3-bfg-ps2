@@ -11,7 +11,11 @@ totals over the run and FLOG#end with the row count (a file without it was cut s
 microseconds of the EE: game (events, commands, the game step), view (the 3D views built), ui (the
 screens and console), submit (the kick, the waits and the flip), and within the frame gpu (waiting
 for VU1 and the GS to finish a chain) and vsync (waiting for the vertical blank); io is the loader
-thread's time in reads during the frame.
+thread's time in reads during the frame. A log built with the GPU sampler splits gpu into what held
+the chain up while the EE waited (GPU_COLUMNS: VU1 running, the GS not taking more, DIRECT data,
+VIF1 unpacking or waiting for the DMA, and the GS's last primitives); with serial frames (the label's
+pipeline=0) that is the whole chain, so its VU1 time over the vertices drawn is VU1's cycles a vertex,
+the figure to hold against vu_cost.py's model. Columns a log lacks are left out.
 
 Usage: frame_log.py framelog.txt [--compare other.txt] [--worst N] [--json summary.json]"""
 
@@ -19,7 +23,12 @@ import argparse
 import json
 from pathlib import Path
 
-TIME_COLUMNS = ("frame_us", "game_us", "view_us", "ui_us", "submit_us", "gpu_us", "vsync_us", "io_us")
+TIME_COLUMNS = ("frame_us", "game_us", "view_us", "ui_us", "submit_us", "gpu_us", "vu_us", "gs_us", "direct_us", "vif_us", "tail_us",
+                "vsync_us", "io_us")
+# The GPU sampler's split of gpu_us.
+GPU_COLUMNS = ("vu_us", "gs_us", "direct_us", "vif_us", "tail_us")
+# VU1 runs at the EE's clock.
+VU1_CYCLES_PER_US = 294.912
 COUNT_COLUMNS = ("batches", "lit_batches", "pass_batches", "vertices", "packet_bytes", "chain_bytes", "uploads", "upload_bytes",
                  "stream_loads", "stream_bytes", "stream_misses", "fallbacks", "pass_fallbacks", "loader_bytes")
 # Frame-time lines: two fields of NTSC (33.3 ms) and of PAL (40 ms), and RENDERING_ARCHITECTURE.md
@@ -69,7 +78,7 @@ def summarize(log: dict, worst: int = 8) -> dict:
     if not rows:
         raise ValueError("the log has no rows")
     stages = {}
-    for column in TIME_COLUMNS:
+    for column in (column for column in TIME_COLUMNS if column in rows[0]):
         values = [row[column] for row in rows]
         stages[column] = {"mean": round(sum(values) / len(values)), "p50": percentile(values, 0.5), "p95": percentile(values, 0.95),
                           "p99": percentile(values, 0.99), "max": max(values)}
@@ -83,7 +92,15 @@ def summarize(log: dict, worst: int = 8) -> dict:
         count = max(1, round(value / FIELD_US[standard]))
         fields[count] = fields.get(count, 0) + 1
     slowest = sorted(rows, key=lambda row: row["frame_us"], reverse=True)[:worst]
-    return {"rows": len(rows), "complete": log["end"] == len(rows), "notes": log["notes"], "stages": stages, "counts": counts,
+    gpu = None
+    if all(column in rows[0] for column in GPU_COLUMNS):
+        wait = sum(row["gpu_us"] for row in rows)
+        shares = {column[:-3]: sum(row[column] for row in rows) for column in GPU_COLUMNS}
+        vertices = sum(row["vertices"] for row in rows)
+        gpu = {"wait_us": wait, "us": shares, "percent": {name: round(100.0 * value / wait, 1) if wait else 0.0 for name, value in shares.items()},
+               "pipelined": "pipeline=0" not in log["notes"].get("label", ""),
+               "vu1_cycles_per_vertex": round(shares["vu"] * VU1_CYCLES_PER_US / vertices, 1) if vertices else 0.0}
+    return {"rows": len(rows), "complete": log["end"] == len(rows), "notes": log["notes"], "stages": stages, "counts": counts, "gpu": gpu,
             "over_budget": over, "fields": {str(count): fields[count] for count in sorted(fields)}, "standard": standard,
             "seconds": round(sum(frames) / 1e6, 2), "loader": log["loader"],
             "worst": [{key: row[key] for key in ("frame", "frame_us", "game_us", "view_us", "submit_us", "gpu_us", "vsync_us", "area",
@@ -98,7 +115,7 @@ def format_summary(summary: dict, other: dict | None = None) -> str:
              f"{'stage':10} {'mean':>8} {'p50':>8} {'p95':>8} {'p99':>8} {'max':>8}" + ("   mean was" if other else "")]
     for column, stats in summary["stages"].items():
         line = f"{column:10} " + " ".join(f"{stats[key]:8d}" for key in ("mean", "p50", "p95", "p99", "max"))
-        if other:
+        if other and column in other["stages"]:
             before = other["stages"][column]["mean"]
             line += f" {before:9d} ({(stats['mean'] - before) / before * 100 if before else 0.0:+.1f}%)"
         lines.append(line)
@@ -110,6 +127,12 @@ def format_summary(summary: dict, other: dict | None = None) -> str:
     lines.append(f"textures: {counts['uploads']['total']} uploads, {counts['upload_bytes']['total']} bytes; streamed {counts['stream_loads']['total']} "
                  f"({counts['stream_bytes']['total']} bytes), misses {counts['stream_misses']['total']}, fallbacks {counts['fallbacks']['total']}, "
                  f"pass fallbacks {counts['pass_fallbacks']['total']}")
+    gpu = summary.get("gpu")
+    if gpu:
+        scope = "the waits only (pipelined frames)" if gpu["pipelined"] else "whole chains (serial frames)"
+        lines.append(f"gpu wait {gpu['wait_us'] / 1e6:.2f} s, {scope}: " +
+                     ", ".join(f"{name} {gpu['percent'][name]}%" for name in gpu["us"]) +
+                     f"; VU1 {gpu['vu1_cycles_per_vertex']} cycles a vertex drawn")
     loader = summary["loader"]
     if loader:
         lines.append(f"loader: {loader.get('bytes', 0)} bytes in {loader.get('chunks', 0)} reads and {loader.get('seeks', 0)} seeks, "

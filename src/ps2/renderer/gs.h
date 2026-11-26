@@ -148,7 +148,8 @@ enum class PresentMode : u8
 
 void Present(DrawContext context, PresentMode mode = PresentMode::Immediate);
 
-// The presents and their waits for the vertical blank, cumulative (the frame log's vsync column).
+// The presents and their waits for the vertical blank, cumulative (the frame log's vsync column;
+// the waits are counted with PS2_D3BFG_FRAME_LOG only).
 struct PresentStats
 {
     u32 presents;
@@ -224,6 +225,13 @@ void ClearFrame(dma::DisplayList & list, DrawContext context, Color color);
 // so it lands between whole PATH1 packets: after every batch before it, before any after it.
 void BeginDepthPass(dma::DisplayList & list, DrawContext context);
 void EndDepthPass(dma::DisplayList & list, DrawContext context);
+
+#if PS2_D3BFG_GPU_SAMPLER
+// The fill A/B (world::SetFillEnabled): 'limited' scissors both contexts to the frame's first pixel,
+// so the GS takes every primitive and fills next to nothing; false gives them the whole frame back,
+// as the environment set it. After a VIF FLUSH, like the depth pass.
+void LimitFill(dma::DisplayList & list, bool limited);
+#endif // PS2_D3BFG_GPU_SAMPLER
 
 // How the world pass's blended batches in 'context' mix with the frame: their colour added (the
 // state BeginDepthPass leaves), the frame multiplied by their alpha (Cd x As), or the two mixed by

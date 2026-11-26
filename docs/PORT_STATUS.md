@@ -6444,3 +6444,53 @@ next console run measures it.
 | `make test-world` | `20261126T051852Z_world_f2035c603a69`, `20261126T051904Z_world_97d06ec6a4a3` |
 | `make test-host` | Passed (420): the runner refuses a view whose loads gathered nothing |
 | `make`, `make release` | Passed, no warnings; the release tour played whole in PCSX2 |
+
+## The GPU sampler, the fill A/B and the instrumentation defines (2026-11-26)
+
+The tooling for the last item of the console frame log: what the chain's time is made of.
+- **The GPU sampler** (`PS2_D3BFG_GPU_SAMPLER`). Every pass of `dma::WaitIdle`'s spin reads VPU-STAT
+  (`cfc2 $29`), VIF1_STAT and GIF_STAT, and charges the cycles since the last pass to what holds the
+  chain up (`dma::GpuState`):
+  - VU1 running;
+  - the GS not taking more: VU1 stalled on an XGKICK, VIF1 waiting for the GIF, or PATH1 feeding it;
+  - PATH2's DIRECT data: uploads, the sky box, state;
+  - VIF1 unpacking or waiting for the DMA;
+  - the GS's last primitives.
+
+  The frame log's new columns `vu_us`, `gs_us`, `direct_us`, `vif_us` and `tail_us` add up to
+  `gpu_us`. `frame_log.py` prints the split and VU1's cycles per vertex drawn. `vu_cost.py` now
+  reports cycles per vertex too: 54.4 over mars_city1, 70.8 per triangle.
+- **The fill A/B.** `ps2_world fill off` scissors every world pass to one pixel, its sky box
+  included, so VU1 and the GIF do the pass's work while the GS fills next to nothing. Against a
+  serial run, the chain time that leaves is the GS's pixel work.
+- **The console package plays three runs in one boot.** `ps2_framelog start FRAMES FILE` writes a
+  named file, and the label notes `pipeline=` and `fill=`. The package plays the whole tour three
+  times, loading the map afresh for each:
+  - `framelog.txt`: pipelined frames;
+  - `framelog_serial.txt`: serial frames, where the sampler sees every chain whole;
+  - `framelog_nofill.txt`: serial with fill off.
+
+  The release package played all three in PCSX2, each writing 7,244 rows with its own label.
+  PCSX2 shows none of the split: its VU1 finishes at once and its GIF reports no path, so the whole
+  wait lands in `vif_us`, and fill off changes nothing. Only the console's logs say what the chain
+  is made of.
+- **Gates.**
+  - The retail world gate's tour now runs serial into `framelog_tour.txt`. Every frame's split must
+    add up to its wait.
+  - The graybox gate adds `doorway-nofill`: with fill off, every pixel but the first keeps the clear
+    colour. The same view with fill on covers all 286,720.
+- **Instrumentation defines.** `PS2_D3BFG_FRAME_LOG` gates the frame log, `ps2_framelog`, and the
+  counters only it reads: the DMA wait, vertical-blank and loader cycles, and the world pass's draw
+  counts. `PS2_D3BFG_GPU_SAMPLER` gates the sampler and `ps2_world fill`. Both are in the Makefile's
+  `INSTRUMENT_DEFS`, on in every build. Release builds with each combination of them off all link
+  without warnings; with both off, no instrumentation symbol is left, and the image is 9,216 bytes
+  smaller. A Profile configuration that keeps them, and a Release without them, are a TODO
+  (IMPLEMENTATION_PLAN.md, "Profile build").
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261126T055037Z_world_retail_8d8a2759a095` (NTSC), `20261126T055241Z_world_retail_9e114f3fdaff` (PAL) |
+| `make test-world` | `20261126T054929Z_world_3f8364bc6903`, `20261126T054944Z_world_0dd59c81855c`, with `doorway-nofill` |
+| `make test-renderer` | `20261126T055614Z_smoke_9e201b65e24e4f64` (NTSC), `20261126T055629Z_smoke_6b57d4d945b64911` (PAL), and the expected-fatal probes |
+| `make test-host` | Passed (420) |
+| `make`, `make release` | Passed, no warnings; `make BUILD=release` with each instrumentation define combination off links without warnings |

@@ -281,8 +281,12 @@ def summary(world: d3wd.World, report: dict, costs: list, areas=None) -> dict:
     batches = [index for area in chosen for index in range(world.areas[area].first_batch,
                                                           world.areas[area].first_batch + world.areas[area].batch_count)]
     triangles = sum(report["area_list"][area]["triangles"] for area in chosen)
+    vertices = sum(world.batches[index].vertex_count for index in batches)
     cycles = sum(costs[index][0] for index in batches)
-    return {"batches": len(batches), "triangles": triangles, "cycles": cycles, "cycles_per_triangle": round(cycles / triangles, 2),
+    # Per vertex too: the frame log counts the vertices it draws, not triangles (frame_log.py's VU1
+    # cycles a vertex, from the GPU sampler over serial frames).
+    return {"batches": len(batches), "triangles": triangles, "vertices": vertices, "cycles": cycles,
+            "cycles_per_triangle": round(cycles / triangles, 2), "cycles_per_vertex": round(cycles / vertices, 2) if vertices else 0.0,
             "kicks": sum(costs[index][1] for index in batches), "vertices_sent": sum(costs[index][2] for index in batches),
             "packet_bytes": sum(16 * world.batches[index].packet_qwords for index in batches)}
 

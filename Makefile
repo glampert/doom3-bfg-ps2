@@ -192,7 +192,13 @@ else
 	CONFIG_DEFS = -DPS2_D3BFG_DEBUG=1 -DPS2_D3BFG_ASSERTS=1 -DPS2_D3BFG_PROFILE=1 -D_DEBUG=1
 endif
 
-COMMON_DEFS = -DPS2_D3BFG $(CONFIG_DEFS)$(if $(filter 1,$(SCRIPT_CHECK)), -DID_SCRIPT_COMPILER -DID_SCRIPT_CHECK,)
+# Instrumentation: the frame log (ps2_framelog, with the timing counters only it reads) and the GPU
+# sampler (what held a chain up, read while the EE waits for it, and ps2_world fill). On in every
+# build until a Profile configuration carries them and Release drops them (IMPLEMENTATION_PLAN.md,
+# "Profile build").
+INSTRUMENT_DEFS = -DPS2_D3BFG_FRAME_LOG=1 -DPS2_D3BFG_GPU_SAMPLER=1
+
+COMMON_DEFS = -DPS2_D3BFG $(CONFIG_DEFS) $(INSTRUMENT_DEFS)$(if $(filter 1,$(SCRIPT_CHECK)), -DID_SCRIPT_COMPILER -DID_SCRIPT_CHECK,)
 LANGFLAGS = -std=gnu++20 -fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-strict-aliasing
 SDK_INCS = -isystem $(PS2SDK)/ee/include -isystem $(PS2SDK)/common/include
 # build/vu holds the VU programs' generated headers (VU_HEADERS), which ps2/renderer/vu.h

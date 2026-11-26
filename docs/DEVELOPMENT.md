@@ -272,7 +272,10 @@ done` at its end;
 `textures on|off` draws the world textured (the default) or untextured, `lightmaps on|off` its
 lightmap pass (the default) or the vertex chroma alone, and `textures status` logs the last pass's
 texture arena, residents, uploads, evictions, untextured fallbacks, resident lightmap pages and
-batches drawn without their page.
+batches drawn without their page. `fill off|on|status` (builds with `PS2_D3BFG_GPU_SAMPLER`) is
+the GS fill A/B: off, every world pass draws as usual into a one-pixel scissor (its sky box too), so
+VU1 and the GIF do the pass's work while the GS fills next to nothing; the chain time that leaves
+is the GS's pixel work.
 Debug builds add a free-flight camera: `fly on` starts from the current view, then each frame the
 pad's left stick moves along the view and sideways, the right stick turns, R1 and L1 rise and sink,
 cross holds 4x speed and square a quarter (256 units a second at full deflection, 120 degrees a
@@ -285,30 +288,47 @@ and `unload` end or move the flight. `fly input LX LY RX RY BUTTONS FRAMES` scri
 under `build/debug/world-retail/` with a `console.txt` that closes the console, loads the map and
 starts flying from the player start.
 
-`ps2_framelog start [FRAMES] | stop | status` (visible mode, every build) records one row per Common
-frame in EE memory (TAG_DEBUG, about 170 bytes a row, 3,600 rows when FRAMES is left out, 16,384 at
-most) and writes them once to the package's `framelog.txt` when it stops, fills, or the camera path
-it was started with ends (`src/ps2/system/frame_log.cpp`). A row holds the frame's EE time and its
-parts (game step, 3D views, screens, submit), the time spent waiting for VU1 and the GS and for the
-vertical blank, the loader's time in reads, and the frame's batches, vertices, chain bytes, texture
-uploads, streaming reads and misses and the eye. `src/tools/scripts/frame_log.py framelog.txt
+`ps2_framelog start [FRAMES] [FILE] | stop | status` (visible mode, builds with
+`PS2_D3BFG_FRAME_LOG`) records one row per Common frame in EE memory (TAG_DEBUG, about 190 bytes a
+row, 3,600 rows when FRAMES is left out, 16,384 at most) and writes them once to the package's FILE
+(`framelog.txt`; a `.txt` name of letters, digits, `_`, `-` and `.`, quoted when it holds a dash)
+when it stops, fills, or the camera path it was started with ends (`src/ps2/system/frame_log.cpp`).
+The label notes the map, its load time, the standard, `pipeline=` and `fill=`. A row holds the
+frame's EE time and its parts (game step, 3D views, screens, submit), the time spent waiting for
+VU1 and the GS and for the vertical blank, the loader's time in reads, and the frame's batches,
+vertices, chain bytes, texture uploads, streaming reads and misses and the eye. Builds with
+`PS2_D3BFG_GPU_SAMPLER` split the GPU wait into what held the chain up while the EE waited
+(`dma::GpuState`, read from VPU-STAT, VIF1_STAT and GIF_STAT each pass of the wait): `vu_us` (VU1
+running), `gs_us` (VU1 stalled on an XGKICK, VIF1 waiting for the GIF, or PATH1 still feeding the GS),
+`direct_us` (PATH2: texture uploads, the sky box, state), `vif_us` (VIF1 decoding or unpacking, or
+waiting for the DMA) and `tail_us` (the GS's last primitives). With serial frames
+(`ps2_pipelineFrames 0`) that is the whole chain; pipelined, only the part the EE's own work did not
+cover. PCSX2 classifies everything as `vif_us` (its VU1 finishes at once, and its GIF reports no
+path), so the split means something on a console only. `src/tools/scripts/frame_log.py framelog.txt
 [--compare baseline.txt]` summarises a log: each stage's mean and percentiles, frames over the
-budgets, the slowest frames with where the camera was. `ps2_memory LABEL` logs the allocation
+budgets and by whole fields, the GPU split with VU1's cycles a vertex drawn (against
+`vu_cost.py`'s `cycles_per_vertex`), the slowest frames with where the camera was. `ps2_memory LABEL` logs the allocation
 ledgers under LABEL (MEMORY, ARENA, HEAP, and in tracking builds STACK and TAG lines); run
 `clearHistory` first, since the console history keeps a buffer per HostFs line.
 
 **Console perf run.** `make BUILD=release stage-perf-world-retail` (after `make ui-cook`;
 `CONSOLE_STANDARD=pal` for PAL) stages `build/release/perf-world-retail/`, whose `base/d3bfg.cfg`
-closes the console, loads mars_city1, starts the frame log and plays the whole camera tour
-(`config/world_mars_city1_tour.path`, 7,244 frames, generated from the `.bproc` by
-`src/tools/scripts/world_tour.py`), then opens the console on `Camera path done after 7244 frames;
-frame log written to framelog.txt in <device>`. Copy the package folder to a USB drive or the hard
-disk as for the console boot (below), boot its `d3bfg.elf`, wait for that line (about four minutes at
-30 frames a second), and read `framelog.txt` back from the package folder. The same package runs in
-PCSX2 (`make BUILD=release run-perf-world-retail`), whose timings say nothing about a console's.
-For an A/B of the pipelined frames, put `set ps2_pipelineFrames 0` at the top of `base/d3bfg.cfg`
-(serial frames, as the first console run had), and compare the two logs with
-`src/tools/scripts/frame_log.py framelog.txt --compare other.txt`.
+closes the console and plays the whole camera tour (`config/world_mars_city1_tour.path`, 7,244
+frames, generated from the `.bproc` by `src/tools/scripts/world_tour.py`) three times, loading
+mars_city1 afresh for each (`PERF_RUNS` in `run_world_retail.py`):
+- `framelog.txt`: pipelined frames, what a frame costs as the game runs;
+- `framelog_serial.txt`: serial frames (`ps2_pipelineFrames 0`), whose GPU split covers every chain
+  whole;
+- `framelog_nofill.txt`: serial with `ps2_world fill off`, whose chain time against the serial run's
+  is the GS's pixel work.
+
+Each ends on a console line `Camera path done after 7244 frames; frame log written to <file> in
+<device>`. Copy the package folder to a USB drive or the hard disk as for the console boot (below),
+boot its `d3bfg.elf`, wait for the third line (about twelve minutes), and read the three logs back
+from the package folder. Compare them with `src/tools/scripts/frame_log.py framelog_serial.txt
+--compare framelog_nofill.txt`, and a run with an earlier one's log the same way. The same package
+runs in PCSX2 (`make BUILD=release run-perf-world-retail`), whose timings say nothing about a
+console's.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
 the graybox and runs it. Production draws 640 wide by default. `ps2_frameBufferBits
 16/16|32/16|32/32` sets the in-game frame-buffer profile (draw/display bits; 32/16 draws in
@@ -436,7 +456,13 @@ are synced (`fileXioSync`) only by a debug build's log file.
   above). It compiles id's sources with their warnings off, as they are exempt from the strict
   set on the EE, and holds its own to the tools' set.
 - `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
-  Test them with `#if`, never `#ifdef` (`-Wundef` is on).
+  Test them with `#if`, never `#ifdef` (`-Wundef` is on). So are the instrumentation defines in the
+  Makefile's `INSTRUMENT_DEFS`, on in both configurations for now: `PS2_D3BFG_FRAME_LOG` (the frame
+  log and the counters only it reads) and `PS2_D3BFG_GPU_SAMPLER` (the GPU sampler and
+  `ps2_world fill`). A Profile build that keeps them and a Release without them are planned
+  ([IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md#profile-build-todo-2026-11-26)). Build a
+  combination with `make BUILD=release OUTPUT_DIR=build/<dir> INSTRUMENT_DEFS="-DPS2_D3BFG_FRAME_LOG=0
+  -DPS2_D3BFG_GPU_SAMPLER=0"`.
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend
   files in `PS2_CXX_SRC` or the relevant core group; cold sources also go in
   `SIZE_OPT_CXX_SRC`. Both configurations build at `-O2`; id's load/init/command-time

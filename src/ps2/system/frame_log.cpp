@@ -3,11 +3,13 @@
 // Brief: The frame log (frame_log.h): a row per Common frame from COP0 Count stamps and the
 //        renderer's and loader's cumulative counters, kept in EE memory and written once.
 //
-//  Times are the EE's: a frame runs its game step, builds its views and screens, kicks its chain,
-//  then waits for VU1 and the GS (gpu) and for the vertical blank (vsync) before it flips. The gpu
-//  column counts every wait of the frame for a chain, mid-frame ones (a full ring, a texture
-//  fence) included; io is the time the loader thread spent inside reads and seeks during the frame,
-//  which it gets while the main thread sleeps, so it overlaps the vsync wait.
+//  Times are the EE's: a frame runs its game step, builds its views and screens, then its kick waits
+//  for the chain before it (gpu: VU1 and the GS, all of the frame's own chain with serial frames)
+//  and for the vertical blank (vsync) to flip it. The gpu column counts every wait of the frame for
+//  a chain, mid-frame ones (a full ring, a texture fence) included, and with the GPU sampler splits
+//  into what held the chain up (dma::GpuState: vu, gs, direct, vif, tail); io is the time the
+//  loader thread spent inside reads and seeks during the frame, which it gets while the main thread
+//  sleeps, so it overlaps the vsync wait.
 //
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
@@ -37,19 +39,27 @@
 #define NEWLIB_PORT_AWARE
 #include <fileXio_rpc.h>
 
+#if PS2_D3BFG_FRAME_LOG
+
 namespace ps2::system::frame_log
 {
 
 namespace
 {
 
-static constexpr const char * kFileName = "framelog.txt";
+#if PS2_D3BFG_GPU_SAMPLER
+static constexpr int kGpuStates = static_cast<int>(renderer::dma::GpuState::Count);
+static_assert(kGpuStates == 5, "the frame log writes the GPU sampler's states as vu, gs, direct, vif and tail");
+#endif // PS2_D3BFG_GPU_SAMPLER
 
 // What the counters read at a frame boundary: the renderer's and the loader's cumulative totals.
 struct Counters
 {
     u32 cycles = 0;
     u64 gpuCycles = 0;
+#if PS2_D3BFG_GPU_SAMPLER
+    u64 gpuStates[kGpuStates] = {};
+#endif // PS2_D3BFG_GPU_SAMPLER
     u64 vsyncCycles = 0;
     u64 ioCycles = 0;
     u32 presents = 0;
@@ -83,6 +93,9 @@ struct Row
     u32 uiCycles;
     u32 submitCycles;
     u32 gpuCycles;
+#if PS2_D3BFG_GPU_SAMPLER
+    u32 gpuStates[kGpuStates];
+#endif // PS2_D3BFG_GPU_SAMPLER
     u32 vsyncCycles;
     u32 ioCycles;
     u32 streamWaitMs;
@@ -130,6 +143,7 @@ static u32 s_marks[static_cast<int>(Point::Count)] = {};
 static float s_eye[3] = {};
 static float s_yaw = 0.0f;
 static char s_label[160] = {};
+static char s_fileName[64] = {};
 
 // A counter's growth since 'before', or its value when it started again from zero (a texture
 // total after a map load).
@@ -145,6 +159,16 @@ Counters Read()
 
     const renderer::dma::Stats & dma = renderer::dma::GetStats();
     counters.gpuCycles = dma.waitCycles;
+
+#if PS2_D3BFG_GPU_SAMPLER
+    const renderer::dma::GpuStats & gpu = renderer::dma::GetGpuStats();
+
+    for (int state = 0; state < kGpuStates; ++state)
+    {
+        counters.gpuStates[state] = gpu.cycles[state];
+    }
+#endif // PS2_D3BFG_GPU_SAMPLER
+
     counters.kicks = dma.kicks;
     counters.drains = dma.drains;
 
@@ -192,6 +216,14 @@ void Capture(const Counters & before, const Counters & now)
     row.uiCycles = Span(marks[static_cast<int>(Point::View)], marks[static_cast<int>(Point::Ui)]);
     row.submitCycles = Span(marks[static_cast<int>(Point::Ui)], marks[static_cast<int>(Point::Presented)]);
     row.gpuCycles = static_cast<u32>(now.gpuCycles - before.gpuCycles);
+
+#if PS2_D3BFG_GPU_SAMPLER
+    for (int state = 0; state < kGpuStates; ++state)
+    {
+        row.gpuStates[state] = static_cast<u32>(now.gpuStates[state] - before.gpuStates[state]);
+    }
+#endif // PS2_D3BFG_GPU_SAMPLER
+
     row.vsyncCycles = static_cast<u32>(now.vsyncCycles - before.vsyncCycles);
     row.ioCycles = static_cast<u32>(now.ioCycles - before.ioCycles);
     row.streamWaitMs = Grown(now.streamWaitMs, before.streamWaitMs);
@@ -353,18 +385,34 @@ PS2_COLD_FUNC void WriteRows(Writer & writer, const Counters & last)
     writer.Line("FLOG#display,%dx%d,%s,%s\n", renderer::gs::Width(), renderer::gs::Height(),
                 system::video::InterlaceName(renderer::gs::GetInterlace()), renderer::gs::FrameFormatLabel(renderer::gs::GetFrameFormat()));
     writer.Line("FLOG#label,%s\n", s_label);
-    writer.Line("FLOG#hdr,frame,frame_us,game_us,view_us,ui_us,submit_us,gpu_us,vsync_us,io_us,stream_wait_ms,area,areas,entities,"
+
+    // The GPU sampler's columns split gpu_us; a log built without it has none of them.
+#if PS2_D3BFG_GPU_SAMPLER
+    static constexpr const char * kGpuColumns = "vu_us,gs_us,direct_us,vif_us,tail_us,";
+#else // PS2_D3BFG_GPU_SAMPLER
+    static constexpr const char * kGpuColumns = "";
+#endif // PS2_D3BFG_GPU_SAMPLER
+
+    writer.Line("FLOG#hdr,frame,frame_us,game_us,view_us,ui_us,submit_us,gpu_us,%svsync_us,io_us,stream_wait_ms,area,areas,entities,"
                 "batches,lit_batches,pass_batches,vertices,packet_bytes,chain_bytes,kicks,drains,presents,vsyncs,uploads,upload_bytes,"
                 "evictions,pass_evictions,stream_loads,stream_bytes,stream_misses,fallbacks,pass_fallbacks,loader_bytes,chunks,seeks,"
-                "queue,copy_bytes,resident_bytes,x,y,z,yaw\n");
+                "queue,copy_bytes,resident_bytes,x,y,z,yaw\n",
+                kGpuColumns);
 
     for (u32 index = 0; index < s_count; ++index)
     {
         const Row & row = s_rows[index];
-        writer.Line("FLOG,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,"
+        char gpu[64] = {};
+
+#if PS2_D3BFG_GPU_SAMPLER
+        idStr::snPrintf(gpu, sizeof(gpu), "%u,%u,%u,%u,%u,", Microseconds(row.gpuStates[0]), Microseconds(row.gpuStates[1]),
+                        Microseconds(row.gpuStates[2]), Microseconds(row.gpuStates[3]), Microseconds(row.gpuStates[4]));
+#endif // PS2_D3BFG_GPU_SAMPLER
+
+        writer.Line("FLOG,%u,%u,%u,%u,%u,%u,%u,%s%u,%u,%u,%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,"
                     "%u,%d,%d,%d,%d\n",
                     index, Microseconds(row.frameCycles), Microseconds(row.gameCycles), Microseconds(row.viewCycles),
-                    Microseconds(row.uiCycles), Microseconds(row.submitCycles), Microseconds(row.gpuCycles), Microseconds(row.vsyncCycles),
+                    Microseconds(row.uiCycles), Microseconds(row.submitCycles), Microseconds(row.gpuCycles), gpu, Microseconds(row.vsyncCycles),
                     Microseconds(row.ioCycles), row.streamWaitMs, static_cast<int>(row.area), row.areas, row.entities, row.batches,
                     row.litBatches, row.passBatches, row.vertices, row.packetQwords * 16U, row.chainBytes, row.kicks, row.drains,
                     row.presents, row.vsyncs, row.uploads, row.uploadBytes, row.evictions, row.passEvictions, row.streamLoads,
@@ -384,7 +432,7 @@ PS2_COLD_FUNC void WriteRows(Writer & writer, const Counters & last)
 
 } // namespace
 
-PS2_COLD_FUNC bool Start(u32 frames, const char * label)
+PS2_COLD_FUNC bool Start(u32 frames, const char * label, const char * fileName)
 {
     if (s_rows != nullptr || frames == 0 || frames > kMaxFrames) [[unlikely]]
     {
@@ -405,7 +453,9 @@ PS2_COLD_FUNC bool Start(u32 frames, const char * label)
     s_open = false;
     s_recording = true;
     idStr::snPrintf(s_label, sizeof(s_label), "%s", label != nullptr ? label : "");
-    Log(LogLevel::Info, "[D3BFG] FRAMELOG started frames=%u bytes=%u label=%s\n", frames, static_cast<u32>(frames * sizeof(Row)), s_label);
+    idStr::snPrintf(s_fileName, sizeof(s_fileName), "%s", fileName != nullptr ? fileName : kDefaultFileName);
+    Log(LogLevel::Info, "[D3BFG] FRAMELOG started frames=%u bytes=%u file=%s label=%s\n", frames, static_cast<u32>(frames * sizeof(Row)),
+        s_fileName, s_label);
     return true;
 }
 
@@ -420,7 +470,7 @@ PS2_COLD_FUNC bool Stop()
     const Counters last = Read();
     s_recording = false;
     char path[256];
-    runtime::PackageFile(path, sizeof(path), kFileName);
+    runtime::PackageFile(path, sizeof(path), s_fileName);
 
     bool written = s_count > 0 && s_writer.Open(path);
 
@@ -454,6 +504,11 @@ PS2_COLD_FUNC bool Stop()
 bool Recording()
 {
     return s_recording;
+}
+
+const char * FileName()
+{
+    return s_fileName;
 }
 
 void BeginFrame()
@@ -510,3 +565,5 @@ PS2_COLD_FUNC void LogStatus()
 }
 
 } // namespace ps2::system::frame_log
+
+#endif // PS2_D3BFG_FRAME_LOG

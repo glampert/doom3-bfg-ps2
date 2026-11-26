@@ -38,6 +38,55 @@ static u32 s_chains = 0;
 // BeforeNextSend's action, run by the Kick that sends the next chain.
 static void (*s_beforeSend)() = nullptr;
 
+#if PS2_D3BFG_GPU_SAMPLER
+static GpuStats s_gpu = {};
+
+// What holds the chain up now (GpuState). VPU-STAT is VU0 control register 29: VBS1 (bit 8) VU1
+// runs, VGW1 (bit 12) it waits on an XGKICK. VIF1_STAT: VGW (bit 3) a FLUSH, FLUSHA, DIRECT or MSCALF
+// waits for the GIF; VPS (bits 1:0) not idle. GIF_STAT: APATH (bits 11:10) the path sending.
+static GpuState Classify()
+{
+    u32 vpu;
+    asm volatile("cfc2 %0, $29" : "=r"(vpu));
+
+    if ((vpu & (1U << 8)) != 0)
+    {
+        return (vpu & (1U << 12)) != 0 ? GpuState::Gs : GpuState::Vu;
+    }
+
+    const u32 vif = *R_EE_VIF1_STAT;
+
+    if ((vif & (1U << 3)) != 0)
+    {
+        return GpuState::Gs;
+    }
+
+    const u32 path = (*R_EE_GIF_STAT >> 10) & 3U;
+
+    if (path == 1U)
+    {
+        return GpuState::Gs;
+    }
+
+    if (path != 0U)
+    {
+        return GpuState::Direct;
+    }
+
+    return (vif & 3U) != 0 || (*R_EE_D1_CHCR & kDmaStart) != 0 ? GpuState::Vif : GpuState::Tail;
+}
+
+// Charges the cycles since 'last' to what holds the chain up now.
+static void Sample(u32 & last)
+{
+    const GpuState state = Classify();
+    const u32 now = gs::ReadCycles();
+    s_gpu.cycles[static_cast<int>(state)] += now - last;
+    ++s_gpu.samples;
+    last = now;
+}
+#endif // PS2_D3BFG_GPU_SAMPLER
+
 } // namespace
 
 namespace detail
@@ -149,7 +198,9 @@ void EndFrame()
 
     // The chain is sent, not awaited: the EE may build the next frame while it runs. An immediate
     // present (gs::Present) or WaitIdle fences on it; a pipelined one runs in the next frame's Kick.
+#if PS2_D3BFG_FRAME_LOG
     s_stats.frameBytes = detail::g_list.RingUsedBytes();
+#endif // PS2_D3BFG_FRAME_LOG
     Kick();
     detail::g_inFrame = false;
 }
@@ -206,14 +257,43 @@ void WaitIdle()
     }
 
     // The frame log's GPU column: how long the EE stood still for VU1 and the GS.
+#if PS2_D3BFG_FRAME_LOG || PS2_D3BFG_GPU_SAMPLER
     const u32 start = gs::ReadCycles();
+#endif
+
+#if PS2_D3BFG_GPU_SAMPLER
+    u32 last = start;
+    gs::WaitUntil([&last]
+                  {
+                      Sample(last);
+                      return (*R_EE_D1_CHCR & kDmaStart) == 0;
+                  },
+                  "VIF1 DMA");
+    gs::WaitUntil([&last]
+                  {
+                      Sample(last);
+                      return (*GS_REG_CSR & 2U) != 0;
+                  },
+                  "GS FINISH");
+#else // PS2_D3BFG_GPU_SAMPLER
     gs::WaitUntil([] { return (*R_EE_D1_CHCR & kDmaStart) == 0; }, "VIF1 DMA");
     gs::WaitUntil([] { return (*GS_REG_CSR & 2U) != 0; }, "GS FINISH");
+#endif // PS2_D3BFG_GPU_SAMPLER
+
+#if PS2_D3BFG_FRAME_LOG
     s_stats.waitCycles += gs::ReadCycles() - start;
     ++s_stats.waits;
+#endif // PS2_D3BFG_FRAME_LOG
 
     detail::g_inFlight = false;
 }
+
+#if PS2_D3BFG_GPU_SAMPLER
+const GpuStats & GetGpuStats()
+{
+    return s_gpu;
+}
+#endif // PS2_D3BFG_GPU_SAMPLER
 
 const Stats & GetStats()
 {

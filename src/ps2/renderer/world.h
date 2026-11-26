@@ -84,11 +84,19 @@ bool TexturesEnabled();
 void SetLightmapsEnabled(bool enabled);
 bool LightmapsEnabled();
 
+#if PS2_D3BFG_GPU_SAMPLER
+// The GS fill A/B: off, a pass draws everything as usual into a one-pixel scissor (its sky box too),
+// so VU1 and the GIF do the pass's work while the GS fills almost nothing (on by default).
+void SetFillEnabled(bool enabled);
+bool FillEnabled();
+#endif // PS2_D3BFG_GPU_SAMPLER
+
 // The texture residency of the last pass's level (zero when it had no textures or they were off).
 struct TextureStats;
 const TextureStats & LastPassTextureStats();
 
-// What every world pass sent, cumulative since boot (the frame log's draw columns): the batches (sky
+// What every world pass sent, cumulative since boot (the frame log's draw columns, counted with
+// PS2_D3BFG_FRAME_LOG only): the batches (sky
 // depth and material passes included), the lit ones among them (walked a second time for the
 // lightmap pass), the material pass batches, and the vertices and packet qwords of all of them.
 struct DrawStats

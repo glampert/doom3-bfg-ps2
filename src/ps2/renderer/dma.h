@@ -136,6 +136,7 @@ PS2_ALWAYS_INLINE bool InFlight()
     return detail::g_inFlight;
 }
 
+// The last three are the frame log's (PS2_D3BFG_FRAME_LOG; zero without it).
 struct Stats
 {
     u32 peakBytes;  // most ring bytes a frame's chains occupied
@@ -148,5 +149,32 @@ struct Stats
 };
 
 const Stats & GetStats();
+
+#if PS2_D3BFG_GPU_SAMPLER
+// The GPU sampler: every pass of WaitIdle's spin charges the cycles since the last to what holds
+// the chain up then, read from VPU-STAT, VIF1_STAT and GIF_STAT. Vu: VU1 runs a microprogram. Gs:
+// the GS cannot take more (VU1 stalls on an XGKICK, VIF1 waits for the GIF on a FLUSH or DIRECT, or
+// PATH1 still feeds it a kicked packet). Direct: PATH2 sends DIRECT data (texture uploads, the sky
+// box, state). Vif: VIF1 decodes or unpacks, or waits for the DMA's data. Tail: all of them idle,
+// the GS finishing its last primitives before FINISH. The cycles add up to waitCycles' share of
+// the waits; only what the EE waits for is seen (all of a chain with serial frames).
+enum class GpuState : u8
+{
+    Vu,
+    Gs,
+    Direct,
+    Vif,
+    Tail,
+    Count
+};
+
+struct GpuStats
+{
+    u64 cycles[static_cast<int>(GpuState::Count)];
+    u32 samples;
+};
+
+const GpuStats & GetGpuStats();
+#endif // PS2_D3BFG_GPU_SAMPLER
 
 } // namespace ps2::renderer::dma

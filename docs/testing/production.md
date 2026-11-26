@@ -340,7 +340,9 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   frame` (`GS display 640x224 FRAME`, `640x256` PAL; fixed VRAM 1,474,560 / 1,638,400 at 32/32)
   and `doorway-frame` is captured at the half height and must show the 640-wide reference pixels,
   each at half its row (the camera's 4:3 field of view makes it the same picture at half the
-  lines); `ps2_interlace field` back, and `doorway-field` must match the first `doorway`. Each
+  lines); `ps2_interlace field` back, and `doorway-field` must match the first `doorway`. Then
+  `doorway-nofill` draws the same view with `ps2_world fill off` (2026-11-26): every pixel but the
+  first must keep the clear colour, since the GS draws into a one-pixel scissor. Each
   step changes one cvar (`run_world.switch_command`); the expected line comes from
   `renderer_capture.frame_size` and `fixed_vram_bytes` for the session's standard. Every view
   keeps its culling counts. After `ps2_world unload` the session is back in the front end: the
@@ -466,12 +468,15 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   is area 2's only portal, so the closed door adds `s_doorDistanceAdd`, 150, exactly), 438.93
   reopened. The step ends with `ps2_world loader`, whose totals the runner records (`host:` in
   PCSX2: about 1.8 MB in 199 reads and 129 seeks by then).
-- The tour (`tour` barrier): textured and lit, `ps2_framelog start 241` and `ps2_world path
+- The tour (`tour` barrier): textured and lit, with serial frames (`ps2_pipelineFrames 0`, back to
+  1 after), `ps2_framelog start 241 "framelog_tour.txt"` and `ps2_world path
   maps/game/mars_city1_tour.path 240` play the first 240 frames of the frame log's camera tour; the
   path must log its start and `done ... frames=240`, the frame log `written ... rows=240`, and the
   texture status after it no refused read and no batch without a moved state block. The runner
-  checks `framelog.txt` (240 rows in order, each with a frame time, ending `FLOG#end,240`) and
-  writes `framelog-summary.txt` (`frame_log.py`). The tour's misses and fallbacks are recorded, not
+  checks `framelog_tour.txt` (240 rows in order, each with a frame time, ending `FLOG#end,240`, a
+  `pipeline=0` label, the GPU sampler's five columns adding up to each frame's `gpu_us` within their
+  rounding, and some wait in all) and writes `framelog-summary.txt` (`frame_log.py`). In PCSX2 the
+  whole split lands in `vif_us`: its VU1 finishes at once and its GIF reports no path. The tour's misses and fallbacks are recorded, not
   limited: the walk does not wait for its reads (159 misses and 45 untextured fallbacks in both
   standards in PCSX2, with 31 MB of texture uploads in NTSC and 90 MB in PAL over the 240 frames).
 - After the views `ps2_world decals` must report area 2's model holding the square: 1,024 units²

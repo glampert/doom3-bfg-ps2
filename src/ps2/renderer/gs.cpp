@@ -476,7 +476,9 @@ static PresentStats s_presentStats = {};
 // The thread sleeps until the vblank's interrupt, then confirms the event on CSR.
 static void WaitVsync(const char * name)
 {
+#if PS2_D3BFG_FRAME_LOG
     const u32 start = ReadCycles();
+#endif // PS2_D3BFG_FRAME_LOG
     *GS_REG_CSR = 8; // Fresh field boundary, without clearing FINISH or other events.
 
     if (s_vblankSema >= 0)
@@ -492,8 +494,11 @@ static void WaitVsync(const char * name)
     }
 
     WaitUntil([] { return (*GS_REG_CSR & 8U) != 0; }, name);
+
+#if PS2_D3BFG_FRAME_LOG
     s_presentStats.vsyncCycles += ReadCycles() - start;
     ++s_presentStats.vsyncs;
+#endif // PS2_D3BFG_FRAME_LOG
 }
 
 } // namespace
@@ -1080,6 +1085,23 @@ void BeginDepthPass(dma::DisplayList & list, DrawContext context)
     writer.SetRegister(ContextReg(GS_REG_CLAMP, other), GS_SET_CLAMP(1, 1, 0, 0, 0, 0));
     list.EndDirect(writer);
 }
+
+#if PS2_D3BFG_GPU_SAMPLER
+void LimitFill(dma::DisplayList & list, bool limited)
+{
+    PS2_AssertMsg(s_initialized, "fill limit before GS initialization");
+
+    list.FlushPaths();
+
+    // GS_SET_SCISSOR does not parenthesize its expansion; every field zero is the first pixel.
+    const u64 full = GS_SET_SCISSOR(0, static_cast<u32>(s_width) - 1U, 0, static_cast<u32>(s_height) - 1U);
+    const u64 scissor = limited ? 0U : full;
+    GifWriter writer = list.BeginDirect(4);
+    writer.SetRegister(GS_REG_SCISSOR_1, scissor);
+    writer.SetRegister(GS_REG_SCISSOR_2, scissor);
+    list.EndDirect(writer);
+}
+#endif // PS2_D3BFG_GPU_SAMPLER
 
 void SetPassBlend(dma::DisplayList & list, DrawContext context, PassBlend blend, bool depthWrites)
 {

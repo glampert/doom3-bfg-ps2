@@ -111,9 +111,13 @@ static int ReadRange(int fd, u32 position, u8 * dest, u32 bytes)
 {
     if (fd != s_cacheFd || position != s_cachePos)
     {
+#if PS2_D3BFG_FRAME_LOG
         const u32 start = ReadCycles();
+#endif // PS2_D3BFG_FRAME_LOG
         const off_t at = lseek(fd, static_cast<off_t>(position), SEEK_SET);
+#if PS2_D3BFG_FRAME_LOG
         s_statIoCycles = s_statIoCycles + (ReadCycles() - start);
+#endif // PS2_D3BFG_FRAME_LOG
         s_statSeeks = s_statSeeks + 1U;
 
         if (at != static_cast<off_t>(position)) [[unlikely]]
@@ -130,9 +134,13 @@ static int ReadRange(int fd, u32 position, u8 * dest, u32 bytes)
 
     while (left != 0)
     {
+#if PS2_D3BFG_FRAME_LOG
         const u32 start = ReadCycles();
+#endif // PS2_D3BFG_FRAME_LOG
         const ssize_t read = ::read(fd, dest, left);
+#if PS2_D3BFG_FRAME_LOG
         s_statIoCycles = s_statIoCycles + (ReadCycles() - start);
+#endif // PS2_D3BFG_FRAME_LOG
         s_statChunks = s_statChunks + 1U;
 
         if (read <= 0) [[unlikely]]

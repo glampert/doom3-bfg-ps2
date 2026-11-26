@@ -87,7 +87,10 @@ statement or block; keep the code visually spaced rather than densely packed.
   nothing compiles scripts on the PS2 outside the test images. Regenerate
   `src/tools/script_cook/events.txt` (`src/tools/scripts/script_events.py`) after changing an
   `idEventDef`. See [doom3-engine-cpp.md](.claude/rules/doom3-engine-cpp.md#cooked-script-program).
-- `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE` and `PS2_D3BFG_TESTS` are always 0 or 1.
+- `PS2_D3BFG_DEBUG`, `PS2_D3BFG_ASSERTS`, `PS2_D3BFG_PROFILE`, `PS2_D3BFG_TESTS` and the
+  instrumentation defines `PS2_D3BFG_FRAME_LOG` and `PS2_D3BFG_GPU_SAMPLER` are always 0 or 1.
+  The instrumentation is on in every build until a Profile configuration carries it
+  ([TODO](docs/plans/IMPLEMENTATION_PLAN.md#profile-build-todo-2026-11-26)).
   Test them with `#if`, never `#ifdef` (`-Wundef` is on). `PS2_D3BFG_TESTS` is the sole
   test-enable define; keep fixture hooks behind it.
 - Source lists in `config/sources.mk` are explicit and audited. Register new backend

@@ -28,6 +28,9 @@ namespace
 
 static bool s_texturesEnabled = true;
 static bool s_lightmapsEnabled = true;
+#if PS2_D3BFG_GPU_SAMPLER
+static bool s_fillEnabled = true;
+#endif // PS2_D3BFG_GPU_SAMPLER
 static Textures * s_passTextures = nullptr;
 static TextureStats s_lastStats = {};
 static DrawStats s_drawStats = {};
@@ -47,12 +50,21 @@ static bool Planned(const Level & level, const BatchRecord & batch)
     return !(s_texturesEnabled && IsSky(level.textures, batch.material));
 }
 
-// Counts a batch the display list sent.
-static void CountBatch(const BatchRecord & batch)
+// Counts a batch the display list sent: 'lit' walks its stream again for the lightmap pass, 'pass'
+// draws a material pass.
+static void CountBatch(const BatchRecord & batch, bool lit, bool pass)
 {
+#if PS2_D3BFG_FRAME_LOG
     ++s_drawStats.batches;
     s_drawStats.vertices += batch.vertexCount;
     s_drawStats.packetQwords += batch.packetQwords;
+    s_drawStats.litBatches += lit ? 1U : 0U;
+    s_drawStats.passBatches += pass ? 1U : 0U;
+#else // PS2_D3BFG_FRAME_LOG
+    (void)batch;
+    (void)lit;
+    (void)pass;
+#endif // PS2_D3BFG_FRAME_LOG
 }
 
 } // namespace
@@ -223,6 +235,18 @@ bool LightmapsEnabled()
     return s_lightmapsEnabled;
 }
 
+#if PS2_D3BFG_GPU_SAMPLER
+void SetFillEnabled(bool enabled)
+{
+    s_fillEnabled = enabled;
+}
+
+bool FillEnabled()
+{
+    return s_fillEnabled;
+}
+#endif // PS2_D3BFG_GPU_SAMPLER
+
 const TextureStats & LastPassTextureStats()
 {
     return s_lastStats;
@@ -272,6 +296,13 @@ void BeginPass(const Level & level, const math::Mat4 & viewProjection, float tim
                   viewArea);
 
     list.SetFrameConstants(MakeFrameConstants(viewProjection, context));
+
+#if PS2_D3BFG_GPU_SAMPLER
+    if (!s_fillEnabled)
+    {
+        gs::LimitFill(list, true);
+    }
+#endif // PS2_D3BFG_GPU_SAMPLER
 
     // Under everything the pass draws, in the 2D environment's masked depth.
     if (sky)
@@ -338,7 +369,7 @@ void DrawAreaSky(const Level & level, u32 area)
         {
             list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, SkyDepthState(), kBatchStateBlockQwords,
                            PageState(nullptr, list, kNoLightmap), kPageStateBlockQwords);
-            CountBatch(batch);
+            CountBatch(batch, false, false);
         }
     }
 }
@@ -366,8 +397,7 @@ void EndPass()
 
         const void * page = PageState(s_passTextures, list, batch.lightmapPage);
         list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, page, kPageStateBlockQwords);
-        CountBatch(batch);
-        s_drawStats.litBatches += page != unlit ? 1U : 0U;
+        CountBatch(batch, page != unlit, false);
     }
 
     // Then the material passes, once every diffuse texture drew: each batch again with the pass's
@@ -410,14 +440,21 @@ void EndPass()
                 }
 
                 list.DrawBatch(sections.packets + batch.packetOffset, batch.packetQwords, state, kBatchStateBlockQwords, color, kPageStateBlockQwords);
-                CountBatch(batch);
-                ++s_drawStats.passBatches;
+                CountBatch(batch, false, true);
             }
         }
     }
 
     list.EndBatches();
     gs::EndDepthPass(list, context);
+
+#if PS2_D3BFG_GPU_SAMPLER
+    if (!s_fillEnabled)
+    {
+        gs::LimitFill(list, false);
+    }
+#endif // PS2_D3BFG_GPU_SAMPLER
+
     EndTextures(s_passTextures);
     s_lastStats = GetTextureStats(s_passTextures);
 }

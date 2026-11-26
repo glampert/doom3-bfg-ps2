@@ -1981,6 +1981,16 @@ ms that way. REF'd cooked batches make the EE cost per batch, not per vertex.
 - **VU1 cost** is counted by `src/tools/scripts/vu_cost.py`, which runs a program's scheduled
   `.vsm` over the cooked batches on the integer side, one cycle per instruction pair plus the
   DIV wait (section 6.1). XGKICK stalls and hardware effects are confirmed on the console.
+- **VU1 against the GS on the console (2026-11-26).** The GPU sampler (`PS2_D3BFG_GPU_SAMPLER`,
+  `dma.h`) reads VPU-STAT, VIF1_STAT and GIF_STAT every pass of `dma::WaitIdle`'s spin and charges
+  the cycles since the last to what holds the chain up. VU1 running, the GS not taking more (VU1
+  stalled on an XGKICK, VIF1 waiting for the GIF, PATH1 still feeding it), PATH2's DIRECT data
+  (uploads, the sky box, state), VIF1 unpacking or waiting for the DMA, or the GS's last primitives.
+  Serial frames (`ps2_pipelineFrames 0`) let it see every chain whole. `ps2_world fill off` draws
+  each pass into a one-pixel scissor, so a serial run's chain time against it is the GS's pixel
+  work. The split's VU1 time over the vertices drawn is VU1's cycles a vertex, against
+  `vu_cost.py`'s 54.4 for mars_city1 (the clipper and XGKICK stalls are outside the model). The
+  console perf package plays the three runs in one boot. None of it means anything in PCSX2.
 - **GS cost** is approximated by submitted pixel and texture-page estimates in PCSX2 and
   confirmed only on hardware.
 

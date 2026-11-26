@@ -146,7 +146,7 @@ struct Stats
     u32 bytes;      // read from the drive (a gathered request's whole range)
     u32 chunks;     // read calls made
     u32 seeks;      // lseek calls made (a read that continues where the last one ended needs none)
-    u64 ioCycles;   // EE cycles spent inside the reads and seeks (COP0 Count, 294.912 MHz)
+    u64 ioCycles;   // EE cycles spent inside the reads and seeks (COP0 Count, 294.912 MHz; frame log builds)
     u32 queueDepth; // requests queued or running now
 };
 

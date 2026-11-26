@@ -352,8 +352,8 @@ void UpdatePath()
         if (ps2::system::frame_log::Recording())
         {
             const bool written = ps2::system::frame_log::Stop();
-            common->Printf("Camera path done after %d frames; frame log %s framelog.txt in %s\n", frames, written ? "written to" : "NOT written to",
-                           ps2::system::runtime::PackageRoot());
+            common->Printf("Camera path done after %d frames; frame log %s %s in %s\n", frames, written ? "written to" : "NOT written to",
+                           ps2::system::frame_log::FileName(), ps2::system::runtime::PackageRoot());
         }
         else
         {
@@ -987,6 +987,27 @@ PS2_COLD_FUNC void World(const idCmdArgs & args)
         return;
     }
 
+#if PS2_D3BFG_GPU_SAMPLER
+    // The GS fill A/B: off, every pass draws into a one-pixel scissor.
+    if (strcmp(verb, "fill") == 0 && args.Argc() == 3)
+    {
+        const bool on = strcmp(args.Argv(2), "on") == 0;
+
+        if (!on && strcmp(args.Argv(2), "off") != 0 && strcmp(args.Argv(2), "status") != 0) [[unlikely]]
+        {
+            ps2::FatalError("ps2_world fill needs on, off or status");
+        }
+
+        if (strcmp(args.Argv(2), "status") != 0)
+        {
+            ps2::renderer::world::SetFillEnabled(on);
+        }
+
+        ps2::Log(ps2::LogLevel::Info, "[D3BFG] WORLD fill %s\n", ps2::renderer::world::FillEnabled() ? "on" : "off");
+        return;
+    }
+#endif // PS2_D3BFG_GPU_SAMPLER
+
     ps2::FatalError("unknown ps2_world use: %s", args.Args());
 }
 
@@ -995,20 +1016,59 @@ ps2::system::video::Standard PolicyStandard()
     return s_policy == Presentation::Pal ? ps2::system::video::Standard::Pal : ps2::system::video::Standard::Ntsc;
 }
 
-// ps2_framelog start [FRAMES] | stop | status: records a row per Common frame (FRAMES of them, 3600
-// when left out) and writes them to the package's framelog.txt when it stops, is full, or the camera
-// path it records ends (frame_log.h).
+#if PS2_D3BFG_FRAME_LOG
+// A frame log's package file: a bare name of letters, digits, '_', '-' and '.' ending in .txt.
+PS2_COLD_FUNC bool ValidLogName(const char * name)
+{
+    const size_t length = strlen(name);
+
+    if (length < 5 || length >= 64 || idStr::Icmp(name + length - 4, ".txt") != 0)
+    {
+        return false;
+    }
+
+    for (size_t index = 0; index < length; ++index)
+    {
+        const char c = name[index];
+
+        if (!(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9') && c != '_' && c != '-' && c != '.')
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// ps2_framelog start [FRAMES] [FILE] | stop | status: records a row per Common frame (FRAMES of them,
+// 3600 when left out) and writes them to the package's FILE (framelog.txt) when it stops, is full,
+// or the camera path it records ends (frame_log.h). The label notes the map, the frames' pipelining
+// and the fill A/B.
 PS2_COLD_FUNC void FrameLog(const idCmdArgs & args)
 {
     const char * verb = args.Argc() >= 2 ? args.Argv(1) : "";
 
-    if (strcmp(verb, "start") == 0 && (args.Argc() == 2 || args.Argc() == 3))
+    if (strcmp(verb, "start") == 0 && args.Argc() >= 2 && args.Argc() <= 4)
     {
-        const int frames = args.Argc() == 3 ? atoi(args.Argv(2)) : 3600;
+        const int frames = args.Argc() >= 3 ? atoi(args.Argv(2)) : 3600;
+        const char * file = args.Argc() == 4 ? args.Argv(3) : ps2::system::frame_log::kDefaultFileName;
+
+        if (!ValidLogName(file)) [[unlikely]]
+        {
+            ps2::Log(ps2::LogLevel::Error, "ps2_framelog: %s is not a .txt name of letters, digits, '_', '-' and '.'\n", file);
+            return;
+        }
+
+#if PS2_D3BFG_GPU_SAMPLER
+        const char * fill = ps2::renderer::world::FillEnabled() ? "on" : "off";
+#else // PS2_D3BFG_GPU_SAMPLER
+        const char * fill = "on";
+#endif // PS2_D3BFG_GPU_SAMPLER
+
         char label[160];
-        idStr::snPrintf(label, sizeof(label), "map=%s load_ms=%d standard=%s", s_worldLoaded ? s_worldName.c_str() : "none",
-                        s_worldLoaded ? s_worldLoadMs : 0, ps2::system::video::Name(PolicyStandard()));
-        ps2::system::frame_log::Start(frames > 0 ? static_cast<u32>(frames) : 0U, label);
+        idStr::snPrintf(label, sizeof(label), "map=%s load_ms=%d standard=%s pipeline=%d fill=%s", s_worldLoaded ? s_worldName.c_str() : "none",
+                        s_worldLoaded ? s_worldLoadMs : 0, ps2::system::video::Name(PolicyStandard()), s_pipelineFrames.GetBool() ? 1 : 0, fill);
+        ps2::system::frame_log::Start(frames > 0 ? static_cast<u32>(frames) : 0U, label, file);
         return;
     }
 
@@ -1024,8 +1084,9 @@ PS2_COLD_FUNC void FrameLog(const idCmdArgs & args)
         return;
     }
 
-    ps2::Log(ps2::LogLevel::Error, "usage: ps2_framelog start [FRAMES] | stop | status\n");
+    ps2::Log(ps2::LogLevel::Error, "usage: ps2_framelog start [FRAMES] [FILE] | stop | status\n");
 }
+#endif // PS2_D3BFG_FRAME_LOG
 
 // The display mode the three cvars ask for, each refused with a warning and reset to 'mode's
 // value when it names nothing the standard has. The cvars then hold the effective values.
@@ -1385,7 +1446,9 @@ PS2_COLD_FUNC void InitPresentation()
     cmdSystem->AddCommand("ps2_consoleKey", ConsoleKey, CMD_FL_SYSTEM, CMD_DESC("send a named native console key"));
     cmdSystem->AddCommand("ps2_capture", Capture, CMD_FL_SYSTEM, CMD_DESC("capture the next completed console frame to a HostFs .tga basename"));
     cmdSystem->AddCommand("ps2_world", World, CMD_FL_SYSTEM, CMD_DESC("load, view and query a render world under the console"));
-    cmdSystem->AddCommand("ps2_framelog", FrameLog, CMD_FL_SYSTEM, CMD_DESC("record per-frame timings and counters to the package's framelog.txt"));
+#if PS2_D3BFG_FRAME_LOG
+    cmdSystem->AddCommand("ps2_framelog", FrameLog, CMD_FL_SYSTEM, CMD_DESC("record per-frame timings and counters to a package file"));
+#endif // PS2_D3BFG_FRAME_LOG
 
     // The pad and the debug keyboard feed the same event queue the HostFs commands do; the
     // package stages the keyboard driver's modules in its irx/ directory.
@@ -1481,7 +1544,9 @@ PS2_COLD_FUNC void ShutdownPresentation(int frames)
 
     SetEventGenerator(nullptr);
     input::ShutdownDevices();
+#if PS2_D3BFG_FRAME_LOG
     cmdSystem->RemoveCommand("ps2_framelog");
+#endif // PS2_D3BFG_FRAME_LOG
     cmdSystem->RemoveCommand("ps2_world");
     cmdSystem->RemoveCommand("ps2_capture");
     cmdSystem->RemoveCommand("ps2_consoleKey");

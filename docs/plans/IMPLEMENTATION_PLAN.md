@@ -351,6 +351,24 @@ Preserve a dependency manifest and measured size report for each converted level
 
 At the loader boundary, replace `_ordered.resources` eager buffering in `idResourceContainer::Init` and `.bproc` whole-file buffering in `InitFromMap` with bounded file/chunk readers. Audit `Common_load.cpp::ExecuteMapChange` ordering: it begins filesystem level work before `UnloadMap`, and later preloads assets before world/game initialization. Measure and eliminate avoidable old/new overlap there.
 
+### Profile build (TODO, 2026-11-26)
+
+Instrumentation compiles behind its own defines, on in every configuration for now (the Makefile's
+`INSTRUMENT_DEFS`): `PS2_D3BFG_FRAME_LOG` (the frame log, `ps2_framelog`, and the timing counters
+only it reads: the DMA wait, vertical-blank and loader cycles, the world pass's draw counts) and
+`PS2_D3BFG_GPU_SAMPLER` (the GPU sampler in `dma::WaitIdle` and `ps2_world fill`). Builds without
+them compile to no-op stubs and keep no instrumentation symbols (9,216 bytes less `PT_LOAD`).
+
+- **TODO:** add a third configuration, Profile (`BUILD=profile`): release's optimization,
+  assertions and debug-only code (`PS2_D3BFG_DEBUG=0`, `PS2_D3BFG_ASSERTS=0`) with the
+  instrumentation on, and turn the instrumentation off in Release. `PS2_D3BFG_PROFILE`, defined but
+  read nowhere today, could select it.
+- **With it:**
+  - console perf packages stage the Profile build (`stage-perf-world-retail`);
+  - the gates that read a frame log (the retail world gate's tour and its GPU split, the graybox
+    gate's fill A/B) run on debug and Profile, and Release's runs leave those steps out;
+  - the docs that say "every build" for the frame log say "debug and Profile".
+
 ### PS2 data package (planned, 2026-11-24)
 
 Every asset will be repacked for the PS2, so the final package loads neither

@@ -23,12 +23,14 @@ alone. The R2 gate's probes follow, each held to the .bproc as id's proc loader 
 (world_probes.py): sampled PointInArea, AreasAreConnected with the doorway open, closed as a door
 closes it and reopened, and the sound world's walk from the start to the corridor, which the closed
 doorway must lengthen by s_doorDistanceAdd. The first frames of the frame log's camera tour play into
-ps2_framelog. In debug builds the free-flight camera then
+ps2_framelog with serial frames, whose GPU split must add up to every frame's wait. In debug builds
+the free-flight camera then
 flies from the start under scripted stick input, to the pose the same steps give here, and its
 capture must match the reference from that pose. The world is then unloaded, loaded and unloaded
 again four times, the last three leaving the ledger exactly where the first did, and the session
 quits, recovering the startup ledger. With --stage --perf it stages a package that plays the whole
-tour into framelog.txt by itself, for a console run."""
+tour three times by itself (pipelined, serial, serial with the GS's fill off) into three frame logs,
+for a console run."""
 
 import argparse
 from collections import namedtuple
@@ -368,9 +370,14 @@ PATH_RE = re.compile(r"\[D3BFG\] WORLD path (started|done) (?:file=\S+ )?keys=(\
 FRAMELOG_RE = re.compile(r"\[D3BFG\] FRAMELOG written path=(\S+) rows=(\d+) bytes=(\d+) frame_us_mean=(\d+) frame_us_max=(\d+)")
 
 
+# The gate's tour writes its own file, with serial frames: the EE waits for every chain whole, so the
+# GPU sampler's split must account for each frame's whole wait.
+TOUR_LOG = "framelog_tour.txt"
+
+
 def tour_commands() -> list[str]:
     # One row more than the path plays: its end, not a full log, writes the file.
-    return ["ps2_world textures on", "ps2_world lightmaps on", f"ps2_framelog start {TOUR_FRAMES + 1}",
+    return ["set ps2_pipelineFrames 0", "ps2_world textures on", "ps2_world lightmaps on", f'ps2_framelog start {TOUR_FRAMES + 1} "{TOUR_LOG}"',
             f"ps2_world path {TOUR_PACKAGE_PATH} {TOUR_FRAMES}"]
 
 
@@ -446,8 +453,8 @@ def driver(identity: str, fly: bool, probes: dict):
     yield share_commands(identity), until("share")
     yield probe_commands(identity, probes), until("probes")
     yield tour_commands(), tour_ended
-    yield ["ps2_world loader", "ps2_world textures status", "ps2_world textures off", "ps2_world lightmaps off", "ps2_world off",
-           f'echo "{run_world.barrier(identity, "tour")}"'], until("tour")
+    yield ["set ps2_pipelineFrames 1", "ps2_world loader", "ps2_world textures status", "ps2_world textures off", "ps2_world lightmaps off",
+           "ps2_world off", f'echo "{run_world.barrier(identity, "tour")}"'], until("tour")
     if fly:
         yield fly_commands(identity), until("fly")
     yield ["ps2_world decals", "ps2_world unload", "ps2_world decals", f'echo "{run_world.barrier(identity, "unloaded")}"'], until("unloaded")
@@ -598,12 +605,22 @@ def classify(log: str, identity: str, standard: str, report: dict, probes: dict,
 
 
 def verify_frame_log(output: Path) -> dict:
-    """The tour's framelog.txt: complete, a row for each frame, every row's columns; its summary."""
-    log = frame_log.parse((output / "framelog.txt").read_text())
+    """The tour's log (TOUR_LOG): complete, a row for each frame, every row's columns, serial frames whose
+    GPU split adds up to each wait; its summary."""
+    log = frame_log.parse((output / TOUR_LOG).read_text())
     if log["end"] != TOUR_FRAMES or len(log["rows"]) != TOUR_FRAMES:
-        raise ValueError(f"framelog.txt holds {len(log['rows'])} rows and ends at {log['end']}; expected {TOUR_FRAMES}")
+        raise ValueError(f"{TOUR_LOG} holds {len(log['rows'])} rows and ends at {log['end']}; expected {TOUR_FRAMES}")
     if [row["frame"] for row in log["rows"]] != list(range(TOUR_FRAMES)) or any(row["frame_us"] <= 0 for row in log["rows"]):
-        raise ValueError("framelog.txt's rows are out of order or hold empty frames")
+        raise ValueError(f"{TOUR_LOG}'s rows are out of order or hold empty frames")
+    if "pipeline=0" not in log["notes"].get("label", "") or any(column not in log["columns"] for column in frame_log.GPU_COLUMNS):
+        raise ValueError(f"{TOUR_LOG} is not a serial run with the GPU sampler's columns: {log['notes'].get('label')}")
+    # The split adds up to each frame's wait (each column rounded on its own), and serial frames wait.
+    for row in log["rows"]:
+        split = sum(row[column] for column in frame_log.GPU_COLUMNS)
+        if abs(split - row["gpu_us"]) > len(frame_log.GPU_COLUMNS) + 1:
+            raise ValueError(f"{TOUR_LOG} frame {row['frame']}: the GPU split adds up to {split} us of a {row['gpu_us']} us wait")
+    if sum(row["gpu_us"] for row in log["rows"]) == 0:
+        raise ValueError(f"{TOUR_LOG}'s serial frames never waited for their chains")
     summary = frame_log.summarize(log)
     (output / "framelog-summary.txt").write_text(frame_log.format_summary(summary) + "\n")
     return summary
@@ -688,16 +705,23 @@ def stage_flight(args: argparse.Namespace, standard: str) -> Path:
 
 
 # The console run (make stage-perf-world-retail, a release build on a USB drive or the hard disk):
-# the package's startup config loads the map and plays the whole tour into the frame log, then opens
-# the console on how it ended. framelog.txt lands in the package folder.
+# the package's startup config plays the whole tour three times into three frame logs in the package
+# folder, then opens the console on how they ended. Pipelined frames (framelog.txt: what a frame costs
+# as the game runs), serial ones (framelog_serial.txt: the EE waits for every chain whole, so the GPU
+# split covers all of it), and serial with the GS's fill off (framelog_nofill.txt: by difference, the
+# GS's pixel work). Each loads the map afresh, so each starts streaming from nothing.
 PERF_CONSOLE_WAIT = 60
+PERF_RUNS = (("framelog.txt", 1, "on"), ("framelog_serial.txt", 0, "on"), ("framelog_nofill.txt", 0, "off"))
 
 
 def perf_commands() -> list[str]:
     frames = world_tour.path_frames(world_tour.read_path(TOUR))
-    return ["ps2_consoleKey toggle", f"wait {PERF_CONSOLE_WAIT}", "r_znear 4", f"ps2_world load {MAP}", "ps2_world textures on",
-            "ps2_world lightmaps on", f"ps2_framelog start {frames + 1}", f"ps2_world path {TOUR_PACKAGE_PATH}", f"wait {frames + 30}",
-            "ps2_world loader", "ps2_world textures status", "ps2_consoleKey toggle"]
+    commands = ["ps2_consoleKey toggle", f"wait {PERF_CONSOLE_WAIT}", "r_znear 4"]
+    for name, pipeline, fill in PERF_RUNS:
+        commands += [f"set ps2_pipelineFrames {pipeline}", f"ps2_world fill {fill}", f"ps2_world load {MAP}", "ps2_world textures on",
+                     "ps2_world lightmaps on", f'ps2_framelog start {frames + 1} "{name}"', f"ps2_world path {TOUR_PACKAGE_PATH}",
+                     f"wait {frames + 30}", "ps2_world loader", "ps2_world textures status", "ps2_world unload", "wait 2"]
+    return commands + ["set ps2_pipelineFrames 1", "ps2_world fill on", "ps2_consoleKey toggle"]
 
 
 def stage_perf(args: argparse.Namespace, standard: str) -> Path:
@@ -743,7 +767,7 @@ def main() -> int:
     parser.add_argument("--config", type=Path, default=smoke.DEFAULT_CONFIG)
     parser.add_argument("--timeout-scale", type=float, default=1.0, help="multiplies the watchdogs")
     parser.add_argument("--stage", type=Path, help="only stage a package here that starts flying from the player start (debug builds)")
-    parser.add_argument("--perf", action="store_true", help="with --stage: a package that plays the camera tour into framelog.txt")
+    parser.add_argument("--perf", action="store_true", help="with --stage: a package that plays the camera tour into three frame logs (PERF_RUNS)")
     args = parser.parse_args()
     if not 0 < args.timeout_scale <= 10:
         parser.error("timeout scale must be positive and at most 10")
