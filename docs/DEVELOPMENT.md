@@ -306,6 +306,9 @@ frame log written to framelog.txt in <device>`. Copy the package folder to a USB
 disk as for the console boot (below), boot its `d3bfg.elf`, wait for that line (about four minutes at
 30 frames a second), and read `framelog.txt` back from the package folder. The same package runs in
 PCSX2 (`make BUILD=release run-perf-world-retail`), whose timings say nothing about a console's.
+For an A/B of the pipelined frames, put `set ps2_pipelineFrames 0` at the top of `base/d3bfg.cfg`
+(serial frames, as the first console run had), and compare the two logs with
+`src/tools/scripts/frame_log.py framelog.txt --compare other.txt`.
 Close the console (`ps2_consoleKey toggle`) to see the whole view; `make test-world` stages
 the graybox and runs it. Production draws 640 wide by default. `ps2_frameBufferBits
 16/16|32/16|32/32` sets the in-game frame-buffer profile (draw/display bits; 32/16 draws in

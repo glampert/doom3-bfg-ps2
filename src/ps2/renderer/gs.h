@@ -136,11 +136,10 @@ int FrameFormatBits(FrameFormat format);           // the draw buffer's bits, wh
 FramebufferInfo GetDisplayFramebuffer();
 
 // Immediate: wait for the queued chain, then flip at the next vsync (the 2D path, which needs
-// no following frame). In the 32/16 profile the flip is a dithered copy of the draw buffer into
-// the display buffer, made in the vertical blank before the display reads it again. Pipelined: the context's chain already ran (the caller waited before
-// kicking the next frame); in FIELD mode flip at the next vsync that starts an EVEN field, so the
-// frame displays for two fields and the pace is 30/25 fps. FRAME mode shows the whole buffer on
-// every field, so it flips at the next vsync.
+// no following frame). Pipelined: the context's chain already ran (the caller waited for it, with
+// the next frame's chain built and not yet sent); flip at the next vsync. In the 32/16 profile the
+// flip is a dithered copy of the draw buffer into the display buffer, made in the vertical blank
+// before the display reads it again.
 enum class PresentMode : u8
 {
     Immediate,
@@ -153,7 +152,7 @@ void Present(DrawContext context, PresentMode mode = PresentMode::Immediate);
 struct PresentStats
 {
     u32 presents;
-    u32 vsyncs;      // vertical blanks waited for (two for a FIELD flip that landed on an odd field)
+    u32 vsyncs;      // vertical blanks waited for
     u64 vsyncCycles; // EE cycles spent waiting for them (COP0 Count)
 };
 

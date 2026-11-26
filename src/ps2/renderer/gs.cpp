@@ -691,17 +691,9 @@ void Present(DrawContext context, PresentMode mode)
         PS2_AssertMsg(!dma::InFlight(), "pipelined present while a chain is still queued");
     }
 
+    // Any field: a frame that took one field shows at 60/50 fps. In FIELD mode each field reads
+    // every other line of the whole buffer, so a frame shown for one field shows half its lines.
     WaitVsync("VSYNC");
-
-    // CSR.FIELD (bit 13) is the field now being displayed. In FIELD mode a flip at the start of
-    // the EVEN field shows the whole frame for two fields; one that lands on ODD waits for the
-    // next vsync. FRAME mode shows the whole buffer on either field.
-    const bool pairFields = mode == PresentMode::Pipelined && s_interlace == system::video::Interlace::Field;
-
-    while (pairFields && (*GS_REG_CSR & (1U << 13)) != 0U)
-    {
-        WaitVsync("VSYNC (even field)");
-    }
 
     if (SplitDisplay(s_format))
     {

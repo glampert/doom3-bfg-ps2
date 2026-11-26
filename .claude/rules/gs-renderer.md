@@ -59,8 +59,14 @@ coordinates; CLUTs; VRAM and mipmaps.
   startup. One Common frame = events/commands, clocks and NOMAP work, then movie/menu/console draw
   in one GS frame. `EndFrame` fences and presents immediately (`gs::PresentMode::Immediate`); no
   following frame is needed. `dma::EndFrame` itself only kicks: a chain runs while the EE builds the
-  next frame, `Kick` waits for the previous chain before sending. `PresentMode::Pipelined` (flip at an EVEN
-  field, 30/25 fps) exists but nothing presents with it yet: presentation's frames are serial. GS
+  next frame, `Kick` waits for the previous chain before sending. Production's Common frames
+  pipeline (2026-11-26, `ps2_pipelineFrames`): `renderer::EndFrame(PresentMode::Pipelined)` returns
+  with the chain drawing, and the next kick waits for it and presents it first
+  (`dma::BeforeNextSend`), flipping at the next vsync of either field. Memory the chain in flight
+  reads must stay untouched until then: state blocks are per drawing context, texture copies wait
+  for `dma::ChainDone`, and a VU program's chain is rewritten only after `WaitIdle`. Captures,
+  redraws between frames and test images present immediately; `LastPresentedContext` asserts no
+  present is pending. GS
   vsync paces visible mode (no headless sleep). The vsync wait **sleeps** (2026-11-24): an
   `INTC_VBLANK_S` handler signals a semaphore, then CSR's VSINT confirms the edge (the IMR still masks
   the GS interrupts, so CSR's events stay ours to poll). The background loader (`system/aio.h`) runs
@@ -78,8 +84,7 @@ coordinates; CLUTs; VRAM and mipmaps.
   restarts the GS (`renderer::SetDisplayMode`: shutdown, init, `vu::Invalidate`, `tex::MoveVram`);
   never lay the buffers out again under a running GS (PCSX2's hardware renderer then returned stale
   old-format targets to the first readback). FRAME mode (`SMODE2.FFMD` 1) draws a half-height buffer
-  shown whole on every field: no flicker filter, both `DISPFB` circuits at line 0, pipelined presents
-  flip on any field. Buffers pad to whole GS page rows (64 lines for 16-bit formats, 32 for
+  shown whole on every field: no flicker filter, both `DISPFB` circuits at line 0. Buffers pad to whole GS page rows (64 lines for 16-bit formats, 32 for
   `PSMCT32`) so a 224-line buffer never shares a page row with the next one. Pixel models use
   `renderer_capture.stored(rgb, bits)`, `frame_size` and `fixed_vram_bytes`.
 - **Device:** reset/claim VIF1 and GIF along with the GS (CSR reset alone stalled PATH2 DIRECT).

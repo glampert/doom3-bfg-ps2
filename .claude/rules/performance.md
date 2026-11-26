@@ -47,8 +47,9 @@ tour (below); there is no campaign baseline yet. Quake timings below are not Doo
   summarises one. Columns and design: RENDERING_ARCHITECTURE.md 17.2.
 - Hardware timing comes from `make BUILD=release stage-perf-world-retail` on a console (the whole
   mars_city1 tour, 7,244 frames); the gate's 240-frame tour in PCSX2 checks function only.
-- Frames are serial today (build, kick, wait for VU1 and the GS, wait for the vertical blank): the
-  `gpu_us` column is the chain's whole time beyond the kick.
+- Frames pipeline (2026-11-26, `ps2_pipelineFrames`): the kick that sends frame N+1 waits for chain N
+  (`gpu_us`, what the EE did not cover building N+1) and for the vsync that shows N (`vsync_us`).
+  `ps2_pipelineFrames 0` gives the serial frames of the first console run, for an A/B on hardware.
 - **First console run (2026-11-26, NTSC 640 32/32, PORT_STATUS "First console frame log"):** the tour
   took 199 s from the HDD and 193 s from USB (36 to 37 fps mean, 62% of frames at one field, 12% at
   three or more). The HDD and USB logs (`build/framelog_{hdd,usb}.txt`) are the baselines for

@@ -16,6 +16,10 @@ static bool s_initialized = false;
 static bool s_frame = false;
 static gs::DrawContext s_context = gs::DrawContext::Ctx0;
 static u32 s_frames = 0;
+
+// A pipelined frame whose chain was sent and whose present waits for the next send (PresentPending).
+static bool s_presentPending = false;
+static gs::DrawContext s_pendingContext = gs::DrawContext::Ctx0;
 static u32 s_textureVramBytes = 0;
 static system::video::Standard s_standard = system::video::Standard::Ntsc;
 static DisplayMode s_display;
@@ -180,7 +184,7 @@ gs::DrawContext DrawingContext()
 
 gs::DrawContext LastPresentedContext()
 {
-    PS2_AssertMsg(!s_frame && s_frames != 0, "no completed GS frame");
+    PS2_AssertMsg(!s_frame && s_frames != 0 && !s_presentPending, "no completed GS frame, or its present still pending");
     return s_context;
 }
 
@@ -237,6 +241,7 @@ PS2_COLD_FUNC void Shutdown()
         EndFrame();
     }
 
+    PresentPending();
     tex::Shutdown();
 
     // Partial startup and repeated shutdown both leave no DMA references or heap ownership.
@@ -268,6 +273,7 @@ PS2_COLD_FUNC void SetDisplayMode(const DisplayMode & mode)
     // of the old layout behind (an emulator's render-target cache keeps old-format buffers
     // otherwise), at the cost of a blank frame. No queued TEX0 may name a page the larger buffers
     // cover, and the VIF1 reset leaves VU1 micro memory unknown.
+    PresentPending();
     dma::WaitIdle();
     gs::Shutdown();
 
@@ -301,13 +307,40 @@ void BeginFrame(gs::Color clearColor)
     gs::ClearFrame(dma::List(), s_context, clearColor);
 }
 
-void EndFrame()
+void PresentPending()
+{
+    if (!s_presentPending)
+    {
+        return;
+    }
+
+    s_presentPending = false;
+    dma::WaitIdle();
+    gs::Present(s_pendingContext, gs::PresentMode::Pipelined);
+}
+
+void EndFrame(gs::PresentMode mode)
 {
     PS2_AssertMsg(s_frame, "2D EndFrame without BeginFrame");
 
     ui::EndGeometryFrame();
+
+    // The kick shows a pipelined frame before first, once its chain has drawn: this chain draws over
+    // the buffer that frame takes off the screen. A frame that sent nothing presents it here.
     dma::EndFrame();
-    gs::Present(s_context);
+    PresentPending();
+
+    if (mode == gs::PresentMode::Immediate)
+    {
+        gs::Present(s_context);
+    }
+    else
+    {
+        // The EE builds the next frame while this chain draws; the next kick presents it.
+        s_presentPending = true;
+        s_pendingContext = s_context;
+        dma::BeforeNextSend(PresentPending);
+    }
 
     s_frame = false;
     ++s_frames;

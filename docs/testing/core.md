@@ -9,9 +9,10 @@ Detailed acceptance for the core and platform test images (`make build-core`, `b
 - `make test-renderer` / `make BUILD=release test-renderer` use the existing core test
   executable for the integrated GS/native-adapter scenes in NTSC/PAL, then (debug only) seventeen expected-fatal probes.
   They do not initialize real Console/Common presentation or link fixtures into production. Fifteen GS
-  markers (`pipelined-present` checks the raw frame model: build N+1 while N runs, present N
-  at an EVEN field with `gs::PresentMode::Pipelined`, four presents taking at least five
-  fields; `vu-passthrough` binds the passthrough microprogram through its MPG chain, UNPACKs a
+  markers (`pipelined-present` checks the pipelined frame (2026-11-26): each
+  `EndFrame(Pipelined)` returns with its chain still drawing and presents the frame before it,
+  `PresentPending` shows the last one (the display reads its buffer), an immediate frame after a
+  pipelined one presents both, and four presents take at least three fields; `vu-passthrough` binds the passthrough microprogram through its MPG chain, UNPACKs a
   red sprite packet into the VU double buffer, MSCALs it and checks `renderer-vu.tga` at six
   pixels, with a second bind uploading nothing and the clipper library, which passthrough does
   not call, never uploaded) require 120 presented frames, alternating contexts, a reload with smaller

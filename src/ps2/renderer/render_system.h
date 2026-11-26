@@ -44,10 +44,15 @@ bool IsInitialized();
 PS2_COLD_FUNC void SetDisplayMode(const DisplayMode & mode);
 DisplayMode GetDisplayMode();
 
-// Frame lifecycle:
+// Frame lifecycle. EndFrame sends the frame's chain. Immediate waits for it and presents it, so the
+// frame is on screen when EndFrame returns (captures read it then). Pipelined returns while the
+// chain draws: the EE builds the next frame meanwhile, and the next chain's kick waits for this one
+// and presents it first (one frame more latency, no time lost to the wait while the EE has work).
+// PresentPending shows a pipelined frame still waiting; mode changes and shutdown call it.
 bool FrameStarted();
 void BeginFrame(gs::Color clearColor);
-void EndFrame();
+void EndFrame(gs::PresentMode mode = gs::PresentMode::Immediate);
+void PresentPending();
 u32 FrameCount();
 gs::DrawContext LastPresentedContext();
 

@@ -35,6 +35,9 @@ static Stats s_stats = {};
 // Chains kicked since boot, never reset (ChainDone compares against numbers taken before an Init).
 static u32 s_chains = 0;
 
+// BeforeNextSend's action, run by the Kick that sends the next chain.
+static void (*s_beforeSend)() = nullptr;
+
 } // namespace
 
 namespace detail
@@ -121,6 +124,7 @@ PS2_COLD_FUNC void Shutdown()
     s_rings[1] = {};
     detail::g_inFrame = false;
     s_ring = 0;
+    s_beforeSend = nullptr;
 }
 
 bool IsInitialized()
@@ -144,7 +148,7 @@ void EndFrame()
     PS2_AssertMsg(detail::g_inFrame && !detail::g_list.InDirect(), "invalid EndFrame state");
 
     // The chain is sent, not awaited: the EE may build the next frame while it runs. An immediate
-    // present (gs::Present) or WaitIdle fences on it.
+    // present (gs::Present) or WaitIdle fences on it; a pipelined one runs in the next frame's Kick.
     s_stats.frameBytes = detail::g_list.RingUsedBytes();
     Kick();
     detail::g_inFrame = false;
@@ -161,6 +165,13 @@ void Kick()
 
     WaitIdle();
 
+    if (s_beforeSend != nullptr)
+    {
+        void (*const action)() = s_beforeSend;
+        s_beforeSend = nullptr;
+        action();
+    }
+
     const void * const chain = detail::g_list.CloseChain();
     s_stats.peakBytes = std::max(s_stats.peakBytes, detail::g_list.RingUsedBytes());
 
@@ -170,6 +181,11 @@ void Kick()
     detail::g_inFlight = true;
     ++s_stats.kicks;
     ++s_chains;
+}
+
+void BeforeNextSend(void (*action)())
+{
+    s_beforeSend = action;
 }
 
 u32 OpenChain()

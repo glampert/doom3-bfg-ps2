@@ -72,6 +72,13 @@ static idCVar s_frameBufferBits("ps2_frameBufferBits", "32/32", CVAR_SYSTEM,
                                 "frame-buffer draw/display bits in game: 16/16, 32/16 (32-bit drawing shown through a dithered "
                                 "16-bit copy) or 32/32; the front end uses 32/16 for 32/32; changes between frames");
 
+// A Common frame's chain draws while the EE builds the next frame, which presents it: a frame takes
+// the longer of the two rather than their sum, shown one frame later. Captures and redraws between
+// frames present at once.
+static idCVar s_pipelineFrames("ps2_pipelineFrames", "1", CVAR_SYSTEM | CVAR_BOOL,
+                               "build the next frame while the GS draws this one (one frame more latency); 0 shows each frame "
+                               "before the next begins");
+
 // The display mode the cvars ask for; the front end may draw it in a smaller profile (Effective).
 static ps2::renderer::DisplayMode s_preferred;
 
@@ -1192,7 +1199,11 @@ void Present()
             ps2::system::frame_log::Mark(ps2::system::frame_log::Point::Ui);
         }
     }
-    ps2::renderer::EndFrame();
+
+    // A capture reads the frame once it is on screen, and a redraw between frames has no next frame
+    // to present it.
+    const bool pipelined = s_inFrame && s_captureName[0] == '\0' && s_pipelineFrames.GetBool();
+    ps2::renderer::EndFrame(pipelined ? ps2::renderer::gs::PresentMode::Pipelined : ps2::renderer::gs::PresentMode::Immediate);
 
     if (s_inFrame)
     {

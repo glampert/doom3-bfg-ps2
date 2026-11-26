@@ -25,6 +25,11 @@ COUNT_COLUMNS = ("batches", "lit_batches", "pass_batches", "vertices", "packet_b
 # Frame-time lines: two fields of NTSC (33.3 ms) and of PAL (40 ms), and RENDERING_ARCHITECTURE.md
 # 19's R9 ceilings (no frame above 50 / 60 ms).
 BUDGETS_US = (16683, 33367, 40000, 50000, 60000)
+# A frame paced by the vertical blank measures its fields within a few microseconds either way: one
+# that took a field and 2 us still took one field.
+JITTER_US = 50
+# A field, from the label's standard (NTSC's 59.94 Hz unless it says PAL).
+FIELD_US = {"NTSC": 1e6 / 59.94, "PAL": 20000.0}
 
 
 def parse(text: str) -> dict:
@@ -71,10 +76,16 @@ def summarize(log: dict, worst: int = 8) -> dict:
     counts = {column: {"mean": round(sum(row[column] for row in rows) / len(rows)), "max": max(row[column] for row in rows),
                        "total": sum(row[column] for row in rows)} for column in COUNT_COLUMNS}
     frames = [row["frame_us"] for row in rows]
-    over = {str(budget): sum(1 for value in frames if value > budget) for budget in BUDGETS_US}
+    over = {str(budget): sum(1 for value in frames if value > budget + JITTER_US) for budget in BUDGETS_US}
+    standard = "PAL" if "standard=PAL" in log["notes"].get("label", "") else "NTSC"
+    fields = {}
+    for value in frames:
+        count = max(1, round(value / FIELD_US[standard]))
+        fields[count] = fields.get(count, 0) + 1
     slowest = sorted(rows, key=lambda row: row["frame_us"], reverse=True)[:worst]
     return {"rows": len(rows), "complete": log["end"] == len(rows), "notes": log["notes"], "stages": stages, "counts": counts,
-            "over_budget": over, "seconds": round(sum(frames) / 1e6, 2), "loader": log["loader"],
+            "over_budget": over, "fields": {str(count): fields[count] for count in sorted(fields)}, "standard": standard,
+            "seconds": round(sum(frames) / 1e6, 2), "loader": log["loader"],
             "worst": [{key: row[key] for key in ("frame", "frame_us", "game_us", "view_us", "submit_us", "gpu_us", "vsync_us", "area",
                                                   "batches", "vertices", "uploads", "stream_misses", "x", "y", "z", "yaw")}
                       for row in slowest]}
@@ -92,6 +103,7 @@ def format_summary(summary: dict, other: dict | None = None) -> str:
             line += f" {before:9d} ({(stats['mean'] - before) / before * 100 if before else 0.0:+.1f}%)"
         lines.append(line)
     lines.append("frames over: " + ", ".join(f"{int(budget) / 1000:.1f} ms {count}" for budget, count in summary["over_budget"].items()))
+    lines.append(f"{summary['standard']} fields a frame: " + ", ".join(f"{count} x{fields}" for count, fields in summary["fields"].items()))
     counts = summary["counts"]
     lines.append(f"per frame: batches {counts['batches']['mean']} (max {counts['batches']['max']}), vertices {counts['vertices']['mean']} "
                  f"(max {counts['vertices']['max']}), chain {counts['chain_bytes']['mean']} bytes (max {counts['chain_bytes']['max']})")

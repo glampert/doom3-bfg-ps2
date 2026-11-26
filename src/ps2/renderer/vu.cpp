@@ -259,7 +259,9 @@ Binding Bind(Program program)
         s_swapNext += entry.instructions;
 
         // The prebuilt chain carries the destination in its MPG codes; rewrite them for the new
-        // address, through the uncached view since the DMA reads what main memory holds.
+        // address, through the uncached view since the DMA reads what main memory holds. A chain in
+        // flight (the last frame's, pipelined) may still CALL it with the old codes: it finishes first.
+        dma::WaitIdle();
         qword_t * tag = dma::Uncached(entry.chain);
         for (u32 done = 0; done < entry.instructions; done += kMpgInstructions, ++tag)
         {

@@ -184,18 +184,22 @@ faces when a pass needs them).
      main-RAM chain ring N+1      │ CNT  DIRECT  IMAGE texture ───┼────────── PATH2 ───────▶ VRAM upload
                                   │ ...                           │  clip, build GIF packet
    end of frame: END tag,         │ CNT  FLUSH DIRECT FINISH ─────┼─▶ xgkick ── PATH1 ─────▶ triangles
-     kick chain N+1,              └───────────────────────────────┘                          FINISH → CSR
-     wait FINISH of N,
-     flip DISPFB at the next even vsync (30/25 fps), present N
+     wait FINISH of N,            └───────────────────────────────┘                          FINISH → CSR
+     flip DISPFB to N at the next vsync,
+     kick chain N+1
 ```
 
 - One frame of latency: while the EE builds chain N+1 it never waits for the GS except at
   the frame boundary, where it waits for chain N's FINISH before flipping and before
-  reusing N's chain ring and dynamic buffers. Implemented at the dma/gs level on 2026-11-03:
-  `dma::EndFrame` kicks without waiting, `dma::Kick` waits for the previous chain before
-  sending, and the frame loop waits for N, presents N (`gs::PresentMode::Pipelined`), then
-  kicks N+1, so N+1 never draws into the buffer still on display. The 2D path keeps
-  `PresentMode::Immediate`.
+  reusing N's chain ring and dynamic buffers. The dma/gs half came on 2026-11-03
+  (`dma::EndFrame` kicks without waiting, `dma::Kick` waits for the previous chain before
+  sending); production's Common frames run this way since 2026-11-26
+  (`renderer::EndFrame(gs::PresentMode::Pipelined)`, `ps2_pipelineFrames`): the kick that sends
+  N+1 first waits for N and presents it (`dma::BeforeNextSend`), so N+1 never draws into the
+  buffer still on display, and a kick in the middle of a frame (a UI texture's fence) presents N
+  early. The flip lands on the next vsync of either field, as an immediate present's does, so a
+  frame that fits a field shows at 60/50 fps. Captures, redraws between Common frames and the test
+  images present immediately.
 - Two chain rings (N, N+1) of 384 KiB each in main RAM, two frame buffers in VRAM.
 - **Order inside a chain:** VU program and constant uploads, texture uploads for this frame
   (section 10.5), the depth and base pass of the world, the lit passes, entities,
@@ -1982,9 +1986,11 @@ uploads, evictions, streamed reads, misses and fallbacks, with the eye and yaw. 
 of a `setviewpos` sequence (each of which would be a jump that waits for its textures, where a walk
 reads ahead). mars_city1's tour (`config/world_mars_city1_tour.path`, `world_tour.py`) starts at the
 player start, walks depth first through every area the open portals reach, doorway to a standing
-point at eye height and on, and back, 7,244 frames. Today's frames are serial: the EE builds the
-frame, kicks it, waits for VU1 and the GS, then for the vertical blank (`gs::Present` in immediate
-mode), so the log's gpu column is the chain's whole time beyond the kick.
+point at eye height and on, and back, 7,244 frames. The first console run (2026-11-26) had serial
+frames: the EE built the frame, kicked it, waited for VU1 and the GS, then for the vertical blank,
+so the gpu column was the chain's whole time beyond the kick. Frames pipeline since the same day
+(4.1): the gpu column is now the time the kick that sends frame N+1 waits for chain N, which the EE
+spent building N+1 meanwhile, and the vsync column the wait to flip N before that kick.
 
 ---
 

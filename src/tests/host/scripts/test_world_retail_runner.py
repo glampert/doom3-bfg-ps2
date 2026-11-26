@@ -421,13 +421,16 @@ class R2GateTests(unittest.TestCase):
         rows = []
         for frame in range(3):
             values = {name: 0 for name in columns}
-            values.update(frame=frame, frame_us=33000 + frame * 10000, gpu_us=1000, batches=100 + frame)
+            # One field a microsecond late (still one), two fields a little late, three.
+            values.update(frame=frame, frame_us=(16684, 33400, 53000)[frame], gpu_us=1000, batches=100 + frame)
             rows.append("FLOG," + ",".join(str(values[name]) for name in columns))
         text = "\n".join(["FLOG#build,release", header] + rows + ["FLOG#loader,bytes=10,chunks=1,seeks=1,io_us=5,kib_per_s=1", "FLOG#end,3"])
         summary = frame_log.summarize(frame_log.parse(text))
         self.assertTrue(summary["complete"])
         self.assertEqual(summary["stages"]["frame_us"]["max"], 53000)
-        self.assertEqual(summary["over_budget"]["33367"], 2)
+        self.assertEqual(summary["over_budget"]["16683"], 2)
+        self.assertEqual(summary["over_budget"]["33367"], 1)
+        self.assertEqual(summary["fields"], {"1": 1, "2": 1, "3": 1})
         self.assertEqual(summary["worst"][0]["frame"], 2)
         self.assertIn("53000", frame_log.format_summary(summary, summary))
         # A file without its end row was cut short.

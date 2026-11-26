@@ -84,8 +84,11 @@ captures wait for R7's draws (the user's call on 2026-11-24). The R2 gate's emul
 exact load cycles, a frame-logged tour). Its console run came back on 2026-11-26 (PORT_STATUS,
 "First console frame log": the tour from the HDD and USB, `make BUILD=release
 stage-perf-world-retail`, summarised by `src/tools/scripts/frame_log.py`): mid-pass evictions and
-serial frames cost the most, and RENDERING_TODO lists the fixes by what they cost the tour; a
-later console run compares with `frame_log.py --compare`. Load-game waits for M3, which the user chose to do before R3
+serial frames cost the most, and RENDERING_TODO lists the fixes by what they cost the tour. Three
+are in (2026-11-26): mid-pass victims no longer walk the plan, the debug keyboard is off unless
+`ps2_keyboard` is set, and Common frames pipeline (`ps2_pipelineFrames`); batching the streaming
+reads and splitting VU1 from GS time remain. A later console run compares with
+`frame_log.py --compare`. Load-game waits for M3, which the user chose to do before R3
 (2026-11-25): Common owning a game-loaded map in production. Streaming (2026-11-24) loads textures
 one at a time on the background loader thread, not as the planned dictionaries, which mars_city1's
 measurements ruled out (RENDERING_ARCHITECTURE.md 10.5). Planned, not

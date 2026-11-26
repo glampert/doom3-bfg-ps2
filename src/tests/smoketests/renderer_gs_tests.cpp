@@ -612,37 +612,39 @@ bool PipelinedPresent(system::video::Standard standard)
 
     constexpr renderer::gs::Color kColours[4] = { { 255, 0, 0, 255 }, { 0, 255, 0, 255 }, { 0, 0, 255, 255 }, { 255, 255, 255, 255 } };
     const u32 fieldCycles = standard == system::video::Standard::Pal ? 5898240U : 4920000U; // 20 ms, 16.68 ms at 294.912 MHz
+    const u32 presents = renderer::gs::GetPresentStats().presents;
     bool passed = true;
-    bool evenFields = true;
-    u32 presents = 0;
-    renderer::gs::DrawContext previous = renderer::gs::DrawContext::Ctx1;
+    renderer::gs::DrawContext last = renderer::gs::DrawContext::Ctx0;
     const u32 start = renderer::gs::ReadCycles();
-    for (int frame = 0; frame < 4; ++frame)
-    {
-        const auto context = (frame & 1) == 0 ? renderer::gs::DrawContext::Ctx0 : renderer::gs::DrawContext::Ctx1;
-        renderer::dma::BeginFrame();
-        renderer::gs::ClearFrame(renderer::dma::List(), context, kColours[frame]);
-        if (frame > 0)
-        {
-            renderer::dma::WaitIdle();
-            renderer::gs::Present(previous, renderer::gs::PresentMode::Pipelined);
-            evenFields = evenFields && (*GS_REG_CSR & (1U << 13)) == 0U;
-            ++presents;
-        }
 
-        renderer::dma::EndFrame();
-        passed = passed && renderer::dma::InFlight();
-        previous = context;
+    // Each frame's chain is still drawing when EndFrame returns, and the frame shows only once the
+    // next frame's kick has waited for it: the presents lag the frames by one.
+    for (u32 frame = 0; frame < 4U; ++frame)
+    {
+        renderer::BeginFrame(kColours[frame]);
+        last = renderer::DrawingContext();
+        renderer::EndFrame(renderer::gs::PresentMode::Pipelined);
+        passed = passed && renderer::dma::InFlight() && renderer::gs::GetPresentStats().presents == presents + frame;
     }
 
-    renderer::dma::WaitIdle();
-    renderer::gs::Present(previous, renderer::gs::PresentMode::Pipelined);
-    evenFields = evenFields && (*GS_REG_CSR & (1U << 13)) == 0U;
-    ++presents;
+    // The last one shows when asked: its buffer is the one the display reads.
+    renderer::PresentPending();
+    passed = passed && !renderer::dma::InFlight() && renderer::gs::GetPresentStats().presents == presents + 4U &&
+             renderer::gs::GetDisplayFramebuffer().address == renderer::gs::GetFramebuffer(last).address;
     const u32 elapsed = renderer::gs::ReadCycles() - start;
 
-    passed = passed && evenFields && presents == 4U && !renderer::dma::InFlight() && elapsed >= 5U * fieldCycles && elapsed <= 40U * fieldCycles;
-    Log(LogLevel::Info, "[D3BFG] GS pipelined presents=%u elapsed_fields=%u even=%d\n", presents, elapsed / fieldCycles, evenFields ? 1 : 0);
+    // An immediate frame after a pipelined one shows the pending frame, then itself.
+    renderer::BeginFrame(kColours[0]);
+    renderer::EndFrame(renderer::gs::PresentMode::Pipelined);
+    renderer::BeginFrame(kColours[1]);
+    renderer::EndFrame();
+    passed = passed && !renderer::dma::InFlight() && renderer::gs::GetPresentStats().presents == presents + 6U &&
+             renderer::gs::GetDisplayFramebuffer().address == renderer::gs::GetFramebuffer(renderer::LastPresentedContext()).address;
+
+    // Four presents, one a vertical blank: three fields at least between the first and the last.
+    passed = passed && elapsed >= 3U * fieldCycles && elapsed <= 40U * fieldCycles;
+    Log(LogLevel::Info, "[D3BFG] GS pipelined presents=%u elapsed_fields=%u\n", renderer::gs::GetPresentStats().presents - presents,
+        elapsed / fieldCycles);
     renderer::Shutdown();
     return passed && SameLedger(baseline);
 }

@@ -6370,3 +6370,43 @@ The first two fixes from the console frame log.
 | `make test-world-retail` | `20261126T001032Z_world_retail_90627a10b971` (NTSC), `20261126T001152Z_world_retail_36d28e513b59` (PAL): tour counters identical to `20261125T114011Z`/`114148Z` |
 | `make test-world` | `20261126T001524Z_world_ea490298e611`, `20261126T001541Z_world_a0f46cb846e6`, with the keyboard steps |
 | `make`, `make release` | Passed, no warnings |
+
+## Pipelined frames (2026-11-26)
+
+The third fix from the console frame log. A Common frame now ends with
+`renderer::EndFrame(gs::PresentMode::Pipelined)`: its chain is sent and still drawing when the
+frame returns, and the EE goes on to the next frame. The kick that sends that next chain first
+waits for this one, flips it at the next vsync and only then sends (`dma::BeforeNextSend`), so the
+new chain never draws into the buffer on screen. A frame then takes the longer of the EE's work and
+VU1 and the GS's, not their sum, and shows one frame later.
+- **What stays immediate:** frames with a `ps2_capture` queued (a capture reads the frame on
+  screen), redraws between Common frames (a load's progress has no next frame to show it) and the
+  test images. A display mode change and shutdown show a pending frame first.
+- **Early presents:** a kick in the middle of a frame (a UI texture's fence) presents the frame
+  before it early, which loses that frame's overlap but stays correct.
+- **The pipelined present no longer pairs fields:** it flips on the next vsync of either field,
+  as the immediate one does, so a frame that fits a field still shows at 60/50 fps. It used to wait
+  for an even field, a 30/25 fps cap.
+- **What the chain in flight reads stays untouched:** state blocks are per drawing context
+  (contexts alternate per frame), texture copies leave only once `dma::ChainDone`, and the GS sees
+  the commands in the same order as before. One gap was closed: `vu::Bind` rewrites a swap
+  program's upload chain when it moves, so it now waits for the chain in flight first (both world
+  programs fit the swap region together, so this does not happen today).
+- **Checked:** `ps2_pipelineFrames 0` brings back serial frames for an A/B run. The core gate's
+  `pipelined-present` check now drives `EndFrame(Pipelined)`: each chain is still in flight when
+  its frame returns, the presents lag the frames by one, `PresentPending` shows the last one, and
+  an immediate frame after a pipelined one shows both. In PCSX2, which charges almost nothing for
+  the GS, the gate tour's counters are identical frame for frame, and its mean GPU wait fell from
+  265 to 0 µs (NTSC) and from 375 to 0 µs (PAL); frame times stay one field, as before.
+- **Frame log:** `frame_log.py` now counts frames by whole fields and gives the budget lines 50 µs
+  of slack. A vsync-paced frame measures a microsecond or two over its fields, which the old lines
+  counted as over.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261126T005828Z_world_retail_d2cf28ff04e9` (NTSC), `20261126T005943Z_world_retail_7a0e009375d2` (PAL) |
+| `make test-world` | `20261126T005736Z_world_efb7e949e896`, `20261126T005750Z_world_a9553675114a` |
+| `make test-renderer` | `20261126T010457Z_smoke_44cda5cc8ebc4ab3` (NTSC), `20261126T010510Z_smoke_730b6cd87a324182` (PAL), and the expected-fatal probes |
+| `make test-ui` | `20261126T010630Z_session_bbe18d972673` (NTSC), `20261126T011622Z_session_a291c624e6de` (PAL), and the rejection cases |
+| `make test-host` | Passed (420) |
+| `make`, `make release` | Passed, no warnings |

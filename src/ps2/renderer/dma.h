@@ -101,6 +101,11 @@ void EndFrame();
 void Kick();
 void WaitIdle();
 
+// Runs 'action' once, in the next Kick that sends a chain: after the chain before it has finished
+// and before the new one starts. A pipelined present waits there (render_system.cpp): the next
+// frame's chain draws over the buffer the present takes off the screen. Null cancels it.
+void BeforeNextSend(void (*action)());
+
 // Chains are numbered from 1 as they are kicked. OpenChain is the number the chain being built gets
 // when it is kicked; ChainDone tells whether chain 'chain' has run to completion: a later one was
 // kicked (Kick waits for the one before it) or it was the last and has been waited for. Memory a
