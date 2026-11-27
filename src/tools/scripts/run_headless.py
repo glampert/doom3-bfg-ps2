@@ -45,7 +45,51 @@ SCRIPT_IMAGE_RE = re.compile(r"\[D3BFG\] SCRIPT_IMAGE bytes=(\d+) fnv=([0-9a-f]{
 # that does not match its scan's checksum is fatal on the target.
 DECL_TEXT_RE = re.compile(r"\[D3BFG\] DECLTEXT verified=(\d+) bytes=(\d+) largest=(\d+) ms=(\d+) scattered_ms=(\d+)")
 DECL_TEXT_FIELDS = ("verified", "bytes", "largest", "ms", "scattered_ms")
+# Debug retail runs measure mars_city1's game data twice (ps2_mapdata, M3.1): the map's container, its
+# cooked entities, the collision models and the AAS, each step's ledger and the freed totals.
+MAP_DATA_MAP = "game/mars_city1"
+MAP_DATA_RE = re.compile(r"\[D3BFG\] MAPDATA map=(\S+) entities=(\d+) geometry_crc=(0x[0-9a-f]{8}) "
+                         r"collision_crc=(0x[0-9a-f]{8}) collision=(\d) aas_types=(\d+) aas_loaded=(\d+)")
+MAP_DATA_MEMORY_RE = re.compile(r"\[D3BFG\] MEMORY mapdata-(\w+) requested=(\d+) backing=(\d+) allocations=(\d+) "
+                                r"peak_requested=(\d+) peak_backing=(\d+)")
+MAP_DATA_STEP_RE = re.compile(r"\[D3BFG\] MAPDATA_STEP (\w+) ms=(\d+)")
+MAP_DATA_STEPS = ("begin", "container", "entities", "collision", "aas", "end")
 DEFAULT_TIMEOUTS = {"bounded": 30.0, "console": 30.0, "retail": 300.0}
+
+
+def map_data(log: str) -> list[dict]:
+    """Each ps2_mapdata cycle: its summary line, and per step the ledger and the EE milliseconds."""
+    cycles = []
+    memory = MAP_DATA_MEMORY_RE.findall(log)
+    steps = MAP_DATA_STEP_RE.findall(log)
+    per_cycle = len(MAP_DATA_STEPS)
+    for index, match in enumerate(MAP_DATA_RE.findall(log)):
+        name, entities, geometry, collision_crc, collision, types, loaded = match
+        ledgers = memory[index * per_cycle:(index + 1) * per_cycle]
+        times = dict(steps[index * (per_cycle - 1):(index + 1) * (per_cycle - 1)])
+        cycles.append({"map": name, "entities": int(entities), "geometry_crc": geometry, "collision_crc": collision_crc,
+                       "collision": collision == "1", "aas_types": int(types), "aas_loaded": int(loaded),
+                       "steps": [{"step": step, "requested": int(requested), "backing": int(backing), "allocations": int(count),
+                                  "peak_requested": int(peak), "peak_backing": int(peak_backing),
+                                  "ms": int(times[step]) if step in times else None}
+                                 for step, requested, backing, count, peak, peak_backing in ledgers]})
+    return cycles
+
+
+def check_map_data(log: str) -> tuple[bool, str]:
+    """Both cycles load collision and the 48-unit AAS against the cooked CRC, and the warm cycle
+    frees back to exactly the ledger it began with."""
+    cycles = map_data(log)
+    if len(cycles) != 2 or any([step["step"] for step in cycle["steps"]] != list(MAP_DATA_STEPS) for cycle in cycles):
+        return False, "ps2_mapdata did not run two complete cycles"
+    for cycle in cycles:
+        if not cycle["collision"] or cycle["aas_loaded"] < 1 or cycle["geometry_crc"] != cycle["collision_crc"]:
+            return False, "the cooked map's CRC did not load the retail collision and AAS"
+    warm = cycles[1]["steps"]
+    key = lambda step: (step["requested"], step["backing"], step["allocations"])
+    if key(warm[0]) != key(warm[-1]) or key(cycles[0]["steps"][-1]) != key(warm[0]):
+        return False, "the warm ps2_mapdata cycle did not free back to its starting ledger"
+    return True, "map data loaded and freed"
 
 
 def startup_memory(log: str) -> dict:
@@ -120,6 +164,10 @@ def classify(log: str, case: str, identity: str, compiled: bool = False, verify_
             return False, "missing or repeated startup memory checkpoints"
         if verify_decls and (decl_text(log) is None or decl_text(log)["verified"] == 0):
             return False, "the declarations' text was not read back from the containers"
+        if verify_decls:
+            passed, reason = check_map_data(log)
+            if not passed:
+                return False, reason
     if bounded:
         if "COMMON frame limit reached frames=120" not in log:
             return False, "frame limit did not request shutdown"
@@ -137,15 +185,16 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
     identity = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_headless_" + uuid.uuid4().hex[:12]
     retail_data = args.data_root if case == "retail" else None
     build = f"{args.build}-scriptcheck" if args.script_check is not None else args.build
-    output = stage(build, REPO_ROOT / "build/test-results" / identity, retail_data=retail_data)
+    verify_decls = case == "retail" and args.build == "debug" and args.script_check is None
+    output = stage(build, REPO_ROOT / "build/test-results" / identity, retail_data=retail_data,
+                   maps=(MAP_DATA_MAP,) if verify_decls else ())
     timeout = args.timeout if args.timeout is not None else DEFAULT_TIMEOUTS[case]
     report = json.loads((output / "report.json").read_text())
     for name in report["flag_stamps"]:
         shutil.copy2(REPO_ROOT / name, output / Path(name).name)
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
     config = f'echo "{identity}_begin"\n'
-    verify_decls = case == "retail" and args.build == "debug" and args.script_check is None
-    config += "ps2_verifyDeclText\n" if verify_decls else ""
+    config += f"ps2_verifyDeclText\nps2_mapdata {MAP_DATA_MAP}\nps2_mapdata {MAP_DATA_MAP}\n" if verify_decls else ""
     config += "ps2_maxFrames 120\nps2_status\nwait 60\nps2_status\n" if case != "console" else f'wait 120\necho "{identity}_ready"\nps2_status\n'
     (output / "base/d3bfg.cfg").write_text(config)
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
@@ -200,6 +249,7 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
             "startup_memory": startup_memory(log)}
     if verify_decls:
         data["decl_text"] = decl_text(log)
+        data["map_data"] = map_data(log)
     if retail_data is not None:
         data["retail_data"] = str(retail_data.resolve())
     if args.script_check is not None:

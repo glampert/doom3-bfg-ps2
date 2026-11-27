@@ -42,6 +42,12 @@ static idImage * s_charsetImage = nullptr;
 static idImage * s_retailImages[ps2::ui::kMaxImages] = {};
 static u32 s_retailImageCount = 0;
 
+// The game images (ShutdownGameImages), found by name without case as id's image manager does.
+// They exist in every presentation, headless included: the world pass draws a material's cooked
+// textures by the material's name (D3TX), so a stage's image is only ever a name here.
+static idList<idImage *, TAG_IMAGE> s_gameImages;
+static idHashIndex s_gameImageHash;
+
 bool IsWhiteName(const char * name)
 {
     return name != nullptr && idStr::Icmp(name, kWhiteName) == 0;
@@ -146,6 +152,12 @@ PS2_COLD_FUNC void idImage::LoadRetailPageImage(const ps2::ui::ImageRecord & res
 
 namespace ps2::renderer
 {
+
+PS2_COLD_FUNC void ShutdownGameImages()
+{
+    s_gameImages.DeleteContents(true);
+    s_gameImageHash.Free();
+}
 
 PS2_COLD_FUNC bool InitConsoleImages()
 {
@@ -504,14 +516,38 @@ PS2_COLD_FUNC idImage * idImageManager::GetImageWithParameters(const char * name
 PS2_COLD_FUNC idImage * idImageManager::ImageFromFile(const char * name, textureFilter_t tf, textureRepeat_t tr,
                                         textureUsage_t tu, cubeFiles_t cube)
 {
-    if (!s_initialized || this != globalImages) [[unlikely]]
+    if (this != globalImages || name == nullptr) [[unlikely]]
     {
         ps2::FatalError("idImageManager::ImageFromFile");
     }
 
+    // A name the console and the UI catalog do not draw is a game image: a material's stage.
     ps2::ui::ImageRecord retail;
+    const bool intrinsic = s_initialized && (IsWhiteName(name) || IsCharsetName(name));
+    const bool catalogued = s_initialized && ps2::ui::IsCatalogInitialized() && ps2::ui::GetCatalog().FindImage(name, retail);
 
-    if (ps2::ui::IsCatalogInitialized() && ps2::ui::GetCatalog().FindImage(name, retail))
+    if (!intrinsic && !catalogued)
+    {
+        const int key = idStr::IHash(name);
+
+        for (int index = s_gameImageHash.First(key); index != -1; index = s_gameImageHash.Next(index))
+        {
+            if (idStr::Icmp(name, s_gameImages[index]->GetName()) == 0)
+            {
+                return s_gameImages[index];
+            }
+        }
+
+        idImage * const image = new (TAG_IMAGE) idImage(name);
+        image->filter = tf;
+        image->repeat = tr;
+        image->usage = tu;
+        image->cubeFiles = cube;
+        s_gameImageHash.Add(key, s_gameImages.Append(image));
+        return image;
+    }
+
+    if (catalogued)
     {
         if ((tf != TF_DEFAULT && tf != TF_LINEAR) || tr != TR_CLAMP || cube != CF_2D ||
             (tu != TD_DEFAULT && tu != TD_FONT)) [[unlikely]]

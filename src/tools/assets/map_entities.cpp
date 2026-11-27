@@ -143,6 +143,7 @@ bool ParseMapEntities(std::string_view text, std::vector<MapEntity> & output, st
     int depth = 0;
     MapEntity entity;
     std::string pendingKey;
+    std::string pendingWritten;
     bool haveKey = false;
 
     const auto Fail = [&error, &line](const std::string & message)
@@ -206,11 +207,13 @@ bool ParseMapEntities(std::string_view text, std::vector<MapEntity> & output, st
                 if (!haveKey)
                 {
                     pendingKey = LowerKey(value);
+                    pendingWritten = std::string(value);
                     haveKey = true;
                 }
                 else
                 {
                     entity.keys.emplace_back(pendingKey, std::string(value));
+                    entity.written.emplace_back(pendingWritten, std::string(value));
                     haveKey = false;
                 }
             }

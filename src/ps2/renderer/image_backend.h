@@ -28,6 +28,10 @@ idImage * ConsoleWhiteImage();
 idImage * ConsoleCharsetImage();
 tex::Handle ConsoleImageTexture(const idImage * image);
 
+// Frees the game images: the stage images of materials no UI catalog draws (ImageFromFile), which
+// hold a name and a sampler and never pixels. After the declarations, which point at them.
+PS2_COLD_FUNC void ShutdownGameImages();
+
 // Production opens the original charset from the retail catalog once that catalog is initialized;
 // the core test image, which has no retail data, installs the generated RGBA fixture instead.
 PS2_COLD_FUNC void OpenConsoleCharset();

@@ -5,7 +5,9 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "ps2/game/map_data.h"
 #include "ps2/input/devices.h"
+#include "ps2/renderer/image_backend.h"
 #include "ps2/renderer/logical_renderer.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
@@ -254,6 +256,7 @@ PS2_COLD_FUNC void idCommonLocal::InitProduction()
     userCmdMgr.SetDefaults();
     cmdSystem->AddCommand("ps2_status", Status, CMD_FL_SYSTEM, CMD_DESC("print production startup state and completed frame counts"));
     cmdSystem->AddCommand("ps2_memory", Memory, CMD_FL_SYSTEM, CMD_DESC("print the allocation ledgers under a label"));
+    ps2::game::InitMapData();
 #if PS2_D3BFG_ASSERTS
     cmdSystem->AddCommand("ps2_crash", Crash, CMD_FL_SYSTEM, CMD_DESC("raise a fatal error, an assertion, a CPU trap or a null store to check the crash report"));
 #endif // PS2_D3BFG_ASSERTS
@@ -322,6 +325,7 @@ PS2_COLD_FUNC void idCommonLocal::ShutdownProduction()
     ps2::renderer::ShutdownLogical();
     soundSystem->Shutdown();
     declManager->Shutdown();
+    ps2::renderer::ShutdownGameImages();
     CloseLogFile();
     cmdSystem->RemoveCommand("ps2_memory");
     cmdSystem->RemoveCommand("ps2_status");

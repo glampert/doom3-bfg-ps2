@@ -2,7 +2,7 @@
 
 Companion to [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)'s M3 (section 12) and the
 prerequisites at the top of [RENDERING_TODO.md](RENDERING_TODO.md). Opened **2026-11-27** from a
-survey of the tree; nothing below is implemented yet. The goal: production loads
+survey of the tree; M3.1 is done (2026-11-27). The goal: production loads
 `game/mars_city1` through Common's own map change, the game spawns it from the retail data, draws
 its player view, takes the pad's input, saves and loads, and unloads back to the ledger. It also
 closes R2's remaining gate items (load-game, the game's door closing its portal for sound).
@@ -37,8 +37,9 @@ out of scope: the game must run with them present and undrawn.
   `.map` (5,475,467 bytes: 4.85 MB brushes and patches, 592 KB entities), `generated/maps/game/
   mars_city1.bcm` (5,378,192, 425 models, CRC `0x8B89B51C`), the text `mars_city1.aas48`
   (1,961,240, the same CRC) and `generated/guis/game/mars_city1.bgui`. The map scripts are in the
-  cooked program (`map_marscity1::*`). None of these has been read on the PS2. Opening a container
-  entry under 8 MB reads it whole, so the `.map` and `.bcm` each sit in memory while they parse.
+  cooked program (`map_marscity1::*`). None of these had been read on the PS2 (M3.1 has since).
+  Opening a container entry under 8 MB reads it whole, so the `.map` and `.bcm` each sit in memory
+  while they parse.
 - **Models:** static binaries (`.blwo`, `.base`) load without the vertex cache; every `.bmd5mesh`
   reaches `vertexCache.AllocStaticVertex` (`Model_md5.cpp:760-762`, `tr_trisurf.cpp:1836-1838`),
   and `idVertexCache::ActuallyAlloc` fails by name (`logical_renderer.cpp:440`). Source model
@@ -64,12 +65,12 @@ out of scope: the game must run with them present and undrawn.
 
 ## Decisions
 
-- [ ] **The `.map` on the PS2** (after M3.1's measurement): id's text `.map` parsed whole, or a
-      host-cooked entity-only `.map` that keeps id's parser. The geometry CRC that the `.bcm` and
-      `.aas48` check is computed from the brushes and patches as they parse (`MapFile.cpp:258`,
-      `521`; checked at `Game_local.cpp:1026` and `CollisionModel_files.cpp:587`), so an entity-only
-      file must carry it. `idGameLocal::GetLevelMap` parses the `.map` again with primitives
-      (`Game_local.cpp:2892-2905`): find its callers first.
+- [x] **The `.map` on the PS2** (2026-11-27, the user's call after M3.1's first run): a host-cooked
+      binary file of the map's entities, loaded straight into `idMapFile`'s types without the lexer
+      (D3ME, `make map-cook-retail`), carrying the geometry CRC of the retail `.bcm`, which the cook
+      checks against the `.aas48`. The text parse took 12 to 52 s of EE time at an 18.9 MB peak, and
+      its CRC came out wrong (M3.1 below). `idGameLocal::GetLevelMap`, which parses the `.map` again
+      with primitives, serves only `idGameEdit`'s editor calls.
 - [ ] **The loading screen:** id's `loading/<map>` SWF and its images, or a PS2 screen (the console
       backdrop and a progress line). id's wipes capture the frame (`CaptureRenderToImage`), which
       the PS2 skips either way.
@@ -78,21 +79,32 @@ out of scope: the game must run with them present and undrawn.
 - [ ] **What `s_noSound` loads:** the default sample for every sound shader (no data read), until
       the sound milestone cooks the retail `.idwav` data.
 
-## M3.1: the retail map's game data, measured (game test image)
+## M3.1: the retail map's game data, measured
 
-Before Common is involved: what mars_city1's game side costs and whether id's loaders accept its
-files. Extend `map_boot.cpp` with a retail case (`make test-map-retail`, the retail containers
-staged like `test-headless-retail`), loading in steps with a `[D3BFG] MEMORY` checkpoint after each.
+Done 2026-11-27 in production rather than the game test image: production is where Common's map
+load will run, with the retail declarations and containers and the cooked script program. The
+debug command `ps2_mapdata MAP` (`src/ps2/game/map_data.cpp`) loads a map's game data step by
+step as `LoadMap` does, prints the ledgers after each step, and frees it; the debug
+`make test-headless-retail` runs it twice on mars_city1 (docs/testing/production.md). Figures in
+the memory-budget reference, "Retail map game data"; findings in the engine reference, same title.
 
-- [ ] Parse `maps/game/mars_city1.map` with `idMapFile`: the peak while parsing, the ledger with
-      primitives and after `RemovePrimitiveData`, the parse time, and the geometry CRC (must equal
-      `0x8B89B51C`).
-- [ ] `collisionModelManager->LoadMap` from the retail `.bcm` (no rebuild: assert no `.cm` is
-      written), its ledger, and the 152 `generated/collision/*.bcmodel` the entities' clip models use.
-- [ ] The text AAS (`mars_city1.aas48`) through `idAASFileLocal`: the parse peak and its resident
-      size; a cooked binary AAS only if the text parse costs too much.
-- [ ] Record the figures in [memory-budget.md](../reference/memory-budget.md) and decide the
-      `.map` question above.
+- [x] The `.map` parsed as text on the EE: 51.9 s cold, 12.0 s warm, an 18.9 MB peak, and a
+      geometry CRC of 0x8876776c where the retail `.bcm` and `.aas48` carry 0x8b89b51c. The EE's
+      lexer multiplies by the float 0.1 where id's PC build used the double (reproduced on the
+      host), so the collision and AAS files refuse it. Replaced by the D3ME (decision above): the
+      same entities, the same 8,095,507-byte ledger, in 0.15 to 0.38 s.
+- [x] `collisionModelManager->LoadMap` from the retail `.bcm` (425 models, no rebuild) and the
+      entities' `.bcmodel` preloads: 6.18 MB resident, 0.8 to 1.0 s. Its materials parse with their
+      stages, which needed game images (stage images no UI catalog draws: a name and a sampler).
+- [x] The text AAS: `aas48` loads (1.17 MB, 2.2 to 3.3 s); the other five types are not shipped.
+- [x] Recorded: the game data holds 9.62 MB above the NOMAP ledger and peaks 14.33 MB above it
+      while collision loads, on top of the D3WD's 5.78 MB when Common loads the render world first:
+      about 25.9 MB of a 27.3 MB arena before any entity spawns.
+- [ ] The `.bcm` is read whole (5.4 MB of that peak, `OpenFileReadMemory`): read it in pieces or
+      cook collision, before M3.2 spawns entities on top.
+- [ ] The AAS parses as text through the lexer (2.2 to 3.3 s, its file read whole): cook it binary
+      like the entities if the load time or the peak needs it.
+- [ ] Freeing the map's game data takes 4.4 to 5.0 s of EE time: find where (every map unload pays it).
 
 ## M3.2: mars_city1 spawned (game test image)
 
@@ -103,6 +115,8 @@ entity spawns and the game runs frames with an empty usercmd. Fix what the spawn
       valid handle and keeps nothing (nothing draws md5 meshes before R4, which gives them VU1
       buffers), so `.bmd5mesh` models load. The frame caches stay unavailable.
 - [ ] `s_noSound` makes every sample the default one (decision above), without reading a file.
+- [x] Material stage images load as game images (name and sampler, no pixels), headless too
+      (M3.1, 2026-11-27: the collision load parses 558 materials).
 - [ ] Cinematic materials load a static stand-in (one black frame) instead of failing; the
       material keeps its stage.
 - [ ] The cooked render world registers the map's inline brush models (`func_static_N` and the

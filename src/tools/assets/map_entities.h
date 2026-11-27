@@ -20,6 +20,9 @@ namespace assets
 struct MapEntity
 {
     std::vector<std::pair<std::string, std::string> > keys;
+    // The pairs as the file spells them, in its order: keys keep their case and repeated keys stay,
+    // for the map cook, whose output idMapEntity sets in this order as id's parser does.
+    std::vector<std::pair<std::string, std::string> > written;
     int primitives = 0;
 
     // The value of 'key' (lowercase), or null.

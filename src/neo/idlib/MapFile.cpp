@@ -27,6 +27,11 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include "precompiled.h"
+
+// [PS2_D3BFG]: The cooked map format (idMapFile::ParseCooked).
+#if defined( ID_PS2 )
+#include "ps2/game/map_format.h"
+#endif
 #pragma hdrstop
 
 
@@ -735,6 +740,22 @@ bool idMapFile::Parse( const char *filename, bool ignoreRegion, bool osPath ) {
 	fullName = name;
 	hasPrimitiveData = false;
 
+	// [PS2_D3BFG]: Production reads the host-cooked entities and CRC, never the text: the EE's lexer
+	// parsed the brushes for seconds, at a 12 MB peak, to a CRC the retail collision and AAS files
+	// refuse. The test images' authored maps keep the text path when they have no cooked file.
+#if defined( ID_PS2 )
+	const int cooked = ParseCooked();
+	if ( cooked < 0 ) {
+		return false;
+	}
+#if !PS2_D3BFG_TESTS
+	if ( cooked == 0 ) {
+		idLib::Warning( "idMapFile::Parse: no cooked map %s.d3me", name.c_str() );
+		return false;
+	}
+#endif
+	if ( cooked == 0 ) {
+#endif
 	if ( !ignoreRegion ) {
 		// try loading a .reg file first
 		fullName.SetFileExtension( "reg" );
@@ -769,6 +790,9 @@ bool idMapFile::Parse( const char *filename, bool ignoreRegion, bool osPath ) {
 	}
 
 	SetGeometryCRC();
+#if defined( ID_PS2 )
+	}	// [PS2_D3BFG]: the text path
+#endif
 
 	// if the map has a worldspawn
 	if ( entities.Num() ) {
@@ -867,6 +891,54 @@ bool idMapFile::Write( const char *fileName, const char *ext, bool fromBasePath 
 
 	return true;
 }
+
+#if defined( ID_PS2 )
+/*
+===============
+idMapFile::ParseCooked
+
+[PS2_D3BFG]: The entities in file order, each pair through idDict::Set as the text parse does (a
+repeated key keeps its first spelling and takes the later value), and the CRC the map's collision
+and AAS files carry. The file is validated whole before anything is built from it.
+===============
+*/
+int idMapFile::ParseCooked() {
+	idStr cookedName = name;
+	cookedName.SetFileExtension( "d3me" );
+
+	void *buffer = NULL;
+	ID_TIME_T timestamp = FILE_NOT_FOUND_TIMESTAMP;
+	const int length = idLib::fileSystem->ReadFile( cookedName, &buffer, &timestamp );
+	if ( length < 0 || buffer == NULL ) {
+		return 0;
+	}
+
+	ps2::game::map::View view;
+	const char *error = "";
+	if ( !ps2::game::map::Validate( buffer, static_cast<size_t>( length ), view, error ) ) {
+		idLib::Warning( "idMapFile::Parse: refusing %s: %s", cookedName.c_str(), error );
+		idLib::fileSystem->FreeFile( buffer );
+		return -1;
+	}
+
+	version = CURRENT_MAP_VERSION;
+	fileTime = timestamp;
+	geometryCRC = view.header->geometryCrc;
+	entities.DeleteContents( true );
+
+	const ps2::game::map::Pair *pair = view.pairs;
+	for ( unsigned int i = 0; i < view.header->entityCount; i++ ) {
+		idMapEntity *mapEnt = new (TAG_IDLIB) idMapEntity();
+		for ( unsigned int j = 0; j < view.pairCounts[i]; j++, pair++ ) {
+			mapEnt->epairs.Set( view.String( pair->key ), view.String( pair->value ) );
+		}
+		entities.Append( mapEnt );
+	}
+
+	idLib::fileSystem->FreeFile( buffer );
+	return 1;
+}
+#endif
 
 /*
 ===============

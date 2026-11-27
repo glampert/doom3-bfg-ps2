@@ -382,8 +382,9 @@ counts and 642 without.
 Every asset will be repacked for the PS2, so the final package loads neither
 `_common.resources` nor `_ordered.resources`, and it holds only what the PS2 build uses: no
 PC, Xbox 360 or PS3 assets of the game (shader binaries, platform images, desktop sounds or
-videos). Today's cooked files (D3WD, D3TX, the UI catalog, the D3SP script program) are
-already PS2-only; the containers stay mounted only for what nothing has cooked yet.
+videos). Today's cooked files (D3WD, D3TX, the UI catalog, the D3SP script program, the D3ME map
+entities since 2026-11-27) are already PS2-only; the containers stay mounted only for what nothing
+has cooked yet (a map's collision and AAS among them).
 
 **Declaration text gets its own container.** It is read on demand since 2026-11-24 (each
 declaration's offset, length and MD5, read again when it parses; see the reference, "Retail

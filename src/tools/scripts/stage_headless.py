@@ -21,8 +21,10 @@ PRESENTATIONS = ("headless", "ntsc", "pal")
 # the ROM's. The SDK's own copies, so the package never carries a module from the repository.
 IRX_ROOT = Path(os.environ.get("PS2SDK", str(Path.home() / "ps2dev/ps2sdk"))) / "iop/irx"
 KEYBOARD_IRX = ("usbd.irx", "ps2kbd.irx")
-# The retail declarations, scripts and English strings; sound and per-map containers stay out.
+# The retail declarations, scripts and English strings; sound and per-map containers stay out
+# unless a map is staged (stage's maps), which adds the map's container and cooked entities.
 RETAIL_CONTAINERS = ("_common.resources", "_ordered.resources")
+MAP_COOK_ROOT = REPO_ROOT / "build/map"
 RESOURCE_MAGIC = bytes.fromhex("d000000d")
 
 
@@ -40,9 +42,9 @@ def boot_data(output: Path) -> dict[str, str]:
     return {str(path.relative_to(output)): sha256(path) for path in paths + [output / "presentation.cfg"]}
 
 
-def link_containers(data_root: Path, base: Path) -> None:
+def link_containers(data_root: Path, base: Path, names: tuple[str, ...] = RETAIL_CONTAINERS) -> None:
     """Hard-link (or copy) the retail containers; the native directory listing skips symlinks."""
-    for name in RETAIL_CONTAINERS:
+    for name in names:
         source = (data_root / name).resolve()
         with source.open("rb") as stream:
             if stream.read(4) != RESOURCE_MAGIC:
@@ -90,8 +92,23 @@ def stage_script_program(base: Path, retail: bool) -> None:
     shutil.copy2(source, target)
 
 
+def stage_maps(retail_data: Path, base: Path, maps: tuple[str, ...]) -> None:
+    """Each map (as the map command names it, game/mars_city1): its container from the retail data
+    and its cooked entities (make map-cook-retail), which the PS2's idMapFile reads instead of text."""
+    for name in maps:
+        stem = Path(name).name
+        cooked = MAP_COOK_ROOT / f"{stem}.d3me"
+        if not cooked.is_file():
+            raise ValueError(f"missing cooked map {cooked}; run make map-cook-retail")
+        (base / "maps").mkdir(parents=True, exist_ok=True)
+        link_containers(retail_data, base, (f"maps/{stem}.resources",))
+        target = base / "maps" / f"{name}.d3me"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(cooked, target)
+
+
 def stage(build: str, output: Path, presentation: str = "headless", retail_data: Path | None = None,
-          catalog: Path | None = None, menu: bool = False) -> Path:
+          catalog: Path | None = None, menu: bool = False, maps: tuple[str, ...] = ()) -> Path:
     if presentation not in PRESENTATIONS:
         raise ValueError("presentation must be headless, ntsc or pal")
     # The native menu opens at startup only in a visible mode, and only the retail movie package stages it.
@@ -140,6 +157,9 @@ def stage(build: str, output: Path, presentation: str = "headless", retail_data:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, target)
         link_containers(retail_data, output / "base")
+        stage_maps(retail_data, output / "base", maps)
+    elif maps:
+        raise ValueError("staging a map needs the retail data")
     # Always replace startup policy, including when reusing a formerly visible package for headless.
     (output / "presentation.cfg").write_text(presentation + (" menu" if menu else "") + "\n")
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")

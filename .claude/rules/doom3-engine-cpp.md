@@ -83,6 +83,24 @@ file keeps only what most engine edits need.
   pointer width; details in the reference, "Cooked script program". GCC, Clang and MSVC build
   the cook, and CI requires their images of `src/tools/script_cook/tests` to match.
 
+## Cooked map entities
+
+- Production reads a map's entities from `maps/<map>.d3me` (`make map-cook-retail`,
+  `src/ps2/game/map_format.h`), never the text `.map`: the tag in `idMapFile::Parse`
+  (`ParseCooked`) builds each `idMapEntity` with `idDict::Set` in file order and takes the geometry
+  CRC the cook read from the map's `.bcm` (and checked against its `.aas48`). Test images fall back
+  to text for authored maps without one.
+- **The EE lexer's numbers are not the PC's.** `idToken::NumberValue` multiplies the fraction digits
+  by the float 0.1 (0x3DCCCCCC, the Token.cpp tag that keeps the host script cook bit-exact) where
+  id's PC build used the double, so a parsed float can differ in its last bit. Anything that hashes
+  parsed floats differs: the text `.map`'s geometry CRC came out 0x8876776c against the retail
+  files' 0x8b89b51c, and the collision and AAS loaders refused them (reproduced on the host,
+  reference "Retail map game data").
+- A material stage's image that no UI catalog draws is a game image (`ImageFromFile`,
+  `image_backend.cpp`): a name and a sampler, no pixels, in every presentation; the world pass
+  draws the cooked D3TX by material name. They are freed after the declarations
+  (`ShutdownGameImages`).
+
 ## No multiplayer on the PS2
 
 - `common->IsMultiplayer()`/`IsServer()`/`IsClient()` are inline `false` and
@@ -147,4 +165,4 @@ compiler, casts); Native SWF and font loading; Staged Common and offline profile
 Portable logical sound; Resident link findings (removed JPEG/zlib, renderSystem binding); Initial
 native game fixture; Native collision fixture; Native player-physics fixture; Bounded native
 player fixture; Scoped retail execution; Native shell menu; Native edit-text drawing; Native
-BSWF atlas records; Cooked script program.
+BSWF atlas records; Cooked script program; Retail map game data.

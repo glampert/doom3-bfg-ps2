@@ -11,6 +11,7 @@
 #include "assets/json.h"
 #include "assets/light.h"
 #include "assets/lightmap.h"
+#include "assets/map_cook.h"
 #include "assets/map_entities.h"
 #include "assets/material.h"
 #include "assets/material_passes.h"
@@ -2428,10 +2429,153 @@ static bool CookWorldFile(const fs::path & data, const fs::path & jobPath, const
            CookWorldTextures(materialCatalog, declared, tables, textures, world, MaterialUvDensity(proc, world.materials), pages, output, stem, previews);
 }
 
+// Reads 'name' from the job's containers, or below --data when it lists none.
+static bool ReadMapInput(const fs::path & data, ResourceCatalog * catalog, const std::string & name, std::vector<std::uint8_t> & bytes,
+                         std::string & error)
+{
+    if (catalog != nullptr)
+    {
+        return catalog->Read(name, bytes, error);
+    }
+
+    std::string text;
+
+    if (!ReadFile(data / name, kMaxProcBytes, text))
+    {
+        error = "cannot read";
+        return false;
+    }
+
+    bytes.assign(text.begin(), text.end());
+    return true;
+}
+
+// The world job's map cooked into <output>/<name>.d3me: its entities and the geometry CRC its
+// generated/<map>.bcm was built against, which its .aas48, when present, must name too.
+static bool CookMapFile(const fs::path & data, const fs::path & jobPath, const fs::path & output)
+{
+    std::string jobText;
+    JsonValue root;
+    std::string error;
+    std::string map;
+    std::vector<std::string> containers;
+    WorldPolicy policy;
+    WorldTextureJob textures;
+    WorldLightingJob lightingJob;
+
+    if (!ReadFile(jobPath, kMaxJobBytes, jobText))
+    {
+        return false;
+    }
+
+    if (!ParseJson(jobText, root, error))
+    {
+        return Fail(jobPath.string() + ": " + error);
+    }
+
+    if (!ParseWorldJob(root, map, containers, policy, textures, lightingJob))
+    {
+        return false;
+    }
+
+    ResourceCatalog catalog;
+
+    if (!containers.empty())
+    {
+        std::vector<fs::path> inputs;
+
+        for (const std::string & container : containers)
+        {
+            inputs.push_back(data / container);
+        }
+
+        if (!catalog.Open(inputs, error))
+        {
+            return Fail("map containers: " + error);
+        }
+    }
+
+    ResourceCatalog * const source = containers.empty() ? nullptr : &catalog;
+    std::vector<std::uint8_t> bytes;
+    const std::string mapName = map + ".map";
+
+    if (!ReadMapInput(data, source, mapName, bytes, error))
+    {
+        return Fail(mapName + ": " + error);
+    }
+
+    std::vector<MapEntity> entities;
+
+    if (!ParseMapEntities(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), entities, error))
+    {
+        return Fail(mapName + ": " + error);
+    }
+
+    const std::string collisionName = "generated/" + map + ".bcm";
+    std::uint32_t crc = 0;
+
+    if (!ReadMapInput(data, source, collisionName, bytes, error) || !CollisionGeometryCrc(bytes, crc, error))
+    {
+        return Fail(collisionName + ": " + error);
+    }
+
+    // The game loads every AAS type against the same CRC; the 48-unit one is always shipped.
+    const std::string aasName = map + ".aas48";
+    std::uint32_t aasCrc = crc;
+    const bool haveAas = source != nullptr ? source->Find(aasName) != nullptr : fs::is_regular_file(data / aasName);
+
+    if (haveAas && (!ReadMapInput(data, source, aasName, bytes, error) ||
+                    !AasGeometryCrc(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), aasCrc, error)))
+    {
+        return Fail(aasName + ": " + error);
+    }
+
+    if (aasCrc != crc)
+    {
+        return Fail(aasName + " names another geometry CRC than " + collisionName);
+    }
+
+    std::vector<std::uint8_t> cooked;
+
+    if (!WriteCookedMap(entities, crc, cooked, error))
+    {
+        return Fail(mapName + ": " + error);
+    }
+
+    std::error_code status;
+    fs::create_directories(output, status);
+
+    if (status)
+    {
+        return Fail("cannot create " + output.string());
+    }
+
+    const fs::path target = output / (fs::path(map).filename().string() + ".d3me");
+
+    if (!WriteFile(target, cooked.data(), cooked.size()))
+    {
+        return false;
+    }
+
+    std::size_t pairs = 0;
+
+    for (const MapEntity & entity : entities)
+    {
+        pairs += entity.written.size();
+    }
+
+    char crcText[16] = {};
+    std::snprintf(crcText, sizeof(crcText), "0x%08x", crc);
+    std::cout << target.string() << ": " << entities.size() << " entities, " << pairs << " pairs, " << cooked.size()
+              << " bytes, geometry CRC " << crcText << (haveAas ? " (collision and AAS agree)" : " (no AAS)") << "\n";
+    return true;
+}
+
 static void Usage()
 {
     std::cout << "Usage: asset_reexport ui --data DIR --job FILE.json --output DIR [--previews DIR]\n"
                  "       asset_reexport world --data DIR --job FILE.json --output DIR [--topology hybrid|strips] [--previews DIR]\n"
+                 "       asset_reexport map --data DIR --job FILE.json --output DIR\n"
                  "ui converts the retail interface textures a job lists into paletted GSTX files.\n"
                  "--data names the retail installation holding the job's .resources containers.\n"
                  "--output receives one file per texture and report.json; existing files are replaced.\n"
@@ -2440,7 +2584,9 @@ static void Usage()
                  "<name>.report.json; with containers listed, it reads generated/<map>.bproc from them.\n"
                  "--topology replaces the job's batch topology. A job with a textures section also cooks\n"
                  "each material's diffuse image into <name>.d3tx and <name>.textures.json; --previews then\n"
-                 "writes each texture's original and cooked level 0 as PNGs.\n";
+                 "writes each texture's original and cooked level 0 as PNGs.\n"
+                 "map cooks a world job's <map>.map into <output>/<name>.d3me: its entities and the geometry\n"
+                 "CRC its generated/<map>.bcm (and .aas48) were built against, for the PS2's idMapFile.\n";
 }
 
 static int Run(int argc, char ** argv)
@@ -2453,7 +2599,7 @@ static int Run(int argc, char ** argv)
 
     const std::string command(argv[1]);
 
-    if (command != "ui" && command != "world")
+    if (command != "ui" && command != "world" && command != "map")
     {
         Fail("unknown command: " + command);
         return 2;
@@ -2499,6 +2645,11 @@ static int Run(int argc, char ** argv)
         }
 
         return CookWorldFile(data, job, output, topology.string(), previews) ? 0 : 1;
+    }
+
+    if (command == "map")
+    {
+        return CookMapFile(data, job, output) ? 0 : 1;
     }
 
     return ConvertUi(data, job, output, previews) ? 0 : 1;

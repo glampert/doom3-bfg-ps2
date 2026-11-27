@@ -2,7 +2,8 @@
 
 `asset_reexport` is a standalone C++20 host tool that converts Doom 3 BFG assets into
 forms the PS2 consumes directly. Its `world` command cooks a map's render geometry into a
-**D3WD** world file ([below](#world-cook)). Its `ui` command turns the interface images a job
+**D3WD** world file ([below](#world-cook)), and its `map` command the same job's entities into a
+**D3ME** map file ([below](#map-cook)). Its `ui` command turns the interface images a job
 file lists into paletted **GSTX** textures: PSMT8/PSMT4 index pages, shared CLUTs, RLE
 on disc, and placements that map each image's logical texels onto the pages. The format
 is documented field by field in [`assets/gstx.h`](../assets/gstx.h); the retail UI cook
@@ -392,3 +393,18 @@ checks both parsers (the graybox written as id would cache it reads back as its 
 every truncation of a small `.bproc` and targeted corruptions are refused), the strips, byte-exact round trips, corruption and, through an
 independent VIF model, that every graybox batch unpacks inside one input half and draws
 exactly its source triangles.
+
+## Map cook
+
+```sh
+make map-cook-retail     # mars_city1's entities into build/map/mars_city1.d3me
+build/tools/asset_reexport map --data gamedata/d3_bfg \
+    --job config/world_mars_city1.json --output build/map
+```
+
+The job's `map` and `containers` name the `.map`, its `generated/<map>.bcm` and its `.aas48`. The
+D3ME ([`src/ps2/game/map_format.h`](../../ps2/game/map_format.h)) holds every entity's key/value
+pairs as the file spells them, in order, with trailing whitespace stripped, and the geometry CRC
+read from the `.bcm`'s header, which the `.aas48` must name too: the PS2's `idMapFile` loads it
+without the lexer, whose number conversion gives the text another CRC. `build/tests/map_tests`
+round trips a parsed map through the target's validator and refuses each corrupted field.

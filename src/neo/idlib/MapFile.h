@@ -224,6 +224,11 @@ protected:
 
 private:
 	void					SetGeometryCRC();
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: Loads <name>.d3me, the entities and geometry CRC cooked on the host: 1 when it
+	// loaded, 0 when there is none, -1 when the file is refused.
+	int						ParseCooked();
+#endif
 };
 
 ID_INLINE idMapFile::idMapFile() {

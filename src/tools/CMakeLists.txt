@@ -98,6 +98,7 @@ add_library(assets STATIC
     assets/json.cpp
     assets/light.cpp
     assets/lightmap.cpp
+    assets/map_cook.cpp
     assets/map_entities.cpp
     assets/material.cpp
     assets/material_passes.cpp

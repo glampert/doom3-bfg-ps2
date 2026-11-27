@@ -1259,3 +1259,37 @@ The world cook merges mars_city1's static `func_static` mesh props into the area
 
 The lighting bake lights the props per vertex: 420 vertex-lit surfaces, the lightmap pages
 unchanged (8, 10,683 charts).
+
+## Retail map game data (2026-11-27)
+
+M3.1 (docs/plans/M3_TODO.md): mars_city1's game data loaded the way `idGameLocal::LoadMap` loads
+it, by the debug command `ps2_mapdata game/mars_city1` in the retail headless package, twice. Gate
+run `20261127T123830Z_headless_c4526de5ee87` (debug, requested bytes of the whole ledger; each
+step's peak is its own, `heap::ResetPeaks` between steps):
+
+| Step | Ledger after | Change | Peak in the step | EE ms (cold / warm) |
+| --- | --- | --- | --- | --- |
+| Before (NOMAP, after `startup-game`) | 5,819,031 | | | |
+| `maps/mars_city1.resources` mounted (its 2,721-entry table) | 6,652,251 | +833,220 | 6,871,506 | 53 / 102 |
+| Entities from the cooked `mars_city1.d3me` (2,026 entities) | 8,095,507 | +1,443,256 | 8,369,928 | 381 / 150 |
+| Collision: the retail `.bcm` (425 models), the entities' `.bcmodel` preloads, the materials they name | 14,273,491 | +6,177,984 | 20,149,691 | 1,002 / 818 |
+| AAS: the text `mars_city1.aas48` (the other five types are not shipped) | 15,443,355 | +1,169,864 | 18,196,700 | 3,328 / 2,202 |
+| All of it freed | 6,240,887 | the cold cycle keeps 421,856 | | 4,442 / 5,006 |
+
+- The warm cycle ends on the ledger it began with, to the allocation (6,240,887 / 6,261,216 /
+  25,683); the cold cycle keeps the 558 materials it parsed, their 728 game images (84 KB,
+  `TAG_IMAGE`) and other declarations. Shutdown returns to 0/0/0.
+- The collision step's tags: `TAG_COLLISION` 5,799,776 resident (peak 6,297,688); `TAG_TEMP` peaks
+  at 5,378,192, the whole `.bcm`, which `LoadCollisionModelFile` reads into memory
+  (`OpenFileReadMemory`) and frees; `TAG_MODEL` 417,496 in 37 allocations.
+- In all, the game side of the map holds 9.62 MB above the NOMAP ledger and peaks 14.33 MB above
+  it while the collision loads. `ExecuteMapChange` loads the render world first, so that peak lands
+  on top of the 5.78 MB D3WD: about 25.9 MB of ledger, before any entity spawns, against an arena
+  of about 27.3 MB (debug, `startup-game` committed plus its gap). The `.bcm` held whole is the
+  lever: 5.4 MB of the peak.
+- The text `.map` (the first measurement, before the D3ME): its parse took 51.9 s of EE time cold
+  and 12.0 s warm, peaked at 18,940,799 (12.29 MB above the mounted container) and held 6.79 MB of
+  brushes and patches until `RemovePrimitiveData`; the entities left after it were 8,095,507, the
+  ledger the D3ME builds. Its geometry CRC came out 0x8876776c against the retail files' 0x8b89b51c
+  (doom3-engine-cpp.md, "Cooked map entities").
+- Freeing takes 4.4 to 5.0 s, unexplained yet; it was 3.9 s with the text map's entities alone.

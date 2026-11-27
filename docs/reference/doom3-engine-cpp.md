@@ -766,3 +766,30 @@ host (`src/tools/script_cook`, CMake target `script_cook`) and writes `doom_main
 - **Savegames.** The program checksum is the image's own; `Restore` checks global indexes and
   rejects compiled map files. `CalculateChecksum`'s 1.9 MB statement copy is gone.
 
+
+## Retail map game data (2026-11-27)
+
+M3.1 loaded mars_city1's game data on the PS2 as `idGameLocal::LoadMap` does (`ps2_mapdata`, debug;
+ledgers in [memory-budget.md](memory-budget.md), "Retail map game data").
+
+- **The text `.map`'s geometry CRC.** `idMapFile::GetGeometryCRC` XORs the bits of every brush
+  plane and patch vertex as parsed, with each material name. The PS2 got 0x8876776c; the retail
+  `.bcm` and `.aas48` carry 0x8b89b51c (the `.bcm` after its big-endian model count and an empty
+  map name, the `.aas48` as a decimal after its `DewmAAS "1.07"` line). A host reimplementation of
+  id's `idToken::NumberValue` gives 0x8b89b51c with the double 0.1 and 0x8876776c with the float
+  0.1 the Token.cpp tag spells (0x3DCCCCCC), so the conversion is the whole difference. With a
+  mismatch `LoadCollisionModelFile` falls back to a text `.cm`, then to the brushes and writes the
+  result, and the AAS is "out of date".
+- **The cooked entities (D3ME v1).** Header (magic `D3ME`, version, geometry CRC, entity and pair
+  counts, string bytes, the FNV-1a of the rest), then a pair count per entity, the pairs as two
+  string offsets, and a block of NUL-terminated strings stored once. Keys keep their spelling and
+  repeated keys stay in file order, with trailing whitespace stripped as `idMapEntity::Parse` does;
+  `ParseCooked` sets them in order, so a repeated key keeps its first spelling and takes the last
+  value, as the text parse does. id's worldspawn post-processing (`removeEntities`,
+  `overrideMaterial`) still runs after it. mars_city1: 2,026 entities, 16,334 pairs, 250,624 bytes,
+  loaded in 0.15 to 0.38 s against 12 to 52 s for the text, to the same ledger.
+- **Materials parse with their stages.** The collision load parses the 558 materials its surfaces
+  name (contents and surface flags). Their stage images were fatal, since the image manager served
+  only the console and UI catalog images (and none at all headless); they are now game images.
+  Cinematic stages (`videomap`) still fail when they load.
+- **The AAS** is id's text format (`idAASFileLocal::Load`, the lexer): 2.2 s warm, 3.3 s cold.

@@ -26,7 +26,13 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   its scan took (a mismatch is fatal), and the gate requires its
   `[D3BFG] DECLTEXT verified=N bytes= largest= ms= scattered_ms=` line with N above zero
   (`summary.json`'s `decl_text`; 2026-11-24: 11,947 declarations, 6,615,438 bytes in about 1.1 s;
-  `ps2_verifyDeclText scattered` adds a pass that jumps across the files, 3.4 s). Startup takes 4.4 s from the
+  `ps2_verifyDeclText scattered` adds a pass that jumps across the files, 3.4 s). Debug builds then
+  stage mars_city1's container and cooked entities (`make map-cook-retail`) and run
+  `ps2_mapdata game/mars_city1` twice (M3.1): each `[D3BFG] MAPDATA` line must show the cooked CRC
+  loading the retail collision (`collision=1`, equal CRCs) and at least one AAS, every step's
+  `MEMORY mapdata-*` checkpoint must be there, and the warm cycle must free back to exactly the
+  ledger it began with, which is where the cold one ended (`summary.json`'s `map_data`; 2026-11-27,
+  memory-budget reference "Retail map game data"). Startup takes 4.4 s from the
   filesystem's start to `startup-game` since the declarations read their text on demand (7.9 s
   before; the program loads in 0.13 s); `make run-headless-retail` stages and launches the same
   package until quit. Retail data never enters the repo. Every package on the authored data

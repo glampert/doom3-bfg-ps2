@@ -6689,3 +6689,49 @@ baselines, compared here with `build/console-2026-11-26/`.
   (−302 a batch, 751 a lit batch); the vertex, list entry and call terms hold when they are dropped.
 - **Where VU1's time goes now**, by the fit, a frame: the vertices about 2.3 ms, the clipper's calls
   about 1.4 ms, the list walk about 1.1 ms.
+
+## M3.1: the retail map's game data on the PS2 (2026-11-27)
+
+The first step of M3 ([M3_TODO.md](plans/M3_TODO.md)): mars_city1's game data loaded as
+`idGameLocal::LoadMap` loads it, in production, by the debug command `ps2_mapdata game/mars_city1`.
+- **The text `.map` could not be used.** Its parse on the EE took 51.9 s cold and 12.0 s warm and
+  peaked at 18.9 MB, and its geometry CRC came out 0x8876776c against the 0x8b89b51c the retail
+  `.bcm` and `.aas48` were built against, so both refused to load. The cause is the lexer's decimal
+  conversion, which multiplies by the float 0.1 where id's PC build used the double: a host
+  reimplementation gives each CRC with each constant.
+- **Cooked map entities (D3ME).** `make map-cook-retail` (`asset_reexport map`) writes the map's
+  entities and the `.bcm`'s CRC, checked against the `.aas48`: 2,026 entities, 16,334 pairs,
+  250,624 bytes. Production's `idMapFile::Parse` reads it into id's types with no lexer
+  (`ParseCooked`; test images keep the text path for authored maps). It loads in 0.15 to 0.38 s
+  to the same 8,095,507-byte ledger the text parse left after dropping its brushes.
+- **Game images.** The collision load parses the 558 materials its surfaces name, whose stage
+  images were fatal outside the UI catalog. They are now game images: a name and a sampler, no
+  pixels, in every presentation (728 of them, 84 KB), freed after the declarations.
+- **The figures** (debug, memory-budget reference "Retail map game data"):
+
+  | Step | Change | EE ms (cold / warm) |
+  | --- | --- | --- |
+  | Container mounted | +833,220 | 53 / 102 |
+  | Cooked entities | +1,443,256 | 381 / 150 |
+  | Collision, `.bcm` and preloads | +6,177,984, peak 14.33 MB above NOMAP | 1,002 / 818 |
+  | AAS (`aas48`, text) | +1,169,864 | 3,328 / 2,202 |
+  | Freed | the warm cycle exactly | 4,442 / 5,006 |
+
+  Loaded after the 5.78 MB D3WD, as Common will, the collision step would peak near 25.9 MB of a
+  27.3 MB arena before any entity spawns; 5.4 MB of that is the `.bcm` held whole while it loads.
+- **The gate.** Debug `make test-headless-retail` stages the map's container and D3ME, runs the
+  command twice and requires the collision and AAS to load against the cooked CRC and the warm
+  cycle to free back to its starting ledger.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-headless-retail` | `20261127T123830Z_headless_c4526de5ee87` |
+| `make test-headless` | `20261127T123924Z_headless_f8ff31ed45f7` (bounded), `20261127T123935Z_headless_2fa9e3195657` (console) |
+| `make test-map` | `20261127T124001Z_smoke_dd878511bd884e54` |
+| `make test-game` | `20261127T124016Z_smoke_8076c6f23d824486` and its ten expected-fatal cases |
+| `make test-renderer` | `20261127T124248Z_smoke_9735e4498ae44856`, `20261127T124304Z_smoke_772309da7d0049e9` and the expected-fatal probes |
+| `make test-world` | `20261127T124412Z_world_c17f93a136b0` (NTSC), `20261127T124424Z_world_a6710fb94710` (PAL) |
+| `make test-world-retail` | `20261127T124452Z_world_retail_9f122164c80e` (NTSC), `20261127T124620Z_world_retail_d46929c6e009` (PAL) |
+| `make test-ui` | `20261127T124801Z_session_ed9d72d5659f` (NTSC), `20261127T125755Z_session_f448f3bdf804` (PAL) and the retail refusal cases |
+| `make test-host` | Passed (423), with the D3ME round trip and refusals (`map_tests`) |
+| `make`, `make release` | Passed, no warnings |

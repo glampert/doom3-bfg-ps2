@@ -83,9 +83,43 @@ class HeadlessAcceptance(unittest.TestCase):
         # An authored boot's checkpoints cannot stand in for the retail containers.
         self.assertFalse(runner.classify(completed("bounded"), "retail", "run")[0])
 
+    @staticmethod
+    def map_data_log(collision="1", warm_end=6240887):
+        """Two ps2_mapdata cycles as the target prints them: a cold one whose end keeps the materials
+        it parsed, and a warm one that frees back to where it began."""
+        def cycle(begin, end):
+            text = ""
+            ledgers = {"begin": begin, "container": begin + 833220, "entities": begin + 2276476,
+                       "collision": 14273491, "aas": 15443355, "end": end}
+            for step in runner.MAP_DATA_STEPS:
+                text += (f"[D3BFG] MEMORY mapdata-{step} requested={ledgers[step]} backing={ledgers[step] + 20000} "
+                         f"allocations=25683 peak_requested={ledgers[step]} peak_backing={ledgers[step] + 20000}\n")
+                if step != "begin":
+                    text += f"[D3BFG] MAPDATA_STEP {step} ms=100\n"
+                if step == "aas":
+                    text += ("[D3BFG] MAPDATA map=game/mars_city1 entities=2026 geometry_crc=0x8b89b51c "
+                             f"collision_crc=0x8b89b51c collision={collision} aas_types=6 aas_loaded=1\n")
+            return text
+        return cycle(5819031, 6240887) + cycle(6240887, warm_end)
+
+    def test_debug_retail_measures_the_map_data(self):
+        line = "[D3BFG] DECLTEXT verified=11947 bytes=7254873 largest=86019 ms=1500 scattered_ms=0\n"
+        log = completed("retail") + line
+        self.assertTrue(runner.classify(log + self.map_data_log(), "retail", "run", verify_decls=True)[0])
+        self.assertFalse(runner.classify(log, "retail", "run", verify_decls=True)[0])
+        self.assertFalse(runner.classify(log + self.map_data_log(collision="0"), "retail", "run", verify_decls=True)[0])
+        self.assertFalse(runner.classify(log + self.map_data_log(warm_end=6240951), "retail", "run", verify_decls=True)[0])
+        cycles = runner.map_data(self.map_data_log())
+        self.assertEqual(len(cycles), 2)
+        self.assertEqual([step["step"] for step in cycles[0]["steps"]], list(runner.MAP_DATA_STEPS))
+        self.assertEqual(cycles[1]["steps"][3], {"step": "collision", "requested": 14273491, "backing": 14293491,
+                                                 "allocations": 25683, "peak_requested": 14273491,
+                                                 "peak_backing": 14293491, "ms": 100})
+        self.assertIsNone(cycles[0]["steps"][0]["ms"])
+
     def test_debug_retail_reads_the_declarations_back(self):
         line = "[D3BFG] DECLTEXT verified=11947 bytes=7254873 largest=86019 ms=1500 scattered_ms=0\n"
-        log = completed("retail")
+        log = completed("retail") + self.map_data_log()
         self.assertTrue(runner.classify(log + line, "retail", "run", verify_decls=True)[0])
         self.assertFalse(runner.classify(log, "retail", "run", verify_decls=True)[0])
         self.assertFalse(runner.classify(log + line.replace("verified=11947", "verified=0"), "retail", "run", verify_decls=True)[0])
