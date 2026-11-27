@@ -19,7 +19,7 @@ production link free of test inputs. Section numbers in parentheses point into t
       The bracket's step exists since 2026-11-05 for the `ps2_world` viewer's fixed camera;
       the game's own views (`idGameLocal::Draw`, the player view) wait for a loaded map.
 - [ ] Common owns a loaded map in production (M3 work in
-      [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)); until then R0 and R1 use the game
+      [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), steps in [M3_TODO.md](M3_TODO.md)); until then R0 and R1 use the game
       test image with the authored graybox map (`src/tests/data/graybox_map/`).
 - [ ] Decide and record the PC reference capture method (Wine on this Mac, or a Windows
       machine) (20.3). Deferred on 2026-11-24 until the frame is more complete: R2's gate no

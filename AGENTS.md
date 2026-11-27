@@ -43,7 +43,7 @@ statement or block; keep the code visually spaced rather than densely packed.
 - [docs/RETAIL_UI_PIPELINE.md](docs/RETAIL_UI_PIPELINE.md): the retail UI cook, catalog,
   glyph sets and the movie admissions.
 - [docs/plans/](docs/plans/): [IMPLEMENTATION_PLAN.md](docs/plans/IMPLEMENTATION_PLAN.md)
-  (milestones), [RENDERING_ARCHITECTURE.md](docs/plans/RENDERING_ARCHITECTURE.md) (3D
+  (milestones) with M3's step-by-step [M3_TODO.md](docs/plans/M3_TODO.md), [RENDERING_ARCHITECTURE.md](docs/plans/RENDERING_ARCHITECTURE.md) (3D
   rendering) and its step-by-step [RENDERING_TODO.md](docs/plans/RENDERING_TODO.md);
   [HEAP_ALLOCATOR.md](docs/plans/HEAP_ALLOCATOR.md) (the EE heap, which replaced dlmalloc).
 - [docs/CVARS.md](docs/CVARS.md): implemented backend cvars; add each one with its

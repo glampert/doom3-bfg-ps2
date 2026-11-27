@@ -24,7 +24,8 @@ Production still stays in `NOMAP`: the `ps2_world` viewer loads a cooked map int
 world and draws it from fixed cameras or the debug free-flight camera, but Common does not own a
 loaded map and the game's own views are not drawn. Next (the user's order, 2026-11-25; the console
 run is done, 2026-11-26): M3's Common-owned map in production (which also closes R2's load-game and
-the game's door entity gating sound through the portal it closes), then R3. The PC reference captures wait for R7's draws (2026-11-24). Preserve headless behavior and
+the game's door entity gating sound through the portal it closes; steps in [M3_TODO.md](M3_TODO.md),
+2026-11-27), then R3. The PC reference captures wait for R7's draws (2026-11-24). Preserve headless behavior and
 extend existing fixtures.
 
 ## 1. Objective and scope
