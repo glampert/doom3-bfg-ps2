@@ -6,17 +6,18 @@
  *        context, Cd x As with the page's intensity.
  *
  * Phase 1 transforms every unique vertex once, in place (Projected): qword 0 becomes the
- * clip-space position with the lightmap T x Q in w, qword 1 the projected XYZ2 with w 0x8000 when
- * the vertex left the guard band, qword 2 keeps the colour bytes, already PACKED RGBAQ, and qword
+ * clip-space position with the lightmap T x Q in w, qword 1 the projected XYZ2 with w the vertex's
+ * six clip flags (0 inside the guard band), qword 2 keeps the colour bytes, already PACKED RGBAQ, and qword
  * 3 receives the PACKED ST with Q, the lightmap S x Q in w. Sixteen lanes hold everything both
  * passes and the clipper need: the clipper rebuilds w as 1 / Q, and a lightmap vertex assembles
  * its ST from the two w lanes and Q.
  *
- * Phase 2 sends the batch to the GS. When every vertex is inside the band (nearly every batch)
+ * Phase 2 sends the batch to the GS. When every vertex is inside the band (two batches in three)
  * the strip path walks the index stream and emits each entry's vertex with its ADC flag as a
  * triangle strip. Otherwise the list path walks the same stream as triangles: those with every
- * corner inside go out as they are, the rest through the clipper library (clipper.vush) as a
- * fan. A lit batch walks again for the lightmap pass after kicking the page's A+D packet. A batch
+ * corner inside go out as they are, those with every corner outside one plane (behind the eye,
+ * past one side of the band) are dropped, and the rest go through the clipper library
+ * (clipper.vush) as a fan. A lit batch walks again for the lightmap pass after kicking the page's A+D packet. A batch
  * drawn for one of its material's additive passes has the pass's colour block in the page's place
  * (its second qword's word 3 negative): every vertex takes that colour, and there is no lightmap
  * pass. The
@@ -31,11 +32,11 @@
 #include "world.vush"
 #include "clipper.vush"
 
-// The free qwords between the frame constants and the double buffer (14-39), where the
+// The free qwords between the frame constants and the double buffer (15-39), where the
 // program keeps the values that do not fit in its registers.
 struct WorkArea
 {
-    qword q[26];
+    qword q[25];
 };
 
 // A cooked vertex: s16 position, s16 UVs with the lightmap pair in 4.12, RGBA bytes, and a free
@@ -173,8 +174,8 @@ void stripPass(inout Frame frame, inout Windows windows, inout Batch batch, int1
     closeWindow(frame, windows, room);
 }
 
-// A corner of a triangle wholly inside: its phase 1 qwords as they are (XYZ2's .w, the outside
-// flag, is 0), with the lightmap ST in that pass.
+// A corner of a triangle wholly inside: its phase 1 qwords as they are (XYZ2's .w, the clip
+// flags, is 0), with the lightmap ST in that pass.
 void listCorner(out WindowVertex to, ref<Projected> vertex, int16 pass)
 {
     ref<Sent> sent = ref<Sent>(vertex);
@@ -245,16 +246,27 @@ void listPass(inout Frame frame, inout Windows windows, inout Batch batch, int16
         prev2            = prev1;
         prev1            = c;
 
-        // An opening entry closes no triangle.
+        // An opening entry closes no triangle. One with every corner outside one plane (a clip
+        // flag all three share) is wholly outside it: the clipper would send nothing.
         if (entry - offset == 0)
         {
-            if ((a.flags | b.flags | c.flags) == 0)
+            int16 fa = a.flags;
+            int16 fb = b.flags;
+            int16 fc = c.flags;
+
+            if ((fa | fb | fc) == 0)
             {
                 listCorner(cursor[0], a, pass);
                 listCorner(cursor[1], b, pass);
                 listCorner(cursor[2], c, pass);
                 cursor += 3;
                 room -= 3;
+            }
+            else if ((fa & fb & fc) != 0)
+            {
+#if PS2_D3BFG_GPU_SAMPLER
+                frame.stats.rejects = frame.stats.rejects + 1.0;
+#endif
             }
             else
             {
@@ -285,7 +297,7 @@ void main(layout(address = 0) inout Frame frame,
           layout(xtop, vif_base = 40, vif_offset = 306) inout Batch batch,
           layout(address = 652) inout Windows windows,
           layout(address = 954, spill) inout Scratch scratch,
-          layout(address = 14, spill) inout WorkArea work)
+          layout(address = 15, spill) inout WorkArea work)
 {
     // The material's registers go first: every window waits behind them.
     xgkick(batch.state);
@@ -326,7 +338,7 @@ void main(layout(address = 0) inout Frame frame,
         float q          = 1.0 / clipPos.w;
         vec3 projected   = frame.gsOffset + clipPos.xyz * q * frame.gsScale;
         vec2 lightmapQ   = lightmap * q;
-        int16 outside    = adc(judged) & 0x8000;
+        int16 outside    = clipbits(judged);
         anyOut           = anyOut | outside;
 
         ref<Projected> p = ref<Projected>(v);

@@ -444,13 +444,15 @@ class R2GateTests(unittest.TestCase):
     def test_vu_fit_prices_the_list_path(self):
         # VU1 cycles made of known costs: the fit over a serial log's vu_us and another log's counts
         # (frame for frame) gives them back; a frame that drew other batches is left out.
-        truth = {"vertices": 50.0, "batches": 300.0, "lit_batches": 400.0, "list_entries": 35.0, "clips": 900.0, "empty_clips": -600.0}
-        columns = ["frame", "vu_us", "vertices", "batches", "lit_batches"] + list(frame_log.LIST_COLUMNS)
+        truth = {"vertices": 50.0, "batches": 300.0, "lit_batches": 400.0, "list_entries": 35.0, "clips": 900.0, "empty_clips": -600.0,
+                 "rejects": 8.0}
+        columns = ["frame", "vu_us", "vertices", "batches", "lit_batches"] + list(frame_log.LIST_COLUMNS) + [frame_log.REJECT_COLUMN]
         timed, counted = [], []
         state = 12345
         for frame in range(200):
             values = {"frame": frame}
-            for name, bound in (("vertices", 40000), ("batches", 900), ("lit_batches", 300), ("list_entries", 20000), ("clips", 3000)):
+            for name, bound in (("vertices", 40000), ("batches", 900), ("lit_batches", 300), ("list_entries", 20000), ("clips", 3000),
+                                ("rejects", 9000)):
                 state = (state * 1103515245 + 12345) % 2 ** 31
                 values[name] = 100 + state % bound
             state = (state * 1103515245 + 12345) % 2 ** 31
@@ -458,7 +460,7 @@ class R2GateTests(unittest.TestCase):
             values["list_batches"] = min(values["batches"], values["list_entries"] // 40)
             cycles = sum(cost * values[name] for name, cost in truth.items()) + 20000.0
             values["vu_us"] = round(cycles / frame_log.VU1_CYCLES_PER_US)
-            timed.append(dict(values, **{column: 0 for column in frame_log.LIST_COLUMNS}))
+            timed.append(dict(values, **{column: 0 for column in frame_log.LIST_COLUMNS + (frame_log.REJECT_COLUMN,)}))
             counted.append(dict(values, vu_us=0, batches=values["batches"] + (1 if frame == 7 else 0)))
 
         def log(rows, label):
@@ -468,6 +470,7 @@ class R2GateTests(unittest.TestCase):
 
         fit = frame_log.vu_fit(log(timed, "pipeline=0"), log(counted, "pipeline=0"))
         self.assertEqual((fit["frames"], fit["of"]), (199, 200))
+        self.assertEqual(fit["terms"][-1], frame_log.REJECT_COLUMN)
         self.assertGreater(fit["r2"], 0.9999)
         for name, cost in truth.items():
             self.assertAlmostEqual(fit["cycles"][name], cost, delta=abs(cost) * 0.02 + 1.0)

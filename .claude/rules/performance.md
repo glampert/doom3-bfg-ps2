@@ -55,7 +55,7 @@ tour (below); there is no campaign baseline yet. Quake timings below are not Doo
   `dma::WaitIdle` (`dma::GpuState`). It sees whole chains only with serial frames. `ps2_world fill off`
   scissors every pass to one pixel: a serial run's chain time against it is the GS's pixel work.
   The sampler also counts world_lm's list path (`list_batches`, `list_entries`, `clips`,
-  `empty_clips`, read from VU1 memory after each chain); those are exact in PCSX2, so
+  `empty_clips`, `rejects`, read from VU1 memory after each chain); those are exact in PCSX2, so
   `frame_log.py console_serial.txt --vu-fit pcsx2_serial.txt` prices them from a console's VU1 time.
   The perf package plays the tour pipelined, serial and serial without fill in one boot. PCSX2
   puts everything in `vif_us`.
@@ -79,7 +79,11 @@ tour (below); there is no campaign baseline yet. Quake timings below are not Doo
   - VU1 runs 179 cycles a vertex drawn, against `vu_cost.py`'s 52 to 59 on the strip path; the gap
     is the list path and the clipper (2026-11-27, PORT_STATUS "The list path counted and priced"):
     4,699 clipper calls a frame, 92% sending nothing, 4.45 ms of VU1's 8.04 ms. Fitted costs: 54.8
-    cycles a vertex, 35.8 more a list entry, 1,232 a clip, 194 a rejected one (R² 0.997).
+    cycles a vertex, 35.8 more a list entry, 1,232 a clip, 194 a rejected one (R² 0.997). Since
+    2026-11-27 world_lm rejects a triangle whose corners share a clip flag before the call: 432
+    calls a frame in PCSX2, about 2.8 ms of VU1 expected back (console run open).
+  - A fit needs counts from the same VU1 programs as the timed log: `rejects` changed what
+    `clips` counts.
   - The worst frames are EE-bound: about 10 µs a batch and 105 µs a mid-pass eviction.
   - Pair a serial log with the pipelined one of the same build (the tour plays frame for frame) to
     tell a chain-bound frame from an EE-bound one.

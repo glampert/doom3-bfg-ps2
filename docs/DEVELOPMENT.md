@@ -307,8 +307,9 @@ cover. PCSX2 classifies everything as `vif_us` (its VU1 finishes at once, and it
 path), so the split means something on a console only. The sampler also counts world_lm's list path,
 which `dma::WaitIdle` reads out of VU1 memory (the frame constants' last qword) after each chain:
 `list_batches` (batches with a vertex outside the guard band), `list_entries` (the stream entries
-its passes walked, a lit batch's twice), `clips` (triangles sent to the clipper) and `empty_clips`
-(calls that sent nothing). These are exact in PCSX2 too, which runs the programs as the console does.
+its passes walked, a lit batch's twice), `clips` (triangles sent to the clipper), `empty_clips`
+(calls that sent nothing) and `rejects` (triangles dropped before the clipper, their corners all
+outside one plane). These are exact in PCSX2 too, which runs the programs as the console does.
 `src/tools/scripts/frame_log.py framelog.txt [--compare baseline.txt] [--vu-fit counts.txt]`
 summarises a log: each stage's mean and percentiles, frames over the budgets and by whole fields,
 the GPU split with VU1's cycles a vertex drawn (against `vu_cost.py`'s `cycles_per_vertex`), the

@@ -11,18 +11,23 @@
 
 // What the world programs counted in the frame so far (PS2_D3BFG_GPU_SAMPLER builds count, as
 // floats: VU1 integers are 16 bits): the batches that took the list path, the stream entries its
-// passes walked, the clipper's calls and the calls that sent nothing (the callers count: the
-// clipper may not write their memory). The frame constants' upload zeroes it, and dma::WaitIdle
-// reads and zeroes it after each chain.
+// passes walked, the clipper's calls, the calls that sent nothing, and the triangles rejected
+// before a call, their corners outside one plane (the callers count: the clipper may not write
+// their memory). The frame constants' upload zeroes it, and dma::WaitIdle reads and zeroes it
+// after each chain.
 struct ListStats
 {
     float batches;
     float entries;
     float clips;
     float empty;
+    float rejects;
+    float pad0;
+    float pad1;
+    float pad2;
 };
 
-// Qwords 0-13: the frame constants DisplayList::SetFrameConstants writes once a frame
+// Qwords 0-14: the frame constants DisplayList::SetFrameConstants writes once a frame
 // (vu::FrameConstants), the list path's counts last. The clipper's parameters ride in spare w
 // lanes.
 struct Frame
@@ -44,9 +49,10 @@ struct Frame
     ListStats stats;
 };
 
-// A batch vertex after phase 1, in place of the cooked one: the clip-space position, XYZ2
-// with w the ADC flag (0x8000) and 0x4000 when the vertex left the guard band, the colour
-// bytes, and the PACKED ST with Q.
+// A batch vertex after phase 1, in place of the cooked one: the clip-space position, XYZ2 with
+// w the vertex's six clip flags (world_lm: clipbits(), 0 inside the guard band; world_strips: the
+// ADC flag, 0x8000, and 0x4000 when the vertex left the band), the colour bytes, and the PACKED
+// ST with Q.
 struct Projected
 {
     vec4  clip;

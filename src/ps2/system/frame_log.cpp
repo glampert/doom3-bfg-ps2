@@ -96,12 +96,13 @@ struct Row
     u32 gpuCycles;
 #if PS2_D3BFG_GPU_SAMPLER
     u32 gpuStates[kGpuStates];
-    // The chains' list path (dma::ListPathStats): batches, stream entries, clipper calls, and
-    // the calls that sent nothing.
+    // The chains' list path (dma::ListPathStats): batches, stream entries, clipper calls, the
+    // calls that sent nothing, and the triangles rejected before a call.
     u32 listBatches;
     u32 listEntries;
     u32 clips;
     u32 emptyClips;
+    u32 rejects;
 #endif // PS2_D3BFG_GPU_SAMPLER
     u32 vsyncCycles;
     u32 ioCycles;
@@ -236,6 +237,7 @@ void Capture(const Counters & before, const Counters & now)
     row.listEntries = static_cast<u32>(now.listPath.entries - before.listPath.entries);
     row.clips = static_cast<u32>(now.listPath.clips - before.listPath.clips);
     row.emptyClips = static_cast<u32>(now.listPath.empty - before.listPath.empty);
+    row.rejects = static_cast<u32>(now.listPath.rejects - before.listPath.rejects);
 #endif // PS2_D3BFG_GPU_SAMPLER
 
     row.vsyncCycles = static_cast<u32>(now.vsyncCycles - before.vsyncCycles);
@@ -403,7 +405,7 @@ PS2_COLD_FUNC void WriteRows(Writer & writer, const Counters & last)
     // The GPU sampler's columns split gpu_us, then count the chains' list path; a log built without
     // it has none of them.
 #if PS2_D3BFG_GPU_SAMPLER
-    static constexpr const char * kGpuColumns = "vu_us,gs_us,direct_us,vif_us,tail_us,list_batches,list_entries,clips,empty_clips,";
+    static constexpr const char * kGpuColumns = "vu_us,gs_us,direct_us,vif_us,tail_us,list_batches,list_entries,clips,empty_clips,rejects,";
 #else // PS2_D3BFG_GPU_SAMPLER
     static constexpr const char * kGpuColumns = "";
 #endif // PS2_D3BFG_GPU_SAMPLER
@@ -420,9 +422,9 @@ PS2_COLD_FUNC void WriteRows(Writer & writer, const Counters & last)
         char gpu[128] = {};
 
 #if PS2_D3BFG_GPU_SAMPLER
-        idStr::snPrintf(gpu, sizeof(gpu), "%u,%u,%u,%u,%u,%u,%u,%u,%u,", Microseconds(row.gpuStates[0]), Microseconds(row.gpuStates[1]),
+        idStr::snPrintf(gpu, sizeof(gpu), "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,", Microseconds(row.gpuStates[0]), Microseconds(row.gpuStates[1]),
                         Microseconds(row.gpuStates[2]), Microseconds(row.gpuStates[3]), Microseconds(row.gpuStates[4]), row.listBatches,
-                        row.listEntries, row.clips, row.emptyClips);
+                        row.listEntries, row.clips, row.emptyClips, row.rejects);
 #endif // PS2_D3BFG_GPU_SAMPLER
 
         writer.Line("FLOG,%u,%u,%u,%u,%u,%u,%u,%s%u,%u,%u,%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,"

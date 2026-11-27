@@ -148,10 +148,10 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   Q = 1/0 at the largest float that flushes to zero (the VU has no denormals), taking the corner's
   UV (S x Q x w) with it. A vertex in the eye's plane does this (grid-aligned cameras put whole
   wall edges there). Both world programs add 1e-20 to w after the matrix; keep it.
-- **Data memory beyond the EE's:** world_lm's work area at 14-39 (qword 13 is the frame constants'
-  `ListStats`, the list path's counts in GPU sampler builds, `-DPS2_D3BFG_GPU_SAMPLER` from the
-  Makefile's `INSTRUMENT_DEFS`; the clipper may not write its callers' memory, so world_lm counts
-  around the call); the
+- **Data memory beyond the EE's:** world_lm's work area at 15-39 (qwords 13-14 are the frame
+  constants' `ListStats`, the list path's counts in GPU sampler builds, `-DPS2_D3BFG_GPU_SAMPLER`
+  from the Makefile's `INSTRUMENT_DEFS`; the clipper may not write its callers' memory, so world_lm
+  counts around the call); the
   world programs' scratch at 954-956, right after window B; the clipper's buffers at 957-1007,
   A of 8 corners and B of 9, three qwords each; its saves and work area at 1008-1023. The buffers
   hold the true worst case only while a corner is kept exactly when its distance is >= 0: every
@@ -160,6 +160,11 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   `scene::ViewProjection` clamps the near plane there (assertion builds stop).
 - Plain strips keep ADC (0x8000) and the outside flag (0x4000) apart in XYZ2's `.w`; the list
   path clears the word for its triangles.
+- **world_lm keeps each vertex's six clip flags** in XYZ2's `.w` (`clipbits()`, oxide-vcl `dca192e`:
+  FCGET masked to the newest judgement; 0 inside the guard band). The list path sends a triangle
+  whole when the OR of its corners' flags is 0 and drops it when their AND is not: corners sharing
+  a flag are all outside that plane (+z for everything behind the eye, since z_c is about z_e + 2n
+  there while |w| = z_e), and the clipper would send nothing. Only the rest call the clipper.
 - **Count VU1 cycles with `src/tools/scripts/vu_cost.py`** (PCSX2 shows none): it runs a
   program's `.vsm` on the integer side over cooked batches, one cycle per pair plus the stall the
   listing marks on it (`STALL_LATENCY ?N`), or the DIV wait at `waitq`, clip flags taken as zero

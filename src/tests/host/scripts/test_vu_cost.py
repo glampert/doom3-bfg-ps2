@@ -5,7 +5,8 @@
 # listing marks, the E bit, VIF1's unpack
 # with skipping writes and sign extension, both world programs' strip paths sending every vertex
 # of a batch across window kicks, the lightmap pass sending them again, world_lm's list path with
-# one vertex outside, and d3wd.py's decoding of a batch's vertices and strips.
+# one vertex outside and with every triangle rejected, and d3wd.py's decoding of a batch's
+# vertices and strips.
 # This source code is released under the GNU GPL-3.0-or-later license.
 # ================================================================================================
 
@@ -154,11 +155,16 @@ class WorldProgramTests(unittest.TestCase):
         program = vu_cost.load_program("world_lm")
         packet = batch_packet(strip_of(6), True)
         strip = vu_cost.batch_cycles(program, packet)
-        listed = vu_cost.batch_cycles(program, packet, list_path=True)
+        listed = vu_cost.batch_cycles(program, packet, outside="one")
         # A strip of six vertices is four triangles; the flagged vertex is in one to three of them.
         self.assertEqual(listed[1], 1)
         self.assertIn(listed[2], (3, 6, 9))
         self.assertGreater(listed[0], strip[0])
+        # Every vertex outside one plane: each triangle is rejected before the clipper, and the
+        # batch sends nothing.
+        rejected = vu_cost.batch_cycles(program, packet, outside="all")
+        self.assertEqual(rejected[1:], (0, 0))
+        self.assertGreater(rejected[0], strip[0])
 
     def test_lightmap_pass_sends_every_vertex_again(self):
         # Its windows are the base pass's (ST, RGBAQ and XYZ2, 50 vertices), so it kicks and resends

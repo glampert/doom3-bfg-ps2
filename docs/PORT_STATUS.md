@@ -6601,3 +6601,55 @@ a vertex against the strip-path model's 52 to 59.
 | `make test-renderer` | `20261126T131157Z_smoke_2e1068183a6041fd` (NTSC), `20261126T131213Z_smoke_d962fb265842470e` (PAL), and the expected-fatal probes |
 | `make test-host` | Passed (422) |
 | `make`, `make release` | Passed, no warnings |
+
+## The clipper's trivial reject (2026-11-27)
+
+world_lm now drops a triangle whose corners are all outside one clip plane before it calls the
+clipper. The clipper would have sent nothing for it.
+- **The compiler.** oxide-vcl `dca192e` adds `clipbits(j)`: `fcget`, then `iand` with 0x3f, which
+  gives the newest judgement's six flags (+x, −x, +y, −y, +z, −z). Only the newest judgement can be
+  read, because FCGET returns the two newest and VU1 has no shift.
+- **The program.**
+  - Phase 1 stores each vertex's flags in XYZ2's `.w` instead of `0x8000`; 0 still means inside the
+    guard band.
+  - The list path sends a triangle whole when the OR of its corners' flags is 0, and drops it when
+    their AND is not.
+  - Every flag implies the clipper's plane: +x means x > |w|, which implies x > w, whatever w's sign.
+    Everything behind the eye has +z, since the projection's z_c is about z_e + 2n there while
+    |w| = z_e.
+- **Counts.** A fifth count, `rejects`, takes the frame constants' second qword of counts (13-14);
+  the work area moves to 15-39.
+- **Size.** world_lm is 702 instructions (678 for the previous source on the same compiler), or 662
+  without the sampler's counts (644).
+- **Model.** `vu_cost.py` models the strip path at 53.74 cycles a vertex against 53.71: unchanged.
+  The list walk costs 2.1 cycles more an entry, and a rejected triangle's walk 28.4 an entry
+  (`--list-path`'s new reject run).
+- **The tour in PCSX2** (release, serial, 7,244 frames). Every frame drew the same batches and
+  vertices as the previous build. Per frame on average:
+
+  | | Before | After |
+  | --- | --- | --- |
+  | Clipper calls | 4,698.6 | 431.9 |
+  | Calls that sent nothing | 4,313.9 | 47.2 |
+  | Triangles rejected before the call | — | 4,266.7 |
+
+  On every frame the new calls plus rejects equal the old calls. The calls that sent a fan are the
+  same frame for frame, so no rejected triangle would have drawn anything.
+- **Expected on the console.** At the fit's 194 cycles a call that sends nothing, the rejects save
+  about 2.8 ms of VU1's 8.04 ms a frame, less 0.07 ms for the extra test. A console run of the
+  restaged perf package will measure it.
+- **Gates.**
+  - Every world capture of both world gates, in both standards, is byte-identical to the last
+    passing runs. Only `world-console.tga` differs, which shows log text and differs between two runs
+    of one build too.
+  - The retail tour counts 1,071,574 rejects and 90,042 clipper calls in NTSC, against 1,161,616
+    calls before.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world-retail` | `20261127T063440Z_world_retail_5bea13734e59` (NTSC), `20261127T063545Z_world_retail_ee0c2406ffde` (PAL) |
+| `make test-world` | `20261127T063401Z_world_a45b9ff2c7fb`, `20261127T063413Z_world_51d87aca89f1` |
+| `make test-renderer` | `20261127T063251Z_smoke_c3466171b73548c9` (NTSC), `20261127T063304Z_smoke_91ad248ae5884788` (PAL), and the expected-fatal probes |
+| `make test-host` | Passed (422) |
+| `make`, `make release` | Passed, no warnings |
+| oxide-vcl `dca192e` | `cargo test --release` 814 passed, clippy and fmt clean |

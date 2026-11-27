@@ -733,8 +733,8 @@ per corner, A 24 and B 27 back to back; `#if` checks in `vu_memory.h` pin the la
 1006-1023 are free. Since 2026-11-21 the programs are VUSL and `vu1progs/vu_memory.vush` holds the
 map, which `ps2/renderer/vu.h` reads back from the generated headers: 954-956 the world programs'
 scratch, 957-1007 the clipper's buffers, 1008-1023 the clipper library's saved registers and work
-area, and between the frame constants and the halves world_lm's work area (13-39; 14-39 since
-2026-11-26, when qword 13 became the frame constants' list-path counts).
+area, and between the frame constants and the halves world_lm's work area (13-39; 15-39 since
+2026-11-27, when qwords 13-14 became the frame constants' list-path counts).
 
 The output windows hold a fixed 48 emitted vertices each, not `N`: the program kicks a
 window when it fills and continues in the other (quake2-ps2's `OpenOutputWindow`), so the

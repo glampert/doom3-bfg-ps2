@@ -89,7 +89,8 @@ static void Sample(u32 & last)
 // VU1 data memory as the EE sees it (EE User's Manual, the memory map: VU Mem1).
 static constexpr uintptr_t kVu1DataMemory = 0x1100C000U;
 
-// world_lm's list-path counts in VU1 data memory (vu::FrameConstants::stats, four floats).
+// world_lm's list-path counts in VU1 data memory (vu::FrameConstants::stats: five floats, then
+// padding).
 static volatile float * ListPathCounts()
 {
     return reinterpret_cast<volatile float *>(kVu1DataMemory + vu::kListStatsQword * 16U);
@@ -101,7 +102,7 @@ static void ClearListPathStats()
 {
     volatile float * const counts = ListPathCounts();
 
-    for (int lane = 0; lane < 4; ++lane)
+    for (u32 lane = 0; lane < sizeof(vu::FrameConstants::stats) / sizeof(float); ++lane)
     {
         counts[lane] = 0.0f;
     }
@@ -118,6 +119,7 @@ static void TakeListPathStats()
     stats.entries += static_cast<u32>(static_cast<s32>(counts[1]));
     stats.clips += static_cast<u32>(static_cast<s32>(counts[2]));
     stats.empty += static_cast<u32>(static_cast<s32>(counts[3]));
+    stats.rejects += static_cast<u32>(static_cast<s32>(counts[4]));
     ClearListPathStats();
 }
 #endif // PS2_D3BFG_GPU_SAMPLER

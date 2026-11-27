@@ -430,6 +430,10 @@ production link free of test inputs. Section numbers in parentheses point into t
 
           The clipper is 4.45 ms of VU1's 8.04 ms a frame, 2.84 ms of it on triangles wholly outside
           one plane. Next: keep each vertex's clip flags and reject those triangles before the call.
+          Done 2026-11-27 (PORT_STATUS "The clipper's trivial reject", oxide-vcl `clipbits()`): the
+          PCSX2 tour's clipper calls fall from 4,699 to 432 a frame (4,267 rejected), with the same
+          calls that send a fan and byte-identical world captures; about 2.8 ms of VU1 a frame
+          expected. The console run is open.
     - [ ] Every frame over two fields is limited by the EE's view build: about 10 µs a batch,
           36 µs an upload and 105 µs a mid-pass eviction. Split `view_us` into its stages; area 8's
           north views reach 1,486 batches and 250 uploads a frame.

@@ -622,15 +622,17 @@ def verify_frame_log(output: Path) -> dict:
     if sum(row["gpu_us"] for row in log["rows"]) == 0:
         raise ValueError(f"{TOUR_LOG}'s serial frames never waited for their chains")
     # world_lm's list path counts: a serial frame's are its own chain's, never more batches than it
-    # drew, never more empty clipper calls than calls; the tour passes close enough to walls to clip.
-    if any(column not in log["columns"] for column in frame_log.LIST_COLUMNS):
+    # drew, never more empty clipper calls than calls; the tour passes close enough to walls to clip,
+    # and its views straddle triangles wholly behind the eye, which world_lm rejects.
+    if any(column not in log["columns"] for column in frame_log.LIST_COLUMNS + (frame_log.REJECT_COLUMN,)):
         raise ValueError(f"{TOUR_LOG} has no list path columns")
     for row in log["rows"]:
         if row["list_batches"] > row["batches"] or row["empty_clips"] > row["clips"] or (row["clips"] > 0 and row["list_batches"] == 0):
             raise ValueError(f"{TOUR_LOG} frame {row['frame']}: {row['list_batches']} list batches of {row['batches']}, "
                              f"{row['empty_clips']} empty clipper calls of {row['clips']}")
-    if sum(row["list_batches"] for row in log["rows"]) == 0 or sum(row["clips"] for row in log["rows"]) == 0:
-        raise ValueError(f"{TOUR_LOG}: no batch took the list path, or the clipper was never called")
+    if sum(row["list_batches"] for row in log["rows"]) == 0 or sum(row["clips"] for row in log["rows"]) == 0 or \
+            sum(row["rejects"] for row in log["rows"]) == 0:
+        raise ValueError(f"{TOUR_LOG}: no batch took the list path, the clipper was never called, or no triangle was rejected")
     summary = frame_log.summarize(log)
     (output / "framelog-summary.txt").write_text(frame_log.format_summary(summary) + "\n")
     return summary

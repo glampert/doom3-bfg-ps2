@@ -23,7 +23,8 @@ left out.
 --vu-fit prices VU1's work: it takes a console log's vu_us (serial frames) and another log's list
 path counts for the same tour frame for frame (PCSX2 runs the VU1 programs as the console does but
 shows none of their time), and fits VU1's cycles a frame by least squares against the vertices,
-batches, lit batches, list entries, clipper calls and empty calls.
+batches, lit batches, list entries, clipper calls and empty calls, and the triangles rejected before
+the clipper when the counts log has them. Both logs must come from the same VU1 programs.
 
 Usage: frame_log.py framelog.txt [--compare other.txt] [--vu-fit counts.txt] [--worst N] [--json summary.json]"""
 
@@ -37,12 +38,17 @@ TIME_COLUMNS = ("frame_us", "game_us", "view_us", "ui_us", "submit_us", "gpu_us"
 GPU_COLUMNS = ("vu_us", "gs_us", "direct_us", "vif_us", "tail_us")
 # The sampler's counts of world_lm's list path.
 LIST_COLUMNS = ("list_batches", "list_entries", "clips", "empty_clips")
+# The triangles world_lm rejects before the clipper (every corner outside one plane): a later
+# column, which older logs lack.
+REJECT_COLUMN = "rejects"
 # VU1 runs at the EE's clock.
 VU1_CYCLES_PER_US = 294.912
 # --vu-fit's terms, each a count a frame (a constant follows), and what one of each is called.
 VU_FIT_TERMS = ("vertices", "batches", "lit_batches", "list_entries", "clips", "empty_clips")
 VU_FIT_UNITS = {"vertices": "vertex", "batches": "batch", "lit_batches": "lit batch", "list_entries": "list entry", "clips": "clip",
-                "empty_clips": "empty clip"}
+                "empty_clips": "empty clip", "rejects": "reject"}
+# The terms the timed log supplies; the rest come from the counts log.
+VU_FIT_TIMED = ("vertices", "batches", "lit_batches")
 COUNT_COLUMNS = ("batches", "lit_batches", "pass_batches", "vertices", "packet_bytes", "chain_bytes", "uploads", "upload_bytes",
                  "stream_loads", "stream_bytes", "stream_misses", "fallbacks", "pass_fallbacks", "loader_bytes")
 # Frame-time lines: two fields of NTSC (33.3 ms) and of PAL (40 ms), and RENDERING_ARCHITECTURE.md
@@ -116,7 +122,8 @@ def summarize(log: dict, worst: int = 8) -> dict:
                "vu1_cycles_per_vertex": round(shares["vu"] * VU1_CYCLES_PER_US / vertices, 1) if vertices else 0.0}
     list_path = None
     if all(column in rows[0] for column in LIST_COLUMNS):
-        totals = {column: sum(row[column] for row in rows) for column in LIST_COLUMNS}
+        columns = LIST_COLUMNS + ((REJECT_COLUMN,) if REJECT_COLUMN in rows[0] else ())
+        totals = {column: sum(row[column] for row in rows) for column in columns}
         batches = sum(row["batches"] for row in rows)
         list_path = {"totals": totals, "batch_percent": round(100.0 * totals["list_batches"] / batches, 1) if batches else 0.0,
                      "empty_percent": round(100.0 * totals["empty_clips"] / totals["clips"], 1) if totals["clips"] else 0.0,
@@ -160,7 +167,8 @@ def format_summary(summary: dict, other: dict | None = None) -> str:
         totals = list_path["totals"]
         lines.append(f"list path: {totals['list_batches']} batches ({list_path['batch_percent']}% of those drawn, in {list_path['frames']} frames), "
                      f"{totals['list_entries']} entries; clipper {totals['clips']} calls, {totals['empty_clips']} sent nothing "
-                     f"({list_path['empty_percent']}%)")
+                     f"({list_path['empty_percent']}%)" +
+                     (f"; {totals[REJECT_COLUMN]} triangles rejected before it" if REJECT_COLUMN in totals else ""))
     loader = summary["loader"]
     if loader:
         lines.append(f"loader: {loader.get('bytes', 0)} bytes in {loader.get('chunks', 0)} reads and {loader.get('seeks', 0)} seeks, "
@@ -199,11 +207,12 @@ def vu_fit(timed: dict, counted: dict) -> dict:
     frames = {row["frame"]: row for row in counted["rows"]}
     pairs = [(row, frames[row["frame"]]) for row in timed["rows"] if row["frame"] in frames]
     matched = [(row, other) for row, other in pairs if row["batches"] == other["batches"] and row["vertices"] == other["vertices"]]
-    if len(matched) < len(VU_FIT_TERMS) + 1:
+    terms = VU_FIT_TERMS + ((REJECT_COLUMN,) if REJECT_COLUMN in counted["columns"] else ())
+    if len(matched) < len(terms) + 1:
         raise ValueError(f"only {len(matched)} frames draw the same batches in both logs")
-    samples = [([row["vertices"], row["batches"], row["lit_batches"], other["list_entries"], other["clips"], other["empty_clips"], 1.0],
-                row["vu_us"] * VU1_CYCLES_PER_US) for row, other in matched]
-    width = len(VU_FIT_TERMS) + 1
+    samples = [([(row if term in VU_FIT_TIMED else other)[term] for term in terms] + [1.0], row["vu_us"] * VU1_CYCLES_PER_US)
+               for row, other in matched]
+    width = len(terms) + 1
     normal = [[sum(x[i] * x[j] for x, _ in samples) for j in range(width)] for i in range(width)]
     target = [sum(x[i] * y for x, y in samples) for i in range(width)]
     coefficients = solve(normal, target)
@@ -212,15 +221,16 @@ def vu_fit(timed: dict, counted: dict) -> dict:
     total = sum((y - mean) ** 2 for _, y in samples)
     # What each term costs the tour, in VU1 time.
     shares = {term: round(coefficients[index] * sum(x[index] for x, _ in samples) / VU1_CYCLES_PER_US / 1e6, 2)
-              for index, term in enumerate(VU_FIT_TERMS)}
-    return {"frames": len(matched), "of": len(pairs), "cycles": {term: round(coefficients[index], 1) for index, term in enumerate(VU_FIT_TERMS)},
+              for index, term in enumerate(terms)}
+    return {"frames": len(matched), "of": len(pairs), "terms": list(terms),
+            "cycles": {term: round(coefficients[index], 1) for index, term in enumerate(terms)},
             "constant": round(coefficients[-1], 1), "r2": round(1.0 - residual / total, 3) if total else 0.0, "seconds": shares,
             "vu_seconds": round(sum(y for _, y in samples) / VU1_CYCLES_PER_US / 1e6, 2)}
 
 
 def format_vu_fit(fit: dict) -> str:
-    terms = ", ".join(f"{fit['cycles'][term]} {'an' if VU_FIT_UNITS[term][0] in 'aeiou' else 'a'} {VU_FIT_UNITS[term]}" for term in VU_FIT_TERMS)
-    shares = ", ".join(f"{term} {fit['seconds'][term]} s" for term in VU_FIT_TERMS)
+    terms = ", ".join(f"{fit['cycles'][term]} {'an' if VU_FIT_UNITS[term][0] in 'aeiou' else 'a'} {VU_FIT_UNITS[term]}" for term in fit["terms"])
+    shares = ", ".join(f"{term} {fit['seconds'][term]} s" for term in fit["terms"])
     return (f"VU1 fit over {fit['frames']} of {fit['of']} frames (R² {fit['r2']}), cycles: {terms}, {fit['constant']} a frame\n"
             f"  of the tour's {fit['vu_seconds']} s of VU1: {shares}")
 

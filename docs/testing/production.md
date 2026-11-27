@@ -475,8 +475,9 @@ D3TX (2,713,792 bytes) in 4.3 s (about 0.65 MB/s, the load's own work included),
   texture status after it no refused read and no batch without a moved state block. The runner
   checks `framelog_tour.txt` (240 rows in order, each with a frame time, ending `FLOG#end,240`, a
   `pipeline=0` label, the GPU sampler's five columns adding up to each frame's `gpu_us` within their
-  rounding, and some wait in all; the list path's four columns, never more list batches than batches
-  drawn or empty clipper calls than calls, and over the tour some list batch and some clipper call)
+  rounding, and some wait in all; the list path's five columns, never more list batches than batches
+  drawn or empty clipper calls than calls, and over the tour some list batch, some clipper call and
+  some triangle rejected before it)
   and writes `framelog-summary.txt` (`frame_log.py`). In PCSX2 the
   whole split lands in `vif_us`: its VU1 finishes at once and its GIF reports no path. The tour's misses and fallbacks are recorded, not
   limited: the walk does not wait for its reads (159 misses and 45 untextured fallbacks in both
