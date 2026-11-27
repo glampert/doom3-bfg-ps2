@@ -172,9 +172,10 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   cycles a triangle for the base pass (`--no-lightmaps`) and 90.3 with the lightmap pass, plain
   strips 60.2. Only kicks of an output window count as packets. `--list-path` sends every batch
   down the list path instead (one vertex outside, the clipper call free): 33.7 cycles more an entry
-  walked, which the console's fit confirms (35.8). The clipper's own cost comes only from the fit
-  (`frame_log.py --vu-fit`, performance.md): 1,232 cycles a call that sends a fan, 194 one that
-  sends nothing.
+  walked, which the console's fits confirm (35.8, then 31.3 with the reject). The clipper's own cost
+  comes only from the fit (`frame_log.py --vu-fit`, performance.md): before the reject 1,232 cycles a
+  call that sends a fan and 194 one wholly outside a plane, after it (2026-11-27) 1,008 a call and a
+  rejected triangle nothing beyond its list entries.
 
 ## Writing VUSL
 

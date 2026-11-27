@@ -419,7 +419,7 @@ production link free of test inputs. Section numbers in parentheses point into t
           "Second console frame log"): the tour takes 149 s pipelined; serial chains are 75.5% VU1
           and 22.5% GS, and the GS's pixel work is 1.5 ms a frame.
   - [ ] What the second console run found:
-    - [ ] VU1 runs 179 cycles a vertex drawn, against the 52 to 59 that `vu_cost.py` models on the
+    - [x] VU1 runs 179 cycles a vertex drawn, against the 52 to 59 that `vu_cost.py` models on the
           strip path, and from 69 to 440 depending on the view. Count the batches that take the list
           path and the triangles the clipper cuts, then make that path cheaper. Counted 2026-11-27
           (PORT_STATUS "The list path counted and priced"):
@@ -433,7 +433,10 @@ production link free of test inputs. Section numbers in parentheses point into t
           Done 2026-11-27 (PORT_STATUS "The clipper's trivial reject", oxide-vcl `clipbits()`): the
           PCSX2 tour's clipper calls fall from 4,699 to 432 a frame (4,267 rejected), with the same
           calls that send a fan and byte-identical world captures; about 2.8 ms of VU1 a frame
-          expected. The console run is open.
+          expected. The console measured 3.21 ms (PORT_STATUS "Third console frame log"): VU1 4.83
+          ms a frame against 8.04, 107.8 cycles a vertex drawn, the pipelined tour 137.5 s (149.4).
+    - [ ] VU1's 4.83 ms a frame by the third run's fit: the vertices about 2.3 ms, the clipper's
+          calls that send a fan about 1.4 ms (1,008 cycles each), the list walk about 1.1 ms.
     - [ ] Every frame over two fields is limited by the EE's view build: about 10 µs a batch,
           36 µs an upload and 105 µs a mid-pass eviction. Split `view_us` into its stages; area 8's
           north views reach 1,486 batches and 250 uploads a frame.

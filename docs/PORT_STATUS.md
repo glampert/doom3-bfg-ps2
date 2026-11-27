@@ -6636,8 +6636,8 @@ clipper. The clipper would have sent nothing for it.
   On every frame the new calls plus rejects equal the old calls. The calls that sent a fan are the
   same frame for frame, so no rejected triangle would have drawn anything.
 - **Expected on the console.** At the fit's 194 cycles a call that sends nothing, the rejects save
-  about 2.8 ms of VU1's 8.04 ms a frame, less 0.07 ms for the extra test. A console run of the
-  restaged perf package will measure it.
+  about 2.8 ms of VU1's 8.04 ms a frame, less 0.07 ms for the extra test. The console measured
+  3.21 ms ("Third console frame log", below).
 - **Gates.**
   - Every world capture of both world gates, in both standards, is byte-identical to the last
     passing runs. Only `world-console.tga` differs, which shows log text and differs between two runs
@@ -6653,3 +6653,39 @@ clipper. The clipper would have sent nothing for it.
 | `make test-host` | Passed (422) |
 | `make`, `make release` | Passed, no warnings |
 | oxide-vcl `dca192e` | `cargo test --release` 814 passed, clippy and fmt clean |
+
+## Third console frame log: the reject on the console (2026-11-27)
+
+The perf package of the clipper's trivial reject (above), from the HDD (`pfs0:/D3`, NTSC 640 32/32,
+release). Every log is complete (7,244 frames); copies are in `build/console-2026-11-27/`, the new
+baselines, compared here with `build/console-2026-11-26/`.
+- **VU1.** Serial chains spend 4.83 ms a frame in VU1, against 8.04 ms: 3.21 ms less (−39.9%), more
+  than the 2.8 ms expected. That is 222 cycles saved a rejected triangle. VU1 now runs 107.8 cycles
+  a vertex drawn (179.3 before), and takes 64.3% of serial chain time (75.5%), the GS 32.5%.
+- **The counts match PCSX2's.** The console's list path counts equal the PCSX2 tour's to within 58
+  of 3,128,640 clipper calls (the frames where streaming fell back differently): 431.9 calls a frame,
+  47.2 that sent nothing, 4,266.5 triangles rejected before the call.
+- **The tours.**
+
+  | | Before | After |
+  | --- | --- | --- |
+  | Pipelined tour | 149.4 s | 137.5 s (−8.0%) |
+  | Frames at one field | 5,708 (78.8%) | 6,481 (89.5%) |
+  | Frames at two fields | 1,362 | 530 |
+  | Frames at three or more | 174 | 233 |
+  | Pipelined `gpu_us` (the wait for the previous chain) | 5.08 ms | 2.54 ms |
+  | Serial tour | 186.0 s | 157.0 s |
+  | Serial without fill: `gs_us` | 0.87 ms | 0.86 ms |
+
+  The 62 frames that now take three fields or more where they took two are EE-bound: their view
+  build rose from 29.3 to 35.6 ms with 195 uploads a frame against 141 (areas 33 and 10), as which
+  textures are resident depends on when the streaming finished. The serial `view_us` is unchanged
+  (+0.8%).
+- **The fit** (`frame_log.py framelog_serial_hdd.txt --vu-fit pcsx2/framelog_serial_counts_reject.txt`,
+  7,006 frames, R² 0.999): 51.9 cycles a vertex, 31.3 a list entry, 1,008 a clipper call, and an
+  empty call 485 less (523). A rejected triangle costs nothing measurable beyond its list entries
+  (−5.5 cycles). The few empty calls left cross one plane before they vanish, which costs more than
+  being wholly outside the first. The batch, lit batch and constant terms trade against each other
+  (−302 a batch, 751 a lit batch); the vertex, list entry and call terms hold when they are dropped.
+- **Where VU1's time goes now**, by the fit, a frame: the vertices about 2.3 ms, the clipper's calls
+  about 1.4 ms, the list walk about 1.1 ms.

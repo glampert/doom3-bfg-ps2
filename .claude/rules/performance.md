@@ -73,20 +73,25 @@ tour (below); there is no campaign baseline yet. Quake timings below are not Doo
   - The loader read 706 KiB/s from the HDD and 248 KiB/s from USB, in 8.4 KB reads.
 - **Second console run (2026-11-26, PORT_STATUS "Second console frame log"):** with the four fixes the
   pipelined tour takes 149 s on either drive (79% of frames at one field, 2% at three or more). Its
-  logs, copied to `build/console-2026-11-26/` (restaging the package clears them), are the new
-  baselines.
+  logs are copied to `build/console-2026-11-26/` (restaging the package clears them).
   - The chain is VU1's: 75.5% of serial chain time. The GS's pixel work is 1.5 ms a frame.
   - VU1 runs 179 cycles a vertex drawn, against `vu_cost.py`'s 52 to 59 on the strip path; the gap
     is the list path and the clipper (2026-11-27, PORT_STATUS "The list path counted and priced"):
     4,699 clipper calls a frame, 92% sending nothing, 4.45 ms of VU1's 8.04 ms. Fitted costs: 54.8
     cycles a vertex, 35.8 more a list entry, 1,232 a clip, 194 a rejected one (R² 0.997). Since
     2026-11-27 world_lm rejects a triangle whose corners share a clip flag before the call: 432
-    calls a frame in PCSX2, about 2.8 ms of VU1 expected back (console run open).
+    calls a frame in PCSX2 and on the console.
   - A fit needs counts from the same VU1 programs as the timed log: `rejects` changed what
     `clips` counts.
   - The worst frames are EE-bound: about 10 µs a batch and 105 µs a mid-pass eviction.
   - Pair a serial log with the pipelined one of the same build (the tour plays frame for frame) to
     tell a chain-bound frame from an EE-bound one.
+- **Third console run (2026-11-27, HDD, PORT_STATUS "Third console frame log"):** the reject on the
+  console. VU1 takes 4.83 ms a frame in serial chains (8.04), 107.8 cycles a vertex drawn; the
+  pipelined tour takes 137.5 s (89.5% of frames at one field). Its logs in
+  `build/console-2026-11-27/` are the baselines now. Fit: 51.9 cycles a vertex, 31.3 a list entry,
+  1,008 a clipper call, a reject nothing beyond its entries. Frames past two fields are still the
+  EE's view build, and vary with what streaming made resident.
 - **Fit a stage's column against the counters** (least squares over the rows) to price a cost:
   it found the eviction cost at R² 0.989. Stalls spaced at a fixed interval point at a periodic
   call: the keyboard's 250 ms poll waits for the loader's read in flight, since both are fileXio
