@@ -229,6 +229,22 @@ two or three portal hops, it is a fifth to a tenth of the map's.
   do). Less engine work, but it changes the level and needs its scripts, triggers and objectives
   split by hand or by rules.
 
+**Two executables, explored (2026-11-28, the user's idea): about 0.2 MB, not worth it.** A front-end
+ELF with the main menu and a game ELF without it, switched with `LoadExecPS2`, would remove only the
+code and static data the game never runs. The release ELF loads 4.15 MB (3.19 MB of code, 0.26 MB
+read-only, 0.66 MB of BSS); almost all of it is engine and game code both would need. The in-game
+HUD, PDA and pause menu are SWF movies too, and the pause menu is the shell itself
+(`Shell_CreateMenu( true )` in `ExecuteMapChange`), so the SWF runtime, `ps2/ui`, the shell handler,
+its settings screen, the fonts and the catalog stay; the front end's heap (its movie and pages) is
+freed before a map loads anyway, and the boot's 190 KB of IOP drivers already returns to the heap.
+What only the main menu uses: the credits screen (189 KB, 184,635 of them its text in `.rodata`),
+the press-start, root and single-player screens (about 12 KB). BSS belongs to the game (event
+queue 152 KB, `idGameLocal` 151 KB, the loader's buffers 51 KB, the console 32 KB). A switch would
+also cost a full restart each way (IOP reset, the declaration scan, the script program), about
+5 s, and carry the session state across in arguments or a file.
+- [ ] Instead: the credits text read from a data file when the credits screen opens (−185 KB of
+      `.rodata`), for the same gain without a second executable.
+
 **Order.** Every lever in the table is needed either way, so they come first, largest return
 first; each is re-measured with `ps2_mapspawn`. The choice between paging and sections is made when
 their remainder is known.
