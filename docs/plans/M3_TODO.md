@@ -133,7 +133,7 @@ reaches. The debug `ps2_mapspawn` follows `ExecuteMapChange`: the container, the
 (`uiManager->Preload`, which `renderSystem->Preload` will call in M3.3), the cooked render world
 into Common's, `InitFromNewMap`, the frames, `MapShutdown`, with the ledgers after each step.
 
-- [ ] **The spawn does not fit in memory (2026-11-28 survey).** With the render world the heap runs
+- [ ] **The spawn does not fit in memory (2026-11-28 survey; the plan is the next section).** With the render world the heap runs
       out (26.78 MB live in the 27.2 MB arena) while the AAS loads, before any entity spawns. Without
       it (`noworld`) it runs out loading an md5 animation, at 25.44 MB live: collision 9.46 MB, md5
       animations 2.85 MB and counting (408 loaded), the containers' tables 1.90 MB, the script
@@ -161,17 +161,92 @@ into Common's, `InitFromNewMap`, the frames, `MapShutdown`, with the ledgers aft
 - [x] Lights without a shader find their defaults (2026-11-28): `InitLogical` looks up
       `lights/defaultPointLight` and `lights/defaultProjectedLight` as `R_InitMaterials` does (a
       light entity's render light took its falloff from a null material).
-- [ ] The player: `SyncPlayersWithLobbyUsers` found no lobby user in production's offline session,
-      so the spawn ran without `idPlayer`.
 - [ ] The cooked render world registers the map's inline brush models (`func_static_N` and the
       other `*_N` names the `.proc` defined) from the D3WD, so `FindModel` finds them: as empty
       models for the merged entities, with their own surfaces for the rigid ones (M3.5 draws them).
 - [ ] Every model, skin, particle, animation and GUI the spawn asks for is found in the retail
       binaries; list any that falls back to source import and cook or refuse it by name.
 - [ ] The full player: `SyncPlayersWithLobbyUsers` spawns the real `idPlayer` (not the fixture's
-      restricted one) at the map's `info_player_start`, with its weapons and HUD GUI loaded.
+      restricted one) at the map's `info_player_start`, with its weapons and HUD GUI loaded. The
+      2026-11-28 survey spawned none: production's offline session has no lobby user.
 - [ ] 60 frames of `RunFrame`, then `MapShutdown`; three cycles return the ledger exactly after a
       warm one. Record the spawn peak and the in-map ledger.
+
+## The memory plan: mars_city1 in 27 MB (2026-11-28)
+
+The user's call after the survey: plan the whole cut before changing code. The figures are the
+debug survey's (`ps2_mapspawn` with 128 MB, memory-budget reference "The M3.2 spawn survey") and a
+host estimate of each area's neighbourhood (below).
+
+**The budget.** The debug arena is 27.2 MB (release about 0.7 MB more: a smaller `PT_LOAD`), and
+NOMAP holds 5.84 MB of it. A visible game needs room the headless survey did not use: up to 2 MiB
+of streamed texture copies, the HUD and PDA movies (not measured yet), the frame arena, load-time
+peaks and fragmentation. Target: **at most 21 MB in a map**, about 15 MB above NOMAP, where the
+spawn now needs 59.9 MB above it.
+
+**Where it goes, and what each lever would leave** (MB, requested):
+
+| Owner | Now | Lever | Left | Size |
+| --- | --- | --- | --- | --- |
+| md5 animations (1,656 allocations) | 17.0 | load each on first play, read through the streamed file, an LRU budget unloads the oldest; later 16-bit frames | 2.5 | medium |
+| Collision (`.bcm` 5.8, 183 entity `.bcmodel`s 3.8) | 9.4 | host-cooked compact models without id's per-trace scratch fields; entity models loaded with their entity, not the whole preload manifest | 4.5 | large |
+| Render world (VU1 packets 3.8 of the D3WD) | 6.3 | packets streamed per area as the textures are | 3.0 | large |
+| Window GUIs (149 instances, 49,183 allocations) | 4.5 | load an entity's GUI when its area is near (the game keeps the entity's state and named events) | 1.0 | medium |
+| Entity objects (2,111) | 4.6 | measure by class; fold unnamed, unscripted `func_static`s whose geometry the D3WD merged into the world's collision | 3.5 | medium |
+| md5 mesh geometry | 4.6 | no silhouette edges, silhouette indexes or duplicate vertices (no stencil shadows on the PS2: 1.7) | 2.9 | small |
+| Hash tables and lists | 4.2 | measure owners; `idDict` hashes sized to their pairs, lists sized exactly | 2.2 | small |
+| Container tables | 1.9 | entry names in one string block | 0.4 | small |
+| Smoke particles | 0.7 | the pool sized to what the map uses | 0.2 | small |
+| Declarations, script, AAS, strings, anim tables, models, physics, the rest | 11.5 | purged at level load (M3.3); measured again after | 11.0 | — |
+| **Total** | **65.7** | | **~31** | |
+
+**Every lever above still leaves about 31 MB**, 10 MB over the target. The rest needs either more of
+the map's data resident only near the player, or a smaller map.
+
+**What is near the player** (host estimate from the retail `.bproc`'s area tree and portals, the
+map's entities, and the retail entity and model declarations; it finds about half the animation
+bytes, missing the NPCs' head models, which stand with their bodies):
+
+| Within | Animations (median / most) | GUI instances (median / most) | Entities (median / most) |
+| --- | --- | --- | --- |
+| 1 portal hop | 0.13 / 1.97 MB | 2 / 18 | 69 / 333 |
+| 2 portal hops | 0.39 / 2.17 MB | 6 / 28 | 139 / 579 |
+| 3 portal hops | 1.00 / 2.82 MB | 11 / 30 | 168 / 599 |
+
+The whole map references 8.5 MB of animations by this count and 149 GUIs; 420 entities, 6.2 MB of
+their animations, have their origin outside every area (cinematic actors among them). So the heavy
+per-entity media (animations, GUIs, entity collision models, md5 meshes) is local: resident within
+two or three portal hops, it is a fifth to a tenth of the map's.
+
+**Two ways to close the rest:**
+- **One map, paged by area.** Every entity spawns (the game's logic needs them all), but its media
+  is resident only while its area is within N portal hops of the player, loaded by the background
+  loader like the world's textures and released under a budget. id's code holds pointers to these
+  resources, so each kind needs a handle that can be empty: the most engine work, no change to the
+  game.
+- **The map in sections.** The host cooks mars_city1 into several smaller maps with load points,
+  each with only its entities, and carries the game state across (as the map transitions of M3.7
+  do). Less engine work, but it changes the level and needs its scripts, triggers and objectives
+  split by hand or by rules.
+
+**Order.** Every lever in the table is needed either way, so they come first, largest return
+first; each is re-measured with `ps2_mapspawn`. The choice between paging and sections is made when
+their remainder is known.
+
+- [ ] 0. A measurement build: a Makefile knob (`HEAP_ARENA_MB=128`, debug only) for the 128 MB
+      heap cap, and the `ExtraMemory` recipe in docs/testing; `ps2_mapspawn` prints its ledgers by
+      tag at the spawn checkpoint. Until the map fits, the gate's figures come from this build.
+- [ ] 1. md5 animations on first play, streamed, with an LRU budget (17.0 to about 2.5 MB). The
+      spawn's 17.9 s of EE time should fall with it. Risk: a hitch the first time an animation
+      plays; the background loader can take the reads later.
+- [ ] 2. md5 meshes without shadow data (−1.7 MB).
+- [ ] 3. Container tables in a string block (−1.5 MB).
+- [ ] 4. Window GUIs loaded when their area is near (−3.5 MB).
+- [ ] 5. Hash, list and pool sizing (−2.5 MB).
+- [ ] 6. Cooked compact collision, entity models with their entities (−4.9 MB).
+- [ ] 7. Unscripted merged `func_static`s folded into the world (−1 MB or more).
+- [ ] 8. Render world packets streamed by area (−3.3 MB).
+- [ ] 9. Re-measure, then choose: paging by area, or sections.
 
 ## M3.3: Common's map change in production
 
