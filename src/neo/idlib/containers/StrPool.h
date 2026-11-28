@@ -154,8 +154,23 @@ ID_INLINE void idStrPool::FreeString( const idPoolStr *poolStr ) {
 		assert( i != -1 );
 		assert( pool[i] == poolStr );
 		delete pool[i];
+#if defined( ID_PS2 ) || defined( ID_HOST_TEST )
+		// [PS2_D3BFG]: The last string takes the freed slot, so only its hash entry moves. Removing
+		// the index renumbered every later one (idHashIndex::RemoveIndex walks the whole table and
+		// chain) and shifted the list: freeing a map's 16,334 entity pairs took 3.85 s of EE time.
+		// Nothing depends on the pool's order; its strings are unique, so a chain's order is free.
+		poolHash.Remove( hash, i );
+		const int last = pool.Num() - 1;
+		if ( i != last ) {
+			const int lastHash = poolHash.GenerateKey( pool[last]->c_str(), caseSensitive );
+			poolHash.Remove( lastHash, last );
+			poolHash.Add( lastHash, i );
+		}
+		pool.RemoveIndexFast( i );
+#else
 		pool.RemoveIndex( i );
 		poolHash.RemoveIndex( hash, i );
+#endif
 	}
 }
 

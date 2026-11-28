@@ -150,7 +150,7 @@ REQUIRED_CORE_CHECKS = frozenset({
     "idlib/tagged-overaligned-new",
     "idlib/surface-ray-parallel", "idlib/lexer-comments-strings-numbers", "idlib/bounded-format-static-scalar",
     "idlib/synchronous-jobs-dependency-sync-reuse", "idlib/single-thread-mutex-signal-atomics",
-    "idlib/event-overflow-transfer-clear-ledger",
+    "idlib/event-overflow-transfer-clear-ledger", "idlib/string-pool-free-order",
     "types/inherited-const", "types/rejected-null-sibling", "types/translation-unit-identity",
     "types/menu-hierarchy", "types/gui-hierarchy", "types/model-hierarchy", "types/real-file-objects",
 })

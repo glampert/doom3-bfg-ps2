@@ -103,8 +103,9 @@ file keeps only what most engine edits need.
 - A large file read once from start to end goes through `ps2::system::fs::OpenStreamed`
   (`streamed_file.h`, a 32 KiB window over `ReadFileRange`), not `OpenFileReadMemory`: the
   collision loader reads the 5.4 MB `.bcm` this way.
-- `idStrPool::FreeString` walks the whole pool for each string it frees: freeing many pooled
-  `idDict` strings is quadratic (deleting mars_city1's `idMapFile` takes 3.85 s).
+- `idStrPool::FreeString` moves the pool's last string into the freed slot (a tag: id's renumbered
+  every later index, quadratic over a map's entity pairs, 3.85 s for mars_city1). Never read the
+  pool by index expecting allocation order.
 - A material stage's image that no UI catalog draws is a game image (`ImageFromFile`,
   `image_backend.cpp`): a name and a sampler, no pixels, in every presentation; the world pass
   draws the cooked D3TX by material name. They are freed after the declarations

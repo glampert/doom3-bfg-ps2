@@ -1,6 +1,6 @@
 // ================================================================================================
 // File: idlib_tests.cpp
-// Brief: Catch scalar math, lexer, formatting and scheduler regressions on the EE and host.
+// Brief: Catch scalar math, lexer, formatting, string pool and scheduler regressions on the EE and host.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -307,6 +307,75 @@ bool CheckJobs()
     return Check("synchronous-jobs-dependency-sync-reuse", passed);
 }
 
+// idStrPool frees by moving its last string into the freed slot: after frees in a scrambled order,
+// every string left is still found (the same object, in both case modes), a repeated string keeps
+// its users, and the pool returns its strings' memory exactly.
+bool CheckStringPool()
+{
+    constexpr int kStrings = 300;
+    const auto tag = static_cast<std::uint16_t>(TAG_IDLIB_STRING);
+    const ps2::system::heap::Stats initial = ps2::tests::TagLedger(tag);
+    bool passed = true;
+
+    for (const bool caseSensitive : { true, false })
+    {
+        idStrPool pool;
+        pool.SetCaseSensitive(caseSensitive);
+        const idPoolStr * strings[kStrings] = {};
+        char name[16] = {};
+
+        for (int index = 0; index < kStrings; ++index)
+        {
+            idStr::snPrintf(name, static_cast<int>(sizeof(name)), "key%d", index);
+            strings[index] = pool.AllocString(name);
+        }
+
+        // A second user of the first string, by another case when the pool ignores it.
+        const idPoolStr * const shared = pool.AllocString(caseSensitive ? "key0" : "KEY0");
+        passed = shared == strings[0] && pool.Num() == kStrings && passed;
+
+        // Every string once, in an order that visits the slots out of sequence (7 is prime to 300).
+        // String 0 has two users, so freeing it once leaves it in the pool.
+        bool freed[kStrings] = {};
+        int removed = 0;
+        for (int step = 0; step < kStrings; ++step)
+        {
+            const int index = (step * 7 + 3) % kStrings;
+            pool.FreeString(strings[index]);
+            freed[index] = true;
+            removed += index == 0 ? 0 : 1;
+            passed = pool.Num() == kStrings - removed && passed;
+
+            if ((step & 15) != 15)
+            {
+                continue;
+            }
+
+            for (int other = 0; other < kStrings; ++other)
+            {
+                if (freed[other] && other != 0)
+                {
+                    continue;
+                }
+
+                // Finding a string adds a user; give it back.
+                const idPoolStr * const found = pool.AllocString(strings[other]->c_str());
+                passed = found == strings[other] && passed;
+                pool.FreeString(found);
+            }
+        }
+
+        // The shared string's second user keeps it.
+        passed = pool.Num() == 1 && pool[0] == shared && idStr::Cmp(shared->c_str(), "key0") == 0 && passed;
+        pool.FreeString(shared);
+        passed = pool.Num() == 0 && passed;
+    }
+
+    const ps2::system::heap::Stats final = ps2::tests::TagLedger(tag);
+    passed = final.allocationCount == initial.allocationCount && final.requestedBytes == initial.requestedBytes && passed;
+    return Check("string-pool-free-order", passed);
+}
+
 } // namespace
 
 bool RunIdlibTests()
@@ -319,6 +388,7 @@ bool RunIdlibTests()
     passed = CheckSurfaceRay() && passed;
     passed = CheckLexer() && passed;
     passed = CheckStrings() && passed;
+    passed = CheckStringPool() && passed;
     passed = CheckPrimitives() && passed;
     passed = CheckEvents() && passed;
     passed = CheckJobs() && passed;

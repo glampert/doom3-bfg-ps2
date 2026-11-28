@@ -6770,3 +6770,32 @@ AAS cooked"; engine reference, "Retail map game data").
 | `make test-game` | `20261128T061919Z_smoke_236a15b2ef444a02` and its ten expected-fatal cases |
 | `make test-host` | Passed (424), with the D3AS round trip of the authored AAS, a special reachability's pairs and the refusals (`map_tests`) |
 | `make`, `make release`, `make build-core`, `make build-game` | Passed, no warnings |
+
+## The string pool's free and the reachabilities' destructor (2026-11-28)
+
+Two fixes in id's code that the M3.1 follow-ups turned up (engine reference, "Retail map game data").
+- **`idStrPool::FreeString` in constant time.** Freeing a pooled string renumbered every later index
+  of the pool's hash and shifted its list, so freeing a map's 16,334 entity pairs took 3.85 s. The
+  pool's last string now takes the freed slot and only its hash entry moves: deleting mars_city1's
+  `idMapFile` takes 52 ms, and the map's game data frees in 316 / 399 ms (4.1 / 4.2 s). The core
+  gate's new `idlib/string-pool-free-order` check frees 300 strings in a scrambled order in both case
+  modes; with the moved string's hash entry left out on purpose, id's own assertion stops the run.
+- **`idReachability`'s virtual destructor.** The AAS file deletes every reachability through the base
+  class, which left a special reachability's dictionary undefined to delete and leaked. It costs 4
+  bytes a reachability: +44,156 bytes for mars_city1 (11,039).
+- **PCSX2's settings changed** before today's runs: `Renderer = 13` (software; -1 through
+  2026-11-27), a 16:9 aspect ratio and 4 extra threads. With them `test-renderer`'s
+  `native-a-top` pixel probe and `test-world-retail`'s NTSC `world-south-light` (98.76 % against
+  99.0 %) fail, identically at 33f2d63 and with the pool fix reverted; the capture gates were not
+  rerun on the hardware renderer.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-core` | `20261128T063841Z_smoke_219face7a1164c98` (with `idlib/string-pool-free-order`) |
+| `make test-headless-retail` | `20261128T064346Z_headless_ee75265399ed` |
+| `make test-headless` | `20261128T064419Z_headless_0d46e61e6d5f` (bounded), `20261128T064424Z_headless_e9884e64af82` (console) |
+| `make test-map` | `20261128T064836Z_smoke_be1e4ff9dbb74a16` |
+| `make test-game` | `20261128T064845Z_smoke_e9b673e44b8e440a` and its ten expected-fatal cases |
+| `make test-world` | `20261128T065206Z_world_6a7dfddbb1b5` (NTSC), `20261128T065219Z_world_d42e648269fd` (PAL) |
+| `make test-renderer`, `make test-world-retail` | Fail one capture each under the software renderer (above) |
+| `make`, `make release`, `make build-core` | Passed, no warnings |

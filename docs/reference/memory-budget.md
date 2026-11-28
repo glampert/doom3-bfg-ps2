@@ -1327,4 +1327,9 @@ host-cooked D3AS (`mars_city1.aas48.d3as`, 956,444 bytes) streamed straight into
   293 ms, the container 6 to 8 ms, and `delete mapFile` 3,849 ms: the entities' 16,334 pairs free
   their pooled keys and values through `idStrPool::FreeString`, which for every string it frees
   walks the pool's whole hash table and index chain (`idHashIndex::RemoveIndex`) and shifts the
-  pool list. Quadratic in the strings; every map unload pays it.
+  pool list. Quadratic in the strings; every map unload paid it.
+- **Both fixed the same day** (run `20261128T064346Z_headless_ee75265399ed`): the pool's free moves
+  its last string into the freed slot, so `delete mapFile` takes 52 ms and the whole free 316 / 399
+  ms (cold / warm); `idReachability`'s new virtual destructor adds 4 bytes to each of the 11,039
+  reachabilities, so the AAS step ends at 15,488,537 (+44,156, `TAG_AAS` 1,163,916) and peaks at
+  15,557,321, 9.74 MB above NOMAP. The warm cycle still frees back to its ledger exactly.

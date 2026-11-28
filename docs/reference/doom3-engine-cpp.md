@@ -826,7 +826,16 @@ ledgers in [memory-budget.md](memory-budget.md), "Retail map game data").
   every table through `idAASFile`'s getters, reachability lists and reversed lists included.
   mars_city1's `aas48`: no integer differs, 1,601 floats differ in their last bits (the largest by
   0.000305), and the cooked load takes 319 ms against 2,132.
-- **`idStrPool::FreeString` is quadratic.** Freeing a pooled string whose last user goes walks the
-  pool's whole hash table and index chain (`idHashIndex::RemoveIndex` renumbers every index above
-  it) and shifts the pool list. `idDict` keys and values are pooled, so deleting mars_city1's
-  `idMapFile` (16,334 pairs) takes 3.85 s of the 4.1 s the map's game data takes to free.
+- **`idStrPool::FreeString` was quadratic.** Freeing a pooled string whose last user goes walked
+  the pool's whole hash table and index chain (`idHashIndex::RemoveIndex` renumbers every index
+  above it) and shifted the pool list. `idDict` keys and values are pooled, so deleting mars_city1's
+  `idMapFile` (16,334 pairs) took 3.85 s of the 4.1 s the map's game data took to free. Since
+  2026-11-28 (the `StrPool.h` tag) the pool's last string takes the freed slot and only its hash
+  entry moves: 52 ms. Nothing reads the pool by index but its sizes (its listing code is commented
+  out), and its strings are unique, so neither the list's nor a chain's order matters. The core
+  gate's `idlib/string-pool-free-order` frees 300 strings in a scrambled order in both case modes
+  and finds every remaining one after each 16 frees.
+- **`idReachability` had no virtual destructor.** `~idAASFileLocal` and `DeleteReachabilities`
+  delete every reachability through the base, so deleting a special one was undefined and leaked
+  its `idDict`. The PS2 gives the base a virtual destructor (2026-11-28): 4 bytes more each,
+  +44,156 bytes for mars_city1's 11,039 (`TAG_AAS` 1,163,916).

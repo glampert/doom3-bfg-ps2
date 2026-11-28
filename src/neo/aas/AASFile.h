@@ -105,6 +105,11 @@ public:
 	idReachability *			rev_next;			// next reachability in reversed list
 	unsigned short *			areaTravelTimes;	// travel times within the fromAreaNum from reachabilities that lead towards this area
 public:
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: The AAS file deletes every reachability through this base, and a special one
+	// owns a dictionary: without a virtual destructor its delete was undefined and leaked the pairs.
+	virtual						~idReachability() {}
+#endif
 	void						CopyBase( idReachability &reach );
 };
 

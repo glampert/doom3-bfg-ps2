@@ -111,8 +111,12 @@ the memory-budget reference, "Retail map game data"; findings in the engine refe
 - [x] Where the 4.4 to 5.0 s of freeing goes (2026-11-28, `MAPDATA_FREE`): 3.85 s is
       `delete mapFile`, whose 16,334 pairs free their pooled strings through `idStrPool::FreeString`,
       which walks the whole pool for each one; the AAS takes 45 ms, the collision 0.2 to 0.3 s.
-- [ ] Make freeing pooled strings linear (`idStrPool::FreeString`: every map unload, and anything
-      else that frees many `idDict`s, pays the quadratic walk).
+- [x] Freeing pooled strings made constant time (2026-11-28): `idStrPool::FreeString` moves the
+      pool's last string into the freed slot and only its hash entry. Deleting mars_city1's
+      `idMapFile` takes 52 ms (3,849); the map's game data frees in 0.3 to 0.4 s (4.1 to 4.2).
+- [x] `idReachability` has a virtual destructor (2026-11-28): the AAS file deletes every
+      reachability through the base, and a special one's dictionary leaked (undefined behaviour).
+      Each reachability is 4 bytes larger: +44,156 bytes for mars_city1's 11,039.
 
 ## M3.2: mars_city1 spawned (game test image)
 
