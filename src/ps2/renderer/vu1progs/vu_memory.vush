@@ -123,9 +123,10 @@ struct Scratch
 };
 
 // The clipper's ping-pong buffers (957-1007): three qwords a corner, the first again after the
-// last. A holds 7 corners plus the wrap, B 8: five planes add at most one corner each to a
-// triangle while a corner is kept exactly when its distance is >= 0, which holds with the near
-// plane at least vu::kClipMinNear from the eye (scene.cpp clamps it there).
+// last. A (corners 0-7) holds 7 corners plus the wrap, B (8-16) 8: five planes add at most one
+// corner each to a triangle while a corner is kept exactly when its distance is >= 0, which
+// holds with the near plane at least vu::kClipMinNear from the eye (scene.cpp clamps it there).
+// A pass that cuts writes the other buffer, so the passes that cut write B, A, B, A and B.
 struct Corner
 {
     vec4 pos;
@@ -135,6 +136,5 @@ struct Corner
 
 struct ClipBuffers
 {
-    Corner a[8];
-    Corner b[9];
+    Corner corners[17];
 };

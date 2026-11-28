@@ -2,14 +2,14 @@
 /* ================================================================================================
  * File: clipper.vush
  * Brief: The clipper library's interface: the world programs' near-plane and guard band
- *        clipper, compiled once (clipper.vusl), resident in micro memory at 1536 and called by
+ *        clipper, compiled once (clipper.vusl), resident in micro memory at 1408 and called by
  *        every program that clips. vu::Init uploads it there (kMicroAddress in its generated
  *        header).
  *
  * This source code is released under the GNU GPL-3.0-or-later license.
  * ================================================================================================ */
 
-#pragma library(clipper, address = 1536, vf = 24, vi = 10, saved_vf = 8, saved_vi = 4, save = saves)
+#pragma library(clipper, address = 1408, vf = 24, vi = 10, saved_vf = 8, saved_vi = 4, save = saves)
 #include "vu_memory.vush"
 
 // Calls pass values in VF24-VF31 and VI10-VI14, and may change those, VI15 (the link) and VI01.

@@ -1,6 +1,6 @@
 /* ================================================================================================
  * File: clipper.vusl
- * Brief: The clipper library's own build (clipper.vush): one entry, ClipTriangle, at 1536.
+ * Brief: The clipper library's own build (clipper.vush): one entry, ClipTriangle, at 1408.
  *        A polygon lives in one of two scratch buffers with its first corner repeated at the
  *        end, so the edge walk needs no wrap test; a pass reads one buffer and writes the other,
  *        and five passes leave the survivors in B. Signs come from the float distances through
@@ -33,107 +33,152 @@ void seedCorner(ref<Projected> vertex, float pass, out vec4 pos, out vec4 col, o
     col     = itof0(vertex.rgba);
 }
 
-// The planes a triangle is clipped against, in the order of the passes. Near keeps z <= w,
-// PositiveX x <= w, NegativeX -w <= x, PositiveY y <= w and NegativeY -w <= y, in judged
-// units (the position times clipScale).
-enum class ClipPlane
+// The axis of a pair of planes, in judged units (the position times clipScale): Z for the near
+// plane, which keeps z <= w, X for PositiveX and NegativeX, which keep x <= w and -w <= x, and Y
+// for PositiveY and NegativeY. The near plane is first, then the sides.
+enum class ClipAxis
 {
-    Near,
-    PositiveX,
-    NegativeX,
-    PositiveY,
-    NegativeY,
+    X,
+    Y,
+    Z,
 };
 
-// A corner's distance inside plane `plane`: w shrunk so a cut lands strictly inside, plus the
-// plane's term, scaled so the sign survives the product of two distances. There is no far plane;
-// a triangle past it is rejected whole.
-float planeDistance(in Frame frame, vec4 pos, ClipPlane plane)
+// A corner's distance inside the plane of axis `axis` that `scale` faces: w shrunk so a cut lands
+// strictly inside, less the judged coordinate, scaled so the sign survives the product of two
+// distances. `scale` is clipScale for the near plane and PositiveX and PositiveY, and -clipScale
+// for NegativeX and NegativeY: x * -c is -(x * c) exactly, so d - x * -c is d + x * c. There is
+// no far plane; a triangle past it is rejected whole.
+float planeDistance(in Frame frame, vec4 pos, ClipAxis axis, vec3 scale)
 {
-    vec3 jp = pos.xyz * frame.clipScale;
-    float d = pos.w * frame.clipShrink;
+    layout(lane = w) float factor;
+    float d;
 
-    switch (plane)
+    switch (axis)
     {
-    case ClipPlane::Near:
-        d = d - jp.z;
+    case ClipAxis::X:
+        factor = scale.x;
+        d      = pos.w * frame.clipShrink - pos.x * factor;
         break;
-    case ClipPlane::PositiveX:
-        d = d - jp.x;
+    case ClipAxis::Y:
+        factor = scale.y;
+        d      = pos.w * frame.clipShrink - pos.y * factor;
         break;
-    case ClipPlane::NegativeX:
-        d = d + jp.x;
-        break;
-    case ClipPlane::PositiveY:
-        d = d - jp.y;
-        break;
-    case ClipPlane::NegativeY:
-        d = d + jp.y;
+    default:
+        factor = scale.z;
+        d      = pos.w * frame.clipShrink - pos.z * factor;
         break;
     }
 
     return d * frame.clipDistance;
 }
 
-// One Sutherland-Hodgman pass over `corners` corners in `from` against plane `plane`, the
-// survivors into `to` with the first again after the last. Fewer than three survivors are none.
-int16 clipPass(in Frame frame, int16 corners, ref<Corner> from, ref<Corner> to, ClipPlane plane)
+// A corner's distances inside each plane, exactly as planeDistance gives them: negated in `high`,
+// for PositiveX, PositiveY and the near plane in x, y and z, and as they are in `low`, for
+// NegativeX and NegativeY in x and y.
+void cornerDistances(in Frame frame, vec4 pos, out vec3 high, out vec2 low)
 {
-    int16 count = 0;
+    vec3 jp = pos.xyz * frame.clipScale;
+    float d = pos.w * frame.clipShrink;
+    high    = (jp - d) * frame.clipDistance;
+    low     = (jp.xy + d) * frame.clipDistance;
+}
 
-    if (corners >= 3)
+// The distances of the `corners` corners in `from` inside each plane at their extremes: `high` the
+// highest of their cornerDistances, `low` the lowest. A plane has a corner outside it when its
+// `high` is above 0 or its `low` below. Fewer than three corners, which no pass keeps, count as
+// inside every plane.
+void distanceExtremes(in Frame frame, int16 qwords, ref<Corner> from, out vec3 high,
+                      out vec2 low)
+{
+    high = vec3(0.0, 0.0, 0.0);
+    low  = vec2(0.0, 0.0);
+
+    if (qwords >= 9)
     {
-        ref<Corner> walk   = from;
-        ref<Corner> cursor = to;
+        ref<Corner> walk = from;
+        int16 left       = qwords;
+        cornerDistances(frame, walk.pos, high, low);
 
         do
         {
-            vec4 curPos   = walk.pos;
-            vec4 curCol   = walk.col;
-            vec4 curUV    = walk.uv;
-            vec4 nxtPos   = walk[1].pos;
-            vec4 nxtCol   = walk[1].col;
-            vec4 nxtUV    = walk[1].uv;
-            float dCur    = planeDistance(frame, curPos, plane);
-            float dNxt    = planeDistance(frame, nxtPos, plane);
-            float cut     = dCur * dNxt;
-
-            if (dCur > -0.0625)
-            {
-                cursor.pos = curPos;
-                cursor.col = curCol;
-                cursor.uv  = curUV;
-                cursor += 1;
-                count++;
-            }
-
-            if (cut <= -0.0625)
-            {
-                float t    = dCur / (dCur - dNxt);
-                cursor.pos = curPos + (nxtPos - curPos) * t;
-                cursor.col = curCol + (nxtCol - curCol) * t;
-                cursor.uv  = curUV + (nxtUV - curUV) * t;
-                cursor += 1;
-                count++;
-            }
-
             walk += 1;
-            corners--;
-        } while (corners > 0);
+            left -= 3;
+            vec3 cornerHigh;
+            vec2 cornerLow;
+            cornerDistances(frame, walk.pos, cornerHigh, cornerLow);
+            high = max(high, cornerHigh);
+            low  = min(low, cornerLow);
+        } while (left > 3);
+    }
+}
 
-        if (count >= 3)
-        {
-            cursor.pos = to.pos;
-            cursor.col = to.col;
-            cursor.uv  = to.uv;
-        }
-        else
-        {
-            count = 0;
-        }
+// One Sutherland-Hodgman pass over the `qwords` qwords of corners (three or more) in `from`
+// against the plane of axis `axis` that `scale` faces (planeDistance), the survivors into `to`
+// with the first again after the last; then `from` and `to` swap, so that `from` holds the
+// survivors. It returns their qwords, none for fewer than three. No edge branches: each stores
+// its first corner and its cut, and steps the cursor past those it keeps, so an unkept one is
+// overwritten by the next store or lies past the survivors.
+int16 clipPass(in Frame frame, inout ClipBuffers clip, int16 qwords, inout ref<Corner> from,
+               inout ref<Corner> to, ClipAxis axis, vec3 scale)
+{
+    ref<Corner> walk = from;
+    int16 at         = int16(to);
+
+    do
+    {
+        vec4 curPos   = walk.pos;
+        vec4 curCol   = walk.col;
+        vec4 curUV    = walk.uv;
+        vec4 nxtPos   = walk[1].pos;
+        vec4 nxtCol   = walk[1].col;
+        vec4 nxtUV    = walk[1].uv;
+        float dCur    = planeDistance(frame, curPos, axis, scale);
+        float dNxt    = planeDistance(frame, nxtPos, axis, scale);
+        float t       = dCur / (dCur - dNxt);
+
+        // x: the first corner is kept; y: the edge is not cut. Each is 3 when its sum is above 0,
+        // otherwise 0: a sum above 0 is at least 2^-28, the spacing of floats just below 1/16.
+        vec2 above;
+        above.x     = dCur + 0.0625;
+        above.y     = dCur * dNxt + 0.0625;
+        ivec2 steps = ftoi0(clamp(above * 1073741824.0, 0.0, 3.0));
+
+        ref<Corner> kept = ref<Corner>(clip.corners, at);
+        kept.pos         = curPos;
+        kept.col         = curCol;
+        kept.uv          = curUV;
+        at += int16(steps.x);
+
+        ref<Corner> cut = ref<Corner>(clip.corners, at);
+        cut.pos         = curPos + (nxtPos - curPos) * t;
+        cut.col         = curCol + (nxtCol - curCol) * t;
+        cut.uv          = curUV + (nxtUV - curUV) * t;
+        at += 3;
+        at -= int16(steps.y);
+
+        walk += 1;
+        qwords -= 3;
+    } while (qwords > 0);
+
+    int16 survivors = at - int16(to);
+
+    if (survivors >= 9)
+    {
+        ref<Corner> first = ref<Corner>(clip.corners, at);
+        first.pos         = to.pos;
+        first.col         = to.col;
+        first.uv          = to.uv;
+    }
+    else
+    {
+        survivors = 0;
     }
 
-    return count;
+    ref<Corner> written = to;
+    to                  = from;
+    from                = written;
+
+    return survivors;
 }
 
 // Projects a clipped corner into a window vertex.
@@ -162,31 +207,82 @@ void clipTriangle(in Frame frame, inout ClipBuffers clip, inout ref<WindowVertex
     seedCorner(b, pass, pos1, col1, uv1);
     seedCorner(c, pass, pos2, col2, uv2);
 
-    clip.a[0].pos = pos0;  clip.a[0].col = col0;  clip.a[0].uv = uv0;
-    clip.a[1].pos = pos1;  clip.a[1].col = col1;  clip.a[1].uv = uv1;
-    clip.a[2].pos = pos2;  clip.a[2].col = col2;  clip.a[2].uv = uv2;
-    clip.a[3].pos = pos0;  clip.a[3].col = col0;  clip.a[3].uv = uv0;
+    clip.corners[0].pos = pos0;  clip.corners[0].col = col0;  clip.corners[0].uv = uv0;
+    clip.corners[1].pos = pos1;  clip.corners[1].col = col1;  clip.corners[1].uv = uv1;
+    clip.corners[2].pos = pos2;  clip.corners[2].col = col2;  clip.corners[2].uv = uv2;
+    clip.corners[3].pos = pos0;  clip.corners[3].col = col0;  clip.corners[3].uv = uv0;
 
-    ref<Corner> bufferA = ref<Corner>(clip.a);
-    ref<Corner> bufferB = ref<Corner>(clip.b);
+    ref<Corner> from = ref<Corner>(clip.corners);
+    ref<Corner> to   = from + 8;
 
-    // Near first, which removes the most, then the four sides; A to B and back leaves the
-    // survivors in B.
-    int16 count = clipPass(frame, 3, bufferA, bufferB, ClipPlane::Near);
-    count       = clipPass(frame, count, bufferB, bufferA, ClipPlane::PositiveX);
-    count       = clipPass(frame, count, bufferA, bufferB, ClipPlane::NegativeX);
-    count       = clipPass(frame, count, bufferB, bufferA, ClipPlane::PositiveY);
-    count       = clipPass(frame, count, bufferA, bufferB, ClipPlane::NegativeY);
+    // The near plane first, which removes the most, then the sides; each pass leaves the
+    // survivors in `from`. A pass runs only when a corner is outside its plane: otherwise it
+    // would keep each corner and cut none, copying the polygon as it is. After one runs, the
+    // polygon it left is measured again. The planes of an axis share their pass: the second
+    // faces the other way, with clipScale negated.
+    vec3 high;
+    vec2 low;
+    vec3 high1;
+    vec2 low1;
+    vec3 high2;
+    vec2 low2;
+    cornerDistances(frame, pos0, high, low);
+    cornerDistances(frame, pos1, high1, low1);
+    cornerDistances(frame, pos2, high2, low2);
+    high = max(high, max(high1, high2));
+    low  = min(low, min(low1, low2));
 
-    // Fan the survivors from corner 0: count - 2 triangles.
-    int16 fans = count - 2;
+    int16 qwords = 9;
+
+    if (high.z > 0.0)
+    {
+        qwords = clipPass(frame, clip, qwords, from, to, ClipAxis::Z, frame.clipScale);
+        distanceExtremes(frame, qwords, from, high, low);
+    }
+
+    // Each side's highest negated distance: PositiveX's, then NegativeX's.
+    vec3 scale    = frame.clipScale;
+    float outside = high.x;
+    int16 side    = 2;
+
+    do
+    {
+        if (outside > 0.0)
+        {
+            qwords = clipPass(frame, clip, qwords, from, to, ClipAxis::X, scale);
+            distanceExtremes(frame, qwords, from, high, low);
+        }
+
+        outside = -low.x;
+        scale   = -scale;
+        side--;
+    } while (side > 0);
+
+    outside = high.y;
+    side    = 2;
+
+    do
+    {
+        if (outside > 0.0)
+        {
+            qwords = clipPass(frame, clip, qwords, from, to, ClipAxis::Y, scale);
+            distanceExtremes(frame, qwords, from, high, low);
+        }
+
+        outside = -low.y;
+        scale   = -scale;
+        side--;
+    } while (side > 0);
+
+    // Fan the survivors from corner 0: one triangle for each corner past the second.
+    int16 fans = qwords - 6;
 
     if (fans > 0)
     {
-        vec4 firstPos   = clip.b[0].pos;
-        vec4 firstCol   = clip.b[0].col;
-        vec4 firstUV    = clip.b[0].uv;
-        ref<Corner> fan = bufferB + 1;
+        vec4 firstPos   = from.pos;
+        vec4 firstCol   = from.col;
+        vec4 firstUV    = from.uv;
+        ref<Corner> fan = from + 1;
 
         do
         {
@@ -214,7 +310,7 @@ void clipTriangle(in Frame frame, inout ClipBuffers clip, inout ref<WindowVertex
             cursor += 3;
             room -= 3;
             fan += 1;
-            fans--;
+            fans -= 3;
         } while (fans > 0);
     }
 }

@@ -6837,3 +6837,41 @@ world 6.29, entity objects 4.64, window GUIs 4.47, md5 mesh geometry 4.6 (1.7 of
 silhouette data), hashes and lists 4.19 (memory-budget reference, "The M3.2 spawn survey").
 `make test-headless-retail`, `test-headless`, `test-map`, `test-game` and `test-world` pass with the
 two fixes.
+
+## oxide-vcl `f9b438b`: the clipper's passes without branches (2026-11-28)
+
+The oxide-vcl submodule moves from `dca192e` to `f9b438b`, and the clipper's Sutherland-Hodgman
+passes lose their branch per edge.
+- **The compiler.** oxide mode gains `hoist`, `speculate` and `steps` (work moved between a loop's
+  streams, and runs of pointer steps folded), and oxide-vusl makes scalars in the lanes they are
+  wanted. The VCL oxide-vusl generates for the previous sources differs only in constant splats.
+  world_lm is 701 instructions and world_strips 323, as before.
+- **The passes.** Each edge stores its corner and its cut, then steps the cursor 0 or 3 qwords past
+  each by FTOI0 of a clamped, scaled sign (`.claude/rules/vu-microprograms.md`), so a pass is one
+  block and its edges' distance chains overlap. The counts become qwords. The two buffers are one
+  array of 17 corners, at the same addresses.
+- **Size and placement.** The clipper is 612 instructions (458), so it moves from 1536 to 1408 and
+  the swap region ends there; world_lm and world_strips still fit it together (1,024 of 1,402).
+- **Model.** On oxide-vcl's programs suite, which runs copies of these programs in its VU model with
+  the packets of their VCL originals: world_lm's floor 24,284 cycles (30,936 with the previous
+  clipper), floor lit 47,452 (60,756), side 6,169 (8,089), side lit 11,294 (15,134); world_strips'
+  floor 32,472 (36,916) and side 14,275 (15,123). Wall scenes, which do not clip, are unchanged.
+  `vu_cost.py` takes clip flags as zero, so its counts do not reach the clipper.
+- **Gates.**
+  - `make test-world`: all 38 captures byte-identical to the runs of `c56bc2d` the same day.
+  - `make test-world-retail`: every count of the tour's frame log (clipper calls, empty calls,
+    rejects, batches, vertices, packet bytes) is identical frame for frame in both standards, and
+    every NTSC capture but `world-console.tga` (log text) is byte-identical.
+  - In PAL, `world-west-lit.tga` takes one of two states from one run to the next: 43 pixels of one
+    column (x 16, rows 211-253) differ by 1 or 2 levels, 17 at most. The same ELF gave both in two
+    reruns, and the previous clipper on the new compiler gives the same two, so it is not the
+    clipper. In these runs the second state appeared only with `hoist`'s programs (5 of 7 runs,
+    none of 5 without), so it may depend on VU1's timing in PCSX2. Not yet explained.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-world` | `20261128T135707Z_world_4aa91a6c495a` (NTSC), `20261128T135720Z_world_28b4ef8152c7` (PAL), against `20261128T135217Z_world_83f49787d607` and `20261128T135230Z_world_0a2f1e97ca36` |
+| `make test-world-retail` | `20261128T135745Z_world_retail_fe811a1cf81f` (NTSC), `20261128T135852Z_world_retail_ddfd2b220957` (PAL), against `20261128T135255Z_world_retail_c94e40d66cce` and `20261128T135401Z_world_retail_ddbde388f9be` |
+| `make vu` | Passed, `--warnings-as-errors`; the generated headers change only in the clipper's address, size and `ClipBuffers` |
+| `make`, `make release` | Passed, no warnings |
+| oxide-vcl `f9b438b` | `cargo test --release` 1,083 passed, clippy and fmt clean, public corpus 52/52 |

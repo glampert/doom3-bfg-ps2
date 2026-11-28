@@ -44,14 +44,21 @@ section); `.vudata` is empty.
 
 ## The clipper library
 
-`clipper.vusl` is compiled once (433 instructions, its entry table included) and resident at
-micro address 1536, the `#pragma library` address in `clipper.vush`; the world programs reach it
+`clipper.vusl` is compiled once (612 instructions, its entry table included) and resident at
+micro address 1408, the `#pragma library` address in `clipper.vush`; the world programs reach it
 with `iaddiu` and `jalr`, so they stay relocatable in the swap region. `vu::Init` measures it and
 builds its MPG chain; `vu::Bind` returns that chain (`Binding::library`) with the first program
 that calls it, after Init or `vu::Invalidate`, and `DisplayList::SetProgram` CALLs it before the
 program's own. `vu::Stats::libraryUploads` counts those uploads apart from the programs'. The swap
-region ends at 1536 (2010-2047 stay unused).
+region ends at 1408 (2020-2047 stay unused).
 
+- **A pass has no branch per edge.** Each edge stores its corner and its cut, then steps the
+  cursor past the corner if it is kept and past the cut if the edge is cut, 0 or 3 qwords each.
+  FTOI0 of `clamp((s + 1/16) * 2^30, 0, 3)` is 3 when s is above -1/16 and 0 otherwise (a sum
+  above 0 is at least 2^-28): the corner's step for s its distance, and 3 less the cut's for s
+  the product of the edge's two distances. An unkept store is overwritten by the next one or
+  lies in the slot the first corner takes again after the survivors, so it never leaves the
+  buffer. The pass is one block, and its edges' distance chains overlap.
 - **The calling convention:** arguments and results travel in VF24-VF31 and VI10-VI14, and a
   call may change those, VI15 (the link) and VI01. The clipper also works in VF16-VF23 and
   VI06-VI09, which it saves at 1008-1016 and restores, and spills to 1017-1023.
@@ -136,7 +143,7 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   blends the pass's UV by the pass float. A lit batch walks its stream again for the lightmap
   pass (ST, RGBAQ and XYZ2 like the base pass: the RGBAQ write is what stores a PACKED ST's Q).
   `world_lm` is 648 instructions and `world_strips` 370 (2026-11-21, `.vutext` of their objects),
-  both in the swap region; passthrough is resident and the clipper fixed at 1536.
+  both in the swap region; passthrough is resident and the clipper fixed at 1408.
 - The two output windows are absolute (652, 803) and keep alternating across batches through
   `Frame.window` (qword 7); `DisplayList::SetFrameConstants` resets them per frame. Never reopen
   window A per batch: the window a batch writes first must be the one drained by the previous
@@ -153,7 +160,7 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   from the Makefile's `INSTRUMENT_DEFS`; the clipper may not write its callers' memory, so world_lm
   counts around the call); the
   world programs' scratch at 954-956, right after window B; the clipper's buffers at 957-1007,
-  A of 8 corners and B of 9, three qwords each; its saves and work area at 1008-1023. The buffers
+  one array of 17 corners (A the first 8, B the other 9), three qwords each; its saves and work area at 1008-1023. The buffers
   hold the true worst case only while a corner is kept exactly when its distance is >= 0: every
   distance is 0 or at least one ulp of the near distance times `kClipDistanceScale`, which is the
   1/16 the clip passes compare against from a near plane of 1/8 up (`vu::kClipMinNear`).
