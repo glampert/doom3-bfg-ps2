@@ -194,5 +194,5 @@ heading:
 | Executable size, Script program storage on the heap, Smaller static buffers, Multiplayer code compiled out, Release console commands, Debug-only tools, BSS cuts and developer cvars | section GC, `-O2`/`-Os` experiments; script arrays moved to `TAG_SCRIPT`; console/command/scratch buffers and the measurement backlog; multiplayer strip by step; release command set (2026-10-30); debug-only tools and developer prints, BSS cuts, event maps and developer cvars (2026-10-31) |
 | Cooked script program | 2026-11-18: what the compiler left resident against what the image keeps; same-day compile-at-boot and cooked ledgers, debug and release |
 | Declaration text on demand | 2026-11-24: retail ledgers before and after, debug and release; the read cost |
-| Retail map game data | 2026-11-27: mars_city1's container, cooked entities, collision and AAS step by step (M3.1); the text `.map` parse it replaced |
+| Retail map game data | 2026-11-27: mars_city1's container, cooked entities, collision and AAS step by step (M3.1); the text `.map` parse it replaced; 2026-11-28: the `.bcm` streamed and the AAS cooked (peak 14.33 → 9.69 MB above NOMAP), the free time traced to `idStrPool::FreeString` |
 | Quake II reference | allocator and accounting notes |

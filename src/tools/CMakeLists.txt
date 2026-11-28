@@ -88,6 +88,7 @@ endfunction()
 # Retail containers, image decoding and the GS texture conversion every re-export tool shares.
 # Sources include it as "assets/<file>.h" from this directory.
 add_library(assets STATIC
+    assets/aas_cook.cpp
     assets/bimage.cpp
     assets/glyph_set.cpp
     assets/gs_memory.cpp
@@ -111,9 +112,11 @@ add_library(assets STATIC
     assets/static_models.cpp
     assets/texture_convert.cpp
     assets/texture_pack.cpp
-    assets/world.cpp)
+    assets/world.cpp
+    # The cooks validate what they write with the target's own checks.
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ps2/game/aas_format.cpp)
 apply_tool_options(assets)
-target_include_directories(assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
 # ------------------------------------------------------------------------------------------------
 # Tools

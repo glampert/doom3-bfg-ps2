@@ -22,7 +22,7 @@ RENDER_BINDING_CXX_SRC = \
 # programs call.
 VUSL_FILES = passthrough.vusl world_lm.vusl world_strips.vusl clipper.vusl
 
-SIZE_OPT_CXX_SRC = ps2/debug/scr_print.cpp ps2/debug/stack_trace.cpp ps2/debug/crash_report.cpp ps2/debug/log_mirror.cpp ps2/ui/owner.cpp ps2/ui/menu.cpp ps2/ui/swf_execution.cpp ps2/ui/swf_format.cpp ps2/ui/catalog.cpp ps2/ui/assets.cpp ps2/ui/materials.cpp ps2/ui/font_format.cpp ps2/ui/page_image.cpp ps2/ui/gstx_format.cpp ps2/renderer/world_format.cpp ps2/game/map_format.cpp ps2/renderer/texture_format.cpp ps2/renderer/world_map.cpp ps2/ui/paletted_image.cpp ps2/ui/font_backend.cpp $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/ui/shell_stub.cpp $(RENDER_BINDING_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_tests_main.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp ps2/game/script_image.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/dma.cpp ps2/renderer/texture_layout.cpp ps2/renderer/vram.cpp ps2/renderer/texture.cpp ps2/renderer/capture.cpp tests/smoketests/console_charset.cpp ps2/renderer/image_backend.cpp
+SIZE_OPT_CXX_SRC = ps2/debug/scr_print.cpp ps2/debug/stack_trace.cpp ps2/debug/crash_report.cpp ps2/debug/log_mirror.cpp ps2/ui/owner.cpp ps2/ui/menu.cpp ps2/ui/swf_execution.cpp ps2/ui/swf_format.cpp ps2/ui/catalog.cpp ps2/ui/assets.cpp ps2/ui/materials.cpp ps2/ui/font_format.cpp ps2/ui/page_image.cpp ps2/ui/gstx_format.cpp ps2/renderer/world_format.cpp ps2/game/map_format.cpp ps2/game/aas_format.cpp ps2/renderer/texture_format.cpp ps2/renderer/world_map.cpp ps2/ui/paletted_image.cpp ps2/ui/font_backend.cpp $(PS2_CXX_SRC) tests/smoketests/map_boot.cpp tests/smoketests/game_boot.cpp tests/smoketests/headless_fixture.cpp ps2/input/usercmd_stub.cpp ps2/game/multiplayer_stub.cpp ps2/ui/shell_stub.cpp $(RENDER_BINDING_CXX_SRC) ps2/system/common_campaign.cpp ps2/renderer/model_import.cpp tests/smoketests/game_tests_main.cpp ps2/audio/sound_backend.cpp ps2/system/lifecycle.cpp ps2/system/common_foundation.cpp ps2/system/offline_session.cpp ps2/game/script_error.cpp ps2/game/script_image.cpp $(CORE_TEST_DRIVER_CXX_SRC) ps2/system/filesystem.cpp $(CORE_BOOT_CXX_SRC) ps2/system/video_mode.cpp ps2/renderer/gs.cpp ps2/renderer/dma.cpp ps2/renderer/texture_layout.cpp ps2/renderer/vram.cpp ps2/renderer/texture.cpp ps2/renderer/capture.cpp tests/smoketests/console_charset.cpp ps2/renderer/image_backend.cpp
 
 # id's sources that run only at load, init, save, console-command or menu-event time
 # build with -Os; per-frame simulation, collision, math, animation, script execution,
@@ -605,6 +605,8 @@ RESIDENT_SUPPORT_CXX_SRC = \
 	ps2/system/aio.cpp \
 	ps2/renderer/world_format.cpp \
 	ps2/game/map_format.cpp \
+	ps2/game/aas_format.cpp \
+	ps2/system/streamed_file.cpp \
 	ps2/renderer/texture_format.cpp \
 	ps2/renderer/render_system.cpp \
 	ps2/system/log.cpp \

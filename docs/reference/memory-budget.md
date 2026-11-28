@@ -1291,5 +1291,40 @@ step's peak is its own, `heap::ResetPeaks` between steps):
   and 12.0 s warm, peaked at 18,940,799 (12.29 MB above the mounted container) and held 6.79 MB of
   brushes and patches until `RemovePrimitiveData`; the entities left after it were 8,095,507, the
   ledger the D3ME builds. Its geometry CRC came out 0x8876776c against the retail files' 0x8b89b51c
-  (doom3-engine-cpp.md, "Cooked map entities").
-- Freeing takes 4.4 to 5.0 s, unexplained yet; it was 3.9 s with the text map's entities alone.
+  (doom3-engine-cpp.md, "Cooked map data").
+- Freeing takes 4.4 to 5.0 s, unexplained yet; it was 3.9 s with the text map's entities alone
+  (since found: `idStrPool::FreeString`, next section).
+
+### The `.bcm` streamed and the AAS cooked (2026-11-28)
+
+The two M3.1 follow-ups, measured by the same gate (run `20261128T061235Z_headless_9c1acd20b93c`,
+debug, the same steps). The collision loader reads the `.bcm` through a streamed file
+(`ps2::system::fs::OpenStreamed`, a 32 KiB window over `ReadFileRange`), and the AAS loads from a
+host-cooked D3AS (`mars_city1.aas48.d3as`, 956,444 bytes) streamed straight into its lists:
+
+| Step | Ledger after | Change | Peak in the step | EE ms (cold / warm) |
+| --- | --- | --- | --- | --- |
+| Before (NOMAP, after `startup-game`) | 5,819,065 | | | |
+| Container mounted | 6,652,285 | +833,220 | 6,871,540 | 53 / 59 |
+| Cooked entities | 8,095,541 | +1,443,256 | 8,369,962 | 377 / 151 |
+| Collision, the `.bcm` streamed | 14,273,525 | +6,177,984 | **14,804,481** (20,149,691) | 1,204 / 1,009 (1,002 / 818) |
+| AAS from the D3AS | 15,444,381 | +1,170,856 | **15,513,165** (18,196,700) | **355 / 341** (3,328 / 2,202) |
+| All of it freed | 6,241,913 | the warm cycle exactly | | 4,111 / 4,192 |
+
+- The ledger before is 34 bytes above 2026-11-27's (the `ps2_verifyAAS` command's registration).
+- Collision: `TAG_TEMP` peaks at 33,076 bytes (the streamed file and its window) where the whole
+  `.bcm` took 5,378,192; resident memory is unchanged to the byte. The step took about 0.2 s more
+  in PCSX2, whose HostFs timing is not a console's.
+- AAS: `TAG_TEMP` peaks at 69,744 (the window, the cooked area records and the strings) where the
+  text took 1,961,240 for the file and as much again in `TAG_IDLIB_LEXER`. The resident AAS is
+  992 bytes above the text parse's. Three index lists moved from `TAG_IDLIB_LIST` to `TAG_AAS`
+  (id's `ParseIndex` takes a list of the default tag): `TAG_AAS` 1,119,760 in 11,056 allocations,
+  11,039 of them reachabilities.
+- The game side of the map now peaks 9.69 MB above the NOMAP ledger (14.33 MB), in the AAS step.
+  On top of the 5.78 MB D3WD that is about 21.3 MB of ledger against the 27.3 MB arena, where
+  2026-11-27's estimate was 25.9 MB.
+- **Where the free time goes** (`MAPDATA_FREE`): the AAS 44 to 46 ms, the collision models 208 to
+  293 ms, the container 6 to 8 ms, and `delete mapFile` 3,849 ms: the entities' 16,334 pairs free
+  their pooled keys and values through `idStrPool::FreeString`, which for every string it frees
+  walks the pool's whole hash table and index chain (`idHashIndex::RemoveIndex`) and shifts the
+  pool list. Quadratic in the strings; every map unload pays it.

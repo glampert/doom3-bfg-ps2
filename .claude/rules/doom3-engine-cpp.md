@@ -83,7 +83,7 @@ file keeps only what most engine edits need.
   pointer width; details in the reference, "Cooked script program". GCC, Clang and MSVC build
   the cook, and CI requires their images of `src/tools/script_cook/tests` to match.
 
-## Cooked map entities
+## Cooked map data
 
 - Production reads a map's entities from `maps/<map>.d3me` (`make map-cook-retail`,
   `src/ps2/game/map_format.h`), never the text `.map`: the tag in `idMapFile::Parse`
@@ -96,6 +96,15 @@ file keeps only what most engine edits need.
   parsed floats differs: the text `.map`'s geometry CRC came out 0x8876776c against the retail
   files' 0x8b89b51c, and the collision and AAS loaders refused them (reproduced on the host,
   reference "Retail map game data").
+- Production reads a map's AAS from `<map>.aasN.d3as` (the same cook, `src/ps2/game/aas_format.h`):
+  `idAASFileLocal::LoadCooked` streams the tables into the lists and checks every reference before
+  building the reachabilities. `LoadText` (id's parse) exists only in test images, for authored
+  maps, and in debug builds, where `ps2_verifyAAS` compares the two loads.
+- A large file read once from start to end goes through `ps2::system::fs::OpenStreamed`
+  (`streamed_file.h`, a 32 KiB window over `ReadFileRange`), not `OpenFileReadMemory`: the
+  collision loader reads the 5.4 MB `.bcm` this way.
+- `idStrPool::FreeString` walks the whole pool for each string it frees: freeing many pooled
+  `idDict` strings is quadratic (deleting mars_city1's `idMapFile` takes 3.85 s).
 - A material stage's image that no UI catalog draws is a game image (`ImageFromFile`,
   `image_backend.cpp`): a name and a sampler, no pixels, in every presentation; the world pass
   draws the cooked D3TX by material name. They are freed after the declarations

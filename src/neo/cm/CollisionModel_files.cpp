@@ -40,6 +40,11 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "CollisionModel_local.h"
 
+// [PS2_D3BFG]: The generated collision file is read in pieces (LoadCollisionModelFile).
+#if defined( ID_PS2 )
+#include "ps2/system/streamed_file.h"
+#endif
+
 #define CM_FILE_EXT			"cm"
 #define CM_BINARYFILE_EXT	"bcm"
 #define CM_FILEID			"CM"
@@ -574,7 +579,13 @@ bool idCollisionModelManagerLocal::LoadCollisionModelFile( const char *name, uns
 
 	// see if we have a generated version of this 
 	bool loaded = false;
+	// [PS2_D3BFG]: Streamed through a 32 KiB window: reading the 5.4 MB file whole was the map
+	// load's peak, and the models only ever read it from start to end.
+#if defined( ID_PS2 )
+	idFileLocal file( ps2::system::fs::OpenStreamed( generatedFileName ) );
+#else
 	idFileLocal file( fileSystem->OpenFileReadMemory( generatedFileName ) );
+#endif
 	if ( file != NULL ) {
 		int numEntries = 0;
 		file->ReadBig( numEntries );

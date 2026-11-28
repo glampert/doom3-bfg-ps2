@@ -63,6 +63,11 @@ public:
 
 public:
 	bool						Load( const idStr &fileName, unsigned int mapFileCRC );
+#if defined( ID_PS2 ) && ( PS2_D3BFG_TESTS || PS2_D3BFG_DEBUG )
+	// [PS2_D3BFG]: id's text parse, for the test images' authored maps and the debug comparison
+	// against the cooked file (ps2_verifyAAS); production loads only the cooked file.
+	bool						LoadText( const idStr &fileName, unsigned int mapFileCRC );
+#endif
 	bool						Write( const idStr &fileName, unsigned int mapFileCRC );
 
 	int							MemorySize() const;
@@ -76,6 +81,9 @@ public:
 	void						DeleteClusters();
 
 private:
+#if defined( ID_PS2 )
+	int							LoadCooked( const idStr &fileName, unsigned int mapFileCRC );	// [PS2_D3BFG]
+#endif
 	bool						ParseIndex( idLexer &src, idList<aasIndex_t> &indexes );
 	bool						ParsePlanes( idLexer &src );
 	bool						ParseVertices( idLexer &src );

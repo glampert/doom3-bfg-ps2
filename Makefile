@@ -760,8 +760,8 @@ build/tests/resource_unpack: $(RESOURCE_UNPACK_SRC) src/tools/assets/resources.h
 	$(HOST_CXX) $(HOST_TEST_FLAGS) -Isrc/tools $(RESOURCE_UNPACK_SRC) -o $@
 
 # The shared host asset library under sanitizers, with its unit tests.
-ASSET_LIB_SRC = $(sort $(wildcard src/tools/assets/*.cpp))
-ASSET_LIB_HEADERS = $(sort $(wildcard src/tools/assets/*.h))
+ASSET_LIB_SRC = $(sort $(wildcard src/tools/assets/*.cpp)) src/ps2/game/aas_format.cpp
+ASSET_LIB_HEADERS = $(sort $(wildcard src/tools/assets/*.h)) src/ps2/game/aas_format.h
 
 build/tests/.asset-flags.json: FORCE $(SCRIPTS)/build_metadata.py Makefile
 	@$(PYTHON) $(SCRIPTS)/build_metadata.py stamp $@ $(HOST_CXX) $(HOST_TEST_FLAGS) --sources $(ASSET_LIB_SRC) src/tests/host/asset_tests.cpp

@@ -100,11 +100,19 @@ the memory-budget reference, "Retail map game data"; findings in the engine refe
 - [x] Recorded: the game data holds 9.62 MB above the NOMAP ledger and peaks 14.33 MB above it
       while collision loads, on top of the D3WD's 5.78 MB when Common loads the render world first:
       about 25.9 MB of a 27.3 MB arena before any entity spawns.
-- [ ] The `.bcm` is read whole (5.4 MB of that peak, `OpenFileReadMemory`): read it in pieces or
-      cook collision, before M3.2 spawns entities on top.
-- [ ] The AAS parses as text through the lexer (2.2 to 3.3 s, its file read whole): cook it binary
-      like the entities if the load time or the peak needs it.
-- [ ] Freeing the map's game data takes 4.4 to 5.0 s of EE time: find where (every map unload pays it).
+- [x] The `.bcm` read in pieces (2026-11-28): `LoadCollisionModelFile` streams it through a 32 KiB
+      window (`ps2::system::fs::OpenStreamed`); the collision step's peak falls from 20.15 MB to
+      14.80 MB, `TAG_TEMP` from 5,378,192 bytes to 33,076.
+- [x] The AAS cooked (2026-11-28, the user's call): `make map-cook-retail` writes
+      `mars_city1.aas48.d3as` (D3AS), which `idAASFileLocal::LoadCooked` streams into its lists
+      in 0.34 to 0.36 s (2.2 to 3.3 s as text), at a 69,744-byte `TAG_TEMP` peak (3.9 MB as text).
+      The debug `ps2_verifyAAS` compares it with id's text parse on the target: no integer differs.
+      The game data now peaks 9.69 MB above NOMAP (14.33), about 21.3 MB with the D3WD (25.9).
+- [x] Where the 4.4 to 5.0 s of freeing goes (2026-11-28, `MAPDATA_FREE`): 3.85 s is
+      `delete mapFile`, whose 16,334 pairs free their pooled strings through `idStrPool::FreeString`,
+      which walks the whole pool for each one; the AAS takes 45 ms, the collision 0.2 to 0.3 s.
+- [ ] Make freeing pooled strings linear (`idStrPool::FreeString`: every map unload, and anything
+      else that frees many `idDict`s, pays the quadratic walk).
 
 ## M3.2: mars_city1 spawned (game test image)
 

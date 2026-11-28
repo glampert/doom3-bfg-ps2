@@ -33,6 +33,13 @@ If you have questions concerning this license or the applicable additional terms
 #include "AASFile.h"
 #include "AASFile_local.h"
 
+// [PS2_D3BFG]: The cooked AAS file (idAASFileLocal::LoadCooked).
+#if defined( ID_PS2 )
+#include "ps2/fnv.h"
+#include "ps2/game/aas_format.h"
+#include "ps2/system/streamed_file.h"
+#endif
+
 
 /*
 ===============================================================================
@@ -1092,12 +1099,275 @@ void idAASFileLocal::FinishAreas() {
 	}
 }
 
+#if defined( ID_PS2 )
+/*
+================
+idAASFileLocal::Load
+
+[PS2_D3BFG]: Production reads the host-cooked file beside the text, never the text: the EE's lexer
+took 2 to 3 s over mars_city1's. The test images' authored maps keep the text when they have no
+cooked file.
+================
+*/
+bool idAASFileLocal::Load( const idStr &fileName, unsigned int mapFileCRC ) {
+	const int cooked = LoadCooked( fileName, mapFileCRC );
+	if ( cooked != 0 ) {
+		return cooked > 0;
+	}
+#if PS2_D3BFG_TESTS
+	return LoadText( fileName, mapFileCRC );
+#else
+	common->Warning( "idAASFileLocal::Load: no cooked AAS %s.d3as", fileName.c_str() );
+	return false;
+#endif
+}
+
+/*
+================
+ReadCooked
+
+[PS2_D3BFG]: Reads the next 'bytes' of a cooked file and continues its checksum.
+================
+*/
+static bool ReadCooked( idFile *file, void *output, size_t bytes, unsigned int &checksum ) {
+	if ( bytes == 0 ) {
+		return true;
+	}
+	if ( file->Read( output, static_cast<int>( bytes ) ) != static_cast<int>( bytes ) ) {
+		return false;
+	}
+	checksum = ps2::Fnv1a32( output, bytes, checksum );
+	return true;
+}
+
+/*
+================
+idAASFileLocal::LoadCooked
+
+[PS2_D3BFG]: <name>.d3as (ps2/game/aas_format.h), streamed: each table goes straight into its list,
+every reference is checked before an area is built, and the reachabilities are built record by
+record in the text parse's order (each prepended to its area's list). Returns 1 when loaded, 0
+when there is no cooked file and -1 when it is refused.
+================
+*/
+int idAASFileLocal::LoadCooked( const idStr &fileName, unsigned int mapFileCRC ) {
+	namespace aas = ps2::game::aas;
+
+	// The tables are read into the lists as they are.
+	static_assert( sizeof( idPlane ) == sizeof( aas::Plane ) && sizeof( aasVertex_t ) == sizeof( aas::Vertex ) );
+	static_assert( sizeof( aasEdge_t ) == sizeof( aas::Edge ) && sizeof( aasIndex_t ) == sizeof( int32_t ) );
+	static_assert( sizeof( aasFace_t ) == sizeof( aas::Face ) && offsetof( aasFace_t, flags ) == offsetof( aas::Face, flags ) &&
+		offsetof( aasFace_t, numEdges ) == offsetof( aas::Face, numEdges ) && offsetof( aasFace_t, firstEdge ) == offsetof( aas::Face, firstEdge ) &&
+		offsetof( aasFace_t, areas ) == offsetof( aas::Face, areas ) );
+	static_assert( sizeof( aasNode_t ) == sizeof( aas::Node ) && offsetof( aasNode_t, children ) == offsetof( aas::Node, children ) );
+	static_assert( sizeof( aasPortal_t ) == sizeof( aas::Portal ) && offsetof( aasPortal_t, clusters ) == offsetof( aas::Portal, clusters ) &&
+		offsetof( aasPortal_t, clusterAreaNum ) == offsetof( aas::Portal, clusterAreaNum ) &&
+		offsetof( aasPortal_t, maxAreaTravelTime ) == offsetof( aas::Portal, maxAreaTravelTime ) );
+	static_assert( sizeof( aasCluster_t ) == sizeof( aas::Cluster ) && offsetof( aasCluster_t, numPortals ) == offsetof( aas::Cluster, numPortals ) &&
+		offsetof( aasCluster_t, firstPortal ) == offsetof( aas::Cluster, firstPortal ) );
+
+	idStrStatic< MAX_OSPATH > cookedName = fileName.c_str();
+	cookedName += ".d3as";
+	idFileLocal file( ps2::system::fs::OpenStreamed( cookedName ) );
+	if ( file == NULL ) {
+		return 0;
+	}
+
+	name = fileName;
+	crc = mapFileCRC;
+
+	common->Printf( "[Load AAS]\n" );
+	common->Printf( "loading %s\n", cookedName.c_str() );
+
+	const char *error = "";
+	aas::Header header;
+	if ( file->Read( &header, sizeof( header ) ) != static_cast<int>( sizeof( header ) ) ||
+		!aas::CheckHeader( header, static_cast<size_t>( file->Length() ), error ) ) {
+		common->Warning( "refusing %s: %s", cookedName.c_str(), error );
+		return -1;
+	}
+
+	if ( mapFileCRC && header.geometryCrc != mapFileCRC ) {
+		common->Warning( "AAS file '%s' is out of date", cookedName.c_str() );
+		return -1;
+	}
+
+	Clear();
+
+	// The strings and pairs only until the reachabilities have taken theirs.
+	unsigned int checksum = ps2::kFnv1a32Basis;
+	aas::Settings cooked;
+	idList< char, TAG_TEMP > strings;
+	idList< aas::Pair, TAG_TEMP > pairs;
+	idList< aas::Area, TAG_TEMP > cookedAreas;
+	strings.SetNum( static_cast<int>( header.stringBytes ) );
+	pairs.SetNum( static_cast<int>( header.pairCount ) );
+
+	bool read = ReadCooked( file, &cooked, sizeof( cooked ), checksum ) &&
+		ReadCooked( file, strings.Ptr(), header.stringBytes, checksum ) &&
+		ReadCooked( file, pairs.Ptr(), header.pairCount * sizeof( aas::Pair ), checksum );
+
+	aas::Tables tables;
+	tables.header = &header;
+	tables.settings = &cooked;
+	tables.strings = strings.Ptr();
+	tables.pairs = pairs.Ptr();
+	if ( !read || !aas::CheckStrings( tables, error ) ) {
+		common->Warning( "refusing %s: %s", cookedName.c_str(), read ? error : "truncated" );
+		return -1;
+	}
+
+	planeList.SetNum( static_cast<int>( header.planeCount ) );
+	vertices.SetNum( static_cast<int>( header.vertexCount ) );
+	edges.SetNum( static_cast<int>( header.edgeCount ) );
+	edgeIndex.SetNum( static_cast<int>( header.edgeIndexCount ) );
+	faces.SetNum( static_cast<int>( header.faceCount ) );
+	faceIndex.SetNum( static_cast<int>( header.faceIndexCount ) );
+	cookedAreas.SetNum( static_cast<int>( header.areaCount ) );
+	nodes.SetNum( static_cast<int>( header.nodeCount ) );
+	portals.SetNum( static_cast<int>( header.portalCount ) );
+	portalIndex.SetNum( static_cast<int>( header.portalIndexCount ) );
+	clusters.SetNum( static_cast<int>( header.clusterCount ) );
+
+	read = ReadCooked( file, planeList.Ptr(), header.planeCount * sizeof( aas::Plane ), checksum ) &&
+		ReadCooked( file, vertices.Ptr(), header.vertexCount * sizeof( aas::Vertex ), checksum ) &&
+		ReadCooked( file, edges.Ptr(), header.edgeCount * sizeof( aas::Edge ), checksum ) &&
+		ReadCooked( file, edgeIndex.Ptr(), header.edgeIndexCount * sizeof( int32_t ), checksum ) &&
+		ReadCooked( file, faces.Ptr(), header.faceCount * sizeof( aas::Face ), checksum ) &&
+		ReadCooked( file, faceIndex.Ptr(), header.faceIndexCount * sizeof( int32_t ), checksum ) &&
+		ReadCooked( file, cookedAreas.Ptr(), header.areaCount * sizeof( aas::Area ), checksum ) &&
+		ReadCooked( file, nodes.Ptr(), header.nodeCount * sizeof( aas::Node ), checksum ) &&
+		ReadCooked( file, portals.Ptr(), header.portalCount * sizeof( aas::Portal ), checksum ) &&
+		ReadCooked( file, portalIndex.Ptr(), header.portalIndexCount * sizeof( int32_t ), checksum ) &&
+		ReadCooked( file, clusters.Ptr(), header.clusterCount * sizeof( aas::Cluster ), checksum );
+
+	tables.planes = static_cast<const aas::Plane *>( static_cast<const void *>( planeList.Ptr() ) );
+	tables.vertices = static_cast<const aas::Vertex *>( static_cast<const void *>( vertices.Ptr() ) );
+	tables.edges = static_cast<const aas::Edge *>( static_cast<const void *>( edges.Ptr() ) );
+	tables.edgeIndex = static_cast<const int32_t *>( static_cast<const void *>( edgeIndex.Ptr() ) );
+	tables.faces = static_cast<const aas::Face *>( static_cast<const void *>( faces.Ptr() ) );
+	tables.faceIndex = static_cast<const int32_t *>( static_cast<const void *>( faceIndex.Ptr() ) );
+	tables.areas = cookedAreas.Ptr();
+	tables.nodes = static_cast<const aas::Node *>( static_cast<const void *>( nodes.Ptr() ) );
+	tables.portals = static_cast<const aas::Portal *>( static_cast<const void *>( portals.Ptr() ) );
+	tables.portalIndex = static_cast<const int32_t *>( static_cast<const void *>( portalIndex.Ptr() ) );
+	tables.clusters = static_cast<const aas::Cluster *>( static_cast<const void *>( clusters.Ptr() ) );
+	if ( !read || !aas::CheckTables( tables, error ) ) {
+		common->Warning( "refusing %s: %s", cookedName.c_str(), read ? error : "truncated" );
+		return -1;
+	}
+
+	// The settings as idAASSettings::FromParser leaves them.
+	settings.numBoundingBoxes = static_cast<int>( cooked.boundingBoxCount );
+	for ( int i = 0; i < settings.numBoundingBoxes; i++ ) {
+		const float *box = cooked.boundingBoxes[i];
+		settings.boundingBoxes[i] = idBounds( idVec3( box[0], box[1], box[2] ), idVec3( box[3], box[4], box[5] ) );
+	}
+	settings.usePatches = ( cooked.flags & aas::kUsePatches ) != 0;
+	settings.writeBrushMap = ( cooked.flags & aas::kWriteBrushMap ) != 0;
+	settings.playerFlood = ( cooked.flags & aas::kPlayerFlood ) != 0;
+	settings.allowSwimReachabilities = ( cooked.flags & aas::kAllowSwimReachabilities ) != 0;
+	settings.allowFlyReachabilities = ( cooked.flags & aas::kAllowFlyReachabilities ) != 0;
+	settings.fileExtension = strings.Ptr() + cooked.fileExtension;
+	settings.gravity.Set( cooked.gravity[0], cooked.gravity[1], cooked.gravity[2] );
+	settings.gravityDir = settings.gravity;
+	settings.gravityValue = settings.gravityDir.Normalize();
+	settings.invGravityDir = -settings.gravityDir;
+	settings.maxStepHeight = cooked.maxStepHeight;
+	settings.maxBarrierHeight = cooked.maxBarrierHeight;
+	settings.maxWaterJumpHeight = cooked.maxWaterJumpHeight;
+	settings.maxFallHeight = cooked.maxFallHeight;
+	settings.minFloorCos = cooked.minFloorCos;
+	settings.tt_barrierJump = cooked.ttBarrierJump;
+	settings.tt_startCrouching = cooked.ttStartCrouching;
+	settings.tt_waterJump = cooked.ttWaterJump;
+	settings.tt_startWalkOffLedge = cooked.ttStartWalkOffLedge;
+
+	// Every area before any reachability, so a refusal leaves lists the destructor can free.
+	areas.SetNum( cookedAreas.Num() );
+	for ( int i = 0; i < areas.Num(); i++ ) {
+		const aas::Area &source = cookedAreas[i];
+		aasArea_t &area = areas[i];
+		area.numFaces = source.numFaces;
+		area.firstFace = source.firstFace;
+		area.flags = source.flags;
+		area.contents = source.contents;
+		area.cluster = source.cluster;
+		area.clusterAreaNum = source.clusterAreaNum;
+		area.travelFlags = AreaContentsTravelFlags( i );
+		area.reach = NULL;
+		area.rev_reach = NULL;
+	}
+
+	// idAASFileLocal::ParseReachabilities, a record at a time.
+	unsigned int pairsLeft = header.pairCount;
+	const aas::Pair *pair = pairs.Ptr();
+	for ( int i = 0; i < areas.Num(); i++ ) {
+		aasArea_t &area = areas[i];
+		for ( unsigned int j = 0; j < cookedAreas[i].reachCount; j++ ) {
+			aas::Reach record;
+			if ( !ReadCooked( file, &record, sizeof( record ), checksum ) || !aas::CheckReach( header, record, pairsLeft, error ) ) {
+				common->Warning( "refusing %s: %s", cookedName.c_str(), error[0] != '\0' ? error : "truncated" );
+				return -1;
+			}
+
+			idReachability *newReach;
+			if ( record.travelType == TFL_SPECIAL ) {
+				idReachability_Special *special = new (TAG_AAS) idReachability_Special();
+				for ( unsigned int k = 0; k < record.pairCount; k++, pair++ ) {
+					special->dict.Set( strings.Ptr() + pair->key, strings.Ptr() + pair->value );
+				}
+				newReach = special;
+			} else {
+				newReach = new (TAG_AAS) idReachability();
+			}
+			pairsLeft -= record.pairCount;
+
+			newReach->travelType = record.travelType;
+			newReach->toAreaNum = record.toAreaNum;
+			newReach->start.Set( record.start[0], record.start[1], record.start[2] );
+			newReach->end.Set( record.end[0], record.end[1], record.end[2] );
+			newReach->edgeNum = record.edgeNum;
+			newReach->travelTime = record.travelTime;
+			newReach->fromAreaNum = i;
+			newReach->next = area.reach;
+			area.reach = newReach;
+		}
+	}
+
+	if ( pairsLeft != 0 || checksum != header.checksum ) {
+		common->Warning( "refusing %s: %s", cookedName.c_str(), pairsLeft != 0 ? "pairs no reachability takes" : "checksum mismatch" );
+		return -1;
+	}
+
+	LinkReversedReachability();
+	FinishAreas();
+
+	const int depth = MaxTreeDepth();
+	if ( depth > MAX_AAS_TREE_DEPTH ) {
+		common->Warning( "refusing %s: tree depth = %d", cookedName.c_str(), depth );
+		return -1;
+	}
+
+	common->UpdateLevelLoadPacifier();
+
+	common->Printf( "done.\n" );
+
+	return 1;
+}
+#endif
+
+#if !defined( ID_PS2 ) || PS2_D3BFG_TESTS || PS2_D3BFG_DEBUG
 /*
 ================
 idAASFileLocal::Load
 ================
 */
+#if defined( ID_PS2 )
+bool idAASFileLocal::LoadText( const idStr &fileName, unsigned int mapFileCRC ) {	// [PS2_D3BFG]: id's Load.
+#else
 bool idAASFileLocal::Load( const idStr &fileName, unsigned int mapFileCRC ) {
+#endif
 	idLexer src( LEXFL_NOFATALERRORS | LEXFL_NOSTRINGESCAPECHARS | LEXFL_NOSTRINGCONCAT | LEXFL_ALLOWPATHNAMES );
 	idToken token;
 	int depth;
@@ -1198,6 +1468,7 @@ bool idAASFileLocal::Load( const idStr &fileName, unsigned int mapFileCRC ) {
 
 	return true;
 }
+#endif	// [PS2_D3BFG]: the text parse
 
 /*
 ================

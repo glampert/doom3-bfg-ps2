@@ -100,7 +100,26 @@ class HeadlessAcceptance(unittest.TestCase):
                     text += ("[D3BFG] MAPDATA map=game/mars_city1 entities=2026 geometry_crc=0x8b89b51c "
                              f"collision_crc=0x8b89b51c collision={collision} aas_types=6 aas_loaded=1\n")
             return text
-        return cycle(5819031, 6240887) + cycle(6240887, warm_end)
+        return cycle(5819031, 6240887) + cycle(6240887, warm_end) + HeadlessAcceptance.aas_verify_log()
+
+    @staticmethod
+    def aas_verify_log(float_mismatches=0, failures=0, files=1):
+        """ps2_verifyAAS's lines for mars_city1's one AAS file."""
+        return ("[D3BFG] AAS_VERIFY file=maps/game/mars_city1.aas48 loaded=1/1 areas=1833 reaches=11039 planes=3170 cooked_ms=300 "
+                f"text_ms=2200 int_mismatches=0 float_mismatches={float_mismatches} float_differences=12 max_delta=0.000061 first=none\n"
+                f"[D3BFG] AAS_VERIFY map=game/mars_city1 files={files} failures={failures}\n")
+
+    def test_debug_retail_compares_the_cooked_aas(self):
+        line = "[D3BFG] DECLTEXT verified=11947 bytes=7254873 largest=86019 ms=1500 scattered_ms=0\n"
+        log = completed("retail") + line + self.map_data_log().replace(self.aas_verify_log(), "")
+        self.assertTrue(runner.classify(log + self.aas_verify_log(), "retail", "run", verify_decls=True)[0])
+        self.assertFalse(runner.classify(log, "retail", "run", verify_decls=True)[0])
+        self.assertFalse(runner.classify(log + self.aas_verify_log(failures=1), "retail", "run", verify_decls=True)[0])
+        self.assertFalse(runner.classify(log + self.aas_verify_log(files=2), "retail", "run", verify_decls=True)[0])
+        result = runner.aas_verify(self.aas_verify_log())
+        self.assertEqual(result["files"], 1)
+        self.assertEqual(result["compared"][0]["reaches"], 11039)
+        self.assertEqual(result["compared"][0]["max_delta"], 0.000061)
 
     def test_debug_retail_measures_the_map_data(self):
         line = "[D3BFG] DECLTEXT verified=11947 bytes=7254873 largest=86019 ms=1500 scattered_ms=0\n"

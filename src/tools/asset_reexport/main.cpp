@@ -6,7 +6,9 @@
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
+#include "assets/aas_cook.h"
 #include "assets/bimage.h"
+#include "assets/bytes.h"
 #include "assets/glyph_set.h"
 #include "assets/json.h"
 #include "assets/light.h"
@@ -2451,7 +2453,8 @@ static bool ReadMapInput(const fs::path & data, ResourceCatalog * catalog, const
 }
 
 // The world job's map cooked into <output>/<name>.d3me: its entities and the geometry CRC its
-// generated/<map>.bcm was built against, which its .aas48, when present, must name too.
+// generated/<map>.bcm was built against; and each <map>.aasN into <output>/<name>.aasN.d3as,
+// which must name the same CRC.
 static bool CookMapFile(const fs::path & data, const fs::path & jobPath, const fs::path & output)
 {
     std::string jobText;
@@ -2519,20 +2522,59 @@ static bool CookMapFile(const fs::path & data, const fs::path & jobPath, const f
         return Fail(collisionName + ": " + error);
     }
 
-    // The game loads every AAS type against the same CRC; the 48-unit one is always shipped.
-    const std::string aasName = map + ".aas48";
-    std::uint32_t aasCrc = crc;
-    const bool haveAas = source != nullptr ? source->Find(aasName) != nullptr : fs::is_regular_file(data / aasName);
+    // Every AAS type the map ships (<map>.aas48, .aas96, ...), each loaded against the same CRC.
+    std::vector<std::string> aasNames;
 
-    if (haveAas && (!ReadMapInput(data, source, aasName, bytes, error) ||
-                    !AasGeometryCrc(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), aasCrc, error)))
+    if (source != nullptr)
     {
-        return Fail(aasName + ": " + error);
+        std::string prefix = map + ".aas";
+        NormalizeResourceName(prefix);
+
+        for (const auto & [name, entry] : source->Entries())
+        {
+            if (name.compare(0, prefix.size(), prefix) == 0)
+            {
+                aasNames.push_back(entry.name);
+            }
+        }
+    }
+    else
+    {
+        const fs::path directory = (data / map).parent_path();
+        const std::string stem = fs::path(map).filename().string() + ".aas";
+        std::error_code status;
+
+        for (const fs::directory_entry & entry : fs::directory_iterator(directory, status))
+        {
+            const std::string fileName = entry.path().filename().string();
+
+            if (entry.is_regular_file() && fileName.compare(0, stem.size(), stem) == 0)
+            {
+                aasNames.push_back((fs::path(map).parent_path() / fileName).generic_string());
+            }
+        }
     }
 
-    if (aasCrc != crc)
+    std::sort(aasNames.begin(), aasNames.end());
+    std::vector<std::pair<std::string, std::vector<std::uint8_t> > > aasFiles;
+
+    for (const std::string & aasName : aasNames)
     {
-        return Fail(aasName + " names another geometry CRC than " + collisionName);
+        std::vector<std::uint8_t> aasCooked;
+        std::uint32_t aasCrc = 0;
+
+        if (!ReadMapInput(data, source, aasName, bytes, error) ||
+            !CookAas(std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()), aasCooked, aasCrc, error))
+        {
+            return Fail(aasName + ": " + error);
+        }
+
+        if (aasCrc != crc)
+        {
+            return Fail(aasName + " names another geometry CRC than " + collisionName);
+        }
+
+        aasFiles.emplace_back(fs::path(aasName).filename().string() + ".d3as", std::move(aasCooked));
     }
 
     std::vector<std::uint8_t> cooked;
@@ -2567,7 +2609,23 @@ static bool CookMapFile(const fs::path & data, const fs::path & jobPath, const f
     char crcText[16] = {};
     std::snprintf(crcText, sizeof(crcText), "0x%08x", crc);
     std::cout << target.string() << ": " << entities.size() << " entities, " << pairs << " pairs, " << cooked.size()
-              << " bytes, geometry CRC " << crcText << (haveAas ? " (collision and AAS agree)" : " (no AAS)") << "\n";
+              << " bytes, geometry CRC " << crcText << (aasFiles.empty() ? " (no AAS)" : " (collision and AAS agree)") << "\n";
+
+    for (const auto & [aasFile, aasCooked] : aasFiles)
+    {
+        const fs::path aasTarget = output / aasFile;
+
+        if (!WriteFile(aasTarget, aasCooked.data(), aasCooked.size()))
+        {
+            return false;
+        }
+
+        // The header's counts: areas, reachabilities, planes and nodes (src/ps2/game/aas_format.h).
+        const std::uint8_t * const header = aasCooked.data();
+        std::cout << aasTarget.string() << ": " << ReadLe32(header + 40) << " areas, " << ReadLe32(header + 60) << " reachabilities, "
+                  << ReadLe32(header + 16) << " planes, " << ReadLe32(header + 44) << " nodes, " << aasCooked.size() << " bytes\n";
+    }
+
     return true;
 }
 
@@ -2586,7 +2644,8 @@ static void Usage()
                  "each material's diffuse image into <name>.d3tx and <name>.textures.json; --previews then\n"
                  "writes each texture's original and cooked level 0 as PNGs.\n"
                  "map cooks a world job's <map>.map into <output>/<name>.d3me: its entities and the geometry\n"
-                 "CRC its generated/<map>.bcm (and .aas48) were built against, for the PS2's idMapFile.\n";
+                 "CRC its generated/<map>.bcm was built against, for the PS2's idMapFile; and each of the\n"
+                 "map's AAS files (<map>.aas48, ...) into <output>/<name>.aas48.d3as, for idAASFileLocal.\n";
 }
 
 static int Run(int argc, char ** argv)

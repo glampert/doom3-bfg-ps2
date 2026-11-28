@@ -93,18 +93,22 @@ def stage_script_program(base: Path, retail: bool) -> None:
 
 
 def stage_maps(retail_data: Path, base: Path, maps: tuple[str, ...]) -> None:
-    """Each map (as the map command names it, game/mars_city1): its container from the retail data
-    and its cooked entities (make map-cook-retail), which the PS2's idMapFile reads instead of text."""
+    """Each map (as the map command names it, game/mars_city1): its container from the retail data,
+    its cooked entities and its cooked AAS files (make map-cook-retail), which the PS2's idMapFile
+    and idAASFileLocal read instead of text."""
     for name in maps:
         stem = Path(name).name
         cooked = MAP_COOK_ROOT / f"{stem}.d3me"
-        if not cooked.is_file():
-            raise ValueError(f"missing cooked map {cooked}; run make map-cook-retail")
+        aas = sorted(MAP_COOK_ROOT.glob(f"{stem}.aas*.d3as"))
+        if not cooked.is_file() or not aas:
+            raise ValueError(f"missing cooked map {cooked} or its AAS files; run make map-cook-retail")
         (base / "maps").mkdir(parents=True, exist_ok=True)
         link_containers(retail_data, base, (f"maps/{stem}.resources",))
         target = base / "maps" / f"{name}.d3me"
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(cooked, target)
+        for source in aas:
+            shutil.copy2(source, target.parent / source.name)
 
 
 def stage(build: str, output: Path, presentation: str = "headless", retail_data: Path | None = None,

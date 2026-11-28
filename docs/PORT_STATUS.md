@@ -6735,3 +6735,38 @@ The first step of M3 ([M3_TODO.md](plans/M3_TODO.md)): mars_city1's game data lo
 | `make test-ui` | `20261127T124801Z_session_ed9d72d5659f` (NTSC), `20261127T125755Z_session_f448f3bdf804` (PAL) and the retail refusal cases |
 | `make test-host` | Passed (423), with the D3ME round trip and refusals (`map_tests`) |
 | `make`, `make release` | Passed, no warnings |
+
+## M3.1 follow-ups: the `.bcm` streamed and the AAS cooked (2026-11-28)
+
+The two follow-ups M3.1 left for its memory peak and load time ([M3_TODO.md](plans/M3_TODO.md)),
+measured by the same `ps2_mapdata` cycles (memory-budget reference, "The `.bcm` streamed and the
+AAS cooked"; engine reference, "Retail map game data").
+- **The `.bcm` read in pieces.** `LoadCollisionModelFile` read the 5.4 MB file whole into memory
+  before parsing it in order. On the PS2 it opens a streamed file (`ps2::system::fs::OpenStreamed`:
+  an `idFile` reading 32 KiB windows through `ReadFileRange`). The collision step's peak falls from
+  20,149,691 to 14,804,481 bytes; the resident models are unchanged to the byte.
+- **The AAS cooked (D3AS).** `make map-cook-retail` also cooks each of the map's AAS files
+  (`mars_city1.aas48.d3as`: 1,833 areas, 11,039 reachabilities, 956,444 bytes), with the target's
+  validator run on what it writes. Production's `idAASFileLocal::Load` streams its tables straight
+  into the lists, checks every reference the game follows, then builds the reachabilities as id's
+  parser does; id's text parse stays for test images (authored maps) and debug builds. It loads in
+  355 / 341 ms (cold / warm) against 3,328 / 2,202, and its step peaks at 15,513,165 against
+  18,196,700.
+- **Checked against the text.** The debug `ps2_verifyAAS game/mars_city1` loads the cooked file and
+  id's text parse of the `.aas48` and compares every table: no integer differs, and 1,601 floats
+  differ in their last bits (largest 0.000305), since the cook reads numbers to the nearest float
+  and the EE's lexer is off by a bit (the same conversion that broke the `.map`'s CRC).
+- **The peak.** The map's game data now peaks 9.69 MB above the NOMAP ledger (14.33 MB), in the
+  AAS step; with the 5.78 MB D3WD loaded first that is about 21.3 MB of the 27.3 MB arena (25.9).
+- **The free time found.** Of the 4.1 to 4.2 s that freeing takes, 3.85 s is deleting the
+  `idMapFile`: `idStrPool::FreeString` walks the pool's whole hash table and index chain for each
+  pooled key and value it frees, so freeing the 16,334 pairs is quadratic. Not fixed yet (M3_TODO).
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-headless-retail` | `20261128T061235Z_headless_9c1acd20b93c` (two `ps2_mapdata` cycles, `ps2_verifyAAS`) |
+| `make test-headless` | `20261128T061851Z_headless_2531b4129e23` (bounded), `20261128T061856Z_headless_9e2277c56432` (console) |
+| `make test-map` | `20261128T061910Z_smoke_1c3880ea764247b0` |
+| `make test-game` | `20261128T061919Z_smoke_236a15b2ef444a02` and its ten expected-fatal cases |
+| `make test-host` | Passed (424), with the D3AS round trip of the authored AAS, a special reachability's pairs and the refusals (`map_tests`) |
+| `make`, `make release`, `make build-core`, `make build-game` | Passed, no warnings |

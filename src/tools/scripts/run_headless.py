@@ -46,7 +46,7 @@ SCRIPT_IMAGE_RE = re.compile(r"\[D3BFG\] SCRIPT_IMAGE bytes=(\d+) fnv=([0-9a-f]{
 DECL_TEXT_RE = re.compile(r"\[D3BFG\] DECLTEXT verified=(\d+) bytes=(\d+) largest=(\d+) ms=(\d+) scattered_ms=(\d+)")
 DECL_TEXT_FIELDS = ("verified", "bytes", "largest", "ms", "scattered_ms")
 # Debug retail runs measure mars_city1's game data twice (ps2_mapdata, M3.1): the map's container, its
-# cooked entities, the collision models and the AAS, each step's ledger and the freed totals.
+# cooked entities, the collision models and the cooked AAS, each step's ledger and the freed totals.
 MAP_DATA_MAP = "game/mars_city1"
 MAP_DATA_RE = re.compile(r"\[D3BFG\] MAPDATA map=(\S+) entities=(\d+) geometry_crc=(0x[0-9a-f]{8}) "
                          r"collision_crc=(0x[0-9a-f]{8}) collision=(\d) aas_types=(\d+) aas_loaded=(\d+)")
@@ -54,6 +54,13 @@ MAP_DATA_MEMORY_RE = re.compile(r"\[D3BFG\] MEMORY mapdata-(\w+) requested=(\d+)
                                 r"peak_requested=(\d+) peak_backing=(\d+)")
 MAP_DATA_STEP_RE = re.compile(r"\[D3BFG\] MAPDATA_STEP (\w+) ms=(\d+)")
 MAP_DATA_STEPS = ("begin", "container", "entities", "collision", "aas", "end")
+MAP_DATA_FREE_RE = re.compile(r"\[D3BFG\] MAPDATA_FREE aas_ms=(\d+) collision_ms=(\d+) map_ms=(\d+) unload_ms=(\d+)")
+# Then ps2_verifyAAS compares each cooked AAS file (make map-cook-retail) with id's text parse of its
+# source: integers exactly, floats within a relative 1e-4.
+AAS_VERIFY_RE = re.compile(r"\[D3BFG\] AAS_VERIFY file=(\S+) loaded=(\d)/(\d) areas=(\d+) reaches=(\d+) planes=(\d+) "
+                           r"cooked_ms=(\d+) text_ms=(\d+) int_mismatches=(\d+) float_mismatches=(\d+) "
+                           r"float_differences=(\d+) max_delta=([0-9.]+) first=(\S+)")
+AAS_VERIFY_SUMMARY_RE = re.compile(r"\[D3BFG\] AAS_VERIFY map=(\S+) files=(\d+) failures=(\d+)")
 DEFAULT_TIMEOUTS = {"bounded": 30.0, "console": 30.0, "retail": 300.0}
 
 
@@ -63,12 +70,15 @@ def map_data(log: str) -> list[dict]:
     memory = MAP_DATA_MEMORY_RE.findall(log)
     steps = MAP_DATA_STEP_RE.findall(log)
     per_cycle = len(MAP_DATA_STEPS)
+    frees = MAP_DATA_FREE_RE.findall(log)
     for index, match in enumerate(MAP_DATA_RE.findall(log)):
         name, entities, geometry, collision_crc, collision, types, loaded = match
+        free = frees[index] if index < len(frees) else None
         ledgers = memory[index * per_cycle:(index + 1) * per_cycle]
         times = dict(steps[index * (per_cycle - 1):(index + 1) * (per_cycle - 1)])
         cycles.append({"map": name, "entities": int(entities), "geometry_crc": geometry, "collision_crc": collision_crc,
                        "collision": collision == "1", "aas_types": int(types), "aas_loaded": int(loaded),
+                       "free_ms": dict(zip(("aas", "collision", "map", "unload"), map(int, free))) if free else None,
                        "steps": [{"step": step, "requested": int(requested), "backing": int(backing), "allocations": int(count),
                                   "peak_requested": int(peak), "peak_backing": int(peak_backing),
                                   "ms": int(times[step]) if step in times else None}
@@ -90,6 +100,31 @@ def check_map_data(log: str) -> tuple[bool, str]:
     if key(warm[0]) != key(warm[-1]) or key(cycles[0]["steps"][-1]) != key(warm[0]):
         return False, "the warm ps2_mapdata cycle did not free back to its starting ledger"
     return True, "map data loaded and freed"
+
+
+def aas_verify(log: str) -> dict | None:
+    """ps2_verifyAAS's comparison of each cooked AAS file with its text, and its summary."""
+    summary = AAS_VERIFY_SUMMARY_RE.findall(log)
+    if len(summary) != 1:
+        return None
+    fields = ("file", "cooked_loaded", "text_loaded", "areas", "reaches", "planes", "cooked_ms", "text_ms", "int_mismatches",
+              "float_mismatches", "float_differences", "max_delta", "first")
+    files = [dict(zip(fields, match)) for match in AAS_VERIFY_RE.findall(log)]
+    for entry in files:
+        for field in fields[1:-2]:
+            entry[field] = int(entry[field])
+        entry["max_delta"] = float(entry["max_delta"])
+    return {"map": summary[0][0], "files": int(summary[0][1]), "failures": int(summary[0][2]), "compared": files}
+
+
+def check_aas_verify(log: str) -> tuple[bool, str]:
+    """Every cooked AAS file loads and matches the text parse of its source."""
+    result = aas_verify(log)
+    if result is None or result["files"] < 1 or len(result["compared"]) != result["files"]:
+        return False, "ps2_verifyAAS did not compare the cooked AAS files"
+    if result["failures"] != 0 or any(not entry["cooked_loaded"] or not entry["text_loaded"] for entry in result["compared"]):
+        return False, "a cooked AAS file differs from its text"
+    return True, "cooked AAS matches its text"
 
 
 def startup_memory(log: str) -> dict:
@@ -165,9 +200,10 @@ def classify(log: str, case: str, identity: str, compiled: bool = False, verify_
         if verify_decls and (decl_text(log) is None or decl_text(log)["verified"] == 0):
             return False, "the declarations' text was not read back from the containers"
         if verify_decls:
-            passed, reason = check_map_data(log)
-            if not passed:
-                return False, reason
+            for check in (check_map_data, check_aas_verify):
+                passed, reason = check(log)
+                if not passed:
+                    return False, reason
     if bounded:
         if "COMMON frame limit reached frames=120" not in log:
             return False, "frame limit did not request shutdown"
@@ -194,7 +230,8 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
         shutil.copy2(REPO_ROOT / name, output / Path(name).name)
     shutil.copy2(args.config, output / "PCSX2.ini.snapshot")
     config = f'echo "{identity}_begin"\n'
-    config += f"ps2_verifyDeclText\nps2_mapdata {MAP_DATA_MAP}\nps2_mapdata {MAP_DATA_MAP}\n" if verify_decls else ""
+    config += (f"ps2_verifyDeclText\nps2_mapdata {MAP_DATA_MAP}\nps2_mapdata {MAP_DATA_MAP}\nps2_verifyAAS {MAP_DATA_MAP}\n"
+               if verify_decls else "")
     config += "ps2_maxFrames 120\nps2_status\nwait 60\nps2_status\n" if case != "console" else f'wait 120\necho "{identity}_ready"\nps2_status\n'
     (output / "base/d3bfg.cfg").write_text(config)
     (output / "boot-data.json").write_text(json.dumps(boot_data(output), indent=2) + "\n")
@@ -250,6 +287,7 @@ def run(args: argparse.Namespace, case: str, version: str) -> bool:
     if verify_decls:
         data["decl_text"] = decl_text(log)
         data["map_data"] = map_data(log)
+        data["aas_verify"] = aas_verify(log)
     if retail_data is not None:
         data["retail_data"] = str(retail_data.resolve())
     if args.script_check is not None:

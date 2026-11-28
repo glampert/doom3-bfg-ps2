@@ -68,9 +68,11 @@ lights as `mars_city1.d3tx` (`mars_city1.lights.json` classifies every light; `W
 cooks plain strips instead, drawn without a lightmap pass; give it its own
 `WORLD_COOK_OUTPUT`). Its `map` command cooks the same job's `.map` into a D3ME file of its entities
 (`make map-cook-retail`: `build/map/mars_city1.d3me`), with the geometry CRC its `.bcm` and `.aas48`
-were built against; packages that mount the map's container put it at `base/maps/game/`, where
-production's `idMapFile` reads it instead of the text, and the debug `ps2_mapdata MAP` command loads
-the map's game data step by step with a memory checkpoint after each.
+were built against, and each of the map's AAS files into a D3AS (`mars_city1.aas48.d3as`); packages
+that mount the map's container put them at `base/maps/game/`, where production's `idMapFile` and
+`idAASFileLocal` read them instead of the text. The debug `ps2_mapdata MAP` command loads the map's
+game data step by step with a memory checkpoint after each, and `ps2_verifyAAS MAP` compares each
+cooked AAS with id's text parse of its source.
 `src/tools/scripts/vu_cost.py` counts the world programs' VU1 cycles over
 cooked worlds. `src/tools/scripts/texture_census.py --data <root> [--map NAME]` counts
 the retail BIMAGE textures by usage, format and colour format (headers only, about 4 s for

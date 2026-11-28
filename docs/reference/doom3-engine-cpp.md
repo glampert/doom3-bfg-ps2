@@ -793,3 +793,40 @@ ledgers in [memory-budget.md](memory-budget.md), "Retail map game data").
   only the console and UI catalog images (and none at all headless); they are now game images.
   Cinematic stages (`videomap`) still fail when they load.
 - **The AAS** is id's text format (`idAASFileLocal::Load`, the lexer): 2.2 s warm, 3.3 s cold.
+  Cooked since 2026-11-28 (below).
+- **The `.bcm` streamed (2026-11-28).** `LoadCollisionModelFile` opened the generated file with
+  `OpenFileReadMemory`, which reads a container entry whole (5,378,192 bytes of `TAG_TEMP`) before
+  `LoadBinaryModelFromFile` reads it four bytes at a time from start to end. On the PS2 it opens a
+  `ps2::system::fs::OpenStreamed` file instead (`src/ps2/system/streamed_file.h`): a read-only
+  `idFile` over `ReadFileRange` with a 32 KiB window, which a read of a window or more bypasses.
+  It reads, seeks and tells; anything else that reads a large file once in order can use it.
+- **The cooked AAS (D3AS v1, 2026-11-28).** `make map-cook-retail` also cooks each `<map>.aasN` into
+  `<map>.aasN.d3as` (`src/tools/assets/aas_cook.cpp`, layout in `src/ps2/game/aas_format.h`). The
+  header (magic `D3AS`, version, geometry CRC, the FNV-1a of the rest, then thirteen counts and the
+  string bytes) is followed by the settings, the strings, the special reachabilities' pairs, the
+  tables in the layouts of idAASFileLocal's own lists (planes as idPlane's a, b, c, d with d the
+  negated distance, `aasFace_t`, `aasNode_t`, `aasPortal_t`, `aasCluster_t`; `AASFile.cpp` asserts
+  each), the areas' text fields with their reachability counts, and the reachabilities last.
+  `idAASFileLocal::LoadCooked` streams the tables into the lists, checks every reference the game
+  follows (`CheckTables`: areas into the face index, faces into the edge index and planes, edges
+  into the vertices, the tree, portals and clusters; entry 0 of each table is a dummy retail files
+  leave unset, such as face 0's 983,984,304 edges), then builds each reachability from its record
+  and prepends it to its area's list as `ParseReachabilities` does, and checks the checksum last.
+  `FinishAreas` still computes the areas' bounds and centres on the EE.
+- **What the cook keeps of the text parse.** Each field narrows as id's does (a face's plane number
+  to 16 bits, a reachability's travel time to 16: 70000 becomes 4464), settings the file leaves out
+  keep the ctor's defaults, a repeated key in a special reachability stays in order for `idDict::Set`,
+  and the portals' `maxAreaTravelTime`, which the text parse leaves unset, is 0. Numbers are read to
+  the nearest float, as id's PC parse in doubles did; the EE's lexer is off in the last bit. The
+  cook refuses what id's parser would read another way (a leading zero, which `idLexer` reads as
+  octal, exponents) and settings keys it does not know, and checks its output with the target's
+  validator before writing it.
+- **Checked against the text on the target.** The debug `ps2_verifyAAS MAP` loads each cooked AAS
+  and id's text parse of its source (`LoadText`, kept in test images and debug builds) and compares
+  every table through `idAASFile`'s getters, reachability lists and reversed lists included.
+  mars_city1's `aas48`: no integer differs, 1,601 floats differ in their last bits (the largest by
+  0.000305), and the cooked load takes 319 ms against 2,132.
+- **`idStrPool::FreeString` is quadratic.** Freeing a pooled string whose last user goes walks the
+  pool's whole hash table and index chain (`idHashIndex::RemoveIndex` renumbers every index above
+  it) and shifts the pool list. `idDict` keys and values are pooled, so deleting mars_city1's
+  `idMapFile` (16,334 pairs) takes 3.85 s of the 4.1 s the map's game data takes to free.

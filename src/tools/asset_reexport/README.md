@@ -3,7 +3,7 @@
 `asset_reexport` is a standalone C++20 host tool that converts Doom 3 BFG assets into
 forms the PS2 consumes directly. Its `world` command cooks a map's render geometry into a
 **D3WD** world file ([below](#world-cook)), and its `map` command the same job's entities into a
-**D3ME** map file ([below](#map-cook)). Its `ui` command turns the interface images a job
+**D3ME** map file and its AAS files into **D3AS** files ([below](#map-cook)). Its `ui` command turns the interface images a job
 file lists into paletted **GSTX** textures: PSMT8/PSMT4 index pages, shared CLUTs, RLE
 on disc, and placements that map each image's logical texels onto the pages. The format
 is documented field by field in [`assets/gstx.h`](../assets/gstx.h); the retail UI cook
@@ -397,14 +397,26 @@ exactly its source triangles.
 ## Map cook
 
 ```sh
-make map-cook-retail     # mars_city1's entities into build/map/mars_city1.d3me
+make map-cook-retail     # mars_city1's entities into build/map/mars_city1.d3me, its AAS into
+                         # build/map/mars_city1.aas48.d3as
 build/tools/asset_reexport map --data gamedata/d3_bfg \
     --job config/world_mars_city1.json --output build/map
 ```
 
-The job's `map` and `containers` name the `.map`, its `generated/<map>.bcm` and its `.aas48`. The
-D3ME ([`src/ps2/game/map_format.h`](../../ps2/game/map_format.h)) holds every entity's key/value
+The job's `map` and `containers` name the `.map`, its `generated/<map>.bcm` and its AAS files
+(every `<map>.aas*` the containers hold). The D3ME
+([`src/ps2/game/map_format.h`](../../ps2/game/map_format.h)) holds every entity's key/value
 pairs as the file spells them, in order, with trailing whitespace stripped, and the geometry CRC
-read from the `.bcm`'s header, which the `.aas48` must name too: the PS2's `idMapFile` loads it
-without the lexer, whose number conversion gives the text another CRC. `build/tests/map_tests`
-round trips a parsed map through the target's validator and refuses each corrupted field.
+read from the `.bcm`'s header, which each AAS file must name too: the PS2's `idMapFile` loads it
+without the lexer, whose number conversion gives the text another CRC.
+
+Each AAS file becomes a D3AS ([`src/ps2/game/aas_format.h`](../../ps2/game/aas_format.h),
+[`assets/aas_cook.cpp`](../assets/aas_cook.cpp)): its settings and tables in the layouts of
+`idAASFileLocal`'s lists, which the PS2 streams into them, and its reachabilities in file order.
+The parse follows `idAASFileLocal::Load` token for token, each field narrowed as id's are, with
+numbers read to the nearest float; it refuses forms id's lexer would read another way (a leading
+zero, exponents) and unknown settings keys, and the cook checks what it writes with the target's
+own validator (the assets library compiles `aas_format.cpp`). `build/tests/map_tests` round trips
+a parsed map and the authored headless AAS through the target's validators and refuses each
+corrupted field; the debug retail headless gate compares the cooked mars_city1 AAS with id's text
+parse on the target (`ps2_verifyAAS`).

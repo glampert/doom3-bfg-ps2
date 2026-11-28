@@ -27,12 +27,17 @@ Detailed acceptance for the production ELF's packages: `make test-headless`,
   `[D3BFG] DECLTEXT verified=N bytes= largest= ms= scattered_ms=` line with N above zero
   (`summary.json`'s `decl_text`; 2026-11-24: 11,947 declarations, 6,615,438 bytes in about 1.1 s;
   `ps2_verifyDeclText scattered` adds a pass that jumps across the files, 3.4 s). Debug builds then
-  stage mars_city1's container and cooked entities (`make map-cook-retail`) and run
+  stage mars_city1's container, cooked entities and cooked AAS (`make map-cook-retail`) and run
   `ps2_mapdata game/mars_city1` twice (M3.1): each `[D3BFG] MAPDATA` line must show the cooked CRC
   loading the retail collision (`collision=1`, equal CRCs) and at least one AAS, every step's
   `MEMORY mapdata-*` checkpoint must be there, and the warm cycle must free back to exactly the
-  ledger it began with, which is where the cold one ended (`summary.json`'s `map_data`; 2026-11-27,
-  memory-budget reference "Retail map game data"). Startup takes 4.4 s from the
+  ledger it began with, which is where the cold one ended (`summary.json`'s `map_data`, with each
+  cycle's `MAPDATA_FREE` split; 2026-11-27, memory-budget reference "Retail map game data"). Then
+  `ps2_verifyAAS game/mars_city1` loads each cooked AAS file and id's text parse of its source and
+  compares every table: each `[D3BFG] AAS_VERIFY file=` line must load both (`loaded=1/1`), and the
+  summary line must name at least one file and no failure, a failure being any integer that differs
+  or a float off by more than a relative 1e-4 (`summary.json`'s `aas_verify`; 2026-11-28: no integer
+  differs, 1,601 floats differ in their last bits, the largest by 0.000305). Startup takes 4.4 s from the
   filesystem's start to `startup-game` since the declarations read their text on demand (7.9 s
   before; the program loads in 0.13 s); `make run-headless-retail` stages and launches the same
   package until quit. Retail data never enters the repo. Every package on the authored data
