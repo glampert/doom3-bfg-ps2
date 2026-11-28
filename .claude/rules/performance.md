@@ -88,10 +88,15 @@ tour (below); there is no campaign baseline yet. Quake timings below are not Doo
     tell a chain-bound frame from an EE-bound one.
 - **Third console run (2026-11-27, HDD, PORT_STATUS "Third console frame log"):** the reject on the
   console. VU1 takes 4.83 ms a frame in serial chains (8.04), 107.8 cycles a vertex drawn; the
-  pipelined tour takes 137.5 s (89.5% of frames at one field). Its logs in
-  `build/console-2026-11-27/` are the baselines now. Fit: 51.9 cycles a vertex, 31.3 a list entry,
-  1,008 a clipper call, a reject nothing beyond its entries. Frames past two fields are still the
-  EE's view build, and vary with what streaming made resident.
+  pipelined tour takes 137.5 s (89.5% of frames at one field). Fit: 51.9 cycles a vertex, 31.3 a
+  list entry, 1,008 a clipper call, a reject nothing beyond its entries. Frames past two fields
+  are still the EE's view build, and vary with what streaming made resident.
+- **Fourth console run (2026-11-29, HDD, PORT_STATUS "Fourth console frame log"):** oxide-vcl
+  `f9b438b` and the clipper without a branch per edge. VU1 takes 4.23 ms a frame in serial chains
+  (4.83), 94.3 cycles a vertex drawn; the pipelined tour takes 136.1 s (89.6% at one field). Its
+  logs in `build/console-2026-11-29/` are the baselines now. Fit: 52.2 cycles a vertex, 28.1 a
+  list entry, 553 a clipper call (1,008). The counts log of 2026-11-26 still applies: the counts
+  did not change.
 - **Fit a stage's column against the counters** (least squares over the rows) to price a cost:
   it found the eviction cost at R² 0.989. Stalls spaced at a fixed interval point at a periodic
   call: the keyboard's 250 ms poll waits for the loader's read in flight, since both are fileXio

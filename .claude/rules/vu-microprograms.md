@@ -182,7 +182,8 @@ VCL at `adc427d`. PCSX2 shows none of it (see [performance.md](performance.md)).
   walked, which the console's fits confirm (35.8, then 31.3 with the reject). The clipper's own cost
   comes only from the fit (`frame_log.py --vu-fit`, performance.md): before the reject 1,232 cycles a
   call that sends a fan and 194 one wholly outside a plane, after it (2026-11-27) 1,008 a call and a
-  rejected triangle nothing beyond its list entries.
+  rejected triangle nothing beyond its list entries, and with the passes branch-free (2026-11-29)
+  553 a call.
 
 ## Writing VUSL
 

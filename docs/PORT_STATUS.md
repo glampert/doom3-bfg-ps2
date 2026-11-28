@@ -6875,3 +6875,31 @@ passes lose their branch per edge.
 | `make vu` | Passed, `--warnings-as-errors`; the generated headers change only in the clipper's address, size and `ClipBuffers` |
 | `make`, `make release` | Passed, no warnings |
 | oxide-vcl `f9b438b` | `cargo test --release` 1,083 passed, clippy and fmt clean, public corpus 52/52 |
+
+## Fourth console frame log: the clipper without branches (2026-11-29)
+
+The perf package of `67bed59` (oxide-vcl `f9b438b`, the clipper without a branch per edge), from the
+HDD (`pfs0:/D3`, NTSC 640 32/32, release). Every log is complete (7,244 frames); copies are in
+`build/console-2026-11-29/`, the new baselines, compared here with `build/console-2026-11-27/`.
+- **VU1.** Serial chains spend 4.23 ms a frame in VU1, against 4.83 ms: 0.60 ms less (−12.5%).
+  VU1 runs 94.3 cycles a vertex drawn (107.8) and takes 60.3% of serial chain time (64.3%), the GS
+  36.6%. The list path's counts are the previous run's to within 100 of its 3,128,582 clipper calls
+  (streaming fell back differently on a few frames).
+- **The tours.**
+
+  | | Before | After |
+  | --- | --- | --- |
+  | Pipelined tour | 137.5 s | 136.1 s (−1.0%) |
+  | Frames at one field | 6,481 (89.5%) | 6,489 (89.6%) |
+  | Pipelined `gpu_us` (the wait for the previous chain) | 2.54 ms | 2.15 ms |
+  | Serial tour | 157.0 s | 154.2 s |
+  | Serial `vu_us` | 4.83 ms | 4.23 ms |
+
+  The pipelined tour gains little: its frames past one field are the EE's view build, which did
+  not change.
+- **The fit** (`frame_log.py framelog_serial_hdd.txt --vu-fit
+  ../console-2026-11-26/pcsx2/framelog_serial_counts_reject.txt`, 7,009 frames, R² 0.999; the counts
+  log still applies, since the counts did not change): 52.2 cycles a vertex (51.9), 28.1 a list entry
+  (31.3), 553 a clipper call (1,008, −45%), and an empty call about the same as a call that sends a
+  fan (511). Over the tour the clipper's calls take 5.67 s of VU1 instead of 10.3 s. The list entry's
+  3 cycles are world_lm's, which oxide-vcl's new optimizations reschedule at the same size.
