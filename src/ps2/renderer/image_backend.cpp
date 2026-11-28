@@ -615,20 +615,66 @@ IMAGE_UNAVAILABLE(void, idImage::Reload, (bool))
 IMAGE_UNAVAILABLE(void, idImageManager::StartBuild, ())
 IMAGE_UNAVAILABLE(void, idImageManager::FinishBuild, (bool))
 
-// No cinematic decoder exists (Bink and RoQ material videos): a material naming one fails at its
-// load. The virtual members stay for the classes' vtables.
-IMAGE_UNAVAILABLE(idCinematic *, idCinematic::Alloc, ())
-idCinematic::~idCinematic() = default;
-IMAGE_UNAVAILABLE(bool, idCinematic::InitFromFile, (const char *, bool))
-IMAGE_UNAVAILABLE(int, idCinematic::AnimationLength, ())
-IMAGE_UNAVAILABLE(cinData_t, idCinematic::ImageForTime, (int))
-IMAGE_UNAVAILABLE(void, idCinematic::Close, ())
-IMAGE_UNAVAILABLE(void, idCinematic::ResetTime, (int))
-IMAGE_UNAVAILABLE(int, idCinematic::GetStartTime, ())
-IMAGE_UNAVAILABLE(void, idCinematic::ExportToTGA, (bool))
-IMAGE_UNAVAILABLE(float, idCinematic::GetFrameRate, () const)
-IMAGE_UNAVAILABLE(bool, idSndWindow::InitFromFile, (const char *, bool))
-IMAGE_UNAVAILABLE(cinData_t, idSndWindow::ImageForTime, (int))
-IMAGE_UNAVAILABLE(int, idSndWindow::AnimationLength, ())
-
 #undef IMAGE_UNAVAILABLE
+
+// No cinematic decoder exists (Bink and RoQ material videos). A material's videomap or soundmap
+// stage keeps id's base cinematic instead: it loads nothing and has no frames, as id's base class
+// does, and nothing draws these surfaces yet.
+PS2_COLD_FUNC idCinematic * idCinematic::Alloc()
+{
+    return new (TAG_CINEMATIC) idCinematic;
+}
+
+idCinematic::~idCinematic() = default;
+
+PS2_COLD_FUNC bool idCinematic::InitFromFile(const char *, bool)
+{
+    return false;
+}
+
+int idCinematic::AnimationLength()
+{
+    return 0;
+}
+
+cinData_t idCinematic::ImageForTime(int)
+{
+    return cinData_t{};
+}
+
+void idCinematic::Close()
+{
+}
+
+void idCinematic::ResetTime(int)
+{
+}
+
+int idCinematic::GetStartTime()
+{
+    return -1;
+}
+
+PS2_COLD_FUNC void idCinematic::ExportToTGA(bool)
+{
+}
+
+float idCinematic::GetFrameRate() const
+{
+    return 30.0f;
+}
+
+PS2_COLD_FUNC bool idSndWindow::InitFromFile(const char *, bool)
+{
+    return true;
+}
+
+cinData_t idSndWindow::ImageForTime(int)
+{
+    return cinData_t{};
+}
+
+int idSndWindow::AnimationLength()
+{
+    return -1;
+}

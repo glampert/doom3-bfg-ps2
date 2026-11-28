@@ -6826,3 +6826,14 @@ arena) while the AAS loads, before an entity spawns; without it, while loading a
 | `make test-headless-retail` | `20261128T081609Z_headless_401d10305c8f` |
 | `make test-headless`, `make test-map`, `make test-game` | Passed (bounded and console; the game's ten expected-fatal cases) |
 | `make`, `make release` | Passed, no warnings |
+
+**The whole spawn, measured with 128 MB.** With PCSX2's `ExtraMemory` and the heap's 32 MB cap
+raised in a build that was not committed, two more blockers were fixed (cinematic materials get
+id's empty base cinematic; lights find `lights/defaultPointLight` and `defaultProjectedLight`), and
+the spawn completed: 2,111 entities in 17.9 s of EE time, then 60 frames at 16 ms each, with no
+player (the offline session's lobby has no user). After `InitFromNewMap` the ledger is 65.7 MB
+against the console's 27.2 MB arena: md5 animations 16.98 MB (1,656), collision 9.43, the render
+world 6.29, entity objects 4.64, window GUIs 4.47, md5 mesh geometry 4.6 (1.7 of it shadow
+silhouette data), hashes and lists 4.19 (memory-budget reference, "The M3.2 spawn survey").
+`make test-headless-retail`, `test-headless`, `test-map`, `test-game` and `test-world` pass with the
+two fixes.

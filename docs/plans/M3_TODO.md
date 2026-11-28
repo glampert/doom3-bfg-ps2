@@ -138,7 +138,13 @@ into Common's, `InitFromNewMap`, the frames, `MapShutdown`, with the ledgers aft
       it (`noworld`) it runs out loading an md5 animation, at 25.44 MB live: collision 9.46 MB, md5
       animations 2.85 MB and counting (408 loaded), the containers' tables 1.90 MB, the script
       1.62 MB, the AAS 1.45 MB, declarations 1.39 MB, hashes and lists 1.95 MB. The render world adds
-      7.67 MB (the D3WD 5.78 MB, its area models and surfaces). Plan in the decision above it.
+      7.67 MB (the D3WD 5.78 MB, its area models and surfaces). Measured whole with PCSX2's 128 MB
+      (`ExtraMemory`, a 128 MB heap cap in a build never committed): after `InitFromNewMap` the
+      ledger is **65.7 MB**, against the console's 27.2 MB arena. md5 animations 16.98 MB (1,656
+      loaded), collision 9.43, the render world 6.29, entity objects (`TAG_IDCLASS`) 4.64, window
+      GUIs (`TAG_OLD_UI`) 4.47 in 49,183 allocations, md5 mesh geometry 4.6 (1.7 of it silhouette
+      data for stencil shadows the PS2 never draws), hashes and lists 4.19, declarations 1.70, the
+      script 1.64, the AAS 1.45. The spawn took 17.9 s of EE time; 60 frames ran at 16 ms each.
 - [x] Static vertex and index caches that need no GPU (2026-11-28): the static set hands out id's
       handles for bytes it never stores, so `.bmd5mesh` models load; the frame sets stay unavailable.
 - [x] `s_noSound` makes every sample the default one (2026-11-28), without reading a file; every
@@ -149,8 +155,14 @@ into Common's, `InitFromNewMap`, the frames, `MapShutdown`, with the ledgers aft
       `micro`, the default) are logical: a name and no glyphs, since nothing draws in-world GUIs yet.
 - [x] Material stage images load as game images (name and sampler, no pixels), headless too
       (M3.1, 2026-11-27: the collision load parses 558 materials).
-- [ ] Cinematic materials load a static stand-in (one black frame) instead of failing; the
-      material keeps its stage.
+- [x] Cinematic materials load a stand-in instead of failing (2026-11-28): `idCinematic::Alloc`
+      returns id's base cinematic (loads nothing, no frames, length 0), and a `soundmap` stage's
+      `idSndWindow` the same; the material keeps its stage.
+- [x] Lights without a shader find their defaults (2026-11-28): `InitLogical` looks up
+      `lights/defaultPointLight` and `lights/defaultProjectedLight` as `R_InitMaterials` does (a
+      light entity's render light took its falloff from a null material).
+- [ ] The player: `SyncPlayersWithLobbyUsers` found no lobby user in production's offline session,
+      so the spawn ran without `idPlayer`.
 - [ ] The cooked render world registers the map's inline brush models (`func_static_N` and the
       other `*_N` names the `.proc` defined) from the D3WD, so `FindModel` finds them: as empty
       models for the merged entities, with their own surfaces for the rigid ones (M3.5 draws them).

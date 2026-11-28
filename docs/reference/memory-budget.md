@@ -1353,3 +1353,30 @@ host-cooked D3AS (`mars_city1.aas48.d3as`, 956,444 bytes) streamed straight into
   `TAG_MD5_ANIM` 2,852,080 (408 animations), `TAG_RESOURCE` 1,895,760 (the containers' tables),
   `TAG_SCRIPT` 1,623,536, `TAG_AAS` 1,452,448, `TAG_DECL` 1,389,024, `TAG_IDLIB_HASH` 1,085,088,
   `TAG_IDLIB_LIST` 861,360, `TAG_PARTICLE` 680,288, `TAG_STRING` 634,720, `TAG_MODEL` 508,680.
+- **The whole spawn**, with PCSX2's `ExtraMemory` (128 MB) and the heap's `kMaxArenaBytes` raised to
+  128 MB in a build never committed: `InitFromNewMap` takes 17,866 ms and ends at 65,683,006
+  requested (66,099,484 backing, 171,121 allocations); 60 frames add 1.05 MB (66,728,546) at 16 ms
+  each; `MapShutdown` leaves 46,358,978 (id keeps animations, models, GUIs and declarations until a
+  level load purges them) and the end 39,248,254. The spawn's largest tags (requested):
+
+  | Tag | After the spawn | Left after `MapShutdown` |
+  | --- | --- | --- |
+  | `MD5_ANIM` (1,656 animations) | 16,976,932 | 16,976,932 |
+  | `COLLISION` | 9,426,908 | 0 |
+  | `RENDER` (the D3WD) | 6,294,520 | 6,294,520 |
+  | `IDCLASS` (entity objects, 2,335) | 4,641,456 | 1,248 |
+  | `OLD_UI` (window GUIs, 49,183 allocations) | 4,468,448 | 4,468,448 |
+  | `TRI_VERTS` | 2,401,088 | 2,401,088 |
+  | `IDLIB_HASH` | 2,360,960 | 1,336,960 |
+  | `RESOURCE` (container tables) | 1,895,700 | 1,079,400 |
+  | `IDLIB_LIST` | 1,828,094 | 954,942 |
+  | `DECL` | 1,703,856 | 1,704,336 |
+  | `SCRIPT` | 1,643,636 | 1,621,248 |
+  | `AAS` | 1,452,076 | 1,465,072 |
+  | `TRI_SIL_EDGE` | 1,014,832 | 1,014,832 |
+  | `STRING` | 955,511 | 915,831 |
+  | `ANIM` | 929,096 | 924,784 |
+  | `MODEL` | 836,322 | 836,186 |
+  | `PHYSICS_AF` | 828,736 | 0 |
+  | `PARTICLE` | 680,260 | 680,260 |
+  | `TRI_INDEXES`, `TRI_SIL_INDEXES` | 488,466 each | 488,466 each |

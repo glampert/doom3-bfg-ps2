@@ -99,6 +99,11 @@ PS2_COLD_FUNC void InitLogical(const char * defaultMaterialName)
         Unavailable("logical renderer requires a stage-free default material");
     }
 
+    // The lights' defaults (R_InitMaterials): a light without its own shader derives its falloff
+    // from one of these. Only data that declares them has lights to need them (retail does).
+    tr.defaultPointLight = declManager->FindMaterial("lights/defaultPointLight", false);
+    tr.defaultProjectedLight = declManager->FindMaterial("lights/defaultProjectedLight", false);
+
     renderModelManager->Init();
 
     // id's Init sets the identity space; the portal flow projects each portal's winding through it
@@ -124,6 +129,7 @@ PS2_COLD_FUNC void ShutdownLogical()
     cmdSystem->RemoveFlaggedCommands(CMD_FL_RENDERER);
     tr.worlds.Clear();
     tr.defaultMaterial = nullptr;
+    tr.defaultPointLight = tr.defaultProjectedLight = nullptr;
     s_logicalInitialized = false;
 }
 
