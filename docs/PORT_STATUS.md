@@ -6799,3 +6799,30 @@ Two fixes in id's code that the M3.1 follow-ups turned up (engine reference, "Re
 | `make test-world` | `20261128T065206Z_world_6a7dfddbb1b5` (NTSC), `20261128T065219Z_world_d42e648269fd` (PAL) |
 | `make test-renderer`, `make test-world-retail` | Fail one capture each under the software renderer (above) |
 | `make`, `make release`, `make build-core` | Passed, no warnings |
+
+## M3.2 started: the spawn survey (2026-11-28)
+
+M3.2 runs in production (the user's call), through the debug `ps2_mapspawn MAP [FRAMES [noworld]]`
+(`src/ps2/game/map_data.cpp`), which follows `ExecuteMapChange`: the container, the map's GUIs, the
+cooked render world into Common's, `InitFromNewMap`, frames, `MapShutdown`, with the ledgers after
+each step. Fixed on the way, in the order the spawn reached them:
+- **Sounds:** with `s_noSound` every sample is the default one (the user's call), read from no file;
+  all of them share one static square wave.
+- **Window GUIs:** the entities' in-world GUIs load from the retail `generated/guis/game/mars_city1.bgui`
+  (id's tokenized GUIs: 432 KB, 72 ms through `uiManager->Preload`). Production now runs
+  `uiManager->Init` and `Shutdown` (22,528 bytes at startup). A font outside the cooked UI profile,
+  or any font before a UI owner exists, is a logical font: a name and no glyphs.
+- **Static vertex caches:** md5 meshes get id's static handles for bytes the PS2 never stores.
+- **Collision was undercounted in M3.1:** `ps2_mapdata` passed `Preload` the stripped map name and
+  preloaded none of the 183 entity `.bcmodel`s; with them collision is 10.0 MB (6.2), 1.6 to 2.0 s.
+
+**The spawn does not fit.** With the render world the heap runs out (26.78 MB live in a 27.2 MB
+arena) while the AAS loads, before an entity spawns; without it, while loading an md5 animation
+(25.44 MB live: collision 9.46 MB, animations 2.85 MB and counting, container tables 1.90 MB, script
+1.62 MB, AAS 1.45 MB, declarations 1.39 MB). The render world adds 7.67 MB.
+
+| Check (debug) | Result |
+| --- | --- |
+| `make test-headless-retail` | `20261128T081609Z_headless_401d10305c8f` |
+| `make test-headless`, `make test-map`, `make test-game` | Passed (bounded and console; the game's ten expected-fatal cases) |
+| `make`, `make release` | Passed, no warnings |

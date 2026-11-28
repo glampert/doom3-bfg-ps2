@@ -13,6 +13,9 @@
 // snd_local.h supplies the native logical sound and portable backend declarations.
 #include <sound/snd_local.h>
 
+// id's cvar (snd_system.cpp): production and the game test images have no sound device.
+extern idCVar s_noSound;
+
 namespace
 {
 
@@ -20,6 +23,31 @@ namespace
 {
     ps2::FatalError("audio capability unavailable: %s", operation);
 }
+
+// The default sample: 256 frames of 8 kHz mono 16-bit square wave, shared by every default sample
+// (with s_noSound that is every sample a map names, hundreds of them).
+static constexpr size_t kDefaultPcmBytes = 512;
+
+struct DefaultPcm
+{
+    unsigned char bytes[kDefaultPcmBytes];
+};
+
+static constexpr DefaultPcm MakeDefaultPcm()
+{
+    DefaultPcm pcm{};
+    for (size_t i = 0; i < kDefaultPcmBytes; i += 4)
+    {
+        pcm.bytes[i] = 0;
+        pcm.bytes[i + 1] = 128;
+        pcm.bytes[i + 2] = 255;
+        pcm.bytes[i + 3] = 127;
+    }
+
+    return pcm;
+}
+
+static constexpr DefaultPcm kDefaultPcm = MakeDefaultPcm();
 
 bool ReadAt(void * context, size_t offset, void * output, size_t size)
 {
@@ -73,7 +101,9 @@ void SoundSample::SetName(const char * name)
 PS2_COLD_FUNC void SoundSample::LoadResource()
 {
     FreeData();
-    if (idStr::Icmpn(GetName(), "_default", 8) == 0)
+    // Without a sound device (s_noSound) every sample is the default one and no file is read, until
+    // the sound milestone cooks the retail samples.
+    if (idStr::Icmpn(GetName(), "_default", 8) == 0 || s_noSound.GetBool())
     {
         MakeDefault();
         return;
@@ -143,16 +173,9 @@ PS2_COLD_FUNC void SoundSample::LoadResource()
 void SoundSample::MakeDefault()
 {
     FreeData();
-    m_wave = { 0, 512, 8000, 1, 256 };
-    m_pcm = static_cast<unsigned char *>(system::heap::Alloc(m_wave.dataBytes, TAG_AUDIO));
     // A real short square-wave sample; the same timing/amplitude path handles loaded and generated data.
-    for (size_t i = 0; i < m_wave.dataBytes; i += 4)
-    {
-        m_pcm[i] = 0;
-        m_pcm[i + 1] = 128;
-        m_pcm[i + 2] = 255;
-        m_pcm[i + 3] = 127;
-    }
+    m_wave = { 0, kDefaultPcmBytes, 8000, 1, 256 };
+    m_pcm = kDefaultPcm.bytes;
     m_isDefault = true;
 }
 
@@ -162,7 +185,11 @@ PS2_COLD_FUNC void SoundSample::FreeData()
     {
         FatalError("sound sample still referenced by logical voices: %s", GetName());
     }
-    system::heap::Free(m_pcm);
+    if (!m_isDefault)
+    {
+        system::heap::Free(const_cast<unsigned char *>(m_pcm));
+    }
+
     m_pcm = nullptr;
     m_wave = {};
     m_timestamp = FILE_NOT_FOUND_TIMESTAMP;

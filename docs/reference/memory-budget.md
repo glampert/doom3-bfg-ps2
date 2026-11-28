@@ -1333,3 +1333,23 @@ host-cooked D3AS (`mars_city1.aas48.d3as`, 956,444 bytes) streamed straight into
   ms (cold / warm); `idReachability`'s new virtual destructor adds 4 bytes to each of the 11,039
   reachabilities, so the AAS step ends at 15,488,537 (+44,156, `TAG_AAS` 1,163,916) and peaks at
   15,557,321, 9.74 MB above NOMAP. The warm cycle still frees back to its ledger exactly.
+- **Corrected (2026-11-28):** `ps2_mapdata` passed `collisionModelManager->Preload` the stripped map
+  name, which found no `maps/game/mars_city1.preload`, so the 183 entity `.bcmodel`s the game
+  preloads were never loaded. With them (run `20261128T081609Z_headless_401d10305c8f`) collision
+  ends at 18,116,786 (+9,998,684) and takes 1,951 / 1,557 ms; the AAS step ends at 19,331,798,
+  13.56 MB above NOMAP, peaking at 19,401,574.
+
+### The M3.2 spawn survey (2026-11-28)
+
+`ps2_mapspawn game/mars_city1` (debug, production, the retail headless package with the D3WD):
+- Startup: `uiManager->Init` adds 22,528 bytes in 129 allocations (`startup-game` 5,407,365).
+- The map's GUIs (`uiManager->Preload`, the `.bgui`): +431,918, peak +745,487, 72 ms.
+- The render world (the D3WD and its area models): +7,668,000 (`TAG_RENDER` 6,294,520 in 29,
+  `TAG_SRFTRIS` 386,240, `TAG_RENDER_STATIC` 318,232), 774 ms.
+- `InitFromNewMap` then runs out of memory while the AAS loads: 26,777,424 backing live in 61,466
+  allocations against a 27,232,976 arena.
+- Without the render world (`noworld`) it reaches the entities and runs out at 25,439,728 live,
+  reading a 1,478,623-byte md5 animation whole (`TAG_TEMP`): `TAG_COLLISION` 9,459,728,
+  `TAG_MD5_ANIM` 2,852,080 (408 animations), `TAG_RESOURCE` 1,895,760 (the containers' tables),
+  `TAG_SCRIPT` 1,623,536, `TAG_AAS` 1,452,448, `TAG_DECL` 1,389,024, `TAG_IDLIB_HASH` 1,085,088,
+  `TAG_IDLIB_LIST` 861,360, `TAG_PARTICLE` 680,288, `TAG_STRING` 634,720, `TAG_MODEL` 508,680.

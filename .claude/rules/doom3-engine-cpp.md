@@ -106,6 +106,10 @@ file keeps only what most engine edits need.
 - `idStrPool::FreeString` moves the pool's last string into the freed slot (a tag: id's renumbered
   every later index, quadratic over a map's entity pairs, 3.85 s for mars_city1). Never read the
   pool by index expecting allocation order.
+- Window GUIs (in-world screens) load from the map's retail `.bgui` (`uiManager->Preload`); their
+  fonts are logical (`idFont( name, logical_t )`, no glyphs) outside the cooked UI profile or before a
+  UI owner exists. With `s_noSound` every sample is the default one, read from no file. The static
+  vertex cache hands out handles for bytes it never stores; the frame caches stay unavailable.
 - A material stage's image that no UI catalog draws is a game image (`ImageFromFile`,
   `image_backend.cpp`): a name and a sampler, no pixels, in every presentation; the world pass
   draws the cooked D3TX by material name. They are freed after the declarations

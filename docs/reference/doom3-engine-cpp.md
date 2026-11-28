@@ -839,3 +839,26 @@ ledgers in [memory-budget.md](memory-budget.md), "Retail map game data").
   delete every reachability through the base, so deleting a special one was undefined and leaked
   its `idDict`. The PS2 gives the base a virtual destructor (2026-11-28): 4 bytes more each,
   +44,156 bytes for mars_city1's 11,039 (`TAG_AAS` 1,163,916).
+
+## The map's spawn (2026-11-28)
+
+M3.2's survey (`ps2_mapspawn`, debug) found, in the order the spawn reaches them:
+- **Collision preloads.** `idGameLocal::LoadMap` calls `collisionModelManager->Preload` with the full
+  map name, which reads `maps/game/<map>.preload` and loads every `PRELOAD_COLLISION` model it lists:
+  183 `.bcmodel`s for mars_city1, 3.8 MB.
+- **Sounds.** The map's sound shaders load their samples at spawn; with `s_noSound` the PS2 makes
+  each the default sample (`ps2/audio/sound_backend.cpp`), sharing one static square wave.
+- **Window GUIs.** `CacheDictionaryMedia` loads every `gui`/`guiN` key's GUI through
+  `idUserInterfaceLocal::InitFromFile`, which reads it from `uiManager`'s binary parser when the
+  map's `generated/guis/<map>.bgui` was preloaded (`uiManager->Preload`, from
+  `renderSystem->Preload`), and from text otherwise; retail ships only the `.bgui`. id keeps the
+  tokens until the next map's preload, and the GUIs until a level load purges them. The
+  windows' device context (`uiManager->Init`) and every window register fonts: `an`, `micro` and the
+  default for mars_city1, none of them in the cooked UI profile. They are logical fonts on the PS2
+  (`idFont( name, logical_t )`, `font_backend.cpp`): every metric 0, nothing drawn.
+- **Static vertex caches.** `idDeclModelDef::Parse` loads md5 meshes, whose static vertices and
+  indexes go to `vertexCache.AllocStaticVertex`/`Index`. The PS2 hands out id's handles (static bit
+  set) for bytes it never stores, and `FreeStaticData` resets the counters.
+- **md5 animations** load whole and eagerly: `idDeclModelDef::ParseAnim` loads each model's anims
+  as its declaration parses (`idAnimManager::GetAnim`), each file read whole into `TAG_TEMP` first
+  (1.48 MB for the largest seen).

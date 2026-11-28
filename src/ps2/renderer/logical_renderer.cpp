@@ -415,8 +415,13 @@ static PS2_COLD_FUNC void ClearEmptySet(geoBufferSet_t & buffers)
     }
 }
 
+// The static set keeps no storage (ActuallyAlloc below): its counters are all there is to free.
 PS2_COLD_FUNC void idVertexCache::FreeStaticData()
 {
+    staticData.vertexMemUsed.SetValue(0);
+    staticData.indexMemUsed.SetValue(0);
+    staticData.jointMemUsed.SetValue(0);
+    staticData.allocations = 0;
     ClearEmptySet(staticData);
     mostUsedVertex = mostUsedIndex = mostUsedJoint = 0;
 }
@@ -437,6 +442,29 @@ PS2_COLD_FUNC void idVertexCache::Shutdown()
         ps2::renderer::Unavailable(#method);           \
     }
 
-RENDER_UNAVAILABLE(vertCacheHandle_t, idVertexCache::ActuallyAlloc, (geoBufferSet_t &, const void *, int, cacheType_t))
-
 #undef RENDER_UNAVAILABLE
+
+// The static set (models' vertices and indexes at load) hands out id's handles for bytes it never
+// stores: nothing draws md5 meshes or other static buffers before they get VU1 buffers, while the
+// models that keep the handles load. The per-frame sets stay unavailable.
+PS2_COLD_FUNC vertCacheHandle_t idVertexCache::ActuallyAlloc(geoBufferSet_t & buffers, const void *, int bytes, cacheType_t type)
+{
+    if (&buffers != &staticData) [[unlikely]]
+    {
+        ps2::renderer::Unavailable("idVertexCache::ActuallyAlloc for frame data");
+    }
+
+    if (bytes == 0)
+    {
+        return 0;
+    }
+
+    idSysInterlockedInteger & used = type == CACHE_INDEX ? buffers.indexMemUsed : type == CACHE_VERTEX ? buffers.vertexMemUsed : buffers.jointMemUsed;
+    const int offset = used.Add(bytes) - bytes;
+    ++buffers.allocations;
+
+    // id's encoding (VertexCache.cpp), with the static bit.
+    return (static_cast<vertCacheHandle_t>(currentFrame & VERTCACHE_FRAME_MASK) << VERTCACHE_FRAME_SHIFT) |
+           (static_cast<vertCacheHandle_t>(offset & VERTCACHE_OFFSET_MASK) << VERTCACHE_OFFSET_SHIFT) |
+           (static_cast<vertCacheHandle_t>(bytes & VERTCACHE_SIZE_MASK) << VERTCACHE_SIZE_SHIFT) | VERTCACHE_STATIC;
+}

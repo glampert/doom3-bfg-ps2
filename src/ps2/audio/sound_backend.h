@@ -99,7 +99,7 @@ private:
     void RequireLoaded(const char * operation) const;
     idStr m_name;
     PcmWave m_wave;
-    unsigned char * m_pcm = nullptr;
+    const unsigned char * m_pcm = nullptr; // a default sample's is the shared square wave
     ID_TIME_T m_timestamp = FILE_NOT_FOUND_TIMESTAMP;
     bool m_isDefault = false;
     mutable unsigned int m_voiceReferences = 0;

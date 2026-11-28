@@ -50,6 +50,33 @@ struct LoggedGlyphSize
 };
 
 static GlyphSetState s_glyphSets[ps2::ui::kMaxFonts] = {};
+
+// The logical fonts, by family name; at most one per name a GUI asks for.
+static constexpr int kMaxLogicalFonts = 32;
+static idList<idFont *, TAG_FONT> s_logicalFonts;
+
+// A family outside the cooked profile, or any family before the font owner exists, as a name with
+// no glyphs: window GUIs load for the game's logic, and nothing draws them yet.
+PS2_COLD_FUNC idFont * LogicalFont(const char * family)
+{
+    for (int index = 0; index < s_logicalFonts.Num(); ++index)
+    {
+        if (idStr::Icmp(s_logicalFonts[index]->GetName(), family) == 0)
+        {
+            return s_logicalFonts[index];
+        }
+    }
+
+    if (s_logicalFonts.Num() >= kMaxLogicalFonts) [[unlikely]]
+    {
+        ps2::FatalError("logical font cache exceeded %d families", kMaxLogicalFonts);
+    }
+
+    auto * const font = new (TAG_FONT) idFont(family, idFont::logical_t{});
+    s_logicalFonts.Append(font);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] UI font logical name=%s cached=%d\n", family, s_logicalFonts.Num());
+    return font;
+}
 static LoggedGlyphSize s_loggedSizes[kMaxLoggedGlyphSizes] = {};
 static u32 s_loggedSizeCount = 0;
 
@@ -336,17 +363,19 @@ void DrawPrerenderedGlyph(const PrerenderedGlyph & glyph, const idMaterial * fon
 
 PS2_COLD_FUNC idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
 {
-    if (this != &tr || !ps2::ui::fonts::IsInitialized() || !ps2::ui::IsInitialized() || fontName == nullptr) [[unlikely]]
+    if (this != &tr || fontName == nullptr) [[unlikely]]
     {
-        ps2::FatalError("native UI font registration outside initialized ownership");
+        ps2::FatalError("native UI font registration outside the render system");
     }
 
+    // The menus' fonts are the cooked profile's, which the UI gates draw; the window GUIs' (doors,
+    // screens) are logical until something draws them.
     ps2::ui::FontRecord record{};
     idStr request(fontName);
     request.Replace("fonts/", "");
-    if (!ps2::ui::FindFont(request, record)) [[unlikely]]
+    if (!ps2::ui::fonts::IsInitialized() || !ps2::ui::IsInitialized() || !ps2::ui::FindFont(request, record))
     {
-        ps2::FatalError("native UI font is outside the admitted English profile: %s", fontName);
+        return LogicalFont(request.c_str());
     }
 
     const char * const canonical = record.family;
@@ -371,6 +400,11 @@ PS2_COLD_FUNC idFont * idRenderSystemLocal::RegisterFont(const char * fontName)
 
     RegisterGlyphSet(font, record);
     return font;
+}
+
+PS2_COLD_FUNC void ps2::ui::fonts::ShutdownLogicalFonts()
+{
+    s_logicalFonts.DeleteContents(true);
 }
 
 PS2_COLD_FUNC void idRenderSystemLocal::ResetFonts()

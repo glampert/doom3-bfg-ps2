@@ -39,6 +39,13 @@ struct scaledGlyphInfo_t {
 class idFont {
 public:
 	idFont( const char * n );
+#if defined( ID_PS2 )
+	// [PS2_D3BFG]: A logical font: its name and no glyphs, so every metric is 0. A window GUI's font
+	// outside the cooked UI profile, or any font with no font owner (headless), is one of these
+	// (ps2/ui/font_backend.cpp): nothing draws the in-world GUIs yet.
+	struct logical_t {};
+	idFont( const char * n, logical_t ) : name( n ), alias( NULL ), fontInfo( NULL ) {}
+#endif
 	~idFont();
 
 	void Touch();

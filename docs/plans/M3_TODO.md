@@ -76,8 +76,11 @@ out of scope: the game must run with them present and undrawn.
       the PS2 skips either way.
 - [ ] **Where saves go first:** the package folder (host, USB, HDD: works in every gate) before the
       memory card (libmc, rom0 MCMAN/MCSERV, [ps2-platform.md](../../.claude/rules/ps2-platform.md)).
-- [ ] **What `s_noSound` loads:** the default sample for every sound shader (no data read), until
-      the sound milestone cooks the retail `.idwav` data.
+- [x] **What `s_noSound` loads** (2026-11-28, the user's call): the default sample for every sound
+      shader (no data read), until the sound milestone cooks the retail `.idwav` data.
+- [x] **Where M3.2 runs** (2026-11-28, the user's call): in production, with the retail data and the
+      cooked program, through the debug `ps2_mapspawn MAP [FRAMES [noworld]]`, not the game test
+      image.
 
 ## M3.1: the retail map's game data, measured
 
@@ -108,6 +111,10 @@ the memory-budget reference, "Retail map game data"; findings in the engine refe
       in 0.34 to 0.36 s (2.2 to 3.3 s as text), at a 69,744-byte `TAG_TEMP` peak (3.9 MB as text).
       The debug `ps2_verifyAAS` compares it with id's text parse on the target: no integer differs.
       The game data now peaks 9.69 MB above NOMAP (14.33), about 21.3 MB with the D3WD (25.9).
+- [x] Collision measured with its preloads (2026-11-28): `ps2_mapdata` passed `Preload` the stripped
+      map name, which found no `.preload` manifest, so the 183 `.bcmodel`s the game preloads were left
+      out. With them collision is +9,998,684 bytes (6,177,984), 1.6 to 2.0 s, and the map's game data
+      peaks 13.56 MB above NOMAP.
 - [x] Where the 4.4 to 5.0 s of freeing goes (2026-11-28, `MAPDATA_FREE`): 3.85 s is
       `delete mapFile`, whose 16,334 pairs free their pooled strings through `idStrPool::FreeString`,
       which walks the whole pool for each one; the AAS takes 45 ms, the collision 0.2 to 0.3 s.
@@ -118,15 +125,28 @@ the memory-budget reference, "Retail map game data"; findings in the engine refe
       reachability through the base, and a special one's dictionary leaked (undefined behaviour).
       Each reachability is 4 bytes larger: +44,156 bytes for mars_city1's 11,039.
 
-## M3.2: mars_city1 spawned (game test image)
+## M3.2: mars_city1 spawned (production, `ps2_mapspawn`)
 
-`InitFromNewMap` with the retail map and the cooked script program, still without Common: every
-entity spawns and the game runs frames with an empty usercmd. Fix what the spawn reaches.
+`InitFromNewMap` with the retail map and the cooked script program, still without Common's map
+change: every entity spawns and the game runs frames with an empty usercmd. Fix what the spawn
+reaches. The debug `ps2_mapspawn` follows `ExecuteMapChange`: the container, the map's GUIs
+(`uiManager->Preload`, which `renderSystem->Preload` will call in M3.3), the cooked render world
+into Common's, `InitFromNewMap`, the frames, `MapShutdown`, with the ledgers after each step.
 
-- [ ] Static vertex and index caches that need no GPU: `idVertexCache::AllocStatic*` returns a
-      valid handle and keeps nothing (nothing draws md5 meshes before R4, which gives them VU1
-      buffers), so `.bmd5mesh` models load. The frame caches stay unavailable.
-- [ ] `s_noSound` makes every sample the default one (decision above), without reading a file.
+- [ ] **The spawn does not fit in memory (2026-11-28 survey).** With the render world the heap runs
+      out (26.78 MB live in the 27.2 MB arena) while the AAS loads, before any entity spawns. Without
+      it (`noworld`) it runs out loading an md5 animation, at 25.44 MB live: collision 9.46 MB, md5
+      animations 2.85 MB and counting (408 loaded), the containers' tables 1.90 MB, the script
+      1.62 MB, the AAS 1.45 MB, declarations 1.39 MB, hashes and lists 1.95 MB. The render world adds
+      7.67 MB (the D3WD 5.78 MB, its area models and surfaces). Plan in the decision above it.
+- [x] Static vertex and index caches that need no GPU (2026-11-28): the static set hands out id's
+      handles for bytes it never stores, so `.bmd5mesh` models load; the frame sets stay unavailable.
+- [x] `s_noSound` makes every sample the default one (2026-11-28), without reading a file; every
+      default sample shares one static 512-byte square wave.
+- [x] The map's window GUIs load (2026-11-28): from the retail `generated/guis/<map>.bgui`, id's
+      tokenized GUIs (65 files the entities name, 73 in the file), which `uiManager->Preload` reads
+      (432 KB, 72 ms); production now runs `uiManager->Init` and `Shutdown`. Their fonts (`an`,
+      `micro`, the default) are logical: a name and no glyphs, since nothing draws in-world GUIs yet.
 - [x] Material stage images load as game images (name and sampler, no pixels), headless too
       (M3.1, 2026-11-27: the collision load parses 558 materials).
 - [ ] Cinematic materials load a static stand-in (one black frame) instead of failing; the

@@ -21,6 +21,10 @@ void Init();
 void Shutdown();
 bool IsInitialized();
 
+// The logical fonts RegisterFont made (a name and no glyphs, for window GUIs nothing draws), freed
+// after the GUIs that hold them.
+PS2_COLD_FUNC void ShutdownLogicalFonts();
+
 // Validate the native on-disk profile before its loader trusts counts, records or material names.
 PS2_COLD_FUNC idFile * OpenFontAsset(const char * name);
 bool PreflightFont(idFile * file, const char * name);

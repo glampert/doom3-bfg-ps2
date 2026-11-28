@@ -8,6 +8,7 @@
 #include "ps2/game/map_data.h"
 #include "ps2/input/devices.h"
 #include "ps2/renderer/image_backend.h"
+#include "ps2/ui/font_backend.h"
 #include "ps2/renderer/logical_renderer.h"
 #include "ps2/system/filesystem.h"
 #include "ps2/system/heap.h"
@@ -236,6 +237,9 @@ PS2_COLD_FUNC void idCommonLocal::InitProduction()
     consoleHistory.ClearHistory();
     eventLoop->Init();
     declManager->Init();
+    // The window GUIs' manager (in-world screens and panels), which the game's entities load; its
+    // device context's font is a logical one until a UI owner exists.
+    uiManager->Init();
 
     ps2::system::lifecycle::PrintMemory("startup-decls");
 
@@ -324,8 +328,10 @@ PS2_COLD_FUNC void idCommonLocal::ShutdownProduction()
     renderWorld = nullptr;
     ps2::renderer::ShutdownLogical();
     soundSystem->Shutdown();
+    uiManager->Shutdown();
     declManager->Shutdown();
     ps2::renderer::ShutdownGameImages();
+    ps2::ui::fonts::ShutdownLogicalFonts();
     CloseLogFile();
     cmdSystem->RemoveCommand("ps2_memory");
     cmdSystem->RemoveCommand("ps2_status");

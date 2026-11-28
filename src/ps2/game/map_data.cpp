@@ -5,8 +5,11 @@
 // collision models from the retail .bcm, every cooked AAS type), and
 // prints the allocation ledgers after each step, the step's peak included; then it frees all of it
 // in MapShutdown's order. ps2_verifyAAS MAP loads each AAS type both from its cooked file and
-// through id's text parse, and compares every table. Debug builds only: they measure and check,
-// and the game's own load replaces them.
+// through id's text parse, and compares every table. ps2_mapspawn MAP [FRAMES] runs the map change
+// ExecuteMapChange makes (the cooked render world into Common's, then InitFromNewMap, which spawns
+// every entity and the player), runs game frames with empty usercmds and shuts the map down, with
+// the ledgers after each step. Debug builds only: they measure and check, and the game's own load
+// replaces them.
 // This source code is released under the GNU GPL-3.0-or-later license.
 // ================================================================================================
 
@@ -19,8 +22,9 @@
 #include "ps2/system/log.h"
 #include <idlib/precompiled.h>
 
-// Kept after precompiled.h, which declares the AAS file's base class.
+// Kept after precompiled.h, which declares the AAS file's base class and the game's types.
 #include <aas/AASFile_local.h>
+#include <d3xp/Game_local.h>
 
 #include <cstring>
 
@@ -34,15 +38,16 @@ static constexpr int kCollisionHeaderBytes = 256;
 // At most this many AAS types (aas_types' "type" keys); the retail declaration names a handful.
 static constexpr int kMaxAasTypes = 16;
 
-// Ends a step: the ledgers under mapdata-STEP with the step's own peaks, which the next step resets.
-PS2_COLD_FUNC void Checkpoint(const char * step, int startMs)
+// Ends a step: the ledgers under PREFIX-STEP with the step's own peaks, which the next step resets,
+// and MARKER_STEP with its milliseconds.
+PS2_COLD_FUNC void Checkpoint(const char * step, int startMs, const char * prefix = "mapdata", const char * marker = "MAPDATA")
 {
     const int elapsed = Sys_Milliseconds() - startMs;
     char label[64] = {};
-    idStr::snPrintf(label, static_cast<int>(sizeof(label)), "mapdata-%s", step);
+    idStr::snPrintf(label, static_cast<int>(sizeof(label)), "%s-%s", prefix, step);
 
     ps2::system::lifecycle::PrintMemory(label);
-    ps2::Log(ps2::LogLevel::Info, "[D3BFG] MAPDATA_STEP %s ms=%d\n", step, elapsed);
+    ps2::Log(ps2::LogLevel::Info, "[D3BFG] %s_STEP %s ms=%d\n", marker, step, elapsed);
     ps2::system::heap::ResetPeaks();
 }
 
@@ -126,8 +131,9 @@ PS2_COLD_FUNC void MapData(const idCmdArgs & args)
     if (collision)
     {
         start = Sys_Milliseconds();
+        // The full name, as idGameLocal::LoadMap passes it: Preload reads maps/<map>.preload.
         collisionModelManager->LoadMap(mapFile);
-        collisionModelManager->Preload(mapName);
+        collisionModelManager->Preload(mapFileName);
         Checkpoint("collision", start);
     }
 
@@ -492,6 +498,108 @@ PS2_COLD_FUNC void VerifyAas(const idCmdArgs & args)
     ps2::Log(ps2::LogLevel::Info, "[D3BFG] AAS_VERIFY map=%s files=%d failures=%d\n", args.Argv(1), files, failures);
 }
 
+// ------------------------------------------------------------------------------------------------
+// ps2_mapspawn
+// ------------------------------------------------------------------------------------------------
+
+static constexpr int kDefaultSpawnFrames = 60;
+
+// ps2_mapspawn MAP [FRAMES [noworld]]: ExecuteMapChange's load (without the renderer's and sound
+// system's level-load calls, which M3.3 gives the PS2), FRAMES game frames, then MapShutdown.
+// noworld spawns into Common's empty render world, to measure the game side alone.
+PS2_COLD_FUNC void MapSpawn(const idCmdArgs & args)
+{
+    const bool noWorld = args.Argc() == 4 && idStr::Icmp(args.Argv(3), "noworld") == 0;
+    if ((args.Argc() != 2 && args.Argc() != 3 && !noWorld)) [[unlikely]]
+    {
+        common->Printf("usage: ps2_mapspawn MAP [FRAMES [noworld]] (as the map command names it, such as game/mars_city1)\n");
+        return;
+    }
+
+    if (game->IsInGame()) [[unlikely]]
+    {
+        common->Printf("ps2_mapspawn: the game holds a map; it spawns only from NOMAP\n");
+        return;
+    }
+
+    const int frames = args.Argc() >= 3 ? atoi(args.Argv(2)) : kDefaultSpawnFrames;
+    idStrStatic<MAX_OSPATH> fullMapName = "maps/";
+    fullMapName += args.Argv(1);
+    idStrStatic<MAX_OSPATH> mapName = args.Argv(1);
+    mapName.StripPath();
+
+    ps2::system::heap::ResetPeaks();
+    ps2::system::lifecycle::PrintMemory("mapspawn-begin");
+
+    int start = Sys_Milliseconds();
+    fileSystem->BeginLevelLoad(args.Argv(1), nullptr, 0);
+    fileSystem->EndLevelLoad();
+    Checkpoint("container", start, "mapspawn", "MAPSPAWN");
+
+    // The map's window GUIs, tokenized (generated/guis/<map>.bgui), as renderSystem->Preload has
+    // uiManager load them before the render world.
+    start = Sys_Milliseconds();
+    uiManager->Preload(args.Argv(1));
+    Checkpoint("preload", start, "mapspawn", "MAPSPAWN");
+
+    // The render world first, as ExecuteMapChange loads it.
+    start = Sys_Milliseconds();
+    if (!common->RW()->InitFromMap(noWorld ? nullptr : fullMapName.c_str())) [[unlikely]]
+    {
+        fileSystem->UnloadMapResources(mapName);
+        common->Printf("ps2_mapspawn: could not load the render world of %s\n", fullMapName.c_str());
+        return;
+    }
+
+    Checkpoint("world", start, "mapspawn", "MAPSPAWN");
+
+    // LoadMap (the cooked entities, collision, AAS, PVS), the map's script, every entity, the player.
+    start = Sys_Milliseconds();
+    game->InitFromNewMap(fullMapName.c_str(), common->RW(), common->SW(), GAME_SP, 0);
+    const int entities = gameLocal.num_entities;
+    const idPlayer * const player = gameLocal.GetLocalPlayer();
+    Checkpoint("spawn", start, "mapspawn", "MAPSPAWN");
+
+    // Game frames with an empty usercmd, as ExecuteMapChange's settling frames run.
+    start = Sys_Milliseconds();
+    idUserCmdMgr * const commands = new (TAG_GAME) idUserCmdMgr;
+    int ran = 0;
+    for (; ran < frames; ++ran)
+    {
+        commands->PutUserCmdForPlayer(0, usercmd_t());
+        gameReturn_t result{};
+        result.sessionCommand[0] = '\0';
+        game->RunFrame(*commands, result);
+
+        if (result.sessionCommand[0] != '\0') [[unlikely]]
+        {
+            common->Printf("ps2_mapspawn: frame %d asked for '%s'\n", ran, result.sessionCommand);
+            break;
+        }
+    }
+
+    delete commands;
+    const int frameMs = Sys_Milliseconds() - start;
+    Checkpoint("frames", start, "mapspawn", "MAPSPAWN");
+
+    ps2::Log(ps2::LogLevel::Info,
+             "[D3BFG] MAPSPAWN map=%s entities=%d spawned=%d player=%d player_origin=%.1f,%.1f,%.1f frames=%d frame_ms=%d\n",
+             args.Argv(1), entities, gameLocal.spawnedEntities.Num(), player != nullptr ? 1 : 0,
+             static_cast<double>(player != nullptr ? player->GetPhysics()->GetOrigin().x : 0.0f),
+             static_cast<double>(player != nullptr ? player->GetPhysics()->GetOrigin().y : 0.0f),
+             static_cast<double>(player != nullptr ? player->GetPhysics()->GetOrigin().z : 0.0f), ran,
+             ran > 0 ? frameMs / ran : 0);
+
+    start = Sys_Milliseconds();
+    game->MapShutdown();
+    Checkpoint("shutdown", start, "mapspawn", "MAPSPAWN");
+
+    start = Sys_Milliseconds();
+    common->RW()->InitFromMap(nullptr);
+    fileSystem->UnloadMapResources(mapName);
+    Checkpoint("end", start, "mapspawn", "MAPSPAWN");
+}
+
 } // namespace
 
 namespace ps2::game
@@ -501,6 +609,8 @@ PS2_COLD_FUNC void InitMapData()
 {
     cmdSystem->AddCommand("ps2_mapdata", MapData, CMD_FL_SYSTEM,
                           CMD_DESC("load a map's game data step by step with memory checkpoints, then free it"));
+    cmdSystem->AddCommand("ps2_mapspawn", MapSpawn, CMD_FL_SYSTEM,
+                          CMD_DESC("load a map's render world, spawn it, run game frames and shut it down, with memory checkpoints"));
     cmdSystem->AddCommand("ps2_verifyAAS", VerifyAas, CMD_FL_SYSTEM,
                           CMD_DESC("load a map's cooked AAS files and their text, and compare every table"));
 }
